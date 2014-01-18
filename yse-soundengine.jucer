@@ -1,0 +1,272 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<JUCERPROJECT id="hSAFBs" name="yse-soundengine" projectType="library" version="1.0.0"
+              bundleIdentifier="com.mute.ysesoundengine" includeBinaryInAppConfig="1"
+              jucerVersion="3.1.0" companyName="Mute GCV">
+  <MAINGROUP id="gxc51y" name="yse-soundengine">
+    <GROUP id="{59235FE2-EE85-F237-9B02-789A0BA18792}" name="src">
+      <GROUP id="{DC39BCB4-7E11-AD3B-9231-2C6D168EF263}" name="backend">
+        <FILE id="m8JZbd" name="filesysImpl.cpp" compile="1" resource="0" file="src/backend/filesysImpl.cpp"/>
+        <FILE id="XKjWKs" name="filesysImpl.h" compile="0" resource="0" file="src/backend/filesysImpl.h"/>
+        <FILE id="Pa1saZ" name="filesystem.cpp" compile="1" resource="0" file="src/backend/filesystem.cpp"/>
+        <FILE id="cyJqun" name="filesystem.hpp" compile="0" resource="0" file="src/backend/filesystem.hpp"/>
+        <FILE id="rLhR2t" name="opensl.cpp" compile="1" resource="0" file="src/backend/opensl.cpp"/>
+        <FILE id="DaoVfX" name="opensl.h" compile="0" resource="0" file="src/backend/opensl.h"/>
+        <FILE id="OojPOD" name="pa.cpp" compile="1" resource="0" file="src/backend/pa.cpp"/>
+        <FILE id="pU2cld" name="pa.h" compile="0" resource="0" file="src/backend/pa.h"/>
+        <FILE id="LnUmxy" name="reverbbackend.cpp" compile="1" resource="0"
+              file="src/backend/reverbbackend.cpp"/>
+        <FILE id="RcGF9N" name="reverbbackend.h" compile="0" resource="0" file="src/backend/reverbbackend.h"/>
+        <FILE id="bZgAjz" name="soundfile.cpp" compile="1" resource="0" file="src/backend/soundfile.cpp"/>
+        <FILE id="q64PWR" name="soundfile.h" compile="0" resource="0" file="src/backend/soundfile.h"/>
+        <FILE id="FftvRs" name="soundLoader.cpp" compile="1" resource="0" file="src/backend/soundLoader.cpp"/>
+        <FILE id="n3y7vx" name="soundLoader.h" compile="0" resource="0" file="src/backend/soundLoader.h"/>
+        <FILE id="zqP3dZ" name="ysetime.cpp" compile="1" resource="0" file="src/backend/ysetime.cpp"/>
+        <FILE id="V8r3ut" name="ysetime.h" compile="0" resource="0" file="src/backend/ysetime.h"/>
+      </GROUP>
+      <GROUP id="{1FE4E6A6-9F03-8140-D55A-69865ACD4445}" name="dsp">
+        <FILE id="iI9pWb" name="delay.cpp" compile="1" resource="0" file="src/dsp/delay.cpp"/>
+        <FILE id="j4jKih" name="delay.hpp" compile="0" resource="0" file="src/dsp/delay.hpp"/>
+        <FILE id="fud6qX" name="dsp.cpp" compile="1" resource="0" file="src/dsp/dsp.cpp"/>
+        <FILE id="BBBASr" name="dsp.hpp" compile="0" resource="0" file="src/dsp/dsp.hpp"/>
+        <FILE id="TLp42W" name="filters.cpp" compile="1" resource="0" file="src/dsp/filters.cpp"/>
+        <FILE id="qmZLou" name="filters.hpp" compile="0" resource="0" file="src/dsp/filters.hpp"/>
+        <FILE id="L6Qh07" name="implementations.h" compile="0" resource="0"
+              file="src/dsp/implementations.h"/>
+        <FILE id="Vfv1FO" name="math.cpp" compile="1" resource="0" file="src/dsp/math.cpp"/>
+        <FILE id="FVmTxs" name="math.hpp" compile="0" resource="0" file="src/dsp/math.hpp"/>
+        <FILE id="eQyyg5" name="math_functions.cpp" compile="1" resource="0"
+              file="src/dsp/math_functions.cpp"/>
+        <FILE id="eD49oK" name="math_functions.h" compile="0" resource="0"
+              file="src/dsp/math_functions.h"/>
+        <GROUP id="{5FA1E3A6-E40E-99BD-41AE-EDFF64BEFA15}" name="modules">
+          <FILE id="LZyvlT" name="hilbert.cpp" compile="1" resource="0" file="src/dsp/modules/hilbert.cpp"/>
+          <FILE id="jNs4jW" name="hilbert.hpp" compile="0" resource="0" file="src/dsp/modules/hilbert.hpp"/>
+          <FILE id="yMyUua" name="ringModulator.cpp" compile="1" resource="0"
+                file="src/dsp/modules/ringModulator.cpp"/>
+          <FILE id="jt4ay8" name="ringModulator.hpp" compile="0" resource="0"
+                file="src/dsp/modules/ringModulator.hpp"/>
+          <FILE id="N6o2VE" name="sineWave.cpp" compile="1" resource="0" file="src/dsp/modules/sineWave.cpp"/>
+          <FILE id="ZJzdZj" name="sineWave.hpp" compile="0" resource="0" file="src/dsp/modules/sineWave.hpp"/>
+        </GROUP>
+        <FILE id="juBcZy" name="oscillators.cpp" compile="1" resource="0" file="src/dsp/oscillators.cpp"/>
+        <FILE id="VKuKH4" name="oscillators.hpp" compile="0" resource="0" file="src/dsp/oscillators.hpp"/>
+        <FILE id="p2QpgO" name="ramp.cpp" compile="1" resource="0" file="src/dsp/ramp.cpp"/>
+        <FILE id="aBp6Sk" name="ramp.hpp" compile="0" resource="0" file="src/dsp/ramp.hpp"/>
+        <FILE id="z0T4QP" name="sample.cpp" compile="1" resource="0" file="src/dsp/sample.cpp"/>
+        <FILE id="SvDSeX" name="sample.hpp" compile="0" resource="0" file="src/dsp/sample.hpp"/>
+      </GROUP>
+      <GROUP id="{71995CA4-E0B5-03D3-D5B2-4F7E40C5D84E}" name="headers">
+        <FILE id="iWhwZG" name="defines.hpp" compile="0" resource="0" file="src/headers/defines.hpp"/>
+        <FILE id="E2FTor" name="enums.hpp" compile="0" resource="0" file="src/headers/enums.hpp"/>
+        <FILE id="OvwPAi" name="types.hpp" compile="0" resource="0" file="src/headers/types.hpp"/>
+      </GROUP>
+      <GROUP id="{3D963741-1EA8-3213-B8F3-5CCE0F4BC8BA}" name="instruments">
+        <FILE id="ynbrHI" name="instrument.cpp" compile="1" resource="0" file="src/instruments/instrument.cpp"/>
+        <FILE id="RT5BVd" name="instrument.hpp" compile="0" resource="0" file="src/instruments/instrument.hpp"/>
+        <FILE id="xLeExZ" name="sampler.cpp" compile="1" resource="0" file="src/instruments/sampler.cpp"/>
+        <FILE id="PNpPUK" name="sampler.hpp" compile="0" resource="0" file="src/instruments/sampler.hpp"/>
+        <FILE id="YksESs" name="sineSynth.cpp" compile="1" resource="0" file="src/instruments/sineSynth.cpp"/>
+        <FILE id="cXVzVW" name="sineSynth.hpp" compile="0" resource="0" file="src/instruments/sineSynth.hpp"/>
+      </GROUP>
+      <GROUP id="{65A433AE-3C10-90F6-ECD4-3ED49BFEEA57}" name="internal">
+        <FILE id="IxijZL" name="channelimpl.cpp" compile="1" resource="0" file="src/internal/channelimpl.cpp"/>
+        <FILE id="WUajKN" name="channelimpl.h" compile="0" resource="0" file="src/internal/channelimpl.h"/>
+        <GROUP id="{53CCD858-7CC9-2F1D-7624-184D97CF1114}" name="instruments">
+          <FILE id="b1Uk95" name="baseInstrumentImpl.cpp" compile="1" resource="0"
+                file="src/internal/instruments/baseInstrumentImpl.cpp"/>
+          <FILE id="iv1j8v" name="baseInstrumentImpl.h" compile="0" resource="0"
+                file="src/internal/instruments/baseInstrumentImpl.h"/>
+          <FILE id="denzQ9" name="samplerImpl.cpp" compile="1" resource="0" file="src/internal/instruments/samplerImpl.cpp"/>
+          <FILE id="aLwiGv" name="samplerImpl.h" compile="0" resource="0" file="src/internal/instruments/samplerImpl.h"/>
+          <FILE id="C8mrqx" name="sineSynthImpl.cpp" compile="1" resource="0"
+                file="src/internal/instruments/sineSynthImpl.cpp"/>
+          <FILE id="XiKdfR" name="sineSynthImpl.h" compile="0" resource="0" file="src/internal/instruments/sineSynthImpl.h"/>
+        </GROUP>
+        <FILE id="u9YBzR" name="internalObjects.cpp" compile="1" resource="0"
+              file="src/internal/internalObjects.cpp"/>
+        <FILE id="y5LoMK" name="internalObjects.h" compile="0" resource="0"
+              file="src/internal/internalObjects.h"/>
+        <FILE id="u585cx" name="listenerimpl.cpp" compile="1" resource="0"
+              file="src/internal/listenerimpl.cpp"/>
+        <FILE id="lf0eoK" name="listenerimpl.h" compile="0" resource="0" file="src/internal/listenerimpl.h"/>
+        <GROUP id="{A4B757E5-52B4-787F-E93B-FEC6EA82681C}" name="music">
+          <FILE id="DJcb3r" name="globalTrack.cpp" compile="1" resource="0" file="src/internal/music/globalTrack.cpp"/>
+          <FILE id="AnKoYr" name="globalTrack.h" compile="0" resource="0" file="src/internal/music/globalTrack.h"/>
+          <FILE id="ah9Lfe" name="trackImpl.cpp" compile="1" resource="0" file="src/internal/music/trackImpl.cpp"/>
+          <FILE id="WG6zDC" name="trackImpl.h" compile="0" resource="0" file="src/internal/music/trackImpl.h"/>
+        </GROUP>
+        <FILE id="Ox12JZ" name="playlistimpl.cpp" compile="1" resource="0"
+              file="src/internal/playlistimpl.cpp"/>
+        <FILE id="RrXqF1" name="playlistimpl.h" compile="0" resource="0" file="src/internal/playlistimpl.h"/>
+        <FILE id="WVGA8W" name="reverbimpl.cpp" compile="1" resource="0" file="src/internal/reverbimpl.cpp"/>
+        <FILE id="f8VYrb" name="reverbimpl.h" compile="0" resource="0" file="src/internal/reverbimpl.h"/>
+        <FILE id="cBii9q" name="settings.cpp" compile="1" resource="0" file="src/internal/settings.cpp"/>
+        <FILE id="NdxvP0" name="settings.h" compile="0" resource="0" file="src/internal/settings.h"/>
+        <FILE id="XYQhGj" name="soundimpl.cpp" compile="1" resource="0" file="src/internal/soundimpl.cpp"/>
+        <FILE id="v9dufr" name="soundimpl.h" compile="0" resource="0" file="src/internal/soundimpl.h"/>
+      </GROUP>
+      <GROUP id="{11D604C0-4DD3-B9D5-1D48-8A2EEF4D510D}" name="music">
+        <FILE id="ZGTuD7" name="chord.cpp" compile="1" resource="0" file="src/music/chord.cpp"/>
+        <FILE id="mofD4v" name="chord.hpp" compile="0" resource="0" file="src/music/chord.hpp"/>
+        <FILE id="ny4FWM" name="note.cpp" compile="1" resource="0" file="src/music/note.cpp"/>
+        <FILE id="EHQ8ua" name="note.hpp" compile="0" resource="0" file="src/music/note.hpp"/>
+        <FILE id="CgozTL" name="track.cpp" compile="1" resource="0" file="src/music/track.cpp"/>
+        <FILE id="Iq36Jl" name="track.hpp" compile="0" resource="0" file="src/music/track.hpp"/>
+      </GROUP>
+      <GROUP id="{9A5B0C41-4E45-1D07-756C-4B8A6D63BC20}" name="utils">
+        <FILE id="oIckB5" name="error.cpp" compile="1" resource="0" file="src/utils/error.cpp"/>
+        <FILE id="kPROiI" name="error.hpp" compile="0" resource="0" file="src/utils/error.hpp"/>
+        <FILE id="NwNLs5" name="guard.cpp" compile="1" resource="0" file="src/utils/guard.cpp"/>
+        <FILE id="wdwCfH" name="guard.h" compile="0" resource="0" file="src/utils/guard.h"/>
+        <FILE id="lhjhPB" name="memory.cpp" compile="1" resource="0" file="src/utils/memory.cpp"/>
+        <FILE id="lni60A" name="memory.hpp" compile="0" resource="0" file="src/utils/memory.hpp"/>
+        <FILE id="XRXHvb" name="misc.cpp" compile="1" resource="0" file="src/utils/misc.cpp"/>
+        <FILE id="XJVd8c" name="misc.hpp" compile="0" resource="0" file="src/utils/misc.hpp"/>
+        <FILE id="EV32eV" name="vector.cpp" compile="1" resource="0" file="src/utils/vector.cpp"/>
+        <FILE id="KkSH2e" name="vector.hpp" compile="0" resource="0" file="src/utils/vector.hpp"/>
+      </GROUP>
+      <FILE id="RTaDWm" name="channel.cpp" compile="1" resource="0" file="src/channel.cpp"/>
+      <FILE id="BRc7OR" name="channel.hpp" compile="0" resource="0" file="src/channel.hpp"/>
+      <FILE id="xKYT5S" name="device.cpp" compile="1" resource="0" file="src/device.cpp"/>
+      <FILE id="faYkC7" name="device.hpp" compile="0" resource="0" file="src/device.hpp"/>
+      <FILE id="gWonNL" name="listener.cpp" compile="1" resource="0" file="src/listener.cpp"/>
+      <FILE id="FRj1oX" name="listener.hpp" compile="0" resource="0" file="src/listener.hpp"/>
+      <FILE id="ykiMUO" name="playlist.cpp" compile="1" resource="0" file="src/playlist.cpp"/>
+      <FILE id="yZ3i6o" name="playlist.hpp" compile="0" resource="0" file="src/playlist.hpp"/>
+      <FILE id="FxDHSj" name="reverb.cpp" compile="1" resource="0" file="src/reverb.cpp"/>
+      <FILE id="svdZLo" name="reverb.hpp" compile="0" resource="0" file="src/reverb.hpp"/>
+      <FILE id="M1aF6o" name="seng.h" compile="0" resource="0" file="src/seng.h"/>
+      <FILE id="VmQlmG" name="sound.cpp" compile="1" resource="0" file="src/sound.cpp"/>
+      <FILE id="kTcghO" name="sound.hpp" compile="0" resource="0" file="src/sound.hpp"/>
+      <FILE id="MafaeP" name="speakers.cpp" compile="1" resource="0" file="src/speakers.cpp"/>
+      <FILE id="GJWlDx" name="speakers.h" compile="0" resource="0" file="src/speakers.h"/>
+      <FILE id="OQflpy" name="stdafx.h" compile="0" resource="0" file="src/stdafx.h"/>
+      <FILE id="t2QsP4" name="system.cpp" compile="1" resource="0" file="src/system.cpp"/>
+      <FILE id="Leyt3g" name="system.hpp" compile="0" resource="0" file="src/system.hpp"/>
+      <FILE id="m7xKW8" name="yse.hpp" compile="0" resource="0" file="src/yse.hpp"/>
+    </GROUP>
+  </MAINGROUP>
+  <EXPORTFORMATS>
+    <XCODE_MAC targetFolder="Builds/MacOSX">
+      <CONFIGURATIONS>
+        <CONFIGURATION name="Debug" osxSDK="default" osxCompatibility="default" osxArchitecture="default"
+                       isDebug="1" optimisation="1" targetName="yse-soundengine"/>
+        <CONFIGURATION name="Release" osxSDK="default" osxCompatibility="default" osxArchitecture="default"
+                       isDebug="0" optimisation="2" targetName="yse-soundengine"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_events" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_basics" path="../JUCE/modules"/>
+      </MODULEPATHS>
+    </XCODE_MAC>
+    <XCODE_IPHONE targetFolder="Builds/iOS">
+      <CONFIGURATIONS>
+        <CONFIGURATION name="Debug" iosCompatibility="default" isDebug="1" optimisation="1"
+                       targetName="yse-soundengine"/>
+        <CONFIGURATION name="Release" iosCompatibility="default" isDebug="0" optimisation="2"
+                       targetName="yse-soundengine"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_events" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_basics" path="../JUCE/modules"/>
+      </MODULEPATHS>
+    </XCODE_IPHONE>
+    <VS2012 targetFolder="Builds/VisualStudio2012">
+      <CONFIGURATIONS>
+        <CONFIGURATION name="Debug" winWarningLevel="4" generateManifest="1" winArchitecture="32-bit"
+                       isDebug="1" optimisation="1" targetName="yse-soundengine"/>
+        <CONFIGURATION name="Release" winWarningLevel="4" generateManifest="1" winArchitecture="32-bit"
+                       isDebug="0" optimisation="2" targetName="yse-soundengine"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_events" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_basics" path="../JUCE/modules"/>
+      </MODULEPATHS>
+    </VS2012>
+    <VS2013 targetFolder="Builds/VisualStudio2013">
+      <CONFIGURATIONS>
+        <CONFIGURATION name="Debug" winWarningLevel="4" generateManifest="1" winArchitecture="32-bit"
+                       isDebug="1" optimisation="1" targetName="yse-soundengine"/>
+        <CONFIGURATION name="Release" winWarningLevel="4" generateManifest="1" winArchitecture="32-bit"
+                       isDebug="0" optimisation="2" targetName="yse-soundengine"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_events" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_basics" path="../JUCE/modules"/>
+      </MODULEPATHS>
+    </VS2013>
+    <LINUX_MAKE targetFolder="Builds/Linux">
+      <CONFIGURATIONS>
+        <CONFIGURATION name="Debug" libraryPath="/usr/X11R6/lib/" isDebug="1" optimisation="1"
+                       targetName="yse-soundengine"/>
+        <CONFIGURATION name="Release" libraryPath="/usr/X11R6/lib/" isDebug="0" optimisation="2"
+                       targetName="yse-soundengine"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_events" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_basics" path="../JUCE/modules"/>
+      </MODULEPATHS>
+    </LINUX_MAKE>
+    <ANDROID targetFolder="Builds/Android" androidActivityClass="com.yourcompany.ysesoundengine.ysesoundengine"
+             androidSDKPath="${user.home}/SDKs/android-sdk" androidNDKPath="${user.home}/SDKs/android-ndk"
+             androidMinimumSDK="8" androidInternetNeeded="1" androidKeyStore="${user.home}/.android/debug.keystore"
+             androidKeyStorePass="android" androidKeyAlias="androiddebugkey"
+             androidKeyAliasPass="android">
+      <CONFIGURATIONS>
+        <CONFIGURATION name="Debug" androidArchitectures="armeabi armeabi-v7a" isDebug="1"
+                       optimisation="1" targetName="yse-soundengine"/>
+        <CONFIGURATION name="Release" androidArchitectures="armeabi armeabi-v7a" isDebug="0"
+                       optimisation="2" targetName="yse-soundengine"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_events" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_basics" path="../JUCE/modules"/>
+      </MODULEPATHS>
+    </ANDROID>
+    <CODEBLOCKS targetFolder="Builds/CodeBlocks">
+      <CONFIGURATIONS>
+        <CONFIGURATION name="Debug" isDebug="1" optimisation="1" targetName="yse-soundengine"/>
+        <CONFIGURATION name="Release" isDebug="0" optimisation="2" targetName="yse-soundengine"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_events" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_basics" path="../JUCE/modules"/>
+      </MODULEPATHS>
+    </CODEBLOCKS>
+  </EXPORTFORMATS>
+  <MODULES>
+    <MODULES id="juce_audio_basics" showAllCode="1" useLocalCopy="1"/>
+    <MODULES id="juce_audio_devices" showAllCode="1" useLocalCopy="1"/>
+    <MODULES id="juce_audio_formats" showAllCode="1" useLocalCopy="1"/>
+    <MODULES id="juce_core" showAllCode="1" useLocalCopy="1"/>
+    <MODULES id="juce_events" showAllCode="1" useLocalCopy="1"/>
+  </MODULES>
+  <JUCEOPTIONS JUCE_ASIO="enabled" JUCE_WASAPI="enabled" JUCE_DIRECTSOUND="enabled"
+               JUCE_ALSA="enabled" JUCE_JACK="enabled" JUCE_USE_ANDROID_OPENSLES="enabled"
+               JUCE_USE_CDREADER="disabled" JUCE_USE_CDBURNER="disabled" JUCE_USE_FLAC="enabled"
+               JUCE_USE_OGGVORBIS="enabled" JUCE_USE_MP3AUDIOFORMAT="disabled"
+               JUCE_USE_LAME_AUDIO_FORMAT="enabled" JUCE_USE_WINDOWS_MEDIA_FORMAT="enabled"
+               JUCE_CHECK_MEMORY_LEAKS="enabled"/>
+</JUCERPROJECT>

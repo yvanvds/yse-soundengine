@@ -1,0 +1,16 @@
+This is libYSE 0.7
+
+libYSE is a cross platform sound engine for windows, macOS and linux. Android and iOS support will follow later.
+
+The library can be installed on linux by using the known mantra:
+
+./configure
+make
+sudo make install
+ldconfig 
+
+ldconfig is needed to add YSE to the library path. Linux testing has been done on ubuntu 13.04 only.
+
+More information about YSE can be found on http://attr-x.net/yse
+The git repository also includes a few tutorial programs.
+
