@@ -13,9 +13,10 @@ BEGIN
   BEGIN
     BLOCK "040904E4"
     BEGIN
-      VALUE "FileDescription",  "Demo\0"
+      VALUE "CompanyName",  "Mute\0"
+      VALUE "FileDescription",  "YseDemo\0"
       VALUE "FileVersion",  "1.0.0\0"
-      VALUE "ProductName",  "Demo\0"
+      VALUE "ProductName",  "YseDemo\0"
       VALUE "ProductVersion",  "1.0.0\0"
     END
   END

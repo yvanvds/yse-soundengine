@@ -1,0 +1,306 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<Project ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="YseDemo">
+      <UniqueIdentifier>{A2154AF3-84B9-4221-10E6-C81C15849277}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="YseDemo\YSE">
+      <UniqueIdentifier>{D1F76438-5187-779B-DD8A-2C4DFC4695BC}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="YseDemo\YSE\dsp">
+      <UniqueIdentifier>{DDE5D33B-82CA-143C-981F-9674E07BFE2B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="YseDemo\YSE\dsp\modules">
+      <UniqueIdentifier>{3FCB4148-ADEB-CFE9-D045-7DF94817782F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="YseDemo\YSE\headers">
+      <UniqueIdentifier>{04D83836-6DC3-96E3-5903-C6B8907BFE63}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="YseDemo\YSE\implementations">
+      <UniqueIdentifier>{C4789E7D-46D4-51CA-6561-F8CFDC52A28C}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="YseDemo\YSE\internal">
+      <UniqueIdentifier>{ACE48582-FCA0-679D-3A4E-C103C0BF2121}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="YseDemo\YSE\utils">
+      <UniqueIdentifier>{D320A83E-0C06-FBED-02E5-2D994DAC203D}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="YseDemo\Source">
+      <UniqueIdentifier>{1C96781C-953C-B07C-3AE4-19FA9AF04D3E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="YseDemo\Source\parts">
+      <UniqueIdentifier>{C43EF143-949E-55E3-CB07-47AE87C3D7AE}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Juce Library Code">
+      <UniqueIdentifier>{8B4D1BAA-6DB4-CAEC-A0FA-271F354D5C61}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\yse\dsp\delay.cpp">
+      <Filter>YseDemo\YSE\dsp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\dsp\dspObject.cpp">
+      <Filter>YseDemo\YSE\dsp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\dsp\filters.cpp">
+      <Filter>YseDemo\YSE\dsp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\dsp\math.cpp">
+      <Filter>YseDemo\YSE\dsp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\dsp\math_functions.cpp">
+      <Filter>YseDemo\YSE\dsp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\dsp\modules\hilbert.cpp">
+      <Filter>YseDemo\YSE\dsp\modules</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\dsp\modules\ringModulator.cpp">
+      <Filter>YseDemo\YSE\dsp\modules</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\dsp\modules\sineWave.cpp">
+      <Filter>YseDemo\YSE\dsp\modules</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\dsp\oscillators.cpp">
+      <Filter>YseDemo\YSE\dsp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\dsp\ramp.cpp">
+      <Filter>YseDemo\YSE\dsp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\dsp\sample.cpp">
+      <Filter>YseDemo\YSE\dsp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\implementations\channelImplementation.cpp">
+      <Filter>YseDemo\YSE\implementations</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\implementations\listenerImplementation.cpp">
+      <Filter>YseDemo\YSE\implementations</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\implementations\logImplementation.cpp">
+      <Filter>YseDemo\YSE\implementations</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\implementations\soundImplementation.cpp">
+      <Filter>YseDemo\YSE\implementations</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\internal\channelManager.cpp">
+      <Filter>YseDemo\YSE\internal</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\internal\deviceManager.cpp">
+      <Filter>YseDemo\YSE\internal</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\internal\global.cpp">
+      <Filter>YseDemo\YSE\internal</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\internal\reverbDSP.cpp">
+      <Filter>YseDemo\YSE\internal</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\internal\reverbManager.cpp">
+      <Filter>YseDemo\YSE\internal</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\internal\settings.cpp">
+      <Filter>YseDemo\YSE\internal</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\internal\soundFile.cpp">
+      <Filter>YseDemo\YSE\internal</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\internal\soundManager.cpp">
+      <Filter>YseDemo\YSE\internal</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\internal\time.cpp">
+      <Filter>YseDemo\YSE\internal</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\internal\underWaterEffect.cpp">
+      <Filter>YseDemo\YSE\internal</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\utils\vector.cpp">
+      <Filter>YseDemo\YSE\utils</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\channel.cpp">
+      <Filter>YseDemo\YSE</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\listener.cpp">
+      <Filter>YseDemo\YSE</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\log.cpp">
+      <Filter>YseDemo\YSE</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\reverb.cpp">
+      <Filter>YseDemo\YSE</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\sound.cpp">
+      <Filter>YseDemo\YSE</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\system.cpp">
+      <Filter>YseDemo\YSE</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\parts\draggedComponent.cpp">
+      <Filter>YseDemo\Source\parts</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\basic.cpp">
+      <Filter>YseDemo\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\basic3D.cpp">
+      <Filter>YseDemo\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\cpuLoad.cpp">
+      <Filter>YseDemo\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Main.cpp">
+      <Filter>YseDemo\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\MainComponent.cpp">
+      <Filter>YseDemo\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\tabs.cpp">
+      <Filter>YseDemo\Source</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\yse\dsp\delay.hpp">
+      <Filter>YseDemo\YSE\dsp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\dsp\dspObject.hpp">
+      <Filter>YseDemo\YSE\dsp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\dsp\filters.hpp">
+      <Filter>YseDemo\YSE\dsp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\dsp\math.hpp">
+      <Filter>YseDemo\YSE\dsp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\dsp\math_functions.h">
+      <Filter>YseDemo\YSE\dsp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\dsp\modules\hilbert.hpp">
+      <Filter>YseDemo\YSE\dsp\modules</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\dsp\modules\ringModulator.hpp">
+      <Filter>YseDemo\YSE\dsp\modules</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\dsp\modules\sineWave.hpp">
+      <Filter>YseDemo\YSE\dsp\modules</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\dsp\oscillators.hpp">
+      <Filter>YseDemo\YSE\dsp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\dsp\ramp.hpp">
+      <Filter>YseDemo\YSE\dsp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\dsp\sample.hpp">
+      <Filter>YseDemo\YSE\dsp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\headers\constants.hpp">
+      <Filter>YseDemo\YSE\headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\headers\defines.hpp">
+      <Filter>YseDemo\YSE\headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\headers\enums.hpp">
+      <Filter>YseDemo\YSE\headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\headers\types.hpp">
+      <Filter>YseDemo\YSE\headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\implementations\channelImplementation.h">
+      <Filter>YseDemo\YSE\implementations</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\implementations\listenerImplementation.h">
+      <Filter>YseDemo\YSE\implementations</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\implementations\logImplementation.h">
+      <Filter>YseDemo\YSE\implementations</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\implementations\soundImplementation.h">
+      <Filter>YseDemo\YSE\implementations</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\internal\channelManager.h">
+      <Filter>YseDemo\YSE\internal</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\internal\deviceManager.h">
+      <Filter>YseDemo\YSE\internal</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\internal\global.h">
+      <Filter>YseDemo\YSE\internal</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\internal\reverbDSP.h">
+      <Filter>YseDemo\YSE\internal</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\internal\reverbManager.h">
+      <Filter>YseDemo\YSE\internal</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\internal\settings.h">
+      <Filter>YseDemo\YSE\internal</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\internal\soundFile.h">
+      <Filter>YseDemo\YSE\internal</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\internal\soundManager.h">
+      <Filter>YseDemo\YSE\internal</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\internal\time.h">
+      <Filter>YseDemo\YSE\internal</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\internal\underWaterEffect.h">
+      <Filter>YseDemo\YSE\internal</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\utils\misc.hpp">
+      <Filter>YseDemo\YSE\utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\utils\vector.hpp">
+      <Filter>YseDemo\YSE\utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\channel.hpp">
+      <Filter>YseDemo\YSE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\classes.hpp">
+      <Filter>YseDemo\YSE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\listener.hpp">
+      <Filter>YseDemo\YSE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\log.hpp">
+      <Filter>YseDemo\YSE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\reverb.hpp">
+      <Filter>YseDemo\YSE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\sound.hpp">
+      <Filter>YseDemo\YSE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\system.hpp">
+      <Filter>YseDemo\YSE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\yse.hpp">
+      <Filter>YseDemo\YSE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\parts\draggedComponent.h">
+      <Filter>YseDemo\Source\parts</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\basic.h">
+      <Filter>YseDemo\Source</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\basic3D.h">
+      <Filter>YseDemo\Source</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\cpuLoad.h">
+      <Filter>YseDemo\Source</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\MainComponent.h">
+      <Filter>YseDemo\Source</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\tabs.h">
+      <Filter>YseDemo\Source</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\JuceLibraryCode\AppConfig.h">
+      <Filter>Juce Library Code</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\JuceLibraryCode\JuceHeader.h">
+      <Filter>Juce Library Code</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include=".\resources.rc">
+      <Filter>Juce Library Code</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+</Project>

@@ -69,12 +69,12 @@ YSE::channel::~channel() {
   release();
 }
 
-YSE::channel& YSE::channel::volume(Flt value) {
+YSE::channel& YSE::channel::setVolume(Flt value) {
   pimpl->newVolume = value;
   return (*this);
 }
 
-Flt YSE::channel::volume() {
+Flt YSE::channel::getVolume() {
   return pimpl->newVolume;
 }
 
@@ -84,7 +84,7 @@ YSE::channel& YSE::channel::moveTo(channel& parent) {
   return (*this);
 }
 
-YSE::channel& YSE::channel::set(Int count) {
+YSE::channel& YSE::channel::setNumerOfSpeakers(Int count) {
   const ScopedLock lock(INTERNAL::Global.getDeviceManager().getLock());
   pimpl->set(count);
   return (*this);

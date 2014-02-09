@@ -17,37 +17,52 @@
 #include "headers/types.hpp"
 
 namespace YSE {
+  /**
+      A singleton class for logging. Normally this will write messages to a file when asked for. The behaviour can be
+        overwritten though. Keep in mind that the logging system is
+        only available between System().Init() and System().close().
+  */
   class API log {
   public:
-    /** set / get the current loglevel
+      
+    /** You can send your own log messages to the YSE log
+        system. They will be printed with the keyword 'app message'.
+        They will appear at Error loglevel.
+    */
+    log& sendMessage(const char * msg);
+      
+    /** set the current loglevel.
         By default this is set to EL_DEBUG in debug mode
         and EL_ERRORS in release mode. Other modes are
         EL_WARNINGS and EL_NONE.
     */
-    ERROR_LEVEL level(); log& level(ERROR_LEVEL value); 
-
+    log& setLevel(ERROR_LEVEL value);
+      
+    /** Get the current loglevel.
+    */
+    ERROR_LEVEL getLevel();
+      
     /** You can set a custom callback function here.
         This overwrites the normal logfile output
     */
     log& setCallback(void(*funcPtr)(const char *)); 
 
-    /** set / get the current output file. By default 
+    /** set the current output file. By default
         this file is called 'YSElog.txt' and will be
         placed in the work directory. (Dependant on OS)
     */
-    std::string logfile(); log& logfile(const char * path);
+    log& setLogfile(const char * path);
 
-    /** You can send your own log messages to the YSE log
-        system. They will be printed with the keyword 'app message'.
-        They will appear at Error loglevel.
+    /** Get the current output file.
     */
-    log& message(const char * msg);
+    std::string getLogfile();
   };
-
+  
+  /**
+      A functor to retrieve the Logging object.
+  */
   API log & Log();
 }
-
-
 
 
 #endif  // LOG_H_INCLUDED

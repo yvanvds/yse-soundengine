@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<JUCERPROJECT id="RgPlYC" name="Demo" projectType="guiapp" version="1.0.0"
-              bundleIdentifier="com.yourcompany.Demo" includeBinaryInAppConfig="1"
-              jucerVersion="3.1.0">
-  <MAINGROUP id="JJ8B7i" name="Demo">
+<JUCERPROJECT id="RgPlYC" name="YseDemo" projectType="guiapp" version="1.0.0"
+              bundleIdentifier="com.mute.YseDemo" includeBinaryInAppConfig="1"
+              jucerVersion="3.1.0" companyName="Mute">
+  <MAINGROUP id="JJ8B7i" name="YseDemo">
     <GROUP id="{4A43B2A5-8C02-2D07-7F91-E76235BDF2CB}" name="YSE">
       <GROUP id="{216A5E7B-0B49-1FC7-B118-A09BEE133723}" name="dsp">
         <FILE id="afaL5z" name="delay.cpp" compile="1" resource="0" file="../yse/dsp/delay.cpp"/>
@@ -150,6 +150,26 @@
         <MODULEPATH id="juce_audio_basics" path="../../juce"/>
       </MODULEPATHS>
     </VS2013>
+    <XCODE_MAC targetFolder="Builds/MacOSX">
+      <CONFIGURATIONS>
+        <CONFIGURATION name="Debug" osxSDK="default" osxCompatibility="default" osxArchitecture="default"
+                       isDebug="1" optimisation="1" targetName="YseDemo"/>
+        <CONFIGURATION name="Release" osxSDK="default" osxCompatibility="default" osxArchitecture="default"
+                       isDebug="0" optimisation="2" targetName="YseDemo"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_gui_extra" path="../../juce"/>
+        <MODULEPATH id="juce_gui_basics" path="../../juce"/>
+        <MODULEPATH id="juce_graphics" path="../../juce"/>
+        <MODULEPATH id="juce_events" path="../../juce"/>
+        <MODULEPATH id="juce_data_structures" path="../../juce"/>
+        <MODULEPATH id="juce_cryptography" path="../../juce"/>
+        <MODULEPATH id="juce_core" path="../../juce"/>
+        <MODULEPATH id="juce_audio_formats" path="../../juce"/>
+        <MODULEPATH id="juce_audio_devices" path="../../juce"/>
+        <MODULEPATH id="juce_audio_basics" path="../../juce"/>
+      </MODULEPATHS>
+    </XCODE_MAC>
   </EXPORTFORMATS>
   <MODULES>
     <MODULES id="juce_audio_basics" showAllCode="1" useLocalCopy="1"/>

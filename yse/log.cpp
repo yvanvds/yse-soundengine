@@ -19,11 +19,11 @@ YSE::log & YSE::Log() {
 }
 
 
-YSE::ERROR_LEVEL YSE::log::level() {
+YSE::ERROR_LEVEL YSE::log::getLevel() {
   return INTERNAL::Global.getLog().getLevel();
 }
 
-YSE::log & YSE::log::level(YSE::ERROR_LEVEL value) {
+YSE::log & YSE::log::setLevel(YSE::ERROR_LEVEL value) {
   INTERNAL::Global.getLog().setLevel(value);
   return (*this);
 }
@@ -33,16 +33,16 @@ YSE::log & YSE::log::setCallback(void(*funcPtr)(const char *)) {
   return (*this);
 }
 
-std::string YSE::log::logfile() {
+std::string YSE::log::getLogfile() {
   return INTERNAL::Global.getLog().getLogfile();
 }
 
-YSE::log & YSE::log::logfile(const char * path) {
+YSE::log & YSE::log::setLogfile(const char * path) {
   INTERNAL::Global.getLog().setLogfile(path);
   return (*this);
 }
 
-YSE::log & YSE::log::message(const char * msg) {
+YSE::log & YSE::log::sendMessage(const char * msg) {
   INTERNAL::Global.getLog().emit(E_APP_MESSAGE, msg);
   return (*this);
 }
