@@ -21,15 +21,10 @@ Bool YSE::INTERNAL::soundFile::create(const File &file, Bool stream) {
   _endReached = false;
   _file = file;
   
-  if (!_file.existsAsFile()) {
-    Global.getLog().emit(E_FILE_ERROR, "file not found for " + _file.getFullPathName().toStdString());
-    return false;
-  }
-
   // load sound into memory
   _needsReset = false;
 
-  if (!_streaming) {
+  if (!_streaming && _state == NEW) {
     _state = LOADING;
     Global.getSoundManager().addToQue(this);
   } 
@@ -298,7 +293,7 @@ YSE::INTERNAL::soundFile::~soundFile() {
 
 // the real _buffer size is set while loading the sound, but JUCE does not allow for
 // audio bufers of zero length. This is why it is set to one here.
-YSE::INTERNAL::soundFile::soundFile() : _buffer(1, 1), clients(0), idleTime(0) {
+YSE::INTERNAL::soundFile::soundFile() : _buffer(1, 1), clients(0), idleTime(0), _state(NEW) {
   _sampleRateAdjustment = 1.0f;
 }
 

@@ -62,10 +62,10 @@ void draggedComponent::mouseDrag(const MouseEvent & e) {
       , NotificationType::sendNotification);
     dragger.dragComponent(this, e, &constrainer);
     if (listener) {
-      YSE::Listener().pos(YSE::Vec(ysePos.x, 0, ysePos.y));
+      YSE::Listener().setPosition(YSE::Vec(ysePos.x, 0, ysePos.y));
     }
     else {
-      sound.pos(YSE::Vec(ysePos.x, 0, ysePos.y));
+      sound.setPosition(YSE::Vec(ysePos.x, 0, ysePos.y));
     } 
   } 
 }
@@ -103,13 +103,13 @@ Point<float> draggedComponent::calculateYSEPos(const Point<int> & pos) {
 void draggedComponent::setListener(bool value) {
   listener = value;
   Point<float> ysePos = calculateYSEPos(getPosition());
-  YSE::Listener().pos(YSE::Vec(ysePos.x, 0, ysePos.y));
+  YSE::Listener().setPosition(YSE::Vec(ysePos.x, 0, ysePos.y));
 }
 
 void draggedComponent::setSound(const String & name) {
   sound.create(name.toStdString().c_str(), &YSE::ChannelMainMix(), true);
   Point<float> ysePos = calculateYSEPos(getPosition());
-  sound.pos(YSE::Vec(ysePos.x, 0, ysePos.y));
+  sound.setPosition(YSE::Vec(ysePos.x, 0, ysePos.y));
 }
 
 void draggedComponent::play(bool value) {

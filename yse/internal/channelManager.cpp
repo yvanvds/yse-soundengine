@@ -102,7 +102,7 @@ void YSE::INTERNAL::channelManager::changeChannelConf(CHANNEL_TYPE type, Int out
   case CT_51SIDE: set51Side(); break;
   case CT_61:	set61(); break;
   case CT_71:	set71(); break;
-  case CT_CUSTOM: _mainMix.set(outputs); break;
+  case CT_CUSTOM: _mainMix.setNumberOfSpeakers(outputs); break;
   }
 }
 
@@ -119,39 +119,39 @@ void YSE::INTERNAL::channelManager::setAuto(Int count) {
 }
 
 void YSE::INTERNAL::channelManager::setMono() {
-  _mainMix.set(1).pos(0, 0);
+  _mainMix.setNumberOfSpeakers(1).pos(0, 0);
 }
 
 void YSE::INTERNAL::channelManager::setStereo() {
-  _mainMix.set(2).pos(0, Pi / 180.0f * -90.0f).pos(1, Pi / 180.0f * 90.0f);
+  _mainMix.setNumberOfSpeakers(2).pos(0, Pi / 180.0f * -90.0f).pos(1, Pi / 180.0f * 90.0f);
 }
 
 void YSE::INTERNAL::channelManager::setQuad() {
-  _mainMix.set(4).pos(0, Pi / 180.0f * -45.0f).pos(1, Pi / 180.0f *  45.0f)
+  _mainMix.setNumberOfSpeakers(4).pos(0, Pi / 180.0f * -45.0f).pos(1, Pi / 180.0f *  45.0f)
     .pos(2, Pi / 180.0f * 135.0f).pos(3, Pi / 180.0f * 135.0f);
 }
 
 void YSE::INTERNAL::channelManager::set51() {
-  _mainMix.set(5).pos(0, Pi / 180.0f *  -45.0f).pos(1, Pi / 180.0f *  45.0f)
+  _mainMix.setNumberOfSpeakers(5).pos(0, Pi / 180.0f *  -45.0f).pos(1, Pi / 180.0f *  45.0f)
     .pos(2, Pi / 180.0f *	   0.0f)
     .pos(3, Pi / 180.0f * -135.0f).pos(4, Pi / 180.0f *	135.0f);
 }
 
 void YSE::INTERNAL::channelManager::set51Side() {
-  _mainMix.set(5).pos(0, Pi / 180.0f * -45.0f).pos(1, Pi / 180.0f * 45.0f)
+  _mainMix.setNumberOfSpeakers(5).pos(0, Pi / 180.0f * -45.0f).pos(1, Pi / 180.0f * 45.0f)
     .pos(2, Pi / 180.0f *		0.0f)
     .pos(3, Pi / 180.0f * -90.0f).pos(4, Pi / 180.0f * 90.0f);
 }
 
 void YSE::INTERNAL::channelManager::set61() {
-  _mainMix.set(5).pos(0, Pi / 180.0f * -45.0f).pos(1, Pi / 180.0f * 45.0f)
+  _mainMix.setNumberOfSpeakers(5).pos(0, Pi / 180.0f * -45.0f).pos(1, Pi / 180.0f * 45.0f)
     .pos(2, Pi / 180.0f *	  0.0f)
     .pos(3, Pi / 180.0f * -90.0f).pos(4, Pi / 180.0f * 90.0f)
     .pos(5, Pi / 180.0f * 180.0f);
 }
 
 void YSE::INTERNAL::channelManager::set71() {
-  _mainMix.set(5).pos(0, Pi / 180.0f *  -45.0f).pos(1, Pi / 180.0f *  45.0f)
+  _mainMix.setNumberOfSpeakers(5).pos(0, Pi / 180.0f *  -45.0f).pos(1, Pi / 180.0f *  45.0f)
     .pos(2, Pi / 180.0f *	   0.0f)
     .pos(3, Pi / 180.0f *  -90.0f).pos(4, Pi / 180.0f *	 90.0f)
     .pos(5, Pi / 180.0f * -135.0f).pos(6, Pi / 180.0f * 135.0f);

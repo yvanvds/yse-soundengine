@@ -21,6 +21,7 @@ namespace YSE {
   namespace INTERNAL {
 
     enum FILESTATE {
+      NEW,
       LOADING,
       READY,
       INVALID,

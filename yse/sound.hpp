@@ -82,7 +82,7 @@ namespace YSE {
     /**
         Returns how much a multichannel sound is spread out in space.
     */
-    Flt setSpread();
+    Flt getSpread();
     
     /**
         The speed at which a sound plays back alters it's pitch. The actual speed will also 
@@ -118,7 +118,7 @@ namespace YSE {
     
     /** If this sound is looping or one-shot.
     */
-    Bool getLooping();
+    Bool isLooping();
 
     /**
      Sets the volume for this sound. You can use this as a fader by supplying a time value.
@@ -216,7 +216,7 @@ namespace YSE {
     /**
      See if a sound is relative to the Listener() object.
     */
-    Bool getRelative();
+    Bool isRelative();
       
     /**
      Enable / disable doppler for this sound.
@@ -235,7 +235,7 @@ namespace YSE {
     sound& set2D(Bool value);
       
       
-    Bool get2D();
+    Bool is2D();
     
     /**
      Will be true if the sound is streamed (from disk or over the network) instead of played

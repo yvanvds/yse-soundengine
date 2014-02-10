@@ -133,9 +133,11 @@
     <VS2013 targetFolder="Builds/VisualStudio2013">
       <CONFIGURATIONS>
         <CONFIGURATION name="Debug" winWarningLevel="4" generateManifest="1" winArchitecture="32-bit"
-                       isDebug="1" optimisation="1" targetName="Demo"/>
+                       isDebug="1" optimisation="1" targetName="Demo" binaryPath="../bin"
+                       headerPath="../yse"/>
         <CONFIGURATION name="Release" winWarningLevel="4" generateManifest="1" winArchitecture="32-bit"
-                       isDebug="0" optimisation="2" targetName="Demo"/>
+                       isDebug="0" optimisation="3" targetName="Demo" binaryPath="../bin"
+                       headerPath="../yse"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
         <MODULEPATH id="juce_gui_extra" path="../../juce"/>

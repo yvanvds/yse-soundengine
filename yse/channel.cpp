@@ -84,7 +84,7 @@ YSE::channel& YSE::channel::moveTo(channel& parent) {
   return (*this);
 }
 
-YSE::channel& YSE::channel::setNumerOfSpeakers(Int count) {
+YSE::channel& YSE::channel::setNumberOfSpeakers(Int count) {
   const ScopedLock lock(INTERNAL::Global.getDeviceManager().getLock());
   pimpl->set(count);
   return (*this);

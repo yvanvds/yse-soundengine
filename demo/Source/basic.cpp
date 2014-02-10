@@ -122,9 +122,9 @@ basicTab::basicTab ()
 
 
     //[Constructor] You can add your own custom stuff here..
-    sound1.create("drone.ogg", NULL, true).pan2D(true);
-    sound2.create("drone.ogg", NULL, true).pan2D(true);
-    sound3.create("drone.ogg", NULL, true).pan2D(true);
+    sound1.create("drone.ogg", NULL, true).set2D(true);
+    sound2.create("drone.ogg", NULL, true).set2D(true);
+    sound3.create("drone.ogg", NULL, true).set2D(true);
     volumeSlider1->setValue(0.5f);
     volumeSlider2->setValue(0.5f);
     volumeSlider3->setValue(0.5f);
@@ -293,55 +293,55 @@ void basicTab::sliderValueChanged (Slider* sliderThatWasMoved)
     if (sliderThatWasMoved == volumeSlider2)
     {
         //[UserSliderCode_volumeSlider2] -- add your slider handling code here..
-      sound2.volume(static_cast<float>(volumeSlider2->getValue()));
+      sound2.setVolume(static_cast<float>(volumeSlider2->getValue()));
         //[/UserSliderCode_volumeSlider2]
     }
     else if (sliderThatWasMoved == panSlider2)
     {
         //[UserSliderCode_panSlider2] -- add your slider handling code here..
-      sound2.pos(YSE::Vec(static_cast<float>(panSlider2->getValue() * 10), 0.f, 1.f));
+      sound2.setPosition(YSE::Vec(static_cast<float>(panSlider2->getValue() * 10), 0.f, 1.f));
         //[/UserSliderCode_panSlider2]
     }
     else if (sliderThatWasMoved == speedSlider2)
     {
         //[UserSliderCode_speedSlider2] -- add your slider handling code here..
-      sound2.speed(static_cast<float>(speedSlider2->getValue()));
+      sound2.setSpeed(static_cast<float>(speedSlider2->getValue()));
         //[/UserSliderCode_speedSlider2]
     }
     else if (sliderThatWasMoved == volumeSlider1)
     {
         //[UserSliderCode_volumeSlider1] -- add your slider handling code here..
-      sound1.volume(static_cast<float>(volumeSlider1->getValue()));
+      sound1.setVolume(static_cast<float>(volumeSlider1->getValue()));
         //[/UserSliderCode_volumeSlider1]
     }
     else if (sliderThatWasMoved == panSlider1)
     {
         //[UserSliderCode_panSlider1] -- add your slider handling code here..
-      sound1.pos(YSE::Vec(static_cast<float>(panSlider1->getValue() * 10), 0.f, 1.f));
+      sound1.setPosition(YSE::Vec(static_cast<float>(panSlider1->getValue() * 10), 0.f, 1.f));
         //[/UserSliderCode_panSlider1]
     }
     else if (sliderThatWasMoved == speedSlider1)
     {
         //[UserSliderCode_speedSlider1] -- add your slider handling code here..
-      sound1.speed(static_cast<float>(speedSlider1->getValue()));
+      sound1.setSpeed(static_cast<float>(speedSlider1->getValue()));
         //[/UserSliderCode_speedSlider1]
     }
     else if (sliderThatWasMoved == volumeSlider3)
     {
         //[UserSliderCode_volumeSlider3] -- add your slider handling code here..
-      sound3.volume(static_cast<float>(volumeSlider3->getValue()));
+      sound3.setVolume(static_cast<float>(volumeSlider3->getValue()));
         //[/UserSliderCode_volumeSlider3]
     }
     else if (sliderThatWasMoved == panSlider3)
     {
         //[UserSliderCode_panSlider3] -- add your slider handling code here..
-      sound3.pos(YSE::Vec(static_cast<float>(panSlider3->getValue() * 10), 0, 1));
+      sound3.setPosition(YSE::Vec(static_cast<float>(panSlider3->getValue() * 10), 0, 1));
         //[/UserSliderCode_panSlider3]
     }
     else if (sliderThatWasMoved == speedSlider3)
     {
         //[UserSliderCode_speedSlider3] -- add your slider handling code here..
-      sound3.speed(static_cast<float>(speedSlider3->getValue()));
+      sound3.setSpeed(static_cast<float>(speedSlider3->getValue()));
         //[/UserSliderCode_speedSlider3]
     }
 

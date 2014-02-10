@@ -113,67 +113,47 @@ void YSE::INTERNAL::soundManager::update() {
     iMinus = i;
   }
 
+  Int playingSounds = 0;
   // update sound objects & calculate virtual sounds
-  std::vector<soundImplementation*>::iterator index = nonVirtual.begin(); 
-  std::forward_list<soundImplementation>::iterator previous = soundObjects.before_begin();
-  for (std::forward_list<soundImplementation>::iterator i = soundObjects.begin(); i != soundObjects.end(); ++i) {
-    i->update();
+  {
+    std::forward_list<soundImplementation>::iterator previous = soundObjects.before_begin();
+    for (std::forward_list<soundImplementation>::iterator i = soundObjects.begin(); i != soundObjects.end(); ++i) {
+      i->update();
 
-    // delete sounds that are stopped and not in use any more
-    if (i->intent == YSE::SS_STOPPED && i->_release) {
-      soundObjects.erase_after(previous);
-      i = previous;
-      continue;
-    }
-    previous = i;
-
-    // skip sound that don't play
-    if (i->_loading) continue;
-    if (i->intent == YSE::SS_STOPPED) continue;
-    if (i->intent == YSE::SS_PAUSED) continue;
-
-    // fill buffer while not full
-    if (index != nonVirtual.end()) {
-      (*index) = &(*i);
-      ++index;
-      if (index == nonVirtual.end()) findLeastImportant();
-    }
-    else {
-      if ((!i->parent->allowVirtual) || (i->virtualDist < nonVirtual[leastImportant]->virtualDist)) {
-        // if leastImportant == -1 no sounds are allowed to go virtual, so we can't add any more sounds
-        // sounds that are not allowed to go virtual are played anyway because isVirtual is
-        // set to false in the update loop
-
-        if (leastImportant > -1) {
-          nonVirtual[leastImportant] = &(*i);
-          findLeastImportant();
-        }
+      // delete sounds that are stopped and not in use any more
+      if (i->intent == YSE::SS_STOPPED && i->_release) {
+        soundObjects.erase_after(previous);
+        i = previous;
+        continue;
       }
+      previous = i;
+
+      // count playing sounds 
+      if (i->_loading) continue;
+      if (i->intent == YSE::SS_STOPPED) continue;
+      if (i->intent == YSE::SS_PAUSED) continue;
+
+      playingSounds++;
     }
   }
 
-  for (std::vector<soundImplementation*>::iterator i = nonVirtual.begin(); i < index; ++i) {
-    (*i)->isVirtual = false;
+  if (nonVirtualSize < playingSounds) {
+    soundObjects.sort(soundImplementation::sortSoundObjects);
+  }
+
+  std::forward_list<soundImplementation>::iterator index = soundObjects.begin();
+  for (int i = 0; i < nonVirtualSize && index != soundObjects.end(); index++, i++) {
+  //for (std::vector<soundImplementation*>::iterator i = nonVirtual.begin(); i < index; i++) {
+    index->isVirtual = false;
   }
 }
 
 void YSE::INTERNAL::soundManager::maxSounds(Int value) {
-  nonVirtual.resize(value);
   nonVirtualSize = value;
 }
 
 Int YSE::INTERNAL::soundManager::maxSounds() {
   return nonVirtualSize;
-}
-
-void YSE::INTERNAL::soundManager::findLeastImportant() {
-  // call this only when buffer is completely filled !!!
-  leastImportant = 0;
-  for (UInt i = 1; i < nonVirtual.size(); i++) {
-    if (!(nonVirtual[i]->parent->allowVirtual)) continue;
-    if (nonVirtual[i]->virtualDist > nonVirtual[leastImportant]->virtualDist) leastImportant = i;
-  }
-  if (!nonVirtual[leastImportant]->parent->allowVirtual) leastImportant = -1;
 }
 
 YSE::INTERNAL::soundImplementation * YSE::INTERNAL::soundManager::addImplementation() {

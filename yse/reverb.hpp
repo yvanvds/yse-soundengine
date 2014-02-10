@@ -94,23 +94,23 @@ namespace YSE {
     
       
     /**
-     Set the 'wet' value for this reverb. This defines how much
-     of the processed signal actually makes it to the output of
-     the reverb.
+     This defines how much of the processed signal actually 
+     makes it to the output of the reverb. In most circumstances
+     the dry and wet should add up to 1. If the sum is > 1 you
+     might get a distorted sound.
+
+     @param dry Defines how much of the original signal will be
+                left in the output signal.
+     @param wet Defines how much of the reverb should be added 
+                to the output signal.
+
     */
-    reverb& setWet(Flt  value);
+    reverb& setDryWetBalance(Flt  dry, Flt wet);
       
     /**
      Get the 'wet' value for this reverb.
     */
     Flt getWet();
-      
-    /**
-     Set the 'dry' value for this reverb. This defines how much
-     of the orginal signal is mixed into the output of the 
-     reverb object.
-    */
-    reverb& setDry(Flt  value);
       
     /**
      Get the 'dry' value for this reverb.
@@ -121,21 +121,15 @@ namespace YSE {
      This function modulates the processed reverb signal at a 
      certain frequency.
      
-     @param value the frequency at which to modulate the signal
+     @param frequency The frequency at which to modulate the signal.
+     @param width The modulation width.
     */
-    reverb& setModulationFrequency(Flt  value);
+    reverb& setModulation(Flt  frequency, Flt width);
       
     /**
      Get the modulation frequency for this reverb.
     */
     Flt getModulationFrequency();
-      
-    /**
-     Set the width of the modulation applied to this reverb. Use 
-     this function together with setModulationFrequency() to fully
-     control the modulation behaviour of the reverb.
-    */
-    reverb& setModulationWidth(Flt  value);
     
     /**
      Get the modulation with for this reverb.
@@ -152,7 +146,7 @@ namespace YSE {
      @param time       The time to which this reflection should be set.
      @param gain       The gain of the specified reflection.
     */
-    reverb& setReflection(Int reflection, Int time, Int gain);
+    reverb& setReflection(Int reflection, Int time, Flt gain);
       
     /** 
       Get the time of the specified reflection. 

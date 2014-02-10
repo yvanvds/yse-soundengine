@@ -329,23 +329,23 @@ void YSE::INTERNAL::reverbDSP::modulate(Flt frequency, Flt width) {
 }
 
 void YSE::INTERNAL::reverbDSP::set(YSE::reverb & params) {
-  if (!params.active()) {
+  if (!params.getActive()) {
     bypass(true);
     return;
   }
 
   bypass(false);
-  roomSize(params.roomsize());
-  damp(params.damp());
-  wet(params.wet());
-  dry(params.dry());
+  roomSize(params.getRoomSize());
+  damp(params.getDamping());
+  wet(params.getWet());
+  dry(params.getDry());
   width(0);
-  modulate(params.modFreq(), params.modWidth());
+  modulate(params.getModulationFrequency(), params.getModulationWidth());
 
   for (Int i = 0; i < 4; i++) {
     for (Int ch = 0; ch < numChannels; ch++) {
-      channel[ch].earlyPtr[i].setIfNew((float)(params.reflectionTime(i) + channel[ch].earlyOffset), 1000);
-      channel[ch].earlyVolume[i].setIfNew(params.reflectionGain(i), 1000);
+      channel[ch].earlyPtr[i].setIfNew((float)(params.getReflectionTime(i) + channel[ch].earlyOffset), 1000);
+      channel[ch].earlyVolume[i].setIfNew(params.getReflectionGain(i), 1000);
     }
   }
 }

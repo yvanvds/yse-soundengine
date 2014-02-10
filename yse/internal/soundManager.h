@@ -76,10 +76,7 @@ namespace YSE {
          implementation side of the interface sound objects.
          */
       std::forward_list<soundImplementation> soundObjects;
-      std::vector<soundImplementation*> nonVirtual; // helper to sort nearest sounds
       Int nonVirtualSize;
-      Int leastImportant;
-      void findLeastImportant();
     };
 
   }

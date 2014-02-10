@@ -36,6 +36,7 @@ namespace YSE {
       soundImplementation();
       ~soundImplementation();
 
+      static bool sortSoundObjects(const soundImplementation &, const soundImplementation &);
     private:
 
 
@@ -132,6 +133,7 @@ namespace YSE {
       friend class INTERNAL::channelImplementation;
       friend class channelManager;
       friend class soundManager;
+      
     };
   }
 

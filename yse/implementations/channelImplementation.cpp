@@ -153,11 +153,11 @@ void YSE::INTERNAL::channelImplementation::dsp() {
   adjustVolume();
 
   Global.getReverbManager().process(this);
-
+  
   if (UnderWaterEffect().channel() == this) {
     UnderWaterEffect().apply(out);
   }
-
+  
 }
 
 void YSE::INTERNAL::channelImplementation::adjustVolume() {
@@ -192,8 +192,11 @@ void YSE::INTERNAL::channelImplementation::buffersToParent() {
   for (std::forward_list<channelImplementation*>::iterator i = children.begin(); i != children.end(); ++i) {
     (*i)->buffersToParent();
   }
+
+
   // if this is the main channel, we're done here
   if (parent == NULL) return;
+  if (children.empty() && sounds.empty()) return;
 
   // if not the main channel, add output to parent channel
   for (UInt i = 0; i < out.size(); ++i) {

@@ -21,8 +21,8 @@ YSE::INTERNAL::underWaterEffect & YSE::INTERNAL::UnderWaterEffect() {
 
 YSE::INTERNAL::underWaterEffect::underWaterEffect() : activeChannel(NULL) {
   verb.preset(REVERB_UNDERWATER);
-  verb.size(10);
-  verb.active(false);
+  verb.setSize(10);
+  verb.setActive(false);
 }
 
 YSE::INTERNAL::underWaterEffect & YSE::INTERNAL::underWaterEffect::channel(INTERNAL::channelImplementation * ch) {
@@ -37,11 +37,11 @@ YSE::INTERNAL::channelImplementation * YSE::INTERNAL::underWaterEffect::channel(
 YSE::INTERNAL::underWaterEffect & YSE::INTERNAL::underWaterEffect::setDepth(Flt value) {
   depth = value;
   if (depth > 0) {
-    verb.active(true);
-    verb.pos(Global.getListener().pos);
+    verb.setActive(true);
+    verb.setPosition(Global.getListener().pos);
   }
   else {
-    verb.active(false);
+    verb.setActive(false);
   }
   return *this;
 }

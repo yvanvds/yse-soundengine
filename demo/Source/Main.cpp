@@ -10,7 +10,7 @@
 
 #include "../JuceLibraryCode/JuceHeader.h"
 #include "tabs.h"
-#include "../YSE/yse.hpp"
+#include "../../YSE/yse.hpp"
 
 //==============================================================================
 class YSEDemoApplication  : public JUCEApplication
@@ -27,6 +27,10 @@ public:
     void initialise (const String& commandLine)
     {
         // This method is where you should put your application's initialisation code..
+#if defined DEBUG
+      File f = File::getCurrentWorkingDirectory().getChildFile("../../../bin");
+      f.setAsCurrentWorkingDirectory();
+#endif
       YSE::System().init();
       yseTimer.startTimer(50);
       mainWindow = new MainWindow();

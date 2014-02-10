@@ -112,8 +112,8 @@ basic3D::basic3D ()
     soundButton1->setCoordLabel(coordLabel.get());
     soundButton2->setCoordLabel(coordLabel.get());
     listenerButton->setCoordLabel(coordLabel.get());
-    soundButton1->setSound("contact.ogg");
-    soundButton2->setSound("pulse1.ogg");
+    soundButton1->setSound("kick.ogg");
+    soundButton2->setSound("g.ogg");
     listenerButton->setListener(true);
     volumeSlider->setValue(0.5f);
     //[/Constructor]
@@ -203,7 +203,7 @@ void basic3D::sliderValueChanged (Slider* sliderThatWasMoved)
     if (sliderThatWasMoved == volumeSlider)
     {
         //[UserSliderCode_volumeSlider] -- add your slider handling code here..
-        YSE::ChannelMainMix().volume(static_cast<float>(volumeSlider->getValue()));
+        YSE::ChannelMainMix().setVolume(static_cast<float>(volumeSlider->getValue()));
         //[/UserSliderCode_volumeSlider]
     }
 

@@ -157,8 +157,8 @@ cpuLoad::cpuLoad ()
 
 
     //[Constructor] You can add your own custom stuff here..
-    timer.setLabel(labelLoad.get());
-    timer.startTimer(200);
+    timer.setLabels(labelLoad.get(), labelAllSounds.get());
+    timer.startTimer(100);
     //[/Constructor]
 }
 
@@ -242,29 +242,13 @@ void cpuLoad::buttonClicked (Button* buttonThatWasClicked)
     if (buttonThatWasClicked == buttonAdd)
     {
         //[UserButtonCode_buttonAdd] -- add your button handler code here..
-      Random & rand = Random::getSystemRandom();
-
-      for (int i = 0; i < 10; i++) {
-        YSE::sound * s = sounds.add(new YSE::sound);
-        switch (rand.nextInt(4)) {
-          case 0: s->create("contact.ogg", &YSE::ChannelMainMix(), true, 0.5); break;
-          case 1: s->create("g.ogg", &YSE::ChannelMainMix(), true, 0.5); break;
-          case 2: s->create("kick.ogg", &YSE::ChannelMainMix(), true, 0.5); break;
-          case 3: s->create("drone.ogg", &YSE::ChannelMainMix(), true, 0.5); break;
-        }
-        s->pos(YSE::Vec(rand.nextFloat() - 0.5f * 20, rand.nextFloat() - 0.5f * 20, rand.nextFloat() - 0.5f * 20));
-        s->play();
-      }
-      labelAllSounds->setText(String(sounds.size()), NotificationType::sendNotification);
+      timer.soundsToAdd += 100;
         //[/UserButtonCode_buttonAdd]
     }
     else if (buttonThatWasClicked == buttonRemove)
     {
         //[UserButtonCode_buttonRemove] -- add your button handler code here..
-      for (int i = 0; i < 10; i++) {
-        sounds.removeLast();
-      }
-      labelAllSounds->setText(String(sounds.size()), NotificationType::sendNotification);
+      timer.soundsToDelete += 100;
         //[/UserButtonCode_buttonRemove]
     }
 
@@ -282,7 +266,6 @@ void cpuLoad::sliderValueChanged (Slider* sliderThatWasMoved)
         //[UserSliderCode_sliderVirtual] -- add your slider handling code here..
       Int v = static_cast<Int>(sliderVirtual->getValue());
       YSE::System().maxSounds(v);
-      labelVirtualSounds->setText(String(sounds.size() - v), NotificationType::sendNotification);
       labelPlayingSounds->setText(String(v), NotificationType::sendNotification);
         //[/UserSliderCode_sliderVirtual]
     }
