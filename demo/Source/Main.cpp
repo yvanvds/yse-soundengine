@@ -11,6 +11,7 @@
 #include "../JuceLibraryCode/JuceHeader.h"
 #include "tabs.h"
 #include "../../YSE/yse.hpp"
+#include "parts/yseTimerThread.h"
 
 //==============================================================================
 class YSEDemoApplication  : public JUCEApplication
@@ -27,19 +28,19 @@ public:
     void initialise (const String& commandLine)
     {
         // This method is where you should put your application's initialisation code..
-#if defined DEBUG
+//#if defined DEBUG
       File f = File::getCurrentWorkingDirectory().getChildFile("../../../bin");
       f.setAsCurrentWorkingDirectory();
-#endif
+//#endif
       YSE::System().init();
-      yseTimer.startTimer(50);
+      YseTimer().startTimer(50);
       mainWindow = new MainWindow();
     }
 
     void shutdown()
     {
       // Add your application's shutdown code here..
-      yseTimer.stopTimer();
+      YseTimer().stopTimer();
       YSE::System().close();
       mainWindow = nullptr; // (deletes our window)
     }
@@ -97,16 +98,10 @@ public:
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainWindow)
     };
 
-    class YseTimer : public Timer {
-    public:
-      void timerCallback() {
-        YSE::System().update();
-      }
-    };
+    
 
 private:
     ScopedPointer<MainWindow> mainWindow;
-    YseTimer yseTimer;
 };
 
 //==============================================================================

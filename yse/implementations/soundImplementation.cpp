@@ -22,10 +22,11 @@
 
 
 YSE::INTERNAL::soundImplementation::soundImplementation() :
-  parent(NULL),
+	_loading(true),
+	parent(NULL),
   looping(false),
   _spread(0),
-  _loading(true),
+  
   isVirtual(false),
   source_dsp(NULL),
   post_dsp(NULL),
@@ -169,8 +170,8 @@ void YSE::INTERNAL::soundImplementation::update() {
     distance = Dist(newPos, Global.getListener().newPos);
   }
   virtualDist = (distance - _size) * (1 / (_fader.getValue() > 0.000001f ? _fader.getValue() : 0.000001f));
-  /*if (parent->allowVirtualSounds()) isVirtual = true;
-  else */isVirtual = false;
+  if (parent->allowVirtualSounds()) isVirtual = true;
+  else isVirtual = false;
 
   // doppler effect
   if (_noDoppler) velocity = 0;
@@ -219,7 +220,7 @@ void YSE::INTERNAL::soundImplementation::update() {
 }
 
 Bool YSE::INTERNAL::soundImplementation::dsp() {
-  if (_cCheck != 1.0) return false;
+  //if (_cCheck != 1.0) return false;
   if (_loading) return false;
 
   // this is probably not needed

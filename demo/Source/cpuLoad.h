@@ -23,6 +23,7 @@
 //[Headers]     -- You can add your own extra header files here --
 #include "JuceHeader.h"
 #include "../../YSE/yse.hpp"
+#include <forward_list>
 //[/Headers]
 
 
@@ -55,35 +56,39 @@ public:
       void setLabels(Label * cpuLoad, Label * allSounds) {
         label = cpuLoad;
         labelAllSounds = allSounds;
+        soundCounter = 0;
       }
 
       void timerCallback() {
-        while (soundsToAdd > 0) {
+        if (soundsToAdd > 0) {
           Random & rand = Random::getSystemRandom();
-          YSE::sound * s = sounds.add(new YSE::sound);
-          switch (rand.nextInt(4)) {
-            case 0: s->create("g.ogg", &YSE::ChannelAmbient(), true, 0.1f); break;
-            case 1: s->create("g.ogg", &YSE::ChannelFX(), true, 0.1f); break;
-            case 2: s->create("g.ogg", &YSE::ChannelMusic(), true, 0.1f); break;
-            case 3: s->create("g.ogg", &YSE::ChannelVoice(), true, 0.1f); break;
-          }
-          s->setPosition(YSE::Vec(rand.nextFloat() - 0.5f * 20, rand.nextFloat() - 0.5f * 20, rand.nextFloat() - 0.5f * 20));
-          s->setSpeed(rand.nextFloat() + 0.5f);
-          s->setTime(rand.nextFloat() * s->getLength());
-          s->play();
+          sounds.emplace_front();
+          //switch (rand.nextInt(4)) {
+            //case 0: sounds.front().create("g.ogg", &YSE::ChannelAmbient(), true, 0.1f); break;
+            //case 1: sounds.front().create("g.ogg", &YSE::ChannelFX(), true, 0.1f); break;
+            //case 2: 
+          sounds.front().create("g.ogg", &YSE::ChannelMusic(), true, 0.5f); //break;
+            //case 3: sounds.front().create("g.ogg", &YSE::ChannelVoice(), true, 0.1f); break;
+          //}
+          sounds.front().setPosition(YSE::Vec(rand.nextFloat() - 0.5f * 20, rand.nextFloat() - 0.5f * 20, rand.nextFloat() - 0.5f * 20));
+          sounds.front().setSpeed(rand.nextFloat() + 0.5f);
+          sounds.front().play();
+          soundCounter++;
           soundsToAdd--;
         }
         if (soundsToDelete > 0) {
-          sounds.removeLast();
+          sounds.pop_front();
+          soundCounter--;
           soundsToDelete--;
         }
-        labelAllSounds->setText(String(sounds.size()), NotificationType::sendNotification);
+        labelAllSounds->setText(String(soundCounter), NotificationType::sendNotification);
         label->setText(String(YSE::System().cpuLoad()), NotificationType::sendNotification);
       }
     private:
       Label * label;
       Label * labelAllSounds;
-      OwnedArray<YSE::sound> sounds;
+      int soundCounter;
+      std::forward_list<YSE::sound> sounds;
 
     };
     //[/UserMethods]
@@ -98,7 +103,7 @@ public:
 private:
     //[UserVariables]   -- You can add your own custom variables in this section.
     cpuTimer timer;
-    
+    std::forward_list<YSE::sound> sounds;
     //[/UserVariables]
 
     //==============================================================================

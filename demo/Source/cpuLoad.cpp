@@ -21,7 +21,7 @@
 //[/Headers]
 
 #include "cpuLoad.h"
-
+#include "parts/yseTimerThread.h"
 
 //[MiscUserDefs] You can add your own user definitions and misc code here...
 //[/MiscUserDefs]
@@ -157,15 +157,12 @@ cpuLoad::cpuLoad ()
 
 
     //[Constructor] You can add your own custom stuff here..
-    timer.setLabels(labelLoad.get(), labelAllSounds.get());
-    timer.startTimer(100);
     //[/Constructor]
 }
 
 cpuLoad::~cpuLoad()
 {
     //[Destructor_pre]. You can add your own custom destruction code here..
-    timer.stopTimer();
     //[/Destructor_pre]
 
     labelTitle = nullptr;
@@ -242,13 +239,22 @@ void cpuLoad::buttonClicked (Button* buttonThatWasClicked)
     if (buttonThatWasClicked == buttonAdd)
     {
         //[UserButtonCode_buttonAdd] -- add your button handler code here..
-      timer.soundsToAdd += 100;
+        //timer.soundsToAdd += 1;
+        ScopedLock lock(YseTimer().crit);
+        Random & rand = Random::getSystemRandom();
+        sounds.emplace_front();
+        sounds.front().create("g.ogg", &YSE::ChannelMusic(), true, 0.1f);
+        sounds.front().setPosition(YSE::Vec(rand.nextFloat() - 0.5f * 20, rand.nextFloat() - 0.5f * 20, rand.nextFloat() - 0.5f * 20));
+        sounds.front().setSpeed(rand.nextFloat() + 0.5f);
+        sounds.front().play();
         //[/UserButtonCode_buttonAdd]
     }
     else if (buttonThatWasClicked == buttonRemove)
     {
         //[UserButtonCode_buttonRemove] -- add your button handler code here..
-      timer.soundsToDelete += 100;
+        //timer.soundsToDelete += 1;
+      ScopedLock lock(YseTimer().crit);
+      if (!sounds.empty()) sounds.pop_front();
         //[/UserButtonCode_buttonRemove]
     }
 
@@ -264,6 +270,7 @@ void cpuLoad::sliderValueChanged (Slider* sliderThatWasMoved)
     if (sliderThatWasMoved == sliderVirtual)
     {
         //[UserSliderCode_sliderVirtual] -- add your slider handling code here..
+      ScopedLock lock(YseTimer().crit);
       Int v = static_cast<Int>(sliderVirtual->getValue());
       YSE::System().maxSounds(v);
       labelPlayingSounds->setText(String(v), NotificationType::sendNotification);

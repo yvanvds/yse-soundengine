@@ -10,6 +10,7 @@
 
 #include "../../JuceLibraryCode/JuceHeader.h"
 #include "draggedComponent.h"
+#include "yseTimerThread.h"
 
 //==============================================================================
 draggedComponent::draggedComponent(const String & name) : listener(false)
@@ -61,6 +62,7 @@ void draggedComponent::mouseDrag(const MouseEvent & e) {
       + " z: " + String(ysePos.y)
       , NotificationType::sendNotification);
     dragger.dragComponent(this, e, &constrainer);
+    ScopedLock lock(YseTimer().crit);
     if (listener) {
       YSE::Listener().setPosition(YSE::Vec(ysePos.x, 0, ysePos.y));
     }
@@ -103,16 +105,19 @@ Point<float> draggedComponent::calculateYSEPos(const Point<int> & pos) {
 void draggedComponent::setListener(bool value) {
   listener = value;
   Point<float> ysePos = calculateYSEPos(getPosition());
+  ScopedLock lock(YseTimer().crit);
   YSE::Listener().setPosition(YSE::Vec(ysePos.x, 0, ysePos.y));
 }
 
 void draggedComponent::setSound(const String & name) {
+  ScopedLock lock(YseTimer().crit);
   sound.create(name.toStdString().c_str(), &YSE::ChannelMainMix(), true);
   Point<float> ysePos = calculateYSEPos(getPosition());
   sound.setPosition(YSE::Vec(ysePos.x, 0, ysePos.y));
 }
 
 void draggedComponent::play(bool value) {
+  ScopedLock lock(YseTimer().crit);
   if (value) {
     sound.play();
   }

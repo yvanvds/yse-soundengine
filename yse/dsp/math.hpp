@@ -26,7 +26,7 @@ namespace YSE {
       clip& set(Flt low, Flt high);
       clip& setLow(Flt low);
       clip& setHigh(Flt high);
-      clip() : low(-1.0f), high(-1.0f) {}
+      clip() : low(-1.0f), high(1.0f) {}
 
       // use in DSP
       AUDIOBUFFER & operator()(AUDIOBUFFER & in);

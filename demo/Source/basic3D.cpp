@@ -18,6 +18,7 @@
 */
 
 //[Headers] You can add your own extra header files here...
+#include "parts/yseTimerThread.h"
 //[/Headers]
 
 #include "basic3D.h"
@@ -203,6 +204,7 @@ void basic3D::sliderValueChanged (Slider* sliderThatWasMoved)
     if (sliderThatWasMoved == volumeSlider)
     {
         //[UserSliderCode_volumeSlider] -- add your slider handling code here..
+        ScopedLock lock(YseTimer().crit);
         YSE::ChannelMainMix().setVolume(static_cast<float>(volumeSlider->getValue()));
         //[/UserSliderCode_volumeSlider]
     }

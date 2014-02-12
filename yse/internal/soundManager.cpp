@@ -104,36 +104,42 @@ void YSE::INTERNAL::soundManager::run() {
 
 void YSE::INTERNAL::soundManager::update() {
   // update soundFiles
-  std::forward_list<soundFile>::iterator iMinus = soundFiles.before_begin();
-  for (std::forward_list<soundFile>::iterator i = soundFiles.begin(); i != soundFiles.end(); ++i) {
+  auto iMinus = soundFiles.before_begin();
+  for (auto i = soundFiles.begin(); i != soundFiles.end(); ) {
     if (!i->inUse()) {
-      soundFiles.erase_after(iMinus);
-      i = iMinus;
+      const ScopedLock lock(Global.getDeviceManager().getLock());
+      i = soundFiles.erase_after(iMinus);
     }
-    iMinus = i;
+    else {
+      iMinus = i;
+      ++i;
+    }
   }
 
   Int playingSounds = 0;
   // update sound objects & calculate virtual sounds
   {
-    std::forward_list<soundImplementation>::iterator previous = soundObjects.before_begin();
-    for (std::forward_list<soundImplementation>::iterator i = soundObjects.begin(); i != soundObjects.end(); ++i) {
+    auto previous = soundObjects.before_begin();
+    for (auto i = soundObjects.begin(); i != soundObjects.end(); ) {
       i->update();
 
       // delete sounds that are stopped and not in use any more
       if (i->intent == YSE::SS_STOPPED && i->_release) {
-        soundObjects.erase_after(previous);
-        i = previous;
+        const ScopedLock lock(Global.getDeviceManager().getLock());
+        i = soundObjects.erase_after(previous);
         continue;
       }
       previous = i;
 
       // count playing sounds 
-      if (i->_loading) continue;
-      if (i->intent == YSE::SS_STOPPED) continue;
-      if (i->intent == YSE::SS_PAUSED) continue;
-
+      if (i->_loading
+        || i->intent == YSE::SS_STOPPED
+        || i->intent == YSE::SS_PAUSED) {
+        ++i;
+        continue;
+      }
       playingSounds++;
+      ++i;
     }
   }
 

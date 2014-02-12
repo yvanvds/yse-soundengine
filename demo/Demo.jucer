@@ -110,6 +110,10 @@
     </GROUP>
     <GROUP id="{02945D12-A276-81C8-224F-6D961A7EAFA2}" name="Source">
       <GROUP id="{EFF81D3D-75A6-1C8B-5204-18B92DE0A382}" name="parts">
+        <FILE id="xU1JBZ" name="yseTimerThread.cpp" compile="1" resource="0"
+              file="Source/parts/yseTimerThread.cpp"/>
+        <FILE id="MKNIhk" name="yseTimerThread.h" compile="0" resource="0"
+              file="Source/parts/yseTimerThread.h"/>
         <FILE id="Up7r5F" name="draggedComponent.cpp" compile="1" resource="0"
               file="Source/parts/draggedComponent.cpp"/>
         <FILE id="AZnwB2" name="draggedComponent.h" compile="0" resource="0"

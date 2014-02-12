@@ -72,3 +72,13 @@ Log started: 10 Feb 2014 4:28:02pm
 (Debug)  YSE System object initialized
 (Debug) Sound added to system.
 (Warning) Error while loading file:  file not found for C:\Users\yvan\Documents\GitHub\yse-soundengine\demo\Builds\VisualStudio2013\drone.ogg
+
+**********************************************************
+=== start of YSE log ===
+Log started: 10 Feb 2014 11:36:51pm
+
+
+**********************************************************
+=== start of YSE log ===
+Log started: 10 Feb 2014 11:37:25pm
+
