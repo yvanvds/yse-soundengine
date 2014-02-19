@@ -271,6 +271,36 @@ namespace YSE {
    ~sound();
   private:
     INTERNAL::soundImplementation *pimpl;
+
+    // flags and values are used to update a sound so to not get in the way of the dsp processing
+    // (this avoids having a critical zone or a lot of atomics)
+    Bool flagRelease  ; Bool release        ; 
+    Bool flagPos      ; Vec  pos            ;
+    Bool flagSpread   ; Vec  spread         ;
+    Bool flagFade     ; UInt fadeAndStopTime;
+    Bool flagVolume   ; Flt  volumeValue    ;
+    UInt volumeTime   ;
+
+    Bool flagPitch    ; Flt  pitch          ;
+    Bool flagSize     ; Flt  size           ;
+    Bool flagLoop     ; Flt  loop           ;
+    Bool flagTime     ; Bool time           ;
+    Bool flagRelative ; Bool relative       ;
+    Bool flagDoppler  ; Bool doppler        ;
+                        Bool pan2D          ;
+     
+    Bool flagPlay     ; Bool playValue      ;
+    Bool flagStop     ; Bool stopValue      ;
+    Bool flagPause    ; Bool pauseValue     ;
+    Bool flagToggle   ; Bool toggleValue    ;
+    Bool flagRestart  ; Bool restartValue   ;
+    Bool flagOcclusion; Bool occlusionValue ;
+    
+                        Bool streaming      ; 
+                        UInt length         ;
+    
+    friend class INTERNAL::soundImplementation;
+
   };
 
 }
