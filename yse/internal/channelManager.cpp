@@ -63,7 +63,7 @@ void YSE::INTERNAL::channelManager::update() {
 
       // move sounds to parent
       for (std::forward_list<soundImplementation *>::iterator sound = i->sounds.begin(); sound != i->sounds.end(); ++sound) {
-        (*sound)->parent = i->parent;
+        (*sound)->parent_dsp = i->parent;
         i->parent->sounds.push_front((*sound));
       }
 

@@ -61,8 +61,7 @@ namespace YSE {
 
     // statistics
     Flt cpuLoad(); // cpu load of the audio steam (not the YSE update system)
-    // utiles
-    //void sleep(UInt ms); // usefull for console applications if you don't want to run update at max speed
+    void sleep(UInt ms); // usefull for console applications if you don't want to run update at max speed
   private:
     Flt(*occlusionPtr)(const Vec& source, const Vec& listener);
   };

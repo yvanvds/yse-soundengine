@@ -14,7 +14,7 @@
 #include <string>
 #include "../headers/types.hpp"
 #include <sstream>
-#include "JuceHeader.h"
+#include <atomic>
 #include "../classes.hpp"
 
 namespace YSE {
@@ -103,17 +103,18 @@ namespace YSE {
   // this class could use a power-up...
   class aVec {
   public:
-    Atomic<Flt> x;
-    Atomic<Flt> y;
-    Atomic<Flt> z;
+    std::atomic<Flt> x;
+    std::atomic<Flt> y;
+    std::atomic<Flt> z;
 
-    aVec() { x.set(0.f), y.set(0.f), z.set(0.f); }
+    aVec() { x.store(0.f), y.store(0.f), z.store(0.f); }
     aVec(Flt x, Flt y, Flt z) {
-      this->x.set(x);
-      this->y.set(y);
-      this->z.set(z);
+      this->x.store(x);
+      this->y.store(y);
+      this->z.store(z);
     }
-    aVec(const Vec & v) { x.set(v.x); y.set(v.y); z.set(v.z); }
+    aVec(const Vec & v) { x.store(v.x); y.store(v.y); z.store(v.z); }
+    aVec & operator=(const Vec & v) { x.store(v.x); y.store(v.y); z.store(v.z); return *this;  }
   };
 
   

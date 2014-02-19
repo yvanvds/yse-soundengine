@@ -19,7 +19,11 @@ Author:  yvan
 #include "internal/time.h"
 #include "internal/settings.h"
 #include "JuceHeader.h"
+#ifdef YSE_WINDOWS
 #include <Windows.h>
+#else
+#include <unistd.h>
+#endif
 
 namespace YSE{
   class systemImpl {
@@ -79,8 +83,8 @@ void YSE::system::update() {
   // update global objects
   INTERNAL::Global.getTime().update();
   INTERNAL::Global.getListener().update();
-  INTERNAL::Global.getChannelManager().update();
   INTERNAL::Global.getSoundManager().update();
+  INTERNAL::Global.getChannelManager().update();
   // TODO: check if we still have to release sounds (see old code)
 
 }
@@ -137,4 +141,12 @@ Int YSE::system::maxSounds() {
 
 Flt YSE::system::cpuLoad() {
   return INTERNAL::Global.getDeviceManager().cpuLoad();
+}
+
+void YSE::system::sleep(UInt ms) {
+#if defined YSE_WINDOWS
+  Sleep(ms);
+#else
+  usleep(static_cast<useconds_t>(ms)* 1000);
+#endif
 }

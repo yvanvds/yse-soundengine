@@ -1,0 +1,19 @@
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{755FDF90-93E3-0DCD-22FB-AB727ED896E9}") = "yse_static_library", "yse_static_library.vcxproj", "{D4EFA628-B6A4-4B7F-2E7E-7C279856B541}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D4EFA628-B6A4-4B7F-2E7E-7C279856B541}.Debug|Win32.ActiveCfg = Debug|Win32
+		{D4EFA628-B6A4-4B7F-2E7E-7C279856B541}.Debug|Win32.Build.0 = Debug|Win32
+		{D4EFA628-B6A4-4B7F-2E7E-7C279856B541}.Release|Win32.ActiveCfg = Release|Win32
+		{D4EFA628-B6A4-4B7F-2E7E-7C279856B541}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

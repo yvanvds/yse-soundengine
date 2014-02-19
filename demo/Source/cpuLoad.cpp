@@ -241,12 +241,15 @@ void cpuLoad::buttonClicked (Button* buttonThatWasClicked)
         //[UserButtonCode_buttonAdd] -- add your button handler code here..
         //timer.soundsToAdd += 1;
         ScopedLock lock(YseTimer().crit);
+        //if (!sounds.empty()) sounds.front().play();
         Random & rand = Random::getSystemRandom();
         sounds.emplace_front();
-        sounds.front().create("g.ogg", &YSE::ChannelMusic(), true, 0.1f);
-        sounds.front().setPosition(YSE::Vec(rand.nextFloat() - 0.5f * 20, rand.nextFloat() - 0.5f * 20, rand.nextFloat() - 0.5f * 20));
-        sounds.front().setSpeed(rand.nextFloat() + 0.5f);
+        sounds.front().create("kick.ogg", &YSE::ChannelMusic(), true, 0.1f);
+        sounds.front().set2D(true);
+        //sounds.front().setPosition(YSE::Vec((rand.nextFloat() - 0.5f) * 10, (rand.nextFloat() - 0.5f) * 10, (rand.nextFloat() - 0.5f) * 10));
+        //sounds.front().setSpeed(rand.nextFloat() + 0.5f);
         sounds.front().play();
+        
         //[/UserButtonCode_buttonAdd]
     }
     else if (buttonThatWasClicked == buttonRemove)

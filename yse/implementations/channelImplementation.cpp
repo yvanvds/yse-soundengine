@@ -63,10 +63,10 @@ Bool YSE::INTERNAL::channelImplementation::remove(YSE::INTERNAL::channelImplemen
 }
 
 Bool YSE::INTERNAL::channelImplementation::add(YSE::INTERNAL::soundImplementation * s) {
-  if (s->parent != NULL) {
-    s->parent->remove(s);
+  if (s->parent_dsp != NULL) {
+    s->parent_dsp->remove(s);
   }
-  s->parent = this;
+  s->parent_dsp = this;
   sounds.push_front(s);
   return true;
 }

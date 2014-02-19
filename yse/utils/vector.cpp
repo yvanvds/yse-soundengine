@@ -10,4 +10,4 @@
 
 #include "vector.hpp"
 
-YSE::Vec::Vec(const aVec & v) { set(v.x.get(), v.y.get(), v.z.get()); }
+YSE::Vec::Vec(const aVec & v) { set(v.x.load(), v.y.load(), v.z.load()); }

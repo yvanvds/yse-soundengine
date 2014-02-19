@@ -21,7 +21,9 @@
 
 namespace YSE {
   namespace INTERNAL {
-
+    /*  to avoid unneccesary atomic vars, in this class every variable used in dsp functions must
+        end with dsp. If you use it in any other place, it must be atommic.
+    */
     class soundImplementation {
     public:
       Bool create(const std::string &fileName, Bool stream = false);
@@ -43,91 +45,92 @@ namespace YSE {
       soundFile * file;
 
       // for sound positioning and changing that
-      Flt filePtr;  // this is the real file position pointer
-      aFlt newFilePos; // this is a new value, set from the front end
-      aFlt currentFilePos; // this gets updated after dsp, so we can query the file position
-      aBool setFilePos; // this signals the dsp function to get his position from newFilePos
+      Flt filePtr_dsp;  // this is the real file position pointer
+      aFlt newFilePos_dsp; // this is a new value, set from the front end
+      aFlt currentFilePos_dsp; // this gets updated after dsp, so we can query the file position
+      Bool setFilePos_dsp; // this signals the dsp function to get his position from newFilePos
 
-      SOUND_STATUS intent;
+      //TODO: this cannot be atomic and is changed a lot
+      SOUND_STATUS intent_dsp;
 
       Vec newPos, lastPos, vel;
-      aVec _pos;
+      Vec _pos;
       // constructor check
       Dbl _cCheck;
 
       // virtual sound calculation
-      Bool isVirtual;
+      aBool isVirtual_dsp;
       Flt  virtualDist; // gain sum of all channels
 
 
 
-      std::vector<DSP::sample> filebuffer;
-      std::vector<DSP::sample> * buffer;
-      DSP::sample channelBuffer; // temporary buffer to adjust channel gain
-      std::vector< std::vector<Flt> > lastGain; // needed for each channel to smooth gain changes
+      std::vector<DSP::sample> filebuffer_dsp;
+      std::vector<DSP::sample> * buffer_dsp;
+      DSP::sample channelBuffer_dsp; // temporary buffer to adjust channel gain
+      std::vector< std::vector<Flt> > lastGain_dsp; // needed for each channel to smooth gain changes
 
-      Flt distance;
-      Flt angle;
+      aFlt distance_dsp;
+      aFlt angle_dsp;
 
       // for pitch shift and doppler
-      Flt velocity;
-      aFlt _pitch;
+      aFlt velocity_dsp;
+      aFlt pitch_dsp;
 
       // the distance before distance attenuation begins. 
-      aFlt _size;
+      aFlt size_dsp;
       soundImplementation & size(Flt value);
       Flt size();
 
       // volume
-      DSP::ramp _fader;
-      Bool _fadeAndStop;
-      aBool _setVolume;
-      aFlt _volumeValue;
-      aFlt _volumeTime;
-      aFlt _currentVolume;
-      aBool _setFadeAndStop;
-      aFlt _fadeAndStopTime;
+      // TODO: check if ramp getValue is threadsafe
+      DSP::ramp fader_dsp;
+      Bool fadeAndStop_dsp;
+      aBool setVolume_dsp;
+      aFlt volumeValue_dsp;
+      aFlt volumeTime_dsp;
+      aFlt currentVolume_dsp;
+      aBool setFadeAndStop_dsp;
+      aFlt fadeAndStopTime_dsp;
 
       // for multichannel sounds
-      aFlt _spread;
+      aFlt spread_dsp;
 
       // dsp slots
       DSP::dspSourceObject * source_dsp;
       void addSourceDSP(DSP::dspSourceObject & ptr);
 
-      aBool _setPostDSP;
+      Bool _setPostDSP;
       std::atomic<DSP::dspObject *> _postDspPtr;
       DSP::dspObject * post_dsp;
       void addDSP(DSP::dspObject & ptr);
 
-      INTERNAL::channelImplementation * parent;
+      INTERNAL::channelImplementation * parent_dsp;
       soundImplementation ** link; // will contain a reference to the pimpl of parent
 
       Bool _release; // flag this for release in next update
-      aBool looping;
-
-      // 3D
-      aBool _relative; // relative position and angle to player. Can be used for 2D sounds.
-      aBool _noDoppler; // don't add doppler to this sound
-      aBool _pan2D; // to remember shortcut (set relative and noDoppler) 
-      aBool _occlusionActive;
-      Flt _occlusion;
+      aBool looping_dsp;
+            // 3D
+      Bool _relative; // relative position and angle to player. Can be used for 2D sounds.
+      Bool _noDoppler; // don't add doppler to this sound
+      Bool _pan2D; // to remember shortcut (set relative and noDoppler) 
+      Bool _occlusionActive;
+      aFlt occlusion_dsp;
 
       // control vars
-      aBool _signalPlay;
-      aBool _signalPause;
-      aBool _signalStop;
-      aBool _signalToggle;
-      aBool _signalRestart;
+      aBool signalPlay_dsp;
+      aBool signalPause_dsp;
+      aBool signalStop_dsp;
+      aBool signalToggle_dsp;
+      aBool signalRestart_dsp;
 
-      Flt bufferVolume;
+      Flt bufferVolume_dsp;
       UInt startOffset;
       UInt stopOffset;
 
       // info 
-      aUInt _length;
-      aBool _streaming;
-      aBool _loading;
+      UInt _length;
+      aBool streaming_dsp;
+      aBool loading_dsp;
 
       friend class sound;
       friend class INTERNAL::channelImplementation;

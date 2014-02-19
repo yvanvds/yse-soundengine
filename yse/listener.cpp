@@ -34,7 +34,9 @@ YSE::Vec YSE::listener::getUpward() {
 }
 
 YSE::listener& YSE::listener::setPosition(const Vec &pos) {
-  INTERNAL::Global.getListener().pos = pos;
+  INTERNAL::Global.getListener().pos.x = pos.x;
+  INTERNAL::Global.getListener().pos.y = pos.y;
+  INTERNAL::Global.getListener().pos.z = pos.z;
   return (*this);
 }
 

@@ -34,8 +34,8 @@ YSE::sound& YSE::sound::create(const char * fileName, const channel * const ch, 
     pimpl->initialize();
     if (ch == NULL) INTERNAL::Global.getChannelManager().mainMix().pimpl->add(pimpl);
     else ch->pimpl->add(pimpl);
-    pimpl->looping = loop;
-    pimpl->_fader.set(volume);
+    pimpl->looping_dsp = loop;
+    pimpl->fader_dsp.set(volume);
     pimpl->link = &pimpl;
   }
   else {
@@ -68,7 +68,7 @@ YSE::sound& YSE::sound::create(DSP::dspSourceObject & dsp, const channel * const
   pimpl->initialize();
   if (ch == NULL) INTERNAL::Global.getChannelManager().mainMix().pimpl->add(pimpl);
   else ch->pimpl->add(pimpl);
-  pimpl->_fader.set(volume);
+  pimpl->fader_dsp.set(volume);
   pimpl->link = &pimpl;
 
   return *this;
@@ -77,7 +77,7 @@ YSE::sound& YSE::sound::create(DSP::dspSourceObject & dsp, const channel * const
 YSE::sound& YSE::sound::release() {
   if (pimpl) {
     pimpl->_release = true;
-    pimpl->_signalStop = true;
+    pimpl->signalStop_dsp = true;
     pimpl->link = NULL;
   }
   return *this;
@@ -94,9 +94,7 @@ Bool YSE::sound::isValid() {
 
 YSE::sound& YSE::sound::setPosition(const Vec &v) {
   if (pimpl) {
-    pimpl->_pos.x.set(v.x);
-    pimpl->_pos.y.set(v.y);
-    pimpl->_pos.z.set(v.z);
+    pimpl->_pos = v;
   } else {
     INTERNAL::Global.getLog().emit(E_SOUND_OBJECT_NO_INIT);
     /* if this happens, you're trying to access
@@ -116,16 +114,12 @@ YSE::Vec YSE::sound::getPosition() {
     jassertfalse
     return Vec(0);
   }
-  Vec result;
-  result.x = pimpl->_pos.x.get();
-  result.y = pimpl->_pos.y.get();
-  result.z = pimpl->_pos.z.get();
-  return result;
+  return pimpl->_pos;
 }
 
 YSE::sound& YSE::sound::setSpread(Flt value) {
   Clamp(value, 0.f, 1.f);
-  if (pimpl) pimpl->_spread = value;
+  if (pimpl) pimpl->spread_dsp = value;
   else {
     INTERNAL::Global.getLog().emit(E_SOUND_OBJECT_NO_INIT);
     /* if this happens, you're trying to access
@@ -145,15 +139,15 @@ Flt YSE::sound::getSpread() {
     jassertfalse
     return 0;
   }
-  return pimpl->_spread;
+  return pimpl->spread_dsp;
 }
 
 YSE::sound& YSE::sound::setVolume(Flt value, UInt time) {
   Clamp(value, 0.f, 1.f);
   if (pimpl) {
-    pimpl->_setVolume = true;
-    pimpl->_volumeValue = value;
-    pimpl->_volumeTime = static_cast<Flt>(time);
+    pimpl->setVolume_dsp = true;
+    pimpl->volumeValue_dsp = value;
+    pimpl->volumeTime_dsp = static_cast<Flt>(time);
   }
   else {
     INTERNAL::Global.getLog().emit(E_SOUND_OBJECT_NO_INIT);
@@ -174,13 +168,13 @@ Flt YSE::sound::getVolume() {
     jassertfalse
     return 0;
   }
-  return pimpl->_currentVolume;
+  return pimpl->currentVolume_dsp;
 }
 
 YSE::sound& YSE::sound::setSpeed(Flt value) {
   if (pimpl) {
-    if (pimpl->_streaming && value < 0) value = 0;
-    pimpl->_pitch = value;
+    if (pimpl->streaming_dsp && value < 0) value = 0;
+    pimpl->pitch_dsp = value;
   }
   else {
     INTERNAL::Global.getLog().emit(E_SOUND_OBJECT_NO_INIT);
@@ -201,13 +195,13 @@ Flt YSE::sound::getSpeed() {
     jassertfalse
     return 0;
   }
-  return pimpl->_pitch;
+  return pimpl->pitch_dsp;
 }
 
 YSE::sound& YSE::sound::setSize(Flt value) {
   if (pimpl) {
-    if (value < 0) pimpl->_size = 0;
-    else pimpl->_size = value;
+    if (value < 0) pimpl->size_dsp = 0;
+    else pimpl->size_dsp = value;
   }
   else {
     INTERNAL::Global.getLog().emit(E_SOUND_OBJECT_NO_INIT);
@@ -228,12 +222,12 @@ Flt YSE::sound::getSize() {
     jassertfalse
     return 0;
   }
-  return pimpl->_size;
+  return pimpl->size_dsp;
 }
 
 YSE::sound& YSE::sound::setLooping(Bool value) {
   if (pimpl) {
-    pimpl->looping = value;
+    pimpl->looping_dsp = value;
   }
   else {
     INTERNAL::Global.getLog().emit(E_SOUND_OBJECT_NO_INIT);
@@ -254,13 +248,13 @@ Bool YSE::sound::isLooping() {
     jassertfalse
     return false;
   }
-  return pimpl->looping;
+  return pimpl->looping_dsp;
 }
 
 
 YSE::sound& YSE::sound::play() {
   if (pimpl) {
-    pimpl->_signalPlay = true;
+    pimpl->signalPlay_dsp = true;
   }
   else {
     INTERNAL::Global.getLog().emit(E_SOUND_OBJECT_NO_INIT);
@@ -274,7 +268,7 @@ YSE::sound& YSE::sound::play() {
 
 YSE::sound& YSE::sound::pause() {
   if (pimpl) {
-    pimpl->_signalPause = true;
+    pimpl->signalPause_dsp = true;
   }
   else {
     INTERNAL::Global.getLog().emit(E_SOUND_OBJECT_NO_INIT);
@@ -288,7 +282,7 @@ YSE::sound& YSE::sound::pause() {
 
 YSE::sound& YSE::sound::stop() {
   if (pimpl) {
-    pimpl->_signalStop = true;
+    pimpl->signalStop_dsp = true;
   }
   else {
     INTERNAL::Global.getLog().emit(E_SOUND_OBJECT_NO_INIT);
@@ -302,7 +296,7 @@ YSE::sound& YSE::sound::stop() {
 
 YSE::sound& YSE::sound::toggle() {
   if (pimpl) {
-    pimpl->_signalToggle = true;
+    pimpl->signalToggle_dsp = true;
   }
   else {
     INTERNAL::Global.getLog().emit(E_SOUND_OBJECT_NO_INIT);
@@ -316,7 +310,7 @@ YSE::sound& YSE::sound::toggle() {
 
 YSE::sound& YSE::sound::restart() {
   if (pimpl) {
-    pimpl->_signalRestart = true;
+    pimpl->signalRestart_dsp = true;
   }
   else {
     INTERNAL::Global.getLog().emit(E_SOUND_OBJECT_NO_INIT);
@@ -329,7 +323,7 @@ YSE::sound& YSE::sound::restart() {
 }
 
 Bool YSE::sound::isPlaying() {
-  if (pimpl) return (pimpl->intent == SS_PLAYING);
+  if (pimpl) return (pimpl->intent_dsp == SS_PLAYING);
   
   INTERNAL::Global.getLog().emit(E_SOUND_OBJECT_NO_INIT);
   /* if this happens, you're trying to access
@@ -340,7 +334,7 @@ Bool YSE::sound::isPlaying() {
 }
 
 Bool YSE::sound::isPaused() {
-  if (pimpl)  return (pimpl->intent == SS_PAUSED);
+  if (pimpl)  return (pimpl->intent_dsp == SS_PAUSED);
   
   INTERNAL::Global.getLog().emit(E_SOUND_OBJECT_NO_INIT);
   /* if this happens, you're trying to access
@@ -351,7 +345,7 @@ Bool YSE::sound::isPaused() {
 }
 
 Bool YSE::sound::isStopped() {
-  if (pimpl) return (pimpl->intent == SS_STOPPED);
+  if (pimpl) return (pimpl->intent_dsp == SS_STOPPED);
   
   INTERNAL::Global.getLog().emit(E_SOUND_OBJECT_NO_INIT);
   /* if this happens, you're trying to access
@@ -384,7 +378,7 @@ Bool YSE::sound::occlusion() {
 }
 
 Bool YSE::sound::isStreaming() {
-  if (pimpl) return pimpl->_streaming;
+  if (pimpl) return pimpl->streaming_dsp;
   
   INTERNAL::Global.getLog().emit(E_SOUND_OBJECT_NO_INIT);
   /* if this happens, you're trying to access
@@ -423,8 +417,8 @@ YSE::DSP::dspObject * YSE::sound::dsp() {
 
 YSE::sound& YSE::sound::setTime(Flt value) {
   if (pimpl) {
-    pimpl->newFilePos = value;
-    pimpl->setFilePos = true;
+    pimpl->newFilePos_dsp = value;
+    pimpl->setFilePos_dsp = true;
   }
   else {
     INTERNAL::Global.getLog().emit(E_SOUND_OBJECT_NO_INIT);
@@ -437,7 +431,7 @@ YSE::sound& YSE::sound::setTime(Flt value) {
 }
 
 Flt YSE::sound::getTime() {
-  if (pimpl) return pimpl->currentFilePos;
+  if (pimpl) return pimpl->currentFilePos_dsp;
   
   INTERNAL::Global.getLog().emit(E_SOUND_OBJECT_NO_INIT);
   /* if this happens, you're trying to access
@@ -533,7 +527,7 @@ Bool YSE::sound::is2D() {
 }
 
 Bool YSE::sound::isReady() {
-  if (pimpl) return !pimpl->_loading;
+  if (pimpl) return !pimpl->loading_dsp;
   
   INTERNAL::Global.getLog().emit(E_SOUND_OBJECT_NO_INIT);
   /* if this happens, you're trying to access
@@ -545,8 +539,8 @@ Bool YSE::sound::isReady() {
 
 YSE::sound& YSE::sound::fadeAndStop(UInt time) {
   if (pimpl) {
-    pimpl->_setFadeAndStop = true;
-    pimpl->_fadeAndStopTime = static_cast<Flt>(time);
+    pimpl->setFadeAndStop_dsp = true;
+    pimpl->fadeAndStopTime_dsp = static_cast<Flt>(time);
   }
   else {
     INTERNAL::Global.getLog().emit(E_SOUND_OBJECT_NO_INIT);

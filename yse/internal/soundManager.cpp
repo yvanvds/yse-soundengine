@@ -40,9 +40,14 @@ YSE::INTERNAL::soundFile * YSE::INTERNAL::soundManager::add(const File & file) {
   // if we got here, the file does not exist yet
   soundFiles.emplace_front();
   soundFile & sf = soundFiles.front();
-  sf._file = file;
   sf.clients++;
-  return &sf;
+  if (sf.create(file)) {
+    return &sf;
+  }
+  else {
+    sf.release();
+    return NULL;
+  }
 }
 
 void YSE::INTERNAL::soundManager::addToQue(soundFile * elm) {
@@ -124,7 +129,7 @@ void YSE::INTERNAL::soundManager::update() {
       i->update();
 
       // delete sounds that are stopped and not in use any more
-      if (i->intent == YSE::SS_STOPPED && i->_release) {
+      if (i->intent_dsp == YSE::SS_STOPPED && i->_release) {
         const ScopedLock lock(Global.getDeviceManager().getLock());
         i = soundObjects.erase_after(previous);
         continue;
@@ -132,9 +137,9 @@ void YSE::INTERNAL::soundManager::update() {
       previous = i;
 
       // count playing sounds 
-      if (i->_loading
-        || i->intent == YSE::SS_STOPPED
-        || i->intent == YSE::SS_PAUSED) {
+      if (i->loading_dsp
+        || i->intent_dsp == YSE::SS_STOPPED
+        || i->intent_dsp == YSE::SS_PAUSED) {
         ++i;
         continue;
       }
@@ -149,8 +154,7 @@ void YSE::INTERNAL::soundManager::update() {
 
   std::forward_list<soundImplementation>::iterator index = soundObjects.begin();
   for (int i = 0; i < nonVirtualSize && index != soundObjects.end(); index++, i++) {
-  //for (std::vector<soundImplementation*>::iterator i = nonVirtual.begin(); i < index; i++) {
-    index->isVirtual = false;
+    index->isVirtual_dsp = false;
   }
 }
 
@@ -169,7 +173,7 @@ YSE::INTERNAL::soundImplementation * YSE::INTERNAL::soundManager::addImplementat
 
 void YSE::INTERNAL::soundManager::removeImplementation(YSE::INTERNAL::soundImplementation * ptr) {
   ptr->_release = true;
-  ptr->intent = SS_WANTSTOSTOP;
+  ptr->intent_dsp = SS_WANTSTOSTOP;
 }
 
 void YSE::INTERNAL::soundManager::adjustLastGainBuffer() {
@@ -177,12 +181,12 @@ void YSE::INTERNAL::soundManager::adjustLastGainBuffer() {
 
   for (std::forward_list<soundImplementation>::iterator i = soundObjects.begin(); i != soundObjects.end(); ++i) {
     // if a sound is still loading, it will be adjusted during initialize
-    if (i->_loading) continue;
+    if (i->loading_dsp) continue;
 
-    UInt j = i->lastGain.size(); // need to store previous size for deep resize
-    i->lastGain.resize(Global.getChannelManager().getNumberOfOutputs());
-    for (; j < i->lastGain.size(); j++) {
-      i->lastGain[j].resize(i->buffer->size(), 0.0f);
+    UInt j = i->lastGain_dsp.size(); // need to store previous size for deep resize
+    i->lastGain_dsp.resize(Global.getChannelManager().getNumberOfOutputs());
+    for (; j < i->lastGain_dsp.size(); j++) {
+      i->lastGain_dsp[j].resize(i->buffer_dsp->size(), 0.0f);
     }
   }
 }

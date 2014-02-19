@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<JUCERPROJECT id="AKkfPk" name="yse_static_library" projectType="library" version="1.0.0"
+              bundleIdentifier="com.yourcompany.yse_static_library" includeBinaryInAppConfig="1"
+              jucerVersion="3.1.0">
+  <MAINGROUP id="JLmmWK" name="yse_static_library">
+    <GROUP id="{DAF363ED-A43B-6DFC-2214-7863A037768A}" name="yse">
+      <FILE id="pDr1Yr" name="channel.cpp" compile="1" resource="0" file="../yse/channel.cpp"/>
+      <FILE id="jA8wY8" name="channel.hpp" compile="0" resource="0" file="../yse/channel.hpp"/>
+      <FILE id="L9oMON" name="classes.hpp" compile="0" resource="0" file="../yse/classes.hpp"/>
+      <GROUP id="{60D265EE-B1CE-4648-4A7C-C6FF2C977D7A}" name="dsp">
+        <FILE id="bOOmdn" name="delay.cpp" compile="1" resource="0" file="../yse/dsp/delay.cpp"/>
+        <FILE id="utfZtB" name="delay.hpp" compile="0" resource="0" file="../yse/dsp/delay.hpp"/>
+        <FILE id="fPkmnl" name="dspObject.cpp" compile="1" resource="0" file="../yse/dsp/dspObject.cpp"/>
+        <FILE id="IzLrLv" name="dspObject.hpp" compile="0" resource="0" file="../yse/dsp/dspObject.hpp"/>
+        <FILE id="oE6Q0B" name="filters.cpp" compile="1" resource="0" file="../yse/dsp/filters.cpp"/>
+        <FILE id="XLFqW6" name="filters.hpp" compile="0" resource="0" file="../yse/dsp/filters.hpp"/>
+        <FILE id="EIpi9f" name="math.cpp" compile="1" resource="0" file="../yse/dsp/math.cpp"/>
+        <FILE id="vequya" name="math.hpp" compile="0" resource="0" file="../yse/dsp/math.hpp"/>
+        <FILE id="gMVPmU" name="math_functions.cpp" compile="1" resource="0"
+              file="../yse/dsp/math_functions.cpp"/>
+        <FILE id="wg96JU" name="math_functions.h" compile="0" resource="0"
+              file="../yse/dsp/math_functions.h"/>
+        <GROUP id="{472FCDC2-E704-32E3-6EE4-2331D27F41B5}" name="modules">
+          <FILE id="D0el8i" name="hilbert.cpp" compile="1" resource="0" file="../yse/dsp/modules/hilbert.cpp"/>
+          <FILE id="rmBTW7" name="hilbert.hpp" compile="0" resource="0" file="../yse/dsp/modules/hilbert.hpp"/>
+          <FILE id="vsJ2Uw" name="ringModulator.cpp" compile="1" resource="0"
+                file="../yse/dsp/modules/ringModulator.cpp"/>
+          <FILE id="w8hgVB" name="ringModulator.hpp" compile="0" resource="0"
+                file="../yse/dsp/modules/ringModulator.hpp"/>
+          <FILE id="zTePMH" name="sineWave.cpp" compile="1" resource="0" file="../yse/dsp/modules/sineWave.cpp"/>
+          <FILE id="LmpKSQ" name="sineWave.hpp" compile="0" resource="0" file="../yse/dsp/modules/sineWave.hpp"/>
+        </GROUP>
+        <FILE id="F9y2dd" name="oscillators.cpp" compile="1" resource="0" file="../yse/dsp/oscillators.cpp"/>
+        <FILE id="uW5dqy" name="oscillators.hpp" compile="0" resource="0" file="../yse/dsp/oscillators.hpp"/>
+        <FILE id="fxE0hQ" name="ramp.cpp" compile="1" resource="0" file="../yse/dsp/ramp.cpp"/>
+        <FILE id="g0tGz8" name="ramp.hpp" compile="0" resource="0" file="../yse/dsp/ramp.hpp"/>
+        <FILE id="h2Vcwy" name="sample.cpp" compile="1" resource="0" file="../yse/dsp/sample.cpp"/>
+        <FILE id="CA0nsf" name="sample.hpp" compile="0" resource="0" file="../yse/dsp/sample.hpp"/>
+      </GROUP>
+      <GROUP id="{45065A4A-799A-041A-4FA0-EA68A0295666}" name="headers">
+        <FILE id="ireAjc" name="constants.hpp" compile="0" resource="0" file="../yse/headers/constants.hpp"/>
+        <FILE id="fLOxfW" name="defines.hpp" compile="0" resource="0" file="../yse/headers/defines.hpp"/>
+        <FILE id="UeU6F5" name="enums.hpp" compile="0" resource="0" file="../yse/headers/enums.hpp"/>
+        <FILE id="W1Yt6p" name="types.hpp" compile="0" resource="0" file="../yse/headers/types.hpp"/>
+      </GROUP>
+      <GROUP id="{4CACC57A-5EDD-1A07-F77A-50DA7C031CB3}" name="implementations">
+        <FILE id="wFuij6" name="channelImplementation.cpp" compile="1" resource="0"
+              file="../yse/implementations/channelImplementation.cpp"/>
+        <FILE id="atEcyU" name="channelImplementation.h" compile="0" resource="0"
+              file="../yse/implementations/channelImplementation.h"/>
+        <FILE id="KN1GjB" name="listenerImplementation.cpp" compile="1" resource="0"
+              file="../yse/implementations/listenerImplementation.cpp"/>
+        <FILE id="og78N1" name="listenerImplementation.h" compile="0" resource="0"
+              file="../yse/implementations/listenerImplementation.h"/>
+        <FILE id="cMHbJW" name="logImplementation.cpp" compile="1" resource="0"
+              file="../yse/implementations/logImplementation.cpp"/>
+        <FILE id="xckMYc" name="logImplementation.h" compile="0" resource="0"
+              file="../yse/implementations/logImplementation.h"/>
+        <FILE id="fir1tV" name="soundImplementation.cpp" compile="1" resource="0"
+              file="../yse/implementations/soundImplementation.cpp"/>
+        <FILE id="EZRNFH" name="soundImplementation.h" compile="0" resource="0"
+              file="../yse/implementations/soundImplementation.h"/>
+      </GROUP>
+      <GROUP id="{53EC4D16-EA85-F0D6-3B03-34E18F0AF37D}" name="internal">
+        <FILE id="sBFUTB" name="channelManager.cpp" compile="1" resource="0"
+              file="../yse/internal/channelManager.cpp"/>
+        <FILE id="Il6JA3" name="channelManager.h" compile="0" resource="0"
+              file="../yse/internal/channelManager.h"/>
+        <FILE id="HEQ7C0" name="deviceManager.cpp" compile="1" resource="0"
+              file="../yse/internal/deviceManager.cpp"/>
+        <FILE id="zPbbjI" name="deviceManager.h" compile="0" resource="0" file="../yse/internal/deviceManager.h"/>
+        <FILE id="FetYsz" name="global.cpp" compile="1" resource="0" file="../yse/internal/global.cpp"/>
+        <FILE id="yLa6gM" name="global.h" compile="0" resource="0" file="../yse/internal/global.h"/>
+        <FILE id="B11v6D" name="reverbDSP.cpp" compile="1" resource="0" file="../yse/internal/reverbDSP.cpp"/>
+        <FILE id="HN1ghY" name="reverbDSP.h" compile="0" resource="0" file="../yse/internal/reverbDSP.h"/>
+        <FILE id="KiIOpL" name="reverbManager.cpp" compile="1" resource="0"
+              file="../yse/internal/reverbManager.cpp"/>
+        <FILE id="VDHx4V" name="reverbManager.h" compile="0" resource="0" file="../yse/internal/reverbManager.h"/>
+        <FILE id="zKC3xG" name="settings.cpp" compile="1" resource="0" file="../yse/internal/settings.cpp"/>
+        <FILE id="LNUYw1" name="settings.h" compile="0" resource="0" file="../yse/internal/settings.h"/>
+        <FILE id="DwP5a4" name="soundFile.cpp" compile="1" resource="0" file="../yse/internal/soundFile.cpp"/>
+        <FILE id="y6Ti0E" name="soundFile.h" compile="0" resource="0" file="../yse/internal/soundFile.h"/>
+        <FILE id="RvB9D1" name="soundManager.cpp" compile="1" resource="0"
+              file="../yse/internal/soundManager.cpp"/>
+        <FILE id="jPfXCD" name="soundManager.h" compile="0" resource="0" file="../yse/internal/soundManager.h"/>
+        <FILE id="IHraf5" name="time.cpp" compile="1" resource="0" file="../yse/internal/time.cpp"/>
+        <FILE id="vxsqb8" name="time.h" compile="0" resource="0" file="../yse/internal/time.h"/>
+        <FILE id="Kfp2dJ" name="underWaterEffect.cpp" compile="1" resource="0"
+              file="../yse/internal/underWaterEffect.cpp"/>
+        <FILE id="PIruBs" name="underWaterEffect.h" compile="0" resource="0"
+              file="../yse/internal/underWaterEffect.h"/>
+      </GROUP>
+      <FILE id="de0OuA" name="listener.cpp" compile="1" resource="0" file="../yse/listener.cpp"/>
+      <FILE id="Pz8YAL" name="listener.hpp" compile="0" resource="0" file="../yse/listener.hpp"/>
+      <FILE id="i55x9e" name="log.cpp" compile="1" resource="0" file="../yse/log.cpp"/>
+      <FILE id="iUhoPq" name="log.hpp" compile="0" resource="0" file="../yse/log.hpp"/>
+      <FILE id="qolbDk" name="reverb.cpp" compile="1" resource="0" file="../yse/reverb.cpp"/>
+      <FILE id="mysDPh" name="reverb.hpp" compile="0" resource="0" file="../yse/reverb.hpp"/>
+      <FILE id="kyLbln" name="sound.cpp" compile="1" resource="0" file="../yse/sound.cpp"/>
+      <FILE id="hMRRbI" name="sound.hpp" compile="0" resource="0" file="../yse/sound.hpp"/>
+      <FILE id="XQ2ego" name="system.cpp" compile="1" resource="0" file="../yse/system.cpp"/>
+      <FILE id="mRg2xk" name="system.hpp" compile="0" resource="0" file="../yse/system.hpp"/>
+      <GROUP id="{C62A333D-9559-3582-6C25-C4ECD6548BB4}" name="utils">
+        <FILE id="IhEfxa" name="misc.hpp" compile="0" resource="0" file="../yse/utils/misc.hpp"/>
+        <FILE id="IMjmhN" name="vector.cpp" compile="1" resource="0" file="../yse/utils/vector.cpp"/>
+        <FILE id="hhF0t6" name="vector.hpp" compile="0" resource="0" file="../yse/utils/vector.hpp"/>
+      </GROUP>
+      <FILE id="D0K6b0" name="yse.hpp" compile="0" resource="0" file="../yse/yse.hpp"/>
+    </GROUP>
+  </MAINGROUP>
+  <EXPORTFORMATS>
+    <VS2013 targetFolder="Builds/VisualStudio2013">
+      <CONFIGURATIONS>
+        <CONFIGURATION name="Debug" winWarningLevel="4" generateManifest="1" winArchitecture="32-bit"
+                       isDebug="1" optimisation="3" targetName="yse_debug" binaryPath="../bin"
+                       headerPath="../yse"/>
+        <CONFIGURATION name="Release" winWarningLevel="2" generateManifest="1" winArchitecture="32-bit"
+                       isDebug="0" optimisation="3" targetName="yse" binaryPath="../bin"
+                       headerPath="../yse"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_core" path="../../juce"/>
+        <MODULEPATH id="juce_audio_formats" path="../../juce"/>
+        <MODULEPATH id="juce_audio_devices" path="../../juce"/>
+        <MODULEPATH id="juce_audio_basics" path="../../juce"/>
+        <MODULEPATH id="juce_events" path="../../juce/modules"/>
+      </MODULEPATHS>
+    </VS2013>
+  </EXPORTFORMATS>
+  <MODULES>
+    <MODULES id="juce_audio_basics" showAllCode="1" useLocalCopy="1"/>
+    <MODULES id="juce_audio_devices" showAllCode="1" useLocalCopy="1"/>
+    <MODULES id="juce_audio_formats" showAllCode="1" useLocalCopy="1"/>
+    <MODULES id="juce_core" showAllCode="1" useLocalCopy="1"/>
+    <MODULES id="juce_events" showAllCode="1" useLocalCopy="1"/>
+  </MODULES>
+  <JUCEOPTIONS/>
+</JUCERPROJECT>
