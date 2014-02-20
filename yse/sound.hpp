@@ -14,6 +14,8 @@
 #include "classes.hpp"
 #include "headers/defines.hpp"
 #include "headers/types.hpp"
+#include "headers/enums.hpp"
+#include "utils/vector.hpp"
 
 namespace YSE {
 
@@ -260,45 +262,49 @@ namespace YSE {
     */
     Bool isValid();
 
+    /**
+     This will enable sound occlusion for this sound. Remember to setup an occlusion callback function
+     in System() first.
+    */
+    sound& setOcclusion(Bool value); 
+    
+    /**
+     Returns true if sound occlusion is active for this sound.
+    */
+    Bool getOcclusion(); 
       
     sound& attachDSP(DSP::dspObject & value); DSP::dspObject * dsp(); // attach a dsp object to this sound
-
-    sound& occlusion(Bool value); Bool occlusion(); // enable or disable occlusion on this sound
-
-    sound& release(); // manually release sound
 
     sound();
    ~sound();
   private:
+    sound& releaseImplementation(); // release sound 
+
     INTERNAL::soundImplementation *pimpl;
 
     // flags and values are used to update a sound so to not get in the way of the dsp processing
     // (this avoids having a critical zone or a lot of atomics)
-    Bool flagRelease  ; Bool release        ; 
-    Bool flagPos      ; Vec  pos            ;
-    Bool flagSpread   ; Vec  spread         ;
+    Bool flagPos      ; Vec  posValue       ;
+    Bool flagSpread   ; Flt  spread         ;
     Bool flagFade     ; UInt fadeAndStopTime;
     Bool flagVolume   ; Flt  volumeValue    ;
-    UInt volumeTime   ;
+                        UInt volumeTime     ;
 
     Bool flagPitch    ; Flt  pitch          ;
     Bool flagSize     ; Flt  size           ;
     Bool flagLoop     ; Flt  loop           ;
-    Bool flagTime     ; Bool time           ;
-    Bool flagRelative ; Bool relative       ;
-    Bool flagDoppler  ; Bool doppler        ;
-                        Bool pan2D          ;
-     
-    Bool flagPlay     ; Bool playValue      ;
-    Bool flagStop     ; Bool stopValue      ;
-    Bool flagPause    ; Bool pauseValue     ;
-    Bool flagToggle   ; Bool toggleValue    ;
-    Bool flagRestart  ; Bool restartValue   ;
-    Bool flagOcclusion; Bool occlusionValue ;
+    Bool flagTime     ; Flt  time           ;
     
-                        Bool streaming      ; 
-                        UInt length         ;
+    Bool relative     ;
+    Bool doppler      ;
+    Bool pan2D        ;  
+    Bool occlusion    ; 
     
+    Bool streaming    ; 
+    UInt length       ;
+    
+    SOUND_INTENT intent;
+
     friend class INTERNAL::soundImplementation;
 
   };

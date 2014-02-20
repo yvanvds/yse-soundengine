@@ -63,6 +63,16 @@ namespace YSE {
     SS_WANTSTORESTART,
   };
 
+  // for internal use by sound and soundimplementation
+  enum SOUND_INTENT {
+    SI_NONE,
+    SI_PLAY,
+    SI_STOP,
+    SI_PAUSE,
+    SI_TOGGLE,
+    SI_RESTART,
+  };
+
   // used by utils/error.hpp
   enum ERROR_LEVEL {
     EL_NONE,

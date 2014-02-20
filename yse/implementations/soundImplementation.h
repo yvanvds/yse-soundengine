@@ -21,15 +21,15 @@
 
 namespace YSE {
   namespace INTERNAL {
-    /*  to avoid unneccesary atomic vars, in this class every variable used in dsp functions must
-        end with dsp. If you use it in any other place, it must be atommic.
-    */
+    
+
     class soundImplementation {
     public:
+
       Bool create(const std::string &fileName, Bool stream = false);
 
-      void initialize(); // sets variables and asks memory. Use this when create returns true;
-
+      void initialize(sound * head); // sets variables and asks memory. Use this when create returns true;
+      void sync(); // used by soundmanager to sync variables between sound and soundimplementation
       void update(); // runs at soundsystem update
       Bool dsp(); // runs in audio callback
       void toChannels(); //
@@ -40,60 +40,69 @@ namespace YSE {
 
       static bool sortSoundObjects(const soundImplementation &, const soundImplementation &);
     private:
+      void dspFunc_parseIntent();
 
 
+      // for streaming sounds
       soundFile * file;
 
-      // for sound positioning and changing that
-      Flt filePtr_dsp;  // this is the real file position pointer
-      aFlt newFilePos_dsp; // this is a new value, set from the front end
-      aFlt currentFilePos_dsp; // this gets updated after dsp, so we can query the file position
-      Bool setFilePos_dsp; // this signals the dsp function to get his position from newFilePos
-
-      //TODO: this cannot be atomic and is changed a lot
-      SOUND_STATUS intent_dsp;
-
-      Vec newPos, lastPos, vel;
-      Vec _pos;
-      // constructor check
-      Dbl _cCheck;
-
-      // virtual sound calculation
-      aBool isVirtual_dsp;
-      Flt  virtualDist; // gain sum of all channels
-
-
-
+      // buffers
       std::vector<DSP::sample> filebuffer_dsp;
       std::vector<DSP::sample> * buffer_dsp;
       DSP::sample channelBuffer_dsp; // temporary buffer to adjust channel gain
       std::vector< std::vector<Flt> > lastGain_dsp; // needed for each channel to smooth gain changes
 
-      aFlt distance_dsp;
-      aFlt angle_dsp;
+      // for sound positioning and changing that
+      Flt filePtr_dsp;  // this is the real file position pointer
+      Flt newFilePos_dsp; // this is a new value, set from the front end
+      Flt currentFilePos_dsp; // this gets updated after dsp, so we can query the file position
+      Bool setFilePos_dsp; // this signals the dsp function to get his position from newFilePos
+
+      //TODO: this cannot be atomic and is changed a lot
+      SOUND_STATUS intent_dsp;
+      // this contains an action from the sound interface
+      SOUND_INTENT headIntent;
+
+      Vec pos; // desired position
+      Vec newPos, lastPos, velocityVec;
+      
+      // constructor check
+      Dbl _cCheck;
+
+      // virtual sound calculation
+      Bool isVirtual_dsp;
+      Flt  virtualDist; // gain sum of all channels
+
+
+
+
+
+      Flt distance_dsp;
+      Flt angle_dsp;
 
       // for pitch shift and doppler
-      aFlt velocity_dsp;
-      aFlt pitch_dsp;
+      aFlt velocity;
+      Flt pitch_dsp;
 
       // the distance before distance attenuation begins. 
-      aFlt size_dsp;
+      Flt size_dsp;
       soundImplementation & size(Flt value);
       Flt size();
 
       // volume
       // TODO: check if ramp getValue is threadsafe
-      DSP::ramp fader_dsp;
-      Bool fadeAndStop_dsp;
-      aBool setVolume_dsp;
-      aFlt volumeValue_dsp;
-      aFlt volumeTime_dsp;
-      aFlt currentVolume_dsp;
-      aBool setFadeAndStop_dsp;
-      aFlt fadeAndStopTime_dsp;
+      DSP::ramp fader;
+      Bool setVolume;
+      Flt volumeValue;
+      Flt volumeTime;
+      Flt currentVolume_dsp;    // the actual volume as seen in dsp func
+      Flt currentVolume_upd; // the actual volume as seen in update func
+      Bool setFadeAndStop;
+      Flt  fadeAndStopTime;
+      Bool stopAfterFade;
 
       // for multichannel sounds
-      aFlt spread_dsp;
+      Flt spread;
 
       // dsp slots
       DSP::dspSourceObject * source_dsp;
@@ -105,23 +114,17 @@ namespace YSE {
       void addDSP(DSP::dspObject & ptr);
 
       INTERNAL::channelImplementation * parent_dsp;
-      soundImplementation ** link; // will contain a reference to the pimpl of parent
+      sound * head; // will contain a pointer to the public part of the sound
 
-      Bool _release; // flag this for release in next update
-      aBool looping_dsp;
+      Bool release; // flag this for release in next update
+      Bool looping_dsp;
             // 3D
-      Bool _relative; // relative position and angle to player. Can be used for 2D sounds.
-      Bool _noDoppler; // don't add doppler to this sound
-      Bool _pan2D; // to remember shortcut (set relative and noDoppler) 
-      Bool _occlusionActive;
-      aFlt occlusion_dsp;
+      Bool relative; // relative position and angle to player. Can be used for 2D sounds.
+      Bool doppler; // add doppler to this sound
+      Bool occlusionActive;
+      Flt occlusion_dsp;
 
-      // control vars
-      aBool signalPlay_dsp;
-      aBool signalPause_dsp;
-      aBool signalStop_dsp;
-      aBool signalToggle_dsp;
-      aBool signalRestart_dsp;
+
 
       Flt bufferVolume_dsp;
       UInt startOffset;
@@ -129,8 +132,8 @@ namespace YSE {
 
       // info 
       UInt _length;
-      aBool streaming_dsp;
-      aBool loading_dsp;
+      Bool streaming_dsp;
+      aBool loading;
 
       friend class sound;
       friend class INTERNAL::channelImplementation;
