@@ -40,7 +40,7 @@ private:
     Component * parent;
     Rectangle<int> bounds;
     bool listener;
-    YSE::sound sound;
+    YSE::sound * sound;
     Point<float> calculateYSEPos(const Point<int> & pos);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (draggedComponent)

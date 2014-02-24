@@ -22,6 +22,9 @@
 
 //[Headers]     -- You can add your own extra header files here --
 #include "JuceHeader.h"
+#include "basic.h"
+#include "basic3D.h"
+#include "cpuLoad.h"
 //[/Headers]
 
 
@@ -52,7 +55,10 @@ public:
 
 private:
     //[UserVariables]   -- You can add your own custom variables in this section.
-    TooltipWindow tooltipWindow;
+    ScopedPointer<TooltipWindow> tooltipWindow;
+    //ScopedPointer<basicTab> tabBasic;
+    //ScopedPointer<basic3D> tab3D;
+    //ScopedPointer<cpuLoad> tabCPU;
     //[/UserVariables]
 
     //==============================================================================

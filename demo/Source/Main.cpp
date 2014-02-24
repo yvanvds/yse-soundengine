@@ -12,6 +12,7 @@
 #include "tabs.h"
 #include "../../YSE/yse.hpp"
 #include "parts/yseTimerThread.h"
+#include "YSEObjects.h"
 
 //==============================================================================
 class YSEDemoApplication  : public JUCEApplication
@@ -33,14 +34,16 @@ public:
       f.setAsCurrentWorkingDirectory();
 //#endif
       YSE::System().init();
-      //YseTimer().startTimer(50);
+      Sound().init();
+      YseTimer().startTimer(50);
       mainWindow = new MainWindow();
     }
 
     void shutdown()
     {
       // Add your application's shutdown code here..
-      //YseTimer().stopTimer();
+      YseTimer().stopTimer();
+      Sound().close();
       YSE::System().close();
       mainWindow = nullptr; // (deletes our window)
     }

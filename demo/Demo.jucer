@@ -131,6 +131,8 @@
       <FILE id="Y4QfzE" name="MainComponent.h" compile="0" resource="0" file="Source/MainComponent.h"/>
       <FILE id="i5uA8n" name="tabs.cpp" compile="1" resource="0" file="Source/tabs.cpp"/>
       <FILE id="ET2EuB" name="tabs.h" compile="0" resource="0" file="Source/tabs.h"/>
+      <FILE id="aS6Kxr" name="YSEObjects.cpp" compile="1" resource="0" file="Source/YSEObjects.cpp"/>
+      <FILE id="IaYnaF" name="YSEObjects.h" compile="0" resource="0" file="Source/YSEObjects.h"/>
     </GROUP>
   </MAINGROUP>
   <EXPORTFORMATS>

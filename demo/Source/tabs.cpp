@@ -18,9 +18,7 @@
 */
 
 //[Headers] You can add your own extra header files here...
-#include "basic.h"
-#include "basic3D.h"
-#include "cpuLoad.h"
+
 //[/Headers]
 
 #include "tabs.h"
@@ -32,16 +30,18 @@
 //==============================================================================
 tabs::tabs ()
 {
+    
     setName ("tabs");
     addAndMakeVisible (tabbedComponent = new TabbedComponent (TabbedButtonBar::TabsAtTop));
     tabbedComponent->setTabBarDepth (30);
-    tabbedComponent->addTab (TRANS("Basic 2D"), Colours::lightgrey, new basicTab(), true);
-    tabbedComponent->addTab (TRANS("Basic 3D"), Colours::lightgrey, new basic3D(), true);
-    tabbedComponent->addTab (TRANS("CPU"), Colours::lightgrey, new cpuLoad(), true);
+    tabbedComponent->addTab (TRANS("Basic 2D"), Colours::lightgrey, new basicTab, true);
+    tabbedComponent->addTab (TRANS("Basic 3D"), Colours::lightgrey, new basic3D, true);
+    tabbedComponent->addTab (TRANS("CPU"), Colours::lightgrey, new cpuLoad, true);
     tabbedComponent->setCurrentTabIndex (0);
 
 
     //[UserPreSize]
+    
     //[/UserPreSize]
 
     setSize (600, 400);
@@ -54,6 +54,8 @@ tabs::tabs ()
 tabs::~tabs()
 {
     //[Destructor_pre]. You can add your own custom destruction code here..
+    //tabBasic = nullptr;
+    tooltipWindow = nullptr;
     //[/Destructor_pre]
 
     tabbedComponent = nullptr;

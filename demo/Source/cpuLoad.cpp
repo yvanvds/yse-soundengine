@@ -18,10 +18,10 @@
 */
 
 //[Headers] You can add your own extra header files here...
+#include "YSEObjects.h"
 //[/Headers]
 
 #include "cpuLoad.h"
-#include "parts/yseTimerThread.h"
 
 //[MiscUserDefs] You can add your own user definitions and misc code here...
 //[/MiscUserDefs]
@@ -241,29 +241,32 @@ void cpuLoad::buttonClicked (Button* buttonThatWasClicked)
     if (buttonThatWasClicked == buttonAdd)
     {
         //[UserButtonCode_buttonAdd] -- add your button handler code here..
-
+      for (int x = 0; x < 10; x++) {
         Random & rand = Random::getSystemRandom();
-        sounds.emplace_front();
+        Sound().cpuTab.emplace_front();
         switch (rand.nextInt(4)) {
-          case 0: sounds.front().create("g.ogg", &YSE::ChannelAmbient(), true, 0.1f); break;
-          case 1: sounds.front().create("kick.ogg", &YSE::ChannelFX(), true, 0.1f); break;
-          case 2: sounds.front().create("drone.ogg", &YSE::ChannelMusic(), true, 0.1f); break;
-          case 3: sounds.front().create("snare.ogg", &YSE::ChannelVoice(), true, 0.1f); break;
+          case 0: Sound().cpuTab.front().create("g.ogg", &YSE::ChannelAmbient(), true, 0.1f); break;
+          case 1: Sound().cpuTab.front().create("kick.ogg", &YSE::ChannelFX(), true, 0.1f); break;
+          case 2: Sound().cpuTab.front().create("drone.ogg", &YSE::ChannelMusic(), true, 0.1f); break;
+          case 3: Sound().cpuTab.front().create("snare.ogg", &YSE::ChannelVoice(), true, 0.1f); break;
         }
-        sounds.front().setPosition(YSE::Vec((rand.nextFloat() - 0.5f) * 10, (rand.nextFloat() - 0.5f) * 10, (rand.nextFloat() - 0.5f) * 10));
-        sounds.front().setSpeed(rand.nextFloat() + 0.5f);
-        sounds.front().play();
+        Sound().cpuTab.front().setPosition(YSE::Vec((rand.nextFloat() - 0.5f) * 10, (rand.nextFloat() - 0.5f) * 10, (rand.nextFloat() - 0.5f) * 10));
+        Sound().cpuTab.front().setSpeed(rand.nextFloat() + 0.5f);
+        Sound().cpuTab.front().play();
         soundCounter++;
         updateCounter();
+      }
         //[/UserButtonCode_buttonAdd]
     }
     else if (buttonThatWasClicked == buttonRemove)
     {
         //[UserButtonCode_buttonRemove] -- add your button handler code here..
-      if (!sounds.empty()) {
-        sounds.pop_front();
-        soundCounter--;
-        updateCounter();
+      for (int x = 0; x < 10; x++) {
+        if (!Sound().cpuTab.empty()) {
+          Sound().cpuTab.pop_front();
+          soundCounter--;
+          updateCounter();
+        }
       }
         //[/UserButtonCode_buttonRemove]
     }

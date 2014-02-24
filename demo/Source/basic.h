@@ -23,6 +23,8 @@
 //[Headers]     -- You can add your own extra header files here --
 #include "JuceHeader.h"
 #include "../../YSE/yse.hpp"
+#include <forward_list>
+
 //[/Headers]
 
 
@@ -57,9 +59,6 @@ public:
 
 private:
     //[UserVariables]   -- You can add your own custom variables in this section.
-    YSE::sound sound1;
-    YSE::sound sound2;
-    YSE::sound sound3;
     //[/UserVariables]
 
     //==============================================================================

@@ -11,13 +11,14 @@
 #include "../../JuceLibraryCode/JuceHeader.h"
 #include "draggedComponent.h"
 #include "yseTimerThread.h"
+#include "../YSEObjects.h"
 
 //==============================================================================
 draggedComponent::draggedComponent(const String & name) : listener(false)
 {
     // In your constructor, you should add any child components, and
     // initialise any special settings that your component needs.
-    
+  sound = Sound().basic3DTab.add(new YSE::sound);
 }
 
 draggedComponent::~draggedComponent()
@@ -66,7 +67,7 @@ void draggedComponent::mouseDrag(const MouseEvent & e) {
       YSE::Listener().setPosition(YSE::Vec(ysePos.x, 0, ysePos.y));
     }
     else {
-      sound.setPosition(YSE::Vec(ysePos.x, 0, ysePos.y));
+      sound->setPosition(YSE::Vec(ysePos.x, 0, ysePos.y));
     } 
   } 
 }
@@ -108,16 +109,16 @@ void draggedComponent::setListener(bool value) {
 }
 
 void draggedComponent::setSound(const String & name) {
-  sound.create(name.toStdString().c_str(), &YSE::ChannelMainMix(), true);
+  sound->create(name.toStdString().c_str(), &YSE::ChannelMainMix(), true);
   Point<float> ysePos = calculateYSEPos(getPosition());
-  sound.setPosition(YSE::Vec(ysePos.x, 0, ysePos.y));
+  sound->setPosition(YSE::Vec(ysePos.x, 0, ysePos.y));
 }
 
 void draggedComponent::play(bool value) {
   if (value) {
-    sound.play();
+    sound->play();
   }
   else {
-    sound.pause();
+    sound->pause();
   }
 }

@@ -403,6 +403,9 @@
     <ClCompile Include="..\..\Source\tabs.cpp">
       <Filter>YseDemo\Source</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Source\YSEObjects.cpp">
+      <Filter>YseDemo\Source</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\JuceLibraryCode\modules\juce_audio_basics\buffers\juce_AudioDataConverters.cpp">
       <Filter>Juce Modules\juce_audio_basics\buffers</Filter>
     </ClCompile>
@@ -1639,6 +1642,9 @@
       <Filter>YseDemo\Source</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\tabs.h">
+      <Filter>YseDemo\Source</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\YSEObjects.h">
       <Filter>YseDemo\Source</Filter>
     </ClInclude>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_audio_basics\buffers\juce_AudioDataConverters.h">
