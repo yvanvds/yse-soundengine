@@ -53,6 +53,32 @@ YSE::INTERNAL::reverbManager & YSE::INTERNAL::global::getReverbManager() {
   return *rm;
 }
 
+void YSE::INTERNAL::global::addSlowJob(ThreadPoolJob * job) {
+  slowThreads.addJob(job, false);
+}
+
+void YSE::INTERNAL::global::addFastJob(ThreadPoolJob * job) {
+  fastThreads.addJob(job, false);
+}
+
+void YSE::INTERNAL::global::waitForFastJob(ThreadPoolJob * job) {
+  if (fastThreads.contains(job)) {
+    fastThreads.waitForJobToFinish(job, -1);
+  }
+}
+
+void YSE::INTERNAL::global::waitForSlowJob(ThreadPoolJob * job) {
+  if (slowThreads.contains(job)) {
+    slowThreads.waitForJobToFinish(job, -1);
+  }
+}
+
+bool YSE::INTERNAL::global::containsSlowJob(ThreadPoolJob * job) {
+  return slowThreads.contains(job);
+}
+
+YSE::INTERNAL::global::global() : slowThreads(1), update(false) {}
+
 void YSE::INTERNAL::global::init() {
   dm = deviceManager::getInstance();
   sm = soundManager::getInstance();
@@ -62,9 +88,15 @@ void YSE::INTERNAL::global::init() {
   cm = channelManager::getInstance();
   li = listenerImplementation::getInstance();
   rm = reverbManager::getInstance();
+
+  slowThreads.setThreadPriorities(0);
+  fastThreads.setThreadPriorities(10);
 }
 
 void YSE::INTERNAL::global::close() {
+  slowThreads.removeAllJobs(true, -1);
+  fastThreads.removeAllJobs(true, -1);
+
   channelManager::deleteInstance();
   listenerImplementation::deleteInstance();
   reverbManager::deleteInstance();
@@ -73,4 +105,6 @@ void YSE::INTERNAL::global::close() {
   deviceManager::deleteInstance();
   settings::deleteInstance();
   logImplementation::deleteInstance();
+
+
 }

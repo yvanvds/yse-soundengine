@@ -51,9 +51,6 @@ void YSE::INTERNAL::channelManager::update() {
   std::forward_list<INTERNAL::channelImplementation>::iterator previous = implementations.before_begin();
   for (std::forward_list<INTERNAL::channelImplementation>::iterator i = implementations.begin(); i != implementations.end(); ++i) {
     if (i->release) {
-      // when we're moving channels and sounds around, it might be
-      // better to lock the audio thread for a moment
-      const ScopedLock lock(Global.getDeviceManager().getLock());
 
       // move subchannels to parent
       for (std::forward_list<INTERNAL::channelImplementation *>::iterator child = i->children.begin(); child != i->children.end(); ++child) {
@@ -63,7 +60,7 @@ void YSE::INTERNAL::channelManager::update() {
 
       // move sounds to parent
       for (std::forward_list<soundImplementation *>::iterator sound = i->sounds.begin(); sound != i->sounds.end(); ++sound) {
-        (*sound)->parent_dsp = i->parent;
+        (*sound)->parent = i->parent;
         i->parent->sounds.push_front((*sound));
       }
 

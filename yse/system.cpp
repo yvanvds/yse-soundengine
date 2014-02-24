@@ -79,14 +79,7 @@ Bool YSE::system::init() {
 void YSE::system::update() {
   // soundManager needs to check if there are sounds to be loaded
   INTERNAL::Global.getSoundManager().notify();
-  
-  // update global objects
-  INTERNAL::Global.getTime().update();
-  INTERNAL::Global.getListener().update();
-  INTERNAL::Global.getSoundManager().update();
-  INTERNAL::Global.getChannelManager().update();
-  // TODO: check if we still have to release sounds (see old code)
-
+  INTERNAL::Global.flagForUpdate();
 }
 
 void YSE::system::close() {

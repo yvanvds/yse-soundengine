@@ -1,7 +1,7 @@
 #include <iostream>
 #include <cstdlib>
 #include "yse.hpp"
-#ifdef WINDOWS
+#if defined YSE_WINDOWS
 #include <conio.h>
 #else
 #include "wincompat.h"
@@ -28,10 +28,10 @@ int main() {
     if (_kbhit()) {
       char ch = _getch();
       switch (ch) {
-      case 'q': sound.setSpeed(sound.getSpeed() + 0.01); break;
-      case 'a': sound.setSpeed(sound.getSpeed() - 0.01); break;
-      case 's': sound.setVolume(sound.getVolume() - 0.1); break;
-      case 'w': sound.setVolume(sound.getVolume() + 0.1); break;
+      case 'q': sound.setSpeed(sound.getSpeed() + 0.01f); break;
+      case 'a': sound.setSpeed(sound.getSpeed() - 0.01f); break;
+      case 's': sound.setVolume(sound.getVolume() - 0.1f); break;
+      case 'w': sound.setVolume(sound.getVolume() + 0.1f); break;
       case 'e': goto exit;
       }
     }

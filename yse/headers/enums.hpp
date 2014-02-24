@@ -73,6 +73,16 @@ namespace YSE {
     SI_RESTART,
   };
 
+  enum SOUND_IMPLEMENTATION_STATE {
+    SIS_CONSTRUCTED, // the object exists
+    SIS_CREATED, // create function is done
+    SIS_LOADED, // file is loaded
+    SIS_READY, // ready for play
+    SIS_DONE, // fade and flag for release if done
+    SIS_RELEASE, // flagged for release from soundsInUse list
+    SIS_DELETE, // flagged for deletion from soundImplementations list
+  };
+
   // used by utils/error.hpp
   enum ERROR_LEVEL {
     EL_NONE,

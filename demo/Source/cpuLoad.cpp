@@ -157,6 +157,8 @@ cpuLoad::cpuLoad ()
 
 
     //[Constructor] You can add your own custom stuff here..
+    soundCounter = 0;
+    sliderVirtual->setValue(YSE::System().maxSounds(), NotificationType::sendNotification);
     //[/Constructor]
 }
 
@@ -239,25 +241,30 @@ void cpuLoad::buttonClicked (Button* buttonThatWasClicked)
     if (buttonThatWasClicked == buttonAdd)
     {
         //[UserButtonCode_buttonAdd] -- add your button handler code here..
-        //timer.soundsToAdd += 1;
-        ScopedLock lock(YseTimer().crit);
-        //if (!sounds.empty()) sounds.front().play();
+
         Random & rand = Random::getSystemRandom();
         sounds.emplace_front();
-        sounds.front().create("kick.ogg", &YSE::ChannelMusic(), true, 0.1f);
-        sounds.front().set2D(true);
-        //sounds.front().setPosition(YSE::Vec((rand.nextFloat() - 0.5f) * 10, (rand.nextFloat() - 0.5f) * 10, (rand.nextFloat() - 0.5f) * 10));
-        //sounds.front().setSpeed(rand.nextFloat() + 0.5f);
+        switch (rand.nextInt(4)) {
+          case 0: sounds.front().create("g.ogg", &YSE::ChannelAmbient(), true, 0.1f); break;
+          case 1: sounds.front().create("kick.ogg", &YSE::ChannelFX(), true, 0.1f); break;
+          case 2: sounds.front().create("drone.ogg", &YSE::ChannelMusic(), true, 0.1f); break;
+          case 3: sounds.front().create("snare.ogg", &YSE::ChannelVoice(), true, 0.1f); break;
+        }
+        sounds.front().setPosition(YSE::Vec((rand.nextFloat() - 0.5f) * 10, (rand.nextFloat() - 0.5f) * 10, (rand.nextFloat() - 0.5f) * 10));
+        sounds.front().setSpeed(rand.nextFloat() + 0.5f);
         sounds.front().play();
-        
+        soundCounter++;
+        updateCounter();
         //[/UserButtonCode_buttonAdd]
     }
     else if (buttonThatWasClicked == buttonRemove)
     {
         //[UserButtonCode_buttonRemove] -- add your button handler code here..
-        //timer.soundsToDelete += 1;
-      ScopedLock lock(YseTimer().crit);
-      if (!sounds.empty()) sounds.pop_front();
+      if (!sounds.empty()) {
+        sounds.pop_front();
+        soundCounter--;
+        updateCounter();
+      }
         //[/UserButtonCode_buttonRemove]
     }
 
@@ -273,10 +280,10 @@ void cpuLoad::sliderValueChanged (Slider* sliderThatWasMoved)
     if (sliderThatWasMoved == sliderVirtual)
     {
         //[UserSliderCode_sliderVirtual] -- add your slider handling code here..
-      ScopedLock lock(YseTimer().crit);
-      Int v = static_cast<Int>(sliderVirtual->getValue());
-      YSE::System().maxSounds(v);
-      labelPlayingSounds->setText(String(v), NotificationType::sendNotification);
+        Int v = static_cast<Int>(sliderVirtual->getValue());
+        YSE::System().maxSounds(v);
+        updateCounter();
+        
         //[/UserSliderCode_sliderVirtual]
     }
 
@@ -287,6 +294,19 @@ void cpuLoad::sliderValueChanged (Slider* sliderThatWasMoved)
 
 
 //[MiscUserCode] You can add your own definitions of your custom methods or any other code here...
+void cpuLoad::updateCounter() {
+  labelAllSounds->setText(String(soundCounter), NotificationType::sendNotification);
+  if (soundCounter < YSE::System().maxSounds()) {
+    labelPlayingSounds->setText(String(soundCounter), NotificationType::sendNotification);
+  }
+  if (soundCounter > YSE::System().maxSounds()) {
+    labelVirtualSounds->setText(String(soundCounter - YSE::System().maxSounds()), NotificationType::sendNotification);
+  }
+  else {
+    labelVirtualSounds->setText(String(0), NotificationType::sendNotification);
+  }
+}
+
 //[/MiscUserCode]
 
 

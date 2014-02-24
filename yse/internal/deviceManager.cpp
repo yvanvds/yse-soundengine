@@ -13,8 +13,12 @@
 #include "JuceHeader.h"
 #include "../headers/constants.hpp"
 #include "../internal/soundManager.h"
+#include "../internal/time.h"
+#include "../internal/channelManager.h"
 #include "../implementations/channelImplementation.h"
 #include "../implementations/logImplementation.h"
+#include "../implementations/soundImplementation.h"
+#include "../implementations/listenerImplementation.h"
 
 juce_ImplementSingleton(YSE::INTERNAL::deviceManager)
 
@@ -71,9 +75,16 @@ void YSE::INTERNAL::deviceManager::audioDeviceIOCallback(const float ** inputCha
   if (mainChannel == NULL) return;
   if (Global.getSoundManager().empty()) return;
 
-  // global audio lock
-  const ScopedLock lock(audioDeviceManager.getAudioCallbackLock());
-
+  if (Global.needsUpdate()) {
+    // update global objects
+    INTERNAL::Global.getTime().update();
+    INTERNAL::Global.getListener().update();
+    INTERNAL::Global.getSoundManager().update();
+    INTERNAL::Global.getChannelManager().update();
+    // TODO: check if we still have to release sounds (see old code)
+    Global.updateDone();
+  }
+  
   UInt pos = 0;
 
   while (pos < static_cast<UInt>(numSamples)) {
@@ -117,8 +128,4 @@ void YSE::INTERNAL::deviceManager::audioDeviceStopped() {
 
 void YSE::INTERNAL::deviceManager::audioDeviceError(const juce::String & errorMessage) {
   Global.getLog().emit(E_AUDIODEVICE, errorMessage);
-}
-
-CriticalSection & YSE::INTERNAL::deviceManager::getLock() {
-  return audioDeviceManager.getAudioCallbackLock();
 }

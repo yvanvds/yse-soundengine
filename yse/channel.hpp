@@ -111,7 +111,7 @@ namespace YSE {
     // channel implementation and friend classes
     INTERNAL::channelImplementation *pimpl;
     friend class sound;
-    friend class soundImplementation;
+    friend class INTERNAL::soundImplementation;
     friend class system;
     friend class soundManager;
   };

@@ -32,7 +32,7 @@ namespace YSE {
       output() : angle(0.f) {}
     };
 
-    class channelImplementation : public Thread {
+    class channelImplementation : public ThreadPoolJob {
     public:
       channelImplementation(const String & name);
       ~channelImplementation();
@@ -46,7 +46,7 @@ namespace YSE {
 
       void clearBuffers();
       void dsp();
-      void run(); // threading function which calls dsp()
+      JobStatus runJob(); // threading function which calls dsp()
       void exit(); // exit dsp thread 
       void adjustVolume();
       void buffersToParent();

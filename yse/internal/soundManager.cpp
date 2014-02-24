@@ -20,17 +20,37 @@
 
 juce_ImplementSingleton(YSE::INTERNAL::soundManager)
 
+ThreadPoolJob::JobStatus YSE::INTERNAL::soundSetupJob::runJob() {
+  for (auto i = Global.getSoundManager().soundsToLoad.begin(); i != Global.getSoundManager().soundsToLoad.end(); ++i) {
+    i->load()->setup();
+  }
+  return jobHasFinished;
+}
+
+ThreadPoolJob::JobStatus YSE::INTERNAL::soundDeleteJob::runJob() {
+  Global.getSoundManager().soundImplementations.remove_if(soundImplementation::canBeDeleted);
+  return jobHasFinished;
+}
+
+
 YSE::INTERNAL::soundManager::soundManager() : Thread(juce::String("soundManager")) {
   formatManager.registerBasicFormats();
 }
 
 YSE::INTERNAL::soundManager::~soundManager() {
+  // wait for jobs to finish
+  Global.waitForSlowJob(&soundSetup);
+  Global.waitForSlowJob(&soundDelete);
+  // remove all sounds that are still in memory
+  soundsToLoad.clear();
+  soundsInUse.clear();
+  soundImplementations.clear();
   clearSingletonInstance();
 }
 
 YSE::INTERNAL::soundFile * YSE::INTERNAL::soundManager::add(const File & file) {
   // find out if this file already exists
-  for (std::forward_list<soundFile>::iterator i = soundFiles.begin(); i != soundFiles.end(); ++i) {
+  for (auto i = soundFiles.begin(); i != soundFiles.end(); ++i) {
     if ( i->_file == file) {
       i->clients++;
       return &(*i);
@@ -57,8 +77,7 @@ void YSE::INTERNAL::soundManager::addToQue(soundFile * elm) {
 
 
 Bool YSE::INTERNAL::soundManager::empty() {
-  if (soundObjects.empty()) return true;
-  return false;
+  return soundImplementations.empty();
 }
 
 void YSE::INTERNAL::soundManager::run() {
@@ -108,11 +127,42 @@ void YSE::INTERNAL::soundManager::run() {
 }
 
 void YSE::INTERNAL::soundManager::update() {
-  // update soundFiles
+  ///////////////////////////////////////////
+  // check if there are soundimplementations that need setup
+  ///////////////////////////////////////////
+  if (!soundsToLoad.empty() && !Global.containsSlowJob(&soundSetup)) {
+    // removing cannot be done in a separate thread because we are iterating over this
+    // list a during this update fuction
+    soundsToLoad.remove_if(soundImplementation::canBeRemovedFromLoading);
+    Global.addSlowJob(&soundSetup);
+  }
+
+  if (runDelete && !Global.containsSlowJob(&soundDelete)) {
+    Global.addSlowJob(&soundDelete);
+  }
+  runDelete = false;
+
+  ///////////////////////////////////////////
+  // check if loading soundimplementations are ready
+  ///////////////////////////////////////////
+  {
+    for (auto i = soundsToLoad.begin(); i != soundsToLoad.end(); i++) {
+      if (i->load()->readyCheck()) {
+        soundImplementation * ptr = i->load();
+        // place ptr in active sound list
+        soundsInUse.emplace_front(ptr);
+        // add the sound to the channel that is supposed to use
+        ptr->parent->add(ptr);
+      }
+    }
+  }
+
+  ///////////////////////////////////////////
+  // update actual soundfiles
+  ///////////////////////////////////////////
   auto iMinus = soundFiles.before_begin();
   for (auto i = soundFiles.begin(); i != soundFiles.end(); ) {
     if (!i->inUse()) {
-      const ScopedLock lock(Global.getDeviceManager().getLock());
       i = soundFiles.erase_after(iMinus);
     }
     else {
@@ -122,39 +172,44 @@ void YSE::INTERNAL::soundManager::update() {
   }
 
   Int playingSounds = 0;
-  // update sound objects & calculate virtual sounds
-  {
-    auto previous = soundObjects.before_begin();
-    for (auto i = soundObjects.begin(); i != soundObjects.end(); ) {
-      i->update();
 
-      // delete sounds that are stopped and not in use any more
-      if (i->intent_dsp == YSE::SS_STOPPED && i->_release) {
-        const ScopedLock lock(Global.getDeviceManager().getLock());
-        i = soundObjects.erase_after(previous);
+  ///////////////////////////////////////////
+  // sync and update sound implementations
+  ///////////////////////////////////////////
+  {
+    auto previous = soundsInUse.before_begin();
+    for (auto i = soundsInUse.begin(); i != soundsInUse.end();) {
+      (*i)->sync();
+      if ((*i)->objectStatus == SIS_RELEASE) {
+        soundImplementation * ptr = (*i);
+        i = soundsInUse.erase_after(previous);
+        ptr->objectStatus = SIS_DELETE;
+        runDelete = true;
         continue;
       }
-      previous = i;
+      // update
+      (*i)->update();
 
-      // count playing sounds 
-      if (i->loading_dsp
-        || i->intent_dsp == YSE::SS_STOPPED
-        || i->intent_dsp == YSE::SS_PAUSED) {
+      // don't count sounds that are not playing 
+      if ((*i)->objectStatus < SIS_READY || (*i)->status_upd == YSE::SS_STOPPED || (*i)->status_upd == YSE::SS_PAUSED) {
         ++i;
         continue;
       }
+
+      // count playing sounds
       playingSounds++;
+      previous = i;
       ++i;
     }
   }
 
   if (nonVirtualSize < playingSounds) {
-    soundObjects.sort(soundImplementation::sortSoundObjects);
+    soundsInUse.sort(soundImplementation::sortSoundObjects);
   }
 
-  std::forward_list<soundImplementation>::iterator index = soundObjects.begin();
-  for (int i = 0; i < nonVirtualSize && index != soundObjects.end(); index++, i++) {
-    index->isVirtual_dsp = false;
+  auto index = soundsInUse.begin();
+  for (int i = 0; i < nonVirtualSize && index != soundsInUse.end(); index++, i++) {
+    (*index)->isVirtual = false;
   }
 }
 
@@ -166,27 +221,21 @@ Int YSE::INTERNAL::soundManager::maxSounds() {
   return nonVirtualSize;
 }
 
-YSE::INTERNAL::soundImplementation * YSE::INTERNAL::soundManager::addImplementation() {
-  soundObjects.emplace_front();
-  return &soundObjects.front();
+YSE::INTERNAL::soundImplementation * YSE::INTERNAL::soundManager::addImplementation(sound * head) {
+  soundImplementations.emplace_front(head);
+  return &soundImplementations.front();
 }
 
-void YSE::INTERNAL::soundManager::removeImplementation(YSE::INTERNAL::soundImplementation * ptr) {
-  ptr->_release = true;
-  ptr->intent_dsp = SS_WANTSTOSTOP;
+void YSE::INTERNAL::soundManager::loadImplementation(YSE::INTERNAL::soundImplementation * impl) {
+  soundsToLoad.emplace_front(impl);
 }
 
 void YSE::INTERNAL::soundManager::adjustLastGainBuffer() {
-  const ScopedLock lock(Global.getDeviceManager().getLock());
-
-  for (std::forward_list<soundImplementation>::iterator i = soundObjects.begin(); i != soundObjects.end(); ++i) {
-    // if a sound is still loading, it will be adjusted during initialize
-    if (i->loading_dsp) continue;
-
-    UInt j = i->lastGain_dsp.size(); // need to store previous size for deep resize
-    i->lastGain_dsp.resize(Global.getChannelManager().getNumberOfOutputs());
-    for (; j < i->lastGain_dsp.size(); j++) {
-      i->lastGain_dsp[j].resize(i->buffer_dsp->size(), 0.0f);
+  for (auto i = soundsInUse.begin(); i != soundsInUse.end(); ++i) {
+    UInt j = (*i)->lastGain.size(); // need to store previous size for deep resize
+    (*i)->lastGain.resize(Global.getChannelManager().getNumberOfOutputs());
+    for (; j < (*i)->lastGain.size(); j++) {
+      (*i)->lastGain[j].resize((*i)->buffer->size(), 0.0f);
     }
   }
 }

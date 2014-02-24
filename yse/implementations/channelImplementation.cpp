@@ -26,7 +26,7 @@ Flt YSE::INTERNAL::channelImplementation::volume() {
 }
 
 YSE::INTERNAL::channelImplementation::channelImplementation(const String & name) : 
-    Thread(name),
+    ThreadPoolJob(name),
     newVolume(1.f), lastVolume(1.f), userChannel(true),
     allowVirtual(true), release(false), parent(NULL),
     link(NULL) {
@@ -63,10 +63,10 @@ Bool YSE::INTERNAL::channelImplementation::remove(YSE::INTERNAL::channelImplemen
 }
 
 Bool YSE::INTERNAL::channelImplementation::add(YSE::INTERNAL::soundImplementation * s) {
-  if (s->parent_dsp != NULL) {
-    s->parent_dsp->remove(s);
+  if (s->parent != NULL) {
+    s->parent->remove(s);
   }
-  s->parent_dsp = this;
+  s->parent = this;
   sounds.push_front(s);
   return true;
 }
@@ -109,18 +109,13 @@ void YSE::INTERNAL::channelImplementation::clearBuffers() {
   }
 }
 
-void YSE::INTERNAL::channelImplementation::run() {
-  for (;;) {
+ThreadPoolJob::JobStatus YSE::INTERNAL::channelImplementation::runJob() {
     dsp();
-    if (threadShouldExit()) return;
-    wait(-1);
-  }
+    return jobHasFinished;
 }
 
 void YSE::INTERNAL::channelImplementation::exit() {
-  signalThreadShouldExit();
-  notify();
-  waitForThreadToExit(-1);
+  Global.waitForFastJob(this);
 }
 
 void YSE::INTERNAL::channelImplementation::dsp() {
@@ -134,17 +129,12 @@ void YSE::INTERNAL::channelImplementation::dsp() {
   clearBuffers();
 
   // calculate child channels if there are any
-  for (std::forward_list<channelImplementation*>::iterator i = children.begin(); i != children.end(); ++i) {
-    if ((*i)->isThreadRunning()) {
-      (*i)->notify();
-    }
-    else {
-      (*i)->startThread(10);
-    }
+  for (auto i = children.begin(); i != children.end(); ++i) {
+    Global.addFastJob(*i);
   }
 
   // calculate sounds in this channel
-  for (std::forward_list<soundImplementation*>::iterator i = sounds.begin(); i != sounds.end(); ++i) {
+  for (auto i = sounds.begin(); i != sounds.end(); ++i) {
     if ((*i)->dsp()) {
       (*i)->toChannels();
     }
@@ -185,11 +175,10 @@ void YSE::INTERNAL::channelImplementation::adjustVolume() {
 }
 
 void YSE::INTERNAL::channelImplementation::buffersToParent() {
-  // wait for dsp thread to finish
-  const ScopedLock lock(dspActive);
+  Global.waitForFastJob(this);
 
   // call this recursively on all child channels 
-  for (std::forward_list<channelImplementation*>::iterator i = children.begin(); i != children.end(); ++i) {
+  for (auto i = children.begin(); i != children.end(); ++i) {
     (*i)->buffersToParent();
   }
 
@@ -207,7 +196,7 @@ void YSE::INTERNAL::channelImplementation::buffersToParent() {
 
 YSE::INTERNAL::channelImplementation& YSE::INTERNAL::channelImplementation::allowVirtualSounds(Bool value) {
   allowVirtual = value;
-  for (std::forward_list<channelImplementation*>::iterator i = children.begin(); i != children.end(); ++i) {
+  for (auto i = children.begin(); i != children.end(); ++i) {
     (*i)->allowVirtualSounds(value);
   }
   return (*this);

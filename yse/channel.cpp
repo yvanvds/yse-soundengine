@@ -26,8 +26,6 @@ YSE::channel& YSE::channel::create(const char * name, channel& parent) {
     return *this;
   }
   
-  const ScopedLock lock(INTERNAL::Global.getDeviceManager().getLock());
-
   pimpl = INTERNAL::Global.getChannelManager().addChannelImplementation(name);
   parent.pimpl->add(pimpl);
 
@@ -49,15 +47,12 @@ void YSE::channel::createGlobal() {
     jassertfalse
   }
 
-  const ScopedLock lock(INTERNAL::Global.getDeviceManager().getLock());
-
   pimpl = INTERNAL::Global.getChannelManager().addChannelImplementation("mainMix");
   pimpl->link = &pimpl;
   INTERNAL::Global.getDeviceManager().setChannel(pimpl);
 }
 
 YSE::channel& YSE::channel::release() {
-  const ScopedLock lock(INTERNAL::Global.getDeviceManager().getLock());
   if (pimpl) {
     INTERNAL::Global.getChannelManager().removeChannelImplementation(pimpl);
   }
@@ -79,19 +74,16 @@ Flt YSE::channel::getVolume() {
 }
 
 YSE::channel& YSE::channel::moveTo(channel& parent) {
-  const ScopedLock lock(INTERNAL::Global.getDeviceManager().getLock());
   parent.pimpl->add(pimpl);
   return (*this);
 }
 
 YSE::channel& YSE::channel::setNumberOfSpeakers(Int count) {
-  const ScopedLock lock(INTERNAL::Global.getDeviceManager().getLock());
   pimpl->set(count);
   return (*this);
 }
 
 YSE::channel& YSE::channel::pos(Int nr, Flt angle) {
-  const ScopedLock lock(INTERNAL::Global.getDeviceManager().getLock());
   pimpl->pos(nr, angle);
   return (*this);
 }

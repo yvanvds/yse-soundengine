@@ -33,14 +33,14 @@ public:
       f.setAsCurrentWorkingDirectory();
 //#endif
       YSE::System().init();
-      YseTimer().startTimer(50);
+      //YseTimer().startTimer(50);
       mainWindow = new MainWindow();
     }
 
     void shutdown()
     {
       // Add your application's shutdown code here..
-      YseTimer().stopTimer();
+      //YseTimer().stopTimer();
       YSE::System().close();
       mainWindow = nullptr; // (deletes our window)
     }

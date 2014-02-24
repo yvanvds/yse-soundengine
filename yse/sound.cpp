@@ -29,26 +29,23 @@ YSE::sound::sound() :
   flagLoop  (false), loop  (0.f),
   flagTime  (false), time  (0.f),
   relative  (false), doppler(true), pan2D(false), occlusion(false), streaming(false),
-  length(0) {}
+  length(0), intent(SI_NONE), status(SS_STOPPED) {}
 
-YSE::sound& YSE::sound::create(const char * fileName, const channel * const ch, Bool loop, Flt volume, Bool streaming) {
+YSE::sound& YSE::sound::create(const char * fileName, channel * ch, Bool loop, Flt volume, Bool streaming) {
   if (pimpl) {
     INTERNAL::Global.getLog().emit(E_SOUND_OBJECT_IN_USE);
     return *this;
   }
   
-  pimpl = INTERNAL::Global.getSoundManager().addImplementation();
+  pimpl = INTERNAL::Global.getSoundManager().addImplementation(this);
+  if (ch == NULL) ch = &INTERNAL::Global.getChannelManager().mainMix();
 
-  if (pimpl->create(fileName, streaming)) {
-    pimpl->initialize();
-    if (ch == NULL) INTERNAL::Global.getChannelManager().mainMix().pimpl->add(pimpl);
-    else ch->pimpl->add(pimpl);
-    pimpl->looping_dsp = loop;
-    pimpl->fader_dsp.set(volume);
-  }
-  else {
-    INTERNAL::Global.getSoundManager().removeImplementation(pimpl);
+  if (pimpl->create(fileName, ch, loop, volume, streaming)) {
+    INTERNAL::Global.getSoundManager().loadImplementation(pimpl);
+  } else {
+    pimpl->objectStatus = SIS_DELETE;
     pimpl = NULL;
+    INTERNAL::Global.getSoundManager().runDeleteJob();
 #if defined YSE_DEBUG 
       /* if there's no implementation at this point, most likely
       loading a sound didn't work. Check working directory and
@@ -60,7 +57,7 @@ YSE::sound& YSE::sound::create(const char * fileName, const channel * const ch, 
   return *this;
 }
 
-YSE::sound& YSE::sound::create(DSP::dspSourceObject & dsp, const channel * const ch, Flt volume) {
+YSE::sound& YSE::sound::create(DSP::dspSourceObject & dsp, channel * ch, Flt volume) {
   if (pimpl) {
     INTERNAL::Global.getLog().emit(E_SOUND_OBJECT_IN_USE);
     /* If you get an assertion here, it means that you're trying to use the create function on
@@ -70,20 +67,22 @@ YSE::sound& YSE::sound::create(DSP::dspSourceObject & dsp, const channel * const
     return *this;
   }
 
-  pimpl = INTERNAL::Global.getSoundManager().addImplementation();
+  pimpl = INTERNAL::Global.getSoundManager().addImplementation(this);
 
   pimpl->addSourceDSP(dsp);
-  pimpl->initialize();
-  if (ch == NULL) INTERNAL::Global.getChannelManager().mainMix().pimpl->add(pimpl);
-  else ch->pimpl->add(pimpl);
-  pimpl->fader_dsp.set(volume);
+  if (ch == NULL) pimpl->parent = INTERNAL::Global.getChannelManager().mainMix().pimpl;
+  else  pimpl->parent = ch->pimpl;
+  pimpl->fader.set(volume);
+  // we'll have to get created to true somehow when dsp objects are implemented
 
   return *this;
 }
 
 YSE::sound& YSE::sound::releaseImplementation() {
-  pimpl->head  = NULL;
-  pimpl        = NULL;
+  if (pimpl != NULL) {
+    pimpl->head = NULL;
+    pimpl = NULL;
+  }
   return *this;
 }
 
@@ -186,36 +185,15 @@ YSE::sound& YSE::sound::restart() {
 }
 
 Bool YSE::sound::isPlaying() {
-  if (pimpl) return (pimpl->intent_dsp == SS_PLAYING);
-  
-  INTERNAL::Global.getLog().emit(E_SOUND_OBJECT_NO_INIT);
-  /* if this happens, you're trying to access
-  a sound before using it's create function.
-  */
-  jassertfalse
-  return false;
+  return (status == SS_PLAYING || status == SS_PLAYING_FULL_VOLUME);
 }
 
 Bool YSE::sound::isPaused() {
-  if (pimpl)  return (pimpl->intent_dsp == SS_PAUSED);
-  
-  INTERNAL::Global.getLog().emit(E_SOUND_OBJECT_NO_INIT);
-  /* if this happens, you're trying to access
-  a sound before using it's create function.
-  */
-  jassertfalse
-  return true;
+  return status == SS_PAUSED;
 }
 
 Bool YSE::sound::isStopped() {
-  if (pimpl) return (pimpl->intent_dsp == SS_STOPPED);
-  
-  INTERNAL::Global.getLog().emit(E_SOUND_OBJECT_NO_INIT);
-  /* if this happens, you're trying to access
-  a sound before using it's create function.
-  */
-  jassertfalse
-  return true;
+  return status == SS_STOPPED;
 }
 
 YSE::sound& YSE::sound::setOcclusion(Bool value) {
@@ -228,14 +206,7 @@ Bool YSE::sound::getOcclusion() {
 }
 
 Bool YSE::sound::isStreaming() {
-  if (pimpl) return pimpl->streaming_dsp;
-  
-  INTERNAL::Global.getLog().emit(E_SOUND_OBJECT_NO_INIT);
-  /* if this happens, you're trying to access
-  a sound before using it's create function.
-  */
-  jassertfalse
-  return false;
+  return streaming;
 }
 
 YSE::sound& YSE::sound::attachDSP(YSE::DSP::dspObject & value) {
@@ -276,14 +247,7 @@ Flt YSE::sound::getTime() {
 }
 
 UInt YSE::sound::getLength() {
-  if (pimpl) return pimpl->_length;
-  
-  INTERNAL::Global.getLog().emit(E_SOUND_OBJECT_NO_INIT);
-  /* if this happens, you're trying to access
-  a sound before using it's create function.
-  */
-  jassertfalse
-  return 0;
+  return length;
 }
 
 YSE::sound& YSE::sound::setRelative(Bool value) {
@@ -313,17 +277,11 @@ YSE::sound& YSE::sound::set2D(Bool value) {
 
 Bool YSE::sound::is2D() {
   return pan2D;
-  return false;
+
 }
 
 Bool YSE::sound::isReady() {
-  if (pimpl) return !pimpl->loading_dsp;
-  
-  INTERNAL::Global.getLog().emit(E_SOUND_OBJECT_NO_INIT);
-  /* if this happens, you're trying to access
-  a sound before using it's create function.
-  */
-  jassertfalse
+  if (pimpl && pimpl->objectStatus == SIS_READY) return true;
   return false;
 }
 

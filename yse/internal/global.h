@@ -11,6 +11,8 @@
 #ifndef GLOBAL_H_INCLUDED
 #define GLOBAL_H_INCLUDED
 #include "../classes.hpp"
+#include "JuceHeader.h"
+#include "../headers/types.hpp"
 
 namespace YSE {
   namespace INTERNAL {
@@ -28,6 +30,18 @@ namespace YSE {
 
       listenerImplementation & getListener();
 
+      void addSlowJob(ThreadPoolJob * job);
+      void addFastJob(ThreadPoolJob * job);
+      void waitForSlowJob(ThreadPoolJob * job);
+      void waitForFastJob(ThreadPoolJob * job);
+      bool containsSlowJob(ThreadPoolJob * job);
+      
+      void flagForUpdate() { update++;  }
+      bool needsUpdate() { return update > 0;  }
+      void updateDone() { update--; }
+
+      global();
+
     private:
       void init();
       void close();
@@ -40,6 +54,11 @@ namespace YSE {
       channelManager * cm;
       listenerImplementation * li;
       reverbManager * rm;
+
+      ThreadPool slowThreads;
+      ThreadPool fastThreads;
+
+      aInt update;
 
       friend class system; // system needs access to the init and close method
     };

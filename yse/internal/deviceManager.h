@@ -35,8 +35,6 @@ namespace YSE {
       virtual void audioDeviceStopped();
       virtual void audioDeviceError(const juce::String & errorMessage);
 
-      CriticalSection & getLock();
-
       void setChannel(channelImplementation * ptr); // pointer to main channel
 
       //std::vector<audioDevice> deviceList;
