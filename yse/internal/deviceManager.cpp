@@ -23,7 +23,7 @@
 juce_ImplementSingleton(YSE::INTERNAL::deviceManager)
 
 YSE::INTERNAL::deviceManager::deviceManager() : initialized(false), open(false),
-                                      started(false), mainChannel(NULL), 
+                                      started(false), master(NULL), 
                                       bufferPos(STANDARD_BUFFERSIZE) {
 
 }
@@ -62,8 +62,12 @@ Flt YSE::INTERNAL::deviceManager::cpuLoad() {
   return static_cast<Flt>(audioDeviceManager.getCpuUsage());
 }
 
-void YSE::INTERNAL::deviceManager::setChannel(channelImplementation * ptr) {
-  mainChannel = ptr;
+void YSE::INTERNAL::deviceManager::setMaster(channelImplementation * ptr) {
+  master = ptr;
+}
+
+YSE::INTERNAL::channelImplementation & YSE::INTERNAL::deviceManager::getMaster() {
+  return *master;
 }
 
 void YSE::INTERNAL::deviceManager::audioDeviceIOCallback(const float ** inputChannelData,
@@ -72,7 +76,7 @@ void YSE::INTERNAL::deviceManager::audioDeviceIOCallback(const float ** inputCha
   int      numOutputChannels,
   int      numSamples) {
   
-  if (mainChannel == NULL) return;
+  if (master == NULL) return;
   if (Global.getSoundManager().empty()) return;
 
   if (Global.needsUpdate()) {
@@ -89,26 +93,26 @@ void YSE::INTERNAL::deviceManager::audioDeviceIOCallback(const float ** inputCha
 
   while (pos < static_cast<UInt>(numSamples)) {
     if (bufferPos == STANDARD_BUFFERSIZE) {
-      mainChannel->dsp();
-      mainChannel->buffersToParent();
+      master->dsp();
+      master->buffersToParent();
       bufferPos = 0;
     }
 
     UInt size = (numSamples - pos) > (STANDARD_BUFFERSIZE - bufferPos) ? (STANDARD_BUFFERSIZE - bufferPos) : ((UInt)numSamples - pos);
-    for (UInt i = 0; i < mainChannel->out.size(); i++) {
+    for (UInt i = 0; i < master->out.size(); i++) {
       // this is not really a safe way to work with buffers, but it won't give any errors in here
       UInt l = size;
       Flt * ptr1 = ((Flt **)outputChannelData)[i] + pos;
-      Flt * ptr2 = mainChannel->out[i].getBuffer() + bufferPos;
+      Flt * ptr2 = master->out[i].getBuffer() + bufferPos;
       for (; l > 7; l -= 8, ptr1 += 8, ptr2 += 8) {
         ptr1[0] = ptr2[0] < -1.f ? -1.f : ptr2[0] > 1.f ? 1.f : ptr2[0];
-		ptr1[1] = ptr2[1] < -1.f ? -1.f : ptr2[1] > 1.f ? 1.f : ptr2[1];
-		ptr1[2] = ptr2[2] < -1.f ? -1.f : ptr2[2] > 1.f ? 1.f : ptr2[2];
-		ptr1[3] = ptr2[3] < -1.f ? -1.f : ptr2[3] > 1.f ? 1.f : ptr2[3];
-		ptr1[4] = ptr2[4] < -1.f ? -1.f : ptr2[4] > 1.f ? 1.f : ptr2[4];
-		ptr1[5] = ptr2[5] < -1.f ? -1.f : ptr2[5] > 1.f ? 1.f : ptr2[5];
-		ptr1[6] = ptr2[6] < -1.f ? -1.f : ptr2[6] > 1.f ? 1.f : ptr2[6];
-		ptr1[7] = ptr2[7] < -1.f ? -1.f : ptr2[7] > 1.f ? 1.f : ptr2[7];
+		    ptr1[1] = ptr2[1] < -1.f ? -1.f : ptr2[1] > 1.f ? 1.f : ptr2[1];
+		    ptr1[2] = ptr2[2] < -1.f ? -1.f : ptr2[2] > 1.f ? 1.f : ptr2[2];
+		    ptr1[3] = ptr2[3] < -1.f ? -1.f : ptr2[3] > 1.f ? 1.f : ptr2[3];
+		    ptr1[4] = ptr2[4] < -1.f ? -1.f : ptr2[4] > 1.f ? 1.f : ptr2[4];
+		    ptr1[5] = ptr2[5] < -1.f ? -1.f : ptr2[5] > 1.f ? 1.f : ptr2[5];
+		    ptr1[6] = ptr2[6] < -1.f ? -1.f : ptr2[6] > 1.f ? 1.f : ptr2[6];
+		    ptr1[7] = ptr2[7] < -1.f ? -1.f : ptr2[7] > 1.f ? 1.f : ptr2[7];
 
       }
       while (l--) *ptr1++ = *ptr2++;

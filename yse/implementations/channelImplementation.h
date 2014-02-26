@@ -34,15 +34,25 @@ namespace YSE {
 
     class channelImplementation : public ThreadPoolJob {
     public:
-      channelImplementation(const String & name);
+      channelImplementation(const String & name, channel * head);
       ~channelImplementation();
 
       Bool add(channelImplementation * p);
       Bool add(soundImplementation   * p);
       Bool remove(channelImplementation * p);
       Bool remove(soundImplementation   * p);
-      void create();
-      void update();
+      void sync();
+
+      /** This function is called from channelManager::setup and creates the buffers 
+      needed for this channel.
+      */
+      void setup();
+
+      /** This function is called by channelManager::update (from dsp callback) and verifies
+      if the channel is ready to be played. It will then be moved from toCreate
+      to inUse.
+      */
+      Bool readyCheck();
 
       void clearBuffers();
       void dsp();
@@ -63,8 +73,8 @@ namespace YSE {
       void attachUnderWaterFX();
 
     private:
-      aFlt  newVolume;
-      Flt   lastVolume;
+      Flt  newVolume;
+      Flt  lastVolume;
       CriticalSection dspActive;
 
       channelImplementation * parent;
@@ -78,8 +88,8 @@ namespace YSE {
       Bool userChannel; // channel is created by user and not crucial for the system
       Bool allowVirtual;
 
-      channelImplementation** link;
-      Bool release;
+      channel * head;
+      std::atomic<CHANNEL_IMPLEMENTATION_STATE> objectStatus;
 
       friend class soundImplementation;
       friend class channel;

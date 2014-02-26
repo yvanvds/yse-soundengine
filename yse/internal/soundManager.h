@@ -70,7 +70,7 @@ namespace YSE {
       void update();
 
       soundImplementation * addImplementation(sound * head);
-      void loadImplementation(soundImplementation* impl);
+      void setup(soundImplementation* impl);
       void runDeleteJob() { runDelete = true; }
 
       void run();

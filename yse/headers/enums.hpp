@@ -79,8 +79,18 @@ namespace YSE {
     SIS_LOADED, // file is loaded
     SIS_READY, // ready for play
     SIS_DONE, // fade and flag for release if done
-    SIS_RELEASE, // flagged for release from soundsInUse list
-    SIS_DELETE, // flagged for deletion from soundImplementations list
+    SIS_RELEASE, // flagged for release from inUse list
+    SIS_DELETE, // flagged for deletion from implementations list
+  };
+
+  enum CHANNEL_IMPLEMENTATION_STATE {
+    CIS_CONSTRUCTED, // the object exists
+    CIS_CREATED,     // create function is done
+    CIS_SETUP,      // the setup function has run 
+    CIS_READY,       // the object is ready for use
+    CIS_DONE,        // sounds should be moved to parent channel
+    CIS_RELEASE,     // flagged for release from inUse list
+    CIS_DELETE,      // flagged for deletion from implementations list
   };
 
   // used by utils/error.hpp

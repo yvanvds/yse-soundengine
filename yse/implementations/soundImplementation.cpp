@@ -217,6 +217,10 @@ void YSE::INTERNAL::soundImplementation::sync() {
     head->flagTime = false;
   }
 
+  if (head->moveChannel) {
+    head->newChannel.load()->pimpl->add(this);
+    head->moveChannel = false;
+  }
 
   relative = head->relative;
   doppler = head->doppler;

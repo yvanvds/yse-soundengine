@@ -273,12 +273,18 @@ namespace YSE {
     */
     Bool getOcclusion(); 
       
+    /**
+     Moves the sound to another channel
+
+     @param target The target channel 
+    */
+    sound& moveTo(channel & target);
+
     sound& attachDSP(DSP::dspObject & value); DSP::dspObject * dsp(); // attach a dsp object to this sound
 
     sound();
    ~sound();
   private:
-    sound& releaseImplementation(); // release sound 
 
     INTERNAL::soundImplementation *pimpl;
 
@@ -305,6 +311,9 @@ namespace YSE {
     
     std::atomic<SOUND_INTENT> intent; // what we want the sound to do
     std::atomic<SOUND_STATUS> status; // what it is currently doing
+
+    aBool moveChannel   ;
+    std::atomic<channel *> newChannel;
 
     friend class INTERNAL::soundImplementation;
 

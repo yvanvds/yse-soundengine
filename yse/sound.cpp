@@ -41,7 +41,7 @@ YSE::sound& YSE::sound::create(const char * fileName, channel * ch, Bool loop, F
   if (ch == NULL) ch = &INTERNAL::Global.getChannelManager().mainMix();
 
   if (pimpl->create(fileName, ch, loop, volume, streaming)) {
-    INTERNAL::Global.getSoundManager().loadImplementation(pimpl);
+    INTERNAL::Global.getSoundManager().setup(pimpl);
   } else {
     pimpl->objectStatus = SIS_DELETE;
     pimpl = NULL;
@@ -78,16 +78,12 @@ YSE::sound& YSE::sound::create(DSP::dspSourceObject & dsp, channel * ch, Flt vol
   return *this;
 }
 
-YSE::sound& YSE::sound::releaseImplementation() {
+
+YSE::sound::~sound() {
   if (pimpl != NULL) {
     pimpl->head = NULL;
     pimpl = NULL;
   }
-  return *this;
-}
-
-YSE::sound::~sound() {
-  releaseImplementation();
 }
 
 Bool YSE::sound::isValid() {
@@ -288,6 +284,15 @@ Bool YSE::sound::isReady() {
 YSE::sound& YSE::sound::fadeAndStop(UInt time) {
   flagFade = true;
   fadeAndStopTime = time;
+
+  return (*this);
+}
+
+YSE::sound& YSE::sound::moveTo(channel & target) {
+  if (newChannel.load() != &target) {
+    newChannel = &target;
+    moveChannel = true;
+  }
 
   return (*this);
 }

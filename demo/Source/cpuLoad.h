@@ -55,7 +55,7 @@ public:
     void buttonClicked (Button* buttonThatWasClicked);
     void sliderValueChanged (Slider* sliderThatWasMoved);
 
-    
+
 
 private:
     //[UserVariables]   -- You can add your own custom variables in this section.
@@ -78,6 +78,7 @@ private:
     ScopedPointer<Label> labelAllSounds;
     ScopedPointer<Label> labelPlayingSounds;
     ScopedPointer<Label> labelVirtualSounds;
+
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (cpuLoad)

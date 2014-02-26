@@ -17,12 +17,12 @@
   ==============================================================================
 */
 
-#ifndef __JUCE_HEADER_EF5D4E821F3B9C14__
-#define __JUCE_HEADER_EF5D4E821F3B9C14__
+#ifndef __JUCE_HEADER_8D88EEA208686E70__
+#define __JUCE_HEADER_8D88EEA208686E70__
 
 //[Headers]     -- You can add your own extra header files here --
 #include "JuceHeader.h"
-
+#include "parts/ChannelTreeItem.h"
 //[/Headers]
 
 
@@ -35,36 +35,53 @@
     Describe your class and how it works here!
                                                                     //[/Comments]
 */
-class tabs  : public Component
+class movingChannels  : public Component,
+                        public DragAndDropContainer,
+                        public ButtonListener
 {
 public:
     //==============================================================================
-    tabs ();
-    ~tabs();
+    movingChannels ();
+    ~movingChannels();
 
     //==============================================================================
     //[UserMethods]     -- You can add your own custom methods in this section.
+    static ValueTree createRootValueTree();
+    static ValueTree createTree(const String& desc, ITEM_TYPE type, ValueTree * parent = NULL);
+    void deleteSelectedItems();
     //[/UserMethods]
 
     void paint (Graphics& g);
     void resized();
+    void buttonClicked (Button* buttonThatWasClicked);
+    bool keyPressed (const KeyPress& key);
 
+    // Binary resources:
+    static const char* bluechannel_png;
+    static const int bluechannel_pngSize;
+    static const char* bluespeaker_png;
+    static const int bluespeaker_pngSize;
 
 
 private:
     //[UserVariables]   -- You can add your own custom variables in this section.
-    ScopedPointer<TooltipWindow> tooltipWindow;
+    ScopedPointer<channelTreeItem> rootItem;
     //[/UserVariables]
 
     //==============================================================================
-    ScopedPointer<TabbedComponent> tabbedComponent;
+    ScopedPointer<Label> labelTitle;
+    ScopedPointer<Label> label;
+    ScopedPointer<TreeView> treeView;
+    ScopedPointer<TextButton> buttonAddSound;
+    ScopedPointer<TextButton> buttonAddChannel;
 
 
     //==============================================================================
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (tabs)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (movingChannels)
 };
 
 //[EndFile] You can add extra defines here...
+
 //[/EndFile]
 
-#endif   // __JUCE_HEADER_EF5D4E821F3B9C14__
+#endif   // __JUCE_HEADER_8D88EEA208686E70__

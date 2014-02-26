@@ -17,9 +17,27 @@
 
 juce_ImplementSingleton(YSE::INTERNAL::channelManager)
 
+ThreadPoolJob::JobStatus YSE::INTERNAL::channelSetupJob::runJob() {
+  for (auto i = Global.getChannelManager().toCreate.begin(); i != Global.getChannelManager().toCreate.end(); ++i) {
+    i->load()->setup();
+  }
+  return jobHasFinished;
+}
+
+ThreadPoolJob::JobStatus YSE::INTERNAL::channelDeleteJob::runJob() {
+  //Global.getChannelManager().implementations.remove_if(channelImplementation::canBeDeleted);
+  return jobHasFinished;
+}
+
+
 YSE::INTERNAL::channelManager::channelManager() : numberOfOutputs(0) {}
 
 YSE::INTERNAL::channelManager::~channelManager() {
+  Global.waitForSlowJob(&channelSetup);
+  Global.waitForSlowJob(&channelDelete);
+  toCreate.clear();
+  inUse.clear();
+  implementations.clear();
   clearSingletonInstance();
 }
 
@@ -48,30 +66,63 @@ YSE::channel & YSE::INTERNAL::channelManager::gui() {
 }
 
 void YSE::INTERNAL::channelManager::update() {
-  std::forward_list<INTERNAL::channelImplementation>::iterator previous = implementations.before_begin();
-  for (std::forward_list<INTERNAL::channelImplementation>::iterator i = implementations.begin(); i != implementations.end(); ++i) {
-    if (i->release) {
+  ///////////////////////////////////////////
+  // check if there are channelimplementations that need setup
+  ///////////////////////////////////////////
+  if (!toCreate.empty() && !Global.containsSlowJob(&channelSetup)) {
+    Global.addSlowJob(&channelSetup);
+  }
 
-      // move subchannels to parent
-      for (std::forward_list<INTERNAL::channelImplementation *>::iterator child = i->children.begin(); child != i->children.end(); ++child) {
-        (*child)->parent = i->parent;
-        i->parent->children.push_front((*child));
+  if (runDelete && !Global.containsSlowJob(&channelDelete)) {
+    Global.addSlowJob(&channelDelete);
+  }
+  runDelete = false;
+
+  ///////////////////////////////////////////
+  // check if loading channelimplementations are ready
+  ///////////////////////////////////////////
+  {
+    for (auto i = toCreate.begin(); i != toCreate.end(); i++) {
+      if (i->load()->readyCheck()) {
+        channelImplementation * ptr = i->load();
+        // place ptr in active sound list
+        inUse.emplace_front(ptr);
+        // add the channel to parent
+        ptr->parent->add(ptr);
       }
-
-      // move sounds to parent
-      for (std::forward_list<soundImplementation *>::iterator sound = i->sounds.begin(); sound != i->sounds.end(); ++sound) {
-        (*sound)->parent = i->parent;
-        i->parent->sounds.push_front((*sound));
-      }
-
-      implementations.erase_after(previous);
-      i = previous;
     }
-    else {
-      i->update();
+  }
+
+  ///////////////////////////////////////////
+  // sync channel implementations
+  ///////////////////////////////////////////
+  {
+    auto previous = inUse.before_begin();
+    for (auto i = inUse.begin(); i != inUse.end();) {
+      (*i)->sync();
+
+      if ((*i)->objectStatus == CIS_RELEASE) {
+        channelImplementation * ptr = (*i);
+        // move subchannels to parent
+        for (auto child = ptr->children.begin(); child != ptr->children.end(); ++child) {
+          (*child)->parent = ptr->parent;
+          ptr->parent->children.push_front((*child));
+        }
+
+        // move sounds to parent
+        for (auto sound = ptr->sounds.begin(); sound != ptr->sounds.end(); ++sound) {
+          (*sound)->parent = ptr->parent;
+          ptr->parent->sounds.push_front((*sound));
+        }
+
+        i = inUse.erase_after(previous);
+        ptr->objectStatus = CIS_DELETE;
+        runDelete = true;
+        continue;
+      }
       previous = i;
+      ++i;
     }
-
   }
 }
 
@@ -79,13 +130,14 @@ UInt YSE::INTERNAL::channelManager::getNumberOfOutputs() {
   return numberOfOutputs;
 }
 
-YSE::INTERNAL::channelImplementation * YSE::INTERNAL::channelManager::addChannelImplementation(const String & name) {
-  implementations.emplace_front(name);
+YSE::INTERNAL::channelImplementation * YSE::INTERNAL::channelManager::add(const String & name, channel * head) {
+  implementations.emplace_front(name, head);
   return &implementations.front();
 }
 
-void YSE::INTERNAL::channelManager::removeChannelImplementation(YSE::INTERNAL::channelImplementation * ptr) {
-  ptr->release = true;
+void YSE::INTERNAL::channelManager::setup(channelImplementation * impl) {
+  impl->objectStatus = CIS_CREATED;
+  toCreate.emplace_front(impl);
 }
 
 void YSE::INTERNAL::channelManager::changeChannelConf(CHANNEL_TYPE type, Int outputs) {
@@ -99,7 +151,7 @@ void YSE::INTERNAL::channelManager::changeChannelConf(CHANNEL_TYPE type, Int out
   case CT_51SIDE: set51Side(); break;
   case CT_61:	set61(); break;
   case CT_71:	set71(); break;
-  case CT_CUSTOM: _mainMix.setNumberOfSpeakers(outputs); break;
+  case CT_CUSTOM: Global.getDeviceManager().getMaster().set(outputs); break;
   }
 }
 
@@ -116,39 +168,39 @@ void YSE::INTERNAL::channelManager::setAuto(Int count) {
 }
 
 void YSE::INTERNAL::channelManager::setMono() {
-  _mainMix.setNumberOfSpeakers(1).pos(0, 0);
+  Global.getDeviceManager().getMaster().set(1).pos(0, 0);
 }
 
 void YSE::INTERNAL::channelManager::setStereo() {
-  _mainMix.setNumberOfSpeakers(2).pos(0, Pi / 180.0f * -90.0f).pos(1, Pi / 180.0f * 90.0f);
+  Global.getDeviceManager().getMaster().set(2).pos(0, Pi / 180.0f * -90.0f).pos(1, Pi / 180.0f * 90.0f);
 }
 
 void YSE::INTERNAL::channelManager::setQuad() {
-  _mainMix.setNumberOfSpeakers(4).pos(0, Pi / 180.0f * -45.0f).pos(1, Pi / 180.0f *  45.0f)
+  Global.getDeviceManager().getMaster().set(4).pos(0, Pi / 180.0f * -45.0f).pos(1, Pi / 180.0f *  45.0f)
     .pos(2, Pi / 180.0f * 135.0f).pos(3, Pi / 180.0f * 135.0f);
 }
 
 void YSE::INTERNAL::channelManager::set51() {
-  _mainMix.setNumberOfSpeakers(5).pos(0, Pi / 180.0f *  -45.0f).pos(1, Pi / 180.0f *  45.0f)
+  Global.getDeviceManager().getMaster().set(5).pos(0, Pi / 180.0f *  -45.0f).pos(1, Pi / 180.0f *  45.0f)
     .pos(2, Pi / 180.0f *	   0.0f)
     .pos(3, Pi / 180.0f * -135.0f).pos(4, Pi / 180.0f *	135.0f);
 }
 
 void YSE::INTERNAL::channelManager::set51Side() {
-  _mainMix.setNumberOfSpeakers(5).pos(0, Pi / 180.0f * -45.0f).pos(1, Pi / 180.0f * 45.0f)
+  Global.getDeviceManager().getMaster().set(5).pos(0, Pi / 180.0f * -45.0f).pos(1, Pi / 180.0f * 45.0f)
     .pos(2, Pi / 180.0f *		0.0f)
     .pos(3, Pi / 180.0f * -90.0f).pos(4, Pi / 180.0f * 90.0f);
 }
 
 void YSE::INTERNAL::channelManager::set61() {
-  _mainMix.setNumberOfSpeakers(5).pos(0, Pi / 180.0f * -45.0f).pos(1, Pi / 180.0f * 45.0f)
+  Global.getDeviceManager().getMaster().set(5).pos(0, Pi / 180.0f * -45.0f).pos(1, Pi / 180.0f * 45.0f)
     .pos(2, Pi / 180.0f *	  0.0f)
     .pos(3, Pi / 180.0f * -90.0f).pos(4, Pi / 180.0f * 90.0f)
     .pos(5, Pi / 180.0f * 180.0f);
 }
 
 void YSE::INTERNAL::channelManager::set71() {
-  _mainMix.setNumberOfSpeakers(5).pos(0, Pi / 180.0f *  -45.0f).pos(1, Pi / 180.0f *  45.0f)
+  Global.getDeviceManager().getMaster().set(5).pos(0, Pi / 180.0f *  -45.0f).pos(1, Pi / 180.0f *  45.0f)
     .pos(2, Pi / 180.0f *	   0.0f)
     .pos(3, Pi / 180.0f *  -90.0f).pos(4, Pi / 180.0f *	 90.0f)
     .pos(5, Pi / 180.0f * -135.0f).pos(6, Pi / 180.0f * 135.0f);

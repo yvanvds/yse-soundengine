@@ -110,6 +110,10 @@
     </GROUP>
     <GROUP id="{02945D12-A276-81C8-224F-6D961A7EAFA2}" name="Source">
       <GROUP id="{EFF81D3D-75A6-1C8B-5204-18B92DE0A382}" name="parts">
+        <FILE id="a2mYNf" name="ChannelTreeItem.cpp" compile="1" resource="0"
+              file="Source/parts/ChannelTreeItem.cpp"/>
+        <FILE id="LuK1eS" name="ChannelTreeItem.h" compile="0" resource="0"
+              file="Source/parts/ChannelTreeItem.h"/>
         <FILE id="xU1JBZ" name="yseTimerThread.cpp" compile="1" resource="0"
               file="Source/parts/yseTimerThread.cpp"/>
         <FILE id="MKNIhk" name="yseTimerThread.h" compile="0" resource="0"
@@ -125,6 +129,10 @@
       <FILE id="gIFcYG" name="basic3D.h" compile="0" resource="0" file="Source/basic3D.h"/>
       <FILE id="mnfM6t" name="cpuLoad.cpp" compile="1" resource="0" file="Source/cpuLoad.cpp"/>
       <FILE id="p4d9Yi" name="cpuLoad.h" compile="0" resource="0" file="Source/cpuLoad.h"/>
+      <FILE id="YJq14J" name="movingChannels.cpp" compile="1" resource="0"
+            file="Source/movingChannels.cpp"/>
+      <FILE id="ufaxl8" name="movingChannels.h" compile="0" resource="0"
+            file="Source/movingChannels.h"/>
       <FILE id="IXIjKS" name="Main.cpp" compile="1" resource="0" file="Source/Main.cpp"/>
       <FILE id="x3GfHh" name="MainComponent.cpp" compile="1" resource="0"
             file="Source/MainComponent.cpp"/>

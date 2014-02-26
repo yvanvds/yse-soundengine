@@ -35,8 +35,8 @@ namespace YSE {
       virtual void audioDeviceStopped();
       virtual void audioDeviceError(const juce::String & errorMessage);
 
-      void setChannel(channelImplementation * ptr); // pointer to main channel
-
+      void setMaster(channelImplementation * ptr); // pointer to main channel
+      channelImplementation & getMaster();
       //std::vector<audioDevice> deviceList;
       //Bool updateDevices();
       //Bool openDevice(UInt ID, Int outChannels);
@@ -50,7 +50,7 @@ namespace YSE {
       Bool started;
       UInt bufferPos;
 
-      channelImplementation * mainChannel;
+      channelImplementation * master;
       AudioDeviceManager audioDeviceManager;
 
     };

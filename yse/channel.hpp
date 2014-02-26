@@ -65,28 +65,7 @@ namespace YSE {
         @param parent The new parent channel to link this channel to.
     */
     channel& moveTo(channel& parent);
-
-    /**
-        Set the number of speakers for this channel. This function should be moved to System and use the channel manager internally
-        because all channels are supposed to have the same nr of channels.
-    */
-    channel& setNumberOfSpeakers(Int count); // use this for custom speaker positions, in combination with the pos function below
-    channel& pos(Int nr, Flt angle); // set speaker to angle in degrees (-180 -> 180)
-
-    /**
-        Checks if the channel is valid.
-     
-        @return Returns false if the channel has been released or when the system could not create it.
-    */
-    Bool valid();
-      
-    /**
-        Releases the channel. This will move all sounds and subchannels to the parent channel. Don't use this
-        on the main channel! 
-        \TODO make it impossible to do so.
-    */
-    channel& release();
-
+   
     /**
         Because reverb needs a lot of processing power, there's only one actual reverb object. By default this is attached to the mainMix,
         thereby affecting all channels. If you want to use the reverb on only a subset of channels, call this function on
@@ -107,11 +86,17 @@ namespace YSE {
         A special version of create. It is used internally to create the global channel. This is not meant to be used anywhere else.
     */
     void createGlobal();
+
+    aBool flagVolume; aFlt volume;
+
+    aBool moveChannel;
+    std::atomic<channel *> newChannel;
       
     // channel implementation and friend classes
     INTERNAL::channelImplementation *pimpl;
     friend class sound;
     friend class INTERNAL::soundImplementation;
+    friend class INTERNAL::channelImplementation;
     friend class system;
     friend class soundManager;
   };

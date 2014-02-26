@@ -14,6 +14,7 @@
 #include "../internal/global.h"
 #include "../internal/underWaterEffect.h"
 #include "../internal/reverbManager.h"
+#include "../internal/channelManager.h"
 
 YSE::INTERNAL::channelImplementation& YSE::INTERNAL::channelImplementation::volume(Flt value) {
   newVolume = value;
@@ -25,21 +26,60 @@ Flt YSE::INTERNAL::channelImplementation::volume() {
   return newVolume;
 }
 
-YSE::INTERNAL::channelImplementation::channelImplementation(const String & name) : 
+YSE::INTERNAL::channelImplementation::channelImplementation(const String & name, channel * head) : 
     ThreadPoolJob(name),
     newVolume(1.f), lastVolume(1.f), userChannel(true),
-    allowVirtual(true), release(false), parent(NULL),
-    link(NULL) {
+    allowVirtual(true), objectStatus(CIS_CONSTRUCTED), parent(NULL),
+    head(head) {
+}
+
+void YSE::INTERNAL::channelImplementation::setup() {
+  if (objectStatus == CIS_CREATED) {
+    set(INTERNAL::Global.getChannelManager().getNumberOfOutputs());
+    for (UInt i = 0; i < outConf.size(); i++) {
+      outConf[i].angle = parent->outConf[i].angle;
+    }
+    objectStatus = CIS_READY;
+  }
+}
+
+Bool YSE::INTERNAL::channelImplementation::readyCheck() {
+  if (objectStatus == CIS_SETUP) {
+    // make sure the number of is not changed since setup
+    if (outConf.size() == Global.getChannelManager().getNumberOfOutputs()) {
+      objectStatus = CIS_READY;
+      return true;
+    }
+    else {
+      // setup has changed, return to loading stage
+      objectStatus = CIS_CREATED;
+    }
+  }
+  return false;
 }
 
 YSE::INTERNAL::channelImplementation::~channelImplementation() {
   exit(); // exit the dsp thread for this channel
-  if (link) *link = NULL;
 }
 
-void YSE::INTERNAL::channelImplementation::update() {
+void YSE::INTERNAL::channelImplementation::sync() {
+  // remove if interface is gone
+  if (head == NULL) {
+    objectStatus = CIS_RELEASE;
+  }
 
+  // get new values from head
+  if (head->flagVolume) {
+    newVolume = head->volume;
+    head->flagVolume = false;
+  }
+
+  if (head->moveChannel) {
+    head->newChannel.load()->pimpl->add(this);
+    head->moveChannel = false;
+  }
 }
+
 
 void YSE::INTERNAL::channelImplementation::attachUnderWaterFX() {
   UnderWaterEffect().channel(this);

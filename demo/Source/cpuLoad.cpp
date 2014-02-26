@@ -19,9 +19,11 @@
 
 //[Headers] You can add your own extra header files here...
 #include "YSEObjects.h"
+#include "parts/yseTimerThread.h"
 //[/Headers]
 
 #include "cpuLoad.h"
+
 
 //[MiscUserDefs] You can add your own user definitions and misc code here...
 //[/MiscUserDefs]
@@ -159,12 +161,14 @@ cpuLoad::cpuLoad ()
     //[Constructor] You can add your own custom stuff here..
     soundCounter = 0;
     sliderVirtual->setValue(YSE::System().maxSounds(), NotificationType::sendNotification);
+    YseTimer().cpuLoad = labelLoad.get();
     //[/Constructor]
 }
 
 cpuLoad::~cpuLoad()
 {
     //[Destructor_pre]. You can add your own custom destruction code here..
+  YseTimer().cpuLoad = NULL;
     //[/Destructor_pre]
 
     labelTitle = nullptr;
@@ -286,7 +290,7 @@ void cpuLoad::sliderValueChanged (Slider* sliderThatWasMoved)
         Int v = static_cast<Int>(sliderVirtual->getValue());
         YSE::System().maxSounds(v);
         updateCounter();
-        
+
         //[/UserSliderCode_sliderVirtual]
     }
 

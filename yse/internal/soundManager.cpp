@@ -226,7 +226,7 @@ YSE::INTERNAL::soundImplementation * YSE::INTERNAL::soundManager::addImplementat
   return &soundImplementations.front();
 }
 
-void YSE::INTERNAL::soundManager::loadImplementation(YSE::INTERNAL::soundImplementation * impl) {
+void YSE::INTERNAL::soundManager::setup(YSE::INTERNAL::soundImplementation * impl) {
   soundsToLoad.emplace_front(impl);
 }
 

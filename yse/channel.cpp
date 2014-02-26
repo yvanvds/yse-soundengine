@@ -16,6 +16,10 @@
 #include "internal/channelManager.h"
 #include "internal/reverbManager.h"
 
+YSE::channel::channel() : pimpl(NULL)
+  
+{}
+
 YSE::channel& YSE::channel::create(const char * name, channel& parent) {
   if (pimpl) {
     INTERNAL::Global.getLog().emit(E_CHANNEL_OBJECT_IN_USE);
@@ -23,18 +27,11 @@ YSE::channel& YSE::channel::create(const char * name, channel& parent) {
        create function on a channel that is already created.
     */
     jassertfalse
-    return *this;
   }
   
-  pimpl = INTERNAL::Global.getChannelManager().addChannelImplementation(name);
-  parent.pimpl->add(pimpl);
-
-  // adjust buffers to parent (important for custom channels added after setting a device)
-  pimpl->set(INTERNAL::Global.getChannelManager().getNumberOfOutputs());
-  for (UInt i = 0; i < pimpl->outConf.size(); i++) {
-    pimpl->outConf[i].angle = parent.pimpl->outConf[i].angle;
-  }
-  pimpl->link = &pimpl;
+  pimpl = INTERNAL::Global.getChannelManager().add(name, this);
+  pimpl->parent = parent.pimpl;
+  INTERNAL::Global.getChannelManager().setup(pimpl);
   return *this;
 }
 
@@ -47,57 +44,39 @@ void YSE::channel::createGlobal() {
     jassertfalse
   }
 
-  pimpl = INTERNAL::Global.getChannelManager().addChannelImplementation("mainMix");
-  pimpl->link = &pimpl;
-  INTERNAL::Global.getDeviceManager().setChannel(pimpl);
-}
-
-YSE::channel& YSE::channel::release() {
-  if (pimpl) {
-    INTERNAL::Global.getChannelManager().removeChannelImplementation(pimpl);
-  }
-  pimpl = NULL;
-  return (*this);
+  // the global channel will be created instantly because no audio
+  // thread can be running before this is ready anyway 
+  pimpl = INTERNAL::Global.getChannelManager().add("mainMix", this);
+  pimpl->setup();
+  INTERNAL::Global.getDeviceManager().setMaster(pimpl);
+  
 }
 
 YSE::channel::~channel() {
-  release();
+  if (pimpl != NULL) {
+    pimpl->head = NULL;
+    pimpl = NULL;
+  }
 }
 
 YSE::channel& YSE::channel::setVolume(Flt value) {
-  pimpl->newVolume = value;
+  volume = value;
+  flagVolume = true;
   return (*this);
 }
 
 Flt YSE::channel::getVolume() {
-  return pimpl->newVolume;
+  return volume;
 }
 
 YSE::channel& YSE::channel::moveTo(channel& parent) {
-  parent.pimpl->add(pimpl);
+  newChannel = &parent;
+  moveChannel = true;
   return (*this);
-}
-
-YSE::channel& YSE::channel::setNumberOfSpeakers(Int count) {
-  pimpl->set(count);
-  return (*this);
-}
-
-YSE::channel& YSE::channel::pos(Int nr, Flt angle) {
-  pimpl->pos(nr, angle);
-  return (*this);
-}
-
-YSE::channel::channel() {
-  pimpl = NULL;
-}
-
-Bool YSE::channel::valid() {
-  if (pimpl) return true;
-  return false;
 }
 
 YSE::channel& YSE::channel::attachReverb() { 
+  //TODO: this is not threadSafe!
   if (pimpl) {
     INTERNAL::Global.getReverbManager().attachToChannel(pimpl);
   }

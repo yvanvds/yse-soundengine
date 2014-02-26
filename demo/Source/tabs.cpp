@@ -18,7 +18,10 @@
 */
 
 //[Headers] You can add your own extra header files here...
-
+#include "basic.h"
+#include "basic3D.h"
+#include "cpuLoad.h"
+#include "movingChannels.h"
 //[/Headers]
 
 #include "tabs.h"
@@ -37,6 +40,7 @@ tabs::tabs ()
     tabbedComponent->addTab (TRANS("Basic 2D"), Colours::lightgrey, new basicTab, true);
     tabbedComponent->addTab (TRANS("Basic 3D"), Colours::lightgrey, new basic3D, true);
     tabbedComponent->addTab (TRANS("CPU"), Colours::lightgrey, new cpuLoad, true);
+    tabbedComponent->addTab(TRANS("Channels"), Colours::lightgrey, new movingChannels, true);
     tabbedComponent->setCurrentTabIndex (0);
 
 

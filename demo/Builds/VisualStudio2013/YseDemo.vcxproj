@@ -163,11 +163,13 @@
     <ClCompile Include="..\..\..\yse\reverb.cpp"/>
     <ClCompile Include="..\..\..\yse\sound.cpp"/>
     <ClCompile Include="..\..\..\yse\system.cpp"/>
+    <ClCompile Include="..\..\Source\parts\ChannelTreeItem.cpp"/>
     <ClCompile Include="..\..\Source\parts\yseTimerThread.cpp"/>
     <ClCompile Include="..\..\Source\parts\draggedComponent.cpp"/>
     <ClCompile Include="..\..\Source\basic.cpp"/>
     <ClCompile Include="..\..\Source\basic3D.cpp"/>
     <ClCompile Include="..\..\Source\cpuLoad.cpp"/>
+    <ClCompile Include="..\..\Source\movingChannels.cpp"/>
     <ClCompile Include="..\..\Source\Main.cpp"/>
     <ClCompile Include="..\..\Source\MainComponent.cpp"/>
     <ClCompile Include="..\..\Source\tabs.cpp"/>
@@ -1225,11 +1227,13 @@
     <ClInclude Include="..\..\..\yse\sound.hpp"/>
     <ClInclude Include="..\..\..\yse\system.hpp"/>
     <ClInclude Include="..\..\..\yse\yse.hpp"/>
+    <ClInclude Include="..\..\Source\parts\ChannelTreeItem.h"/>
     <ClInclude Include="..\..\Source\parts\yseTimerThread.h"/>
     <ClInclude Include="..\..\Source\parts\draggedComponent.h"/>
     <ClInclude Include="..\..\Source\basic.h"/>
     <ClInclude Include="..\..\Source\basic3D.h"/>
     <ClInclude Include="..\..\Source\cpuLoad.h"/>
+    <ClInclude Include="..\..\Source\movingChannels.h"/>
     <ClInclude Include="..\..\Source\MainComponent.h"/>
     <ClInclude Include="..\..\Source\tabs.h"/>
     <ClInclude Include="..\..\Source\YSEObjects.h"/>

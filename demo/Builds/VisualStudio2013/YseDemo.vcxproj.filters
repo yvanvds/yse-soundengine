@@ -379,6 +379,9 @@
     <ClCompile Include="..\..\..\yse\system.cpp">
       <Filter>YseDemo\YSE</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Source\parts\ChannelTreeItem.cpp">
+      <Filter>YseDemo\Source\parts</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\Source\parts\yseTimerThread.cpp">
       <Filter>YseDemo\Source\parts</Filter>
     </ClCompile>
@@ -392,6 +395,9 @@
       <Filter>YseDemo\Source</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\cpuLoad.cpp">
+      <Filter>YseDemo\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\movingChannels.cpp">
       <Filter>YseDemo\Source</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Main.cpp">
@@ -1623,6 +1629,9 @@
     <ClInclude Include="..\..\..\yse\yse.hpp">
       <Filter>YseDemo\YSE</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Source\parts\ChannelTreeItem.h">
+      <Filter>YseDemo\Source\parts</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\Source\parts\yseTimerThread.h">
       <Filter>YseDemo\Source\parts</Filter>
     </ClInclude>
@@ -1636,6 +1645,9 @@
       <Filter>YseDemo\Source</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\cpuLoad.h">
+      <Filter>YseDemo\Source</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\movingChannels.h">
       <Filter>YseDemo\Source</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\MainComponent.h">

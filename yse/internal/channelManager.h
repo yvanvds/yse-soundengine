@@ -18,6 +18,18 @@
 
 namespace YSE {
   namespace INTERNAL {
+    class channelSetupJob : public ThreadPoolJob {
+    public:
+      channelSetupJob() : ThreadPoolJob("channelSetupJob") {}
+      JobStatus runJob();
+    };
+
+    class channelDeleteJob : public ThreadPoolJob {
+    public:
+      channelDeleteJob() : ThreadPoolJob("channelDeleteJob") {}
+      JobStatus runJob();
+    };
+
 
     class channelManager {
     public:
@@ -32,13 +44,16 @@ namespace YSE {
       channel & voice();
       channel & gui();
 
-      INTERNAL::channelImplementation * addChannelImplementation(const String & name);
-      void removeChannelImplementation(INTERNAL::channelImplementation * ptr);
+      channelImplementation * add(const String & name, channel * head);
+      void setup(channelImplementation * impl);
 
       channelManager();
       ~channelManager();
       juce_DeclareSingleton(channelManager, true)
     private:
+      channelSetupJob channelSetup;
+      channelDeleteJob channelDelete;
+
       channel _mainMix;
       channel _fx;
       channel _music;
@@ -56,7 +71,16 @@ namespace YSE {
       void set71();
       void setAuto(Int count);
 
-      std::forward_list<INTERNAL::channelImplementation> implementations;
+      /**
+        Lists for channel implementation maintenance
+      */
+      std::forward_list<std::atomic<channelImplementation*>> toCreate;
+      std::forward_list<channelImplementation*> inUse;
+      std::forward_list<channelImplementation> implementations;
+      aBool runDelete;
+
+      friend class channelSetupJob;
+      friend class channelDeleteJob;
     };
 
   }
