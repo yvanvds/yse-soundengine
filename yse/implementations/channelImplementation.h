@@ -67,9 +67,6 @@ namespace YSE {
       Flt  volume();
       Bool allowVirtualSounds();
 
-      channelImplementation& set(UInt count); // use this for custom speaker positions, in combination with the pos function below
-      channelImplementation& pos(UInt nr, Flt angle); // set speaker to angle in degrees (-180 -> 180)
-
       void attachUnderWaterFX();
 
     private:

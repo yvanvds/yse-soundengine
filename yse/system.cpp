@@ -59,6 +59,7 @@ Bool YSE::system::init() {
     INTERNAL::Global.getLog().emit(E_DEBUG, "YSE System object initialized");
 
     // initialize channels
+    INTERNAL::Global.getChannelManager().changeChannelConf(CT_STEREO);
     INTERNAL::Global.getChannelManager().mainMix().createGlobal();
     INTERNAL::Global.getChannelManager().ambient().create("ambientChannel", INTERNAL::Global.getChannelManager().mainMix());
     INTERNAL::Global.getChannelManager().FX().create("fxChannel", INTERNAL::Global.getChannelManager().mainMix());
@@ -66,7 +67,6 @@ Bool YSE::system::init() {
     INTERNAL::Global.getChannelManager().gui().create("guiChannel", INTERNAL::Global.getChannelManager().mainMix());
     INTERNAL::Global.getChannelManager().voice().create("voiceChannel", INTERNAL::Global.getChannelManager().mainMix());
 
-    INTERNAL::Global.getChannelManager().changeChannelConf(CT_STEREO);
     maxSounds(50);
 
     INTERNAL::Global.getSoundManager().startThread();

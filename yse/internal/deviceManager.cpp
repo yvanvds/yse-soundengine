@@ -76,8 +76,7 @@ void YSE::INTERNAL::deviceManager::audioDeviceIOCallback(const float ** inputCha
   int      numOutputChannels,
   int      numSamples) {
   
-  if (master == NULL) return;
-  if (Global.getSoundManager().empty()) return;
+  if (master == NULL) return;  
 
   if (Global.needsUpdate()) {
     // update global objects
@@ -88,6 +87,8 @@ void YSE::INTERNAL::deviceManager::audioDeviceIOCallback(const float ** inputCha
     // TODO: check if we still have to release sounds (see old code)
     Global.updateDone();
   }
+
+  if (Global.getSoundManager().empty()) return;
   
   UInt pos = 0;
 

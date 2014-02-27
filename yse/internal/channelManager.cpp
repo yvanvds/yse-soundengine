@@ -30,7 +30,7 @@ ThreadPoolJob::JobStatus YSE::INTERNAL::channelDeleteJob::runJob() {
 }
 
 
-YSE::INTERNAL::channelManager::channelManager() : numberOfOutputs(0) {}
+YSE::INTERNAL::channelManager::channelManager() : outputChannels(0), outputAngles(NULL) {}
 
 YSE::INTERNAL::channelManager::~channelManager() {
   Global.waitForSlowJob(&channelSetup);
@@ -38,6 +38,7 @@ YSE::INTERNAL::channelManager::~channelManager() {
   toCreate.clear();
   inUse.clear();
   implementations.clear();
+  delete[] outputAngles;
   clearSingletonInstance();
 }
 
@@ -127,7 +128,15 @@ void YSE::INTERNAL::channelManager::update() {
 }
 
 UInt YSE::INTERNAL::channelManager::getNumberOfOutputs() {
-  return numberOfOutputs;
+  return outputChannels;
+}
+
+Flt YSE::INTERNAL::channelManager::getOutputAngle(UInt nr) {
+  if (nr >= outputChannels) {
+    return 0.f;
+  } else {
+    return outputAngles[nr];
+  }
 }
 
 YSE::INTERNAL::channelImplementation * YSE::INTERNAL::channelManager::add(const String & name, channel * head) {
@@ -141,7 +150,9 @@ void YSE::INTERNAL::channelManager::setup(channelImplementation * impl) {
 }
 
 void YSE::INTERNAL::channelManager::changeChannelConf(CHANNEL_TYPE type, Int outputs) {
-  numberOfOutputs = outputs;
+  delete[] outputAngles;
+  outputChannels = outputs;
+  outputAngles = new aFlt[outputs];
   switch (type) {
   case CT_AUTO: setAuto(outputs); break;
   case CT_MONO: setMono(); break;
@@ -151,7 +162,12 @@ void YSE::INTERNAL::channelManager::changeChannelConf(CHANNEL_TYPE type, Int out
   case CT_51SIDE: set51Side(); break;
   case CT_61:	set61(); break;
   case CT_71:	set71(); break;
-  case CT_CUSTOM: Global.getDeviceManager().getMaster().set(outputs); break;
+  case CT_CUSTOM: break; // we've set number of outputs. CT_CUSTOM expects the positions will be 
+                         // set later
+  }
+
+  for (auto i = inUse.begin(); i != inUse.end(); i++) {
+    (*i)->setup();
   }
 }
 
@@ -168,40 +184,52 @@ void YSE::INTERNAL::channelManager::setAuto(Int count) {
 }
 
 void YSE::INTERNAL::channelManager::setMono() {
-  Global.getDeviceManager().getMaster().set(1).pos(0, 0);
+  outputAngles[0] = 0;
 }
 
 void YSE::INTERNAL::channelManager::setStereo() {
-  Global.getDeviceManager().getMaster().set(2).pos(0, Pi / 180.0f * -90.0f).pos(1, Pi / 180.0f * 90.0f);
+  outputAngles[0] = Pi / 180.0f * -90.0f;
+  outputAngles[1] = Pi / 180.0f *  90.0f;
 }
 
 void YSE::INTERNAL::channelManager::setQuad() {
-  Global.getDeviceManager().getMaster().set(4).pos(0, Pi / 180.0f * -45.0f).pos(1, Pi / 180.0f *  45.0f)
-    .pos(2, Pi / 180.0f * 135.0f).pos(3, Pi / 180.0f * 135.0f);
+  outputAngles[0] = Pi / 180.0f *  -45.0f;
+  outputAngles[1] = Pi / 180.0f *   45.0f;
+  outputAngles[2] = Pi / 180.0f * -135.0f;
+  outputAngles[3] = Pi / 180.0f *  135.0f;
 }
 
 void YSE::INTERNAL::channelManager::set51() {
-  Global.getDeviceManager().getMaster().set(5).pos(0, Pi / 180.0f *  -45.0f).pos(1, Pi / 180.0f *  45.0f)
-    .pos(2, Pi / 180.0f *	   0.0f)
-    .pos(3, Pi / 180.0f * -135.0f).pos(4, Pi / 180.0f *	135.0f);
+  outputAngles[0] = Pi / 180.0f *  -45.0f;
+  outputAngles[1] = Pi / 180.0f *   45.0f;
+  outputAngles[2] = Pi / 180.0f *	   0.0f;
+  outputAngles[3] = Pi / 180.0f * -135.0f;
+  outputAngles[4] = Pi / 180.0f *	 135.0f;
 }
 
 void YSE::INTERNAL::channelManager::set51Side() {
-  Global.getDeviceManager().getMaster().set(5).pos(0, Pi / 180.0f * -45.0f).pos(1, Pi / 180.0f * 45.0f)
-    .pos(2, Pi / 180.0f *		0.0f)
-    .pos(3, Pi / 180.0f * -90.0f).pos(4, Pi / 180.0f * 90.0f);
+  outputAngles[0] = Pi / 180.0f * -45.0f;
+  outputAngles[1] = Pi / 180.0f *  45.0f;
+  outputAngles[2] = Pi / 180.0f *		0.0f;
+  outputAngles[3] = Pi / 180.0f * -90.0f;
+  outputAngles[4] = Pi / 180.0f *  90.0f;
 }
 
 void YSE::INTERNAL::channelManager::set61() {
-  Global.getDeviceManager().getMaster().set(5).pos(0, Pi / 180.0f * -45.0f).pos(1, Pi / 180.0f * 45.0f)
-    .pos(2, Pi / 180.0f *	  0.0f)
-    .pos(3, Pi / 180.0f * -90.0f).pos(4, Pi / 180.0f * 90.0f)
-    .pos(5, Pi / 180.0f * 180.0f);
+  outputAngles[0] = Pi / 180.0f * -45.0f;
+  outputAngles[1] = Pi / 180.0f *  45.0f;
+  outputAngles[2] = Pi / 180.0f *	  0.0f;
+  outputAngles[3] = Pi / 180.0f * -90.0f;
+  outputAngles[4] = Pi / 180.0f *  90.0f;
+  outputAngles[5] = Pi / 180.0f * 180.0f;
 }
 
 void YSE::INTERNAL::channelManager::set71() {
-  Global.getDeviceManager().getMaster().set(5).pos(0, Pi / 180.0f *  -45.0f).pos(1, Pi / 180.0f *  45.0f)
-    .pos(2, Pi / 180.0f *	   0.0f)
-    .pos(3, Pi / 180.0f *  -90.0f).pos(4, Pi / 180.0f *	 90.0f)
-    .pos(5, Pi / 180.0f * -135.0f).pos(6, Pi / 180.0f * 135.0f);
+  outputAngles[0] = Pi / 180.0f *  -45.0f;
+  outputAngles[1] = Pi / 180.0f *   45.0f;
+  outputAngles[2] = Pi / 180.0f *	   0.0f;
+  outputAngles[3] = Pi / 180.0f *  -90.0f;
+  outputAngles[4] = Pi / 180.0f *	  90.0f;
+  outputAngles[5] = Pi / 180.0f * -135.0f;
+  outputAngles[6] = Pi / 180.0f *  135.0f;
 }

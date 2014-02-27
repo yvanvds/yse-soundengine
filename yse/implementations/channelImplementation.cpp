@@ -15,6 +15,7 @@
 #include "../internal/underWaterEffect.h"
 #include "../internal/reverbManager.h"
 #include "../internal/channelManager.h"
+#include "../internal/deviceManager.h"
 
 YSE::INTERNAL::channelImplementation& YSE::INTERNAL::channelImplementation::volume(Flt value) {
   newVolume = value;
@@ -34,12 +35,13 @@ YSE::INTERNAL::channelImplementation::channelImplementation(const String & name,
 }
 
 void YSE::INTERNAL::channelImplementation::setup() {
-  if (objectStatus == CIS_CREATED) {
-    set(INTERNAL::Global.getChannelManager().getNumberOfOutputs());
-    for (UInt i = 0; i < outConf.size(); i++) {
-      outConf[i].angle = parent->outConf[i].angle;
+  if (objectStatus >= CIS_CREATED) {
+    out.resize(INTERNAL::Global.getChannelManager().getNumberOfOutputs());
+    outConf.resize(INTERNAL::Global.getChannelManager().getNumberOfOutputs());
+    for (UInt i = 0; i < INTERNAL::Global.getChannelManager().getNumberOfOutputs(); i++) {
+      outConf[i].angle = INTERNAL::Global.getChannelManager().getOutputAngle(i);
     }
-    objectStatus = CIS_READY;
+    objectStatus = CIS_SETUP;
   }
 }
 
@@ -116,32 +118,6 @@ Bool YSE::INTERNAL::channelImplementation::remove(YSE::INTERNAL::soundImplementa
   return true;
 }
 
-YSE::INTERNAL::channelImplementation& YSE::INTERNAL::channelImplementation::set(UInt count) {
-  // delete current outputs if there are too much
-  out.resize(count);
-  while (outConf.size() > count) {
-    outConf.pop_back();
-  }
-
-  while (outConf.size() < count) {
-    outConf.emplace_back();
-  }
-
-  for (std::forward_list<channelImplementation*>::iterator i = children.begin(); i != children.end(); ++i) {
-    (*i)->set(count);
-  }
-
-  return (*this);
-}
-
-YSE::INTERNAL::channelImplementation& YSE::INTERNAL::channelImplementation::pos(UInt nr, Flt angle) {
-  if (nr >= 0 && nr < outConf.size()) outConf[nr].angle = angle;
-  for (std::forward_list<channelImplementation*>::iterator i = children.begin(); i != children.end(); ++i) {
-    (*i)->pos(nr, angle);
-  }
-
-  return (*this);
-}
 
 void YSE::INTERNAL::channelImplementation::clearBuffers() {
   for (UInt i = 0; i < out.size(); ++i) {

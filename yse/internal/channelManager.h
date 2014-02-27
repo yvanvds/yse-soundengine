@@ -34,8 +34,11 @@ namespace YSE {
     class channelManager {
     public:
       void update();
+      
+      // channel output configuration
       void changeChannelConf(CHANNEL_TYPE type, Int outputs = 2);
       UInt getNumberOfOutputs();
+      Flt  getOutputAngle(UInt nr);
 
       channel & mainMix();
       channel & FX();
@@ -60,7 +63,10 @@ namespace YSE {
       channel _ambient;
       channel _voice;
       channel _gui;
-      UInt numberOfOutputs; // nr of output channels
+
+      // channel output configuration
+      aFlt * outputAngles;
+      aUInt outputChannels;
 
       void setMono();
       void setStereo();
