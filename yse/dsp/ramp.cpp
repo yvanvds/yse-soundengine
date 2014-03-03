@@ -16,6 +16,16 @@ YSE::DSP::ramp::ramp() : ticksLeft(0), reTarget(false), current(0), target(0), t
   _dspTickToMSEC = SAMPLERATE / (1000.0f * getLength());
 }
 
+YSE::DSP::ramp::ramp(YSE::DSP::ramp & source) {
+  ticksLeft.store(source.ticksLeft);
+  reTarget.store(source.reTarget);
+  current.store(source.current);
+  target.store(source.target);
+  time.store(source.time);
+  _1overN = 1.0f / getLength();
+  _dspTickToMSEC = SAMPLERATE / (1000.0f * getLength());
+}
+
 YSE::DSP::ramp& YSE::DSP::ramp::set(Flt target, Int time) {
   if (time <= 0) {
     this->target = target;

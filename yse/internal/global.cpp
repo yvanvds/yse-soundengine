@@ -96,13 +96,14 @@ void YSE::INTERNAL::global::init() {
 void YSE::INTERNAL::global::close() {
   slowThreads.removeAllJobs(true, -1);
   fastThreads.removeAllJobs(true, -1);
-
+  deviceManager::deleteInstance();
+  soundManager::deleteInstance();
   channelManager::deleteInstance();
   listenerImplementation::deleteInstance();
   reverbManager::deleteInstance();
-  soundManager::deleteInstance();
+  
   // these have to come last!
-  deviceManager::deleteInstance();
+  
   settings::deleteInstance();
   logImplementation::deleteInstance();
 

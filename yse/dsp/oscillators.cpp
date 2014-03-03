@@ -11,6 +11,7 @@
 #include <cmath>
 #include "oscillators.hpp"
 #include "../utils/misc.hpp"
+#include <vector>
 
 #define UNITBIT32 1572864.f  /* 3*2^19; bit 32 has place value 1 */
 #define HIOFFSET 1
@@ -27,10 +28,9 @@ namespace YSE {
     class cosTable {
     public:
       cosTable();
-      ~cosTable();
       Flt * operator()();
     private:
-      Flt * table;
+      std::vector<Flt> table;
     };
 
 
@@ -87,25 +87,19 @@ namespace YSE {
 #define LOGCOSTABSIZE 9
 #define COSTABSIZE (1<<LOGCOSTABSIZE)
 
-    cosTable::cosTable() {
+    cosTable::cosTable() : table(COSTABSIZE + 1) {
       Flt *fp;
       Flt phase = 0;
       Flt phsinc = (2.f * YSE::Pi) / COSTABSIZE;
       union tabfudge tf;
 
-      table = new Flt[COSTABSIZE + 1];
-      fp = table;
+      fp = table.data();
       for (Int i = COSTABSIZE + 1; i--; fp++, phase += phsinc) *fp = ::cos(phase);
-
       tf.d = UNITBIT32 + 0.5;
     }
 
-    cosTable::~cosTable() {
-      delete[] table;
-    }
-
     Flt * cosTable::operator()() {
-      return table;
+      return table.data();
     }
 
     Flt * CosTable() {

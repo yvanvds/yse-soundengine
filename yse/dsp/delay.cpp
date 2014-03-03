@@ -16,8 +16,10 @@
 #define DEFDELVS 64
 #define SAMPBLK 4
 
-YSE::DSP::delay::delay(Int size) : bufferlength(0), buffer(new Flt[size + XTRASAMPS]) {} 
-YSE::DSP::delay::~delay() { delete[] buffer; }
+YSE::DSP::delay::delay(Int size) : size(size), bufferlength(size), buffer(size + XTRASAMPS) {} 
+YSE::DSP::delay::delay(const YSE::DSP::delay & source) {
+  delay(source.size);
+}
 
 YSE::DSP::delay& YSE::DSP::delay::setSize(UInt size) {
   this->size = size;
@@ -31,12 +33,7 @@ YSE::DSP::delay& YSE::DSP::delay::process(AUDIOBUFFER & s) {
     nsamps += ((-nsamps) & (SAMPBLK - 1));
     nsamps += DEFDELVS;
     if ((Int)bufferlength != nsamps) {
-      UInt current = bufferlength;
-      UInt newSize = nsamps + XTRASAMPS;
-      buffer = (Flt*)realloc(buffer, newSize * sizeof(Flt));
-      for (; bufferlength < newSize; current++) {
-        buffer[current] = 0.f;
-      }
+      buffer.resize(nsamps + XTRASAMPS, 0.f);
       bufferlength = nsamps;
       phase = XTRASAMPS;
     }
@@ -46,7 +43,7 @@ YSE::DSP::delay& YSE::DSP::delay::process(AUDIOBUFFER & s) {
   Flt * in = s.getBuffer();
   UInt length = currentLength;
   Int ph = phase;
-  Flt * vp = buffer;
+  Flt * vp = buffer.data();
   Flt * bp = vp + ph;
   Flt * ep = vp + bufferlength + XTRASAMPS;
   ph += currentLength;
@@ -77,7 +74,7 @@ YSE::DSP::delay& YSE::DSP::delay::read(sample& result, UInt delayTime) {
 
   Int ph = phase - delaySamples;
 
-  Flt * vp = buffer;
+  Flt * vp = buffer.data();
   Flt * ep = vp + (bufferlength + XTRASAMPS);
   if (ph < 0) ph += bufferlength;
   Flt *bp = vp + ph;
@@ -99,7 +96,7 @@ YSE::DSP::delay& YSE::DSP::delay::read(sample& result, AUDIOBUFFER & delayTime) 
   Flt * ctrl = delayTime.getBuffer();
   Flt * out = result.getBuffer();
 
-  Flt * vp = buffer;
+  Flt * vp = buffer.data();
   //Flt * ep = vp + (impl->bufferlength + XTRASAMPS);
 
   for (UInt i = 0; i < result.getLength(); i++) {

@@ -22,7 +22,6 @@
 //[/Headers]
 
 #include "movingChannels.h"
-#include "YSEObjects.h"
 
 
 //[MiscUserDefs] You can add your own user definitions and misc code here...
@@ -110,11 +109,11 @@ void movingChannels::paint (Graphics& g)
 
 void movingChannels::resized()
 {
-    labelTitle->setBounds (proportionOfWidth (0.1578f), proportionOfHeight (0.0509f), proportionOfWidth (0.6906f), proportionOfHeight (0.0954f));
-    label->setBounds (proportionOfWidth (0.0526f), proportionOfHeight (0.1482f), proportionOfWidth (0.9156f), proportionOfHeight (0.1222f));
-    treeView->setBounds (proportionOfWidth (0.0448f), proportionOfHeight (0.2991f), proportionOfWidth (0.9005f), proportionOfHeight (0.5991f));
-    buttonAddSound->setBounds (proportionOfWidth (0.0448f), proportionOfHeight (0.9111f), proportionOfWidth (0.2813f), proportionOfHeight (0.0407f));
-    buttonAddChannel->setBounds (proportionOfWidth (0.6604f), proportionOfHeight (0.9111f), proportionOfWidth (0.2813f), proportionOfHeight (0.0407f));
+    labelTitle->setBounds (proportionOfWidth (0.1576f), proportionOfHeight (0.0510f), proportionOfWidth (0.6904f), proportionOfHeight (0.0952f));
+    label->setBounds (proportionOfWidth (0.0525f), proportionOfHeight (0.1480f), proportionOfWidth (0.9156f), proportionOfHeight (0.1225f));
+    treeView->setBounds (proportionOfWidth (0.0450f), proportionOfHeight (0.2993f), proportionOfWidth (0.9006f), proportionOfHeight (0.5986f));
+    buttonAddSound->setBounds (proportionOfWidth (0.0450f), proportionOfHeight (0.9116f), proportionOfWidth (0.2814f), proportionOfHeight (0.0408f));
+    buttonAddChannel->setBounds (proportionOfWidth (0.6604f), proportionOfHeight (0.9116f), proportionOfWidth (0.2814f), proportionOfHeight (0.0408f));
     //[UserResized] Add your own custom resize handling here..
     //[/UserResized]
 }
@@ -168,7 +167,7 @@ bool movingChannels::keyPressed (const KeyPress& key)
 ValueTree movingChannels::createTree(const String& desc, ITEM_TYPE type, ValueTree * parent) {
   ValueTree t("item");
   t.setProperty("name", desc, nullptr);
-  t.setProperty("type", type, nullptr);  
+  t.setProperty("type", type, nullptr);
   if (parent != NULL) {
     parent->addChild(t, -1, nullptr);
   }
@@ -178,7 +177,7 @@ ValueTree movingChannels::createTree(const String& desc, ITEM_TYPE type, ValueTr
 
 ValueTree movingChannels::createRootValueTree() {
   ValueTree vt = createTree("mainMix", MAINCHANNEL);
-  createTree("Voice Channel", VOICECHANNEL, &vt); 
+  createTree("Voice Channel", VOICECHANNEL, &vt);
   createTree("FX Channel", FXCHANNEL, &vt);
   createTree("Ambient Channel", AMBIENTCHANNEL, &vt);
   createTree("GUI Channel", GUICHANNEL, &vt);

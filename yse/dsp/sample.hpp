@@ -14,7 +14,7 @@
 #include "../headers/types.hpp"
 #include "../headers/constants.hpp"
 #include "../headers/defines.hpp"
-#include "../dsp/sample.hpp"
+#include <vector>
 
 namespace YSE {
 
@@ -35,8 +35,6 @@ namespace YSE {
       sample(UInt length = STANDARD_BUFFERSIZE);
       // Creates a new audio buffer by copying an existing one
       sample(AUDIOBUFFER & cp);
-      // releases the buffer memory
-      ~sample();
 
       // gets the length of a sample in frames (also called 'samples' like in '44100 samples per second')
       UInt  getLength() const;
@@ -46,9 +44,8 @@ namespace YSE {
       Flt		getLengthSec() const;
 
       // WARNING: try to avoid this function. It will give you write access
-      // to the internal buffer, but memory can be overwritten when
-      // you don't use the correct length of the buffer (use getLength())
-      Flt * getBuffer() const;
+      // to the internal buffer, but there might be unexpected consequenses
+      Flt * getBuffer();
 
       // Add the same value (f) to all samples in the buffer
       AUDIOBUFFER & operator+=(Flt f);
@@ -105,8 +102,7 @@ namespace YSE {
       // with copy = false, the buffer values are not initialized
       AUDIOBUFFER & resize(UInt length, Bool copy = false);
     private:
-      aUInt length;
-      Flt * buffer;
+      std::vector<Flt> buffer;
     };
   }
 }

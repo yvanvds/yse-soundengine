@@ -46,10 +46,8 @@ void YSE::channel::createGlobal() {
 
   // the global channel will be created instantly because no audio
   // thread can be running before this is ready anyway 
-  pimpl = INTERNAL::Global.getChannelManager().add("mainMix", this);
-  pimpl->setup();
-  INTERNAL::Global.getDeviceManager().setMaster(pimpl);
-  
+  pimpl = INTERNAL::Global.getChannelManager().add("Master channel", this);
+  INTERNAL::Global.getChannelManager().setMaster(pimpl);
 }
 
 YSE::channel::~channel() {

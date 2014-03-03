@@ -149,6 +149,13 @@ void YSE::INTERNAL::channelManager::setup(channelImplementation * impl) {
   toCreate.emplace_front(impl);
 }
 
+void YSE::INTERNAL::channelManager::setMaster(channelImplementation * impl) {
+  impl->objectStatus = CIS_CREATED;
+  impl->setup();
+  impl->objectStatus = CIS_READY;
+  INTERNAL::Global.getDeviceManager().setMaster(impl);
+}
+
 void YSE::INTERNAL::channelManager::changeChannelConf(CHANNEL_TYPE type, Int outputs) {
   delete[] outputAngles;
   outputChannels = outputs;

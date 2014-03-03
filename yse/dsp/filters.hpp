@@ -22,6 +22,7 @@ namespace YSE {
     class API filterBase {
     public:
       filterBase();
+      filterBase(filterBase &);
       
       virtual AUDIOBUFFER & operator()(AUDIOBUFFER & in) = 0;
 

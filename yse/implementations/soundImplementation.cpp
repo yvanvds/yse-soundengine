@@ -74,10 +74,6 @@ YSE::INTERNAL::soundImplementation::~soundImplementation() {
   if (file != NULL) {
     file->release();
   }
-
-#if defined YSE_DEBUG
-  Global.getLog().emit(E_SOUND_DELETED);
-#endif
   if (post_dsp && post_dsp->calledfrom) post_dsp->calledfrom = NULL;
 }
 

@@ -186,6 +186,30 @@
         <MODULEPATH id="juce_audio_basics" path="../../juce"/>
       </MODULEPATHS>
     </XCODE_MAC>
+    <ANDROID targetFolder="Builds/Android" androidActivityClass="com.mute.ysedemo.YseDemo"
+             androidSDKPath="${user.home}/SDKs/android-sdk" androidNDKPath="${user.home}/SDKs/android-ndk"
+             androidMinimumSDK="8" androidInternetNeeded="1" androidKeyStore="${user.home}/.android/debug.keystore"
+             androidKeyStorePass="android" androidKeyAlias="androiddebugkey"
+             androidKeyAliasPass="android">
+      <CONFIGURATIONS>
+        <CONFIGURATION name="Debug" androidArchitectures="armeabi armeabi-v7a" isDebug="1"
+                       optimisation="1" targetName="YseDemo"/>
+        <CONFIGURATION name="Release" androidArchitectures="armeabi armeabi-v7a" isDebug="0"
+                       optimisation="2" targetName="YseDemo"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_gui_extra" path="../../juce"/>
+        <MODULEPATH id="juce_gui_basics" path="../../juce"/>
+        <MODULEPATH id="juce_graphics" path="../../juce"/>
+        <MODULEPATH id="juce_events" path="../../juce"/>
+        <MODULEPATH id="juce_data_structures" path="../../juce"/>
+        <MODULEPATH id="juce_cryptography" path="../../juce"/>
+        <MODULEPATH id="juce_core" path="../../juce"/>
+        <MODULEPATH id="juce_audio_formats" path="../../juce"/>
+        <MODULEPATH id="juce_audio_devices" path="../../juce"/>
+        <MODULEPATH id="juce_audio_basics" path="../../juce"/>
+      </MODULEPATHS>
+    </ANDROID>
   </EXPORTFORMATS>
   <MODULES>
     <MODULES id="juce_audio_basics" showAllCode="1" useLocalCopy="1"/>

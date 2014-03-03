@@ -49,6 +49,7 @@ namespace YSE {
 
       channelImplementation * add(const String & name, channel * head);
       void setup(channelImplementation * impl);
+      void setMaster(channelImplementation * impl);
 
       channelManager();
       ~channelManager();

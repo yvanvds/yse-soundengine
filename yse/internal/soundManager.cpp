@@ -45,6 +45,7 @@ YSE::INTERNAL::soundManager::~soundManager() {
   soundsToLoad.clear();
   soundsInUse.clear();
   soundImplementations.clear();
+  soundFiles.clear();
   clearSingletonInstance();
 }
 

@@ -51,9 +51,9 @@ Int ch;
 Int filterIndex;
 Int * curCombIndex;
 Int * curCombTuning;
-Flt ** curBufComb;
+std::vector< std::vector<Flt> > * curBufComb;
 Flt * curFilterStore;
-Flt ** curBufAll;
+std::vector< std::vector<Flt> > * curBufAll;
 Int * curAllIndex;
 Int * curAllTuning;
 Flt _allpassFeedback;
@@ -64,13 +64,13 @@ Int bufferIndex;
 
 static inline Flt combProcess(Flt input) {
   Flt output;
-  output = curBufComb[filterIndex][bufferIndex];
+  output = (*curBufComb)[filterIndex][bufferIndex];
   Undenormal(output);
 
   curFilterStore[filterIndex] = (output * combDamp2) + (curFilterStore[filterIndex] * combDamp1);
   Undenormal(curFilterStore[filterIndex]);
 
-  curBufComb[filterIndex][bufferIndex] = input + (curFilterStore[filterIndex] * _combFeedback);
+  (*curBufComb)[filterIndex][bufferIndex] = input + (curFilterStore[filterIndex] * _combFeedback);
   if (++bufferIndex >= curCombTuning[filterIndex]) bufferIndex = 0;
   return output;
 }
@@ -78,10 +78,10 @@ static inline Flt combProcess(Flt input) {
 static inline void allpassProcess(Flt & input) {
   Flt bufout;
 
-  bufout = curBufAll[filterIndex][bufferIndex];
+  bufout = (*curBufAll)[filterIndex][bufferIndex];
   Undenormal(bufout);
 
-  curBufAll[filterIndex][bufferIndex] = input + (bufout * _allpassFeedback);
+  (*curBufAll)[filterIndex][bufferIndex] = input + (bufout * _allpassFeedback);
   if (++bufferIndex >= curAllTuning[filterIndex]) bufferIndex = 0;
 
   input = -input + bufout;
@@ -116,7 +116,7 @@ YSE::INTERNAL::reverbDSP& YSE::INTERNAL::reverbDSP::bypass(Bool value) {
   if (_bypass) {
     if (_freeze) return (*this);
 
-    for (Int i = 0; i < numChannels; i++) channel[i].clear();
+    for (Int i = 0; i < channel.size(); i++) channel[i].clear();
   }
 
   return (*this);
@@ -128,7 +128,7 @@ Bool YSE::INTERNAL::reverbDSP::bypass() {
 
 void YSE::INTERNAL::reverbDSP::process(MULTICHANNELBUFFER & buffer) {
   if (_bypass) return;
-  if (channel == NULL) return;
+  if (channel.empty()) return;
   update();
 
   // update frequency modulation
@@ -141,16 +141,16 @@ void YSE::INTERNAL::reverbDSP::process(MULTICHANNELBUFFER & buffer) {
     cosPtr2 = cos2(modPtr);
   }
 
-  for (ch = 0; ch < numChannels; ch++) {
+  for (ch = 0; ch < channel.size(); ch++) {
     Flt * ptr = buffer[ch].getBuffer();
     channel[ch].out = 0;
     Flt * out = channel[ch].out.getBuffer();
     Int length = buffer[ch].getLength();
     curCombIndex = channel[ch].combIndex;
-    curBufComb = channel[ch].bufComb;
+    curBufComb = &channel[ch].bufComb;
     curFilterStore = channel[ch].filterStore;
     curCombTuning = channel[ch].combTuning;
-    curBufAll = channel[ch].bufAll;
+    curBufAll = &channel[ch].bufAll;
     curAllIndex = channel[ch].allIndex;
     curAllTuning = channel[ch].allTuning;
 
@@ -240,7 +240,7 @@ void YSE::INTERNAL::reverbDSP::update() {
   _widthFader.update();
   _modFrequency.update();
   _modWidth.update();
-  for (Int i = 0; i < numChannels; i++) {
+  for (Int i = 0; i < channel.size(); i++) {
     channel[i].update();
   }
 
@@ -317,9 +317,7 @@ Bool YSE::INTERNAL::reverbDSP::freeze() {
 }
 
 void YSE::INTERNAL::reverbDSP::channels(Int value) {
-  if (channel != NULL) delete[] channel;
-  channel = new reverbChannel[value];
-  numChannels = value;
+  channel.resize(value);
 }
 
 void YSE::INTERNAL::reverbDSP::modulate(Flt frequency, Flt width) {
@@ -343,7 +341,7 @@ void YSE::INTERNAL::reverbDSP::set(YSE::reverb & params) {
   modulate(params.getModulationFrequency(), params.getModulationWidth());
 
   for (Int i = 0; i < 4; i++) {
-    for (Int ch = 0; ch < numChannels; ch++) {
+    for (Int ch = 0; ch < channel.size(); ch++) {
       channel[ch].earlyPtr[i].setIfNew((float)(params.getReflectionTime(i) + channel[ch].earlyOffset), 1000);
       channel[ch].earlyVolume[i].setIfNew(params.getReflectionGain(i), 1000);
     }
@@ -352,8 +350,6 @@ void YSE::INTERNAL::reverbDSP::set(YSE::reverb & params) {
 
 YSE::INTERNAL::reverbDSP::reverbDSP() {
   _freeze = false;
-  channel = NULL;
-  numChannels = 0;
 
   // default values
   _modFrequency.set(0, 0);
@@ -369,12 +365,10 @@ YSE::INTERNAL::reverbDSP::reverbDSP() {
 }
 
 YSE::INTERNAL::reverbDSP::~reverbDSP() {
-  if (channel != NULL) delete[] channel;
-  channel = NULL;
   clearSingletonInstance();
 }
 
-YSE::INTERNAL::reverbChannel::reverbChannel() : delayline(3000) {
+YSE::INTERNAL::reverbChannel::reverbChannel() : delayline(3000), bufComb(COMBS), bufAll(APASS) {
   Int rnd = Random(50);
   // recalculate the reverb parameters in case we don't run at 44.1kHz
   for (Int i = 0; i < COMBS; i++) {
@@ -387,12 +381,12 @@ YSE::INTERNAL::reverbChannel::reverbChannel() : delayline(3000) {
 
   // get memory for delay lines
   for (Int i = 0; i < COMBS; i++) {
-    bufComb[i] = new Flt[combTuning[i]];
+    bufComb[i].resize(combTuning[i]);
     combIndex[i] = 0;
   }
 
   for (Int i = 0; i < APASS; i++) {
-    bufAll[i] = new Flt[allTuning[i]];
+    bufAll[i].resize(allTuning[i]);
     allIndex[i] = 0;
   }
   
@@ -409,26 +403,14 @@ YSE::INTERNAL::reverbChannel::reverbChannel() : delayline(3000) {
   clear();
 }
 
-YSE::INTERNAL::reverbChannel::~reverbChannel() {
-  // release memory
-  for (Int i = 0; i < APASS; i++) {
-    if (bufAll[i] != NULL) delete[] bufAll[i];
-    bufAll[i] = NULL;
-  }
-  for (Int i = 0; i < COMBS; i++) {
-    if (bufComb[i] != NULL) delete[] bufComb[i];
-    bufComb[i] = NULL;
-  }
-}
-
 void YSE::INTERNAL::reverbChannel::clear() {
-  for (Int i = 0; i < COMBS; i++) {
-    memset(bufComb[i], 0x0, combTuning[i] * sizeof(Flt));
-    filterStore[i] = 0.0;
+  for (Int i = 0; i < bufComb.size(); i++) {
+    bufComb[i].assign(bufComb[i].size(), 0.f);
+    filterStore[i] = 0.f;
   }
 
-  for (Int i = 0; i < APASS; i++) {
-    memset(bufAll[i], 0x0, allTuning[i] * sizeof(Flt));
+  for (Int i = 0; i < bufAll.size(); i++) {
+    bufAll[i].assign(bufAll[i].size(), 0.f);
   }
 }
 

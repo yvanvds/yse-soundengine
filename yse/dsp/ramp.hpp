@@ -28,6 +28,7 @@ namespace YSE {
       Flt    getValue();
 
       ramp();
+      ramp(ramp &);
 
     private:
       aFlt target;

@@ -29,7 +29,7 @@ YSE::INTERNAL::deviceManager::deviceManager() : initialized(false), open(false),
 }
 
 YSE::INTERNAL::deviceManager::~deviceManager() {
-  close();
+  //close();
   clearSingletonInstance();
 }
 
@@ -37,7 +37,6 @@ Bool YSE::INTERNAL::deviceManager::init() {
   if (!initialized) {
     _lastError = audioDeviceManager.initialise(0, 2, NULL, true);
     if (_lastError.isNotEmpty()) {
-      //Error.emit(E_AUDIODEVICE, _lastError.toStdString());
       jassertfalse
       return false;
     }
@@ -53,6 +52,7 @@ Bool YSE::INTERNAL::deviceManager::init() {
 
 void YSE::INTERNAL::deviceManager::close() {
   if (open) {
+    audioDeviceManager.removeAudioCallback(this);
     audioDeviceManager.closeAudioDevice();
     open = false;
   }

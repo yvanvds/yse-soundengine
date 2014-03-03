@@ -19,6 +19,7 @@
 #include "../dsp/dspObject.hpp"
 #include "../dsp/oscillators.hpp"
 #include "../classes.hpp"
+#include <vector>
 #include "JuceHeader.h"
 
 #define COMBS 8
@@ -44,15 +45,14 @@ namespace YSE {
       Flt * cPtr;
       Int   earlyOffset;
       Flt   filterStore[COMBS];
-      Flt * bufComb[COMBS];
+      std::vector< std::vector<Flt> > bufComb;
       Int   combIndex[COMBS];
       Int   combTuning[COMBS];
-      Flt * bufAll[APASS];
+      std::vector< std::vector<Flt> > bufAll;
       Int   allIndex[APASS];
       Int   allTuning[APASS];
 
       reverbChannel();
-      ~reverbChannel();
     };
 
     class reverbDSP : DSP::dspObject {
@@ -84,8 +84,7 @@ namespace YSE {
       void modulate(Flt frequency, Flt width);
 
 
-      reverbChannel * channel;
-      Int numChannels;
+      std::vector<reverbChannel> channel;
       void channels(Int value);
 
       // set - get

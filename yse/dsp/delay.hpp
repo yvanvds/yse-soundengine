@@ -12,6 +12,7 @@
 #define DELAY_H_INCLUDED
 
 #include "sample.hpp"
+#include <vector>
 
 namespace YSE {
 
@@ -62,11 +63,11 @@ namespace YSE {
                         size when creating the object.
       */
       delay(Int size);
-      ~delay();
+      delay(const delay &);
 
     private:
       UInt bufferlength;
-      Flt * buffer;
+      std::vector<Flt> buffer;
       Int phase;
 
       UInt currentLength; // the sample length for this loop

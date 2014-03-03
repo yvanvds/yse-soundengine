@@ -20,6 +20,21 @@ coef1(0), coef2(0),
 ff1(0), ff2(0), ff3(0), fb1(0), fb2(0) {
 }
 
+YSE::DSP::filterBase::filterBase(YSE::DSP::filterBase & source)  {
+  freq.store(source.freq);
+  gain.store(source.gain);
+  q = source.q;
+  last = source.last;
+  previous = source.previous;
+  coef1.store(source.coef1);
+  coef2.store(source.coef2);
+  ff1.store(source.ff1);
+  ff2.store(source.ff2);
+  ff3.store(source.ff3);
+  fb1.store(source.fb1);
+  fb2.store(source.fb2);
+}
+
 YSE::DSP::highPass& YSE::DSP::highPass::setFrequency(Flt f) {
   if (f < 0) f = 0;
   freq = f;
