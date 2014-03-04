@@ -16,8 +16,7 @@
 #include "internal/channelManager.h"
 #include "internal/reverbManager.h"
 
-YSE::channel::channel() : pimpl(NULL)
-  
+YSE::channel::channel() : pimpl(NULL), allowVirtual(true)  
 {}
 
 YSE::channel& YSE::channel::create(const char * name, channel& parent) {
@@ -71,6 +70,15 @@ YSE::channel& YSE::channel::moveTo(channel& parent) {
   newChannel = &parent;
   moveChannel = true;
   return (*this);
+}
+
+YSE::channel& YSE::channel::setVirtual(Bool value) {
+  allowVirtual = value;
+  return (*this);
+}
+
+bool YSE::channel::getVirtual() {
+  return allowVirtual;
 }
 
 YSE::channel& YSE::channel::attachReverb() { 

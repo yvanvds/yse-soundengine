@@ -18,7 +18,7 @@
 */
 
 //[Headers] You can add your own extra header files here...
-
+#include "YSEObjects.h"
 //[/Headers]
 
 #include "movingChannels.h"
@@ -40,7 +40,7 @@ movingChannels::movingChannels ()
     labelTitle->setColour (TextEditor::backgroundColourId, Colour (0x00000000));
 
     addAndMakeVisible (label = new Label ("new label",
-                                          TRANS("Channels can be added, moved and removed on the fly. Sounds can also be moved between channels.")));
+                                          TRANS("Channels can be added, moved and removed on the fly. Sounds can also be moved between channels. In fact almost nothing happens in this demo. It just shows you that you can move channels and sounds around without glitches.")));
     label->setFont (Font (15.00f, Font::plain));
     label->setJustificationType (Justification::centred);
     label->setEditable (false, false, false);
@@ -110,7 +110,7 @@ void movingChannels::paint (Graphics& g)
 void movingChannels::resized()
 {
     labelTitle->setBounds (proportionOfWidth (0.1576f), proportionOfHeight (0.0510f), proportionOfWidth (0.6904f), proportionOfHeight (0.0952f));
-    label->setBounds (proportionOfWidth (0.0525f), proportionOfHeight (0.1480f), proportionOfWidth (0.9156f), proportionOfHeight (0.1225f));
+    label->setBounds (proportionOfWidth (0.0525f), proportionOfHeight (0.1480f), proportionOfWidth (0.9156f), proportionOfHeight (0.0969f));
     treeView->setBounds (proportionOfWidth (0.0450f), proportionOfHeight (0.2993f), proportionOfWidth (0.9006f), proportionOfHeight (0.5986f));
     buttonAddSound->setBounds (proportionOfWidth (0.0450f), proportionOfHeight (0.9116f), proportionOfWidth (0.2814f), proportionOfHeight (0.0408f));
     buttonAddChannel->setBounds (proportionOfWidth (0.6604f), proportionOfHeight (0.9116f), proportionOfWidth (0.2814f), proportionOfHeight (0.0408f));
@@ -225,8 +225,8 @@ BEGIN_JUCER_METADATA
          editableSingleClick="0" editableDoubleClick="0" focusDiscardsChanges="0"
          fontname="Default font" fontsize="40" bold="1" italic="0" justification="36"/>
   <LABEL name="new label" id="2b173b509e785c8e" memberName="label" virtualName=""
-         explicitFocusOrder="0" pos="5.253% 14.796% 91.557% 12.245%" edTextCol="ff000000"
-         edBkgCol="0" labelText="Channels can be added, moved and removed on the fly. Sounds can also be moved between channels."
+         explicitFocusOrder="0" pos="5.253% 14.796% 91.557% 9.694%" edTextCol="ff000000"
+         edBkgCol="0" labelText="Channels can be added, moved and removed on the fly. Sounds can also be moved between channels. In fact almost nothing happens in this demo. It just shows you that you can move channels and sounds around without glitches."
          editableSingleClick="0" editableDoubleClick="0" focusDiscardsChanges="0"
          fontname="Default font" fontsize="15" bold="0" italic="0" justification="36"/>
   <TREEVIEW name="new treeview" id="ba09230bfbf01819" memberName="treeView"

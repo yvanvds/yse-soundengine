@@ -21,22 +21,26 @@ namespace YSE {
   namespace INTERNAL {
 
     enum FILESTATE {
-      NEW,
-      LOADING,
-      READY,
-      INVALID,
+      NEW,      // don't access from within the audio callback!
+      LOADING,  // don't access from within the audio callback!
+      READY,    // at this point a soundfile should only be accessed inside the audio callback
+      INVALID,  // don't access from within the audio callback!
     };
 
-    class soundFile {
+    class soundFile : public ThreadPoolJob {
     public:
 
-      Bool create(const File &file, Bool stream = false);
+      Bool create(Bool stream = false);
+      JobStatus runJob(); // load from disk
+
       Bool read(std::vector<DSP::sample> & filebuffer, Flt& pos, UInt length, Flt speed, Bool loop, SOUND_STATUS & intent, Flt & volume);
+
+      Bool contains(const File & file);
 
       // get
       Int       channels(); // number of channels in source
       UInt      length(); // length of the source in frames
-      FILESTATE state(); // current state of the file, (ready, invalid or loading)
+      FILESTATE getState(); // current state of the file, (ready, invalid or loading)
 
       // set
       soundFile & reset(); // indicate that stream needs to reset (after stop)
@@ -45,13 +49,13 @@ namespace YSE {
       void release() { clients--; }
       bool inUse();
 
-      soundFile();
+      soundFile(const File & file);
       ~soundFile();
 
     private:
-      File              _file;
+      File              file;
       AudioSampleBuffer _buffer; // contains the actual sound buffer
-      FILESTATE         _state;
+      std::atomic<FILESTATE> state;
       Flt               _sampleRateAdjustment;
       int               _length;
 
@@ -66,7 +70,7 @@ namespace YSE {
       void resetStream();
 
       // for keeping track of objects using this file
-      UInt clients;
+      aUInt clients;
       Flt idleTime;
 
       // for virtual IO

@@ -17,22 +17,115 @@
 #include "../internal/channelManager.h"
 #include "../internal/deviceManager.h"
 
-YSE::INTERNAL::channelImplementation& YSE::INTERNAL::channelImplementation::volume(Flt value) {
-  newVolume = value;
-  Clamp(newVolume, 0.f, 1.f);
-  return (*this);
+YSE::INTERNAL::channelImplementation::channelImplementation(const String & name, channel * head) :
+ThreadPoolJob(name),
+newVolume(1.f), lastVolume(1.f), userChannel(true),
+allowVirtual(true), objectStatus(CIS_CONSTRUCTED), parent(NULL),
+head(head)
+{
 }
 
-Flt YSE::INTERNAL::channelImplementation::volume() {
-  return newVolume;
+YSE::INTERNAL::channelImplementation::~channelImplementation() {
+  exit(); // exit the dsp thread for this channel
+
+  if (Global.isActive()) {
+    parent->disconnect(this);
+    childrenToParent();
+  }
 }
 
-YSE::INTERNAL::channelImplementation::channelImplementation(const String & name, channel * head) : 
-    ThreadPoolJob(name),
-    newVolume(1.f), lastVolume(1.f), userChannel(true),
-    allowVirtual(true), objectStatus(CIS_CONSTRUCTED), parent(NULL),
-    head(head) {
+Bool YSE::INTERNAL::channelImplementation::connect(YSE::INTERNAL::channelImplementation * ch) {
+  if (ch != this) {
+    if (ch->parent != NULL) ch->parent->disconnect(ch);
+    ch->parent = this;
+    children.push_front(ch);
+    return true;
+  }
+  else ch->parent = NULL;
+  return false;
 }
+
+Bool YSE::INTERNAL::channelImplementation::disconnect(YSE::INTERNAL::channelImplementation *ch) {
+  children.remove(ch);
+  return true;
+}
+
+Bool YSE::INTERNAL::channelImplementation::connect(YSE::INTERNAL::soundImplementation * s) {
+  if (s->parent != NULL) {
+    s->parent->disconnect(s);
+  }
+  s->parent = this;
+  sounds.push_front(s);
+  return true;
+}
+
+Bool YSE::INTERNAL::channelImplementation::disconnect(YSE::INTERNAL::soundImplementation*s) {
+  sounds.remove(s);
+  return true;
+}
+
+
+ThreadPoolJob::JobStatus YSE::INTERNAL::channelImplementation::runJob() {
+  dsp();
+  return jobHasFinished;
+}
+
+
+void YSE::INTERNAL::channelImplementation::dsp() {
+  // if no sounds or other channels are linked, we skip this channel
+  if (children.empty() && sounds.empty()) return;
+
+  // clear channel buffer
+  clearBuffers();
+
+  // calculate child channels if there are any
+  for (auto i = children.begin(); i != children.end(); ++i) {
+    Global.addFastJob(*i);
+  }
+
+  // calculate sounds in this channel
+  for (auto i = sounds.begin(); i != sounds.end(); ++i) {
+    if ((*i)->dsp()) {
+      (*i)->toChannels();
+    }
+  }
+
+  adjustVolume();
+
+  Global.getReverbManager().process(this);
+
+  if (UnderWaterEffect().channel() == this) {
+    UnderWaterEffect().apply(out);
+  }
+}
+
+void YSE::INTERNAL::channelImplementation::buffersToParent() {
+  Global.waitForFastJob(this);
+
+  // call this recursively on all child channels 
+  for (auto i = children.begin(); i != children.end(); ++i) {
+    (*i)->buffersToParent();
+  }
+
+
+  // if this is the main channel, we're done here
+  if (parent == NULL) return;
+  if (children.empty() && sounds.empty()) return;
+
+  // if not the main channel, add output to parent channel
+  for (UInt i = 0; i < out.size(); ++i) {
+    // parent size is not checked but should be ok because it's adjusted before calling this
+    parent->out[i] += out[i];
+  }
+}
+
+void YSE::INTERNAL::channelImplementation::attachUnderWaterFX() {
+  UnderWaterEffect().channel(this);
+}
+
+/////////////////////////////////////////////////////
+// private functions
+/////////////////////////////////////////////////////
 
 void YSE::INTERNAL::channelImplementation::setup() {
   if (objectStatus >= CIS_CREATED) {
@@ -60,14 +153,11 @@ Bool YSE::INTERNAL::channelImplementation::readyCheck() {
   return false;
 }
 
-YSE::INTERNAL::channelImplementation::~channelImplementation() {
-  exit(); // exit the dsp thread for this channel
-}
-
 void YSE::INTERNAL::channelImplementation::sync() {
   // remove if interface is gone
   if (head == NULL) {
     objectStatus = CIS_RELEASE;
+    return;
   }
 
   // get new values from head
@@ -77,93 +167,36 @@ void YSE::INTERNAL::channelImplementation::sync() {
   }
 
   if (head->moveChannel) {
-    head->newChannel.load()->pimpl->add(this);
+    head->newChannel.load()->pimpl->connect(this);
     head->moveChannel = false;
   }
-}
 
-
-void YSE::INTERNAL::channelImplementation::attachUnderWaterFX() {
-  UnderWaterEffect().channel(this);
-}
-
-//TODO: add and remove functions are unlikely to be threadsafe!
-Bool YSE::INTERNAL::channelImplementation::add(YSE::INTERNAL::channelImplementation * ch) {
-  if (ch != this) {
-    if (ch->parent != NULL) ch->parent->remove(ch);
-    ch->parent = this;
-    children.push_front(ch);
-    return true;
+  if (allowVirtual != head->allowVirtual.load()) {
+    allowVirtual = head->allowVirtual.load();
   }
-  else ch->parent = NULL;
-  return false;
-}
-
-Bool YSE::INTERNAL::channelImplementation::remove(YSE::INTERNAL::channelImplementation *ch) {
-  children.remove(ch);
-  return true;
-}
-
-Bool YSE::INTERNAL::channelImplementation::add(YSE::INTERNAL::soundImplementation * s) {
-  if (s->parent != NULL) {
-    s->parent->remove(s);
-  }
-  s->parent = this;
-  sounds.push_front(s);
-  return true;
-}
-
-Bool YSE::INTERNAL::channelImplementation::remove(YSE::INTERNAL::soundImplementation*s) {
-  sounds.remove(s);
-  return true;
-}
-
-
-void YSE::INTERNAL::channelImplementation::clearBuffers() {
-  for (UInt i = 0; i < out.size(); ++i) {
-    out[i] = 0.0f;
-  }
-}
-
-ThreadPoolJob::JobStatus YSE::INTERNAL::channelImplementation::runJob() {
-    dsp();
-    return jobHasFinished;
 }
 
 void YSE::INTERNAL::channelImplementation::exit() {
   Global.waitForFastJob(this);
 }
 
-void YSE::INTERNAL::channelImplementation::dsp() {
-  // if no sounds or other channels are linked, we skip this channel
-  if (children.empty() && sounds.empty()) return;
+void YSE::INTERNAL::channelImplementation::childrenToParent() {
+  // don't do this if there is no parent channel
+  if (parent == NULL) return;
 
-  // claim dsp critical section to block parent channel later on
-  const ScopedLock lock(dspActive);
-
-  // clear channel buffer
-  clearBuffers();
-
-  // calculate child channels if there are any
   for (auto i = children.begin(); i != children.end(); ++i) {
-    Global.addFastJob(*i);
+    parent->connect(*i);
   }
 
-  // calculate sounds in this channel
   for (auto i = sounds.begin(); i != sounds.end(); ++i) {
-    if ((*i)->dsp()) {
-      (*i)->toChannels();
-    }
+    parent->connect(*i);
   }
+}
 
-  adjustVolume();
-
-  Global.getReverbManager().process(this);
-  
-  if (UnderWaterEffect().channel() == this) {
-    UnderWaterEffect().apply(out);
+void YSE::INTERNAL::channelImplementation::clearBuffers() {
+  for (UInt i = 0; i < out.size(); ++i) {
+    out[i] = 0.0f;
   }
-  
 }
 
 void YSE::INTERNAL::channelImplementation::adjustVolume() {
@@ -190,34 +223,3 @@ void YSE::INTERNAL::channelImplementation::adjustVolume() {
   }
 }
 
-void YSE::INTERNAL::channelImplementation::buffersToParent() {
-  Global.waitForFastJob(this);
-
-  // call this recursively on all child channels 
-  for (auto i = children.begin(); i != children.end(); ++i) {
-    (*i)->buffersToParent();
-  }
-
-
-  // if this is the main channel, we're done here
-  if (parent == NULL) return;
-  if (children.empty() && sounds.empty()) return;
-
-  // if not the main channel, add output to parent channel
-  for (UInt i = 0; i < out.size(); ++i) {
-    // parent size is not checked but should be ok because it's adjusted before calling this
-    parent->out[i] += out[i];
-  }
-}
-
-YSE::INTERNAL::channelImplementation& YSE::INTERNAL::channelImplementation::allowVirtualSounds(Bool value) {
-  allowVirtual = value;
-  for (auto i = children.begin(); i != children.end(); ++i) {
-    (*i)->allowVirtualSounds(value);
-  }
-  return (*this);
-}
-
-Bool YSE::INTERNAL::channelImplementation::allowVirtualSounds() {
-  return allowVirtual;
-}

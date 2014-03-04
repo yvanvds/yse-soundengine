@@ -35,71 +35,118 @@ namespace YSE {
       JobStatus runJob();
     };
 
+    /** A job to add to the lowpriority threadpool when tehre are sounds
+        to be deleted
+    */
     class soundDeleteJob : public ThreadPoolJob {
     public:
       soundDeleteJob() : ThreadPoolJob("soundDeleteJob") {}
       JobStatus runJob();
     };
 
-    class soundManager : public Thread {
+    /**
+      The soundmanager is responsible for the management of all soundfiles and
+      sound implementations.
+    */
+    class soundManager {
     public:
+      
       /** Add a new soundfile to the system and return a pointer to it. If the file already
-      exists, it will not be loaded anew but a pointer to the existing file will be
-      returned. With non-streaming audio it would only consume extra memory if loaded
-      multiple times. Of course this is not meant to be used for streaming audio.
+          exists, it will not be loaded anew but a pointer to the existing file will be
+          returned. With non-streaming audio it would only consume extra memory if loaded
+          multiple times. Of course this is not meant to be used for streaming audio.
+
+          @param file   A reference to the soundfile to add to the system
+
+          @return       A pointer to the soundFile object for this file
       */
-      soundFile * add(const File & file);
+      soundFile * addFile(const File & file);
+      
+      /** Request a new sound implementation.
 
-      /** Manually remove a soundfile from the system.
+          &param head   The interface to connect the new implementation to
+
+          @return       A pointer to a new sound implementation
       */
-      //void remove(std::forward_list<soundFile>::iterator & file);
+      soundImplementation * addImplementation(sound * head);
 
-      /** Add a soundFile to the loader. Files are not loaded instantly but rather when
-      there is time to spare. (This will be almost instantly but ensures that current
-      audio operations are not disrupted.
+      /** This function instructs the soundManager to put the implementation
+          in a list of sounds to load. It is called from the sound interface
+          create function.
+          
+          &param impl   The implementation to setup
       */
-      void addToQue(soundFile * elm);
+      void setup(soundImplementation* impl);
 
-      /** Returns true if no sound objects are active.
+      /** Run the soundManager update. This function is responsable for most of the
+          action on sound implementations and sound files.
       */
-      Bool empty();
-      void maxSounds(Int value);	Int maxSounds(); // sets nonvirtual sounds
-
-      void adjustLastGainBuffer();
-
       void update();
 
-      soundImplementation * addImplementation(sound * head);
-      void setup(soundImplementation* impl);
-      void runDeleteJob() { runDelete = true; }
+      /** Returns true if no sound implementations are active.
+      */
+      Bool empty();
 
-      void run();
+      /** Sets the maximum amount of sounds to be processed. The soundmanager
+          will try to find the sounds that are most relevant and virtualize
+          the rest.
+
+          @param value    The desired number of sounds
+      */
+      void setMaxSounds(Int value);	
+      
+      /** Get the maximum amount of sounds to be processed.
+      */
+      Int getMaxSounds();
+
+      /** Retrieve a reader for a file format. This function is used by soundFile
+          objects.
+      
+          @param file   The file to retrieve a reader for.
+      */
+      AudioFormatReader * getReader(const File & f);     
+      
+      /** Hints the sounds manager that it should check for implementations that are 
+          no longer in use. This is called by the implementations themselves, when they
+          find out they're no longer needed.
+      */
+      void runDeleteJob() { runDelete = true; }
 
       soundManager();
       ~soundManager();
       juce_DeclareSingleton(soundManager, true)
 
     private:
+      /** the lastGain buffer of each sound is needed to provide smooth changes
+      in volume for each channel. When the number of output channels is changed
+      this buffer has to change accordingly. This is done by this function.
+      */
+      void adjustLastGainBuffer();
+
+      // ThreadPoolJobs
       soundSetupJob soundSetup;
       soundDeleteJob soundDelete;
 
-      CriticalSection readQue;
-      std::deque<soundFile *> soundFilesQue; // soundFiles that need loading are placed in here
+      // a forward list containing all sound files
       std::forward_list<soundFile> soundFiles;
 
+      // a format Manager to assist in reading audio files
+      // It is used by soundFiles, but put here because we only need one for all files.
       juce::AudioFormatManager formatManager;
-      ScopedPointer<AudioFormatReaderSource> currentAudioFileSource;
 
       /* arrays for sound implementations: these are not the soundfiles but the
          implementation side of the interface sound objects.
-
-         */
+      */
       std::forward_list<std::atomic<soundImplementation*>> soundsToLoad;
       std::forward_list<soundImplementation*> soundsInUse;
       std::forward_list<soundImplementation> soundImplementations;
+
+      // flag for the update function to check for implementations that should be
+      // deleted.
       aBool runDelete;
 
-      Int nonVirtualSize;
+      // the maximum number of non virtual sounds
+      aInt maxSounds;
 
       friend class soundSetupJob;
       friend class soundDeleteJob;

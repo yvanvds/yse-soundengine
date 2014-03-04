@@ -19,6 +19,7 @@ namespace YSE {
 
     class global {
     public:
+      bool isActive() { return active; }
       deviceManager  & getDeviceManager();
       soundManager   & getSoundManager();
       channelManager & getChannelManager();
@@ -59,6 +60,7 @@ namespace YSE {
       ThreadPool fastThreads;
 
       aInt update;
+      aBool active; // set true after System().init(), false at System().close()
 
       friend class system; // system needs access to the init and close method
     };

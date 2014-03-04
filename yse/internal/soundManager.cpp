@@ -33,7 +33,7 @@ ThreadPoolJob::JobStatus YSE::INTERNAL::soundDeleteJob::runJob() {
 }
 
 
-YSE::INTERNAL::soundManager::soundManager() : Thread(juce::String("soundManager")) {
+YSE::INTERNAL::soundManager::soundManager() {
   formatManager.registerBasicFormats();
 }
 
@@ -49,20 +49,20 @@ YSE::INTERNAL::soundManager::~soundManager() {
   clearSingletonInstance();
 }
 
-YSE::INTERNAL::soundFile * YSE::INTERNAL::soundManager::add(const File & file) {
+YSE::INTERNAL::soundFile * YSE::INTERNAL::soundManager::addFile(const File & file) {
   // find out if this file already exists
   for (auto i = soundFiles.begin(); i != soundFiles.end(); ++i) {
-    if ( i->_file == file) {
+    if ( i->contains(file)) {
       i->clients++;
       return &(*i);
     }
   }
 
   // if we got here, the file does not exist yet
-  soundFiles.emplace_front();
+  soundFiles.emplace_front(file);
   soundFile & sf = soundFiles.front();
   sf.clients++;
-  if (sf.create(file)) {
+  if (sf.create()) {
     return &sf;
   }
   else {
@@ -71,60 +71,14 @@ YSE::INTERNAL::soundFile * YSE::INTERNAL::soundManager::add(const File & file) {
   }
 }
 
-void YSE::INTERNAL::soundManager::addToQue(soundFile * elm) {
-  const ScopedLock readQueLock(readQue);
-  soundFilesQue.push_back(elm);
+YSE::INTERNAL::soundImplementation * YSE::INTERNAL::soundManager::addImplementation(sound * head) {
+  soundImplementations.emplace_front(head);
+  return &soundImplementations.front();
 }
 
 
-Bool YSE::INTERNAL::soundManager::empty() {
-  return soundImplementations.empty();
-}
-
-void YSE::INTERNAL::soundManager::run() {
-  for (;;) {
-    { // <- extra braces are needed to unlock readQueLock when no files are queued.
-      // lock because we deque is not threadsafe
-      const ScopedLock readQueLock(readQue);
-      while (soundFilesQue.size()) {
-        soundFile * s = (soundFile *)soundFilesQue.front();
-        soundFilesQue.pop_front();
-
-        // done with soundFilesQue for now. We can unlock.
-        const ScopedUnlock readQueUnlock(readQue);
-
-        // Now try to read the soundfile in a memory buffer
-        currentAudioFileSource = nullptr;
-        juce::ScopedPointer<AudioFormatReader> reader = formatManager.createReaderFor(s->_file);
-        if (reader != nullptr) {
-          s->_buffer.setSize(reader->numChannels, (Int)reader->lengthInSamples);
-          reader->read(&s->_buffer, 0, (Int)reader->lengthInSamples, 0, true, true);
-
-          // sample rate adjustment
-          s->_sampleRateAdjustment = static_cast<Flt>(reader->sampleRate) / static_cast<Flt>(SAMPLERATE);
-          s->_length = s->_buffer.getNumSamples();
-
-          // file is ready for use now
-          s->_state = YSE::INTERNAL::READY;
-        }
-        else {
-          Global.getLog().emit(E_FILEREADER, "Unable to read " + s->_file.getFullPathName().toStdString());
-        }
-
-        // check for thread exit signal (in case multiple sounds are loaded)
-        if (threadShouldExit()) {
-          return;
-        }
-      }
-
-      // check for thread exit signal (in case no sounds are loaded)
-      if (threadShouldExit()) {
-        return;
-      }
-    }
-    // enter wait state
-    wait(-1);
-  }
+void YSE::INTERNAL::soundManager::setup(YSE::INTERNAL::soundImplementation * impl) {
+  soundsToLoad.emplace_front(impl);
 }
 
 void YSE::INTERNAL::soundManager::update() {
@@ -153,7 +107,7 @@ void YSE::INTERNAL::soundManager::update() {
         // place ptr in active sound list
         soundsInUse.emplace_front(ptr);
         // add the sound to the channel that is supposed to use
-        ptr->parent->add(ptr);
+        ptr->parent->connect(ptr);
       }
     }
   }
@@ -163,6 +117,15 @@ void YSE::INTERNAL::soundManager::update() {
   ///////////////////////////////////////////
   auto iMinus = soundFiles.before_begin();
   for (auto i = soundFiles.begin(); i != soundFiles.end(); ) {
+    
+    // don't handle files currently in the thread pool
+    if (Global.containsSlowJob(&(*i))) {
+      iMinus = i;
+      ++i;
+      continue;
+    }
+
+    // invalid files or files no longer in use should be removed from memory
     if (!i->inUse()) {
       i = soundFiles.erase_after(iMinus);
     }
@@ -204,31 +167,31 @@ void YSE::INTERNAL::soundManager::update() {
     }
   }
 
-  if (nonVirtualSize < playingSounds) {
+  if (maxSounds < playingSounds) {
     soundsInUse.sort(soundImplementation::sortSoundObjects);
   }
 
   auto index = soundsInUse.begin();
-  for (int i = 0; i < nonVirtualSize && index != soundsInUse.end(); index++, i++) {
+  for (int i = 0; i < maxSounds && index != soundsInUse.end(); index++, i++) {
     (*index)->isVirtual = false;
   }
 }
 
-void YSE::INTERNAL::soundManager::maxSounds(Int value) {
-  nonVirtualSize = value;
+
+Bool YSE::INTERNAL::soundManager::empty() {
+  return soundImplementations.empty();
 }
 
-Int YSE::INTERNAL::soundManager::maxSounds() {
-  return nonVirtualSize;
+void YSE::INTERNAL::soundManager::setMaxSounds(Int value) {
+  maxSounds = value;
 }
 
-YSE::INTERNAL::soundImplementation * YSE::INTERNAL::soundManager::addImplementation(sound * head) {
-  soundImplementations.emplace_front(head);
-  return &soundImplementations.front();
+Int YSE::INTERNAL::soundManager::getMaxSounds() {
+  return maxSounds;
 }
 
-void YSE::INTERNAL::soundManager::setup(YSE::INTERNAL::soundImplementation * impl) {
-  soundsToLoad.emplace_front(impl);
+AudioFormatReader * YSE::INTERNAL::soundManager::getReader(const File & f) {
+  return formatManager.createReaderFor(f);
 }
 
 void YSE::INTERNAL::soundManager::adjustLastGainBuffer() {

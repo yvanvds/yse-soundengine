@@ -91,7 +91,7 @@ bool YSE::INTERNAL::soundImplementation::create(const std::string &fileName, con
   }
 
   if (!streaming) {
-    file = Global.getSoundManager().add(ioFile);
+    file = Global.getSoundManager().addFile(ioFile);
     status_dsp = SS_STOPPED;
     status_upd = SS_STOPPED;
 
@@ -125,7 +125,7 @@ bool YSE::INTERNAL::soundImplementation::create(const std::string &fileName, con
 
 void YSE::INTERNAL::soundImplementation::setup() {
   if (objectStatus == SIS_CREATED) {
-    if (file->state() == READY) {
+    if (file->getState() == READY) {
       filebuffer.resize(file->channels());
       buffer = &filebuffer;
       lastGain.resize(Global.getChannelManager().getNumberOfOutputs());
@@ -135,6 +135,10 @@ void YSE::INTERNAL::soundImplementation::setup() {
       }
 
       objectStatus = SIS_LOADED;
+    }
+    else if (file->getState() == INVALID) {
+      file->release();
+      file = NULL;
     }
   }
 }
@@ -214,7 +218,7 @@ void YSE::INTERNAL::soundImplementation::sync() {
   }
 
   if (head->moveChannel) {
-    head->newChannel.load()->pimpl->add(this);
+    head->newChannel.load()->pimpl->connect(this);
     head->moveChannel = false;
   }
 
@@ -248,7 +252,7 @@ void YSE::INTERNAL::soundImplementation::update() {
     distance = Dist(newPos, Global.getListener().newPos);
   }
   virtualDist = (distance- size) * (1 / (currentVolume_upd > 0.000001f ? currentVolume_upd : 0.000001f));
-  if (parent->allowVirtualSounds()) isVirtual = true;
+  if (parent->allowVirtual) isVirtual = true;
   else isVirtual = false;
 
   ///////////////////////////////////////////

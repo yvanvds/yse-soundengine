@@ -16,19 +16,37 @@
 #include "../dsp/sample.hpp"
 #include "../internal/time.h"
 
-Bool YSE::INTERNAL::soundFile::create(const File &file, Bool stream) {
+Bool YSE::INTERNAL::soundFile::create(Bool stream) {
   _streaming = stream;
   _endReached = false;
-  _file = file;
   
   // load sound into memory
   _needsReset = false;
 
-  if (!_streaming && _state == NEW) {
-    _state = LOADING;
-    Global.getSoundManager().addToQue(this);
+  if (!_streaming && state == NEW) {
+    state = LOADING;
+    Global.addSlowJob(this);
   } 
   return true;
+}
+
+ThreadPoolJob::JobStatus YSE::INTERNAL::soundFile::runJob() {
+  ScopedPointer<AudioFormatReader> reader = Global.getSoundManager().getReader(file);
+  if (reader != nullptr) {
+    _buffer.setSize(reader->numChannels, (Int)reader->lengthInSamples);
+    reader->read(&_buffer, 0, (Int)reader->lengthInSamples, 0, true, true);
+    // sample rate adjustment
+    _sampleRateAdjustment = static_cast<Flt>(reader->sampleRate) / static_cast<Flt>(SAMPLERATE);
+    _length = _buffer.getNumSamples();  
+    // file is ready for use now
+    state = READY;
+    return jobHasFinished;
+  }
+  else {
+    Global.getLog().emit(E_FILEREADER, "Unable to read " + file.getFullPathName().toStdString());
+    state = INVALID;
+    return jobHasFinished;
+  }
 }
 
 Bool YSE::INTERNAL::soundFile::read(std::vector<DSP::sample> & filebuffer, Flt& pos, UInt length, Flt speed, Bool loop, SOUND_STATUS & intent, Flt & volume) {
@@ -37,7 +55,7 @@ Bool YSE::INTERNAL::soundFile::read(std::vector<DSP::sample> & filebuffer, Flt& 
       to ensure good performance. Suggestions are welcome.
   */
 
-  if (_state != READY) return false;
+  if (state != READY) return false;
 
   // adjust speed for sample rate
   speed *= _sampleRateAdjustment;
@@ -272,6 +290,10 @@ calibrate:
   return true;
 }
 
+Bool YSE::INTERNAL::soundFile::contains(const File & file) {
+  return this->file == file;
+}
+
 void YSE::INTERNAL::soundFile::resetStream() {
 
 }
@@ -281,7 +303,7 @@ Bool YSE::INTERNAL::soundFile::fillStream(Bool loop) {
 }
 
 YSE::INTERNAL::soundFile::~soundFile() {
-  // if not streaming, file should be closed already
+  // if not streaming, file should be closed already (after loading it)
   if (_streaming) {
     //if (_file) {
     //  sf_close(_file);
@@ -293,7 +315,12 @@ YSE::INTERNAL::soundFile::~soundFile() {
 
 // the real _buffer size is set while loading the sound, but JUCE does not allow for
 // audio bufers of zero length. This is why it is set to one here.
-YSE::INTERNAL::soundFile::soundFile() : _buffer(1, 1), clients(0), idleTime(0), _state(NEW) {
+YSE::INTERNAL::soundFile::soundFile(const File & file) : ThreadPoolJob(file.getFullPathName())
+  , _buffer(1, 1)
+  , clients(0)
+  , idleTime(0)
+  , state(NEW)
+  , file(file) {
   _sampleRateAdjustment = 1.0f;
 }
 
@@ -305,8 +332,8 @@ UInt YSE::INTERNAL::soundFile::length() {
   return _length;
 }
 
-YSE::INTERNAL::FILESTATE YSE::INTERNAL::soundFile::state() {
-  return _state;
+YSE::INTERNAL::FILESTATE YSE::INTERNAL::soundFile::getState() {
+  return state;
 }
 
 YSE::INTERNAL::soundFile & YSE::INTERNAL::soundFile::reset() {

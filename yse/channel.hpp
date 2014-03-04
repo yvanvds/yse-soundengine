@@ -73,9 +73,18 @@ namespace YSE {
     */
     channel& attachReverb();
 
+    /** Allow or disallow sounds within this channel to be virtual. If you don't know
+        what that means, read up on virtualisation in the manual. This function merely 
+        turns virtualisation off or on for sounds in this channel.
+    */
+    channel& setVirtual(Bool value);
+
+    /** Check if this channel allows sounds to go virtual.
+    */
+    bool getVirtual();
+
     /**
-        The real initialisation of a channel is not done in the constructor. Be sure to call create() first, before
-        doing anything else.
+        The real initialisation of a channel is not done in the constructor. 
     */
     channel();
     ~channel();
@@ -87,10 +96,15 @@ namespace YSE {
     */
     void createGlobal();
 
+    // to change the channel volume
     aBool flagVolume; aFlt volume;
 
+    // to move the channel to another parent
     aBool moveChannel;
     std::atomic<channel *> newChannel;
+
+    // allows virtual sounds in this channel (defaults to true)
+    aBool allowVirtual;
       
     // channel implementation and friend classes
     INTERNAL::channelImplementation *pimpl;

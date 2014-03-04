@@ -89,7 +89,7 @@ void YSE::INTERNAL::channelManager::update() {
         // place ptr in active sound list
         inUse.emplace_front(ptr);
         // add the channel to parent
-        ptr->parent->add(ptr);
+        ptr->parent->connect(ptr);
       }
     }
   }
@@ -103,21 +103,10 @@ void YSE::INTERNAL::channelManager::update() {
       (*i)->sync();
 
       if ((*i)->objectStatus == CIS_RELEASE) {
-        channelImplementation * ptr = (*i);
-        // move subchannels to parent
-        for (auto child = ptr->children.begin(); child != ptr->children.end(); ++child) {
-          (*child)->parent = ptr->parent;
-          ptr->parent->children.push_front((*child));
-        }
-
-        // move sounds to parent
-        for (auto sound = ptr->sounds.begin(); sound != ptr->sounds.end(); ++sound) {
-          (*sound)->parent = ptr->parent;
-          ptr->parent->sounds.push_front((*sound));
-        }
-
-        i = inUse.erase_after(previous);
-        ptr->objectStatus = CIS_DELETE;
+        // move subchannels and sounds to parent
+        (*i)->childrenToParent();
+        (*i)->objectStatus = CIS_DELETE;
+        i = inUse.erase_after(previous);     
         runDelete = true;
         continue;
       }

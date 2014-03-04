@@ -35,6 +35,12 @@ local.properties
 JuceLibraryCode/
 
 #################
+## DoxyGen
+#################
+
+doxyGen/output/
+
+#################
 ## Visual Studio
 #################
 

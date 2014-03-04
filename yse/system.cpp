@@ -44,6 +44,10 @@ YSE::system & YSE::System() {
 }
 
 Bool YSE::system::init() {
+  if (INTERNAL::Global.active) {
+    INTERNAL::Global.getLog().emit(E_DEBUG, "You're trying to initialize more than once!");
+    return true;
+  }
   // global objects should always be loaded before anything else!
   INTERNAL::Global.init();
   
@@ -68,8 +72,7 @@ Bool YSE::system::init() {
     INTERNAL::Global.getChannelManager().voice().create("voiceChannel", INTERNAL::Global.getChannelManager().mainMix());
 
     maxSounds(50);
-
-    INTERNAL::Global.getSoundManager().startThread();
+    INTERNAL::Global.active = true;
     return true;
   }
   INTERNAL::Global.getLog().emit(E_ERROR, "YSE System object failed to initialize");
@@ -77,19 +80,15 @@ Bool YSE::system::init() {
 }
 
 void YSE::system::update() {
-  // soundManager needs to check if there are sounds to be loaded
-  INTERNAL::Global.getSoundManager().notify();
   INTERNAL::Global.flagForUpdate();
 }
 
 void YSE::system::close() {
-  if (!INTERNAL::Global.getSoundManager().stopThread(10 * 1000)) {
-    INTERNAL::Global.getLog().emit(E_ERROR, "Internal soundManager thread closed with force!");
+  if (INTERNAL::Global.active) {
+    INTERNAL::Global.active = false;
+    INTERNAL::Global.getDeviceManager().close();
+    INTERNAL::Global.close();
   }
-  INTERNAL::Global.getSoundManager().waitForThreadToExit(-1);
-  INTERNAL::Global.getLog().emit(E_DEBUG, "Internal soundManager thread exited");
-  INTERNAL::Global.getDeviceManager().close();
-  INTERNAL::Global.close();
 }
 
 YSE::system& YSE::system::occlusionCallback(Flt(*func)(const YSE::Vec&, const YSE::Vec&)) {
@@ -124,12 +123,12 @@ YSE::system & YSE::system::setUnderWaterDepth(Flt value) {
 }
 
 YSE::system& YSE::system::maxSounds(Int value) {
-  INTERNAL::Global.getSoundManager().maxSounds(value);
+  INTERNAL::Global.getSoundManager().setMaxSounds(value);
   return *this;
 }
 
 Int YSE::system::maxSounds() {
-  return INTERNAL::Global.getSoundManager().maxSounds();
+  return INTERNAL::Global.getSoundManager().getMaxSounds();
 }
 
 Flt YSE::system::cpuLoad() {

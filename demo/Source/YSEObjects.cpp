@@ -50,6 +50,9 @@ void valueTreeLink::move() {
     // item on another one
     sound->moveTo(*parent->channel);
   }
+  else {
+    channel->moveTo(*parent->channel);
+  }
 }
 
 YSEObjects & Sound() {

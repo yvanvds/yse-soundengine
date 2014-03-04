@@ -77,7 +77,7 @@ bool YSE::INTERNAL::global::containsSlowJob(ThreadPoolJob * job) {
   return slowThreads.contains(job);
 }
 
-YSE::INTERNAL::global::global() : slowThreads(1), update(false) {}
+YSE::INTERNAL::global::global() : slowThreads(1), update(false), active(false) {}
 
 void YSE::INTERNAL::global::init() {
   dm = deviceManager::getInstance();
@@ -94,8 +94,11 @@ void YSE::INTERNAL::global::init() {
 }
 
 void YSE::INTERNAL::global::close() {
+  // first wait for all threads to exit
   slowThreads.removeAllJobs(true, -1);
   fastThreads.removeAllJobs(true, -1);
+
+  // remove managers
   deviceManager::deleteInstance();
   soundManager::deleteInstance();
   channelManager::deleteInstance();
@@ -103,7 +106,6 @@ void YSE::INTERNAL::global::close() {
   reverbManager::deleteInstance();
   
   // these have to come last!
-  
   settings::deleteInstance();
   logImplementation::deleteInstance();
 
