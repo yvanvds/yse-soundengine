@@ -82,11 +82,8 @@ bool YSE::channel::getVirtual() {
 }
 
 YSE::channel& YSE::channel::attachReverb() { 
-  //TODO: this is not threadSafe!
-  if (pimpl) {
-    INTERNAL::Global.getReverbManager().attachToChannel(pimpl);
-  }
-  return *this;
+  attachReverbNow = true;
+  return (*this);
 }
 
 YSE::channel & YSE::ChannelMainMix() {

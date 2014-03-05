@@ -29,6 +29,13 @@ namespace YSE {
     void update();
     void close();
 
+    /** Get a reference to the global reverb object. It's not active by default,
+        but when enabled, these reverb settings will be used when there's no
+        other reverb active at the current position. If one or more reverbs are
+        partially active (rolloff distance) the global reverb is added partially.
+    */
+    reverb & getGlobalReverb();
+
     // audio device
     //Bool	setDevice(UInt ID, CHANNEL_TYPE conf = CT_AUTO, Int count = 2);
     //void	speakerPos(Int  nr, Flt angle);

@@ -47,6 +47,7 @@ LOCAL_SRC_FILES := \
   ../../../Source/basic3D.cpp\
   ../../../Source/cpuLoad.cpp\
   ../../../Source/movingChannels.cpp\
+  ../../../Source/reverbDemo.cpp\
   ../../../Source/Main.cpp\
   ../../../Source/MainComponent.cpp\
   ../../../Source/tabs.cpp\

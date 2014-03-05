@@ -47,7 +47,7 @@ static const int combtuning[8] = { 1116, 1188, 1277, 1356, 1422, 1491, 1557, 161
 static const int allpasstuning[4] = { 556, 441, 341, 225 };
 
 // static inline functions and pointer for speed optimisation
-Int ch;
+UInt ch;
 Int filterIndex;
 Int * curCombIndex;
 Int * curCombTuning;
@@ -116,7 +116,7 @@ YSE::INTERNAL::reverbDSP& YSE::INTERNAL::reverbDSP::bypass(Bool value) {
   if (_bypass) {
     if (_freeze) return (*this);
 
-    for (Int i = 0; i < channel.size(); i++) channel[i].clear();
+    for (UInt i = 0; i < channel.size(); i++) channel[i].clear();
   }
 
   return (*this);
@@ -240,7 +240,7 @@ void YSE::INTERNAL::reverbDSP::update() {
   _widthFader.update();
   _modFrequency.update();
   _modWidth.update();
-  for (Int i = 0; i < channel.size(); i++) {
+  for (UInt i = 0; i < channel.size(); i++) {
     channel[i].update();
   }
 
@@ -341,7 +341,7 @@ void YSE::INTERNAL::reverbDSP::set(YSE::reverb & params) {
   modulate(params.getModulationFrequency(), params.getModulationWidth());
 
   for (Int i = 0; i < 4; i++) {
-    for (Int ch = 0; ch < channel.size(); ch++) {
+    for (UInt ch = 0; ch < channel.size(); ch++) {
       channel[ch].earlyPtr[i].setIfNew((float)(params.getReflectionTime(i) + channel[ch].earlyOffset), 1000);
       channel[ch].earlyVolume[i].setIfNew(params.getReflectionGain(i), 1000);
     }
@@ -404,12 +404,12 @@ YSE::INTERNAL::reverbChannel::reverbChannel() : delayline(3000), bufComb(COMBS),
 }
 
 void YSE::INTERNAL::reverbChannel::clear() {
-  for (Int i = 0; i < bufComb.size(); i++) {
+  for (UInt i = 0; i < bufComb.size(); i++) {
     bufComb[i].assign(bufComb[i].size(), 0.f);
     filterStore[i] = 0.f;
   }
 
-  for (Int i = 0; i < bufAll.size(); i++) {
+  for (UInt i = 0; i < bufAll.size(); i++) {
     bufAll[i].assign(bufAll[i].size(), 0.f);
   }
 }

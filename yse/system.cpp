@@ -15,6 +15,7 @@ Author:  yvan
 #include "internal/deviceManager.h"
 #include "internal/channelManager.h"
 #include "internal/soundManager.h"
+#include "internal/reverbManager.h"
 #include "internal/underWaterEffect.h"
 #include "internal/time.h"
 #include "internal/settings.h"
@@ -141,4 +142,8 @@ void YSE::system::sleep(UInt ms) {
 #else
   usleep(static_cast<useconds_t>(ms)* 1000);
 #endif
+}
+
+YSE::reverb & YSE::system::getGlobalReverb() {
+  return INTERNAL::Global.getReverbManager().getGlobalReverb();
 }

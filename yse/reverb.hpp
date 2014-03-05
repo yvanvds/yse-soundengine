@@ -165,7 +165,7 @@ namespace YSE {
     /**
      Set the reverb settings to a predefined preset.
     */
-    reverb& preset(REVERB_PRESET value);
+    reverb& setPreset(REVERB_PRESET value);
 
     /**
      Release the reverb object. It is not really needed to call this, because it will
@@ -173,33 +173,32 @@ namespace YSE {
     */
     reverb& release();
 
-    reverb();
+    /**
+      Creates a reverb object.
+      The global option should only be enabled internally!
+    */
+    reverb(bool global = false);
    ~reverb();
 
   private:
-    Bool _active;
-    Bool connectedToManager; 
-    Flt _roomsize, _damp, _wet, _dry;
+    Bool connectedToManager;
+    Bool active;
+    
+    Flt roomsize, damp, wet, dry;
 
-    Flt _modFrequency, _modWidth; // modulation
+    Flt modFrequency, modWidth; // modulation
 
-    Int _earlyPtr[4]; // early reflections
-    Flt _earlyGain[4];
+    Int earlyPtr[4]; // early reflections
+    Flt earlyGain[4];
 
-    Vec _position;
-    Flt _size, _rolloff;
+    Vec position;
+    Flt size, rolloff;
 
-    REVERB_PRESET _preset;
+    REVERB_PRESET preset;
 
     Bool global;
     friend class INTERNAL::reverbManager;
   };
-
-  /**
-   Functor to the global reverb object. This is a reverb setting that travels with the listener instead of being stationary at one spot.
-   Settings of this reverb will affect the resulting reverb whenever local reverbs do not accumulate to 100% reverb activity.
-  */
-  reverb & GlobalReverb();
 }
 
 

@@ -105,6 +105,9 @@ namespace YSE {
 
     // allows virtual sounds in this channel (defaults to true)
     aBool allowVirtual;
+
+    // attach the reverb to this channel
+    aBool attachReverbNow;
       
     // channel implementation and friend classes
     INTERNAL::channelImplementation *pimpl;

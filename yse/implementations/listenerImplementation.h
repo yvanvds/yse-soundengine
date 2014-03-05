@@ -35,6 +35,7 @@ namespace YSE {
       friend class channelImplementation;
       friend class underWaterEffect;
       friend class listener;
+      friend class reverbManager;
     };
   
   }

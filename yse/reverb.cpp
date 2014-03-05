@@ -14,21 +14,18 @@
 #include "internal/global.h"
 #include "internal/reverbManager.h"
 
-YSE::reverb & YSE::GlobalReverb() {
-  static reverb r;
-  return r;
-}
-
-YSE::reverb::reverb() : _active(true), _roomsize(0.5f), _damp(0.5),  
-                        _wet(0.5), _dry(0.5), _modFrequency(0),
-                        _modWidth(0), global(false), connectedToManager(false) {
+YSE::reverb::reverb(bool global) : active(true), roomsize(0.5f), damp(0.5),  
+                        wet(0.5), dry(0.5), modFrequency(0),
+                        modWidth(0), global(global), connectedToManager(false) {
 
   for (Int i = 0; i < 4; i++) {
-    _earlyPtr[i] = 0;
-    _earlyGain[i] = 0;
+    earlyPtr[i] = 0;
+    earlyGain[i] = 0;
   }
 
-  INTERNAL::Global.getReverbManager().add(this);
+  if (!global) {
+    INTERNAL::Global.getReverbManager().add(this);
+  }
 }
 
 
@@ -44,61 +41,61 @@ YSE::reverb::~reverb() {
 }
 
 YSE::reverb& YSE::reverb::setPosition(const Vec &value) {
-  _position = value;
+  position = value;
   return *this;
 }
 
 YSE::Vec YSE::reverb::getPosition() {
-  return _position;
+  return position;
 }
 
 YSE::reverb& YSE::reverb::setSize(Flt value) {
   if (value < 0) value = 0;
-  _size = value;
+  size = value;
   return (*this);
 }
 
 Flt YSE::reverb::getSize() {
-  return _size;
+  return size;
 }
 
 YSE::reverb& YSE::reverb::setRollOff(Flt value) {
   if (value < 0) value = 0;
-  _rolloff = value;
+  rolloff = value;
   return (*this);
 }
 
 Flt YSE::reverb::getRollOff() {
-  return _rolloff;
+  return rolloff;
 }
 
 YSE::reverb& YSE::reverb::setActive(Bool value) {
-  _active = value;
+  active = value;
   return (*this);
 }
 
 Bool YSE::reverb::getActive() {
-  return _active;
+  return active;
 }
 
 YSE::reverb& YSE::reverb::setRoomSize(Flt value) {
   Clamp(value, 0.f, 1.f);
-  _roomsize = value;
+  roomsize = value;
   return (*this);
 }
 
 Flt YSE::reverb::getRoomSize() {
-  return _roomsize;
+  return roomsize;
 }
 
 YSE::reverb& YSE::reverb::setDamping(Flt value) {
   Clamp(value, 0.f, 1.f);
-  _damp = value;
+  damp = value;
   return (*this);
 }
 
 Flt YSE::reverb::getDamping() {
-  return _damp;
+  return damp;
 }
 
 YSE::reverb& YSE::reverb::setDryWetBalance(Flt dry, Flt wet) {
@@ -112,56 +109,56 @@ YSE::reverb& YSE::reverb::setDryWetBalance(Flt dry, Flt wet) {
     jassertfalse
   }
 #endif
-  _wet = wet;
-  _dry = dry;
+  this->wet = wet;
+  this->dry = dry;
   return (*this);
 }
 
 Flt YSE::reverb::getWet() {
-  return _wet;
+  return wet;
 }
 
 Flt YSE::reverb::getDry() {
-  return _dry;
+  return dry;
 }
 
 YSE::reverb& YSE::reverb::setModulation(Flt frequency, Flt width) {
   if (frequency < 0) frequency = 0;
   if (width < 0) width = 0;
-  _modFrequency = frequency;
-  _modWidth = width;
+  modFrequency = frequency;
+  modWidth = width;
   return (*this);
 }
 
 Flt YSE::reverb::getModulationFrequency() {
-  return _modFrequency;
+  return modFrequency;
 }
 
 Flt YSE::reverb::getModulationWidth() {
-  return _modWidth;
+  return modWidth;
 }
 
 YSE::reverb& YSE::reverb::setReflection(Int reflection, Int time, Flt gain) {
   if (reflection > -1 && reflection < 4) {
     Clamp(time, 0, 2999);
-    _earlyPtr[reflection] = time;
+    earlyPtr[reflection] = time;
     Clamp(gain, 0.f, 1.f);
-    _earlyGain[reflection] = gain;
+    earlyGain[reflection] = gain;
   }
   return (*this);
 }
 
 Int YSE::reverb::getReflectionTime(Int reflection) {
-  if (reflection > -1 && reflection < 4) return _earlyPtr[reflection];
+  if (reflection > -1 && reflection < 4) return earlyPtr[reflection];
   return -1;
 }
 
 Flt YSE::reverb::getReflectionGain(Int reflection) {
-  if (reflection > -1 && reflection < 4) return _earlyGain[reflection];
+  if (reflection > -1 && reflection < 4) return earlyGain[reflection];
   return -1;
 }
 
-YSE::reverb& YSE::reverb::preset(REVERB_PRESET value) {
+YSE::reverb& YSE::reverb::setPreset(REVERB_PRESET value) {
   switch (value) {
   case REVERB_OFF:			setRoomSize(0.f).setDamping(0.f).setDryWetBalance(1.f, 0.f).setModulation(0.f, 0.f);
     setReflection(0, 0, 0.f).setReflection(1, 0, 0.f).setReflection(2, 0, 0.f).setReflection(3, 0, 0.f);

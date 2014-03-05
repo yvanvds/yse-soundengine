@@ -133,6 +133,8 @@
             file="Source/movingChannels.cpp"/>
       <FILE id="ufaxl8" name="movingChannels.h" compile="0" resource="0"
             file="Source/movingChannels.h"/>
+      <FILE id="nlt8Yn" name="reverbDemo.cpp" compile="1" resource="0" file="Source/reverbDemo.cpp"/>
+      <FILE id="KYqQiL" name="reverbDemo.h" compile="0" resource="0" file="Source/reverbDemo.h"/>
       <FILE id="IXIjKS" name="Main.cpp" compile="1" resource="0" file="Source/Main.cpp"/>
       <FILE id="x3GfHh" name="MainComponent.cpp" compile="1" resource="0"
             file="Source/MainComponent.cpp"/>

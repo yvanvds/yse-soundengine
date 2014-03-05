@@ -22,6 +22,7 @@
 #include "basic3D.h"
 #include "cpuLoad.h"
 #include "movingChannels.h"
+#include "reverbDemo.h"
 //[/Headers]
 
 #include "tabs.h"
@@ -33,19 +34,19 @@
 //==============================================================================
 tabs::tabs ()
 {
-    
     setName ("tabs");
     addAndMakeVisible (tabbedComponent = new TabbedComponent (TabbedButtonBar::TabsAtTop));
     tabbedComponent->setTabBarDepth (30);
-    tabbedComponent->addTab (TRANS("Basic 2D"), Colours::lightgrey, new basicTab, true);
-    tabbedComponent->addTab (TRANS("Basic 3D"), Colours::lightgrey, new basic3D, true);
-    tabbedComponent->addTab (TRANS("CPU"), Colours::lightgrey, new cpuLoad, true);
-    tabbedComponent->addTab(TRANS("Channels"), Colours::lightgrey, new movingChannels, true);
+    tabbedComponent->addTab (TRANS("Basic 2D"), Colours::lightgrey, new basicTab(), true);
+    tabbedComponent->addTab (TRANS("Basic 3D"), Colours::lightgrey, new basic3D(), true);
+    tabbedComponent->addTab (TRANS("CPU"), Colours::lightgrey, new cpuLoad(), true);
+    tabbedComponent->addTab (TRANS("Channels"), Colours::lightgrey, new movingChannels(), true);
+    tabbedComponent->addTab (TRANS("Reverb"), Colours::lightgrey, new reverbDemo(), true);
     tabbedComponent->setCurrentTabIndex (0);
 
 
     //[UserPreSize]
-    
+
     //[/UserPreSize]
 
     setSize (600, 400);
@@ -116,6 +117,10 @@ BEGIN_JUCER_METADATA
     <TAB name="Basic 3D" colour="ffd3d3d3" useJucerComp="0" contentClassName="basic3D"
          constructorParams="" jucerComponentFile=""/>
     <TAB name="CPU" colour="ffd3d3d3" useJucerComp="0" contentClassName="cpuLoad"
+         constructorParams="" jucerComponentFile=""/>
+    <TAB name="Channels" colour="ffd3d3d3" useJucerComp="0" contentClassName="movingChannels"
+         constructorParams="" jucerComponentFile=""/>
+    <TAB name="Reverb" colour="ffd3d3d3" useJucerComp="0" contentClassName="reverbDemo"
          constructorParams="" jucerComponentFile=""/>
   </TABBEDCOMPONENT>
 </JUCER_COMPONENT>

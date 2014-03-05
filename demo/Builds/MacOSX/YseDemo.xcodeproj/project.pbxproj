@@ -56,6 +56,7 @@
 		E904DA143C2F1BD3E59EEBDC = {isa = PBXBuildFile; fileRef = F5A4DD40F503CCB7E06A38CB; };
 		155616C7D038F10C81667759 = {isa = PBXBuildFile; fileRef = BE5D43562F7B574E7C14E8DE; };
 		1DFAEDB4F8485875640A1394 = {isa = PBXBuildFile; fileRef = 5BE00183831F0910D3C6F02E; };
+		F7AA260438874C4E790914CC = {isa = PBXBuildFile; fileRef = 1E68B2CF271922212F11D1E8; };
 		8A8CD256D51A9A78C7718BBC = {isa = PBXBuildFile; fileRef = B86B89AFC189C210908747E5; };
 		395D4C6B55FA1AB48146DD51 = {isa = PBXBuildFile; fileRef = 120C48E012F1B5B226560D96; };
 		4E17D1BCC5ABE031E64A6D12 = {isa = PBXBuildFile; fileRef = F9DB345976CDC5ACA4CF0B6A; };
@@ -140,6 +141,7 @@
 		120C48E012F1B5B226560D96 = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = MainComponent.cpp; path = ../../Source/MainComponent.cpp; sourceTree = "SOURCE_ROOT"; };
 		1287A8246CAEF4638A2F42C7 = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = "juce_Component.cpp"; path = "../../JuceLibraryCode/modules/juce_gui_basics/components/juce_Component.cpp"; sourceTree = "SOURCE_ROOT"; };
 		12B86BCC0BEEFA4857A3A6E7 = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = "juce_Desktop.cpp"; path = "../../JuceLibraryCode/modules/juce_gui_basics/components/juce_Desktop.cpp"; sourceTree = "SOURCE_ROOT"; };
+		12D29C192F397300B4DD68CC = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = reverbDemo.h; path = ../../Source/reverbDemo.h; sourceTree = "SOURCE_ROOT"; };
 		12E4062DBCBF31F644D67892 = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = "juce_linux_Midi.cpp"; path = "../../JuceLibraryCode/modules/juce_audio_devices/native/juce_linux_Midi.cpp"; sourceTree = "SOURCE_ROOT"; };
 		13350F2BF8F5A7DE8F685EC7 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "juce_Drawable.h"; path = "../../JuceLibraryCode/modules/juce_gui_basics/drawables/juce_Drawable.h"; sourceTree = "SOURCE_ROOT"; };
 		136515D20DF3B5EE89B7547D = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = "juce_win32_Registry.cpp"; path = "../../JuceLibraryCode/modules/juce_core/native/juce_win32_Registry.cpp"; sourceTree = "SOURCE_ROOT"; };
@@ -173,6 +175,7 @@
 		1E120AFF28BF46B64F9FF204 = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = "juce_linux_JackAudio.cpp"; path = "../../JuceLibraryCode/modules/juce_audio_devices/native/juce_linux_JackAudio.cpp"; sourceTree = "SOURCE_ROOT"; };
 		1E462B2E968580BD4A82B2D2 = {isa = PBXFileReference; lastKnownFileType = file.nib; name = RecentFilesMenuTemplate.nib; path = RecentFilesMenuTemplate.nib; sourceTree = "SOURCE_ROOT"; };
 		1E548D1DB10908EF43D3E67B = {isa = PBXFileReference; lastKnownFileType = file; name = "juce_module_info"; path = "../../../../juce/modules/juce_audio_formats/juce_module_info"; sourceTree = "SOURCE_ROOT"; };
+		1E68B2CF271922212F11D1E8 = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = reverbDemo.cpp; path = ../../Source/reverbDemo.cpp; sourceTree = "SOURCE_ROOT"; };
 		1EDBB85E4F4BC1E71ECEA926 = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = "juce_ComponentListener.cpp"; path = "../../JuceLibraryCode/modules/juce_gui_basics/components/juce_ComponentListener.cpp"; sourceTree = "SOURCE_ROOT"; };
 		1F2A275010E7269A8138ACC2 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "juce_mac_CoreGraphicsHelpers.h"; path = "../../JuceLibraryCode/modules/juce_graphics/native/juce_mac_CoreGraphicsHelpers.h"; sourceTree = "SOURCE_ROOT"; };
 		1F5F3DD5A4F1A72B0A9EFDF8 = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = "juce_MessageManager.cpp"; path = "../../JuceLibraryCode/modules/juce_events/messages/juce_MessageManager.cpp"; sourceTree = "SOURCE_ROOT"; };
@@ -1044,6 +1047,8 @@
 					F251FA3B7FA88728CA930659,
 					5BE00183831F0910D3C6F02E,
 					4B12FBBBECC58AE5CA35EBDD,
+					1E68B2CF271922212F11D1E8,
+					12D29C192F397300B4DD68CC,
 					B86B89AFC189C210908747E5,
 					120C48E012F1B5B226560D96,
 					AF8306CD3BFA007ED10C495A,
@@ -2129,6 +2134,7 @@
 					E904DA143C2F1BD3E59EEBDC,
 					155616C7D038F10C81667759,
 					1DFAEDB4F8485875640A1394,
+					F7AA260438874C4E790914CC,
 					8A8CD256D51A9A78C7718BBC,
 					395D4C6B55FA1AB48146DD51,
 					4E17D1BCC5ABE031E64A6D12,

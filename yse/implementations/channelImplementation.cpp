@@ -174,6 +174,11 @@ void YSE::INTERNAL::channelImplementation::sync() {
   if (allowVirtual != head->allowVirtual.load()) {
     allowVirtual = head->allowVirtual.load();
   }
+
+  if (head->attachReverbNow) {
+    Global.getReverbManager().attachToChannel(this);
+    head->attachReverbNow = false;
+  }
 }
 
 void YSE::INTERNAL::channelImplementation::exit() {

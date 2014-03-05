@@ -400,6 +400,9 @@
     <ClCompile Include="..\..\Source\movingChannels.cpp">
       <Filter>YseDemo\Source</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Source\reverbDemo.cpp">
+      <Filter>YseDemo\Source</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\Source\Main.cpp">
       <Filter>YseDemo\Source</Filter>
     </ClCompile>
@@ -1648,6 +1651,9 @@
       <Filter>YseDemo\Source</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\movingChannels.h">
+      <Filter>YseDemo\Source</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\reverbDemo.h">
       <Filter>YseDemo\Source</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\MainComponent.h">
