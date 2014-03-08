@@ -24,14 +24,14 @@
 
 YSE::INTERNAL::soundImplementation::soundImplementation(sound * head) :
   objectStatus(SIS_CONSTRUCTED),
-  parent(NULL),
+  parent(nullptr),
   looping(false),
   spread(0),
   isVirtual(true),
-  source_dsp(NULL),
-  post_dsp(NULL),
+  source_dsp(nullptr),
+  post_dsp(nullptr),
   _setPostDSP(false),
-  _postDspPtr(NULL),
+  _postDspPtr(nullptr),
   occlusion_dsp(0.f),
   occlusionActive(false),
   streaming_dsp(false),
@@ -53,7 +53,7 @@ YSE::INTERNAL::soundImplementation::soundImplementation(sound * head) :
   bufferVolume(0),
   startOffset(0),
   stopOffset(0),
-  file(NULL),
+  file(nullptr),
   head(head),
   filePtr(NULL),
   newPos(0.f),
@@ -71,10 +71,10 @@ YSE::INTERNAL::soundImplementation::soundImplementation(sound * head) :
 
 YSE::INTERNAL::soundImplementation::~soundImplementation() {
   // only streams should delete their source. Other files are shared.
-  if (file != NULL) {
+  if (file != nullptr) {
     file->release();
   }
-  if (post_dsp && post_dsp->calledfrom) post_dsp->calledfrom = NULL;
+  if (post_dsp && post_dsp->calledfrom) post_dsp->calledfrom = nullptr;
 }
 
 bool YSE::INTERNAL::soundImplementation::create(const std::string &fileName, const channel * const ch, Bool loop, Flt volume, Bool streaming) {
@@ -95,7 +95,7 @@ bool YSE::INTERNAL::soundImplementation::create(const std::string &fileName, con
     status_dsp = SS_STOPPED;
     status_upd = SS_STOPPED;
 
-    if (file == NULL) {
+    if (file == nullptr) {
       return false;
     } else {
       objectStatus = SIS_CREATED;
@@ -138,7 +138,7 @@ void YSE::INTERNAL::soundImplementation::setup() {
     }
     else if (file->getState() == INVALID) {
       file->release();
-      file = NULL;
+      file = nullptr;
     }
   }
 }
@@ -159,7 +159,7 @@ Bool YSE::INTERNAL::soundImplementation::readyCheck() {
 }
 
 void YSE::INTERNAL::soundImplementation::sync() {
-  if (head == NULL) {
+  if (head == nullptr) {
     objectStatus = SIS_DONE;
 
     // sound head is destructed, so stop and remove
@@ -173,68 +173,88 @@ void YSE::INTERNAL::soundImplementation::sync() {
   }
 
   // get new values from head
-  if (head->flagPos) {
-    pos = head->posValue;
-    head->flagPos = false;
+  soundMessage temp;
+  while (head->messages.try_pop(temp)) {
+    switch (temp.message) {
+      case SM_POS: {
+        pos.x = temp.vecValue[0];
+        pos.y = temp.vecValue[1];
+        pos.z = temp.vecValue[2];
+        break;
+      }
+      case SM_SPREAD: {
+        spread = temp.floatValue;
+        break;
+      }
+      case SM_VOLUME_VALUE: {
+        setVolume = true;
+        volumeTime = 0.f; // assume zero, will be set by SM_VOLUME_TIME if needed
+        volumeValue = temp.floatValue;
+        break;
+      }
+      case SM_VOLUME_TIME: {
+        volumeTime = static_cast<Flt>(temp.uintValue);
+        break;
+      }
+      case SM_SPEED: {
+        pitch = temp.floatValue;
+        break;
+      }
+      case SM_SIZE: {
+        size = temp.floatValue;
+        break;
+      }
+      case SM_LOOP: {
+        looping = temp.boolValue;
+        break;
+      }
+      case SM_INTENT: {
+        headIntent = temp.intentValue;
+        break;
+      }
+      case SM_OCCLUSION: {
+        occlusionActive = temp.boolValue;
+        break;
+      }
+      case SM_DSP: {
+        addDSP(*(DSP::dspObject *)temp.ptrValue);
+        break;
+      }
+      case SM_TIME: {
+        newFilePos = temp.floatValue;
+        setFilePos = true;
+        break;
+      }
+      case SM_RELATIVE: {
+        relative = temp.boolValue;
+        break;
+      }
+      case SM_DOPPLER: {
+        doppler = temp.boolValue;
+        break;
+      }
+      case SM_PAN2D: {
+        relative = temp.boolValue;
+        doppler = !temp.boolValue;
+        break;
+      }
+      case SM_FADE_AND_STOP: {
+        fadeAndStopTime = static_cast<Flt>(temp.uintValue);
+        setFadeAndStop = true;
+        break;
+      }
+      case SM_MOVE: {
+        ((channel*)temp.ptrValue)->pimpl->connect(this);
+        break;
+      }
+
+    }
   }
 
-  if (head->flagSpread) {
-    spread = head->spread;
-    head->flagSpread = false;
-  }
-
-  if (head->flagFade) {
-    setFadeAndStop = true;
-    fadeAndStopTime = static_cast<Flt>(head->fadeAndStopTime);
-    head->flagFade = false;
-  }
-
-  if (head->flagVolume) {
-    setVolume = true;
-    volumeValue = head->volumeValue;
-    volumeTime = static_cast<Flt>(head->volumeTime);
-    head->flagVolume = false;
-  }
-
-  if (head->flagPitch) {
-    pitch = head->pitch;
-    head->flagPitch = false;
-  }
-
-  if (head->flagSize) {
-    size = head->size;
-    head->flagSize = false;
-  }
-
-  if (head->flagLoop) {
-    looping = head->loop;
-    head->flagLoop = false;
-  }
-
-  if (head->flagTime) {
-    newFilePos = head->time;
-    setFilePos = true;
-    head->flagTime = false;
-  }
-
-  if (head->moveChannel) {
-    head->newChannel.load()->pimpl->connect(this);
-    head->moveChannel = false;
-  }
-
-  relative = head->relative;
-  doppler = head->doppler;
-  occlusionActive = head->occlusion;
-  headIntent = head->intent;
-  head->intent = SI_NONE;
 
   // sync dsp values
   currentVolume_upd = currentVolume_dsp;
-
-  // copy updated values to head
-  head->volumeValue = currentVolume_upd;
   head->time = currentFilePos;
-  head->status = status_dsp;
   status_upd = status_dsp;
 }
 
@@ -300,7 +320,7 @@ void YSE::INTERNAL::soundImplementation::update() {
   ///////////////////////////////////////////
   // sound occlusion (optional)
   ///////////////////////////////////////////
-  if (System().occlusionCallback() != NULL && occlusionActive) {
+  if (System().occlusionCallback() != nullptr && occlusionActive) {
     occlusion_dsp = System().occlusionCallback()(newPos, Global.getListener().newPos);
     Clamp(occlusion_dsp, 0.f, 1.f);
   }
@@ -356,7 +376,7 @@ Bool YSE::INTERNAL::soundImplementation::dsp() {
   ///////////////////////////////////////////
   // fill buffer
   ///////////////////////////////////////////
-  if (source_dsp != NULL) {
+  if (source_dsp != nullptr) {
     source_dsp->frequency(pitch);
     // TODO: we need to think about what we're gonna do with latency and softsynts
     Int latency = 0;
@@ -378,7 +398,7 @@ Bool YSE::INTERNAL::soundImplementation::dsp() {
   ///////////////////////////////////////////
   // apply post dsp if needed
   ///////////////////////////////////////////
-  if (post_dsp != NULL) {
+  if (post_dsp != nullptr) {
     DSP::dspObject * ptr = post_dsp;
     while (ptr) {
       if (!ptr->bypass()) ptr->process(*buffer);
@@ -514,7 +534,7 @@ void YSE::INTERNAL::soundImplementation::toChannels() {
 void YSE::INTERNAL::soundImplementation::addDSP(DSP::dspObject & ptr) {
   if (post_dsp) {
     if (post_dsp->calledfrom) {
-      *(post_dsp->calledfrom) = NULL;
+      *(post_dsp->calledfrom) = nullptr;
     }
   }
   post_dsp = &ptr;
@@ -534,7 +554,7 @@ void YSE::INTERNAL::soundImplementation::addSourceDSP(DSP::dspSourceObject &ptr)
 bool YSE::INTERNAL::soundImplementation::sortSoundObjects(soundImplementation * lhs, soundImplementation * rhs) {
   if (!lhs->parent->allowVirtual) return true;
   if (!rhs->parent->allowVirtual) return false;
-  return (lhs->virtualDist > rhs->virtualDist);
+  return (lhs->virtualDist < rhs->virtualDist);
 }
 
 bool YSE::INTERNAL::soundImplementation::canBeDeleted(const soundImplementation & impl) {

@@ -40,14 +40,14 @@ namespace YSE {
       UInt getNumberOfOutputs();
       Flt  getOutputAngle(UInt nr);
 
-      channel & mainMix();
+      channel & master();
       channel & FX();
       channel & music();
       channel & ambient();
       channel & voice();
       channel & gui();
 
-      channelImplementation * add(const String & name, channel * head);
+      channelImplementation * addImplementation(const String & name, channel * head);
       void setup(channelImplementation * impl);
       void setMaster(channelImplementation * impl);
 
@@ -58,7 +58,7 @@ namespace YSE {
       channelSetupJob channelSetup;
       channelDeleteJob channelDelete;
 
-      channel _mainMix;
+      channel _master;
       channel _fx;
       channel _music;
       channel _ambient;

@@ -204,7 +204,7 @@ void basic3D::sliderValueChanged (Slider* sliderThatWasMoved)
     if (sliderThatWasMoved == volumeSlider)
     {
         //[UserSliderCode_volumeSlider] -- add your slider handling code here..
-        YSE::ChannelMainMix().setVolume(static_cast<float>(volumeSlider->getValue()));
+        YSE::ChannelMaster().setVolume(static_cast<float>(volumeSlider->getValue()));
         //[/UserSliderCode_volumeSlider]
     }
 

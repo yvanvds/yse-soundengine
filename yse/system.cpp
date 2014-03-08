@@ -55,7 +55,7 @@ Bool YSE::system::init() {
   // on windows, the COM library has to be initialized. This may or may not
   // also happen in your application. It doesn't matter.
 #if defined YSE_WINDOWS
-  if (SUCCEEDED(CoInitialize(NULL))) {
+  if (SUCCEEDED(CoInitialize(nullptr))) {
     SystemImpl().coInitialized = true;
     INTERNAL::Global.getLog().emit(E_DEBUG, "COM library initialized");
   }
@@ -65,12 +65,12 @@ Bool YSE::system::init() {
 
     // initialize channels
     INTERNAL::Global.getChannelManager().changeChannelConf(CT_STEREO);
-    INTERNAL::Global.getChannelManager().mainMix().createGlobal();
-    INTERNAL::Global.getChannelManager().ambient().create("ambientChannel", INTERNAL::Global.getChannelManager().mainMix());
-    INTERNAL::Global.getChannelManager().FX().create("fxChannel", INTERNAL::Global.getChannelManager().mainMix());
-    INTERNAL::Global.getChannelManager().music().create("musicChannel", INTERNAL::Global.getChannelManager().mainMix());
-    INTERNAL::Global.getChannelManager().gui().create("guiChannel", INTERNAL::Global.getChannelManager().mainMix());
-    INTERNAL::Global.getChannelManager().voice().create("voiceChannel", INTERNAL::Global.getChannelManager().mainMix());
+    INTERNAL::Global.getChannelManager().master().createGlobal();
+    INTERNAL::Global.getChannelManager().ambient().create("ambientChannel", INTERNAL::Global.getChannelManager().master());
+    INTERNAL::Global.getChannelManager().FX().create("fxChannel", INTERNAL::Global.getChannelManager().master());
+    INTERNAL::Global.getChannelManager().music().create("musicChannel", INTERNAL::Global.getChannelManager().master());
+    INTERNAL::Global.getChannelManager().gui().create("guiChannel", INTERNAL::Global.getChannelManager().master());
+    INTERNAL::Global.getChannelManager().voice().create("voiceChannel", INTERNAL::Global.getChannelManager().master());
 
     maxSounds(50);
     INTERNAL::Global.active = true;
@@ -101,7 +101,7 @@ YSE::occlusionFunc YSE::system::occlusionCallback() {
   return occlusionPtr;
 }
 
-YSE::system::system() : occlusionPtr(NULL) {
+YSE::system::system() : occlusionPtr(nullptr) {
 }
 
 YSE::system::~system() {

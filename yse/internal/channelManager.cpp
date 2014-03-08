@@ -30,7 +30,7 @@ ThreadPoolJob::JobStatus YSE::INTERNAL::channelDeleteJob::runJob() {
 }
 
 
-YSE::INTERNAL::channelManager::channelManager() : outputChannels(0), outputAngles(NULL) {}
+YSE::INTERNAL::channelManager::channelManager() : outputChannels(0), outputAngles(nullptr) {}
 
 YSE::INTERNAL::channelManager::~channelManager() {
   Global.waitForSlowJob(&channelSetup);
@@ -42,8 +42,8 @@ YSE::INTERNAL::channelManager::~channelManager() {
   clearSingletonInstance();
 }
 
-YSE::channel & YSE::INTERNAL::channelManager::mainMix() {
-  return _mainMix;
+YSE::channel & YSE::INTERNAL::channelManager::master() {
+  return _master;
 }
 
 YSE::channel & YSE::INTERNAL::channelManager::FX() {
@@ -98,6 +98,9 @@ void YSE::INTERNAL::channelManager::update() {
   // sync channel implementations
   ///////////////////////////////////////////
   {
+    // master channel is not in inUse list
+    Global.getDeviceManager().getMaster().sync();
+
     auto previous = inUse.before_begin();
     for (auto i = inUse.begin(); i != inUse.end();) {
       (*i)->sync();
@@ -128,7 +131,7 @@ Flt YSE::INTERNAL::channelManager::getOutputAngle(UInt nr) {
   }
 }
 
-YSE::INTERNAL::channelImplementation * YSE::INTERNAL::channelManager::add(const String & name, channel * head) {
+YSE::INTERNAL::channelImplementation * YSE::INTERNAL::channelManager::addImplementation(const String & name, channel * head) {
   implementations.emplace_front(name, head);
   return &implementations.front();
 }

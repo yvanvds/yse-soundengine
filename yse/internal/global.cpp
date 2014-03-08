@@ -108,6 +108,4 @@ void YSE::INTERNAL::global::close() {
   // these have to come last!
   settings::deleteInstance();
   logImplementation::deleteInstance();
-
-
 }

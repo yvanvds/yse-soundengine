@@ -9,6 +9,7 @@
 */
 
 #include "channel.hpp"
+#include "utils/misc.hpp"
 #include "internal/global.h"
 #include "implementations/channelImplementation.h"
 #include "implementations/logImplementation.h"
@@ -16,7 +17,7 @@
 #include "internal/channelManager.h"
 #include "internal/reverbManager.h"
 
-YSE::channel::channel() : pimpl(NULL), allowVirtual(true)  
+YSE::channel::channel() : pimpl(nullptr), allowVirtual(true), volume(1.f)
 {}
 
 YSE::channel& YSE::channel::create(const char * name, channel& parent) {
@@ -28,7 +29,7 @@ YSE::channel& YSE::channel::create(const char * name, channel& parent) {
     jassertfalse
   }
   
-  pimpl = INTERNAL::Global.getChannelManager().add(name, this);
+  pimpl = INTERNAL::Global.getChannelManager().addImplementation(name, this);
   pimpl->parent = parent.pimpl;
   INTERNAL::Global.getChannelManager().setup(pimpl);
   return *this;
@@ -45,20 +46,24 @@ void YSE::channel::createGlobal() {
 
   // the global channel will be created instantly because no audio
   // thread can be running before this is ready anyway 
-  pimpl = INTERNAL::Global.getChannelManager().add("Master channel", this);
+  pimpl = INTERNAL::Global.getChannelManager().addImplementation("Master channel", this);  
   INTERNAL::Global.getChannelManager().setMaster(pimpl);
 }
 
 YSE::channel::~channel() {
-  if (pimpl != NULL) {
-    pimpl->head = NULL;
-    pimpl = NULL;
+  if (pimpl != nullptr) {
+    pimpl->head = nullptr;
+    pimpl = nullptr;
   }
 }
 
 YSE::channel& YSE::channel::setVolume(Flt value) {
-  volume = value;
-  flagVolume = true;
+  Clamp(value, 0.f, 1.f);
+  channelMessage m;
+  m.message = CM_VOLUME;
+  m.floatValue = value;
+  messages.push(m);
+  volume = value; // only used for getVolume
   return (*this);
 }
 
@@ -67,12 +72,18 @@ Flt YSE::channel::getVolume() {
 }
 
 YSE::channel& YSE::channel::moveTo(channel& parent) {
-  newChannel = &parent;
-  moveChannel = true;
+  channelMessage m;
+  m.message = CM_MOVE;
+  m.ptrValue = &parent;
+  messages.push(m);
   return (*this);
 }
 
 YSE::channel& YSE::channel::setVirtual(Bool value) {
+  channelMessage m;
+  m.message = CM_VIRTUAL;
+  m.boolValue = true;
+  messages.push(m);
   allowVirtual = value;
   return (*this);
 }
@@ -82,12 +93,15 @@ bool YSE::channel::getVirtual() {
 }
 
 YSE::channel& YSE::channel::attachReverb() { 
-  attachReverbNow = true;
+  channelMessage m;
+  m.message = CM_ATTACH_REVERB;
+  m.boolValue = true;
+  messages.push(m);
   return (*this);
 }
 
-YSE::channel & YSE::ChannelMainMix() {
-  return INTERNAL::Global.getChannelManager().mainMix();
+YSE::channel & YSE::ChannelMaster() {
+  return INTERNAL::Global.getChannelManager().master();
 }
 
 YSE::channel & YSE::ChannelFX() {

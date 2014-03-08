@@ -60,6 +60,9 @@
               file="../yse/implementations/soundImplementation.h"/>
       </GROUP>
       <GROUP id="{2BD7E377-8E3E-584C-94F4-CB653409AC3E}" name="internal">
+        <FILE id="KPfbMA" name="virtualFinder.cpp" compile="1" resource="0"
+              file="../yse/internal/virtualFinder.cpp"/>
+        <FILE id="g95B9j" name="virtualFinder.h" compile="0" resource="0" file="../yse/internal/virtualFinder.h"/>
         <FILE id="EGJLXc" name="channelManager.cpp" compile="1" resource="0"
               file="../yse/internal/channelManager.cpp"/>
         <FILE id="nudoSV" name="channelManager.h" compile="0" resource="0"
@@ -89,6 +92,8 @@
               file="../yse/internal/underWaterEffect.h"/>
       </GROUP>
       <GROUP id="{C640865B-BB8E-EE0C-4BA0-1504BDF041B8}" name="utils">
+        <FILE id="ZV62Pt" name="atomicOps.hpp" compile="0" resource="0" file="../yse/utils/atomicOps.hpp"/>
+        <FILE id="g1ZHoA" name="lfQueue.hpp" compile="0" resource="0" file="../yse/utils/lfQueue.hpp"/>
         <FILE id="des36t" name="misc.hpp" compile="0" resource="0" file="../yse/utils/misc.hpp"/>
         <FILE id="KcGQCN" name="vector.cpp" compile="1" resource="0" file="../yse/utils/vector.cpp"/>
         <FILE id="xO6YTB" name="vector.hpp" compile="0" resource="0" file="../yse/utils/vector.hpp"/>

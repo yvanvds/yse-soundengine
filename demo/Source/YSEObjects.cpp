@@ -33,7 +33,7 @@ void valueTreeLink::set(ValueTree tree) {
                       channel = userChannel;
                       break;
   }
-    case MAINCHANNEL: channel = &YSE::ChannelMainMix(); break;
+    case MAINCHANNEL: channel = &YSE::ChannelMaster(); break;
     case FXCHANNEL: channel = &YSE::ChannelFX(); break;
     case AMBIENTCHANNEL: channel = &YSE::ChannelAmbient(); break;
     case VOICECHANNEL: channel = &YSE::ChannelVoice(); break;

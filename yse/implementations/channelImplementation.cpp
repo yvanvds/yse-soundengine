@@ -16,11 +16,12 @@
 #include "../internal/reverbManager.h"
 #include "../internal/channelManager.h"
 #include "../internal/deviceManager.h"
+#include "../utils/lfQueue.hpp"
 
 YSE::INTERNAL::channelImplementation::channelImplementation(const String & name, channel * head) :
 ThreadPoolJob(name),
 newVolume(1.f), lastVolume(1.f), userChannel(true),
-allowVirtual(true), objectStatus(CIS_CONSTRUCTED), parent(NULL),
+allowVirtual(true), objectStatus(CIS_CONSTRUCTED), parent(nullptr),
 head(head)
 {
 }
@@ -36,12 +37,12 @@ YSE::INTERNAL::channelImplementation::~channelImplementation() {
 
 Bool YSE::INTERNAL::channelImplementation::connect(YSE::INTERNAL::channelImplementation * ch) {
   if (ch != this) {
-    if (ch->parent != NULL) ch->parent->disconnect(ch);
+    if (ch->parent != nullptr) ch->parent->disconnect(ch);
     ch->parent = this;
     children.push_front(ch);
     return true;
   }
-  else ch->parent = NULL;
+  else ch->parent = nullptr;
   return false;
 }
 
@@ -51,7 +52,7 @@ Bool YSE::INTERNAL::channelImplementation::disconnect(YSE::INTERNAL::channelImpl
 }
 
 Bool YSE::INTERNAL::channelImplementation::connect(YSE::INTERNAL::soundImplementation * s) {
-  if (s->parent != NULL) {
+  if (s->parent != nullptr) {
     s->parent->disconnect(s);
   }
   s->parent = this;
@@ -109,7 +110,7 @@ void YSE::INTERNAL::channelImplementation::buffersToParent() {
 
 
   // if this is the main channel, we're done here
-  if (parent == NULL) return;
+  if (parent == nullptr) return;
   if (children.empty() && sounds.empty()) return;
 
   // if not the main channel, add output to parent channel
@@ -155,29 +156,27 @@ Bool YSE::INTERNAL::channelImplementation::readyCheck() {
 
 void YSE::INTERNAL::channelImplementation::sync() {
   // remove if interface is gone
-  if (head == NULL) {
+  if (head == nullptr) {
     objectStatus = CIS_RELEASE;
     return;
   }
 
-  // get new values from head
-  if (head->flagVolume) {
-    newVolume = head->volume;
-    head->flagVolume = false;
-  }
-
-  if (head->moveChannel) {
-    head->newChannel.load()->pimpl->connect(this);
-    head->moveChannel = false;
-  }
-
-  if (allowVirtual != head->allowVirtual.load()) {
-    allowVirtual = head->allowVirtual.load();
-  }
-
-  if (head->attachReverbNow) {
-    Global.getReverbManager().attachToChannel(this);
-    head->attachReverbNow = false;
+  channelMessage temp;
+  while (head->messages.try_pop(temp)) {
+    switch (temp.message) {
+      case CM_ATTACH_REVERB: 
+        Global.getReverbManager().attachToChannel(this); 
+        break;
+      case CM_MOVE: 
+        ((channel*)temp.ptrValue)->pimpl->connect(this); 
+        break;
+      case CM_VIRTUAL: 
+        allowVirtual = temp.boolValue; 
+        break;
+      case CM_VOLUME: 
+        newVolume = temp.floatValue; 
+        break;
+    }
   }
 }
 
@@ -187,7 +186,7 @@ void YSE::INTERNAL::channelImplementation::exit() {
 
 void YSE::INTERNAL::channelImplementation::childrenToParent() {
   // don't do this if there is no parent channel
-  if (parent == NULL) return;
+  if (parent == nullptr) return;
 
   for (auto i = children.begin(); i != children.end(); ++i) {
     parent->connect(*i);
@@ -205,10 +204,9 @@ void YSE::INTERNAL::channelImplementation::clearBuffers() {
 }
 
 void YSE::INTERNAL::channelImplementation::adjustVolume() {
-  Flt volume = newVolume;
-  if (volume != lastVolume) {
+  if (newVolume != lastVolume) {
     // new value, create a ramp
-    Flt step = (volume - lastVolume) / STANDARD_BUFFERSIZE;
+    Flt step = (newVolume - lastVolume) / STANDARD_BUFFERSIZE;
 
     for (UInt i = 0; i < out.size(); ++i) {
       Flt multiplier = lastVolume;
@@ -218,12 +216,12 @@ void YSE::INTERNAL::channelImplementation::adjustVolume() {
         multiplier += step;
       }
     }
-    lastVolume = volume;
+    lastVolume = newVolume;
   }
   else {
     // same volume, just copy
     for (UInt i = 0; i < out.size(); ++i) {
-      out[i] *= volume;
+      out[i] *= newVolume;
     }
   }
 }

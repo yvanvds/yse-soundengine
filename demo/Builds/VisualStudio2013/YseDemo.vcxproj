@@ -146,6 +146,7 @@
     <ClCompile Include="..\..\..\yse\implementations\listenerImplementation.cpp"/>
     <ClCompile Include="..\..\..\yse\implementations\logImplementation.cpp"/>
     <ClCompile Include="..\..\..\yse\implementations\soundImplementation.cpp"/>
+    <ClCompile Include="..\..\..\yse\internal\virtualFinder.cpp"/>
     <ClCompile Include="..\..\..\yse\internal\channelManager.cpp"/>
     <ClCompile Include="..\..\..\yse\internal\deviceManager.cpp"/>
     <ClCompile Include="..\..\..\yse\internal\global.cpp"/>
@@ -1208,6 +1209,7 @@
     <ClInclude Include="..\..\..\yse\implementations\listenerImplementation.h"/>
     <ClInclude Include="..\..\..\yse\implementations\logImplementation.h"/>
     <ClInclude Include="..\..\..\yse\implementations\soundImplementation.h"/>
+    <ClInclude Include="..\..\..\yse\internal\virtualFinder.h"/>
     <ClInclude Include="..\..\..\yse\internal\channelManager.h"/>
     <ClInclude Include="..\..\..\yse\internal\deviceManager.h"/>
     <ClInclude Include="..\..\..\yse\internal\global.h"/>
@@ -1218,6 +1220,8 @@
     <ClInclude Include="..\..\..\yse\internal\soundManager.h"/>
     <ClInclude Include="..\..\..\yse\internal\time.h"/>
     <ClInclude Include="..\..\..\yse\internal\underWaterEffect.h"/>
+    <ClInclude Include="..\..\..\yse\utils\atomicOps.hpp"/>
+    <ClInclude Include="..\..\..\yse\utils\lfQueue.hpp"/>
     <ClInclude Include="..\..\..\yse\utils\misc.hpp"/>
     <ClInclude Include="..\..\..\yse\utils\vector.hpp"/>
     <ClInclude Include="..\..\..\yse\channel.hpp"/>

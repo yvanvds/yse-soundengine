@@ -328,6 +328,9 @@
     <ClCompile Include="..\..\..\yse\implementations\soundImplementation.cpp">
       <Filter>YseDemo\YSE\implementations</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\yse\internal\virtualFinder.cpp">
+      <Filter>YseDemo\YSE\internal</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\yse\internal\channelManager.cpp">
       <Filter>YseDemo\YSE\internal</Filter>
     </ClCompile>
@@ -1572,6 +1575,9 @@
     <ClInclude Include="..\..\..\yse\implementations\soundImplementation.h">
       <Filter>YseDemo\YSE\implementations</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\yse\internal\virtualFinder.h">
+      <Filter>YseDemo\YSE\internal</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\yse\internal\channelManager.h">
       <Filter>YseDemo\YSE\internal</Filter>
     </ClInclude>
@@ -1601,6 +1607,12 @@
     </ClInclude>
     <ClInclude Include="..\..\..\yse\internal\underWaterEffect.h">
       <Filter>YseDemo\YSE\internal</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\utils\atomicOps.hpp">
+      <Filter>YseDemo\YSE\utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\utils\lfQueue.hpp">
+      <Filter>YseDemo\YSE\utils</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\yse\utils\misc.hpp">
       <Filter>YseDemo\YSE\utils</Filter>

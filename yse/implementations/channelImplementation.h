@@ -21,7 +21,6 @@ namespace YSE {
   namespace INTERNAL {
     class output;
 
-
     /**
       This is the implementation side of a channel. It should only be used internally.
     */

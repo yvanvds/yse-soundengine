@@ -148,6 +148,10 @@ namespace YSE {
       // the maximum number of non virtual sounds
       aInt maxSounds;
 
+      // the maximum distance before turning virtual
+      // This value is calculated on every update
+      aFlt maxDistance;
+
       friend class soundSetupJob;
       friend class soundDeleteJob;
     };

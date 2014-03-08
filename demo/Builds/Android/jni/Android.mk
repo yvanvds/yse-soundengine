@@ -23,6 +23,7 @@ LOCAL_SRC_FILES := \
   ../../../../yse/implementations/listenerImplementation.cpp\
   ../../../../yse/implementations/logImplementation.cpp\
   ../../../../yse/implementations/soundImplementation.cpp\
+  ../../../../yse/internal/virtualFinder.cpp\
   ../../../../yse/internal/channelManager.cpp\
   ../../../../yse/internal/deviceManager.cpp\
   ../../../../yse/internal/global.cpp\

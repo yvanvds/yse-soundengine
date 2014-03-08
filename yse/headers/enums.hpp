@@ -83,6 +83,25 @@ namespace YSE {
     SIS_DELETE, // flagged for deletion from implementations list
   };
 
+  enum SOUND_MESSAGE {
+    SM_POS,
+    SM_SPREAD,
+    SM_VOLUME_VALUE,
+    SM_VOLUME_TIME,
+    SM_SPEED,
+    SM_SIZE,
+    SM_LOOP,
+    SM_INTENT,
+    SM_OCCLUSION,
+    SM_DSP,
+    SM_TIME,
+    SM_RELATIVE,
+    SM_DOPPLER,
+    SM_PAN2D,
+    SM_FADE_AND_STOP,
+    SM_MOVE,
+  };
+
   enum CHANNEL_IMPLEMENTATION_STATE {
     CIS_CONSTRUCTED, // the object exists
     CIS_CREATED,     // create function is done
@@ -91,6 +110,15 @@ namespace YSE {
     CIS_DONE,        // sounds should be moved to parent channel
     CIS_RELEASE,     // flagged for release from inUse list
     CIS_DELETE,      // flagged for deletion from implementations list
+  };
+
+  /** Used for internal communication from channel to channelImplementation
+  */
+  enum CHANNEL_MESSAGE {
+    CM_VOLUME,
+    CM_MOVE,
+    CM_VIRTUAL,
+    CM_ATTACH_REVERB,
   };
 
   // used by utils/error.hpp

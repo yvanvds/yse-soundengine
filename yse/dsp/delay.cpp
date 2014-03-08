@@ -123,7 +123,7 @@ void YSE::DSP::readInterpolated(AUDIOBUFFER & ctrl, YSE::DSP::sample& out, AUDIO
   Flt fn = n - 1.0f;
 
   Flt * vp = buffer.getBuffer();
-  Flt *bp = NULL;
+  Flt *bp = nullptr;
   Flt *wp = vp + pos;
 
   while (n--) {

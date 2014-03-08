@@ -23,7 +23,7 @@
 juce_ImplementSingleton(YSE::INTERNAL::deviceManager)
 
 YSE::INTERNAL::deviceManager::deviceManager() : initialized(false), open(false),
-                                      started(false), master(NULL), 
+                                      started(false), master(nullptr), 
                                       bufferPos(STANDARD_BUFFERSIZE) {
 
 }
@@ -35,7 +35,7 @@ YSE::INTERNAL::deviceManager::~deviceManager() {
 
 Bool YSE::INTERNAL::deviceManager::init() {
   if (!initialized) {
-    _lastError = audioDeviceManager.initialise(0, 2, NULL, true);
+    _lastError = audioDeviceManager.initialise(0, 2, nullptr, true);
     if (_lastError.isNotEmpty()) {
       jassertfalse
       return false;
@@ -76,7 +76,7 @@ void YSE::INTERNAL::deviceManager::audioDeviceIOCallback(const float ** inputCha
   int      numOutputChannels,
   int      numSamples) {
   
-  if (master == NULL) return;  
+  if (master == nullptr) return;  
 
   if (Global.needsUpdate()) {
     // update global objects

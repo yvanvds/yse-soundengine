@@ -102,6 +102,8 @@
       <FILE id="XQ2ego" name="system.cpp" compile="1" resource="0" file="../yse/system.cpp"/>
       <FILE id="mRg2xk" name="system.hpp" compile="0" resource="0" file="../yse/system.hpp"/>
       <GROUP id="{C62A333D-9559-3582-6C25-C4ECD6548BB4}" name="utils">
+        <FILE id="lWofSR" name="atomicOps.hpp" compile="0" resource="0" file="../yse/utils/atomicOps.hpp"/>
+        <FILE id="mYrXgi" name="lfQueue.hpp" compile="0" resource="0" file="../yse/utils/lfQueue.hpp"/>
         <FILE id="IhEfxa" name="misc.hpp" compile="0" resource="0" file="../yse/utils/misc.hpp"/>
         <FILE id="IMjmhN" name="vector.cpp" compile="1" resource="0" file="../yse/utils/vector.cpp"/>
         <FILE id="hhF0t6" name="vector.hpp" compile="0" resource="0" file="../yse/utils/vector.hpp"/>

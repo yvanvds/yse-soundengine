@@ -67,7 +67,7 @@ YSE::INTERNAL::soundFile * YSE::INTERNAL::soundManager::addFile(const File & fil
   }
   else {
     sf.release();
-    return NULL;
+    return nullptr;
   }
 }
 
@@ -136,6 +136,8 @@ void YSE::INTERNAL::soundManager::update() {
   }
 
   Int playingSounds = 0;
+  maxDistance = 0;
+  Flt calcDistance = 0;
 
   ///////////////////////////////////////////
   // sync and update sound implementations
@@ -162,12 +164,17 @@ void YSE::INTERNAL::soundManager::update() {
 
       // count playing sounds
       playingSounds++;
+      calcDistance += (*i)->virtualDist;
       previous = i;
       ++i;
     }
   }
 
   if (maxSounds < playingSounds) {
+    // how many % of the sound should be playing?
+    Int percentage = maxSounds / playingSounds;
+    Flt averageDist = calcDistance / playingSounds;
+
     soundsInUse.sort(soundImplementation::sortSoundObjects);
   }
 

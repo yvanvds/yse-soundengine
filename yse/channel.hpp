@@ -14,6 +14,7 @@
 #include "headers/defines.hpp"
 #include "headers/types.hpp"
 #include "classes.hpp"
+#include "utils/lfQueue.hpp"
 
 namespace YSE {
   
@@ -36,6 +37,7 @@ namespace YSE {
    
    Of course you can use these channels for anything you like.
   */
+
   class API channel {
   public:
     
@@ -90,24 +92,16 @@ namespace YSE {
     ~channel();
 
   private:
-      
+    
     /**
         A special version of create. It is used internally to create the global channel. This is not meant to be used anywhere else.
     */
     void createGlobal();
 
-    // to change the channel volume
-    aBool flagVolume; aFlt volume;
+    lfQueue<channelMessage> messages; // to send messages to the implementation
+    Flt volume; // to remember the channel volume
+    Bool allowVirtual; // allows virtual sounds in this channel (defaults to true)
 
-    // to move the channel to another parent
-    aBool moveChannel;
-    std::atomic<channel *> newChannel;
-
-    // allows virtual sounds in this channel (defaults to true)
-    aBool allowVirtual;
-
-    // attach the reverb to this channel
-    aBool attachReverbNow;
       
     // channel implementation and friend classes
     INTERNAL::channelImplementation *pimpl;
@@ -121,7 +115,7 @@ namespace YSE {
   /**
    Use these functors to get access to the premade channels.
   */
-  channel& ChannelMainMix();
+  channel& ChannelMaster ();
   channel& ChannelFX     ();
   channel& ChannelMusic  ();
   channel& ChannelAmbient();

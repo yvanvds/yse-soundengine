@@ -849,6 +849,12 @@
     <ClInclude Include="..\..\..\yse\system.hpp">
       <Filter>yse_static_library\yse</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\yse\utils\atomicOps.hpp">
+      <Filter>yse_static_library\yse\utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\utils\lfQueue.hpp">
+      <Filter>yse_static_library\yse\utils</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\yse\utils\misc.hpp">
       <Filter>yse_static_library\yse\utils</Filter>
     </ClInclude>

@@ -19,7 +19,7 @@ YSE::INTERNAL::underWaterEffect & YSE::INTERNAL::UnderWaterEffect() {
   return u;
 }
 
-YSE::INTERNAL::underWaterEffect::underWaterEffect() : activeChannel(NULL) {
+YSE::INTERNAL::underWaterEffect::underWaterEffect() : activeChannel(nullptr) {
   verb.setPreset(REVERB_UNDERWATER);
   verb.setSize(10);
   verb.setActive(false);
