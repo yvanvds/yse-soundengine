@@ -73,6 +73,17 @@ namespace YSE {
     SI_RESTART,
   };
 
+  // this should replace the specific sound & channel implementation states
+  enum OBJECT_IMPLEMENTATION_STATE {
+    OBJECT_CONSTRUCTED, // the object exists
+    OBJECT_CREATED, // create function is done
+    OBJECT_SETUP, // object setup is done
+    OBJECT_READY, // ready for use
+    OBJECT_DONE, // flag for release 
+    OBJECT_RELEASE, // flagged for release from inUse list
+    OBJECT_DELETE, // flagged for deletion from implementations list
+  };
+
   enum SOUND_IMPLEMENTATION_STATE {
     SIS_CONSTRUCTED, // the object exists
     SIS_CREATED, // create function is done

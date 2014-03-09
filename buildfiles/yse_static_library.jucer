@@ -63,6 +63,10 @@
               file="../yse/implementations/soundImplementation.h"/>
       </GROUP>
       <GROUP id="{53EC4D16-EA85-F0D6-3B03-34E18F0AF37D}" name="internal">
+        <FILE id="YuSiWT" name="manager.h" compile="0" resource="0" file="../yse/internal/manager.h"/>
+        <FILE id="CAai6N" name="virtualFinder.cpp" compile="1" resource="0"
+              file="../yse/internal/virtualFinder.cpp"/>
+        <FILE id="melkDy" name="virtualFinder.h" compile="0" resource="0" file="../yse/internal/virtualFinder.h"/>
         <FILE id="sBFUTB" name="channelManager.cpp" compile="1" resource="0"
               file="../yse/internal/channelManager.cpp"/>
         <FILE id="Il6JA3" name="channelManager.h" compile="0" resource="0"
@@ -115,8 +119,8 @@
     <VS2013 targetFolder="Builds/VisualStudio2013">
       <CONFIGURATIONS>
         <CONFIGURATION name="Debug" winWarningLevel="4" generateManifest="1" winArchitecture="32-bit"
-                       isDebug="1" optimisation="3" targetName="yse_debug" binaryPath="../bin"
-                       headerPath="../yse"/>
+                       isDebug="1" optimisation="1" targetName="yse_debug" binaryPath="../bin"
+                       headerPath="../yse" wholeProgramOptimisation="1"/>
         <CONFIGURATION name="Release" winWarningLevel="2" generateManifest="1" winArchitecture="32-bit"
                        isDebug="0" optimisation="3" targetName="yse" binaryPath="../bin"
                        headerPath="../yse"/>

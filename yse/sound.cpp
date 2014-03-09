@@ -23,7 +23,7 @@ YSE::sound::sound() :
   pos(0.f), spread(0), fadeAndStopTime(0), volume(0.f), speed(0.f),
   size(0.f), loop(0.f), time(0.f), 
   relative(false), doppler(true), pan2D(false), occlusion(false), streaming(false),
-  length(0), intent(SI_NONE), status(SS_STOPPED) {}
+  length(0), status(SS_STOPPED) {}
 
 YSE::sound& YSE::sound::create(const char * fileName, channel * ch, Bool loop, Flt volume, Bool streaming) {
   if (pimpl) {
@@ -188,40 +188,30 @@ Bool YSE::sound::isLooping() {
 
 
 YSE::sound& YSE::sound::play() {
-  if (intent != SI_PLAY) {
-    intent = SI_PLAY;
-    soundMessage m;
-    m.message = SM_INTENT;
-    m.intentValue = SI_PLAY;
-    messages.push(m);
-  }
+  soundMessage m;
+  m.message = SM_INTENT;
+  m.intentValue = SI_PLAY;
+  messages.push(m);
   return (*this);
 }
 
 YSE::sound& YSE::sound::pause() {
-  if (intent != SI_PAUSE) {
-    intent = SI_PAUSE;
-    soundMessage m;
-    m.message = SM_INTENT;
-    m.intentValue = SI_PAUSE;
-    messages.push(m);
-  }
+  soundMessage m;
+  m.message = SM_INTENT;
+  m.intentValue = SI_PAUSE;
+  messages.push(m);
   return (*this);
 }
 
 YSE::sound& YSE::sound::stop() {
-  if (intent != SI_STOP) {
-    intent = SI_STOP;
-    soundMessage m;
-    m.message = SM_INTENT;
-    m.intentValue = SI_STOP;
-    messages.push(m);
-  }
+  soundMessage m;
+  m.message = SM_INTENT;
+  m.intentValue = SI_STOP;
+  messages.push(m);
   return (*this);
 }
 
 YSE::sound& YSE::sound::toggle() {
-  intent = SI_TOGGLE;
   soundMessage m;
   m.message = SM_INTENT;
   m.intentValue = SI_TOGGLE;
@@ -230,13 +220,10 @@ YSE::sound& YSE::sound::toggle() {
 }
 
 YSE::sound& YSE::sound::restart() {
-  if (intent != SI_RESTART) {
-    intent = SI_RESTART;
-    soundMessage m;
-    m.message = SM_INTENT;
-    m.intentValue = SI_RESTART;
-    messages.push(m);
-  }
+  soundMessage m;
+  m.message = SM_INTENT;
+  m.intentValue = SI_RESTART;
+  messages.push(m);
   return (*this);
 }
 

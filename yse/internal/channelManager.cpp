@@ -13,6 +13,7 @@
 #include "../implementations/soundImplementation.h"
 #include "../utils/misc.hpp"
 #include "../internal/deviceManager.h"
+#include "../internal/reverbManager.h"
 #include "global.h"
 
 juce_ImplementSingleton(YSE::INTERNAL::channelManager)
@@ -165,6 +166,7 @@ void YSE::INTERNAL::channelManager::changeChannelConf(CHANNEL_TYPE type, Int out
                          // set later
   }
 
+  INTERNAL::Global.getReverbManager().setOutputChannels(outputChannels);
   for (auto i = inUse.begin(); i != inUse.end(); i++) {
     (*i)->setup();
   }

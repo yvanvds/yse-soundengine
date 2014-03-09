@@ -11,14 +11,17 @@
 #include "reverbManager.h"
 #include "../implementations/channelImplementation.h"
 #include "global.h"
+#include "channelManager.h"
 #include "../implementations/listenerImplementation.h"
 #include "../reverb.hpp"
 
 juce_ImplementSingleton(YSE::INTERNAL::reverbManager)
 
-YSE::INTERNAL::reverbManager::reverbManager() : active(false), globalReverb(true), calculatedValues(true), dspValues(true) {
+YSE::INTERNAL::reverbManager::reverbManager() : globalReverb(true), calculatedValues(true) {
   reverbObject = reverbDSP::getInstance();
-
+  reverbObject->channels(Global.getChannelManager().getNumberOfOutputs());
+  globalReverb.create();
+  calculatedValues.create();
 }
 
 YSE::INTERNAL::reverbManager::~reverbManager() {
@@ -29,6 +32,10 @@ YSE::INTERNAL::reverbManager::~reverbManager() {
   }
   reverbDSP::deleteInstance();
   clearSingletonInstance();
+}
+
+void YSE::INTERNAL::reverbManager::setOutputChannels(Int value) {
+  reverbObject->channels(value);
 }
 
 YSE::reverb & YSE::INTERNAL::reverbManager::getGlobalReverb() {
@@ -56,14 +63,16 @@ void YSE::INTERNAL::reverbManager::remove(reverb * r) {
 }
  
 void YSE::INTERNAL::reverbManager::update() {
-  Int totalAdjust = 0;
+  Int reverbsActive = 0;
   calculatedValues.setPreset(REVERB_OFF);
   calculatedValues.setActive(false);
   calculatedValues.setDryWetBalance(0.f, 0.f); // this is ok here, because this reverb is only used for calculating the real one
 
-  // find reverbs within distance first
+  ///////////////////////////////////////
+  // find local reverbs within distance
+  ///////////////////////////////////////
   for (auto i = reverbs.begin(); i != reverbs.end(); i++) {
-    if ((*i)->global) continue;
+    if (!(*i)->active) continue;
     if (Dist((*i)->position, Global.getListener().newPos) <= (*i)->size) {
       // add this reverb
       calculatedValues.roomsize += (*i)->roomsize;
@@ -76,27 +85,27 @@ void YSE::INTERNAL::reverbManager::update() {
         calculatedValues.earlyPtr[j] += (*i)->earlyPtr[j];
         calculatedValues.earlyGain[j] += (*i)->earlyGain[j];
       }
-      totalAdjust++;
+      reverbsActive++;
     }
   }
 
   // if exactly one reverb within distance has been found, totalAdjust will be 1
   // in this case we can just use this reverb. When more reverbs have been found
   // we need to average the result
-  if (totalAdjust > 1) {
-    calculatedValues.roomsize /= totalAdjust;
-    calculatedValues.damp /= totalAdjust;
-    calculatedValues.wet /= totalAdjust;
-    calculatedValues.dry /= totalAdjust;
-    calculatedValues.modFrequency /= totalAdjust;
-    calculatedValues.modWidth /= totalAdjust;
+  if (reverbsActive > 1) {
+    calculatedValues.roomsize /= reverbsActive;
+    calculatedValues.damp /= reverbsActive;
+    calculatedValues.wet /= reverbsActive;
+    calculatedValues.dry /= reverbsActive;
+    calculatedValues.modFrequency /= reverbsActive;
+    calculatedValues.modWidth /= reverbsActive;
 
     for (Int j = 0; j < 4; j++) {
-      calculatedValues.earlyPtr[j] /= totalAdjust;
-      calculatedValues.earlyGain[j] /= totalAdjust;
+      calculatedValues.earlyPtr[j] /= reverbsActive;
+      calculatedValues.earlyGain[j] /= reverbsActive;
     }
   }
-  else if (totalAdjust == 0) {
+  else if (reverbsActive == 0) {
     // no reverbs are within distance. Check for rolloff's
     Flt partial = 0;
     for (auto i = reverbs.begin(); i != reverbs.end(); ++i) {
@@ -104,10 +113,11 @@ void YSE::INTERNAL::reverbManager::update() {
       if (Dist((*i)->position, Global.getListener().newPos) <= (*i)->size + (*i)->rolloff) {
         // add partial reverb
         Flt adjust = Dist((*i)->position, Global.getListener().newPos) - (*i)->size;
+        adjust = 1 - adjust / (*i)->rolloff;
         calculatedValues.roomsize += (*i)->roomsize * adjust;
         calculatedValues.damp += (*i)->damp * adjust;
         calculatedValues.wet += (*i)->wet * adjust;
-        if (adjust != 0) calculatedValues.dry += (*i)->dry / adjust;
+        calculatedValues.dry += (*i)->dry * adjust;
         calculatedValues.modFrequency += (*i)->modFrequency * adjust;
         calculatedValues.modWidth += (*i)->modWidth * adjust;
         for (Int j = 0; j < 4; j++) {
@@ -132,6 +142,13 @@ void YSE::INTERNAL::reverbManager::update() {
         calculatedValues.earlyGain[j] /= partial;
       }
     }
+
+    // if partial == 0, we can just use the global reverb object
+    else if (partial == 0) {
+      calculatedValues = globalReverb;
+      return; // important because active could be overwritten at the end of this function
+    }
+
     // if sum of partial reverbs < 1 we have to add (part of) the global reverb
     else if (partial < 1) {
       if (globalReverb.getActive()) {
@@ -151,20 +168,10 @@ void YSE::INTERNAL::reverbManager::update() {
 
   // end of calculations, disable reverb if no wet signal
   if (calculatedValues.wet < 0.001) {
-    active = false;
+    calculatedValues.active = false;
   }
   else {
-    active = true;
-    roomsize = calculatedValues.roomsize;
-    damp = calculatedValues.damp;
-    wet = calculatedValues.wet;
-    dry = calculatedValues.dry;
-    modFrequency = calculatedValues.modFrequency;
-    modWidth = calculatedValues.modWidth;
-    for (Int j = 0; j < 4; j++) {
-      earlyGain[j] = calculatedValues.earlyGain[j];
-      earlyPtr[j] = calculatedValues.earlyPtr[j];
-    }
+    calculatedValues.active = true;
   }
 }
 
@@ -174,20 +181,8 @@ void YSE::INTERNAL::reverbManager::attachToChannel(YSE::INTERNAL::channelImpleme
 
 void YSE::INTERNAL::reverbManager::process(YSE::INTERNAL::channelImplementation * ptr) {
   if (ptr != reverbChannel) return;
-  if (!active) return;
-
-  // put all values in dspValues (which is only used inside the dsp callback)
-  dspValues.roomsize = roomsize;
-  dspValues.damp = damp;
-  dspValues.wet = wet;
-  dspValues.dry = dry;
-  dspValues.modFrequency = modFrequency;
-  dspValues.modWidth = modWidth;
-  for (Int j = 0; j < 4; j++) {
-    dspValues.earlyGain[j] = earlyGain[j];
-    dspValues.earlyPtr[j] = earlyPtr[j];
-  }
-  reverbObject->set(dspValues);
+  if (!calculatedValues.active) return;
+  reverbObject->set(calculatedValues);
 
   // the actual reverb processing
   reverbObject->process(ptr->out);

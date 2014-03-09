@@ -16,8 +16,9 @@
 
 YSE::reverb::reverb(bool global) : active(true), roomsize(0.5f), damp(0.5),  
                         wet(0.5), dry(0.5), modFrequency(0),
-                        modWidth(0), global(global), connectedToManager(false) {
+                        modWidth(0), global(global), connectedToManager(false) {}
 
+YSE::reverb& YSE::reverb::create() {
   for (Int i = 0; i < 4; i++) {
     earlyPtr[i] = 0;
     earlyGain[i] = 0;
@@ -26,6 +27,7 @@ YSE::reverb::reverb(bool global) : active(true), roomsize(0.5f), damp(0.5),
   if (!global) {
     INTERNAL::Global.getReverbManager().add(this);
   }
+  return *this;
 }
 
 

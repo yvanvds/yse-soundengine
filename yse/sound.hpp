@@ -311,7 +311,6 @@ namespace YSE {
     aBool streaming;
     aUInt length;
     aFlt  time;
-    SOUND_INTENT intent; // what we want the sound to do
     std::atomic<SOUND_STATUS> status; // what it is currently doing
 
     

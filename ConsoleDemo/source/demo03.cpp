@@ -30,7 +30,7 @@ int main() {
      at most and set maxSounds to 50. This should be enough to filter out the least audible
      sounds from dsp processing and save some processing power for other parts of your software.
   */
-  YSE::System().maxSounds(20000);
+  YSE::System().maxSounds(100);
 
   std::cout << "Press the spacebar to add a sound at a random position." << std::endl;
   std::cout << "...or e to exit." << std::endl;

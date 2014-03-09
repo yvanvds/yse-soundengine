@@ -317,7 +317,7 @@ Bool YSE::INTERNAL::reverbDSP::freeze() {
 }
 
 void YSE::INTERNAL::reverbDSP::channels(Int value) {
-  channel.resize(value);
+  if (channel.size() != value) channel.resize(value);
 }
 
 void YSE::INTERNAL::reverbDSP::modulate(Flt frequency, Flt width) {

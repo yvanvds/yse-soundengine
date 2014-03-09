@@ -14,13 +14,14 @@
 #include "reverbDSP.h"
 #include "JuceHeader.h"
 #include "../reverb.hpp"
+#include "manager.h"
 #include <forward_list>
 
 namespace YSE {
   namespace INTERNAL {
+    class reverbImplementation;
 
-
-    class reverbManager {
+    class reverbManager : public manager<reverbImplementation, reverb> {
     public:
       reverbManager();
       ~reverbManager();
@@ -37,6 +38,7 @@ namespace YSE {
       void attachToChannel(INTERNAL::channelImplementation * ptr);
       void process(INTERNAL::channelImplementation * ptr); // will only process if the channel is attached to the reverb
 
+      void setOutputChannels(Int value);
       reverb & getGlobalReverb();
 
       juce_DeclareSingleton(reverbManager, true)
@@ -49,23 +51,7 @@ namespace YSE {
       // pointers because we have to construct them after the forward list is ready
       reverb globalReverb;
       reverb calculatedValues;
-      reverb dspValues;
 
-      /* calculated values (written in update, used in process)
-         We can't use a reverb object here because:
-         1. this information is accessed both in dsp and in update
-         2. we don't want a critical section
-         3. reverb object does not contain atomic values (would speed down and only needed here)
-      */
-      aBool active;
-      aFlt roomsize;
-      aFlt damp;
-      aFlt wet;
-      aFlt dry;
-      aFlt modFrequency;
-      aFlt modWidth;
-      aFlt earlyGain[4];
-      aInt earlyPtr[4];
     };
 
   }

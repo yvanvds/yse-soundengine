@@ -27,7 +27,12 @@ namespace YSE {
   */
   class API reverb {
   public:
-      
+    /**
+     Needed for internal setup of the reverb. This must be done after System().init() and before
+     doing anything else with this object
+    */
+    reverb& create();
+
     /**
      Set the virtual position of this reverb setting.
     */

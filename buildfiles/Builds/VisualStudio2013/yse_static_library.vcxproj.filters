@@ -202,6 +202,9 @@
     <ClCompile Include="..\..\..\yse\implementations\soundImplementation.cpp">
       <Filter>yse_static_library\yse\implementations</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\yse\internal\virtualFinder.cpp">
+      <Filter>yse_static_library\yse\internal</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\yse\internal\channelManager.cpp">
       <Filter>yse_static_library\yse\internal</Filter>
     </ClCompile>
@@ -803,6 +806,12 @@
     </ClInclude>
     <ClInclude Include="..\..\..\yse\implementations\soundImplementation.h">
       <Filter>yse_static_library\yse\implementations</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\internal\manager.h">
+      <Filter>yse_static_library\yse\internal</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\internal\virtualFinder.h">
+      <Filter>yse_static_library\yse\internal</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\yse\internal\channelManager.h">
       <Filter>yse_static_library\yse\internal</Filter>

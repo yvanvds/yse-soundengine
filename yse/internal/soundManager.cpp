@@ -155,6 +155,7 @@ void YSE::INTERNAL::soundManager::update() {
 
       // don't count sounds that are not playing 
       if ((*i)->objectStatus < SIS_READY || (*i)->status_upd == YSE::SS_STOPPED || (*i)->status_upd == YSE::SS_PAUSED) {
+        previous = i;
         ++i;
         continue;
       }

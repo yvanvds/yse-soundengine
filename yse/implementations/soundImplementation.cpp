@@ -255,6 +255,7 @@ void YSE::INTERNAL::soundImplementation::sync() {
   currentVolume_upd = currentVolume_dsp;
   head->time = currentFilePos;
   status_upd = status_dsp;
+  head->status = status_upd;
 }
 
 void YSE::INTERNAL::soundImplementation::update() {
