@@ -33,7 +33,7 @@ ThreadPoolJob::JobStatus YSE::INTERNAL::soundDeleteJob::runJob() {
 }
 
 
-YSE::INTERNAL::soundManager::soundManager() {
+YSE::INTERNAL::soundManager::soundManager() : vFinder(10) {
   formatManager.registerBasicFormats();
 }
 
@@ -135,14 +135,11 @@ void YSE::INTERNAL::soundManager::update() {
     }
   }
 
-  Int playingSounds = 0;
-  maxDistance = 0;
-  Flt calcDistance = 0;
-
   ///////////////////////////////////////////
   // sync and update sound implementations
   ///////////////////////////////////////////
   {
+    vFinder.reset();
     auto previous = soundsInUse.before_begin();
     for (auto i = soundsInUse.begin(); i != soundsInUse.end();) {
       (*i)->sync();
@@ -162,25 +159,12 @@ void YSE::INTERNAL::soundManager::update() {
         continue;
       }
 
-      // count playing sounds
-      playingSounds++;
-      calcDistance += (*i)->virtualDist;
+      // add to virtual sound finder
+      vFinder.add((*i)->virtualDist);
       previous = i;
       ++i;
     }
-  }
-
-  if (maxSounds < playingSounds) {
-    // how many % of the sound should be playing?
-    Int percentage = maxSounds / playingSounds;
-    Flt averageDist = calcDistance / playingSounds;
-
-    soundsInUse.sort(soundImplementation::sortSoundObjects);
-  }
-
-  auto index = soundsInUse.begin();
-  for (int i = 0; i < maxSounds && index != soundsInUse.end(); index++, i++) {
-    (*index)->isVirtual = false;
+    vFinder.calculate();
   }
 }
 
@@ -190,11 +174,15 @@ Bool YSE::INTERNAL::soundManager::empty() {
 }
 
 void YSE::INTERNAL::soundManager::setMaxSounds(Int value) {
-  maxSounds = value;
+  vFinder.setLimit(value);
 }
 
 Int YSE::INTERNAL::soundManager::getMaxSounds() {
-  return maxSounds;
+  return vFinder.getLimit();
+}
+
+Bool YSE::INTERNAL::soundManager::inRange(Flt dist) {
+  return vFinder.inRange(dist);
 }
 
 AudioFormatReader * YSE::INTERNAL::soundManager::getReader(const File & f) {

@@ -27,7 +27,6 @@ YSE::INTERNAL::soundImplementation::soundImplementation(sound * head) :
   parent(nullptr),
   looping(false),
   spread(0),
-  isVirtual(true),
   source_dsp(nullptr),
   post_dsp(nullptr),
   _setPostDSP(false),
@@ -271,9 +270,11 @@ void YSE::INTERNAL::soundImplementation::update() {
   else {
     distance = Dist(newPos, Global.getListener().newPos);
   }
-  virtualDist = (distance- size) * (1 / (currentVolume_upd > 0.000001f ? currentVolume_upd : 0.000001f));
-  if (parent->allowVirtual) isVirtual = true;
-  else isVirtual = false;
+  virtualDist = (distance- size) * currentVolume_upd;
+  if (virtualDist < 0) virtualDist = 0;
+  if (virtualDist > 1000.f) {
+    jassertfalse
+  }
 
   ///////////////////////////////////////////
   // calculate doppler effect 
@@ -342,7 +343,7 @@ Bool YSE::INTERNAL::soundImplementation::dsp() {
   dspFunc_parseIntent();
 
   if (status_dsp == SS_STOPPED || status_dsp == SS_PAUSED) return false;
-  if (isVirtual) return false;
+  if (parent->allowVirtual && !Global.getSoundManager().inRange(virtualDist)) return false;
 
   ///////////////////////////////////////////
   // set volume at sound level

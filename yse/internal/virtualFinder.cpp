@@ -12,20 +12,23 @@
 #include "JuceHeader.h"
 #include <cmath>
 
-YSE::virtualFinder::virtualFinder(Int resolution) : resolution(resolution), maximum(0.f), calculatedMax(10.f) {
-  jassertfalse(resolution == 0);
+YSE::virtualFinder::virtualFinder(Int resolution) : resolution(resolution), limit(50), maximum(0.f), calculatedMax(10.f) {
   bin.resize(resolution, 0);
 }
 
 void YSE::virtualFinder::setLimit(Int value) {
-  this->limit = limit;
+  this->limit.store(value);
+}
+
+Int YSE::virtualFinder::getLimit() {
+  return this->limit;
 }
 
 void YSE::virtualFinder::reset() {
   if (maximum > 0) calculatedMax = maximum;
   else calculatedMax = 10;
 
-  for (auto d : bin) d = 0;
+  for (Int i = 0; i < bin.size(); i++) bin[i] = 0;
   maximum = 0;
   entries = 0;
 }
@@ -36,35 +39,50 @@ void YSE::virtualFinder::add(Flt value) {
   // now be sure not to divide by zero
   Int sort;
   if (calculatedMax == 0) sort = 0;
-  else sort = static_cast<Int>(value / calculatedMax * resolution);
+  else sort = static_cast<Int>(value / (calculatedMax / resolution));
+  if (sort > bin.size() - 1) {
+    sort = bin.size() - 1;
+  }
   bin[sort]++;
 }
 
 bool YSE::virtualFinder::inRange(Flt value) {
-  if (entries < limit) return true;
+  if (entries < currentLimit) return true;
   if (value < range) return true;
   return false;
 }
 
 void YSE::virtualFinder::calculate() {
   // add up bins until we have enough entries
-  Int count;
-  for (auto d : bin) {
-    count += d;
-    if (count > limit) {
-      // too many sounds, see if we have to go one step back
-      if ((count - limit) > (limit - (range - d))) count -= d;
+  Int count = 0;
+  currentLimit = limit.load();
+  Int i;
+  for (i = 0; i < bin.size(); i++) {
+    count += bin[i];
+    if (count > currentLimit) {
       break;
     }
   }
-  range = count * maximum;
 
-  // if the difference between the count and the limit is more than 10%, we have to enlarge our resolution
-  if (std::abs(count - limit) > limit / 10.f) {
-    resolution++;
+  if (count > currentLimit) {
+    range = calculatedMax / resolution * (i+1);
+    range -= calculatedMax / resolution * (1 - (count - currentLimit) / bin[i]);
+
+    // if the difference between the count and the limit is more than 10%, we have to enlarge our resolution
+    if (std::abs(count - currentLimit) > currentLimit / 10.f) {
+      resolution++;
+      bin.resize(resolution);
+    }
+    else if (std::abs(count - currentLimit) < currentLimit / 50.f) {
+      resolution--;
+      bin.resize(resolution);
+
+    }
   }
-  else if (std::abs(count - limit) < limit / 50.f) {
-    resolution--;
+  else {
+    range = maximum;
   }
+
+
 }
 

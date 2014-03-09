@@ -53,6 +53,9 @@ namespace YSE {
 
       channelManager();
       ~channelManager();
+
+      
+
       juce_DeclareSingleton(channelManager, true)
     private:
       channelSetupJob channelSetup;

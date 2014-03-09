@@ -21,13 +21,15 @@ namespace YSE {
     void reset();
     void add(Flt value);
     void setLimit(Int value);
+    Int getLimit();
     void calculate();
     bool inRange(Flt value); // check if this value is ok according to the last calculations
     virtualFinder(Int resolution); // argument is the initial resolution. This can be adjusted internally when needed.
 
   private:
     Int resolution;
-    Flt limit; // the number of entries that should be in range
+    aInt limit; // the number of entries that should be in range
+    Int currentLimit;
     Flt range; // the calculated range
     Flt maximum; // the biggest value since last reset
     Flt calculatedMax; // the biggest value before last reset (we can assume this is about the same as the new value will be)

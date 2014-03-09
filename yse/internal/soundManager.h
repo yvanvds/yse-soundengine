@@ -20,6 +20,7 @@
 #include "JuceHeader.h"
 #include "../classes.hpp"
 #include "../sound.hpp"
+#include "virtualFinder.h"
 
 // global object for file loading
 // used in system.cpp, soundimpl.cpp and soundfile.cpp
@@ -110,6 +111,9 @@ namespace YSE {
           no longer in use. This is called by the implementations themselves, when they
           find out they're no longer needed.
       */
+
+      Bool inRange(Flt dist);
+
       void runDeleteJob() { runDelete = true; }
 
       soundManager();
@@ -145,8 +149,7 @@ namespace YSE {
       // deleted.
       aBool runDelete;
 
-      // the maximum number of non virtual sounds
-      aInt maxSounds;
+      virtualFinder vFinder; // for calculating virtual sounds
 
       // the maximum distance before turning virtual
       // This value is calculated on every update

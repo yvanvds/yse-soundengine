@@ -202,8 +202,6 @@ namespace YSE {
       Bool streaming_dsp;
       
       std::atomic<SOUND_IMPLEMENTATION_STATE> objectStatus;
-      
-      Bool isVirtual;
 
       friend class sound;
       friend class INTERNAL::channelImplementation;
