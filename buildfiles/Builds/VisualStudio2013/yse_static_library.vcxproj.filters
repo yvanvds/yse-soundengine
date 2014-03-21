@@ -154,9 +154,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\yse\channel.cpp">
-      <Filter>yse_static_library\yse</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\yse\dsp\delay.cpp">
       <Filter>yse_static_library\yse\dsp</Filter>
     </ClCompile>
@@ -189,6 +186,9 @@
     </ClCompile>
     <ClCompile Include="..\..\..\yse\dsp\sample.cpp">
       <Filter>yse_static_library\yse\dsp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\implementations\reverbImplementation.cpp">
+      <Filter>yse_static_library\yse\implementations</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\yse\implementations\channelImplementation.cpp">
       <Filter>yse_static_library\yse\implementations</Filter>
@@ -247,7 +247,13 @@
     <ClCompile Include="..\..\..\yse\sound.cpp">
       <Filter>yse_static_library\yse</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\yse\channel.cpp">
+      <Filter>yse_static_library\yse</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\yse\system.cpp">
+      <Filter>yse_static_library\yse</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\interface.cpp">
       <Filter>yse_static_library\yse</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\yse\utils\vector.cpp">
@@ -744,9 +750,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\yse\channel.hpp">
-      <Filter>yse_static_library\yse</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\yse\classes.hpp">
       <Filter>yse_static_library\yse</Filter>
     </ClInclude>
@@ -794,6 +797,12 @@
     </ClInclude>
     <ClInclude Include="..\..\..\yse\headers\types.hpp">
       <Filter>yse_static_library\yse\headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\implementations\reverbImplementation.h">
+      <Filter>yse_static_library\yse\implementations</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\implementations\implementation.h">
+      <Filter>yse_static_library\yse\implementations</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\yse\implementations\channelImplementation.h">
       <Filter>yse_static_library\yse\implementations</Filter>
@@ -855,7 +864,13 @@
     <ClInclude Include="..\..\..\yse\sound.hpp">
       <Filter>yse_static_library\yse</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\yse\channel.hpp">
+      <Filter>yse_static_library\yse</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\yse\system.hpp">
+      <Filter>yse_static_library\yse</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\interface.hpp">
       <Filter>yse_static_library\yse</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\yse\utils\atomicOps.hpp">

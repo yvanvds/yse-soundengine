@@ -13,8 +13,12 @@
 
 #include "utils/vector.hpp"
 #include "headers/enums.hpp"
+#include "interface.hpp"
 
 namespace YSE {
+  namespace INTERNAL{
+    class reverbImplementation;
+  }
   /**
      Reverb objects are actually just a collection of reverb settings. At the and of the DSP 
      chain the actual reverb object will look at all reverb settings that are close enough to
@@ -25,8 +29,29 @@ namespace YSE {
      This technique makes if possible to have a general reverb setting and assign other
      reverb settings to specified positions.
   */
-  class API reverb {
+  class API reverb : public interface<INTERNAL::reverbImplementation> {
   public:
+    enum MESSAGE {
+      POSITION,
+      SIZE,
+      ROLLOFF,
+      ACTIVE,
+      ROOMSIZE,
+      DAMP,
+      DRY_WET,
+      MODULATION,
+      REFLECTION,
+    };
+
+    struct message {
+      MESSAGE message;
+      union {
+        Bool   boolValue;
+        Flt    vecValue[3];
+        Flt    floatValue;
+      };
+    };
+
     /**
      Needed for internal setup of the reverb. This must be done after System().init() and before
      doing anything else with this object
@@ -183,7 +208,6 @@ namespace YSE {
       The global option should only be enabled internally!
     */
     reverb(bool global = false);
-   ~reverb();
 
   private:
     Bool connectedToManager;

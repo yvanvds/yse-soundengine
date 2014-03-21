@@ -13,37 +13,36 @@
 #include "utils/misc.hpp"
 #include "internal/global.h"
 #include "internal/reverbManager.h"
+#include "implementations/reverbImplementation.h"
 
 YSE::reverb::reverb(bool global) : active(true), roomsize(0.5f), damp(0.5),  
                         wet(0.5), dry(0.5), modFrequency(0),
                         modWidth(0), global(global), connectedToManager(false) {}
 
 YSE::reverb& YSE::reverb::create() {
+  interface::create();
+
   for (Int i = 0; i < 4; i++) {
     earlyPtr[i] = 0;
     earlyGain[i] = 0;
   }
 
-  if (!global) {
-    INTERNAL::Global.getReverbManager().add(this);
-  }
+  pimpl = INTERNAL::Global.getReverbManager().addImplementation(this);
+  INTERNAL::Global.getReverbManager().setup(pimpl);
   return *this;
 }
 
-
-YSE::reverb& YSE::reverb::release() {
-  if (connectedToManager) {
-    INTERNAL::Global.getReverbManager().remove(this);
-  }
-  return *this;
-}
-
-YSE::reverb::~reverb() {
-  release();
-}
 
 YSE::reverb& YSE::reverb::setPosition(const Vec &value) {
-  position = value;
+  if (position != value) {
+    position = value;
+    message m;
+    m.message = POSITION;
+    m.vecValue[0] = value.x;
+    m.vecValue[1] = value.y;
+    m.vecValue[2] = value.z;
+    pimpl->messages.push(m);
+  }
   return *this;
 }
 
@@ -53,7 +52,13 @@ YSE::Vec YSE::reverb::getPosition() {
 
 YSE::reverb& YSE::reverb::setSize(Flt value) {
   if (value < 0) value = 0;
-  size = value;
+  if (size != value) {
+    size = value;
+    message m;
+    m.message = SIZE;
+    m.floatValue = value;
+    pimpl->messages.push(m);
+  }
   return (*this);
 }
 
@@ -63,7 +68,13 @@ Flt YSE::reverb::getSize() {
 
 YSE::reverb& YSE::reverb::setRollOff(Flt value) {
   if (value < 0) value = 0;
-  rolloff = value;
+  if (rolloff != value) {
+    rolloff = value;
+    message m;
+    m.message = ROLLOFF;
+    m.floatValue = value;
+    pimpl->messages.push(m);
+  }
   return (*this);
 }
 
@@ -72,7 +83,13 @@ Flt YSE::reverb::getRollOff() {
 }
 
 YSE::reverb& YSE::reverb::setActive(Bool value) {
-  active = value;
+  if (active != value) {
+    active = value;
+    message m;
+    m.message = ACTIVE;
+    m.boolValue = value;
+    pimpl->messages.push(m);
+  }
   return (*this);
 }
 
@@ -82,7 +99,13 @@ Bool YSE::reverb::getActive() {
 
 YSE::reverb& YSE::reverb::setRoomSize(Flt value) {
   Clamp(value, 0.f, 1.f);
-  roomsize = value;
+  if (roomsize != value) {
+    roomsize = value;
+    message m;
+    m.message = ROOMSIZE;
+    m.floatValue = value;
+    pimpl->messages.push(m);
+  }
   return (*this);
 }
 
@@ -92,7 +115,13 @@ Flt YSE::reverb::getRoomSize() {
 
 YSE::reverb& YSE::reverb::setDamping(Flt value) {
   Clamp(value, 0.f, 1.f);
-  damp = value;
+  if (damp != value) {
+    damp = value;
+    message m;
+    m.message = DAMP;
+    m.floatValue = value;
+    pimpl->messages.push(m);
+  }
   return (*this);
 }
 
@@ -111,8 +140,16 @@ YSE::reverb& YSE::reverb::setDryWetBalance(Flt dry, Flt wet) {
     jassertfalse
   }
 #endif
-  this->wet = wet;
-  this->dry = dry;
+  if (this->dry != dry || this->wet != wet) {
+    this->wet = wet;
+    this->dry = dry;
+    message m;
+    m.message = DRY_WET;
+    // abusing vec here a bit
+    m.vecValue[0] = dry;
+    m.vecValue[1] = wet;
+    pimpl->messages.push(m);
+  }
   return (*this);
 }
 
@@ -127,8 +164,15 @@ Flt YSE::reverb::getDry() {
 YSE::reverb& YSE::reverb::setModulation(Flt frequency, Flt width) {
   if (frequency < 0) frequency = 0;
   if (width < 0) width = 0;
-  modFrequency = frequency;
-  modWidth = width;
+  if (modFrequency != frequency || modWidth != width) {
+    modFrequency = frequency;
+    modWidth = width;
+    message m;
+    m.message = MODULATION;
+    m.vecValue[0] = frequency;
+    m.vecValue[1] = width;
+    pimpl->messages.push(m);
+  }
   return (*this);
 }
 
@@ -141,22 +185,43 @@ Flt YSE::reverb::getModulationWidth() {
 }
 
 YSE::reverb& YSE::reverb::setReflection(Int reflection, Int time, Flt gain) {
-  if (reflection > -1 && reflection < 4) {
+  if (reflection >= 0 && reflection < 4) {
     Clamp(time, 0, 2999);
-    earlyPtr[reflection] = time;
     Clamp(gain, 0.f, 1.f);
-    earlyGain[reflection] = gain;
+    if (earlyPtr[reflection] != time || earlyGain[reflection] != gain) {
+      earlyPtr[reflection] = time;
+      earlyGain[reflection] = gain;
+      message m;
+      m.message = REFLECTION;
+      // TODO: can a union contain an int + 2 floats as content???
+      m.vecValue[0] = reflection;
+      m.vecValue[1] = time;
+      m.vecValue[2] = gain;
+      pimpl->messages.push(m);
+    }
+  }
+  else {
+    jassertfalse;
+    // reflection value must be from 0 to 4
   }
   return (*this);
 }
 
 Int YSE::reverb::getReflectionTime(Int reflection) {
-  if (reflection > -1 && reflection < 4) return earlyPtr[reflection];
+  if (reflection >= 0 && reflection < 4) return earlyPtr[reflection];
+  else {
+    jassertfalse;
+    // reflection value must be from 0 to 4
+  }
   return -1;
 }
 
 Flt YSE::reverb::getReflectionGain(Int reflection) {
-  if (reflection > -1 && reflection < 4) return earlyGain[reflection];
+  if (reflection >= 0 && reflection < 4) return earlyGain[reflection];
+  else {
+    jassertfalse;
+    // reflection value must be from 0 to 4
+  }
   return -1;
 }
 

@@ -14,12 +14,12 @@
 #include "reverbDSP.h"
 #include "JuceHeader.h"
 #include "../reverb.hpp"
+#include "../implementations/reverbImplementation.h"
 #include "manager.h"
 #include <forward_list>
 
 namespace YSE {
   namespace INTERNAL {
-    class reverbImplementation;
 
     class reverbManager : public manager<reverbImplementation, reverb> {
     public:
@@ -29,9 +29,6 @@ namespace YSE {
       /** reverbManager needs extra setup because we cannot create reverb objects 
       */
       void create();
-
-      void add(reverb * r);
-      void remove(reverb * r);
 
       void update();
 

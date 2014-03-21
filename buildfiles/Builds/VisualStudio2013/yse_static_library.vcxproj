@@ -131,7 +131,6 @@
     </Bscmake>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\yse\channel.cpp"/>
     <ClCompile Include="..\..\..\yse\dsp\delay.cpp"/>
     <ClCompile Include="..\..\..\yse\dsp\dspObject.cpp"/>
     <ClCompile Include="..\..\..\yse\dsp\filters.cpp"/>
@@ -143,6 +142,7 @@
     <ClCompile Include="..\..\..\yse\dsp\oscillators.cpp"/>
     <ClCompile Include="..\..\..\yse\dsp\ramp.cpp"/>
     <ClCompile Include="..\..\..\yse\dsp\sample.cpp"/>
+    <ClCompile Include="..\..\..\yse\implementations\reverbImplementation.cpp"/>
     <ClCompile Include="..\..\..\yse\implementations\channelImplementation.cpp"/>
     <ClCompile Include="..\..\..\yse\implementations\listenerImplementation.cpp"/>
     <ClCompile Include="..\..\..\yse\implementations\logImplementation.cpp"/>
@@ -162,7 +162,9 @@
     <ClCompile Include="..\..\..\yse\log.cpp"/>
     <ClCompile Include="..\..\..\yse\reverb.cpp"/>
     <ClCompile Include="..\..\..\yse\sound.cpp"/>
+    <ClCompile Include="..\..\..\yse\channel.cpp"/>
     <ClCompile Include="..\..\..\yse\system.cpp"/>
+    <ClCompile Include="..\..\..\yse\interface.cpp"/>
     <ClCompile Include="..\..\..\yse\utils\vector.cpp"/>
     <ClCompile Include="..\..\JuceLibraryCode\modules\juce_audio_basics\buffers\juce_AudioDataConverters.cpp">
       <ExcludedFromBuild>true</ExcludedFromBuild>
@@ -618,7 +620,6 @@
     <ClCompile Include="..\..\JuceLibraryCode\modules\juce_events\juce_events.cpp"/>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\yse\channel.hpp"/>
     <ClInclude Include="..\..\..\yse\classes.hpp"/>
     <ClInclude Include="..\..\..\yse\dsp\delay.hpp"/>
     <ClInclude Include="..\..\..\yse\dsp\dspObject.hpp"/>
@@ -635,6 +636,8 @@
     <ClInclude Include="..\..\..\yse\headers\defines.hpp"/>
     <ClInclude Include="..\..\..\yse\headers\enums.hpp"/>
     <ClInclude Include="..\..\..\yse\headers\types.hpp"/>
+    <ClInclude Include="..\..\..\yse\implementations\reverbImplementation.h"/>
+    <ClInclude Include="..\..\..\yse\implementations\implementation.h"/>
     <ClInclude Include="..\..\..\yse\implementations\channelImplementation.h"/>
     <ClInclude Include="..\..\..\yse\implementations\listenerImplementation.h"/>
     <ClInclude Include="..\..\..\yse\implementations\logImplementation.h"/>
@@ -655,7 +658,9 @@
     <ClInclude Include="..\..\..\yse\log.hpp"/>
     <ClInclude Include="..\..\..\yse\reverb.hpp"/>
     <ClInclude Include="..\..\..\yse\sound.hpp"/>
+    <ClInclude Include="..\..\..\yse\channel.hpp"/>
     <ClInclude Include="..\..\..\yse\system.hpp"/>
+    <ClInclude Include="..\..\..\yse\interface.hpp"/>
     <ClInclude Include="..\..\..\yse\utils\atomicOps.hpp"/>
     <ClInclude Include="..\..\..\yse\utils\lfQueue.hpp"/>
     <ClInclude Include="..\..\..\yse\utils\misc.hpp"/>

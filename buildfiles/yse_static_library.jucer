@@ -5,8 +5,6 @@
               jucerVersion="3.1.0">
   <MAINGROUP id="JLmmWK" name="yse_static_library">
     <GROUP id="{DAF363ED-A43B-6DFC-2214-7863A037768A}" name="yse">
-      <FILE id="pDr1Yr" name="channel.cpp" compile="1" resource="0" file="../yse/channel.cpp"/>
-      <FILE id="jA8wY8" name="channel.hpp" compile="0" resource="0" file="../yse/channel.hpp"/>
       <FILE id="L9oMON" name="classes.hpp" compile="0" resource="0" file="../yse/classes.hpp"/>
       <GROUP id="{60D265EE-B1CE-4648-4A7C-C6FF2C977D7A}" name="dsp">
         <FILE id="bOOmdn" name="delay.cpp" compile="1" resource="0" file="../yse/dsp/delay.cpp"/>
@@ -45,6 +43,12 @@
         <FILE id="W1Yt6p" name="types.hpp" compile="0" resource="0" file="../yse/headers/types.hpp"/>
       </GROUP>
       <GROUP id="{4CACC57A-5EDD-1A07-F77A-50DA7C031CB3}" name="implementations">
+        <FILE id="d11XWd" name="reverbImplementation.cpp" compile="1" resource="0"
+              file="../yse/implementations/reverbImplementation.cpp"/>
+        <FILE id="E66Raz" name="reverbImplementation.h" compile="0" resource="0"
+              file="../yse/implementations/reverbImplementation.h"/>
+        <FILE id="RE4AfW" name="implementation.h" compile="0" resource="0"
+              file="../yse/implementations/implementation.h"/>
         <FILE id="wFuij6" name="channelImplementation.cpp" compile="1" resource="0"
               file="../yse/implementations/channelImplementation.cpp"/>
         <FILE id="atEcyU" name="channelImplementation.h" compile="0" resource="0"
@@ -103,8 +107,12 @@
       <FILE id="mysDPh" name="reverb.hpp" compile="0" resource="0" file="../yse/reverb.hpp"/>
       <FILE id="kyLbln" name="sound.cpp" compile="1" resource="0" file="../yse/sound.cpp"/>
       <FILE id="hMRRbI" name="sound.hpp" compile="0" resource="0" file="../yse/sound.hpp"/>
+      <FILE id="pDr1Yr" name="channel.cpp" compile="1" resource="0" file="../yse/channel.cpp"/>
+      <FILE id="jA8wY8" name="channel.hpp" compile="0" resource="0" file="../yse/channel.hpp"/>
       <FILE id="XQ2ego" name="system.cpp" compile="1" resource="0" file="../yse/system.cpp"/>
       <FILE id="mRg2xk" name="system.hpp" compile="0" resource="0" file="../yse/system.hpp"/>
+      <FILE id="aN8EzF" name="interface.cpp" compile="1" resource="0" file="../yse/interface.cpp"/>
+      <FILE id="RDkKbx" name="interface.hpp" compile="0" resource="0" file="../yse/interface.hpp"/>
       <GROUP id="{C62A333D-9559-3582-6C25-C4ECD6548BB4}" name="utils">
         <FILE id="lWofSR" name="atomicOps.hpp" compile="0" resource="0" file="../yse/utils/atomicOps.hpp"/>
         <FILE id="mYrXgi" name="lfQueue.hpp" compile="0" resource="0" file="../yse/utils/lfQueue.hpp"/>

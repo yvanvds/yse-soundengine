@@ -17,7 +17,7 @@
 
 juce_ImplementSingleton(YSE::INTERNAL::reverbManager)
 
-YSE::INTERNAL::reverbManager::reverbManager() : globalReverb(true), calculatedValues(true) {
+YSE::INTERNAL::reverbManager::reverbManager() : manager("reverbManager"), globalReverb(true), calculatedValues(true) {
   reverbObject = reverbDSP::getInstance();
   reverbObject->channels(Global.getChannelManager().getNumberOfOutputs());
   globalReverb.create();
@@ -25,11 +25,6 @@ YSE::INTERNAL::reverbManager::reverbManager() : globalReverb(true), calculatedVa
 }
 
 YSE::INTERNAL::reverbManager::~reverbManager() {
-  // this is important because we don't want reverbs to 
-  // unregister themselves when the manager is gone.
-  for (auto i = reverbs.begin(); i != reverbs.end(); i++) {
-    (*i)->connectedToManager = false;
-  }
   reverbDSP::deleteInstance();
   clearSingletonInstance();
 }
@@ -42,27 +37,9 @@ YSE::reverb & YSE::INTERNAL::reverbManager::getGlobalReverb() {
   return globalReverb;
 }
 
-void YSE::INTERNAL::reverbManager::add(reverb * r) {
-  reverbs.emplace_front(r);
-  r->connectedToManager = true;
-}
 
-void YSE::INTERNAL::reverbManager::remove(reverb * r) {
-  auto previous = reverbs.before_begin();
-  for (auto i = reverbs.begin(); i != reverbs.end();) {
-    if ((*i) == r) {
-      i = reverbs.erase_after(previous);
-      r->connectedToManager = false;
-      return;
-    }
-    else {
-      previous = i;
-      ++i;
-    }
-  }
-}
- 
 void YSE::INTERNAL::reverbManager::update() {
+  manager::update();
   Int reverbsActive = 0;
   calculatedValues.setPreset(REVERB_OFF);
   calculatedValues.setActive(false);
