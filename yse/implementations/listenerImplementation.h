@@ -22,6 +22,9 @@ namespace YSE {
       void update();
       listenerImplementation();
       ~listenerImplementation();
+
+      inline const Vec & getPos() { return newPos; }
+      
       juce_DeclareSingleton(listenerImplementation, true)
 
     private:

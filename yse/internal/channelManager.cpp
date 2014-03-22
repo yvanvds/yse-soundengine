@@ -13,7 +13,7 @@
 #include "../implementations/soundImplementation.h"
 #include "../utils/misc.hpp"
 #include "../internal/deviceManager.h"
-#include "../internal/reverbManager.h"
+#include "../reverb/reverbManager.h"
 #include "global.h"
 
 juce_ImplementSingleton(YSE::INTERNAL::channelManager)

@@ -18,6 +18,7 @@
 #include "../dsp/modules/hilbert.hpp"
 #include "../dsp/dspObject.hpp"
 #include "../dsp/oscillators.hpp"
+#include "../reverb/reverbImplementation.h"
 #include "../classes.hpp"
 #include <vector>
 #include "JuceHeader.h"
@@ -101,7 +102,7 @@ namespace YSE {
       reverbDSP& width(Flt  value);		Flt  width();
       reverbDSP& freeze(Bool value);		Bool freeze();
 
-      void set(YSE::reverb & impl);
+      void set(reverb & impl);
 
       virtual void process(MULTICHANNELBUFFER & buffer);
       void update();

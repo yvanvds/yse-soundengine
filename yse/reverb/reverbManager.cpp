@@ -10,36 +10,39 @@
 
 #include "reverbManager.h"
 #include "../implementations/channelImplementation.h"
-#include "global.h"
-#include "channelManager.h"
+#include "../internal/channelManager.h"
 #include "../implementations/listenerImplementation.h"
-#include "../reverb.hpp"
+#include "reverb.hpp"
+#include "../internal/global.h"
 
-juce_ImplementSingleton(YSE::INTERNAL::reverbManager)
+juce_ImplementSingleton(YSE::REVERB::managerObject)
 
-YSE::INTERNAL::reverbManager::reverbManager() : manager("reverbManager"), globalReverb(true), calculatedValues(true) {
-  reverbObject = reverbDSP::getInstance();
-  reverbObject->channels(Global.getChannelManager().getNumberOfOutputs());
+YSE::REVERB::managerObject::managerObject() : super("reverbManager"), globalReverb(true), calculatedValues(true) {
+  reverbDSPObject = INTERNAL::reverbDSP::getInstance();
+  reverbDSPObject->channels(INTERNAL::Global.getChannelManager().getNumberOfOutputs());
+}
+
+YSE::REVERB::managerObject::~managerObject() {
+  INTERNAL::reverbDSP::deleteInstance();
+  clearSingletonInstance();
+}
+
+void YSE::REVERB::managerObject::create() {
   globalReverb.create();
   calculatedValues.create();
 }
 
-YSE::INTERNAL::reverbManager::~reverbManager() {
-  reverbDSP::deleteInstance();
-  clearSingletonInstance();
+void YSE::REVERB::managerObject::setOutputChannels(Int value) {
+  reverbDSPObject->channels(value);
 }
 
-void YSE::INTERNAL::reverbManager::setOutputChannels(Int value) {
-  reverbObject->channels(value);
-}
-
-YSE::reverb & YSE::INTERNAL::reverbManager::getGlobalReverb() {
+YSE::reverb & YSE::REVERB::managerObject::getGlobalReverb() {
   return globalReverb;
 }
 
 
-void YSE::INTERNAL::reverbManager::update() {
-  manager::update();
+void YSE::REVERB::managerObject::update() {
+  super::update();
   Int reverbsActive = 0;
   calculatedValues.setPreset(REVERB_OFF);
   calculatedValues.setActive(false);
@@ -50,7 +53,7 @@ void YSE::INTERNAL::reverbManager::update() {
   ///////////////////////////////////////
   for (auto i = reverbs.begin(); i != reverbs.end(); i++) {
     if (!(*i)->active) continue;
-    if (Dist((*i)->position, Global.getListener().newPos) <= (*i)->size) {
+    if (Dist((*i)->position, INTERNAL::Global.getListener().getPos()) <= (*i)->size) {
       // add this reverb
       calculatedValues.roomsize += (*i)->roomsize;
       calculatedValues.damp += (*i)->damp;
@@ -87,9 +90,9 @@ void YSE::INTERNAL::reverbManager::update() {
     Flt partial = 0;
     for (auto i = reverbs.begin(); i != reverbs.end(); ++i) {
       if (!(*i)->active) continue;
-      if (Dist((*i)->position, Global.getListener().newPos) <= (*i)->size + (*i)->rolloff) {
+      if (Dist((*i)->position, INTERNAL::Global.getListener().getPos()) <= (*i)->size + (*i)->rolloff) {
         // add partial reverb
-        Flt adjust = Dist((*i)->position, Global.getListener().newPos) - (*i)->size;
+        Flt adjust = Dist((*i)->position, INTERNAL::Global.getListener().getPos()) - (*i)->size;
         adjust = 1 - adjust / (*i)->rolloff;
         calculatedValues.roomsize += (*i)->roomsize * adjust;
         calculatedValues.damp += (*i)->damp * adjust;
@@ -152,15 +155,15 @@ void YSE::INTERNAL::reverbManager::update() {
   }
 }
 
-void YSE::INTERNAL::reverbManager::attachToChannel(YSE::INTERNAL::channelImplementation * ptr) {
+void YSE::REVERB::managerObject::attachToChannel(YSE::INTERNAL::channelImplementation * ptr) {
   reverbChannel = ptr;
 }
 
-void YSE::INTERNAL::reverbManager::process(YSE::INTERNAL::channelImplementation * ptr) {
+void YSE::REVERB::managerObject::process(YSE::INTERNAL::channelImplementation * ptr) {
   if (ptr != reverbChannel) return;
   if (!calculatedValues.active) return;
-  reverbObject->set(calculatedValues);
+  reverbDSPObject->set(calculatedValues);
 
   // the actual reverb processing
-  reverbObject->process(ptr->out);
+  reverbDSPObject->process(ptr->out);
 }

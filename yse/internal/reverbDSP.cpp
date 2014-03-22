@@ -9,7 +9,7 @@
 */
 
 #include "reverbDSP.h"
-#include "../reverb.hpp"
+#include "../reverb/reverbInterface.hpp"
 #include "../utils/misc.hpp"
 #include "../headers/constants.hpp"
 

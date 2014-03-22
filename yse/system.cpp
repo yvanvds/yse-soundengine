@@ -15,7 +15,7 @@ Author:  yvan
 #include "internal/deviceManager.h"
 #include "internal/channelManager.h"
 #include "internal/soundManager.h"
-#include "internal/reverbManager.h"
+#include "reverb/reverbManager.h"
 #include "internal/underWaterEffect.h"
 #include "internal/time.h"
 #include "internal/settings.h"

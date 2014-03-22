@@ -16,7 +16,6 @@ namespace YSE {
   class channel;
   class listener;
   class log;
-  class reverb;
   class sound;
   class system;
 

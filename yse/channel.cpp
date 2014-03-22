@@ -15,7 +15,7 @@
 #include "implementations/logImplementation.h"
 #include "internal/deviceManager.h"
 #include "internal/channelManager.h"
-#include "internal/reverbManager.h"
+#include "reverb/reverbManager.h"
 
 YSE::channel::channel() : pimpl(nullptr), allowVirtual(true), volume(1.f)
 {}

@@ -15,7 +15,7 @@
 #include "../internal/soundManager.h"
 #include "../internal/time.h"
 #include "../internal/channelManager.h"
-#include "../internal/reverbManager.h"
+#include "../reverb/reverbManager.h"
 #include "../implementations/channelImplementation.h"
 #include "../implementations/logImplementation.h"
 #include "../implementations/soundImplementation.h"

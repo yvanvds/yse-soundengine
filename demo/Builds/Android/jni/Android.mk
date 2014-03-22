@@ -8,6 +8,9 @@ include $(CLEAR_VARS)
 LOCAL_ARM_MODE := arm
 LOCAL_MODULE := juce_jni
 LOCAL_SRC_FILES := \
+  ../../../../yse/reverb/reverbImplementation.cpp\
+  ../../../../yse/reverb/reverbInterface.cpp\
+  ../../../../yse/reverb/reverbManager.cpp\
   ../../../../yse/dsp/delay.cpp\
   ../../../../yse/dsp/dspObject.cpp\
   ../../../../yse/dsp/filters.cpp\
@@ -28,7 +31,6 @@ LOCAL_SRC_FILES := \
   ../../../../yse/internal/deviceManager.cpp\
   ../../../../yse/internal/global.cpp\
   ../../../../yse/internal/reverbDSP.cpp\
-  ../../../../yse/internal/reverbManager.cpp\
   ../../../../yse/internal/settings.cpp\
   ../../../../yse/internal/soundFile.cpp\
   ../../../../yse/internal/soundManager.cpp\
@@ -38,7 +40,6 @@ LOCAL_SRC_FILES := \
   ../../../../yse/channel.cpp\
   ../../../../yse/listener.cpp\
   ../../../../yse/log.cpp\
-  ../../../../yse/reverb.cpp\
   ../../../../yse/sound.cpp\
   ../../../../yse/system.cpp\
   ../../../Source/parts/ChannelTreeItem.cpp\

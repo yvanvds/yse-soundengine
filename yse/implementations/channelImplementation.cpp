@@ -13,7 +13,7 @@
 #include "../utils/misc.hpp"
 #include "../internal/global.h"
 #include "../internal/underWaterEffect.h"
-#include "../internal/reverbManager.h"
+#include "../reverb/reverbManager.h"
 #include "../internal/channelManager.h"
 #include "../internal/deviceManager.h"
 #include "../utils/lfQueue.hpp"

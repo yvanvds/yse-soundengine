@@ -15,6 +15,7 @@
 #include "headers/defines.hpp"
 #include "headers/enums.hpp"
 #include "utils/vector.hpp"
+#include "reverb/reverbInterface.hpp"
 
 namespace YSE {
 

@@ -8,62 +8,66 @@
   ==============================================================================
 */
 
+#include "reverb.hpp"
 #include "reverbImplementation.h"
+#include "reverbInterface.hpp"
+#include "reverbManager.h"
 
-YSE::INTERNAL::reverbImplementation::reverbImplementation(YSE::reverb * head) : implementation<reverb>(head) {
+
+YSE::REVERB::implementationObject::implementationObject(interfaceObject * head) : super(head) {
   for (Int i = 0; i < 4; i++) {
     earlyPtr[i] = 0;
     earlyGain[i] = 0;
   }
 }
 
-void YSE::INTERNAL::reverbImplementation::parseMessage(const reverb::message & message) {
-  switch (message.message) {
-    case YSE::reverb::POSITION: {
+void YSE::REVERB::implementationObject::parseMessage(const messageObject & message) {
+  switch (message.ID) {
+    case MESSAGE::POSITION: {
       position.x = message.vecValue[0];
       position.y = message.vecValue[1];
       position.z = message.vecValue[2];
       break;
     }
     
-    case YSE::reverb::SIZE: {
+    case MESSAGE::SIZE: {
       size = message.floatValue;
       break;
     }
     
-    case YSE::reverb::ROLLOFF: {
+    case MESSAGE::ROLLOFF: {
       rolloff = message.floatValue;
       break;
     }
     
-    case YSE::reverb::ACTIVE: {
+    case MESSAGE::ACTIVE: {
       active = message.boolValue;
       break;
     }
     
-    case YSE::reverb::ROOMSIZE: {
+    case MESSAGE::ROOMSIZE: {
       roomsize = message.floatValue;
       break;
     }
     
-    case YSE::reverb::DAMP: {
+    case MESSAGE::DAMP: {
       damp = message.floatValue;
       break;
     }
     
-    case YSE::reverb::DRY_WET: {
+    case MESSAGE::DRY_WET: {
       dry = message.vecValue[0];
       wet = message.vecValue[1];
       break;
     }
     
-    case YSE::reverb::MODULATION: {
+    case MESSAGE::MODULATION: {
       modFrequency = message.vecValue[0];
       modWidth = message.vecValue[1];
       break;
     }
     
-    case YSE::reverb::REFLECTION: {
+    case MESSAGE::REFLECTION: {
       Int reflection = static_cast<int>(message.vecValue[0]);
       earlyPtr[reflection] = static_cast<int>(message.vecValue[1]);
       earlyGain[reflection] = message.vecValue[2];

@@ -8,6 +8,12 @@
     <Filter Include="YseDemo\YSE">
       <UniqueIdentifier>{D1F76438-5187-779B-DD8A-2C4DFC4695BC}</UniqueIdentifier>
     </Filter>
+    <Filter Include="YseDemo\YSE\reverb">
+      <UniqueIdentifier>{5132E66F-9E4E-ABC1-7A0E-69CED238CCB5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="YseDemo\YSE\templates">
+      <UniqueIdentifier>{6DF2CB13-589F-9F37-658F-82C99B05F414}</UniqueIdentifier>
+    </Filter>
     <Filter Include="YseDemo\YSE\dsp">
       <UniqueIdentifier>{DDE5D33B-82CA-143C-981F-9674E07BFE2B}</UniqueIdentifier>
     </Filter>
@@ -283,6 +289,15 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\yse\reverb\reverbImplementation.cpp">
+      <Filter>YseDemo\YSE\reverb</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\reverb\reverbInterface.cpp">
+      <Filter>YseDemo\YSE\reverb</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\reverb\reverbManager.cpp">
+      <Filter>YseDemo\YSE\reverb</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\yse\dsp\delay.cpp">
       <Filter>YseDemo\YSE\dsp</Filter>
     </ClCompile>
@@ -343,9 +358,6 @@
     <ClCompile Include="..\..\..\yse\internal\reverbDSP.cpp">
       <Filter>YseDemo\YSE\internal</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\yse\internal\reverbManager.cpp">
-      <Filter>YseDemo\YSE\internal</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\yse\internal\settings.cpp">
       <Filter>YseDemo\YSE\internal</Filter>
     </ClCompile>
@@ -371,9 +383,6 @@
       <Filter>YseDemo\YSE</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\yse\log.cpp">
-      <Filter>YseDemo\YSE</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\yse\reverb.cpp">
       <Filter>YseDemo\YSE</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\yse\sound.cpp">
@@ -1518,6 +1527,33 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\..\yse\reverb\reverb.hpp">
+      <Filter>YseDemo\YSE\reverb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\reverb\reverbMessage.h">
+      <Filter>YseDemo\YSE\reverb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\reverb\reverbImplementation.h">
+      <Filter>YseDemo\YSE\reverb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\reverb\reverbInterface.hpp">
+      <Filter>YseDemo\YSE\reverb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\reverb\reverbManager.h">
+      <Filter>YseDemo\YSE\reverb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\templates\messageObject.h">
+      <Filter>YseDemo\YSE\templates</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\templates\implementationObject.h">
+      <Filter>YseDemo\YSE\templates</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\templates\interfaceObject.hpp">
+      <Filter>YseDemo\YSE\templates</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\templates\managerObject.h">
+      <Filter>YseDemo\YSE\templates</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\yse\dsp\delay.hpp">
       <Filter>YseDemo\YSE\dsp</Filter>
     </ClInclude>
@@ -1590,9 +1626,6 @@
     <ClInclude Include="..\..\..\yse\internal\reverbDSP.h">
       <Filter>YseDemo\YSE\internal</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\yse\internal\reverbManager.h">
-      <Filter>YseDemo\YSE\internal</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\yse\internal\settings.h">
       <Filter>YseDemo\YSE\internal</Filter>
     </ClInclude>
@@ -1630,9 +1663,6 @@
       <Filter>YseDemo\YSE</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\yse\log.hpp">
-      <Filter>YseDemo\YSE</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\yse\reverb.hpp">
       <Filter>YseDemo\YSE</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\yse\sound.hpp">

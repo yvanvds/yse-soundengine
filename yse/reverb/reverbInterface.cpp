@@ -9,18 +9,18 @@
 */
 
 #include "reverb.hpp"
-#include "internal/global.h"
-#include "utils/misc.hpp"
-#include "internal/global.h"
-#include "internal/reverbManager.h"
-#include "implementations/reverbImplementation.h"
+#include "reverbInterface.hpp"
+#include "../internal/global.h"
+#include "../utils/misc.hpp"
+#include "reverbManager.h"
+#include "reverbImplementation.h"
 
-YSE::reverb::reverb(bool global) : active(true), roomsize(0.5f), damp(0.5),  
+YSE::REVERB::interfaceObject::interfaceObject(bool global) : active(true), roomsize(0.5f), damp(0.5),  
                         wet(0.5), dry(0.5), modFrequency(0),
                         modWidth(0), global(global), connectedToManager(false) {}
 
-YSE::reverb& YSE::reverb::create() {
-  interface::create();
+void YSE::REVERB::interfaceObject::create() {
+  super::create();
 
   for (Int i = 0; i < 4; i++) {
     earlyPtr[i] = 0;
@@ -29,107 +29,106 @@ YSE::reverb& YSE::reverb::create() {
 
   pimpl = INTERNAL::Global.getReverbManager().addImplementation(this);
   INTERNAL::Global.getReverbManager().setup(pimpl);
-  return *this;
 }
 
 
-YSE::reverb& YSE::reverb::setPosition(const Vec &value) {
+YSE::REVERB::interfaceObject & YSE::REVERB::interfaceObject::setPosition(const Vec &value) {
   if (position != value) {
     position = value;
-    message m;
-    m.message = POSITION;
+    messageObject m;
+    m.ID = POSITION;
     m.vecValue[0] = value.x;
     m.vecValue[1] = value.y;
     m.vecValue[2] = value.z;
-    pimpl->messages.push(m);
+    pimpl->sendMessage(m);
   }
   return *this;
 }
 
-YSE::Vec YSE::reverb::getPosition() {
+YSE::Vec YSE::REVERB::interfaceObject::getPosition() {
   return position;
 }
 
-YSE::reverb& YSE::reverb::setSize(Flt value) {
+YSE::REVERB::interfaceObject & YSE::REVERB::interfaceObject::setSize(Flt value) {
   if (value < 0) value = 0;
   if (size != value) {
     size = value;
-    message m;
-    m.message = SIZE;
+    messageObject m;
+    m.ID = SIZE;
     m.floatValue = value;
-    pimpl->messages.push(m);
+    pimpl->sendMessage(m);
   }
   return (*this);
 }
 
-Flt YSE::reverb::getSize() {
+Flt YSE::REVERB::interfaceObject::getSize() {
   return size;
 }
 
-YSE::reverb& YSE::reverb::setRollOff(Flt value) {
+YSE::REVERB::interfaceObject & YSE::REVERB::interfaceObject::setRollOff(Flt value) {
   if (value < 0) value = 0;
   if (rolloff != value) {
     rolloff = value;
-    message m;
-    m.message = ROLLOFF;
+    messageObject  m;
+    m.ID = ROLLOFF;
     m.floatValue = value;
-    pimpl->messages.push(m);
+    pimpl->sendMessage(m);
   }
   return (*this);
 }
 
-Flt YSE::reverb::getRollOff() {
+Flt YSE::REVERB::interfaceObject::getRollOff() {
   return rolloff;
 }
 
-YSE::reverb& YSE::reverb::setActive(Bool value) {
+YSE::REVERB::interfaceObject & YSE::REVERB::interfaceObject::setActive(Bool value) {
   if (active != value) {
     active = value;
-    message m;
-    m.message = ACTIVE;
+    messageObject  m;
+    m.ID = ACTIVE;
     m.boolValue = value;
-    pimpl->messages.push(m);
+    pimpl->sendMessage(m);
   }
   return (*this);
 }
 
-Bool YSE::reverb::getActive() {
+Bool YSE::REVERB::interfaceObject::getActive() {
   return active;
 }
 
-YSE::reverb& YSE::reverb::setRoomSize(Flt value) {
+YSE::REVERB::interfaceObject & YSE::REVERB::interfaceObject::setRoomSize(Flt value) {
   Clamp(value, 0.f, 1.f);
   if (roomsize != value) {
     roomsize = value;
-    message m;
-    m.message = ROOMSIZE;
+    messageObject m;
+    m.ID = ROOMSIZE;
     m.floatValue = value;
-    pimpl->messages.push(m);
+    pimpl->sendMessage(m);
   }
   return (*this);
 }
 
-Flt YSE::reverb::getRoomSize() {
+Flt YSE::REVERB::interfaceObject::getRoomSize() {
   return roomsize;
 }
 
-YSE::reverb& YSE::reverb::setDamping(Flt value) {
+YSE::REVERB::interfaceObject & YSE::REVERB::interfaceObject::setDamping(Flt value) {
   Clamp(value, 0.f, 1.f);
   if (damp != value) {
     damp = value;
-    message m;
-    m.message = DAMP;
+    messageObject  m;
+    m.ID = DAMP;
     m.floatValue = value;
-    pimpl->messages.push(m);
+    pimpl->sendMessage(m);
   }
   return (*this);
 }
 
-Flt YSE::reverb::getDamping() {
+Flt YSE::REVERB::interfaceObject::getDamping() {
   return damp;
 }
 
-YSE::reverb& YSE::reverb::setDryWetBalance(Flt dry, Flt wet) {
+YSE::REVERB::interfaceObject & YSE::REVERB::interfaceObject::setDryWetBalance(Flt dry, Flt wet) {
   Clamp(dry, 0.f, 1.f);
   Clamp(wet, 0.f, 1.f);
 #if defined debug
@@ -143,61 +142,61 @@ YSE::reverb& YSE::reverb::setDryWetBalance(Flt dry, Flt wet) {
   if (this->dry != dry || this->wet != wet) {
     this->wet = wet;
     this->dry = dry;
-    message m;
-    m.message = DRY_WET;
+    messageObject m;
+    m.ID = DRY_WET;
     // abusing vec here a bit
     m.vecValue[0] = dry;
     m.vecValue[1] = wet;
-    pimpl->messages.push(m);
+    pimpl->sendMessage(m);
   }
   return (*this);
 }
 
-Flt YSE::reverb::getWet() {
+Flt YSE::REVERB::interfaceObject::getWet() {
   return wet;
 }
 
-Flt YSE::reverb::getDry() {
+Flt YSE::REVERB::interfaceObject::getDry() {
   return dry;
 }
 
-YSE::reverb& YSE::reverb::setModulation(Flt frequency, Flt width) {
+YSE::REVERB::interfaceObject & YSE::REVERB::interfaceObject::setModulation(Flt frequency, Flt width) {
   if (frequency < 0) frequency = 0;
   if (width < 0) width = 0;
   if (modFrequency != frequency || modWidth != width) {
     modFrequency = frequency;
     modWidth = width;
-    message m;
-    m.message = MODULATION;
+    messageObject m;
+    m.ID = MODULATION;
     m.vecValue[0] = frequency;
     m.vecValue[1] = width;
-    pimpl->messages.push(m);
+    pimpl->sendMessage(m);
   }
   return (*this);
 }
 
-Flt YSE::reverb::getModulationFrequency() {
+Flt YSE::REVERB::interfaceObject::getModulationFrequency() {
   return modFrequency;
 }
 
-Flt YSE::reverb::getModulationWidth() {
+Flt YSE::REVERB::interfaceObject::getModulationWidth() {
   return modWidth;
 }
 
-YSE::reverb& YSE::reverb::setReflection(Int reflection, Int time, Flt gain) {
+YSE::REVERB::interfaceObject & YSE::REVERB::interfaceObject::setReflection(Int reflection, Int time, Flt gain) {
   if (reflection >= 0 && reflection < 4) {
     Clamp(time, 0, 2999);
     Clamp(gain, 0.f, 1.f);
     if (earlyPtr[reflection] != time || earlyGain[reflection] != gain) {
       earlyPtr[reflection] = time;
       earlyGain[reflection] = gain;
-      message m;
-      m.message = REFLECTION;
+      messageObject m;
+      m.ID = REFLECTION;
       // TODO: can a union contain an int + 2 floats as content???
       m.vecValue[0] = reflection;
       m.vecValue[1] = time;
       m.vecValue[2] = gain;
-      pimpl->messages.push(m);
+      pimpl->sendMessage(m);
     }
   }
   else {
@@ -207,7 +206,7 @@ YSE::reverb& YSE::reverb::setReflection(Int reflection, Int time, Flt gain) {
   return (*this);
 }
 
-Int YSE::reverb::getReflectionTime(Int reflection) {
+Int YSE::REVERB::interfaceObject::getReflectionTime(Int reflection) {
   if (reflection >= 0 && reflection < 4) return earlyPtr[reflection];
   else {
     jassertfalse;
@@ -216,7 +215,7 @@ Int YSE::reverb::getReflectionTime(Int reflection) {
   return -1;
 }
 
-Flt YSE::reverb::getReflectionGain(Int reflection) {
+Flt YSE::REVERB::interfaceObject::getReflectionGain(Int reflection) {
   if (reflection >= 0 && reflection < 4) return earlyGain[reflection];
   else {
     jassertfalse;
@@ -225,7 +224,7 @@ Flt YSE::reverb::getReflectionGain(Int reflection) {
   return -1;
 }
 
-YSE::reverb& YSE::reverb::setPreset(REVERB_PRESET value) {
+YSE::REVERB::interfaceObject & YSE::REVERB::interfaceObject::setPreset(REVERB_PRESET value) {
   switch (value) {
   case REVERB_OFF:			setRoomSize(0.f).setDamping(0.f).setDryWetBalance(1.f, 0.f).setModulation(0.f, 0.f);
     setReflection(0, 0, 0.f).setReflection(1, 0, 0.f).setReflection(2, 0, 0.f).setReflection(3, 0, 0.f);

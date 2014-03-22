@@ -11,7 +11,7 @@
 #ifndef UNDERWATEREFFECT_H_INCLUDED
 #define UNDERWATEREFFECT_H_INCLUDED
 
-#include "../reverb.hpp"
+#include "../reverb/reverbInterface.hpp"
 #include "../dsp/sample.hpp"
 #include "../dsp/filters.hpp"
 #include "../implementations/channelImplementation.h"

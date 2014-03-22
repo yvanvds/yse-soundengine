@@ -26,7 +26,7 @@
 #include "log.hpp"
 #include "channel.hpp"
 #include "sound.hpp"
-#include "reverb.hpp"
+#include "reverb/reverbInterface.hpp"
 #include "listener.hpp"
 
 // dsp

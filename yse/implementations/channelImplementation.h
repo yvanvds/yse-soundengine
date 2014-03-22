@@ -151,7 +151,7 @@ namespace YSE {
 
       friend class soundImplementation;
       friend class channel;
-      friend class reverbManager;
+      friend class YSE::REVERB::managerObject;
       friend class deviceManager;
       friend class channelManager;
       friend class soundManager;

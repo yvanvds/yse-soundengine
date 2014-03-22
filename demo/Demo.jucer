@@ -5,6 +5,29 @@
               jucerVersion="3.1.0" companyName="Mute">
   <MAINGROUP id="JJ8B7i" name="YseDemo">
     <GROUP id="{4A43B2A5-8C02-2D07-7F91-E76235BDF2CB}" name="YSE">
+      <GROUP id="{2B7BA5DF-A2CF-E25A-9C6C-B30D8FCB40BA}" name="reverb">
+        <FILE id="nSXhMT" name="reverb.hpp" compile="0" resource="0" file="../yse/reverb/reverb.hpp"/>
+        <FILE id="mE5yZe" name="reverbMessage.h" compile="0" resource="0" file="../yse/reverb/reverbMessage.h"/>
+        <FILE id="ipDLIi" name="reverbImplementation.cpp" compile="1" resource="0"
+              file="../yse/reverb/reverbImplementation.cpp"/>
+        <FILE id="WVRNB9" name="reverbImplementation.h" compile="0" resource="0"
+              file="../yse/reverb/reverbImplementation.h"/>
+        <FILE id="ZGxZeL" name="reverbInterface.cpp" compile="1" resource="0"
+              file="../yse/reverb/reverbInterface.cpp"/>
+        <FILE id="uz2ZLq" name="reverbInterface.hpp" compile="0" resource="0"
+              file="../yse/reverb/reverbInterface.hpp"/>
+        <FILE id="AQfRNu" name="reverbManager.cpp" compile="1" resource="0"
+              file="../yse/reverb/reverbManager.cpp"/>
+        <FILE id="VJTZrn" name="reverbManager.h" compile="0" resource="0" file="../yse/reverb/reverbManager.h"/>
+      </GROUP>
+      <GROUP id="{8EAE2E91-E0A5-F074-E2C2-2971F4F8236A}" name="templates">
+        <FILE id="VaRLa4" name="messageObject.h" compile="0" resource="0" file="../yse/templates/messageObject.h"/>
+        <FILE id="Kmr5cW" name="implementationObject.h" compile="0" resource="0"
+              file="../yse/templates/implementationObject.h"/>
+        <FILE id="gLDCiW" name="interfaceObject.hpp" compile="0" resource="0"
+              file="../yse/templates/interfaceObject.hpp"/>
+        <FILE id="Q9S6Y2" name="managerObject.h" compile="0" resource="0" file="../yse/templates/managerObject.h"/>
+      </GROUP>
       <GROUP id="{216A5E7B-0B49-1FC7-B118-A09BEE133723}" name="dsp">
         <FILE id="afaL5z" name="delay.cpp" compile="1" resource="0" file="../yse/dsp/delay.cpp"/>
         <FILE id="f25rfJ" name="delay.hpp" compile="0" resource="0" file="../yse/dsp/delay.hpp"/>
@@ -74,9 +97,6 @@
         <FILE id="R6hLC9" name="global.h" compile="0" resource="0" file="../yse/internal/global.h"/>
         <FILE id="ibO1YR" name="reverbDSP.cpp" compile="1" resource="0" file="../yse/internal/reverbDSP.cpp"/>
         <FILE id="kLshnZ" name="reverbDSP.h" compile="0" resource="0" file="../yse/internal/reverbDSP.h"/>
-        <FILE id="s7B7PY" name="reverbManager.cpp" compile="1" resource="0"
-              file="../yse/internal/reverbManager.cpp"/>
-        <FILE id="U3lCt3" name="reverbManager.h" compile="0" resource="0" file="../yse/internal/reverbManager.h"/>
         <FILE id="OfmPSA" name="settings.cpp" compile="1" resource="0" file="../yse/internal/settings.cpp"/>
         <FILE id="S3YU21" name="settings.h" compile="0" resource="0" file="../yse/internal/settings.h"/>
         <FILE id="bKTuMB" name="soundFile.cpp" compile="1" resource="0" file="../yse/internal/soundFile.cpp"/>
@@ -105,8 +125,6 @@
       <FILE id="zMVqRC" name="listener.hpp" compile="0" resource="0" file="../yse/listener.hpp"/>
       <FILE id="ynFxGu" name="log.cpp" compile="1" resource="0" file="../yse/log.cpp"/>
       <FILE id="N10Hvn" name="log.hpp" compile="0" resource="0" file="../yse/log.hpp"/>
-      <FILE id="Hy3uJn" name="reverb.cpp" compile="1" resource="0" file="../yse/reverb.cpp"/>
-      <FILE id="kVRdZW" name="reverb.hpp" compile="0" resource="0" file="../yse/reverb.hpp"/>
       <FILE id="aw8t6B" name="sound.cpp" compile="1" resource="0" file="../yse/sound.cpp"/>
       <FILE id="ApxLoZ" name="sound.hpp" compile="0" resource="0" file="../yse/sound.hpp"/>
       <FILE id="aORvaQ" name="system.cpp" compile="1" resource="0" file="../yse/system.cpp"/>

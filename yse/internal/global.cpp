@@ -17,7 +17,7 @@
 #include "time.h"
 #include "settings.h"
 #include "channelManager.h"
-#include "reverbManager.h"
+#include "../reverb/reverbManager.h"
 
 YSE::INTERNAL::global YSE::INTERNAL::Global;
 
@@ -49,7 +49,7 @@ YSE::INTERNAL::listenerImplementation & YSE::INTERNAL::global::getListener() {
   return *li;
 }
 
-YSE::INTERNAL::reverbManager & YSE::INTERNAL::global::getReverbManager() {
+YSE::REVERB::managerObject & YSE::INTERNAL::global::getReverbManager() {
   return *rm;
 }
 
@@ -87,10 +87,12 @@ void YSE::INTERNAL::global::init() {
   set = settings::getInstance();
   cm = channelManager::getInstance();
   li = listenerImplementation::getInstance();
-  rm = reverbManager::getInstance();
+  rm = REVERB::managerObject::getInstance();
 
   slowThreads.setThreadPriorities(0);
   fastThreads.setThreadPriorities(10);
+
+  rm->create();
 }
 
 void YSE::INTERNAL::global::close() {
@@ -103,7 +105,7 @@ void YSE::INTERNAL::global::close() {
   soundManager::deleteInstance();
   channelManager::deleteInstance();
   listenerImplementation::deleteInstance();
-  reverbManager::deleteInstance();
+  REVERB::managerObject::deleteInstance();
   
   // these have to come last!
   settings::deleteInstance();

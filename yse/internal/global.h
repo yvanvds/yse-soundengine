@@ -13,6 +13,7 @@
 #include "../classes.hpp"
 #include "JuceHeader.h"
 #include "../headers/types.hpp"
+#include "../reverb/reverbManager.h"
 
 namespace YSE {
   namespace INTERNAL {
@@ -23,7 +24,7 @@ namespace YSE {
       deviceManager  & getDeviceManager();
       soundManager   & getSoundManager();
       channelManager & getChannelManager();
-      reverbManager  & getReverbManager();
+      REVERB::managerObject & getReverbManager();
 
       logImplementation & getLog();
       time              & getTime();
@@ -54,7 +55,7 @@ namespace YSE {
       settings * set;
       channelManager * cm;
       listenerImplementation * li;
-      reverbManager * rm;
+      REVERB::managerObject * rm;
 
       ThreadPool slowThreads;
       ThreadPool fastThreads;
