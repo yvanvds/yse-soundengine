@@ -8,12 +8,11 @@
   ==============================================================================
 */
 
-#include "reverb.hpp"
+
 #include "reverbInterface.hpp"
 #include "../internal/global.h"
 #include "../utils/misc.hpp"
-#include "reverbManager.h"
-#include "reverbImplementation.h"
+
 
 YSE::REVERB::interfaceObject::interfaceObject(bool global) : active(true), roomsize(0.5f), damp(0.5),  
                         wet(0.5), dry(0.5), modFrequency(0),
@@ -193,8 +192,8 @@ YSE::REVERB::interfaceObject & YSE::REVERB::interfaceObject::setReflection(Int r
       messageObject m;
       m.ID = REFLECTION;
       // TODO: can a union contain an int + 2 floats as content???
-      m.vecValue[0] = reflection;
-      m.vecValue[1] = time;
+      m.vecValue[0] = (Flt)reflection;
+      m.vecValue[1] = (Flt)time;
       m.vecValue[2] = gain;
       pimpl->sendMessage(m);
     }

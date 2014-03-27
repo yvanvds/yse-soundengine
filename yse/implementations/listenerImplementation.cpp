@@ -13,7 +13,6 @@
 #include "../internal/settings.h"
 #include "../internal/time.h"
 
-
 juce_ImplementSingleton(YSE::INTERNAL::listenerImplementation)
 
 YSE::INTERNAL::listenerImplementation::listenerImplementation() {

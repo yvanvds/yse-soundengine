@@ -12,9 +12,8 @@
 #define LOG_H_INCLUDED
 
 #include <string>
-#include "headers/enums.hpp"
 #include "headers/defines.hpp"
-#include "headers/types.hpp"
+#include "headers/enums.hpp"
 
 namespace YSE {
   /**

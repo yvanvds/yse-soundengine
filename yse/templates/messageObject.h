@@ -12,6 +12,7 @@
 #define MESSAGEOBJECT_H_INCLUDED
 
 #include "../headers/types.hpp"
+#include "../headers/enums.hpp"
 
 namespace YSE {
   namespace TEMPLATE {
@@ -38,6 +39,9 @@ namespace YSE {
         Bool   boolValue;
         Flt    vecValue[3];
         Flt    floatValue;
+        UInt   uintValue;
+        void * ptrValue;
+        SOUND_INTENT intentValue;
       };
     };
 

@@ -10,21 +10,22 @@
 
 #ifndef CHANNELIMPLEMENTATION_H_INCLUDED
 #define CHANNELIMPLEMENTATION_H_INCLUDED
-#include "../headers/types.hpp"
-#include "JuceHeader.h"
-#include "../dsp/sample.hpp"
-#include "../internal/reverbDSP.h"
-#include "../classes.hpp"
+
 #include <forward_list>
+#include "JuceHeader.h"
+#include "../templates/implementationObject.h"
+#include "channel.hpp"
+#include "../sound/soundImplementation.h"
+#include "channelInterface.hpp"
 
 namespace YSE {
-  namespace INTERNAL {
+  namespace CHANNEL {
     class output;
 
     /**
       This is the implementation side of a channel. It should only be used internally.
     */
-    class channelImplementation : public ThreadPoolJob {
+    class implementationObject : public ThreadPoolJob , public TEMPLATE::implementationObject<channelSubSystem> {
     public:
       /**
         Creates a channel implementation.
@@ -32,39 +33,41 @@ namespace YSE {
         @param name   The name of the channel. This can be used in logfiles.
         @param head   A pointer to the interface of this channel.
       */
-      channelImplementation(const String & name, channel * head);
+      implementationObject(interfaceObject * head);
+
+      virtual void parseMessage(const messageObject & message); // < Parse all messages, if any
 
       /**
         Removes the implementation from the threadpool and moves all sounds and subchannels
         to its parent (if there is one).
       */
-      ~channelImplementation();
+      virtual void exit();
 
       /**
         Attach a subchannel to this channel.
         @param subChannel   A pointer to the channel that should be linked
                             to this channel.
       */
-      Bool connect(channelImplementation * channel);
+      Bool connect(CHANNEL::implementationObject * channel);
       
       /**
         Attach a sound to this channel.
         @param sound      A pointer to the sound that should be linked
                           to this channel.
       */
-      Bool connect(soundImplementation   * sound);
+      Bool connect(SOUND::implementationObject * sound);
       
       /**
         Remove a subchannel from this channel.
         @param channel    A pointer to the channel to disconnect
       */
-      Bool disconnect(channelImplementation * channel);
+      Bool disconnect(CHANNEL::implementationObject * channel);
 
       /**
         Remove a sound from this channel.
         @param sound      A pointer to the sound to disconnect
       */
-      Bool disconnect(soundImplementation   * sound);
+      Bool disconnect(SOUND::implementationObject * sound);
 
       /**
         This is the threadpool function that calls the dsp for this channel.
@@ -93,28 +96,20 @@ namespace YSE {
       */
       void attachUnderWaterFX();
 
+      virtual void doThisWhenReady();
+
     private:
 
       /** This function is called from channelManager::setup and creates the buffers
           needed for this channel.
       */
-      void setup();
+      void implementationSetup();
 
       /** This function is called by channelManager::update (from dsp callback) and verifies
           if the channel is ready to be played. It will then be moved from toCreate
           to inUse.
       */
-      Bool readyCheck();
-
-      /** This function is called by channelManager::update (from dsp callback) to 
-          syncronize this channel with it's interface
-      */
-      void sync();
-
-      /** The exit function waits for the current job to finish (if there is one) before 
-          returning. It is called by the destructor.
-      */
-      void exit();
+      virtual Bool implementationReadyCheck();
 
       /** Will move all current subchannels and sounds to the parent channel.
           This function is called from channelManager::update(), when objectStatus
@@ -135,10 +130,10 @@ namespace YSE {
       Flt  newVolume;
       Flt  lastVolume;
 
-      channelImplementation * parent;
+      CHANNEL::implementationObject * parent;
 
-      std::forward_list<channelImplementation*> children;
-      std::forward_list<soundImplementation *> sounds;
+      std::forward_list<CHANNEL::implementationObject*> children;
+      std::forward_list<SOUND::implementationObject *> sounds;
 
       std::vector<output> outConf;
       std::vector<DSP::sample> out;
@@ -146,17 +141,12 @@ namespace YSE {
       Bool userChannel; // channel is created by user and not crucial for the system
       Bool allowVirtual;
 
-      channel * head;
-      std::atomic<CHANNEL_IMPLEMENTATION_STATE> objectStatus;
-
-      friend class soundImplementation;
-      friend class channel;
+      friend class SOUND::implementationObject;
+      friend class CHANNEL::interfaceObject;
       friend class YSE::REVERB::managerObject;
-      friend class deviceManager;
-      friend class channelManager;
-      friend class soundManager;
-      friend class channelSetupJob;
-      friend class channelDeleteJob;
+      friend class INTERNAL::deviceManager;
+      friend class CHANNEL::managerObject;
+      friend class SOUND::managerObject;
     };
 
 

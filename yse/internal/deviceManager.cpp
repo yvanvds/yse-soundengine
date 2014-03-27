@@ -10,15 +10,7 @@
 
 #include "deviceManager.h"
 #include "global.h"
-#include "JuceHeader.h"
-#include "../headers/constants.hpp"
-#include "../internal/soundManager.h"
-#include "../internal/time.h"
-#include "../internal/channelManager.h"
-#include "../reverb/reverbManager.h"
-#include "../implementations/channelImplementation.h"
-#include "../implementations/logImplementation.h"
-#include "../implementations/soundImplementation.h"
+#include "time.h"
 #include "../implementations/listenerImplementation.h"
 
 juce_ImplementSingleton(YSE::INTERNAL::deviceManager)
@@ -63,11 +55,11 @@ Flt YSE::INTERNAL::deviceManager::cpuLoad() {
   return static_cast<Flt>(audioDeviceManager.getCpuUsage());
 }
 
-void YSE::INTERNAL::deviceManager::setMaster(channelImplementation * ptr) {
+void YSE::INTERNAL::deviceManager::setMaster(CHANNEL::implementationObject * ptr) {
   master = ptr;
 }
 
-YSE::INTERNAL::channelImplementation & YSE::INTERNAL::deviceManager::getMaster() {
+YSE::CHANNEL::implementationObject & YSE::INTERNAL::deviceManager::getMaster() {
   return *master;
 }
 

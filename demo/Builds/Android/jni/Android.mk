@@ -8,6 +8,12 @@ include $(CLEAR_VARS)
 LOCAL_ARM_MODE := arm
 LOCAL_MODULE := juce_jni
 LOCAL_SRC_FILES := \
+  ../../../../yse/sound/soundInterface.cpp\
+  ../../../../yse/sound/soundImplementation.cpp\
+  ../../../../yse/sound/soundManager.cpp\
+  ../../../../yse/channel/channelImplementation.cpp\
+  ../../../../yse/channel/channelInterface.cpp\
+  ../../../../yse/channel/channelManager.cpp\
   ../../../../yse/reverb/reverbImplementation.cpp\
   ../../../../yse/reverb/reverbInterface.cpp\
   ../../../../yse/reverb/reverbManager.cpp\
@@ -22,25 +28,19 @@ LOCAL_SRC_FILES := \
   ../../../../yse/dsp/oscillators.cpp\
   ../../../../yse/dsp/ramp.cpp\
   ../../../../yse/dsp/sample.cpp\
-  ../../../../yse/implementations/channelImplementation.cpp\
   ../../../../yse/implementations/listenerImplementation.cpp\
   ../../../../yse/implementations/logImplementation.cpp\
-  ../../../../yse/implementations/soundImplementation.cpp\
   ../../../../yse/internal/virtualFinder.cpp\
-  ../../../../yse/internal/channelManager.cpp\
   ../../../../yse/internal/deviceManager.cpp\
   ../../../../yse/internal/global.cpp\
   ../../../../yse/internal/reverbDSP.cpp\
   ../../../../yse/internal/settings.cpp\
   ../../../../yse/internal/soundFile.cpp\
-  ../../../../yse/internal/soundManager.cpp\
   ../../../../yse/internal/time.cpp\
   ../../../../yse/internal/underWaterEffect.cpp\
   ../../../../yse/utils/vector.cpp\
-  ../../../../yse/channel.cpp\
   ../../../../yse/listener.cpp\
   ../../../../yse/log.cpp\
-  ../../../../yse/sound.cpp\
   ../../../../yse/system.cpp\
   ../../../Source/parts/ChannelTreeItem.cpp\
   ../../../Source/parts/yseTimerThread.cpp\

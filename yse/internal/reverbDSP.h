@@ -11,17 +11,14 @@
 #ifndef REVERBDSP_H_INCLUDED
 #define REVERBDSP_H_INCLUDED
 
-#include "../headers/types.hpp"
-#include "../dsp/sample.hpp"
-#include "../dsp/ramp.hpp"
-#include "../dsp/delay.hpp"
-#include "../dsp/modules/hilbert.hpp"
-#include "../dsp/dspObject.hpp"
-#include "../dsp/oscillators.hpp"
-#include "../reverb/reverbImplementation.h"
-#include "../classes.hpp"
 #include <vector>
 #include "JuceHeader.h"
+#include "../dsp/delay.hpp"
+#include "../dsp/modules/hilbert.hpp"
+#include "../dsp/oscillators.hpp"
+#include "../dsp/ramp.hpp"
+#include "../dsp/dspObject.hpp"
+#include "../reverb/reverb.hpp"
 
 #define COMBS 8
 #define	APASS	4

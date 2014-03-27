@@ -9,8 +9,12 @@
 */
 
 #include "virtualFinder.h"
-#include "JuceHeader.h"
 #include <cmath>
+
+YSE::virtualFinder & YSE::VirtualSoundFinder() {
+  static virtualFinder vf(10);
+  return vf;
+}
 
 YSE::virtualFinder::virtualFinder(Int resolution) : resolution(resolution), limit(50), maximum(0.f), calculatedMax(10.f) {
   bin.resize(resolution, 0);

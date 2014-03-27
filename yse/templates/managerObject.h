@@ -11,11 +11,8 @@
 #ifndef MANAGEROBJECT_H_INCLUDED
 #define MANAGEROBJECT_H_INCLUDED
 
-#include "JuceHeader.h"
+#include "../headers/types.hpp"
 #include <forward_list>
-#include "../internal/global.h"
-#include <atomic>
-#include "../internal/global.h"
 
 namespace YSE {
   namespace TEMPLATE {
@@ -29,7 +26,7 @@ namespace YSE {
    
     public:
       typedef typename managerObject<SUBSYSTEM> super;
-      typedef typename SUBSYSTEM::managerObject derrivedManager;
+      //typedef typename SUBSYSTEM::managerObject derrivedManager;
       typedef typename SUBSYSTEM::interfaceObject derrivedInterface;
       typedef typename SUBSYSTEM::implementationObject derrivedImplementation;
 
@@ -198,6 +195,10 @@ namespace YSE {
         return implementations.empty();
       }
 
+    protected:
+      // Once an object is ready for use, a pointer is placed in this container. The manager will
+      // update and sync all these objects during the dsp callback function
+      std::forward_list<derrivedImplementation*> inUse;
 
     private:
       setupJob mgrSetup;
@@ -212,10 +213,6 @@ namespace YSE {
       // at the same time you should be expecting some latency while they all get loaded
       // anyway.)
       std::forward_list<std::atomic<derrivedImplementation*>> toLoad;
-      
-      // Once an object is ready for use, a pointer is placed in this container. The manager will
-      // update and sync all these objects during the dsp callback function
-      std::forward_list<derrivedImplementation*> inUse;
 
       // this is the list of all implementationObjects for this subSystem, whether they are ready, 
       // need to be setup or are about to be deleted. This list is not accessed from the 

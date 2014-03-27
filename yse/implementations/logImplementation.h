@@ -11,8 +11,8 @@
 #ifndef LOGIMPLEMENTATION_H_INCLUDED
 #define LOGIMPLEMENTATION_H_INCLUDED
 
-#include "JuceHeader.h"
 #include "../headers/enums.hpp"
+#include "JuceHeader.h"
 #include "../headers/types.hpp"
 
 namespace YSE {

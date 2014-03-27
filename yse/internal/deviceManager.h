@@ -13,7 +13,7 @@
 
 #include "JuceHeader.h"
 #include "../headers/types.hpp"
-#include "../classes.hpp"
+#include "../channel/channelImplementation.h"
 
 namespace YSE {
   namespace INTERNAL {
@@ -35,8 +35,8 @@ namespace YSE {
       virtual void audioDeviceStopped();
       virtual void audioDeviceError(const juce::String & errorMessage);
 
-      void setMaster(channelImplementation * ptr); // pointer to main channel
-      channelImplementation & getMaster();
+      void setMaster(CHANNEL::implementationObject * ptr); // pointer to main channel
+      CHANNEL::implementationObject & getMaster();
       //std::vector<audioDevice> deviceList;
       //Bool updateDevices();
       //Bool openDevice(UInt ID, Int outChannels);
@@ -50,7 +50,7 @@ namespace YSE {
       Bool started;
       UInt bufferPos;
 
-      channelImplementation * master;
+      CHANNEL::implementationObject * master;
       AudioDeviceManager audioDeviceManager;
 
     };

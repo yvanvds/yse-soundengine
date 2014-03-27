@@ -11,9 +11,9 @@
 #ifndef TIME_H_INCLUDED
 #define TIME_H_INCLUDED
 
-#include "../headers/types.hpp"
-#include "JuceHeader.h"
 #include <ctime>
+#include "JuceHeader.h"
+#include "../headers/types.hpp"
 
 namespace YSE {
   namespace INTERNAL {

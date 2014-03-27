@@ -10,9 +10,9 @@
 
 #include "underWaterEffect.h"
 #include "global.h"
-#include "../dsp/math.hpp"
 #include "../implementations/listenerImplementation.h"
-#include "../internal/channelManager.h"
+#include "../dsp/math.hpp"
+
 
 YSE::INTERNAL::underWaterEffect & YSE::INTERNAL::UnderWaterEffect() {
   static underWaterEffect u;
@@ -26,12 +26,12 @@ YSE::INTERNAL::underWaterEffect::underWaterEffect() : activeChannel(nullptr) {
   verb.setActive(false);
 }
 
-YSE::INTERNAL::underWaterEffect & YSE::INTERNAL::underWaterEffect::channel(INTERNAL::channelImplementation * ch) {
+YSE::INTERNAL::underWaterEffect & YSE::INTERNAL::underWaterEffect::channel(CHANNEL::implementationObject * ch) {
   activeChannel = ch;
   return *this;
 }
 
-YSE::INTERNAL::channelImplementation * YSE::INTERNAL::underWaterEffect::channel() {
+YSE::CHANNEL::implementationObject * YSE::INTERNAL::underWaterEffect::channel() {
   return activeChannel;
 }
 

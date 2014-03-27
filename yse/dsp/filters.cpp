@@ -9,10 +9,8 @@
 */
 
 #include "filters.hpp"
-#include "../headers/enums.hpp"
-#include "../headers/constants.hpp"
-#include "../utils/misc.hpp"
 #include <math.h>
+#include "../utils/misc.hpp"
 
 YSE::DSP::filterBase::filterBase() : freq(0), gain(0), q(0),
 last(0), previous(0),

@@ -9,8 +9,6 @@
 */
 
 #include "delay.hpp"
-#include "../headers/types.hpp"
-#include "../headers/constants.hpp"
 
 #define XTRASAMPS 4
 #define DEFDELVS 64

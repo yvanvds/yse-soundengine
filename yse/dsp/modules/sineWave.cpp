@@ -10,7 +10,6 @@
 
 #include "sineWave.hpp"
 #include "../../utils/misc.hpp"
-#include "../../headers/constants.hpp"
 
 namespace YSE {
   namespace DSP {

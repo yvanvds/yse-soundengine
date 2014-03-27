@@ -9,7 +9,6 @@
 */
 
 #include "logImplementation.h"
-#include "../headers/defines.hpp"
 
 juce_ImplementSingleton(YSE::INTERNAL::logImplementation)
 

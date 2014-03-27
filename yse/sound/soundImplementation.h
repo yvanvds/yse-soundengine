@@ -11,18 +11,15 @@
 #ifndef SOUNDIMPLEMENTATION_H_INCLUDED
 #define SOUNDIMPLEMENTATION_H_INCLUDED
 
-#include "JuceHeader.h"
-#include "../internal/soundFile.h"
-#include "../utils/vector.hpp"
-#include "../dsp/ramp.hpp"
-#include "../dsp/dspObject.hpp"
 #include <forward_list>
-#include "../classes.hpp"
-#include "../sound.hpp"
+#include "../templates/implementationObject.h"
+#include "sound.hpp"
+#include "soundInterface.hpp"
+#include "soundMessage.h"
+#include "../dsp/ramp.hpp"
 
 namespace YSE {
-  namespace INTERNAL {
-    class soundSetupJob;
+  namespace SOUND {
 
     /**
         This is the internal counterpart of a sound. Maintenance of these objects is done internally.
@@ -30,7 +27,7 @@ namespace YSE {
         by the soundManager object, in the soundObjects forward_list.
     */
 
-    class soundImplementation {
+    class implementationObject : public TEMPLATE::implementationObject<soundSubSystem> {
     public:
 
       /** Constructor
@@ -38,8 +35,7 @@ namespace YSE {
                         to this implementation. Implementations will be moved to a 
                         eraser queue when the sound object goes out of scope.
       */
-      soundImplementation(sound * head);
-     ~soundImplementation();
+      implementationObject(interfaceObject * head);
 
       /** Set up a new sound object. This is called by the sound class. When creating a 
           sound (which must be loaded from disk), the initial state will be 'loading'. The object
@@ -55,7 +51,7 @@ namespace YSE {
 
           @return           False if the sound can't be found or opened. True otherwise.
       */
-      Bool create(const std::string &fileName, const channel * const ch, Bool loop, Flt volume, Bool streaming);
+      Bool create(const std::string &fileName, CHANNEL::interfaceObject * ch, Bool loop, Flt volume, Bool streaming);
 
       /** Initialize some settings for the sound after creation.
           @param head       Passes a pointer to the actual sound object (created by the user)
@@ -72,8 +68,13 @@ namespace YSE {
              lock.
           2. The rest of the update function can run together with the dsp functions. It doesn't
              have to be locked.
+
+          This function is overwritten from the base class because in cause of a sound, we need 
+          a short fade-out before we actually release a sound.
       */
-      void sync();
+      virtual void sync();
+
+      void parseMessage(const messageObject & message);
 
       /** This function runs in the global System().update() and updates position, velocity 
           and other stuff that should be calculated frequently but it not directly related 
@@ -96,29 +97,33 @@ namespace YSE {
           connected to this sound is ready. If so, it will setup the buffers needed for this
           sound.
       */
-      void setup();
+      void implementationSetup();
 
       /** This function is called by soundManager::update (from dsp callback) and verifies
           if the sound is ready to be played. It will then be moved from soundsToLoad
           to soundsInUse. 
       */
-      Bool readyCheck();
+      Bool implementationReadyCheck();
+
+      virtual void doThisWhenReady();
 
       /** This is a helper function for the standard forward_list sorting. It compares 
           soundImplementations on the basis of their virtualDistance. That value indicates
           how important the sound is compared to other sounds. It is used to find out
           which sounds should be virtual.
       */
-      static bool sortSoundObjects(soundImplementation *, soundImplementation *);
-      static bool canBeDeleted(const soundImplementation & impl);
-      static bool canBeRemovedFromLoading(const std::atomic<soundImplementation*> & elm);
+      static bool sortSoundObjects(implementationObject *, implementationObject *);
+
+      /** This function will be called by base class destructor
+      */
+      void exit();
 
     private:
       void dspFunc_parseIntent();
       void dspFunc_calculateGain(Int channel, Int source);
 
       // for streaming sounds
-      soundFile * file;
+      INTERNAL::soundFile * file;
 
       // buffers
       std::vector<DSP::sample> filebuffer;
@@ -187,28 +192,16 @@ namespace YSE {
       DSP::dspObject * post_dsp;
       void addDSP(DSP::dspObject & ptr);
 
-      INTERNAL::channelImplementation * parent;
-      sound * head; // will contain a pointer to the public part of the sound
-
-
-
-
-
+      CHANNEL::implementationObject * parent;
    
       UInt startOffset;
       UInt stopOffset;
 
       // info 
       Bool streaming_dsp;
-      
-      std::atomic<SOUND_IMPLEMENTATION_STATE> objectStatus;
 
-      friend class sound;
-      friend class INTERNAL::channelImplementation;
-      friend class channelManager;
-      friend class soundManager;
-      friend class INTERNAL::soundSetupJob;
-      
+      friend class YSE::SOUND::managerObject;
+      friend class YSE::CHANNEL::implementationObject;
     };
   }
 

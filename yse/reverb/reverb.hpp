@@ -42,4 +42,4 @@ namespace YSE {
 
 
 
-#endif  // TRAITOBJECT_H_INCLUDED
+#endif  // REVERB_H_INCLUDED

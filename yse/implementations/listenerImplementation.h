@@ -11,8 +11,8 @@
 #ifndef LISTENERIMPLEMENTATION_H_INCLUDED
 #define LISTENERIMPLEMENTATION_H_INCLUDED
 
-#include "../utils/vector.hpp"
 #include "JuceHeader.h"
+#include "../utils/vector.hpp"
 
 namespace YSE {
   namespace INTERNAL {
@@ -34,7 +34,7 @@ namespace YSE {
       aVec forward;
       aVec vel;
 
-      friend class soundImplementation;
+      friend class SOUND::implementationObject;
       friend class channelImplementation;
       friend class underWaterEffect;
       friend class listener;

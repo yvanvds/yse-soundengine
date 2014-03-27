@@ -11,10 +11,6 @@
 #ifndef IMPLEMENTATIONOBJECT_H_INCLUDED
 #define IMPLEMENTATIONOBJECT_H_INCLUDED
 
-#include <atomic>
-#include "../headers/enums.hpp"
-#include "../headers/defines.hpp"
-#include "../headers/types.hpp"
 #include "../utils/lfQueue.hpp"
 
 namespace YSE {
@@ -36,7 +32,9 @@ namespace YSE {
       typedef typename SUBSYSTEM::implementationObject derrivedImplementation;
 
       // An implementation object can only by created with a pointer to respective interface supplied
-      implementationObject(derrivedInterface * head) : objectStatus(OBJECT_CONSTRUCTED), head(head) {}
+      implementationObject(derrivedInterface * head) : objectStatus(OBJECT_CONSTRUCTED), head(head) {
+        head->setInterfacePointer(&(head));
+      }
       
       ~implementationObject() {
         exit();
@@ -104,7 +102,9 @@ namespace YSE {
         if (objectStatus >= OBJECT_CREATED) {
           implementationSetup();
         }
-        objectStatus = OBJECT_SETUP;
+        if (objectStatus != OBJECT_DELETE) {
+          objectStatus = OBJECT_SETUP;
+        }
       }
 
       /**
@@ -130,7 +130,7 @@ namespace YSE {
         function above. (You don't have to call it yourself as this is done by the
         TEMPLATE::managerObject.)
       */
-      void sync() {
+      virtual void sync() {
         if (head.load() == nullptr) {
           objectStatus = OBJECT_RELEASE;
           return;
@@ -175,7 +175,13 @@ namespace YSE {
       This function is used by the forward_list remove_if function
       */
       static bool canBeRemovedFromLoading(const std::atomic<derrivedImplementation*> & impl) {
-        return impl.load()->objectStatus == OBJECT_READY;
+        if (impl.load()->objectStatus == OBJECT_READY
+          || impl.load()->objectStatus == OBJECT_RELEASE
+          || impl.load()->objectStatus == OBJECT_DELETE) {
+          return true;
+        }
+
+        return false;
       }
 
       

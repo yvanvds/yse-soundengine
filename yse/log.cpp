@@ -10,8 +10,6 @@
 
 #include "log.hpp"
 #include "internal/global.h"
-#include "implementations/logImplementation.h"
-#include "headers/enums.hpp"
 
 YSE::log & YSE::Log() {
   static log l;

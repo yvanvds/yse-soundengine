@@ -9,11 +9,10 @@
 */
 
 #include "reverbManager.h"
-#include "../implementations/channelImplementation.h"
-#include "../internal/channelManager.h"
-#include "../implementations/listenerImplementation.h"
-#include "reverb.hpp"
+#include "../internal/reverbDSP.h"
 #include "../internal/global.h"
+#include "../headers/enums.hpp"
+#include "../implementations/listenerImplementation.h"
 
 juce_ImplementSingleton(YSE::REVERB::managerObject)
 
@@ -155,11 +154,11 @@ void YSE::REVERB::managerObject::update() {
   }
 }
 
-void YSE::REVERB::managerObject::attachToChannel(YSE::INTERNAL::channelImplementation * ptr) {
+void YSE::REVERB::managerObject::attachToChannel(YSE::CHANNEL::implementationObject * ptr) {
   reverbChannel = ptr;
 }
 
-void YSE::REVERB::managerObject::process(YSE::INTERNAL::channelImplementation * ptr) {
+void YSE::REVERB::managerObject::process(YSE::CHANNEL::implementationObject * ptr) {
   if (ptr != reverbChannel) return;
   if (!calculatedValues.active) return;
   reverbDSPObject->set(calculatedValues);

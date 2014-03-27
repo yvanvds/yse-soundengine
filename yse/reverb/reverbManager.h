@@ -11,12 +11,12 @@
 #ifndef REVERBMANAGER_H_INCLUDED
 #define REVERBMANAGER_H_INCLUDED
 
-#include "../internal/reverbDSP.h"
 #include "JuceHeader.h"
 #include "reverb.hpp"
-#include "reverbImplementation.h"
 #include "../templates/managerObject.h"
-#include <forward_list>
+#include "reverbInterface.hpp"
+#include "reverbImplementation.h"
+#include "reverbMessage.h"
 
 namespace YSE {
   namespace REVERB {
@@ -42,11 +42,11 @@ namespace YSE {
           with reverb. If you really want to use more than one reverb, it can be added 
           as a post-DSPobject to a sound or a channel.
       */
-      void attachToChannel(INTERNAL::channelImplementation * ptr);
+      void attachToChannel(CHANNEL::implementationObject * ptr);
 
       /** If the reverb is attached to a channel, it will be applied here
       */
-      void process(INTERNAL::channelImplementation * ptr); 
+      void process(CHANNEL::implementationObject * ptr); 
 
       /** This function is called by the system if the number of channels changes, because
           it needs to change the reverb output channels to reflect this.
@@ -63,7 +63,7 @@ namespace YSE {
       
       std::forward_list<reverb *> reverbs; // these are reverb settings
       INTERNAL::reverbDSP * reverbDSPObject; // this is the actual reverb object (there can be only one)
-      INTERNAL::channelImplementation * reverbChannel; // < the channel on which to apply this reverb
+      CHANNEL::implementationObject * reverbChannel; // < the channel on which to apply this reverb
 
       reverb globalReverb;
       reverb calculatedValues;

@@ -11,8 +11,8 @@
 #ifndef VIRTUALFINDER_H_INCLUDED
 #define VIRTUALFINDER_H_INCLUDED
 
-#include "../headers/types.hpp"
 #include <vector>
+#include "../headers/types.hpp"
 
 namespace YSE {
 
@@ -37,6 +37,9 @@ namespace YSE {
     std::vector<Int> bin;
   };
 
+  virtualFinder & VirtualSoundFinder();
 }
+
+
 
 #endif  // VIRTUALFINDER_H_INCLUDED

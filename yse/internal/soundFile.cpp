@@ -10,11 +10,7 @@
 
 #include "soundFile.h"
 #include "global.h"
-#include "../headers/constants.hpp"
-#include "../implementations/logImplementation.h"
-#include "../internal/soundManager.h"
-#include "../dsp/sample.hpp"
-#include "../internal/time.h"
+#include "time.h"
 
 Bool YSE::INTERNAL::soundFile::create(Bool stream) {
   _streaming = stream;

@@ -11,6 +11,7 @@
 #ifndef RAMP_H_INCLUDED
 #define RAMP_H_INCLUDED
 
+#include "../headers/defines.hpp"
 #include "sample.hpp"
 
 namespace YSE {

@@ -8,6 +8,12 @@
     <Filter Include="YseDemo\YSE">
       <UniqueIdentifier>{D1F76438-5187-779B-DD8A-2C4DFC4695BC}</UniqueIdentifier>
     </Filter>
+    <Filter Include="YseDemo\YSE\sound">
+      <UniqueIdentifier>{A7A4D5EB-38C3-EA61-5976-41CD757A7471}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="YseDemo\YSE\channel">
+      <UniqueIdentifier>{72F3C6FD-A976-D08A-2E8C-90FB15D72432}</UniqueIdentifier>
+    </Filter>
     <Filter Include="YseDemo\YSE\reverb">
       <UniqueIdentifier>{5132E66F-9E4E-ABC1-7A0E-69CED238CCB5}</UniqueIdentifier>
     </Filter>
@@ -289,6 +295,24 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\yse\sound\soundInterface.cpp">
+      <Filter>YseDemo\YSE\sound</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\sound\soundImplementation.cpp">
+      <Filter>YseDemo\YSE\sound</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\sound\soundManager.cpp">
+      <Filter>YseDemo\YSE\sound</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\channel\channelImplementation.cpp">
+      <Filter>YseDemo\YSE\channel</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\channel\channelInterface.cpp">
+      <Filter>YseDemo\YSE\channel</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\channel\channelManager.cpp">
+      <Filter>YseDemo\YSE\channel</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\yse\reverb\reverbImplementation.cpp">
       <Filter>YseDemo\YSE\reverb</Filter>
     </ClCompile>
@@ -331,22 +355,13 @@
     <ClCompile Include="..\..\..\yse\dsp\sample.cpp">
       <Filter>YseDemo\YSE\dsp</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\yse\implementations\channelImplementation.cpp">
-      <Filter>YseDemo\YSE\implementations</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\yse\implementations\listenerImplementation.cpp">
       <Filter>YseDemo\YSE\implementations</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\yse\implementations\logImplementation.cpp">
       <Filter>YseDemo\YSE\implementations</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\yse\implementations\soundImplementation.cpp">
-      <Filter>YseDemo\YSE\implementations</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\yse\internal\virtualFinder.cpp">
-      <Filter>YseDemo\YSE\internal</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\yse\internal\channelManager.cpp">
       <Filter>YseDemo\YSE\internal</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\yse\internal\deviceManager.cpp">
@@ -364,9 +379,6 @@
     <ClCompile Include="..\..\..\yse\internal\soundFile.cpp">
       <Filter>YseDemo\YSE\internal</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\yse\internal\soundManager.cpp">
-      <Filter>YseDemo\YSE\internal</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\yse\internal\time.cpp">
       <Filter>YseDemo\YSE\internal</Filter>
     </ClCompile>
@@ -376,16 +388,10 @@
     <ClCompile Include="..\..\..\yse\utils\vector.cpp">
       <Filter>YseDemo\YSE\utils</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\yse\channel.cpp">
-      <Filter>YseDemo\YSE</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\yse\listener.cpp">
       <Filter>YseDemo\YSE</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\yse\log.cpp">
-      <Filter>YseDemo\YSE</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\yse\sound.cpp">
       <Filter>YseDemo\YSE</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\yse\system.cpp">
@@ -1527,6 +1533,39 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\..\yse\internalHeaders.h">
+      <Filter>YseDemo\YSE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\sound\soundMessage.h">
+      <Filter>YseDemo\YSE\sound</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\sound\sound.hpp">
+      <Filter>YseDemo\YSE\sound</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\sound\soundInterface.hpp">
+      <Filter>YseDemo\YSE\sound</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\sound\soundImplementation.h">
+      <Filter>YseDemo\YSE\sound</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\sound\soundManager.h">
+      <Filter>YseDemo\YSE\sound</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\channel\channelMessage.h">
+      <Filter>YseDemo\YSE\channel</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\channel\channel.hpp">
+      <Filter>YseDemo\YSE\channel</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\channel\channelImplementation.h">
+      <Filter>YseDemo\YSE\channel</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\channel\channelInterface.hpp">
+      <Filter>YseDemo\YSE\channel</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\channel\channelManager.h">
+      <Filter>YseDemo\YSE\channel</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\yse\reverb\reverb.hpp">
       <Filter>YseDemo\YSE\reverb</Filter>
     </ClInclude>
@@ -1599,22 +1638,13 @@
     <ClInclude Include="..\..\..\yse\headers\types.hpp">
       <Filter>YseDemo\YSE\headers</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\yse\implementations\channelImplementation.h">
-      <Filter>YseDemo\YSE\implementations</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\yse\implementations\listenerImplementation.h">
       <Filter>YseDemo\YSE\implementations</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\yse\implementations\logImplementation.h">
       <Filter>YseDemo\YSE\implementations</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\yse\implementations\soundImplementation.h">
-      <Filter>YseDemo\YSE\implementations</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\yse\internal\virtualFinder.h">
-      <Filter>YseDemo\YSE\internal</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\yse\internal\channelManager.h">
       <Filter>YseDemo\YSE\internal</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\yse\internal\deviceManager.h">
@@ -1630,9 +1660,6 @@
       <Filter>YseDemo\YSE\internal</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\yse\internal\soundFile.h">
-      <Filter>YseDemo\YSE\internal</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\yse\internal\soundManager.h">
       <Filter>YseDemo\YSE\internal</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\yse\internal\time.h">
@@ -1653,9 +1680,6 @@
     <ClInclude Include="..\..\..\yse\utils\vector.hpp">
       <Filter>YseDemo\YSE\utils</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\yse\channel.hpp">
-      <Filter>YseDemo\YSE</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\yse\classes.hpp">
       <Filter>YseDemo\YSE</Filter>
     </ClInclude>
@@ -1663,9 +1687,6 @@
       <Filter>YseDemo\YSE</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\yse\log.hpp">
-      <Filter>YseDemo\YSE</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\yse\sound.hpp">
       <Filter>YseDemo\YSE</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\yse\system.hpp">

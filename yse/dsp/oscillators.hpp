@@ -11,8 +11,10 @@
 #ifndef OSCILLATORS_H_INCLUDED
 #define OSCILLATORS_H_INCLUDED
 
-#include "sample.hpp"
+#include "../headers/defines.hpp"
+#include "../headers/types.hpp"
 #include "../headers/constants.hpp"
+#include "sample.hpp"
 
 /* Constructor aside, all these objects should be used in dsp mode only */
 

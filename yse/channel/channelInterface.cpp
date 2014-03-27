@@ -8,61 +8,40 @@
   ==============================================================================
 */
 
-#include "channel.hpp"
-#include "utils/misc.hpp"
-#include "internal/global.h"
-#include "implementations/channelImplementation.h"
-#include "implementations/logImplementation.h"
-#include "internal/deviceManager.h"
-#include "internal/channelManager.h"
-#include "reverb/reverbManager.h"
+#include "channelInterface.hpp"
+#include "../internal/global.h"
+#include "../utils/misc.hpp"
 
-YSE::channel::channel() : pimpl(nullptr), allowVirtual(true), volume(1.f)
+YSE::CHANNEL::interfaceObject::interfaceObject() : allowVirtual(true), volume(1.f)
 {}
 
-YSE::channel& YSE::channel::create(const char * name, channel& parent) {
-  if (pimpl) {
-    INTERNAL::Global.getLog().emit(E_CHANNEL_OBJECT_IN_USE);
-    /* if you get an assertion here, it means you're using the 
-       create function on a channel that is already created.
-    */
-    jassertfalse
-  }
-  
-  pimpl = INTERNAL::Global.getChannelManager().addImplementation(name, this);
+YSE::CHANNEL::interfaceObject & YSE::CHANNEL::interfaceObject::create(const char * name, channel& parent) {
+  super::create();
+  this->name = name;
+
+  pimpl = INTERNAL::Global.getChannelManager().addImplementation(this);
   pimpl->parent = parent.pimpl;
   INTERNAL::Global.getChannelManager().setup(pimpl);
   return *this;
 }
 
 void YSE::channel::createGlobal() {
-  if (pimpl) {
-    INTERNAL::Global.getLog().emit(E_CHANNEL_OBJECT_IN_USE);
-    /* if you get an assertion here, it means you're using the
-    create function on a channel that is already created.
-    */
-    jassertfalse
-  }
+  super::create();
+  this->name = "Master channel";
 
   // the global channel will be created instantly because no audio
   // thread can be running before this is ready anyway 
-  pimpl = INTERNAL::Global.getChannelManager().addImplementation("Master channel", this);  
+  pimpl = INTERNAL::Global.getChannelManager().addImplementation(this);  
   INTERNAL::Global.getChannelManager().setMaster(pimpl);
 }
 
-YSE::channel::~channel() {
-  if (pimpl != nullptr) {
-    pimpl->head = nullptr;
-    pimpl = nullptr;
-  }
-}
 
 YSE::channel& YSE::channel::setVolume(Flt value) {
   Clamp(value, 0.f, 1.f);
-  channelMessage m;
-  m.message = CM_VOLUME;
+  messageObject m;
+  m.ID = VOLUME;
   m.floatValue = value;
-  messages.push(m);
+  pimpl->sendMessage(m);
   volume = value; // only used for getVolume
   return (*this);
 }
@@ -72,18 +51,18 @@ Flt YSE::channel::getVolume() {
 }
 
 YSE::channel& YSE::channel::moveTo(channel& parent) {
-  channelMessage m;
-  m.message = CM_MOVE;
+  messageObject m;
+  m.ID = MOVE;
   m.ptrValue = &parent;
-  messages.push(m);
+  pimpl->sendMessage(m);
   return (*this);
 }
 
 YSE::channel& YSE::channel::setVirtual(Bool value) {
-  channelMessage m;
-  m.message = CM_VIRTUAL;
+  messageObject m;
+  m.ID = VIRTUAL;
   m.boolValue = true;
-  messages.push(m);
+  pimpl->sendMessage(m);
   allowVirtual = value;
   return (*this);
 }
@@ -93,10 +72,10 @@ bool YSE::channel::getVirtual() {
 }
 
 YSE::channel& YSE::channel::attachReverb() { 
-  channelMessage m;
-  m.message = CM_ATTACH_REVERB;
+  messageObject m;
+  m.ID = ATTACH_REVERB;
   m.boolValue = true;
-  messages.push(m);
+  pimpl->sendMessage(m);
   return (*this);
 }
 

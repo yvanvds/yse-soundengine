@@ -11,10 +11,10 @@
 #ifndef SOURCE_H_INCLUDED
 #define SOURCE_H_INCLUDED
 
-#include "../headers/defines.hpp"
+
+#include <vector>
 #include "sample.hpp"
 #include "../headers/enums.hpp"
-#include <vector>
 
 namespace YSE {
   namespace DSP {

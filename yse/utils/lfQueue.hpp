@@ -23,29 +23,7 @@
 
 namespace YSE {
 
-  struct channelMessage {
-    CHANNEL_MESSAGE message;
-    union {
-      Bool   boolValue;
-      Flt    floatValue;
-      Int    intValue;
-      void * ptrValue;
-    };
-  };
-
-  struct soundMessage {
-    SOUND_MESSAGE message;
-    union {
-      Bool   boolValue;
-      Flt    vecValue[3];
-      Flt    floatValue;
-      UInt   uintValue;
-      void * ptrValue;
-      SOUND_INTENT intentValue;
-    };
-  };
-
-  // ©2013 Cameron Desrochers.
+  // )2013 Cameron Desrochers.
   // Distributed under the simplified BSD license (see the license file that
   // should have come with this header).
 

@@ -9,21 +9,19 @@
 */
 
 #include "soundImplementation.h"
-#include "channelImplementation.h"
 #include "../internal/global.h"
-#include "../implementations/logImplementation.h"
-#include "../implementations/listenerImplementation.h"
-#include "../internal/time.h"
 #include "../internal/settings.h"
-#include "../internal/soundManager.h"
-#include "../internal/channelManager.h"
+#include "../implementations/listenerImplementation.h"
 #include "../utils/misc.hpp"
+#include "../internal/virtualFinder.h"
 #include "../system.hpp"
-#include "../sound.hpp"
+#include "../internal/time.h"
+#include "../channel/channelInterface.hpp"
+#include "../channel/channelImplementation.h"
 
 
-YSE::INTERNAL::soundImplementation::soundImplementation(sound * head) :
-  objectStatus(SIS_CONSTRUCTED),
+YSE::SOUND::implementationObject::implementationObject(interfaceObject * head) :
+  super(head),
   parent(nullptr),
   looping(false),
   spread(0),
@@ -53,7 +51,6 @@ YSE::INTERNAL::soundImplementation::soundImplementation(sound * head) :
   startOffset(0),
   stopOffset(0),
   file(nullptr),
-  head(head),
   filePtr(NULL),
   newPos(0.f),
   lastPos(0.f),
@@ -64,11 +61,11 @@ YSE::INTERNAL::soundImplementation::soundImplementation(sound * head) :
   fader.set(0.5f);
 
 #if defined YSE_DEBUG
-  Global.getLog().emit(E_SOUND_ADDED);
+  INTERNAL::Global.getLog().emit(E_SOUND_ADDED);
 #endif
 }
 
-YSE::INTERNAL::soundImplementation::~soundImplementation() {
+void YSE::SOUND::implementationObject::exit() {
   // only streams should delete their source. Other files are shared.
   if (file != nullptr) {
     file->release();
@@ -76,8 +73,8 @@ YSE::INTERNAL::soundImplementation::~soundImplementation() {
   if (post_dsp && post_dsp->calledfrom) post_dsp->calledfrom = nullptr;
 }
 
-bool YSE::INTERNAL::soundImplementation::create(const std::string &fileName, const channel * const ch, Bool loop, Flt volume, Bool streaming) {
-  parent = ch->pimpl;
+bool YSE::SOUND::implementationObject::create(const std::string &fileName, CHANNEL::interfaceObject * ch, Bool loop, Flt volume, Bool streaming) {
+  parent = ch->getImplementation();
   looping = loop;
   fader.set(volume);
 
@@ -85,19 +82,19 @@ bool YSE::INTERNAL::soundImplementation::create(const std::string &fileName, con
   ioFile = File::getCurrentWorkingDirectory().getChildFile(juce::String(fileName));
 
   if (!ioFile.existsAsFile()) {
-    Global.getLog().emit(E_FILE_ERROR, "file not found for " + ioFile.getFullPathName().toStdString());
+    INTERNAL::Global.getLog().emit(E_FILE_ERROR, "file not found for " + ioFile.getFullPathName().toStdString());
     return false;
   }
 
   if (!streaming) {
-    file = Global.getSoundManager().addFile(ioFile);
+    file = INTERNAL::Global.getSoundManager().addFile(ioFile);
     status_dsp = SS_STOPPED;
     status_upd = SS_STOPPED;
 
     if (file == nullptr) {
       return false;
     } else {
-      objectStatus = SIS_CREATED;
+      objectStatus = OBJECT_CREATED;
       return true;
     }
   }
@@ -122,154 +119,149 @@ bool YSE::INTERNAL::soundImplementation::create(const std::string &fileName, con
   return false;
 }
 
-void YSE::INTERNAL::soundImplementation::setup() {
-  if (objectStatus == SIS_CREATED) {
-    if (file->getState() == READY) {
-      filebuffer.resize(file->channels());
-      buffer = &filebuffer;
-      lastGain.resize(Global.getChannelManager().getNumberOfOutputs());
-      head->length = file->length();
-      for (UInt i = 0; i < lastGain.size(); i++) {
-        lastGain[i].resize(buffer->size(), 0.0f);
-      }
-
-      objectStatus = SIS_LOADED;
+void YSE::SOUND::implementationObject::implementationSetup() {
+  if (file->getState() == INTERNAL::FILESTATE::READY) {
+    filebuffer.resize(file->channels());
+    buffer = &filebuffer;
+    lastGain.resize(INTERNAL::Global.getChannelManager().getNumberOfOutputs());
+    head.load()->length = file->length();
+    for (UInt i = 0; i < lastGain.size(); i++) {
+      lastGain[i].resize(buffer->size(), 0.0f);
     }
-    else if (file->getState() == INVALID) {
-      file->release();
-      file = nullptr;
-    }
+  }
+  else if (file->getState() == INTERNAL::FILESTATE::INVALID) {
+    file->release();
+    file = nullptr;
+    objectStatus = OBJECT_DELETE;
   }
 }
 
-Bool YSE::INTERNAL::soundImplementation::readyCheck() {
-  if (objectStatus == SIS_LOADED) {
-    // make sure the number of is not changed since setup
-    if (lastGain.size() == Global.getChannelManager().getNumberOfOutputs()) {
-      objectStatus = SIS_READY;
-      return true;
-    }
-    else {
-      // setup has changed, return to loading stage
-      objectStatus = SIS_CREATED;
-    }
-  }
-  return false;
+Bool YSE::SOUND::implementationObject::implementationReadyCheck() {
+  return lastGain.size() == INTERNAL::Global.getChannelManager().getNumberOfOutputs();
 }
 
-void YSE::INTERNAL::soundImplementation::sync() {
-  if (head == nullptr) {
-    objectStatus = SIS_DONE;
+void YSE::SOUND::implementationObject::doThisWhenReady() {
+  parent->connect(this);
+}
 
+void YSE::SOUND::implementationObject::sync() {
+  if (head.load() == nullptr) {
+    objectStatus = OBJECT_DONE;
+    
     // sound head is destructed, so stop and remove
     if (status_dsp != SS_STOPPED || SS_WANTSTOSTOP) {
       status_dsp = SS_WANTSTOSTOP;
     }
     else if (status_dsp == SS_STOPPED) {
-      objectStatus = SIS_RELEASE;
+      objectStatus = OBJECT_RELEASE;
     }
     return;
   }
 
-  // get new values from head
-  soundMessage temp;
-  while (head->messages.try_pop(temp)) {
-    switch (temp.message) {
-      case SM_POS: {
-        pos.x = temp.vecValue[0];
-        pos.y = temp.vecValue[1];
-        pos.z = temp.vecValue[2];
-        break;
-      }
-      case SM_SPREAD: {
-        spread = temp.floatValue;
-        break;
-      }
-      case SM_VOLUME_VALUE: {
-        setVolume = true;
-        volumeTime = 0.f; // assume zero, will be set by SM_VOLUME_TIME if needed
-        volumeValue = temp.floatValue;
-        break;
-      }
-      case SM_VOLUME_TIME: {
-        volumeTime = static_cast<Flt>(temp.uintValue);
-        break;
-      }
-      case SM_SPEED: {
-        pitch = temp.floatValue;
-        break;
-      }
-      case SM_SIZE: {
-        size = temp.floatValue;
-        break;
-      }
-      case SM_LOOP: {
-        looping = temp.boolValue;
-        break;
-      }
-      case SM_INTENT: {
-        headIntent = temp.intentValue;
-        break;
-      }
-      case SM_OCCLUSION: {
-        occlusionActive = temp.boolValue;
-        break;
-      }
-      case SM_DSP: {
-        addDSP(*(DSP::dspObject *)temp.ptrValue);
-        break;
-      }
-      case SM_TIME: {
-        newFilePos = temp.floatValue;
-        setFilePos = true;
-        break;
-      }
-      case SM_RELATIVE: {
-        relative = temp.boolValue;
-        break;
-      }
-      case SM_DOPPLER: {
-        doppler = temp.boolValue;
-        break;
-      }
-      case SM_PAN2D: {
-        relative = temp.boolValue;
-        doppler = !temp.boolValue;
-        break;
-      }
-      case SM_FADE_AND_STOP: {
-        fadeAndStopTime = static_cast<Flt>(temp.uintValue);
-        setFadeAndStop = true;
-        break;
-      }
-      case SM_MOVE: {
-        ((channel*)temp.ptrValue)->pimpl->connect(this);
-        break;
-      }
-
-    }
+  derrivedMessage message;
+  while (messages.try_pop(message)) {
+    parseMessage(message);
   }
-
 
   // sync dsp values
   currentVolume_upd = currentVolume_dsp;
-  head->time = currentFilePos;
+  head.load()->time = currentFilePos;
   status_upd = status_dsp;
-  head->status = status_upd;
+  head.load()->status = status_upd;
 }
 
-void YSE::INTERNAL::soundImplementation::update() {
+void YSE::SOUND::implementationObject::parseMessage(const messageObject & message) {
+  // get new values from head
+  switch (message.ID) {
+    case MESSAGE::POSITION: {
+      pos.x = message.vecValue[0];
+      pos.y = message.vecValue[1];
+      pos.z = message.vecValue[2];
+      break;
+    }
+    case MESSAGE::SPREAD: {
+      spread = message.floatValue;
+      break;
+    }
+    case MESSAGE::VOLUME_VALUE: {
+      setVolume = true;
+      volumeTime = 0.f; // assume zero, will be set by SM_VOLUME_TIME if needed
+      volumeValue = message.floatValue;
+      break;
+    }
+    case MESSAGE::VOLUME_TIME: {
+      volumeTime = static_cast<Flt>(message.uintValue);
+      break;
+    }
+    case MESSAGE::SPEED: {
+      pitch = message.floatValue;
+      break;
+    }
+    case MESSAGE::SIZE: {
+      size = message.floatValue;
+      break;
+    }
+    case MESSAGE::LOOP: {
+      looping = message.boolValue;
+      break;
+    }
+    case MESSAGE::INTENT: {
+      headIntent = message.intentValue;
+      break;
+    }
+    case MESSAGE::OCCLUSION: {
+      occlusionActive = message.boolValue;
+      break;
+    }
+    case MESSAGE::DSP: {
+      addDSP(*(DSP::dspObject *)message.ptrValue);
+      break;
+    }
+    case MESSAGE::TIME: {
+      newFilePos = message.floatValue;
+      setFilePos = true;
+      break;
+    }
+    case MESSAGE::RELATIVE: {
+      relative = message.boolValue;
+      break;
+    }
+    case MESSAGE::DOPPLER: {
+      doppler = message.boolValue;
+      break;
+    }
+    case MESSAGE::PAN2D: {
+      relative = message.boolValue;
+      doppler = !message.boolValue;
+      break;
+    }
+    case MESSAGE::FADE_AND_STOP: {
+      fadeAndStopTime = static_cast<Flt>(message.uintValue);
+      setFadeAndStop = true;
+      break;
+    }
+    case MESSAGE::MOVE: {
+      channel* ptr = (channel*)message.ptrValue;
+      if (ptr != nullptr) {
+        ptr->getImplementation()->connect(this);
+      }
+      break;
+    }
+  }
+}
+
+void YSE::SOUND::implementationObject::update() {
   ///////////////////////////////////////////
   // set position and distance
   ///////////////////////////////////////////
-  newPos = pos * Global.getSettings().distanceFactor;
+  newPos = pos * INTERNAL::Global.getSettings().distanceFactor;
 
   // distance to listener
   if (relative) {
     distance = Dist(Vec(0), newPos);
   }
   else {
-    distance = Dist(newPos, Global.getListener().newPos);
+    distance = Dist(newPos, INTERNAL::Global.getListener().newPos);
   }
   virtualDist = (distance- size) * currentVolume_upd;
   if (virtualDist < 0) virtualDist = 0;
@@ -283,21 +275,21 @@ void YSE::INTERNAL::soundImplementation::update() {
   Flt vel = velocity; // avoid using atomic all the time
   if (!doppler) vel = 0;
   else {
-    velocityVec = (newPos - lastPos) * (1 / Global.getTime().delta());
+    velocityVec = (newPos - lastPos) * (1 / INTERNAL::Global.getTime().delta());
     
     Vec listenerVelocity;
-    listenerVelocity.x = Global.getListener().vel.x.load();
-    listenerVelocity.y = Global.getListener().vel.y.load();
-    listenerVelocity.z = Global.getListener().vel.z.load();
+    listenerVelocity.x = INTERNAL::Global.getListener().vel.x.load();
+    listenerVelocity.y = INTERNAL::Global.getListener().vel.y.load();
+    listenerVelocity.z = INTERNAL::Global.getListener().vel.z.load();
 
     if (velocityVec == Vec(0) && listenerVelocity == Vec(0)) vel = 0;
     else {
-      Vec dist = relative ? newPos : newPos - Global.getListener().newPos;
+      Vec dist = relative ? newPos : newPos - INTERNAL::Global.getListener().newPos;
       if (dist != Vec(0)) {
         Flt rSound = Dot(vel, dist) / dist.length();
         Flt rList = Dot(listenerVelocity, dist) / dist.length();
         vel = 1 - (440 / (((344.0f + rList) / (344.0f + rSound)) * 440));
-        vel *= Global.getSettings().dopplerScale;
+        vel *= INTERNAL::Global.getSettings().dopplerScale;
       }
     }
     
@@ -311,9 +303,9 @@ void YSE::INTERNAL::soundImplementation::update() {
   // calculate angle
   ///////////////////////////////////////////
   Flt a = angle; // avoid using atomic all the time
-  Vec dir = relative ? newPos : newPos - Global.getListener().newPos;
+  Vec dir = relative ? newPos : newPos - INTERNAL::Global.getListener().newPos;
   if (relative) a = -atan2(dir.x, dir.z);
-  else a = (atan2(dir.z, dir.x) - atan2(Global.getListener().forward.z.load(), Global.getListener().forward.x.load()));
+  else a = (atan2(dir.z, dir.x) - atan2(INTERNAL::Global.getListener().forward.z.load(), INTERNAL::Global.getListener().forward.x.load()));
   while (a > Pi) a -= Pi2;
   while (a < -Pi) a += Pi2;
   a = -a;
@@ -323,7 +315,7 @@ void YSE::INTERNAL::soundImplementation::update() {
   // sound occlusion (optional)
   ///////////////////////////////////////////
   if (System().occlusionCallback() != nullptr && occlusionActive) {
-    occlusion_dsp = System().occlusionCallback()(newPos, Global.getListener().newPos);
+    occlusion_dsp = System().occlusionCallback()(newPos, INTERNAL::Global.getListener().newPos);
     Clamp(occlusion_dsp, 0.f, 1.f);
   }
 
@@ -335,16 +327,23 @@ void YSE::INTERNAL::soundImplementation::update() {
     _setPostDSP = false;
   }
   
+  ///////////////////////////////////////////
+  // add to virtual sound calculator
+  ///////////////////////////////////////////
+  if (objectStatus < OBJECT_READY || status_upd == YSE::SS_STOPPED || status_upd == YSE::SS_PAUSED) {
+    return;
+  }
+  VirtualSoundFinder().add(virtualDist);
 }
 
-Bool YSE::INTERNAL::soundImplementation::dsp() {
+Bool YSE::SOUND::implementationObject::dsp() {
   ///////////////////////////////////////////
   // handle play status
   ///////////////////////////////////////////
   dspFunc_parseIntent();
 
   if (status_dsp == SS_STOPPED || status_dsp == SS_PAUSED) return false;
-  if (parent->allowVirtual && !Global.getSoundManager().inRange(virtualDist)) return false;
+  if (parent->allowVirtual && !VirtualSoundFinder().inRange(virtualDist)) return false;
 
   ///////////////////////////////////////////
   // set volume at sound level
@@ -410,7 +409,7 @@ Bool YSE::INTERNAL::soundImplementation::dsp() {
   return true;
 }
 
-void YSE::INTERNAL::soundImplementation::dspFunc_parseIntent() {
+void YSE::SOUND::implementationObject::dspFunc_parseIntent() {
   switch (headIntent) {
     case SI_RESTART:
     {
@@ -457,7 +456,7 @@ void YSE::INTERNAL::soundImplementation::dspFunc_parseIntent() {
 }
 
 
-void YSE::INTERNAL::soundImplementation::dspFunc_calculateGain(Int channel, Int source) {
+void YSE::SOUND::implementationObject::dspFunc_calculateGain(Int channel, Int source) {
   Flt finalGain = parent->outConf[channel].finalGain;
   if (lastGain[channel][source] == finalGain) {
     channelBuffer *= (finalGain);
@@ -489,7 +488,7 @@ void YSE::INTERNAL::soundImplementation::dspFunc_calculateGain(Int channel, Int 
   lastGain[channel][source] = finalGain;
 }
 
-void YSE::INTERNAL::soundImplementation::toChannels() {
+void YSE::SOUND::implementationObject::toChannels() {
 #pragma warning ( disable : 4258 )
   for (UInt x = 0; x < buffer->size(); x++) {
     // calculate spread value for multichannel sounds
@@ -515,7 +514,7 @@ void YSE::INTERNAL::soundImplementation::toChannels() {
     // calculated power
     Flt dist = distance - size;
     if (dist < 0) dist = 0;
-    Flt correctPower = 1 / pow(dist, (2 * Global.getSettings().rolloffScale));
+    Flt correctPower = 1 / pow(dist, (2 * INTERNAL::Global.getSettings().rolloffScale));
     if (correctPower > 1) correctPower = 1;
 
     // final gain assignment
@@ -533,7 +532,7 @@ void YSE::INTERNAL::soundImplementation::toChannels() {
   }
 }
 
-void YSE::INTERNAL::soundImplementation::addDSP(DSP::dspObject & ptr) {
+void YSE::SOUND::implementationObject::addDSP(DSP::dspObject & ptr) {
   if (post_dsp) {
     if (post_dsp->calledfrom) {
       *(post_dsp->calledfrom) = nullptr;
@@ -543,27 +542,19 @@ void YSE::INTERNAL::soundImplementation::addDSP(DSP::dspObject & ptr) {
   post_dsp->calledfrom = &post_dsp;
 }
 
-void YSE::INTERNAL::soundImplementation::addSourceDSP(DSP::dspSourceObject &ptr) {
+void YSE::SOUND::implementationObject::addSourceDSP(DSP::dspSourceObject &ptr) {
   source_dsp = &ptr;
   status_dsp = SS_STOPPED;
   buffer = &source_dsp->buffer;
-  lastGain.resize(Global.getChannelManager().getNumberOfOutputs());
+  lastGain.resize(INTERNAL::Global.getChannelManager().getNumberOfOutputs());
   for (UInt i = 0; i < lastGain.size(); i++) {
     lastGain[i].resize(buffer->size(), 0.0f);
   }
 }
 
-bool YSE::INTERNAL::soundImplementation::sortSoundObjects(soundImplementation * lhs, soundImplementation * rhs) {
+bool YSE::SOUND::implementationObject::sortSoundObjects(implementationObject * lhs, implementationObject * rhs) {
   if (!lhs->parent->allowVirtual) return true;
   if (!rhs->parent->allowVirtual) return false;
   return (lhs->virtualDist < rhs->virtualDist);
-}
-
-bool YSE::INTERNAL::soundImplementation::canBeDeleted(const soundImplementation & impl) {
-  return impl.objectStatus == SIS_DELETE;
-}
-
-bool YSE::INTERNAL::soundImplementation::canBeRemovedFromLoading(const std::atomic<soundImplementation*> & elm) {
-  return elm.load()->objectStatus >= SIS_READY;
 }
 

@@ -131,6 +131,12 @@
     </Bscmake>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\yse\sound\soundInterface.cpp"/>
+    <ClCompile Include="..\..\..\yse\sound\soundImplementation.cpp"/>
+    <ClCompile Include="..\..\..\yse\sound\soundManager.cpp"/>
+    <ClCompile Include="..\..\..\yse\channel\channelImplementation.cpp"/>
+    <ClCompile Include="..\..\..\yse\channel\channelInterface.cpp"/>
+    <ClCompile Include="..\..\..\yse\channel\channelManager.cpp"/>
     <ClCompile Include="..\..\..\yse\reverb\reverbImplementation.cpp"/>
     <ClCompile Include="..\..\..\yse\reverb\reverbInterface.cpp"/>
     <ClCompile Include="..\..\..\yse\reverb\reverbManager.cpp"/>
@@ -145,25 +151,19 @@
     <ClCompile Include="..\..\..\yse\dsp\oscillators.cpp"/>
     <ClCompile Include="..\..\..\yse\dsp\ramp.cpp"/>
     <ClCompile Include="..\..\..\yse\dsp\sample.cpp"/>
-    <ClCompile Include="..\..\..\yse\implementations\channelImplementation.cpp"/>
     <ClCompile Include="..\..\..\yse\implementations\listenerImplementation.cpp"/>
     <ClCompile Include="..\..\..\yse\implementations\logImplementation.cpp"/>
-    <ClCompile Include="..\..\..\yse\implementations\soundImplementation.cpp"/>
     <ClCompile Include="..\..\..\yse\internal\virtualFinder.cpp"/>
-    <ClCompile Include="..\..\..\yse\internal\channelManager.cpp"/>
     <ClCompile Include="..\..\..\yse\internal\deviceManager.cpp"/>
     <ClCompile Include="..\..\..\yse\internal\global.cpp"/>
     <ClCompile Include="..\..\..\yse\internal\reverbDSP.cpp"/>
     <ClCompile Include="..\..\..\yse\internal\settings.cpp"/>
     <ClCompile Include="..\..\..\yse\internal\soundFile.cpp"/>
-    <ClCompile Include="..\..\..\yse\internal\soundManager.cpp"/>
     <ClCompile Include="..\..\..\yse\internal\time.cpp"/>
     <ClCompile Include="..\..\..\yse\internal\underWaterEffect.cpp"/>
     <ClCompile Include="..\..\..\yse\utils\vector.cpp"/>
-    <ClCompile Include="..\..\..\yse\channel.cpp"/>
     <ClCompile Include="..\..\..\yse\listener.cpp"/>
     <ClCompile Include="..\..\..\yse\log.cpp"/>
-    <ClCompile Include="..\..\..\yse\sound.cpp"/>
     <ClCompile Include="..\..\..\yse\system.cpp"/>
     <ClCompile Include="..\..\Source\parts\ChannelTreeItem.cpp"/>
     <ClCompile Include="..\..\Source\parts\yseTimerThread.cpp"/>
@@ -1191,6 +1191,17 @@
     <ClCompile Include="..\..\JuceLibraryCode\modules\juce_gui_extra\juce_gui_extra.cpp"/>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\..\yse\internalHeaders.h"/>
+    <ClInclude Include="..\..\..\yse\sound\soundMessage.h"/>
+    <ClInclude Include="..\..\..\yse\sound\sound.hpp"/>
+    <ClInclude Include="..\..\..\yse\sound\soundInterface.hpp"/>
+    <ClInclude Include="..\..\..\yse\sound\soundImplementation.h"/>
+    <ClInclude Include="..\..\..\yse\sound\soundManager.h"/>
+    <ClInclude Include="..\..\..\yse\channel\channelMessage.h"/>
+    <ClInclude Include="..\..\..\yse\channel\channel.hpp"/>
+    <ClInclude Include="..\..\..\yse\channel\channelImplementation.h"/>
+    <ClInclude Include="..\..\..\yse\channel\channelInterface.hpp"/>
+    <ClInclude Include="..\..\..\yse\channel\channelManager.h"/>
     <ClInclude Include="..\..\..\yse\reverb\reverb.hpp"/>
     <ClInclude Include="..\..\..\yse\reverb\reverbMessage.h"/>
     <ClInclude Include="..\..\..\yse\reverb\reverbImplementation.h"/>
@@ -1215,29 +1226,23 @@
     <ClInclude Include="..\..\..\yse\headers\defines.hpp"/>
     <ClInclude Include="..\..\..\yse\headers\enums.hpp"/>
     <ClInclude Include="..\..\..\yse\headers\types.hpp"/>
-    <ClInclude Include="..\..\..\yse\implementations\channelImplementation.h"/>
     <ClInclude Include="..\..\..\yse\implementations\listenerImplementation.h"/>
     <ClInclude Include="..\..\..\yse\implementations\logImplementation.h"/>
-    <ClInclude Include="..\..\..\yse\implementations\soundImplementation.h"/>
     <ClInclude Include="..\..\..\yse\internal\virtualFinder.h"/>
-    <ClInclude Include="..\..\..\yse\internal\channelManager.h"/>
     <ClInclude Include="..\..\..\yse\internal\deviceManager.h"/>
     <ClInclude Include="..\..\..\yse\internal\global.h"/>
     <ClInclude Include="..\..\..\yse\internal\reverbDSP.h"/>
     <ClInclude Include="..\..\..\yse\internal\settings.h"/>
     <ClInclude Include="..\..\..\yse\internal\soundFile.h"/>
-    <ClInclude Include="..\..\..\yse\internal\soundManager.h"/>
     <ClInclude Include="..\..\..\yse\internal\time.h"/>
     <ClInclude Include="..\..\..\yse\internal\underWaterEffect.h"/>
     <ClInclude Include="..\..\..\yse\utils\atomicOps.hpp"/>
     <ClInclude Include="..\..\..\yse\utils\lfQueue.hpp"/>
     <ClInclude Include="..\..\..\yse\utils\misc.hpp"/>
     <ClInclude Include="..\..\..\yse\utils\vector.hpp"/>
-    <ClInclude Include="..\..\..\yse\channel.hpp"/>
     <ClInclude Include="..\..\..\yse\classes.hpp"/>
     <ClInclude Include="..\..\..\yse\listener.hpp"/>
     <ClInclude Include="..\..\..\yse\log.hpp"/>
-    <ClInclude Include="..\..\..\yse\sound.hpp"/>
     <ClInclude Include="..\..\..\yse\system.hpp"/>
     <ClInclude Include="..\..\..\yse\yse.hpp"/>
     <ClInclude Include="..\..\Source\parts\ChannelTreeItem.h"/>

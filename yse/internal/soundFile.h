@@ -11,13 +11,16 @@
 #ifndef SOUNDFILE_H_INCLUDED
 #define SOUNDFILE_H_INCLUDED
 
-#include "../headers/defines.hpp"
-#include "../headers/types.hpp"
-#include "../headers/enums.hpp"
 #include "JuceHeader.h"
+#include "../headers/types.hpp"
 #include "../dsp/sample.hpp"
+#include "../headers/enums.hpp"
 
 namespace YSE {
+  namespace SOUND {
+    class managerObject;
+  }
+
   namespace INTERNAL {
 
     enum FILESTATE {
@@ -76,7 +79,7 @@ namespace YSE {
       // for virtual IO
       //fileData _customFileData;
 
-      friend class soundManager;
+      friend class SOUND::managerObject;
     };
 
   }

@@ -11,6 +11,7 @@
 #ifndef RINGMODULATOR_H_INCLUDED
 #define RINGMODULATOR_H_INCLUDED
 
+#include "../../headers/defines.hpp"
 #include "../dspObject.hpp"
 #include "../oscillators.hpp"
 

@@ -11,28 +11,25 @@
 #ifndef CHANNELMANAGER_H_INCLUDED
 #define CHANNELMANAGER_H_INCLUDED
 
-#include "../channel.hpp"
-#include "JuceHeader.h"
-#include "../headers/enums.hpp"
 #include <forward_list>
+#include "JuceHeader.h"
+#include "channel.hpp"
+#include "../templates/managerObject.h"
+#include "../headers/enums.hpp"
+#include "channelInterface.hpp"
+#include "channelImplementation.h"
+#include "channelMessage.h"
+
 
 namespace YSE {
-  namespace INTERNAL {
-    class channelSetupJob : public ThreadPoolJob {
-    public:
-      channelSetupJob() : ThreadPoolJob("channelSetupJob") {}
-      JobStatus runJob();
-    };
+  namespace CHANNEL {
 
-    class channelDeleteJob : public ThreadPoolJob {
+    class managerObject : public TEMPLATE::managerObject<channelSubSystem> {
     public:
-      channelDeleteJob() : ThreadPoolJob("channelDeleteJob") {}
-      JobStatus runJob();
-    };
+      managerObject();
+      ~managerObject();
 
-
-    class channelManager {
-    public:
+      void create() {};
       void update();
       
       // channel output configuration
@@ -47,19 +44,11 @@ namespace YSE {
       channel & voice();
       channel & gui();
 
-      channelImplementation * addImplementation(const String & name, channel * head);
-      void setup(channelImplementation * impl);
-      void setMaster(channelImplementation * impl);
-
-      channelManager();
-      ~channelManager();
-
+      void setMaster(implementationObject * impl);
       
 
-      juce_DeclareSingleton(channelManager, true)
+      juce_DeclareSingleton(managerObject, true)
     private:
-      channelSetupJob channelSetup;
-      channelDeleteJob channelDelete;
 
       channel _master;
       channel _fx;
@@ -81,16 +70,6 @@ namespace YSE {
       void set71();
       void setAuto(Int count);
 
-      /**
-        Lists for channel implementation maintenance
-      */
-      std::forward_list<std::atomic<channelImplementation*>> toCreate;
-      std::forward_list<channelImplementation*> inUse;
-      std::forward_list<channelImplementation> implementations;
-      aBool runDelete;
-
-      friend class channelSetupJob;
-      friend class channelDeleteJob;
     };
 
   }

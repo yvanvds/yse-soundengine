@@ -8,92 +8,56 @@
   ==============================================================================
 */
 
-#include "sound.hpp"
-#include "internal/global.h"
-#include "implementations/soundImplementation.h"
-#include "implementations/channelImplementation.h"
-#include "implementations/logImplementation.h"
-#include "internal/soundManager.h"
-#include "internal/channelManager.h"
-#include "internal/deviceManager.h"
-#include "utils/misc.hpp"
+#include "soundInterface.hpp"
+#include "../internal/global.h"
+#include "../utils/misc.hpp"
 
-YSE::sound::sound() :
-  pimpl(nullptr), dsp(nullptr),
+YSE::SOUND::interfaceObject::interfaceObject() :
+  dsp(nullptr),
   pos(0.f), spread(0), fadeAndStopTime(0), volume(0.f), speed(0.f),
   size(0.f), loop(0.f), time(0.f), 
   relative(false), doppler(true), pan2D(false), occlusion(false), streaming(false),
   length(0), status(SS_STOPPED) {}
 
 YSE::sound& YSE::sound::create(const char * fileName, channel * ch, Bool loop, Flt volume, Bool streaming) {
-  if (pimpl) {
-    INTERNAL::Global.getLog().emit(E_SOUND_OBJECT_IN_USE);
-    return *this;
-  }
-  
+  super::create();
+
   pimpl = INTERNAL::Global.getSoundManager().addImplementation(this);
   if (ch == nullptr) ch = &INTERNAL::Global.getChannelManager().master();
 
   if (pimpl->create(fileName, ch, loop, volume, streaming)) {
     INTERNAL::Global.getSoundManager().setup(pimpl);
   } else {
-    pimpl->objectStatus = SIS_DELETE;
+    pimpl->setStatus(OBJECT_RELEASE);
     pimpl = nullptr;
-    INTERNAL::Global.getSoundManager().runDeleteJob();
-#if defined YSE_DEBUG 
-      /* if there's no implementation at this point, most likely
-      loading a sound didn't work. Check working directory and
-      ensure the sound is really there.
-      */
-      jassertfalse
-#endif
   }
   return *this;
 }
 
 YSE::sound& YSE::sound::create(DSP::dspSourceObject & dsp, channel * ch, Flt volume) {
-  if (pimpl) {
-    INTERNAL::Global.getLog().emit(E_SOUND_OBJECT_IN_USE);
-    /* If you get an assertion here, it means that you're trying to use the create function on
-       a sound object that's already in use.
-    */
-    jassertfalse
-    return *this;
-  }
+  //super::create();
 
-  pimpl = INTERNAL::Global.getSoundManager().addImplementation(this);
+  //pimpl = INTERNAL::Global.getSoundManager().addImplementation(this);
 
-  pimpl->addSourceDSP(dsp);
-  if (ch == nullptr) pimpl->parent = INTERNAL::Global.getChannelManager().master().pimpl;
-  else  pimpl->parent = ch->pimpl;
-  pimpl->fader.set(volume);
+  //pimpl->addSourceDSP(dsp);
+  //if (ch == nullptr) pimpl->parent = INTERNAL::Global.getChannelManager().master().pimpl;
+  //else  pimpl->parent = ch->pimpl;
+  //pimpl->fader.set(volume);
   // we'll have to get created to true somehow when dsp objects are implemented
 
   return *this;
 }
 
 
-YSE::sound::~sound() {
-  if (pimpl != nullptr) {
-    pimpl->head = nullptr;
-    pimpl = nullptr;
-  }
-}
-
-Bool YSE::sound::isValid() {
-  if (pimpl) return true;
-  return false;
-}
-
 YSE::sound& YSE::sound::setPosition(const Vec &v) {
   if (pos != v) {
     pos = v;
-    soundMessage m;
-    m.message = SM_POS;
+    messageObject m;
+    m.ID = POSITION;
     m.vecValue[0] = v.x;
     m.vecValue[1] = v.y;
     m.vecValue[2] = v.z;
-    messages.push(m);
+    pimpl->sendMessage(m);
   } 
   return (*this);
 }
@@ -106,32 +70,32 @@ YSE::sound& YSE::sound::setSpread(Flt value) {
   Clamp(value, 0.f, 1.f);
   if (spread != value) {
     spread = value;
-    soundMessage m;
-    m.message = SM_SPREAD;
+    messageObject m;
+    m.ID = SPREAD;
     m.floatValue = value;
-    messages.push(m);
+    pimpl->sendMessage(m);
   }
   return (*this);
 }
 
 Flt YSE::sound::getSpread() {
-  return pimpl->spread;
+  return spread;
 }
 
 YSE::sound& YSE::sound::setVolume(Flt value, UInt time) {
   Clamp(value, 0.f, 1.f);
   if (volume!= value) {
     volume = value;
-    soundMessage m;
-    m.message = SM_VOLUME_VALUE;
+    messageObject m;
+    m.ID = VOLUME_VALUE;
     m.floatValue = value;
-    messages.push(m);
+    pimpl->sendMessage(m);
 
     if (time > 0) {
-      soundMessage m2;
-      m2.message = SM_VOLUME_TIME;
+      messageObject m2;
+      m2.ID = VOLUME_TIME;
       m2.uintValue = time;
-      messages.push(m2);
+      pimpl->sendMessage(m2);
     }    
   }
   return (*this);
@@ -144,10 +108,10 @@ Flt YSE::sound::getVolume() {
 YSE::sound& YSE::sound::setSpeed(Flt value) {
   if (speed != value) {
     speed = value;
-    soundMessage m;
-    m.message = SM_SPEED;
+    messageObject m;
+    m.ID = SPEED;
     m.floatValue = value;
-    messages.push(m);
+    pimpl->sendMessage(m);
   }
   return (*this);
 }
@@ -159,10 +123,10 @@ Flt YSE::sound::getSpeed() {
 YSE::sound& YSE::sound::setSize(Flt value) {
   if (size != value) {
     size = value;
-    soundMessage m;
-    m.message = SM_SIZE;
+    messageObject m;
+    m.ID = SIZE;
     m.floatValue = value;
-    messages.push(m);
+    pimpl->sendMessage(m);
   }
   return (*this);
 }
@@ -174,10 +138,10 @@ Flt YSE::sound::getSize() {
 YSE::sound& YSE::sound::setLooping(Bool value) {
   if (loop != value) {
     loop = value;
-    soundMessage m;
-    m.message = SM_LOOP;
+    messageObject m;
+    m.ID = LOOP;
     m.boolValue = value;
-    messages.push(m);
+    pimpl->sendMessage(m);
   }
   return (*this);
 }
@@ -188,42 +152,42 @@ Bool YSE::sound::isLooping() {
 
 
 YSE::sound& YSE::sound::play() {
-  soundMessage m;
-  m.message = SM_INTENT;
+  messageObject m;
+  m.ID = INTENT;
   m.intentValue = SI_PLAY;
-  messages.push(m);
+  pimpl->sendMessage(m);
   return (*this);
 }
 
 YSE::sound& YSE::sound::pause() {
-  soundMessage m;
-  m.message = SM_INTENT;
+  messageObject m;
+  m.ID = INTENT;
   m.intentValue = SI_PAUSE;
-  messages.push(m);
+  pimpl->sendMessage(m);
   return (*this);
 }
 
 YSE::sound& YSE::sound::stop() {
-  soundMessage m;
-  m.message = SM_INTENT;
+  messageObject m;
+  m.ID = INTENT;
   m.intentValue = SI_STOP;
-  messages.push(m);
+  pimpl->sendMessage(m);
   return (*this);
 }
 
 YSE::sound& YSE::sound::toggle() {
-  soundMessage m;
-  m.message = SM_INTENT;
+  messageObject m;
+  m.ID = INTENT;
   m.intentValue = SI_TOGGLE;
-  messages.push(m);
+  pimpl->sendMessage(m);
   return (*this);
 }
 
 YSE::sound& YSE::sound::restart() {
-  soundMessage m;
-  m.message = SM_INTENT;
+  messageObject m;
+  m.ID = INTENT;
   m.intentValue = SI_RESTART;
-  messages.push(m);
+  pimpl->sendMessage(m);
   return (*this);
 }
 
@@ -242,10 +206,10 @@ Bool YSE::sound::isStopped() {
 YSE::sound& YSE::sound::setOcclusion(Bool value) {
   if (occlusion != value) {
     occlusion = value;
-    soundMessage m;
-    m.message = SM_OCCLUSION;
+    messageObject m;
+    m.ID = OCCLUSION;
     m.boolValue = value;
-    messages.push(m);
+    pimpl->sendMessage(m);
   }
   return (*this);
 }
@@ -261,10 +225,10 @@ Bool YSE::sound::isStreaming() {
 YSE::sound& YSE::sound::setDSP(YSE::DSP::dspObject * value) {
   if (dsp != value) {
     dsp = value;
-    soundMessage m;
-    m.message = SM_DSP;
+    messageObject m;
+    m.ID = DSP;
     m.ptrValue = value;
-    messages.push(m);
+    pimpl->sendMessage(m);
   }
   return (*this);
 }
@@ -276,10 +240,10 @@ YSE::DSP::dspObject * YSE::sound::getDSP() {
 YSE::sound& YSE::sound::setTime(Flt value) {
   // don't compare with local time var in this case because 
   // that value is set by the implementation
-  soundMessage m;
-  m.message = SM_TIME;
+  messageObject m;
+  m.ID = TIME;
   m.floatValue = value;
-  messages.push(m);
+  pimpl->sendMessage(m);
   return (*this);
 }
 
@@ -294,10 +258,10 @@ UInt YSE::sound::getLength() {
 YSE::sound& YSE::sound::setRelative(Bool value) {
   if (relative != value) {
     relative = value;
-    soundMessage m;
-    m.message = SM_RELATIVE;
+    messageObject m;
+    m.ID = RELATIVE;
     m.boolValue = value;
-    messages.push(m);
+    pimpl->sendMessage(m);
   }
   return (*this);
 }
@@ -309,10 +273,10 @@ Bool YSE::sound::isRelative() {
 YSE::sound& YSE::sound::setDoppler(Bool value) {
   if (doppler != value) {
     doppler = value;
-    soundMessage m;
-    m.message = SM_DOPPLER;
+    messageObject m;
+    m.ID = DOPPLER;
     m.boolValue = value;
-    messages.push(m);
+    pimpl->sendMessage(m);
   }
   return (*this);
 }
@@ -326,10 +290,10 @@ YSE::sound& YSE::sound::set2D(Bool value) {
     relative = value;
     doppler = !value;
     pan2D = value;
-    soundMessage m;
-    m.message = SM_PAN2D;
+    messageObject m;
+    m.ID = PAN2D;
     m.boolValue = value;
-    messages.push(m);
+    pimpl->sendMessage(m);
   }
   return (*this);
 }
@@ -339,25 +303,25 @@ Bool YSE::sound::is2D() {
 }
 
 Bool YSE::sound::isReady() {
-  if (pimpl && pimpl->objectStatus == SIS_READY) return true;
+  if (pimpl && pimpl->getStatus() == SIS_READY) return true;
   return false;
 }
 
 YSE::sound& YSE::sound::fadeAndStop(UInt time) {
-  soundMessage m;
-  m.message = SM_FADE_AND_STOP;
+  messageObject m;
+  m.ID = FADE_AND_STOP;
   m.uintValue = time;
-  messages.push(m);
+  pimpl->sendMessage(m);
   return (*this);
 }
 
 YSE::sound& YSE::sound::moveTo(channel & target) {
   if (parent != &target) {
     parent = &target;
-    soundMessage m;
-    m.message = SM_MOVE;
+    messageObject m;
+    m.ID = MOVE;
     m.ptrValue = parent;
-    messages.push(m);
+    pimpl->sendMessage(m);
   }
   return (*this);
 }

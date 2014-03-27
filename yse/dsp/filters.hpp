@@ -14,7 +14,6 @@
 #include "sample.hpp"
 #include "../headers/enums.hpp"
 
-
 namespace YSE {
   namespace DSP {
 

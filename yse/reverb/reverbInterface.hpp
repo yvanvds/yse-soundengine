@@ -11,10 +11,10 @@
 #ifndef REVERBINTERFACE_H_INCLUDED
 #define REVERBINTERFACE_H_INCLUDED
 
-#include "../utils/vector.hpp"
+#include "../headers/defines.hpp"
 #include "../headers/enums.hpp"
 #include "../templates/interfaceObject.hpp"
-#include "reverb.hpp"
+#include "../utils/vector.hpp"
 
 namespace YSE {
 

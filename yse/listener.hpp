@@ -8,10 +8,12 @@
   ==============================================================================
 */
 
-#include "utils/vector.hpp"
 
 #ifndef LISTENER_H_INCLUDED
 #define LISTENER_H_INCLUDED
+
+#include "headers/defines.hpp"
+#include "utils/vector.hpp"
 
 namespace YSE {
     

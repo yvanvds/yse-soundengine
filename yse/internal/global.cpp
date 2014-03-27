@@ -9,15 +9,10 @@
 */
 
 #include "global.h"
-#include "deviceManager.h"
-#include "soundManager.h"
-#include "../implementations/logImplementation.h"
-#include "../implementations/listenerImplementation.h"
-#include "../implementations/channelImplementation.h"
 #include "time.h"
 #include "settings.h"
-#include "channelManager.h"
-#include "../reverb/reverbManager.h"
+#include "../implementations/listenerImplementation.h"
+
 
 YSE::INTERNAL::global YSE::INTERNAL::Global;
 
@@ -25,7 +20,7 @@ YSE::INTERNAL::deviceManager & YSE::INTERNAL::global::getDeviceManager() {
   return *dm;
 }
 
-YSE::INTERNAL::soundManager & YSE::INTERNAL::global::getSoundManager() {
+YSE::SOUND::managerObject & YSE::INTERNAL::global::getSoundManager() {
   return *sm;
 }
 
@@ -41,7 +36,7 @@ YSE::INTERNAL::settings & YSE::INTERNAL::global::getSettings() {
   return *set;
 }
 
-YSE::INTERNAL::channelManager & YSE::INTERNAL::global::getChannelManager() {
+YSE::CHANNEL::managerObject & YSE::INTERNAL::global::getChannelManager() {
   return *cm;
 }
 
@@ -81,11 +76,11 @@ YSE::INTERNAL::global::global() : slowThreads(1), update(false), active(false) {
 
 void YSE::INTERNAL::global::init() {
   dm = deviceManager::getInstance();
-  sm = soundManager::getInstance();
+  sm = SOUND::managerObject::getInstance();
   log = logImplementation::getInstance();
   ysetime = time::getInstance();
   set = settings::getInstance();
-  cm = channelManager::getInstance();
+  cm = CHANNEL::managerObject::getInstance();
   li = listenerImplementation::getInstance();
   rm = REVERB::managerObject::getInstance();
 
@@ -93,6 +88,8 @@ void YSE::INTERNAL::global::init() {
   fastThreads.setThreadPriorities(10);
 
   rm->create();
+  cm->create();
+  sm->create();
 }
 
 void YSE::INTERNAL::global::close() {
@@ -102,8 +99,8 @@ void YSE::INTERNAL::global::close() {
 
   // remove managers
   deviceManager::deleteInstance();
-  soundManager::deleteInstance();
-  channelManager::deleteInstance();
+  SOUND::managerObject::deleteInstance();
+  CHANNEL::managerObject::deleteInstance();
   listenerImplementation::deleteInstance();
   REVERB::managerObject::deleteInstance();
   

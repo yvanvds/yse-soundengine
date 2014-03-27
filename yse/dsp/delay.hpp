@@ -11,8 +11,10 @@
 #ifndef DELAY_H_INCLUDED
 #define DELAY_H_INCLUDED
 
-#include "sample.hpp"
 #include <vector>
+#include "../headers/defines.hpp"
+#include "../headers/types.hpp"
+#include "sample.hpp"
 
 namespace YSE {
 

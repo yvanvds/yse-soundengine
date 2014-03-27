@@ -11,12 +11,14 @@
 #ifndef CLASSES_HPP_INCLUDED
 #define CLASSES_HPP_INCLUDED
 
+#include "channel/channel.hpp"
+#include "sound/sound.hpp"
+#include "reverb/reverb.hpp"
+
 namespace YSE {
   // public classes
-  class channel;
   class listener;
   class log;
-  class sound;
   class system;
 
   // tools
@@ -71,14 +73,8 @@ namespace YSE {
   namespace INTERNAL {
     // internal classes
     class global;
-    class channelManager;
     class deviceManager;
-    class reverbManager;
-    class soundManager;
-    class reverbChannel;
-    class channelImplementation;
     class listenerImplementation;
-    class soundImplementation;
     class logImplementation;
     class output;
     class settings;

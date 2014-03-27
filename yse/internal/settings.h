@@ -10,8 +10,9 @@
 
 #ifndef SETTINGS_H_INCLUDED
 #define SETTINGS_H_INCLUDED
-#include "../headers/types.hpp"
+
 #include "JuceHeader.h"
+#include "../headers/types.hpp"
 
 namespace YSE {
   namespace INTERNAL {

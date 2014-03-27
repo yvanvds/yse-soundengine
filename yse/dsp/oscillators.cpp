@@ -10,8 +10,8 @@
 
 #include <cmath>
 #include "oscillators.hpp"
-#include "../utils/misc.hpp"
 #include <vector>
+#include "../utils/misc.hpp"
 
 #define UNITBIT32 1572864.f  /* 3*2^19; bit 32 has place value 1 */
 #define HIOFFSET 1

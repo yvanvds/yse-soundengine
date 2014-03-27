@@ -8,10 +8,8 @@
   ==============================================================================
 */
 
-#include "reverb.hpp"
+
 #include "reverbImplementation.h"
-#include "reverbInterface.hpp"
-#include "reverbManager.h"
 
 
 YSE::REVERB::implementationObject::implementationObject(interfaceObject * head) : super(head) {

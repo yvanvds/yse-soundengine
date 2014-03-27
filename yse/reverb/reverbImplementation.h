@@ -11,15 +11,14 @@
 #ifndef REVERBIMPLEMENTATION_H_INCLUDED
 #define REVERBIMPLEMENTATION_H_INCLUDED
 
-#include "../templates/implementationObject.h"
-#include "../headers/types.hpp"
-#include "reverbInterface.hpp"
-#include "reverbMessage.h"
-#include "../utils/vector.hpp"
 #include "reverb.hpp"
+#include "../templates/implementationObject.h"
+#include "../utils/vector.hpp"
+#include "reverbMessage.h"
+#include "reverbInterface.hpp"
+#include "../headers/types.hpp"
 
 namespace YSE {
-
   namespace REVERB {
     
     /**

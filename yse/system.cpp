@@ -11,15 +11,17 @@ Author:  yvan
 #include "system.hpp"
 #include "internal/global.h"
 #include "implementations/logImplementation.h"
-#include "implementations/listenerImplementation.h"
+#include "headers/enums.hpp"
 #include "internal/deviceManager.h"
-#include "internal/channelManager.h"
-#include "internal/soundManager.h"
-#include "reverb/reverbManager.h"
+#include "channel/channel.hpp"
+#include "channel/channelManager.h"
+#include "channel/channelInterface.hpp"
 #include "internal/underWaterEffect.h"
-#include "internal/time.h"
-#include "internal/settings.h"
-#include "JuceHeader.h"
+#include "internal/virtualFinder.h"
+#include "reverb/reverbInterface.hpp"
+#include "reverb/reverbManager.h"
+
+
 #ifdef YSE_WINDOWS
 #include <Windows.h>
 #else
@@ -124,12 +126,12 @@ YSE::system & YSE::system::setUnderWaterDepth(Flt value) {
 }
 
 YSE::system& YSE::system::maxSounds(Int value) {
-  INTERNAL::Global.getSoundManager().setMaxSounds(value);
+  VirtualSoundFinder().setLimit(value);
   return *this;
 }
 
 Int YSE::system::maxSounds() {
-  return INTERNAL::Global.getSoundManager().getMaxSounds();
+  return VirtualSoundFinder().getLimit();
 }
 
 Flt YSE::system::cpuLoad() {

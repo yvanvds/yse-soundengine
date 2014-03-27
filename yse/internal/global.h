@@ -10,10 +10,13 @@
 
 #ifndef GLOBAL_H_INCLUDED
 #define GLOBAL_H_INCLUDED
-#include "../classes.hpp"
+
 #include "JuceHeader.h"
-#include "../headers/types.hpp"
+#include "deviceManager.h"
+#include "../sound/soundManager.h"
+#include "../channel/channelManager.h"
 #include "../reverb/reverbManager.h"
+#include "../implementations/logImplementation.h"
 
 namespace YSE {
   namespace INTERNAL {
@@ -22,9 +25,9 @@ namespace YSE {
     public:
       bool isActive() { return active; }
       deviceManager  & getDeviceManager();
-      soundManager   & getSoundManager();
-      channelManager & getChannelManager();
-      REVERB::managerObject & getReverbManager();
+      SOUND::managerObject   & getSoundManager();
+      CHANNEL::managerObject & getChannelManager();
+      REVERB::managerObject  & getReverbManager();
 
       logImplementation & getLog();
       time              & getTime();
@@ -49,11 +52,11 @@ namespace YSE {
       void close();
 
       deviceManager * dm;
-      soundManager  * sm;
+      SOUND::managerObject  * sm;
       logImplementation * log;
       time * ysetime;
       settings * set;
-      channelManager * cm;
+      CHANNEL::managerObject * cm;
       listenerImplementation * li;
       REVERB::managerObject * rm;
 

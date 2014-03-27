@@ -11,10 +11,8 @@
 #ifndef SAMPLE_H_INCLUDED
 #define SAMPLE_H_INCLUDED
 
-#include "../headers/types.hpp"
-#include "../headers/constants.hpp"
-#include "../headers/defines.hpp"
 #include <vector>
+#include "../headers/constants.hpp"
 
 namespace YSE {
 

@@ -8,50 +8,35 @@
   ==============================================================================
 */
 
-#ifndef SOUNDLOADER_H_INCLUDED
-#define SOUNDLOADER_H_INCLUDED
+#ifndef SOUNDMANAGER_H_INCLUDED
+#define SOUNDMANAGER_H_INCLUDED
 
-#include "soundFile.h"
-#include <deque>
 #include <forward_list>
-#include <queue>
-#include "../headers/defines.hpp"
-#include "../headers/types.hpp"
 #include "JuceHeader.h"
-#include "../classes.hpp"
-#include "../sound.hpp"
-#include "virtualFinder.h"
+#include "sound.hpp"
+#include "soundMessage.h"
+#include "soundInterface.hpp"
+#include "soundImplementation.h"
+#include "../templates/managerObject.h"
+
+#include "../internal/soundFile.h"
+
 
 // global object for file loading
 // used in system.cpp, soundimpl.cpp and soundfile.cpp
 
 namespace YSE {
-  namespace INTERNAL {
-    /** A job to add to the lowpriority threadpool when there are sounds
-        that need to be setup
-    */
-    class soundSetupJob : public ThreadPoolJob {
-    public:
-      soundSetupJob() : ThreadPoolJob("soundSetupJob") {}
-      JobStatus runJob();
-    };
-
-    /** A job to add to the lowpriority threadpool when tehre are sounds
-        to be deleted
-    */
-    class soundDeleteJob : public ThreadPoolJob {
-    public:
-      soundDeleteJob() : ThreadPoolJob("soundDeleteJob") {}
-      JobStatus runJob();
-    };
+  namespace SOUND {
 
     /**
       The soundmanager is responsible for the management of all soundfiles and
       sound implementations.
     */
-    class soundManager {
+    class managerObject : public TEMPLATE::managerObject<soundSubSystem> {
     public:
       
+      virtual void create() {}
+
       /** Add a new soundfile to the system and return a pointer to it. If the file already
           exists, it will not be loaded anew but a pointer to the existing file will be
           returned. With non-streaming audio it would only consume extra memory if loaded
@@ -61,32 +46,12 @@ namespace YSE {
 
           @return       A pointer to the soundFile object for this file
       */
-      soundFile * addFile(const File & file);
-      
-      /** Request a new sound implementation.
-
-          &param head   The interface to connect the new implementation to
-
-          @return       A pointer to a new sound implementation
-      */
-      soundImplementation * addImplementation(sound * head);
-
-      /** This function instructs the soundManager to put the implementation
-          in a list of sounds to load. It is called from the sound interface
-          create function.
-          
-          &param impl   The implementation to setup
-      */
-      void setup(soundImplementation* impl);
+      INTERNAL::soundFile * addFile(const File & file);
 
       /** Run the soundManager update. This function is responsable for most of the
           action on sound implementations and sound files.
       */
       void update();
-
-      /** Returns true if no sound implementations are active.
-      */
-      Bool empty();
 
       /** Sets the maximum amount of sounds to be processed. The soundmanager
           will try to find the sounds that are most relevant and virtualize
@@ -94,11 +59,11 @@ namespace YSE {
 
           @param value    The desired number of sounds
       */
-      void setMaxSounds(Int value);	
+      //void setMaxSounds(Int value);	
       
       /** Get the maximum amount of sounds to be processed.
       */
-      Int getMaxSounds();
+      //Int getMaxSounds();
 
       /** Retrieve a reader for a file format. This function is used by soundFile
           objects.
@@ -112,13 +77,11 @@ namespace YSE {
           find out they're no longer needed.
       */
 
-      Bool inRange(Flt dist);
+      //Bool inRange(Flt dist);
 
-      void runDeleteJob() { runDelete = true; }
-
-      soundManager();
-      ~soundManager();
-      juce_DeclareSingleton(soundManager, true)
+      managerObject();
+      ~managerObject();
+      juce_DeclareSingleton(managerObject, true)
 
     private:
       /** the lastGain buffer of each sound is needed to provide smooth changes
@@ -127,36 +90,16 @@ namespace YSE {
       */
       void adjustLastGainBuffer();
 
-      // ThreadPoolJobs
-      soundSetupJob soundSetup;
-      soundDeleteJob soundDelete;
-
       // a forward list containing all sound files
-      std::forward_list<soundFile> soundFiles;
+      std::forward_list<INTERNAL::soundFile> soundFiles;
 
       // a format Manager to assist in reading audio files
       // It is used by soundFiles, but put here because we only need one for all files.
       juce::AudioFormatManager formatManager;
 
-      /* arrays for sound implementations: these are not the soundfiles but the
-         implementation side of the interface sound objects.
-      */
-      std::forward_list<std::atomic<soundImplementation*>> soundsToLoad;
-      std::forward_list<soundImplementation*> soundsInUse;
-      std::forward_list<soundImplementation> soundImplementations;
-
-      // flag for the update function to check for implementations that should be
-      // deleted.
-      aBool runDelete;
-
-      virtualFinder vFinder; // for calculating virtual sounds
-
       // the maximum distance before turning virtual
       // This value is calculated on every update
-      aFlt maxDistance;
-
-      friend class soundSetupJob;
-      friend class soundDeleteJob;
+      //aFlt maxDistance;
     };
 
   }

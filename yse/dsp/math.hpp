@@ -11,6 +11,7 @@
 #ifndef MATH_H_INCLUDED
 #define MATH_H_INCLUDED
 
+#include "../headers/types.hpp"
 #include "sample.hpp"
 
 namespace YSE {
