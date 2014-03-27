@@ -11,12 +11,12 @@
 #include "soundManager.h"
 #include "../internal/global.h"
 #include "../internal/virtualFinder.h"
-
+#include "../channel/channelManager.h"
 
 juce_ImplementSingleton(YSE::SOUND::managerObject)
 
 
-YSE::SOUND::managerObject::managerObject() : super("soundManager") {
+YSE::SOUND::managerObject::managerObject() : managerTemplate<soundSubSystem>("soundManager") {
   formatManager.registerBasicFormats();
 }
 
@@ -78,7 +78,7 @@ void YSE::SOUND::managerObject::update() {
   // update sound implementations
   ///////////////////////////////////////////
   VirtualSoundFinder().reset();
-  super::update();
+  managerTemplate<soundSubSystem>::update();
   VirtualSoundFinder().calculate();
   
 }

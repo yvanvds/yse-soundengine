@@ -12,6 +12,8 @@
 #define MANAGEROBJECT_H_INCLUDED
 
 #include "../headers/types.hpp"
+#include "../internal/global.h"
+#include "../headers/enums.hpp"
 #include <forward_list>
 
 namespace YSE {
@@ -22,10 +24,9 @@ namespace YSE {
       2 ThreadPoolJobs to handle setting up and deleting objects without locking.
     */
     template <typename SUBSYSTEM>
-    class managerObject {
+    class managerTemplate {
    
     public:
-      typedef typename managerObject<SUBSYSTEM> super;
       //typedef typename SUBSYSTEM::managerObject derrivedManager;
       typedef typename SUBSYSTEM::interfaceObject derrivedInterface;
       typedef typename SUBSYSTEM::implementationObject derrivedImplementation;
@@ -41,7 +42,7 @@ namespace YSE {
             care of adding this job to a low priority threadpool every time it sees
             that there are implementationObjects that need to be set up.
         */
-        setupJob(const String & name, managerObject<SUBSYSTEM> * obj)
+        setupJob(const String & name, managerTemplate<SUBSYSTEM> * obj)
         : ThreadPoolJob(name), obj(obj) {
           
         }
@@ -57,7 +58,7 @@ namespace YSE {
         }
 
       private:
-        managerObject<SUBSYSTEM> * obj;
+        managerTemplate<SUBSYSTEM> * obj;
       };
 
       /** A job to add to the lowpriority threadpool when there are implementationObjects
@@ -71,7 +72,7 @@ namespace YSE {
         care of adding this job to a low priority threadpool every time it sees
         that there are implementationObjects that need to be deleted.
         */
-        deleteJob(const String & name, managerObject<SUBSYSTEM> * obj)
+        deleteJob(const String & name, managerTemplate<SUBSYSTEM> * obj)
           : ThreadPoolJob(name), obj(obj) {
 
         }
@@ -82,16 +83,16 @@ namespace YSE {
         }
 
       private:
-        managerObject<SUBSYSTEM> * obj;
+        managerTemplate<SUBSYSTEM> * obj;
       };
 
       /** The constructor is responsible for constructing the two threadpooljobs every manager needs
       */
-      managerObject(const String & name) : mgrSetup(name, this), mgrDelete(name, this) {
+      managerTemplate(const String & name) : mgrSetup(name, this), mgrDelete(name, this) {
       }
       
 
-      ~managerObject() {
+      ~managerTemplate() {
         // wait for jobs to finish
         INTERNAL::Global.waitForSlowJob(&mgrSetup);
         INTERNAL::Global.waitForSlowJob(&mgrDelete);

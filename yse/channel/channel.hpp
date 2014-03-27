@@ -24,7 +24,12 @@ namespace YSE {
     class implementationObject;
     class messageObject;
     class managerObject;
-    enum MESSAGE;
+    enum MESSAGE {
+      VOLUME,
+      MOVE,
+      VIRTUAL,
+      ATTACH_REVERB,
+    };
   }
 
   struct channelSubSystem {

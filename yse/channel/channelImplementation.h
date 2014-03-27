@@ -17,6 +17,7 @@
 #include "channel.hpp"
 #include "../sound/soundImplementation.h"
 #include "channelInterface.hpp"
+#include "channelManager.h"
 
 namespace YSE {
   namespace CHANNEL {
@@ -25,7 +26,7 @@ namespace YSE {
     /**
       This is the implementation side of a channel. It should only be used internally.
     */
-    class implementationObject : public ThreadPoolJob , public TEMPLATE::implementationObject<channelSubSystem> {
+    class implementationObject : public ThreadPoolJob , public TEMPLATE::implementationTemplate<channelSubSystem> {
     public:
       /**
         Creates a channel implementation.

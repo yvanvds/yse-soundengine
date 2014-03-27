@@ -8,10 +8,9 @@
   ==============================================================================
 */
 
-#include "listenerImplementation.h"
-#include "../internal/global.h"
-#include "../internal/settings.h"
-#include "../internal/time.h"
+
+#include "../internalHeaders.h"
+
 
 juce_ImplementSingleton(YSE::INTERNAL::listenerImplementation)
 

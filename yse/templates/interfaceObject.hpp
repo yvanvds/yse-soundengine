@@ -12,6 +12,7 @@
 #define INTERFACEOBJECT_H_INCLUDED
 
 #include <atomic>
+#include <assert.h>
 
 namespace YSE {
   namespace TEMPLATE {
@@ -21,15 +22,14 @@ namespace YSE {
      functions which send messages to your implementationObject.
      */
     template <typename SUBSYSTEM>
-    class interfaceObject {
+    class interfaceTemplate {
     public:
-      typedef typename interfaceObject<SUBSYSTEM> super;
       typedef typename SUBSYSTEM::implementationObject derrivedImplementation;
       typedef typename SUBSYSTEM::interfaceObject derrivedInterface;
 
-      interfaceObject() : pimpl(nullptr) {}
+      interfaceTemplate() : pimpl(nullptr) {}
 
-      ~interfaceObject() {
+      ~interfaceTemplate() {
         if (pimpl != nullptr) {
           *self = nullptr;
           pimpl = nullptr;

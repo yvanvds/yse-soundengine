@@ -13,9 +13,9 @@
 
 #include <forward_list>
 #include "../templates/implementationObject.h"
+#include "../classes.hpp"
 #include "sound.hpp"
-#include "soundInterface.hpp"
-#include "soundMessage.h"
+#include "../dsp/sample.hpp"
 #include "../dsp/ramp.hpp"
 
 namespace YSE {
@@ -27,7 +27,7 @@ namespace YSE {
         by the soundManager object, in the soundObjects forward_list.
     */
 
-    class implementationObject : public TEMPLATE::implementationObject<soundSubSystem> {
+    class implementationObject : public TEMPLATE::implementationTemplate<soundSubSystem> {
     public:
 
       /** Constructor

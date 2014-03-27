@@ -51,6 +51,7 @@ namespace YSE {
       Int   allTuning[APASS];
 
       reverbChannel();
+      reverbChannel(const reverbChannel & source);
     };
 
     class reverbDSP : DSP::dspObject {

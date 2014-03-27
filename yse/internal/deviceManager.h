@@ -12,10 +12,15 @@
 #define DEVICEMANAGER_H_INCLUDED
 
 #include "JuceHeader.h"
+#include "../classes.hpp"
 #include "../headers/types.hpp"
-#include "../channel/channelImplementation.h"
+
 
 namespace YSE {
+  namespace CHANNEL {
+      class implementationObject;
+  }  
+    
   namespace INTERNAL {
 
 

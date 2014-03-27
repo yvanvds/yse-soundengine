@@ -16,7 +16,7 @@
 #include "channel.hpp"
 #include "../templates/managerObject.h"
 #include "../headers/enums.hpp"
-#include "channelInterface.hpp"
+#include "../classes.hpp"
 #include "channelImplementation.h"
 #include "channelMessage.h"
 
@@ -24,7 +24,7 @@
 namespace YSE {
   namespace CHANNEL {
 
-    class managerObject : public TEMPLATE::managerObject<channelSubSystem> {
+    class managerObject : public TEMPLATE::managerTemplate<channelSubSystem> {
     public:
       managerObject();
       ~managerObject();

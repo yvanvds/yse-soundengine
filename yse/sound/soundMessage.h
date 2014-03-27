@@ -17,26 +17,9 @@
 
 namespace YSE {
   namespace SOUND {
-    enum MESSAGE {
-      POSITION,
-      SPREAD,
-      VOLUME_VALUE,
-      VOLUME_TIME,
-      SPEED,
-      SIZE,
-      LOOP,
-      INTENT,
-      OCCLUSION,
-      DSP,
-      TIME,
-      RELATIVE,
-      DOPPLER,
-      PAN2D,
-      FADE_AND_STOP,
-      MOVE,
-    };
+    
 
-    class messageObject : public TEMPLATE::messageObject<soundSubSystem> {
+    class messageObject : public TEMPLATE::messageTemplate<soundSubSystem> {
 
     };
   }

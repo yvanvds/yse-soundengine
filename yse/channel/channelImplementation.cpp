@@ -11,9 +11,10 @@
 #include "channelImplementation.h"
 #include "../internal/global.h"
 #include "../internal/underWaterEffect.h"
+#include "../reverb/reverbManager.h"
 
 YSE::CHANNEL::implementationObject::implementationObject(interfaceObject * head) :
-super(head),
+implementationTemplate<channelSubSystem>(head),
 ThreadPoolJob(head->getName()),
 newVolume(1.f), lastVolume(1.f), userChannel(true),
 allowVirtual(true), parent(nullptr)

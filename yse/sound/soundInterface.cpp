@@ -8,9 +8,7 @@
   ==============================================================================
 */
 
-#include "soundInterface.hpp"
-#include "../internal/global.h"
-#include "../utils/misc.hpp"
+#include "../internalHeaders.h"
 
 YSE::SOUND::interfaceObject::interfaceObject() :
   dsp(nullptr),
@@ -20,7 +18,7 @@ YSE::SOUND::interfaceObject::interfaceObject() :
   length(0), status(SS_STOPPED) {}
 
 YSE::sound& YSE::sound::create(const char * fileName, channel * ch, Bool loop, Flt volume, Bool streaming) {
-  super::create();
+  interfaceTemplate<soundSubSystem>::create();
 
   pimpl = INTERNAL::Global.getSoundManager().addImplementation(this);
   if (ch == nullptr) ch = &INTERNAL::Global.getChannelManager().master();
@@ -303,7 +301,7 @@ Bool YSE::sound::is2D() {
 }
 
 Bool YSE::sound::isReady() {
-  if (pimpl && pimpl->getStatus() == SIS_READY) return true;
+  if (pimpl && pimpl->getStatus() == OBJECT_READY) return true;
   return false;
 }
 

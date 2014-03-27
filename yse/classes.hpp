@@ -11,6 +11,7 @@
 #ifndef CLASSES_HPP_INCLUDED
 #define CLASSES_HPP_INCLUDED
 
+#include "utils/vector.hpp"
 #include "channel/channel.hpp"
 #include "sound/sound.hpp"
 #include "reverb/reverb.hpp"

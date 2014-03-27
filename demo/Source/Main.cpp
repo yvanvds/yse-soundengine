@@ -10,7 +10,7 @@
 
 #include "../JuceLibraryCode/JuceHeader.h"
 #include "tabs.h"
-#include "../../YSE/yse.hpp"
+#include "../../yse/yse.hpp"
 #include "parts/yseTimerThread.h"
 #include "YSEObjects.h"
 
@@ -30,8 +30,10 @@ public:
     {
         // This method is where you should put your application's initialisation code..
 //#if defined DEBUG
-      File f = File::getCurrentWorkingDirectory().getChildFile("../../../bin");
-      f.setAsCurrentWorkingDirectory();
+      //File f = File::getCurrentWorkingDirectory().getChildFile("../../../bin");
+        File f;
+        f.getSpecialLocation(File::userHomeDirectory);
+        f.setAsCurrentWorkingDirectory();
 //#endif
       YSE::System().init();
       Sound().init();

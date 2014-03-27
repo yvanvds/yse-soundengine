@@ -8,9 +8,7 @@
   ==============================================================================
 */
 
-#include "listener.hpp"
-#include "internal/global.h"
-#include "implementations/listenerImplementation.h"
+#include "internalHeaders.h"
 
 YSE::listener & YSE::Listener() {
   static listener l;

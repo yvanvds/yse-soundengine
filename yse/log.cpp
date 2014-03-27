@@ -8,8 +8,7 @@
   ==============================================================================
 */
 
-#include "log.hpp"
-#include "internal/global.h"
+#include "internalHeaders.h"
 
 YSE::log & YSE::Log() {
   static log l;

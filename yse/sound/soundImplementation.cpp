@@ -8,20 +8,11 @@
   ==============================================================================
 */
 
-#include "soundImplementation.h"
-#include "../internal/global.h"
-#include "../internal/settings.h"
-#include "../implementations/listenerImplementation.h"
-#include "../utils/misc.hpp"
-#include "../internal/virtualFinder.h"
-#include "../system.hpp"
-#include "../internal/time.h"
-#include "../channel/channelInterface.hpp"
-#include "../channel/channelImplementation.h"
+#include "../internalHeaders.h"
 
 
 YSE::SOUND::implementationObject::implementationObject(interfaceObject * head) :
-  super(head),
+  implementationTemplate<soundSubSystem>(head),
   parent(nullptr),
   looping(false),
   spread(0),
@@ -56,7 +47,7 @@ YSE::SOUND::implementationObject::implementationObject(interfaceObject * head) :
   lastPos(0.f),
   velocityVec(0.f),
   velocity(0.f),
-  pos(0.f)
+  pos(0.0f)
   {
   fader.set(0.5f);
 

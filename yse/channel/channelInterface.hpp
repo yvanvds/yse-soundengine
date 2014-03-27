@@ -48,7 +48,7 @@ namespace YSE {
       Of course you can use these channels for anything you like.
       */
 
-    class API interfaceObject : public TEMPLATE::interfaceObject<channelSubSystem> {
+    class API interfaceObject : public TEMPLATE::interfaceTemplate<channelSubSystem> {
     public:
 
       /**
@@ -116,7 +116,7 @@ namespace YSE {
       // friend classes
       friend class CHANNEL::implementationObject;
       friend class SOUND::implementationObject;
-      friend class system;
+      friend class YSE::system;
       friend class SOUND::managerObject;
     };
   }

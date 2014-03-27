@@ -8,15 +8,12 @@
   ==============================================================================
 */
 
-#include "reverbManager.h"
-#include "../internal/reverbDSP.h"
-#include "../internal/global.h"
-#include "../headers/enums.hpp"
-#include "../implementations/listenerImplementation.h"
+#include "../internalHeaders.h"
+
 
 juce_ImplementSingleton(YSE::REVERB::managerObject)
 
-YSE::REVERB::managerObject::managerObject() : super("reverbManager"), globalReverb(true), calculatedValues(true) {
+YSE::REVERB::managerObject::managerObject() : managerTemplate<reverbSubSystem>("reverbManager"), globalReverb(true), calculatedValues(true) {
   reverbDSPObject = INTERNAL::reverbDSP::getInstance();
   reverbDSPObject->channels(INTERNAL::Global.getChannelManager().getNumberOfOutputs());
 }
@@ -41,7 +38,7 @@ YSE::reverb & YSE::REVERB::managerObject::getGlobalReverb() {
 
 
 void YSE::REVERB::managerObject::update() {
-  super::update();
+  managerTemplate<reverbSubSystem>::update();
   Int reverbsActive = 0;
   calculatedValues.setPreset(REVERB_OFF);
   calculatedValues.setActive(false);

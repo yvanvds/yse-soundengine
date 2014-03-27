@@ -129,7 +129,7 @@ void movingChannels::buttonClicked (Button* buttonThatWasClicked)
       Array<ValueTree> selectedItems(channelTreeItem::getSelectedTreeViewItems(*treeView));
       if (selectedItems.size() > 0) {
         if (static_cast<ITEM_TYPE>(selectedItems[0]["type"].operator int()) != SOUND) {
-         createTree("sound", SOUND, &selectedItems[0]);
+         //createTree("sound", SOUND, &selectedItems[0]);
         }
       }
         //[/UserButtonCode_buttonAddSound]
@@ -140,7 +140,7 @@ void movingChannels::buttonClicked (Button* buttonThatWasClicked)
       Array<ValueTree> selectedItems(channelTreeItem::getSelectedTreeViewItems(*treeView));
       if (selectedItems.size() > 0) {
         if (static_cast<ITEM_TYPE>(selectedItems[0]["type"].operator int()) != SOUND) {
-          createTree("user channel", USERCHANNEL, &selectedItems[0]);
+          //createTree("user channel", USERCHANNEL, &selectedItems[0]);
         }
       }
         //[/UserButtonCode_buttonAddChannel]

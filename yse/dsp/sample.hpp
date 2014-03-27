@@ -32,7 +32,7 @@ namespace YSE {
       // Creates an audio buffer with standard size of 512 
       sample(UInt length = STANDARD_BUFFERSIZE);
       // Creates a new audio buffer by copying an existing one
-      sample(AUDIOBUFFER & cp);
+      sample(const AUDIOBUFFER & cp);
 
       // gets the length of a sample in frames (also called 'samples' like in '44100 samples per second')
       UInt  getLength() const;
@@ -54,14 +54,14 @@ namespace YSE {
       // Divide all samples by f
       AUDIOBUFFER & operator/=(Flt f);
 
-      AUDIOBUFFER & operator+=(AUDIOBUFFER & s);
-      AUDIOBUFFER & operator-=(AUDIOBUFFER & s);
-      AUDIOBUFFER & operator*=(AUDIOBUFFER & s);
-      AUDIOBUFFER & operator/=(AUDIOBUFFER & s);
+      AUDIOBUFFER & operator+=(const AUDIOBUFFER & s);
+      AUDIOBUFFER & operator-=(const AUDIOBUFFER & s);
+      AUDIOBUFFER & operator*=(const AUDIOBUFFER & s);
+      AUDIOBUFFER & operator/=(const AUDIOBUFFER & s);
 
-      AUDIOBUFFER & operator=(AUDIOBUFFER & s);
+      AUDIOBUFFER & operator=(const AUDIOBUFFER & s);
       AUDIOBUFFER & operator=(Flt f);
-      AUDIOBUFFER & copyFrom(AUDIOBUFFER & s, UInt SourcePos, UInt DestPos, UInt length);
+      AUDIOBUFFER & copyFrom(const AUDIOBUFFER & s, UInt SourcePos, UInt DestPos, UInt length);
 
       /** Draw data in a sound buffer. This is not meant for buffers
       which will be sent to the audio output, but for buffers used to do

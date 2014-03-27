@@ -8,10 +8,7 @@
   ==============================================================================
 */
 
-#include "underWaterEffect.h"
-#include "global.h"
-#include "../implementations/listenerImplementation.h"
-#include "../dsp/math.hpp"
+#include "../internalHeaders.h"
 
 
 YSE::INTERNAL::underWaterEffect & YSE::INTERNAL::UnderWaterEffect() {

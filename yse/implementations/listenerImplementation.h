@@ -12,6 +12,7 @@
 #define LISTENERIMPLEMENTATION_H_INCLUDED
 
 #include "JuceHeader.h"
+#include "../classes.hpp"
 #include "../utils/vector.hpp"
 
 namespace YSE {
@@ -37,7 +38,7 @@ namespace YSE {
       friend class SOUND::implementationObject;
       friend class channelImplementation;
       friend class underWaterEffect;
-      friend class listener;
+      friend class YSE::listener;
       friend class reverbManager;
     };
   

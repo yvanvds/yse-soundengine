@@ -12,15 +12,13 @@
 #define GLOBAL_H_INCLUDED
 
 #include "JuceHeader.h"
-#include "deviceManager.h"
-#include "../sound/soundManager.h"
-#include "../channel/channelManager.h"
-#include "../reverb/reverbManager.h"
-#include "../implementations/logImplementation.h"
+#include "../headers/types.hpp"
+#include "../classes.hpp"
 
-namespace YSE {
+namespace YSE {  
+    
   namespace INTERNAL {
-
+    
     class global {
     public:
       bool isActive() { return active; }
@@ -66,7 +64,7 @@ namespace YSE {
       aInt update;
       aBool active; // set true after System().init(), false at System().close()
 
-      friend class system; // system needs access to the init and close method
+      friend class YSE::system; // system needs access to the init and close method
     };
 
     extern global Global;

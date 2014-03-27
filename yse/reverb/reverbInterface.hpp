@@ -30,7 +30,7 @@ namespace YSE {
        This technique makes if possible to have a general reverb setting and assign other
        reverb settings to specified positions.
        */
-    class API interfaceObject : public TEMPLATE::interfaceObject<reverbSubSystem> {
+    class API interfaceObject : public TEMPLATE::interfaceTemplate<reverbSubSystem> {
     public:
 
       /**

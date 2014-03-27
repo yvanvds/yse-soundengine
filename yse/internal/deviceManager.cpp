@@ -8,10 +8,7 @@
   ==============================================================================
 */
 
-#include "deviceManager.h"
-#include "global.h"
-#include "time.h"
-#include "../implementations/listenerImplementation.h"
+#include "../internalHeaders.h"
 
 juce_ImplementSingleton(YSE::INTERNAL::deviceManager)
 

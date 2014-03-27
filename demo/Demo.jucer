@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <JUCERPROJECT id="RgPlYC" name="YseDemo" projectType="guiapp" version="1.0.0"
-              bundleIdentifier="com.mute.YseDemo" includeBinaryInAppConfig="1"
+              bundleIdentifier="com.mute.demoForYSE" includeBinaryInAppConfig="1"
               jucerVersion="3.1.0" companyName="Mute">
   <MAINGROUP id="JJ8B7i" name="YseDemo">
     <GROUP id="{4A43B2A5-8C02-2D07-7F91-E76235BDF2CB}" name="YSE">
@@ -147,6 +147,19 @@
       <FILE id="Re3qmA" name="yse.hpp" compile="0" resource="0" file="../yse/yse.hpp"/>
     </GROUP>
     <GROUP id="{02945D12-A276-81C8-224F-6D961A7EAFA2}" name="Source">
+      <GROUP id="{1C962B95-319E-A427-013A-121DCBBA613C}" name="Resources">
+        <FILE id="HHUy5c" name="speaker.png" compile="0" resource="1" file="../bin/speaker.png"/>
+        <FILE id="BlKblt" name="contact.ogg" compile="0" resource="1" file="../bin/contact.ogg"/>
+        <FILE id="CCqZvS" name="countdown.ogg" compile="0" resource="1" file="../bin/countdown.ogg"/>
+        <FILE id="e6bh26" name="drone.ogg" compile="0" resource="1" file="../bin/drone.ogg"/>
+        <FILE id="zny4u0" name="flies.ogg" compile="0" resource="1" file="../bin/flies.ogg"/>
+        <FILE id="kvEtHp" name="g.ogg" compile="0" resource="1" file="../bin/g.ogg"/>
+        <FILE id="sJj25Y" name="g.wav" compile="0" resource="1" file="../bin/g.wav"/>
+        <FILE id="SVChrA" name="kick.ogg" compile="0" resource="1" file="../bin/kick.ogg"/>
+        <FILE id="qrjOf5" name="my2chords.ogg" compile="0" resource="1" file="../bin/my2chords.ogg"/>
+        <FILE id="TMVwX1" name="pulse1.ogg" compile="0" resource="1" file="../bin/pulse1.ogg"/>
+        <FILE id="vdT8nr" name="snare.ogg" compile="0" resource="1" file="../bin/snare.ogg"/>
+      </GROUP>
       <GROUP id="{EFF81D3D-75A6-1C8B-5204-18B92DE0A382}" name="parts">
         <FILE id="a2mYNf" name="ChannelTreeItem.cpp" compile="1" resource="0"
               file="Source/parts/ChannelTreeItem.cpp"/>
@@ -194,16 +207,16 @@
                        headerPath="../yse"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
-        <MODULEPATH id="juce_gui_extra" path="../../juce"/>
-        <MODULEPATH id="juce_gui_basics" path="../../juce"/>
-        <MODULEPATH id="juce_graphics" path="../../juce"/>
-        <MODULEPATH id="juce_events" path="../../juce"/>
-        <MODULEPATH id="juce_data_structures" path="../../juce"/>
-        <MODULEPATH id="juce_cryptography" path="../../juce"/>
-        <MODULEPATH id="juce_core" path="../../juce"/>
-        <MODULEPATH id="juce_audio_formats" path="../../juce"/>
-        <MODULEPATH id="juce_audio_devices" path="../../juce"/>
-        <MODULEPATH id="juce_audio_basics" path="../../juce"/>
+        <MODULEPATH id="juce_gui_extra" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_gui_basics" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_graphics" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_events" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_data_structures" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_cryptography" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_basics" path="../../JUCE/modules"/>
       </MODULEPATHS>
     </VS2013>
     <XCODE_MAC targetFolder="Builds/MacOSX">
@@ -214,23 +227,24 @@
                        isDebug="0" optimisation="2" targetName="YseDemo"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
-        <MODULEPATH id="juce_gui_extra" path="../../juce"/>
-        <MODULEPATH id="juce_gui_basics" path="../../juce"/>
-        <MODULEPATH id="juce_graphics" path="../../juce"/>
-        <MODULEPATH id="juce_events" path="../../juce"/>
-        <MODULEPATH id="juce_data_structures" path="../../juce"/>
-        <MODULEPATH id="juce_cryptography" path="../../juce"/>
-        <MODULEPATH id="juce_core" path="../../juce"/>
-        <MODULEPATH id="juce_audio_formats" path="../../juce"/>
-        <MODULEPATH id="juce_audio_devices" path="../../juce"/>
-        <MODULEPATH id="juce_audio_basics" path="../../juce"/>
+        <MODULEPATH id="juce_gui_extra" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_gui_basics" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_graphics" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_events" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_data_structures" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_cryptography" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_basics" path="../../JUCE/modules"/>
       </MODULEPATHS>
     </XCODE_MAC>
-    <ANDROID targetFolder="Builds/Android" androidActivityClass="com.mute.ysedemo.YseDemo"
-             androidSDKPath="${user.home}/SDKs/android-sdk" androidNDKPath="${user.home}/SDKs/android-ndk"
-             androidMinimumSDK="8" androidInternetNeeded="1" androidKeyStore="${user.home}/.android/debug.keystore"
+    <ANDROID targetFolder="Builds/Android" androidActivityClass="com.mute.demoforyse.YseDemo"
+             androidSDKPath="${user.home}/android/sdk" androidNDKPath="${user.home}/android/ndk"
+             androidMinimumSDK="9" androidInternetNeeded="1" androidKeyStore="${user.home}/.android/debug.keystore"
              androidKeyStorePass="android" androidKeyAlias="androiddebugkey"
-             androidKeyAliasPass="android">
+             androidKeyAliasPass="android" smallIcon="HHUy5c" bigIcon="HHUy5c"
+             androidCpp11="1">
       <CONFIGURATIONS>
         <CONFIGURATION name="Debug" androidArchitectures="armeabi armeabi-v7a" isDebug="1"
                        optimisation="1" targetName="YseDemo"/>

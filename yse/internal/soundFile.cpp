@@ -8,9 +8,7 @@
   ==============================================================================
 */
 
-#include "soundFile.h"
-#include "global.h"
-#include "time.h"
+#include "../internalHeaders.h"
 
 Bool YSE::INTERNAL::soundFile::create(Bool stream) {
   _streaming = stream;

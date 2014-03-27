@@ -24,7 +24,24 @@ namespace YSE {
     class implementationObject;
     class messageObject;
     class managerObject;
-    enum MESSAGE;
+    enum MESSAGE {
+      POSITION,
+      SPREAD,
+      VOLUME_VALUE,
+      VOLUME_TIME,
+      SPEED,
+      SIZE,
+      LOOP,
+      INTENT,
+      OCCLUSION,
+      DSP,
+      TIME,
+      RELATIVE,
+      DOPPLER,
+      PAN2D,
+      FADE_AND_STOP,
+      MOVE,
+    };
   }
 
   struct soundSubSystem {

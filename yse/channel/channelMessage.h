@@ -16,14 +16,9 @@
 
 namespace YSE {
   namespace CHANNEL {
-    enum MESSAGE {
-      VOLUME,
-      MOVE,
-      VIRTUAL,
-      ATTACH_REVERB,
-    };
+    
 
-    class messageObject : public TEMPLATE::messageObject<channelSubSystem> {
+    class messageObject : public TEMPLATE::messageTemplate<channelSubSystem> {
 
     };
   }

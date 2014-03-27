@@ -22,7 +22,7 @@ namespace YSE {
         the implementation and the interface.
     */
     template <typename SUBSYSTEM>
-    class messageObject {
+    class messageTemplate {
     public:
       typedef typename SUBSYSTEM::MESSAGE MESSAGE;
       

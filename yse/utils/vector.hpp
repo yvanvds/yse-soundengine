@@ -12,13 +12,14 @@
 #define VECTOR_H_INCLUDED
 
 #include <string>
-#include "../headers/types.hpp"
 #include <sstream>
 #include <atomic>
-#include "../classes.hpp"
+#include <cmath>
+#include "../headers/types.hpp"
 
 namespace YSE {
-
+  class aVec;
+  
   class API Vec {
   public:
     Flt x, y, z;

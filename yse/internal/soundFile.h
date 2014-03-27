@@ -12,14 +12,12 @@
 #define SOUNDFILE_H_INCLUDED
 
 #include "JuceHeader.h"
+#include "../classes.hpp"
 #include "../headers/types.hpp"
 #include "../dsp/sample.hpp"
 #include "../headers/enums.hpp"
 
 namespace YSE {
-  namespace SOUND {
-    class managerObject;
-  }
 
   namespace INTERNAL {
 

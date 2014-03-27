@@ -15,7 +15,7 @@ namespace YSE {
 
     sample::sample(UInt length) : buffer(length) {}
 
-    sample::sample(AUDIOBUFFER & cp) : buffer(cp.getLength()) {
+    sample::sample(const AUDIOBUFFER & cp) : buffer(cp.getLength()) {
       operator=(cp);
     }
 
@@ -47,11 +47,11 @@ namespace YSE {
       return (*this);
     }
 
-    AUDIOBUFFER & sample::operator+=(AUDIOBUFFER & s) {
+    AUDIOBUFFER & sample::operator+=(const AUDIOBUFFER & s) {
       // use length of shortest buffer to prevent memory errors
       UInt l = buffer.size() < s.getLength() ? buffer.size() : s.getLength();
       Flt * ptr1 = buffer.data();
-      Flt * ptr2 = s.buffer.data();
+      const Flt * ptr2 = s.buffer.data();
 
       for (; l > 7; l -= 8, ptr1 += 8, ptr2 += 8) {
         ptr1[0] += ptr2[0]; ptr1[1] += ptr2[1]; ptr1[2] += ptr2[2]; ptr1[3] += ptr2[3];
@@ -72,11 +72,11 @@ namespace YSE {
       return (*this);
     }
 
-    AUDIOBUFFER & sample::operator-=(AUDIOBUFFER & s) {
+    AUDIOBUFFER & sample::operator-=(const AUDIOBUFFER & s) {
       // use length of shortest buffer to prevent memory errors
       UInt l = buffer.size() < s.getLength() ? buffer.size() : s.getLength();
       Flt * ptr1 = buffer.data();
-      Flt * ptr2 = s.buffer.data();
+      const Flt * ptr2 = s.buffer.data();
       for (; l > 7; l -= 8, ptr1 += 8, ptr2 += 8) {
         ptr1[0] -= ptr2[0]; ptr1[1] -= ptr2[1]; ptr1[2] -= ptr2[2]; ptr1[3] -= ptr2[3];
         ptr1[4] -= ptr2[4]; ptr1[5] -= ptr2[5]; ptr1[6] -= ptr2[6]; ptr1[7] -= ptr2[7];
@@ -96,11 +96,11 @@ namespace YSE {
       return (*this);
     }
 
-    AUDIOBUFFER & sample::operator*=(AUDIOBUFFER & s) {
+    AUDIOBUFFER & sample::operator*=(const AUDIOBUFFER & s) {
       // use length of shortest buffer to prevent memory errors
       UInt l = buffer.size() < s.getLength() ? buffer.size() : s.getLength();
       Flt * ptr1 = buffer.data();
-      Flt * ptr2 = s.buffer.data();
+      const Flt * ptr2 = s.buffer.data();
       for (; l > 7; l -= 8, ptr1 += 8, ptr2 += 8) {
         ptr1[0] *= ptr2[0]; ptr1[1] *= ptr2[1]; ptr1[2] *= ptr2[2]; ptr1[3] *= ptr2[3];
         ptr1[4] *= ptr2[4]; ptr1[5] *= ptr2[5]; ptr1[6] *= ptr2[6]; ptr1[7] *= ptr2[7];
@@ -126,11 +126,11 @@ namespace YSE {
       return (*this);
     }
 
-    AUDIOBUFFER & sample::operator/=(AUDIOBUFFER & s) {
+    AUDIOBUFFER & sample::operator/=(const AUDIOBUFFER & s) {
       // use length of shortest buffer to prevent memory errors
       UInt l = buffer.size() < s.getLength() ? buffer.size() : s.getLength();
       Flt * ptr1 = buffer.data();
-      Flt * ptr2 = s.buffer.data();
+      const Flt * ptr2 = s.buffer.data();
       for (; l > 7; l -= 8, ptr1 += 8, ptr2 += 8) {
         ptr1[0] = (ptr2[0] ? ptr1[0] /= ptr2[0] : 0);
         ptr1[1] = (ptr2[1] ? ptr1[1] /= ptr2[1] : 0);
@@ -149,14 +149,14 @@ namespace YSE {
       return (*this);
     }
 
-    AUDIOBUFFER & sample::operator=(AUDIOBUFFER & s) {
+    AUDIOBUFFER & sample::operator=(const AUDIOBUFFER & s) {
       if (buffer.size() != s.getLength()) {
         resize(s.getLength());
       }
 
       UInt l = buffer.size();
       Flt * ptr1 = buffer.data();
-      Flt * ptr2 = s.buffer.data();
+      const Flt * ptr2 = s.buffer.data();
 
       for (; l > 7; l -= 8, ptr1 += 8, ptr2 += 8) {
         ptr1[0] = ptr2[0];
@@ -191,14 +191,14 @@ namespace YSE {
       return (*this);
     }
 
-    AUDIOBUFFER & sample::copyFrom(AUDIOBUFFER & s, UInt sourcePos, UInt destPos, UInt length) {
+    AUDIOBUFFER & sample::copyFrom(const AUDIOBUFFER & s, UInt sourcePos, UInt destPos, UInt length) {
       // TODO: don't just return if buffers are not long enough!
       if ((UInt)(sourcePos + length) > length) return (*this);
       if ((UInt)(destPos + length) > s.getLength()) return (*this);
 
       UInt l = length;
       Flt * ptr1 = buffer.data() + sourcePos;
-      Flt * ptr2 = s.buffer.data() + destPos;
+      const Flt * ptr2 = s.buffer.data() + destPos;
       for (; l > 7; l -= 8, ptr1 += 8, ptr2 += 8) {
         ptr1[0] = ptr2[0];
         ptr1[1] = ptr2[1];

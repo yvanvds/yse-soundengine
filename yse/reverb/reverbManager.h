@@ -21,7 +21,7 @@
 namespace YSE {
   namespace REVERB {
 
-    class managerObject : public TEMPLATE::managerObject<reverbSubSystem> {
+    class managerObject : public TEMPLATE::managerTemplate<reverbSubSystem> {
     public:
       managerObject();
       ~managerObject();

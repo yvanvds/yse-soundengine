@@ -22,7 +22,7 @@
 
 //[Headers]     -- You can add your own extra header files here --
 #include "JuceHeader.h"
-#include "../../YSE/yse.hpp"
+#include "../../yse/yse.hpp"
 #include <forward_list>
 
 //[/Headers]

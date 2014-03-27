@@ -11,12 +11,9 @@
 #ifndef SOUNDINTERFACE_H_INCLUDED
 #define SOUNDINTERFACE_H_INCLUDED
 
+#include "../classes.hpp"
 #include "../headers/defines.hpp"
-#include "sound.hpp"
 #include "../templates/interfaceObject.hpp"
-#include "../dsp/dspObject.hpp"
-#include "../utils/vector.hpp"
-#include "soundMessage.h"
 
 namespace YSE {
   namespace SOUND {
@@ -33,7 +30,7 @@ namespace YSE {
         flagged for deletion.
         */
 
-    class API interfaceObject : public TEMPLATE::interfaceObject<soundSubSystem> {
+    class API interfaceObject : public TEMPLATE::interfaceTemplate<soundSubSystem> {
     public:
       /** Create a filebased sound and register it with the soundsystem. Other functions will not work
           as long as a sound hasn't been created. In debug mode, an assertion will be called if

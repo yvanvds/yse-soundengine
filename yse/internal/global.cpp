@@ -8,10 +8,7 @@
   ==============================================================================
 */
 
-#include "global.h"
-#include "time.h"
-#include "settings.h"
-#include "../implementations/listenerImplementation.h"
+#include "../internalHeaders.h"
 
 
 YSE::INTERNAL::global YSE::INTERNAL::Global;

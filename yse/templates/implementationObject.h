@@ -21,22 +21,21 @@ namespace YSE {
       messageObject and a MESSAGE enumaration.
     */
     template <typename SUBSYSTEM>
-    class implementationObject {
+    class implementationTemplate {
       //typedef typename NAMESPACE::interfaceObject interfaceObject;
       //typedef typename NAMESPACE::messageObject messageObject;
 
     public:
-      typedef typename implementationObject<SUBSYSTEM> super;
       typedef typename SUBSYSTEM::interfaceObject derrivedInterface;
       typedef typename SUBSYSTEM::messageObject derrivedMessage;
       typedef typename SUBSYSTEM::implementationObject derrivedImplementation;
 
       // An implementation object can only by created with a pointer to respective interface supplied
-      implementationObject(derrivedInterface * head) : objectStatus(OBJECT_CONSTRUCTED), head(head) {
+      implementationTemplate(derrivedInterface * head) : objectStatus(OBJECT_CONSTRUCTED), head(head) {
         head->setInterfacePointer(&(head));
       }
       
-      ~implementationObject() {
+      ~implementationTemplate() {
         exit();
       }
 

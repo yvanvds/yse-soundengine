@@ -9,9 +9,8 @@
 */
 
 
-#include "reverbInterface.hpp"
-#include "../internal/global.h"
-#include "../utils/misc.hpp"
+#include "../internalHeaders.h"
+
 
 
 YSE::REVERB::interfaceObject::interfaceObject(bool global) : active(true), roomsize(0.5f), damp(0.5),  
@@ -19,7 +18,7 @@ YSE::REVERB::interfaceObject::interfaceObject(bool global) : active(true), rooms
                         modWidth(0), global(global), connectedToManager(false) {}
 
 void YSE::REVERB::interfaceObject::create() {
-  super::create();
+  interfaceTemplate<reverbSubSystem>::create();
 
   for (Int i = 0; i < 4; i++) {
     earlyPtr[i] = 0;

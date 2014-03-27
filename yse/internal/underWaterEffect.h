@@ -13,6 +13,7 @@
 
 #include <atomic>
 #include <forward_list>
+#include "../classes.hpp"
 #include "../dsp/sample.hpp"
 #include "../dsp/filters.hpp"
 #include "../reverb/reverbInterface.hpp"

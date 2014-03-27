@@ -12,7 +12,7 @@
 #define DRAGGEDCOMPONENT_H_INCLUDED
 
 #include "../../JuceLibraryCode/JuceHeader.h"
-#include "../../YSE/yse.hpp"
+#include "../../yse/yse.hpp"
 
 //==============================================================================
 /*

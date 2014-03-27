@@ -18,7 +18,6 @@
 #include "soundInterface.hpp"
 #include "soundImplementation.h"
 #include "../templates/managerObject.h"
-
 #include "../internal/soundFile.h"
 
 
@@ -32,7 +31,7 @@ namespace YSE {
       The soundmanager is responsible for the management of all soundfiles and
       sound implementations.
     */
-    class managerObject : public TEMPLATE::managerObject<soundSubSystem> {
+    class managerObject : public TEMPLATE::managerTemplate<soundSubSystem> {
     public:
       
       virtual void create() {}

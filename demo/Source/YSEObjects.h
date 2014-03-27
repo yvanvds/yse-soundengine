@@ -11,7 +11,7 @@
 #ifndef YSEOBJECTS_H_INCLUDED
 #define YSEOBJECTS_H_INCLUDED
 #include "../JuceLibraryCode/JuceHeader.h"
-#include "../../YSE/yse.hpp"
+#include "../../yse/yse.hpp"
 #include "parts/ChannelTreeItem.h"
 #include <forward_list>
 

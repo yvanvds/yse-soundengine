@@ -12,7 +12,7 @@
 #include "reverbImplementation.h"
 
 
-YSE::REVERB::implementationObject::implementationObject(interfaceObject * head) : super(head) {
+YSE::REVERB::implementationObject::implementationObject(interfaceObject * head) : implementationTemplate<reverbSubSystem>(head) {
   for (Int i = 0; i < 4; i++) {
     earlyPtr[i] = 0;
     earlyGain[i] = 0;

@@ -24,7 +24,7 @@ namespace YSE {
     /**
       The implementation counterpart of a reverb interface.
     */
-    class implementationObject : public TEMPLATE::implementationObject<reverbSubSystem> {
+    class implementationObject : public TEMPLATE::implementationTemplate<reverbSubSystem> {
     public:
       
       implementationObject(interfaceObject * head); // < Constructor needs a pointer to the interface

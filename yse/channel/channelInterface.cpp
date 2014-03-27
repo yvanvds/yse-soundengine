@@ -8,15 +8,14 @@
   ==============================================================================
 */
 
-#include "channelInterface.hpp"
-#include "../internal/global.h"
-#include "../utils/misc.hpp"
+
+#include "../internalHeaders.h"
 
 YSE::CHANNEL::interfaceObject::interfaceObject() : allowVirtual(true), volume(1.f)
 {}
 
 YSE::CHANNEL::interfaceObject & YSE::CHANNEL::interfaceObject::create(const char * name, channel& parent) {
-  super::create();
+  interfaceTemplate<channelSubSystem>::create();
   this->name = name;
 
   pimpl = INTERNAL::Global.getChannelManager().addImplementation(this);
@@ -26,7 +25,7 @@ YSE::CHANNEL::interfaceObject & YSE::CHANNEL::interfaceObject::create(const char
 }
 
 void YSE::channel::createGlobal() {
-  super::create();
+  interfaceTemplate<channelSubSystem>::create();
   this->name = "Master channel";
 
   // the global channel will be created instantly because no audio

@@ -13,6 +13,7 @@
 
 #include "headers/types.hpp"
 #include "utils/vector.hpp"
+#include "classes.hpp"
 
 namespace YSE {
 

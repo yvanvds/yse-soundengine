@@ -8,14 +8,13 @@
   ==============================================================================
 */
 
-#include "channelManager.h"
-#include "../internal/global.h"
-#include "../utils/misc.hpp"
+
+#include "../internalHeaders.h"
 
 juce_ImplementSingleton(YSE::CHANNEL::managerObject)
 
 
-YSE::CHANNEL::managerObject::managerObject() : super("channelManager"), outputChannels(0), outputAngles(nullptr) {}
+YSE::CHANNEL::managerObject::managerObject() : managerTemplate<channelSubSystem>("channelManager"), outputChannels(0), outputAngles(nullptr) {}
 
 YSE::CHANNEL::managerObject::~managerObject() {
   delete[] outputAngles;
@@ -49,7 +48,7 @@ YSE::channel & YSE::CHANNEL::managerObject::gui() {
 void YSE::CHANNEL::managerObject::update() {
   // master channel is not in inUse list
   INTERNAL::Global.getDeviceManager().getMaster().sync();
-  super::update();
+  managerTemplate<channelSubSystem>::update();
 }
 
 UInt YSE::CHANNEL::managerObject::getNumberOfOutputs() {

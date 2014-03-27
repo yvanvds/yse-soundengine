@@ -24,7 +24,17 @@ namespace YSE {
     class implementationObject;
     class messageObject;
     class managerObject;
-    enum MESSAGE;
+    enum MESSAGE {
+      POSITION,
+      SIZE,
+      ROLLOFF,
+      ACTIVE,
+      ROOMSIZE,
+      DAMP,
+      DRY_WET,
+      MODULATION,
+      REFLECTION,
+    };
   }
 
   struct reverbSubSystem {

@@ -54,6 +54,8 @@ LOCAL_SRC_FILES := \
   ../../../Source/MainComponent.cpp\
   ../../../Source/tabs.cpp\
   ../../../Source/YSEObjects.cpp\
+  ../../../JuceLibraryCode/BinaryData.cpp\
+  ../../../JuceLibraryCode/BinaryData2.cpp\
   ../../../JuceLibraryCode/modules/juce_audio_basics/juce_audio_basics.cpp\
   ../../../JuceLibraryCode/modules/juce_audio_devices/juce_audio_devices.cpp\
   ../../../JuceLibraryCode/modules/juce_audio_formats/juce_audio_formats.cpp\
@@ -66,14 +68,14 @@ LOCAL_SRC_FILES := \
   ../../../JuceLibraryCode/modules/juce_gui_extra/juce_gui_extra.cpp\
 
 ifeq ($(CONFIG),Debug)
-  LOCAL_CPPFLAGS += -fsigned-char -fexceptions -frtti -g -I "../../JuceLibraryCode" -I "../../JuceLibraryCode/modules" -O0 -D "JUCE_ANDROID=1" -D "JUCE_ANDROID_API_VERSION=8" -D "JUCE_ANDROID_ACTIVITY_CLASSNAME=com_mute_ysedemo_YseDemo" -D JUCE_ANDROID_ACTIVITY_CLASSPATH=\"com/mute/ysedemo/YseDemo\" -D "DEBUG=1" -D "_DEBUG=1" -D "JUCER_ANDROID_7F0E4A25=1" -D "JUCE_APP_VERSION=1.0.0" -D "JUCE_APP_VERSION_HEX=0x10000"
+  LOCAL_CPPFLAGS += -fsigned-char -fexceptions -frtti -g -I "../../JuceLibraryCode" -I "../../JuceLibraryCode/modules" -O0 -std=c++0x -std=gnu++0x -D "JUCE_ANDROID=1" -D "JUCE_ANDROID_API_VERSION=9" -D "JUCE_ANDROID_ACTIVITY_CLASSNAME=com_mute_demoforyse_YseDemo" -D JUCE_ANDROID_ACTIVITY_CLASSPATH=\"com/mute/demoforyse/YseDemo\" -D "DEBUG=1" -D "_DEBUG=1" -D "JUCER_ANDROID_7F0E4A25=1" -D "JUCE_APP_VERSION=1.0.0" -D "JUCE_APP_VERSION_HEX=0x10000"
   LOCAL_LDLIBS := -llog -lGLESv2
-  LOCAL_CFLAGS += -fsigned-char -fexceptions -frtti -g -I "../../JuceLibraryCode" -I "../../JuceLibraryCode/modules" -O0 -D "JUCE_ANDROID=1" -D "JUCE_ANDROID_API_VERSION=8" -D "JUCE_ANDROID_ACTIVITY_CLASSNAME=com_mute_ysedemo_YseDemo" -D JUCE_ANDROID_ACTIVITY_CLASSPATH=\"com/mute/ysedemo/YseDemo\" -D "DEBUG=1" -D "_DEBUG=1" -D "JUCER_ANDROID_7F0E4A25=1" -D "JUCE_APP_VERSION=1.0.0" -D "JUCE_APP_VERSION_HEX=0x10000"
+  LOCAL_CFLAGS += -fsigned-char -fexceptions -frtti -g -I "../../JuceLibraryCode" -I "../../JuceLibraryCode/modules" -O0 -std=c++0x -std=gnu++0x -D "JUCE_ANDROID=1" -D "JUCE_ANDROID_API_VERSION=9" -D "JUCE_ANDROID_ACTIVITY_CLASSNAME=com_mute_demoforyse_YseDemo" -D JUCE_ANDROID_ACTIVITY_CLASSPATH=\"com/mute/demoforyse/YseDemo\" -D "DEBUG=1" -D "_DEBUG=1" -D "JUCER_ANDROID_7F0E4A25=1" -D "JUCE_APP_VERSION=1.0.0" -D "JUCE_APP_VERSION_HEX=0x10000"
   LOCAL_LDLIBS := -llog -lGLESv2
 else
-  LOCAL_CPPFLAGS += -fsigned-char -fexceptions -frtti -I "../../JuceLibraryCode" -I "../../JuceLibraryCode/modules" -Os -D "JUCE_ANDROID=1" -D "JUCE_ANDROID_API_VERSION=8" -D "JUCE_ANDROID_ACTIVITY_CLASSNAME=com_mute_ysedemo_YseDemo" -D JUCE_ANDROID_ACTIVITY_CLASSPATH=\"com/mute/ysedemo/YseDemo\" -D "NDEBUG=1" -D "JUCER_ANDROID_7F0E4A25=1" -D "JUCE_APP_VERSION=1.0.0" -D "JUCE_APP_VERSION_HEX=0x10000"
+  LOCAL_CPPFLAGS += -fsigned-char -fexceptions -frtti -I "../../JuceLibraryCode" -I "../../JuceLibraryCode/modules" -Os -std=c++0x -std=gnu++0x -D "JUCE_ANDROID=1" -D "JUCE_ANDROID_API_VERSION=9" -D "JUCE_ANDROID_ACTIVITY_CLASSNAME=com_mute_demoforyse_YseDemo" -D JUCE_ANDROID_ACTIVITY_CLASSPATH=\"com/mute/demoforyse/YseDemo\" -D "NDEBUG=1" -D "JUCER_ANDROID_7F0E4A25=1" -D "JUCE_APP_VERSION=1.0.0" -D "JUCE_APP_VERSION_HEX=0x10000"
   LOCAL_LDLIBS := -llog -lGLESv2
-  LOCAL_CFLAGS += -fsigned-char -fexceptions -frtti -I "../../JuceLibraryCode" -I "../../JuceLibraryCode/modules" -Os -D "JUCE_ANDROID=1" -D "JUCE_ANDROID_API_VERSION=8" -D "JUCE_ANDROID_ACTIVITY_CLASSNAME=com_mute_ysedemo_YseDemo" -D JUCE_ANDROID_ACTIVITY_CLASSPATH=\"com/mute/ysedemo/YseDemo\" -D "NDEBUG=1" -D "JUCER_ANDROID_7F0E4A25=1" -D "JUCE_APP_VERSION=1.0.0" -D "JUCE_APP_VERSION_HEX=0x10000"
+  LOCAL_CFLAGS += -fsigned-char -fexceptions -frtti -I "../../JuceLibraryCode" -I "../../JuceLibraryCode/modules" -Os -std=c++0x -std=gnu++0x -D "JUCE_ANDROID=1" -D "JUCE_ANDROID_API_VERSION=9" -D "JUCE_ANDROID_ACTIVITY_CLASSNAME=com_mute_demoforyse_YseDemo" -D JUCE_ANDROID_ACTIVITY_CLASSPATH=\"com/mute/demoforyse/YseDemo\" -D "NDEBUG=1" -D "JUCER_ANDROID_7F0E4A25=1" -D "JUCE_APP_VERSION=1.0.0" -D "JUCE_APP_VERSION_HEX=0x10000"
   LOCAL_LDLIBS := -llog -lGLESv2
 endif
 

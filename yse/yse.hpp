@@ -11,7 +11,6 @@
 #ifndef YSE_HPP_INCLUDED
 #define YSE_HPP_INCLUDED
 
-#include "classes.hpp"
 #include <atomic>
 
 // helpers
@@ -45,8 +44,11 @@
 // primary objects
 #include "system.hpp"
 #include "log.hpp"
+#include "channel/channel.hpp"
 #include "channel/channelInterface.hpp"
+#include "sound/sound.hpp"
 #include "sound/soundInterface.hpp"
+#include "reverb/reverb.hpp"
 #include "reverb/reverbInterface.hpp"
 #include "listener.hpp"
 

@@ -401,6 +401,32 @@ YSE::INTERNAL::reverbChannel::reverbChannel() : delayline(3000), bufComb(COMBS),
   clear();
 }
 
+YSE::INTERNAL::reverbChannel::reverbChannel(const reverbChannel& source): delayline(3000), bufComb(COMBS), bufAll(APASS) {
+    Int rnd = Random(50);
+  // recalculate the reverb parameters in case we don't run at 44.1kHz
+  for (Int i = 0; i < COMBS; i++) {
+    combTuning[i] = (Int)((combtuning[i] + rnd) * (SAMPLERATE / 44100.0f));
+  }
+
+  for (int i = 0; i < APASS; i++) {
+    allTuning[i] = (Int)((allpasstuning[i] + rnd) * (SAMPLERATE / 44100.0f));
+  }
+
+  // get memory for delay lines
+  for (Int i = 0; i < COMBS; i++) {
+    bufComb[i].resize(combTuning[i]);
+    combIndex[i] = 0;
+  }
+
+  for (Int i = 0; i < APASS; i++) {
+    bufAll[i].resize(allTuning[i]);
+    allIndex[i] = 0;
+  }
+  
+  earlyOffset = Random(30);
+  clear();  
+}
+
 void YSE::INTERNAL::reverbChannel::clear() {
   for (UInt i = 0; i < bufComb.size(); i++) {
     bufComb[i].assign(bufComb[i].size(), 0.f);
