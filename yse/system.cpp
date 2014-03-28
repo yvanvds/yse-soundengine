@@ -8,18 +8,8 @@ Author:  yvan
 ==============================================================================
 */
 
-#include "system.hpp"
-#include "internal/global.h"
-#include "implementations/logImplementation.h"
-#include "headers/enums.hpp"
-#include "internal/deviceManager.h"
-#include "channel/channel.hpp"
-#include "channel/channelManager.h"
-#include "channel/channelInterface.hpp"
-#include "internal/underWaterEffect.h"
-#include "internal/virtualFinder.h"
-#include "reverb/reverbInterface.hpp"
-#include "reverb/reverbManager.h"
+#include "internalHeaders.h"
+
 
 
 #ifdef YSE_WINDOWS

@@ -47,6 +47,10 @@ namespace YSE {
       */
       INTERNAL::soundFile * addFile(const File & file);
 
+#if defined PUBLIC_JUCE
+      INTERNAL::soundFile * addInputStream(juce::InputStream * source);
+#endif
+
       /** Run the soundManager update. This function is responsable for most of the
           action on sound implementations and sound files.
       */
@@ -69,7 +73,9 @@ namespace YSE {
       
           @param file   The file to retrieve a reader for.
       */
-      AudioFormatReader * getReader(const File & f);     
+      AudioFormatReader * getReader(const File & f);
+      AudioFormatReader * getReader(juce::InputStream * source);
+      
       
       /** Hints the sounds manager that it should check for implementations that are 
           no longer in use. This is called by the implementations themselves, when they

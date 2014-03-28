@@ -53,6 +53,10 @@ namespace YSE {
       */
       Bool create(const std::string &fileName, CHANNEL::interfaceObject * ch, Bool loop, Flt volume, Bool streaming);
 
+#if defined PUBLIC_JUCE
+      Bool create(juce::InputStream * source, CHANNEL::interfaceObject * ch, Bool loop, Flt volume, Bool streaming);
+#endif
+
       /** Initialize some settings for the sound after creation.
           @param head       Passes a pointer to the actual sound object (created by the user)
                             to this implementation. Implementations will be deleted when this

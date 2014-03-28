@@ -108,8 +108,8 @@ void draggedComponent::setListener(bool value) {
   YSE::Listener().setPosition(YSE::Vec(ysePos.x, 0, ysePos.y));
 }
 
-void draggedComponent::setSound(const String & name) {
-  sound->create(name.toStdString().c_str(), &YSE::ChannelMaster(), true);
+void draggedComponent::setSound(juce::InputStream * stream) {
+  sound->create(stream, &YSE::ChannelMaster(), true);
   Point<float> ysePos = calculateYSEPos(getPosition());
   sound->setPosition(YSE::Vec(ysePos.x, 0, ysePos.y));
 }

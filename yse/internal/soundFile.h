@@ -53,8 +53,18 @@ namespace YSE {
       soundFile(const File & file);
       ~soundFile();
 
+      // used for passing juce BinaryData as a sound source
+      Bool contains(juce::InputStream * source);
+      soundFile(juce::InputStream * source);
+
+
     private:
       File              file;
+
+      // used for passing juce BinaryData as a sound source
+      juce::InputStream * source;
+
+
       AudioSampleBuffer _buffer; // contains the actual sound buffer
       std::atomic<FILESTATE> state;
       Flt               _sampleRateAdjustment;

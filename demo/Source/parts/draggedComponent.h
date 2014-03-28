@@ -31,7 +31,7 @@ public:
     void setCoordLabel(Label * ptr);
     void setDragBounds(Component * ptr);
     void setListener(bool value);
-    void setSound(const String & name);
+    void setSound(juce::InputStream * stream);
     void play(bool value);
 private:
     ComponentBoundsConstrainer constrainer;

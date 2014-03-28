@@ -22,7 +22,7 @@ void valueTreeLink::set(ValueTree tree) {
                 // find parent channel
                 valueTreeLink * parent = Sound().findParent(tree);
                 if (parent != NULL) {
-                  sound->create("kick.ogg", parent->channel, true);
+                  sound->create(new MemoryInputStream(BinaryData::kick_ogg, BinaryData::kick_oggSize, false), parent->channel, true);
                   sound->play();
                 }
                 
@@ -61,9 +61,9 @@ YSEObjects & Sound() {
 }
 
 void YSEObjects::init() {
-  basicTab.add(new YSE::sound)->create("drone.ogg", NULL, true).set2D(true);
-  basicTab.add(new YSE::sound)->create("drone.ogg", NULL, true).set2D(true);
-  basicTab.add(new YSE::sound)->create("drone.ogg", NULL, true).set2D(true);
+  basicTab.add(new YSE::sound)->create(new MemoryInputStream(BinaryData::drone_ogg, BinaryData::drone_oggSize, false), NULL, true).set2D(true);
+  basicTab.add(new YSE::sound)->create(new MemoryInputStream(BinaryData::drone_ogg, BinaryData::drone_oggSize, false), NULL, true).set2D(true);
+  basicTab.add(new YSE::sound)->create(new MemoryInputStream(BinaryData::drone_ogg, BinaryData::drone_oggSize, false), NULL, true).set2D(true);
 }
 
 void YSEObjects::close() {

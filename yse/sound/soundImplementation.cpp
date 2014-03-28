@@ -110,6 +110,28 @@ bool YSE::SOUND::implementationObject::create(const std::string &fileName, CHANN
   return false;
 }
 
+bool YSE::SOUND::implementationObject::create(juce::InputStream * source, CHANNEL::interfaceObject * ch, Bool loop, Flt volume, Bool streaming) {
+  parent = ch->getImplementation();
+  looping = loop;
+  fader.set(volume);
+
+  if (!streaming) {
+    file = INTERNAL::Global.getSoundManager().addInputStream(source);
+    status_dsp = SS_STOPPED;
+    status_upd = SS_STOPPED;
+
+    if (file == nullptr) {
+      return false;
+    }
+    else {
+      objectStatus = OBJECT_CREATED;
+      return true;
+    }
+  }
+
+  return false;
+}
+
 void YSE::SOUND::implementationObject::implementationSetup() {
   if (file->getState() == INTERNAL::FILESTATE::READY) {
     filebuffer.resize(file->channels());

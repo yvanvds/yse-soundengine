@@ -249,10 +249,10 @@ void cpuLoad::buttonClicked (Button* buttonThatWasClicked)
         Random & rand = Random::getSystemRandom();
         Sound().cpuTab.emplace_front();
         switch (rand.nextInt(4)) {
-          case 0: Sound().cpuTab.front().create("g.ogg", &YSE::ChannelAmbient(), true, 0.1f); break;
-          case 1: Sound().cpuTab.front().create("kick.ogg", &YSE::ChannelFX(), true, 0.1f); break;
-          case 2: Sound().cpuTab.front().create("drone.ogg", &YSE::ChannelMusic(), true, 0.1f); break;
-          case 3: Sound().cpuTab.front().create("snare.ogg", &YSE::ChannelVoice(), true, 0.1f); break;
+        case 0: Sound().cpuTab.front().create(new MemoryInputStream(BinaryData::g_ogg, BinaryData::g_oggSize, false), &YSE::ChannelAmbient(), true, 0.1f); break;
+        case 1: Sound().cpuTab.front().create(new MemoryInputStream(BinaryData::kick_ogg, BinaryData::kick_oggSize, false), &YSE::ChannelFX(), true, 0.1f); break;
+        case 2: Sound().cpuTab.front().create(new MemoryInputStream(BinaryData::drone_ogg, BinaryData::drone_oggSize, false), &YSE::ChannelMusic(), true, 0.1f); break;
+        case 3: Sound().cpuTab.front().create(new MemoryInputStream(BinaryData::snare_ogg, BinaryData::snare_oggSize, false), &YSE::ChannelVoice(), true, 0.1f); break;
         }
         Sound().cpuTab.front().setPosition(YSE::Vec((rand.nextFloat() - 0.5f) * 10, (rand.nextFloat() - 0.5f) * 10, (rand.nextFloat() - 0.5f) * 10));
         Sound().cpuTab.front().setSpeed(rand.nextFloat() + 0.5f);

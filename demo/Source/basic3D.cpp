@@ -113,8 +113,8 @@ basic3D::basic3D ()
     soundButton1->setCoordLabel(coordLabel.get());
     soundButton2->setCoordLabel(coordLabel.get());
     listenerButton->setCoordLabel(coordLabel.get());
-    soundButton1->setSound("kick.ogg");
-    soundButton2->setSound("g.ogg");
+    soundButton1->setSound(new MemoryInputStream(BinaryData::kick_ogg, BinaryData::kick_oggSize, false));
+    soundButton2->setSound(new MemoryInputStream(BinaryData::g_ogg, BinaryData::g_oggSize, false));
     listenerButton->setListener(true);
     volumeSlider->setValue(0.5f);
     //[/Constructor]

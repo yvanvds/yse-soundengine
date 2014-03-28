@@ -25,7 +25,14 @@ Bool YSE::INTERNAL::soundFile::create(Bool stream) {
 }
 
 ThreadPoolJob::JobStatus YSE::INTERNAL::soundFile::runJob() {
-  ScopedPointer<AudioFormatReader> reader = Global.getSoundManager().getReader(file);
+  ScopedPointer<AudioFormatReader> reader;
+  if (source == nullptr) {
+    reader = Global.getSoundManager().getReader(file);
+  }
+  else {
+    reader = Global.getSoundManager().getReader(source);
+  }
+  
   if (reader != nullptr) {
     _buffer.setSize(reader->numChannels, (Int)reader->lengthInSamples);
     reader->read(&_buffer, 0, (Int)reader->lengthInSamples, 0, true, true);
@@ -288,6 +295,10 @@ Bool YSE::INTERNAL::soundFile::contains(const File & file) {
   return this->file == file;
 }
 
+Bool YSE::INTERNAL::soundFile::contains(juce::InputStream * source) {
+  return this->source == source;
+}
+
 void YSE::INTERNAL::soundFile::resetStream() {
 
 }
@@ -314,7 +325,20 @@ YSE::INTERNAL::soundFile::soundFile(const File & file) : ThreadPoolJob(file.getF
   , clients(0)
   , idleTime(0)
   , state(NEW)
-  , file(file) {
+  , file(file)
+  , source(nullptr) 
+{
+  _sampleRateAdjustment = 1.0f;
+}
+
+
+YSE::INTERNAL::soundFile::soundFile(juce::InputStream * source) : ThreadPoolJob("BinaryDataReader")
+, _buffer(1, 1)
+, clients(0)
+, idleTime(0)
+, state(NEW)
+, file()
+, source(source) {
   _sampleRateAdjustment = 1.0f;
 }
 

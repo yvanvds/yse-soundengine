@@ -15,6 +15,10 @@
 #include "../headers/defines.hpp"
 #include "../templates/interfaceObject.hpp"
 
+#if defined PUBLIC_JUCE
+#include "JuceHeader.h"
+#endif
+
 namespace YSE {
   namespace SOUND {
 
@@ -62,6 +66,16 @@ namespace YSE {
           @param volume   The volume at which to start playing this sound.
           */
       interfaceObject& create(DSP::dspSourceObject &  dsp, channel * ch = nullptr, Flt volume = 1.0f);
+
+#if defined PUBLIC_JUCE
+      /**
+          This is an extra create function which enables you to pass a Juce InputStream with audio data
+          to YSE. This is usefull if you use Juce to create an application. But since it creates an additional
+          depency on the Juce library, it has to be enabled by including the preprocessor definition
+          PUBLIC_JUCE in your project settings.
+      */
+      interfaceObject& create(juce::InputStream * source, channel * ch = nullptr, Bool loop = false, Flt volume = 1.0f, Bool streaming = false);
+#endif
 
       /**
        Set the position of this sound in the virtual space.
