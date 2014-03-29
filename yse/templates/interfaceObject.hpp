@@ -41,8 +41,8 @@ namespace YSE {
           end to create an implementationObject and do some setup routines on it (Replace
           XXX with the mananager object you need):
 
-          pimpl = INTERNAL::Global.getXXXManager().addImplementation(this);
-          INTERNAL::Global.getXXXManager().setup(pimpl);
+          pimpl = INTERNAL::Global().getXXXManager().addImplementation(this);
+          INTERNAL::Global().getXXXManager().setup(pimpl);
       */
       virtual void create() {
         assert(pimpl == nullptr); 

@@ -19,7 +19,7 @@ Bool YSE::INTERNAL::soundFile::create(Bool stream) {
 
   if (!_streaming && state == NEW) {
     state = LOADING;
-    Global.addSlowJob(this);
+    Global().addSlowJob(this);
   } 
   return true;
 }
@@ -27,10 +27,10 @@ Bool YSE::INTERNAL::soundFile::create(Bool stream) {
 ThreadPoolJob::JobStatus YSE::INTERNAL::soundFile::runJob() {
   ScopedPointer<AudioFormatReader> reader;
   if (source == nullptr) {
-    reader = Global.getSoundManager().getReader(file);
+    reader = Global().getSoundManager().getReader(file);
   }
   else {
-    reader = Global.getSoundManager().getReader(source);
+    reader = Global().getSoundManager().getReader(source);
   }
   
   if (reader != nullptr) {
@@ -44,7 +44,7 @@ ThreadPoolJob::JobStatus YSE::INTERNAL::soundFile::runJob() {
     return jobHasFinished;
   }
   else {
-    Global.getLog().emit(E_FILEREADER, "Unable to read " + file.getFullPathName().toStdString());
+    Global().getLog().emit(E_FILEREADER, "Unable to read " + file.getFullPathName().toStdString());
     state = INVALID;
     return jobHasFinished;
   }
@@ -361,7 +361,7 @@ YSE::INTERNAL::soundFile & YSE::INTERNAL::soundFile::reset() {
 
 bool YSE::INTERNAL::soundFile::inUse() {
   if (clients < 1) {
-    idleTime += Global.getTime().delta();
+    idleTime += Global().getTime().delta();
   }
   if (idleTime > 30) {
     return false;

@@ -37,11 +37,11 @@ YSE::INTERNAL::listenerImplementation::~listenerImplementation() {
 
 void YSE::INTERNAL::listenerImplementation::update() {
   // ugly, but the atomic version of vector isn't great right now
-  newPos.x = pos.x.load() * (Global.getSettings().distanceFactor);
-  newPos.y = pos.y.load() * (Global.getSettings().distanceFactor);
-  newPos.z = pos.z.load() * (Global.getSettings().distanceFactor);
-  vel.x.store((newPos.x - lastPos.x) * (1.f / Global.getTime().delta()));
-  vel.y.store((newPos.y - lastPos.y) * (1.f / Global.getTime().delta()));
-  vel.z.store((newPos.z - lastPos.z) * (1.f / Global.getTime().delta()));
+  newPos.x = pos.x.load() * (Global().getSettings().distanceFactor);
+  newPos.y = pos.y.load() * (Global().getSettings().distanceFactor);
+  newPos.z = pos.z.load() * (Global().getSettings().distanceFactor);
+  vel.x.store((newPos.x - lastPos.x) * (1.f / Global().getTime().delta()));
+  vel.y.store((newPos.y - lastPos.y) * (1.f / Global().getTime().delta()));
+  vel.z.store((newPos.z - lastPos.z) * (1.f / Global().getTime().delta()));
   lastPos = newPos;
 }

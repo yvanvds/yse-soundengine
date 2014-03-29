@@ -52,7 +52,7 @@ YSE::SOUND::implementationObject::implementationObject(interfaceObject * head) :
   fader.set(0.5f);
 
 #if defined YSE_DEBUG
-  INTERNAL::Global.getLog().emit(E_SOUND_ADDED);
+  INTERNAL::Global().getLog().emit(E_SOUND_ADDED);
 #endif
 }
 
@@ -73,12 +73,12 @@ bool YSE::SOUND::implementationObject::create(const std::string &fileName, CHANN
   ioFile = File::getCurrentWorkingDirectory().getChildFile(juce::String(fileName));
 
   if (!ioFile.existsAsFile()) {
-    INTERNAL::Global.getLog().emit(E_FILE_ERROR, "file not found for " + ioFile.getFullPathName().toStdString());
+    INTERNAL::Global().getLog().emit(E_FILE_ERROR, "file not found for " + ioFile.getFullPathName().toStdString());
     return false;
   }
 
   if (!streaming) {
-    file = INTERNAL::Global.getSoundManager().addFile(ioFile);
+    file = INTERNAL::Global().getSoundManager().addFile(ioFile);
     status_dsp = SS_STOPPED;
     status_upd = SS_STOPPED;
 
@@ -116,7 +116,7 @@ bool YSE::SOUND::implementationObject::create(juce::InputStream * source, CHANNE
   fader.set(volume);
 
   if (!streaming) {
-    file = INTERNAL::Global.getSoundManager().addInputStream(source);
+    file = INTERNAL::Global().getSoundManager().addInputStream(source);
     status_dsp = SS_STOPPED;
     status_upd = SS_STOPPED;
 
@@ -136,7 +136,7 @@ void YSE::SOUND::implementationObject::implementationSetup() {
   if (file->getState() == INTERNAL::FILESTATE::READY) {
     filebuffer.resize(file->channels());
     buffer = &filebuffer;
-    lastGain.resize(INTERNAL::Global.getChannelManager().getNumberOfOutputs());
+    lastGain.resize(INTERNAL::Global().getChannelManager().getNumberOfOutputs());
     head.load()->length = file->length();
     for (UInt i = 0; i < lastGain.size(); i++) {
       lastGain[i].resize(buffer->size(), 0.0f);
@@ -150,7 +150,7 @@ void YSE::SOUND::implementationObject::implementationSetup() {
 }
 
 Bool YSE::SOUND::implementationObject::implementationReadyCheck() {
-  return lastGain.size() == INTERNAL::Global.getChannelManager().getNumberOfOutputs();
+  return lastGain.size() == INTERNAL::Global().getChannelManager().getNumberOfOutputs();
 }
 
 void YSE::SOUND::implementationObject::doThisWhenReady() {
@@ -267,14 +267,14 @@ void YSE::SOUND::implementationObject::update() {
   ///////////////////////////////////////////
   // set position and distance
   ///////////////////////////////////////////
-  newPos = pos * INTERNAL::Global.getSettings().distanceFactor;
+  newPos = pos * INTERNAL::Global().getSettings().distanceFactor;
 
   // distance to listener
   if (relative) {
     distance = Dist(Vec(0), newPos);
   }
   else {
-    distance = Dist(newPos, INTERNAL::Global.getListener().newPos);
+    distance = Dist(newPos, INTERNAL::Global().getListener().newPos);
   }
   virtualDist = (distance- size) * currentVolume_upd;
   if (virtualDist < 0) virtualDist = 0;
@@ -288,21 +288,21 @@ void YSE::SOUND::implementationObject::update() {
   Flt vel = velocity; // avoid using atomic all the time
   if (!doppler) vel = 0;
   else {
-    velocityVec = (newPos - lastPos) * (1 / INTERNAL::Global.getTime().delta());
+    velocityVec = (newPos - lastPos) * (1 / INTERNAL::Global().getTime().delta());
     
     Vec listenerVelocity;
-    listenerVelocity.x = INTERNAL::Global.getListener().vel.x.load();
-    listenerVelocity.y = INTERNAL::Global.getListener().vel.y.load();
-    listenerVelocity.z = INTERNAL::Global.getListener().vel.z.load();
+    listenerVelocity.x = INTERNAL::Global().getListener().vel.x.load();
+    listenerVelocity.y = INTERNAL::Global().getListener().vel.y.load();
+    listenerVelocity.z = INTERNAL::Global().getListener().vel.z.load();
 
     if (velocityVec == Vec(0) && listenerVelocity == Vec(0)) vel = 0;
     else {
-      Vec dist = relative ? newPos : newPos - INTERNAL::Global.getListener().newPos;
+      Vec dist = relative ? newPos : newPos - INTERNAL::Global().getListener().newPos;
       if (dist != Vec(0)) {
         Flt rSound = Dot(vel, dist) / dist.length();
         Flt rList = Dot(listenerVelocity, dist) / dist.length();
         vel = 1 - (440 / (((344.0f + rList) / (344.0f + rSound)) * 440));
-        vel *= INTERNAL::Global.getSettings().dopplerScale;
+        vel *= INTERNAL::Global().getSettings().dopplerScale;
       }
     }
     
@@ -316,9 +316,9 @@ void YSE::SOUND::implementationObject::update() {
   // calculate angle
   ///////////////////////////////////////////
   Flt a = angle; // avoid using atomic all the time
-  Vec dir = relative ? newPos : newPos - INTERNAL::Global.getListener().newPos;
+  Vec dir = relative ? newPos : newPos - INTERNAL::Global().getListener().newPos;
   if (relative) a = -atan2(dir.x, dir.z);
-  else a = (atan2(dir.z, dir.x) - atan2(INTERNAL::Global.getListener().forward.z.load(), INTERNAL::Global.getListener().forward.x.load()));
+  else a = (atan2(dir.z, dir.x) - atan2(INTERNAL::Global().getListener().forward.z.load(), INTERNAL::Global().getListener().forward.x.load()));
   while (a > Pi) a -= Pi2;
   while (a < -Pi) a += Pi2;
   a = -a;
@@ -328,7 +328,7 @@ void YSE::SOUND::implementationObject::update() {
   // sound occlusion (optional)
   ///////////////////////////////////////////
   if (System().occlusionCallback() != nullptr && occlusionActive) {
-    occlusion_dsp = System().occlusionCallback()(newPos, INTERNAL::Global.getListener().newPos);
+    occlusion_dsp = System().occlusionCallback()(newPos, INTERNAL::Global().getListener().newPos);
     Clamp(occlusion_dsp, 0.f, 1.f);
   }
 
@@ -527,7 +527,7 @@ void YSE::SOUND::implementationObject::toChannels() {
     // calculated power
     Flt dist = distance - size;
     if (dist < 0) dist = 0;
-    Flt correctPower = 1 / pow(dist, (2 * INTERNAL::Global.getSettings().rolloffScale));
+    Flt correctPower = 1 / pow(dist, (2 * INTERNAL::Global().getSettings().rolloffScale));
     if (correctPower > 1) correctPower = 1;
 
     // final gain assignment
@@ -559,7 +559,7 @@ void YSE::SOUND::implementationObject::addSourceDSP(DSP::dspSourceObject &ptr) {
   source_dsp = &ptr;
   status_dsp = SS_STOPPED;
   buffer = &source_dsp->buffer;
-  lastGain.resize(INTERNAL::Global.getChannelManager().getNumberOfOutputs());
+  lastGain.resize(INTERNAL::Global().getChannelManager().getNumberOfOutputs());
   for (UInt i = 0; i < lastGain.size(); i++) {
     lastGain[i].resize(buffer->size(), 0.0f);
   }

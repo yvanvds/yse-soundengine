@@ -21,9 +21,9 @@ allowVirtual(true), parent(nullptr)
 
 void YSE::CHANNEL::implementationObject::exit() {
   // exit the dsp thread for this channel
-  INTERNAL::Global.waitForFastJob(this);
+  INTERNAL::Global().waitForFastJob(this);
 
-  if (INTERNAL::Global.isActive()) {
+  if (INTERNAL::Global().isActive()) {
     parent->disconnect(this);
     childrenToParent();
   }
@@ -75,7 +75,7 @@ void YSE::CHANNEL::implementationObject::dsp() {
 
   // calculate child channels if there are any
   for (auto i = children.begin(); i != children.end(); ++i) {
-    INTERNAL::Global.addFastJob(*i);
+    INTERNAL::Global().addFastJob(*i);
   }
 
   // calculate sounds in this channel
@@ -87,7 +87,7 @@ void YSE::CHANNEL::implementationObject::dsp() {
 
   adjustVolume();
 
-  INTERNAL::Global.getReverbManager().process(this);
+  INTERNAL::Global().getReverbManager().process(this);
 
   if (INTERNAL::UnderWaterEffect().channel() == this) {
     INTERNAL::UnderWaterEffect().apply(out);
@@ -95,7 +95,7 @@ void YSE::CHANNEL::implementationObject::dsp() {
 }
 
 void YSE::CHANNEL::implementationObject::buffersToParent() {
-  INTERNAL::Global.waitForFastJob(this);
+  INTERNAL::Global().waitForFastJob(this);
 
   // call this recursively on all child channels 
   for (auto i = children.begin(); i != children.end(); ++i) {
@@ -123,15 +123,15 @@ void YSE::CHANNEL::implementationObject::attachUnderWaterFX() {
 /////////////////////////////////////////////////////
 
 void YSE::CHANNEL::implementationObject::implementationSetup() {
-  out.resize(INTERNAL::Global.getChannelManager().getNumberOfOutputs());
-  outConf.resize(INTERNAL::Global.getChannelManager().getNumberOfOutputs());
-  for (UInt i = 0; i < INTERNAL::Global.getChannelManager().getNumberOfOutputs(); i++) {
-    outConf[i].angle = INTERNAL::Global.getChannelManager().getOutputAngle(i);
+  out.resize(INTERNAL::Global().getChannelManager().getNumberOfOutputs());
+  outConf.resize(INTERNAL::Global().getChannelManager().getNumberOfOutputs());
+  for (UInt i = 0; i < INTERNAL::Global().getChannelManager().getNumberOfOutputs(); i++) {
+    outConf[i].angle = INTERNAL::Global().getChannelManager().getOutputAngle(i);
   }
 }
 
 Bool YSE::CHANNEL::implementationObject::implementationReadyCheck() {
-  return outConf.size() == INTERNAL::Global.getChannelManager().getNumberOfOutputs();
+  return outConf.size() == INTERNAL::Global().getChannelManager().getNumberOfOutputs();
 }
 
 void YSE::CHANNEL::implementationObject::doThisWhenReady() {
@@ -141,7 +141,7 @@ void YSE::CHANNEL::implementationObject::doThisWhenReady() {
 void YSE::CHANNEL::implementationObject::parseMessage(const messageObject & message) {
   switch (message.ID) {
     case ATTACH_REVERB: 
-      INTERNAL::Global.getReverbManager().attachToChannel(this); 
+      INTERNAL::Global().getReverbManager().attachToChannel(this); 
       break;
     case MOVE:
     {

@@ -36,7 +36,7 @@ YSE::INTERNAL::underWaterEffect & YSE::INTERNAL::underWaterEffect::setDepth(Flt 
   depth = value;
   if (depth > 0) {
     verb.setActive(true);
-    verb.setPosition(Global.getListener().pos);
+    verb.setPosition(Global().getListener().pos);
   }
   else {
     verb.setActive(false);
@@ -53,7 +53,7 @@ YSE::INTERNAL::underWaterEffect & YSE::INTERNAL::underWaterEffect::apply(MULTICH
     for (UInt i = 0; i < channelBuffer.size(); ++i) {
       buffer += channelBuffer[i];
     }
-    buffer /= static_cast<Flt>(Global.getChannelManager().getNumberOfOutputs());
+    buffer /= static_cast<Flt>(Global().getChannelManager().getNumberOfOutputs());
 
     Flt factor = 140 - (depth * 5);
     factor = DSP::MidiToFreq(factor);

@@ -47,7 +47,7 @@ YSE::channel & YSE::CHANNEL::managerObject::gui() {
 
 void YSE::CHANNEL::managerObject::update() {
   // master channel is not in inUse list
-  INTERNAL::Global.getDeviceManager().getMaster().sync();
+  INTERNAL::Global().getDeviceManager().getMaster().sync();
   managerTemplate<channelSubSystem>::update();
 }
 
@@ -66,7 +66,7 @@ Flt YSE::CHANNEL::managerObject::getOutputAngle(UInt nr) {
 void YSE::CHANNEL::managerObject::setMaster(CHANNEL::implementationObject * impl) {
   impl->objectStatus = OBJECT_CREATED;
   impl->setup();
-  INTERNAL::Global.getDeviceManager().setMaster(impl);
+  INTERNAL::Global().getDeviceManager().setMaster(impl);
 }
 
 void YSE::CHANNEL::managerObject::changeChannelConf(CHANNEL_TYPE type, Int outputs) {
@@ -86,7 +86,7 @@ void YSE::CHANNEL::managerObject::changeChannelConf(CHANNEL_TYPE type, Int outpu
                          // set later
   }
 
-  INTERNAL::Global.getReverbManager().setOutputChannels(outputChannels);
+  INTERNAL::Global().getReverbManager().setOutputChannels(outputChannels);
   for (auto i = inUse.begin(); i != inUse.end(); i++) {
     (*i)->setup();
   }

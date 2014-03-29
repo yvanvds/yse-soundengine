@@ -94,8 +94,8 @@ namespace YSE {
 
       ~managerTemplate() {
         // wait for jobs to finish
-        INTERNAL::Global.waitForSlowJob(&mgrSetup);
-        INTERNAL::Global.waitForSlowJob(&mgrDelete);
+        INTERNAL::Global().waitForSlowJob(&mgrSetup);
+        INTERNAL::Global().waitForSlowJob(&mgrDelete);
 
         // remove all objects that are still in memory
         toLoad.clear();
@@ -140,15 +140,15 @@ namespace YSE {
         ///////////////////////////////////////////
         // check if there are implementations that need setup
         ///////////////////////////////////////////
-        if (!toLoad.empty() && !INTERNAL::Global.containsSlowJob(&mgrSetup)) {
+        if (!toLoad.empty() && !INTERNAL::Global().containsSlowJob(&mgrSetup)) {
           // removing cannot be done in a separate thread because we are iterating over this
           // list a during this update fuction
           toLoad.remove_if(derrivedImplementation::canBeRemovedFromLoading);
-          INTERNAL::Global.addSlowJob(&mgrSetup);
+          INTERNAL::Global().addSlowJob(&mgrSetup);
         }
 
-        if (runDelete && !INTERNAL::Global.containsSlowJob(&mgrDelete)) {
-          INTERNAL::Global.addSlowJob(&mgrDelete);
+        if (runDelete && !INTERNAL::Global().containsSlowJob(&mgrDelete)) {
+          INTERNAL::Global().addSlowJob(&mgrDelete);
         }
         runDelete = false;
 

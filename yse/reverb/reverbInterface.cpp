@@ -25,8 +25,8 @@ void YSE::REVERB::interfaceObject::create() {
     earlyGain[i] = 0;
   }
 
-  pimpl = INTERNAL::Global.getReverbManager().addImplementation(this);
-  INTERNAL::Global.getReverbManager().setup(pimpl);
+  pimpl = INTERNAL::Global().getReverbManager().addImplementation(this);
+  INTERNAL::Global().getReverbManager().setup(pimpl);
 }
 
 

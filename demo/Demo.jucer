@@ -244,7 +244,7 @@
              androidMinimumSDK="9" androidInternetNeeded="1" androidKeyStore="${user.home}/.android/debug.keystore"
              androidKeyStorePass="android" androidKeyAlias="androiddebugkey"
              androidKeyAliasPass="android" smallIcon="HHUy5c" bigIcon="HHUy5c"
-             androidCpp11="1">
+             androidCpp11="1" extraDefs="PUBLIC_JUCE=1">
       <CONFIGURATIONS>
         <CONFIGURATION name="Debug" androidArchitectures="armeabi armeabi-v7a" isDebug="1"
                        optimisation="1" targetName="YseDemo"/>

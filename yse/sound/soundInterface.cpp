@@ -20,11 +20,11 @@ YSE::SOUND::interfaceObject::interfaceObject() :
 YSE::sound& YSE::sound::create(const char * fileName, channel * ch, Bool loop, Flt volume, Bool streaming) {
   interfaceTemplate<soundSubSystem>::create();
 
-  pimpl = INTERNAL::Global.getSoundManager().addImplementation(this);
-  if (ch == nullptr) ch = &INTERNAL::Global.getChannelManager().master();
+  pimpl = INTERNAL::Global().getSoundManager().addImplementation(this);
+  if (ch == nullptr) ch = &INTERNAL::Global().getChannelManager().master();
 
   if (pimpl->create(fileName, ch, loop, volume, streaming)) {
-    INTERNAL::Global.getSoundManager().setup(pimpl);
+    INTERNAL::Global().getSoundManager().setup(pimpl);
   } else {
     pimpl->setStatus(OBJECT_RELEASE);
     pimpl = nullptr;
@@ -35,10 +35,10 @@ YSE::sound& YSE::sound::create(const char * fileName, channel * ch, Bool loop, F
 YSE::sound& YSE::sound::create(DSP::dspSourceObject & dsp, channel * ch, Flt volume) {
   //super::create();
 
-  //pimpl = INTERNAL::Global.getSoundManager().addImplementation(this);
+  //pimpl = INTERNAL::Global().getSoundManager().addImplementation(this);
 
   //pimpl->addSourceDSP(dsp);
-  //if (ch == nullptr) pimpl->parent = INTERNAL::Global.getChannelManager().master().pimpl;
+  //if (ch == nullptr) pimpl->parent = INTERNAL::Global().getChannelManager().master().pimpl;
   //else  pimpl->parent = ch->pimpl;
   //pimpl->fader.set(volume);
   // we'll have to get created to true somehow when dsp objects are implemented
@@ -56,11 +56,11 @@ PUBLIC_JUCE in your project settings.
 YSE::sound& YSE::sound::create(juce::InputStream * source, channel * ch, Bool loop, Flt volume, Bool streaming) {
   interfaceTemplate<soundSubSystem>::create();
 
-  pimpl = INTERNAL::Global.getSoundManager().addImplementation(this);
-  if (ch == nullptr) ch = &INTERNAL::Global.getChannelManager().master();
+  pimpl = INTERNAL::Global().getSoundManager().addImplementation(this);
+  if (ch == nullptr) ch = &INTERNAL::Global().getChannelManager().master();
 
   if (pimpl->create(source, ch, loop, volume, streaming)) {
-    INTERNAL::Global.getSoundManager().setup(pimpl);
+    INTERNAL::Global().getSoundManager().setup(pimpl);
   }
   else {
     pimpl->setStatus(OBJECT_RELEASE);

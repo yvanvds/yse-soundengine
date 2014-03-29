@@ -68,18 +68,18 @@ void YSE::INTERNAL::deviceManager::audioDeviceIOCallback(const float ** inputCha
   
   if (master == nullptr) return;  
 
-  if (Global.needsUpdate()) {
+  if (Global().needsUpdate()) {
     // update global objects
-    INTERNAL::Global.getTime().update();
-    INTERNAL::Global.getListener().update();
-    INTERNAL::Global.getSoundManager().update();
-    INTERNAL::Global.getChannelManager().update();
-    INTERNAL::Global.getReverbManager().update();
+    INTERNAL::Global().getTime().update();
+    INTERNAL::Global().getListener().update();
+    INTERNAL::Global().getSoundManager().update();
+    INTERNAL::Global().getChannelManager().update();
+    INTERNAL::Global().getReverbManager().update();
     // TODO: check if we still have to release sounds (see old code)
-    Global.updateDone();
+    Global().updateDone();
   }
 
-  if (Global.getSoundManager().empty()) return;
+  if (Global().getSoundManager().empty()) return;
   
   UInt pos = 0;
 
@@ -123,5 +123,5 @@ void YSE::INTERNAL::deviceManager::audioDeviceStopped() {
 }
 
 void YSE::INTERNAL::deviceManager::audioDeviceError(const juce::String & errorMessage) {
-  Global.getLog().emit(E_AUDIODEVICE, errorMessage);
+  Global().getLog().emit(E_AUDIODEVICE, errorMessage);
 }

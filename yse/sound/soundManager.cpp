@@ -80,7 +80,7 @@ void YSE::SOUND::managerObject::update() {
   for (auto i = soundFiles.begin(); i != soundFiles.end(); ) {
     
     // don't handle files currently in the thread pool
-    if (INTERNAL::Global.containsSlowJob(&(*i))) {
+    if (INTERNAL::Global().containsSlowJob(&(*i))) {
       iMinus = i;
       ++i;
       continue;
@@ -130,7 +130,7 @@ AudioFormatReader * YSE::SOUND::managerObject::getReader(juce::InputStream * sou
 void YSE::SOUND::managerObject::adjustLastGainBuffer() {
   for (auto i = inUse.begin(); i != inUse.end(); ++i) {
     UInt j = (*i)->lastGain.size(); // need to store previous size for deep resize
-    (*i)->lastGain.resize(INTERNAL::Global.getChannelManager().getNumberOfOutputs());
+    (*i)->lastGain.resize(INTERNAL::Global().getChannelManager().getNumberOfOutputs());
     for (; j < (*i)->lastGain.size(); j++) {
       (*i)->lastGain[j].resize((*i)->buffer->size(), 0.0f);
     }

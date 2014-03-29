@@ -11,7 +11,10 @@
 #include "../internalHeaders.h"
 
 
-YSE::INTERNAL::global YSE::INTERNAL::Global;
+YSE::INTERNAL::global & YSE::INTERNAL::Global() {
+    static global s;
+    return s;
+}
 
 YSE::INTERNAL::deviceManager & YSE::INTERNAL::global::getDeviceManager() {
   return *dm;

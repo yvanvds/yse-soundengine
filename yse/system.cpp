@@ -37,50 +37,50 @@ YSE::system & YSE::System() {
 }
 
 Bool YSE::system::init() {
-  if (INTERNAL::Global.active) {
-    INTERNAL::Global.getLog().emit(E_DEBUG, "You're trying to initialize more than once!");
+  if (INTERNAL::Global().active) {
+    INTERNAL::Global().getLog().emit(E_DEBUG, "You're trying to initialize more than once!");
     return true;
   }
   // global objects should always be loaded before anything else!
-  INTERNAL::Global.init();
+  INTERNAL::Global().init();
   
   // on windows, the COM library has to be initialized. This may or may not
   // also happen in your application. It doesn't matter.
 #if defined YSE_WINDOWS
   if (SUCCEEDED(CoInitialize(nullptr))) {
     SystemImpl().coInitialized = true;
-    INTERNAL::Global.getLog().emit(E_DEBUG, "COM library initialized");
+    INTERNAL::Global().getLog().emit(E_DEBUG, "COM library initialized");
   }
 #endif
-  if (INTERNAL::Global.getDeviceManager().init()) {
-    INTERNAL::Global.getLog().emit(E_DEBUG, "YSE System object initialized");
+  if (INTERNAL::Global().getDeviceManager().init()) {
+    INTERNAL::Global().getLog().emit(E_DEBUG, "YSE System object initialized");
 
     // initialize channels
-    INTERNAL::Global.getChannelManager().changeChannelConf(CT_STEREO);
-    INTERNAL::Global.getChannelManager().master().createGlobal();
-    INTERNAL::Global.getChannelManager().ambient().create("ambientChannel", INTERNAL::Global.getChannelManager().master());
-    INTERNAL::Global.getChannelManager().FX().create("fxChannel", INTERNAL::Global.getChannelManager().master());
-    INTERNAL::Global.getChannelManager().music().create("musicChannel", INTERNAL::Global.getChannelManager().master());
-    INTERNAL::Global.getChannelManager().gui().create("guiChannel", INTERNAL::Global.getChannelManager().master());
-    INTERNAL::Global.getChannelManager().voice().create("voiceChannel", INTERNAL::Global.getChannelManager().master());
+    INTERNAL::Global().getChannelManager().changeChannelConf(CT_STEREO);
+    INTERNAL::Global().getChannelManager().master().createGlobal();
+    INTERNAL::Global().getChannelManager().ambient().create("ambientChannel", INTERNAL::Global().getChannelManager().master());
+    INTERNAL::Global().getChannelManager().FX().create("fxChannel", INTERNAL::Global().getChannelManager().master());
+    INTERNAL::Global().getChannelManager().music().create("musicChannel", INTERNAL::Global().getChannelManager().master());
+    INTERNAL::Global().getChannelManager().gui().create("guiChannel", INTERNAL::Global().getChannelManager().master());
+    INTERNAL::Global().getChannelManager().voice().create("voiceChannel", INTERNAL::Global().getChannelManager().master());
 
     maxSounds(50);
-    INTERNAL::Global.active = true;
+    INTERNAL::Global().active = true;
     return true;
   }
-  INTERNAL::Global.getLog().emit(E_ERROR, "YSE System object failed to initialize");
+  INTERNAL::Global().getLog().emit(E_ERROR, "YSE System object failed to initialize");
   return false;
 }
 
 void YSE::system::update() {
-  INTERNAL::Global.flagForUpdate();
+  INTERNAL::Global().flagForUpdate();
 }
 
 void YSE::system::close() {
-  if (INTERNAL::Global.active) {
-    INTERNAL::Global.active = false;
-    INTERNAL::Global.getDeviceManager().close();
-    INTERNAL::Global.close();
+  if (INTERNAL::Global().active) {
+    INTERNAL::Global().active = false;
+    INTERNAL::Global().getDeviceManager().close();
+    INTERNAL::Global().close();
   }
 }
 
@@ -125,7 +125,7 @@ Int YSE::system::maxSounds() {
 }
 
 Flt YSE::system::cpuLoad() {
-  return INTERNAL::Global.getDeviceManager().cpuLoad();
+  return INTERNAL::Global().getDeviceManager().cpuLoad();
 }
 
 void YSE::system::sleep(UInt ms) {
@@ -137,5 +137,5 @@ void YSE::system::sleep(UInt ms) {
 }
 
 YSE::reverb & YSE::system::getGlobalReverb() {
-  return INTERNAL::Global.getReverbManager().getGlobalReverb();
+  return INTERNAL::Global().getReverbManager().getGlobalReverb();
 }

@@ -67,7 +67,7 @@ namespace YSE {
       friend class YSE::system; // system needs access to the init and close method
     };
 
-    extern global Global;
+    global & Global();
   }
 }
 

@@ -18,9 +18,9 @@ YSE::CHANNEL::interfaceObject & YSE::CHANNEL::interfaceObject::create(const char
   interfaceTemplate<channelSubSystem>::create();
   this->name = name;
 
-  pimpl = INTERNAL::Global.getChannelManager().addImplementation(this);
+  pimpl = INTERNAL::Global().getChannelManager().addImplementation(this);
   pimpl->parent = parent.pimpl;
-  INTERNAL::Global.getChannelManager().setup(pimpl);
+  INTERNAL::Global().getChannelManager().setup(pimpl);
   return *this;
 }
 
@@ -30,8 +30,8 @@ void YSE::channel::createGlobal() {
 
   // the global channel will be created instantly because no audio
   // thread can be running before this is ready anyway 
-  pimpl = INTERNAL::Global.getChannelManager().addImplementation(this);  
-  INTERNAL::Global.getChannelManager().setMaster(pimpl);
+  pimpl = INTERNAL::Global().getChannelManager().addImplementation(this);  
+  INTERNAL::Global().getChannelManager().setMaster(pimpl);
 }
 
 
@@ -79,25 +79,25 @@ YSE::channel& YSE::channel::attachReverb() {
 }
 
 YSE::channel & YSE::ChannelMaster() {
-  return INTERNAL::Global.getChannelManager().master();
+  return INTERNAL::Global().getChannelManager().master();
 }
 
 YSE::channel & YSE::ChannelFX() {
-  return INTERNAL::Global.getChannelManager().FX();
+  return INTERNAL::Global().getChannelManager().FX();
 }
 
 YSE::channel & YSE::ChannelMusic() {
-  return INTERNAL::Global.getChannelManager().music();
+  return INTERNAL::Global().getChannelManager().music();
 }
 
 YSE::channel & YSE::ChannelAmbient() {
-  return INTERNAL::Global.getChannelManager().ambient();
+  return INTERNAL::Global().getChannelManager().ambient();
 }
 
 YSE::channel & YSE::ChannelVoice() {
-  return INTERNAL::Global.getChannelManager().voice();
+  return INTERNAL::Global().getChannelManager().voice();
 }
 
 YSE::channel & YSE::ChannelGui() {
-  return INTERNAL::Global.getChannelManager().gui();
+  return INTERNAL::Global().getChannelManager().gui();
 }
