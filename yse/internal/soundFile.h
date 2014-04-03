@@ -16,6 +16,7 @@
 #include "../headers/types.hpp"
 #include "../dsp/sample.hpp"
 #include "../headers/enums.hpp"
+#include <forward_list>
 
 namespace YSE {
 
@@ -47,7 +48,8 @@ namespace YSE {
       soundFile & reset(); // indicate that stream needs to reset (after stop)
 
       // to keep track of clients
-      void release() { clients--; }
+      void attach(SOUND::implementationObject * impl);
+      void release(SOUND::implementationObject * impl);
       bool inUse();
 
       soundFile(const File & file);
@@ -82,12 +84,13 @@ namespace YSE {
 
       // for keeping track of objects using this file
       aUInt clients;
+      std::forward_list<SOUND::implementationObject*> clientList;
       Flt idleTime;
 
       // for virtual IO
       //fileData _customFileData;
 
-      friend class SOUND::managerObject;
+      //friend class SOUND::managerObject;
     };
 
   }

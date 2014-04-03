@@ -37,13 +37,6 @@ namespace YSE {
     };
   }
 
-  struct reverbSubSystem {
-    typedef REVERB::interfaceObject interfaceObject;
-    typedef REVERB::implementationObject implementationObject;
-    typedef REVERB::managerObject managerObject;
-    typedef REVERB::messageObject messageObject;
-    typedef REVERB::MESSAGE MESSAGE;
-  };
 
   // the interface itself gets a more generic name, so that users can just
   // define a 'reverb' to get an interface object.

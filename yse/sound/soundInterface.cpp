@@ -11,20 +11,27 @@
 #include "../internalHeaders.h"
 
 YSE::SOUND::interfaceObject::interfaceObject() :
-  dsp(nullptr),
+  pimpl(nullptr), dsp(nullptr),
   pos(0.f), spread(0), fadeAndStopTime(0), volume(0.f), speed(0.f),
   size(0.f), loop(0.f), time(0.f), 
   relative(false), doppler(true), pan2D(false), occlusion(false), streaming(false),
   length(0), status(SS_STOPPED) {}
 
-YSE::sound& YSE::sound::create(const char * fileName, channel * ch, Bool loop, Flt volume, Bool streaming) {
-  interfaceTemplate<soundSubSystem>::create();
+YSE::SOUND::interfaceObject::~interfaceObject() {
+  if (pimpl != nullptr) {
+    pimpl->removeInterface();
+    pimpl = nullptr;
+  }
+}
 
-  pimpl = INTERNAL::Global().getSoundManager().addImplementation(this);
-  if (ch == nullptr) ch = &INTERNAL::Global().getChannelManager().master();
+YSE::sound& YSE::sound::create(const char * fileName, channel * ch, Bool loop, Flt volume, Bool streaming) {
+  assert(pimpl == nullptr);
+
+  pimpl = SOUND::Manager().addImplementation(this);
+  if (ch == nullptr) ch = &CHANNEL::Manager().master();
 
   if (pimpl->create(fileName, ch, loop, volume, streaming)) {
-    INTERNAL::Global().getSoundManager().setup(pimpl);
+    SOUND::Manager().setup(pimpl);
   } else {
     pimpl->setStatus(OBJECT_RELEASE);
     pimpl = nullptr;
@@ -54,13 +61,13 @@ depency on the Juce library, it has to be enabled by including the preprocessor 
 PUBLIC_JUCE in your project settings.
 */
 YSE::sound& YSE::sound::create(juce::InputStream * source, channel * ch, Bool loop, Flt volume, Bool streaming) {
-  interfaceTemplate<soundSubSystem>::create();
+  assert(pimpl == nullptr);
 
-  pimpl = INTERNAL::Global().getSoundManager().addImplementation(this);
-  if (ch == nullptr) ch = &INTERNAL::Global().getChannelManager().master();
+  pimpl = SOUND::Manager().addImplementation(this);
+  if (ch == nullptr) ch = &CHANNEL::Manager().master();
 
   if (pimpl->create(source, ch, loop, volume, streaming)) {
-    INTERNAL::Global().getSoundManager().setup(pimpl);
+    SOUND::Manager().setup(pimpl);
   }
   else {
     pimpl->setStatus(OBJECT_RELEASE);
@@ -69,6 +76,10 @@ YSE::sound& YSE::sound::create(juce::InputStream * source, channel * ch, Bool lo
   return *this;
 }
 #endif
+
+Bool YSE::sound::isValid() {
+  return pimpl != nullptr;
+}
 
 YSE::sound& YSE::sound::setPosition(const Vec &v) {
   if (pos != v) {

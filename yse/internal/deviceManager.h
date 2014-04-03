@@ -27,7 +27,6 @@ namespace YSE {
     class deviceManager : AudioIODeviceCallback {
     public:
       deviceManager();
-      ~deviceManager();
 
       Bool init();
       void close();
@@ -47,7 +46,6 @@ namespace YSE {
       //Bool openDevice(UInt ID, Int outChannels);
       //Int activeDevice;
 
-      juce_DeclareSingleton(deviceManager, true)
     private:
       juce::String _lastError;
       Bool initialized;
@@ -59,6 +57,8 @@ namespace YSE {
       AudioDeviceManager audioDeviceManager;
 
     };
+
+    deviceManager & DeviceManager();
   }
 }
 

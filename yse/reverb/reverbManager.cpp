@@ -11,21 +11,42 @@
 #include "../internalHeaders.h"
 
 
-juce_ImplementSingleton(YSE::REVERB::managerObject)
+YSE::REVERB::managerObject & YSE::REVERB::Manager() {
+  static managerObject m;
+  return m;
+}
 
-YSE::REVERB::managerObject::managerObject() : managerTemplate<reverbSubSystem>("reverbManager"), globalReverb(true), calculatedValues(true) {
+YSE::REVERB::managerObject::managerObject() 
+  : mgrDelete("reverbManagerDelete", this), globalReverb(true), calculatedValues(true) {
   reverbDSPObject = INTERNAL::reverbDSP::getInstance();
-  reverbDSPObject->channels(INTERNAL::Global().getChannelManager().getNumberOfOutputs());
+  reverbDSPObject->channels(CHANNEL::Manager().getNumberOfOutputs());
 }
 
 YSE::REVERB::managerObject::~managerObject() {
   INTERNAL::reverbDSP::deleteInstance();
-  clearSingletonInstance();
+  INTERNAL::Global().waitForSlowJob(&mgrDelete);
+
+  // remove all objects that are still in memory
+  toLoad.clear();
+  inUse.clear();
+  implementations.clear();
 }
 
 void YSE::REVERB::managerObject::create() {
   globalReverb.create();
   calculatedValues.create();
+}
+
+YSE::REVERB::implementationObject * YSE::REVERB::managerObject::addImplementation(YSE::REVERB::interfaceObject * head) {
+  implementations.emplace_front(head);
+  return &implementations.front();
+}
+
+void YSE::REVERB::managerObject::setup(YSE::REVERB::implementationObject* impl) {
+  // reverb object do not need any setup, but we cannot place them
+  // in the inUse list because it won't be thread safe
+  impl->setStatus(OBJECT_SETUP);
+  toLoad.emplace_front(impl);
 }
 
 void YSE::REVERB::managerObject::setOutputChannels(Int value) {
@@ -36,9 +57,49 @@ YSE::reverb & YSE::REVERB::managerObject::getGlobalReverb() {
   return globalReverb;
 }
 
+Bool YSE::REVERB::managerObject::empty() {
+  return implementations.empty();
+}
 
 void YSE::REVERB::managerObject::update() {
-  managerTemplate<reverbSubSystem>::update();
+  toLoad.remove_if(implementationObject::canBeRemovedFromLoading);
+
+  if (runDelete && !INTERNAL::Global().containsSlowJob(&mgrDelete)) {
+    INTERNAL::Global().addSlowJob(&mgrDelete);
+  }
+  runDelete = false;
+
+  ///////////////////////////////////////////
+  // check if loaded implementations are ready
+  ///////////////////////////////////////////
+  {
+    for (auto i = toLoad.begin(); i != toLoad.end(); i++) {
+      if (i->load()->readyCheck()) {
+        implementationObject * ptr = i->load();
+        inUse.emplace_front(ptr);
+      }
+    }
+  }
+
+  ///////////////////////////////////////////
+  // sync and update implementations
+  ///////////////////////////////////////////
+  {
+    auto previous = inUse.before_begin();
+    for (auto i = inUse.begin(); i != inUse.end();) {
+      (*i)->sync();
+      if ((*i)->getStatus() == OBJECT_RELEASE) {
+        implementationObject * ptr = (*i);
+        i = inUse.erase_after(previous);
+        ptr->setStatus(OBJECT_DELETE);
+        runDelete = true;
+        continue;
+      }
+      previous = i;
+      ++i;
+    }
+  }
+
   Int reverbsActive = 0;
   calculatedValues.setPreset(REVERB_OFF);
   calculatedValues.setActive(false);
@@ -150,6 +211,8 @@ void YSE::REVERB::managerObject::update() {
     calculatedValues.active = true;
   }
 }
+
+
 
 void YSE::REVERB::managerObject::attachToChannel(YSE::CHANNEL::implementationObject * ptr) {
   reverbChannel = ptr;

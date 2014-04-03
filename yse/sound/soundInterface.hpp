@@ -34,8 +34,11 @@ namespace YSE {
         flagged for deletion.
         */
 
-    class API interfaceObject : public TEMPLATE::interfaceTemplate<soundSubSystem> {
+    class API interfaceObject {
     public:
+      interfaceObject();
+      ~interfaceObject();
+
       /** Create a filebased sound and register it with the soundsystem. Other functions will not work
           as long as a sound hasn't been created. In debug mode, an assertion will be called if
           you try to do so. On the other hand, create cannot be called twice. If you need
@@ -76,6 +79,8 @@ namespace YSE {
       */
       interfaceObject& create(juce::InputStream * source, channel * ch = nullptr, Bool loop = false, Flt volume = 1.0f, Bool streaming = false);
 #endif
+
+      Bool isValid();
 
       /**
        Set the position of this sound in the virtual space.
@@ -288,10 +293,11 @@ namespace YSE {
 
       interfaceObject& setDSP(DSP::dspObject * value); DSP::dspObject * getDSP(); // attach a dsp object to this sound
 
-      interfaceObject();
+      
 
     private:
-      
+      implementationObject * pimpl;
+
       // These values keep the last set value and are used by getters
       // so that we don't have to query the implementation
       Vec  pos;

@@ -130,3 +130,1028 @@ Log started: 28 Mar 2014 10:58:53am
 (Debug) Sound added to system.
 (Debug) Sound added to system.
 === end of YSE log ===
+
+**********************************************************
+=== start of YSE log ===
+Log started: 29 Mar 2014 9:36:37pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+=== end of YSE log ===
+
+**********************************************************
+=== start of YSE log ===
+Log started: 30 Mar 2014 3:27:28pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+=== end of YSE log ===
+
+**********************************************************
+=== start of YSE log ===
+Log started: 30 Mar 2014 3:31:02pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+=== end of YSE log ===
+
+**********************************************************
+=== start of YSE log ===
+Log started: 30 Mar 2014 3:43:03pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+=== end of YSE log ===
+
+**********************************************************
+=== start of YSE log ===
+Log started: 30 Mar 2014 3:44:08pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+=== end of YSE log ===
+
+**********************************************************
+=== start of YSE log ===
+Log started: 30 Mar 2014 3:45:17pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+=== end of YSE log ===
+
+**********************************************************
+=== start of YSE log ===
+Log started: 30 Mar 2014 3:50:49pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+=== end of YSE log ===
+
+**********************************************************
+=== start of YSE log ===
+Log started: 30 Mar 2014 3:54:39pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+=== end of YSE log ===
+
+**********************************************************
+=== start of YSE log ===
+Log started: 30 Mar 2014 4:43:40pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+=== end of YSE log ===
+
+**********************************************************
+=== start of YSE log ===
+Log started: 30 Mar 2014 5:37:51pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+=== end of YSE log ===
+
+**********************************************************
+=== start of YSE log ===
+Log started: 30 Mar 2014 5:39:56pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+
+**********************************************************
+=== start of YSE log ===
+Log started: 30 Mar 2014 5:50:02pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+
+**********************************************************
+=== start of YSE log ===
+Log started: 30 Mar 2014 5:50:17pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+
+**********************************************************
+=== start of YSE log ===
+Log started: 30 Mar 2014 5:54:47pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+
+**********************************************************
+=== start of YSE log ===
+Log started: 30 Mar 2014 5:56:00pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+
+**********************************************************
+=== start of YSE log ===
+Log started: 30 Mar 2014 6:05:51pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+
+**********************************************************
+=== start of YSE log ===
+Log started: 30 Mar 2014 6:08:14pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+
+**********************************************************
+=== start of YSE log ===
+Log started: 30 Mar 2014 6:15:21pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+
+**********************************************************
+=== start of YSE log ===
+Log started: 30 Mar 2014 6:16:03pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+
+**********************************************************
+=== start of YSE log ===
+Log started: 30 Mar 2014 7:54:40pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+
+**********************************************************
+=== start of YSE log ===
+Log started: 30 Mar 2014 7:55:49pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+
+**********************************************************
+=== start of YSE log ===
+Log started: 30 Mar 2014 8:18:31pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+=== end of YSE log ===
+
+**********************************************************
+=== start of YSE log ===
+Log started: 30 Mar 2014 9:11:48pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+=== end of YSE log ===
+
+**********************************************************
+=== start of YSE log ===
+Log started: 31 Mar 2014 8:56:49pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+=== end of YSE log ===
+
+**********************************************************
+=== start of YSE log ===
+Log started: 31 Mar 2014 9:00:19pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+=== end of YSE log ===
+
+**********************************************************
+=== start of YSE log ===
+Log started: 31 Mar 2014 9:03:25pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+=== end of YSE log ===
+
+**********************************************************
+=== start of YSE log ===
+Log started: 31 Mar 2014 9:06:09pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+=== end of YSE log ===
+
+**********************************************************
+=== start of YSE log ===
+Log started: 31 Mar 2014 9:12:03pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+=== end of YSE log ===
+
+**********************************************************
+=== start of YSE log ===
+Log started: 31 Mar 2014 9:25:47pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+=== end of YSE log ===
+
+**********************************************************
+=== start of YSE log ===
+Log started: 31 Mar 2014 9:40:51pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+=== end of YSE log ===
+
+**********************************************************
+=== start of YSE log ===
+Log started: 31 Mar 2014 10:15:25pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+=== end of YSE log ===
+
+**********************************************************
+=== start of YSE log ===
+Log started: 31 Mar 2014 10:23:02pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+=== end of YSE log ===
+
+**********************************************************
+=== start of YSE log ===
+Log started: 31 Mar 2014 10:32:01pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+=== end of YSE log ===
+
+**********************************************************
+=== start of YSE log ===
+Log started: 31 Mar 2014 10:32:27pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+=== end of YSE log ===
+
+**********************************************************
+=== start of YSE log ===
+Log started: 31 Mar 2014 10:38:21pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+=== end of YSE log ===
+
+**********************************************************
+=== start of YSE log ===
+Log started: 31 Mar 2014 10:41:22pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+=== end of YSE log ===
+
+**********************************************************
+=== start of YSE log ===
+Log started: 1 Apr 2014 9:07:35pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+=== end of YSE log ===
+
+**********************************************************
+=== start of YSE log ===
+Log started: 1 Apr 2014 9:07:55pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+=== end of YSE log ===
+
+**********************************************************
+=== start of YSE log ===
+Log started: 1 Apr 2014 9:10:32pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+=== end of YSE log ===
+
+**********************************************************
+=== start of YSE log ===
+Log started: 1 Apr 2014 9:26:52pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+=== end of YSE log ===
+
+**********************************************************
+=== start of YSE log ===
+Log started: 1 Apr 2014 9:27:03pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+
+**********************************************************
+=== start of YSE log ===
+Log started: 1 Apr 2014 9:28:16pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+=== end of YSE log ===
+
+**********************************************************
+=== start of YSE log ===
+Log started: 1 Apr 2014 9:28:49pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+=== end of YSE log ===
+
+**********************************************************
+=== start of YSE log ===
+Log started: 1 Apr 2014 9:29:43pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+
+**********************************************************
+=== start of YSE log ===
+Log started: 1 Apr 2014 9:33:52pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+
+**********************************************************
+=== start of YSE log ===
+Log started: 1 Apr 2014 9:40:14pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+
+**********************************************************
+=== start of YSE log ===
+Log started: 1 Apr 2014 9:43:14pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.

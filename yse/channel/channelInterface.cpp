@@ -11,27 +11,34 @@
 
 #include "../internalHeaders.h"
 
-YSE::CHANNEL::interfaceObject::interfaceObject() : allowVirtual(true), volume(1.f)
+YSE::CHANNEL::interfaceObject::interfaceObject() : pimpl(nullptr), allowVirtual(true), volume(1.f)
 {}
 
+YSE::CHANNEL::interfaceObject::~interfaceObject() {
+  if (pimpl != nullptr) {
+    pimpl->removeInterface();
+    pimpl = nullptr;
+  }
+}
+
 YSE::CHANNEL::interfaceObject & YSE::CHANNEL::interfaceObject::create(const char * name, channel& parent) {
-  interfaceTemplate<channelSubSystem>::create();
+  assert(pimpl == nullptr); // make sure we don't get called twice
   this->name = name;
 
-  pimpl = INTERNAL::Global().getChannelManager().addImplementation(this);
+  pimpl = CHANNEL::Manager().addImplementation(this);
   pimpl->parent = parent.pimpl;
-  INTERNAL::Global().getChannelManager().setup(pimpl);
+  CHANNEL::Manager().setup(pimpl);
   return *this;
 }
 
 void YSE::channel::createGlobal() {
-  interfaceTemplate<channelSubSystem>::create();
+  assert(pimpl == nullptr); // make sure we don't get called twice
   this->name = "Master channel";
 
   // the global channel will be created instantly because no audio
   // thread can be running before this is ready anyway 
-  pimpl = INTERNAL::Global().getChannelManager().addImplementation(this);  
-  INTERNAL::Global().getChannelManager().setMaster(pimpl);
+  pimpl = CHANNEL::Manager().addImplementation(this);  
+  CHANNEL::Manager().setMaster(pimpl);
 }
 
 
@@ -70,6 +77,10 @@ bool YSE::channel::getVirtual() {
   return allowVirtual;
 }
 
+bool YSE::channel::isValid() {
+  return pimpl != nullptr;
+}
+
 YSE::channel& YSE::channel::attachReverb() { 
   messageObject m;
   m.ID = ATTACH_REVERB;
@@ -79,25 +90,25 @@ YSE::channel& YSE::channel::attachReverb() {
 }
 
 YSE::channel & YSE::ChannelMaster() {
-  return INTERNAL::Global().getChannelManager().master();
+  return CHANNEL::Manager().master();
 }
 
 YSE::channel & YSE::ChannelFX() {
-  return INTERNAL::Global().getChannelManager().FX();
+  return CHANNEL::Manager().FX();
 }
 
 YSE::channel & YSE::ChannelMusic() {
-  return INTERNAL::Global().getChannelManager().music();
+  return CHANNEL::Manager().music();
 }
 
 YSE::channel & YSE::ChannelAmbient() {
-  return INTERNAL::Global().getChannelManager().ambient();
+  return CHANNEL::Manager().ambient();
 }
 
 YSE::channel & YSE::ChannelVoice() {
-  return INTERNAL::Global().getChannelManager().voice();
+  return CHANNEL::Manager().voice();
 }
 
 YSE::channel & YSE::ChannelGui() {
-  return INTERNAL::Global().getChannelManager().gui();
+  return CHANNEL::Manager().gui();
 }

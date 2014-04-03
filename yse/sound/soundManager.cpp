@@ -9,28 +9,41 @@
 */
 
 #include "soundManager.h"
-#include "../internal/global.h"
+#include "../internalHeaders.h"
 #include "../internal/virtualFinder.h"
 #include "../channel/channelManager.h"
 
-juce_ImplementSingleton(YSE::SOUND::managerObject)
+YSE::SOUND::managerObject & YSE::SOUND::Manager() {
+  static managerObject m;
+  return m;
+}
 
 
-YSE::SOUND::managerObject::managerObject() : managerTemplate<soundSubSystem>("soundManager") {
+YSE::SOUND::managerObject::managerObject() 
+  : mgrSetup("soundManagerSetup", this),
+    mgrDelete("soundManagerDelete", this) {
   formatManager.registerBasicFormats();
 }
 
 YSE::SOUND::managerObject::~managerObject() {
+  
+  // wait for jobs to finish
+  INTERNAL::Global().waitForSlowJob(&mgrSetup);
+  INTERNAL::Global().waitForSlowJob(&mgrDelete);
+
+  // remove all objects that are still in memory
+  toLoad.clear();
+  inUse.clear();
+  implementations.clear();
+
   // remove all sounds that are still in memory
   soundFiles.clear();
-  clearSingletonInstance();
 }
 
 YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addFile(const File & file) {
   // find out if this file already exists
   for (auto i = soundFiles.begin(); i != soundFiles.end(); ++i) {
     if ( i->contains(file)) {
-      i->clients++;
       return &(*i);
     }
   }
@@ -38,12 +51,10 @@ YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addFile(const File & file)
   // if we got here, the file does not exist yet
   soundFiles.emplace_front(file);
   INTERNAL::soundFile & sf = soundFiles.front();
-  sf.clients++;
   if (sf.create()) {
     return &sf;
   }
   else {
-    sf.release();
     return nullptr;
   }
 }
@@ -53,7 +64,6 @@ YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addInputStream(juce::Input
   // find out if this stream already exists
   for (auto i = soundFiles.begin(); i != soundFiles.end(); ++i) {
     if (i->contains(source)) {
-      i->clients++;
       return &(*i);
     }
   }
@@ -61,16 +71,24 @@ YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addInputStream(juce::Input
   // if we got here, the file does not exist yet
   soundFiles.emplace_front(source);
   INTERNAL::soundFile & sf = soundFiles.front();
-  sf.clients++;
   if (sf.create()) {
     return &sf;
   }
   else {
-    sf.release();
     return nullptr;
   }
 }
 #endif
+
+YSE::SOUND::implementationObject * YSE::SOUND::managerObject::addImplementation(YSE::SOUND::interfaceObject * head) {
+  implementations.emplace_front(head);
+  return &implementations.front();
+}
+
+void YSE::SOUND::managerObject::setup(YSE::SOUND::implementationObject * impl) {
+  impl->setStatus(OBJECT_CREATED);
+  toLoad.emplace_front(impl);
+}
 
 void YSE::SOUND::managerObject::update() {
   ///////////////////////////////////////////
@@ -96,28 +114,67 @@ void YSE::SOUND::managerObject::update() {
     }
   }
 
+  VirtualSoundFinder().reset();
+  
+  ///////////////////////////////////////////
+  // check if there are implementations that need setup
+  ///////////////////////////////////////////
+  if (!toLoad.empty() && !INTERNAL::Global().containsSlowJob(&mgrSetup)) {
+    // removing cannot be done in a separate thread because we are iterating over this
+    // list a during this update fuction
+    toLoad.remove_if(implementationObject::canBeRemovedFromLoading);
+    INTERNAL::Global().addSlowJob(&mgrSetup);
+  }
+
+  if (runDelete && !INTERNAL::Global().containsSlowJob(&mgrDelete)) {
+    INTERNAL::Global().addSlowJob(&mgrDelete);
+  }
+  runDelete = false;
 
   ///////////////////////////////////////////
-  // update sound implementations
+  // check if loaded implementations are ready
   ///////////////////////////////////////////
-  VirtualSoundFinder().reset();
-  managerTemplate<soundSubSystem>::update();
+  {
+    for (auto i = toLoad.begin(); i != toLoad.end(); i++) {
+      if (i->load()->readyCheck()) {
+        implementationObject * ptr = i->load();
+        // place ptr in active sound list
+        inUse.emplace_front(ptr);
+        // add the sound to the channel that is supposed to use
+        //ptr->parent->connect(ptr);
+        ptr->doThisWhenReady();
+      }
+    }
+  }
+
+  ///////////////////////////////////////////
+  // sync and update implementations
+  ///////////////////////////////////////////
+  {
+    auto previous = inUse.before_begin();
+    for (auto i = inUse.begin(); i != inUse.end();) {
+      (*i)->sync();
+      if ((*i)->getStatus() == OBJECT_RELEASE) {
+        implementationObject * ptr = (*i);
+        i = inUse.erase_after(previous);
+        ptr->setStatus(OBJECT_DELETE);
+        runDelete = true;
+        continue;
+      }
+      // update
+      (*i)->update();
+      previous = i;
+      ++i;
+    }
+  }
+
   VirtualSoundFinder().calculate();
   
 }
 
-
-//void YSE::SOUND::managerObject::setMaxSounds(Int value) {
-//  VirtualSoundFinder().setLimit(value);
-//}
-
-//Int YSE::SOUND::managerObject::getMaxSounds() {
-//  return VirtualSoundFinder().getLimit();
-//}
-
-//Bool YSE::SOUND::managerObject::inRange(Flt dist) {
-//  return VirtualSoundFinder().inRange(dist);
-//}
+Bool YSE::SOUND::managerObject::empty() {
+  return implementations.empty();
+}
 
 AudioFormatReader * YSE::SOUND::managerObject::getReader(const File & f) {
   return formatManager.createReaderFor(f);
@@ -130,7 +187,7 @@ AudioFormatReader * YSE::SOUND::managerObject::getReader(juce::InputStream * sou
 void YSE::SOUND::managerObject::adjustLastGainBuffer() {
   for (auto i = inUse.begin(); i != inUse.end(); ++i) {
     UInt j = (*i)->lastGain.size(); // need to store previous size for deep resize
-    (*i)->lastGain.resize(INTERNAL::Global().getChannelManager().getNumberOfOutputs());
+    (*i)->lastGain.resize(CHANNEL::Manager().getNumberOfOutputs());
     for (; j < (*i)->lastGain.size(); j++) {
       (*i)->lastGain[j].resize((*i)->buffer->size(), 0.0f);
     }

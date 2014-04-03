@@ -13,11 +13,7 @@
 
 #include <forward_list>
 #include "JuceHeader.h"
-#include "../templates/implementationObject.h"
-#include "channel.hpp"
-#include "../sound/soundImplementation.h"
-#include "channelInterface.hpp"
-#include "channelManager.h"
+#include "../classes.hpp"
 
 namespace YSE {
   namespace CHANNEL {
@@ -26,8 +22,13 @@ namespace YSE {
     /**
       This is the implementation side of a channel. It should only be used internally.
     */
-    class implementationObject : public ThreadPoolJob , public TEMPLATE::implementationTemplate<channelSubSystem> {
+    class implementationObject : public ThreadPoolJob {
     public:
+
+      //////////////////////////////////////////////////
+      // Setup and maintenance functions
+      //////////////////////////////////////////////////
+      
       /**
         Creates a channel implementation.
 
@@ -36,14 +37,57 @@ namespace YSE {
       */
       implementationObject(interfaceObject * head);
 
-      virtual void parseMessage(const messageObject & message); // < Parse all messages, if any
-
       /**
-        Removes the implementation from the threadpool and moves all sounds and subchannels
-        to its parent (if there is one).
+      Removes the implementation from the threadpool and moves all sounds and subchannels
+      to its parent (if there is one).
       */
-      virtual void exit();
+      ~implementationObject();
 
+      /** This function is called from channelManager::setup and creates the buffers
+      needed for this channel.
+      */
+      void setup();
+
+      /** This function is called by channelManager::update (from dsp callback) and verifies
+      if the channel is ready to be played. It will then be moved from toCreate
+      to inUse.
+      */
+      Bool readyCheck();
+
+      /** Will move all current subchannels and sounds to the parent channel.
+      This function is called from channelManager::update(), when objectStatus
+      is CIS_RELEASE. It is called again from the destructor, just in case, but
+      children should already be moved by then.
+      */
+      void childrenToParent();
+
+      void removeInterface();
+      void doThisWhenReady();
+
+      OBJECT_IMPLEMENTATION_STATE getStatus();
+      void setStatus(OBJECT_IMPLEMENTATION_STATE value);
+
+      //////////////////////////////////////////////////////
+      // Message system functions
+      //////////////////////////////////////////////////////
+      /**
+      This function will be called when the system is instructed to do an update. It looks
+      for messages in the interface message pipe and forwards them to the parseMessage
+      function.
+      */
+      void sync();
+      void parseMessage(const messageObject & message); // < Parse a message, called by sync
+      
+      /**
+        Called by an interface object to send a message to the implementation.
+      */
+      inline void sendMessage(const messageObject & message) {
+        messages.push(message);
+      }
+
+      //////////////////////////////////////////////////////
+      // Connectors
+      //////////////////////////////////////////////////////
       /**
         Attach a subchannel to this channel.
         @param subChannel   A pointer to the channel that should be linked
@@ -70,6 +114,9 @@ namespace YSE {
       */
       Bool disconnect(SOUND::implementationObject * sound);
 
+      /////////////////////////////////////////////////////
+      // DSP calculations
+      /////////////////////////////////////////////////////
       /**
         This is the threadpool function that calls the dsp for this channel.
         Every channel has its own threadPoolJob for running the dsp calculations.
@@ -92,33 +139,6 @@ namespace YSE {
       */
       void buffersToParent();
 
-      /**
-        Attach the premade special effect for 'underwater' simulation to this channel
-      */
-      void attachUnderWaterFX();
-
-      virtual void doThisWhenReady();
-
-    private:
-
-      /** This function is called from channelManager::setup and creates the buffers
-          needed for this channel.
-      */
-      void implementationSetup();
-
-      /** This function is called by channelManager::update (from dsp callback) and verifies
-          if the channel is ready to be played. It will then be moved from toCreate
-          to inUse.
-      */
-      virtual Bool implementationReadyCheck();
-
-      /** Will move all current subchannels and sounds to the parent channel.
-          This function is called from channelManager::update(), when objectStatus
-          is CIS_RELEASE. It is called again from the destructor, just in case, but 
-          children should already be moved by then.
-      */
-      void childrenToParent();
-      
       /** dsp utility function to set all output buffers to zero before filling again
       */
       void clearBuffers();
@@ -127,6 +147,40 @@ namespace YSE {
       */
       void adjustVolume();
 
+
+      /**
+        Attach the premade special effect for 'underwater' simulation to this channel
+      */
+
+      void attachUnderWaterFX();
+      
+      /////////////////////////////////////////////////////
+      // static functions for remove_if
+      /////////////////////////////////////////////////////
+      /**
+      This function is used by the forward_list remove_if function
+      */
+      static bool canBeDeleted(const implementationObject& impl) {
+        return impl.objectStatus == OBJECT_DELETE;
+      }
+
+      /**
+      This function is used by the forward_list remove_if function
+      */
+      static bool canBeRemovedFromLoading(const std::atomic<implementationObject*> & impl) {
+        if (impl.load()->objectStatus == OBJECT_READY
+          || impl.load()->objectStatus == OBJECT_RELEASE
+          || impl.load()->objectStatus == OBJECT_DELETE) {
+          return true;
+        }
+
+        return false;
+      }
+
+    private:
+      std::atomic<interfaceObject *> head; // < The interface connected to this object
+      std::atomic<OBJECT_IMPLEMENTATION_STATE> objectStatus; // < the status of this object
+      lfQueue<messageObject> messages;
 
       Flt  newVolume;
       Flt  lastVolume;
@@ -147,7 +201,6 @@ namespace YSE {
       friend class YSE::REVERB::managerObject;
       friend class INTERNAL::deviceManager;
       friend class CHANNEL::managerObject;
-      friend class SOUND::managerObject;
     };
 
 

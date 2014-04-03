@@ -197,7 +197,8 @@
     </GROUP>
   </MAINGROUP>
   <EXPORTFORMATS>
-    <VS2013 targetFolder="Builds/VisualStudio2013" extraDefs="PUBLIC_JUCE=1">
+    <VS2013 targetFolder="Builds/VisualStudio2013" extraDefs="PUBLIC_JUCE=1&#10;JUCE_CHECK_MEMORY_LEAKS=0"
+            externalLibraries="../../../bin/vld.lib">
       <CONFIGURATIONS>
         <CONFIGURATION name="Debug" winWarningLevel="4" generateManifest="1" winArchitecture="32-bit"
                        isDebug="1" optimisation="1" targetName="Demo" binaryPath="../bin"

@@ -12,10 +12,52 @@
 #include "reverbImplementation.h"
 
 
-YSE::REVERB::implementationObject::implementationObject(interfaceObject * head) : implementationTemplate<reverbSubSystem>(head) {
+YSE::REVERB::implementationObject::implementationObject(interfaceObject * head) 
+  : objectStatus(OBJECT_CONSTRUCTED), head(head) {
   for (Int i = 0; i < 4; i++) {
     earlyPtr[i] = 0;
     earlyGain[i] = 0;
+  }
+}
+
+YSE::REVERB::implementationObject::~implementationObject() {
+  if (head.load() != nullptr) {
+    head.load()->pimpl = nullptr;
+  }
+}
+
+Bool YSE::REVERB::implementationObject::readyCheck() {
+  if (objectStatus == OBJECT_READY) {
+    return false;
+  }
+  if(objectStatus == OBJECT_SETUP) {
+    objectStatus = OBJECT_READY;
+    return true;
+  }
+  return false;
+}
+
+void YSE::REVERB::implementationObject::removeInterface() {
+  head = nullptr;
+}
+
+YSE::OBJECT_IMPLEMENTATION_STATE YSE::REVERB::implementationObject::getStatus() {
+  return objectStatus.load();
+}
+
+void YSE::REVERB::implementationObject::setStatus(OBJECT_IMPLEMENTATION_STATE value) {
+  objectStatus.store(value);
+}
+
+void YSE::REVERB::implementationObject::sync() {
+  if (head.load() == nullptr) {
+    objectStatus = OBJECT_RELEASE;
+    return;
+  }
+
+  messageObject message;
+  while (messages.try_pop(message)) {
+    parseMessage(message);
   }
 }
 
@@ -73,3 +115,4 @@ void YSE::REVERB::implementationObject::parseMessage(const messageObject & messa
     }
   }
 }
+

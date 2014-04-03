@@ -27,7 +27,7 @@ namespace YSE {
         by the soundManager object, in the soundObjects forward_list.
     */
 
-    class implementationObject : public TEMPLATE::implementationTemplate<soundSubSystem> {
+    class implementationObject {
     public:
 
       /** Constructor
@@ -36,6 +36,7 @@ namespace YSE {
                         eraser queue when the sound object goes out of scope.
       */
       implementationObject(interfaceObject * head);
+      ~implementationObject();
 
       /** Set up a new sound object. This is called by the sound class. When creating a 
           sound (which must be loaded from disk), the initial state will be 'loading'. The object
@@ -63,6 +64,8 @@ namespace YSE {
                             object goes out of scope.
       */
       void initialize(sound * head); 
+
+      void sendMessage(const messageObject & message);
 
       /** Syncronises parameters between the 'head' and this implementation. All implementations
           are syncronized in one loop at the beginning of update, which is inside a crit section.
@@ -101,13 +104,13 @@ namespace YSE {
           connected to this sound is ready. If so, it will setup the buffers needed for this
           sound.
       */
-      void implementationSetup();
+      void setup();
 
       /** This function is called by soundManager::update (from dsp callback) and verifies
           if the sound is ready to be played. It will then be moved from soundsToLoad
           to soundsInUse. 
       */
-      Bool implementationReadyCheck();
+      Bool readyCheck();
 
       virtual void doThisWhenReady();
 
@@ -118,9 +121,30 @@ namespace YSE {
       */
       static bool sortSoundObjects(implementationObject *, implementationObject *);
 
-      /** This function will be called by base class destructor
+      void removeInterface();
+
+      OBJECT_IMPLEMENTATION_STATE getStatus();
+      void setStatus(OBJECT_IMPLEMENTATION_STATE value);
+
+      /**
+      This function is used by the forward_list remove_if function
       */
-      void exit();
+      static bool canBeDeleted(const implementationObject& impl) {
+        return impl.objectStatus == OBJECT_DELETE;
+      }
+
+      /**
+      This function is used by the forward_list remove_if function
+      */
+      static bool canBeRemovedFromLoading(const std::atomic<implementationObject*> & impl) {
+        if (impl.load()->objectStatus == OBJECT_READY
+          || impl.load()->objectStatus == OBJECT_RELEASE
+          || impl.load()->objectStatus == OBJECT_DELETE) {
+          return true;
+        }
+
+        return false;
+      }
 
     private:
       void dspFunc_parseIntent();
@@ -203,6 +227,10 @@ namespace YSE {
 
       // info 
       Bool streaming_dsp;
+
+      std::atomic<interfaceObject *> head; // < The interface connected to this object
+      std::atomic<OBJECT_IMPLEMENTATION_STATE> objectStatus; // < the status of this object
+      lfQueue<messageObject> messages;
 
       friend class YSE::SOUND::managerObject;
       friend class YSE::CHANNEL::implementationObject;

@@ -30,14 +30,21 @@ namespace YSE {
        This technique makes if possible to have a general reverb setting and assign other
        reverb settings to specified positions.
        */
-    class API interfaceObject : public TEMPLATE::interfaceTemplate<reverbSubSystem> {
+    class API interfaceObject {
     public:
+      /**
+      Creates a reverb object.
+      The global option should only be enabled internally!
+      */
+      interfaceObject(Bool global = false);
+      ~interfaceObject();
 
       /**
        Needed for internal setup of the reverb. This must be done after System().init() and before
        doing anything else with this object
        */
       void create();
+      Bool isValid();
 
       /**
        Set the virtual position of this reverb setting.
@@ -184,13 +191,11 @@ namespace YSE {
        */
       interfaceObject& release();
 
-      /**
-        Creates a reverb object.
-        The global option should only be enabled internally!
-        */
-      interfaceObject(Bool global = false);
+      
 
     private:
+      implementationObject * pimpl;
+
       Bool connectedToManager;
       Bool active;
 
@@ -208,6 +213,7 @@ namespace YSE {
 
       Bool global;
       friend class managerObject;
+      friend class implementationObject;
     };
   }
 }

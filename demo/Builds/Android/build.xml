@@ -3,9 +3,7 @@
 <project name="YseDemo" default="debug">
   <loadproperties srcFile="local.properties"/>
   <loadproperties srcFile="project.properties"/>
-  <target name="clean" depends="android_rules.clean">
-    <delete dir="libs"/>
-    <delete dir="obj"/>
+  <target name="clean">
     <exec executable="${ndk.dir}/ndk-build" dir="${basedir}" failonerror="true">
       <arg value="clean"/>
     </exec>

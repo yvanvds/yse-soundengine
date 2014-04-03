@@ -16,36 +16,12 @@ YSE::INTERNAL::global & YSE::INTERNAL::Global() {
     return s;
 }
 
-YSE::INTERNAL::deviceManager & YSE::INTERNAL::global::getDeviceManager() {
-  return *dm;
-}
-
-YSE::SOUND::managerObject & YSE::INTERNAL::global::getSoundManager() {
-  return *sm;
-}
-
 YSE::INTERNAL::logImplementation & YSE::INTERNAL::global::getLog() {
   return *log;
 }
 
-YSE::INTERNAL::time & YSE::INTERNAL::global::getTime() {
-  return *ysetime;
-}
-
-YSE::INTERNAL::settings & YSE::INTERNAL::global::getSettings() {
-  return *set;
-}
-
-YSE::CHANNEL::managerObject & YSE::INTERNAL::global::getChannelManager() {
-  return *cm;
-}
-
 YSE::INTERNAL::listenerImplementation & YSE::INTERNAL::global::getListener() {
   return *li;
-}
-
-YSE::REVERB::managerObject & YSE::INTERNAL::global::getReverbManager() {
-  return *rm;
 }
 
 void YSE::INTERNAL::global::addSlowJob(ThreadPoolJob * job) {
@@ -75,21 +51,13 @@ bool YSE::INTERNAL::global::containsSlowJob(ThreadPoolJob * job) {
 YSE::INTERNAL::global::global() : slowThreads(1), update(false), active(false) {}
 
 void YSE::INTERNAL::global::init() {
-  dm = deviceManager::getInstance();
-  sm = SOUND::managerObject::getInstance();
   log = logImplementation::getInstance();
-  ysetime = time::getInstance();
-  set = settings::getInstance();
-  cm = CHANNEL::managerObject::getInstance();
   li = listenerImplementation::getInstance();
-  rm = REVERB::managerObject::getInstance();
 
   slowThreads.setThreadPriorities(0);
   fastThreads.setThreadPriorities(10);
 
-  rm->create();
-  cm->create();
-  sm->create();
+  REVERB::Manager().create();
 }
 
 void YSE::INTERNAL::global::close() {
@@ -98,13 +66,8 @@ void YSE::INTERNAL::global::close() {
   fastThreads.removeAllJobs(true, -1);
 
   // remove managers
-  deviceManager::deleteInstance();
-  SOUND::managerObject::deleteInstance();
-  CHANNEL::managerObject::deleteInstance();
   listenerImplementation::deleteInstance();
-  REVERB::managerObject::deleteInstance();
   
   // these have to come last!
-  settings::deleteInstance();
   logImplementation::deleteInstance();
 }

@@ -24,10 +24,9 @@ namespace YSE {
       Flt rolloffScale;
 
       settings() : dopplerScale(1.f), distanceFactor(1.f), rolloffScale(1.f) {}
-      ~settings() { clearSingletonInstance(); }
-      juce_DeclareSingleton(settings, true)
     };
 
+    settings & Settings();
   }
 }
 

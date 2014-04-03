@@ -27,10 +27,10 @@ Bool YSE::INTERNAL::soundFile::create(Bool stream) {
 ThreadPoolJob::JobStatus YSE::INTERNAL::soundFile::runJob() {
   ScopedPointer<AudioFormatReader> reader;
   if (source == nullptr) {
-    reader = Global().getSoundManager().getReader(file);
+    reader = SOUND::Manager().getReader(file);
   }
   else {
-    reader = Global().getSoundManager().getReader(source);
+    reader = SOUND::Manager().getReader(source);
   }
   
   if (reader != nullptr) {
@@ -361,10 +361,14 @@ YSE::INTERNAL::soundFile & YSE::INTERNAL::soundFile::reset() {
 
 bool YSE::INTERNAL::soundFile::inUse() {
   if (clients < 1) {
-    idleTime += Global().getTime().delta();
+    idleTime += Time().delta();
   }
   if (idleTime > 30) {
     return false;
   }
   return true;
+}
+
+void YSE::INTERNAL::soundFile::attach(YSE::SOUND::implementationObject * impl) {
+  clientList.unique()
 }

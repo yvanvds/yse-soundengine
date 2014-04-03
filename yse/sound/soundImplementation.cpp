@@ -12,7 +12,8 @@
 
 
 YSE::SOUND::implementationObject::implementationObject(interfaceObject * head) :
-  implementationTemplate<soundSubSystem>(head),
+  head(head),
+  objectStatus(OBJECT_CONSTRUCTED),
   parent(nullptr),
   looping(false),
   spread(0),
@@ -56,16 +57,19 @@ YSE::SOUND::implementationObject::implementationObject(interfaceObject * head) :
 #endif
 }
 
-void YSE::SOUND::implementationObject::exit() {
+YSE::SOUND::implementationObject::~implementationObject() {
   // only streams should delete their source. Other files are shared.
   if (file != nullptr) {
-    file->release();
+    file->release(this);
   }
   if (post_dsp && post_dsp->calledfrom) post_dsp->calledfrom = nullptr;
+  if (head.load() != nullptr) {
+    head.load()->pimpl = nullptr;
+  }
 }
 
 bool YSE::SOUND::implementationObject::create(const std::string &fileName, CHANNEL::interfaceObject * ch, Bool loop, Flt volume, Bool streaming) {
-  parent = ch->getImplementation();
+  parent = ch->pimpl;
   looping = loop;
   fader.set(volume);
 
@@ -78,13 +82,14 @@ bool YSE::SOUND::implementationObject::create(const std::string &fileName, CHANN
   }
 
   if (!streaming) {
-    file = INTERNAL::Global().getSoundManager().addFile(ioFile);
+    file = SOUND::Manager().addFile(ioFile);
     status_dsp = SS_STOPPED;
     status_upd = SS_STOPPED;
 
     if (file == nullptr) {
       return false;
     } else {
+      file->attach(this);
       objectStatus = OBJECT_CREATED;
       return true;
     }
@@ -111,12 +116,12 @@ bool YSE::SOUND::implementationObject::create(const std::string &fileName, CHANN
 }
 
 bool YSE::SOUND::implementationObject::create(juce::InputStream * source, CHANNEL::interfaceObject * ch, Bool loop, Flt volume, Bool streaming) {
-  parent = ch->getImplementation();
+  parent = ch->pimpl;
   looping = loop;
   fader.set(volume);
 
   if (!streaming) {
-    file = INTERNAL::Global().getSoundManager().addInputStream(source);
+    file = SOUND::Manager().addInputStream(source);
     status_dsp = SS_STOPPED;
     status_upd = SS_STOPPED;
 
@@ -124,7 +129,7 @@ bool YSE::SOUND::implementationObject::create(juce::InputStream * source, CHANNE
       return false;
     }
     else {
-      objectStatus = OBJECT_CREATED;
+      file->attach(this);
       return true;
     }
   }
@@ -132,29 +137,56 @@ bool YSE::SOUND::implementationObject::create(juce::InputStream * source, CHANNE
   return false;
 }
 
-void YSE::SOUND::implementationObject::implementationSetup() {
-  if (file->getState() == INTERNAL::FILESTATE::READY) {
-    filebuffer.resize(file->channels());
-    buffer = &filebuffer;
-    lastGain.resize(INTERNAL::Global().getChannelManager().getNumberOfOutputs());
-    head.load()->length = file->length();
-    for (UInt i = 0; i < lastGain.size(); i++) {
-      lastGain[i].resize(buffer->size(), 0.0f);
+void YSE::SOUND::implementationObject::setup() {
+  if (objectStatus == OBJECT_DELETE) return;
+  
+  if (objectStatus >= OBJECT_CREATED) {
+    // interface might be deleted
+    if (head.load() == nullptr) {
+      objectStatus = OBJECT_DELETE;
+      return;
+    }
+    if (file->getState() == INTERNAL::FILESTATE::READY) {
+      filebuffer.resize(file->channels());
+      buffer = &filebuffer;
+      lastGain.resize(CHANNEL::Manager().getNumberOfOutputs());
+      head.load()->length = file->length();
+      for (UInt i = 0; i < lastGain.size(); i++) {
+        lastGain[i].resize(buffer->size(), 0.0f);
+      }
+    }
+    else if (file->getState() == INTERNAL::FILESTATE::INVALID) {
+      objectStatus = OBJECT_DELETE;
+      return;
     }
   }
-  else if (file->getState() == INTERNAL::FILESTATE::INVALID) {
-    file->release();
-    file = nullptr;
-    objectStatus = OBJECT_DELETE;
-  }
+  objectStatus = OBJECT_SETUP;
 }
 
-Bool YSE::SOUND::implementationObject::implementationReadyCheck() {
-  return lastGain.size() == INTERNAL::Global().getChannelManager().getNumberOfOutputs();
+Bool YSE::SOUND::implementationObject::readyCheck() {
+  if (objectStatus == OBJECT_READY) {
+    // this means we have don this check before and returned true back then.
+    // the object is added to the list of inUse, but is probably not deleted just
+    // yet. It will be deleted the next time the remove_if function runs (in objectManager)
+    return false;
+  }
+  if (objectStatus == OBJECT_SETUP) {
+    if (lastGain.size() == CHANNEL::Manager().getNumberOfOutputs()) {
+      objectStatus = OBJECT_READY;
+      return true;
+    }
+  }
+  // if we get here, something was wrong. Re-run setup.
+  objectStatus = OBJECT_CREATED;
+  return false;
 }
 
 void YSE::SOUND::implementationObject::doThisWhenReady() {
   parent->connect(this);
+}
+
+void YSE::SOUND::implementationObject::sendMessage(const messageObject & message) {
+  messages.push(message);
 }
 
 void YSE::SOUND::implementationObject::sync() {
@@ -162,7 +194,7 @@ void YSE::SOUND::implementationObject::sync() {
     objectStatus = OBJECT_DONE;
     
     // sound head is destructed, so stop and remove
-    if (status_dsp != SS_STOPPED || SS_WANTSTOSTOP) {
+    if (status_dsp != SS_STOPPED || status_dsp != SS_WANTSTOSTOP) {
       status_dsp = SS_WANTSTOSTOP;
     }
     else if (status_dsp == SS_STOPPED) {
@@ -171,7 +203,7 @@ void YSE::SOUND::implementationObject::sync() {
     return;
   }
 
-  derrivedMessage message;
+  messageObject message;
   while (messages.try_pop(message)) {
     parseMessage(message);
   }
@@ -256,18 +288,20 @@ void YSE::SOUND::implementationObject::parseMessage(const messageObject & messag
     case MESSAGE::MOVE: {
       channel* ptr = (channel*)message.ptrValue;
       if (ptr != nullptr) {
-        ptr->getImplementation()->connect(this);
+        ptr->pimpl->connect(this);
       }
       break;
     }
   }
 }
 
+
+
 void YSE::SOUND::implementationObject::update() {
   ///////////////////////////////////////////
   // set position and distance
   ///////////////////////////////////////////
-  newPos = pos * INTERNAL::Global().getSettings().distanceFactor;
+  newPos = pos * INTERNAL::Settings().distanceFactor;
 
   // distance to listener
   if (relative) {
@@ -288,7 +322,7 @@ void YSE::SOUND::implementationObject::update() {
   Flt vel = velocity; // avoid using atomic all the time
   if (!doppler) vel = 0;
   else {
-    velocityVec = (newPos - lastPos) * (1 / INTERNAL::Global().getTime().delta());
+    velocityVec = (newPos - lastPos) * (1 / INTERNAL::Time().delta());
     
     Vec listenerVelocity;
     listenerVelocity.x = INTERNAL::Global().getListener().vel.x.load();
@@ -302,7 +336,7 @@ void YSE::SOUND::implementationObject::update() {
         Flt rSound = Dot(vel, dist) / dist.length();
         Flt rList = Dot(listenerVelocity, dist) / dist.length();
         vel = 1 - (440 / (((344.0f + rList) / (344.0f + rSound)) * 440));
-        vel *= INTERNAL::Global().getSettings().dopplerScale;
+        vel *= INTERNAL::Settings().dopplerScale;
       }
     }
     
@@ -527,7 +561,7 @@ void YSE::SOUND::implementationObject::toChannels() {
     // calculated power
     Flt dist = distance - size;
     if (dist < 0) dist = 0;
-    Flt correctPower = 1 / pow(dist, (2 * INTERNAL::Global().getSettings().rolloffScale));
+    Flt correctPower = 1 / pow(dist, (2 * INTERNAL::Settings().rolloffScale));
     if (correctPower > 1) correctPower = 1;
 
     // final gain assignment
@@ -559,7 +593,7 @@ void YSE::SOUND::implementationObject::addSourceDSP(DSP::dspSourceObject &ptr) {
   source_dsp = &ptr;
   status_dsp = SS_STOPPED;
   buffer = &source_dsp->buffer;
-  lastGain.resize(INTERNAL::Global().getChannelManager().getNumberOfOutputs());
+  lastGain.resize(CHANNEL::Manager().getNumberOfOutputs());
   for (UInt i = 0; i < lastGain.size(); i++) {
     lastGain[i].resize(buffer->size(), 0.0f);
   }
@@ -571,3 +605,14 @@ bool YSE::SOUND::implementationObject::sortSoundObjects(implementationObject * l
   return (lhs->virtualDist < rhs->virtualDist);
 }
 
+void YSE::SOUND::implementationObject::removeInterface() {
+  head.store(nullptr);
+}
+
+YSE::OBJECT_IMPLEMENTATION_STATE YSE::SOUND::implementationObject::getStatus() {
+  return objectStatus.load();
+}
+
+void YSE::SOUND::implementationObject::setStatus(YSE::OBJECT_IMPLEMENTATION_STATE value) {
+  objectStatus.store(value);
+}

@@ -10,7 +10,10 @@
 
 #include "../internalHeaders.h"
 
-juce_ImplementSingleton(YSE::INTERNAL::deviceManager)
+YSE::INTERNAL::deviceManager & YSE::INTERNAL::DeviceManager() {
+  static deviceManager d;
+  return d;
+}
 
 YSE::INTERNAL::deviceManager::deviceManager() : initialized(false), open(false),
                                       started(false), master(nullptr), 
@@ -18,10 +21,6 @@ YSE::INTERNAL::deviceManager::deviceManager() : initialized(false), open(false),
 
 }
 
-YSE::INTERNAL::deviceManager::~deviceManager() {
-  //close();
-  clearSingletonInstance();
-}
 
 Bool YSE::INTERNAL::deviceManager::init() {
   if (!initialized) {
@@ -70,16 +69,16 @@ void YSE::INTERNAL::deviceManager::audioDeviceIOCallback(const float ** inputCha
 
   if (Global().needsUpdate()) {
     // update global objects
-    INTERNAL::Global().getTime().update();
+    INTERNAL::Time().update();
     INTERNAL::Global().getListener().update();
-    INTERNAL::Global().getSoundManager().update();
-    INTERNAL::Global().getChannelManager().update();
-    INTERNAL::Global().getReverbManager().update();
+    SOUND::Manager().update();
+    CHANNEL::Manager().update();
+    REVERB::Manager().update();
     // TODO: check if we still have to release sounds (see old code)
     Global().updateDone();
   }
 
-  if (Global().getSoundManager().empty()) return;
+  if (SOUND::Manager().empty()) return;
   
   UInt pos = 0;
 

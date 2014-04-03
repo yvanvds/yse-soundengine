@@ -10,7 +10,10 @@
 
 #include "time.h"
 
-juce_ImplementSingleton(YSE::INTERNAL::time)
+YSE::INTERNAL::time & YSE::INTERNAL::Time() {
+  static time t;
+  return t;
+}
 
 void YSE::INTERNAL::time::update() {
   // update time delta

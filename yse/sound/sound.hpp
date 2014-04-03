@@ -44,16 +44,8 @@ namespace YSE {
     };
   }
 
-  struct soundSubSystem {
-    typedef SOUND::interfaceObject interfaceObject;
-    typedef SOUND::implementationObject implementationObject;
-    typedef SOUND::managerObject managerObject;
-    typedef SOUND::messageObject messageObject;
-    typedef SOUND::MESSAGE MESSAGE;
-  };
-
   // the interface itself gets a more generic name, so that users can just
-  // define a 'reverb' to get an interface object.
+  // define a 'sound' to get an interface object.
   typedef SOUND::interfaceObject sound;
 }
 

@@ -13,24 +13,92 @@
 
 #include <forward_list>
 #include "JuceHeader.h"
-#include "channel.hpp"
-#include "../templates/managerObject.h"
 #include "../headers/enums.hpp"
 #include "../classes.hpp"
+#include "channelInterface.hpp"
 #include "channelImplementation.h"
-#include "channelMessage.h"
-
 
 namespace YSE {
   namespace CHANNEL {
 
-    class managerObject : public TEMPLATE::managerTemplate<channelSubSystem> {
+    class managerObject {
     public:
+
+      /////////////////////////////////////////////////////////
+      // setupJob
+      /////////////////////////////////////////////////////////
+      
+      /** A job to add to the lowpriority threadpool when there are implementationObjects
+      that need to be setup.
+      */
+      class setupJob : public ThreadPoolJob {
+      public:
+
+        /** The job will be initialized with a name for debug purposes and a pointer
+        to the managerObject it is supposed to work with. The managerObject takes
+        care of adding this job to a low priority threadpool every time it sees
+        that there are implementationObjects that need to be set up.
+        */
+        setupJob(const String & name, managerObject * obj)
+          : ThreadPoolJob(name), obj(obj) {
+
+        }
+
+        /** This function is called from the threadpool and does the intented work
+        (Which is called the setup function of the objects that need to be loaded)
+        */
+        JobStatus runJob() {
+          for (auto i = obj->toLoad.begin(); i != obj->toLoad.end(); ++i) {
+            i->load()->setup();
+          }
+          return jobHasFinished;
+        }
+
+      private:
+        managerObject * obj;
+      };
+
+      /////////////////////////////////////////////////////////
+      // deleteJob
+      /////////////////////////////////////////////////////////
+      
+      /** A job to add to the lowpriority threadpool when there are implementationObjects
+      to be deleted
+      */
+      class deleteJob : public ThreadPoolJob {
+      public:
+
+        /** The job will be initialized with a name for debug purposes and a pointer
+        to the managerObject it is supposed to work with. The managerObject takes
+        care of adding this job to a low priority threadpool every time it sees
+        that there are implementationObjects that need to be deleted.
+        */
+        deleteJob(const String & name, managerObject * obj)
+          : ThreadPoolJob(name), obj(obj) {
+
+        }
+
+        JobStatus runJob() {
+          obj->implementations.remove_if(implementationObject::canBeDeleted);
+          return jobHasFinished;
+        }
+
+      private:
+        managerObject * obj;
+      };
+
+      /////////////////////////////////////////////////////////
+      // managerObject
+      /////////////////////////////////////////////////////////
+      
       managerObject();
       ~managerObject();
 
-      void create() {};
       void update();
+
+      implementationObject * addImplementation(interfaceObject * head);
+      void setup(implementationObject * impl);
+      Bool empty();
       
       // channel output configuration
       void changeChannelConf(CHANNEL_TYPE type, Int outputs = 2);
@@ -46,9 +114,32 @@ namespace YSE {
 
       void setMaster(implementationObject * impl);
       
-
-      juce_DeclareSingleton(managerObject, true)
     private:
+      // Once an object is ready for use, a pointer is placed in this container. The manager will
+      // update and sync all these objects during the dsp callback function
+      std::forward_list<implementationObject*> inUse;
+
+      setupJob mgrSetup;
+      deleteJob mgrDelete;
+
+      // this queue is used by the setupJob. It is accessed from a low
+      // priority thread to setup, but also from the dsp thread to check if an
+      // object is ready. This is why every pointer has to be atomic. (It's not
+      // a lot of overhead because objects are only in this container while being
+      // created. Unless you create a huge amount of sounds at the same time the size
+      // of this list will be small. And if you DO create a huge amount of sounds
+      // at the same time you should be expecting some latency while they all get loaded
+      // anyway.)
+      std::forward_list<std::atomic<implementationObject*>> toLoad;
+
+      // this is the list of all implementationObjects for this subSystem, whether they are ready, 
+      // need to be setup or are about to be deleted. This list is not accessed from the 
+      // audio callback thread, although elements of it might be accessed through the above pointer lists.
+      std::forward_list<implementationObject> implementations;
+
+      // This flag will be set when the audio thread detects that one or more objects
+      // should be released. It will result in the deleteJob to be added to the threadpool.
+      aBool runDelete;
 
       channel _master;
       channel _fx;
@@ -70,7 +161,11 @@ namespace YSE {
       void set71();
       void setAuto(Int count);
 
+      friend class setupJob;
+      friend class deleteJob;
     };
+
+    managerObject & Manager();
 
   }
 }

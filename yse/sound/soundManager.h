@@ -31,10 +31,81 @@ namespace YSE {
       The soundmanager is responsible for the management of all soundfiles and
       sound implementations.
     */
-    class managerObject : public TEMPLATE::managerTemplate<soundSubSystem> {
+    class managerObject {
     public:
       
-      virtual void create() {}
+      ////////////////////////////////////////
+      // setup threadpool job
+      ////////////////////////////////////////
+
+      /** A job to add to the lowpriority threadpool when there are implementationObjects
+      that need to be setup.
+      */
+      class setupJob : public ThreadPoolJob {
+      public:
+
+        /** The job will be initialized with a name for debug purposes and a pointer
+        to the managerObject it is supposed to work with. The managerObject takes
+        care of adding this job to a low priority threadpool every time it sees
+        that there are implementationObjects that need to be set up.
+        */
+        setupJob(const String & name, managerObject * obj)
+          : ThreadPoolJob(name), obj(obj) {
+
+        }
+
+        /** This function is called from the threadpool and does the intented work
+        (Which is called the setup function of the objects that need to be loaded)
+        */
+        JobStatus runJob() {
+          for (auto i = obj->toLoad.begin(); i != obj->toLoad.end(); ++i) {
+            i->load()->setup();
+          }
+          return jobHasFinished;
+        }
+
+      private:
+        managerObject * obj;
+      };
+
+      ////////////////////////////////////////
+      // delete threadpool job
+      ////////////////////////////////////////
+      /** A job to add to the lowpriority threadpool when there are implementationObjects
+      to be deleted
+      */
+      class deleteJob : public ThreadPoolJob {
+      public:
+
+
+
+        /** The job will be initialized with a name for debug purposes and a pointer
+        to the managerObject it is supposed to work with. The managerObject takes
+        care of adding this job to a low priority threadpool every time it sees
+        that there are implementationObjects that need to be deleted.
+        */
+        deleteJob(const String & name, managerObject * obj)
+          : ThreadPoolJob(name), obj(obj) {
+
+        }
+
+        JobStatus runJob() {
+          obj->implementations.remove_if(implementationObject::canBeDeleted);
+          return jobHasFinished;
+        }
+
+      private:
+        managerObject * obj;
+      };
+
+      ////////////////////////////////////////
+      // managerObject
+      ////////////////////////////////////////
+
+      managerObject();
+      ~managerObject();
+
+      implementationObject * addImplementation(interfaceObject * head);
 
       /** Add a new soundfile to the system and return a pointer to it. If the file already
           exists, it will not be loaded anew but a pointer to the existing file will be
@@ -51,10 +122,14 @@ namespace YSE {
       INTERNAL::soundFile * addInputStream(juce::InputStream * source);
 #endif
 
+      void setup(implementationObject * impl);
+
       /** Run the soundManager update. This function is responsable for most of the
           action on sound implementations and sound files.
       */
       void update();
+
+      Bool empty();
 
       /** Sets the maximum amount of sounds to be processed. The soundmanager
           will try to find the sounds that are most relevant and virtualize
@@ -84,11 +159,12 @@ namespace YSE {
 
       //Bool inRange(Flt dist);
 
-      managerObject();
-      ~managerObject();
-      juce_DeclareSingleton(managerObject, true)
+      
 
     private:
+      setupJob mgrSetup;
+      deleteJob mgrDelete;
+
       /** the lastGain buffer of each sound is needed to provide smooth changes
       in volume for each channel. When the number of output channels is changed
       this buffer has to change accordingly. This is done by this function.
@@ -105,7 +181,36 @@ namespace YSE {
       // the maximum distance before turning virtual
       // This value is calculated on every update
       //aFlt maxDistance;
+
+      // Once an object is ready for use, a pointer is placed in this container. The manager will
+      // update and sync all these objects during the dsp callback function
+      std::forward_list<implementationObject*> inUse;
+
+      // this queue is used by the setupJob. It is accessed from a low
+      // priority thread to setup, but also from the dsp thread to check if an
+      // object is ready. This is why every pointer has to be atomic. (It's not
+      // a lot of overhead because objects are only in this container while being
+      // created. Unless you create a huge amount of sounds at the same time the size
+      // of this list will be small. And if you DO create a huge amount of sounds
+      // at the same time you should be expecting some latency while they all get loaded
+      // anyway.)
+      std::forward_list<std::atomic<implementationObject*>> toLoad;
+
+      // this is the list of all implementationObjects for this subSystem, whether they are ready, 
+      // need to be setup or are about to be deleted. This list is not accessed from the 
+      // audio callback thread, although elements of it might be accessed through the above pointer lists.
+      std::forward_list<implementationObject> implementations;
+
+      // This flag will be set when the audio thread detects that one or more objects
+      // should be released. It will result in the deleteJob to be added to the threadpool.
+      aBool runDelete;
+
+      friend class setupJob;
+      friend class deleteJob;
+
     };
+
+    managerObject & Manager();
 
   }
 }
