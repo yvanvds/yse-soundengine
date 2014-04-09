@@ -23,7 +23,7 @@ YSE::SOUND::implementationObject::implementationObject(interfaceObject * head) :
   _postDspPtr(nullptr),
   occlusion_dsp(0.f),
   occlusionActive(false),
-  streaming_dsp(false),
+  streaming(false),
   relative(false),
   doppler(true),
   setVolume(false),
@@ -93,28 +93,27 @@ bool YSE::SOUND::implementationObject::create(const std::string &fileName, CHANN
       objectStatus = OBJECT_CREATED;
       return true;
     }
-  }
-
-  //else {
+  } else {
     // streams have their own soundfile
-    //_streaming = true;
-    //intent = SS_STOPPED;
-    //file = new soundFile;
-    //if (file->create(ioFile, true)) {
-    //  filebuffer.resize(file->channels());
-    //  buffer = &filebuffer;
-    //  _length = file->length();
-    //  return true;
-    //}
-    //else {
-    //  delete file;
-    //  file = NULL;
-    //  return false;
-    //}
-  //}
+    streaming = true;
+    status_dsp = SS_STOPPED;
+    status_upd = SS_STOPPED;
+      
+      file = new INTERNAL::soundFile(ioFile);
+      if(file->create(true)) {
+          filebuffer.resize(file->channels());
+          buffer = &filebuffer;
+          return true;
+      } else {
+          delete file;
+          file = nullptr;
+          return false;
+      }
+  }
   return false;
 }
 
+#if defined PUBLIC_JUCE
 bool YSE::SOUND::implementationObject::create(juce::InputStream * source, CHANNEL::interfaceObject * ch, Bool loop, Flt volume, Bool streaming) {
   parent = ch->pimpl;
   looping = loop;
@@ -136,6 +135,7 @@ bool YSE::SOUND::implementationObject::create(juce::InputStream * source, CHANNE
 
   return false;
 }
+#endif
 
 void YSE::SOUND::implementationObject::setup() {
   if (objectStatus == OBJECT_DELETE) return;

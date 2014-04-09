@@ -11,13 +11,18 @@
 #ifndef REVERBMESSAGE_H_INCLUDED
 #define REVERBMESSAGE_H_INCLUDED
 
-#include "../templates/messageObject.h"
+
 #include "reverb.hpp"
 
 namespace YSE {
   namespace REVERB {
     
-
+    /*
+       Message objects are used to send messages from interface to implementation. In this
+       case, a message will be sent from a reverbInterfaceObject to a
+       reverbImplementationObject. They are a way to ensure threadsafe and lockfree communication
+       between the two.
+    */
     class messageObject {
     public:
       /** The ID of a message defines how it will be stored in the implementation
@@ -35,7 +40,6 @@ namespace YSE {
         Flt    floatValue;
         UInt   uintValue;
         void * ptrValue;
-        SOUND_INTENT intentValue;
       };
     };
   }

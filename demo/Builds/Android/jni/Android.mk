@@ -8,6 +8,8 @@ include $(CLEAR_VARS)
 LOCAL_ARM_MODE := arm
 LOCAL_MODULE := juce_jni
 LOCAL_SRC_FILES := \
+  ../../../../yse/music/chord.cpp\
+  ../../../../yse/music/note.cpp\
   ../../../../yse/sound/soundInterface.cpp\
   ../../../../yse/sound/soundImplementation.cpp\
   ../../../../yse/sound/soundManager.cpp\

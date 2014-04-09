@@ -71,6 +71,11 @@ namespace YSE {
     class sineWave;
   }
 
+  namespace MUSIC {
+    class note;
+    class chord;
+  }
+    
   namespace INTERNAL {
     // internal classes
     class global;

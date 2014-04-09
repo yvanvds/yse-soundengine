@@ -322,7 +322,6 @@ YSE::INTERNAL::soundFile::~soundFile() {
 // audio bufers of zero length. This is why it is set to one here.
 YSE::INTERNAL::soundFile::soundFile(const File & file) : ThreadPoolJob(file.getFullPathName())
   , _buffer(1, 1)
-  , clients(0)
   , idleTime(0)
   , state(NEW)
   , file(file)
@@ -334,7 +333,6 @@ YSE::INTERNAL::soundFile::soundFile(const File & file) : ThreadPoolJob(file.getF
 
 YSE::INTERNAL::soundFile::soundFile(juce::InputStream * source) : ThreadPoolJob("BinaryDataReader")
 , _buffer(1, 1)
-, clients(0)
 , idleTime(0)
 , state(NEW)
 , file()
@@ -360,7 +358,7 @@ YSE::INTERNAL::soundFile & YSE::INTERNAL::soundFile::reset() {
 }
 
 bool YSE::INTERNAL::soundFile::inUse() {
-  if (clients < 1) {
+  if (clientList.empty()) {
     idleTime += Time().delta();
   }
   if (idleTime > 30) {
@@ -370,5 +368,21 @@ bool YSE::INTERNAL::soundFile::inUse() {
 }
 
 void YSE::INTERNAL::soundFile::attach(YSE::SOUND::implementationObject * impl) {
-  clientList.unique()
+    for (auto i = clientList.begin(); i != clientList.end(); ++i) {
+        if (*i == impl) return;
+    }
+    clientList.emplace_front(impl);
+}
+
+void YSE::INTERNAL::soundFile::release(SOUND::implementationObject *impl) {
+    auto previous = clientList.before_begin();
+    for (auto i = clientList.begin(); i != clientList.end(); ++i) {
+        if(*i == impl) {
+            clientList.erase_after(previous);
+            return;
+        }
+        previous++;
+    }
+    // this point should not be reached
+    jassertfalse;
 }

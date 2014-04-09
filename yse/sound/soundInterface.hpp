@@ -80,6 +80,11 @@ namespace YSE {
       interfaceObject& create(juce::InputStream * source, channel * ch = nullptr, Bool loop = false, Flt volume = 1.0f, Bool streaming = false);
 #endif
 
+      /*
+       Checks if there is an implementation linked to this interface. You can use this for debugging, but safely assume
+       this returns true for the lifetime of the interface. It's not needed to check against this function before
+       using the interface.
+      */
       Bool isValid();
 
       /**

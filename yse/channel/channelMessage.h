@@ -16,7 +16,12 @@
 namespace YSE {
   namespace CHANNEL {
     
-
+    /*
+       Message objects are used to send messages from interface to implementation. In this
+       case, a message will be sent from a channelInterfaceObject to a
+       channelImplementationObject. They are a way to ensure threadsafe and lockfree communication
+       between the two.
+    */
     class messageObject {
     public:
       /** The ID of a message defines how it will be stored in the implementation

@@ -83,7 +83,7 @@ namespace YSE {
       void resetStream();
 
       // for keeping track of objects using this file
-      aUInt clients;
+      
       std::forward_list<SOUND::implementationObject*> clientList;
       Flt idleTime;
 

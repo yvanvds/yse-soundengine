@@ -226,7 +226,7 @@ namespace YSE {
       UInt stopOffset;
 
       // info 
-      Bool streaming_dsp;
+      Bool streaming;
 
       std::atomic<interfaceObject *> head; // < The interface connected to this object
       std::atomic<OBJECT_IMPLEMENTATION_STATE> objectStatus; // < the status of this object
