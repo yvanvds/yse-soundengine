@@ -224,5 +224,5 @@ pip-log.txt
 
 #Mr Developer
 .mr.developer.cfg
-demo/Builds/VisualStudio2013/YseDemo.sln
-demo/Builds/VisualStudio2013/resources.rc
+demo/Builds/
+
