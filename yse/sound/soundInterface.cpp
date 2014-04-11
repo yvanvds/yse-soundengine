@@ -40,15 +40,12 @@ YSE::sound& YSE::sound::create(const char * fileName, channel * ch, Bool loop, F
 }
 
 YSE::sound& YSE::sound::create(DSP::dspSourceObject & dsp, channel * ch, Flt volume) {
-  //super::create();
+  assert(pimpl == nullptr);
 
-  //pimpl = INTERNAL::Global().getSoundManager().addImplementation(this);
-
-  //pimpl->addSourceDSP(dsp);
-  //if (ch == nullptr) pimpl->parent = INTERNAL::Global().getChannelManager().master().pimpl;
-  //else  pimpl->parent = ch->pimpl;
-  //pimpl->fader.set(volume);
-  // we'll have to get created to true somehow when dsp objects are implemented
+  pimpl = SOUND::Manager().addImplementation(this);
+  if (ch == nullptr) ch = &CHANNEL::Manager().master();
+  pimpl->create(dsp, ch, volume);
+  SOUND::Manager().setup(pimpl);
 
   return *this;
 }

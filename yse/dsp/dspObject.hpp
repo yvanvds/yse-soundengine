@@ -54,8 +54,7 @@ namespace YSE {
       dspSourceObject(Int buffers = 1);
 
       // intent is what we should do (playing, start playing, start stopping etc...
-      // latency is after how many samples this should happen
-      virtual void process(SOUND_STATUS & intent, Int & latency) = 0;
+      virtual void process(SOUND_STATUS & intent) = 0;
       virtual void frequency(Flt value) = 0;
     };
 

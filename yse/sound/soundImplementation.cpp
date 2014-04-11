@@ -113,6 +113,18 @@ bool YSE::SOUND::implementationObject::create(const std::string &fileName, CHANN
   return false;
 }
 
+bool YSE::SOUND::implementationObject::create(DSP::dspSourceObject & ptr, CHANNEL::interfaceObject * ch, Flt volume) {
+  parent = ch->pimpl;
+  looping = false;
+  fader.set(volume);
+  status_dsp = SS_STOPPED;
+  status_upd = SS_STOPPED;
+
+  source_dsp = &ptr;
+  buffer = &source_dsp->buffer;
+  return true;
+}
+
 #if defined PUBLIC_JUCE
 bool YSE::SOUND::implementationObject::create(juce::InputStream * source, CHANNEL::interfaceObject * ch, Bool loop, Flt volume, Bool streaming) {
   parent = ch->pimpl;
@@ -146,7 +158,14 @@ void YSE::SOUND::implementationObject::setup() {
       objectStatus = OBJECT_DELETE;
       return;
     }
-    if (file->getState() == INTERNAL::FILESTATE::READY) {
+    if (source_dsp != nullptr) {
+      // dsp source sounds are a special case because there's no file involved
+      lastGain.resize(CHANNEL::Manager().getNumberOfOutputs());
+      for (UInt i = 0; i < lastGain.size(); i++) {
+        lastGain[i].resize(buffer->size(), 0.0f);
+      }
+    } else if (file->getState() == INTERNAL::FILESTATE::READY) {
+      // file is ready!
       filebuffer.resize(file->channels());
       buffer = &filebuffer;
       lastGain.resize(CHANNEL::Manager().getNumberOfOutputs());
@@ -165,7 +184,7 @@ void YSE::SOUND::implementationObject::setup() {
 
 Bool YSE::SOUND::implementationObject::readyCheck() {
   if (objectStatus == OBJECT_READY) {
-    // this means we have don this check before and returned true back then.
+    // this means we have done this check before and returned true back then.
     // the object is added to the list of inUse, but is probably not deleted just
     // yet. It will be deleted the next time the remove_if function runs (in objectManager)
     return false;
@@ -425,10 +444,7 @@ Bool YSE::SOUND::implementationObject::dsp() {
   // fill buffer
   ///////////////////////////////////////////
   if (source_dsp != nullptr) {
-    source_dsp->frequency(pitch);
-    // TODO: we need to think about what we're gonna do with latency and softsynts
-    Int latency = 0;
-    source_dsp->process(status_dsp, latency);
+    source_dsp->process(status_dsp);
   } else 
   if (file->read(filebuffer, filePtr, STANDARD_BUFFERSIZE, pitch + velocity, looping, status_dsp, bufferVolume) == false) {
     // non looping sound has reached end of file
@@ -587,16 +603,6 @@ void YSE::SOUND::implementationObject::addDSP(DSP::dspObject & ptr) {
   }
   post_dsp = &ptr;
   post_dsp->calledfrom = &post_dsp;
-}
-
-void YSE::SOUND::implementationObject::addSourceDSP(DSP::dspSourceObject &ptr) {
-  source_dsp = &ptr;
-  status_dsp = SS_STOPPED;
-  buffer = &source_dsp->buffer;
-  lastGain.resize(CHANNEL::Manager().getNumberOfOutputs());
-  for (UInt i = 0; i < lastGain.size(); i++) {
-    lastGain[i].resize(buffer->size(), 0.0f);
-  }
 }
 
 bool YSE::SOUND::implementationObject::sortSoundObjects(implementationObject * lhs, implementationObject * rhs) {

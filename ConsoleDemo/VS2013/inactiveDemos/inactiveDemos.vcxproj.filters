@@ -7,5 +7,6 @@
     <ClCompile Include="..\..\source\demo04.cpp" />
     <ClCompile Include="..\..\source\demo05.cpp" />
     <ClCompile Include="..\..\source\demo00.cpp" />
+    <ClCompile Include="..\..\source\demo06.cpp" />
   </ItemGroup>
 </Project>

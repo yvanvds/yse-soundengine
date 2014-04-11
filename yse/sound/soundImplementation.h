@@ -58,6 +58,8 @@ namespace YSE {
       Bool create(juce::InputStream * source, CHANNEL::interfaceObject * ch, Bool loop, Flt volume, Bool streaming);
 #endif
 
+      Bool create(DSP::dspSourceObject & ptr, CHANNEL::interfaceObject * ch, Flt volume);
+
       /** Initialize some settings for the sound after creation.
           @param head       Passes a pointer to the actual sound object (created by the user)
                             to this implementation. Implementations will be deleted when this
@@ -213,7 +215,6 @@ namespace YSE {
 
       // dsp slots
       DSP::dspSourceObject * source_dsp;
-      void addSourceDSP(DSP::dspSourceObject & ptr);
 
       Bool _setPostDSP;
       std::atomic<DSP::dspObject *> _postDspPtr;
