@@ -32,7 +32,7 @@ namespace YSE {
 
       // An implementation object can only by created with a pointer to respective interface supplied
       implementationTemplate(derrivedInterface * head) : objectStatus(OBJECT_CONSTRUCTED), head(head) {
-        head->setInterfacePointer(&(head));
+        head->setInterfacePointer(&validInterface);
       }
       
       ~implementationTemplate() {
@@ -113,6 +113,12 @@ namespace YSE {
         TEMPLATE::managerObject.)
       */
       Bool readyCheck() {
+        if (objectStatus == OBJECT_READY) {
+          // this means we have don this check before and returned true back then.
+          // the object is added to the list of inUse, but is probably not deleted just
+          // yet. It will be deleted the next time the remove_if function runs (in objectManager)
+          return false;
+        }
         if (objectStatus == OBJECT_SETUP) {
           if (implementationReadyCheck()) {
             objectStatus = OBJECT_READY;
@@ -130,7 +136,8 @@ namespace YSE {
         TEMPLATE::managerObject.)
       */
       virtual void sync() {
-        if (head.load() == nullptr) {
+        if (head.load() == nullptr || !validInterface.test_and_set()) {
+          validInterface.clear(); // make sure it stays false
           objectStatus = OBJECT_RELEASE;
           return;
         }
@@ -184,8 +191,9 @@ namespace YSE {
       }
 
       
-
+      std::atomic_flag validInterface;
     protected:
+
       std::atomic<derrivedInterface *> head; // < The interface connected to this object
       std::atomic<OBJECT_IMPLEMENTATION_STATE> objectStatus; // < the status of this object
       lfQueue<derrivedMessage> messages;

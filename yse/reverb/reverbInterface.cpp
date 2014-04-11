@@ -13,22 +13,33 @@
 
 
 
-YSE::REVERB::interfaceObject::interfaceObject(bool global) : active(true), roomsize(0.5f), damp(0.5),  
-                        wet(0.5), dry(0.5), modFrequency(0),
-                        modWidth(0), global(global), connectedToManager(false) {}
+YSE::REVERB::interfaceObject::interfaceObject(bool global) 
+  : pimpl(nullptr), active(true), roomsize(0.5f), damp(0.5),  
+    wet(0.5f), dry(0.5f), modFrequency(0),
+    modWidth(0), global(global), connectedToManager(false) {}
+
+YSE::REVERB::interfaceObject::~interfaceObject() {
+  if (pimpl != nullptr) {
+    pimpl->removeInterface();
+    pimpl = nullptr;
+  }
+}
 
 void YSE::REVERB::interfaceObject::create() {
-  interfaceTemplate<reverbSubSystem>::create();
+  assert(pimpl == nullptr);
 
   for (Int i = 0; i < 4; i++) {
     earlyPtr[i] = 0;
     earlyGain[i] = 0;
   }
 
-  pimpl = INTERNAL::Global().getReverbManager().addImplementation(this);
-  INTERNAL::Global().getReverbManager().setup(pimpl);
+  pimpl = REVERB::Manager().addImplementation(this);
+  REVERB::Manager().setup(pimpl);
 }
 
+Bool YSE::REVERB::interfaceObject::isValid() {
+  return pimpl != nullptr;
+}
 
 YSE::REVERB::interfaceObject & YSE::REVERB::interfaceObject::setPosition(const Vec &value) {
   if (position != value) {

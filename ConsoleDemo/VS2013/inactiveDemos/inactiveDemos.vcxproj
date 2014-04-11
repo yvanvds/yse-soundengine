@@ -69,6 +69,7 @@
     <ClCompile Include="..\..\source\demo02.cpp" />
     <ClCompile Include="..\..\source\demo03.cpp" />
     <ClCompile Include="..\..\source\demo04.cpp" />
+    <ClCompile Include="..\..\source\demo05.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

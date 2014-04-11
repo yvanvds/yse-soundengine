@@ -53,7 +53,7 @@ YSE::INTERNAL::underWaterEffect & YSE::INTERNAL::underWaterEffect::apply(MULTICH
     for (UInt i = 0; i < channelBuffer.size(); ++i) {
       buffer += channelBuffer[i];
     }
-    buffer /= static_cast<Flt>(Global().getChannelManager().getNumberOfOutputs());
+    buffer /= static_cast<Flt>(CHANNEL::Manager().getNumberOfOutputs());
 
     Flt factor = 140 - (depth * 5);
     factor = DSP::MidiToFreq(factor);

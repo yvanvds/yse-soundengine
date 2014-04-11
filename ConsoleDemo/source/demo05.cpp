@@ -14,7 +14,7 @@ int main() {
   YSE::System().init();
 
   // load handclap sound, non-looping
-  snare.create("snare.ogg", NULL);
+  snare.create("snare.ogg", NULL, true);
 
   if (!snare.isValid()) {
     std::cout << "sound 'snare.ogg' not found" << std::endl;

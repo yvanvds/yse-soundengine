@@ -15,6 +15,7 @@
 #include "channel/channel.hpp"
 #include "sound/sound.hpp"
 #include "reverb/reverb.hpp"
+#include "device/device.hpp"
 
 namespace YSE {
   // public classes
@@ -71,10 +72,14 @@ namespace YSE {
     class sineWave;
   }
 
+  namespace MUSIC {
+    class note;
+    class chord;
+  }
+    
   namespace INTERNAL {
     // internal classes
     class global;
-    class deviceManager;
     class listenerImplementation;
     class logImplementation;
     class output;

@@ -27,11 +27,11 @@ namespace YSE {
       typedef typename SUBSYSTEM::implementationObject derrivedImplementation;
       typedef typename SUBSYSTEM::interfaceObject derrivedInterface;
 
-      interfaceTemplate() : pimpl(nullptr) {}
+      interfaceTemplate() : pimpl(nullptr), validInterface(nullptr) {}
 
       ~interfaceTemplate() {
-        if (pimpl != nullptr) {
-          *self = nullptr;
+        if (pimpl != nullptr && validInterface != nullptr) {
+          validInterface->clear();
           pimpl = nullptr;
         }
       }
@@ -59,8 +59,8 @@ namespace YSE {
 
       // provide a pointer to this interface that is used by the impletation
       // This function is only intended for internal use!
-      void setInterfacePointer(derrivedInterface ** ptr) {
-        self = ptr;
+      void setInterfacePointer(std::atomic_flag * ptr) {
+        validInterface = ptr;
       }
 
     //protected:
@@ -71,7 +71,7 @@ namespace YSE {
       // functions from the interface because that would create a dependency on it. Which
       // we don't want: the whole point of separating the two is to create a library which
       // can be used without knowing about the internal objects (and their dependencies).
-      derrivedInterface ** self; // TODO: this is not theadsafe! How to pass a pointer to an atomic<ptr>??
+      std::atomic_flag * validInterface; // TODO: this is not theadsafe! How to pass a pointer to an atomic<ptr>??
     };
 
   }

@@ -73,11 +73,11 @@ void YSE::virtualFinder::calculate() {
     range -= calculatedMax / resolution * (1 - (count - currentLimit) / bin[i]);
 
     // if the difference between the count and the limit is more than 10%, we have to enlarge our resolution
-    if (std::abs(count - currentLimit) > currentLimit / 10.f) {
+      if (abs(count - currentLimit) > currentLimit / 10.f) {
       resolution++;
       bin.resize(resolution);
     }
-    else if (std::abs(count - currentLimit) < currentLimit / 50.f) {
+    else if (abs(count - currentLimit) < currentLimit / 50.f) {
       resolution--;
       bin.resize(resolution);
 

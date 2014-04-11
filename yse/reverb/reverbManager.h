@@ -21,8 +21,34 @@
 namespace YSE {
   namespace REVERB {
 
-    class managerObject : public TEMPLATE::managerTemplate<reverbSubSystem> {
+    class managerObject {
     public:
+
+      /** A job to add to the lowpriority threadpool when there are implementationObjects
+      to be deleted
+      */
+      class deleteJob : public ThreadPoolJob {
+      public:
+
+        /** The job will be initialized with a name for debug purposes and a pointer
+        to the managerObject it is supposed to work with. The managerObject takes
+        care of adding this job to a low priority threadpool every time it sees
+        that there are implementationObjects that need to be deleted.
+        */
+        deleteJob(const String & name, managerObject * obj)
+          : ThreadPoolJob(name), obj(obj) {
+
+        }
+
+        JobStatus runJob() {
+          obj->implementations.remove_if(implementationObject::canBeDeleted);
+          return jobHasFinished;
+        }
+
+      private:
+        managerObject * obj;
+      };
+
       managerObject();
       ~managerObject();
 
@@ -31,6 +57,27 @@ namespace YSE {
           instant.
       */
       void create();
+
+      /** Request a new implementationObject. This should be called from the interfaceObject.
+      It creates an implementationObject that will be linked to the interfaceObject.
+
+      &param head   The interface to connect the new implementation to
+
+      @return       A pointer to a new object implementation
+      */
+      implementationObject * addImplementation(interfaceObject * head);
+
+      /** This function instructs the manager to put the implementation
+      in a list of objects to load. It is called from the interfaceObject
+      create function, preferably at the end when all custom work is done.
+
+      &param impl   The implementation to setup
+      */
+      void setup(implementationObject * impl);
+
+      /** Returns true if no implementations exist
+      */
+      Bool empty();
 
       /** This function calculates the effective reverb from all active reverbs within
           distance of the listener
@@ -58,18 +105,42 @@ namespace YSE {
       */
       reverb & getGlobalReverb();
 
-      juce_DeclareSingleton(managerObject, true)
     private:
-      
-      std::forward_list<reverb *> reverbs; // these are reverb settings
       INTERNAL::reverbDSP * reverbDSPObject; // this is the actual reverb object (there can be only one)
       CHANNEL::implementationObject * reverbChannel; // < the channel on which to apply this reverb
 
       reverb globalReverb;
       reverb calculatedValues;
 
+      deleteJob mgrDelete;
+
+      // Once an object is ready for use, a pointer is placed in this container. The manager will
+      // update and sync all these objects during the dsp callback function
+      std::forward_list<implementationObject*> inUse;
+
+      // this queue is used by the setupJob. It is accessed from a low
+      // priority thread to setup, but also from the dsp thread to check if an
+      // object is ready. This is why every pointer has to be atomic. (It's not
+      // a lot of overhead because objects are only in this container while being
+      // created. Unless you create a huge amount of sounds at the same time the size
+      // of this list will be small. And if you DO create a huge amount of sounds
+      // at the same time you should be expecting some latency while they all get loaded
+      // anyway.)
+      std::forward_list<std::atomic<implementationObject*>> toLoad;
+
+      // this is the list of all implementationObjects for this subSystem, whether they are ready, 
+      // need to be setup or are about to be deleted. This list is not accessed from the 
+      // audio callback thread, although elements of it might be accessed through the above pointer lists.
+      std::forward_list<implementationObject> implementations;
+
+      // This flag will be set when the audio thread detects that one or more objects
+      // should be released. It will result in the deleteJob to be added to the threadpool.
+      aBool runDelete;
+
+      friend class deleteJob;
     };
 
+    managerObject & Manager();
   }
 }
 

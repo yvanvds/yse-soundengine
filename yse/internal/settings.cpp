@@ -10,4 +10,7 @@
 
 #include "settings.h"
 
-juce_ImplementSingleton(YSE::INTERNAL::settings)
+YSE::INTERNAL::settings & YSE::INTERNAL::Settings() {
+  static settings s;
+  return s;
+}

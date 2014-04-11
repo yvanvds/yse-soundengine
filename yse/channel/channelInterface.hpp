@@ -15,7 +15,6 @@
 #include "../headers/defines.hpp"
 #include "../headers/types.hpp"
 #include "channel.hpp"
-#include "../templates/interfaceObject.hpp"
 
 
 namespace YSE {
@@ -48,7 +47,7 @@ namespace YSE {
       Of course you can use these channels for anything you like.
       */
 
-    class API interfaceObject : public TEMPLATE::interfaceTemplate<channelSubSystem> {
+    class API interfaceObject {
     public:
 
       /**
@@ -95,15 +94,17 @@ namespace YSE {
       */
       bool getVirtual();
 
+      bool isValid();
+
       const char * getName() { return name.c_str(); }
 
       /**
           The real initialisation of a channel is not done in the constructor.
           */
       interfaceObject();
-
+      ~interfaceObject();
     private:
-
+      
       /**
           A special version of create. It is used internally to create the global channel. This is not meant to be used anywhere else.
           */
@@ -112,6 +113,7 @@ namespace YSE {
       Flt volume; // to remember the channel volume
       Bool allowVirtual; // allows virtual sounds in this channel (defaults to true)
       std::string name;
+      implementationObject * pimpl;
 
       // friend classes
       friend class CHANNEL::implementationObject;

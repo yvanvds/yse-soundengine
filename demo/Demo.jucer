@@ -5,6 +5,12 @@
               jucerVersion="3.1.0" companyName="Mute">
   <MAINGROUP id="JJ8B7i" name="YseDemo">
     <GROUP id="{4A43B2A5-8C02-2D07-7F91-E76235BDF2CB}" name="YSE">
+      <GROUP id="{9D4F46B6-575B-8240-4CE3-C715C6938596}" name="music">
+        <FILE id="Mbwyfz" name="chord.cpp" compile="1" resource="0" file="../yse/music/chord.cpp"/>
+        <FILE id="pRHVdD" name="chord.hpp" compile="0" resource="0" file="../yse/music/chord.hpp"/>
+        <FILE id="zlzc8o" name="note.cpp" compile="1" resource="0" file="../yse/music/note.cpp"/>
+        <FILE id="As0KMB" name="note.hpp" compile="0" resource="0" file="../yse/music/note.hpp"/>
+      </GROUP>
       <FILE id="ISJuFW" name="internalHeaders.h" compile="0" resource="0"
             file="../yse/internalHeaders.h"/>
       <GROUP id="{658C68FA-E7A7-5A66-47D4-64547742AE34}" name="sound">
@@ -197,7 +203,8 @@
     </GROUP>
   </MAINGROUP>
   <EXPORTFORMATS>
-    <VS2013 targetFolder="Builds/VisualStudio2013" extraDefs="PUBLIC_JUCE=1">
+    <VS2013 targetFolder="Builds/VisualStudio2013" extraDefs="PUBLIC_JUCE=1&#10;JUCE_CHECK_MEMORY_LEAKS=0"
+            externalLibraries="../../../bin/vld.lib">
       <CONFIGURATIONS>
         <CONFIGURATION name="Debug" winWarningLevel="4" generateManifest="1" winArchitecture="32-bit"
                        isDebug="1" optimisation="1" targetName="Demo" binaryPath="../bin"
@@ -219,10 +226,11 @@
         <MODULEPATH id="juce_audio_basics" path="../../JUCE/modules"/>
       </MODULEPATHS>
     </VS2013>
-    <XCODE_MAC targetFolder="Builds/MacOSX">
+    <XCODE_MAC targetFolder="Builds/MacOSX" extraDefs="PUBLIC_JUCE=1&#10;JUCE_CHECK_MEMORY_LEAKS=0"
+               smallIcon="HHUy5c" bigIcon="HHUy5c">
       <CONFIGURATIONS>
         <CONFIGURATION name="Debug" osxSDK="default" osxCompatibility="default" osxArchitecture="default"
-                       isDebug="1" optimisation="1" targetName="YseDemo"/>
+                       isDebug="1" optimisation="1" targetName="YseDemo" cppLibType=""/>
         <CONFIGURATION name="Release" osxSDK="default" osxCompatibility="default" osxArchitecture="default"
                        isDebug="0" optimisation="2" targetName="YseDemo"/>
       </CONFIGURATIONS>

@@ -12,14 +12,13 @@
 
 
 YSE::CHANNEL::implementationObject::implementationObject(interfaceObject * head) :
-implementationTemplate<channelSubSystem>(head),
-ThreadPoolJob(head->getName()),
+head(head), ThreadPoolJob(head->getName()),
 newVolume(1.f), lastVolume(1.f), userChannel(true),
 allowVirtual(true), parent(nullptr)
 {
 }
 
-void YSE::CHANNEL::implementationObject::exit() {
+ YSE::CHANNEL::implementationObject::~implementationObject() {
   // exit the dsp thread for this channel
   INTERNAL::Global().waitForFastJob(this);
 
@@ -27,7 +26,12 @@ void YSE::CHANNEL::implementationObject::exit() {
     parent->disconnect(this);
     childrenToParent();
   }
+
+  if (head.load() != nullptr) {
+    head.load()->pimpl = nullptr;
+  }
 }
+
 
 Bool YSE::CHANNEL::implementationObject::connect(CHANNEL::implementationObject * ch) {
   if (ch != this) {
@@ -87,11 +91,15 @@ void YSE::CHANNEL::implementationObject::dsp() {
 
   adjustVolume();
 
-  INTERNAL::Global().getReverbManager().process(this);
+  REVERB::Manager().process(this);
 
   if (INTERNAL::UnderWaterEffect().channel() == this) {
     INTERNAL::UnderWaterEffect().apply(out);
   }
+}
+
+void YSE::CHANNEL::implementationObject::removeInterface() {
+  head.store(nullptr);
 }
 
 void YSE::CHANNEL::implementationObject::buffersToParent() {
@@ -118,36 +126,69 @@ void YSE::CHANNEL::implementationObject::attachUnderWaterFX() {
   INTERNAL::UnderWaterEffect().channel(this);
 }
 
-/////////////////////////////////////////////////////
-// private functions
-/////////////////////////////////////////////////////
 
-void YSE::CHANNEL::implementationObject::implementationSetup() {
-  out.resize(INTERNAL::Global().getChannelManager().getNumberOfOutputs());
-  outConf.resize(INTERNAL::Global().getChannelManager().getNumberOfOutputs());
-  for (UInt i = 0; i < INTERNAL::Global().getChannelManager().getNumberOfOutputs(); i++) {
-    outConf[i].angle = INTERNAL::Global().getChannelManager().getOutputAngle(i);
+void YSE::CHANNEL::implementationObject::setup() {
+  if (objectStatus >= OBJECT_CREATED) {
+    out.resize(CHANNEL::Manager().getNumberOfOutputs());
+    outConf.resize(CHANNEL::Manager().getNumberOfOutputs());
+    for (UInt i = 0; i < CHANNEL::Manager().getNumberOfOutputs(); i++) {
+      outConf[i].angle = CHANNEL::Manager().getOutputAngle(i);
+    }
+    objectStatus = OBJECT_SETUP;
   }
 }
 
-Bool YSE::CHANNEL::implementationObject::implementationReadyCheck() {
-  return outConf.size() == INTERNAL::Global().getChannelManager().getNumberOfOutputs();
+Bool YSE::CHANNEL::implementationObject::readyCheck() {
+  // this means we have don this check before and returned true back then.
+  // the object is added to the list of inUse, but is probably not deleted just
+  // yet. It will be deleted the next time the remove_if function runs (in objectManager)
+  if (objectStatus == OBJECT_READY) {
+    return false;
+  }
+  if (objectStatus == OBJECT_SETUP) {
+    if (outConf.size() == CHANNEL::Manager().getNumberOfOutputs()) {
+      objectStatus = OBJECT_READY;
+      return true;
+    }
+  }
+  objectStatus = OBJECT_CREATED;
+  return false;
 }
 
 void YSE::CHANNEL::implementationObject::doThisWhenReady() {
   parent->connect(this);
 }
 
+YSE::OBJECT_IMPLEMENTATION_STATE YSE::CHANNEL::implementationObject::getStatus() {
+  return objectStatus.load();
+}
+
+void YSE::CHANNEL::implementationObject::setStatus(YSE::OBJECT_IMPLEMENTATION_STATE value) {
+  objectStatus.store(value);
+}
+
+void YSE::CHANNEL::implementationObject::sync() {
+  if (head.load() == nullptr) {
+    objectStatus = OBJECT_RELEASE;
+    return;
+  }
+
+  messageObject message;
+  while (messages.try_pop(message)) {
+    parseMessage(message);
+  }
+}
+
 void YSE::CHANNEL::implementationObject::parseMessage(const messageObject & message) {
   switch (message.ID) {
     case ATTACH_REVERB: 
-      INTERNAL::Global().getReverbManager().attachToChannel(this); 
+      REVERB::Manager().attachToChannel(this); 
       break;
     case MOVE:
     {
       interfaceObject * ptr = (interfaceObject*)message.ptrValue;
       if (ptr != nullptr) {
-        ptr->getImplementation()->connect(this);
+        ptr->pimpl->connect(this);
       }
       break;
     }

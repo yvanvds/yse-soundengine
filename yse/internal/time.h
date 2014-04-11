@@ -26,14 +26,13 @@ namespace YSE {
       Flt delta();
 
       time() { current = last = 0; d = 0.0f; }
-      ~time() { clearSingletonInstance(); }
-      juce_DeclareSingleton(time, true);
     private:
       ULong current;
       ULong last;
       Flt d; // delta
     };
 
+    time & Time();
   }
 }
 

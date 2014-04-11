@@ -11,14 +11,96 @@
 
 #include "../internalHeaders.h"
 
-juce_ImplementSingleton(YSE::CHANNEL::managerObject)
+YSE::CHANNEL::managerObject & YSE::CHANNEL::Manager() {
+  static managerObject m;
+  return m;
+}
 
-
-YSE::CHANNEL::managerObject::managerObject() : managerTemplate<channelSubSystem>("channelManager"), outputChannels(0), outputAngles(nullptr) {}
+YSE::CHANNEL::managerObject::managerObject() 
+: mgrSetup("channelManagerSetup", this), 
+  mgrDelete("channelManagerDelete", this), 
+  outputChannels(0), 
+  outputAngles(nullptr) {}
 
 YSE::CHANNEL::managerObject::~managerObject() {
+  // wait for jobs to finish
+  INTERNAL::Global().waitForSlowJob(&mgrSetup);
+  INTERNAL::Global().waitForSlowJob(&mgrDelete);
+
+  // remove all objects that are still in memory
+  toLoad.clear();
+  inUse.clear();
+  implementations.clear();
   delete[] outputAngles;
-  clearSingletonInstance();
+}
+
+void YSE::CHANNEL::managerObject::update() {
+  // master channel is not in inUse list
+  DEVICE::Manager().getMaster().sync();
+  ///////////////////////////////////////////
+  // check if there are implementations that need setup
+  ///////////////////////////////////////////
+  if (!toLoad.empty() && !INTERNAL::Global().containsSlowJob(&mgrSetup)) {
+    // removing cannot be done in a separate thread because we are iterating over this
+    // list a during this update fuction
+    toLoad.remove_if(implementationObject::canBeRemovedFromLoading);
+    INTERNAL::Global().addSlowJob(&mgrSetup);
+  }
+
+  if (runDelete && !INTERNAL::Global().containsSlowJob(&mgrDelete)) {
+    INTERNAL::Global().addSlowJob(&mgrDelete);
+  }
+  runDelete = false;
+
+  ///////////////////////////////////////////
+  // check if loaded implementations are ready
+  ///////////////////////////////////////////
+  {
+    for (auto i = toLoad.begin(); i != toLoad.end(); i++) {
+      if (i->load()->readyCheck()) {
+        implementationObject * ptr = i->load();
+        // place ptr in active sound list
+        inUse.emplace_front(ptr);
+        // add the sound to the channel that is supposed to use
+        //ptr->parent->connect(ptr);
+        ptr->doThisWhenReady();
+      }
+    }
+  }
+
+  ///////////////////////////////////////////
+  // sync implementations
+  ///////////////////////////////////////////
+  {
+    auto previous = inUse.before_begin();
+    for (auto i = inUse.begin(); i != inUse.end();) {
+      (*i)->sync();
+      if ((*i)->getStatus() == OBJECT_RELEASE) {
+        implementationObject * ptr = (*i);
+        i = inUse.erase_after(previous);
+        ptr->setStatus(OBJECT_DELETE);
+        runDelete = true;
+        continue;
+      }
+      previous = i;
+      ++i;
+    }
+  }
+}
+
+
+YSE::CHANNEL::implementationObject * YSE::CHANNEL::managerObject::addImplementation(YSE::CHANNEL::interfaceObject * head) {
+  implementations.emplace_front(head);
+  return &implementations.front();
+}
+
+void YSE::CHANNEL::managerObject::setup(implementationObject * impl) {
+  impl->setStatus(OBJECT_CREATED);
+  toLoad.emplace_front(impl);
+}
+
+Bool YSE::CHANNEL::managerObject::empty() {
+  return implementations.empty();
 }
 
 YSE::channel & YSE::CHANNEL::managerObject::master() {
@@ -45,11 +127,8 @@ YSE::channel & YSE::CHANNEL::managerObject::gui() {
   return _gui;
 }
 
-void YSE::CHANNEL::managerObject::update() {
-  // master channel is not in inUse list
-  INTERNAL::Global().getDeviceManager().getMaster().sync();
-  managerTemplate<channelSubSystem>::update();
-}
+
+
 
 UInt YSE::CHANNEL::managerObject::getNumberOfOutputs() {
   return outputChannels;
@@ -66,27 +145,32 @@ Flt YSE::CHANNEL::managerObject::getOutputAngle(UInt nr) {
 void YSE::CHANNEL::managerObject::setMaster(CHANNEL::implementationObject * impl) {
   impl->objectStatus = OBJECT_CREATED;
   impl->setup();
-  INTERNAL::Global().getDeviceManager().setMaster(impl);
+  DEVICE::Manager().setMaster(impl);
 }
 
-void YSE::CHANNEL::managerObject::changeChannelConf(CHANNEL_TYPE type, Int outputs) {
-  delete[] outputAngles;
+void YSE::CHANNEL::managerObject::setChannelConf(CHANNEL_TYPE type, Int outputs) {
   outputChannels = outputs;
-  outputAngles = new aFlt[outputs];
-  switch (type) {
-  case CT_AUTO: setAuto(outputs); break;
-  case CT_MONO: setMono(); break;
-  case CT_STEREO: setStereo(); break;
-  case CT_QUAD: setQuad(); break;
-  case CT_51: set51(); break;
-  case CT_51SIDE: set51Side(); break;
-  case CT_61:	set61(); break;
-  case CT_71:	set71(); break;
-  case CT_CUSTOM: break; // we've set number of outputs. CT_CUSTOM expects the positions will be 
-                         // set later
+  channelType = type;
+}
+
+void YSE::CHANNEL::managerObject::changeChannelConf() {
+  delete[] outputAngles;
+  outputAngles = new aFlt[outputChannels];
+  switch (channelType) {
+    case CT_AUTO: setAuto(outputChannels); break;
+    case CT_MONO: setMono(); break;
+    case CT_STEREO: setStereo(); break;
+    case CT_QUAD: setQuad(); break;
+    case CT_51: set51(); break;
+    case CT_51SIDE: set51Side(); break;
+    case CT_61:	set61(); break;
+    case CT_71:	set71(); break;
+    case CT_CUSTOM: break; // we've set number of outputs. CT_CUSTOM expects the positions will be 
+                           // set later
   }
 
-  INTERNAL::Global().getReverbManager().setOutputChannels(outputChannels);
+  REVERB::Manager().setOutputChannels(outputChannels);
+  
   for (auto i = inUse.begin(); i != inUse.end(); i++) {
     (*i)->setup();
   }
@@ -98,8 +182,9 @@ void YSE::CHANNEL::managerObject::setAuto(Int count) {
   case	2: setStereo(); break;
   case	4: setQuad(); break;
   case	5: set51(); break;
-  case	6: set61(); break;
-  case	7: set71(); break;
+  case	6: set51(); break;
+  case	7: set61(); break;
+  case  8: set71(); break;
   default: setStereo(); break;
   }
 }

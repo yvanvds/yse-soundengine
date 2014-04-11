@@ -8,6 +8,7 @@
   ==============================================================================
 */
 
+//#include <vld.h>
 #include "../JuceLibraryCode/JuceHeader.h"
 #include "tabs.h"
 #include "../../yse/yse.hpp"

@@ -22,15 +22,8 @@ namespace YSE {
     class global {
     public:
       bool isActive() { return active; }
-      deviceManager  & getDeviceManager();
-      SOUND::managerObject   & getSoundManager();
-      CHANNEL::managerObject & getChannelManager();
-      REVERB::managerObject  & getReverbManager();
 
       logImplementation & getLog();
-      time              & getTime();
-      settings          & getSettings();
-
       listenerImplementation & getListener();
 
       void addSlowJob(ThreadPoolJob * job);
@@ -49,14 +42,9 @@ namespace YSE {
       void init();
       void close();
 
-      deviceManager * dm;
-      SOUND::managerObject  * sm;
       logImplementation * log;
-      time * ysetime;
-      settings * set;
-      CHANNEL::managerObject * cm;
       listenerImplementation * li;
-      REVERB::managerObject * rm;
+
 
       ThreadPool slowThreads;
       ThreadPool fastThreads;

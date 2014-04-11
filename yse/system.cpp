@@ -52,17 +52,18 @@ Bool YSE::system::init() {
     INTERNAL::Global().getLog().emit(E_DEBUG, "COM library initialized");
   }
 #endif
-  if (INTERNAL::Global().getDeviceManager().init()) {
+  if (DEVICE::Manager().init()) {
     INTERNAL::Global().getLog().emit(E_DEBUG, "YSE System object initialized");
 
     // initialize channels
-    INTERNAL::Global().getChannelManager().changeChannelConf(CT_STEREO);
-    INTERNAL::Global().getChannelManager().master().createGlobal();
-    INTERNAL::Global().getChannelManager().ambient().create("ambientChannel", INTERNAL::Global().getChannelManager().master());
-    INTERNAL::Global().getChannelManager().FX().create("fxChannel", INTERNAL::Global().getChannelManager().master());
-    INTERNAL::Global().getChannelManager().music().create("musicChannel", INTERNAL::Global().getChannelManager().master());
-    INTERNAL::Global().getChannelManager().gui().create("guiChannel", INTERNAL::Global().getChannelManager().master());
-    INTERNAL::Global().getChannelManager().voice().create("voiceChannel", INTERNAL::Global().getChannelManager().master());
+    CHANNEL::Manager().setChannelConf(CT_STEREO);
+    CHANNEL::Manager().changeChannelConf();
+    CHANNEL::Manager().master().createGlobal();
+    CHANNEL::Manager().ambient().create("ambientChannel", CHANNEL::Manager().master());
+    CHANNEL::Manager().FX().create("fxChannel", CHANNEL::Manager().master());
+    CHANNEL::Manager().music().create("musicChannel", CHANNEL::Manager().master());
+    CHANNEL::Manager().gui().create("guiChannel", CHANNEL::Manager().master());
+    CHANNEL::Manager().voice().create("voiceChannel", CHANNEL::Manager().master());
 
     maxSounds(50);
     INTERNAL::Global().active = true;
@@ -79,7 +80,7 @@ void YSE::system::update() {
 void YSE::system::close() {
   if (INTERNAL::Global().active) {
     INTERNAL::Global().active = false;
-    INTERNAL::Global().getDeviceManager().close();
+    DEVICE::Manager().close();
     INTERNAL::Global().close();
   }
 }
@@ -125,7 +126,7 @@ Int YSE::system::maxSounds() {
 }
 
 Flt YSE::system::cpuLoad() {
-  return INTERNAL::Global().getDeviceManager().cpuLoad();
+  return DEVICE::Manager().cpuLoad();
 }
 
 void YSE::system::sleep(UInt ms) {
@@ -137,5 +138,14 @@ void YSE::system::sleep(UInt ms) {
 }
 
 YSE::reverb & YSE::system::getGlobalReverb() {
-  return INTERNAL::Global().getReverbManager().getGlobalReverb();
+  return REVERB::Manager().getGlobalReverb();
+}
+
+const std::vector<YSE::DEVICE::interfaceObject> & YSE::system::getDevices() {
+  return DEVICE::Manager().getDeviceList();
+}
+
+void YSE::system::openDevice(const deviceSetup & object, CHANNEL_TYPE conf) {
+  DEVICE::Manager().openDevice(object);
+  CHANNEL::Manager().setChannelConf(conf, object.getOutputChannels());
 }

@@ -32,14 +32,6 @@ namespace YSE {
     };
   }
 
-  struct channelSubSystem {
-    typedef CHANNEL::interfaceObject interfaceObject;
-    typedef CHANNEL::implementationObject implementationObject;
-    typedef CHANNEL::managerObject managerObject;
-    typedef CHANNEL::messageObject messageObject;
-    typedef CHANNEL::MESSAGE MESSAGE;
-  };
-
   // the interface itself gets a more generic name, so that users can just
   // define a 'reverb' to get an interface object.
   typedef CHANNEL::interfaceObject channel;
