@@ -21,12 +21,12 @@ namespace YSE {
       class implementationObject;
   }  
     
-  namespace INTERNAL {
+  namespace DEVICE {
 
 
-    class deviceManager : AudioIODeviceCallback {
+    class managerObject : AudioIODeviceCallback {
     public:
-      deviceManager();
+      managerObject();
 
       Bool init();
       void close();
@@ -42,8 +42,9 @@ namespace YSE {
       void setMaster(CHANNEL::implementationObject * ptr); // pointer to main channel
       CHANNEL::implementationObject & getMaster();
       //std::vector<audioDevice> deviceList;
-      //Bool updateDevices();
-      //Bool openDevice(UInt ID, Int outChannels);
+      void updateDeviceList();
+      const std::vector<interfaceObject> & getDeviceList();
+      void openDevice(const YSE::DEVICE::setupObject & object);
       //Int activeDevice;
 
     private:
@@ -55,10 +56,11 @@ namespace YSE {
 
       CHANNEL::implementationObject * master;
       AudioDeviceManager audioDeviceManager;
-
+      
+      std::vector<interfaceObject> devices;
     };
 
-    deviceManager & DeviceManager();
+    managerObject & Manager();
   }
 }
 

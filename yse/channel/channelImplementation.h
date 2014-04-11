@@ -14,6 +14,7 @@
 #include <forward_list>
 #include "JuceHeader.h"
 #include "../classes.hpp"
+#include "../utils/lfQueue.hpp"
 
 namespace YSE {
   namespace CHANNEL {
@@ -199,7 +200,7 @@ namespace YSE {
       friend class SOUND::implementationObject;
       friend class CHANNEL::interfaceObject;
       friend class YSE::REVERB::managerObject;
-      friend class INTERNAL::deviceManager;
+      friend class DEVICE::managerObject;
       friend class CHANNEL::managerObject;
     };
 

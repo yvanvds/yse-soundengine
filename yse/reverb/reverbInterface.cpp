@@ -15,7 +15,7 @@
 
 YSE::REVERB::interfaceObject::interfaceObject(bool global) 
   : pimpl(nullptr), active(true), roomsize(0.5f), damp(0.5),  
-    wet(0.5), dry(0.5), modFrequency(0),
+    wet(0.5f), dry(0.5f), modFrequency(0),
     modWidth(0), global(global), connectedToManager(false) {}
 
 YSE::REVERB::interfaceObject::~interfaceObject() {

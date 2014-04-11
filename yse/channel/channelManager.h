@@ -13,10 +13,10 @@
 
 #include <forward_list>
 #include "JuceHeader.h"
+#include "channelImplementation.h"
 #include "../headers/enums.hpp"
 #include "../classes.hpp"
-#include "channelInterface.hpp"
-#include "channelImplementation.h"
+#include "../internalHeaders.h"
 
 namespace YSE {
   namespace CHANNEL {
@@ -100,8 +100,12 @@ namespace YSE {
       void setup(implementationObject * impl);
       Bool empty();
       
-      // channel output configuration
-      void changeChannelConf(CHANNEL_TYPE type, Int outputs = 2);
+      // channel output configuration from interface
+      void setChannelConf(CHANNEL_TYPE type, Int outputs = 2);
+      
+      // switch to the new configureation during audio callback
+      void changeChannelConf();
+      
       UInt getNumberOfOutputs();
       Flt  getOutputAngle(UInt nr);
 
@@ -151,6 +155,7 @@ namespace YSE {
       // channel output configuration
       aFlt * outputAngles;
       aUInt outputChannels;
+      std::atomic<CHANNEL_TYPE> channelType;
 
       void setMono();
       void setStereo();

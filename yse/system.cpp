@@ -52,11 +52,12 @@ Bool YSE::system::init() {
     INTERNAL::Global().getLog().emit(E_DEBUG, "COM library initialized");
   }
 #endif
-  if (INTERNAL::DeviceManager().init()) {
+  if (DEVICE::Manager().init()) {
     INTERNAL::Global().getLog().emit(E_DEBUG, "YSE System object initialized");
 
     // initialize channels
-    CHANNEL::Manager().changeChannelConf(CT_STEREO);
+    CHANNEL::Manager().setChannelConf(CT_STEREO);
+    CHANNEL::Manager().changeChannelConf();
     CHANNEL::Manager().master().createGlobal();
     CHANNEL::Manager().ambient().create("ambientChannel", CHANNEL::Manager().master());
     CHANNEL::Manager().FX().create("fxChannel", CHANNEL::Manager().master());
@@ -79,7 +80,7 @@ void YSE::system::update() {
 void YSE::system::close() {
   if (INTERNAL::Global().active) {
     INTERNAL::Global().active = false;
-    INTERNAL::DeviceManager().close();
+    DEVICE::Manager().close();
     INTERNAL::Global().close();
   }
 }
@@ -125,7 +126,7 @@ Int YSE::system::maxSounds() {
 }
 
 Flt YSE::system::cpuLoad() {
-  return INTERNAL::DeviceManager().cpuLoad();
+  return DEVICE::Manager().cpuLoad();
 }
 
 void YSE::system::sleep(UInt ms) {
@@ -138,4 +139,13 @@ void YSE::system::sleep(UInt ms) {
 
 YSE::reverb & YSE::system::getGlobalReverb() {
   return REVERB::Manager().getGlobalReverb();
+}
+
+const std::vector<YSE::DEVICE::interfaceObject> & YSE::system::getDevices() {
+  return DEVICE::Manager().getDeviceList();
+}
+
+void YSE::system::openDevice(const deviceSetup & object, CHANNEL_TYPE conf) {
+  DEVICE::Manager().openDevice(object);
+  CHANNEL::Manager().setChannelConf(conf, object.getOutputChannels());
 }

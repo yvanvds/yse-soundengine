@@ -15,6 +15,7 @@
 #include "channel/channel.hpp"
 #include "sound/sound.hpp"
 #include "reverb/reverb.hpp"
+#include "device/device.hpp"
 
 namespace YSE {
   // public classes
@@ -79,7 +80,6 @@ namespace YSE {
   namespace INTERNAL {
     // internal classes
     class global;
-    class deviceManager;
     class listenerImplementation;
     class logImplementation;
     class output;

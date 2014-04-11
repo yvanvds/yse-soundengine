@@ -488,7 +488,7 @@ void YSE::SOUND::implementationObject::dspFunc_parseIntent() {
       else if (status_dsp == SS_PAUSED) {
         status_dsp = SS_STOPPED;
         filePtr = 0;
-        if (streaming_dsp) file->reset();
+        if (streaming) file->reset();
       }
     }
 

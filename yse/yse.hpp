@@ -32,11 +32,6 @@
 #include "dsp/modules/ringModulator.hpp"
 #include "dsp/modules/sineWave.hpp"
 
-//templates
-#include "templates/interfaceObject.hpp"
-
-
-
 // utilities
 #include "utils/misc.hpp"
 #include "utils/vector.hpp"
@@ -50,6 +45,9 @@
 #include "sound/soundInterface.hpp"
 #include "reverb/reverb.hpp"
 #include "reverb/reverbInterface.hpp"
+#include "device/device.hpp"
+#include "device/deviceInterface.hpp"
+#include "device/deviceSetup.hpp"
 #include "listener.hpp"
 
 

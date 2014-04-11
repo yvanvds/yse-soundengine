@@ -2,9 +2,10 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="..\..\source\demo02.cpp" />
-    <ClCompile Include="..\..\source\demo00.cpp" />
     <ClCompile Include="..\..\source\demo01.cpp" />
     <ClCompile Include="..\..\source\demo03.cpp" />
     <ClCompile Include="..\..\source\demo04.cpp" />
+    <ClCompile Include="..\..\source\demo05.cpp" />
+    <ClCompile Include="..\..\source\demo00.cpp" />
   </ItemGroup>
 </Project>

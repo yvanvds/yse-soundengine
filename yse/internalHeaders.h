@@ -11,10 +11,6 @@
 #include "JuceHeader.h"
 #include "yse.hpp"
 
-#include "templates/implementationObject.h"
-#include "templates/managerObject.h"
-#include "templates/messageObject.h"
-
 #include "channel/channelImplementation.h"
 #include "channel/channelManager.h"
 #include "channel/channelMessage.h"
@@ -27,10 +23,11 @@
 #include "sound/soundManager.h"
 #include "sound/soundMessage.h"
 
+#include "device/deviceManager.h"
+
 #include "implementations/listenerImplementation.h"
 #include "implementations/logImplementation.h"
 
-#include "internal/deviceManager.h"
 #include "internal/global.h"
 #include "internal/reverbDSP.h"
 #include "internal/settings.h"

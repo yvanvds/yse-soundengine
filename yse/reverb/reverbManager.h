@@ -106,7 +106,6 @@ namespace YSE {
       reverb & getGlobalReverb();
 
     private:
-      std::forward_list<reverb *> reverbs; // these are reverb settings
       INTERNAL::reverbDSP * reverbDSPObject; // this is the actual reverb object (there can be only one)
       CHANNEL::implementationObject * reverbChannel; // < the channel on which to apply this reverb
 

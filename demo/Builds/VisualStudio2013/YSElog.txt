@@ -1155,3 +1155,16 @@ Log started: 1 Apr 2014 9:43:14pm
 (Debug) Sound added to system.
 (Debug) Sound added to system.
 (Debug) Sound added to system.
+
+**********************************************************
+=== start of YSE log ===
+Log started: 9 Apr 2014 5:08:42pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+(Debug) Sound added to system.
+=== end of YSE log ===

@@ -108,7 +108,7 @@ void YSE::REVERB::managerObject::update() {
   ///////////////////////////////////////
   // find local reverbs within distance
   ///////////////////////////////////////
-  for (auto i = reverbs.begin(); i != reverbs.end(); i++) {
+  for (auto i = inUse.begin(); i != inUse.end(); i++) {
     if (!(*i)->active) continue;
     if (Dist((*i)->position, INTERNAL::Global().getListener().getPos()) <= (*i)->size) {
       // add this reverb
@@ -145,7 +145,7 @@ void YSE::REVERB::managerObject::update() {
   else if (reverbsActive == 0) {
     // no reverbs are within distance. Check for rolloff's
     Flt partial = 0;
-    for (auto i = reverbs.begin(); i != reverbs.end(); ++i) {
+    for (auto i = inUse.begin(); i != inUse.end(); ++i) {
       if (!(*i)->active) continue;
       if (Dist((*i)->position, INTERNAL::Global().getListener().getPos()) <= (*i)->size + (*i)->rolloff) {
         // add partial reverb

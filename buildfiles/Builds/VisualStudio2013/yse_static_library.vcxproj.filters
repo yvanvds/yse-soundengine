@@ -5,8 +5,23 @@
     <Filter Include="yse_static_library">
       <UniqueIdentifier>{69871889-9F87-0241-8C13-855FE778A45C}</UniqueIdentifier>
     </Filter>
+    <Filter Include="yse_static_library\device">
+      <UniqueIdentifier>{44E15BE1-AA89-74D6-D548-2931C32CFF94}</UniqueIdentifier>
+    </Filter>
     <Filter Include="yse_static_library\yse">
       <UniqueIdentifier>{69DD1833-D809-3851-58E2-EA9149999A26}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="yse_static_library\yse\sound">
+      <UniqueIdentifier>{56137C21-324B-253E-9C66-3034BBCBEE31}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="yse_static_library\yse\reverb">
+      <UniqueIdentifier>{C18A1ED2-CA90-6A9D-D366-7A1461FC5A59}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="yse_static_library\yse\channel">
+      <UniqueIdentifier>{1D09A8B5-8BA2-3C30-B2DF-04F16006A065}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="yse_static_library\yse\music">
+      <UniqueIdentifier>{FC0B7A83-7F85-9F6D-80DF-ECF2DDBC5809}</UniqueIdentifier>
     </Filter>
     <Filter Include="yse_static_library\yse\dsp">
       <UniqueIdentifier>{B1C29C6D-1891-10FB-197A-C9A9215ACA78}</UniqueIdentifier>
@@ -154,6 +169,57 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\yse\device\deviceInterface.cpp">
+      <Filter>yse_static_library\device</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\device\deviceManager.cpp">
+      <Filter>yse_static_library\device</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\device\deviceSetup.cpp">
+      <Filter>yse_static_library\device</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\listener.cpp">
+      <Filter>yse_static_library\yse</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\log.cpp">
+      <Filter>yse_static_library\yse</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\system.cpp">
+      <Filter>yse_static_library\yse</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\sound\soundImplementation.cpp">
+      <Filter>yse_static_library\yse\sound</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\sound\soundInterface.cpp">
+      <Filter>yse_static_library\yse\sound</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\sound\soundManager.cpp">
+      <Filter>yse_static_library\yse\sound</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\reverb\reverbImplementation.cpp">
+      <Filter>yse_static_library\yse\reverb</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\reverb\reverbInterface.cpp">
+      <Filter>yse_static_library\yse\reverb</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\reverb\reverbManager.cpp">
+      <Filter>yse_static_library\yse\reverb</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\channel\channelImplementation.cpp">
+      <Filter>yse_static_library\yse\channel</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\channel\channelInterface.cpp">
+      <Filter>yse_static_library\yse\channel</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\channel\channelManager.cpp">
+      <Filter>yse_static_library\yse\channel</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\music\chord.cpp">
+      <Filter>yse_static_library\yse\music</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\music\note.cpp">
+      <Filter>yse_static_library\yse\music</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\yse\dsp\delay.cpp">
       <Filter>yse_static_library\yse\dsp</Filter>
     </ClCompile>
@@ -187,37 +253,16 @@
     <ClCompile Include="..\..\..\yse\dsp\sample.cpp">
       <Filter>yse_static_library\yse\dsp</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\yse\implementations\reverbImplementation.cpp">
-      <Filter>yse_static_library\yse\implementations</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\yse\implementations\channelImplementation.cpp">
-      <Filter>yse_static_library\yse\implementations</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\yse\implementations\listenerImplementation.cpp">
       <Filter>yse_static_library\yse\implementations</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\yse\implementations\logImplementation.cpp">
       <Filter>yse_static_library\yse\implementations</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\yse\implementations\soundImplementation.cpp">
-      <Filter>yse_static_library\yse\implementations</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\yse\internal\virtualFinder.cpp">
-      <Filter>yse_static_library\yse\internal</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\yse\internal\channelManager.cpp">
-      <Filter>yse_static_library\yse\internal</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\yse\internal\deviceManager.cpp">
-      <Filter>yse_static_library\yse\internal</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\yse\internal\global.cpp">
       <Filter>yse_static_library\yse\internal</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\yse\internal\reverbDSP.cpp">
-      <Filter>yse_static_library\yse\internal</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\yse\internal\reverbManager.cpp">
       <Filter>yse_static_library\yse\internal</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\yse\internal\settings.cpp">
@@ -226,35 +271,14 @@
     <ClCompile Include="..\..\..\yse\internal\soundFile.cpp">
       <Filter>yse_static_library\yse\internal</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\yse\internal\soundManager.cpp">
-      <Filter>yse_static_library\yse\internal</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\yse\internal\time.cpp">
       <Filter>yse_static_library\yse\internal</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\yse\internal\underWaterEffect.cpp">
       <Filter>yse_static_library\yse\internal</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\yse\listener.cpp">
-      <Filter>yse_static_library\yse</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\yse\log.cpp">
-      <Filter>yse_static_library\yse</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\yse\reverb.cpp">
-      <Filter>yse_static_library\yse</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\yse\sound.cpp">
-      <Filter>yse_static_library\yse</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\yse\channel.cpp">
-      <Filter>yse_static_library\yse</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\yse\system.cpp">
-      <Filter>yse_static_library\yse</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\yse\interface.cpp">
-      <Filter>yse_static_library\yse</Filter>
+    <ClCompile Include="..\..\..\yse\internal\virtualFinder.cpp">
+      <Filter>yse_static_library\yse\internal</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\yse\utils\vector.cpp">
       <Filter>yse_static_library\yse\utils</Filter>
@@ -750,8 +774,86 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\..\yse\device\device.hpp">
+      <Filter>yse_static_library\device</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\device\deviceInterface.hpp">
+      <Filter>yse_static_library\device</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\device\deviceManager.h">
+      <Filter>yse_static_library\device</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\device\deviceSetup.hpp">
+      <Filter>yse_static_library\device</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\yse\classes.hpp">
       <Filter>yse_static_library\yse</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\yse.hpp">
+      <Filter>yse_static_library\yse</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\internalHeaders.h">
+      <Filter>yse_static_library\yse</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\listener.hpp">
+      <Filter>yse_static_library\yse</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\log.hpp">
+      <Filter>yse_static_library\yse</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\system.hpp">
+      <Filter>yse_static_library\yse</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\sound\sound.hpp">
+      <Filter>yse_static_library\yse\sound</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\sound\soundImplementation.h">
+      <Filter>yse_static_library\yse\sound</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\sound\soundInterface.hpp">
+      <Filter>yse_static_library\yse\sound</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\sound\soundManager.h">
+      <Filter>yse_static_library\yse\sound</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\sound\soundMessage.h">
+      <Filter>yse_static_library\yse\sound</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\reverb\reverb.hpp">
+      <Filter>yse_static_library\yse\reverb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\reverb\reverbImplementation.h">
+      <Filter>yse_static_library\yse\reverb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\reverb\reverbInterface.hpp">
+      <Filter>yse_static_library\yse\reverb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\reverb\reverbManager.h">
+      <Filter>yse_static_library\yse\reverb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\reverb\reverbMessage.h">
+      <Filter>yse_static_library\yse\reverb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\channel\channel.hpp">
+      <Filter>yse_static_library\yse\channel</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\channel\channelImplementation.h">
+      <Filter>yse_static_library\yse\channel</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\channel\channelInterface.hpp">
+      <Filter>yse_static_library\yse\channel</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\channel\channelManager.h">
+      <Filter>yse_static_library\yse\channel</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\channel\channelMessage.h">
+      <Filter>yse_static_library\yse\channel</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\music\chord.hpp">
+      <Filter>yse_static_library\yse\music</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\music\note.hpp">
+      <Filter>yse_static_library\yse\music</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\yse\dsp\delay.hpp">
       <Filter>yse_static_library\yse\dsp</Filter>
@@ -798,43 +900,16 @@
     <ClInclude Include="..\..\..\yse\headers\types.hpp">
       <Filter>yse_static_library\yse\headers</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\yse\implementations\reverbImplementation.h">
-      <Filter>yse_static_library\yse\implementations</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\yse\implementations\implementation.h">
-      <Filter>yse_static_library\yse\implementations</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\yse\implementations\channelImplementation.h">
-      <Filter>yse_static_library\yse\implementations</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\yse\implementations\listenerImplementation.h">
       <Filter>yse_static_library\yse\implementations</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\yse\implementations\logImplementation.h">
       <Filter>yse_static_library\yse\implementations</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\yse\implementations\soundImplementation.h">
-      <Filter>yse_static_library\yse\implementations</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\yse\internal\manager.h">
-      <Filter>yse_static_library\yse\internal</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\yse\internal\virtualFinder.h">
-      <Filter>yse_static_library\yse\internal</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\yse\internal\channelManager.h">
-      <Filter>yse_static_library\yse\internal</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\yse\internal\deviceManager.h">
-      <Filter>yse_static_library\yse\internal</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\yse\internal\global.h">
       <Filter>yse_static_library\yse\internal</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\yse\internal\reverbDSP.h">
-      <Filter>yse_static_library\yse\internal</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\yse\internal\reverbManager.h">
       <Filter>yse_static_library\yse\internal</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\yse\internal\settings.h">
@@ -843,35 +918,14 @@
     <ClInclude Include="..\..\..\yse\internal\soundFile.h">
       <Filter>yse_static_library\yse\internal</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\yse\internal\soundManager.h">
-      <Filter>yse_static_library\yse\internal</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\yse\internal\time.h">
       <Filter>yse_static_library\yse\internal</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\yse\internal\underWaterEffect.h">
       <Filter>yse_static_library\yse\internal</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\yse\listener.hpp">
-      <Filter>yse_static_library\yse</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\yse\log.hpp">
-      <Filter>yse_static_library\yse</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\yse\reverb.hpp">
-      <Filter>yse_static_library\yse</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\yse\sound.hpp">
-      <Filter>yse_static_library\yse</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\yse\channel.hpp">
-      <Filter>yse_static_library\yse</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\yse\system.hpp">
-      <Filter>yse_static_library\yse</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\yse\interface.hpp">
-      <Filter>yse_static_library\yse</Filter>
+    <ClInclude Include="..\..\..\yse\internal\virtualFinder.h">
+      <Filter>yse_static_library\yse\internal</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\yse\utils\atomicOps.hpp">
       <Filter>yse_static_library\yse\utils</Filter>
@@ -884,9 +938,6 @@
     </ClInclude>
     <ClInclude Include="..\..\..\yse\utils\vector.hpp">
       <Filter>yse_static_library\yse\utils</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\yse\yse.hpp">
-      <Filter>yse_static_library\yse</Filter>
     </ClInclude>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_audio_basics\buffers\juce_AudioDataConverters.h">
       <Filter>Juce Modules\juce_audio_basics\buffers</Filter>

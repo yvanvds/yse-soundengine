@@ -36,7 +36,7 @@ YSE::CHANNEL::managerObject::~managerObject() {
 
 void YSE::CHANNEL::managerObject::update() {
   // master channel is not in inUse list
-  INTERNAL::DeviceManager().getMaster().sync();
+  DEVICE::Manager().getMaster().sync();
   ///////////////////////////////////////////
   // check if there are implementations that need setup
   ///////////////////////////////////////////
@@ -145,27 +145,32 @@ Flt YSE::CHANNEL::managerObject::getOutputAngle(UInt nr) {
 void YSE::CHANNEL::managerObject::setMaster(CHANNEL::implementationObject * impl) {
   impl->objectStatus = OBJECT_CREATED;
   impl->setup();
-  INTERNAL::DeviceManager().setMaster(impl);
+  DEVICE::Manager().setMaster(impl);
 }
 
-void YSE::CHANNEL::managerObject::changeChannelConf(CHANNEL_TYPE type, Int outputs) {
-  delete[] outputAngles;
+void YSE::CHANNEL::managerObject::setChannelConf(CHANNEL_TYPE type, Int outputs) {
   outputChannels = outputs;
-  outputAngles = new aFlt[outputs];
-  switch (type) {
-  case CT_AUTO: setAuto(outputs); break;
-  case CT_MONO: setMono(); break;
-  case CT_STEREO: setStereo(); break;
-  case CT_QUAD: setQuad(); break;
-  case CT_51: set51(); break;
-  case CT_51SIDE: set51Side(); break;
-  case CT_61:	set61(); break;
-  case CT_71:	set71(); break;
-  case CT_CUSTOM: break; // we've set number of outputs. CT_CUSTOM expects the positions will be 
-                         // set later
+  channelType = type;
+}
+
+void YSE::CHANNEL::managerObject::changeChannelConf() {
+  delete[] outputAngles;
+  outputAngles = new aFlt[outputChannels];
+  switch (channelType) {
+    case CT_AUTO: setAuto(outputChannels); break;
+    case CT_MONO: setMono(); break;
+    case CT_STEREO: setStereo(); break;
+    case CT_QUAD: setQuad(); break;
+    case CT_51: set51(); break;
+    case CT_51SIDE: set51Side(); break;
+    case CT_61:	set61(); break;
+    case CT_71:	set71(); break;
+    case CT_CUSTOM: break; // we've set number of outputs. CT_CUSTOM expects the positions will be 
+                           // set later
   }
 
   REVERB::Manager().setOutputChannels(outputChannels);
+  
   for (auto i = inUse.begin(); i != inUse.end(); i++) {
     (*i)->setup();
   }
@@ -177,8 +182,9 @@ void YSE::CHANNEL::managerObject::setAuto(Int count) {
   case	2: setStereo(); break;
   case	4: setQuad(); break;
   case	5: set51(); break;
-  case	6: set61(); break;
-  case	7: set71(); break;
+  case	6: set51(); break;
+  case	7: set61(); break;
+  case  8: set71(); break;
   default: setStereo(); break;
   }
 }

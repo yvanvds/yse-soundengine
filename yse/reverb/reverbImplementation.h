@@ -70,6 +70,8 @@ namespace YSE {
       Bool active; // < won't be included in calculations if false
       Int earlyPtr[4]; // < early reflections
       Flt earlyGain[4]; // < gain of early reflections
+
+      friend class YSE::REVERB::managerObject;
     };
 
   }

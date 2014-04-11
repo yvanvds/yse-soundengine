@@ -15,9 +15,6 @@ namespace YSE {
   /** Every subSystem consists out of several class which are meant to work together.
   They all have an interface, implementation, manager, message and a message enumeration.
 
-  For consistency they are all base on the same template classes. Because those template
-  classes need to know about each other, we create a struct like below to pass it as
-  a kind of lookup to very template.
   */
   namespace SOUND {
     class interfaceObject;

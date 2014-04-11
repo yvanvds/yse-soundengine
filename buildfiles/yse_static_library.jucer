@@ -4,8 +4,82 @@
               bundleIdentifier="com.yourcompany.yse_static_library" includeBinaryInAppConfig="1"
               jucerVersion="3.1.0">
   <MAINGROUP id="JLmmWK" name="yse_static_library">
+    <GROUP id="{F9766342-96F6-6F4B-9B22-5D840831E60E}" name="device">
+      <FILE id="Kqrxcm" name="device.hpp" compile="0" resource="0" file="../yse/device/device.hpp"/>
+      <FILE id="zCyKYU" name="deviceInterface.cpp" compile="1" resource="0"
+            file="../yse/device/deviceInterface.cpp"/>
+      <FILE id="bZMc3y" name="deviceInterface.hpp" compile="0" resource="0"
+            file="../yse/device/deviceInterface.hpp"/>
+      <FILE id="YtBJVp" name="deviceManager.cpp" compile="1" resource="0"
+            file="../yse/device/deviceManager.cpp"/>
+      <FILE id="qoxnau" name="deviceManager.h" compile="0" resource="0" file="../yse/device/deviceManager.h"/>
+      <FILE id="rreYXR" name="deviceSetup.cpp" compile="1" resource="0" file="../yse/device/deviceSetup.cpp"/>
+      <FILE id="I49iYF" name="deviceSetup.hpp" compile="0" resource="0" file="../yse/device/deviceSetup.hpp"/>
+    </GROUP>
     <GROUP id="{DAF363ED-A43B-6DFC-2214-7863A037768A}" name="yse">
       <FILE id="L9oMON" name="classes.hpp" compile="0" resource="0" file="../yse/classes.hpp"/>
+      <FILE id="D0K6b0" name="yse.hpp" compile="0" resource="0" file="../yse/yse.hpp"/>
+      <FILE id="mIa2i6" name="internalHeaders.h" compile="0" resource="0"
+            file="../yse/internalHeaders.h"/>
+      <FILE id="Kgvv8n" name="listener.cpp" compile="1" resource="0" file="../yse/listener.cpp"/>
+      <FILE id="fIMMyo" name="listener.hpp" compile="0" resource="0" file="../yse/listener.hpp"/>
+      <FILE id="Yt0YCR" name="log.cpp" compile="1" resource="0" file="../yse/log.cpp"/>
+      <FILE id="ulgOWN" name="log.hpp" compile="0" resource="0" file="../yse/log.hpp"/>
+      <FILE id="fa96Cr" name="system.cpp" compile="1" resource="0" file="../yse/system.cpp"/>
+      <FILE id="zHzuOQ" name="system.hpp" compile="0" resource="0" file="../yse/system.hpp"/>
+      <GROUP id="{8A9C3D60-C84A-05BA-9847-B8F2DD4B31CB}" name="sound">
+        <FILE id="IIBJWI" name="sound.hpp" compile="0" resource="0" file="../yse/sound/sound.hpp"/>
+        <FILE id="kCFYuU" name="soundImplementation.cpp" compile="1" resource="0"
+              file="../yse/sound/soundImplementation.cpp"/>
+        <FILE id="ddHx3J" name="soundImplementation.h" compile="0" resource="0"
+              file="../yse/sound/soundImplementation.h"/>
+        <FILE id="uuc2N5" name="soundInterface.cpp" compile="1" resource="0"
+              file="../yse/sound/soundInterface.cpp"/>
+        <FILE id="UmCCl8" name="soundInterface.hpp" compile="0" resource="0"
+              file="../yse/sound/soundInterface.hpp"/>
+        <FILE id="gHZk1D" name="soundManager.cpp" compile="1" resource="0"
+              file="../yse/sound/soundManager.cpp"/>
+        <FILE id="FckhGh" name="soundManager.h" compile="0" resource="0" file="../yse/sound/soundManager.h"/>
+        <FILE id="qPPkBl" name="soundMessage.h" compile="0" resource="0" file="../yse/sound/soundMessage.h"/>
+      </GROUP>
+      <GROUP id="{1B8EAA8A-DB64-1D27-E06B-7515B7B3F9F1}" name="reverb">
+        <FILE id="WACL7j" name="reverb.hpp" compile="0" resource="0" file="../yse/reverb/reverb.hpp"/>
+        <FILE id="VyHAb5" name="reverbImplementation.cpp" compile="1" resource="0"
+              file="../yse/reverb/reverbImplementation.cpp"/>
+        <FILE id="nf5drg" name="reverbImplementation.h" compile="0" resource="0"
+              file="../yse/reverb/reverbImplementation.h"/>
+        <FILE id="PhVZbj" name="reverbInterface.cpp" compile="1" resource="0"
+              file="../yse/reverb/reverbInterface.cpp"/>
+        <FILE id="QuwMjg" name="reverbInterface.hpp" compile="0" resource="0"
+              file="../yse/reverb/reverbInterface.hpp"/>
+        <FILE id="qtcKiH" name="reverbManager.cpp" compile="1" resource="0"
+              file="../yse/reverb/reverbManager.cpp"/>
+        <FILE id="vQfY7Z" name="reverbManager.h" compile="0" resource="0" file="../yse/reverb/reverbManager.h"/>
+        <FILE id="ATUAiy" name="reverbMessage.h" compile="0" resource="0" file="../yse/reverb/reverbMessage.h"/>
+      </GROUP>
+      <GROUP id="{5862EF80-A184-9748-E01D-03584382240B}" name="channel">
+        <FILE id="xDKffF" name="channel.hpp" compile="0" resource="0" file="../yse/channel/channel.hpp"/>
+        <FILE id="gzo23R" name="channelImplementation.cpp" compile="1" resource="0"
+              file="../yse/channel/channelImplementation.cpp"/>
+        <FILE id="bevCYd" name="channelImplementation.h" compile="0" resource="0"
+              file="../yse/channel/channelImplementation.h"/>
+        <FILE id="sHCIJn" name="channelInterface.cpp" compile="1" resource="0"
+              file="../yse/channel/channelInterface.cpp"/>
+        <FILE id="uKWPE2" name="channelInterface.hpp" compile="0" resource="0"
+              file="../yse/channel/channelInterface.hpp"/>
+        <FILE id="xy3RIu" name="channelManager.cpp" compile="1" resource="0"
+              file="../yse/channel/channelManager.cpp"/>
+        <FILE id="KWdOE0" name="channelManager.h" compile="0" resource="0"
+              file="../yse/channel/channelManager.h"/>
+        <FILE id="OcxI2s" name="channelMessage.h" compile="0" resource="0"
+              file="../yse/channel/channelMessage.h"/>
+      </GROUP>
+      <GROUP id="{ED72BAD7-8AEF-972E-704D-25F760E482F1}" name="music">
+        <FILE id="i4RUXg" name="chord.cpp" compile="1" resource="0" file="../yse/music/chord.cpp"/>
+        <FILE id="ohfi5s" name="chord.hpp" compile="0" resource="0" file="../yse/music/chord.hpp"/>
+        <FILE id="BgS7li" name="note.cpp" compile="1" resource="0" file="../yse/music/note.cpp"/>
+        <FILE id="hs6uSd" name="note.hpp" compile="0" resource="0" file="../yse/music/note.hpp"/>
+      </GROUP>
       <GROUP id="{60D265EE-B1CE-4648-4A7C-C6FF2C977D7A}" name="dsp">
         <FILE id="bOOmdn" name="delay.cpp" compile="1" resource="0" file="../yse/dsp/delay.cpp"/>
         <FILE id="utfZtB" name="delay.hpp" compile="0" resource="0" file="../yse/dsp/delay.hpp"/>
@@ -43,76 +117,34 @@
         <FILE id="W1Yt6p" name="types.hpp" compile="0" resource="0" file="../yse/headers/types.hpp"/>
       </GROUP>
       <GROUP id="{4CACC57A-5EDD-1A07-F77A-50DA7C031CB3}" name="implementations">
-        <FILE id="d11XWd" name="reverbImplementation.cpp" compile="1" resource="0"
-              file="../yse/implementations/reverbImplementation.cpp"/>
-        <FILE id="E66Raz" name="reverbImplementation.h" compile="0" resource="0"
-              file="../yse/implementations/reverbImplementation.h"/>
-        <FILE id="RE4AfW" name="implementation.h" compile="0" resource="0"
-              file="../yse/implementations/implementation.h"/>
-        <FILE id="wFuij6" name="channelImplementation.cpp" compile="1" resource="0"
-              file="../yse/implementations/channelImplementation.cpp"/>
-        <FILE id="atEcyU" name="channelImplementation.h" compile="0" resource="0"
-              file="../yse/implementations/channelImplementation.h"/>
-        <FILE id="KN1GjB" name="listenerImplementation.cpp" compile="1" resource="0"
+        <FILE id="q1gls3" name="listenerImplementation.cpp" compile="1" resource="0"
               file="../yse/implementations/listenerImplementation.cpp"/>
-        <FILE id="og78N1" name="listenerImplementation.h" compile="0" resource="0"
+        <FILE id="NdTLjz" name="listenerImplementation.h" compile="0" resource="0"
               file="../yse/implementations/listenerImplementation.h"/>
-        <FILE id="cMHbJW" name="logImplementation.cpp" compile="1" resource="0"
+        <FILE id="fmdozC" name="logImplementation.cpp" compile="1" resource="0"
               file="../yse/implementations/logImplementation.cpp"/>
-        <FILE id="xckMYc" name="logImplementation.h" compile="0" resource="0"
+        <FILE id="s9EtF9" name="logImplementation.h" compile="0" resource="0"
               file="../yse/implementations/logImplementation.h"/>
-        <FILE id="fir1tV" name="soundImplementation.cpp" compile="1" resource="0"
-              file="../yse/implementations/soundImplementation.cpp"/>
-        <FILE id="EZRNFH" name="soundImplementation.h" compile="0" resource="0"
-              file="../yse/implementations/soundImplementation.h"/>
       </GROUP>
       <GROUP id="{53EC4D16-EA85-F0D6-3B03-34E18F0AF37D}" name="internal">
-        <FILE id="YuSiWT" name="manager.h" compile="0" resource="0" file="../yse/internal/manager.h"/>
-        <FILE id="CAai6N" name="virtualFinder.cpp" compile="1" resource="0"
-              file="../yse/internal/virtualFinder.cpp"/>
-        <FILE id="melkDy" name="virtualFinder.h" compile="0" resource="0" file="../yse/internal/virtualFinder.h"/>
-        <FILE id="sBFUTB" name="channelManager.cpp" compile="1" resource="0"
-              file="../yse/internal/channelManager.cpp"/>
-        <FILE id="Il6JA3" name="channelManager.h" compile="0" resource="0"
-              file="../yse/internal/channelManager.h"/>
-        <FILE id="HEQ7C0" name="deviceManager.cpp" compile="1" resource="0"
-              file="../yse/internal/deviceManager.cpp"/>
-        <FILE id="zPbbjI" name="deviceManager.h" compile="0" resource="0" file="../yse/internal/deviceManager.h"/>
-        <FILE id="FetYsz" name="global.cpp" compile="1" resource="0" file="../yse/internal/global.cpp"/>
-        <FILE id="yLa6gM" name="global.h" compile="0" resource="0" file="../yse/internal/global.h"/>
-        <FILE id="B11v6D" name="reverbDSP.cpp" compile="1" resource="0" file="../yse/internal/reverbDSP.cpp"/>
-        <FILE id="HN1ghY" name="reverbDSP.h" compile="0" resource="0" file="../yse/internal/reverbDSP.h"/>
-        <FILE id="KiIOpL" name="reverbManager.cpp" compile="1" resource="0"
-              file="../yse/internal/reverbManager.cpp"/>
-        <FILE id="VDHx4V" name="reverbManager.h" compile="0" resource="0" file="../yse/internal/reverbManager.h"/>
-        <FILE id="zKC3xG" name="settings.cpp" compile="1" resource="0" file="../yse/internal/settings.cpp"/>
-        <FILE id="LNUYw1" name="settings.h" compile="0" resource="0" file="../yse/internal/settings.h"/>
-        <FILE id="DwP5a4" name="soundFile.cpp" compile="1" resource="0" file="../yse/internal/soundFile.cpp"/>
-        <FILE id="y6Ti0E" name="soundFile.h" compile="0" resource="0" file="../yse/internal/soundFile.h"/>
-        <FILE id="RvB9D1" name="soundManager.cpp" compile="1" resource="0"
-              file="../yse/internal/soundManager.cpp"/>
-        <FILE id="jPfXCD" name="soundManager.h" compile="0" resource="0" file="../yse/internal/soundManager.h"/>
-        <FILE id="IHraf5" name="time.cpp" compile="1" resource="0" file="../yse/internal/time.cpp"/>
-        <FILE id="vxsqb8" name="time.h" compile="0" resource="0" file="../yse/internal/time.h"/>
-        <FILE id="Kfp2dJ" name="underWaterEffect.cpp" compile="1" resource="0"
+        <FILE id="cQf5Ey" name="global.cpp" compile="1" resource="0" file="../yse/internal/global.cpp"/>
+        <FILE id="Sc6C1y" name="global.h" compile="0" resource="0" file="../yse/internal/global.h"/>
+        <FILE id="z3XDtp" name="reverbDSP.cpp" compile="1" resource="0" file="../yse/internal/reverbDSP.cpp"/>
+        <FILE id="B428Yc" name="reverbDSP.h" compile="0" resource="0" file="../yse/internal/reverbDSP.h"/>
+        <FILE id="V586Qd" name="settings.cpp" compile="1" resource="0" file="../yse/internal/settings.cpp"/>
+        <FILE id="mpF444" name="settings.h" compile="0" resource="0" file="../yse/internal/settings.h"/>
+        <FILE id="IbADQg" name="soundFile.cpp" compile="1" resource="0" file="../yse/internal/soundFile.cpp"/>
+        <FILE id="TlHcP9" name="soundFile.h" compile="0" resource="0" file="../yse/internal/soundFile.h"/>
+        <FILE id="yDJP0g" name="time.cpp" compile="1" resource="0" file="../yse/internal/time.cpp"/>
+        <FILE id="nYIXTB" name="time.h" compile="0" resource="0" file="../yse/internal/time.h"/>
+        <FILE id="mRanJL" name="underWaterEffect.cpp" compile="1" resource="0"
               file="../yse/internal/underWaterEffect.cpp"/>
-        <FILE id="PIruBs" name="underWaterEffect.h" compile="0" resource="0"
+        <FILE id="WpwXu6" name="underWaterEffect.h" compile="0" resource="0"
               file="../yse/internal/underWaterEffect.h"/>
+        <FILE id="s8DIDu" name="virtualFinder.cpp" compile="1" resource="0"
+              file="../yse/internal/virtualFinder.cpp"/>
+        <FILE id="IoRzvd" name="virtualFinder.h" compile="0" resource="0" file="../yse/internal/virtualFinder.h"/>
       </GROUP>
-      <FILE id="de0OuA" name="listener.cpp" compile="1" resource="0" file="../yse/listener.cpp"/>
-      <FILE id="Pz8YAL" name="listener.hpp" compile="0" resource="0" file="../yse/listener.hpp"/>
-      <FILE id="i55x9e" name="log.cpp" compile="1" resource="0" file="../yse/log.cpp"/>
-      <FILE id="iUhoPq" name="log.hpp" compile="0" resource="0" file="../yse/log.hpp"/>
-      <FILE id="qolbDk" name="reverb.cpp" compile="1" resource="0" file="../yse/reverb.cpp"/>
-      <FILE id="mysDPh" name="reverb.hpp" compile="0" resource="0" file="../yse/reverb.hpp"/>
-      <FILE id="kyLbln" name="sound.cpp" compile="1" resource="0" file="../yse/sound.cpp"/>
-      <FILE id="hMRRbI" name="sound.hpp" compile="0" resource="0" file="../yse/sound.hpp"/>
-      <FILE id="pDr1Yr" name="channel.cpp" compile="1" resource="0" file="../yse/channel.cpp"/>
-      <FILE id="jA8wY8" name="channel.hpp" compile="0" resource="0" file="../yse/channel.hpp"/>
-      <FILE id="XQ2ego" name="system.cpp" compile="1" resource="0" file="../yse/system.cpp"/>
-      <FILE id="mRg2xk" name="system.hpp" compile="0" resource="0" file="../yse/system.hpp"/>
-      <FILE id="aN8EzF" name="interface.cpp" compile="1" resource="0" file="../yse/interface.cpp"/>
-      <FILE id="RDkKbx" name="interface.hpp" compile="0" resource="0" file="../yse/interface.hpp"/>
       <GROUP id="{C62A333D-9559-3582-6C25-C4ECD6548BB4}" name="utils">
         <FILE id="lWofSR" name="atomicOps.hpp" compile="0" resource="0" file="../yse/utils/atomicOps.hpp"/>
         <FILE id="mYrXgi" name="lfQueue.hpp" compile="0" resource="0" file="../yse/utils/lfQueue.hpp"/>
@@ -120,11 +152,10 @@
         <FILE id="IMjmhN" name="vector.cpp" compile="1" resource="0" file="../yse/utils/vector.cpp"/>
         <FILE id="hhF0t6" name="vector.hpp" compile="0" resource="0" file="../yse/utils/vector.hpp"/>
       </GROUP>
-      <FILE id="D0K6b0" name="yse.hpp" compile="0" resource="0" file="../yse/yse.hpp"/>
     </GROUP>
   </MAINGROUP>
   <EXPORTFORMATS>
-    <VS2013 targetFolder="Builds/VisualStudio2013">
+    <VS2013 targetFolder="Builds/VisualStudio2013" extraDefs="JUCE_CHECK_MEMORY_LEAKS=0">
       <CONFIGURATIONS>
         <CONFIGURATION name="Debug" winWarningLevel="4" generateManifest="1" winArchitecture="32-bit"
                        isDebug="1" optimisation="1" targetName="yse_debug" binaryPath="../bin"

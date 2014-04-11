@@ -13,7 +13,17 @@
 
 
 YSE::REVERB::implementationObject::implementationObject(interfaceObject * head) 
-  : objectStatus(OBJECT_CONSTRUCTED), head(head) {
+  : objectStatus(OBJECT_CONSTRUCTED), head(head),
+  position(0),
+  size(0),
+  rolloff(0),
+  roomsize(0.5f),
+  damp(0.5f),
+  dry(0.5f),
+  wet(0.5f),
+  modFrequency(0),
+  modWidth(0),
+  active(true) {
   for (Int i = 0; i < 4; i++) {
     earlyPtr[i] = 0;
     earlyGain[i] = 0;
@@ -36,6 +46,7 @@ Bool YSE::REVERB::implementationObject::readyCheck() {
   }
   return false;
 }
+
 
 void YSE::REVERB::implementationObject::removeInterface() {
   head = nullptr;
