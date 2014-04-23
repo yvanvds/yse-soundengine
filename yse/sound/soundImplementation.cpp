@@ -59,7 +59,7 @@ YSE::SOUND::implementationObject::implementationObject(interfaceObject * head) :
 
 YSE::SOUND::implementationObject::~implementationObject() {
   // only streams should delete their source. Other files are shared.
-  if (file != nullptr) {
+  if (file != nullptr && !streaming) {
     file->release(this);
   }
   if (post_dsp && post_dsp->calledfrom) post_dsp->calledfrom = nullptr;
@@ -72,6 +72,7 @@ bool YSE::SOUND::implementationObject::create(const std::string &fileName, CHANN
   parent = ch->pimpl;
   looping = loop;
   fader.set(volume);
+  this->streaming = streaming;
 
   File ioFile;
   ioFile = File::getCurrentWorkingDirectory().getChildFile(juce::String(fileName));
@@ -99,16 +100,16 @@ bool YSE::SOUND::implementationObject::create(const std::string &fileName, CHANN
     status_dsp = SS_STOPPED;
     status_upd = SS_STOPPED;
       
-      file = new INTERNAL::soundFile(ioFile);
-      if(file->create(true)) {
-          filebuffer.resize(file->channels());
-          buffer = &filebuffer;
-          return true;
-      } else {
-          delete file;
-          file = nullptr;
-          return false;
-      }
+    file = new INTERNAL::soundFile(ioFile);
+    if(file->create(true)) {
+      filebuffer.resize(file->channels());
+      buffer = &filebuffer;
+      return true;
+    } else {
+      delete file;
+      file = nullptr;
+      return false;
+    }
   }
   return false;
 }
@@ -158,9 +159,20 @@ void YSE::SOUND::implementationObject::setup() {
       objectStatus = OBJECT_DELETE;
       return;
     }
+    // if object is ready and head is not null, just return
+    if (objectStatus == OBJECT_READY) return;
+
     if (source_dsp != nullptr) {
       // dsp source sounds are a special case because there's no file involved
       lastGain.resize(CHANNEL::Manager().getNumberOfOutputs());
+      for (UInt i = 0; i < lastGain.size(); i++) {
+        lastGain[i].resize(buffer->size(), 0.0f);
+      }
+    }
+    else if (streaming) {
+      // streaming sounds do not have to wait until loaded
+      lastGain.resize(CHANNEL::Manager().getNumberOfOutputs());
+      head.load()->length = file->length();
       for (UInt i = 0; i < lastGain.size(); i++) {
         lastGain[i].resize(buffer->size(), 0.0f);
       }

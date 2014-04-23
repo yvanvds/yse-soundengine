@@ -15,7 +15,7 @@
 
 namespace YSE {
   const UInt STANDARD_BUFFERSIZE = 1024;
-  const UInt STREAM_BUFFERSIZE = 88200;
+  const UInt STREAM_BUFFERSIZE = 44100;
   const UInt SAMPLERATE = 44100;
 }
   

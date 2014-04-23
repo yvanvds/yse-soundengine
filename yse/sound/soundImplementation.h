@@ -139,6 +139,7 @@ namespace YSE {
       This function is used by the forward_list remove_if function
       */
       static bool canBeRemovedFromLoading(const std::atomic<implementationObject*> & impl) {
+        OBJECT_IMPLEMENTATION_STATE status = impl.load()->objectStatus;
         if (impl.load()->objectStatus == OBJECT_READY
           || impl.load()->objectStatus == OBJECT_RELEASE
           || impl.load()->objectStatus == OBJECT_DELETE) {

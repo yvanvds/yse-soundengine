@@ -17,7 +17,7 @@ Bool YSE::INTERNAL::soundFile::create(Bool stream) {
   // load sound into memory
   _needsReset = false;
 
-  if (!_streaming && state == NEW) {
+  if (state == NEW) {
     state = LOADING;
     Global().addSlowJob(this);
   } 
@@ -25,6 +25,32 @@ Bool YSE::INTERNAL::soundFile::create(Bool stream) {
 }
 
 ThreadPoolJob::JobStatus YSE::INTERNAL::soundFile::runJob() {
+  if (_streaming) {
+    if (source == nullptr) {
+      streamReader = SOUND::Manager().getReader(file);
+    }
+    else {
+      streamReader = SOUND::Manager().getReader(source);
+    }
+    if (streamReader != nullptr) {
+      _buffer.setSize(streamReader->numChannels, STREAM_BUFFERSIZE);
+      // sample rate adjustment
+      _sampleRateAdjustment = static_cast<Flt>(streamReader->sampleRate) / static_cast<Flt>(SAMPLERATE);
+      _length = (Int)streamReader->lengthInSamples;
+      _streamPos = 0;
+      fillStream(false);
+      // file is ready for use now
+      state = READY;
+      return jobHasFinished;
+    }
+    else {
+      Global().getLog().emit(E_FILEREADER, "Unable to read " + file.getFullPathName().toStdString());
+      state = INVALID;
+      return jobHasFinished;
+    }
+  }
+
+  // load non streaming sounds in one go
   ScopedPointer<AudioFormatReader> reader;
   if (source == nullptr) {
     reader = SOUND::Manager().getReader(file);
@@ -38,7 +64,7 @@ ThreadPoolJob::JobStatus YSE::INTERNAL::soundFile::runJob() {
     reader->read(&_buffer, 0, (Int)reader->lengthInSamples, 0, true, true);
     // sample rate adjustment
     _sampleRateAdjustment = static_cast<Flt>(reader->sampleRate) / static_cast<Flt>(SAMPLERATE);
-    _length = _buffer.getNumSamples();  
+    _length = _buffer.getNumSamples();
     // file is ready for use now
     state = READY;
     return jobHasFinished;
@@ -71,7 +97,6 @@ Bool YSE::INTERNAL::soundFile::read(std::vector<DSP::sample> & filebuffer, Flt& 
       pos -= STREAM_BUFFERSIZE;
     }
     realPos -= pos;
-    if (_needsReset) resetStream();
   }
 
   Flt ** ptr2 = _buffer.getArrayOfChannels();
@@ -148,7 +173,7 @@ Bool YSE::INTERNAL::soundFile::read(std::vector<DSP::sample> & filebuffer, Flt& 
             *out++ = in[(UInt)pos];
             pos += speed;
             // check if we're past the end and readjust position if so
-            if (pos >= _length) goto calibrate;
+            if (pos >= (_streaming ? STREAM_BUFFERSIZE : _length)) goto calibrate;
           }
           goto nextBuffer; // this output channel buffer is full if we get here
         }
@@ -177,7 +202,7 @@ Bool YSE::INTERNAL::soundFile::read(std::vector<DSP::sample> & filebuffer, Flt& 
             l -= 16;
             out += 16;
             // check if we're past the end and readjust position if so
-            if (pos < 0 || pos >= _length) goto calibrate;
+            if (pos < 0 || pos >= (_streaming ? STREAM_BUFFERSIZE : _length)) goto calibrate;
             // since l > 15, the output buffer is not full yet
             goto mainLoop;
           }
@@ -188,7 +213,7 @@ Bool YSE::INTERNAL::soundFile::read(std::vector<DSP::sample> & filebuffer, Flt& 
               *out++ = in[(UInt)pos];
               pos += speed;
               // check if we're past the end and readjust position if so
-              if (pos < 0 || pos >= _length) goto calibrate;
+              if (pos < 0 || pos >= (_streaming ? STREAM_BUFFERSIZE : _length)) goto calibrate;
             }
           }
           goto nextBuffer; // this output channel buffer is full if we get here
@@ -201,7 +226,7 @@ Bool YSE::INTERNAL::soundFile::read(std::vector<DSP::sample> & filebuffer, Flt& 
           *out++ = in[(UInt)pos] * volume;
           pos += speed;
           volume += 0.005f;
-          if (pos < 0 || pos >= _length) goto calibrate;
+          if (pos < 0 || pos >= (_streaming ? STREAM_BUFFERSIZE : _length)) goto calibrate;
           if ((volume >= 1.f)) {
             // full volume is reached. Move to the optimized version
             volume = 1.f;
@@ -218,7 +243,7 @@ Bool YSE::INTERNAL::soundFile::read(std::vector<DSP::sample> & filebuffer, Flt& 
           *out++ = in[(UInt)pos] * volume;
           pos += speed;
           volume -= 0.005f;
-          if (pos < 0 || pos >= _length) goto calibrate;
+          if (pos < 0 || pos >= (_streaming ? STREAM_BUFFERSIZE : _length)) goto calibrate;
           if ((volume <= 0.f)) {
             // fade out complete, switch intent to paused and restart
             // The rest of the buffer will be filled with zeroes
@@ -236,7 +261,7 @@ Bool YSE::INTERNAL::soundFile::read(std::vector<DSP::sample> & filebuffer, Flt& 
           *out++ = in[(UInt)pos] * volume;
           pos += speed;
           volume -= 0.005f;
-          if (pos < 0 || pos >= _length) goto calibrate;
+          if (pos < 0 || pos >= (_streaming ? STREAM_BUFFERSIZE : _length)) goto calibrate;
           if ((volume <= 0.f)) {
             // fade out complete, switch intent to stopped and restart
             // The rest of the buffer will be filled with zeroes
@@ -249,23 +274,25 @@ Bool YSE::INTERNAL::soundFile::read(std::vector<DSP::sample> & filebuffer, Flt& 
       }
 
 calibrate:
-      /*if (_streaming) {
+      if (_streaming) {
         while (pos >= STREAM_BUFFERSIZE) {
-          if (!_endReached) {
-            _endReached = fillStream(loop);
+          if(fillStream(loop)) {
             pos -= STREAM_BUFFERSIZE;
             realPos += STREAM_BUFFERSIZE;
+            if (realPos >= streamReader->lengthInSamples) {
+              realPos -= streamReader->lengthInSamples;
+            }
           }
           else {
             pos = 0;
             intent = SS_STOPPED;
             volume = 0.f;
-            resetStream();
+            _streamPos = 0;
             continue;
           }
         }
       }
-      else */
+      else 
       {
         // if we get here, pos is past the end or before the beginning
         // recalibrate position now. We can't simply set it to the end
@@ -304,6 +331,41 @@ void YSE::INTERNAL::soundFile::resetStream() {
 }
 
 Bool YSE::INTERNAL::soundFile::fillStream(Bool loop) {
+  if (!loop) {
+    streamReader->read(&_buffer, 0, (Int)_buffer.getNumSamples(), _streamPos, true, true);
+    _streamPos += (Int)_buffer.getNumSamples();
+    if (_streamPos >= (Int)streamReader->lengthInSamples) {
+      // end of file reached
+      return false;
+    }
+    else {
+      // file is not done yet
+      return true;
+    }
+  }
+  else {
+    // looping sound, so we have to keep refilling the buffer
+    Int bufferPos = 0;
+    while (bufferPos < STREAM_BUFFERSIZE) {
+      // determine how many samples we can get before _streamPos needs to reset
+      Int samplesToGet;
+      if (_streamPos + (STREAM_BUFFERSIZE - bufferPos) > (Int)streamReader->lengthInSamples) {
+        samplesToGet = (Int)streamReader->lengthInSamples - _streamPos;
+      }
+      else {
+        samplesToGet = STREAM_BUFFERSIZE - bufferPos;
+      }
+
+      streamReader->read(&_buffer, bufferPos, samplesToGet, _streamPos, true, true);
+      bufferPos += samplesToGet;
+      _streamPos += samplesToGet;
+      if (_streamPos >= (Int)streamReader->lengthInSamples) {
+          // restart file
+        _streamPos -= (Int)streamReader->lengthInSamples;
+      }
+    }
+  }
+  
   return true;
 }
 

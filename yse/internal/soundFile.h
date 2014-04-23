@@ -78,6 +78,7 @@ namespace YSE {
       Bool _endReached;
       Int  _streamPos;
       Bool _needsReset;
+      ScopedPointer<AudioFormatReader> streamReader;
 
       Bool fillStream(Bool loop);
       void resetStream();
