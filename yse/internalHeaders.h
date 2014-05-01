@@ -35,6 +35,7 @@
 #include "internal/time.h"
 #include "internal/underWaterEffect.h"
 #include "internal/virtualFinder.h"
+#include "internal/customFileReader.h"
 
 #include "dsp/math_functions.h"
 

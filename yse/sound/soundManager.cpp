@@ -59,6 +59,26 @@ YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addFile(const File & file)
   }
 }
 
+YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addFile(const char * fileName) {
+  // find out if this file already exists
+  for (auto i = soundFiles.begin(); i != soundFiles.end(); ++i) {
+    if ( i->contains(fileName)) {
+      return &(*i);
+    }
+  }
+
+  // if we got here, the file does not exist yet
+  soundFiles.emplace_front(fileName);
+  INTERNAL::soundFile & sf = soundFiles.front();
+  if (sf.create()) {
+    return &sf;
+  }
+  else {
+    return nullptr;
+  }
+}
+
+
 #if defined PUBLIC_JUCE
 YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addInputStream(juce::InputStream * source) {
   // find out if this stream already exists
@@ -183,6 +203,8 @@ AudioFormatReader * YSE::SOUND::managerObject::getReader(const File & f) {
 AudioFormatReader * YSE::SOUND::managerObject::getReader(juce::InputStream * source) {
   return formatManager.createReaderFor(source);
 }
+
+
 
 void YSE::SOUND::managerObject::adjustLastGainBuffer() {
   for (auto i = inUse.begin(); i != inUse.end(); ++i) {

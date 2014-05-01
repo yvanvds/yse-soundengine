@@ -53,7 +53,16 @@ ThreadPoolJob::JobStatus YSE::INTERNAL::soundFile::runJob() {
   // load non streaming sounds in one go
   ScopedPointer<AudioFormatReader> reader;
   if (source == nullptr) {
-    reader = SOUND::Manager().getReader(file);
+    if (IO().getActive()) {
+      // will be deleted by AudioFormatReader
+      customFileReader * cfr = new customFileReader;
+      cfr->create(fileName.c_str());
+      reader = SOUND::Manager().getReader(cfr);
+    }
+    else {
+      reader = SOUND::Manager().getReader(file);
+    }
+    
   }
   else {
     reader = SOUND::Manager().getReader(source);
@@ -315,6 +324,8 @@ calibrate:
   }
 
   if (_streaming) pos += realPos;
+  // make sure position is reset to zero if playing has stopped during this read
+  if (intent == SS_STOPPED) pos = 0;
   return true;
 }
 
@@ -324,6 +335,10 @@ Bool YSE::INTERNAL::soundFile::contains(const File & file) {
 
 Bool YSE::INTERNAL::soundFile::contains(juce::InputStream * source) {
   return this->source == source;
+}
+
+Bool YSE::INTERNAL::soundFile::contains(const char * fileName) {
+  return strcmp(this->fileName.c_str(), fileName) == 0;
 }
 
 void YSE::INTERNAL::soundFile::resetStream() {
@@ -392,6 +407,15 @@ YSE::INTERNAL::soundFile::soundFile(const File & file) : ThreadPoolJob(file.getF
   _sampleRateAdjustment = 1.0f;
 }
 
+YSE::INTERNAL::soundFile::soundFile(const char * fileName) : ThreadPoolJob(fileName)
+, _buffer(1, 1)
+, idleTime(0)
+, state(NEW)
+, fileName(fileName)
+, source(nullptr)
+{
+  _sampleRateAdjustment = 1.0f;
+}
 
 YSE::INTERNAL::soundFile::soundFile(juce::InputStream * source) : ThreadPoolJob("BinaryDataReader")
 , _buffer(1, 1)

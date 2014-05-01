@@ -69,21 +69,34 @@ YSE::SOUND::implementationObject::~implementationObject() {
 }
 
 bool YSE::SOUND::implementationObject::create(const std::string &fileName, CHANNEL::interfaceObject * ch, Bool loop, Flt volume, Bool streaming) {
+  File ioFile;
   parent = ch->pimpl;
   looping = loop;
   fader.set(volume);
   this->streaming = streaming;
 
-  File ioFile;
-  ioFile = File::getCurrentWorkingDirectory().getChildFile(juce::String(fileName));
+  if (!IO().getActive()) {
+    ioFile = File::getCurrentWorkingDirectory().getChildFile(juce::String(fileName));
 
-  if (!ioFile.existsAsFile()) {
-    INTERNAL::Global().getLog().emit(E_FILE_ERROR, "file not found for " + ioFile.getFullPathName().toStdString());
-    return false;
+    if (!ioFile.existsAsFile()) {
+      INTERNAL::Global().getLog().emit(E_FILE_ERROR, "file not found for " + ioFile.getFullPathName().toStdString());
+      return false;
+    }
+  }
+  else {
+    if (!INTERNAL::CALLBACK::fileExists(fileName.c_str())) {
+      INTERNAL::Global().getLog().emit(E_FILE_ERROR, "file not found for " + fileName);
+      return false;
+    }
   }
 
   if (!streaming) {
-    file = SOUND::Manager().addFile(ioFile);
+    if (IO().getActive()) {
+      file = SOUND::Manager().addFile(fileName.c_str());
+    }
+    else {
+      file = SOUND::Manager().addFile(ioFile);
+    }
     status_dsp = SS_STOPPED;
     status_upd = SS_STOPPED;
 
@@ -518,13 +531,16 @@ void YSE::SOUND::implementationObject::dspFunc_parseIntent() {
         filePtr = 0;
         if (streaming) file->reset();
       }
+      break;
     }
 
     case SI_TOGGLE:
     {
       if (status_dsp  == SS_PLAYING || status_dsp  == SS_WANTSTOPLAY || status_dsp  == SS_PLAYING_FULL_VOLUME) status_dsp  = SS_WANTSTOPAUSE;
       else status_dsp = SS_WANTSTOPLAY;
+      break;
     }
+      
   }
 
   headIntent = SI_NONE;

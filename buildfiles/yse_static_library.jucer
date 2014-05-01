@@ -4,19 +4,9 @@
               bundleIdentifier="com.yourcompany.yse_static_library" includeBinaryInAppConfig="1"
               jucerVersion="3.1.0">
   <MAINGROUP id="JLmmWK" name="yse_static_library">
-    <GROUP id="{F9766342-96F6-6F4B-9B22-5D840831E60E}" name="device">
-      <FILE id="Kqrxcm" name="device.hpp" compile="0" resource="0" file="../yse/device/device.hpp"/>
-      <FILE id="zCyKYU" name="deviceInterface.cpp" compile="1" resource="0"
-            file="../yse/device/deviceInterface.cpp"/>
-      <FILE id="bZMc3y" name="deviceInterface.hpp" compile="0" resource="0"
-            file="../yse/device/deviceInterface.hpp"/>
-      <FILE id="YtBJVp" name="deviceManager.cpp" compile="1" resource="0"
-            file="../yse/device/deviceManager.cpp"/>
-      <FILE id="qoxnau" name="deviceManager.h" compile="0" resource="0" file="../yse/device/deviceManager.h"/>
-      <FILE id="rreYXR" name="deviceSetup.cpp" compile="1" resource="0" file="../yse/device/deviceSetup.cpp"/>
-      <FILE id="I49iYF" name="deviceSetup.hpp" compile="0" resource="0" file="../yse/device/deviceSetup.hpp"/>
-    </GROUP>
     <GROUP id="{DAF363ED-A43B-6DFC-2214-7863A037768A}" name="yse">
+      <FILE id="rLkiqs" name="io.cpp" compile="1" resource="0" file="../yse/io.cpp"/>
+      <FILE id="peHm6K" name="io.h" compile="0" resource="0" file="../yse/io.h"/>
       <FILE id="L9oMON" name="classes.hpp" compile="0" resource="0" file="../yse/classes.hpp"/>
       <FILE id="D0K6b0" name="yse.hpp" compile="0" resource="0" file="../yse/yse.hpp"/>
       <FILE id="mIa2i6" name="internalHeaders.h" compile="0" resource="0"
@@ -27,6 +17,18 @@
       <FILE id="ulgOWN" name="log.hpp" compile="0" resource="0" file="../yse/log.hpp"/>
       <FILE id="fa96Cr" name="system.cpp" compile="1" resource="0" file="../yse/system.cpp"/>
       <FILE id="zHzuOQ" name="system.hpp" compile="0" resource="0" file="../yse/system.hpp"/>
+      <GROUP id="{F9766342-96F6-6F4B-9B22-5D840831E60E}" name="device">
+        <FILE id="Kqrxcm" name="device.hpp" compile="0" resource="0" file="../yse/device/device.hpp"/>
+        <FILE id="zCyKYU" name="deviceInterface.cpp" compile="1" resource="0"
+              file="../yse/device/deviceInterface.cpp"/>
+        <FILE id="bZMc3y" name="deviceInterface.hpp" compile="0" resource="0"
+              file="../yse/device/deviceInterface.hpp"/>
+        <FILE id="YtBJVp" name="deviceManager.cpp" compile="1" resource="0"
+              file="../yse/device/deviceManager.cpp"/>
+        <FILE id="qoxnau" name="deviceManager.h" compile="0" resource="0" file="../yse/device/deviceManager.h"/>
+        <FILE id="rreYXR" name="deviceSetup.cpp" compile="1" resource="0" file="../yse/device/deviceSetup.cpp"/>
+        <FILE id="I49iYF" name="deviceSetup.hpp" compile="0" resource="0" file="../yse/device/deviceSetup.hpp"/>
+      </GROUP>
       <GROUP id="{8A9C3D60-C84A-05BA-9847-B8F2DD4B31CB}" name="sound">
         <FILE id="IIBJWI" name="sound.hpp" compile="0" resource="0" file="../yse/sound/sound.hpp"/>
         <FILE id="kCFYuU" name="soundImplementation.cpp" compile="1" resource="0"
@@ -127,6 +129,10 @@
               file="../yse/implementations/logImplementation.h"/>
       </GROUP>
       <GROUP id="{53EC4D16-EA85-F0D6-3B03-34E18F0AF37D}" name="internal">
+        <FILE id="Avhkkh" name="customFileReader.cpp" compile="1" resource="0"
+              file="../yse/internal/customFileReader.cpp"/>
+        <FILE id="a0iDoY" name="customFileReader.h" compile="0" resource="0"
+              file="../yse/internal/customFileReader.h"/>
         <FILE id="cQf5Ey" name="global.cpp" compile="1" resource="0" file="../yse/internal/global.cpp"/>
         <FILE id="Sc6C1y" name="global.h" compile="0" resource="0" file="../yse/internal/global.h"/>
         <FILE id="z3XDtp" name="reverbDSP.cpp" compile="1" resource="0" file="../yse/internal/reverbDSP.cpp"/>

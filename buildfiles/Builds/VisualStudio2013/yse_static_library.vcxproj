@@ -131,12 +131,13 @@
     </Bscmake>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\yse\device\deviceInterface.cpp"/>
-    <ClCompile Include="..\..\..\yse\device\deviceManager.cpp"/>
-    <ClCompile Include="..\..\..\yse\device\deviceSetup.cpp"/>
+    <ClCompile Include="..\..\..\yse\io.cpp"/>
     <ClCompile Include="..\..\..\yse\listener.cpp"/>
     <ClCompile Include="..\..\..\yse\log.cpp"/>
     <ClCompile Include="..\..\..\yse\system.cpp"/>
+    <ClCompile Include="..\..\..\yse\device\deviceInterface.cpp"/>
+    <ClCompile Include="..\..\..\yse\device\deviceManager.cpp"/>
+    <ClCompile Include="..\..\..\yse\device\deviceSetup.cpp"/>
     <ClCompile Include="..\..\..\yse\sound\soundImplementation.cpp"/>
     <ClCompile Include="..\..\..\yse\sound\soundInterface.cpp"/>
     <ClCompile Include="..\..\..\yse\sound\soundManager.cpp"/>
@@ -161,6 +162,7 @@
     <ClCompile Include="..\..\..\yse\dsp\sample.cpp"/>
     <ClCompile Include="..\..\..\yse\implementations\listenerImplementation.cpp"/>
     <ClCompile Include="..\..\..\yse\implementations\logImplementation.cpp"/>
+    <ClCompile Include="..\..\..\yse\internal\customFileReader.cpp"/>
     <ClCompile Include="..\..\..\yse\internal\global.cpp"/>
     <ClCompile Include="..\..\..\yse\internal\reverbDSP.cpp"/>
     <ClCompile Include="..\..\..\yse\internal\settings.cpp"/>
@@ -623,16 +625,17 @@
     <ClCompile Include="..\..\JuceLibraryCode\modules\juce_events\juce_events.cpp"/>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\yse\device\device.hpp"/>
-    <ClInclude Include="..\..\..\yse\device\deviceInterface.hpp"/>
-    <ClInclude Include="..\..\..\yse\device\deviceManager.h"/>
-    <ClInclude Include="..\..\..\yse\device\deviceSetup.hpp"/>
+    <ClInclude Include="..\..\..\yse\io.h"/>
     <ClInclude Include="..\..\..\yse\classes.hpp"/>
     <ClInclude Include="..\..\..\yse\yse.hpp"/>
     <ClInclude Include="..\..\..\yse\internalHeaders.h"/>
     <ClInclude Include="..\..\..\yse\listener.hpp"/>
     <ClInclude Include="..\..\..\yse\log.hpp"/>
     <ClInclude Include="..\..\..\yse\system.hpp"/>
+    <ClInclude Include="..\..\..\yse\device\device.hpp"/>
+    <ClInclude Include="..\..\..\yse\device\deviceInterface.hpp"/>
+    <ClInclude Include="..\..\..\yse\device\deviceManager.h"/>
+    <ClInclude Include="..\..\..\yse\device\deviceSetup.hpp"/>
     <ClInclude Include="..\..\..\yse\sound\sound.hpp"/>
     <ClInclude Include="..\..\..\yse\sound\soundImplementation.h"/>
     <ClInclude Include="..\..\..\yse\sound\soundInterface.hpp"/>
@@ -667,6 +670,7 @@
     <ClInclude Include="..\..\..\yse\headers\types.hpp"/>
     <ClInclude Include="..\..\..\yse\implementations\listenerImplementation.h"/>
     <ClInclude Include="..\..\..\yse\implementations\logImplementation.h"/>
+    <ClInclude Include="..\..\..\yse\internal\customFileReader.h"/>
     <ClInclude Include="..\..\..\yse\internal\global.h"/>
     <ClInclude Include="..\..\..\yse\internal\reverbDSP.h"/>
     <ClInclude Include="..\..\..\yse\internal\settings.h"/>

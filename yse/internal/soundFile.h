@@ -38,6 +38,8 @@ namespace YSE {
       Bool read(std::vector<DSP::sample> & filebuffer, Flt& pos, UInt length, Flt speed, Bool loop, SOUND_STATUS & intent, Flt & volume);
 
       Bool contains(const File & file);
+      // alternative for custom IO()
+      Bool contains(const char * fileName);
 
       // get
       Int       channels(); // number of channels in source
@@ -53,6 +55,8 @@ namespace YSE {
       bool inUse();
 
       soundFile(const File & file);
+      // alternative for custom IO()
+      soundFile(const char * fileName);
       ~soundFile();
 
       // used for passing juce BinaryData as a sound source
@@ -62,6 +66,7 @@ namespace YSE {
 
     private:
       File              file;
+      std::string fileName;
 
       // used for passing juce BinaryData as a sound source
       juce::InputStream * source;

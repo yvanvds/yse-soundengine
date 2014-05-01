@@ -32,6 +32,9 @@ int main() {
       switch (ch) {
         // toggle function toggles play / pause
       case ' ': sound.toggle(); break;
+      case 'a': sound.play(); break;
+      case 's': sound.pause(); break;
+      case 'd': sound.stop(); break;
       case 'e': goto exit;
       }
     }

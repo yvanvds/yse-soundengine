@@ -118,6 +118,9 @@ namespace YSE {
       */
       INTERNAL::soundFile * addFile(const File & file);
 
+      // an alternative version of addFile for custom filesystems set with IO()
+      INTERNAL::soundFile * addFile(const char * fileName);
+
 #if defined PUBLIC_JUCE
       INTERNAL::soundFile * addInputStream(juce::InputStream * source);
 #endif
