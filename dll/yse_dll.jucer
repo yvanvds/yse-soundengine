@@ -4,6 +4,7 @@
               bundleIdentifier="com.mute.yse_dll" includeBinaryInAppConfig="1"
               jucerVersion="3.1.0">
   <MAINGROUP id="c8Cr7r" name="yse_dll">
+    <FILE id="AEWIIg" name="speaker.png" compile="0" resource="1" file="../bin/speaker.png"/>
     <GROUP id="{C1464C78-202C-BC41-481A-C05656427973}" name="yse">
       <GROUP id="{C8B1AD0B-DE81-0F54-E6DE-072D9E8E3FA2}" name="channel">
         <FILE id="WfQT0f" name="channel.hpp" compile="0" resource="0" file="../yse/channel/channel.hpp"/>
@@ -181,6 +182,26 @@
         <MODULEPATH id="juce_audio_basics" path="../../juce"/>
       </MODULEPATHS>
     </VS2013>
+    <ANDROID targetFolder="Builds/Android" androidActivityClass="com.mute.yse_dll"
+             androidSDKPath="${user.home}/android/sdk" androidNDKPath="${user.home}/android/ndk"
+             androidMinimumSDK="9" androidInternetNeeded="1" androidKeyStore="${user.home}/.android/debug.keystore"
+             androidKeyStorePass="android" androidKeyAlias="androiddebugkey"
+             androidKeyAliasPass="android" androidCpp11="1" smallIcon="AEWIIg"
+             bigIcon="AEWIIg">
+      <CONFIGURATIONS>
+        <CONFIGURATION name="Debug" androidArchitectures="armeabi armeabi-v7a" isDebug="1"
+                       optimisation="1" targetName="yse_dll"/>
+        <CONFIGURATION name="Release" androidArchitectures="armeabi armeabi-v7a" isDebug="0"
+                       optimisation="2" targetName="yse_dll"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_events" path="../../JUCE"/>
+        <MODULEPATH id="juce_core" path="../../JUCE"/>
+        <MODULEPATH id="juce_audio_formats" path="../../JUCE"/>
+        <MODULEPATH id="juce_audio_devices" path="../../JUCE"/>
+        <MODULEPATH id="juce_audio_basics" path="../../JUCE"/>
+      </MODULEPATHS>
+    </ANDROID>
   </EXPORTFORMATS>
   <MODULES>
     <MODULES id="juce_audio_basics" showAllCode="1" useLocalCopy="1"/>

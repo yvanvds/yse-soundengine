@@ -10,7 +10,7 @@
 
 #include "deviceInterface.hpp"
 #include "../internalHeaders.h"
-#include "juceHeader.h"
+
 
 YSE::DEVICE::interfaceObject::interfaceObject(juce::AudioIODevice * pimpl) : pimpl(pimpl) {
   StringArray in = pimpl->getInputChannelNames();

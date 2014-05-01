@@ -9,7 +9,7 @@
 */
 
 #include "../internalHeaders.h"
-#include "juceHeader.h"
+
 
 YSE::DEVICE::managerObject & YSE::DEVICE::Manager() {
   static managerObject d;
