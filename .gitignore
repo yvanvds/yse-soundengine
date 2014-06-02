@@ -226,3 +226,4 @@ pip-log.txt
 .mr.developer.cfg
 demo/Builds/
 dll/Builds/
+esenthelDemo/_Build_/*
