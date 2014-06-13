@@ -80,7 +80,7 @@ void YSE::system::update() {
 void YSE::system::close() {
   if (INTERNAL::Global().active) {
     INTERNAL::Global().active = false;
-    DEVICE::Manager().close();
+    //DEVICE::Manager().close();
     INTERNAL::Global().close();
   }
 }

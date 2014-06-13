@@ -12,12 +12,35 @@
 #define MISC_H_INCLUDED
 
 #include <cstdlib>
+#include <string>
+#include <regex>
+#include <algorithm>
+#include <vector>
+
 #include "../headers/types.hpp"
+
 
 namespace YSE {
   template<typename T0, typename T1, typename T2>
   inline API void  Clamp(T0  &x, T1  min, T2  max) { if (x<min)x = min; else if (x>max)x = max; }
   inline API Int Random(Int max) { return rand() % max; }
+
+  inline Bool MatchesWildcard(const std::string & content, const std::string & wildcard) {
+    std::regex reg(wildcard, std::regex_constants::ECMAScript | std::regex_constants::icase);
+    if (std::regex_search(content, reg)) {
+      return true;
+    }
+    return false;
+  }
+
+  template <typename T>
+  const bool Contains(std::vector<T>& Vec, const T& Element)
+  {
+    if (std::find(Vec.begin(), Vec.end(), Element) != Vec.end())
+      return true;
+
+    return false;
+  }
 
   const Flt Pi_6 = 0.52359878f; // PI/6 ( 30 deg)
   const Flt Pi_4 = 0.78539816f; // PI/4 ( 45 deg)

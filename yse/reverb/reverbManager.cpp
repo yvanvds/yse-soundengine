@@ -17,14 +17,14 @@ YSE::REVERB::managerObject & YSE::REVERB::Manager() {
 }
 
 YSE::REVERB::managerObject::managerObject() 
-  : mgrDelete("reverbManagerDelete", this), globalReverb(true), calculatedValues(true) {
+  : mgrDelete(this), globalReverb(true), calculatedValues(true) {
   reverbDSPObject = INTERNAL::reverbDSP::getInstance();
   reverbDSPObject->channels(CHANNEL::Manager().getNumberOfOutputs());
 }
 
 YSE::REVERB::managerObject::~managerObject() {
   INTERNAL::reverbDSP::deleteInstance();
-  INTERNAL::Global().waitForSlowJob(&mgrDelete);
+  mgrDelete.join();
 
   // remove all objects that are still in memory
   toLoad.clear();
@@ -64,7 +64,7 @@ Bool YSE::REVERB::managerObject::empty() {
 void YSE::REVERB::managerObject::update() {
   toLoad.remove_if(implementationObject::canBeRemovedFromLoading);
 
-  if (runDelete && !INTERNAL::Global().containsSlowJob(&mgrDelete)) {
+  if (runDelete && !mgrDelete.isQueued()) {
     INTERNAL::Global().addSlowJob(&mgrDelete);
   }
   runDelete = false;

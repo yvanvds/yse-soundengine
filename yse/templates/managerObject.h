@@ -14,6 +14,7 @@
 #include "../headers/types.hpp"
 #include "../internal/global.h"
 #include "../headers/enums.hpp"
+#include "../internal/threadPool.h"
 #include <forward_list>
 
 namespace YSE {
@@ -34,7 +35,7 @@ namespace YSE {
       /** A job to add to the lowpriority threadpool when there are implementationObjects
       that need to be setup.
       */
-      class setupJob : public ThreadPoolJob {
+      class setupJob : public INTERNAL::threadPoolJob {
       public:
 
         /** The job will be initialized with a name for debug purposes and a pointer
@@ -42,19 +43,18 @@ namespace YSE {
             care of adding this job to a low priority threadpool every time it sees
             that there are implementationObjects that need to be set up.
         */
-        setupJob(const String & name, managerTemplate<SUBSYSTEM> * obj)
-        : ThreadPoolJob(name), obj(obj) {
+        setupJob(managerTemplate<SUBSYSTEM> * obj)
+        : obj(obj) {
           
         }
 
         /** This function is called from the threadpool and does the intented work
             (Which is called the setup function of the objects that need to be loaded)
         */
-        JobStatus runJob() {
+        virtual void run() {
           for (auto i = obj->toLoad.begin(); i != obj->toLoad.end(); ++i) {
             i->load()->setup();
           }
-          return jobHasFinished;
         }
 
       private:
@@ -64,7 +64,7 @@ namespace YSE {
       /** A job to add to the lowpriority threadpool when there are implementationObjects
       to be deleted
       */
-      class deleteJob : public ThreadPoolJob {
+      class deleteJob : public INTERNAL::threadPoolJob {
       public:
 
         /** The job will be initialized with a name for debug purposes and a pointer
@@ -72,14 +72,13 @@ namespace YSE {
         care of adding this job to a low priority threadpool every time it sees
         that there are implementationObjects that need to be deleted.
         */
-        deleteJob(const String & name, managerTemplate<SUBSYSTEM> * obj)
-          : ThreadPoolJob(name), obj(obj) {
+        deleteJob(managerTemplate<SUBSYSTEM> * obj)
+          : obj(obj) {
 
         }
 
-        JobStatus runJob() {
+        virtual void run() {
           obj->implementations.remove_if(derrivedImplementation::canBeDeleted);
-          return jobHasFinished;
         }
 
       private:
@@ -88,14 +87,14 @@ namespace YSE {
 
       /** The constructor is responsible for constructing the two threadpooljobs every manager needs
       */
-      managerTemplate(const String & name) : mgrSetup(name, this), mgrDelete(name, this) {
+      managerTemplate(const String & name) : mgrSetup(this), mgrDelete(this) {
       }
       
 
       ~managerTemplate() {
         // wait for jobs to finish
-        INTERNAL::Global().waitForSlowJob(&mgrSetup);
-        INTERNAL::Global().waitForSlowJob(&mgrDelete);
+        mgrSetup.join();
+        mgrDelete.join();
 
         // remove all objects that are still in memory
         toLoad.clear();
@@ -140,14 +139,14 @@ namespace YSE {
         ///////////////////////////////////////////
         // check if there are implementations that need setup
         ///////////////////////////////////////////
-        if (!toLoad.empty() && !INTERNAL::Global().containsSlowJob(&mgrSetup)) {
+        if (!toLoad.empty() && !mgrSetup.isQueued()) {
           // removing cannot be done in a separate thread because we are iterating over this
           // list a during this update fuction
           toLoad.remove_if(derrivedImplementation::canBeRemovedFromLoading);
           INTERNAL::Global().addSlowJob(&mgrSetup);
         }
 
-        if (runDelete && !INTERNAL::Global().containsSlowJob(&mgrDelete)) {
+        if (runDelete && !mgrDelete.isQueued()) {
           INTERNAL::Global().addSlowJob(&mgrDelete);
         }
         runDelete = false;

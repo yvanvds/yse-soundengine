@@ -3,7 +3,6 @@
   <ItemGroup>
     <ClCompile Include="..\..\source\demo02.cpp" />
     <ClCompile Include="..\..\source\demo01.cpp" />
-    <ClCompile Include="..\..\source\demo03.cpp" />
     <ClCompile Include="..\..\source\demo04.cpp" />
     <ClCompile Include="..\..\source\demo05.cpp" />
     <ClCompile Include="..\..\source\demo06.cpp" />
@@ -12,5 +11,6 @@
     <ClCompile Include="..\..\source\demo09.cpp" />
     <ClCompile Include="..\..\source\demo10.cpp" />
     <ClCompile Include="..\..\source\demo11.cpp" />
+    <ClCompile Include="..\..\source\demo00.cpp" />
   </ItemGroup>
 </Project>

@@ -12,7 +12,7 @@
 
 
 YSE::CHANNEL::implementationObject::implementationObject(interfaceObject * head) :
-head(head), ThreadPoolJob(head->getName()),
+head(head), 
 newVolume(1.f), lastVolume(1.f), userChannel(true),
 allowVirtual(true), parent(nullptr)
 {
@@ -20,7 +20,7 @@ allowVirtual(true), parent(nullptr)
 
  YSE::CHANNEL::implementationObject::~implementationObject() {
   // exit the dsp thread for this channel
-  INTERNAL::Global().waitForFastJob(this);
+  join();
 
   if (INTERNAL::Global().isActive()) {
     parent->disconnect(this);
@@ -64,9 +64,8 @@ Bool YSE::CHANNEL::implementationObject::disconnect(YSE::SOUND::implementationOb
 }
 
 
-ThreadPoolJob::JobStatus YSE::CHANNEL::implementationObject::runJob() {
+void YSE::CHANNEL::implementationObject::run() {
   dsp();
-  return jobHasFinished;
 }
 
 
@@ -103,7 +102,7 @@ void YSE::CHANNEL::implementationObject::removeInterface() {
 }
 
 void YSE::CHANNEL::implementationObject::buffersToParent() {
-  INTERNAL::Global().waitForFastJob(this);
+  join();
 
   // call this recursively on all child channels 
   for (auto i = children.begin(); i != children.end(); ++i) {

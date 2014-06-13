@@ -14,6 +14,7 @@
 #include "JuceHeader.h"
 #include "../headers/types.hpp"
 #include "../classes.hpp"
+#include "threadPool.h"
 
 namespace YSE {  
     
@@ -26,11 +27,11 @@ namespace YSE {
       logImplementation & getLog();
       listenerImplementation & getListener();
 
-      void addSlowJob(ThreadPoolJob * job);
-      void addFastJob(ThreadPoolJob * job);
-      void waitForSlowJob(ThreadPoolJob * job);
-      void waitForFastJob(ThreadPoolJob * job);
-      bool containsSlowJob(ThreadPoolJob * job);
+      void addSlowJob(threadPoolJob * job);
+      void addFastJob(threadPoolJob * job);
+      //void waitForSlowJob(threadPoolJob * job);
+      //void waitForFastJob(threadPoolJob * job);
+      //bool containsSlowJob(threadPoolJob * job);
       
       void flagForUpdate() { update++;  }
       bool needsUpdate() { return update > 0;  }
@@ -46,8 +47,8 @@ namespace YSE {
       listenerImplementation * li;
 
 
-      ThreadPool slowThreads;
-      ThreadPool fastThreads;
+      threadPool slowThreads;
+      threadPool fastThreads;
 
       aInt update;
       aBool active; // set true after System().init(), false at System().close()

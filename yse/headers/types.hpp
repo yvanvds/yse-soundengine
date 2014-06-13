@@ -40,10 +40,6 @@ typedef std::atomic<UInt> aUInt;
 typedef std::atomic<Flt > aFlt ;
 typedef std::atomic<Byte> aByte;
 
-// shorthand macro for iterating a container object. Can be used if 
-// the container has a size function. All containers within YSE should
-// be constructed so that this function works.
-#define FOREACH(T) for (UInt i = 0; i < T.size(); i++)
-#define FOREACH_D(D, T) for (UInt D = 0; D < T.size(); D++)
+
 
 #endif  // TYPES_HPP_INCLUDED

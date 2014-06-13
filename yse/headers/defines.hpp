@@ -15,6 +15,7 @@
 #if (defined (_WIN32) || defined (_WIN64))
 #define       YSE_WIN32 1
 #define       YSE_WINDOWS 1
+
 #elif defined (__ANDROID__)
 #undef        YSE_ANDROID
 #define       YSE_ANDROID 1
@@ -201,5 +202,38 @@
 //===============================================================================
 #define AUDIOBUFFER YSE::DSP::sample
 #define MULTICHANNELBUFFER std::vector<DSP::sample>
+
+#ifndef YSE_WASAPI
+#define YSE_WASAPI 1
+#endif
+
+#ifndef YSE_ASIO
+#define YSE_ASIO 0
+#endif
+
+#ifndef YSE_DIRECTSOUND
+#define YSE_DIRECTSOUND 1
+#endif 
+
+#ifndef YSE_ALSA
+#define YSE_ALSA 1
+#endif
+
+#ifndef YSE_JACK
+#define YSE_JACK 0
+#endif
+
+#ifndef YSE_OPENSLES
+#define YSE_OPENSLES 1
+#endif
+
+// shorthand macro for iterating a container object. Can be used if 
+// the container has a size function. All containers within YSE should
+// be constructed so that this function works.
+#define FOREACH(T) for (UInt i = 0; i < T.size(); i++)
+#define FOREACH_D(D, T) for (UInt D = 0; D < T.size(); D++)
+
+// short macro for mutex lock
+#define LOCK(T) std::lock_guard<std::mutex> lock(T)
 
 #endif  // DEFINES_HPP_INCLUDED

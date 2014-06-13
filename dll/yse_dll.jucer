@@ -82,6 +82,10 @@
               file="../yse/implementations/logImplementation.h"/>
       </GROUP>
       <GROUP id="{036222F9-3302-A02E-0D85-5945BCBAF27A}" name="internal">
+        <FILE id="ISHjqK" name="thread.cpp" compile="1" resource="0" file="../yse/internal/thread.cpp"/>
+        <FILE id="Gx1v7b" name="thread.h" compile="0" resource="0" file="../yse/internal/thread.h"/>
+        <FILE id="tvTVNj" name="threadPool.cpp" compile="1" resource="0" file="../yse/internal/threadPool.cpp"/>
+        <FILE id="q2XgCE" name="threadPool.h" compile="0" resource="0" file="../yse/internal/threadPool.h"/>
         <FILE id="X8zQEM" name="customFileReader.cpp" compile="1" resource="0"
               file="../yse/internal/customFileReader.cpp"/>
         <FILE id="ncQ6b0" name="customFileReader.h" compile="0" resource="0"
@@ -187,12 +191,13 @@
              androidMinimumSDK="9" androidInternetNeeded="1" androidKeyStore="${user.home}/.android/debug.keystore"
              androidKeyStorePass="android" androidKeyAlias="androiddebugkey"
              androidKeyAliasPass="android" androidCpp11="1" smallIcon="AEWIIg"
-             bigIcon="AEWIIg">
+             bigIcon="AEWIIg" extraDefs="" extraCompilerFlags="" extraLinkerFlags=""
+             externalLibraries="">
       <CONFIGURATIONS>
-        <CONFIGURATION name="Debug" androidArchitectures="armeabi armeabi-v7a" isDebug="1"
+        <CONFIGURATION name="Debug" androidArchitectures="armeabi armeabi-v7a x86" isDebug="1"
                        optimisation="1" targetName="yse"/>
-        <CONFIGURATION name="Release" androidArchitectures="armeabi armeabi-v7a" isDebug="0"
-                       optimisation="3" targetName="yse"/>
+        <CONFIGURATION name="Release" androidArchitectures="armeabi armeabi-v7a x86"
+                       isDebug="0" optimisation="3" targetName="yse"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
         <MODULEPATH id="juce_events" path="../../JUCE"/>

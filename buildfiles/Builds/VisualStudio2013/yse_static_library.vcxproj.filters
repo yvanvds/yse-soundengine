@@ -1,5 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
-
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="yse_static_library">
@@ -7,6 +6,15 @@
     </Filter>
     <Filter Include="yse_static_library\yse">
       <UniqueIdentifier>{69DD1833-D809-3851-58E2-EA9149999A26}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="yse_static_library\yse\io">
+      <UniqueIdentifier>{60867627-EA38-A017-D5D1-4E3255CA2713}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="yse_static_library\yse\io\native">
+      <UniqueIdentifier>{05440130-C77B-37D2-A5FF-CE00FE2FDED6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="yse_static_library\yse\io\native\dontCompile">
+      <UniqueIdentifier>{41EB19C5-48CB-5788-D020-C45203E00993}</UniqueIdentifier>
     </Filter>
     <Filter Include="yse_static_library\yse\device">
       <UniqueIdentifier>{3D1A5E27-C263-E20D-878F-F236185C4A42}</UniqueIdentifier>
@@ -169,6 +177,45 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\yse\io\native\windowsWASAPI.cpp">
+      <Filter>yse_static_library\yse\io\native\dontCompile</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\io\native\windowsDirectSound.cpp">
+      <Filter>yse_static_library\yse\io\native\dontCompile</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\io\native\windowsASIO.cpp">
+      <Filter>yse_static_library\yse\io\native\dontCompile</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\io\native\linuxCoreAudio.cpp">
+      <Filter>yse_static_library\yse\io\native\dontCompile</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\io\native\linuxJack.cpp">
+      <Filter>yse_static_library\yse\io\native\dontCompile</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\io\native\iosAudio.cpp">
+      <Filter>yse_static_library\yse\io\native\dontCompile</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\io\native\linuxALSA.cpp">
+      <Filter>yse_static_library\yse\io\native\dontCompile</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\io\native\androidAudio.cpp">
+      <Filter>yse_static_library\yse\io\native\dontCompile</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\io\native\supportedDevices.cpp">
+      <Filter>yse_static_library\yse\io\native</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\io\ioDeviceType.cpp">
+      <Filter>yse_static_library\yse\io</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\io\ioDevice.cpp">
+      <Filter>yse_static_library\yse\io</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\io\ioManager.cpp">
+      <Filter>yse_static_library\yse\io</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\io\ioCallback.cpp">
+      <Filter>yse_static_library\yse\io</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\yse\io.cpp">
       <Filter>yse_static_library\yse</Filter>
     </ClCompile>
@@ -261,6 +308,12 @@
     </ClCompile>
     <ClCompile Include="..\..\..\yse\implementations\logImplementation.cpp">
       <Filter>yse_static_library\yse\implementations</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\internal\threadPool.cpp">
+      <Filter>yse_static_library\yse\internal</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\internal\thread.cpp">
+      <Filter>yse_static_library\yse\internal</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\yse\internal\customFileReader.cpp">
       <Filter>yse_static_library\yse\internal</Filter>
@@ -389,12 +442,6 @@
       <Filter>Juce Modules\juce_audio_devices\native</Filter>
     </ClCompile>
     <ClCompile Include="..\..\JuceLibraryCode\modules\juce_audio_devices\native\juce_linux_Midi.cpp">
-      <Filter>Juce Modules\juce_audio_devices\native</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\JuceLibraryCode\modules\juce_audio_devices\native\juce_mac_AudioCDBurner.mm">
-      <Filter>Juce Modules\juce_audio_devices\native</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\JuceLibraryCode\modules\juce_audio_devices\native\juce_mac_AudioCDReader.mm">
       <Filter>Juce Modules\juce_audio_devices\native</Filter>
     </ClCompile>
     <ClCompile Include="..\..\JuceLibraryCode\modules\juce_audio_devices\native\juce_mac_CoreAudio.cpp">
@@ -679,21 +726,6 @@
     <ClCompile Include="..\..\JuceLibraryCode\modules\juce_core\native\juce_linux_Threads.cpp">
       <Filter>Juce Modules\juce_core\native</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\JuceLibraryCode\modules\juce_core\native\juce_mac_Files.mm">
-      <Filter>Juce Modules\juce_core\native</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\JuceLibraryCode\modules\juce_core\native\juce_mac_Network.mm">
-      <Filter>Juce Modules\juce_core\native</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\JuceLibraryCode\modules\juce_core\native\juce_mac_Strings.mm">
-      <Filter>Juce Modules\juce_core\native</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\JuceLibraryCode\modules\juce_core\native\juce_mac_SystemStats.mm">
-      <Filter>Juce Modules\juce_core\native</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\JuceLibraryCode\modules\juce_core\native\juce_mac_Threads.mm">
-      <Filter>Juce Modules\juce_core\native</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\JuceLibraryCode\modules\juce_core\native\juce_posix_NamedPipe.cpp">
       <Filter>Juce Modules\juce_core\native</Filter>
     </ClCompile>
@@ -751,13 +783,7 @@
     <ClCompile Include="..\..\JuceLibraryCode\modules\juce_events\native\juce_android_Messaging.cpp">
       <Filter>Juce Modules\juce_events\native</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\JuceLibraryCode\modules\juce_events\native\juce_ios_MessageManager.mm">
-      <Filter>Juce Modules\juce_events\native</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\JuceLibraryCode\modules\juce_events\native\juce_linux_Messaging.cpp">
-      <Filter>Juce Modules\juce_events\native</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\JuceLibraryCode\modules\juce_events\native\juce_mac_MessageManager.mm">
       <Filter>Juce Modules\juce_events\native</Filter>
     </ClCompile>
     <ClCompile Include="..\..\JuceLibraryCode\modules\juce_events\native\juce_win32_Messaging.cpp">
@@ -780,7 +806,19 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\yse\io.h">
+    <ClInclude Include="..\..\..\yse\io\ioDeviceType.h">
+      <Filter>yse_static_library\yse\io</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\io\ioDevice.h">
+      <Filter>yse_static_library\yse\io</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\io\ioManager.h">
+      <Filter>yse_static_library\yse\io</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\io\ioCallback.h">
+      <Filter>yse_static_library\yse\io</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\io.hpp">
       <Filter>yse_static_library\yse</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\yse\classes.hpp">
@@ -915,6 +953,12 @@
     <ClInclude Include="..\..\..\yse\implementations\logImplementation.h">
       <Filter>yse_static_library\yse\implementations</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\yse\internal\threadPool.h">
+      <Filter>yse_static_library\yse\internal</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\internal\thread.h">
+      <Filter>yse_static_library\yse\internal</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\yse\internal\customFileReader.h">
       <Filter>yse_static_library\yse\internal</Filter>
     </ClInclude>
@@ -1017,7 +1061,7 @@
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_audio_basics\synthesisers\juce_Synthesiser.h">
       <Filter>Juce Modules\juce_audio_basics\synthesisers</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\juce\modules\juce_audio_basics\juce_audio_basics.h">
+    <ClInclude Include="..\..\JuceLibraryCode\modules\juce_audio_basics\juce_audio_basics.h">
       <Filter>Juce Modules\juce_audio_basics</Filter>
     </ClInclude>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_audio_devices\audio_io\juce_AudioDeviceManager.h">
@@ -1056,7 +1100,7 @@
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_audio_devices\native\juce_MidiDataConcatenator.h">
       <Filter>Juce Modules\juce_audio_devices\native</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\juce\modules\juce_audio_devices\juce_audio_devices.h">
+    <ClInclude Include="..\..\JuceLibraryCode\modules\juce_audio_devices\juce_audio_devices.h">
       <Filter>Juce Modules\juce_audio_devices</Filter>
     </ClInclude>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_audio_formats\format\juce_AudioFormat.h">
@@ -1113,7 +1157,7 @@
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_audio_formats\sampler\juce_Sampler.h">
       <Filter>Juce Modules\juce_audio_formats\sampler</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\juce\modules\juce_audio_formats\juce_audio_formats.h">
+    <ClInclude Include="..\..\JuceLibraryCode\modules\juce_audio_formats\juce_audio_formats.h">
       <Filter>Juce Modules\juce_audio_formats</Filter>
     </ClInclude>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\text\juce_CharacterFunctions.h">
@@ -1201,6 +1245,9 @@
       <Filter>Juce Modules\juce_core\memory</Filter>
     </ClInclude>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\memory\juce_ScopedPointer.h">
+      <Filter>Juce Modules\juce_core\memory</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\memory\juce_SharedResourcePointer.h">
       <Filter>Juce Modules\juce_core\memory</Filter>
     </ClInclude>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\memory\juce_Singleton.h">
@@ -1443,7 +1490,7 @@
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\native\juce_win32_ComSmartPtr.h">
       <Filter>Juce Modules\juce_core\native</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\juce\modules\juce_core\juce_core.h">
+    <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\juce_core.h">
       <Filter>Juce Modules\juce_core</Filter>
     </ClInclude>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_events\messages\juce_ApplicationBase.h">
@@ -1512,7 +1559,7 @@
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_events\native\juce_win32_HiddenMessageWindow.h">
       <Filter>Juce Modules\juce_events\native</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\juce\modules\juce_events\juce_events.h">
+    <ClInclude Include="..\..\JuceLibraryCode\modules\juce_events\juce_events.h">
       <Filter>Juce Modules\juce_events</Filter>
     </ClInclude>
     <ClInclude Include="..\..\JuceLibraryCode\AppConfig.h">
@@ -1521,21 +1568,24 @@
     <ClInclude Include="..\..\JuceLibraryCode\JuceHeader.h">
       <Filter>Juce Library Code</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\yse\io\native\windows_comSmartPtr.h">
+      <Filter>yse_static_library\yse\io\native\dontCompile</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\..\..\juce\modules\juce_audio_basics\juce_module_info">
+    <None Include="..\..\JuceLibraryCode\modules\juce_audio_basics\juce_module_info">
       <Filter>Juce Modules\juce_audio_basics</Filter>
     </None>
-    <None Include="..\..\..\..\juce\modules\juce_audio_devices\juce_module_info">
+    <None Include="..\..\JuceLibraryCode\modules\juce_audio_devices\juce_module_info">
       <Filter>Juce Modules\juce_audio_devices</Filter>
     </None>
-    <None Include="..\..\..\..\juce\modules\juce_audio_formats\juce_module_info">
+    <None Include="..\..\JuceLibraryCode\modules\juce_audio_formats\juce_module_info">
       <Filter>Juce Modules\juce_audio_formats</Filter>
     </None>
-    <None Include="..\..\..\..\juce\modules\juce_core\juce_module_info">
+    <None Include="..\..\JuceLibraryCode\modules\juce_core\juce_module_info">
       <Filter>Juce Modules\juce_core</Filter>
     </None>
-    <None Include="..\..\..\..\juce\modules\juce_events\juce_module_info">
+    <None Include="..\..\JuceLibraryCode\modules\juce_events\juce_module_info">
       <Filter>Juce Modules\juce_events</Filter>
     </None>
   </ItemGroup>

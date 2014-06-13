@@ -5,8 +5,37 @@
               jucerVersion="3.1.0">
   <MAINGROUP id="JLmmWK" name="yse_static_library">
     <GROUP id="{DAF363ED-A43B-6DFC-2214-7863A037768A}" name="yse">
+      <GROUP id="{DD1C0708-BF8A-4DBC-3466-188D2E2380DF}" name="io">
+        <GROUP id="{2CFFC960-6380-0CD0-460F-7F1EA5EE551D}" name="native">
+          <GROUP id="{9DB47CCF-EBF5-CF12-0161-EF250BA9E2E6}" name="dontCompile">
+            <FILE id="iNgHsQ" name="windowsWASAPI.cpp" compile="0" resource="0"
+                  file="../yse/io/native/windowsWASAPI.cpp"/>
+            <FILE id="Ne9QuS" name="windowsDirectSound.cpp" compile="0" resource="0"
+                  file="../yse/io/native/windowsDirectSound.cpp"/>
+            <FILE id="NnLejU" name="windowsASIO.cpp" compile="0" resource="0" file="../yse/io/native/windowsASIO.cpp"/>
+            <FILE id="wbrhSY" name="linuxCoreAudio.cpp" compile="0" resource="0"
+                  file="../yse/io/native/linuxCoreAudio.cpp"/>
+            <FILE id="eTiqU1" name="linuxJack.cpp" compile="0" resource="0" file="../yse/io/native/linuxJack.cpp"/>
+            <FILE id="ZaiOWA" name="iosAudio.cpp" compile="0" resource="0" file="../yse/io/native/iosAudio.cpp"/>
+            <FILE id="UwQsLS" name="linuxALSA.cpp" compile="0" resource="0" file="../yse/io/native/linuxALSA.cpp"/>
+            <FILE id="e3cKvA" name="androidAudio.cpp" compile="0" resource="0"
+                  file="../yse/io/native/androidAudio.cpp"/>
+          </GROUP>
+          <FILE id="bxtGro" name="supportedDevices.cpp" compile="1" resource="0"
+                file="../yse/io/native/supportedDevices.cpp"/>
+        </GROUP>
+        <FILE id="EtpKas" name="ioDeviceType.cpp" compile="1" resource="0"
+              file="../yse/io/ioDeviceType.cpp"/>
+        <FILE id="bNYjdR" name="ioDeviceType.h" compile="0" resource="0" file="../yse/io/ioDeviceType.h"/>
+        <FILE id="cVLkzl" name="ioDevice.cpp" compile="1" resource="0" file="../yse/io/ioDevice.cpp"/>
+        <FILE id="K7gOJM" name="ioDevice.h" compile="0" resource="0" file="../yse/io/ioDevice.h"/>
+        <FILE id="hcwU3y" name="ioManager.cpp" compile="1" resource="0" file="../yse/io/ioManager.cpp"/>
+        <FILE id="Sbd6Jf" name="ioManager.h" compile="0" resource="0" file="../yse/io/ioManager.h"/>
+        <FILE id="UjGPdo" name="ioCallback.cpp" compile="1" resource="0" file="../yse/io/ioCallback.cpp"/>
+        <FILE id="PBLOm8" name="ioCallback.h" compile="0" resource="0" file="../yse/io/ioCallback.h"/>
+      </GROUP>
+      <FILE id="kpsoTl" name="io.hpp" compile="0" resource="0" file="../yse/io.hpp"/>
       <FILE id="rLkiqs" name="io.cpp" compile="1" resource="0" file="../yse/io.cpp"/>
-      <FILE id="peHm6K" name="io.h" compile="0" resource="0" file="../yse/io.h"/>
       <FILE id="L9oMON" name="classes.hpp" compile="0" resource="0" file="../yse/classes.hpp"/>
       <FILE id="D0K6b0" name="yse.hpp" compile="0" resource="0" file="../yse/yse.hpp"/>
       <FILE id="mIa2i6" name="internalHeaders.h" compile="0" resource="0"
@@ -129,6 +158,10 @@
               file="../yse/implementations/logImplementation.h"/>
       </GROUP>
       <GROUP id="{53EC4D16-EA85-F0D6-3B03-34E18F0AF37D}" name="internal">
+        <FILE id="LAimnk" name="threadPool.cpp" compile="1" resource="0" file="../yse/internal/threadPool.cpp"/>
+        <FILE id="vYt9vu" name="threadPool.h" compile="0" resource="0" file="../yse/internal/threadPool.h"/>
+        <FILE id="hpXaKe" name="thread.cpp" compile="1" resource="0" file="../yse/internal/thread.cpp"/>
+        <FILE id="utjgei" name="thread.h" compile="0" resource="0" file="../yse/internal/thread.h"/>
         <FILE id="Avhkkh" name="customFileReader.cpp" compile="1" resource="0"
               file="../yse/internal/customFileReader.cpp"/>
         <FILE id="a0iDoY" name="customFileReader.h" compile="0" resource="0"
