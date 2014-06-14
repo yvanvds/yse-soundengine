@@ -23,23 +23,23 @@ namespace YSE {
     public:
       virtual ~ioDevice();
 
-      const std::string & getName() const { return name; }
-      const std::string & getTypeName() const { return typeName; }
+      const std::wstring & getName() const { return name; }
+      const std::wstring & getTypeName() const { return typeName; }
 
-      virtual std::vector<std::string> getOutputChannelNames() = 0;
-      virtual std::vector<std::string> getInputChannelNames() = 0;
+      virtual std::vector<std::wstring> getOutputChannelNames() = 0;
+      virtual std::vector<std::wstring> getInputChannelNames() = 0;
 
       virtual std::vector<Dbl> getAvailableSampleRates() = 0;
       virtual std::vector<Int> getAvailableBufferSizes() = 0;
       virtual int getDefaultBufferSize() = 0;
 
-      virtual std::string open(const int& inputChannels, const int &outputChannels, double sampleRate, int bufferSize) = 0;
+      virtual std::wstring open(const int& inputChannels, const int &outputChannels, double sampleRate, int bufferSize) = 0;
       virtual void close() = 0;
       virtual bool isOpen() = 0;
       virtual void start(ioCallback * callback) = 0;
       virtual void stop() = 0;
       virtual void isPlaying() = 0;
-      virtual std::string getLastError() = 0;
+      virtual std::wstring getLastError() = 0;
       virtual int getCurrentBufferSize() = 0;
       virtual double getCurrentSampleRate() = 0;
       virtual int getCurrentBitDepth() = 0;
@@ -51,9 +51,9 @@ namespace YSE {
       virtual bool enablePreprocessing(bool value);
 
     protected:
-      ioDevice(const std::string & name, const std::string & type);
+      ioDevice(const std::wstring & name, const std::wstring & type);
 
-      std::string name, typeName;
+      std::wstring name, typeName;
     };
   }
 }

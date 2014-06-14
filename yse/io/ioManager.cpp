@@ -35,7 +35,7 @@ namespace YSE {
         owner.internalStop();
       }
 
-      void onError(const std::string & message) override {
+      void onError(const std::wstring & message) override {
         owner.internalError(message);
       }
 
@@ -153,7 +153,7 @@ YSE::IO::ioDeviceType * YSE::IO::ioManager::getCurrentDeviceTypeObject() const {
   return nullptr;
 }
 
-std::string YSE::IO::ioManager::initialise(int inputChannels, int outputChannels, const std::string & devicename, const ioSetup * preferredSetup) {
+std::wstring YSE::IO::ioManager::initialise(int inputChannels, int outputChannels, const std::wstring & devicename, const ioSetup * preferredSetup) {
   scanDevices();
 
   inputChannelsNeeded = inputChannels;
@@ -169,9 +169,9 @@ std::string YSE::IO::ioManager::initialise(int inputChannels, int outputChannels
   else if (!devicename.empty()) {
     // get output name
     FOREACH(deviceTypes) {
-      const std::vector<std::string> & out = deviceTypes[i]->getDeviceNames();
+      const std::vector<std::wstring> & out = deviceTypes[i]->getDeviceNames();
       FOREACH_D(j, out) {
-        if (matchesWildcard(out[j], devicename)) {
+        if (MatchesWildcard(out[j], devicename)) {
           setup.outputName = out[i];
           break;
         }
@@ -180,9 +180,9 @@ std::string YSE::IO::ioManager::initialise(int inputChannels, int outputChannels
 
     // get inputname
     FOREACH(deviceTypes) {
-      const std::vector<std::string> & out = deviceTypes[i]->getDeviceNames(true);
+      const std::vector<std::wstring> & out = deviceTypes[i]->getDeviceNames(true);
       FOREACH_D(j, out) {
-        if (matchesWildcard(out[j], devicename)) {
+        if (MatchesWildcard(out[j], devicename)) {
           setup.inputName = out[i];
           break;
         }
@@ -207,24 +207,24 @@ void YSE::IO::ioManager::getDeviceSetup(YSE::IO::ioSetup & setup) {
   setup = currentSetup;
 }
 
-std::string YSE::IO::ioManager::setDeviceSetup(const ioSetup& newSetup) {
+std::wstring YSE::IO::ioManager::setDeviceSetup(const ioSetup& newSetup) {
   assert(&newSetup != &currentSetup);
 
   if (newSetup == currentSetup && currentDevice != nullptr) {
-    return std::string();
+    return std::wstring();
   }
 
   stopDevice();
 
-  const std::string newInputName(inputChannelsNeeded == 0 ? "" : newSetup.inputName);
-  const std::string newOutputName(outputChannelsNeeded == 0 ? "" : newSetup.outputName);
+  const std::wstring newInputName(inputChannelsNeeded == 0 ? std::wstring() : newSetup.inputName);
+  const std::wstring newOutputName(outputChannelsNeeded == 0 ? std::wstring() : newSetup.outputName);
 
-  std::string error;
+  std::wstring error;
   ioDeviceType * type = getCurrentDeviceTypeObject();
 
   if (type == nullptr || (newInputName.empty() && newOutputName.empty())) {
     deleteCurrentDevice();
-    return std::string();
+    return std::wstring();
   }
 
   if (currentSetup.inputName != newInputName
@@ -236,32 +236,32 @@ std::string YSE::IO::ioManager::setDeviceSetup(const ioSetup& newSetup) {
 
     if (!newOutputName.empty()) {
       bool found = false;
-      const std::vector<std::string> & names = type->getDeviceNames();
+      const std::vector<std::wstring> & names = type->getDeviceNames();
       FOREACH(names) {
         if (names[i].compare(newOutputName) == 0) {
           found = true;
           break;
         }
       }
-      if (!found) return "No such device: " + newOutputName;
+      if (!found) return L"No such device: " + newOutputName;
     }
 
     if (!newInputName.empty()) {
       bool found = false;
-      const std::vector<std::string> & names = type->getDeviceNames(true);
+      const std::vector<std::wstring> & names = type->getDeviceNames(true);
       FOREACH(names) {
         if (names[i].compare(newInputName) == 0) {
           found = true;
           break;
         }
       }
-      if (!found) return "No such device: " + newInputName;
+      if (!found) return L"No such device: " + newInputName;
     }
     
     currentDevice.reset(type->createDevice(newOutputName, newInputName));
 
     if (currentDevice == nullptr) {
-      error = "Can't open the audio device!\n\n"
+      error = L"Can't open the audio device!\n\n"
         "This may be because another application is currently using the same device - "
         "if so, you should close any other applications and try again!";
     }
@@ -446,7 +446,7 @@ void YSE::IO::ioManager::internalStop() {
   }
 }
 
-void YSE::IO::ioManager::internalError(const std::string & message) {
+void YSE::IO::ioManager::internalError(const std::wstring & message) {
   LOCK(audioCallbackMutex);
   if (!callbacks.empty()) {
     callbacks[0]->onError(message);

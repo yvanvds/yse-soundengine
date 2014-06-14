@@ -21,13 +21,13 @@ namespace YSE {
     public:
       virtual ~ioDeviceType();
 
-      const std::string & getTypeName() const { return typeName; }
+      const std::wstring & getTypeName() const { return typeName; }
       virtual void scan() = 0;
-      virtual const std::vector<std::string> & getDeviceNames(bool returnInputNames = false) const = 0;
+      virtual const std::vector<std::wstring> & getDeviceNames(bool returnInputNames = false) const = 0;
       virtual int getDefaultDeviceIndex(bool forIntput) const = 0;
       virtual int getIndex(ioDevice * device, bool asInput) const = 0;
       virtual bool hasSeparateInputsAndOutputs() const = 0;
-      virtual ioDevice * createDevice(const std::string & outputName, const std::string & inputName) = 0;
+      virtual ioDevice * createDevice(const std::wstring & outputName, const std::wstring & inputName) = 0;
 
       static ioDeviceType * createCoreAudio();
       static ioDeviceType * createIosAudio();
@@ -40,10 +40,10 @@ namespace YSE {
       static ioDeviceType * createOpenSLES();
 
     protected:
-      explicit ioDeviceType(const std::string& typeName);
+      explicit ioDeviceType(const std::wstring& typeName);
 
     private:
-      std::string typeName;
+      std::wstring typeName;
     };
   }
 }

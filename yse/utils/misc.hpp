@@ -25,8 +25,8 @@ namespace YSE {
   inline API void  Clamp(T0  &x, T1  min, T2  max) { if (x<min)x = min; else if (x>max)x = max; }
   inline API Int Random(Int max) { return rand() % max; }
 
-  inline Bool MatchesWildcard(const std::string & content, const std::string & wildcard) {
-    std::regex reg(wildcard, std::regex_constants::ECMAScript | std::regex_constants::icase);
+  inline Bool MatchesWildcard(const std::wstring & content, const std::wstring & wildcard) {
+    std::wregex reg(wildcard, std::regex_constants::ECMAScript | std::regex_constants::icase);
     if (std::regex_search(content, reg)) {
       return true;
     }
@@ -41,6 +41,35 @@ namespace YSE {
 
     return false;
   }
+
+  //==============================================================================
+  // Some indispensible min/max functions
+
+  /** Returns the larger of two values. */
+  template <typename Type>
+  inline Type Max(const Type a, const Type b)                                               { return (a < b) ? b : a; }
+
+  /** Returns the larger of three values. */
+  template <typename Type>
+  inline Type Max(const Type a, const Type b, const Type c)                                 { return (a < b) ? ((b < c) ? c : b) : ((a < c) ? c : a); }
+
+  /** Returns the larger of four values. */
+  template <typename Type>
+  inline Type Max(const Type a, const Type b, const Type c, const Type d)                   { return jmax(a, jmax(b, c, d)); }
+
+  /** Returns the smaller of two values. */
+  template <typename Type>
+  inline Type Min(const Type a, const Type b)                                               { return (b < a) ? b : a; }
+
+  /** Returns the smaller of three values. */
+  template <typename Type>
+  inline Type Min(const Type a, const Type b, const Type c)                                 { return (b < a) ? ((c < b) ? c : b) : ((c < a) ? c : a); }
+
+  /** Returns the smaller of four values. */
+  template <typename Type>
+  inline Type Min(const Type a, const Type b, const Type c, const Type d)                   { return jmin(a, jmin(b, c, d)); }
+
+
 
   const Flt Pi_6 = 0.52359878f; // PI/6 ( 30 deg)
   const Flt Pi_4 = 0.78539816f; // PI/4 ( 45 deg)

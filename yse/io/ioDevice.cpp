@@ -10,7 +10,7 @@
 
 #include "ioDevice.h"
 
-YSE::IO::ioDevice::ioDevice(const std::string & name, const std::string & typeName)
+YSE::IO::ioDevice::ioDevice(const std::wstring & name, const std::wstring & typeName)
 : name(name), typeName(typeName) {}
 
 YSE::IO::ioDevice::~ioDevice() {}

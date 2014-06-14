@@ -11,7 +11,7 @@
 #include "ioDeviceType.h"
 #include "../headers/defines.hpp"
 
-YSE::IO::ioDeviceType::ioDeviceType(const std::string & name) : typeName(name) {
+YSE::IO::ioDeviceType::ioDeviceType(const std::wstring & name) : typeName(name) {
 
 }
 

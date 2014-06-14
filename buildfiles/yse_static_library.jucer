@@ -8,6 +8,8 @@
       <GROUP id="{DD1C0708-BF8A-4DBC-3466-188D2E2380DF}" name="io">
         <GROUP id="{2CFFC960-6380-0CD0-460F-7F1EA5EE551D}" name="native">
           <GROUP id="{9DB47CCF-EBF5-CF12-0161-EF250BA9E2E6}" name="dontCompile">
+            <FILE id="NG55UN" name="windows_comSmartPtr.h" compile="0" resource="0"
+                  file="../yse/io/native/windows_comSmartPtr.h"/>
             <FILE id="iNgHsQ" name="windowsWASAPI.cpp" compile="0" resource="0"
                   file="../yse/io/native/windowsWASAPI.cpp"/>
             <FILE id="Ne9QuS" name="windowsDirectSound.cpp" compile="0" resource="0"
@@ -185,6 +187,8 @@
         <FILE id="IoRzvd" name="virtualFinder.h" compile="0" resource="0" file="../yse/internal/virtualFinder.h"/>
       </GROUP>
       <GROUP id="{C62A333D-9559-3582-6C25-C4ECD6548BB4}" name="utils">
+        <FILE id="JNmxaQ" name="flags.cpp" compile="1" resource="0" file="../yse/utils/flags.cpp"/>
+        <FILE id="BPQTBy" name="flags.hpp" compile="0" resource="0" file="../yse/utils/flags.hpp"/>
         <FILE id="lWofSR" name="atomicOps.hpp" compile="0" resource="0" file="../yse/utils/atomicOps.hpp"/>
         <FILE id="mYrXgi" name="lfQueue.hpp" compile="0" resource="0" file="../yse/utils/lfQueue.hpp"/>
         <FILE id="IhEfxa" name="misc.hpp" compile="0" resource="0" file="../yse/utils/misc.hpp"/>

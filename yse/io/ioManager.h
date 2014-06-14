@@ -28,8 +28,8 @@ namespace YSE {
 
       bool operator==(const ioSetup& other) const;
 
-      std::string outputName;
-      std::string inputName ;
+      std::wstring outputName;
+      std::wstring inputName ;
 
       Dbl  sampleRate      ;
       Int  bufferSize      ;
@@ -45,12 +45,12 @@ namespace YSE {
       ioManager();
       ~ioManager();
 
-      std::string initialise(int inputChannels, int outputChannels, const std::string & devicename = "", const ioSetup * preferredSetup = nullptr);     
-      std::string setDeviceSetup(const ioSetup& newSetup);
+      std::wstring initialise(int inputChannels, int outputChannels, const std::wstring & devicename = std::wstring(), const ioSetup * preferredSetup = nullptr);     
+      std::wstring setDeviceSetup(const ioSetup& newSetup);
       void getDeviceSetup(ioSetup & setup);
       
       ioDevice * getCurrentDevice() const { return currentDevice.get(); }
-      std::string getCurrentDeviceType() const { return activeDeviceType; }
+      std::wstring getCurrentDeviceType() const { return activeDeviceType; }
       ioDeviceType * getCurrentDeviceTypeObject() const;
 
       void closeDevice();
@@ -72,7 +72,7 @@ namespace YSE {
       void internalCallback(const float** inputChannelData, int numInputChannels, float** outputChannelData, int numOutputChannels, int numSamples);
       void internalStart(ioDevice * device);
       void internalStop();
-      void internalError(const std::string & message);
+      void internalError(const std::wstring & message);
 
       void createDeviceTypes();
       void scanDevices();
@@ -91,7 +91,7 @@ namespace YSE {
 
       Int inputChannelsNeeded, outputChannelsNeeded;
       U64 inputChannels, outputChannels;
-      std::string activeDeviceType;
+      std::wstring activeDeviceType;
       bool deviceScanNeeded;
       std::mutex audioCallbackMutex;
 
