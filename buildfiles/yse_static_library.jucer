@@ -160,6 +160,8 @@
               file="../yse/implementations/logImplementation.h"/>
       </GROUP>
       <GROUP id="{53EC4D16-EA85-F0D6-3B03-34E18F0AF37D}" name="internal">
+        <FILE id="uUfl1I" name="timer.cpp" compile="1" resource="0" file="../yse/internal/timer.cpp"/>
+        <FILE id="IEcoz8" name="timer.h" compile="0" resource="0" file="../yse/internal/timer.h"/>
         <FILE id="LAimnk" name="threadPool.cpp" compile="1" resource="0" file="../yse/internal/threadPool.cpp"/>
         <FILE id="vYt9vu" name="threadPool.h" compile="0" resource="0" file="../yse/internal/threadPool.h"/>
         <FILE id="hpXaKe" name="thread.cpp" compile="1" resource="0" file="../yse/internal/thread.cpp"/>
@@ -212,9 +214,24 @@
         <MODULEPATH id="juce_audio_formats" path="../../juce"/>
         <MODULEPATH id="juce_audio_devices" path="../../juce"/>
         <MODULEPATH id="juce_audio_basics" path="../../juce"/>
-        <MODULEPATH id="juce_events" path="../../juce/modules"/>
+        <MODULEPATH id="juce_events" path="../../juce"/>
       </MODULEPATHS>
     </VS2013>
+    <XCODE_MAC targetFolder="Builds/MacOSX">
+      <CONFIGURATIONS>
+        <CONFIGURATION name="Debug" osxSDK="default" osxCompatibility="default" osxArchitecture="default"
+                       isDebug="1" optimisation="1" targetName="yse_static_library"/>
+        <CONFIGURATION name="Release" osxSDK="default" osxCompatibility="default" osxArchitecture="default"
+                       isDebug="0" optimisation="2" targetName="yse_static_library"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_events" path="../../../JUCE"/>
+        <MODULEPATH id="juce_core" path="../../../JUCE"/>
+        <MODULEPATH id="juce_audio_formats" path="../../../JUCE"/>
+        <MODULEPATH id="juce_audio_devices" path="../../../JUCE"/>
+        <MODULEPATH id="juce_audio_basics" path="../../../JUCE"/>
+      </MODULEPATHS>
+    </XCODE_MAC>
   </EXPORTFORMATS>
   <MODULES>
     <MODULES id="juce_audio_basics" showAllCode="1" useLocalCopy="1"/>
