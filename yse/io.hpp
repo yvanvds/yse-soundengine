@@ -35,7 +35,7 @@ namespace YSE {
     aBool active;
   };
 
-  API io & IO();
+  API io & CustomIO();
 }
 
 

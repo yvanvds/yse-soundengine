@@ -40,6 +40,8 @@ namespace YSE {
     // remove all values from this position onwards, no matter what their value is
     void removeFrom(UInt pos);
 
+    // get the highest position that is set to true
+    int getHighestBit();
   };
 
 }

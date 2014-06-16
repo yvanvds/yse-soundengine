@@ -11,18 +11,10 @@
 #include "../../headers/defines.hpp"
 
 #if YSE_WINDOWS
-#include "windows_comSmartPtr.h"
 
   #if YSE_WASAPI
-  #include "windowsWASAPI.cpp"
-  #endif
-
-  #if YSE_DIRECTSOUND
-  #include "windowsDirectSound.cpp"
-  #endif
-
-  #if YSE_ASIO
-  #include "windowsASIO.cpp"
+  //#include "wasapi/wasapi_functions.cpp"
+  //#include "wasapi/wasapiDeviceBase.cpp"
   #endif
 
 #elif YSE_LINUX

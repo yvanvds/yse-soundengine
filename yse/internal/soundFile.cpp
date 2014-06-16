@@ -54,7 +54,7 @@ void YSE::INTERNAL::soundFile::run() {
   // load non streaming sounds in one go
   ScopedPointer<AudioFormatReader> reader;
   if (source == nullptr) {
-    if (IO().getActive()) {
+    if (CustomIO().getActive()) {
       // will be deleted by AudioFormatReader
       customFileReader * cfr = new customFileReader;
       cfr->create(fileName.c_str());

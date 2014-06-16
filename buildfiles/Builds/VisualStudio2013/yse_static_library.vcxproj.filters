@@ -17,6 +17,12 @@
     <Filter Include="yse_static_library\yse\io\native\dontCompile">
       <UniqueIdentifier>{41EB19C5-48CB-5788-D020-C45203E00993}</UniqueIdentifier>
     </Filter>
+    <Filter Include="yse_static_library\yse\io\native\dontCompile\directsound">
+      <UniqueIdentifier>{B474FE75-C840-0B9B-B06B-7E1977CB0EE3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="yse_static_library\yse\io\native\dontCompile\wasapi">
+      <UniqueIdentifier>{A67C332B-AE9C-BAF1-84B4-C09F8BE8F3E2}</UniqueIdentifier>
+    </Filter>
     <Filter Include="yse_static_library\yse\device">
       <UniqueIdentifier>{3D1A5E27-C263-E20D-878F-F236185C4A42}</UniqueIdentifier>
     </Filter>
@@ -178,6 +184,9 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\yse\io\native\directsoundDeviceType.cpp">
+      <Filter>yse_static_library\yse\io\native\dontCompile\directsound</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\yse\io\native\windowsWASAPI.cpp">
       <Filter>yse_static_library\yse\io\native\dontCompile</Filter>
     </ClCompile>
@@ -840,8 +849,8 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\yse\io\native\windows_comSmartPtr.h">
-      <Filter>yse_static_library\yse\io\native\dontCompile</Filter>
+    <ClInclude Include="..\..\..\yse\io\native\directsoundDeviceType.h">
+      <Filter>yse_static_library\yse\io\native\dontCompile\directsound</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\yse\io\ioDeviceType.h">
       <Filter>yse_static_library\yse\io</Filter>
@@ -1104,7 +1113,7 @@
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_audio_basics\synthesisers\juce_Synthesiser.h">
       <Filter>Juce Modules\juce_audio_basics\synthesisers</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\..\JUCE\modules\juce_audio_basics\juce_audio_basics.h">
+    <ClInclude Include="..\..\JuceLibraryCode\modules\juce_audio_basics\juce_audio_basics.h">
       <Filter>Juce Modules\juce_audio_basics</Filter>
     </ClInclude>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_audio_devices\audio_io\juce_AudioDeviceManager.h">
@@ -1143,7 +1152,7 @@
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_audio_devices\native\juce_MidiDataConcatenator.h">
       <Filter>Juce Modules\juce_audio_devices\native</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\..\JUCE\modules\juce_audio_devices\juce_audio_devices.h">
+    <ClInclude Include="..\..\JuceLibraryCode\modules\juce_audio_devices\juce_audio_devices.h">
       <Filter>Juce Modules\juce_audio_devices</Filter>
     </ClInclude>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_audio_formats\format\juce_AudioFormat.h">
@@ -1200,7 +1209,7 @@
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_audio_formats\sampler\juce_Sampler.h">
       <Filter>Juce Modules\juce_audio_formats\sampler</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\..\JUCE\modules\juce_audio_formats\juce_audio_formats.h">
+    <ClInclude Include="..\..\JuceLibraryCode\modules\juce_audio_formats\juce_audio_formats.h">
       <Filter>Juce Modules\juce_audio_formats</Filter>
     </ClInclude>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\text\juce_CharacterFunctions.h">
@@ -1288,6 +1297,9 @@
       <Filter>Juce Modules\juce_core\memory</Filter>
     </ClInclude>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\memory\juce_ScopedPointer.h">
+      <Filter>Juce Modules\juce_core\memory</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\memory\juce_SharedResourcePointer.h">
       <Filter>Juce Modules\juce_core\memory</Filter>
     </ClInclude>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\memory\juce_Singleton.h">
@@ -1530,7 +1542,7 @@
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\native\juce_win32_ComSmartPtr.h">
       <Filter>Juce Modules\juce_core\native</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\..\JUCE\modules\juce_core\juce_core.h">
+    <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\juce_core.h">
       <Filter>Juce Modules\juce_core</Filter>
     </ClInclude>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_events\messages\juce_ApplicationBase.h">
@@ -1599,7 +1611,7 @@
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_events\native\juce_win32_HiddenMessageWindow.h">
       <Filter>Juce Modules\juce_events\native</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\..\JUCE\modules\juce_events\juce_events.h">
+    <ClInclude Include="..\..\JuceLibraryCode\modules\juce_events\juce_events.h">
       <Filter>Juce Modules\juce_events</Filter>
     </ClInclude>
     <ClInclude Include="..\..\JuceLibraryCode\AppConfig.h">
@@ -1610,19 +1622,19 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\..\..\..\JUCE\modules\juce_audio_basics\juce_module_info">
+    <None Include="..\..\JuceLibraryCode\modules\juce_audio_basics\juce_module_info">
       <Filter>Juce Modules\juce_audio_basics</Filter>
     </None>
-    <None Include="..\..\..\..\..\JUCE\modules\juce_audio_devices\juce_module_info">
+    <None Include="..\..\JuceLibraryCode\modules\juce_audio_devices\juce_module_info">
       <Filter>Juce Modules\juce_audio_devices</Filter>
     </None>
-    <None Include="..\..\..\..\..\JUCE\modules\juce_audio_formats\juce_module_info">
+    <None Include="..\..\JuceLibraryCode\modules\juce_audio_formats\juce_module_info">
       <Filter>Juce Modules\juce_audio_formats</Filter>
     </None>
-    <None Include="..\..\..\..\..\JUCE\modules\juce_core\juce_module_info">
+    <None Include="..\..\JuceLibraryCode\modules\juce_core\juce_module_info">
       <Filter>Juce Modules\juce_core</Filter>
     </None>
-    <None Include="..\..\..\..\..\JUCE\modules\juce_events\juce_module_info">
+    <None Include="..\..\JuceLibraryCode\modules\juce_events\juce_module_info">
       <Filter>Juce Modules\juce_events</Filter>
     </None>
   </ItemGroup>

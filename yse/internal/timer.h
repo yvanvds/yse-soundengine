@@ -13,27 +13,28 @@
 
 namespace YSE {
   namespace INTERNAL {
-    
+
     class timer {
     public:
-        virtual void callback() = 0;
-      
-        // start with millisecond precision
-        void runEachMS(int interval);
-      
-        // start with second precision
-        void runEachSec(int interval);
-      
-        void stop();
-      
-        bool isRunning() const;
-      
-        int interval();
-      
-      private:
-      
+      virtual void callback() = 0;
+
+      // start with millisecond precision
+      void runEachMS(int interval);
+
+      // start with second precision
+      void runEachSec(int interval);
+
+      void stop();
+
+      bool isRunning() const;
+
+      int interval();
+
+    private:
+
     };
 
-
+  }
+}
 
 #endif  // TIMER_H_INCLUDED

@@ -1,12 +1,11 @@
 /*
   ==============================================================================
 
-    ioDevice.cpp
-    Created: 12 Jun 2014 6:43:05pm
+    directsoundDeviceType.cpp
+    Created: 16 Jun 2014 7:46:39pm
     Author:  yvan
 
   ==============================================================================
 */
 
-#include "ioDevice.h"
-
+#include "directsoundDeviceType.h"

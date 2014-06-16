@@ -25,15 +25,14 @@ YSE::DEVICE::managerObject::managerObject() : initialized(false), open(false),
 
 Bool YSE::DEVICE::managerObject::init() {
   if (!initialized) {
-    _lastError = audioDeviceManager.initialise(0, 2, nullptr, true);
-    if (_lastError.isNotEmpty()) {
-      jassertfalse
+    if (!audioDeviceManager.initialise()) {
+      assert(false);
       return false;
     }
     initialized = true;
 
     if (!open) {
-      audioDeviceManager.addAudioCallback(this);
+      audioDeviceManager.setCallback(this);
       open = true;
     }  
   }
@@ -42,7 +41,7 @@ Bool YSE::DEVICE::managerObject::init() {
 
 void YSE::DEVICE::managerObject::openDevice(const YSE::DEVICE::setupObject & object) {
   // transform this to a juce setup object
-  AudioDeviceManager::AudioDeviceSetup setup;
+  /*AudioDeviceManager::AudioDeviceSetup setup;
   int inputChannels = 0;
   int outputChannels = 0;
   if (object.in != nullptr) {
@@ -67,19 +66,19 @@ void YSE::DEVICE::managerObject::openDevice(const YSE::DEVICE::setupObject & obj
   if (_lastError.isNotEmpty()) {
     // default device is chosen.
     // Should we inform the user?
-  }
+  }*/
 }
 
 void YSE::DEVICE::managerObject::close() {
   if (open) {
-    audioDeviceManager.removeAudioCallback(this);
-    audioDeviceManager.closeAudioDevice();
+    //audioDeviceManager.removeAudioCallback(this);
+    //audioDeviceManager.closeAudioDevice();
     open = false;
   }
 }
 
 Flt YSE::DEVICE::managerObject::cpuLoad() {
-  return static_cast<Flt>(audioDeviceManager.getCpuUsage());
+  return 0; // static_cast<Flt>(audioDeviceManager.getCpuUsage());
 }
 
 void YSE::DEVICE::managerObject::setMaster(CHANNEL::implementationObject * ptr) {
@@ -90,7 +89,7 @@ YSE::CHANNEL::implementationObject & YSE::DEVICE::managerObject::getMaster() {
   return *master;
 }
 
-void YSE::DEVICE::managerObject::audioDeviceIOCallback(const float ** inputChannelData,
+void YSE::DEVICE::managerObject::onCallback(const float ** inputChannelData,
   int      numInputChannels,
   float ** outputChannelData,
   int      numOutputChannels,
@@ -154,20 +153,20 @@ void YSE::DEVICE::managerObject::audioDeviceIOCallback(const float ** inputChann
   }
 }
 
-void YSE::DEVICE::managerObject::audioDeviceAboutToStart(AudioIODevice * device) {
+void YSE::DEVICE::managerObject::onStart() {
 
 }
 
-void YSE::DEVICE::managerObject::audioDeviceStopped() {
+void YSE::DEVICE::managerObject::onStop() {
 
 }
 
-void YSE::DEVICE::managerObject::audioDeviceError(const juce::String & errorMessage) {
-  INTERNAL::Global().getLog().emit(E_AUDIODEVICE, errorMessage);
+void YSE::DEVICE::managerObject::onError(const std::wstring & errorMessage) {
+  //INTERNAL::Global().getLog().emit(E_AUDIODEVICE, errorMessage);
 }
 
 void YSE::DEVICE::managerObject::updateDeviceList() {
-  OwnedArray<AudioIODeviceType> types;
+  /*OwnedArray<AudioIODeviceType> types;
   audioDeviceManager.createAudioDeviceTypes(types);
   devices.clear();
 
@@ -179,7 +178,7 @@ void YSE::DEVICE::managerObject::updateDeviceList() {
       AudioIODevice * device = types[i]->createDevice(deviceNames[j], deviceNames[j]);
       devices.emplace_back(device);
     }
-  }
+  }*/
 }
 
 const std::vector<YSE::DEVICE::interfaceObject> & YSE::DEVICE::managerObject::getDeviceList() {

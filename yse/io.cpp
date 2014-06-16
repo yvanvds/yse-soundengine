@@ -11,7 +11,7 @@
 #include "io.hpp"
 #include "internal/customFileReader.h"
 
-YSE::io & YSE::IO() {
+YSE::io & YSE::CustomIO() {
   static io fs;
   return fs;
 }

@@ -12,48 +12,17 @@
 #include "../headers/defines.hpp"
 
 YSE::IO::ioDeviceType::ioDeviceType(const std::wstring & name) : typeName(name) {
-
 }
 
-YSE::IO::ioDeviceType::~ioDeviceType() {
-
+std::shared_ptr<YSE::IO::ioDeviceType> YSE::IO::ioDeviceType::create() {
+  #if (YSE_WINDOWS && YSE_WASAPI) 
+  return YSE::IO::createWASAPI();
+  #endif
 }
 
-#if ! YSE_MAC 
-YSE::IO::ioDeviceType * YSE::IO::ioDeviceType::createCoreAudio() { return nullptr; }
+
+#if (YSE_WINDOWS && YSE_WASAPI) 
+std::shared_ptr<YSE::IO::ioDeviceType> YSE::IO::createWASAPI() {
+  return nullptr;
+}
 #endif
-
-#if ! YSE_IOS
-YSE::IO::ioDeviceType * YSE::IO::ioDeviceType::createIosAudio() { return nullptr; }
-#endif
-
-#if ! (YSE_WINDOWS && YSE_WASAPI) 
-YSE::IO::ioDeviceType * YSE::IO::ioDeviceType::createWASAPI() { return nullptr; }
-#endif
-
-#if ! (YSE_WINDOWS && YSE_DIRECTSOUND) 
-YSE::IO::ioDeviceType * YSE::IO::ioDeviceType::createDirectSound() { return nullptr; }
-#endif
-
-#if ! (YSE_WINDOWS && YSE_ASIO) 
-YSE::IO::ioDeviceType * YSE::IO::ioDeviceType::createASIO() { return nullptr; }
-#endif
-
-#if ! (YSE_LINUX && YSE_ALSA) 
-YSE::IO::ioDeviceType * YSE::IO::ioDeviceType::createALSA() { return nullptr; }
-#endif
-
-#if ! (YSE_LINUX && YSE_JACK) 
-YSE::IO::ioDeviceType * YSE::IO::ioDeviceType::createJACK() { return nullptr; }
-#endif
-
-#if ! YSE_ANDROID 
-YSE::IO::ioDeviceType * YSE::IO::ioDeviceType::createAndroid() { return nullptr; }
-#endif
-
-#if ! (YSE_ANDROID && YSE_OPENSLES) 
-YSE::IO::ioDeviceType * YSE::IO::ioDeviceType::createOpenSLES() { return nullptr; }
-#endif
-
-
-

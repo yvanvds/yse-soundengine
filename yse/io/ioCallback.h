@@ -15,16 +15,15 @@
 
 namespace YSE {
   namespace IO {
-    class ioDevice;
 
     class ioCallback {
     public:
       virtual ~ioCallback() {}
 
       virtual void onCallback(const float** inputChannelData, int numInputChannels, float** outputChannelData, int numOutputChannels, int numSamples) = 0;
-      virtual void onStart(ioDevice * device) = 0;
-      virtual void onStop() = 0;
-      virtual void onError(const std::wstring & message) {}
+      virtual void onStart() = 0;
+      virtual void onStop () = 0;
+      virtual void onError(const std::wstring & message) = 0;
     };
 
   }

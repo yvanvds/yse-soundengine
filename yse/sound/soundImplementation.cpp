@@ -75,7 +75,7 @@ bool YSE::SOUND::implementationObject::create(const std::string &fileName, CHANN
   fader.set(volume);
   this->streaming = streaming;
 
-  if (!IO().getActive()) {
+  if (!CustomIO().getActive()) {
     ioFile = File::getCurrentWorkingDirectory().getChildFile(juce::String(fileName));
 
     if (!ioFile.existsAsFile()) {
@@ -91,7 +91,7 @@ bool YSE::SOUND::implementationObject::create(const std::string &fileName, CHANN
   }
 
   if (!streaming) {
-    if (IO().getActive()) {
+    if (CustomIO().getActive()) {
       file = SOUND::Manager().addFile(fileName.c_str());
     }
     else {
