@@ -2,9 +2,21 @@
 
 <JUCERPROJECT id="AKkfPk" name="yse_static_library" projectType="library" version="1.0.0"
               bundleIdentifier="com.yourcompany.yse_static_library" includeBinaryInAppConfig="1"
-              jucerVersion="3.1.0">
+              jucerVersion="3.1.0" defines="DONT_SET_USING_JUCE_NAMESPACE">
   <MAINGROUP id="JLmmWK" name="yse_static_library">
     <GROUP id="{DAF363ED-A43B-6DFC-2214-7863A037768A}" name="yse">
+      <FILE id="kpsoTl" name="io.hpp" compile="0" resource="0" file="../yse/io.hpp"/>
+      <FILE id="rLkiqs" name="io.cpp" compile="1" resource="0" file="../yse/io.cpp"/>
+      <FILE id="L9oMON" name="classes.hpp" compile="0" resource="0" file="../yse/classes.hpp"/>
+      <FILE id="D0K6b0" name="yse.hpp" compile="0" resource="0" file="../yse/yse.hpp"/>
+      <FILE id="mIa2i6" name="internalHeaders.h" compile="0" resource="0"
+            file="../yse/internalHeaders.h"/>
+      <FILE id="Kgvv8n" name="listener.cpp" compile="1" resource="0" file="../yse/listener.cpp"/>
+      <FILE id="fIMMyo" name="listener.hpp" compile="0" resource="0" file="../yse/listener.hpp"/>
+      <FILE id="Yt0YCR" name="log.cpp" compile="1" resource="0" file="../yse/log.cpp"/>
+      <FILE id="ulgOWN" name="log.hpp" compile="0" resource="0" file="../yse/log.hpp"/>
+      <FILE id="fa96Cr" name="system.cpp" compile="1" resource="0" file="../yse/system.cpp"/>
+      <FILE id="zHzuOQ" name="system.hpp" compile="0" resource="0" file="../yse/system.hpp"/>
       <GROUP id="{DD1C0708-BF8A-4DBC-3466-188D2E2380DF}" name="io">
         <GROUP id="{2CFFC960-6380-0CD0-460F-7F1EA5EE551D}" name="native">
           <GROUP id="{9DB47CCF-EBF5-CF12-0161-EF250BA9E2E6}" name="dontCompile">
@@ -41,19 +53,10 @@
         <FILE id="UjGPdo" name="ioCallback.cpp" compile="1" resource="0" file="../yse/io/ioCallback.cpp"/>
         <FILE id="PBLOm8" name="ioCallback.h" compile="0" resource="0" file="../yse/io/ioCallback.h"/>
       </GROUP>
-      <FILE id="kpsoTl" name="io.hpp" compile="0" resource="0" file="../yse/io.hpp"/>
-      <FILE id="rLkiqs" name="io.cpp" compile="1" resource="0" file="../yse/io.cpp"/>
-      <FILE id="L9oMON" name="classes.hpp" compile="0" resource="0" file="../yse/classes.hpp"/>
-      <FILE id="D0K6b0" name="yse.hpp" compile="0" resource="0" file="../yse/yse.hpp"/>
-      <FILE id="mIa2i6" name="internalHeaders.h" compile="0" resource="0"
-            file="../yse/internalHeaders.h"/>
-      <FILE id="Kgvv8n" name="listener.cpp" compile="1" resource="0" file="../yse/listener.cpp"/>
-      <FILE id="fIMMyo" name="listener.hpp" compile="0" resource="0" file="../yse/listener.hpp"/>
-      <FILE id="Yt0YCR" name="log.cpp" compile="1" resource="0" file="../yse/log.cpp"/>
-      <FILE id="ulgOWN" name="log.hpp" compile="0" resource="0" file="../yse/log.hpp"/>
-      <FILE id="fa96Cr" name="system.cpp" compile="1" resource="0" file="../yse/system.cpp"/>
-      <FILE id="zHzuOQ" name="system.hpp" compile="0" resource="0" file="../yse/system.hpp"/>
-      <GROUP id="{F9766342-96F6-6F4B-9B22-5D840831E60E}" name="device"/>
+      <GROUP id="{F9766342-96F6-6F4B-9B22-5D840831E60E}" name="file">
+        <FILE id="LUgftD" name="filereader.cpp" compile="1" resource="0" file="../yse/file/filereader.cpp"/>
+        <FILE id="ZXDP1L" name="filereader.h" compile="0" resource="0" file="../yse/file/filereader.h"/>
+      </GROUP>
       <GROUP id="{8A9C3D60-C84A-05BA-9847-B8F2DD4B31CB}" name="sound">
         <FILE id="IIBJWI" name="sound.hpp" compile="0" resource="0" file="../yse/sound/sound.hpp"/>
         <FILE id="kCFYuU" name="soundImplementation.cpp" compile="1" resource="0"
@@ -205,13 +208,7 @@
                        isDebug="0" optimisation="3" targetName="yse" binaryPath="../bin"
                        headerPath="../yse"/>
       </CONFIGURATIONS>
-      <MODULEPATHS>
-        <MODULEPATH id="juce_core" path="../../juce"/>
-        <MODULEPATH id="juce_audio_formats" path="../../juce"/>
-        <MODULEPATH id="juce_audio_devices" path="../../juce"/>
-        <MODULEPATH id="juce_audio_basics" path="../../juce"/>
-        <MODULEPATH id="juce_events" path="../../juce"/>
-      </MODULEPATHS>
+      <MODULEPATHS/>
     </VS2013>
     <XCODE_MAC targetFolder="Builds/MacOSX">
       <CONFIGURATIONS>
@@ -220,21 +217,9 @@
         <CONFIGURATION name="Release" osxSDK="default" osxCompatibility="default" osxArchitecture="default"
                        isDebug="0" optimisation="2" targetName="yse_static_library"/>
       </CONFIGURATIONS>
-      <MODULEPATHS>
-        <MODULEPATH id="juce_events" path="../../../JUCE"/>
-        <MODULEPATH id="juce_core" path="../../../JUCE"/>
-        <MODULEPATH id="juce_audio_formats" path="../../../JUCE"/>
-        <MODULEPATH id="juce_audio_devices" path="../../../JUCE"/>
-        <MODULEPATH id="juce_audio_basics" path="../../../JUCE"/>
-      </MODULEPATHS>
+      <MODULEPATHS/>
     </XCODE_MAC>
   </EXPORTFORMATS>
-  <MODULES>
-    <MODULES id="juce_audio_basics" showAllCode="1" useLocalCopy="1"/>
-    <MODULES id="juce_audio_devices" showAllCode="1" useLocalCopy="1"/>
-    <MODULES id="juce_audio_formats" showAllCode="1" useLocalCopy="1"/>
-    <MODULES id="juce_core" showAllCode="1" useLocalCopy="1"/>
-    <MODULES id="juce_events" showAllCode="1" useLocalCopy="1"/>
-  </MODULES>
+  <MODULES/>
   <JUCEOPTIONS/>
 </JUCERPROJECT>

@@ -16,18 +16,18 @@
 
 namespace YSE {
   namespace INTERNAL {
-    class customFileReader : public InputStream {
+    class customFileReader {
     public:
       customFileReader();
      ~customFileReader();
       
       Bool create(const char * filename);
 
-      virtual I64 getTotalLength();
-      virtual Bool isExhausted();
-      virtual Int read(void *destBuffer, Int maxBytesToRead);
-      virtual I64 getPosition();
-      virtual Bool setPosition(I64 newPosition);
+      I64 getTotalLength();
+      Bool isExhausted();
+      Int read(void *destBuffer, Int maxBytesToRead);
+      I64 getPosition();
+      Bool setPosition(I64 newPosition);
 
     private:
       void * fileHandle;

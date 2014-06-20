@@ -11,6 +11,7 @@
 #ifndef SOUNDFILE_H_INCLUDED
 #define SOUNDFILE_H_INCLUDED
 
+#include <memory>
 #include "JuceHeader.h"
 #include "../classes.hpp"
 #include "../headers/types.hpp"
@@ -18,6 +19,7 @@
 #include "../headers/enums.hpp"
 #include <forward_list>
 #include "../internal/threadPool.h"
+#include "../file/filereader.h"
 
 namespace YSE {
 
@@ -84,7 +86,7 @@ namespace YSE {
       Bool _endReached;
       Int  _streamPos;
       Bool _needsReset;
-      ScopedPointer<AudioFormatReader> streamReader;
+      std::shared_ptr<FILE::fileReader> streamReader;
 
       Bool fillStream(Bool loop);
       void resetStream();
