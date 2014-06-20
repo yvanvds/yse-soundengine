@@ -42,6 +42,8 @@ namespace YSE {
     return false;
   }
 
+  std::wstring StringToWString(const std::string& s);
+
   //==============================================================================
   // Some indispensible min/max functions
 

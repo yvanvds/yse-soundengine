@@ -16,15 +16,24 @@
 #include <memory>
 #include "ioDevice.h"
 #include "../headers/defines.hpp"
+#include "../headers/enums.hpp"
 
 namespace YSE {
   namespace IO {
+
+    
+
     class ioDeviceType {
     public:
       ioDeviceType(const std::wstring & name);
       const std::wstring & getName() const { return typeName; }
 
-      static std::shared_ptr<ioDeviceType> create();
+      virtual void scanDevices() = 0;
+      virtual int getNumDevices() = 0;
+      virtual ioDevice * getDevice(int num) = 0;
+
+      static std::shared_ptr<ioDeviceType> Create(DEVICETYPE type);
+
     private:
       std::wstring typeName;
     };
@@ -33,6 +42,9 @@ namespace YSE {
     std::shared_ptr<ioDeviceType> createWASAPI(); 
     #endif
 
+#if (YSE_WINDOWS && YSE_DIRECTSOUND) 
+    std::shared_ptr<ioDeviceType> createDirectSound();
+#endif
   }
 }
 

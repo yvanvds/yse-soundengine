@@ -1,5 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
-
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="yse_static_library">
@@ -184,19 +183,16 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\yse\io\native\directsoundDeviceType.cpp">
+    <ClCompile Include="..\..\..\yse\io\native\directsound\directsoundDevice.cpp">
+      <Filter>yse_static_library\yse\io\native\dontCompile\directsound</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\io\native\directsound\directsoundDeviceType.cpp">
       <Filter>yse_static_library\yse\io\native\dontCompile\directsound</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\yse\io\native\windowsWASAPI.cpp">
       <Filter>yse_static_library\yse\io\native\dontCompile</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\yse\io\native\windowsDirectSound.cpp">
-      <Filter>yse_static_library\yse\io\native\dontCompile</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\yse\io\native\windowsASIO.cpp">
-      <Filter>yse_static_library\yse\io\native\dontCompile</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\yse\io\native\linuxCoreAudio.cpp">
       <Filter>yse_static_library\yse\io\native\dontCompile</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\yse\io\native\linuxJack.cpp">
@@ -237,15 +233,6 @@
     </ClCompile>
     <ClCompile Include="..\..\..\yse\system.cpp">
       <Filter>yse_static_library\yse</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\yse\device\deviceInterface.cpp">
-      <Filter>yse_static_library\yse\device</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\yse\device\deviceManager.cpp">
-      <Filter>yse_static_library\yse\device</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\yse\device\deviceSetup.cpp">
-      <Filter>yse_static_library\yse\device</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\yse\sound\soundImplementation.cpp">
       <Filter>yse_static_library\yse\sound</Filter>
@@ -351,6 +338,9 @@
     </ClCompile>
     <ClCompile Include="..\..\..\yse\internal\virtualFinder.cpp">
       <Filter>yse_static_library\yse\internal</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\utils\misc.cpp">
+      <Filter>yse_static_library\yse\utils</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\yse\utils\flags.cpp">
       <Filter>yse_static_library\yse\utils</Filter>
@@ -458,12 +448,6 @@
       <Filter>Juce Modules\juce_audio_devices\native</Filter>
     </ClCompile>
     <ClCompile Include="..\..\JuceLibraryCode\modules\juce_audio_devices\native\juce_linux_Midi.cpp">
-      <Filter>Juce Modules\juce_audio_devices\native</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\JuceLibraryCode\modules\juce_audio_devices\native\juce_mac_AudioCDBurner.mm">
-      <Filter>Juce Modules\juce_audio_devices\native</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\JuceLibraryCode\modules\juce_audio_devices\native\juce_mac_AudioCDReader.mm">
       <Filter>Juce Modules\juce_audio_devices\native</Filter>
     </ClCompile>
     <ClCompile Include="..\..\JuceLibraryCode\modules\juce_audio_devices\native\juce_mac_CoreAudio.cpp">
@@ -748,21 +732,6 @@
     <ClCompile Include="..\..\JuceLibraryCode\modules\juce_core\native\juce_linux_Threads.cpp">
       <Filter>Juce Modules\juce_core\native</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\JuceLibraryCode\modules\juce_core\native\juce_mac_Files.mm">
-      <Filter>Juce Modules\juce_core\native</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\JuceLibraryCode\modules\juce_core\native\juce_mac_Network.mm">
-      <Filter>Juce Modules\juce_core\native</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\JuceLibraryCode\modules\juce_core\native\juce_mac_Strings.mm">
-      <Filter>Juce Modules\juce_core\native</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\JuceLibraryCode\modules\juce_core\native\juce_mac_SystemStats.mm">
-      <Filter>Juce Modules\juce_core\native</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\JuceLibraryCode\modules\juce_core\native\juce_mac_Threads.mm">
-      <Filter>Juce Modules\juce_core\native</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\JuceLibraryCode\modules\juce_core\native\juce_posix_NamedPipe.cpp">
       <Filter>Juce Modules\juce_core\native</Filter>
     </ClCompile>
@@ -820,13 +789,7 @@
     <ClCompile Include="..\..\JuceLibraryCode\modules\juce_events\native\juce_android_Messaging.cpp">
       <Filter>Juce Modules\juce_events\native</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\JuceLibraryCode\modules\juce_events\native\juce_ios_MessageManager.mm">
-      <Filter>Juce Modules\juce_events\native</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\JuceLibraryCode\modules\juce_events\native\juce_linux_Messaging.cpp">
-      <Filter>Juce Modules\juce_events\native</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\JuceLibraryCode\modules\juce_events\native\juce_mac_MessageManager.mm">
       <Filter>Juce Modules\juce_events\native</Filter>
     </ClCompile>
     <ClCompile Include="..\..\JuceLibraryCode\modules\juce_events\native\juce_win32_Messaging.cpp">
@@ -849,7 +812,10 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\yse\io\native\directsoundDeviceType.h">
+    <ClInclude Include="..\..\..\yse\io\native\directsound\directsoundDevice.h">
+      <Filter>yse_static_library\yse\io\native\dontCompile\directsound</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\io\native\directsound\directsoundDeviceType.h">
       <Filter>yse_static_library\yse\io\native\dontCompile\directsound</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\yse\io\ioDeviceType.h">
@@ -884,18 +850,6 @@
     </ClInclude>
     <ClInclude Include="..\..\..\yse\system.hpp">
       <Filter>yse_static_library\yse</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\yse\device\device.hpp">
-      <Filter>yse_static_library\yse\device</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\yse\device\deviceInterface.hpp">
-      <Filter>yse_static_library\yse\device</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\yse\device\deviceManager.h">
-      <Filter>yse_static_library\yse\device</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\yse\device\deviceSetup.hpp">
-      <Filter>yse_static_library\yse\device</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\yse\sound\sound.hpp">
       <Filter>yse_static_library\yse\sound</Filter>

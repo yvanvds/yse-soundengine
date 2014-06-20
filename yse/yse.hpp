@@ -45,9 +45,6 @@
 #include "sound/soundInterface.hpp"
 #include "reverb/reverb.hpp"
 #include "reverb/reverbInterface.hpp"
-#include "device/device.hpp"
-#include "device/deviceInterface.hpp"
-#include "device/deviceSetup.hpp"
 #include "listener.hpp"
 #include "io.hpp"
 

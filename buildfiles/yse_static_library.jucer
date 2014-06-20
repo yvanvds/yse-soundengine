@@ -9,19 +9,19 @@
         <GROUP id="{2CFFC960-6380-0CD0-460F-7F1EA5EE551D}" name="native">
           <GROUP id="{9DB47CCF-EBF5-CF12-0161-EF250BA9E2E6}" name="dontCompile">
             <GROUP id="{47F3C01A-5356-920D-F6AD-DAAAD19A6D57}" name="directsound">
-              <FILE id="Tdq199" name="directsoundDeviceType.cpp" compile="1" resource="0"
-                    file="../yse/io/native/directsoundDeviceType.cpp"/>
-              <FILE id="ml4ZNW" name="directsoundDeviceType.h" compile="0" resource="0"
-                    file="../yse/io/native/directsoundDeviceType.h"/>
+              <FILE id="JsxSkV" name="directsoundDevice.cpp" compile="0" resource="0"
+                    file="../yse/io/native/directsound/directsoundDevice.cpp"/>
+              <FILE id="kb6SUZ" name="directsoundDevice.h" compile="0" resource="0"
+                    file="../yse/io/native/directsound/directsoundDevice.h"/>
+              <FILE id="UKyJ4g" name="directsoundDeviceType.cpp" compile="0" resource="0"
+                    file="../yse/io/native/directsound/directsoundDeviceType.cpp"/>
+              <FILE id="zI4J1J" name="directsoundDeviceType.h" compile="0" resource="0"
+                    file="../yse/io/native/directsound/directsoundDeviceType.h"/>
             </GROUP>
             <GROUP id="{791E921E-C5F4-EA04-3EA0-16A6AB3CBE73}" name="wasapi"/>
             <FILE id="iNgHsQ" name="windowsWASAPI.cpp" compile="0" resource="0"
                   file="../yse/io/native/windowsWASAPI.cpp"/>
-            <FILE id="Ne9QuS" name="windowsDirectSound.cpp" compile="0" resource="0"
-                  file="../yse/io/native/windowsDirectSound.cpp"/>
             <FILE id="NnLejU" name="windowsASIO.cpp" compile="0" resource="0" file="../yse/io/native/windowsASIO.cpp"/>
-            <FILE id="wbrhSY" name="linuxCoreAudio.cpp" compile="0" resource="0"
-                  file="../yse/io/native/linuxCoreAudio.cpp"/>
             <FILE id="eTiqU1" name="linuxJack.cpp" compile="0" resource="0" file="../yse/io/native/linuxJack.cpp"/>
             <FILE id="ZaiOWA" name="iosAudio.cpp" compile="0" resource="0" file="../yse/io/native/iosAudio.cpp"/>
             <FILE id="UwQsLS" name="linuxALSA.cpp" compile="0" resource="0" file="../yse/io/native/linuxALSA.cpp"/>
@@ -53,18 +53,7 @@
       <FILE id="ulgOWN" name="log.hpp" compile="0" resource="0" file="../yse/log.hpp"/>
       <FILE id="fa96Cr" name="system.cpp" compile="1" resource="0" file="../yse/system.cpp"/>
       <FILE id="zHzuOQ" name="system.hpp" compile="0" resource="0" file="../yse/system.hpp"/>
-      <GROUP id="{F9766342-96F6-6F4B-9B22-5D840831E60E}" name="device">
-        <FILE id="Kqrxcm" name="device.hpp" compile="0" resource="0" file="../yse/device/device.hpp"/>
-        <FILE id="zCyKYU" name="deviceInterface.cpp" compile="1" resource="0"
-              file="../yse/device/deviceInterface.cpp"/>
-        <FILE id="bZMc3y" name="deviceInterface.hpp" compile="0" resource="0"
-              file="../yse/device/deviceInterface.hpp"/>
-        <FILE id="YtBJVp" name="deviceManager.cpp" compile="1" resource="0"
-              file="../yse/device/deviceManager.cpp"/>
-        <FILE id="qoxnau" name="deviceManager.h" compile="0" resource="0" file="../yse/device/deviceManager.h"/>
-        <FILE id="rreYXR" name="deviceSetup.cpp" compile="1" resource="0" file="../yse/device/deviceSetup.cpp"/>
-        <FILE id="I49iYF" name="deviceSetup.hpp" compile="0" resource="0" file="../yse/device/deviceSetup.hpp"/>
-      </GROUP>
+      <GROUP id="{F9766342-96F6-6F4B-9B22-5D840831E60E}" name="device"/>
       <GROUP id="{8A9C3D60-C84A-05BA-9847-B8F2DD4B31CB}" name="sound">
         <FILE id="IIBJWI" name="sound.hpp" compile="0" resource="0" file="../yse/sound/sound.hpp"/>
         <FILE id="kCFYuU" name="soundImplementation.cpp" compile="1" resource="0"
@@ -194,6 +183,7 @@
         <FILE id="IoRzvd" name="virtualFinder.h" compile="0" resource="0" file="../yse/internal/virtualFinder.h"/>
       </GROUP>
       <GROUP id="{C62A333D-9559-3582-6C25-C4ECD6548BB4}" name="utils">
+        <FILE id="Xoql1b" name="misc.cpp" compile="1" resource="0" file="../yse/utils/misc.cpp"/>
         <FILE id="JNmxaQ" name="flags.cpp" compile="1" resource="0" file="../yse/utils/flags.cpp"/>
         <FILE id="BPQTBy" name="flags.hpp" compile="0" resource="0" file="../yse/utils/flags.hpp"/>
         <FILE id="lWofSR" name="atomicOps.hpp" compile="0" resource="0" file="../yse/utils/atomicOps.hpp"/>
@@ -205,7 +195,8 @@
     </GROUP>
   </MAINGROUP>
   <EXPORTFORMATS>
-    <VS2013 targetFolder="Builds/VisualStudio2013" extraDefs="JUCE_CHECK_MEMORY_LEAKS=0">
+    <VS2013 targetFolder="Builds/VisualStudio2013" extraDefs="JUCE_CHECK_MEMORY_LEAKS=0"
+            externalLibraries="dsound">
       <CONFIGURATIONS>
         <CONFIGURATION name="Debug" winWarningLevel="4" generateManifest="1" winArchitecture="32-bit"
                        isDebug="1" optimisation="1" targetName="yse_debug" binaryPath="../bin"

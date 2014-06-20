@@ -201,7 +201,7 @@ namespace YSE {
       friend class SOUND::implementationObject;
       friend class CHANNEL::interfaceObject;
       friend class YSE::REVERB::managerObject;
-      friend class DEVICE::managerObject;
+      friend class IO::ioManager;
       friend class CHANNEL::managerObject;
     };
 

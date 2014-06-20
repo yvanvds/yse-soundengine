@@ -12,6 +12,8 @@
 #define IOCALLBACK_H_INCLUDED
 
 #include <string>
+#include <vector>
+#include "../dsp/sample.hpp"
 
 namespace YSE {
   namespace IO {
@@ -20,7 +22,7 @@ namespace YSE {
     public:
       virtual ~ioCallback() {}
 
-      virtual void onCallback(const float** inputChannelData, int numInputChannels, float** outputChannelData, int numOutputChannels, int numSamples) = 0;
+      virtual void onCallback(const std::vector<AUDIOBUFFER> & inputChannels, std::vector<AUDIOBUFFER> & outputChannels) = 0;
       virtual void onStart() = 0;
       virtual void onStop () = 0;
       virtual void onError(const std::wstring & message) = 0;

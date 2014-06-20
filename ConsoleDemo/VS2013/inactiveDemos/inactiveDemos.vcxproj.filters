@@ -11,6 +11,6 @@
     <ClCompile Include="..\..\source\demo09.cpp" />
     <ClCompile Include="..\..\source\demo10.cpp" />
     <ClCompile Include="..\..\source\demo11.cpp" />
-    <ClCompile Include="..\..\source\demo00.cpp" />
+    <ClCompile Include="..\..\source\demo03.cpp" />
   </ItemGroup>
 </Project>

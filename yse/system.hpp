@@ -36,12 +36,6 @@ namespace YSE {
     */
     reverb & getGlobalReverb();
 
-    // audio device
-    //void	speakerPos(Int  nr, Flt angle);
-    //Int		activeDevice();
-    const std::vector<device> & getDevices();
-    void openDevice(const deviceSetup & object, CHANNEL_TYPE conf = CT_AUTO);
-
     // effects
     //void insideCave(Bool status);
 

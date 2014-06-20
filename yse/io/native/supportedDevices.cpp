@@ -17,6 +17,11 @@
   //#include "wasapi/wasapiDeviceBase.cpp"
   #endif
 
+  #if YSE_DIRECTSOUND
+  #include "directsound/directsoundDeviceType.cpp"
+  #include "directsound/directsoundDevice.cpp"
+  #endif
+
 #elif YSE_LINUX
 
 #if YSE_ALSA

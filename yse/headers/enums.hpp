@@ -13,6 +13,11 @@
 
 namespace YSE {
 
+  enum DEVICETYPE {
+    DIRECTSOUND,
+    WASAPI,
+  };
+
   // basic output configurations
   enum CHANNEL_TYPE {
     CT_AUTO, // will pick stereo when possible

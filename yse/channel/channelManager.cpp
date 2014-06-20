@@ -36,7 +36,7 @@ YSE::CHANNEL::managerObject::~managerObject() {
 
 void YSE::CHANNEL::managerObject::update() {
   // master channel is not in inUse list
-  DEVICE::Manager().getMaster().sync();
+  IO::Manager().getMaster().sync();
   ///////////////////////////////////////////
   // check if there are implementations that need setup
   ///////////////////////////////////////////
@@ -145,7 +145,7 @@ Flt YSE::CHANNEL::managerObject::getOutputAngle(UInt nr) {
 void YSE::CHANNEL::managerObject::setMaster(CHANNEL::implementationObject * impl) {
   impl->objectStatus = OBJECT_CREATED;
   impl->setup();
-  DEVICE::Manager().setMaster(impl);
+  IO::Manager().setMaster(impl);
 }
 
 void YSE::CHANNEL::managerObject::setChannelConf(CHANNEL_TYPE type, Int outputs) {

@@ -23,7 +23,7 @@
 #include "sound/soundManager.h"
 #include "sound/soundMessage.h"
 
-#include "device/deviceManager.h"
+#include "io/ioManager.h"
 
 #include "implementations/listenerImplementation.h"
 #include "implementations/logImplementation.h"

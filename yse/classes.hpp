@@ -15,7 +15,6 @@
 #include "channel/channel.hpp"
 #include "sound/sound.hpp"
 #include "reverb/reverb.hpp"
-#include "device/device.hpp"
 
 namespace YSE {
   // public classes
@@ -88,6 +87,10 @@ namespace YSE {
     class soundFile;
     class time;
     class underWaterEffect;
+  }
+
+  namespace IO {
+    class ioManager;
   }
 }
 

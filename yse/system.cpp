@@ -52,7 +52,11 @@ Bool YSE::system::init() {
     INTERNAL::Global().getLog().emit(E_DEBUG, "COM library initialized");
   }
 #endif
-  if (DEVICE::Manager().init()) {
+  if (IO::Manager().init()) {
+    if (!IO::Manager().isReadyToStart()) {
+      IO::Manager().setDefaultDeviceAsActive();
+      IO::Manager().startDevice();
+    }
     INTERNAL::Global().getLog().emit(E_DEBUG, "YSE System object initialized");
 
     // initialize channels
@@ -80,7 +84,7 @@ void YSE::system::update() {
 void YSE::system::close() {
   if (INTERNAL::Global().active) {
     INTERNAL::Global().active = false;
-    //DEVICE::Manager().close();
+    IO::Manager().stopDevice();
     INTERNAL::Global().close();
   }
 }
@@ -126,7 +130,7 @@ Int YSE::system::maxSounds() {
 }
 
 Flt YSE::system::cpuLoad() {
-  return DEVICE::Manager().cpuLoad();
+  return 0; 
 }
 
 void YSE::system::sleep(UInt ms) {
@@ -139,13 +143,4 @@ void YSE::system::sleep(UInt ms) {
 
 YSE::reverb & YSE::system::getGlobalReverb() {
   return REVERB::Manager().getGlobalReverb();
-}
-
-const std::vector<YSE::DEVICE::interfaceObject> & YSE::system::getDevices() {
-  return DEVICE::Manager().getDeviceList();
-}
-
-void YSE::system::openDevice(const deviceSetup & object, CHANNEL_TYPE conf) {
-  DEVICE::Manager().openDevice(object);
-  CHANNEL::Manager().setChannelConf(conf, object.getOutputChannels());
 }
