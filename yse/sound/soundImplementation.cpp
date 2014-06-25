@@ -377,7 +377,7 @@ void YSE::SOUND::implementationObject::update() {
     else {
       Vec dist = relative ? newPos : newPos - INTERNAL::Global().getListener().newPos;
       if (dist != Vec(0)) {
-        Flt rSound = Dot(vel, dist) / dist.length();
+        Flt rSound = Dot(velocityVec, dist) / dist.length();
         Flt rList = Dot(listenerVelocity, dist) / dist.length();
         vel = 1 - (440 / (((344.0f + rList) / (344.0f + rSound)) * 440));
         vel *= INTERNAL::Settings().dopplerScale;
@@ -396,10 +396,9 @@ void YSE::SOUND::implementationObject::update() {
   Flt a = angle; // avoid using atomic all the time
   Vec dir = relative ? newPos : newPos - INTERNAL::Global().getListener().newPos;
   if (relative) a = -atan2(dir.x, dir.z);
-  else a = (atan2(dir.z, dir.x) - atan2(INTERNAL::Global().getListener().forward.z.load(), INTERNAL::Global().getListener().forward.x.load()));
+  else a = (atan2(dir.x, dir.z) - atan2(INTERNAL::Global().getListener().forward.x.load(), INTERNAL::Global().getListener().forward.z.load()));
   while (a > Pi) a -= Pi2;
   while (a < -Pi) a += Pi2;
-  a = -a;
   angle = a; // back to atomic
 
   ///////////////////////////////////////////

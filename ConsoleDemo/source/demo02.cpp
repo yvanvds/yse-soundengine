@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cstdlib>
+#include <ctime>
 #include "yse.hpp"
 #ifdef WINDOWS
 #include <conio.h>
@@ -30,7 +31,7 @@ int main() {
 
   // load a sound in memory and get a pointer to it
   sound1.create("drone.ogg", NULL, true).play();
-  sound2.create("kick.ogg", NULL, true).play();
+  sound2.create("kick.ogg", NULL, true);// .play();
   reset();
 
   std::cout << "Initial positions (xyz) are:" << std::endl;
@@ -60,6 +61,9 @@ int main() {
     }
 
     YSE::System().sleep(100);
+    //YSE::Vec pos = sound1.getPosition();
+    //pos.x = sin(std::clock() / static_cast<Flt>(CLOCKS_PER_SEC)) * 10;
+    //sound1.setPosition(pos);
     YSE::System().update();
   }
 

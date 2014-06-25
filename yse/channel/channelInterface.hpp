@@ -126,12 +126,12 @@ namespace YSE {
   /**
    Use these functors to get access to the premade channels.
   */
-  channel& ChannelMaster ();
-  channel& ChannelFX     ();
-  channel& ChannelMusic  ();
-  channel& ChannelAmbient();
-  channel& ChannelVoice  ();
-  channel& ChannelGui    ();
+  API channel& ChannelMaster();
+  API channel& ChannelFX();
+  API channel& ChannelMusic();
+  API channel& ChannelAmbient();
+  API channel& ChannelVoice();
+  API channel& ChannelGui();
 }
 
 

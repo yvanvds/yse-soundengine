@@ -198,6 +198,7 @@ namespace YSE {
         tf.d = dphase;
         f1 = addr[0];
         f2 = addr[1];
+
         if (useFrequency) dphase += frequency * conv;
         else	dphase += *inPtr++ * conv;
         addr = tab + (tf.i[HIOFFSET] & (COSTABSIZE - 1));

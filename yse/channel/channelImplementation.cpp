@@ -23,8 +23,10 @@ allowVirtual(true), parent(nullptr)
   INTERNAL::Global().waitForFastJob(this);
 
   if (INTERNAL::Global().isActive()) {
-    parent->disconnect(this);
-    childrenToParent();
+    if (parent != nullptr) {
+      parent->disconnect(this);
+      childrenToParent();
+    }
   }
 
   if (head.load() != nullptr) {

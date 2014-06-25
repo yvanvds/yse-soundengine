@@ -64,6 +64,9 @@ void YSE::INTERNAL::global::close() {
   // first wait for all threads to exit
   slowThreads.removeAllJobs(true, -1);
   fastThreads.removeAllJobs(true, -1);
+  assert(slowThreads.getNumJobs() == 0);
+  assert(fastThreads.getNumJobs() == 0);
+
 
   // remove managers
   listenerImplementation::deleteInstance();

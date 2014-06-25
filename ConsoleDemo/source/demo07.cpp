@@ -63,12 +63,12 @@ void shepard::process(YSE::SOUND_STATUS & intent) {
     out += generators[i](freq[i]);
 
     // adjust frequency for next run
-    freq[i] = YSE::DSP::MidiToFreq(YSE::DSP::FreqToMidi(freq[i]) + 0.01);
+    freq[i] = YSE::DSP::MidiToFreq(YSE::DSP::FreqToMidi(freq[i]) + 0.02);
     // back down at maximum frequency
     if (freq[i] > top) freq[i] = 10;
   }
   // scale output volume
-  out *= 0.2f;
+  out *= 0.1f;
 
   // most DSP object will return a reference to an AUDIOBUFFER.
   AUDIOBUFFER & result = lp(out);

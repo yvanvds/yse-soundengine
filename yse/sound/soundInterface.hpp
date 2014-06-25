@@ -39,6 +39,10 @@ namespace YSE {
       interfaceObject();
       ~interfaceObject();
 
+      // Sound interfaces cannot be copied. The implementation needs access to the 
+      // interface object. To do this, the address of the interface must not change.
+      interfaceObject(const interfaceObject&) = delete;
+
       /** Create a filebased sound and register it with the soundsystem. Other functions will not work
           as long as a sound hasn't been created. In debug mode, an assertion will be called if
           you try to do so. On the other hand, create cannot be called twice. If you need
