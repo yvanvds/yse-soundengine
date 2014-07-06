@@ -131,12 +131,31 @@ void YSE::CHANNEL::implementationObject::attachUnderWaterFX() {
 
 void YSE::CHANNEL::implementationObject::setup() {
   if (objectStatus >= OBJECT_CREATED) {
+    if (objectStatus == OBJECT_READY) return;
+
     out.resize(CHANNEL::Manager().getNumberOfOutputs());
     outConf.resize(CHANNEL::Manager().getNumberOfOutputs());
     for (UInt i = 0; i < CHANNEL::Manager().getNumberOfOutputs(); i++) {
       outConf[i].angle = CHANNEL::Manager().getOutputAngle(i);
     }
     objectStatus = OBJECT_SETUP;
+  }
+}
+
+void YSE::CHANNEL::implementationObject::resize(bool deep) {
+  out.resize(CHANNEL::Manager().getNumberOfOutputs());
+  outConf.resize(CHANNEL::Manager().getNumberOfOutputs());
+  for (UInt i = 0; i < CHANNEL::Manager().getNumberOfOutputs(); i++) {
+    outConf[i].angle = CHANNEL::Manager().getOutputAngle(i);
+  }
+  if (deep) {
+    for (auto i = children.begin(); i != children.end(); ++i) {
+      (*i)->resize(true);
+    }
+
+    for (auto i = sounds.begin(); i != sounds.end(); ++i) {
+      (*i)->resize();
+    }
   }
 }
 

@@ -49,6 +49,15 @@ namespace YSE {
       */
       void setup();
 
+      /** This function resizes some containers to the number of output channels used
+          by the current device.
+
+          @param deep If true, children will also be resized
+
+      */
+      void resize(bool deep = false);
+
+
       /** This function is called by channelManager::update (from dsp callback) and verifies
       if the channel is ready to be played. It will then be moved from toCreate
       to inUse.

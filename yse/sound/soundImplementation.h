@@ -108,6 +108,11 @@ namespace YSE {
       */
       void setup();
 
+      /** This function resizes internal containers to the number of channels used by
+          the current device
+      */
+      void resize();
+
       /** This function is called by soundManager::update (from dsp callback) and verifies
           if the sound is ready to be played. It will then be moved from soundsToLoad
           to soundsInUse. 

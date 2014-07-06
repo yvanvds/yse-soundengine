@@ -56,6 +56,7 @@ int main() {
         if (choice < list.size()) {
           YSE::deviceSetup setup;
           setup.setOutput(list[choice]);
+          YSE::System().closeCurrentDevice();
           YSE::System().openDevice(setup);
         }
       }

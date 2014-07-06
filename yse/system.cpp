@@ -148,4 +148,9 @@ const std::vector<YSE::DEVICE::interfaceObject> & YSE::system::getDevices() {
 void YSE::system::openDevice(const deviceSetup & object, CHANNEL_TYPE conf) {
   DEVICE::Manager().openDevice(object);
   CHANNEL::Manager().setChannelConf(conf, object.getOutputChannels());
+
+}
+
+void YSE::system::closeCurrentDevice() {
+  DEVICE::Manager().close();
 }

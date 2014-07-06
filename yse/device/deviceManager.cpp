@@ -41,6 +41,9 @@ Bool YSE::DEVICE::managerObject::init() {
 }
 
 void YSE::DEVICE::managerObject::openDevice(const YSE::DEVICE::setupObject & object) {
+  // device should be closed at this point
+  jassert(open == false);
+  
   // transform this to a juce setup object
   AudioDeviceManager::AudioDeviceSetup setup;
   int inputChannels = 0;
@@ -68,13 +71,16 @@ void YSE::DEVICE::managerObject::openDevice(const YSE::DEVICE::setupObject & obj
     // default device is chosen.
     // Should we inform the user?
   }
+  audioDeviceManager.addAudioCallback(this);
+  open = true;
 }
 
 void YSE::DEVICE::managerObject::close() {
   if (open) {
-    audioDeviceManager.removeAudioCallback(this);
-    audioDeviceManager.closeAudioDevice();
     open = false;
+    audioDeviceManager.removeAudioCallback(this);
+    ScopedLock lock(audioDeviceManager.getAudioCallbackLock());
+    audioDeviceManager.closeAudioDevice();    
   }
 }
 
@@ -95,7 +101,7 @@ void YSE::DEVICE::managerObject::audioDeviceIOCallback(const float ** inputChann
   float ** outputChannelData,
   int      numOutputChannels,
   int      numSamples) {
-  
+  if (!open) return;
   if (master == nullptr) return;  
 
   if (INTERNAL::Global().needsUpdate()) {
@@ -118,7 +124,7 @@ void YSE::DEVICE::managerObject::audioDeviceIOCallback(const float ** inputChann
   */
   if (CHANNEL::Manager().getNumberOfOutputs() != master->out.size()) {
     CHANNEL::Manager().changeChannelConf();
-    master->setup();
+    master->resize(true);
   }
 
   UInt pos = 0;

@@ -177,27 +177,19 @@ void YSE::SOUND::implementationObject::setup() {
 
     if (source_dsp != nullptr) {
       // dsp source sounds are a special case because there's no file involved
-      lastGain.resize(CHANNEL::Manager().getNumberOfOutputs());
-      for (UInt i = 0; i < lastGain.size(); i++) {
-        lastGain[i].resize(buffer->size(), 0.0f);
-      }
+      resize();
     }
     else if (streaming) {
       // streaming sounds do not have to wait until loaded
-      lastGain.resize(CHANNEL::Manager().getNumberOfOutputs());
       head.load()->length = file->length();
-      for (UInt i = 0; i < lastGain.size(); i++) {
-        lastGain[i].resize(buffer->size(), 0.0f);
-      }
+      resize();
+      
     } else if (file->getState() == INTERNAL::FILESTATE::READY) {
       // file is ready!
       filebuffer.resize(file->channels());
       buffer = &filebuffer;
-      lastGain.resize(CHANNEL::Manager().getNumberOfOutputs());
       head.load()->length = file->length();
-      for (UInt i = 0; i < lastGain.size(); i++) {
-        lastGain[i].resize(buffer->size(), 0.0f);
-      }
+      resize();
     }
     else if (file->getState() == INTERNAL::FILESTATE::INVALID) {
       objectStatus = OBJECT_DELETE;
@@ -205,6 +197,13 @@ void YSE::SOUND::implementationObject::setup() {
     }
   }
   objectStatus = OBJECT_SETUP;
+}
+
+void YSE::SOUND::implementationObject::resize() {
+  lastGain.resize(CHANNEL::Manager().getNumberOfOutputs());
+  for (UInt i = 0; i < lastGain.size(); i++) {
+    lastGain[i].resize(buffer->size(), 0.0f);
+  }
 }
 
 Bool YSE::SOUND::implementationObject::readyCheck() {
