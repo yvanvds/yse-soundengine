@@ -4,6 +4,7 @@
               bundleIdentifier="com.yourcompany.yse_static_library" includeBinaryInAppConfig="1"
               jucerVersion="3.1.0">
   <MAINGROUP id="JLmmWK" name="yse_static_library">
+    <FILE id="ofO3LE" name="speaker.png" compile="0" resource="1" file="../bin/speaker.png"/>
     <GROUP id="{DAF363ED-A43B-6DFC-2214-7863A037768A}" name="yse">
       <FILE id="rLkiqs" name="io.cpp" compile="1" resource="0" file="../yse/io.cpp"/>
       <FILE id="peHm6K" name="io.h" compile="0" resource="0" file="../yse/io.h"/>
@@ -161,7 +162,8 @@
     </GROUP>
   </MAINGROUP>
   <EXPORTFORMATS>
-    <VS2013 targetFolder="Builds/VisualStudio2013" extraDefs="JUCE_CHECK_MEMORY_LEAKS=0">
+    <VS2013 targetFolder="Builds/VisualStudio2013" extraDefs="JUCE_CHECK_MEMORY_LEAKS=0&#10;"
+            extraCompilerFlags="">
       <CONFIGURATIONS>
         <CONFIGURATION name="Debug" winWarningLevel="4" generateManifest="1" winArchitecture="32-bit"
                        isDebug="1" optimisation="1" targetName="yse_debug" binaryPath="../bin"
@@ -178,6 +180,26 @@
         <MODULEPATH id="juce_events" path="../../juce/modules"/>
       </MODULEPATHS>
     </VS2013>
+    <ANDROID targetFolder="Builds/Android" androidActivityClass="com.mute.yse_static"
+             androidSDKPath="${user.home}/SDKs/android-sdk" androidNDKPath="${user.home}/SDKs/android-ndk"
+             androidMinimumSDK="9" androidInternetNeeded="0" androidKeyStore="${user.home}/.android/debug.keystore"
+             androidKeyStorePass="android" androidKeyAlias="androiddebugkey"
+             androidKeyAliasPass="android" androidCpp11="1" extraDefs="JUCE_CHECK_MEMORY_LEAKS=0&#10;"
+             smallIcon="ofO3LE" bigIcon="ofO3LE">
+      <CONFIGURATIONS>
+        <CONFIGURATION name="Debug" androidArchitectures="armeabi armeabi-v7a x86" isDebug="1"
+                       optimisation="1" targetName="yse_static"/>
+        <CONFIGURATION name="Release" androidArchitectures="armeabi armeabi-v7a x86"
+                       isDebug="0" optimisation="3" targetName="yse_static"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_events" path="../../juce/modules"/>
+        <MODULEPATH id="juce_core" path="../../juce"/>
+        <MODULEPATH id="juce_audio_formats" path="../../juce"/>
+        <MODULEPATH id="juce_audio_devices" path="../../juce"/>
+        <MODULEPATH id="juce_audio_basics" path="../../juce"/>
+      </MODULEPATHS>
+    </ANDROID>
   </EXPORTFORMATS>
   <MODULES>
     <MODULES id="juce_audio_basics" showAllCode="1" useLocalCopy="1"/>
@@ -186,5 +208,6 @@
     <MODULES id="juce_core" showAllCode="1" useLocalCopy="1"/>
     <MODULES id="juce_events" showAllCode="1" useLocalCopy="1"/>
   </MODULES>
-  <JUCEOPTIONS/>
+  <JUCEOPTIONS JUCE_USE_ANDROID_OPENSLES="enabled" JUCE_USE_CDREADER="disabled"
+               JUCE_USE_CDBURNER="disabled"/>
 </JUCERPROJECT>
