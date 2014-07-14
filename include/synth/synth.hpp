@@ -1,15 +1,15 @@
 /*
   ==============================================================================
 
-    channel.h
-    Created: 23 Mar 2014 11:50:29am
+    synth.hpp
+    Created: 6 Jul 2014 10:02:25pm
     Author:  yvan
 
   ==============================================================================
 */
 
-#ifndef CHANNEL_H_INCLUDED
-#define CHANNEL_H_INCLUDED
+#ifndef SYNTH_HPP_INCLUDED
+#define SYNTH_HPP_INCLUDED
 
 namespace YSE {
   /** Every subSystem consists out of several class which are meant to work together.
@@ -19,25 +19,30 @@ namespace YSE {
   classes need to know about each other, we create a struct like below to pass it as
   a kind of lookup to very template.
   */
-  namespace CHANNEL {
+  namespace SYNTH {
     class interfaceObject;
     class implementationObject;
     class messageObject;
     class managerObject;
     enum MESSAGE {
-      VOLUME,
-      MOVE,
-      VIRTUAL,
-      ATTACH_REVERB,
+      NOTE_ON,
+      NOTE_OFF,
+      ALL_NOTES_OFF,
+      PITCH_WHEEL,
+      CONTROLLER,
+      AFTERTOUCH,
+      SUSTAIN,
+      SOSTENUTO,
+      SOFTPEDAL,
     };
   }
 
   // the interface itself gets a more generic name, so that users can just
-  // define a 'channel' to get an interface object.
-  typedef CHANNEL::interfaceObject channel;
+  // define a 'synth' to get an interface object.
+  typedef SYNTH::interfaceObject synth;
 }
 
 
 
 
-#endif  // CHANNEL_H_INCLUDED
+#endif  // SYNTH_HPP_INCLUDED

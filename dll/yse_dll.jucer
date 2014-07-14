@@ -6,6 +6,44 @@
   <MAINGROUP id="c8Cr7r" name="yse_dll">
     <FILE id="AEWIIg" name="speaker.png" compile="0" resource="1" file="../bin/speaker.png"/>
     <GROUP id="{C1464C78-202C-BC41-481A-C05656427973}" name="yse">
+      <GROUP id="{84B50A00-B249-CD42-D4E3-11996D70BF92}" name="midi">
+        <FILE id="TrkjWE" name="midifileManager.cpp" compile="1" resource="0"
+              file="../yse/midi/midifileManager.cpp"/>
+        <FILE id="ossPd3" name="midifileManager.h" compile="0" resource="0"
+              file="../yse/midi/midifileManager.h"/>
+        <FILE id="Rkg3tZ" name="midifileImplementation.cpp" compile="1" resource="0"
+              file="../yse/midi/midifileImplementation.cpp"/>
+        <FILE id="JBVoXH" name="midifileImplementation.h" compile="0" resource="0"
+              file="../yse/midi/midifileImplementation.h"/>
+        <FILE id="zSxQO3" name="midifile.cpp" compile="1" resource="0" file="../yse/midi/midifile.cpp"/>
+        <FILE id="mtqNm6" name="midifile.hpp" compile="0" resource="0" file="../yse/midi/midifile.hpp"/>
+      </GROUP>
+      <GROUP id="{2246ACDE-89AD-5820-0A45-801C42885478}" name="synth">
+        <FILE id="J6uQWR" name="dspVoiceInternal.cpp" compile="1" resource="0"
+              file="../yse/synth/dspVoiceInternal.cpp"/>
+        <FILE id="WuB8U2" name="dspVoiceInternal.h" compile="0" resource="0"
+              file="../yse/synth/dspVoiceInternal.h"/>
+        <FILE id="EdYpSH" name="dspVoice.cpp" compile="1" resource="0" file="../yse/synth/dspVoice.cpp"/>
+        <FILE id="uzHnCr" name="dspVoice.hpp" compile="0" resource="0" file="../yse/synth/dspVoice.hpp"/>
+        <FILE id="JRDe5v" name="dspSound.cpp" compile="1" resource="0" file="../yse/synth/dspSound.cpp"/>
+        <FILE id="wmEXgN" name="dspSound.h" compile="0" resource="0" file="../yse/synth/dspSound.h"/>
+        <FILE id="C0iDlu" name="synthMessage.h" compile="0" resource="0" file="../yse/synth/synthMessage.h"/>
+        <FILE id="fotAJL" name="samplerSound.cpp" compile="1" resource="0"
+              file="../yse/synth/samplerSound.cpp"/>
+        <FILE id="HYdN1I" name="samplerSound.h" compile="0" resource="0" file="../yse/synth/samplerSound.h"/>
+        <FILE id="IkHY0r" name="synth.hpp" compile="0" resource="0" file="../yse/synth/synth.hpp"/>
+        <FILE id="nOFXoR" name="synthInterface.cpp" compile="1" resource="0"
+              file="../yse/synth/synthInterface.cpp"/>
+        <FILE id="saH91B" name="synthInterface.hpp" compile="0" resource="0"
+              file="../yse/synth/synthInterface.hpp"/>
+        <FILE id="fmDTpT" name="synthManager.cpp" compile="1" resource="0"
+              file="../yse/synth/synthManager.cpp"/>
+        <FILE id="aAlEGA" name="synthManager.h" compile="0" resource="0" file="../yse/synth/synthManager.h"/>
+        <FILE id="Zduosq" name="synthImplementation.cpp" compile="1" resource="0"
+              file="../yse/synth/synthImplementation.cpp"/>
+        <FILE id="IVfOBs" name="synthImplementation.h" compile="0" resource="0"
+              file="../yse/synth/synthImplementation.h"/>
+      </GROUP>
       <GROUP id="{C8B1AD0B-DE81-0F54-E6DE-072D9E8E3FA2}" name="channel">
         <FILE id="WfQT0f" name="channel.hpp" compile="0" resource="0" file="../yse/channel/channel.hpp"/>
         <FILE id="z1yGO4" name="channelImplementation.cpp" compile="1" resource="0"

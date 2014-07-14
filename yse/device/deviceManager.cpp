@@ -10,6 +10,7 @@
 
 #include "../internalHeaders.h"
 
+UInt YSE::SAMPLERATE = 44100;
 
 YSE::DEVICE::managerObject & YSE::DEVICE::Manager() {
   static managerObject d;
@@ -25,13 +26,17 @@ YSE::DEVICE::managerObject::managerObject() : initialized(false), open(false),
 
 Bool YSE::DEVICE::managerObject::init() {
   if (!initialized) {
-    _lastError = audioDeviceManager.initialise(0, 2, nullptr, true);
+    AudioDeviceManager::AudioDeviceSetup setup;
+    setup.sampleRate = 44100;
+    setup.bufferSize = STANDARD_BUFFERSIZE;
+
+    _lastError = audioDeviceManager.initialise(0, 2, nullptr, true, "", &setup);
     if (_lastError.isNotEmpty()) {
       jassertfalse
       return false;
     }
     initialized = true;
-
+    SAMPLERATE = static_cast<UInt>(audioDeviceManager.getCurrentAudioDevice()->getCurrentSampleRate());
     if (!open) {
       audioDeviceManager.addAudioCallback(this);
       open = true;
@@ -71,6 +76,8 @@ void YSE::DEVICE::managerObject::openDevice(const YSE::DEVICE::setupObject & obj
     // default device is chosen.
     // Should we inform the user?
   }
+  
+  SAMPLERATE = static_cast<UInt>(audioDeviceManager.getCurrentAudioDevice()->getCurrentSampleRate());
   audioDeviceManager.addAudioCallback(this);
   open = true;
 }
@@ -111,9 +118,14 @@ void YSE::DEVICE::managerObject::audioDeviceIOCallback(const float ** inputChann
     SOUND::Manager().update();
     CHANNEL::Manager().update();
     REVERB::Manager().update();
+    MIDI::Manager().update();
     // TODO: check if we still have to release sounds (see old code)
     INTERNAL::Global().updateDone();
   }
+
+  // synth manager updates all the time, because midi messages might come in
+  // between two buffer updates and should have the least latency possible
+  SYNTH::Manager().update();
 
   if (SOUND::Manager().empty()) return;
   

@@ -16,7 +16,7 @@
 namespace YSE {
   const UInt STANDARD_BUFFERSIZE = 1024;
   const UInt STREAM_BUFFERSIZE = 44100;
-  const UInt SAMPLERATE = 44100;
+  extern UInt SAMPLERATE; // this used to be a constant. It is now declared in devicemanager
 }
   
   

@@ -60,6 +60,8 @@ namespace YSE {
 
       Bool create(DSP::dspSourceObject & ptr, CHANNEL::interfaceObject * ch, Flt volume);
 
+      Bool create(SYNTH::implementationObject * ptr, CHANNEL::interfaceObject * ch, Flt volume);
+
       /** Initialize some settings for the sound after creation.
           @param head       Passes a pointer to the actual sound object (created by the user)
                             to this implementation. Implementations will be deleted when this
@@ -230,6 +232,9 @@ namespace YSE {
    
       UInt startOffset;
       UInt stopOffset;
+
+      // synth
+      SYNTH::implementationObject * synth;
 
       // info 
       Bool streaming;

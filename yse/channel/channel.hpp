@@ -33,7 +33,7 @@ namespace YSE {
   }
 
   // the interface itself gets a more generic name, so that users can just
-  // define a 'reverb' to get an interface object.
+  // define a 'channel' to get an interface object.
   typedef CHANNEL::interfaceObject channel;
 }
 

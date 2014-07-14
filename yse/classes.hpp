@@ -16,6 +16,7 @@
 #include "sound/sound.hpp"
 #include "reverb/reverb.hpp"
 #include "device/device.hpp"
+#include "synth/synth.hpp"
 
 namespace YSE {
   // public classes

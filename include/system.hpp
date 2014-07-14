@@ -40,6 +40,7 @@ namespace YSE {
     //Int		activeDevice();
     const std::vector<device> & getDevices();
     void openDevice(const deviceSetup & object, CHANNEL_TYPE conf = CT_AUTO);
+    void closeCurrentDevice();
 
     // effects
     //void insideCave(Bool status);

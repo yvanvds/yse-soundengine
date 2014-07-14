@@ -51,6 +51,7 @@ namespace YSE {
       AUDIOBUFFER & operator()(Flt frequency, UInt length = STANDARD_BUFFERSIZE);
       AUDIOBUFFER & operator()(AUDIOBUFFER & in);
       sine();
+      void reset(); // set the phase back to zero 
 
     private:
       sample buffer;

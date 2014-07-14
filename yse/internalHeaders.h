@@ -23,6 +23,13 @@
 #include "sound/soundManager.h"
 #include "sound/soundMessage.h"
 
+#include "synth/synthImplementation.h"
+#include "synth/synthManager.h"
+#include "synth/synthMessage.h"
+
+#include "midi/midifileImplementation.h"
+#include "midi/midifileManager.h"
+
 #include "device/deviceManager.h"
 
 #include "implementations/listenerImplementation.h"

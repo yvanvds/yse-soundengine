@@ -9,6 +9,7 @@
 */
 
 #include "../internalHeaders.h"
+#include "../synth/synthInterface.hpp"
 
 YSE::SOUND::interfaceObject::interfaceObject() :
   pimpl(nullptr), dsp(nullptr),
@@ -47,6 +48,15 @@ YSE::sound& YSE::sound::create(DSP::dspSourceObject & dsp, channel * ch, Flt vol
   pimpl->create(dsp, ch, volume);
   SOUND::Manager().setup(pimpl);
 
+  return *this;
+}
+
+YSE::sound& YSE::sound::create(SYNTH::interfaceObject & synth, channel *ch, Flt volume) {
+  assert(pimpl == nullptr);
+  pimpl = SOUND::Manager().addImplementation(this);
+  if (ch == nullptr) ch = &CHANNEL::Manager().master();
+  pimpl->create(synth.pimpl, ch, volume);
+  SOUND::Manager().setup(pimpl);
   return *this;
 }
 

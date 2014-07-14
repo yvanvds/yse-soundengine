@@ -152,6 +152,11 @@ namespace YSE {
 
     sine::sine() : phase(0), conv(0) {}
 
+    void sine::reset() {
+      phase = 0;
+      conv = 0;
+    }
+
     AUDIOBUFFER & sine::operator()(AUDIOBUFFER & in) {
       if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
 

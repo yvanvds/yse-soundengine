@@ -18,6 +18,7 @@ YSE::SOUND::implementationObject::implementationObject(interfaceObject * head) :
   looping(false),
   spread(0),
   source_dsp(nullptr),
+  synth(nullptr),
   post_dsp(nullptr),
   _setPostDSP(false),
   _postDspPtr(nullptr),
@@ -139,6 +140,18 @@ bool YSE::SOUND::implementationObject::create(DSP::dspSourceObject & ptr, CHANNE
   return true;
 }
 
+bool YSE::SOUND::implementationObject::create(SYNTH::implementationObject * ptr, CHANNEL::interfaceObject * ch, Flt volume) {
+  parent = ch->pimpl;
+  looping = false;
+  fader.set(volume);
+  status_dsp = SS_STOPPED;
+  status_upd = SS_STOPPED;
+
+  synth = ptr;
+  buffer = &ptr->buffer;
+  return true;
+}
+
 #if defined PUBLIC_JUCE
 bool YSE::SOUND::implementationObject::create(juce::InputStream * source, CHANNEL::interfaceObject * ch, Bool loop, Flt volume, Bool streaming) {
   parent = ch->pimpl;
@@ -175,7 +188,7 @@ void YSE::SOUND::implementationObject::setup() {
     // if object is ready and head is not null, just return
     if (objectStatus == OBJECT_READY) return;
 
-    if (source_dsp != nullptr) {
+    if (source_dsp != nullptr || synth != nullptr) {
       // dsp source sounds are a special case because there's no file involved
       resize();
     }
@@ -468,7 +481,10 @@ Bool YSE::SOUND::implementationObject::dsp() {
   ///////////////////////////////////////////
   if (source_dsp != nullptr) {
     source_dsp->process(status_dsp);
-  } else 
+  }
+  else if (synth != nullptr) {
+    synth->process(status_dsp);
+  } else
   if (file->read(filebuffer, filePtr, STANDARD_BUFFERSIZE, pitch + velocity, looping, status_dsp, bufferVolume) == false) {
     // non looping sound has reached end of file
     /*filePtr = 0;
