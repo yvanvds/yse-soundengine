@@ -18,6 +18,7 @@
 #include "../headers/enums.hpp"
 #include "customFileReader.h"
 #include <forward_list>
+#include "threadPool.h"
 
 namespace YSE {
 
@@ -30,11 +31,11 @@ namespace YSE {
       INVALID,  // don't access from within the audio callback!
     };
 
-    class soundFile : public ThreadPoolJob {
+    class soundFile : public threadPoolJob {
     public:
 
       Bool create(Bool stream = false);
-      JobStatus runJob(); // load from disk
+      virtual void run(); // load from disk
 
       Bool read(std::vector<DSP::sample> & filebuffer, Flt& pos, UInt length, Flt speed, Bool loop, SOUND_STATUS & intent, Flt & volume);
 

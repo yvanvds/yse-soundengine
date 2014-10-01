@@ -11,11 +11,11 @@
 #ifndef REVERBMANAGER_H_INCLUDED
 #define REVERBMANAGER_H_INCLUDED
 
-#include "JuceHeader.h"
 #include "reverb.hpp"
 #include "reverbInterface.hpp"
 #include "reverbImplementation.h"
 #include "reverbMessage.h"
+#include "../internal/threadPool.h"
 
 namespace YSE {
   namespace REVERB {
@@ -26,7 +26,7 @@ namespace YSE {
       /** A job to add to the lowpriority threadpool when there are implementationObjects
       to be deleted
       */
-      class deleteJob : public ThreadPoolJob {
+      class deleteJob : public INTERNAL::threadPoolJob {
       public:
 
         /** The job will be initialized with a name for debug purposes and a pointer
@@ -34,14 +34,13 @@ namespace YSE {
         care of adding this job to a low priority threadpool every time it sees
         that there are implementationObjects that need to be deleted.
         */
-        deleteJob(const String & name, managerObject * obj)
-          : ThreadPoolJob(name), obj(obj) {
+        deleteJob(managerObject * obj)
+          : obj(obj) {
 
         }
 
-        JobStatus runJob() {
+        virtual void run() {
           obj->implementations.remove_if(implementationObject::canBeDeleted);
-          return jobHasFinished;
         }
 
       private:

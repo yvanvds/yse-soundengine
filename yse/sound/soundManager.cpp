@@ -20,16 +20,16 @@ YSE::SOUND::managerObject & YSE::SOUND::Manager() {
 
 
 YSE::SOUND::managerObject::managerObject() 
-  : mgrSetup("soundManagerSetup", this),
-    mgrDelete("soundManagerDelete", this) {
+  : mgrSetup(this),
+    mgrDelete(this) {
   formatManager.registerBasicFormats();
 }
 
 YSE::SOUND::managerObject::~managerObject() {
   
   // wait for jobs to finish
-  INTERNAL::Global().waitForSlowJob(&mgrSetup);
-  INTERNAL::Global().waitForSlowJob(&mgrDelete);
+  mgrSetup.join();
+  mgrDelete.join();
 
   // remove all objects that are still in memory
   toLoad.clear();
@@ -118,7 +118,7 @@ void YSE::SOUND::managerObject::update() {
   for (auto i = soundFiles.begin(); i != soundFiles.end(); ) {
     
     // don't handle files currently in the thread pool
-    if (INTERNAL::Global().containsSlowJob(&(*i))) {
+    if (i->isQueued()) {
       iMinus = i;
       ++i;
       continue;
@@ -139,14 +139,14 @@ void YSE::SOUND::managerObject::update() {
   ///////////////////////////////////////////
   // check if there are implementations that need setup
   ///////////////////////////////////////////
-  if (!toLoad.empty() && !INTERNAL::Global().containsSlowJob(&mgrSetup)) {
+  if (!toLoad.empty() && !mgrSetup.isQueued()) {
     // removing cannot be done in a separate thread because we are iterating over this
     // list a during this update fuction
     toLoad.remove_if(implementationObject::canBeRemovedFromLoading);
     INTERNAL::Global().addSlowJob(&mgrSetup);
   }
 
-  if (runDelete && !INTERNAL::Global().containsSlowJob(&mgrDelete)) {
+  if (runDelete && !mgrDelete.isQueued()) {
     INTERNAL::Global().addSlowJob(&mgrDelete);
   }
   runDelete = false;

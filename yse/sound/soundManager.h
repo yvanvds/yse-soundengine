@@ -18,6 +18,7 @@
 #include "soundInterface.hpp"
 #include "soundImplementation.h"
 #include "../internal/soundFile.h"
+#include "../internal/threadPool.h"
 
 
 // global object for file loading
@@ -40,7 +41,7 @@ namespace YSE {
       /** A job to add to the lowpriority threadpool when there are implementationObjects
       that need to be setup.
       */
-      class setupJob : public ThreadPoolJob {
+      class setupJob : public INTERNAL::threadPoolJob {
       public:
 
         /** The job will be initialized with a name for debug purposes and a pointer
@@ -48,19 +49,18 @@ namespace YSE {
         care of adding this job to a low priority threadpool every time it sees
         that there are implementationObjects that need to be set up.
         */
-        setupJob(const String & name, managerObject * obj)
-          : ThreadPoolJob(name), obj(obj) {
+        setupJob(managerObject * obj)
+          : obj(obj) {
 
         }
 
         /** This function is called from the threadpool and does the intented work
         (Which is called the setup function of the objects that need to be loaded)
         */
-        JobStatus runJob() {
+        virtual void run() {
           for (auto i = obj->toLoad.begin(); i != obj->toLoad.end(); ++i) {
             i->load()->setup();
           }
-          return jobHasFinished;
         }
 
       private:
@@ -73,7 +73,7 @@ namespace YSE {
       /** A job to add to the lowpriority threadpool when there are implementationObjects
       to be deleted
       */
-      class deleteJob : public ThreadPoolJob {
+      class deleteJob : public INTERNAL::threadPoolJob {
       public:
 
 
@@ -83,14 +83,13 @@ namespace YSE {
         care of adding this job to a low priority threadpool every time it sees
         that there are implementationObjects that need to be deleted.
         */
-        deleteJob(const String & name, managerObject * obj)
-          : ThreadPoolJob(name), obj(obj) {
+        deleteJob(managerObject * obj)
+          : obj(obj) {
 
         }
 
-        JobStatus runJob() {
+        virtual void run() {
           obj->implementations.remove_if(implementationObject::canBeDeleted);
-          return jobHasFinished;
         }
 
       private:

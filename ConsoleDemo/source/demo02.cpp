@@ -2,7 +2,7 @@
 #include <cstdlib>
 #include <ctime>
 #include "yse.hpp"
-#ifdef WINDOWS
+#ifdef YSE_WINDOWS
 #include <conio.h>
 #else
 #include "wincompat.h"
@@ -31,7 +31,7 @@ int main() {
 
   // load a sound in memory and get a pointer to it
   sound1.create("drone.ogg", NULL, true).play();
-  sound2.create("kick.ogg", NULL, true);// .play();
+  sound2.create("kick.ogg", NULL, true).play();
   reset();
 
   std::cout << "Initial positions (xyz) are:" << std::endl;

@@ -17,15 +17,15 @@ YSE::CHANNEL::managerObject & YSE::CHANNEL::Manager() {
 }
 
 YSE::CHANNEL::managerObject::managerObject() 
-: mgrSetup("channelManagerSetup", this), 
-  mgrDelete("channelManagerDelete", this), 
+: mgrSetup( this), 
+  mgrDelete(this), 
   outputChannels(0), 
   outputAngles(nullptr) {}
 
 YSE::CHANNEL::managerObject::~managerObject() {
   // wait for jobs to finish
-  INTERNAL::Global().waitForSlowJob(&mgrSetup);
-  INTERNAL::Global().waitForSlowJob(&mgrDelete);
+  mgrSetup.join();
+  mgrDelete.join();
 
   // remove all objects that are still in memory
   toLoad.clear();
@@ -40,14 +40,14 @@ void YSE::CHANNEL::managerObject::update() {
   ///////////////////////////////////////////
   // check if there are implementations that need setup
   ///////////////////////////////////////////
-  if (!toLoad.empty() && !INTERNAL::Global().containsSlowJob(&mgrSetup)) {
+  if (!toLoad.empty() && !mgrSetup.isQueued()) {
     // removing cannot be done in a separate thread because we are iterating over this
     // list a during this update fuction
     toLoad.remove_if(implementationObject::canBeRemovedFromLoading);
     INTERNAL::Global().addSlowJob(&mgrSetup);
   }
 
-  if (runDelete && !INTERNAL::Global().containsSlowJob(&mgrDelete)) {
+  if (runDelete && !mgrDelete.isQueued()) {
     INTERNAL::Global().addSlowJob(&mgrDelete);
   }
   runDelete = false;

@@ -15,6 +15,7 @@
 #include "JuceHeader.h"
 #include "../classes.hpp"
 #include "../utils/lfQueue.hpp"
+#include "../internal/threadPool.h"
 
 namespace YSE {
   namespace CHANNEL {
@@ -23,7 +24,7 @@ namespace YSE {
     /**
       This is the implementation side of a channel. It should only be used internally.
     */
-    class implementationObject : public ThreadPoolJob {
+    class implementationObject : public INTERNAL::threadPoolJob {
     public:
 
       //////////////////////////////////////////////////
@@ -133,7 +134,7 @@ namespace YSE {
         This will scale all sounds nicely over several cpu's as long as you don't
         put them all in one channel.
       */
-      JobStatus runJob(); 
+      virtual void run(); 
 
       /**
         This is the one that does all the work. It allso calls the dsp function

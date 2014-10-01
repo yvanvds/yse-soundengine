@@ -24,7 +24,7 @@ Bool YSE::INTERNAL::soundFile::create(Bool stream) {
   return true;
 }
 
-ThreadPoolJob::JobStatus YSE::INTERNAL::soundFile::runJob() {
+void YSE::INTERNAL::soundFile::run() {
   if (_streaming) {
     if (source == nullptr) {
       if (IO().getActive()) {
@@ -49,12 +49,12 @@ ThreadPoolJob::JobStatus YSE::INTERNAL::soundFile::runJob() {
       fillStream(false);
       // file is ready for use now
       state = READY;
-      return jobHasFinished;
+      return;
     }
     else {
       Global().getLog().emit(E_FILEREADER, "Unable to read " + file.getFullPathName().toStdString());
       state = INVALID;
-      return jobHasFinished;
+      return;
     }
   }
 
@@ -84,12 +84,12 @@ ThreadPoolJob::JobStatus YSE::INTERNAL::soundFile::runJob() {
     _length = _buffer.getNumSamples();
     // file is ready for use now
     state = READY;
-    return jobHasFinished;
+    return;
   }
   else {
     Global().getLog().emit(E_FILEREADER, "Unable to read " + file.getFullPathName().toStdString());
     state = INVALID;
-    return jobHasFinished;
+    return;
   }
 }
 
@@ -418,8 +418,7 @@ YSE::INTERNAL::soundFile::~soundFile() {
 
 // the real _buffer size is set while loading the sound, but JUCE does not allow for
 // audio bufers of zero length. This is why it is set to one here.
-YSE::INTERNAL::soundFile::soundFile(const File & file) : ThreadPoolJob(file.getFullPathName())
-  , _buffer(1, 1)
+YSE::INTERNAL::soundFile::soundFile(const File & file) :  _buffer(1, 1)
   , idleTime(0)
   , state(NEW)
   , file(file)
@@ -428,8 +427,7 @@ YSE::INTERNAL::soundFile::soundFile(const File & file) : ThreadPoolJob(file.getF
   _sampleRateAdjustment = 1.0f;
 }
 
-YSE::INTERNAL::soundFile::soundFile(const char * fileName) : ThreadPoolJob(fileName)
-, _buffer(1, 1)
+YSE::INTERNAL::soundFile::soundFile(const char * fileName) :  _buffer(1, 1)
 , idleTime(0)
 , state(NEW)
 , fileName(fileName)
@@ -438,8 +436,7 @@ YSE::INTERNAL::soundFile::soundFile(const char * fileName) : ThreadPoolJob(fileN
   _sampleRateAdjustment = 1.0f;
 }
 
-YSE::INTERNAL::soundFile::soundFile(juce::InputStream * source) : ThreadPoolJob("BinaryDataReader")
-, _buffer(1, 1)
+YSE::INTERNAL::soundFile::soundFile(juce::InputStream * source) :  _buffer(1, 1)
 , idleTime(0)
 , state(NEW)
 , file()
