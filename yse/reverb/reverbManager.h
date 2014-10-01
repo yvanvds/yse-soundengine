@@ -14,6 +14,7 @@
 #include "reverb.hpp"
 #include "reverbInterface.hpp"
 #include "reverbImplementation.h"
+#include "../internal/reverbDSP.h"
 #include "reverbMessage.h"
 #include "../internal/threadPool.h"
 
@@ -104,7 +105,7 @@ namespace YSE {
       reverb & getGlobalReverb();
 
     private:
-      INTERNAL::reverbDSP * reverbDSPObject; // this is the actual reverb object (there can be only one)
+      INTERNAL::reverbDSP reverbDSPObject; // this is the actual reverb object (there can be only one)
       CHANNEL::implementationObject * reverbChannel; // < the channel on which to apply this reverb
 
       reverb globalReverb;

@@ -11,7 +11,6 @@
 #ifndef LISTENERIMPLEMENTATION_H_INCLUDED
 #define LISTENERIMPLEMENTATION_H_INCLUDED
 
-#include "JuceHeader.h"
 #include "../classes.hpp"
 #include "../utils/vector.hpp"
 

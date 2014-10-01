@@ -31,8 +31,6 @@
 #define freezemode		0.5f
 #define	stereospread	23
 
-juce_ImplementSingleton(YSE::INTERNAL::reverbDSP)
-
 inline void Undenormal(Flt &v) {
   if (v != 0 && fabsf(v) < std::numeric_limits<float>::min()) v = 0;
 }
@@ -363,7 +361,7 @@ YSE::INTERNAL::reverbDSP::reverbDSP() {
 }
 
 YSE::INTERNAL::reverbDSP::~reverbDSP() {
-  clearSingletonInstance();
+
 }
 
 YSE::INTERNAL::reverbChannel::reverbChannel() : delayline(3000), bufComb(COMBS), bufAll(APASS) {

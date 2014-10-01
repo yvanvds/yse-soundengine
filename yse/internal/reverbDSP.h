@@ -108,7 +108,6 @@ namespace YSE {
       reverbDSP();
       ~reverbDSP();
 
-      juce_DeclareSingleton(reverbDSP, true);
     };
 
   }

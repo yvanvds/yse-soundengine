@@ -18,12 +18,10 @@ YSE::REVERB::managerObject & YSE::REVERB::Manager() {
 
 YSE::REVERB::managerObject::managerObject() 
   : mgrDelete(this), globalReverb(true), calculatedValues(true) {
-  reverbDSPObject = INTERNAL::reverbDSP::getInstance();
-  reverbDSPObject->channels(CHANNEL::Manager().getNumberOfOutputs());
+  reverbDSPObject.channels(CHANNEL::Manager().getNumberOfOutputs());
 }
 
 YSE::REVERB::managerObject::~managerObject() {
-  INTERNAL::reverbDSP::deleteInstance();
   mgrDelete.join();
 
   // remove all objects that are still in memory
@@ -50,7 +48,7 @@ void YSE::REVERB::managerObject::setup(YSE::REVERB::implementationObject* impl) 
 }
 
 void YSE::REVERB::managerObject::setOutputChannels(Int value) {
-  reverbDSPObject->channels(value);
+  reverbDSPObject.channels(value);
 }
 
 YSE::reverb & YSE::REVERB::managerObject::getGlobalReverb() {
@@ -221,8 +219,8 @@ void YSE::REVERB::managerObject::attachToChannel(YSE::CHANNEL::implementationObj
 void YSE::REVERB::managerObject::process(YSE::CHANNEL::implementationObject * ptr) {
   if (ptr != reverbChannel) return;
   if (!calculatedValues.active) return;
-  reverbDSPObject->set(calculatedValues);
+  reverbDSPObject.set(calculatedValues);
 
   // the actual reverb processing
-  reverbDSPObject->process(ptr->out);
+  reverbDSPObject.process(ptr->out);
 }
