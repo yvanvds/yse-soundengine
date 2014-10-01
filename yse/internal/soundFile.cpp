@@ -52,7 +52,7 @@ void YSE::INTERNAL::soundFile::run() {
       return;
     }
     else {
-      Global().getLog().emit(E_FILEREADER, "Unable to read " + file.getFullPathName().toStdString());
+      LogImpl().emit(E_FILEREADER, "Unable to read " + file.getFullPathName().toStdString());
       state = INVALID;
       return;
     }
@@ -87,7 +87,7 @@ void YSE::INTERNAL::soundFile::run() {
     return;
   }
   else {
-    Global().getLog().emit(E_FILEREADER, "Unable to read " + file.getFullPathName().toStdString());
+    LogImpl().emit(E_FILEREADER, "Unable to read " + file.getFullPathName().toStdString());
     state = INVALID;
     return;
   }

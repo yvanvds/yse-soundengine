@@ -36,7 +36,7 @@ YSE::INTERNAL::underWaterEffect & YSE::INTERNAL::underWaterEffect::setDepth(Flt 
   depth = value;
   if (depth > 0) {
     verb.setActive(true);
-    verb.setPosition(Global().getListener().pos);
+    verb.setPosition(ListenerImpl().pos);
   }
   else {
     verb.setActive(false);

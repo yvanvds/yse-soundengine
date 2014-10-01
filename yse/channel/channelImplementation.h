@@ -12,7 +12,6 @@
 #define CHANNELIMPLEMENTATION_H_INCLUDED
 
 #include <forward_list>
-#include "JuceHeader.h"
 #include "../classes.hpp"
 #include "../utils/lfQueue.hpp"
 #include "../internal/threadPool.h"

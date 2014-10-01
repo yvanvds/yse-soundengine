@@ -110,7 +110,7 @@ void YSE::REVERB::managerObject::update() {
   ///////////////////////////////////////
   for (auto i = inUse.begin(); i != inUse.end(); i++) {
     if (!(*i)->active) continue;
-    if (Dist((*i)->position, INTERNAL::Global().getListener().getPos()) <= (*i)->size) {
+    if (Dist((*i)->position, INTERNAL::ListenerImpl().getPos()) <= (*i)->size) {
       // add this reverb
       calculatedValues.roomsize += (*i)->roomsize;
       calculatedValues.damp += (*i)->damp;
@@ -147,9 +147,9 @@ void YSE::REVERB::managerObject::update() {
     Flt partial = 0;
     for (auto i = inUse.begin(); i != inUse.end(); ++i) {
       if (!(*i)->active) continue;
-      if (Dist((*i)->position, INTERNAL::Global().getListener().getPos()) <= (*i)->size + (*i)->rolloff) {
+      if (Dist((*i)->position, INTERNAL::ListenerImpl().getPos()) <= (*i)->size + (*i)->rolloff) {
         // add partial reverb
-        Flt adjust = Dist((*i)->position, INTERNAL::Global().getListener().getPos()) - (*i)->size;
+        Flt adjust = Dist((*i)->position, INTERNAL::ListenerImpl().getPos()) - (*i)->size;
         adjust = 1 - adjust / (*i)->rolloff;
         calculatedValues.roomsize += (*i)->roomsize * adjust;
         calculatedValues.damp += (*i)->damp * adjust;

@@ -114,7 +114,7 @@ void YSE::DEVICE::managerObject::audioDeviceIOCallback(const float ** inputChann
   if (INTERNAL::Global().needsUpdate()) {
     // update global objects
     INTERNAL::Time().update();
-    INTERNAL::Global().getListener().update();
+    INTERNAL::ListenerImpl().update();
     SOUND::Manager().update();
     CHANNEL::Manager().update();
     REVERB::Manager().update();
@@ -181,7 +181,7 @@ void YSE::DEVICE::managerObject::audioDeviceStopped() {
 }
 
 void YSE::DEVICE::managerObject::audioDeviceError(const juce::String & errorMessage) {
-  INTERNAL::Global().getLog().emit(E_AUDIODEVICE, errorMessage);
+  INTERNAL::LogImpl().emit(E_AUDIODEVICE, errorMessage);
 }
 
 void YSE::DEVICE::managerObject::updateDeviceList() {

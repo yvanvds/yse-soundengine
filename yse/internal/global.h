@@ -23,9 +23,6 @@ namespace YSE {
     public:
       bool isActive() { return active; }
 
-      logImplementation & getLog();
-      listenerImplementation & getListener();
-
       void addSlowJob(threadPoolJob * job);
       void addFastJob(threadPoolJob * job);
       
@@ -38,9 +35,6 @@ namespace YSE {
     private:
       void init();
       void close();
-
-      logImplementation * log;
-      listenerImplementation * li;
 
       threadPool slowThreads;
       threadPool fastThreads;

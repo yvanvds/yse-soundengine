@@ -22,11 +22,9 @@ namespace YSE {
     public:
       void update();
       listenerImplementation();
-      ~listenerImplementation();
 
       inline const Vec & getPos() { return newPos; }
       
-      juce_DeclareSingleton(listenerImplementation, true)
 
     private:
       Vec newPos, lastPos;
@@ -42,6 +40,7 @@ namespace YSE {
       friend class reverbManager;
     };
   
+    listenerImplementation & ListenerImpl();
   }
 }
 

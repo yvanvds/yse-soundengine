@@ -12,7 +12,6 @@
 #define TIME_H_INCLUDED
 
 #include <ctime>
-#include "JuceHeader.h"
 #include "../headers/types.hpp"
 
 namespace YSE {

@@ -10,7 +10,10 @@
 
 #include "logImplementation.h"
 
-juce_ImplementSingleton(YSE::INTERNAL::logImplementation)
+YSE::INTERNAL::logImplementation & YSE::INTERNAL::LogImpl() {
+  static logImplementation impl;
+  return impl;
+}
 
 YSE::INTERNAL::logImplementation::logImplementation() : funcPtr(nullptr) {
 #if defined YSE_DEBUG

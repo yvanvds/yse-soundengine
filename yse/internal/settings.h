@@ -11,7 +11,6 @@
 #ifndef SETTINGS_H_INCLUDED
 #define SETTINGS_H_INCLUDED
 
-#include "JuceHeader.h"
 #include "../headers/types.hpp"
 
 namespace YSE {

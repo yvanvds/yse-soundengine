@@ -32,7 +32,7 @@ bool YSE::MIDI::fileImpl::create(const std::string & fileName) {
   if (!IO().getActive()) {
     File file = File::getCurrentWorkingDirectory().getChildFile(juce::String(fileName));
     if (!file.existsAsFile()) {
-      INTERNAL::Global().getLog().emit(E_FILE_ERROR, "file not found for " + file.getFullPathName().toStdString());
+      INTERNAL::LogImpl().emit(E_FILE_ERROR, "file not found for " + file.getFullPathName().toStdString());
       return false;
     }
     FileInputStream * midiFileInputStream = file.createInputStream();
@@ -40,7 +40,7 @@ bool YSE::MIDI::fileImpl::create(const std::string & fileName) {
   }
   else {
     if (!INTERNAL::CALLBACK::fileExists(fileName.c_str())) {
-      INTERNAL::Global().getLog().emit(E_FILE_ERROR, "file not found for " + fileName);
+      INTERNAL::LogImpl().emit(E_FILE_ERROR, "file not found for " + fileName);
       return false;
     }
     INTERNAL::customFileReader * cfr = new INTERNAL::customFileReader;

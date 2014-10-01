@@ -8,7 +8,6 @@
   ==============================================================================
 */
 
-#include "JuceHeader.h"
 #include "yse.hpp"
 
 #include "channel/channelImplementation.h"

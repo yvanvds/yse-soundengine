@@ -11,8 +11,10 @@
 
 #include "../internalHeaders.h"
 
-
-juce_ImplementSingleton(YSE::INTERNAL::listenerImplementation)
+YSE::INTERNAL::listenerImplementation & YSE::INTERNAL::ListenerImpl() {
+  static listenerImplementation impl;
+  return impl;
+}
 
 YSE::INTERNAL::listenerImplementation::listenerImplementation() {
   newPos.zero();
@@ -29,10 +31,6 @@ YSE::INTERNAL::listenerImplementation::listenerImplementation() {
   pos.x.store(0.f);
   pos.y.store(0.f);
   pos.z.store(0.f);
-}
-
-YSE::INTERNAL::listenerImplementation::~listenerImplementation() {
-  clearSingletonInstance();
 }
 
 void YSE::INTERNAL::listenerImplementation::update() {

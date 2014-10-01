@@ -80,13 +80,13 @@ bool YSE::SOUND::implementationObject::create(const std::string &fileName, CHANN
     ioFile = File::getCurrentWorkingDirectory().getChildFile(juce::String(fileName));
 
     if (!ioFile.existsAsFile()) {
-      INTERNAL::Global().getLog().emit(E_FILE_ERROR, "file not found for " + ioFile.getFullPathName().toStdString());
+      INTERNAL::LogImpl().emit(E_FILE_ERROR, "file not found for " + ioFile.getFullPathName().toStdString());
       goto release;
     }
   }
   else {
     if (!INTERNAL::CALLBACK::fileExists(fileName.c_str())) {
-      INTERNAL::Global().getLog().emit(E_FILE_ERROR, "file not found for " + fileName);
+      INTERNAL::LogImpl().emit(E_FILE_ERROR, "file not found for " + fileName);
       goto release;
     }
   }
@@ -373,7 +373,7 @@ void YSE::SOUND::implementationObject::update() {
     distance = Dist(Vec(0), newPos);
   }
   else {
-    distance = Dist(newPos, INTERNAL::Global().getListener().newPos);
+    distance = Dist(newPos, INTERNAL::ListenerImpl().newPos);
   }
   virtualDist = (distance- size) * currentVolume_upd;
   if (virtualDist < 0) virtualDist = 0;
@@ -390,13 +390,13 @@ void YSE::SOUND::implementationObject::update() {
     velocityVec = (newPos - lastPos) * (1 / INTERNAL::Time().delta());
     
     Vec listenerVelocity;
-    listenerVelocity.x = INTERNAL::Global().getListener().vel.x.load();
-    listenerVelocity.y = INTERNAL::Global().getListener().vel.y.load();
-    listenerVelocity.z = INTERNAL::Global().getListener().vel.z.load();
+    listenerVelocity.x = INTERNAL::ListenerImpl().vel.x.load();
+    listenerVelocity.y = INTERNAL::ListenerImpl().vel.y.load();
+    listenerVelocity.z = INTERNAL::ListenerImpl().vel.z.load();
 
     if (velocityVec == Vec(0) && listenerVelocity == Vec(0)) vel = 0;
     else {
-      Vec dist = relative ? newPos : newPos - INTERNAL::Global().getListener().newPos;
+      Vec dist = relative ? newPos : newPos - INTERNAL::ListenerImpl().newPos;
       if (dist != Vec(0)) {
         Flt rSound = Dot(velocityVec, dist) / dist.length();
         Flt rList = Dot(listenerVelocity, dist) / dist.length();
@@ -415,9 +415,9 @@ void YSE::SOUND::implementationObject::update() {
   // calculate angle
   ///////////////////////////////////////////
   Flt a = angle; // avoid using atomic all the time
-  Vec dir = relative ? newPos : newPos - INTERNAL::Global().getListener().newPos;
+  Vec dir = relative ? newPos : newPos - INTERNAL::ListenerImpl().newPos;
   if (relative) a = -atan2(dir.x, dir.z);
-  else a = (atan2(dir.x, dir.z) - atan2(INTERNAL::Global().getListener().forward.x.load(), INTERNAL::Global().getListener().forward.z.load()));
+  else a = (atan2(dir.x, dir.z) - atan2(INTERNAL::ListenerImpl().forward.x.load(), INTERNAL::ListenerImpl().forward.z.load()));
   while (a > Pi) a -= Pi2;
   while (a < -Pi) a += Pi2;
   angle = a; // back to atomic
@@ -426,7 +426,7 @@ void YSE::SOUND::implementationObject::update() {
   // sound occlusion (optional)
   ///////////////////////////////////////////
   if (System().occlusionCallback() != nullptr && occlusionActive) {
-    occlusion_dsp = System().occlusionCallback()(newPos, INTERNAL::Global().getListener().newPos);
+    occlusion_dsp = System().occlusionCallback()(newPos, INTERNAL::ListenerImpl().newPos);
     Clamp(occlusion_dsp, 0.f, 1.f);
   }
 

@@ -19,7 +19,6 @@ namespace YSE {
   namespace INTERNAL {
     class logImplementation : Logger {
     public:
-      juce_DeclareSingleton(logImplementation, true)
 
       ERROR_LEVEL getLevel();
       void  setLevel(ERROR_LEVEL value);
@@ -39,6 +38,8 @@ namespace YSE {
       ScopedPointer<FileLogger> fileLogger;
       Bool toDebugger;
     };
+
+    logImplementation & LogImpl();
   }
 }
 

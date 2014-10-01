@@ -16,30 +16,30 @@ YSE::listener & YSE::Listener() {
 }
 
 YSE::Vec YSE::listener::getPosition() {
-  return INTERNAL::Global().getListener().pos;
+  return INTERNAL::ListenerImpl().pos;
 }
 
 YSE::Vec YSE::listener::getVelocity() {
-  return INTERNAL::Global().getListener().vel;
+  return INTERNAL::ListenerImpl().vel;
 }
 
 YSE::Vec YSE::listener::getForward() {
-  return INTERNAL::Global().getListener().forward;
+  return INTERNAL::ListenerImpl().forward;
 }
 
 YSE::Vec YSE::listener::getUpward() {
-  return INTERNAL::Global().getListener().up;
+  return INTERNAL::ListenerImpl().up;
 }
 
 YSE::listener& YSE::listener::setPosition(const Vec &pos) {
-  INTERNAL::Global().getListener().pos.x = pos.x;
-  INTERNAL::Global().getListener().pos.y = pos.y;
-  INTERNAL::Global().getListener().pos.z = pos.z;
+  INTERNAL::ListenerImpl().pos.x = pos.x;
+  INTERNAL::ListenerImpl().pos.y = pos.y;
+  INTERNAL::ListenerImpl().pos.z = pos.z;
   return (*this);
 }
 
 YSE::listener& YSE::listener::setOrientation(const Vec &forward, const Vec &up) {
-  INTERNAL::Global().getListener().forward = forward;
-  INTERNAL::Global().getListener().up = up;
+  INTERNAL::ListenerImpl().forward = forward;
+  INTERNAL::ListenerImpl().up = up;
   return (*this);
 }

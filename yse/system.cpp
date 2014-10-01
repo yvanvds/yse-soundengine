@@ -38,7 +38,7 @@ YSE::system & YSE::System() {
 
 Bool YSE::system::init() {
   if (INTERNAL::Global().active) {
-    INTERNAL::Global().getLog().emit(E_DEBUG, "You're trying to initialize more than once!");
+    INTERNAL::LogImpl().emit(E_DEBUG, "You're trying to initialize more than once!");
     return true;
   }
   // global objects should always be loaded before anything else!
@@ -49,11 +49,11 @@ Bool YSE::system::init() {
 #if defined YSE_WINDOWS
   if (SUCCEEDED(CoInitialize(nullptr))) {
     SystemImpl().coInitialized = true;
-    INTERNAL::Global().getLog().emit(E_DEBUG, "COM library initialized");
+    INTERNAL::LogImpl().emit(E_DEBUG, "COM library initialized");
   }
 #endif
   if (DEVICE::Manager().init()) {
-    INTERNAL::Global().getLog().emit(E_DEBUG, "YSE System object initialized");
+    INTERNAL::LogImpl().emit(E_DEBUG, "YSE System object initialized");
 
     // initialize channels
     CHANNEL::Manager().setChannelConf(CT_STEREO);
@@ -69,7 +69,7 @@ Bool YSE::system::init() {
     INTERNAL::Global().active = true;
     return true;
   }
-  INTERNAL::Global().getLog().emit(E_ERROR, "YSE System object failed to initialize");
+  INTERNAL::LogImpl().emit(E_ERROR, "YSE System object failed to initialize");
   return false;
 }
 
