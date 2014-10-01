@@ -13,7 +13,6 @@
 
 #include "JuceHeader.h"
 #include "reverb.hpp"
-#include "../templates/managerObject.h"
 #include "reverbInterface.hpp"
 #include "reverbImplementation.h"
 #include "reverbMessage.h"

@@ -17,12 +17,22 @@
 #include "../headers/enums.hpp"
 
 namespace YSE {
+  namespace SOUND {
+    class implementationObject;
+  }
+
   namespace DSP {
 
     // simple base class for a chainable dsp object
 
     class API dspObject {
     public:
+      dspObject();
+      virtual ~dspObject();
+
+      // the create function can be used to allocate memory on the DLL heap
+      void createIfNeeded();
+      virtual void create() = 0;
       virtual void process(MULTICHANNELBUFFER & buffer) = 0;
 
       // link the output of this dsp to another dsp.
@@ -32,17 +42,16 @@ namespace YSE {
       void link(dspObject& next);
       dspObject * link();
 
-      dspObject();
-     ~dspObject();
-
       dspObject& bypass(Bool value) { _bypass = value; return *this; }
       Bool       bypass() { return _bypass; }
 
       dspObject ** calledfrom; // consider this private for now
+
     private:
       dspObject * next;
       dspObject * previous;
       Bool _bypass;
+      Bool _needsCreate;
     };
 
     // simple base class for a dsp object with sound generation

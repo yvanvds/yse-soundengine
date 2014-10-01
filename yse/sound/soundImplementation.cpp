@@ -81,13 +81,13 @@ bool YSE::SOUND::implementationObject::create(const std::string &fileName, CHANN
 
     if (!ioFile.existsAsFile()) {
       INTERNAL::Global().getLog().emit(E_FILE_ERROR, "file not found for " + ioFile.getFullPathName().toStdString());
-      return false;
+      goto release;
     }
   }
   else {
     if (!INTERNAL::CALLBACK::fileExists(fileName.c_str())) {
       INTERNAL::Global().getLog().emit(E_FILE_ERROR, "file not found for " + fileName);
-      return false;
+      goto release;
     }
   }
 
@@ -102,7 +102,7 @@ bool YSE::SOUND::implementationObject::create(const std::string &fileName, CHANN
     status_upd = SS_STOPPED;
 
     if (file == nullptr) {
-      return false;
+      goto release;
     } else {
       file->attach(this);
       objectStatus = OBJECT_CREATED;
@@ -114,7 +114,13 @@ bool YSE::SOUND::implementationObject::create(const std::string &fileName, CHANN
     status_dsp = SS_STOPPED;
     status_upd = SS_STOPPED;
       
-    file = new INTERNAL::soundFile(ioFile);
+    if (IO().getActive()) {
+      file = new INTERNAL::soundFile(fileName.c_str());
+    }
+    else {
+      file = new INTERNAL::soundFile(ioFile);
+    }
+    
     if(file->create(true)) {
       filebuffer.resize(file->channels());
       buffer = &filebuffer;
@@ -122,9 +128,12 @@ bool YSE::SOUND::implementationObject::create(const std::string &fileName, CHANN
     } else {
       delete file;
       file = nullptr;
-      return false;
+      goto release;
     }
   }
+
+release:
+  head = nullptr;
   return false;
 }
 
@@ -368,9 +377,9 @@ void YSE::SOUND::implementationObject::update() {
   }
   virtualDist = (distance- size) * currentVolume_upd;
   if (virtualDist < 0) virtualDist = 0;
-  if (virtualDist > 1000.f) {
+  /*if (virtualDist > 1000.f) {
     jassertfalse
-  }
+  }*/
 
   ///////////////////////////////////////////
   // calculate doppler effect 
@@ -643,6 +652,8 @@ void YSE::SOUND::implementationObject::addDSP(DSP::dspObject & ptr) {
       *(post_dsp->calledfrom) = nullptr;
     }
   }
+  ptr.createIfNeeded();
+
   post_dsp = &ptr;
   post_dsp->calledfrom = &post_dsp;
 }

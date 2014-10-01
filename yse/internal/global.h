@@ -45,7 +45,6 @@ namespace YSE {
       logImplementation * log;
       listenerImplementation * li;
 
-
       ThreadPool slowThreads;
       ThreadPool fastThreads;
 

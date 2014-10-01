@@ -25,11 +25,18 @@ YSE::DSP::dspObject * YSE::DSP::dspObject::link() {
   return this->next;
 }
 
-YSE::DSP::dspObject::dspObject() : next(nullptr), previous(nullptr), _bypass(false), calledfrom(nullptr) {
+YSE::DSP::dspObject::dspObject() : next(nullptr), previous(nullptr), _bypass(false), calledfrom(nullptr), _needsCreate(true) {
 }
 
 YSE::DSP::dspObject::~dspObject() {
   if (previous != nullptr) previous->next = next;
   if (next != nullptr) next->previous = previous;
   if (calledfrom) *calledfrom = nullptr;
+}
+
+void YSE::DSP::dspObject::createIfNeeded() {
+  if (_needsCreate) {
+    create();
+    _needsCreate = false;
+  }
 }

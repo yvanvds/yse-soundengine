@@ -29,9 +29,17 @@ void YSE::SYNTH::implementationObject::addVoices(const YSE::SYNTH::samplerConfig
     synthesizer.addVoice(new SamplerVoice());
   }
 
-  File ioFile;
-  ioFile = File::getCurrentWorkingDirectory().getChildFile(juce::String(voice.file()));
-  ScopedPointer<AudioFormatReader> audioreader(SOUND::Manager().getReader(ioFile));
+  ScopedPointer<AudioFormatReader> audioreader;
+  if (IO().getActive()) {
+    INTERNAL::customFileReader * cfr = new INTERNAL::customFileReader;
+    cfr->create(voice.file().c_str());
+    audioreader = SOUND::Manager().getReader(cfr);
+  }
+  else {
+    File ioFile = File::getCurrentWorkingDirectory().getChildFile(juce::String(voice.file()));
+    audioreader = SOUND::Manager().getReader(ioFile);
+  }
+
   BigInteger allNotes;
   allNotes.setRange(voice.lowestNote(), voice.highestNote(), true);
   synthesizer.addSound(new samplerSoundWithChannel(voice.name(), *audioreader, voice.channel(), allNotes, voice.root(), voice.attackTime(), voice.releaseTime(), voice.maxLength()));

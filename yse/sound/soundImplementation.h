@@ -12,11 +12,11 @@
 #define SOUNDIMPLEMENTATION_H_INCLUDED
 
 #include <forward_list>
-#include "../templates/implementationObject.h"
 #include "../classes.hpp"
 #include "sound.hpp"
 #include "../dsp/sample.hpp"
 #include "../dsp/ramp.hpp"
+#include "../utils/lfQueue.hpp"
 
 namespace YSE {
   namespace SOUND {

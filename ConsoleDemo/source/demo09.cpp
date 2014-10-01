@@ -1,11 +1,11 @@
 #include <iostream>
 #include <cstdlib>
 #include "yse.hpp"
-#ifdef WINDOWS
+//#ifdef WINDOWS
 #include <conio.h>
-#else
-#include "wincompat.h"
-#endif
+//#else
+//#include "wincompat.h"
+//#endif
 
 /*
 About streaming files

@@ -102,6 +102,7 @@ namespace YSE {
 
       void set(reverb & impl);
 
+      virtual void create() {}
       virtual void process(MULTICHANNELBUFFER & buffer);
       void update();
       reverbDSP();

@@ -17,7 +17,6 @@
 #include "soundMessage.h"
 #include "soundInterface.hpp"
 #include "soundImplementation.h"
-#include "../templates/managerObject.h"
 #include "../internal/soundFile.h"
 
 

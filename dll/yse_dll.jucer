@@ -87,6 +87,18 @@
         <FILE id="co8h1I" name="math_functions.h" compile="0" resource="0"
               file="../yse/dsp/math_functions.h"/>
         <GROUP id="{3C6F8AE2-E9CD-4785-1752-CAB151BEFE3E}" name="modules">
+          <GROUP id="{B3C0A4A9-9AEF-1D4B-F478-C8F44C53D698}" name="fm">
+            <FILE id="y152Dn" name="difference.cpp" compile="1" resource="0" file="../yse/dsp/modules/fm/difference.cpp"/>
+            <FILE id="cYxSOZ" name="difference.hpp" compile="0" resource="0" file="../yse/dsp/modules/fm/difference.hpp"/>
+          </GROUP>
+          <GROUP id="{15628202-A8E2-2BB0-39B0-036CF745932B}" name="filters">
+            <FILE id="LItRdI" name="bandpass.cpp" compile="1" resource="0" file="../yse/dsp/modules/filters/bandpass.cpp"/>
+            <FILE id="PDu5TJ" name="bandpass.hpp" compile="0" resource="0" file="../yse/dsp/modules/filters/bandpass.hpp"/>
+            <FILE id="gqmOOx" name="highpass.cpp" compile="1" resource="0" file="../yse/dsp/modules/filters/highpass.cpp"/>
+            <FILE id="RshZIw" name="highpass.hpp" compile="0" resource="0" file="../yse/dsp/modules/filters/highpass.hpp"/>
+            <FILE id="vs0BzQ" name="lowpass.cpp" compile="1" resource="0" file="../yse/dsp/modules/filters/lowpass.cpp"/>
+            <FILE id="bHWiu9" name="lowpass.hpp" compile="0" resource="0" file="../yse/dsp/modules/filters/lowpass.hpp"/>
+          </GROUP>
           <FILE id="zgzr1n" name="hilbert.cpp" compile="1" resource="0" file="../yse/dsp/modules/hilbert.cpp"/>
           <FILE id="YcSYRJ" name="hilbert.hpp" compile="0" resource="0" file="../yse/dsp/modules/hilbert.hpp"/>
           <FILE id="e4M11t" name="ringModulator.cpp" compile="1" resource="0"

@@ -14,6 +14,7 @@
 #include "../../headers/defines.hpp"
 #include "../dspObject.hpp"
 #include "../oscillators.hpp"
+#include <memory>
 
 /*	when building a new dsp module, take this as an example.
 Also don't forget to:
@@ -25,24 +26,26 @@ Also don't forget to:
 
 namespace YSE {
   namespace DSP {
-    class API ringModulator : dspObject {
+    class API ringModulator : public dspObject {
     public:
       // these functions are thread safe
       ringModulator();
+      virtual ~ringModulator() {}
 
       ringModulator& frequency(Flt value);
       Flt            frequency();
       ringModulator& level(Flt value);
       Flt            level();
 
-      // dsp function
+      // dsp functions
+      virtual void create();
       virtual void process(MULTICHANNELBUFFER & buffer);
 
     private:
       aFlt parmFrequency;
       aFlt parmLevel;
-      sine sineGen;
-      sample extra;
+      std::shared_ptr<sine> sineGen;
+      std::shared_ptr<sample> extra;
     };
 
   }

@@ -16,6 +16,7 @@
 #include "../headers/types.hpp"
 #include "../dsp/sample.hpp"
 #include "../headers/enums.hpp"
+#include "customFileReader.h"
 #include <forward_list>
 
 namespace YSE {

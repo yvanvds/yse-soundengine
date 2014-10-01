@@ -32,6 +32,11 @@
 #include "dsp/modules/ringModulator.hpp"
 #include "dsp/modules/sineWave.hpp"
 
+#include "dsp/modules/filters/highpass.hpp"
+#include "dsp/modules/filters/lowpass.hpp"
+#include "dsp/modules/filters/bandpass.hpp"
+#include "dsp/modules/fm/difference.hpp"
+
 // utilities
 #include "utils/misc.hpp"
 #include "utils/vector.hpp"

@@ -13,7 +13,6 @@
 
 #include "../headers/defines.hpp"
 #include "../headers/enums.hpp"
-#include "../templates/interfaceObject.hpp"
 #include "../utils/vector.hpp"
 
 namespace YSE {

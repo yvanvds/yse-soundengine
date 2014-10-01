@@ -27,7 +27,15 @@ Bool YSE::INTERNAL::soundFile::create(Bool stream) {
 ThreadPoolJob::JobStatus YSE::INTERNAL::soundFile::runJob() {
   if (_streaming) {
     if (source == nullptr) {
-      streamReader = SOUND::Manager().getReader(file);
+      if (IO().getActive()) {
+        // will be deleted by AudioFormatReader
+        customFileReader * cfr = new customFileReader;
+        cfr->create(fileName.c_str());
+        streamReader = SOUND::Manager().getReader(cfr);
+      }
+      else {
+        streamReader = SOUND::Manager().getReader(file);
+      }
     }
     else {
       streamReader = SOUND::Manager().getReader(source);
@@ -325,7 +333,20 @@ calibrate:
 
   if (_streaming) pos += realPos;
   // make sure position is reset to zero if playing has stopped during this read
-  if (intent == SS_STOPPED) pos = 0;
+  if (intent == SS_STOPPED) {
+    pos = 0;
+    if (_streaming) {
+      _streamPos = 0;
+      if (fillStream(loop)) {
+        pos -= STREAM_BUFFERSIZE;
+        realPos += STREAM_BUFFERSIZE;
+        if (realPos >= streamReader->lengthInSamples) {
+          realPos -= streamReader->lengthInSamples;
+        }
+      }
+      pos += realPos;
+    }
+  }
   return true;
 }
 
