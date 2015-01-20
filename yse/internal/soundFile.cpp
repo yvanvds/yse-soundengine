@@ -185,7 +185,7 @@ Bool YSE::INTERNAL::soundFile::read(std::vector<DSP::sample> & filebuffer, Flt& 
 
         // if playing forward and we're past the end of the soundFile in 
         // less than 16 steps, move one by one
-        else if ((speed > 0) && ((pos + speed * 16) >= _length)) {
+        else if ((speed > 0) && ((pos + speed * 16) >= (_streaming ? STREAM_BUFFERSIZE : _length))) {
           while (l--) {
             *out++ = in[(UInt)pos];
             pos += speed;

@@ -63,8 +63,8 @@ int main() {
       case 'q': sound.setSpeed(sound.getSpeed() + 0.01); break;
       case 'a': sound.setSpeed(sound.getSpeed() - 0.01); break;
       case 's': sound.pause(); break;
-      case 'd': sound.stop(); break;
-      case 'f': sound.play(); break;
+      case 'd': sound.fadeAndStop(3000); break;
+      case 'f': sound.setVolume(1).play();  break;
       case 'e': goto exit;
       }
     }

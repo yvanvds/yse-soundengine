@@ -54,7 +54,7 @@ YSE::SOUND::implementationObject::implementationObject(interfaceObject * head) :
   fader.set(0.5f);
 
 #if defined YSE_DEBUG
-  INTERNAL::Global().getLog().emit(E_SOUND_ADDED);
+  //INTERNAL::Global().getLog().emit(E_SOUND_ADDED);
 #endif
 }
 
@@ -276,6 +276,7 @@ void YSE::SOUND::implementationObject::sync() {
   // sync dsp values
   currentVolume_upd = currentVolume_dsp;
   head.load()->time = currentFilePos;
+  head.load()->volume = currentVolume_dsp;
   status_upd = status_dsp;
   head.load()->status = status_upd;
 }
