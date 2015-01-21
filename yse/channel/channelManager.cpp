@@ -155,8 +155,8 @@ void YSE::CHANNEL::managerObject::setChannelConf(CHANNEL_TYPE type, Int outputs)
 
 void YSE::CHANNEL::managerObject::changeChannelConf() {
   delete[] outputAngles;
-  outputAngles = new aFlt[outputChannels];
-  switch (channelType) {
+  outputAngles = new aFlt[outputChannels.load()];
+  switch (channelType.load()) {
     case CT_AUTO: setAuto(outputChannels); break;
     case CT_MONO: setMono(); break;
     case CT_STEREO: setStereo(); break;
