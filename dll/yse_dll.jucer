@@ -2,7 +2,7 @@
 
 <JUCERPROJECT id="Hm1Rhq" name="yse_dll" projectType="dll" version="1.0.0"
               bundleIdentifier="com.mute.yse_dll" includeBinaryInAppConfig="1"
-              jucerVersion="3.1.0">
+              jucerVersion="3.1.1">
   <MAINGROUP id="c8Cr7r" name="yse_dll">
     <FILE id="AEWIIg" name="speaker.png" compile="0" resource="0" file="../bin/speaker.png"/>
     <GROUP id="{C1464C78-202C-BC41-481A-C05656427973}" name="yse">
@@ -175,6 +175,8 @@
         <FILE id="M3rqjW" name="reverbMessage.h" compile="0" resource="0" file="../yse/reverb/reverbMessage.h"/>
       </GROUP>
       <GROUP id="{5A715849-4340-2E44-D2F2-868815ADDDE6}" name="sound">
+        <FILE id="bjtOaF" name="audioBuffer.cpp" compile="1" resource="0" file="../yse/sound/audioBuffer.cpp"/>
+        <FILE id="LCvq6f" name="audioBuffer.hpp" compile="0" resource="0" file="../yse/sound/audioBuffer.hpp"/>
         <FILE id="dWajb6" name="sound.hpp" compile="0" resource="0" file="../yse/sound/sound.hpp"/>
         <FILE id="rmvljD" name="soundImplementation.cpp" compile="1" resource="0"
               file="../yse/sound/soundImplementation.cpp"/>

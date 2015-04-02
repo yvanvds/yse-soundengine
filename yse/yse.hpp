@@ -48,6 +48,7 @@
 #include "channel/channelInterface.hpp"
 #include "sound/sound.hpp"
 #include "sound/soundInterface.hpp"
+#include "sound/audioBuffer.hpp"
 #include "synth/synth.hpp"
 #include "synth/synthInterface.hpp"
 #include "synth/dspVoice.hpp"

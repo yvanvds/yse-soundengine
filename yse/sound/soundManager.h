@@ -119,6 +119,9 @@ namespace YSE {
       // an alternative version of addFile for custom filesystems set with IO()
       INTERNAL::soundFile * addFile(const char * fileName);
 
+      // an alternative version to add memory buffers
+      INTERNAL::soundFile * addFile(audioBuffer * buffer);
+
 #if defined PUBLIC_JUCE
       INTERNAL::soundFile * addInputStream(juce::InputStream * source);
 #endif

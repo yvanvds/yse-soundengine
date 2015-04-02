@@ -11,6 +11,15 @@
 #include "../internalHeaders.h"
 
 Bool YSE::INTERNAL::soundFile::create(Bool stream) {
+  if (_audioBuffer != nullptr) {
+    // don't load anything when using an existing buffer
+    _streaming = false;
+    _endReached = false;
+    _needsReset = false;
+    state = READY;
+    return true;
+  }
+
   _streaming = stream;
   _endReached = false;
   
@@ -116,7 +125,8 @@ Bool YSE::INTERNAL::soundFile::read(std::vector<DSP::sample> & filebuffer, Flt& 
     realPos -= pos;
   }
 
-  Flt ** ptr2 = _buffer.getArrayOfChannels();
+  Flt ** ptr2;
+  if (!_audioBuffer) ptr2 = _buffer.getArrayOfChannels();
   
   // this is for a smooth fade-in to avoid glitches
   if (intent == SS_WANTSTOPLAY) {
@@ -140,8 +150,14 @@ Bool YSE::INTERNAL::soundFile::read(std::vector<DSP::sample> & filebuffer, Flt& 
 
     // this assumes the output and file have the same number of channels
     Flt * out = filebuffer[i].getBuffer();
-    Flt * in = ptr2[i];
-    
+    Flt * in;
+    if (!_audioBuffer)  {
+      in = ptr2[i];
+    }
+    else { // only for audioBuffer sources
+      in = _audioBuffer->getChannel(i).getBuffer();
+      _length = _audioBuffer->getLength();
+    }
     UInt l = length;
 
   startAgain:
@@ -362,6 +378,10 @@ Bool YSE::INTERNAL::soundFile::contains(const char * fileName) {
   return strcmp(this->fileName.c_str(), fileName) == 0;
 }
 
+Bool YSE::INTERNAL::soundFile::contains(audioBuffer * buffer) {
+  return this->_audioBuffer == buffer;
+}
+
 void YSE::INTERNAL::soundFile::resetStream() {
 
 }
@@ -422,7 +442,8 @@ YSE::INTERNAL::soundFile::soundFile(const File & file) :  _buffer(1, 1)
   , idleTime(0)
   , state(NEW)
   , file(file)
-  , source(nullptr) 
+  , source(nullptr)
+  , _audioBuffer(nullptr)
 {
   _sampleRateAdjustment = 1.0f;
 }
@@ -432,6 +453,7 @@ YSE::INTERNAL::soundFile::soundFile(const char * fileName) :  _buffer(1, 1)
 , state(NEW)
 , fileName(fileName)
 , source(nullptr)
+, _audioBuffer(nullptr)
 {
   _sampleRateAdjustment = 1.0f;
 }
@@ -440,8 +462,18 @@ YSE::INTERNAL::soundFile::soundFile(juce::InputStream * source) :  _buffer(1, 1)
 , idleTime(0)
 , state(NEW)
 , file()
-, source(source) {
+, source(source)
+, _audioBuffer(nullptr) {
   _sampleRateAdjustment = 1.0f;
+}
+
+YSE::INTERNAL::soundFile::soundFile(audioBuffer * buffer) : _buffer(1, 1)
+, idleTime(0)
+, state(NEW)
+, file()
+, source(nullptr)
+, _audioBuffer(buffer) {
+  _sampleRateAdjustment = buffer->sampleRateAdjustment;
 }
 
 Int YSE::INTERNAL::soundFile::channels() {

@@ -76,8 +76,8 @@ void YSE::INTERNAL::logImplementation::emit(ERROR_CODE value, const String & inf
     is not active. Most probably that means the program is shutting down.
     The log has already exited and you're still trying to send a message to it.
     */
-    jassertfalse
-      return;
+    jassertfalse;
+    return;
   }
 #endif
 

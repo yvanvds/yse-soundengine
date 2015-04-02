@@ -36,7 +36,7 @@ void YSE::SYNTH::dspVoiceInternal::startNote(int midiNoteNumber, float velocity,
   intent = SS_WANTSTOPLAY;
 }
 
-void YSE::SYNTH::dspVoiceInternal::stopNote(bool allowTailOff) {
+void YSE::SYNTH::dspVoiceInternal::stopNote(float velocity, bool allowTailOff) {
   if (intent != SS_STOPPED) {
     intent = SS_WANTSTOSTOP;
   }

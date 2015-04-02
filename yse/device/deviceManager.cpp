@@ -32,7 +32,7 @@ Bool YSE::DEVICE::managerObject::init() {
 
     _lastError = audioDeviceManager.initialise(0, 2, nullptr, true, "", &setup);
     if (_lastError.isNotEmpty()) {
-      jassertfalse
+      jassertfalse;
       return false;
     }
     initialized = true;
