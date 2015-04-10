@@ -12,6 +12,7 @@
 #define CHORD_H_INCLUDED
 
 #include "../classes.hpp"
+#include "note.hpp"
 #include <vector>
 
 

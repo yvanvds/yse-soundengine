@@ -8,8 +8,13 @@
 //#endif
 
 /*
+  If you just want to play a file, use a sound object and supply it with the 
+  name of the file you'd like to load and play. But if you want to alter the 
+  sound itself before playing it, use the audioBuffer class. After manipulating
+  the audio buffer, it can be supplied to one or more sounds and be played.
 
-
+  You should take care not to alter an audioBuffer while it is actually playing.
+  Always stop or pause the sound first.
 */
 
 

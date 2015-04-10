@@ -15,6 +15,11 @@ YSE::INTERNAL::time & YSE::INTERNAL::Time() {
   return t;
 }
 
+YSE::INTERNAL::time & YSE::INTERNAL::DeviceTime() {
+  static time t;
+  return t;
+}
+
 void YSE::INTERNAL::time::update() {
   // update time delta
   last = current;

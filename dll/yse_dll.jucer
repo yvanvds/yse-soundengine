@@ -6,6 +6,21 @@
   <MAINGROUP id="c8Cr7r" name="yse_dll">
     <FILE id="AEWIIg" name="speaker.png" compile="0" resource="0" file="../bin/speaker.png"/>
     <GROUP id="{C1464C78-202C-BC41-481A-C05656427973}" name="yse">
+      <GROUP id="{CC0DC12C-144B-3139-4D29-2C7FD7DB9D50}" name="player">
+        <FILE id="kwQ30C" name="playerMessage.h" compile="0" resource="0" file="../yse/player/playerMessage.h"/>
+        <FILE id="pYuaKs" name="playerManager.cpp" compile="1" resource="0"
+              file="../yse/player/playerManager.cpp"/>
+        <FILE id="tAljE5" name="playerManager.h" compile="0" resource="0" file="../yse/player/playerManager.h"/>
+        <FILE id="qEZkXg" name="playerInterface.cpp" compile="1" resource="0"
+              file="../yse/player/playerInterface.cpp"/>
+        <FILE id="Ctk4Vc" name="playerInterface.hpp" compile="0" resource="0"
+              file="../yse/player/playerInterface.hpp"/>
+        <FILE id="bV7vt6" name="player.hpp" compile="0" resource="0" file="../yse/player/player.hpp"/>
+        <FILE id="xyNuoz" name="playerImplementation.cpp" compile="1" resource="0"
+              file="../yse/player/playerImplementation.cpp"/>
+        <FILE id="SYgQdW" name="playerImplementation.h" compile="0" resource="0"
+              file="../yse/player/playerImplementation.h"/>
+      </GROUP>
       <GROUP id="{84B50A00-B249-CD42-D4E3-11996D70BF92}" name="midi">
         <FILE id="TrkjWE" name="midifileManager.cpp" compile="1" resource="0"
               file="../yse/midi/midifileManager.cpp"/>
@@ -158,7 +173,14 @@
               file="../yse/internal/virtualFinder.cpp"/>
         <FILE id="w96u3j" name="virtualFinder.h" compile="0" resource="0" file="../yse/internal/virtualFinder.h"/>
       </GROUP>
-      <GROUP id="{A2CF01C9-C38A-A1ED-EAE9-13DBF6709E40}" name="music"/>
+      <GROUP id="{A2CF01C9-C38A-A1ED-EAE9-13DBF6709E40}" name="music">
+        <FILE id="z1RSJX" name="scale.cpp" compile="1" resource="0" file="../yse/music/scale.cpp"/>
+        <FILE id="XkIHhD" name="scale.hpp" compile="0" resource="0" file="../yse/music/scale.hpp"/>
+        <FILE id="nvduzQ" name="chord.cpp" compile="1" resource="0" file="../yse/music/chord.cpp"/>
+        <FILE id="bHrat1" name="chord.hpp" compile="0" resource="0" file="../yse/music/chord.hpp"/>
+        <FILE id="K3uG3P" name="note.cpp" compile="1" resource="0" file="../yse/music/note.cpp"/>
+        <FILE id="yguU3V" name="note.hpp" compile="0" resource="0" file="../yse/music/note.hpp"/>
+      </GROUP>
       <GROUP id="{2AF90267-1AE3-52AB-561B-1FA337FCD1B8}" name="reverb">
         <FILE id="cmEwER" name="reverb.hpp" compile="0" resource="0" file="../yse/reverb/reverb.hpp"/>
         <FILE id="fSZOWp" name="reverbImplementation.cpp" compile="1" resource="0"
@@ -200,6 +222,10 @@
         <FILE id="m9U8yO" name="messageObject.h" compile="0" resource="0" file="../yse/templates/messageObject.h"/>
       </GROUP>
       <GROUP id="{D829189A-D352-A2D0-1951-CCE6BA0F59A8}" name="utils">
+        <FILE id="ThSozL" name="interpolators.cpp" compile="1" resource="0"
+              file="../yse/utils/interpolators.cpp"/>
+        <FILE id="d4oUBs" name="interpolators.hpp" compile="0" resource="0"
+              file="../yse/utils/interpolators.hpp"/>
         <FILE id="ZOPc3Z" name="atomicOps.hpp" compile="0" resource="0" file="../yse/utils/atomicOps.hpp"/>
         <FILE id="Xkh0Gl" name="lfQueue.hpp" compile="0" resource="0" file="../yse/utils/lfQueue.hpp"/>
         <FILE id="ae6iH6" name="misc.hpp" compile="0" resource="0" file="../yse/utils/misc.hpp"/>
@@ -231,11 +257,11 @@
                        headerPath="../yse"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
-        <MODULEPATH id="juce_events" path="../juce/modules"/>
-        <MODULEPATH id="juce_core" path="../juce/modules"/>
-        <MODULEPATH id="juce_audio_formats" path="../juce/modules"/>
-        <MODULEPATH id="juce_audio_devices" path="../juce/modules"/>
-        <MODULEPATH id="juce_audio_basics" path="../juce/modules"/>
+        <MODULEPATH id="juce_events" path="../../juce/modules"/>
+        <MODULEPATH id="juce_core" path="../../juce/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="../../juce/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="../../juce/modules"/>
+        <MODULEPATH id="juce_audio_basics" path="../../juce/modules"/>
       </MODULEPATHS>
     </VS2013>
     <ANDROID targetFolder="Builds/Android" androidActivityClass="com.mute.yse_dll"

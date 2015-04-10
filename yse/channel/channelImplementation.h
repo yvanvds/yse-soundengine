@@ -33,7 +33,6 @@ namespace YSE {
       /**
         Creates a channel implementation.
 
-        @param name   The name of the channel. This can be used in logfiles.
         @param head   A pointer to the interface of this channel.
       */
       implementationObject(interfaceObject * head);

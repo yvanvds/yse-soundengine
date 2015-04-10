@@ -123,8 +123,10 @@ void YSE::DEVICE::managerObject::audioDeviceIOCallback(const float ** inputChann
     INTERNAL::Global().updateDone();
   }
 
-  // synth manager updates all the time, because midi messages might come in
+  // player and synth managers update all the time, because midi messages might come in
   // between two buffer updates and should have the least latency possible
+  INTERNAL::DeviceTime().update();
+  PLAYER::Manager().update((Flt)numSamples / (Flt)SAMPLERATE);
   SYNTH::Manager().update();
 
   if (SOUND::Manager().empty()) return;

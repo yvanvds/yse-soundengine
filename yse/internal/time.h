@@ -31,7 +31,8 @@ namespace YSE {
       Flt d; // delta
     };
 
-    time & Time();
+    time & Time(); // updates every time update is called
+    time & DeviceTime(); // updates every time the devices asks for a buffer
   }
 }
 

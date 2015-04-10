@@ -78,6 +78,7 @@
     <ClCompile Include="..\..\source\demo11.cpp" />
     <ClCompile Include="..\..\source\demo12.cpp" />
     <ClCompile Include="..\..\source\demo13.cpp" />
+    <ClCompile Include="..\..\source\demo14_AudioFileManipulation.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -10,17 +10,22 @@
 
 #include "note.hpp"
 #include "../internalHeaders.h"
+#include <iostream>
 
-YSE::MUSIC::note::note(Flt pitch, Flt volume) : pitch(pitch), volume(volume) {}
+YSE::MUSIC::note::note(Flt pitch, Flt volume, Flt length, Int channel) : pitch(pitch), volume(volume), length(length), channel(channel) {}
 
 YSE::MUSIC::note::note(const note & object) {
     pitch = object.pitch;
     volume = object.volume;
+    length = object.length;
+    channel = object.channel;
 }
 
-YSE::MUSIC::note & YSE::MUSIC::note::set(Flt pitch, Flt volume) {
+YSE::MUSIC::note & YSE::MUSIC::note::set(Flt pitch, Flt volume, Flt length, Int channel) {
     this->pitch = pitch;
     this->volume = volume;
+    this->length = length;
+    this->channel = channel;
     return *this;
 }
 
@@ -34,12 +39,40 @@ YSE::MUSIC::note & YSE::MUSIC::note::setVolume(Flt value) {
     return *this;
 }
 
-Flt YSE::MUSIC::note::getPitch() {
+YSE::MUSIC::note & YSE::MUSIC::note::setLength(Flt value) {
+  this->length = value;
+  return *this;
+}
+
+YSE::MUSIC::note & YSE::MUSIC::note::setChannel(Int value) {
+  this->channel = value;
+  return *this;
+}
+
+Flt YSE::MUSIC::note::getPitch() const {
     return pitch;
 }
 
-Flt YSE::MUSIC::note::getVolume() {
+Flt YSE::MUSIC::note::getVolume() const {
     return volume;
+}
+
+Flt YSE::MUSIC::note::getLength() const {
+  return length;
+}
+
+Int YSE::MUSIC::note::getChannel() const {
+  return channel;
+}
+
+bool YSE::MUSIC::note::update() {
+  length -= YSE::INTERNAL::Time().delta();
+  return length > 0;
+}
+
+bool YSE::MUSIC::note::update(Flt delta) {
+  length -= delta;
+  return length > 0;
 }
 
 YSE::MUSIC::note & YSE::MUSIC::note::operator+=(const note & object) {

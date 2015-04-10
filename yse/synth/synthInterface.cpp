@@ -11,6 +11,7 @@
 #include "synthInterface.hpp"
 #include "synthManager.h"
 #include "../internalHeaders.h"
+#include "../music/note.hpp"
 
 YSE::SYNTH::samplerConfig::samplerConfig()
 : _channel(0) 
@@ -86,6 +87,18 @@ YSE::SYNTH::interfaceObject & YSE::SYNTH::interfaceObject::noteOn(int channel, i
   return *this;
 }
 
+YSE::SYNTH::interfaceObject & YSE::SYNTH::interfaceObject::noteOn(const MUSIC::note & note) {
+  assert(pimpl != nullptr);
+  messageObject m;
+  m.ID = NOTE_ON;
+  // TODO: it's really not good to put these ints in a float vector!!!
+  m.vecValue[0] = (Flt)note.getChannel();
+  m.vecValue[1] = note.getPitch();
+  m.vecValue[2] = note.getVolume();
+  pimpl->sendMessage(m);
+  return *this;
+}
+
 YSE::SYNTH::interfaceObject & YSE::SYNTH::interfaceObject::noteOff(int channel, int noteNumber) {
   assert(pimpl != nullptr);
   messageObject m;
@@ -93,6 +106,17 @@ YSE::SYNTH::interfaceObject & YSE::SYNTH::interfaceObject::noteOff(int channel, 
   // TODO: it's really not good to put these ints in a float vector!!!
   m.vecValue[0] = (Flt)channel;
   m.vecValue[1] = (Flt)noteNumber;
+  pimpl->sendMessage(m);
+  return *this;
+}
+
+YSE::SYNTH::interfaceObject & YSE::SYNTH::interfaceObject::noteOff(const MUSIC::note & note) {
+  assert(pimpl != nullptr);
+  messageObject m;
+  m.ID = NOTE_OFF;
+  // TODO: it's really not good to put these ints in a float vector!!!
+  m.vecValue[0] = (Flt)note.getChannel();
+  m.vecValue[1] = note.getPitch();
   pimpl->sendMessage(m);
   return *this;
 }

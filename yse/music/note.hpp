@@ -11,7 +11,7 @@
 #ifndef NOTE_H_INCLUDED
 #define NOTE_H_INCLUDED
 
-#include "../headers/types.hpp"
+#include "../classes.hpp"
 #include "../headers/defines.hpp"
 
 namespace YSE {
@@ -20,18 +20,28 @@ namespace YSE {
         
         class API note {
         private:
-            Flt pitch;
-            Flt volume;
+            Flt pitch  ;
+            Flt volume ;
+            Flt length ;
+            Int channel;
+
         public:
-            note(Flt pitch = 60.f, Flt volume = 1.f);
+            note(Flt pitch = 60.f, Flt volume = 1.f, Flt length = 0.f, Int channel = 1);
             note(const note & object);
             
-            note & set      (Flt pitch, Flt volume = 1.f);
-            note & setPitch (Flt value);
-            note & setVolume(Flt value);
+            note & set       (Flt pitch, Flt volume = 1.f, Flt length = 0.f, Int channel = 1);
+            note & setPitch  (Flt value);
+            note & setVolume (Flt value);
+            note & setLength (Flt value);
+            note & setChannel(Int value);
             
-            Flt getPitch ();
-            Flt getVolume();
+            Flt getPitch  () const;
+            Flt getVolume () const;
+            Flt getLength () const;
+            Int getChannel() const;
+
+            bool update(); // returns false if note wants to stop
+            bool update(Flt delta); // a special, more accurate version of update. This can only be called at DSP level
             
             // these operators work on pitch only,
             // volume is never changed
