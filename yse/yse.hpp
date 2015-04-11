@@ -44,24 +44,34 @@
 // primary objects
 #include "system.hpp"
 #include "log.hpp"
+
 #include "channel/channel.hpp"
 #include "channel/channelInterface.hpp"
+
 #include "sound/sound.hpp"
 #include "sound/soundInterface.hpp"
 #include "sound/audioBuffer.hpp"
+
 #include "synth/synth.hpp"
 #include "synth/synthInterface.hpp"
 #include "synth/dspVoice.hpp"
+
 #include "midi/midifile.hpp"
+
 #include "player/player.hpp"
 #include "player/playerInterface.hpp"
+
 #include "music/note.hpp"
+#include "music/pNote.hpp"
 #include "music/scale.hpp"
+
 #include "reverb/reverb.hpp"
 #include "reverb/reverbInterface.hpp"
+
 #include "device/device.hpp"
 #include "device/deviceInterface.hpp"
 #include "device/deviceSetup.hpp"
+
 #include "listener.hpp"
 #include "io.hpp"
 

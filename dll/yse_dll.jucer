@@ -174,6 +174,8 @@
         <FILE id="w96u3j" name="virtualFinder.h" compile="0" resource="0" file="../yse/internal/virtualFinder.h"/>
       </GROUP>
       <GROUP id="{A2CF01C9-C38A-A1ED-EAE9-13DBF6709E40}" name="music">
+        <FILE id="rrbyUj" name="pNote.cpp" compile="1" resource="0" file="../yse/music/pNote.cpp"/>
+        <FILE id="NTgW5F" name="pNote.hpp" compile="0" resource="0" file="../yse/music/pNote.hpp"/>
         <FILE id="z1RSJX" name="scale.cpp" compile="1" resource="0" file="../yse/music/scale.cpp"/>
         <FILE id="XkIHhD" name="scale.hpp" compile="0" resource="0" file="../yse/music/scale.hpp"/>
         <FILE id="nvduzQ" name="chord.cpp" compile="1" resource="0" file="../yse/music/chord.cpp"/>

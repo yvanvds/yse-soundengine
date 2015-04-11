@@ -77,6 +77,7 @@ namespace YSE {
 
   namespace MUSIC {
     class note;
+    class pNote;
     class chord;
     class player;
     class scale;
