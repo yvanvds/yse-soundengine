@@ -21,7 +21,7 @@ YSE::MUSIC::pNote & YSE::MUSIC::pNote::setPosition(Flt value) {
   return *this;
 }
 
-Flt YSE::MUSIC::pNote::getPosition() {
+Flt YSE::MUSIC::pNote::getPosition() const {
   return position;
 }
 

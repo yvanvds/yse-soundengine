@@ -28,7 +28,7 @@ namespace YSE {
       pNote(const note & object, Flt position = 0.f);
 
       pNote & setPosition(Flt value);
-      Flt getPosition();
+      Flt getPosition() const;
 
     private:
       Flt position;
