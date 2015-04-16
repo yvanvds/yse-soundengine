@@ -12,11 +12,13 @@
 #define MISC_H_INCLUDED
 
 #include <cstdlib>
+#include <time.h> 
 #include "../headers/types.hpp"
 
 namespace YSE {
   template<typename T0, typename T1, typename T2>
   inline API void  Clamp(T0  &x, T1  min, T2  max) { if (x<min)x = min; else if (x>max)x = max; }
+  inline API void Randomize() { srand(::time(NULL)); }
   inline API Int Random(Int max) { return rand() % max; }
   inline API Int Random(Int min, Int max) { return min + (rand() % (max - min)); }
   inline API Flt RandomF() { return (float)rand() / (float)RAND_MAX; }

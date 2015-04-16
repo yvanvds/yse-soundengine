@@ -119,6 +119,8 @@ void YSE::DEVICE::managerObject::audioDeviceIOCallback(const float ** inputChann
     CHANNEL::Manager().update();
     REVERB::Manager().update();
     MIDI::Manager().update();
+    SCALE::Manager().update();
+    MOTIF::Manager().update();
     // TODO: check if we still have to release sounds (see old code)
     INTERNAL::Global().updateDone();
   }

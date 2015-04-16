@@ -15,6 +15,7 @@
 #include "../headers/types.hpp"
 #include "player.hpp"
 #include "../synth/synth.hpp"
+#include "../music/motif/motif.hpp"
 
 namespace YSE {
   namespace PLAYER {
@@ -27,6 +28,7 @@ namespace YSE {
       interfaceObject& create(synth & s);
       interfaceObject& play();
       interfaceObject& stop();
+      Bool isPlaying();
 
       // Modifiers to change player behaviour. If a time value is provided the
       // change will happen gradually (linear interpolation)
@@ -52,10 +54,36 @@ namespace YSE {
 
       // restrict played notes to this scale. the player makes a copy of this
       // scale, so alterations you make afterwards are not passed to the player.
-      interfaceObject& setScale(MUSIC::scale & scale, Flt time = 0);
+      interfaceObject& setScale(scale & scale, Flt time = 0);
+
+      // Provide the player with a motif. Instead of random notes, all voices will play this
+      // motif. Several motifs can be added and the player will pick a motif when needed,
+      // taking weight into account.
+      interfaceObject& addMotif(motif & motif, UInt weight = 1);
+
+      // remove this motif from the player
+      interfaceObject& removeMotif(motif & motif);
+
+      // adjust the weight of a motif after it has been added
+      interfaceObject& adjustMotifWeight(motif & motif, UInt weight);
+
+      // With target == 0, the full motif is always played, with target == 1 only parts
+      // of the motif will be played. 
+      interfaceObject& playPartialMotifs(Flt target, Flt time = 0);
+
+      // With target == 0 only random notes will be played, with target == 1 only motif
+      // notes will be played.
+      interfaceObject& playMotifs(Flt target, Flt time = 0);
+
+      // alter the notes in the motif to fit the current scale. If not, only the first note
+      // will be taken from the scale.
+      interfaceObject& fitMotifsToScale(Flt target, Flt time = 0);
+
+
 
     private:
       implementationObject * pimpl;
+      Bool _isPlaying;
 
       friend class PLAYER::implementationObject;
     };

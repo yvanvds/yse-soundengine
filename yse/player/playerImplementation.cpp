@@ -27,7 +27,6 @@ YSE::PLAYER::implementationObject::implementationObject(interfaceObject * head, 
   activeVoices = 1;
   voices.reserve(32);
   voices.emplace_back(true);
-
 }
 
 
@@ -69,6 +68,9 @@ bool YSE::PLAYER::implementationObject::update(Flt delta) {
   minLength.update(delta);
   maxLength.update(delta);
   numVoices.update(delta);
+  partialMotif.update(delta);
+  playMotif.update(delta);
+  motifToScale.update(delta);
   scale.update(delta);
 
   // don't play new notes if we're stopped
@@ -91,26 +93,129 @@ bool YSE::PLAYER::implementationObject::update(Flt delta) {
   }
 
   // evaluate voices state
-  for (int i = 0; i < voices.size(); i++) {
-    voices[i].duration -= delta;
-    if (voices[i].duration <= 0) {
-      if (voices[i].notePlaying && maxGap() > 0) {
-        voices[i].duration = RandomF(minGap(), maxGap());
-        voices[i].notePlaying = false;
-      }
-      else {
-        voices[i].duration = RandomF(minLength(), maxLength());
-        voices[i].notePlaying = true;
-        Flt pitch = Random(minimumPitch(), maximumPitch());
-        if (scale.isSet()) pitch = scale().getNearest(pitch);
-        notes.emplace_back(MUSIC::note(pitch, RandomF(minimumVelocity(), maximumVelocity()), voices[i].duration));
-        instrument->noteOn(notes.back());
+  for (int i = 0; i < voices.size(); i++) { 
+    
+    // check motif if it's playing
+    if (voices[i].motifPlaying) {
+      setVoiceFromMotif(voices[i], delta);
+    }
+    
+    else if(voices[i].isActive) {
+      voices[i].duration -= delta;
+      if (voices[i].duration <= 0) {
+        // first check if a motif should be played
+        if (motifs.size() && !voices[i].motifPlaying && RandomF() < playMotif()) {
+          voices[i].motifPlaying = true;
+          setVoiceFromMotif(voices[i], delta);
+        }
+        // else insert rest if desired
+        else if (voices[i].notePlaying && maxGap() > 0) {
+          voices[i].duration = RandomF(minGap(), maxGap());
+          voices[i].notePlaying = false;
+        }
+        // else play a random note
+        else {
+          voices[i].duration = RandomF(minLength(), maxLength());
+          voices[i].notePlaying = true;
+          Flt pitch = Random(minimumPitch(), maximumPitch());
+          if (scale.isSet()) pitch = scale()->getNearest(pitch);
+          notes.emplace_back(MUSIC::note(pitch, RandomF(minimumVelocity(), maximumVelocity()), voices[i].duration));
+          instrument->noteOn(notes.back());
+        }
       }
     }
   }
 
   return true;
 }
+
+void YSE::PLAYER::implementationObject::setVoiceFromMotif(voice & v, Flt delta) {
+  // pick a new motif if needed
+  if (v.motif.empty()) {
+    // TODO is this really the best way to select a motif on weight?
+    UInt totalWeight = 0;
+    FOREACH(motifs) {
+      totalWeight += motifs[i].weight;
+    }
+
+    UInt weight = Random(totalWeight);
+    MOTIF::implementationObject * m;
+
+    totalWeight = 0;
+    FOREACH(motifs) {
+      totalWeight += motifs[i].weight;
+      if (weight < totalWeight) {
+        m = motifs[i].motif;
+        break;
+      }
+    }
+
+    if (RandomF() < partialMotif()) {
+      // copy just a part from the motif     
+      UInt start = Random(m->size() - 1);
+      UInt count = 1 + Random(m->size() - start - 1);
+      UInt end = start + count;
+
+      Flt offset = m->getNote(start).getPosition();
+      for (; start < end; start++) {
+        v.motif.emplace_back(m->getNote(start));
+        v.motif.back().setPosition(v.motif.back().getPosition() - offset);
+      }
+
+      v.duration = v.motif.back().getPosition() + v.motif.back().getLength();
+    }
+    else {
+      for (UInt i = 0; i < m->size(); i++) {
+        v.motif.emplace_back(m->getNote(i));
+      }
+      v.duration = m->getLength();
+    }
+
+    // transpose within range
+    Flt transposition;
+    if (m->getValidPitches() != nullptr && m->getValidPitches()->size()) {
+      Flt pitch = m->getValidPitches()->getNearest(Random(minimumPitch(), maximumPitch()));
+      transposition = pitch - v.motif[0].getPitch();     
+    }
+    else {
+      transposition = Random(minimumPitch() - v.motif[0].getPitch(), maximumPitch() - v.motif[0].getPitch());
+    }
+    FOREACH(v.motif) {
+      v.motif[i].setPitch(v.motif[i].getPitch() + transposition);
+    }
+
+    // set volume
+    v.motifVolume = RandomF(minimumVelocity(), maximumVelocity());
+
+    v.motifPos = 0;
+    v.motifTime = 0;
+  }
+
+  v.motifTime += delta;
+
+  while (v.motifPos < v.motif.size() && v.motif[v.motifPos].getPosition() < v.motifTime) {
+    MUSIC::note note;
+    note = v.motif[v.motifPos];
+    // TODO implement other channels later
+    note.setChannel(1);
+    note.setVolume(note.getVolume() * v.motifVolume);
+    if (RandomF() < motifToScale()) {
+      note.setPitch(scale()->getNearest(note.getPitch()));
+    }
+    notes.push_back(note);
+    instrument->noteOn(note);
+    v.motifPos++;
+  }
+  
+  v.motifTime += delta;
+  if (v.motifTime >= v.duration) {
+    v.motif.clear();
+    v.motifPlaying = false;
+    v.duration = 0;
+  }
+  
+}
+
 
 void YSE::PLAYER::implementationObject::removeInterface() {
   if (instrument != nullptr) {
@@ -156,7 +261,42 @@ void YSE::PLAYER::implementationObject::parseMessage(const messageObject & messa
     numVoices      .set(message.floatPair[0], message.floatPair[1]);
     break;
   case SCALE:
-    scale.set(*(MUSIC::scale*)message.object.ptr, message.object.time);
+    scale.set((SCALE::implementationObject*)message.object.ptr, message.object.time);
+    break;
+  case ADD_MOTIF:
+    wMotif m;
+    m.motif = (MOTIF::implementationObject*)message.object.ptr;
+    m.weight = message.object.time;
+    FOREACH(motifs) {
+      // no doubles!
+      if (motifs[i].motif == m.motif) assert(false);
+    }
+    motifs.emplace_back(m);
+    break;
+  case REM_MOTIF:
+    FOREACH(motifs) {
+      if (motifs[i].motif == (MOTIF::implementationObject*)message.object.ptr) {
+        motifs.erase(motifs.begin() + i);
+        break;
+      }
+    }
+    break;
+  case ADJUST_MOTIF:
+    FOREACH(motifs) {
+      if (motifs[i].motif == (MOTIF::implementationObject*)message.object.ptr) {
+        motifs[i].weight = message.object.time;
+        break;
+      }
+    }
+    break;
+  case PARTIAL_MOTIF:
+    partialMotif   .set(message.floatPair[0], message.floatPair[1]);
+    break;
+  case PLAY_MOTIF:
+    playMotif      .set(message.floatPair[0], message.floatPair[1]);
+    break;
+  case MOTIF_FITS_SCALE:
+    motifToScale   .set(message.floatPair[0], message.floatPair[1]);
     break;
   }
 

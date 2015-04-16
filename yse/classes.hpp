@@ -19,6 +19,7 @@
 #include "device/device.hpp"
 #include "synth/synth.hpp"
 #include "player/player.hpp"
+#include "music/scale/scale.hpp"
 
 namespace YSE {
   // public classes
@@ -80,7 +81,6 @@ namespace YSE {
     class pNote;
     class chord;
     class player;
-    class scale;
   }
     
   namespace INTERNAL {

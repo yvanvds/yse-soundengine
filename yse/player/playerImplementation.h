@@ -43,11 +43,20 @@ namespace YSE {
       float waitTime;
       
       struct voice {
-        voice(bool active) : isActive(active), notePlaying(false), duration(0) {}
+        voice(bool active) : isActive(active), notePlaying(false), 
+                             motifPlaying(false), duration(0) {}
         Bool isActive;
         Bool notePlaying;
+        Bool motifPlaying;
+        Bool hasMotif;
         Flt duration;
+        Flt motifTime;
+        UInt motifPos;
+        Flt motifVolume;
+        std::vector<MUSIC::pNote> motif;
       };
+
+      void setVoiceFromMotif(voice & v, Flt delta);
       
       std::deque<MUSIC::note> notes;
       std::vector<voice> voices;
@@ -65,7 +74,17 @@ namespace YSE {
       linearInterpolator minLength; // min note duration when no motif is supplied
       linearInterpolator maxLength;
       linearInterpolator numVoices; // simultanious voices
-      objectInterpolator<MUSIC::scale> scale;
+      linearInterpolator partialMotif;
+      linearInterpolator playMotif;
+      linearInterpolator motifToScale;
+      objectInterpolator<YSE::SCALE::implementationObject*> scale;
+
+      struct wMotif {
+        YSE::MOTIF::implementationObject * motif;
+        UInt weight;
+      };
+
+      std::vector<wMotif> motifs;
 
       friend class PLAYER::interfaceObject;
       friend class PLAYER::managerObject;

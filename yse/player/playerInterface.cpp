@@ -10,9 +10,10 @@
 
 #include "../internalHeaders.h"
 #include "playerInterface.hpp"
-#include "../music/scale.hpp"
+#include "../music/scale/scaleInterface.hpp"
+#include "../music/motif/motifInterface.hpp"
 
-YSE::PLAYER::interfaceObject::interfaceObject() : pimpl(nullptr) {}
+YSE::PLAYER::interfaceObject::interfaceObject() : pimpl(nullptr), _isPlaying(false) {}
 
 YSE::PLAYER::interfaceObject::~interfaceObject() {
   if (pimpl != nullptr) {
@@ -32,6 +33,7 @@ YSE::PLAYER::interfaceObject & YSE::PLAYER::interfaceObject::play() {
   m.ID = PLAY;
   m.boolValue = true;
   pimpl->sendMessage(m);
+  _isPlaying = true;
   return *this;
 }
 
@@ -40,7 +42,12 @@ YSE::PLAYER::interfaceObject & YSE::PLAYER::interfaceObject::stop() {
   m.ID = PLAY;
   m.boolValue = false;
   pimpl->sendMessage(m);
+  _isPlaying = false;
   return *this;
+}
+
+Bool YSE::PLAYER::interfaceObject::isPlaying() {
+  return _isPlaying;
 }
 
 YSE::PLAYER::interfaceObject & YSE::PLAYER::interfaceObject::setMinimumPitch(Flt target, Flt time) {
@@ -132,12 +139,66 @@ YSE::PLAYER::interfaceObject & YSE::PLAYER::interfaceObject::setVoices(UInt targ
   return *this;
 }
 
-YSE::PLAYER::interfaceObject & YSE::PLAYER::interfaceObject::setScale(MUSIC::scale & scale, Flt time) {
+YSE::PLAYER::interfaceObject & YSE::PLAYER::interfaceObject::setScale(YSE::scale & scale, Flt time) {
   messageObject m;
   m.ID = SCALE;
-  m.object.ptr = &scale;
+  m.object.ptr = scale.pimpl;
   m.object.time = time;
   pimpl->sendMessage(m);
   return *this;
 }
+
+YSE::PLAYER::interfaceObject & YSE::PLAYER::interfaceObject::addMotif(YSE::motif & motif, UInt weight) {
+  messageObject m;
+  m.ID = ADD_MOTIF;
+  m.object.ptr = motif.pimpl;
+  m.object.time = weight;
+  pimpl->sendMessage(m);
+  return *this;
+}
+
+YSE::PLAYER::interfaceObject & YSE::PLAYER::interfaceObject::removeMotif(YSE::motif & motif) {
+  messageObject m;
+  m.ID = REM_MOTIF;
+  m.object.ptr = motif.pimpl;
+  pimpl->sendMessage(m);
+  return *this;
+}
+
+YSE::PLAYER::interfaceObject & YSE::PLAYER::interfaceObject::adjustMotifWeight(YSE::motif & motif, UInt weight) {
+  messageObject m;
+  m.ID = ADJUST_MOTIF;
+  m.object.ptr = motif.pimpl;
+  m.object.time = weight;
+  pimpl->sendMessage(m);
+  return *this;
+}
+
+YSE::PLAYER::interfaceObject & YSE::PLAYER::interfaceObject::playPartialMotifs(Flt target, Flt time) {
+  messageObject m;
+  m.ID = PARTIAL_MOTIF;
+  m.floatPair[0] = target;
+  m.floatPair[1] = time;
+  pimpl->sendMessage(m);
+  return *this;
+}
+
+YSE::PLAYER::interfaceObject & YSE::PLAYER::interfaceObject::playMotifs(Flt target, Flt time) {
+  messageObject m;
+  m.ID = PLAY_MOTIF;
+  m.floatPair[0] = target;
+  m.floatPair[1] = time;
+  pimpl->sendMessage(m);
+  return *this;
+}
+
+YSE::PLAYER::interfaceObject & YSE::PLAYER::interfaceObject::fitMotifsToScale(Flt target, Flt time) {
+  messageObject m;
+  m.ID = MOTIF_FITS_SCALE;
+  m.floatPair[0] = target;
+  m.floatPair[1] = time;
+  pimpl->sendMessage(m);
+  return *this;
+}
+
 

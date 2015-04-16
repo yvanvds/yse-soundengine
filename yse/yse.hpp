@@ -63,7 +63,12 @@
 
 #include "music/note.hpp"
 #include "music/pNote.hpp"
-#include "music/scale.hpp"
+
+#include "music/scale/scale.hpp"
+#include "music/scale/scaleInterface.hpp"
+
+#include "music/motif/motif.hpp"
+#include "music/motif/motifInterface.hpp"
 
 #include "reverb/reverb.hpp"
 #include "reverb/reverbInterface.hpp"

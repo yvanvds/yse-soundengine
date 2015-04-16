@@ -30,6 +30,14 @@
 #include "player/playerManager.h"
 #include "player/playerMessage.h"
 
+#include "music/scale/scaleImplementation.h"
+#include "music/scale/scaleManager.h"
+#include "music/scale/scaleMessage.h"
+
+#include "music/motif/motifImplementation.h"
+#include "music/motif/motifManager.h"
+#include "music/motif/motifMessage.h"
+
 #include "midi/midifileImplementation.h"
 #include "midi/midifileManager.h"
 

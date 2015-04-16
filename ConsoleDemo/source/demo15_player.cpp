@@ -7,6 +7,16 @@
 #include "wincompat.h"
 #endif
 
+/*
+  A player object can be used to play a synth. While synths can also be played
+  directly or by supplying it with a midi file, a player object uses an algorithmic
+  approach. It plays by itself, but you can alter how it plays directly or over 
+  time.
+*/
+
+// This class is a DSP source for the synth used in this tutorial. (It is 
+// the same as the one in the previous tutorials.)
+
 class SineWaveVoice : public YSE::SYNTH::dspVoice {
 public:
 
@@ -61,15 +71,15 @@ private:
 
 };
 
-
-YSE::SYNTH::samplerConfig demo;
-YSE::sound sound;
+// The yse objects used in this tutorial
+YSE::sound sound; 
 YSE::synth synth;
 YSE::player player;
 YSE::Vec soundPos;
-YSE::MUSIC::scale scaleOne;
-YSE::MUSIC::scale scaleTwo;
+YSE::scale scaleOne;
+YSE::scale scaleTwo;
 
+// values we need to remember
 Flt minimumPitch = 40.f;
 Flt maximumPitch = 60.f;
 Flt minimumVelocity = 0.5f;
@@ -83,15 +93,17 @@ Flt numVoices = 1;
 int main() {
   YSE::System().init();
 
+  // create a synth with 16 voices
   synth.create();
   SineWaveVoice voice;
   synth.addVoices(&voice, 16, 1);
   
-
+  // use this synth as a sound source
   sound.create(synth).play();
   soundPos.set(5.f, 0.f, 1.f);
   sound.setPosition(soundPos);
 
+  // create a player which uses the synth, and set some starting values
   player.create(synth);
   player.setMinimumPitch(minimumPitch).setMaximumPitch(maximumPitch);
   player.setMinimumVelocity(minimumVelocity).setMaximumVelocity(maximumVelocity);
@@ -99,22 +111,23 @@ int main() {
   player.setMinimumLength(minimumLength).setMaximumLength(maximumLength);
   player.setVoices(numVoices);
 
+  // create two scales which can be used by a synth
   scaleOne.add(YSE::NOTE::C4)
     .add(YSE::NOTE::D4)
     .add(YSE::NOTE::E4)
     .add(YSE::NOTE::G4)
-    .add(YSE::NOTE::A4)
-    .sort();
+    .add(YSE::NOTE::A4);
 
   scaleTwo.add(YSE::NOTE::CS4)
     .add(YSE::NOTE::DS4)
     .add(YSE::NOTE::FS4)
     .add(YSE::NOTE::GS4)
-    .add(YSE::NOTE::AS4)
-    .sort();
+    .add(YSE::NOTE::AS4);
 
+  // start whith playing scale two
   player.setScale(scaleTwo);
 
+  // the interface
   std::cout << "1  : start player" << std::endl;
   std::cout << "2  : stop player" << std::endl;
   std::cout << "3-4: decrease/increase velocity over 5 seconds" << std::endl;

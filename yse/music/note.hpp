@@ -17,7 +17,8 @@
 namespace YSE {
     
     namespace MUSIC {
-        
+        class pNote;
+
         class API note {
         private:
             Flt pitch  ;
@@ -49,6 +50,8 @@ namespace YSE {
             note & operator-=(const note& object);
             note & operator*=(const note& object);
             note & operator/=(const note& object);
+
+            void operator=(const pNote& other);
             
             note & operator+=(Flt pitch);
             note & operator-=(Flt pitch);
@@ -83,6 +86,8 @@ namespace YSE {
             friend note operator-(const note &n1, const note &n2);
             friend note operator*(const note &n1, const note &n2);
             friend note operator/(const note &n1, const note &n2);
+
+
         };
         
     }

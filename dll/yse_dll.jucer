@@ -174,12 +174,38 @@
         <FILE id="w96u3j" name="virtualFinder.h" compile="0" resource="0" file="../yse/internal/virtualFinder.h"/>
       </GROUP>
       <GROUP id="{A2CF01C9-C38A-A1ED-EAE9-13DBF6709E40}" name="music">
-        <FILE id="TPkvu9" name="motif.cpp" compile="1" resource="0" file="../yse/music/motif.cpp"/>
-        <FILE id="JlSlZM" name="motif.hpp" compile="0" resource="0" file="../yse/music/motif.hpp"/>
+        <GROUP id="{AB9304F5-7FA8-DB3C-9DE2-D248DF732D9A}" name="motif">
+          <FILE id="Q60e8A" name="motif.hpp" compile="0" resource="0" file="../yse/music/motif/motif.hpp"/>
+          <FILE id="WVFmRw" name="motifImplementation.cpp" compile="1" resource="0"
+                file="../yse/music/motif/motifImplementation.cpp"/>
+          <FILE id="XeaLSr" name="motifImplementation.h" compile="0" resource="0"
+                file="../yse/music/motif/motifImplementation.h"/>
+          <FILE id="EXK1z7" name="motifInterface.cpp" compile="1" resource="0"
+                file="../yse/music/motif/motifInterface.cpp"/>
+          <FILE id="Hu3e5S" name="motifInterface.hpp" compile="0" resource="0"
+                file="../yse/music/motif/motifInterface.hpp"/>
+          <FILE id="vJwxB3" name="motifManager.cpp" compile="1" resource="0"
+                file="../yse/music/motif/motifManager.cpp"/>
+          <FILE id="D2QsS0" name="motifManager.h" compile="0" resource="0" file="../yse/music/motif/motifManager.h"/>
+          <FILE id="Jl46Ma" name="motifMessage.h" compile="0" resource="0" file="../yse/music/motif/motifMessage.h"/>
+        </GROUP>
+        <GROUP id="{52E873BB-99C4-8B22-56F4-E6BE9E099500}" name="scale">
+          <FILE id="OjyLQL" name="scaleMessage.h" compile="0" resource="0" file="../yse/music/scale/scaleMessage.h"/>
+          <FILE id="en44NE" name="scaleManager.cpp" compile="1" resource="0"
+                file="../yse/music/scale/scaleManager.cpp"/>
+          <FILE id="MRCwb6" name="scaleManager.h" compile="0" resource="0" file="../yse/music/scale/scaleManager.h"/>
+          <FILE id="p8pqXl" name="scaleInterface.cpp" compile="1" resource="0"
+                file="../yse/music/scale/scaleInterface.cpp"/>
+          <FILE id="rzjFof" name="scaleInterface.hpp" compile="0" resource="0"
+                file="../yse/music/scale/scaleInterface.hpp"/>
+          <FILE id="B5FDWY" name="scaleImplementation.cpp" compile="1" resource="0"
+                file="../yse/music/scale/scaleImplementation.cpp"/>
+          <FILE id="N6PtR9" name="scaleImplementation.h" compile="0" resource="0"
+                file="../yse/music/scale/scaleImplementation.h"/>
+          <FILE id="UBIZ7m" name="scale.hpp" compile="0" resource="0" file="../yse/music/scale/scale.hpp"/>
+        </GROUP>
         <FILE id="rrbyUj" name="pNote.cpp" compile="1" resource="0" file="../yse/music/pNote.cpp"/>
         <FILE id="NTgW5F" name="pNote.hpp" compile="0" resource="0" file="../yse/music/pNote.hpp"/>
-        <FILE id="z1RSJX" name="scale.cpp" compile="1" resource="0" file="../yse/music/scale.cpp"/>
-        <FILE id="XkIHhD" name="scale.hpp" compile="0" resource="0" file="../yse/music/scale.hpp"/>
         <FILE id="nvduzQ" name="chord.cpp" compile="1" resource="0" file="../yse/music/chord.cpp"/>
         <FILE id="bHrat1" name="chord.hpp" compile="0" resource="0" file="../yse/music/chord.hpp"/>
         <FILE id="K3uG3P" name="note.cpp" compile="1" resource="0" file="../yse/music/note.cpp"/>

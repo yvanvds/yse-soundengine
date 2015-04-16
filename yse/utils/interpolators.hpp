@@ -42,7 +42,8 @@ namespace YSE {
     objectInterpolator() : totalTime(0), timeLeft(0), _isSet(false) {}
     
     // Set a new target object. Be sure it has a valid copy constructor
-    objectInterpolator<TYPE> & set(TYPE & obj, Flt time = 0) {
+    // (unless type is a pointer)
+    objectInterpolator<TYPE> & set(TYPE obj, Flt time = 0) {
       if (!_isSet) {
         totalTime = timeLeft = 0;
         current = obj;

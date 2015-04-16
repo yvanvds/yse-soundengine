@@ -10,6 +10,7 @@
 
 #include "note.hpp"
 #include "../internalHeaders.h"
+#include "pNote.hpp"
 #include <iostream>
 
 YSE::MUSIC::note::note(Flt pitch, Flt volume, Flt length, Int channel) : pitch(pitch), volume(volume), length(length), channel(channel) {}
@@ -240,3 +241,9 @@ YSE ::MUSIC::note YSE::MUSIC::operator/(const note&n1, const note &n2) {
     return out;
 }
 
+void YSE::MUSIC::note::operator=(const pNote& other) {
+  this->channel = other.channel;
+  this->length = other.length;
+  this->pitch = other.pitch;
+  this->volume = other.volume;
+}

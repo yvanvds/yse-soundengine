@@ -38,7 +38,8 @@ namespace YSE {
       */
       union {
         Bool boolValue;
-        Flt intValue;
+        Int intValue;
+        UInt uIntValue;
         Flt floatValue;
         Flt floatPair[2]; // linear interpolation, 0 = target value, 1 = time
         struct {
