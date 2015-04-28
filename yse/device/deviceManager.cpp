@@ -37,6 +37,9 @@ Bool YSE::DEVICE::managerObject::init() {
     }
     initialized = true;
     SAMPLERATE = static_cast<UInt>(audioDeviceManager.getCurrentAudioDevice()->getCurrentSampleRate());
+    defaultTypeName = audioDeviceManager.getCurrentAudioDevice()->getTypeName().toStdString();
+    defaultDeviceName = audioDeviceManager.getCurrentAudioDevice()->getName().toStdString();
+    
     if (!open) {
       audioDeviceManager.addAudioCallback(this);
       open = true;
@@ -206,4 +209,12 @@ void YSE::DEVICE::managerObject::updateDeviceList() {
 
 const std::vector<YSE::DEVICE::interfaceObject> & YSE::DEVICE::managerObject::getDeviceList() {
   return devices;
+}
+
+const std::string & YSE::DEVICE::managerObject::getDefaultDeviceName() {
+  return defaultDeviceName;
+}
+
+const std::string & YSE::DEVICE::managerObject::getDefaultTypeName() {
+  return defaultTypeName;
 }

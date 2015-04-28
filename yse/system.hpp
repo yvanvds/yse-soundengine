@@ -36,12 +36,21 @@ namespace YSE {
     */
     reverb & getGlobalReverb();
 
-    // audio device
-    //void	speakerPos(Int  nr, Flt angle);
-    //Int		activeDevice();
+    // This function gets you a list of all available audio devices, but it will only work
+    // with YSE as a static library, not with dynamic libraries.
+    
     const std::vector<device> & getDevices();
+    
+    // If YSE is used as a dynamic library, the following functions should be used
+    // to retrieve information about devices.
+    UInt getNumDevices();
+    const device & getDevice(UInt nr);
+    
     void openDevice(const deviceSetup & object, CHANNEL_TYPE conf = CT_AUTO);
     void closeCurrentDevice();
+
+    const char * getDefaultDevice();
+    const char * getDefaultHost();
 
     // effects
     //void insideCave(Bool status);

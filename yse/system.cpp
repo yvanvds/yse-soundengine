@@ -154,3 +154,19 @@ void YSE::system::openDevice(const deviceSetup & object, CHANNEL_TYPE conf) {
 void YSE::system::closeCurrentDevice() {
   DEVICE::Manager().close();
 }
+
+UInt YSE::system::getNumDevices() {
+  return DEVICE::Manager().getDeviceList().size();
+}
+
+const YSE::device & YSE::system::getDevice(UInt nr) {
+  return DEVICE::Manager().getDeviceList()[nr];
+}
+
+const char * YSE::system::getDefaultDevice() {
+  return DEVICE::Manager().getDefaultDeviceName().c_str();
+}
+
+const char * YSE::system::getDefaultHost() {
+  return DEVICE::Manager().getDefaultTypeName().c_str();
+}

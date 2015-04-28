@@ -1,39 +1,43 @@
 /*
   ==============================================================================
 
-    channel.h
-    Created: 23 Mar 2014 11:50:29am
+    motif.hpp
+    Created: 14 Apr 2015 6:19:33pm
     Author:  yvan
 
   ==============================================================================
 */
 
-#ifndef CHANNEL_H_INCLUDED
-#define CHANNEL_H_INCLUDED
+#ifndef MOTIF_HPP_INCLUDED
+#define MOTIF_HPP_INCLUDED
+
 
 namespace YSE {
   /** Every subSystem consists out of several class which are meant to work together.
   They all have an interface, implementation, manager, message and a message enumeration.
   */
-  namespace CHANNEL {
+
+  namespace MOTIF {
     class interfaceObject;
     class implementationObject;
     class messageObject;
     class managerObject;
+
     enum MESSAGE {
-      VOLUME,
-      MOVE,
-      VIRTUAL,
-      ATTACH_REVERB,
+      ADD,
+      CLEAR,
+      LENGTH,
+      TRANSPOSE,
+      FIRST_PITCH,
     };
   }
 
   // the interface itself gets a more generic name, so that users can just
-  // define a 'channel' to get an interface object.
-  typedef CHANNEL::interfaceObject channel;
+  // define a 'player' to get an interface object.
+  typedef MOTIF::interfaceObject motif;
+
 }
 
 
 
-
-#endif  // CHANNEL_H_INCLUDED
+#endif  // MOTIF_HPP_INCLUDED

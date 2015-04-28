@@ -14,6 +14,7 @@
 #include "../classes.hpp"
 #include "../headers/defines.hpp"
 #include "dspVoice.hpp"
+#include "../music/note.hpp"
 #include <string>
 
 namespace YSE {
@@ -86,6 +87,9 @@ namespace YSE {
 
       interfaceObject & noteOn (int channel, int noteNumber, float velocity);
       interfaceObject & noteOff(int channel, int noteNumber);
+
+      interfaceObject & noteOn (const MUSIC::note & note);
+      interfaceObject & noteOff(const MUSIC::note & note);
 
       interfaceObject & pitchWheel(int channel                , int  value);
       interfaceObject & controller(int channel, int number    , int  value);

@@ -63,7 +63,6 @@ namespace YSE {
     };
 
 
-
     // these functions are limited to the length of the buffer
     void FastFadeIn(sample& s, UInt length);
     void FastFadeOut(sample& s, UInt length);

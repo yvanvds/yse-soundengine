@@ -55,6 +55,38 @@ const std::vector<int> & YSE::device::getAvailableBufferSizes() const {
   return bufferSizes;
 }
 
+UInt YSE::device::getNumOutputChannelNames() const {
+  return outputChannelNames.size();
+}
+
+const char * YSE::device::getOutputChannelName(UInt nr) const {
+  return outputChannelNames[nr].c_str();
+}
+
+UInt YSE::device::getNumInputChannelNames() const {
+  return inputChannelNames.size();
+}
+
+const char * YSE::device::getInputChannelName(UInt nr) const {
+  return inputChannelNames[nr].c_str();
+}
+
+UInt YSE::device::getNumAvailableSampleRates() const {
+  return sampleRates.size();
+}
+
+double YSE::device::getAvailableSampleRate(UInt nr) const {
+  return sampleRates[nr];
+}
+
+UInt YSE::device::getNumAvailableBufferSizes() const {
+  return bufferSizes.size();
+}
+
+Int YSE::device::getAvailableBufferSize(UInt nr) const {
+  return bufferSizes[nr];
+}
+
 int YSE::device::getDefaultBufferSize() const {
   return pimpl->getDefaultBufferSize();
 }

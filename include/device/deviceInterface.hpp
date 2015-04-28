@@ -30,10 +30,26 @@ namespace YSE {
       const char * getName() const;
       const char * getTypeName() const;
 
+      // These functions cannot be used if YSE is compiled as DLL, because
+      // you can't pass a vector if this is the case.
       const std::vector<std::string> & getOutputChannelNames() const;
       const std::vector<std::string> & getInputChannelNames() const;
       const std::vector<double> & getAvailableSampleRates() const;
       const std::vector<int> & getAvailableBufferSizes() const;
+
+      // use these instead.
+      UInt getNumOutputChannelNames() const;
+      const char * getOutputChannelName(UInt nr) const;
+
+      UInt getNumInputChannelNames() const;
+      const char * getInputChannelName(UInt nr) const;
+
+      UInt getNumAvailableSampleRates() const;
+      double getAvailableSampleRate(UInt nr) const;
+
+      UInt getNumAvailableBufferSizes() const;
+      Int getAvailableBufferSize(UInt nr) const;
+
       int getDefaultBufferSize() const;
       int getOutputLatency() const;
       int getInputLatency() const;

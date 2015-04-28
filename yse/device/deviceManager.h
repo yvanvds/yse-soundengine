@@ -41,11 +41,13 @@ namespace YSE {
 
       void setMaster(CHANNEL::implementationObject * ptr); // pointer to main channel
       CHANNEL::implementationObject & getMaster();
-      //std::vector<audioDevice> deviceList;
+
       void updateDeviceList();
       const std::vector<interfaceObject> & getDeviceList();
       void openDevice(const YSE::DEVICE::setupObject & object);
-      //Int activeDevice;
+      
+      const std::string & getDefaultTypeName();
+      const std::string & getDefaultDeviceName();
 
     private:
       juce::String _lastError;
@@ -58,6 +60,10 @@ namespace YSE {
       AudioDeviceManager audioDeviceManager;
       
       std::vector<interfaceObject> devices;
+
+      //defaults
+      std::string defaultTypeName;
+      std::string defaultDeviceName;
     };
 
     managerObject & Manager();

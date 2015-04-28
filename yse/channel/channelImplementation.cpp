@@ -90,8 +90,6 @@ void YSE::CHANNEL::implementationObject::dsp() {
     }
   }
 
-  adjustVolume();
-
   REVERB::Manager().process(this);
 
   if (INTERNAL::UnderWaterEffect().channel() == this) {
@@ -111,6 +109,8 @@ void YSE::CHANNEL::implementationObject::buffersToParent() {
     (*i)->buffersToParent();
   }
 
+  // apply channel volume
+  adjustVolume();
 
   // if this is the main channel, we're done here
   if (parent == nullptr) return;

@@ -1,39 +1,40 @@
 /*
   ==============================================================================
 
-    channel.h
-    Created: 23 Mar 2014 11:50:29am
+    scale.hpp
+    Created: 14 Apr 2015 2:53:42pm
     Author:  yvan
 
   ==============================================================================
 */
 
-#ifndef CHANNEL_H_INCLUDED
-#define CHANNEL_H_INCLUDED
+#ifndef SCALE_HPP_INCLUDED
+#define SCALE_HPP_INCLUDED
 
 namespace YSE {
   /** Every subSystem consists out of several class which are meant to work together.
   They all have an interface, implementation, manager, message and a message enumeration.
   */
-  namespace CHANNEL {
+
+  namespace SCALE {
     class interfaceObject;
     class implementationObject;
     class messageObject;
     class managerObject;
+
     enum MESSAGE {
-      VOLUME,
-      MOVE,
-      VIRTUAL,
-      ATTACH_REVERB,
+      ADD,
+      REMOVE,
+      CLEAR,
     };
   }
 
   // the interface itself gets a more generic name, so that users can just
-  // define a 'channel' to get an interface object.
-  typedef CHANNEL::interfaceObject channel;
+  // define a 'scale' to get an interface object.
+  typedef SCALE::interfaceObject scale;
+
 }
 
 
 
-
-#endif  // CHANNEL_H_INCLUDED
+#endif  // SCALE_HPP_INCLUDED
