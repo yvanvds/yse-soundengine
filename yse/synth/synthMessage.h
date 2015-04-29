@@ -25,6 +25,7 @@ namespace YSE {
       union {
         Bool boolValue;
         Flt floatValue;
+        void * ptr;
         U16 uIntValue[3];
         Flt vecValue[3];
         Int intValue[3];

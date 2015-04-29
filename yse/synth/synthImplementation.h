@@ -55,6 +55,9 @@ namespace YSE {
       int ID;
       int voiceID;
 
+      // callback on note events
+      void(*onNoteEvent)(bool, float*, float*);
+
       std::forward_list<MIDI::fileImpl *> midiFiles;
     };
 

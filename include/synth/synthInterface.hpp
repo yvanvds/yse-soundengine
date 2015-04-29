@@ -55,7 +55,6 @@ namespace YSE {
       Flt releaseTime() const { return _releaseTime; }
       Flt maxLength  () const { return _maxLength  ; }
 
-
     private:
       std::string _name;
       std::string _file;
@@ -100,6 +99,11 @@ namespace YSE {
 
       // pass 0 as channel to turn off all notes on all channels
       interfaceObject & allNotesOff(int channel);
+
+      // Callback for note events. The event can be changed by the callback. Make sure
+      // the noteNumber stays between 0-127 and velocity between 0-1. This function will
+      // be called from the DSP thread, so be sure to make your own variables atomic.
+      interfaceObject & onNoteEvent(void(*func)(bool noteOn, float * noteNumber, float * velocity));
 
       int getNumVoices() { return numVoices; }
 

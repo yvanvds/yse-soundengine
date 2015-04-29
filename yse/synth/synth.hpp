@@ -34,6 +34,7 @@ namespace YSE {
       SUSTAIN,
       SOSTENUTO,
       SOFTPEDAL,
+      CALLBACK,
     };
   }
 

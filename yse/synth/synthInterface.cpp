@@ -215,3 +215,12 @@ YSE::SYNTH::interfaceObject & YSE::SYNTH::interfaceObject::softPedal(int channel
   pimpl->sendMessage(m);
   return *this;
 }
+
+YSE::SYNTH::interfaceObject & YSE::SYNTH::interfaceObject::onNoteEvent(void(*func)(bool noteOn, float * noteNumber, float * velocity)) {
+  assert(pimpl != nullptr);
+  messageObject m;
+  m.ID = CALLBACK;
+  m.ptr = func;
+  pimpl->sendMessage(m);
+  return *this;
+}
