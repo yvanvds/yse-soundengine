@@ -5,16 +5,38 @@ LOCAL_PATH := $(call my-dir)
 
 include $(CLEAR_VARS)
 
-LOCAL_ARM_MODE := arm
-LOCAL_MODULE := yse_static
+ifeq ($(TARGET_ARCH_ABI), armeabi-v7a)
+    LOCAL_ARM_MODE := arm
+endif
+
+LOCAL_MODULE := juce_jni
 LOCAL_SRC_FILES := \
-  ../../../../yse/io.cpp\
-  ../../../../yse/listener.cpp\
-  ../../../../yse/log.cpp\
-  ../../../../yse/system.cpp\
+  ../../../../yse/music/scale/scaleImplementation.cpp\
+  ../../../../yse/music/scale/scaleInterface.cpp\
+  ../../../../yse/music/scale/scaleManager.cpp\
+  ../../../../yse/music/motif/motifImplementation.cpp\
+  ../../../../yse/music/motif/motifInterface.cpp\
+  ../../../../yse/music/motif/motifManager.cpp\
+  ../../../../yse/music/pNote.cpp\
+  ../../../../yse/music/chord.cpp\
+  ../../../../yse/music/note.cpp\
+  ../../../../yse/synth/dspSound.cpp\
+  ../../../../yse/synth/dspVoice.cpp\
+  ../../../../yse/synth/dspVoiceInternal.cpp\
+  ../../../../yse/synth/samplerSound.cpp\
+  ../../../../yse/synth/synthImplementation.cpp\
+  ../../../../yse/synth/synthInterface.cpp\
+  ../../../../yse/synth/synthManager.cpp\
+  ../../../../yse/midi/midifile.cpp\
+  ../../../../yse/midi/midifileImplementation.cpp\
+  ../../../../yse/midi/midifileManager.cpp\
+  ../../../../yse/player/playerImplementation.cpp\
+  ../../../../yse/player/playerInterface.cpp\
+  ../../../../yse/player/playerManager.cpp\
   ../../../../yse/device/deviceInterface.cpp\
   ../../../../yse/device/deviceManager.cpp\
   ../../../../yse/device/deviceSetup.cpp\
+  ../../../../yse/sound/audioBuffer.cpp\
   ../../../../yse/sound/soundImplementation.cpp\
   ../../../../yse/sound/soundInterface.cpp\
   ../../../../yse/sound/soundManager.cpp\
@@ -24,13 +46,15 @@ LOCAL_SRC_FILES := \
   ../../../../yse/channel/channelImplementation.cpp\
   ../../../../yse/channel/channelInterface.cpp\
   ../../../../yse/channel/channelManager.cpp\
-  ../../../../yse/music/chord.cpp\
-  ../../../../yse/music/note.cpp\
   ../../../../yse/dsp/delay.cpp\
   ../../../../yse/dsp/dspObject.cpp\
   ../../../../yse/dsp/filters.cpp\
   ../../../../yse/dsp/math.cpp\
   ../../../../yse/dsp/math_functions.cpp\
+  ../../../../yse/dsp/modules/filters/bandpass.cpp\
+  ../../../../yse/dsp/modules/filters/highpass.cpp\
+  ../../../../yse/dsp/modules/filters/lowpass.cpp\
+  ../../../../yse/dsp/modules/fm/difference.cpp\
   ../../../../yse/dsp/modules/hilbert.cpp\
   ../../../../yse/dsp/modules/ringModulator.cpp\
   ../../../../yse/dsp/modules/sineWave.cpp\
@@ -44,10 +68,17 @@ LOCAL_SRC_FILES := \
   ../../../../yse/internal/reverbDSP.cpp\
   ../../../../yse/internal/settings.cpp\
   ../../../../yse/internal/soundFile.cpp\
+  ../../../../yse/internal/thread.cpp\
+  ../../../../yse/internal/threadPool.cpp\
   ../../../../yse/internal/time.cpp\
   ../../../../yse/internal/underWaterEffect.cpp\
   ../../../../yse/internal/virtualFinder.cpp\
+  ../../../../yse/utils/interpolators.cpp\
   ../../../../yse/utils/vector.cpp\
+  ../../../../yse/io.cpp\
+  ../../../../yse/listener.cpp\
+  ../../../../yse/log.cpp\
+  ../../../../yse/system.cpp\
   ../../../JuceLibraryCode/BinaryData.cpp\
   ../../../JuceLibraryCode/modules/juce_audio_basics/juce_audio_basics.cpp\
   ../../../JuceLibraryCode/modules/juce_audio_devices/juce_audio_devices.cpp\
@@ -55,16 +86,16 @@ LOCAL_SRC_FILES := \
   ../../../JuceLibraryCode/modules/juce_core/juce_core.cpp\
   ../../../JuceLibraryCode/modules/juce_events/juce_events.cpp\
 
-ifeq ($(CONFIG),Debug)
-  LOCAL_CPPFLAGS += -fsigned-char -fexceptions -frtti -g -I "../../JuceLibraryCode" -I "../../JuceLibraryCode/modules" -O0 -std=c++0x -std=gnu++0x -D "JUCE_ANDROID=1" -D "JUCE_ANDROID_API_VERSION=9" -D "JUCE_ANDROID_ACTIVITY_CLASSNAME=com_mute_yse_static" -D JUCE_ANDROID_ACTIVITY_CLASSPATH=\"com/mute/yse_static\" -D "DEBUG=1" -D "_DEBUG=1" -D "JUCE_CHECK_MEMORY_LEAKS=0" -D "JUCER_ANDROID_7F0E4A25=1" -D "JUCE_APP_VERSION=1.0.0" -D "JUCE_APP_VERSION_HEX=0x10000"
+ifeq ($(NDK_DEBUG),1)
+  LOCAL_CPPFLAGS += -fsigned-char -fexceptions -frtti -g -I "../../JuceLibraryCode" -I "../../JuceLibraryCode/modules" -O0 -std=c++11 -std=gnu++11 -D "JUCE_ANDROID=1" -D "JUCE_ANDROID_API_VERSION=9" -D "JUCE_ANDROID_ACTIVITY_CLASSNAME=com_mute_yse_static" -D JUCE_ANDROID_ACTIVITY_CLASSPATH=\"com/mute/yse_static\" -D "DEBUG=1" -D "_DEBUG=1" -D "JUCE_CHECK_MEMORY_LEAKS=0" -D "JUCER_ANDROID_7F0E4A25=1" -D "JUCE_APP_VERSION=1.0.0" -D "JUCE_APP_VERSION_HEX=0x10000"
   LOCAL_LDLIBS := -llog -lGLESv2
-  LOCAL_CFLAGS += -fsigned-char -fexceptions -frtti -g -I "../../JuceLibraryCode" -I "../../JuceLibraryCode/modules" -O0 -std=c++0x -std=gnu++0x -D "JUCE_ANDROID=1" -D "JUCE_ANDROID_API_VERSION=9" -D "JUCE_ANDROID_ACTIVITY_CLASSNAME=com_mute_yse_static" -D JUCE_ANDROID_ACTIVITY_CLASSPATH=\"com/mute/yse_static\" -D "DEBUG=1" -D "_DEBUG=1" -D "JUCE_CHECK_MEMORY_LEAKS=0" -D "JUCER_ANDROID_7F0E4A25=1" -D "JUCE_APP_VERSION=1.0.0" -D "JUCE_APP_VERSION_HEX=0x10000"
+  LOCAL_CFLAGS += -fsigned-char -fexceptions -frtti -g -I "../../JuceLibraryCode" -I "../../JuceLibraryCode/modules" -O0 -std=c++11 -std=gnu++11 -D "JUCE_ANDROID=1" -D "JUCE_ANDROID_API_VERSION=9" -D "JUCE_ANDROID_ACTIVITY_CLASSNAME=com_mute_yse_static" -D JUCE_ANDROID_ACTIVITY_CLASSPATH=\"com/mute/yse_static\" -D "DEBUG=1" -D "_DEBUG=1" -D "JUCE_CHECK_MEMORY_LEAKS=0" -D "JUCER_ANDROID_7F0E4A25=1" -D "JUCE_APP_VERSION=1.0.0" -D "JUCE_APP_VERSION_HEX=0x10000"
   LOCAL_LDLIBS := -llog -lGLESv2
 else
-  LOCAL_CPPFLAGS += -fsigned-char -fexceptions -frtti -I "../../JuceLibraryCode" -I "../../JuceLibraryCode/modules" -O3 -std=c++0x -std=gnu++0x -D "JUCE_ANDROID=1" -D "JUCE_ANDROID_API_VERSION=9" -D "JUCE_ANDROID_ACTIVITY_CLASSNAME=com_mute_yse_static" -D JUCE_ANDROID_ACTIVITY_CLASSPATH=\"com/mute/yse_static\" -D "NDEBUG=1" -D "JUCE_CHECK_MEMORY_LEAKS=0" -D "JUCER_ANDROID_7F0E4A25=1" -D "JUCE_APP_VERSION=1.0.0" -D "JUCE_APP_VERSION_HEX=0x10000"
+  LOCAL_CPPFLAGS += -fsigned-char -fexceptions -frtti -I "../../JuceLibraryCode" -I "../../JuceLibraryCode/modules" -O3 -std=c++11 -std=gnu++11 -D "JUCE_ANDROID=1" -D "JUCE_ANDROID_API_VERSION=9" -D "JUCE_ANDROID_ACTIVITY_CLASSNAME=com_mute_yse_static" -D JUCE_ANDROID_ACTIVITY_CLASSPATH=\"com/mute/yse_static\" -D "NDEBUG=1" -D "JUCE_CHECK_MEMORY_LEAKS=0" -D "JUCER_ANDROID_7F0E4A25=1" -D "JUCE_APP_VERSION=1.0.0" -D "JUCE_APP_VERSION_HEX=0x10000"
   LOCAL_LDLIBS := -llog -lGLESv2
-  LOCAL_CFLAGS += -fsigned-char -fexceptions -frtti -I "../../JuceLibraryCode" -I "../../JuceLibraryCode/modules" -O3 -std=c++0x -std=gnu++0x -D "JUCE_ANDROID=1" -D "JUCE_ANDROID_API_VERSION=9" -D "JUCE_ANDROID_ACTIVITY_CLASSNAME=com_mute_yse_static" -D JUCE_ANDROID_ACTIVITY_CLASSPATH=\"com/mute/yse_static\" -D "NDEBUG=1" -D "JUCE_CHECK_MEMORY_LEAKS=0" -D "JUCER_ANDROID_7F0E4A25=1" -D "JUCE_APP_VERSION=1.0.0" -D "JUCE_APP_VERSION_HEX=0x10000"
+  LOCAL_CFLAGS += -fsigned-char -fexceptions -frtti -I "../../JuceLibraryCode" -I "../../JuceLibraryCode/modules" -O3 -std=c++11 -std=gnu++11 -D "JUCE_ANDROID=1" -D "JUCE_ANDROID_API_VERSION=9" -D "JUCE_ANDROID_ACTIVITY_CLASSNAME=com_mute_yse_static" -D JUCE_ANDROID_ACTIVITY_CLASSPATH=\"com/mute/yse_static\" -D "NDEBUG=1" -D "JUCE_CHECK_MEMORY_LEAKS=0" -D "JUCER_ANDROID_7F0E4A25=1" -D "JUCE_APP_VERSION=1.0.0" -D "JUCE_APP_VERSION_HEX=0x10000"
   LOCAL_LDLIBS := -llog -lGLESv2
 endif
 
-include $(BUILD_STATIC_LIBRARY)
+include $(BUILD_SHARED_LIBRARY)

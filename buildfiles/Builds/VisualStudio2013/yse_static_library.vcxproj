@@ -131,13 +131,32 @@
     </Bscmake>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\yse\io.cpp"/>
-    <ClCompile Include="..\..\..\yse\listener.cpp"/>
-    <ClCompile Include="..\..\..\yse\log.cpp"/>
-    <ClCompile Include="..\..\..\yse\system.cpp"/>
+    <ClCompile Include="..\..\..\yse\music\scale\scaleImplementation.cpp"/>
+    <ClCompile Include="..\..\..\yse\music\scale\scaleInterface.cpp"/>
+    <ClCompile Include="..\..\..\yse\music\scale\scaleManager.cpp"/>
+    <ClCompile Include="..\..\..\yse\music\motif\motifImplementation.cpp"/>
+    <ClCompile Include="..\..\..\yse\music\motif\motifInterface.cpp"/>
+    <ClCompile Include="..\..\..\yse\music\motif\motifManager.cpp"/>
+    <ClCompile Include="..\..\..\yse\music\pNote.cpp"/>
+    <ClCompile Include="..\..\..\yse\music\chord.cpp"/>
+    <ClCompile Include="..\..\..\yse\music\note.cpp"/>
+    <ClCompile Include="..\..\..\yse\synth\dspSound.cpp"/>
+    <ClCompile Include="..\..\..\yse\synth\dspVoice.cpp"/>
+    <ClCompile Include="..\..\..\yse\synth\dspVoiceInternal.cpp"/>
+    <ClCompile Include="..\..\..\yse\synth\samplerSound.cpp"/>
+    <ClCompile Include="..\..\..\yse\synth\synthImplementation.cpp"/>
+    <ClCompile Include="..\..\..\yse\synth\synthInterface.cpp"/>
+    <ClCompile Include="..\..\..\yse\synth\synthManager.cpp"/>
+    <ClCompile Include="..\..\..\yse\midi\midifile.cpp"/>
+    <ClCompile Include="..\..\..\yse\midi\midifileImplementation.cpp"/>
+    <ClCompile Include="..\..\..\yse\midi\midifileManager.cpp"/>
+    <ClCompile Include="..\..\..\yse\player\playerImplementation.cpp"/>
+    <ClCompile Include="..\..\..\yse\player\playerInterface.cpp"/>
+    <ClCompile Include="..\..\..\yse\player\playerManager.cpp"/>
     <ClCompile Include="..\..\..\yse\device\deviceInterface.cpp"/>
     <ClCompile Include="..\..\..\yse\device\deviceManager.cpp"/>
     <ClCompile Include="..\..\..\yse\device\deviceSetup.cpp"/>
+    <ClCompile Include="..\..\..\yse\sound\audioBuffer.cpp"/>
     <ClCompile Include="..\..\..\yse\sound\soundImplementation.cpp"/>
     <ClCompile Include="..\..\..\yse\sound\soundInterface.cpp"/>
     <ClCompile Include="..\..\..\yse\sound\soundManager.cpp"/>
@@ -147,13 +166,15 @@
     <ClCompile Include="..\..\..\yse\channel\channelImplementation.cpp"/>
     <ClCompile Include="..\..\..\yse\channel\channelInterface.cpp"/>
     <ClCompile Include="..\..\..\yse\channel\channelManager.cpp"/>
-    <ClCompile Include="..\..\..\yse\music\chord.cpp"/>
-    <ClCompile Include="..\..\..\yse\music\note.cpp"/>
     <ClCompile Include="..\..\..\yse\dsp\delay.cpp"/>
     <ClCompile Include="..\..\..\yse\dsp\dspObject.cpp"/>
     <ClCompile Include="..\..\..\yse\dsp\filters.cpp"/>
     <ClCompile Include="..\..\..\yse\dsp\math.cpp"/>
     <ClCompile Include="..\..\..\yse\dsp\math_functions.cpp"/>
+    <ClCompile Include="..\..\..\yse\dsp\modules\filters\bandpass.cpp"/>
+    <ClCompile Include="..\..\..\yse\dsp\modules\filters\highpass.cpp"/>
+    <ClCompile Include="..\..\..\yse\dsp\modules\filters\lowpass.cpp"/>
+    <ClCompile Include="..\..\..\yse\dsp\modules\fm\difference.cpp"/>
     <ClCompile Include="..\..\..\yse\dsp\modules\hilbert.cpp"/>
     <ClCompile Include="..\..\..\yse\dsp\modules\ringModulator.cpp"/>
     <ClCompile Include="..\..\..\yse\dsp\modules\sineWave.cpp"/>
@@ -167,10 +188,17 @@
     <ClCompile Include="..\..\..\yse\internal\reverbDSP.cpp"/>
     <ClCompile Include="..\..\..\yse\internal\settings.cpp"/>
     <ClCompile Include="..\..\..\yse\internal\soundFile.cpp"/>
+    <ClCompile Include="..\..\..\yse\internal\thread.cpp"/>
+    <ClCompile Include="..\..\..\yse\internal\threadPool.cpp"/>
     <ClCompile Include="..\..\..\yse\internal\time.cpp"/>
     <ClCompile Include="..\..\..\yse\internal\underWaterEffect.cpp"/>
     <ClCompile Include="..\..\..\yse\internal\virtualFinder.cpp"/>
+    <ClCompile Include="..\..\..\yse\utils\interpolators.cpp"/>
     <ClCompile Include="..\..\..\yse\utils\vector.cpp"/>
+    <ClCompile Include="..\..\..\yse\io.cpp"/>
+    <ClCompile Include="..\..\..\yse\listener.cpp"/>
+    <ClCompile Include="..\..\..\yse\log.cpp"/>
+    <ClCompile Include="..\..\..\yse\system.cpp"/>
     <ClCompile Include="..\..\JuceLibraryCode\modules\juce_audio_basics\buffers\juce_AudioDataConverters.cpp">
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </ClCompile>
@@ -193,6 +221,9 @@
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\..\JuceLibraryCode\modules\juce_audio_basics\midi\juce_MidiMessageSequence.cpp">
+      <ExcludedFromBuild>true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\JuceLibraryCode\modules\juce_audio_basics\effects\juce_FFT.cpp">
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\..\JuceLibraryCode\modules\juce_audio_basics\effects\juce_IIRFilter.cpp">
@@ -626,17 +657,41 @@
     <ClCompile Include="..\..\JuceLibraryCode\modules\juce_events\juce_events.cpp"/>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\yse\io.h"/>
-    <ClInclude Include="..\..\..\yse\classes.hpp"/>
-    <ClInclude Include="..\..\..\yse\yse.hpp"/>
-    <ClInclude Include="..\..\..\yse\internalHeaders.h"/>
-    <ClInclude Include="..\..\..\yse\listener.hpp"/>
-    <ClInclude Include="..\..\..\yse\log.hpp"/>
-    <ClInclude Include="..\..\..\yse\system.hpp"/>
+    <ClInclude Include="..\..\..\yse\music\scale\scale.hpp"/>
+    <ClInclude Include="..\..\..\yse\music\scale\scaleImplementation.h"/>
+    <ClInclude Include="..\..\..\yse\music\scale\scaleInterface.hpp"/>
+    <ClInclude Include="..\..\..\yse\music\scale\scaleManager.h"/>
+    <ClInclude Include="..\..\..\yse\music\scale\scaleMessage.h"/>
+    <ClInclude Include="..\..\..\yse\music\motif\motif.hpp"/>
+    <ClInclude Include="..\..\..\yse\music\motif\motifImplementation.h"/>
+    <ClInclude Include="..\..\..\yse\music\motif\motifInterface.hpp"/>
+    <ClInclude Include="..\..\..\yse\music\motif\motifManager.h"/>
+    <ClInclude Include="..\..\..\yse\music\motif\motifMessage.h"/>
+    <ClInclude Include="..\..\..\yse\music\pNote.hpp"/>
+    <ClInclude Include="..\..\..\yse\music\chord.hpp"/>
+    <ClInclude Include="..\..\..\yse\music\note.hpp"/>
+    <ClInclude Include="..\..\..\yse\synth\dspSound.h"/>
+    <ClInclude Include="..\..\..\yse\synth\dspVoice.hpp"/>
+    <ClInclude Include="..\..\..\yse\synth\dspVoiceInternal.h"/>
+    <ClInclude Include="..\..\..\yse\synth\samplerSound.h"/>
+    <ClInclude Include="..\..\..\yse\synth\synth.hpp"/>
+    <ClInclude Include="..\..\..\yse\synth\synthImplementation.h"/>
+    <ClInclude Include="..\..\..\yse\synth\synthInterface.hpp"/>
+    <ClInclude Include="..\..\..\yse\synth\synthManager.h"/>
+    <ClInclude Include="..\..\..\yse\synth\synthMessage.h"/>
+    <ClInclude Include="..\..\..\yse\midi\midifile.hpp"/>
+    <ClInclude Include="..\..\..\yse\midi\midifileImplementation.h"/>
+    <ClInclude Include="..\..\..\yse\midi\midifileManager.h"/>
+    <ClInclude Include="..\..\..\yse\player\player.hpp"/>
+    <ClInclude Include="..\..\..\yse\player\playerImplementation.h"/>
+    <ClInclude Include="..\..\..\yse\player\playerInterface.hpp"/>
+    <ClInclude Include="..\..\..\yse\player\playerManager.h"/>
+    <ClInclude Include="..\..\..\yse\player\playerMessage.h"/>
     <ClInclude Include="..\..\..\yse\device\device.hpp"/>
     <ClInclude Include="..\..\..\yse\device\deviceInterface.hpp"/>
     <ClInclude Include="..\..\..\yse\device\deviceManager.h"/>
     <ClInclude Include="..\..\..\yse\device\deviceSetup.hpp"/>
+    <ClInclude Include="..\..\..\yse\sound\audioBuffer.hpp"/>
     <ClInclude Include="..\..\..\yse\sound\sound.hpp"/>
     <ClInclude Include="..\..\..\yse\sound\soundImplementation.h"/>
     <ClInclude Include="..\..\..\yse\sound\soundInterface.hpp"/>
@@ -652,13 +707,15 @@
     <ClInclude Include="..\..\..\yse\channel\channelInterface.hpp"/>
     <ClInclude Include="..\..\..\yse\channel\channelManager.h"/>
     <ClInclude Include="..\..\..\yse\channel\channelMessage.h"/>
-    <ClInclude Include="..\..\..\yse\music\chord.hpp"/>
-    <ClInclude Include="..\..\..\yse\music\note.hpp"/>
     <ClInclude Include="..\..\..\yse\dsp\delay.hpp"/>
     <ClInclude Include="..\..\..\yse\dsp\dspObject.hpp"/>
     <ClInclude Include="..\..\..\yse\dsp\filters.hpp"/>
     <ClInclude Include="..\..\..\yse\dsp\math.hpp"/>
     <ClInclude Include="..\..\..\yse\dsp\math_functions.h"/>
+    <ClInclude Include="..\..\..\yse\dsp\modules\filters\bandpass.hpp"/>
+    <ClInclude Include="..\..\..\yse\dsp\modules\filters\highpass.hpp"/>
+    <ClInclude Include="..\..\..\yse\dsp\modules\filters\lowpass.hpp"/>
+    <ClInclude Include="..\..\..\yse\dsp\modules\fm\difference.hpp"/>
     <ClInclude Include="..\..\..\yse\dsp\modules\hilbert.hpp"/>
     <ClInclude Include="..\..\..\yse\dsp\modules\ringModulator.hpp"/>
     <ClInclude Include="..\..\..\yse\dsp\modules\sineWave.hpp"/>
@@ -676,13 +733,23 @@
     <ClInclude Include="..\..\..\yse\internal\reverbDSP.h"/>
     <ClInclude Include="..\..\..\yse\internal\settings.h"/>
     <ClInclude Include="..\..\..\yse\internal\soundFile.h"/>
+    <ClInclude Include="..\..\..\yse\internal\thread.h"/>
+    <ClInclude Include="..\..\..\yse\internal\threadPool.h"/>
     <ClInclude Include="..\..\..\yse\internal\time.h"/>
     <ClInclude Include="..\..\..\yse\internal\underWaterEffect.h"/>
     <ClInclude Include="..\..\..\yse\internal\virtualFinder.h"/>
     <ClInclude Include="..\..\..\yse\utils\atomicOps.hpp"/>
+    <ClInclude Include="..\..\..\yse\utils\interpolators.hpp"/>
     <ClInclude Include="..\..\..\yse\utils\lfQueue.hpp"/>
     <ClInclude Include="..\..\..\yse\utils\misc.hpp"/>
     <ClInclude Include="..\..\..\yse\utils\vector.hpp"/>
+    <ClInclude Include="..\..\..\yse\io.hpp"/>
+    <ClInclude Include="..\..\..\yse\classes.hpp"/>
+    <ClInclude Include="..\..\..\yse\yse.hpp"/>
+    <ClInclude Include="..\..\..\yse\internalHeaders.h"/>
+    <ClInclude Include="..\..\..\yse\listener.hpp"/>
+    <ClInclude Include="..\..\..\yse\log.hpp"/>
+    <ClInclude Include="..\..\..\yse\system.hpp"/>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_audio_basics\buffers\juce_AudioDataConverters.h"/>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_audio_basics\buffers\juce_AudioSampleBuffer.h"/>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_audio_basics\buffers\juce_FloatVectorOperations.h"/>
@@ -692,6 +759,7 @@
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_audio_basics\midi\juce_MidiMessage.h"/>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_audio_basics\midi\juce_MidiMessageSequence.h"/>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_audio_basics\effects\juce_Decibels.h"/>
+    <ClInclude Include="..\..\JuceLibraryCode\modules\juce_audio_basics\effects\juce_FFT.h"/>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_audio_basics\effects\juce_IIRFilter.h"/>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_audio_basics\effects\juce_LagrangeInterpolator.h"/>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_audio_basics\effects\juce_Reverb.h"/>
@@ -740,9 +808,9 @@
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_audio_formats\juce_audio_formats.h"/>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\text\juce_CharacterFunctions.h"/>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\text\juce_CharPointer_ASCII.h"/>
+    <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\text\juce_CharPointer_UTF8.h"/>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\text\juce_CharPointer_UTF16.h"/>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\text\juce_CharPointer_UTF32.h"/>
-    <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\text\juce_CharPointer_UTF8.h"/>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\text\juce_Identifier.h"/>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\text\juce_LocalisedStrings.h"/>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\text\juce_NewLine.h"/>
@@ -755,6 +823,7 @@
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\maths\juce_BigInteger.h"/>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\maths\juce_Expression.h"/>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\maths\juce_MathsFunctions.h"/>
+    <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\maths\juce_NormalisableRange.h"/>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\maths\juce_Random.h"/>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\maths\juce_Range.h"/>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\memory\juce_Atomic.h"/>
@@ -828,6 +897,7 @@
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\streams\juce_SubregionStream.h"/>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\logging\juce_FileLogger.h"/>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\logging\juce_Logger.h"/>
+    <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\system\juce_CompilerSupport.h"/>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\system\juce_PlatformDefs.h"/>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\system\juce_StandardHeader.h"/>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_core\system\juce_SystemStats.h"/>
@@ -856,6 +926,7 @@
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_events\messages\juce_Message.h"/>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_events\messages\juce_MessageListener.h"/>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_events\messages\juce_MessageManager.h"/>
+    <ClInclude Include="..\..\JuceLibraryCode\modules\juce_events\messages\juce_MountedVolumeListChangeDetector.h"/>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_events\messages\juce_NotificationType.h"/>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_events\timers\juce_MultiTimer.h"/>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_events\timers\juce_Timer.h"/>
