@@ -89,6 +89,8 @@
         <FILE id="CCEImz" name="deviceSetup.hpp" compile="0" resource="0" file="../yse/device/deviceSetup.hpp"/>
       </GROUP>
       <GROUP id="{87572250-4545-73C4-BCE6-8BBAAD395AA6}" name="dsp">
+        <FILE id="OATQ5d" name="envelope.cpp" compile="1" resource="0" file="../yse/dsp/envelope.cpp"/>
+        <FILE id="ZSEWfC" name="envelope.h" compile="0" resource="0" file="../yse/dsp/envelope.h"/>
         <FILE id="qlGopw" name="delay.cpp" compile="1" resource="0" file="../yse/dsp/delay.cpp"/>
         <FILE id="aNfcou" name="delay.hpp" compile="0" resource="0" file="../yse/dsp/delay.hpp"/>
         <FILE id="ItMzcz" name="dspObject.cpp" compile="1" resource="0" file="../yse/dsp/dspObject.cpp"/>

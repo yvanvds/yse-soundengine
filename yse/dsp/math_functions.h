@@ -27,6 +27,8 @@ namespace YSE {
     Flt rmsToDb(Flt f);
     Flt dbToPow(Flt f);
     Flt dbToRms(Flt f);
+
+    Flt getMaxAmplitude(Flt * pos, UInt windowSize);
   }
 }
 

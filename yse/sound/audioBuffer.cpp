@@ -67,7 +67,7 @@ Bool YSE::audioBuffer::create(const char * filename) {
   }
 }
 
-int YSE::audioBuffer::getNumChannels() {
+int YSE::audioBuffer::getNumChannels() const {
   return buffer.size();
 }
 
@@ -81,6 +81,6 @@ YSE::DSP::sample & YSE::audioBuffer::getChannel(Int nr) {
   return buffer[nr];
 }
 
-Bool YSE::audioBuffer::isValid() {
+Bool YSE::audioBuffer::isValid() const {
   return valid;
 }

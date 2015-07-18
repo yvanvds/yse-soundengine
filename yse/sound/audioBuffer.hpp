@@ -35,12 +35,12 @@ namespace YSE {
     audioBuffer();
 
     Bool create(const char * fileName);
-    Bool isValid();
+    Bool isValid() const;
 
-    int getNumChannels();
+    Int getNumChannels() const;
     MULTICHANNELBUFFER & getChannels();
-    DSP::sample & getChannel(Int nr);
-    int getLength() { return length; }
+    AUDIOBUFFER & getChannel(Int nr);
+    Int getLength() const { return length; }
 
   private:
     MULTICHANNELBUFFER buffer;

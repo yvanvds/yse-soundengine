@@ -74,3 +74,15 @@ Flt YSE::DSP::dbToRms(Flt f) {
   if (f > 485) f = 485;
   return (exp((LOGTEN * 0.05f) * (f - 100.f)));
 }
+
+Flt YSE::DSP::getMaxAmplitude(Flt * pos, UInt windowSize) {
+  Flt * p = pos; // W don't want to change pos because the user might not expect that
+  Flt result = 0.f;
+  for (int i = 0; i < windowSize; i++) {
+    if (*p > result) {
+      result = *p;
+    }
+    p++;
+  }
+  return result;
+}

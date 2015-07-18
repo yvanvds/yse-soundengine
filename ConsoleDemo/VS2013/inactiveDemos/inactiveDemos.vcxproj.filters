@@ -17,5 +17,6 @@
     <ClCompile Include="..\..\source\demo12_synth.cpp" />
     <ClCompile Include="..\..\source\demo13_midi_file.cpp" />
     <ClCompile Include="..\..\source\demo16_motifs.cpp" />
+    <ClCompile Include="..\..\source\demo06_devices.cpp" />
   </ItemGroup>
 </Project>

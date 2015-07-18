@@ -70,6 +70,7 @@
     <ClCompile Include="..\..\source\demo03_virtual_sounds.cpp" />
     <ClCompile Include="..\..\source\demo04_custom_channels.cpp" />
     <ClCompile Include="..\..\source\demo05_reverb.cpp" />
+    <ClCompile Include="..\..\source\demo06_devices.cpp" />
     <ClCompile Include="..\..\source\demo07_dsp_source.cpp" />
     <ClCompile Include="..\..\source\demo08_occlusion.cpp" />
     <ClCompile Include="..\..\source\demo09_streaming.cpp" />
