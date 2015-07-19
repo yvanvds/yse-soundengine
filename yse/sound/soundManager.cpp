@@ -78,7 +78,26 @@ YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addFile(const char * fileN
   }
 }
 
-YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addFile(audioBuffer * buffer) {
+YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addFile(AUDIOBUFFER * buffer) {
+  // find out if this file already exists
+  for (auto i = soundFiles.begin(); i != soundFiles.end(); ++i) {
+    if ( i->contains(buffer)) {
+      return &(*i);
+    }
+  }
+
+  // if we got here, the file does not exist yet
+  soundFiles.emplace_front(buffer);
+  INTERNAL::soundFile & sf = soundFiles.front();
+  if (sf.create()) {
+    return &sf;
+  }
+  else {
+    return nullptr;
+  }
+}
+
+YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addFile(MULTICHANNELBUFFER * buffer) {
   // find out if this file already exists
   for (auto i = soundFiles.begin(); i != soundFiles.end(); ++i) {
     if ( i->contains(buffer)) {

@@ -89,8 +89,12 @@
         <FILE id="CCEImz" name="deviceSetup.hpp" compile="0" resource="0" file="../yse/device/deviceSetup.hpp"/>
       </GROUP>
       <GROUP id="{87572250-4545-73C4-BCE6-8BBAAD395AA6}" name="dsp">
+        <FILE id="PLwmoV" name="sample_functions.cpp" compile="1" resource="0"
+              file="../yse/dsp/sample_functions.cpp"/>
+        <FILE id="UR39QS" name="sample_functions.hpp" compile="0" resource="0"
+              file="../yse/dsp/sample_functions.hpp"/>
         <FILE id="OATQ5d" name="envelope.cpp" compile="1" resource="0" file="../yse/dsp/envelope.cpp"/>
-        <FILE id="ZSEWfC" name="envelope.h" compile="0" resource="0" file="../yse/dsp/envelope.h"/>
+        <FILE id="ZSEWfC" name="envelope.hpp" compile="0" resource="0" file="../yse/dsp/envelope.hpp"/>
         <FILE id="qlGopw" name="delay.cpp" compile="1" resource="0" file="../yse/dsp/delay.cpp"/>
         <FILE id="aNfcou" name="delay.hpp" compile="0" resource="0" file="../yse/dsp/delay.hpp"/>
         <FILE id="ItMzcz" name="dspObject.cpp" compile="1" resource="0" file="../yse/dsp/dspObject.cpp"/>
@@ -229,8 +233,6 @@
         <FILE id="M3rqjW" name="reverbMessage.h" compile="0" resource="0" file="../yse/reverb/reverbMessage.h"/>
       </GROUP>
       <GROUP id="{5A715849-4340-2E44-D2F2-868815ADDDE6}" name="sound">
-        <FILE id="bjtOaF" name="audioBuffer.cpp" compile="1" resource="0" file="../yse/sound/audioBuffer.cpp"/>
-        <FILE id="LCvq6f" name="audioBuffer.hpp" compile="0" resource="0" file="../yse/sound/audioBuffer.hpp"/>
         <FILE id="dWajb6" name="sound.hpp" compile="0" resource="0" file="../yse/sound/sound.hpp"/>
         <FILE id="rmvljD" name="soundImplementation.cpp" compile="1" resource="0"
               file="../yse/sound/soundImplementation.cpp"/>

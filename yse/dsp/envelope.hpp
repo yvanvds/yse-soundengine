@@ -13,7 +13,7 @@
 
 #include "../classes.hpp"
 #include "../headers/defines.hpp"
-#include "../sound/audioBuffer.hpp"
+#include <vector>
 
 namespace YSE {
   namespace DSP {

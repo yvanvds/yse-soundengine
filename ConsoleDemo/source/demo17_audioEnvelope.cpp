@@ -2,7 +2,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include "yse.hpp"
-#include "yse.hpp"
+
 #ifdef YSE_WINDOWS
 #include <conio.h>
 #else
@@ -10,8 +10,8 @@
 #endif
 
 
-YSE::audioBuffer piano;
-YSE::audioBuffer drone;
+AUDIOBUFFER piano;
+AUDIOBUFFER drone;
 AUDIOBUFFER droneOrig;
 
 YSE::DSP::envelope snareEnvelope;
@@ -24,25 +24,24 @@ FILE * gnuPlot = nullptr;
 int main() {
   YSE::System().init();
 
-  if (!piano.create("g.ogg")) {
+  if (!YSE::DSP::LoadFromFile("g.ogg", piano)) {
     std::cout << "sound 'g.ogg' not found" << std::endl;
     std::cin.get();
     goto exit;
   }
 
-  if (!drone.create("drone.ogg")) {
+  if (!YSE::DSP::LoadFromFile("drone.ogg", drone)) {
     std::cout << "sound 'drone.ogg' not found" << std::endl;
     std::cin.get();
     goto exit;
   }
 
-  AUDIOBUFFER & buffer = drone.getChannel(0);
   // drone sound is a bit short, so we'll copy it
-  buffer.copyFrom(buffer, 0, buffer.getLength(), buffer.getLength());
-  droneOrig = buffer;
+  drone.copyFrom(drone, 0, drone.getLength(), drone.getLength());
+  droneOrig = drone;
 
   snareEnvelope.create("snare.env"); // create from envelope file
-  pianoEnvelope.create(piano.getChannel(0)); // create from audio buffer
+  pianoEnvelope.create(piano); // create from audio buffer
 
   sound.create(drone, nullptr, true);
 
@@ -63,15 +62,15 @@ int main() {
       switch (ch) {
       case '1': sound.play(); break;
       case '2': sound.stop(); break;
-      case '3': buffer = droneOrig;
-                buffer.applyEnvelope(snareEnvelope);
+      case '3': drone = droneOrig;
+                drone.applyEnvelope(snareEnvelope);
                 break;
     
-      case '4': //buffer = droneOrig;
-                buffer.applyEnvelope(pianoEnvelope);
+      case '4': drone = droneOrig;
+                drone.applyEnvelope(pianoEnvelope);
                 break;
      
-      case '5': buffer = droneOrig;
+      case '5': drone = droneOrig;
                 break;
       
       case '6': snareEnvelope.saveToFile("snare.env");
@@ -85,8 +84,8 @@ int main() {
                 break;
 
       case '8': pianoEnvelope.normalize();
-                buffer = droneOrig;
-                buffer.applyEnvelope(pianoEnvelope);
+                drone = droneOrig;
+                drone.applyEnvelope(pianoEnvelope);
                 break;
 
       case 'e': goto exit;

@@ -40,7 +40,19 @@ YSE::sound& YSE::sound::create(const char * fileName, channel * ch, Bool loop, F
   return *this;
 }
 
-YSE::sound& YSE::sound::create(audioBuffer & buffer, channel * ch, Bool loop, Flt volume) {
+YSE::sound& YSE::sound::create(AUDIOBUFFER & buffer, channel * ch, Bool loop, Flt volume) {
+  assert(pimpl == nullptr);
+
+  pimpl = SOUND::Manager().addImplementation(this);
+  if (ch == nullptr) ch = &CHANNEL::Manager().master();
+
+  pimpl->create(buffer, ch, loop, volume);
+  SOUND::Manager().setup(pimpl);
+
+  return *this;
+}
+
+YSE::sound& YSE::sound::create(MULTICHANNELBUFFER & buffer, channel * ch, Bool loop, Flt volume) {
   assert(pimpl == nullptr);
 
   pimpl = SOUND::Manager().addImplementation(this);

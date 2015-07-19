@@ -151,13 +151,19 @@ Bool YSE::INTERNAL::soundFile::read(std::vector<DSP::sample> & filebuffer, Flt& 
     // this assumes the output and file have the same number of channels
     Flt * out = filebuffer[i].getBuffer();
     Flt * in;
-    if (!_audioBuffer)  {
+    
+    if (_audioBuffer) {
+      in = _audioBuffer->getBuffer();
+      _length = _audioBuffer->getLength();
+    }
+    else if (_multiChannelBuffer) {
+      in = _multiChannelBuffer->at(i).getBuffer();
+      _length = _multiChannelBuffer->at(i).getLength();
+    }
+    else  {
       in = ptr2[i];
     }
-    else { // only for audioBuffer sources
-      in = _audioBuffer->getChannel(i).getBuffer();
-      _length = _audioBuffer->getChannel(i).getLength();
-    }
+
     UInt l = length;
 
   startAgain:
@@ -378,8 +384,12 @@ Bool YSE::INTERNAL::soundFile::contains(const char * fileName) {
   return strcmp(this->fileName.c_str(), fileName) == 0;
 }
 
-Bool YSE::INTERNAL::soundFile::contains(audioBuffer * buffer) {
+Bool YSE::INTERNAL::soundFile::contains(AUDIOBUFFER * buffer) {
   return this->_audioBuffer == buffer;
+}
+
+Bool YSE::INTERNAL::soundFile::contains(MULTICHANNELBUFFER * buffer) {
+  return this->_multiChannelBuffer == buffer;
 }
 
 void YSE::INTERNAL::soundFile::resetStream() {
@@ -444,36 +454,53 @@ YSE::INTERNAL::soundFile::soundFile(const File & file) :  _buffer(1, 1)
   , file(file)
   , source(nullptr)
   , _audioBuffer(nullptr)
+  , _multiChannelBuffer(nullptr)
+  , _sampleRateAdjustment(1.f)
 {
-  _sampleRateAdjustment = 1.0f;
 }
 
 YSE::INTERNAL::soundFile::soundFile(const char * fileName) :  _buffer(1, 1)
-, idleTime(0)
-, state(NEW)
-, fileName(fileName)
-, source(nullptr)
-, _audioBuffer(nullptr)
+  , idleTime(0)
+  , state(NEW)
+  , fileName(fileName)
+  , source(nullptr)
+  , _audioBuffer(nullptr)
+  , _multiChannelBuffer(nullptr)
+  , _sampleRateAdjustment(1.f)
 {
-  _sampleRateAdjustment = 1.0f;
 }
 
 YSE::INTERNAL::soundFile::soundFile(juce::InputStream * source) :  _buffer(1, 1)
-, idleTime(0)
-, state(NEW)
-, file()
-, source(source)
-, _audioBuffer(nullptr) {
-  _sampleRateAdjustment = 1.0f;
+  , idleTime(0)
+  , state(NEW)
+  , file()
+  , source(source)
+  , _audioBuffer(nullptr)
+  , _multiChannelBuffer(nullptr)
+  , _sampleRateAdjustment(1.f)
+{
 }
 
-YSE::INTERNAL::soundFile::soundFile(audioBuffer * buffer) : _buffer(1, 1)
+YSE::INTERNAL::soundFile::soundFile(AUDIOBUFFER * buffer) : _buffer(1, 1)
+  , idleTime(0)
+  , state(NEW)
+  , file()
+  , source(nullptr)
+  , _audioBuffer(buffer)
+  , _multiChannelBuffer(nullptr)
+  , _sampleRateAdjustment(1.f)
+{
+}
+
+YSE::INTERNAL::soundFile::soundFile(MULTICHANNELBUFFER * buffer) : _buffer(1, 1)
 , idleTime(0)
 , state(NEW)
 , file()
 , source(nullptr)
-, _audioBuffer(buffer) {
-  _sampleRateAdjustment = buffer->sampleRateAdjustment;
+, _audioBuffer(nullptr)
+, _multiChannelBuffer(buffer)
+, _sampleRateAdjustment(1.f)
+{
 }
 
 Int YSE::INTERNAL::soundFile::channels() {

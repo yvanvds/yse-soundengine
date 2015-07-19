@@ -18,7 +18,7 @@
 */
 
 
-YSE::audioBuffer buffer;
+AUDIOBUFFER buffer;
 YSE::sound sound;
 YSE::DSP::highPass hpf;
 
@@ -26,7 +26,7 @@ int main() {
   YSE::System().init();
 
   // setting the last parameter to true will enable streaming
-  if (!buffer.create("countdown.ogg")) {
+  if (!YSE::DSP::LoadFromFile("countdown.ogg", buffer)) {
     std::cout << "sound 'countdown.ogg' not found" << std::endl;
     std::cin.get();
     goto exit;
@@ -39,8 +39,8 @@ int main() {
   std::cout << "Sound is loaded. Please choose: " << std::endl;
   std::cout << "1 to play" << std::endl;
   std::cout << "2 to stop" << std::endl;
-  std::cout << "3 multiply wave by 0.5 (only when sound is stopped)" << std::endl;
-  std::cout << "4 multiply wave by 2.0 (only when sound is stopped)" << std::endl;
+  std::cout << "3 multiply wave by 0.5" << std::endl;
+  std::cout << "4 multiply wave by 2.0" << std::endl;
   std::cout << "5 pass wave through high pass filter at 1000Hz" << std::endl;
   std::cout << "...or e to exit." << std::endl;
 
@@ -50,9 +50,9 @@ int main() {
       switch (ch) {
       case '1': sound.play();  break;
       case '2': sound.stop();  break;
-      case '3': if (sound.isStopped()) buffer.getChannel(0) *= 0.5; break;
-      case '4': if (sound.isStopped()) buffer.getChannel(0) *= 2.0; break;
-      case '5': if (sound.isStopped()) buffer.getChannel(0) = hpf(buffer.getChannel(0)); break;
+      case '3': buffer *= 0.5; break;
+      case '4': buffer *= 2.0; break;
+      case '5': buffer = hpf(buffer); break;
       case 'e': goto exit;
       }
     }

@@ -108,8 +108,14 @@ namespace YSE {
       // copy = true will retain the current values and fill remaining values with zeroes
       // with copy = false, the buffer values are not initialized
       AUDIOBUFFER & resize(UInt length, Bool copy = false);
+
+      inline Flt getSampleRateAdjustment() { return sampleRateAdjustment; }
+      inline void setSampleRateAdjustment(Flt s) { sampleRateAdjustment = s; }
     private:
       std::vector<Flt> buffer;
+
+      // to play all rates at the correct speed
+      Flt sampleRateAdjustment;
     };
   }
 }

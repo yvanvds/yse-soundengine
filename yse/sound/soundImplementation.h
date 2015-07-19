@@ -54,7 +54,8 @@ namespace YSE {
       */
       Bool create(const std::string &fileName, CHANNEL::interfaceObject * ch, Bool loop, Flt volume, Bool streaming);
 
-      Bool create(audioBuffer & buffer, CHANNEL::interfaceObject * ch, Bool loop, Flt volume);
+      Bool create(AUDIOBUFFER & buffer, CHANNEL::interfaceObject * ch, Bool loop, Flt volume);
+      Bool create(MULTICHANNELBUFFER & buffer, CHANNEL::interfaceObject * ch, Bool loop, Flt volume);
 
 #if defined PUBLIC_JUCE
       Bool create(juce::InputStream * source, CHANNEL::interfaceObject * ch, Bool loop, Flt volume, Bool streaming);

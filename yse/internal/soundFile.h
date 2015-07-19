@@ -42,7 +42,8 @@ namespace YSE {
       Bool contains(const File & file);
       // alternative for custom IO()
       Bool contains(const char * fileName);
-      Bool contains(audioBuffer * buffer);
+      Bool contains(AUDIOBUFFER * buffer);
+      Bool contains(MULTICHANNELBUFFER * buffer);
 
       // get
       Int       channels(); // number of channels in source
@@ -60,7 +61,8 @@ namespace YSE {
       soundFile(const File & file);
       // alternative for custom IO()
       soundFile(const char * fileName);
-      soundFile(audioBuffer * buffer);
+      soundFile(AUDIOBUFFER * buffer);
+      soundFile(MULTICHANNELBUFFER * buffer);
       ~soundFile();
 
       // used for passing juce BinaryData as a sound source
@@ -76,7 +78,8 @@ namespace YSE {
       juce::InputStream * source;
 
       // used for passing an audio buffer as a sound source
-      audioBuffer * _audioBuffer;
+      AUDIOBUFFER * _audioBuffer;
+      MULTICHANNELBUFFER * _multiChannelBuffer;
 
       AudioSampleBuffer _buffer; // contains the actual sound buffer
       std::atomic<FILESTATE> state;

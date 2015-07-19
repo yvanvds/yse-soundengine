@@ -21,6 +21,7 @@
 
 // dsp
 #include "dsp/sample.hpp"
+#include "dsp/sample_functions.hpp"
 #include "dsp/delay.hpp"
 #include "dsp/dspObject.hpp"
 #include "dsp/filters.hpp"
@@ -51,7 +52,6 @@
 
 #include "sound/sound.hpp"
 #include "sound/soundInterface.hpp"
-#include "sound/audioBuffer.hpp"
 
 #include "synth/synth.hpp"
 #include "synth/synthInterface.hpp"

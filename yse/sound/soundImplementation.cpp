@@ -137,7 +137,31 @@ release:
   return false;
 }
 
-Bool YSE::SOUND::implementationObject::create(audioBuffer & buffer, CHANNEL::interfaceObject * ch, Bool loop, Flt volume) {
+Bool YSE::SOUND::implementationObject::create(AUDIOBUFFER & buffer, CHANNEL::interfaceObject * ch, Bool loop, Flt volume) {
+  parent = ch->pimpl;
+  looping = loop;
+  fader.set(volume);
+
+  status_dsp = SS_STOPPED;
+  status_upd = SS_STOPPED;
+
+  file = SOUND::Manager().addFile(&buffer);
+  file->attach(this);
+  if (file->create(false)) {
+    filebuffer.resize(file->channels());
+    this->buffer = &filebuffer;
+    setup();
+    return true;
+  }
+  else {
+    delete file;
+    file = nullptr;
+    head = nullptr;
+    return false;
+  }
+}
+
+Bool YSE::SOUND::implementationObject::create(MULTICHANNELBUFFER & buffer, CHANNEL::interfaceObject * ch, Bool loop, Flt volume) {
   parent = ch->pimpl;
   looping = loop;
   fader.set(volume);
