@@ -37,7 +37,36 @@ bool YSE::DSP::envelope::create(YSE::DSP::sample & source, Int windowSize) {
   return true;
 }
 
-bool YSE::DSP::envelope::toFile(const char * fileName) {
+bool YSE::DSP::envelope::create(const char * fileName) {
+  breakPoints.clear();
+  std::ifstream source;
+  source.open(fileName, std::ios_base::in);
+  if (source.is_open()) {
+    for (std::string line; std::getline(source, line);) {
+      std::istringstream in(line);
+
+      // eat whitespace
+      in >> std::ws;
+      // disregard empty lines
+      if (in.eof()) continue;
+
+      // extract values
+      float time, value;
+      if (in >> time >> value) {
+        breakPoints.emplace_back(time, value);
+      }
+      else {
+        breakPoints.clear();
+        return false;
+      }
+    }
+  }
+  else {
+    return false;
+  }
+}
+
+bool YSE::DSP::envelope::saveToFile(const char * fileName) const {
   std::ofstream out;
   out.open(fileName, std::ios::out | std::ios::trunc);
   if (out.is_open()) {
@@ -50,4 +79,16 @@ bool YSE::DSP::envelope::toFile(const char * fileName) {
   else {
     return false;
   }
+}
+
+UInt YSE::DSP::envelope::elms() const {
+  return breakPoints.size();
+}
+
+Flt YSE::DSP::envelope::getLengthSec() const {
+  return breakPoints.back().time;
+}
+
+const YSE::DSP::envelope::breakPoint & YSE::DSP::envelope::operator[](UInt pos) const {
+  return breakPoints[pos];
 }

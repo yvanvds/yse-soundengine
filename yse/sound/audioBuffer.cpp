@@ -46,7 +46,7 @@ Bool YSE::audioBuffer::create(const char * filename) {
     reader->read(&tBuf, 0, (Int)reader->lengthInSamples, 0, true, true);
 
     sampleRateAdjustment = static_cast<Flt>(reader->sampleRate) / static_cast<Flt>(SAMPLERATE);
-    length = tBuf.getNumSamples();
+    //length = tBuf.getNumSamples();
 
     // copy juce buffer to our own
     buffer.resize(tBuf.getNumChannels());
@@ -83,4 +83,42 @@ YSE::DSP::sample & YSE::audioBuffer::getChannel(Int nr) {
 
 Bool YSE::audioBuffer::isValid() const {
   return valid;
+}
+
+
+Bool YSE::audioBuffer::saveToFile(const char * fileName) {
+  std::string fn = fileName;
+  fn += ".wav";
+
+  if (IO().getActive()) {
+    return false; // not implemented yet
+  } else {
+    // check if file exists
+    File file;
+    file = File::getCurrentWorkingDirectory().getChildFile(fn.c_str());
+    file.deleteFile();
+    ScopedPointer<FileOutputStream> fileStream(file.createOutputStream());
+
+    if (fileStream != nullptr) {
+      WavAudioFormat wavFormat;
+      AudioFormatWriter * writer = wavFormat.createWriterFor(fileStream, SAMPLERATE, buffer.size(), 16, StringPairArray(), 0);
+
+      if (writer != nullptr) {
+        fileStream.release();
+
+        float ** array = new float*[buffer.size()];
+        for (int i = 0; i < buffer.size(); i++) {
+          array[i] = buffer[i].getBuffer();
+        }
+        //writer->flush();
+
+        writer->writeFromFloatArrays(array, buffer.size(), buffer[0].getLength());
+        writer->flush();
+        delete[] array;
+      }
+    }
+    
+  }
+
+  return true;
 }

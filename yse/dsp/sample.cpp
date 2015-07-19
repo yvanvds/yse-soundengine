@@ -9,6 +9,7 @@
 */
 
 #include "sample.hpp"
+#include "envelope.hpp"
 
 namespace YSE {
   namespace DSP {
@@ -229,6 +230,45 @@ namespace YSE {
         buffer.resize(length);
       }
       return (*this);
+    }
+
+    AUDIOBUFFER & YSE::DSP::sample::applyEnvelope(const envelope & env, Flt length) {
+      if (length == 0) {
+        length = env.getLengthSec();
+      }
+      Flt multiplier = length / env.getLengthSec();
+
+      bool endOfEnvelope = false;
+      UInt targetPoint = 0;
+      Flt targetTime = 0.f;
+      Flt fraction = 0.f;
+      Flt envelopeValue = env[0].value;
+
+      Flt * ptr = buffer.data();
+
+      for (int i = 0; i < buffer.size(); i++)
+      {
+        if (!endOfEnvelope && targetTime <= i) { // will always be true on first point
+          
+          if (targetPoint + 1 == env.elms()) {
+            endOfEnvelope = true;
+            targetTime = getLength();
+            fraction = 0;
+          }
+          else {
+            Flt startTime = targetTime;
+            targetPoint++;
+            targetTime = env[targetPoint].time * multiplier * SAMPLERATE;
+            Flt period = (targetTime - startTime > 1 ? targetTime - startTime : 1);
+            fraction = (env[targetPoint].value - env[targetPoint - 1].value) / period;
+          }
+        }
+
+        *ptr++ *= envelopeValue;
+        envelopeValue += fraction;
+      }
+
+      return *this;
     }
 
     sample & YSE::DSP::sample::drawLine(UInt start, UInt stop, Flt startValue, Flt stopValue) {

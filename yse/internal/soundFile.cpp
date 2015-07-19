@@ -156,7 +156,7 @@ Bool YSE::INTERNAL::soundFile::read(std::vector<DSP::sample> & filebuffer, Flt& 
     }
     else { // only for audioBuffer sources
       in = _audioBuffer->getChannel(i).getBuffer();
-      _length = _audioBuffer->getLength();
+      _length = _audioBuffer->getChannel(i).getLength();
     }
     UInt l = length;
 

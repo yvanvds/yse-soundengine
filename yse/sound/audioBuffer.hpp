@@ -40,12 +40,12 @@ namespace YSE {
     Int getNumChannels() const;
     MULTICHANNELBUFFER & getChannels();
     AUDIOBUFFER & getChannel(Int nr);
-    Int getLength() const { return length; }
+
+    Bool saveToFile(const char * fileName);
 
   private:
     MULTICHANNELBUFFER buffer;
     Flt sampleRateAdjustment;
-    Int length;
     Bool valid;
 
     friend class YSE::INTERNAL::soundFile;

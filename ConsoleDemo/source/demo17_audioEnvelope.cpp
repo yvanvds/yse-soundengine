@@ -10,27 +10,93 @@
 #endif
 
 
-YSE::audioBuffer buffer;
-YSE::DSP::envelope envelope;
+YSE::audioBuffer piano;
+YSE::audioBuffer drone;
+AUDIOBUFFER droneOrig;
+
+YSE::DSP::envelope snareEnvelope;
+YSE::DSP::envelope pianoEnvelope;
+
+YSE::sound sound;
+
+FILE * gnuPlot = nullptr;
 
 int main() {
   YSE::System().init();
 
-  // setting the last parameter to true will enable streaming
-  if (!buffer.create("snare.ogg")) {
-    std::cout << "sound 'snare.ogg' not found" << std::endl;
+  if (!piano.create("g.ogg")) {
+    std::cout << "sound 'g.ogg' not found" << std::endl;
     std::cin.get();
     goto exit;
   }
 
-  
-  envelope.create(buffer.getChannel(0), 30);
-  envelope.toFile("snare2.env");
+  if (!drone.create("drone.ogg")) {
+    std::cout << "sound 'drone.ogg' not found" << std::endl;
+    std::cin.get();
+    goto exit;
+  }
 
-  FILE * gnuPlot = _popen("gnuplot -persistent", "w");
-  fprintf(gnuPlot, "%s \n", "set title \"SNARE\"");
-  fprintf(gnuPlot, "%s \n", "plot 'snare.env' with lines");
-  std::cin.get();
+  AUDIOBUFFER & buffer = drone.getChannel(0);
+  // drone sound is a bit short, so we'll copy it
+  buffer.copyFrom(buffer, 0, buffer.getLength(), buffer.getLength());
+  droneOrig = buffer;
+
+  snareEnvelope.create("snare.env"); // create from envelope file
+  pianoEnvelope.create(piano.getChannel(0)); // create from audio buffer
+
+  sound.create(drone, nullptr, true);
+
+  std::cout << "Sounds are loaded. Please choose: " << std::endl;
+  std::cout << "1 to play" << std::endl;
+  std::cout << "2 to stop" << std::endl;
+  std::cout << "3 to apply snare envelope (only when sound is stopped)" << std::endl;
+  std::cout << "4 to apply piano envelope (only when sound is stopped)" << std::endl;
+  std::cout << "5 to reset sound (only when sound is stopped)" << std::endl;
+  std::cout << "6 to save snare and piano envelopes to file" << std::endl;
+  std::cout << "7 view snare envelope (only with gnuplot installed, seems to display on exit)" << std::endl;
+  std::cout << "...or e to exit." << std::endl;
+
+  while (true) {
+    if (_kbhit()) {
+      char ch = _getch();
+      switch (ch) {
+      case '1': sound.play(); break;
+      case '2': sound.stop(); break;
+      case '3': if (sound.isStopped()) {
+                  buffer = droneOrig;
+                  buffer.applyEnvelope(snareEnvelope);
+                  break;
+      }
+      case '4': if (sound.isStopped()) {
+                  buffer = droneOrig;
+                  buffer.applyEnvelope(pianoEnvelope);
+                  break;
+      }
+      case '5': if (sound.isStopped()) {
+                  buffer = droneOrig;
+                  break;
+      }
+      case '6': snareEnvelope.saveToFile("snare.env");
+                pianoEnvelope.saveToFile("piano.env");
+                break;
+
+      case '7': if(!gnuPlot) gnuPlot = _popen("gnuplot -persist", "w");
+        fprintf(gnuPlot, "%s \n", "set title \"SNARE\"");
+        fprintf(gnuPlot, "%s \n", "plot 'snare.env' with lines");
+
+        break;
+
+      case 'e': goto exit;
+      }
+    }
+    YSE::System().sleep(100);
+    YSE::System().update();
+  }
+
+  
+
+
+  
 
 
 exit:
