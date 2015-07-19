@@ -39,6 +39,8 @@ namespace YSE {
       // create from breakpoint file (every line must contain 2 floats: time and value)
       bool create(const char * fileName);
 
+      void normalize();
+
       // write breakpoint file to disk, returns false on fail
       bool saveToFile(const char * fileName) const;
 

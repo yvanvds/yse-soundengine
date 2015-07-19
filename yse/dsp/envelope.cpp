@@ -92,3 +92,23 @@ Flt YSE::DSP::envelope::getLengthSec() const {
 const YSE::DSP::envelope::breakPoint & YSE::DSP::envelope::operator[](UInt pos) const {
   return breakPoints[pos];
 }
+
+void YSE::DSP::envelope::normalize() {
+  // scan for highest value
+  Flt max = 0.f;
+  breakPoint * ptr = breakPoints.data();
+  for (int i = 0; i < breakPoints.size(); i++) {
+    if(max < ptr->value) max = ptr->value;
+    ptr++;
+  }
+
+  // apply to breakpoints
+  if (max != 0.f) {
+    Flt multiplier = 1 / max;
+    breakPoint * ptr = breakPoints.data();
+    for (int i = 0; i < breakPoints.size(); i++) {
+      ptr->value *= multiplier;
+      ptr++;
+    }
+  }
+}
