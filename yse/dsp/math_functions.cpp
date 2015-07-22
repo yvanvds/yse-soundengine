@@ -75,10 +75,14 @@ Flt YSE::DSP::dbToRms(Flt f) {
   return (exp((LOGTEN * 0.05f) * (f - 100.f)));
 }
 
+Flt YSE::DSP::getMaxAmplitude(buffer & source) {
+  return getMaxAmplitude(source.getPtr(), source.getLength());
+}
+
 Flt YSE::DSP::getMaxAmplitude(Flt * pos, UInt windowSize) {
   Flt * p = pos; // W don't want to change pos because the user might not expect that
   Flt result = 0.f;
-  for (int i = 0; i < windowSize; i++) {
+  for (UInt i = 0; i < windowSize; i++) {
     if (*p > result) {
       result = *p;
     }

@@ -12,6 +12,7 @@
 #define MATH_FUNCTIONS_H_INCLUDED
 
 #include "../headers/types.hpp"
+#include "buffer.hpp"
 
 namespace YSE {
   namespace DSP {
@@ -28,6 +29,7 @@ namespace YSE {
     Flt dbToPow(Flt f);
     Flt dbToRms(Flt f);
 
+    Flt getMaxAmplitude(buffer & source);
     Flt getMaxAmplitude(Flt * pos, UInt windowSize);
   }
 }

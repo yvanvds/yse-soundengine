@@ -160,3 +160,12 @@ bool YSE::DSP::SaveToFile(const char * fileName, MULTICHANNELBUFFER & buffer) {
 
   return true;
 }
+
+void YSE::DSP::Normalize(buffer & buffer) {
+  Flt max = getMaxAmplitude(buffer);
+
+  if (max != 0.f) {
+    Flt multiplier = 1 / max;
+    buffer *= multiplier;
+  }
+}

@@ -13,6 +13,10 @@
 
 #include "buffer.hpp"
 
+/** These functions operate on basic buffers. They are not part of the buffer
+    class because it's better to keep it as small as possible.
+*/
+
 namespace YSE {
   namespace DSP {
     /** Load an audio channel from file into an YSE::DSP::buffer. If the file does
@@ -36,6 +40,8 @@ namespace YSE {
     /** Save multiple channels to a WAV file.
     */
     bool API SaveToFile(const char * fileName, MULTICHANNELBUFFER & buffer);
+
+    void API Normalize(buffer & buffer);
   }
 }
 

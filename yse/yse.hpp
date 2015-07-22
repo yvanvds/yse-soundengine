@@ -21,6 +21,8 @@
 
 // dsp
 #include "dsp/buffer.hpp"
+#include "dsp/drawableBuffer.hpp"
+#include "dsp/wavetable.hpp"
 #include "dsp/sample_functions.hpp"
 #include "dsp/delay.hpp"
 #include "dsp/dspObject.hpp"
