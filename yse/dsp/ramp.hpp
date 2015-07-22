@@ -12,20 +12,20 @@
 #define RAMP_H_INCLUDED
 
 #include "../headers/defines.hpp"
-#include "sample.hpp"
+#include "buffer.hpp"
 
 namespace YSE {
 
   namespace DSP {
-    class API ramp : public sample {
+    class API ramp : public buffer {
     public:
       ramp& set(Flt target, Int time = 0);
       ramp& setIfNew(Flt target, Int time = 0);
       ramp& stop();
       ramp& update();
       // TODO: check update and operator functions for consistency with other DSP objects
-      AUDIOBUFFER & operator()();
-      AUDIOBUFFER & getSample();
+      YSE::DSP::buffer & operator()();
+      YSE::DSP::buffer & getSample();
       Flt    getValue();
 
       ramp();
@@ -64,9 +64,9 @@ namespace YSE {
 
 
     // these functions are limited to the length of the buffer
-    void FastFadeIn(sample& s, UInt length);
-    void FastFadeOut(sample& s, UInt length);
-    void ChangeGain(sample& s, Flt currentGain, Flt newGain, UInt length);
+    void FastFadeIn(YSE::DSP::buffer & s, UInt length);
+    void FastFadeOut(YSE::DSP::buffer & s, UInt length);
+    void ChangeGain(YSE::DSP::buffer & s, Flt currentGain, Flt newGain, UInt length);
 
 
   }

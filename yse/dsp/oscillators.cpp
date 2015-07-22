@@ -37,16 +37,16 @@ namespace YSE {
 
     saw::saw() : frequency(440), phase(0), conv(0) {}
 
-    AUDIOBUFFER & saw::operator()(AUDIOBUFFER & in) {
+    YSE::DSP::buffer & saw::operator()(YSE::DSP::buffer & in) {
       if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
 
-      inPtr = in.getBuffer();
+      inPtr = in.getPtr();
       calc(false);
 
       return buffer;
     }
 
-    AUDIOBUFFER & saw::operator()(Flt frequency, UInt length) {
+    YSE::DSP::buffer & saw::operator()(Flt frequency, UInt length) {
       if (length != buffer.getLength()) buffer.resize(length);
 
       this->frequency = frequency;
@@ -57,7 +57,7 @@ namespace YSE {
 
 
     void saw::calc(Bool useFrequency) {
-      Flt * outPtr = buffer.getBuffer();
+      Flt * outPtr = buffer.getPtr();
       UInt length = buffer.getLength();
 
       conv = 1.f / SAMPLERATE;
@@ -111,13 +111,13 @@ namespace YSE {
 
     cosine::cosine() {}
 
-    AUDIOBUFFER & cosine::operator()(AUDIOBUFFER & in) {
+    YSE::DSP::buffer & cosine::operator()(YSE::DSP::buffer & in) {
       if (in.getLength() != buffer.getLength()) {
         buffer.resize(in.getLength());
       }
 
-      Flt * inPtr = in.getBuffer();
-      Flt * outPtr = buffer.getBuffer();
+      Flt * inPtr = in.getPtr();
+      Flt * outPtr = buffer.getPtr();
       UInt  length = in.getLength();
 
       Flt * tab = CosTable();
@@ -157,16 +157,16 @@ namespace YSE {
       conv = 0;
     }
 
-    AUDIOBUFFER & sine::operator()(AUDIOBUFFER & in) {
+    YSE::DSP::buffer & sine::operator()(YSE::DSP::buffer & in) {
       if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
 
-      inPtr = in.getBuffer();
+      inPtr = in.getPtr();
       calc(false);
 
       return buffer;
     }
 
-    AUDIOBUFFER & sine::operator()(Flt frequency, UInt length) {
+    YSE::DSP::buffer & sine::operator()(Flt frequency, UInt length) {
       if (length != buffer.getLength()) buffer.resize(length);
 
       this->frequency = frequency;
@@ -177,7 +177,7 @@ namespace YSE {
 
 
     void sine::calc(Bool useFrequency) {
-      Flt * outPtr = buffer.getBuffer();
+      Flt * outPtr = buffer.getPtr();
       UInt length = buffer.getLength();
 
       Flt *tab = CosTable(), *addr, f1, f2, frac;
@@ -227,9 +227,9 @@ namespace YSE {
     noise::noise() : value(307 * 1319) {}
 
 
-    AUDIOBUFFER & noise::operator()(UInt length) {
+    YSE::DSP::buffer & noise::operator()(UInt length) {
       if (length != buffer.getLength()) buffer.resize(length);
-      Flt * outPtr = buffer.getBuffer();
+      Flt * outPtr = buffer.getPtr();
 
       while (length--) {
         *outPtr++ = ((float)((value & 0x7fffffff) - 0x40000000)) * (float)(1.0 / 0x40000000);
@@ -251,14 +251,14 @@ namespace YSE {
       return (*this);
     }
 
-    AUDIOBUFFER & vcf::operator()(AUDIOBUFFER & in, AUDIOBUFFER & center, sample& out2) {
+    YSE::DSP::buffer & vcf::operator()(YSE::DSP::buffer & in, YSE::DSP::buffer & center, YSE::DSP::buffer & out2) {
       if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
       if (in.getLength() != out2.getLength()) out2.resize(in.getLength());
 
-      Flt * inPtr = in.getBuffer();
-      Flt * centerPtr = center.getBuffer();
-      Flt * out1Ptr = buffer.getBuffer();
-      Flt * out2Ptr = out2.getBuffer();
+      Flt * inPtr = in.getPtr();
+      Flt * centerPtr = center.getPtr();
+      Flt * out1Ptr = buffer.getPtr();
+      Flt * out2Ptr = out2.getPtr();
       UInt length = in.getLength();
 
       isr = Pi2 / static_cast<Flt>(SAMPLERATE);

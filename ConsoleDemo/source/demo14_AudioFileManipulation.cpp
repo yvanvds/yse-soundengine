@@ -18,7 +18,7 @@
 */
 
 
-AUDIOBUFFER buffer;
+YSE::DSP::buffer buffer;
 YSE::sound sound;
 YSE::DSP::highPass hpf;
 

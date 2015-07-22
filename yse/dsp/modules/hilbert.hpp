@@ -23,7 +23,7 @@ namespace YSE {
       biQuad R1, R2;
 
       hilbert();
-      void operator()(AUDIOBUFFER & in, sample& out1, sample& out2);
+      void operator()(YSE::DSP::buffer & in, YSE::DSP::buffer & out1, YSE::DSP::buffer & out2);
     };
 
   }

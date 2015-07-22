@@ -32,7 +32,8 @@ namespace YSE {
  
   namespace DSP {
     // public dsp classes
-    class sample;
+    class buffer;
+    class drawableBuffer;
     class dspObject;
     class dspSourceObject;
 

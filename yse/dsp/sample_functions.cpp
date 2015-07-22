@@ -47,7 +47,7 @@ namespace YSE {
   }
 }
 
-bool YSE::DSP::LoadFromFile(const char * fileName, AUDIOBUFFER & buffer, UInt channel) {
+bool YSE::DSP::LoadFromFile(const char * fileName, YSE::DSP::buffer & buffer, UInt channel) {
   ScopedPointer<AudioFormatReader> reader = getReader(fileName);
   if (reader == nullptr) return false;
   if (channel >= reader->numChannels) return false;
@@ -60,7 +60,7 @@ bool YSE::DSP::LoadFromFile(const char * fileName, AUDIOBUFFER & buffer, UInt ch
 
   buffer.resize(tBuf.getNumSamples());
   const float * in = tBuf.getReadPointer(channel);
-  Flt * out = buffer.getBuffer();
+  Flt * out = buffer.getPtr();
   for (int i = 0; i < tBuf.getNumSamples(); i++) {
     *out++ = *in++;
   }
@@ -81,7 +81,7 @@ bool YSE::DSP::LoadFromFile(const char * fileName, MULTICHANNELBUFFER & buffer) 
     buffer[i].setSampleRateAdjustment(static_cast<Flt>(reader->sampleRate) / static_cast<Flt>(SAMPLERATE));
 
     const float * in = tBuf.getReadPointer(i);
-    Flt * out = buffer[i].getBuffer();
+    Flt * out = buffer[i].getPtr();
     for (int j = 0; j < tBuf.getNumSamples(); j++) {
       *out++ = *in++;
     }
@@ -89,7 +89,7 @@ bool YSE::DSP::LoadFromFile(const char * fileName, MULTICHANNELBUFFER & buffer) 
   return true;
 }
   
-bool YSE::DSP::SaveToFile(const char * fileName, AUDIOBUFFER & buffer) {
+bool YSE::DSP::SaveToFile(const char * fileName, YSE::DSP::buffer & buffer) {
   std::string fn = fileName;
   fn += ".wav";
 
@@ -111,7 +111,7 @@ bool YSE::DSP::SaveToFile(const char * fileName, AUDIOBUFFER & buffer) {
         fileStream.release();
 
         float ** array = new float*[1];
-        array[0] = buffer.getBuffer();
+        array[0] = buffer.getPtr();
 
         writer->writeFromFloatArrays(array, 1, buffer.getLength());
         writer->flush();
@@ -147,7 +147,7 @@ bool YSE::DSP::SaveToFile(const char * fileName, MULTICHANNELBUFFER & buffer) {
 
         float ** array = new float*[buffer.size()];
         for (int i = 0; i < buffer.size(); i++) {
-          array[i] = buffer[i].getBuffer();
+          array[i] = buffer[i].getPtr();
         }
 
         writer->writeFromFloatArrays(array, buffer.size(), buffer[0].getLength());

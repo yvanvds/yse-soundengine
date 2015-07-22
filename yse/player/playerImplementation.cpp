@@ -117,7 +117,7 @@ bool YSE::PLAYER::implementationObject::update(Flt delta) {
         else {
           voices[i].duration = RandomF(minLength(), maxLength());
           voices[i].notePlaying = true;
-          Flt pitch = Random(minimumPitch(), maximumPitch());
+          Flt pitch = static_cast<Flt>(Random(static_cast<Int>(minimumPitch()), static_cast<Int>(maximumPitch())));
           if (scale.isSet()) pitch = scale()->getNearest(pitch);
           notes.emplace_back(MUSIC::note(pitch, RandomF(minimumVelocity(), maximumVelocity()), voices[i].duration));
           instrument->noteOn(notes.back());
@@ -174,11 +174,11 @@ void YSE::PLAYER::implementationObject::setVoiceFromMotif(voice & v, Flt delta) 
     // transpose within range
     Flt transposition;
     if (m->getValidPitches() != nullptr && m->getValidPitches()->size()) {
-      Flt pitch = m->getValidPitches()->getNearest(Random(minimumPitch(), maximumPitch()));
+      Flt pitch = static_cast<Flt>(m->getValidPitches()->getNearest(Random(static_cast<Int>(minimumPitch()), static_cast<Int>(maximumPitch()))));
       transposition = pitch - v.motif[0].getPitch();     
     }
     else {
-      transposition = Random(minimumPitch() - v.motif[0].getPitch(), maximumPitch() - v.motif[0].getPitch());
+      transposition = Random(static_cast<Int>(minimumPitch()) - v.motif[0].getPitch(), maximumPitch() - v.motif[0].getPitch());
     }
     FOREACH(v.motif) {
       v.motif[i].setPitch(v.motif[i].getPitch() + transposition);

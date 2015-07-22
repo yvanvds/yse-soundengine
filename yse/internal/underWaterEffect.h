@@ -14,7 +14,7 @@
 #include <atomic>
 #include <forward_list>
 #include "../classes.hpp"
-#include "../dsp/sample.hpp"
+#include "../dsp/buffer.hpp"
 #include "../dsp/filters.hpp"
 #include "../reverb/reverbInterface.hpp"
 
@@ -31,8 +31,8 @@ namespace YSE {
 
     private:
       Flt depth;
-      DSP::sample buffer;
-      DSP::sample lpBuffer;
+      DSP::buffer buffer;
+      DSP::buffer lpBuffer;
       DSP::lowPass filter;
       reverb verb;
       std::atomic<CHANNEL::implementationObject *> activeChannel; // only one channel can get the underwatereffect

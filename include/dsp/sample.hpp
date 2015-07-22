@@ -18,6 +18,8 @@ namespace YSE {
 
 
   namespace DSP {
+    class API envelope;
+
     /*
     - This class serves as a sound buffer. It can be used for low level
     audio operations where you need access to every frame in the buffer.
@@ -63,6 +65,13 @@ namespace YSE {
       AUDIOBUFFER & operator=(Flt f);
       AUDIOBUFFER & copyFrom(const AUDIOBUFFER & s, UInt SourcePos, UInt DestPos, UInt length);
 
+      /** Apply an envelope to the current audiobuffer.
+      @param length       Desired length of the envelope in seconds. If length > 0, the 
+                          envelope will be scaled to this length. Otherwise the internal
+                          length of the envelope will be used. 
+      */
+      AUDIOBUFFER & applyEnvelope(const envelope & env, Flt length = 0);
+
       /** Draw data in a sound buffer. This is not meant for buffers
       which will be sent to the audio output, but for buffers used to do
       calculations on real audio buffers. Make sure that start and stop values
@@ -99,8 +108,14 @@ namespace YSE {
       // copy = true will retain the current values and fill remaining values with zeroes
       // with copy = false, the buffer values are not initialized
       AUDIOBUFFER & resize(UInt length, Bool copy = false);
+
+      inline Flt getSampleRateAdjustment() { return sampleRateAdjustment; }
+      inline void setSampleRateAdjustment(Flt s) { sampleRateAdjustment = s; }
     private:
       std::vector<Flt> buffer;
+
+      // to play all rates at the correct speed
+      Flt sampleRateAdjustment;
     };
   }
 }

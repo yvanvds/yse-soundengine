@@ -120,7 +120,7 @@ namespace YSE {
       INTERNAL::soundFile * addFile(const char * fileName);
 
       // an alternative version to add memory buffers
-      INTERNAL::soundFile * addFile(AUDIOBUFFER * buffer);
+      INTERNAL::soundFile * addFile(YSE::DSP::buffer * buffer);
       INTERNAL::soundFile * addFile(MULTICHANNELBUFFER * buffer);
 
 #if defined PUBLIC_JUCE

@@ -23,7 +23,7 @@ public:
 private:
   // in this case we add:
   // a sample buffer to hold the sum of all generators
-  YSE::DSP::sample out;
+  YSE::DSP::buffer out;
   // sinewave generators
   YSE::DSP::sine generators[11];
   // frequencies for all generators
@@ -36,7 +36,7 @@ private:
   YSE::DSP::lowPass lp;
 
   Flt lpFreq;
-  YSE::DSP::sample s1, s2;
+  YSE::DSP::buffer s1, s2;
 };
 
 shepard::shepard() {
@@ -71,7 +71,7 @@ void shepard::process(YSE::SOUND_STATUS & intent) {
   out *= 0.1f;
 
   // most DSP object will return a reference to an AUDIOBUFFER.
-  AUDIOBUFFER & result = lp(out);
+  YSE::DSP::buffer & result = lp(out);
 
   // if you need to alter the result afterwards, you should not use a reference but
   // AUDIOBUFFER result = lp(out);

@@ -45,7 +45,7 @@ namespace YSE {
       aFlt parmFrequency;
       aFlt parmLevel;
       std::shared_ptr<sine> sineGen;
-      std::shared_ptr<sample> extra;
+      std::shared_ptr<buffer> extra;
     };
 
   }

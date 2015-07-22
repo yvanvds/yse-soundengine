@@ -7,6 +7,7 @@
     <ClCompile Include="..\..\source\demo03_virtual_sounds.cpp" />
     <ClCompile Include="..\..\source\demo04_custom_channels.cpp" />
     <ClCompile Include="..\..\source\demo05_reverb.cpp" />
+    <ClCompile Include="..\..\source\demo06_devices.cpp" />
     <ClCompile Include="..\..\source\demo07_dsp_source.cpp" />
     <ClCompile Include="..\..\source\demo08_occlusion.cpp" />
     <ClCompile Include="..\..\source\demo09_streaming.cpp" />
@@ -14,9 +15,8 @@
     <ClCompile Include="..\..\source\demo11_relative_position.cpp" />
     <ClCompile Include="..\..\source\demo12_synth.cpp" />
     <ClCompile Include="..\..\source\demo13_midi_file.cpp" />
-    <ClCompile Include="..\..\source\demo16_motifs.cpp" />
-    <ClCompile Include="..\..\source\demo06_devices.cpp" />
-    <ClCompile Include="..\..\source\demo17_audioEnvelope.cpp" />
     <ClCompile Include="..\..\source\demo14_AudioFileManipulation.cpp" />
+    <ClCompile Include="..\..\source\demo15_player.cpp" />
+    <ClCompile Include="..\..\source\demo16_motifs.cpp" />
   </ItemGroup>
 </Project>

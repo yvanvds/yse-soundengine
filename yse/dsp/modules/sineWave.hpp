@@ -13,6 +13,7 @@
 
 #include "../dspObject.hpp"
 #include "../oscillators.hpp"
+#include "../drawableBuffer.hpp"
 
 namespace YSE {
   namespace DSP {
@@ -30,9 +31,9 @@ namespace YSE {
 
     private:
       sine sineGen;
-      sample volumeCurve;
+      YSE::DSP::drawableBuffer volumeCurve;
 
-      sample frequencyCurve;
+      YSE::DSP::drawableBuffer frequencyCurve;
       aFlt parmFrequency;
       Flt currentFrequency;
     };

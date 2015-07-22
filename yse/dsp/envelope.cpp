@@ -13,7 +13,7 @@
 #include "envelope.hpp"
 #include "../internalHeaders.h"
 
-bool YSE::DSP::envelope::create(YSE::DSP::sample & source, Int windowSize) {
+bool YSE::DSP::envelope::create(YSE::DSP::buffer & source, Int windowSize) {
   // window must be > 0
   if (windowSize <= 0) {
     return false;
@@ -24,7 +24,7 @@ bool YSE::DSP::envelope::create(YSE::DSP::sample & source, Int windowSize) {
   Int pos = 0;
   Flt time = 0;
   Int bufferLength = source.getLength();
-  Flt * ptr = source.getBuffer();
+  Flt * ptr = source.getPtr();
   breakPoints.clear();
 
   while (pos + window < bufferLength) {

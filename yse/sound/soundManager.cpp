@@ -78,7 +78,7 @@ YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addFile(const char * fileN
   }
 }
 
-YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addFile(AUDIOBUFFER * buffer) {
+YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addFile(YSE::DSP::buffer * buffer) {
   // find out if this file already exists
   for (auto i = soundFiles.begin(); i != soundFiles.end(); ++i) {
     if ( i->contains(buffer)) {

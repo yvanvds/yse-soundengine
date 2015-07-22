@@ -89,6 +89,10 @@
         <FILE id="CCEImz" name="deviceSetup.hpp" compile="0" resource="0" file="../yse/device/deviceSetup.hpp"/>
       </GROUP>
       <GROUP id="{87572250-4545-73C4-BCE6-8BBAAD395AA6}" name="dsp">
+        <FILE id="WLrQKy" name="drawableBuffer.cpp" compile="1" resource="0"
+              file="../yse/dsp/drawableBuffer.cpp"/>
+        <FILE id="uxawCk" name="drawableBuffer.hpp" compile="0" resource="0"
+              file="../yse/dsp/drawableBuffer.hpp"/>
         <FILE id="PLwmoV" name="sample_functions.cpp" compile="1" resource="0"
               file="../yse/dsp/sample_functions.cpp"/>
         <FILE id="UR39QS" name="sample_functions.hpp" compile="0" resource="0"
@@ -133,8 +137,8 @@
         <FILE id="uZldm5" name="oscillators.hpp" compile="0" resource="0" file="../yse/dsp/oscillators.hpp"/>
         <FILE id="mzEGxx" name="ramp.cpp" compile="1" resource="0" file="../yse/dsp/ramp.cpp"/>
         <FILE id="HEKBZA" name="ramp.hpp" compile="0" resource="0" file="../yse/dsp/ramp.hpp"/>
-        <FILE id="LQiLlA" name="sample.cpp" compile="1" resource="0" file="../yse/dsp/sample.cpp"/>
-        <FILE id="bAeXQ5" name="sample.hpp" compile="0" resource="0" file="../yse/dsp/sample.hpp"/>
+        <FILE id="LQiLlA" name="buffer.cpp" compile="1" resource="0" file="../yse/dsp/buffer.cpp"/>
+        <FILE id="bAeXQ5" name="buffer.hpp" compile="0" resource="0" file="../yse/dsp/buffer.hpp"/>
       </GROUP>
       <GROUP id="{EFA77483-62B6-F08D-1458-4E7DF64AE29E}" name="headers">
         <FILE id="qLq9OS" name="constants.hpp" compile="0" resource="0" file="../yse/headers/constants.hpp"/>

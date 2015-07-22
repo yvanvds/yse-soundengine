@@ -102,7 +102,7 @@ void YSE::INTERNAL::soundFile::run() {
   }
 }
 
-Bool YSE::INTERNAL::soundFile::read(std::vector<DSP::sample> & filebuffer, Flt& pos, UInt length, Flt speed, Bool loop, SOUND_STATUS & intent, Flt & volume) {
+Bool YSE::INTERNAL::soundFile::read(std::vector<DSP::buffer> & filebuffer, Flt& pos, UInt length, Flt speed, Bool loop, SOUND_STATUS & intent, Flt & volume) {
   /** Yes, this function uses goto...
       It is highly optimized for speed and this is the best way I could find
       to ensure good performance. Suggestions are welcome.
@@ -149,15 +149,15 @@ Bool YSE::INTERNAL::soundFile::read(std::vector<DSP::sample> & filebuffer, Flt& 
     intent = startIntent;
 
     // this assumes the output and file have the same number of channels
-    Flt * out = filebuffer[i].getBuffer();
+    Flt * out = filebuffer[i].getPtr();
     Flt * in;
     
     if (_audioBuffer) {
-      in = _audioBuffer->getBuffer();
+      in = _audioBuffer->getPtr();
       _length = _audioBuffer->getLength();
     }
     else if (_multiChannelBuffer) {
-      in = _multiChannelBuffer->at(i).getBuffer();
+      in = _multiChannelBuffer->at(i).getPtr();
       _length = _multiChannelBuffer->at(i).getLength();
     }
     else  {
@@ -384,7 +384,7 @@ Bool YSE::INTERNAL::soundFile::contains(const char * fileName) {
   return strcmp(this->fileName.c_str(), fileName) == 0;
 }
 
-Bool YSE::INTERNAL::soundFile::contains(AUDIOBUFFER * buffer) {
+Bool YSE::INTERNAL::soundFile::contains(YSE::DSP::buffer * buffer) {
   return this->_audioBuffer == buffer;
 }
 
@@ -481,7 +481,7 @@ YSE::INTERNAL::soundFile::soundFile(juce::InputStream * source) :  _buffer(1, 1)
 {
 }
 
-YSE::INTERNAL::soundFile::soundFile(AUDIOBUFFER * buffer) : _buffer(1, 1)
+YSE::INTERNAL::soundFile::soundFile(YSE::DSP::buffer * buffer) : _buffer(1, 1)
   , idleTime(0)
   , state(NEW)
   , file()

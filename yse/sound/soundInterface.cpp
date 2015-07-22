@@ -40,7 +40,7 @@ YSE::sound& YSE::sound::create(const char * fileName, channel * ch, Bool loop, F
   return *this;
 }
 
-YSE::sound& YSE::sound::create(AUDIOBUFFER & buffer, channel * ch, Bool loop, Flt volume) {
+YSE::sound& YSE::sound::create(YSE::DSP::buffer & buffer, channel * ch, Bool loop, Flt volume) {
   assert(pimpl == nullptr);
 
   pimpl = SOUND::Manager().addImplementation(this);

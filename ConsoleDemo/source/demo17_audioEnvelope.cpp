@@ -10,14 +10,18 @@
 #endif
 
 
-AUDIOBUFFER piano;
-AUDIOBUFFER drone;
-AUDIOBUFFER droneOrig;
+YSE::DSP::buffer piano;
+YSE::DSP::drawableBuffer drone;
+YSE::DSP::buffer droneOrig;
+YSE::DSP::drawableBuffer sinModified;
 
 YSE::DSP::envelope snareEnvelope;
 YSE::DSP::envelope pianoEnvelope;
 
-YSE::sound sound;
+YSE::DSP::sine sine;
+
+YSE::sound sineSound;
+YSE::sound droneSound;
 
 FILE * gnuPlot = nullptr;
 
@@ -43,11 +47,17 @@ int main() {
   snareEnvelope.create("snare.env"); // create from envelope file
   pianoEnvelope.create(piano); // create from audio buffer
 
-  sound.create(drone, nullptr, true);
+  // while DSP objects can be used as a constant sound generator,
+  // you can also use them to create a static sample.
+  YSE::DSP::buffer & sinOrig = sine(800, 44100); // 1 second audiobuffer
+  sinModified = sinOrig;
+  sineSound.create(sinModified, nullptr, true, 0.5); 
+
+  droneSound.create(drone, nullptr, true, 0.5);
 
   std::cout << "Sounds are loaded. Please choose: " << std::endl;
-  std::cout << "1 to play" << std::endl;
-  std::cout << "2 to stop" << std::endl;
+  std::cout << "1 to toggle drone sound" << std::endl;
+  std::cout << "2 to toggle sine sound" << std::endl;
   std::cout << "3 to apply snare envelope" << std::endl;
   std::cout << "4 to apply piano envelope" << std::endl;
   std::cout << "5 to reset sound" << std::endl;
@@ -60,17 +70,22 @@ int main() {
     if (_kbhit()) {
       char ch = _getch();
       switch (ch) {
-      case '1': sound.play(); break;
-      case '2': sound.stop(); break;
+      case '1': droneSound.toggle(); break;
+      case '2': sineSound.toggle(); break;
       case '3': drone = droneOrig;
                 drone.applyEnvelope(snareEnvelope);
+                sinModified = sinOrig;
+                sinModified.applyEnvelope(snareEnvelope);
                 break;
     
       case '4': drone = droneOrig;
                 drone.applyEnvelope(pianoEnvelope);
+                sinModified = sinOrig;
+                sinModified.applyEnvelope(pianoEnvelope);
                 break;
      
       case '5': drone = droneOrig;
+                sinModified = sinOrig;
                 break;
       
       case '6': snareEnvelope.saveToFile("snare.env");
@@ -86,6 +101,8 @@ int main() {
       case '8': pianoEnvelope.normalize();
                 drone = droneOrig;
                 drone.applyEnvelope(pianoEnvelope);
+                sinModified = sinOrig;
+                sinModified.applyEnvelope(pianoEnvelope);
                 break;
 
       case 'e': goto exit;

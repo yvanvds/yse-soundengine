@@ -64,7 +64,7 @@ YSE::DSP::ramp& YSE::DSP::ramp::update() {
   }
 
   Int l = getLength();
-  Flt * ptr = getBuffer();
+  Flt * ptr = getPtr();
   if (ticksLeft) {
     Flt f = current;
     while (l--) *ptr++ = f, f += inc;
@@ -83,11 +83,11 @@ YSE::DSP::ramp& YSE::DSP::ramp::update() {
   return (*this);
 }
 
-AUDIOBUFFER & YSE::DSP::ramp::operator()() {
+YSE::DSP::buffer & YSE::DSP::ramp::operator()() {
   return *this;
 }
 
-AUDIOBUFFER & YSE::DSP::ramp::getSample() {
+YSE::DSP::buffer & YSE::DSP::ramp::getSample() {
   return *this;
 }
 
@@ -98,11 +98,11 @@ Flt YSE::DSP::ramp::getValue() {
 /************************************************************************/
 
 
-void YSE::DSP::FastFadeIn(sample& s, UInt length) {
+void YSE::DSP::FastFadeIn(YSE::DSP::buffer & s, UInt length) {
   Clamp(length, 1u, s.getLength());
   Flt step = 1.0f / static_cast<Flt>(length);
   Flt multiplier = 0.0f;
-  Flt * ptr = s.getBuffer();
+  Flt * ptr = s.getPtr();
   for (UInt i = 0; i < length; i++) {
     *ptr++ *= multiplier;
     multiplier += step;
@@ -111,11 +111,11 @@ void YSE::DSP::FastFadeIn(sample& s, UInt length) {
 
 /************************************************************************/
 
-void YSE::DSP::FastFadeOut(sample& s, UInt length) {
+void YSE::DSP::FastFadeOut(YSE::DSP::buffer & s, UInt length) {
   Clamp(length, 1u, s.getLength());
   Flt step = 1.0f / static_cast<Flt>(length);
   Flt multiplier = 1.0f;
-  Flt * ptr = s.getBuffer();
+  Flt * ptr = s.getPtr();
   for (UInt i = 0; i < length; i++) {
     *ptr++ *= multiplier;
     multiplier -= step;
@@ -126,7 +126,7 @@ void YSE::DSP::FastFadeOut(sample& s, UInt length) {
 
 /************************************************************************/
 
-void YSE::DSP::ChangeGain(sample& s, Flt currentGain, Flt newGain, UInt length) {
+void YSE::DSP::ChangeGain(YSE::DSP::buffer & s, Flt currentGain, Flt newGain, UInt length) {
   if (currentGain == newGain) {
     s *= newGain;
     return;
@@ -135,7 +135,7 @@ void YSE::DSP::ChangeGain(sample& s, Flt currentGain, Flt newGain, UInt length) 
   Clamp(length, 1u, s.getLength());
   Flt step = (newGain - currentGain) / static_cast<Flt>(length);
   Flt multiplier = currentGain;
-  Flt * ptr = s.getBuffer();
+  Flt * ptr = s.getPtr();
   for (UInt i = 0; i < length; i++) {
     *ptr++ *= multiplier;
     multiplier += step;

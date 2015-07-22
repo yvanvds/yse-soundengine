@@ -31,14 +31,14 @@ namespace YSE {
       void clear();
       void update();
 
-      DSP::sample   out;
+      DSP::buffer   out;
       DSP::delay    delayline;
-      DSP::sample   early[4];
+      DSP::buffer   early[4];
       DSP::ramp     earlyPtr[4];
       DSP::ramp     earlyVolume[4];
       DSP::hilbert  hil;
-      DSP::sample   hil1;
-      DSP::sample   hil2;
+      DSP::buffer   hil1;
+      DSP::buffer   hil2;
 
       Flt * cPtr;
       Int   earlyOffset;
@@ -74,9 +74,9 @@ namespace YSE {
       DSP::sine   sinGen;
       DSP::saw    sawGen;
       DSP::cosine cos1, cos2;
-      DSP::sample modPtr;
-      DSP::sample cosPtr1;
-      DSP::sample cosPtr2;
+      DSP::buffer modPtr;
+      DSP::buffer cosPtr1;
+      DSP::buffer cosPtr2;
       DSP::lint  _modFrequency;
       DSP::lint  _modWidth;
 

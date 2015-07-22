@@ -133,7 +133,7 @@ YSE::PLAYER::interfaceObject & YSE::PLAYER::interfaceObject::setMaximumLength(Fl
 YSE::PLAYER::interfaceObject & YSE::PLAYER::interfaceObject::setVoices(UInt target, Flt time) {
   messageObject m;
   m.ID = VOICES;
-  m.floatPair[0] = target;
+  m.floatPair[0] = static_cast<Flt>(target);
   m.floatPair[1] = time;
   pimpl->sendMessage(m);
   return *this;
@@ -152,7 +152,7 @@ YSE::PLAYER::interfaceObject & YSE::PLAYER::interfaceObject::addMotif(YSE::motif
   messageObject m;
   m.ID = ADD_MOTIF;
   m.object.ptr = motif.pimpl;
-  m.object.time = weight;
+  m.object.time = static_cast<Flt>(weight);
   pimpl->sendMessage(m);
   return *this;
 }
@@ -169,7 +169,7 @@ YSE::PLAYER::interfaceObject & YSE::PLAYER::interfaceObject::adjustMotifWeight(Y
   messageObject m;
   m.ID = ADJUST_MOTIF;
   m.object.ptr = motif.pimpl;
-  m.object.time = weight;
+  m.object.time = static_cast<Flt>(weight);
   pimpl->sendMessage(m);
   return *this;
 }

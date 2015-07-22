@@ -160,7 +160,7 @@ void YSE::DEVICE::managerObject::audioDeviceIOCallback(const float ** inputChann
       // this is not really a safe way to work with buffers, but it won't give any errors in here
       UInt l = size;
       Flt * ptr1 = ((Flt **)outputChannelData)[i] + pos;
-      Flt * ptr2 = master->out[i].getBuffer() + bufferPos;
+      Flt * ptr2 = master->out[i].getPtr() + bufferPos;
       for (; l > 7; l -= 8, ptr1 += 8, ptr2 += 8) {
         ptr1[0] = ptr2[0] < -1.f ? -1.f : ptr2[0] > 1.f ? 1.f : ptr2[0];
 		    ptr1[1] = ptr2[1] < -1.f ? -1.f : ptr2[1] > 1.f ? 1.f : ptr2[1];

@@ -42,11 +42,11 @@ YSE::DSP::highPass& YSE::DSP::highPass::setFrequency(Flt f) {
   return (*this);
 }
 
-AUDIOBUFFER & YSE::DSP::highPass::operator()(AUDIOBUFFER & in) {
+YSE::DSP::buffer & YSE::DSP::highPass::operator()(YSE::DSP::buffer & in) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
 
-  Flt * inPtr = in.getBuffer();
-  Flt * outPtr = buffer.getBuffer();
+  Flt * inPtr = in.getPtr();
+  Flt * outPtr = buffer.getPtr();
   UInt length = in.getLength();
   Flt coef = coef1;
   if (coef < 1) {
@@ -76,11 +76,11 @@ YSE::DSP::lowPass& YSE::DSP::lowPass::setFrequency(Flt f) {
   return (*this);
 }
 
-AUDIOBUFFER & YSE::DSP::lowPass::operator()(AUDIOBUFFER & in) {
+YSE::DSP::buffer & YSE::DSP::lowPass::operator()(YSE::DSP::buffer & in) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
 
-  Flt * inPtr = in.getBuffer();
-  Flt * outPtr = buffer.getBuffer();
+  Flt * inPtr = in.getPtr();
+  Flt * outPtr = buffer.getPtr();
   UInt length = in.getLength();
 
   Flt feedback = 1 - coef1;
@@ -140,11 +140,11 @@ YSE::DSP::bandPass::bandPass() {
   calcCoef();
 }
 
-AUDIOBUFFER & YSE::DSP::bandPass::operator()(AUDIOBUFFER & in) {
+YSE::DSP::buffer & YSE::DSP::bandPass::operator()(YSE::DSP::buffer & in) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
 
-  Flt * inPtr = in.getBuffer();
-  Flt * outPtr = buffer.getBuffer();
+  Flt * inPtr = in.getPtr();
+  Flt * outPtr = buffer.getPtr();
   UInt length = in.getLength();
 
   // copy to Flt because we don't want atomic in whole buffer loops
@@ -217,11 +217,11 @@ YSE::DSP::biQuad& YSE::DSP::biQuad::setRaw(Flt fb1, Flt fb2, Flt ff1, Flt ff2, F
   return (*this);
 }
 
-AUDIOBUFFER & YSE::DSP::biQuad::operator()(AUDIOBUFFER & in) {
+YSE::DSP::buffer & YSE::DSP::biQuad::operator()(YSE::DSP::buffer & in) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
 
-  Flt * inPtr = in.getBuffer();
-  Flt * outPtr = buffer.getBuffer();
+  Flt * inPtr = in.getPtr();
+  Flt * outPtr = buffer.getPtr();
   UInt length = in.getLength();
 
   Flt output;
@@ -375,12 +375,12 @@ YSE::DSP::sampleHold& YSE::DSP::sampleHold::set(Flt value) {
   return (*this);
 }
 
-AUDIOBUFFER & YSE::DSP::sampleHold::operator()(AUDIOBUFFER & in, AUDIOBUFFER & signal) {
+YSE::DSP::buffer & YSE::DSP::sampleHold::operator()(YSE::DSP::buffer & in, YSE::DSP::buffer & signal) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
 
-  Flt * inPtr = in.getBuffer();
-  Flt * sigPtr = signal.getBuffer();
-  Flt * outPtr = buffer.getBuffer();
+  Flt * inPtr = in.getPtr();
+  Flt * sigPtr = signal.getPtr();
+  Flt * outPtr = buffer.getPtr();
   UInt length = in.getLength();
 
   // it's a bad idea to parse the whole buffer with atomics, so make a copy first

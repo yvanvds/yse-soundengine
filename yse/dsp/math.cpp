@@ -39,10 +39,10 @@ YSE::DSP::clip& YSE::DSP::clip::setHigh(Flt high) {
 }
 
 
-AUDIOBUFFER & YSE::DSP::clip::operator()(AUDIOBUFFER & in) {
+YSE::DSP::buffer & YSE::DSP::clip::operator()(YSE::DSP::buffer & in) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
-  Flt * inPtr = in.getBuffer();
-  Flt * outPtr = buffer.getBuffer();
+  Flt * inPtr = in.getPtr();
+  Flt * outPtr = buffer.getPtr();
   UInt length = in.getLength();
 
   Flt min = low;
@@ -89,10 +89,10 @@ YSE::DSP::rSqrt::rSqrt() {
   setupSqrt();
 }
 
-AUDIOBUFFER & YSE::DSP::rSqrt::operator()(AUDIOBUFFER & in) {
+YSE::DSP::buffer & YSE::DSP::rSqrt::operator()(YSE::DSP::buffer & in) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
-  Flt * inPtr = in.getBuffer();
-  Flt * outPtr = buffer.getBuffer();
+  Flt * inPtr = in.getPtr();
+  Flt * outPtr = buffer.getPtr();
   UInt length = in.getLength();
 
   while (length--) {
@@ -114,10 +114,10 @@ YSE::DSP::sqrt::sqrt() {
   setupSqrt();
 }
 
-AUDIOBUFFER & YSE::DSP::sqrt::operator()(AUDIOBUFFER & in) {
+YSE::DSP::buffer & YSE::DSP::sqrt::operator()(YSE::DSP::buffer & in) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
-  Flt * inPtr = in.getBuffer();
-  Flt * outPtr = buffer.getBuffer();
+  Flt * inPtr = in.getPtr();
+  Flt * outPtr = buffer.getPtr();
   UInt length = in.getLength();
 
   while (length--) {
@@ -135,10 +135,10 @@ AUDIOBUFFER & YSE::DSP::sqrt::operator()(AUDIOBUFFER & in) {
 
 /*******************************************************************************************/
 
-AUDIOBUFFER & YSE::DSP::wrap::operator()(AUDIOBUFFER & in) {
+YSE::DSP::buffer & YSE::DSP::wrap::operator()(YSE::DSP::buffer & in) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
-  Flt * inPtr = in.getBuffer();
-  Flt * outPtr = buffer.getBuffer();
+  Flt * inPtr = in.getPtr();
+  Flt * outPtr = buffer.getPtr();
   UInt length = in.getLength();
 
   while (length--) {
@@ -153,10 +153,10 @@ AUDIOBUFFER & YSE::DSP::wrap::operator()(AUDIOBUFFER & in) {
 
 /*******************************************************************************************/
 
-AUDIOBUFFER & YSE::DSP::midiToFreq::operator()(AUDIOBUFFER & in) {
+YSE::DSP::buffer & YSE::DSP::midiToFreq::operator()(YSE::DSP::buffer & in) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
-  Flt * inPtr = in.getBuffer();
-  Flt * outPtr = buffer.getBuffer();
+  Flt * inPtr = in.getPtr();
+  Flt * outPtr = buffer.getPtr();
   UInt length = in.getLength();
 
   for (; length--; inPtr++, outPtr++) {
@@ -173,10 +173,10 @@ AUDIOBUFFER & YSE::DSP::midiToFreq::operator()(AUDIOBUFFER & in) {
 
 /*******************************************************************************************/
 
-AUDIOBUFFER & YSE::DSP::freqToMidi::operator()(AUDIOBUFFER & in) {
+YSE::DSP::buffer & YSE::DSP::freqToMidi::operator()(YSE::DSP::buffer & in) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
-  Flt * inPtr = in.getBuffer();
-  Flt * outPtr = buffer.getBuffer();
+  Flt * inPtr = in.getPtr();
+  Flt * outPtr = buffer.getPtr();
   UInt length = in.getLength();
 
   for (; length--; *inPtr++, *outPtr++) {
@@ -192,10 +192,10 @@ AUDIOBUFFER & YSE::DSP::freqToMidi::operator()(AUDIOBUFFER & in) {
 
 #define LOGTEN 2.302585092994f
 
-AUDIOBUFFER & YSE::DSP::dbToRms::operator()(AUDIOBUFFER & in) {
+YSE::DSP::buffer & YSE::DSP::dbToRms::operator()(YSE::DSP::buffer & in) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
-  Flt * inPtr = in.getBuffer();
-  Flt * outPtr = buffer.getBuffer();
+  Flt * inPtr = in.getPtr();
+  Flt * outPtr = buffer.getPtr();
   UInt length = in.getLength();
 
   for (; length--; *inPtr++, *outPtr++) {
@@ -212,10 +212,10 @@ AUDIOBUFFER & YSE::DSP::dbToRms::operator()(AUDIOBUFFER & in) {
 
 /*******************************************************************************************/
 
-AUDIOBUFFER & YSE::DSP::rmsToDb::operator()(AUDIOBUFFER & in) {
+YSE::DSP::buffer & YSE::DSP::rmsToDb::operator()(YSE::DSP::buffer & in) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
-  Flt * inPtr = in.getBuffer();
-  Flt * outPtr = buffer.getBuffer();
+  Flt * inPtr = in.getPtr();
+  Flt * outPtr = buffer.getPtr();
   UInt length = in.getLength();
 
   for (; length--; *inPtr++, *outPtr++) {
@@ -232,10 +232,10 @@ AUDIOBUFFER & YSE::DSP::rmsToDb::operator()(AUDIOBUFFER & in) {
 
 /*******************************************************************************************/
 
-AUDIOBUFFER & YSE::DSP::dbToPow::operator()(AUDIOBUFFER & in) {
+YSE::DSP::buffer & YSE::DSP::dbToPow::operator()(YSE::DSP::buffer & in) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
-  Flt * inPtr = in.getBuffer();
-  Flt * outPtr = buffer.getBuffer();
+  Flt * inPtr = in.getPtr();
+  Flt * outPtr = buffer.getPtr();
   UInt length = in.getLength();
 
   for (; length--; *inPtr++, *outPtr++) {
@@ -252,10 +252,10 @@ AUDIOBUFFER & YSE::DSP::dbToPow::operator()(AUDIOBUFFER & in) {
 
 /*******************************************************************************************/
 
-AUDIOBUFFER & YSE::DSP::powToDb::operator()(AUDIOBUFFER & in) {
+YSE::DSP::buffer & YSE::DSP::powToDb::operator()(YSE::DSP::buffer & in) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
-  Flt * inPtr = in.getBuffer();
-  Flt * outPtr = buffer.getBuffer();
+  Flt * inPtr = in.getPtr();
+  Flt * outPtr = buffer.getPtr();
   UInt length = in.getLength();
 
   for (; length--; *inPtr++, *outPtr++) {
@@ -272,11 +272,11 @@ AUDIOBUFFER & YSE::DSP::powToDb::operator()(AUDIOBUFFER & in) {
 
 /*******************************************************************************************/
 
-AUDIOBUFFER & YSE::DSP::pow::operator()(AUDIOBUFFER & in1, AUDIOBUFFER & in2) {
+YSE::DSP::buffer & YSE::DSP::pow::operator()(YSE::DSP::buffer & in1, YSE::DSP::buffer & in2) {
   if (in1.getLength() != buffer.getLength()) buffer.resize(in1.getLength());
-  Flt * in1Ptr = in1.getBuffer();
-  Flt * in2Ptr = in2.getBuffer();
-  Flt * outPtr = buffer.getBuffer();
+  Flt * in1Ptr = in1.getPtr();
+  Flt * in2Ptr = in2.getPtr();
+  Flt * outPtr = buffer.getPtr();
   UInt length = in1.getLength();
 
   while (length--) {
@@ -293,10 +293,10 @@ AUDIOBUFFER & YSE::DSP::pow::operator()(AUDIOBUFFER & in1, AUDIOBUFFER & in2) {
 
 /*******************************************************************************************/
 
-AUDIOBUFFER & YSE::DSP::exp::operator()(AUDIOBUFFER & in) {
+YSE::DSP::buffer & YSE::DSP::exp::operator()(YSE::DSP::buffer & in) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
-  Flt * inPtr = in.getBuffer();
-  Flt * outPtr = buffer.getBuffer();
+  Flt * inPtr = in.getPtr();
+  Flt * outPtr = buffer.getPtr();
   UInt length = in.getLength();
 
   while (length--) *outPtr++ = ::exp(*inPtr++);
@@ -306,11 +306,11 @@ AUDIOBUFFER & YSE::DSP::exp::operator()(AUDIOBUFFER & in) {
 
 /*******************************************************************************************/
 
-AUDIOBUFFER & YSE::DSP::log::operator()(AUDIOBUFFER & in1, AUDIOBUFFER & in2) {
+YSE::DSP::buffer & YSE::DSP::log::operator()(YSE::DSP::buffer & in1, YSE::DSP::buffer & in2) {
   if (in1.getLength() != buffer.getLength()) buffer.resize(in1.getLength());
-  Flt * in1Ptr = in1.getBuffer();
-  Flt * in2Ptr = in2.getBuffer();
-  Flt * outPtr = buffer.getBuffer();
+  Flt * in1Ptr = in1.getPtr();
+  Flt * in2Ptr = in2.getPtr();
+  Flt * outPtr = buffer.getPtr();
   UInt length = in1.getLength();
 
   while (length--) {
@@ -327,10 +327,10 @@ AUDIOBUFFER & YSE::DSP::log::operator()(AUDIOBUFFER & in1, AUDIOBUFFER & in2) {
 
 /*******************************************************************************************/
 
-AUDIOBUFFER & YSE::DSP::abs::operator()(AUDIOBUFFER & in) {
+YSE::DSP::buffer & YSE::DSP::abs::operator()(YSE::DSP::buffer & in) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
-  Flt * inPtr = in.getBuffer();
-  Flt * outPtr = buffer.getBuffer();
+  Flt * inPtr = in.getPtr();
+  Flt * outPtr = buffer.getPtr();
   UInt length = in.getLength();
 
   while (length--) {

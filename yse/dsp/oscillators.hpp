@@ -14,7 +14,7 @@
 #include "../headers/defines.hpp"
 #include "../headers/types.hpp"
 #include "../headers/constants.hpp"
-#include "sample.hpp"
+#include "buffer.hpp"
 
 /* Constructor aside, all these objects should be used in dsp mode only */
 
@@ -23,15 +23,15 @@ namespace YSE {
 
     class API saw {
     public:
-      AUDIOBUFFER & operator()(Flt frequency, UInt length = STANDARD_BUFFERSIZE);
-      AUDIOBUFFER & operator()(AUDIOBUFFER & in);
+      YSE::DSP::buffer & operator()(Flt frequency, UInt length = STANDARD_BUFFERSIZE);
+      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
       saw();
 
     private:
       Dbl phase;
       Flt conv;
       Flt frequency;
-      sample buffer;
+      YSE::DSP::buffer buffer;
 
       Flt *inPtr;
       void calc(Bool useFrequency);
@@ -39,22 +39,22 @@ namespace YSE {
 
     class API cosine {
     public:
-      AUDIOBUFFER & operator()(AUDIOBUFFER & in);
+      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
       cosine();
 
     private:
-      sample buffer;
+      YSE::DSP::buffer buffer;
     };
 
     class API sine {
     public:
-      AUDIOBUFFER & operator()(Flt frequency, UInt length = STANDARD_BUFFERSIZE);
-      AUDIOBUFFER & operator()(AUDIOBUFFER & in);
+      YSE::DSP::buffer & operator()(Flt frequency, UInt length = STANDARD_BUFFERSIZE);
+      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
       sine();
       void reset(); // set the phase back to zero 
 
     private:
-      sample buffer;
+      YSE::DSP::buffer buffer;
       Dbl phase;
       Flt conv;
       Flt frequency;
@@ -66,11 +66,11 @@ namespace YSE {
 
     class API noise {
     public:
-      AUDIOBUFFER & operator()(UInt length = STANDARD_BUFFERSIZE);
+      YSE::DSP::buffer & operator()(UInt length = STANDARD_BUFFERSIZE);
       noise();
 
     private:
-      sample buffer;
+      YSE::DSP::buffer buffer;
       Int value;
     };
 
@@ -78,7 +78,7 @@ namespace YSE {
     public:
       vcf& sharpness(Flt q);
       // TODO a bit awkward: first output is function out, second output sent to 3th argument
-      AUDIOBUFFER & operator()(AUDIOBUFFER & in, AUDIOBUFFER & center, sample& out2);
+      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in, YSE::DSP::buffer & center, YSE::DSP::buffer & out2);
       vcf();
 
     private:
@@ -86,7 +86,7 @@ namespace YSE {
       Flt im;
       Flt q;
       Flt isr;
-      sample buffer;
+      YSE::DSP::buffer buffer;
     };
 
   }

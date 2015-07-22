@@ -14,7 +14,7 @@
 #include <vector>
 #include "../headers/defines.hpp"
 #include "../headers/types.hpp"
-#include "sample.hpp"
+#include "buffer.hpp"
 
 namespace YSE {
 
@@ -35,7 +35,7 @@ namespace YSE {
           It should only be called once, during audio processing.
           @param buffer   the audio buffer to store in the delay buffer.
       */
-      delay& process(AUDIOBUFFER & buffer); 
+      delay& process(buffer & buffer); 
 
       /** Read from the delay at a fixed point and store the required
           part of the buffer in result.
@@ -46,7 +46,7 @@ namespace YSE {
           @param delayTime  The frame at which to start reading from the
                             delay line.
       */
-      delay& read(sample& result, UInt delayTime); 
+      delay& read(buffer& result, UInt delayTime); 
 
       /** Read from the delay at a variable point and store the required
           part of the buffer in result.
@@ -56,7 +56,7 @@ namespace YSE {
 
           @param delayTime  A buffer containing the delay time for each frame.
       */
-      delay& read(sample& result, AUDIOBUFFER & delayTime); // read from delay at variable point
+      delay& read(buffer & result, buffer & delayTime); // read from delay at variable point
 
       /** Create a delay line.
 
@@ -76,7 +76,7 @@ namespace YSE {
       aUInt size;
     };
 
-    void readInterpolated(AUDIOBUFFER & ctrl, sample& out, AUDIOBUFFER & buffer, UInt &pos);
+    void readInterpolated(buffer & ctrl, buffer & out, buffer & buffer, UInt &pos);
 
   }
 }

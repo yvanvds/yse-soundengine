@@ -137,7 +137,7 @@ release:
   return false;
 }
 
-Bool YSE::SOUND::implementationObject::create(AUDIOBUFFER & buffer, CHANNEL::interfaceObject * ch, Bool loop, Flt volume) {
+Bool YSE::SOUND::implementationObject::create(YSE::DSP::buffer & buffer, CHANNEL::interfaceObject * ch, Bool loop, Flt volume) {
   parent = ch->pimpl;
   looping = loop;
   fader.set(volume);
@@ -631,7 +631,7 @@ void YSE::SOUND::implementationObject::dspFunc_calculateGain(Int channel, Int so
   Clamp(length, 1.f, static_cast<Flt>(channelBuffer.getLength()));
   Flt step = (finalGain - lastGain[channel][source]) / length;
   Flt multiplier = lastGain[channel][source];
-  Flt * ptr = channelBuffer.getBuffer();
+  Flt * ptr = channelBuffer.getPtr();
   for (UInt i = 0; i < length; i++) {
     *ptr++ *= (multiplier);
     multiplier += step;

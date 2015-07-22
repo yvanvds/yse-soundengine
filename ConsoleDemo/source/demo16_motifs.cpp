@@ -65,7 +65,7 @@ public:
 
 private:
   YSE::DSP::sine generator[3];
-  YSE::DSP::sample out;
+  YSE::DSP::buffer out;
   YSE::DSP::ramp ramp;
 
 };

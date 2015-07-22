@@ -138,9 +138,9 @@ void YSE::INTERNAL::reverbDSP::process(MULTICHANNELBUFFER & buffer) {
   }
 
   for (ch = 0; ch < channel.size(); ch++) {
-    Flt * ptr = buffer[ch].getBuffer();
+    Flt * ptr = buffer[ch].getPtr();
     channel[ch].out = 0;
-    Flt * out = channel[ch].out.getBuffer();
+    Flt * out = channel[ch].out.getPtr();
     Int length = buffer[ch].getLength();
     curCombIndex = channel[ch].combIndex;
     curBufComb = &channel[ch].bufComb;

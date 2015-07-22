@@ -200,7 +200,7 @@ namespace YSE {
       std::forward_list<SOUND::implementationObject *> sounds;
 
       std::vector<output> outConf;
-      std::vector<DSP::sample> out;
+      std::vector<DSP::buffer> out;
 
       Bool userChannel; // channel is created by user and not crucial for the system
       Bool allowVirtual;

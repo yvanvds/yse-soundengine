@@ -10,15 +10,16 @@
 
 #include "sineWave.hpp"
 #include "../../utils/misc.hpp"
+#include "../drawableBuffer.hpp"
 
 namespace YSE {
   namespace DSP {
     class sineWaveImpl {
     public:
       sine sineGen;
-      sample volumeCurve;
+      drawableBuffer volumeCurve;
 
-      sample frequencyCurve;
+      buffer frequencyCurve;
       aFlt frequency;
       Flt currentFrequency;
 
@@ -171,7 +172,7 @@ namespace YSE {
       }
 
 
-      AUDIOBUFFER & sin = sineGen(frequencyCurve);
+      YSE::DSP::buffer & sin = sineGen(frequencyCurve);
       for (UInt i = 0; i < buffer.size(); i++) {
         buffer[i] = sin;
         buffer[i] *= volumeCurve;

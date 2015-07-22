@@ -14,7 +14,7 @@
 #include <forward_list>
 #include "../classes.hpp"
 #include "sound.hpp"
-#include "../dsp/sample.hpp"
+#include "../dsp/buffer.hpp"
 #include "../dsp/ramp.hpp"
 #include "../utils/lfQueue.hpp"
 
@@ -54,7 +54,7 @@ namespace YSE {
       */
       Bool create(const std::string &fileName, CHANNEL::interfaceObject * ch, Bool loop, Flt volume, Bool streaming);
 
-      Bool create(AUDIOBUFFER & buffer, CHANNEL::interfaceObject * ch, Bool loop, Flt volume);
+      Bool create(YSE::DSP::buffer & buffer, CHANNEL::interfaceObject * ch, Bool loop, Flt volume);
       Bool create(MULTICHANNELBUFFER & buffer, CHANNEL::interfaceObject * ch, Bool loop, Flt volume);
 
 #if defined PUBLIC_JUCE
@@ -166,9 +166,9 @@ namespace YSE {
       INTERNAL::soundFile * file;
 
       // buffers
-      std::vector<DSP::sample> filebuffer;
-      std::vector<DSP::sample> * buffer;
-      DSP::sample channelBuffer; // temporary buffer to adjust channel gain
+      std::vector<DSP::buffer> filebuffer;
+      std::vector<DSP::buffer> * buffer;
+      DSP::buffer channelBuffer; // temporary buffer to adjust channel gain
       std::vector< std::vector<Flt> > lastGain; // needed for each channel to smooth gain changes
       Flt bufferVolume; // keep track of actual volume in buffer (may vary all the time, not used elsewhere)
 

@@ -17,7 +17,7 @@ YSE::DSP::hilbert::hilbert() {
   R2.setRaw(1.8685f, -0.870686f, 0.870686f, -1.8685f, 1.f);
 }
 
-void YSE::DSP::hilbert::operator()(AUDIOBUFFER & in, sample& out1, sample& out2) {
+void YSE::DSP::hilbert::operator()(YSE::DSP::buffer & in, YSE::DSP::buffer & out1, YSE::DSP::buffer & out2) {
   out1 = L2(L1(in));
   out2 = R2(R1(in));
 }

@@ -32,14 +32,14 @@ Flt YSE::DSP::ringModulator::level() {
 
 void YSE::DSP::ringModulator::create() {
   sineGen.reset(new sine);
-  extra.reset(new sample);
+  extra.reset(new buffer);
 }
 
 void YSE::DSP::ringModulator::process(MULTICHANNELBUFFER & buffer) {
   createIfNeeded();
 
   // generate sine wave at wanted frequency
-  AUDIOBUFFER & sin = (*sineGen)(parmFrequency, buffer[0].getLength());
+  YSE::DSP::buffer & sin = (*sineGen)(parmFrequency, buffer[0].getLength());
 
   Flt level = parmLevel;
   for (UInt i = 0; i < buffer.size(); i++) {

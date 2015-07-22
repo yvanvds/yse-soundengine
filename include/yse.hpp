@@ -21,12 +21,14 @@
 
 // dsp
 #include "dsp/sample.hpp"
+#include "dsp/sample_functions.hpp"
 #include "dsp/delay.hpp"
 #include "dsp/dspObject.hpp"
 #include "dsp/filters.hpp"
 #include "dsp/math.hpp"
 #include "dsp/oscillators.hpp"
 #include "dsp/ramp.hpp"
+#include "dsp/envelope.hpp"
 
 #include "dsp/modules/hilbert.hpp"
 #include "dsp/modules/ringModulator.hpp"
@@ -50,7 +52,6 @@
 
 #include "sound/sound.hpp"
 #include "sound/soundInterface.hpp"
-#include "sound/audioBuffer.hpp"
 
 #include "synth/synth.hpp"
 #include "synth/synthInterface.hpp"

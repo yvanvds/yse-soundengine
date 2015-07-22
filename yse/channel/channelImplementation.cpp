@@ -250,7 +250,7 @@ void YSE::CHANNEL::implementationObject::adjustVolume() {
 
     for (UInt i = 0; i < out.size(); ++i) {
       Flt multiplier = lastVolume;
-      Flt * ptr = out[i].getBuffer();
+      Flt * ptr = out[i].getPtr();
       for (UInt j = 0; j < STANDARD_BUFFERSIZE; j++) {
         *ptr++ *= multiplier;
         multiplier += step;

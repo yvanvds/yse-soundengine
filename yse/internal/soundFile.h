@@ -14,7 +14,7 @@
 #include "JuceHeader.h"
 #include "../classes.hpp"
 #include "../headers/types.hpp"
-#include "../dsp/sample.hpp"
+#include "../dsp/buffer.hpp"
 #include "../headers/enums.hpp"
 #include "customFileReader.h"
 #include <forward_list>
@@ -37,12 +37,12 @@ namespace YSE {
       Bool create(Bool stream = false);
       virtual void run(); // load from disk
 
-      Bool read(std::vector<DSP::sample> & filebuffer, Flt& pos, UInt length, Flt speed, Bool loop, SOUND_STATUS & intent, Flt & volume);
+      Bool read(std::vector<DSP::buffer> & filebuffer, Flt& pos, UInt length, Flt speed, Bool loop, SOUND_STATUS & intent, Flt & volume);
 
       Bool contains(const File & file);
       // alternative for custom IO()
       Bool contains(const char * fileName);
-      Bool contains(AUDIOBUFFER * buffer);
+      Bool contains(YSE::DSP::buffer * buffer);
       Bool contains(MULTICHANNELBUFFER * buffer);
 
       // get
@@ -61,7 +61,7 @@ namespace YSE {
       soundFile(const File & file);
       // alternative for custom IO()
       soundFile(const char * fileName);
-      soundFile(AUDIOBUFFER * buffer);
+      soundFile(YSE::DSP::buffer * buffer);
       soundFile(MULTICHANNELBUFFER * buffer);
       ~soundFile();
 
@@ -78,7 +78,7 @@ namespace YSE {
       juce::InputStream * source;
 
       // used for passing an audio buffer as a sound source
-      AUDIOBUFFER * _audioBuffer;
+      YSE::DSP::buffer * _audioBuffer;
       MULTICHANNELBUFFER * _multiChannelBuffer;
 
       AudioSampleBuffer _buffer; // contains the actual sound buffer

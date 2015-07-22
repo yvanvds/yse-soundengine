@@ -75,7 +75,7 @@ namespace YSE {
           0.0 and 1.0. Default is 1.0.
           */
 
-      interfaceObject& create(AUDIOBUFFER & buffer, channel * ch = nullptr, Bool loop = false, Flt volume = 1.0f);
+      interfaceObject& create(YSE::DSP::buffer & buffer, channel * ch = nullptr, Bool loop = false, Flt volume = 1.0f);
 
       /** Small variation of the previous function, but specialized for multichannel sources.
       */
