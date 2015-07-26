@@ -64,6 +64,8 @@ bool YSE::DSP::LoadFromFile(const char * fileName, YSE::DSP::buffer & buffer, UI
   for (int i = 0; i < tBuf.getNumSamples(); i++) {
     *out++ = *in++;
   }
+
+  buffer.copyOverflow();
   return true;
   
 }
@@ -76,15 +78,18 @@ bool YSE::DSP::LoadFromFile(const char * fileName, MULTICHANNELBUFFER & buffer) 
   tBuf.setSize(reader->numChannels, (Int)reader->lengthInSamples);
   reader->read(&tBuf, 0, (Int)reader->lengthInSamples, 0, true, true);
 
-  buffer.resize(tBuf.getNumSamples());
+  buffer.resize(reader->numChannels);
   for (int i = 0; i < buffer.size(); i++) {
     buffer[i].setSampleRateAdjustment(static_cast<Flt>(reader->sampleRate) / static_cast<Flt>(SAMPLERATE));
+    buffer[i].resize(tBuf.getNumSamples());
 
     const float * in = tBuf.getReadPointer(i);
     Flt * out = buffer[i].getPtr();
     for (int j = 0; j < tBuf.getNumSamples(); j++) {
       *out++ = *in++;
     }
+
+    buffer[i].copyOverflow();
   }
   return true;
 }

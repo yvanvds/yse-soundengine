@@ -13,10 +13,37 @@
 #include "sample_functions.hpp"
 #include "../internalHeaders.h"
 
+
+void YSE::DSP::wavetable::createSaw(Int harmonics, Int length) {
+  std::vector<Flt> amps;
+  for (int i = 0; i < harmonics; i++) {
+    amps.emplace_back(1.f / (i + 1));
+  }
+  createFourierTable(amps, length, -0.25);
+}
+
+void YSE::DSP::wavetable::createSquare(Int harmonics, Int length) {
+  std::vector<Flt> amps;
+  for (int i = 0; i < harmonics; i++) {
+    if (i % 2 != 0) amps.emplace_back(1.f / (i + 1));
+    else amps.emplace_back(0);
+  }
+  createFourierTable(amps, length, -0.25);
+}
+
+void YSE::DSP::wavetable::createTriangle(Int harmonics, Int length) {
+  std::vector<Flt> amps;
+  for (int i = 0; i < harmonics; i++) {
+    if (i % 2 != 0) amps.emplace_back(1.f / ((i + 1) * (i + 1)));
+    else amps.emplace_back(0);
+  }
+  createFourierTable(amps, length, 0);
+}
+
 void YSE::DSP::wavetable::createFourierTable(const std::vector<Flt> & harmonics, Int length, Flt phase) {
   Dbl width;
-  
-  if (length != storage.size()) resize(length);
+
+  if (length + overflow != storage.size()) resize(length + overflow);
   buffer::operator=(0.f);
   phase *= YSE::Pi2;
 
@@ -32,4 +59,6 @@ void YSE::DSP::wavetable::createFourierTable(const std::vector<Flt> & harmonics,
     Normalize(*this);
 
   }
+
+  copyOverflow();
 }

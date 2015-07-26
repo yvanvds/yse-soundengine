@@ -15,6 +15,7 @@
 #include "../headers/types.hpp"
 #include "../headers/constants.hpp"
 #include "buffer.hpp"
+#include "wavetable.hpp"
 
 /* Constructor aside, all these objects should be used in dsp mode only */
 
@@ -63,6 +64,26 @@ namespace YSE {
       void calc(Bool useFrequency);
     };
 
+    class API oscillator {
+    public:
+      oscillator();
+
+      YSE::DSP::buffer & operator()(Flt frequency, UInt length = STANDARD_BUFFERSIZE);
+      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
+
+      void initialize(wavetable & source);
+      void reset(); // set the phase back to zero 
+
+    private:
+      YSE::DSP::buffer buffer;
+      Dbl phase;
+      Flt conv;
+      Flt frequency;
+      wavetable * table;
+
+      Flt *inPtr;
+      void calc(Bool useFrequency);
+    };
 
     class API noise {
     public:

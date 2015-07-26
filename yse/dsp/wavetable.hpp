@@ -19,6 +19,12 @@ namespace YSE {
 
     class API wavetable : public buffer {
     public:
+      wavetable(UInt length = STANDARD_BUFFERSIZE) : buffer(length, 1) {}
+
+      void createSaw     (Int harmonics, Int length);
+      void createSquare  (Int harmonics, Int length);
+      void createTriangle(Int harmonics, Int length);
+
       void createFourierTable(const std::vector<Flt> & harmonics, Int length, Flt phase);
 
     };

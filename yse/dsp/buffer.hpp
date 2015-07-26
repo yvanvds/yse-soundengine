@@ -28,21 +28,25 @@ namespace YSE {
 
     class API buffer {
     public:
-      // Creates an audio buffer with standard size of 512 
-      buffer(UInt length = STANDARD_BUFFERSIZE);
+      // Creates an audio buffer
+      buffer(UInt length = STANDARD_BUFFERSIZE, UInt overflow = 0) 
+        : storage(length + overflow), overflow(overflow) {}
+      
       // Creates a new audio buffer by copying an existing one
-      buffer(const buffer & cp);
+      buffer(const buffer & cp) : storage(cp.storage.size()) {
+        operator=(cp);
+      }
 
       // gets the length of a sample in frames (also called 'samples' like in '44100 samples per second')
-      UInt  getLength() const;
+      inline UInt getLength   () const { return storage.size() - overflow; }
       // gets the length of a sample in milliseconds
-      UInt	getLengthMS() const;
+      inline UInt	getLengthMS () const { return ((storage.size() - overflow) / static_cast<Flt>(SAMPLERATE * 0.001)); }
       // gets the length of a sample in seconds
-      Flt		getLengthSec() const;
+      inline Flt	getLengthSec() const { return ((storage.size() - overflow) / static_cast<Flt>(SAMPLERATE)); }
 
       // WARNING: try to avoid this function. It will give you write access
       // to the internal buffer, but there might be unexpected consequenses
-      Flt * getPtr();
+      inline Flt * getPtr() { return storage.data(); }
 
       // Add the same value (f) to all samples in the buffer
       buffer & operator+=(Flt f);
@@ -81,12 +85,23 @@ namespace YSE {
       inline Flt getSampleRateAdjustment() { return sampleRateAdjustment; }
       inline void setSampleRateAdjustment(Flt s) { sampleRateAdjustment = s; }
     
-    
+      // if the buffer has an overflow, this will copy the first x bytes to the end of the buffer
+      // (It is unlikely that you would need this function because this happens automatically on 
+      // most operations.)
+      inline void copyOverflow() { for (int i = 0; i < overflow; i++) storage[getLength() + i] = storage[i]; }
+
     protected:
       std::vector<Flt> storage;
 
       // to play all rates at the correct speed
       Flt sampleRateAdjustment;
+
+      // some buffers, like wavetables, use an extra value at the end which
+      // contains a copy of the first value. In this case the actual storage
+      // vector is the requested size + overflow
+      UInt overflow;
+
+      
     };
   }
 }

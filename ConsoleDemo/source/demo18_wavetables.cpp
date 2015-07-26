@@ -15,14 +15,10 @@ YSE::sound sound;
 int main() {
   YSE::System().init();
 
-  std::vector<Flt> amplitudes;
-  amplitudes.emplace_back(1.0);
-  amplitudes.emplace_back(0.2);
-  amplitudes.emplace_back(0.1);
-  amplitudes.emplace_back(0.05);
+  
+  wavetable.createTriangle(8, 1024);
+  //YSE::DSP::SaveToFile("triangle", wavetable);
 
-  wavetable.createFourierTable(amplitudes, 500, 0.f);
-  YSE::DSP::SaveToFile("wavetable", wavetable);
   sound.create(wavetable, nullptr, true).play();
 
   std::cout << "...or e to exit." << std::endl;
@@ -39,11 +35,6 @@ int main() {
     YSE::System().sleep(100);
     YSE::System().update();
   }
-
-
-
-
-
 
 
 exit:

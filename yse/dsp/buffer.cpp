@@ -14,28 +14,6 @@
 namespace YSE {
   namespace DSP {
 
-    buffer::buffer(UInt length) : storage(length) {}
-
-    buffer::buffer(const buffer & cp) : storage(cp.getLength()) {
-      operator=(cp);
-    }
-
-    UInt  buffer::getLength() const {
-      return storage.size();
-    }
-
-    UInt	buffer::getLengthMS() const {
-      return (UInt)(storage.size() / static_cast<Flt>(SAMPLERATE * 0.001));
-    }
-
-    Flt		buffer::getLengthSec() const {
-      return (storage.size() / static_cast<Flt>(SAMPLERATE));
-    }
-
-    Flt * buffer::getPtr() {
-      return storage.data();
-    }
-
     buffer & buffer::operator+=(Flt f) {
       UInt l = storage.size();
       Flt * ptr = storage.data();
@@ -49,7 +27,7 @@ namespace YSE {
 
     buffer & buffer::operator+=(const buffer & s) {
       // use length of shortest buffer to prevent memory errors
-      UInt l = storage.size() < s.getLength() ? storage.size() : s.getLength();
+      UInt l = getLength() < s.getLength() ? getLength() : s.getLength();
       Flt * ptr1 = storage.data();
       const Flt * ptr2 = s.storage.data();
 
@@ -58,6 +36,9 @@ namespace YSE {
         ptr1[4] += ptr2[4]; ptr1[5] += ptr2[5]; ptr1[6] += ptr2[6]; ptr1[7] += ptr2[7];
       }
       while (l--) *ptr1++ += *ptr2++;
+
+      copyOverflow();
+
       return (*this);
     }
 
@@ -74,7 +55,7 @@ namespace YSE {
 
     buffer & buffer::operator-=(const buffer & s) {
       // use length of shortest buffer to prevent memory errors
-      UInt l = storage.size() < s.getLength() ? storage.size() : s.getLength();
+      UInt l = getLength() < s.getLength() ? getLength() : s.getLength();
       Flt * ptr1 = storage.data();
       const Flt * ptr2 = s.storage.data();
       for (; l > 7; l -= 8, ptr1 += 8, ptr2 += 8) {
@@ -82,6 +63,9 @@ namespace YSE {
         ptr1[4] -= ptr2[4]; ptr1[5] -= ptr2[5]; ptr1[6] -= ptr2[6]; ptr1[7] -= ptr2[7];
       }
       while (l--) *ptr1++ -= *ptr2++;
+
+      copyOverflow();
+
       return (*this);
     }
 
@@ -98,7 +82,7 @@ namespace YSE {
 
     buffer & buffer::operator*=(const buffer & s) {
       // use length of shortest buffer to prevent memory errors
-      UInt l = storage.size() < s.getLength() ? storage.size() : s.getLength();
+      UInt l = getLength() < s.getLength() ? getLength() : s.getLength();
       Flt * ptr1 = storage.data();
       const Flt * ptr2 = s.storage.data();
       for (; l > 7; l -= 8, ptr1 += 8, ptr2 += 8) {
@@ -106,6 +90,9 @@ namespace YSE {
         ptr1[4] *= ptr2[4]; ptr1[5] *= ptr2[5]; ptr1[6] *= ptr2[6]; ptr1[7] *= ptr2[7];
       }
       while (l--) *ptr1++ *= *ptr2++;
+
+      copyOverflow();
+
       return (*this);
     }
 
@@ -128,7 +115,7 @@ namespace YSE {
 
     buffer & buffer::operator/=(const buffer & s) {
       // use length of shortest buffer to prevent memory errors
-      UInt l = storage.size() < s.getLength() ? storage.size() : s.getLength();
+      UInt l = getLength() < s.getLength() ? getLength() : s.getLength();
       Flt * ptr1 = storage.data();
       const Flt * ptr2 = s.storage.data();
       for (; l > 7; l -= 8, ptr1 += 8, ptr2 += 8) {
@@ -146,13 +133,18 @@ namespace YSE {
         *ptr1 = (*ptr2 ? *ptr1 / *ptr2 : 0);
         ptr1++, ptr2++;
       }
+
+      copyOverflow();
+
       return (*this);
     }
 
     buffer & buffer::operator=(const buffer & s) {
-      if (storage.size() != s.getLength()) {
-        resize(s.getLength());
+      if (storage.size() != s.storage.size()) {
+        resize(s.storage.size());
       }
+
+      overflow = s.overflow;
 
       UInt l = storage.size();
       Flt * ptr1 = storage.data();
@@ -193,8 +185,8 @@ namespace YSE {
 
     buffer & buffer::copyFrom(const buffer & s, UInt sourcePos, UInt destPos, UInt length) {
       // TODO: don't just return if buffers are not long enough!
-      if ((UInt)(sourcePos + length) > length) return (*this);
-      if ((UInt)(destPos + length) > s.getLength()) return (*this);
+      if ((UInt)(sourcePos + length) > s.storage.size()) return (*this);
+      if ((UInt)(destPos   + length) > storage.size()) return (*this);
 
       UInt l = length;
       Flt * ptr1 = storage.data() + sourcePos;
@@ -217,15 +209,16 @@ namespace YSE {
 
 
     buffer & buffer::resize(UInt length, Bool copy) {
+      // TODO: is this really correct???
       if (copy) {
-        storage.resize(length);
+        storage.resize(length + overflow);
       }
       else {
         // avoid copying the contents if not needed
-        if (storage.capacity() < length) {
+        if (storage.capacity() < length + overflow) {
           storage.clear();
         }
-        storage.resize(length);
+        storage.resize(length + overflow);
       }
       return (*this);
     }
@@ -233,6 +226,7 @@ namespace YSE {
     
 
     Flt YSE::DSP::buffer::getBack() {
+      // TODO: what to do with the overflow?
       return storage.back();
     }
 

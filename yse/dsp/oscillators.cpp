@@ -17,7 +17,7 @@
 #define HIOFFSET 1
 #define LOWOFFSET 0
 
-union tabfudge {
+union tablePhase {
   Dbl d;
   Int i[2];
 };
@@ -62,7 +62,7 @@ namespace YSE {
 
       conv = 1.f / SAMPLERATE;
       Dbl dphase = phase + (Dbl)UNITBIT32;
-      union tabfudge tf;
+      tablePhase tf;
       Int normhipart;
 
       tf.d = UNITBIT32;
@@ -91,11 +91,10 @@ namespace YSE {
       Flt *fp;
       Flt phase = 0;
       Flt phsinc = (2.f * YSE::Pi) / COSTABSIZE;
-      union tabfudge tf;
 
       fp = table.data();
       for (Int i = COSTABSIZE + 1; i--; fp++, phase += phsinc) *fp = ::cos(phase);
-      tf.d = UNITBIT32 + 0.5;
+
     }
 
     Flt * cosTable::operator()() {
@@ -124,7 +123,7 @@ namespace YSE {
       Flt * addr, f1, f2, frac;
       Dbl   dphase;
       int   normhipart;
-      union tabfudge tf;
+      tablePhase tf;
 
       tf.d = UNITBIT32;
       normhipart = tf.i[HIOFFSET];
@@ -183,7 +182,7 @@ namespace YSE {
       Flt *tab = CosTable(), *addr, f1, f2, frac;
       Dbl dphase = phase + UNITBIT32;
       Int normhipart;
-      union tabfudge tf;
+      tablePhase tf;
 
       conv = COSTABSIZE / static_cast<Flt>(SAMPLERATE);
 
@@ -220,6 +219,64 @@ namespace YSE {
       tf.d = dphase + (UNITBIT32 * COSTABSIZE - UNITBIT32);
       tf.i[HIOFFSET] = normhipart;
       phase = tf.d - UNITBIT32 * COSTABSIZE;
+    }
+
+    /**********************************************************************************
+      oscillator
+    **********************************************************************************/
+
+    oscillator::oscillator() : phase(0), conv(0), table(nullptr) {}
+
+    void oscillator::reset() {
+      phase = 0;
+      conv = 0;
+    }
+
+    void oscillator::initialize(wavetable & source) {
+      table = &source;
+    }
+
+    YSE::DSP::buffer & oscillator::operator()(YSE::DSP::buffer & in) {
+      if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
+
+      inPtr = in.getPtr();
+      calc(false);
+
+      return buffer;
+    }
+
+    YSE::DSP::buffer & oscillator::operator()(Flt frequency, UInt length) {
+      if (length != buffer.getLength()) buffer.resize(length);
+
+      this->frequency = frequency;
+      calc(true);
+
+      return buffer;
+    }
+
+    void oscillator::calc(Bool useFrequency) {
+      Flt * outPtr = buffer.getPtr();
+      UInt bufferLength = buffer.getLength();
+      Flt * tablePtr = table->getPtr();
+      UInt tableLength = table->getLength();
+      Flt f1, f2;
+
+      Flt increase = tableLength / static_cast<Flt>(SAMPLERATE);
+
+
+
+      while (bufferLength--) {        
+        f1 = tablePtr[static_cast<UInt>(phase)];
+        f2 = tablePtr[static_cast<UInt>(phase) + 1];
+        *outPtr++ = f1 + (phase - static_cast<Int>(phase)) * (f2 - f1);
+
+        phase += (useFrequency ? frequency : *inPtr++) * increase;
+
+        while (phase >= tableLength) phase -= tableLength;
+        while (phase < 0) phase += tableLength;
+
+      }
+
     }
 
     /**********************************************************************************/
@@ -270,7 +327,7 @@ namespace YSE {
       Flt *tab = CosTable(), *addr, f1, f2, frac;
       Dbl dphase;
       Int normhipart, tabindex;
-      union tabfudge tf;
+      tablePhase tf;
 
       tf.d = UNITBIT32;
       normhipart = tf.i[HIOFFSET];

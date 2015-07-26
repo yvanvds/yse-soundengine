@@ -7,17 +7,20 @@
 #include "wincompat.h"
 #endif
 
+bool tableReady = false;
 
-class SineWaveVoice : public YSE::SYNTH::dspVoice {
+class synthVoice : public YSE::SYNTH::dspVoice {
 public:
 
-  SineWaveVoice() {
+  synthVoice() {
     ramp.set(0);
     ramp.update();
+   
+    generator.initialize(getTable());
   }
 
   virtual dspVoice * clone() {
-    return new SineWaveVoice();
+    return new synthVoice();
   }
 
   virtual void process(YSE::SOUND_STATUS & intent) {
@@ -52,15 +55,23 @@ public:
   }
 
 private:
-  YSE::DSP::sine generator;
+  YSE::DSP::oscillator generator;
   YSE::DSP::buffer out;
   YSE::DSP::ramp ramp;
+
+  static YSE::DSP::wavetable & getTable() {
+    static YSE::DSP::wavetable  table;
+    if (!tableReady) {
+      table.createSaw(8, 1024);
+      tableReady = true;
+    }
+    return table;
+  }
 };
 
 YSE::SYNTH::samplerConfig demo;
 YSE::sound sound;
 YSE::synth synth;
-
 
 Int bassNote;
 Int middleNote;
@@ -81,7 +92,7 @@ int main() {
   // on the number of voices you specify. Do not try to access an object derived 
   // from dspVoice yourself.
   {
-    SineWaveVoice voice;
+    synthVoice voice;
     synth.addVoices(&voice, 16, 2); // 16 voices on channel 2
   }
 
@@ -108,7 +119,7 @@ int main() {
       // countermelody
       if (YSE::Random(3) == 0) {
         synth.noteOff(2, highNote);
-        highNote = YSE::Random(80, 100);
+        highNote = YSE::Random(60, 80);
         synth.noteOn(2, highNote, YSE::RandomF(0.2, 0.3));
       }
 
