@@ -89,6 +89,10 @@
         <FILE id="CCEImz" name="deviceSetup.hpp" compile="0" resource="0" file="../yse/device/deviceSetup.hpp"/>
       </GROUP>
       <GROUP id="{87572250-4545-73C4-BCE6-8BBAAD395AA6}" name="dsp">
+        <FILE id="CiTvMc" name="ADSRenvelope.cpp" compile="1" resource="0"
+              file="../yse/dsp/ADSRenvelope.cpp"/>
+        <FILE id="OMkwns" name="ADSRenvelope.hpp" compile="0" resource="0"
+              file="../yse/dsp/ADSRenvelope.hpp"/>
         <FILE id="ChKyXs" name="wavetable.cpp" compile="1" resource="0" file="../yse/dsp/wavetable.cpp"/>
         <FILE id="BM8wBZ" name="wavetable.hpp" compile="0" resource="0" file="../yse/dsp/wavetable.hpp"/>
         <FILE id="WLrQKy" name="drawableBuffer.cpp" compile="1" resource="0"

@@ -19,5 +19,6 @@
     <ClCompile Include="..\..\source\demo16_motifs.cpp" />
     <ClCompile Include="..\..\source\demo17_audioEnvelope.cpp" />
     <ClCompile Include="..\..\source\demo18_wavetables.cpp" />
+    <ClCompile Include="..\..\source\demo12_synth.cpp" />
   </ItemGroup>
 </Project>

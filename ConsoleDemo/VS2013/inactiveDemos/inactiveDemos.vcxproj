@@ -76,6 +76,7 @@
     <ClCompile Include="..\..\source\demo09_streaming.cpp" />
     <ClCompile Include="..\..\source\demo10_sound_file_position.cpp" />
     <ClCompile Include="..\..\source\demo11_relative_position.cpp" />
+    <ClCompile Include="..\..\source\demo12_synth.cpp" />
     <ClCompile Include="..\..\source\demo13_midi_file.cpp" />
     <ClCompile Include="..\..\source\demo14_AudioFileManipulation.cpp" />
     <ClCompile Include="..\..\source\demo15_player.cpp" />

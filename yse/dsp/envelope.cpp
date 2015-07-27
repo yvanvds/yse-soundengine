@@ -71,7 +71,8 @@ bool YSE::DSP::envelope::saveToFile(const char * fileName) const {
   out.open(fileName, std::ios::out | std::ios::trunc);
   if (out.is_open()) {
     for (UInt i = 0; i < breakPoints.size(); i++) {
-      out << breakPoints[i].time << "\t" << breakPoints[i].value << "\n";
+      out << breakPoints[i].time  << "\t" 
+          << breakPoints[i].value << "\n";
     }
     out.close();
     return true;

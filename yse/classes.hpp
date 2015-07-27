@@ -46,6 +46,8 @@ namespace YSE {
     class ramp;
     class lint;
     class delay;
+    class envelope;
+    class ADSRenvelope;
 
     // oscillators
     class saw;
@@ -53,6 +55,7 @@ namespace YSE {
     class sine;
     class noise;
     class vcf;
+    class oscillator;
     
     // math functions
     class clip;
