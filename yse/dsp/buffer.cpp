@@ -207,6 +207,35 @@ namespace YSE {
       return (*this);
     }
 
+    buffer & buffer::swap(buffer & s) {
+      if (getLength() != s.getLength()) {
+        // only swap with a buffer of the same length
+        assert(false);
+        return (*this);
+      }
+
+      UInt l = storage.size();
+      Flt * ptr1 = storage.data();
+      Flt * ptr2 = s.storage.data();
+      Flt extra;
+
+      for (; l > 7; l -= 8, ptr1 += 8, ptr2 += 8) {
+        extra = ptr1[0]; ptr1[0] = ptr2[0]; ptr2[0] = extra;
+        extra = ptr1[1]; ptr1[1] = ptr2[1]; ptr2[1] = extra;
+        extra = ptr1[2]; ptr1[2] = ptr2[2]; ptr2[2] = extra;
+        extra = ptr1[3]; ptr1[3] = ptr2[3]; ptr2[3] = extra;
+        extra = ptr1[4]; ptr1[4] = ptr2[4]; ptr2[4] = extra;
+        extra = ptr1[5]; ptr1[5] = ptr2[5]; ptr2[5] = extra;
+        extra = ptr1[6]; ptr1[6] = ptr2[6]; ptr2[6] = extra;
+        extra = ptr1[7]; ptr1[7] = ptr2[7]; ptr2[7] = extra;
+      }
+
+      while (l--) {
+        extra = *ptr1; *ptr1++ = *ptr2; *ptr2++ = extra;
+      }
+      return (*this);
+    }
+
 
     buffer & buffer::resize(UInt length, Bool copy) {
       // TODO: is this really correct???

@@ -66,7 +66,7 @@ namespace YSE {
       buffer & operator=(Flt f);
       buffer & copyFrom(const buffer & s, UInt SourcePos, UInt DestPos, UInt length);
 
-      
+      buffer & swap(buffer & s);
 
       // get the last sample of the buffer
       Flt getBack();

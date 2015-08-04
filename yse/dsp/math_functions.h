@@ -31,6 +31,8 @@ namespace YSE {
 
     Flt getMaxAmplitude(buffer & source);
     Flt getMaxAmplitude(Flt * pos, UInt windowSize);
+
+    void sqrtFunc(Flt * in, Flt * out, UInt length);
   }
 }
 

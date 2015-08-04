@@ -90,3 +90,53 @@ Flt YSE::DSP::getMaxAmplitude(Flt * pos, UInt windowSize) {
   }
   return result;
 }
+
+/* sigrsqrt - reciprocal square root good to 8 mantissa bits  */
+
+#define DUMTAB1SIZE 256
+#define DUMTAB2SIZE 1024
+
+struct sqrtTable {
+  sqrtTable() {
+    int i;
+    for (i = 0; i < DUMTAB1SIZE; i++)
+    {
+      union {
+        float f;
+        long l;
+      } u;
+      int32_t l = (i ? (i == DUMTAB1SIZE - 1 ? DUMTAB1SIZE - 2 : i) : 1) << 23;
+      u.l = l;
+      exptab[i] = 1. / sqrt(u.f);
+    }
+    for (i = 0; i < DUMTAB2SIZE; i++)
+    {
+      float f = 1 + (1. / DUMTAB2SIZE) * i;
+      mantissatab[i] = 1. / sqrt(f);
+    }
+  }
+
+  float exptab     [DUMTAB1SIZE];
+  float mantissatab[DUMTAB2SIZE];
+
+};
+
+sqrtTable & SqrtTable() {
+  static sqrtTable t;
+  return t;
+}
+
+
+void YSE::DSP::sqrtFunc(Flt * in, Flt * out, UInt length) {
+  sqrtTable & s = SqrtTable();
+  while (length--) {
+    float f = *in;
+    long l = *(long *)(in++);
+    if (f < 0) *out++ = 0;
+    else {
+      float g = s.exptab[(l >> 23) & 0xff] *
+        s.mantissatab[(l >> 13) & 0x3ff];
+      *out++ = f * (1.5 * g - 0.5 * g * g * g * f);
+    }
+  }
+}

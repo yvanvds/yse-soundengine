@@ -89,6 +89,34 @@
         <FILE id="CCEImz" name="deviceSetup.hpp" compile="0" resource="0" file="../yse/device/deviceSetup.hpp"/>
       </GROUP>
       <GROUP id="{87572250-4545-73C4-BCE6-8BBAAD395AA6}" name="dsp">
+        <GROUP id="{3C6F8AE2-E9CD-4785-1752-CAB151BEFE3E}" name="modules">
+          <GROUP id="{B3C0A4A9-9AEF-1D4B-F478-C8F44C53D698}" name="fm">
+            <FILE id="y152Dn" name="difference.cpp" compile="1" resource="0" file="../yse/dsp/modules/fm/difference.cpp"/>
+            <FILE id="cYxSOZ" name="difference.hpp" compile="0" resource="0" file="../yse/dsp/modules/fm/difference.hpp"/>
+          </GROUP>
+          <GROUP id="{15628202-A8E2-2BB0-39B0-036CF745932B}" name="filters">
+            <FILE id="LItRdI" name="bandpass.cpp" compile="1" resource="0" file="../yse/dsp/modules/filters/bandpass.cpp"/>
+            <FILE id="PDu5TJ" name="bandpass.hpp" compile="0" resource="0" file="../yse/dsp/modules/filters/bandpass.hpp"/>
+            <FILE id="gqmOOx" name="highpass.cpp" compile="1" resource="0" file="../yse/dsp/modules/filters/highpass.cpp"/>
+            <FILE id="RshZIw" name="highpass.hpp" compile="0" resource="0" file="../yse/dsp/modules/filters/highpass.hpp"/>
+            <FILE id="vs0BzQ" name="lowpass.cpp" compile="1" resource="0" file="../yse/dsp/modules/filters/lowpass.cpp"/>
+            <FILE id="bHWiu9" name="lowpass.hpp" compile="0" resource="0" file="../yse/dsp/modules/filters/lowpass.hpp"/>
+          </GROUP>
+          <FILE id="zgzr1n" name="hilbert.cpp" compile="1" resource="0" file="../yse/dsp/modules/hilbert.cpp"/>
+          <FILE id="YcSYRJ" name="hilbert.hpp" compile="0" resource="0" file="../yse/dsp/modules/hilbert.hpp"/>
+          <FILE id="e4M11t" name="ringModulator.cpp" compile="1" resource="0"
+                file="../yse/dsp/modules/ringModulator.cpp"/>
+          <FILE id="pw0Od2" name="ringModulator.hpp" compile="0" resource="0"
+                file="../yse/dsp/modules/ringModulator.hpp"/>
+          <FILE id="pCFTdv" name="sineWave.cpp" compile="1" resource="0" file="../yse/dsp/modules/sineWave.cpp"/>
+          <FILE id="Sh9E4O" name="sineWave.hpp" compile="0" resource="0" file="../yse/dsp/modules/sineWave.hpp"/>
+        </GROUP>
+        <GROUP id="{99593BF6-5681-C99C-B9BD-82369946419F}" name="fourier">
+          <FILE id="Sbfrlw" name="fft.cpp" compile="1" resource="0" file="../yse/dsp/fourier/fft.cpp"/>
+          <FILE id="RCqLo8" name="fft.hpp" compile="0" resource="0" file="../yse/dsp/fourier/fft.hpp"/>
+          <FILE id="hoUYSn" name="mayer.cpp" compile="1" resource="0" file="../yse/dsp/fourier/mayer.cpp"/>
+          <FILE id="sZIUPS" name="mayer.h" compile="0" resource="0" file="../yse/dsp/fourier/mayer.h"/>
+        </GROUP>
         <FILE id="CiTvMc" name="ADSRenvelope.cpp" compile="1" resource="0"
               file="../yse/dsp/ADSRenvelope.cpp"/>
         <FILE id="OMkwns" name="ADSRenvelope.hpp" compile="0" resource="0"
@@ -117,28 +145,6 @@
               file="../yse/dsp/math_functions.cpp"/>
         <FILE id="co8h1I" name="math_functions.h" compile="0" resource="0"
               file="../yse/dsp/math_functions.h"/>
-        <GROUP id="{3C6F8AE2-E9CD-4785-1752-CAB151BEFE3E}" name="modules">
-          <GROUP id="{B3C0A4A9-9AEF-1D4B-F478-C8F44C53D698}" name="fm">
-            <FILE id="y152Dn" name="difference.cpp" compile="1" resource="0" file="../yse/dsp/modules/fm/difference.cpp"/>
-            <FILE id="cYxSOZ" name="difference.hpp" compile="0" resource="0" file="../yse/dsp/modules/fm/difference.hpp"/>
-          </GROUP>
-          <GROUP id="{15628202-A8E2-2BB0-39B0-036CF745932B}" name="filters">
-            <FILE id="LItRdI" name="bandpass.cpp" compile="1" resource="0" file="../yse/dsp/modules/filters/bandpass.cpp"/>
-            <FILE id="PDu5TJ" name="bandpass.hpp" compile="0" resource="0" file="../yse/dsp/modules/filters/bandpass.hpp"/>
-            <FILE id="gqmOOx" name="highpass.cpp" compile="1" resource="0" file="../yse/dsp/modules/filters/highpass.cpp"/>
-            <FILE id="RshZIw" name="highpass.hpp" compile="0" resource="0" file="../yse/dsp/modules/filters/highpass.hpp"/>
-            <FILE id="vs0BzQ" name="lowpass.cpp" compile="1" resource="0" file="../yse/dsp/modules/filters/lowpass.cpp"/>
-            <FILE id="bHWiu9" name="lowpass.hpp" compile="0" resource="0" file="../yse/dsp/modules/filters/lowpass.hpp"/>
-          </GROUP>
-          <FILE id="zgzr1n" name="hilbert.cpp" compile="1" resource="0" file="../yse/dsp/modules/hilbert.cpp"/>
-          <FILE id="YcSYRJ" name="hilbert.hpp" compile="0" resource="0" file="../yse/dsp/modules/hilbert.hpp"/>
-          <FILE id="e4M11t" name="ringModulator.cpp" compile="1" resource="0"
-                file="../yse/dsp/modules/ringModulator.cpp"/>
-          <FILE id="pw0Od2" name="ringModulator.hpp" compile="0" resource="0"
-                file="../yse/dsp/modules/ringModulator.hpp"/>
-          <FILE id="pCFTdv" name="sineWave.cpp" compile="1" resource="0" file="../yse/dsp/modules/sineWave.cpp"/>
-          <FILE id="Sh9E4O" name="sineWave.hpp" compile="0" resource="0" file="../yse/dsp/modules/sineWave.hpp"/>
-        </GROUP>
         <FILE id="gMYLE3" name="oscillators.cpp" compile="1" resource="0" file="../yse/dsp/oscillators.cpp"/>
         <FILE id="uZldm5" name="oscillators.hpp" compile="0" resource="0" file="../yse/dsp/oscillators.hpp"/>
         <FILE id="mzEGxx" name="ramp.cpp" compile="1" resource="0" file="../yse/dsp/ramp.cpp"/>
