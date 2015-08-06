@@ -13,7 +13,7 @@
 
 YSE::SOUND::interfaceObject::interfaceObject() :
   pimpl(nullptr), dsp(nullptr),
-  pos(0.f), spread(0), fadeAndStopTime(0), volume(0.f), speed(0.f),
+  pos(0.f), spread(0), fadeAndStopTime(0), volume(0.f), speed(1.f),
   size(0.f), loop(0.f), time(0.f), 
   relative(false), doppler(true), pan2D(false), occlusion(false), streaming(false),
   length(0), status(SS_STOPPED) {}

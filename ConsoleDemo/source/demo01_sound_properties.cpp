@@ -7,6 +7,12 @@
 #include "wincompat.h"
 #endif
 
+/* Sound properties:
+
+  In this demo a sound is loaded and some of its properties are changed.
+
+  */
+
 YSE::sound sound;
 
 int main() {
