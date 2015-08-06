@@ -11,7 +11,8 @@
   A player object can be used to play a synth. While synths can also be played
   directly or by supplying it with a midi file, a player object uses an algorithmic
   approach. It plays by itself, but you can alter how it plays directly or over 
-  time.
+  time. (The player class is considered 'proof of concept' and will be much more
+  flexible in a future release.)
 */
 
 // This class is a DSP source for the synth used in this tutorial. (It is 

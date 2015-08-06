@@ -8,6 +8,17 @@
 #include "wincompat.h"
 #endif
 
+/* Virtualisation:
+
+  This show the virtualisation handling of YSE. By default, 50 sounds will be played. When
+  there are more active sounds, the ones furthest away will not be played. You can alter this
+  number with the System member function maxSounds.
+
+  This can also be used as a stress test: increase the number to 20000 or so to see how
+  much YSE can actually handle before the audio begins to stutter. 
+  
+*/  
+
 std::forward_list<YSE::sound> sounds;
 Int counter = 0;
 
@@ -21,15 +32,7 @@ int main() {
   YSE::System().init();
   YSE::Log().setCallback(error);
 
-  /* Using 20000 sounds is a bit much, but done here for demonstration purposes.
-     If the number of active sounds is > maxSounds, YSE will find the most significant
-     sounds and virtualize the others.
-  
-     Note that the virtualization selection (which is what maxSounds sets) is not optimized
-     for numbers this large. In normal circumstances you'd have like 200 sounds active 
-     at most and set maxSounds to 50. This should be enough to filter out the least audible
-     sounds from dsp processing and save some processing power for other parts of your software.
-  */
+  // Set this to a large number to 'stresstest'
   YSE::System().maxSounds(100);
 
   std::cout << "Press the spacebar to add a sound at a random position." << std::endl;

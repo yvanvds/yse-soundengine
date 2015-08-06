@@ -1,11 +1,11 @@
 #include <iostream>
 #include <cstdlib>
 #include "yse.hpp"
-//#ifdef WINDOWS
+#ifdef YSE_WINDOWS
 #include <conio.h>
-//#else
-//#include "wincompat.h"
-//#endif
+#else
+#include "wincompat.h"
+#endif
 
 /*
   If you just want to play a file, use a sound object and supply it with the 
@@ -14,7 +14,10 @@
   the audio buffer, it can be supplied to one or more sounds and be played.
 
   You should take care not to alter an audioBuffer while it is actually playing.
-  Always stop or pause the sound first.
+  (Actually I think it is possible as long as you don't change the length,
+  but it's not tested. The engine will only read the buffer, while your front-end
+  does the write operations. Since audio buffers are floats they should be atomic
+  on modern systems.)
 */
 
 
@@ -25,7 +28,6 @@ YSE::DSP::highPass hpf;
 int main() {
   YSE::System().init();
 
-  // setting the last parameter to true will enable streaming
   if (!YSE::DSP::LoadFromFile("countdown.ogg", buffer)) {
     std::cout << "sound 'countdown.ogg' not found" << std::endl;
     std::cin.get();

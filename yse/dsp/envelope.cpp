@@ -87,6 +87,7 @@ UInt YSE::DSP::envelope::elms() const {
 }
 
 Flt YSE::DSP::envelope::getLengthSec() const {
+  if (!elms()) return 0;
   return breakPoints.back().time;
 }
 

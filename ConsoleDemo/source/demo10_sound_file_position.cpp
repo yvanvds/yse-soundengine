@@ -1,7 +1,7 @@
 #include <iostream>
 #include <cstdlib>
 #include "yse.hpp"
-#ifdef WINDOWS
+#ifdef YSE_WINDOWS
 #include <conio.h>
 #else
 #include "wincompat.h"
@@ -16,14 +16,13 @@ int main() {
 
   std::cout << "Use keyboard to jump to a number." << std::endl;
   std::cout << "...or e to exit." << std::endl;
-  std::cout << "This sound is " << s.getLength() / 44100 << " seconds long." << std::endl;
-
 
   s.play();
 
   while (true) {
-#ifdef WINDOWS
-    _cprintf_s("Playing at time: %.2f \r", s.getTime() / 44100 * 1000);
+#ifdef YSE_WINDOWS
+    _cprintf_s("Playing at time: %.2f \r", s.getTime() / 44100);
+
 #endif
     if (_kbhit()) {
       char ch = _getch();

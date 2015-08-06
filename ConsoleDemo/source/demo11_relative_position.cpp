@@ -1,7 +1,7 @@
 #include <iostream>
 #include <cstdlib>
 #include "yse.hpp"
-#ifdef WINDOWS
+#ifdef YSE_WINDOWS
 #include <conio.h>
 #else
 #include "wincompat.h"

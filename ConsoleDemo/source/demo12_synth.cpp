@@ -7,6 +7,24 @@
 #include "wincompat.h"
 #endif
 
+/* Virtual synths:
+
+  YSE has a virtual synth on board, which can be modified to your needs. 
+  A synth will not sound on it's own but can be the source for a sound object.
+  This means you can handle the output of the synth just like a normal sound
+  sample: set it's position in 3D, assign it to a channel, apply DSP effects,...
+
+  On the input side, you have to give your synth some voices to play with. These
+  can be audio samples to make it behave like a simple sampler. The samplerConfig
+  class is intended for this.
+
+  Another posibility is the class dspVoice. You can inherit from this class to
+  create your own voice and pass your new class to the synth.
+
+  The example below shows both posiblities.
+
+  */
+
 bool tableReady = false;
 
 class synthVoice : public YSE::SYNTH::dspVoice {

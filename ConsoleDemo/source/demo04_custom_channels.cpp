@@ -7,6 +7,23 @@
 #include "wincompat.h"
 #endif
 
+/* Channels
+
+  In YSE, Channels are groups of sounds that can be modified together. For example, changing the volume
+  of a channel will impact all sounds in the channel. But it is also possible to link DSP filters to 
+  channels, or asign reverb. 
+
+  Channels can also be members of other channels. So you could build a more complex tree of channels and
+  sounds. If you remove a custom made channel, all sounds will be moved to the parent channel. Moving sounds
+  between channels is posible, but there might be glitches if the channel's gain level is very different.
+
+  Very important:
+  Every channel renders in its own thread. This means YSE will scale very well, as long as you don't assign
+  all sounds to the same output channel. On the other hand, too much channels will also decrease performance
+  because of all the thread handling...
+  */
+
+
 // normally you wouldn't use pointers for this, but this 
 // demonstrates what happens if you delete a channel object
 YSE::channel  * customChannel = NULL;

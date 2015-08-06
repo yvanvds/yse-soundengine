@@ -8,6 +8,14 @@
 #include "wincompat.h"
 #endif
 
+/* 3D:
+
+  This demo is about 3D positioning. It's a bit clumsy to do in a 
+  little console demo. Most important is the member function setPosition,
+  and the helper object YSE::Vec which holds xyz coordinates.
+
+  */
+
 int selectedObject = 1;
 
 // create some sounds

@@ -25,6 +25,8 @@ YSE::sound droneSound;
 
 FILE * gnuPlot = nullptr;
 
+YSE::DSP::buffer sn;
+
 int main() {
   YSE::System().init();
 
@@ -44,8 +46,13 @@ int main() {
   drone.copyFrom(drone, 0, drone.getLength(), drone.getLength());
   droneOrig = drone;
 
-  snareEnvelope.create("snare.env"); // create from envelope file
+  
+  YSE::DSP::LoadFromFile("snare.ogg", sn);
+
+  snareEnvelope.create(sn); // create from envelope file
   pianoEnvelope.create(piano); // create from audio buffer
+
+  snareEnvelope.saveToFile("snare.env");
 
   // while DSP objects can be used as a constant sound generator,
   // you can also use them to create a static sample.

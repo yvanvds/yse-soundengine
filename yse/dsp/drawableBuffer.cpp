@@ -18,6 +18,12 @@ namespace YSE {
       if (length == 0) {
         length = env.getLengthSec();
       }
+
+      if (length == 0) {
+        assert(false); // don't use with empty envelope!!!
+        return *this;
+      }
+
       Flt multiplier = length / env.getLengthSec();
 
       bool endOfEnvelope = false;

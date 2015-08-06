@@ -189,7 +189,7 @@ int main() {
   std::cout << "evolve on its own." << std::endl;
   std::cout << "1  : start player" << std::endl;
   std::cout << "2  : stop player" << std::endl;
-  std::cout << "0: exit" << std::endl;
+  std::cout << "e  : exit" << std::endl;
 
   Int counter = 0;
   while (true) {
@@ -208,7 +208,7 @@ int main() {
       }
       
 
-      case '0': goto exit;
+      case 'e': goto exit;
       }
     }
 
@@ -304,7 +304,7 @@ int main() {
     case STEP7:
       if (progress > 80) {
         std::cout << "step 8 started." << std::endl;
-        std::cout << " --> player lower notes" << std::endl;
+        std::cout << " --> play lower notes" << std::endl;
         std::cout << " --> add more voices" << std::endl;
         std::cout << " --> play louder" << std::endl;
         player1.setMinimumPitch(30, 10);
