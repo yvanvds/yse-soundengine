@@ -9,16 +9,25 @@
 #include "wincompat.h"
 #endif
 
+/** Wavetables:
+
+    Wavetables are the foundation for FM synths. In this simple example
+    a wavetable is Triangular wave with 8 harmonics and a length of 1024 samples
+    is created. In reality, you will build a synth with this, but to
+    keep this example as short as possible it will be played by a sound object.
+
+*/
+
 YSE::DSP::wavetable wavetable;
 YSE::sound sound;
 
 int main() {
   YSE::System().init();
 
-  
+  // create a Triangle wavetable with 8 harmonics, 1024 samples long
   wavetable.createTriangle(8, 1024);
-  //YSE::DSP::SaveToFile("triangle", wavetable);
 
+  // the sound will play this buffer (looping)
   sound.create(wavetable, nullptr, true).play();
 
   std::cout << "...or e to exit." << std::endl;

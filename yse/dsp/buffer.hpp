@@ -29,13 +29,10 @@ namespace YSE {
     class API buffer {
     public:
       // Creates an audio buffer
-      buffer(UInt length = STANDARD_BUFFERSIZE, UInt overflow = 0) 
-        : storage(length + overflow), overflow(overflow) {}
+      buffer(UInt length = STANDARD_BUFFERSIZE, UInt overflow = 0);
       
       // Creates a new audio buffer by copying an existing one
-      buffer(const buffer & cp) : storage(cp.storage.size()) {
-        operator=(cp);
-      }
+      buffer(const buffer & cp);
 
       // gets the length of a sample in frames (also called 'samples' like in '44100 samples per second')
       inline UInt getLength   () const { return storage.size() - overflow; }
@@ -75,10 +72,10 @@ namespace YSE {
       // buffer position.
       Flt * cursor;
 
-      // resize a sample buffer, copy current contents if needed
-      // copy = true will retain the current values and fill remaining values with zeroes
-      // with copy = false, the buffer values are not initialized
-      buffer & resize(UInt length, Bool copy = false);
+      // Resize a sample buffer. Internally, this is a std::vector resize operation.
+      // If the new size is greater than the current size, new elements will be initialized
+      // with value.
+      buffer & resize(UInt length, Flt value = 0.f);
 
       // these functions are needed by the engine to be able to play 
       // buffers with different sample rates.

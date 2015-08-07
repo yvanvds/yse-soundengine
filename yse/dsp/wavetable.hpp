@@ -11,15 +11,15 @@
 #ifndef WAVETABLE_HPP_INCLUDED
 #define WAVETABLE_HPP_INCLUDED
 
-#include "buffer.hpp"
+#include "fileBuffer.hpp"
 
 namespace YSE {
 
   namespace DSP {
 
-    class API wavetable : public buffer {
+    class API wavetable : public fileBuffer {
     public:
-      wavetable(UInt length = STANDARD_BUFFERSIZE) : buffer(length, 1) {}
+      wavetable(UInt length = STANDARD_BUFFERSIZE) : fileBuffer(length, 1) {}
 
       void createSaw     (Int harmonics, Int length);
       void createSquare  (Int harmonics, Int length);

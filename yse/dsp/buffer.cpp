@@ -14,6 +14,15 @@
 namespace YSE {
   namespace DSP {
 
+    // don't move these constructors to the header file, because it will cause storage
+    // vector to be allocated in the application memory instead of the dll memory, causing
+    // a dll boundary crossing when resizing it later.
+    buffer::buffer(UInt length, UInt overflow) : storage(length + overflow), overflow(overflow) {}
+    
+    buffer::buffer(const buffer & cp) : storage(cp.storage.size()) {
+      operator=(cp);
+    }
+
     buffer & buffer::operator+=(Flt f) {
       UInt l = storage.size();
       Flt * ptr = storage.data();
@@ -237,18 +246,8 @@ namespace YSE {
     }
 
 
-    buffer & buffer::resize(UInt length, Bool copy) {
-      // TODO: is this really correct???
-      if (copy) {
-        storage.resize(length + overflow);
-      }
-      else {
-        // avoid copying the contents if not needed
-        if (storage.capacity() < length + overflow) {
-          storage.clear();
-        }
-        storage.resize(length + overflow);
-      }
+    buffer & buffer::resize(UInt length, Flt value) {
+      storage.resize(length + overflow, value);
       return (*this);
     }
 

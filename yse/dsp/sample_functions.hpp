@@ -13,7 +13,10 @@
 
 #include "buffer.hpp"
 
-/** These functions operate on basic buffers. They are not part of the buffer
+/** 
+    TODO: Decide what we will keep: these generic functions or the filleBuffer class.
+
+    These functions operate on basic buffers. They are not part of the buffer
     class because it's better to keep it as small as possible.
 */
 

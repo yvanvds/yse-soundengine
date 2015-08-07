@@ -21,14 +21,14 @@
 */
 
 
-YSE::DSP::buffer buffer;
+YSE::DSP::fileBuffer buffer;
 YSE::sound sound;
 YSE::DSP::highPass hpf;
 
 int main() {
   YSE::System().init();
 
-  if (!YSE::DSP::LoadFromFile("countdown.ogg", buffer)) {
+  if (!buffer.load("countdown.ogg")) {
     std::cout << "sound 'countdown.ogg' not found" << std::endl;
     std::cin.get();
     goto exit;

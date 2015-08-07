@@ -9,6 +9,25 @@
 #include "wincompat.h"
 #endif
 
+/** ADSR envelopes:
+    
+    This is a combination of the envelope and an audio buffer. It can be applied to a
+    normal audio buffer. In this example an FM synth is created with a wavetable and
+    an envelope.
+
+    Actually, this is not a real 'ADSR' envelope because it is not limited to four points.
+    You can add as much points you like. If you want the sound to keep playing until
+    it is recieves a note off, you'll have to mark the beginning and the end of a loop.
+    The loop will keep repeating until a note off happens.
+
+    The note off behaviour causes the envelope to stop looping. But since the current value
+    in the envelope can be very different from where the release begins, it cannot just jump
+    to the release point. Instead, it will jump to the last point in the looping part with the
+    same value as the current value. So when the loop does not change the envelope, this will 
+    be the release point. If the loop does change the envelope, position will jump to the point 
+    closest to release.
+*/
+
 Bool tableReady = false;
 
 class synthVoice : public YSE::SYNTH::dspVoice {
@@ -16,10 +35,16 @@ public:
 
   synthVoice() {
     generator.initialize(getTable());
+
+    // addPoint assumes that all breakpoints are given in order of time
     envelope.addPoint(YSE::DSP::ADSRenvelope::breakPoint(0.f, 0.f, 0.2));
     envelope.addPoint(YSE::DSP::ADSRenvelope::breakPoint(0.1f, 1.f, 4));
+
+    // next point is the beginning of the loop
     envelope.addPoint(YSE::DSP::ADSRenvelope::breakPoint(0.2f, 0.5f, 2, true));
     envelope.addPoint(YSE::DSP::ADSRenvelope::breakPoint(0.3f, 0.9f, 0.5));
+
+    // next point is the end of the loop
     envelope.addPoint(YSE::DSP::ADSRenvelope::breakPoint(0.4f, 0.5f, 0.5, false, true));
     envelope.addPoint(YSE::DSP::ADSRenvelope::breakPoint(0.5f, 0.f, 0.5));
     envelope.generate();
@@ -33,20 +58,25 @@ public:
     YSE::DSP::ADSRenvelope::STATE state = YSE::DSP::ADSRenvelope::RESUME;
 
     if (intent == YSE::SS_WANTSTOPLAY) {
+      // this indicates the start of a new note
       state = YSE::DSP::ADSRenvelope::ATTACK;
+
+      // notify backend that the note has started
       intent = YSE::SS_PLAYING;
       releaseRequested = false;
     }
     else if (intent == YSE::SS_WANTSTOSTOP && !releaseRequested) {
+      // backend would like to stop this note
       state = YSE::DSP::ADSRenvelope::RELEASE;
       releaseRequested = true;
     }
 
     
     out = generator(getFrequency());
-    out *= envelope(state);
+    out *= envelope(state); // this updates the envelope and aplies it to the output buffer
     out *= 0.25f;
     
+    // notify the backend that this note has stopped playing
     if (envelope.isAtEnd()) intent = YSE::SS_STOPPED;
 
     for (UInt i = 0; i < buffer.size(); i++) {
@@ -72,8 +102,6 @@ private:
 
 };
 
-YSE::DSP::ADSRenvelope envelope;
-
 YSE::synth synth;
 YSE::sound sound;
 
@@ -81,17 +109,6 @@ Int bassNote, middleNote;
 
 int main() {
   YSE::System().init();
-
-
-  envelope.addPoint(YSE::DSP::ADSRenvelope::breakPoint(0.f, 0.f, 0.2));
-  envelope.addPoint(YSE::DSP::ADSRenvelope::breakPoint(0.1f, 1.f, 4));
-  envelope.addPoint(YSE::DSP::ADSRenvelope::breakPoint(0.2f, 0.5f, 0.5, true));
-  envelope.addPoint(YSE::DSP::ADSRenvelope::breakPoint(0.5f, 0.6f, 0.5));
-  envelope.addPoint(YSE::DSP::ADSRenvelope::breakPoint(0.9f, 0.5f, 0.5, false, true));
-  envelope.addPoint(YSE::DSP::ADSRenvelope::breakPoint(1.0f, 0.f, 0.5));
-  envelope.generate();
-  envelope.saveToFile("ADSRtest");
-  
 
   std::cout << "press e to exit." << std::endl;
 
@@ -119,19 +136,6 @@ int main() {
       synth.noteOn(1, middleNote, YSE::RandomF(0.5, 0.7));
       synth.noteOn(1, middleNote - 3, YSE::RandomF(0.5, 0.7));
     }
-
-    /*if (counter % 20 == 0) {
-      synth.noteOn(1, 60, 0.3);
-      synth.noteOn(1, 67, 0.3);
-      synth.noteOff(1, 62);
-      synth.noteOff(1, 70);
-    }
-    else if (counter % 10 == 0) {
-      synth.noteOff(1, 60);
-      synth.noteOff(1, 67);
-      synth.noteOn(1, 62, 0.3);
-      synth.noteOn(1, 70, 0.3);
-    }*/
 
     counter++;
 

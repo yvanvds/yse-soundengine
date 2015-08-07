@@ -81,7 +81,7 @@
     <ClCompile Include="..\..\source\demo14_AudioFileManipulation.cpp" />
     <ClCompile Include="..\..\source\demo15_player.cpp" />
     <ClCompile Include="..\..\source\demo16_motifs.cpp" />
-    <ClCompile Include="..\..\source\demo18_ADSR.cpp" />
+    <ClCompile Include="..\..\source\demo17_audioEnvelope.cpp" />
     <ClCompile Include="..\..\source\demo18_wavetables.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

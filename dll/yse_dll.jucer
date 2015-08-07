@@ -117,6 +117,8 @@
           <FILE id="hoUYSn" name="mayer.cpp" compile="1" resource="0" file="../yse/dsp/fourier/mayer.cpp"/>
           <FILE id="sZIUPS" name="mayer.h" compile="0" resource="0" file="../yse/dsp/fourier/mayer.h"/>
         </GROUP>
+        <FILE id="uY6ZIx" name="fileBuffer.cpp" compile="1" resource="0" file="../yse/dsp/fileBuffer.cpp"/>
+        <FILE id="fwB3Xn" name="fileBuffer.hpp" compile="0" resource="0" file="../yse/dsp/fileBuffer.hpp"/>
         <FILE id="CiTvMc" name="ADSRenvelope.cpp" compile="1" resource="0"
               file="../yse/dsp/ADSRenvelope.cpp"/>
         <FILE id="OMkwns" name="ADSRenvelope.hpp" compile="0" resource="0"

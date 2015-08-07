@@ -20,6 +20,8 @@ namespace YSE {
 
     class API drawableBuffer : public buffer {
     public:
+      drawableBuffer(UInt length = STANDARD_BUFFERSIZE, Flt overflow = 0) : buffer(length, overflow) {}
+
       /** Apply an envelope to the current audiobuffer.
       @param length       Desired length of the envelope in seconds. If length > 0, the
       envelope will be scaled to this length. Otherwise the internal
