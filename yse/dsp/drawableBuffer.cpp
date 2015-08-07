@@ -8,6 +8,7 @@
   ==============================================================================
 */
 
+#include <cassert>
 #include "drawableBuffer.hpp"
 #include "envelope.hpp"
 

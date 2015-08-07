@@ -11,7 +11,7 @@
 #include "dspObject.hpp"
 
 YSE::DSP::dspSourceObject::dspSourceObject(Int buffers) {
-  buffer.resize(buffers);
+  samples.resize(buffers);
 }
 
 void YSE::DSP::dspObject::link(YSE::DSP::dspObject& next) {

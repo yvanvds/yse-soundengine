@@ -48,7 +48,7 @@ namespace YSE {
  
       // copy
       interfaceObject(const scale& other);
-      scale & interfaceObject::operator=(const scale & other);
+      scale & operator=(const scale & other);
         
     private:
       implementationObject * pimpl;

@@ -20,7 +20,10 @@
 #include "headers/constants.hpp"
 
 // dsp
-#include "dsp/sample.hpp"
+#include "dsp/buffer.hpp"
+#include "dsp/drawableBuffer.hpp"
+#include "dsp/fileBuffer.hpp"
+#include "dsp/wavetable.hpp"
 #include "dsp/sample_functions.hpp"
 #include "dsp/delay.hpp"
 #include "dsp/dspObject.hpp"
@@ -29,6 +32,7 @@
 #include "dsp/oscillators.hpp"
 #include "dsp/ramp.hpp"
 #include "dsp/envelope.hpp"
+#include "dsp/ADSRenvelope.hpp"
 
 #include "dsp/modules/hilbert.hpp"
 #include "dsp/modules/ringModulator.hpp"

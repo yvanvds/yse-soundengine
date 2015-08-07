@@ -199,7 +199,7 @@
 #endif
 
 //===============================================================================
-#define AUDIOBUFFER YSE::DSP::sample
-#define MULTICHANNELBUFFER std::vector<DSP::sample>
+
+#define MULTICHANNELBUFFER std::vector<YSE::DSP::buffer>
 
 #endif  // DEFINES_HPP_INCLUDED

@@ -32,7 +32,8 @@ namespace YSE {
  
   namespace DSP {
     // public dsp classes
-    class sample;
+    class buffer;
+    class drawableBuffer;
     class dspObject;
     class dspSourceObject;
 
@@ -45,6 +46,8 @@ namespace YSE {
     class ramp;
     class lint;
     class delay;
+    class envelope;
+    class ADSRenvelope;
 
     // oscillators
     class saw;
@@ -52,6 +55,7 @@ namespace YSE {
     class sine;
     class noise;
     class vcf;
+    class oscillator;
     
     // math functions
     class clip;

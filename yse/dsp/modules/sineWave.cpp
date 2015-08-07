@@ -173,9 +173,9 @@ namespace YSE {
 
 
       YSE::DSP::buffer & sin = sineGen(frequencyCurve);
-      for (UInt i = 0; i < buffer.size(); i++) {
-        buffer[i] = sin;
-        buffer[i] *= volumeCurve;
+      for (UInt i = 0; i < samples.size(); i++) {
+        samples[i] = sin;
+        samples[i] *= volumeCurve;
       }
       latency -= STANDARD_BUFFERSIZE;
       if (latency < 0) latency = 0;

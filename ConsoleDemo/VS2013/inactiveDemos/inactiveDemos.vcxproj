@@ -64,7 +64,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\source\demo00_play.cpp" />
     <ClCompile Include="..\..\source\demo01_sound_properties.cpp" />
     <ClCompile Include="..\..\source\demo02_3D.cpp" />
     <ClCompile Include="..\..\source\demo03_virtual_sounds.cpp" />
@@ -83,6 +82,7 @@
     <ClCompile Include="..\..\source\demo16_motifs.cpp" />
     <ClCompile Include="..\..\source\demo17_audioEnvelope.cpp" />
     <ClCompile Include="..\..\source\demo18_wavetables.cpp" />
+    <ClCompile Include="..\..\source\demo19_ADSR.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

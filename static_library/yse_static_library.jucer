@@ -6,43 +6,32 @@
   <MAINGROUP id="JLmmWK" name="yse_static_library">
     <FILE id="ofO3LE" name="speaker.png" compile="0" resource="1" file="../bin/speaker.png"/>
     <GROUP id="{DAF363ED-A43B-6DFC-2214-7863A037768A}" name="yse">
-      <GROUP id="{FAA96353-EB3F-A5A6-0445-07C9944F4172}" name="music">
-        <GROUP id="{DB87E32E-F4BB-69C2-396F-3BCADA08CC84}" name="scale">
-          <FILE id="q0iQx3" name="scale.hpp" compile="0" resource="0" file="../yse/music/scale/scale.hpp"/>
-          <FILE id="aeNbtv" name="scaleImplementation.cpp" compile="1" resource="0"
-                file="../yse/music/scale/scaleImplementation.cpp"/>
-          <FILE id="JftphM" name="scaleImplementation.h" compile="0" resource="0"
-                file="../yse/music/scale/scaleImplementation.h"/>
-          <FILE id="mAn3T3" name="scaleInterface.cpp" compile="1" resource="0"
-                file="../yse/music/scale/scaleInterface.cpp"/>
-          <FILE id="xTaJZB" name="scaleInterface.hpp" compile="0" resource="0"
-                file="../yse/music/scale/scaleInterface.hpp"/>
-          <FILE id="Rbf5Y8" name="scaleManager.cpp" compile="1" resource="0"
-                file="../yse/music/scale/scaleManager.cpp"/>
-          <FILE id="WhaM0J" name="scaleManager.h" compile="0" resource="0" file="../yse/music/scale/scaleManager.h"/>
-          <FILE id="O5msCC" name="scaleMessage.h" compile="0" resource="0" file="../yse/music/scale/scaleMessage.h"/>
-        </GROUP>
-        <GROUP id="{17FF1FC5-DD40-BA50-FA68-84A2C33DA9B4}" name="motif">
-          <FILE id="Kk3OL7" name="motif.hpp" compile="0" resource="0" file="../yse/music/motif/motif.hpp"/>
-          <FILE id="TElogf" name="motifImplementation.cpp" compile="1" resource="0"
-                file="../yse/music/motif/motifImplementation.cpp"/>
-          <FILE id="ILoOkp" name="motifImplementation.h" compile="0" resource="0"
-                file="../yse/music/motif/motifImplementation.h"/>
-          <FILE id="luyFMw" name="motifInterface.cpp" compile="1" resource="0"
-                file="../yse/music/motif/motifInterface.cpp"/>
-          <FILE id="IKfhsj" name="motifInterface.hpp" compile="0" resource="0"
-                file="../yse/music/motif/motifInterface.hpp"/>
-          <FILE id="akDKaN" name="motifManager.cpp" compile="1" resource="0"
-                file="../yse/music/motif/motifManager.cpp"/>
-          <FILE id="N4DcHj" name="motifManager.h" compile="0" resource="0" file="../yse/music/motif/motifManager.h"/>
-          <FILE id="Iw0JVJ" name="motifMessage.h" compile="0" resource="0" file="../yse/music/motif/motifMessage.h"/>
-        </GROUP>
-        <FILE id="FkXHLu" name="pNote.cpp" compile="1" resource="0" file="../yse/music/pNote.cpp"/>
-        <FILE id="rZalZi" name="pNote.hpp" compile="0" resource="0" file="../yse/music/pNote.hpp"/>
-        <FILE id="i4RUXg" name="chord.cpp" compile="1" resource="0" file="../yse/music/chord.cpp"/>
-        <FILE id="ohfi5s" name="chord.hpp" compile="0" resource="0" file="../yse/music/chord.hpp"/>
-        <FILE id="BgS7li" name="note.cpp" compile="1" resource="0" file="../yse/music/note.cpp"/>
-        <FILE id="hs6uSd" name="note.hpp" compile="0" resource="0" file="../yse/music/note.hpp"/>
+      <GROUP id="{DD1C0708-BF8A-4DBC-3466-188D2E2380DF}" name="player">
+        <FILE id="oRfSsy" name="player.hpp" compile="0" resource="0" file="../yse/player/player.hpp"/>
+        <FILE id="VbEAnZ" name="playerImplementation.cpp" compile="1" resource="0"
+              file="../yse/player/playerImplementation.cpp"/>
+        <FILE id="gu6nsq" name="playerImplementation.h" compile="0" resource="0"
+              file="../yse/player/playerImplementation.h"/>
+        <FILE id="S1vwrP" name="playerInterface.cpp" compile="1" resource="0"
+              file="../yse/player/playerInterface.cpp"/>
+        <FILE id="zDrtbn" name="playerInterface.hpp" compile="0" resource="0"
+              file="../yse/player/playerInterface.hpp"/>
+        <FILE id="QZlRWr" name="playerManager.cpp" compile="1" resource="0"
+              file="../yse/player/playerManager.cpp"/>
+        <FILE id="CzJUAG" name="playerManager.h" compile="0" resource="0" file="../yse/player/playerManager.h"/>
+        <FILE id="nrIfbX" name="playerMessage.h" compile="0" resource="0" file="../yse/player/playerMessage.h"/>
+      </GROUP>
+      <GROUP id="{BAFCBB66-D825-6DFB-B67D-24F0EADB6C1F}" name="midi">
+        <FILE id="jWKnAX" name="midifile.cpp" compile="1" resource="0" file="../yse/midi/midifile.cpp"/>
+        <FILE id="eoLmbF" name="midifile.hpp" compile="0" resource="0" file="../yse/midi/midifile.hpp"/>
+        <FILE id="czvlSJ" name="midifileImplementation.cpp" compile="1" resource="0"
+              file="../yse/midi/midifileImplementation.cpp"/>
+        <FILE id="hSDmf8" name="midifileImplementation.h" compile="0" resource="0"
+              file="../yse/midi/midifileImplementation.h"/>
+        <FILE id="aNbgas" name="midifileManager.cpp" compile="1" resource="0"
+              file="../yse/midi/midifileManager.cpp"/>
+        <FILE id="P6IMfP" name="midifileManager.h" compile="0" resource="0"
+              file="../yse/midi/midifileManager.h"/>
       </GROUP>
       <GROUP id="{55ED90B4-5271-1425-1675-4C887EB7B7B6}" name="synth">
         <FILE id="o55TIh" name="dspSound.cpp" compile="1" resource="0" file="../yse/synth/dspSound.cpp"/>
@@ -70,77 +59,6 @@
         <FILE id="CdCQiI" name="synthManager.h" compile="0" resource="0" file="../yse/synth/synthManager.h"/>
         <FILE id="nHeAA6" name="synthMessage.h" compile="0" resource="0" file="../yse/synth/synthMessage.h"/>
       </GROUP>
-      <GROUP id="{BAFCBB66-D825-6DFB-B67D-24F0EADB6C1F}" name="midi">
-        <FILE id="jWKnAX" name="midifile.cpp" compile="1" resource="0" file="../yse/midi/midifile.cpp"/>
-        <FILE id="eoLmbF" name="midifile.hpp" compile="0" resource="0" file="../yse/midi/midifile.hpp"/>
-        <FILE id="czvlSJ" name="midifileImplementation.cpp" compile="1" resource="0"
-              file="../yse/midi/midifileImplementation.cpp"/>
-        <FILE id="hSDmf8" name="midifileImplementation.h" compile="0" resource="0"
-              file="../yse/midi/midifileImplementation.h"/>
-        <FILE id="aNbgas" name="midifileManager.cpp" compile="1" resource="0"
-              file="../yse/midi/midifileManager.cpp"/>
-        <FILE id="P6IMfP" name="midifileManager.h" compile="0" resource="0"
-              file="../yse/midi/midifileManager.h"/>
-      </GROUP>
-      <GROUP id="{DD1C0708-BF8A-4DBC-3466-188D2E2380DF}" name="player">
-        <FILE id="oRfSsy" name="player.hpp" compile="0" resource="0" file="../yse/player/player.hpp"/>
-        <FILE id="VbEAnZ" name="playerImplementation.cpp" compile="1" resource="0"
-              file="../yse/player/playerImplementation.cpp"/>
-        <FILE id="gu6nsq" name="playerImplementation.h" compile="0" resource="0"
-              file="../yse/player/playerImplementation.h"/>
-        <FILE id="S1vwrP" name="playerInterface.cpp" compile="1" resource="0"
-              file="../yse/player/playerInterface.cpp"/>
-        <FILE id="zDrtbn" name="playerInterface.hpp" compile="0" resource="0"
-              file="../yse/player/playerInterface.hpp"/>
-        <FILE id="QZlRWr" name="playerManager.cpp" compile="1" resource="0"
-              file="../yse/player/playerManager.cpp"/>
-        <FILE id="CzJUAG" name="playerManager.h" compile="0" resource="0" file="../yse/player/playerManager.h"/>
-        <FILE id="nrIfbX" name="playerMessage.h" compile="0" resource="0" file="../yse/player/playerMessage.h"/>
-      </GROUP>
-      <GROUP id="{F9766342-96F6-6F4B-9B22-5D840831E60E}" name="device">
-        <FILE id="Kqrxcm" name="device.hpp" compile="0" resource="0" file="../yse/device/device.hpp"/>
-        <FILE id="zCyKYU" name="deviceInterface.cpp" compile="1" resource="0"
-              file="../yse/device/deviceInterface.cpp"/>
-        <FILE id="bZMc3y" name="deviceInterface.hpp" compile="0" resource="0"
-              file="../yse/device/deviceInterface.hpp"/>
-        <FILE id="YtBJVp" name="deviceManager.cpp" compile="1" resource="0"
-              file="../yse/device/deviceManager.cpp"/>
-        <FILE id="qoxnau" name="deviceManager.h" compile="0" resource="0" file="../yse/device/deviceManager.h"/>
-        <FILE id="rreYXR" name="deviceSetup.cpp" compile="1" resource="0" file="../yse/device/deviceSetup.cpp"/>
-        <FILE id="I49iYF" name="deviceSetup.hpp" compile="0" resource="0" file="../yse/device/deviceSetup.hpp"/>
-      </GROUP>
-      <GROUP id="{8A9C3D60-C84A-05BA-9847-B8F2DD4B31CB}" name="sound">
-        <FILE id="qTfa7Z" name="audioBuffer.cpp" compile="1" resource="0" file="../yse/sound/audioBuffer.cpp"/>
-        <FILE id="QuYXzu" name="audioBuffer.hpp" compile="0" resource="0" file="../yse/sound/audioBuffer.hpp"/>
-        <FILE id="IIBJWI" name="sound.hpp" compile="0" resource="0" file="../yse/sound/sound.hpp"/>
-        <FILE id="kCFYuU" name="soundImplementation.cpp" compile="1" resource="0"
-              file="../yse/sound/soundImplementation.cpp"/>
-        <FILE id="ddHx3J" name="soundImplementation.h" compile="0" resource="0"
-              file="../yse/sound/soundImplementation.h"/>
-        <FILE id="uuc2N5" name="soundInterface.cpp" compile="1" resource="0"
-              file="../yse/sound/soundInterface.cpp"/>
-        <FILE id="UmCCl8" name="soundInterface.hpp" compile="0" resource="0"
-              file="../yse/sound/soundInterface.hpp"/>
-        <FILE id="gHZk1D" name="soundManager.cpp" compile="1" resource="0"
-              file="../yse/sound/soundManager.cpp"/>
-        <FILE id="FckhGh" name="soundManager.h" compile="0" resource="0" file="../yse/sound/soundManager.h"/>
-        <FILE id="qPPkBl" name="soundMessage.h" compile="0" resource="0" file="../yse/sound/soundMessage.h"/>
-      </GROUP>
-      <GROUP id="{1B8EAA8A-DB64-1D27-E06B-7515B7B3F9F1}" name="reverb">
-        <FILE id="WACL7j" name="reverb.hpp" compile="0" resource="0" file="../yse/reverb/reverb.hpp"/>
-        <FILE id="VyHAb5" name="reverbImplementation.cpp" compile="1" resource="0"
-              file="../yse/reverb/reverbImplementation.cpp"/>
-        <FILE id="nf5drg" name="reverbImplementation.h" compile="0" resource="0"
-              file="../yse/reverb/reverbImplementation.h"/>
-        <FILE id="PhVZbj" name="reverbInterface.cpp" compile="1" resource="0"
-              file="../yse/reverb/reverbInterface.cpp"/>
-        <FILE id="QuwMjg" name="reverbInterface.hpp" compile="0" resource="0"
-              file="../yse/reverb/reverbInterface.hpp"/>
-        <FILE id="qtcKiH" name="reverbManager.cpp" compile="1" resource="0"
-              file="../yse/reverb/reverbManager.cpp"/>
-        <FILE id="vQfY7Z" name="reverbManager.h" compile="0" resource="0" file="../yse/reverb/reverbManager.h"/>
-        <FILE id="ATUAiy" name="reverbMessage.h" compile="0" resource="0" file="../yse/reverb/reverbMessage.h"/>
-      </GROUP>
       <GROUP id="{5862EF80-A184-9748-E01D-03584382240B}" name="channel">
         <FILE id="xDKffF" name="channel.hpp" compile="0" resource="0" file="../yse/channel/channel.hpp"/>
         <FILE id="gzo23R" name="channelImplementation.cpp" compile="1" resource="0"
@@ -158,20 +76,24 @@
         <FILE id="OcxI2s" name="channelMessage.h" compile="0" resource="0"
               file="../yse/channel/channelMessage.h"/>
       </GROUP>
+      <GROUP id="{F9766342-96F6-6F4B-9B22-5D840831E60E}" name="device">
+        <FILE id="Kqrxcm" name="device.hpp" compile="0" resource="0" file="../yse/device/device.hpp"/>
+        <FILE id="zCyKYU" name="deviceInterface.cpp" compile="1" resource="0"
+              file="../yse/device/deviceInterface.cpp"/>
+        <FILE id="bZMc3y" name="deviceInterface.hpp" compile="0" resource="0"
+              file="../yse/device/deviceInterface.hpp"/>
+        <FILE id="YtBJVp" name="deviceManager.cpp" compile="1" resource="0"
+              file="../yse/device/deviceManager.cpp"/>
+        <FILE id="qoxnau" name="deviceManager.h" compile="0" resource="0" file="../yse/device/deviceManager.h"/>
+        <FILE id="rreYXR" name="deviceSetup.cpp" compile="1" resource="0" file="../yse/device/deviceSetup.cpp"/>
+        <FILE id="I49iYF" name="deviceSetup.hpp" compile="0" resource="0" file="../yse/device/deviceSetup.hpp"/>
+      </GROUP>
       <GROUP id="{60D265EE-B1CE-4648-4A7C-C6FF2C977D7A}" name="dsp">
-        <FILE id="bOOmdn" name="delay.cpp" compile="1" resource="0" file="../yse/dsp/delay.cpp"/>
-        <FILE id="utfZtB" name="delay.hpp" compile="0" resource="0" file="../yse/dsp/delay.hpp"/>
-        <FILE id="fPkmnl" name="dspObject.cpp" compile="1" resource="0" file="../yse/dsp/dspObject.cpp"/>
-        <FILE id="IzLrLv" name="dspObject.hpp" compile="0" resource="0" file="../yse/dsp/dspObject.hpp"/>
-        <FILE id="oE6Q0B" name="filters.cpp" compile="1" resource="0" file="../yse/dsp/filters.cpp"/>
-        <FILE id="XLFqW6" name="filters.hpp" compile="0" resource="0" file="../yse/dsp/filters.hpp"/>
-        <FILE id="EIpi9f" name="math.cpp" compile="1" resource="0" file="../yse/dsp/math.cpp"/>
-        <FILE id="vequya" name="math.hpp" compile="0" resource="0" file="../yse/dsp/math.hpp"/>
-        <FILE id="gMVPmU" name="math_functions.cpp" compile="1" resource="0"
-              file="../yse/dsp/math_functions.cpp"/>
-        <FILE id="wg96JU" name="math_functions.h" compile="0" resource="0"
-              file="../yse/dsp/math_functions.h"/>
         <GROUP id="{472FCDC2-E704-32E3-6EE4-2331D27F41B5}" name="modules">
+          <GROUP id="{14802AB0-F518-9942-5C64-91EBEA80A57A}" name="fm">
+            <FILE id="sdFXA9" name="difference.cpp" compile="1" resource="0" file="../yse/dsp/modules/fm/difference.cpp"/>
+            <FILE id="Z8S82c" name="difference.hpp" compile="0" resource="0" file="../yse/dsp/modules/fm/difference.hpp"/>
+          </GROUP>
           <GROUP id="{A6168550-149C-60A1-7077-9BF475E607CE}" name="filters">
             <FILE id="X4wVsf" name="bandpass.cpp" compile="1" resource="0" file="../yse/dsp/modules/filters/bandpass.cpp"/>
             <FILE id="e1T4ZJ" name="bandpass.hpp" compile="0" resource="0" file="../yse/dsp/modules/filters/bandpass.hpp"/>
@@ -179,10 +101,6 @@
             <FILE id="hpscVF" name="highpass.hpp" compile="0" resource="0" file="../yse/dsp/modules/filters/highpass.hpp"/>
             <FILE id="WDW6J8" name="lowpass.cpp" compile="1" resource="0" file="../yse/dsp/modules/filters/lowpass.cpp"/>
             <FILE id="o2UWYE" name="lowpass.hpp" compile="0" resource="0" file="../yse/dsp/modules/filters/lowpass.hpp"/>
-          </GROUP>
-          <GROUP id="{14802AB0-F518-9942-5C64-91EBEA80A57A}" name="fm">
-            <FILE id="sdFXA9" name="difference.cpp" compile="1" resource="0" file="../yse/dsp/modules/fm/difference.cpp"/>
-            <FILE id="Z8S82c" name="difference.hpp" compile="0" resource="0" file="../yse/dsp/modules/fm/difference.hpp"/>
           </GROUP>
           <FILE id="D0el8i" name="hilbert.cpp" compile="1" resource="0" file="../yse/dsp/modules/hilbert.cpp"/>
           <FILE id="rmBTW7" name="hilbert.hpp" compile="0" resource="0" file="../yse/dsp/modules/hilbert.hpp"/>
@@ -193,12 +111,48 @@
           <FILE id="zTePMH" name="sineWave.cpp" compile="1" resource="0" file="../yse/dsp/modules/sineWave.cpp"/>
           <FILE id="LmpKSQ" name="sineWave.hpp" compile="0" resource="0" file="../yse/dsp/modules/sineWave.hpp"/>
         </GROUP>
+        <GROUP id="{03777B91-FD28-2E0B-04C8-5169787FFDC9}" name="fourier">
+          <FILE id="RWuDsa" name="fft.cpp" compile="1" resource="0" file="../yse/dsp/fourier/fft.cpp"/>
+          <FILE id="Eo1bRc" name="fft.hpp" compile="0" resource="0" file="../yse/dsp/fourier/fft.hpp"/>
+          <FILE id="iTdxRL" name="mayer.cpp" compile="1" resource="0" file="../yse/dsp/fourier/mayer.cpp"/>
+          <FILE id="rq6RnB" name="mayer.h" compile="0" resource="0" file="../yse/dsp/fourier/mayer.h"/>
+        </GROUP>
+        <FILE id="Rc0Cz5" name="ADSRenvelope.cpp" compile="1" resource="0"
+              file="../yse/dsp/ADSRenvelope.cpp"/>
+        <FILE id="n2kJju" name="ADSRenvelope.hpp" compile="0" resource="0"
+              file="../yse/dsp/ADSRenvelope.hpp"/>
+        <FILE id="LZG5Sv" name="buffer.cpp" compile="1" resource="0" file="../yse/dsp/buffer.cpp"/>
+        <FILE id="nE74QL" name="buffer.hpp" compile="0" resource="0" file="../yse/dsp/buffer.hpp"/>
+        <FILE id="wSHu2V" name="drawableBuffer.cpp" compile="1" resource="0"
+              file="../yse/dsp/drawableBuffer.cpp"/>
+        <FILE id="SKPE0K" name="drawableBuffer.hpp" compile="0" resource="0"
+              file="../yse/dsp/drawableBuffer.hpp"/>
+        <FILE id="bOOmdn" name="delay.cpp" compile="1" resource="0" file="../yse/dsp/delay.cpp"/>
+        <FILE id="utfZtB" name="delay.hpp" compile="0" resource="0" file="../yse/dsp/delay.hpp"/>
+        <FILE id="nvFc8g" name="envelope.cpp" compile="1" resource="0" file="../yse/dsp/envelope.cpp"/>
+        <FILE id="hofzzP" name="envelope.hpp" compile="0" resource="0" file="../yse/dsp/envelope.hpp"/>
+        <FILE id="JLFB3e" name="fileBuffer.cpp" compile="1" resource="0" file="../yse/dsp/fileBuffer.cpp"/>
+        <FILE id="WuvPrf" name="fileBuffer.hpp" compile="0" resource="0" file="../yse/dsp/fileBuffer.hpp"/>
+        <FILE id="fPkmnl" name="dspObject.cpp" compile="1" resource="0" file="../yse/dsp/dspObject.cpp"/>
+        <FILE id="IzLrLv" name="dspObject.hpp" compile="0" resource="0" file="../yse/dsp/dspObject.hpp"/>
+        <FILE id="oE6Q0B" name="filters.cpp" compile="1" resource="0" file="../yse/dsp/filters.cpp"/>
+        <FILE id="XLFqW6" name="filters.hpp" compile="0" resource="0" file="../yse/dsp/filters.hpp"/>
+        <FILE id="EIpi9f" name="math.cpp" compile="1" resource="0" file="../yse/dsp/math.cpp"/>
+        <FILE id="vequya" name="math.hpp" compile="0" resource="0" file="../yse/dsp/math.hpp"/>
+        <FILE id="gMVPmU" name="math_functions.cpp" compile="1" resource="0"
+              file="../yse/dsp/math_functions.cpp"/>
+        <FILE id="wg96JU" name="math_functions.h" compile="0" resource="0"
+              file="../yse/dsp/math_functions.h"/>
         <FILE id="F9y2dd" name="oscillators.cpp" compile="1" resource="0" file="../yse/dsp/oscillators.cpp"/>
         <FILE id="uW5dqy" name="oscillators.hpp" compile="0" resource="0" file="../yse/dsp/oscillators.hpp"/>
+        <FILE id="hqXsXn" name="sample_functions.cpp" compile="1" resource="0"
+              file="../yse/dsp/sample_functions.cpp"/>
+        <FILE id="YMLHKy" name="sample_functions.hpp" compile="0" resource="0"
+              file="../yse/dsp/sample_functions.hpp"/>
+        <FILE id="rk4iHS" name="wavetable.cpp" compile="1" resource="0" file="../yse/dsp/wavetable.cpp"/>
+        <FILE id="M6p8Fk" name="wavetable.hpp" compile="0" resource="0" file="../yse/dsp/wavetable.hpp"/>
         <FILE id="fxE0hQ" name="ramp.cpp" compile="1" resource="0" file="../yse/dsp/ramp.cpp"/>
         <FILE id="g0tGz8" name="ramp.hpp" compile="0" resource="0" file="../yse/dsp/ramp.hpp"/>
-        <FILE id="h2Vcwy" name="sample.cpp" compile="1" resource="0" file="../yse/dsp/sample.cpp"/>
-        <FILE id="CA0nsf" name="sample.hpp" compile="0" resource="0" file="../yse/dsp/sample.hpp"/>
       </GROUP>
       <GROUP id="{45065A4A-799A-041A-4FA0-EA68A0295666}" name="headers">
         <FILE id="ireAjc" name="constants.hpp" compile="0" resource="0" file="../yse/headers/constants.hpp"/>
@@ -242,6 +196,74 @@
         <FILE id="s8DIDu" name="virtualFinder.cpp" compile="1" resource="0"
               file="../yse/internal/virtualFinder.cpp"/>
         <FILE id="IoRzvd" name="virtualFinder.h" compile="0" resource="0" file="../yse/internal/virtualFinder.h"/>
+      </GROUP>
+      <GROUP id="{FAA96353-EB3F-A5A6-0445-07C9944F4172}" name="music">
+        <GROUP id="{17FF1FC5-DD40-BA50-FA68-84A2C33DA9B4}" name="motif">
+          <FILE id="Kk3OL7" name="motif.hpp" compile="0" resource="0" file="../yse/music/motif/motif.hpp"/>
+          <FILE id="TElogf" name="motifImplementation.cpp" compile="1" resource="0"
+                file="../yse/music/motif/motifImplementation.cpp"/>
+          <FILE id="ILoOkp" name="motifImplementation.h" compile="0" resource="0"
+                file="../yse/music/motif/motifImplementation.h"/>
+          <FILE id="luyFMw" name="motifInterface.cpp" compile="1" resource="0"
+                file="../yse/music/motif/motifInterface.cpp"/>
+          <FILE id="IKfhsj" name="motifInterface.hpp" compile="0" resource="0"
+                file="../yse/music/motif/motifInterface.hpp"/>
+          <FILE id="akDKaN" name="motifManager.cpp" compile="1" resource="0"
+                file="../yse/music/motif/motifManager.cpp"/>
+          <FILE id="N4DcHj" name="motifManager.h" compile="0" resource="0" file="../yse/music/motif/motifManager.h"/>
+          <FILE id="Iw0JVJ" name="motifMessage.h" compile="0" resource="0" file="../yse/music/motif/motifMessage.h"/>
+        </GROUP>
+        <GROUP id="{DB87E32E-F4BB-69C2-396F-3BCADA08CC84}" name="scale">
+          <FILE id="q0iQx3" name="scale.hpp" compile="0" resource="0" file="../yse/music/scale/scale.hpp"/>
+          <FILE id="aeNbtv" name="scaleImplementation.cpp" compile="1" resource="0"
+                file="../yse/music/scale/scaleImplementation.cpp"/>
+          <FILE id="JftphM" name="scaleImplementation.h" compile="0" resource="0"
+                file="../yse/music/scale/scaleImplementation.h"/>
+          <FILE id="mAn3T3" name="scaleInterface.cpp" compile="1" resource="0"
+                file="../yse/music/scale/scaleInterface.cpp"/>
+          <FILE id="xTaJZB" name="scaleInterface.hpp" compile="0" resource="0"
+                file="../yse/music/scale/scaleInterface.hpp"/>
+          <FILE id="Rbf5Y8" name="scaleManager.cpp" compile="1" resource="0"
+                file="../yse/music/scale/scaleManager.cpp"/>
+          <FILE id="WhaM0J" name="scaleManager.h" compile="0" resource="0" file="../yse/music/scale/scaleManager.h"/>
+          <FILE id="O5msCC" name="scaleMessage.h" compile="0" resource="0" file="../yse/music/scale/scaleMessage.h"/>
+        </GROUP>
+        <FILE id="FkXHLu" name="pNote.cpp" compile="1" resource="0" file="../yse/music/pNote.cpp"/>
+        <FILE id="rZalZi" name="pNote.hpp" compile="0" resource="0" file="../yse/music/pNote.hpp"/>
+        <FILE id="i4RUXg" name="chord.cpp" compile="1" resource="0" file="../yse/music/chord.cpp"/>
+        <FILE id="ohfi5s" name="chord.hpp" compile="0" resource="0" file="../yse/music/chord.hpp"/>
+        <FILE id="BgS7li" name="note.cpp" compile="1" resource="0" file="../yse/music/note.cpp"/>
+        <FILE id="hs6uSd" name="note.hpp" compile="0" resource="0" file="../yse/music/note.hpp"/>
+      </GROUP>
+      <GROUP id="{1B8EAA8A-DB64-1D27-E06B-7515B7B3F9F1}" name="reverb">
+        <FILE id="WACL7j" name="reverb.hpp" compile="0" resource="0" file="../yse/reverb/reverb.hpp"/>
+        <FILE id="VyHAb5" name="reverbImplementation.cpp" compile="1" resource="0"
+              file="../yse/reverb/reverbImplementation.cpp"/>
+        <FILE id="nf5drg" name="reverbImplementation.h" compile="0" resource="0"
+              file="../yse/reverb/reverbImplementation.h"/>
+        <FILE id="PhVZbj" name="reverbInterface.cpp" compile="1" resource="0"
+              file="../yse/reverb/reverbInterface.cpp"/>
+        <FILE id="QuwMjg" name="reverbInterface.hpp" compile="0" resource="0"
+              file="../yse/reverb/reverbInterface.hpp"/>
+        <FILE id="qtcKiH" name="reverbManager.cpp" compile="1" resource="0"
+              file="../yse/reverb/reverbManager.cpp"/>
+        <FILE id="vQfY7Z" name="reverbManager.h" compile="0" resource="0" file="../yse/reverb/reverbManager.h"/>
+        <FILE id="ATUAiy" name="reverbMessage.h" compile="0" resource="0" file="../yse/reverb/reverbMessage.h"/>
+      </GROUP>
+      <GROUP id="{8A9C3D60-C84A-05BA-9847-B8F2DD4B31CB}" name="sound">
+        <FILE id="IIBJWI" name="sound.hpp" compile="0" resource="0" file="../yse/sound/sound.hpp"/>
+        <FILE id="kCFYuU" name="soundImplementation.cpp" compile="1" resource="0"
+              file="../yse/sound/soundImplementation.cpp"/>
+        <FILE id="ddHx3J" name="soundImplementation.h" compile="0" resource="0"
+              file="../yse/sound/soundImplementation.h"/>
+        <FILE id="uuc2N5" name="soundInterface.cpp" compile="1" resource="0"
+              file="../yse/sound/soundInterface.cpp"/>
+        <FILE id="UmCCl8" name="soundInterface.hpp" compile="0" resource="0"
+              file="../yse/sound/soundInterface.hpp"/>
+        <FILE id="gHZk1D" name="soundManager.cpp" compile="1" resource="0"
+              file="../yse/sound/soundManager.cpp"/>
+        <FILE id="FckhGh" name="soundManager.h" compile="0" resource="0" file="../yse/sound/soundManager.h"/>
+        <FILE id="qPPkBl" name="soundMessage.h" compile="0" resource="0" file="../yse/sound/soundMessage.h"/>
       </GROUP>
       <GROUP id="{C62A333D-9559-3582-6C25-C4ECD6548BB4}" name="utils">
         <FILE id="lWofSR" name="atomicOps.hpp" compile="0" resource="0" file="../yse/utils/atomicOps.hpp"/>

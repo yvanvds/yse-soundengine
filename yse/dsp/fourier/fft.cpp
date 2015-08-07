@@ -8,6 +8,7 @@
   ==============================================================================
 */
 
+#include <cassert>
 #include "fft.hpp"
 #include "mayer.h"
 #include "../math_functions.h"

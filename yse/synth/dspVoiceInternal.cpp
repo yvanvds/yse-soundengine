@@ -64,14 +64,14 @@ void YSE::SYNTH::dspVoiceInternal::renderNextBlock(AudioSampleBuffer& outputBuff
   while (numSamples > 0) {
     if (samplesLeft == 0) {
       dsp->process(intent);
-      samplesLeft = dsp->buffer[0].getLength();
-      dsp->buffer[0].cursor = dsp->buffer[0].getPtr();
+      samplesLeft = dsp->samples[0].getLength();
+      dsp->samples[0].cursor = dsp->samples[0].getPtr();
     }
     int samplesToCopy = Min(samplesLeft, numSamples);
     for (int i = outputBuffer.getNumChannels(); --i >= 0;) {
-      outputBuffer.addFrom(i, startSample, dsp->buffer[0].cursor, samplesToCopy);
+      outputBuffer.addFrom(i, startSample, dsp->samples[0].cursor, samplesToCopy);
     }
-    dsp->buffer[0].cursor += samplesToCopy;
+    dsp->samples[0].cursor += samplesToCopy;
     startSample += samplesToCopy;
     samplesLeft -= samplesToCopy;
     numSamples -= samplesToCopy;

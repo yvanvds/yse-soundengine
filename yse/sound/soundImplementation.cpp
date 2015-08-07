@@ -194,7 +194,7 @@ bool YSE::SOUND::implementationObject::create(DSP::dspSourceObject & ptr, CHANNE
   status_upd = SS_STOPPED;
 
   source_dsp = &ptr;
-  buffer = &source_dsp->buffer;
+  buffer = &source_dsp->samples;
   return true;
 }
 
@@ -206,7 +206,7 @@ bool YSE::SOUND::implementationObject::create(SYNTH::implementationObject * ptr,
   status_upd = SS_STOPPED;
 
   synth = ptr;
-  buffer = &ptr->buffer;
+  buffer = &ptr->samples;
   return true;
 }
 

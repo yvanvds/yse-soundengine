@@ -34,9 +34,9 @@ namespace YSE {
       };
 
       // Create an envelope from an audiobuffer, with windowSize in milliseconds
-      bool create(YSE::DSP::sample & source, Int windowSize = 15);
+      bool create(YSE::DSP::buffer & source, Int windowSize = 15);
       
-      // create from breakpoint file (every line must contain 2 floats: time and value)
+      // create from breakpoint file
       bool create(const char * fileName);
 
       void normalize();

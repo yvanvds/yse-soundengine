@@ -12,7 +12,7 @@
 #define MATH_H_INCLUDED
 
 #include "../headers/types.hpp"
-#include "sample.hpp"
+#include "buffer.hpp"
 
 namespace YSE {
   namespace DSP {
@@ -30,121 +30,121 @@ namespace YSE {
       clip() : low(-1.0f), high(1.0f) {}
 
       // use in DSP
-      AUDIOBUFFER & operator()(AUDIOBUFFER & in);
+      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
 
     private:
       aFlt low;
       aFlt high;
-      sample buffer;
+      YSE::DSP::buffer buffer;
     };
 
     // reciprocal square root good to 8 mantissa bits
     // use in DSP only
     class API rSqrt {
     public:
-      AUDIOBUFFER & operator()(AUDIOBUFFER & in);
+      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
       rSqrt();
     private:
-      sample buffer;
+      YSE::DSP::buffer buffer;
     };
 
     // square root good to 8 mantissa bits
     // use in DSP only
     class API sqrt {
     public:
-      AUDIOBUFFER & operator()(AUDIOBUFFER & in);
+      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
       sqrt();
     private:
-      sample buffer;
+      YSE::DSP::buffer buffer;
     };
 
     // calculates difference between signal and first exceeding integer
     // use in DSP only
     class API wrap {
     public:
-      AUDIOBUFFER & operator()(AUDIOBUFFER & in);
+      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
     private:
-      sample buffer;
+      YSE::DSP::buffer buffer;
     };
 
     // use in DSP only
     class API midiToFreq {
     public:
-      AUDIOBUFFER & operator()(AUDIOBUFFER & in);
+      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
     private:
-      sample buffer;
+      YSE::DSP::buffer buffer;
     };
 
     // use in DSP only
     class API freqToMidi {
     public:
-      AUDIOBUFFER & operator()(AUDIOBUFFER & in);
+      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
     private:
-      sample buffer;
+      YSE::DSP::buffer buffer;
     };
 
     // use in DSP only
     class API dbToRms {
     public:
-      AUDIOBUFFER & operator()(AUDIOBUFFER & in);
+      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
     private:
-      sample buffer;
+      YSE::DSP::buffer buffer;
     };
 
     // use in DSP only
     class API rmsToDb {
     public:
-      AUDIOBUFFER & operator()(AUDIOBUFFER & in);
+      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
     private:
-      sample buffer;
+      YSE::DSP::buffer buffer;
     };
 
     // use in DSP only
     class API dbToPow {
     public:
-      AUDIOBUFFER & operator()(AUDIOBUFFER & in);
+      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
     private:
-      sample buffer;
+      YSE::DSP::buffer buffer;
     };
 
     // use in DSP only
     class API powToDb {
     public:
-      AUDIOBUFFER & operator()(AUDIOBUFFER & in);
+      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
     private:
-      sample buffer;
+      YSE::DSP::buffer buffer;
     };
 
     // use in DSP only
     class API pow {
     public:
-      AUDIOBUFFER & operator()(AUDIOBUFFER & in1, AUDIOBUFFER & in2);
+      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in1, YSE::DSP::buffer & in2);
     private:
-      sample buffer;
+      YSE::DSP::buffer buffer;
     };
 
     // use in DSP only
     class API exp {
     public:
-      AUDIOBUFFER & operator()(AUDIOBUFFER & in);
+      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
     private:
-      sample buffer;
+      YSE::DSP::buffer buffer;
     };
 
     // use in DSP only
     class API log {
     public:
-      AUDIOBUFFER & operator()(AUDIOBUFFER & in1, AUDIOBUFFER & in2);
+      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in1, YSE::DSP::buffer & in2);
     private:
-      sample buffer;
+      YSE::DSP::buffer buffer;
     };
 
     // use in DSP only
     class API abs {
     public:
-      AUDIOBUFFER & operator()(AUDIOBUFFER & in);
+      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
     private:
-      sample buffer;
+      YSE::DSP::buffer buffer;
     };
   }
 }

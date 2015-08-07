@@ -11,7 +11,7 @@
 #ifndef FILTERS_H_INCLUDED
 #define FILTERS_H_INCLUDED
 
-#include "sample.hpp"
+#include "buffer.hpp"
 #include "../headers/enums.hpp"
 
 namespace YSE {
@@ -23,7 +23,7 @@ namespace YSE {
       filterBase();
       filterBase(filterBase &);
       
-      virtual AUDIOBUFFER & operator()(AUDIOBUFFER & in) = 0;
+      virtual buffer & operator()(buffer & in) = 0;
 
     protected:
       aFlt freq;
@@ -33,7 +33,7 @@ namespace YSE {
       Flt previous;
       aFlt coef1, coef2;
       aFlt ff1, ff2, ff3, fb1, fb2;
-      sample buffer;
+      buffer buffer;
     };
 
     /*******************************************************************************************/
@@ -42,7 +42,7 @@ namespace YSE {
     class API highPass : public filterBase {
     public:
       highPass& setFrequency(Flt f);
-      AUDIOBUFFER & operator()(AUDIOBUFFER & in);
+      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
     };
 
     /*******************************************************************************************/
@@ -51,7 +51,7 @@ namespace YSE {
     class API lowPass : public filterBase {
     public:
       lowPass& setFrequency(Flt f);
-      AUDIOBUFFER & operator()(AUDIOBUFFER & in);
+      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
     };
 
     /*******************************************************************************************/
@@ -62,7 +62,7 @@ namespace YSE {
       bandPass& set(Flt freq, Flt q);
       bandPass& setFrequency(Flt freq);
       bandPass& setQ(Flt q);
-      AUDIOBUFFER & operator()(AUDIOBUFFER & in);
+      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
       bandPass();
 
     private:
@@ -83,7 +83,7 @@ namespace YSE {
 
       // use this for masochism
       biQuad& setRaw(Flt fb1, Flt fb2, Flt ff1, Flt ff2, Flt ff3);
-      AUDIOBUFFER & operator()(AUDIOBUFFER & in);
+      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
 
     private:
       void calc();
@@ -95,13 +95,13 @@ namespace YSE {
     public:
       sampleHold& reset(Flt value = 1e20);
       sampleHold& set(Flt value);
-      AUDIOBUFFER & operator()(AUDIOBUFFER & in, AUDIOBUFFER & signal);
+      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in, YSE::DSP::buffer & signal);
       
       sampleHold();
 
     private:
       aFlt lastIn, lastOut;
-      sample buffer;
+      YSE::DSP::buffer buffer;
     };
 
     // looking for vcf? It is in oscillators because it shares a lot of that code

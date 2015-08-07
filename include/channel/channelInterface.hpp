@@ -61,11 +61,15 @@ namespace YSE {
 
       /**
           Changes the volume of a channel. Range is 0-1.
+
+          @param value    The new volume for this channel
           */
       interfaceObject&  setVolume(Flt value);
 
       /**
           Get the volume of a channel.
+
+          @return The current volume
           */
       Flt getVolume();
 
@@ -87,15 +91,29 @@ namespace YSE {
       /** Allow or disallow sounds within this channel to be virtual. If you don't know
           what that means, read up on virtualisation in the manual. This function merely
           turns virtualisation off or on for sounds in this channel.
+
+          @param value true means on, false means off
           */
       interfaceObject& setVirtual(Bool value);
 
       /** Check if this channel allows sounds to go virtual.
+
+          @return true if virtualization is allowed
       */
       bool getVirtual();
 
+      /** Check if this channel is valid. It's almost impossible for a channel to 
+          be invalid. Something would be very wrong with the whole system. (Can you
+          really run out of memory these days?)
+          
+          @return true if valid
+      */   
       bool isValid();
 
+      /** Get the name of the channel, mainly interesting for logging.
+
+          @return A const char pointer to the channel name
+      */
       const char * getName() { return name.c_str(); }
 
       /**

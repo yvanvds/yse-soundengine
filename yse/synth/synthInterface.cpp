@@ -220,7 +220,7 @@ YSE::SYNTH::interfaceObject & YSE::SYNTH::interfaceObject::onNoteEvent(void(*fun
   assert(pimpl != nullptr);
   messageObject m;
   m.ID = CALLBACK;
-  m.ptr = func;
+  m.ptr = (void(*))func;
   pimpl->sendMessage(m);
   return *this;
 }

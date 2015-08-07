@@ -9,17 +9,14 @@ ifeq ($(TARGET_ARCH_ABI), armeabi-v7a)
     LOCAL_ARM_MODE := arm
 endif
 
-LOCAL_MODULE := juce_jni
+LOCAL_MODULE := yse_static
 LOCAL_SRC_FILES := \
-  ../../../../yse/music/scale/scaleImplementation.cpp\
-  ../../../../yse/music/scale/scaleInterface.cpp\
-  ../../../../yse/music/scale/scaleManager.cpp\
-  ../../../../yse/music/motif/motifImplementation.cpp\
-  ../../../../yse/music/motif/motifInterface.cpp\
-  ../../../../yse/music/motif/motifManager.cpp\
-  ../../../../yse/music/pNote.cpp\
-  ../../../../yse/music/chord.cpp\
-  ../../../../yse/music/note.cpp\
+  ../../../../yse/player/playerImplementation.cpp\
+  ../../../../yse/player/playerInterface.cpp\
+  ../../../../yse/player/playerManager.cpp\
+  ../../../../yse/midi/midifile.cpp\
+  ../../../../yse/midi/midifileImplementation.cpp\
+  ../../../../yse/midi/midifileManager.cpp\
   ../../../../yse/synth/dspSound.cpp\
   ../../../../yse/synth/dspVoice.cpp\
   ../../../../yse/synth/dspVoiceInternal.cpp\
@@ -27,40 +24,35 @@ LOCAL_SRC_FILES := \
   ../../../../yse/synth/synthImplementation.cpp\
   ../../../../yse/synth/synthInterface.cpp\
   ../../../../yse/synth/synthManager.cpp\
-  ../../../../yse/midi/midifile.cpp\
-  ../../../../yse/midi/midifileImplementation.cpp\
-  ../../../../yse/midi/midifileManager.cpp\
-  ../../../../yse/player/playerImplementation.cpp\
-  ../../../../yse/player/playerInterface.cpp\
-  ../../../../yse/player/playerManager.cpp\
-  ../../../../yse/device/deviceInterface.cpp\
-  ../../../../yse/device/deviceManager.cpp\
-  ../../../../yse/device/deviceSetup.cpp\
-  ../../../../yse/sound/audioBuffer.cpp\
-  ../../../../yse/sound/soundImplementation.cpp\
-  ../../../../yse/sound/soundInterface.cpp\
-  ../../../../yse/sound/soundManager.cpp\
-  ../../../../yse/reverb/reverbImplementation.cpp\
-  ../../../../yse/reverb/reverbInterface.cpp\
-  ../../../../yse/reverb/reverbManager.cpp\
   ../../../../yse/channel/channelImplementation.cpp\
   ../../../../yse/channel/channelInterface.cpp\
   ../../../../yse/channel/channelManager.cpp\
+  ../../../../yse/device/deviceInterface.cpp\
+  ../../../../yse/device/deviceManager.cpp\
+  ../../../../yse/device/deviceSetup.cpp\
+  ../../../../yse/dsp/modules/fm/difference.cpp\
+  ../../../../yse/dsp/modules/filters/bandpass.cpp\
+  ../../../../yse/dsp/modules/filters/highpass.cpp\
+  ../../../../yse/dsp/modules/filters/lowpass.cpp\
+  ../../../../yse/dsp/modules/hilbert.cpp\
+  ../../../../yse/dsp/modules/ringModulator.cpp\
+  ../../../../yse/dsp/modules/sineWave.cpp\
+  ../../../../yse/dsp/fourier/fft.cpp\
+  ../../../../yse/dsp/fourier/mayer.cpp\
+  ../../../../yse/dsp/ADSRenvelope.cpp\
+  ../../../../yse/dsp/buffer.cpp\
+  ../../../../yse/dsp/drawableBuffer.cpp\
   ../../../../yse/dsp/delay.cpp\
+  ../../../../yse/dsp/envelope.cpp\
+  ../../../../yse/dsp/fileBuffer.cpp\
   ../../../../yse/dsp/dspObject.cpp\
   ../../../../yse/dsp/filters.cpp\
   ../../../../yse/dsp/math.cpp\
   ../../../../yse/dsp/math_functions.cpp\
-  ../../../../yse/dsp/modules/filters/bandpass.cpp\
-  ../../../../yse/dsp/modules/filters/highpass.cpp\
-  ../../../../yse/dsp/modules/filters/lowpass.cpp\
-  ../../../../yse/dsp/modules/fm/difference.cpp\
-  ../../../../yse/dsp/modules/hilbert.cpp\
-  ../../../../yse/dsp/modules/ringModulator.cpp\
-  ../../../../yse/dsp/modules/sineWave.cpp\
   ../../../../yse/dsp/oscillators.cpp\
+  ../../../../yse/dsp/sample_functions.cpp\
+  ../../../../yse/dsp/wavetable.cpp\
   ../../../../yse/dsp/ramp.cpp\
-  ../../../../yse/dsp/sample.cpp\
   ../../../../yse/implementations/listenerImplementation.cpp\
   ../../../../yse/implementations/logImplementation.cpp\
   ../../../../yse/internal/customFileReader.cpp\
@@ -73,6 +65,21 @@ LOCAL_SRC_FILES := \
   ../../../../yse/internal/time.cpp\
   ../../../../yse/internal/underWaterEffect.cpp\
   ../../../../yse/internal/virtualFinder.cpp\
+  ../../../../yse/music/motif/motifImplementation.cpp\
+  ../../../../yse/music/motif/motifInterface.cpp\
+  ../../../../yse/music/motif/motifManager.cpp\
+  ../../../../yse/music/scale/scaleImplementation.cpp\
+  ../../../../yse/music/scale/scaleInterface.cpp\
+  ../../../../yse/music/scale/scaleManager.cpp\
+  ../../../../yse/music/pNote.cpp\
+  ../../../../yse/music/chord.cpp\
+  ../../../../yse/music/note.cpp\
+  ../../../../yse/reverb/reverbImplementation.cpp\
+  ../../../../yse/reverb/reverbInterface.cpp\
+  ../../../../yse/reverb/reverbManager.cpp\
+  ../../../../yse/sound/soundImplementation.cpp\
+  ../../../../yse/sound/soundInterface.cpp\
+  ../../../../yse/sound/soundManager.cpp\
   ../../../../yse/utils/interpolators.cpp\
   ../../../../yse/utils/vector.cpp\
   ../../../../yse/io.cpp\

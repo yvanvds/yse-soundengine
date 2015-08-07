@@ -20,14 +20,27 @@ namespace juce {
   class AudioIODevice;
 }
 
+/** This class can hold the properties of a particular audio device. You're not
+    supposed to create object of this class yourself, but you can retrieve the
+    available audio devices from the System() object.
+*/
 namespace YSE {
   namespace DEVICE {
 
     class API interfaceObject {
     public:
+      /** Don't create this object yourself! Instead, retrieve
+          available audio devices with YSE::System().getDevices()
+      */
       interfaceObject(juce::AudioIODevice * pimpl);
 
+      /** Get the name of this device
+      */
       const char * getName() const;
+      
+      /** Get the type of the device. This is also known as the device host.
+          A system can have different hosts, like ASIO, Jack, etc.
+      */
       const char * getTypeName() const;
 
       // These functions cannot be used if YSE is compiled as DLL, because

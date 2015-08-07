@@ -13,7 +13,7 @@
 
 
 #include <vector>
-#include "sample.hpp"
+#include "buffer.hpp"
 #include "../headers/enums.hpp"
 
 namespace YSE {
@@ -59,7 +59,7 @@ namespace YSE {
     // why some virtual functions have to be implemented.
     class API dspSourceObject {
     public:
-      std::vector<sample> buffer;
+      std::vector<buffer> buffer;
       dspSourceObject(Int buffers = 1);
 
       // intent is what we should do (playing, start playing, start stopping etc...

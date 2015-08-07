@@ -43,10 +43,10 @@ YSE::DSP::highPass& YSE::DSP::highPass::setFrequency(Flt f) {
 }
 
 YSE::DSP::buffer & YSE::DSP::highPass::operator()(YSE::DSP::buffer & in) {
-  if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
+  if (in.getLength() != samples.getLength()) samples.resize(in.getLength());
 
   Flt * inPtr = in.getPtr();
-  Flt * outPtr = buffer.getPtr();
+  Flt * outPtr = samples.getPtr();
   UInt length = in.getLength();
   Flt coef = coef1;
   if (coef < 1) {
@@ -61,7 +61,7 @@ YSE::DSP::buffer & YSE::DSP::highPass::operator()(YSE::DSP::buffer & in) {
     return in;
   }
 
-  return buffer;
+  return samples;
 }
 
 /*******************************************************************************************/
@@ -77,10 +77,10 @@ YSE::DSP::lowPass& YSE::DSP::lowPass::setFrequency(Flt f) {
 }
 
 YSE::DSP::buffer & YSE::DSP::lowPass::operator()(YSE::DSP::buffer & in) {
-  if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
+  if (in.getLength() != samples.getLength()) samples.resize(in.getLength());
 
   Flt * inPtr = in.getPtr();
-  Flt * outPtr = buffer.getPtr();
+  Flt * outPtr = samples.getPtr();
   UInt length = in.getLength();
 
   Flt feedback = 1 - coef1;
@@ -88,7 +88,7 @@ YSE::DSP::buffer & YSE::DSP::lowPass::operator()(YSE::DSP::buffer & in) {
     last = *outPtr++ = coef1 * *inPtr++ + feedback * last;
   }
 
-  return buffer;
+  return samples;
 }
 
 /*******************************************************************************************/
@@ -141,10 +141,10 @@ YSE::DSP::bandPass::bandPass() {
 }
 
 YSE::DSP::buffer & YSE::DSP::bandPass::operator()(YSE::DSP::buffer & in) {
-  if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
+  if (in.getLength() != samples.getLength()) samples.resize(in.getLength());
 
   Flt * inPtr = in.getPtr();
-  Flt * outPtr = buffer.getPtr();
+  Flt * outPtr = samples.getPtr();
   UInt length = in.getLength();
 
   // copy to Flt because we don't want atomic in whole buffer loops
@@ -158,7 +158,7 @@ YSE::DSP::buffer & YSE::DSP::bandPass::operator()(YSE::DSP::buffer & in) {
     last = output;
   }
 
-  return buffer;
+  return samples;
 }
 
 /*******************************************************************************************/
@@ -218,10 +218,10 @@ YSE::DSP::biQuad& YSE::DSP::biQuad::setRaw(Flt fb1, Flt fb2, Flt ff1, Flt ff2, F
 }
 
 YSE::DSP::buffer & YSE::DSP::biQuad::operator()(YSE::DSP::buffer & in) {
-  if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
+  if (in.getLength() != samples.getLength()) samples.resize(in.getLength());
 
   Flt * inPtr = in.getPtr();
-  Flt * outPtr = buffer.getPtr();
+  Flt * outPtr = samples.getPtr();
   UInt length = in.getLength();
 
   Flt output;
@@ -240,7 +240,7 @@ YSE::DSP::buffer & YSE::DSP::biQuad::operator()(YSE::DSP::buffer & in) {
     last = output;
   }
 
-  return buffer;
+  return samples;
 }
 
 
@@ -376,11 +376,11 @@ YSE::DSP::sampleHold& YSE::DSP::sampleHold::set(Flt value) {
 }
 
 YSE::DSP::buffer & YSE::DSP::sampleHold::operator()(YSE::DSP::buffer & in, YSE::DSP::buffer & signal) {
-  if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
+  if (in.getLength() != samples.getLength()) samples.resize(in.getLength());
 
   Flt * inPtr = in.getPtr();
   Flt * sigPtr = signal.getPtr();
-  Flt * outPtr = buffer.getPtr();
+  Flt * outPtr = samples.getPtr();
   UInt length = in.getLength();
 
   // it's a bad idea to parse the whole buffer with atomics, so make a copy first
@@ -396,7 +396,7 @@ YSE::DSP::buffer & YSE::DSP::sampleHold::operator()(YSE::DSP::buffer & in, YSE::
   lastIn = li;
   lastOut = lo;
 
-  return buffer;
+  return samples;
 }
 
 
