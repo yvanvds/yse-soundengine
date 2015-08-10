@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>IDESourceControlProjectFavoriteDictionaryKey</key>
+	<false/>
+	<key>IDESourceControlProjectIdentifier</key>
+	<string>1EF35FCD-06F2-4561-8353-6C2D0764C3B6</string>
+	<key>IDESourceControlProjectName</key>
+	<string>yse_static_library</string>
+	<key>IDESourceControlProjectOriginsDictionary</key>
+	<dict>
+		<key>A2754C9E17358F6A4C99C6EC7DA72898EBE15580</key>
+		<string>https://github.com/yvanvds/yse-soundengine.git</string>
+		<key>DEBAC9C6799FD4E8074B3BAF720718E3C3499FA0</key>
+		<string>https://github.com/julianstorer/JUCE.git</string>
+	</dict>
+	<key>IDESourceControlProjectPath</key>
+	<string>static_library/Builds/MacOSX/yse_static_library.xcodeproj</string>
+	<key>IDESourceControlProjectRelativeInstallPathDictionary</key>
+	<dict>
+		<key>A2754C9E17358F6A4C99C6EC7DA72898EBE15580</key>
+		<string>../../../../..</string>
+		<key>DEBAC9C6799FD4E8074B3BAF720718E3C3499FA0</key>
+		<string>../../../../../../JUCE</string>
+	</dict>
+	<key>IDESourceControlProjectURL</key>
+	<string>https://github.com/yvanvds/yse-soundengine.git</string>
+	<key>IDESourceControlProjectVersion</key>
+	<integer>111</integer>
+	<key>IDESourceControlProjectWCCIdentifier</key>
+	<string>A2754C9E17358F6A4C99C6EC7DA72898EBE15580</string>
+	<key>IDESourceControlProjectWCConfigurations</key>
+	<array>
+		<dict>
+			<key>IDESourceControlRepositoryExtensionIdentifierKey</key>
+			<string>public.vcs.git</string>
+			<key>IDESourceControlWCCIdentifierKey</key>
+			<string>DEBAC9C6799FD4E8074B3BAF720718E3C3499FA0</string>
+			<key>IDESourceControlWCCName</key>
+			<string>JUCE</string>
+		</dict>
+		<dict>
+			<key>IDESourceControlRepositoryExtensionIdentifierKey</key>
+			<string>public.vcs.git</string>
+			<key>IDESourceControlWCCIdentifierKey</key>
+			<string>A2754C9E17358F6A4C99C6EC7DA72898EBE15580</string>
+			<key>IDESourceControlWCCName</key>
+			<string>yse-soundengine</string>
+		</dict>
+	</array>
+</dict>
+</plist>

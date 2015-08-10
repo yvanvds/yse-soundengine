@@ -50,7 +50,7 @@ namespace YSE {
 
       // copy
       interfaceObject(const motif& other);
-      motif & interfaceObject::operator=(const motif & other);
+      motif & operator=(const motif & other);
 
     private:
       // order notes according to position

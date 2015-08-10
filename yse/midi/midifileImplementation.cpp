@@ -113,7 +113,7 @@ void YSE::MIDI::fileImpl::removeDevice(SYNTH::implementationObject * player) {
 
 
 void YSE::MIDI::fileImpl::getMessages(MidiBuffer & incomingMidi) {
-  switch (intent) {
+  switch (intent.load()) {
     case SS_PLAYING: break;
     case SS_STOPPED: return;
     case SS_PAUSED: return;
