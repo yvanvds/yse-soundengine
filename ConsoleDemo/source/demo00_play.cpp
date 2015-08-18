@@ -3,7 +3,7 @@
 #include "yse.hpp"
 #if defined YSE_WINDOWS
 #include <conio.h>
-#else
+#elsee
 #include "wincompat.h" 
 #endif
 

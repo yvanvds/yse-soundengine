@@ -7,14 +7,14 @@
 	<key>IDESourceControlProjectIdentifier</key>
 	<string>95D6F980-1913-4BD6-B175-69956710B4DD</string>
 	<key>IDESourceControlProjectName</key>
-	<string>project</string>
+	<string>YSE Demo</string>
 	<key>IDESourceControlProjectOriginsDictionary</key>
 	<dict>
 		<key>A2754C9E17358F6A4C99C6EC7DA72898EBE15580</key>
 		<string>https://github.com/yvanvds/yse-soundengine.git</string>
 	</dict>
 	<key>IDESourceControlProjectPath</key>
-	<string>ConsoleDemo/Xcode/YSE Demo/YSE Demo.xcodeproj/project.xcworkspace</string>
+	<string>ConsoleDemo/Xcode/YSE Demo/YSE Demo.xcodeproj</string>
 	<key>IDESourceControlProjectRelativeInstallPathDictionary</key>
 	<dict>
 		<key>A2754C9E17358F6A4C99C6EC7DA72898EBE15580</key>

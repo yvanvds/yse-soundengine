@@ -7,24 +7,42 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		3CAE27B71B78DB8000F94C0E /* demo00_play.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3CAE27B61B78DB8000F94C0E /* demo00_play.cpp */; };
+		3C7155021B836B52006E59BB /* libyse_static_library.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C7155011B836B52006E59BB /* libyse_static_library.a */; };
+		3C7155211B839B25006E59BB /* Accelerate.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C7155201B839B25006E59BB /* Accelerate.framework */; };
+		3C7155231B839B4A006E59BB /* CoreAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C7155221B839B4A006E59BB /* CoreAudio.framework */; };
+		3C7155251B839B57006E59BB /* CoreMIDI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C7155241B839B57006E59BB /* CoreMIDI.framework */; };
+		3C7155271B839B62006E59BB /* DiscRecording.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C7155261B839B62006E59BB /* DiscRecording.framework */; };
+		3C7155291B839B7B006E59BB /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C7155281B839B7B006E59BB /* QuartzCore.framework */; };
+		3C71553D1B83A5F7006E59BB /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C71552A1B839B81006E59BB /* AudioToolbox.framework */; };
+		3C71553F1B83A608006E59BB /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C71553E1B83A608006E59BB /* IOKit.framework */; };
+		3C7155401B83A616006E59BB /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C71551E1B839A85006E59BB /* Cocoa.framework */; };
+		3C7155641B83AB24006E59BB /* demo00_play.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3C7155631B83AB24006E59BB /* demo00_play.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
 		3CAE27AA1B78DB1900F94C0E /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = /usr/share/man/man1/;
-			dstSubfolderSpec = 0;
+			buildActionMask = 12;
+			dstPath = "";
+			dstSubfolderSpec = 10;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 1;
+			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		3C7155011B836B52006E59BB /* libyse_static_library.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libyse_static_library.a; path = ../../../../../../../yse/libyse_static_library.a; sourceTree = "<group>"; };
+		3C71551E1B839A85006E59BB /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
+		3C7155201B839B25006E59BB /* Accelerate.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Accelerate.framework; path = System/Library/Frameworks/Accelerate.framework; sourceTree = SDKROOT; };
+		3C7155221B839B4A006E59BB /* CoreAudio.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudio.framework; path = System/Library/Frameworks/CoreAudio.framework; sourceTree = SDKROOT; };
+		3C7155241B839B57006E59BB /* CoreMIDI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMIDI.framework; path = System/Library/Frameworks/CoreMIDI.framework; sourceTree = SDKROOT; };
+		3C7155261B839B62006E59BB /* DiscRecording.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = DiscRecording.framework; path = System/Library/Frameworks/DiscRecording.framework; sourceTree = SDKROOT; };
+		3C7155281B839B7B006E59BB /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
+		3C71552A1B839B81006E59BB /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = System/Library/Frameworks/AudioToolbox.framework; sourceTree = SDKROOT; };
+		3C71553E1B83A608006E59BB /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = System/Library/Frameworks/IOKit.framework; sourceTree = SDKROOT; };
+		3C7155631B83AB24006E59BB /* demo00_play.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = demo00_play.cpp; path = ../../source/demo00_play.cpp; sourceTree = SOURCE_ROOT; };
 		3CAE27AC1B78DB1900F94C0E /* YSE Demo */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "YSE Demo"; sourceTree = BUILT_PRODUCTS_DIR; };
-		3CAE27B61B78DB8000F94C0E /* demo00_play.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = demo00_play.cpp; path = ../../../source/demo00_play.cpp; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -32,17 +50,43 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3C7155401B83A616006E59BB /* Cocoa.framework in Frameworks */,
+				3C71553F1B83A608006E59BB /* IOKit.framework in Frameworks */,
+				3C71553D1B83A5F7006E59BB /* AudioToolbox.framework in Frameworks */,
+				3C7155291B839B7B006E59BB /* QuartzCore.framework in Frameworks */,
+				3C7155271B839B62006E59BB /* DiscRecording.framework in Frameworks */,
+				3C7155251B839B57006E59BB /* CoreMIDI.framework in Frameworks */,
+				3C7155231B839B4A006E59BB /* CoreAudio.framework in Frameworks */,
+				3C7155211B839B25006E59BB /* Accelerate.framework in Frameworks */,
+				3C7155021B836B52006E59BB /* libyse_static_library.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		3C7155411B83A7DE006E59BB /* inactive demo's */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = "inactive demo's";
+			sourceTree = "<group>";
+		};
 		3CAE27A31B78DB1900F94C0E = {
 			isa = PBXGroup;
 			children = (
+				3C71553E1B83A608006E59BB /* IOKit.framework */,
+				3C71552A1B839B81006E59BB /* AudioToolbox.framework */,
+				3C7155281B839B7B006E59BB /* QuartzCore.framework */,
+				3C7155261B839B62006E59BB /* DiscRecording.framework */,
+				3C7155241B839B57006E59BB /* CoreMIDI.framework */,
+				3C7155221B839B4A006E59BB /* CoreAudio.framework */,
+				3C7155201B839B25006E59BB /* Accelerate.framework */,
+				3C71551E1B839A85006E59BB /* Cocoa.framework */,
+				3C7155011B836B52006E59BB /* libyse_static_library.a */,
 				3CAE27AE1B78DB1900F94C0E /* YSE Demo */,
 				3CAE27AD1B78DB1900F94C0E /* Products */,
+				3C7155411B83A7DE006E59BB /* inactive demo's */,
 			);
 			sourceTree = "<group>";
 		};
@@ -57,7 +101,7 @@
 		3CAE27AE1B78DB1900F94C0E /* YSE Demo */ = {
 			isa = PBXGroup;
 			children = (
-				3CAE27B61B78DB8000F94C0E /* demo00_play.cpp */,
+				3C7155631B83AB24006E59BB /* demo00_play.cpp */,
 			);
 			path = "YSE Demo";
 			sourceTree = "<group>";
@@ -118,7 +162,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				3CAE27B71B78DB8000F94C0E /* demo00_play.cpp in Sources */,
+				3C7155641B83AB24006E59BB /* demo00_play.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -160,10 +204,17 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include,
+					/yse/include,
+				);
+				LIBRARY_SEARCH_PATHS = /yse;
 				MACOSX_DEPLOYMENT_TARGET = 10.10;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
+				USER_HEADER_SEARCH_PATHS = /yse/include;
 			};
 			name = Debug;
 		};
@@ -196,15 +247,27 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include,
+					/yse/include,
+				);
+				LIBRARY_SEARCH_PATHS = /yse;
 				MACOSX_DEPLOYMENT_TARGET = 10.10;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = macosx;
+				USER_HEADER_SEARCH_PATHS = /yse/include;
 			};
 			name = Release;
 		};
 		3CAE27B41B78DB1900F94C0E /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ARCHS = "$(ARCHS_STANDARD)";
+				LD_DYLIB_INSTALL_NAME = "";
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
+				OTHER_LDFLAGS = "";
+				PRELINK_LIBS = "";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				USER_HEADER_SEARCH_PATHS = "../../../include/**";
 			};
@@ -213,6 +276,11 @@
 		3CAE27B51B78DB1900F94C0E /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ARCHS = "$(ARCHS_STANDARD)";
+				LD_DYLIB_INSTALL_NAME = "";
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
+				OTHER_LDFLAGS = "";
+				PRELINK_LIBS = "";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				USER_HEADER_SEARCH_PATHS = "../../../include/**";
 			};
@@ -237,6 +305,7 @@
 				3CAE27B51B78DB1900F94C0E /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};

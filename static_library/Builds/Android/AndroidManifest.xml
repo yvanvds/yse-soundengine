@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" android:versionCode="1" android:versionName="1.0"
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" android:versionCode="1" android:versionName="1.0.0"
           package="com.mute">
   <supports-screens android:smallScreens="true" android:normalScreens="true" android:largeScreens="true" android:anyDensity="true"/>
   <uses-sdk android:minSdkVersion="9" android:targetSdkVersion="11"/>
-  <application android:label="@string/app_name" android:icon="@drawable/icon">
+  <application android:label="@string/app_name">
     <activity android:name="yse_static" android:label="@string/app_name" android:configChanges="keyboardHidden|orientation">
       <intent-filter>
         <action android:name="android.intent.action.MAIN"/>

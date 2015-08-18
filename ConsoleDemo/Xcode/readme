@@ -1,0 +1,7 @@
+The first demo is included in the project file. To try out the other demo’s, ctrl-click on demo00_play.cpp and open the file inspector. There, use the little folder icon and navigate to the source directory where you can pick another demo.
+
+It might happen that you have to point to the include and library directory for the static  yse library.
+
+Also, when starting on your own projects, take a good look at the linked frameworks here. You’ll also have to link to them in your own project.  
+
+
