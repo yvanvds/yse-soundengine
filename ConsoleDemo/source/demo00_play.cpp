@@ -3,8 +3,8 @@
 #include "yse.hpp"
 #if defined YSE_WINDOWS
 #include <conio.h>
-#elsee
-#include "wincompat.h" 
+#else
+#include "wincompat.h"
 #endif
 
 YSE::sound sound;

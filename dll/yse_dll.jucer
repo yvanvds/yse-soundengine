@@ -4,7 +4,6 @@
               bundleIdentifier="com.mute.yse_dll" includeBinaryInAppConfig="1"
               jucerVersion="3.2.0">
   <MAINGROUP id="c8Cr7r" name="yse_dll">
-    <FILE id="AEWIIg" name="speaker.png" compile="0" resource="0" file="../bin/speaker.png"/>
     <GROUP id="{C1464C78-202C-BC41-481A-C05656427973}" name="yse">
       <GROUP id="{CC0DC12C-144B-3139-4D29-2C7FD7DB9D50}" name="player">
         <FILE id="kwQ30C" name="playerMessage.h" compile="0" resource="0" file="../yse/player/playerMessage.h"/>
@@ -265,14 +264,6 @@
         <FILE id="Hgdsp0" name="soundManager.h" compile="0" resource="0" file="../yse/sound/soundManager.h"/>
         <FILE id="I9bcYc" name="soundMessage.h" compile="0" resource="0" file="../yse/sound/soundMessage.h"/>
       </GROUP>
-      <GROUP id="{70334159-37A6-7CE0-BDAE-0B7738EE004A}" name="templates">
-        <FILE id="RPuhRx" name="implementationObject.h" compile="0" resource="0"
-              file="../yse/templates/implementationObject.h"/>
-        <FILE id="tN5WZk" name="interfaceObject.hpp" compile="0" resource="0"
-              file="../yse/templates/interfaceObject.hpp"/>
-        <FILE id="gm0IHs" name="managerObject.h" compile="0" resource="0" file="../yse/templates/managerObject.h"/>
-        <FILE id="m9U8yO" name="messageObject.h" compile="0" resource="0" file="../yse/templates/messageObject.h"/>
-      </GROUP>
       <GROUP id="{D829189A-D352-A2D0-1951-CCE6BA0F59A8}" name="utils">
         <FILE id="ThSozL" name="interpolators.cpp" compile="1" resource="0"
               file="../yse/utils/interpolators.cpp"/>
@@ -351,12 +342,12 @@
         <MODULEPATH id="juce_audio_basics" path="../../JUCE/modules"/>
       </MODULEPATHS>
     </LINUX_MAKE>
-    <XCODE_MAC targetFolder="Builds/MacOSX" extraDefs="JUCE_CHECK_MEMORY_LEAKS=0">
+    <XCODE_MAC targetFolder="Builds/MacOSX" extraDefs="JUCE_CHECK_MEMORY_LEAKS=0&#10;YSE_DLL_BUILD=1">
       <CONFIGURATIONS>
         <CONFIGURATION name="Debug" osxSDK="default" osxCompatibility="default" osxArchitecture="default"
-                       isDebug="1" optimisation="1" targetName="yse_dll"/>
+                       isDebug="1" optimisation="1" targetName="libyse_debug"/>
         <CONFIGURATION name="Release" osxSDK="default" osxCompatibility="default" osxArchitecture="default"
-                       isDebug="0" optimisation="2" targetName="yse_dll"/>
+                       isDebug="0" optimisation="3" targetName="libyse"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
         <MODULEPATH id="juce_events" path="../../JUCE/modules"/>

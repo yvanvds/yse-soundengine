@@ -14,11 +14,11 @@
 		<string>https://github.com/yvanvds/yse-soundengine.git</string>
 	</dict>
 	<key>IDESourceControlProjectPath</key>
-	<string>ConsoleDemo/Xcode/YSE Demo/YSE Demo.xcodeproj</string>
+	<string>ConsoleDemo/Xcode/YSE Demo.xcodeproj</string>
 	<key>IDESourceControlProjectRelativeInstallPathDictionary</key>
 	<dict>
 		<key>A2754C9E17358F6A4C99C6EC7DA72898EBE15580</key>
-		<string>../../../../..</string>
+		<string>../../../..</string>
 	</dict>
 	<key>IDESourceControlProjectURL</key>
 	<string>https://github.com/yvanvds/yse-soundengine.git</string>

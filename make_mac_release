@@ -1,0 +1,49 @@
+#!/bin/bash
+
+#remove previous build
+rm -fr yse_binary_release_mac
+
+# create directories
+echo '-> creating directories...'
+mkdir yse_binary_release_mac
+mkdir yse_binary_release_mac/include
+mkdir yse_binary_release_mac/lib
+mkdir yse_binary_release_mac/demo
+mkdir yse_binary_release_mac/demo/compiled
+
+# create static library
+echo '-> creating static library...'
+cd static_library/Builds/MacOSX/
+pwd
+xcodebuild -configuration Release
+
+cd ../../../
+mv static_library/Builds/MacOSX/build/Release/libyse_static_library.a yse_binary_release_mac/lib/
+
+
+# create dynamic library
+echo '-> creating dynamic library...'
+cd dll/Builds/MacOSX
+xcodebuild -configuration Release
+
+cd ../../../
+mv dll/Builds/MacOSX/build/Release/libyse.dylib yse_binary_release_mac/lib/
+
+# copy include files
+echo '-> copying header files...'
+cp -fr include/* yse_binary_release_mac/include/
+
+# copy demo source
+echo '-> copying demo source...'
+cp -fr ConsoleDemo/source yse_binary_release_mac/demo
+cp -fr ConsoleDemo/Xcode yse_binary_release_mac/demo
+cp -fr ConsoleDemo/generateAll yse_binary_release_mac/demo
+cp -fr bin/*.ogg yse_binary_release_mac/demo/compiled
+
+# compile demo
+echo '-> compiling demos. Please verify them.'
+cd yse_binary_release_mac/demo/
+./generateAll
+
+
+

@@ -7,6 +7,7 @@
 #include <conio.h>
 #else
 #include "wincompat.h"
+#define _popen popen
 #endif
 
 /** Audio Envelope:
@@ -34,6 +35,13 @@ FILE * gnuPlot = nullptr;
 int main() {
   YSE::System().init();
 
+  // while DSP objects can be used as a constant sound generator,
+  // you can also use them to create a static sample.
+  YSE::DSP::buffer & sinOrig = sine(800, 44100); // 1 second audiobuffer
+  sinModified = sinOrig;
+  sineSound.create(sinModified, nullptr, true, 0.5);
+  
+  
   if (!YSE::DSP::LoadFromFile("g.ogg", piano)) {
     std::cout << "sound 'g.ogg' not found" << std::endl;
     std::cin.get();
@@ -53,11 +61,7 @@ int main() {
   snareEnvelope.create("snare.env"); // create from envelope file
   pianoEnvelope.create(piano); // create from audio buffer
 
-  // while DSP objects can be used as a constant sound generator,
-  // you can also use them to create a static sample.
-  YSE::DSP::buffer & sinOrig = sine(800, 44100); // 1 second audiobuffer
-  sinModified = sinOrig;
-  sineSound.create(sinModified, nullptr, true, 0.5); 
+  
 
   droneSound.create(drone, nullptr, true, 0.5);
 
