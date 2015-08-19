@@ -50,6 +50,7 @@ int main() {
     goto exit;
   }
 
+  std::cout << "This demonstrates the use of streaming sounds from disk instead of loading them into memory before playing." << std::endl;
   std::cout << "Use q/a to change the sound speed up and down." << std::endl;
   std::cout << "Use s/d/f to pause/stop/play." << std::endl;
   std::cout << "...or e to exit." << std::endl;

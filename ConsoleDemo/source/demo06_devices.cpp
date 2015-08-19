@@ -11,6 +11,7 @@ YSE::sound sound;
 float appTime = 0;
 
 void showDevices() {
+  std::cout << "This example just lists the available devices on your system. If more than one is availble, you can switch to another device." << std::endl;
   const std::vector<YSE::device> & list = YSE::System().getDevices();
   for (UInt i = 0; i < list.size(); i++) {
     if (list[i].getOutputChannelNames().size() > 0) {

@@ -93,6 +93,7 @@ int main() {
   midiFile.create("demo.mid");
   midiFile.connect(&synth);
 
+  std::cout << "YSE can also be used to play midifiles if you setup a virtual synth." << std::endl;
   std::cout << "1: start midi file" << std::endl;
   std::cout << "2: pause midi file" << std::endl;
   std::cout << "3: stop  midi file" << std::endl;

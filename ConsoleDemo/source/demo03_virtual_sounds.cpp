@@ -35,7 +35,8 @@ int main() {
   // Set this to a large number to 'stresstest'
   YSE::System().maxSounds(100);
 
-  std::cout << "Press the spacebar to add a sound at a random position." << std::endl;
+  std::cout << "Virtualization allows you to add lots of sound to a scene. Only the sounds nearest to the listener will play." << std::endl;
+  std::cout << "Press the spacebar to add 10 sounds at a random position." << std::endl;
   std::cout << "...or e to exit." << std::endl;
 
   while (true) {

@@ -23,6 +23,7 @@ int main() {
     goto exit;
   }
 
+  std::cout << "This is a bare-bones YSE example. It contains the minimum you need to start your own projects." << std::endl;
   std::cout << "Press spacebar to toggle sound playing." << std::endl;
   std::cout << "Or e to exit." << std::endl;
 

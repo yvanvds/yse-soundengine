@@ -65,7 +65,7 @@ int main() {
 
   droneSound.create(drone, nullptr, true, 0.5);
 
-  std::cout << "Sounds are loaded. Please choose: " << std::endl;
+  std::cout << "This example applies an envelope object to a sample. Please choose: " << std::endl;
   std::cout << "1 to toggle drone sound" << std::endl;
   std::cout << "2 to toggle sine sound" << std::endl;
   std::cout << "3 to apply snare envelope" << std::endl;
