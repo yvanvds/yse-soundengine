@@ -137,7 +137,7 @@
 		1C32EF6063BDB1375AC19C72 = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = fileBuffer.cpp; path = ../../../yse/dsp/fileBuffer.cpp; sourceTree = "SOURCE_ROOT"; };
 		1C36085B84A9C5C6BB3CCD28 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "juce_android_JNIHelpers.h"; path = "../../JuceLibraryCode/modules/juce_core/native/juce_android_JNIHelpers.h"; sourceTree = "SOURCE_ROOT"; };
 		1C66681B19093DD6B8911333 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "juce_CharPointer_ASCII.h"; path = "../../JuceLibraryCode/modules/juce_core/text/juce_CharPointer_ASCII.h"; sourceTree = "SOURCE_ROOT"; };
-		1D7669685FD378C601F3BE5E = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libyse_static_library.a"; sourceTree = "BUILT_PRODUCTS_DIR"; };
+		1D7669685FD378C601F3BE5E = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libyse_debug.a"; sourceTree = "BUILT_PRODUCTS_DIR"; };
 		1EB16FD69F6FBBC97B68BE20 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "juce_Initialisation.h"; path = "../../JuceLibraryCode/modules/juce_events/messages/juce_Initialisation.h"; sourceTree = "SOURCE_ROOT"; };
 		1EDAA572160BBEBC2D879B90 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "juce_CriticalSection.h"; path = "../../JuceLibraryCode/modules/juce_core/threads/juce_CriticalSection.h"; sourceTree = "SOURCE_ROOT"; };
 		1F79BBCB5BF476BDE805CDAB = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "juce_HashMap.h"; path = "../../JuceLibraryCode/modules/juce_core/containers/juce_HashMap.h"; sourceTree = "SOURCE_ROOT"; };
@@ -1363,7 +1363,7 @@
 				GCC_WARN_TYPECHECK_CALLS_TO_PRINTF = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				ONLY_ACTIVE_ARCH = YES;
-				PRODUCT_NAME = "yse_static_library";
+				PRODUCT_NAME = "yse_debug";
 				WARNING_CFLAGS = -Wreorder;
 				ZERO_LINK = NO; }; name = Debug; };
 		8A55CE00DA38A7B4E32A157A = {isa = XCBuildConfiguration; buildSettings = {
@@ -1379,7 +1379,7 @@
 				GCC_WARN_NON_VIRTUAL_DESTRUCTOR = YES;
 				GCC_WARN_TYPECHECK_CALLS_TO_PRINTF = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				PRODUCT_NAME = "yse_static_library";
+				PRODUCT_NAME = "yse";
 				WARNING_CFLAGS = -Wreorder;
 				ZERO_LINK = NO; }; name = Release; };
 		F8C1A757C7EDCB9A5D640CA9 = {isa = XCConfigurationList; buildConfigurations = (

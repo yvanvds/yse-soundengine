@@ -331,9 +331,9 @@
     <XCODE_MAC targetFolder="Builds/MacOSX" extraDefs="JUCE_CHECK_MEMORY_LEAKS=0">
       <CONFIGURATIONS>
         <CONFIGURATION name="Debug" osxSDK="default" osxCompatibility="default" osxArchitecture="default"
-                       isDebug="1" optimisation="1" targetName="yse_static_library"/>
+                       isDebug="1" optimisation="1" targetName="yse_debug"/>
         <CONFIGURATION name="Release" osxSDK="default" osxCompatibility="default" osxArchitecture="default"
-                       isDebug="0" optimisation="2" targetName="yse_static_library"/>
+                       isDebug="0" optimisation="2" targetName="yse"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
         <MODULEPATH id="juce_events" path="../../JUCE/modules"/>
