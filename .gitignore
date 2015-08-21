@@ -55,6 +55,8 @@ doxyGen/output/
 
 [Dd]ebug/
 [Rr]elease/
+[Rr]elease32/
+[Rr]elease64/
 x64/
 build/
 [Bb]in/
@@ -227,3 +229,5 @@ demo/Builds/
 dll/Builds/
 esenthelDemo/_Build_/*
 yse_binary_release_mac/
+yse_binary_release_windows/
+*.zip
