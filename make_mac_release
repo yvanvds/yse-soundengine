@@ -36,7 +36,7 @@ cp -fr include/* yse_binary_release_mac/include/
 # copy demo source
 echo '-> copying demo source...'
 cp -fr ConsoleDemo/source yse_binary_release_mac/demo
-cp -fr ConsoleDemo/generateAll yse_binary_release_mac/demo
+cp -fr scripts/generateDemoMac yse_binary_release_mac/demo
 cp -fr bin/*.ogg yse_binary_release_mac/demo/compiled
 cp -fr bin/*.wav yse_binary_release_mac/demo/compiled
 cp -fr bin/*.env yse_binary_release_mac/demo/compiled
@@ -47,7 +47,7 @@ case ${answer:0:1} in
   y|Y )
     echo '-> compiling demos. Please verify them.'
     cd yse_binary_release_mac/demo/
-    ./generateAll
+    ./generateDemoMac
 
     cd ../../
     echo -e '\n-> removing binaries...'

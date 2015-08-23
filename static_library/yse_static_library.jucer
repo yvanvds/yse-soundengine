@@ -312,7 +312,7 @@
       </MODULEPATHS>
     </VS2013>
     <ANDROID targetFolder="Builds/Android" androidActivityClass="com.mute.yse_static"
-             androidSDKPath="${user.home}/SDKs/android-sdk" androidNDKPath="${user.home}/SDKs/android-ndk"
+             androidSDKPath="D:/Android/sdk" androidNDKPath="D:/Android/ndk"
              androidMinimumSDK="9" androidInternetNeeded="0" androidKeyStore="${user.home}/.android/debug.keystore"
              androidKeyStorePass="android" androidKeyAlias="androiddebugkey"
              androidKeyAliasPass="android" androidCpp11="1" extraDefs="JUCE_CHECK_MEMORY_LEAKS=0&#10;"
@@ -355,5 +355,7 @@
     <MODULES id="juce_events" showAllCode="1" useLocalCopy="1"/>
   </MODULES>
   <JUCEOPTIONS JUCE_USE_ANDROID_OPENSLES="enabled" JUCE_USE_CDREADER="disabled"
-               JUCE_USE_CDBURNER="disabled"/>
+               JUCE_USE_CDBURNER="disabled" JUCE_USE_FLAC="disabled" JUCE_USE_OGGVORBIS="enabled"
+               JUCE_USE_MP3AUDIOFORMAT="disabled" JUCE_USE_LAME_AUDIO_FORMAT="disabled"
+               JUCE_USE_WINDOWS_MEDIA_FORMAT="disabled"/>
 </JUCERPROJECT>

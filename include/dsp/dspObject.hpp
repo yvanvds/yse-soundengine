@@ -59,7 +59,7 @@ namespace YSE {
     // why some virtual functions have to be implemented.
     class API dspSourceObject {
     public:
-      std::vector<buffer> buffer;
+      std::vector<buffer> samples;
       dspSourceObject(Int buffers = 1);
 
       // intent is what we should do (playing, start playing, start stopping etc...

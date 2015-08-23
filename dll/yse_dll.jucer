@@ -288,8 +288,26 @@
       <FILE id="jix5hC" name="system.hpp" compile="0" resource="0" file="../yse/system.hpp"/>
       <FILE id="B9AoWu" name="yse.hpp" compile="0" resource="0" file="../yse/yse.hpp"/>
     </GROUP>
+    <FILE id="nwjt3a" name="speaker.png" compile="0" resource="1" file="../bin/speaker.png"/>
   </MAINGROUP>
   <EXPORTFORMATS>
+    <VS2015 targetFolder="Builds/VisualStudio2015" extraDefs="JUCE_CHECK_MEMORY_LEAKS=0&#10;YSE_DLL_BUILD=1">
+      <CONFIGURATIONS>
+        <CONFIGURATION name="Debug" winWarningLevel="4" generateManifest="1" winArchitecture="32-bit"
+                       isDebug="1" optimisation="1" targetName="yse_debug_dll" binaryPath="../bin"
+                       headerPath="../yse"/>
+        <CONFIGURATION name="Release" winWarningLevel="2" generateManifest="1" winArchitecture="32-bit"
+                       isDebug="0" optimisation="3" targetName="libyse32" binaryPath="../bin"
+                       headerPath="../yse"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_events" path="../../juce/modules"/>
+        <MODULEPATH id="juce_core" path="../../juce/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="../../juce/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="../../juce/modules"/>
+        <MODULEPATH id="juce_audio_basics" path="../../juce/modules"/>
+      </MODULEPATHS>
+    </VS2015>
     <VS2013 targetFolder="Builds/VisualStudio2013" extraDefs="JUCE_CHECK_MEMORY_LEAKS=0&#10;YSE_DLL_BUILD=1">
       <CONFIGURATIONS>
         <CONFIGURATION name="Debug" winWarningLevel="4" generateManifest="1" winArchitecture="32-bit"
@@ -311,16 +329,16 @@
       </MODULEPATHS>
     </VS2013>
     <ANDROID targetFolder="Builds/Android" androidActivityClass="com.mute.yse_dll"
-             androidSDKPath="${user.home}/android/sdk" androidNDKPath="${user.home}/android/ndk"
+             androidSDKPath="D:/Android/sdk" androidNDKPath="D:/Android/ndk"
              androidMinimumSDK="9" androidInternetNeeded="1" androidKeyStore="${user.home}/.android/debug.keystore"
              androidKeyStorePass="android" androidKeyAlias="androiddebugkey"
-             androidKeyAliasPass="android" androidCpp11="1" smallIcon="AEWIIg"
-             bigIcon="AEWIIg" androidVersionCode="1">
+             androidKeyAliasPass="android" androidCpp11="1" smallIcon="nwjt3a"
+             bigIcon="nwjt3a" androidVersionCode="1" extraDefs="JUCE_CHECK_MEMORY_LEAKS=0&#10;">
       <CONFIGURATIONS>
-        <CONFIGURATION name="Debug" androidArchitectures="armeabi armeabi-v7a" isDebug="1"
+        <CONFIGURATION name="Debug" androidArchitectures="armeabi armeabi-v7a x86" isDebug="1"
                        optimisation="1" targetName="yse"/>
-        <CONFIGURATION name="Release" androidArchitectures="armeabi armeabi-v7a" isDebug="0"
-                       optimisation="3" targetName="yse"/>
+        <CONFIGURATION name="Release" androidArchitectures="armeabi armeabi-v7a x86"
+                       isDebug="0" optimisation="3" targetName="yse"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
         <MODULEPATH id="juce_events" path="../JUCE/modules"/>

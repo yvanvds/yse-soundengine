@@ -33,7 +33,7 @@ namespace YSE {
       Flt previous;
       aFlt coef1, coef2;
       aFlt ff1, ff2, ff3, fb1, fb2;
-      buffer buffer;
+      buffer samples;
     };
 
     /*******************************************************************************************/
@@ -101,7 +101,7 @@ namespace YSE {
 
     private:
       aFlt lastIn, lastOut;
-      YSE::DSP::buffer buffer;
+      YSE::DSP::buffer samples;
     };
 
     // looking for vcf? It is in oscillators because it shares a lot of that code
