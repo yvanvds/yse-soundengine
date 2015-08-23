@@ -231,4 +231,5 @@ esenthelDemo/_Build_/*
 yse_binary_release_mac/
 yse_binary_release_windows/
 yse_binary_release_android/
+yse_binary_release_iOS/
 *.zip

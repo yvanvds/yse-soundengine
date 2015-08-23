@@ -6,7 +6,6 @@
 	objectVersion = 46;
 	objects = {
 
-		04D4350F4CD0510DCD75F3F4 = {isa = PBXBuildFile; fileRef = 9A22786239AAD9469DAA9DF0; };
 		F6B3D834D934894EB921836A = {isa = PBXBuildFile; fileRef = 3F5EC00CD09B74CAC66CBFAA; };
 		3524BE7261A07B366CF2562C = {isa = PBXBuildFile; fileRef = 21A9F909B04609AEC2A96948; };
 		8DD165A24B8E1957326F11EA = {isa = PBXBuildFile; fileRef = B7733AC82981A0C19DBAC1BD; };
@@ -417,7 +416,6 @@
 		98E99C7D9E4418363A853D94 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "juce_ActionListener.h"; path = "../../JuceLibraryCode/modules/juce_events/broadcasters/juce_ActionListener.h"; sourceTree = "SOURCE_ROOT"; };
 		995014601463E6F0242FF985 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "juce_MessageListener.h"; path = "../../JuceLibraryCode/modules/juce_events/messages/juce_MessageListener.h"; sourceTree = "SOURCE_ROOT"; };
 		998091656EA0C199E0947D7F = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = synthInterface.cpp; path = ../../../yse/synth/synthInterface.cpp; sourceTree = "SOURCE_ROOT"; };
-		9A22786239AAD9469DAA9DF0 = {isa = PBXFileReference; lastKnownFileType = file.nib; name = RecentFilesMenuTemplate.nib; path = RecentFilesMenuTemplate.nib; sourceTree = "SOURCE_ROOT"; };
 		9A7F1D41AE1CCF8FC0095A9E = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "juce_NotificationType.h"; path = "../../JuceLibraryCode/modules/juce_events/messages/juce_NotificationType.h"; sourceTree = "SOURCE_ROOT"; };
 		9A8699EBFF3433287B61B3E2 = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = motifManager.cpp; path = ../../../yse/music/motif/motifManager.cpp; sourceTree = "SOURCE_ROOT"; };
 		9C7DA9450E5DC4130611E802 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "juce_StringArray.h"; path = "../../JuceLibraryCode/modules/juce_core/text/juce_StringArray.h"; sourceTree = "SOURCE_ROOT"; };
@@ -1296,8 +1294,7 @@
 					8AC7222DDE09428F417C5765,
 					CE909D33DAF2FC0A7526F7E3,
 					CE30F336EB4B4254B1A55D52, ); name = "Juce Library Code"; sourceTree = "<group>"; };
-		7856016F5EB93D814B209328 = {isa = PBXGroup; children = (
-					9A22786239AAD9469DAA9DF0, ); name = Resources; sourceTree = "<group>"; };
+		7856016F5EB93D814B209328 = {isa = PBXGroup; children = (  ); name = Resources; sourceTree = "<group>"; };
 		A4A75CDE5464DF5499FA1903 = {isa = PBXGroup; children = (  ); name = Frameworks; sourceTree = "<group>"; };
 		942375B19B674F6DFF8A5F8B = {isa = PBXGroup; children = (
 					1D7669685FD378C601F3BE5E, ); name = Products; sourceTree = "<group>"; };
@@ -1309,7 +1306,10 @@
 					A4A75CDE5464DF5499FA1903,
 					942375B19B674F6DFF8A5F8B, ); name = Source; sourceTree = "<group>"; };
 		8BDADE56B0F17EBAD4AA0E03 = {isa = XCBuildConfiguration; buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
 				CLANG_CXX_LANGUAGE_STANDARD = "c++0x";
+				CLANG_CXX_LANGUAGE_STANDARD = "c++11";
 				CLANG_LINK_OBJC_RUNTIME = NO;
 				COMBINE_HIDPI_IMAGES = YES;
 				CONFIGURATION_BUILD_DIR = "$(PROJECT_DIR)/build/$(CONFIGURATION)";
@@ -1320,16 +1320,17 @@
 					"_DEBUG=1",
 					"DEBUG=1",
 					"JUCE_CHECK_MEMORY_LEAKS=0",
-					"JUCER_XCODE_MAC_F6D2F4CF=1",
+					"JUCER_XCODE_IPHONE_5BC26AE3=1",
 					"JUCE_APP_VERSION=1.0.0",
 					"JUCE_APP_VERSION_HEX=0x10000", );
 				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
 				HEADER_SEARCH_PATHS = ("../../JuceLibraryCode", "../../JuceLibraryCode/modules", "$(inherited)");
-				INFOPLIST_FILE = Info.plist;
-				MACOSX_DEPLOYMENT_TARGET_ppc = 10.4;
-				SDKROOT_ppc = macosx10.5; }; name = Debug; };
+				INFOPLIST_FILE = Info.plist; }; name = Debug; };
 		B5133350B0B7195C3E8CDED4 = {isa = XCBuildConfiguration; buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
 				CLANG_CXX_LANGUAGE_STANDARD = "c++0x";
+				CLANG_CXX_LANGUAGE_STANDARD = "c++11";
 				CLANG_LINK_OBJC_RUNTIME = NO;
 				COMBINE_HIDPI_IMAGES = YES;
 				CONFIGURATION_BUILD_DIR = "$(PROJECT_DIR)/build/$(CONFIGURATION)";
@@ -1340,16 +1341,15 @@
 					"_NDEBUG=1",
 					"NDEBUG=1",
 					"JUCE_CHECK_MEMORY_LEAKS=0",
-					"JUCER_XCODE_MAC_F6D2F4CF=1",
+					"JUCER_XCODE_IPHONE_5BC26AE3=1",
 					"JUCE_APP_VERSION=1.0.0",
 					"JUCE_APP_VERSION_HEX=0x10000", );
 				GCC_SYMBOLS_PRIVATE_EXTERN = YES;
 				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
 				HEADER_SEARCH_PATHS = ("../../JuceLibraryCode", "../../JuceLibraryCode/modules", "$(inherited)");
-				INFOPLIST_FILE = Info.plist;
-				MACOSX_DEPLOYMENT_TARGET_ppc = 10.4;
-				SDKROOT_ppc = macosx10.5; }; name = Release; };
+				INFOPLIST_FILE = Info.plist; }; name = Release; };
 		3E14184A9DAF17FE2D730DA0 = {isa = XCBuildConfiguration; buildSettings = {
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf";
 				GCC_C_LANGUAGE_STANDARD = c99;
@@ -1364,9 +1364,12 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "yse_debug";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
 				WARNING_CFLAGS = -Wreorder;
 				ZERO_LINK = NO; }; name = Debug; };
 		8A55CE00DA38A7B4E32A157A = {isa = XCBuildConfiguration; buildSettings = {
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf";
 				GCC_C_LANGUAGE_STANDARD = c99;
@@ -1380,6 +1383,8 @@
 				GCC_WARN_TYPECHECK_CALLS_TO_PRINTF = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				PRODUCT_NAME = "yse";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
 				WARNING_CFLAGS = -Wreorder;
 				ZERO_LINK = NO; }; name = Release; };
 		F8C1A757C7EDCB9A5D640CA9 = {isa = XCConfigurationList; buildConfigurations = (
