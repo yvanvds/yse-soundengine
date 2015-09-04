@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "129212AEDDA96F65F7B08600"
-               BuildableName = "libyse_static_library.a"
+               BuildableName = "libyse_debug.a"
                BlueprintName = "yse_static_library"
                ReferencedContainer = "container:yse_static_library.xcodeproj">
             </BuildableReference>
@@ -43,7 +43,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "129212AEDDA96F65F7B08600"
-            BuildableName = "libyse_static_library.a"
+            BuildableName = "libyse_debug.a"
             BlueprintName = "yse_static_library"
             ReferencedContainer = "container:yse_static_library.xcodeproj">
          </BuildableReference>
@@ -61,7 +61,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "129212AEDDA96F65F7B08600"
-            BuildableName = "libyse_static_library.a"
+            BuildableName = "libyse_debug.a"
             BlueprintName = "yse_static_library"
             ReferencedContainer = "container:yse_static_library.xcodeproj">
          </BuildableReference>

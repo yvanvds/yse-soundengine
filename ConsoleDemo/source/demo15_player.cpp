@@ -129,6 +129,7 @@ int main() {
   player.setScale(scaleTwo);
 
   // the interface
+  std::cout << "This demo demonstrates the player class, which can be used to play a synth. Not by supplying notes, but with changing parameters." << std::endl;
   std::cout << "1  : start player" << std::endl;
   std::cout << "2  : stop player" << std::endl;
   std::cout << "3-4: decrease/increase velocity over 5 seconds" << std::endl;

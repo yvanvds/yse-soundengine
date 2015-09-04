@@ -1,0 +1,29 @@
+#!/bin/bash
+
+read -n 1 -p "Install libraries in /usr/local/lib? (y/n) " answer
+case ${answer:0:1} in
+  y|Y )
+    cp ../lib/libyse.dylib /usr/local/lib
+    cp ../lib/libyse.a /usr/local/lib
+  ;;
+esac
+
+
+cd source
+
+for entry in `ls *.cpp`; do
+  OUT=${entry%.*}
+  clang++ $entry -I../../include -D NDEBUG -std=c++11 -stdlib=libc++ /usr/local/lib/libyse.dylib -o  ../compiled/$OUT
+  echo -e "\nDemo ${OUT} compiled" 
+  read -n 1 -p "Run this demo? (y/n) " answer
+  echo -e '\n'
+  case ${answer:0:1} in
+    y|Y )
+      cd ../compiled
+      clear
+      ./$OUT
+      echo -e '\n' 
+      cd ../source
+    ;;
+  esac
+done  

@@ -25,6 +25,7 @@ int main() {
 
   sound.create("contact.ogg", NULL, true).setOcclusion(true);
 
+  std::cout << "This is a basic implementation of the sound occlusion callback." << std::endl;
   std::cout << "Use q/a to increase / decrease sound occlusion." << std::endl;
   std::cout << "...or e to exit." << std::endl;
 

@@ -30,7 +30,8 @@ int main() {
   // the sound will play this buffer (looping)
   sound.create(wavetable, nullptr, true).play();
 
-  std::cout << "...or e to exit." << std::endl;
+  std::cout << "In this demo a small wavetable is created and played as a loop." << std::endl;
+  std::cout << "(Press e to exit.)" << std::endl;
 
   while (true) {
     if (_kbhit()) {

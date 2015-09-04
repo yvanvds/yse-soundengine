@@ -13,30 +13,31 @@
 
 
 #if (defined (_WIN32) || defined (_WIN64))
-#define       YSE_WIN32 1
-#define       YSE_WINDOWS 1
+  #define       YSE_WIN32 1
+  #define       YSE_WINDOWS 1
 #elif defined (__ANDROID__)
-#undef        YSE_ANDROID
-#define       YSE_ANDROID 1
+  #undef        YSE_ANDROID
+  #define       YSE_ANDROID 1
 #elif defined (LINUX) || defined (__linux__)
-#define     YSE_LINUX 1
+  #define     YSE_LINUX 1
 #elif defined (__APPLE_CPP__) || defined(__APPLE_CC__)
-#define Point CarbonDummyPointName // (workaround to avoid definition of "Point" by old Carbon headers)
-#define Component CarbonDummyCompName
-#include <CoreFoundation/CoreFoundation.h> // (needed to find out what platform we're using)
-#undef Point
-#undef Component
+  #define Point CarbonDummyPointName // (workaround to avoid definition of "Point" by old Carbon headers)
+  #define Component CarbonDummyCompName
+  #include <CoreFoundation/CoreFoundation.h> // (needed to find out what platform we're using)
+  #undef Point
+  #undef Component
 
-#if TARGET_OS_IPHONE || TARGET_IPHONE_SIMULATOR
-#define     YSE_IPHONE 1
-#define     YSE_IOS 1
-#else
-#define     YSE_MAC 1
-#endif
+  #if TARGET_OS_IPHONE || TARGET_IPHONE_SIMULATOR
+    #define     YSE_IPHONE 1
+    #define     YSE_IOS 1
+  #else
+    #define     YSE_MAC 1
+  #endif
+
 #elif defined (__FreeBSD__)
-#define       YSE_BSD 1
+  #define       YSE_BSD 1
 #else
-#error "Unknown platform!"
+  #error "Unknown platform!"
 #endif
 
 //==============================================================================
@@ -171,15 +172,27 @@
 //==============================================================================
 // DLL building settings on Windows
 #if YSE_MSVC
-#ifdef YSE_DLL_BUILD
-#define API __declspec (dllexport)
-#define EXTERN
-#pragma warning (disable: 4251)
-#elif defined (YSE_DLL)
-#define API __declspec (dllimport)
-#define EXTERN extern
-#pragma warning (disable: 4251)
+  #ifdef YSE_DLL_BUILD
+    #define API __declspec (dllexport)
+    #define EXTERN
+    #pragma warning (disable: 4251)
+  #elif defined (YSE_DLL)
+    #define API __declspec (dllimport)
+    #define EXTERN extern
+    #pragma warning (disable: 4251)
+  #endif
 #endif
+
+//==============================================================================
+// DLL building on mac
+#if YSE_MAC
+  #ifdef YSE_DLL_BUILD
+    #define API __attribute__((visibility("default")))
+    #define EXTERN
+  #elif defined(YSE_DLL)
+    #define API
+    #define EXTERN extern
+  #endif
 #endif
 
 //==============================================================================

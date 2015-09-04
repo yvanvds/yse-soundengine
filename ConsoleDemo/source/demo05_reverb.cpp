@@ -55,6 +55,7 @@ int main() {
   custom.setReflection(0, 1000, 0.5).setReflection(1, 1500, 0.6);
   custom.setReflection(2, 2100, 0.8).setReflection(3, 2999, 0.9);
 
+  std::cout << "This example as one global reverb. On top of that, there are several localized reverbs which will alter the listener's experience when moving around." << std::endl;
   std::cout << "Use q/a to move sound and listener forward / back." << std::endl;
   std::cout << "Use w/s to toggle global reverb on / off." << std::endl;
   std::cout << "...or e to exit." << std::endl;

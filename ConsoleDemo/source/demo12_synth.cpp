@@ -114,6 +114,9 @@ int main() {
     synth.addVoices(&voice, 16, 2); // 16 voices on channel 2
   }
 
+  std::cout << "This demo sets up a virtual synth and plays some random notes on it." << std::endl;
+  std::cout << "Press e to exit." << std::endl;
+
   int counter = 0;
   while (true) {
     if (counter > 5) {

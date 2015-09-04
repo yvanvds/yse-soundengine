@@ -104,6 +104,8 @@ int main() {
   shepard s;
   YSE::sound sound;
   sound.create(s).play();
+
+  std::cout << "A DSP source object is used here instead of a sample." << std::endl;
   std::cout << "Press 1/2 to adjust the lowpass filter frequency" << std::endl;
   std::cout << "or e to exit." << std::endl;
   while (true) {
