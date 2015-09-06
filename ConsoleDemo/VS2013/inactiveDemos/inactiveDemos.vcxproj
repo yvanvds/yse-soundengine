@@ -64,6 +64,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\source\demo00_play.cpp" />
     <ClCompile Include="..\..\source\demo01_sound_properties.cpp" />
     <ClCompile Include="..\..\source\demo02_3D.cpp" />
     <ClCompile Include="..\..\source\demo03_virtual_sounds.cpp" />

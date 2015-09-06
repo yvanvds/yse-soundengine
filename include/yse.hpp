@@ -42,6 +42,7 @@
 #include "dsp/modules/filters/lowpass.hpp"
 #include "dsp/modules/filters/bandpass.hpp"
 #include "dsp/modules/fm/difference.hpp"
+#include "dsp/modules/filters/sweep.hpp"
 
 // utilities
 #include "utils/misc.hpp"
