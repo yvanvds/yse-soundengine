@@ -11,7 +11,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\source\demo21_granulator.cpp" />
+    <ClCompile Include="..\..\source\demo20_sweep_filter.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{9C404ED0-4874-45CF-B05F-2E28095FA3E1}</ProjectGuid>

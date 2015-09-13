@@ -9,7 +9,9 @@
 
 YSE::sound contact, drone, note;
 YSE::sound * currentSound = NULL;
-YSE::DSP::MODULES::sweepFilter contactSweep, droneSweep, noteSweep;
+YSE::DSP::MODULES::sweepFilter contactSweep(YSE::DSP::MODULES::sweepFilter::TRIANGLE);
+YSE::DSP::MODULES::sweepFilter droneSweep(YSE::DSP::MODULES::sweepFilter::SAW);
+YSE::DSP::MODULES::sweepFilter noteSweep(YSE::DSP::MODULES::sweepFilter::TRIANGLE);
 YSE::DSP::MODULES::sweepFilter * filter;
 
 int main() {

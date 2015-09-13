@@ -34,7 +34,7 @@ namespace YSE {
       bool save(const char * fileName);
 
       fileBuffer & operator=(const buffer & s) { buffer::operator=(s); return *this; }
-
+      fileBuffer & operator=(Flt value) { buffer::operator=(value); return *this; }
     };
 
   }

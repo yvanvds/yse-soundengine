@@ -26,7 +26,6 @@ namespace YSE {
       void createTriangle(Int harmonics, Int length);
 
       void createFourierTable(const std::vector<Flt> & harmonics, Int length, Flt phase);
-
     };
 
   }

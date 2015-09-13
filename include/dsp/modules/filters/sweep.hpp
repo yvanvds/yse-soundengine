@@ -24,7 +24,14 @@ namespace YSE {
 
       class API sweepFilter : public dspObject {
       public:
-        sweepFilter();
+
+        enum SHAPE {
+          TRIANGLE,
+          SAW,
+          SQUARE,
+        };
+
+        sweepFilter(SHAPE shape);
         virtual ~sweepFilter() {};
 
         sweepFilter & speed(Flt value);
@@ -44,7 +51,9 @@ namespace YSE {
         aInt parmDepth;
         aInt parmFrequency;
 
-        std::shared_ptr<saw> osc;
+        SHAPE shape;
+        std::shared_ptr<wavetable> table;
+        std::shared_ptr<oscillator> osc;
         std::shared_ptr<vcf> filter;
         std::shared_ptr<DSP::buffer> buffer;
         std::shared_ptr<interpolate4> interpolator;

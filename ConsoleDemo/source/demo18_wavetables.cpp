@@ -25,7 +25,7 @@ int main() {
   YSE::System().init();
 
   // create a Triangle wavetable with 8 harmonics, 1024 samples long
-  wavetable.createTriangle(8, 1024);
+  wavetable.createTriangle(2, 1024);
 
   // the sound will play this buffer (looping)
   sound.create(wavetable, nullptr, true).play();

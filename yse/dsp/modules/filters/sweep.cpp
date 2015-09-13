@@ -20,7 +20,9 @@ namespace YSE {
   }
 }
 
-YSE::DSP::MODULES::sweepFilter::sweepFilter() : parmSpeed(0), parmDepth(0), parmFrequency(0) {}
+YSE::DSP::MODULES::sweepFilter::sweepFilter(SHAPE shape) : parmSpeed(0), parmDepth(0), parmFrequency(0), shape(shape) {
+
+}
 
 YSE::DSP::MODULES::sweepFilter & YSE::DSP::MODULES::sweepFilter::frequency(Int value) {
   Clamp(value, 0, 100);
@@ -52,7 +54,16 @@ Flt YSE::DSP::MODULES::sweepFilter::speed() {
 }
 
 void YSE::DSP::MODULES::sweepFilter::create() {
-  osc.reset(new saw);
+  table.reset(new wavetable);
+  
+  switch (shape) {
+    case TRIANGLE: table->createTriangle(8, SAMPLERATE); break;
+    case SAW: table->createSaw(8, SAMPLERATE); break;
+    case SQUARE: table->createSquare(8, SAMPLERATE); break;
+  }
+
+  osc.reset(new oscillator);
+  osc->initialize(*table);
   filter.reset(new vcf);
   filter->sharpness(2);
   buffer.reset(new DSP::buffer);
