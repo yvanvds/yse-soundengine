@@ -15,7 +15,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\inactiveDemos\demo20_sweep_filter.cpp">
+    <ClCompile Include="..\..\source\demo21_granulator.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

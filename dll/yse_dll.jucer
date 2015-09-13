@@ -124,6 +124,8 @@
         </GROUP>
         <FILE id="uY6ZIx" name="fileBuffer.cpp" compile="1" resource="0" file="../yse/dsp/fileBuffer.cpp"/>
         <FILE id="fwB3Xn" name="fileBuffer.hpp" compile="0" resource="0" file="../yse/dsp/fileBuffer.hpp"/>
+        <FILE id="OrfylA" name="granulator.cpp" compile="1" resource="0" file="../yse/dsp/modules/granulator.cpp"/>
+        <FILE id="gytN6e" name="granulator.hpp" compile="0" resource="0" file="../yse/dsp/modules/granulator.hpp"/>
         <FILE id="CiTvMc" name="ADSRenvelope.cpp" compile="1" resource="0"
               file="../yse/dsp/ADSRenvelope.cpp"/>
         <FILE id="OMkwns" name="ADSRenvelope.hpp" compile="0" resource="0"

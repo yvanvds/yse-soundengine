@@ -37,6 +37,7 @@
 #include "dsp/modules/hilbert.hpp"
 #include "dsp/modules/ringModulator.hpp"
 #include "dsp/modules/sineWave.hpp"
+#include "dsp/modules/granulator.hpp"
 
 #include "dsp/modules/filters/highpass.hpp"
 #include "dsp/modules/filters/lowpass.hpp"
