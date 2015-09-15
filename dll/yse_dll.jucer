@@ -88,10 +88,6 @@
         <FILE id="CCEImz" name="deviceSetup.hpp" compile="0" resource="0" file="../yse/device/deviceSetup.hpp"/>
       </GROUP>
       <GROUP id="{87572250-4545-73C4-BCE6-8BBAAD395AA6}" name="dsp">
-        <FILE id="NKOIlM" name="interpolate4.cpp" compile="1" resource="0"
-              file="../yse/dsp/interpolate4.cpp"/>
-        <FILE id="OqH66i" name="interpolate4.hpp" compile="0" resource="0"
-              file="../yse/dsp/interpolate4.hpp"/>
         <GROUP id="{3C6F8AE2-E9CD-4785-1752-CAB151BEFE3E}" name="modules">
           <GROUP id="{B3C0A4A9-9AEF-1D4B-F478-C8F44C53D698}" name="fm">
             <FILE id="y152Dn" name="difference.cpp" compile="1" resource="0" file="../yse/dsp/modules/fm/difference.cpp"/>
@@ -124,6 +120,12 @@
         </GROUP>
         <FILE id="uY6ZIx" name="fileBuffer.cpp" compile="1" resource="0" file="../yse/dsp/fileBuffer.cpp"/>
         <FILE id="fwB3Xn" name="fileBuffer.hpp" compile="0" resource="0" file="../yse/dsp/fileBuffer.hpp"/>
+        <FILE id="NKOIlM" name="interpolate4.cpp" compile="1" resource="0"
+              file="../yse/dsp/interpolate4.cpp"/>
+        <FILE id="OqH66i" name="interpolate4.hpp" compile="0" resource="0"
+              file="../yse/dsp/interpolate4.hpp"/>
+        <FILE id="vNI90N" name="rawFilters.hpp" compile="0" resource="0" file="../yse/dsp/rawFilters.hpp"/>
+        <FILE id="qpQYYv" name="rawFilters.cpp" compile="1" resource="0" file="../yse/dsp/rawFilters.cpp"/>
         <FILE id="OrfylA" name="granulator.cpp" compile="1" resource="0" file="../yse/dsp/modules/granulator.cpp"/>
         <FILE id="gytN6e" name="granulator.hpp" compile="0" resource="0" file="../yse/dsp/modules/granulator.hpp"/>
         <FILE id="CiTvMc" name="ADSRenvelope.cpp" compile="1" resource="0"
