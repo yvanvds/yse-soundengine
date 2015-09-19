@@ -111,6 +111,8 @@
                 file="../yse/dsp/modules/ringModulator.hpp"/>
           <FILE id="pCFTdv" name="sineWave.cpp" compile="1" resource="0" file="../yse/dsp/modules/sineWave.cpp"/>
           <FILE id="Sh9E4O" name="sineWave.hpp" compile="0" resource="0" file="../yse/dsp/modules/sineWave.hpp"/>
+          <FILE id="oNCztR" name="phaser.hpp" compile="0" resource="0" file="../yse/dsp/modules/phaser.hpp"/>
+          <FILE id="KWhC0Q" name="phaser.cpp" compile="1" resource="0" file="../yse/dsp/modules/phaser.cpp"/>
         </GROUP>
         <GROUP id="{99593BF6-5681-C99C-B9BD-82369946419F}" name="fourier">
           <FILE id="Sbfrlw" name="fft.cpp" compile="1" resource="0" file="../yse/dsp/fourier/fft.cpp"/>
@@ -118,6 +120,8 @@
           <FILE id="hoUYSn" name="mayer.cpp" compile="1" resource="0" file="../yse/dsp/fourier/mayer.cpp"/>
           <FILE id="sZIUPS" name="mayer.h" compile="0" resource="0" file="../yse/dsp/fourier/mayer.h"/>
         </GROUP>
+        <FILE id="UCE6ln" name="lfo.hpp" compile="0" resource="0" file="../yse/dsp/lfo.hpp"/>
+        <FILE id="QojUi5" name="lfo.cpp" compile="1" resource="0" file="../yse/dsp/lfo.cpp"/>
         <FILE id="uY6ZIx" name="fileBuffer.cpp" compile="1" resource="0" file="../yse/dsp/fileBuffer.cpp"/>
         <FILE id="fwB3Xn" name="fileBuffer.hpp" compile="0" resource="0" file="../yse/dsp/fileBuffer.hpp"/>
         <FILE id="NKOIlM" name="interpolate4.cpp" compile="1" resource="0"

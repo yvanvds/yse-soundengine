@@ -84,7 +84,9 @@
     <ClCompile Include="..\..\source\demo17_audioEnvelope.cpp" />
     <ClCompile Include="..\..\source\demo18_wavetables.cpp" />
     <ClCompile Include="..\..\source\demo19_ADSR.cpp" />
+    <ClCompile Include="..\..\source\demo20_sweep_filter.cpp" />
     <ClCompile Include="..\..\source\demo21_granulator.cpp" />
+    <ClCompile Include="..\..\source\demo22_phaser.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

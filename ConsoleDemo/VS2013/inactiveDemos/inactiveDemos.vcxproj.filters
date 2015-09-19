@@ -22,5 +22,7 @@
     <ClCompile Include="..\..\source\demo00_play.cpp" />
     <ClCompile Include="..\..\source\demo21_granulator.cpp" />
     <ClCompile Include="..\..\source\demo18_wavetables.cpp" />
+    <ClCompile Include="..\..\source\demo20_sweep_filter.cpp" />
+    <ClCompile Include="..\..\source\demo22_phaser.cpp" />
   </ItemGroup>
 </Project>

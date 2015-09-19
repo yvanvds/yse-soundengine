@@ -340,3 +340,37 @@ YSE::DSP::buffer & YSE::DSP::abs::operator()(YSE::DSP::buffer & in) {
 
   return buffer;
 }
+
+YSE::DSP::buffer & YSE::DSP::inverter::operator()(YSE::DSP::buffer & in, bool zeroToOne) {
+  if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
+  UInt l = buffer.getLength();
+  Flt * inPtr = in.getPtr();
+  Flt * outPtr = buffer.getPtr();
+
+  if (zeroToOne) {
+    for (; l > 7; l -= 8, inPtr += 8, outPtr += 8) {
+      outPtr[0] = 1 - inPtr[0]; outPtr[1] = 1 - inPtr[1];
+      outPtr[2] = 1 - inPtr[2]; outPtr[3] = 1 - inPtr[3];
+      outPtr[4] = 1 - inPtr[4]; outPtr[5] = 1 - inPtr[5];
+      outPtr[6] = 1 - inPtr[6]; outPtr[7] = 1 - inPtr[7];
+    }
+
+    while (l--) {
+      *outPtr++ = 1 - *inPtr++;
+    }
+  }
+  else {
+    for (; l > 7; l -= 8, inPtr += 8, outPtr += 8) {
+      outPtr[0] = -inPtr[0]; outPtr[1] = -inPtr[1];
+      outPtr[2] = -inPtr[2]; outPtr[3] = -inPtr[3];
+      outPtr[4] = -inPtr[4]; outPtr[5] = -inPtr[5];
+      outPtr[6] = -inPtr[6]; outPtr[7] = -inPtr[7];
+    }
+
+    while (l--) {
+      *outPtr++ = -(*inPtr++);
+    }
+  }
+
+  return buffer;
+}

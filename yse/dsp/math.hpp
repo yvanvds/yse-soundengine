@@ -146,6 +146,15 @@ namespace YSE {
     private:
       YSE::DSP::buffer buffer;
     };
+
+    class API inverter {
+    public:
+      // if zeroToOne is true, values are inverted as 1 - value
+      // else values are inverted as value = -value
+      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in, bool zeroToOne = false);
+    private:
+      YSE::DSP::buffer buffer;
+    };
   }
 }
 

@@ -35,6 +35,7 @@ namespace YSE {
 
       private:
         aFlt parmFrequency;
+        std::shared_ptr<DSP::buffer> result;
         std::shared_ptr<lowPass> lp;
       };
 
