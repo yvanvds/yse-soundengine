@@ -24,13 +24,18 @@ Flt YSE::DSP::MODULES::highPassFilter::frequency() {
 
 void YSE::DSP::MODULES::highPassFilter::create() {
   hp.reset(new highPass);
+  result.reset(new buffer);
 }
 
 void YSE::DSP::MODULES::highPassFilter::process(MULTICHANNELBUFFER & buffer) {
   createIfNeeded();
-  (*hp).setFrequency(parmFrequency);
 
-  for (UInt i = 0; i < buffer.size(); i++) {
-    buffer[i] = (*hp)(buffer[i]);
+  if (buffer[0].getLength() != result->getLength()) {
+    result->resize(buffer[0].getLength());
   }
+
+  (*hp).setFrequency(parmFrequency);
+  (*result) = (*hp)(buffer[0]);
+  
+  calculateImpact(buffer[0], (*result));
 }

@@ -40,6 +40,7 @@ namespace YSE {
       private:
         aFlt parmFrequency;
         aFlt parmQ;
+        std::shared_ptr<DSP::buffer> result;
         std::shared_ptr<bandPass> bp;
       };
 

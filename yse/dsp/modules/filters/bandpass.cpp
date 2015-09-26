@@ -32,13 +32,18 @@ Flt YSE::DSP::MODULES::bandPassFilter::getQ() {
 
 void YSE::DSP::MODULES::bandPassFilter::create() {
   bp.reset(new bandPass);
+  result.reset(new buffer);
 }
 
 void YSE::DSP::MODULES::bandPassFilter::process(MULTICHANNELBUFFER & buffer) {
   createIfNeeded();
-  (*bp).set(parmFrequency, parmQ);
 
-  for (UInt i = 0; i < buffer.size(); i++) {
-    buffer[i] = (*bp)(buffer[i]);
+  if (buffer[0].getLength() != result->getLength()) {
+    result->resize(buffer[0].getLength());
   }
+
+  (*bp).set(parmFrequency, parmQ);
+  (*result) = (*bp)(buffer[0]);
+
+  calculateImpact(buffer[0], (*result));
 }

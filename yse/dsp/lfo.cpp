@@ -18,6 +18,7 @@ YSE::DSP::fileBuffer LfoTriangleTable(0);
 YSE::DSP::fileBuffer LfoSineTable(0);
 
 YSE::DSP::lfo::lfo() : cursor(0.f), previousType(LFO_NONE) {
+  result = 1;
   if (LfoSawTable.getLength() == 0) {
     // This is the first lfo object in use.
     // Initialize all lookup tables now.
@@ -46,13 +47,8 @@ YSE::DSP::buffer & YSE::DSP::lfo::operator()(LFO_TYPE type, Flt frequency) {
   
   switch (type) {
     case LFO_NONE: {
-      if (previousType == type) {
-        // result buffer is already at 1
-      }
-      else {
-        result = 1;
-        previousType = type;
-      }
+      result = 1;
+      previousType = type;
       break;
     }
 

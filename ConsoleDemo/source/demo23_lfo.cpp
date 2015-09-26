@@ -10,6 +10,7 @@
 YSE::sound sound;
 YSE::DSP::MODULES::lowPassFilter lp;
 Flt frequency = 2;
+Flt impact = 0;
 
 int main() {
   YSE::System().init();
@@ -24,11 +25,15 @@ int main() {
   }
 
   lp.frequency(YSE::DSP::MidiToFreq(30));
+  lp.impact(impact);
+  lp.lfoFrequency(0);
+  lp.lfoType(YSE::DSP::LFO_NONE);
   sound.setDSP(&lp);
   sound.play();
 
   std::cout << "This example provides a chord with a lowpass filter." << std::endl;
   std::cout << "press f/v to in/decrease lfo frequency" << std::endl;
+  std::cout << "press d/c to in/decrease lowpass impact" << std::endl;
   std::cout << "press 1 for no lfo" << std::endl;
   std::cout << "press 2 for sawtooth lfo shape" << std::endl;
   std::cout << "press 3 for reversed sawtooth lfo shape" << std::endl;
@@ -58,6 +63,21 @@ int main() {
                   break;
       }
 
+      case 'd': {
+                  if (impact < 1) {
+                    impact += 0.1;
+                    lp.impact(impact);
+                  }
+                  break;
+      }
+      case 'c': {
+                  if (impact > 0) {
+                    impact -= 0.1;
+                    lp.impact(impact);
+                  }
+                  break;
+      }
+
       case '1': lp.lfoType(YSE::DSP::LFO_NONE); break;
       case '2': lp.lfoType(YSE::DSP::LFO_SAW); break;
       case '3': lp.lfoType(YSE::DSP::LFO_SAW_REVERSED); break;
@@ -74,7 +94,7 @@ int main() {
     YSE::System().update();
 
 #ifdef YSE_WINDOWS
-     _cprintf_s("Frequency: %.2f \r", lp.frequency());
+     _cprintf_s("Frequency: %.2f Impact: %.2f \r", lp.lfoFrequency(), lp.impact());
     
 
 #endif
