@@ -66,7 +66,7 @@ void YSE::DSP::MODULES::sweepFilter::create() {
   osc->initialize(*table);
   filter.reset(new vcf);
   filter->sharpness(2);
-  buffer.reset(new DSP::buffer);
+  result.reset(new DSP::buffer);
   interpolator.reset(new DSP::interpolate4);
 
   if (!mtofTable.getLength()) {
@@ -83,9 +83,15 @@ void YSE::DSP::MODULES::sweepFilter::create() {
 void YSE::DSP::MODULES::sweepFilter::process(MULTICHANNELBUFFER & buffer) {
   createIfNeeded();
 
-  (*this->buffer) = (*osc)(parmSpeed, buffer[0].getLength());
-  (*this->buffer) *= parmDepth;
-  (*this->buffer) += parmFrequency;
-  DSP::buffer & interpolated = (*interpolator)(*this->buffer);
-  buffer[0] = (*filter)(buffer[0], interpolated, (*this->buffer));
+  if (buffer[0].getLength() != result->getLength()) {
+    result->resize(buffer[0].getLength());
+  }
+
+  (*result) = (*osc)(parmSpeed, buffer[0].getLength());
+  (*result) *= parmDepth;
+  (*result) += parmFrequency;
+  DSP::buffer & interpolated = (*interpolator)(*result);
+  (*result) = (*filter)(buffer[0], interpolated, (*result));
+
+  calculateImpact(buffer[0], (*result));
 }

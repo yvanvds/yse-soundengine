@@ -32,7 +32,7 @@ namespace YSE {
         phaser & frequency(Flt value);
         Flt      frequency();
 
-        // range coëfficient, cannot be larger as 0.5, default is 0.1
+        // range coicient, cannot be larger as 0.5, default is 0.1
         phaser & range(Flt value);
         Flt      range();
 

@@ -55,7 +55,7 @@ namespace YSE {
         std::shared_ptr<wavetable> table;
         std::shared_ptr<oscillator> osc;
         std::shared_ptr<vcf> filter;
-        std::shared_ptr<DSP::buffer> buffer;
+        std::shared_ptr<DSP::buffer> result;
         std::shared_ptr<interpolate4> interpolator;
       };
 

@@ -89,6 +89,18 @@
       </GROUP>
       <GROUP id="{87572250-4545-73C4-BCE6-8BBAAD395AA6}" name="dsp">
         <GROUP id="{3C6F8AE2-E9CD-4785-1752-CAB151BEFE3E}" name="modules">
+          <GROUP id="{BE1A639D-6DCA-D902-156E-CDA4DCA8CC54}" name="delay">
+            <FILE id="kTVU6C" name="basicDelay.cpp" compile="1" resource="0" file="../yse/dsp/modules/delay/basicDelay.cpp"/>
+            <FILE id="B2VsKy" name="basicDelay.hpp" compile="0" resource="0" file="../yse/dsp/modules/delay/basicDelay.hpp"/>
+            <FILE id="TLQwKy" name="highpassDelay.cpp" compile="1" resource="0"
+                  file="../yse/dsp/modules/delay/highpassDelay.cpp"/>
+            <FILE id="XNHMxr" name="highpassDelay.hpp" compile="0" resource="0"
+                  file="../yse/dsp/modules/delay/highpassDelay.hpp"/>
+            <FILE id="f5GRCL" name="lowpassDelay.cpp" compile="1" resource="0"
+                  file="../yse/dsp/modules/delay/lowpassDelay.cpp"/>
+            <FILE id="Z2ii56" name="lowpassDelay.hpp" compile="0" resource="0"
+                  file="../yse/dsp/modules/delay/lowpassDelay.hpp"/>
+          </GROUP>
           <GROUP id="{B3C0A4A9-9AEF-1D4B-F478-C8F44C53D698}" name="fm">
             <FILE id="y152Dn" name="difference.cpp" compile="1" resource="0" file="../yse/dsp/modules/fm/difference.cpp"/>
             <FILE id="cYxSOZ" name="difference.hpp" compile="0" resource="0" file="../yse/dsp/modules/fm/difference.hpp"/>
