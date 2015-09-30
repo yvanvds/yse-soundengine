@@ -53,6 +53,7 @@ namespace YSE {
         std::shared_ptr<realOneZeroReversed> rzero4;
         std::shared_ptr<realOnePole> rpole4;
 
+        std::shared_ptr<buffer> result;
       };
 
     }

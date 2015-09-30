@@ -24,6 +24,7 @@ void YSE::DSP::MODULES::phaser::create() {
   rpole2.reset(new realOnePole);
   rpole3.reset(new realOnePole);
   rpole4.reset(new realOnePole);
+  result.reset(new buffer);
 }
 
 YSE::DSP::MODULES::phaser & YSE::DSP::MODULES::phaser::frequency(Flt value) {
@@ -49,6 +50,11 @@ Flt YSE::DSP::MODULES::phaser::range() {
 void YSE::DSP::MODULES::phaser::process(MULTICHANNELBUFFER & buffer) {
   createIfNeeded();
 
+  if (buffer[0].getLength() != result->getLength()) {
+    result->resize(buffer[0].getLength());
+  }
+
+  (*result) = buffer[0];
 
   DSP::buffer & s = (*triangle)(YSE::DSP::LFO_TRIANGLE, parmFrequency);
 
@@ -57,13 +63,14 @@ void YSE::DSP::MODULES::phaser::process(MULTICHANNELBUFFER & buffer) {
 
   //buffer[0] *= 0.2;
   //return;
-  DSP::buffer & result1 = (*rzero1)(buffer[0], s);
+  DSP::buffer & result1 = (*rzero1)((*result), s);
   DSP::buffer & result2 = (*rpole1)(result1, s);
   DSP::buffer & result3 = (*rzero2)(result2, s);
   DSP::buffer & result4 = (*rpole2)(result3, s);
   DSP::buffer & result5 = (*rzero3)(result4, s);
   DSP::buffer & result6 = (*rpole3)(result5, s);
   DSP::buffer & result7 = (*rzero4)(result6, s);
-  buffer[0] += (*rpole4)(result7, s);
-  //buffer[0] = result1;
+  (*result) += (*rpole4)(result7, s);
+  
+  calculateImpact(buffer[0], (*result));
 }
