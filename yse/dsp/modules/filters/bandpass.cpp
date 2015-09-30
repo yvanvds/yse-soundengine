@@ -27,7 +27,7 @@ YSE::DSP::MODULES::bandPassFilter & YSE::DSP::MODULES::bandPassFilter::setQ(Flt 
 }
 
 Flt YSE::DSP::MODULES::bandPassFilter::getQ() {
-  return parmFrequency;
+  return parmQ;
 }
 
 void YSE::DSP::MODULES::bandPassFilter::create() {

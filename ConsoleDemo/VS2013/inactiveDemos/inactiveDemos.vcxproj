@@ -87,6 +87,7 @@
     <ClCompile Include="..\..\source\demo20_sweep_filter.cpp" />
     <ClCompile Include="..\..\source\demo21_granulator.cpp" />
     <ClCompile Include="..\..\source\demo22_phaser.cpp" />
+    <ClCompile Include="..\..\source\demo23_lfo.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

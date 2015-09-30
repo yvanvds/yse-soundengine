@@ -31,6 +31,7 @@ Flt YSE::DSP::MODULES::difference::amplitude() {
 }
 
 void YSE::DSP::MODULES::difference::create() {
+  result.reset(new buffer);
   source.reset(new sine);
   clipper.reset(new clip);
   clipper->set(-1, 1);
@@ -39,9 +40,14 @@ void YSE::DSP::MODULES::difference::create() {
 void YSE::DSP::MODULES::difference::process(MULTICHANNELBUFFER & buffer) {
   createIfNeeded();
 
-  for (UInt i = 0; i < buffer.size(); i++) {
-    buffer[i] += (*source)(parmFrequency);
-    buffer[i] *= parmAmplitude.load();
-    buffer[i] = (*clipper)(buffer[i]);
+  if (buffer[0].getLength() != result->getLength()) {
+    result->resize(buffer[0].getLength());
   }
+
+  (*result) = buffer[0];
+  (*result) += (*source)(parmFrequency);
+  (*result) *= parmAmplitude.load();
+  (*result) = (*clipper)(buffer[0]);
+
+  calculateImpact(buffer[0], (*result));
 }

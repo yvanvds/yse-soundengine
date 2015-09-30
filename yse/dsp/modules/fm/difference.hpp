@@ -43,6 +43,7 @@ namespace YSE {
         aFlt parmFrequency;
         aFlt parmAmplitude;
 
+        std::shared_ptr<DSP::buffer> result;
         std::shared_ptr<sine> source;
         std::shared_ptr<clip> clipper;
 
