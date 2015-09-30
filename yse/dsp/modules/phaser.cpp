@@ -9,12 +9,13 @@
 */
 
 #include "phaser.hpp"
+#include "../../utils/misc.hpp"
 #include <cmath>
 
-YSE::DSP::MODULES::phaser::phaser() {}
+YSE::DSP::MODULES::phaser::phaser() : parmFrequency(0.3), parmRange(0.1) {}
 
 void YSE::DSP::MODULES::phaser::create() {
-  sawTooth.reset(new saw);
+  triangle.reset(new lfo);
   rzero1.reset(new realOneZeroReversed);
   rzero2.reset(new realOneZeroReversed);
   rzero3.reset(new realOneZeroReversed);
@@ -23,63 +24,39 @@ void YSE::DSP::MODULES::phaser::create() {
   rpole2.reset(new realOnePole);
   rpole3.reset(new realOnePole);
   rpole4.reset(new realOnePole);
+}
 
-  phasor1.reset(new saw);
-  phasor2.reset(new saw);
-  phasor3.reset(new saw);
-  phasor4.reset(new saw);
+YSE::DSP::MODULES::phaser & YSE::DSP::MODULES::phaser::frequency(Flt value) {
+  if (value < 0) value = 0;
+  parmFrequency.store(value);
+  return *this;
+}
 
-  clip1.reset(new clip); clip1->set(-0.5, 0.5);
-  clip2.reset(new clip); clip2->set(-0.5, 0.5);
-  clip3.reset(new clip); clip3->set(-0.5, 0.5);
-  clip4.reset(new clip); clip4->set(-0.5, 0.5);
+Flt YSE::DSP::MODULES::phaser::frequency() {
+  return parmFrequency;
+}
 
-  cos1.reset(new cosine);
-  cos2.reset(new cosine);
-  cos3.reset(new cosine);
-  cos4.reset(new cosine);
+YSE::DSP::MODULES::phaser & YSE::DSP::MODULES::phaser::range(Flt value) {
+  YSE::Clamp(value, 0, 0.5);
+  parmRange.store(value);
+  return *this;
+}
 
-  hp.reset(new highPass);
-  (*hp).setFrequency(5);
+Flt YSE::DSP::MODULES::phaser::range() {
+  return parmRange;
 }
 
 void YSE::DSP::MODULES::phaser::process(MULTICHANNELBUFFER & buffer) {
   createIfNeeded();
 
-  DSP::buffer & b1 = (*phasor1)(220);
-  DSP::buffer & b2 = (*phasor2)(251);
-  DSP::buffer & b3 = (*phasor3)(281);
-  DSP::buffer & b4 = (*phasor4)(311);
 
-  b1 -= 0.5; b2 -= 0.5; b3 -= 0.5; b4 -= 0.5;
-  b1 *= 3; b2 *= 3; b3 *= 3; b4 *= 3;
+  DSP::buffer & s = (*triangle)(YSE::DSP::LFO_TRIANGLE, parmFrequency);
 
-  b1 = (*clip1)(b1);
-  b2 = (*clip2)(b2);
-  b3 = (*clip3)(b3);
-  b4 = (*clip4)(b4);
+  s *= parmRange;
+  s += 0.98 - parmRange;
 
-  b1 = (*cos1)(b1);
-  b2 = (*cos2)(b2);
-  b3 = (*cos3)(b3);
-  b4 = (*cos4)(b4);
-
-  b1 += b2; b1 += b3; b1 += b4;
-  b1 = (*hp)(b1);
-  b1 *= 0.2;
-
-  buffer[0] = b1;
-
-  DSP::buffer & s = (*sawTooth)(440);
-
-  Flt * ptr = s.getPtr();
-  for (UInt i = 0; i < s.getLength(); i++) {
-    *ptr = 1 - 0.03 - 0.6 * std::abs(*ptr - 0.5) * std::abs(*ptr - 0.5);
-    ptr++;
-  }
-
-  buffer[0] *= 0.2;
-  return;
+  //buffer[0] *= 0.2;
+  //return;
   DSP::buffer & result1 = (*rzero1)(buffer[0], s);
   DSP::buffer & result2 = (*rpole1)(result1, s);
   DSP::buffer & result3 = (*rzero2)(result2, s);
@@ -87,6 +64,6 @@ void YSE::DSP::MODULES::phaser::process(MULTICHANNELBUFFER & buffer) {
   DSP::buffer & result5 = (*rzero3)(result4, s);
   DSP::buffer & result6 = (*rpole3)(result5, s);
   DSP::buffer & result7 = (*rzero4)(result6, s);
-  //buffer[0]            = (*rpole4)(result7, s);
-  buffer[0] = result1;
+  buffer[0] += (*rpole4)(result7, s);
+  //buffer[0] = result1;
 }

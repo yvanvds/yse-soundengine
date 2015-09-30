@@ -12,7 +12,7 @@
 #define PHASER_HPP_INCLUDED
 
 #include "../dspObject.hpp"
-#include "../oscillators.hpp"
+#include "../lfo.hpp"
 #include "../rawFilters.hpp"
 #include <memory>
 
@@ -28,11 +28,22 @@ namespace YSE {
         phaser();
         virtual ~phaser() {};
 
+        // sweep frequency, typically a low (-24) frequency, default is 0.3, must be > 0
+        phaser & frequency(Flt value);
+        Flt      frequency();
+
+        // range coëfficient, cannot be larger as 0.5, default is 0.1
+        phaser & range(Flt value);
+        Flt      range();
+
         virtual void create();
         virtual void process(MULTICHANNELBUFFER & buffer);
 
       private:
-        std::shared_ptr<saw> sawTooth;
+        aFlt parmFrequency;
+        aFlt parmRange;
+
+        std::shared_ptr<lfo> triangle;
         std::shared_ptr<realOneZeroReversed> rzero1;
         std::shared_ptr<realOnePole> rpole1;
         std::shared_ptr<realOneZeroReversed> rzero2;
@@ -42,22 +53,6 @@ namespace YSE {
         std::shared_ptr<realOneZeroReversed> rzero4;
         std::shared_ptr<realOnePole> rpole4;
 
-        std::shared_ptr<saw> phasor1;
-        std::shared_ptr<saw> phasor2;
-        std::shared_ptr<saw> phasor3;
-        std::shared_ptr<saw> phasor4;
-
-        std::shared_ptr<clip> clip1;
-        std::shared_ptr<clip> clip2;
-        std::shared_ptr<clip> clip3;
-        std::shared_ptr<clip> clip4;
-
-        std::shared_ptr<YSE::DSP::cosine> cos1;
-        std::shared_ptr<YSE::DSP::cosine> cos2;
-        std::shared_ptr<YSE::DSP::cosine> cos3;
-        std::shared_ptr<YSE::DSP::cosine> cos4;
-
-        std::shared_ptr<highPass> hp;
       };
 
     }
