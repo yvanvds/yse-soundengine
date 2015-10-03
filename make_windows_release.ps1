@@ -23,6 +23,8 @@ New-Item $outpath\demo -ItemType directory | Out-Null
 New-Item $outpath\demo\source -ItemType directory | Out-Null
 New-Item $outpath\demo\compiled -ItemType directory | Out-Null
 
+Invoke-Expression .\generatePublicHeaders.bat
+
 Write-Host -ForegroundColor Green "Setting visual studio environment variables..."
 # If the next command fails, you have to install the powershell community extensions.
 # After installing, copy the Pscx folder to your modules path, which can be found with

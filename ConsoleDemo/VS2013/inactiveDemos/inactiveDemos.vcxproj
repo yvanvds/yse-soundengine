@@ -86,6 +86,7 @@
     <ClCompile Include="..\..\source\demo19_ADSR.cpp" />
     <ClCompile Include="..\..\source\demo20_sweep_filter.cpp" />
     <ClCompile Include="..\..\source\demo21_granulator.cpp" />
+    <ClCompile Include="..\..\source\demo22_phaser.cpp" />
     <ClCompile Include="..\..\source\demo23_lfo.cpp" />
     <ClCompile Include="..\..\source\demo24_dspFilter.cpp" />
   </ItemGroup>

@@ -24,7 +24,7 @@ namespace YSE {
 
       class API granulator : public dspObject {
       public:
-        granulator(UInt poolSize, UInt maxGrains);
+        granulator(UInt poolSize = 44100 * 5, UInt maxGrains = 16);
         virtual ~granulator() {};
 
         virtual void create();

@@ -15,7 +15,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\source\demo22_phaser.cpp">
+    <ClCompile Include="..\..\source\Demo23_delay.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

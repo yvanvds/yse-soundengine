@@ -16,9 +16,9 @@ void YSE::DSP::MODULES::highPassDelay::createPreFilter() {
   hp.reset(new DSP::highPass);
 }
 
-void YSE::DSP::MODULES::highPassDelay::applyPreFilter() {
+void YSE::DSP::MODULES::highPassDelay::applyPreFilter(DSP::buffer & buffer) {
   (*hp).setFrequency(parmFrequency);
-  (*result) = (*hp)(*result);
+  buffer = (*hp)(buffer);
 }
 
 YSE::DSP::MODULES::highPassDelay & YSE::DSP::MODULES::highPassDelay::frequency(Flt value) {

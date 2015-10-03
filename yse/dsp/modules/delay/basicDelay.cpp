@@ -46,7 +46,7 @@ void YSE::DSP::MODULES::basicDelay::create() {
 }
 
 void YSE::DSP::MODULES::basicDelay::createPreFilter() {}
-void YSE::DSP::MODULES::basicDelay::applyPreFilter() {}
+void YSE::DSP::MODULES::basicDelay::applyPreFilter(DSP::buffer & buffer) {}
 
 void YSE::DSP::MODULES::basicDelay::process(MULTICHANNELBUFFER & buffer) {
   createIfNeeded();
@@ -57,9 +57,9 @@ void YSE::DSP::MODULES::basicDelay::process(MULTICHANNELBUFFER & buffer) {
   }
 
   (*result) = buffer[0];
-  applyPreFilter();
+  applyPreFilter(buffer[0]);
 
-  delayBuffer->process(*result);
+  delayBuffer->process(buffer[0]);
   Int delayCount = 1; // the original signal
 
   // add delays to signal
@@ -85,7 +85,6 @@ void YSE::DSP::MODULES::basicDelay::process(MULTICHANNELBUFFER & buffer) {
   }
 
   // adjust total gain
-  (*result) *= (1 / delayCount);
-
+  (*result) *= (1.f / delayCount);
   calculateImpact(buffer[0], (*result));
 }

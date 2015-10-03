@@ -25,5 +25,6 @@
     <ClCompile Include="..\..\source\demo20_sweep_filter.cpp" />
     <ClCompile Include="..\..\source\demo23_lfo.cpp" />
     <ClCompile Include="..\..\source\demo24_dspFilter.cpp" />
+    <ClCompile Include="..\..\source\demo22_phaser.cpp" />
   </ItemGroup>
 </Project>

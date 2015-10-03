@@ -31,7 +31,7 @@ namespace YSE {
           SQUARE,
         };
 
-        sweepFilter(SHAPE shape);
+        sweepFilter(SHAPE shape = SAW);
         virtual ~sweepFilter() {};
 
         sweepFilter & speed(Flt value);

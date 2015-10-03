@@ -42,6 +42,9 @@
 #include "dsp/modules/sineWave.hpp"
 #include "dsp/modules/granulator.hpp"
 #include "dsp/modules/phaser.hpp"
+#include "dsp/modules/delay/basicDelay.hpp"
+#include "dsp/modules/delay/highpassDelay.hpp"
+#include "dsp/modules/delay/lowpassDelay.hpp"
 
 #include "dsp/modules/filters/highpass.hpp"
 #include "dsp/modules/filters/lowpass.hpp"
