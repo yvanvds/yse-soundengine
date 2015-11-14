@@ -63,7 +63,7 @@ void shepard::process(YSE::SOUND_STATUS & intent) {
     out += generators[i](freq[i]);
 
     // adjust frequency for next run
-    freq[i] = YSE::DSP::MidiToFreq(YSE::DSP::FreqToMidi(freq[i]) + 0.02);
+    freq[i] = YSE::DSP::MidiToFreq(YSE::DSP::FreqToMidi(freq[i]) + 0.02f);
     // back down at maximum frequency
     if (freq[i] > top) freq[i] = 10;
   }
@@ -81,8 +81,8 @@ void shepard::process(YSE::SOUND_STATUS & intent) {
 
   // copy buffer to all channels (YSE creates the buffer vector for your dsp, according to 
   // the channels chosen for the current output device
-  for (UInt i = 0; i < buffer.size(); i++) {
-    buffer[i] = result;
+  for (UInt i = 0; i < samples.size(); i++) {
+    samples[i] = result;
   }
 
 }

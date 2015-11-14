@@ -125,7 +125,7 @@ YSE::SYNTH::interfaceObject & YSE::SYNTH::interfaceObject::allNotesOff(int chann
   assert(pimpl != nullptr);
   messageObject m;
   m.ID = ALL_NOTES_OFF;
-  m.uIntValue[0] = channel;
+  m.uIntValue[0] = static_cast<U16>(channel);
   pimpl->sendMessage(m);
   return *this;
 }
@@ -149,7 +149,7 @@ YSE::SYNTH::interfaceObject & YSE::SYNTH::interfaceObject::removeSound(const std
   // removing sound is probably not thread safe
   // so we ask the implementation for the sound ID
   // and pass that as a message for thread safe deletion afterwards
-  messageObject m;
+  // messageObject m;
   // TODO
   return *this;
 }

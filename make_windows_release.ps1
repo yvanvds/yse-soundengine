@@ -29,24 +29,24 @@ Write-Host -ForegroundColor Green "Setting visual studio environment variables..
 # If the next command fails, you have to install the powershell community extensions.
 # After installing, copy the Pscx folder to your modules path, which can be found with
 # Get-ChildItem Env:\PSModulePath
-Import-VisualStudioVars -VisualStudioVersion 2013
+Import-VisualStudioVars -VisualStudioVersion 140
 
 
 Write-Host -ForegroundColor Green "Creating static libraries..."
-$build = 'devenv static_library\Builds\VisualStudio2013\yse_static_library.sln /rebuild "release32|Win32"' 
+$build = 'devenv static_library\Builds\VisualStudio2015\yse_static_library.sln /rebuild "release32|Win32"' 
 Invoke-Expression $build
 Move-Item .\bin\libyse32.lib $outpath\lib\static
 
-$build = 'devenv static_library\Builds\VisualStudio2013\yse_static_library.sln /rebuild "release64|x64"'
+$build = 'devenv static_library\Builds\VisualStudio2015\yse_static_library.sln /rebuild "release64|x64"'
 Invoke-Expression $build
 Move-Item .\bin\libyse64.lib $outpath\lib\static
 
 Write-Host -ForegroundColor Green "Creating dynamic libraries..."
-$build = 'devenv dll\Builds\VisualStudio2013\yse_dll.sln /rebuild "release32|Win32"' 
+$build = 'devenv dll\Builds\VisualStudio2015\yse_dll.sln /rebuild "release32|Win32"' 
 Invoke-Expression $build
 Move-Item .\bin\libyse32.* $outpath\lib\dll
 
-$build = 'devenv dll\Builds\VisualStudio2013\yse_dll.sln /rebuild "release64|x64"'
+$build = 'devenv dll\Builds\VisualStudio2015\yse_dll.sln /rebuild "release64|x64"'
 Invoke-Expression $build
 Move-Item .\bin\libyse64.* $outpath\lib\dll
 

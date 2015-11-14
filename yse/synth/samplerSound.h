@@ -19,7 +19,7 @@ namespace YSE {
     class samplerSoundWithChannel : public SamplerSound  {
     public:
       samplerSoundWithChannel(const String &name, AudioFormatReader &source, int channel, const BigInteger &midiNotes, int midiNoteForNormalPitch, double attackTimeSecs, double releaseTimeSecs, double maxSampleLengthSeconds);
-      bool appliesToChannel(const int midiChannel);
+      virtual bool appliesToChannel(int midiChannel);
 
     private:
       int channel;

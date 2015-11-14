@@ -322,8 +322,11 @@
         <CONFIGURATION name="Debug" winWarningLevel="4" generateManifest="1" winArchitecture="32-bit"
                        isDebug="1" optimisation="1" targetName="yse_debug_dll" binaryPath="../bin"
                        headerPath="../yse"/>
-        <CONFIGURATION name="Release" winWarningLevel="2" generateManifest="1" winArchitecture="32-bit"
+        <CONFIGURATION name="Release32" winWarningLevel="2" generateManifest="1" winArchitecture="32-bit"
                        isDebug="0" optimisation="3" targetName="libyse32" binaryPath="../bin"
+                       headerPath="../yse"/>
+        <CONFIGURATION name="Release64" winWarningLevel="2" generateManifest="1" winArchitecture="x64"
+                       isDebug="0" optimisation="3" targetName="libyse64" binaryPath="../bin"
                        headerPath="../yse"/>
       </CONFIGURATIONS>
       <MODULEPATHS>

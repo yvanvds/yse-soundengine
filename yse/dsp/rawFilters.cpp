@@ -8,6 +8,7 @@
   ==============================================================================
 */
 
+#include <cassert>
 #include "rawFilters.hpp"
 
 YSE::DSP::buffer & YSE::DSP::realOnePole::operator()(buffer & in1, buffer & in2) {

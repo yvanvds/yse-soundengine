@@ -19,8 +19,8 @@ namespace YSE {
     struct dspSound : public SynthesiserSound {
       dspSound(int channel, int lowLimit, int highLimit, int ID);
 
-      bool appliesToNote(const int noteNumber);
-      bool appliesToChannel(const int channel);
+      virtual bool appliesToNote(int noteNumber);
+      virtual bool appliesToChannel(int channel);
       int getID();
 
     private:

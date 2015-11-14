@@ -361,6 +361,26 @@
         <MODULEPATH id="juce_audio_basics" path="../../JUCE/modules"/>
       </MODULEPATHS>
     </XCODE_IPHONE>
+    <VS2015 targetFolder="Builds/VisualStudio2015" extraDefs="JUCE_CHECK_MEMORY_LEAKS=0&#10;">
+      <CONFIGURATIONS>
+        <CONFIGURATION name="Release32" winWarningLevel="4" generateManifest="1" winArchitecture="32-bit"
+                       isDebug="0" optimisation="3" targetName="libyse32" binaryPath="../bin"
+                       headerPath="../yse"/>
+        <CONFIGURATION name="debug" winWarningLevel="4" generateManifest="1" winArchitecture="32-bit"
+                       isDebug="1" targetName="yse_debug" binaryPath="../bin" headerPath="../yse"
+                       optimisation="1" wholeProgramOptimisation="1"/>
+        <CONFIGURATION name="Release64" winWarningLevel="4" generateManifest="1" winArchitecture="x64"
+                       isDebug="0" optimisation="3" targetName="libyse64" binaryPath="../bin"
+                       headerPath="../yse"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_events" path="../../juce/modules"/>
+        <MODULEPATH id="juce_core" path="../../juce"/>
+        <MODULEPATH id="juce_audio_formats" path="../../juce"/>
+        <MODULEPATH id="juce_audio_devices" path="../../juce"/>
+        <MODULEPATH id="juce_audio_basics" path="../../juce/modules"/>
+      </MODULEPATHS>
+    </VS2015>
   </EXPORTFORMATS>
   <MODULES>
     <MODULES id="juce_audio_basics" showAllCode="1" useLocalCopy="1"/>

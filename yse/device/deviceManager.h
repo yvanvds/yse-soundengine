@@ -50,6 +50,7 @@ namespace YSE {
       const std::string & getDefaultDeviceName();
 
     private:
+      void openDevice();
       juce::String _lastError;
       Bool initialized;
       Bool open;
@@ -58,6 +59,8 @@ namespace YSE {
 
       CHANNEL::implementationObject * master;
       AudioDeviceManager audioDeviceManager;
+      AudioDeviceManager::AudioDeviceSetup deviceSetup;
+      int currentInputChannels, currentOutputChannels;
       
       std::vector<interfaceObject> devices;
 

@@ -80,7 +80,7 @@ void YSE::SYNTH::implementationObject::process(YSE::SOUND_STATUS & intent) {
         float pitch = m.getNoteNumber();
         float velocity = m.getFloatVelocity();
         onNoteEvent(m.isNoteOn(), &pitch, &velocity);
-        m.setNoteNumber(pitch);
+        m.setNoteNumber(static_cast<int>(pitch));
         m.setVelocity(velocity);
       }
     }

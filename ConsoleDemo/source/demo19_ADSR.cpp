@@ -79,8 +79,8 @@ public:
     // notify the backend that this note has stopped playing
     if (envelope.isAtEnd()) intent = YSE::SS_STOPPED;
 
-    for (UInt i = 0; i < buffer.size(); i++) {
-      buffer[i] = out;
+    for (UInt i = 0; i < samples.size(); i++) {
+      samples[i] = out;
     }
     
   }
