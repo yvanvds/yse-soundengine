@@ -128,7 +128,7 @@ void YSE::SYNTH::implementationObject::parseMessage(const messageObject & messag
       break;
     }
     case MESSAGE::NOTE_OFF: {
-      keyboardState.noteOff((int)(message.vecValue[0]), (int)(message.vecValue[1]));
+      keyboardState.noteOff((int)(message.vecValue[0]), (int)(message.vecValue[1]), 127);
       break;
     }
     case MESSAGE::NOTE_ON: {

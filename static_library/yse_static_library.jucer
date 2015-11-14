@@ -2,7 +2,7 @@
 
 <JUCERPROJECT id="AKkfPk" name="yse_static_library" projectType="library" version="1.0.0"
               bundleIdentifier="com.yourcompany.yse_static_library" includeBinaryInAppConfig="1"
-              jucerVersion="3.2.0">
+              jucerVersion="4.0.1">
   <MAINGROUP id="JLmmWK" name="yse_static_library">
     <GROUP id="{DAF363ED-A43B-6DFC-2214-7863A037768A}" name="yse">
       <GROUP id="{DD1C0708-BF8A-4DBC-3466-188D2E2380DF}" name="player">

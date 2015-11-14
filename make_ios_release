@@ -20,13 +20,31 @@ xcodebuild -configuration Release
 cd ../../../
 mv static_library/Builds/iOS/build/Release/libyse.a yse_binary_release_iOS/lib/
 
-# create dynamic library
-echo '-> creating dynamic library...'
-cd dll/Builds/iOS
-xcodebuild -configuration Release
+# create static simulator library
+echo '-> creating static simulator library...' 
+cd static_library/Builds/iOS/
+
+xcodebuild -configuration Release -arch i386 -sdk iphonesimulator
 
 cd ../../../
-mv dll/Builds/iOS/build/Release/libyse.dylib yse_binary_release_iOS/lib/
+mv static_library/Builds/iOS/build/Release/libyse.a yse_binary_release_iOS/lib/libyseSim.a
+
+
+# create dynamic library
+# echo '-> creating dynamic library...'
+# cd dll/Builds/iOS
+# xcodebuild -configuration Release
+
+# cd ../../../
+# mv dll/Builds/iOS/build/Release/libyse.dylib yse_binary_release_iOS/lib/
+
+# create dynamic simulator library
+# echo '-> creating dynamic simulator library...' 
+# cd dll/Builds/iOS
+# xcodebuild -configuration Release -arch i386 -sdk iphonesimulator
+
+# cd ../../../
+# mv dll/Builds/iOS/build/Release/libyse.dylib yse_binary_release_iOS/lib/libyseSim.dylib
 
 # copy include files
 echo '-> copying header files...'

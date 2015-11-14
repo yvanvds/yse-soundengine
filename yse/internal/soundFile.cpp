@@ -125,8 +125,8 @@ Bool YSE::INTERNAL::soundFile::read(std::vector<DSP::buffer> & filebuffer, Flt& 
     realPos -= pos;
   }
 
-  Flt ** ptr2;
-  if (!_audioBuffer) ptr2 = _buffer.getArrayOfChannels();
+  const Flt ** ptr2;
+  if (!_audioBuffer) ptr2 = _buffer.getArrayOfReadPointers();
   
   // this is for a smooth fade-in to avoid glitches
   if (intent == SS_WANTSTOPLAY) {
@@ -150,7 +150,7 @@ Bool YSE::INTERNAL::soundFile::read(std::vector<DSP::buffer> & filebuffer, Flt& 
 
     // this assumes the output and file have the same number of channels
     Flt * out = filebuffer[i].getPtr();
-    Flt * in;
+    const Flt * in;
     
     if (_audioBuffer) {
       in = _audioBuffer->getPtr();

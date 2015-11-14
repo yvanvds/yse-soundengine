@@ -2,7 +2,7 @@
 
 <JUCERPROJECT id="Hm1Rhq" name="yse_dll" projectType="dll" version="1.0.0"
               bundleIdentifier="com.mute.yse_dll" includeBinaryInAppConfig="1"
-              jucerVersion="3.2.0">
+              jucerVersion="4.0.1">
   <MAINGROUP id="c8Cr7r" name="yse_dll">
     <GROUP id="{C1464C78-202C-BC41-481A-C05656427973}" name="yse">
       <GROUP id="{CC0DC12C-144B-3139-4D29-2C7FD7DB9D50}" name="player">
@@ -412,7 +412,7 @@
       <CONFIGURATIONS>
         <CONFIGURATION name="Debug" iosCompatibility="default" isDebug="1" optimisation="1"
                        targetName="libyse_debug"/>
-        <CONFIGURATION name="Release" iosCompatibility="default" isDebug="0" optimisation="2"
+        <CONFIGURATION name="Release" iosCompatibility="default" isDebug="0" optimisation="3"
                        targetName="libyse"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
