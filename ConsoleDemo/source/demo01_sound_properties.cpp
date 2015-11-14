@@ -24,6 +24,7 @@ int main() {
     goto exit;
   }
 
+  std::cout << "This shows how to alter basic sound properties." << std::endl;
   std::cout << "Use q/a to change the sound speed up and down." << std::endl;
   std::cout << "Use w/s to change the volume up and down." << std::endl;
   std::cout << "...or e to exit." << std::endl;

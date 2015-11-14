@@ -2,9 +2,8 @@
 
 <JUCERPROJECT id="Hm1Rhq" name="yse_dll" projectType="dll" version="1.0.0"
               bundleIdentifier="com.mute.yse_dll" includeBinaryInAppConfig="1"
-              jucerVersion="3.1.1">
+              jucerVersion="3.2.0">
   <MAINGROUP id="c8Cr7r" name="yse_dll">
-    <FILE id="AEWIIg" name="speaker.png" compile="0" resource="0" file="../bin/speaker.png"/>
     <GROUP id="{C1464C78-202C-BC41-481A-C05656427973}" name="yse">
       <GROUP id="{CC0DC12C-144B-3139-4D29-2C7FD7DB9D50}" name="player">
         <FILE id="kwQ30C" name="playerMessage.h" compile="0" resource="0" file="../yse/player/playerMessage.h"/>
@@ -90,6 +89,18 @@
       </GROUP>
       <GROUP id="{87572250-4545-73C4-BCE6-8BBAAD395AA6}" name="dsp">
         <GROUP id="{3C6F8AE2-E9CD-4785-1752-CAB151BEFE3E}" name="modules">
+          <GROUP id="{BE1A639D-6DCA-D902-156E-CDA4DCA8CC54}" name="delay">
+            <FILE id="kTVU6C" name="basicDelay.cpp" compile="1" resource="0" file="../yse/dsp/modules/delay/basicDelay.cpp"/>
+            <FILE id="B2VsKy" name="basicDelay.hpp" compile="0" resource="0" file="../yse/dsp/modules/delay/basicDelay.hpp"/>
+            <FILE id="TLQwKy" name="highpassDelay.cpp" compile="1" resource="0"
+                  file="../yse/dsp/modules/delay/highpassDelay.cpp"/>
+            <FILE id="XNHMxr" name="highpassDelay.hpp" compile="0" resource="0"
+                  file="../yse/dsp/modules/delay/highpassDelay.hpp"/>
+            <FILE id="f5GRCL" name="lowpassDelay.cpp" compile="1" resource="0"
+                  file="../yse/dsp/modules/delay/lowpassDelay.cpp"/>
+            <FILE id="Z2ii56" name="lowpassDelay.hpp" compile="0" resource="0"
+                  file="../yse/dsp/modules/delay/lowpassDelay.hpp"/>
+          </GROUP>
           <GROUP id="{B3C0A4A9-9AEF-1D4B-F478-C8F44C53D698}" name="fm">
             <FILE id="y152Dn" name="difference.cpp" compile="1" resource="0" file="../yse/dsp/modules/fm/difference.cpp"/>
             <FILE id="cYxSOZ" name="difference.hpp" compile="0" resource="0" file="../yse/dsp/modules/fm/difference.hpp"/>
@@ -101,6 +112,8 @@
             <FILE id="RshZIw" name="highpass.hpp" compile="0" resource="0" file="../yse/dsp/modules/filters/highpass.hpp"/>
             <FILE id="vs0BzQ" name="lowpass.cpp" compile="1" resource="0" file="../yse/dsp/modules/filters/lowpass.cpp"/>
             <FILE id="bHWiu9" name="lowpass.hpp" compile="0" resource="0" file="../yse/dsp/modules/filters/lowpass.hpp"/>
+            <FILE id="zDOkIO" name="sweep.cpp" compile="1" resource="0" file="../yse/dsp/modules/filters/sweep.cpp"/>
+            <FILE id="pVzfhL" name="sweep.hpp" compile="0" resource="0" file="../yse/dsp/modules/filters/sweep.hpp"/>
           </GROUP>
           <FILE id="zgzr1n" name="hilbert.cpp" compile="1" resource="0" file="../yse/dsp/modules/hilbert.cpp"/>
           <FILE id="YcSYRJ" name="hilbert.hpp" compile="0" resource="0" file="../yse/dsp/modules/hilbert.hpp"/>
@@ -110,6 +123,8 @@
                 file="../yse/dsp/modules/ringModulator.hpp"/>
           <FILE id="pCFTdv" name="sineWave.cpp" compile="1" resource="0" file="../yse/dsp/modules/sineWave.cpp"/>
           <FILE id="Sh9E4O" name="sineWave.hpp" compile="0" resource="0" file="../yse/dsp/modules/sineWave.hpp"/>
+          <FILE id="oNCztR" name="phaser.hpp" compile="0" resource="0" file="../yse/dsp/modules/phaser.hpp"/>
+          <FILE id="KWhC0Q" name="phaser.cpp" compile="1" resource="0" file="../yse/dsp/modules/phaser.cpp"/>
         </GROUP>
         <GROUP id="{99593BF6-5681-C99C-B9BD-82369946419F}" name="fourier">
           <FILE id="Sbfrlw" name="fft.cpp" compile="1" resource="0" file="../yse/dsp/fourier/fft.cpp"/>
@@ -117,8 +132,18 @@
           <FILE id="hoUYSn" name="mayer.cpp" compile="1" resource="0" file="../yse/dsp/fourier/mayer.cpp"/>
           <FILE id="sZIUPS" name="mayer.h" compile="0" resource="0" file="../yse/dsp/fourier/mayer.h"/>
         </GROUP>
+        <FILE id="UCE6ln" name="lfo.hpp" compile="0" resource="0" file="../yse/dsp/lfo.hpp"/>
+        <FILE id="QojUi5" name="lfo.cpp" compile="1" resource="0" file="../yse/dsp/lfo.cpp"/>
         <FILE id="uY6ZIx" name="fileBuffer.cpp" compile="1" resource="0" file="../yse/dsp/fileBuffer.cpp"/>
         <FILE id="fwB3Xn" name="fileBuffer.hpp" compile="0" resource="0" file="../yse/dsp/fileBuffer.hpp"/>
+        <FILE id="NKOIlM" name="interpolate4.cpp" compile="1" resource="0"
+              file="../yse/dsp/interpolate4.cpp"/>
+        <FILE id="OqH66i" name="interpolate4.hpp" compile="0" resource="0"
+              file="../yse/dsp/interpolate4.hpp"/>
+        <FILE id="vNI90N" name="rawFilters.hpp" compile="0" resource="0" file="../yse/dsp/rawFilters.hpp"/>
+        <FILE id="qpQYYv" name="rawFilters.cpp" compile="1" resource="0" file="../yse/dsp/rawFilters.cpp"/>
+        <FILE id="OrfylA" name="granulator.cpp" compile="1" resource="0" file="../yse/dsp/modules/granulator.cpp"/>
+        <FILE id="gytN6e" name="granulator.hpp" compile="0" resource="0" file="../yse/dsp/modules/granulator.hpp"/>
         <FILE id="CiTvMc" name="ADSRenvelope.cpp" compile="1" resource="0"
               file="../yse/dsp/ADSRenvelope.cpp"/>
         <FILE id="OMkwns" name="ADSRenvelope.hpp" compile="0" resource="0"
@@ -265,14 +290,6 @@
         <FILE id="Hgdsp0" name="soundManager.h" compile="0" resource="0" file="../yse/sound/soundManager.h"/>
         <FILE id="I9bcYc" name="soundMessage.h" compile="0" resource="0" file="../yse/sound/soundMessage.h"/>
       </GROUP>
-      <GROUP id="{70334159-37A6-7CE0-BDAE-0B7738EE004A}" name="templates">
-        <FILE id="RPuhRx" name="implementationObject.h" compile="0" resource="0"
-              file="../yse/templates/implementationObject.h"/>
-        <FILE id="tN5WZk" name="interfaceObject.hpp" compile="0" resource="0"
-              file="../yse/templates/interfaceObject.hpp"/>
-        <FILE id="gm0IHs" name="managerObject.h" compile="0" resource="0" file="../yse/templates/managerObject.h"/>
-        <FILE id="m9U8yO" name="messageObject.h" compile="0" resource="0" file="../yse/templates/messageObject.h"/>
-      </GROUP>
       <GROUP id="{D829189A-D352-A2D0-1951-CCE6BA0F59A8}" name="utils">
         <FILE id="ThSozL" name="interpolators.cpp" compile="1" resource="0"
               file="../yse/utils/interpolators.cpp"/>
@@ -297,15 +314,39 @@
       <FILE id="jix5hC" name="system.hpp" compile="0" resource="0" file="../yse/system.hpp"/>
       <FILE id="B9AoWu" name="yse.hpp" compile="0" resource="0" file="../yse/yse.hpp"/>
     </GROUP>
+    <FILE id="nwjt3a" name="speaker.png" compile="0" resource="1" file="../bin/speaker.png"/>
   </MAINGROUP>
   <EXPORTFORMATS>
+    <VS2015 targetFolder="Builds/VisualStudio2015" extraDefs="JUCE_CHECK_MEMORY_LEAKS=0&#10;YSE_DLL_BUILD=1">
+      <CONFIGURATIONS>
+        <CONFIGURATION name="Debug" winWarningLevel="4" generateManifest="1" winArchitecture="32-bit"
+                       isDebug="1" optimisation="1" targetName="yse_debug_dll" binaryPath="../bin"
+                       headerPath="../yse"/>
+        <CONFIGURATION name="Release32" winWarningLevel="2" generateManifest="1" winArchitecture="32-bit"
+                       isDebug="0" optimisation="3" targetName="libyse32" binaryPath="../bin"
+                       headerPath="../yse"/>
+        <CONFIGURATION name="Release64" winWarningLevel="2" generateManifest="1" winArchitecture="x64"
+                       isDebug="0" optimisation="3" targetName="libyse64" binaryPath="../bin"
+                       headerPath="../yse"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_events" path="../../juce/modules"/>
+        <MODULEPATH id="juce_core" path="../../juce/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="../../juce/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="../../juce/modules"/>
+        <MODULEPATH id="juce_audio_basics" path="../../juce/modules"/>
+      </MODULEPATHS>
+    </VS2015>
     <VS2013 targetFolder="Builds/VisualStudio2013" extraDefs="JUCE_CHECK_MEMORY_LEAKS=0&#10;YSE_DLL_BUILD=1">
       <CONFIGURATIONS>
         <CONFIGURATION name="Debug" winWarningLevel="4" generateManifest="1" winArchitecture="32-bit"
                        isDebug="1" optimisation="1" targetName="yse_debug_dll" binaryPath="../bin"
                        headerPath="../yse"/>
-        <CONFIGURATION name="Release" winWarningLevel="2" generateManifest="1" winArchitecture="32-bit"
-                       isDebug="0" optimisation="3" targetName="yse_dll" binaryPath="../bin"
+        <CONFIGURATION name="Release32" winWarningLevel="2" generateManifest="1" winArchitecture="32-bit"
+                       isDebug="0" optimisation="3" targetName="libyse32" binaryPath="../bin"
+                       headerPath="../yse"/>
+        <CONFIGURATION name="Release64" winWarningLevel="2" generateManifest="1" winArchitecture="x64"
+                       isDebug="0" optimisation="3" targetName="libyse64" binaryPath="../bin"
                        headerPath="../yse"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
@@ -317,16 +358,16 @@
       </MODULEPATHS>
     </VS2013>
     <ANDROID targetFolder="Builds/Android" androidActivityClass="com.mute.yse_dll"
-             androidSDKPath="${user.home}/android/sdk" androidNDKPath="${user.home}/android/ndk"
+             androidSDKPath="D:/Android/sdk" androidNDKPath="D:/Android/ndk"
              androidMinimumSDK="9" androidInternetNeeded="1" androidKeyStore="${user.home}/.android/debug.keystore"
              androidKeyStorePass="android" androidKeyAlias="androiddebugkey"
-             androidKeyAliasPass="android" androidCpp11="1" smallIcon="AEWIIg"
-             bigIcon="AEWIIg">
+             androidKeyAliasPass="android" androidCpp11="1" smallIcon="nwjt3a"
+             bigIcon="nwjt3a" androidVersionCode="1" extraDefs="JUCE_CHECK_MEMORY_LEAKS=0&#10;">
       <CONFIGURATIONS>
-        <CONFIGURATION name="Debug" androidArchitectures="armeabi armeabi-v7a" isDebug="1"
+        <CONFIGURATION name="Debug" androidArchitectures="armeabi armeabi-v7a x86" isDebug="1"
                        optimisation="1" targetName="yse"/>
-        <CONFIGURATION name="Release" androidArchitectures="armeabi armeabi-v7a" isDebug="0"
-                       optimisation="3" targetName="yse"/>
+        <CONFIGURATION name="Release" androidArchitectures="armeabi armeabi-v7a x86"
+                       isDebug="0" optimisation="3" targetName="yse"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
         <MODULEPATH id="juce_events" path="../JUCE/modules"/>
@@ -344,41 +385,42 @@
                        targetName="yse"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
-        <MODULEPATH id="juce_events" path="../../../JUCE/modules"/>
-        <MODULEPATH id="juce_core" path="../../../JUCE/modules"/>
-        <MODULEPATH id="juce_audio_formats" path="../../../JUCE/modules"/>
-        <MODULEPATH id="juce_audio_devices" path="../../../JUCE/modules"/>
-        <MODULEPATH id="juce_audio_basics" path="../../../JUCE/modules"/>
+        <MODULEPATH id="juce_events" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_basics" path="../../JUCE/modules"/>
       </MODULEPATHS>
     </LINUX_MAKE>
-    <XCODE_MAC targetFolder="Builds/MacOSX" extraDefs="JUCE_CHECK_MEMORY_LEAKS=0">
+    <XCODE_MAC targetFolder="Builds/MacOSX" extraDefs="JUCE_CHECK_MEMORY_LEAKS=0&#10;YSE_DLL_BUILD=1">
       <CONFIGURATIONS>
         <CONFIGURATION name="Debug" osxSDK="default" osxCompatibility="default" osxArchitecture="default"
-                       isDebug="1" optimisation="1" targetName="yse_dll"/>
+                       isDebug="1" optimisation="1" targetName="libyse_debug"/>
         <CONFIGURATION name="Release" osxSDK="default" osxCompatibility="default" osxArchitecture="default"
-                       isDebug="0" optimisation="2" targetName="yse_dll"/>
+                       isDebug="0" optimisation="3" targetName="libyse"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
-        <MODULEPATH id="juce_events" path="../../../JUCE/modules"/>
-        <MODULEPATH id="juce_core" path="../../../JUCE/modules"/>
-        <MODULEPATH id="juce_audio_formats" path="../../../JUCE/modules"/>
-        <MODULEPATH id="juce_audio_devices" path="../../../JUCE/modules"/>
-        <MODULEPATH id="juce_audio_basics" path="../../../JUCE/modules"/>
+        <MODULEPATH id="juce_events" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_basics" path="../../JUCE/modules"/>
       </MODULEPATHS>
     </XCODE_MAC>
-    <XCODE_IPHONE targetFolder="Builds/iOS" extraDefs="JUCE_CHECK_MEMORY_LEAKS=0">
+    <XCODE_IPHONE targetFolder="Builds/iOS" extraDefs="JUCE_CHECK_MEMORY_LEAKS=0"
+                  smallIcon="nwjt3a" bigIcon="nwjt3a">
       <CONFIGURATIONS>
         <CONFIGURATION name="Debug" iosCompatibility="default" isDebug="1" optimisation="1"
-                       targetName="yse_dll"/>
+                       targetName="libyse_debug"/>
         <CONFIGURATION name="Release" iosCompatibility="default" isDebug="0" optimisation="2"
-                       targetName="yse_dll"/>
+                       targetName="libyse"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
-        <MODULEPATH id="juce_events" path="../../../JUCE/modules"/>
-        <MODULEPATH id="juce_core" path="../../../JUCE/modules"/>
-        <MODULEPATH id="juce_audio_formats" path="../../../JUCE/modules"/>
-        <MODULEPATH id="juce_audio_devices" path="../../../JUCE/modules"/>
-        <MODULEPATH id="juce_audio_basics" path="../../../JUCE/modules"/>
+        <MODULEPATH id="juce_events" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_basics" path="../../JUCE/modules"/>
       </MODULEPATHS>
     </XCODE_IPHONE>
   </EXPORTFORMATS>

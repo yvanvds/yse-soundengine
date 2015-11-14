@@ -95,20 +95,20 @@ YSE::DSP::buffer & YSE::DSP::lowPass::operator()(YSE::DSP::buffer & in) {
 
 
 YSE::DSP::bandPass& YSE::DSP::bandPass::set(Flt freq, Flt q) {
-  freq = freq;
-  q = q;
+  this->freq = freq;
+  this->q = q;
   calcCoef();
   return (*this);
 }
 
 YSE::DSP::bandPass& YSE::DSP::bandPass::setFrequency(Flt freq) {
-  freq = freq;
+  this->freq = freq;
   calcCoef();
   return (*this);
 }
 
 YSE::DSP::bandPass& YSE::DSP::bandPass::setQ(Flt q) {
-  q = q;
+  this->q = q;
   calcCoef();
   return (*this);
 }

@@ -38,12 +38,12 @@ int main() {
   sound.create(buffer);
   hpf.setFrequency(1000);
 
-  std::cout << "Sound is loaded. Please choose: " << std::endl;
+  std::cout << "This demo shows how a sound buffer can be altered while playing. Please choose: " << std::endl;
   std::cout << "1 to play" << std::endl;
   std::cout << "2 to stop" << std::endl;
-  std::cout << "3 multiply wave by 0.5" << std::endl;
-  std::cout << "4 multiply wave by 2.0" << std::endl;
-  std::cout << "5 pass wave through high pass filter at 1000Hz" << std::endl;
+  std::cout << "3 multiply buffer by 0.5" << std::endl;
+  std::cout << "4 multiply buffer by 2.0" << std::endl;
+  std::cout << "5 pass buffer through high pass filter at 1000Hz" << std::endl;
   std::cout << "...or e to exit." << std::endl;
 
   while (true) {

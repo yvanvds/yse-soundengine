@@ -19,7 +19,7 @@ namespace YSE {
 
     class API fileBuffer : public drawableBuffer {
     public:
-      fileBuffer(UInt length = STANDARD_BUFFERSIZE, Flt overflow = 0) : drawableBuffer(length, overflow) {}
+      fileBuffer(UInt length = STANDARD_BUFFERSIZE, UInt overflow = 0) : drawableBuffer(length, overflow) {}
       /** Load an audio channel from file. If the file does
           not contain this channel (for example when called with value 1 on a
           mono channel file) the function will return false. If the file cannot
@@ -34,7 +34,7 @@ namespace YSE {
       bool save(const char * fileName);
 
       fileBuffer & operator=(const buffer & s) { buffer::operator=(s); return *this; }
-
+      fileBuffer & operator=(Flt value) { buffer::operator=(value); return *this; }
     };
 
   }

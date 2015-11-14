@@ -23,13 +23,18 @@ Flt YSE::DSP::MODULES::lowPassFilter::frequency() {
 
 void YSE::DSP::MODULES::lowPassFilter::create() {
   lp.reset(new lowPass);
+  result.reset(new buffer);
 }
 
 void YSE::DSP::MODULES::lowPassFilter::process(MULTICHANNELBUFFER & buffer) {
   createIfNeeded();
 
-  (*lp).setFrequency(parmFrequency);
-  for (UInt i = 0; i < buffer.size(); i++) {
-    buffer[i] = (*lp)(buffer[i]);
+  if (buffer[0].getLength() != result->getLength()) {
+    result->resize(buffer[0].getLength());
   }
+
+  (*lp).setFrequency(parmFrequency);
+  (*result) = (*lp)(buffer[0]);
+
+  calculateImpact(buffer[0], (*result));
 }

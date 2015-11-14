@@ -702,7 +702,6 @@ void YSE::SOUND::implementationObject::addDSP(DSP::dspObject & ptr) {
       *(post_dsp->calledfrom) = nullptr;
     }
   }
-  ptr.createIfNeeded();
 
   post_dsp = &ptr;
   post_dsp->calledfrom = &post_dsp;

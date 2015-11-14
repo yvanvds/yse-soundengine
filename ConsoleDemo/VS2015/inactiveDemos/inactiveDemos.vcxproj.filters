@@ -1,0 +1,30 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="..\..\source\demo23_lfo.cpp" />
+    <ClCompile Include="..\..\source\demo01_sound_properties.cpp" />
+    <ClCompile Include="..\..\source\demo02_3D.cpp" />
+    <ClCompile Include="..\..\source\demo03_virtual_sounds.cpp" />
+    <ClCompile Include="..\..\source\demo04_custom_channels.cpp" />
+    <ClCompile Include="..\..\source\demo05_reverb.cpp" />
+    <ClCompile Include="..\..\source\demo06_devices.cpp" />
+    <ClCompile Include="..\..\source\demo07_dsp_source.cpp" />
+    <ClCompile Include="..\..\source\demo08_occlusion.cpp" />
+    <ClCompile Include="..\..\source\demo09_streaming.cpp" />
+    <ClCompile Include="..\..\source\demo10_sound_file_position.cpp" />
+    <ClCompile Include="..\..\source\demo11_relative_position.cpp" />
+    <ClCompile Include="..\..\source\demo12_synth.cpp" />
+    <ClCompile Include="..\..\source\demo13_midi_file.cpp" />
+    <ClCompile Include="..\..\source\demo14_AudioFileManipulation.cpp" />
+    <ClCompile Include="..\..\source\demo15_player.cpp" />
+    <ClCompile Include="..\..\source\demo16_motifs.cpp" />
+    <ClCompile Include="..\..\source\demo17_audioEnvelope.cpp" />
+    <ClCompile Include="..\..\source\demo18_wavetables.cpp" />
+    <ClCompile Include="..\..\source\demo19_ADSR.cpp" />
+    <ClCompile Include="..\..\source\demo20_sweep_filter.cpp" />
+    <ClCompile Include="..\..\source\demo21_granulator.cpp" />
+    <ClCompile Include="..\..\source\demo22_phaser.cpp" />
+    <ClCompile Include="..\..\source\Demo23_delay.cpp" />
+    <ClCompile Include="..\..\source\demo24_dspFilter.cpp" />
+  </ItemGroup>
+</Project>

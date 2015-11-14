@@ -31,7 +31,7 @@ public:
   }
 
   virtual void process(YSE::SOUND_STATUS & intent) {
-    assert(intent != YSE::SS_STOPPED);
+   // assert(intent != YSE::SS_STOPPED);
     if (intent == YSE::SS_WANTSTOPLAY) {
       ramp.set(1, 10);
       intent = YSE::SS_PLAYING;
@@ -60,8 +60,8 @@ public:
 
     // copy buffer to all channels (YSE creates the buffer vector for your dsp, according to 
     // the channels chosen for the current output device
-    for (UInt i = 0; i < buffer.size(); i++) {
-      buffer[i] = out;
+    for (UInt i = 0; i < samples.size(); i++) {
+      samples[i] = out;
     }
   }
 
@@ -129,6 +129,7 @@ int main() {
   player.setScale(scaleTwo);
 
   // the interface
+  std::cout << "This demo demonstrates the player class, which can be used to play a synth. Not by supplying notes, but with changing parameters." << std::endl;
   std::cout << "1  : start player" << std::endl;
   std::cout << "2  : stop player" << std::endl;
   std::cout << "3-4: decrease/increase velocity over 5 seconds" << std::endl;

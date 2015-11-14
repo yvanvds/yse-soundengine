@@ -5,7 +5,6 @@
 *.pydevproject
 .project
 .metadata
-bin/
 tmp/
 *.tmp
 *.bak
@@ -56,6 +55,8 @@ doxyGen/output/
 
 [Dd]ebug/
 [Rr]elease/
+[Rr]elease32/
+[Rr]elease64/
 x64/
 build/
 [Bb]in/
@@ -227,6 +228,8 @@ pip-log.txt
 demo/Builds/
 dll/Builds/
 esenthelDemo/_Build_/*
-yse_binary_release_ios/*
-yse_binary_release_mac/*
+yse_binary_release_mac/
+yse_binary_release_windows/
+yse_binary_release_android/
+yse_binary_release_iOS/
 *.zip

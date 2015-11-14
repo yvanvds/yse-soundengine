@@ -21,16 +21,17 @@ YSE::DEVICE::managerObject::managerObject() : initialized(false), open(false),
                                       started(false), master(nullptr), 
                                       bufferPos(STANDARD_BUFFERSIZE) {
   updateDeviceList();
+  currentInputChannels = 0;
+  currentOutputChannels = 2;
 }
 
 
 Bool YSE::DEVICE::managerObject::init() {
   if (!initialized) {
-    AudioDeviceManager::AudioDeviceSetup setup;
-    setup.sampleRate = 44100;
-    setup.bufferSize = STANDARD_BUFFERSIZE;
+    deviceSetup.sampleRate = 44100;
+    deviceSetup.bufferSize = STANDARD_BUFFERSIZE;
 
-    _lastError = audioDeviceManager.initialise(0, 2, nullptr, true, "", &setup);
+    _lastError = audioDeviceManager.initialise(currentInputChannels, currentOutputChannels, nullptr, true, "", &deviceSetup);
     if (_lastError.isNotEmpty()) {
       jassertfalse;
       return false;
@@ -52,34 +53,37 @@ void YSE::DEVICE::managerObject::openDevice(const YSE::DEVICE::setupObject & obj
   // device should be closed at this point
   jassert(open == false);
   
-  // transform this to a juce setup object
-  AudioDeviceManager::AudioDeviceSetup setup;
-  int inputChannels = 0;
-  int outputChannels = 0;
+  // transform this to a juce setup object  
+  currentInputChannels = 0;
+  currentOutputChannels = 0;
   if (object.in != nullptr) {
-    setup.inputDeviceName = object.in->pimpl->getName();
-    inputChannels = object.in->pimpl->getInputChannelNames().size();
-    setup.inputChannels.setRange(0, inputChannels, true);
-    setup.useDefaultInputChannels = false;
+    deviceSetup.inputDeviceName = object.in->pimpl->getName();
+    currentInputChannels = object.in->pimpl->getInputChannelNames().size();
+    deviceSetup.inputChannels.setRange(0, currentInputChannels, true);
+    deviceSetup.useDefaultInputChannels = false;
   }
 
   if (object.out != nullptr) {
-    setup.outputDeviceName = object.out->pimpl->getName();
-    outputChannels = object.out->pimpl->getOutputChannelNames().size();
-    setup.outputChannels.setRange(0, outputChannels, true);
-    setup.useDefaultOutputChannels = false;
+    deviceSetup.outputDeviceName = object.out->pimpl->getName();
+    currentOutputChannels = object.out->pimpl->getOutputChannelNames().size();
+    deviceSetup.outputChannels.setRange(0, currentOutputChannels, true);
+    deviceSetup.useDefaultOutputChannels = false;
   }
 
-  setup.sampleRate = object.sampleRate;
-  setup.bufferSize = object.bufferSize;
+  deviceSetup.sampleRate = object.sampleRate;
+  deviceSetup.bufferSize = object.bufferSize;
 
+  openDevice();
+}
+
+void YSE::DEVICE::managerObject::openDevice() {
   // change to the new device, enabling the default device if it can't be opened.
-  _lastError = audioDeviceManager.initialise(inputChannels, outputChannels, nullptr, true, "", &setup);
+  _lastError = audioDeviceManager.initialise(currentInputChannels, currentOutputChannels, nullptr, true, "", &deviceSetup);
   if (_lastError.isNotEmpty()) {
     // default device is chosen.
     // Should we inform the user?
   }
-  
+
   SAMPLERATE = static_cast<UInt>(audioDeviceManager.getCurrentAudioDevice()->getCurrentSampleRate());
   audioDeviceManager.addAudioCallback(this);
   open = true;
@@ -184,7 +188,10 @@ void YSE::DEVICE::managerObject::audioDeviceAboutToStart(AudioIODevice * device)
 }
 
 void YSE::DEVICE::managerObject::audioDeviceStopped() {
-
+  if (open) {
+    // device is supposed to be open, but it's not
+    openDevice();
+  }
 }
 
 void YSE::DEVICE::managerObject::audioDeviceError(const juce::String & errorMessage) {
@@ -202,7 +209,10 @@ void YSE::DEVICE::managerObject::updateDeviceList() {
 
     for (int j = 0; j < deviceNames.size(); ++j) {
       AudioIODevice * device = types[i]->createDevice(deviceNames[j], deviceNames[j]);
-      devices.emplace_back(device);
+      // primary sound driver is not a real driver anyway, and it seems to crash on use
+      if (!device->getName().equalsIgnoreCase("Primary Sound Driver")) {
+        devices.emplace_back(device);
+      }
     }
   }
 }

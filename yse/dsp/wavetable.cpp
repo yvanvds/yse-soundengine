@@ -62,3 +62,4 @@ void YSE::DSP::wavetable::createFourierTable(const std::vector<Flt> & harmonics,
 
   copyOverflow();
 }
+

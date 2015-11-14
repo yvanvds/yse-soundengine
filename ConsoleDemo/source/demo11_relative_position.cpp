@@ -22,6 +22,7 @@ int main() {
   flies.create("flies.ogg", NULL, true);
   kick.create("kick.ogg", NULL, true);
 
+  std::cout << "While other engines support 2D sounds, YSE offers relative sounds instead. A relative sound is like a 2D sound, but can still postioned off-center." << std::endl;
   std::cout << "Use keyboard to jump to a number." << std::endl;
   std::cout << "Use WASD to move the listener." << std::endl;
   std::cout << "...or e to exit." << std::endl;

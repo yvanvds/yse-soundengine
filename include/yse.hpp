@@ -11,6 +11,8 @@
 #ifndef YSE_HPP_INCLUDED
 #define YSE_HPP_INCLUDED
 
+#define YSE_SOUND
+
 #include <atomic>
 
 // helpers
@@ -33,15 +35,22 @@
 #include "dsp/ramp.hpp"
 #include "dsp/envelope.hpp"
 #include "dsp/ADSRenvelope.hpp"
+#include "dsp/lfo.hpp"
 
 #include "dsp/modules/hilbert.hpp"
 #include "dsp/modules/ringModulator.hpp"
 #include "dsp/modules/sineWave.hpp"
+#include "dsp/modules/granulator.hpp"
+#include "dsp/modules/phaser.hpp"
+#include "dsp/modules/delay/basicDelay.hpp"
+#include "dsp/modules/delay/highpassDelay.hpp"
+#include "dsp/modules/delay/lowpassDelay.hpp"
 
 #include "dsp/modules/filters/highpass.hpp"
 #include "dsp/modules/filters/lowpass.hpp"
 #include "dsp/modules/filters/bandpass.hpp"
 #include "dsp/modules/fm/difference.hpp"
+#include "dsp/modules/filters/sweep.hpp"
 
 // utilities
 #include "utils/misc.hpp"

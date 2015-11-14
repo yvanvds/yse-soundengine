@@ -199,8 +199,8 @@ namespace YSE {
       if ((UInt)(destPos   + length) > storage.size()) return (*this);
 
       UInt l = length;
-      Flt * ptr1 = storage.data() + sourcePos;
-      const Flt * ptr2 = s.storage.data() + destPos;
+      Flt * ptr1 = storage.data() + destPos;
+      const Flt * ptr2 = s.storage.data() + sourcePos;
       for (; l > 7; l -= 8, ptr1 += 8, ptr2 += 8) {
         ptr1[0] = ptr2[0];
         ptr1[1] = ptr2[1];

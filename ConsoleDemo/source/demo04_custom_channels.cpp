@@ -42,6 +42,7 @@ int main() {
   // add a sound to the music channel
   pulse.create("pulse1.ogg", &YSE::ChannelMusic(), true);
 
+  std::cout << "Sounds are mixed in channels. Every channel is linked to the global channel. Custom channels can be created. If you delete a channel, the sounds in that channel move to the parent channel." << std::endl;
   std::cout << "Use q/a to change the globalChannel volume up and down." << std::endl;
   std::cout << "Use w/s to change the customChannel volume up and down." << std::endl;
   std::cout << "Use e/d to change the musicChannel volume up and down." << std::endl;

@@ -14,6 +14,7 @@ int main() {
   YSE::sound s;
   s.create("countdown.ogg", NULL, true);
 
+  std::cout << "The playhead on a sound can be moved. This is one sample with numbers. You can jump to any number you'd want, or just hear the countdown." << std::endl;
   std::cout << "Use keyboard to jump to a number." << std::endl;
   std::cout << "...or e to exit." << std::endl;
 

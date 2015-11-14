@@ -228,12 +228,20 @@ void YSE::CHANNEL::implementationObject::childrenToParent() {
   // don't do this if there is no parent channel
   if (parent == nullptr) return;
 
-  for (auto i = children.begin(); i != children.end(); ++i) {
-    parent->connect(*i);
+  {
+    auto i = children.begin();
+    while (i != children.end()) {
+      parent->connect(*i);
+      i = children.begin();
+    }
   }
 
-  for (auto i = sounds.begin(); i != sounds.end(); ++i) {
-    parent->connect(*i);
+  {
+    auto i = sounds.begin();
+    while (i != sounds.end()) {
+      parent->connect(*i);
+      i = sounds.begin();
+    }
   }
 }
 

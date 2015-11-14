@@ -34,8 +34,6 @@ namespace YSE {
 
       ringModulator& frequency(Flt value);
       Flt            frequency();
-      ringModulator& level(Flt value);
-      Flt            level();
 
       // dsp functions
       virtual void create();
@@ -45,7 +43,7 @@ namespace YSE {
       aFlt parmFrequency;
       aFlt parmLevel;
       std::shared_ptr<sine> sineGen;
-      std::shared_ptr<buffer> extra;
+      std::shared_ptr<buffer> result;
     };
 
   }

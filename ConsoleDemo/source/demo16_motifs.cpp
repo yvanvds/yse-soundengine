@@ -29,7 +29,7 @@ public:
   }
 
   virtual void process(YSE::SOUND_STATUS & intent) {
-    assert(intent != YSE::SS_STOPPED);
+   // assert(intent != YSE::SS_STOPPED);
     if (intent == YSE::SS_WANTSTOPLAY) {
       ramp.set(1, 10);
       intent = YSE::SS_PLAYING;
@@ -58,8 +58,8 @@ public:
 
     // copy buffer to all channels (YSE creates the buffer vector for your dsp, according to 
     // the channels chosen for the current output device
-    for (UInt i = 0; i < buffer.size(); i++) {
-      buffer[i] = out;
+    for (UInt i = 0; i < samples.size(); i++) {
+      samples[i] = out;
     }
   }
 
@@ -185,8 +185,8 @@ int main() {
   YSE::ChannelMaster().attachReverb();
 
   // the interface
-  std::cout << "This demo doesn't give you a lot of options, but it will " << std::endl;
-  std::cout << "evolve on its own." << std::endl;
+  std::cout << "This demo doesn't give you a lot of options, but it will " 
+               "evolve on its own. It is an example of the player class, which can be used to generate algorithmic music." << std::endl;
   std::cout << "1  : start player" << std::endl;
   std::cout << "2  : stop player" << std::endl;
   std::cout << "e  : exit" << std::endl;

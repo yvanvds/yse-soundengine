@@ -133,7 +133,7 @@ namespace YSE {
       addr = tab + (tf.i[HIOFFSET] & (COSTABSIZE - 1));
       tf.i[HIOFFSET] = normhipart;
 
-      while (length--) {
+      while (--length) {
         dphase = (Dbl)(*inPtr++ * static_cast<Flt>(COSTABSIZE)) + UNITBIT32;
         frac = static_cast<Flt>(tf.d) - UNITBIT32;
         tf.d = dphase;
@@ -143,6 +143,11 @@ namespace YSE {
         *outPtr++ = f1 + frac * (f2 - f1);
         tf.i[HIOFFSET] = normhipart;
       }
+
+      frac = static_cast<Flt>(tf.d) - UNITBIT32;
+      f1 = addr[0];
+      f2 = addr[1];
+      *outPtr++ = f1 + frac * (f2 - f1);
 
       return buffer;
     }

@@ -49,13 +49,15 @@ bool YSE::PLAYER::implementationObject::update(Flt delta) {
   }
 
   // update notes and delete on note off
-  std::deque<MUSIC::note>::iterator i = notes.begin();
-  while (i != notes.end()) {
-    if (!i->update(delta)) {
-      instrument->noteOff(*i);
-      i = notes.erase(i);
+  {
+    std::deque<MUSIC::note>::iterator i = notes.begin();
+    while (i != notes.end()) {
+      if (!i->update(delta)) {
+        instrument->noteOff(*i);
+        i = notes.erase(i);
+      }
+      else i++;
     }
-    else i++;
   }
 
   // update all modifiers
@@ -77,7 +79,7 @@ bool YSE::PLAYER::implementationObject::update(Flt delta) {
   if (!playing) return true;
 
   // adjust number of active voices if needed
-  while ((int)numVoices() > activeVoices) {
+  while ((UInt)numVoices() > activeVoices) {
     if (voices.size() > activeVoices) {
       voices[activeVoices].isActive = true;
     }
@@ -87,13 +89,13 @@ bool YSE::PLAYER::implementationObject::update(Flt delta) {
     activeVoices++;
   }
 
-  while ((int)numVoices() < activeVoices) {
+  while ((UInt)numVoices() < activeVoices) {
     voices[activeVoices - 1].isActive = false;
     activeVoices--;
   }
 
   // evaluate voices state
-  for (int i = 0; i < voices.size(); i++) { 
+  for (UInt i = 0; i < voices.size(); i++) { 
     
     // check motif if it's playing
     if (voices[i].motifPlaying) {
@@ -174,11 +176,11 @@ void YSE::PLAYER::implementationObject::setVoiceFromMotif(voice & v, Flt delta) 
     // transpose within range
     Flt transposition;
     if (m->getValidPitches() != nullptr && m->getValidPitches()->size()) {
-      Flt pitch = static_cast<Flt>(m->getValidPitches()->getNearest(Random(static_cast<Int>(minimumPitch()), static_cast<Int>(maximumPitch()))));
+      Flt pitch = static_cast<Flt>(m->getValidPitches()->getNearest(static_cast<Flt>((Random(static_cast<Int>(minimumPitch()), static_cast<Int>(maximumPitch()))))));
       transposition = pitch - v.motif[0].getPitch();     
     }
     else {
-      transposition = Random(static_cast<Int>(minimumPitch()) - v.motif[0].getPitch(), maximumPitch() - v.motif[0].getPitch());
+      transposition = static_cast<Flt>(Random(static_cast<Int>(minimumPitch()) - v.motif[0].getPitch(), maximumPitch() - v.motif[0].getPitch()));
     }
     FOREACH(v.motif) {
       v.motif[i].setPitch(v.motif[i].getPitch() + transposition);
@@ -266,7 +268,7 @@ void YSE::PLAYER::implementationObject::parseMessage(const messageObject & messa
   case ADD_MOTIF:
     wMotif m;
     m.motif = (MOTIF::implementationObject*)message.object.ptr;
-    m.weight = message.object.time;
+    m.weight = static_cast<UInt>(message.object.time);
     FOREACH(motifs) {
       // no doubles!
       if (motifs[i].motif == m.motif) assert(false);

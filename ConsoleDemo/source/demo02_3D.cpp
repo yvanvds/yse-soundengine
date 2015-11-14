@@ -42,6 +42,7 @@ int main() {
   sound2.create("kick.ogg", NULL, true).play();
   reset();
 
+  std::cout << "This demonstrates how sounds and the listener can be moved in 3D." << std::endl;
   std::cout << "Initial positions (xyz) are:" << std::endl;
   std::cout << "Listener:  0 / 0 / 0" << std::endl;
   std::cout << "Sound 1 : -5 / 0 / 5" << std::endl;

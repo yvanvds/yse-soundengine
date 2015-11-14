@@ -1,0 +1,72 @@
+#!/bin/bash
+
+#remove previous build
+rm -fr yse_binary_release_ios
+
+# create directories
+echo '-> creating directories...'
+mkdir yse_binary_release_ios
+mkdir yse_binary_release_ios/include
+mkdir yse_binary_release_ios/lib
+mkdir yse_binary_release_ios/demo
+mkdir yse_binary_release_ios/demo/compiled
+
+# create static library
+echo '-> creating static library...'
+cd static_library/Builds/iOS/
+
+xcodebuild -configuration Release
+
+cd ../../../
+mv static_library/Builds/iOS/build/Release/libyse.a yse_binary_release_iOS/lib/
+
+# create dynamic library
+echo '-> creating dynamic library...'
+cd dll/Builds/iOS
+xcodebuild -configuration Release
+
+cd ../../../
+mv dll/Builds/iOS/build/Release/libyse.dylib yse_binary_release_iOS/lib/
+
+# copy include files
+echo '-> copying header files...'
+cp -fr include/* yse_binary_release_iOS/include/
+
+# copy demo source
+# echo '-> copying demo source...'
+# cp -fr ConsoleDemo/source yse_binary_release_mac/demo
+# cp -fr scripts/generateDemoMac yse_binary_release_mac/demo
+# cp -fr bin/*.ogg yse_binary_release_mac/demo/compiled
+# cp -fr bin/*.wav yse_binary_release_mac/demo/compiled
+# cp -fr bin/*.env yse_binary_release_mac/demo/compiled
+
+# compile demo
+# read -n 1 -p "compile and test demo apps? (y/n) " answer
+# case ${answer:0:1} in
+#   y|Y )
+#     echo '-> compiling demos. Please verify them.'
+#     cd yse_binary_release_mac/demo/
+#     ./generateDemoMac
+
+#     cd ../../
+#     echo -e '\n-> removing binaries...'
+#     for entry in `ls yse_binary_release_mac/demo/compiled/demo*`; do
+#       rm $entry
+#     done
+#   ;;
+# esac
+
+# add info files
+echo -e "\n-> adding info files..."
+cp AUTHORS yse_binary_release_iOS
+cp COPYING yse_binary_release_iOS
+cp README yse_binary_release_iOS
+
+# create zip file
+read -n 1 -p "Create zip file? (y/n) " answer
+case ${answer:0:1} in
+  y|Y )
+    zip -r9 libYSE-1.0_iOS.zip yse_binary_release_iOS
+  ;;
+esac
+echo -e "\n-> creating zip file"

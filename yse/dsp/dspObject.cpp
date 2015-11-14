@@ -25,7 +25,18 @@ YSE::DSP::dspObject * YSE::DSP::dspObject::link() {
   return this->next;
 }
 
-YSE::DSP::dspObject::dspObject() : next(nullptr), previous(nullptr), _bypass(false), calledfrom(nullptr), _needsCreate(true) {
+YSE::DSP::dspObject::dspObject() 
+  : next(nullptr), 
+    previous(nullptr), 
+    _bypass(false), 
+    _impact(1.f), 
+    calledfrom(nullptr), 
+    _needsCreate(true),
+    _lfoFrequency(0.f),
+    _lfoType(LFO_NONE)
+    {
+  lfoOsc.reset(new lfo);
+  invertedImpact.reset(new inverter);
 }
 
 YSE::DSP::dspObject::~dspObject() {
@@ -39,4 +50,17 @@ void YSE::DSP::dspObject::createIfNeeded() {
     create();
     _needsCreate = false;
   }
+}
+
+void YSE::DSP::dspObject::calculateImpact(buffer & in, buffer & filtered) {
+  buffer & lfoImpact = (*lfoOsc)(_lfoType, _lfoFrequency);
+  lfoImpact *= _impact;
+  buffer & inImpact = (*invertedImpact)(lfoImpact, true);
+  in *= inImpact;
+  filtered *= lfoImpact;
+  in += filtered;
+}
+
+YSE::DSP::buffer & YSE::DSP::dspObject::getLFO() {
+  return (*lfoOsc)(_lfoType, _lfoFrequency);
 }

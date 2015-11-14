@@ -1,0 +1,16 @@
+
+**********************************************************
+=== start of YSE log ===
+Log started: 19 Feb 2014 7:27:36pm
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized
+(Debug) Sound added to system.
+(Warning) Error while loading file:  file not found for C:\Users\yvan\Documents\GitHub\yse-soundengine\ConsoleDemo\VS2013\consoleDemo\drone.ogg
+
+**********************************************************
+=== start of YSE log ===
+Log started: 27 Feb 2014 8:49:57am
+
+(Debug)  COM library initialized
+(Debug)  YSE System object initialized

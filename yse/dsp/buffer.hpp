@@ -37,7 +37,7 @@ namespace YSE {
       // gets the length of a sample in frames (also called 'samples' like in '44100 samples per second')
       inline UInt getLength   () const { return storage.size() - overflow; }
       // gets the length of a sample in milliseconds
-      inline UInt	getLengthMS () const { return ((storage.size() - overflow) / static_cast<Flt>(SAMPLERATE * 0.001)); }
+      inline UInt	getLengthMS () const { return static_cast<UInt>((storage.size() - overflow) / static_cast<Flt>(SAMPLERATE * 0.001)); }
       // gets the length of a sample in seconds
       inline Flt	getLengthSec() const { return ((storage.size() - overflow) / static_cast<Flt>(SAMPLERATE)); }
 
@@ -85,7 +85,7 @@ namespace YSE {
       // if the buffer has an overflow, this will copy the first x bytes to the end of the buffer
       // (It is unlikely that you would need this function because this happens automatically on 
       // most operations.)
-      inline void copyOverflow() { for (int i = 0; i < overflow; i++) storage[getLength() + i] = storage[i]; }
+      inline void copyOverflow() { for (UInt i = 0; i < overflow; i++) storage[getLength() + i] = storage[i]; }
 
     protected:
       std::vector<Flt> storage;
