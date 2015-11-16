@@ -19,11 +19,11 @@
 namespace YSE {
   template<typename T0, typename T1, typename T2>
   inline API void  Clamp(T0  &x, T1  min, T2  max) { if (x<min)x = min; else if (x>max)x = max; }
-  inline API void Randomize() { srand(::time(nullptr)); }
+  inline API void Randomize() { srand(static_cast<UInt>(::time(nullptr))); }
   inline API Int Random(Int max) { return rand() % max; }
   inline API Int Random(Int min, Int max) { return min + (rand() % (max - min)); }
   inline API Int BigRandom(Int max) {
-    max = sqrt(max);
+    max = static_cast<Int>(sqrt(max));
     return ((rand() % max) * (rand() % max));
   }
 

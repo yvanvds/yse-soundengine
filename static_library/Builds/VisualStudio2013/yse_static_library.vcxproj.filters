@@ -26,17 +26,20 @@
     <Filter Include="yse_static_library\yse\dsp">
       <UniqueIdentifier>{B1C29C6D-1891-10FB-197A-C9A9215ACA78}</UniqueIdentifier>
     </Filter>
+    <Filter Include="yse_static_library\yse\dsp\fourier">
+      <UniqueIdentifier>{73988317-666F-890C-38FC-45F54D7C7E2E}</UniqueIdentifier>
+    </Filter>
     <Filter Include="yse_static_library\yse\dsp\modules">
       <UniqueIdentifier>{93624AAA-BBAB-0F24-30DE-2D5650978609}</UniqueIdentifier>
     </Filter>
-    <Filter Include="yse_static_library\yse\dsp\modules\fm">
-      <UniqueIdentifier>{BDD3B378-8820-1812-8D37-A15E5EF7ED0C}</UniqueIdentifier>
+    <Filter Include="yse_static_library\yse\dsp\modules\delay">
+      <UniqueIdentifier>{47804298-FAC4-A862-AAC5-1D09F03950DA}</UniqueIdentifier>
     </Filter>
     <Filter Include="yse_static_library\yse\dsp\modules\filters">
       <UniqueIdentifier>{CB79B13E-88AB-08D0-8924-6ABDC4E8136D}</UniqueIdentifier>
     </Filter>
-    <Filter Include="yse_static_library\yse\dsp\fourier">
-      <UniqueIdentifier>{73988317-666F-890C-38FC-45F54D7C7E2E}</UniqueIdentifier>
+    <Filter Include="yse_static_library\yse\dsp\modules\fm">
+      <UniqueIdentifier>{BDD3B378-8820-1812-8D37-A15E5EF7ED0C}</UniqueIdentifier>
     </Filter>
     <Filter Include="yse_static_library\yse\headers">
       <UniqueIdentifier>{F29479A1-DCB6-40EC-4DCF-F7BC94252248}</UniqueIdentifier>
@@ -250,8 +253,20 @@
     <ClCompile Include="..\..\..\yse\device\deviceSetup.cpp">
       <Filter>yse_static_library\yse\device</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\yse\dsp\modules\fm\difference.cpp">
-      <Filter>yse_static_library\yse\dsp\modules\fm</Filter>
+    <ClCompile Include="..\..\..\yse\dsp\fourier\fft.cpp">
+      <Filter>yse_static_library\yse\dsp\fourier</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\dsp\fourier\mayer.cpp">
+      <Filter>yse_static_library\yse\dsp\fourier</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\dsp\modules\delay\basicDelay.cpp">
+      <Filter>yse_static_library\yse\dsp\modules\delay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\dsp\modules\delay\highpassDelay.cpp">
+      <Filter>yse_static_library\yse\dsp\modules\delay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\dsp\modules\delay\lowpassDelay.cpp">
+      <Filter>yse_static_library\yse\dsp\modules\delay</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\yse\dsp\modules\filters\bandpass.cpp">
       <Filter>yse_static_library\yse\dsp\modules\filters</Filter>
@@ -262,7 +277,16 @@
     <ClCompile Include="..\..\..\yse\dsp\modules\filters\lowpass.cpp">
       <Filter>yse_static_library\yse\dsp\modules\filters</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\yse\dsp\modules\filters\sweep.cpp">
+      <Filter>yse_static_library\yse\dsp\modules\filters</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\dsp\modules\fm\difference.cpp">
+      <Filter>yse_static_library\yse\dsp\modules\fm</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\yse\dsp\modules\hilbert.cpp">
+      <Filter>yse_static_library\yse\dsp\modules</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\dsp\modules\phaser.cpp">
       <Filter>yse_static_library\yse\dsp\modules</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\yse\dsp\modules\ringModulator.cpp">
@@ -271,22 +295,19 @@
     <ClCompile Include="..\..\..\yse\dsp\modules\sineWave.cpp">
       <Filter>yse_static_library\yse\dsp\modules</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\yse\dsp\fourier\fft.cpp">
-      <Filter>yse_static_library\yse\dsp\fourier</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\yse\dsp\fourier\mayer.cpp">
-      <Filter>yse_static_library\yse\dsp\fourier</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\yse\dsp\ADSRenvelope.cpp">
       <Filter>yse_static_library\yse\dsp</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\yse\dsp\buffer.cpp">
       <Filter>yse_static_library\yse\dsp</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\yse\dsp\delay.cpp">
+      <Filter>yse_static_library\yse\dsp</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\yse\dsp\drawableBuffer.cpp">
       <Filter>yse_static_library\yse\dsp</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\yse\dsp\delay.cpp">
+    <ClCompile Include="..\..\..\yse\dsp\dspObject.cpp">
       <Filter>yse_static_library\yse\dsp</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\yse\dsp\envelope.cpp">
@@ -295,10 +316,16 @@
     <ClCompile Include="..\..\..\yse\dsp\fileBuffer.cpp">
       <Filter>yse_static_library\yse\dsp</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\yse\dsp\dspObject.cpp">
+    <ClCompile Include="..\..\..\yse\dsp\filters.cpp">
       <Filter>yse_static_library\yse\dsp</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\yse\dsp\filters.cpp">
+    <ClCompile Include="..\..\..\yse\dsp\modules\granulator.cpp">
+      <Filter>yse_static_library\yse\dsp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\dsp\interpolate4.cpp">
+      <Filter>yse_static_library\yse\dsp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\dsp\lfo.cpp">
       <Filter>yse_static_library\yse\dsp</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\yse\dsp\math.cpp">
@@ -310,13 +337,16 @@
     <ClCompile Include="..\..\..\yse\dsp\oscillators.cpp">
       <Filter>yse_static_library\yse\dsp</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\yse\dsp\ramp.cpp">
+      <Filter>yse_static_library\yse\dsp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\yse\dsp\rawFilters.cpp">
+      <Filter>yse_static_library\yse\dsp</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\yse\dsp\sample_functions.cpp">
       <Filter>yse_static_library\yse\dsp</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\yse\dsp\wavetable.cpp">
-      <Filter>yse_static_library\yse\dsp</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\yse\dsp\ramp.cpp">
       <Filter>yse_static_library\yse\dsp</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\yse\implementations\listenerImplementation.cpp">
@@ -419,6 +449,9 @@
       <Filter>yse_static_library</Filter>
     </ClCompile>
     <ClCompile Include="..\..\JuceLibraryCode\modules\juce_audio_basics\buffers\juce_AudioDataConverters.cpp">
+      <Filter>Juce Modules\juce_audio_basics\buffers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\JuceLibraryCode\modules\juce_audio_basics\buffers\juce_AudioSampleBuffer.cpp">
       <Filter>Juce Modules\juce_audio_basics\buffers</Filter>
     </ClCompile>
     <ClCompile Include="..\..\JuceLibraryCode\modules\juce_audio_basics\buffers\juce_FloatVectorOperations.cpp">
@@ -993,8 +1026,20 @@
     <ClInclude Include="..\..\..\yse\device\deviceSetup.hpp">
       <Filter>yse_static_library\yse\device</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\yse\dsp\modules\fm\difference.hpp">
-      <Filter>yse_static_library\yse\dsp\modules\fm</Filter>
+    <ClInclude Include="..\..\..\yse\dsp\fourier\fft.hpp">
+      <Filter>yse_static_library\yse\dsp\fourier</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\dsp\fourier\mayer.h">
+      <Filter>yse_static_library\yse\dsp\fourier</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\dsp\modules\delay\basicDelay.hpp">
+      <Filter>yse_static_library\yse\dsp\modules\delay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\dsp\modules\delay\highpassDelay.hpp">
+      <Filter>yse_static_library\yse\dsp\modules\delay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\dsp\modules\delay\lowpassDelay.hpp">
+      <Filter>yse_static_library\yse\dsp\modules\delay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\yse\dsp\modules\filters\bandpass.hpp">
       <Filter>yse_static_library\yse\dsp\modules\filters</Filter>
@@ -1005,7 +1050,16 @@
     <ClInclude Include="..\..\..\yse\dsp\modules\filters\lowpass.hpp">
       <Filter>yse_static_library\yse\dsp\modules\filters</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\yse\dsp\modules\filters\sweep.hpp">
+      <Filter>yse_static_library\yse\dsp\modules\filters</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\dsp\modules\fm\difference.hpp">
+      <Filter>yse_static_library\yse\dsp\modules\fm</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\yse\dsp\modules\hilbert.hpp">
+      <Filter>yse_static_library\yse\dsp\modules</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\dsp\modules\phaser.hpp">
       <Filter>yse_static_library\yse\dsp\modules</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\yse\dsp\modules\ringModulator.hpp">
@@ -1014,22 +1068,19 @@
     <ClInclude Include="..\..\..\yse\dsp\modules\sineWave.hpp">
       <Filter>yse_static_library\yse\dsp\modules</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\yse\dsp\fourier\fft.hpp">
-      <Filter>yse_static_library\yse\dsp\fourier</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\yse\dsp\fourier\mayer.h">
-      <Filter>yse_static_library\yse\dsp\fourier</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\yse\dsp\ADSRenvelope.hpp">
       <Filter>yse_static_library\yse\dsp</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\yse\dsp\buffer.hpp">
       <Filter>yse_static_library\yse\dsp</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\yse\dsp\delay.hpp">
+      <Filter>yse_static_library\yse\dsp</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\yse\dsp\drawableBuffer.hpp">
       <Filter>yse_static_library\yse\dsp</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\yse\dsp\delay.hpp">
+    <ClInclude Include="..\..\..\yse\dsp\dspObject.hpp">
       <Filter>yse_static_library\yse\dsp</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\yse\dsp\envelope.hpp">
@@ -1038,10 +1089,16 @@
     <ClInclude Include="..\..\..\yse\dsp\fileBuffer.hpp">
       <Filter>yse_static_library\yse\dsp</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\yse\dsp\dspObject.hpp">
+    <ClInclude Include="..\..\..\yse\dsp\filters.hpp">
       <Filter>yse_static_library\yse\dsp</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\yse\dsp\filters.hpp">
+    <ClInclude Include="..\..\..\yse\dsp\modules\granulator.hpp">
+      <Filter>yse_static_library\yse\dsp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\dsp\interpolate4.hpp">
+      <Filter>yse_static_library\yse\dsp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\dsp\lfo.hpp">
       <Filter>yse_static_library\yse\dsp</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\yse\dsp\math.hpp">
@@ -1053,13 +1110,16 @@
     <ClInclude Include="..\..\..\yse\dsp\oscillators.hpp">
       <Filter>yse_static_library\yse\dsp</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\yse\dsp\ramp.hpp">
+      <Filter>yse_static_library\yse\dsp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\dsp\rawFilters.hpp">
+      <Filter>yse_static_library\yse\dsp</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\yse\dsp\sample_functions.hpp">
       <Filter>yse_static_library\yse\dsp</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\yse\dsp\wavetable.hpp">
-      <Filter>yse_static_library\yse\dsp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\yse\dsp\ramp.hpp">
       <Filter>yse_static_library\yse\dsp</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\yse\headers\constants.hpp">
@@ -1194,16 +1254,13 @@
     <ClInclude Include="..\..\..\yse\utils\vector.hpp">
       <Filter>yse_static_library\yse\utils</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\yse\io.hpp">
-      <Filter>yse_static_library</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\yse\classes.hpp">
       <Filter>yse_static_library</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\yse\yse.hpp">
+    <ClInclude Include="..\..\..\yse\internalHeaders.h">
       <Filter>yse_static_library</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\yse\internalHeaders.h">
+    <ClInclude Include="..\..\..\yse\io.hpp">
       <Filter>yse_static_library</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\yse\listener.hpp">
@@ -1213,6 +1270,9 @@
       <Filter>yse_static_library</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\yse\system.hpp">
+      <Filter>yse_static_library</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\yse\yse.hpp">
       <Filter>yse_static_library</Filter>
     </ClInclude>
     <ClInclude Include="..\..\JuceLibraryCode\modules\juce_audio_basics\buffers\juce_AudioDataConverters.h">

@@ -2,7 +2,7 @@
 
 <JUCERPROJECT id="AKkfPk" name="yse_static_library" projectType="library" version="1.0.0"
               bundleIdentifier="com.yourcompany.yse_static_library" includeBinaryInAppConfig="1"
-              jucerVersion="4.0.1">
+              jucerVersion="3.2.0">
   <MAINGROUP id="JLmmWK" name="yse_static_library">
     <GROUP id="{DAF363ED-A43B-6DFC-2214-7863A037768A}" name="yse">
       <GROUP id="{DD1C0708-BF8A-4DBC-3466-188D2E2380DF}" name="player">
@@ -88,10 +88,24 @@
         <FILE id="I49iYF" name="deviceSetup.hpp" compile="0" resource="0" file="../yse/device/deviceSetup.hpp"/>
       </GROUP>
       <GROUP id="{60D265EE-B1CE-4648-4A7C-C6FF2C977D7A}" name="dsp">
+        <GROUP id="{03777B91-FD28-2E0B-04C8-5169787FFDC9}" name="fourier">
+          <FILE id="RWuDsa" name="fft.cpp" compile="1" resource="0" file="../yse/dsp/fourier/fft.cpp"/>
+          <FILE id="Eo1bRc" name="fft.hpp" compile="0" resource="0" file="../yse/dsp/fourier/fft.hpp"/>
+          <FILE id="iTdxRL" name="mayer.cpp" compile="1" resource="0" file="../yse/dsp/fourier/mayer.cpp"/>
+          <FILE id="rq6RnB" name="mayer.h" compile="0" resource="0" file="../yse/dsp/fourier/mayer.h"/>
+        </GROUP>
         <GROUP id="{472FCDC2-E704-32E3-6EE4-2331D27F41B5}" name="modules">
-          <GROUP id="{14802AB0-F518-9942-5C64-91EBEA80A57A}" name="fm">
-            <FILE id="sdFXA9" name="difference.cpp" compile="1" resource="0" file="../yse/dsp/modules/fm/difference.cpp"/>
-            <FILE id="Z8S82c" name="difference.hpp" compile="0" resource="0" file="../yse/dsp/modules/fm/difference.hpp"/>
+          <GROUP id="{47AE487C-1D8A-0776-4B49-A301F1780C71}" name="delay">
+            <FILE id="ivAjVr" name="basicDelay.cpp" compile="1" resource="0" file="../yse/dsp/modules/delay/basicDelay.cpp"/>
+            <FILE id="STKFja" name="basicDelay.hpp" compile="0" resource="0" file="../yse/dsp/modules/delay/basicDelay.hpp"/>
+            <FILE id="f862Rp" name="highpassDelay.cpp" compile="1" resource="0"
+                  file="../yse/dsp/modules/delay/highpassDelay.cpp"/>
+            <FILE id="YGZCAY" name="highpassDelay.hpp" compile="0" resource="0"
+                  file="../yse/dsp/modules/delay/highpassDelay.hpp"/>
+            <FILE id="ZtKul2" name="lowpassDelay.cpp" compile="1" resource="0"
+                  file="../yse/dsp/modules/delay/lowpassDelay.cpp"/>
+            <FILE id="gBfmOH" name="lowpassDelay.hpp" compile="0" resource="0"
+                  file="../yse/dsp/modules/delay/lowpassDelay.hpp"/>
           </GROUP>
           <GROUP id="{A6168550-149C-60A1-7077-9BF475E607CE}" name="filters">
             <FILE id="X4wVsf" name="bandpass.cpp" compile="1" resource="0" file="../yse/dsp/modules/filters/bandpass.cpp"/>
@@ -100,9 +114,17 @@
             <FILE id="hpscVF" name="highpass.hpp" compile="0" resource="0" file="../yse/dsp/modules/filters/highpass.hpp"/>
             <FILE id="WDW6J8" name="lowpass.cpp" compile="1" resource="0" file="../yse/dsp/modules/filters/lowpass.cpp"/>
             <FILE id="o2UWYE" name="lowpass.hpp" compile="0" resource="0" file="../yse/dsp/modules/filters/lowpass.hpp"/>
+            <FILE id="BCmZZR" name="sweep.cpp" compile="1" resource="0" file="../yse/dsp/modules/filters/sweep.cpp"/>
+            <FILE id="mmJcB1" name="sweep.hpp" compile="0" resource="0" file="../yse/dsp/modules/filters/sweep.hpp"/>
+          </GROUP>
+          <GROUP id="{14802AB0-F518-9942-5C64-91EBEA80A57A}" name="fm">
+            <FILE id="sdFXA9" name="difference.cpp" compile="1" resource="0" file="../yse/dsp/modules/fm/difference.cpp"/>
+            <FILE id="Z8S82c" name="difference.hpp" compile="0" resource="0" file="../yse/dsp/modules/fm/difference.hpp"/>
           </GROUP>
           <FILE id="D0el8i" name="hilbert.cpp" compile="1" resource="0" file="../yse/dsp/modules/hilbert.cpp"/>
           <FILE id="rmBTW7" name="hilbert.hpp" compile="0" resource="0" file="../yse/dsp/modules/hilbert.hpp"/>
+          <FILE id="dJqWAg" name="phaser.cpp" compile="1" resource="0" file="../yse/dsp/modules/phaser.cpp"/>
+          <FILE id="kJGQO2" name="phaser.hpp" compile="0" resource="0" file="../yse/dsp/modules/phaser.hpp"/>
           <FILE id="vsJ2Uw" name="ringModulator.cpp" compile="1" resource="0"
                 file="../yse/dsp/modules/ringModulator.cpp"/>
           <FILE id="w8hgVB" name="ringModulator.hpp" compile="0" resource="0"
@@ -110,32 +132,34 @@
           <FILE id="zTePMH" name="sineWave.cpp" compile="1" resource="0" file="../yse/dsp/modules/sineWave.cpp"/>
           <FILE id="LmpKSQ" name="sineWave.hpp" compile="0" resource="0" file="../yse/dsp/modules/sineWave.hpp"/>
         </GROUP>
-        <GROUP id="{03777B91-FD28-2E0B-04C8-5169787FFDC9}" name="fourier">
-          <FILE id="RWuDsa" name="fft.cpp" compile="1" resource="0" file="../yse/dsp/fourier/fft.cpp"/>
-          <FILE id="Eo1bRc" name="fft.hpp" compile="0" resource="0" file="../yse/dsp/fourier/fft.hpp"/>
-          <FILE id="iTdxRL" name="mayer.cpp" compile="1" resource="0" file="../yse/dsp/fourier/mayer.cpp"/>
-          <FILE id="rq6RnB" name="mayer.h" compile="0" resource="0" file="../yse/dsp/fourier/mayer.h"/>
-        </GROUP>
         <FILE id="Rc0Cz5" name="ADSRenvelope.cpp" compile="1" resource="0"
               file="../yse/dsp/ADSRenvelope.cpp"/>
         <FILE id="n2kJju" name="ADSRenvelope.hpp" compile="0" resource="0"
               file="../yse/dsp/ADSRenvelope.hpp"/>
         <FILE id="LZG5Sv" name="buffer.cpp" compile="1" resource="0" file="../yse/dsp/buffer.cpp"/>
         <FILE id="nE74QL" name="buffer.hpp" compile="0" resource="0" file="../yse/dsp/buffer.hpp"/>
+        <FILE id="bOOmdn" name="delay.cpp" compile="1" resource="0" file="../yse/dsp/delay.cpp"/>
+        <FILE id="utfZtB" name="delay.hpp" compile="0" resource="0" file="../yse/dsp/delay.hpp"/>
         <FILE id="wSHu2V" name="drawableBuffer.cpp" compile="1" resource="0"
               file="../yse/dsp/drawableBuffer.cpp"/>
         <FILE id="SKPE0K" name="drawableBuffer.hpp" compile="0" resource="0"
               file="../yse/dsp/drawableBuffer.hpp"/>
-        <FILE id="bOOmdn" name="delay.cpp" compile="1" resource="0" file="../yse/dsp/delay.cpp"/>
-        <FILE id="utfZtB" name="delay.hpp" compile="0" resource="0" file="../yse/dsp/delay.hpp"/>
+        <FILE id="fPkmnl" name="dspObject.cpp" compile="1" resource="0" file="../yse/dsp/dspObject.cpp"/>
+        <FILE id="IzLrLv" name="dspObject.hpp" compile="0" resource="0" file="../yse/dsp/dspObject.hpp"/>
         <FILE id="nvFc8g" name="envelope.cpp" compile="1" resource="0" file="../yse/dsp/envelope.cpp"/>
         <FILE id="hofzzP" name="envelope.hpp" compile="0" resource="0" file="../yse/dsp/envelope.hpp"/>
         <FILE id="JLFB3e" name="fileBuffer.cpp" compile="1" resource="0" file="../yse/dsp/fileBuffer.cpp"/>
         <FILE id="WuvPrf" name="fileBuffer.hpp" compile="0" resource="0" file="../yse/dsp/fileBuffer.hpp"/>
-        <FILE id="fPkmnl" name="dspObject.cpp" compile="1" resource="0" file="../yse/dsp/dspObject.cpp"/>
-        <FILE id="IzLrLv" name="dspObject.hpp" compile="0" resource="0" file="../yse/dsp/dspObject.hpp"/>
         <FILE id="oE6Q0B" name="filters.cpp" compile="1" resource="0" file="../yse/dsp/filters.cpp"/>
         <FILE id="XLFqW6" name="filters.hpp" compile="0" resource="0" file="../yse/dsp/filters.hpp"/>
+        <FILE id="HAdT6e" name="granulator.cpp" compile="1" resource="0" file="../yse/dsp/modules/granulator.cpp"/>
+        <FILE id="y6aPz2" name="granulator.hpp" compile="0" resource="0" file="../yse/dsp/modules/granulator.hpp"/>
+        <FILE id="QqqxuT" name="interpolate4.cpp" compile="1" resource="0"
+              file="../yse/dsp/interpolate4.cpp"/>
+        <FILE id="AwkxSE" name="interpolate4.hpp" compile="0" resource="0"
+              file="../yse/dsp/interpolate4.hpp"/>
+        <FILE id="R6tATd" name="lfo.cpp" compile="1" resource="0" file="../yse/dsp/lfo.cpp"/>
+        <FILE id="CxDeyG" name="lfo.hpp" compile="0" resource="0" file="../yse/dsp/lfo.hpp"/>
         <FILE id="EIpi9f" name="math.cpp" compile="1" resource="0" file="../yse/dsp/math.cpp"/>
         <FILE id="vequya" name="math.hpp" compile="0" resource="0" file="../yse/dsp/math.hpp"/>
         <FILE id="gMVPmU" name="math_functions.cpp" compile="1" resource="0"
@@ -144,14 +168,16 @@
               file="../yse/dsp/math_functions.h"/>
         <FILE id="F9y2dd" name="oscillators.cpp" compile="1" resource="0" file="../yse/dsp/oscillators.cpp"/>
         <FILE id="uW5dqy" name="oscillators.hpp" compile="0" resource="0" file="../yse/dsp/oscillators.hpp"/>
+        <FILE id="fxE0hQ" name="ramp.cpp" compile="1" resource="0" file="../yse/dsp/ramp.cpp"/>
+        <FILE id="g0tGz8" name="ramp.hpp" compile="0" resource="0" file="../yse/dsp/ramp.hpp"/>
+        <FILE id="FJiL44" name="rawFilters.cpp" compile="1" resource="0" file="../yse/dsp/rawFilters.cpp"/>
+        <FILE id="jrZ8xM" name="rawFilters.hpp" compile="0" resource="0" file="../yse/dsp/rawFilters.hpp"/>
         <FILE id="hqXsXn" name="sample_functions.cpp" compile="1" resource="0"
               file="../yse/dsp/sample_functions.cpp"/>
         <FILE id="YMLHKy" name="sample_functions.hpp" compile="0" resource="0"
               file="../yse/dsp/sample_functions.hpp"/>
         <FILE id="rk4iHS" name="wavetable.cpp" compile="1" resource="0" file="../yse/dsp/wavetable.cpp"/>
         <FILE id="M6p8Fk" name="wavetable.hpp" compile="0" resource="0" file="../yse/dsp/wavetable.hpp"/>
-        <FILE id="fxE0hQ" name="ramp.cpp" compile="1" resource="0" file="../yse/dsp/ramp.cpp"/>
-        <FILE id="g0tGz8" name="ramp.hpp" compile="0" resource="0" file="../yse/dsp/ramp.hpp"/>
       </GROUP>
       <GROUP id="{45065A4A-799A-041A-4FA0-EA68A0295666}" name="headers">
         <FILE id="ireAjc" name="constants.hpp" compile="0" resource="0" file="../yse/headers/constants.hpp"/>
@@ -276,18 +302,18 @@
         <FILE id="hhF0t6" name="vector.hpp" compile="0" resource="0" file="../yse/utils/vector.hpp"/>
       </GROUP>
     </GROUP>
-    <FILE id="oxT30S" name="io.hpp" compile="0" resource="0" file="../yse/io.hpp"/>
-    <FILE id="rLkiqs" name="io.cpp" compile="1" resource="0" file="../yse/io.cpp"/>
     <FILE id="L9oMON" name="classes.hpp" compile="0" resource="0" file="../yse/classes.hpp"/>
-    <FILE id="D0K6b0" name="yse.hpp" compile="0" resource="0" file="../yse/yse.hpp"/>
     <FILE id="mIa2i6" name="internalHeaders.h" compile="0" resource="0"
           file="../yse/internalHeaders.h"/>
+    <FILE id="rLkiqs" name="io.cpp" compile="1" resource="0" file="../yse/io.cpp"/>
+    <FILE id="oxT30S" name="io.hpp" compile="0" resource="0" file="../yse/io.hpp"/>
     <FILE id="Kgvv8n" name="listener.cpp" compile="1" resource="0" file="../yse/listener.cpp"/>
     <FILE id="fIMMyo" name="listener.hpp" compile="0" resource="0" file="../yse/listener.hpp"/>
     <FILE id="Yt0YCR" name="log.cpp" compile="1" resource="0" file="../yse/log.cpp"/>
     <FILE id="ulgOWN" name="log.hpp" compile="0" resource="0" file="../yse/log.hpp"/>
     <FILE id="fa96Cr" name="system.cpp" compile="1" resource="0" file="../yse/system.cpp"/>
     <FILE id="zHzuOQ" name="system.hpp" compile="0" resource="0" file="../yse/system.hpp"/>
+    <FILE id="D0K6b0" name="yse.hpp" compile="0" resource="0" file="../yse/yse.hpp"/>
   </MAINGROUP>
   <EXPORTFORMATS>
     <VS2013 targetFolder="Builds/VisualStudio2013" extraDefs="JUCE_CHECK_MEMORY_LEAKS=0&#10;"
@@ -304,9 +330,9 @@
                        headerPath="../yse"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
-        <MODULEPATH id="juce_core" path="../../juce"/>
-        <MODULEPATH id="juce_audio_formats" path="../../juce"/>
-        <MODULEPATH id="juce_audio_devices" path="../../juce"/>
+        <MODULEPATH id="juce_core" path="../../juce/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="../../juce/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="../../juce/modules"/>
         <MODULEPATH id="juce_audio_basics" path="../../juce/modules"/>
         <MODULEPATH id="juce_events" path="../../juce/modules"/>
       </MODULEPATHS>
@@ -325,10 +351,10 @@
       </CONFIGURATIONS>
       <MODULEPATHS>
         <MODULEPATH id="juce_events" path="../../juce/modules"/>
-        <MODULEPATH id="juce_core" path="../../juce"/>
-        <MODULEPATH id="juce_audio_formats" path="../../juce"/>
-        <MODULEPATH id="juce_audio_devices" path="../../juce"/>
-        <MODULEPATH id="juce_audio_basics" path="../../juce"/>
+        <MODULEPATH id="juce_core" path="../../juce/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="../../juce/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="../../juce/modules"/>
+        <MODULEPATH id="juce_audio_basics" path="../../juce/modules"/>
       </MODULEPATHS>
     </ANDROID>
     <XCODE_MAC targetFolder="Builds/MacOSX" extraDefs="JUCE_CHECK_MEMORY_LEAKS=0&#10;">
@@ -375,9 +401,9 @@
       </CONFIGURATIONS>
       <MODULEPATHS>
         <MODULEPATH id="juce_events" path="../../juce/modules"/>
-        <MODULEPATH id="juce_core" path="../../juce"/>
-        <MODULEPATH id="juce_audio_formats" path="../../juce"/>
-        <MODULEPATH id="juce_audio_devices" path="../../juce"/>
+        <MODULEPATH id="juce_core" path="../../juce/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="../../juce/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="../../juce/modules"/>
         <MODULEPATH id="juce_audio_basics" path="../../juce/modules"/>
       </MODULEPATHS>
     </VS2015>
