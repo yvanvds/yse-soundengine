@@ -29,7 +29,7 @@ typedef PLATFORM(signed	__int16  , int16_t ) I16, Short ;
 typedef PLATFORM(unsigned	__int16, uint16_t) U16, UShort;
 typedef PLATFORM(signed	__int32  , int32_t ) I32, Int   ;
 typedef PLATFORM(unsigned	__int32, uint32_t) U32, UInt  ;
-typedef PLATFORM(signed	__int64  , int64_t ) I64, Long  ;
+typedef PLATFORM(signed	__int64  , long long ) I64, Long  ;
 typedef PLATFORM(unsigned	__int64, uint64_t) U64, ULong ;
 
 

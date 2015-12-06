@@ -37,7 +37,7 @@ Bool YSE::INTERNAL::customFileReader::create(const char * filename) {
   return CALLBACK::openPtr(filename, &fileSize, &fileHandle);
 }
 
-I64 YSE::INTERNAL::customFileReader::getTotalLength() {
+int64 YSE::INTERNAL::customFileReader::getTotalLength() {
   return fileSize;
 }
 
