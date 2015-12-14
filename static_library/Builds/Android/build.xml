@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<project name="yse_static_library" default="debug">
+<project name="yse_static" default="debug">
   <loadproperties srcFile="local.properties"/>
   <loadproperties srcFile="project.properties"/>
   <target name="clean" depends="android_rules.clean">
     <delete dir="libs"/>
     <delete dir="obj"/>
-    <exec executable="${ndk.dir}/ndk-build.cmd\" dir="${basedir}" failonerror="true">
+    <exec executable="${ndk.dir}/ndk-build" dir="${basedir}" failonerror="true">
       <arg value="clean"/>
     </exec>
   </target>
@@ -20,7 +20,7 @@
     <condition property="app_abis" value="armeabi armeabi-v7a x86" else="armeabi armeabi-v7a x86">
       <equals arg1="${ant.project.invoked-targets}" arg2="debug"/>
     </condition>
-    <exec executable="${ndk.dir}/ndk-build.cmd\" dir="${basedir}" failonerror="true">
+    <exec executable="${ndk.dir}/ndk-build" dir="${basedir}" failonerror="true">
       <arg value="--jobs=4"/>
       <arg value="CONFIG=${makefileConfig}"/>
       <arg value="${ndkDebugValue}"/>

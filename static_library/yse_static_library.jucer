@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<JUCERPROJECT id="AKkfPk" name="yse_static_library" projectType="library" version="1.0.0"
-              bundleIdentifier="com.yourcompany.yse_static_library" includeBinaryInAppConfig="1"
+<JUCERPROJECT id="AKkfPk" name="yse_static" projectType="library" version="1.0.0"
+              bundleIdentifier="com.mute.yse" includeBinaryInAppConfig="1"
               jucerVersion="4.0.2">
-  <MAINGROUP id="JLmmWK" name="yse_static_library">
+  <MAINGROUP id="JLmmWK" name="yse_static">
+
     <GROUP id="{DAF363ED-A43B-6DFC-2214-7863A037768A}" name="yse">
       <GROUP id="{DD1C0708-BF8A-4DBC-3466-188D2E2380DF}" name="player">
         <FILE id="oRfSsy" name="player.hpp" compile="0" resource="0" file="../yse/player/player.hpp"/>
@@ -407,6 +408,22 @@
         <MODULEPATH id="juce_audio_basics" path="../../juce/modules"/>
       </MODULEPATHS>
     </VS2015>
+    <LINUX_MAKE targetFolder="Builds/LinuxMakefile" extraDefs="JUCE_CHECK_MEMORY_LEAKS=0&#10;"
+                cppLanguageStandard="-std=c++11">
+      <CONFIGURATIONS>
+        <CONFIGURATION name="Debug" libraryPath="/usr/X11R6/lib/" isDebug="1" optimisation="1"
+                       targetName="yse_static" linuxArchitecture="-m64" headerPath="../yse"/>
+        <CONFIGURATION name="Release" libraryPath="/usr/X11R6/lib/" isDebug="0" optimisation="3"
+                       targetName="yse_static" linuxArchitecture="-m64" headerPath="../yse"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_events" path="../../juce"/>
+        <MODULEPATH id="juce_core" path="../../juce"/>
+        <MODULEPATH id="juce_audio_formats" path="../../juce"/>
+        <MODULEPATH id="juce_audio_devices" path="../../juce"/>
+        <MODULEPATH id="juce_audio_basics" path="../../juce"/>
+      </MODULEPATHS>
+    </LINUX_MAKE>
   </EXPORTFORMATS>
   <MODULES>
     <MODULES id="juce_audio_basics" showAllCode="1" useLocalCopy="1"/>

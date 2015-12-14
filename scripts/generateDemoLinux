@@ -1,0 +1,30 @@
+#!/bin/bash
+
+read -n 1 -p "Install libraries in /usr/local/lib? (Requires sudo) (y/n) " answer
+case ${answer:0:1} in
+  y|Y )
+    sudo cp ../lib/libyse.so /usr/local/lib
+    sudo cp ../lib/libyse.a /usr/local/lib
+    sudo ldconfig
+  ;;
+esac
+
+
+cd source
+
+for entry in `ls *.cpp`; do
+  OUT=${entry%.*}
+  g++ $entry -I../../include -D NDEBUG -std=c++11 -o ../compiled/$OUT -lyse
+  echo -e "\nDemo ${OUT} compiled" 
+  read -n 1 -p "Run this demo? (y/n) " answer
+  echo -e '\n'
+  case ${answer:0:1} in
+    y|Y )
+      cd ../compiled
+      clear
+      ./$OUT
+      echo -e '\n' 
+      cd ../source
+    ;;
+  esac
+done  

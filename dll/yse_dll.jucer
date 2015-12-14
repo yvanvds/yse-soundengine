@@ -378,12 +378,13 @@
         <MODULEPATH id="juce_audio_basics" path="../JUCE/modules"/>
       </MODULEPATHS>
     </ANDROID>
-    <LINUX_MAKE targetFolder="Builds/Linux" extraCompilerFlags="-std=c++11">
+    <LINUX_MAKE targetFolder="Builds/Linux" extraCompilerFlags="-std=c++11&#10;-fPIC"
+                cppLanguageStandard="-std=c++11" extraLinkerFlags="-shared">
       <CONFIGURATIONS>
         <CONFIGURATION name="Debug" libraryPath="/usr/X11R6/lib/" isDebug="1" optimisation="1"
-                       targetName="yse"/>
+                       targetName="yse_debug"/>
         <CONFIGURATION name="Release" libraryPath="/usr/X11R6/lib/" isDebug="0" optimisation="3"
-                       targetName="yse"/>
+                       targetName="yse" linuxArchitecture="-m64"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
         <MODULEPATH id="juce_events" path="../../JUCE/modules"/>

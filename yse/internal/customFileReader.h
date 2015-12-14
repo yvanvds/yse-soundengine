@@ -24,14 +24,14 @@ namespace YSE {
       Bool create(const char * filename);
 
       virtual I64 getTotalLength();
-      virtual Bool isExhausted();
-      virtual Int read(void *destBuffer, Int maxBytesToRead);
+      virtual Bool  isExhausted();
+      virtual Int   read(void *destBuffer, Int maxBytesToRead);
       virtual I64 getPosition();
-      virtual Bool setPosition(I64 newPosition);
+      virtual Bool  setPosition(I64 newPosition);
 
     private:
       void * fileHandle;
-      I64 fileSize;
+      int64  fileSize;
     };
 
     namespace CALLBACK {
