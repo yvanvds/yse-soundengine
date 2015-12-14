@@ -1,0 +1,76 @@
+apply plugin: 'com.android.model.application'
+
+
+def yse_path = "D:/itHub/yse-soundengine/yse_binary_release_android"
+
+model {
+    android {
+        compileSdkVersion = 23
+        buildToolsVersion = "23.0.0"
+
+        defaultConfig.with {
+            applicationId    = "com.android.yseDemo"
+            minSdkVersion.apiLevel    = 5
+            targetSdkVersion.apiLevel = 23
+        }
+    }
+
+//    android.sources {
+//        main {
+//            jni {
+//                dependencies {
+//                    library "yse_dll"
+//                }
+//           }
+//        }
+//    }
+//
+//    repositories {
+//        libs(PrebuiltLibraries) {
+//            yse {
+//                headers.srcDir "${yse_path}/include"
+//                binaries.withType(SharedLibraryBinary) {
+//                    sharedLibraryFile = file("${yse_path}/lib/dll/${targetPlatform.getName()}/libyse_dll.so")
+//                }
+//            }
+//        }
+//    }
+
+    compileOptions.with {
+        sourceCompatibility=JavaVersion.VERSION_1_7
+        targetCompatibility=JavaVersion.VERSION_1_7
+    }
+
+    android.ndk {
+        moduleName = "yseDemo"
+        cppFlags.add("-std=c++11")
+        cppFlags.add("-I${file("${yse_path}/include")}".toString())
+        //ldFlags.add("-L${file("${yse_path}/lib/dll/${abiFilters}/libyse_dll.so")}".toString())
+        ldLibs.addAll(["log", "GLESv2", "yse_dll"])
+    }
+
+    android.buildTypes {
+        release {
+            minifyEnabled = false
+            proguardFiles.add(file('proguard-rules.txt'))
+        }
+    }
+
+    android.productFlavors {
+        create ("arm7") {
+            ndk.abiFilters.add("armeabi-v7a")
+        }
+        //create ("arm8") {
+        //    ndk.abiFilters.add("arm64-v8a")
+        //}
+        create ("x86-32") {
+            ndk.abiFilters.add("x86")
+        }
+        // for detailed abiFilter descriptions, refer to "Supported ABIs" @
+        // https://developer.android.com/ndk/guides/abis.html#sa
+
+        // build one including all cpu architectures
+        create("all")
+    }
+}
+

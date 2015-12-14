@@ -2,7 +2,7 @@
 
 <JUCERPROJECT id="Hm1Rhq" name="yse_dll" projectType="dll" version="1.0.0"
               bundleIdentifier="com.mute.yse_dll" includeBinaryInAppConfig="1"
-              jucerVersion="4.0.1">
+              jucerVersion="4.0.2">
   <MAINGROUP id="c8Cr7r" name="yse_dll">
     <GROUP id="{C1464C78-202C-BC41-481A-C05656427973}" name="yse">
       <GROUP id="{CC0DC12C-144B-3139-4D29-2C7FD7DB9D50}" name="player">
@@ -362,11 +362,12 @@
              androidMinimumSDK="9" androidInternetNeeded="1" androidKeyStore="${user.home}/.android/debug.keystore"
              androidKeyStorePass="android" androidKeyAlias="androiddebugkey"
              androidKeyAliasPass="android" androidCpp11="1" smallIcon="nwjt3a"
-             bigIcon="nwjt3a" androidVersionCode="1" extraDefs="JUCE_CHECK_MEMORY_LEAKS=0&#10;">
+             bigIcon="nwjt3a" androidVersionCode="1" extraDefs="JUCE_CHECK_MEMORY_LEAKS=0&#10;"
+             androidBluetoothNeeded="1">
       <CONFIGURATIONS>
-        <CONFIGURATION name="Debug" androidArchitectures="armeabi armeabi-v7a x86" isDebug="1"
-                       optimisation="1" targetName="yse"/>
-        <CONFIGURATION name="Release" androidArchitectures="armeabi armeabi-v7a x86"
+        <CONFIGURATION name="Debug" androidArchitectures="armeabi armeabi-v7a arm64-v8a x86"
+                       isDebug="1" optimisation="1" targetName="yse"/>
+        <CONFIGURATION name="Release" androidArchitectures="armeabi armeabi-v7a arm64-v8a x86"
                        isDebug="0" optimisation="3" targetName="yse"/>
       </CONFIGURATIONS>
       <MODULEPATHS>

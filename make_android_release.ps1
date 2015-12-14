@@ -1,5 +1,7 @@
 ﻿$outpath = '.\yse_binary_release_android'
 $zipfile = 'libYSE-1.0_android.zip'
+#$buildVersion = 'release'
+$buildVersion = 'debug'
 
 Write-Host -ForegroundColor Green "Creating Folders..."
 
@@ -59,10 +61,10 @@ Set-Content .\static_library\Builds\Android\build.xml
 Write-Host -ForegroundColor Green "Creating static libraries..."
 cd .\static_library\Builds\Android
 # clean first because of possible fail on resource files
-$build = 'ant clean release' 
+$build = 'ant clean ' + $buildVersion 
 Invoke-Expression $build
 
-$build = 'ant release' 
+$build = 'ant ' + $buildVersion
 Invoke-Expression $build
 cd ..\..\..
 
@@ -72,10 +74,10 @@ Write-Host -ForegroundColor Green "Creating dynamic libraries..."
 cd .\dll\Builds\Android
 
 # clean first because of possible fail on resource files
-$build = 'ant clean release' 
+$build = 'ant clean ' + $buildVersion 
 Invoke-Expression $build
 
-$build = 'ant release' 
+$build = 'ant ' + $buildVersion
 Invoke-Expression $build
 cd ..\..\..
 

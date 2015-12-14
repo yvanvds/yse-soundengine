@@ -2,7 +2,7 @@
 
 <JUCERPROJECT id="AKkfPk" name="yse_static_library" projectType="library" version="1.0.0"
               bundleIdentifier="com.yourcompany.yse_static_library" includeBinaryInAppConfig="1"
-              jucerVersion="3.2.0">
+              jucerVersion="4.0.2">
   <MAINGROUP id="JLmmWK" name="yse_static_library">
     <GROUP id="{DAF363ED-A43B-6DFC-2214-7863A037768A}" name="yse">
       <GROUP id="{DD1C0708-BF8A-4DBC-3466-188D2E2380DF}" name="player">
@@ -342,7 +342,7 @@
              androidMinimumSDK="9" androidInternetNeeded="0" androidKeyStore="${user.home}/.android/debug.keystore"
              androidKeyStorePass="android" androidKeyAlias="androiddebugkey"
              androidKeyAliasPass="android" androidCpp11="1" extraDefs="JUCE_CHECK_MEMORY_LEAKS=0&#10;"
-             smallIcon="ofO3LE" bigIcon="ofO3LE" androidVersionCode="1">
+             smallIcon="ofO3LE" bigIcon="ofO3LE" androidVersionCode="1" androidBluetoothNeeded="1">
       <CONFIGURATIONS>
         <CONFIGURATION name="Debug" androidArchitectures="armeabi armeabi-v7a x86" isDebug="1"
                        optimisation="1" targetName="yse_static"/>

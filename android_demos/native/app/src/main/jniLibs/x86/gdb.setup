@@ -1,0 +1,3 @@
+set solib-search-path ./obj/local/x86
+source D:/Android/ndk/prebuilt/common/gdb/common.setup
+directory D:/Android/ndk/platforms/android-9/arch-x86/usr/include D:/Android/ndk/sources/cxx-stl/gnu-libstdc++ D:/Android/ndk/sources/cxx-stl/gnu-libstdc++/4.8/include D:/Android/ndk/sources/cxx-stl/gnu-libstdc++/4.8/libs/x86/include D:/Android/ndk/sources/cxx-stl/gnu-libstdc++/4.8/include/backward jni
