@@ -9,7 +9,7 @@ ifeq ($(TARGET_ARCH_ABI), armeabi-v7a)
     LOCAL_ARM_MODE := arm
 endif
 
-LOCAL_MODULE := juce_jni
+LOCAL_MODULE := libyse
 LOCAL_SRC_FILES := \
   ../../../../yse/player/playerImplementation.cpp\
   ../../../../yse/player/playerInterface.cpp\

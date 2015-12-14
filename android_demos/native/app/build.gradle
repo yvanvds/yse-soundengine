@@ -1,7 +1,21 @@
 apply plugin: 'com.android.model.application'
 
 
-def yse_path = "D:/itHub/yse-soundengine/yse_binary_release_android"
+def yse_path = "D:/GitHub/yse-soundengine/yse_binary_release_android"
+
+//task copyYSELibs(type: Copy) {
+//    from("D:\\GitHub\\yse-soundengine\\yse_binary_release_android\\lib\\dll")
+//    into "src\\main\\jniLibs"
+//    include '**\\*.so'
+//}
+
+//tasks.withType(JavaCompile) { compileTask -> compileTask.dependsOn copyYSELibs }
+
+//clean.dependsOn 'cleanCopyYSELibs'
+
+//tasks.withType(com.android.build.gradle.tasks.PackageApplication) { pkgTask ->
+//    pkgTask.jniDir new File(buildDir, 'native-libs')
+//}
 
 model {
     android {
@@ -15,15 +29,7 @@ model {
         }
     }
 
-//    android.sources {
-//        main {
-//            jni {
-//                dependencies {
-//                    library "yse_dll"
-//                }
-//           }
-//        }
-//    }
+
 //
 //    repositories {
 //        libs(PrebuiltLibraries) {
@@ -45,8 +51,9 @@ model {
         moduleName = "yseDemo"
         cppFlags.add("-std=c++11")
         cppFlags.add("-I${file("${yse_path}/include")}".toString())
-        //ldFlags.add("-L${file("${yse_path}/lib/dll/${abiFilters}/libyse_dll.so")}".toString())
-        ldLibs.addAll(["log", "GLESv2", "yse_dll"])
+        ldFlags.add("-L${file(projectDir).absolutePath + "/src/main/jniLibs/\$(TARGET_ARCH_ABI)/libyse_dll.so"}".toString())
+        ldLibs.addAll(["log", "GLESv2"])
+        stl    = "c++_static"
     }
 
     android.buildTypes {
@@ -59,12 +66,15 @@ model {
     android.productFlavors {
         create ("arm7") {
             ndk.abiFilters.add("armeabi-v7a")
+            ndk.ldFlags.add("-L${file('src/main/jniLibs/armeabi-v7a')}".toString())
         }
-        //create ("arm8") {
-        //    ndk.abiFilters.add("arm64-v8a")
-        //}
+        create ("arm8") {
+            ndk.abiFilters.add("arm64-v8a")
+            ndk.ldFlags.add("-L${file('src/main/jniLibs/arm64-v8a')}".toString())
+        }
         create ("x86-32") {
             ndk.abiFilters.add("x86")
+            ndk.ldFlags.add("-L${file('src/main/jniLibs/x86')}".toString())
         }
         // for detailed abiFilter descriptions, refer to "Supported ABIs" @
         // https://developer.android.com/ndk/guides/abis.html#sa
@@ -74,3 +84,7 @@ model {
     }
 }
 
+dependencies {
+    compile fileTree(dir: 'libs', include: ['*.jar'])
+    //compile project(':openCVLibrary300')
+}

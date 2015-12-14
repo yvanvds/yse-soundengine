@@ -6,7 +6,7 @@
   <target name="clean" depends="android_rules.clean">
     <delete dir="libs"/>
     <delete dir="obj"/>
-    <exec executable="${ndk.dir}/ndk-build" dir="${basedir}" failonerror="true">
+    <exec executable="${ndk.dir}/ndk-build.cmd\" dir="${basedir}" failonerror="true">
       <arg value="clean"/>
     </exec>
   </target>
@@ -17,10 +17,10 @@
     <condition property="ndkDebugValue" value="NDK_DEBUG=1" else="NDK_DEBUG=0">
       <equals arg1="${ant.project.invoked-targets}" arg2="debug"/>
     </condition>
-    <condition property="app_abis" value="armeabi armeabi-v7a x86" else="armeabi armeabi-v7a x86">
+    <condition property="app_abis" value="armeabi armeabi-v7a arm64-v8a x86" else="armeabi armeabi-v7a arm64-v8a x86">
       <equals arg1="${ant.project.invoked-targets}" arg2="debug"/>
     </condition>
-    <exec executable="${ndk.dir}/ndk-build" dir="${basedir}" failonerror="true">
+    <exec executable="${ndk.dir}/ndk-build.cmd\" dir="${basedir}" failonerror="true">
       <arg value="--jobs=4"/>
       <arg value="CONFIG=${makefileConfig}"/>
       <arg value="${ndkDebugValue}"/>

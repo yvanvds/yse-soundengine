@@ -4,7 +4,6 @@
               bundleIdentifier="com.mute.yse" includeBinaryInAppConfig="1"
               jucerVersion="4.0.2">
   <MAINGROUP id="JLmmWK" name="yse_static">
-
     <GROUP id="{DAF363ED-A43B-6DFC-2214-7863A037768A}" name="yse">
       <GROUP id="{DD1C0708-BF8A-4DBC-3466-188D2E2380DF}" name="player">
         <FILE id="oRfSsy" name="player.hpp" compile="0" resource="0" file="../yse/player/player.hpp"/>
@@ -345,9 +344,9 @@
              androidKeyAliasPass="android" androidCpp11="1" extraDefs="JUCE_CHECK_MEMORY_LEAKS=0&#10;"
              smallIcon="ofO3LE" bigIcon="ofO3LE" androidVersionCode="1" androidBluetoothNeeded="1">
       <CONFIGURATIONS>
-        <CONFIGURATION name="Debug" androidArchitectures="armeabi armeabi-v7a x86" isDebug="1"
-                       optimisation="1" targetName="yse_static"/>
-        <CONFIGURATION name="Release" androidArchitectures="armeabi armeabi-v7a x86"
+        <CONFIGURATION name="Debug" androidArchitectures="armeabi armeabi-v7a arm64-v8a x86"
+                       isDebug="1" optimisation="1" targetName="yse_static"/>
+        <CONFIGURATION name="Release" androidArchitectures="armeabi armeabi-v7a arm64-v8a x86"
                        isDebug="0" optimisation="3" targetName="yse_static"/>
       </CONFIGURATIONS>
       <MODULEPATHS>

@@ -7,7 +7,7 @@ APP_PLATFORM := android-10
 NDK_TOOLCHAIN_VERSION := 4.8
 
 ifeq ($(NDK_DEBUG),1)
-    APP_ABI := armeabi armeabi-v7a x86
+    APP_ABI := armeabi armeabi-v7a arm64-v8a x86
 else
-    APP_ABI := armeabi armeabi-v7a x86
+    APP_ABI := armeabi armeabi-v7a arm64-v8a x86
 endif

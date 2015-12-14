@@ -1,0 +1,3 @@
+set solib-search-path ./obj/local/arm64-v8a
+source D:/Android/ndk/prebuilt/common/gdb/common.setup
+directory D:/Android/ndk/platforms/android-21/arch-arm64/usr/include D:/Android/ndk/sources/cxx-stl/gnu-libstdc++ D:/Android/ndk/sources/cxx-stl/gnu-libstdc++/4.9/include D:/Android/ndk/sources/cxx-stl/gnu-libstdc++/4.9/libs/arm64-v8a/include D:/Android/ndk/sources/cxx-stl/gnu-libstdc++/4.9/include/backward jni
