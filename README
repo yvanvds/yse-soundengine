@@ -1,6 +1,8 @@
 This is libYSE 1.0
 
-libYSE is a cross platform sound engine for windows, macOS and linux, Android and iOS.
+libYSE is a cross platform sound engine for windows, macOS, linux and iOS.
+
+(Note: android support is on hold for now.)
 
 
 More information about YSE can be found on http://attr-x.net/yse
