@@ -12,15 +12,15 @@
 #include "scaleInterface.hpp"
 #include <algorithm>
 
-YSE::SCALE::interfaceObject::interfaceObject() {
+YSE::scale::scale() {
   pimpl = SCALE::Manager().addImplementation(this);
 }
 
-YSE::SCALE::interfaceObject::~interfaceObject() {
+YSE::scale::~scale() {
   pimpl->removeInterface();
 }
 
-YSE::scale & YSE::SCALE::interfaceObject::add(Flt pitch, Flt step) {
+YSE::scale & YSE::scale::add(Flt pitch, Flt step) {
   if (step > 0) {
     // find lowest occurance of this pitch
     while (pitch + step > 0) {
@@ -41,15 +41,15 @@ YSE::scale & YSE::SCALE::interfaceObject::add(Flt pitch, Flt step) {
   std::sort(pitches.begin(), pitches.end());
   pitches.erase(unique(pitches.begin(), pitches.end()), pitches.end());
 
-  messageObject m;
-  m.ID = ADD;
+  SCALE::messageObject m;
+  m.ID = SCALE::ADD;
   m.floatPair[0] = pitch;
   m.floatPair[1] = step;
   pimpl->sendMessage(m);
   return *this;
 }
 
-YSE::scale & YSE::SCALE::interfaceObject::remove(Flt pitch, Flt step) {
+YSE::scale & YSE::scale::remove(Flt pitch, Flt step) {
   if (step > 0) {
     // find lowest occurance of this pitch
     while (pitch + step > 0) {
@@ -79,19 +79,19 @@ YSE::scale & YSE::SCALE::interfaceObject::remove(Flt pitch, Flt step) {
     }
   }
 
-  messageObject m;
-  m.ID = REMOVE;
+  SCALE::messageObject m;
+  m.ID = SCALE::REMOVE;
   m.floatPair[0] = pitch;
   m.floatPair[1] = step;
   pimpl->sendMessage(m);
   return *this;
 }
 
-Bool YSE::SCALE::interfaceObject::has(Flt pitch) {
+Bool YSE::scale::has(Flt pitch) {
   return std::binary_search(pitches.begin(), pitches.end(), pitch);
 }
 
-Flt YSE::SCALE::interfaceObject::getNearest(Flt pitch) const {
+Flt YSE::scale::getNearest(Flt pitch) const {
   std::vector<Flt>::const_iterator low, high;
   high = std::lower_bound(pitches.begin(), pitches.end(), pitch);
   // lower bound might be equal to pitch, in which case we just return pitch
@@ -106,21 +106,21 @@ Flt YSE::SCALE::interfaceObject::getNearest(Flt pitch) const {
   return (pitch - *low < *high - pitch) ? *low : *high;
 }
 
-UInt YSE::SCALE::interfaceObject::size() const {
+UInt YSE::scale::size() const {
   return pitches.size();
 }
 
-YSE::scale & YSE::SCALE::interfaceObject::clear() {
+YSE::scale & YSE::scale::clear() {
   pitches.clear();
-  messageObject m;
-  m.ID = CLEAR;
+  SCALE::messageObject m;
+  m.ID = SCALE::CLEAR;
   pimpl->sendMessage(m);
   return *this;
 }
 
 
 
-YSE::scale & YSE::SCALE::interfaceObject::operator=(const scale & other) {
+YSE::scale & YSE::scale::operator=(const scale & other) {
   clear();
 
   FOREACH(other.pitches) {
@@ -130,7 +130,7 @@ YSE::scale & YSE::SCALE::interfaceObject::operator=(const scale & other) {
   return *this;
 }
 
-YSE::SCALE::interfaceObject::interfaceObject(const scale & other) {
+YSE::scale::scale(const scale & other) {
   pimpl = SCALE::Manager().addImplementation(this);
   *this = other;
 }

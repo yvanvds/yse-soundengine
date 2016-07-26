@@ -75,7 +75,7 @@ void addSound() {
   case 3: sounds.front().create("pulse1.ogg", &YSE::ChannelFX(), true); break;
   }
   if (sounds.front().isValid()) {
-    sounds.front().setPosition(YSE::Vec(YSE::Random(20) - 10, YSE::Random(20) - 10, YSE::Random(20) - 10));
+    sounds.front().setPosition(YSE::Pos(YSE::Random(20) - 10, YSE::Random(20) - 10, YSE::Random(20) - 10));
     sounds.front().play().setVolume(0.1); // it can get very loud with 100's of sounds
     counter++;
   }

@@ -13,7 +13,7 @@
 #include "../music/note.hpp"
 #include "../synth/synthInterface.hpp"
 
-YSE::PLAYER::implementationObject::implementationObject(interfaceObject * head, synth * s) 
+YSE::PLAYER::implementationObject::implementationObject(player* head, synth * s) 
   : head(head), instrument(s), waitTime(0.f), playing(false) {
   minimumPitch.set(0.f);
   maximumPitch.set(128.f);

@@ -24,7 +24,7 @@ namespace YSE {
 
     class implementationObject {
     public:
-      implementationObject(interfaceObject * head, synth * s);
+      implementationObject(player * head, synth * s);
       ~implementationObject();
 
       bool update(Flt delta);
@@ -37,7 +37,7 @@ namespace YSE {
       void removeInterface();
 
     private:
-      std::atomic<interfaceObject *> head;
+      std::atomic<player *> head;
       lfQueue<messageObject> messages;
       synth * instrument;
       float waitTime;
@@ -86,7 +86,7 @@ namespace YSE {
 
       std::vector<wMotif> motifs;
 
-      friend class PLAYER::interfaceObject;
+      friend class player;
       friend class PLAYER::managerObject;
     };
 

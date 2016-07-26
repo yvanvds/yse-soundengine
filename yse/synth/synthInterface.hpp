@@ -111,7 +111,7 @@ namespace YSE {
       implementationObject * pimpl;
       int numVoices;
       friend class implementationObject;
-      friend class SOUND::interfaceObject;
+      friend class sound;
       friend class MIDI::fileImpl;
     };
 

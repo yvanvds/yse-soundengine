@@ -18,12 +18,11 @@
 #include <vector>
 
 namespace YSE {
-  namespace MOTIF {
 
-    class API  interfaceObject {
+    class API  motif {
     public:
-      interfaceObject();
-      ~interfaceObject();
+      motif();
+      ~motif();
 
       motif & add(const MUSIC::pNote & note);
 
@@ -49,23 +48,22 @@ namespace YSE {
       MUSIC::pNote & operator[](UInt pos);
 
       // copy
-      interfaceObject(const motif& other);
+      motif(const motif& other);
       motif & operator=(const motif & other);
 
     private:
       // order notes according to position
       void sort();
 
-      implementationObject * pimpl;
+      MOTIF::implementationObject * pimpl;
 
       Flt length;
       std::vector<MUSIC::pNote> notes;
 
       friend class MOTIF::implementationObject;
-      friend class PLAYER::interfaceObject;
+      friend class player;
     };
 
-  }
 }
 
 

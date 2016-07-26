@@ -41,7 +41,7 @@ Bool YSE::REVERB::interfaceObject::isValid() {
   return pimpl != nullptr;
 }
 
-YSE::REVERB::interfaceObject & YSE::REVERB::interfaceObject::setPosition(const Vec &value) {
+YSE::REVERB::interfaceObject & YSE::REVERB::interfaceObject::setPosition(const Pos &value) {
   if (position != value) {
     position = value;
     messageObject m;
@@ -54,7 +54,7 @@ YSE::REVERB::interfaceObject & YSE::REVERB::interfaceObject::setPosition(const V
   return *this;
 }
 
-YSE::Vec YSE::REVERB::interfaceObject::getPosition() {
+YSE::Pos YSE::REVERB::interfaceObject::getPosition() {
   return position;
 }
 

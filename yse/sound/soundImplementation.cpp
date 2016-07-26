@@ -11,7 +11,7 @@
 #include "../internalHeaders.h"
 
 
-YSE::SOUND::implementationObject::implementationObject(interfaceObject * head) :
+YSE::SOUND::implementationObject::implementationObject(sound * head) :
   head(head),
   objectStatus(OBJECT_CONSTRUCTED),
   parent(nullptr),
@@ -69,7 +69,7 @@ YSE::SOUND::implementationObject::~implementationObject() {
   }
 }
 
-bool YSE::SOUND::implementationObject::create(const std::string &fileName, CHANNEL::interfaceObject * ch, Bool loop, Flt volume, Bool streaming) {
+bool YSE::SOUND::implementationObject::create(const std::string &fileName, channel * ch, Bool loop, Flt volume, Bool streaming) {
   File ioFile;
   parent = ch->pimpl;
   looping = loop;
@@ -137,7 +137,7 @@ release:
   return false;
 }
 
-Bool YSE::SOUND::implementationObject::create(YSE::DSP::buffer & buffer, CHANNEL::interfaceObject * ch, Bool loop, Flt volume) {
+Bool YSE::SOUND::implementationObject::create(YSE::DSP::buffer & buffer, channel * ch, Bool loop, Flt volume) {
   parent = ch->pimpl;
   looping = loop;
   fader.set(volume);
@@ -161,7 +161,7 @@ Bool YSE::SOUND::implementationObject::create(YSE::DSP::buffer & buffer, CHANNEL
   }
 }
 
-Bool YSE::SOUND::implementationObject::create(MULTICHANNELBUFFER & buffer, CHANNEL::interfaceObject * ch, Bool loop, Flt volume) {
+Bool YSE::SOUND::implementationObject::create(MULTICHANNELBUFFER & buffer, channel * ch, Bool loop, Flt volume) {
   parent = ch->pimpl;
   looping = loop;
   fader.set(volume);
@@ -185,7 +185,7 @@ Bool YSE::SOUND::implementationObject::create(MULTICHANNELBUFFER & buffer, CHANN
   }
 }
 
-bool YSE::SOUND::implementationObject::create(DSP::dspSourceObject & ptr, CHANNEL::interfaceObject * ch, Flt volume) {
+bool YSE::SOUND::implementationObject::create(DSP::dspSourceObject & ptr, channel * ch, Flt volume) {
   parent = ch->pimpl;
   looping = false;
   fader.set(volume);
@@ -198,7 +198,7 @@ bool YSE::SOUND::implementationObject::create(DSP::dspSourceObject & ptr, CHANNE
   return true;
 }
 
-bool YSE::SOUND::implementationObject::create(SYNTH::implementationObject * ptr, CHANNEL::interfaceObject * ch, Flt volume) {
+bool YSE::SOUND::implementationObject::create(SYNTH::implementationObject * ptr, channel * ch, Flt volume) {
   parent = ch->pimpl;
   looping = false;
   fader.set(volume);
@@ -211,7 +211,7 @@ bool YSE::SOUND::implementationObject::create(SYNTH::implementationObject * ptr,
 }
 
 #if defined PUBLIC_JUCE
-bool YSE::SOUND::implementationObject::create(juce::InputStream * source, CHANNEL::interfaceObject * ch, Bool loop, Flt volume, Bool streaming) {
+bool YSE::SOUND::implementationObject::create(juce::InputStream * source, channel * ch, Bool loop, Flt volume, Bool streaming) {
   parent = ch->pimpl;
   looping = loop;
   fader.set(volume);
@@ -252,14 +252,14 @@ void YSE::SOUND::implementationObject::setup() {
     }
     else if (streaming) {
       // streaming sounds do not have to wait until loaded
-      head.load()->length = file->length();
+      head.load()->_length = file->length();
       resize();
       
     } else if (file->getState() == INTERNAL::FILESTATE::READY) {
       // file is ready!
       filebuffer.resize(file->channels());
       buffer = &filebuffer;
-      head.load()->length = file->length();
+      head.load()->_length = file->length();
       resize();
     }
     else if (file->getState() == INTERNAL::FILESTATE::INVALID) {
@@ -324,10 +324,10 @@ void YSE::SOUND::implementationObject::sync() {
 
   // sync dsp values
   currentVolume_upd = currentVolume_dsp;
-  head.load()->time = currentFilePos;
-  head.load()->volume = currentVolume_dsp;
+  head.load()->_time = currentFilePos;
+  head.load()->_volume = currentVolume_dsp;
   status_upd = status_dsp;
-  head.load()->status = status_upd;
+  head.load()->_status = status_upd;
 }
 
 void YSE::SOUND::implementationObject::parseMessage(const messageObject & message) {
@@ -420,7 +420,7 @@ void YSE::SOUND::implementationObject::update() {
 
   // distance to listener
   if (relative) {
-    distance = Dist(Vec(0), newPos);
+    distance = Dist(Pos(0), newPos);
   }
   else {
     distance = Dist(newPos, INTERNAL::ListenerImpl().newPos);
@@ -439,15 +439,15 @@ void YSE::SOUND::implementationObject::update() {
   else {
     velocityVec = (newPos - lastPos) * (1 / INTERNAL::Time().delta());
     
-    Vec listenerVelocity;
+    Pos listenerVelocity;
     listenerVelocity.x = INTERNAL::ListenerImpl().vel.x.load();
     listenerVelocity.y = INTERNAL::ListenerImpl().vel.y.load();
     listenerVelocity.z = INTERNAL::ListenerImpl().vel.z.load();
 
-    if (velocityVec == Vec(0) && listenerVelocity == Vec(0)) vel = 0;
+    if (velocityVec == Pos(0) && listenerVelocity == Pos(0)) vel = 0;
     else {
-      Vec dist = relative ? newPos : newPos - INTERNAL::ListenerImpl().newPos;
-      if (dist != Vec(0)) {
+      Pos dist = relative ? newPos : newPos - INTERNAL::ListenerImpl().newPos;
+      if (dist != Pos(0)) {
         Flt rSound = Dot(velocityVec, dist) / dist.length();
         Flt rList = Dot(listenerVelocity, dist) / dist.length();
         vel = 1 - (440 / (((344.0f + rList) / (344.0f + rSound)) * 440));
@@ -465,7 +465,7 @@ void YSE::SOUND::implementationObject::update() {
   // calculate angle
   ///////////////////////////////////////////
   Flt a = angle; // avoid using atomic all the time
-  Vec dir = relative ? newPos : newPos - INTERNAL::ListenerImpl().newPos;
+  Pos dir = relative ? newPos : newPos - INTERNAL::ListenerImpl().newPos;
   if (relative) a = -atan2(dir.x, dir.z);
   else a = (atan2(dir.x, dir.z) - atan2(INTERNAL::ListenerImpl().forward.x.load(), INTERNAL::ListenerImpl().forward.z.load()));
   while (a > Pi) a -= Pi2;

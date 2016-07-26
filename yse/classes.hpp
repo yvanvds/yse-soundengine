@@ -27,8 +27,8 @@ namespace YSE {
   class system;
 
   // tools
-  class Vec;
-  class aVec;
+  class Pos;
+  class aPos;
  
   namespace DSP {
     // public dsp classes

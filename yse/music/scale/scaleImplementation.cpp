@@ -11,7 +11,7 @@
 #include "scale.hpp"
 #include "../../internalHeaders.h"
 
-YSE::SCALE::implementationObject::implementationObject(interfaceObject * head)
+YSE::SCALE::implementationObject::implementationObject(scale * head)
 : head(head) {}
 
 YSE::SCALE::implementationObject::~implementationObject() {

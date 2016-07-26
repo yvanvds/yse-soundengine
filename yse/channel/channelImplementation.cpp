@@ -11,7 +11,7 @@
 #include "../internalHeaders.h"
 
 
-YSE::CHANNEL::implementationObject::implementationObject(interfaceObject * head) :
+YSE::CHANNEL::implementationObject::implementationObject(channel * head) :
 head(head), 
 newVolume(1.f), lastVolume(1.f), userChannel(true),
 allowVirtual(true), parent(nullptr)
@@ -206,7 +206,7 @@ void YSE::CHANNEL::implementationObject::parseMessage(const messageObject & mess
       break;
     case MOVE:
     {
-      interfaceObject * ptr = (interfaceObject*)message.ptrValue;
+      channel * ptr = (channel*)message.ptrValue;
       if (ptr != nullptr) {
         ptr->pimpl->connect(this);
       }

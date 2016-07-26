@@ -35,7 +35,7 @@ namespace YSE {
 
         @param head   A pointer to the interface of this channel.
       */
-      implementationObject(interfaceObject * head);
+      implementationObject(channel * head);
 
       /**
       Removes the implementation from the threadpool and moves all sounds and subchannels
@@ -187,7 +187,7 @@ namespace YSE {
       }
 
     private:
-      std::atomic<interfaceObject *> head; // < The interface connected to this object
+      std::atomic<channel *> head; // < The interface connected to this object
       std::atomic<OBJECT_IMPLEMENTATION_STATE> objectStatus; // < the status of this object
       lfQueue<messageObject> messages;
 
@@ -206,7 +206,7 @@ namespace YSE {
       Bool allowVirtual;
 
       friend class SOUND::implementationObject;
-      friend class CHANNEL::interfaceObject;
+      friend class channel;
       friend class YSE::REVERB::managerObject;
       friend class DEVICE::managerObject;
       friend class CHANNEL::managerObject;

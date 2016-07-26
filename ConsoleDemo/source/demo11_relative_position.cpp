@@ -43,18 +43,18 @@ int main() {
   while (true) {
     if (_kbhit()) {
       char ch = _getch();
-      YSE::Vec pos = YSE::Listener().getPosition();
+      YSE::Pos pos = YSE::Listener().getPosition();
       switch (ch) {
-      case '0': count.setTime(11.2f * 44100).setPosition(YSE::Vec(-5, 0, 0)); break;
-      case '1': count.setTime(10.0f * 44100).setPosition(YSE::Vec(-4, 0, 0)); break;
-      case '2': count.setTime(9.0f * 44100).setPosition(YSE::Vec(-3, 0, 0)); break;
-      case '3': count.setTime(8.0f * 44100).setPosition(YSE::Vec(-2, 0, 0)); break;
-      case '4': count.setTime(6.7f * 44100).setPosition(YSE::Vec(-1, 0, 0)); break;
-      case '5': count.setTime(5.5f * 44100).setPosition(YSE::Vec(0, 0, 0)); break;
-      case '6': count.setTime(4.3f * 44100).setPosition(YSE::Vec(1, 0, 0)); break;
-      case '7': count.setTime(3.2f * 44100).setPosition(YSE::Vec(2, 0, 0)); break;
-      case '8': count.setTime(2.0f * 44100).setPosition(YSE::Vec(3, 0, 0)); break;
-      case '9': count.setTime(1.0f * 44100).setPosition(YSE::Vec(4, 0, 0)); break;
+      case '0': count.setTime(11.2f * 44100).setPosition(YSE::Pos(-5, 0, 0)); break;
+      case '1': count.setTime(10.0f * 44100).setPosition(YSE::Pos(-4, 0, 0)); break;
+      case '2': count.setTime(9.0f * 44100).setPosition(YSE::Pos(-3, 0, 0)); break;
+      case '3': count.setTime(8.0f * 44100).setPosition(YSE::Pos(-2, 0, 0)); break;
+      case '4': count.setTime(6.7f * 44100).setPosition(YSE::Pos(-1, 0, 0)); break;
+      case '5': count.setTime(5.5f * 44100).setPosition(YSE::Pos(0, 0, 0)); break;
+      case '6': count.setTime(4.3f * 44100).setPosition(YSE::Pos(1, 0, 0)); break;
+      case '7': count.setTime(3.2f * 44100).setPosition(YSE::Pos(2, 0, 0)); break;
+      case '8': count.setTime(2.0f * 44100).setPosition(YSE::Pos(3, 0, 0)); break;
+      case '9': count.setTime(1.0f * 44100).setPosition(YSE::Pos(4, 0, 0)); break;
 
         // we can move the listener but it will only affect kick because other
         // sounds are in 2D space

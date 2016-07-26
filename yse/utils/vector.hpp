@@ -18,15 +18,15 @@
 #include "../headers/types.hpp"
 
 namespace YSE {
-  class aVec;
+  class aPos;
   
-  class API Vec {
+  class API Pos {
   public:
     Flt x, y, z;
 
-    Vec& zero() { x = y = z = 0; return (*this); }
-    Vec& set(Flt r) { x = y = z = r; return (*this); }
-    Vec& set(Flt x, Flt y, Flt z) { this->x = x, this->y = y, this->z = z; return (*this); }
+    Pos& zero() { x = y = z = 0; return (*this); }
+    Pos& set(Flt r) { x = y = z = r; return (*this); }
+    Pos& set(Flt x, Flt y, Flt z) { this->x = x, this->y = y, this->z = z; return (*this); }
     Flt length() { return sqrt(std::pow(x, 2) + std::pow(y, 2) + std::pow(z, 2)); }
     std::string asText() {
       std::stringstream result(std::stringstream::in | std::stringstream::out);
@@ -34,41 +34,41 @@ namespace YSE {
       return result.str();
     }
 
-    Vec& operator+=(Flt	 r) { x += r; y += r; z += r; return (*this); }
-    Vec& operator-=(Flt  r) { x -= r; y -= r; z -= r; return (*this); }
-    Vec& operator*=(Flt  r) { x *= r; y *= r; z *= r; return (*this); }
-    Vec& operator/=(Flt  r) { x /= r; y /= r; z /= r; return (*this); }
-    Vec& operator+=(const Vec &v) { x += v.x; y += v.y; z += v.z; return (*this); }
-    Vec& operator-=(const Vec &v) { x -= v.x; y -= v.y; z -= v.z; return (*this); }
-    Vec& operator*=(const Vec &v) { x *= v.x; y *= v.y; z *= v.z; return (*this); }
-    Vec& operator/=(const Vec &v) { x /= v.x; y /= v.y; z /= v.z; return (*this); }
-    Bool operator==(const Vec &v) const {
+    Pos& operator+=(Flt	 r) { x += r; y += r; z += r; return (*this); }
+    Pos& operator-=(Flt  r) { x -= r; y -= r; z -= r; return (*this); }
+    Pos& operator*=(Flt  r) { x *= r; y *= r; z *= r; return (*this); }
+    Pos& operator/=(Flt  r) { x /= r; y /= r; z /= r; return (*this); }
+    Pos& operator+=(const Pos &v) { x += v.x; y += v.y; z += v.z; return (*this); }
+    Pos& operator-=(const Pos &v) { x -= v.x; y -= v.y; z -= v.z; return (*this); }
+    Pos& operator*=(const Pos &v) { x *= v.x; y *= v.y; z *= v.z; return (*this); }
+    Pos& operator/=(const Pos &v) { x /= v.x; y /= v.y; z /= v.z; return (*this); }
+    Bool operator==(const Pos &v) const {
       if (x == v.x && y == v.y && z == v.z) return true;
       return false;
     }
-    Bool operator!=(const Vec &v) const {
+    Bool operator!=(const Pos &v) const {
       if (x != v.x || y != v.y || z != v.z) return true;
       return false;
     }
 
-    friend Vec  operator+ (const	Vec     &v, Flt      r) { return Vec(v.x + r, v.y + r, v.z + r); }
-    friend Vec  operator- (const	Vec     &v, Flt      r) { return Vec(v.x - r, v.y - r, v.z - r); }
-    friend Vec  operator* (const	Vec     &v, Flt      r) { return Vec(v.x*r, v.y*r, v.z*r); }
-    friend Vec  operator/ (const	Vec     &v, Flt      r) { return Vec(v.x / r, v.y / r, v.z / r); }
-    friend Vec  operator+ (Flt      r,  const Vec     &v) { return Vec(r + v.x, r + v.y, r + v.z); }
-    friend Vec  operator- (Flt      r,  const Vec     &v) { return Vec(r - v.x, r - v.y, r - v.z); }
-    friend Vec  operator* (Flt      r,  const Vec     &v) { return Vec(r*v.x, r*v.y, r*v.z); }
-    friend Vec  operator/ (Flt      r,  const Vec     &v) { return Vec(r / v.x, r / v.y, r / v.z); }
-    friend Vec  operator+ (const	Vec     &a, const Vec     &b) { return Vec(a.x + b.x, a.y + b.y, a.z + b.z); }
-    friend Vec  operator- (const	Vec     &a, const Vec     &b) { return Vec(a.x - b.x, a.y - b.y, a.z - b.z); }
-    friend Vec  operator* (const	Vec     &a, const Vec     &b) { return Vec(a.x*b.x, a.y*b.y, a.z*b.z); }
-    friend Vec  operator/ (const	Vec     &a, const Vec     &b) { return Vec(a.x / b.x, a.y / b.y, a.z / b.z); }
+    friend Pos  operator+ (const	Pos     &v, Flt      r) { return Pos(v.x + r, v.y + r, v.z + r); }
+    friend Pos  operator- (const	Pos     &v, Flt      r) { return Pos(v.x - r, v.y - r, v.z - r); }
+    friend Pos  operator* (const	Pos     &v, Flt      r) { return Pos(v.x*r, v.y*r, v.z*r); }
+    friend Pos  operator/ (const	Pos     &v, Flt      r) { return Pos(v.x / r, v.y / r, v.z / r); }
+    friend Pos  operator+ (Flt      r,  const Pos     &v) { return Pos(r + v.x, r + v.y, r + v.z); }
+    friend Pos  operator- (Flt      r,  const Pos     &v) { return Pos(r - v.x, r - v.y, r - v.z); }
+    friend Pos  operator* (Flt      r,  const Pos     &v) { return Pos(r*v.x, r*v.y, r*v.z); }
+    friend Pos  operator/ (Flt      r,  const Pos     &v) { return Pos(r / v.x, r / v.y, r / v.z); }
+    friend Pos  operator+ (const	Pos     &a, const Pos     &b) { return Pos(a.x + b.x, a.y + b.y, a.z + b.z); }
+    friend Pos  operator- (const	Pos     &a, const Pos     &b) { return Pos(a.x - b.x, a.y - b.y, a.z - b.z); }
+    friend Pos  operator* (const	Pos     &a, const Pos     &b) { return Pos(a.x*b.x, a.y*b.y, a.z*b.z); }
+    friend Pos  operator/ (const	Pos     &a, const Pos     &b) { return Pos(a.x / b.x, a.y / b.y, a.z / b.z); }
 
-    Vec() {}
-    //Vec(Vec& v) {x=v.x; y=v.y; z=v.z;}
-    Vec(Flt r) { set(r); }
-    Vec(Flt x, Flt y, Flt z) { set(x, y, z); }
-    Vec(const aVec & v);
+    Pos() {}
+    //Pos(Pos& v) {x=v.x; y=v.y; z=v.z;}
+    Pos(Flt r) { set(r); }
+    Pos(Flt x, Flt y, Flt z) { set(x, y, z); }
+    Pos(const aPos & v);
 
   };
 
@@ -93,29 +93,29 @@ namespace YSE {
   inline Flt  Max(Flt  x, Int  y) { return (x>static_cast<Flt>(y)) ? x : static_cast<Flt>(y); }
   inline Dbl  Max(Dbl  x, Dbl  y) { return (x>y) ? x : y; }
 
-  inline Vec  Min(const Vec &a, const Vec &b) { return Vec(Min(a.x, b.x), Min(a.y, b.y), Min(a.z, b.z)); }
-  inline Vec  Avg(const Vec &a, const Vec &b) { return (a + b)*0.5f; }
-  inline Flt  Dist(const Vec &a, const Vec &b) {
+  inline Pos  Min(const Pos &a, const Pos &b) { return Pos(Min(a.x, b.x), Min(a.y, b.y), Min(a.z, b.z)); }
+  inline Pos  Avg(const Pos &a, const Pos &b) { return (a + b)*0.5f; }
+  inline Flt  Dist(const Pos &a, const Pos &b) {
     return sqrt(std::pow((b.x - a.x), 2) + std::pow((b.y - a.y), 2) + std::pow((b.z - a.z), 2));
   }
-  inline Flt  Dot(const Vec &a, const Vec &b) { return a.x*b.x + a.y*b.y + a.z*b.z; }
-  Vec Cross(const Vec &a, const Vec &b);
+  inline Flt  Dot(const Pos &a, const Pos &b) { return a.x*b.x + a.y*b.y + a.z*b.z; }
+  Pos Cross(const Pos &a, const Pos &b);
 
   // this class could use a power-up...
-  class API aVec {
+  class API aPos {
   public:
     std::atomic<Flt> x;
     std::atomic<Flt> y;
     std::atomic<Flt> z;
 
-    aVec() { x.store(0.f), y.store(0.f), z.store(0.f); }
-    aVec(Flt x, Flt y, Flt z) {
+    aPos() { x.store(0.f), y.store(0.f), z.store(0.f); }
+    aPos(Flt x, Flt y, Flt z) {
       this->x.store(x);
       this->y.store(y);
       this->z.store(z);
     }
-    aVec(const Vec & v) { x.store(v.x); y.store(v.y); z.store(v.z); }
-    aVec & operator=(const Vec & v) { x.store(v.x); y.store(v.y); z.store(v.z); return *this;  }
+    aPos(const Pos & v) { x.store(v.x); y.store(v.y); z.store(v.z); }
+    aPos & operator=(const Pos & v) { x.store(v.x); y.store(v.y); z.store(v.z); return *this;  }
   };
 
   

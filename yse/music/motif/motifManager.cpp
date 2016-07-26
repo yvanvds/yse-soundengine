@@ -34,7 +34,7 @@ void YSE::MOTIF::managerObject::update() {
   }
 }
 
-YSE::MOTIF::implementationObject * YSE::MOTIF::managerObject::addImplementation(interfaceObject * head) {
+YSE::MOTIF::implementationObject * YSE::MOTIF::managerObject::addImplementation(motif * head) {
   implementations.emplace_front(head);
   return &implementations.front();
 }

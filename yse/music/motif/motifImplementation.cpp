@@ -15,7 +15,7 @@ Bool noteCompare2(const YSE::MUSIC::pNote & a, const YSE::MUSIC::pNote & b) {
   return a.getPosition() < b.getPosition();
 }
 
-YSE::MOTIF::implementationObject::implementationObject(interfaceObject * head)
+YSE::MOTIF::implementationObject::implementationObject(motif * head)
 : head(head) , validPitches(nullptr) {}
 
 YSE::MOTIF::implementationObject::~implementationObject() {

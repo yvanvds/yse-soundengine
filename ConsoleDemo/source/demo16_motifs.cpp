@@ -75,7 +75,7 @@ YSE::sound sound;
 YSE::synth synth;
 YSE::player player1;
 YSE::player player2;
-YSE::Vec soundPos;
+YSE::Pos soundPos;
 YSE::scale scale1;
 YSE::motif motif1;
 YSE::motif motif2;
@@ -196,7 +196,7 @@ int main() {
 
     if (_kbhit()) {
       char ch = _getch();
-      YSE::Vec pos = YSE::Listener().getPosition();
+      YSE::Pos pos = YSE::Listener().getPosition();
       switch (ch) {
       case '1': player1.play(); break;
       case '2': {

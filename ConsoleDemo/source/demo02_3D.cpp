@@ -12,7 +12,7 @@
 
   This demo is about 3D positioning. It's a bit clumsy to do in a 
   little console demo. Most important is the member function setPosition,
-  and the helper object YSE::Vec which holds xyz coordinates.
+  and the helper object YSE::Pos which holds xyz coordinates.
 
   */
 
@@ -70,7 +70,7 @@ int main() {
     }
 
     YSE::System().sleep(100);
-    //YSE::Vec pos = sound1.getPosition();
+    //YSE::Pos pos = sound1.getPosition();
     //pos.x = sin(std::clock() / static_cast<Flt>(CLOCKS_PER_SEC)) * 10;
     //sound1.setPosition(pos);
     YSE::System().update();
@@ -86,7 +86,7 @@ void moveObject(direction d) {
     YSE::sound * s;
     if (selectedObject == 1) s = &sound1;
     else s = &sound2;
-    YSE::Vec pos = s->getPosition();
+    YSE::Pos pos = s->getPosition();
     switch (d) {
     case FORWARD: pos.z += 0.5f; s->setPosition(pos); break;
     case BACKWARD: pos.z -= 0.5f; s->setPosition(pos); break;
@@ -96,7 +96,7 @@ void moveObject(direction d) {
   }
   else {
     // you do not have to create the listener object, it's already there
-    YSE::Vec pos = YSE::Listener().getPosition();
+    YSE::Pos pos = YSE::Listener().getPosition();
     switch (d) {
     case FORWARD: pos.z += 0.5f; YSE::Listener().setPosition(pos); break;
     case BACKWARD: pos.z -= 0.5f; YSE::Listener().setPosition(pos); break;
@@ -108,7 +108,7 @@ void moveObject(direction d) {
 
 void reset() {
   // YSE has a very flexible vector class built in
-  YSE::Vec pos;
+  YSE::Pos pos;
   pos.zero();   YSE::Listener().setPosition(pos);
   pos.set(-5, 0, 5);  sound1.setPosition(pos);
   pos.set(5, 0, 5);  sound2.setPosition(pos);

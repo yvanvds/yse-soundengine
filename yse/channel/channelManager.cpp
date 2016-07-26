@@ -89,7 +89,7 @@ void YSE::CHANNEL::managerObject::update() {
 }
 
 
-YSE::CHANNEL::implementationObject * YSE::CHANNEL::managerObject::addImplementation(YSE::CHANNEL::interfaceObject * head) {
+YSE::CHANNEL::implementationObject * YSE::CHANNEL::managerObject::addImplementation(YSE::channel * head) {
   implementations.emplace_front(head);
   return &implementations.front();
 }

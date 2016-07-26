@@ -16,8 +16,9 @@ namespace YSE {
   They all have an interface, implementation, manager, message and a message enumeration.
 
   */
+  class sound; // interfaceObject
+
   namespace SOUND {
-    class interfaceObject;
     class implementationObject;
     class messageObject;
     class managerObject;
@@ -41,9 +42,6 @@ namespace YSE {
     };
   }
 
-  // the interface itself gets a more generic name, so that users can just
-  // define a 'sound' to get an interface object.
-  typedef SOUND::interfaceObject sound;
 }
 
 

@@ -11,17 +11,17 @@
 
 #include "../internalHeaders.h"
 
-YSE::CHANNEL::interfaceObject::interfaceObject() : pimpl(nullptr), allowVirtual(true), volume(1.f)
+YSE::channel::channel() : pimpl(nullptr), allowVirtual(true), volume(1.f)
 {}
 
-YSE::CHANNEL::interfaceObject::~interfaceObject() {
+YSE::channel::~channel() {
   if (pimpl != nullptr) {
     pimpl->removeInterface();
     pimpl = nullptr;
   }
 }
 
-YSE::CHANNEL::interfaceObject & YSE::CHANNEL::interfaceObject::create(const char * name, channel& parent) {
+YSE::channel & YSE::channel::create(const char * name, channel& parent) {
   assert(pimpl == nullptr); // make sure we don't get called twice
   this->name = name;
 
@@ -44,8 +44,8 @@ void YSE::channel::createGlobal() {
 
 YSE::channel& YSE::channel::setVolume(Flt value) {
   Clamp(value, 0.f, 1.f);
-  messageObject m;
-  m.ID = VOLUME;
+  CHANNEL::messageObject m;
+  m.ID = CHANNEL::VOLUME;
   m.floatValue = value;
   pimpl->sendMessage(m);
   volume = value; // only used for getVolume
@@ -57,16 +57,16 @@ Flt YSE::channel::getVolume() {
 }
 
 YSE::channel& YSE::channel::moveTo(channel& parent) {
-  messageObject m;
-  m.ID = MOVE;
+  CHANNEL::messageObject m;
+  m.ID = CHANNEL::MOVE;
   m.ptrValue = &parent;
   pimpl->sendMessage(m);
   return (*this);
 }
 
 YSE::channel& YSE::channel::setVirtual(Bool value) {
-  messageObject m;
-  m.ID = VIRTUAL;
+  CHANNEL::messageObject m;
+  m.ID = CHANNEL::VIRTUAL;
   m.boolValue = true;
   pimpl->sendMessage(m);
   allowVirtual = value;
@@ -82,8 +82,8 @@ bool YSE::channel::isValid() {
 }
 
 YSE::channel& YSE::channel::attachReverb() { 
-  messageObject m;
-  m.ID = ATTACH_REVERB;
+  CHANNEL::messageObject m;
+  m.ID = CHANNEL::ATTACH_REVERB;
   m.boolValue = true;
   pimpl->sendMessage(m);
   return (*this);

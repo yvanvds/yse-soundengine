@@ -16,20 +16,20 @@ Bool noteCompare(const YSE::MUSIC::pNote & a, const YSE::MUSIC::pNote & b) {
   return a.getPosition() < b.getPosition();
 }
 
-YSE::MOTIF::interfaceObject::interfaceObject() : length(0) {
+YSE::motif::motif() : length(0) {
   pimpl = MOTIF::Manager().addImplementation(this);
 }
 
-YSE::MOTIF::interfaceObject::~interfaceObject() {
+YSE::motif::~motif() {
   pimpl->removeInterface();
 }
 
-YSE::motif & YSE::MOTIF::interfaceObject::add(const MUSIC::pNote & note) {
+YSE::motif & YSE::motif::add(const MUSIC::pNote & note) {
   notes.emplace_back(note);
   sort();
 
-  messageObject m;
-  m.ID = ADD;
+  MOTIF::messageObject m;
+  m.ID = MOTIF::ADD;
   m.note.position = note.getPosition();
   m.note.pitch = note.getPitch();
   m.note.length = note.getLength();
@@ -40,31 +40,31 @@ YSE::motif & YSE::MOTIF::interfaceObject::add(const MUSIC::pNote & note) {
   return *this;
 }
 
-void YSE::MOTIF::interfaceObject::sort() {
+void YSE::motif::sort() {
   std::sort(notes.begin(), notes.end(), noteCompare);
 }
 
-YSE::motif & YSE::MOTIF::interfaceObject::clear() {
+YSE::motif & YSE::motif::clear() {
   notes.clear();
-  messageObject m;
-  m.ID = CLEAR;
+  MOTIF::messageObject m;
+  m.ID = MOTIF::CLEAR;
   pimpl->sendMessage(m);
 
   return *this;
 }
 
-YSE::motif & YSE::MOTIF::interfaceObject::setLength(Flt length) {
+YSE::motif & YSE::motif::setLength(Flt length) {
   this->length = length;
   
-  messageObject m;
-  m.ID = LENGTH;
+  MOTIF::messageObject m;
+  m.ID = MOTIF::LENGTH;
   m.floatValue = length;
   pimpl->sendMessage(m);
 
   return *this;
 }
 
-YSE::motif & YSE::MOTIF::interfaceObject::setLength() {
+YSE::motif & YSE::motif::setLength() {
   if (notes.empty()) {
     length = 0;
   }
@@ -72,35 +72,35 @@ YSE::motif & YSE::MOTIF::interfaceObject::setLength() {
     length = notes.back().getPosition() + notes.back().getLength();
   }
 
-  messageObject m;
-  m.ID = LENGTH;
+  MOTIF::messageObject m;
+  m.ID = MOTIF::LENGTH;
   m.floatValue = length;
   pimpl->sendMessage(m);
 
   return *this;
 }
 
-YSE::motif & YSE::MOTIF::interfaceObject::transpose(Flt pitch) {
+YSE::motif & YSE::motif::transpose(Flt pitch) {
   FOREACH(notes) {
     notes[i].setPitch(notes[i].getPitch() + pitch);
   }
 
-  messageObject m;
-  m.ID = TRANSPOSE;
+  MOTIF::messageObject m;
+  m.ID = MOTIF::TRANSPOSE;
   m.floatValue = pitch;
   pimpl->sendMessage(m);
 
   return *this;
 }
 
-YSE::motif & YSE::MOTIF::interfaceObject::setFirstPitch(const scale & validPitches) {
-  messageObject m;
-  m.ID = FIRST_PITCH;
+YSE::motif & YSE::motif::setFirstPitch(const scale & validPitches) {
+  MOTIF::messageObject m;
+  m.ID = MOTIF::FIRST_PITCH;
   m.ptr = validPitches.pimpl;
   pimpl->sendMessage(m);
   return *this;
 }
 
-YSE::MUSIC::pNote & YSE::MOTIF::interfaceObject::operator[](UInt pos) {
+YSE::MUSIC::pNote & YSE::motif::operator[](UInt pos) {
   return notes[pos];
 }

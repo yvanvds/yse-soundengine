@@ -15,8 +15,10 @@ namespace YSE {
   /** Every subSystem consists out of several class which are meant to work together.
   They all have an interface, implementation, manager, message and a message enumeration.
   */
+
+  class channel; // interface object
+
   namespace CHANNEL {
-    class interfaceObject;
     class implementationObject;
     class messageObject;
     class managerObject;
@@ -27,10 +29,6 @@ namespace YSE {
       ATTACH_REVERB,
     };
   }
-
-  // the interface itself gets a more generic name, so that users can just
-  // define a 'channel' to get an interface object.
-  typedef CHANNEL::interfaceObject channel;
 }
 
 

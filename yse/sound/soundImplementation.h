@@ -35,7 +35,7 @@ namespace YSE {
                         to this implementation. Implementations will be moved to a 
                         eraser queue when the sound object goes out of scope.
       */
-      implementationObject(interfaceObject * head);
+      implementationObject(sound * head);
       ~implementationObject();
 
       /** Set up a new sound object. This is called by the sound class. When creating a 
@@ -52,18 +52,18 @@ namespace YSE {
 
           @return           False if the sound can't be found or opened. True otherwise.
       */
-      Bool create(const std::string &fileName, CHANNEL::interfaceObject * ch, Bool loop, Flt volume, Bool streaming);
+      Bool create(const std::string &fileName, channel * ch, Bool loop, Flt volume, Bool streaming);
 
-      Bool create(YSE::DSP::buffer & buffer, CHANNEL::interfaceObject * ch, Bool loop, Flt volume);
-      Bool create(MULTICHANNELBUFFER & buffer, CHANNEL::interfaceObject * ch, Bool loop, Flt volume);
+      Bool create(YSE::DSP::buffer & buffer, channel * ch, Bool loop, Flt volume);
+      Bool create(MULTICHANNELBUFFER & buffer, channel * ch, Bool loop, Flt volume);
 
 #if defined PUBLIC_JUCE
-      Bool create(juce::InputStream * source, CHANNEL::interfaceObject * ch, Bool loop, Flt volume, Bool streaming);
+      Bool create(juce::InputStream * source, channel * ch, Bool loop, Flt volume, Bool streaming);
 #endif
 
-      Bool create(DSP::dspSourceObject & ptr, CHANNEL::interfaceObject * ch, Flt volume);
+      Bool create(DSP::dspSourceObject & ptr, channel * ch, Flt volume);
 
-      Bool create(SYNTH::implementationObject * ptr, CHANNEL::interfaceObject * ch, Flt volume);
+      Bool create(SYNTH::implementationObject * ptr, channel * ch, Flt volume);
 
       /** Initialize some settings for the sound after creation.
           @param head       Passes a pointer to the actual sound object (created by the user)
@@ -185,8 +185,8 @@ namespace YSE {
       SOUND_INTENT headIntent;
 
       // sound properties
-      Vec pos; // desired position
-      Vec newPos, lastPos, velocityVec;
+      Pos pos; // desired position
+      Pos newPos, lastPos, velocityVec;
       Flt distance;
       Flt angle;
       // for pitch shift and doppler
@@ -242,7 +242,7 @@ namespace YSE {
       // info 
       Bool streaming;
 
-      std::atomic<interfaceObject *> head; // < The interface connected to this object
+      std::atomic<sound *> head; // < The interface connected to this object
       std::atomic<OBJECT_IMPLEMENTATION_STATE> objectStatus; // < the status of this object
       lfQueue<messageObject> messages;
 

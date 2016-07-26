@@ -15,9 +15,9 @@ namespace YSE {
   /** Every subSystem consists out of several class which are meant to work together.
   They all have an interface, implementation, manager, message and a message enumeration.
   */
+  class scale;
 
   namespace SCALE {
-    class interfaceObject;
     class implementationObject;
     class messageObject;
     class managerObject;
@@ -28,10 +28,6 @@ namespace YSE {
       CLEAR,
     };
   }
-
-  // the interface itself gets a more generic name, so that users can just
-  // define a 'scale' to get an interface object.
-  typedef SCALE::interfaceObject scale;
 
 }
 

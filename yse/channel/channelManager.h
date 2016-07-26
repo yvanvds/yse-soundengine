@@ -94,7 +94,7 @@ namespace YSE {
 
       void update();
 
-      implementationObject * addImplementation(interfaceObject * head);
+      implementationObject * addImplementation(channel * head);
       void setup(implementationObject * impl);
       Bool empty();
       

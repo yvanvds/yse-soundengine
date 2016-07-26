@@ -18,7 +18,7 @@
 
 namespace YSE {
 
-  typedef Flt(*occlusionFunc)(const Vec& source, const Vec& listener);
+  typedef Flt(*occlusionFunc)(const Pos& source, const Pos& listener);
 
   class API system {
   public:
@@ -62,7 +62,7 @@ namespace YSE {
       if there are any objects inbetween that should occlude the sound and decide how
       much you want to occlude it.
     */
-    system& occlusionCallback(Flt(*func)(const YSE::Vec&, const YSE::Vec&));
+    system& occlusionCallback(Flt(*func)(const YSE::Pos&, const YSE::Pos&));
     occlusionFunc occlusionCallback();
 
     system & underWaterFX(const channel & target);
@@ -79,7 +79,7 @@ namespace YSE {
     Flt cpuLoad(); // cpu load of the audio steam (not the YSE update system)
     void sleep(UInt ms); // usefull for console applications if you don't want to run update at max speed
   private:
-    Flt(*occlusionPtr)(const Vec& source, const Vec& listener);
+    Flt(*occlusionPtr)(const Pos& source, const Pos& listener);
   };
 
   API system & System();

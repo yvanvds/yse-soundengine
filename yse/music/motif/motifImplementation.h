@@ -20,7 +20,7 @@ namespace YSE {
 
     class implementationObject {
     public:
-      implementationObject(interfaceObject * head);
+      implementationObject(motif * head);
       ~implementationObject();
 
       bool update();
@@ -42,7 +42,7 @@ namespace YSE {
     private:
       void sort();
 
-      std::atomic<interfaceObject *> head;
+      std::atomic<motif *> head;
       Flt length;
       std::vector<MUSIC::pNote> notes;
       Bool needsSorting;

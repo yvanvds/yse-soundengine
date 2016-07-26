@@ -22,15 +22,15 @@ namespace YSE {
       void update();
       listenerImplementation();
 
-      inline const Vec & getPos() { return newPos; }
+      inline const Pos & getPos() { return newPos; }
       
 
     private:
-      Vec newPos, lastPos;
-      aVec pos;
-      aVec up;
-      aVec forward;
-      aVec vel;
+      Pos newPos, lastPos;
+      aPos pos;
+      aPos up;
+      aPos forward;
+      aPos vel;
 
       friend class SOUND::implementationObject;
       friend class channelImplementation;

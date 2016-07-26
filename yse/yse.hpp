@@ -63,7 +63,7 @@
 #include "channel/channel.hpp"
 #include "channel/channelInterface.hpp"
 
-#include "sound/sound.hpp"
+//#include "sound/sound.hpp"
 #include "sound/soundInterface.hpp"
 
 #include "synth/synth.hpp"

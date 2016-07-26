@@ -17,8 +17,9 @@ namespace YSE {
   They all have an interface, implementation, manager, message and a message enumeration.
   */
 
+  class motif;
+
   namespace MOTIF {
-    class interfaceObject;
     class implementationObject;
     class messageObject;
     class managerObject;
@@ -31,10 +32,6 @@ namespace YSE {
       FIRST_PITCH,
     };
   }
-
-  // the interface itself gets a more generic name, so that users can just
-  // define a 'player' to get an interface object.
-  typedef MOTIF::interfaceObject motif;
 
 }
 

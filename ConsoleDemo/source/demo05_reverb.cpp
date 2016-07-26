@@ -33,22 +33,22 @@ int main() {
 
   // add reverb at 5 meter
   bathroom.create();
-  bathroom.setPosition(YSE::Vec(0, 0, 5)).setSize(1).setRollOff(1);
+  bathroom.setPosition(YSE::Pos(0, 0, 5)).setSize(1).setRollOff(1);
   bathroom.setPreset(YSE::REVERB_BATHROOM);
 
   // add reverb at 10 meter
   hall.create();
-  hall.setPosition(YSE::Vec(0, 0, 10)).setSize(1).setRollOff(1);
+  hall.setPosition(YSE::Pos(0, 0, 10)).setSize(1).setRollOff(1);
   hall.setPreset(YSE::REVERB_HALL);
 
   // add reverb at 15 meter
   sewer.create();
-  sewer.setPosition(YSE::Vec(0, 0, 15)).setSize(1).setRollOff(1);
+  sewer.setPosition(YSE::Pos(0, 0, 15)).setSize(1).setRollOff(1);
   sewer.setPreset(YSE::REVERB_SEWERPIPE);
 
   // add reverb at 20 meter
   custom.create();
-  custom.setPosition(YSE::Vec(0, 0, 20)).setSize(1).setRollOff(1);
+  custom.setPosition(YSE::Pos(0, 0, 20)).setSize(1).setRollOff(1);
   // for this reverb we use custom parameters instead of a preset
   // (these are meant to sound awkward)
   custom.setRoomSize(1.0).setDamping(0.1).setDryWetBalance(0.0, 1.0).setModulation(6.5, 0.7);
@@ -65,14 +65,14 @@ int main() {
       char ch = _getch();
       switch (ch) {
       case 'q': {
-                  YSE::Vec pos = YSE::Listener().getPosition();
+                  YSE::Pos pos = YSE::Listener().getPosition();
                   pos.z += 0.1;
                   YSE::Listener().setPosition(pos);
                   snare.setPosition(pos);
                   break;
       }
       case 'a':{
-                 YSE::Vec pos = YSE::Listener().getPosition();
+                 YSE::Pos pos = YSE::Listener().getPosition();
                  pos.z -= 0.1;
                  YSE::Listener().setPosition(pos);
                  snare.setPosition(pos);

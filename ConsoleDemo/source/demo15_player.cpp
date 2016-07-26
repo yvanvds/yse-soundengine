@@ -76,7 +76,7 @@ private:
 YSE::sound sound; 
 YSE::synth synth;
 YSE::player player;
-YSE::Vec soundPos;
+YSE::Pos soundPos;
 YSE::scale scaleOne;
 YSE::scale scaleTwo;
 
@@ -146,7 +146,7 @@ int main() {
 
     if (_kbhit()) {
       char ch = _getch();
-      YSE::Vec pos = YSE::Listener().getPosition();
+      YSE::Pos pos = YSE::Listener().getPosition();
       switch (ch) {
       case '1': player.play(); break;
       case '2': player.stop(); break;

@@ -85,7 +85,7 @@ void YSE::system::close() {
   }
 }
 
-YSE::system& YSE::system::occlusionCallback(Flt(*func)(const YSE::Vec&, const YSE::Vec&)) {
+YSE::system& YSE::system::occlusionCallback(Flt(*func)(const YSE::Pos&, const YSE::Pos&)) {
   occlusionPtr = func;
   return *this;
 }

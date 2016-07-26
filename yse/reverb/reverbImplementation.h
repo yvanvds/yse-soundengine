@@ -64,7 +64,7 @@ namespace YSE {
       lfQueue<messageObject> messages;
 
       // all reverb setting
-      Vec position; // < world position for a localized reverb
+      Pos position; // < world position for a localized reverb
       Flt size, rolloff, roomsize, damp, dry, wet;
       Flt modFrequency, modWidth;
       Bool active; // < won't be included in calculations if false

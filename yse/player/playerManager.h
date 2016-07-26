@@ -25,7 +25,7 @@ namespace YSE {
 
       void update(Flt delta);
 
-      implementationObject * addImplementation(interfaceObject * head, synth * s);
+      implementationObject * addImplementation(player * head, synth * s);
       void removeImplementation(implementationObject * impl);
       
     private:

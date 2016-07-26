@@ -19,7 +19,7 @@ namespace YSE {
 
     class implementationObject {
     public:
-      implementationObject(interfaceObject * head);
+      implementationObject(scale * head);
       ~implementationObject();
 
       bool update();
@@ -59,13 +59,13 @@ namespace YSE {
       void clear();
 
     private:
-      std::atomic<interfaceObject *> head;
+      std::atomic<scale *> head;
       std::vector<Flt> pitches;
       Bool needsSorting;
 
       lfQueue<messageObject> messages;
 
-      friend class SCALE::interfaceObject;
+      friend class scale;
       friend class SCALE::managerObject;
     };
 

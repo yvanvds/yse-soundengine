@@ -16,8 +16,9 @@ namespace YSE {
   They all have an interface, implementation, manager, message and a message enumeration.
   */
 
+  class player; // interfaceObject
+
   namespace PLAYER {
-    class interfaceObject;
     class implementationObject;
     class messageObject;
     class managerObject;
@@ -42,10 +43,6 @@ namespace YSE {
       MOTIF_FITS_SCALE,
     };
   }
-
-  // the interface itself gets a more generic name, so that users can just
-  // define a 'player' to get an interface object.
-  typedef PLAYER::interfaceObject player;
 
 }
 

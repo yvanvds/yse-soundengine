@@ -25,7 +25,7 @@ namespace YSE {
 
       void update();
 
-      implementationObject * addImplementation(interfaceObject * head);
+      implementationObject * addImplementation(scale * head);
 
     private:
       std::forward_list<implementationObject> implementations;

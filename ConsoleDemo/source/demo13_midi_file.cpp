@@ -75,7 +75,7 @@ YSE::SYNTH::samplerConfig demo;
 YSE::sound sound;
 YSE::synth synth;
 YSE::MIDI::file midiFile;
-YSE::Vec soundPos;
+YSE::Pos soundPos;
 
 int main() {
   YSE::System().init();
@@ -105,7 +105,7 @@ int main() {
 
     if (_kbhit()) {
       char ch = _getch();
-      YSE::Vec pos = YSE::Listener().getPosition();
+      YSE::Pos pos = YSE::Listener().getPosition();
       switch (ch) {
       case '1': midiFile.play(); break;
       case '2': midiFile.pause(); break;

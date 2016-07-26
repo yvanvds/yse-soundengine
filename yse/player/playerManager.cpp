@@ -32,7 +32,7 @@ void YSE::PLAYER::managerObject::update(Flt delta) {
   }
 }
 
-YSE::PLAYER::implementationObject * YSE::PLAYER::managerObject::addImplementation(interfaceObject * head, synth * s) {
+YSE::PLAYER::implementationObject * YSE::PLAYER::managerObject::addImplementation(player * head, synth * s) {
   implementations.emplace_front(head, s);
   return &implementations.front();
 }

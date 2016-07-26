@@ -48,12 +48,12 @@ namespace YSE {
       /**
        Set the virtual position of this reverb setting.
        */
-      interfaceObject& setPosition(const  Vec &value);
+      interfaceObject& setPosition(const  Pos &value);
 
       /**
        Get the position of this reverb setting.
        */
-      Vec getPosition();
+      Pos getPosition();
 
       /**
        The size of a reverb defines how far from the center position the settings will
@@ -205,7 +205,7 @@ namespace YSE {
       Int earlyPtr[4]; // early reflections
       Flt earlyGain[4];
 
-      Vec position;
+      Pos position;
       Flt size, rolloff;
 
       REVERB_PRESET preset;

@@ -103,7 +103,7 @@ namespace YSE {
       managerObject();
       ~managerObject();
 
-      implementationObject * addImplementation(interfaceObject * head);
+      implementationObject * addImplementation(sound * head);
 
       /** Add a new soundfile to the system and return a pointer to it. If the file already
           exists, it will not be loaded anew but a pointer to the existing file will be

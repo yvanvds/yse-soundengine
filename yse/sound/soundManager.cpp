@@ -138,7 +138,7 @@ YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addInputStream(juce::Input
 }
 #endif
 
-YSE::SOUND::implementationObject * YSE::SOUND::managerObject::addImplementation(YSE::SOUND::interfaceObject * head) {
+YSE::SOUND::implementationObject * YSE::SOUND::managerObject::addImplementation(YSE::sound * head) {
   implementations.emplace_front(head);
   return &implementations.front();
 }

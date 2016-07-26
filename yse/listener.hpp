@@ -29,10 +29,10 @@ namespace YSE {
   class API listener {
   public:
 
-    Vec getPosition(); //< Get the current position of the listener.
-    Vec getVelocity(); //< Get the current velocity of the listener. This is a calculated value. Velocity cannot be set manually.
-    Vec getForward(); //< Get the 'forward' orientation of the listener.
-    Vec getUpward(); //< Get the 'upward' orientation of the listener.
+    Pos getPosition(); //< Get the current position of the listener.
+    Pos getVelocity(); //< Get the current velocity of the listener. This is a calculated value. Velocity cannot be set manually.
+    Pos getForward(); //< Get the 'forward' orientation of the listener.
+    Pos getUpward(); //< Get the 'upward' orientation of the listener.
       
     /**
      Set the current position of the listener. If you want to use doppler
@@ -40,13 +40,13 @@ namespace YSE {
      interval. Usually you will update the position just as often as you use 
      System().update().
     */
-    listener& setPosition(const Vec &pos);
+    listener& setPosition(const Pos &pos);
       
     /**
      Set the orientation of the listener. The upward vector is optional, and assumes 
      rotation on a horizontal plane by default.
     */
-    listener& setOrientation(const Vec &forward, const Vec &up = Vec(0, 1, 0));
+    listener& setOrientation(const Pos &forward, const Pos &up = Pos(0, 1, 0));
 
   };
 

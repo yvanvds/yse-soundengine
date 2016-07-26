@@ -64,7 +64,7 @@ int main() {
     }
 
     appTime += 0.1;
-    YSE::Vec pos;
+    YSE::Pos pos;
     pos.set(sin(appTime) * 5, 0, cos(appTime) * 5);
     sound.setPosition(pos);
 

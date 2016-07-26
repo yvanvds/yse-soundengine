@@ -34,7 +34,7 @@ void YSE::SCALE::managerObject::update() {
   }
 }
 
-YSE::SCALE::implementationObject * YSE::SCALE::managerObject::addImplementation(interfaceObject * head) {
+YSE::SCALE::implementationObject * YSE::SCALE::managerObject::addImplementation(scale * head) {
   implementations.emplace_front(head);
   return &implementations.front();
 }
