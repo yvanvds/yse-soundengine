@@ -12,6 +12,7 @@
 
 #include "portaudioDeviceManager.h"
 #include "../internalHeaders.h"
+#include "pa_asio.h"
 
 UInt YSE::SAMPLERATE = 44100;
 
@@ -28,6 +29,10 @@ YSE::DEVICE::managerObject::managerObject()
   , started(false)
 {}
 
+YSE::DEVICE::managerObject::~managerObject() {
+  close();
+  terminate();
+}
 
 int YSE::DEVICE::managerObject::paCallback(
     const void *input
@@ -86,20 +91,34 @@ Bool YSE::DEVICE::managerObject::init() {
   }
 
   abstractDeviceManager::init();
-
-  
-
   return true;
 }
 
 void YSE::DEVICE::managerObject::addCallback() {
-  err = Pa_OpenDefaultStream(
+  // setup with default device
+  PaStreamParameters params;
+  params.device = Pa_GetDefaultOutputDevice();
+  const PaDeviceInfo * info = Pa_GetDeviceInfo(params.device);
+  params.channelCount = info->maxOutputChannels;
+  params.sampleFormat = paFloat32 | paNonInterleaved;
+  if (Pa_GetHostApiInfo(info->hostApi)->type == paASIO) {
+    long min, max, pref;
+    PaAsio_GetAvailableLatencyValues(params.device, &min, &max, &pref, NULL);
+    params.suggestedLatency = pref;
+  }
+  else {
+    params.suggestedLatency = info->defaultHighOutputLatency;
+  }
+  params.hostApiSpecificStreamInfo = nullptr;
+  SAMPLERATE = info->defaultSampleRate;
+
+  err = Pa_OpenStream(
     &stream
-    , 0
-    , 2
-    , paFloat32
+    , NULL
+    , &params
     , SAMPLERATE
-    , 512
+    , paFramesPerBufferUnspecified
+    , paNoFlag
     , paCallback
     , this
   );
@@ -107,33 +126,40 @@ void YSE::DEVICE::managerObject::addCallback() {
   if (err != paNoError) {
     audioDeviceError(err);
     return;
-  }
-
-  open = true;
+  } else open = true;
 
   err = Pa_StartStream(stream);
   if (err != paNoError) {
     audioDeviceError(err);
     return;
-  }
-  started = true;
+  } else started = true;
 }
 
 void YSE::DEVICE::managerObject::close() {
-  if (stream != nullptr) {
+  if (started) {
     err = Pa_StopStream(stream);
     if (err != paNoError) {
       audioDeviceError(err);
     }
+    started = false;
+  }
 
+  if(open) {
     err = Pa_CloseStream(stream);
     if (err != paNoError) {
       audioDeviceError(err);
     }
+    open = false;
   }
-  err = Pa_Terminate();
-  if (err != paNoError) {
-    audioDeviceError(err);
+}
+
+void YSE::DEVICE::managerObject::terminate() {
+  if (initDone) {
+    err = Pa_Terminate();
+    if (err != paNoError) {
+      audioDeviceError(err);
+    }
+    initDone = false;
   }
 }
 
@@ -148,12 +174,72 @@ void YSE::DEVICE::managerObject::updateDeviceList() {
 
   for (UInt i = 0; i < count; i++) {
     const PaDeviceInfo * info = Pa_GetDeviceInfo(i);
+    const PaHostApiInfo * hostInfo = Pa_GetHostApiInfo(info->hostApi);
+    YSE::device d;
 
+    d.setID(i);
+    d.setName(info->name);
+    d.setTypeName(hostInfo->name);
+
+    for (UInt i = 0; i < info->maxInputChannels; i++) {
+      d.addInputChannelName("in " + (i + 1));
+    }
+
+    for (UInt i = 0; i < info->maxOutputChannels; i++) {
+      d.addOutputChannelName("out " + (i + 1));
+    }
+
+    d.setInputLatency(info->defaultLowInputLatency);
+    d.setOutputLatency(info->defaultLowOutputLatency);
+    d.addAvailableSampleRate(info->defaultSampleRate);
+    
+    devices.push_back(d);
   }
 }
 
 void YSE::DEVICE::managerObject::openDevice(const YSE::DEVICE::setupObject & object) {
+  if (!initDone) return;
+  close();
 
+  PaStreamParameters params;
+  params.device = object.out->getID();
+  const PaDeviceInfo * info = Pa_GetDeviceInfo(params.device);
+  params.channelCount = object.getOutputChannels();
+  params.sampleFormat = paFloat32 | paNonInterleaved;
+  if (Pa_GetHostApiInfo(info->hostApi)->type == paASIO) {
+    long min, max, pref;
+    PaAsio_GetAvailableLatencyValues(params.device, &min, &max, &pref, NULL);
+    params.suggestedLatency = pref;
+  }
+  else {
+    params.suggestedLatency = info->defaultHighOutputLatency;
+  }
+  params.hostApiSpecificStreamInfo = nullptr;
+  SAMPLERATE = object.sampleRate;
+
+  err = Pa_OpenStream(
+    &stream
+    , NULL
+    , &params
+    , SAMPLERATE
+    , object.bufferSize == 0 ? paFramesPerBufferUnspecified : object.bufferSize
+    , paNoFlag
+    , paCallback
+    , this
+  );
+
+  if (err != paNoError) {
+    audioDeviceError(err);
+    return;
+  }
+  else open = true;
+
+  err = Pa_StartStream(stream);
+  if (err != paNoError) {
+    audioDeviceError(err);
+    return;
+  }
+  else started = true;
 }
 
 void YSE::DEVICE::managerObject::audioDeviceError(PaError error) {

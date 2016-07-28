@@ -77,6 +77,9 @@ namespace YSE {
       interfaceObject & setInputLatency(int value);
       int getInputLatency() const;
 
+      interfaceObject & setID(int value);
+      int getID() const;
+
     private:
       std::string name;
       std::string typeName;
@@ -88,6 +91,7 @@ namespace YSE {
 
       int defaultBufferSize;
       int inputLatency, outputLatency;
+      int ID;
 
       friend class DEVICE::managerObject;
     };

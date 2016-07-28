@@ -128,3 +128,11 @@ int YSE::device::getInputLatency() const {
   return inputLatency;
 }
 
+YSE::device & YSE::device::setID(int value) {
+  ID = value;
+  return *this;
+}
+
+int YSE::device::getID() const {
+  return ID;
+}

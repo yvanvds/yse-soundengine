@@ -28,7 +28,8 @@ namespace YSE {
     class managerObject : public abstractDeviceManager {
     public:
       managerObject();
-
+      ~managerObject();
+      
       virtual Bool init();
       virtual void close();
       virtual Flt cpuLoad();
@@ -46,8 +47,9 @@ namespace YSE {
         , void * userData);
 
     private:
-      void audioDeviceError(PaError err);
+      void terminate();
       
+      void audioDeviceError(PaError err);
       PaStream * stream;
       PaError err;
       UInt bufferPos;
