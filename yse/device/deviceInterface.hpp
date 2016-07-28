@@ -15,10 +15,6 @@
 #include "../classes.hpp"
 #include "../yse.hpp"
 
-// TODO: this should be removed at some point. We don't want any juce references in the public interface
-namespace juce {
-  class AudioIODevice;
-}
 
 /** This class can hold the properties of a particular audio device. You're not
     supposed to create object of this class yourself, but you can retrieve the
@@ -32,16 +28,25 @@ namespace YSE {
       /** Don't create this object yourself! Instead, retrieve
           available audio devices with YSE::System().getDevices()
       */
-      interfaceObject(juce::AudioIODevice * pimpl);
+      interfaceObject();
+
+      interfaceObject & setName(const std::string & name);
 
       /** Get the name of this device
       */
-      const char * getName() const;
+      const std::string & getName() const;
       
+      interfaceObject & setTypeName(const std::string & name);
+
       /** Get the type of the device. This is also known as the device host.
           A system can have different hosts, like ASIO, Jack, etc.
       */
-      const char * getTypeName() const;
+      const std::string & getTypeName() const;
+
+      interfaceObject & addInputChannelName(const std::string & name);
+      interfaceObject & addOutputChannelName(const std::string & name);
+      interfaceObject & addAvailableSampleRate(double sr);
+      interfaceObject & addAvailableBufferSize(int bs);
 
       // These functions cannot be used if YSE is compiled as DLL, because
       // you can't pass a vector if this is the case.
@@ -52,10 +57,10 @@ namespace YSE {
 
       // use these instead.
       UInt getNumOutputChannelNames() const;
-      const char * getOutputChannelName(UInt nr) const;
+      const std::string & getOutputChannelName(UInt nr) const;
 
       UInt getNumInputChannelNames() const;
-      const char * getInputChannelName(UInt nr) const;
+      const std::string & getInputChannelName(UInt nr) const;
 
       UInt getNumAvailableSampleRates() const;
       double getAvailableSampleRate(UInt nr) const;
@@ -63,17 +68,26 @@ namespace YSE {
       UInt getNumAvailableBufferSizes() const;
       Int getAvailableBufferSize(UInt nr) const;
 
+      interfaceObject & setDefaultBufferSize(int value);
       int getDefaultBufferSize() const;
+
+      interfaceObject & setOutputLatency(int value);
       int getOutputLatency() const;
+
+      interfaceObject & setInputLatency(int value);
       int getInputLatency() const;
 
     private:
+      std::string name;
+      std::string typeName;
+
       std::vector<std::string> outputChannelNames;
       std::vector<std::string> inputChannelNames;
       std::vector<double> sampleRates;
       std::vector<int> bufferSizes;
 
-      juce::AudioIODevice * pimpl;
+      int defaultBufferSize;
+      int inputLatency, outputLatency;
 
       friend class DEVICE::managerObject;
     };

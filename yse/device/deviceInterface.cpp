@@ -12,31 +12,45 @@
 #include "../internalHeaders.h"
 
 
-YSE::DEVICE::interfaceObject::interfaceObject(juce::AudioIODevice * pimpl) : pimpl(pimpl) {
-  StringArray in = pimpl->getInputChannelNames();
-  for (int i = 0; i < in.size(); i++) {
-    inputChannelNames.emplace_back(in[i].getCharPointer());
-  }
-  StringArray out = pimpl->getOutputChannelNames();
-  for (int i = 0; i < out.size(); i++) {
-    outputChannelNames.emplace_back(out[i].getCharPointer());
-  }
-  Array<double> sr = pimpl->getAvailableSampleRates();
-  for (int i = 0; i < sr.size(); i++) {
-    sampleRates.push_back(sr[i]);
-  }
-  Array<int> bs = pimpl->getAvailableBufferSizes();
-  for (int i = 0; i < bs.size(); i++) {
-    bufferSizes.push_back(bs[i]);
-  }
+YSE::DEVICE::interfaceObject::interfaceObject() {
 }
 
-const char * YSE::device::getName() const {
-  return pimpl->getName().getCharPointer();
+YSE::device & YSE::device::setName(const std::string & name) {
+  this->name = name;
+  return *this;
 }
 
-const char * YSE::device::getTypeName() const {
-  return pimpl->getTypeName().getCharPointer();
+const std::string & YSE::device::getName() const {
+  return name;
+}
+
+YSE::device & YSE::device::setTypeName(const std::string & typeName) {
+  this->typeName = typeName;
+  return *this;
+}
+
+const std::string & YSE::device::getTypeName() const {
+  return typeName;
+}
+
+YSE::device & YSE::device::addInputChannelName(const std::string & name) {
+  inputChannelNames.emplace_back(name);
+  return *this;
+}
+
+YSE::device & YSE::device::addOutputChannelName(const std::string & name) {
+  outputChannelNames.emplace_back(name);
+  return *this;
+}
+
+YSE::device & YSE::device::addAvailableSampleRate(double sr) {
+  sampleRates.push_back(sr);
+  return *this;
+}
+
+YSE::device & YSE::device::addAvailableBufferSize(int bs) {
+  bufferSizes.push_back(bs);
+  return *this;
 }
 
 const std::vector<std::string> & YSE::device::getOutputChannelNames() const {
@@ -59,16 +73,16 @@ UInt YSE::device::getNumOutputChannelNames() const {
   return outputChannelNames.size();
 }
 
-const char * YSE::device::getOutputChannelName(UInt nr) const {
-  return outputChannelNames[nr].c_str();
+const std::string & YSE::device::getOutputChannelName(UInt nr) const {
+  return outputChannelNames[nr];
 }
 
 UInt YSE::device::getNumInputChannelNames() const {
   return inputChannelNames.size();
 }
 
-const char * YSE::device::getInputChannelName(UInt nr) const {
-  return inputChannelNames[nr].c_str();
+const std::string & YSE::device::getInputChannelName(UInt nr) const {
+  return inputChannelNames[nr];
 }
 
 UInt YSE::device::getNumAvailableSampleRates() const {
@@ -87,15 +101,30 @@ Int YSE::device::getAvailableBufferSize(UInt nr) const {
   return bufferSizes[nr];
 }
 
+YSE::device & YSE::device::setDefaultBufferSize(int value) {
+  defaultBufferSize = value;
+  return *this;
+}
+
 int YSE::device::getDefaultBufferSize() const {
-  return pimpl->getDefaultBufferSize();
+  return defaultBufferSize;
+}
+
+YSE::device & YSE::device::setOutputLatency(int value) {
+  outputLatency = value;
+  return *this;
 }
 
 int YSE::device::getOutputLatency() const {
-  return pimpl->getOutputLatencyInSamples();
+  return outputLatency;
+}
+
+YSE::device & YSE::device::setInputLatency(int value) {
+  inputLatency = value;
+  return *this;
 }
 
 int YSE::device::getInputLatency() const {
-  return pimpl->getInputLatencyInSamples();
+  return inputLatency;
 }
 

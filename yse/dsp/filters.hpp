@@ -21,7 +21,7 @@ namespace YSE {
     class API filterBase {
     public:
       filterBase();
-      filterBase(filterBase &);
+      filterBase( const filterBase &);
       
       virtual buffer & operator()(buffer & in) = 0;
 

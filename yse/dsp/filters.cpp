@@ -18,7 +18,7 @@ coef1(0), coef2(0),
 ff1(0), ff2(0), ff3(0), fb1(0), fb2(0) {
 }
 
-YSE::DSP::filterBase::filterBase(YSE::DSP::filterBase & source)  {
+YSE::DSP::filterBase::filterBase(const YSE::DSP::filterBase & source)  {
   freq.store(source.freq);
   gain.store(source.gain);
   q = source.q;

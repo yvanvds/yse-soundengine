@@ -20,6 +20,7 @@ namespace YSE {
     class interfaceObject;
     class setupObject;
     class managerObject;   
+    class abstractDeviceManager;
   }
 
   // the interface itself gets a more generic name, so that users can just

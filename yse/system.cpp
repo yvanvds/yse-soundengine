@@ -18,18 +18,6 @@ Author:  yvan
 #include <unistd.h>
 #endif
 
-namespace YSE{
-  class systemImpl {
-  public:
-    systemImpl() : coInitialized(false) {}
-    bool coInitialized; // for windows COM library
-  };
-
-  systemImpl & SystemImpl() {
-    static systemImpl s;
-    return s;
-  }
-}
 
 YSE::system & YSE::System() {
   static YSE::system s;
@@ -44,14 +32,7 @@ Bool YSE::system::init() {
   // global objects should always be loaded before anything else!
   INTERNAL::Global().init();
   
-  // on windows, the COM library has to be initialized. This may or may not
-  // also happen in your application. It doesn't matter.
-#if defined YSE_WINDOWS
-  if (SUCCEEDED(CoInitialize(nullptr))) {
-    SystemImpl().coInitialized = true;
-    INTERNAL::LogImpl().emit(E_DEBUG, "COM library initialized");
-  }
-#endif
+
   if (DEVICE::Manager().init()) {
     INTERNAL::LogImpl().emit(E_DEBUG, "YSE System object initialized");
 
@@ -67,6 +48,9 @@ Bool YSE::system::init() {
 
     maxSounds(50);
     INTERNAL::Global().active = true;
+
+    DEVICE::Manager().addCallback();
+
     return true;
   }
   INTERNAL::LogImpl().emit(E_ERROR, "YSE System object failed to initialize");
@@ -95,15 +79,6 @@ YSE::occlusionFunc YSE::system::occlusionCallback() {
 }
 
 YSE::system::system() : occlusionPtr(nullptr) {
-}
-
-YSE::system::~system() {
-#if defined YSE_WINDOWS
-  if (SystemImpl().coInitialized) {
-    CoUninitialize();
-    SystemImpl().coInitialized = false;
-  }
-#endif
 }
 
 YSE::system & YSE::system::underWaterFX(const channel & target) {

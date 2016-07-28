@@ -79,7 +79,7 @@ bool YSE::DSP::LoadFromFile(const char * fileName, MULTICHANNELBUFFER & buffer) 
   reader->read(&tBuf, 0, (Int)reader->lengthInSamples, 0, true, true);
 
   buffer.resize(reader->numChannels);
-  for (int i = 0; i < buffer.size(); i++) {
+  for (unsigned int i = 0; i < buffer.size(); i++) {
     buffer[i].setSampleRateAdjustment(static_cast<Flt>(reader->sampleRate) / static_cast<Flt>(SAMPLERATE));
     buffer[i].resize(tBuf.getNumSamples());
 
@@ -151,7 +151,7 @@ bool YSE::DSP::SaveToFile(const char * fileName, MULTICHANNELBUFFER & buffer) {
         fileStream.release();
 
         float ** array = new float*[buffer.size()];
-        for (int i = 0; i < buffer.size(); i++) {
+        for (unsigned int i = 0; i < buffer.size(); i++) {
           array[i] = buffer[i].getPtr();
         }
 

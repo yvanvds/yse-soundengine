@@ -2,7 +2,7 @@
 
 <JUCERPROJECT id="Hm1Rhq" name="yse_dll" projectType="dll" version="1.0.0"
               bundleIdentifier="com.mute.yse_dll" includeBinaryInAppConfig="1"
-              jucerVersion="4.0.2">
+              jucerVersion="4.2.3">
   <MAINGROUP id="c8Cr7r" name="yse_dll">
     <GROUP id="{C1464C78-202C-BC41-481A-C05656427973}" name="yse">
       <GROUP id="{CC0DC12C-144B-3139-4D29-2C7FD7DB9D50}" name="player">
@@ -76,14 +76,27 @@
               file="../yse/channel/channelMessage.h"/>
       </GROUP>
       <GROUP id="{80ABE086-2025-02C8-E9FE-B73390A7D6EA}" name="device">
+        <GROUP id="{51B5EB5E-7324-E5DA-AD1F-B64CBF6639C0}" name="backend_portaudio">
+          <FILE id="suTouR" name="portaudioDeviceManager.cpp" compile="1" resource="0"
+                file="../yse/device/portaudioDeviceManager.cpp"/>
+          <FILE id="CH9dGy" name="portaudioDeviceManager.h" compile="0" resource="0"
+                file="../yse/device/portaudioDeviceManager.h"/>
+        </GROUP>
+        <GROUP id="{ACA85EC9-CDC2-AAFF-76AE-96F4B03E9EAD}" name="backend_juce">
+          <FILE id="vMzYjO" name="juceDeviceManager.cpp" compile="1" resource="0"
+                file="../yse/device/juceDeviceManager.cpp"/>
+          <FILE id="e6XWIs" name="juceDeviceManager.h" compile="0" resource="0"
+                file="../yse/device/juceDeviceManager.h"/>
+        </GROUP>
+        <FILE id="E5KPUj" name="abstractDeviceManager.cpp" compile="1" resource="0"
+              file="../yse/device/abstractDeviceManager.cpp"/>
+        <FILE id="zKOJuV" name="abstractDeviceManager.h" compile="0" resource="0"
+              file="../yse/device/abstractDeviceManager.h"/>
         <FILE id="C5gmKn" name="device.hpp" compile="0" resource="0" file="../yse/device/device.hpp"/>
         <FILE id="tYJhmY" name="deviceInterface.cpp" compile="1" resource="0"
               file="../yse/device/deviceInterface.cpp"/>
         <FILE id="nNxo86" name="deviceInterface.hpp" compile="0" resource="0"
               file="../yse/device/deviceInterface.hpp"/>
-        <FILE id="vMzYjO" name="deviceManager.cpp" compile="1" resource="0"
-              file="../yse/device/deviceManager.cpp"/>
-        <FILE id="e6XWIs" name="deviceManager.h" compile="0" resource="0" file="../yse/device/deviceManager.h"/>
         <FILE id="ZP4XXd" name="deviceSetup.cpp" compile="1" resource="0" file="../yse/device/deviceSetup.cpp"/>
         <FILE id="CCEImz" name="deviceSetup.hpp" compile="0" resource="0" file="../yse/device/deviceSetup.hpp"/>
       </GROUP>
@@ -319,9 +332,13 @@
   <EXPORTFORMATS>
     <VS2015 targetFolder="Builds/VisualStudio2015" extraDefs="JUCE_CHECK_MEMORY_LEAKS=0&#10;YSE_DLL_BUILD=1">
       <CONFIGURATIONS>
-        <CONFIGURATION name="Debug" winWarningLevel="4" generateManifest="1" winArchitecture="32-bit"
-                       isDebug="1" optimisation="1" targetName="yse_debug_dll" binaryPath="../bin"
-                       headerPath="../yse"/>
+        <CONFIGURATION name="juce Debug" winWarningLevel="4" generateManifest="1" winArchitecture="32-bit"
+                       isDebug="0" optimisation="1" targetName="yse_debug_dll" binaryPath="../bin"
+                       headerPath="../yse" defines="&quot;JUCE_BACKEND=1&quot;"/>
+        <CONFIGURATION name="portaudio Debug" winWarningLevel="4" generateManifest="1"
+                       winArchitecture="32-bit" isDebug="1" targetName="yse_debug_dll"
+                       binaryPath="../bin" headerPath="../yse&#10;../../../dependencies/portaudio/include"
+                       optimisation="1" defines="&quot;PORTAUDIO_BACKEND=1&quot;" libraryPath="../../../dependencies/portaudio/build/msvc/Win32/Release"/>
         <CONFIGURATION name="Release32" winWarningLevel="2" generateManifest="1" winArchitecture="32-bit"
                        isDebug="0" optimisation="3" targetName="libyse32" binaryPath="../bin"
                        headerPath="../yse"/>
@@ -337,26 +354,6 @@
         <MODULEPATH id="juce_audio_basics" path="../../juce/modules"/>
       </MODULEPATHS>
     </VS2015>
-    <VS2013 targetFolder="Builds/VisualStudio2013" extraDefs="JUCE_CHECK_MEMORY_LEAKS=0&#10;YSE_DLL_BUILD=1">
-      <CONFIGURATIONS>
-        <CONFIGURATION name="Debug" winWarningLevel="4" generateManifest="1" winArchitecture="32-bit"
-                       isDebug="1" optimisation="1" targetName="yse_debug_dll" binaryPath="../bin"
-                       headerPath="../yse"/>
-        <CONFIGURATION name="Release32" winWarningLevel="2" generateManifest="1" winArchitecture="32-bit"
-                       isDebug="0" optimisation="3" targetName="libyse32" binaryPath="../bin"
-                       headerPath="../yse"/>
-        <CONFIGURATION name="Release64" winWarningLevel="2" generateManifest="1" winArchitecture="x64"
-                       isDebug="0" optimisation="3" targetName="libyse64" binaryPath="../bin"
-                       headerPath="../yse"/>
-      </CONFIGURATIONS>
-      <MODULEPATHS>
-        <MODULEPATH id="juce_events" path="../../juce/modules"/>
-        <MODULEPATH id="juce_core" path="../../juce/modules"/>
-        <MODULEPATH id="juce_audio_formats" path="../../juce/modules"/>
-        <MODULEPATH id="juce_audio_devices" path="../../juce/modules"/>
-        <MODULEPATH id="juce_audio_basics" path="../../juce/modules"/>
-      </MODULEPATHS>
-    </VS2013>
     <ANDROID targetFolder="Builds/Android" androidActivityClass="com.mute.yse_dll"
              androidSDKPath="D:/Android/sdk" androidNDKPath="D:/Android/ndk"
              androidMinimumSDK="9" androidInternetNeeded="1" androidKeyStore="${user.home}/.android/debug.keystore"
@@ -410,7 +407,7 @@
       </MODULEPATHS>
     </XCODE_MAC>
     <XCODE_IPHONE targetFolder="Builds/iOS" extraDefs="JUCE_CHECK_MEMORY_LEAKS=0"
-                  smallIcon="nwjt3a" bigIcon="nwjt3a">
+                  smallIcon="nwjt3a" bigIcon="nwjt3a" iosScreenOrientation="portraitlandscape">
       <CONFIGURATIONS>
         <CONFIGURATION name="Debug" iosCompatibility="default" isDebug="1" optimisation="1"
                        targetName="libyse_debug"/>

@@ -23,7 +23,6 @@ namespace YSE {
   class API system {
   public:
     system();
-   ~system();
 
     Bool init();
     void update();

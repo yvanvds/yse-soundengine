@@ -41,7 +41,15 @@
 #include "midi/midifileImplementation.h"
 #include "midi/midifileManager.h"
 
-#include "device/deviceManager.h"
+#include "device/abstractDeviceManager.h"
+
+#ifdef JUCE_BACKEND
+#include "device/juceDeviceManager.h"
+#endif
+
+#ifdef PORTAUDIO_BACKEND
+#include "device/portaudioDeviceManager.h"
+#endif
 
 #include "implementations/listenerImplementation.h"
 #include "implementations/logImplementation.h"

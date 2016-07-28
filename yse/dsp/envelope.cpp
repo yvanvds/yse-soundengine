@@ -99,7 +99,7 @@ void YSE::DSP::envelope::normalize() {
   // scan for highest value
   Flt max = 0.f;
   breakPoint * ptr = breakPoints.data();
-  for (int i = 0; i < breakPoints.size(); i++) {
+  for (unsigned int i = 0; i < breakPoints.size(); i++) {
     if(max < ptr->value) max = ptr->value;
     ptr++;
   }
@@ -108,7 +108,7 @@ void YSE::DSP::envelope::normalize() {
   if (max != 0.f) {
     Flt multiplier = 1 / max;
     breakPoint * ptr = breakPoints.data();
-    for (int i = 0; i < breakPoints.size(); i++) {
+    for (unsigned int i = 0; i < breakPoints.size(); i++) {
       ptr->value *= multiplier;
       ptr++;
     }

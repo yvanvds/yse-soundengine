@@ -209,6 +209,7 @@ namespace YSE {
       friend class channel;
       friend class YSE::REVERB::managerObject;
       friend class DEVICE::managerObject;
+      friend class DEVICE::abstractDeviceManager;
       friend class CHANNEL::managerObject;
     };
 

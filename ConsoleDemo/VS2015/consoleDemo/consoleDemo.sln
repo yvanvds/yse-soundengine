@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
-VisualStudioVersion = 14.0.25123.0
+VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "consoleDemo", "consoleDemo.vcxproj", "{9C404ED0-4874-45CF-B05F-2E28095FA3E1}"
 	ProjectSection(ProjectDependencies) = postProject
@@ -56,9 +56,10 @@ Global
 		{D7CD0ABA-AC73-496F-8A82-C65658FD4C83}.Release64|Win32.ActiveCfg = Release|Win32
 		{D7CD0ABA-AC73-496F-8A82-C65658FD4C83}.Release64|Win32.Build.0 = Release|Win32
 		{D7CD0ABA-AC73-496F-8A82-C65658FD4C83}.Release64|x64.ActiveCfg = Release|Win32
-		{D570E99A-42D6-503B-65F8-162F10EF3C13}.Debug|Win32.ActiveCfg = Debug|Win32
-		{D570E99A-42D6-503B-65F8-162F10EF3C13}.Debug|Win32.Build.0 = Debug|Win32
-		{D570E99A-42D6-503B-65F8-162F10EF3C13}.Debug|x64.ActiveCfg = Debug|Win32
+		{D570E99A-42D6-503B-65F8-162F10EF3C13}.Debug|Win32.ActiveCfg = juce Debug|Win32
+		{D570E99A-42D6-503B-65F8-162F10EF3C13}.Debug|Win32.Build.0 = juce Debug|Win32
+		{D570E99A-42D6-503B-65F8-162F10EF3C13}.Debug|x64.ActiveCfg = Release64|x64
+		{D570E99A-42D6-503B-65F8-162F10EF3C13}.Debug|x64.Build.0 = Release64|x64
 		{D570E99A-42D6-503B-65F8-162F10EF3C13}.Release|Win32.ActiveCfg = Release32|Win32
 		{D570E99A-42D6-503B-65F8-162F10EF3C13}.Release|Win32.Build.0 = Release32|Win32
 		{D570E99A-42D6-503B-65F8-162F10EF3C13}.Release|x64.ActiveCfg = Release64|x64
