@@ -547,5 +547,5 @@ void YSE::INTERNAL::soundFile::release(SOUND::implementationObject *impl) {
         previous++;
     }
     // this point should not be reached
-    jassertfalse;
+    assert(false);
 }

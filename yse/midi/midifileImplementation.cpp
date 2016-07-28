@@ -78,7 +78,7 @@ void YSE::MIDI::fileImpl::connect(synth * player) {
   for (auto i = readers.begin(); i != readers.end(); i++) {
     if (*i == player->pimpl) {
       // this synth is already connected
-      jassertfalse;
+      assert(false);
       return;
     }
   }
@@ -96,7 +96,7 @@ void YSE::MIDI::fileImpl::disconnect(synth * player) {
     previous++;
   }
   // this synth was not found!
-  jassertfalse;
+  assert(false);
 }
 
 void YSE::MIDI::fileImpl::removeDevice(SYNTH::implementationObject * player) {

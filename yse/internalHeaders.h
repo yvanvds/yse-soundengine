@@ -8,6 +8,8 @@
   ==============================================================================
 */
 
+#include<assert.h>
+
 #include "yse.hpp"
 
 #include "channel/channelImplementation.h"

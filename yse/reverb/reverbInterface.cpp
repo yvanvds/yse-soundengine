@@ -145,7 +145,7 @@ YSE::REVERB::interfaceObject & YSE::REVERB::interfaceObject::setDryWetBalance(Fl
     /*If you get an assertion here, it means that dry and
       wet values combined add up to more than 1. This will
       result in distored sound.*/
-    jassertfalse
+    assert(false);
   }
 #endif
   if (this->dry != dry || this->wet != wet) {
@@ -209,7 +209,7 @@ YSE::REVERB::interfaceObject & YSE::REVERB::interfaceObject::setReflection(Int r
     }
   }
   else {
-    jassertfalse;
+    assert(false);
     // reflection value must be from 0 to 4
   }
   return (*this);
@@ -218,7 +218,7 @@ YSE::REVERB::interfaceObject & YSE::REVERB::interfaceObject::setReflection(Int r
 Int YSE::REVERB::interfaceObject::getReflectionTime(Int reflection) {
   if (reflection >= 0 && reflection < 4) return earlyPtr[reflection];
   else {
-    jassertfalse;
+    assert(false);
     // reflection value must be from 0 to 4
   }
   return -1;
@@ -227,7 +227,7 @@ Int YSE::REVERB::interfaceObject::getReflectionTime(Int reflection) {
 Flt YSE::REVERB::interfaceObject::getReflectionGain(Int reflection) {
   if (reflection >= 0 && reflection < 4) return earlyGain[reflection];
   else {
-    jassertfalse;
+    assert(false);
     // reflection value must be from 0 to 4
   }
   return -1;

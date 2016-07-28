@@ -172,7 +172,7 @@ void YSE::SYNTH::implementationObject::registerMidiFile(MIDI::fileImpl * file) {
   for (auto i = midiFiles.begin(); i != midiFiles.end(); i++) {
     if (*i == file) {
       // don't try to register a file twice!
-      jassertfalse;
+      assert(false);
       return;
     }
   }
@@ -189,7 +189,7 @@ void YSE::SYNTH::implementationObject::removeMidiFile(MIDI::fileImpl * file) {
     previous++;
   }
   // file not found
-  jassertfalse;
+  assert(false);
 }
 
 YSE::SYNTH::implementationObject::~implementationObject() {

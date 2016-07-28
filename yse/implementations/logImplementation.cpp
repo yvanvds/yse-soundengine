@@ -9,6 +9,7 @@
 */
 
 #include "logImplementation.h"
+#include "../internalHeaders.h"
 
 YSE::INTERNAL::logImplementation & YSE::INTERNAL::LogImpl() {
   static logImplementation impl;
@@ -76,7 +77,7 @@ void YSE::INTERNAL::logImplementation::emit(ERROR_CODE value, const String & inf
     is not active. Most probably that means the program is shutting down.
     The log has already exited and you're still trying to send a message to it.
     */
-    jassertfalse;
+    assert(false);
     return;
   }
 #endif

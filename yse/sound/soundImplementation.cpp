@@ -428,7 +428,7 @@ void YSE::SOUND::implementationObject::update() {
   virtualDist = (distance- size) * currentVolume_upd;
   if (virtualDist < 0) virtualDist = 0;
   /*if (virtualDist > 1000.f) {
-    jassertfalse
+    assert(false);
   }*/
 
   ///////////////////////////////////////////

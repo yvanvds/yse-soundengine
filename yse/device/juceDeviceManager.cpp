@@ -57,7 +57,7 @@ Bool YSE::DEVICE::managerObject::init() {
 
     _lastError = audioDeviceManager.initialise(currentInputChannels, currentOutputChannels, nullptr, true, "", &deviceSetup);
     if (_lastError.isNotEmpty()) {
-      jassertfalse;
+      assert(false);
       return false;
     }
     initialized = true;
@@ -79,7 +79,7 @@ void YSE::DEVICE::managerObject::addCallback() {
 
 void YSE::DEVICE::managerObject::openDevice(const YSE::DEVICE::setupObject & object) {
   // device should be closed at this point
-  jassert(open == false);
+  assert(open == false);
   
   // transform this to a juce setup object  
   currentInputChannels = 0;
