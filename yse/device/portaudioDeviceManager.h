@@ -8,7 +8,7 @@
   ==============================================================================
 */
 
-#ifdef PORTAUDIO_BACKEND
+#if PORTAUDIO_BACKEND
 
 #ifndef PORTAUDIODEVICEMANAGER_H_INCLUDED
 #define PORTAUDIODEVICEMANAGER_H_INCLUDED

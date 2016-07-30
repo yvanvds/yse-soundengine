@@ -8,7 +8,7 @@
   ==============================================================================
 */
 
-#ifdef PORTAUDIO_BACKEND
+#if PORTAUDIO_BACKEND
 
 #include "portaudioDeviceManager.h"
 #include "../internalHeaders.h"

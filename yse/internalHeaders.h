@@ -45,11 +45,11 @@
 
 #include "device/abstractDeviceManager.h"
 
-#ifdef JUCE_BACKEND
+#if JUCE_BACKEND
 #include "device/juceDeviceManager.h"
 #endif
 
-#ifdef PORTAUDIO_BACKEND
+#if PORTAUDIO_BACKEND
 #include "device/portaudioDeviceManager.h"
 #endif
 
@@ -59,7 +59,18 @@
 #include "internal/global.h"
 #include "internal/reverbDSP.h"
 #include "internal/settings.h"
-#include "internal/soundFile.h"
+
+#include "internal/abstractSoundFile.h"
+
+#if JUCE_BACKEND
+#include "internal/juceSoundFile.h"
+#endif
+
+#if LIBSOUNDFILE_BACKEND
+#include "internal/lsfSoundfile.h"
+#endif
+
+
 #include "internal/time.h"
 #include "internal/underWaterEffect.h"
 #include "internal/virtualFinder.h"

@@ -17,7 +17,7 @@
 #include "soundMessage.h"
 #include "soundInterface.hpp"
 #include "soundImplementation.h"
-#include "../internal/soundFile.h"
+#include "../classes.hpp"
 #include "../internal/threadPool.h"
 
 
@@ -114,18 +114,14 @@ namespace YSE {
 
           @return       A pointer to the soundFile object for this file
       */
-      INTERNAL::soundFile * addFile(const File & file);
+      //INTERNAL::soundFile * addFile(const File & file);
 
       // an alternative version of addFile for custom filesystems set with IO()
-      INTERNAL::soundFile * addFile(const char * fileName);
+      INTERNAL::soundFile * addFile(const std::string & fileName);
 
       // an alternative version to add memory buffers
       INTERNAL::soundFile * addFile(YSE::DSP::buffer * buffer);
       INTERNAL::soundFile * addFile(MULTICHANNELBUFFER * buffer);
-
-#if defined PUBLIC_JUCE
-      INTERNAL::soundFile * addInputStream(juce::InputStream * source);
-#endif
 
       void setup(implementationObject * impl);
 

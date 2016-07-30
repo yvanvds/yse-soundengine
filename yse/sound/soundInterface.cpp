@@ -84,29 +84,6 @@ YSE::sound& YSE::sound::create(SYNTH::interfaceObject & synth, channel *ch, Flt 
   return *this;
 }
 
-#if defined PUBLIC_JUCE
-/**
-This is an extra create function which enables you to pass a Juce InputStream with audio data
-to YSE. This is usefull if you use Juce to create an application. But since it creates an additional
-depency on the Juce library, it has to be enabled by including the preprocessor definition
-PUBLIC_JUCE in your project settings.
-*/
-YSE::sound& YSE::sound::create(juce::InputStream * source, channel * ch, Bool loop, Flt volume, Bool streaming) {
-  assert(pimpl == nullptr);
-
-  pimpl = SOUND::Manager().addImplementation(this);
-  if (ch == nullptr) ch = &CHANNEL::Manager().master();
-
-  if (pimpl->create(source, ch, loop, volume, streaming)) {
-    SOUND::Manager().setup(pimpl);
-  }
-  else {
-    pimpl->setStatus(OBJECT_RELEASE);
-    pimpl = nullptr;
-  }
-  return *this;
-}
-#endif
 
 Bool YSE::sound::isValid() {
   return pimpl != nullptr;

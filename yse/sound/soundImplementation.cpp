@@ -9,6 +9,7 @@
 */
 
 #include "../internalHeaders.h"
+#include "../utils/fileFunctions.hpp"
 
 
 YSE::SOUND::implementationObject::implementationObject(sound * head) :
@@ -70,21 +71,21 @@ YSE::SOUND::implementationObject::~implementationObject() {
 }
 
 bool YSE::SOUND::implementationObject::create(const std::string &fileName, channel * ch, Bool loop, Flt volume, Bool streaming) {
-  File ioFile;
   parent = ch->pimpl;
   looping = loop;
   fader.set(volume);
   this->streaming = streaming;
 
+  std::string fullName;
   if (!IO().getActive()) {
-    ioFile = File::getCurrentWorkingDirectory().getChildFile(juce::String(fileName));
-
-    if (!ioFile.existsAsFile()) {
-      INTERNAL::LogImpl().emit(E_FILE_ERROR, "file not found for " + ioFile.getFullPathName().toStdString());
+    fullName = GetCurrentWorkingDirectory() + "\\" + fileName;
+    if (!FileExists(fullName)) {
+      INTERNAL::LogImpl().emit(E_FILE_ERROR, "file not found for " + fullName);
       goto release;
     }
   }
   else {
+    fullName = fileName;
     if (!INTERNAL::CALLBACK::fileExists(fileName.c_str())) {
       INTERNAL::LogImpl().emit(E_FILE_ERROR, "file not found for " + fileName);
       goto release;
@@ -92,12 +93,7 @@ bool YSE::SOUND::implementationObject::create(const std::string &fileName, chann
   }
 
   if (!streaming) {
-    if (IO().getActive()) {
-      file = SOUND::Manager().addFile(fileName.c_str());
-    }
-    else {
-      file = SOUND::Manager().addFile(ioFile);
-    }
+    file = SOUND::Manager().addFile(fullName);
     status_dsp = SS_STOPPED;
     status_upd = SS_STOPPED;
 
@@ -114,12 +110,7 @@ bool YSE::SOUND::implementationObject::create(const std::string &fileName, chann
     status_dsp = SS_STOPPED;
     status_upd = SS_STOPPED;
       
-    if (IO().getActive()) {
-      file = new INTERNAL::soundFile(fileName.c_str());
-    }
-    else {
-      file = new INTERNAL::soundFile(ioFile);
-    }
+    file = new INTERNAL::soundFile(fullName);
     
     if(file->create(true)) {
       filebuffer.resize(file->channels());
@@ -210,30 +201,6 @@ bool YSE::SOUND::implementationObject::create(SYNTH::implementationObject * ptr,
   return true;
 }
 
-#if defined PUBLIC_JUCE
-bool YSE::SOUND::implementationObject::create(juce::InputStream * source, channel * ch, Bool loop, Flt volume, Bool streaming) {
-  parent = ch->pimpl;
-  looping = loop;
-  fader.set(volume);
-
-  if (!streaming) {
-    file = SOUND::Manager().addInputStream(source);
-    status_dsp = SS_STOPPED;
-    status_upd = SS_STOPPED;
-
-    if (file == nullptr) {
-      return false;
-    }
-    else {
-      file->attach(this);
-      return true;
-    }
-  }
-
-  return false;
-}
-#endif
-
 void YSE::SOUND::implementationObject::setup() {
   if (objectStatus == OBJECT_DELETE) return;
   
@@ -252,6 +219,7 @@ void YSE::SOUND::implementationObject::setup() {
     }
     else if (streaming) {
       // streaming sounds do not have to wait until loaded
+      filebuffer.resize(file->channels());
       head.load()->_length = file->length();
       resize();
       

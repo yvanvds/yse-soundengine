@@ -57,10 +57,6 @@ namespace YSE {
       Bool create(YSE::DSP::buffer & buffer, channel * ch, Bool loop, Flt volume);
       Bool create(MULTICHANNELBUFFER & buffer, channel * ch, Bool loop, Flt volume);
 
-#if defined PUBLIC_JUCE
-      Bool create(juce::InputStream * source, channel * ch, Bool loop, Flt volume, Bool streaming);
-#endif
-
       Bool create(DSP::dspSourceObject & ptr, channel * ch, Flt volume);
 
       Bool create(SYNTH::implementationObject * ptr, channel * ch, Flt volume);

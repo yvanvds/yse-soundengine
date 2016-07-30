@@ -8,7 +8,7 @@
   ==============================================================================
 */
 
-#ifdef JUCE_BACKEND
+#if JUCE_BACKEND
 
 #include "../internalHeaders.h"
 #include <Windows.h>

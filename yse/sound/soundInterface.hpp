@@ -103,17 +103,6 @@ namespace YSE {
     */
     sound& create(SYNTH::interfaceObject &  synth, channel * ch = nullptr, Flt volume = 1.0f);
 
-
-#if defined PUBLIC_JUCE
-    /**
-        This is an extra create function which enables you to pass a Juce InputStream with audio data
-        to YSE. This is usefull if you use Juce to create an application. But since it creates an additional
-        depency on the Juce library, it has to be enabled by including the preprocessor definition
-        PUBLIC_JUCE in your project settings.
-    */
-    sound& create(juce::InputStream * source, channel * ch = nullptr, Bool loop = false, Flt volume = 1.0f, Bool streaming = false);
-#endif
-
     /*
       Checks if there is an implementation linked to this interface. You can use this for debugging, but safely assume
       this returns true for the lifetime of the interface. It's not needed to check against this function before

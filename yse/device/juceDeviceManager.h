@@ -8,7 +8,7 @@
   ==============================================================================
 */
 
-#ifdef JUCE_BACKEND
+#if JUCE_BACKEND
 
 #ifndef DEVICEMANAGER_H_INCLUDED
 #define DEVICEMANAGER_H_INCLUDED

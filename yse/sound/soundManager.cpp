@@ -40,26 +40,8 @@ YSE::SOUND::managerObject::~managerObject() {
   soundFiles.clear();
 }
 
-YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addFile(const File & file) {
-  // find out if this file already exists
-  for (auto i = soundFiles.begin(); i != soundFiles.end(); ++i) {
-    if ( i->contains(file)) {
-      return &(*i);
-    }
-  }
 
-  // if we got here, the file does not exist yet
-  soundFiles.emplace_front(file);
-  INTERNAL::soundFile & sf = soundFiles.front();
-  if (sf.create()) {
-    return &sf;
-  }
-  else {
-    return nullptr;
-  }
-}
-
-YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addFile(const char * fileName) {
+YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addFile(const std::string & fileName) {
   // find out if this file already exists
   for (auto i = soundFiles.begin(); i != soundFiles.end(); ++i) {
     if ( i->contains(fileName)) {
@@ -115,28 +97,6 @@ YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addFile(MULTICHANNELBUFFER
     return nullptr;
   }
 }
-
-
-#if defined PUBLIC_JUCE
-YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addInputStream(juce::InputStream * source) {
-  // find out if this stream already exists
-  for (auto i = soundFiles.begin(); i != soundFiles.end(); ++i) {
-    if (i->contains(source)) {
-      return &(*i);
-    }
-  }
-
-  // if we got here, the file does not exist yet
-  soundFiles.emplace_front(source);
-  INTERNAL::soundFile & sf = soundFiles.front();
-  if (sf.create()) {
-    return &sf;
-  }
-  else {
-    return nullptr;
-  }
-}
-#endif
 
 YSE::SOUND::implementationObject * YSE::SOUND::managerObject::addImplementation(YSE::sound * head) {
   implementations.emplace_front(head);

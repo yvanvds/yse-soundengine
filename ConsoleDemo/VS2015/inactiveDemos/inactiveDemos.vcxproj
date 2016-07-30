@@ -64,6 +64,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\source\demo00_play.cpp" />
     <ClCompile Include="..\..\source\demo01_sound_properties.cpp" />
     <ClCompile Include="..\..\source\demo02_3D.cpp" />
     <ClCompile Include="..\..\source\demo03_virtual_sounds.cpp" />
@@ -72,7 +73,6 @@
     <ClCompile Include="..\..\source\demo06_devices.cpp" />
     <ClCompile Include="..\..\source\demo07_dsp_source.cpp" />
     <ClCompile Include="..\..\source\demo08_occlusion.cpp" />
-    <ClCompile Include="..\..\source\demo09_streaming.cpp" />
     <ClCompile Include="..\..\source\demo10_sound_file_position.cpp" />
     <ClCompile Include="..\..\source\demo11_relative_position.cpp" />
     <ClCompile Include="..\..\source\demo12_synth.cpp" />

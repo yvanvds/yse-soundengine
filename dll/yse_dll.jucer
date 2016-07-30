@@ -209,6 +209,18 @@
               file="../yse/implementations/logImplementation.h"/>
       </GROUP>
       <GROUP id="{036222F9-3302-A02E-0D85-5945BCBAF27A}" name="internal">
+        <GROUP id="{93B84685-687C-ACB4-5FDD-67A296244E48}" name="soundFile">
+          <FILE id="zqF9MD" name="abstractSoundFile.cpp" compile="1" resource="0"
+                file="../yse/internal/abstractSoundFile.cpp"/>
+          <FILE id="m32ujz" name="abstractSoundFile.h" compile="0" resource="0"
+                file="../yse/internal/abstractSoundFile.h"/>
+          <FILE id="lblG4s" name="juceSoundFile.cpp" compile="1" resource="0"
+                file="../yse/internal/juceSoundFile.cpp"/>
+          <FILE id="uSKrgJ" name="juceSoundFile.h" compile="0" resource="0" file="../yse/internal/juceSoundFile.h"/>
+          <FILE id="CYC8ZT" name="lsfSoundfile.cpp" compile="1" resource="0"
+                file="../yse/internal/lsfSoundfile.cpp"/>
+          <FILE id="HtS95I" name="lsfSoundfile.h" compile="0" resource="0" file="../yse/internal/lsfSoundfile.h"/>
+        </GROUP>
         <FILE id="X8zQEM" name="customFileReader.cpp" compile="1" resource="0"
               file="../yse/internal/customFileReader.cpp"/>
         <FILE id="ncQ6b0" name="customFileReader.h" compile="0" resource="0"
@@ -219,8 +231,6 @@
         <FILE id="PbVMwx" name="reverbDSP.h" compile="0" resource="0" file="../yse/internal/reverbDSP.h"/>
         <FILE id="GtGjcz" name="settings.cpp" compile="1" resource="0" file="../yse/internal/settings.cpp"/>
         <FILE id="aJqTg1" name="settings.h" compile="0" resource="0" file="../yse/internal/settings.h"/>
-        <FILE id="zqF9MD" name="soundFile.cpp" compile="1" resource="0" file="../yse/internal/soundFile.cpp"/>
-        <FILE id="m32ujz" name="soundFile.h" compile="0" resource="0" file="../yse/internal/soundFile.h"/>
         <FILE id="PvcPgy" name="thread.cpp" compile="1" resource="0" file="../yse/internal/thread.cpp"/>
         <FILE id="TtXh8a" name="thread.h" compile="0" resource="0" file="../yse/internal/thread.h"/>
         <FILE id="xmTYfF" name="threadPool.cpp" compile="1" resource="0" file="../yse/internal/threadPool.cpp"/>
@@ -305,6 +315,10 @@
       </GROUP>
       <GROUP id="{D829189A-D352-A2D0-1951-CCE6BA0F59A8}" name="utils">
         <FILE id="ZOPc3Z" name="atomicOps.hpp" compile="0" resource="0" file="../yse/utils/atomicOps.hpp"/>
+        <FILE id="q2cAji" name="fileFunctions.cpp" compile="1" resource="0"
+              file="../yse/utils/fileFunctions.cpp"/>
+        <FILE id="bgUE5D" name="fileFunctions.hpp" compile="0" resource="0"
+              file="../yse/utils/fileFunctions.hpp"/>
         <FILE id="ThSozL" name="interpolators.cpp" compile="1" resource="0"
               file="../yse/utils/interpolators.cpp"/>
         <FILE id="d4oUBs" name="interpolators.hpp" compile="0" resource="0"
@@ -333,12 +347,13 @@
     <VS2015 targetFolder="Builds/VisualStudio2015" extraDefs="JUCE_CHECK_MEMORY_LEAKS=0&#10;YSE_DLL_BUILD=1">
       <CONFIGURATIONS>
         <CONFIGURATION name="juce Debug" winWarningLevel="4" generateManifest="1" winArchitecture="32-bit"
-                       isDebug="0" optimisation="1" targetName="yse_debug_dll" binaryPath="../bin"
-                       headerPath="../yse" defines="&quot;JUCE_BACKEND=1&quot;"/>
+                       isDebug="1" optimisation="1" targetName="yse_debug_dll" binaryPath="../bin"
+                       headerPath="../yse" defines="&quot;JUCE_BACKEND=1&quot;&#10;&quot;PORTAUDIO_BACKEND=0&quot;&#10;&quot;LIBSOUNDFILE_BACKEND=0&quot;"/>
         <CONFIGURATION name="portaudio Debug" winWarningLevel="4" generateManifest="1"
                        winArchitecture="32-bit" isDebug="1" targetName="yse_debug_dll"
                        binaryPath="../bin" headerPath="../yse&#10;../../../dependencies/portaudio/include"
-                       optimisation="1" defines="&quot;PORTAUDIO_BACKEND=1&quot;" libraryPath="../../../dependencies/portaudio/build/msvc/Win32/Release"/>
+                       optimisation="1" defines="&quot;JUCE_BACKEND=0&quot;&#10;&quot;PORTAUDIO_BACKEND=1&quot;&#10;&quot;LIBSOUNDFILE_BACKEND=1&quot;"
+                       libraryPath="../../../dependencies/portaudio/build/msvc/Win32/Release"/>
         <CONFIGURATION name="Release32" winWarningLevel="2" generateManifest="1" winArchitecture="32-bit"
                        isDebug="0" optimisation="3" targetName="libyse32" binaryPath="../bin"
                        headerPath="../yse"/>
