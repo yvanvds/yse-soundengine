@@ -351,9 +351,9 @@
                        headerPath="../yse" defines="&quot;JUCE_BACKEND=1&quot;&#10;&quot;PORTAUDIO_BACKEND=0&quot;&#10;&quot;LIBSOUNDFILE_BACKEND=0&quot;"/>
         <CONFIGURATION name="portaudio Debug" winWarningLevel="4" generateManifest="1"
                        winArchitecture="32-bit" isDebug="1" targetName="yse_debug_dll"
-                       binaryPath="../bin" headerPath="../yse&#10;../../../dependencies/portaudio/include"
+                       binaryPath="../bin" headerPath="../yse&#10;../../../dependencies/portaudio/include&#10;../../../dependencies/libsndfile/include"
                        optimisation="1" defines="&quot;JUCE_BACKEND=0&quot;&#10;&quot;PORTAUDIO_BACKEND=1&quot;&#10;&quot;LIBSOUNDFILE_BACKEND=1&quot;"
-                       libraryPath="../../../dependencies/portaudio/build/msvc/Win32/Release"/>
+                       libraryPath="../../../dependencies/portaudio/build/msvc/Win32/Release&#10;../../../dependencies/libsndfile/lib"/>
         <CONFIGURATION name="Release32" winWarningLevel="2" generateManifest="1" winArchitecture="32-bit"
                        isDebug="0" optimisation="3" targetName="libyse32" binaryPath="../bin"
                        headerPath="../yse"/>

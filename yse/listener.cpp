@@ -15,30 +15,30 @@ YSE::listener & YSE::Listener() {
   return l;
 }
 
-YSE::Pos YSE::listener::getPosition() {
+YSE::Pos YSE::listener::pos() {
   return INTERNAL::ListenerImpl().pos;
 }
 
-YSE::Pos YSE::listener::getVelocity() {
+YSE::Pos YSE::listener::vel() {
   return INTERNAL::ListenerImpl().vel;
 }
 
-YSE::Pos YSE::listener::getForward() {
+YSE::Pos YSE::listener::forward() {
   return INTERNAL::ListenerImpl().forward;
 }
 
-YSE::Pos YSE::listener::getUpward() {
+YSE::Pos YSE::listener::upward() {
   return INTERNAL::ListenerImpl().up;
 }
 
-YSE::listener& YSE::listener::setPosition(const Pos &pos) {
+YSE::listener& YSE::listener::pos(const Pos &pos) {
   INTERNAL::ListenerImpl().pos.x = pos.x;
   INTERNAL::ListenerImpl().pos.y = pos.y;
   INTERNAL::ListenerImpl().pos.z = pos.z;
   return (*this);
 }
 
-YSE::listener& YSE::listener::setOrientation(const Pos &forward, const Pos &up) {
+YSE::listener& YSE::listener::orient(const Pos &forward, const Pos &up) {
   INTERNAL::ListenerImpl().forward = forward;
   INTERNAL::ListenerImpl().up = up;
   return (*this);

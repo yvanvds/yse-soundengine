@@ -161,7 +161,7 @@ int main() {
 
       if (_kbhit()) {
         char ch = _getch();
-        YSE::Pos pos = YSE::Listener().getPosition();
+        YSE::Pos pos = YSE::Listener().pos();
         switch (ch) {
         case 'e': goto exit;
         }

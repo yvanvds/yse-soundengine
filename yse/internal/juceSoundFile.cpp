@@ -12,41 +12,40 @@
 
 #include "../internalHeaders.h"
 
-void YSE::INTERNAL::soundFile::run() {
+void YSE::INTERNAL::soundFile::loadStreaming() {
+
   File file;
-  if (_streaming) {
-
-    if (IO().getActive()) {
-      // will be deleted by AudioFormatReader
-      customFileReader * cfr = new customFileReader;
-      cfr->create(fileName.c_str());
-      streamReader = SOUND::Manager().getReader(cfr);
-    }
-    else {
-      file = File::getCurrentWorkingDirectory().getChildFile(juce::String(fileName));
-      streamReader = SOUND::Manager().getReader(file);
-    }
-
-    if (streamReader != nullptr) {
-      _fileBuffer.setSize(streamReader->numChannels, STREAM_BUFFERSIZE);
-      // sample rate adjustment
-      _sampleRateAdjustment = static_cast<Flt>(streamReader->sampleRate) / static_cast<Flt>(SAMPLERATE);
-      _length = (Int)streamReader->lengthInSamples;
-      _buffer = _fileBuffer.getArrayOfReadPointers();
-      _channels = _fileBuffer.getNumChannels();
-      _streamPos = 0;
-      fillStream(false);
-      // file is ready for use now
-      state = READY;
-      return;
-    }
-    else {
-      LogImpl().emit(E_FILEREADER, "Unable to read " + file.getFullPathName().toStdString());
-      state = INVALID;
-      return;
-    }
+  if (IO().getActive()) {
+    // will be deleted by AudioFormatReader
+    customFileReader * cfr = new customFileReader;
+    cfr->create(fileName.c_str());
+    streamReader = SOUND::Manager().getReader(cfr);
+  }
+  else {
+    file = File::getCurrentWorkingDirectory().getChildFile(juce::String(fileName));
+    streamReader = SOUND::Manager().getReader(file);
   }
 
+  if (streamReader != nullptr) {
+    _fileBuffer.setSize(streamReader->numChannels, STREAM_BUFFERSIZE);
+    // sample rate adjustment
+    _sampleRateAdjustment = static_cast<Flt>(streamReader->sampleRate) / static_cast<Flt>(SAMPLERATE);
+    _length = (Int)streamReader->lengthInSamples;
+    _buffer = _fileBuffer.getArrayOfReadPointers();
+    _channels = _fileBuffer.getNumChannels();
+    _streamPos = 0;
+    fillStream(false);
+    // file is ready for use now
+    state = READY;
+  }
+  else {
+    LogImpl().emit(E_FILEREADER, "Unable to read " + file.getFullPathName().toStdString());
+    state = INVALID;
+  }
+}
+
+
+void YSE::INTERNAL::soundFile::loadNonStreaming() {
   // load non streaming sounds in one go
   ScopedPointer<AudioFormatReader> reader;
 
@@ -72,12 +71,10 @@ void YSE::INTERNAL::soundFile::run() {
 
     // file is ready for use now
     state = READY;
-    return;
   }
   else {
     LogImpl().emit(E_FILEREADER, "Unable to read " + file.getFullPathName().toStdString());
     state = INVALID;
-    return;
   }
 }
 

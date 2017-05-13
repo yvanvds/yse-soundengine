@@ -33,7 +33,8 @@ namespace YSE {
       // inherit base class constructors
       using abstractSoundFile::abstractSoundFile;
 
-      virtual void run(); // load from disk
+      virtual void loadStreaming();
+      virtual void loadNonStreaming();
 
     private:
       Bool fillStream(Bool loop);

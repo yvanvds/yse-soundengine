@@ -10,29 +10,32 @@
 
 #include "../internalHeaders.h"
 
-YSE::INTERNAL::abstractSoundFile::abstractSoundFile()
+YSE::INTERNAL::abstractSoundFile::abstractSoundFile(bool interleaved)
   : idleTime(0)
+  , useInterleavedBuffer(interleaved)
   , state(NEW)
   , _audioBuffer(nullptr)
   , _multiChannelBuffer(nullptr)
+  , _iBuffer(nullptr)
   , _sampleRateAdjustment(1.f)
   , _channels(0)
-{}
+{
+}
 
-YSE::INTERNAL::abstractSoundFile::abstractSoundFile(const std::string & fileName)
-  : abstractSoundFile()
+YSE::INTERNAL::abstractSoundFile::abstractSoundFile(const std::string & fileName, bool interleaved)
+  : abstractSoundFile(interleaved)
 {
   this->fileName = fileName;
 }
 
 YSE::INTERNAL::abstractSoundFile::abstractSoundFile(YSE::DSP::buffer * buffer)
-  : abstractSoundFile()
+  : abstractSoundFile(false)
 {
   _audioBuffer = buffer;
 }
 
-YSE::INTERNAL::abstractSoundFile::abstractSoundFile(MULTICHANNELBUFFER * buffer) 
-  : abstractSoundFile()
+YSE::INTERNAL::abstractSoundFile::abstractSoundFile(MULTICHANNELBUFFER * buffer)
+  : abstractSoundFile(false)
 {
   _multiChannelBuffer = buffer;
 }
@@ -61,21 +64,27 @@ Bool YSE::INTERNAL::abstractSoundFile::create(Bool stream) {
 }
 
 Bool YSE::INTERNAL::abstractSoundFile::read(std::vector<DSP::buffer> & filebuffer, Flt& pos, UInt length, Flt speed, Bool loop, SOUND_STATUS & intent, Flt & volume) {
+  if (useInterleavedBuffer) return readInterleaved(this, filebuffer, pos, length, speed, loop, intent, volume);
+  else return readNonInterleaved(this, filebuffer, pos, length, speed, loop, intent, volume);
+}
+
+
+Bool YSE::INTERNAL::abstractSoundFile::readNonInterleaved(abstractSoundFile * file, std::vector<DSP::buffer> & filebuffer, Flt& pos, UInt length, Flt speed, Bool loop, SOUND_STATUS & intent, Flt & volume) {
   /** Yes, this function uses goto...
       It is highly optimized for speed and this is the best way I could find
       to ensure good performance. Suggestions are welcome.
   */
 
-  if (state != READY) return false;
+  if (file->state != READY) return false;
 
   // adjust speed for sample rate
-  speed *= _sampleRateAdjustment;
+  speed *= file->_sampleRateAdjustment;
 
   // don't play streaming sounds backwards
-  if (_streaming && speed < 0) speed = 0;
+  if (file->_streaming && speed < 0) speed = 0;
 
   Flt realPos = 0;
-  if (_streaming) {
+  if (file->_streaming) {
     realPos = pos;
     while (pos >= STREAM_BUFFERSIZE) {
       pos -= STREAM_BUFFERSIZE;
@@ -107,16 +116,16 @@ Bool YSE::INTERNAL::abstractSoundFile::read(std::vector<DSP::buffer> & filebuffe
     Flt * out = filebuffer[i].getPtr();
     const Flt * in;
     
-    if (_audioBuffer) {
-      in = _audioBuffer->getPtr();
-      _length = _audioBuffer->getLength();
+    if (file->_audioBuffer) {
+      in = file->_audioBuffer->getPtr();
+      file->_length = file->_audioBuffer->getLength();
     }
-    else if (_multiChannelBuffer) {
-      in = _multiChannelBuffer->at(i).getPtr();
-      _length = _multiChannelBuffer->at(i).getLength();
+    else if (file->_multiChannelBuffer) {
+      in = file->_multiChannelBuffer->at(i).getPtr();
+      file->_length = file->_multiChannelBuffer->at(i).getLength();
     }
     else  {
-      in = _buffer[i];
+      in = file->_buffer[i];
     }
 
     UInt l = length;
@@ -162,12 +171,12 @@ Bool YSE::INTERNAL::abstractSoundFile::read(std::vector<DSP::buffer> & filebuffe
 
         // if playing forward and we're past the end of the soundFile in 
         // less than 16 steps, move one by one
-        else if ((speed > 0) && ((pos + speed * 16) >= (_streaming ? STREAM_BUFFERSIZE : _length))) {
+        else if ((speed > 0) && ((pos + speed * 16) >= (file->_streaming ? STREAM_BUFFERSIZE : file->_length))) {
           while (l--) {
             *out++ = in[(UInt)pos];
             pos += speed;
             // check if we're past the end and readjust position if so
-            if (pos >= (_streaming ? STREAM_BUFFERSIZE : _length)) goto calibrate;
+            if (pos >= (file->_streaming ? STREAM_BUFFERSIZE : file->_length)) goto calibrate;
           }
           goto nextBuffer; // this output channel buffer is full if we get here
         }
@@ -197,7 +206,7 @@ Bool YSE::INTERNAL::abstractSoundFile::read(std::vector<DSP::buffer> & filebuffe
             l -= 16; out += 16;
             
             // check if we're past the end and readjust position if so
-            if (pos < 0 || pos >= (_streaming ? STREAM_BUFFERSIZE : _length)) goto calibrate;
+            if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : file->_length)) goto calibrate;
             
             // since l > 15, the output buffer is not full yet
             goto mainLoop;
@@ -209,7 +218,7 @@ Bool YSE::INTERNAL::abstractSoundFile::read(std::vector<DSP::buffer> & filebuffe
               *out++ = in[(UInt)pos]; pos += speed;
               
               // check if we're past the end and readjust position if so
-              if (pos < 0 || pos >= (_streaming ? STREAM_BUFFERSIZE : _length)) goto calibrate;
+              if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : file->_length)) goto calibrate;
             }
           }
           goto nextBuffer; // this output channel buffer is full if we get here
@@ -222,7 +231,7 @@ Bool YSE::INTERNAL::abstractSoundFile::read(std::vector<DSP::buffer> & filebuffe
           *out++ = in[(UInt)pos] * volume;
           pos += speed;
           volume += 0.005f;
-          if (pos < 0 || pos >= (_streaming ? STREAM_BUFFERSIZE : _length)) goto calibrate;
+          if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : file->_length)) goto calibrate;
           if ((volume >= 1.f)) {
             // full volume is reached. Move to the optimized version
             volume = 1.f;
@@ -239,7 +248,7 @@ Bool YSE::INTERNAL::abstractSoundFile::read(std::vector<DSP::buffer> & filebuffe
           *out++ = in[(UInt)pos] * volume;
           pos += speed;
           volume -= 0.005f;
-          if (pos < 0 || pos >= (_streaming ? STREAM_BUFFERSIZE : _length)) goto calibrate;
+          if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : file->_length)) goto calibrate;
           if ((volume <= 0.f)) {
             // fade out complete, switch intent to paused and restart
             // The rest of the buffer will be filled with zeroes
@@ -257,7 +266,7 @@ Bool YSE::INTERNAL::abstractSoundFile::read(std::vector<DSP::buffer> & filebuffe
           *out++ = in[(UInt)pos] * volume;
           pos += speed;
           volume -= 0.005f;
-          if (pos < 0 || pos >= (_streaming ? STREAM_BUFFERSIZE : _length)) goto calibrate;
+          if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : file->_length)) goto calibrate;
           if ((volume <= 0.f)) {
             // fade out complete, switch intent to stopped and restart
             // The rest of the buffer will be filled with zeroes
@@ -270,20 +279,20 @@ Bool YSE::INTERNAL::abstractSoundFile::read(std::vector<DSP::buffer> & filebuffe
       }
 
 calibrate:
-      if (_streaming) {
+      if (file->_streaming) {
         while (pos >= STREAM_BUFFERSIZE) {
-          if(fillStream(loop)) {
+          if(file->fillStream(loop)) {
             pos -= STREAM_BUFFERSIZE;
             realPos += STREAM_BUFFERSIZE;
-            if (realPos >= _length) {
-              realPos -= _length;
+            if (realPos >= file->_length) {
+              realPos -= file->_length;
             }
           }
           else {
             pos = 0;
             intent = SS_STOPPED;
             volume = 0.f;
-            _streamPos = 0;
+            file->_streamPos = 0;
             continue;
           }
         }
@@ -293,9 +302,9 @@ calibrate:
         // if we get here, pos is past the end or before the beginning
         // recalibrate position now. We can't simply set it to the end
         // or the beginning because this won't work with speed <> 1
-        while (pos < 0) pos += _length; // looping backwards
-        if (pos >= _length) {
-          if (loop) while (pos >= _length) pos -= _length;
+        while (pos < 0) pos += file->_length; // looping backwards
+        if (pos >= file->_length) {
+          if (loop) while (pos >= file->_length) pos -= file->_length;
           else {
             // if no loop, fill the rest of the buffer with zero's
             pos = 0;
@@ -310,17 +319,217 @@ calibrate:
     nextBuffer: ;
   }
 
-  if (_streaming) pos += realPos;
+  if (file->_streaming) pos += realPos;
   // make sure position is reset to zero if playing has stopped during this read
   if (intent == SS_STOPPED) {
     pos = 0;
-    if (_streaming) {
-      _streamPos = 0;
-      if (fillStream(loop)) {
+    if (file->_streaming) {
+      file->_streamPos = 0;
+      if (file->fillStream(loop)) {
         pos -= STREAM_BUFFERSIZE;
         realPos += STREAM_BUFFERSIZE;
-        if (realPos >= _length) {
-          realPos -= _length;
+        if (realPos >= file->_length) {
+          realPos -= file->_length;
+        }
+      }
+      pos += realPos;
+    }
+  }
+  return true;
+}
+
+
+//////////////////////////////////////////////////////////////////////////////////
+// interleaved read function
+//////////////////////////////////////////////////////////////////////////////////
+
+Bool YSE::INTERNAL::abstractSoundFile::readInterleaved(abstractSoundFile * file, std::vector<DSP::buffer> & filebuffer, Flt& pos, UInt length, Flt speed, Bool loop, SOUND_STATUS & intent, Flt & volume) {
+  /** Yes, this function uses goto...
+  It is highly optimized for speed and this is the best way I could find
+  to ensure good performance. Suggestions are welcome.
+  */
+
+  if (file->state != READY) return false;
+
+  // adjust speed for sample rate
+  speed *= file->_sampleRateAdjustment;
+
+  // don't play streaming sounds backwards
+  if (file->_streaming && speed < 0) speed = 0;
+
+  Flt realPos = 0;
+  if (file->_streaming) {
+    realPos = pos;
+    while (pos >= STREAM_BUFFERSIZE) {
+      pos -= STREAM_BUFFERSIZE;
+    }
+    realPos -= pos;
+  }
+
+  // this is for a smooth fade-in to avoid glitches
+  if (intent == SS_WANTSTOPLAY) {
+    intent = SS_PLAYING;
+    volume = 0.f;
+  }
+
+  // set cursor to the output buffer start
+  FOREACH(filebuffer) filebuffer[i].cursor = filebuffer[i].getPtr();
+
+  for (UInt x = 0; x < length; ) { // x is updated within loop, when increasing cursor
+
+    // set position in filebuffer, according to nr of channels
+    UInt channelPos = ((UInt)pos) * file->_channels;
+
+    const Flt * in;
+
+    if (file->_audioBuffer) {
+      in = file->_audioBuffer->getPtr();
+      file->_length = file->_audioBuffer->getLength();
+    }
+    else {
+      in = file->_iBuffer;
+    }
+
+    startAgain:
+
+    if (intent == SS_STOPPED || intent == SS_PAUSED) {
+      // fill the rest with zero's
+      while (x < length) {
+        FOREACH(filebuffer) *filebuffer[i].cursor++ = 0;
+        x++;
+      }
+      break;
+    }
+
+    // Most of the time a sound will just play at full volume. This has nothing
+    // to do with the sound volume itself (which will be applied afterwards) but
+    // with sounds fading in and out at start, stop and pause (to avoid glitches).
+    // Therefore, this is the most important part to optimize for speed.
+    else if (intent == SS_PLAYING_FULL_VOLUME) {
+    mainLoop:
+
+      while (x < length) {
+        FOREACH(filebuffer) *filebuffer[i].cursor++ = (in[((UInt)pos) * file->_channels + i]);
+        pos += speed;
+        x++;
+
+        if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : file->_length)) goto calibrate;
+      }
+    }
+
+    // Sound plays, but not at full volume. So we're fading in
+    else if (intent == SS_PLAYING) {
+      while (x < length) {
+        FOREACH(filebuffer) *filebuffer[i].cursor++ = (in[((UInt)pos) * file->_channels + i]) * volume;
+        pos += speed;
+        volume += 0.005f;
+        x++;
+
+        if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : file->_length)) goto calibrate;
+
+        if ((volume >= 1.f)) {
+          // full volume is reached. Move to the optimized version
+          volume = 1.f;
+          intent = SS_PLAYING_FULL_VOLUME;
+          goto startAgain;
+        }
+      }
+    }
+
+    // Still playing, but fading out to pause
+    else if (intent == SS_WANTSTOPAUSE) {
+      while (x < length) {
+        FOREACH(filebuffer) *filebuffer[i].cursor++ = (in[((UInt)pos) * file->_channels + i]) * volume;
+        pos += speed;
+        volume -= 0.005f;
+        x++;
+
+        if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : file->_length)) goto calibrate;
+
+        if ((volume <= 0.f)) {
+          // fade out complete, switch intent to paused and restart
+          // The rest of the buffer will be filled with zeroes
+          volume = 0.f;
+          intent = SS_PAUSED;
+          goto startAgain;
+        }
+      }
+    }
+
+    // Still playing, but fading out to stop
+    else if (intent == SS_WANTSTOSTOP) {
+      while (x < length) {
+        FOREACH(filebuffer) *filebuffer[i].cursor++ = (in[((UInt)pos) * file->_channels + i]) * volume;
+        pos += speed;
+        volume -= 0.005f;
+        x++;
+
+        if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : file->_length)) goto calibrate;
+
+        if ((volume <= 0.f)) {
+          // fade out complete, switch intent to paused and restart
+          // The rest of the buffer will be filled with zeroes
+          volume = 0.f;
+          intent = SS_STOPPED;
+          goto startAgain;
+        }
+      }
+    }
+
+calibrate:
+    if (file->_streaming) {
+      while (pos >= STREAM_BUFFERSIZE) {
+        if (file->fillStream(loop)) {
+          pos -= STREAM_BUFFERSIZE;
+          realPos += STREAM_BUFFERSIZE;
+          if (realPos >= file->_length) {
+            realPos -= file->_length;
+          }
+        }
+        else {
+          pos = 0;
+          intent = SS_STOPPED;
+          volume = 0.f;
+          file->_streamPos = 0;
+          continue;
+        }
+      }
+    }
+    else
+    {
+      // if we get here, pos is past the end or before the beginning
+      // recalibrate position now. We can't simply set it to the end
+      // or the beginning because this won't work with speed <> 1
+      while (pos < 0) pos += file->_length; // looping backwards
+      if (pos >= file->_length) {
+        if (loop) while (pos >= file->_length) pos -= file->_length;
+        else {
+          // if no loop, fill the rest of the buffer with zero's
+          pos = 0;
+          intent = SS_STOPPED;
+        }
+      }
+    }
+
+    if (x >= length) {
+      break;
+    }
+
+    goto startAgain;
+  }
+  
+
+  if (file->_streaming) pos += realPos;
+  // make sure position is reset to zero if playing has stopped during this read
+  if (intent == SS_STOPPED) {
+    pos = 0;
+    if (file->_streaming) {
+      file->_streamPos = 0;
+      if (file->fillStream(loop)) {
+        pos -= STREAM_BUFFERSIZE;
+        realPos += STREAM_BUFFERSIZE;
+        if (realPos >= file->_length) {
+          realPos -= file->_length;
         }
       }
       pos += realPos;
@@ -389,4 +598,9 @@ void YSE::INTERNAL::abstractSoundFile::release(SOUND::implementationObject *impl
   }
   // this point should not be reached
   assert(false);
+}
+
+void YSE::INTERNAL::abstractSoundFile::run() {
+  if (_streaming) loadStreaming();
+  else loadNonStreaming();
 }

@@ -88,7 +88,7 @@ int main() {
 
   sound.create(synth).play();
   soundPos.set(5.f, 0.f, 1.f);
-  sound.setPosition(soundPos);
+  sound.pos(soundPos);
 
   midiFile.create("demo.mid");
   midiFile.connect(&synth);
@@ -105,13 +105,13 @@ int main() {
 
     if (_kbhit()) {
       char ch = _getch();
-      YSE::Pos pos = YSE::Listener().getPosition();
+      YSE::Pos pos = YSE::Listener().pos();
       switch (ch) {
       case '1': midiFile.play(); break;
       case '2': midiFile.pause(); break;
       case '3': midiFile.stop(); break;
-      case '4': soundPos.x -= 0.1; sound.setPosition(soundPos); break;
-      case '5': soundPos.x += 0.1; sound.setPosition(soundPos); break;
+      case '4': soundPos.x -= 0.1; sound.pos(soundPos); break;
+      case '5': soundPos.x += 0.1; sound.pos(soundPos); break;
       case 'e': goto exit;
       }
     }

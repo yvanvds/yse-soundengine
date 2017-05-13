@@ -86,22 +86,22 @@ void moveObject(direction d) {
     YSE::sound * s;
     if (selectedObject == 1) s = &sound1;
     else s = &sound2;
-    YSE::Pos pos = s->getPosition();
+    YSE::Pos pos = s->pos();
     switch (d) {
-    case FORWARD: pos.z += 0.5f; s->setPosition(pos); break;
-    case BACKWARD: pos.z -= 0.5f; s->setPosition(pos); break;
-    case LEFT: pos.x -= 0.5f; s->setPosition(pos); break;
-    case RIGHT: pos.x += 0.5f; s->setPosition(pos); break;
+    case FORWARD: pos.z += 0.5f; s->pos(pos); break;
+    case BACKWARD: pos.z -= 0.5f; s->pos(pos); break;
+    case LEFT: pos.x -= 0.5f; s->pos(pos); break;
+    case RIGHT: pos.x += 0.5f; s->pos(pos); break;
     }
   }
   else {
     // you do not have to create the listener object, it's already there
-    YSE::Pos pos = YSE::Listener().getPosition();
+    YSE::Pos pos = YSE::Listener().pos();
     switch (d) {
-    case FORWARD: pos.z += 0.5f; YSE::Listener().setPosition(pos); break;
-    case BACKWARD: pos.z -= 0.5f; YSE::Listener().setPosition(pos); break;
-    case LEFT: pos.x -= 0.5f; YSE::Listener().setPosition(pos); break;
-    case RIGHT: pos.x += 0.5f; YSE::Listener().setPosition(pos); break;
+    case FORWARD: pos.z += 0.5f; YSE::Listener().pos(pos); break;
+    case BACKWARD: pos.z -= 0.5f; YSE::Listener().pos(pos); break;
+    case LEFT: pos.x -= 0.5f; YSE::Listener().pos(pos); break;
+    case RIGHT: pos.x += 0.5f; YSE::Listener().pos(pos); break;
     }
   }
 }
@@ -109,7 +109,7 @@ void moveObject(direction d) {
 void reset() {
   // YSE has a very flexible vector class built in
   YSE::Pos pos;
-  pos.zero();   YSE::Listener().setPosition(pos);
-  pos.set(-5, 0, 5);  sound1.setPosition(pos);
-  pos.set(5, 0, 5);  sound2.setPosition(pos);
+  pos.zero();   YSE::Listener().pos(pos);
+  pos.set(-5, 0, 5);  sound1.pos(pos);
+  pos.set(5, 0, 5);  sound2.pos(pos);
 }

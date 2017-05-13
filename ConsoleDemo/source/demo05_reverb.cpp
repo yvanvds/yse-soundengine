@@ -65,17 +65,17 @@ int main() {
       char ch = _getch();
       switch (ch) {
       case 'q': {
-                  YSE::Pos pos = YSE::Listener().getPosition();
+                  YSE::Pos pos = YSE::Listener().pos();
                   pos.z += 0.1;
-                  YSE::Listener().setPosition(pos);
-                  snare.setPosition(pos);
+                  YSE::Listener().pos(pos);
+                  snare.pos(pos);
                   break;
       }
       case 'a':{
-                 YSE::Pos pos = YSE::Listener().getPosition();
+                 YSE::Pos pos = YSE::Listener().pos();
                  pos.z -= 0.1;
-                 YSE::Listener().setPosition(pos);
-                 snare.setPosition(pos);
+                 YSE::Listener().pos(pos);
+                 snare.pos(pos);
                  break;
       }
       case 'w': YSE::System().getGlobalReverb().setActive(true); break;
@@ -92,7 +92,7 @@ int main() {
     YSE::System().sleep(100);
     YSE::System().update();
 #ifdef WINDOWS
-    _cprintf_s("Position (z): %.2f \r", YSE::Listener().getPosition().z);
+    _cprintf_s("Position (z): %.2f \r", YSE::Listener().pos().z);
 #endif
   }
 

@@ -33,17 +33,22 @@ namespace YSE {
     class abstractSoundFile : public threadPoolJob {
     public:
       //abstractSoundFile(const File               & file    );
-      abstractSoundFile(const std::string        & fileName);
-      abstractSoundFile(      YSE::DSP::buffer   * buffer  );
-      abstractSoundFile(      MULTICHANNELBUFFER * buffer  );
+      abstractSoundFile(const std::string        & fileName, bool interleaved);
       
+      abstractSoundFile(      YSE::DSP::buffer   * buffer);
+      abstractSoundFile(      MULTICHANNELBUFFER * buffer);
+      
+      // will be called by constructor
+
       virtual ~abstractSoundFile();
 
       Bool create(Bool stream = false);
-      virtual void run() = 0; // load from disk
+      void run(); // load from disk
+      virtual void loadStreaming() = 0;
+      virtual void loadNonStreaming() = 0;
 
-      Bool read(std::vector<DSP::buffer> & filebuffer, Flt& pos, UInt length, Flt speed, Bool loop, SOUND_STATUS & intent, Flt & volume);
-
+      Bool read(std::vector<DSP::buffer> & filebuffer, Flt& pos, UInt length, Flt speed, Bool loop, SOUND_STATUS & intent, Flt & volume); 
+      
       //Bool contains(const File & file);
       virtual Bool contains(const std::string        & fileName);
       virtual Bool contains(      YSE::DSP::buffer   * buffer  );
@@ -63,13 +68,16 @@ namespace YSE {
       bool inUse();
 
     protected:
-      // default constructor should only be used internally
-      abstractSoundFile();
+      static Bool readNonInterleaved(abstractSoundFile * file, std::vector<DSP::buffer> & filebuffer, Flt& pos, UInt length, Flt speed, Bool loop, SOUND_STATUS & intent, Flt & volume);
+      static Bool readInterleaved(abstractSoundFile * file, std::vector<DSP::buffer> & filebuffer, Flt& pos, UInt length, Flt speed, Bool loop, SOUND_STATUS & intent, Flt & volume);
 
       std::string fileName;
 
       // pointer to a (multichannel) soundfile
-      const Flt ** _buffer;
+      Bool useInterleavedBuffer;
+      const Flt ** _buffer; // this version is used when a non interleaved buffer is used
+      Flt * _iBuffer; // this version is used when an interleaved buffer is used
+
       // used for passing an audio buffer as a sound source
       YSE::DSP::buffer   * _audioBuffer       ;
       MULTICHANNELBUFFER * _multiChannelBuffer;
@@ -93,6 +101,10 @@ namespace YSE {
       // for keeping track of objects using this file      
       std::forward_list<SOUND::implementationObject*> clientList;
       Flt idleTime;
+
+    private:
+      // default constructor should only be used internally
+      abstractSoundFile(bool interleaved);
     };
 
   }

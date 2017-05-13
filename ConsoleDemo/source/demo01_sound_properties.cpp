@@ -35,10 +35,10 @@ int main() {
     if (_kbhit()) {
       char ch = _getch();
       switch (ch) {
-      case 'q': sound.setSpeed(sound.getSpeed() + 0.01f); break;
-      case 'a': sound.setSpeed(sound.getSpeed() - 0.01f); break;
-      case 's': sound.setVolume(sound.getVolume() - 0.1f); break;
-      case 'w': sound.setVolume(sound.getVolume() + 0.1f); break;
+      case 'q': sound.speed(sound.speed() + 0.01f); break;
+      case 'a': sound.speed(sound.speed() - 0.01f); break;
+      case 's': sound.volume(sound.volume() - 0.1f); break;
+      case 'w': sound.volume(sound.volume() + 0.1f); break;
       case 'e': goto exit;
       }
     }

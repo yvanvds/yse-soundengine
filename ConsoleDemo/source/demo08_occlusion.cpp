@@ -23,7 +23,7 @@ int main() {
   if (!YSE::System().init()) goto exit;
   YSE::System().occlusionCallback(occlusionFunction);
 
-  sound.create("contact.ogg", NULL, true).setOcclusion(true);
+  sound.create("contact.ogg", NULL, true).occlusion(true);
 
   std::cout << "This is a basic implementation of the sound occlusion callback." << std::endl;
   std::cout << "Use q/a to increase / decrease sound occlusion." << std::endl;
