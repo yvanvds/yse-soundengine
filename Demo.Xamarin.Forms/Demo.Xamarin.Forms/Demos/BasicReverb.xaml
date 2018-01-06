@@ -1,0 +1,12 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://xamarin.com/schemas/2014/forms"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="Demo.Xamarin.Forms.Demos.BasicReverb"
+             Title="Reverb">
+  <ContentPage.Content>
+    <StackLayout>
+      <Label x:Name="Info" HorizontalOptions="CenterAndExpand" />
+      <Picker x:Name="ReverbChoice" Title="Reverb" SelectedIndexChanged="OnPickReverb"/>
+    </StackLayout>
+  </ContentPage.Content>
+</ContentPage>

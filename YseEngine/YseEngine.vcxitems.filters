@@ -1,0 +1,753 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="channel">
+      <UniqueIdentifier>{a084f149-d054-413a-8cc1-73d514382533}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="device">
+      <UniqueIdentifier>{1bf08302-32fd-44b9-a807-b8b687b2b3c6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="dsp">
+      <UniqueIdentifier>{d49e0220-83cc-408f-b8c4-252235ba9204}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="dsp\fourier">
+      <UniqueIdentifier>{94772ce0-5e78-4b5f-b840-7d2210b73697}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="dsp\modules">
+      <UniqueIdentifier>{94d7dcfb-d6c4-4870-8893-a2357320f926}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="dsp\modules\delay">
+      <UniqueIdentifier>{a5e73063-4f63-4fe9-a6ef-2d495a892f82}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="dsp\modules\filters">
+      <UniqueIdentifier>{cceeaaa9-56dd-461f-b0e9-1ae7607cd977}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="dsp\modules\fm">
+      <UniqueIdentifier>{c9a6223a-aa28-4ffe-9df3-c55afb275484}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="headers">
+      <UniqueIdentifier>{fde01f40-2a30-4951-8de1-d437d7e2b92e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="implementations">
+      <UniqueIdentifier>{c93145b2-8ddf-47d6-ad13-66b232434361}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="internal">
+      <UniqueIdentifier>{ece00c66-bf58-4ba4-8d91-4fd6b3ab3e06}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="midi">
+      <UniqueIdentifier>{ea6f98de-bc62-4b12-86c0-89458cc1da0b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="music">
+      <UniqueIdentifier>{0636244d-e265-4918-9d26-518e8c0d255b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="music\motif">
+      <UniqueIdentifier>{4f053fd2-9501-407b-a7fd-98e39c9fe74e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="music\scale">
+      <UniqueIdentifier>{78ec9da7-238b-4f9d-b567-bc1efa79d4d3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="player">
+      <UniqueIdentifier>{cdab4da5-0d89-4860-8404-d4c010a0f177}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="reverb">
+      <UniqueIdentifier>{311cd921-8835-4e79-8734-5e6a2941e066}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="sound">
+      <UniqueIdentifier>{04b5bdb0-20de-48ce-96be-470c9ef070f8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="synth">
+      <UniqueIdentifier>{44cc9ede-90b3-47ae-8129-482753c80e92}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="utils">
+      <UniqueIdentifier>{6be9352b-6456-40ee-9c60-532e763f28ed}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="patcher">
+      <UniqueIdentifier>{6edce487-5a22-4dd7-8b6b-bce71a5d5d01}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="patcher\genericObjects">
+      <UniqueIdentifier>{b991558a-89be-4211-b66e-855eb3bb4eee}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="patcher\generatorObjects">
+      <UniqueIdentifier>{de84c574-5129-44d7-a7a2-550e35e832d0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="patcher\math">
+      <UniqueIdentifier>{4bc5a8cd-1769-4d59-a7ff-76fe3b91c2f9}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="$(MSBuildThisFileDirectory)channel\channel.hpp">
+      <Filter>channel</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)channel\channelImplementation.h">
+      <Filter>channel</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)channel\channelInterface.hpp">
+      <Filter>channel</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)channel\channelManager.h">
+      <Filter>channel</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)channel\channelMessage.h">
+      <Filter>channel</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)classes.hpp" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)internalHeaders.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)io.hpp" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)listener.hpp" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)log.hpp" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)system.hpp" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)yse.hpp" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)device\androidDeviceManager.h">
+      <Filter>device</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)device\device.hpp">
+      <Filter>device</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)device\deviceInterface.hpp">
+      <Filter>device</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)device\deviceManager.h">
+      <Filter>device</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)device\deviceSetup.hpp">
+      <Filter>device</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)device\juceDeviceManager.h">
+      <Filter>device</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)device\portaudioDeviceManager.h">
+      <Filter>device</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)dsp\ADSRenvelope.hpp">
+      <Filter>dsp</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)dsp\buffer.hpp">
+      <Filter>dsp</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)dsp\delay.hpp">
+      <Filter>dsp</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)dsp\drawableBuffer.hpp">
+      <Filter>dsp</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)dsp\dspObject.hpp">
+      <Filter>dsp</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)dsp\envelope.hpp">
+      <Filter>dsp</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)dsp\fileBuffer.hpp">
+      <Filter>dsp</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)dsp\filters.hpp">
+      <Filter>dsp</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)dsp\interpolate4.hpp">
+      <Filter>dsp</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)dsp\lfo.hpp">
+      <Filter>dsp</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)dsp\math.hpp">
+      <Filter>dsp</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)dsp\math_functions.h">
+      <Filter>dsp</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)dsp\oscillators.hpp">
+      <Filter>dsp</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)dsp\ramp.hpp">
+      <Filter>dsp</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)dsp\rawFilters.hpp">
+      <Filter>dsp</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)dsp\sample_functions.hpp">
+      <Filter>dsp</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)dsp\wavetable.hpp">
+      <Filter>dsp</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)dsp\fourier\fft.hpp">
+      <Filter>dsp\fourier</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)dsp\fourier\mayer.h">
+      <Filter>dsp\fourier</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)dsp\modules\granulator.hpp">
+      <Filter>dsp\modules</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)dsp\modules\hilbert.hpp">
+      <Filter>dsp\modules</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)dsp\modules\phaser.hpp">
+      <Filter>dsp\modules</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)dsp\modules\ringModulator.hpp">
+      <Filter>dsp\modules</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)dsp\modules\sineWave.hpp">
+      <Filter>dsp\modules</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)dsp\modules\delay\basicDelay.hpp">
+      <Filter>dsp\modules\delay</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)dsp\modules\delay\highpassDelay.hpp">
+      <Filter>dsp\modules\delay</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)dsp\modules\delay\lowpassDelay.hpp">
+      <Filter>dsp\modules\delay</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)dsp\modules\filters\bandpass.hpp">
+      <Filter>dsp\modules\filters</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)dsp\modules\filters\highpass.hpp">
+      <Filter>dsp\modules\filters</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)dsp\modules\filters\lowpass.hpp">
+      <Filter>dsp\modules\filters</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)dsp\modules\filters\sweep.hpp">
+      <Filter>dsp\modules\filters</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)dsp\modules\fm\difference.hpp">
+      <Filter>dsp\modules\fm</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)headers\constants.hpp">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)headers\defines.hpp">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)headers\enums.hpp">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)headers\types.hpp">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)implementations\listenerImplementation.h">
+      <Filter>implementations</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)implementations\logImplementation.h">
+      <Filter>implementations</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)internal\abstractSoundFile.h">
+      <Filter>internal</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)internal\customFileReader.h">
+      <Filter>internal</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)internal\global.h">
+      <Filter>internal</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)internal\juceSoundFile.h">
+      <Filter>internal</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)internal\lsfSoundfile.h">
+      <Filter>internal</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)internal\reverbDSP.h">
+      <Filter>internal</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)internal\settings.h">
+      <Filter>internal</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)internal\thread.h">
+      <Filter>internal</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)internal\threadPool.h">
+      <Filter>internal</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)internal\time.h">
+      <Filter>internal</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)internal\underWaterEffect.h">
+      <Filter>internal</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)internal\virtualFinder.h">
+      <Filter>internal</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)midi\midifile.hpp">
+      <Filter>midi</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)midi\midifileImplementation.h">
+      <Filter>midi</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)midi\midifileManager.h">
+      <Filter>midi</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)music\chord.hpp">
+      <Filter>music</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)music\note.hpp">
+      <Filter>music</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)music\pNote.hpp">
+      <Filter>music</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)music\motif\motif.hpp">
+      <Filter>music\motif</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)music\motif\motifImplementation.h">
+      <Filter>music\motif</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)music\motif\motifInterface.hpp">
+      <Filter>music\motif</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)music\motif\motifManager.h">
+      <Filter>music\motif</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)music\motif\motifMessage.h">
+      <Filter>music\motif</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)music\scale\scale.hpp">
+      <Filter>music\scale</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)music\scale\scaleImplementation.h">
+      <Filter>music\scale</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)music\scale\scaleInterface.hpp">
+      <Filter>music\scale</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)music\scale\scaleManager.h">
+      <Filter>music\scale</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)music\scale\scaleMessage.h">
+      <Filter>music\scale</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)player\player.hpp">
+      <Filter>player</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)player\playerImplementation.h">
+      <Filter>player</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)player\playerInterface.hpp">
+      <Filter>player</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)player\playerManager.h">
+      <Filter>player</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)player\playerMessage.h">
+      <Filter>player</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)reverb\reverb.hpp">
+      <Filter>reverb</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)reverb\reverbImplementation.h">
+      <Filter>reverb</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)reverb\reverbInterface.hpp">
+      <Filter>reverb</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)reverb\reverbManager.h">
+      <Filter>reverb</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)reverb\reverbMessage.h">
+      <Filter>reverb</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)sound\sound.hpp">
+      <Filter>sound</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)sound\soundImplementation.h">
+      <Filter>sound</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)sound\soundInterface.hpp">
+      <Filter>sound</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)sound\soundManager.h">
+      <Filter>sound</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)sound\soundMessage.h">
+      <Filter>sound</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)synth\dspSound.h">
+      <Filter>synth</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)synth\dspVoice.hpp">
+      <Filter>synth</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)synth\dspVoiceInternal.h">
+      <Filter>synth</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)synth\samplerSound.h">
+      <Filter>synth</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)synth\synth.hpp">
+      <Filter>synth</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)synth\synthImplementation.h">
+      <Filter>synth</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)synth\synthInterface.hpp">
+      <Filter>synth</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)synth\synthManager.h">
+      <Filter>synth</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)synth\synthMessage.h">
+      <Filter>synth</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)utils\atomicOps.hpp">
+      <Filter>utils</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)utils\atomicPos.h">
+      <Filter>utils</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)utils\fileFunctions.hpp">
+      <Filter>utils</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)utils\interpolators.hpp">
+      <Filter>utils</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)utils\lfQueue.hpp">
+      <Filter>utils</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)utils\misc.hpp">
+      <Filter>utils</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)utils\vector.hpp">
+      <Filter>utils</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)BufferIO.hpp" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)internal\AudioTest.h">
+      <Filter>internal</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)device\OpenSLImplementation.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\pObject.h">
+      <Filter>patcher</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\pEnums.h">
+      <Filter>patcher</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\pin.h">
+      <Filter>patcher</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\genericObjects\pOutput.h">
+      <Filter>patcher\genericObjects</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\generatorObjects\pSine.h">
+      <Filter>patcher\generatorObjects</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\patcher.hpp">
+      <Filter>patcher</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\pRegistry.h">
+      <Filter>patcher</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\pObjectList.hpp">
+      <Filter>patcher</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\pHandle.hpp">
+      <Filter>patcher</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\pMultiplier.h">
+      <Filter>patcher</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\patcherImplementation.h">
+      <Filter>patcher</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\pMidiToFrequency.h">
+      <Filter>patcher\math</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="$(MSBuildThisFileDirectory)channel\channelImplementation.cpp">
+      <Filter>channel</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)channel\channelInterface.cpp">
+      <Filter>channel</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)channel\channelManager.cpp">
+      <Filter>channel</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)io.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)listener.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)log.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)system.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)device\androidDeviceManager.cpp">
+      <Filter>device</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)device\deviceInterface.cpp">
+      <Filter>device</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)device\deviceManager.cpp">
+      <Filter>device</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)device\deviceSetup.cpp">
+      <Filter>device</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)device\juceDeviceManager.cpp">
+      <Filter>device</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)device\portaudioDeviceManager.cpp">
+      <Filter>device</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)dsp\ADSRenvelope.cpp">
+      <Filter>dsp</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)dsp\buffer.cpp">
+      <Filter>dsp</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)dsp\delay.cpp">
+      <Filter>dsp</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)dsp\drawableBuffer.cpp">
+      <Filter>dsp</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)dsp\dspObject.cpp">
+      <Filter>dsp</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)dsp\envelope.cpp">
+      <Filter>dsp</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)dsp\fileBuffer.cpp">
+      <Filter>dsp</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)dsp\filters.cpp">
+      <Filter>dsp</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)dsp\interpolate4.cpp">
+      <Filter>dsp</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)dsp\lfo.cpp">
+      <Filter>dsp</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)dsp\math.cpp">
+      <Filter>dsp</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)dsp\math_functions.cpp">
+      <Filter>dsp</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)dsp\oscillators.cpp">
+      <Filter>dsp</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)dsp\ramp.cpp">
+      <Filter>dsp</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)dsp\rawFilters.cpp">
+      <Filter>dsp</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)dsp\sample_functions.cpp">
+      <Filter>dsp</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)dsp\wavetable.cpp">
+      <Filter>dsp</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)dsp\fourier\fft.cpp">
+      <Filter>dsp\fourier</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)dsp\fourier\mayer.cpp">
+      <Filter>dsp\fourier</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)dsp\modules\granulator.cpp">
+      <Filter>dsp\modules</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)dsp\modules\hilbert.cpp">
+      <Filter>dsp\modules</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)dsp\modules\phaser.cpp">
+      <Filter>dsp\modules</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)dsp\modules\ringModulator.cpp">
+      <Filter>dsp\modules</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)dsp\modules\sineWave.cpp">
+      <Filter>dsp\modules</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)dsp\modules\delay\basicDelay.cpp">
+      <Filter>dsp\modules\delay</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)dsp\modules\delay\highpassDelay.cpp">
+      <Filter>dsp\modules\delay</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)dsp\modules\delay\lowpassDelay.cpp">
+      <Filter>dsp\modules\delay</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)dsp\modules\filters\bandpass.cpp">
+      <Filter>dsp\modules\filters</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)dsp\modules\filters\highpass.cpp">
+      <Filter>dsp\modules\filters</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)dsp\modules\filters\lowpass.cpp">
+      <Filter>dsp\modules\filters</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)dsp\modules\filters\sweep.cpp">
+      <Filter>dsp\modules\filters</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)dsp\modules\fm\difference.cpp">
+      <Filter>dsp\modules\fm</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)implementations\listenerImplementation.cpp">
+      <Filter>implementations</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)implementations\logImplementation.cpp">
+      <Filter>implementations</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)internal\abstractSoundFile.cpp">
+      <Filter>internal</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)internal\customFileReader.cpp">
+      <Filter>internal</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)internal\global.cpp">
+      <Filter>internal</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)internal\juceSoundFile.cpp">
+      <Filter>internal</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)internal\lsfSoundfile.cpp">
+      <Filter>internal</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)internal\reverbDSP.cpp">
+      <Filter>internal</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)internal\settings.cpp">
+      <Filter>internal</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)internal\thread.cpp">
+      <Filter>internal</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)internal\threadPool.cpp">
+      <Filter>internal</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)internal\time.cpp">
+      <Filter>internal</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)internal\underWaterEffect.cpp">
+      <Filter>internal</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)internal\virtualFinder.cpp">
+      <Filter>internal</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)midi\midifile.cpp">
+      <Filter>midi</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)midi\midifileImplementation.cpp">
+      <Filter>midi</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)midi\midifileManager.cpp">
+      <Filter>midi</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)music\chord.cpp">
+      <Filter>music</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)music\note.cpp">
+      <Filter>music</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)music\pNote.cpp">
+      <Filter>music</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)music\motif\motifImplementation.cpp">
+      <Filter>music\motif</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)music\motif\motifInterface.cpp">
+      <Filter>music\motif</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)music\motif\motifManager.cpp">
+      <Filter>music\motif</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)music\scale\scaleImplementation.cpp">
+      <Filter>music\scale</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)music\scale\scaleInterface.cpp">
+      <Filter>music\scale</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)music\scale\scaleManager.cpp">
+      <Filter>music\scale</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)player\playerImplementation.cpp">
+      <Filter>player</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)player\playerInterface.cpp">
+      <Filter>player</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)player\playerManager.cpp">
+      <Filter>player</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)reverb\reverbImplementation.cpp">
+      <Filter>reverb</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)reverb\reverbInterface.cpp">
+      <Filter>reverb</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)reverb\reverbManager.cpp">
+      <Filter>reverb</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)sound\soundImplementation.cpp">
+      <Filter>sound</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)sound\soundInterface.cpp">
+      <Filter>sound</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)sound\soundManager.cpp">
+      <Filter>sound</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)synth\dspSound.cpp">
+      <Filter>synth</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)synth\dspVoice.cpp">
+      <Filter>synth</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)synth\dspVoiceInternal.cpp">
+      <Filter>synth</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)synth\samplerSound.cpp">
+      <Filter>synth</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)synth\synthImplementation.cpp">
+      <Filter>synth</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)synth\synthInterface.cpp">
+      <Filter>synth</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)synth\synthManager.cpp">
+      <Filter>synth</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)utils\fileFunctions.cpp">
+      <Filter>utils</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)utils\interpolators.cpp">
+      <Filter>utils</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)utils\vector.cpp">
+      <Filter>utils</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)BufferIO.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)internal\AudioTest.cpp">
+      <Filter>internal</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)device\OpenSLImplementation.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\pin.cpp">
+      <Filter>patcher</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\pObject.cpp">
+      <Filter>patcher</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\generatorObjects\pSine.cpp">
+      <Filter>patcher\generatorObjects</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\pHandle.cpp">
+      <Filter>patcher</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\patcher.cpp">
+      <Filter>patcher</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\pRegistry.cpp">
+      <Filter>patcher</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\pMidiToFrequency.cpp">
+      <Filter>patcher\math</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\pMultiplier.cpp">
+      <Filter>patcher</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\patcherImplementation.cpp">
+      <Filter>patcher</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\genericObjects\pOutput.cpp">
+      <Filter>patcher\genericObjects</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

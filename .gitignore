@@ -1,4 +1,5 @@
-dependencies/portaudio/
+NetYse/*.cs
+[Ss]wig/*
 
 #################
 ## Eclipse
@@ -52,6 +53,7 @@ doxyGen/output/
 *.suo
 *.user
 *.sln.docstates
+.vs/
 
 # Build results
 
@@ -235,3 +237,4 @@ yse_binary_release_windows/
 yse_binary_release_android/
 yse_binary_release_iOS/
 *.zip
+Generate.NET/YseEngine_wrap.cxx

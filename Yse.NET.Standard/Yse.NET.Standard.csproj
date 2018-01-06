@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <Import Project="..\NetYse\NetYse.projitems" Label="Shared" />
+
+  <Import Project="..\PCLYSE\PCLYSE.projitems" Label="Shared" />
+
+  <ItemGroup>
+    <Content Include="..\dependencies\libsndfile\bin\libsndfile-1.dll" Link="libsndfile-1.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\dependencies\portaudio\lib\releasedll\portaudio_x86.dll" Link="portaudio_x86.dll">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\Yse.Windows.Native\Debug\Win32\Yse.dll" Link="Yse.dll">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\YSE.NET.PCL\YSE.NET.PCL.csproj" />
+  </ItemGroup>
+
+</Project>

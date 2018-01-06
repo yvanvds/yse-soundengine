@@ -1,0 +1,33 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://xamarin.com/schemas/2014/forms"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="Demo.Xamarin.Forms.Demos.BasicChannels"
+             Title="Audio Channels">
+    <ContentPage.Content>
+        <StackLayout>
+            <Label x:Name="Info" HorizontalOptions="CenterAndExpand" />
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="1*"/>
+          <ColumnDefinition Width="2*"/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+          <RowDefinition/>
+          <RowDefinition/>
+          <RowDefinition/>
+          <RowDefinition/>
+        </Grid.RowDefinitions>
+
+        <Label Grid.Row="0" Grid.Column="0" Text="Master "/>
+        <Label Grid.Row="1" Grid.Column="0" Text="Music "/>
+        <Label Grid.Row="2" Grid.Column="0" Text="Ambient "/>
+        <Label Grid.Row="3" Grid.Column="0" Text="Voice "/>
+
+        <Slider Grid.Row="0" Grid.Column="1" Minimum="0.0" Maximum="1.0" Value="1.0" ValueChanged="MasterChanged"/>
+        <Slider Grid.Row="1" Grid.Column="1" Minimum="0.0" Maximum="1.0" Value="1.0" ValueChanged="MusicChanged"/>
+        <Slider Grid.Row="2" Grid.Column="1" Minimum="0.0" Maximum="1.0" Value="1.0" ValueChanged="AmbientChanged"/>
+        <Slider Grid.Row="3" Grid.Column="1" Minimum="0.0" Maximum="1.0" Value="1.0" ValueChanged="VoiceChanged"/>
+      </Grid>
+    </StackLayout>
+    </ContentPage.Content>
+</ContentPage>

@@ -1,0 +1,135 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Menu">
+      <UniqueIdentifier>{70a8d6f8-da98-4123-ba28-21a6acd23a91}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Demos">
+      <UniqueIdentifier>{66980ad4-3b96-4126-9529-bd0f0fe42377}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="MenuAction.h">
+      <Filter>Menu</Filter>
+    </ClInclude>
+    <ClInclude Include="MenuBasics.h">
+      <Filter>Menu</Filter>
+    </ClInclude>
+    <ClInclude Include="MenuDsp.h">
+      <Filter>Menu</Filter>
+    </ClInclude>
+    <ClInclude Include="MenuOther.h">
+      <Filter>Menu</Filter>
+    </ClInclude>
+    <ClInclude Include="MenuTop.h">
+      <Filter>Menu</Filter>
+    </ClInclude>
+    <ClInclude Include="Demo00_PlaySound.h">
+      <Filter>Demos</Filter>
+    </ClInclude>
+    <ClInclude Include="Demo01_SoundProperties.h">
+      <Filter>Demos</Filter>
+    </ClInclude>
+    <ClInclude Include="Demo02_3D.h">
+      <Filter>Demos</Filter>
+    </ClInclude>
+    <ClInclude Include="Demo03_Virtual.h">
+      <Filter>Demos</Filter>
+    </ClInclude>
+    <ClInclude Include="Demo04_Channels.h">
+      <Filter>Demos</Filter>
+    </ClInclude>
+    <ClInclude Include="Demo05_Reverb.h">
+      <Filter>Demos</Filter>
+    </ClInclude>
+    <ClInclude Include="Demo06_Devices.h">
+      <Filter>Demos</Filter>
+    </ClInclude>
+    <ClInclude Include="Demo07_DspSource.h">
+      <Filter>Demos</Filter>
+    </ClInclude>
+    <ClInclude Include="Demo08_Occlusion.h">
+      <Filter>Demos</Filter>
+    </ClInclude>
+    <ClInclude Include="Demo09_Streaming.h">
+      <Filter>Demos</Filter>
+    </ClInclude>
+    <ClInclude Include="Demo10_FilePosition.h">
+      <Filter>Demos</Filter>
+    </ClInclude>
+    <ClInclude Include="basePage.h" />
+    <ClInclude Include="stdafx.h" />
+    <ClInclude Include="targetver.h" />
+    <ClInclude Include="Demo11_VirtualIO.h">
+      <Filter>Demos</Filter>
+    </ClInclude>
+    <ClInclude Include="Demo12_AudioTest.h">
+      <Filter>Demos</Filter>
+    </ClInclude>
+    <ClInclude Include="Demo13_Patcher.h">
+      <Filter>Demos</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="MenuAction.cpp">
+      <Filter>Menu</Filter>
+    </ClCompile>
+    <ClCompile Include="MenuBasics.cpp">
+      <Filter>Menu</Filter>
+    </ClCompile>
+    <ClCompile Include="MenuDsp.cpp">
+      <Filter>Menu</Filter>
+    </ClCompile>
+    <ClCompile Include="MenuOther.cpp">
+      <Filter>Menu</Filter>
+    </ClCompile>
+    <ClCompile Include="MenuTop.cpp">
+      <Filter>Menu</Filter>
+    </ClCompile>
+    <ClCompile Include="Demo00_PlaySound.cpp">
+      <Filter>Demos</Filter>
+    </ClCompile>
+    <ClCompile Include="Demo01_SoundProperties.cpp">
+      <Filter>Demos</Filter>
+    </ClCompile>
+    <ClCompile Include="Demo02_3D.cpp">
+      <Filter>Demos</Filter>
+    </ClCompile>
+    <ClCompile Include="Demo03_Virtual.cpp">
+      <Filter>Demos</Filter>
+    </ClCompile>
+    <ClCompile Include="Demo04_Channels.cpp">
+      <Filter>Demos</Filter>
+    </ClCompile>
+    <ClCompile Include="Demo05_Reverb.cpp">
+      <Filter>Demos</Filter>
+    </ClCompile>
+    <ClCompile Include="Demo06_Devices.cpp">
+      <Filter>Demos</Filter>
+    </ClCompile>
+    <ClCompile Include="Demo07_DspSource.cpp">
+      <Filter>Demos</Filter>
+    </ClCompile>
+    <ClCompile Include="Demo08_Occlusion.cpp">
+      <Filter>Demos</Filter>
+    </ClCompile>
+    <ClCompile Include="Demo09_Streaming.cpp">
+      <Filter>Demos</Filter>
+    </ClCompile>
+    <ClCompile Include="Demo10_FilePosition.cpp">
+      <Filter>Demos</Filter>
+    </ClCompile>
+    <ClCompile Include="basePage.cpp" />
+    <ClCompile Include="Demo.Windows.Native.cpp" />
+    <ClCompile Include="stdafx.cpp" />
+    <ClCompile Include="Demo11_VirtualIO.cpp">
+      <Filter>Demos</Filter>
+    </ClCompile>
+    <ClCompile Include="Demo12_AudioTest.cpp">
+      <Filter>Demos</Filter>
+    </ClCompile>
+    <ClCompile Include="Demo13_Patcher.cpp">
+      <Filter>Demos</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

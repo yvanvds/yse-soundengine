@@ -1,0 +1,54 @@
+=== start of YSE log ===
+(Debug)  YSE System object initialized
+(Warning) Error while loading file:  file not found for E:\YseEngine\bin\Demo.Windows.Native\..\TestResources\drone.ogg
+=== end of YSE log ===
+=== start of YSE log ===
+(Debug)  YSE System object initialized
+(App Message)  sound added
+(App Message)  removed sound
+(App Message)  sound added
+(App Message)  removed sound
+(App Message)  sound added
+(App Message)  sound added
+(App Message)  removed sound
+(App Message)  removed sound
+=== end of YSE log ===
+=== start of YSE log ===
+(Debug)  YSE System object initialized
+(App Message)  sound added
+(App Message)  removed sound
+=== end of YSE log ===
+=== start of YSE log ===
+(Debug)  YSE System object initialized
+=== start of YSE log ===
+(Debug)  YSE System object initialized
+(App Message)  sound added
+(App Message)  removed sound
+(App Message)  sound added
+(App Message)  removed sound
+(App Message)  removed sound
+=== end of YSE log ===
+=== start of YSE log ===
+(Debug)  YSE System object initialized
+(App Message)  sound added
+(App Message)  removed sound
+=== end of YSE log ===
+=== start of YSE log ===
+(Debug)  YSE System object initialized
+=== end of YSE log ===
+=== start of YSE log ===
+(Debug)  YSE System object initialized
+(App Message)  sound added
+(App Message)  sound added
+(App Message)  sound added
+=== start of YSE log ===
+(Debug)  YSE System object initialized
+=== start of YSE log ===
+(Debug)  YSE System object initialized
+(App Message)  sound added
+(App Message)  removed sound
+=== end of YSE log ===
+=== start of YSE log ===
+(Debug)  YSE System object initialized
+=== start of YSE log ===
+(Debug)  YSE System object initialized

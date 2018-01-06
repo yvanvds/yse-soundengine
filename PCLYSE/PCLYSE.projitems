@@ -1,0 +1,22 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <MSBuildAllProjects>$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+    <HasSharedItems>true</HasSharedItems>
+    <SharedGUID>995df794-53e0-4880-9682-66ba3e942f9b</SharedGUID>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <Import_RootNamespace>YSENET</Import_RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)BufferIO.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Channel.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Handle.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Listener.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Patcher.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Reverb.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Sound.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)System.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Global.cs" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,80 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<Application xmlns="http://xamarin.com/schemas/2014/forms"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="Demo.Xamarin.Forms.App"
+             >
+	<Application.Resources>
+
+		<!-- Application resource dictionary -->
+    <ResourceDictionary>
+      <Color x:Key="textColor">White</Color>
+      <Color x:Key="backgroundColor">#111111</Color>
+      <Color x:Key="accentColor">#62abc4</Color>
+
+      <Style x:Key="titleStyle" TargetType="Label">
+        <Setter Property="TextColor" Value="{DynamicResource textColor}"/>
+        <Setter Property="HorizontalOptions" Value="Center"/>
+        <Setter Property="FontAttributes" Value="Bold"/>
+        <Setter Property="FontSize">
+          <OnIdiom x:TypeArguments="x:Double" Phone="40" Tablet="60"/>
+        </Setter>
+      </Style>
+
+      <Style x:Key="subtitleStyle" TargetType="Label">
+        <Setter Property="TextColor" Value="{DynamicResource textColor}"/>
+        <Setter Property="HorizontalOptions" Value="Center"/>
+        <Setter Property="FontSize">
+          <OnIdiom x:TypeArguments="x:Double" Phone="20" Tablet="30"/>
+        </Setter>
+      </Style>
+
+      <Style TargetType="Label">
+        <Setter Property="TextColor" Value="{DynamicResource textColor}"/>
+        <Setter Property="Margin" Value="10"/>
+        <Setter Property="FontSize">
+          <OnIdiom x:TypeArguments="x:Double" Phone="15" Tablet="25"/>
+        </Setter>
+      </Style>
+
+      <Style x:Key="bigTextStyle" TargetType="Label">
+        <Setter Property="TextColor" Value="{DynamicResource textColor}"/>
+        <Setter Property="FontSize">
+          <OnIdiom x:TypeArguments="x:Double" Phone="17" Tablet="30"/>
+        </Setter>
+      </Style>
+
+      <Style TargetType="Button">
+        <Setter Property="TextColor" Value="{DynamicResource textColor}"/>
+        <Setter Property="BackgroundColor" Value="{DynamicResource accentColor}"/>
+        <Setter Property="FontSize">
+          <OnIdiom x:TypeArguments="x:Double" Phone="15" Tablet="25"/>
+        </Setter>
+      </Style>
+
+      <Style TargetType="Picker">
+        <Setter Property="TextColor" Value="{DynamicResource textColor}"/>
+        <Setter Property="BackgroundColor" Value="{DynamicResource accentColor}"/>
+      </Style> 
+
+      <Style x:Key="tabButtonStyle" TargetType="Button">
+        <Setter Property="TextColor" Value="{DynamicResource textColor}"/>
+        <Setter Property="FontSize">
+          <OnIdiom x:TypeArguments="x:Double" Phone="25" Tablet="30"/>
+        </Setter>
+        <Setter Property="BorderWidth" Value="1"/>
+        <Setter Property="BorderColor" Value="{DynamicResource accentColor}"/>
+        <Setter Property="BorderRadius" Value="10"/>
+      </Style>
+
+      <Style x:Key="backgroundStyle" TargetType="VisualElement">
+        <Setter Property="BackgroundColor" Value="{DynamicResource backgroundColor}"/>
+      </Style>
+
+      <Style TargetType="ContentPage" ApplyToDerivedTypes="True">
+        <Setter Property="BackgroundColor" Value="{DynamicResource backgroundColor}"/>
+        <Setter Property="Padding" Value="20"/>
+      </Style>
+      
+    </ResourceDictionary>
+  </Application.Resources>
+</Application>

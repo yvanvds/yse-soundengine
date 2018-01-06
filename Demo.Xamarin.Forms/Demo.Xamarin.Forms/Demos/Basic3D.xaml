@@ -1,0 +1,25 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://xamarin.com/schemas/2014/forms"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:skia="clr-namespace:SkiaSharp.Views.Forms;assembly=SkiaSharp.Views.Forms"
+             x:Class="Demo.Xamarin.Forms.Demos.Basic3D"
+             Title="3D Positioning">
+  <ContentPage.Content>
+    <Grid>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="1*"/>
+        <RowDefinition Height="1*"/>
+      </Grid.RowDefinitions>
+
+      <skia:SKCanvasView Grid.Row="0" 
+                         x:Name="canvasView" 
+                         PaintSurface="PaintSurface"
+                         EnableTouchEvents="True"
+                         Touch="OnTouch"/>
+      <Label x:Name="Info" Grid.Row="1"/>
+    </Grid>
+    
+
+
+  </ContentPage.Content>
+</ContentPage>

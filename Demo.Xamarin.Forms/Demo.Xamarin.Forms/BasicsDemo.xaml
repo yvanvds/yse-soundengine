@@ -1,0 +1,15 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://xamarin.com/schemas/2014/forms"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="Demo.Xamarin.Forms.BasicsDemo"
+             Title="Basic Audio">
+  <ContentPage.Content>
+    <StackLayout>
+      <Button Text="Test Audio" Clicked="AudioTest_Clicked"/>
+      <Button Text="Play a Sound" Clicked="PlaySound_Clicked"/>
+      <Button Text="3D Positioning" Clicked="Demo3D_Clicked"/>
+      <Button Text="Channels" Clicked="Channels_Clicked"/>
+      <Button Text="Reverb" Clicked="Reverb_Clicked"/>
+    </StackLayout>
+  </ContentPage.Content>
+</ContentPage>

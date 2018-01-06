@@ -1,0 +1,57 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <MSBuildAllProjects>$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+    <HasSharedItems>true</HasSharedItems>
+    <SharedGUID>030e9ed2-edae-417b-bbbc-30b29785653b</SharedGUID>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <Import_RootNamespace>NetYse</Import_RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)BQ_TYPE.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)BufferIO.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)channel.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)CHANNEL_IMPLEMENTATION_STATE.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)CHANNEL_TYPE.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)device.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)deviceSetup.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ERROR_CODE.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ERROR_LEVEL.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)FILEPOINT.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)listener.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MIDI_PITCH.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)OBJ.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)OBJECT_IMPLEMENTATION_STATE.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)patcher.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)pHandle.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Pos.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)reverb.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)REVERB_PRESET.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)sound.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SOUND_IMPLEMENTATION_STATE.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SOUND_INTENT.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SOUND_STATUS.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SWIGTYPE_p_Dbl.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SWIGTYPE_p_Flt.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SWIGTYPE_p_f_r_q_const__YSE__Pos_r_q_const__YSE__Pos__float.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SWIGTYPE_p_I64.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SWIGTYPE_p_Int.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SWIGTYPE_p_MULTICHANNELBUFFER.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SWIGTYPE_p_pHandle.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SWIGTYPE_p_std__string.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SWIGTYPE_p_std__vectorT_double_t.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SWIGTYPE_p_std__vectorT_int_t.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SWIGTYPE_p_std__vectorT_std__string_t.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SWIGTYPE_p_std__vectorT_YSE__device_t.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SWIGTYPE_p_UInt.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SWIGTYPE_p_YSE__aPos.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SWIGTYPE_p_YSE__DSP__buffer.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SWIGTYPE_p_YSE__DSP__dspObject.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SWIGTYPE_p_YSE__DSP__dspSourceObject.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SWIGTYPE_p_YSE__PATCHER__pObject.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)system.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Yse.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)YsePINVOKE.cs" />
+  </ItemGroup>
+</Project>

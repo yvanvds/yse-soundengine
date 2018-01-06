@@ -1,0 +1,53 @@
+%module Yse
+%{
+#include "..\YseEngine\headers\enums.hpp"
+#include "..\YseEngine\utils\vector.hpp"
+#include "..\YseEngine\channel\channelInterface.hpp"
+#include "..\YseEngine\sound\soundInterface.hpp"
+#include "..\YseEngine\reverb\reverbInterface.hpp"
+#include "..\YseEngine\device\deviceInterface.hpp"
+#include "..\YseEngine\device\deviceSetup.hpp"
+#include "..\YseEngine\system.hpp"
+#include "..\YseEngine\BufferIO.hpp"
+#include "..\YseEngine\listener.hpp"
+#include "..\YseEngine\patcher\pObjectList.hpp"
+#include "..\YseEngine\patcher\patcher.hpp"
+#include "..\YseEngine\patcher\pHandle.hpp"
+%}
+
+%include "arrays_csharp.i"
+%apply void *VOID_INT_PTR { void * }
+CSHARP_ARRAYS(char, byte)
+%apply char INOUT[] {char * buffer}
+
+%rename(AddAssign) operator+=;
+%rename(SubAssign) operator-=;
+%rename(MulAssign) operator*=;
+%rename(DivAssign) operator/=;
+%rename(IsEqual) operator==;
+%rename(NotEqual) operator!=;
+%rename(Add) operator+;
+%rename(Minus) operator-;
+%rename(Multiply) operator*;
+%rename(Divide) operator/;
+
+
+#define API
+%include "..\YseEngine\headers\enums.hpp"
+%include "..\YseEngine\utils\vector.hpp"
+%include "..\YseEngine\channel\channelInterface.hpp"
+%include "..\YseEngine\BufferIO.hpp"
+
+%rename ("$ignore", fullname=1)  YSE::sound::create(YSE::DSP::buffer & buffer, YSE::channel * ch, bool loop, float volume);
+%rename ("$ignore", fullname=1)  YSE::sound::create(YSE::DSP::dspSourceObject & dsp, YSE::channel * ch, float volume);
+
+%include "..\YseEngine\sound\soundInterface.hpp"
+%include "..\YseEngine\listener.hpp"
+%include "..\YseEngine\reverb\reverbInterface.hpp"
+%include "..\YseEngine\device\deviceInterface.hpp"
+%include "..\YseEngine\device\deviceSetup.hpp"
+%include "..\YseEngine\system.hpp"
+
+%include "..\YseEngine\patcher\pObjectList.hpp"
+%include "..\YseEngine\patcher\patcher.hpp"
+%include "..\YseEngine\patcher\pHandle.hpp"
