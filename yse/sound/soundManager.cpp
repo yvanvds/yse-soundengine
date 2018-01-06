@@ -50,7 +50,7 @@ YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addFile(const std::string 
   }
 
   // if we got here, the file does not exist yet
-  soundFiles.emplace_front(fileName);
+  soundFiles.emplace_front(fileName, true);
   INTERNAL::soundFile & sf = soundFiles.front();
   if (sf.create()) {
     return &sf;

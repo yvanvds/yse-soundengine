@@ -110,7 +110,7 @@ bool YSE::SOUND::implementationObject::create(const std::string &fileName, chann
     status_dsp = SS_STOPPED;
     status_upd = SS_STOPPED;
       
-    file = new INTERNAL::soundFile(fullName);
+    file = new INTERNAL::soundFile(fullName, false);
     
     if(file->create(true)) {
       filebuffer.resize(file->channels());

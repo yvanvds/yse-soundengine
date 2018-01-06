@@ -48,6 +48,7 @@ void YSE::INTERNAL::soundFile::loadStreaming() {
 void YSE::INTERNAL::soundFile::loadNonStreaming() {
   // load non streaming sounds in one go
   ScopedPointer<AudioFormatReader> reader;
+  File file;
 
   if (IO().getActive()) {
     // will be deleted by AudioFormatReader
