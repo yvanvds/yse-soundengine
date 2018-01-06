@@ -36,8 +36,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Yse.NET.Android", "Yse.NET.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Demo.Android.NET", "Demo.Android.NET\Demo.Android.NET.csproj", "{D59A56B3-BCCE-4139-B4F6-24024D4C4A8C}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Dependencies", "Dependencies", "{226BE27A-407D-4451-9275-D8737DFFC409}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Demo.Android.Native", "Demo.Android.Native", "{6AF68B66-4B73-435A-A00A-F0D950AB0A43}"
 EndProject
 Project("{39E2626F-3545-4960-A6E8-258AD8476CE5}") = "Demo.Android.Native.Packaging", "Demo.Android.Native\Demo.Android.Native.Packaging\Demo.Android.Native.Packaging.androidproj", "{CEF749EE-B9EA-4929-9AF5-ED7D23151404}"

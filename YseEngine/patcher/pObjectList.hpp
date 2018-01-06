@@ -8,7 +8,11 @@ namespace YSE {
 
     static constexpr char const * SINE = "sine";
 
+    static constexpr char const * ADD = "+";
+    static constexpr char const * SUBSTRACT = "-";
     static constexpr char const * MULTIPLIER = "*";
+    static constexpr char const * DIVIDE = "/";
     static constexpr char const * MIDITOFREQUENCY = "mtof";
+    static constexpr char const * FREQUENCYTOMIDI = "ftom";
   };
 }

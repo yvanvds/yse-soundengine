@@ -3,8 +3,12 @@
 
 #include "genericObjects/pOutput.h"
 #include "generatorObjects/pSine.h"
+#include "math/pAdd.h"
+#include "math/pSubstract.h"
+#include "math/pDivide.h"
 #include "math/pMultiplier.h"
 #include "math/pMidiToFrequency.h"
+#include "math/pFrequencyToMidi.h"
 
 using namespace YSE::PATCHER;
 
@@ -20,8 +24,12 @@ pRegistry::pRegistry() {
   Add(OBJ::OUT, pOutput::Create);
 
   Add(OBJ::SINE, pSine::Create);
+  Add(OBJ::ADD, pAdd::Create);
+  Add(OBJ::SUBSTRACT, pSubstract::Create);
   Add(OBJ::MULTIPLIER, pMultiplier::Create);
+  Add(OBJ::DIVIDE, pDivide::Create);
   Add(OBJ::MIDITOFREQUENCY, pMidiToFrequency::Create);
+  Add(OBJ::FREQUENCYTOMIDI, pFrequencyToMidi::Create);
 }
 
 pObject* pRegistry::Get(const char * objectID) {

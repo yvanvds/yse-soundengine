@@ -441,13 +441,25 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\pHandle.hpp">
       <Filter>patcher</Filter>
     </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\pMultiplier.h">
-      <Filter>patcher</Filter>
-    </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\patcherImplementation.h">
       <Filter>patcher</Filter>
     </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\pMidiToFrequency.h">
+      <Filter>patcher\math</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\pMultiplier.h">
+      <Filter>patcher\math</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\pFrequencyToMidi.h">
+      <Filter>patcher\math</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\pAdd.h">
+      <Filter>patcher\math</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\pSubstract.h">
+      <Filter>patcher\math</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\pDivide.h">
       <Filter>patcher\math</Filter>
     </ClInclude>
   </ItemGroup>
@@ -740,14 +752,26 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\pMidiToFrequency.cpp">
       <Filter>patcher\math</Filter>
     </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\pMultiplier.cpp">
-      <Filter>patcher</Filter>
-    </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\patcherImplementation.cpp">
       <Filter>patcher</Filter>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\genericObjects\pOutput.cpp">
       <Filter>patcher\genericObjects</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\pMultiplier.cpp">
+      <Filter>patcher\math</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\pFrequencyToMidi.cpp">
+      <Filter>patcher\math</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\GitHub\yse-soundengine\YseEngine\patcher\math\pAdd.cpp">
+      <Filter>patcher\math</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\pSubstract.cpp">
+      <Filter>patcher\math</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\pDivide.cpp">
+      <Filter>patcher\math</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
