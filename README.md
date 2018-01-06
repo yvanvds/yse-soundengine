@@ -1,4 +1,4 @@
-This is libYSE 2.0
+# This is libYSE 2.0 #
 
 libYSE is a cross platform sound engine, written in C++. The 1.0 version was built with JUCE, but because of possible licensing isssues and the current JUCE being unable to create usable Android libraries, JUCE support is removed in libYSE 2.0. Currently Windows and Android are supported. 
 
