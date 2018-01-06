@@ -1,11 +1,8 @@
-This is libYSE 1.0
+This is libYSE 2.0
 
-libYSE is a cross platform sound engine for windows, macOS, linux and iOS.
+libYSE is a cross platform sound engine, written in C++. Currently Windows and Android are supported.
 
-(Note: android support is on hold for now.)
+Native C++ libraries are working, as well as libraries for C# (.NET framework and .NET standard). The project also includes wrappers for use with xamarin forms.
 
-
-More information about YSE can be found on http://attr-x.net/yse
-You are welcome to register to the community forum on http://attr-x.net/yse_forum (new from august 2015)
-The git repository also includes a few tutorial programs.
+Demo projects are also included for Windows (Native/C++ and WPF/C#), Android (Native/C++, Android.NET/C# and Xamarin.Forms). 
 
