@@ -1,5 +1,6 @@
 #pragma once
 #include "..\pObject.h"
+#include "dsp/filters.hpp"
 
 namespace YSE {
   namespace PATCHER {
@@ -15,7 +16,7 @@ namespace YSE {
       static pObject * Create();
 
     private:
-      DSP::buffer output;
+      DSP::lowPass filter;
     };
   }
 }

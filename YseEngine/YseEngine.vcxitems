@@ -100,6 +100,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)music\scale\scaleInterface.hpp" />
     <ClInclude Include="$(MSBuildThisFileDirectory)music\scale\scaleManager.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)music\scale\scaleMessage.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\filters\pBandpass.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\filters\pHighpass.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\filters\pLowpass.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\generatorObjects\pSine.h" />
@@ -222,7 +223,8 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)music\scale\scaleImplementation.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)music\scale\scaleInterface.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)music\scale\scaleManager.cpp" />
-    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\filters\Highpass.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\filters\pHighpass.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\filters\pBandpass.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\filters\pLowpass.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\generatorObjects\pSine.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\genericObjects\pOutput.cpp" />

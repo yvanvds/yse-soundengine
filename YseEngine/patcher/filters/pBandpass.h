@@ -1,13 +1,13 @@
 #pragma once
 #include "..\pObject.h"
-#include "dsp/filters.hpp"
+#include "dsp\filters.hpp"
 
 namespace YSE {
   namespace PATCHER {
 
-    class pHighpass : public pObject {
+    class pBandpass : public pObject {
     public:
-      pHighpass();
+      pBandpass();
 
       virtual const char * Type() const;
 
@@ -16,7 +16,7 @@ namespace YSE {
       static pObject * Create();
 
     private:
-      DSP::highPass filter;
+      YSE::DSP::bandPass filter;
     };
   }
 }
