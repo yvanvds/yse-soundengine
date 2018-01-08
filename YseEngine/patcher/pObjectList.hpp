@@ -10,5 +10,8 @@ namespace YSE {
 
     static constexpr char const * MULTIPLIER = "*";
     static constexpr char const * MIDITOFREQUENCY = "mtof";
+
+    static constexpr char const * HIGHPASS = "hp";
+    static constexpr char const * LOWPASS = "lp";
   };
 }

@@ -6,6 +6,9 @@
 #include "math/pMultiplier.h"
 #include "math/pMidiToFrequency.h"
 
+#include "filters\pHighpass.h"
+#include "filters\pLowpass.h"
+
 using namespace YSE::PATCHER;
 
 YSE::PATCHER::pRegistry & YSE::PATCHER::Register() {
@@ -22,6 +25,9 @@ pRegistry::pRegistry() {
   Add(OBJ::SINE, pSine::Create);
   Add(OBJ::MULTIPLIER, pMultiplier::Create);
   Add(OBJ::MIDITOFREQUENCY, pMidiToFrequency::Create);
+
+  Add(OBJ::HIGHPASS, pHighpass::Create);
+  Add(OBJ::LOWPASS, pLowpass::Create);
 }
 
 pObject* pRegistry::Get(const char * objectID) {

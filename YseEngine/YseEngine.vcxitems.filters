@@ -73,6 +73,9 @@
     <Filter Include="patcher\math">
       <UniqueIdentifier>{4bc5a8cd-1769-4d59-a7ff-76fe3b91c2f9}</UniqueIdentifier>
     </Filter>
+    <Filter Include="patcher\filters">
+      <UniqueIdentifier>{d0f35e63-032e-4ede-aacb-ed67fd3c6155}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(MSBuildThisFileDirectory)channel\channel.hpp">
@@ -441,14 +444,20 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\pHandle.hpp">
       <Filter>patcher</Filter>
     </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\pMultiplier.h">
-      <Filter>patcher</Filter>
-    </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\patcherImplementation.h">
       <Filter>patcher</Filter>
     </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\pMidiToFrequency.h">
       <Filter>patcher\math</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\yvan\Source\Repos\yse-soundengine\YseEngine\patcher\math\pMultiplier.h">
+      <Filter>patcher\math</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\yvan\Source\Repos\yse-soundengine\YseEngine\patcher\filters\pHighpass.h">
+      <Filter>patcher\filters</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\yvan\Source\Repos\yse-soundengine\YseEngine\patcher\filters\pLowpass.h">
+      <Filter>patcher\filters</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -740,14 +749,20 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\pMidiToFrequency.cpp">
       <Filter>patcher\math</Filter>
     </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\pMultiplier.cpp">
-      <Filter>patcher</Filter>
-    </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\patcherImplementation.cpp">
       <Filter>patcher</Filter>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\genericObjects\pOutput.cpp">
       <Filter>patcher\genericObjects</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\yvan\Source\Repos\yse-soundengine\YseEngine\patcher\math\pMultiplier.cpp">
+      <Filter>patcher\math</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\yvan\Source\Repos\yse-soundengine\YseEngine\patcher\filters\Highpass.cpp">
+      <Filter>patcher\filters</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\yvan\Source\Repos\yse-soundengine\YseEngine\patcher\filters\pLowpass.cpp">
+      <Filter>patcher\filters</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
