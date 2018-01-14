@@ -5,6 +5,7 @@ namespace YSE {
     static constexpr char const * PATCHER = "patcher";
 
     static constexpr char const * OUT = "out";
+    static constexpr char const * LINE = "line";
 
     static constexpr char const * SINE = "sine";
 

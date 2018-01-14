@@ -3,6 +3,10 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <RootNamespace>YSE</RootNamespace>
+    <Authors>yvan vander sanden</Authors>
+    <Company>MuteCode</Company>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Description>PCL Interface for YSE.</Description>
   </PropertyGroup>
 
 </Project>

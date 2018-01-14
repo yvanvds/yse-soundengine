@@ -2,6 +2,7 @@
 #include "pObjectList.hpp"
 
 #include "genericObjects/pOutput.h"
+#include "genericObjects/pLine.h"
 #include "generatorObjects/pSine.h"
 #include "math/pAdd.h"
 #include "math/pSubstract.h"
@@ -22,12 +23,15 @@ pRegistry::pRegistry() {
 
   // Generic
   Add(OBJ::OUT, pOutput::Create);
+  Add(OBJ::LINE, pLine::Create);
 
   Add(OBJ::SINE, pSine::Create);
+
   Add(OBJ::ADD, pAdd::Create);
   Add(OBJ::SUBSTRACT, pSubstract::Create);
   Add(OBJ::MULTIPLIER, pMultiplier::Create);
   Add(OBJ::DIVIDE, pDivide::Create);
+  
   Add(OBJ::MIDITOFREQUENCY, pMidiToFrequency::Create);
   Add(OBJ::FREQUENCYTOMIDI, pFrequencyToMidi::Create);
 }
