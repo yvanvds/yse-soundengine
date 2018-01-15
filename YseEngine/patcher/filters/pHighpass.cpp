@@ -20,7 +20,7 @@ pHighpass::pHighpass() {
 }
 
 const char * pHighpass::Type() const {
-  return YSE::OBJ::HIGHPASS;
+  return YSE::OBJ::D_HIGHPASS;
 }
 
 void pHighpass::RequestData() {

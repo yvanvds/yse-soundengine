@@ -15,6 +15,8 @@ namespace YSE {
 
       pObject* Get(const char * objectID);
 
+      bool IsValidObject(const char * objectID);
+
     private:
       void Add(const char * objectID, pObjectFunc);
 

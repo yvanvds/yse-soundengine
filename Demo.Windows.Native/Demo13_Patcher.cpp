@@ -6,11 +6,11 @@ using namespace YSE;
 void DemoPatcher::Setup() {
   patcher.create(1);
 
-  sine = patcher.AddObject(OBJ::SINE);
-  lfo = patcher.AddObject(OBJ::SINE);
-  mtof = patcher.AddObject(OBJ::MIDITOFREQUENCY);
-  volume = patcher.AddObject("*");
-  pHandle * multiplier = patcher.AddObject(OBJ::MULTIPLIER);
+  sine = patcher.CreateObject(OBJ::D_SINE);
+  lfo = patcher.CreateObject(OBJ::D_SINE);
+  mtof = patcher.CreateObject(OBJ::MIDITOFREQUENCY);
+  volume = patcher.CreateObject("~*");
+  pHandle * multiplier = patcher.CreateObject(OBJ::D_MULTIPLIER);
 
   patcher.Connect(mtof, 0, sine, 0);
   patcher.Connect(sine, 0, multiplier, 0);

@@ -8,7 +8,8 @@ namespace YSE
   {
     void Create(int mainOutputs);
 
-    IHandle AddObject(string type);
+    IHandle CreateObject(string type);
+    void DeleteObject(IHandle handle);
 
     void Connect(IHandle from, int pinOut, IHandle to, int pinIn);
     void Disconnect(IHandle to, int pinIn);

@@ -17,6 +17,12 @@ namespace YSE {
     bool SetData(unsigned int pin, float value);
     bool SetData(unsigned int pin, const char * value);
 
+    int GetInputs();
+    int GetOutputs();
+
+    int InputDataTypes(unsigned int pin);
+    YSE::PIN_TYPE OutputDataType(unsigned int pin);
+
   private:
     PATCHER::pObject * object;
     friend class YSE::PATCHER::patcherImplementation;

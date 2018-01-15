@@ -20,7 +20,7 @@ pAdd::pAdd() {
 }
 
 const char * pAdd::Type() const {
-  return YSE::OBJ::ADD;
+  return YSE::OBJ::D_ADD;
 }
 
 void pAdd::RequestData() {

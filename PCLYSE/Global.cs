@@ -34,6 +34,9 @@ namespace YSENET
     Listener listener = new Listener();
     public IListener Listener => listener;
 
+    Log log = new Log();
+    public ILog Log => log;
+
     public ISound CreateSound()
     {
       return new Sound();

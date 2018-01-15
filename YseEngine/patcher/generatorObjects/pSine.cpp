@@ -15,7 +15,7 @@ pSine::pSine()
 }
 
 const char * pSine::Type() const {
-  return YSE::OBJ::SINE;
+  return YSE::OBJ::D_SINE;
 }
 
 void pSine::RequestData() {

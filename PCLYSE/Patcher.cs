@@ -27,9 +27,14 @@ namespace YSENET
       return new Handle(base.GetOutputHandle(output));
     }
 
-    public new IHandle AddObject(string type)
+    public new IHandle CreateObject(string type)
     {
-      return new Handle(base.AddObject(type));
+      return new Handle(base.CreateObject(type));
+    }
+
+    public void DeleteObject(IHandle handle)
+    {
+      base.DeleteObject(((Handle)handle).GetSource());
     }
   }
 }

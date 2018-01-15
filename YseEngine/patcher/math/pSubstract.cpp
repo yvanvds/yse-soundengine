@@ -20,7 +20,7 @@ pSubstract::pSubstract() {
 }
 
 const char * pSubstract::Type() const {
-  return YSE::OBJ::SUBSTRACT;
+  return YSE::OBJ::D_SUBSTRACT;
 }
 
 void pSubstract::RequestData() {

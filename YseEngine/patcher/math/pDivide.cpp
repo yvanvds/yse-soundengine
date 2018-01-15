@@ -20,7 +20,7 @@ pDivide::pDivide() {
 }
 
 const char * pDivide::Type() const {
-  return YSE::OBJ::DIVIDE;
+  return YSE::OBJ::D_DIVIDE;
 }
 
 void pDivide::RequestData() {

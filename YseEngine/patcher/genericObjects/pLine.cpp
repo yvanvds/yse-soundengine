@@ -21,7 +21,7 @@ pLine::pLine() {
 }
 
 const char * pLine::Type() const {
-  return YSE::OBJ::LINE;
+  return YSE::OBJ::D_LINE;
 }
 
 void pLine::RequestData() {

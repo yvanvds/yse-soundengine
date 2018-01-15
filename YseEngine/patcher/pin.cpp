@@ -53,7 +53,7 @@ pinIn::pinIn(int allowedTypes, int position, pObject * thisObject)
   , connection(nullptr)
 {}
 
-bool pinIn::Accepts(PIN_TYPE type) {
+bool pinIn::Accepts(YSE::PIN_TYPE type) {
   return (allowedTypes & type);
 }
 
@@ -75,7 +75,7 @@ void pinIn::RequestData() {
 // pinOut
 ////////////////////////////////////////////
 
-pinOut::pinOut(PIN_TYPE type, int position, pObject * thisObject)
+pinOut::pinOut(YSE::PIN_TYPE type, int position, pObject * thisObject)
   : pin(PIN_DIR::OUT, position, thisObject)
   , type(type)
 {}

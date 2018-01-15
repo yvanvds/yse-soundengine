@@ -11,6 +11,10 @@
 #include "math/pMidiToFrequency.h"
 #include "math/pFrequencyToMidi.h"
 
+#include "filters\pBandpass.h"
+#include "filters\pHighpass.h"
+#include "filters\pLowpass.h"
+
 using namespace YSE::PATCHER;
 
 YSE::PATCHER::pRegistry & YSE::PATCHER::Register() {
@@ -22,18 +26,22 @@ pRegistry::pRegistry() {
   // add all objects here
 
   // Generic
-  Add(OBJ::OUT, pOutput::Create);
-  Add(OBJ::LINE, pLine::Create);
+  Add(OBJ::D_OUT, pOutput::Create);
+  Add(OBJ::D_LINE, pLine::Create);
 
-  Add(OBJ::SINE, pSine::Create);
+  Add(OBJ::D_SINE, pSine::Create);
 
-  Add(OBJ::ADD, pAdd::Create);
-  Add(OBJ::SUBSTRACT, pSubstract::Create);
-  Add(OBJ::MULTIPLIER, pMultiplier::Create);
-  Add(OBJ::DIVIDE, pDivide::Create);
+  Add(OBJ::D_ADD, pAdd::Create);
+  Add(OBJ::D_SUBSTRACT, pSubstract::Create);
+  Add(OBJ::D_MULTIPLIER, pMultiplier::Create);
+  Add(OBJ::D_DIVIDE, pDivide::Create);
   
   Add(OBJ::MIDITOFREQUENCY, pMidiToFrequency::Create);
   Add(OBJ::FREQUENCYTOMIDI, pFrequencyToMidi::Create);
+
+  Add(OBJ::D_LOWPASS, pLowpass::Create);
+  Add(OBJ::D_BANDPASS, pBandpass::Create);
+  Add(OBJ::D_HIGHPASS, pHighpass::Create);
 }
 
 pObject* pRegistry::Get(const char * objectID) {
@@ -44,4 +52,9 @@ pObject* pRegistry::Get(const char * objectID) {
 
 void pRegistry::Add(const char * objectID, pObjectFunc f) {
   map.insert(std::pair<std::string, pObjectFunc>(objectID, f));
+}
+
+bool pRegistry::IsValidObject(const char * objectID) {
+  auto it = map.find(objectID);
+  return it != map.end();
 }

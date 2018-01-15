@@ -20,11 +20,13 @@
     <Compile Include="$(MSBuildThisFileDirectory)ERROR_LEVEL.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)FILEPOINT.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)listener.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)log.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MIDI_PITCH.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)OBJ.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)OBJECT_IMPLEMENTATION_STATE.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)patcher.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)pHandle.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PIN_TYPE.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Pos.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)reverb.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)REVERB_PRESET.cs" />
@@ -34,6 +36,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)SOUND_STATUS.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)SWIGTYPE_p_Dbl.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)SWIGTYPE_p_Flt.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SWIGTYPE_p_f_p_q_const__char__void.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)SWIGTYPE_p_f_r_q_const__YSE__Pos_r_q_const__YSE__Pos__float.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)SWIGTYPE_p_I64.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)SWIGTYPE_p_Int.cs" />

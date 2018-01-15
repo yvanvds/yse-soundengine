@@ -4,6 +4,8 @@ using System.Text;
 
 namespace YSE
 {
+  
+
   public interface IListener
   {
     Pos Pos();

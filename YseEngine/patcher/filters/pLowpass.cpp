@@ -21,7 +21,7 @@ pLowpass::pLowpass() {
 }
 
 const char * pLowpass::Type() const {
-  return YSE::OBJ::LOWPASS;
+  return YSE::OBJ::D_LOWPASS;
 }
 
 void pLowpass::RequestData() {

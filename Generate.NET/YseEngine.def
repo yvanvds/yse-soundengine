@@ -2,6 +2,7 @@
 %{
 #include "..\YseEngine\headers\enums.hpp"
 #include "..\YseEngine\utils\vector.hpp"
+#include "..\YseEngine\log.hpp"
 #include "..\YseEngine\channel\channelInterface.hpp"
 #include "..\YseEngine\sound\soundInterface.hpp"
 #include "..\YseEngine\reverb\reverbInterface.hpp"
@@ -35,6 +36,7 @@ CSHARP_ARRAYS(char, byte)
 #define API
 %include "..\YseEngine\headers\enums.hpp"
 %include "..\YseEngine\utils\vector.hpp"
+%include "..\YseEngine\log.hpp"
 %include "..\YseEngine\channel\channelInterface.hpp"
 %include "..\YseEngine\BufferIO.hpp"
 

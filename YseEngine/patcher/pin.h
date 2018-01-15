@@ -1,6 +1,6 @@
 #pragma once
 #include "dsp/buffer.hpp"
-#include "pEnums.h"
+#include "headers\enums.hpp" 
 #include <vector>
 
 namespace YSE {

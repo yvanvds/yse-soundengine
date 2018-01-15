@@ -54,13 +54,9 @@ void patcherImplementation::ResetData() {
   }
 }
 
-YSE::pHandle * patcherImplementation::AddObject(const char * type) {
-  return CreateObject(type);
-}
-
-YSE::pHandle * patcherImplementation::AddOutput(PIN_TYPE type) {
+YSE::pHandle * patcherImplementation::AddOutput(YSE::PIN_TYPE type) {
   
-  pHandle * handle = CreateObject(YSE::OBJ::OUT);
+  pHandle * handle = CreateObject(YSE::OBJ::D_OUT);
   ((pOutput*)handle->object)->Setup(type);
 
   outputObjects.push_back(handle);

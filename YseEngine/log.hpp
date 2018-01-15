@@ -54,7 +54,7 @@ namespace YSE {
 
     /** Get the current output file.
     */
-    std::string getLogfile();
+    const char * getLogfile();
   };
   
   /**

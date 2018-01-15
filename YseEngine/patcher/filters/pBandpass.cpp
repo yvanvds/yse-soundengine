@@ -23,7 +23,7 @@ pBandpass::pBandpass() {
 }
 
 const char * pBandpass::Type() const {
-  return YSE::OBJ::BANDPASS;
+  return YSE::OBJ::D_BANDPASS;
 }
 
 void pBandpass::RequestData() {

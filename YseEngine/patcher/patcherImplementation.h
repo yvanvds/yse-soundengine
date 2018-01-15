@@ -19,7 +19,8 @@ namespace YSE {
       virtual void ResetData();
       virtual void RequestData();
 
-      pHandle * AddObject(const char * type);
+      pHandle * CreateObject(const char * type);
+      void DeleteObject(pHandle * obj);
       
       void Connect(pHandle * from, int pinOut, pHandle * to, int pinIn);
       void Disconnect(pHandle * to, int pinIn);
@@ -32,8 +33,7 @@ namespace YSE {
       std::atomic<patcher*> head;
 
     private:
-      pHandle * CreateObject(const char * type);
-      void DeleteObject(pHandle* handle);
+
       pHandle * AddOutput(PIN_TYPE type);
 
       std::map<pHandle*, pObject*> objects;

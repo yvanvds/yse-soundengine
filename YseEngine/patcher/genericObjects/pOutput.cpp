@@ -1,6 +1,7 @@
 #include "pOutput.h"
 #include "../pObjectList.hpp"
 
+
 using namespace YSE::PATCHER;
 
 pObject * pOutput::Create() { return new pOutput(); }
@@ -11,10 +12,10 @@ pOutput::pOutput()
 }
 
 const char * pOutput::Type() const {
-  return OBJ::OUT;
+  return OBJ::D_OUT;
 }
 
-bool pOutput::Setup(PIN_TYPE type) {
+bool pOutput::Setup(YSE::PIN_TYPE type) {
   if (ready) return false;
   inputs.emplace_back(type, 0, this);
   outputs.emplace_back(type, 0, this);

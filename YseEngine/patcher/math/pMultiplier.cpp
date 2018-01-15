@@ -20,7 +20,7 @@ pMultiplier::pMultiplier() {
 }
 
 const char * pMultiplier::Type() const {
-  return YSE::OBJ::MULTIPLIER;
+  return YSE::OBJ::D_MULTIPLIER;
 }
 
 void pMultiplier::RequestData() {

@@ -73,6 +73,9 @@
     <Filter Include="patcher\math">
       <UniqueIdentifier>{4bc5a8cd-1769-4d59-a7ff-76fe3b91c2f9}</UniqueIdentifier>
     </Filter>
+    <Filter Include="patcher\filters">
+      <UniqueIdentifier>{c4d4bf3d-3822-4be0-b4a2-73f0387f053b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(MSBuildThisFileDirectory)channel\channel.hpp">
@@ -465,6 +468,15 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\genericObjects\pLine.h">
       <Filter>patcher\genericObjects</Filter>
     </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\filters\pBandpass.h">
+      <Filter>patcher\filters</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\filters\pHighpass.h">
+      <Filter>patcher\filters</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\filters\pLowpass.h">
+      <Filter>patcher\filters</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="$(MSBuildThisFileDirectory)channel\channelImplementation.cpp">
@@ -776,6 +788,17 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\genericObjects\pLine.cpp">
       <Filter>patcher\genericObjects</Filter>
     </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\pAdd.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\filters\pBandpass.cpp">
+      <Filter>patcher\filters</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\filters\pHighpass.cpp">
+      <Filter>patcher\filters</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\filters\pLowpass.cpp">
+      <Filter>patcher\filters</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\pAdd.cpp">
+      <Filter>patcher\math</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

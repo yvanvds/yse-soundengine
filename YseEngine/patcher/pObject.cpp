@@ -75,7 +75,7 @@ void pObject::UpdateInputs() {
   }
 }
 
-PIN_TYPE pObject::GetOutputType(unsigned int output) const {
+YSE::PIN_TYPE pObject::GetOutputType(unsigned int output) const {
   if (output < 0 || output >= outputs.size()) return PIN_TYPE::PIN_INVALID;
 
   return outputs[output].type;

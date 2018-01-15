@@ -31,8 +31,8 @@ YSE::log & YSE::log::setCallback(void(*funcPtr)(const char *)) {
   return (*this);
 }
 
-std::string YSE::log::getLogfile() {
-  return INTERNAL::LogImpl().getLogfile();
+const char * YSE::log::getLogfile() {
+  return INTERNAL::LogImpl().getLogfile().c_str();
 }
 
 YSE::log & YSE::log::setLogfile(const char * path) {
