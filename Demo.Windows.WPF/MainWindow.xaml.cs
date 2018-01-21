@@ -24,6 +24,10 @@ namespace Demo.Windows.WPF
   public partial class MainWindow : Window
   {
     Yse.sound sound = null;
+
+    sound patcherSound = null;
+    patcher patcher = null;
+
     DispatcherTimer timer = new DispatcherTimer();
     bool AudioTestActive = false;
 
@@ -79,6 +83,20 @@ namespace Demo.Windows.WPF
     {
       AudioTestActive = !AudioTestActive;
       Yse.Yse.System().AudioTest(AudioTestActive);
+    }
+
+    private void PatcherButton_Click(object sender, RoutedEventArgs e)
+    {
+      if(patcherSound == null)
+      {
+        patcherSound = new sound();
+        patcher = new patcher();
+        patcher.create(1);
+        pHandle handle = patcher.CreateObject("~sine");
+        patcher.Connect(handle, 0, patcher.GetOutputHandle(0), 0);
+        patcherSound.create(patcher);
+        patcherSound.play();
+      }
     }
   }
 }

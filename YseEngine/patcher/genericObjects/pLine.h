@@ -5,17 +5,18 @@
 namespace YSE {
   namespace PATCHER {
 
-    class pLine : public pObject {
-    public:
-      pLine();
+    PATCHER_CLASS(pLine, YSE::OBJ::D_LINE)
+      _HAS_PARAMS
+      _HAS_MESSAGES
+      _HAS_CALCULATE
 
-      virtual const char * Type() const;
-
-      virtual void RequestData();
-
-      static pObject * Create();
+      FLOAT_IN(SetTarget)
+      FLOAT_IN(SetTime)
 
     private:
+      aFlt target;
+      aFlt time;
+      bool stop;
       DSP::ramp ramp;
     };
   }

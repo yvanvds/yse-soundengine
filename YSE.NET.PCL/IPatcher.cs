@@ -11,10 +11,8 @@ namespace YSE
     IHandle CreateObject(string type);
     void DeleteObject(IHandle handle);
 
-    void Connect(IHandle from, int pinOut, IHandle to, int pinIn);
-    void Disconnect(IHandle to, int pinIn);
-
-    IHandle GetOutputHandle(uint output);
+    void Connect(IHandle from, int outlet, IHandle to, int inlet);
+    void Disconnect(IHandle from, int outlet, IHandle to, int inlet);
 
     void Dispose();
   }

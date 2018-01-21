@@ -4,15 +4,15 @@
 namespace YSE {
   namespace PATCHER {
 
-    class pFrequencyToMidi : public pObject {
-    public:
-      pFrequencyToMidi();
+    PATCHER_CLASS(pFrequencyToMidi, YSE::OBJ::FREQUENCYTOMIDI)
+      _NO_PARAMS
+      _NO_MESSAGES
+      _HAS_CALCULATE
 
-      virtual const char * Type() const;
+      FLOAT_IN(SetFrequency)
 
-      virtual void RequestData();
-
-      static pObject * Create();
+    private:
+      float frequency;
     };
 
   }

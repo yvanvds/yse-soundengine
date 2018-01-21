@@ -106,15 +106,12 @@ namespace YSE {
     CIS_DELETE,      // flagged for deletion from implementations list
   };
 
-  enum PIN_TYPE {
-    PIN_INVALID = 1 << 0,
-    PIN_BOOL = 1 << 1,
-    PIN_FLOAT = 1 << 2,
-    PIN_INT = 1 << 3,
-    PIN_STRING = 1 << 4,
-    PIN_DSP_BUFFER = 1 << 5
+  enum OUT_TYPE {
+    INVALID,
+    BANG,
+    FLOAT,
+    BUFFER,
   };
-
 
   // used by utils/error.hpp
   enum ERROR_LEVEL {

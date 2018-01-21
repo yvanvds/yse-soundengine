@@ -5,17 +5,18 @@
 namespace YSE {
   namespace PATCHER {
 
-    class pLowpass : public pObject {
-    public:
-      pLowpass();
+    PATCHER_CLASS(pLowpass, YSE::OBJ::D_LOWPASS)
+      _HAS_PARAMS
+      _NO_MESSAGES
+      _HAS_CALCULATE
+      _HAS_DSP_RESET
 
-      virtual const char * Type() const;
-
-      virtual void RequestData();
-
-      static pObject * Create();
+      BUFFER_IN(SetBuffer)
+      FLOAT_IN(SetFrequency)
 
     private:
+      DSP::buffer * buffer;
+      aFlt frequency;
       DSP::lowPass filter;
     };
   }

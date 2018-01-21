@@ -36,19 +36,14 @@ void patcher::DeleteObject(pHandle * obj) {
   pimpl->DeleteObject(obj);
 }
 
-void patcher::Connect(pHandle * from, int pinOut, pHandle * to, int pinIn) {
+void patcher::Connect(pHandle * from, int outlet, pHandle * to, int inlet) {
   if (pimpl == nullptr) return;
-  pimpl->Connect(from, pinOut, to, pinIn);
+  pimpl->Connect(from, outlet, to, inlet);
 }
 
-void patcher::Disconnect(pHandle * to, int pinIn) {
+void patcher::Disconnect(pHandle * from, int outlet, pHandle * to, int inlet) {
   if (pimpl == nullptr) return;
-  pimpl->Disconnect(to, pinIn);
-}
-
-pHandle * patcher::GetOutputHandle(unsigned int output) {
-  if (pimpl == nullptr) return nullptr;
-  return pimpl->GetOutputHandle(output);
+  pimpl->Disconnect(from, outlet, to, inlet);
 }
 
 bool patcher::IsValidObject(const char * type) {

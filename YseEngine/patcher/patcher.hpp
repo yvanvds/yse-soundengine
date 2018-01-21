@@ -18,10 +18,8 @@ namespace YSE {
     YSE::pHandle * CreateObject(const char * type);
     void DeleteObject(YSE::pHandle * obj);
 
-    void Connect(YSE::pHandle * from, int pinOut, YSE::pHandle * to, int pinIn);
-    void Disconnect(YSE::pHandle * to, int pinIn);
-
-    YSE::pHandle * GetOutputHandle(unsigned int output);
+    void Connect(YSE::pHandle * from, int outlet, YSE::pHandle * to, int inlet);
+    void Disconnect(YSE::pHandle * from, int outlet, YSE::pHandle * to, int inlet);
 
     static bool IsValidObject(const char * type);
 

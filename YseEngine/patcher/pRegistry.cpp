@@ -1,7 +1,7 @@
 #include "pRegistry.h"
 #include "pObjectList.hpp"
 
-#include "genericObjects/pOutput.h"
+#include "genericObjects\pDac.h"
 #include "genericObjects/pLine.h"
 #include "generatorObjects/pSine.h"
 #include "math/pAdd.h"
@@ -26,14 +26,13 @@ pRegistry::pRegistry() {
   // add all objects here
 
   // Generic
-  Add(OBJ::D_OUT, pOutput::Create);
   Add(OBJ::D_LINE, pLine::Create);
 
   Add(OBJ::D_SINE, pSine::Create);
 
   Add(OBJ::D_ADD, pAdd::Create);
   Add(OBJ::D_SUBSTRACT, pSubstract::Create);
-  Add(OBJ::D_MULTIPLIER, pMultiplier::Create);
+  Add(OBJ::D_MULTIPLY, pMultiply::Create);
   Add(OBJ::D_DIVIDE, pDivide::Create);
   
   Add(OBJ::MIDITOFREQUENCY, pMidiToFrequency::Create);

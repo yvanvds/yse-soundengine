@@ -4,17 +4,21 @@
 namespace YSE {
   namespace PATCHER {
 
-    class pAdd : public pObject {
-    public:
-      pAdd();
+    PATCHER_CLASS(pAdd, YSE::OBJ::D_ADD)
+      _HAS_PARAMS
+      _NO_MESSAGES
+      _HAS_CALCULATE
+      _HAS_DSP_RESET
 
-      virtual const char * Type() const;
-
-      virtual void RequestData();
-
-      static pObject * Create();
+      BUFFER_IN(SetLeftBuffer)
+      BUFFER_IN(SetRightBuffer)
+      FLOAT_IN(SetRightFloat)
 
     private:
+      DSP::buffer * leftIn;
+      DSP::buffer * rightIn;
+      float rightFloatIn;
+
       DSP::buffer output;
     };
   }

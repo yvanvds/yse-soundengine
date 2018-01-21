@@ -17,6 +17,8 @@ namespace YSE
     IChannel ChannelVoice { get; }
     IChannel ChannelGui { get; }
 
+    ILog Log { get; }
+
     ISound CreateSound();
     IChannel CreateChannel();
     IReverb CreateReverb();

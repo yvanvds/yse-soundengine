@@ -14,31 +14,20 @@ const char * pHandle::Type() const {
   }
 }
 
-bool YSE::pHandle::SetData(unsigned int pin, bool value)
+void YSE::pHandle::SetData(unsigned int inlet, float value)
 {
-  return object->SetData(pin, value);
+  object->GetInlet(inlet)->SetFloat(value);
 }
 
-bool YSE::pHandle::SetData(unsigned int pin, int value)
-{
-  return object->SetData(pin, value);
+void YSE::pHandle::SetParam(unsigned int pos, float value) {
+  object->SetParam(pos, value);
 }
 
-bool YSE::pHandle::SetData(unsigned int pin, float value)
-{
-  return object->SetData(pin, value);
+bool YSE::pHandle::IsDSPInput(unsigned int inlet) {
+  return object->GetInlet(inlet)->AcceptsDSP();
 }
 
-bool YSE::pHandle::SetData(unsigned int pin, const char * value)
-{
-  return object->SetData(pin, value);
-}
-
-int YSE::pHandle::InputDataTypes(unsigned int pin) {
-  return object->GetInputTypes(pin);
-}
-
-YSE::PIN_TYPE YSE::pHandle::OutputDataType(unsigned int pin) {
+YSE::OUT_TYPE YSE::pHandle::OutputDataType(unsigned int pin) {
   return object->GetOutputType(pin);
 }
 

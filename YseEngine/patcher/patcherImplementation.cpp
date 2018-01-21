@@ -2,20 +2,17 @@
 #include "pRegistry.h"
 #include "pObjectList.hpp"
 #include "headers\enums.hpp"
-#include "genericObjects/pOutput.h"
+#include "genericObjects\pDac.h"
 #include "pHandle.hpp"
 
 using namespace YSE::PATCHER;
 
 patcherImplementation::patcherImplementation(int mainOutputs, YSE::patcher * head)
-  : controlledBySound(false)
+  : pObject(false) 
+  , controlledBySound(false)
   , head(head)
 {
   output.resize(mainOutputs);
-
-  for (int i = 0; i < mainOutputs; i++) {
-    AddOutput(PIN_TYPE::PIN_DSP_BUFFER); 
-  }
 }
 
 patcherImplementation::~patcherImplementation() {
@@ -30,53 +27,75 @@ const char * patcherImplementation::Type() const {
   return YSE::OBJ::PATCHER;
 }
 
-void patcherImplementation::RequestData() {
+void patcherImplementation::Calculate() {
   // works a bit different in case of patchers!
   // only called by the main patcher to generate output
   
-  // invalidate all data
-  ResetData();
+  // invalidate all dsp buffers
+  ResetDSP();
 
   // calculate all objects
-  for (const auto& any : outputObjects) {
-    any->object->RequestData();
-  }
-
-  // copy buffer to output
-  for (unsigned int i = 0; i < output.size(); i++) {
-    output[i] = *((pOutput*)outputObjects[i]->object)->GetBuffer(0);
-  }
-}
-
-void patcherImplementation::ResetData() {
   for (const auto& any : objects) {
-    any.second->ResetData();
+    if (any.second->IsDSPStartPoint()) {
+      any.second->Calculate();
+    }
+  }
+
+  // clear output 
+  for (unsigned int i = 0; i < output.size(); i++) {
+    output[i] = 0;
+  }
+
+  // sum outputs
+  int counter = 0;
+  for (const auto& any : objects) {
+    if (any.second->Type() == YSE::OBJ::D_DAC) {
+      for (unsigned int i = 0; i < output.size(); i++) {
+        YSE::DSP::buffer * ptr = ((pDac*)any.second)->GetBuffer(i);
+        if (ptr != nullptr) {
+          output[i] = *ptr;
+        }
+      }
+      counter++;
+    }
+  }
+
+  // normalize output 
+  if (counter > 1) {
+    for (unsigned int i = 0; i < output.size(); i++) {
+      output[i] /= counter;
+    }
   }
 }
 
-YSE::pHandle * patcherImplementation::AddOutput(YSE::PIN_TYPE type) {
-  
-  pHandle * handle = CreateObject(YSE::OBJ::D_OUT);
-  ((pOutput*)handle->object)->Setup(type);
-
-  outputObjects.push_back(handle);
-  return handle;
+void patcherImplementation::ResetDSP() {
+  for (const auto& any : objects) {
+    any.second->ResetDSP();
+  }
 }
 
-void patcherImplementation::Connect(YSE::pHandle * from, int fromPin, YSE::pHandle * to, int toPin) {
-  pinOut * pOut = from->object->GetOutput(fromPin);
-  pinIn * pIn = to->object->GetInput(toPin);
-  from->object->ConnectOutput(pIn, fromPin);
-  to->object->ConnectInput(pOut, toPin);
+
+void patcherImplementation::Connect(YSE::pHandle * from, int outlet, YSE::pHandle * to, int inlet) {
+  PATCHER::outlet * out = from->object->GetOutlet(outlet);
+  PATCHER::inlet * in = to->object->GetInlet(inlet);
+  from->object->ConnectOutlet(in, outlet);
+  to->object->ConnectInlet(out, inlet);
 }
 
-void patcherImplementation::Disconnect(YSE::pHandle * to, int pinIn) {
-  to->object->DisconnectInput(pinIn);
+void patcherImplementation::Disconnect(YSE::pHandle * from, int outlet, YSE::pHandle * to, int inlet) {
+  to->object->DisconnectInlet(from->object->GetOutlet(outlet), inlet);
 }
 
 YSE::pHandle * patcherImplementation::CreateObject(const char * type) {
   YSE::pHandle * handle = nullptr;
-  pObject * object = Register().Get(type);
+  pObject * object = nullptr;
+
+  if (strcmp(type, OBJ::D_DAC) == 0) {
+    object = new pDac(output.size());
+  }
+  else {
+    object = Register().Get(type);
+  }
 
   if (object == nullptr) return nullptr;
 
@@ -90,9 +109,4 @@ void patcherImplementation::DeleteObject(YSE::pHandle * handle) {
   objects.erase(handle);
   delete handle->object;
   delete handle;
-}
-
-YSE::pHandle * patcherImplementation::GetOutputHandle(unsigned int output) {
-  if (output >= outputObjects.size()) return nullptr;
-  return outputObjects[output];
 }

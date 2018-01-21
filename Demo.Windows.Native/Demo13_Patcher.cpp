@@ -10,13 +10,14 @@ void DemoPatcher::Setup() {
   lfo = patcher.CreateObject(OBJ::D_SINE);
   mtof = patcher.CreateObject(OBJ::MIDITOFREQUENCY);
   volume = patcher.CreateObject("~*");
-  pHandle * multiplier = patcher.CreateObject(OBJ::D_MULTIPLIER);
+  pHandle * multiplier = patcher.CreateObject(OBJ::D_MULTIPLY);
+  pHandle * dac = patcher.CreateObject(OBJ::D_DAC);
 
   patcher.Connect(mtof, 0, sine, 0);
   patcher.Connect(sine, 0, multiplier, 0);
   patcher.Connect(lfo, 0, multiplier, 1);
   patcher.Connect(multiplier, 0, volume, 0);
-  patcher.Connect(volume, 0, patcher.GetOutputHandle(0), 0);
+  patcher.Connect(volume, 0, dac, 0);
 
   note = 60.f;
   sine->SetData(0, note);

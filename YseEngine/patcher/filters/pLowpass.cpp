@@ -1,35 +1,44 @@
 #include "pLowpass.h"
-#include "..\pObjectList.hpp"
-
 
 using namespace YSE::PATCHER;
 
-pObject * pLowpass::Create() { return new pLowpass(); }
+#define className pLowpass
 
-pLowpass::pLowpass() {
+CONSTRUCT_DSP() {
 
   // in 0: audio buffer
   // in 1: frequency (float)
 
   // out 0: audio output
+  ADD_INLET_0;
+  REG_BUFFER_FUNC(pLowpass::SetBuffer);
 
-  inputs.emplace_back(PIN_TYPE::PIN_DSP_BUFFER, 0, this);
-  inputs.emplace_back(PIN_TYPE::PIN_FLOAT, 1, this);
-  outputs.emplace_back(PIN_TYPE::PIN_DSP_BUFFER, 0, this);
+  ADD_INLET_1;
+  REG_FLOAT_FUNC(pLowpass::SetFrequency);
 
-  inputs[1].SetData(1.f);
+  ADD_OUTLET_BUFFER;
+
+  buffer = nullptr;
+  frequency = 0.f;
 }
 
-const char * pLowpass::Type() const {
-  return YSE::OBJ::D_LOWPASS;
+PARAMS_FUNC() {
+  if (pos == 0) frequency = value;
 }
 
-void pLowpass::RequestData() {
-  UpdateInputs();
+RESET_FUNC() // {
+buffer = nullptr;
+}
 
-  filter.setFrequency(inputs[1].GetFloat());
+BUFFER_IN_FUNC(pLowpass::SetBuffer) {
+  this->buffer = buffer;
+}
 
-  if (inputs[0].IsConnected()) {
-    outputs[0].SetData(&filter(*inputs[0].GetBuffer()));
-  }
+FLOAT_IN_FUNC(pLowpass::SetFrequency) {
+  frequency = value;
+}
+
+CALC_FUNC() {
+  filter.setFrequency(frequency);
+  outputs[0].SendBuffer(&filter(*buffer));
 }

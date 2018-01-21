@@ -4,14 +4,22 @@ namespace YSE {
   struct API OBJ {
     static constexpr char const * PATCHER = "patcher";
 
+    static constexpr char const * D_DAC = "~dac";
+    static constexpr char const * D_ADC = "~adc";
+
     static constexpr char const * D_OUT = "~out";
     static constexpr char const * D_LINE = "~line";
 
     static constexpr char const * D_SINE = "~sine";
 
+    static constexpr char const * G_ADD = "+";
+    static constexpr char const * G_SUBSTRACT = "-";
+    static constexpr char const * G_MULTIPLY = "*";
+    static constexpr char const * G_DIVIDE = "/";
+
     static constexpr char const * D_ADD = "~+";
     static constexpr char const * D_SUBSTRACT = "~-";
-    static constexpr char const * D_MULTIPLIER = "~*";
+    static constexpr char const * D_MULTIPLY = "~*";
     static constexpr char const * D_DIVIDE = "~/";
 
     static constexpr char const * MIDITOFREQUENCY = "mtof";

@@ -1,41 +1,59 @@
+#include <functional>
 #include "pAdd.h"
-#include "..\pObjectList.hpp"
 
 using namespace YSE::PATCHER;
 
-pObject * pAdd::Create() { return new pAdd(); }
+#define className pAdd
 
-pAdd::pAdd() {
+CONSTRUCT_DSP() {
 
+  // default data
+  leftIn = nullptr;
+  rightIn = nullptr;
+  rightFloatIn = 1.f;
+  
   // in 0: audio buffer
+  ADD_INLET_0;
+  REG_BUFFER_FUNC(pAdd::SetLeftBuffer);
+
   // in 1: multiplier (float or audio)
+  ADD_INLET_1;
+  REG_BUFFER_FUNC(pAdd::SetRightBuffer);
+  REG_FLOAT_FUNC(pAdd::SetRightFloat);
 
   // out 0: audio output
-
-  inputs.emplace_back(PIN_TYPE::PIN_DSP_BUFFER, 0, this);
-  inputs.emplace_back(PIN_TYPE::PIN_FLOAT | PIN_TYPE::PIN_DSP_BUFFER, 1, this);
-  outputs.emplace_back(PIN_TYPE::PIN_DSP_BUFFER, 0, this);
-
-  inputs[1].SetData(1.f);
+  ADD_OUTLET_BUFFER;
 }
 
-const char * pAdd::Type() const {
-  return YSE::OBJ::D_ADD;
+PARAMS_FUNC() {
+  if (pos == 0) rightFloatIn = value;
 }
 
-void pAdd::RequestData() {
-  UpdateInputs();
+BUFFER_IN_FUNC(pAdd::SetLeftBuffer) {
+  leftIn = buffer;
+}
 
-  if (inputs[0].IsConnected()) {
-    output = *inputs[0].GetBuffer();
+BUFFER_IN_FUNC(pAdd::SetRightBuffer) {
+  rightIn = buffer;
+}
+
+FLOAT_IN_FUNC(pAdd::SetRightFloat) {
+  rightFloatIn = value;
+}
+
+RESET_FUNC() // {
+  leftIn = rightIn = nullptr;
+}
+
+CALC_FUNC() {
+  output = *leftIn;
+
+  if (rightIn == nullptr) {
+    output += rightFloatIn;
+  }
+  else {
+    output += *rightIn;
   }
 
-  if (inputs[1].GetCurentDataType() == PIN_FLOAT) {
-    output += inputs[1].GetFloat();
-  }
-  else if (inputs[1].GetCurentDataType() == PIN_DSP_BUFFER) {
-    output += *inputs[1].GetBuffer();
-  }
-
-  outputs[0].SetData(&output);
+  outputs[0].SendBuffer(&output);
 }

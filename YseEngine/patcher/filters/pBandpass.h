@@ -5,17 +5,19 @@
 namespace YSE {
   namespace PATCHER {
 
-    class pBandpass : public pObject {
-    public:
-      pBandpass();
+    PATCHER_CLASS(pBandpass, YSE::OBJ::D_BANDPASS)
+      _HAS_PARAMS
+      _NO_MESSAGES
+      _HAS_CALCULATE
+      _HAS_DSP_RESET
 
-      virtual const char * Type() const;
-
-      virtual void RequestData();
-
-      static pObject * Create();
+      BUFFER_IN(SetBuffer)
+      FLOAT_IN(SetFrequency)
+      FLOAT_IN(SetQ)
 
     private:
+      DSP::buffer * buffer;
+      aFlt frequency, Q;
       YSE::DSP::bandPass filter;
     };
   }

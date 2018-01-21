@@ -17,19 +17,16 @@ namespace YSENET
       create(mainOutputs);
     }
 
-    public void Disconnect(IHandle to, int pinIn)
+    public void Disconnect(IHandle from, int outlet, IHandle to, int inlet)
     {
-      base.Disconnect(((Handle)to).GetSource(), pinIn);
-    }
-
-    public new IHandle GetOutputHandle(uint output)
-    {
-      return new Handle(base.GetOutputHandle(output));
+      base.Disconnect(((Handle)from).GetSource(), outlet, ((Handle)to).GetSource(), inlet);
     }
 
     public new IHandle CreateObject(string type)
     {
-      return new Handle(base.CreateObject(type));
+      Yse.pHandle handle = base.CreateObject(type);
+      if (handle == null) return null;
+      else return new Handle(handle);
     }
 
     public void DeleteObject(IHandle handle)

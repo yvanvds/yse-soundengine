@@ -4,34 +4,54 @@
 
 using namespace YSE::PATCHER;
 
-pObject * pBandpass::Create() { return new pBandpass(); }
+#define className pBandpass
 
-pBandpass::pBandpass() {
+CONSTRUCT_DSP() {
 
   // in 0: audio buffer
   // in 1: frequency (float)
   // in 2: Q (float)
 
   // out 0: audio output
+  ADD_INLET_0;
+  REG_BUFFER_FUNC(pBandpass::SetBuffer);
 
-  inputs.emplace_back(PIN_TYPE::PIN_DSP_BUFFER, 0, this);
-  inputs.emplace_back(PIN_TYPE::PIN_FLOAT, 1, this);
-  inputs.emplace_back(PIN_TYPE::PIN_FLOAT, 2, this);
-  outputs.emplace_back(PIN_TYPE::PIN_DSP_BUFFER, 0, this);
+  ADD_INLET_1;
+  REG_FLOAT_FUNC(pBandpass::SetFrequency);
 
-  inputs[1].SetData(1.f);
+  ADD_INLET_2;
+  REG_FLOAT_FUNC(pBandpass::SetQ);
+
+  ADD_OUTLET_BUFFER;
+
+  buffer = nullptr;
+  frequency = Q = 0.f;
 }
 
-const char * pBandpass::Type() const {
-  return YSE::OBJ::D_BANDPASS;
-}
-
-void pBandpass::RequestData() {
-  UpdateInputs();
-
-  filter.set(inputs[1].GetFloat(), inputs[2].GetFloat());
-
-  if (inputs[0].IsConnected()) {
-    outputs[0].SetData(&filter(*inputs[0].GetBuffer()));
+PARAMS_FUNC() {
+  switch (pos) {
+    case 0: frequency = value; break;
+    case 1: Q = value; break;
   }
+}
+
+RESET_FUNC() // {
+  buffer = nullptr;
+}
+
+BUFFER_IN_FUNC(pBandpass::SetBuffer) {
+  this->buffer = buffer;
+}
+
+FLOAT_IN_FUNC(pBandpass::SetFrequency) {
+  frequency = value;
+}
+
+FLOAT_IN_FUNC(pBandpass::SetQ) {
+  Q = value;
+}
+
+CALC_FUNC() {
+  filter.set(frequency, Q);
+  outputs[0].SendBuffer(&filter(*buffer));
 }

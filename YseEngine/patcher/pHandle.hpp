@@ -12,16 +12,14 @@ namespace YSE {
     pHandle(PATCHER::pObject * obj);
     const char * Type() const;
 
-    bool SetData(unsigned int pin, bool value);
-    bool SetData(unsigned int pin, int value);
-    bool SetData(unsigned int pin, float value);
-    bool SetData(unsigned int pin, const char * value);
+    void SetData(unsigned int inlet, float value);
+    void SetParam(unsigned int pos, float value);
 
     int GetInputs();
     int GetOutputs();
 
-    int InputDataTypes(unsigned int pin);
-    YSE::PIN_TYPE OutputDataType(unsigned int pin);
+    bool IsDSPInput(unsigned int inlet);
+    YSE::OUT_TYPE OutputDataType(unsigned int pin);
 
   private:
     PATCHER::pObject * object;

@@ -4,17 +4,21 @@
 namespace YSE {
   namespace PATCHER {
 
-    class pMultiplier : public pObject {
-    public:
-      pMultiplier();
+    PATCHER_CLASS(pMultiply, YSE::OBJ::D_MULTIPLY)
+      _HAS_PARAMS
+      _NO_MESSAGES
+      _HAS_CALCULATE
+      _HAS_DSP_RESET
 
-      virtual const char * Type() const;
-
-      virtual void RequestData();
-
-      static pObject * Create();
+      BUFFER_IN(SetLeftBuffer)
+      BUFFER_IN(SetRightBuffer)
+      FLOAT_IN(SetRightFloat)
 
     private:
+      DSP::buffer * leftIn;
+      DSP::buffer * rightIn;
+      aFlt rightFloatIn;
+
       DSP::buffer output;
     };
   }

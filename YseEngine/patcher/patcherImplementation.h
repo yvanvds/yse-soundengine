@@ -16,16 +16,17 @@ namespace YSE {
       ~patcherImplementation();
 
       virtual const char * Type() const;
-      virtual void ResetData();
-      virtual void RequestData();
+      virtual void ResetDSP();
+      virtual void Calculate();
+
+      virtual void SetParam(unsigned int pos, float value) {}
+      virtual void SetMessage(const std::string & message, float value) {}
 
       pHandle * CreateObject(const char * type);
       void DeleteObject(pHandle * obj);
       
-      void Connect(pHandle * from, int pinOut, pHandle * to, int pinIn);
-      void Disconnect(pHandle * to, int pinIn);
-
-      pHandle * GetOutputHandle(unsigned int output);
+      void Connect(pHandle * from, int outlet, pHandle * to, int inlet);
+      void Disconnect(pHandle * from, int outlet, pHandle * to, int inlet);
 
       std::vector<YSE::DSP::buffer>  output;
 
@@ -34,10 +35,7 @@ namespace YSE {
 
     private:
 
-      pHandle * AddOutput(PIN_TYPE type);
-
       std::map<pHandle*, pObject*> objects;
-      std::vector<pHandle*> outputObjects;
     };
 
   }

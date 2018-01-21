@@ -423,12 +423,6 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\pEnums.h">
       <Filter>patcher</Filter>
     </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\pin.h">
-      <Filter>patcher</Filter>
-    </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\genericObjects\pOutput.h">
-      <Filter>patcher\genericObjects</Filter>
-    </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\generatorObjects\pSine.h">
       <Filter>patcher\generatorObjects</Filter>
     </ClInclude>
@@ -476,6 +470,18 @@
     </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\filters\pLowpass.h">
       <Filter>patcher\filters</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\gAdd.h">
+      <Filter>patcher\math</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\genericObjects\pDac.h">
+      <Filter>patcher\genericObjects</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\inlet.h">
+      <Filter>patcher</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\outlet.h">
+      <Filter>patcher</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -746,9 +752,6 @@
       <Filter>internal</Filter>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)device\OpenSLImplementation.cpp" />
-    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\pin.cpp">
-      <Filter>patcher</Filter>
-    </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\pObject.cpp">
       <Filter>patcher</Filter>
     </ClCompile>
@@ -769,9 +772,6 @@
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\patcherImplementation.cpp">
       <Filter>patcher</Filter>
-    </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\genericObjects\pOutput.cpp">
-      <Filter>patcher\genericObjects</Filter>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\pMultiplier.cpp">
       <Filter>patcher\math</Filter>
@@ -799,6 +799,18 @@
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\pAdd.cpp">
       <Filter>patcher\math</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\gAdd.cpp">
+      <Filter>patcher\math</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\genericObjects\pDac.cpp">
+      <Filter>patcher\genericObjects</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\inlet.cpp">
+      <Filter>patcher</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\outlet.cpp">
+      <Filter>patcher</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

@@ -4,29 +4,22 @@
 
 using namespace YSE::PATCHER;
 
-pObject * pMidiToFrequency::Create() { return new pMidiToFrequency(); }
+#define className pMidiToFrequency
 
-pMidiToFrequency::pMidiToFrequency() {
-  // in 0: int or float
-  // out 0: audio output
+CONSTRUCT() {
+  
+  midiValue = 0.f;
 
-  inputs.emplace_back(PIN_INT | PIN_FLOAT, 0, this);
-  outputs.emplace_back(PIN_FLOAT, 0, this);
-
-  inputs[0].SetData(0.f);
+  ADD_INLET_0;
+  REG_FLOAT_FUNC(pMidiToFrequency::SetMidi);
+  
+  ADD_OUTLET_FLOAT;
 }
 
-const char * pMidiToFrequency::Type() const {
-  return YSE::OBJ::MIDITOFREQUENCY;
+FLOAT_IN_FUNC(pMidiToFrequency::SetMidi) {
+  midiValue = value;
 }
 
-void pMidiToFrequency::RequestData() {
-  UpdateInputs();
-
-  if (inputs[0].GetCurentDataType() == PIN_INT) {
-    outputs[0].SetData(YSE::DSP::MidiToFreq(inputs[0].GetInt()));
-  }
-  else if (inputs[0].GetCurentDataType() == PIN_FLOAT) {
-    outputs[0].SetData(YSE::DSP::MidiToFreq(inputs[0].GetFloat()));
-  }
+CALC_FUNC() {
+  outputs[0].SendFloat(YSE::DSP::MidiToFreq(midiValue));
 }

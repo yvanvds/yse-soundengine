@@ -1,41 +1,59 @@
 #include "pMultiplier.h"
-#include "..\pObjectList.hpp"
 
 using namespace YSE::PATCHER;
 
-pObject * pMultiplier::Create() { return new pMultiplier(); }
+#define className pMultiply
 
-pMultiplier::pMultiplier() {
+CONSTRUCT_DSP() {
+
+  // default data
+  leftIn = nullptr;
+  rightIn = nullptr;
+  rightFloatIn = 1.f;
 
   // in 0: audio buffer
+  ADD_INLET_0;
+  REG_BUFFER_FUNC(pMultiply::SetLeftBuffer);
+
   // in 1: multiplier (float or audio)
+  ADD_INLET_1;
+  REG_BUFFER_FUNC(pMultiply::SetRightBuffer);
+  REG_FLOAT_FUNC(pMultiply::SetRightFloat);
 
   // out 0: audio output
-
-  inputs.emplace_back(PIN_TYPE::PIN_DSP_BUFFER, 0, this);
-  inputs.emplace_back(PIN_TYPE::PIN_FLOAT | PIN_TYPE::PIN_DSP_BUFFER, 1, this);
-  outputs.emplace_back(PIN_TYPE::PIN_DSP_BUFFER, 0, this);
-  
-  inputs[1].SetData(1.f);
+  ADD_OUTLET_BUFFER;
 }
 
-const char * pMultiplier::Type() const {
-  return YSE::OBJ::D_MULTIPLIER;
+PARAMS_FUNC() {
+  if (pos == 0) rightFloatIn = value;
 }
 
-void pMultiplier::RequestData() {
-  UpdateInputs();
 
-  if (inputs[0].IsConnected()) {
-    output = *inputs[0].GetBuffer();
+BUFFER_IN_FUNC(pMultiply::SetLeftBuffer) {
+  leftIn = buffer;
+}
+
+BUFFER_IN_FUNC(pMultiply::SetRightBuffer) {
+  rightIn = buffer;
+}
+
+FLOAT_IN_FUNC(pMultiply::SetRightFloat) {
+  rightFloatIn = value;
+}
+
+RESET_FUNC() // {
+  leftIn = rightIn = nullptr;
+}
+
+CALC_FUNC() {
+  output = *leftIn;
+
+  if (rightIn == nullptr) {
+    output *= rightFloatIn;
+  }
+  else {
+    output *= *rightIn;
   }
 
-  if (inputs[1].GetCurentDataType() == PIN_FLOAT) {
-    output *= inputs[1].GetFloat();
-  }
-  else if (inputs[1].GetCurentDataType() == PIN_DSP_BUFFER) {
-    output *= *inputs[1].GetBuffer();
-  }
-
-  outputs[0].SetData(&output);
+  outputs[0].SendBuffer(&output);
 }

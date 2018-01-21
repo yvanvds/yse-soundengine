@@ -1,27 +1,42 @@
 #include "pSine.h"
-#include "..\pObjectList.hpp"
 
 using namespace YSE::PATCHER;
 
-pObject * pSine::Create() { return new pSine(); }
+#define className pSine
 
-pSine::pSine() 
+CONSTRUCT_DSP() 
 {
-  inputs.emplace_back(PIN_TYPE::PIN_FLOAT, 0, this);
-  outputs.emplace_back(PIN_TYPE::PIN_DSP_BUFFER, 0, this);
+  frequency = 440.f;
+  freqBuffer = nullptr;
 
-  // set starting frequency
-  inputs[0].SetData(440.f);
+  ADD_INLET_0;
+  REG_BUFFER_FUNC(pSine::SetFrequencyBuffer);
+  REG_FLOAT_FUNC(pSine::SetFrequency);
+
+  ADD_OUTLET_BUFFER;
 }
 
-const char * pSine::Type() const {
-  return YSE::OBJ::D_SINE;
+PARAMS_FUNC() {
+  if (pos == 0) frequency = value;
 }
 
-void pSine::RequestData() {
-  UpdateInputs();
-
-  // generate buffer and send to output
-  outputs[0].SetData(&sine(inputs[0].GetFloat()));
+RESET_FUNC() // {
+  freqBuffer = nullptr;
 }
 
+FLOAT_IN_FUNC(pSine::SetFrequency) {
+  frequency = value;
+}
+
+BUFFER_IN_FUNC(pSine::SetFrequencyBuffer) {
+  freqBuffer = buffer;
+}
+
+CALC_FUNC() {
+  if (freqBuffer != nullptr) {
+    outputs[0].SendBuffer(&sine(*freqBuffer));
+  }
+  else {
+    outputs[0].SendBuffer(&sine(frequency));
+  }
+}

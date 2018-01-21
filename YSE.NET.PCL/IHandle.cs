@@ -4,13 +4,27 @@ using System.Text;
 
 namespace YSE
 {
+  public enum OUT_TYPE
+  {
+    INVALID,
+    BANG,
+    FLOAT,
+    BUFFER,
+  };
+
   public interface IHandle
   {
     string Type();
 
-    bool SetData(uint pin, bool value);
-    bool SetData(uint pin, int value);
-    bool SetData(uint pin, float value);
-    bool SetData(uint pin, string value);
+    void SetData(uint inlet, float value);
+    void SetParam(uint pos, float value);
+
+    int Inputs { get; }
+    int Outputs { get; }
+
+    bool IsDSPInput(uint inlet);
+
+    OUT_TYPE OutputDataType(uint pin);
+    
   }
 }

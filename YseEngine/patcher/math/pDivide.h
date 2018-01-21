@@ -4,18 +4,22 @@
 namespace YSE {
   namespace PATCHER {
 
-    class pDivide : public pObject {
-    public:
-      pDivide();
+    PATCHER_CLASS(pDivide, YSE::OBJ::D_DIVIDE)
+      _HAS_PARAMS
+      _NO_MESSAGES
+      _HAS_CALCULATE
+      _HAS_DSP_RESET
 
-      virtual const char * Type() const;
+      BUFFER_IN(SetLeftBuffer)
+      BUFFER_IN(SetRightBuffer)
+      FLOAT_IN(SetRightFloat)
 
-      virtual void RequestData();
+private:
+  DSP::buffer * leftIn;
+  DSP::buffer * rightIn;
+  float rightFloatIn;
 
-      static pObject * Create();
-
-    private:
-      DSP::buffer output;
-    };
+  DSP::buffer output;
+  };
   }
 }
