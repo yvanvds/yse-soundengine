@@ -13,6 +13,28 @@ namespace YSENET
 
     public int Outputs => source.GetOutputs();
 
+    public Pos Position
+    {
+      get
+      {
+        Yse.Pos f = source.GetPosition();
+        return new YSE.Pos(f.x, f.y, f.z);
+      }
+      set
+      {
+        Yse.Pos f = new Yse.Pos(value.X, value.Y, value.Z);
+        source.SetPosition(f);
+      }
+    }
+
+    public string Name => source.GetName();
+
+    public string Args
+    {
+      get => source.GetParams();
+      set => source.SetParams(value);
+    }
+
     public Yse.pHandle GetSource()
     {
       return source;
@@ -38,11 +60,6 @@ namespace YSENET
       return Convert(source.OutputDataType(pin));
     }
 
-    public void SetParam(uint pos, float value)
-    {
-      source.SetParam(pos, value);
-    }
-
     public bool IsDSPInput(uint inlet)
     {
       return source.IsDSPInput(inlet);
@@ -64,6 +81,19 @@ namespace YSENET
       }
     }
 
+    public uint GetConnections(uint outlet)
+    {
+      return source.GetConnections(outlet);
+    }
 
+    public uint GetConnectionTarget(uint outlet, uint connection)
+    {
+      return source.GetConnectionTarget(outlet, connection);
+    }
+
+    public uint GetConnectionTargetInlet(uint outlet, uint connection)
+    {
+      return source.GetConnectionTargetInlet(outlet, connection);
+    }
   }
 }

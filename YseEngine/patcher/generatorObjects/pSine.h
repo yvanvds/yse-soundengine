@@ -6,13 +6,12 @@ namespace YSE {
   namespace PATCHER {
 
     PATCHER_CLASS(pSine, YSE::OBJ::D_SINE)
-      _HAS_PARAMS
       _NO_MESSAGES
-      _HAS_CALCULATE
-      _HAS_DSP_RESET
+      _DO_CALCULATE
+      _DO_RESET
 
-      FLOAT_IN(SetFrequency)
-      BUFFER_IN(SetFrequencyBuffer)
+      _FLOAT_IN(SetFrequency)
+      _BUFFER_IN(SetFrequencyBuffer)
 
     private:
       DSP::sine sine;

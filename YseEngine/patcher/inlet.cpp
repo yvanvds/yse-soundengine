@@ -105,3 +105,11 @@ bool inlet::AcceptsDSP() const {
 bool inlet::HasActiveDSPConnection() const {
   return dspConnection != nullptr;
 }
+
+int inlet::GetObjectID() {
+  return obj->GetID();
+}
+
+int inlet::GetPosition() {
+  return position;
+}

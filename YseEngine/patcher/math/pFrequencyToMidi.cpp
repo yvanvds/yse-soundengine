@@ -10,17 +10,17 @@ CONSTRUCT()
 {
   frequency = 0.f;
 
-  ADD_INLET_0;
-  REG_FLOAT_FUNC(pFrequencyToMidi::SetFrequency);
+  ADD_IN_0;
+  REG_FLOAT_IN(pFrequencyToMidi::SetFrequency);
 
-  ADD_OUTLET_FLOAT;
+  ADD_OUT_FLOAT;
 }
 
-FLOAT_IN_FUNC(pFrequencyToMidi::SetFrequency) {
+FLOAT_IN(pFrequencyToMidi::SetFrequency) {
   frequency = value;
 }
 
-CALC_FUNC()
+CALC()
 {
   outputs[0].SendFloat(YSE::DSP::FreqToMidi(frequency));
 }

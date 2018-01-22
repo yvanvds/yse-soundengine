@@ -5,14 +5,13 @@ namespace YSE {
   namespace PATCHER {
 
     PATCHER_CLASS(pMultiply, YSE::OBJ::D_MULTIPLY)
-      _HAS_PARAMS
       _NO_MESSAGES
-      _HAS_CALCULATE
-      _HAS_DSP_RESET
+      _DO_CALCULATE
+      _DO_RESET
 
-      BUFFER_IN(SetLeftBuffer)
-      BUFFER_IN(SetRightBuffer)
-      FLOAT_IN(SetRightFloat)
+      _BUFFER_IN(SetLeftBuffer)
+      _BUFFER_IN(SetRightBuffer)
+      _FLOAT_IN(SetRightFloat)
 
     private:
       DSP::buffer * leftIn;

@@ -69,6 +69,9 @@
     <ClInclude Include="Demo13_Patcher.h">
       <Filter>Demos</Filter>
     </ClInclude>
+    <ClInclude Include="Demo14_LoadPatcher.h">
+      <Filter>Demos</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="MenuAction.cpp">
@@ -129,6 +132,9 @@
       <Filter>Demos</Filter>
     </ClCompile>
     <ClCompile Include="Demo13_Patcher.cpp">
+      <Filter>Demos</Filter>
+    </ClCompile>
+    <ClCompile Include="Demo14_LoadPatcher.cpp">
       <Filter>Demos</Filter>
     </ClCompile>
   </ItemGroup>

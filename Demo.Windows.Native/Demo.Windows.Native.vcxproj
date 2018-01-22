@@ -213,6 +213,7 @@ cp ..\Yse.Windows.Native\Debug\Win32\Yse.dll ..\bin\$(ProjectName)\</Command>
     <ClInclude Include="Demo11_VirtualIO.h" />
     <ClInclude Include="Demo12_AudioTest.h" />
     <ClInclude Include="Demo13_Patcher.h" />
+    <ClInclude Include="Demo14_LoadPatcher.h" />
     <ClInclude Include="MenuAction.h" />
     <ClInclude Include="MenuBasics.h" />
     <ClInclude Include="MenuDsp.h" />
@@ -238,6 +239,7 @@ cp ..\Yse.Windows.Native\Debug\Win32\Yse.dll ..\bin\$(ProjectName)\</Command>
     <ClCompile Include="Demo11_VirtualIO.cpp" />
     <ClCompile Include="Demo12_AudioTest.cpp" />
     <ClCompile Include="Demo13_Patcher.cpp" />
+    <ClCompile Include="Demo14_LoadPatcher.cpp" />
     <ClCompile Include="MenuAction.cpp" />
     <ClCompile Include="MenuBasics.cpp" />
     <ClCompile Include="MenuDsp.cpp" />

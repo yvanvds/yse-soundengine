@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "Demo13_Patcher.h"
+#include <fstream>
 
 using namespace YSE;
 
@@ -20,12 +21,13 @@ void DemoPatcher::Setup() {
   patcher.Connect(volume, 0, dac, 0);
 
   note = 60.f;
-  sine->SetData(0, note);
+  mtof->SetData(0, note);
+  sine->SetParams("440");
 
   lfoFrequency = 4.f;
-  lfo->SetData(0, lfoFrequency);
+  lfo->SetParams("4");
 
-  volume->SetData(1, 0.f);
+  volume->SetParams("1");
 }
 
 
@@ -38,6 +40,7 @@ DemoPatcher::DemoPatcher()
   AddAction('4', "LFO Down", std::bind(&DemoPatcher::LfoDown, this));
   AddAction('5', "Sound On", std::bind(&DemoPatcher::SoundOn, this));
   AddAction('6', "Sound Off", std::bind(&DemoPatcher::SoundOff, this));
+  AddAction('7', "Save to File", std::bind(&DemoPatcher::SaveToFile, this));
   Setup();
   
   sound.create(patcher).play();
@@ -69,4 +72,11 @@ void DemoPatcher::SoundOn() {
 
 void DemoPatcher::SoundOff() {
   volume->SetData(1, 0.f);
+}
+
+void DemoPatcher::SaveToFile() {
+  std::string result = patcher.DumpJSON();
+  std::ofstream out("patcher.json");
+  out << result;
+  out.close();
 }

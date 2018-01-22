@@ -7,38 +7,35 @@ using namespace YSE::PATCHER;
 CONSTRUCT_DSP() {
 
   // in 0: audio buffer
+  ADD_IN_0;
+  REG_BUFFER_IN(pLowpass::SetBuffer);
+
   // in 1: frequency (float)
+  ADD_IN_1;
+  REG_FLOAT_IN(pLowpass::SetFrequency);
 
   // out 0: audio output
-  ADD_INLET_0;
-  REG_BUFFER_FUNC(pLowpass::SetBuffer);
+  ADD_OUT_BUFFER;
 
-  ADD_INLET_1;
-  REG_FLOAT_FUNC(pLowpass::SetFrequency);
-
-  ADD_OUTLET_BUFFER;
+  ADD_PARAM(frequency);
 
   buffer = nullptr;
   frequency = 0.f;
 }
 
-PARAMS_FUNC() {
-  if (pos == 0) frequency = value;
-}
-
-RESET_FUNC() // {
+RESET() // {
 buffer = nullptr;
 }
 
-BUFFER_IN_FUNC(pLowpass::SetBuffer) {
+BUFFER_IN(pLowpass::SetBuffer) {
   this->buffer = buffer;
 }
 
-FLOAT_IN_FUNC(pLowpass::SetFrequency) {
+FLOAT_IN(pLowpass::SetFrequency) {
   frequency = value;
 }
 
-CALC_FUNC() {
+CALC() {
   filter.setFrequency(frequency);
   outputs[0].SendBuffer(&filter(*buffer));
 }

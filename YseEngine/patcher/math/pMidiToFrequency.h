@@ -5,11 +5,10 @@ namespace YSE {
   namespace PATCHER {
 
     PATCHER_CLASS(pMidiToFrequency, YSE::OBJ::MIDITOFREQUENCY)
-      _NO_PARAMS
       _NO_MESSAGES
-      _HAS_CALCULATE
+      _DO_CALCULATE
 
-      FLOAT_IN(SetMidi)
+      _FLOAT_IN(SetMidi)
 
     private:
       float midiValue;

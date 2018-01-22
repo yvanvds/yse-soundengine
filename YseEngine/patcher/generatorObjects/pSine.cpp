@@ -9,30 +9,28 @@ CONSTRUCT_DSP()
   frequency = 440.f;
   freqBuffer = nullptr;
 
-  ADD_INLET_0;
-  REG_BUFFER_FUNC(pSine::SetFrequencyBuffer);
-  REG_FLOAT_FUNC(pSine::SetFrequency);
+  ADD_IN_0;
+  REG_BUFFER_IN(pSine::SetFrequencyBuffer);
+  REG_FLOAT_IN(pSine::SetFrequency);
 
-  ADD_OUTLET_BUFFER;
+  ADD_OUT_BUFFER;
+
+  ADD_PARAM(frequency);
 }
 
-PARAMS_FUNC() {
-  if (pos == 0) frequency = value;
-}
-
-RESET_FUNC() // {
+RESET() // {
   freqBuffer = nullptr;
 }
 
-FLOAT_IN_FUNC(pSine::SetFrequency) {
+FLOAT_IN(pSine::SetFrequency) {
   frequency = value;
 }
 
-BUFFER_IN_FUNC(pSine::SetFrequencyBuffer) {
+BUFFER_IN(pSine::SetFrequencyBuffer) {
   freqBuffer = buffer;
 }
 
-CALC_FUNC() {
+CALC() {
   if (freqBuffer != nullptr) {
     outputs[0].SendBuffer(&sine(*freqBuffer));
   }

@@ -16,6 +16,7 @@
 #include "..\YseEngine\patcher\pHandle.hpp"
 %}
 
+%include "std_string.i"
 %include "arrays_csharp.i"
 %apply void *VOID_INT_PTR { void * }
 CSHARP_ARRAYS(char, byte)

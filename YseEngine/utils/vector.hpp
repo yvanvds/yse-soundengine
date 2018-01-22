@@ -69,8 +69,9 @@ namespace YSE {
     Pos(float r) { set(r); }
     Pos(float x, float y, float z) { set(x, y, z); }
     Pos(const aPos & v);
-
   };
+
+  static Pos PosEmpty;
 
   // get minimum/maximum value
   inline Int  Min(Int  x, Int  y) { return (x<y) ? x : y; }

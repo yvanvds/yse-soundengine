@@ -12,39 +12,35 @@ CONSTRUCT_DSP()
 
   // out 0: dsp buffer
 
-  ADD_INLET_0;
-  REG_FLOAT_FUNC(pLine::SetTarget);
+  ADD_IN_0;
+  REG_FLOAT_IN(pLine::SetTarget);
 
-  ADD_INLET_1;
-  REG_FLOAT_FUNC(pLine::SetTime);
+  ADD_IN_1;
+  REG_FLOAT_IN(pLine::SetTime);
   
-  ADD_OUTLET_BUFFER;
+  ADD_OUT_BUFFER;
+
+  ADD_PARAM(target);
+  ADD_PARAM(time);
 
   stop = false;
 }
 
-PARAMS_FUNC() {
-  switch (pos) {
-    case 0: target = value; break;
-    case 1: time = value; break;
-  }
-}
-
-MESSAGES_FUNC() {
+MESSAGES() {
   if (message == "stop") {
     stop = true;
   }
 }
 
-FLOAT_IN_FUNC(pLine::SetTarget) {
+FLOAT_IN(pLine::SetTarget) {
   target = value;
 }
 
-FLOAT_IN_FUNC(pLine::SetTime) {
+FLOAT_IN(pLine::SetTime) {
   time = value;
 }
 
-CALC_FUNC() {
+CALC() {
   if (stop) {
     ramp.stop();
     stop = false;

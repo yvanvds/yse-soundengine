@@ -2,6 +2,7 @@
 #include "dsp/buffer.hpp"
 #include "headers\enums.hpp"
 #include <vector>
+#include "utils\json.hpp"
 
 namespace YSE {
   namespace PATCHER {
@@ -23,6 +24,12 @@ namespace YSE {
 
       void Connect(inlet * in);
       void Disconnect(inlet * in);
+
+      void DumpJSON(nlohmann::json::value_type & json);
+
+      unsigned int GetConnections();
+      unsigned int GetTarget(unsigned int connection);
+      unsigned int GetTargetInlet(unsigned int connection);
 
     private:
       pObject * obj;

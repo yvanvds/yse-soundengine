@@ -12,40 +12,37 @@ CONSTRUCT_DSP() {
   rightFloatIn = 1.f;
 
   // in 0: audio buffer
-  ADD_INLET_0;
-  REG_BUFFER_FUNC(pMultiply::SetLeftBuffer);
+  ADD_IN_0;
+  REG_BUFFER_IN(pMultiply::SetLeftBuffer);
 
   // in 1: multiplier (float or audio)
-  ADD_INLET_1;
-  REG_BUFFER_FUNC(pMultiply::SetRightBuffer);
-  REG_FLOAT_FUNC(pMultiply::SetRightFloat);
+  ADD_IN_1;
+  REG_BUFFER_IN(pMultiply::SetRightBuffer);
+  REG_FLOAT_IN(pMultiply::SetRightFloat);
 
   // out 0: audio output
-  ADD_OUTLET_BUFFER;
+  ADD_OUT_BUFFER;
+
+  ADD_PARAM(rightFloatIn);
 }
 
-PARAMS_FUNC() {
-  if (pos == 0) rightFloatIn = value;
-}
-
-
-BUFFER_IN_FUNC(pMultiply::SetLeftBuffer) {
+BUFFER_IN(pMultiply::SetLeftBuffer) {
   leftIn = buffer;
 }
 
-BUFFER_IN_FUNC(pMultiply::SetRightBuffer) {
+BUFFER_IN(pMultiply::SetRightBuffer) {
   rightIn = buffer;
 }
 
-FLOAT_IN_FUNC(pMultiply::SetRightFloat) {
+FLOAT_IN(pMultiply::SetRightFloat) {
   rightFloatIn = value;
 }
 
-RESET_FUNC() // {
+RESET() // {
   leftIn = rightIn = nullptr;
 }
 
-CALC_FUNC() {
+CALC() {
   output = *leftIn;
 
   if (rightIn == nullptr) {

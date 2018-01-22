@@ -4,7 +4,6 @@
 #include <string>
 #include <vector>
 
-
 namespace YSE {
   namespace PATCHER {
 
@@ -36,6 +35,9 @@ namespace YSE {
 
       bool Connect(outlet * out);
       void Disconnect(outlet * out);
+
+      int GetObjectID();
+      int GetPosition();
 
     private:
       pObject * obj;

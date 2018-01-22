@@ -4,8 +4,13 @@
 
 using namespace YSE::PATCHER;
 
+unsigned int LastPatcherObjectID = 0;
+unsigned int pObject::CreateID() {
+  return LastPatcherObjectID++;
+}
+
 pObject::pObject(bool isDSPObject) 
-  :DSP(isDSPObject)
+  :DSP(isDSPObject), ID(CreateID())
 {}
 
 bool pObject::IsDSPStartPoint() {
@@ -36,6 +41,9 @@ void pObject::CalculateIfReady() {
   Calculate();
 }
 
+void pObject::SetParams(const std::string & args) {
+  parms.Set(args);
+}
 
 void pObject::ConnectInlet(outlet * from, int inlet)
 {
@@ -65,3 +73,30 @@ YSE::PATCHER::outlet * pObject::GetOutlet(int number) {
   return &(outputs[number]);
 }
 
+void pObject::DumpJson(nlohmann::json::value_type & json) {
+  json["type"] = Type();
+  json["ID"] = ID;
+  json["posX"] = pos.x;
+  json["posY"] = pos.y;
+  json["parms"] = parms.Get();
+
+  for (int i = 0; i < outputs.size(); i++) {
+    outputs[i].DumpJSON(json["outputs"]["output " + std::to_string(i)]);
+  }
+}
+
+const std::string & pObject::GetParams() {
+  return parms.Get();
+}
+
+unsigned int pObject::GetConnections(unsigned int outlet) {
+  return outputs[outlet].GetConnections();
+}
+
+unsigned int pObject::GetConnectionTarget(unsigned int outlet, unsigned int connection) {
+  return outputs[outlet].GetTarget(connection);
+}
+
+unsigned int pObject::GetConnectionTargetInlet(unsigned int outlet, unsigned int connection) {
+  return outputs[outlet].GetTargetInlet(connection);
+}

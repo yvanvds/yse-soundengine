@@ -5,6 +5,7 @@
 #include "dsp\buffer.hpp"
 #include "patcher.hpp"
 #include <map>
+#include <mutex>
 
 namespace YSE {
   namespace PATCHER {
@@ -22,11 +23,18 @@ namespace YSE {
       virtual void SetParam(unsigned int pos, float value) {}
       virtual void SetMessage(const std::string & message, float value) {}
 
-      pHandle * CreateObject(const char * type);
+      pHandle * CreateObject(const std::string & type, const std::string & args);
       void DeleteObject(pHandle * obj);
       
       void Connect(pHandle * from, int outlet, pHandle * to, int inlet);
       void Disconnect(pHandle * from, int outlet, pHandle * to, int inlet);
+
+      std::string DumpJSON();
+      void ParseJSON(const std::string & content);
+
+      unsigned int Objects();
+      YSE::pHandle * GetHandleFromList(unsigned int obj);
+      YSE::pHandle * GetHandleFromID(unsigned int objID);
 
       std::vector<YSE::DSP::buffer>  output;
 
@@ -34,7 +42,8 @@ namespace YSE {
       std::atomic<patcher*> head;
 
     private:
-
+      std::mutex mtx;
+      bool fileHandlerActive;
       std::map<pHandle*, pObject*> objects;
     };
 

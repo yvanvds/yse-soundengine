@@ -5,7 +5,7 @@
 
 using namespace YSE::PATCHER;
 
-outlet::outlet(pObject * obj, YSE::OUT_TYPE type) 
+outlet::outlet(pObject * obj, YSE::OUT_TYPE type)
   : obj(obj)
   , type(type)
 {}
@@ -47,4 +47,29 @@ void outlet::Disconnect(inlet * in) {
       connections.erase(connections.begin() + i);
     }
   }
+}
+
+void outlet::DumpJSON(nlohmann::json::value_type & json) {
+  for (unsigned int i = 0; i < connections.size(); i++) {
+    json["Object"] = connections[i]->GetObjectID();
+    json["Inlet"] = connections[i]->GetPosition();
+  }
+}
+
+unsigned int outlet::GetConnections() {
+  return connections.size();
+}
+
+unsigned int outlet::GetTarget(unsigned int connection) {
+  if (connection < connections.size()) {
+    return connections[connection]->GetObjectID();
+  }
+  return 0;
+}
+
+unsigned int outlet::GetTargetInlet(unsigned int connection) {
+  if (connection < connections.size()) {
+    return connections[connection]->GetPosition();
+  }
+  return 0;
 }

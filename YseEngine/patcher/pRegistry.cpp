@@ -43,13 +43,13 @@ pRegistry::pRegistry() {
   Add(OBJ::D_HIGHPASS, pHighpass::Create);
 }
 
-pObject* pRegistry::Get(const char * objectID) {
+pObject* pRegistry::Get(const std::string & objectID) {
   auto it = map.find(objectID);
   if (it != map.end()) return it->second();
   return nullptr;
 }
 
-void pRegistry::Add(const char * objectID, pObjectFunc f) {
+void pRegistry::Add(const std::string & objectID, pObjectFunc f) {
   map.insert(std::pair<std::string, pObjectFunc>(objectID, f));
 }
 

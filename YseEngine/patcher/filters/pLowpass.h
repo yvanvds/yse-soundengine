@@ -6,13 +6,12 @@ namespace YSE {
   namespace PATCHER {
 
     PATCHER_CLASS(pLowpass, YSE::OBJ::D_LOWPASS)
-      _HAS_PARAMS
       _NO_MESSAGES
-      _HAS_CALCULATE
-      _HAS_DSP_RESET
+      _DO_CALCULATE
+      _DO_RESET
 
-      BUFFER_IN(SetBuffer)
-      FLOAT_IN(SetFrequency)
+      _BUFFER_IN(SetBuffer)
+      _FLOAT_IN(SetFrequency)
 
     private:
       DSP::buffer * buffer;

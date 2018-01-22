@@ -8,5 +8,6 @@ public:
   
   void DspSourceDemo();
   void PatcherDemo();
+  void LoadPatcherDemo();
 };
 

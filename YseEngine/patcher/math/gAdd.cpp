@@ -6,30 +6,28 @@ using namespace YSE::PATCHER;
 #define className gAdd
 
 CONSTRUCT() {
-  ADD_INLET_0;
-  REG_FLOAT_FUNC(gAdd::SetLeftValue);
+  ADD_IN_0;
+  REG_FLOAT_IN(gAdd::SetLeftValue);
 
-  ADD_INLET_1;
-  REG_FLOAT_FUNC(gAdd::SetRightValue);
+  ADD_IN_1;
+  REG_FLOAT_IN(gAdd::SetRightValue);
 
-  ADD_OUTLET_FLOAT;
+  ADD_OUT_FLOAT;
+
+  ADD_PARAM(rightIn);
 
   leftIn = rightIn = 0;
 }
 
-FLOAT_IN_FUNC(gAdd::SetLeftValue) {
+FLOAT_IN(gAdd::SetLeftValue) {
   leftIn = value;
 }
 
-FLOAT_IN_FUNC(gAdd::SetRightValue) {
+FLOAT_IN(gAdd::SetRightValue) {
   rightIn = value;
 }
 
-PARAMS_FUNC() {
-  if (pos == 0) rightIn = value;
-}
-
-CALC_FUNC() {
+CALC() {
   result = leftIn + rightIn;
   outputs[0].SendFloat(result);
 }

@@ -6,12 +6,11 @@ namespace YSE {
   namespace PATCHER {
 
     PATCHER_CLASS(pLine, YSE::OBJ::D_LINE)
-      _HAS_PARAMS
-      _HAS_MESSAGES
-      _HAS_CALCULATE
+      _DO_MESSAGES
+      _DO_CALCULATE
 
-      FLOAT_IN(SetTarget)
-      FLOAT_IN(SetTime)
+      _FLOAT_IN(SetTarget)
+      _FLOAT_IN(SetTime)
 
     private:
       aFlt target;

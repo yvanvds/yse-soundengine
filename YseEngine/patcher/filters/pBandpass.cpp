@@ -13,45 +13,41 @@ CONSTRUCT_DSP() {
   // in 2: Q (float)
 
   // out 0: audio output
-  ADD_INLET_0;
-  REG_BUFFER_FUNC(pBandpass::SetBuffer);
+  ADD_IN_0;
+  REG_BUFFER_IN(pBandpass::SetBuffer);
 
-  ADD_INLET_1;
-  REG_FLOAT_FUNC(pBandpass::SetFrequency);
+  ADD_IN_1;
+  REG_FLOAT_IN(pBandpass::SetFrequency);
 
-  ADD_INLET_2;
-  REG_FLOAT_FUNC(pBandpass::SetQ);
+  ADD_IN_2;
+  REG_FLOAT_IN(pBandpass::SetQ);
 
-  ADD_OUTLET_BUFFER;
+  ADD_OUT_BUFFER;
+
+  ADD_PARAM(frequency);
+  ADD_PARAM(Q);
 
   buffer = nullptr;
   frequency = Q = 0.f;
 }
 
-PARAMS_FUNC() {
-  switch (pos) {
-    case 0: frequency = value; break;
-    case 1: Q = value; break;
-  }
-}
-
-RESET_FUNC() // {
+RESET() // {
   buffer = nullptr;
 }
 
-BUFFER_IN_FUNC(pBandpass::SetBuffer) {
+BUFFER_IN(pBandpass::SetBuffer) {
   this->buffer = buffer;
 }
 
-FLOAT_IN_FUNC(pBandpass::SetFrequency) {
+FLOAT_IN(pBandpass::SetFrequency) {
   frequency = value;
 }
 
-FLOAT_IN_FUNC(pBandpass::SetQ) {
+FLOAT_IN(pBandpass::SetQ) {
   Q = value;
 }
 
-CALC_FUNC() {
+CALC() {
   filter.set(frequency, Q);
   outputs[0].SendBuffer(&filter(*buffer));
 }

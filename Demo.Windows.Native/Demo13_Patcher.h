@@ -16,6 +16,8 @@ public:
   void SoundOn();
   void SoundOff();
 
+  void SaveToFile();
+
 private:
   void Setup();
 

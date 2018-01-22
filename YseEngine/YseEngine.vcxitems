@@ -115,6 +115,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\pMultiplier.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\pSubstract.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\outlet.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\parameters.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\patcher.hpp" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\patcherImplementation.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\pEnums.h" />
@@ -151,6 +152,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)utils\atomicPos.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)utils\fileFunctions.hpp" />
     <ClInclude Include="$(MSBuildThisFileDirectory)utils\interpolators.hpp" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)utils\json.hpp" />
     <ClInclude Include="$(MSBuildThisFileDirectory)utils\lfQueue.hpp" />
     <ClInclude Include="$(MSBuildThisFileDirectory)utils\misc.hpp" />
     <ClInclude Include="$(MSBuildThisFileDirectory)utils\vector.hpp" />
@@ -245,6 +247,7 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\pMultiplier.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\pSubstract.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\outlet.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\parameters.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\patcher.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\patcherImplementation.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\pHandle.cpp" />

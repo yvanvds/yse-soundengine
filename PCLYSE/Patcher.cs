@@ -22,16 +22,35 @@ namespace YSENET
       base.Disconnect(((Handle)from).GetSource(), outlet, ((Handle)to).GetSource(), inlet);
     }
 
-    public new IHandle CreateObject(string type)
+    public void DeleteObject(IHandle handle)
     {
-      Yse.pHandle handle = base.CreateObject(type);
+      base.DeleteObject(((Handle)handle).GetSource());
+    }
+
+    IHandle IPatcher.CreateObject(string type, string args)
+    {
+      Yse.pHandle handle = base.CreateObject(type, args);
       if (handle == null) return null;
       else return new Handle(handle);
     }
 
-    public void DeleteObject(IHandle handle)
+    public uint NumObjects()
     {
-      base.DeleteObject(((Handle)handle).GetSource());
+      return base.Objects();
+    }
+
+    IHandle IPatcher.GetHandleFromList(uint obj)
+    {
+      Yse.pHandle handle = base.GetHandleFromList(obj);
+      if (handle == null) return null;
+      else return new Handle(handle);
+    }
+
+    IHandle IPatcher.GetHandleFromID(uint obj)
+    {
+      Yse.pHandle handle = base.GetHandleFromID(obj);
+      if (handle == null) return null;
+      else return new Handle(handle);
     }
   }
 }

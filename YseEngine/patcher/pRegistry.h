@@ -13,12 +13,12 @@ namespace YSE {
     public:
       pRegistry(); // add all objects in the constructor
 
-      pObject* Get(const char * objectID);
+      pObject* Get(const std::string & objectID);
 
       bool IsValidObject(const char * objectID);
 
     private:
-      void Add(const char * objectID, pObjectFunc);
+      void Add(const std::string & objectID, pObjectFunc);
 
       std::map<std::string, pObjectFunc> map;
     };

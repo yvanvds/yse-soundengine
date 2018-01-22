@@ -16,11 +16,11 @@ pDac::pDac(int channels )
   }
 }
 
-BUFFER_IN_FUNC(pDac::SetBuffer) {
+BUFFER_IN(pDac::SetBuffer) {
   channels[inlet] = buffer;
 }
 
-RESET_FUNC() // {
+RESET() // {
   for (int i = 0; i < channels.size(); i++) {
     channels[i] = nullptr;
   }
