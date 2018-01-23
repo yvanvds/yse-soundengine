@@ -21,7 +21,7 @@ YSE::INTERNAL::logImplementation & YSE::INTERNAL::LogImpl() {
   return impl;
 }
 
-YSE::INTERNAL::logImplementation::logImplementation() : funcPtr(nullptr) {
+YSE::INTERNAL::logImplementation::logImplementation() : handler(nullptr) {
 #if defined YSE_DEBUG
   level = EL_DEBUG;
   toDebugger = true;
@@ -49,8 +49,8 @@ void YSE::INTERNAL::logImplementation::setLevel(YSE::ERROR_LEVEL value) {
   level = value;
 }
 
-void YSE::INTERNAL::logImplementation::setCallback(void(*funcPtr)(const char *)) {
-  this->funcPtr = funcPtr;
+void YSE::INTERNAL::logImplementation::setHandler(logHandler * handler) {
+  this->handler = handler;
 }
 
 void YSE::INTERNAL::logImplementation::setLogfile(const char * path) {
@@ -67,8 +67,8 @@ const std::string & YSE::INTERNAL::logImplementation::getLogfile() {
 void YSE::INTERNAL::logImplementation::logMessage(const std::string & message) {
   if (level == EL_NONE) return;
 
-  if (funcPtr != nullptr) {
-    funcPtr(message.c_str());
+  if (handler != nullptr) {
+    handler->AddMessage(message);
   } else {
     logFile << message << std::endl;
   }

@@ -6,6 +6,7 @@
 #include "pHandle.hpp"
 #include "utils\json.hpp"
 #include <string>
+#include "implementations\logImplementation.h"
 
 using namespace YSE::PATCHER;
 
@@ -99,7 +100,8 @@ void patcherImplementation::Disconnect(YSE::pHandle * from, int outlet, YSE::pHa
 YSE::pHandle * patcherImplementation::CreateObject(const std::string & type, const std::string & args) {
   YSE::pHandle * handle = nullptr;
   pObject * object = nullptr;
-
+  INTERNAL::LogImpl().emit(E_DEBUG, "Patcher: Trying to create " + type);
+  
   if (type == OBJ::D_DAC) {
     object = new pDac(output.size());
   }
@@ -108,7 +110,10 @@ YSE::pHandle * patcherImplementation::CreateObject(const std::string & type, con
     object->SetParams(args);
   }
 
-  if (object == nullptr) return nullptr;
+  if (object == nullptr) {
+    INTERNAL::LogImpl().emit(E_ERROR, "Patcher" + type + " is not a valid patcher object.");
+    return nullptr;
+  }
 
   handle = new YSE::pHandle(object);
   
@@ -116,6 +121,7 @@ YSE::pHandle * patcherImplementation::CreateObject(const std::string & type, con
   objects.insert(std::pair<YSE::pHandle*, pObject*>(handle, object));
   if (!fileHandlerActive) mtx.unlock();
 
+  INTERNAL::LogImpl().emit(E_DEBUG, "Patcher: " + type + " created");
   return handle;
 }
 

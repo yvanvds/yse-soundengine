@@ -3,9 +3,10 @@
 #include <cstdlib>
 #include <conio.h>
 
+
 DemoVirtual::DemoVirtual()
 {
-	YSE::Log().setCallback(ShowMessage);
+	YSE::Log().setHandler(this);
 	YSE::System().maxSounds(100);
 
 	SetTitle("Virtual Sounds");
@@ -14,7 +15,7 @@ DemoVirtual::DemoVirtual()
 
 DemoVirtual::~DemoVirtual()
 {
-	YSE::Log().setCallback(nullptr);
+	YSE::Log().setHandler(nullptr);
 }
 
 
@@ -30,7 +31,7 @@ void DemoVirtual::ShowStatus()
 	_cprintf_s("Sounds: %d / Audio thread CPU Load: %.2f \r", counter, YSE::System().cpuLoad());
 }
 
-void DemoVirtual::ShowMessage(const char * message)
+void DemoVirtual::AddMessage(const std::string & message)
 {
 	std::cout << message << std::endl;
 }

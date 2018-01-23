@@ -27,7 +27,9 @@ namespace YSE
     OUT_TYPE OutputDataType(uint pin);
     
     string Name { get; }
-    string Args { get; set; }
+
+    string GetArgs();
+    void SetArgs(string args);
 
     uint GetConnections(uint outlet);
     uint GetConnectionTarget(uint outlet, uint connection);

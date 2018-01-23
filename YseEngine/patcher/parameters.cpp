@@ -1,5 +1,5 @@
 #include "parameters.h"
-
+#include "implementations\logImplementation.h"
 using namespace YSE::PATCHER;
 
 void Parameters::Register(int & value) {
@@ -27,40 +27,57 @@ const std::string & Parameters::Get() {
 }
 
 void Parameters::Set(const std::string & args) {
+  if (args.size() == 0) return;
+
+  INTERNAL::LogImpl().emit(E_DEBUG, "patcher: parsing arguments: " + args);
   size_t pos = 0;
   unsigned int currentArg = 0;
+  std::string arg = args + " "; // important to get the last argument
   std::string token;
-  while ((pos = args.find(" ")) != std::string::npos) {
-    token = args.substr(0, pos);
+  while ((pos = arg.find(" ")) != std::string::npos) {
+    token = arg.substr(0, pos);
+    INTERNAL::LogImpl().emit(E_DEBUG, "patcher: found argument: " + args);
 
     if (currentArg < parms.size()) {
       switch (parms[currentArg].type) {
         case FLOAT: {
+          INTERNAL::LogImpl().emit(E_DEBUG, "Using argument as float.");
           float f = std::stof(token);
           *((float*)parms[currentArg].value) = f;
           break;
         }
         case ATOMIC_FLOAT: {
+          INTERNAL::LogImpl().emit(E_DEBUG, "Using argument as atomic float.");
           float f = std::stof(token);
           *((std::atomic<float>*)parms[currentArg].value) = f;
           break;
         }
         case INT: {
+          INTERNAL::LogImpl().emit(E_DEBUG, "Using argument as int.");
           int i = std::stoi(token);
           *((int*)parms[currentArg].value) = i;
           break;
         }
         case ATOMIC_INT: {
+          INTERNAL::LogImpl().emit(E_DEBUG, "Using argument as atomic int.");
           int i = std::stoi(token);
           *((std::atomic<int>*)parms[currentArg].value) = i;
           break;
         }
         case STRING: {
+          INTERNAL::LogImpl().emit(E_DEBUG, "Using argument as string.");
           *((std::string*)parms[currentArg].value) = token;
         }
+        default: {
+          INTERNAL::LogImpl().emit(E_DEBUG, "Argument type unknown.");
+        }
       }
+    
     }
-
+    else {
+      INTERNAL::LogImpl().emit(E_DEBUG, "Too many arguments for this object.");
+    }
+    arg.erase(0, pos + 1);
     currentArg++;
   }
 }

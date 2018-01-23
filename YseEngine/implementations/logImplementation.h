@@ -13,6 +13,7 @@
 
 #include "../headers/enums.hpp"
 #include "../headers/types.hpp"
+#include "log.hpp"
 #include <string>
 #include <fstream>
 
@@ -23,7 +24,7 @@ namespace YSE {
 
       ERROR_LEVEL getLevel();
       void  setLevel(ERROR_LEVEL value);
-      void  setCallback(void(*funcPtr)(const char *));
+      void  setHandler(logHandler * handler);
       const std::string & getLogfile();
       void  setLogfile(const char * path);
 
@@ -34,7 +35,7 @@ namespace YSE {
       ~logImplementation();
     private:
       const char * errorToText(ERROR_CODE value);
-      void(*funcPtr)(const char *);
+      logHandler * handler;
       ERROR_LEVEL level;
 	  std::ofstream logFile;
 	  std::string logFileName;

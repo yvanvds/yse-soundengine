@@ -5,8 +5,26 @@ using YSE;
 
 namespace YSENET
 {
+  class LogHandler : Yse.logHandler
+  {
+    public override void AddMessage(string message)
+    {
+      OnMessage(message);
+    }
+
+    public event OnMessageEventHandler OnMessage;
+  }
+
   class Log : YSE.ILog
   {
+    public Log()
+    {
+      // needed to pass log messages from unmanaged to managed code
+      LH = new LogHandler();
+      LH.OnMessage += (message) => OnMessage(message);
+      Yse.Yse.Log().setHandler(LH);
+    }
+
     public ERROR_LEVEL Level
     {
       get => Convert(Yse.Yse.Log().getLevel());
@@ -19,10 +37,14 @@ namespace YSENET
       set => Yse.Yse.Log().setLogfile(value);
     }
 
+    public event OnMessageEventHandler OnMessage;
+
     public void SendMessage(string message)
     {
       Yse.Yse.Log().sendMessage(message);
     }
+
+    private LogHandler LH;
 
     static ERROR_LEVEL Convert(Yse.ERROR_LEVEL value)
     {

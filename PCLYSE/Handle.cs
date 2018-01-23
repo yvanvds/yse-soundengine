@@ -29,10 +29,13 @@ namespace YSENET
 
     public string Name => source.GetName();
 
-    public string Args
+    public string GetArgs()
     {
-      get => source.GetParams();
-      set => source.SetParams(value);
+      return source.GetParams(); 
+    }
+
+    public void SetArgs(string args) {
+      source.SetParams(args);
     }
 
     public Yse.pHandle GetSource()

@@ -1,4 +1,4 @@
-%module Yse
+%module(directors="1") Yse
 %{
 #include "..\YseEngine\headers\enums.hpp"
 #include "..\YseEngine\utils\vector.hpp"
@@ -37,7 +37,10 @@ CSHARP_ARRAYS(char, byte)
 #define API
 %include "..\YseEngine\headers\enums.hpp"
 %include "..\YseEngine\utils\vector.hpp"
+
+%feature("director") logHandler;
 %include "..\YseEngine\log.hpp"
+
 %include "..\YseEngine\channel\channelInterface.hpp"
 %include "..\YseEngine\BufferIO.hpp"
 

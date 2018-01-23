@@ -1,6 +1,7 @@
 #include "pHandle.hpp"
 #include "pEnums.h"
 #include "pObject.h"
+#include "implementations\logImplementation.h"
 
 using namespace YSE;
 
@@ -21,6 +22,7 @@ void YSE::pHandle::SetData(unsigned int inlet, float value)
 }
 
 void YSE::pHandle::SetParams(const std::string & args) {
+  INTERNAL::LogImpl().emit(E_DEBUG, "Handle: Passing arguments: " + args);
   object->SetParams(args);
 }
 

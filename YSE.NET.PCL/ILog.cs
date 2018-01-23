@@ -12,10 +12,13 @@ namespace YSE
     DEBUG,
   }
 
+  public delegate void OnMessageEventHandler(string message);
+
   public interface ILog
   {
     void SendMessage(string message);
     ERROR_LEVEL Level { get; set; }
     string LogFile { get; set; }
+    event OnMessageEventHandler OnMessage;
   }
 }

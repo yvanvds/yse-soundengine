@@ -26,8 +26,8 @@ YSE::log & YSE::log::setLevel(YSE::ERROR_LEVEL value) {
   return (*this);
 }
 
-YSE::log & YSE::log::setCallback(void(*funcPtr)(const char *)) {
-  INTERNAL::LogImpl().setCallback(funcPtr);
+YSE::log & YSE::log::setHandler(logHandler * handler) {
+  INTERNAL::LogImpl().setHandler(handler);
   return (*this);
 }
 

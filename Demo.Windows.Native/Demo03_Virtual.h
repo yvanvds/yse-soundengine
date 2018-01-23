@@ -1,9 +1,10 @@
 #pragma once
 #include "basePage.h"
 #include <forward_list>
+#include <string>
 
 class DemoVirtual :
-	public basePage
+  public basePage, YSE::logHandler
 {
 public:
 	DemoVirtual();
@@ -12,7 +13,7 @@ public:
 	virtual void ExplainDemo();
 	virtual void ShowStatus();
 
-	static void ShowMessage(const char * message);
+  virtual void AddMessage(const std::string & message);
 
 private:
 	void AddSound();

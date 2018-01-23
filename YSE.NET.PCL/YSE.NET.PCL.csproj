@@ -7,9 +7,9 @@
     <Company>MuteCode</Company>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Description>PCL Interface for YSE.</Description>
-    <AssemblyVersion>1.0.7.0</AssemblyVersion>
-    <FileVersion>1.0.6.0</FileVersion>
-    <Version>1.0.7</Version>
+    <AssemblyVersion>1.0.10.0</AssemblyVersion>
+    <FileVersion>1.0.10.0</FileVersion>
+    <Version>1.0.10</Version>
   </PropertyGroup>
 
 </Project>
