@@ -13,18 +13,16 @@ namespace YSENET
 
     public int Outputs => source.GetOutputs();
 
-    public Pos Position
+    public Pos GetPosition()
     {
-      get
-      {
         Yse.Pos f = source.GetPosition();
         return new YSE.Pos(f.x, f.y, f.z);
-      }
-      set
-      {
-        Yse.Pos f = new Yse.Pos(value.X, value.Y, value.Z);
-        source.SetPosition(f);
-      }
+    }
+
+    public void SetPosition(Pos pos)
+    {
+      Yse.Pos f = new Yse.Pos(pos.X, pos.Y, pos.Z);
+      source.SetPosition(f);
     }
 
     public string Name => source.GetName();
@@ -98,5 +96,11 @@ namespace YSENET
     {
       return source.GetConnectionTargetInlet(outlet, connection);
     }
+
+    public uint GetID()
+    {
+      return source.GetID();
+    }
+
   }
 }

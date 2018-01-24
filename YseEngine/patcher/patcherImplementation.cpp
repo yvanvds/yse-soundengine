@@ -21,10 +21,7 @@ patcherImplementation::patcherImplementation(int mainOutputs, YSE::patcher * hea
 
 patcherImplementation::~patcherImplementation() {
   // memory cleanup
-  for (auto it = objects.begin(); it != objects.end(); ++it) {
-    delete it->first;
-    delete it->second;
-  }
+  Clear();
 }
 
 const char * patcherImplementation::Type() const {
@@ -133,6 +130,13 @@ void patcherImplementation::DeleteObject(YSE::pHandle * handle) {
   if (!fileHandlerActive) mtx.unlock();
 }
 
+void patcherImplementation::Clear() {
+  for (auto it = objects.begin(); it != objects.end(); ++it) {
+    delete it->first;
+    delete it->second;
+  }
+}
+
 using json = nlohmann::json;
 std::string patcherImplementation::DumpJSON() {
   json j;
@@ -168,6 +172,7 @@ void patcherImplementation::ParseJSON(const std::string & content) {
     YSE::Pos pos;
     pos.x = obj.value()["posX"].get<float>();
     pos.y = obj.value()["posY"].get<float>();
+    handle->SetPosition(pos);
 
     int ID = obj.value()["ID"].get<int>();
     OldIDs.insert(std::pair<int, YSE::pHandle*>(ID, handle));

@@ -18,7 +18,8 @@ namespace YSE
 
     void SetData(uint inlet, float value);
 
-    Pos Position { set; get; }
+    void SetPosition(Pos pos);
+    Pos GetPosition();
 
     int Inputs { get; }
     int Outputs { get; }
@@ -27,7 +28,7 @@ namespace YSE
     OUT_TYPE OutputDataType(uint pin);
     
     string Name { get; }
-
+    uint GetID();
     string GetArgs();
     void SetArgs(string args);
 

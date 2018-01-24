@@ -52,5 +52,10 @@ namespace YSENET
       if (handle == null) return null;
       else return new Handle(handle);
     }
+
+    public void Clear()
+    {
+      base.Clear();
+    }
   }
 }

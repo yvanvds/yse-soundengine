@@ -30,7 +30,7 @@ void YSE::pHandle::SetPosition(const YSE::Pos & pos) {
   object->SetPosition(pos);
 }
 
-const YSE::Pos & YSE::pHandle::GetPosition() {
+YSE::Pos YSE::pHandle::GetPosition() {
   return object->GetPosition();
 }
 
@@ -50,12 +50,16 @@ int YSE::pHandle::GetOutputs() {
   return object->NumOutputs();
 }
 
-const std::string & YSE::pHandle::GetName() {
+std::string YSE::pHandle::GetName() {
   return object->Type();
 }
 
-const std::string & YSE::pHandle::GetParams() {
+std::string YSE::pHandle::GetParams() {
   return object->GetParams();
+}
+
+unsigned int YSE::pHandle::GetID() {
+  return object->GetID();
 }
 
 unsigned int YSE::pHandle::GetConnections(unsigned int outlet) {

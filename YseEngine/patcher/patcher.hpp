@@ -17,6 +17,7 @@ namespace YSE {
 
     YSE::pHandle * CreateObject(const std::string & type, const std::string & args = std::string());
     void DeleteObject(YSE::pHandle * obj);
+    void Clear();
 
     void Connect(YSE::pHandle * from, int outlet, YSE::pHandle * to, int inlet);
     void Disconnect(YSE::pHandle * from, int outlet, YSE::pHandle * to, int inlet);

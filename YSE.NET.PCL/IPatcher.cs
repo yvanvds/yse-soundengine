@@ -10,6 +10,7 @@ namespace YSE
 
     IHandle CreateObject(string type, string args = "");
     void DeleteObject(IHandle handle);
+    void Clear();
 
     void Connect(IHandle from, int outlet, IHandle to, int inlet);
     void Disconnect(IHandle from, int outlet, IHandle to, int inlet);

@@ -19,7 +19,7 @@ namespace YSE {
     void SetParams(const std::string & args);
 
     void SetPosition(const YSE::Pos & pos);
-    const YSE::Pos & GetPosition();
+    YSE::Pos GetPosition();
 
     int GetInputs();
     int GetOutputs();
@@ -28,8 +28,9 @@ namespace YSE {
     YSE::OUT_TYPE OutputDataType(unsigned int pin);
 
     // use to get content after loading a JSON Patch
-    const std::string & GetName();
-    const std::string & GetParams();
+    std::string GetName();
+    std::string GetParams();
+    unsigned int GetID();
     unsigned int GetConnections(unsigned int outlet);
     unsigned int GetConnectionTarget(unsigned int outlet, unsigned int connection);
     unsigned int GetConnectionTargetInlet(unsigned int outlet, unsigned int connection);

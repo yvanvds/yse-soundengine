@@ -36,6 +36,11 @@ void patcher::DeleteObject(pHandle * obj) {
   pimpl->DeleteObject(obj);
 }
 
+void patcher::Clear() {
+  if (pimpl == nullptr) return;
+  pimpl->Clear();
+}
+
 void patcher::Connect(pHandle * from, int outlet, pHandle * to, int inlet) {
   if (pimpl == nullptr) return;
   pimpl->Connect(from, outlet, to, inlet);

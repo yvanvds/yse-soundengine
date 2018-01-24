@@ -29,6 +29,7 @@ const std::string & Parameters::Get() {
 void Parameters::Set(const std::string & args) {
   if (args.size() == 0) return;
 
+  current = args;
   INTERNAL::LogImpl().emit(E_DEBUG, "patcher: parsing arguments: " + args);
   size_t pos = 0;
   unsigned int currentArg = 0;
