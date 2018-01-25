@@ -10,9 +10,13 @@
 #include "utils\json.hpp"
 #include "utils\vector.hpp"
 #include "parameters.h"
+#include "patcher.hpp"
 
 namespace YSE {
   namespace PATCHER {
+
+    typedef std::function<void(int, int)> intCallbackFunc;
+    typedef std::function<void(int, float)> floatCallbackFunc;
 
     class API pObject {
     public:
@@ -48,6 +52,9 @@ namespace YSE {
       inline void SetPosition(const YSE::Pos & pos) { this->pos = pos; }
       inline const YSE::Pos & GetPosition() { return pos; }
 
+      void UpdateGui();
+      void RegisterGuiHandler(YSE::guiHandler * handler);
+
       static unsigned int CreateID();
       inline unsigned int GetID() { return ID; }
       void DumpJson(nlohmann::json::value_type & json);
@@ -56,6 +63,10 @@ namespace YSE {
 
       std::vector<inlet> inputs;
       std::vector<outlet> outputs;
+
+      YSE::guiHandler * handler;
+      int * guiInt;
+      float * guiFlt;
 
       Parameters parms;
 
@@ -88,9 +99,13 @@ namespace YSE {
 
 #define _BUFFER_IN(funcName) void funcName(YSE::DSP::buffer * buffer, int inlet);
 #define _FLOAT_IN(funcName) void funcName(float value, int inlet);
+#define _INT_IN(funcName) void funcName(int value, int inlet);
+#define _BANG_IN(funcName) void funcName(int inlet);
 
 #define BUFFER_IN(funcName) void funcName(YSE::DSP::buffer * buffer, int inlet)
 #define FLOAT_IN(funcName) void funcName(float value, int inlet)
+#define INT_IN(funcName) void funcName(int value, int inlet)
+#define BANG_IN(funcName) void funcName(int inlet)
 
 #define ADD_IN_0 inputs.emplace_back(this, true, 0)
 #define ADD_IN_1 inputs.emplace_back(this, false, 1)
@@ -99,11 +114,18 @@ namespace YSE {
 
 #define REG_BUFFER_IN(funcName) inputs.back().RegisterBuffer(std::bind(&funcName, this, std::placeholders::_1, std::placeholders::_2))
 #define REG_FLOAT_IN(funcName) inputs.back().RegisterFloat(std::bind(&funcName, this, std::placeholders::_1, std::placeholders::_2))
+#define REG_INT_IN(funcName) inputs.back().RegisterInt(std::bind(&funcName, this, std::placeholders::_1, std::placeholders::_2))
+#define REG_BANG_IN(funcName) inputs.back().RegisterBang(std::bind(&funcName, this, std::placeholders::_1))
 
 #define ADD_OUT_BUFFER outputs.emplace_back(this, OUT_TYPE::BUFFER)
 #define ADD_OUT_FLOAT outputs.emplace_back(this, OUT_TYPE::FLOAT)
+#define ADD_OUT_INT outputs.emplace_back(this, OUT_TYPE::INT)
+#define ADD_OUT_BANG outputs.emplace_back(this, OUT_TYPE::BANG)
 
 #define ADD_PARAM(var) parms.Register(var)
+
+#define PASS_GUI_INT(var) guiInt = &var
+#define PASS_GUI_FLT(var) guiFlt = &var
 
 #define CONSTRUCT_DSP() className::className() : pObject(true)
 #define CONSTRUCT() className::className() : pObject(false)

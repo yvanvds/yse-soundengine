@@ -41,6 +41,11 @@ void patcher::Clear() {
   pimpl->Clear();
 }
 
+void patcher::SetGuiHandler(guiHandler * handler) {
+  if (pimpl == nullptr) return;
+  pimpl->SetGuiHandler(handler);
+}
+
 void patcher::Connect(pHandle * from, int outlet, pHandle * to, int inlet) {
   if (pimpl == nullptr) return;
   pimpl->Connect(from, outlet, to, inlet);

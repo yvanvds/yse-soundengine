@@ -20,6 +20,7 @@ namespace YSE {
 
       void SendBang();
       void SendFloat(float value);
+      void SendInt(int value);
       void SendBuffer(DSP::buffer * value);
 
       void Connect(inlet * in);

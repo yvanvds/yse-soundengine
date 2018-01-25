@@ -15,6 +15,7 @@ patcherImplementation::patcherImplementation(int mainOutputs, YSE::patcher * hea
   , controlledBySound(false)
   , head(head)
   , fileHandlerActive(false)
+  , handler(nullptr)
 {
   output.resize(mainOutputs);
 }
@@ -112,6 +113,7 @@ YSE::pHandle * patcherImplementation::CreateObject(const std::string & type, con
     return nullptr;
   }
 
+  object->RegisterGuiHandler(handler);
   handle = new YSE::pHandle(object);
   
   if (!fileHandlerActive) mtx.lock();
@@ -135,6 +137,10 @@ void patcherImplementation::Clear() {
     delete it->first;
     delete it->second;
   }
+}
+
+void patcherImplementation::SetGuiHandler(YSE::guiHandler * handler) {
+  this->handler = handler;
 }
 
 using json = nlohmann::json;

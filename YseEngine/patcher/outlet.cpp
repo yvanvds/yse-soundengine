@@ -28,6 +28,12 @@ void outlet::SendFloat(float value) {
   }
 }
 
+void outlet::SendInt(int value) {
+  for (unsigned int i = 0; i < connections.size(); i++) {
+    connections[i]->SetInt(value);
+  }
+}
+
 void outlet::SendBuffer(YSE::DSP::buffer * value) {
   for (unsigned int i = 0; i < connections.size(); i++) {
     connections[i]->SetBuffer(value);

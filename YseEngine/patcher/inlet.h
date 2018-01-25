@@ -11,6 +11,7 @@ namespace YSE {
     struct outlet;
 
     typedef std::function<void(float, int)> floatFunc;
+    typedef std::function<void(int, int)> intFunc;
     typedef std::function<void(int)> voidFunc;
     typedef std::function<void(DSP::buffer * buffer, int)> bufferFunc;
 
@@ -20,9 +21,11 @@ namespace YSE {
 
       void RegisterBang(voidFunc f);
       void RegisterFloat(floatFunc f);
+      void RegisterInt(intFunc f);
       void RegisterBuffer(bufferFunc f);
       
       void SetBang();
+      void SetInt(int value);
       void SetFloat(float value);
       void SetBuffer(DSP::buffer * value);
 
@@ -45,6 +48,7 @@ namespace YSE {
       bool active;
       int position;
 
+      intFunc onInt;
       voidFunc onBang;
       floatFunc onFloat;
       bufferFunc onBuffer;

@@ -11,6 +11,10 @@ inlet::inlet(pObject * obj, bool active, int position)
   , position(position)
   , dspReady(false)
   , dspConnection(nullptr)
+  , onInt(nullptr)
+  , onBang(nullptr)
+  , onFloat(nullptr)
+  , onBuffer(nullptr)
 {}
 
 inlet::~inlet() {
@@ -20,6 +24,10 @@ inlet::~inlet() {
   for (unsigned int i = 0; i < connections.size(); i++) {
     connections[i]->Disconnect(this);
   }
+}
+
+void inlet::RegisterInt(intFunc f) {
+  onInt = f;
 }
 
 void inlet::RegisterBang(voidFunc f) {
@@ -32,6 +40,13 @@ void inlet::RegisterFloat(floatFunc f) {
 
 void inlet::RegisterBuffer(bufferFunc f) {
   onBuffer = f;
+}
+
+void inlet::SetInt(int value) {
+  if (onInt) {
+    onInt(value, position);
+    if (active) obj->CalculateIfReady();
+  }
 }
 
 void inlet::SetBang() {

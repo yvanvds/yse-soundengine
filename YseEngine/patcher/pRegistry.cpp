@@ -4,6 +4,7 @@
 #include "genericObjects\pDac.h"
 #include "genericObjects/pLine.h"
 #include "generatorObjects/pSine.h"
+#include "guiObjects\gInt.h"
 #include "math/pAdd.h"
 #include "math/pSubstract.h"
 #include "math/pDivide.h"
@@ -35,6 +36,8 @@ pRegistry::pRegistry() {
   Add(OBJ::D_MULTIPLY, pMultiply::Create);
   Add(OBJ::D_DIVIDE, pDivide::Create);
   
+  Add(OBJ::G_INT, gInt::Create);
+
   Add(OBJ::MIDITOFREQUENCY, pMidiToFrequency::Create);
   Add(OBJ::FREQUENCYTOMIDI, pFrequencyToMidi::Create);
 

@@ -4,6 +4,15 @@ using System.Text;
 
 namespace YSE
 {
+  public delegate void OnPatcherIntEventHandler(int objID, int value);
+  public delegate void OnPatcherFloatEventHandler(int objID, float value);
+
+  public interface IPatcherEventHandler
+  {
+    event OnPatcherIntEventHandler OnInt;
+    event OnPatcherFloatEventHandler OnFloat;
+  }
+
   public interface IPatcher
   {
     void Create(int mainOutputs);
@@ -21,6 +30,8 @@ namespace YSE
     uint NumObjects();
     IHandle GetHandleFromList(uint obj);
     IHandle GetHandleFromID(uint obj);
+
+    IPatcherEventHandler GetEventHandler();
 
     void Dispose();
   }

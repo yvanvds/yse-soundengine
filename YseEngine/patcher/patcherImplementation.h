@@ -36,6 +36,8 @@ namespace YSE {
       YSE::pHandle * GetHandleFromList(unsigned int obj);
       YSE::pHandle * GetHandleFromID(unsigned int objID);
 
+      void SetGuiHandler(YSE::guiHandler * handler);
+
       std::vector<YSE::DSP::buffer>  output;
 
       aBool controlledBySound;
@@ -45,6 +47,7 @@ namespace YSE {
       std::mutex mtx;
       bool fileHandlerActive;
       std::map<pHandle*, pObject*> objects;
+      YSE::guiHandler * handler;
     };
 
   }

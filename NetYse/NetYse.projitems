@@ -19,6 +19,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)ERROR_CODE.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ERROR_LEVEL.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)FILEPOINT.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)guiHandler.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)listener.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)log.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)logHandler.cs" />

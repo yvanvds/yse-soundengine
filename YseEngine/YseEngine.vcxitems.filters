@@ -76,6 +76,9 @@
     <Filter Include="patcher\filters">
       <UniqueIdentifier>{c4d4bf3d-3822-4be0-b4a2-73f0387f053b}</UniqueIdentifier>
     </Filter>
+    <Filter Include="patcher\guiObjects">
+      <UniqueIdentifier>{90a0effa-fb42-445f-a87e-e3c359c153bd}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(MSBuildThisFileDirectory)channel\channel.hpp">
@@ -489,6 +492,9 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\parameters.h">
       <Filter>patcher</Filter>
     </ClInclude>
+    <ClInclude Include="D:\GitHub\yse-soundengine\YseEngine\patcher\guiObjects\gInt.h">
+      <Filter>patcher\guiObjects</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="$(MSBuildThisFileDirectory)channel\channelImplementation.cpp">
@@ -820,6 +826,9 @@
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\parameters.cpp">
       <Filter>patcher</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\GitHub\yse-soundengine\YseEngine\patcher\guiObjects\gInt.cpp">
+      <Filter>patcher\guiObjects</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

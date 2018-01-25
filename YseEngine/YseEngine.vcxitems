@@ -106,6 +106,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\generatorObjects\pSine.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\genericObjects\pDac.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\genericObjects\pLine.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gInt.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\inlet.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\gAdd.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\pAdd.h" />
@@ -238,6 +239,7 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\generatorObjects\pSine.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\genericObjects\pDac.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\genericObjects\pLine.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gInt.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\inlet.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\gAdd.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\pAdd.cpp" />

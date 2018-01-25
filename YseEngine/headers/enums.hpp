@@ -110,6 +110,7 @@ namespace YSE {
     INVALID,
     BANG,
     FLOAT,
+    INT,
     BUFFER,
   };
 

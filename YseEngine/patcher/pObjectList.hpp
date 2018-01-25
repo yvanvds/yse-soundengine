@@ -12,18 +12,22 @@ namespace YSE {
 
     static constexpr char const * D_SINE = "~sine";
 
-    static constexpr char const * G_ADD = "+";
-    static constexpr char const * G_SUBSTRACT = "-";
-    static constexpr char const * G_MULTIPLY = "*";
-    static constexpr char const * G_DIVIDE = "/";
+    static constexpr char const * G_INT = ".i";
+    static constexpr char const * G_FLOAT = ".f";
+    static constexpr char const * G_SLIDER = ".slider";
+
+    static constexpr char const * G_ADD = ".+";
+    static constexpr char const * G_SUBSTRACT = ".-";
+    static constexpr char const * G_MULTIPLY = ".*";
+    static constexpr char const * G_DIVIDE = "./";
 
     static constexpr char const * D_ADD = "~+";
     static constexpr char const * D_SUBSTRACT = "~-";
     static constexpr char const * D_MULTIPLY = "~*";
     static constexpr char const * D_DIVIDE = "~/";
 
-    static constexpr char const * MIDITOFREQUENCY = "mtof";
-    static constexpr char const * FREQUENCYTOMIDI = "ftom";
+    static constexpr char const * MIDITOFREQUENCY = ".mtof";
+    static constexpr char const * FREQUENCYTOMIDI = ".ftom";
 
     static constexpr char const * D_LOWPASS = "~lp";
     static constexpr char const * D_HIGHPASS = "~hp";
