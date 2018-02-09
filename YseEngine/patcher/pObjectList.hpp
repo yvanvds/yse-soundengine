@@ -26,6 +26,8 @@ namespace YSE {
     static constexpr char const * D_MULTIPLY = "~*";
     static constexpr char const * D_DIVIDE = "~/";
 
+    static constexpr char const * D_CLIP = "~clip";
+
     static constexpr char const * MIDITOFREQUENCY = ".mtof";
     static constexpr char const * FREQUENCYTOMIDI = ".ftom";
 

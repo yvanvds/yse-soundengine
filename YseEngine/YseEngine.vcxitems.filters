@@ -447,9 +447,6 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\pMidiToFrequency.h">
       <Filter>patcher\math</Filter>
     </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\pMultiplier.h">
-      <Filter>patcher\math</Filter>
-    </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\pFrequencyToMidi.h">
       <Filter>patcher\math</Filter>
     </ClInclude>
@@ -492,8 +489,21 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\parameters.h">
       <Filter>patcher</Filter>
     </ClInclude>
-    <ClInclude Include="D:\GitHub\yse-soundengine\YseEngine\patcher\guiObjects\gInt.h">
-      <Filter>patcher\guiObjects</Filter>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gInt.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\gDivide.h">
+      <Filter>patcher\math</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\gMultiply.h">
+      <Filter>patcher\math</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\gSubstract.h">
+      <Filter>patcher\math</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\GitHub\yse-soundengine\YseEngine\patcher\math\pMultiply.h">
+      <Filter>patcher\math</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\pClip.h">
+      <Filter>patcher\math</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -785,9 +795,6 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\patcherImplementation.cpp">
       <Filter>patcher</Filter>
     </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\pMultiplier.cpp">
-      <Filter>patcher\math</Filter>
-    </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\pFrequencyToMidi.cpp">
       <Filter>patcher\math</Filter>
     </ClCompile>
@@ -827,8 +834,21 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\parameters.cpp">
       <Filter>patcher</Filter>
     </ClCompile>
-    <ClCompile Include="D:\GitHub\yse-soundengine\YseEngine\patcher\guiObjects\gInt.cpp">
-      <Filter>patcher\guiObjects</Filter>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gInt.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\gDivide.cpp">
+      <Filter>patcher\math</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\gMultiply.cpp">
+      <Filter>patcher\math</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\gSubstract.cpp">
+      <Filter>patcher\math</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\GitHub\yse-soundengine\YseEngine\patcher\math\pMultiply.cpp">
+      <Filter>patcher\math</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\pClip.cpp">
+      <Filter>patcher\math</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
