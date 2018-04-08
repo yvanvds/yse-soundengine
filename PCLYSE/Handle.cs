@@ -46,9 +46,19 @@ namespace YSENET
       this.source = source;
     }
 
-    public void SetData(uint pin, float value)
+    public void SetBang(uint inlet)
     {
-      source.SetData(pin, value);
+      source.SetBang(inlet);
+    }
+
+    public void SetIntData(uint inlet, int value)
+    {
+      source.SetIntData(inlet, value);
+    }
+
+    public void SetFloatData(uint inlet, float value)
+    {
+      source.SetFloatData(inlet, value);
     }
 
     public string Type()
@@ -102,5 +112,9 @@ namespace YSENET
       return source.GetID();
     }
 
+    public string GetGuiValue()
+    {
+      return source.GetGuiValue();
+    }
   }
 }

@@ -16,7 +16,9 @@ namespace YSE
   {
     string Type();
 
-    void SetData(uint inlet, float value);
+    void SetBang(uint inlet);
+    void SetIntData(uint inlet, int value);
+    void SetFloatData(uint inlet, float value);
 
     void SetPosition(Pos pos);
     Pos GetPosition();
@@ -31,6 +33,8 @@ namespace YSE
     uint GetID();
     string GetArgs();
     void SetArgs(string args);
+
+    string GetGuiValue();
 
     uint GetConnections(uint outlet);
     uint GetConnectionTarget(uint outlet, uint connection);

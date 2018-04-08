@@ -6,9 +6,9 @@
     <Authors>yvan vander sanden</Authors>
     <Company>MuteCode</Company>
     <Description>The YSE Sound Engine, with wrappers for .NET</Description>
-    <AssemblyVersion>1.0.21.0</AssemblyVersion>
-    <FileVersion>1.0.21.0</FileVersion>
-    <Version>1.0.21</Version>
+    <AssemblyVersion>1.0.*</AssemblyVersion>
+	<Deterministic>False</Deterministic>
+    <Version>1.0.41</Version>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -32,7 +32,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="..\Yse.Windows.Native\Release\Win32\Yse.dll" Link="lib\net40\Yse.dll">
+    <Content Include="..\Yse.Windows.Native\Release\Win32\Yse.dll" Link="lib\net40\lib\Yse.dll">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
@@ -42,7 +42,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="lib\net40\" />
+    <Folder Include="lib\net40\lib\" />
   </ItemGroup>
 
 </Project>

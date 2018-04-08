@@ -26,23 +26,5 @@ private:
     void swig_init_callbacks();
 };
 
-class SwigDirector_guiHandler : public YSE::guiHandler, public Swig::Director {
-
-public:
-    SwigDirector_guiHandler();
-    virtual void ToGui(int objID, int value);
-    virtual void ToGui(int objID, float value);
-    virtual ~SwigDirector_guiHandler();
-
-    typedef void (SWIGSTDCALL* SWIG_Callback0_t)(int, int);
-    typedef void (SWIGSTDCALL* SWIG_Callback1_t)(int, float);
-    void swig_connect_director(SWIG_Callback0_t callbackToGui__SWIG_0, SWIG_Callback1_t callbackToGui__SWIG_1);
-
-private:
-    SWIG_Callback0_t swig_callbackToGui__SWIG_0;
-    SWIG_Callback1_t swig_callbackToGui__SWIG_1;
-    void swig_init_callbacks();
-};
-
 
 #endif

@@ -11,12 +11,12 @@ CONSTRUCT()
   frequency = 0.f;
 
   ADD_IN_0;
-  REG_FLOAT_IN(pFrequencyToMidi::SetFrequency);
+  REG_FLOAT_IN(SetFrequency);
 
   ADD_OUT_FLOAT;
 }
 
-FLOAT_IN(pFrequencyToMidi::SetFrequency) {
+FLOAT_IN(SetFrequency) {
   frequency = value;
 }
 

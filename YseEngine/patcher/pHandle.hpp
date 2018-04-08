@@ -15,7 +15,10 @@ namespace YSE {
     pHandle(PATCHER::pObject * obj);
     const char * Type() const;
 
-    void SetData(unsigned int inlet, float value);
+    void SetBang(unsigned int inlet);
+    void SetIntData(unsigned int inlet, int value);
+    void SetFloatData(unsigned int inlet, float value);
+    void SetListData(unsigned int inlet, const std::string & value);
     void SetParams(const std::string & args);
 
     void SetPosition(const YSE::Pos & pos);
@@ -35,6 +38,7 @@ namespace YSE {
     unsigned int GetConnectionTarget(unsigned int outlet, unsigned int connection);
     unsigned int GetConnectionTargetInlet(unsigned int outlet, unsigned int connection);
 
+    std::string GetGuiValue();
   private:
     PATCHER::pObject * object;
     friend class YSE::PATCHER::patcherImplementation;

@@ -6,14 +6,6 @@ namespace YSE {
   namespace PATCHER {
     class patcherImplementation;
   }
-  
-
-  class API guiHandler {
-  public:
-    virtual void ToGui(int objID, int value) {}
-    virtual void ToGui(int objID, float value) {}
-    virtual ~guiHandler() {}
-  };
 
   class API patcher {
   public:
@@ -30,8 +22,6 @@ namespace YSE {
     void Disconnect(YSE::pHandle * from, int outlet, YSE::pHandle * to, int inlet);
 
     static bool IsValidObject(const char * type);
-
-    void SetGuiHandler(guiHandler * handler);
 
     std::string DumpJSON();
     void ParseJSON(const std::string & content);

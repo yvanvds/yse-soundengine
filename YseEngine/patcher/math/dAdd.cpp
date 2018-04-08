@@ -1,8 +1,9 @@
-#include "pDivide.h"
+#include <functional>
+#include "dAdd.h"
 
 using namespace YSE::PATCHER;
 
-#define className pDivide
+#define className dAdd
 
 CONSTRUCT_DSP() {
 
@@ -10,15 +11,15 @@ CONSTRUCT_DSP() {
   leftIn = nullptr;
   rightIn = nullptr;
   rightFloatIn = 1.f;
-
+  
   // in 0: audio buffer
   ADD_IN_0;
-  REG_BUFFER_IN(pDivide::SetLeftBuffer);
+  REG_BUFFER_IN(SetLeftBuffer);
 
   // in 1: multiplier (float or audio)
   ADD_IN_1;
-  REG_BUFFER_IN(pDivide::SetRightBuffer);
-  REG_FLOAT_IN(pDivide::SetRightFloat);
+  REG_BUFFER_IN(SetRightBuffer);
+  REG_FLOAT_IN(SetRightFloat);
 
   // out 0: audio output
   ADD_OUT_BUFFER;
@@ -26,30 +27,30 @@ CONSTRUCT_DSP() {
   ADD_PARAM(rightFloatIn);
 }
 
-BUFFER_IN(pDivide::SetLeftBuffer) {
+BUFFER_IN(SetLeftBuffer) {
   leftIn = buffer;
 }
 
-BUFFER_IN(pDivide::SetRightBuffer) {
+BUFFER_IN(SetRightBuffer) {
   rightIn = buffer;
 }
 
-FLOAT_IN(pDivide::SetRightFloat) {
+FLOAT_IN(SetRightFloat) {
   rightFloatIn = value;
 }
 
 RESET() // {
-leftIn = rightIn = nullptr;
+  leftIn = rightIn = nullptr;
 }
 
 CALC() {
   output = *leftIn;
 
   if (rightIn == nullptr) {
-    if (rightFloatIn != 0.f) output /= rightFloatIn;
+    output += rightFloatIn;
   }
   else {
-    output /= *rightIn;
+    output += *rightIn;
   }
 
   outputs[0].SendBuffer(&output);

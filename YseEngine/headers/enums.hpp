@@ -11,8 +11,9 @@
 #ifndef ENUMS_HPP_INCLUDED
 #define ENUMS_HPP_INCLUDED
 
-namespace YSE {
+#include <string>
 
+namespace YSE {
 
   // basic output configurations
   enum CHANNEL_TYPE {
@@ -112,6 +113,7 @@ namespace YSE {
     FLOAT,
     INT,
     BUFFER,
+    LIST,
   };
 
   // used by utils/error.hpp

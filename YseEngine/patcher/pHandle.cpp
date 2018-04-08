@@ -1,4 +1,5 @@
 #include "pHandle.hpp"
+#include "patcher.hpp"
 #include "pEnums.h"
 #include "pObject.h"
 #include "implementations\logImplementation.h"
@@ -16,9 +17,21 @@ const char * pHandle::Type() const {
   }
 }
 
-void YSE::pHandle::SetData(unsigned int inlet, float value)
+void YSE::pHandle::SetBang(unsigned int inlet) {
+  object->GetInlet(inlet)->SetBang();
+}
+
+void YSE::pHandle::SetIntData(unsigned int inlet, int value) {
+  object->GetInlet(inlet)->SetInt(value);
+}
+
+void YSE::pHandle::SetFloatData(unsigned int inlet, float value)
 {
   object->GetInlet(inlet)->SetFloat(value);
+}
+
+void YSE::pHandle::SetListData(unsigned int inlet, const std::string & value) {
+  object->GetInlet(inlet)->SetList(value);
 }
 
 void YSE::pHandle::SetParams(const std::string & args) {
@@ -73,3 +86,8 @@ unsigned int YSE::pHandle::GetConnectionTarget(unsigned int outlet, unsigned int
 unsigned int YSE::pHandle::GetConnectionTargetInlet(unsigned int outlet, unsigned int connection) {
   return object->GetConnectionTargetInlet(outlet, connection);
 }
+
+std::string YSE::pHandle::GetGuiValue() {
+  return object->GetGuiValue();
+}
+

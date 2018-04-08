@@ -4,7 +4,7 @@
 namespace YSE {
   namespace PATCHER {
 
-    PATCHER_CLASS(pMultiply, YSE::OBJ::D_MULTIPLY)
+    PATCHER_CLASS(dSubstract, YSE::OBJ::D_SUBSTRACT)
       _NO_MESSAGES
       _DO_CALCULATE
       _DO_RESET

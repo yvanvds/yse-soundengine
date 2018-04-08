@@ -9,7 +9,7 @@ Author:  yvan
 */
 
 #include "internalHeaders.h"
-
+#include "patcher\time\TimerThread.h"
 
 
 #ifdef YSE_WINDOWS
@@ -62,6 +62,8 @@ void YSE::system::update() {
 }
 
 void YSE::system::close() {
+  YSE::PATCHER::TimerThread().Clear();
+
   if (INTERNAL::Global().active) {
     INTERNAL::Global().active = false;
     DEVICE::Manager().close();

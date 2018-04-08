@@ -5,21 +5,6 @@ using YSE;
 
 namespace YSENET
 {
-  class PatcherEventHandler : Yse.guiHandler, IPatcherEventHandler
-  {
-    public override void ToGui(int objID, int value)
-    {
-      OnInt(objID, value);
-    }
-
-    public override void ToGui(int objID, float value)
-    {
-      OnFloat(objID, value);
-    }
-
-    public event OnPatcherIntEventHandler OnInt;
-    public event OnPatcherFloatEventHandler OnFloat;
-  }
 
   class Patcher : Yse.patcher, YSE.IPatcher
   {
@@ -74,15 +59,5 @@ namespace YSENET
       base.Clear();
     }
 
-    private PatcherEventHandler PEH = null;
-    public IPatcherEventHandler GetEventHandler()
-    {
-      if (PEH == null)
-      {
-        PEH = new PatcherEventHandler();
-        base.SetGuiHandler(PEH);
-      }
-      return PEH;
-    }
   }
 }

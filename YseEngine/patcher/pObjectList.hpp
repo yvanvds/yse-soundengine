@@ -15,11 +15,16 @@ namespace YSE {
     static constexpr char const * G_INT = ".i";
     static constexpr char const * G_FLOAT = ".f";
     static constexpr char const * G_SLIDER = ".slider";
+    static constexpr char const * G_BUTTON = ".b";
+    static constexpr char const * G_TOGGLE = ".t";
 
     static constexpr char const * G_ADD = ".+";
     static constexpr char const * G_SUBSTRACT = ".-";
     static constexpr char const * G_MULTIPLY = ".*";
     static constexpr char const * G_DIVIDE = "./";
+
+    static constexpr char const * G_RANDOM = ".random";
+    static constexpr char const * G_METRO = ".metro";
 
     static constexpr char const * D_ADD = "~+";
     static constexpr char const * D_SUBSTRACT = "~-";

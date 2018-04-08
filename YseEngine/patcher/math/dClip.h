@@ -5,7 +5,7 @@
 namespace YSE {
   namespace PATCHER {
 
-    PATCHER_CLASS(pClip, YSE::OBJ::D_CLIP)
+    PATCHER_CLASS(dClip, YSE::OBJ::D_CLIP)
       _NO_MESSAGES
       _DO_CALCULATE
       _DO_RESET

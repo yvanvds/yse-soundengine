@@ -11,12 +11,12 @@ CONSTRUCT() {
   midiValue = 0.f;
 
   ADD_IN_0;
-  REG_FLOAT_IN(pMidiToFrequency::SetMidi);
+  REG_FLOAT_IN(SetMidi);
   
   ADD_OUT_FLOAT;
 }
 
-FLOAT_IN(pMidiToFrequency::SetMidi) {
+FLOAT_IN(SetMidi) {
   midiValue = value;
 }
 

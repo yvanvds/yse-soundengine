@@ -4,7 +4,7 @@
 namespace YSE {
   namespace PATCHER {
 
-    PATCHER_CLASS(pAdd, YSE::OBJ::D_ADD)
+    PATCHER_CLASS(dAdd, YSE::OBJ::D_ADD)
       _NO_MESSAGES
       _DO_CALCULATE
       _DO_RESET

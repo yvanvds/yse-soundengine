@@ -16,7 +16,7 @@ pDac::pDac(int channels )
   }
 }
 
-BUFFER_IN(pDac::SetBuffer) {
+BUFFER_IN(SetBuffer) {
   channels[inlet] = buffer;
 }
 

@@ -4,7 +4,7 @@
 namespace YSE {
   namespace PATCHER {
 
-    PATCHER_CLASS(pDivide, YSE::OBJ::D_DIVIDE)
+    PATCHER_CLASS(dDivide, YSE::OBJ::D_DIVIDE)
       _NO_MESSAGES
       _DO_CALCULATE
       _DO_RESET

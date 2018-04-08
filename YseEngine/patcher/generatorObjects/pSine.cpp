@@ -10,8 +10,8 @@ CONSTRUCT_DSP()
   freqBuffer = nullptr;
 
   ADD_IN_0;
-  REG_BUFFER_IN(pSine::SetFrequencyBuffer);
-  REG_FLOAT_IN(pSine::SetFrequency);
+  REG_BUFFER_IN(SetFrequencyBuffer);
+  REG_FLOAT_IN(SetFrequency);
 
   ADD_OUT_BUFFER;
 
@@ -22,11 +22,11 @@ RESET() // {
   freqBuffer = nullptr;
 }
 
-FLOAT_IN(pSine::SetFrequency) {
+FLOAT_IN(SetFrequency) {
   frequency = value;
 }
 
-BUFFER_IN(pSine::SetFrequencyBuffer) {
+BUFFER_IN(SetFrequencyBuffer) {
   freqBuffer = buffer;
 }
 

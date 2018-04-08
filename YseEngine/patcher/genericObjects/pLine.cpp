@@ -13,10 +13,10 @@ CONSTRUCT_DSP()
   // out 0: dsp buffer
 
   ADD_IN_0;
-  REG_FLOAT_IN(pLine::SetTarget);
+  REG_FLOAT_IN(SetTarget);
 
   ADD_IN_1;
-  REG_FLOAT_IN(pLine::SetTime);
+  REG_FLOAT_IN(SetTime);
   
   ADD_OUT_BUFFER;
 
@@ -32,11 +32,11 @@ MESSAGES() {
   }
 }
 
-FLOAT_IN(pLine::SetTarget) {
+FLOAT_IN(SetTarget) {
   target = value;
 }
 
-FLOAT_IN(pLine::SetTime) {
+FLOAT_IN(SetTime) {
   time = value;
 }
 

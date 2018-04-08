@@ -34,6 +34,12 @@ void outlet::SendInt(int value) {
   }
 }
 
+void outlet::SendList(const std::string & value) {
+  for (unsigned int i = 0; i < connections.size(); i++) {
+    connections[i]->SetList(value);
+  }
+}
+
 void outlet::SendBuffer(YSE::DSP::buffer * value) {
   for (unsigned int i = 0; i < connections.size(); i++) {
     connections[i]->SetBuffer(value);

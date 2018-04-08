@@ -15,7 +15,6 @@ patcherImplementation::patcherImplementation(int mainOutputs, YSE::patcher * hea
   , controlledBySound(false)
   , head(head)
   , fileHandlerActive(false)
-  , handler(nullptr)
 {
   output.resize(mainOutputs);
 }
@@ -113,7 +112,6 @@ YSE::pHandle * patcherImplementation::CreateObject(const std::string & type, con
     return nullptr;
   }
 
-  object->RegisterGuiHandler(handler);
   handle = new YSE::pHandle(object);
   
   if (!fileHandlerActive) mtx.lock();
@@ -137,10 +135,6 @@ void patcherImplementation::Clear() {
     delete it->first;
     delete it->second;
   }
-}
-
-void patcherImplementation::SetGuiHandler(YSE::guiHandler * handler) {
-  this->handler = handler;
 }
 
 using json = nlohmann::json;
@@ -174,11 +168,14 @@ void patcherImplementation::ParseJSON(const std::string & content) {
     std::string type = obj.value()["type"].get<std::string>();
     std::string args = obj.value()["parms"].get<std::string>();
     pHandle * handle = CreateObject(type, args);
-    
-    YSE::Pos pos;
-    pos.x = obj.value()["posX"].get<float>();
-    pos.y = obj.value()["posY"].get<float>();
-    handle->SetPosition(pos);
+
+    // handle can be null if called without gui context
+    if (handle != nullptr) {
+      YSE::Pos pos;
+      pos.x = obj.value()["posX"].get<float>();
+      pos.y = obj.value()["posY"].get<float>();
+      handle->SetPosition(pos);
+    }
 
     int ID = obj.value()["ID"].get<int>();
     OldIDs.insert(std::pair<int, YSE::pHandle*>(ID, handle));
@@ -190,9 +187,13 @@ void patcherImplementation::ParseJSON(const std::string & content) {
     int outlet = 0;
     auto outs = obj.value()["outputs"];
     for (auto out = outs.begin(); out != outs.end(); ++out) {
+      if (out.value().count("Object") == 0 || out.value().count("Inlet") == 0) {
+        continue;
+      }
+
       int target = out.value()["Object"].get<int>();
       int inlet = out.value()["Inlet"].get<int>();
-
+      
       pHandle * sourceHandle = nullptr;
       pHandle * targetHandle = nullptr;
 

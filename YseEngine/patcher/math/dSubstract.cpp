@@ -1,9 +1,9 @@
-#include "pSubstract.h"
+#include "dSubstract.h"
 #include "..\pObjectList.hpp"
 
 using namespace YSE::PATCHER;
 
-#define className pSubstract
+#define className dSubstract
 
 CONSTRUCT_DSP() {
 
@@ -14,12 +14,12 @@ CONSTRUCT_DSP() {
 
   // in 0: audio buffer
   ADD_IN_0;
-  REG_BUFFER_IN(pSubstract::SetLeftBuffer);
+  REG_BUFFER_IN(SetLeftBuffer);
 
   // in 1: multiplier (float or audio)
   ADD_IN_1;
-  REG_BUFFER_IN(pSubstract::SetRightBuffer);
-  REG_FLOAT_IN(pSubstract::SetRightFloat);
+  REG_BUFFER_IN(SetRightBuffer);
+  REG_FLOAT_IN(SetRightFloat);
 
   // out 0: audio output
   ADD_OUT_BUFFER;
@@ -27,15 +27,15 @@ CONSTRUCT_DSP() {
   ADD_PARAM(rightFloatIn);
 }
 
-BUFFER_IN(pSubstract::SetLeftBuffer) {
+BUFFER_IN(SetLeftBuffer) {
   leftIn = buffer;
 }
 
-BUFFER_IN(pSubstract::SetRightBuffer) {
+BUFFER_IN(SetRightBuffer) {
   rightIn = buffer;
 }
 
-FLOAT_IN(pSubstract::SetRightFloat) {
+FLOAT_IN(SetRightFloat) {
   rightFloatIn = value;
 }
 

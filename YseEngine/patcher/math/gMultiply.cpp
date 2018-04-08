@@ -1,5 +1,6 @@
 #include "gMultiply.h"
 #include "..\pObjectList.hpp"
+#include "implementations\logImplementation.h"
 
 using namespace YSE::PATCHER;
 
@@ -7,24 +8,37 @@ using namespace YSE::PATCHER;
 
 CONSTRUCT() {
   ADD_IN_0;
-  REG_FLOAT_IN(gMultiply::SetLeftValue);
+  REG_FLOAT_IN(SetLeftFloat);
+  REG_INT_IN(SetLeftInt);
 
   ADD_IN_1;
-  REG_FLOAT_IN(gMultiply::SetRightValue);
+  REG_FLOAT_IN(SetRightFloat);
+  REG_INT_IN(SetRightInt);
 
   ADD_OUT_FLOAT;
 
   ADD_PARAM(rightIn);
 
   leftIn = rightIn = 0;
+ 
 }
 
-FLOAT_IN(gMultiply::SetLeftValue) {
+FLOAT_IN(SetLeftFloat) {
   leftIn = value;
+ 
 }
 
-FLOAT_IN(gMultiply::SetRightValue) {
+FLOAT_IN(SetRightFloat) {
   rightIn = value;
+}
+
+INT_IN(SetLeftInt) {
+  leftIn = (float)value;
+  
+}
+
+INT_IN(SetRightInt) {
+  rightIn = (float)value;
 }
 
 CALC() {

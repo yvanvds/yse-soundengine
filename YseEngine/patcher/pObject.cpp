@@ -13,9 +13,6 @@ unsigned int pObject::CreateID() {
 pObject::pObject(bool isDSPObject) 
   : DSP(isDSPObject)
   , ID(CreateID())
-  , handler(nullptr)
-  , guiInt(nullptr)
-  , guiFlt(nullptr)
 {}
 
 bool pObject::IsDSPStartPoint() {
@@ -43,7 +40,6 @@ void pObject::CalculateIfReady() {
     }
   }
   Calculate();
-  UpdateGui();
 }
 
 void pObject::SetParams(const std::string & args) {
@@ -78,19 +74,6 @@ YSE::PATCHER::outlet * pObject::GetOutlet(int number) {
   return &(outputs[number]);
 }
 
-void pObject::UpdateGui() {
-  if (handler == nullptr) return;
-  if (guiInt != nullptr) {
-    handler->ToGui(ID, *guiInt);
-  }
-  else if (guiFlt != nullptr) {
-    handler->ToGui(ID, *guiFlt);
-  }
-}
-
-void pObject::RegisterGuiHandler(YSE::guiHandler * handler) {
-  this->handler = handler;
-}
 
 void pObject::DumpJson(nlohmann::json::value_type & json) {
   json["type"] = Type();
@@ -99,7 +82,7 @@ void pObject::DumpJson(nlohmann::json::value_type & json) {
   json["posY"] = pos.y;
   json["parms"] = parms.Get();
 
-  for (int i = 0; i < outputs.size(); i++) {
+  for (unsigned int i = 0; i < outputs.size(); i++) {
     outputs[i].DumpJSON(json["outputs"]["output " + std::to_string(i)]);
   }
 }

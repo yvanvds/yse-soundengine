@@ -13,7 +13,14 @@ DemoLoadPatcher::DemoLoadPatcher() {
 }
 
 void DemoLoadPatcher::LoadPatch1() {
-  std::ifstream in("patcher.json");
+  std::ifstream in("01.yap");
+
+  if (in.fail()) {
+    in.close();
+    std::cout << "File not found" << std::endl;
+    return;
+  }
+
   std::string result;
   
   in.seekg(0, std::ios::end);

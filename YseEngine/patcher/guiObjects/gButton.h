@@ -1,11 +1,10 @@
 #pragma once
-#include "..\pObject.h"
-#include <atomic>
+#include "../pObject.h"
 
-namespace YSE{
+namespace YSE {
   namespace PATCHER {
 
-    PATCHER_CLASS(gInt, YSE::OBJ::G_INT)
+    PATCHER_CLASS(gButton, YSE::OBJ::G_BUTTON)
       _NO_MESSAGES
       _DO_CALCULATE
 
@@ -15,8 +14,8 @@ namespace YSE{
 
       _HAS_GUI
 
-    private:
-      std::atomic<int> value;
+private:
+  std::atomic<bool> on;
   };
-  }
+}
 }

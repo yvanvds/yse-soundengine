@@ -8,11 +8,11 @@ CONSTRUCT_DSP() {
 
   // in 0: audio buffer
   ADD_IN_0;
-  REG_BUFFER_IN(pLowpass::SetBuffer);
+  REG_BUFFER_IN(SetBuffer);
 
   // in 1: frequency (float)
   ADD_IN_1;
-  REG_FLOAT_IN(pLowpass::SetFrequency);
+  REG_FLOAT_IN(SetFrequency);
 
   // out 0: audio output
   ADD_OUT_BUFFER;
@@ -27,11 +27,11 @@ RESET() // {
 buffer = nullptr;
 }
 
-BUFFER_IN(pLowpass::SetBuffer) {
+BUFFER_IN(SetBuffer) {
   this->buffer = buffer;
 }
 
-FLOAT_IN(pLowpass::SetFrequency) {
+FLOAT_IN(SetFrequency) {
   frequency = value;
 }
 

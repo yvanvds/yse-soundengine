@@ -14,6 +14,7 @@
 #include "..\YseEngine\patcher\pObjectList.hpp"
 #include "..\YseEngine\patcher\patcher.hpp"
 #include "..\YseEngine\patcher\pHandle.hpp"
+
 %}
 
 %include "std_string.i"

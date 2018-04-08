@@ -14,13 +14,13 @@ CONSTRUCT_DSP() {
 
   // out 0: audio output
   ADD_IN_0;
-  REG_BUFFER_IN(pBandpass::SetBuffer);
+  REG_BUFFER_IN(SetBuffer);
 
   ADD_IN_1;
-  REG_FLOAT_IN(pBandpass::SetFrequency);
+  REG_FLOAT_IN(SetFrequency);
 
   ADD_IN_2;
-  REG_FLOAT_IN(pBandpass::SetQ);
+  REG_FLOAT_IN(SetQ);
 
   ADD_OUT_BUFFER;
 
@@ -35,15 +35,15 @@ RESET() // {
   buffer = nullptr;
 }
 
-BUFFER_IN(pBandpass::SetBuffer) {
+BUFFER_IN(SetBuffer) {
   this->buffer = buffer;
 }
 
-FLOAT_IN(pBandpass::SetFrequency) {
+FLOAT_IN(SetFrequency) {
   frequency = value;
 }
 
-FLOAT_IN(pBandpass::SetQ) {
+FLOAT_IN(SetQ) {
   Q = value;
 }
 

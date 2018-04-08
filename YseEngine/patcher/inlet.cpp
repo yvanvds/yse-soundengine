@@ -14,6 +14,7 @@ inlet::inlet(pObject * obj, bool active, int position)
   , onInt(nullptr)
   , onBang(nullptr)
   , onFloat(nullptr)
+  , onList(nullptr)
   , onBuffer(nullptr)
 {}
 
@@ -38,6 +39,10 @@ void inlet::RegisterFloat(floatFunc f) {
   onFloat = f;
 }
 
+void inlet::RegisterList(listFunc f) {
+  onList = f;
+}
+
 void inlet::RegisterBuffer(bufferFunc f) {
   onBuffer = f;
 }
@@ -59,6 +64,13 @@ void inlet::SetBang() {
 void inlet::SetFloat(float value) {
   if (onFloat) {
     onFloat(value, position);
+    if (active) obj->CalculateIfReady();
+  }
+}
+
+void inlet::SetList(const std::string & value) {
+  if (onList) {
+    onList(value, position);
     if (active) obj->CalculateIfReady();
   }
 }

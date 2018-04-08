@@ -1,9 +1,8 @@
-#include <functional>
-#include "pAdd.h"
+#include "dMultiply.h"
 
 using namespace YSE::PATCHER;
 
-#define className pAdd
+#define className dMultiply
 
 CONSTRUCT_DSP() {
 
@@ -11,15 +10,15 @@ CONSTRUCT_DSP() {
   leftIn = nullptr;
   rightIn = nullptr;
   rightFloatIn = 1.f;
-  
+
   // in 0: audio buffer
   ADD_IN_0;
-  REG_BUFFER_IN(pAdd::SetLeftBuffer);
+  REG_BUFFER_IN(SetLeftBuffer);
 
   // in 1: multiplier (float or audio)
   ADD_IN_1;
-  REG_BUFFER_IN(pAdd::SetRightBuffer);
-  REG_FLOAT_IN(pAdd::SetRightFloat);
+  REG_BUFFER_IN(SetRightBuffer);
+  REG_FLOAT_IN(SetRightFloat);
 
   // out 0: audio output
   ADD_OUT_BUFFER;
@@ -27,15 +26,15 @@ CONSTRUCT_DSP() {
   ADD_PARAM(rightFloatIn);
 }
 
-BUFFER_IN(pAdd::SetLeftBuffer) {
+BUFFER_IN(SetLeftBuffer) {
   leftIn = buffer;
 }
 
-BUFFER_IN(pAdd::SetRightBuffer) {
+BUFFER_IN(SetRightBuffer) {
   rightIn = buffer;
 }
 
-FLOAT_IN(pAdd::SetRightFloat) {
+FLOAT_IN(SetRightFloat) {
   rightFloatIn = value;
 }
 
@@ -47,10 +46,10 @@ CALC() {
   output = *leftIn;
 
   if (rightIn == nullptr) {
-    output += rightFloatIn;
+    output *= rightFloatIn;
   }
   else {
-    output += *rightIn;
+    output *= *rightIn;
   }
 
   outputs[0].SendBuffer(&output);

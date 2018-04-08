@@ -8,8 +8,11 @@ namespace YSE {
       _NO_MESSAGES
       _DO_CALCULATE
 
-      _FLOAT_IN(SetLeftValue)
-      _FLOAT_IN(SetRightValue)
+      _FLOAT_IN(SetLeftFloat)
+      _FLOAT_IN(SetRightFloat)
+
+      _INT_IN(SetLeftInt)
+      _INT_IN(SetRightInt)
 
 private:
   float leftIn;
