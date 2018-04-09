@@ -1,43 +1,47 @@
 #pragma once
 
+#define DEFOBJ(name, tag) static constexpr char const * name = tag
+
 namespace YSE {
   struct API OBJ {
-    static constexpr char const * PATCHER = "patcher";
+    DEFOBJ(PATCHER, "patcher");
 
-    static constexpr char const * D_DAC = "~dac";
-    static constexpr char const * D_ADC = "~adc";
+    DEFOBJ(D_DAC, "~dac");
+    DEFOBJ(D_ADC, "~adc");
 
-    static constexpr char const * D_OUT = "~out";
-    static constexpr char const * D_LINE = "~line";
+    DEFOBJ(D_OUT, "~out");
+    DEFOBJ(D_LINE, "~line");
 
-    static constexpr char const * D_SINE = "~sine";
+    DEFOBJ(D_SINE, "~sine");
 
-    static constexpr char const * G_INT = ".i";
-    static constexpr char const * G_FLOAT = ".f";
-    static constexpr char const * G_SLIDER = ".slider";
-    static constexpr char const * G_BUTTON = ".b";
-    static constexpr char const * G_TOGGLE = ".t";
+    DEFOBJ(G_INT, ".i");
+    DEFOBJ(G_FLOAT, ".f");
+    DEFOBJ(G_SLIDER, ".slider");
+    DEFOBJ(G_BUTTON, ".b");
+    DEFOBJ(G_TOGGLE, ".t");
+    DEFOBJ(G_MESSAGE, ".m");
+    DEFOBJ(G_COUNTER, ".counter");
 
-    static constexpr char const * G_ADD = ".+";
-    static constexpr char const * G_SUBSTRACT = ".-";
-    static constexpr char const * G_MULTIPLY = ".*";
-    static constexpr char const * G_DIVIDE = "./";
+    DEFOBJ(G_ADD, ".+");
+    DEFOBJ(G_SUBSTRACT, ".-");
+    DEFOBJ(G_MULTIPLY, ".*");
+    DEFOBJ(G_DIVIDE, "./");
 
-    static constexpr char const * G_RANDOM = ".random";
-    static constexpr char const * G_METRO = ".metro";
+    DEFOBJ(G_RANDOM, ".random");
+    DEFOBJ(G_METRO, ".metro");
 
-    static constexpr char const * D_ADD = "~+";
-    static constexpr char const * D_SUBSTRACT = "~-";
-    static constexpr char const * D_MULTIPLY = "~*";
-    static constexpr char const * D_DIVIDE = "~/";
+    DEFOBJ(D_ADD, "~+");
+    DEFOBJ(D_SUBSTRACT, "~-");
+    DEFOBJ(D_MULTIPLY, "~*");
+    DEFOBJ(D_DIVIDE, "~/");
 
-    static constexpr char const * D_CLIP = "~clip";
+    DEFOBJ(D_CLIP, "~clip");
 
-    static constexpr char const * MIDITOFREQUENCY = ".mtof";
-    static constexpr char const * FREQUENCYTOMIDI = ".ftom";
+    DEFOBJ(MIDITOFREQUENCY, ".mtof");
+    DEFOBJ(FREQUENCYTOMIDI, ".ftom");
 
-    static constexpr char const * D_LOWPASS = "~lp";
-    static constexpr char const * D_HIGHPASS = "~hp";
-    static constexpr char const * D_BANDPASS = "~bp";
+    DEFOBJ(D_LOWPASS, "~lp");
+    DEFOBJ(D_HIGHPASS, "~hp");
+    DEFOBJ(D_BANDPASS, "~bp");
   };
 }

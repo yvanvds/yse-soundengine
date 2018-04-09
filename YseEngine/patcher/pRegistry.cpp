@@ -10,6 +10,7 @@
 #include "guiObjects\gSlider.h"
 #include "guiObjects\gButton.h"
 #include "guiObjects\gToggle.h"
+#include "guiObjects\gMessage.h"
 
 #include "time\gMetro.h"
 
@@ -29,6 +30,7 @@
 #include "math\gMultiply.h"
 #include "math\gSubstract.h"
 #include "math\gRandom.h"
+#include "math\gCounter.h"
 
 using namespace YSE::PATCHER;
 
@@ -56,12 +58,14 @@ pRegistry::pRegistry() {
   Add(OBJ::G_SLIDER, gSlider::Create);
   Add(OBJ::G_BUTTON, gButton::Create);
   Add(OBJ::G_TOGGLE, gToggle::Create);
+  Add(OBJ::G_MESSAGE, gMessage::Create);
 
   Add(OBJ::G_ADD, gAdd::Create);
   Add(OBJ::G_DIVIDE, gDivide::Create);
   Add(OBJ::G_MULTIPLY, gMultiply::Create);
   Add(OBJ::G_SUBSTRACT, gSubstract::Create);
   Add(OBJ::G_RANDOM, gRandom::Create);
+  Add(OBJ::G_COUNTER, gCounter::Create);
 
   Add(OBJ::G_METRO, gMetro::Create);
 

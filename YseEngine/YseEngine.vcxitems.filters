@@ -531,6 +531,12 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\time\gMetro.h">
       <Filter>patcher\time</Filter>
     </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gMessage.h">
+      <Filter>patcher\guiObjects</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\gCounter.h">
+      <Filter>patcher\math</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="$(MSBuildThisFileDirectory)channel\channelImplementation.cpp">
@@ -898,6 +904,12 @@
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\time\gMetro.cpp">
       <Filter>patcher\time</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gMessage.cpp">
+      <Filter>patcher\guiObjects</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\gCounter.cpp">
+      <Filter>patcher\math</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

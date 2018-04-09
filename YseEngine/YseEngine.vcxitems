@@ -109,10 +109,12 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gButton.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gFloat.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gInt.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gMessage.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gSlider.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gToggle.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\inlet.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\gAdd.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\gCounter.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\gDivide.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\gMultiply.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\gRandom.h" />
@@ -253,10 +255,12 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gButton.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gFloat.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gInt.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gMessage.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gSlider.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gToggle.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\inlet.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\gAdd.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\gCounter.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\gDivide.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\gMultiply.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\gRandom.cpp" />

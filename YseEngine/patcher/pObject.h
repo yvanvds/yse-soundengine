@@ -1,5 +1,6 @@
 #pragma once
 #include <vector>
+#include <string>
 #include "inlet.h"
 #include "outlet.h"
 #include "pEnums.h"
@@ -102,7 +103,7 @@ namespace YSE {
 #define FLOAT_IN(funcName) void className::funcName(float value, int inlet)
 #define INT_IN(funcName) void className::funcName(int value, int inlet)
 #define BANG_IN(funcName) void className::funcName(int inlet)
-#define LIST_IN(funcName) void className::funcName(const std::string & value, int inlet);
+#define LIST_IN(funcName) void className::funcName(const std::string & value, int inlet)
 
 #define ADD_IN_0 inputs.emplace_back(this, true, 0)
 #define ADD_IN_1 inputs.emplace_back(this, false, 1)
@@ -112,8 +113,9 @@ namespace YSE {
 #define REG_BUFFER_IN(funcName) inputs.back().RegisterBuffer(std::bind(&className::funcName, this, std::placeholders::_1, std::placeholders::_2))
 #define REG_FLOAT_IN(funcName) inputs.back().RegisterFloat(std::bind(&className::funcName, this, std::placeholders::_1, std::placeholders::_2))
 #define REG_INT_IN(funcName) inputs.back().RegisterInt(std::bind(&className::funcName, this, std::placeholders::_1, std::placeholders::_2))
-#define REG_BANG_IN(funcName) inputs.back().RegisterBang(std::bind(&className::funcName, this, std::placeholders::_1))
 #define REG_LIST_IN(funcName) inputs.back().RegisterList(std::bind(&className::funcName, this, std::placeholders::_1, std::placeholders::_2))
+#define REG_BANG_IN(funcName) inputs.back().RegisterBang(std::bind(&className::funcName, this, std::placeholders::_1))
+
 
 #define ADD_OUT_BUFFER outputs.emplace_back(this, OUT_TYPE::BUFFER)
 #define ADD_OUT_FLOAT outputs.emplace_back(this, OUT_TYPE::FLOAT)
