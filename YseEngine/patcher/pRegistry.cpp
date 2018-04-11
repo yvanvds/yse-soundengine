@@ -3,6 +3,12 @@
 
 #include "genericObjects\pDac.h"
 #include "genericObjects/pLine.h"
+#include "genericObjects\gSwitch.h"
+#include "genericObjects\gGate.h"
+#include "genericObjects\gRoute.h"
+#include "genericObjects\gReceive.h"
+#include "genericObjects\gSend.h"
+
 #include "generatorObjects/pSine.h"
 
 #include "guiObjects\gInt.h"
@@ -46,6 +52,11 @@ pRegistry::pRegistry() {
   Add(OBJ::D_LINE, pLine::Create);
 
   Add(OBJ::D_SINE, pSine::Create);
+  Add(OBJ::G_SWITCH, gSwitch::Create);
+  Add(OBJ::G_GATE, gGate::Create);
+  Add(OBJ::G_ROUTE, gRoute::Create);
+  Add(OBJ::G_RECEIVE, gReceive::Create);
+  Add(OBJ::G_SEND, gSend::Create);
 
   Add(OBJ::D_ADD, dAdd::Create);
   Add(OBJ::D_SUBSTRACT, dSubstract::Create);

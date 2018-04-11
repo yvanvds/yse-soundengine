@@ -13,6 +13,8 @@ void DemoPatcher::Setup() {
   volume = patcher.CreateObject("~*");
   pHandle * multiplier = patcher.CreateObject(OBJ::D_MULTIPLY);
   pHandle * dac = patcher.CreateObject(OBJ::D_DAC);
+  pHandle * test = patcher.CreateObject(OBJ::G_SEND);
+  test->SetParams("test");
 
   patcher.Connect(mtof, 0, sine, 0);
   patcher.Connect(sine, 0, multiplier, 0);
@@ -21,7 +23,7 @@ void DemoPatcher::Setup() {
   patcher.Connect(volume, 0, dac, 0);
 
   note = 60.f;
-  mtof->SetData(0, note);
+  mtof->SetFloatData(0, note);
   sine->SetParams("440");
 
   lfoFrequency = 4.f;
@@ -48,30 +50,30 @@ DemoPatcher::DemoPatcher()
 
 void DemoPatcher::FreqUp() {
   note += 1;
-  mtof->SetData(0, note);
+  mtof->SetFloatData(0, note);
 }
 
 void DemoPatcher::FreqDown() {
   note -= 1;
-  mtof->SetData(0, note);
+  mtof->SetFloatData(0, note);
 }
 
 void DemoPatcher::LfoUp() {
   lfoFrequency += 0.1f;
-  lfo->SetData(0, lfoFrequency);
+  lfo->SetFloatData(0, lfoFrequency);
 }
 
 void DemoPatcher::LfoDown() {
   lfoFrequency -= 0.1f;
-  lfo->SetData(0, lfoFrequency);
+  lfo->SetFloatData(0, lfoFrequency);
 }
 
 void DemoPatcher::SoundOn() {
-  volume->SetData(1, 1.f);
+  volume->SetFloatData(1, 1.f);
 }
 
 void DemoPatcher::SoundOff() {
-  volume->SetData(1, 0.f);
+  volume->SetFloatData(1, 0.f);
 }
 
 void DemoPatcher::SaveToFile() {

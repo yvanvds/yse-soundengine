@@ -23,7 +23,8 @@ CONSTRUCT() {
 }
 
 INT_IN(SetIntValue) {
-  currentValue = value;
+  startValue = currentValue = value;
+  if (inlet == 0) outputs[0].SendInt(currentValue);
 }
 
 LIST_IN(SetListValue) {
@@ -33,11 +34,8 @@ LIST_IN(SetListValue) {
 }
 
 BANG_IN(Bang) {
-  // linked to first inlet and will trigger output
-}
-
-CALC() {
-  outputs[0].SendInt(currentValue++);
+  currentValue += step;
+  outputs[0].SendInt(currentValue);
 }
 
 GUI_VALUE() {

@@ -61,6 +61,11 @@ namespace YSENET
       source.SetFloatData(inlet, value);
     }
 
+    public void SetListData(uint inlet, string value)
+    {
+      source.SetListData(inlet, value);
+    }
+
     public string Type()
     {
       return source.Type();

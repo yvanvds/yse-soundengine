@@ -114,6 +114,7 @@ namespace YSE {
     INT,
     BUFFER,
     LIST,
+    ANY,
   };
 
   // used by utils/error.hpp

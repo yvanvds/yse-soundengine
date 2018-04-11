@@ -105,6 +105,7 @@ YSE::pHandle * patcherImplementation::CreateObject(const std::string & type, con
   else {
     object = Register().Get(type);
     object->SetParams(args);
+    object->SetParent(this);
   }
 
   if (object == nullptr) {
@@ -117,7 +118,6 @@ YSE::pHandle * patcherImplementation::CreateObject(const std::string & type, con
   if (!fileHandlerActive) mtx.lock();
   objects.insert(std::pair<YSE::pHandle*, pObject*>(handle, object));
   if (!fileHandlerActive) mtx.unlock();
-
   INTERNAL::LogImpl().emit(E_DEBUG, "Patcher: " + type + " created");
   return handle;
 }
@@ -125,6 +125,7 @@ YSE::pHandle * patcherImplementation::CreateObject(const std::string & type, con
 void patcherImplementation::DeleteObject(YSE::pHandle * handle) {
   if(!fileHandlerActive) mtx.lock();
   objects.erase(handle);
+
   delete handle->object;
   delete handle;
   if (!fileHandlerActive) mtx.unlock();
@@ -238,3 +239,43 @@ YSE::pHandle * patcherImplementation::GetHandleFromID(unsigned int objID) {
   }
   return nullptr;
 } 
+
+void patcherImplementation::PassBang(const std::string & to) {
+  for (auto& x : objects) {
+    if (x.second->Type() == OBJ::G_RECEIVE) {
+      if (to.compare(x.second->DataName()) == 0) {
+        x.second->GetInlet(0)->SetBang();
+      }
+    }
+  }
+}
+
+void patcherImplementation::PassData(int value, const std::string & to) {
+  for (auto& x : objects) {
+    if (x.second->Type() == OBJ::G_RECEIVE) {
+      if (to.compare(x.second->DataName()) == 0) {
+        x.second->GetInlet(0)->SetInt(value);
+      }
+    }
+  }
+}
+
+void patcherImplementation::PassData(float value, const std::string & to) {
+  for (auto& x : objects) {
+    if (x.second->Type() == OBJ::G_RECEIVE) {
+      if (to.compare(x.second->DataName()) == 0) {
+        x.second->GetInlet(0)->SetFloat(value);
+      }
+    }
+  }
+}
+
+void patcherImplementation::PassData(const std::string & value, const std::string & to) {
+  for (auto& x : objects) {
+    if (x.second->Type() == OBJ::G_RECEIVE) {
+      if (to.compare(x.second->DataName()) == 0) {
+        x.second->GetInlet(0)->SetList(value);
+      }
+    }
+  }
+}

@@ -10,8 +10,9 @@ unsigned int pObject::CreateID() {
   return LastPatcherObjectID++;
 }
 
-pObject::pObject(bool isDSPObject) 
-  : DSP(isDSPObject)
+pObject::pObject(bool isDSPObject, pObject * parent) 
+  : parent(parent)
+  , DSP(isDSPObject)
   , ID(CreateID())
 {}
 
@@ -40,6 +41,10 @@ void pObject::CalculateIfReady() {
     }
   }
   Calculate();
+}
+
+void pObject::SetParent(pObject * parent) {
+  this->parent = parent;
 }
 
 void pObject::SetParams(const std::string & args) {

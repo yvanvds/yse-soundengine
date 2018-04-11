@@ -104,6 +104,11 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\filters\pHighpass.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\filters\pLowpass.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\generatorObjects\pSine.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\genericObjects\gReceive.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\genericObjects\gGate.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\genericObjects\gRoute.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\genericObjects\gSend.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\genericObjects\gSwitch.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\genericObjects\pDac.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\genericObjects\pLine.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gButton.h" />
@@ -250,6 +255,11 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\filters\pBandpass.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\filters\pLowpass.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\generatorObjects\pSine.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\genericObjects\gReceive.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\genericObjects\gGate.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\genericObjects\gRoute.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\genericObjects\gSend.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\genericObjects\gSwitch.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\genericObjects\pDac.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\genericObjects\pLine.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gButton.cpp" />

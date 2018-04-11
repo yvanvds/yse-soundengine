@@ -19,6 +19,7 @@ namespace YSE
     void SetBang(uint inlet);
     void SetIntData(uint inlet, int value);
     void SetFloatData(uint inlet, float value);
+    void SetListData(uint inlet, string value);
 
     void SetPosition(Pos pos);
     Pos GetPosition();

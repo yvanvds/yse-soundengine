@@ -54,10 +54,5 @@ namespace YSENET
       else return new Handle(handle);
     }
 
-    public void Clear()
-    {
-      base.Clear();
-    }
-
   }
 }

@@ -41,11 +41,16 @@ namespace YSE {
       aBool controlledBySound;
       std::atomic<patcher*> head;
 
+      // for external data input
+      void PassBang(const std::string & to);
+      void PassData(int value, const std::string & to);
+      void PassData(float value, const std::string & to);
+      void PassData(const std::string & value, const std::string & to);
+
     private:
       std::mutex mtx;
       bool fileHandlerActive;
       std::map<pHandle*, pObject*> objects;
-
     };
 
   }

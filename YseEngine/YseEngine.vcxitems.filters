@@ -537,6 +537,21 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\gCounter.h">
       <Filter>patcher\math</Filter>
     </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\genericObjects\gSwitch.h">
+      <Filter>patcher\genericObjects</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\genericObjects\gGate.h">
+      <Filter>patcher\genericObjects</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\genericObjects\gRoute.h">
+      <Filter>patcher\genericObjects</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\GitHub\yse-soundengine\YseEngine\patcher\genericObjects\gReceive.h">
+      <Filter>patcher\genericObjects</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\genericObjects\gSend.h">
+      <Filter>patcher\genericObjects</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="$(MSBuildThisFileDirectory)channel\channelImplementation.cpp">
@@ -910,6 +925,21 @@
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\gCounter.cpp">
       <Filter>patcher\math</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\genericObjects\gSwitch.cpp">
+      <Filter>patcher\genericObjects</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\genericObjects\gGate.cpp">
+      <Filter>patcher\genericObjects</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\genericObjects\gRoute.cpp">
+      <Filter>patcher\genericObjects</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\GitHub\yse-soundengine\YseEngine\patcher\genericObjects\gReceive.cpp">
+      <Filter>patcher\genericObjects</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\genericObjects\gSend.cpp">
+      <Filter>patcher\genericObjects</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

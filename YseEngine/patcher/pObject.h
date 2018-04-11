@@ -21,7 +21,7 @@ namespace YSE {
 
     class API pObject {
     public:
-      pObject(bool isDSPObject);
+      pObject(bool isDSPObject, pObject * parent = nullptr);
 
       virtual const char * Type() const = 0;
       virtual void Calculate() = 0;
@@ -59,13 +59,15 @@ namespace YSE {
       inline unsigned int GetID() { return ID; }
       void DumpJson(nlohmann::json::value_type & json);
 
+      void SetParent(pObject * parent);
+      inline const std::string & DataName() { return dataName; }
     protected:
 
       std::vector<inlet> inputs;
       std::vector<outlet> outputs;
 
       Parameters parms;
-
+      pObject * parent;
       bool DSP;
 
       // for display on screen
@@ -73,6 +75,9 @@ namespace YSE {
 
       // for storage
       int ID;
+
+      // for incoming data
+      std::string dataName;
     };
 
   }
@@ -122,6 +127,7 @@ namespace YSE {
 #define ADD_OUT_INT outputs.emplace_back(this, OUT_TYPE::INT)
 #define ADD_OUT_BANG outputs.emplace_back(this, OUT_TYPE::BANG)
 #define ADD_OUT_LIST outputs.emplace_back(this, OUT_TYPE::LIST)
+#define ADD_OUT_ANY outputs.emplace_back(this, OUT_TYPE::ANY)
 
 #define ADD_PARAM(var) parms.Register(var)
 
@@ -130,3 +136,11 @@ namespace YSE {
 
 #define CONSTRUCT_DSP() className::className() : pObject(true)
 #define CONSTRUCT() className::className() : pObject(false)
+
+#define _PARM_CLEAR void ClearParams();
+#define _PARM_PARSE void ParseParams();
+#define PARM_CLEAR() void className::ClearParams()
+#define PARM_PARSE() void className::ParseParams()
+#define REG_PARM_CLEAR parms.RegisterClear(std::bind(&className::ClearParams, this))
+#define REG_PARM_PARSE parms.RegisterParse(std::bind(&className::ParseParams, this))
+

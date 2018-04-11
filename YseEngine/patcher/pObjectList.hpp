@@ -8,6 +8,8 @@ namespace YSE {
 
     DEFOBJ(D_DAC, "~dac");
     DEFOBJ(D_ADC, "~adc");
+    DEFOBJ(G_RECEIVE, ".r");
+    DEFOBJ(G_SEND, ".s");
 
     DEFOBJ(D_OUT, "~out");
     DEFOBJ(D_LINE, "~line");
@@ -21,6 +23,9 @@ namespace YSE {
     DEFOBJ(G_TOGGLE, ".t");
     DEFOBJ(G_MESSAGE, ".m");
     DEFOBJ(G_COUNTER, ".counter");
+    DEFOBJ(G_SWITCH, ".switch");
+    DEFOBJ(G_GATE, ".gate");
+    DEFOBJ(G_ROUTE, ".route");
 
     DEFOBJ(G_ADD, ".+");
     DEFOBJ(G_SUBSTRACT, ".-");

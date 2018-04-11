@@ -7,7 +7,7 @@ namespace YSE {
 
     PATCHER_CLASS(gCounter, YSE::OBJ::G_COUNTER)
       _NO_MESSAGES
-      _DO_CALCULATE
+      _NO_CALCULATE
 
       _BANG_IN(Bang)
       _LIST_IN(SetListValue)
