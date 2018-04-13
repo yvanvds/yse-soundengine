@@ -28,7 +28,7 @@ PARM_PARSE() {
 }
 
 BANG_IN(SetBangValue) {
-  for (int i = 0; i < list.size(); i++) {
+  for (unsigned int i = 0; i < list.size(); i++) {
     if (list[i].compare("bang") == 0) {
       outputs[i].SendBang();
       return;
@@ -39,7 +39,7 @@ BANG_IN(SetBangValue) {
 
 INT_IN(SetIntValue) {
   std::string s = std::to_string(value);
-  for (int i = 0; i < list.size(); i++) {
+  for (unsigned int i = 0; i < list.size(); i++) {
     if (list[i].compare(s) == 0) {
       outputs[i].SendInt(value);
       return;
@@ -50,7 +50,7 @@ INT_IN(SetIntValue) {
 
 FLOAT_IN(SetFloatValue) {
   std::string s = std::to_string(value);
-  for (int i = 0; i < list.size(); i++) {
+  for (unsigned int i = 0; i < list.size(); i++) {
     if (list[i].compare(s) == 0) {
       outputs[i].SendFloat(value);
       return;
@@ -70,7 +70,7 @@ LIST_IN(SetListValue) {
     token = value;
   }
 
-  for (int i = 0; i < list.size(); i++) {
+  for (unsigned int i = 0; i < list.size(); i++) {
     if (list[i].compare(token) == 0) {
       outputs[i].SendList(value);
       return;

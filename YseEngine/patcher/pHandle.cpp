@@ -39,12 +39,12 @@ void YSE::pHandle::SetParams(const std::string & args) {
   object->SetParams(args);
 }
 
-void YSE::pHandle::SetPosition(const YSE::Pos & pos) {
-  object->SetPosition(pos);
+std::string YSE::pHandle::GetGuiProperty(const std::string & key) {
+  return object->GetGuiProperty(key);
 }
 
-YSE::Pos YSE::pHandle::GetPosition() {
-  return object->GetPosition();
+void YSE::pHandle::SetGuiProperty(const std::string & key, const std::string & value) {
+  object->SetGuiProperty(key, value);
 }
 
 bool YSE::pHandle::IsDSPInput(unsigned int inlet) {

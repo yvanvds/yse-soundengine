@@ -21,8 +21,8 @@ namespace YSE {
     void SetListData(unsigned int inlet, const std::string & value);
     void SetParams(const std::string & args);
 
-    void SetPosition(const YSE::Pos & pos);
-    YSE::Pos GetPosition();
+    std::string GetGuiProperty(const std::string & key);
+    void SetGuiProperty(const std::string & key, const std::string & value);
 
     int GetInputs();
     int GetOutputs();

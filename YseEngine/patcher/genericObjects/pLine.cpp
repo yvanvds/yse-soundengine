@@ -46,7 +46,7 @@ CALC() {
     stop = false;
   }
   else {
-    ramp.setIfNew(target, time);
+    ramp.setIfNew(target, (int)time);
   }
   ramp.update();
   outputs[0].SendBuffer(&ramp());

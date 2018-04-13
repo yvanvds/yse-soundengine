@@ -21,8 +21,8 @@ namespace YSE
     void SetFloatData(uint inlet, float value);
     void SetListData(uint inlet, string value);
 
-    void SetPosition(Pos pos);
-    Pos GetPosition();
+    void SetGuiProperty(string key, string value);
+    string GetGuiProperty(string key);
 
     int Inputs { get; }
     int Outputs { get; }

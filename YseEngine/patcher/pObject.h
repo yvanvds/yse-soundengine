@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 #include <string>
+#include <map>
 #include "inlet.h"
 #include "outlet.h"
 #include "pEnums.h"
@@ -50,9 +51,8 @@ namespace YSE {
       void CalculateIfReady();
       bool IsDSPStartPoint();
 
-      inline void SetPosition(const YSE::Pos & pos) { this->pos = pos; }
-      inline const YSE::Pos & GetPosition() { return pos; }
-
+      std::string GetGuiProperty(const std::string & key);
+      void SetGuiProperty(const std::string & key, const std::string & value);
       virtual std::string GetGuiValue() { return ""; }
       
       static unsigned int CreateID();
@@ -65,13 +65,11 @@ namespace YSE {
 
       std::vector<inlet> inputs;
       std::vector<outlet> outputs;
+      std::map<std::string, std::string> guiProperties;
 
       Parameters parms;
       pObject * parent;
       bool DSP;
-
-      // for display on screen
-      YSE::Pos pos;
 
       // for storage
       int ID;

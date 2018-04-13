@@ -44,7 +44,7 @@ PARM_CLEAR() {
 }
 
 PARM_PARSE() {
-  while (inputs.size() < numInlets + 1) {
+  while (inputs.size() < (unsigned int)numInlets + 1) {
     inputs.emplace_back(this, false, inputs.size());
     REG_BANG_IN(SetBangValue);
     REG_INT_IN(SetIntValue);

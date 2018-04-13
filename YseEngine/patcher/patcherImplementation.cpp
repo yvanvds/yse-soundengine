@@ -65,7 +65,7 @@ void patcherImplementation::Calculate() {
   // normalize output 
   if (counter > 1) {
     for (unsigned int i = 0; i < output.size(); i++) {
-      output[i] /= counter;
+      output[i] /= (float)counter;
     }
   }
 
@@ -104,8 +104,10 @@ YSE::pHandle * patcherImplementation::CreateObject(const std::string & type, con
   }
   else {
     object = Register().Get(type);
-    object->SetParams(args);
-    object->SetParent(this);
+    if (object != nullptr) {
+      object->SetParams(args);
+      object->SetParent(this);
+    }
   }
 
   if (object == nullptr) {
@@ -172,10 +174,10 @@ void patcherImplementation::ParseJSON(const std::string & content) {
 
     // handle can be null if called without gui context
     if (handle != nullptr) {
-      YSE::Pos pos;
-      pos.x = obj.value()["posX"].get<float>();
-      pos.y = obj.value()["posY"].get<float>();
-      handle->SetPosition(pos);
+      auto gui = obj.value()["gui"];
+      for (auto prop = gui.begin(); prop != gui.end(); ++prop) {
+        handle->SetGuiProperty(prop.key(), prop.value().get<std::string>());
+      }
     }
 
     int ID = obj.value()["ID"].get<int>();

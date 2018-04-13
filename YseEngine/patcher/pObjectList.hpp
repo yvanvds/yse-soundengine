@@ -15,6 +15,8 @@ namespace YSE {
     DEFOBJ(D_LINE, "~line");
 
     DEFOBJ(D_SINE, "~sine");
+    DEFOBJ(D_SAW, "~saw");
+    DEFOBJ(D_NOISE, "~noise");
 
     DEFOBJ(G_INT, ".i");
     DEFOBJ(G_FLOAT, ".f");
@@ -22,6 +24,7 @@ namespace YSE {
     DEFOBJ(G_BUTTON, ".b");
     DEFOBJ(G_TOGGLE, ".t");
     DEFOBJ(G_MESSAGE, ".m");
+    DEFOBJ(G_TEXT, ".text");
     DEFOBJ(G_COUNTER, ".counter");
     DEFOBJ(G_SWITCH, ".switch");
     DEFOBJ(G_GATE, ".gate");
@@ -48,5 +51,6 @@ namespace YSE {
     DEFOBJ(D_LOWPASS, "~lp");
     DEFOBJ(D_HIGHPASS, "~hp");
     DEFOBJ(D_BANDPASS, "~bp");
+    DEFOBJ(D_VCF, "~vcf");
   };
 }

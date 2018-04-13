@@ -21,12 +21,12 @@ BUFFER_IN(SetBuffer) {
 }
 
 RESET() // {
-  for (int i = 0; i < channels.size(); i++) {
+  for (unsigned int i = 0; i < channels.size(); i++) {
     channels[i] = nullptr;
   }
 }
 
-YSE::DSP::buffer * pDac::GetBuffer(int output) {
+YSE::DSP::buffer * pDac::GetBuffer(unsigned int output) {
   if (output < channels.size()) {
     return channels[output];
   }

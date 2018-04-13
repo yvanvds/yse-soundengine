@@ -43,6 +43,8 @@ leftIn = rightIn = nullptr;
 }
 
 CALC() {
+  if (leftIn == nullptr) return;
+
   output = *leftIn;
 
   if (rightIn == nullptr) {

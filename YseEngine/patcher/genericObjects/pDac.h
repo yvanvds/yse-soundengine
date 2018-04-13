@@ -13,7 +13,7 @@ namespace YSE {
       _BUFFER_IN(SetBuffer)
 
       // used by patcher implementation
-      YSE::DSP::buffer * GetBuffer(int channel);
+      YSE::DSP::buffer * GetBuffer(unsigned int channel);
 
     private:
       std::vector<DSP::buffer *> channels;

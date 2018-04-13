@@ -10,6 +10,8 @@
 #include "genericObjects\gSend.h"
 
 #include "generatorObjects/pSine.h"
+#include "generatorObjects\dSaw.h"
+#include "generatorObjects/dNoise.h"
 
 #include "guiObjects\gInt.h"
 #include "guiObjects\gFloat.h"
@@ -52,6 +54,9 @@ pRegistry::pRegistry() {
   Add(OBJ::D_LINE, pLine::Create);
 
   Add(OBJ::D_SINE, pSine::Create);
+  Add(OBJ::D_SAW, dSaw::Create);
+  Add(OBJ::D_NOISE, dNoise::Create);
+
   Add(OBJ::G_SWITCH, gSwitch::Create);
   Add(OBJ::G_GATE, gGate::Create);
   Add(OBJ::G_ROUTE, gRoute::Create);

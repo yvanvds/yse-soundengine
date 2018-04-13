@@ -37,31 +37,31 @@ PARM_CLEAR() {
 }
 
 PARM_PARSE() {
-  while (outputs.size() < numOutlets) {
+  while (outputs.size() < (unsigned int)numOutlets) {
     ADD_OUT_ANY;
   }
 }
 
 BANG_IN(SetBangValue) {
-  if (activeOutlet > 0 && activeOutlet <= outputs.size()) {
+  if (activeOutlet > 0 && (unsigned int)activeOutlet <= outputs.size()) {
     outputs[activeOutlet - 1].SendBang();
   }
 }
 
 INT_IN(SetIntValue) {
-  if (activeOutlet > 0 && activeOutlet <= outputs.size()) {
+  if (activeOutlet > 0 && (unsigned int)activeOutlet <= outputs.size()) {
     outputs[activeOutlet - 1].SendInt(value);
   }
 }
 
 FLOAT_IN(SetFloatValue) {
-  if (activeOutlet > 0 && activeOutlet <= outputs.size()) {
+  if (activeOutlet > 0 && (unsigned int)activeOutlet <= outputs.size()) {
     outputs[activeOutlet - 1].SendFloat(value);
   }
 }
 
 LIST_IN(SetListValue) {
-  if (activeOutlet > 0 && activeOutlet <= outputs.size()) {
+  if (activeOutlet > 0 && (unsigned int)activeOutlet <= outputs.size()) {
     outputs[activeOutlet - 1].SendList(value);
   }
 }

@@ -13,8 +13,6 @@ void DemoPatcher::Setup() {
   volume = patcher.CreateObject("~*");
   pHandle * multiplier = patcher.CreateObject(OBJ::D_MULTIPLY);
   pHandle * dac = patcher.CreateObject(OBJ::D_DAC);
-  pHandle * test = patcher.CreateObject(OBJ::G_SEND);
-  test->SetParams("test");
 
   patcher.Connect(mtof, 0, sine, 0);
   patcher.Connect(sine, 0, multiplier, 0);

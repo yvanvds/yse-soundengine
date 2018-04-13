@@ -13,18 +13,6 @@ namespace YSENET
 
     public int Outputs => source.GetOutputs();
 
-    public Pos GetPosition()
-    {
-        Yse.Pos f = source.GetPosition();
-        return new YSE.Pos(f.x, f.y, f.z);
-    }
-
-    public void SetPosition(Pos pos)
-    {
-      Yse.Pos f = new Yse.Pos(pos.X, pos.Y, pos.Z);
-      source.SetPosition(f);
-    }
-
     public string Name => source.GetName();
 
     public string GetArgs()
@@ -120,6 +108,16 @@ namespace YSENET
     public string GetGuiValue()
     {
       return source.GetGuiValue();
+    }
+
+    public void SetGuiProperty(string key, string value)
+    {
+      source.SetGuiProperty(key, value);
+    }
+
+    public string GetGuiProperty(string key)
+    {
+      return source.GetGuiProperty(key);
     }
   }
 }

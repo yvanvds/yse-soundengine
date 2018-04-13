@@ -83,12 +83,14 @@ YSE::PATCHER::outlet * pObject::GetOutlet(int number) {
 void pObject::DumpJson(nlohmann::json::value_type & json) {
   json["type"] = Type();
   json["ID"] = ID;
-  json["posX"] = pos.x;
-  json["posY"] = pos.y;
   json["parms"] = parms.Get();
 
   for (unsigned int i = 0; i < outputs.size(); i++) {
     outputs[i].DumpJSON(json["outputs"]["output " + std::to_string(i)]);
+  }
+
+  for (auto const & x : guiProperties) {
+    json["gui"][x.first] = x.second;
   }
 }
 
@@ -106,4 +108,16 @@ unsigned int pObject::GetConnectionTarget(unsigned int outlet, unsigned int conn
 
 unsigned int pObject::GetConnectionTargetInlet(unsigned int outlet, unsigned int connection) {
   return outputs[outlet].GetTargetInlet(connection);
+}
+
+std::string pObject::GetGuiProperty(const std::string & key) {
+  auto pos = guiProperties.find(key);
+  if (pos == guiProperties.end()) {
+    return "";
+  }
+  return pos->second;
+}
+
+void pObject::SetGuiProperty(const std::string & key, const std::string & value) {
+  guiProperties[key] = value;
 }
