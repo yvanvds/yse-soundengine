@@ -41,5 +41,5 @@ INT_IN(SetRightInt) {
 
 CALC() {
   result = leftIn - rightIn;
-  outputs[0].SendFloat(result);
+  outputs[0].SendFloat(result, thread);
 }

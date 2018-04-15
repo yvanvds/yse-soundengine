@@ -24,7 +24,7 @@ CONSTRUCT() {
 
 INT_IN(SetIntValue) {
   startValue = currentValue = value;
-  if (inlet == 0) outputs[0].SendInt(currentValue);
+  if (inlet == 0) outputs[0].SendInt(currentValue, thread);
 }
 
 LIST_IN(SetListValue) {
@@ -35,7 +35,7 @@ LIST_IN(SetListValue) {
 
 BANG_IN(Bang) {
   currentValue += step;
-  outputs[0].SendInt(currentValue);
+  outputs[0].SendInt(currentValue, thread);
 }
 
 GUI_VALUE() {

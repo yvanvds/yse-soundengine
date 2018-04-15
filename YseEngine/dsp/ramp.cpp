@@ -55,7 +55,7 @@ YSE::DSP::ramp& YSE::DSP::ramp::stop() {
 
 YSE::DSP::ramp& YSE::DSP::ramp::update() {
   if (reTarget) {
-    Int nTicks = (Int)(time * _dspTickToMSEC);
+    nTicks = (Int)(time * _dspTickToMSEC);
     if (!nTicks) nTicks = 1;
     ticksLeft = nTicks;
     bigInc = (target - current) / static_cast<Flt>(nTicks);
@@ -63,16 +63,17 @@ YSE::DSP::ramp& YSE::DSP::ramp::update() {
     reTarget = false;
   }
 
-  Int l = getLength();
-  Flt * ptr = getPtr();
+  l = getLength();
+  ptr = getPtr();
   if (ticksLeft) {
-    Flt f = current;
+    f = current;
+
     while (l--) *ptr++ = f, f += inc;
     current.store(current.load() + bigInc);
     ticksLeft--;
   }
   else {
-    Flt f = current = target.load();
+    f = current = target.load();
     for (; l > 7; l -= 8, ptr += 8) {
       ptr[0] = f; ptr[1] = f; ptr[2] = f; ptr[3] = f;
       ptr[4] = f; ptr[5] = f; ptr[6] = f; ptr[7] = f;

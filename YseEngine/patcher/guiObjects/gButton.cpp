@@ -27,5 +27,5 @@ GUI_VALUE() {
 }
 
 CALC() {
-  outputs[0].SendBang();
+  outputs[0].SendBang(thread);
 }

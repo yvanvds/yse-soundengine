@@ -18,11 +18,11 @@ namespace YSE {
 
       inline OUT_TYPE Type() const { return type; } 
 
-      void SendBang();
-      void SendFloat(float value);
-      void SendInt(int value);
-      void SendList(const std::string & value);
-      void SendBuffer(DSP::buffer * value);
+      void SendBang(THREAD thread);
+      void SendFloat(float value, THREAD thread);
+      void SendInt(int value, THREAD thread);
+      void SendList(const std::string & value, THREAD thread);
+      void SendBuffer(DSP::buffer * value, THREAD thread);
 
       void Connect(inlet * in);
       void Disconnect(inlet * in);

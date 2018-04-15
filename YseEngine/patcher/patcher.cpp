@@ -83,20 +83,20 @@ YSE::pHandle * patcher::GetHandleFromID(unsigned int objID) {
 
 void patcher::PassBang(const std::string & to) {
   if (pimpl == nullptr) return;
-  pimpl->PassBang(to);
+  pimpl->PassBang(to, T_GUI);
 }
 
 void patcher::PassData(int value, const std::string & to) {
   if (pimpl == nullptr) return;
-  pimpl->PassData(value, to);
+  pimpl->PassData(value, to, T_GUI);
 }
 
 void patcher::PassData(float value, const std::string & to) {
   if (pimpl == nullptr) return;
-  pimpl->PassData(value, to);
+  pimpl->PassData(value, to, T_GUI);
 }
 
 void patcher::PassData(const std::string & value, const std::string & to) {
   if (pimpl == nullptr) return;
-  pimpl->PassData(value, to);
+  pimpl->PassData(value, to, T_GUI);
 }

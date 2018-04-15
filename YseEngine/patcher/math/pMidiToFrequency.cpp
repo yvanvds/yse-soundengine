@@ -21,5 +21,5 @@ FLOAT_IN(SetMidi) {
 }
 
 CALC() {
-  outputs[0].SendFloat(YSE::DSP::MidiToFreq(midiValue));
+  outputs[0].SendFloat(YSE::DSP::MidiToFreq(midiValue), thread);
 }

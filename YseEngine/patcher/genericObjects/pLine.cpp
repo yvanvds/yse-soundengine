@@ -49,5 +49,5 @@ CALC() {
     ramp.setIfNew(target, (int)time);
   }
   ramp.update();
-  outputs[0].SendBuffer(&ramp());
+  outputs[0].SendBuffer(&ramp(), thread);
 }

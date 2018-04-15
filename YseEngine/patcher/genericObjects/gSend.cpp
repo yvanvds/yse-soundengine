@@ -17,24 +17,24 @@ CONSTRUCT() {
 
 BANG_IN(SetBangValue) {
   if (parent != nullptr) {
-    ((patcherImplementation*)parent)->PassBang(dataName);
+    ((patcherImplementation*)parent)->PassBang(dataName, thread);
   }
 }
 
 INT_IN(SetIntValue) {
   if (parent != nullptr) {
-    ((patcherImplementation*)parent)->PassData(value, dataName);
+    ((patcherImplementation*)parent)->PassData(value, dataName, thread);
   }
 }
 
 FLOAT_IN(SetFloatValue) {
   if (parent != nullptr) {
-    ((patcherImplementation*)parent)->PassData(value, dataName);
+    ((patcherImplementation*)parent)->PassData(value, dataName, thread);
   }
 }
 
 LIST_IN(SetListValue) {
   if (parent != nullptr) {
-    ((patcherImplementation*)parent)->PassData(value, dataName);
+    ((patcherImplementation*)parent)->PassData(value, dataName, thread);
   }
 }

@@ -44,24 +44,24 @@ PARM_PARSE() {
 
 BANG_IN(SetBangValue) {
   if (activeOutlet > 0 && (unsigned int)activeOutlet <= outputs.size()) {
-    outputs[activeOutlet - 1].SendBang();
+    outputs[activeOutlet - 1].SendBang(thread);
   }
 }
 
 INT_IN(SetIntValue) {
   if (activeOutlet > 0 && (unsigned int)activeOutlet <= outputs.size()) {
-    outputs[activeOutlet - 1].SendInt(value);
+    outputs[activeOutlet - 1].SendInt(value, thread);
   }
 }
 
 FLOAT_IN(SetFloatValue) {
   if (activeOutlet > 0 && (unsigned int)activeOutlet <= outputs.size()) {
-    outputs[activeOutlet - 1].SendFloat(value);
+    outputs[activeOutlet - 1].SendFloat(value, thread);
   }
 }
 
 LIST_IN(SetListValue) {
   if (activeOutlet > 0 && (unsigned int)activeOutlet <= outputs.size()) {
-    outputs[activeOutlet - 1].SendList(value);
+    outputs[activeOutlet - 1].SendList(value, thread);
   }
 }

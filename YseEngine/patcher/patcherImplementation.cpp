@@ -28,7 +28,7 @@ const char * patcherImplementation::Type() const {
   return YSE::OBJ::PATCHER;
 }
 
-void patcherImplementation::Calculate() {
+void patcherImplementation::Calculate(YSE::THREAD thread) {
   // works a bit different in case of patchers!
   // only called by the main patcher to generate output
   mtx.lock();
@@ -39,7 +39,7 @@ void patcherImplementation::Calculate() {
   // calculate all objects
   for (const auto& any : objects) {
     if (any.second->IsDSPStartPoint()) {
-      any.second->Calculate();
+      any.second->Calculate(thread);
     }
   }
 
@@ -242,41 +242,41 @@ YSE::pHandle * patcherImplementation::GetHandleFromID(unsigned int objID) {
   return nullptr;
 } 
 
-void patcherImplementation::PassBang(const std::string & to) {
+void patcherImplementation::PassBang(const std::string & to, YSE::THREAD thread) {
   for (auto& x : objects) {
     if (x.second->Type() == OBJ::G_RECEIVE) {
       if (to.compare(x.second->DataName()) == 0) {
-        x.second->GetInlet(0)->SetBang();
+        x.second->GetInlet(0)->SetBang(thread);
       }
     }
   }
 }
 
-void patcherImplementation::PassData(int value, const std::string & to) {
+void patcherImplementation::PassData(int value, const std::string & to, YSE::THREAD thread) {
   for (auto& x : objects) {
     if (x.second->Type() == OBJ::G_RECEIVE) {
       if (to.compare(x.second->DataName()) == 0) {
-        x.second->GetInlet(0)->SetInt(value);
+        x.second->GetInlet(0)->SetInt(value, thread);
       }
     }
   }
 }
 
-void patcherImplementation::PassData(float value, const std::string & to) {
+void patcherImplementation::PassData(float value, const std::string & to, YSE::THREAD thread) {
   for (auto& x : objects) {
     if (x.second->Type() == OBJ::G_RECEIVE) {
       if (to.compare(x.second->DataName()) == 0) {
-        x.second->GetInlet(0)->SetFloat(value);
+        x.second->GetInlet(0)->SetFloat(value, thread);
       }
     }
   }
 }
 
-void patcherImplementation::PassData(const std::string & value, const std::string & to) {
+void patcherImplementation::PassData(const std::string & value, const std::string & to, YSE::THREAD thread) {
   for (auto& x : objects) {
     if (x.second->Type() == OBJ::G_RECEIVE) {
       if (to.compare(x.second->DataName()) == 0) {
-        x.second->GetInlet(0)->SetList(value);
+        x.second->GetInlet(0)->SetList(value, thread);
       }
     }
   }

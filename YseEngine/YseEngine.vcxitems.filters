@@ -546,9 +546,6 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\genericObjects\gRoute.h">
       <Filter>patcher\genericObjects</Filter>
     </ClInclude>
-    <ClInclude Include="D:\GitHub\yse-soundengine\YseEngine\patcher\genericObjects\gReceive.h">
-      <Filter>patcher\genericObjects</Filter>
-    </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\genericObjects\gSend.h">
       <Filter>patcher\genericObjects</Filter>
     </ClInclude>
@@ -564,6 +561,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gText.h">
       <Filter>patcher\guiObjects</Filter>
     </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\genericObjects\gReceive.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="$(MSBuildThisFileDirectory)channel\channelImplementation.cpp">
@@ -920,9 +918,6 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gToggle.cpp">
       <Filter>patcher\guiObjects</Filter>
     </ClCompile>
-    <ClCompile Include="D:\GitHub\yse-soundengine\YseEngine\patcher\guiObjects\gButton.cpp">
-      <Filter>patcher\guiObjects</Filter>
-    </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\gRandom.cpp">
       <Filter>patcher\math</Filter>
     </ClCompile>
@@ -947,9 +942,6 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\genericObjects\gRoute.cpp">
       <Filter>patcher\genericObjects</Filter>
     </ClCompile>
-    <ClCompile Include="D:\GitHub\yse-soundengine\YseEngine\patcher\genericObjects\gReceive.cpp">
-      <Filter>patcher\genericObjects</Filter>
-    </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\genericObjects\gSend.cpp">
       <Filter>patcher\genericObjects</Filter>
     </ClCompile>
@@ -965,5 +957,7 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gText.cpp">
       <Filter>patcher\guiObjects</Filter>
     </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\genericObjects\gReceive.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gButton.cpp" />
   </ItemGroup>
 </Project>

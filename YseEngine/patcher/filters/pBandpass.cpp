@@ -49,5 +49,5 @@ FLOAT_IN(SetQ) {
 
 CALC() {
   filter.set(frequency, Q);
-  outputs[0].SendBuffer(&filter(*buffer));
+  outputs[0].SendBuffer(&filter(*buffer), thread);
 }

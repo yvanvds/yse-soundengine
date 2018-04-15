@@ -46,5 +46,5 @@ FLOAT_IN(SetHigh) {
 
 CALC() {
   clip.set(low, high);
-  outputs[0].SendBuffer(&clip(*buffer));
+  outputs[0].SendBuffer(&clip(*buffer), thread);
 }

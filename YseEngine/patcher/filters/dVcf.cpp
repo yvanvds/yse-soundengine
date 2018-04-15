@@ -53,6 +53,6 @@ CALC() {
   DSP::buffer * out2 = nullptr;
 
   DSP::buffer & out1 = vcf(*in, *center, *out2);
-  outputs[0].SendBuffer(&out1);
-  outputs[1].SendBuffer(out2);
+  outputs[0].SendBuffer(&out1, thread);
+  outputs[1].SendBuffer(out2, thread);
 }

@@ -17,17 +17,17 @@ CONSTRUCT() {
 }
 
 BANG_IN(SetBangValue) {
-  outputs[0].SendBang();
+  outputs[0].SendBang(thread);
 }
 
 INT_IN(SetIntValue) {
-  outputs[0].SendInt(value);
+  outputs[0].SendInt(value, thread);
 }
 
 FLOAT_IN(SetFloatValue) {
-  outputs[0].SendFloat(value);
+  outputs[0].SendFloat(value, thread);
 }
 
 LIST_IN(SetListValue) {
-  outputs[0].SendList(value);
+  outputs[0].SendList(value, thread);
 }

@@ -32,9 +32,9 @@ BUFFER_IN(SetFrequencyBuffer) {
 
 CALC() {
   if (freqBuffer != nullptr) {
-    outputs[0].SendBuffer(&saw(*freqBuffer));
+    outputs[0].SendBuffer(&saw(*freqBuffer), thread);
   }
   else {
-    outputs[0].SendBuffer(&saw(frequency));
+    outputs[0].SendBuffer(&saw(frequency), thread);
   }
 }

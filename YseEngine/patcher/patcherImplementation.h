@@ -18,7 +18,7 @@ namespace YSE {
 
       virtual const char * Type() const;
       virtual void ResetDSP();
-      virtual void Calculate();
+      virtual void Calculate(THREAD thread);
 
       virtual void SetMessage(const std::string & message, float value) {}
 
@@ -42,10 +42,10 @@ namespace YSE {
       std::atomic<patcher*> head;
 
       // for external data input
-      void PassBang(const std::string & to);
-      void PassData(int value, const std::string & to);
-      void PassData(float value, const std::string & to);
-      void PassData(const std::string & value, const std::string & to);
+      void PassBang(const std::string & to, THREAD thread);
+      void PassData(int value, const std::string & to, THREAD thread);
+      void PassData(float value, const std::string & to, THREAD thread);
+      void PassData(const std::string & value, const std::string & to, THREAD thread);
 
     private:
       std::mutex mtx;

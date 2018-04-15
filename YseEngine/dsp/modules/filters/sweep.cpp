@@ -88,8 +88,8 @@ void YSE::DSP::MODULES::sweepFilter::process(MULTICHANNELBUFFER & buffer) {
   }
 
   (*result) = (*osc)(parmSpeed, buffer[0].getLength());
-  (*result) *= parmDepth;
-  (*result) += parmFrequency;
+  (*result) *= (float)parmDepth;
+  (*result) += (float)parmFrequency;
   DSP::buffer & interpolated = (*interpolator)(*result);
   (*result) = (*filter)(buffer[0], interpolated, (*result));
 

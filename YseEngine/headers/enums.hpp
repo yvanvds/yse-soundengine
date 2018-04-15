@@ -117,6 +117,11 @@ namespace YSE {
     ANY,
   };
 
+  enum THREAD {
+    T_DSP,
+    T_GUI,
+  };
+
   // used by utils/error.hpp
   enum ERROR_LEVEL {
     EL_NONE,

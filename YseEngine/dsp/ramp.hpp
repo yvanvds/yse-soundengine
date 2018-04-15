@@ -41,6 +41,10 @@ namespace YSE {
       Flt _1overN;
       Flt _dspTickToMSEC;
       Flt inc, bigInc;
+      Int nTicks;
+      Int l;
+      Flt * ptr;
+      Flt f;
     };
 
     class API lint {

@@ -44,5 +44,5 @@ CALC() {
     result = leftIn / rightIn;
   }
   else result = 0.f;
-  outputs[0].SendFloat(result);
+  outputs[0].SendFloat(result, thread);
 }

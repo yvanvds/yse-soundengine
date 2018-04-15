@@ -22,5 +22,5 @@ FLOAT_IN(SetFrequency) {
 
 CALC()
 {
-  outputs[0].SendFloat(YSE::DSP::FreqToMidi(frequency));
+  outputs[0].SendFloat(YSE::DSP::FreqToMidi(frequency), thread);
 }

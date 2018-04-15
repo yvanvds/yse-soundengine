@@ -33,14 +33,14 @@ void pObject::ResetDSP() {
   }
 }
 
-void pObject::CalculateIfReady() {
+void pObject::CalculateIfReady(YSE::THREAD thread) {
   // make sure all dsp inputs are ready
   for (unsigned int i = 0; i < inputs.size(); i++) {
     if (inputs[i].WaitingForDSP()) {
       return;
     }
   }
-  Calculate();
+  Calculate(thread);
 }
 
 void pObject::SetParent(pObject * parent) {

@@ -10,5 +10,5 @@ CONSTRUCT_DSP()
 }
 
 CALC() {
-  outputs[0].SendBuffer(&noise());
+  outputs[0].SendBuffer(&noise(), thread);
 }

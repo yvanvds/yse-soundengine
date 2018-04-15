@@ -49,7 +49,7 @@ FLOAT_IN(SetFloatPeriod) {
 }
 
 void gMetro::Bang() {
-  outputs[0].SendBang();
+  outputs[0].SendBang(T_GUI);
 }
 
 gMetro::~gMetro() {

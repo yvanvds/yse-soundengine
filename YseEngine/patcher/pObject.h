@@ -25,7 +25,7 @@ namespace YSE {
       pObject(bool isDSPObject, pObject * parent = nullptr);
 
       virtual const char * Type() const = 0;
-      virtual void Calculate() = 0;
+      virtual void Calculate(THREAD thread) = 0;
       virtual void SetMessage(const std::string & message, float value) = 0;
 
       void SetParams(const std::string & args);
@@ -48,8 +48,9 @@ namespace YSE {
       unsigned int GetConnectionTargetInlet(unsigned int outlet, unsigned int connection);
 
       virtual void ResetDSP();
-      void CalculateIfReady();
+      void CalculateIfReady(THREAD thread);
       bool IsDSPStartPoint();
+      inline bool IsDSPObject() { return DSP; }
 
       std::string GetGuiProperty(const std::string & key);
       void SetGuiProperty(const std::string & key, const std::string & value);
@@ -89,35 +90,35 @@ namespace YSE {
 #define _NO_MESSAGES virtual void SetMessage(const std::string & message, float value) {}
 #define MESSAGES() void className::SetMessage(const std::string & message, float value)
 
-#define _DO_CALCULATE virtual void Calculate();
-#define _NO_CALCULATE virtual void Calculate() {}
-#define CALC() void className::Calculate()
+#define _DO_CALCULATE virtual void Calculate(YSE::THREAD thread);
+#define _NO_CALCULATE virtual void Calculate(YSE::THREAD thread) {}
+#define CALC() void className::Calculate(YSE::THREAD thread)
 
 #define _DO_RESET virtual void ResetDSP();
 #define RESET() void className::ResetDSP() { pObject::ResetDSP();
 
-#define _BUFFER_IN(funcName) void funcName(YSE::DSP::buffer * buffer, int inlet);
-#define _FLOAT_IN(funcName) void funcName(float value, int inlet);
-#define _INT_IN(funcName) void funcName(int value, int inlet);
-#define _BANG_IN(funcName) void funcName(int inlet);
-#define _LIST_IN(funcName) void funcName(const std::string & value, int inlet);
+#define _BUFFER_IN(funcName) void funcName(YSE::DSP::buffer * buffer, int inlet, YSE::THREAD thread);
+#define _FLOAT_IN(funcName) void funcName(float value, int inlet, YSE::THREAD thread);
+#define _INT_IN(funcName) void funcName(int value, int inlet, YSE::THREAD thread);
+#define _BANG_IN(funcName) void funcName(int inlet, YSE::THREAD thread);
+#define _LIST_IN(funcName) void funcName(const std::string & value, int inlet, YSE::THREAD thread);
 
-#define BUFFER_IN(funcName) void className::funcName(YSE::DSP::buffer * buffer, int inlet)
-#define FLOAT_IN(funcName) void className::funcName(float value, int inlet)
-#define INT_IN(funcName) void className::funcName(int value, int inlet)
-#define BANG_IN(funcName) void className::funcName(int inlet)
-#define LIST_IN(funcName) void className::funcName(const std::string & value, int inlet)
+#define BUFFER_IN(funcName) void className::funcName(YSE::DSP::buffer * buffer, int inlet, YSE::THREAD thread)
+#define FLOAT_IN(funcName) void className::funcName(float value, int inlet, YSE::THREAD thread)
+#define INT_IN(funcName) void className::funcName(int value, int inlet, YSE::THREAD thread)
+#define BANG_IN(funcName) void className::funcName(int inlet, YSE::THREAD thread)
+#define LIST_IN(funcName) void className::funcName(const std::string & value, int inlet, YSE::THREAD thread)
 
 #define ADD_IN_0 inputs.emplace_back(this, true, 0)
 #define ADD_IN_1 inputs.emplace_back(this, false, 1)
 #define ADD_IN_2 inputs.emplace_back(this, false, 2)
 #define ADD_IN_3 inputs.emplace_back(this, false, 3)
 
-#define REG_BUFFER_IN(funcName) inputs.back().RegisterBuffer(std::bind(&className::funcName, this, std::placeholders::_1, std::placeholders::_2))
-#define REG_FLOAT_IN(funcName) inputs.back().RegisterFloat(std::bind(&className::funcName, this, std::placeholders::_1, std::placeholders::_2))
-#define REG_INT_IN(funcName) inputs.back().RegisterInt(std::bind(&className::funcName, this, std::placeholders::_1, std::placeholders::_2))
-#define REG_LIST_IN(funcName) inputs.back().RegisterList(std::bind(&className::funcName, this, std::placeholders::_1, std::placeholders::_2))
-#define REG_BANG_IN(funcName) inputs.back().RegisterBang(std::bind(&className::funcName, this, std::placeholders::_1))
+#define REG_BUFFER_IN(funcName) inputs.back().RegisterBuffer(std::bind(&className::funcName, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3))
+#define REG_FLOAT_IN(funcName) inputs.back().RegisterFloat(std::bind(&className::funcName, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3))
+#define REG_INT_IN(funcName) inputs.back().RegisterInt(std::bind(&className::funcName, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3))
+#define REG_LIST_IN(funcName) inputs.back().RegisterList(std::bind(&className::funcName, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3))
+#define REG_BANG_IN(funcName) inputs.back().RegisterBang(std::bind(&className::funcName, this, std::placeholders::_1, std::placeholders::_2))
 
 
 #define ADD_OUT_BUFFER outputs.emplace_back(this, OUT_TYPE::BUFFER)

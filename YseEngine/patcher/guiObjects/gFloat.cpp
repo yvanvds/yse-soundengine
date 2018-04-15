@@ -39,5 +39,5 @@ GUI_VALUE() {
 }
 
 CALC() {
-  outputs[0].SendFloat(value);
+  outputs[0].SendFloat(value, thread);
 }

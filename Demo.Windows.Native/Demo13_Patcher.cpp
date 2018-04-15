@@ -14,7 +14,11 @@ void DemoPatcher::Setup() {
   pHandle * multiplier = patcher.CreateObject(OBJ::D_MULTIPLY);
   pHandle * dac = patcher.CreateObject(OBJ::D_DAC);
 
-  patcher.Connect(mtof, 0, sine, 0);
+  pHandle * line = patcher.CreateObject(OBJ::D_LINE);
+  line->SetParams("0 100");
+
+  patcher.Connect(mtof, 0, line, 0);
+  patcher.Connect(line, 0, sine, 0);
   patcher.Connect(sine, 0, multiplier, 0);
   patcher.Connect(lfo, 0, multiplier, 1);
   patcher.Connect(multiplier, 0, volume, 0);

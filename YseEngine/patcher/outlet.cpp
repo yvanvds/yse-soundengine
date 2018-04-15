@@ -16,33 +16,33 @@ outlet::~outlet() {
   }
 }
 
-void outlet::SendBang() {
+void outlet::SendBang(YSE::THREAD thread) {
   for (unsigned int i = 0; i < connections.size(); i++) {
-    connections[i]->SetBang();
+    connections[i]->SetBang(thread);
   }
 }
 
-void outlet::SendFloat(float value) {
+void outlet::SendFloat(float value, YSE::THREAD thread) {
   for (unsigned int i = 0; i < connections.size(); i++) {
-    connections[i]->SetFloat(value);
+    connections[i]->SetFloat(value, thread);
   }
 }
 
-void outlet::SendInt(int value) {
+void outlet::SendInt(int value, YSE::THREAD thread) {
   for (unsigned int i = 0; i < connections.size(); i++) {
-    connections[i]->SetInt(value);
+    connections[i]->SetInt(value, thread);
   }
 }
 
-void outlet::SendList(const std::string & value) {
+void outlet::SendList(const std::string & value, YSE::THREAD thread) {
   for (unsigned int i = 0; i < connections.size(); i++) {
-    connections[i]->SetList(value);
+    connections[i]->SetList(value, thread);
   }
 }
 
-void outlet::SendBuffer(YSE::DSP::buffer * value) {
+void outlet::SendBuffer(YSE::DSP::buffer * value, YSE::THREAD thread) {
   for (unsigned int i = 0; i < connections.size(); i++) {
-    connections[i]->SetBuffer(value);
+    connections[i]->SetBuffer(value, thread);
   }
 }
 

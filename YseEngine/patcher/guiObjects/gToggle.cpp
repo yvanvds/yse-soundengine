@@ -29,5 +29,5 @@ GUI_VALUE() {
 }
 
 CALC() {
-  outputs[0].SendInt(value == false ? 0 : 1);
+  outputs[0].SendInt(value == false ? 0 : 1, thread);
 }

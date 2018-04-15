@@ -11,7 +11,7 @@ pDac::pDac(int channels )
 
   for (int i = 0; i < channels; i++) {
     inputs.emplace_back(this, false, i);
-    inputs.back().RegisterBuffer(std::bind(&pDac::SetBuffer, this, std::placeholders::_1, std::placeholders::_2));
+    inputs.back().RegisterBuffer(std::bind(&pDac::SetBuffer, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
     this->channels.resize(channels);
   }
 }

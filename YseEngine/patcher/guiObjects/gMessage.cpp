@@ -16,7 +16,7 @@ CONSTRUCT() {
 }
 
 BANG_IN(Bang) {
-  outputs[0].SendList(message);
+  outputs[0].SendList(message, thread);
 }
 
 LIST_IN(SetValue) {

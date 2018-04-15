@@ -47,45 +47,61 @@ void inlet::RegisterBuffer(bufferFunc f) {
   onBuffer = f;
 }
 
-void inlet::SetInt(int value) {
+void inlet::SetInt(int value, YSE::THREAD thread) {
   if (onInt) {
-    onInt(value, position);
-    if (active) obj->CalculateIfReady();
+    onInt(value, position, thread);
+    if (active) {
+      if (obj->IsDSPObject() && thread == T_GUI) return;
+      obj->CalculateIfReady(thread);
+    }
   }
 }
 
-void inlet::SetBang() {
+void inlet::SetBang(YSE::THREAD thread) {
   if (onBang) {
-    onBang(position);
-    if (active) obj->CalculateIfReady();
+    onBang(position, thread);
+    if (active) {
+      if (obj->IsDSPObject() && thread == T_GUI) return;
+      obj->CalculateIfReady(thread);
+    }
   }
 }
 
-void inlet::SetFloat(float value) {
+void inlet::SetFloat(float value, YSE::THREAD thread) {
   if (onFloat) {
-    onFloat(value, position);
-    if (active) obj->CalculateIfReady();
+    onFloat(value, position, thread);
+    if (active) {
+      if (obj->IsDSPObject() && thread == T_GUI) return;
+      obj->CalculateIfReady(thread);
+    }
   }
 }
 
-void inlet::SetList(const std::string & value) {
+void inlet::SetList(const std::string & value, YSE::THREAD thread) {
   if (onList) {
-    onList(value, position);
-    if (active) obj->CalculateIfReady();
+    onList(value, position, thread);
+    if (active) {
+      if (obj->IsDSPObject() && thread == T_GUI) return;
+      obj->CalculateIfReady(thread);
+    }
   }
 }
 
-void inlet::SetBuffer(YSE::DSP::buffer * buffer) {
+void inlet::SetBuffer(YSE::DSP::buffer * buffer, YSE::THREAD thread) {
   if (onBuffer) {
-    onBuffer(buffer, position);
+    onBuffer(buffer, position, thread);
     dspReady = true;
-    obj->CalculateIfReady();
+    if (obj->IsDSPObject() && thread == T_GUI) return;
+    obj->CalculateIfReady(thread);
   }
 }
 
-void inlet::SetMessage(const std::string & message, float value) {
+void inlet::SetMessage(const std::string & message, YSE::THREAD thread, float value) {
   obj->SetMessage(message, value);
-  if (active) obj->CalculateIfReady();
+  if (active) {
+    if (obj->IsDSPObject() && thread == T_GUI) return;
+    obj->CalculateIfReady(thread);
+  }
 }
 
 bool inlet::WaitingForDSP() const {

@@ -55,24 +55,24 @@ PARM_PARSE() {
 
 BANG_IN(SetBangValue) {
   if (inlet == activeInlet) {
-    outputs[0].SendBang();
+    outputs[0].SendBang(thread);
   }
 }
 
 INT_IN(SetIntValue) {
   if (inlet == activeInlet) {
-    outputs[0].SendInt(value);
+    outputs[0].SendInt(value, thread);
   }
 }
 
 FLOAT_IN(SetFloatValue) {
   if (inlet == activeInlet) {
-    outputs[0].SendFloat(value);
+    outputs[0].SendFloat(value, thread);
   }
 }
 
 LIST_IN(SetListValue) {
   if (inlet == activeInlet) {
-    outputs[0].SendList(value);
+    outputs[0].SendList(value, thread);
   }
 }

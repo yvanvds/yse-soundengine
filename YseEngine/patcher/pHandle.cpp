@@ -18,20 +18,20 @@ const char * pHandle::Type() const {
 }
 
 void YSE::pHandle::SetBang(unsigned int inlet) {
-  object->GetInlet(inlet)->SetBang();
+  object->GetInlet(inlet)->SetBang(T_GUI);
 }
 
 void YSE::pHandle::SetIntData(unsigned int inlet, int value) {
-  object->GetInlet(inlet)->SetInt(value);
+  object->GetInlet(inlet)->SetInt(value, T_GUI);
 }
 
 void YSE::pHandle::SetFloatData(unsigned int inlet, float value)
 {
-  object->GetInlet(inlet)->SetFloat(value);
+  object->GetInlet(inlet)->SetFloat(value, T_GUI);
 }
 
 void YSE::pHandle::SetListData(unsigned int inlet, const std::string & value) {
-  object->GetInlet(inlet)->SetList(value);
+  object->GetInlet(inlet)->SetList(value, T_GUI);
 }
 
 void YSE::pHandle::SetParams(const std::string & args) {

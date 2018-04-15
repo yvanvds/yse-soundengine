@@ -42,6 +42,6 @@ GUI_VALUE(){
 }
 
 CALC() {
-  outputs[0].SendInt(value);
+  outputs[0].SendInt(value, thread);
   //INTERNAL::LogImpl().emit(E_DEBUG, "Patcher: gInt output " + std::to_string(value));
 }

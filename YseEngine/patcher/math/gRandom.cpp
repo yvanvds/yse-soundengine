@@ -31,5 +31,5 @@ FLOAT_IN(SetFloatRange) {
 }
 
 CALC() {
-  outputs[0].SendInt(YSE::Random(range));
+  outputs[0].SendInt(YSE::Random(range), thread);
 }

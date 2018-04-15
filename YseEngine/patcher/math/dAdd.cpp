@@ -54,5 +54,5 @@ CALC() {
     output += *rightIn;
   }
 
-  outputs[0].SendBuffer(&output);
+  outputs[0].SendBuffer(&output, thread);
 }

@@ -30,33 +30,33 @@ PARM_PARSE() {
 BANG_IN(SetBangValue) {
   for (unsigned int i = 0; i < list.size(); i++) {
     if (list[i].compare("bang") == 0) {
-      outputs[i].SendBang();
+      outputs[i].SendBang(thread);
       return;
     }
   }
-  outputs.back().SendBang();
+  outputs.back().SendBang(thread);
 }
 
 INT_IN(SetIntValue) {
   std::string s = std::to_string(value);
   for (unsigned int i = 0; i < list.size(); i++) {
     if (list[i].compare(s) == 0) {
-      outputs[i].SendInt(value);
+      outputs[i].SendInt(value, thread);
       return;
     }
   }
-  outputs.back().SendInt(value);
+  outputs.back().SendInt(value, thread);
 }
 
 FLOAT_IN(SetFloatValue) {
   std::string s = std::to_string(value);
   for (unsigned int i = 0; i < list.size(); i++) {
     if (list[i].compare(s) == 0) {
-      outputs[i].SendFloat(value);
+      outputs[i].SendFloat(value, thread);
       return;
     }
   }
-  outputs.back().SendFloat(value);
+  outputs.back().SendFloat(value, thread);
 }
 
 LIST_IN(SetListValue) {
@@ -72,9 +72,9 @@ LIST_IN(SetListValue) {
 
   for (unsigned int i = 0; i < list.size(); i++) {
     if (list[i].compare(token) == 0) {
-      outputs[i].SendList(value);
+      outputs[i].SendList(value, thread);
       return;
     }
   }
-  outputs.back().SendList(value);
+  outputs.back().SendList(value, thread);
 }

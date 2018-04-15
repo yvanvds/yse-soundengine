@@ -557,7 +557,7 @@ Bool YSE::SOUND::implementationObject::dsp() {
     source_dsp->process(status_dsp);
   }
   else if (playerType == PT_PATCHER && patcher != nullptr) {
-    patcher->Calculate();
+    patcher->Calculate(YSE::T_DSP);
   }
   //else if (synth != nullptr) {
   //  synth->process(status_dsp);
