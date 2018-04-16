@@ -62,9 +62,10 @@ void outlet::Disconnect(inlet * in) {
 }
 
 void outlet::DumpJSON(nlohmann::json::value_type & json) {
+  json["Count"] = connections.size();
   for (unsigned int i = 0; i < connections.size(); i++) {
-    json["Object"] = connections[i]->GetObjectID();
-    json["Inlet"] = connections[i]->GetPosition();
+    json[std::to_string(i)]["Object"] = connections[i]->GetObjectID();
+    json[std::to_string(i)]["Inlet"] = connections[i]->GetPosition();
   }
 }
 

@@ -190,30 +190,34 @@ void patcherImplementation::ParseJSON(const std::string & content) {
     int outlet = 0;
     auto outs = obj.value()["outputs"];
     for (auto out = outs.begin(); out != outs.end(); ++out) {
-      if (out.value().count("Object") == 0 || out.value().count("Inlet") == 0) {
+      
+      if (out.value().count("Count") == 0) {
         continue;
       }
+      int count = out.value()["Count"].get<int>();
 
-      int target = out.value()["Object"].get<int>();
-      int inlet = out.value()["Inlet"].get<int>();
-      
-      pHandle * sourceHandle = nullptr;
-      pHandle * targetHandle = nullptr;
+      for (int i = 0; i < count; i++) {
+        auto connection = out.value()[std::to_string(i)];
+        int target = connection["Object"].get<int>();
+        int inlet = connection["Inlet"].get<int>();
 
-      auto a = OldIDs.find(source);
-      if (a != OldIDs.end()) {
-        sourceHandle = a->second;
+        pHandle * sourceHandle = nullptr;
+        pHandle * targetHandle = nullptr;
+
+        auto a = OldIDs.find(source);
+        if (a != OldIDs.end()) {
+          sourceHandle = a->second;
+        }
+
+        auto b = OldIDs.find(target);
+        if (b != OldIDs.end()) {
+          targetHandle = b->second;
+        }
+
+        if (targetHandle != nullptr && sourceHandle != nullptr) {
+          Connect(sourceHandle, outlet, targetHandle, inlet);
+        }
       }
-
-      auto b = OldIDs.find(target);
-      if (b != OldIDs.end()) {
-        targetHandle = b->second;
-      }
-
-      if (targetHandle != nullptr && sourceHandle != nullptr) {
-        Connect(sourceHandle, outlet, targetHandle, inlet);
-      }
-
       outlet++;
     }
   }

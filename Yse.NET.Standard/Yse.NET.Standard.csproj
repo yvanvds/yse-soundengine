@@ -8,7 +8,7 @@
     <Description>The YSE Sound Engine, with wrappers for .NET</Description>
     <AssemblyVersion>1.0.*</AssemblyVersion>
 	<Deterministic>False</Deterministic>
-    <Version>1.0.53</Version>
+    <Version>1.0.58</Version>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
