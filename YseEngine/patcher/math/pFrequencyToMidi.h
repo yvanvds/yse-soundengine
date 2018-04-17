@@ -9,6 +9,7 @@ namespace YSE {
       _DO_CALCULATE
 
       _FLOAT_IN(SetFrequency)
+      _INT_IN(SetFreqInt)
 
     private:
       float frequency;

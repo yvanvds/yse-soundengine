@@ -31,6 +31,8 @@ void DemoPatcher::Setup() {
   lfoFrequency = 4.f;
   lfo->SetParams("4");
 
+  pHandle * lp = patcher.CreateObject(OBJ::D_LOWPASS);
+
   volume->SetParams("1");
 }
 

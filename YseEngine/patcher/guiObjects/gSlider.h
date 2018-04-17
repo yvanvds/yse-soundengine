@@ -12,6 +12,7 @@ namespace YSE {
 
       _FLOAT_IN(SetFloat)
       _INT_IN(SetInt)
+      _BANG_IN(SetBang)
 
       _HAS_GUI
 

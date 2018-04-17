@@ -12,12 +12,17 @@ CONSTRUCT()
 
   ADD_IN_0;
   REG_FLOAT_IN(SetFrequency);
+  REG_INT_IN(SetFreqInt);
 
   ADD_OUT_FLOAT;
 }
 
 FLOAT_IN(SetFrequency) {
   frequency = value;
+}
+
+INT_IN(SetFreqInt) {
+  frequency = (float)value;
 }
 
 CALC()

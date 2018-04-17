@@ -9,6 +9,7 @@ namespace YSE {
       _DO_CALCULATE
 
       _FLOAT_IN(SetMidi)
+      _INT_IN(SetMidiInt)
 
     private:
       float midiValue;

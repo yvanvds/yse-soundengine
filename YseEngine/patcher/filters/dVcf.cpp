@@ -49,6 +49,9 @@ FLOAT_IN(SetSharpness) {
 }
 
 CALC() {
+  if (in == nullptr) return;
+  if (center == nullptr) return;
+
   vcf.sharpness(sharpness);
   DSP::buffer * out2 = nullptr;
 

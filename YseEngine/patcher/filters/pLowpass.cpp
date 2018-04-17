@@ -36,6 +36,7 @@ FLOAT_IN(SetFrequency) {
 }
 
 CALC() {
+  if (buffer == nullptr) return;
   filter.setFrequency(frequency);
   outputs[0].SendBuffer(&filter(*buffer), thread);
 }
