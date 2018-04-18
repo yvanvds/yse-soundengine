@@ -17,7 +17,11 @@
 #include <cassert>
 #include <stdexcept>
 #include <cstdint>
+#ifdef YSE_ANDROID
+#include <malloc.h>
+#else
 #include <cstdlib>
+#endif
 #include "../headers/enums.hpp"
 #include "../headers/types.hpp"
 
@@ -439,7 +443,12 @@ namespace YSE {
       {
         // Allocate enough memory for an array of Ts, aligned
         size_t alignment = std::alignment_of<T>::value;
+
+#ifdef YSE_ANDROID
+        data = rawData = static_cast<char*>(malloc(sizeof(T)* size + alignment - 1));
+#else
         data = rawData = static_cast<char*>(std::malloc(sizeof(T)* size + alignment - 1));
+#endif
         assert(rawData);
         auto alignmentOffset = (uintptr_t)rawData % alignment;
         if (alignmentOffset != 0) {
@@ -449,7 +458,11 @@ namespace YSE {
 
       ~Block()
       {
+#ifdef YSE_ANDROID
+        free(rawData);
+#else
         std::free(rawData);
+#endif
       }
 
     private:
