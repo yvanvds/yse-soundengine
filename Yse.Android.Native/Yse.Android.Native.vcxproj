@@ -56,16 +56,16 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>Gcc_4_9</PlatformToolset>
-    <UseOfStl>gnustl_shared</UseOfStl>
+    <PlatformToolset>Clang_5_0</PlatformToolset>
+    <UseOfStl>c++_static</UseOfStl>
     <AndroidAPILevel>android-21</AndroidAPILevel>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>Gcc_4_9</PlatformToolset>
+    <PlatformToolset>Clang_5_0</PlatformToolset>
     <AndroidAPILevel>android-21</AndroidAPILevel>
-    <UseOfStl>c++_shared</UseOfStl>
+    <UseOfStl>c++_static</UseOfStl>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
@@ -243,6 +243,8 @@
       <CLanguageStandard>c11</CLanguageStandard>
       <CppLanguageStandard>c++11</CppLanguageStandard>
       <AdditionalIncludeDirectories>E:\YseEngine\dependencies\libsndfile\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ExceptionHandling>Enabled</ExceptionHandling>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
     </ClCompile>
     <Link>
       <AdditionalOptions>-lm %(AdditionalOptions)</AdditionalOptions>
@@ -263,7 +265,7 @@
     </ClCompile>
     <Link>
       <AdditionalOptions>-lm %(AdditionalOptions)</AdditionalOptions>
-      <LibraryDependencies>$(StlLibraryName);%(LibraryDependencies);OpenSLES;sndflie;</LibraryDependencies>
+      <LibraryDependencies>$(StlLibraryName);%(LibraryDependencies);OpenSLES;sndfile;</LibraryDependencies>
       <AdditionalLibraryDirectories>..\dependencies\libsndfile\lib;%(AdditionalLibraryDirectories);$(ToolchainPrebuiltPath)\lib\gcc\$(ToolchainName)\$(ToolchainFullVersionName)\$(PlatformShortName);$(StlLibraryPath)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>

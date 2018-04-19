@@ -73,7 +73,7 @@ void YSE::INTERNAL::logImplementation::logMessage(const std::string & message) {
     logFile << message << std::endl;
   }
 #ifdef YSE_ANDROID 
-  __android_log_print(ANDROID_LOG_INFO, "YSE", message.c_str());
+  __android_log_print(ANDROID_LOG_INFO, "YSE", "%s", message.c_str());
 #endif
 }
 

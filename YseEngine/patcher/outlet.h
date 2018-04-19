@@ -1,8 +1,8 @@
 #pragma once
-#include "dsp/buffer.hpp"
-#include "headers\enums.hpp"
+#include "../dsp/buffer.hpp"
+#include "../headers\enums.hpp"
 #include <vector>
-#include "utils\json.hpp"
+#include "../utils\json.hpp"
 
 namespace YSE {
   namespace PATCHER {

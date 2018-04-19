@@ -1,9 +1,9 @@
 #pragma once
-#include "dsp/buffer.hpp"
+#include "../dsp/buffer.hpp"
 #include <functional>
 #include <string>
 #include <vector>
-#include "headers\enums.hpp"
+#include "../headers\enums.hpp"
 
 namespace YSE {
   namespace PATCHER {

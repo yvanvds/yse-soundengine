@@ -4,7 +4,7 @@
 
 #include <SLES/OpenSLES.h>
 #include <SLES/OpenSLES_Android.h>
-#include "headers\types.hpp"
+#include "../headers\types.hpp"
 
 const int ANDROID_BUFFER_SIZE = 256;
 

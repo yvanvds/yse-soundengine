@@ -2,9 +2,9 @@
 
 #ifdef YSE_ANDROID 
 
-#include "implementations\logImplementation.h"
+#include "../implementations\logImplementation.h"
 #include "../internalHeaders.h"
-
+//#include <string.h>
 
 #define CONV16BIT 32768
 
@@ -143,9 +143,8 @@ bool OpenSLImplementation::Start(int channels) {
   // prepare mixer and enqueue 2 buffers
   buffer1 = new sl_int16_t[ANDROID_BUFFER_SIZE * channels];
   buffer2 = new sl_int16_t[ANDROID_BUFFER_SIZE * channels];
-  // set values to 0? (does not seem to work any more)
-  //memset(buffer1, 0, sizeof(sl_int16_t) * ANDROID_BUFFER_SIZE * channels);
-  //memset(buffer2, 0, sizeof(sl_int16_t) * ANDROID_BUFFER_SIZE * channels);
+  memset(buffer1, 0, sizeof(sl_int16_t) * ANDROID_BUFFER_SIZE * channels);
+  memset(buffer2, 0, sizeof(sl_int16_t) * ANDROID_BUFFER_SIZE * channels);
   currentBuffer = buffer1;
   sourceChannels = new float*[numChannels];
 

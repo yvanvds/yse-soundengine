@@ -161,7 +161,6 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)sound\soundInterface.hpp" />
     <ClInclude Include="$(MSBuildThisFileDirectory)sound\soundManager.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)sound\soundMessage.h" />
-    <ClInclude Include="$(MSBuildThisFileDirectory)string.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)synth\dspSound.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)synth\dspVoice.hpp" />
     <ClInclude Include="$(MSBuildThisFileDirectory)synth\dspVoiceInternal.h" />
@@ -309,7 +308,6 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)sound\soundImplementation.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)sound\soundInterface.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)sound\soundManager.cpp" />
-    <ClCompile Include="$(MSBuildThisFileDirectory)string.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)synth\dspSound.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)synth\dspVoice.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)synth\dspVoiceInternal.cpp" />

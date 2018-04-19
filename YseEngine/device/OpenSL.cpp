@@ -30,7 +30,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #if YSE_ANDROID
 
 #include "OpenSL.h"
-#include "implementations\logImplementation.h"
+#include "../implementations\logImplementation.h"
+#include <string.h>
+
 #define CONV16BIT 32768
 #define CONVMYFLT (1./32768.)
 #define GRAIN 4

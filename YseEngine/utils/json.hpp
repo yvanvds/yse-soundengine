@@ -280,7 +280,7 @@ class parse_error : public exception
     static parse_error create(int id_, std::size_t byte_, const std::string& what_arg)
     {
         std::string w = exception::name("parse_error", id_) + "parse error" +
-                        (byte_ != 0 ? (" at " + SSTR(byte_)) : "") +
+                        (byte_ != 0 ? (" at " + std::to_string(byte_)) : "") +
                         ": " + what_arg;
         return parse_error(id_, byte_, w.c_str());
     }

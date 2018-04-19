@@ -11,7 +11,7 @@
 #ifndef MISC_H_INCLUDED
 #define MISC_H_INCLUDED
 
-#include <stdlib.h>
+#include <cstdlib>
 #include <time.h> 
 #include <cmath>
 #include "../headers/types.hpp"

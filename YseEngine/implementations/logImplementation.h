@@ -13,7 +13,7 @@
 
 #include "../headers/enums.hpp"
 #include "../headers/types.hpp"
-#include "log.hpp"
+#include "../log.hpp"
 #include <string>
 #include <fstream>
 

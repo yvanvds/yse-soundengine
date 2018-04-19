@@ -1,5 +1,5 @@
 #pragma once
-#include "yse.hpp"
+#include "../yse.hpp"
 
 class shepard;
 

@@ -247,7 +247,7 @@ YSE::DSP::buffer & YSE::DSP::biQuad::operator()(YSE::DSP::buffer & in) {
 
 void YSE::DSP::biQuad::calc() {
   Flt norm;
-  Flt v = (float)pow(10, abs(gain.load()) / 20.0f);
+  Flt v = (float)pow(10, std::abs(gain.load()) / 20.0f);
   Flt k = tan(Pi * freq / static_cast<Flt>(SAMPLERATE));
 
   switch (type) {

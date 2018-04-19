@@ -48,7 +48,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedNativeLibrary Include="..\Yse.Android.Native\Debug\ARM\libYse.so">
+    <EmbeddedNativeLibrary Include="..\Yse.Android.Native\Release\ARM\libYse.so">
       <Link>libs\armeabi-v7a\libYse.so</Link>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </EmbeddedNativeLibrary>
