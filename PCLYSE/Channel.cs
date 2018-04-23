@@ -3,14 +3,14 @@ using System.Collections.Generic;
 using System.Text;
 using YSE;
 
-namespace YSENET
+namespace YSE
 {
   public interface SourceChannel
   {
     Yse.channel GetSource();
   }
 
-  class Channel : Yse.channel, YSE.IChannel, SourceChannel
+  public class Channel : Yse.channel, IYse.IChannel, SourceChannel
   {
     public float Volume { get => getVolume(); set => setVolume(value); }
     public bool Virtual { get => getVirtual(); set => setVirtual(value); }
@@ -24,12 +24,12 @@ namespace YSENET
       attachReverb();
     }
 
-    public void Create(string name, IChannel parent)
+    public void Create(string name, IYse.IChannel parent)
     {
       create(name, parent as Channel);
     }
 
-    public void MoveTo(IChannel parent)
+    public void MoveTo(IYse.IChannel parent)
     {
       moveTo(parent as Channel);
     }
@@ -46,7 +46,7 @@ namespace YSENET
   }
 
 
-  class PremadeChannel : YSE.IChannel, SourceChannel
+  public class PremadeChannel : IYse.IChannel, SourceChannel
   {
     Yse.channel source;
 
@@ -67,7 +67,7 @@ namespace YSENET
       source.attachReverb();
     }
 
-    public void Create(string name, IChannel parent)
+    public void Create(string name, IYse.IChannel parent)
     {
       // not implemented
     }
@@ -77,7 +77,7 @@ namespace YSENET
       // not implemented
     }
 
-    public void MoveTo(IChannel parent)
+    public void MoveTo(IYse.IChannel parent)
     {
       source.moveTo(parent as Channel);
     }

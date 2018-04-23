@@ -562,6 +562,9 @@
       <Filter>patcher\guiObjects</Filter>
     </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\genericObjects\gReceive.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)device\OpenSL.h">
+      <Filter>device</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="$(MSBuildThisFileDirectory)channel\channelImplementation.cpp">
@@ -959,5 +962,8 @@
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\genericObjects\gReceive.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gButton.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)device\OpenSL.cpp">
+      <Filter>device</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

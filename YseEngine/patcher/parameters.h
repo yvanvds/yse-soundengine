@@ -18,8 +18,7 @@ namespace YSE {
 
     struct parameter {
       parameter(PARM_TYPE type, void * value) 
-        : type(type)
-        , value(value)
+        : value(value), type(type)
       {}
       void * value;
       PARM_TYPE type;

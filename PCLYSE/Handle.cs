@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Text;
 using YSE;
 
-namespace YSENET
+namespace YSE
 {
-  class Handle : YSE.IHandle
+  public class Handle : IYse.IHandle
   {
     Yse.pHandle source;
 
@@ -59,7 +59,7 @@ namespace YSENET
       return source.Type();
     }
 
-    public OUT_TYPE OutputDataType(uint pin)
+    public IYse.OUT_TYPE OutputDataType(uint pin)
     {
       return Convert(source.OutputDataType(pin));
     }
@@ -69,19 +69,19 @@ namespace YSENET
       return source.IsDSPInput(inlet);
     }
 
-    OUT_TYPE IHandle.OutputDataType(uint outlet)
+    IYse.OUT_TYPE IYse.IHandle.OutputDataType(uint outlet)
     {
       return Convert(source.OutputDataType(outlet));
     }
 
-    OUT_TYPE Convert(Yse.OUT_TYPE value)
+    IYse.OUT_TYPE Convert(Yse.OUT_TYPE value)
     {
       switch (value)
       {
-        case Yse.OUT_TYPE.BANG: return OUT_TYPE.BANG;
-        case Yse.OUT_TYPE.BUFFER: return OUT_TYPE.BUFFER;
-        case Yse.OUT_TYPE.FLOAT: return OUT_TYPE.FLOAT;
-        default: return OUT_TYPE.INVALID;
+        case Yse.OUT_TYPE.BANG: return IYse.OUT_TYPE.BANG;
+        case Yse.OUT_TYPE.BUFFER: return IYse.OUT_TYPE.BUFFER;
+        case Yse.OUT_TYPE.FLOAT: return IYse.OUT_TYPE.FLOAT;
+        default: return IYse.OUT_TYPE.INVALID;
       }
     }
 

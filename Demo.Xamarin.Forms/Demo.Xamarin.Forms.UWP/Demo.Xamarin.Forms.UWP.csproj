@@ -166,10 +166,6 @@
       <Project>{cbec3dbc-6ef8-46f9-9bb6-450b89b403c8}</Project>
       <Name>YSE.NET.PCL</Name>
     </ProjectReference>
-    <ProjectReference Include="..\..\Yse.NET.Standard\Yse.NET.Standard.csproj">
-      <Project>{886d1256-4bc9-4f92-84c3-f2e72834eb7e}</Project>
-      <Name>Yse.NET.Standard</Name>
-    </ProjectReference>
     <ProjectReference Include="..\Demo.Xamarin.Forms\Demo.Xamarin.Forms.csproj">
       <Project>{CA5BE448-79F2-49D0-B386-3EB4B7291301}</Project>
       <Name>Demo.Xamarin.Forms</Name>

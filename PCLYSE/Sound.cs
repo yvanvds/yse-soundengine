@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Text;
 using YSE;
 
-namespace YSENET
+namespace YSE
 {
-  class Sound : Yse.sound, YSE.ISound
+  public class Sound : Yse.sound, IYse.ISound
   {
     public bool Valid => isValid();
 
@@ -25,9 +25,9 @@ namespace YSENET
     public float Length => length();
 
     public bool Relative { get => relative(); set => relative(value); }
-    float ISound.Size { get => size(); set => size(value); }
+    float IYse.ISound.Size { get => size(); set => size(value); }
 
-    public void Create(string Name, IChannel channel = null, bool loop = false, float volume = 1, bool streaming = false)
+    public void Create(string Name, IYse.IChannel channel = null, bool loop = false, float volume = 1, bool streaming = false)
     {
       if(channel == null)
       {
@@ -42,7 +42,7 @@ namespace YSENET
       }
     }
 
-    public void Create(IPatcher patcher, IChannel channel = null, float volume = 1)
+    public void Create(IYse.IPatcher patcher, IYse.IChannel channel = null, float volume = 1)
     {
       if (channel == null)
       {
@@ -63,10 +63,10 @@ namespace YSENET
       fadeAndStop(time);
     }
 
-    public Pos GetPos()
+    public IYse.Pos GetPos()
     {
-      Yse.Pos p = base.pos();
-      return new Pos(p.x, p.y, p.z);
+      Yse.Pos p = pos();
+      return new IYse.Pos(p.x, p.y, p.z);
     }
 
     public void Pause()
@@ -84,7 +84,7 @@ namespace YSENET
       restart();
     }
 
-    public void SetPos(Pos p)
+    public void SetPos(IYse.Pos p)
     {
       Yse.Pos pos = new Yse.Pos(p.X, p.Y, p.Z);
       base.pos(pos);

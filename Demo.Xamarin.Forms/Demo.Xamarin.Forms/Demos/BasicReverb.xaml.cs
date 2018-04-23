@@ -13,23 +13,23 @@ namespace Demo.Xamarin.Forms.Demos
 	[XamlCompilation(XamlCompilationOptions.Compile)]
 	public partial class BasicReverb : ContentPage
 	{
-    Dictionary<string, YSE.REVERB_PRESET> stringToPreset = new Dictionary<string, YSE.REVERB_PRESET>
+    Dictionary<string, IYse.REVERB_PRESET> stringToPreset = new Dictionary<string, IYse.REVERB_PRESET>
     {
-      {"Off",YSE.REVERB_PRESET.REVERB_OFF },
-      {"Generic",YSE.REVERB_PRESET.REVERB_GENERIC },
-      {"Padded",YSE.REVERB_PRESET.REVERB_PADDED },
-      {"Room",YSE.REVERB_PRESET.REVERB_ROOM },
-      {"Bathroom",YSE.REVERB_PRESET.REVERB_BATHROOM },
-      {"Stone Room", YSE.REVERB_PRESET.REVERB_STONEROOM },
-      {"Large Room",YSE.REVERB_PRESET.REVERB_LARGEROOM },
-      {"Hall",YSE.REVERB_PRESET.REVERB_HALL },
-      {"Cave",YSE.REVERB_PRESET.REVERB_CAVE },
-      {"Sewerpipe",YSE.REVERB_PRESET.REVERB_SEWERPIPE },
-      {"Underwater",YSE.REVERB_PRESET.REVERB_UNDERWATER }
+      {"Off",IYse.REVERB_PRESET.REVERB_OFF },
+      {"Generic",IYse.REVERB_PRESET.REVERB_GENERIC },
+      {"Padded",IYse.REVERB_PRESET.REVERB_PADDED },
+      {"Room",IYse.REVERB_PRESET.REVERB_ROOM },
+      {"Bathroom",IYse.REVERB_PRESET.REVERB_BATHROOM },
+      {"Stone Room", IYse.REVERB_PRESET.REVERB_STONEROOM },
+      {"Large Room",IYse.REVERB_PRESET.REVERB_LARGEROOM },
+      {"Hall",IYse.REVERB_PRESET.REVERB_HALL },
+      {"Cave",IYse.REVERB_PRESET.REVERB_CAVE },
+      {"Sewerpipe",IYse.REVERB_PRESET.REVERB_SEWERPIPE },
+      {"Underwater",IYse.REVERB_PRESET.REVERB_UNDERWATER }
     };
 
-    YSE.IReverb reverb = Global.Yse.System.GetReverb();
-    YSE.ISound snare;
+    IYse.IReverb reverb = Global.Yse.System.GetReverb();
+    IYse.ISound snare;
 
 		public BasicReverb ()
 		{
@@ -44,7 +44,7 @@ namespace Demo.Xamarin.Forms.Demos
       reverb.Active = true;
       Global.Yse.ChannelMaster.AttachReverb();
 
-      snare = Global.Yse.CreateSound();
+      snare = Global.Yse.NewSound();
       snare.Create("snare", null, true);
       snare.Play();
 		}
@@ -61,7 +61,7 @@ namespace Demo.Xamarin.Forms.Demos
     {
       if(ReverbChoice.SelectedIndex == -1)
       {
-        reverb.SetPreset(YSE.REVERB_PRESET.REVERB_OFF);
+        reverb.SetPreset(IYse.REVERB_PRESET.REVERB_OFF);
       } else
       {
         reverb.SetPreset(stringToPreset[ReverbChoice.Items[ReverbChoice.SelectedIndex]]);

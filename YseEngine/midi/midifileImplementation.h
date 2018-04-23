@@ -51,7 +51,7 @@ namespace YSE {
       std::atomic<SOUND_STATUS> intent;
 
       bool hasFile;
-      int startSample;
+      //int startSample;
 
       //std::forward_list<YSE::SYNTH::implementationObject *> readers;
     };

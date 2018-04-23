@@ -65,7 +65,7 @@ void pObject::ConnectOutlet(inlet * dest, int outlet) {
 }
 
 YSE::OUT_TYPE pObject::GetOutputType(unsigned int output) const {
-  if (output < 0 || output >= outputs.size()) return OUT_TYPE::INVALID;
+  if (output >= outputs.size()) return OUT_TYPE::INVALID;
 
   return outputs[output].Type();
 }

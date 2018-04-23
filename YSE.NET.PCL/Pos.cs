@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace YSE
+namespace IYse
 {
   public class Pos
   {

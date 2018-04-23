@@ -13,7 +13,7 @@ namespace YSE {
     
 
     struct outlet {
-      outlet(pObject * obj, OUT_TYPE type);
+      outlet(OUT_TYPE type);
       ~outlet();
 
       inline OUT_TYPE Type() const { return type; } 
@@ -34,7 +34,6 @@ namespace YSE {
       unsigned int GetTargetInlet(unsigned int connection);
 
     private:
-      pObject * obj;
       OUT_TYPE type;
 
       std::vector<inlet*> connections;

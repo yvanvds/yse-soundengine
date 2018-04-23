@@ -14,7 +14,7 @@ namespace YSE {
     class patcherImplementation : public pObject {
     public:
       patcherImplementation(int mainOutputs, patcher * head);
-      ~patcherImplementation();
+      virtual ~patcherImplementation();
 
       virtual const char * Type() const;
       virtual void ResetDSP();

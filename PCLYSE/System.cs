@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.Text;
 using YSE;
 
-namespace YSENET
+
+namespace YSE
 {
-  class System : YSE.ISystem
+  public class System : IYse.ISystem
   {
+
     public uint NumDevices
     {
       get => Yse.Yse.System().getNumDevices();
@@ -22,7 +24,7 @@ namespace YSENET
       }
     }
 
-    bool ISystem.AudioTest
+    bool IYse.ISystem.AudioTest
     {
       get => AudioTestOn;
       set
@@ -47,11 +49,12 @@ namespace YSENET
       Yse.Yse.System().update();
     }
 
-    public IReverb GetReverb()
+    public IYse.IReverb GetReverb()
     {
-      return new YSENET.Reverb(Yse.Yse.System().getGlobalReverb());
+      return new YSE.Reverb(Yse.Yse.System().getGlobalReverb());
     }
 
     private bool AudioTestOn = false;
+
   }
 }

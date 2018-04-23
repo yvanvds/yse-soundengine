@@ -5,9 +5,8 @@
 
 using namespace YSE::PATCHER;
 
-outlet::outlet(pObject * obj, YSE::OUT_TYPE type)
-  : obj(obj)
-  , type(type)
+outlet::outlet(YSE::OUT_TYPE type)
+  : type(type)
 {}
 
 outlet::~outlet() {

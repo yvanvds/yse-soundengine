@@ -11,7 +11,7 @@
 #include "pNote.hpp"
 
 YSE::MUSIC::pNote::pNote(Flt position, Flt pitch, Flt volume, Flt length, Int channel)
-  : position(position), note(pitch, volume, length, channel) {}
+  : note(pitch, volume, length, channel), position(position) {}
 
 YSE::MUSIC::pNote::pNote(const note & object, Flt position) 
 : note(object), position(position) {}

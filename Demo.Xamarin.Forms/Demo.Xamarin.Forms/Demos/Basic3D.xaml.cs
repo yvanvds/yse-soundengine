@@ -29,14 +29,14 @@ namespace Demo.Xamarin.Forms.Demos
     };
 
     SKPoint center = new SKPoint();
-    YSE.Pos listenerPos = new YSE.Pos();
-    YSE.Pos sound1Pos = new YSE.Pos();
-    YSE.Pos sound2Pos = new YSE.Pos();
+    IYse.Pos listenerPos = new IYse.Pos();
+    IYse.Pos sound1Pos = new IYse.Pos();
+    IYse.Pos sound2Pos = new IYse.Pos();
 
     int target = -1;
 
-    YSE.ISound sound1 = Global.Yse.CreateSound();
-    YSE.ISound sound2 = Global.Yse.CreateSound();
+    IYse.ISound sound1 = Global.Yse.NewSound();
+    IYse.ISound sound2 = Global.Yse.NewSound();
 
     
 
@@ -149,15 +149,15 @@ namespace Demo.Xamarin.Forms.Demos
       }
     }
 
-    private float GetDistance(YSE.Pos pos, SKPoint target)
+    private float GetDistance(IYse.Pos pos, SKPoint target)
     {
-      YSE.Pos t = new YSE.Pos(target.X - center.X, target.Y - center.Y, 0);
+      IYse.Pos t = new IYse.Pos(target.X - center.X, target.Y - center.Y, 0);
       //float X = target.X - center.X;
       //float Y = target.Y - center.Y;
       //float dX = Math.Abs(pos.X - X);
       //float dY = Math.Abs(pos.Y - Y);
       //return Math.Max(dX, dY);
-      return YSE.Pos.Dist(pos, t);
+      return IYse.Pos.Dist(pos, t);
     }
   }
 

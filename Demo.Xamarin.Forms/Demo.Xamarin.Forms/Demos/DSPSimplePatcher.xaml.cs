@@ -6,9 +6,9 @@ using System.Threading.Tasks;
 
 using Xamarin.Forms;
 using Xamarin.Forms.Xaml;
-using YSE;
 using SkiaSharp;
 using SkiaSharp.Views.Forms;
+using IYse;
 
 namespace Demo.Xamarin.Forms.Demos
 {
@@ -19,6 +19,7 @@ namespace Demo.Xamarin.Forms.Demos
     IHandle sine;
     IHandle lfo;
     IHandle volume;
+    IHandle dac;
 
     ISound sound;
     IPatcher patcher;
@@ -37,26 +38,27 @@ namespace Demo.Xamarin.Forms.Demos
 		{
 			InitializeComponent ();
 
-      sound = Global.Yse.CreateSound();
-      patcher = Global.Yse.CreatePatcher();
+      sound = Global.Yse.NewSound();
+      patcher = Global.Yse.NewPatcher();
       patcher.Create(1);
 
-      mtof = patcher.AddObject("mtof");
-      sine = patcher.AddObject("sine");
-      lfo = patcher.AddObject("sine");
-      volume = patcher.AddObject("*");
+      mtof = patcher.CreateObject(".mtof");
+      sine = patcher.CreateObject("~sine");
+      lfo = patcher.CreateObject("~sine");
+      volume = patcher.CreateObject("~*");
+      dac = patcher.CreateObject("~dac");
 
-      IHandle multiplier = patcher.AddObject("*");
+      IHandle multiplier = patcher.CreateObject("~*");
 
       patcher.Connect(mtof, 0, sine, 0); // pass frequency to sine
       patcher.Connect(sine, 0, multiplier, 0);
       patcher.Connect(lfo, 0, multiplier, 1);
       patcher.Connect(multiplier, 0, volume, 0);
-      patcher.Connect(volume, 0, patcher.GetOutputHandle(0), 0);
+      patcher.Connect(volume, 0, dac, 0);
 
-      mtof.SetData(0, 60f);
-      lfo.SetData(0, 4f);
-      volume.SetData(1, 0f);
+      mtof.SetFloatData(0, 60f);
+      lfo.SetFloatData(0, 4f);
+      volume.SetFloatData(1, 0f);
 
       sound.Create(patcher);
       sound.Play();
@@ -91,7 +93,7 @@ namespace Demo.Xamarin.Forms.Demos
       {
         case SKTouchAction.Pressed:
           On = true;
-          volume.SetData(1, 1f);
+          volume.SetFloatData(1, 1f);
           touch = e.Location; 
           e.Handled = true;
           break;
@@ -100,15 +102,15 @@ namespace Demo.Xamarin.Forms.Demos
           touch = e.Location;
           if (size.X == 0f || size.Y == 0f) return;
 
-          mtof.SetData(0, 60 + (int)(touch.Y / size.Y * 40f));
-          lfo.SetData(0, touch.X / size.X * 10f);
+          mtof.SetFloatData(0, 60 + (int)(touch.Y / size.Y * 40f));
+          lfo.SetFloatData(0, touch.X / size.X * 10f);
 
           e.Handled = true;
           break;
 
         case SKTouchAction.Released:
           On = false;
-          volume.SetData(1, 0f);
+          volume.SetFloatData(1, 0f);
           touch = e.Location;
           e.Handled = true;
           break;

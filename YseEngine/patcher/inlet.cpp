@@ -7,15 +7,15 @@ using namespace YSE::PATCHER;
 
 inlet::inlet(pObject * obj, bool active, int position)
   : obj(obj)
+  , dspReady(false)
   , active(active)
   , position(position)
-  , dspReady(false)
-  , dspConnection(nullptr)
   , onInt(nullptr)
   , onBang(nullptr)
   , onFloat(nullptr)
   , onList(nullptr)
   , onBuffer(nullptr)
+  , dspConnection(nullptr)
 {}
 
 inlet::~inlet() {

@@ -2,13 +2,11 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace YSE
+namespace IYse
 {
-  public interface IGlobal
+  public interface IYseInterface
   {
     ISystem System { get; }
-    IBufferIO BufferIO { get; }
-    IListener Listener { get; }
 
     IChannel ChannelMaster { get; }
     IChannel ChannelFX { get; }
@@ -16,12 +14,13 @@ namespace YSE
     IChannel ChannelAmbient { get; }
     IChannel ChannelVoice { get; }
     IChannel ChannelGui { get; }
-
+    IBufferIO BufferIO { get; }
+    IListener Listener { get; }
     ILog Log { get; }
 
-    ISound CreateSound();
-    IChannel CreateChannel();
-    IReverb CreateReverb();
-    IPatcher CreatePatcher();
+    ISound NewSound();
+    IChannel NewChannel();
+    IReverb NewReverb();
+    IPatcher NewPatcher();
   }
 }

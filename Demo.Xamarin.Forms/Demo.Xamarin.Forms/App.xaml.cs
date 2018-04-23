@@ -20,8 +20,9 @@ namespace Demo.Xamarin.Forms
         BarBackgroundColor = Color.Black,
         BarTextColor = Color.White,
       };
-      NavigationPage.SetHasNavigationBar(MainPage, false); 
+      NavigationPage.SetHasNavigationBar(MainPage, false);
 		}
+
 
 		protected override void OnStart ()
 		{

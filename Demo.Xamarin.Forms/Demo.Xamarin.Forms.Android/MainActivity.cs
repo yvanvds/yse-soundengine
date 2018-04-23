@@ -15,6 +15,7 @@ namespace Demo.Xamarin.Forms.Droid
   [Activity(Label = "Demo.Xamarin.Forms", Icon = "@drawable/icon", Theme = "@style/MainTheme", MainLauncher = true, ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation)]
   public class MainActivity : global::Xamarin.Forms.Platform.Android.FormsAppCompatActivity
   {
+
     protected override void OnCreate(Bundle bundle)
     {
       TabLayoutResource = Resource.Layout.Tabbar;
@@ -23,8 +24,7 @@ namespace Demo.Xamarin.Forms.Droid
       base.OnCreate(bundle);
 
       // This is the only line needed to active YSE in a native project
-      Demo.Xamarin.Forms.Global.Yse = new YSENET.Global();
-
+      Global.Yse = new YSE.YseInterface(OnLogMessage);
       // ... except when you need to play audio from asset files, which are a 
       // nuisance right now. We cannot access assets from the native libraries
       // because we'd need to pass the JNIenv, which cannot be done from Xamarin
@@ -37,9 +37,14 @@ namespace Demo.Xamarin.Forms.Droid
       LoadApplication(new Demo.Xamarin.Forms.App());
     }
 
+    private void OnLogMessage(string message)
+    {
+      Android.Util.Log.Info("YSE", message);
+    }
+
     private void LoadAssetBuffers()
     {
-      IBufferIO IO = Demo.Xamarin.Forms.Global.Yse.BufferIO;
+      YSE.BufferIO IO = new YSE.BufferIO();
 
       LoadBuffer(IO, "contact");
       LoadBuffer(IO, "countdown");
@@ -54,7 +59,7 @@ namespace Demo.Xamarin.Forms.Droid
       IO.Active = true;
     }
 
-    private void LoadBuffer(IBufferIO IO, String fileName)
+    private void LoadBuffer(BufferIO IO, String fileName)
     {
       byte[] fileBuffer = default(byte[]);
       using (StreamReader sr = new StreamReader(Assets.Open(fileName + ".ogg")))

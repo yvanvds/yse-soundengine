@@ -7,7 +7,6 @@ namespace Demo.Xamarin.Forms
 {
   public static class Global
   {
-    public static YSE.IGlobal Yse;
-
+    public static IYse.IYseInterface Yse;
   }
 }

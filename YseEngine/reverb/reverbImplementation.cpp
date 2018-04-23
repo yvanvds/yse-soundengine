@@ -13,7 +13,8 @@
 
 
 YSE::REVERB::implementationObject::implementationObject(YSE::reverb * head) 
-  : objectStatus(OBJECT_CONSTRUCTED), head(head),
+  : head(head),
+  objectStatus(OBJECT_CONSTRUCTED),
   position(0),
   size(0),
   rolloff(0),

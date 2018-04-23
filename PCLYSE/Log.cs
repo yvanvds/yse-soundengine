@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using YSE;
 
-namespace YSENET
+namespace YSE
 {
   class LogHandler : Yse.logHandler
   {
@@ -12,10 +12,10 @@ namespace YSENET
       OnMessage(message);
     }
 
-    public event OnMessageEventHandler OnMessage;
+    public event IYse.OnMessageEventHandler OnMessage;
   }
 
-  class Log : YSE.ILog
+  public class Log : IYse.ILog
   {
     public Log()
     {
@@ -25,7 +25,7 @@ namespace YSENET
       Yse.Yse.Log().setHandler(LH);
     }
 
-    public ERROR_LEVEL Level
+    public IYse.ERROR_LEVEL Level
     {
       get => Convert(Yse.Yse.Log().getLevel());
       set => Yse.Yse.Log().setLevel(Convert(value));
@@ -37,7 +37,7 @@ namespace YSENET
       set => Yse.Yse.Log().setLogfile(value);
     }
 
-    public event OnMessageEventHandler OnMessage;
+    public event IYse.OnMessageEventHandler OnMessage;
 
     public void SendMessage(string message)
     {
@@ -46,26 +46,26 @@ namespace YSENET
 
     private LogHandler LH;
 
-    static ERROR_LEVEL Convert(Yse.ERROR_LEVEL value)
+    static IYse.ERROR_LEVEL Convert(Yse.ERROR_LEVEL value)
     {
       switch(value)
       {
-        case Yse.ERROR_LEVEL.EL_NONE: return ERROR_LEVEL.NONE;
-        case Yse.ERROR_LEVEL.EL_WARNING: return ERROR_LEVEL.WARNING;
-        case Yse.ERROR_LEVEL.EL_ERROR: return ERROR_LEVEL.ERROR;
-        case Yse.ERROR_LEVEL.EL_DEBUG: return ERROR_LEVEL.DEBUG;
+        case Yse.ERROR_LEVEL.EL_NONE: return IYse.ERROR_LEVEL.NONE;
+        case Yse.ERROR_LEVEL.EL_WARNING: return IYse.ERROR_LEVEL.WARNING;
+        case Yse.ERROR_LEVEL.EL_ERROR: return IYse.ERROR_LEVEL.ERROR;
+        case Yse.ERROR_LEVEL.EL_DEBUG: return IYse.ERROR_LEVEL.DEBUG;
       }
-      return ERROR_LEVEL.NONE;
+      return IYse.ERROR_LEVEL.NONE;
     }
 
-    static Yse.ERROR_LEVEL Convert(ERROR_LEVEL value)
+    static Yse.ERROR_LEVEL Convert(IYse.ERROR_LEVEL value)
     {
       switch (value)
       {
-        case ERROR_LEVEL.NONE: return Yse.ERROR_LEVEL.EL_NONE;
-        case ERROR_LEVEL.WARNING: return Yse.ERROR_LEVEL.EL_WARNING;
-        case ERROR_LEVEL.ERROR: return Yse.ERROR_LEVEL.EL_ERROR;
-        case ERROR_LEVEL.DEBUG: return Yse.ERROR_LEVEL.EL_DEBUG;
+        case IYse.ERROR_LEVEL.NONE: return Yse.ERROR_LEVEL.EL_NONE;
+        case IYse.ERROR_LEVEL.WARNING: return Yse.ERROR_LEVEL.EL_WARNING;
+        case IYse.ERROR_LEVEL.ERROR: return Yse.ERROR_LEVEL.EL_ERROR;
+        case IYse.ERROR_LEVEL.DEBUG: return Yse.ERROR_LEVEL.EL_DEBUG;
       }
       return Yse.ERROR_LEVEL.EL_NONE;
     }

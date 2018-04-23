@@ -238,3 +238,4 @@ yse_binary_release_android/
 yse_binary_release_iOS/
 *.zip
 Generate.NET/YseEngine_wrap.cxx
+/packages

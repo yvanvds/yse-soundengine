@@ -93,11 +93,5 @@
   <ItemGroup>
     <None Include="App.config" />
   </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\Yse.NET.Standard\Yse.NET.Standard.csproj">
-      <Project>{886d1256-4bc9-4f92-84c3-f2e72834eb7e}</Project>
-      <Name>Yse.NET.Standard</Name>
-    </ProjectReference>
-  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

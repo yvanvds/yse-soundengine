@@ -13,9 +13,9 @@ namespace Demo.Xamarin.Forms.Demos
 	[XamlCompilation(XamlCompilationOptions.Compile)]
 	public partial class BasicChannels : ContentPage
 	{
-    YSE.ISound ambient;
-    YSE.ISound music;
-    YSE.ISound voice;
+    IYse.ISound ambient;
+    IYse.ISound music;
+    IYse.ISound voice;
 
 		public BasicChannels ()
 		{
@@ -23,15 +23,15 @@ namespace Demo.Xamarin.Forms.Demos
 
       Info.Text = AppResources.BasicsChannelsInfo;
 
-      ambient = Global.Yse.CreateSound();
+      ambient = Global.Yse.NewSound();
       ambient.Create("flies", Global.Yse.ChannelAmbient, true);
       ambient.Play();
 
-      music = Global.Yse.CreateSound();
+      music = Global.Yse.NewSound();
       music.Create("my2chords", Global.Yse.ChannelMusic, true);
       music.Play();
 
-      voice = Global.Yse.CreateSound();
+      voice = Global.Yse.NewSound();
       voice.Create("countdown", Global.Yse.ChannelVoice, true);
       voice.Play();
 		}

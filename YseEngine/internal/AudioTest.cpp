@@ -17,6 +17,8 @@ public:
   void frequency(Flt value);
   Flt frequency();
 
+  virtual ~shepard() {}
+
 private:
   // in this case we add:
   // a sample buffer to hold the sum of all generators
@@ -27,8 +29,6 @@ private:
   Flt freq[11];
   // the maximum frequency
   Flt top;
-  // the current volume for output (this is adjusted according to SOUND_STATUS
-  Flt volume;
 
   YSE::DSP::lowPass lp;
 

@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Text;
 using YSE;
 
-namespace YSENET
+namespace YSE
 {
-  class Reverb : Yse.reverb, YSE.IReverb
+  public class Reverb : Yse.reverb, IYse.IReverb
   {
     Yse.reverb source;
 
@@ -39,10 +39,10 @@ namespace YSENET
       source.create();
     }
 
-    public Pos GetPos()
+    public IYse.Pos GetPos()
     {
       Yse.Pos p = source.getPosition();
-      return new Pos(p.x, p.y, p.z);
+      return new IYse.Pos(p.x, p.y, p.z);
     }
 
     public bool IsValid()
@@ -70,27 +70,27 @@ namespace YSENET
       source.setModulation(frequency, width);
     }
 
-    public void SetPos(Pos value)
+    public void SetPos(IYse.Pos value)
     {
       source.setPosition(new Yse.Pos(value.X, value.Y, value.Z));
     }
 
-    public void SetPreset(REVERB_PRESET rp)
+    public void SetPreset(IYse.REVERB_PRESET rp)
     {
       Yse.REVERB_PRESET p = new Yse.REVERB_PRESET();
       switch(rp)
       {
-        case REVERB_PRESET.REVERB_BATHROOM: p = Yse.REVERB_PRESET.REVERB_BATHROOM; break;
-        case REVERB_PRESET.REVERB_CAVE: p = Yse.REVERB_PRESET.REVERB_CAVE; break;
-        case REVERB_PRESET.REVERB_GENERIC: p = Yse.REVERB_PRESET.REVERB_GENERIC; break;
-        case REVERB_PRESET.REVERB_HALL: p = Yse.REVERB_PRESET.REVERB_HALL; break;
-        case REVERB_PRESET.REVERB_LARGEROOM: p = Yse.REVERB_PRESET.REVERB_LARGEROOM; break;
-        case REVERB_PRESET.REVERB_OFF: p = Yse.REVERB_PRESET.REVERB_OFF; break;
-        case REVERB_PRESET.REVERB_PADDED: p = Yse.REVERB_PRESET.REVERB_PADDED; break;
-        case REVERB_PRESET.REVERB_ROOM: p = Yse.REVERB_PRESET.REVERB_ROOM; break;
-        case REVERB_PRESET.REVERB_SEWERPIPE: p = Yse.REVERB_PRESET.REVERB_SEWERPIPE; break;
-        case REVERB_PRESET.REVERB_STONEROOM: p = Yse.REVERB_PRESET.REVERB_STONEROOM; break;
-        case REVERB_PRESET.REVERB_UNDERWATER: p = Yse.REVERB_PRESET.REVERB_UNDERWATER; break;
+        case IYse.REVERB_PRESET.REVERB_BATHROOM: p = Yse.REVERB_PRESET.REVERB_BATHROOM; break;
+        case IYse.REVERB_PRESET.REVERB_CAVE: p = Yse.REVERB_PRESET.REVERB_CAVE; break;
+        case IYse.REVERB_PRESET.REVERB_GENERIC: p = Yse.REVERB_PRESET.REVERB_GENERIC; break;
+        case IYse.REVERB_PRESET.REVERB_HALL: p = Yse.REVERB_PRESET.REVERB_HALL; break;
+        case IYse.REVERB_PRESET.REVERB_LARGEROOM: p = Yse.REVERB_PRESET.REVERB_LARGEROOM; break;
+        case IYse.REVERB_PRESET.REVERB_OFF: p = Yse.REVERB_PRESET.REVERB_OFF; break;
+        case IYse.REVERB_PRESET.REVERB_PADDED: p = Yse.REVERB_PRESET.REVERB_PADDED; break;
+        case IYse.REVERB_PRESET.REVERB_ROOM: p = Yse.REVERB_PRESET.REVERB_ROOM; break;
+        case IYse.REVERB_PRESET.REVERB_SEWERPIPE: p = Yse.REVERB_PRESET.REVERB_SEWERPIPE; break;
+        case IYse.REVERB_PRESET.REVERB_STONEROOM: p = Yse.REVERB_PRESET.REVERB_STONEROOM; break;
+        case IYse.REVERB_PRESET.REVERB_UNDERWATER: p = Yse.REVERB_PRESET.REVERB_UNDERWATER; break;
       }
       source.setPreset(p);
     }

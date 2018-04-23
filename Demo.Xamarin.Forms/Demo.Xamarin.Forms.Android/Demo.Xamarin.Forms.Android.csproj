@@ -65,6 +65,12 @@
     <PackageReference Include="Xamarin.Android.Support.v4" Version="25.4.0.2" />
     <PackageReference Include="Xamarin.Android.Support.v7.CardView" Version="25.4.0.2" />
     <PackageReference Include="Xamarin.Android.Support.v7.MediaRouter" Version="25.4.0.2" />
+    <PackageReference Include="Yse.NET.Android">
+      <Version>1.0.29</Version>
+    </PackageReference>
+    <PackageReference Include="YSE.NET.PCL">
+      <Version>1.0.25</Version>
+    </PackageReference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="MainActivity.cs" />
@@ -101,14 +107,6 @@
     </AndroidResource>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\Yse.NET.Android\Yse.NET.Android.csproj">
-      <Project>{5daa782e-2225-49b6-8a8d-d228aaaa0532}</Project>
-      <Name>Yse.NET.Android</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\..\YSE.NET.PCL\YSE.NET.PCL.csproj">
-      <Project>{cbec3dbc-6ef8-46f9-9bb6-450b89b403c8}</Project>
-      <Name>YSE.NET.PCL</Name>
-    </ProjectReference>
     <ProjectReference Include="..\Demo.Xamarin.Forms\Demo.Xamarin.Forms.csproj">
       <Project>{CA5BE448-79F2-49D0-B386-3EB4B7291301}</Project>
       <Name>Demo.Xamarin.Forms</Name>

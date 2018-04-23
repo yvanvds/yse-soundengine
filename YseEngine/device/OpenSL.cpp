@@ -31,7 +31,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "OpenSL.h"
 #include "../implementations\logImplementation.h"
-#include <string.h>
 
 #define CONV16BIT 32768
 #define CONVMYFLT (1./32768.)
@@ -39,16 +38,16 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // static void bqPlayerCallback(SLAndroidSimpleBufferQueueItf bq, void *context);
 
-static SLresult bqPlayerCallback(
-  SLAndroidBufferQueueItf caller,
-  void *pCallbackContext,            /* input */
-  void *pBufferContext,              /* input */
-  void *pBufferData,                 /* input */
-  SLuint32 dataSize,                 /* input */
-  SLuint32 dataUsed,                 /* input */
-  const SLAndroidBufferItem *pItems, /* input */
-  SLuint32 itemsLength               /* input */);
-
+//static SLresult bqPlayerCallback(
+//  SLAndroidBufferQueueItf caller,
+//  void *pCallbackContext,            /* input */
+//  void *pBufferContext,              /* input */
+//  void *pBufferData,                 /* input */
+//  SLuint32 dataSize,                 /* input */
+//  SLuint32 dataUsed,                 /* input */
+// const SLAndroidBufferItem *pItems, /* input */
+//  SLuint32 itemsLength               /* input */);
+  
 
 //static void bqRecorderCallback(SLAndroidSimpleBufferQueueItf bq, void *context);
 //circular_buffer* create_circular_buffer(int bytes);

@@ -14,7 +14,7 @@ YSE::MIDI::fileImpl::fileImpl(file * head)
 : head(head)
 , intent(SS_STOPPED)
 , hasFile(false)
-, startSample(0)
+//, startSample(0)
 {
 
 }

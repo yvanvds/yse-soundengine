@@ -13,7 +13,7 @@ namespace Demo.Xamarin.Forms.Demos
 	[XamlCompilation(XamlCompilationOptions.Compile)]
 	public partial class BasicPlaySound : ContentPage
 	{
-    YSE.ISound sound;
+    IYse.ISound sound;
 
 		public BasicPlaySound ()
 		{
@@ -21,8 +21,8 @@ namespace Demo.Xamarin.Forms.Demos
 
       Info.Text = AppResources.BasicsPlaySoundInfo;
 
-      sound = Global.Yse.CreateSound();
-      sound.Create("snare", null, true);
+      sound = Global.Yse.NewSound();
+      sound.Create("snare", Global.Yse.ChannelMaster, true);
       sound.Volume = 0.5f;
 		}
 

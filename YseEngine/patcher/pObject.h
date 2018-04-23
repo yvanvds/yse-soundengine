@@ -23,6 +23,7 @@ namespace YSE {
     class API pObject {
     public:
       pObject(bool isDSPObject, pObject * parent = nullptr);
+	  virtual ~pObject() {}
 
       virtual const char * Type() const = 0;
       virtual void Calculate(THREAD thread) = 0;
@@ -121,12 +122,12 @@ namespace YSE {
 #define REG_BANG_IN(funcName) inputs.back().RegisterBang(std::bind(&className::funcName, this, std::placeholders::_1, std::placeholders::_2))
 
 
-#define ADD_OUT_BUFFER outputs.emplace_back(this, OUT_TYPE::BUFFER)
-#define ADD_OUT_FLOAT outputs.emplace_back(this, OUT_TYPE::FLOAT)
-#define ADD_OUT_INT outputs.emplace_back(this, OUT_TYPE::INT)
-#define ADD_OUT_BANG outputs.emplace_back(this, OUT_TYPE::BANG)
-#define ADD_OUT_LIST outputs.emplace_back(this, OUT_TYPE::LIST)
-#define ADD_OUT_ANY outputs.emplace_back(this, OUT_TYPE::ANY)
+#define ADD_OUT_BUFFER outputs.emplace_back(OUT_TYPE::BUFFER)
+#define ADD_OUT_FLOAT outputs.emplace_back(OUT_TYPE::FLOAT)
+#define ADD_OUT_INT outputs.emplace_back(OUT_TYPE::INT)
+#define ADD_OUT_BANG outputs.emplace_back(OUT_TYPE::BANG)
+#define ADD_OUT_LIST outputs.emplace_back(OUT_TYPE::LIST)
+#define ADD_OUT_ANY outputs.emplace_back(OUT_TYPE::ANY)
 
 #define ADD_PARAM(var) parms.Register(var)
 

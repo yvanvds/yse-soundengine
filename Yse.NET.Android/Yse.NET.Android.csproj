@@ -1,98 +1,69 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project Sdk="Microsoft.NET.Sdk">
+
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProductVersion>8.0.30703</ProductVersion>
-    <SchemaVersion>2.0</SchemaVersion>
-    <ProjectGuid>{5DAA782E-2225-49B6-8A8D-D228AAAA0532}</ProjectGuid>
-    <ProjectTypeGuids>{EFBA0AD7-5A72-4C68-AF49-83D382785DCF};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
-    <OutputType>Library</OutputType>
-    <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Yse.NET.Android</RootNamespace>
-    <AssemblyName>Yse.NET.Android</AssemblyName>
-    <FileAlignment>512</FileAlignment>
-    <AndroidResgenFile>Resources\Resource.Designer.cs</AndroidResgenFile>
-    <GenerateSerializationAssemblies>Off</GenerateSerializationAssemblies>
-    <AndroidUseLatestPlatformSdk>True</AndroidUseLatestPlatformSdk>
-    <TargetFrameworkVersion>v8.1</TargetFrameworkVersion>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>YSE</RootNamespace>
+    <Authors>yvan vander sanden</Authors>
+    <Company>MuteCode</Company>
+    <Description>Yse.Net for Android</Description>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Version>1.0.30</Version>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
+
   <ItemGroup>
-    <Reference Include="Microsoft.CSharp" />
-    <Reference Include="Mono.Android" />
-    <Reference Include="mscorlib" />
-    <Reference Include="System" />
-    <Reference Include="System.Core" />
-    <Reference Include="System.Xml.Linq" />
-    <Reference Include="System.Xml" />
+    <None Remove="Yse.NET.Android.nuspec" />
   </ItemGroup>
+
   <ItemGroup>
-    <Compile Include="Resources\Resource.Designer.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Content Include="build\*.*">
+      <Pack>true</Pack>
+      <PackagePath>build;</PackagePath>
+    </Content>
   </ItemGroup>
+
   <ItemGroup>
-    <EmbeddedNativeLibrary Include="..\Yse.Android.Native\Release\ARM\libYse.so">
-      <Link>libs\armeabi-v7a\libYse.so</Link>
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </EmbeddedNativeLibrary>
-    <EmbeddedNativeLibrary Include="..\dependencies\libsndfile\lib\libsndfile.so">
-      <Link>libs\armeabi-v7a\libsndfile.so</Link>
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </EmbeddedNativeLibrary>
-    <EmbeddedNativeLibrary Include="..\dependencies\libsndfile\lib\libFLAC.so">
-      <Link>libs\armeabi-v7a\libFLAC.so</Link>
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </EmbeddedNativeLibrary>
-    <EmbeddedNativeLibrary Include="..\dependencies\libsndfile\lib\libogg.so">
-      <Link>libs\armeabi-v7a\libogg.so</Link>
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </EmbeddedNativeLibrary>
-    <EmbeddedNativeLibrary Include="..\dependencies\libsndfile\lib\libvorbis.so">
-      <Link>libs\armeabi-v7a\libvorbis.so</Link>
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </EmbeddedNativeLibrary>
-    <EmbeddedNativeLibrary Include="..\dependencies\libsndfile\lib\libvorbisenc.so">
-      <Link>libs\armeabi-v7a\libvorbisenc.so</Link>
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </EmbeddedNativeLibrary>
-    <None Include="Resources\AboutResources.txt" />
+    <Folder Include="libs\armeabi-v7a\" />
   </ItemGroup>
+
   <ItemGroup>
-    <Folder Include="libs\arm64\" />
-    <Folder Include="libs\x64\" />
-    <Folder Include="libs\x86\" />
+    <Content Include="..\dependencies\libsndfile\lib\libFLAC.so" Link="libs\armeabi-v7a\libFLAC.so">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <ABI>armeabi</ABI>
+      <ABI>armeabi-v7a</ABI>
+    </Content>
+    <Content Include="..\dependencies\libsndfile\lib\libogg.so" Link="libs\armeabi-v7a\libogg.so">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <ABI>armeabi</ABI>
+      <ABI>armeabi-v7a</ABI>
+    </Content>
+    <Content Include="..\dependencies\libsndfile\lib\libsndfile.so" Link="libs\armeabi-v7a\libsndfile.so">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <ABI>armeabi</ABI>
+      <ABI>armeabi-v7a</ABI>
+    </Content>
+    <Content Include="..\dependencies\libsndfile\lib\libvorbis.so" Link="libs\armeabi-v7a\libvorbis.so">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <ABI>armeabi</ABI>
+      <ABI>armeabi-v7a</ABI>
+    </Content>
+    <Content Include="..\dependencies\libsndfile\lib\libvorbisenc.so" Link="libs\armeabi-v7a\libvorbisenc.so">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <ABI>armeabi</ABI>
+      <ABI>armeabi-v7a</ABI>
+    </Content>
+    <Content Include="..\Yse.Android.Native\Release\ARM\libYse.so" Link="libs\armeabi-v7a\libYse.so">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <ABI>armeabi</ABI>
+      <ABI>armeabi-v7a</ABI>
+    </Content>
   </ItemGroup>
+
   <ItemGroup>
-    <ProjectReference Include="..\YSE.NET.PCL\YSE.NET.PCL.csproj">
-      <Project>{cbec3dbc-6ef8-46f9-9bb6-450b89b403c8}</Project>
-      <Name>YSE.NET.PCL</Name>
-    </ProjectReference>
+    <ProjectReference Include="..\YSE.NET.PCL\YSE.NET.PCL.csproj" />
   </ItemGroup>
+
   <Import Project="..\NetYse\NetYse.projitems" Label="Shared" />
+
   <Import Project="..\PCLYSE\PCLYSE.projitems" Label="Shared" />
-  <Import Project="$(MSBuildExtensionsPath)\Xamarin\Android\Xamarin.Android.CSharp.targets" />
-  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
-       Other similar extension points exist, see Microsoft.Common.targets.
-  <Target Name="BeforeBuild">
-  </Target>
-  <Target Name="AfterBuild">
-  </Target>
-  -->
+
 </Project>

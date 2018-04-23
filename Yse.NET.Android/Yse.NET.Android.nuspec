@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<package >
+  <metadata>
+    <id>$id$</id>
+    <version>$version$</version>
+    <title>$title$</title>
+    <authors>$author$</authors>
+    <owners>$author$</owners>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>$description$</description>
+    <copyright>Copyright 2018</copyright>
+	<dependencies>
+      <group targetFramework=".NETStandard2.0">
+        <dependency id="YSE.NET.PCL" version="1.0.22" exclude="Build,Analyzers" />
+      </group>
+    </dependencies>
+    <contentFiles>
+      <files include="any/netstandard2.0/libFLAC.so" buildAction="Content" />
+      <files include="any/netstandard2.0/libogg.so" buildAction="Content" />
+      <files include="any/netstandard2.0/libsndfile.so" buildAction="Content" />
+      <files include="any/netstandard2.0/libvorbis.so" buildAction="Content" />
+      <files include="any/netstandard2.0/libvorbisenc.so" buildAction="Content" />
+      <files include="any/netstandard2.0/libYse.so" buildAction="Content" />
+    </contentFiles>
+  </metadata>
+  <files>
+    <file src="build\Yse.NET.Android.targets" target="build\Yse.NET.Android.targets" />
+    <file src="content\libFLAC.so" target="content\libFLAC.so" />
+    <file src="content\libogg.so" target="content\libogg.so" />
+    <file src="content\libsndfile.so" target="content\libsndfile.so" />
+    <file src="content\libvorbis.so" target="content\libvorbis.so" />
+    <file src="content\libvorbisenc.so" target="content\libvorbisenc.so" />
+    <file src="content\libYse.so" target="content\libYse.so" />
+    <file src="contentFiles\any\netstandard2.0\libFLAC.so" target="contentFiles\any\netstandard2.0\libFLAC.so" />
+    <file src="contentFiles\any\netstandard2.0\libogg.so" target="contentFiles\any\netstandard2.0\libogg.so" />
+    <file src="contentFiles\any\netstandard2.0\libsndfile.so" target="contentFiles\any\netstandard2.0\libsndfile.so" />
+    <file src="contentFiles\any\netstandard2.0\libvorbis.so" target="contentFiles\any\netstandard2.0\libvorbis.so" />
+    <file src="contentFiles\any\netstandard2.0\libvorbisenc.so" target="contentFiles\any\netstandard2.0\libvorbisenc.so" />
+    <file src="contentFiles\any\netstandard2.0\libYse.so" target="contentFiles\any\netstandard2.0\libYse.so" />
+    <file src="lib\netstandard2.0\Yse.NET.Android.dll" target="lib\netstandard2.0\Yse.NET.Android.dll" />
+  </files>
+</package>

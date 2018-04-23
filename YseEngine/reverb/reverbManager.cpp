@@ -17,7 +17,7 @@ YSE::REVERB::managerObject & YSE::REVERB::Manager() {
 }
 
 YSE::REVERB::managerObject::managerObject() 
-  : mgrDelete(this), globalReverb(true), calculatedValues(true) {
+  : globalReverb(true), calculatedValues(true), mgrDelete(this) {
   reverbDSPObject.channels(CHANNEL::Manager().getNumberOfOutputs());
 }
 

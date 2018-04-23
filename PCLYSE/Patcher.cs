@@ -3,12 +3,12 @@ using System.Collections.Generic;
 using System.Text;
 using YSE;
 
-namespace YSENET
+namespace YSE
 {
 
-  class Patcher : Yse.patcher, YSE.IPatcher
+  public class Patcher : Yse.patcher, IYse.IPatcher
   {
-    public void Connect(IHandle from, int pinOut, IHandle to, int pinIn)
+    public void Connect(IYse.IHandle from, int pinOut, IYse.IHandle to, int pinIn)
     {
       base.Connect(((Handle)from).GetSource(), pinOut, ((Handle)to).GetSource(), pinIn);
     }
@@ -18,17 +18,17 @@ namespace YSENET
       create(mainOutputs);
     }
 
-    public void Disconnect(IHandle from, int outlet, IHandle to, int inlet)
+    public void Disconnect(IYse.IHandle from, int outlet, IYse.IHandle to, int inlet)
     {
       base.Disconnect(((Handle)from).GetSource(), outlet, ((Handle)to).GetSource(), inlet);
     }
 
-    public void DeleteObject(IHandle handle)
+    public void DeleteObject(IYse.IHandle handle)
     {
       base.DeleteObject(((Handle)handle).GetSource());
     }
 
-    IHandle IPatcher.CreateObject(string type, string args)
+    IYse.IHandle IYse.IPatcher.CreateObject(string type, string args)
     {
       Yse.pHandle handle = base.CreateObject(type, args);
       if (handle == null) return null;
@@ -40,14 +40,14 @@ namespace YSENET
       return base.Objects();
     }
 
-    IHandle IPatcher.GetHandleFromList(uint obj)
+    IYse.IHandle IYse.IPatcher.GetHandleFromList(uint obj)
     {
       Yse.pHandle handle = base.GetHandleFromList(obj);
       if (handle == null) return null;
       else return new Handle(handle);
     }
 
-    IHandle IPatcher.GetHandleFromID(uint obj)
+    IYse.IHandle IYse.IPatcher.GetHandleFromID(uint obj)
     {
       Yse.pHandle handle = base.GetHandleFromID(obj);
       if (handle == null) return null;
