@@ -54,6 +54,26 @@ namespace YSE
       return new YSE.Reverb(Yse.Yse.System().getGlobalReverb());
     }
 
+    public void AutoReconnect(bool on, int delay)
+    {
+      Yse.Yse.System().autoReconnect(on, delay);
+    }
+
+    public int MissedCallbacks()
+    {
+      return Yse.Yse.System().missedCallbacks();
+    }
+
+    public void Pause()
+    {
+      Yse.Yse.System().pause();
+    }
+
+    public void Resume()
+    {
+      Yse.Yse.System().resume();
+    }
+
     private bool AudioTestOn = false;
 
   }

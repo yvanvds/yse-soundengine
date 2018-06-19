@@ -66,7 +66,8 @@ DemoDspSource::DemoDspSource()
   AddAction('1', "Decrease lowpass filter frequency.", std::bind(&DemoDspSource::FilterDown, this));
   AddAction('2', "Increase lowpass filter frequency.", std::bind(&DemoDspSource::FilterUp, this));
 
-  sound.create(s).play();
+	sound.create(s);
+	sound.play();
 }
 
 

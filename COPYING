@@ -1,11 +1,3 @@
-Warning
-=======
-
-Although YSE is released with the Eclipse Public License below, it does rely on Juce for some internal classes. Juce itself is released with a dual license: GPL for open source software and a commercial license for anything else. 
-
-This means that if you are using YSE for a commercial product you are free to do so, but you should still acquire a commercial Juce license.
-
-*****************************************************************************************
 
 Eclipse Public License - v 1.0
 

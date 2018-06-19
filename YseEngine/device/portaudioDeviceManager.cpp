@@ -27,6 +27,7 @@ YSE::DEVICE::managerObject::managerObject()
   , initDone(false)
   , open(false)
   , started(false)
+	, callbacksSinceLastUpdate(0)
 {}
 
 YSE::DEVICE::managerObject::~managerObject() {
@@ -42,7 +43,8 @@ int YSE::DEVICE::managerObject::paCallback(
   , PaStreamCallbackFlags statusFlags
   , void * userData) {
   YSE::DEVICE::managerObject * manager = (YSE::DEVICE::managerObject *)userData;
- 
+	manager->callbacksSinceLastUpdate++;
+
   if (!manager->doOnCallback(numSamples)) return 0;
 
   UInt pos = 0;
@@ -79,6 +81,8 @@ int YSE::DEVICE::managerObject::paCallback(
     pos += size;
 
   }
+
+	
   return 0;
 }
 
@@ -164,6 +168,20 @@ void YSE::DEVICE::managerObject::terminate() {
     }
     initDone = false;
   }
+}
+
+void YSE::DEVICE::managerObject::pause() {
+	close();
+}
+
+void YSE::DEVICE::managerObject::resume() {
+	addCallback();
+}
+
+unsigned int YSE::DEVICE::managerObject::GetCallbacksSinceLastUpdate() {
+	unsigned int result = callbacksSinceLastUpdate;
+	callbacksSinceLastUpdate = 0;
+	return result;
 }
 
 void YSE::DEVICE::managerObject::updateDeviceList() {

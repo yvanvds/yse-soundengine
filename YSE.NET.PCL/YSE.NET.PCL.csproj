@@ -5,11 +5,11 @@
     <RootNamespace>YSE</RootNamespace>
     <Authors>yvan vander sanden</Authors>
     <Company>MuteCode</Company>
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <Description>PCL Interface for YSE.</Description>
     <AssemblyVersion>1.0.26.0</AssemblyVersion>
     <FileVersion>1.0.26.0</FileVersion>
-    <Version>1.0.26</Version>
+    <Version>1.0.31</Version>
     <Copyright>Eclipse Public License - v 1.0</Copyright>
     <PackageLicenseUrl>https://github.com/yvanvds/yse-soundengine/blob/master/COPYING</PackageLicenseUrl>
     <PackageProjectUrl>https://github.com/yvanvds/yse-soundengine</PackageProjectUrl>

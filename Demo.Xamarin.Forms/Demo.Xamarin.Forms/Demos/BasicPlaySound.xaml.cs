@@ -14,6 +14,7 @@ namespace Demo.Xamarin.Forms.Demos
 	public partial class BasicPlaySound : ContentPage
 	{
     IYse.ISound sound;
+    bool playing = false;
 
 		public BasicPlaySound ()
 		{
@@ -21,24 +22,25 @@ namespace Demo.Xamarin.Forms.Demos
 
       Info.Text = AppResources.BasicsPlaySoundInfo;
 
-      sound = Global.Yse.NewSound();
-      sound.Create("snare", Global.Yse.ChannelMaster, true);
-      sound.Volume = 0.5f;
+      
 		}
 
     private void ButtonPlay(object sender, EventArgs e)
     {
       sound.Play();
+      playing = true;
     }
 
     private void ButtonPause(object sender, EventArgs e)
     {
       sound.Pause();
+      playing = false;
     }
 
     private void ButtonStop(object sender, EventArgs e)
     {
       sound.Stop();
+      playing = false;
     }
 
     private void VolumeChanged(object sender, EventArgs e)
@@ -53,8 +55,21 @@ namespace Demo.Xamarin.Forms.Demos
 
     protected override void OnDisappearing()
     {
+      sound.Stop();
       sound.Dispose();
       base.OnDisappearing();
+    }
+
+    protected override void OnAppearing()
+    {
+      base.OnAppearing();
+      sound = Global.Yse.NewSound();
+      sound.Create("snare", Global.Yse.ChannelMaster, true);
+      sound.Volume = 0.5f;
+
+      if (playing) sound.Play();
+      sound.Volume = (float)VolumeSlider.Value;
+      sound.Speed = (float)SpeedSlider.Value;
     }
   }
 }

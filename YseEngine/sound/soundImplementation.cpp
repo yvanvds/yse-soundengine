@@ -517,6 +517,15 @@ Bool YSE::SOUND::implementationObject::dsp() {
   ///////////////////////////////////////////
   dspFunc_parseIntent();
 
+	if (playerType == PT_PATCHER && status_dsp != SS_PLAYING) {
+		switch (status_dsp) {
+			case SS_WANTSTOPLAY: status_dsp = SS_PLAYING; break;
+			case SS_WANTSTORESTART: status_dsp = SS_PLAYING; break;
+			case SS_WANTSTOPAUSE: status_dsp = SS_PAUSED; break;
+			case SS_WANTSTOSTOP: status_dsp = SS_STOPPED; break;
+		}
+	}
+
   if (status_dsp == SS_STOPPED || status_dsp == SS_PAUSED) return false;
   if (parent->allowVirtual && !VirtualSoundFinder().inRange(virtualDist)) return false;
 
@@ -556,6 +565,7 @@ Bool YSE::SOUND::implementationObject::dsp() {
     source_dsp->process(status_dsp);
   }
   else if (playerType == PT_PATCHER && patcher != nullptr) {
+		
     patcher->Calculate(YSE::T_DSP);
   }
   //else if (synth != nullptr) {

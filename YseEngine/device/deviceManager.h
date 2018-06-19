@@ -32,6 +32,10 @@ namespace YSE {
       virtual Bool init ();
       virtual void close() {};
 
+			virtual void pause() = 0;
+			virtual void resume() = 0;
+			virtual unsigned int GetCallbacksSinceLastUpdate() = 0;
+
       /* If the audio backend provides a method to retrieve
          the cpu load, use it. Otherwise just return a number.
          YSE does not depend on this method, but it can be useful

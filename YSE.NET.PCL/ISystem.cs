@@ -10,6 +10,11 @@ namespace IYse
     void Update();
     void Close();
 
+    void Pause();
+    void Resume();
+    void AutoReconnect(bool on, int delay);
+    int MissedCallbacks();
+
     //IReverb GlobalReverb { get; }
 
     uint NumDevices { get; }

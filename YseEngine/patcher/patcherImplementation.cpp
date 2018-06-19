@@ -126,6 +126,11 @@ YSE::pHandle * patcherImplementation::CreateObject(const std::string & type, con
 
 void patcherImplementation::DeleteObject(YSE::pHandle * handle) {
   if(!fileHandlerActive) mtx.lock();
+
+	if (handle->Type() == OBJ::G_METRO) {
+		handle->object->GetInlet(0)->SetInt(0, YSE::THREAD::T_GUI);
+	}
+
   objects.erase(handle);
 
   delete handle->object;
@@ -134,10 +139,18 @@ void patcherImplementation::DeleteObject(YSE::pHandle * handle) {
 }
 
 void patcherImplementation::Clear() {
+	if (!fileHandlerActive) mtx.lock();
+
   for (auto it = objects.begin(); it != objects.end(); ++it) {
+		if (it->first->Type() == OBJ::G_METRO) {
+			it->second->GetInlet(0)->SetInt(0, YSE::THREAD::T_GUI);
+		}
+
     delete it->first;
     delete it->second;
   }
+	objects.clear();
+	if (!fileHandlerActive) mtx.unlock();
 }
 
 using json = nlohmann::json;

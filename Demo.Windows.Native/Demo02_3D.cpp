@@ -14,8 +14,10 @@ and the helper object YSE::Pos which holds xyz coordinates.
 Demo3D::Demo3D()
 {
 	// load a sound in memory and get a pointer to it
-	sound1.create("..\\TestResources\\drone.ogg", nullptr, true).play();
-	sound2.create("..\\TestResources\\kick.ogg", nullptr, true).play();
+	sound1.create("..\\TestResources\\drone.ogg", nullptr, true); 
+	sound1.play();
+	sound2.create("..\\TestResources\\kick.ogg", nullptr, true); 
+	sound2.play();
 	selectedObject = 1;
 	Reset();
 

@@ -34,6 +34,10 @@ namespace YSE {
       virtual void close();
       virtual Flt cpuLoad();
 
+			virtual void pause();
+			virtual void resume();
+			virtual unsigned int GetCallbacksSinceLastUpdate();
+
       virtual void updateDeviceList();
       virtual void openDevice(const YSE::deviceSetup & object);
       virtual void addCallback();
@@ -54,6 +58,8 @@ namespace YSE {
       PaError err;
       UInt bufferPos;
       bool initDone, open, started;
+
+			std::atomic<unsigned int> callbacksSinceLastUpdate;
     };
 
     managerObject & Manager();

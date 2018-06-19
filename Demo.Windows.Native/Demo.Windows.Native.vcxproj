@@ -214,6 +214,7 @@ cp ..\Yse.Windows.Native\Debug\Win32\Yse.dll ..\bin\$(ProjectName)\</Command>
     <ClInclude Include="Demo12_AudioTest.h" />
     <ClInclude Include="Demo13_Patcher.h" />
     <ClInclude Include="Demo14_LoadPatcher.h" />
+    <ClInclude Include="Demo15_RestartAudio.h" />
     <ClInclude Include="MenuAction.h" />
     <ClInclude Include="MenuBasics.h" />
     <ClInclude Include="MenuDsp.h" />
@@ -240,6 +241,7 @@ cp ..\Yse.Windows.Native\Debug\Win32\Yse.dll ..\bin\$(ProjectName)\</Command>
     <ClCompile Include="Demo12_AudioTest.cpp" />
     <ClCompile Include="Demo13_Patcher.cpp" />
     <ClCompile Include="Demo14_LoadPatcher.cpp" />
+    <ClCompile Include="Demo15_RestartAudio.cpp" />
     <ClCompile Include="MenuAction.cpp" />
     <ClCompile Include="MenuBasics.cpp" />
     <ClCompile Include="MenuDsp.cpp" />
@@ -251,6 +253,11 @@ cp ..\Yse.Windows.Native\Debug\Win32\Yse.dll ..\bin\$(ProjectName)\</Command>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Yse.Windows.Native\Yse.Windows.Native.vcxproj">
+      <Project>{65df5b1b-cfc7-4199-add3-5543d85e3226}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

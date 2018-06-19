@@ -22,10 +22,12 @@ DemoChannels::DemoChannels() : customChannel(new YSE::channel)
 	customChannel->create("myChannel", YSE::ChannelMaster());
 
 	// add a sound to your custom channel
-	kick.create("..\\TestResources\\kick.ogg", customChannel, true).play();
+	kick.create("..\\TestResources\\kick.ogg", customChannel, true); 
+	kick.play();
 
 	// add a sound to the music channel
-	pulse.create("..\\TestResources\\pulse1.ogg", &YSE::ChannelMusic(), true).play();
+	pulse.create("..\\TestResources\\pulse1.ogg", &YSE::ChannelMusic(), true);
+	pulse.play();
 
 	SetTitle("Custom Channels");
 	AddAction('q', "Increase Volume (Master Channel)", std::bind(&DemoChannels::MasterIncVol, this));

@@ -2,6 +2,12 @@
 
 libYSE is a cross platform sound engine, written in C++. The 1.0 version was built with JUCE, but because of possible licensing isssues and the current JUCE being unable to create usable Android libraries, JUCE support is removed in libYSE 2.0. Currently Windows and Android are supported. 
 
+### Nuget ###
+If you use YSE with C#, a few nuget packages are available. For windows you need [https://www.nuget.org/packages/Yse.NET.Standard/](Yse.NET.Standard). _(YSE.NET.PCL is a dependency and will be loaded automatically.)_
+
+With Android, you can use [https://www.nuget.org/packages/Yse.NET.Android/](Yse.NET.Android).
+For Xamarin Forms, add Yse.NET.Android and YSE.NET.PCL to your Android Project, and add YSE.NET.PCL to your Xamarin Forms project. An example of this usage is available in the Demo.Xamarin.Forms project inside this repository.
+
 ### Windows Support ###
 There is a native C++ library, compiled with Visual Studio. It uses libsndfile and portaudio a backends.
 A .NET framework library is also included.

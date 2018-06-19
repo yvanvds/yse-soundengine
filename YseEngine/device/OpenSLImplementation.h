@@ -16,6 +16,9 @@ public:
   bool Setup();
   bool Start(int channels);
   void Stop();
+	void Suspend();
+	void Resume();
+	unsigned int GetCallbacksSinceLastUpdate();
   
   static void SoundPlayerCallback(SLAndroidSimpleBufferQueueItf aSoundQueue, void * aContext);
   void SendSoundBuffer();
@@ -42,6 +45,8 @@ private:
   UInt bufferPos;
   int numChannels;
   float ** sourceChannels;
+
+	std::atomic<unsigned int> callbacksSinceLastUpdate;
 };
 
 #endif

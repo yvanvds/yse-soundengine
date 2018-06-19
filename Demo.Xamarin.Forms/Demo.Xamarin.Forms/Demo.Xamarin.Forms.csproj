@@ -9,7 +9,10 @@
     <PackageReference Include="SkiaSharp" Version="1.59.3" />
     <PackageReference Include="SkiaSharp.Views.Forms" Version="1.59.3" />
     <PackageReference Include="Xamarin.Forms" Version="2.5.0.121934" />
-    <PackageReference Include="YSE.NET.PCL" Version="1.0.25" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\YSE.NET.PCL\YSE.NET.PCL.csproj" />
   </ItemGroup>
 
   <ItemGroup>

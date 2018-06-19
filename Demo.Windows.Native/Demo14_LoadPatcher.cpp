@@ -9,7 +9,8 @@ DemoLoadPatcher::DemoLoadPatcher() {
   AddAction('1', "Load a json file", std::bind(&DemoLoadPatcher::LoadPatch1, this));
 
   patcher.create(1);
-  sound.create(patcher).play();
+	sound.create(patcher);
+	sound.play();
 }
 
 void DemoLoadPatcher::LoadPatch1() {

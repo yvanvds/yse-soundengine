@@ -9,5 +9,6 @@ public:
   void DevicesDemo();
   void VirtualIODemo();
   void AudioTestDemo();
+	void RestartAudioDemo();
 };
 

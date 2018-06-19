@@ -7,7 +7,12 @@
     <Company>MuteCode</Company>
     <Description>Yse.Net for Android</Description>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>1.0.30</Version>
+    <Version>1.0.37</Version>
+    <Copyright>Eclipse Public License - v 1.0</Copyright>
+    <PackageLicenseUrl>https://github.com/yvanvds/yse-soundengine/blob/master/COPYING</PackageLicenseUrl>
+    <PackageProjectUrl>https://github.com/yvanvds/yse-soundengine</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/yvanvds/yse-soundengine</RepositoryUrl>
+    <PackageTags>sound engine DSP</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
@@ -30,31 +35,37 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <ABI>armeabi</ABI>
       <ABI>armeabi-v7a</ABI>
+      <ABI>arm64-v8a</ABI>
     </Content>
     <Content Include="..\dependencies\libsndfile\lib\libogg.so" Link="libs\armeabi-v7a\libogg.so">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <ABI>armeabi</ABI>
       <ABI>armeabi-v7a</ABI>
+      <ABI>arm64-v8a</ABI>
     </Content>
     <Content Include="..\dependencies\libsndfile\lib\libsndfile.so" Link="libs\armeabi-v7a\libsndfile.so">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <ABI>armeabi</ABI>
       <ABI>armeabi-v7a</ABI>
+      <ABI>arm64-v8a</ABI>
     </Content>
     <Content Include="..\dependencies\libsndfile\lib\libvorbis.so" Link="libs\armeabi-v7a\libvorbis.so">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <ABI>armeabi</ABI>
       <ABI>armeabi-v7a</ABI>
+      <ABI>arm64-v8a</ABI>
     </Content>
     <Content Include="..\dependencies\libsndfile\lib\libvorbisenc.so" Link="libs\armeabi-v7a\libvorbisenc.so">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <ABI>armeabi</ABI>
       <ABI>armeabi-v7a</ABI>
+      <ABI>arm64-v8a</ABI>
     </Content>
     <Content Include="..\Yse.Android.Native\Release\ARM\libYse.so" Link="libs\armeabi-v7a\libYse.so">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <ABI>armeabi</ABI>
       <ABI>armeabi-v7a</ABI>
+      <ABI>arm64-v8a</ABI>
     </Content>
   </ItemGroup>
 

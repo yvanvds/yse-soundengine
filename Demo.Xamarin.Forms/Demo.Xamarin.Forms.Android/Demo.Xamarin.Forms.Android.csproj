@@ -41,6 +41,9 @@
     <WarningLevel>4</WarningLevel>
     <AndroidManagedSymbols>true</AndroidManagedSymbols>
     <AndroidUseSharedRuntime>false</AndroidUseSharedRuntime>
+    <AotAssemblies>false</AotAssemblies>
+    <EnableLLVM>false</EnableLLVM>
+    <BundleAssemblies>false</BundleAssemblies>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Mono.Android" />
@@ -65,12 +68,6 @@
     <PackageReference Include="Xamarin.Android.Support.v4" Version="25.4.0.2" />
     <PackageReference Include="Xamarin.Android.Support.v7.CardView" Version="25.4.0.2" />
     <PackageReference Include="Xamarin.Android.Support.v7.MediaRouter" Version="25.4.0.2" />
-    <PackageReference Include="Yse.NET.Android">
-      <Version>1.0.29</Version>
-    </PackageReference>
-    <PackageReference Include="YSE.NET.PCL">
-      <Version>1.0.25</Version>
-    </PackageReference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="MainActivity.cs" />
@@ -87,6 +84,30 @@
     <AndroidAsset Include="Assets\flies.ogg" />
     <AndroidAsset Include="Assets\g.ogg" />
     <AndroidAsset Include="Assets\kick.ogg" />
+    <AndroidNativeLibrary Include="..\..\dependencies\libsndfile\lib\libFLAC.so">
+      <Link>libs\armeabi-v7a\libFLAC.so</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </AndroidNativeLibrary>
+    <AndroidNativeLibrary Include="..\..\dependencies\libsndfile\lib\libogg.so">
+      <Link>libs\armeabi-v7a\libogg.so</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </AndroidNativeLibrary>
+    <AndroidNativeLibrary Include="..\..\dependencies\libsndfile\lib\libsndfile.so">
+      <Link>libs\armeabi-v7a\libsndfile.so</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </AndroidNativeLibrary>
+    <AndroidNativeLibrary Include="..\..\dependencies\libsndfile\lib\libvorbis.so">
+      <Link>libs\armeabi-v7a\libvorbis.so</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </AndroidNativeLibrary>
+    <AndroidNativeLibrary Include="..\..\dependencies\libsndfile\lib\libvorbisenc.so">
+      <Link>libs\armeabi-v7a\libvorbisenc.so</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </AndroidNativeLibrary>
+    <AndroidNativeLibrary Include="..\..\yse.android.native\debug\arm\libYse.so">
+      <Link>libs\armeabi-v7a\libYse.so</Link>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </AndroidNativeLibrary>
     <None Include="Resources\AboutResources.txt" />
     <None Include="Assets\AboutAssets.txt" />
   </ItemGroup>
@@ -107,6 +128,14 @@
     </AndroidResource>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\Yse.NET.Android.Debug\Yse.NET.Android.Debug.csproj">
+      <Project>{8259bee7-3955-4f7f-8d0e-667ce9782cc4}</Project>
+      <Name>Yse.NET.Android.Debug</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\YSE.NET.PCL\YSE.NET.PCL.csproj">
+      <Project>{cbec3dbc-6ef8-46f9-9bb6-450b89b403c8}</Project>
+      <Name>YSE.NET.PCL</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Demo.Xamarin.Forms\Demo.Xamarin.Forms.csproj">
       <Project>{CA5BE448-79F2-49D0-B386-3EB4B7291301}</Project>
       <Name>Demo.Xamarin.Forms</Name>

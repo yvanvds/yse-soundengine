@@ -20,7 +20,8 @@ DemoDevices::DemoDevices()
     }
   }
 
-  drone.create("..\\TestResources\\drone.ogg", nullptr, true).play();
+	drone.create("..\\TestResources\\drone.ogg", nullptr, true);
+	drone.play();
 }
 
 void DemoDevices::ExplainDemo()

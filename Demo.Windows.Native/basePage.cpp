@@ -68,7 +68,10 @@ void basePage::Run() {
 		a second is really overkill, so call it once in your main program loop, not after changing every setting.
 		*/
 		YSE::System().update();
-
+		int missedCallbacks = YSE::System().missedCallbacks();
+		if (missedCallbacks > 0) {
+			std::cout << "Missed callbacks: " << missedCallbacks << std::endl;
+		}
 		ShowStatus();
 	}
 }

@@ -28,6 +28,10 @@ namespace YSE {
     void update();
     void close();
 
+		void pause();
+		void resume();
+		int  missedCallbacks();
+
     /** Get a reference to the global reverb object. It's not active by default,
         but when enabled, these reverb settings will be used when there's no
         other reverb active at the current position. If one or more reverbs are
@@ -76,12 +80,17 @@ namespace YSE {
 
     system& AudioTest(bool on);
 
+		system& autoReconnect(bool on, int delay);
+
     // statistics
     float cpuLoad(); // cpu load of the audio steam (not the YSE update system)
     void sleep(unsigned int ms); // usefull for console applications if you don't want to run update at max speed
   private:
     float(*occlusionPtr)(const Pos& source, const Pos& listener);
-  };
+		int currentlyMissedCallbacks; // used to watch the audio callback and determine if it is still running
+		bool doAutoReconnect;
+		int reconnectDelay;
+	};
 
   API system & System();
 }

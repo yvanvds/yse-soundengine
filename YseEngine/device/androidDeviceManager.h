@@ -22,6 +22,10 @@ namespace YSE {
       virtual void close();
       virtual float cpuLoad() { return 0.f; } // not implemented for android
 
+			virtual void pause();
+			virtual void resume();
+			virtual unsigned int GetCallbacksSinceLastUpdate();
+
       virtual void updateDeviceList();
       virtual void openDevice(const YSE::deviceSetup & object);
       virtual void addCallback();

@@ -49,7 +49,8 @@ void DemoVirtual::AddSound()
 		}
 		if (sounds.front().isValid()) {
 			sounds.front().pos(YSE::Pos(YSE::Random(20) - 10.f, YSE::Random(20) - 10.f, YSE::Random(20) - 10.f));
-			sounds.front().play().volume(0.1f); // it can get very loud with 100's of sounds
+			sounds.front().play();
+			sounds.front().volume(0.1f); // it can get very loud with 100's of sounds
 			counter++;
 		}
 	}

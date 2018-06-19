@@ -4,7 +4,8 @@
 
 DemoReverb::DemoReverb()
 {
-  snare.create("..\\TestResources\\snare.ogg", nullptr, true).play();
+	snare.create("..\\TestResources\\snare.ogg", nullptr, true);
+	snare.play();
   
   // set global reverb
   YSE::System().getGlobalReverb().setActive(true);

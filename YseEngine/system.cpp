@@ -31,7 +31,9 @@ Bool YSE::system::init() {
   }
   // global objects should always be loaded before anything else!
   INTERNAL::Global().init();
-  
+	currentlyMissedCallbacks = 0;
+	doAutoReconnect = false;
+	reconnectDelay = 0;
 
   if (DEVICE::Manager().init()) {
     INTERNAL::LogImpl().emit(E_DEBUG, "YSE System object initialized");
@@ -59,6 +61,17 @@ Bool YSE::system::init() {
 
 void YSE::system::update() {
   INTERNAL::Global().flagForUpdate();
+	unsigned int callbacks = DEVICE::Manager().GetCallbacksSinceLastUpdate();
+	if (callbacks == 0) {
+		currentlyMissedCallbacks++;
+		if (doAutoReconnect && currentlyMissedCallbacks > reconnectDelay) {
+			pause();
+			resume();
+		}
+	}
+	else {
+		currentlyMissedCallbacks = 0;
+	}
 }
 
 void YSE::system::close() {
@@ -69,6 +82,24 @@ void YSE::system::close() {
     DEVICE::Manager().close();
     INTERNAL::Global().close();
   }
+}
+
+void YSE::system::pause() {
+	DEVICE::Manager().pause();
+}
+
+void YSE::system::resume() {
+	DEVICE::Manager().resume();
+}
+
+int YSE::system::missedCallbacks() {
+	return currentlyMissedCallbacks;
+}
+
+YSE::system& YSE::system::autoReconnect(bool on, int delay) {
+	doAutoReconnect = on;
+	reconnectDelay = delay;
+	return *this;
 }
 
 YSE::system& YSE::system::occlusionCallback(float(*func)(const YSE::Pos&, const YSE::Pos&)) {

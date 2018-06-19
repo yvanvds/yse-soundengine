@@ -6,43 +6,51 @@
     <Authors>yvan vander sanden</Authors>
     <Company>MuteCode</Company>
     <Description>The YSE Sound Engine, with wrappers for .NET</Description>
-    <AssemblyVersion>1.0.*</AssemblyVersion>
+    <AssemblyVersion>1.0.62.0</AssemblyVersion>
 	<Deterministic>False</Deterministic>
-    <Version>1.0.61</Version>
+    <Version>1.0.66</Version>
+    <Copyright>Eclipse Public License - v 1.0</Copyright>
+    <PackageLicenseUrl>https://github.com/yvanvds/yse-soundengine/blob/master/COPYING</PackageLicenseUrl>
+    <PackageProjectUrl>https://github.com/yvanvds/yse-soundengine</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/yvanvds/yse-soundengine</RepositoryUrl>
+    <PackageIconUrl>https://github.com/yvanvds/yse-soundengine/blob/master/logo/Artboard%201.png</PackageIconUrl>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Content Include="build\*.*">
+      <Pack>true</Pack>
+      <PackagePath>build;</PackagePath>
+    </Content>
+  </ItemGroup>
+
   <Import Project="..\NetYse\NetYse.projitems" Label="Shared" />
 
   <Import Project="..\PCLYSE\PCLYSE.projitems" Label="Shared" />
 
   <ItemGroup>
-    <Content Include="..\dependencies\libsndfile\bin\libsndfile-1.dll" Link="lib\net40\libsndfile-1.dll">
+    <Content Include="..\dependencies\libsndfile\bin\libsndfile-1.dll" Link="build\libsndfile-1.dll">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="..\dependencies\portaudio\lib\releasedll\portaudio_x86.dll" Link="lib\net40\portaudio_x86.dll">
+    <Content Include="..\dependencies\portaudio\lib\releasedll\portaudio_x86.dll" Link="build\portaudio_x86.dll">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="..\Yse.Windows.Native\Release\Win32\Yse.dll" Link="lib\net40\lib\Yse.dll">
+    <Content Include="..\Yse.Windows.Native\Release\Win32\Yse.dll" Link="build\Yse.dll">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\YSE.NET.PCL\YSE.NET.PCL.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="lib\net40\lib\" />
   </ItemGroup>
 
 </Project>

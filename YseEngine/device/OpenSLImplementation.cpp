@@ -9,10 +9,11 @@
 #define CONV16BIT 32768
 
 OpenSLImplementation::OpenSLImplementation()
-  : buffer1(nullptr)
-  , buffer2(nullptr)
-  , bufferPos(YSE::STANDARD_BUFFERSIZE) 
-  , sourceChannels(nullptr)
+	: buffer1(nullptr)
+	, buffer2(nullptr)
+	, bufferPos(YSE::STANDARD_BUFFERSIZE)
+	, sourceChannels(nullptr)
+	, callbacksSinceLastUpdate(0)
 {
   mEngineObject = NULL;
   mEngine = NULL;
@@ -165,8 +166,9 @@ ERROR:
 }
 
 void OpenSLImplementation::SoundPlayerCallback(SLAndroidSimpleBufferQueueItf aSoundQueue, void * aContext) {
-  YSE::INTERNAL::LogImpl().emit(YSE::E_DEBUG, "OpenSL: Audio Callback Called");
-  ((OpenSLImplementation*)aContext)->SendSoundBuffer();
+  //YSE::INTERNAL::LogImpl().emit(YSE::E_DEBUG, "OpenSL: Audio Callback Called");
+	((OpenSLImplementation*)aContext)->callbacksSinceLastUpdate++;
+	((OpenSLImplementation*)aContext)->SendSoundBuffer();
 }
 
 void OpenSLImplementation::SendSoundBuffer() {
@@ -174,10 +176,16 @@ void OpenSLImplementation::SendSoundBuffer() {
 
   PrepareSoundBuffer();
   result = (*mSoundQueue)->Enqueue(mSoundQueue, currentBuffer, sizeof(sl_int16_t) * ANDROID_BUFFER_SIZE * numChannels);
-  if (result != SL_RESULT_SUCCESS) {
-    YSE::INTERNAL::LogImpl().emit(YSE::E_ERROR, "OpenSL: enqueue method of sound buffer failed");
-  }
+  //if (result != SL_RESULT_SUCCESS) {
+  //  YSE::INTERNAL::LogImpl().emit(YSE::E_ERROR, "OpenSL: enqueue method of sound buffer failed");
+  //}
   SwapSoundBuffers();
+}
+
+unsigned int OpenSLImplementation::GetCallbacksSinceLastUpdate() {
+	unsigned int result = callbacksSinceLastUpdate;
+	callbacksSinceLastUpdate = 0;
+	return result;
 }
 
 void OpenSLImplementation::StopPlayer() {
@@ -197,6 +205,28 @@ void OpenSLImplementation::StopPlayer() {
       mSoundVolume = NULL;
     }
   }
+}
+
+void OpenSLImplementation::Suspend() {
+	if (mSoundPlayer != NULL) {
+		(*mSoundPlayer)->SetPlayState(mSoundPlayer, SL_PLAYSTATE_PAUSED);
+		YSE::INTERNAL::LogImpl().emit(YSE::E_ERROR, "OpenSL: suspended player" );
+	}
+}
+
+void OpenSLImplementation::Resume() {
+	if (mSoundPlayer != NULL) {
+		YSE::INTERNAL::LogImpl().emit(YSE::E_ERROR, "OpenSL: restarting player");
+		SLresult result = (*mSoundPlayer)->SetPlayState(mSoundPlayer, SL_PLAYSTATE_PLAYING);
+		if (result == SL_RESULT_SUCCESS) {
+			YSE::INTERNAL::LogImpl().emit(YSE::E_ERROR, "OpenSL: restarting succeeded");
+			SendSoundBuffer();
+
+		}
+		else {
+			YSE::INTERNAL::LogImpl().emit(YSE::E_ERROR, "OpenSL: restarting failed");
+		}
+	}
 }
 
 void OpenSLImplementation::Stop() {

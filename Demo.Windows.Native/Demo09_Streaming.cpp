@@ -43,5 +43,6 @@ void DemoStreaming::Fade()
 
 void DemoStreaming::Play()
 {
-  sound.volume(1).play();
+	sound.volume(1);
+	sound.play();
 }

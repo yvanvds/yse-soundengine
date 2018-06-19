@@ -45,11 +45,21 @@ void YSE::DEVICE::managerObject::updateDeviceList() {
   devices.push_back(d);
 }
 
+void YSE::DEVICE::managerObject::pause() {
+	implementation.Suspend();
+}
+
+void YSE::DEVICE::managerObject::resume() {
+	implementation.Resume();
+}
 
 void YSE::DEVICE::managerObject::addCallback() {
-  //android_RegisterOutputCallback(stream, AudioCallback);
   implementation.Start(YSE::DEVICE::Manager().getMaster().GetBuffers().size());
-  YSE::Log().sendMessage("androidDeviceManager: Callback Added");
+  //YSE::Log().sendMessage("androidDeviceManager: Callback Added");
+}
+
+unsigned int YSE::DEVICE::managerObject::GetCallbacksSinceLastUpdate() {
+	return implementation.GetCallbacksSinceLastUpdate();
 }
 
 void YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup & object) {
@@ -58,14 +68,14 @@ void YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup & object) {
 }
 
 void YSE::DEVICE::managerObject::close() {
-  YSE::Log().sendMessage("androidDeviceManager: Close started");
+  //YSE::Log().sendMessage("androidDeviceManager: Close started");
 
   if (!initDone) return;
   if (!open) return;
 
   implementation.Stop();
   initDone = open = false;
-  YSE::Log().sendMessage("androidDeviceManager: Close done");
+  //YSE::Log().sendMessage("androidDeviceManager: Close done");
 }
 
 

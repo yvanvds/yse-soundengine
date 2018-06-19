@@ -49,7 +49,8 @@ DemoPatcher::DemoPatcher()
   AddAction('7', "Save to File", std::bind(&DemoPatcher::SaveToFile, this));
   Setup();
   
-  sound.create(patcher).play();
+	sound.create(patcher);
+	sound.play();
 }
 
 void DemoPatcher::FreqUp() {

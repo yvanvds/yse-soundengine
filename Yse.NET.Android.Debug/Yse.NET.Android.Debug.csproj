@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>YSE</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Folder Include="libs\armeabi-v7a\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\dependencies\libsndfile\lib\libFLAC.so" Link="libs\armeabi-v7a\libFLAC.so">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\dependencies\libsndfile\lib\libogg.so" Link="libs\armeabi-v7a\libogg.so">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\dependencies\libsndfile\lib\libsndfile.so" Link="libs\armeabi-v7a\libsndfile.so">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\dependencies\libsndfile\lib\libvorbis.so" Link="libs\armeabi-v7a\libvorbis.so">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\dependencies\libsndfile\lib\libvorbisenc.so" Link="libs\armeabi-v7a\libvorbisenc.so">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\Yse.Android.Native\Debug\ARM\libYse.so" Link="libs\armeabi-v7a\libYse.so">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\YSE.NET.PCL\YSE.NET.PCL.csproj" />
+  </ItemGroup>
+
+  <Import Project="..\NetYse\NetYse.projitems" Label="Shared" />
+
+  <Import Project="..\PCLYSE\PCLYSE.projitems" Label="Shared" />
+
+</Project>
