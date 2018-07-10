@@ -1,4 +1,8 @@
+
+#ifdef __WINDOWS__
 #include "stdafx.h"
+#endif
+
 #include "Demo00_PlaySound.h"
 #include <iostream>
 

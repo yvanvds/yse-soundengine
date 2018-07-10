@@ -9,7 +9,7 @@
 */
 
 #include "../internalHeaders.h"
-//#include <string.h>
+#include <string.h>
 
 YSE::INTERNAL::abstractSoundFile::abstractSoundFile(bool interleaved)
   : useInterleavedBuffer(interleaved)

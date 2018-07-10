@@ -9,7 +9,8 @@ Author:  yvan
 */
 
 #include "internalHeaders.h"
-#include "patcher\time\TimerThread.h"
+#include "patcher/time/TimerThread.h"
+#include "device/portaudioDeviceManager.h"
 
 
 #ifdef YSE_WINDOWS
@@ -180,6 +181,8 @@ const char * YSE::system::getDefaultHost() {
 }
 
 YSE::system & YSE::system::AudioTest(bool on) {
+#ifdef __WINDOWS__
   YSE::INTERNAL::Test().On(on);
+#endif
   return *this;
 }

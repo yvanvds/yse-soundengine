@@ -39,6 +39,13 @@ std::string YSE::GetCurrentWorkingDirectory()
   ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
   return std::string(result, (count > 0) ? count : 0);
 }
+
+bool YSE::IsPathAbsolute(const std::string & p)
+{
+  // TODO_2018 std::filesystem::path path(p);
+  return false; // TODO_2018 path.is_absolute();
+}
+
 #endif
 
 bool YSE::FileExists(const std::string & name) {

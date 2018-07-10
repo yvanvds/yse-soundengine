@@ -1,7 +1,9 @@
+
 #pragma once
+
 #include "basePage.h"
-class DemoFilePosition :
-  public basePage
+
+class DemoFilePosition :  public basePage
 {
 public:
   DemoFilePosition();

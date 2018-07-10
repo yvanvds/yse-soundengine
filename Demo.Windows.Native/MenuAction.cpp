@@ -1,5 +1,9 @@
+
+#ifdef __WINDOWS__
 #include "stdafx.h"
-#include "menuAction.h"
+#endif
+
+#include "MenuAction.h"
 
 
 menuAction::menuAction(char key, const std::string & menuText)

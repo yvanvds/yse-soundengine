@@ -1,4 +1,8 @@
+
+#ifdef __WINDOWS__
 #include "stdafx.h"
+#endif
+
 #include "Demo10_FilePosition.h"
 
 

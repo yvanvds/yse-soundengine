@@ -11,8 +11,10 @@
 #if PORTAUDIO_BACKEND
 
 #include "portaudioDeviceManager.h"
-#include "../internalHeaders.h"
+#include "internalHeaders.h"
+#ifdef __WINDOWS__
 #include "pa_asio.h"
+#endif
 
 UInt YSE::SAMPLERATE = 44100;
 
@@ -110,7 +112,9 @@ void YSE::DEVICE::managerObject::addCallback() {
   params.sampleFormat = paFloat32 | paNonInterleaved;
   if (Pa_GetHostApiInfo(info->hostApi)->type == paASIO) {
     long min, max, pref;
+#ifdef __WINDOWS__
     PaAsio_GetAvailableLatencyValues(params.device, &min, &max, &pref, NULL);
+#endif
     params.suggestedLatency = pref;
   }
   else {
@@ -227,6 +231,7 @@ void YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup & object) {
   const PaDeviceInfo * info = Pa_GetDeviceInfo(params.device);
   params.channelCount = object.getOutputChannels();
   params.sampleFormat = paFloat32 | paNonInterleaved;
+#ifdef __WINDOWS__
   if (Pa_GetHostApiInfo(info->hostApi)->type == paASIO) {
     long min, max, pref;
     PaAsio_GetAvailableLatencyValues(params.device, &min, &max, &pref, NULL);
@@ -235,6 +240,7 @@ void YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup & object) {
   else {
     params.suggestedLatency = info->defaultHighOutputLatency;
   }
+#endif
   params.hostApiSpecificStreamInfo = nullptr;
   SAMPLERATE = (UInt)info->defaultSampleRate;
 

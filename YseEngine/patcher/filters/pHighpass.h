@@ -1,5 +1,7 @@
+
 #pragma once
-#include "..\pObject.h"
+
+#include "../pObject.h"
 #include "dsp/filters.hpp"
 
 namespace YSE {

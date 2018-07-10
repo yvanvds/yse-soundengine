@@ -1,7 +1,11 @@
+
+#ifdef __WINDOWS__
 #include "stdafx.h"
+#include <conio.h>
+#endif
+
 #include "Demo06_Devices.h"
 #include <sstream>
-#include <conio.h>
 
 
 DemoDevices::DemoDevices()

@@ -10,7 +10,7 @@
 
 #if JUCE_BACKEND
 
-#include "../internalHeaders.h"
+#include "internalHeaders.h"
 #include <Windows.h>
 
 UInt YSE::SAMPLERATE = 44100;

@@ -1,12 +1,17 @@
+
+
+#ifdef __WINDOWS__
 #include "stdafx.h"
+#include <conio.h>
+#endif
+
 #include "basePage.h"
 
 #include <stdlib.h>
 #include <iostream>
-#include <conio.h>
 
 
-#include "yse.hpp"
+#include "../YseEngine/yse.hpp"
 
 basePage::basePage()
 {
@@ -43,7 +48,7 @@ void basePage::AddAction(char key, const std::string & text, func f) {
 
 void basePage::Run() {
 	ShowMenu();
-
+#ifdef __WINDOWS__
 	while (true) {
 		if (_kbhit()) {
 			char ch = _getch();
@@ -74,4 +79,5 @@ void basePage::Run() {
 		}
 		ShowStatus();
 	}
+#endif
 }

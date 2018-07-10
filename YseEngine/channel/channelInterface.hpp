@@ -12,8 +12,8 @@
 #define CHANNELINTERFACE_H_INCLUDED
 
 #include <string>
-#include "../headers/defines.hpp"
-#include "../headers/types.hpp"
+#include "headers/defines.hpp"
+#include "headers/types.hpp"
 #include "channel.hpp"
 
 

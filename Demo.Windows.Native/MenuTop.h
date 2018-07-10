@@ -1,7 +1,9 @@
+
 #pragma once
+
 #include "basePage.h"
-class TopMenu :
-	public basePage
+
+class TopMenu :	public basePage
 {
 public:
 	TopMenu();

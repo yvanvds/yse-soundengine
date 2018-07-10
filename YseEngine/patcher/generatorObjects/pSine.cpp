@@ -1,3 +1,4 @@
+
 #include "pSine.h"
 
 using namespace YSE::PATCHER;

@@ -8,15 +8,15 @@
   ==============================================================================
 */
 
-#if PORTAUDIO_BACKEND
+#ifdef PORTAUDIO_BACKEND
 
 #ifndef PORTAUDIODEVICEMANAGER_H_INCLUDED
 #define PORTAUDIODEVICEMANAGER_H_INCLUDED
 
 //#pragma comment(lib, "portaudio_x86.lib")
 
-#include "../classes.hpp"
-#include "../headers/types.hpp"
+#include "classes.hpp"
+#include "headers/types.hpp"
 #include "deviceManager.h"
 
 #include "portaudio.h"

@@ -1,4 +1,8 @@
+
+#ifdef __WINDOWS__
 #include "stdafx.h"
+#endif
+
 #include "MenuDsp.h"
 #include "Demo07_DspSource.h"
 #include "Demo13_Patcher.h"

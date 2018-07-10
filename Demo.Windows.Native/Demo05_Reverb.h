@@ -1,7 +1,9 @@
+
 #pragma once
+
 #include "basePage.h"
-class DemoReverb :
-  public basePage
+
+class DemoReverb : public basePage
 {
 public:
   DemoReverb();

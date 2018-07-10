@@ -1,8 +1,9 @@
+
 #include "pHandle.hpp"
 #include "patcher.hpp"
 #include "pEnums.h"
 #include "pObject.h"
-#include "implementations\logImplementation.h"
+#include "implementations/logImplementation.h"
 
 using namespace YSE;
 
