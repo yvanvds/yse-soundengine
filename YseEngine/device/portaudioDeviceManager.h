@@ -18,7 +18,6 @@
 #include "classes.hpp"
 #include "headers/types.hpp"
 #include "deviceManager.h"
-
 #include "portaudio.h"
 
 namespace YSE {
@@ -27,48 +26,44 @@ namespace YSE {
 
     class managerObject : public deviceManager {
     public:
-      managerObject();
-      ~managerObject();
-      
-      virtual Bool init();
-      virtual void close();
-      virtual Flt cpuLoad();
+        managerObject();
+        ~managerObject();
 
-			virtual void pause();
-			virtual void resume();
-			virtual unsigned int GetCallbacksSinceLastUpdate();
+        virtual Bool init();
+        virtual void close();
+        virtual Flt cpuLoad();
 
-      virtual void updateDeviceList();
-      virtual void openDevice(const YSE::deviceSetup & object);
-      virtual void addCallback();
+        virtual void pause();
+        virtual void resume();
+        virtual unsigned int GetCallbacksSinceLastUpdate();
 
-      static int paCallback(
-        const void *input
-        , void *output
-        , unsigned long numSamples
-        , const PaStreamCallbackTimeInfo* timeInfo
-        , PaStreamCallbackFlags statusFlags
-        , void * userData);
+        virtual void updateDeviceList();
+        virtual void openDevice(const YSE::deviceSetup & object);
+        virtual void addCallback();
+
+        static int paCallback(
+                const void *input
+                , void *output
+                , unsigned long numSamples
+                , const PaStreamCallbackTimeInfo* timeInfo
+                , PaStreamCallbackFlags statusFlags
+                , void * userData);
 
     private:
-      void terminate();
-      
-      void audioDeviceError(PaError err);
-      PaStream * stream;
-      PaError err;
-      UInt bufferPos;
-      bool initDone, open, started;
+        void terminate();
 
-			std::atomic<unsigned int> callbacksSinceLastUpdate;
+        void audioDeviceError(PaError err);
+        PaStream * stream;
+        PaError err;
+        UInt bufferPos;
+        bool initDone, open, started;
+
+        std::atomic<unsigned int> callbacksSinceLastUpdate;
     };
 
     managerObject & Manager();
-
   }
-
 }
-
-
 
 #endif  // PORTAUDIODEVICEMANAGER_H_INCLUDED
 
