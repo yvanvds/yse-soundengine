@@ -1,5 +1,7 @@
+
 #include "parameters.h"
-#include "../implementations\logImplementation.h"
+#include "../implementations/logImplementation.h"
+
 using namespace YSE::PATCHER;
 
 void Parameters::Register(int & value) {

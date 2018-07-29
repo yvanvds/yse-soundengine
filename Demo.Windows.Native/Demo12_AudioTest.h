@@ -1,6 +1,8 @@
+
 #pragma once
+
 #include "basePage.h"
-#include "yse.hpp"
+#include "../YseEngine/yse.hpp"
 
 class DemoAudioTest : public basePage {
 public:

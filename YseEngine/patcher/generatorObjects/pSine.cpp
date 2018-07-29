@@ -1,3 +1,4 @@
+
 #include "pSine.h"
 #include "implementations\logImplementation.h"
 #include <string>

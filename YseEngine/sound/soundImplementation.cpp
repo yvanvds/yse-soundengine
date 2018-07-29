@@ -86,71 +86,94 @@ YSE::SOUND::implementationObject::~implementationObject() {
   }
 }
 
-bool YSE::SOUND::implementationObject::create(const std::string &fileName, channel * ch, Bool loop, Flt volume, Bool streaming) {
-  parent = ch->pimpl;
-  looping = loop;
-  fader.set(volume);
-  playerType = PT_FILE;
-  this->streaming = streaming;
+#ifdef __WINDOWS_
+std::string delim = "\\";
+#else
+std::string delim = "/";
+#endif
 
-  std::string fullName;
-  if (!IO().getActive()) {
-    if (IsPathAbsolute(fileName)) {
-      fullName = fileName;
+
+///
+bool YSE::SOUND::implementationObject::create(const std::string &fileName,
+                                              channel * ch, Bool loop,
+                                              Flt volume, Bool streaming)
+{
+    parent = ch->pimpl;
+    looping = loop;
+    fader.set(volume);
+    playerType = PT_FILE;
+    this->streaming = streaming;
+
+    printf("1implementationObject::create \n");
+    std::string fullName;
+    if (!IO().getActive()) {
+        if (IsPathAbsolute(fileName)) {
+            fullName = fileName;
+        }
+        else {
+            printf("1+implementationObject::create \n");
+            fullName = GetCurrentWorkingDirectory() + delim + fileName;
+        }
+        printf("2implementationObject::create %s\n", (const char*) fullName.c_str());
+
+        if (!FileExists(fullName)) {
+            INTERNAL::LogImpl().emit(E_FILE_ERROR, "file not found for " + fullName);
+            goto release;
+        }
     }
     else {
-      fullName = GetCurrentWorkingDirectory() + "\\" + fileName;
-    }
-    
-    if (!FileExists(fullName)) {
-      INTERNAL::LogImpl().emit(E_FILE_ERROR, "file not found for " + fullName);
-      goto release;
-    }
-  }
-  else {
-    fullName = fileName;
-    if (!INTERNAL::CALLBACK::fileExists(fileName.c_str())) {
-      INTERNAL::LogImpl().emit(E_FILE_ERROR, "file not found for " + fileName);
-      goto release;
-    }
-  }
+        printf("3implementationObject::create \n");
 
-  if (!streaming) {
-    file = SOUND::Manager().addFile(fullName);
-    status_dsp = SS_STOPPED;
-    status_upd = SS_STOPPED;
+        fullName = fileName;
+        if (!INTERNAL::CALLBACK::fileExists(fileName.c_str())) {
+            INTERNAL::LogImpl().emit(E_FILE_ERROR, "file not found for " + fileName);
+            goto release;
+        }
+    }
 
-    if (file == nullptr) {
-      goto release;
+    if (!streaming) {
+        printf("4implementationObject::create \n");
+
+        file = SOUND::Manager().addFile(fullName);
+        status_dsp = SS_STOPPED;
+        status_upd = SS_STOPPED;
+
+        if (file == nullptr) {
+            goto release;
+        } else {
+            file->attach(this);
+            objectStatus = OBJECT_CREATED;
+            return true;
+        }
     } else {
-      file->attach(this);
-      objectStatus = OBJECT_CREATED;
-      return true;
+        printf("5implementationObject::create \n");
+
+        // streams have their own soundfile
+        streaming = true;
+        status_dsp = SS_STOPPED;
+        status_upd = SS_STOPPED;
+
+        file = new INTERNAL::soundFile(fullName);
+
+        if(file->create(true)) {
+            printf("6implementationObject::create \n");
+
+            filebuffer.resize(file->channels());
+            buffer = &filebuffer;
+            return true;
+        } else {
+            delete file;
+            file = nullptr;
+            goto release;
+        }
     }
-  } else {
-    // streams have their own soundfile
-    streaming = true;
-    status_dsp = SS_STOPPED;
-    status_upd = SS_STOPPED;
-      
-    file = new INTERNAL::soundFile(fullName);
-    
-    if(file->create(true)) {
-      filebuffer.resize(file->channels());
-      buffer = &filebuffer;
-      return true;
-    } else {
-      delete file;
-      file = nullptr;
-      goto release;
-    }
-  }
 
 release:
-  head = nullptr;
-  return false;
+    head = nullptr;
+    return false;
 }
 
+///
 Bool YSE::SOUND::implementationObject::create(YSE::DSP::buffer & buffer, channel * ch, Bool loop, Flt volume) {
   parent = ch->pimpl;
   looping = loop;

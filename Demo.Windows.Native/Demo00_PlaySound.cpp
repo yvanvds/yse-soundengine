@@ -1,11 +1,15 @@
+
+#ifdef __WINDOWS__
 #include "stdafx.h"
+#endif
+
 #include "Demo00_PlaySound.h"
 #include <iostream>
 
 DemoPlaySound::DemoPlaySound()
 {
 	// load a sound in memory
-	sound.create("..\\TestResources\\drone.ogg", nullptr, true);
+    sound.create("../TestResources/drone.ogg", nullptr, true);
 
 	// false on validation means the sound could not be loaded
 	if (!sound.isValid()) {

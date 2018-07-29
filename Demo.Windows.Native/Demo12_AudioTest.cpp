@@ -1,4 +1,8 @@
+
+#ifdef __WINDOWS__
 #include "stdafx.h"
+#endif
+
 #include "Demo12_AudioTest.h"
 
 DemoAudioTest::DemoAudioTest() {

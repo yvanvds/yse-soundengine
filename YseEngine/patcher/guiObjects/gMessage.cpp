@@ -1,5 +1,5 @@
 #include "gMessage.h"
-#include "..\pObjectList.hpp"
+#include "../pObjectList.hpp"
 
 using namespace YSE::PATCHER;
 

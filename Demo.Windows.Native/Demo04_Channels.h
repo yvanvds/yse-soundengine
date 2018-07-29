@@ -1,7 +1,9 @@
+
 #pragma once
+
 #include "basePage.h"
-class DemoChannels :
-	public basePage
+
+class DemoChannels : public basePage
 {
 public:
 	DemoChannels();

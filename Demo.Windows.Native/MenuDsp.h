@@ -1,7 +1,9 @@
+
 #pragma once
+
 #include "basePage.h"
-class MenuDsp :
-  public basePage
+
+class MenuDsp :  public basePage
 {
 public:
   MenuDsp();

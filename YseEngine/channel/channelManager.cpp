@@ -9,7 +9,7 @@
 */
 
 
-#include "../internalHeaders.h"
+#include "internalHeaders.h"
 
 YSE::CHANNEL::managerObject & YSE::CHANNEL::Manager() {
   static managerObject m;

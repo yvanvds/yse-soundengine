@@ -1,8 +1,8 @@
 #pragma once
 #include "../headers/defines.hpp"
 #include <string>
-#include "../headers\enums.hpp"
-#include "../utils\vector.hpp"
+#include "../headers/enums.hpp"
+#include "../utils/vector.hpp"
 
 namespace YSE {
   namespace PATCHER {

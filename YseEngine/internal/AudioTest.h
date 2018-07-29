@@ -1,3 +1,8 @@
+
+
+#ifndef _YSE_AUDIO_TEST_H
+#define _YSE_AUDIO_TEST_H
+
 #pragma once
 #include "../yse.hpp"
 
@@ -20,3 +25,4 @@ namespace YSE {
     AudioTest & Test();
   }
 }
+#endif

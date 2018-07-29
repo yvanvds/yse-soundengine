@@ -13,10 +13,10 @@
 
 #include <forward_list>
 #include "channelImplementation.h"
-#include "../headers/enums.hpp"
-#include "../classes.hpp"
-#include "../internalHeaders.h"
-#include "../internal/threadPool.h"
+#include "headers/enums.hpp"
+#include "classes.hpp"
+#include "internalHeaders.h"
+#include "internal/threadPool.h"
 
 namespace YSE {
   namespace CHANNEL {

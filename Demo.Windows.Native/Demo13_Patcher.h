@@ -1,7 +1,8 @@
+
 #pragma once
 
 #include "basePage.h"
-#include "yse.hpp"
+#include "../YseEngine/yse.hpp"
 
 class DemoPatcher: public basePage {
 public:
@@ -13,8 +14,8 @@ public:
   void LfoUp();
   void LfoDown();
 
-  void VolumeUp();
-  void VolumeDown();
+  void SoundOn();
+  void SoundOff();
 
   void SaveToFile();
 
@@ -29,11 +30,6 @@ private:
   YSE::pHandle * mtof;
   YSE::pHandle * volume;
 
-	YSE::pHandle * controlPitch;
-	YSE::pHandle * controlVolume;
-	YSE::pHandle * controlLFO;
-
-  float noteValue;
-  float lfoValue;
-	float volumeValue;
+  float note;
+  float lfoFrequency;
 };

@@ -1,13 +1,13 @@
+
 #include "patcherImplementation.h"
 #include "pRegistry.h"
 #include "pObjectList.hpp"
-#include "headers\enums.hpp"
-#include "genericObjects\pDac.h"
+#include "../headers/enums.hpp"
+#include "genericObjects/pDac.h"
 #include "pHandle.hpp"
-#include "utils\json.hpp"
+#include "../utils/json.hpp"
 #include <string>
-#include <string.h>
-#include "implementations\logImplementation.h"
+#include "../implementations/logImplementation.h"
 
 using namespace YSE::PATCHER;
 

@@ -11,6 +11,7 @@
 #if LIBSOUNDFILE_BACKEND
 
 #include "../internalHeaders.h"
+#include	<sndfile.hh>
 
 
 YSE::INTERNAL::soundFile::soundFile(const std::string & fileName)
@@ -38,6 +39,7 @@ YSE::INTERNAL::soundFile::~soundFile() {
 }
 
 void YSE::INTERNAL::soundFile::loadStreaming() {
+#ifdef __WINDOWS__
   assert(handle == nullptr);
   if (IO().getActive()) {
 
@@ -60,12 +62,14 @@ void YSE::INTERNAL::soundFile::loadStreaming() {
       state = INVALID;
     }
   }
+#endif
 }
 
 void YSE::INTERNAL::soundFile::loadNonStreaming() {
   assert(handle == nullptr);
   void * ptr = nullptr;
-  
+#ifdef __WINDOWS__
+
   if (IO().getActive()) {
     long long size;
     bool result = INTERNAL::customFileReader::Open(fileName.c_str(), &size, &ptr);
@@ -116,7 +120,7 @@ void YSE::INTERNAL::soundFile::loadNonStreaming() {
 
 
   if (ptr != nullptr) INTERNAL::customFileReader::Close(ptr);
- 
+ #endif
 }
 
 Bool YSE::INTERNAL::soundFile::fillStream(Bool loop) {

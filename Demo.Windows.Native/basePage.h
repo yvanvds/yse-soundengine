@@ -1,8 +1,8 @@
 #pragma once
 
 #include <vector>
-#include "menuAction.h"
-#include "yse.hpp"
+#include "MenuAction.h"
+#include "../YseEngine/yse.hpp"
 #include <iostream>
 
 class basePage

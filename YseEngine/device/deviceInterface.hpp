@@ -12,8 +12,8 @@
 #define DEVICEINTERFACE_HPP_INCLUDED
 #include <string>
 #include <vector>
-#include "../classes.hpp"
-#include "../yse.hpp"
+#include "classes.hpp"
+#include "yse.hpp"
 
 
 /** This class can hold the properties of a particular audio device. You're not
