@@ -12,7 +12,7 @@
 #define ADSRENVELOPE_HPP_INCLUDED
 
 #include "../classes.hpp"
-#include "../headers/defines.hpp"
+#include "headers/defines.hpp"
 #include "buffer.hpp"
 
 namespace YSE {

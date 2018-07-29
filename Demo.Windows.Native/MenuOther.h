@@ -1,4 +1,6 @@
+
 #pragma once
+
 #include "basePage.h"
 
 class OtherMenu : public basePage

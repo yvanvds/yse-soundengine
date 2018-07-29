@@ -1,7 +1,8 @@
+
 #include "pObject.h"
 #include "pHandle.hpp"
-#include "headers\enums.hpp"
-#include "implementations\logImplementation.h"
+#include "headers/enums.hpp"
+#include "implementations/logImplementation.h"
 
 using namespace YSE::PATCHER;
 

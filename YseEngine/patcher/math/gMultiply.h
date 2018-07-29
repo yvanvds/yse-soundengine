@@ -1,5 +1,5 @@
 #pragma once
-#include "..\pObject.h"
+#include "../pObject.h"
 
 namespace YSE {
   namespace PATCHER {

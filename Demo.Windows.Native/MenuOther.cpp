@@ -1,4 +1,8 @@
+
+#ifdef __WINDOWS__
 #include "stdafx.h"
+#endif
+
 #include "MenuOther.h"
 #include "Demo06_Devices.h"
 #include "Demo11_VirtualIO.h"

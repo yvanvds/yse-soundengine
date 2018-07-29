@@ -1,6 +1,7 @@
+
 #include "gInt.h"
-#include "..\pObjectList.hpp"
-#include "implementations\logImplementation.h"
+#include "../pObjectList.hpp"
+#include "implementations/logImplementation.h"
 
 using namespace YSE::PATCHER;
 

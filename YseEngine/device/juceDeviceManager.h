@@ -14,8 +14,8 @@
 #define DEVICEMANAGER_H_INCLUDED
 
 #include "JuceHeader.h"
-#include "../classes.hpp"
-#include "../headers/types.hpp"
+#include "classes.hpp"
+#include "headers/types.hpp"
 #include "abstractDeviceManager.h"
 
 

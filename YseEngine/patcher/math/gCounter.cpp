@@ -1,5 +1,5 @@
 #include "gCounter.h"
-#include "..\pObjectList.hpp"
+#include "../pObjectList.hpp"
 
 using namespace YSE::PATCHER;
 #define className gCounter

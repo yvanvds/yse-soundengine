@@ -1,6 +1,8 @@
+
 #pragma once
+
 #include "basePage.h"
-#include "yse.hpp"
+#include "../YseEngine/yse.hpp"
 
 // inherit your dsp class from dspSource
 class shepard : public YSE::DSP::dspSourceObject {

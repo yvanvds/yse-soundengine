@@ -1,7 +1,8 @@
+
 #pragma once
 
 #include "basePage.h"
-#include "yse.hpp"
+#include "../YseEngine/yse.hpp"
 
 class DemoPatcher: public basePage {
 public:

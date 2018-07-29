@@ -11,7 +11,7 @@
 #ifndef DEVICESETUP_HPP_INCLUDED
 #define DEVICESETUP_HPP_INCLUDED
 
-#include "../classes.hpp"
+#include "classes.hpp"
 
 namespace YSE {
 

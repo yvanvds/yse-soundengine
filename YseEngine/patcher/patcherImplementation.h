@@ -2,7 +2,7 @@
 #include "../headers/defines.hpp"
 #include "pObject.h"
 #include "pHandle.hpp"
-#include "../dsp\buffer.hpp"
+#include "../dsp/buffer.hpp"
 #include "patcher.hpp"
 #include <map>
 #include <mutex>

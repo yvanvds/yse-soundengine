@@ -12,9 +12,9 @@
 #define CHANNELIMPLEMENTATION_H_INCLUDED
 
 #include <forward_list>
-#include "../classes.hpp"
-#include "../utils/lfQueue.hpp"
-#include "../internal/threadPool.h"
+#include "classes.hpp"
+#include "utils/lfQueue.hpp"
+#include "internal/threadPool.h"
 
 namespace YSE {
   namespace CHANNEL {

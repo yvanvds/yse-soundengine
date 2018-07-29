@@ -1,4 +1,8 @@
+
+#ifdef __WINDOWS__
 #include "stdafx.h"
+#endif
+
 #include "MenuTop.h"
 #include "MenuBasics.h"
 #include "MenuOther.h"

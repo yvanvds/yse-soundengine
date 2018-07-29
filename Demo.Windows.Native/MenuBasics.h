@@ -1,7 +1,8 @@
+
 #pragma once
+
 #include "basePage.h"
-class BasicsMenu :
-	public basePage
+class BasicsMenu :	public basePage
 {
 public:
 	BasicsMenu();
