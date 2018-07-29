@@ -193,6 +193,46 @@ namespace YSE {
       return (*this);
     }
 
+		bool buffer::isSilent() const {
+			UInt l = storage.size();
+			const Flt * ptr1 = storage.data();
+			for (; l > 7; l -= 8, ptr1 += 8) {
+				if (ptr1[0] != 0) return false;
+				if (ptr1[1] != 0) return false;
+				if (ptr1[2] != 0) return false;
+				if (ptr1[3] != 0) return false;
+				if (ptr1[4] != 0) return false;
+				if (ptr1[5] != 0) return false;
+				if (ptr1[6] != 0) return false;
+				if (ptr1[7] != 0) return false;
+
+			}
+			while (l--) if (*ptr1++ != 0) return false;
+			return true;
+		}
+
+		float buffer::maxValue() const {
+			float max = -100.f;
+			UInt l = storage.size();
+			const Flt * ptr1 = storage.data();
+			for (; l > 7; l -= 8, ptr1 += 8) {
+				if (ptr1[0] > max) max = ptr1[0];
+				if (ptr1[1] > max) max = ptr1[0];
+				if (ptr1[2] > max) max = ptr1[0];
+				if (ptr1[3] > max) max = ptr1[0];
+				if (ptr1[4] > max) max = ptr1[0];
+				if (ptr1[5] > max) max = ptr1[0];
+				if (ptr1[6] > max) max = ptr1[0];
+				if (ptr1[7] > max) max = ptr1[0];
+
+			}
+			while (l--) {
+				if (*ptr1 > max) max = *ptr1;
+				ptr1++;
+			}
+			return max;
+		}
+
     buffer & buffer::copyFrom(const buffer & s, UInt sourcePos, UInt destPos, UInt length) {
       // TODO: don't just return if buffers are not long enough!
       if ((UInt)(sourcePos + length) > s.storage.size()) return (*this);

@@ -32,10 +32,10 @@ namespace YSE {
     YSE::pHandle * GetHandleFromID(unsigned int obj);
 
     // for external data input
-    void PassBang(const std::string & to);
-    void PassData(int value, const std::string & to);
-    void PassData(float value, const std::string & to);
-    void PassData(const std::string & value, const std::string & to);
+    bool PassBang(const std::string & to);
+    bool PassData(int value, const std::string & to);
+    bool PassData(float value, const std::string & to);
+    bool PassData(const std::string & value, const std::string & to);
 
 
   private: 

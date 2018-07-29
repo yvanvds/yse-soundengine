@@ -34,7 +34,9 @@ namespace YSE
       }
     }
 
-    public void Close()
+		public string Version => Yse.Yse.System().Version();
+
+		public void Close()
     {
       Yse.Yse.System().close();
     }

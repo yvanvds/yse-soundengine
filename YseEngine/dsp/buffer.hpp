@@ -41,6 +41,9 @@ namespace YSE {
       // gets the length of a sample in seconds
       inline Flt	getLengthSec() const { return ((storage.size() - overflow) / static_cast<Flt>(SAMPLERATE)); }
 
+			bool isSilent() const;
+			float maxValue() const;
+
       // WARNING: try to avoid this function. It will give you write access
       // to the internal buffer, but there might be unexpected consequenses
       inline Flt * getPtr() { return storage.data(); }

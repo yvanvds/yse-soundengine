@@ -22,10 +22,10 @@ namespace IYse
     IHandle GetHandleFromList(uint obj);
     IHandle GetHandleFromID(uint obj);
 
-    void PassBang(string to);
-    void PassData(int value, string to);
-    void PassData(float value, string to);
-    void PassData(string value, string to);
+    bool PassBang(string to);
+    bool PassData(int value, string to);
+    bool PassData(float value, string to);
+    bool PassData(string value, string to);
 
     void Dispose();
   }

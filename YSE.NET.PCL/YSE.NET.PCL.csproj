@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
@@ -7,9 +7,9 @@
     <Company>MuteCode</Company>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <Description>PCL Interface for YSE.</Description>
-    <AssemblyVersion>1.0.26.0</AssemblyVersion>
-    <FileVersion>1.0.26.0</FileVersion>
-    <Version>1.0.31</Version>
+    <AssemblyVersion>1.0.34.0</AssemblyVersion>
+    <FileVersion>1.0.34.0</FileVersion>
+    <Version>1.0.34</Version>
     <Copyright>Eclipse Public License - v 1.0</Copyright>
     <PackageLicenseUrl>https://github.com/yvanvds/yse-soundengine/blob/master/COPYING</PackageLicenseUrl>
     <PackageProjectUrl>https://github.com/yvanvds/yse-soundengine</PackageProjectUrl>
@@ -17,6 +17,7 @@
     <RepositoryUrl>https://github.com/yvanvds/yse-soundengine</RepositoryUrl>
     <PackageTags>sound engine DSP</PackageTags>
   </PropertyGroup>
+
 
 
 </Project>

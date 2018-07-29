@@ -93,7 +93,7 @@ namespace Demo.Windows.WPF
         patcher = new patcher();
         patcher.create(1);
         pHandle handle = patcher.CreateObject("~sine");
-        patcher.Connect(handle, 0, patcher.GetOutputHandle(0), 0);
+        //patcher.Connect(handle, 0, patcher.GetOutputHandle(0), 0);
         patcherSound.create(patcher);
         patcherSound.play();
       }

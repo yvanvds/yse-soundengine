@@ -8,7 +8,7 @@
     <Description>The YSE Sound Engine, with wrappers for .NET</Description>
     <AssemblyVersion>1.0.62.0</AssemblyVersion>
 	<Deterministic>False</Deterministic>
-    <Version>1.0.66</Version>
+    <Version>1.0.67</Version>
     <Copyright>Eclipse Public License - v 1.0</Copyright>
     <PackageLicenseUrl>https://github.com/yvanvds/yse-soundengine/blob/master/COPYING</PackageLicenseUrl>
     <PackageProjectUrl>https://github.com/yvanvds/yse-soundengine</PackageProjectUrl>

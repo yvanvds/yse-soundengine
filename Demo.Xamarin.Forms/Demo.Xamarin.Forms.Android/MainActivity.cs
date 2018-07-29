@@ -25,6 +25,7 @@ namespace Demo.Xamarin.Forms.Droid
 
       // This is the only line needed to active YSE in a native project
       Global.Yse = new YSE.YseInterface(OnLogMessage);
+			Global.Yse.Log.Level = IYse.ERROR_LEVEL.DEBUG;
       // ... except when you need to play audio from asset files, which are a 
       // nuisance right now. We cannot access assets from the native libraries
       // because we'd need to pass the JNIenv, which cannot be done from Xamarin

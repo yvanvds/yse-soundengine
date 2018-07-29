@@ -1,0 +1,159 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{DC55532E-04C7-42C4-AF3C-F7F0846D5705}</ProjectGuid>
+    <ProjectTypeGuids>{EFBA0AD7-5A72-4C68-AF49-83D382785DCF};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
+    <TemplateGuid>{c9e5eea5-ca05-42a1-839b-61506e0a37df}</TemplateGuid>
+    <OutputType>Library</OutputType>
+    <RootNamespace>Demo.Xamarin2.Droid</RootNamespace>
+    <AssemblyName>Demo.Xamarin2.Android</AssemblyName>
+    <AndroidApplication>True</AndroidApplication>
+    <AndroidResgenFile>Resources\Resource.designer.cs</AndroidResgenFile>
+    <AndroidResgenClass>Resource</AndroidResgenClass>
+    <AndroidManifest>Properties\AndroidManifest.xml</AndroidManifest>
+    <MonoAndroidResourcePrefix>Resources</MonoAndroidResourcePrefix>
+    <MonoAndroidAssetsPrefix>Assets</MonoAndroidAssetsPrefix>
+    <AndroidUseLatestPlatformSdk>false</AndroidUseLatestPlatformSdk>
+    <TargetFrameworkVersion>v8.1</TargetFrameworkVersion>
+    <NuGetPackageImportStamp>
+    </NuGetPackageImportStamp>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug</OutputPath>
+    <DefineConstants>DEBUG;</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <AndroidLinkMode>None</AndroidLinkMode>
+    <AotAssemblies>false</AotAssemblies>
+    <EnableLLVM>false</EnableLLVM>
+    <BundleAssemblies>false</BundleAssemblies>
+    <AndroidSupportedAbis>armeabi;armeabi-v7a</AndroidSupportedAbis>
+    <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release</OutputPath>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <AndroidManagedSymbols>true</AndroidManagedSymbols>
+    <AndroidUseSharedRuntime>false</AndroidUseSharedRuntime>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Mono.Android" />
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Xamarin.Forms" Version="3.1.0.583944" />
+    <PackageReference Include="Xamarin.Android.Support.Design" Version="27.0.2.1" />
+    <PackageReference Include="Xamarin.Android.Support.v7.AppCompat" Version="27.0.2.1" />
+    <PackageReference Include="Xamarin.Android.Support.v4" Version="27.0.2.1" />
+    <PackageReference Include="Xamarin.Android.Support.v7.CardView" Version="27.0.2.1" />
+    <PackageReference Include="Xamarin.Android.Support.v7.MediaRouter" Version="27.0.2.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="MainActivity.cs" />
+    <Compile Include="Resources\Resource.Designer.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <AndroidNativeLibrary Include="libs\arm64-v8a\libFLAC.so">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </AndroidNativeLibrary>
+    <AndroidNativeLibrary Include="libs\arm64-v8a\libogg.so">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </AndroidNativeLibrary>
+    <AndroidNativeLibrary Include="libs\arm64-v8a\libsndfile.so">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </AndroidNativeLibrary>
+    <AndroidNativeLibrary Include="libs\arm64-v8a\libvorbis.so">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </AndroidNativeLibrary>
+    <AndroidNativeLibrary Include="libs\arm64-v8a\libvorbisenc.so">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </AndroidNativeLibrary>
+    <AndroidNativeLibrary Include="libs\arm64-v8a\libYse.so">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </AndroidNativeLibrary>
+    <AndroidNativeLibrary Include="libs\armeabi-v7a\libFLAC.so">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </AndroidNativeLibrary>
+    <AndroidNativeLibrary Include="libs\armeabi-v7a\libogg.so">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </AndroidNativeLibrary>
+    <AndroidNativeLibrary Include="libs\armeabi-v7a\libsndfile.so">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </AndroidNativeLibrary>
+    <AndroidNativeLibrary Include="libs\armeabi-v7a\libvorbis.so">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </AndroidNativeLibrary>
+    <AndroidNativeLibrary Include="libs\armeabi-v7a\libvorbisenc.so">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </AndroidNativeLibrary>
+    <AndroidNativeLibrary Include="libs\armeabi-v7a\libYse.so">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </AndroidNativeLibrary>
+    <AndroidAsset Include="Assets\contact.ogg" />
+    <AndroidAsset Include="Assets\countdown.ogg" />
+    <AndroidAsset Include="Assets\drone.ogg" />
+    <AndroidAsset Include="Assets\flies.ogg" />
+    <AndroidAsset Include="Assets\g.ogg" />
+    <AndroidAsset Include="Assets\kick.ogg" />
+    <AndroidAsset Include="Assets\my2chords.ogg" />
+    <AndroidAsset Include="Assets\pulse1.ogg" />
+    <AndroidAsset Include="Assets\snare.ogg" />
+    <None Include="Resources\AboutResources.txt" />
+    <None Include="Assets\AboutAssets.txt" />
+    <None Include="Properties\AndroidManifest.xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <AndroidResource Include="Resources\layout\Tabbar.axml" />
+    <AndroidResource Include="Resources\layout\Toolbar.axml" />
+    <AndroidResource Include="Resources\values\styles.xml" />
+    <AndroidResource Include="Resources\values\colors.xml" />
+    <AndroidResource Include="Resources\mipmap-anydpi-v26\icon.xml" />
+    <AndroidResource Include="Resources\mipmap-anydpi-v26\icon_round.xml" />
+    <AndroidResource Include="Resources\mipmap-hdpi\Icon.png" />
+    <AndroidResource Include="Resources\mipmap-hdpi\launcher_foreground.png" />
+    <AndroidResource Include="Resources\mipmap-mdpi\Icon.png" />
+    <AndroidResource Include="Resources\mipmap-mdpi\launcher_foreground.png" />
+    <AndroidResource Include="Resources\mipmap-xhdpi\Icon.png" />
+    <AndroidResource Include="Resources\mipmap-xhdpi\launcher_foreground.png" />
+    <AndroidResource Include="Resources\mipmap-xxhdpi\Icon.png" />
+    <AndroidResource Include="Resources\mipmap-xxhdpi\launcher_foreground.png" />
+    <AndroidResource Include="Resources\mipmap-xxxhdpi\Icon.png" />
+    <AndroidResource Include="Resources\mipmap-xxxhdpi\launcher_foreground.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Resources\drawable-hdpi\" />
+    <Folder Include="Resources\drawable-xhdpi\" />
+    <Folder Include="Resources\drawable-xxhdpi\" />
+    <Folder Include="Resources\drawable-xxxhdpi\" />
+    <Folder Include="Resources\drawable\" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Yse.NET.Android\Yse.NET.Android.csproj">
+      <Project>{4f61e4e4-60a4-40cb-9da1-8ea6a57d473d}</Project>
+      <Name>Yse.NET.Android</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\..\YSE.NET.PCL\YSE.NET.PCL.csproj">
+      <Project>{cbec3dbc-6ef8-46f9-9bb6-450b89b403c8}</Project>
+      <Name>YSE.NET.PCL</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Demo.Xamarin2\Demo.Xamarin2.csproj">
+      <Project>{6EF7B270-E7C7-41EE-A0A0-F962219F85B3}</Project>
+      <Name>Demo.Xamarin2</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(MSBuildExtensionsPath)\Xamarin\Android\Xamarin.Android.CSharp.targets" />
+</Project>

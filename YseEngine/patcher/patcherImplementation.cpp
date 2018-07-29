@@ -6,6 +6,7 @@
 #include "pHandle.hpp"
 #include "utils\json.hpp"
 #include <string>
+#include <string.h>
 #include "implementations\logImplementation.h"
 
 using namespace YSE::PATCHER;
@@ -51,7 +52,7 @@ void patcherImplementation::Calculate(YSE::THREAD thread) {
   // sum outputs
   int counter = 0;
   for (const auto& any : objects) {
-    if (any.second->Type() == YSE::OBJ::D_DAC) {
+    if (strcmp(any.second->Type(), YSE::OBJ::D_DAC) == 0) {			
       for (unsigned int i = 0; i < output.size(); i++) {
         YSE::DSP::buffer * ptr = ((pDac*)any.second)->GetBuffer(i);
         if (ptr != nullptr) {
@@ -259,42 +260,65 @@ YSE::pHandle * patcherImplementation::GetHandleFromID(unsigned int objID) {
   return nullptr;
 } 
 
-void patcherImplementation::PassBang(const std::string & to, YSE::THREAD thread) {
+bool patcherImplementation::PassBang(const std::string & to, YSE::THREAD thread) {
   for (auto& x : objects) {
-    if (x.second->Type() == OBJ::G_RECEIVE) {
+    if (strcmp(x.second->Type(), OBJ::G_RECEIVE) == 0) {
       if (to.compare(x.second->DataName()) == 0) {
         x.second->GetInlet(0)->SetBang(thread);
+				return true;
       }
     }
   }
+	INTERNAL::LogImpl().emit(E_FILE_ERROR, "Cannot find target " + to + ". Valid targets are" + GetRecieveObjectsAsString());
+	return false;
 }
 
-void patcherImplementation::PassData(int value, const std::string & to, YSE::THREAD thread) {
+bool patcherImplementation::PassData(int value, const std::string & to, YSE::THREAD thread) {
   for (auto& x : objects) {
-    if (x.second->Type() == OBJ::G_RECEIVE) {
+		if (strcmp(x.second->Type(), OBJ::G_RECEIVE) == 0) {
       if (to.compare(x.second->DataName()) == 0) {
         x.second->GetInlet(0)->SetInt(value, thread);
+				return true;
       }
     }
   }
+	INTERNAL::LogImpl().emit(E_FILE_ERROR, "Cannot find target " + to + ". Valid targets are" + GetRecieveObjectsAsString());
+	return false;
 }
 
-void patcherImplementation::PassData(float value, const std::string & to, YSE::THREAD thread) {
+bool patcherImplementation::PassData(float value, const std::string & to, YSE::THREAD thread) {
   for (auto& x : objects) {
-    if (x.second->Type() == OBJ::G_RECEIVE) {
+		if (strcmp(x.second->Type(), OBJ::G_RECEIVE) == 0) {
       if (to.compare(x.second->DataName()) == 0) {
         x.second->GetInlet(0)->SetFloat(value, thread);
+				return true;
       }
     }
   }
+	INTERNAL::LogImpl().emit(E_FILE_ERROR, "Cannot find target " + to + ". Valid targets are" + GetRecieveObjectsAsString());
+	return false;
 }
 
-void patcherImplementation::PassData(const std::string & value, const std::string & to, YSE::THREAD thread) {
+bool patcherImplementation::PassData(const std::string & value, const std::string & to, YSE::THREAD thread) {
   for (auto& x : objects) {
-    if (x.second->Type() == OBJ::G_RECEIVE) {
+		if (strcmp(x.second->Type(), OBJ::G_RECEIVE) == 0) {
       if (to.compare(x.second->DataName()) == 0) {
         x.second->GetInlet(0)->SetList(value, thread);
+				return true;
       }
     }
   }
+	INTERNAL::LogImpl().emit(E_FILE_ERROR, "Cannot find target " + to + ". Valid targets are" + GetRecieveObjectsAsString());
+	return false;
+}
+
+std::string patcherImplementation::GetRecieveObjectsAsString() {
+	std::string result;
+	for (auto& x : objects) {
+		
+		if (strcmp(x.second->Type(), OBJ::G_RECEIVE) == 0) {
+			result += " " + x.second->DataName();
+		}
+	}
+	return result;
 }

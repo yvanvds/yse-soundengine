@@ -47,6 +47,8 @@
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>Clang_3_8</PlatformToolset>
+    <UseOfStl>c++_static</UseOfStl>
+    <ThumbMode>Disabled</ThumbMode>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
@@ -132,7 +134,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
     <OutDir>$(ProjectDir)\$(Configuration)\$(Platform)\</OutDir>
     <IntDir>$(ProjectDir)\$(Configuration)\$(Platform)\Intermediate\</IntDir>
-    <TargetName>libYse_arm64</TargetName>
+    <TargetName>libYse</TargetName>
     <TargetExt>.so</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
@@ -140,12 +142,14 @@
     <IntDir>$(ProjectDir)\$(Configuration)\$(Platform)\Intermediate\</IntDir>
     <TargetName>libYse</TargetName>
     <TargetExt>.so</TargetExt>
+    <UseMultiToolTask>true</UseMultiToolTask>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
     <OutDir>$(ProjectDir)\$(Configuration)\$(Platform)\</OutDir>
     <IntDir>$(ProjectDir)\$(Configuration)\$(Platform)\Intermediate\</IntDir>
     <TargetName>libYse</TargetName>
     <TargetExt>.so</TargetExt>
+    <UseMultiToolTask>true</UseMultiToolTask>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -213,11 +217,15 @@
       <PreprocessorDefinitions>YSE_ANDROID;LIBSOUNDFILE_BACKEND;</PreprocessorDefinitions>
       <CLanguageStandard>c11</CLanguageStandard>
       <CppLanguageStandard>c++11</CppLanguageStandard>
-      <AdditionalIncludeDirectories>E:\YseEngine\dependencies\libsndfile\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\dependencies\libsndfile\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ExceptionHandling>Enabled</ExceptionHandling>
+      <FloatABI>
+      </FloatABI>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
     </ClCompile>
     <Link>
       <AdditionalOptions>-lm %(AdditionalOptions)</AdditionalOptions>
-      <LibraryDependencies>$(StlLibraryName);%(LibraryDependencies);OpenSLES;</LibraryDependencies>
+      <LibraryDependencies>$(StlLibraryName);%(LibraryDependencies);OpenSLES;sndfile;</LibraryDependencies>
       <AdditionalLibraryDirectories>..\dependencies\libsndfile\lib;%(AdditionalLibraryDirectories);$(ToolchainPrebuiltPath)\lib\gcc\$(ToolchainName)\$(ToolchainFullVersionName);$(StlLibraryPath)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -228,16 +236,18 @@
       <PreprocessorDefinitions>YSE_ANDROID;LIBSOUNDFILE_BACKEND;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CLanguageStandard>c11</CLanguageStandard>
       <CppLanguageStandard>c++11</CppLanguageStandard>
-      <AdditionalIncludeDirectories>E:\YseEngine\dependencies\libsndfile\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\dependencies\libsndfile\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <ExceptionHandling>Enabled</ExceptionHandling>
-      <FloatABI>softfp</FloatABI>
+      <FloatABI>
+      </FloatABI>
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
     </ClCompile>
     <Link>
       <AdditionalOptions>-lm %(AdditionalOptions)</AdditionalOptions>
       <LibraryDependencies>$(StlLibraryName);%(LibraryDependencies);OpenSLES;sndfile;</LibraryDependencies>
       <AdditionalLibraryDirectories>..\dependencies\libsndfile\lib;%(AdditionalLibraryDirectories);$(ToolchainPrebuiltPath)\lib\gcc\$(ToolchainName)\$(ToolchainFullVersionName);$(StlLibraryPath)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>libsndfile.so</AdditionalDependencies>
+      <AdditionalDependencies>
+      </AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
@@ -247,7 +257,7 @@
       <PreprocessorDefinitions>YSE_ANDROID;LIBSOUNDFILE_BACKEND;</PreprocessorDefinitions>
       <CLanguageStandard>c11</CLanguageStandard>
       <CppLanguageStandard>c++11</CppLanguageStandard>
-      <AdditionalIncludeDirectories>E:\YseEngine\dependencies\libsndfile\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\dependencies\libsndfile\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <ExceptionHandling>Enabled</ExceptionHandling>
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
     </ClCompile>
@@ -264,7 +274,7 @@
       <PreprocessorDefinitions>YSE_ANDROID;LIBSOUNDFILE_BACKEND;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CLanguageStandard>c11</CLanguageStandard>
       <CppLanguageStandard>c++11</CppLanguageStandard>
-      <AdditionalIncludeDirectories>E:\YseEngine\dependencies\libsndfile\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\dependencies\libsndfile\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <ExceptionHandling>Enabled</ExceptionHandling>
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
     </ClCompile>
@@ -284,4 +294,11 @@
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />
+  <Target Name="SpicNSpan" AfterTargets="Clean">
+    <!-- common vars https://msdn.microsoft.com/en-us/library/c02as0cs.aspx?f=255&MSPPError=-2147217396 -->
+    <RemoveDir Directories="$(TargetDir)" />
+    <!-- bin -->
+    <RemoveDir Directories="$(ProjectDir)$(BaseIntermediateOutputPath)" />
+    <!-- obj -->
+  </Target>
 </Project>

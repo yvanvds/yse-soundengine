@@ -21,6 +21,10 @@ namespace Demo.Xamarin.Forms.Demos
     IHandle volume;
     IHandle dac;
 
+		IHandle pitchIn;
+		IHandle volumeIn;
+		IHandle lfoIn;
+
     ISound sound;
     IPatcher patcher;
 
@@ -48,6 +52,10 @@ namespace Demo.Xamarin.Forms.Demos
       volume = patcher.CreateObject("~*");
       dac = patcher.CreateObject("~dac");
 
+			pitchIn = patcher.CreateObject(".r", "pitch");
+			volumeIn = patcher.CreateObject(".r", "volume");
+			lfoIn = patcher.CreateObject(".r", "lfo");
+
       IHandle multiplier = patcher.CreateObject("~*");
 
       patcher.Connect(mtof, 0, sine, 0); // pass frequency to sine
@@ -55,10 +63,17 @@ namespace Demo.Xamarin.Forms.Demos
       patcher.Connect(lfo, 0, multiplier, 1);
       patcher.Connect(multiplier, 0, volume, 0);
       patcher.Connect(volume, 0, dac, 0);
+			patcher.Connect(pitchIn, 0, mtof, 0);
+			patcher.Connect(volumeIn, 0, volume, 1);
+			patcher.Connect(lfoIn, 0, lfo, 0);
 
-      mtof.SetFloatData(0, 60f);
-      lfo.SetFloatData(0, 4f);
-      volume.SetFloatData(1, 0f);
+			patcher.PassData(60F, "pitch");
+			patcher.PassData(0F, "volume");
+			patcher.PassData(4F, "lfo");
+
+      //mtof.SetFloatData(0, 60f);
+      //lfo.SetFloatData(0, 4f);
+      //volume.SetFloatData(1, 0f);
 
       sound.Create(patcher);
       sound.Play();
@@ -93,7 +108,8 @@ namespace Demo.Xamarin.Forms.Demos
       {
         case SKTouchAction.Pressed:
           On = true;
-          volume.SetFloatData(1, 1f);
+					//volume.SetFloatData(1, 1f);
+					patcher.PassData(1f, "volume");
           touch = e.Location; 
           e.Handled = true;
           break;
@@ -102,16 +118,18 @@ namespace Demo.Xamarin.Forms.Demos
           touch = e.Location;
           if (size.X == 0f || size.Y == 0f) return;
 
-          mtof.SetFloatData(0, 60 + (int)(touch.Y / size.Y * 40f));
-          lfo.SetFloatData(0, touch.X / size.X * 10f);
+					patcher.PassData(60 + (int)(touch.Y / size.Y * 40f), "pitch");
+
+					patcher.PassData(touch.X / size.X * 10f, "lfo");
 
           e.Handled = true;
           break;
 
         case SKTouchAction.Released:
           On = false;
-          volume.SetFloatData(1, 0f);
-          touch = e.Location;
+          //volume.SetFloatData(1, 0f);
+					patcher.PassData(0f, "volume");
+					touch = e.Location;
           e.Handled = true;
           break;
       }

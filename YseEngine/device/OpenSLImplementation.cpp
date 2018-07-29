@@ -176,9 +176,9 @@ void OpenSLImplementation::SendSoundBuffer() {
 
   PrepareSoundBuffer();
   result = (*mSoundQueue)->Enqueue(mSoundQueue, currentBuffer, sizeof(sl_int16_t) * ANDROID_BUFFER_SIZE * numChannels);
-  //if (result != SL_RESULT_SUCCESS) {
-  //  YSE::INTERNAL::LogImpl().emit(YSE::E_ERROR, "OpenSL: enqueue method of sound buffer failed");
-  //}
+  if (result != SL_RESULT_SUCCESS) {
+    YSE::INTERNAL::LogImpl().emit(YSE::E_ERROR, "OpenSL: enqueue method of sound buffer failed");
+  }
   SwapSoundBuffers();
 }
 

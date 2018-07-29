@@ -53,16 +53,7 @@
     <EmbedAssembliesIntoApk>True</EmbedAssembliesIntoApk>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="System" />
-    <Reference Include="System.Xml" />
-    <Reference Include="System.Core" />
     <Reference Include="Mono.Android" />
-    <Reference Include="Yse.NET.Android, Version=1.0.30.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Yse.NET.Android.1.0.30\lib\netstandard2.0\Yse.NET.Android.dll</HintPath>
-    </Reference>
-    <Reference Include="YSE.NET.PCL, Version=1.0.13.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\YSE.NET.PCL.1.0.26\lib\netstandard2.0\YSE.NET.PCL.dll</HintPath>
-    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="MainActivity.cs" />
@@ -72,12 +63,6 @@
   <ItemGroup>
     <AndroidAsset Include="Assets\countdown.ogg" />
     <None Include="GettingStarted.Xamarin" />
-    <None Include="libFLAC.so" />
-    <None Include="libogg.so" />
-    <None Include="libsndfile.so" />
-    <None Include="libvorbis.so" />
-    <None Include="libvorbisenc.so" />
-    <None Include="libYse.so" />
     <None Include="packages.config" />
     <None Include="Resources\AboutResources.txt" />
     <None Include="Properties\AndroidManifest.xml" />
@@ -98,13 +83,6 @@
     <Folder Include="Resources\drawable\" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath)\Xamarin\Android\Xamarin.Android.CSharp.targets" />
-  <Import Project="..\packages\Yse.NET.Android.1.0.30\build\Yse.Net.Android.targets" Condition="Exists('..\packages\Yse.NET.Android.1.0.30\build\Yse.Net.Android.targets')" />
-  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
-    <PropertyGroup>
-      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
-    </PropertyGroup>
-    <Error Condition="!Exists('..\packages\Yse.NET.Android.1.0.30\build\Yse.Net.Android.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Yse.NET.Android.1.0.30\build\Yse.Net.Android.targets'))" />
-  </Target>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
 		Other similar extension points exist, see Microsoft.Common.targets.
 		<Target Name="BeforeBuild">

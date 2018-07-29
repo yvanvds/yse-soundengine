@@ -22,7 +22,7 @@
     <VCProjectVersion>15.0</VCProjectVersion>
     <ProjectGuid>{34922650-929A-49F5-8F4F-F1B03C31AB04}</ProjectGuid>
     <RootNamespace>GenerateNET</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.16299.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.17134.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -120,7 +120,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <CustomBuild Include="YseEngine.def">
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">..\swig\swig.exe -csharp -c++ -namespace Yse -outdir ..\NetYse\ ..\Generate.NET\YseEngine.def </Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">..\..\swig\swig.exe -csharp -c++ -namespace Yse -outdir ..\NetYse\ ..\Generate.NET\YseEngine.def </Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">..\swig\swig.exe -csharp -c++ -namespace Yse -outdir ..\NetYse\ ..\Generate.NET\YseEngine.def </Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">..\swig\swig.exe -csharp -c++ -namespace Yse -outdir ..\NetYse\ ..\Generate.NET\YseEngine.def </Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">..\swig\swig.exe -csharp -c++ -namespace Yse -outdir ..\NetYse\ ..\Generate.NET\YseEngine.def </Command>

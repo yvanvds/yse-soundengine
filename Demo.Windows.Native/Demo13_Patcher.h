@@ -13,8 +13,8 @@ public:
   void LfoUp();
   void LfoDown();
 
-  void SoundOn();
-  void SoundOff();
+  void VolumeUp();
+  void VolumeDown();
 
   void SaveToFile();
 
@@ -29,6 +29,11 @@ private:
   YSE::pHandle * mtof;
   YSE::pHandle * volume;
 
-  float note;
-  float lfoFrequency;
+	YSE::pHandle * controlPitch;
+	YSE::pHandle * controlVolume;
+	YSE::pHandle * controlLFO;
+
+  float noteValue;
+  float lfoValue;
+	float volumeValue;
 };

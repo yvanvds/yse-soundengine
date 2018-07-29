@@ -26,6 +26,8 @@ namespace IYse
 
     float CpuLoad { get; }
 
+		string Version { get; }
+
     IReverb GetReverb();
   }
 }

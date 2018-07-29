@@ -42,15 +42,17 @@ namespace YSE {
       std::atomic<patcher*> head;
 
       // for external data input
-      void PassBang(const std::string & to, THREAD thread);
-      void PassData(int value, const std::string & to, THREAD thread);
-      void PassData(float value, const std::string & to, THREAD thread);
-      void PassData(const std::string & value, const std::string & to, THREAD thread);
+      bool PassBang(const std::string & to, THREAD thread);
+      bool PassData(int value, const std::string & to, THREAD thread);
+      bool PassData(float value, const std::string & to, THREAD thread);
+      bool PassData(const std::string & value, const std::string & to, THREAD thread);
 
     private:
       std::mutex mtx;
       bool fileHandlerActive;
       std::map<pHandle*, pObject*> objects;
+
+			std::string GetRecieveObjectsAsString();
     };
 
   }

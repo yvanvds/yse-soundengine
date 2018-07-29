@@ -52,3 +52,69 @@
 (Debug)  YSE System object initialized
 === start of YSE log ===
 (Debug)  YSE System object initialized
+=== start of YSE log ===
+(Debug)  YSE System object initialized
+(Warning) Error while loading file:  file not found for C:\Users\yvan\Source\Repos\yse-soundengine\bin\Demo.Windows.Native\..\TestResources\drone.ogg
+=== end of YSE log ===
+=== start of YSE log ===
+(Debug)  YSE System object initialized
+(App Message)  sound added
+(App Message)  SoundFile: reading from buffer C:\Users\yvan\Source\Repos\yse-soundengine\bin\Demo.Windows.Native\..\TestResources\drone.ogg with size 28678 (length 28678 * channels 1 for 28678 bytes.
+(App Message)  removed sound
+(App Message)  removed sound
+=== end of YSE log ===
+=== start of YSE log ===
+(Debug)  YSE System object initialized
+(Debug)  Patcher: Trying to create ~sine
+(Debug)  Patcher: ~sine created
+(Debug)  Patcher: Trying to create ~sine
+(Debug)  Patcher: ~sine created
+(Debug)  Patcher: Trying to create .mtof
+(Debug)  Patcher: .mtof created
+(Debug)  Patcher: Trying to create ~*
+(Debug)  Patcher: ~* created
+(Debug)  Patcher: Trying to create ~*
+(Debug)  Patcher: ~* created
+(Debug)  Patcher: Trying to create ~dac
+(Debug)  Patcher: ~dac created
+(Debug)  Patcher: Trying to create ~line
+(Debug)  Patcher: ~line created
+(Debug)  Handle: Passing arguments: 0 100
+(Debug)  patcher: parsing arguments: 0 100
+(Debug)  patcher: found argument: 0 100
+(Debug)  Using argument as atomic float.
+(Debug)  patcher: found argument: 0 100
+(Debug)  Using argument as atomic float.
+(Debug)  Handle: Passing arguments: 440
+(Debug)  patcher: parsing arguments: 440
+(Debug)  patcher: found argument: 440
+(Debug)  Using argument as atomic float.
+(Debug)  Handle: Passing arguments: 4
+(Debug)  patcher: parsing arguments: 4
+(Debug)  patcher: found argument: 4
+(Debug)  Using argument as atomic float.
+(Debug)  Patcher: Trying to create ~lp
+(Debug)  Patcher: ~lp created
+(Debug)  Handle: Passing arguments: 1
+(Debug)  patcher: parsing arguments: 1
+(Debug)  patcher: found argument: 1
+(Debug)  Using argument as atomic float.
+(App Message)  removed sound
+(App Message)  removed sound
+=== end of YSE log ===
+=== start of YSE log ===
+(Debug)  YSE System object initialized
+(App Message)  sound added
+(App Message)  SoundFile: reading from buffer C:\Users\yvan\source\repos\yse-soundengine\bin\Demo.Windows.Native\..\TestResources\drone.ogg with size 28678 (length 28678 * channels 1 for 28678 bytes.
+(App Message)  removed sound
+=== end of YSE log ===
+=== start of YSE log ===
+(Debug)  YSE System object initialized
+=== end of YSE log ===
+=== start of YSE log ===
+(Debug)  YSE System object initialized
+(App Message)  sound added
+(App Message)  SoundFile: reading from buffer C:\Users\yvan\source\repos\yse-soundengine\bin\Demo.Windows.Native\..\TestResources\drone.ogg with size 28678 (length 28678 * channels 1 for 28678 bytes.
+(App Message)  removed sound
+(App Message)  removed sound
+=== end of YSE log ===

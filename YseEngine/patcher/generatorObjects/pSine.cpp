@@ -1,4 +1,6 @@
 #include "pSine.h"
+#include "implementations\logImplementation.h"
+#include <string>
 
 using namespace YSE::PATCHER;
 
@@ -35,6 +37,7 @@ CALC() {
     outputs[0].SendBuffer(&sine(*freqBuffer), thread);
   }
   else {
-    outputs[0].SendBuffer(&sine(frequency), thread);
+		DSP::buffer & buffer = sine(frequency);
+		outputs[0].SendBuffer(&buffer, thread);
   }
 }

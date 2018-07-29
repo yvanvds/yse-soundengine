@@ -28,7 +28,8 @@ namespace Demo.Xamarin.Forms
     {
       Global.Yse.System.Init();
       Global.Yse.System.AutoReconnect(true, 20);
-      active = true;
+			System.Diagnostics.Debug.WriteLine("Yse Version: " + Global.Yse.System.Version);
+			active = true;
       TimeSpan time = new TimeSpan(0, 0, 0, 0, 50); // 50 milliseconds interval
       Device.StartTimer(time, UpdateCallback);
     }
@@ -41,7 +42,6 @@ namespace Demo.Xamarin.Forms
 
     protected override void OnResume()
     {
-      
       active = true;
       TimeSpan time = new TimeSpan(0, 0, 0, 0, 50); // 50 milliseconds interval
       Device.StartTimer(time, UpdateCallback);

@@ -15,9 +15,10 @@
 #include "headers/enums.hpp"
 #include "utils/vector.hpp"
 #include "classes.hpp"
+#include <string>
 
 namespace YSE {
-
+	const std::string VERSION = "1.0.65";
   typedef float(*occlusionFunc)(const Pos& source, const Pos& listener);
 
   class API system {
@@ -85,6 +86,7 @@ namespace YSE {
     // statistics
     float cpuLoad(); // cpu load of the audio steam (not the YSE update system)
     void sleep(unsigned int ms); // usefull for console applications if you don't want to run update at max speed
+		std::string Version() const { return VERSION; }
   private:
     float(*occlusionPtr)(const Pos& source, const Pos& listener);
 		int currentlyMissedCallbacks; // used to watch the audio callback and determine if it is still running
