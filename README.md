@@ -23,10 +23,12 @@ There is one drawback right now: I could not find a way to pass the asset manage
 Building on Linux is supported by cmake.
 PortAudio and libsndfile are the only dependencies for YSE.
 Do the following in the main directory 
+
+```
 $mkdir build 
 $cd build 
 $cmake ..
-
+```
 
 ### iOS/Mac Support ###
 This was also supported in YSE 1.0, but had to go when I decided to remove the dependency on JUCE. Adding support would mean adding other backends for reading files _(which is done by libsndfile now)_ and streaming audio output _(openSLES on Android and portaudio on Windows)_. The library is currently written with supporting multiple backends in mind, so it can't be that hard. Currently I don't have time to do this though.
