@@ -19,7 +19,7 @@ The .NET android library also provides support for C# Android applications in vi
 
 There is one drawback right now: I could not find a way to pass the asset manager to the native library, making it impossible to read assets from an apk. I will work on that later. For now, a workaround is to use the BufferIO class. By reading audio files into a memory buffer, they can be passed to libYSE from .NET. This is not ideal if you have big audio files though.
 
-### Linux Support (thanks to user [https://github.com/noondie | noondie] ###
+### Linux Support (thanks to user [noondie](https://github.com/noondie) ###
 Building on Linux is supported by cmake.
 PortAudio and libsndfile are the only dependencies for YSE.
 Do the following in the main directory 
