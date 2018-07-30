@@ -1,6 +1,6 @@
 # This is libYSE 2.0 #
 
-libYSE is a cross platform sound engine, written in C++. The 1.0 version was built with JUCE, but because of possible licensing isssues and the current JUCE being unable to create usable Android libraries, JUCE support is removed in libYSE 2.0. Currently Windows and Android are supported. 
+libYSE is a cross platform sound engine, written in C++. The 1.0 version was built with JUCE, but because of possible licensing isssues and the current JUCE being unable to create usable Android libraries, JUCE support is removed in libYSE 2.0. Currently Windows, Linux and Android are supported. 
 
 ### Nuget ###
 If you use YSE with C#, a few nuget packages are available. For windows you need [https://www.nuget.org/packages/Yse.NET.Standard/](Yse.NET.Standard). _(YSE.NET.PCL is a dependency and will be loaded automatically.)_
