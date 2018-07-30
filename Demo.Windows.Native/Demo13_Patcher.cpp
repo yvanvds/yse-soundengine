@@ -1,7 +1,5 @@
 
-#ifdef __WINDOWS__
 #include "stdafx.h"
-#endif
 
 #include "Demo13_Patcher.h"
 #include <fstream>

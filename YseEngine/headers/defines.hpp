@@ -16,6 +16,7 @@
 #if (defined (_WIN32) || defined (_WIN64))
   #define       YSE_WIN32 1
   #define       YSE_WINDOWS 1
+#define				__WINDOWS__
 #elif defined (__ANDROID__)
   #undef        YSE_ANDROID
   #define       YSE_ANDROID 1

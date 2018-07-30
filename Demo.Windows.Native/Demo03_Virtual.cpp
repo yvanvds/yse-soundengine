@@ -1,8 +1,7 @@
 
-#ifdef __WINDOWS__
+
 #include "stdafx.h"
-#include <conio.h>
-#endif
+
 #include "Demo03_Virtual.h"
 #include <cstdlib>
 
@@ -31,7 +30,7 @@ void DemoVirtual::ExplainDemo()
 
 void DemoVirtual::ShowStatus()
 {
-#ifdef __WINDOWS__
+#ifdef WIN32
 	_cprintf_s("Sounds: %d / Audio thread CPU Load: %.2f \r", counter, YSE::System().cpuLoad());
 #endif
 }

@@ -1,8 +1,9 @@
 // Demo.Windows.Native.cpp : Defines the entry point for the console application.
 //
 
-#ifdef __WINDOWS__
+
 #include "stdafx.h"
+#ifdef WIN32
 #include <conio.h>
 #endif
 

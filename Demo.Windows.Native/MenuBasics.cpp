@@ -1,7 +1,5 @@
 
-#ifdef __WINDOWS__
 #include "stdafx.h"
-#endif
 
 #include "MenuBasics.h"
 #include "Demo00_PlaySound.h"

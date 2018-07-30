@@ -75,6 +75,7 @@
     <ClInclude Include="Demo15_RestartAudio.h">
       <Filter>Demos</Filter>
     </ClInclude>
+    <ClInclude Include="wincompat.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="MenuAction.cpp">

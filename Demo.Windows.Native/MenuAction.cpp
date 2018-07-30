@@ -1,7 +1,6 @@
 
-#ifdef __WINDOWS__
 #include "stdafx.h"
-#endif
+
 
 #include "MenuAction.h"
 

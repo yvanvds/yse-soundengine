@@ -1,7 +1,5 @@
 
-#ifdef __WINDOWS__
 #include "stdafx.h"
-#endif
 
 #include "Demo07_DspSource.h"
 

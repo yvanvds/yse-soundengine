@@ -1,7 +1,5 @@
 
-#ifdef __WINDOWS__
 #include "stdafx.h"
-#endif
 
 #include "Demo11_VirtualIO.h"
 #include <fstream>

@@ -40,11 +40,19 @@ void YSE::INTERNAL::customFileReader::Close(void * fileHandle) {
 }
 
 void YSE::INTERNAL::customFileReader::UpdateVIO() {
-  CALLBACK::vio.get_filelen = (long int (*)(void*)) CALLBACK::lengthPtr;
-  CALLBACK::vio.read = (long int (*)(void*, long int, void*)) CALLBACK::readPtr;
-  CALLBACK::vio.seek = (long int (*)(long int, int, void*)) CALLBACK::seekPtr;
-  CALLBACK::vio.tell = (long int (*)(void*)) CALLBACK::getPosPtr;
+#ifdef YSE_WINDOWS || YSE_ANDROID
+  CALLBACK::vio.get_filelen = CALLBACK::lengthPtr;
+  CALLBACK::vio.read = CALLBACK::readPtr;
+  CALLBACK::vio.seek = CALLBACK::seekPtr;
+  CALLBACK::vio.tell = CALLBACK::getPosPtr;
   CALLBACK::vio.write = NULL;
+#else
+	CALLBACK::vio.get_filelen = (long int(*)(void*)) CALLBACK::lengthPtr;
+	CALLBACK::vio.read = (long int(*)(void*, long int, void*)) CALLBACK::readPtr;
+	CALLBACK::vio.seek = (long int(*)(long int, int, void*)) CALLBACK::seekPtr;
+	CALLBACK::vio.tell = (long int(*)(void*)) CALLBACK::getPosPtr;
+	CALLBACK::vio.write = NULL;
+#endif
 }
 
 void YSE::INTERNAL::customFileReader::ResetVIO() {

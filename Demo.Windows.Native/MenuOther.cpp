@@ -1,7 +1,5 @@
 
-#ifdef __WINDOWS__
 #include "stdafx.h"
-#endif
 
 #include "MenuOther.h"
 #include "Demo06_Devices.h"

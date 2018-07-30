@@ -1,4 +1,5 @@
 #include "stdafx.h"
+
 #include "Demo14_LoadPatcher.h"
 #include <fstream>
 
