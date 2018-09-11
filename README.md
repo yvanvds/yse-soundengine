@@ -1,6 +1,6 @@
 # This is libYSE 2.0 #
 
-libYSE is a cross platform sound engine, written in C++. The 1.0 version was built with JUCE, but because of possible licensing isssues and the current JUCE being unable to create usable Android libraries, JUCE support is removed in libYSE 2.0. Currently Windows and Android are supported. 
+libYSE is a cross platform sound engine, written in C++. The 1.0 version was built with JUCE, but because of possible licensing isssues and the current JUCE being unable to create usable Android libraries, JUCE support is removed in libYSE 2.0. Currently Windows, Linux and Android are supported. 
 
 ### Nuget ###
 If you use YSE with C#, a few nuget packages are available. For windows you need [https://www.nuget.org/packages/Yse.NET.Standard/](Yse.NET.Standard). _(YSE.NET.PCL is a dependency and will be loaded automatically.)_
@@ -19,14 +19,16 @@ The .NET android library also provides support for C# Android applications in vi
 
 There is one drawback right now: I could not find a way to pass the asset manager to the native library, making it impossible to read assets from an apk. I will work on that later. For now, a workaround is to use the BufferIO class. By reading audio files into a memory buffer, they can be passed to libYSE from .NET. This is not ideal if you have big audio files though.
 
-### Linux Support ###
+### Linux Support (thanks to user [noondie](https://github.com/noondie)) ###
 Building on Linux is supported by cmake.
 PortAudio and libsndfile are the only dependencies for YSE.
 Do the following in the main directory 
+
+```
 $mkdir build 
 $cd build 
 $cmake ..
-
+```
 
 ### iOS/Mac Support ###
 This was also supported in YSE 1.0, but had to go when I decided to remove the dependency on JUCE. Adding support would mean adding other backends for reading files _(which is done by libsndfile now)_ and streaming audio output _(openSLES on Android and portaudio on Windows)_. The library is currently written with supporting multiple backends in mind, so it can't be that hard. Currently I don't have time to do this though.
