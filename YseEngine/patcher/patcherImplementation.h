@@ -47,10 +47,13 @@ namespace YSE {
       bool PassData(float value, const std::string & to, THREAD thread);
       bool PassData(const std::string & value, const std::string & to, THREAD thread);
 
+			void SetHandler(oscHandler * handler);
+
     private:
       std::mutex mtx;
       bool fileHandlerActive;
       std::map<pHandle*, pObject*> objects;
+			oscHandler * oscHandle;
 
 			std::string GetRecieveObjectsAsString();
     };

@@ -57,6 +57,6 @@ CSHARP_ARRAYS(char, byte)
 
 %include "..\YseEngine\patcher\pObjectList.hpp"
 
-%feature("director") guiHandler;
+%feature("director") oscHandler;
 %include "..\YseEngine\patcher\patcher.hpp"
 %include "..\YseEngine\patcher\pHandle.hpp"

@@ -7,6 +7,15 @@ namespace YSE {
     class patcherImplementation;
   }
 
+	class API oscHandler {
+	public:
+		virtual void Send(const std::string & to) {}
+		virtual void Send(const std::string & to, int value) {}
+		virtual void Send(const std::string & to, float value) {}
+		virtual void Send(const std::string & to, const std::string & value) {}
+		virtual ~oscHandler() {}
+	};
+
   class API patcher {
   public:
     patcher();
@@ -37,10 +46,10 @@ namespace YSE {
     bool PassData(float value, const std::string & to);
     bool PassData(const std::string & value, const std::string & to);
 
+		void SetOscHandler(oscHandler * handle);
 
   private: 
     PATCHER::patcherImplementation * pimpl;
-    
     friend class YSE::sound;
   };
 

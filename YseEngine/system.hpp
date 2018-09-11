@@ -18,7 +18,7 @@
 #include <string>
 
 namespace YSE {
-	const std::string VERSION = "1.0.65";
+	const std::string VERSION = "1.0.71";
   typedef float(*occlusionFunc)(const Pos& source, const Pos& listener);
 
   class API system {

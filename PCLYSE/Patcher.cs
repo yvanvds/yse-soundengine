@@ -1,14 +1,58 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using IYse;
 using YSE;
 
 namespace YSE
 {
+	class OscHandler : Yse.oscHandler
+	{
+		public override void Send(string to)
+		{
+			OnOscBang(to);
+		}
+
+		public override void Send(string to, float value)
+		{
+			OnOscFloat(to, value);
+		}
+
+		public override void Send(string to, int value)
+		{
+			OnOscInt(to, value);
+		}
+
+		public override void Send(string to, string value)
+		{
+			OnOscString(to, value);
+		}
+
+		public event IYse.OnOscBangHandler OnOscBang;
+		public event IYse.OnOscIntHandler OnOscInt;
+		public event IYse.OnOscFloatHandler OnOscFloat;
+		public event IYse.OnOscStringHandler OnOscString;
+	}
 
   public class Patcher : Yse.patcher, IYse.IPatcher
   {
-    public void Connect(IYse.IHandle from, int pinOut, IYse.IHandle to, int pinIn)
+		public event OnOscBangHandler OnOscBang;
+		public event OnOscFloatHandler OnOscFloat;
+		public event OnOscIntHandler OnOscInt;
+		public event OnOscStringHandler OnOscString;
+
+		private OscHandler Osc;
+
+		public Patcher()
+		{
+			Osc = new OscHandler();
+			Osc.OnOscBang += (to) => OnOscBang(to);
+			Osc.OnOscInt += (to, value) => OnOscInt(to, value);
+			Osc.OnOscFloat += (to, value) => OnOscFloat(to, value);
+			Osc.OnOscString += (to, value) => OnOscString(to, value);
+		}
+
+		public void Connect(IYse.IHandle from, int pinOut, IYse.IHandle to, int pinIn)
     {
       base.Connect(((Handle)from).GetSource(), pinOut, ((Handle)to).GetSource(), pinIn);
     }
@@ -16,7 +60,8 @@ namespace YSE
     public void Create(int mainOutputs)
     {
       create(mainOutputs);
-    }
+			SetOscHandler(Osc);
+		}
 
     public void Disconnect(IYse.IHandle from, int outlet, IYse.IHandle to, int inlet)
     {
@@ -53,6 +98,8 @@ namespace YSE
       if (handle == null) return null;
       else return new Handle(handle);
     }
+
+
 
   }
 }

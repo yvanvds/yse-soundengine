@@ -40,7 +40,7 @@ void YSE::INTERNAL::customFileReader::Close(void * fileHandle) {
 }
 
 void YSE::INTERNAL::customFileReader::UpdateVIO() {
-#ifdef YSE_WINDOWS || YSE_ANDROID
+#if defined(YSE_WINDOWS) || defined(YSE_ANDROID)
   CALLBACK::vio.get_filelen = CALLBACK::lengthPtr;
   CALLBACK::vio.read = CALLBACK::readPtr;
   CALLBACK::vio.seek = CALLBACK::seekPtr;

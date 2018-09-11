@@ -269,6 +269,10 @@ bool patcherImplementation::PassBang(const std::string & to, YSE::THREAD thread)
       }
     }
   }
+	if (oscHandle != nullptr) {
+		oscHandle->Send(to);
+		return true;
+	}
 	INTERNAL::LogImpl().emit(E_FILE_ERROR, "Cannot find target " + to + ". Valid targets are" + GetRecieveObjectsAsString());
 	return false;
 }
@@ -282,6 +286,10 @@ bool patcherImplementation::PassData(int value, const std::string & to, YSE::THR
       }
     }
   }
+	if (oscHandle != nullptr) {
+		oscHandle->Send(to, value);
+		return true;
+	}
 	INTERNAL::LogImpl().emit(E_FILE_ERROR, "Cannot find target " + to + ". Valid targets are" + GetRecieveObjectsAsString());
 	return false;
 }
@@ -295,6 +303,10 @@ bool patcherImplementation::PassData(float value, const std::string & to, YSE::T
       }
     }
   }
+	if (oscHandle != nullptr) {
+		oscHandle->Send(to, value);
+		return true;
+	}
 	INTERNAL::LogImpl().emit(E_FILE_ERROR, "Cannot find target " + to + ". Valid targets are" + GetRecieveObjectsAsString());
 	return false;
 }
@@ -308,6 +320,10 @@ bool patcherImplementation::PassData(const std::string & value, const std::strin
       }
     }
   }
+	if (oscHandle != nullptr) {
+		oscHandle->Send(to, value);
+		return true;
+	}
 	INTERNAL::LogImpl().emit(E_FILE_ERROR, "Cannot find target " + to + ". Valid targets are" + GetRecieveObjectsAsString());
 	return false;
 }
@@ -321,4 +337,8 @@ std::string patcherImplementation::GetRecieveObjectsAsString() {
 		}
 	}
 	return result;
+}
+
+void patcherImplementation::SetHandler(YSE::oscHandler * handler) {
+	oscHandle = handler;
 }

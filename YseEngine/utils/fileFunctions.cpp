@@ -40,6 +40,7 @@ std::string YSE::GetCurrentWorkingDirectory()
     return std::string(result, (count > 0) ? count : 0);
 }
 
+
 /// on linux this is a really simple check. sorry
 bool YSE::IsPathAbsolute(const std::string & p)
 {
@@ -56,11 +57,3 @@ bool YSE::FileExists(const std::string & name)
     std::ifstream file(name);
     return file.good();
 }
-
-#if YSE_ANDROID 
-
-bool YSE::IsPathAbsolute(const std::string & p) {
-  return false;
-}
-
-#endif

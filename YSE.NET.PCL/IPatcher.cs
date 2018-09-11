@@ -4,6 +4,11 @@ using System.Text;
 
 namespace IYse
 {
+	public delegate void OnOscBangHandler(string to);
+	public delegate void OnOscFloatHandler(string to, float value);
+	public delegate void OnOscIntHandler(string to, int value);
+	public delegate void OnOscStringHandler(string to, string value);
+
   public interface IPatcher
   {
     void Create(int mainOutputs);
@@ -28,5 +33,10 @@ namespace IYse
     bool PassData(string value, string to);
 
     void Dispose();
+
+		event OnOscBangHandler OnOscBang;
+		event OnOscFloatHandler OnOscFloat;
+		event OnOscIntHandler OnOscInt;
+		event OnOscStringHandler OnOscString;
   }
 }

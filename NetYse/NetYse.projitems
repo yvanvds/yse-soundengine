@@ -25,6 +25,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)MIDI_PITCH.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)OBJ.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)OBJECT_IMPLEMENTATION_STATE.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)oscHandler.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)OUT_TYPE.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)patcher.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)pHandle.cs" />

@@ -124,3 +124,11 @@ bool patcher::PassData(const std::string & value, const std::string & to) {
 	}
   return pimpl->PassData(value, to, T_GUI);
 }
+
+void patcher::SetOscHandler(oscHandler * handler) {
+	if (pimpl == nullptr) {
+		INTERNAL::LogImpl().emit(E_ERROR, "SetOscHandler called on nullptr");
+		return;
+	}
+	pimpl->SetHandler(handler);
+}

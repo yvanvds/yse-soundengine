@@ -26,5 +26,29 @@ private:
     void swig_init_callbacks();
 };
 
+class SwigDirector_oscHandler : public YSE::oscHandler, public Swig::Director {
+
+public:
+    SwigDirector_oscHandler();
+    virtual void Send(std::string const &to);
+    virtual void Send(std::string const &to, int value);
+    virtual void Send(std::string const &to, float value);
+    virtual void Send(std::string const &to, std::string const &value);
+    virtual ~SwigDirector_oscHandler();
+
+    typedef void (SWIGSTDCALL* SWIG_Callback0_t)(char *);
+    typedef void (SWIGSTDCALL* SWIG_Callback1_t)(char *, int);
+    typedef void (SWIGSTDCALL* SWIG_Callback2_t)(char *, float);
+    typedef void (SWIGSTDCALL* SWIG_Callback3_t)(char *, char *);
+    void swig_connect_director(SWIG_Callback0_t callbackSend__SWIG_0, SWIG_Callback1_t callbackSend__SWIG_1, SWIG_Callback2_t callbackSend__SWIG_2, SWIG_Callback3_t callbackSend__SWIG_3);
+
+private:
+    SWIG_Callback0_t swig_callbackSend__SWIG_0;
+    SWIG_Callback1_t swig_callbackSend__SWIG_1;
+    SWIG_Callback2_t swig_callbackSend__SWIG_2;
+    SWIG_Callback3_t swig_callbackSend__SWIG_3;
+    void swig_init_callbacks();
+};
+
 
 #endif
