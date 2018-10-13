@@ -6,15 +6,15 @@
     <Authors>yvan vander sanden</Authors>
     <Company>MuteCode</Company>
     <Description>The YSE Sound Engine, with wrappers for .NET</Description>
-    <AssemblyVersion>1.0.71.0</AssemblyVersion>
+    <AssemblyVersion>1.0.76.0</AssemblyVersion>
 	<Deterministic>False</Deterministic>
-    <Version>1.0.71</Version>
+    <Version>1.0.76</Version>
     <Copyright>Eclipse Public License - v 1.0</Copyright>
     <PackageLicenseUrl>https://github.com/yvanvds/yse-soundengine/blob/master/COPYING</PackageLicenseUrl>
     <PackageProjectUrl>https://github.com/yvanvds/yse-soundengine</PackageProjectUrl>
     <RepositoryUrl>https://github.com/yvanvds/yse-soundengine</RepositoryUrl>
     <PackageIconUrl>https://github.com/yvanvds/yse-soundengine/blob/master/logo/Artboard%201.png</PackageIconUrl>
-    <FileVersion>1.0.71.0</FileVersion>
+    <FileVersion>1.0.76.0</FileVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">

@@ -69,35 +69,35 @@ const std::vector<int> & YSE::device::getAvailableBufferSizes() const {
   return bufferSizes;
 }
 
-UInt YSE::device::getNumOutputChannelNames() const {
+unsigned int YSE::device::getNumOutputChannelNames() const {
   return outputChannelNames.size();
 }
 
-const std::string & YSE::device::getOutputChannelName(UInt nr) const {
+const std::string & YSE::device::getOutputChannelName(unsigned int nr) const {
   return outputChannelNames[nr];
 }
 
-UInt YSE::device::getNumInputChannelNames() const {
+unsigned int YSE::device::getNumInputChannelNames() const {
   return inputChannelNames.size();
 }
 
-const std::string & YSE::device::getInputChannelName(UInt nr) const {
+const std::string & YSE::device::getInputChannelName(unsigned int nr) const {
   return inputChannelNames[nr];
 }
 
-UInt YSE::device::getNumAvailableSampleRates() const {
+unsigned int YSE::device::getNumAvailableSampleRates() const {
   return sampleRates.size();
 }
 
-double YSE::device::getAvailableSampleRate(UInt nr) const {
+double YSE::device::getAvailableSampleRate(unsigned int nr) const {
   return sampleRates[nr];
 }
 
-UInt YSE::device::getNumAvailableBufferSizes() const {
+unsigned int YSE::device::getNumAvailableBufferSizes() const {
   return bufferSizes.size();
 }
 
-Int YSE::device::getAvailableBufferSize(UInt nr) const {
+int YSE::device::getAvailableBufferSize(unsigned int nr) const {
   return bufferSizes[nr];
 }
 

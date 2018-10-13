@@ -61,5 +61,10 @@ namespace YSE
     {
       return new Patcher();
     }
+
+		public IYse.IDeviceSetup NewDeviceSetup()
+		{
+			return new DeviceSetup();
+		}
   }
 }

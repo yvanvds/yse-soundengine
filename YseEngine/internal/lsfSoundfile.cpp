@@ -124,11 +124,16 @@ void YSE::INTERNAL::soundFile::loadNonStreaming() {
 }
 
 Bool YSE::INTERNAL::soundFile::fillStream(Bool loop) {
+	if (_needsReset) {
+		handle->seek(0, SEEK_SET);
+		_streamPos = 0;
+		_needsReset = false;
+	}
   Int framesToRead = STREAM_BUFFERSIZE;
   Flt * ptr = _iBuffer;
 
   while (framesToRead > 0) {
-    U64 read = handle->readf(_iBuffer, framesToRead);
+    U64 read = handle->readf(ptr, framesToRead);
     _streamPos += (UInt)read;
     framesToRead -= (UInt)read;
     if (framesToRead > 0) {
@@ -141,7 +146,7 @@ Bool YSE::INTERNAL::soundFile::fillStream(Bool loop) {
         framesToRead *= _channels;
         while (framesToRead--) *ptr++ = 0.0f;
         _streamPos = 0;
-        return true;
+        return false;
       }
     }
     else {

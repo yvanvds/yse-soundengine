@@ -11,7 +11,7 @@
     <copyright>Copyright 2018</copyright>
 	<dependencies>
       <group targetFramework=".NETStandard2.0">
-        <dependency id="YSE.NET.PCL" version="1.0.22" exclude="Build,Analyzers" />
+        <dependency id="YSE.NET.PCL" version="1.0.42" exclude="Build,Analyzers" />
       </group>
     </dependencies>
     <contentFiles>

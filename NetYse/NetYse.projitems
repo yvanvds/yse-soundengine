@@ -53,6 +53,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)SWIGTYPE_p_YSE__DSP__dspSourceObject.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)SWIGTYPE_p_YSE__PATCHER__pObject.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)system.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)THREAD.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Yse.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)YsePINVOKE.cs" />
   </ItemGroup>

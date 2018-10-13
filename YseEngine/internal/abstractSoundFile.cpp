@@ -291,6 +291,7 @@ calibrate:
           }
           else {
             pos = 0;
+						realPos = 0;
             intent = SS_STOPPED;
             volume = 0.f;
             file->_streamPos = 0;
@@ -324,14 +325,15 @@ calibrate:
   // make sure position is reset to zero if playing has stopped during this read
   if (intent == SS_STOPPED) {
     pos = 0;
+		realPos = 0;
     if (file->_streaming) {
-      file->_streamPos = 0;
+			file->reset();
       if (file->fillStream(loop)) {
-        pos -= STREAM_BUFFERSIZE;
-        realPos += STREAM_BUFFERSIZE;
-        if (realPos >= file->_length) {
-          realPos -= file->_length;
-        }
+        //pos -= STREAM_BUFFERSIZE;
+        //realPos += STREAM_BUFFERSIZE;
+        //if (realPos >= file->_length) {
+        //  realPos -= file->_length;
+        //}
       }
       pos += realPos;
     }
@@ -414,7 +416,9 @@ Bool YSE::INTERNAL::abstractSoundFile::readInterleaved(abstractSoundFile * file,
         pos += speed;
         x++;
 
-        if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : file->_length)) goto calibrate;
+				if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : file->_length)) {
+					goto calibrate;
+				}
       }
     }
 
@@ -483,12 +487,15 @@ calibrate:
         if (file->fillStream(loop)) {
           pos -= STREAM_BUFFERSIZE;
           realPos += STREAM_BUFFERSIZE;
-          if (realPos >= file->_length) {
-            realPos -= file->_length;
+          if (realPos  >= file->_length) {
+						while (realPos >= STREAM_BUFFERSIZE) {
+							realPos -= STREAM_BUFFERSIZE;
+						}
           }
         }
         else {
           pos = 0;
+					realPos = 0;
           intent = SS_STOPPED;
           volume = 0.f;
           file->_streamPos = 0;
@@ -520,18 +527,24 @@ calibrate:
   }
   
 
-  if (file->_streaming) pos += realPos;
+	if (file->_streaming) {
+		if (realPos < 0) {
+			realPos = realPos;
+		}
+		pos += realPos;
+	}
   // make sure position is reset to zero if playing has stopped during this read
   if (intent == SS_STOPPED) {
     pos = 0;
+		realPos = 0;
     if (file->_streaming) {
-      file->_streamPos = 0;
+			file->reset();
       if (file->fillStream(loop)) {
-        pos -= STREAM_BUFFERSIZE;
-        realPos += STREAM_BUFFERSIZE;
-        if (realPos >= file->_length) {
-          realPos -= file->_length;
-        }
+        //pos -= STREAM_BUFFERSIZE;
+        //realPos += STREAM_BUFFERSIZE;
+        //if (realPos >= file->_length) {
+        //  realPos -= file->_length;
+        //}
       }
       pos += realPos;
     }

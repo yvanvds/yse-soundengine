@@ -22,5 +22,6 @@ namespace IYse
     IChannel NewChannel();
     IReverb NewReverb();
     IPatcher NewPatcher();
+		IDeviceSetup NewDeviceSetup();
   }
 }

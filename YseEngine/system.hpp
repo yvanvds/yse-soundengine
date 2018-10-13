@@ -18,7 +18,7 @@
 #include <string>
 
 namespace YSE {
-	const std::string VERSION = "1.0.71";
+	const std::string VERSION = "1.0.76";
   typedef float(*occlusionFunc)(const Pos& source, const Pos& listener);
 
   class API system {
@@ -53,8 +53,8 @@ namespace YSE {
     void openDevice(const deviceSetup & object, CHANNEL_TYPE conf = CT_AUTO);
     void closeCurrentDevice();
 
-    const char * getDefaultDevice();
-    const char * getDefaultHost();
+		const std::string & getDefaultDevice();
+		const std::string & getDefaultHost();
 
     // effects
     //void insideCave(Bool status);

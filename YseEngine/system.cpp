@@ -168,16 +168,16 @@ UInt YSE::system::getNumDevices() {
   return DEVICE::Manager().getDeviceList().size();
 }
 
-const YSE::device & YSE::system::getDevice(UInt nr) {
+const YSE::device & YSE::system::getDevice(unsigned int nr) {
   return DEVICE::Manager().getDeviceList()[nr];
 }
 
-const char * YSE::system::getDefaultDevice() {
-  return DEVICE::Manager().getDefaultDeviceName().c_str();
+const std::string & YSE::system::getDefaultDevice() {
+  return DEVICE::Manager().getDefaultDeviceName();
 }
 
-const char * YSE::system::getDefaultHost() {
-  return DEVICE::Manager().getDefaultTypeName().c_str();
+const std::string & YSE::system::getDefaultHost() {
+  return DEVICE::Manager().getDefaultTypeName();
 }
 
 YSE::system & YSE::system::AudioTest(bool on) {

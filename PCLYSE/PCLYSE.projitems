@@ -11,6 +11,8 @@
   <ItemGroup>
     <Compile Include="$(MSBuildThisFileDirectory)BufferIO.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Channel.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Device.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)DeviceSetup.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Handle.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Listener.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Log.cs" />

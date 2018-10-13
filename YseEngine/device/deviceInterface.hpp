@@ -56,17 +56,17 @@ namespace YSE {
     const std::vector<int> & getAvailableBufferSizes() const;
 
     // use these instead.
-    UInt getNumOutputChannelNames() const;
-    const std::string & getOutputChannelName(UInt nr) const;
+    unsigned int getNumOutputChannelNames() const;
+    const std::string & getOutputChannelName(unsigned int nr) const;
 
-    UInt getNumInputChannelNames() const;
-    const std::string & getInputChannelName(UInt nr) const;
+		unsigned int getNumInputChannelNames() const;
+    const std::string & getInputChannelName(unsigned int nr) const;
 
-    UInt getNumAvailableSampleRates() const;
-    double getAvailableSampleRate(UInt nr) const;
+		unsigned int getNumAvailableSampleRates() const;
+    double getAvailableSampleRate(unsigned int nr) const;
 
-    UInt getNumAvailableBufferSizes() const;
-    Int getAvailableBufferSize(UInt nr) const;
+		unsigned int getNumAvailableBufferSizes() const;
+    int getAvailableBufferSize(unsigned int nr) const;
 
     device & setDefaultBufferSize(int value);
     int getDefaultBufferSize() const;

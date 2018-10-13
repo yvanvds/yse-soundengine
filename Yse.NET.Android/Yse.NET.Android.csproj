@@ -3,17 +3,17 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <RootNamespace>YSE</RootNamespace>
-    <Authors>MyCompany</Authors>
+    <Authors>yvan vander sanden</Authors>
     <Company>MuteCode</Company>
     <Description>Yse.NET.Android</Description>
-    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
-    <Version>1.0.66</Version>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Version>1.0.68</Version>
     <Copyright>Eclipse Public License - v 1.0</Copyright>
     <PackageLicenseUrl>https://github.com/yvanvds/yse-soundengine/blob/master/COPYING</PackageLicenseUrl>
     <PackageProjectUrl>https://github.com/yvanvds/yse-soundengine</PackageProjectUrl>
     <RepositoryUrl>https://github.com/yvanvds/yse-soundengine</RepositoryUrl>
     <PackageTags>sound engine DSP</PackageTags>
-    <PackageVersion>1.0.66</PackageVersion>
+    <PackageVersion>1.0.68</PackageVersion>
     <Owners>Mute</Owners>
     <Title>Yse .NET Android</Title>
     <PackageId>Yse.NET.Android</PackageId>

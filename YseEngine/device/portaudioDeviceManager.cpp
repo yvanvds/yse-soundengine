@@ -219,7 +219,14 @@ void YSE::DEVICE::managerObject::updateDeviceList() {
     d.addAvailableSampleRate((Int)info->defaultSampleRate);
     
     devices.push_back(d);
+
   }
+
+	const PaHostApiInfo * hostInfo = Pa_GetHostApiInfo(Pa_GetDefaultHostApi());
+	defaultTypeName = hostInfo->name;
+	
+	const PaDeviceInfo * deviceInfo = Pa_GetDeviceInfo(Pa_GetDefaultOutputDevice());
+	defaultDeviceName = deviceInfo->name;
 }
 
 void YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup & object) {

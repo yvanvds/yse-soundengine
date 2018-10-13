@@ -18,7 +18,12 @@ namespace IYse
     //IReverb GlobalReverb { get; }
 
     uint NumDevices { get; }
-    //IDevice GetDevice(int nr);
+    IDevice GetDevice(uint nr);
+
+		void OpenDevice(IDeviceSetup setup, ChannelType channeltype);
+		void CloseCurrentDevice();
+		string DefaultDevice { get; }
+		string DefaultHost { get; }
 
     int MaxSounds { get; set; }
 
