@@ -40,7 +40,7 @@ YSE::deviceSetup & YSE::deviceSetup::setBufferSize(int value) {
 
 int YSE::deviceSetup::getOutputChannels() const {
   if (out == nullptr) return 0;
-  return out->getOutputChannelNames().size();
+  return (int)out->getOutputChannelNames().size();
 }
 
 

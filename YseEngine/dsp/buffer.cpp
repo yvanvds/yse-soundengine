@@ -25,7 +25,7 @@ namespace YSE {
     }
 
     buffer & buffer::operator+=(Flt f) {
-      UInt l = storage.size();
+      UInt l = (UInt)storage.size();
       Flt * ptr = storage.data();
       for (; l > 7; l -= 8, ptr += 8) {
         ptr[0] += f; ptr[1] += f; ptr[2] += f; ptr[3] += f;
@@ -53,7 +53,7 @@ namespace YSE {
     }
 
     buffer & buffer::operator-=(Flt f) {
-      UInt l = storage.size();
+      UInt l = (UInt)storage.size();
       Flt * ptr = storage.data();
       for (; l > 7; l -= 8, ptr += 8) {
         ptr[0] -= f; ptr[1] -= f; ptr[2] -= f; ptr[3] -= f;
@@ -80,7 +80,7 @@ namespace YSE {
     }
 
     buffer & buffer::operator*=(Flt f) {
-      UInt l = storage.size();
+      UInt l = (UInt)storage.size();
       Flt * ptr = storage.data();
       for (; l > 7; l -= 8, ptr += 8) {
         ptr[0] *= f; ptr[1] *= f; ptr[2] *= f; ptr[3] *= f;
@@ -107,7 +107,7 @@ namespace YSE {
     }
 
     buffer & buffer::operator/=(Flt f) {
-      UInt l = storage.size();
+      UInt l = (UInt)storage.size();
       Flt * ptr = storage.data();
       for (; l > 7; l -= 8, ptr += 8) {
         ptr[0] = (f ? ptr[0] /= f : 0);
@@ -151,12 +151,12 @@ namespace YSE {
 
     buffer & buffer::operator=(const buffer & s) {
       if (storage.size() != s.storage.size()) {
-        resize(s.storage.size());
+        resize((UInt)s.storage.size());
       }
 
       overflow = s.overflow;
 
-      UInt l = storage.size();
+      UInt l = (UInt)storage.size();
       Flt * ptr1 = storage.data();
       const Flt * ptr2 = s.storage.data();
 
@@ -176,7 +176,7 @@ namespace YSE {
     }
 
     buffer & buffer::operator=(Flt f) {
-      UInt l = storage.size();
+      UInt l = (UInt)storage.size();
       Flt * ptr1 = storage.data();
       for (; l > 7; l -= 8, ptr1 += 8) {
         ptr1[0] = f;
@@ -194,7 +194,7 @@ namespace YSE {
     }
 
 		bool buffer::isSilent() const {
-			UInt l = storage.size();
+			UInt l = (UInt)storage.size();
 			const Flt * ptr1 = storage.data();
 			for (; l > 7; l -= 8, ptr1 += 8) {
 				if (ptr1[0] != 0) return false;
@@ -213,7 +213,7 @@ namespace YSE {
 
 		float buffer::maxValue() const {
 			float max = -100.f;
-			UInt l = storage.size();
+			UInt l = (UInt)storage.size();
 			const Flt * ptr1 = storage.data();
 			for (; l > 7; l -= 8, ptr1 += 8) {
 				if (ptr1[0] > max) max = ptr1[0];
@@ -264,7 +264,7 @@ namespace YSE {
         return (*this);
       }
 
-      UInt l = storage.size();
+      UInt l = (UInt)storage.size();
       Flt * ptr1 = storage.data();
       Flt * ptr2 = s.storage.data();
       Flt extra;

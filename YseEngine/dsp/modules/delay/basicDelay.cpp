@@ -28,6 +28,7 @@ Flt YSE::DSP::MODULES::basicDelay::time(basicDelay::DELAY_NR nr) {
     case SECOND: return time1;
     case THIRD : return time2;
   }
+	return time0; // stop complaining about control paths
 }
 
 Flt YSE::DSP::MODULES::basicDelay::gain(basicDelay::DELAY_NR nr) {
@@ -36,6 +37,7 @@ Flt YSE::DSP::MODULES::basicDelay::gain(basicDelay::DELAY_NR nr) {
   case SECOND: return gain1;
   case THIRD : return gain2;
   }
+	return gain0; // stop complaining about control paths
 }
 
 void YSE::DSP::MODULES::basicDelay::create() {
@@ -64,21 +66,21 @@ void YSE::DSP::MODULES::basicDelay::process(MULTICHANNELBUFFER & buffer) {
 
   // add delays to signal
   if (gain0 > 0) {
-    delayBuffer->read(*reader, time0);
+    delayBuffer->read(*reader, (UInt)time0);
     (*reader) *= gain0;
     (*result) += (*reader);
     delayCount++;
   }
 
   if (gain1 > 0) {
-    delayBuffer->read(*reader, time1);
+    delayBuffer->read(*reader, (UInt)time1);
     (*reader) *= gain1;
     (*result) += (*reader);
     delayCount++;
   }
 
   if (gain2 > 0) {
-    delayBuffer->read(*reader, time2);
+    delayBuffer->read(*reader, (UInt)time2);
     (*reader) *= gain2;
     (*result) += (*reader);
     delayCount++;

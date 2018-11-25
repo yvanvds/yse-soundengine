@@ -84,7 +84,7 @@ bool YSE::DSP::envelope::saveToFile(const char * fileName) const {
 }
 
 UInt YSE::DSP::envelope::elms() const {
-  return breakPoints.size();
+  return (UInt)breakPoints.size();
 }
 
 Flt YSE::DSP::envelope::getLengthSec() const {

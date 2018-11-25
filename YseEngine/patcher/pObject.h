@@ -38,8 +38,8 @@ namespace YSE {
       virtual void ConnectOutlet(inlet * dest, int toPin);
       // outputs will be disconnected from the other side
 
-      inline int NumInputs() const { return inputs.size(); }
-      inline int NumOutputs() const { return outputs.size(); }
+      inline int NumInputs() const { return (int)inputs.size(); }
+      inline int NumOutputs() const { return (int)outputs.size(); }
 
       OUT_TYPE GetOutputType(unsigned int output) const;
       inlet * GetInlet(int number);

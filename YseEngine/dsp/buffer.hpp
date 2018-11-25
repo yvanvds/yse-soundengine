@@ -35,7 +35,7 @@ namespace YSE {
       buffer(const buffer & cp);
 
       // gets the length of a sample in frames (also called 'samples' like in '44100 samples per second')
-      inline UInt getLength   () const { return storage.size() - overflow; }
+      inline UInt getLength   () const { return (UInt)storage.size() - overflow; }
       // gets the length of a sample in milliseconds
       inline UInt	getLengthMS () const { return static_cast<UInt>((storage.size() - overflow) / static_cast<Flt>(SAMPLERATE * 0.001)); }
       // gets the length of a sample in seconds

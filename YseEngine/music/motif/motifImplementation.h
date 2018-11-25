@@ -34,7 +34,7 @@ namespace YSE {
       SCALE::implementationObject * getValidPitches();
       UInt getNotes(Flt startPos, Flt endPos, std::vector<MUSIC::pNote>::iterator & firstElement);
 
-      UInt size() { return notes.size(); }
+      UInt size() { return (UInt)notes.size(); }
       Flt getLength() { return length; }
 
       MUSIC::pNote & getNote(UInt pos);

@@ -101,7 +101,7 @@ YSE::pHandle * patcherImplementation::CreateObject(const std::string & type, con
   INTERNAL::LogImpl().emit(E_DEBUG, "Patcher: Trying to create " + type);
   
   if (type == OBJ::D_DAC) {
-    object = new pDac(output.size());
+    object = new pDac((int)output.size());
   }
   else {
     object = Register().Get(type);
@@ -239,7 +239,7 @@ void patcherImplementation::ParseJSON(const std::string & content) {
   mtx.unlock();
 }
 
-unsigned int patcherImplementation::Objects() {
+std::size_t patcherImplementation::Objects() {
   return objects.size();
 }
 

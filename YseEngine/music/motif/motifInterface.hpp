@@ -43,7 +43,7 @@ namespace YSE {
 
       Flt getLength() { return length; }
       Bool empty() { return notes.empty(); }
-      UInt size() { return notes.size(); }
+      UInt size() { return (UInt)notes.size(); }
 
       MUSIC::pNote & operator[](UInt pos);
 

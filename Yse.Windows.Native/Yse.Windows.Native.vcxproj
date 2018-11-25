@@ -80,9 +80,9 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>$(ProjectDir)\$(Configuration)\$(Platform)\</OutDir>
+    <OutDir>..\bin\Demo.Windows.Native\</OutDir>
     <IntDir>$(ProjectDir)\$(Configuration)\$(Platform)\Intermediate\</IntDir>
-    <TargetName>Yse</TargetName>
+    <TargetName>Yse64</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
@@ -133,20 +133,21 @@
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
-      <Optimization>MaxSpeed</Optimization>
+      <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>YSE_DLL_BUILD;_DEBUG;YSEWINDOWSNATIVE_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>YSE_DLL_BUILD;_DEBUG;YSEWINDOWSNATIVE_EXPORTS;_WINDOWS;_USRDLL;PORTAUDIO_BACKEND;LIBSOUNDFILE_BACKEND;YSE_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>..\dependencies\portaudio\include;..\dependencies\libsndfile\include;%(AdditionalIncludeDirectories);$(MSBuildThisFileDirectory)</AdditionalIncludeDirectories>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <OmitFramePointers>false</OmitFramePointers>
       <FloatingPointModel>Fast</FloatingPointModel>
       <AdditionalOptions>/wd4996 %(AdditionalOptions)</AdditionalOptions>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>..\dependencies\portaudio\lib\releaselib;</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\dependencies\libsndfile\lib;..\dependencies\portaudio\lib\releasedll</AdditionalLibraryDirectories>
       <AdditionalDependencies>portaudio_x86.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
