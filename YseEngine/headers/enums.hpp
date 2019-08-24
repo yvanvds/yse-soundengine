@@ -141,6 +141,15 @@ namespace YSE {
     E_TRACK_NOT_STARTED, // Unable to start a music track
     E_TRACK_TIMER_STOP, // Could not stop track timer
     E_APP_MESSAGE, // log message from the client app
+	E_MIDI_UNSPECIFIED, // unknown MIDI error
+	E_MIDI_NO_DEVICES_FOUND, // no MIDI devices found on system
+	E_MIDI_INVALID_DEVICE, // an invalid MIDI device ID was specified
+	E_MIDI_MEMORY_ERROR, // an error during memory allocation in the MIDI subroutines
+	E_MIDI_INVALID_PARAMETER, // an invalid parameter was specified to a MIDI function
+	E_MIDI_INVALID_USE, // the MIDI function was called incorrectly
+	E_MIDI_DRIVER_ERROR, // A MIDI system driver error occured
+	E_MIDI_SYSTEM_ERROR, // a MIDI system error occured
+	E_MIDI_THREAD_ERROR, // a MIDI thread error occured
 
     E_WARNING_MESSAGES, // possible warnings:
     E_WARNING, // general warning
@@ -150,12 +159,14 @@ namespace YSE {
     E_CHANNEL_OBJECT_IN_USE, // Channel object already in use when create was called
     E_SOUND_OBJECT_NO_INIT, // Sound object used without creating it first  
     E_REVERB_NO_INIT, // Reverb object used without creating it first
+	E_MIDI_WARNING, // Non-Critical MIDI error
 
     E_DEBUG_MESSAGES, // possible debug messages:
     E_DEBUG, // general debug message
     E_SOUND_ADDED, // Sound added to system
     E_SOUND_DELETED, // Sound deleted from system
-    E_SOUND_WRONG, // Objkect error with sound: + message
+    E_SOUND_WRONG, // Object error with sound: + message
+	E_MIDI_DEBUG_WARNING, // Non-Critical MIDI error which might be useful for debugging
   };
 
   // use these when creating custom file callback functions

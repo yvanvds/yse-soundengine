@@ -6,14 +6,16 @@
 #include "Demo11_VirtualIO.h"
 #include "Demo12_AudioTest.h"
 #include "Demo15_RestartAudio.h"
+#include "Demo16_Midi.h"
 
 OtherMenu::OtherMenu()
 {
-  SetTitle("Other Examples");
-  AddAction('1', "Devices", std::bind(&OtherMenu::DevicesDemo, this));
-  AddAction('2', "Virtual IO", std::bind(&OtherMenu::VirtualIODemo, this));
-  AddAction('3', "Audio Test", std::bind(&OtherMenu::AudioTestDemo, this));
+	SetTitle("Other Examples");
+	AddAction('1', "Devices", std::bind(&OtherMenu::DevicesDemo, this));
+	AddAction('2', "Virtual IO", std::bind(&OtherMenu::VirtualIODemo, this));
+	AddAction('3', "Audio Test", std::bind(&OtherMenu::AudioTestDemo, this));
 	AddAction('4', "Restart Audio", std::bind(&OtherMenu::RestartAudioDemo, this));
+	AddAction('5', "MIDI", std::bind(&OtherMenu::MidiDemo, this));
 }
 
 void OtherMenu::DevicesDemo()
@@ -37,6 +39,13 @@ void OtherMenu::AudioTestDemo() {
 
 void OtherMenu::RestartAudioDemo() {
 	DemoRestartAudio demo;
+	demo.Run();
+	ShowMenu();
+}
+
+void OtherMenu::MidiDemo()
+{
+	DemoMidi demo;
 	demo.Run();
 	ShowMenu();
 }

@@ -6,11 +6,12 @@
 class OtherMenu : public basePage
 {
 public:
-  OtherMenu();
+	OtherMenu();
   
-  void DevicesDemo();
-  void VirtualIODemo();
-  void AudioTestDemo();
+	void DevicesDemo();
+	void VirtualIODemo();
+	void AudioTestDemo();
 	void RestartAudioDemo();
+	void MidiDemo();
 };
 

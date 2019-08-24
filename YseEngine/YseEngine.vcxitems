@@ -85,9 +85,12 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)io.hpp" />
     <ClInclude Include="$(MSBuildThisFileDirectory)listener.hpp" />
     <ClInclude Include="$(MSBuildThisFileDirectory)log.hpp" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)midiDevice\midiManager.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)midi\midifile.hpp" />
     <ClInclude Include="$(MSBuildThisFileDirectory)midi\midifileImplementation.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)midi\midifileManager.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)midi\midiMessage.hpp" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)midi\midiNote.hpp" />
     <ClInclude Include="$(MSBuildThisFileDirectory)music\chord.hpp" />
     <ClInclude Include="$(MSBuildThisFileDirectory)music\motif\motif.hpp" />
     <ClInclude Include="$(MSBuildThisFileDirectory)music\motif\motifImplementation.h" />
@@ -245,9 +248,11 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)io.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)listener.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)log.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)midiDevice\midiManager.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)midi\midifile.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)midi\midifileImplementation.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)midi\midifileManager.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)midi\midiNote.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)music\chord.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)music\motif\motifImplementation.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)music\motif\motifInterface.cpp" />

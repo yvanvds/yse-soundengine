@@ -98,6 +98,11 @@ namespace YSE {
     class time;
     class underWaterEffect;
   }
+
+  namespace MIDI {
+	  class midiMessage;
+	  class midiNote;
+  }
 }
 
 

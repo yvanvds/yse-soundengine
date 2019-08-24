@@ -21,43 +21,43 @@ Author:  yvan
 
 
 YSE::system & YSE::System() {
-  static YSE::system s;
-  return s;
+	static YSE::system s;
+	return s;
 }
 
 Bool YSE::system::init() {
-  if (INTERNAL::Global().active) {
-    INTERNAL::LogImpl().emit(E_DEBUG, "You're trying to initialize more than once!");
-    return true;
-  }
-  // global objects should always be loaded before anything else!
-  INTERNAL::Global().init();
+	if (INTERNAL::Global().active) {
+	INTERNAL::LogImpl().emit(E_DEBUG, "You're trying to initialize more than once!");
+	return true;
+	}
+	// global objects should always be loaded before anything else!
+	INTERNAL::Global().init();
 	currentlyMissedCallbacks = 0;
 	doAutoReconnect = false;
 	reconnectDelay = 0;
 
-  if (DEVICE::Manager().init()) {
-    INTERNAL::LogImpl().emit(E_DEBUG, "YSE System object initialized");
+	if (DEVICE::Manager().init()) {
+		INTERNAL::LogImpl().emit(E_DEBUG, "YSE System object initialized");
 
-    // initialize channels
-    CHANNEL::Manager().setChannelConf(CT_STEREO);
-    CHANNEL::Manager().changeChannelConf();
-    CHANNEL::Manager().master().createGlobal();
-    CHANNEL::Manager().ambient().create("ambientChannel", CHANNEL::Manager().master());
-    CHANNEL::Manager().FX().create("fxChannel", CHANNEL::Manager().master());
-    CHANNEL::Manager().music().create("musicChannel", CHANNEL::Manager().master());
-    CHANNEL::Manager().gui().create("guiChannel", CHANNEL::Manager().master());
-    CHANNEL::Manager().voice().create("voiceChannel", CHANNEL::Manager().master());
+		// initialize channels
+		CHANNEL::Manager().setChannelConf(CT_STEREO);
+		CHANNEL::Manager().changeChannelConf();
+		CHANNEL::Manager().master().createGlobal();
+		CHANNEL::Manager().ambient().create("ambientChannel", CHANNEL::Manager().master());
+		CHANNEL::Manager().FX().create("fxChannel", CHANNEL::Manager().master());
+		CHANNEL::Manager().music().create("musicChannel", CHANNEL::Manager().master());
+		CHANNEL::Manager().gui().create("guiChannel", CHANNEL::Manager().master());
+		CHANNEL::Manager().voice().create("voiceChannel", CHANNEL::Manager().master());
 
-    maxSounds(50);
-    INTERNAL::Global().active = true;
+		maxSounds(50);
+		INTERNAL::Global().active = true;
 
-    DEVICE::Manager().addCallback();
+		DEVICE::Manager().addCallback();
 
-    return true;
-  }
-  INTERNAL::LogImpl().emit(E_ERROR, "YSE System object failed to initialize");
-  return false;
+		return true;
+	}
+	INTERNAL::LogImpl().emit(E_ERROR, "YSE System object failed to initialize");
+	return false;
 }
 
 void YSE::system::update() {
@@ -178,6 +178,37 @@ const std::string & YSE::system::getDefaultDevice() {
 
 const std::string & YSE::system::getDefaultHost() {
   return DEVICE::Manager().getDefaultTypeName();
+}
+
+unsigned int YSE::system::getNumMidiInDevices()
+{
+	return MIDIDEVICE::Manager().getNumMidiInDevices();
+}
+
+unsigned int YSE::system::getNumMidiOutDevices()
+{
+	return MIDIDEVICE::Manager().getNumMidiOutDevices();
+}
+
+const std::string YSE::system::getMidiInDeviceName(unsigned int ID)
+{
+	return MIDIDEVICE::Manager().getMidiInDeviceName(ID);
+}
+
+const std::string YSE::system::getMidiOutDeviceName(unsigned int ID)
+{
+	std::string result = MIDIDEVICE::Manager().getMidiOutDeviceName(ID);
+	return result;
+}
+
+bool YSE::system::openMidiOutPort(unsigned int ID)
+{
+	return MIDIDEVICE::Manager().openMidiOutPort(ID);
+}
+
+void YSE::system::sendMidi(const MIDI::midiMessage& message)
+{
+	MIDIDEVICE::Manager().sendMessage(message);
 }
 
 YSE::system & YSE::system::AudioTest(bool on) {

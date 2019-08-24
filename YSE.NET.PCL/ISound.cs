@@ -13,6 +13,7 @@ namespace IYse
     Pos GetPos();
     void SetPos(Pos p);
 
+    bool Doppler { get; set; }
     float Spread { get; set; }
     float Speed { get; set; }
     float Size { get; set; }

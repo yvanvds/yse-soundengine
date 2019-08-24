@@ -48,12 +48,6 @@
     <Reference Include="WindowsBase" />
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
-    <Reference Include="YSE.NET.PCL, Version=1.0.33.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\YSE.NET.PCL.1.0.33\lib\netstandard2.0\YSE.NET.PCL.dll</HintPath>
-    </Reference>
-    <Reference Include="Yse.NET.Standard, Version=1.0.62.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Yse.NET.Standard.1.0.67\lib\netstandard2.0\Yse.NET.Standard.dll</HintPath>
-    </Reference>
   </ItemGroup>
   <ItemGroup>
     <ApplicationDefinition Include="App.xaml">
@@ -91,7 +85,6 @@
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
     </EmbeddedResource>
-    <None Include="packages.config" />
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
@@ -101,9 +94,14 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="libsndfile-1.dll" />
-    <Content Include="portaudio_x86.dll" />
-    <Content Include="Yse.dll" />
+    <ProjectReference Include="..\YSE.NET.PCL\YSE.NET.PCL.csproj">
+      <Project>{cbec3dbc-6ef8-46f9-9bb6-450b89b403c8}</Project>
+      <Name>YSE.NET.PCL</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Yse.NET.Standard\Yse.NET.Standard.csproj">
+      <Project>{886d1256-4bc9-4f92-84c3-f2e72834eb7e}</Project>
+      <Name>Yse.NET.Standard</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

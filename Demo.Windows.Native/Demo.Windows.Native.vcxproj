@@ -23,32 +23,32 @@
     <ProjectGuid>{982EB9F0-84E1-4202-B922-CE19798BB485}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>DemoWindowsNative</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.17134.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v141</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v141</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v141</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v141</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
@@ -215,6 +215,7 @@ cp ..\Yse.Windows.Native\Debug\Win32\Yse.dll ..\bin\$(ProjectName)\</Command>
     <ClInclude Include="Demo13_Patcher.h" />
     <ClInclude Include="Demo14_LoadPatcher.h" />
     <ClInclude Include="Demo15_RestartAudio.h" />
+    <ClInclude Include="Demo16_Midi.h" />
     <ClInclude Include="MenuAction.h" />
     <ClInclude Include="MenuBasics.h" />
     <ClInclude Include="MenuDsp.h" />
@@ -243,6 +244,7 @@ cp ..\Yse.Windows.Native\Debug\Win32\Yse.dll ..\bin\$(ProjectName)\</Command>
     <ClCompile Include="Demo13_Patcher.cpp" />
     <ClCompile Include="Demo14_LoadPatcher.cpp" />
     <ClCompile Include="Demo15_RestartAudio.cpp" />
+    <ClCompile Include="Demo16_Midi.cpp" />
     <ClCompile Include="MenuAction.cpp" />
     <ClCompile Include="MenuBasics.cpp" />
     <ClCompile Include="MenuDsp.cpp" />

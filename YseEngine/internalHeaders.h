@@ -40,6 +40,8 @@
 #include "music/motif/motifManager.h"
 #include "music/motif/motifMessage.h"
 
+#include "midiDevice/midiManager.h"
+
 #include "midi/midifileImplementation.h"
 #include "midi/midifileManager.h"
 

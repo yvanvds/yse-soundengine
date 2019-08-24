@@ -76,6 +76,9 @@
       <Filter>Demos</Filter>
     </ClInclude>
     <ClInclude Include="wincompat.h" />
+    <ClInclude Include="Demo16_Midi.h">
+      <Filter>Demos</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="MenuAction.cpp">
@@ -142,6 +145,9 @@
       <Filter>Demos</Filter>
     </ClCompile>
     <ClCompile Include="Demo15_RestartAudio.cpp">
+      <Filter>Demos</Filter>
+    </ClCompile>
+    <ClCompile Include="Demo16_Midi.cpp">
       <Filter>Demos</Filter>
     </ClCompile>
   </ItemGroup>

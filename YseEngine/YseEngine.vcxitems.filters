@@ -82,6 +82,9 @@
     <Filter Include="patcher\time">
       <UniqueIdentifier>{5f312786-cdd2-4cb6-bcfa-8ed9b79afe3b}</UniqueIdentifier>
     </Filter>
+    <Filter Include="midiDevice">
+      <UniqueIdentifier>{9e26e212-ed10-4e19-8a66-4cb40073c7eb}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(MSBuildThisFileDirectory)channel\channel.hpp">
@@ -565,6 +568,15 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)device\OpenSL.h">
       <Filter>device</Filter>
     </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)midiDevice\midiManager.h">
+      <Filter>midiDevice</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)midi\midiMessage.hpp">
+      <Filter>midi</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\yvan\source\repos\yse-soundengine\YseEngine\midi\midiNote.hpp">
+      <Filter>midi</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="$(MSBuildThisFileDirectory)channel\channelImplementation.cpp">
@@ -964,6 +976,12 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gButton.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)device\OpenSL.cpp">
       <Filter>device</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)midiDevice\midiManager.cpp">
+      <Filter>midiDevice</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)midi\midiNote.cpp">
+      <Filter>midi</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

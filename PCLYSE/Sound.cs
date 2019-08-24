@@ -13,6 +13,7 @@ namespace YSE
     public float Speed { get => speed(); set => speed(value); }
     public bool Loop { get => looping(); set => looping(value); }
     public float Volume { get => volume(); set => volume(value); }
+    public bool Doppler { get => doppler(); set => doppler(value); }
 
     public bool Playing => isPlaying();
 
