@@ -63,10 +63,6 @@ namespace YSE {
 	const std::string getMidiInDeviceName(unsigned int ID);
 	const std::string getMidiOutDeviceName(unsigned int ID);
 
-	bool openMidiOutPort(unsigned int ID);
-
-	void sendMidi(const MIDI::midiMessage & message);
-
     // effects
     //void insideCave(Bool status);
 

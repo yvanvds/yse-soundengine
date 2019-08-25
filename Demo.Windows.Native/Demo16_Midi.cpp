@@ -4,13 +4,21 @@
 #include <iostream>
 
 DemoMidi::DemoMidi()
-	: note(60, 80)
-	, firstNote(true)
+	: firstNote(true)
 {
 	SetTitle("Midi Functions");
 
 	AddAction('1', "Print MIDI Ports", std::bind(&DemoMidi::PrintMidiPorts, this));
 	AddAction('2', "Play a note", std::bind(&DemoMidi::PlayNote, this));
+	AddAction('3', "All Notes Off", std::bind(&DemoMidi::AllNotesOff, this));
+
+	output1.create(1);
+	output2.create(1);
+}
+
+DemoMidi::~DemoMidi() {
+	output1.AllNotesOff();
+	output2.AllNotesOff();
 }
 
 void DemoMidi::PrintMidiPorts()
@@ -31,22 +39,28 @@ void DemoMidi::PrintMidiPorts()
 
 void DemoMidi::PlayNote() {
 	if (firstNote) {
-		if (YSE::System().openMidiOutPort(1)) {
-			YSE::System().sendMidi(note);
-			firstNote = false;
-			std::cout << "playing note " << note.note() << std::endl;
-		}
-		else {
-			std::cout << "cannot open midi out port 0";
-		}
+		
+		
+		output1.NoteOn(YSE::MIDI::CH_01, 60, 80);
+		output2.NoteOn(YSE::MIDI::CH_01, YSE::MIDI::D4, 80);
+
+		firstNote = false;
 	}
 	else {
-		note.velocity(0);
-		YSE::System().sendMidi(note);
-		note.note(YSE::Random(50, 70));
-		note.velocity(80);
-		YSE::System().sendMidi(note);
-		std::cout << "playing note " << note.note() << std::endl;
+
+		output1.NoteOn(YSE::MIDI::CH_01, 60, 0);
+		output2.NoteOn(YSE::MIDI::CH_01, YSE::MIDI::D4, 0);
+		
+		output1.NoteOn(YSE::MIDI::CH_01, 60, 80);
+		output2.NoteOn(YSE::MIDI::CH_01, YSE::MIDI::D4, 80);
 	}
+}
+
+void DemoMidi::AllNotesOff() {
+	output1.AllNotesOff();
+	output2.AllNotesOff();
+
+	output1.NoteOn(YSE::MIDI::CH_01, 60, 0);
+	output2.NoteOn(YSE::MIDI::CH_01, YSE::MIDI::D4, 0);
 }
 

@@ -43,6 +43,9 @@
 #include "math/gRandom.h"
 #include "math/gCounter.h"
 
+#include "midi/mMidiOut.h"
+#include "midi/mMidiNoteOn.h"
+
 using namespace YSE::PATCHER;
 
 YSE::PATCHER::pRegistry & YSE::PATCHER::Register() {
@@ -96,6 +99,10 @@ pRegistry::pRegistry() {
   Add(OBJ::D_BANDPASS, pBandpass::Create);
   Add(OBJ::D_HIGHPASS, pHighpass::Create);
   Add(OBJ::D_VCF, dVcf::Create);
+
+  Add(OBJ::M_OUT, mMidiOut::Create);
+  Add(OBJ::M_NOTEON, mMidiNoteOn::Create);
+  //Add(OBJ::M_NOTEOFF, mMidiNoteOff::Create);
 }
 
 pObject* pRegistry::Get(const std::string & objectID) {

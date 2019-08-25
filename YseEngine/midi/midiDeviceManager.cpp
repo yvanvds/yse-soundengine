@@ -1,14 +1,14 @@
-#include "midiManager.h"
+#include "midiDeviceManager.h"
 #include "internalHeaders.h"
 
-YSE::MIDIDEVICE::managerObject& YSE::MIDIDEVICE::Manager()
+YSE::MIDI::deviceManager& YSE::MIDI::DeviceManager()
 {
-	static managerObject d;
+	static deviceManager d;
 	return d;
 }
 
 // simple conversion pipe between RtMidi and our log system
-void YSE::MIDIDEVICE::GenerateMidiError(const RtMidiError & error)
+void YSE::MIDI::GenerateMidiError(const RtMidiError & error)
 {
 	switch (error.getType()) {
 		case RtMidiError::Type::WARNING: {
@@ -58,7 +58,7 @@ void YSE::MIDIDEVICE::GenerateMidiError(const RtMidiError & error)
 	}
 }
 
-YSE::MIDIDEVICE::managerObject::managerObject()
+YSE::MIDI::deviceManager::deviceManager()
 	: midiIn(nullptr)
 	, midiOut(nullptr)
 	, initialized(false)
@@ -66,12 +66,16 @@ YSE::MIDIDEVICE::managerObject::managerObject()
 
 }
 
-YSE::MIDIDEVICE::managerObject::~managerObject() {
+YSE::MIDI::deviceManager::~deviceManager() {
 	if (midiIn != nullptr) delete midiIn;
 	if (midiOut != nullptr) delete midiOut;
+	for (auto it = midiOutPorts.begin(); it != midiOutPorts.end(); it++) {
+		it->second->closePort();
+		delete it->second;
+	}
 }
 
-unsigned int YSE::MIDIDEVICE::managerObject::getNumMidiInDevices()
+unsigned int YSE::MIDI::deviceManager::getNumMidiInDevices()
 {
 	if (isPrepared()) {
 		return midiIn->getPortCount();
@@ -79,7 +83,7 @@ unsigned int YSE::MIDIDEVICE::managerObject::getNumMidiInDevices()
 	return 0;
 }
 
-unsigned int YSE::MIDIDEVICE::managerObject::getNumMidiOutDevices()
+unsigned int YSE::MIDI::deviceManager::getNumMidiOutDevices()
 {
 	if (isPrepared()) {
 		return midiOut->getPortCount();
@@ -87,7 +91,7 @@ unsigned int YSE::MIDIDEVICE::managerObject::getNumMidiOutDevices()
 	return 0;
 }
 
-const std::string YSE::MIDIDEVICE::managerObject::getMidiInDeviceName(unsigned int ID)
+const std::string YSE::MIDI::deviceManager::getMidiInDeviceName(unsigned int ID)
 {
 	if (isPrepared()) {
 		return midiIn->getPortName(ID);
@@ -95,7 +99,7 @@ const std::string YSE::MIDIDEVICE::managerObject::getMidiInDeviceName(unsigned i
 	return "Invalid Call";
 }
 
-const std::string YSE::MIDIDEVICE::managerObject::getMidiOutDeviceName(unsigned int ID)
+const std::string YSE::MIDI::deviceManager::getMidiOutDeviceName(unsigned int ID)
 {
 	if (isPrepared()) {
 		return midiOut->getPortName(ID);
@@ -103,31 +107,20 @@ const std::string YSE::MIDIDEVICE::managerObject::getMidiOutDeviceName(unsigned 
 	return "Invalid Call";
 }
 
-bool YSE::MIDIDEVICE::managerObject::openMidiOutPort(unsigned int ID)
-{
-	if (isPrepared()) {
-		try {
-			if (midiOut->isPortOpen()) {
-				midiOut->closePort();
-			}
-			midiOut->openPort(ID);
-			return true;
-		}
-		catch (RtMidiError& error) {
-			GenerateMidiError(error);
-			return false;
-		}
+RtMidiOut* YSE::MIDI::deviceManager::getMidiOutPort(unsigned int ID) {
+	if (midiOutPorts.count(ID) > 0) return midiOutPorts[ID];
+
+	try {
+		midiOutPorts.emplace(ID, new RtMidiOut());
+		midiOutPorts[ID]->openPort(ID);
+		return midiOutPorts[ID];
+	}
+	catch (RtMidiError& error) {
+		MIDI::GenerateMidiError(error);
 	}
 }
 
-void YSE::MIDIDEVICE::managerObject::sendMessage(const MIDI::midiMessage& message)
-{
-	if (isPrepared()) {
-		midiOut->sendMessage(message.getRaw());
-	}
-}
-
-bool YSE::MIDIDEVICE::managerObject::isPrepared()
+bool YSE::MIDI::deviceManager::isPrepared()
 {
 	if (initialized) return true;
 

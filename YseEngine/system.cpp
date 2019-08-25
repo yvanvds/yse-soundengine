@@ -182,33 +182,23 @@ const std::string & YSE::system::getDefaultHost() {
 
 unsigned int YSE::system::getNumMidiInDevices()
 {
-	return MIDIDEVICE::Manager().getNumMidiInDevices();
+	return MIDI::DeviceManager().getNumMidiInDevices();
 }
 
 unsigned int YSE::system::getNumMidiOutDevices()
 {
-	return MIDIDEVICE::Manager().getNumMidiOutDevices();
+	return MIDI::DeviceManager().getNumMidiOutDevices();
 }
 
 const std::string YSE::system::getMidiInDeviceName(unsigned int ID)
 {
-	return MIDIDEVICE::Manager().getMidiInDeviceName(ID);
+	return MIDI::DeviceManager().getMidiInDeviceName(ID);
 }
 
 const std::string YSE::system::getMidiOutDeviceName(unsigned int ID)
 {
-	std::string result = MIDIDEVICE::Manager().getMidiOutDeviceName(ID);
+	std::string result = MIDI::DeviceManager().getMidiOutDeviceName(ID);
 	return result;
-}
-
-bool YSE::system::openMidiOutPort(unsigned int ID)
-{
-	return MIDIDEVICE::Manager().openMidiOutPort(ID);
-}
-
-void YSE::system::sendMidi(const MIDI::midiMessage& message)
-{
-	MIDIDEVICE::Manager().sendMessage(message);
 }
 
 YSE::system & YSE::system::AudioTest(bool on) {

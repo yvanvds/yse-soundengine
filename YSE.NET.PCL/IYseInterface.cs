@@ -4,24 +4,25 @@ using System.Text;
 
 namespace IYse
 {
-  public interface IYseInterface
-  {
-    ISystem System { get; }
+    public interface IYseInterface
+    {
+        ISystem System { get; }
 
-    IChannel ChannelMaster { get; }
-    IChannel ChannelFX { get; }
-    IChannel ChannelMusic { get; }
-    IChannel ChannelAmbient { get; }
-    IChannel ChannelVoice { get; }
-    IChannel ChannelGui { get; }
-    IBufferIO BufferIO { get; }
-    IListener Listener { get; }
-    ILog Log { get; }
+        IChannel ChannelMaster { get; }
+        IChannel ChannelFX { get; }
+        IChannel ChannelMusic { get; }
+        IChannel ChannelAmbient { get; }
+        IChannel ChannelVoice { get; }
+        IChannel ChannelGui { get; }
+        IBufferIO BufferIO { get; }
+        IListener Listener { get; }
+        ILog Log { get; }
 
-    ISound NewSound();
-    IChannel NewChannel();
-    IReverb NewReverb();
-    IPatcher NewPatcher();
-		IDeviceSetup NewDeviceSetup();
-  }
+        ISound NewSound();
+        IChannel NewChannel();
+        IReverb NewReverb();
+        IPatcher NewPatcher();
+        IDeviceSetup NewDeviceSetup();
+        IMidiOut NewMidiOut();
+    }
 }

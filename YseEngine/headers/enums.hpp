@@ -187,8 +187,8 @@ namespace YSE {
     BQ_HIGHSHELF,
   };
 
-  namespace NOTE { // don't let these clutter up the interface
-    enum MIDI_PITCH {
+  namespace MIDI { // don't let these clutter up the interface
+    enum M_PITCH {
       CM1, // 0   -- C minus 1
       CSM1, // 1  -- S means sharp, F means flat
       DFM1 = 1,
@@ -371,6 +371,27 @@ namespace YSE {
       GF9 = 126,
       G9, // 127 
     };
+  }
+
+  namespace MIDI {
+	  enum M_CHANNEL {
+		  CH_01,
+		  CH_02,
+		  CH_03,
+		  CH_04,
+		  CH_05,
+		  CH_06,
+		  CH_07,
+		  CH_08,
+		  CH_09,
+		  CH_10,
+		  CH_11,
+		  CH_12,
+		  CH_13,
+		  CH_14,
+		  CH_15,
+		  CH_16,
+	  };
   }
 }
 

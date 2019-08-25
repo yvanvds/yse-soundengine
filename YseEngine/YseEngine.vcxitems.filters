@@ -82,8 +82,8 @@
     <Filter Include="patcher\time">
       <UniqueIdentifier>{5f312786-cdd2-4cb6-bcfa-8ed9b79afe3b}</UniqueIdentifier>
     </Filter>
-    <Filter Include="midiDevice">
-      <UniqueIdentifier>{9e26e212-ed10-4e19-8a66-4cb40073c7eb}</UniqueIdentifier>
+    <Filter Include="patcher\midi">
+      <UniqueIdentifier>{e3bb255c-7cee-47fb-996e-49278d07c4e7}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -568,14 +568,23 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)device\OpenSL.h">
       <Filter>device</Filter>
     </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)midiDevice\midiManager.h">
-      <Filter>midiDevice</Filter>
-    </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)midi\midiMessage.hpp">
       <Filter>midi</Filter>
     </ClInclude>
     <ClInclude Include="C:\Users\yvan\source\repos\yse-soundengine\YseEngine\midi\midiNote.hpp">
       <Filter>midi</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\yvan\source\repos\yse-soundengine\YseEngine\midi\midiDeviceManager.h">
+      <Filter>midi</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)midi\device.hpp">
+      <Filter>midi</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiOut.h">
+      <Filter>patcher\midi</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiNoteOn.h">
+      <Filter>patcher\midi</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -977,11 +986,20 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)device\OpenSL.cpp">
       <Filter>device</Filter>
     </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)midiDevice\midiManager.cpp">
-      <Filter>midiDevice</Filter>
-    </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)midi\midiNote.cpp">
       <Filter>midi</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\yvan\source\repos\yse-soundengine\YseEngine\midi\midiDeviceManager.cpp">
+      <Filter>midi</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)midi\device.cpp">
+      <Filter>midi</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiOut.cpp">
+      <Filter>patcher\midi</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiNoteOn.cpp">
+      <Filter>patcher\midi</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

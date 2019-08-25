@@ -1,14 +1,15 @@
 #pragma once
 #include "RtMidi.h"
 #include "..//midi/midiMessage.hpp"
+#include <map>
 
 namespace YSE {
-	namespace MIDIDEVICE {
+	namespace MIDI {
 
-		class managerObject {
+		class deviceManager {
 		public:
-			managerObject();
-			~managerObject();
+			deviceManager();
+			~deviceManager();
 
 			unsigned int getNumMidiInDevices();
 			unsigned int getNumMidiOutDevices();
@@ -16,9 +17,7 @@ namespace YSE {
 			const std::string getMidiInDeviceName(unsigned int ID);
 			const std::string getMidiOutDeviceName(unsigned int ID);
 
-			bool openMidiOutPort(unsigned int ID);
-
-			void sendMessage(const MIDI::midiMessage& message);
+			RtMidiOut * getMidiOutPort(unsigned int ID);
 
 		private:
 			bool isPrepared();
@@ -27,9 +26,10 @@ namespace YSE {
 			RtMidiOut* midiOut;
 			bool initialized;
 
+			std::map<unsigned int, RtMidiOut*> midiOutPorts;
 		};
 
-		managerObject& Manager();
+		deviceManager& DeviceManager();
 
 		void GenerateMidiError(const RtMidiError & error);
 	}

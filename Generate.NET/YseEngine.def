@@ -14,6 +14,7 @@
 #include "..\YseEngine\patcher\pObjectList.hpp"
 #include "..\YseEngine\patcher\patcher.hpp"
 #include "..\YseEngine\patcher\pHandle.hpp"
+#include "..\YseEngine\midi\device.hpp"
 
 %}
 
@@ -54,6 +55,7 @@ CSHARP_ARRAYS(char, byte)
 %include "..\YseEngine\device\deviceInterface.hpp"
 %include "..\YseEngine\device\deviceSetup.hpp"
 %include "..\YseEngine\system.hpp"
+%include "..\YseEngine\midi\device.hpp"
 
 %include "..\YseEngine\patcher\pObjectList.hpp"
 

@@ -6,10 +6,13 @@
 class DemoMidi : public basePage {
 public:
 	DemoMidi();
+	~DemoMidi();
 
 	void PrintMidiPorts();
 	void PlayNote();
+	void AllNotesOff();
 
-	YSE::MIDI::midiNote note;
+	YSE::midiOut output1;
+	YSE::midiOut output2;
 	bool firstNote;
 };

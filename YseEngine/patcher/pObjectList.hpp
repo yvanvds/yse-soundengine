@@ -52,5 +52,9 @@ namespace YSE {
     DEFOBJ(D_HIGHPASS, "~hp");
     DEFOBJ(D_BANDPASS, "~bp");
     DEFOBJ(D_VCF, "~vcf");
+
+	DEFOBJ(M_OUT, ".midiout");
+	DEFOBJ(M_NOTEON, ".noteon");
+	DEFOBJ(M_NOTEOFF, ".noteoff");
   };
 }

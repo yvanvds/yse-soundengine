@@ -22,7 +22,9 @@
     <Compile Include="$(MSBuildThisFileDirectory)listener.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)log.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)logHandler.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)MIDI_PITCH.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)midiOut.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)M_CHANNEL.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)M_PITCH.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)OBJ.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)OBJECT_IMPLEMENTATION_STATE.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)oscHandler.cs" />
