@@ -117,6 +117,7 @@ RtMidiOut* YSE::MIDI::deviceManager::getMidiOutPort(unsigned int ID) {
 	}
 	catch (RtMidiError& error) {
 		MIDI::GenerateMidiError(error);
+		return nullptr;
 	}
 }
 

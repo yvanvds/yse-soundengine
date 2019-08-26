@@ -148,7 +148,7 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>..\dependencies\rtmidi\lib;..\dependencies\libsndfile\lib;..\dependencies\portaudio\lib\releasedll</AdditionalLibraryDirectories>
-      <AdditionalDependencies>portaudio_x86.lib;rtmidi.lib</AdditionalDependencies>
+      <AdditionalDependencies>portaudio_x86.lib;rtmidi.lib;winmm.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -171,7 +171,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>..\dependencies\portaudio\lib\releasedll;..\dependencies\rtmidi\lib;..\dependencies\libsndfile\lib</AdditionalLibraryDirectories>
-      <AdditionalDependencies>portaudio_x86.lib;rtmidi.lib</AdditionalDependencies>
+      <AdditionalDependencies>portaudio_x86.lib;rtmidi.lib;winmm.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -195,7 +195,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>..\dependencies\rtmidi\lib;..\dependencies\portaudio\lib\releaselib</AdditionalLibraryDirectories>
-      <AdditionalDependencies>portaudio_x86.lib;rtmidi.lib</AdditionalDependencies>
+      <AdditionalDependencies>portaudio_x86.lib;rtmidi.lib;winmm.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>

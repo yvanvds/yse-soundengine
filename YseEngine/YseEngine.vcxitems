@@ -140,8 +140,13 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\pMidiToFrequency.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\dMultiply.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\math\dSubstract.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiChannelPressure.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiControl.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiNoteOff.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiNoteOn.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiOut.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiPolyPressure.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiProgramChange.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\outlet.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\parameters.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\patcher.hpp" />
@@ -301,8 +306,13 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\pMidiToFrequency.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\dMultiply.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\math\dSubstract.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiChannelPressure.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiControl.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiNoteOff.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiNoteOn.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiOut.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiPolyPressure.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiProgramChange.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\outlet.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\parameters.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\patcher.cpp" />

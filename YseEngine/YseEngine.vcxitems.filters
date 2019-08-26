@@ -571,12 +571,6 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)midi\midiMessage.hpp">
       <Filter>midi</Filter>
     </ClInclude>
-    <ClInclude Include="C:\Users\yvan\source\repos\yse-soundengine\YseEngine\midi\midiNote.hpp">
-      <Filter>midi</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\yvan\source\repos\yse-soundengine\YseEngine\midi\midiDeviceManager.h">
-      <Filter>midi</Filter>
-    </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)midi\device.hpp">
       <Filter>midi</Filter>
     </ClInclude>
@@ -584,6 +578,23 @@
       <Filter>patcher\midi</Filter>
     </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiNoteOn.h">
+      <Filter>patcher\midi</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)midi\midiDeviceManager.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)midi\midiNote.hpp" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiNoteOff.h">
+      <Filter>patcher\midi</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiControl.h">
+      <Filter>patcher\midi</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiPolyPressure.h">
+      <Filter>patcher\midi</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiChannelPressure.h">
+      <Filter>patcher\midi</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiProgramChange.h">
       <Filter>patcher\midi</Filter>
     </ClInclude>
   </ItemGroup>
@@ -989,9 +1000,6 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)midi\midiNote.cpp">
       <Filter>midi</Filter>
     </ClCompile>
-    <ClCompile Include="C:\Users\yvan\source\repos\yse-soundengine\YseEngine\midi\midiDeviceManager.cpp">
-      <Filter>midi</Filter>
-    </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)midi\device.cpp">
       <Filter>midi</Filter>
     </ClCompile>
@@ -999,6 +1007,22 @@
       <Filter>patcher\midi</Filter>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiNoteOn.cpp">
+      <Filter>patcher\midi</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)midi\midiDeviceManager.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiNoteOff.cpp">
+      <Filter>patcher\midi</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiControl.cpp">
+      <Filter>patcher\midi</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiPolyPressure.cpp">
+      <Filter>patcher\midi</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiChannelPressure.cpp">
+      <Filter>patcher\midi</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiProgramChange.cpp">
       <Filter>patcher\midi</Filter>
     </ClCompile>
   </ItemGroup>

@@ -56,5 +56,9 @@ namespace YSE {
 	DEFOBJ(M_OUT, ".midiout");
 	DEFOBJ(M_NOTEON, ".noteon");
 	DEFOBJ(M_NOTEOFF, ".noteoff");
+	DEFOBJ(M_CONTROL, ".controlchange");
+	DEFOBJ(M_POLYPRESS, ".polypressure");
+	DEFOBJ(M_CHANPRESS, ".channelpressure");
+	DEFOBJ(M_PROGCHANGE, ".programchange");
   };
 }

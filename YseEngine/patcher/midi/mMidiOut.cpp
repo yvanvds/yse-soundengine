@@ -20,3 +20,29 @@ LIST_IN(SetListValue) {
 	out.Raw(value);
 }
 
+MESSAGES() {
+	if (message == "allnotesoff") {
+		out.AllNotesOff();
+	}
+	else if (message == "reset") {
+		out.Reset();
+	}
+	else if (message == "omni on") {
+		out.Omni(true);
+	}
+	else if (message == "omni off") {
+		out.Omni(false);
+	}
+	else if (message == "poly on") {
+		out.Poly(true);
+	}
+	else if (message == "poly off") {
+		out.Poly(false);
+	}
+	else if (message == "local control on") {
+		out.LocalControl(true);
+	}
+	else if (message == "local control off") {
+		out.LocalControl(false);
+	}
+}

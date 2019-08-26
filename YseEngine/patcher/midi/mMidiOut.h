@@ -6,7 +6,7 @@ namespace YSE {
 	namespace PATCHER {
 
 		PATCHER_CLASS(mMidiOut, YSE::OBJ::M_OUT)
-			_NO_MESSAGES
+			_DO_MESSAGES
 			_NO_CALCULATE
 
 			_LIST_IN(SetListValue)
