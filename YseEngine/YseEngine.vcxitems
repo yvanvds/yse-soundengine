@@ -122,6 +122,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gButton.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gFloat.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gInt.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gList.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gMessage.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gSlider.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gText.h" />
@@ -288,6 +289,7 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gButton.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gFloat.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gInt.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gList.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gMessage.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gSlider.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gText.cpp" />

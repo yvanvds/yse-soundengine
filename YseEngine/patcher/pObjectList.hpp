@@ -24,6 +24,7 @@ namespace YSE {
     DEFOBJ(G_BUTTON, ".b");
     DEFOBJ(G_TOGGLE, ".t");
     DEFOBJ(G_MESSAGE, ".m");
+	DEFOBJ(G_LIST, ".l");
     DEFOBJ(G_TEXT, ".text");
     DEFOBJ(G_COUNTER, ".counter");
     DEFOBJ(G_SWITCH, ".switch");

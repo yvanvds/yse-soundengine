@@ -84,8 +84,13 @@ void patcherImplementation::Connect(YSE::pHandle * from, int outlet, YSE::pHandl
   if (!fileHandlerActive) mtx.lock();
   PATCHER::outlet * out = from->object->GetOutlet(outlet);
   PATCHER::inlet * in = to->object->GetInlet(inlet);
-  from->object->ConnectOutlet(in, outlet);
-  to->object->ConnectInlet(out, inlet);
+  if (out != nullptr && in != nullptr) {
+	  from->object->ConnectOutlet(in, outlet);
+	  to->object->ConnectInlet(out, inlet);
+  }
+  else {
+	  INTERNAL::LogImpl().emit(E_ERROR, "Patcher: Invalid Connection");
+  }
   if (!fileHandlerActive) mtx.unlock();
 }
 

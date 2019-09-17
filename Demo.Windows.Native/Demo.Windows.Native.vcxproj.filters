@@ -79,6 +79,9 @@
     <ClInclude Include="Demo16_Midi.h">
       <Filter>Demos</Filter>
     </ClInclude>
+    <ClInclude Include="Demo17_MidiPatcher.h">
+      <Filter>Demos</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="MenuAction.cpp">
@@ -148,6 +151,9 @@
       <Filter>Demos</Filter>
     </ClCompile>
     <ClCompile Include="Demo16_Midi.cpp">
+      <Filter>Demos</Filter>
+    </ClCompile>
+    <ClCompile Include="Demo17_MidiPatcher.cpp">
       <Filter>Demos</Filter>
     </ClCompile>
   </ItemGroup>

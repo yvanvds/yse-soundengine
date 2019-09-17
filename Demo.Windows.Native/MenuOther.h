@@ -13,5 +13,6 @@ public:
 	void AudioTestDemo();
 	void RestartAudioDemo();
 	void MidiDemo();
+	void MidiPatcherDemo();
 };
 

@@ -20,6 +20,7 @@
 #include "guiObjects/gButton.h"
 #include "guiObjects/gToggle.h"
 #include "guiObjects/gMessage.h"
+#include "guiObjects/gList.h"
 #include "guiObjects/gText.h"
 
 #include "time/gMetro.h"
@@ -87,6 +88,7 @@ pRegistry::pRegistry() {
   Add(OBJ::G_BUTTON, gButton::Create);
   Add(OBJ::G_TOGGLE, gToggle::Create);
   Add(OBJ::G_MESSAGE, gMessage::Create);
+  Add(OBJ::G_LIST, gList::Create);
   Add(OBJ::G_TEXT, gText::Create);
 
   Add(OBJ::G_ADD, gAdd::Create);

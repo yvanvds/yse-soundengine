@@ -597,6 +597,9 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiProgramChange.h">
       <Filter>patcher\midi</Filter>
     </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gList.h">
+      <Filter>patcher\guiObjects</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="$(MSBuildThisFileDirectory)channel\channelImplementation.cpp">
@@ -1024,6 +1027,9 @@
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiProgramChange.cpp">
       <Filter>patcher\midi</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gList.cpp">
+      <Filter>patcher\guiObjects</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

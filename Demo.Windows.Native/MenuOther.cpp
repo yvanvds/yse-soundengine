@@ -7,6 +7,7 @@
 #include "Demo12_AudioTest.h"
 #include "Demo15_RestartAudio.h"
 #include "Demo16_Midi.h"
+#include "Demo17_MidiPatcher.h"
 
 OtherMenu::OtherMenu()
 {
@@ -16,6 +17,7 @@ OtherMenu::OtherMenu()
 	AddAction('3', "Audio Test", std::bind(&OtherMenu::AudioTestDemo, this));
 	AddAction('4', "Restart Audio", std::bind(&OtherMenu::RestartAudioDemo, this));
 	AddAction('5', "MIDI", std::bind(&OtherMenu::MidiDemo, this));
+	AddAction('6', "MIDI PAtcher", std::bind(&OtherMenu::MidiPatcherDemo, this));
 }
 
 void OtherMenu::DevicesDemo()
@@ -46,6 +48,12 @@ void OtherMenu::RestartAudioDemo() {
 void OtherMenu::MidiDemo()
 {
 	DemoMidi demo;
+	demo.Run();
+	ShowMenu();
+}
+
+void OtherMenu::MidiPatcherDemo() {
+	DemoMidiPatcher demo;
 	demo.Run();
 	ShowMenu();
 }
