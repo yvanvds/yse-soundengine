@@ -12,5 +12,6 @@ public:
   void VirtualIODemo();
   void AudioTestDemo();
 	void RestartAudioDemo();
+	void PitchTest();
 };
 
