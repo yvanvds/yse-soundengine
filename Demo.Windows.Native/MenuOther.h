@@ -14,5 +14,6 @@ public:
 	void RestartAudioDemo();
 	void MidiDemo();
 	void MidiPatcherDemo();
+	void PitchTest();
 };
 
