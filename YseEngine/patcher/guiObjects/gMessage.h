@@ -6,7 +6,7 @@ namespace YSE {
   namespace PATCHER {
 
     PATCHER_CLASS(gMessage, YSE::OBJ::G_MESSAGE)
-      _NO_MESSAGES
+      _DO_MESSAGES
       _NO_CALCULATE
 
       _BANG_IN(Bang)

@@ -20,6 +20,7 @@
 #include "guiObjects/gButton.h"
 #include "guiObjects/gToggle.h"
 #include "guiObjects/gMessage.h"
+#include "guiObjects/gList.h"
 #include "guiObjects/gText.h"
 
 #include "time/gMetro.h"
@@ -42,6 +43,15 @@
 #include "math/gSubstract.h"
 #include "math/gRandom.h"
 #include "math/gCounter.h"
+
+#include "midi/mMidiChannelPressure.h"
+#include "midi/mMidiControl.h"
+#include "midi/mMidiNoteOff.h"
+#include "midi/mMidiNoteOn.h"
+#include "midi/mMidiOut.h"
+#include "midi/mMidiPolyPressure.h"
+#include "midi/mMidiProgramChange.h"
+
 
 using namespace YSE::PATCHER;
 
@@ -78,6 +88,7 @@ pRegistry::pRegistry() {
   Add(OBJ::G_BUTTON, gButton::Create);
   Add(OBJ::G_TOGGLE, gToggle::Create);
   Add(OBJ::G_MESSAGE, gMessage::Create);
+  Add(OBJ::G_LIST, gList::Create);
   Add(OBJ::G_TEXT, gText::Create);
 
   Add(OBJ::G_ADD, gAdd::Create);
@@ -96,6 +107,14 @@ pRegistry::pRegistry() {
   Add(OBJ::D_BANDPASS, pBandpass::Create);
   Add(OBJ::D_HIGHPASS, pHighpass::Create);
   Add(OBJ::D_VCF, dVcf::Create);
+
+  Add(OBJ::M_CHANPRESS, mMidiChannelPressure::Create);
+  Add(OBJ::M_CONTROL, mMidiControl::Create);
+  Add(OBJ::M_NOTEOFF, mMidiNoteOff::Create);
+  Add(OBJ::M_NOTEON, mMidiNoteOn::Create);
+  Add(OBJ::M_OUT, mMidiOut::Create);
+  Add(OBJ::M_POLYPRESS, mMidiPolyPressure::Create);
+  Add(OBJ::M_PROGCHANGE, mMidiProgramChange::Create);
 }
 
 pObject* pRegistry::Get(const std::string & objectID) {

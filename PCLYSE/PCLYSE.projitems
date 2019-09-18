@@ -16,6 +16,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Handle.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Listener.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Log.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MidiOut.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Patcher.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Reverb.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Sound.cs" />

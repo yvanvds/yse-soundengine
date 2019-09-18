@@ -14,7 +14,7 @@
 #include "types.hpp"
 
 namespace YSE {
-  const UInt STANDARD_BUFFERSIZE = 1024;
+  const UInt STANDARD_BUFFERSIZE = 128;
   const UInt STREAM_BUFFERSIZE = 44100;
   extern UInt SAMPLERATE; // this used to be a constant. It is now declared in devicemanager
 }

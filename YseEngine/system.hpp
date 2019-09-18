@@ -18,7 +18,7 @@
 #include <string>
 
 namespace YSE {
-	const std::string VERSION = "1.0.76";
+	const std::string VERSION = "1.0.77";
   typedef float(*occlusionFunc)(const Pos& source, const Pos& listener);
 
   class API system {
@@ -29,9 +29,9 @@ namespace YSE {
     void update();
     void close();
 
-		void pause();
-		void resume();
-		int  missedCallbacks();
+	void pause();
+	void resume();
+	int  missedCallbacks();
 
     /** Get a reference to the global reverb object. It's not active by default,
         but when enabled, these reverb settings will be used when there's no
@@ -53,8 +53,15 @@ namespace YSE {
     void openDevice(const deviceSetup & object, CHANNEL_TYPE conf = CT_AUTO);
     void closeCurrentDevice();
 
-		const std::string & getDefaultDevice();
-		const std::string & getDefaultHost();
+	const std::string & getDefaultDevice();
+	const std::string & getDefaultHost();
+
+	// midi section
+	unsigned int getNumMidiInDevices();
+	unsigned int getNumMidiOutDevices();
+
+	const std::string getMidiInDeviceName(unsigned int ID);
+	const std::string getMidiOutDeviceName(unsigned int ID);
 
     // effects
     //void insideCave(Bool status);

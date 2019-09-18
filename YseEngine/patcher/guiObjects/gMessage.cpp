@@ -16,7 +16,7 @@ CONSTRUCT() {
 }
 
 BANG_IN(Bang) {
-  outputs[0].SendList(message, thread);
+  outputs[0].SendMessage(message, thread);
 }
 
 LIST_IN(SetValue) {
@@ -25,4 +25,8 @@ LIST_IN(SetValue) {
 
 GUI_VALUE() {
   return message;
+}
+
+MESSAGES() {
+	this->message = message;
 }

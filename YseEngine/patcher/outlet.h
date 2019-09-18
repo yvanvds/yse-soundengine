@@ -22,6 +22,7 @@ namespace YSE {
       void SendFloat(float value, THREAD thread);
       void SendInt(int value, THREAD thread);
       void SendList(const std::string & value, THREAD thread);
+	  void SendMessage(const std::string& value, THREAD thread);
       void SendBuffer(DSP::buffer * value, THREAD thread);
 
       void Connect(inlet * in);

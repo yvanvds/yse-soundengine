@@ -82,6 +82,9 @@
     <Filter Include="patcher\time">
       <UniqueIdentifier>{5f312786-cdd2-4cb6-bcfa-8ed9b79afe3b}</UniqueIdentifier>
     </Filter>
+    <Filter Include="patcher\midi">
+      <UniqueIdentifier>{e3bb255c-7cee-47fb-996e-49278d07c4e7}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(MSBuildThisFileDirectory)channel\channel.hpp">
@@ -565,6 +568,38 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)device\OpenSL.h">
       <Filter>device</Filter>
     </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)midi\midiMessage.hpp">
+      <Filter>midi</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)midi\device.hpp">
+      <Filter>midi</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiOut.h">
+      <Filter>patcher\midi</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiNoteOn.h">
+      <Filter>patcher\midi</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)midi\midiDeviceManager.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)midi\midiNote.hpp" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiNoteOff.h">
+      <Filter>patcher\midi</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiControl.h">
+      <Filter>patcher\midi</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiPolyPressure.h">
+      <Filter>patcher\midi</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiChannelPressure.h">
+      <Filter>patcher\midi</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiProgramChange.h">
+      <Filter>patcher\midi</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gList.h">
+      <Filter>patcher\guiObjects</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="$(MSBuildThisFileDirectory)channel\channelImplementation.cpp">
@@ -964,6 +999,37 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gButton.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)device\OpenSL.cpp">
       <Filter>device</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)midi\midiNote.cpp">
+      <Filter>midi</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)midi\device.cpp">
+      <Filter>midi</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiOut.cpp">
+      <Filter>patcher\midi</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiNoteOn.cpp">
+      <Filter>patcher\midi</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)midi\midiDeviceManager.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiNoteOff.cpp">
+      <Filter>patcher\midi</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiControl.cpp">
+      <Filter>patcher\midi</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiPolyPressure.cpp">
+      <Filter>patcher\midi</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiChannelPressure.cpp">
+      <Filter>patcher\midi</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\midi\mMidiProgramChange.cpp">
+      <Filter>patcher\midi</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gList.cpp">
+      <Filter>patcher\guiObjects</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

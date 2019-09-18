@@ -76,6 +76,9 @@
 //#include "synth/dspVoice.hpp"
 
 #include "midi/midifile.hpp"
+#include "midi/midiMessage.hpp"
+#include "midi/midiNote.hpp"
+#include "midi/device.hpp"
 
 #include "player/player.hpp"
 #include "player/playerInterface.hpp"

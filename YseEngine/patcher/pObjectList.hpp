@@ -24,6 +24,7 @@ namespace YSE {
     DEFOBJ(G_BUTTON, ".b");
     DEFOBJ(G_TOGGLE, ".t");
     DEFOBJ(G_MESSAGE, ".m");
+	DEFOBJ(G_LIST, ".l");
     DEFOBJ(G_TEXT, ".text");
     DEFOBJ(G_COUNTER, ".counter");
     DEFOBJ(G_SWITCH, ".switch");
@@ -52,5 +53,13 @@ namespace YSE {
     DEFOBJ(D_HIGHPASS, "~hp");
     DEFOBJ(D_BANDPASS, "~bp");
     DEFOBJ(D_VCF, "~vcf");
+
+	DEFOBJ(M_OUT, ".midiout");
+	DEFOBJ(M_NOTEON, ".noteon");
+	DEFOBJ(M_NOTEOFF, ".noteoff");
+	DEFOBJ(M_CONTROL, ".controlchange");
+	DEFOBJ(M_POLYPRESS, ".polypressure");
+	DEFOBJ(M_CHANPRESS, ".channelpressure");
+	DEFOBJ(M_PROGCHANGE, ".programchange");
   };
 }

@@ -40,6 +40,12 @@ void outlet::SendList(const std::string & value, YSE::THREAD thread) {
   }
 }
 
+void outlet::SendMessage(const std::string& value, YSE::THREAD thread) {
+	for (unsigned int i = 0; i < connections.size(); i++) {
+		connections[i]->SetMessage(value, thread);
+	}
+}
+
 void outlet::SendBuffer(YSE::DSP::buffer * value, YSE::THREAD thread) {
   for (unsigned int i = 0; i < connections.size(); i++) {
     connections[i]->SetBuffer(value, thread);
