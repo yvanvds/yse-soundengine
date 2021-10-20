@@ -1,7 +1,7 @@
 
 #include "pMidiToFrequency.h"
 #include "../pObjectList.hpp"
-#include "dsp/math.hpp"
+#include "../../dsp/math.hpp"
 
 using namespace YSE::PATCHER;
 

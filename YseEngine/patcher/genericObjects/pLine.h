@@ -2,7 +2,7 @@
 #pragma once
 
 #include "../pObject.h"
-#include "dsp/ramp.hpp"
+#include "../../dsp/ramp.hpp"
 
 namespace YSE {
   namespace PATCHER {

@@ -44,6 +44,7 @@
 #include "math/gRandom.h"
 #include "math/gCounter.h"
 
+#if YSE_WINDOWS
 #include "midi/mMidiChannelPressure.h"
 #include "midi/mMidiControl.h"
 #include "midi/mMidiNoteOff.h"
@@ -51,7 +52,7 @@
 #include "midi/mMidiOut.h"
 #include "midi/mMidiPolyPressure.h"
 #include "midi/mMidiProgramChange.h"
-
+#endif
 
 using namespace YSE::PATCHER;
 
@@ -108,6 +109,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_HIGHPASS, pHighpass::Create);
   Add(OBJ::D_VCF, dVcf::Create);
 
+#if YSE_WINDOWS
   Add(OBJ::M_CHANPRESS, mMidiChannelPressure::Create);
   Add(OBJ::M_CONTROL, mMidiControl::Create);
   Add(OBJ::M_NOTEOFF, mMidiNoteOff::Create);
@@ -115,6 +117,7 @@ pRegistry::pRegistry() {
   Add(OBJ::M_OUT, mMidiOut::Create);
   Add(OBJ::M_POLYPRESS, mMidiPolyPressure::Create);
   Add(OBJ::M_PROGCHANGE, mMidiProgramChange::Create);
+#endif
 }
 
 pObject* pRegistry::Get(const std::string & objectID) {

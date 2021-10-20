@@ -8,7 +8,7 @@
   ==============================================================================
 */
 
-#include "internalHeaders.h"
+#include "../internalHeaders.h"
 
 
 YSE::CHANNEL::implementationObject::implementationObject(channel * head) :

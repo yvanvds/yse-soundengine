@@ -23,7 +23,7 @@ DemoOcclusion::DemoOcclusion()
   OccludeValue = 0;
 
   YSE::System().occlusionCallback(OcclusionFunction);
-	sound.create("..\\TestResources\\pulse1.ogg", nullptr, true);
+	sound.create("../../TestResources/pulse1.ogg", nullptr, true);
 	sound.occlusion(true);
   sound.play();
 }

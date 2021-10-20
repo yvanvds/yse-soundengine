@@ -180,6 +180,7 @@ const std::string & YSE::system::getDefaultHost() {
   return DEVICE::Manager().getDefaultTypeName();
 }
 
+#if YSE_WINDOWS
 unsigned int YSE::system::getNumMidiInDevices()
 {
 	return MIDI::DeviceManager().getNumMidiInDevices();
@@ -200,6 +201,7 @@ const std::string YSE::system::getMidiOutDeviceName(unsigned int ID)
 	std::string result = MIDI::DeviceManager().getMidiOutDeviceName(ID);
 	return result;
 }
+#endif
 
 YSE::system & YSE::system::AudioTest(bool on) {
 #ifdef __WINDOWS__

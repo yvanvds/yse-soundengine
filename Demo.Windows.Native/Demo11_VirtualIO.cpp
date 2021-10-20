@@ -11,9 +11,9 @@ DemoVirtualIO::DemoVirtualIO() {
   AddAction('3', "Toggle Sound 3", std::bind(&DemoVirtualIO::Three, this));
 
   // fill buffermanager
-  int f1 = loadToBuffer("..\\TestResources\\countdown.ogg", &fileBuffer1);
-  int f2 = loadToBuffer("..\\TestResources\\contact.ogg", &fileBuffer2);
-  int f3 = loadToBuffer("..\\TestResources\\flies.ogg", &fileBuffer3);
+  int f1 = loadToBuffer("../../TestResources/countdown.ogg", &fileBuffer1);
+  int f2 = loadToBuffer("../../TestResources/contact.ogg", &fileBuffer2);
+  int f3 = loadToBuffer("../../TestResources/flies.ogg", &fileBuffer3);
   
   FileBuffer.AddBuffer("Sound1", fileBuffer1, f1);
   FileBuffer.AddBuffer("Sound2", fileBuffer2, f2);

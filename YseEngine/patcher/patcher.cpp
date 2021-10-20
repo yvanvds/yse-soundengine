@@ -2,7 +2,7 @@
 #include "patcher.hpp"
 #include "patcherImplementation.h"
 #include "pRegistry.h"
-#include "implementations/logImplementation.h"
+#include "../implementations/logImplementation.h"
 
 using namespace YSE;
 

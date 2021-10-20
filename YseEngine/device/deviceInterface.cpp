@@ -9,7 +9,7 @@
 */
 
 #include "deviceInterface.hpp"
-#include "internalHeaders.h"
+#include "../internalHeaders.h"
 
 
 YSE::device::device() {

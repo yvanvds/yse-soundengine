@@ -542,6 +542,11 @@ Bool YSE::SOUND::implementationObject::dsp() {
 
 	if (playerType == PT_PATCHER && status_dsp != SS_PLAYING) {
 		switch (status_dsp) {
+		    case SS_STOPPED:
+		    case SS_PAUSED:
+		    case SS_PLAYING:
+		    case SS_PLAYING_FULL_VOLUME:
+		        break;
 			case SS_WANTSTOPLAY: status_dsp = SS_PLAYING; break;
 			case SS_WANTSTORESTART: status_dsp = SS_PLAYING; break;
 			case SS_WANTSTOPAUSE: status_dsp = SS_PAUSED; break;
@@ -663,7 +668,9 @@ void YSE::SOUND::implementationObject::dspFunc_parseIntent() {
       else status_dsp = SS_WANTSTOPLAY;
       break;
     }
-      
+
+    case SI_NONE:
+    break;
   }
 
   headIntent = SI_NONE;

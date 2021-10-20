@@ -132,6 +132,7 @@ add_library( # Sets the name of the library.
              ../../YseEngine/patcher/guiObjects/gSlider.cpp
              ../../YseEngine/patcher/guiObjects/gText.cpp
              ../../YseEngine/patcher/guiObjects/gToggle.cpp
+             ../../YseEngine/patcher/guiObjects/gList.cpp
 
              ../../YseEngine/patcher/math/dAdd.cpp
              ../../YseEngine/patcher/math/dClip.cpp

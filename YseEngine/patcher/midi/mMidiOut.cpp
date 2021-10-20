@@ -1,3 +1,5 @@
+#include "headers/defines.hpp"
+#if YSE_WINDOWS
 #include "mMidiOut.h"
 #include "../pObjectList.hpp"
 #include "../patcherImplementation.h"
@@ -46,3 +48,4 @@ MESSAGES() {
 		out.LocalControl(false);
 	}
 }
+#endif

@@ -1,3 +1,5 @@
+#include "headers/defines.hpp"
+#if YSE_WINDOWS
 #include "mMidiPolyPressure.h"
 #include "../pObjectList.hpp"
 
@@ -38,3 +40,4 @@ CALC() {
 	message[2] = pressure;
 	outputs[0].SendList(message, thread);
 }
+#endif

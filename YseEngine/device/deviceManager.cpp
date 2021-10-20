@@ -9,7 +9,7 @@
 */
 
 
-#include "internalHeaders.h"
+#include "../internalHeaders.h"
 
 
 YSE::DEVICE::deviceManager::deviceManager() 

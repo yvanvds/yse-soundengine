@@ -1,7 +1,7 @@
 #if YSE_ANDROID
 
 #include "androidDeviceManager.h"
-#include "internalHeaders.h"
+#include "../internalHeaders.h"
 #include "OpenSLImplementation.h"
 
 #define CONV16BIT 32768

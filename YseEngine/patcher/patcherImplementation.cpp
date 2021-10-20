@@ -244,7 +244,7 @@ void patcherImplementation::ParseJSON(const std::string & content) {
   mtx.unlock();
 }
 
-std::size_t patcherImplementation::Objects() {
+unsigned int patcherImplementation::Objects() {
   return objects.size();
 }
 

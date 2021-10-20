@@ -9,7 +9,7 @@
 */
 
 #include "../internalHeaders.h"
-#include "patcher/patcherImplementation.h"
+#include "../patcher/patcherImplementation.h"
 //#include "../synth/synthInterface.hpp"
 
 YSE::sound::sound()

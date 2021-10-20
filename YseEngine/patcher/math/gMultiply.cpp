@@ -1,7 +1,7 @@
 
 #include "gMultiply.h"
 #include "../pObjectList.hpp"
-#include "implementations/logImplementation.h"
+#include "../../implementations/logImplementation.h"
 
 using namespace YSE::PATCHER;
 

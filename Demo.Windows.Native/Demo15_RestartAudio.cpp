@@ -5,7 +5,7 @@
 #include <iostream>
 
 DemoRestartAudio::DemoRestartAudio() {
-	sound.create("..\\TestResources\\drone.ogg", nullptr, true);
+	sound.create("../../TestResources/drone.ogg", nullptr, true);
 	sound.play();
 	
 

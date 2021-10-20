@@ -2,7 +2,7 @@
 #pragma once
 
 #include "../pObject.h"
-#include "dsp/math.hpp"
+#include "../../dsp/math.hpp"
 
 namespace YSE {
   namespace PATCHER {

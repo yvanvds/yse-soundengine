@@ -1,3 +1,5 @@
+#include "headers/defines.hpp"
+#if YSE_WINDOWS
 #include "mMidiNoteOn.h"
 #include "../pObjectList.hpp"
 
@@ -38,3 +40,4 @@ CALC() {
 	message[2] = velocity;
 	outputs[0].SendList(message, thread);
 }
+#endif

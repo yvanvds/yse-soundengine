@@ -14,7 +14,7 @@ DemoStreaming::DemoStreaming()
   AddAction('5', "Restart at full Volume", std::bind(&DemoStreaming::Play, this));
 
   // setting the last parameter to true will enable streaming
-  sound.create("..\\TestResources\\countdown.ogg", nullptr, true, 1.f, true);
+  sound.create("../../TestResources/countdown.ogg", nullptr, true, 1.f, true);
   sound.play();
 }
 

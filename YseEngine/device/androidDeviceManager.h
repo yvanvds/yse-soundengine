@@ -2,8 +2,8 @@
 
 #if YSE_ANDROID
 
-#include "classes.hpp"
-#include "headers/types.hpp"
+#include "../classes.hpp"
+#include "../headers/types.hpp"
 #include "deviceManager.h"
 
 #include <SLES/OpenSLES.h>

@@ -1,6 +1,8 @@
 #pragma once
-#include "RtMidi.h"
-#include "..//midi/midiMessage.hpp"
+#if YSE_WINDOWS
+
+#include "../dependencies/rtmidi/include/RtMidi.h"
+#include "../midi/midiMessage.hpp"
 #include <map>
 
 namespace YSE {
@@ -34,3 +36,5 @@ namespace YSE {
 		void GenerateMidiError(const RtMidiError & error);
 	}
 }
+
+#endif

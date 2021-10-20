@@ -1,3 +1,5 @@
+#include "headers/defines.hpp"
+#if YSE_WINDOWS
 #include "device.hpp"
 #include "RtMidi.h"
 #include "midiDeviceManager.h"
@@ -228,3 +230,5 @@ void YSE::midiOut::Raw(const std::string& value)
 bool YSE::midiOut::isPrepared() {
 	return device != nullptr;
 }
+
+#endif

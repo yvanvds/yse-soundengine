@@ -11,8 +11,8 @@
 #ifndef ABSTRACTDEVICEMANAGER_H_INCLUDED
 #define ABSTRACTDEVICEMANAGER_H_INCLUDED
 
-#include "classes.hpp"
-#include "headers/types.hpp"
+#include "../classes.hpp"
+#include "../headers/types.hpp"
 #include <vector>
 
 namespace YSE {

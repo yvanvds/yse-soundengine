@@ -1,3 +1,7 @@
+#include "headers/defines.hpp"
+
+#if YSE_WINDOWS
+
 #include "midiDeviceManager.h"
 #include "internalHeaders.h"
 
@@ -165,3 +169,4 @@ bool YSE::MIDI::deviceManager::isPrepared()
 	return true;
 }
 
+#endif

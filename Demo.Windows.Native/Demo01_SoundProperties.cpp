@@ -14,7 +14,7 @@ In this demo a sound is loaded and some of its properties are changed.
 DemoSoundProperties::DemoSoundProperties()
 {
 	// load a sound in memory
-	sound.create("..\\TestResources\\contact.ogg", nullptr, true);
+	sound.create("../../TestResources/contact.ogg", nullptr, true);
 
 	// false on validation means the sound could not be loaded
 	if (!sound.isValid()) {

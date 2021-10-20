@@ -13,8 +13,9 @@
 #include <fstream>
 
 #if defined YSE_WINDOWS
+#define _SILENCE_EXPERIMENTAL_FILESYSTEM_DEPRECATION_WARNING 1
 #include <Windows.h>
-#include <filesystem>
+#include <experimental/filesystem>
 
 
 std::string YSE::GetCurrentWorkingDirectory() {

@@ -1,6 +1,8 @@
 #pragma once
+#include "headers/defines.hpp"
+#if YSE_WINDOWS
 #include "../pObject.h"
-#include "midi/device.hpp"
+#include "../../midi/device.hpp"
 
 namespace YSE {
 	namespace PATCHER {
@@ -18,3 +20,4 @@ namespace YSE {
 		};
 	}
 }
+#endif

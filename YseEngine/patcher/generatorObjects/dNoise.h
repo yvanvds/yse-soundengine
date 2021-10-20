@@ -2,7 +2,7 @@
 #pragma once
 
 #include "../pObject.h"
-#include "dsp/oscillators.hpp"
+#include "../../dsp/oscillators.hpp"
 
 namespace YSE {
   namespace PATCHER {

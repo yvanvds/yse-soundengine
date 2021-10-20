@@ -9,7 +9,7 @@
 */
 
 
-#include "internalHeaders.h"
+#include "../internalHeaders.h"
 
 
 YSE::channel::channel() : volume(1.f), allowVirtual(true), pimpl(nullptr)

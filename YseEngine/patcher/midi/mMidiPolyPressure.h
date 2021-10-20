@@ -1,3 +1,4 @@
+#if YSE_WINDOWS
 #pragma once
 #include "../pObject.h"
 
@@ -17,3 +18,5 @@ namespace YSE {
 		};
 	}
 }
+
+#endif

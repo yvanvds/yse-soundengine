@@ -7,7 +7,7 @@
 
 DemoReverb::DemoReverb()
 {
-	snare.create("..\\TestResources\\snare.ogg", nullptr, true);
+	snare.create("../../TestResources/snare.ogg", nullptr, true);
 	snare.play();
   
   // set global reverb

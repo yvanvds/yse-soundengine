@@ -1,5 +1,5 @@
 #include "pDac.h"
-#include "implementations\logImplementation.h"
+#include "../../implementations/logImplementation.h"
 #include <string>
 
 using namespace YSE::PATCHER;

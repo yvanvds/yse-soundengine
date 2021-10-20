@@ -118,3 +118,55 @@
 (App Message)  removed sound
 (App Message)  removed sound
 === end of YSE log ===
+=== start of YSE log ===
+(Debug)  YSE System object initialized
+(Warning) Error while loading file:  file not found for C:\Users\yvan\source\repos\yse-soundengine\bin\Demo.Windows.Native/../TestResources/drone.ogg
+(App Message)  removed sound
+(Warning) Error while loading file:  file not found for C:\Users\yvan\source\repos\yse-soundengine\bin\Demo.Windows.Native/..\TestResources\drone.ogg
+=== start of YSE log ===
+(Debug)  YSE System object initialized
+(App Message)  removed sound
+(Warning) Error while loading file:  file not found for C:\Users\yvan\source\repos\yse-soundengine\bin\Demo.Windows.Native/..\TestResources\drone.ogg
+=== start of YSE log ===
+(Debug)  YSE System object initialized
+(Warning) Error while loading file:  file not found for C:\Users\yvan\source\repos\yse-soundengine\bin\Demo.Windows.Native/..\TestResources\drone.ogg
+=== start of YSE log ===
+(Debug)  YSE System object initialized
+(App Message)  sound added
+(App Message)  SoundFile: reading from buffer C:\Users\yvan\source\repos\yse-soundengine\bin\Demo.Windows.Native/../../TestResources/drone.ogg with size 28678 (length 28678 * channels 1 for 28678 bytes.
+(App Message)  removed sound
+=== end of YSE log ===
+=== start of YSE log ===
+(Debug)  YSE System object initialized
+(App Message)  sound added
+(App Message)  SoundFile: reading from buffer C:\Users\yvan\source\repos\yse-soundengine\bin\Demo.Windows.Native/..\..\TestResources\drone.ogg with size 28678 (length 28678 * channels 1 for 28678 bytes.
+(App Message)  removed sound
+=== start of YSE log ===
+(Debug)  YSE System object initialized
+(App Message)  sound added
+(App Message)  SoundFile: reading from buffer C:\Users\yvan\source\repos\yse-soundengine\bin\Demo.Windows.Native/..\..\TestResources\drone.ogg with size 28678 (length 28678 * channels 1 for 28678 bytes.
+(Error) Audio device:  Invalid device
+(App Message)  removed sound
+=== start of YSE log ===
+(Debug)  YSE System object initialized
+(App Message)  sound added
+(App Message)  SoundFile: reading from buffer C:\Users\yvan\source\repos\yse-soundengine\bin\Demo.Windows.Native/../../TestResources/drone.ogg with size 28678 (length 28678 * channels 1 for 28678 bytes.
+(App Message)  removed sound
+=== end of YSE log ===
+=== start of YSE log ===
+(Debug)  YSE System object initialized
+(App Message)  sound added
+(App Message)  SoundFile: reading from buffer C:\Users\yvan\source\repos\yse-soundengine\bin\Demo.Windows.Native/..\..\TestResources\drone.ogg with size 28678 (length 28678 * channels 1 for 28678 bytes.
+=== start of YSE log ===
+(Debug)  YSE System object initialized
+(App Message)  sound added
+(App Message)  SoundFile: reading from buffer C:\Users\yvan\source\repos\yse-soundengine\bin\Demo.Windows.Native/../../TestResources/drone.ogg with size 28678 (length 28678 * channels 1 for 28678 bytes.
+(App Message)  removed sound
+=== end of YSE log ===
+=== start of YSE log ===
+(Debug)  YSE System object initialized
+(App Message)  sound added
+(App Message)  SoundFile: reading from buffer C:\Dev\yse-soundengine\bin\Demo.Windows.Native/../../TestResources/drone.ogg with size 28678 (length 28678 * channels 1 for 28678 bytes.
+(App Message)  removed sound
+(Warning) Error while loading file:  file not found for C:\Dev\yse-soundengine\bin\Demo.Windows.Native/..\TestResources\contact.ogg
+(Warning) Error while loading file:  file not found for C:\Dev\yse-soundengine\bin\Demo.Windows.Native/..\TestResources\drone.ogg

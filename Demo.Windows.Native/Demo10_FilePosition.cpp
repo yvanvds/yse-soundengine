@@ -18,7 +18,7 @@ DemoFilePosition::DemoFilePosition()
   AddAction('8', "Eight", std::bind(&DemoFilePosition::Eight, this));
   AddAction('9', "Nine", std::bind(&DemoFilePosition::Nine, this));
 
-	sound.create("..\\TestResources\\countdown.ogg", nullptr, true);
+	sound.create("../../TestResources/countdown.ogg", nullptr, true);
 	sound.play();
 }
 

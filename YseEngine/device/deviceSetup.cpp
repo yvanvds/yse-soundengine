@@ -9,7 +9,7 @@
 */
 
 #include "deviceSetup.hpp"
-#include "internalHeaders.h"
+#include "../internalHeaders.h"
 
 YSE::deviceSetup::deviceSetup()
 : in(nullptr),

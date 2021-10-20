@@ -21,7 +21,7 @@ DemoLoadPatcher::DemoLoadPatcher() {
 }
 
 void DemoLoadPatcher::LoadPatch1() {
-  std::ifstream in("..\\TestResources\\patcher.yap");
+  std::ifstream in("../../TestResources/patcher.yap");
 
   if (in.fail()) {
     in.close();

@@ -2,7 +2,7 @@
 #include "outlet.h"
 #include "inlet.h"
 #include "pObject.h"
-#include "dsp/buffer.hpp"
+#include "../dsp/buffer.hpp"
 
 using namespace YSE::PATCHER;
 
