@@ -30,10 +30,10 @@ void YSE::DSP::ADSRenvelope::generate() {
   for (unsigned int i = 0; i < envelope.getLength(); i++) {
     *ptr++ = breakPoints[currentPoint].value
       + (breakPoints[currentPoint + 1].value - breakPoints[currentPoint].value)
-      * std::pow(
+      * static_cast<float>(std::pow(
             (i - lastTarget) / static_cast<double>(target - lastTarget)
             , breakPoints[currentPoint].coef
-        );
+        ));
 
     if (i == target) {
       lastTarget = target;

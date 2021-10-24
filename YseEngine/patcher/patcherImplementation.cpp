@@ -245,7 +245,7 @@ void patcherImplementation::ParseJSON(const std::string & content) {
 }
 
 unsigned int patcherImplementation::Objects() {
-  return objects.size();
+  return static_cast<unsigned int>(objects.size());
 }
 
 YSE::pHandle * patcherImplementation::GetHandleFromList(unsigned int obj) {

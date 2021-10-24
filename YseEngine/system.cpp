@@ -165,7 +165,7 @@ void YSE::system::closeCurrentDevice() {
 }
 
 UInt YSE::system::getNumDevices() {
-  return DEVICE::Manager().getDeviceList().size();
+  return static_cast<UInt>(DEVICE::Manager().getDeviceList().size());
 }
 
 const YSE::device & YSE::system::getDevice(unsigned int nr) {

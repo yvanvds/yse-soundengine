@@ -207,7 +207,7 @@ AudioFormatReader * YSE::SOUND::managerObject::getReader(juce::InputStream * sou
 
 void YSE::SOUND::managerObject::adjustLastGainBuffer() {
   for (auto i = inUse.begin(); i != inUse.end(); ++i) {
-    UInt j = (*i)->lastGain.size(); // need to store previous size for deep resize
+    UInt j = static_cast<UInt>((*i)->lastGain.size()); // need to store previous size for deep resize
     (*i)->lastGain.resize(CHANNEL::Manager().getNumberOfOutputs());
     for (; j < (*i)->lastGain.size(); j++) {
       (*i)->lastGain[j].resize((*i)->buffer->size(), 0.0f);

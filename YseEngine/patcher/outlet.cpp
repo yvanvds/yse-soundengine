@@ -76,7 +76,7 @@ void outlet::DumpJSON(nlohmann::json::value_type & json) {
 }
 
 unsigned int outlet::GetConnections() {
-  return connections.size();
+  return static_cast<unsigned int>(connections.size());
 }
 
 unsigned int outlet::GetTarget(unsigned int connection) {

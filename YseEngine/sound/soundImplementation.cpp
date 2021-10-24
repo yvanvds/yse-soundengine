@@ -730,7 +730,7 @@ void YSE::SOUND::implementationObject::toChannels() {
     // emitted power
     Flt power = 0;
     for (UInt i = 0; i < parent->outConf.size(); i++) {
-      power += pow(parent->outConf[i].initGain, 2);
+      power += static_cast<Flt>(pow(parent->outConf[i].initGain, 2));
     }
     // calculated power
     Flt dist = distance - size;
@@ -740,7 +740,7 @@ void YSE::SOUND::implementationObject::toChannels() {
 
     // final gain assignment
     for (UInt j = 0; j < parent->out.size(); ++j) {
-      parent->outConf[j].ratio = pow(parent->outConf[j].initGain, 2) / power;
+      parent->outConf[j].ratio = static_cast<Flt>(pow(parent->outConf[j].initGain, 2) / power);
       channelBuffer = (*buffer)[x];
       parent->outConf[j].finalGain = sqrt(correctPower * parent->outConf[j].ratio);
 

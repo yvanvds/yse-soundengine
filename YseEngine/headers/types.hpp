@@ -20,7 +20,6 @@ They make it easier to implement platform independent code later on.
 
 typedef bool                                 Bool ;
 typedef char                                 Char8;
-typedef wchar_t                              Char ;
 typedef float                                Flt  ;
 typedef double                               Dbl  ;
 typedef PLATFORM(signed	__int8   , int8_t  ) I8   ;

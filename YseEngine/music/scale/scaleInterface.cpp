@@ -107,7 +107,7 @@ Flt YSE::scale::getNearest(Flt pitch) const {
 }
 
 UInt YSE::scale::size() const {
-  return pitches.size();
+  return static_cast<UInt>(pitches.size());
 }
 
 YSE::scale & YSE::scale::clear() {

@@ -229,7 +229,7 @@ namespace YSE {
       Flt ratio;
       Flt finalGain;
 
-      output() : angle(0.f) {}
+      output() : angle(0.f), initPan(0.f), initGain(1.f), effective(1.f), ratio(1.f), finalGain(1.f) {}
     };
 
   }

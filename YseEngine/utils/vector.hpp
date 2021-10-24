@@ -27,7 +27,7 @@ namespace YSE {
     Pos& zero() { x = y = z = 0; return (*this); }
     Pos& set(float r) { x = y = z = r; return (*this); }
     Pos& set(float x, float y, float z) { this->x = x, this->y = y, this->z = z; return (*this); }
-    float length() { return sqrt(std::pow(x, 2) + std::pow(y, 2) + std::pow(z, 2)); }
+    float length() { return (float)sqrt(std::pow(x, 2) + std::pow(y, 2) + std::pow(z, 2)); }
     const char * asText() {
       std::stringstream result(std::stringstream::in | std::stringstream::out);
       result << "X: " << x << " Y: " << y << " Z: " << z;
@@ -64,7 +64,9 @@ namespace YSE {
     friend Pos  operator* (const	Pos     &a, const Pos     &b) { return Pos(a.x*b.x, a.y*b.y, a.z*b.z); }
     friend Pos  operator/ (const	Pos     &a, const Pos     &b) { return Pos(a.x / b.x, a.y / b.y, a.z / b.z); }
 
-    Pos() {}
+    Pos() {
+        set(0.f);
+    }
     //Pos(Pos& v) {x=v.x; y=v.y; z=v.z;}
     Pos(float r) { set(r); }
     Pos(float x, float y, float z) { set(x, y, z); }
@@ -97,7 +99,7 @@ namespace YSE {
   inline Pos  Min(const Pos &a, const Pos &b) { return Pos(Min(a.x, b.x), Min(a.y, b.y), Min(a.z, b.z)); }
   inline Pos  Avg(const Pos &a, const Pos &b) { return (a + b)*0.5f; }
   inline float  Dist(const Pos &a, const Pos &b) {
-    return sqrt(std::pow((b.x - a.x), 2) + std::pow((b.y - a.y), 2) + std::pow((b.z - a.z), 2));
+    return sqrt(static_cast<float>(std::pow((b.x - a.x), 2) + std::pow((b.y - a.y), 2) + std::pow((b.z - a.z), 2)));
   }
   inline Flt  Dot(const Pos &a, const Pos &b) { return a.x*b.x + a.y*b.y + a.z*b.z; }
   //Pos Cross(const Pos &a, const Pos &b);
