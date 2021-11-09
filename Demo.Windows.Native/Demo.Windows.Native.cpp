@@ -17,7 +17,7 @@ int main()
 	YSE::System().init();
 
 	TopMenu topMenu;
-	topMenu.Run();
+ 	topMenu.Run();
 
 	YSE::System().close();
 	return 0;

@@ -3,7 +3,7 @@
 
 #include "stdafx.h"
 
-#if defined(WIN32) || defined(WINDOWS)
+#if defined(WIN32) || defined(WIN64) || defined(WINDOWS)
 #include <conio.h>
 #endif
 

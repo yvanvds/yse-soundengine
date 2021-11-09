@@ -73,14 +73,14 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>..\bin\Demo.Windows.Native\</OutDir>
+    <OutDir>..\bin\Demo.Windows.Native32\</OutDir>
     <IntDir>$(ProjectDir)\$(Configuration)\$(Platform)\Intermediate\</IntDir>
     <TargetName>Yse</TargetName>
     <CustomBuildAfterTargets>BuildLink</CustomBuildAfterTargets>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>..\bin\Demo.Windows.Native\</OutDir>
+    <OutDir>..\bin\Demo.Windows.Native64\</OutDir>
     <IntDir>$(ProjectDir)\$(Configuration)\$(Platform)\Intermediate\</IntDir>
     <TargetName>Yse64</TargetName>
   </PropertyGroup>
@@ -112,7 +112,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
       <AdditionalLibraryDirectories>..\dependencies\rtmidi\lib;..\dependencies\portaudio\lib\releasedll;..\dependencies\libsndfile\lib</AdditionalLibraryDirectories>
       <AdditionalDependencies>portaudio_x86.lib;rtmidid.lib;winmm.lib</AdditionalDependencies>
     </Link>
@@ -136,21 +136,22 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>YSE_DLL_BUILD;_DEBUG;YSEWINDOWSNATIVE_EXPORTS;_WINDOWS;_USRDLL;PORTAUDIO_BACKEND;LIBSOUNDFILE_BACKEND;YSE_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\dependencies\rtmidi\include;..\dependencies\portaudio\include;..\dependencies\libsndfile\include;%(AdditionalIncludeDirectories);$(MSBuildThisFileDirectory)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\dependencies\rtmidi\include;..\dependencies\portaudio\include;..\dependencies\libsndfile64\include;%(AdditionalIncludeDirectories);$(MSBuildThisFileDirectory)</AdditionalIncludeDirectories>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <OmitFramePointers>false</OmitFramePointers>
       <FloatingPointModel>Fast</FloatingPointModel>
       <AdditionalOptions>/wd4996 %(AdditionalOptions)</AdditionalOptions>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <LanguageStandard>stdcpp20</LanguageStandard>
       <EnableModules>true</EnableModules>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>..\dependencies\rtmidi\lib;..\dependencies\libsndfile\lib;..\dependencies\portaudio\lib\releasedll</AdditionalLibraryDirectories>
-      <AdditionalDependencies>portaudio_x86.lib;rtmidi.lib;winmm.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\dependencies\rtmidi\lib;..\dependencies\libsndfile64\lib;..\dependencies\portaudio\lib\releasedll</AdditionalLibraryDirectories>
+      <AdditionalDependencies>portaudio_x64.lib;rtmidi64d.lib;winmm.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">

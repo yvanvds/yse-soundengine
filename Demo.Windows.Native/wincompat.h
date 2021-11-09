@@ -1,4 +1,4 @@
-#if !defined(WINCOMPAT_INCLUDED) && !defined(PLATFORM_WINDOWS) && !defined(WIN32) && !defined(WINDOWS) && !defined(__WIN32__)
+#if !defined(WINCOMPAT_INCLUDED) && !defined(PLATFORM_WINDOWS) && !defined(WIN32) && !defined(WIN64) && !defined(WINDOWS) && !defined(__WIN32__)
 #define WINCOMPAT_INCLUDED
 
 /**
