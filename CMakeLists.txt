@@ -1,4 +1,4 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 3.0)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.11)
 
 PROJECT(yse-soundengine)
 
@@ -14,6 +14,25 @@ add_definitions(-DPORTAUDIO_BACKEND)
 
 OPTION(WANT_PORTAUDIO   "Include PortAudio support" ON)
 
+FetchContent_Declare(
+    Portaudio
+    GIT_REPOSITORY https://github.com/PortAudio/portaudio.git
+    GIT_TAG master
+    GIT_PROGRESS ON
+    GIT_SHALLOW ON
+    FIND_PACKAGE_ARGS NAMES portaudio
+)
+FetchContent_MakeAvailable(Portaudio)
+
+FetchContent_Declare(
+    sndfile
+    GIT_REPOSITORY https://github.com/libsndfile/libsndfile.git
+    GIT_TAG master
+    GIT_PROGRESS ON
+    GIT_SHALLOW ON
+    FIND_PACKAGE_ARGS NAMES libsndfile
+)
+FetchContent_MakeAvailable(sndfile)
 
 # check for PortAudio
 IF(WANT_PORTAUDIO)
