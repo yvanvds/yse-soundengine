@@ -1,0 +1,106 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 21, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "debug",
+      "displayName": "Debug",
+      "description": "Debug build (library + demos, no tests)",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "release",
+      "displayName": "Release",
+      "description": "Optimized release build",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "tests-debug",
+      "displayName": "Debug + Tests",
+      "description": "Debug build with the doctest unit-test suite enabled",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build-tests",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "YSE_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "coverage",
+      "displayName": "Coverage (Linux only)",
+      "description": "Coverage-instrumented debug build — requires GCC or Clang on Linux; gcovr must be installed to generate the report",
+      "inherits": "tests-debug",
+      "binaryDir": "${sourceDir}/build-coverage",
+      "cacheVariables": {
+        "YSE_ENABLE_COVERAGE": "ON"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "debug",
+      "displayName": "Debug",
+      "configurePreset": "debug"
+    },
+    {
+      "name": "release",
+      "displayName": "Release",
+      "configurePreset": "release"
+    },
+    {
+      "name": "tests-debug",
+      "displayName": "Debug + Tests",
+      "configurePreset": "tests-debug"
+    },
+    {
+      "name": "coverage",
+      "displayName": "Coverage",
+      "configurePreset": "coverage",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "tests-debug",
+      "displayName": "Debug tests",
+      "configurePreset": "tests-debug",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "coverage",
+      "displayName": "Coverage tests",
+      "configurePreset": "coverage",
+      "output": { "outputOnFailure": true },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    }
+  ]
+}

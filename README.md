@@ -103,6 +103,37 @@ found automatically from the same directory.
 
 ---
 
+## Development workflow
+
+If you have Python 3.8+ available, `yse.py` at the repo root provides a
+Flutter-style CLI for the common tasks.  On Windows run it via:
+
+```sh
+python yse.py build              # configure + debug build (default)
+python yse.py build --release    # release build
+python yse.py test               # build tests-debug preset, run ctest
+python yse.py coverage           # coverage build + gcovr report (Linux only)
+python yse.py run                # run Demo00 from build-debug/bin/
+python yse.py run Demo05         # run a specific demo
+python yse.py debug Demo00       # launch under lldb
+python yse.py clean              # remove all build directories
+python yse.py analyze            # run clang-tidy (falls back to sonar-scanner)
+python yse.py format             # clang-format on YseEngine/ and Tests/
+```
+
+On Unix you can also `chmod +x yse.py` and use `./yse.py <command>`.
+Pass `--help` to any subcommand for full usage.
+
+The script is a thin wrapper over `cmake --preset` / `ctest --preset` calls.
+`CMakePresets.json` at the repo root defines every named configuration; IDEs
+with CMake Tools support (VS Code, CLion, Visual Studio) discover it
+automatically without any extra setup.
+
+Direct `cmake -B build ...` invocations remain fully valid — the presets are
+additive and do not change how the build works when invoked directly.
+
+---
+
 ## Project structure
 
 | Directory | Contents |

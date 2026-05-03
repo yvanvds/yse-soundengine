@@ -22,6 +22,7 @@ jobs:
         with:
           msystem: CLANG64
           update: false
+          path-type: inherit
           install: >-
             mingw-w64-clang-x86_64-clang
             mingw-w64-clang-x86_64-cmake

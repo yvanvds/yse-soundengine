@@ -30,6 +30,9 @@ cmake/                      # CMake helper scripts (demo_main.cpp.in template)
 build/                      # Out-of-tree Release build (gitignored)
 build-debug/                # Out-of-tree Debug build (gitignored)
 CMakeLists.txt              # Root CMake build (adds YseEngine + Demo.Windows.Native + Tests)
+CMakePresets.json           # Named build presets (debug, release, tests-debug, coverage)
+yse.py                      # Python CLI wrapper over cmake --preset / ctest --preset
+.clang-format               # clang-format style config (used by yse.py format)
 sonar-project.properties    # SonarCloud analysis configuration
 .github/workflows/ci.yml    # GitHub Actions: Linux coverage + SonarCloud, Windows Clang64 tests
 doxyGen/                    # Doxygen config
@@ -41,6 +44,27 @@ The old .NET/Xamarin wrappers (`NetYse/`, `YSE.NET.PCL/`, `Yse.NET.Standard/`, `
 ---
 
 ## Build System
+
+### Recommended entry point: CMakePresets.json + yse.py
+
+`CMakePresets.json` at the repo root defines every named build configuration
+(`debug` → `build-debug/`, `release` → `build/`, `tests-debug` → `build-tests/`,
+`coverage` → `build-coverage/`, Linux only).  IDEs with CMake Tools support
+(VS Code, CLion, Visual Studio) auto-discover it.  The Python script `yse.py`
+wraps these presets for terminal use:
+
+```sh
+python yse.py build              # cmake --preset debug + cmake --build --preset debug
+python yse.py build --release    # release variant
+python yse.py test               # tests-debug preset, then ctest --preset tests-debug
+python yse.py coverage           # coverage preset (Linux only) + gcovr report
+python yse.py run [Demo]         # runs a demo from build-debug/bin/
+python yse.py clean / analyze / format
+```
+
+Direct `cmake -B build ...` invocations remain fully valid; the presets are additive.
+
+---
 
 ### CMake (primary)
 
