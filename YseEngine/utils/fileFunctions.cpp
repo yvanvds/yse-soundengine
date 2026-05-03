@@ -13,9 +13,8 @@
 #include <fstream>
 
 #if defined YSE_WINDOWS
-#define _SILENCE_EXPERIMENTAL_FILESYSTEM_DEPRECATION_WARNING 1
 #include <Windows.h>
-#include <experimental/filesystem>
+#include <filesystem>
 
 
 std::string YSE::GetCurrentWorkingDirectory() {
@@ -26,7 +25,7 @@ std::string YSE::GetCurrentWorkingDirectory() {
 }
 
 bool YSE::IsPathAbsolute(const std::string & p) {
-  std::experimental::filesystem::path path(p);
+  std::filesystem::path path(p);
   return path.is_absolute();
 }
 

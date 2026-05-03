@@ -31,7 +31,7 @@ void DemoVirtual::ExplainDemo()
 void DemoVirtual::ShowStatus()
 {
 #ifdef WIN32
-	_cprintf_s("Sounds: %d / Audio thread CPU Load: %.2f \r", counter, YSE::System().cpuLoad());
+	printf("Sounds: %d / Audio thread CPU Load: %.2f \r", counter, YSE::System().cpuLoad());
 #endif
 }
 

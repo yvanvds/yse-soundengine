@@ -111,11 +111,13 @@ void YSE::DEVICE::managerObject::addCallback() {
   params.channelCount = info->maxOutputChannels;
   params.sampleFormat = paFloat32 | paNonInterleaved;
   if (Pa_GetHostApiInfo(info->hostApi)->type == paASIO) {
+#if defined(PA_USE_ASIO)
     long min, max, pref;
-#ifdef __WINDOWS__
     PaAsio_GetAvailableLatencyValues(params.device, &min, &max, &pref, NULL);
-#endif
     params.suggestedLatency = pref;
+#else
+    params.suggestedLatency = info->defaultHighOutputLatency;
+#endif
   }
   else {
     params.suggestedLatency = info->defaultHighOutputLatency;
@@ -239,11 +241,13 @@ void YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup & object) {
   params.channelCount = object.getOutputChannels();
   params.sampleFormat = paFloat32 | paNonInterleaved;
   if (Pa_GetHostApiInfo(info->hostApi)->type == paASIO) {
+#if defined(PA_USE_ASIO)
     long min, max, pref;
-#ifdef __WINDOWS__
     PaAsio_GetAvailableLatencyValues(params.device, &min, &max, &pref, NULL);
-#endif
     params.suggestedLatency = pref;
+#else
+    params.suggestedLatency = info->defaultHighOutputLatency;
+#endif
   }
   else {
     params.suggestedLatency = info->defaultHighOutputLatency;

@@ -1,8 +1,15 @@
 {
   "permissions": {
     "allow": [
+      "PowerShell(*)",
+      "Bash(*)",
       "Bash(Get-ChildItem -Path \"d:\\\\yse-soundengine\" -Directory)",
-      "Bash(Select-Object Name)"
-    ]
+      "Bash(Select-Object Name)",
+      "Bash(Get-ChildItem -Path \"d:\\\\yse-soundengine\")",
+      "Bash(Select-Object -Property Name, PSIsContainer)",
+      "Bash(Format-Table -AutoSize)",
+      "Bash(xargs wc *)"
+    ],
+    "defaultMode": "bypassPermissions"
   }
 }

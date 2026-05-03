@@ -1,42 +1,119 @@
-# This is libYSE 2.0 #
+# libYSE 2.0
 
-libYSE is a cross platform sound engine, written in C++. The 1.0 version was built with JUCE, but because of possible licensing isssues and the current JUCE being unable to create usable Android libraries, JUCE support is removed in libYSE 2.0. Currently Windows, Linux and Android are supported. 
+libYSE is a cross-platform sound engine written in C++. Version 2.0 removes the
+JUCE dependency; PortAudio and libsndfile are the only audio backends. Windows,
+Linux, and Android are supported. The CMake build described here covers Windows
+(MSYS2 Clang) and Linux (system Clang or GCC). Android is out of scope for this
+build system step.
 
-### Nuget ###
-If you use YSE with C#, a few nuget packages are available. For windows you need [https://www.nuget.org/packages/Yse.NET.Standard/](Yse.NET.Standard). _(YSE.NET.PCL is a dependency and will be loaded automatically.)_
+---
 
-With Android, you can use [https://www.nuget.org/packages/Yse.NET.Android/](Yse.NET.Android).
-For Xamarin Forms, add Yse.NET.Android and YSE.NET.PCL to your Android Project, and add YSE.NET.PCL to your Xamarin Forms project. An example of this usage is available in the Demo.Xamarin.Forms project inside this repository.
+## Building on Windows (MSYS2 Clang64)
 
-### Windows Support ###
-There is a native C++ library, compiled with Visual Studio. It uses libsndfile and portaudio a backends.
-A .NET framework library is also included.
+### Prerequisites
 
-### Android Support ###
-The native android library is also created with Visual Studio. It uses libsndfile and openSLES backends. Compiling it on linux should be possible if you create the makefile to do that. 
+Open an **MSYS2 CLANG64** shell and install the required packages:
 
-The .NET android library also provides support for C# Android applications in visual studio. Using Xamarin Forms is also possible.
-
-There is one drawback right now: I could not find a way to pass the asset manager to the native library, making it impossible to read assets from an apk. I will work on that later. For now, a workaround is to use the BufferIO class. By reading audio files into a memory buffer, they can be passed to libYSE from .NET. This is not ideal if you have big audio files though.
-
-### Linux Support (thanks to user [noondie](https://github.com/noondie)) ###
-Building on Linux is supported by cmake.
-PortAudio and libsndfile are the only dependencies for YSE.
-Do the following in the main directory 
-
-```
-$mkdir build 
-$cd build 
-$cmake ..
+```sh
+pacman -S --needed \
+  mingw-w64-clang-x86_64-cmake \
+  mingw-w64-clang-x86_64-ninja \
+  mingw-w64-clang-x86_64-clang \
+  mingw-w64-clang-x86_64-portaudio \
+  mingw-w64-clang-x86_64-libsndfile \
+  mingw-w64-clang-x86_64-rtmidi
 ```
 
-### iOS/Mac Support ###
-This was also supported in YSE 1.0, but had to go when I decided to remove the dependency on JUCE. Adding support would mean adding other backends for reading files _(which is done by libsndfile now)_ and streaming audio output _(openSLES on Android and portaudio on Windows)_. The library is currently written with supporting multiple backends in mind, so it can't be that hard. Currently I don't have time to do this though.
+`rtmidi` is required on Windows because the MIDI device source files link
+against it. If you skip it, `cmake` will fail with a clear error. See
+[KNOWN_ISSUES.md](KNOWN_ISSUES.md) for background.
 
-### Libraries ###
-Native C++ libraries are working, as well as libraries for C# _(.NET framework and .NET standard)_. The project also includes wrappers for use with xamarin forms.
+### Configure and build
 
-### Demo ###
-Demo projects are also included for Windows _(Native/C++ and WPF/C#)_, Android _(Native/C++, Android.NET/C# and Xamarin.Forms)_. 
+```sh
+cd /path/to/yse-soundengine
+cmake -B build -G Ninja
+cmake --build build
+```
 
+The shared library and demo executables are placed in `build/bin/`.
 
+### Run a demo
+
+Demos use hard-coded relative paths (`../../TestResources/...`) so they
+**must be run from the `build/bin/` directory**:
+
+```sh
+cd build/bin
+./Demo00.exe          # Play a sound
+./Demo05.exe          # Reverb
+# … etc.
+```
+
+### Build types
+
+```sh
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
+```
+
+### Optional flags
+
+| CMake option | Default | Description |
+|---|---|---|
+| `YSE_ENABLE_LTO` | `OFF` | Link-time optimisation for Release builds |
+| `YSE_NATIVE_ARCH` | `OFF` | Add `-march=native` (local builds only — not for distributable binaries) |
+
+---
+
+## Building on Linux
+
+### Prerequisites (Debian/Ubuntu)
+
+```sh
+sudo apt install \
+  cmake ninja-build clang \
+  libportaudio-dev libsndfile1-dev
+# rtmidi is optional on Linux (MIDI device code is Windows-only)
+# sudo apt install librtmidi-dev
+```
+
+### Prerequisites (Fedora/RHEL)
+
+```sh
+sudo dnf install cmake ninja-build clang portaudio-devel libsndfile-devel
+```
+
+### Configure and build
+
+```sh
+cmake -B build -G Ninja
+cmake --build build
+```
+
+### Run a demo
+
+```sh
+cd build/bin
+./Demo00          # Play a sound
+```
+
+The `$ORIGIN` rpath is embedded in each demo binary so that `libyse.so` is
+found automatically from the same directory.
+
+---
+
+## Project structure
+
+| Directory | Contents |
+|---|---|
+| `YseEngine/` | Engine source (compiled into `libyse`) |
+| `Demo.Windows.Native/` | Native C++ demos (one executable each) |
+| `TestResources/` | Audio files referenced by demos |
+| `dependencies/` | Vendored headers (rtmidi headers used by build; PortAudio/libsndfile vendored copies unused) |
+
+---
+
+## Known issues
+
+See [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
