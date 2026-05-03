@@ -8,7 +8,7 @@ on:
 jobs:
   build:
     name: Build and analyze
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     env:
       BUILD_WRAPPER_OUT_DIR: build_wrapper_output_directory # Directory where build-wrapper output will be placed
     steps:
@@ -17,27 +17,34 @@ jobs:
           fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
       - name: Install Build Wrapper
         uses: SonarSource/sonarqube-scan-action/install-build-wrapper@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 # v6.0.0
-      - name: Set up MSYS2
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: CLANG64
-          update: false
-          path-type: inherit
-          install: >-
-            mingw-w64-clang-x86_64-clang
-            mingw-w64-clang-x86_64-cmake
-            mingw-w64-clang-x86_64-ninja
-            mingw-w64-clang-x86_64-portaudio
-            mingw-w64-clang-x86_64-libsndfile
-            mingw-w64-clang-x86_64-rtmidi
-            mingw-w64-clang-x86_64-pkgconf
-      - name: Configure CMake
-        shell: msys2 {0}
-        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
-      - name: Run Build Wrapper
-        shell: msys2 {0}
+      - name: Install dependencies
         run: |
-          build-wrapper-win-x86-64.exe --out-dir "$BUILD_WRAPPER_OUT_DIR" cmake --build build
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            pkg-config \
+            portaudio19-dev \
+            libsndfile1-dev \
+            gcovr
+      - name: Configure CMake
+        run: >
+          cmake -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DYSE_ENABLE_COVERAGE=ON
+      - name: Run Build Wrapper
+        run: |
+          build-wrapper-linux-x86-64 --out-dir "$BUILD_WRAPPER_OUT_DIR" cmake --build build
+      - name: Run tests
+        run: ctest --test-dir build --output-on-failure
+      - name: Generate coverage report
+        run: |
+          gcovr \
+            --root . \
+            --filter ./YseEngine/ \
+            --filter ./Tests/ \
+            --sonarqube \
+            --output coverage.xml
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 # v6.0.0
         env:

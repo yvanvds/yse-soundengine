@@ -85,7 +85,7 @@ def cmd_coverage(args):
         "--root", str(ROOT),
         "--filter", "./YseEngine/",
         "--filter", "./Tests/",
-        "--xml",
+        "--sonarqube",
         "--output", str(report),
     ])
     print(f"\nCoverage report written to {report}")
