@@ -31,12 +31,6 @@ local.properties
 .buildpath
 
 #################
-## JUCE
-#################
-*.exe
-JuceLibraryCode/
-
-#################
 ## DoxyGen
 #################
 
