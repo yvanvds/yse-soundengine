@@ -9,7 +9,11 @@
 #include "../headers/defines.hpp"
 #include "../dsp/buffer.hpp"
 #include "pObjectList.hpp"
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-literal-operator"
+#pragma clang diagnostic ignored "-Wtautological-overlap-compare"
 #include "../utils/json.hpp"
+#pragma clang diagnostic pop
 #include "../utils/vector.hpp"
 #include "parameters.h"
 #include "patcher.hpp"
@@ -88,11 +92,11 @@ namespace YSE {
 #define CREATE(className)  static pObject * Create() { return new className(); }
 
 #define _DO_MESSAGES virtual void SetMessage(const std::string & message, float value);
-#define _NO_MESSAGES virtual void SetMessage(const std::string & message, float value) {}
+#define _NO_MESSAGES virtual void SetMessage(const std::string &, float) {}
 #define MESSAGES() void className::SetMessage(const std::string & message, float value)
 
 #define _DO_CALCULATE virtual void Calculate(YSE::THREAD thread);
-#define _NO_CALCULATE virtual void Calculate(YSE::THREAD thread) {}
+#define _NO_CALCULATE virtual void Calculate(YSE::THREAD) {}
 #define CALC() void className::Calculate(YSE::THREAD thread)
 
 #define _DO_RESET virtual void ResetDSP();

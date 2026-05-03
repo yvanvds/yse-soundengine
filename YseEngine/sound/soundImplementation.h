@@ -36,7 +36,7 @@ namespace YSE {
                         eraser queue when the sound object goes out of scope.
       */
       implementationObject(sound * head);
-      ~implementationObject();
+      virtual ~implementationObject();
 
       /** Set up a new sound object. This is called by the sound class. When creating a 
           sound (which must be loaded from disk), the initial state will be 'loading'. The object

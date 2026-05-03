@@ -26,7 +26,7 @@ YSE::MIDI::fileImpl::~fileImpl() {
   }*/
 }
 
-bool YSE::MIDI::fileImpl::create(const std::string & fileName) {
+bool YSE::MIDI::fileImpl::create(const std::string & /*fileName*/) {
   assert(!hasFile);
 
   /*if (!IO().getActive()) {

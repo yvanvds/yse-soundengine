@@ -28,10 +28,10 @@ namespace YSE {
     Pos& set(float r) { x = y = z = r; return (*this); }
     Pos& set(float x, float y, float z) { this->x = x, this->y = y, this->z = z; return (*this); }
     float length() { return (float)sqrt(std::pow(x, 2) + std::pow(y, 2) + std::pow(z, 2)); }
-    const char * asText() {
+    std::string asText() {
       std::stringstream result(std::stringstream::in | std::stringstream::out);
       result << "X: " << x << " Y: " << y << " Z: " << z;
-      return result.str().c_str();
+      return result.str();
     }
 
     Pos& operator+=(float r) { x += r; y += r; z += r; return (*this); }

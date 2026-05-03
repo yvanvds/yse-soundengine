@@ -9,10 +9,10 @@ namespace YSE {
 
 	class API oscHandler {
 	public:
-		virtual void Send(const std::string & to) {}
-		virtual void Send(const std::string & to, int value) {}
-		virtual void Send(const std::string & to, float value) {}
-		virtual void Send(const std::string & to, const std::string & value) {}
+		virtual void Send(const std::string &) {}
+		virtual void Send(const std::string &, int) {}
+		virtual void Send(const std::string &, float) {}
+		virtual void Send(const std::string &, const std::string &) {}
 		virtual ~oscHandler() {}
 	};
 

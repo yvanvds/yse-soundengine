@@ -47,7 +47,7 @@ namespace YSE {
       */
       virtual void updateDeviceList() {};
 
-	  virtual void openDevice(const YSE::deviceSetup & object) {};
+	  virtual void openDevice(const YSE::deviceSetup &) {};
 	  virtual void addCallback() {};
 
       bool doOnCallback(int numSamples);

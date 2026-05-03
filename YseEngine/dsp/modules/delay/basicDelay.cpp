@@ -48,7 +48,7 @@ void YSE::DSP::MODULES::basicDelay::create() {
 }
 
 void YSE::DSP::MODULES::basicDelay::createPreFilter() {}
-void YSE::DSP::MODULES::basicDelay::applyPreFilter(DSP::buffer & buffer) {}
+void YSE::DSP::MODULES::basicDelay::applyPreFilter(DSP::buffer & /*buffer*/) {}
 
 void YSE::DSP::MODULES::basicDelay::process(MULTICHANNELBUFFER & buffer) {
   createIfNeeded();

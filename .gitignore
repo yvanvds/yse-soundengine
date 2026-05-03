@@ -59,6 +59,7 @@ x64/
 build/
 build-debug/
 build-tests/
+build-coverage/
 [Bb]in/
 [Oo]bj/
 

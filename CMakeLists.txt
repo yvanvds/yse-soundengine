@@ -99,6 +99,23 @@ if(YSE_ENABLE_COVERAGE)
   message(STATUS "Code coverage instrumentation enabled (--coverage)")
 endif()
 
+# ── LLVM source-based coverage (Windows / MSYS2 Clang64) ─────────────────────
+# Uses -fprofile-instr-generate / -fcoverage-mapping instead of --coverage so
+# that llvm-profdata + llvm-cov can produce the JSON report consumed by
+# sonar.cfamily.llvm-cov.reportPath.  Mutually exclusive with YSE_ENABLE_COVERAGE.
+option(YSE_LLVM_COVERAGE
+  "Enable LLVM source-based coverage instrumentation (Windows/Clang; use YSE_ENABLE_COVERAGE on Linux)"
+  OFF)
+if(YSE_LLVM_COVERAGE)
+  if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    message(FATAL_ERROR "YSE_LLVM_COVERAGE requires Clang")
+  endif()
+  set(YSE_BUILD_TESTS ON CACHE BOOL "Forced ON by YSE_LLVM_COVERAGE" FORCE)
+  add_compile_options(-fprofile-instr-generate -fcoverage-mapping)
+  add_link_options(-fprofile-instr-generate)
+  message(STATUS "LLVM source-based coverage enabled (-fprofile-instr-generate)")
+endif()
+
 # ── LTO ───────────────────────────────────────────────────────────────────────
 if(YSE_ENABLE_LTO)
   include(CheckIPOSupported)

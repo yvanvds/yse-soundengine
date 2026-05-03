@@ -336,10 +336,10 @@ namespace YSE {
 
       tf.d = UNITBIT32;
       normhipart = tf.i[HIOFFSET];
-#ifdef YSE_WINDOWS
+#ifdef _MSC_VER
 #pragma warning ( disable : 4018 )
 #endif
-      for (Int i = 0; i < length; i++) {
+      for (Int i = 0; i < static_cast<Int>(length); i++) {
         float cf, cfindx, r, oneminusr;
 
         cf = *centerPtr++ * isr;

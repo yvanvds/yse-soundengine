@@ -15,7 +15,7 @@ public:
 	void Execute();
 	bool HasKey(char key);
 	const std::string & Text();
-	const char Key() { return key;  }
+	char Key() { return key;  }
 
 private:
 	char key;

@@ -29,6 +29,8 @@ namespace YSE {
       */
       MESSAGE ID;
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnested-anon-types"
       union {
         Flt floatValue;
         void * ptr;
@@ -41,6 +43,7 @@ namespace YSE {
         } note;
 
       };
+#pragma clang diagnostic pop
     };
 
   }

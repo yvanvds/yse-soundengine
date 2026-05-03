@@ -38,11 +38,11 @@ YSE::DEVICE::managerObject::~managerObject() {
 }
 
 int YSE::DEVICE::managerObject::paCallback(
-    const void *input
+    const void * /*input*/
   , void *output
   , unsigned long numSamples
-  , const PaStreamCallbackTimeInfo* timeInfo
-  , PaStreamCallbackFlags statusFlags
+  , const PaStreamCallbackTimeInfo* /*timeInfo*/
+  , PaStreamCallbackFlags /*statusFlags*/
   , void * userData) {
   YSE::DEVICE::managerObject * manager = (YSE::DEVICE::managerObject *)userData;
 	manager->callbacksSinceLastUpdate++;
@@ -216,11 +216,11 @@ void YSE::DEVICE::managerObject::updateDeviceList() {
     d.setTypeName(hostInfo->name);
 
     for (Int j = 0; j < info->maxInputChannels; j++) {
-      d.addInputChannelName("in " + (j + 1));
+      d.addInputChannelName(std::string("in ") + std::to_string(j + 1));
     }
 
     for (Int j = 0; j < info->maxOutputChannels; j++) {
-      d.addOutputChannelName("out " + (j + 1));
+      d.addOutputChannelName(std::string("out ") + std::to_string(j + 1));
     }
 
     d.setInputLatency((Int)info->defaultLowInputLatency);
@@ -287,7 +287,7 @@ void YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup & object) {
   else started = true;
 }
 
-void YSE::DEVICE::managerObject::audioDeviceError(PaError error) {
+void YSE::DEVICE::managerObject::audioDeviceError(PaError /*error*/) {
   INTERNAL::LogImpl().emit(E_AUDIODEVICE, Pa_GetErrorText(err));
 }
 

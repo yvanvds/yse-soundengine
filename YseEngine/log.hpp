@@ -20,7 +20,7 @@ namespace YSE {
   // class for custom output
   class API logHandler {
   public:
-    virtual void AddMessage(const std::string & message) {}
+    virtual void AddMessage(const std::string &) {}
     virtual ~logHandler() {}
   };
 

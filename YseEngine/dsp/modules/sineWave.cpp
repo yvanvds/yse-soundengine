@@ -35,7 +35,7 @@ namespace YSE {
       Flt lastVolume = volumeCurve.getBack();
       Clamp(lastVolume, 0.f, 1.f);
 
-      if (latency >= STANDARD_BUFFERSIZE) {
+      if (latency >= static_cast<Int>(STANDARD_BUFFERSIZE)) {
         // no new attack, but a previous curve might not be done yet
         if (intent == SS_STOPPED || intent == SS_PAUSED) {
           // complete fade out if needed
@@ -144,10 +144,10 @@ namespace YSE {
 
         }
         else if (intent == SS_WANTSTOPLAY || intent == SS_WANTSTORESTART) {
-          Int slopeLength = (latency + 200) >= STANDARD_BUFFERSIZE ? STANDARD_BUFFERSIZE - latency : 200;
+          Int slopeLength = (latency + 200) >= static_cast<Int>(STANDARD_BUFFERSIZE) ? static_cast<Int>(STANDARD_BUFFERSIZE) - latency : 200;
           volumeCurve.drawLine(0, latency, lastVolume);
           volumeCurve.drawLine(latency, latency + slopeLength, lastVolume, slopeLength * 0.005f);
-          if ((latency + slopeLength) < STANDARD_BUFFERSIZE) {
+          if ((latency + slopeLength) < static_cast<Int>(STANDARD_BUFFERSIZE)) {
             volumeCurve.drawLine(latency + slopeLength, STANDARD_BUFFERSIZE, 1);
           }
           // change frequency after latency
@@ -159,10 +159,10 @@ namespace YSE {
 
         }
         else if (intent == SS_WANTSTOSTOP || intent == SS_WANTSTOPAUSE) {
-          Int slopeLength = latency + 200 > STANDARD_BUFFERSIZE ? STANDARD_BUFFERSIZE - latency : 200;
+          Int slopeLength = latency + 200 > static_cast<Int>(STANDARD_BUFFERSIZE) ? static_cast<Int>(STANDARD_BUFFERSIZE) - latency : 200;
           volumeCurve.drawLine(0, latency, lastVolume);
           volumeCurve.drawLine(latency, latency + slopeLength, lastVolume, 1 - slopeLength * 0.005f);
-          if (latency + slopeLength < STANDARD_BUFFERSIZE) {
+          if (latency + slopeLength < static_cast<Int>(STANDARD_BUFFERSIZE)) {
             volumeCurve.drawLine(latency + slopeLength, STANDARD_BUFFERSIZE, 0);
           }
           // we don't care about frequency here because it's inaudible anyway

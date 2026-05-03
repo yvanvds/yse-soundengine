@@ -55,6 +55,21 @@
         "lhs": "${hostSystemName}",
         "rhs": "Linux"
       }
+    },
+    {
+      "name": "coverage-windows",
+      "displayName": "Coverage (Windows/Clang64)",
+      "description": "LLVM source-based coverage build — requires Clang on Windows/MSYS2; llvm-profdata and llvm-cov must be on PATH to generate the report",
+      "inherits": "tests-debug",
+      "binaryDir": "${sourceDir}/build-coverage",
+      "cacheVariables": {
+        "YSE_LLVM_COVERAGE": "ON"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
     }
   ],
   "buildPresets": [
@@ -82,6 +97,16 @@
         "lhs": "${hostSystemName}",
         "rhs": "Linux"
       }
+    },
+    {
+      "name": "coverage-windows",
+      "displayName": "Coverage (Windows)",
+      "configurePreset": "coverage-windows",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
     }
   ],
   "testPresets": [
@@ -100,6 +125,17 @@
         "type": "equals",
         "lhs": "${hostSystemName}",
         "rhs": "Linux"
+      }
+    },
+    {
+      "name": "coverage-windows",
+      "displayName": "Coverage tests (Windows)",
+      "configurePreset": "coverage-windows",
+      "output": { "outputOnFailure": true },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
       }
     }
   ]

@@ -28,7 +28,7 @@ namespace YSE {
     public:
       
       implementationObject(reverb * head); // < Constructor needs a pointer to the interface
-      ~implementationObject();
+      virtual ~implementationObject();
       Bool readyCheck();
       void removeInterface();
       OBJECT_IMPLEMENTATION_STATE getStatus();

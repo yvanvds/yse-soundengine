@@ -20,7 +20,7 @@ namespace YSE {
       virtual void ResetDSP();
       virtual void Calculate(THREAD thread);
 
-      virtual void SetMessage(const std::string & message, float value) {}
+      virtual void SetMessage(const std::string &, float) {}
 
       pHandle * CreateObject(const std::string & type, const std::string & args);
       void DeleteObject(pHandle * obj);

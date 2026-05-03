@@ -25,7 +25,7 @@ namespace YSE {
     class threadPoolJob {
     public:
       threadPoolJob();
-      ~threadPoolJob();
+      virtual ~threadPoolJob();
 
       virtual void run() = 0;
 

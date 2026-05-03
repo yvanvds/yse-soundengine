@@ -47,7 +47,7 @@ namespace YSE {
   }
 }*/
 
-bool YSE::DSP::LoadFromFile(const char * fileName, YSE::DSP::buffer & buffer, UInt channel) {
+bool YSE::DSP::LoadFromFile(const char * /*fileName*/, YSE::DSP::buffer & /*buffer*/, UInt /*channel*/) {
   /*ScopedPointer<AudioFormatReader> reader = getReader(fileName);
   if (reader == nullptr) return false;
   if (channel >= reader->numChannels) return false;
@@ -70,7 +70,7 @@ bool YSE::DSP::LoadFromFile(const char * fileName, YSE::DSP::buffer & buffer, UI
   
 }
 
-bool YSE::DSP::LoadFromFile(const char * fileName, MULTICHANNELBUFFER & buffer) {
+bool YSE::DSP::LoadFromFile(const char * /*fileName*/, MULTICHANNELBUFFER & /*buffer*/) {
   /*ScopedPointer<AudioFormatReader> reader = getReader(fileName);
   if (reader == nullptr) return false;
 
@@ -94,7 +94,7 @@ bool YSE::DSP::LoadFromFile(const char * fileName, MULTICHANNELBUFFER & buffer) 
   return true;
 }
   
-bool YSE::DSP::SaveToFile(const char * fileName, YSE::DSP::buffer & buffer) {
+bool YSE::DSP::SaveToFile(const char * /*fileName*/, YSE::DSP::buffer & /*buffer*/) {
   /*std::string fn = fileName;
   fn += ".wav";
 
@@ -129,7 +129,7 @@ bool YSE::DSP::SaveToFile(const char * fileName, YSE::DSP::buffer & buffer) {
   return true;
 }
 
-bool YSE::DSP::SaveToFile(const char * fileName, MULTICHANNELBUFFER & buffer) {
+bool YSE::DSP::SaveToFile(const char * /*fileName*/, MULTICHANNELBUFFER & /*buffer*/) {
   /*std::string fn = fileName;
   fn += ".wav";
 

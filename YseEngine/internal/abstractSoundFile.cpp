@@ -529,7 +529,6 @@ calibrate:
 
 	if (file->_streaming) {
 		if (realPos < 0) {
-			realPos = realPos;
 		}
 		pos += realPos;
 	}

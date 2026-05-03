@@ -20,7 +20,7 @@
   }
 }*/
 
-bool YSE::DSP::fileBuffer::load(const char * fileName, UInt channel) {
+bool YSE::DSP::fileBuffer::load(const char * /*fileName*/, UInt /*channel*/) {
   /*ScopedPointer<AudioFormatReader> reader = getReader(fileName);
   if (reader == nullptr) return false;
   if (channel >= reader->numChannels) return false;

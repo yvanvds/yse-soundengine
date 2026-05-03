@@ -6,7 +6,7 @@
 
 Flt OccludeValue = 0;
 
-Flt OcclusionFunction(const YSE::Pos& pos, const YSE::Pos& listener) {
+Flt OcclusionFunction(const YSE::Pos& /*pos*/, const YSE::Pos& /*listener*/) {
   // for simplicity's sake, we just check with a global var here.
   // In reality you should do a raycast here to check these positions with
   // the physx or bullet implementation in your game.

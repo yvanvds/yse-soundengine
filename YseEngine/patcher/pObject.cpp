@@ -73,12 +73,12 @@ YSE::OUT_TYPE pObject::GetOutputType(unsigned int output) const {
 
 
 YSE::PATCHER::inlet * pObject::GetInlet(int number) {
-	if (number >= inputs.size()) return nullptr;
+	if (static_cast<size_t>(number) >= inputs.size()) return nullptr;
 	return &(inputs[number]);
 }
 
 YSE::PATCHER::outlet * pObject::GetOutlet(int number) {
-	if (number >= outputs.size()) return nullptr;
+	if (static_cast<size_t>(number) >= outputs.size()) return nullptr;
 	return &(outputs[number]);
 }
 

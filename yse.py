@@ -42,6 +42,16 @@ def run(cmd, cwd=None):
         sys.exit(result.returncode)
 
 
+def run_to_file(cmd, output_path, cwd=None):
+    """Print and run *cmd*, writing stdout to output_path."""
+    _print_cmd(cmd, cwd)
+    print(f"  (stdout → {output_path})", flush=True)
+    with open(output_path, "w") as f:
+        result = subprocess.run(cmd, stdout=f, cwd=str(cwd) if cwd else None)
+    if result.returncode != 0:
+        sys.exit(result.returncode)
+
+
 def _demo_exe(name):
     """Return the Path to a demo executable in the debug build."""
     suffix = ".exe" if IS_WINDOWS else ""
@@ -64,12 +74,7 @@ def cmd_test(args):
     run(["ctest", "--preset", "tests-debug"])
 
 
-def cmd_coverage(args):
-    if IS_WINDOWS:
-        print("error: the coverage preset requires Linux (--coverage instrumentation "
-              "and gcovr are not supported on Windows/MSYS2).")
-        sys.exit(1)
-
+def _cmd_coverage_linux():
     run(["cmake", "--preset", "coverage"])
     run(["cmake", "--build", "--preset", "coverage"])
     run(["ctest", "--preset", "coverage"])
@@ -89,6 +94,59 @@ def cmd_coverage(args):
         "--output", str(report),
     ])
     print(f"\nCoverage report written to {report}")
+    print(f"SonarQube property: sonar.coverageReportPaths={report.name}")
+
+
+def _cmd_coverage_windows():
+    for tool in ("llvm-profdata", "llvm-cov"):
+        if shutil.which(tool) is None:
+            print(f"error: {tool} not found on PATH.")
+            print("These ship with the MSYS2 Clang64 compiler package:")
+            print("  pacman -S mingw-w64-clang-x86_64-clang")
+            sys.exit(1)
+
+    build_dir = ROOT / "build-coverage"
+    profdata = build_dir / "coverage.profdata"
+    test_exe = build_dir / "bin" / "yse_tests.exe"
+    report = ROOT / "coverage-llvm.json"
+
+    run(["cmake", "--preset", "coverage-windows"])
+    run(["cmake", "--build", "--preset", "coverage-windows"])
+
+    # LLVM_PROFILE_FILE controls where the instrumented binary writes its raw
+    # profile data.  %p expands to PID, keeping per-process files distinct.
+    os.environ["LLVM_PROFILE_FILE"] = str(build_dir / "coverage-%p.profraw")
+    run(["ctest", "--preset", "coverage-windows"])
+
+    profraw_files = sorted(build_dir.glob("coverage-*.profraw"))
+    if not profraw_files:
+        print("error: no .profraw files found after running tests.")
+        sys.exit(1)
+
+    run(["llvm-profdata", "merge", "-sparse"]
+        + [str(f) for f in profraw_files]
+        + ["-o", str(profdata)])
+
+    # llvm-cov export writes the JSON to stdout; redirect to report file.
+    # SonarQube ingests this via sonar.cfamily.llvm-cov.reportPath.
+    run_to_file(
+        ["llvm-cov", "export",
+         str(test_exe),
+         f"--instr-profile={profdata}",
+         "--format=json",
+         str(ROOT / "YseEngine"),
+         str(ROOT / "Tests")],
+        output_path=str(report),
+    )
+    print(f"\nCoverage report written to {report}")
+    print(f"SonarQube property: sonar.cfamily.llvm-cov.reportPath={report.name}")
+
+
+def cmd_coverage(args):
+    if IS_WINDOWS:
+        _cmd_coverage_windows()
+    else:
+        _cmd_coverage_linux()
 
 
 def cmd_run(args):
@@ -136,6 +194,7 @@ def cmd_clean(args):
     ]
     files_to_remove = [
         ROOT / "coverage.xml",
+        ROOT / "coverage-llvm.json",
     ]
 
     existing = [p for p in dirs_to_remove + files_to_remove if p.exists()]
@@ -258,7 +317,7 @@ def build_parser():
   python yse.py build              configure + build (debug)
   python yse.py build --release    configure + build (release)
   python yse.py test               build tests-debug preset, run ctest
-  python yse.py coverage           coverage preset + gcovr report (Linux only)
+  python yse.py coverage           coverage preset + report (Linux: gcovr→coverage.xml; Windows: llvm-cov→coverage-llvm.json)
   python yse.py run                run Demo00 from build-debug/bin/
   python yse.py run Demo05         run Demo05 (Reverb) from build-debug/bin/
   python yse.py debug Demo00       launch Demo00 under lldb
@@ -297,11 +356,20 @@ def build_parser():
     # coverage
     p = sub.add_parser(
         "coverage",
-        help="Coverage build + ctest + gcovr report (Linux only)",
+        help="Coverage build + ctest + report (Linux: gcovr; Windows: llvm-cov)",
         description=(
-            "Configures with YSE_ENABLE_COVERAGE=ON (coverage preset, Linux only), "
-            "builds, runs ctest, then calls gcovr to produce coverage.xml "
-            "in Cobertura format (compatible with SonarCloud)."
+            "Builds with coverage instrumentation, runs ctest, then generates a "
+            "coverage report.\n\n"
+            "Linux: uses the 'coverage' preset (YSE_ENABLE_COVERAGE=ON, --coverage "
+            "flags, GCC/Clang).  Calls gcovr --sonarqube and writes coverage.xml.  "
+            "Configure SonarQube with sonar.coverageReportPaths=coverage.xml.\n\n"
+            "Windows (MSYS2 Clang64): uses the 'coverage-windows' preset "
+            "(YSE_LLVM_COVERAGE=ON, -fprofile-instr-generate/-fcoverage-mapping).  "
+            "Merges .profraw files with llvm-profdata, exports JSON with llvm-cov, "
+            "and writes coverage-llvm.json.  "
+            "Configure SonarQube with sonar.cfamily.llvm-cov.reportPath=coverage-llvm.json.  "
+            "Requires llvm-profdata and llvm-cov on PATH (ship with "
+            "mingw-w64-clang-x86_64-clang)."
         ),
     )
     p.set_defaults(func=cmd_coverage)

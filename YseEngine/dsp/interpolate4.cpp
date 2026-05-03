@@ -24,7 +24,7 @@ YSE::DSP::buffer * YSE::DSP::interpolate4::source() {
 
 YSE::DSP::interpolate4 & YSE::DSP::interpolate4::onset(Int value) {
   if (data) {
-    Clamp(value, 0, data->getLength() - 1);
+    Clamp(value, 0, static_cast<int>(data->getLength()) - 1);
     parmOnset.store(value);
   }
   return *this;

@@ -27,14 +27,10 @@ namespace YSE {
       void  frequency(float value);
       float frequency();
 
-#if YSE_ANDROID
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Woverloaded-virtual"
-#endif
       virtual void process(SOUND_STATUS & intent, Int & latency); // use only during DSP
-#if YSE_ANDROID
 #pragma clang diagnostic pop
-#endif
 
     private:
       sine sineGen;

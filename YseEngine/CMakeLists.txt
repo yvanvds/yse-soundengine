@@ -164,6 +164,79 @@ if(WIN32 AND RtMidi_FOUND)
   )
 endif()
 
+# ── Source-file-scoped warning suppressions ───────────────────────────────────
+# cJSON is a vendored C file; suppress all its warnings rather than patching it.
+set_source_files_properties(json/cJSON.cpp
+  PROPERTIES COMPILE_FLAGS "-w"
+)
+
+# Patcher objects implement a common inlet/thread/message/value interface where
+# many overrides intentionally leave some parameters unused.  Suppress
+# -Wunused-parameter and the two vendored json.hpp pedantic warnings for all
+# patcher TUs rather than touching every .cpp file.
+set(PATCHER_SUPPRESS "-Wno-unused-parameter -Wno-deprecated-literal-operator -Wno-tautological-overlap-compare")
+set_source_files_properties(
+  patcher/patcher.cpp
+  patcher/patcherImplementation.cpp
+  patcher/pObject.cpp
+  patcher/pHandle.cpp
+  patcher/pRegistry.cpp
+  patcher/inlet.cpp
+  patcher/outlet.cpp
+  patcher/parameters.cpp
+  patcher/filters/dVcf.cpp
+  patcher/filters/pBandpass.cpp
+  patcher/filters/pHighpass.cpp
+  patcher/filters/pLowpass.cpp
+  patcher/generatorObjects/dNoise.cpp
+  patcher/generatorObjects/dSaw.cpp
+  patcher/generatorObjects/pSine.cpp
+  patcher/genericObjects/gGate.cpp
+  patcher/genericObjects/gReceive.cpp
+  patcher/genericObjects/gRoute.cpp
+  patcher/genericObjects/gSend.cpp
+  patcher/genericObjects/gSwitch.cpp
+  patcher/genericObjects/pDac.cpp
+  patcher/genericObjects/pLine.cpp
+  patcher/guiObjects/gButton.cpp
+  patcher/guiObjects/gFloat.cpp
+  patcher/guiObjects/gInt.cpp
+  patcher/guiObjects/gList.cpp
+  patcher/guiObjects/gMessage.cpp
+  patcher/guiObjects/gSlider.cpp
+  patcher/guiObjects/gText.cpp
+  patcher/guiObjects/gToggle.cpp
+  patcher/math/dAdd.cpp
+  patcher/math/dClip.cpp
+  patcher/math/dDivide.cpp
+  patcher/math/dMultiply.cpp
+  patcher/math/dSubstract.cpp
+  patcher/math/gAdd.cpp
+  patcher/math/gCounter.cpp
+  patcher/math/gDivide.cpp
+  patcher/math/gMultiply.cpp
+  patcher/math/gRandom.cpp
+  patcher/math/gSubstract.cpp
+  patcher/math/pFrequencyToMidi.cpp
+  patcher/math/pMidiToFrequency.cpp
+  patcher/midi/mMidiChannelPressure.cpp
+  patcher/midi/mMidiControl.cpp
+  patcher/midi/mMidiNoteOff.cpp
+  patcher/midi/mMidiNoteOn.cpp
+  patcher/midi/mMidiOut.cpp
+  patcher/midi/mMidiPolyPressure.cpp
+  patcher/midi/mMidiProgramChange.cpp
+  patcher/time/gMetro.cpp
+  PROPERTIES COMPILE_FLAGS "${PATCHER_SUPPRESS}"
+)
+
+# soundImplementation.cpp and soundInterface.cpp pull in json.hpp through patcher headers.
+set_source_files_properties(
+  sound/soundImplementation.cpp
+  sound/soundInterface.cpp
+  PROPERTIES COMPILE_FLAGS "-Wno-deprecated-literal-operator -Wno-tautological-overlap-compare"
+)
+
 # ── Shared library target ─────────────────────────────────────────────────────
 add_library(yse SHARED ${YSE_SRCS})
 

@@ -710,7 +710,9 @@ void YSE::SOUND::implementationObject::dspFunc_calculateGain(Int channel, Int so
 }
 
 void YSE::SOUND::implementationObject::toChannels() {
+#ifdef _MSC_VER
 #pragma warning ( disable : 4258 )
+#endif
   for (UInt x = 0; x < buffer->size(); x++) {
     // calculate spread value for multichannel sounds
     Flt spreadAdjust = 0;

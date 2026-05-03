@@ -314,7 +314,7 @@ Bool YSE::INTERNAL::reverbDSP::freeze() {
 }
 
 void YSE::INTERNAL::reverbDSP::channels(Int value) {
-  if (channel.size() != value) channel.resize(value);
+  if (channel.size() != static_cast<size_t>(value)) channel.resize(static_cast<size_t>(value));
 }
 
 void YSE::INTERNAL::reverbDSP::modulate(Flt frequency, Flt width) {
@@ -400,7 +400,7 @@ YSE::INTERNAL::reverbChannel::reverbChannel() : delayline(3000), bufComb(COMBS),
   clear();
 }
 
-YSE::INTERNAL::reverbChannel::reverbChannel(const reverbChannel& source): delayline(3000), bufComb(COMBS), bufAll(APASS) {
+YSE::INTERNAL::reverbChannel::reverbChannel(const reverbChannel& /*source*/): delayline(3000), bufComb(COMBS), bufAll(APASS) {
     Int rnd = Random(50);
   // recalculate the reverb parameters in case we don't run at 44.1kHz
   for (Int i = 0; i < COMBS; i++) {

@@ -13,7 +13,7 @@
 #ifndef LSFSOUNDFILE_H_INCLUDED
 #define LSFSOUNDFILE_H_INCLUDED
 
-#ifdef YSE_WINDOWS
+#ifdef _MSC_VER
 #pragma comment(lib, "libsndfile-1.lib")
 #endif
 

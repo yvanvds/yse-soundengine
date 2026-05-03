@@ -29,6 +29,7 @@ namespace YSE {
         public:
             note(Flt pitch = 60.f, Flt volume = 1.f, Flt length = 0.f, Int channel = 1);
             note(const note & object);
+            note & operator=(const note &) = default;
             
             note & set       (Flt pitch, Flt volume = 1.f, Flt length = 0.f, Int channel = 1);
             note & setPitch  (Flt value);

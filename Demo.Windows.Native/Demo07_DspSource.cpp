@@ -19,7 +19,7 @@ shepard::shepard() {
 
 }
 
-void shepard::process(YSE::SOUND_STATUS & intent) {
+void shepard::process(YSE::SOUND_STATUS & /*intent*/) {
   // first clear the output buffer
   out = 0.0f;
   //out += generators[5](freq[5]);

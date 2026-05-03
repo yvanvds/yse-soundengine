@@ -22,7 +22,8 @@ namespace YSE {
     public:
       filterBase();
       filterBase( const filterBase &);
-      
+      virtual ~filterBase() {}
+
       virtual buffer & operator()(buffer & in) = 0;
 
     protected:
