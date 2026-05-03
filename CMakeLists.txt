@@ -23,6 +23,15 @@ option(YSE_ENABLE_LTO
 option(YSE_NATIVE_ARCH
   "Add -march=native (local dev builds only — do NOT use for distributable binaries)"
   OFF)
+option(YSE_BUILD_TESTS
+  "Build the Tests/ unit-test suite (requires doctest vendored under dependencies/doctest/)"
+  OFF)
+option(YSE_ENABLE_COVERAGE
+  "Instrument the build for code coverage — implies YSE_BUILD_TESTS; Linux/GCC or Clang only"
+  OFF)
+
+# Export compile_commands.json for SonarCloud's C++ analyser and clangd.
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # ── Dependencies ──────────────────────────────────────────────────────────────
 find_package(Threads REQUIRED)
@@ -75,6 +84,21 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
   endif()
 endif()
 
+# ── Coverage ──────────────────────────────────────────────────────────────────
+# When YSE_ENABLE_COVERAGE=ON every target in this build (library + tests) is
+# instrumented so that the SonarCloud coverage report reflects library code
+# exercised by the tests, not just the test harness itself.  The option is OFF
+# by default so normal demo / Android builds are completely unaffected.
+if(YSE_ENABLE_COVERAGE)
+  if(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    message(FATAL_ERROR "YSE_ENABLE_COVERAGE requires GCC or Clang")
+  endif()
+  set(YSE_BUILD_TESTS ON CACHE BOOL "Forced ON by YSE_ENABLE_COVERAGE" FORCE)
+  add_compile_options(--coverage)
+  add_link_options(--coverage)
+  message(STATUS "Code coverage instrumentation enabled (--coverage)")
+endif()
+
 # ── LTO ───────────────────────────────────────────────────────────────────────
 if(YSE_ENABLE_LTO)
   include(CheckIPOSupported)
@@ -89,4 +113,14 @@ endif()
 
 # ── Subdirectories ────────────────────────────────────────────────────────────
 add_subdirectory(YseEngine)
-add_subdirectory(Demo.Windows.Native)
+
+# Demos are Windows-only (the directory name says as much; they use Windows
+# console APIs and depend on RtMidi for MIDI demos).  Skip on Linux/CI.
+if(WIN32)
+  add_subdirectory(Demo.Windows.Native)
+endif()
+
+if(YSE_BUILD_TESTS)
+  enable_testing()
+  add_subdirectory(Tests)
+endif()
