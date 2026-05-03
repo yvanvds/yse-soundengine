@@ -25,6 +25,10 @@ target_link_libraries(yse_tests
 
 target_compile_features(yse_tests PRIVATE cxx_std_17)
 
+# doctest uses __COUNTER__, which Clang warns about as a C2y extension.
+# Suppress it here rather than editing the vendored header.
+target_compile_options(yse_tests PRIVATE -Wno-c2y-extensions)
+
 # Put the test binary in the same directory as the shared library so the OS
 # dynamic-loader finds libyse.dll / libyse.so at runtime without extra rpath
 # or PATH manipulation.
