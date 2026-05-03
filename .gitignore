@@ -57,6 +57,7 @@ doxyGen/output/
 [Rr]elease64/
 x64/
 build/
+build-debug/
 [Bb]in/
 [Oo]bj/
 

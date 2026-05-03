@@ -54,6 +54,10 @@ Bool YSE::system::init() {
 
 		DEVICE::Manager().addCallback();
 
+#ifdef YSE_WINDOWS
+    timeBeginPeriod(1);
+#endif
+
 		return true;
 	}
 	INTERNAL::LogImpl().emit(E_ERROR, "YSE System object failed to initialize");
@@ -83,6 +87,10 @@ void YSE::system::close() {
     DEVICE::Manager().close();
     INTERNAL::Global().close();
   }
+
+#ifdef YSE_WINDOWS
+  timeEndPeriod(1);
+#endif
 }
 
 void YSE::system::pause() {

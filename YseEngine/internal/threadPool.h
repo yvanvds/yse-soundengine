@@ -15,7 +15,7 @@
 #include <forward_list>
 #include <queue>
 #include <mutex>
-#include <chrono>
+#include <condition_variable>
 #include "thread.h"
 
 namespace YSE {
@@ -44,19 +44,17 @@ namespace YSE {
 
     class threadPoolThread : public thread {
     public:
-      threadPoolThread(threadPool * pool, Int sleepTimeMS);
+      threadPoolThread(threadPool * pool);
       virtual void run();
 
     private:
       threadPool * pool;
-      std::chrono::milliseconds sleepTime;
     };
 
     class threadPool {
     public:
-      // sleepTime is the time in milliseconds a threadpoolthread will sleep when there are no jobs available
-      // the default -1 means the pool will figure out by itself how many concurrent threads are supported
-      threadPool(Int sleepTime, Int numThreads = -1);
+      // numThreads: -1 means hardware_concurrency
+      threadPool(Int numThreads = -1);
       ~threadPool();
 
       void addJob(threadPoolJob * job);
@@ -72,6 +70,7 @@ namespace YSE {
       std::forward_list<threadPoolThread> threads;
       aBool active;
       std::mutex mutex;
+      std::condition_variable cv;
     };
 
   }

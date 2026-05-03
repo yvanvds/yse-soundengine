@@ -68,3 +68,37 @@ if(RtMidi_FOUND)
 else()
   message(STATUS "Skipping Demo16/Demo17: RtMidi not found (see KNOWN_ISSUES.md)")
 endif()
+
+# ── Combined Demo executable (all pages via menu) ─────────────────────────────
+# MenuOther.cpp includes the MIDI demo headers, so this target requires RtMidi.
+# On Windows RtMidi is always present; on Linux it is skipped when not found.
+if(RtMidi_FOUND)
+  add_executable(Demo
+    demo_main.cpp
+    MenuTop.cpp
+    MenuBasics.cpp
+    MenuDsp.cpp
+    MenuOther.cpp
+    Demo00_PlaySound.cpp
+    Demo01_SoundProperties.cpp
+    Demo02_3D.cpp
+    Demo03_Virtual.cpp
+    Demo04_Channels.cpp
+    Demo05_Reverb.cpp
+    Demo06_Devices.cpp
+    Demo07_DspSource.cpp
+    Demo08_Occlusion.cpp
+    Demo09_Streaming.cpp
+    Demo10_FilePosition.cpp
+    Demo11_VirtualIO.cpp
+    Demo12_AudioTest.cpp
+    Demo13_Patcher.cpp
+    Demo14_LoadPatcher.cpp
+    Demo15_RestartAudio.cpp
+    Demo16_Midi.cpp
+    Demo17_MidiPatcher.cpp
+    Test01_Pitch.cpp
+  )
+  target_compile_features(Demo PRIVATE cxx_std_17)
+  target_link_libraries(Demo PRIVATE yse_demo_common)
+endif()

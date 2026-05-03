@@ -33,21 +33,17 @@ void YSE::INTERNAL::threadPoolJob::activate() {
   isDone = true;
 }
 
-YSE::INTERNAL::threadPoolThread::threadPoolThread(threadPool * pool, Int sleepTimeMS) : pool(pool), sleepTime(sleepTimeMS) {}
+YSE::INTERNAL::threadPoolThread::threadPoolThread(threadPool * pool) : pool(pool) {}
 
 void YSE::INTERNAL::threadPoolThread::run() {
   while (!threadShouldExit()) {
     threadPoolJob * job = pool->getJob();
-    if (job != nullptr) {
-      job->activate();
-    }
-    else {
-      std::this_thread::sleep_for(sleepTime);
-    }
+    if (job == nullptr) return;
+    job->activate();
   }
 }
 
-YSE::INTERNAL::threadPool::threadPool(Int sleepTime, Int numThreads) : active(true){
+YSE::INTERNAL::threadPool::threadPool(Int numThreads) : active(true){
   if (numThreads == -1) {
     numThreads = std::thread::hardware_concurrency();
   }
@@ -59,7 +55,7 @@ YSE::INTERNAL::threadPool::threadPool(Int sleepTime, Int numThreads) : active(tr
   }
 
   for (Int i = 0; i < numThreads; i++) {
-    threads.emplace_front(this, sleepTime);
+    threads.emplace_front(this);
     threads.front().start();
   }
 }
@@ -69,43 +65,37 @@ YSE::INTERNAL::threadPool::~threadPool() {
 }
 
 void YSE::INTERNAL::threadPool::shutdown() {
-  active = false;
-  mutex.lock();
+  {
+    std::unique_lock<std::mutex> lock(mutex);
+    active = false;
+    while (!jobs.empty()) {
+      jobs.front()->inQueue = false;
+      jobs.front()->isDone = true;
+      jobs.pop();
+    }
+  }
+  cv.notify_all();
   for (auto i = threads.begin(); i != threads.end(); ++i) {
     i->stop();
   }
-  while (!jobs.empty()) {
-    jobs.front()->inQueue = false;
-    jobs.front()->isDone = true;
-    jobs.pop();
-  }
-
-  mutex.unlock();
 }
 
 void YSE::INTERNAL::threadPool::addJob(threadPoolJob * job) {
-  // if no threads, shutdown is called
   if (!active) return;
 
   job->start();
-  mutex.lock();
-  jobs.push(job);
-  mutex.unlock();
+  {
+    std::unique_lock<std::mutex> lock(mutex);
+    jobs.push(job);
+  }
+  cv.notify_one();
 }
 
 YSE::INTERNAL::threadPoolJob * YSE::INTERNAL::threadPool::getJob() {
-  if (!active) return nullptr;
-
-  mutex.lock();
-  threadPoolJob * result;
-  if (jobs.empty()) {
-    result = nullptr;
-  }
-  else {
-    result = jobs.front();
-    jobs.pop();
-  }
-
-  mutex.unlock();
+  std::unique_lock<std::mutex> lock(mutex);
+  cv.wait(lock, [this] { return !jobs.empty() || !active; });
+  if (jobs.empty()) return nullptr;
+  threadPoolJob * result = jobs.front();
+  jobs.pop();
   return result;
 }

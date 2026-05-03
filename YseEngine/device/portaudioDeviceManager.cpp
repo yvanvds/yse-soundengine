@@ -146,6 +146,13 @@ void YSE::DEVICE::managerObject::addCallback() {
     audioDeviceError(err);
     return;
   } else started = true;
+
+  {
+    std::string hostName = Pa_GetHostApiInfo(Pa_GetDeviceInfo(params.device)->hostApi)->name;
+    INTERNAL::LogImpl().emit(E_DEBUG, "Audio device: " + hostName +
+      " @ " + std::to_string(SAMPLERATE) + " Hz" +
+      ", suggested latency " + std::to_string((int)(params.suggestedLatency * 1000)) + " ms");
+  }
 }
 
 void YSE::DEVICE::managerObject::close() {

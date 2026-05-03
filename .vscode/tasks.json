@@ -1,0 +1,53 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build: all (Debug)",
+            "type": "shell",
+            "options": {
+                "shell": { "executable": "cmd.exe", "args": ["/c"] },
+                "cwd": "${workspaceFolder}"
+            },
+            "command": "cmake -S . -B build-debug -DCMAKE_BUILD_TYPE=Debug -G Ninja && cmake --build build-debug",
+            "group": { "kind": "build", "isDefault": true },
+            "problemMatcher": "$gcc",
+            "presentation": { "reveal": "always", "panel": "shared" }
+        },
+        {
+            "label": "build: all (Release)",
+            "type": "shell",
+            "options": {
+                "shell": { "executable": "cmd.exe", "args": ["/c"] },
+                "cwd": "${workspaceFolder}"
+            },
+            "command": "cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -G Ninja && cmake --build build",
+            "group": "build",
+            "problemMatcher": "$gcc",
+            "presentation": { "reveal": "always", "panel": "shared" }
+        },
+        {
+            "label": "build: Demo (Debug)",
+            "type": "shell",
+            "options": {
+                "shell": { "executable": "cmd.exe", "args": ["/c"] },
+                "cwd": "${workspaceFolder}"
+            },
+            "command": "cmake -S . -B build-debug -DCMAKE_BUILD_TYPE=Debug -G Ninja && cmake --build build-debug --target Demo",
+            "group": "build",
+            "problemMatcher": "$gcc",
+            "presentation": { "reveal": "always", "panel": "shared" }
+        },
+        {
+            "label": "build: Demo (Release)",
+            "type": "shell",
+            "options": {
+                "shell": { "executable": "cmd.exe", "args": ["/c"] },
+                "cwd": "${workspaceFolder}"
+            },
+            "command": "cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -G Ninja && cmake --build build --target Demo",
+            "group": "build",
+            "problemMatcher": "$gcc",
+            "presentation": { "reveal": "always", "panel": "shared" }
+        }
+    ]
+}

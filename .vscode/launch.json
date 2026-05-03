@@ -1,0 +1,31 @@
+{
+    "version": "0.2.0",
+    // Debugger: requires the CodeLLDB extension (vadimcn.vscode-lldb).
+    // If you prefer the Microsoft C/C++ extension instead, change "type"
+    // to "cppdbg" and add: "MIMode": "gdb",
+    //   "miDebuggerPath": "C:\\msys64\\clang64\\bin\\gdb.exe"
+    //
+    // Both build/bin and build-debug/bin are two levels below the workspace
+    // root, so the demo's hardcoded "../../TestResources/" resolves correctly
+    // in both configurations.
+    "configurations": [
+        {
+            "name": "Demo (Debug)",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build-debug/bin/Demo.exe",
+            "args": [],
+            "cwd": "${workspaceFolder}/build-debug/bin",
+            "preLaunchTask": "build: Demo (Debug)"
+        },
+        {
+            "name": "Demo (Release)",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/bin/Demo.exe",
+            "args": [],
+            "cwd": "${workspaceFolder}/build/bin",
+            "preLaunchTask": "build: Demo (Release)"
+        }
+    ]
+}
