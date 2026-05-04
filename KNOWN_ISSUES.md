@@ -153,3 +153,8 @@ a device-open call (which sets it via `setSampleRateAdjustment()`).
 
 **Follow-up:** Add `cursor(storage.data()), sampleRateAdjustment(1.0f)` to the
 initialiser list so the class is unconditionally safe to inspect.
+
+
+## suble notes from claude code we picked up. Maybe worth looking into
+
+The IDE diagnostics on the TEST_SUITE("dsp") { line are IntelliSense false positives — the macro expands to a namespace block that Clang compiles cleanly (as confirmed by the build above).

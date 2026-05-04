@@ -2,7 +2,10 @@
 // Both are pure closed-form computations; no audio device or system state needed.
 
 #include <doctest/doctest.h>
+#include <cmath>
 #include "dsp/math.hpp"
+
+TEST_SUITE("dsp") {
 
 TEST_CASE("MidiToFreq: A4 (MIDI 69) = 440 Hz") {
     CHECK(YSE::DSP::MidiToFreq(69.0f) == doctest::Approx(440.0f).epsilon(1e-5f));
@@ -50,3 +53,34 @@ TEST_CASE("MidiToFreq: semitone step is 2^(1/12)") {
               doctest::Approx(ratio).epsilon(1e-5f));
     }
 }
+
+TEST_CASE("MidiToFreq: 12-semitone span doubles frequency") {
+    CHECK(YSE::DSP::MidiToFreq(81.0f) / YSE::DSP::MidiToFreq(69.0f) ==
+          doctest::Approx(2.0f).epsilon(1e-5f));
+}
+
+TEST_CASE("MidiToFreq: known chromatic neighbours of A4") {
+    CHECK(YSE::DSP::MidiToFreq(70.0f) == doctest::Approx(466.164f).epsilon(0.001f));  // A#4/Bb4
+    CHECK(YSE::DSP::MidiToFreq(71.0f) == doctest::Approx(493.883f).epsilon(0.001f));  // B4
+    CHECK(YSE::DSP::MidiToFreq(72.0f) == doctest::Approx(523.251f).epsilon(0.001f));  // C5
+}
+
+TEST_CASE("MidiToFreq: MIDI boundary values produce positive frequencies") {
+    CHECK(YSE::DSP::MidiToFreq(0.0f)   > 0.0f);
+    CHECK(YSE::DSP::MidiToFreq(127.0f) > 0.0f);
+}
+
+TEST_CASE("MidiToFreq: fractional note is 2^(frac/12) times lower integer note") {
+    // MIDI 69.5 should equal 440 * 2^(0.5/12)
+    const float expected = 440.0f * std::pow(2.0f, 0.5f / 12.0f);
+    CHECK(YSE::DSP::MidiToFreq(69.5f) == doctest::Approx(expected).epsilon(1e-5f));
+}
+
+TEST_CASE("FreqToMidi: MIDI boundary values round-trip") {
+    CHECK(YSE::DSP::FreqToMidi(YSE::DSP::MidiToFreq(0.0f)) ==
+          doctest::Approx(0.0f).epsilon(1e-4f));
+    CHECK(YSE::DSP::FreqToMidi(YSE::DSP::MidiToFreq(127.0f)) ==
+          doctest::Approx(127.0f).epsilon(1e-4f));
+}
+
+} // TEST_SUITE("dsp")

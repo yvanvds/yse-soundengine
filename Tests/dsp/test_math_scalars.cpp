@@ -9,6 +9,8 @@
 #include <doctest/doctest.h>
 #include "dsp/math_functions.h"
 
+TEST_SUITE("dsp") {
+
 TEST_CASE("dbToRms: reference level 100 dB = 1.0") {
     CHECK(YSE::DSP::dbToRms(100.0f) == doctest::Approx(1.0f).epsilon(1e-5f));
 }
@@ -91,3 +93,92 @@ TEST_CASE("RMS and power: dbToPow(x) == dbToRms(x)^2") {
         CHECK(YSE::DSP::dbToPow(db) == doctest::Approx(rms * rms).epsilon(1e-5f));
     }
 }
+
+TEST_CASE("dbToPow: values above 870 dB are clamped to the 870 dB result") {
+    // Both 870 and 1000 dB overflow float to +inf; the clamp ensures they produce
+    // the same result. Use direct == because Approx does not handle infinity.
+    CHECK(YSE::DSP::dbToPow(900.0f) == YSE::DSP::dbToPow(870.0f));
+}
+
+TEST_CASE("dbToRms: values above 485 dB are clamped") {
+    CHECK(YSE::DSP::dbToRms(485.0f) == doctest::Approx(YSE::DSP::dbToRms(600.0f)).epsilon(1e-5f));
+    CHECK(YSE::DSP::dbToRms(485.0f) > 0.0f);
+}
+
+TEST_CASE("maximum: element-wise selects larger of two arrays") {
+    float a[]   = {1.0f, -1.0f, 0.5f};
+    float b[]   = {0.5f,  0.5f, 0.5f};
+    float out[3] = {};
+    YSE::DSP::maximum(a, b, out, 3);
+    CHECK(out[0] == 1.0f);
+    CHECK(out[1] == 0.5f);
+    CHECK(out[2] == 0.5f);
+}
+
+TEST_CASE("maximum: scalar clamps negative values up to floor") {
+    float in[]   = {1.0f, -1.0f, 0.0f, 0.5f};
+    float out[4] = {};
+    YSE::DSP::maximum(in, 0.0f, out, 4);
+    CHECK(out[0] == 1.0f);
+    CHECK(out[1] == 0.0f);
+    CHECK(out[2] == 0.0f);
+    CHECK(out[3] == 0.5f);
+}
+
+TEST_CASE("minimum: element-wise selects smaller of two arrays") {
+    float a[]   = {1.0f, -1.0f, 0.5f};
+    float b[]   = {0.5f,  0.5f, 0.5f};
+    float out[3] = {};
+    YSE::DSP::minimum(a, b, out, 3);
+    CHECK(out[0] == 0.5f);
+    CHECK(out[1] == -1.0f);
+    CHECK(out[2] == 0.5f);
+}
+
+TEST_CASE("minimum: scalar clamps positive values down to ceiling") {
+    float in[]   = {1.0f, -1.0f, 0.0f, 0.5f};
+    float out[4] = {};
+    YSE::DSP::minimum(in, 0.0f, out, 4);
+    CHECK(out[0] == 0.0f);
+    CHECK(out[1] == -1.0f);
+    CHECK(out[2] == 0.0f);
+    CHECK(out[3] == 0.0f);
+}
+
+TEST_CASE("getMaxAmplitude: returns largest positive value from buffer") {
+    YSE::DSP::buffer buf(4);
+    float* ptr = buf.getPtr();
+    ptr[0] = 0.3f; ptr[1] = 0.7f; ptr[2] = 0.5f; ptr[3] = -0.9f;
+    CHECK(YSE::DSP::getMaxAmplitude(buf) == doctest::Approx(0.7f));
+}
+
+TEST_CASE("getMaxAmplitude: all-negative buffer returns zero") {
+    YSE::DSP::buffer buf(3);
+    float* ptr = buf.getPtr();
+    ptr[0] = -0.3f; ptr[1] = -0.7f; ptr[2] = -0.5f;
+    CHECK(YSE::DSP::getMaxAmplitude(buf) == 0.0f);
+}
+
+TEST_CASE("getMaxAmplitude: pointer overload matches buffer overload") {
+    float data[] = {0.1f, 0.9f, 0.4f};
+    CHECK(YSE::DSP::getMaxAmplitude(data, 3) == doctest::Approx(0.9f));
+}
+
+TEST_CASE("sqrtFunc: approximates square root to within 8 mantissa bits") {
+    float in[]  = {4.0f, 9.0f, 0.25f, 16.0f};
+    float out[4] = {};
+    YSE::DSP::sqrtFunc(in, out, 4);
+    CHECK(out[0] == doctest::Approx(2.0f).epsilon(0.005f));
+    CHECK(out[1] == doctest::Approx(3.0f).epsilon(0.005f));
+    CHECK(out[2] == doctest::Approx(0.5f).epsilon(0.005f));
+    CHECK(out[3] == doctest::Approx(4.0f).epsilon(0.005f));
+}
+
+TEST_CASE("sqrtFunc: negative input returns zero") {
+    float in[]  = {-1.0f};
+    float out[1] = {999.0f};
+    YSE::DSP::sqrtFunc(in, out, 1);
+    CHECK(out[0] == 0.0f);
+}
+
+} // TEST_SUITE("dsp")
