@@ -172,27 +172,13 @@ TEST_CASE("buffer: resize grows and initialises new elements") {
     CHECK(b.getPtr()[5] == doctest::Approx(0.0f));  // new element initialised
 }
 
-// ─── Sentinel tests for known bugs ───────────────────────────────────────────
-// These tests assert the CORRECT post-condition. They are marked [!shouldfail]
-// because the bug is still present. Once the fix is applied, remove the tag.
-
-TEST_CASE("buffer: cursor and sampleRateAdjustment are initialised after construction"
-          * doctest::should_fail()) {
-    // Known bug: the buffer constructor does not initialise cursor or
-    // sampleRateAdjustment. Fix: add cursor(storage.data()),
-    // sampleRateAdjustment(1.0f) to the initialiser list.
-    // See KNOWN_ISSUES.md. Remove * doctest::should_fail() once fixed.
+TEST_CASE("buffer: cursor and sampleRateAdjustment are initialised after construction") {
     YSE::DSP::buffer b(8);
     CHECK(b.cursor == b.getPtr());
     CHECK(b.getSampleRateAdjustment() == doctest::Approx(1.0f));
 }
 
-TEST_CASE("buffer: maxValue returns correct result when maximum is not at index 0"
-          * doctest::should_fail()) {
-    // Known bug: the 8-wide SIMD loop in maxValue() assigns ptr1[0] instead of
-    // the matched element, so a buffer of length >= 8 with max NOT at index 0
-    // returns the wrong value.
-    // See KNOWN_ISSUES.md. Remove * doctest::should_fail() once fixed.
+TEST_CASE("buffer: maxValue returns correct result when maximum is not at index 0") {
     YSE::DSP::buffer b(8);
     b = 0.5f;
     b.getPtr()[5] = 1.0f;  // max at index 5, not 0

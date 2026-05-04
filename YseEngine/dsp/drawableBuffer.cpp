@@ -8,6 +8,7 @@
   ==============================================================================
 */
 
+#include <algorithm>
 #include <cassert>
 #include "drawableBuffer.hpp"
 #include "envelope.hpp"
@@ -61,9 +62,9 @@ namespace YSE {
     }
 
     drawableBuffer & YSE::DSP::drawableBuffer::drawLine(UInt start, UInt stop, Flt startValue, Flt stopValue) {
-      //Clamp(start, 0, impl->length.load());
-      //Clamp(stop, 0, impl->length.load());
-      //if (stop < start) return *this; // don't do this
+      stop  = std::min(stop,  static_cast<UInt>(storage.size()));
+      start = std::min(start, stop);
+      if (start >= stop) return *this;
 
       Flt frac = (stopValue - startValue) / static_cast<Flt>(stop - start > 1 ? stop - start : 1); // don't divide by zero
       Flt * ptr = storage.data();
@@ -77,9 +78,9 @@ namespace YSE {
 
 
     drawableBuffer & YSE::DSP::drawableBuffer::drawLine(UInt start, UInt stop, Flt value) {
-      //Clamp(start, 0, impl->length.load());
-      //Clamp(stop, 1, impl->length.load());
-      //if (stop < start) return *this; // don't do this
+      stop  = std::min(stop,  static_cast<UInt>(storage.size()));
+      start = std::min(start, stop);
+      if (start >= stop) return *this;
 
       Flt * ptr = storage.data();
       for (UInt i = start; i < stop; i++) {

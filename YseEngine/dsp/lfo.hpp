@@ -31,7 +31,7 @@ namespace YSE {
       lfo();
 
       // returns lfo buffer with values between 0 and 1
-      buffer & operator()(LFO_TYPE type, Flt frequency);
+      buffer & operator()(LFO_TYPE type, Flt frequency, UInt size = STANDARD_BUFFERSIZE);
 
     private:
       drawableBuffer result;

@@ -32,6 +32,7 @@ TEST_SUITE("dsp") {
 
 class ConcreteSineWave : public YSE::DSP::sineWave {
 public:
+    using YSE::DSP::sineWave::process;  // keep sineWave::process(SOUND_STATUS&, Int&) in scope
     void process(YSE::SOUND_STATUS&) override {}
 };
 

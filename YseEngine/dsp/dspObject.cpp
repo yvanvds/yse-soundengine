@@ -53,7 +53,7 @@ void YSE::DSP::dspObject::createIfNeeded() {
 }
 
 void YSE::DSP::dspObject::calculateImpact(buffer & in, buffer & filtered) {
-  buffer & lfoImpact = (*lfoOsc)(_lfoType, _lfoFrequency);
+  buffer & lfoImpact = (*lfoOsc)(_lfoType, _lfoFrequency, in.getLength());
   lfoImpact *= _impact;
   buffer & inImpact = (*invertedImpact)(lfoImpact, true);
   in *= inImpact;

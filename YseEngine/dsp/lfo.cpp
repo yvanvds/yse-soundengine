@@ -41,7 +41,8 @@ YSE::DSP::lfo::lfo() : cursor(0.f), previousType(LFO_NONE) {
   }
 }
 
-YSE::DSP::buffer & YSE::DSP::lfo::operator()(LFO_TYPE type, Flt frequency) {
+YSE::DSP::buffer & YSE::DSP::lfo::operator()(LFO_TYPE type, Flt frequency, UInt size) {
+  if (result.getLength() != size) result.resize(size);
   // avoid divisions by zero
   if (frequency == 0) type = LFO_NONE;
   

@@ -18,7 +18,10 @@ namespace YSE {
     // don't move these constructors to the header file, because it will cause storage
     // vector to be allocated in the application memory instead of the dll memory, causing
     // a dll boundary crossing when resizing it later.
-    buffer::buffer(UInt length, UInt overflow) : storage(length + overflow), overflow(overflow) {}
+    buffer::buffer(UInt length, UInt overflow)
+        : storage(length + overflow), sampleRateAdjustment(1.0f), overflow(overflow) {
+      cursor = storage.data();
+    }
     
     buffer::buffer(const buffer & cp) : storage(cp.storage.size()) {
       operator=(cp);
@@ -217,13 +220,13 @@ namespace YSE {
 			const Flt * ptr1 = storage.data();
 			for (; l > 7; l -= 8, ptr1 += 8) {
 				if (ptr1[0] > max) max = ptr1[0];
-				if (ptr1[1] > max) max = ptr1[0];
-				if (ptr1[2] > max) max = ptr1[0];
-				if (ptr1[3] > max) max = ptr1[0];
-				if (ptr1[4] > max) max = ptr1[0];
-				if (ptr1[5] > max) max = ptr1[0];
-				if (ptr1[6] > max) max = ptr1[0];
-				if (ptr1[7] > max) max = ptr1[0];
+				if (ptr1[1] > max) max = ptr1[1];
+				if (ptr1[2] > max) max = ptr1[2];
+				if (ptr1[3] > max) max = ptr1[3];
+				if (ptr1[4] > max) max = ptr1[4];
+				if (ptr1[5] > max) max = ptr1[5];
+				if (ptr1[6] > max) max = ptr1[6];
+				if (ptr1[7] > max) max = ptr1[7];
 
 			}
 			while (l--) {

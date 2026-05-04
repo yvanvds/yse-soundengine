@@ -18,6 +18,8 @@ add_executable(yse_tests
   dsp/test_envelope.cpp
   dsp/test_fourier.cpp
   dsp/test_modules.cpp
+  patcher/test_graph.cpp
+  patcher/test_nodes.cpp
 )
 
 # doctest is header-only; expose it as an INTERFACE library so the include path
@@ -68,3 +70,20 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_utils PROPERTIES LABELS utils)
+
+add_test(
+  NAME    yse_tests_patcher
+  COMMAND yse_tests --test-suite=patcher
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_patcher PROPERTIES LABELS patcher)
+
+# Patcher test TUs include pObject.h and concrete node headers that use the
+# same unused-parameter / json.hpp pragma suppressions applied to patcher
+# source files in YseEngine/CMakeLists.txt.
+set_source_files_properties(
+  patcher/test_graph.cpp
+  patcher/test_nodes.cpp
+  PROPERTIES COMPILE_FLAGS
+    "-Wno-unused-parameter -Wno-deprecated-literal-operator -Wno-tautological-overlap-compare"
+)
