@@ -43,6 +43,7 @@ jobs:
             --root . \
             --filter 'YseEngine/' \
             --filter 'Tests/' \
+            --gcov-ignore-parse-errors \
             --sonarqube \
             --output coverage.xml \
             build
