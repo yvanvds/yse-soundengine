@@ -41,10 +41,12 @@ jobs:
         run: |
           gcovr \
             --root . \
-            --filter ./YseEngine/ \
-            --filter ./Tests/ \
+            --filter 'YseEngine/' \
+            --filter 'Tests/' \
             --sonarqube \
-            --output coverage.xml
+            --output coverage.xml \
+            build
+          echo "=== coverage.xml preview ===" && head -20 coverage.xml
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 # v6.0.0
         env:

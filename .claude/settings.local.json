@@ -8,7 +8,9 @@
       "Bash(Get-ChildItem -Path \"d:\\\\yse-soundengine\")",
       "Bash(Select-Object -Property Name, PSIsContainer)",
       "Bash(Format-Table -AutoSize)",
-      "Bash(xargs wc *)"
+      "Bash(xargs wc *)",
+      "mcp__sonarqube__get_component_measures",
+      "mcp__sonarqube__search_files_by_coverage"
     ],
     "defaultMode": "bypassPermissions"
   }
