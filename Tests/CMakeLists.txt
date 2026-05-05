@@ -24,6 +24,9 @@ add_executable(yse_tests
   sound/test_sound_state.cpp
   reverb/test_reverb_dsp.cpp
   midi/test_midifile.cpp
+  music/test_scale.cpp
+  music/test_note.cpp
+  music/test_motif.cpp
 )
 
 # doctest is header-only; expose it as an INTERFACE library so the include path
@@ -109,6 +112,13 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_midi PROPERTIES LABELS midi)
+
+add_test(
+  NAME    yse_tests_music
+  COMMAND yse_tests --test-suite=music
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_music PROPERTIES LABELS music)
 
 target_compile_definitions(yse_tests PRIVATE
   "YSE_TEST_FIXTURES_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/support/fixtures\""

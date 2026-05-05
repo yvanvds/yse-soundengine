@@ -151,6 +151,8 @@ set(YSE_SRCS
   patcher/midi/mMidiOut.cpp
   patcher/midi/mMidiPolyPressure.cpp
   patcher/midi/mMidiProgramChange.cpp
+  # midiNote is a plain data class with no platform dependencies.
+  midi/midiNote.cpp
 )
 
 # MIDI device I/O (Windows only, requires RtMidi).
@@ -160,7 +162,6 @@ if(WIN32 AND RtMidi_FOUND)
   list(APPEND YSE_SRCS
     midi/midiDeviceManager.cpp
     midi/device.cpp
-    midi/midiNote.cpp
   )
 endif()
 
