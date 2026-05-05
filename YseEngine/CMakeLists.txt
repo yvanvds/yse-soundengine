@@ -175,7 +175,11 @@ set_source_files_properties(json/cJSON.cpp
 # many overrides intentionally leave some parameters unused.  Suppress
 # -Wunused-parameter and the two vendored json.hpp pedantic warnings for all
 # patcher TUs rather than touching every .cpp file.
-set(PATCHER_SUPPRESS "-Wno-unused-parameter -Wno-deprecated-literal-operator -Wno-tautological-overlap-compare")
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  set(PATCHER_SUPPRESS "-Wno-unused-parameter -Wno-deprecated-literal-operator -Wno-tautological-overlap-compare")
+else()
+  set(PATCHER_SUPPRESS "-Wno-unused-parameter")
+endif()
 set_source_files_properties(
   patcher/patcher.cpp
   patcher/patcherImplementation.cpp
@@ -232,11 +236,13 @@ set_source_files_properties(
 )
 
 # soundImplementation.cpp and soundInterface.cpp pull in json.hpp through patcher headers.
-set_source_files_properties(
-  sound/soundImplementation.cpp
-  sound/soundInterface.cpp
-  PROPERTIES COMPILE_FLAGS "-Wno-deprecated-literal-operator -Wno-tautological-overlap-compare"
-)
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  set_source_files_properties(
+    sound/soundImplementation.cpp
+    sound/soundInterface.cpp
+    PROPERTIES COMPILE_FLAGS "-Wno-deprecated-literal-operator -Wno-tautological-overlap-compare"
+  )
+endif()
 
 # ── Engine object library ─────────────────────────────────────────────────────
 # All engine sources are compiled once into yse_objects.  Both the shipped
@@ -245,6 +251,12 @@ set_source_files_properties(
 # static linkage so they can reach internal symbols without needing API
 # annotations on them.
 add_library(yse_objects OBJECT ${YSE_SRCS})
+
+# CMake does not automatically propagate -fPIC from a consuming SHARED library
+# to an OBJECT library.  Without this, the linker rejects PC32 relocations
+# against file-scope globals (e.g. `buffers` in BufferIO.cpp) when building
+# the shared library on Linux.
+set_target_properties(yse_objects PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 target_compile_features(yse_objects PUBLIC cxx_std_17)
 

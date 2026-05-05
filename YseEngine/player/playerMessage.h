@@ -36,8 +36,10 @@ namespace YSE {
       length (Flt[3]). (Doing so won't be unsafe, but it will affect every message
       used in by all subSystems. So don't.)
       */
+#if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wnested-anon-types"
+#endif
       union {
         Bool boolValue;
         Int intValue;
@@ -49,7 +51,9 @@ namespace YSE {
           Flt time;
         } object;
       };
+#if defined(__clang__)
 #pragma clang diagnostic pop
+#endif
     };
 
   }

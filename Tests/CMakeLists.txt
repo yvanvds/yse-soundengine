@@ -50,7 +50,7 @@ target_compile_features(yse_tests PRIVATE cxx_std_17)
 
 # doctest uses __COUNTER__, which Clang warns about as a C2y extension.
 # Suppress it here rather than editing the vendored header.
-target_compile_options(yse_tests PRIVATE -Wno-c2y-extensions)
+target_compile_options(yse_tests PRIVATE $<$<CXX_COMPILER_ID:Clang>:-Wno-c2y-extensions>)
 
 # Put the test binary in the same directory as the shared library so the OS
 # dynamic-loader finds libyse.dll / libyse.so at runtime without extra rpath
@@ -139,10 +139,14 @@ set_tests_properties(yse_tests_integration PROPERTIES
   DISABLED TRUE
 )
 
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  set(_patcher_test_suppress "-Wno-unused-parameter -Wno-deprecated-literal-operator -Wno-tautological-overlap-compare")
+else()
+  set(_patcher_test_suppress "-Wno-unused-parameter")
+endif()
 set_source_files_properties(
   patcher/test_graph.cpp
   patcher/test_nodes.cpp
   patcher/test_patcher_math.cpp
-  PROPERTIES COMPILE_FLAGS
-    "-Wno-unused-parameter -Wno-deprecated-literal-operator -Wno-tautological-overlap-compare"
+  PROPERTIES COMPILE_FLAGS "${_patcher_test_suppress}"
 )

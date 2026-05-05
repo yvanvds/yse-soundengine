@@ -9,11 +9,15 @@
 #include "../headers/defines.hpp"
 #include "../dsp/buffer.hpp"
 #include "pObjectList.hpp"
+#if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-literal-operator"
 #pragma clang diagnostic ignored "-Wtautological-overlap-compare"
+#endif
 #include "../utils/json.hpp"
+#if defined(__clang__)
 #pragma clang diagnostic pop
+#endif
 #include "../utils/vector.hpp"
 #include "parameters.h"
 #include "patcher.hpp"

@@ -188,6 +188,11 @@ namespace YSE {
       frequencyCurve = 0.f;
     }
 
+    void YSE::DSP::sineWave::process(SOUND_STATUS & intent) {
+      Int latency = 0;
+      process(intent, latency);
+    }
+
     void YSE::DSP::sineWave::frequency(Flt value) {
       parmFrequency = value;
     }

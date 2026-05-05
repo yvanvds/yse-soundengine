@@ -25,25 +25,15 @@ static constexpr float kPi = 3.14159265358979323846f;
 TEST_SUITE("dsp") {
 
 // ─── sineWave ─────────────────────────────────────────────────────────────────
-//
-// sineWave::process(SOUND_STATUS&, Int&) is an overload, not an override, of the
-// dspSourceObject pure virtual process(SOUND_STATUS&).  A concrete subclass is
-// needed to instantiate it; the extra override is a no-op.
-
-class ConcreteSineWave : public YSE::DSP::sineWave {
-public:
-    using YSE::DSP::sineWave::process;  // keep sineWave::process(SOUND_STATUS&, Int&) in scope
-    void process(YSE::SOUND_STATUS&) override {}
-};
 
 TEST_CASE("sineWave: frequency getter/setter round-trip") {
-    ConcreteSineWave sw;
+    YSE::DSP::sineWave sw;
     sw.frequency(880.0f);
     CHECK(sw.frequency() == doctest::Approx(880.0f).epsilon(1e-5f));
 }
 
 TEST_CASE("sineWave: process with SS_WANTSTOPLAY produces bounded samples") {
-    ConcreteSineWave sw;
+    YSE::DSP::sineWave sw;
     sw.frequency(440.0f);
     YSE::SOUND_STATUS intent = YSE::SS_WANTSTOPLAY;
     Int latency = 0;
@@ -60,7 +50,7 @@ TEST_CASE("sineWave: process with SS_WANTSTOPLAY produces bounded samples") {
 }
 
 TEST_CASE("sineWave: process transitions intent from SS_WANTSTOPLAY to SS_PLAYING") {
-    ConcreteSineWave sw;
+    YSE::DSP::sineWave sw;
     sw.frequency(440.0f);
     YSE::SOUND_STATUS intent = YSE::SS_WANTSTOPLAY;
     Int latency = 0;
@@ -69,7 +59,7 @@ TEST_CASE("sineWave: process transitions intent from SS_WANTSTOPLAY to SS_PLAYIN
 }
 
 TEST_CASE("sineWave: samples have non-zero energy after playing for several buffers") {
-    ConcreteSineWave sw;
+    YSE::DSP::sineWave sw;
     sw.frequency(440.0f);
     YSE::SOUND_STATUS intent = YSE::SS_WANTSTOPLAY;
     Int latency = 0;

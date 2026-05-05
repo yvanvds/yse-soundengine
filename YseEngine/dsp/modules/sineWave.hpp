@@ -27,10 +27,9 @@ namespace YSE {
       void  frequency(float value);
       float frequency();
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Woverloaded-virtual"
+      using dspSourceObject::process;
+      void process(SOUND_STATUS & intent) override;
       virtual void process(SOUND_STATUS & intent, Int & latency); // use only during DSP
-#pragma clang diagnostic pop
 
     private:
       sine sineGen;
