@@ -1,21 +1,28 @@
 # Known Issues
 
-## Symbol visibility (all symbols exported — hardening is a follow-up)
+## Symbol visibility — resolved
 
 **Category:** Build / ABI hygiene
 
-The `API` export macro in `YseEngine/headers/defines.hpp` uses
-`__declspec(dllexport/dllimport)` under MSVC and
-`__attribute__((visibility("default")))` under macOS.  With Clang on MinGW
-(MSYS2), `YSE_MSVC` is not set and the macro expands to nothing.  Windows PE
-shared libraries do **not** export symbols implicitly (unlike Linux ELF), so
-the linker flag `-Wl,--export-all-symbols` is added in `YseEngine/CMakeLists.txt`
-to force full export.
+`YseEngine/headers/defines.hpp` now has a `YSE_WINDOWS && YSE_CLANG` branch
+that emits `__declspec(dllexport)` when building the DLL (`YSE_DLL_BUILD`) and
+`__declspec(dllimport)` for consumers (`YSE_DLL`).  Every public class, free
+function, and extern variable reachable from `yse.hpp` carries the `API` macro.
+`-Wl,--export-all-symbols` has been removed.  The dead MSVC compiler branches
+(`YSE_MSVC`, `YSE_VC8_OR_EARLIER`, `YSE_VC7_OR_EARLIER`) were also deleted.
 
-**Follow-up:** Add a `YSE_CLANG` + `YSE_WINDOWS` branch to the `API` macro
-that emits `__declspec(dllexport)` when building the DLL and
-`__declspec(dllimport)` for consumers. Remove `--export-all-symbols` once the
-API surface is explicitly annotated.
+Engine sources are compiled into an OBJECT library (`yse_objects`) with
+`YSE_DLL_BUILD` defined.  The shipped shared library (`yse`) links that OBJECT
+library and propagates `YSE_DLL` via `INTERFACE` to all downstream consumers.
+The test executable links the same OBJECT library directly — bypassing the DLL
+export boundary — so white-box tests can reach internal symbols without API
+annotations.  Both build configurations produce an identical `libyse.dll`
+export table (verified with `llvm-readobj --coff-exports`).
+
+**Remaining gap:** Linux and macOS builds use `CXX_VISIBILITY_PRESET default`
+(ELF export-all) rather than explicit `-fvisibility=hidden` + per-symbol
+`__attribute__((visibility("default")))`.  Adding visibility attributes for
+ELF targets is a separate follow-up.
 
 ---
 

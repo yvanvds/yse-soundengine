@@ -41,7 +41,7 @@ target_include_directories(yse_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 target_link_libraries(yse_tests
   PRIVATE
-    yse
+    yse_objects   # direct object linkage: full symbol access without API export boundary
     doctest
 )
 

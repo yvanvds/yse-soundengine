@@ -76,7 +76,7 @@ namespace YSE {
       aUInt size;
     };
 
-    void readInterpolated(buffer & ctrl, buffer & out, buffer & buffer, UInt &pos);
+    API void readInterpolated(buffer & ctrl, buffer & out, buffer & buffer, UInt &pos);
 
   }
 }

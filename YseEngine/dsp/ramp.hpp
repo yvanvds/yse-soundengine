@@ -68,9 +68,9 @@ namespace YSE {
 
 
     // these functions are limited to the length of the buffer
-    void FastFadeIn(YSE::DSP::buffer & s, UInt length);
-    void FastFadeOut(YSE::DSP::buffer & s, UInt length);
-    void ChangeGain(YSE::DSP::buffer & s, Flt currentGain, Flt newGain, UInt length);
+    API void FastFadeIn(YSE::DSP::buffer & s, UInt length);
+    API void FastFadeOut(YSE::DSP::buffer & s, UInt length);
+    API void ChangeGain(YSE::DSP::buffer & s, Flt currentGain, Flt newGain, UInt length);
 
 
   }

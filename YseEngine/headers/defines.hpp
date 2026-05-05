@@ -44,13 +44,6 @@
 
 //==============================================================================
 #if YSE_WINDOWS
-#ifdef _MSC_VER
-#ifdef _WIN64
-#define YSE_64BIT 1
-#else
-#define YSE_32BIT 1
-#endif
-#endif
 
 #ifdef _DEBUG
 #define YSE_DEBUG 1
@@ -148,40 +141,20 @@
 #define YSE_GCC 1
 #elif defined (__GNUC__)
 #define YSE_GCC 1
-#elif defined (_MSC_VER)
-#define YSE_MSVC 1
-
-#if _MSC_VER < 1500
-#define YSE_VC8_OR_EARLIER 1
-
-#if _MSC_VER < 1400
-#define YSE_VC7_OR_EARLIER 1
-
-#if _MSC_VER < 1300
-#warning "MSVC 6.0 is no longer supported!"
-#endif
-#endif
-#endif
-
-#if YSE_64BIT || ! YSE_VC7_OR_EARLIER
-#define YSE_USE_INTRINSICS 1
-#endif
 #else
 #error unknown compiler
 #endif
 
 
 //==============================================================================
-// DLL building settings on Windows
-#if YSE_MSVC
+// DLL building settings on Windows (Clang/MinGW)
+#if YSE_WINDOWS && YSE_CLANG
   #ifdef YSE_DLL_BUILD
-    #define API __declspec (dllexport)
+    #define API __declspec(dllexport)
     #define EXTERN
-    #pragma warning (disable: 4251)
-  #elif defined (YSE_DLL)
-    #define API __declspec (dllimport)
+  #elif defined(YSE_DLL)
+    #define API __declspec(dllimport)
     #define EXTERN extern
-    #pragma warning (disable: 4251)
   #endif
 #endif
 

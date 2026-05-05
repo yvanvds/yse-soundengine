@@ -29,8 +29,8 @@ void YSE::INTERNAL::threadPoolJob::activate() {
   if (shouldStop || isDone)  return;
 
   run();
-  inQueue = false;
   isDone = true;
+  inQueue = false;
 }
 
 YSE::INTERNAL::threadPoolThread::threadPoolThread(threadPool * pool) : pool(pool) {}

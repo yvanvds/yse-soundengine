@@ -238,21 +238,15 @@ set_source_files_properties(
   PROPERTIES COMPILE_FLAGS "-Wno-deprecated-literal-operator -Wno-tautological-overlap-compare"
 )
 
-# ── Shared library target ─────────────────────────────────────────────────────
-add_library(yse SHARED ${YSE_SRCS})
+# ── Engine object library ─────────────────────────────────────────────────────
+# All engine sources are compiled once into yse_objects.  Both the shipped
+# shared library (yse) and the test executable consume this target — the
+# shared library through the DLL export boundary, the tests through direct
+# static linkage so they can reach internal symbols without needing API
+# annotations on them.
+add_library(yse_objects OBJECT ${YSE_SRCS})
 
-set_target_properties(yse PROPERTIES
-  OUTPUT_NAME yse
-  # All symbols exported for now. The API macro in headers/defines.hpp handles
-  # __declspec(dllexport/dllimport) under MSVC. With MinGW/Clang on Windows,
-  # YSE_MSVC is not set so API expands to nothing, and all DLL symbols are
-  # exported by default (MinGW behaviour). Visibility hardening (fvisibility=hidden
-  # + per-symbol export attributes) is a follow-up task.
-  CXX_VISIBILITY_PRESET default
-  VISIBILITY_INLINES_HIDDEN OFF
-)
-
-target_compile_features(yse PUBLIC cxx_std_17)
+target_compile_features(yse_objects PUBLIC cxx_std_17)
 
 # Expose YseEngine/ as the public include root so consumers can use
 #   #include "yse.hpp"
@@ -261,7 +255,7 @@ target_compile_features(yse PUBLIC cxx_std_17)
 # resolve via the compiler's include-directory search as:
 #   <YseEngine_dir>/../dependencies/rtmidi/include/RtMidi.h
 # which is ${CMAKE_SOURCE_DIR}/dependencies/rtmidi/include/RtMidi.h.
-target_include_directories(yse
+target_include_directories(yse_objects
   PUBLIC
     ${CMAKE_SOURCE_DIR}/YseEngine
   PRIVATE
@@ -275,33 +269,48 @@ target_include_directories(yse
     ${CMAKE_SOURCE_DIR}/dependencies/rtmidi/include
 )
 
-target_compile_definitions(yse
+target_compile_definitions(yse_objects
   PRIVATE
     PORTAUDIO_BACKEND
     LIBSOUNDFILE_BACKEND
+    YSE_DLL_BUILD   # activate __declspec(dllexport) via the API macro in headers/defines.hpp
+                    # (PRIVATE: applies only when compiling these sources, not test sources)
 )
 
-target_link_libraries(yse
-  PRIVATE
+# External deps are PUBLIC so both yse (SHARED) and yse_tests inherit them.
+target_link_libraries(yse_objects
+  PUBLIC
     PkgConfig::PortAudio
     PkgConfig::SndFile
     Threads::Threads
 )
 
-# On Windows, winmm provides the underlying Win32 MIDI API used by RtMidi.
 if(WIN32)
-  target_link_libraries(yse PRIVATE winmm)
+  target_link_libraries(yse_objects PUBLIC winmm)
   if(RtMidi_FOUND)
-    target_link_libraries(yse PRIVATE PkgConfig::RtMidi)
-  endif()
-  # The API export macro in headers/defines.hpp only covers MSVC
-  # (__declspec(dllexport)) and macOS (visibility("default")). With
-  # MinGW/Clang on Windows, API expands to nothing and Windows PE DLLs do
-  # not export symbols implicitly. --export-all-symbols forces full export
-  # until visibility hardening is addressed (see KNOWN_ISSUES.md).
-  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    target_link_options(yse PRIVATE -Wl,--export-all-symbols)
+    target_link_libraries(yse_objects PUBLIC PkgConfig::RtMidi)
   endif()
 elseif(RtMidi_FOUND)
-  target_link_libraries(yse PRIVATE PkgConfig::RtMidi)
+  target_link_libraries(yse_objects PUBLIC PkgConfig::RtMidi)
 endif()
+
+# ── Shared library target ─────────────────────────────────────────────────────
+# Consumers (demos, external code) link against this target only.
+add_library(yse SHARED)
+
+set_target_properties(yse PROPERTIES
+  OUTPUT_NAME yse
+  CXX_VISIBILITY_PRESET default
+  VISIBILITY_INLINES_HIDDEN OFF
+)
+
+# Pull in the compiled objects and their transitive link dependencies.
+target_link_libraries(yse PRIVATE yse_objects)
+
+# Re-expose the public interface that consumers of yse need directly.
+target_compile_features(yse PUBLIC cxx_std_17)
+target_include_directories(yse PUBLIC ${CMAKE_SOURCE_DIR}/YseEngine)
+target_compile_definitions(yse
+  INTERFACE
+    YSE_DLL   # activate __declspec(dllimport) for consumers linking against the shared library
+)
