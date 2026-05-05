@@ -10,7 +10,8 @@
       "Bash(Format-Table -AutoSize)",
       "Bash(xargs wc *)",
       "mcp__sonarqube__get_component_measures",
-      "mcp__sonarqube__search_files_by_coverage"
+      "mcp__sonarqube__search_files_by_coverage",
+      "mcp__sonarqube__get_project_quality_gate_status"
     ],
     "defaultMode": "bypassPermissions"
   }

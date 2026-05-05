@@ -20,6 +20,7 @@ add_executable(yse_tests
   dsp/test_modules.cpp
   patcher/test_graph.cpp
   patcher/test_nodes.cpp
+  patcher/test_patcher_math.cpp
   channel/test_channel.cpp
   sound/test_sound_state.cpp
   reverb/test_reverb_dsp.cpp
@@ -141,6 +142,7 @@ set_tests_properties(yse_tests_integration PROPERTIES
 set_source_files_properties(
   patcher/test_graph.cpp
   patcher/test_nodes.cpp
+  patcher/test_patcher_math.cpp
   PROPERTIES COMPILE_FLAGS
     "-Wno-unused-parameter -Wno-deprecated-literal-operator -Wno-tautological-overlap-compare"
 )
