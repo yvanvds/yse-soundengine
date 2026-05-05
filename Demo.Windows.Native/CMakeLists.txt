@@ -62,43 +62,37 @@ add_yse_demo(Demo15 Demo15_RestartAudio    DemoRestartAudio)
 add_yse_demo(Test01 Test01_Pitch           Test01_Pitch)
 
 # Demo16 and Demo17 use YSE::midiOut which requires the RtMidi backend.
-if(RtMidi_FOUND)
-  add_yse_demo(Demo16 Demo16_Midi        DemoMidi)
-  add_yse_demo(Demo17 Demo17_MidiPatcher DemoMidiPatcher)
-else()
-  message(STATUS "Skipping Demo16/Demo17: RtMidi not found (see KNOWN_ISSUES.md)")
-endif()
+# RtMidi is now an unconditional dependency on every desktop platform, so
+# these are always built.
+add_yse_demo(Demo16 Demo16_Midi        DemoMidi)
+add_yse_demo(Demo17 Demo17_MidiPatcher DemoMidiPatcher)
 
 # ── Combined Demo executable (all pages via menu) ─────────────────────────────
-# MenuOther.cpp includes the MIDI demo headers, so this target requires RtMidi.
-# On Windows RtMidi is always present; on Linux it is skipped when not found.
-if(RtMidi_FOUND)
-  add_executable(Demo
-    demo_main.cpp
-    MenuTop.cpp
-    MenuBasics.cpp
-    MenuDsp.cpp
-    MenuOther.cpp
-    Demo00_PlaySound.cpp
-    Demo01_SoundProperties.cpp
-    Demo02_3D.cpp
-    Demo03_Virtual.cpp
-    Demo04_Channels.cpp
-    Demo05_Reverb.cpp
-    Demo06_Devices.cpp
-    Demo07_DspSource.cpp
-    Demo08_Occlusion.cpp
-    Demo09_Streaming.cpp
-    Demo10_FilePosition.cpp
-    Demo11_VirtualIO.cpp
-    Demo12_AudioTest.cpp
-    Demo13_Patcher.cpp
-    Demo14_LoadPatcher.cpp
-    Demo15_RestartAudio.cpp
-    Demo16_Midi.cpp
-    Demo17_MidiPatcher.cpp
-    Test01_Pitch.cpp
-  )
-  target_compile_features(Demo PRIVATE cxx_std_17)
-  target_link_libraries(Demo PRIVATE yse_demo_common)
-endif()
+add_executable(Demo
+  demo_main.cpp
+  MenuTop.cpp
+  MenuBasics.cpp
+  MenuDsp.cpp
+  MenuOther.cpp
+  Demo00_PlaySound.cpp
+  Demo01_SoundProperties.cpp
+  Demo02_3D.cpp
+  Demo03_Virtual.cpp
+  Demo04_Channels.cpp
+  Demo05_Reverb.cpp
+  Demo06_Devices.cpp
+  Demo07_DspSource.cpp
+  Demo08_Occlusion.cpp
+  Demo09_Streaming.cpp
+  Demo10_FilePosition.cpp
+  Demo11_VirtualIO.cpp
+  Demo12_AudioTest.cpp
+  Demo13_Patcher.cpp
+  Demo14_LoadPatcher.cpp
+  Demo15_RestartAudio.cpp
+  Demo16_Midi.cpp
+  Demo17_MidiPatcher.cpp
+  Test01_Pitch.cpp
+)
+target_compile_features(Demo PRIVATE cxx_std_17)
+target_link_libraries(Demo PRIVATE yse_demo_common)

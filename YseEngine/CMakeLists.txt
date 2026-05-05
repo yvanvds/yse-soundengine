@@ -153,17 +153,13 @@ set(YSE_SRCS
   patcher/midi/mMidiProgramChange.cpp
   # midiNote is a plain data class with no platform dependencies.
   midi/midiNote.cpp
+  # MIDI device I/O (RtMidi-backed). The sources themselves carry a
+  # `#if YSE_WINDOWS || YSE_LINUX` guard so they compile to empty TUs on
+  # Android; on the desktop platforms this CMake build targets they are
+  # always built.
+  midi/midiDeviceManager.cpp
+  midi/device.cpp
 )
-
-# MIDI device I/O (Windows only, requires RtMidi).
-# On Linux these files are entirely guarded by #if YSE_WINDOWS so they
-# compile to empty TUs and are left out of the source list for clarity.
-if(WIN32 AND RtMidi_FOUND)
-  list(APPEND YSE_SRCS
-    midi/midiDeviceManager.cpp
-    midi/device.cpp
-  )
-endif()
 
 # ── Source-file-scoped warning suppressions ───────────────────────────────────
 # cJSON is a vendored C file; suppress all its warnings rather than patching it.
@@ -294,16 +290,12 @@ target_link_libraries(yse_objects
   PUBLIC
     PkgConfig::PortAudio
     PkgConfig::SndFile
+    PkgConfig::RtMidi
     Threads::Threads
 )
 
 if(WIN32)
   target_link_libraries(yse_objects PUBLIC winmm)
-  if(RtMidi_FOUND)
-    target_link_libraries(yse_objects PUBLIC PkgConfig::RtMidi)
-  endif()
-elseif(RtMidi_FOUND)
-  target_link_libraries(yse_objects PUBLIC PkgConfig::RtMidi)
 endif()
 
 # ── Shared library target ─────────────────────────────────────────────────────

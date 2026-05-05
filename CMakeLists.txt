@@ -40,21 +40,13 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(PortAudio REQUIRED IMPORTED_TARGET portaudio-2.0)
 pkg_check_modules(SndFile   REQUIRED IMPORTED_TARGET sndfile)
 
-# RtMidi is required on Windows: the MIDI device source files (device.cpp,
-# midiDeviceManager.cpp) only compile on Windows and need RtMidi symbols.
-# On Linux those files are guarded by #if YSE_WINDOWS and compile to empty
-# TUs, so RtMidi is optional there.
-if(WIN32)
-  pkg_check_modules(RtMidi REQUIRED IMPORTED_TARGET rtmidi)
-else()
-  pkg_check_modules(RtMidi IMPORTED_TARGET rtmidi)
-endif()
-
-if(RtMidi_FOUND)
-  message(STATUS "RtMidi found — Demo16 and Demo17 (MIDI) will be built")
-else()
-  message(STATUS "RtMidi not found — Demo16 and Demo17 (MIDI) will be skipped")
-endif()
+# RtMidi is required on every desktop platform we build for here (Windows and
+# Linux).  The MIDI device source files (device.cpp, midiDeviceManager.cpp)
+# need RtMidi symbols; they are guarded by `#if YSE_WINDOWS || YSE_LINUX` so
+# they remain compiled-out on Android, but the CMake build does not target
+# Android, so the dependency is unconditionally required here.
+pkg_check_modules(RtMidi REQUIRED IMPORTED_TARGET rtmidi)
+message(STATUS "RtMidi found — MIDI device backend enabled")
 
 # ── Compiler flags ────────────────────────────────────────────────────────────
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")

@@ -73,16 +73,20 @@ cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
 ```sh
 sudo apt install \
   cmake ninja-build clang \
-  libportaudio-dev libsndfile1-dev
-# rtmidi is optional on Linux (MIDI device code is Windows-only)
-# sudo apt install librtmidi-dev
+  libportaudio-dev libsndfile1-dev librtmidi-dev
 ```
 
 ### Prerequisites (Fedora/RHEL)
 
 ```sh
-sudo dnf install cmake ninja-build clang portaudio-devel libsndfile-devel
+sudo dnf install \
+  cmake ninja-build clang \
+  portaudio-devel libsndfile-devel rtmidi-devel
 ```
+
+`librtmidi` (the ALSA-backed MIDI device library) is required on Linux just
+like it is on Windows: the MIDI device source files link against it. If you
+skip it, `cmake` will fail with a clear error.
 
 ### Configure and build
 

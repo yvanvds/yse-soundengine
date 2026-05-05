@@ -1,7 +1,8 @@
 #pragma once
-#if YSE_WINDOWS
 
 #include "../headers/defines.hpp"
+#if YSE_WINDOWS || YSE_LINUX
+
 #include "midiMessage.hpp"
 #include "../headers/enums.hpp"
 

@@ -26,19 +26,27 @@ ELF targets is a separate follow-up.
 
 ---
 
-## RtMidi required on Windows
+## RtMidi required on every desktop platform
 
 **Category:** Dependency
 
-`system.cpp` calls `MIDI::DeviceManager()` (inside `#if YSE_WINDOWS`) and
-`midiDeviceManager.cpp` / `device.cpp` link against RtMidi symbols.  These
-cannot be compiled-out without source changes, so RtMidi is a mandatory
-dependency on Windows.
+The MIDI device backend (`midi/midiDeviceManager.cpp`, `midi/device.cpp`,
+and the `MIDI::DeviceManager()` call in `system.cpp`) is guarded by
+`#if YSE_WINDOWS || YSE_LINUX` and links against RtMidi symbols. RtMidi is
+therefore a mandatory dependency on both Windows and Linux; CMake configuration
+fails with a clear error if it is missing. Android still compiles the MIDI
+device files out and does not need RtMidi.
 
-Install with: `pacman -S mingw-w64-clang-x86_64-rtmidi`
+The Linux path uses RtMidi's ALSA backend. It is functional but lightly tested
+in practice — please report any ALSA-specific issues you encounter.
+
+Install:
+- Windows (MSYS2 Clang64): `pacman -S mingw-w64-clang-x86_64-rtmidi`
+- Debian/Ubuntu: `sudo apt install librtmidi-dev`
+- Fedora/RHEL: `sudo dnf install rtmidi-devel`
 
 **Follow-up:** Gate the MIDI device backend behind a `YSE_ENABLE_MIDI_DEVICE`
-option; this would let Windows builds without RtMidi still produce a library
+option; this would let desktop builds without RtMidi still produce a library
 (without MIDI output support).
 
 ---

@@ -56,7 +56,7 @@ namespace YSE {
 	const std::string & getDefaultDevice();
 	const std::string & getDefaultHost();
 
-#if YSE_WINDOWS
+#if YSE_WINDOWS || YSE_LINUX
 	// midi section
 	unsigned int getNumMidiInDevices();
 	unsigned int getNumMidiOutDevices();

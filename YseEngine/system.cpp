@@ -188,7 +188,7 @@ const std::string & YSE::system::getDefaultHost() {
   return DEVICE::Manager().getDefaultTypeName();
 }
 
-#if YSE_WINDOWS
+#if YSE_WINDOWS || YSE_LINUX
 unsigned int YSE::system::getNumMidiInDevices()
 {
 	return MIDI::DeviceManager().getNumMidiInDevices();

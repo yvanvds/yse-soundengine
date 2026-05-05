@@ -1,6 +1,6 @@
 #include "headers/defines.hpp"
 
-#if YSE_WINDOWS
+#if YSE_WINDOWS || YSE_LINUX
 
 #include "midiDeviceManager.h"
 #include "internalHeaders.h"
