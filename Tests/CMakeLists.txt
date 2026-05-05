@@ -27,6 +27,7 @@ add_executable(yse_tests
   music/test_scale.cpp
   music/test_note.cpp
   music/test_motif.cpp
+  integration/test_device.cpp
 )
 
 # doctest is header-only; expose it as an INTERFACE library so the include path
@@ -127,6 +128,16 @@ target_compile_definitions(yse_tests PRIVATE
 # Patcher test TUs include pObject.h and concrete node headers that use the
 # same unused-parameter / json.hpp pragma suppressions applied to patcher
 # source files in YseEngine/CMakeLists.txt.
+add_test(
+  NAME    yse_tests_integration
+  COMMAND yse_tests --test-suite=integration
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_integration PROPERTIES
+  LABELS   integration
+  DISABLED TRUE
+)
+
 set_source_files_properties(
   patcher/test_graph.cpp
   patcher/test_nodes.cpp
