@@ -61,7 +61,7 @@ YSE::INTERNAL::threadPool::threadPool(Int numThreads) : active(true){
 }
 
 YSE::INTERNAL::threadPool::~threadPool() {
-
+  shutdown();
 }
 
 void YSE::INTERNAL::threadPool::shutdown() {

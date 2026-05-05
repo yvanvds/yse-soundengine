@@ -107,6 +107,10 @@ void YSE::DEVICE::managerObject::addCallback() {
   // setup with default device
   PaStreamParameters params;
   params.device = Pa_GetDefaultOutputDevice();
+  if (params.device == paNoDevice) {
+    INTERNAL::LogImpl().emit(E_WARNING, "No default audio output device found.");
+    return;
+  }
   const PaDeviceInfo * info = Pa_GetDeviceInfo(params.device);
   params.channelCount = info->maxOutputChannels;
   params.sampleFormat = paFloat32 | paNonInterleaved;
@@ -235,7 +239,9 @@ void YSE::DEVICE::managerObject::updateDeviceList() {
 	defaultTypeName = hostInfo->name;
 	
 	const PaDeviceInfo * deviceInfo = Pa_GetDeviceInfo(Pa_GetDefaultOutputDevice());
-	defaultDeviceName = deviceInfo->name;
+	if (deviceInfo != nullptr) {
+		defaultDeviceName = deviceInfo->name;
+	}
 }
 
 void YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup & object) {

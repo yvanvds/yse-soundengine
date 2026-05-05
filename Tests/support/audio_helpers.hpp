@@ -78,4 +78,16 @@ inline unsigned peakBinIndex(float* re, float* im, unsigned N) {
     return peak;
 }
 
+// Mean energy (mean of squared samples) — useful for reverb tail energy comparisons.
+inline float bufferMeanEnergy(YSE::DSP::buffer& b) {
+    float rms = measureRms(b);
+    return rms * rms;
+}
+
+// Returns true if the RMS of b is below silenceThreshold.
+// Use this after running a DSP processor for maxSamples to verify the tail decayed.
+inline bool decaysToSilence(YSE::DSP::buffer& b, float silenceThreshold = 1e-6f) {
+    return measureRms(b) < silenceThreshold;
+}
+
 } // namespace TestHelpers

@@ -20,6 +20,10 @@ add_executable(yse_tests
   dsp/test_modules.cpp
   patcher/test_graph.cpp
   patcher/test_nodes.cpp
+  channel/test_channel.cpp
+  sound/test_sound_state.cpp
+  reverb/test_reverb_dsp.cpp
+  midi/test_midifile.cpp
 )
 
 # doctest is header-only; expose it as an INTERFACE library so the include path
@@ -77,6 +81,38 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_patcher PROPERTIES LABELS patcher)
+
+add_test(
+  NAME    yse_tests_channel
+  COMMAND yse_tests --test-suite=channel
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_channel PROPERTIES LABELS channel)
+
+add_test(
+  NAME    yse_tests_sound
+  COMMAND yse_tests --test-suite=sound
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_sound PROPERTIES LABELS sound)
+
+add_test(
+  NAME    yse_tests_reverb
+  COMMAND yse_tests --test-suite=reverb
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_reverb PROPERTIES LABELS reverb)
+
+add_test(
+  NAME    yse_tests_midi
+  COMMAND yse_tests --test-suite=midi
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_midi PROPERTIES LABELS midi)
+
+target_compile_definitions(yse_tests PRIVATE
+  "YSE_TEST_FIXTURES_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/support/fixtures\""
+)
 
 # Patcher test TUs include pObject.h and concrete node headers that use the
 # same unused-parameter / json.hpp pragma suppressions applied to patcher
