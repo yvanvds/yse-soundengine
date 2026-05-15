@@ -183,6 +183,38 @@ regression.
 
 ---
 
+## `scale::getNearest` dereferences `end()` for empty / above-last queries
+
+**Category:** Memory safety / Music
+
+[YseEngine/music/scale/scaleImplementation.cpp:115-128](YseEngine/music/scale/scaleImplementation.cpp#L115-L128)
+calls `std::lower_bound(pitches.begin(), pitches.end(), pitch)` and then
+immediately dereferences the returned iterator (`if (*high == pitch) ...`).
+Two inputs make `lower_bound` return `pitches.end()`:
+
+1. The scale is empty (`pitches.size() == 0`).
+2. The query pitch is strictly greater than the highest pitch in the scale.
+
+In both cases `*high` is UB — on Windows MSYS2 Clang64 builds this typically
+reads stale memory; on coverage builds it has been observed to segfault.
+
+**Repro:** `YSE::scale s; s.getNearest(60.f);` (empty), or
+`YSE::scale s; s.add(60.f, 0); s.getNearest(70.f);` (above-last).
+
+**Workaround in tests:** Phase E's getNearest tests in
+[Tests/music/test_scale.cpp:128-135](Tests/music/test_scale.cpp#L128-L135)
+only exercise the below-first and within-range paths. The empty and
+above-last branches are deferred until the fix lands.
+
+**Fix:** Add an early-return at the top of `getNearest`:
+```cpp
+if (pitches.empty()) return pitch;       // or NaN — caller-policy decision
+auto high = std::lower_bound(pitches.begin(), pitches.end(), pitch);
+if (high == pitches.end()) return pitches.back();
+```
+
+---
+
 ## suble notes from claude code we picked up. Maybe worth looking into
 
 The IDE diagnostics on the TEST_SUITE("dsp") { line are IntelliSense false positives — the macro expands to a namespace block that Clang compiles cleanly (as confirmed by the build above).

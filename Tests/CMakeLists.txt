@@ -35,6 +35,7 @@ add_executable(yse_tests
   music/test_scale.cpp
   music/test_note.cpp
   music/test_motif.cpp
+  listener/test_listener.cpp
   integration/test_device.cpp
 )
 
@@ -128,6 +129,13 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_music PROPERTIES LABELS music)
+
+add_test(
+  NAME    yse_tests_listener
+  COMMAND yse_tests --test-suite=listener
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_listener PROPERTIES LABELS listener)
 
 target_compile_definitions(yse_tests PRIVATE
   "YSE_TEST_FIXTURES_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/support/fixtures\""
