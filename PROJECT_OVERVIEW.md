@@ -39,7 +39,7 @@ yse.py                      # Python CLI wrapper over cmake --preset / ctest --p
 .clang-format               # clang-format style config (used by `yse.py format`)
 sonar-project.properties    # SonarCloud analysis configuration
 .github/workflows/build.yml # GitHub Actions: Linux Debug + coverage + SonarQube scan
-doxyGen/                    # Doxygen config
+documentation/              # Doxygen + Sphinx (Breathe, sphinx-book-theme) docs
 (known issues tracked in GitHub Issues, not in-repo)
 ```
 

@@ -31,10 +31,11 @@ local.properties
 .buildpath
 
 #################
-## DoxyGen
+## Documentation
 #################
 
-doxyGen/output/
+documentation/build/
+documentation/source/_doxygen/
 
 #################
 ## Visual Studio

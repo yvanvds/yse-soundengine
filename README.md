@@ -139,6 +139,63 @@ additive and do not change how the build works when invoked directly.
 
 ---
 
+## Documentation
+
+API reference is generated from the source by **Doxygen + Sphinx + Breathe**
+using the `sphinx-book-theme`. Sources live under `documentation/`.
+
+### Local preview
+
+Install the toolchain (Doxygen 1.9+ from your package manager, Python deps
+from the requirements file):
+
+```sh
+# Debian/Ubuntu
+sudo apt install doxygen graphviz
+# macOS (Homebrew)
+brew install doxygen graphviz
+```
+
+On Windows, install the official binaries (both add themselves to `PATH`):
+
+- Doxygen — <https://www.doxygen.nl/download.html> (the `doxygen-x.x.x-setup.exe` installer)
+- Graphviz — <https://graphviz.org/download/> (the Windows installer; tick *"Add Graphviz to the system PATH"*)
+
+Then install the Python dependencies (works on every OS):
+
+```sh
+pip install -r documentation/requirements.txt
+```
+
+Build the site:
+
+```sh
+cd documentation
+make html        # Linux/macOS/MSYS2: doxygen XML + sphinx HTML
+make.bat html    # Windows cmd
+```
+
+The HTML lands in `documentation/build/html/`. Preview it with the
+built-in server:
+
+```sh
+make serve       # http://localhost:8000
+```
+
+You can run the two stages separately while iterating: `make doxygen`
+regenerates the XML under `source/_doxygen/` (only needed when source
+comments change), and `make sphinx` rebuilds just the HTML (fast). Use
+`make clean` to wipe `build/` and `source/_doxygen/`.
+
+### CI
+
+`.github/workflows/documentation.yml` builds the docs on every push to
+`master` and publishes the result to GitHub Pages. The workflow assumes
+Pages is configured for the repo with **Source: GitHub Actions**
+(Settings → Pages).
+
+---
+
 ## Project structure
 
 | Directory | Contents |
@@ -146,6 +203,7 @@ additive and do not change how the build works when invoked directly.
 | `YseEngine/` | Engine source (compiled into `libyse`) |
 | `Demo.Windows.Native/` | Native C++ demos (one executable each) |
 | `TestResources/` | Audio files referenced by demos |
+| `documentation/` | Doxygen + Sphinx + Breathe documentation sources |
 | `dependencies/` | Vendored headers (rtmidi headers used by build; PortAudio/libsndfile vendored copies unused) |
 
 ---
