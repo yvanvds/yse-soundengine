@@ -24,6 +24,8 @@ add_executable(yse_tests
   patcher/test_graph.cpp
   patcher/test_nodes.cpp
   patcher/test_patcher_math.cpp
+  patcher/test_math_wrappers.cpp
+  patcher/test_dsp_objects.cpp
   channel/test_channel.cpp
   sound/test_sound_state.cpp
   reverb/test_reverb_dsp.cpp
@@ -151,5 +153,7 @@ set_source_files_properties(
   patcher/test_graph.cpp
   patcher/test_nodes.cpp
   patcher/test_patcher_math.cpp
+  patcher/test_math_wrappers.cpp
+  patcher/test_dsp_objects.cpp
   PROPERTIES COMPILE_FLAGS "${_patcher_test_suppress}"
 )

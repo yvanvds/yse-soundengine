@@ -6,7 +6,6 @@
 #include "patcher/patcher.hpp"
 #include "patcher/pHandle.hpp"
 #include "patcher/pObjectList.hpp"
-#include "patcher/pObject.h"
 #include "patcher/math/gAdd.h"
 #include "patcher/math/gSubstract.h"
 #include "patcher/math/gDivide.h"
@@ -16,43 +15,13 @@
 #include "patcher/math/dDivide.h"
 #include "patcher/math/dSubstract.h"
 #include "dsp/buffer.hpp"
+#include "patcher/sinks.hpp"
+
+using TestHelpers::FloatSink;
+using TestHelpers::IntSink;
+using TestHelpers::BufferSink;
 
 TEST_SUITE("patcher") {
-
-// ─── Shared sink types ────────────────────────────────────────────────────────
-
-struct FloatSink : YSE::PATCHER::pObject {
-    float received = 0.f;
-    FloatSink() : pObject(false) {
-        inputs.emplace_back(this, true, 0);
-        inputs.back().RegisterFloat([this](float v, int, YSE::THREAD) { received = v; });
-    }
-    const char* Type() const override { return "float_sink"; }
-    void Calculate(YSE::THREAD) override {}
-    void SetMessage(const std::string&, float) override {}
-};
-
-struct IntSink : YSE::PATCHER::pObject {
-    int received = -999;
-    IntSink() : pObject(false) {
-        inputs.emplace_back(this, true, 0);
-        inputs.back().RegisterInt([this](int v, int, YSE::THREAD) { received = v; });
-    }
-    const char* Type() const override { return "int_sink"; }
-    void Calculate(YSE::THREAD) override {}
-    void SetMessage(const std::string&, float) override {}
-};
-
-struct BufferSink : YSE::PATCHER::pObject {
-    YSE::DSP::buffer* received = nullptr;
-    BufferSink() : pObject(false) {
-        inputs.emplace_back(this, true, 0);
-        inputs.back().RegisterBuffer([this](YSE::DSP::buffer* b, int, YSE::THREAD) { received = b; });
-    }
-    const char* Type() const override { return "buffer_sink"; }
-    void Calculate(YSE::THREAD) override {}
-    void SetMessage(const std::string&, float) override {}
-};
 
 // ─── gAdd ─────────────────────────────────────────────────────────────────────
 

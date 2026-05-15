@@ -128,6 +128,35 @@ at the top of `interpolate4::operator()` (mirroring the pattern used by
 
 ---
 
+## `dVcf::Calculate` dereferences a null `out2` pointer
+
+**Category:** Memory safety / DSP
+
+[YseEngine/patcher/filters/dVcf.cpp:51-61](YseEngine/patcher/filters/dVcf.cpp#L51-L61)
+declares `DSP::buffer * out2 = nullptr;` and then immediately passes `*out2`
+to `vcf::operator()(in, center, out2&)`
+([oscillators.cpp:316-318](YseEngine/dsp/oscillators.cpp#L316-L318)), which
+calls `out2.getLength()` and `out2.getPtr()` on the null reference.  This is
+undefined behaviour; on Windows MSYS2 Clang64 builds it consistently
+segfaults as soon as both `in` and `center` are connected.
+
+**Repro:** Instantiate `YSE::PATCHER::dVcf`, feed valid buffers to inlets 0
+and 1, call `Calculate(T_DSP)`.
+
+**Workaround in tests:** Phase C's dVcf tests in
+[Tests/patcher/test_dsp_objects.cpp](Tests/patcher/test_dsp_objects.cpp) only
+exercise the metadata and the two null-input early-return paths.  A real
+filter-behaviour regression test is deferred until the fix lands.
+
+**Fix:** Either give `dVcf` an owned `DSP::buffer out2;` member (mirroring
+how `pBandpass`/`pHighpass` keep their working buffers) and pass it through,
+or change `vcf::operator()` to take an optional pointer for the second
+output.  The two-output design is the source of the awkwardness — the
+existing `// TODO` comment at
+[oscillators.hpp:101](YseEngine/dsp/oscillators.hpp#L101) already flags this.
+
+---
+
 ## suble notes from claude code we picked up. Maybe worth looking into
 
 The IDE diagnostics on the TEST_SUITE("dsp") { line are IntelliSense false positives — the macro expands to a namespace block that Clang compiles cleanly (as confirmed by the build above).
