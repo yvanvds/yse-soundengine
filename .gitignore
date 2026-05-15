@@ -60,6 +60,7 @@ build/
 build-debug/
 build-tests/
 build-coverage/
+build-asan/
 [Bb]in/
 [Oo]bj/
 

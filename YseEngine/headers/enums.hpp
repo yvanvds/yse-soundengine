@@ -84,6 +84,7 @@ namespace YSE {
     OBJECT_READY, // ready for use
     OBJECT_DONE, // flag for release
     OBJECT_RELEASE, // flagged for release from inUse list
+    OBJECT_DELETE_PENDING, // slow-pool setup() found head==null; audio thread must remove from toLoad before promoting to OBJECT_DELETE
     OBJECT_DELETE, // flagged for deletion from implementations list
   };
 

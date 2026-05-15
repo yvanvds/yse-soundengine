@@ -74,14 +74,17 @@ set_target_properties(yse_tests PROPERTIES
 
 # Register with CTest.
 #
-# yse_unit_tests runs the full binary, including the integration suite. The
-# pre-Phase-A/B/C workaround used `--test-suite-exclude=integration` here to
-# stop the integration suite's `engineInitWithAudio()` from racing the audio
-# callback against unit-test teardown — that race is now closed at the
-# engine level, so the exclude is gone.
+# yse_unit_tests excludes the integration suite. Both `Tests/integration/test_device.cpp`
+# and the `[integration]`-tagged live-audio variants of the concurrency tests
+# resume the PortAudio stream via `engineInitWithAudio()`. With audio live, any
+# subsequent test that drives `Manager().update()` directly (the unit-tests'
+# `drainSoundManager()` / `drain()` helpers) races against the audio callback's
+# own update() — `update()` is single-threaded by design. The engine-level race
+# fix (Phases A-D) is unaffected by this; the constraint is purely a test
+# infrastructure invariant. The integration suite has its own ctest entry below.
 add_test(
   NAME    yse_unit_tests
-  COMMAND yse_tests
+  COMMAND yse_tests --test-suite-exclude=integration
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 

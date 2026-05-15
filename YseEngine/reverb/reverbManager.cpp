@@ -83,12 +83,20 @@ void YSE::REVERB::managerObject::update() {
 
   ///////////////////////////////////////////
   // check if loaded implementations are ready
+  //
+  // Erase from toLoad immediately on move to inUse — see SOUND/CHANNEL
+  // manager update() for the use-after-free rationale this avoids.
   ///////////////////////////////////////////
   {
-    for (auto i = toLoad.begin(); i != toLoad.end(); ++i) {
+    auto previous = toLoad.before_begin();
+    for (auto i = toLoad.begin(); i != toLoad.end(); ) {
       implementationObject * ptr = *i;
       if (ptr->readyCheck()) {
         inUse.emplace_front(ptr);
+        i = toLoad.erase_after(previous);
+      } else {
+        previous = i;
+        ++i;
       }
     }
   }

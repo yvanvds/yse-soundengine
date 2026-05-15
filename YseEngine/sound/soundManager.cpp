@@ -155,7 +155,27 @@ void YSE::SOUND::managerObject::update() {
   // check if there are implementations that need setup
   ///////////////////////////////////////////
   if (!toLoad.empty() && !mgrSetup.isQueued()) {
-    toLoad.remove_if(implementationObject::canBeRemovedFromLoading);
+    // Custom remove pass: erases READY / RELEASE / DELETE impls (already
+    // handled or in flight) and *handshakes* OBJECT_DELETE_PENDING impls
+    // (setup-failure path) by promoting them to OBJECT_DELETE and triggering
+    // the slow-pool delete job — but only AFTER erasing them from toLoad,
+    // so the slow-pool can't free a pointer that's still in the
+    // audio-thread-iterated list. See enums.hpp for the PENDING rationale.
+    auto previous = toLoad.before_begin();
+    for (auto it = toLoad.begin(); it != toLoad.end(); ) {
+      implementationObject * p = *it;
+      OBJECT_IMPLEMENTATION_STATE s = p->objectStatus.load(std::memory_order_acquire);
+      if (s == OBJECT_DELETE_PENDING) {
+        p->objectStatus.store(OBJECT_DELETE, std::memory_order_release);
+        runDelete = true;
+        it = toLoad.erase_after(previous);
+      } else if (s == OBJECT_READY || s == OBJECT_RELEASE || s == OBJECT_DELETE) {
+        it = toLoad.erase_after(previous);
+      } else {
+        previous = it;
+        ++it;
+      }
+    }
     INTERNAL::Global().addSlowJob(&mgrSetup);
   }
 
@@ -166,16 +186,28 @@ void YSE::SOUND::managerObject::update() {
 
   ///////////////////////////////////////////
   // check if loaded implementations are ready
+  //
+  // When readyCheck succeeds we move the impl into inUse AND erase it from
+  // toLoad in the same step. Deferring the toLoad-erasure to the next tick's
+  // remove_if creates a use-after-free window: within this same update tick
+  // the impl can subsequently transition through OBJECT_RELEASE→OBJECT_DELETE
+  // in the inUse iteration below, runDelete is set, deleteJob is enqueued,
+  // the slow-pool frees the impl, and the next remove_if call dereferences
+  // the freed pointer (ASan-confirmed).
   ///////////////////////////////////////////
   {
-    for (auto i = toLoad.begin(); i != toLoad.end(); ++i) {
+    auto previous = toLoad.before_begin();
+    for (auto i = toLoad.begin(); i != toLoad.end(); ) {
       implementationObject * ptr = *i;
       if (ptr->readyCheck()) {
-        // place ptr in active sound list
         inUse.emplace_front(ptr);
         // add the sound to the channel that is supposed to use
         //ptr->parent->connect(ptr);
         ptr->doThisWhenReady();
+        i = toLoad.erase_after(previous);
+      } else {
+        previous = i;
+        ++i;
       }
     }
   }

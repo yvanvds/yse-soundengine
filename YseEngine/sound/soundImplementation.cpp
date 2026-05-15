@@ -273,12 +273,16 @@ bool YSE::SOUND::implementationObject::create(PATCHER::patcherImplementation * p
 }*/
 
 void YSE::SOUND::implementationObject::setup() {
-  if (objectStatus == OBJECT_DELETE) return;
-  
+  if (objectStatus == OBJECT_DELETE || objectStatus == OBJECT_DELETE_PENDING) return;
+
   if (objectStatus >= OBJECT_CREATED) {
     // interface might be deleted
     if (head.load() == nullptr) {
-      objectStatus = OBJECT_DELETE;
+      // OBJECT_DELETE_PENDING (not OBJECT_DELETE) so the audio thread can
+      // remove this impl from toLoad before the slow-pool's deleteJob is
+      // allowed to free it. The audio thread promotes PENDING -> DELETE
+      // after erasing from toLoad in soundManager::update().
+      objectStatus = OBJECT_DELETE_PENDING;
       return;
     }
     // if object is ready and head is not null, just return
@@ -293,7 +297,7 @@ void YSE::SOUND::implementationObject::setup() {
       filebuffer.resize(file->channels());
 	  _head_length = file->length();
       resize();
-      
+
     } else if (file->getState() == INTERNAL::FILESTATE::READY) {
       // file is ready!
       filebuffer.resize(file->channels());
@@ -302,7 +306,8 @@ void YSE::SOUND::implementationObject::setup() {
       resize();
     }
     else if (file->getState() == INTERNAL::FILESTATE::INVALID) {
-      objectStatus = OBJECT_DELETE;
+      // Same toLoad-lifetime reasoning as the head==null branch above.
+      objectStatus = OBJECT_DELETE_PENDING;
       return;
     }
   }
@@ -769,10 +774,15 @@ void YSE::SOUND::implementationObject::toChannels() {
 }
 
 void YSE::SOUND::implementationObject::addDSP(DSP::dspObject & ptr) {
+  // Detach any previously-attached DSP from this impl. Clear the OLD
+  // dspObject's back-reference (calledfrom) — otherwise, when the OLD
+  // dspObject is destructed later (e.g. a process-lifetime static at
+  // exit), its destructor's `*calledfrom = nullptr` would write to this
+  // impl's post_dsp field, which may have been freed by deleteJob.
+  // ASan-caught UAF: see Tests/sound/test_sound_impl.cpp "replacing a
+  // DSP plugin clears the old calledfrom".
   if (post_dsp) {
-    if (post_dsp->calledfrom) {
-      *(post_dsp->calledfrom) = nullptr;
-    }
+    post_dsp->calledfrom = nullptr;
   }
 
   post_dsp = &ptr;

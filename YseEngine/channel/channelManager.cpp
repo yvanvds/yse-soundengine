@@ -67,16 +67,26 @@ void YSE::CHANNEL::managerObject::update() {
 
   ///////////////////////////////////////////
   // check if loaded implementations are ready
+  //
+  // When readyCheck succeeds we move the impl into inUse AND erase it from
+  // toLoad in the same step. Deferring the toLoad-erasure to the next tick's
+  // remove_if creates a use-after-free window: within this same update tick
+  // the impl can subsequently transition through OBJECT_RELEASE→OBJECT_DELETE
+  // in the inUse iteration below, runDelete is set, deleteJob is enqueued,
+  // the slow-pool frees the impl, and the next remove_if call dereferences
+  // the freed pointer (ASan-confirmed).
   ///////////////////////////////////////////
   {
-    for (auto i = toLoad.begin(); i != toLoad.end(); ++i) {
+    auto previous = toLoad.before_begin();
+    for (auto i = toLoad.begin(); i != toLoad.end(); ) {
       implementationObject * ptr = *i;
       if (ptr->readyCheck()) {
-        // place ptr in active sound list
         inUse.emplace_front(ptr);
-        // add the sound to the channel that is supposed to use
-        //ptr->parent->connect(ptr);
         ptr->doThisWhenReady();
+        i = toLoad.erase_after(previous);
+      } else {
+        previous = i;
+        ++i;
       }
     }
   }
