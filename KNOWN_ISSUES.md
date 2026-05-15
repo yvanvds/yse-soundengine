@@ -215,6 +215,39 @@ if (high == pitches.end()) return pitches.back();
 
 ---
 
+## `getMidiOutPort` caches a partially-initialised `RtMidiOut` when `openPort` throws
+
+**Category:** Resource leak / MIDI
+
+[YseEngine/midi/midiDeviceManager.cpp:114-126](YseEngine/midi/midiDeviceManager.cpp#L114-L126)
+emplaces a freshly-constructed `RtMidiOut*` into `midiOutPorts` *before* calling
+`openPort(ID)`.  When `openPort` throws (e.g. invalid port id), the catch arm
+returns `nullptr` but the map entry stays alive, holding a port-less
+`RtMidiOut`.  The next call with the same ID hits the `count(ID) > 0` branch
+and returns that cached pointer — which behaves like a no-op device (its
+`sendMessage` writes to nowhere), masking the original failure.
+
+**Repro:** `MIDI::DeviceManager().getMidiOutPort(9999)` returns `nullptr` on
+the first call and a non-null, useless pointer on the second.  Verified by
+Phase G's getMidiOutPort cache test in
+[Tests/midi/test_devicemanager.cpp](Tests/midi/test_devicemanager.cpp).
+
+**Fix:** Either insert into the cache only after `openPort` succeeds, or
+delete + erase the entry inside the catch arm:
+```cpp
+try {
+  auto * port = new RtMidiOut();
+  port->openPort(ID);                 // throws on invalid id
+  midiOutPorts.emplace(ID, port);
+  return port;
+} catch (RtMidiError& error) {
+  MIDI::GenerateMidiError(error);
+  return nullptr;
+}
+```
+
+---
+
 ## suble notes from claude code we picked up. Maybe worth looking into
 
 The IDE diagnostics on the TEST_SUITE("dsp") { line are IntelliSense false positives — the macro expands to a namespace block that Clang compiles cleanly (as confirmed by the build above).

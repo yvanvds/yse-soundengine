@@ -32,6 +32,7 @@ add_executable(yse_tests
   sound/test_sound_state.cpp
   reverb/test_reverb_dsp.cpp
   midi/test_midifile.cpp
+  midi/test_devicemanager.cpp
   music/test_scale.cpp
   music/test_note.cpp
   music/test_motif.cpp
