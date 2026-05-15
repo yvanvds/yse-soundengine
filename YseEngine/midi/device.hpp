@@ -15,6 +15,9 @@ namespace YSE {
 		midiOut();
 
 		midiOut(const midiOut&) = delete;
+		midiOut& operator=(const midiOut&) = delete;
+		midiOut(midiOut&&) = delete;
+		midiOut& operator=(midiOut&&) = delete;
 
 		void create(unsigned int port);
 

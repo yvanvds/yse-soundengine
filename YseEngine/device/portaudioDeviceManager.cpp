@@ -114,18 +114,14 @@ void YSE::DEVICE::managerObject::addCallback() {
   const PaDeviceInfo * info = Pa_GetDeviceInfo(params.device);
   params.channelCount = info->maxOutputChannels;
   params.sampleFormat = paFloat32 | paNonInterleaved;
-  if (Pa_GetHostApiInfo(info->hostApi)->type == paASIO) {
+  params.suggestedLatency = info->defaultHighOutputLatency;
 #if defined(PA_USE_ASIO)
+  if (Pa_GetHostApiInfo(info->hostApi)->type == paASIO) {
     long min, max, pref;
     PaAsio_GetAvailableLatencyValues(params.device, &min, &max, &pref, NULL);
     params.suggestedLatency = pref;
-#else
-    params.suggestedLatency = info->defaultHighOutputLatency;
+  }
 #endif
-  }
-  else {
-    params.suggestedLatency = info->defaultHighOutputLatency;
-  }
   params.hostApiSpecificStreamInfo = nullptr;
   SAMPLERATE = (UInt)info->defaultSampleRate;
 
@@ -253,18 +249,14 @@ void YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup & object) {
   const PaDeviceInfo * info = Pa_GetDeviceInfo(params.device);
   params.channelCount = object.getOutputChannels();
   params.sampleFormat = paFloat32 | paNonInterleaved;
-  if (Pa_GetHostApiInfo(info->hostApi)->type == paASIO) {
+  params.suggestedLatency = info->defaultHighOutputLatency;
 #if defined(PA_USE_ASIO)
+  if (Pa_GetHostApiInfo(info->hostApi)->type == paASIO) {
     long min, max, pref;
     PaAsio_GetAvailableLatencyValues(params.device, &min, &max, &pref, NULL);
     params.suggestedLatency = pref;
-#else
-    params.suggestedLatency = info->defaultHighOutputLatency;
+  }
 #endif
-  }
-  else {
-    params.suggestedLatency = info->defaultHighOutputLatency;
-  }
   params.hostApiSpecificStreamInfo = nullptr;
   SAMPLERATE = (UInt)info->defaultSampleRate;
 

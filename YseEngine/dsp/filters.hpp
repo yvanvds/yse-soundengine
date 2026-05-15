@@ -22,7 +22,7 @@ namespace YSE {
     public:
       filterBase();
       filterBase( const filterBase &);
-      virtual ~filterBase() {}
+      virtual ~filterBase() = default;
 
       virtual buffer & operator()(buffer & in) = 0;
 

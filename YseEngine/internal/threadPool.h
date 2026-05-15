@@ -44,7 +44,7 @@ namespace YSE {
 
     class threadPoolThread : public thread {
     public:
-      threadPoolThread(threadPool * pool);
+      explicit threadPoolThread(threadPool * pool);
       virtual void run();
 
     private:
@@ -54,7 +54,7 @@ namespace YSE {
     class threadPool {
     public:
       // numThreads: -1 means hardware_concurrency
-      threadPool(Int numThreads = -1);
+      explicit threadPool(Int numThreads = -1);
       ~threadPool();
 
       void addJob(threadPoolJob * job);

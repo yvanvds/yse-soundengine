@@ -14,6 +14,11 @@ namespace YSE {
 			deviceManager();
 			~deviceManager();
 
+			deviceManager(const deviceManager&) = delete;
+			deviceManager& operator=(const deviceManager&) = delete;
+			deviceManager(deviceManager&&) = delete;
+			deviceManager& operator=(deviceManager&&) = delete;
+
 			unsigned int getNumMidiInDevices();
 			unsigned int getNumMidiOutDevices();
 
