@@ -13,6 +13,7 @@ add_executable(yse_tests
   utils/test_atomic.cpp
   utils/test_vector.cpp
   utils/test_lfqueue.cpp
+  utils/test_interpolators.cpp
   dsp/test_filters.cpp
   dsp/test_delay.cpp
   dsp/test_envelope.cpp
