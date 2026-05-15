@@ -98,6 +98,36 @@ case (in-place status line refresh via `\r`).
 
 
 
+## `interpolate4::operator()` does not resize its output buffer
+
+**Category:** Memory safety / DSP
+
+[YseEngine/dsp/interpolate4.cpp:37-71](YseEngine/dsp/interpolate4.cpp#L37-L71)
+holds a private `buffer out` member that is default-constructed
+(STANDARD_BUFFERSIZE = 128 samples) and never resized.  `operator()` writes
+`in.getLength()` floats into `out` without first calling `out.resize(in.getLength())`,
+so any input longer than 128 samples corrupts the heap.  This propagates to
+every consumer — most visibly `sweepFilter::process()`
+([YseEngine/dsp/modules/filters/sweep.cpp:83-97](YseEngine/dsp/modules/filters/sweep.cpp#L83-L97)),
+which forwards `result` (sized to the incoming `MULTICHANNELBUFFER` channel)
+straight through the interpolator.
+
+**Repro:** Construct a `sweepFilter`, feed it a `MULTICHANNELBUFFER` with a
+channel buffer larger than 128 samples, call `process()`; on Windows MSYS2
+Clang64 builds this consistently surfaces as exit code `0xC0000374`
+(`STATUS_HEAP_CORRUPTION`).
+
+**Workaround in tests:** Phase A's sweepFilter tests in
+[Tests/dsp/test_module_filters.cpp](Tests/dsp/test_module_filters.cpp) only
+exercise the 128-sample path.  A regression test for the resize path is
+deferred until the fix lands.
+
+**Fix:** Add `if (in.getLength() != out.getLength()) out.resize(in.getLength());`
+at the top of `interpolate4::operator()` (mirroring the pattern used by
+`oscillator::operator()` in [oscillators.cpp:244-251](YseEngine/dsp/oscillators.cpp#L244-L251)).
+
+---
+
 ## suble notes from claude code we picked up. Maybe worth looking into
 
 The IDE diagnostics on the TEST_SUITE("dsp") { line are IntelliSense false positives — the macro expands to a namespace block that Clang compiles cleanly (as confirmed by the build above).

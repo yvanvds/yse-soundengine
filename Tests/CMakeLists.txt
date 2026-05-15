@@ -18,6 +18,8 @@ add_executable(yse_tests
   dsp/test_envelope.cpp
   dsp/test_fourier.cpp
   dsp/test_modules.cpp
+  dsp/test_module_filters.cpp
+  dsp/test_module_delays.cpp
   patcher/test_graph.cpp
   patcher/test_nodes.cpp
   patcher/test_patcher_math.cpp

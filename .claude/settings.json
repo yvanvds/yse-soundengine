@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "mcp__sonarqube__search_sonar_issues_in_projects"
+      "mcp__sonarqube__search_sonar_issues_in_projects",
+      "mcp__sonarqube__search_my_sonarqube_projects",
+      "Read(//c/Users/yvan/.claude/plans/**)"
     ]
   }
 }
