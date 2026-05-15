@@ -61,6 +61,8 @@ build-debug/
 build-tests/
 build-coverage/
 build-asan/
+build-linux/
+build-linux-asan/
 [Bb]in/
 [Oo]bj/
 
