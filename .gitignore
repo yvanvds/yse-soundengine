@@ -63,6 +63,7 @@ build-coverage/
 build-asan/
 build-linux/
 build-linux-asan/
+build-linux-tsan/
 [Bb]in/
 [Oo]bj/
 
