@@ -30,6 +30,7 @@ add_executable(yse_tests
   patcher/test_gui_objects.cpp
   channel/test_channel.cpp
   sound/test_sound_state.cpp
+  sound/test_sound_impl.cpp
   reverb/test_reverb_dsp.cpp
   midi/test_midifile.cpp
   midi/test_devicemanager.cpp
