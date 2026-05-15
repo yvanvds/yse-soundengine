@@ -84,16 +84,6 @@ PortAudio is built with ASIO support.
 
 ---
 
-## `<experimental/filesystem>` updated to `<filesystem>`
-
-**Category:** Source bit-rot fixed
-
-`YseEngine/utils/fileFunctions.cpp` used `<experimental/filesystem>` and
-`std::experimental::filesystem::path`, which is not available in modern
-libc++ (C++17 standardized `<filesystem>`).  The include and namespace were
-updated to the standardized form.
-
----
 
 ## Demo03 `_cprintf_s` replaced with `printf`
 
@@ -106,68 +96,6 @@ case (in-place status line refresh via `\r`).
 
 ---
 
-## patcher/midi objects not in original source list
-
-**Category:** Source omission fixed
-
-The seven `patcher/midi/mMidi*.cpp` files were absent from the original
-`CMakeLists.txt` but are registered unconditionally in `patcher/pRegistry.cpp`.
-Omitting them caused linker errors.  They are now included in the engine source
-list.
-
----
-
-## `internal/AudioTest.cpp` re-included
-
-**Category:** Source omission fixed
-
-`internal/AudioTest.cpp` was commented out in the original `CMakeLists.txt`.
-`system.cpp` calls `YSE::INTERNAL::Test()` inside `#ifdef __WINDOWS__`, so
-the DLL failed to link without it.  The file is now compiled into the library.
-
----
-
-## `buffer::maxValue()` — SIMD unroll assigns wrong element
-
-**Category:** DSP bug
-
-In `YseEngine/dsp/buffer.cpp`, the 8-wide unrolled loop in `maxValue()` correctly
-checks `ptr1[1..7] > max` but then always assigns `ptr1[0]` to `max` instead of
-the element that was compared.  As a result `maxValue()` can return a wrong (too
-small) value for any buffer with 8 or more samples where the true maximum is not
-in position 0.
-
-The scalar tail loop (`while (l--)`) is correct and runs for the leftover samples
-after the last full group of 8.
-
-**Workaround:** Use `getMaxAmplitude()` from `dsp/math_functions.h`, which
-iterates correctly; or call `maxValue()` only on buffers whose length is not a
-multiple of 8, relying solely on the scalar tail.
-
-**Unit-test impact:** `Tests/test_buffer.cpp` deliberately uses buffers of length
-< 8 for `maxValue()` assertions to stay on the correct scalar path.
-
----
-
-## `buffer` constructor leaves `cursor` and `sampleRateAdjustment` uninitialised
-
-**Category:** Latent bug / UB
-
-`YseEngine/dsp/buffer.cpp`'s primary constructor
-```cpp
-buffer::buffer(UInt length, UInt overflow)
-    : storage(length + overflow), overflow(overflow) {}
-```
-does not initialise the public `cursor` raw pointer or the protected
-`sampleRateAdjustment` field.  Reading either member on a freshly constructed
-`buffer` is undefined behaviour.
-
-In the current engine this is safe because all internal code that uses `cursor`
-sets it explicitly before reading, and `sampleRateAdjustment` is only read after
-a device-open call (which sets it via `setSampleRateAdjustment()`).
-
-**Follow-up:** Add `cursor(storage.data()), sampleRateAdjustment(1.0f)` to the
-initialiser list so the class is unconditionally safe to inspect.
 
 
 ## suble notes from claude code we picked up. Maybe worth looking into

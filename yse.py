@@ -73,6 +73,23 @@ def cmd_test(args):
     run(["cmake", "--build", "--preset", "tests-debug"])
     run(["ctest", "--preset", "tests-debug"])
 
+    if args.integration:
+        suffix = ".exe" if IS_WINDOWS else ""
+        exe = ROOT / "build-tests" / "bin" / ("yse_tests" + suffix)
+        if not exe.exists():
+            print(f"error: {exe} not found after build.")
+            sys.exit(1)
+        # ctest's DISABLED property on yse_tests_integration blocks the suite
+        # even with `-L integration`, so invoke the doctest binary directly.
+        # WORKING_DIRECTORY = bin/ matches the per-suite CTest entries.
+        bin_dir = exe.parent
+        _print_cmd([exe.name, "--test-suite=integration"], cwd=bin_dir)
+        result = subprocess.run(
+            [str(exe), "--test-suite=integration"], cwd=str(bin_dir)
+        )
+        if result.returncode != 0:
+            sys.exit(result.returncode)
+
 
 def _cmd_coverage_linux():
     run(["cmake", "--preset", "coverage"])
@@ -317,6 +334,7 @@ def build_parser():
   python yse.py build              configure + build (debug)
   python yse.py build --release    configure + build (release)
   python yse.py test               build tests-debug preset, run ctest
+  python yse.py test --integration same, plus the integration suite (needs real audio device)
   python yse.py coverage           coverage preset + report (Linux: gcovr→coverage.xml; Windows: llvm-cov→coverage-llvm.json)
   python yse.py run                run Demo00 from build-debug/bin/
   python yse.py run Demo05         run Demo05 (Reverb) from build-debug/bin/
@@ -348,8 +366,17 @@ def build_parser():
         help="Build the tests-debug preset and run ctest",
         description=(
             "Configures with YSE_BUILD_TESTS=ON (tests-debug preset), builds, "
-            "then runs ctest --preset tests-debug."
+            "then runs ctest --preset tests-debug.\n\n"
+            "With --integration, additionally runs the integration suite by "
+            "invoking yse_tests --test-suite=integration directly.  These tests "
+            "are DISABLED in CTest because they require a real audio output "
+            "device (and on Windows probe the RtMidi backend), so they only "
+            "run when explicitly requested."
         ),
+    )
+    p.add_argument(
+        "--integration", action="store_true",
+        help="Also run the integration suite (requires a real audio device)",
     )
     p.set_defaults(func=cmd_test)
 

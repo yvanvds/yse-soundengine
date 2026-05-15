@@ -24,7 +24,7 @@ namespace YSE {
       sineWave();
 
       // change the frequency instantly, or wait for the next note on status
-      void  frequency(float value);
+      void  frequency(float value) override;
       float frequency();
 
       using dspSourceObject::process;
