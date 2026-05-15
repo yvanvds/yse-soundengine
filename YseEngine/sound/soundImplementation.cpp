@@ -80,8 +80,8 @@ YSE::SOUND::implementationObject::~implementationObject() {
     file->release(this);
   }
   if (post_dsp && post_dsp->calledfrom) post_dsp->calledfrom = nullptr;
-  if (head.load() != nullptr) {
-    head.load()->pimpl = nullptr;
+  if (sound * h = head.load(std::memory_order_acquire)) {
+    h->pimpl = nullptr;
   }
 
   if (patcher != nullptr && patcher->controlledBySound) {
@@ -352,15 +352,19 @@ void YSE::SOUND::implementationObject::sendMessage(const messageObject & message
 }
 
 void YSE::SOUND::implementationObject::sync() {
-  if (head.load() == nullptr) {
+  // Snapshot head once: ~sound() on another thread can race the null check
+  // and null head via removeInterface() between the check and the deref
+  // below, producing a SEGV at the offset of `_volume` from null.
+  sound * h = head.load(std::memory_order_acquire);
+  if (h == nullptr) {
     objectStatus = OBJECT_DONE;
-    
+
     // sound head is destructed, so stop and remove
     if (playerType == PT_DSP || playerType == PT_PATCHER) {
       objectStatus = OBJECT_RELEASE;
       return;
     }
-    
+
     if (status_dsp != SS_STOPPED && status_dsp != SS_WANTSTOSTOP) {
       status_dsp = SS_WANTSTOSTOP;
     }
@@ -378,7 +382,7 @@ void YSE::SOUND::implementationObject::sync() {
   // sync dsp values
   currentVolume_upd = currentVolume_dsp;
   _head_time = currentFilePos;
-  head.load()->_volume = currentVolume_dsp;
+  h->_volume = currentVolume_dsp;
   status_upd = status_dsp;
   _head_status = status_upd;
 }
