@@ -248,6 +248,80 @@ try {
 
 ---
 
+## `SOUND::Manager` has unsynchronised cross-thread access to its impl lists
+
+**Category:** Memory safety / Concurrency
+
+The sound manager runs on three threads with no locking between them:
+
+1. **Main / user thread** — calls `SOUND::Manager().update()`, which iterates
+   `inUse` and `toLoad` and may call `remove_if` on either
+   ([soundManager.cpp:141-188](YseEngine/sound/soundManager.cpp#L141-L188)).
+2. **Slow thread pool** — runs `setupJob::run()`, which **iterates the same
+   `toLoad` list** concurrently
+   ([soundManager.h:59-63](YseEngine/sound/soundManager.h#L59-L63)),
+   and `deleteJob::run()`, which calls `remove_if` on `implementations`
+   ([soundManager.h:90-92](YseEngine/sound/soundManager.h#L90-L92)).
+3. **Audio callback thread (PortAudio)** — calls
+   `implementationObject::dsp()`, which dereferences `source_dsp` (a pointer
+   to the user-supplied `dspSourceObject`) at
+   [soundImplementation.cpp:592-594](YseEngine/sound/soundImplementation.cpp#L592-L594).
+
+`std::forward_list` is not thread-safe, and the atomic in
+`forward_list<std::atomic<implementationObject*>>` protects only the pointer
+value — not the list nodes. Concurrent iteration + `remove_if` on `toLoad` is
+a data race; iteration through `inUse` while `dsp()` runs on the audio thread
+is a second race; and `source_dsp` can dangle if a caller passes a
+stack-local DSP source whose lifetime ends before the audio callback fires
+again.
+
+**Repro:** Run the full test binary on a system that has a real default
+output device (i.e. any developer workstation; CI has none, so
+`Pa_GetDefaultOutputDevice()` returns `paNoDevice` and the audio callback
+is never opened). Outcomes are non-deterministic across runs:
+
+- `SEGFAULT` (typically at process exit, sometimes mid-test)
+- `Exit code 0xC0000374` (`STATUS_HEAP_CORRUPTION`)
+- `Exit code 0xC0000409` (`STATUS_STACK_BUFFER_OVERRUN`) preceded by
+  `libc++abi: Pure virtual function called!`
+- Hang on `Pa_OpenStream` when running the binary again from the same shell
+  (Windows MME holds the device for ~hundreds of ms after `Pa_CloseStream`).
+
+**Workarounds in tests:** Three layers, all on the test side — no engine
+changes:
+
+1. [Tests/support/null_device.hpp](Tests/support/null_device.hpp):
+   `engineInit()` calls `System().pause()` immediately after `System().init()`
+   so the audio callback is closed for the entire unit suite. A separate
+   `engineInitWithAudio()` (idempotent via a local static gate) is used by
+   the integration tests that genuinely need the audio thread running.
+2. [Tests/CMakeLists.txt](Tests/CMakeLists.txt): the `yse_unit_tests` ctest
+   entry passes `--test-suite-exclude=integration` so the unit run doesn't
+   re-open the audio stream (the integration suite has its own DISABLED
+   ctest entry and is opted into explicitly via
+   `python yse.py test --integration`).
+3. [Tests/sound/test_sound_impl.cpp](Tests/sound/test_sound_impl.cpp): all
+   `SilentSource` / `NopDsp` instances are file-scope statics so that even
+   if a stray audio callback fires past `Pa_StopStream`, it lands on a
+   still-live object whose `process()` is a no-op.
+
+These eliminate the segfault under the normal `python yse.py test`
+workflow but do not fix the underlying engine race; consecutive
+back-to-back runs of the binary from the same shell can still surface heap
+corruption or hangs intermittently. The integration suite, when explicitly
+invoked, exercises the live audio callback and remains flaky for the same
+reason.
+
+**Fix:** Add a `std::mutex` to `SOUND::managerObject` and take it around every
+modification or iteration of `toLoad`, `inUse`, and `implementations`. The
+audio-callback path (`dsp()`) needs a lock-free or RCU-style structure to
+read the live-impl list — taking a mutex on the audio thread is not
+acceptable. `CHANNEL::managerObject` and `REVERB::managerObject` use the
+same `setupJob`/`deleteJob` pattern via `Global().addSlowJob` and likely
+have analogous races worth auditing once the sound side is fixed.
+
+---
+
 ## suble notes from claude code we picked up. Maybe worth looking into
 
 The IDE diagnostics on the TEST_SUITE("dsp") { line are IntelliSense false positives — the macro expands to a namespace block that Clang compiles cleanly (as confirmed by the build above).

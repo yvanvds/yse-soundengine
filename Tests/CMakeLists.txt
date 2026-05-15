@@ -70,9 +70,14 @@ set_target_properties(yse_tests PROPERTIES
 )
 
 # Register with CTest.
+#
+# yse_unit_tests runs the full binary minus the integration suite, which has
+# its own (DISABLED) entry below.  Including integration here would re-open
+# the live audio stream (via engineInitWithAudio in those tests) and race
+# the audio callback against unit-test teardown.
 add_test(
   NAME    yse_unit_tests
-  COMMAND yse_tests
+  COMMAND yse_tests --test-suite-exclude=integration
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 

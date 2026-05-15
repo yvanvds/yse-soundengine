@@ -262,13 +262,32 @@ def cmd_analyze(args):
     sonar_scanner = shutil.which("sonar-scanner")
 
     if clang_tidy:
-        files = []
-        for d in [ROOT / "YseEngine", ROOT / "Tests"]:
-            if d.exists():
-                files.extend(sorted(d.rglob("*.cpp")))
+        target = getattr(args, "target", None)
+        if target:
+            target_path = Path(target)
+            if not target_path.is_absolute():
+                target_path = (ROOT / target_path).resolve()
+            if not target_path.exists():
+                print(f"error: target {target} not found.")
+                sys.exit(1)
+            if target_path.is_file():
+                if target_path.suffix != ".cpp":
+                    print(f"error: target {target} is not a .cpp file.")
+                    sys.exit(1)
+                files = [target_path]
+            else:
+                files = sorted(target_path.rglob("*.cpp"))
+        else:
+            files = []
+            for d in [ROOT / "YseEngine", ROOT / "Tests"]:
+                if d.exists():
+                    files.extend(sorted(d.rglob("*.cpp")))
 
         if not files:
-            print("No .cpp files found under YseEngine/ or Tests/.")
+            if target:
+                print(f"No .cpp files found under {target}.")
+            else:
+                print("No .cpp files found under YseEngine/ or Tests/.")
             return
 
         if sonar_scanner:
@@ -341,7 +360,9 @@ def build_parser():
   python yse.py debug Demo00       launch Demo00 under lldb
   python yse.py clean              remove all build directories
   python yse.py clean --yes        same, without confirmation prompt
-  python yse.py analyze            run clang-tidy (or sonar-scanner)
+  python yse.py analyze            run clang-tidy across YseEngine/ and Tests/ (slow)
+  python yse.py analyze YseEngine/dsp/     same, limited to one directory
+  python yse.py analyze YseEngine/sound.cpp  same, limited to a single file
   python yse.py format             run clang-format on YseEngine/ and Tests/
 """,
     )
@@ -454,12 +475,19 @@ def build_parser():
         "analyze",
         help="Run clang-tidy (or sonar-scanner) against the source",
         description=(
-            "Runs clang-tidy against compile_commands.json for all .cpp files "
-            "under YseEngine/ and Tests/.  "
+            "Runs clang-tidy against compile_commands.json.  "
+            "With no target, analyzes every .cpp file under YseEngine/ and "
+            "Tests/ (slow — full tree).  "
+            "Pass a file or directory to narrow the scope, e.g. "
+            "'analyze YseEngine/dsp/' or 'analyze YseEngine/sound.cpp'.  "
             "If clang-tidy is not found but sonar-scanner is on PATH, falls back "
-            "to sonar-scanner.  "
+            "to sonar-scanner (target argument is ignored in that case).  "
             "If neither is found, prints install hints."
         ),
+    )
+    p.add_argument(
+        "target", nargs="?",
+        help="Optional .cpp file or directory to limit analysis to (default: full tree)",
     )
     p.set_defaults(func=cmd_analyze)
 

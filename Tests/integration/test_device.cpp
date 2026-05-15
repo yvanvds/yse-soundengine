@@ -156,7 +156,7 @@ TEST_CASE("engine: cpuLoad returns a non-negative value") {
 // ─── Audio callback ───────────────────────────────────────────────────────────
 
 TEST_CASE("engine: audio callback fires within 100ms on a real output device") {
-    if (!TestHelpers::engineInit()) return;
+    if (!TestHelpers::engineInitWithAudio()) return;
     if (YSE::System().getNumDevices() == 0) return;
     CHECK(audioStreamRunning());
 }
@@ -185,7 +185,7 @@ TEST_CASE("sound: playing WAV fixture does not crash during update loop") {
 }
 
 TEST_CASE("sound: DSP source sound plays on a real device without crash") {
-    if (!TestHelpers::engineInit()) return;
+    if (!TestHelpers::engineInitWithAudio()) return;
     if (YSE::System().getNumDevices() == 0) return;
     YSE::sound s;
     s.create(g_source);
@@ -202,7 +202,7 @@ TEST_CASE("sound: DSP source sound plays on a real device without crash") {
 // ─── End-to-end signal probe ──────────────────────────────────────────────────
 
 TEST_CASE("engine: DSP source signal reaches an attached effect processor") {
-    if (!TestHelpers::engineInit()) return;
+    if (!TestHelpers::engineInitWithAudio()) return;
     if (YSE::System().getNumDevices() == 0) return;
     if (!audioStreamRunning()) return;
 

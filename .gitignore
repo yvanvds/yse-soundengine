@@ -236,3 +236,5 @@ yse_binary_release_iOS/
 *.zip
 Generate.NET/YseEngine_wrap.cxx
 /packages
+YSElog.txt
+.claude/scheduled_tasks.lock

@@ -36,6 +36,12 @@
 namespace {
 
 // Silent DSP source — emits no audio, fulfils dspSourceObject's pure virtuals.
+// File-scope (process-lifetime) instances are used below, never stack locals:
+// SOUND::Manager's implementationObject holds a `source_dsp` pointer to whatever
+// is passed to sound::create(), and that pointer can be dereferenced by the
+// audio callback even after the user thread has moved on (Pa_StopStream is not
+// strictly synchronous on Windows MME).  Process-lifetime instances make the
+// pointer safe regardless of callback timing.
 struct SilentSource : YSE::DSP::dspSourceObject {
     void process(YSE::SOUND_STATUS&) override {}
     void frequency(float) override {}
@@ -44,10 +50,18 @@ struct SilentSource : YSE::DSP::dspSourceObject {
 // Minimal dspObject for setDSP() coverage — process() is a no-op.
 // MULTICHANNELBUFFER is a macro expanding to std::vector<YSE::DSP::buffer>;
 // the qualified spelling lets the override resolve outside the YSE namespace.
+// Same process-lifetime reasoning as SilentSource above.
 struct NopDsp : YSE::DSP::dspObject {
     void create() override {}
     void process(std::vector<YSE::DSP::buffer>&) override {}
 };
+
+// Shared file-scope instances reused across tests.  These are stateless, so
+// sharing is safe; each test sets the position / volume / etc. it needs.
+SilentSource g_src;
+SilentSource g_srcs[8];  // size = max N used in multi-sound tests below
+NopDsp       g_dsp;
+NopDsp       g_dsp2;
 
 // Drive SOUND::Manager().update() several times, with short sleeps so the
 // async setupJob has a chance to call setup() on freshly created sounds and
@@ -82,9 +96,8 @@ TEST_SUITE("sound") {
 
 TEST_CASE("sound impl: POSITION message is parsed without crash") {
     if (!TestHelpers::engineInit()) return;
-    SilentSource src;
     YSE::sound s;
-    s.create(src);
+    s.create(g_src);
     drainSoundManager();
     s.pos(YSE::Pos(1.f, 2.f, 3.f));
     drainSoundManager();
@@ -95,9 +108,8 @@ TEST_CASE("sound impl: POSITION message is parsed without crash") {
 
 TEST_CASE("sound impl: SPREAD message is parsed without crash") {
     if (!TestHelpers::engineInit()) return;
-    SilentSource src;
     YSE::sound s;
-    s.create(src);
+    s.create(g_src);
     drainSoundManager();
     s.spread(0.5f);
     drainSoundManager();
@@ -106,9 +118,8 @@ TEST_CASE("sound impl: SPREAD message is parsed without crash") {
 
 TEST_CASE("sound impl: VOLUME_VALUE + VOLUME_TIME messages are parsed") {
     if (!TestHelpers::engineInit()) return;
-    SilentSource src;
     YSE::sound s;
-    s.create(src);
+    s.create(g_src);
     drainSoundManager();
     // time>0 sends both messages — exercises the VOLUME_TIME arm too.
     s.volume(0.5f, 100u);
@@ -124,9 +135,8 @@ TEST_CASE("sound impl: VOLUME_VALUE + VOLUME_TIME messages are parsed") {
 
 TEST_CASE("sound impl: SPEED message is parsed without crash") {
     if (!TestHelpers::engineInit()) return;
-    SilentSource src;
     YSE::sound s;
-    s.create(src);
+    s.create(g_src);
     drainSoundManager();
     s.speed(1.5f);
     drainSoundManager();
@@ -135,9 +145,8 @@ TEST_CASE("sound impl: SPEED message is parsed without crash") {
 
 TEST_CASE("sound impl: SIZE message is parsed without crash") {
     if (!TestHelpers::engineInit()) return;
-    SilentSource src;
     YSE::sound s;
-    s.create(src);
+    s.create(g_src);
     drainSoundManager();
     s.size(10.f);
     drainSoundManager();
@@ -146,9 +155,8 @@ TEST_CASE("sound impl: SIZE message is parsed without crash") {
 
 TEST_CASE("sound impl: LOOP message is parsed without crash") {
     if (!TestHelpers::engineInit()) return;
-    SilentSource src;
     YSE::sound s;
-    s.create(src);
+    s.create(g_src);
     drainSoundManager();
     s.looping(true);
     drainSoundManager();
@@ -157,9 +165,8 @@ TEST_CASE("sound impl: LOOP message is parsed without crash") {
 
 TEST_CASE("sound impl: OCCLUSION message is parsed without crash") {
     if (!TestHelpers::engineInit()) return;
-    SilentSource src;
     YSE::sound s;
-    s.create(src);
+    s.create(g_src);
     drainSoundManager();
     s.occlusion(true);
     drainSoundManager();
@@ -168,9 +175,8 @@ TEST_CASE("sound impl: OCCLUSION message is parsed without crash") {
 
 TEST_CASE("sound impl: RELATIVE message is parsed without crash") {
     if (!TestHelpers::engineInit()) return;
-    SilentSource src;
     YSE::sound s;
-    s.create(src);
+    s.create(g_src);
     drainSoundManager();
     s.relative(true);
     drainSoundManager();
@@ -179,9 +185,8 @@ TEST_CASE("sound impl: RELATIVE message is parsed without crash") {
 
 TEST_CASE("sound impl: DOPPLER message is parsed without crash") {
     if (!TestHelpers::engineInit()) return;
-    SilentSource src;
     YSE::sound s;
-    s.create(src);
+    s.create(g_src);
     drainSoundManager();
     s.doppler(false);
     drainSoundManager();
@@ -190,9 +195,8 @@ TEST_CASE("sound impl: DOPPLER message is parsed without crash") {
 
 TEST_CASE("sound impl: PAN2D message is parsed without crash") {
     if (!TestHelpers::engineInit()) return;
-    SilentSource src;
     YSE::sound s;
-    s.create(src);
+    s.create(g_src);
     drainSoundManager();
     s.pan2D(true);
     drainSoundManager();
@@ -204,9 +208,8 @@ TEST_CASE("sound impl: PAN2D message is parsed without crash") {
 
 TEST_CASE("sound impl: TIME message is parsed without crash") {
     if (!TestHelpers::engineInit()) return;
-    SilentSource src;
     YSE::sound s;
-    s.create(src);
+    s.create(g_src);
     drainSoundManager();
     s.time(0.0f);  // for a DSP source there is no file length; 0 is always safe
     drainSoundManager();
@@ -215,9 +218,8 @@ TEST_CASE("sound impl: TIME message is parsed without crash") {
 
 TEST_CASE("sound impl: FADE_AND_STOP message is parsed without crash") {
     if (!TestHelpers::engineInit()) return;
-    SilentSource src;
     YSE::sound s;
-    s.create(src);
+    s.create(g_src);
     drainSoundManager();
     s.fadeAndStop(100u);
     drainSoundManager();
@@ -226,37 +228,32 @@ TEST_CASE("sound impl: FADE_AND_STOP message is parsed without crash") {
 
 TEST_CASE("sound impl: DSP message is parsed without crash") {
     if (!TestHelpers::engineInit()) return;
-    SilentSource src;
-    NopDsp dsp;
     YSE::sound s;
-    s.create(src);
+    s.create(g_src);
     drainSoundManager();
-    s.setDSP(&dsp);
+    s.setDSP(&g_dsp);
     drainSoundManager();
-    CHECK(s.getDSP() == &dsp);
+    CHECK(s.getDSP() == &g_dsp);
 }
 
 TEST_CASE("sound impl: replacing a DSP plugin clears the old calledfrom") {
     if (!TestHelpers::engineInit()) return;
-    SilentSource src;
-    NopDsp d1, d2;
     YSE::sound s;
-    s.create(src);
+    s.create(g_src);
     drainSoundManager();
-    s.setDSP(&d1);
+    s.setDSP(&g_dsp);
     drainSoundManager();
-    s.setDSP(&d2);
+    s.setDSP(&g_dsp2);
     drainSoundManager();
-    CHECK(s.getDSP() == &d2);
+    CHECK(s.getDSP() == &g_dsp2);
 }
 
 TEST_CASE("sound impl: MOVE message reconnects sound to another channel") {
     if (!TestHelpers::engineInit()) return;
-    SilentSource src;
     YSE::channel target;
     target.create("test_target", YSE::ChannelMaster());
     YSE::sound s;
-    s.create(src);
+    s.create(g_src);
     drainSoundManager();
     s.moveTo(target);
     drainSoundManager();
@@ -265,9 +262,8 @@ TEST_CASE("sound impl: MOVE message reconnects sound to another channel") {
 
 TEST_CASE("sound impl: INTENT(play) message is parsed without crash") {
     if (!TestHelpers::engineInit()) return;
-    SilentSource src;
     YSE::sound s;
-    s.create(src);
+    s.create(g_src);
     drainSoundManager();
     s.play();
     drainSoundManager();
@@ -276,9 +272,8 @@ TEST_CASE("sound impl: INTENT(play) message is parsed without crash") {
 
 TEST_CASE("sound impl: INTENT(pause / stop / restart / toggle) all parse") {
     if (!TestHelpers::engineInit()) return;
-    SilentSource src;
     YSE::sound s;
-    s.create(src);
+    s.create(g_src);
     drainSoundManager();
     s.play();      drainSoundManager();
     s.pause();     drainSoundManager();
@@ -292,9 +287,8 @@ TEST_CASE("sound impl: INTENT(pause / stop / restart / toggle) all parse") {
 
 TEST_CASE("sound impl: update() runs spatial math for a positioned sound") {
     if (!TestHelpers::engineInit()) return;
-    SilentSource src;
     YSE::sound s;
-    s.create(src);
+    s.create(g_src);
     s.pos(YSE::Pos(5.f, 0.f, 0.f));
     YSE::Listener().pos(YSE::Pos(0.f, 0.f, 0.f));
     // Run a couple of update cycles; the second one observes a non-zero
@@ -305,9 +299,8 @@ TEST_CASE("sound impl: update() runs spatial math for a positioned sound") {
 
 TEST_CASE("sound impl: update() with relative=true takes the relative branch") {
     if (!TestHelpers::engineInit()) return;
-    SilentSource src;
     YSE::sound s;
-    s.create(src);
+    s.create(g_src);
     s.relative(true);
     s.pos(YSE::Pos(2.f, 0.f, 1.f));
     drainSoundManager(12);
@@ -316,9 +309,8 @@ TEST_CASE("sound impl: update() with relative=true takes the relative branch") {
 
 TEST_CASE("sound impl: update() with doppler=false skips the velocity calc") {
     if (!TestHelpers::engineInit()) return;
-    SilentSource src;
     YSE::sound s;
-    s.create(src);
+    s.create(g_src);
     s.doppler(false);
     s.pos(YSE::Pos(3.f, 0.f, 0.f));
     drainSoundManager(12);
@@ -327,9 +319,8 @@ TEST_CASE("sound impl: update() with doppler=false skips the velocity calc") {
 
 TEST_CASE("sound impl: update() respects distanceFactor scaling") {
     if (!TestHelpers::engineInit()) return;
-    SilentSource src;
     YSE::sound s;
-    s.create(src);
+    s.create(g_src);
     s.pos(YSE::Pos(1.f, 0.f, 0.f));
     YSE::INTERNAL::Settings().distanceFactor = 2.f;
     drainSoundManager(12);
@@ -339,9 +330,8 @@ TEST_CASE("sound impl: update() respects distanceFactor scaling") {
 
 TEST_CASE("sound impl: update() respects dopplerScale=2.0") {
     if (!TestHelpers::engineInit()) return;
-    SilentSource src;
     YSE::sound s;
-    s.create(src);
+    s.create(g_src);
     s.pos(YSE::Pos(0.f, 0.f, 0.f));
     YSE::INTERNAL::Settings().dopplerScale = 2.f;
     drainSoundManager(12);
@@ -353,9 +343,8 @@ TEST_CASE("sound impl: update() respects dopplerScale=2.0") {
 
 TEST_CASE("sound impl: update() invokes occlusion callback when occlusion is enabled") {
     if (!TestHelpers::engineInit()) return;
-    SilentSource src;
     YSE::sound s;
-    s.create(src);
+    s.create(g_src);
     s.occlusion(true);
     drainSoundManager();
     g_occlusionCallCount = 0;
@@ -369,9 +358,8 @@ TEST_CASE("sound impl: update() invokes occlusion callback when occlusion is ena
 
 TEST_CASE("sound impl: update() skips occlusion when callback is null") {
     if (!TestHelpers::engineInit()) return;
-    SilentSource src;
     YSE::sound s;
-    s.create(src);
+    s.create(g_src);
     s.occlusion(true);
     YSE::System().occlusionCallback(nullptr);
     drainSoundManager(12);
@@ -386,10 +374,10 @@ TEST_CASE("sound impl: virtualFinder budget pruning runs across many sounds") {
     YSE::System().maxSounds(2);
 
     constexpr int N = 8;
-    SilentSource srcs[N];
     YSE::sound sounds[N];
+    static_assert(N <= sizeof(g_srcs) / sizeof(g_srcs[0]), "g_srcs too small");
     for (int i = 0; i < N; i++) {
-        sounds[i].create(srcs[i]);
+        sounds[i].create(g_srcs[i]);
         sounds[i].pos(YSE::Pos((float)i * 10.f, 0.f, 0.f));
         sounds[i].play();
     }
@@ -403,10 +391,9 @@ TEST_CASE("sound impl: virtualFinder budget pruning runs across many sounds") {
 
 TEST_CASE("sound impl: sync() detects head==nullptr after destructor and releases impl") {
     if (!TestHelpers::engineInit()) return;
-    SilentSource src;
     {
         YSE::sound s;
-        s.create(src);
+        s.create(g_src);
         drainSoundManager();
         s.play();
         drainSoundManager();
@@ -421,10 +408,10 @@ TEST_CASE("sound impl: sync() detects head==nullptr after destructor and release
 TEST_CASE("sound impl: manager handles many concurrent sounds without crash") {
     if (!TestHelpers::engineInit()) return;
     constexpr int N = 4;
-    SilentSource srcs[N];
     YSE::sound sounds[N];
+    static_assert(N <= sizeof(g_srcs) / sizeof(g_srcs[0]), "g_srcs too small");
     for (int i = 0; i < N; i++) {
-        sounds[i].create(srcs[i]);
+        sounds[i].create(g_srcs[i]);
         sounds[i].pos(YSE::Pos((float)i, 0.f, 0.f));
         sounds[i].volume(0.5f);
         sounds[i].play();
@@ -449,10 +436,10 @@ TEST_CASE("sound impl: virtualFinder.calculate() runs with a tight budget and ma
     if (!TestHelpers::engineInit()) return;
     YSE::System().maxSounds(1);
     constexpr int N = 5;
-    SilentSource srcs[N];
     YSE::sound sounds[N];
+    static_assert(N <= sizeof(g_srcs) / sizeof(g_srcs[0]), "g_srcs too small");
     for (int i = 0; i < N; i++) {
-        sounds[i].create(srcs[i]);
+        sounds[i].create(g_srcs[i]);
         sounds[i].pos(YSE::Pos((float)(i + 1) * 50.f, 0.f, 0.f));
         sounds[i].play();
     }

@@ -1,8 +1,15 @@
 #pragma once
 // Minimal engine initialization for unit tests that exercise the channel, reverb,
-// or sound subsystems.  Calls System().init() but skips the PortAudio stream open
-// if no output device is available (Pa_GetDefaultOutputDevice() == paNoDevice),
-// so tests run safely in CI environments without audio hardware.
+// or sound subsystems.  Calls System().init() and then immediately pause()s the
+// PortAudio output stream, so the audio callback thread never runs during tests.
+//
+// Why: the unit tests create and destroy sounds far faster than a real audio
+// callback can safely drain queues.  When a default output device is present
+// (developer workstations, not CI), the audio thread races with rapid
+// sound-manager cleanup and the process crashes — usually at exit, sometimes
+// mid-test.  pause() calls Pa_StopStream / Pa_CloseStream, so the engine runs
+// purely on the user thread for the rest of the process.  On CI (paNoDevice),
+// addCallback() is already a no-op, so the pause() is harmless there.
 //
 // Usage:
 //   TestHelpers::engineInit();   // idempotent — safe to call multiple times
@@ -21,13 +28,29 @@ inline bool engineInitialized() {
     return YSE::ChannelMaster().isValid();
 }
 
-// Initialise the full engine state (channels, reverb, thread pools).
-// If no audio output device is present, the audio stream is skipped but
-// the channel and reverb managers are still fully initialised.
-// Returns true if channels are ready for use, false if engine init failed.
+// Initialise the full engine state (channels, reverb, thread pools), then
+// close the live audio stream so the audio callback cannot race with test
+// teardown.  Returns true if channels are ready for use, false on init failure.
 inline bool engineInit() {
     if (engineInitialized()) return true;
-    return YSE::System().init();
+    if (!YSE::System().init()) return false;
+    YSE::System().pause();
+    return true;
+}
+
+// Like engineInit(), but (re)opens the audio stream.  Integration tests that
+// genuinely need the audio callback to fire (e.g. end-to-end signal probes)
+// call this.  resume() inside YSE calls addCallback() which has no
+// already-open guard, so we gate it on a local static to make this helper
+// safely callable from multiple test cases.
+inline bool engineInitWithAudio() {
+    if (!engineInit()) return false;
+    static bool audioResumed = false;
+    if (!audioResumed) {
+        YSE::System().resume();
+        audioResumed = true;
+    }
+    return true;
 }
 
 } // namespace TestHelpers

@@ -121,7 +121,7 @@ python yse.py run                # run Demo00 from build-debug/bin/
 python yse.py run Demo05         # run a specific demo
 python yse.py debug Demo00       # launch under lldb
 python yse.py clean              # remove all build directories
-python yse.py analyze            # run clang-tidy (falls back to sonar-scanner)
+python yse.py analyze [path]     # run clang-tidy; path narrows scope (default: full tree)
 python yse.py format             # clang-format on YseEngine/ and Tests/
 ```
 
