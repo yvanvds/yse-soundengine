@@ -53,9 +53,7 @@ CALC() {
   if (center == nullptr) return;
 
   vcf.sharpness(sharpness);
-  DSP::buffer * out2 = nullptr;
-
-  DSP::buffer & out1 = vcf(*in, *center, *out2);
-  outputs[0].SendBuffer(&out1, thread);
-  outputs[1].SendBuffer(out2, thread);
+  vcf(*in, *center);
+  outputs[0].SendBuffer(&vcf.real(), thread);
+  outputs[1].SendBuffer(&vcf.imag(), thread);
 }

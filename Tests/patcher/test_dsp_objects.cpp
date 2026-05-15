@@ -1,9 +1,5 @@
 // Tests for patcher DSP/generic objects: dNoise, pLine, pBandpass, pHighpass,
 // dVcf, pDac.  No audio device required.
-//
-// Note: dVcf::Calculate dereferences a null DSP::buffer pointer
-// (tracked in issue #30). Until that bug is fixed, this file only exercises
-// dVcf's metadata and its null-input early-return paths.
 
 #include <doctest/doctest.h>
 #include <cmath>
@@ -334,8 +330,6 @@ TEST_CASE("pHighpass: ResetDSP clears the buffer pointer") {
 }
 
 // ─── dVcf ─────────────────────────────────────────────────────────────────────
-// NOTE: dVcf::Calculate cannot be fully tested until the null-out2 bug is fixed.
-// Tracked in issue #30.
 
 TEST_CASE("dVcf: type name, input/output count, and output type") {
     YSE::patcher p;
@@ -399,6 +393,72 @@ TEST_CASE("dVcf: ResetDSP clears both buffer pointers") {
 
     CHECK(out1.received == nullptr);
     CHECK(out2.received == nullptr);
+}
+
+TEST_CASE("dVcf: emits non-silent buffers on both outlets when fed valid inputs") {
+    // Regression for issue #30: Calculate used to dereference a null DSP::buffer
+    // for the imag output and segfault as soon as both inlets were connected.
+    YSE::PATCHER::dVcf vcf;
+    BufferSink outReal, outImag;
+    vcf.ConnectOutlet(outReal.GetInlet(0), 0);
+    outReal.ConnectInlet(vcf.GetOutlet(0), 0);
+    vcf.ConnectOutlet(outImag.GetInlet(0), 1);
+    outImag.ConnectInlet(vcf.GetOutlet(1), 0);
+
+    vcf.GetInlet(2)->SetFloat(2.0f, YSE::T_GUI);  // sharpness
+
+    YSE::DSP::buffer in(128), center(128);
+    center = 1000.0f;
+    for (int iter = 0; iter < 30; ++iter) {
+        fillSine(in, 1000.0f);
+        vcf.GetInlet(0)->SetBuffer(&in, YSE::T_GUI);
+        vcf.GetInlet(1)->SetBuffer(&center, YSE::T_GUI);
+        vcf.Calculate(YSE::T_DSP);
+    }
+
+    REQUIRE(outReal.received != nullptr);
+    REQUIRE(outImag.received != nullptr);
+    CHECK_FALSE(outReal.received->isSilent());
+    CHECK_FALSE(outImag.received->isSilent());
+
+    // Real and imag outputs share the same complex resonator state but are
+    // (close to) 90° apart, so they must not be sample-for-sample identical.
+    float* r = outReal.received->getPtr();
+    float* i = outImag.received->getPtr();
+    bool anyDifferent = false;
+    for (unsigned k = 0; k < outReal.received->getLength(); ++k) {
+        if (r[k] != i[k]) { anyDifferent = true; break; }
+    }
+    CHECK(anyDifferent);
+}
+
+TEST_CASE("dVcf: center-frequency tone is preserved more than far-off tone") {
+    YSE::PATCHER::dVcf onBand, offBand;
+    BufferSink sinkOn, sinkOff;
+    onBand.ConnectOutlet(sinkOn.GetInlet(0), 0);
+    sinkOn.ConnectInlet(onBand.GetOutlet(0), 0);
+    offBand.ConnectOutlet(sinkOff.GetInlet(0), 0);
+    sinkOff.ConnectInlet(offBand.GetOutlet(0), 0);
+
+    onBand.GetInlet(2)->SetFloat(4.0f, YSE::T_GUI);
+    offBand.GetInlet(2)->SetFloat(4.0f, YSE::T_GUI);
+
+    YSE::DSP::buffer onIn(128), offIn(128), center(128);
+    center = 1000.0f;
+    for (int iter = 0; iter < 30; ++iter) {
+        fillSine(onIn, 1000.0f);
+        fillSine(offIn, 8000.0f);
+        onBand.GetInlet(0)->SetBuffer(&onIn, YSE::T_GUI);
+        onBand.GetInlet(1)->SetBuffer(&center, YSE::T_GUI);
+        offBand.GetInlet(0)->SetBuffer(&offIn, YSE::T_GUI);
+        offBand.GetInlet(1)->SetBuffer(&center, YSE::T_GUI);
+        onBand.Calculate(YSE::T_DSP);
+        offBand.Calculate(YSE::T_DSP);
+    }
+
+    REQUIRE(sinkOn.received != nullptr);
+    REQUIRE(sinkOff.received != nullptr);
+    CHECK(TestHelpers::measureRms(*sinkOn.received) > TestHelpers::measureRms(*sinkOff.received));
 }
 
 // ─── pDac ─────────────────────────────────────────────────────────────────────

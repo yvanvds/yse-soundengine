@@ -98,8 +98,9 @@ namespace YSE {
     class API vcf {
     public:
       vcf& sharpness(Flt q);
-      // TODO a bit awkward: first output is function out, second output sent to 3th argument
-      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in, YSE::DSP::buffer & center, YSE::DSP::buffer & out2);
+      vcf& operator()(YSE::DSP::buffer & in, YSE::DSP::buffer & center);
+      YSE::DSP::buffer & real();
+      YSE::DSP::buffer & imag();
       vcf();
 
     private:
@@ -107,7 +108,8 @@ namespace YSE {
       Flt im;
       Flt q;
       Flt isr;
-      YSE::DSP::buffer buffer;
+      YSE::DSP::buffer realBuffer;
+      YSE::DSP::buffer imagBuffer;
     };
 
   }

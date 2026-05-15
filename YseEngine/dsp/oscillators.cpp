@@ -313,14 +313,17 @@ namespace YSE {
       return (*this);
     }
 
-    YSE::DSP::buffer & vcf::operator()(YSE::DSP::buffer & in, YSE::DSP::buffer & center, YSE::DSP::buffer & out2) {
-      if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
-      if (in.getLength() != out2.getLength()) out2.resize(in.getLength());
+    YSE::DSP::buffer & vcf::real() { return realBuffer; }
+    YSE::DSP::buffer & vcf::imag() { return imagBuffer; }
+
+    vcf & vcf::operator()(YSE::DSP::buffer & in, YSE::DSP::buffer & center) {
+      if (in.getLength() != realBuffer.getLength()) realBuffer.resize(in.getLength());
+      if (in.getLength() != imagBuffer.getLength()) imagBuffer.resize(in.getLength());
 
       Flt * inPtr = in.getPtr();
       Flt * centerPtr = center.getPtr();
-      Flt * out1Ptr = buffer.getPtr();
-      Flt * out2Ptr = out2.getPtr();
+      Flt * out1Ptr = realBuffer.getPtr();
+      Flt * out2Ptr = imagBuffer.getPtr();
       UInt length = in.getLength();
 
       isr = Pi2 / static_cast<Flt>(SAMPLERATE);
@@ -369,7 +372,7 @@ namespace YSE {
         *out2Ptr++ = im = coefi * re2 + coefr * im;
       }
 
-      return buffer;
+      return *this;
     }
 
   } // end DSP

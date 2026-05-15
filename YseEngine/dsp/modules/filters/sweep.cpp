@@ -91,7 +91,7 @@ void YSE::DSP::MODULES::sweepFilter::process(MULTICHANNELBUFFER & buffer) {
   (*result) *= (float)parmDepth;
   (*result) += (float)parmFrequency;
   DSP::buffer & interpolated = (*interpolator)(*result);
-  (*result) = (*filter)(buffer[0], interpolated, (*result));
+  (*result) = (*filter)(buffer[0], interpolated).real();
 
   calculateImpact(buffer[0], (*result));
 }
