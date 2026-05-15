@@ -157,6 +157,32 @@ existing `// TODO` comment at
 
 ---
 
+## `patcherImplementation::oscHandle` was uninitialised — resolved
+
+**Category:** Memory safety / Patcher
+
+[YseEngine/patcher/patcherImplementation.h](YseEngine/patcher/patcherImplementation.h)
+declares `oscHandler * oscHandle;` as a raw pointer.  The constructor used to
+omit it from the initialiser list, so `oscHandle` started out as garbage.  The
+four `PassBang` / `PassData` overloads then guard their fallback with
+`if (oscHandle != nullptr) oscHandle->Send(...)` — when no matching `gReceive`
+exists in the patcher, that branch dereferences whatever happened to be in the
+field's storage, which is a non-deterministic SIGSEGV.
+
+**Repro:** Create a `YSE::patcher`, add a `gSend` with one dataName and a
+`gReceive` with a different dataName, then call `gSend.SetIntData(0, ...)`.
+With nothing registered via `SetOscHandler`, the dispatch falls through to the
+uninitialised pointer.
+
+**Fix:** Initialise `oscHandle(nullptr)` in the
+[patcherImplementation constructor](YseEngine/patcher/patcherImplementation.cpp).
+The new mismatched-name test in
+[Tests/patcher/test_generic_objects.cpp](Tests/patcher/test_generic_objects.cpp)
+("gSend -> gReceive: mismatched dataName drops messages silently") pins the
+regression.
+
+---
+
 ## suble notes from claude code we picked up. Maybe worth looking into
 
 The IDE diagnostics on the TEST_SUITE("dsp") { line are IntelliSense false positives — the macro expands to a namespace block that Clang compiles cleanly (as confirmed by the build above).

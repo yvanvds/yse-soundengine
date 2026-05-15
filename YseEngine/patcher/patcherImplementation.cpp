@@ -12,10 +12,11 @@
 using namespace YSE::PATCHER;
 
 patcherImplementation::patcherImplementation(int mainOutputs, YSE::patcher * head)
-  : pObject(false) 
+  : pObject(false)
   , controlledBySound(false)
   , head(head)
   , fileHandlerActive(false)
+  , oscHandle(nullptr)
 {
   output.resize(mainOutputs);
 }
