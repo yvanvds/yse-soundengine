@@ -4,7 +4,7 @@
 //   The SIMD unrolled loop (triggered for buffers with length >= 8) checks
 //   ptr1[1..7] > max but then assigns ptr1[0] instead of the matching element.
 //   Tests that exercise maxValue() therefore use buffers with length < 8 so
-//   only the scalar tail loop runs.  See KNOWN_ISSUES.md for details.
+//   only the scalar tail loop runs. Track via a GitHub issue when fixing.
 //
 // NOTE — buffer::cursor is a public raw pointer that is NOT initialised by any
 //   constructor.  Do not read or write cursor in tests; it holds garbage until

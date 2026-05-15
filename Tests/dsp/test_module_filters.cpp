@@ -297,8 +297,7 @@ TEST_CASE("sweepFilter: SQUARE shape constructs and processes without crash") {
 }
 
 // NOTE: sweepFilter cannot be tested with non-STANDARD_BUFFERSIZE buffers
-// until the interpolate4 buffer-overflow bug is fixed — see KNOWN_ISSUES.md
-// ("interpolate4::operator() does not resize its output buffer").  All
-// sweepFilter tests above run with 128-sample buffers to avoid the bug.
+// until the interpolate4 buffer-overflow bug is fixed (tracked in issue #29).
+// All sweepFilter tests above run with 128-sample buffers to avoid the bug.
 
 } // TEST_SUITE("dsp")

@@ -3,7 +3,12 @@
     "allow": [
       "mcp__sonarqube__search_sonar_issues_in_projects",
       "mcp__sonarqube__search_my_sonarqube_projects",
-      "Read(//c/Users/yvan/.claude/plans/**)"
+      "Read(//c/Users/yvan/.claude/plans/**)",
+      "Read(//c/Users/yvan/.claude/**)"
+    ],
+    "additionalDirectories": [
+      "\\tmp\\gh-issues",
+      "d:\\tmp\\gh-issues"
     ]
   }
 }

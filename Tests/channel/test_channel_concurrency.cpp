@@ -1,5 +1,5 @@
 // Concurrency stress tests for CHANNEL::Manager (Phase D of the
-// KNOWN_ISSUES.md cross-thread fix).
+// cross-thread fix tracked in issue #41).
 //
 // Exercises the same race classes as test_sound_concurrency.cpp but
 // applied to the channel subsystem:

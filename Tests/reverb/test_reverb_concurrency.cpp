@@ -1,5 +1,5 @@
 // Concurrency stress tests for REVERB::Manager (Phase D of the
-// KNOWN_ISSUES.md cross-thread fix).
+// cross-thread fix tracked in issue #41).
 //
 // REVERB has a simpler shape than SOUND/CHANNEL: there's no `setupJob`
 // (reverb impls go straight to OBJECT_SETUP in setup()) and there's no

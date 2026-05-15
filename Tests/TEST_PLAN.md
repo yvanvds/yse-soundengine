@@ -142,11 +142,11 @@ None — Phase 2 tests are self-contained.
 
 **Test areas — buffer:**
 - Construction: default, sized construction. Verify `size()` is correct and buffer is zero-initialised.
-- **Known bug — uninitialised `cursor` and `sampleRateAdjustment`** (`YseEngine/dsp/buffer.hpp`, documented in `KNOWN_ISSUES.md`): write a test that constructs a fresh `buffer` and reads `cursor` and `sampleRateAdjustment`, asserting they equal zero/1.0 respectively. This test **will fail** until the bug is fixed; mark it `[!shouldfail]` or leave it as a plain assertion so it serves as a regression sentinel.
+- **Known bug — uninitialised `cursor` and `sampleRateAdjustment`** (`YseEngine/dsp/buffer.hpp`; file a GitHub issue when starting on this): write a test that constructs a fresh `buffer` and reads `cursor` and `sampleRateAdjustment`, asserting they equal zero/1.0 respectively. This test **will fail** until the bug is fixed; mark it `[!shouldfail]` or leave it as a plain assertion so it serves as a regression sentinel.
 - Scalar arithmetic operators (`+`, `-`, `*`, `/` with float).
 - Buffer-to-buffer arithmetic: `copyFrom`, `+=`, `-=`.
 - `isSilent()`: all-zeros buffer → true; single non-zero → false.
-- **Known bug — `maxValue()` SIMD unroll** (`YseEngine/dsp/buffer.cpp`, documented in `KNOWN_ISSUES.md`): write a test using a buffer of length ≥ 8 (to trigger the 8-wide SIMD path) with a known maximum at a non-zero index (e.g. position 5 = 1.0, all others = 0.5). Assert `maxValue() == 1.0`. This test **will fail** until the SIMD bug is fixed. Until then, the existing migrated tests that use buffers shorter than 8 must continue to pass.
+- **Known bug — `maxValue()` SIMD unroll** (`YseEngine/dsp/buffer.cpp`; file a GitHub issue when starting on this): write a test using a buffer of length ≥ 8 (to trigger the 8-wide SIMD path) with a known maximum at a non-zero index (e.g. position 5 = 1.0, all others = 0.5). Assert `maxValue() == 1.0`. This test **will fail** until the SIMD bug is fixed. Until then, the existing migrated tests that use buffers shorter than 8 must continue to pass.
 - `resize()`: grow and shrink; content beyond old size zeroed.
 - Copy construction and assignment (deep copy semantics).
 - Swap.

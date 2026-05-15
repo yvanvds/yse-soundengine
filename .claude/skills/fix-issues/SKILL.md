@@ -13,6 +13,31 @@ or a crash that is far worse than the original warning.
 This skill governs how to triage and fix reported issues. Read it fully before
 making any change.
 
+## Issue tracking — GitHub Issues only
+
+All bugs, follow-ups, and known-issue notes live in GitHub Issues on
+`yvanvds/yse-soundengine`. Do **not** add new entries to a local
+`KNOWN_ISSUES.md` or any other in-repo issue list — that file has been
+retired and removed.
+
+- **Read context:** before starting a fix, check the relevant issue with
+  `gh issue view <n>`. Look for prior repro steps, fix sketches, and
+  workarounds-in-tests already documented.
+- **File new findings:** if a fix surfaces a separate bug, file it with
+  `gh issue create --title "..." --label bug --body-file ...` rather than
+  inlining a TODO comment that no one will find later. Workarounds in test
+  code should reference the issue number (e.g. `// see #29`) instead of a
+  file path.
+- **Close on landing:** when a fix is merged, close the issue with
+  `gh issue close <n> --reason completed`. If the fix is partial, leave
+  the issue open and edit the body to describe what is still outstanding.
+- **Search before filing:** `gh issue list --search "<keyword>"` —
+  duplicates are easy to make when descriptions live across multiple
+  subsystems.
+
+The `gh` CLI is authenticated in the project environment; no MCP server or
+extra setup is required.
+
 ## Core principles
 
 1. **Correctness bugs first, cosmetic warnings second, never both in one pass.**

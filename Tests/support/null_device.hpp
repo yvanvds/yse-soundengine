@@ -4,8 +4,7 @@
 //
 // `engineInit()` initialises the engine and *then immediately pauses* the
 // PortAudio output stream. This is NOT a workaround for the audio-callback
-// race documented in KNOWN_ISSUES.md — that race was fixed at the engine
-// level in:
+// race tracked in issue #41 — that race was fixed at the engine level in:
 //
 //   * Phase A — mutex on `implementations` + lock-free SPSC inbox for
 //                `toLoad` between main thread and audio thread.

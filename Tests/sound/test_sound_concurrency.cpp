@@ -1,5 +1,5 @@
 // Concurrency stress tests for SOUND::Manager (Phase D of the
-// KNOWN_ISSUES.md cross-thread fix).
+// cross-thread fix tracked in issue #41).
 //
 // These tests exercise the three races that Phase A (mutex on
 // `implementations` + lock-free inbox for `toLoad`), Phase B (audio-thread
@@ -24,7 +24,7 @@
 // well under a second even under churn. The point isn't volume, it's to
 // guarantee the create→destroy lifecycle survives concurrent main-side
 // and audio-side traffic without the heap-corruption / pure-virtual
-// crashes documented in KNOWN_ISSUES.md.
+// crashes tracked in issue #41.
 
 #include <doctest/doctest.h>
 #include <atomic>

@@ -40,7 +40,7 @@ yse.py                      # Python CLI wrapper over cmake --preset / ctest --p
 sonar-project.properties    # SonarCloud analysis configuration
 .github/workflows/build.yml # GitHub Actions: Linux Debug + coverage + SonarQube scan
 doxyGen/                    # Doxygen config
-KNOWN_ISSUES.md             # Documented build/ABI issues and follow-ups
+(known issues tracked in GitHub Issues, not in-repo)
 ```
 
 The old .NET/Xamarin wrappers (`NetYse/`, `YSE.NET.PCL/`, `Yse.NET.Standard/`, `Yse.NET.Android/`), WPF demo, and UWP build have been removed.
@@ -145,7 +145,7 @@ sudo apt install cmake ninja-build clang \
 
 RtMidi is a **mandatory dependency on every desktop platform** the CMake build targets (Windows and Linux). The MIDI device source files are guarded by `#if YSE_WINDOWS || YSE_LINUX` and link against RtMidi symbols; CMake configuration fails with a clear error if the package is missing. Android compiles the MIDI device files out and does not need RtMidi.
 
-See [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for documented build quirks (symbol visibility, ASIO, demo run-directory, etc.).
+See [GitHub Issues](https://github.com/yvanvds/yse-soundengine/issues) for documented build quirks (ELF visibility follow-up [#34](https://github.com/yvanvds/yse-soundengine/issues/34), ASIO fallback [#38](https://github.com/yvanvds/yse-soundengine/issues/38), demo run-directory [#36](https://github.com/yvanvds/yse-soundengine/issues/36), etc.).
 
 ---
 
@@ -187,7 +187,7 @@ The engine is split into two CMake targets:
 
 The test executable links `yse_objects` directly (bypassing the DLL export boundary), so white-box tests can reach internal symbols without API annotations on them. Both build paths produce an identical `libyse.dll` export table.
 
-Linux/macOS currently use `CXX_VISIBILITY_PRESET default` (export-all); switching ELF builds to `-fvisibility=hidden` + per-symbol `visibility("default")` is a documented follow-up in `KNOWN_ISSUES.md`.
+Linux/macOS currently use `CXX_VISIBILITY_PRESET default` (export-all); switching ELF builds to `-fvisibility=hidden` + per-symbol `visibility("default")` is tracked in [issue #34](https://github.com/yvanvds/yse-soundengine/issues/34).
 
 ### Subsystem Map
 
@@ -342,7 +342,7 @@ class dspSourceObject {    // audio generator (replaces file)
 
 **Files:** [device/deviceInterface.hpp](YseEngine/device/deviceInterface.hpp), [device/portaudioDeviceManager.cpp](YseEngine/device/portaudioDeviceManager.cpp), [device/OpenSL.cpp](YseEngine/device/OpenSL.cpp), [device/androidDeviceManager.cpp](YseEngine/device/androidDeviceManager.cpp)
 
-Abstracts the OS audio API behind a single interface. PortAudio handles Windows (WASAPI/DirectSound/WDM — ASIO is not available with the MSYS2 package; see `KNOWN_ISSUES.md`) and Linux; OpenSL ES is used on Android.
+Abstracts the OS audio API behind a single interface. PortAudio handles Windows (WASAPI/DirectSound/WDM — ASIO is not available with the MSYS2 package; see [issue #38](https://github.com/yvanvds/yse-soundengine/issues/38)) and Linux; OpenSL ES is used on Android.
 
 ```cpp
 const std::vector<device>& getDevices();
@@ -410,7 +410,7 @@ Patcher TUs share a set of warning suppressions (`-Wno-unused-parameter`, plus C
 **Files:** `midi/` directory
 
 - **File playback** (`midifile.hpp`, `midifileImplementation.cpp`, `midifileManager.cpp`) — load and play standard MIDI files.
-- **Device I/O** (`device.cpp`, `midiDeviceManager.cpp`, `midiNote.cpp`) — wraps RtMidi; required on Windows and Linux desktop builds. Enumerate via `System().getNumMidiInDevices()` / `getNumMidiOutDevices()`. The Linux backend uses RtMidi's ALSA driver and is described as "lightly tested in practice" in `KNOWN_ISSUES.md`.
+- **Device I/O** (`device.cpp`, `midiDeviceManager.cpp`, `midiNote.cpp`) — wraps RtMidi; required on Windows and Linux desktop builds. Enumerate via `System().getNumMidiInDevices()` / `getNumMidiOutDevices()`. The Linux backend uses RtMidi's ALSA driver and is lightly tested in practice (see [issue #35](https://github.com/yvanvds/yse-soundengine/issues/35) for the proposed `YSE_ENABLE_MIDI_DEVICE` gate).
 - **Patcher integration** — `patcher/midi/` registers MIDI objects (NoteOn, NoteOff, Control, ProgramChange, PolyPressure, ChannelPressure, MidiOut) in the patcher node registry; registered unconditionally in `pRegistry.cpp`.
 
 ---
@@ -551,7 +551,7 @@ The fixture directory is exposed to test code via `YSE_TEST_FIXTURES_DIR` (compi
 
 ### Known regressions sentinelled by tests
 
-`Tests/dsp/test_buffer.cpp` covers two known bugs documented historically in `KNOWN_ISSUES.md`:
+`Tests/dsp/test_buffer.cpp` covers two known DSP buffer bugs (file separate GitHub issues for each before fixing):
 - Uninitialised `cursor` and `sampleRateAdjustment` in fresh `DSP::buffer` instances.
 - `buffer::maxValue()` SIMD unroll bug for buffers of length ≥ 8 with the maximum at a non-leading position.
 

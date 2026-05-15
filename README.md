@@ -26,7 +26,8 @@ pacman -S --needed \
 
 `rtmidi` is required on Windows because the MIDI device source files link
 against it. If you skip it, `cmake` will fail with a clear error. See
-[KNOWN_ISSUES.md](KNOWN_ISSUES.md) for background.
+[issue #35](https://github.com/yvanvds/yse-soundengine/issues/35) for the
+proposal to gate this behind a `YSE_ENABLE_MIDI_DEVICE` CMake option.
 
 ### Configure and build
 
@@ -151,4 +152,4 @@ additive and do not change how the build works when invoked directly.
 
 ## Known issues
 
-See [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+Tracked in [GitHub Issues](https://github.com/yvanvds/yse-soundengine/issues).

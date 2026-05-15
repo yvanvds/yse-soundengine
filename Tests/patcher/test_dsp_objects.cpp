@@ -1,10 +1,9 @@
 // Tests for patcher DSP/generic objects: dNoise, pLine, pBandpass, pHighpass,
 // dVcf, pDac.  No audio device required.
 //
-// Note: dVcf::Calculate dereferences a null DSP::buffer pointer (see
-// KNOWN_ISSUES.md — "dVcf::Calculate dereferences a null out2 pointer").
-// Until that bug is fixed, this file only exercises dVcf's metadata and its
-// null-input early-return paths.
+// Note: dVcf::Calculate dereferences a null DSP::buffer pointer
+// (tracked in issue #30). Until that bug is fixed, this file only exercises
+// dVcf's metadata and its null-input early-return paths.
 
 #include <doctest/doctest.h>
 #include <cmath>
@@ -336,7 +335,7 @@ TEST_CASE("pHighpass: ResetDSP clears the buffer pointer") {
 
 // ─── dVcf ─────────────────────────────────────────────────────────────────────
 // NOTE: dVcf::Calculate cannot be fully tested until the null-out2 bug is fixed.
-// See KNOWN_ISSUES.md ("dVcf::Calculate dereferences a null out2 pointer").
+// Tracked in issue #30.
 
 TEST_CASE("dVcf: type name, input/output count, and output type") {
     YSE::patcher p;
