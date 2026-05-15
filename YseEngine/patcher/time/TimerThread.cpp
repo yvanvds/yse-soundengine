@@ -168,6 +168,7 @@ timerThread::Timer::Timer(Timer && r) noexcept
   , next(std::move(r.next))
   , period(std::move(r.period))
   , func(std::move(r.func))
+  , running(r.running)
 {}
 
 timerThread::Timer::Timer(timerThread::timerID id, Timestamp next, Duration period, timerFunc func) noexcept
