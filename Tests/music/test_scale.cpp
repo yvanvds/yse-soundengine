@@ -9,6 +9,8 @@
 //   - remove(): pitch removal
 //   - clear(): full reset
 //   - Copy constructor and assignment operator
+//   - SCALE::Manager().update() pump (drives impl parseMessage / update)
+//   - Direct SCALE::implementationObject calls with nullptr head
 //
 // No engine initialisation is required — scale maintains its own pitch vector
 // in the interface; SCALE::Manager() is a standalone static singleton with no
@@ -16,6 +18,9 @@
 
 #include <doctest/doctest.h>
 #include "music/scale/scaleInterface.hpp"
+#include "music/scale/scaleImplementation.h"
+#include "music/scale/scaleManager.h"
+#include "music/scale/scaleMessage.h"
 
 TEST_SUITE("music") {
 
@@ -206,6 +211,214 @@ TEST_CASE("scale: assignment operator copies pitches") {
     s2 = s;
     CHECK(s2.size() == 3u);
     CHECK(s2.has(60.f)); CHECK(s2.has(64.f)); CHECK(s2.has(67.f));
+}
+
+// ─── Implementation pump via SCALE::Manager().update() ───────────────────────
+//
+// The scale interface ships every mutation as a message to its implementation
+// (a SCALE::implementationObject held by SCALE::Manager()).  Calling
+// SCALE::Manager().update() drains those queues — driving update(),
+// parseMessage(), and the impl's add/remove/clear.  The test only asserts that
+// the pump does not crash and that the manager survives multiple iterations;
+// the impl's vector is private, so coverage here is structural (exercising
+// the code paths) rather than observational.
+
+TEST_CASE("scale impl: Manager().update() drains queued ADD messages") {
+    YSE::scale s;
+    s.add(60.f, 0); s.add(64.f, 0); s.add(67.f, 0);
+    YSE::SCALE::Manager().update();
+    // Second pump finds an empty queue — exercises the no-message branch.
+    YSE::SCALE::Manager().update();
+    CHECK(s.size() == 3u);
+}
+
+TEST_CASE("scale impl: Manager().update() drains queued REMOVE messages") {
+    YSE::scale s;
+    s.add(60.f, 0); s.add(64.f, 0); s.add(67.f, 0);
+    YSE::SCALE::Manager().update();
+    s.remove(64.f, 0);
+    YSE::SCALE::Manager().update();
+    CHECK(s.size() == 2u);
+}
+
+TEST_CASE("scale impl: Manager().update() drains queued CLEAR messages") {
+    YSE::scale s;
+    s.add(60.f, 0); s.add(64.f, 0);
+    YSE::SCALE::Manager().update();
+    s.clear();
+    YSE::SCALE::Manager().update();
+    CHECK(s.size() == 0u);
+}
+
+TEST_CASE("scale impl: Manager().update() pumps transposing add (step=12)") {
+    YSE::scale s;
+    s.add(60.f, 12.f);   // C at every octave
+    YSE::SCALE::Manager().update();
+    // Interface mirrors impl logic: many C's in [0, 128).
+    CHECK(s.has(60.f));
+    CHECK(s.has(72.f));
+}
+
+TEST_CASE("scale impl: Manager().update() pumps transposing remove (step=12)") {
+    YSE::scale s;
+    s.add(60.f, 12.f);
+    YSE::SCALE::Manager().update();
+    s.remove(60.f, 12.f);
+    YSE::SCALE::Manager().update();
+    CHECK(s.size() == 0u);
+}
+
+TEST_CASE("scale impl: removeInterface() runs at ~scale and update() prunes") {
+    // Construct a scale in its own scope, then drive update() afterwards.
+    // ~scale() calls pimpl->removeInterface() which nulls head; the next
+    // Manager().update() observes head==nullptr, returns false from
+    // update(), and erases the impl from the forward_list.
+    {
+        YSE::scale s;
+        s.add(60.f, 0);
+        YSE::SCALE::Manager().update();
+    }
+    YSE::SCALE::Manager().update();   // erases the now-headless impl
+    // A fresh scale still works — manager is intact after the prune.
+    YSE::scale s2;
+    s2.add(64.f, 0);
+    YSE::SCALE::Manager().update();
+    CHECK(s2.size() == 1u);
+}
+
+// ─── Direct SCALE::implementationObject — head=nullptr is safe ──────────────
+//
+// The impl's destructor null-checks head before writing to it, and update()
+// short-circuits when head is null.  Other public impl methods operate on
+// the internal `pitches` vector and don't touch head.  This lets us call
+// add/remove/has/getNearest/size/clear directly to cover their bodies
+// without standing up a full scale + manager + player stack.
+
+TEST_CASE("scale impl: update() returns false when head is null") {
+    YSE::SCALE::implementationObject impl(nullptr);
+    CHECK(impl.update() == false);
+}
+
+TEST_CASE("scale impl: parseMessage(ADD step=0) appends a single pitch") {
+    YSE::SCALE::implementationObject impl(nullptr);
+    YSE::SCALE::messageObject m;
+    m.ID = YSE::SCALE::ADD;
+    m.floatPair[0] = 60.f; // pitch
+    m.floatPair[1] = 0.f;  // step
+    impl.parseMessage(m);
+    CHECK(impl.size() == 1u);
+    CHECK(impl.has(60.f));
+}
+
+TEST_CASE("scale impl: parseMessage(ADD step=12) expands to every octave") {
+    YSE::SCALE::implementationObject impl(nullptr);
+    YSE::SCALE::messageObject m;
+    m.ID = YSE::SCALE::ADD;
+    m.floatPair[0] = 60.f;
+    m.floatPair[1] = 12.f;
+    impl.parseMessage(m);
+    // impl::add(60, 12) walks pitch -= 12 until <= 0, then pushes ascending
+    // every 12 up to 128. Pitches end up sorted ascending naturally.
+    CHECK(impl.has(60.f));
+    CHECK(impl.has(72.f));
+    CHECK(impl.has(48.f));
+    CHECK(impl.has(0.f));
+    CHECK(!impl.has(61.f));
+}
+
+TEST_CASE("scale impl: parseMessage(REMOVE step=0) removes a single pitch") {
+    YSE::SCALE::implementationObject impl(nullptr);
+    YSE::SCALE::messageObject add;
+    add.ID = YSE::SCALE::ADD;
+    add.floatPair[0] = 60.f; add.floatPair[1] = 12.f;
+    impl.parseMessage(add);
+    CHECK(impl.has(60.f));
+
+    YSE::SCALE::messageObject rem;
+    rem.ID = YSE::SCALE::REMOVE;
+    rem.floatPair[0] = 60.f; rem.floatPair[1] = 0.f;
+    impl.parseMessage(rem);
+    CHECK(!impl.has(60.f));
+    // Other octaves still present (only the single 60 was removed).
+    CHECK(impl.has(72.f));
+}
+
+TEST_CASE("scale impl: parseMessage(REMOVE step=12) removes at every octave") {
+    YSE::SCALE::implementationObject impl(nullptr);
+    YSE::SCALE::messageObject add;
+    add.ID = YSE::SCALE::ADD;
+    add.floatPair[0] = 60.f; add.floatPair[1] = 12.f;
+    impl.parseMessage(add);
+    UInt before = impl.size();
+    CHECK(before > 0u);
+
+    YSE::SCALE::messageObject rem;
+    rem.ID = YSE::SCALE::REMOVE;
+    rem.floatPair[0] = 60.f; rem.floatPair[1] = 12.f;
+    impl.parseMessage(rem);
+    CHECK(impl.size() == 0u);
+}
+
+TEST_CASE("scale impl: parseMessage(CLEAR) empties the scale") {
+    YSE::SCALE::implementationObject impl(nullptr);
+    YSE::SCALE::messageObject add;
+    add.ID = YSE::SCALE::ADD;
+    add.floatPair[0] = 60.f; add.floatPair[1] = 12.f;
+    impl.parseMessage(add);
+    CHECK(impl.size() > 0u);
+
+    YSE::SCALE::messageObject clr;
+    clr.ID = YSE::SCALE::CLEAR;
+    impl.parseMessage(clr);
+    CHECK(impl.size() == 0u);
+}
+
+TEST_CASE("scale impl: getNearest returns exact pitch when present") {
+    YSE::SCALE::implementationObject impl(nullptr);
+    // add(60, 12) leaves pitches sorted ascending — safe for binary_search/lower_bound.
+    impl.add(60.f, 12.f);
+    CHECK(impl.getNearest(60.f) == doctest::Approx(60.f));
+    CHECK(impl.getNearest(72.f) == doctest::Approx(72.f));
+}
+
+TEST_CASE("scale impl: getNearest snaps to closer lower neighbour") {
+    YSE::SCALE::implementationObject impl(nullptr);
+    impl.add(60.f, 12.f);
+    // 61 is 1 above 60 and 11 below 72 → 60.
+    CHECK(impl.getNearest(61.f) == doctest::Approx(60.f));
+}
+
+TEST_CASE("scale impl: getNearest snaps to closer upper neighbour") {
+    YSE::SCALE::implementationObject impl(nullptr);
+    impl.add(60.f, 12.f);
+    // 71 is 11 above 60 and 1 below 72 → 72.
+    CHECK(impl.getNearest(71.f) == doctest::Approx(72.f));
+}
+
+TEST_CASE("scale impl: getNearest returns first pitch when query is below all") {
+    YSE::SCALE::implementationObject impl(nullptr);
+    // step=0 with a single high pitch — lower_bound for any value < 60 returns
+    // begin(), and the "high == begin()" branch returns *high directly.
+    impl.add(60.f, 0.f);
+    CHECK(impl.getNearest(50.f) == doctest::Approx(60.f));
+}
+
+TEST_CASE("scale impl: clear empties pitches") {
+    YSE::SCALE::implementationObject impl(nullptr);
+    impl.add(60.f, 12.f);
+    CHECK(impl.size() > 0u);
+    impl.clear();
+    CHECK(impl.size() == 0u);
+}
+
+TEST_CASE("scale impl: remove step=0 leaves non-matching pitches intact") {
+    YSE::SCALE::implementationObject impl(nullptr);
+    impl.add(60.f, 0.f);
+    impl.add(72.f, 0.f);
+    impl.remove(62.f, 0.f); // not present — early-exit branch of remove loop
+    CHECK(impl.size() == 2u);
+    CHECK(impl.has(60.f));
+    CHECK(impl.has(72.f));
 }
 
 } // TEST_SUITE("music")

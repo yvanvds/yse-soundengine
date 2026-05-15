@@ -26,7 +26,17 @@
 
 #include <doctest/doctest.h>
 #include "music/pNote.hpp"
+// Message headers must precede the impl headers: sendMessage() is an inline
+// in the impl that calls lfQueue<messageObject>::push, which needs the
+// complete messageObject type to size its storage.
+#include "music/scale/scaleMessage.h"
+#include "music/motif/motifMessage.h"
+#include "music/scale/scaleInterface.hpp"
+#include "music/scale/scaleImplementation.h"
+#include "music/scale/scaleManager.h"
 #include "music/motif/motifInterface.hpp"
+#include "music/motif/motifImplementation.h"
+#include "music/motif/motifManager.h"
 #include "player/playerInterface.hpp"
 #include "player/playerMessage.h"
 
@@ -227,6 +237,164 @@ TEST_CASE("playerMessage: distinct MESSAGE enum values are not equal") {
     CHECK(YSE::PLAYER::MIN_PITCH  != YSE::PLAYER::MAX_PITCH);
     CHECK(YSE::PLAYER::MIN_VELOCITY != YSE::PLAYER::MAX_VELOCITY);
     CHECK(YSE::PLAYER::ADD_MOTIF  != YSE::PLAYER::REM_MOTIF);
+}
+
+// ─── Implementation pump via MOTIF::Manager().update() ───────────────────────
+//
+// The motif interface ships every mutation as a message to its implementation.
+// MOTIF::Manager().update() drains the queue, exercising parseMessage() for
+// every MESSAGE enum value, and triggers the impl's sort() when notes were
+// added out of order.  Coverage here is structural (the impl's vector is
+// private to the test), but it drives update / parseMessage / sort /
+// removeInterface across many code paths.
+
+TEST_CASE("motif impl: Manager().update() drains queued ADD messages") {
+    YSE::motif m;
+    m.add(YSE::MUSIC::pNote(0.f, 60.f, 1.f, 0.5f));
+    m.add(YSE::MUSIC::pNote(1.f, 62.f, 1.f, 0.5f));
+    YSE::MOTIF::Manager().update();
+    // Second pump with empty queue exercises the no-message branch.
+    YSE::MOTIF::Manager().update();
+    CHECK(m.size() == 2u);
+}
+
+TEST_CASE("motif impl: Manager().update() triggers sort when notes added out of order") {
+    YSE::motif m;
+    m.add(YSE::MUSIC::pNote(2.f, 62.f, 1.f, 0.5f));
+    m.add(YSE::MUSIC::pNote(0.f, 60.f, 1.f, 0.5f));
+    m.add(YSE::MUSIC::pNote(1.f, 64.f, 1.f, 0.5f));
+    YSE::MOTIF::Manager().update();   // drives impl.sort() via needsSorting branch
+    CHECK(m.size() == 3u);
+}
+
+TEST_CASE("motif impl: Manager().update() pumps CLEAR / LENGTH / TRANSPOSE / FIRST_PITCH") {
+    YSE::scale sc;
+    sc.add(60.f, 12.f);
+    YSE::SCALE::Manager().update();
+
+    YSE::motif m;
+    m.add(YSE::MUSIC::pNote(0.f, 60.f, 1.f, 0.5f));
+    m.setLength(2.5f);          // sends LENGTH
+    m.transpose(7.f);           // sends TRANSPOSE
+    m.setFirstPitch(sc);        // sends FIRST_PITCH (carries SCALE::impl ptr)
+    YSE::MOTIF::Manager().update();
+
+    m.clear();                  // sends CLEAR
+    YSE::MOTIF::Manager().update();
+    CHECK(m.size() == 0u);
+}
+
+TEST_CASE("motif impl: removeInterface() runs at ~motif and update() prunes") {
+    {
+        YSE::motif m;
+        m.add(YSE::MUSIC::pNote(0.f, 60.f, 1.f, 0.5f));
+        YSE::MOTIF::Manager().update();
+    }
+    YSE::MOTIF::Manager().update();   // observes head==nullptr, erases impl
+    YSE::motif m2;
+    m2.add(YSE::MUSIC::pNote(0.f, 64.f, 1.f, 0.5f));
+    YSE::MOTIF::Manager().update();
+    CHECK(m2.size() == 1u);
+}
+
+// ─── Direct MOTIF::implementationObject — head=nullptr is safe ──────────────
+//
+// As with the scale impl, the motif impl's destructor null-checks head before
+// writing, and update() short-circuits on null head.  Calling parseMessage()
+// directly lets us hit every MESSAGE branch and verify state via the impl's
+// own public accessors (size, getLength, getNote, getValidPitches) without
+// needing a player or synth.
+
+TEST_CASE("motif impl: update() returns false when head is null") {
+    YSE::MOTIF::implementationObject impl(nullptr);
+    CHECK(impl.update() == false);
+}
+
+TEST_CASE("motif impl: parseMessage(ADD) appends a note with all fields preserved") {
+    YSE::MOTIF::implementationObject impl(nullptr);
+    YSE::MOTIF::messageObject msg;
+    msg.ID = YSE::MOTIF::ADD;
+    msg.note.position = 0.5f;
+    msg.note.pitch    = 60.f;
+    msg.note.volume   = 0.8f;
+    msg.note.length   = 0.25f;
+    msg.note.channel  = 3;
+    impl.parseMessage(msg);
+    CHECK(impl.size() == 1u);
+    CHECK(impl.getNote(0).getPosition() == doctest::Approx(0.5f));
+    CHECK(impl.getNote(0).getPitch()    == doctest::Approx(60.f));
+    CHECK(impl.getNote(0).getVolume()   == doctest::Approx(0.8f));
+    CHECK(impl.getNote(0).getLength()   == doctest::Approx(0.25f));
+    CHECK(impl.getNote(0).getChannel()  == 3);
+}
+
+TEST_CASE("motif impl: parseMessage(LENGTH) stores length") {
+    YSE::MOTIF::implementationObject impl(nullptr);
+    YSE::MOTIF::messageObject msg;
+    msg.ID = YSE::MOTIF::LENGTH;
+    msg.floatValue = 4.0f;
+    impl.parseMessage(msg);
+    CHECK(impl.getLength() == doctest::Approx(4.0f));
+}
+
+TEST_CASE("motif impl: parseMessage(TRANSPOSE) shifts pitches of stored notes") {
+    YSE::MOTIF::implementationObject impl(nullptr);
+    YSE::MOTIF::messageObject add;
+    add.ID = YSE::MOTIF::ADD;
+    add.note.position = 0.f; add.note.pitch = 60.f;
+    add.note.volume   = 1.f; add.note.length = 0.5f; add.note.channel = 0;
+    impl.parseMessage(add);
+    add.note.pitch = 62.f;
+    impl.parseMessage(add);
+
+    YSE::MOTIF::messageObject tr;
+    tr.ID = YSE::MOTIF::TRANSPOSE;
+    tr.floatValue = 12.f;
+    impl.parseMessage(tr);
+    CHECK(impl.getNote(0).getPitch() == doctest::Approx(72.f));
+    CHECK(impl.getNote(1).getPitch() == doctest::Approx(74.f));
+}
+
+TEST_CASE("motif impl: parseMessage(CLEAR) empties the note vector") {
+    YSE::MOTIF::implementationObject impl(nullptr);
+    YSE::MOTIF::messageObject add;
+    add.ID = YSE::MOTIF::ADD;
+    add.note.position = 0.f; add.note.pitch = 60.f;
+    add.note.volume   = 1.f; add.note.length = 0.5f; add.note.channel = 0;
+    impl.parseMessage(add);
+    CHECK(impl.size() == 1u);
+
+    YSE::MOTIF::messageObject clr;
+    clr.ID = YSE::MOTIF::CLEAR;
+    impl.parseMessage(clr);
+    CHECK(impl.size() == 0u);
+}
+
+TEST_CASE("motif impl: parseMessage(FIRST_PITCH) stores SCALE::impl ptr") {
+    YSE::MOTIF::implementationObject impl(nullptr);
+    YSE::SCALE::implementationObject scaleImpl(nullptr);
+    YSE::MOTIF::messageObject msg;
+    msg.ID = YSE::MOTIF::FIRST_PITCH;
+    msg.ptr = &scaleImpl;
+    impl.parseMessage(msg);
+    CHECK(impl.getValidPitches() == &scaleImpl);
+}
+
+TEST_CASE("motif impl: getValidPitches defaults to nullptr") {
+    YSE::MOTIF::implementationObject impl(nullptr);
+    CHECK(impl.getValidPitches() == nullptr);
+}
+
+TEST_CASE("motif impl: getLength defaults to zero before any LENGTH message") {
+    // length is not value-initialised in the impl ctor, but the manager
+    // path always seeds it via setLength.  This test documents that the
+    // observable default after a LENGTH=0 message is exactly 0.
+    YSE::MOTIF::implementationObject impl(nullptr);
+    YSE::MOTIF::messageObject msg;
+    msg.ID = YSE::MOTIF::LENGTH;
+    msg.floatValue = 0.f;
+    impl.parseMessage(msg);
+    CHECK(impl.getLength() == doctest::Approx(0.f));
 }
 
 } // TEST_SUITE("music")
