@@ -82,11 +82,17 @@ set_target_properties(yse_tests PROPERTIES
 # own update() — `update()` is single-threaded by design. The engine-level race
 # fix (Phases A-D) is unaffected by this; the constraint is purely a test
 # infrastructure invariant. The integration suite has its own ctest entry below.
+#
+# `--duration=true` is a workaround for the patcher-suite hang tracked in
+# issue #33 (the per-test I/O perturbs timing enough to mask the race). The
+# 600 s TIMEOUT ensures a future regression fails the CI job instead of
+# sitting until the GitHub runner-level timeout.
 add_test(
   NAME    yse_unit_tests
-  COMMAND yse_tests --test-suite-exclude=integration
+  COMMAND yse_tests --test-suite-exclude=integration --duration=true
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
+set_tests_properties(yse_unit_tests PROPERTIES TIMEOUT 600)
 
 add_test(
   NAME    yse_tests_dsp
@@ -104,10 +110,10 @@ set_tests_properties(yse_tests_utils PROPERTIES LABELS utils)
 
 add_test(
   NAME    yse_tests_patcher
-  COMMAND yse_tests --test-suite=patcher
+  COMMAND yse_tests --test-suite=patcher --duration=true
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
-set_tests_properties(yse_tests_patcher PROPERTIES LABELS patcher)
+set_tests_properties(yse_tests_patcher PROPERTIES LABELS patcher TIMEOUT 300)
 
 add_test(
   NAME    yse_tests_channel
