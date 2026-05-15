@@ -79,9 +79,10 @@ namespace YSE {
   enum OBJECT_IMPLEMENTATION_STATE {
     OBJECT_CONSTRUCTED, // the object exists
     OBJECT_CREATED, // create function is done
+    OBJECT_SETTING_UP, // transient: slow-pool has claimed this impl for setup
     OBJECT_SETUP, // object setup is done
     OBJECT_READY, // ready for use
-    OBJECT_DONE, // flag for release 
+    OBJECT_DONE, // flag for release
     OBJECT_RELEASE, // flagged for release from inUse list
     OBJECT_DELETE, // flagged for deletion from implementations list
   };

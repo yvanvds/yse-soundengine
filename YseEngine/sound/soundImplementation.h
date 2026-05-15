@@ -144,16 +144,28 @@ namespace YSE {
       }
 
       /**
-      This function is used by the forward_list remove_if function
+      This function is used by the forward_list remove_if function on the
+      audio-thread-owned `toLoad` list. OBJECT_SETTING_UP is treated as
+      "keep" so an impl currently being prepared by the slow-pool stays in
+      `toLoad` until setup completes (status transitions to OBJECT_SETUP).
       */
-      static bool canBeRemovedFromLoading(const std::atomic<implementationObject*> & impl) {
-        if (impl.load()->objectStatus == OBJECT_READY
-          || impl.load()->objectStatus == OBJECT_RELEASE
-          || impl.load()->objectStatus == OBJECT_DELETE) {
+      static bool canBeRemovedFromLoading(implementationObject * impl) {
+        if (impl->objectStatus == OBJECT_READY
+          || impl->objectStatus == OBJECT_RELEASE
+          || impl->objectStatus == OBJECT_DELETE) {
           return true;
         }
 
         return false;
+      }
+
+      /** Attempt to atomically transition this impl from OBJECT_CREATED to
+      OBJECT_SETTING_UP. Returns true if this caller now owns the right to run
+      setup() on it. Used by the slow-pool's setupJob to claim impls without
+      racing other slow-pool ticks. */
+      bool tryClaimForSetup() {
+        OBJECT_IMPLEMENTATION_STATE expected = OBJECT_CREATED;
+        return objectStatus.compare_exchange_strong(expected, OBJECT_SETTING_UP);
       }
 
 	  // these are frequently updated by the implementation and to be read by head
@@ -233,7 +245,13 @@ namespace YSE {
       PATCHER::patcherImplementation * patcher;
 
       // dsp slots
-      DSP::dspSourceObject * source_dsp;
+      // Atomic: written once on the main thread in create(DSP::dspSourceObject&...),
+      // read by the audio thread in dsp() every callback, and nullified by the
+      // audio thread at the OBJECT_RELEASE→OBJECT_DELETE transition (defensive,
+      // protects against a user-supplied source object whose lifetime ends
+      // slightly before the impl's deleteJob runs). See sound.hpp for the
+      // lifetime contract callers must satisfy.
+      std::atomic<DSP::dspSourceObject *> source_dsp;
 
       Bool _setPostDSP;
       std::atomic<DSP::dspObject *> _postDspPtr;
@@ -241,7 +259,14 @@ namespace YSE {
       void addDSP(DSP::dspObject & ptr);
 
       CHANNEL::implementationObject * parent;
-   
+      // True once the audio thread has called parent->connect(this) and the
+      // impl appears in parent->sounds. Cleared by the audio thread before it
+      // transitions the impl to OBJECT_DELETE in SOUND::Manager::update(), so
+      // the slow-pool's destructor-driven disconnect becomes a no-op. Read by
+      // both the audio thread (write side) and the slow-pool thread
+      // (destructor read side); atomic guarantees correct visibility.
+      std::atomic<bool> connectedToParent;
+
       UInt startOffset;
       UInt stopOffset;
 

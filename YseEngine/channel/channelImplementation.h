@@ -176,16 +176,26 @@ namespace YSE {
       }
 
       /**
-      This function is used by the forward_list remove_if function
+      This function is used by the forward_list remove_if function on the
+      audio-thread-owned `toLoad` list. OBJECT_SETTING_UP is treated as
+      "keep" so an impl currently being prepared by the slow-pool stays in
+      `toLoad` until setup completes.
       */
-      static bool canBeRemovedFromLoading(const std::atomic<implementationObject*> & impl) {
-        if (impl.load()->objectStatus == OBJECT_READY
-          || impl.load()->objectStatus == OBJECT_RELEASE
-          || impl.load()->objectStatus == OBJECT_DELETE) {
+      static bool canBeRemovedFromLoading(implementationObject * impl) {
+        if (impl->objectStatus == OBJECT_READY
+          || impl->objectStatus == OBJECT_RELEASE
+          || impl->objectStatus == OBJECT_DELETE) {
           return true;
         }
 
         return false;
+      }
+
+      /** Atomically claim this impl for setup. Returns true if the caller now
+      owns the right to run setup() on it. Used by the slow-pool's setupJob. */
+      bool tryClaimForSetup() {
+        OBJECT_IMPLEMENTATION_STATE expected = OBJECT_CREATED;
+        return objectStatus.compare_exchange_strong(expected, OBJECT_SETTING_UP);
       }
 
     private:
@@ -197,6 +207,12 @@ namespace YSE {
       Flt  lastVolume;
 
       CHANNEL::implementationObject * parent;
+      // True once the audio thread has called parent->connect(this) (i.e.
+      // setMaster or a user-created subchannel made it into parent->children).
+      // Cleared by the audio thread in CHANNEL::Manager::update before
+      // OBJECT_DELETE, so the slow-pool destructor skips parent->children
+      // and parent->sounds traversal.
+      std::atomic<bool> connectedToParent;
 
       std::forward_list<CHANNEL::implementationObject*> children;
       std::forward_list<SOUND::implementationObject *> sounds;

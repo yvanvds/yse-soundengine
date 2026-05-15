@@ -12,9 +12,9 @@
 
 
 YSE::CHANNEL::implementationObject::implementationObject(channel * head) :
-head(head), 
-newVolume(1.f), lastVolume(1.f), parent(nullptr), userChannel(true),
- allowVirtual(true)
+head(head),
+newVolume(1.f), lastVolume(1.f), parent(nullptr), connectedToParent(false),
+userChannel(true), allowVirtual(true)
 {
 }
 
@@ -22,8 +22,13 @@ newVolume(1.f), lastVolume(1.f), parent(nullptr), userChannel(true),
   // exit the dsp thread for this channel
    join();
 
+  // The primary disconnect path is on the audio thread, in
+  // CHANNEL::Manager::update at the OBJECT_RELEASE→OBJECT_DELETE transition.
+  // This guard ensures the slow-pool's destructor only touches
+  // parent->children when no audio-thread disconnect has happened (i.e.
+  // setup-failure path: channels that died before connect() ran).
   if (INTERNAL::Global().isActive()) {
-    if (parent != nullptr) {
+    if (parent != nullptr && connectedToParent.load(std::memory_order_acquire)) {
       parent->disconnect(this);
       childrenToParent();
     }
@@ -177,6 +182,9 @@ Bool YSE::CHANNEL::implementationObject::readyCheck() {
 
 void YSE::CHANNEL::implementationObject::doThisWhenReady() {
   parent->connect(this);
+  // Audio thread now owns the link into parent->children. Mark it so the
+  // release path can disconnect us before the slow-pool deleteJob frees us.
+  connectedToParent.store(true, std::memory_order_release);
 }
 
 YSE::OBJECT_IMPLEMENTATION_STATE YSE::CHANNEL::implementationObject::getStatus() {

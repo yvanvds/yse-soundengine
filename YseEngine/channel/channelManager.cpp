@@ -28,6 +28,11 @@ YSE::CHANNEL::managerObject::~managerObject() {
   mgrSetup.join();
   mgrDelete.join();
 
+  // drain any pointers still queued by the main thread; they reference impls
+  // owned by `implementations` and will be freed when that list is cleared.
+  implementationObject * drained;
+  while (toLoadInbox.try_pop(drained)) { (void)drained; }
+
   // remove all objects that are still in memory
   toLoad.clear();
   inUse.clear();
@@ -38,12 +43,19 @@ YSE::CHANNEL::managerObject::~managerObject() {
 void YSE::CHANNEL::managerObject::update() {
   // master channel is not in inUse list
   DEVICE::Manager().getMaster().sync();
+
+  ///////////////////////////////////////////
+  // drain the main→audio inbox of newly-set-up impls
+  ///////////////////////////////////////////
+  {
+    implementationObject * p;
+    while (toLoadInbox.try_pop(p)) toLoad.emplace_front(p);
+  }
+
   ///////////////////////////////////////////
   // check if there are implementations that need setup
   ///////////////////////////////////////////
   if (!toLoad.empty() && !mgrSetup.isQueued()) {
-    // removing cannot be done in a separate thread because we are iterating over this
-    // list a during this update fuction
     toLoad.remove_if(implementationObject::canBeRemovedFromLoading);
     INTERNAL::Global().addSlowJob(&mgrSetup);
   }
@@ -57,9 +69,9 @@ void YSE::CHANNEL::managerObject::update() {
   // check if loaded implementations are ready
   ///////////////////////////////////////////
   {
-    for (auto i = toLoad.begin(); i != toLoad.end(); i++) {
-      if (i->load()->readyCheck()) {
-        implementationObject * ptr = i->load();
+    for (auto i = toLoad.begin(); i != toLoad.end(); ++i) {
+      implementationObject * ptr = *i;
+      if (ptr->readyCheck()) {
         // place ptr in active sound list
         inUse.emplace_front(ptr);
         // add the sound to the channel that is supposed to use
@@ -79,6 +91,16 @@ void YSE::CHANNEL::managerObject::update() {
       if ((*i)->getStatus() == OBJECT_RELEASE) {
         implementationObject * ptr = (*i);
         i = inUse.erase_after(previous);
+        // Audio-thread-side disconnect: reparent any children to this
+        // channel's parent and remove this channel from parent->children
+        // BEFORE marking OBJECT_DELETE. The slow-pool's deleteJob filters
+        // on OBJECT_DELETE so by the time it can free this impl, the
+        // audio-thread-iterated lists no longer reference it.
+        if (ptr->parent != nullptr && ptr->connectedToParent.load(std::memory_order_acquire)) {
+          ptr->childrenToParent();
+          ptr->parent->disconnect(ptr);
+          ptr->connectedToParent.store(false, std::memory_order_release);
+        }
         ptr->setStatus(OBJECT_DELETE);
         runDelete = true;
         continue;
@@ -91,13 +113,15 @@ void YSE::CHANNEL::managerObject::update() {
 
 
 YSE::CHANNEL::implementationObject * YSE::CHANNEL::managerObject::addImplementation(YSE::channel * head) {
+  std::lock_guard<std::mutex> lk(implementationsMutex);
   implementations.emplace_front(head);
   return &implementations.front();
 }
 
 void YSE::CHANNEL::managerObject::setup(implementationObject * impl) {
   impl->setStatus(OBJECT_CREATED);
-  toLoad.emplace_front(impl);
+  // Hand off to the audio thread via the lock-free inbox.
+  toLoadInbox.push(impl);
 }
 
 Bool YSE::CHANNEL::managerObject::empty() {

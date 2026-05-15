@@ -50,6 +50,7 @@ YSE::SOUND::implementationObject::implementationObject(sound * head) :
 	_postDspPtr(nullptr),
 	post_dsp(nullptr),
 	parent(nullptr),
+	connectedToParent(false),
 	startOffset(0),
 	stopOffset(0),
 	streaming(false),
@@ -64,9 +65,16 @@ YSE::SOUND::implementationObject::implementationObject(sound * head) :
 }
 
 YSE::SOUND::implementationObject::~implementationObject() {
-	if (parent != nullptr) {
+  // The primary disconnect path is on the audio thread, in
+  // SOUND::Manager::update at the OBJECT_RELEASE→OBJECT_DELETE transition.
+  // This guard ensures the slow-pool's destructor only touches
+  // parent->sounds when no audio-thread disconnect has happened yet (i.e.
+  // setup-failure path: impls that died before doThisWhenReady ever ran).
+  // In that case `connectedToParent` is false and parent->sounds doesn't
+  // contain us — the slow-pool just skips the disconnect entirely.
+  if (parent != nullptr && connectedToParent.load(std::memory_order_acquire)) {
     parent->disconnect(this);
-	}
+  }
   // only streams should delete their source. Other files are shared.
   if (file != nullptr && !streaming) {
     file->release(this);
@@ -233,8 +241,8 @@ bool YSE::SOUND::implementationObject::create(DSP::dspSourceObject & ptr, channe
   status_dsp = SS_STOPPED;
   status_upd = SS_STOPPED;
 
-  source_dsp = &ptr;
-  buffer = &source_dsp->samples;
+  source_dsp.store(&ptr, std::memory_order_release);
+  buffer = &ptr.samples;
   return true;
 }
 
@@ -276,7 +284,7 @@ void YSE::SOUND::implementationObject::setup() {
     // if object is ready and head is not null, just return
     if (objectStatus == OBJECT_READY) return;
 
-    if (source_dsp != nullptr || patcher != nullptr){// || synth != nullptr) {
+    if (source_dsp.load(std::memory_order_acquire) != nullptr || patcher != nullptr){// || synth != nullptr) {
       // dsp source sounds are a special case because there's no file involved
       resize();
     }
@@ -328,6 +336,10 @@ Bool YSE::SOUND::implementationObject::readyCheck() {
 
 void YSE::SOUND::implementationObject::doThisWhenReady() {
   parent->connect(this);
+  // Audio thread now owns the link into parent->sounds. Mark it so that the
+  // audio thread's release path (in SOUND::Manager::update) knows it must
+  // disconnect us before allowing the slow-pool deleteJob to free us.
+  connectedToParent.store(true, std::memory_order_release);
 }
 
 void YSE::SOUND::implementationObject::sendMessage(const messageObject & message) {
@@ -589,8 +601,9 @@ Bool YSE::SOUND::implementationObject::dsp() {
   ///////////////////////////////////////////
   // fill buffer
   ///////////////////////////////////////////
-  if (playerType == PT_DSP && source_dsp != nullptr) {
-    source_dsp->process(status_dsp);
+  DSP::dspSourceObject * src = source_dsp.load(std::memory_order_acquire);
+  if (playerType == PT_DSP && src != nullptr) {
+    src->process(status_dsp);
   }
   else if (playerType == PT_PATCHER && patcher != nullptr) {
 		

@@ -46,12 +46,13 @@ namespace YSE {
       }
 
       /**
-      This function is used by the forward_list remove_if function
+      This function is used by the forward_list remove_if function on the
+      audio-thread-owned `toLoad` list.
       */
-      static bool canBeRemovedFromLoading(const std::atomic<implementationObject*> & impl) {
-        if (impl.load()->objectStatus == OBJECT_READY
-          || impl.load()->objectStatus == OBJECT_RELEASE
-          || impl.load()->objectStatus == OBJECT_DELETE) {
+      static bool canBeRemovedFromLoading(implementationObject * impl) {
+        if (impl->objectStatus == OBJECT_READY
+          || impl->objectStatus == OBJECT_RELEASE
+          || impl->objectStatus == OBJECT_DELETE) {
           return true;
         }
 

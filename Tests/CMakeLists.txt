@@ -29,9 +29,12 @@ add_executable(yse_tests
   patcher/test_generic_objects.cpp
   patcher/test_gui_objects.cpp
   channel/test_channel.cpp
+  channel/test_channel_concurrency.cpp
   sound/test_sound_state.cpp
   sound/test_sound_impl.cpp
+  sound/test_sound_concurrency.cpp
   reverb/test_reverb_dsp.cpp
+  reverb/test_reverb_concurrency.cpp
   midi/test_midifile.cpp
   midi/test_devicemanager.cpp
   music/test_scale.cpp
@@ -71,13 +74,14 @@ set_target_properties(yse_tests PROPERTIES
 
 # Register with CTest.
 #
-# yse_unit_tests runs the full binary minus the integration suite, which has
-# its own (DISABLED) entry below.  Including integration here would re-open
-# the live audio stream (via engineInitWithAudio in those tests) and race
-# the audio callback against unit-test teardown.
+# yse_unit_tests runs the full binary, including the integration suite. The
+# pre-Phase-A/B/C workaround used `--test-suite-exclude=integration` here to
+# stop the integration suite's `engineInitWithAudio()` from racing the audio
+# callback against unit-test teardown — that race is now closed at the
+# engine level, so the exclude is gone.
 add_test(
   NAME    yse_unit_tests
-  COMMAND yse_tests --test-suite-exclude=integration
+  COMMAND yse_tests
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 
@@ -144,6 +148,17 @@ add_test(
 )
 set_tests_properties(yse_tests_listener PROPERTIES LABELS listener)
 
+# Concurrency stress tests for the SOUND/CHANNEL/REVERB managers.  These live
+# in the sound/channel/reverb test suites but each test case name starts with
+# "<sub> concurrency:" so doctest can filter by name.  Run via
+# `ctest -L concurrency` or `yse_tests --test-case="* concurrency: *"`.
+add_test(
+  NAME    yse_tests_concurrency
+  COMMAND yse_tests "--test-case=* concurrency: *"
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_concurrency PROPERTIES LABELS concurrency)
+
 target_compile_definitions(yse_tests PRIVATE
   "YSE_TEST_FIXTURES_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/support/fixtures\""
 )
@@ -156,10 +171,7 @@ add_test(
   COMMAND yse_tests --test-suite=integration
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
-set_tests_properties(yse_tests_integration PROPERTIES
-  LABELS   integration
-  DISABLED TRUE
-)
+set_tests_properties(yse_tests_integration PROPERTIES LABELS integration)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   set(_patcher_test_suppress "-Wno-unused-parameter -Wno-deprecated-literal-operator -Wno-tautological-overlap-compare")

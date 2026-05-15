@@ -24,6 +24,11 @@ YSE::REVERB::managerObject::managerObject()
 YSE::REVERB::managerObject::~managerObject() {
   mgrDelete.join();
 
+  // drain any pointers still queued by the main thread; they reference impls
+  // owned by `implementations` and will be freed when that list is cleared.
+  implementationObject * drained;
+  while (toLoadInbox.try_pop(drained)) { (void)drained; }
+
   // remove all objects that are still in memory
   toLoad.clear();
   inUse.clear();
@@ -36,15 +41,16 @@ void YSE::REVERB::managerObject::create() {
 }
 
 YSE::REVERB::implementationObject * YSE::REVERB::managerObject::addImplementation(YSE::reverb * head) {
+  std::lock_guard<std::mutex> lk(implementationsMutex);
   implementations.emplace_front(head);
   return &implementations.front();
 }
 
 void YSE::REVERB::managerObject::setup(YSE::REVERB::implementationObject* impl) {
-  // reverb object do not need any setup, but we cannot place them
-  // in the inUse list because it won't be thread safe
+  // reverb objects don't need slow-pool setup; they go straight to
+  // OBJECT_SETUP and are handed to the audio thread via the inbox.
   impl->setStatus(OBJECT_SETUP);
-  toLoad.emplace_front(impl);
+  toLoadInbox.push(impl);
 }
 
 void YSE::REVERB::managerObject::setOutputChannels(Int value) {
@@ -60,6 +66,14 @@ Bool YSE::REVERB::managerObject::empty() {
 }
 
 void YSE::REVERB::managerObject::update() {
+  ///////////////////////////////////////////
+  // drain the main→audio inbox of newly-set-up impls
+  ///////////////////////////////////////////
+  {
+    implementationObject * p;
+    while (toLoadInbox.try_pop(p)) toLoad.emplace_front(p);
+  }
+
   toLoad.remove_if(implementationObject::canBeRemovedFromLoading);
 
   if (runDelete && !mgrDelete.isQueued()) {
@@ -71,9 +85,9 @@ void YSE::REVERB::managerObject::update() {
   // check if loaded implementations are ready
   ///////////////////////////////////////////
   {
-    for (auto i = toLoad.begin(); i != toLoad.end(); i++) {
-      if (i->load()->readyCheck()) {
-        implementationObject * ptr = i->load();
+    for (auto i = toLoad.begin(); i != toLoad.end(); ++i) {
+      implementationObject * ptr = *i;
+      if (ptr->readyCheck()) {
         inUse.emplace_front(ptr);
       }
     }

@@ -11,12 +11,14 @@
 #ifndef REVERBMANAGER_H_INCLUDED
 #define REVERBMANAGER_H_INCLUDED
 
+#include <mutex>
 #include "reverb.hpp"
 #include "reverbInterface.hpp"
 #include "reverbImplementation.h"
 #include "../internal/reverbDSP.h"
 #include "reverbMessage.h"
 #include "../internal/threadPool.h"
+#include "../utils/lfQueue.hpp"
 
 namespace YSE {
   namespace REVERB {
@@ -41,6 +43,7 @@ namespace YSE {
         }
 
         virtual void run() {
+          std::lock_guard<std::mutex> lk(obj->implementationsMutex);
           obj->implementations.remove_if(implementationObject::canBeDeleted);
         }
 
@@ -117,20 +120,22 @@ namespace YSE {
       // update and sync all these objects during the dsp callback function
       std::forward_list<implementationObject*> inUse;
 
-      // this queue is used by the setupJob. It is accessed from a low
-      // priority thread to setup, but also from the dsp thread to check if an
-      // object is ready. This is why every pointer has to be atomic. (It's not
-      // a lot of overhead because objects are only in this container while being
-      // created. Unless you create a huge amount of sounds at the same time the size
-      // of this list will be small. And if you DO create a huge amount of sounds
-      // at the same time you should be expecting some latency while they all get loaded
-      // anyway.)
-      std::forward_list<std::atomic<implementationObject*>> toLoad;
+      // Lock-free SPSC inbox: main thread pushes here from setup(); audio
+      // thread drains it into `toLoad` at the top of update(). Reverb impls
+      // skip the slow-pool setup stage (status is set directly to
+      // OBJECT_SETUP in setup()) — the inbox is purely a main→audio handoff.
+      lfQueue<implementationObject*> toLoadInbox;
 
-      // this is the list of all implementationObjects for this subSystem, whether they are ready, 
-      // need to be setup or are about to be deleted. This list is not accessed from the 
-      // audio callback thread, although elements of it might be accessed through the above pointer lists.
+      // Audio-thread-owned working list of impls awaiting OBJECT_READY.
+      std::forward_list<implementationObject*> toLoad;
+
+      // Canonical list of all implementationObjects. Touched by main thread
+      // (addImplementation emplace_front) and the slow-pool worker
+      // (deleteJob remove_ifs). Guarded by implementationsMutex.
       std::forward_list<implementationObject> implementations;
+
+      // Guards `implementations` between main thread and slow-pool worker.
+      std::mutex implementationsMutex;
 
       // This flag will be set when the audio thread detects that one or more objects
       // should be released. It will result in the deleteJob to be added to the threadpool.

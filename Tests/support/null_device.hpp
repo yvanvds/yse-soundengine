@@ -1,22 +1,41 @@
 #pragma once
-// Minimal engine initialization for unit tests that exercise the channel, reverb,
-// or sound subsystems.  Calls System().init() and then immediately pause()s the
-// PortAudio output stream, so the audio callback thread never runs during tests.
+// Engine initialization for unit tests that exercise the channel, reverb,
+// or sound subsystems.
 //
-// Why: the unit tests create and destroy sounds far faster than a real audio
-// callback can safely drain queues.  When a default output device is present
-// (developer workstations, not CI), the audio thread races with rapid
-// sound-manager cleanup and the process crashes — usually at exit, sometimes
-// mid-test.  pause() calls Pa_StopStream / Pa_CloseStream, so the engine runs
-// purely on the user thread for the rest of the process.  On CI (paNoDevice),
-// addCallback() is already a no-op, so the pause() is harmless there.
+// `engineInit()` initialises the engine and *then immediately pauses* the
+// PortAudio output stream. This is NOT a workaround for the audio-callback
+// race documented in KNOWN_ISSUES.md — that race was fixed at the engine
+// level in:
+//
+//   * Phase A — mutex on `implementations` + lock-free SPSC inbox for
+//                `toLoad` between main thread and audio thread.
+//   * Phase B — audio-thread-side disconnect-before-delete + per-impl
+//                `connectedToParent` atomic flag in SOUND and CHANNEL.
+//   * Phase C — atomic `source_dsp` with defensive release-time nullify.
+//
+// pause() is here for a *different* reason: unit tests drive
+// `SOUND::Manager().update()` (and the equivalents for CHANNEL/REVERB)
+// directly from the test thread via helpers like `drainSoundManager()` in
+// test_sound_impl.cpp. Those manager update() functions are designed to be
+// called from a *single* thread (the audio callback thread in production).
+// If we left the audio stream open, the PortAudio thread would also call
+// `Manager().update()` and the two callers would race on the
+// audio-thread-owned `inUse` / `toLoad` lists — which Phase A/B/C
+// deliberately left lockless because they are single-threaded by design.
+//
+// Integration tests that genuinely need a live audio callback call
+// `engineInitWithAudio()` instead, and use `YSE::System().update()` +
+// `System().sleep()` — the public API, which only flags for update and
+// lets the audio thread drive the manager updates as in production.
 //
 // Usage:
-//   TestHelpers::engineInit();   // idempotent — safe to call multiple times
+//   TestHelpers::engineInit();          // unit tests, audio paused
+//   TestHelpers::engineInitWithAudio(); // integration tests, audio live
 //
 // The engine state persists for the lifetime of the test process because all
-// subsystem managers are process-scoped static singletons.  There is no matching
-// engineClose(): let the process exit normally to trigger static destructors.
+// subsystem managers are process-scoped static singletons.  There is no
+// matching engineClose(): let the process exit normally to trigger static
+// destructors.
 
 #include "yse.hpp"
 #include "channel/channelInterface.hpp"
@@ -28,9 +47,10 @@ inline bool engineInitialized() {
     return YSE::ChannelMaster().isValid();
 }
 
-// Initialise the full engine state (channels, reverb, thread pools), then
-// close the live audio stream so the audio callback cannot race with test
-// teardown.  Returns true if channels are ready for use, false on init failure.
+// Initialise the full engine state and pause the audio stream so the test
+// thread is the sole driver of `Manager().update()`. Returns true on
+// success, false if init failed (typically CI without a default audio
+// device — addCallback() is a no-op there).
 inline bool engineInit() {
     if (engineInitialized()) return true;
     if (!YSE::System().init()) return false;
@@ -38,11 +58,12 @@ inline bool engineInit() {
     return true;
 }
 
-// Like engineInit(), but (re)opens the audio stream.  Integration tests that
-// genuinely need the audio callback to fire (e.g. end-to-end signal probes)
-// call this.  resume() inside YSE calls addCallback() which has no
-// already-open guard, so we gate it on a local static to make this helper
-// safely callable from multiple test cases.
+// Like engineInit() but resumes the audio stream afterwards. Use only in
+// integration tests that exercise the live audio callback path, and pump
+// the engine via `YSE::System().update()` + `System().sleep()` rather than
+// `Manager().update()` to avoid double-driving the manager update from two
+// threads. The local-static gate keeps resume() idempotent across multiple
+// test cases.
 inline bool engineInitWithAudio() {
     if (!engineInit()) return false;
     static bool audioResumed = false;

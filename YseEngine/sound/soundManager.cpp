@@ -26,10 +26,15 @@ YSE::SOUND::managerObject::managerObject()
 }
 
 YSE::SOUND::managerObject::~managerObject() {
-  
+
   // wait for jobs to finish
   mgrSetup.join();
   mgrDelete.join();
+
+  // drain any pointers still queued by the main thread; they reference impls
+  // owned by `implementations` and will be freed when that list is cleared.
+  implementationObject * drained;
+  while (toLoadInbox.try_pop(drained)) { (void)drained; }
 
   // remove all objects that are still in memory
   toLoad.clear();
@@ -100,16 +105,27 @@ YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addFile(MULTICHANNELBUFFER
 }
 
 YSE::SOUND::implementationObject * YSE::SOUND::managerObject::addImplementation(YSE::sound * head) {
+  std::lock_guard<std::mutex> lk(implementationsMutex);
   implementations.emplace_front(head);
   return &implementations.front();
 }
 
 void YSE::SOUND::managerObject::setup(YSE::SOUND::implementationObject * impl) {
   impl->setStatus(OBJECT_CREATED);
-  toLoad.emplace_front(impl);
+  // Hand off to the audio thread via the lock-free inbox; the audio thread
+  // will drain it into `toLoad` at the top of update().
+  toLoadInbox.push(impl);
 }
 
 void YSE::SOUND::managerObject::update() {
+  ///////////////////////////////////////////
+  // drain the main→audio inbox of newly-set-up impls
+  ///////////////////////////////////////////
+  {
+    implementationObject * p;
+    while (toLoadInbox.try_pop(p)) toLoad.emplace_front(p);
+  }
+
   ///////////////////////////////////////////
   // update actual soundfiles
   ///////////////////////////////////////////
@@ -139,8 +155,6 @@ void YSE::SOUND::managerObject::update() {
   // check if there are implementations that need setup
   ///////////////////////////////////////////
   if (!toLoad.empty() && !mgrSetup.isQueued()) {
-    // removing cannot be done in a separate thread because we are iterating over this
-    // list a during this update fuction
     toLoad.remove_if(implementationObject::canBeRemovedFromLoading);
     INTERNAL::Global().addSlowJob(&mgrSetup);
   }
@@ -154,9 +168,9 @@ void YSE::SOUND::managerObject::update() {
   // check if loaded implementations are ready
   ///////////////////////////////////////////
   {
-    for (auto i = toLoad.begin(); i != toLoad.end(); i++) {
-      if (i->load()->readyCheck()) {
-        implementationObject * ptr = i->load();
+    for (auto i = toLoad.begin(); i != toLoad.end(); ++i) {
+      implementationObject * ptr = *i;
+      if (ptr->readyCheck()) {
         // place ptr in active sound list
         inUse.emplace_front(ptr);
         // add the sound to the channel that is supposed to use
@@ -176,6 +190,20 @@ void YSE::SOUND::managerObject::update() {
       if ((*i)->getStatus() == OBJECT_RELEASE) {
         implementationObject * ptr = (*i);
         i = inUse.erase_after(previous);
+        // Audio-thread-side disconnect: remove this impl from parent->sounds
+        // BEFORE marking it OBJECT_DELETE. The slow-pool's deleteJob filters
+        // on OBJECT_DELETE, so any impl visible to it has already been pulled
+        // from the audio-thread-iterated `sounds` list — no race on
+        // sounds.remove() in the destructor.
+        if (ptr->parent != nullptr && ptr->connectedToParent.load(std::memory_order_acquire)) {
+          ptr->parent->disconnect(ptr);
+          ptr->connectedToParent.store(false, std::memory_order_release);
+        }
+        // Defensive: null the user-supplied DSP source pointer before the
+        // impl becomes eligible for destruction. If the user destroyed their
+        // dspSourceObject slightly before this point, the audio thread's
+        // dsp() will now load nullptr instead of a dangling pointer.
+        ptr->source_dsp.store(nullptr, std::memory_order_release);
         ptr->setStatus(OBJECT_DELETE);
         runDelete = true;
         continue;

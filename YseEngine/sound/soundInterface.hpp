@@ -91,6 +91,19 @@ namespace YSE {
         @param channel  The channel to attach the sound to. If no channel is provided, the sound will
         be added to the global channel (mainMix).
         @param volume   The volume at which to start playing this sound.
+
+        Lifetime contract: the caller owns `dsp` and must keep it alive until
+        the sound has been fully released — i.e. until after the sound's
+        destructor has run AND the engine's slow-pool delete tick has fired.
+        The engine holds an atomic raw pointer to `dsp` and the audio thread
+        calls `dsp.process(...)` every callback while the sound is live. The
+        impl defensively nulls its pointer at the release transition, so if
+        you destroy `dsp` slightly past the release the audio thread sees
+        nullptr instead of a dangling pointer — but stack-local sources
+        whose lifetime ends well before the sound is released can still
+        produce a use-after-free. For test code or short-lived sources,
+        allocate at file scope, hold via shared_ptr, or stop the sound and
+        drain the manager before letting `dsp` go out of scope.
         */
 		void create(YSE::DSP::dspSourceObject &  dsp, channel * ch = nullptr, float volume = 1.0f);
 

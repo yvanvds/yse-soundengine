@@ -36,12 +36,14 @@
 namespace {
 
 // Silent DSP source — emits no audio, fulfils dspSourceObject's pure virtuals.
-// File-scope (process-lifetime) instances are used below, never stack locals:
-// SOUND::Manager's implementationObject holds a `source_dsp` pointer to whatever
-// is passed to sound::create(), and that pointer can be dereferenced by the
-// audio callback even after the user thread has moved on (Pa_StopStream is not
-// strictly synchronous on Windows MME).  Process-lifetime instances make the
-// pointer safe regardless of callback timing.
+// File-scope (process-lifetime) instances are used below, never stack locals.
+// This follows the lifetime contract documented in soundInterface.hpp's
+// `create(YSE::DSP::dspSourceObject&, ...)` overload: the caller owns the
+// source and must keep it alive until after the sound is fully released AND
+// the slow-pool's delete tick has fired. Phase C made `source_dsp` atomic
+// and nullifies it at the OBJECT_RELEASE→OBJECT_DELETE transition for
+// defence in depth, but stack-local sources with short lifetimes can still
+// produce use-after-free. File-scope instances are the canonical safe form.
 struct SilentSource : YSE::DSP::dspSourceObject {
     void process(YSE::SOUND_STATUS&) override {}
     void frequency(float) override {}
@@ -50,7 +52,8 @@ struct SilentSource : YSE::DSP::dspSourceObject {
 // Minimal dspObject for setDSP() coverage — process() is a no-op.
 // MULTICHANNELBUFFER is a macro expanding to std::vector<YSE::DSP::buffer>;
 // the qualified spelling lets the override resolve outside the YSE namespace.
-// Same process-lifetime reasoning as SilentSource above.
+// Same file-scope lifetime reasoning as SilentSource above (see Phase C
+// contract in soundInterface.hpp).
 struct NopDsp : YSE::DSP::dspObject {
     void create() override {}
     void process(std::vector<YSE::DSP::buffer>&) override {}
