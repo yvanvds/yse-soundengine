@@ -1,0 +1,69 @@
+# Doxygen configuration for libYSE — generates XML for Sphinx + Breathe.
+#
+# Doxygen is invoked from the documentation/ directory. All paths are relative
+# to that location.
+
+PROJECT_NAME           = "libYSE"
+PROJECT_NUMBER         = 2.0
+PROJECT_BRIEF          = "Cross-platform C++ sound engine"
+
+# Source roots (relative to this Doxyfile's directory).
+INPUT                  = ../YseEngine
+RECURSIVE              = YES
+FILE_PATTERNS          = *.hpp *.h *.cpp *.md
+
+# Skip implementation details and vendored code.
+EXCLUDE                = ../YseEngine/utils/json.hpp
+EXCLUDE_PATTERNS       = */internal/* \
+                         */implementations/* \
+                         */json/* \
+                         *Implementation.h \
+                         *Implementation.hpp \
+                         *Implementation.cpp \
+                         *Manager.h \
+                         *Manager.hpp \
+                         *Manager.cpp \
+                         *Message.h
+EXCLUDE_SYMBOLS        = INTERNAL::* *::INTERNAL nlohmann::* detail::*
+
+# Output: XML only — Sphinx/Breathe consumes it. No HTML/LaTeX from Doxygen.
+# Doxygen auto-creates OUTPUT_DIRECTORY; XML_OUTPUT is then a sub-directory
+# of that, so keep XML_OUTPUT shallow.
+OUTPUT_DIRECTORY       = source/_doxygen
+GENERATE_XML           = YES
+XML_OUTPUT             = xml
+XML_PROGRAMLISTING     = NO
+
+GENERATE_HTML          = NO
+GENERATE_LATEX         = NO
+
+# Parsing — give Doxygen the same view of the code the compiler has.
+ENABLE_PREPROCESSING   = YES
+MACRO_EXPANSION        = YES
+EXPAND_ONLY_PREDEF     = NO
+SKIP_FUNCTION_MACROS   = NO
+PREDEFINED             = YSE_API= \
+                         YSE_BUILD_DLL= \
+                         _WIN32
+
+# Show as much as possible — Sphinx pages decide what is rendered.
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = NO
+EXTRACT_STATIC         = YES
+EXTRACT_LOCAL_CLASSES  = NO
+HIDE_UNDOC_MEMBERS     = NO
+HIDE_UNDOC_CLASSES     = NO
+INLINE_INHERITED_MEMB  = YES
+
+# Symbol presentation.
+JAVADOC_AUTOBRIEF      = YES
+QT_AUTOBRIEF           = YES
+BUILTIN_STL_SUPPORT    = YES
+SORT_MEMBER_DOCS       = NO
+SORT_BRIEF_DOCS        = NO
+
+# Quiet by default; warnings still print.
+QUIET                  = YES
+WARN_IF_UNDOCUMENTED   = NO
+WARN_IF_DOC_ERROR      = YES
+WARN_NO_PARAMDOC       = NO

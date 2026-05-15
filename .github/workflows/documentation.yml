@@ -1,0 +1,66 @@
+name: Documentation
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+# Don't run two doc deploys at once; if a new push lands while one is in
+# flight, cancel the in-flight run.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build (Doxygen + Sphinx)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y doxygen graphviz
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: documentation/requirements.txt
+
+      - name: Install Python packages
+        run: pip install -r documentation/requirements.txt
+
+      - name: Run Doxygen
+        run: doxygen Doxyfile
+        working-directory: documentation
+
+      - name: Build Sphinx HTML
+        run: sphinx-build -b html source build/html
+        working-directory: documentation
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: documentation/build/html
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
