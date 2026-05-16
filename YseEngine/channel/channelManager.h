@@ -19,6 +19,7 @@
 #include "../classes.hpp"
 #include "../internalHeaders.h"
 #include "../internal/threadPool.h"
+#include "../internal/managerJobs.hpp"
 #include "../utils/lfQueue.hpp"
 
 namespace YSE {
@@ -26,84 +27,8 @@ namespace YSE {
 
     class managerObject {
     public:
+      using ImplementationType = implementationObject;
 
-      /////////////////////////////////////////////////////////
-      // setupJob
-      /////////////////////////////////////////////////////////
-      
-      /** A job to add to the lowpriority threadpool when there are implementationObjects
-      that need to be setup.
-      */
-      class setupJob : public INTERNAL::threadPoolJob {
-      public:
-
-        /** The job will be initialized with a name for debug purposes and a pointer
-        to the managerObject it is supposed to work with. The managerObject takes
-        care of adding this job to a low priority threadpool every time it sees
-        that there are implementationObjects that need to be set up.
-        */
-        setupJob(managerObject * obj)
-          : obj(obj) {
-
-        }
-
-        /** This function is called from the threadpool and does the intented work
-        (Which is called the setup function of the objects that need to be loaded).
-
-        Iterates the canonical `implementations` list under `implementationsMutex`
-        and CAS-claims each impl whose status is OBJECT_CREATED. The mutex is
-        released before calling setup() so the main thread is not blocked.
-        */
-        virtual void run() {
-          std::vector<implementationObject*> pending;
-          {
-            std::scoped_lock lk(obj->implementationsMutex);
-            for (auto & impl : obj->implementations) {
-              if (impl.tryClaimForSetup()) {
-                pending.push_back(&impl);
-              }
-            }
-          }
-          for (auto * p : pending) p->setup();
-        }
-
-      private:
-        managerObject * obj;
-      };
-
-      /////////////////////////////////////////////////////////
-      // deleteJob
-      /////////////////////////////////////////////////////////
-      
-      /** A job to add to the lowpriority threadpool when there are implementationObjects
-      to be deleted
-      */
-      class deleteJob : public INTERNAL::threadPoolJob {
-      public:
-
-        /** The job will be initialized with a name for debug purposes and a pointer
-        to the managerObject it is supposed to work with. The managerObject takes
-        care of adding this job to a low priority threadpool every time it sees
-        that there are implementationObjects that need to be deleted.
-        */
-        deleteJob(managerObject * obj)
-          : obj(obj) {
-
-        }
-
-        virtual void run() {
-          std::scoped_lock lk(obj->implementationsMutex);
-          obj->implementations.remove_if(implementationObject::canBeDeleted);
-        }
-
-      private:
-        managerObject * obj;
-      };
-
-      /////////////////////////////////////////////////////////
-      // managerObject
-      /////////////////////////////////////////////////////////
-      
       managerObject();
       ~managerObject() noexcept;
 
@@ -136,8 +61,8 @@ namespace YSE {
       // update and sync all these objects during the dsp callback function
       std::forward_list<implementationObject*> inUse;
 
-      setupJob mgrSetup;
-      deleteJob mgrDelete;
+      INTERNAL::managerSetupJob<managerObject> mgrSetup;
+      INTERNAL::managerDeleteJob<managerObject> mgrDelete;
 
       // Lock-free SPSC inbox: main thread pushes here from setup(); audio
       // thread drains it into `toLoad` at the top of update().
@@ -179,8 +104,8 @@ namespace YSE {
       void set71();
       void setAuto(Int count);
 
-      friend class setupJob;
-      friend class deleteJob;
+      friend class INTERNAL::managerSetupJob<managerObject>;
+      friend class INTERNAL::managerDeleteJob<managerObject>;
     };
 
     managerObject & Manager();

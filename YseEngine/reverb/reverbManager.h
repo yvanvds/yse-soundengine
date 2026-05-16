@@ -18,6 +18,7 @@
 #include "../internal/reverbDSP.h"
 #include "reverbMessage.h"
 #include "../internal/threadPool.h"
+#include "../internal/managerJobs.hpp"
 #include "../utils/lfQueue.hpp"
 
 namespace YSE {
@@ -25,31 +26,7 @@ namespace YSE {
 
     class managerObject {
     public:
-
-      /** A job to add to the lowpriority threadpool when there are implementationObjects
-      to be deleted
-      */
-      class deleteJob : public INTERNAL::threadPoolJob {
-      public:
-
-        /** The job will be initialized with a name for debug purposes and a pointer
-        to the managerObject it is supposed to work with. The managerObject takes
-        care of adding this job to a low priority threadpool every time it sees
-        that there are implementationObjects that need to be deleted.
-        */
-        deleteJob(managerObject * obj)
-          : obj(obj) {
-
-        }
-
-        virtual void run() {
-          std::scoped_lock lk(obj->implementationsMutex);
-          obj->implementations.remove_if(implementationObject::canBeDeleted);
-        }
-
-      private:
-        managerObject * obj;
-      };
+      using ImplementationType = implementationObject;
 
       managerObject();
       ~managerObject() noexcept;
@@ -114,7 +91,7 @@ namespace YSE {
       reverb globalReverb;
       reverb calculatedValues;
 
-      deleteJob mgrDelete;
+      INTERNAL::managerDeleteJob<managerObject> mgrDelete;
 
       // Once an object is ready for use, a pointer is placed in this container. The manager will
       // update and sync all these objects during the dsp callback function
@@ -141,7 +118,7 @@ namespace YSE {
       // should be released. It will result in the deleteJob to be added to the threadpool.
       aBool runDelete;
 
-      friend class deleteJob;
+      friend class INTERNAL::managerDeleteJob<managerObject>;
     };
 
     managerObject & Manager();
