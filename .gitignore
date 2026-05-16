@@ -65,6 +65,7 @@ build-asan/
 build-linux/
 build-linux-asan/
 build-linux-tsan/
+build-linux-audio/
 [Bb]in/
 [Oo]bj/
 
