@@ -53,7 +53,7 @@ namespace YSE {
       std::mutex mtx;
       bool fileHandlerActive;
       std::map<pHandle*, pObject*> objects;
-			oscHandler * oscHandle;
+			oscHandler * oscHandle = nullptr;
 
 			std::string GetRecieveObjectsAsString();
     };

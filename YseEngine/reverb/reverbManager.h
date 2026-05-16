@@ -43,7 +43,7 @@ namespace YSE {
         }
 
         virtual void run() {
-          std::lock_guard<std::mutex> lk(obj->implementationsMutex);
+          std::scoped_lock lk(obj->implementationsMutex);
           obj->implementations.remove_if(implementationObject::canBeDeleted);
         }
 

@@ -110,7 +110,7 @@ struct sqrtTable {
       int32_t l = (i ? (i == DUMTAB1SIZE - 1 ? DUMTAB1SIZE - 2 : i) : 1) << 23;
       float f;
       std::memcpy(&f, &l, sizeof(float));
-      exptab[i] = 1. / sqrt(f);
+      exptab[i] = static_cast<float>(1. / sqrt(f));
     }
     for (i = 0; i < DUMTAB2SIZE; i++)
     {

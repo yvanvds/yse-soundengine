@@ -33,7 +33,7 @@ namespace YSE {
 
 			std::unique_ptr<RtMidiIn> midiIn;
 			std::unique_ptr<RtMidiOut> midiOut;
-			bool initialized;
+			bool initialized = false;
 
 			std::map<unsigned int, std::unique_ptr<RtMidiOut>> midiOutPorts;
 		};

@@ -181,7 +181,7 @@ namespace YSE {
       "keep" so an impl currently being prepared by the slow-pool stays in
       `toLoad` until setup completes.
       */
-      static bool canBeRemovedFromLoading(implementationObject * impl) {
+      static bool canBeRemovedFromLoading(const implementationObject * impl) {
         if (impl->objectStatus == OBJECT_READY
           || impl->objectStatus == OBJECT_RELEASE
           || impl->objectStatus == OBJECT_DELETE) {
@@ -212,7 +212,7 @@ namespace YSE {
       // Cleared by the audio thread in CHANNEL::Manager::update before
       // OBJECT_DELETE, so the slow-pool destructor skips parent->children
       // and parent->sounds traversal.
-      std::atomic<bool> connectedToParent;
+      std::atomic<bool> connectedToParent{false};
 
       std::forward_list<CHANNEL::implementationObject*> children;
       std::forward_list<SOUND::implementationObject *> sounds;
@@ -220,7 +220,7 @@ namespace YSE {
       std::vector<output> outConf;
       std::vector<DSP::buffer> out;
 
-      Bool userChannel; // channel is created by user and not crucial for the system
+      Bool userChannel = true; // channel is created by user and not crucial for the system
       Bool allowVirtual;
 
       friend class SOUND::implementationObject;

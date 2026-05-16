@@ -149,7 +149,7 @@ namespace YSE {
       "keep" so an impl currently being prepared by the slow-pool stays in
       `toLoad` until setup completes (status transitions to OBJECT_SETUP).
       */
-      static bool canBeRemovedFromLoading(implementationObject * impl) {
+      static bool canBeRemovedFromLoading(const implementationObject * impl) {
         if (impl->objectStatus == OBJECT_READY
           || impl->objectStatus == OBJECT_RELEASE
           || impl->objectStatus == OBJECT_DELETE) {
@@ -265,7 +265,7 @@ namespace YSE {
       // the slow-pool's destructor-driven disconnect becomes a no-op. Read by
       // both the audio thread (write side) and the slow-pool thread
       // (destructor read side); atomic guarantees correct visibility.
-      std::atomic<bool> connectedToParent;
+      std::atomic<bool> connectedToParent{false};
 
       UInt startOffset;
       UInt stopOffset;

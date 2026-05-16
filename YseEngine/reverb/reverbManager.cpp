@@ -22,17 +22,21 @@ YSE::REVERB::managerObject::managerObject()
 }
 
 YSE::REVERB::managerObject::~managerObject() noexcept {
-  mgrDelete.join();
+  try {
+    mgrDelete.join();
 
-  // drain any pointers still queued by the main thread; they reference impls
-  // owned by `implementations` and will be freed when that list is cleared.
-  implementationObject * drained;
-  while (toLoadInbox.try_pop(drained)) { (void)drained; }
+    // drain any pointers still queued by the main thread; they reference impls
+    // owned by `implementations` and will be freed when that list is cleared.
+    implementationObject * drained;
+    while (toLoadInbox.try_pop(drained)) { (void)drained; }
 
-  // remove all objects that are still in memory
-  toLoad.clear();
-  inUse.clear();
-  implementations.clear();
+    // remove all objects that are still in memory
+    toLoad.clear();
+    inUse.clear();
+    implementations.clear();
+  } catch (...) {
+    // destructor must not propagate
+  }
 }
 
 void YSE::REVERB::managerObject::create() {
@@ -41,7 +45,7 @@ void YSE::REVERB::managerObject::create() {
 }
 
 YSE::REVERB::implementationObject * YSE::REVERB::managerObject::addImplementation(YSE::reverb * head) {
-  std::lock_guard<std::mutex> lk(implementationsMutex);
+  std::scoped_lock lk(implementationsMutex);
   implementations.emplace_front(head);
   return &implementations.front();
 }

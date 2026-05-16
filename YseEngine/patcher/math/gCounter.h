@@ -16,9 +16,9 @@ namespace YSE {
       _HAS_GUI
 
 private:
-  aInt step;
-  aInt startValue;
-  aInt currentValue;
+  aInt step{1};
+  aInt startValue{0};
+  aInt currentValue{0};
   };
 }
 }

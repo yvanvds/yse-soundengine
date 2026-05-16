@@ -13,29 +13,33 @@
 
 YSE::CHANNEL::implementationObject::implementationObject(channel * head) :
 head(head),
-newVolume(1.f), lastVolume(1.f), parent(nullptr), connectedToParent(false),
-userChannel(true), allowVirtual(true)
+newVolume(1.f), lastVolume(1.f), parent(nullptr),
+allowVirtual(true)
 {
 }
 
  YSE::CHANNEL::implementationObject::~implementationObject() noexcept {
-  // exit the dsp thread for this channel
-   join();
+  try {
+    // exit the dsp thread for this channel
+    join();
 
-  // The primary disconnect path is on the audio thread, in
-  // CHANNEL::Manager::update at the OBJECT_RELEASE→OBJECT_DELETE transition.
-  // This guard ensures the slow-pool's destructor only touches
-  // parent->children when no audio-thread disconnect has happened (i.e.
-  // setup-failure path: channels that died before connect() ran).
-  if (INTERNAL::Global().isActive()) {
-    if (parent != nullptr && connectedToParent.load(std::memory_order_acquire)) { // NOSONAR S8417: intentional acquire — pairs with release in doThisWhenReady() / Manager::update() for lock-free handshake
-      parent->disconnect(this);
-      childrenToParent();
+    // The primary disconnect path is on the audio thread, in
+    // CHANNEL::Manager::update at the OBJECT_RELEASE→OBJECT_DELETE transition.
+    // This guard ensures the slow-pool's destructor only touches
+    // parent->children when no audio-thread disconnect has happened (i.e.
+    // setup-failure path: channels that died before connect() ran).
+    if (INTERNAL::Global().isActive()) {
+      if (parent != nullptr && connectedToParent.load(std::memory_order_acquire)) { // NOSONAR S8417: intentional acquire — pairs with release in doThisWhenReady() / Manager::update() for lock-free handshake
+        parent->disconnect(this);
+        childrenToParent();
+      }
     }
-  }
 
-  if (head.load() != nullptr) {
-    head.load()->pimpl = nullptr;
+    if (head.load() != nullptr) {
+      head.load()->pimpl = nullptr;
+    }
+  } catch (...) {
+    // destructor must not propagate
   }
 }
 

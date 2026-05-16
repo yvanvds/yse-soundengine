@@ -4,7 +4,7 @@ YSE::MIDI::midiNote::midiNote(unsigned char note, unsigned velocity)
 {
 	raw.push_back(144);
 	raw.push_back(note);
-	raw.push_back(velocity);
+	raw.push_back(static_cast<unsigned char>(velocity));
 }
 
 void YSE::MIDI::midiNote::note(unsigned char note)

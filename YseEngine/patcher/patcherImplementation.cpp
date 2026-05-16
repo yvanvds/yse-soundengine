@@ -16,7 +16,6 @@ patcherImplementation::patcherImplementation(int mainOutputs, YSE::patcher * hea
   , controlledBySound(false)
   , head(head)
   , fileHandlerActive(false)
-  , oscHandle(nullptr)
 {
   output.resize(mainOutputs);
 }

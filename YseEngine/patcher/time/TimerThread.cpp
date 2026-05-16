@@ -167,7 +167,6 @@ bool timerThread::destroyImpl(ScopedLock & lock, timerThread::TimerMap::iterator
 
 timerThread::Timer::Timer(timerThread::timerID id)
   : id(id)
-  , running(false)
 {}
 
 timerThread::Timer::Timer(Timer && r) noexcept

@@ -131,4 +131,36 @@ TEST_CASE("patcher: GetHandleFromID retrieves the correct handle") {
     CHECK(found == h);
 }
 
+// ─── JSON round-trip ─────────────────────────────────────────────────────────
+
+TEST_CASE("patcher: DumpJSON on empty patcher returns non-empty JSON") {
+    YSE::patcher p;
+    p.create(2);
+    std::string j = p.DumpJSON();
+    CHECK(!j.empty());
+}
+
+TEST_CASE("patcher: DumpJSON serialises every created object") {
+    YSE::patcher p;
+    p.create(2);
+    p.CreateObject(YSE::OBJ::D_SINE);
+    p.CreateObject(YSE::OBJ::G_MULTIPLY);
+    std::string j = p.DumpJSON();
+    CHECK(j.find("object 0") != std::string::npos);
+    CHECK(j.find("object 1") != std::string::npos);
+}
+
+TEST_CASE("patcher: ParseJSON on the output of DumpJSON reproduces object count") {
+    YSE::patcher source;
+    source.create(2);
+    source.CreateObject(YSE::OBJ::D_SINE);
+    source.CreateObject(YSE::OBJ::G_MULTIPLY);
+    std::string dump = source.DumpJSON();
+
+    YSE::patcher target;
+    target.create(2);
+    target.ParseJSON(dump);
+    CHECK(target.Objects() == 2u);
+}
+
 } // TEST_SUITE("patcher")
