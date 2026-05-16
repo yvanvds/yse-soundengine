@@ -10,6 +10,9 @@ add_executable(yse_benchmarks
   dsp/bench_oscillators.cpp
   dsp/bench_delay.cpp
   dsp/bench_math.cpp
+  dsp/bench_reverb.cpp
+  patcher/bench_patcher.cpp
+  integration/bench_mixing.cpp
 )
 
 # Match how Tests/ links: direct object linkage to yse_objects gives full
