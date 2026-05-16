@@ -30,20 +30,38 @@ jobs:
             libsndfile1-dev \
             librtmidi-dev \
             gcovr \
-            alsa-utils \
-            linux-modules-extra-$(uname -r)
-      - name: Set up ALSA dummy audio device
-        # Unlocks the audio-thread DSP code paths (readInterleaved, oscillator
+            pulseaudio \
+            pulseaudio-utils \
+            libasound2-plugins \
+            alsa-utils
+      - name: Set up PulseAudio null sink for headless audio playback
+        # Unlocks audio-thread DSP code paths (readInterleaved, oscillator
         # fast loops, sound playback lifecycle) in the integration test suite
         # so coverage reflects actual playback rather than the engine's idle
-        # state. snd-aloop is the standard ALSA loopback driver and is
-        # available in linux-modules-extra on GitHub Actions ubuntu-latest.
+        # state.
+        #
+        # The Azure kernel on ubuntu-latest does not ship the snd-aloop or
+        # snd-dummy modules in linux-modules-extra, so we run a user-space
+        # PulseAudio daemon with a null sink and route ALSA through it via
+        # libasound2-plugins' pulse PCM. PortAudio's ALSA backend then sees a
+        # real, openable device and engineInitWithAudio() succeeds.
         run: |
-          sudo modprobe snd-aloop || sudo modprobe snd-dummy
+          # Start PulseAudio in a way that survives the rest of the job; --start
+          # backgrounds it, --exit-idle-time=-1 keeps it alive after the test
+          # process exits.
+          pulseaudio --start --exit-idle-time=-1
+          # Give the daemon a beat to come up before pactl talks to it.
+          sleep 1
+          pactl load-module module-null-sink sink_name=ci_dummy_sink || true
+          pactl set-default-sink ci_dummy_sink || true
+          # Point ALSA's default PCM and ctl at PulseAudio so PortAudio's ALSA
+          # backend enumerates the null sink as the default device.
+          cat <<'EOF' | sudo tee /etc/asound.conf >/dev/null
+          pcm.!default { type pulse }
+          ctl.!default { type pulse }
+          EOF
+          pactl list short sinks || true
           aplay -l || true
-          # Make sure a default output device is selectable by PortAudio.
-          echo "defaults.pcm.card 0" | sudo tee /etc/asound.conf
-          echo "defaults.ctl.card 0" | sudo tee -a /etc/asound.conf
       - name: Configure CMake
         run: >
           cmake -B build -G Ninja
