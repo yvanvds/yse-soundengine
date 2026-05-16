@@ -1,0 +1,74 @@
+# Audio-enabled variant of the CI image. Loads jackd's dummy driver before
+# the test stage so YSE's integration tests can drive the PortAudio callback
+# and exercise the audio-thread DSP paths (readInterleaved, oscillator hot
+# loops, sound playback lifecycle) — currently uncovered on Linux CI because
+# the runner has no audio hardware.
+#
+# Usage from PowerShell at repo root:
+#   docker build -t yse-ci-audio -f tools/ci-linux/Dockerfile.audio .
+#   docker run --rm -v ${PWD}:/workspace yse-ci-audio
+
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update -y && apt-get install -y --no-install-recommends \
+        build-essential \
+        cmake \
+        ninja-build \
+        pkg-config \
+        portaudio19-dev \
+        libsndfile1-dev \
+        librtmidi-dev \
+        gcovr \
+        ca-certificates \
+        git \
+        jackd2 \
+        alsa-utils \
+        pulseaudio \
+        pulseaudio-utils \
+        libasound2-plugins \
+        procps \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+
+# Setup: start a daemon, configure ALSA defaults, then configure / build /
+# test / coverage. The dummy backend keeps everything in-process so no
+# kernel modules are required.
+CMD ["bash", "-c", "set -ex && \
+    # Approach 1: try jackd dummy. -R disables RT, -d dummy is no-hw. \n\
+    (jackd -R -d dummy -r 44100 -p 1024 -C 2 -P 2 >/tmp/jackd.log 2>&1 &) && \
+    sleep 2 && \
+    echo '--- jackd.log ---' && cat /tmp/jackd.log || true && \
+    echo '--- jack_lsp ---' && (jack_lsp -p 2>&1 || echo '(no jack server)') && \
+    # Approach 2: also start PulseAudio with null sink so PortAudio can pick \
+    # it up via the ALSA-pulse plugin if JACK fails. \n\
+    mkdir -p /run/dbus && \
+    pulseaudio --start --exit-idle-time=-1 --system=false 2>/tmp/pulse.log || true && \
+    sleep 1 && \
+    (pactl load-module module-null-sink sink_name=dummy >/dev/null 2>&1 || true) && \
+    (pactl list short sinks 2>&1 || true) && \
+    # ALSA default routes to pulse for tools that go through ALSA. \n\
+    printf 'pcm.!default { type pulse }\\nctl.!default { type pulse }\\n' >/etc/asound.conf && \
+    (aplay -l 2>&1 || true) && \
+    cmake -B build-linux -G Ninja \
+        -DCMAKE_BUILD_TYPE=Debug \
+        -DYSE_ENABLE_COVERAGE=ON && \
+    cmake --build build-linux && \
+    ctest --test-dir build-linux --output-on-failure && \
+    # Produce a per-file coverage report so we can see whether readInterleaved \
+    # got hit. The text summary makes it easy to grep for specific files. \n\
+    gcovr --root . --filter 'YseEngine/' \
+          --gcov-ignore-parse-errors=all \
+          --txt /tmp/cov.txt build-linux 2>&1 && \
+    echo '--- summary ---' && \
+    gcovr --root . --filter 'YseEngine/' \
+          --gcov-ignore-parse-errors=all \
+          --print-summary build-linux 2>&1 && \
+    echo '--- abstractSoundFile coverage ---' && \
+    (grep 'abstractSoundFile' /tmp/cov.txt || echo '(no entry)') && \
+    echo '--- oscillators coverage ---' && \
+    (grep 'oscillators' /tmp/cov.txt || echo '(no entry)') && \
+    echo '--- lfo coverage ---' && \
+    (grep 'lfo' /tmp/cov.txt || echo '(no entry)')"]
