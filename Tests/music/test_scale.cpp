@@ -126,12 +126,21 @@ TEST_CASE("scale: getNearest snaps to closer upper neighbour") {
 }
 
 TEST_CASE("scale: getNearest returns only pitch when queried from below") {
-    // Note: querying above all scale pitches hits a latent out-of-bounds access
-    // in getNearest() (lower_bound returns end(), which is then dereferenced).
-    // Only the below-first-element path is tested here.
     YSE::scale s;
     s.add(60.f, 0);
     CHECK(s.getNearest(50.f) == doctest::Approx(60.f));
+}
+
+// Regression tests for issue #31 (getNearest dereferenced end()).
+TEST_CASE("scale: getNearest snaps to last pitch when query is above all") {
+    YSE::scale s;
+    s.add(60.f, 0); s.add(64.f, 0); s.add(67.f, 0);
+    CHECK(s.getNearest(80.f) == doctest::Approx(67.f));
+}
+
+TEST_CASE("scale: getNearest returns query unchanged on empty scale") {
+    YSE::scale s;
+    CHECK(s.getNearest(60.f) == doctest::Approx(60.f));
 }
 
 // ─── remove ───────────────────────────────────────────────────────────────────
@@ -401,6 +410,19 @@ TEST_CASE("scale impl: getNearest returns first pitch when query is below all") 
     // begin(), and the "high == begin()" branch returns *high directly.
     impl.add(60.f, 0.f);
     CHECK(impl.getNearest(50.f) == doctest::Approx(60.f));
+}
+
+// Regression tests for issue #31 (getNearest dereferenced end()).
+TEST_CASE("scale impl: getNearest snaps to last pitch when query is above all") {
+    YSE::SCALE::implementationObject impl(nullptr);
+    impl.add(60.f, 0.f);
+    impl.add(72.f, 0.f);
+    CHECK(impl.getNearest(100.f) == doctest::Approx(72.f));
+}
+
+TEST_CASE("scale impl: getNearest returns query unchanged on empty scale") {
+    YSE::SCALE::implementationObject impl(nullptr);
+    CHECK(impl.getNearest(60.f) == doctest::Approx(60.f));
 }
 
 TEST_CASE("scale impl: clear empties pitches") {

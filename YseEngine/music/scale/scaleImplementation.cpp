@@ -113,15 +113,22 @@ Bool YSE::SCALE::implementationObject::has(Flt pitch) {
 }
 
 Flt YSE::SCALE::implementationObject::getNearest(Flt pitch) const {
+  // Empty scale has no nearest pitch — return the query unchanged.
+  if (pitches.empty()) return pitch;
+
   std::vector<Flt>::const_iterator low, high;
   high = std::lower_bound(pitches.begin(), pitches.end(), pitch);
+
+  // Query is strictly above the highest pitch — snap to the last entry.
+  if (high == pitches.end()) return pitches.back();
+
   // lower bound might be equal to pitch, in which case we just return pitch
   if (*high == pitch) return pitch;
 
   // if this points to the first element, return this value
   if (high == pitches.begin()) return *high;
 
-  // if not, find the pitch below 
+  // if not, find the pitch below
   low = high;
   low--;
   return (pitch - *low < *high - pitch) ? *low : *high;
