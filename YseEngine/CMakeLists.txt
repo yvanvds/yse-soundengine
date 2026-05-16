@@ -12,7 +12,6 @@ set(YSE_SRCS
   device/deviceInterface.cpp
   device/deviceManager.cpp
   device/deviceSetup.cpp
-  device/juceDeviceManager.cpp
   device/OpenSL.cpp
   device/OpenSLImplementation.cpp
   device/portaudioDeviceManager.cpp
@@ -53,7 +52,6 @@ set(YSE_SRCS
   internal/abstractSoundFile.cpp
   internal/customFileReader.cpp
   internal/global.cpp
-  internal/juceSoundFile.cpp
   internal/lsfSoundfile.cpp
   internal/reverbDSP.cpp
   internal/settings.cpp

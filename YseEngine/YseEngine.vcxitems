@@ -25,7 +25,6 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)device\deviceInterface.hpp" />
     <ClInclude Include="$(MSBuildThisFileDirectory)device\deviceManager.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)device\deviceSetup.hpp" />
-    <ClInclude Include="$(MSBuildThisFileDirectory)device\juceDeviceManager.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)device\OpenSL.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)device\OpenSLImplementation.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)device\portaudioDeviceManager.h" />
@@ -73,7 +72,6 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)internal\AudioTest.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)internal\customFileReader.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)internal\global.h" />
-    <ClInclude Include="$(MSBuildThisFileDirectory)internal\juceSoundFile.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)internal\lsfSoundfile.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)internal\reverbDSP.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)internal\settings.h" />
@@ -203,7 +201,6 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)device\deviceInterface.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)device\deviceManager.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)device\deviceSetup.cpp" />
-    <ClCompile Include="$(MSBuildThisFileDirectory)device\juceDeviceManager.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)device\OpenSL.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)device\OpenSLImplementation.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)device\portaudioDeviceManager.cpp" />
@@ -245,7 +242,6 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)internal\AudioTest.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)internal\customFileReader.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)internal\global.cpp" />
-    <ClCompile Include="$(MSBuildThisFileDirectory)internal\juceSoundFile.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)internal\lsfSoundfile.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)internal\reverbDSP.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)internal\settings.cpp" />

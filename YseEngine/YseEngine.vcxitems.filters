@@ -124,9 +124,6 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)device\deviceSetup.hpp">
       <Filter>device</Filter>
     </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)device\juceDeviceManager.h">
-      <Filter>device</Filter>
-    </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)device\portaudioDeviceManager.h">
       <Filter>device</Filter>
     </ClInclude>
@@ -251,9 +248,6 @@
       <Filter>internal</Filter>
     </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)internal\global.h">
-      <Filter>internal</Filter>
-    </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)internal\juceSoundFile.h">
       <Filter>internal</Filter>
     </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)internal\lsfSoundfile.h">
@@ -627,9 +621,6 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)device\deviceSetup.cpp">
       <Filter>device</Filter>
     </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)device\juceDeviceManager.cpp">
-      <Filter>device</Filter>
-    </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)device\portaudioDeviceManager.cpp">
       <Filter>device</Filter>
     </ClCompile>
@@ -742,9 +733,6 @@
       <Filter>internal</Filter>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)internal\global.cpp">
-      <Filter>internal</Filter>
-    </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)internal\juceSoundFile.cpp">
       <Filter>internal</Filter>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)internal\lsfSoundfile.cpp">
