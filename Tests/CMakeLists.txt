@@ -28,11 +28,13 @@ add_executable(yse_tests
   patcher/test_dsp_objects.cpp
   patcher/test_generic_objects.cpp
   patcher/test_gui_objects.cpp
+  patcher/test_timerthread.cpp
   channel/test_channel.cpp
   channel/test_channel_concurrency.cpp
   sound/test_sound_state.cpp
   sound/test_sound_impl.cpp
   sound/test_sound_concurrency.cpp
+  sound/test_sound_bufferIO.cpp
   reverb/test_reverb_dsp.cpp
   reverb/test_reverb_concurrency.cpp
   midi/test_midifile.cpp
@@ -203,5 +205,6 @@ set_source_files_properties(
   patcher/test_dsp_objects.cpp
   patcher/test_generic_objects.cpp
   patcher/test_gui_objects.cpp
+  patcher/test_timerthread.cpp
   PROPERTIES COMPILE_FLAGS "${_patcher_test_suppress}"
 )
