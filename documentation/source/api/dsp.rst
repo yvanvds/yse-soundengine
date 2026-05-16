@@ -58,6 +58,18 @@ Delay
 .. doxygenfile:: dsp/delay.hpp
    :project: libYSE
 
+Filter primitives
+-----------------
+
+.. doxygenfile:: dsp/rawFilters.hpp
+   :project: libYSE
+
+Interpolation
+-------------
+
+.. doxygenfile:: dsp/interpolate4.hpp
+   :project: libYSE
+
 DSP base
 --------
 

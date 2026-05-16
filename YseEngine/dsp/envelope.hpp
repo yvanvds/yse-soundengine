@@ -18,41 +18,54 @@
 namespace YSE {
   namespace DSP {
 
-    /* The envelope class can be used to track the envelope of a sample,
-       given a window size. The envelope itself can be applied to to
-       other samples and can be saved to a file.
-    */
+    /**
+     *  @brief Time-value envelope (breakpoint shape).
+     *
+     *  Extracts an amplitude envelope from a source buffer or loads one from a
+     *  saved breakpoint file. The resulting envelope can be applied to other
+     *  buffers via ``drawableBuffer::applyEnvelope`` or saved back to disk.
+     */
     class API envelope {
     public:
 
-      /* breakpoint definition with a time and a value
-      */
+      /** @brief One vertex of the envelope: a value at a given time in seconds. */
       struct breakPoint {
         breakPoint(Flt time, Flt value) : time(time), value(value) {}
         Flt time;
         Flt value;
       };
 
-      // Create an envelope from an audiobuffer, with windowSize in milliseconds
+      /**
+       *  @brief Extract an envelope from an audio buffer.
+       *
+       *  @param source     Audio data to analyse.
+       *  @param windowSize Analysis window in milliseconds. Larger windows
+       *                    produce a smoother envelope at the cost of
+       *                    responsiveness.
+       *  @return ``true`` on success.
+       */
       bool create(YSE::DSP::buffer & source, Int windowSize = 15);
-      
-      // create from breakpoint file
+
+      /** @brief Load a previously saved breakpoint file. */
       bool create(const char * fileName);
 
+      /** @brief Scale every value so the peak equals 1.0. */
       void normalize();
 
-      // write breakpoint file to disk, returns false on fail
+      /** @brief Save the breakpoint set to a file.
+       *  @return ``true`` on success, ``false`` on write error.
+       */
       bool saveToFile(const char * fileName) const;
 
-      // get number of breakpoints in file
+      /** @brief Number of breakpoints. */
       UInt elms() const;
 
-      // get envelope length in seconds
+      /** @brief Total envelope length in seconds. */
       Flt getLengthSec() const;
 
-      // get a breakpoint
+      /** @brief Access a breakpoint by index. */
       const breakPoint & operator[](UInt pos) const;
-      
+
     private:
       std::vector<breakPoint> breakPoints;
     };

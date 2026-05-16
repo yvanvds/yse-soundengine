@@ -17,21 +17,33 @@
 #include "../../filters.hpp"
 #include <memory>
 
-// only works on mono buffers!
-
 namespace YSE {
   namespace DSP {
     namespace MODULES {
 
+      /**
+       *  @brief High-pass filter packaged as a chainable ``dspObject``.
+       *
+       *  Wraps ``DSP::highPass`` for use in a sound's DSP chain via
+       *  ``YSE::sound::setDSP``.
+       *
+       *  @note Mono only — feeds the first channel of the multichannel buffer.
+       */
       class API highPassFilter : public dspObject {
       public:
         highPassFilter();
         virtual ~highPassFilter() {};
 
+        /** @brief Set the cutoff frequency in Hz. */
         highPassFilter & frequency(Flt value);
+
+        /** @brief Current cutoff frequency. */
         Flt             frequency();
 
+        /** @brief dspObject lifecycle hook — allocates buffers. */
         virtual void create();
+
+        /** @brief dspObject audio-thread entry point. */
         virtual void process(MULTICHANNELBUFFER & buffer);
 
       private:

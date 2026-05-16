@@ -16,27 +16,31 @@
 #include "../oscillators.hpp"
 #include <memory>
 
-/*	when building a new dsp module, take this as an example.
-Also don't forget to:
-1. add a new type to DSP_TYPE in dspElement.h
-2. include your header file to dsp.h
-4. add code to add and remove functions in dsp.cpp
-5. add code to callback function in dsp.cpp
-*/
-
 namespace YSE {
   namespace DSP {
+
+    /**
+     *  @brief Ring modulator as a chainable ``dspObject``.
+     *
+     *  Multiplies the input by an internal sine carrier — classic
+     *  bell-like / robot-voice timbres. The carrier frequency is the only
+     *  user-controllable parameter.
+     */
     class API ringModulator : public dspObject {
     public:
-      // these functions are thread safe
       ringModulator();
       virtual ~ringModulator() {}
 
+      /** @brief Set the carrier frequency in Hz. */
       ringModulator& frequency(Flt value);
+
+      /** @brief Current carrier frequency. */
       Flt            frequency();
 
-      // dsp functions
+      /** @brief dspObject lifecycle hook — allocates buffers. */
       virtual void create();
+
+      /** @brief dspObject audio-thread entry point. */
       virtual void process(MULTICHANNELBUFFER & buffer);
 
     private:

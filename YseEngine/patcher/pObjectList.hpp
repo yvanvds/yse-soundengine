@@ -3,6 +3,22 @@
 #define DEFOBJ(name, tag) static constexpr char const * name = tag
 
 namespace YSE {
+  /**
+   *  @brief Compile-time string identifiers for patcher object types.
+   *
+   *  Pass any of these constants to ``patcher::CreateObject`` instead of the
+   *  raw string literal. The ``~`` prefix marks DSP / audio-rate objects,
+   *  ``.`` marks control-rate objects.
+   *
+   *  - DSP generators: ``D_SINE``, ``D_SAW``, ``D_NOISE``.
+   *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``.
+   *  - DSP filters: ``D_LOWPASS``, ``D_HIGHPASS``, ``D_BANDPASS``, ``D_VCF``.
+   *  - I/O: ``D_DAC``, ``D_ADC``, ``D_LINE``, ``D_OUT``.
+   *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_METRO``, ``G_RANDOM``.
+   *  - Messaging: ``G_SEND``, ``G_RECEIVE``, ``G_ROUTE``, ``G_GATE``, ``G_SWITCH``.
+   *  - MIDI: ``M_OUT``, ``M_NOTEON``, ``M_NOTEOFF``, ``M_CONTROL``.
+   *  - Conversion: ``MIDITOFREQUENCY``, ``FREQUENCYTOMIDI``.
+   */
   struct API OBJ {
     DEFOBJ(PATCHER, "patcher");
 

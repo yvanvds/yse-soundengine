@@ -23,323 +23,292 @@ namespace YSE {
   
 
   /**
-      A sound object is needed for every kind of sound you want to use. Sounds can use
-      audio files (wav, ogg, flac, and more on some systems) or can be linked to a DSP
-      source. Sounds can be mono, stereo or multichannel.
-
-      If a soundfile is streamed, it will use its own soundbuffer. Otherwise YSE will
-      create a new buffer only if needed or re-use and existing buffer if another file
-      with the same filename has already been loaded. Unloading of soundfiles and clearing
-      memory is done internally: when a buffer is not used by any sound any more, it will be
-      flagged for deletion.
-      */
-
+   *  @brief A playable instance of an audio source.
+   *
+   *  Create one ``sound`` per voice you want in the scene. The audio source can be
+   *  a file on disk (wav / ogg / flac and other formats depending on the platform),
+   *  an in-memory buffer, a custom DSP source, or a patcher graph. Sounds can be
+   *  mono, stereo, or multichannel.
+   *
+   *  Streaming sounds keep a dedicated buffer; non-streaming sounds share a buffer
+   *  per file name — load the same file into multiple sounds and the underlying
+   *  data is reused. Buffers without any remaining sound reference are flagged for
+   *  deletion automatically.
+   *
+   *  @see YSE::channel For grouping sounds.
+   *  @see YSE::DSP::dspSourceObject For procedural audio sources.
+   *  @see YSE::patcher For modular-graph sources.
+   */
   class API sound {
   public:
     sound();
     ~sound();
 
-    // Sound interfaces cannot be copied. The implementation needs access to the 
-    // interface object. To do this, the address of the interface must not change.
+    /** @brief Sounds are non-copyable.
+     *
+     *  The implementation holds a back-pointer to this interface object, so its
+     *  address must not change. Move it through ``std::unique_ptr`` if you need
+     *  transferable ownership.
+     */
     sound(const sound&) = delete;
 
-    /** Create a filebased sound and register it with the soundsystem. Other functions will not work
-        as long as a sound hasn't been created. In debug mode, an assertion will be called if
-        you try to do so. On the other hand, create cannot be called twice. If you need
-        another sound, create a new sound object.
-
-        @param fileName   This can be an absolute path or something relative to the
-        working directory.
-        @param channel    The sound channel you want to attach the sound to. Sounds can
-        be moved to other channels at any time. If no channel is provided,
-        the sound will be added to the global channel (mainMix).
-        @param loop       Use true to loop this sound continuously. If not provided, the sound
-        will not loop.
-        @param volume     The initial volume to play this sound. This should be a value between
-        0.0 and 1.0. Default is 1.0.
-        @param streaming  Whether or not this sound should be streamed. Defaults to false.
-        Streaming is mainly intended for big audio files that are only used
-        by a single sound. When a sound is used repeatedly, avoid streaming.
-        */
+    /**
+     *  @brief Create a file-based sound.
+     *
+     *  Must be called before any other method on the sound. Calling twice on the
+     *  same instance is a programming error.
+     *
+     *  @param fileName  Absolute path, or relative to the working directory.
+     *  @param ch        Channel to attach the sound to. ``nullptr`` routes through
+     *                   the global ``MainMix`` channel. Sounds can be moved later
+     *                   with ``moveTo``.
+     *  @param loop      Loop continuously when ``true``.
+     *  @param volume    Initial volume in the range [0.0, 1.0].
+     *  @param streaming Stream from disk instead of loading the whole file. Use
+     *                   for large one-off assets; avoid for sounds played
+     *                   repeatedly.
+     */
     void create(const char * fileName, channel * ch = nullptr, bool loop = false, float volume = 1.0f, bool streaming = false);
 
-    /** Create a sound based on an audiobuffer. This function is useful to play soundfiles which are loaded to
-        be manipulated as well as played. 
+    /**
+     *  @brief Create a sound backed by an in-memory DSP buffer.
+     *
+     *  Useful when the audio data is generated or decoded by the application and
+     *  also needs to be played back. The same buffer can back multiple sounds.
+     *
+     *  @param buffer The audio data. The buffer must outlive the sound.
+     *  @param ch     Channel to attach to. ``nullptr`` uses ``MainMix``.
+     *  @param loop   Loop continuously when ``true``.
+     *  @param volume Initial volume in the range [0.0, 1.0].
+     */
+    void create(YSE::DSP::buffer & buffer, channel * ch = nullptr, bool loop = false, float volume = 1.f);
 
-        @param audioBuffer A reference to the buffer. Buffers can be passed to multiple sounds.
-        @param channel    The sound channel you want to attach the sound to. Sounds can
-        be moved to other channels at any time. If no channel is provided,
-        the sound will be added to the global channel (mainMix).
-        @param loop       Use true to loop this sound continuously. If not provided, the sound
-        will not loop.
-        @param volume     The initial volume to play this sound. This should be a value between
-        0.0 and 1.0. Default is 1.0.
-        */
-		void create(YSE::DSP::buffer & buffer, channel * ch = nullptr, bool loop = false, float volume = 1.f);
-    
-
-    /** Small variation of the previous function, but specialized for multichannel sources.
-    */
-		void create(MULTICHANNELBUFFER & buffer, channel * ch = nullptr, bool loop = false, float volume = 1.0f);
-    
-
-    /** Create a DSP sound and register it with the soundsystem. In contrast to a filebased sound,
-        the source if this soundobject will be generated by a dspSourceObject you provide yourself.
-
-        @param dsp      You provide a reference to an object for sound generation. Such objects must
-        be based on dspSourceOBject.
-        @param channel  The channel to attach the sound to. If no channel is provided, the sound will
-        be added to the global channel (mainMix).
-        @param volume   The volume at which to start playing this sound.
-
-        Lifetime contract: the caller owns `dsp` and must keep it alive until
-        the sound has been fully released — i.e. until after the sound's
-        destructor has run AND the engine's slow-pool delete tick has fired.
-        The engine holds an atomic raw pointer to `dsp` and the audio thread
-        calls `dsp.process(...)` every callback while the sound is live. The
-        impl defensively nulls its pointer at the release transition, so if
-        you destroy `dsp` slightly past the release the audio thread sees
-        nullptr instead of a dangling pointer — but stack-local sources
-        whose lifetime ends well before the sound is released can still
-        produce a use-after-free. For test code or short-lived sources,
-        allocate at file scope, hold via shared_ptr, or stop the sound and
-        drain the manager before letting `dsp` go out of scope.
-        */
-		void create(YSE::DSP::dspSourceObject &  dsp, channel * ch = nullptr, float volume = 1.0f);
+    /** @brief Multichannel variant of the buffer-based ``create``.
+     *
+     *  Identical to the single-buffer overload except that the source carries
+     *  multiple channels (stereo or surround).
+     */
+    void create(MULTICHANNELBUFFER & buffer, channel * ch = nullptr, bool loop = false, float volume = 1.0f);
 
     /**
-      Use a patcher as a sound.
-    */
-		void create(YSE::patcher & patcher, channel * ch = nullptr, float volume = 1.0f);
+     *  @brief Create a sound driven by a custom DSP source.
+     *
+     *  Lets the application supply procedurally generated audio. Subclass
+     *  ``YSE::DSP::dspSourceObject`` and pass the instance.
+     *
+     *  @param dsp     The audio source. Must outlive the sound (see lifetime note).
+     *  @param ch      Channel to attach to. ``nullptr`` uses ``MainMix``.
+     *  @param volume  Initial volume in the range [0.0, 1.0].
+     *
+     *  @warning **Lifetime contract.** The caller owns ``dsp`` and must keep it
+     *           alive until *after* the sound's destructor has run AND the
+     *           engine's slow-pool delete tick has fired. The audio thread calls
+     *           ``dsp.process(...)`` every callback while the sound is live. The
+     *           implementation defensively nulls its pointer at the release
+     *           transition, so destroying ``dsp`` slightly past release degrades
+     *           to a silent nullptr read — but stack-local sources whose
+     *           lifetime ends well before release can still cause a
+     *           use-after-free. For tests or short-lived sources, allocate at
+     *           file scope, hold via ``std::shared_ptr``, or stop the sound and
+     *           drain the manager before ``dsp`` goes out of scope.
+     */
+    void create(YSE::DSP::dspSourceObject & dsp, channel * ch = nullptr, float volume = 1.0f);
 
-    /** Registers a synth with the soundsystem. In contrast to a filebased sound,
-    the source if this soundobject will be generated by a synth you provide yourself.
+    /**
+     *  @brief Create a sound driven by a patcher graph.
+     *
+     *  @param patcher The patcher to run as an audio source. Must outlive the sound.
+     *  @param ch      Channel to attach to. ``nullptr`` uses ``MainMix``.
+     *  @param volume  Initial volume in the range [0.0, 1.0].
+     */
+    void create(YSE::patcher & patcher, channel * ch = nullptr, float volume = 1.0f);
 
-    @param synth      You provide a reference to an synth for sound generation.
-    @param channel  The channel to attach the sound to. If no channel is provided, the sound will
-    be added to the global channel (mainMix).
-    @param volume   The volume at which to start playing this sound.
-    */
-	// TODO: reimplement synth
-    //sound& create(SYNTH::interfaceObject &  synth, channel * ch = nullptr, Flt volume = 1.0f);
-
-    /*
-      Checks if there is an implementation linked to this interface. You can use this for debugging, but safely assume
-      this returns true for the lifetime of the interface. It's not needed to check against this function before
-      using the interface.
-    */
+    /**
+     *  @brief Whether this interface has a live implementation.
+     *
+     *  Returns ``true`` for the entire lifetime of a successfully ``create``-d
+     *  sound. Primarily useful for debugging — callers don't need to gate other
+     *  methods on this.
+     */
     bool isValid();
 
-    /**
-      Set the position of this sound in the virtual space.
-      */
-		void pos(const Pos &v);
+    /** @brief Set the position of this sound in the virtual scene. */
+    void pos(const Pos &v);
 
-    /**
-      Get the current position of this sound.
-      */
+    /** @brief Current position of this sound. */
     Pos pos();
 
     /**
-        This is only useful for multichannel sounds. If a sound has more than one channel,
-        the channels can be spread out over the stereo or surround field.
-        This defines how much space there is between the position of the channels.
-        */
-		void spread(float value);
+     *  @brief Spread the channels of a multichannel sound across the stereo or surround field.
+     *
+     *  Has no audible effect on mono sources. ``value`` is the distance between
+     *  individual channels in the listener's space.
+     */
+    void spread(float value);
 
-    /**
-        Returns how much a multichannel sound is spread out in space.
-        */
+    /** @brief Current channel spread of a multichannel sound. */
     float spread();
 
     /**
-        The speed at which a sound plays back alters it's pitch. The actual speed will also
-        be affected by velocity (doppler effect) unless doppler is disabled.
+     *  @brief Set the playback speed.
+     *
+     *  Alters pitch — playback at 2.0 is one octave up, 0.5 is one octave down.
+     *  Doppler shift from listener/sound velocity is layered on top unless
+     *  ``doppler(false)`` is set. Negative values play the sound backwards
+     *  (not supported for streaming sounds, since that would thrash the disk).
+     *
+     *  @note The internal value never reaches exactly zero — perfectly silent
+     *        playback at static DC can damage speakers.
+     */
+    void speed(float value);
 
-        Internally this value will never be set entirely to zero, because that would result
-        in static output that might damage speakers.
-
-        A negative value is also possible and will result in the sound being played backwards.
-        Streaming sounds will not be played backwards though, because this would require an
-        insane amount of disk activity. (This might change later on because SSD disks do not
-        suffer from this.
-        */
-		void speed(float  value);
-
-    /** Returns the current speed at which the sound is playing.
-    */
+    /** @brief Current playback speed. */
     float speed();
 
     /**
-      Set the 'size' of the sound. This defines from how far away in the virtual space a sound
-      will be heard.
-      */
-		void size(float  value);
+     *  @brief Set the audible radius of the sound.
+     *
+     *  ``value`` controls the rolloff distance: beyond this radius the sound
+     *  fades out.
+     */
+    void size(float value);
 
-    /** Returns the current size of the sound, ie. how far away it will be heard.
-    */
+    /** @brief Current audible radius. */
     float size();
 
-    /** Set if this sound is looping or one-shot. Should be obvious, right?
-    */
-		void looping(bool value);
+    /** @brief Set whether the sound loops continuously. */
+    void looping(bool value);
 
-    /** If this sound is looping or one-shot.
-    */
+    /** @brief Whether the sound is currently set to loop. */
     bool looping();
 
     /**
-      Sets the volume for this sound. You can use this as a fader by supplying a time value.
+     *  @brief Set the volume of this sound, optionally with a fade.
+     *
+     *  @param value Target volume in the range [0.0, 1.0].
+     *  @param time  Fade duration in milliseconds. 0 (default) sets the volume
+     *               immediately.
+     */
+    void volume(float value, unsigned int time = 0);
 
-      @param value The target volume.
-      @param time  If supplied, do a smooth change to the target volume over 'time' milliseconds. (Default is 0.)
-      */
-		void volume(float value, unsigned int time = 0);
-
-    /**
-      Get the current volume. This can be different from the current target volume if a time has been supplied
-      when setVolume() is used.
-      */
+    /** @brief Current volume.
+     *
+     *  May differ from the most recently requested target volume if a non-zero
+     *  fade time was supplied and the fade is still in progress.
+     */
     float volume();
 
-    /**
-      Fadeout the over 'time'  milliseconds. Then stop the sound.
-      */
-		void fadeAndStop(unsigned int time);
+    /** @brief Fade out over ``time`` milliseconds, then stop. */
+    void fadeAndStop(unsigned int time);
 
-    /**
-      Play this sound.
-      */
-		void play();
+    /** @brief Start playback. */
+    void play();
 
-    /**
-      Return true if the sound is currently playing.
-      */
+    /** @brief Whether the sound is currently playing. */
     bool isPlaying();
 
-    /**
-      Pause this sound. Starting it again will continue from the current position.
-      */
-		void pause();
+    /** @brief Pause playback. ``play()`` resumes from the current position. */
+    void pause();
 
-    /**
-      Return true if the sound is currently paused.
-      */
+    /** @brief Whether the sound is currently paused. */
     bool isPaused();
 
-    /**
-      Stop this sound. The position in the source file will be reset to zero. If started again, the sound
-      will start from the beginning.
-      */
-		void stop();
+    /** @brief Stop playback and rewind to the start of the source. */
+    void stop();
 
-    /**
-      Return true if the sound is currently stopped.
-      */
+    /** @brief Whether the sound is currently stopped. */
     bool isStopped();
 
-    /**
-      Pauses the sound if playing, continues if paused, starts if stopped.
-      */
-		void toggle();
+    /** @brief Cycle between playing / paused / stopped.
+     *
+     *  Playing → paused, paused → playing, stopped → playing.
+     */
+    void toggle();
+
+    /** @brief Restart from the beginning regardless of current position. */
+    void restart();
 
     /**
-      Restart a sound from the beginning, even if its current position was someplace else.
-      */
-		void restart();
+     *  @brief Seek to a position in the source file.
+     *
+     *  Distinct from ``pos`` — that controls position in the virtual scene.
+     *
+     *  @param value New playhead position in samples, in [0, ``length()``].
+     */
+    void time(float value);
+
+    /** @brief Current playhead position in samples. */
+    float time();
+
+    /** @brief Length of the source in samples. */
+    unsigned int length();
 
     /**
-      Set the current plahing position in the file. Don't get confused here with setPosition,
-      which sets the position in the virtual space where the sound will be rendered.
+     *  @brief Make the sound relative to the listener.
+     *
+     *  Relative sounds move with the listener — libYSE's idiomatic replacement
+     *  for "2D" sounds. Typical for GUI clicks and background music. Relative
+     *  sounds can still move within the listener's frame.
+     */
+    void relative(bool value);
 
-      @param value The new position in samples. Must be between 0 and the length of the file.
-      */
-		void time(float value);
-
-    /**
-      Get the current playing position in the file. Don't get confused here with getPosition,
-      which gets the position in the virtual space where the sound will be rendered.
-
-      @return the current position in samples.
-      */
-    float  time();
-
-    /**
-      Get the length of the file.
-
-      @return the length in samples.
-      */
-    unsigned int length(); // sound length in samples
-
-    /**
-      Make a sound relative to the Listener() object. This is YSE's alternative to '2D' sounds.
-      Relative sounds can still move, but they move along with the player. By default this is
-      how Gui sounds and music are used in most gaming sound setups.
-
-      But there's more: by making the sounds relative instead of fixed, you can still to other
-      stuff with them. The sound can still be moving.
-      */
-		void relative(bool value);
-
-    /**
-      See if a sound is relative to the Listener() object.
-      */
+    /** @brief Whether the sound is relative to the listener. */
     bool relative();
 
     /**
-      Enable / disable doppler for this sound.
-      @see System().setDopplerScale() for global doppler behaviour
-      */
-		void doppler(bool value);
+     *  @brief Enable or disable doppler shift for this sound.
+     *  @see YSE::System For the global doppler scale.
+     */
+    void doppler(bool value);
 
-    /**
-      See if doppler is enabled for this sound
-      */
+    /** @brief Whether doppler is enabled for this sound. */
     bool doppler();
 
     /**
-    This is a convenience function equal to setRelative(true).setPosition(0).setDoppler(false);
-    */
-		void pan2D(bool value);
+     *  @brief Shorthand for relative + listener-origin position + no doppler.
+     *
+     *  Equivalent to ``relative(true); pos(Pos(0,0,0)); doppler(false);``.
+     */
+    void pan2D(bool value);
 
-
+    /** @brief Whether the sound is in 2D-pan mode. */
     bool pan2D();
 
-    /**
-      Will be true if the sound is streamed (from disk or over the network) instead of played
-      from memory.
-      */
+    /** @brief Whether the sound is streamed from disk or network (vs loaded into memory). */
     bool isStreaming();
 
     /**
-      Will be true if the sound is ready to be played (or if it is already playing). This can take a while
-      if a sound is not streaming because loading sounds into memory is done in a seperate time as not to
-      obstruct the audio callback.
-      Not that it is not needed to wait for this result to be true before you can use most other functions
-      with this sound. For instance, if you use the play() function, the sound will be played when it
-      becomes ready.
-      */
+     *  @brief Whether the sound is ready for playback.
+     *
+     *  Loading happens asynchronously so the audio callback isn't blocked, so
+     *  there is a brief window after ``create`` where the sound is not yet
+     *  ready. Callers do *not* need to wait for this — calling ``play()`` on a
+     *  not-yet-ready sound simply queues the start.
+     */
     bool isReady();
 
     /**
-      This will enable sound occlusion for this sound. Remember to setup an occlusion callback function
-      in System() first.
-      */
-		void occlusion(bool value);
+     *  @brief Enable sound occlusion for this sound.
+     *
+     *  Requires an occlusion callback installed via
+     *  ``System().occlusionCallback(...)``.
+     */
+    void occlusion(bool value);
 
-    /**
-      Returns true if sound occlusion is active for this sound.
-      */
+    /** @brief Whether sound occlusion is active for this sound. */
     bool occlusion();
 
-    /**
-      Moves the sound to another channel
+    /** @brief Move this sound to a different channel.
+     *
+     *  @param target The new parent channel.
+     */
+    void moveTo(channel & target);
 
-      @param target The target channel
-      */
-		void moveTo(channel & target);
+    /** @brief Attach a DSP effect chain to this sound. */
+    void setDSP(YSE::DSP::dspObject * value);
 
-		void setDSP(YSE::DSP::dspObject * value); YSE::DSP::dspObject * getDSP(); // attach a dsp object to this sound
+    /** @brief Currently attached DSP effect chain, or ``nullptr`` if none. */
+    YSE::DSP::dspObject * getDSP();
 
       
 

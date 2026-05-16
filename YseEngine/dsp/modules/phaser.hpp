@@ -23,20 +23,33 @@ namespace YSE {
   namespace DSP {
     namespace MODULES {
 
+      /**
+       *  @brief Phaser effect as a chainable ``dspObject``.
+       *
+       *  Four-stage all-pass cascade modulated by a triangle LFO. Produces
+       *  the familiar sweeping "jet plane" sound.
+       */
       class API phaser : public dspObject {
       public:
         phaser();
         virtual ~phaser() {};
 
-        // sweep frequency, typically a low (-24) frequency, default is 0.3, must be > 0
+        /** @brief Set the sweep LFO frequency. Typically very low; default 0.3 Hz. Must be > 0. */
         phaser & frequency(Flt value);
+
+        /** @brief Current LFO frequency. */
         Flt      frequency();
 
-        // range coicient, cannot be larger as 0.5, default is 0.1
+        /** @brief Set the sweep range coefficient. Default 0.1; values above 0.5 are unstable. */
         phaser & range(Flt value);
+
+        /** @brief Current sweep range. */
         Flt      range();
 
+        /** @brief dspObject lifecycle hook — allocates buffers. */
         virtual void create();
+
+        /** @brief dspObject audio-thread entry point. */
         virtual void process(MULTICHANNELBUFFER & buffer);
 
       private:

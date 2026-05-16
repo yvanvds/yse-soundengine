@@ -17,91 +17,142 @@
 namespace YSE {
 
   namespace DSP {
-    /*
-    - This class serves as a basic audio buffer. It can be used for low level
-    audio operations where you need access to every frame in the buffer.
-    - Don't create samples as local variables because they have to
-    allocate dynamic memory. This is too costly to do during callback
-    functions.
-    - Only the length functions are threadsafe.
-    */
 
+    /**
+     *  @brief Single-channel float audio buffer.
+     *
+     *  The fundamental container for sample-level audio data in libYSE.
+     *  Sub-classes ``drawableBuffer``, ``fileBuffer``, and ``wavetable`` layer
+     *  drawing, file I/O, and wavetable generation on top of this base.
+     *
+     *  @warning **Do not construct ``buffer`` instances as audio-thread locals.**
+     *           Construction allocates from the heap, which is far too slow
+     *           for a real-time callback. Allocate buffers at file scope or
+     *           during setup and reuse them.
+     *
+     *  @note Only the ``getLength*`` accessors are thread-safe; all mutating
+     *        operations and sample-level reads assume the caller has
+     *        serialised access.
+     */
     class API buffer {
     public:
-      // Creates an audio buffer
+      /** @brief Construct a buffer.
+       *
+       *  @param length   Number of samples in the buffer.
+       *  @param overflow Extra samples appended past the end, used by sources
+       *                  that need a wrap-around copy of the first sample at
+       *                  the tail (wavetables). Leave at 0 for plain buffers.
+       */
       buffer(UInt length = STANDARD_BUFFERSIZE, UInt overflow = 0);
-      
-      // Creates a new audio buffer by copying an existing one
+
+      /** @brief Copy-construct from another buffer. */
       buffer(const buffer & cp);
 
-      // gets the length of a sample in frames (also called 'samples' like in '44100 samples per second')
+      /** @brief Length in samples (frames). */
       inline UInt getLength   () const { return (UInt)storage.size() - overflow; }
-      // gets the length of a sample in milliseconds
+
+      /** @brief Length in milliseconds at the engine sample rate. */
       inline UInt	getLengthMS () const { return static_cast<UInt>((storage.size() - overflow) / static_cast<Flt>(SAMPLERATE * 0.001)); }
-      // gets the length of a sample in seconds
+
+      /** @brief Length in seconds at the engine sample rate. */
       inline Flt	getLengthSec() const { return ((storage.size() - overflow) / static_cast<Flt>(SAMPLERATE)); }
 
-			bool isSilent() const;
-			float maxValue() const;
+      /** @brief Whether every sample in the buffer is zero. */
+      bool isSilent() const;
 
-      // WARNING: try to avoid this function. It will give you write access
-      // to the internal buffer, but there might be unexpected consequenses
+      /** @brief Peak absolute sample value. */
+      float maxValue() const;
+
+      /** @brief Direct write access to the underlying storage.
+       *
+       *  @warning Bypasses every internal invariant maintained by the buffer.
+       *           Prefer the operator overloads, ``copyFrom``, or the
+       *           ``drawableBuffer`` interface where possible.
+       */
       inline Flt * getPtr() { return storage.data(); }
 
-      // Add the same value (f) to all samples in the buffer
+      /** @brief Add ``f`` to every sample. */
       buffer & operator+=(Flt f);
-      // Distract the same value (f) from all samples in the buffer 
+
+      /** @brief Subtract ``f`` from every sample. */
       buffer & operator-=(Flt f);
-      // Multiply all samples by f
+
+      /** @brief Multiply every sample by ``f``. */
       buffer & operator*=(Flt f);
-      // Divide all samples by f
+
+      /** @brief Divide every sample by ``f``. */
       buffer & operator/=(Flt f);
 
+      /** @brief Sample-wise add ``s`` into this buffer. */
       buffer & operator+=(const buffer & s);
+
+      /** @brief Sample-wise subtract ``s`` from this buffer. */
       buffer & operator-=(const buffer & s);
+
+      /** @brief Sample-wise multiply this buffer by ``s``. */
       buffer & operator*=(const buffer & s);
+
+      /** @brief Sample-wise divide this buffer by ``s``. */
       buffer & operator/=(const buffer & s);
 
+      /** @brief Copy-assign from another buffer. */
       buffer & operator=(const buffer & s);
+
+      /** @brief Fill every sample with ``f``. */
       buffer & operator=(Flt f);
+
+      /** @brief Copy a region from ``s`` into this buffer.
+       *
+       *  @param s         Source buffer.
+       *  @param SourcePos First sample read from ``s``.
+       *  @param DestPos   First sample written in this buffer.
+       *  @param length    Number of samples to copy.
+       */
       buffer & copyFrom(const buffer & s, UInt SourcePos, UInt DestPos, UInt length);
 
+      /** @brief Swap contents with another buffer in O(1). */
       buffer & swap(buffer & s);
 
-      // get the last sample of the buffer
+      /** @brief Last sample of the buffer. */
       Flt getBack();
 
-      // Each buffer holds an internal cursor. You can use this to remember a
-      // buffer position.
+      /** @brief Position cursor — application-owned read/write head pointer.
+       *
+       *  The buffer never mutates this on its own; it's a parking slot for
+       *  user code that needs to remember a position across calls.
+       */
       Flt * cursor;
 
-      // Resize a sample buffer. Internally, this is a std::vector resize operation.
-      // If the new size is greater than the current size, new elements will be initialized
-      // with value.
+      /** @brief Resize the buffer.
+       *
+       *  @param length Target length in samples.
+       *  @param value  Value used to initialise newly added samples when
+       *                ``length`` exceeds the current size.
+       */
       buffer & resize(UInt length, Flt value = 0.f);
 
-      // these functions are needed by the engine to be able to play 
-      // buffers with different sample rates.
+      /** @brief Sample-rate adjustment factor used by the engine to play this
+       *         buffer at the correct speed when its native rate differs from
+       *         the engine rate.
+       */
       inline Flt getSampleRateAdjustment() { return sampleRateAdjustment; }
+
+      /** @brief Set the sample-rate adjustment factor. Normally only the engine calls this. */
       inline void setSampleRateAdjustment(Flt s) { sampleRateAdjustment = s; }
-    
-      // if the buffer has an overflow, this will copy the first x bytes to the end of the buffer
-      // (It is unlikely that you would need this function because this happens automatically on 
-      // most operations.)
+
+      /** @brief Refresh the overflow tail (a copy of the first ``overflow`` samples).
+       *
+       *  Most mutating operations already maintain this; calling it manually is
+       *  rarely necessary.
+       */
       inline void copyOverflow() { for (UInt i = 0; i < overflow; i++) storage[getLength() + i] = storage[i]; }
 
     protected:
       std::vector<Flt> storage;
 
-      // to play all rates at the correct speed
       Flt sampleRateAdjustment;
 
-      // some buffers, like wavetables, use an extra value at the end which
-      // contains a copy of the first value. In this case the actual storage
-      // vector is the requested size + overflow
       UInt overflow;
-
-      
     };
   }
 }

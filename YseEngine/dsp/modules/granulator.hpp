@@ -20,29 +20,70 @@
 namespace YSE {
   namespace DSP {
     namespace MODULES {
+      /// @cond INTERNAL
       class grain;
+      /// @endcond
 
+      /**
+       *  @brief Granular synthesis effect as a chainable ``dspObject``.
+       *
+       *  Maintains a circular pool of recent input audio, then spawns short
+       *  "grains" sampled from random positions in that pool. The grain rate,
+       *  length, and pitch are configurable, each with a random component for
+       *  natural variation. Use for clouds, textures, time-stretch, and
+       *  pitch-shifting effects.
+       */
       class API granulator : public dspObject {
       public:
+        /**
+         *  @brief Construct the granulator.
+         *
+         *  @param poolSize  Size of the circular input buffer in samples.
+         *                   Limits how far back into the input the granulator
+         *                   can reach. Default is 5 seconds at 44.1 kHz.
+         *  @param maxGrains Maximum number of grains alive simultaneously.
+         */
         granulator(UInt poolSize = 44100 * 5, UInt maxGrains = 16);
         virtual ~granulator() {};
 
+        /** @brief dspObject lifecycle hook — allocates buffers. */
         virtual void create();
+
+        /** @brief dspObject audio-thread entry point. */
         virtual void process(MULTICHANNELBUFFER & buffer);
 
-        /* Grains per second */
+        /** @brief Set the spawn rate in grains per second. */
         granulator & grainFrequency(UInt value);
+
+        /** @brief Current spawn rate. */
         UInt grainFrequency() { return parmFrequency; }
-        
-        /* Length of each grain */
+
+        /**
+         *  @brief Set the grain length.
+         *
+         *  @param samples Length in samples.
+         *  @param random  Random variation around ``samples``, in samples.
+         */
         granulator & grainLength(UInt samples, UInt random = 0);
+
+        /** @brief Current grain length. */
         UInt grainLength() { return parmLength; }
-        
-        /* Grain transposition */
+
+        /**
+         *  @brief Set the grain pitch shift.
+         *
+         *  @param pitch  Pitch multiplier (1.0 = unchanged, 2.0 = octave up).
+         *  @param random Random pitch variation.
+         */
         granulator & grainTranspose(Flt pitch, Flt random = 0);
+
+        /** @brief Current grain pitch multiplier. */
         Flt grainTranspose() { return parmTranspose; }
 
+        /** @brief Set the output gain. */
         granulator & gain(Flt value);
+
+        /** @brief Current output gain. */
         Flt gain() { return parmGain; }
 
       private:

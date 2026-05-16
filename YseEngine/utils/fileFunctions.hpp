@@ -14,10 +14,15 @@
 #include <string>
 
 namespace YSE {
+  /** @brief Current working directory of the process. */
   std::string GetCurrentWorkingDirectory();
+
+  /** @brief Whether a file at ``name`` exists on disk. */
   bool FileExists(const std::string & name);
+
+  /** @brief Whether ``path`` is absolute (vs. relative to the working directory). */
   bool IsPathAbsolute(const std::string & path);
-  
+
 }
 
 

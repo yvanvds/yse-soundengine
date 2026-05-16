@@ -19,36 +19,53 @@
 
 namespace YSE {
 
+  /**
+   *  @brief A set of allowed pitches.
+   *
+   *  Drives the ``player`` so its generated notes stay in key, and constrains
+   *  the transpositions a ``motif`` can take. Pitches are added with an
+   *  optional step that controls automatic octave replication.
+   *
+   *  @see YSE::player
+   *  @see YSE::motif
+   */
   class API  scale {
   public:
     scale();
     ~scale();
 
-    // Add a pitch to the scale. By default it will be added at every
-    // octave, but this can be changed with the step value. (A step <= 0
-    // means adding only this exact pitch, without transpositions.)
+    /**
+     *  @brief Add a pitch to the scale.
+     *
+     *  @param pitch The MIDI pitch to add.
+     *  @param step  Octave step. ``12`` (default) replicates the pitch at
+     *               every octave. Values <= 0 add only the exact pitch.
+     */
     scale & add(Flt pitch, Flt step = 12);
 
-    // Remove a pitch from the scale. By default it will be removed at every
-    // octave, but this can be changed with the step value.
+    /**
+     *  @brief Remove a pitch from the scale.
+     *
+     *  @param pitch The MIDI pitch to remove.
+     *  @param step  Octave step — by default the pitch is removed at every octave.
+     */
     scale & remove(Flt pitch, Flt step = 12);
 
-    // Check if a pitch is part of the scale
+    /** @brief Whether ``pitch`` is a member of the scale. */
     Bool has(Flt pitch);
- 
-    // Get the nearest match for this pitch
+
+    /** @brief Nearest in-scale pitch to ``pitch``. */
     Flt getNearest(Flt pitch) const;
- 
-    // count notes in this scale
+
+    /** @brief Number of pitches in the scale. */
     UInt size() const;
 
-    // remove all notes
+    /** @brief Remove every pitch. */
     scale & clear();
- 
-    // copy
+
     scale(const scale& other);
     scale & operator=(const scale & other);
-        
+
   private:
     SCALE::implementationObject * pimpl;
 

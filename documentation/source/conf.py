@@ -50,7 +50,9 @@ _doxygen_xml = Path(__file__).parent / "_doxygen" / "xml"
 
 breathe_projects = {"libYSE": str(_doxygen_xml)}
 breathe_default_project = "libYSE"
-breathe_default_members = ("members", "undoc-members")
+# Only documented members appear. The Doxyfile is the upstream filter; this
+# keeps breathe from re-emitting anything Doxygen happened to extract anyway.
+breathe_default_members = ("members",)
 breathe_show_include = False
 
 # -- HTML output -------------------------------------------------------------

@@ -17,15 +17,36 @@
 namespace YSE {
 
   namespace DSP {
+
+    /**
+     *  @brief Sample-accurate ramp generator.
+     *
+     *  Smoothly slews toward a target value over a time. Use as a smoothing
+     *  layer in front of parameters that would otherwise click (volume, pan,
+     *  filter cutoff). Inherits from ``buffer`` because each ``operator()``
+     *  fills its own audio block.
+     */
     class API ramp : public buffer {
     public:
+      /** @brief Start a new ramp toward ``target`` over ``time`` milliseconds. */
       ramp& set(Flt target, Int time = 0);
+
+      /** @brief Like ``set``, but only re-targets if ``target`` differs from the current target. */
       ramp& setIfNew(Flt target, Int time = 0);
+
+      /** @brief Stop ramping; current value becomes the new target. */
       ramp& stop();
+
+      /** @brief Advance one block. Call once per DSP tick. */
       ramp& update();
-      // TODO: check update and operator functions for consistency with other DSP objects
+
+      /** @brief Most recent ramp block. */
       YSE::DSP::buffer & operator()();
+
+      /** @brief Same as ``operator()``. */
       YSE::DSP::buffer & getSample();
+
+      /** @brief Current scalar ramp value (block-rate). */
       Flt    getValue();
 
       ramp();
@@ -47,18 +68,32 @@ namespace YSE {
       Flt f;
     };
 
+    /**
+     *  @brief Scalar linear interpolator.
+     *
+     *  Like ``ramp`` but block-rate only: advances by one step per
+     *  ``update()`` call rather than producing a sample-accurate buffer.
+     *  Cheaper when you don't need per-sample smoothing.
+     */
     class API lint {
-      // Linear interpolation towards target over time.
-      // This class does not use an audio buffer but adjusts
-      // one step for every time update is called.
-      // Update expects to be called at every new buffer
     public:
-      lint& set(Flt target, Int time); // set new target and time
-      lint& setIfNew(Flt target, Int time); // set only if target is different from current target
-      lint& stop(); // sets target to current value
-      lint& update(); // call this once for every buffer update
-      Flt target(); // returns target
-      Flt operator()(); // returns current value
+      /** @brief Start a new ramp toward ``target`` over ``time`` milliseconds. */
+      lint& set(Flt target, Int time);
+
+      /** @brief Like ``set``, but only re-targets if ``target`` differs. */
+      lint& setIfNew(Flt target, Int time);
+
+      /** @brief Freeze the value at the current position. */
+      lint& stop();
+
+      /** @brief Advance one block. Call once per DSP tick. */
+      lint& update();
+
+      /** @brief Current target value. */
+      Flt target();
+
+      /** @brief Current value. */
+      Flt operator()();
       lint();
     private:
       aFlt targetValue, currentValue, step;
@@ -66,12 +101,25 @@ namespace YSE {
       Flt stepSecond;
     };
 
-
-    // these functions are limited to the length of the buffer
+    /**
+     *  @brief Cheap in-place fade-in over the first ``length`` samples of ``s``.
+     *  @note ``length`` must not exceed ``s.getLength()``.
+     */
     API void FastFadeIn(YSE::DSP::buffer & s, UInt length);
-    API void FastFadeOut(YSE::DSP::buffer & s, UInt length);
-    API void ChangeGain(YSE::DSP::buffer & s, Flt currentGain, Flt newGain, UInt length);
 
+    /**
+     *  @brief Cheap in-place fade-out over the first ``length`` samples of ``s``.
+     *  @note ``length`` must not exceed ``s.getLength()``.
+     */
+    API void FastFadeOut(YSE::DSP::buffer & s, UInt length);
+
+    /**
+     *  @brief Linearly slew the gain of ``s`` from ``currentGain`` to ``newGain``.
+     *
+     *  Applied to the first ``length`` samples. Used internally to avoid
+     *  zipper noise on volume changes.
+     */
+    API void ChangeGain(YSE::DSP::buffer & s, Flt currentGain, Flt newGain, UInt length);
 
   }
 }
