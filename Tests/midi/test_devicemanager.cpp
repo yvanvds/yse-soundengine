@@ -88,17 +88,18 @@ TEST_CASE("midi deviceManager: getMidiOutPort(invalid) returns nullptr") {
     CHECK(port == nullptr);
 }
 
-TEST_CASE("midi deviceManager: getMidiOutPort second call hits the cache") {
-    // The impl emplaces the new RtMidiOut into midiOutPorts *before* calling
-    // openPort.  When openPort throws, the catch returns nullptr but leaves
-    // the partially-initialised entry in the cache.  A second call with the
-    // same ID therefore takes the `count(ID) > 0` branch and returns the
-    // cached (non-null) pointer.  Both calls must remain safe — covers both
-    // arms of the function.
+TEST_CASE("midi deviceManager: getMidiOutPort(invalid) does not cache on failure") {
+    // Regression test for issue #32.  Prior to the fix the impl emplaced the
+    // new RtMidiOut into midiOutPorts *before* calling openPort, so when
+    // openPort threw the catch returned nullptr but left a partially
+    // initialised entry behind — a subsequent call with the same ID hit the
+    // cache-hit branch and returned a non-null but useless pointer.  After
+    // the fix the cache is only populated on success, so every retry of an
+    // invalid ID must return nullptr.
     RtMidiOut * first  = YSE::MIDI::DeviceManager().getMidiOutPort(9998);
     RtMidiOut * second = YSE::MIDI::DeviceManager().getMidiOutPort(9998);
     CHECK(first == nullptr);
-    CHECK(second == YSE::MIDI::DeviceManager().getMidiOutPort(9998));
+    CHECK(second == nullptr);
 }
 
 // ─── GenerateMidiError: every Type enum arm ─────────────────────────────────

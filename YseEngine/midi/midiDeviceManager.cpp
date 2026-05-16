@@ -110,8 +110,9 @@ RtMidiOut* YSE::MIDI::deviceManager::getMidiOutPort(unsigned int ID) {
 	}
 
 	try {
-		auto [iter, ok] = midiOutPorts.emplace(ID, std::make_unique<RtMidiOut>());
-		iter->second->openPort(ID);
+		auto port = std::make_unique<RtMidiOut>();
+		port->openPort(ID);
+		auto [iter, ok] = midiOutPorts.emplace(ID, std::move(port));
 		return iter->second.get();
 	}
 	catch (RtMidiError& error) {
