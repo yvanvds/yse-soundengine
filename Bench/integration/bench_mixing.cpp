@@ -168,7 +168,7 @@ static void BM_Engine_ListenerPosUpdate(benchmark::State& state) {
         benchmark::DoNotOptimize(&t);
     }
 }
-BENCHMARK(BM_Engine_ListenerPosUpdate);
+BENCHMARK(BM_Engine_ListenerPosUpdate)->Iterations(BenchHelpers::kLeakyBenchIterations);
 
 // ── Audio-thread DSP throughput ───────────────────────────────────────────
 //

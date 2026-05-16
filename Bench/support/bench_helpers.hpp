@@ -44,4 +44,20 @@ inline bool engineInitOffline() {
     return YSE::System().initOffline();
 }
 
+// Tight-loop benches that call public-API setters (reverb position,
+// patcher PassData, etc.) enqueue lock-free messages to the audio
+// thread on every call.  In offline mode there is no audio thread to
+// drain them, and google-benchmark's default min-time loop will iterate
+// 10^8+ times to reach its target sample size — the queue grows
+// unbounded and OOMs a small CI runner mid-suite.  Cap such benches
+// with `BENCHMARK(X)->Iterations(kLeakyBenchIterations)` so the
+// total memory pinned by un-drained messages stays bounded.
+//
+// 100k iters × 3 reps × ~60 B/msg × ~12 leaky benches ≈ 200 MB peak,
+// which fits a 7 GB GHA runner with the engine's other state.
+// At 5–50 ns/iter the timing noise is still <2% (sub-millisecond OS
+// jitter spread over ~1 ms of work), enough to catch any meaningful
+// regression in the setter cost itself.
+constexpr int kLeakyBenchIterations = 100000;
+
 } // namespace BenchHelpers

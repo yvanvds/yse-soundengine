@@ -59,7 +59,7 @@ static void BM_Reverb_SetPosition(benchmark::State& state) {
         benchmark::DoNotOptimize(&r);
     }
 }
-BENCHMARK(BM_Reverb_SetPosition);
+BENCHMARK(BM_Reverb_SetPosition)->Iterations(BenchHelpers::kLeakyBenchIterations);
 
 // ── setPreset — relatively rare but worth tracking for sudden cost spikes ─
 
@@ -83,7 +83,7 @@ static void BM_Reverb_SetPreset(benchmark::State& state) {
         benchmark::DoNotOptimize(&r);
     }
 }
-BENCHMARK(BM_Reverb_SetPreset);
+BENCHMARK(BM_Reverb_SetPreset)->Iterations(BenchHelpers::kLeakyBenchIterations);
 
 // ── setDryWetBalance — fired every frame by listener / reverb-zone blend ─
 
@@ -103,7 +103,7 @@ static void BM_Reverb_SetDryWetBalance(benchmark::State& state) {
         benchmark::DoNotOptimize(&r);
     }
 }
-BENCHMARK(BM_Reverb_SetDryWetBalance);
+BENCHMARK(BM_Reverb_SetDryWetBalance)->Iterations(BenchHelpers::kLeakyBenchIterations);
 
 // ── global reverb on/off ─────────────────────────────────────────────────
 //
@@ -123,5 +123,8 @@ static void BM_Reverb_GlobalToggle(benchmark::State& state) {
         YSE::System().getGlobalReverb().setActive(on);
         benchmark::DoNotOptimize(on);
     }
+    // Leave the global reverb in a known-off state for any benchmark that
+    // runs after this one.
+    YSE::System().getGlobalReverb().setActive(false);
 }
-BENCHMARK(BM_Reverb_GlobalToggle);
+BENCHMARK(BM_Reverb_GlobalToggle)->Iterations(BenchHelpers::kLeakyBenchIterations);

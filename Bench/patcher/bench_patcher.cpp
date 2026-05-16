@@ -60,7 +60,7 @@ static void BM_Patcher_BuildSmallGraph(benchmark::State& state) {
         benchmark::DoNotOptimize(&p);
     }
 }
-BENCHMARK(BM_Patcher_BuildSmallGraph);
+BENCHMARK(BM_Patcher_BuildSmallGraph)->Iterations(BenchHelpers::kLeakyBenchIterations);
 
 // ── CreateObject only — isolates per-object construction cost ────────────
 
@@ -81,7 +81,7 @@ static void BM_Patcher_CreateObject(benchmark::State& state) {
         p.Clear();
     }
 }
-BENCHMARK(BM_Patcher_CreateObject);
+BENCHMARK(BM_Patcher_CreateObject)->Iterations(BenchHelpers::kLeakyBenchIterations);
 
 // ── Connect — pure edge-insertion cost ───────────────────────────────────
 
@@ -104,7 +104,7 @@ static void BM_Patcher_Connect(benchmark::State& state) {
         benchmark::DoNotOptimize(&p);
     }
 }
-BENCHMARK(BM_Patcher_Connect);
+BENCHMARK(BM_Patcher_Connect)->Iterations(BenchHelpers::kLeakyBenchIterations);
 
 // ── JSON serialise ───────────────────────────────────────────────────────
 
@@ -144,7 +144,7 @@ static void BM_Patcher_ParseJSON(benchmark::State& state) {
         benchmark::DoNotOptimize(&target);
     }
 }
-BENCHMARK(BM_Patcher_ParseJSON);
+BENCHMARK(BM_Patcher_ParseJSON)->Iterations(BenchHelpers::kLeakyBenchIterations);
 
 // ── External message dispatch ────────────────────────────────────────────
 
@@ -165,4 +165,4 @@ static void BM_Patcher_PassFloat(benchmark::State& state) {
         benchmark::DoNotOptimize(ok);
     }
 }
-BENCHMARK(BM_Patcher_PassFloat);
+BENCHMARK(BM_Patcher_PassFloat)->Iterations(BenchHelpers::kLeakyBenchIterations);
