@@ -38,7 +38,7 @@ YSE::DEVICE::managerObject::~managerObject() {
 #endif
 }
 
-Bool YSE::DEVICE::managerObject::init() {
+Bool YSE::DEVICE::managerObject::init(bool openDevice) {
   // on windows, the COM library has to be initialized. This may or may not
   // also happen in your application. It doesn't matter.
 #if defined YSE_WINDOWS
@@ -49,7 +49,8 @@ Bool YSE::DEVICE::managerObject::init() {
   else coInitialized = false;
 #endif
 
-  abstractDeviceManager::init();
+  abstractDeviceManager::init(openDevice);
+  if (!openDevice) return true;
 
   if (!initialized) {
     deviceSetup.sampleRate = 44100;

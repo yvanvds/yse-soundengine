@@ -24,9 +24,9 @@ YSE::DEVICE::deviceManager::~deviceManager()
   close();
 }
 
-Bool YSE::DEVICE::deviceManager::init()
+Bool YSE::DEVICE::deviceManager::init(bool openDevice)
 {
-  updateDeviceList();
+  if (openDevice) updateDeviceList();
   return true;
 }
 

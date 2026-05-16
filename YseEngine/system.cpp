@@ -48,7 +48,7 @@ Bool YSE::system::initShared(bool openDevice) {
 	doAutoReconnect = false;
 	reconnectDelay = 0;
 
-	if (DEVICE::Manager().init()) {
+	if (DEVICE::Manager().init(openDevice)) {
 		INTERNAL::LogImpl().emit(E_DEBUG, "YSE System object initialized");
 
 		// initialize channels

@@ -19,15 +19,15 @@ YSE::DEVICE::managerObject::managerObject()
 
 YSE::DEVICE::managerObject::~managerObject() {}
 
-Bool YSE::DEVICE::managerObject::init() {
+Bool YSE::DEVICE::managerObject::init(bool openDevice) {
   YSE::Log().sendMessage("androidDeviceManager: init started");
-  if (!initDone) {
+  if (openDevice && !initDone) {
     implementation.Setup();
+    initDone = true;
+    open = true;
   }
-  initDone = true;
-  open = true;
   YSE::Log().sendMessage("androidDeviceManager: init done");
-  deviceManager::init();
+  deviceManager::init(openDevice);
   return true;
 }
 

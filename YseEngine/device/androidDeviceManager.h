@@ -18,7 +18,7 @@ namespace YSE {
       managerObject();
       ~managerObject();
 
-      virtual bool init();
+      virtual bool init(bool openDevice = true);
       virtual void close();
       virtual float cpuLoad() { return 0.f; } // not implemented for android
 

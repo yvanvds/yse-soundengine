@@ -29,10 +29,11 @@ cmake --build --preset bench
 | **3 — Audio-thread macro** | `integration/bench_mixing.cpp` | The real audio callback body, driven offline via `System().renderOffline(blocks)`. 100 sounds + (optional) global reverb through the master-channel mix path. Reports real-time factor. |
 
 All three tiers run in CI. Tiers 2 and 3 use `engineInitOffline()` so no
-PortAudio stream is opened and the runner-without-an-audio-device path
-never blocks. `Pa_Initialize()` still runs and emits ~30 lines of ALSA
-probe noise on stderr, which is harmless — bench-results.json comes
-from stdout only.
+PortAudio stream is opened *and* `Pa_Initialize()` is skipped — the
+ALSA / JACK backend probe never runs, so the runner-without-an-audio-
+device path is fully bypassed. (Earlier versions called `Pa_Initialize()`
+unconditionally, which took down bare GHA Ubuntu runners ~20 s after the
+probe even though no stream was opened.)
 
 ## How offline rendering works
 

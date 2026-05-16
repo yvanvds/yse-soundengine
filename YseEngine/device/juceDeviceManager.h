@@ -30,7 +30,7 @@ namespace YSE {
       virtual ~managerObject();
 
       // implementation of abstractDeviceManager
-      virtual Bool init ();
+      virtual Bool init (bool openDevice = true);
       virtual void close();
       virtual Flt  cpuLoad(); 
 

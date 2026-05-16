@@ -29,7 +29,12 @@ namespace YSE {
       deviceManager();
       virtual ~deviceManager();
 
-      virtual Bool init ();
+      /* `openDevice = false` is the offline path: backends that probe
+         hardware (PortAudio's Pa_Initialize, ALSA/JACK/HDA enumeration)
+         must skip that work entirely.  Verified bench scenario: bare
+         GHA Ubuntu runners take down the VM if Pa_Initialize runs even
+         when no stream is later opened (see Bench/README.md). */
+      virtual Bool init (bool openDevice = true);
       virtual void close() {};
 
 			virtual void pause() = 0;
