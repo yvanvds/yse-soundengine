@@ -26,23 +26,26 @@ YSE::SOUND::managerObject::managerObject()
 }
 
 YSE::SOUND::managerObject::~managerObject() noexcept {
+  try {
+    // wait for jobs to finish
+    mgrSetup.join();
+    mgrDelete.join();
 
-  // wait for jobs to finish
-  mgrSetup.join();
-  mgrDelete.join();
+    // drain any pointers still queued by the main thread; they reference impls
+    // owned by `implementations` and will be freed when that list is cleared.
+    implementationObject * drained;
+    while (toLoadInbox.try_pop(drained)) { (void)drained; }
 
-  // drain any pointers still queued by the main thread; they reference impls
-  // owned by `implementations` and will be freed when that list is cleared.
-  implementationObject * drained;
-  while (toLoadInbox.try_pop(drained)) { (void)drained; }
+    // remove all objects that are still in memory
+    toLoad.clear();
+    inUse.clear();
+    implementations.clear();
 
-  // remove all objects that are still in memory
-  toLoad.clear();
-  inUse.clear();
-  implementations.clear();
-
-  // remove all sounds that are still in memory
-  soundFiles.clear();
+    // remove all sounds that are still in memory
+    soundFiles.clear();
+  } catch (...) {
+    // destructor must not propagate
+  }
 }
 
 
@@ -105,7 +108,7 @@ YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addFile(MULTICHANNELBUFFER
 }
 
 YSE::SOUND::implementationObject * YSE::SOUND::managerObject::addImplementation(YSE::sound * head) {
-  std::lock_guard<std::mutex> lk(implementationsMutex);
+  std::scoped_lock lk(implementationsMutex);
   implementations.emplace_front(head);
   return &implementations.front();
 }
@@ -207,14 +210,11 @@ void YSE::SOUND::managerObject::update() {
   // garbage-collect finished soundFiles
   auto iMinus = soundFiles.before_begin();
   for (auto i = soundFiles.begin(); i != soundFiles.end(); ) {
-    if (i->isQueued()) {
+    if (i->isQueued() || i->inUse()) {
       iMinus = i;
       ++i;
-    } else if (!i->inUse()) {
-      i = soundFiles.erase_after(iMinus);
     } else {
-      iMinus = i;
-      ++i;
+      i = soundFiles.erase_after(iMinus);
     }
   }
 

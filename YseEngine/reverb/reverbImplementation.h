@@ -49,7 +49,7 @@ namespace YSE {
       This function is used by the forward_list remove_if function on the
       audio-thread-owned `toLoad` list.
       */
-      static bool canBeRemovedFromLoading(implementationObject * impl) {
+      static bool canBeRemovedFromLoading(const implementationObject * impl) {
         if (impl->objectStatus == OBJECT_READY
           || impl->objectStatus == OBJECT_RELEASE
           || impl->objectStatus == OBJECT_DELETE) {

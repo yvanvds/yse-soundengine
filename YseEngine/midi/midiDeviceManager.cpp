@@ -62,16 +62,13 @@ void YSE::MIDI::GenerateMidiError(const RtMidiError & error)
 	}
 }
 
-YSE::MIDI::deviceManager::deviceManager()
-	: initialized(false)
-{
-}
+YSE::MIDI::deviceManager::deviceManager() = default;
 
 YSE::MIDI::deviceManager::~deviceManager() {
 	// unique_ptr members handle midiIn/midiOut cleanup automatically;
 	// only the explicit closePort() side-effect on map entries needs ordering.
-	for (auto& entry : midiOutPorts) {
-		entry.second->closePort();
+	for (auto& [id, port] : midiOutPorts) {
+		port->closePort();
 	}
 }
 
@@ -108,13 +105,14 @@ const std::string YSE::MIDI::deviceManager::getMidiOutDeviceName(unsigned int ID
 }
 
 RtMidiOut* YSE::MIDI::deviceManager::getMidiOutPort(unsigned int ID) {
-	auto existing = midiOutPorts.find(ID);
-	if (existing != midiOutPorts.end()) return existing->second.get();
+	if (auto existing = midiOutPorts.find(ID); existing != midiOutPorts.end()) {
+		return existing->second.get();
+	}
 
 	try {
-		auto inserted = midiOutPorts.emplace(ID, std::make_unique<RtMidiOut>());
-		inserted.first->second->openPort(ID);
-		return inserted.first->second.get();
+		auto [iter, ok] = midiOutPorts.emplace(ID, std::make_unique<RtMidiOut>());
+		iter->second->openPort(ID);
+		return iter->second.get();
 	}
 	catch (RtMidiError& error) {
 		MIDI::GenerateMidiError(error);

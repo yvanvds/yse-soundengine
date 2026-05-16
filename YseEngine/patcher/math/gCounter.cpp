@@ -18,9 +18,6 @@ CONSTRUCT() {
   ADD_PARAM(startValue);
   ADD_PARAM(step);
 
-  startValue = 0;
-  step = 1;
-  currentValue = 0;
 }
 
 INT_IN(SetIntValue) {

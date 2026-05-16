@@ -24,20 +24,24 @@ YSE::CHANNEL::managerObject::managerObject()
   {}
 
 YSE::CHANNEL::managerObject::~managerObject() noexcept {
-  // wait for jobs to finish
-  mgrSetup.join();
-  mgrDelete.join();
+  try {
+    // wait for jobs to finish
+    mgrSetup.join();
+    mgrDelete.join();
 
-  // drain any pointers still queued by the main thread; they reference impls
-  // owned by `implementations` and will be freed when that list is cleared.
-  implementationObject * drained;
-  while (toLoadInbox.try_pop(drained)) { (void)drained; }
+    // drain any pointers still queued by the main thread; they reference impls
+    // owned by `implementations` and will be freed when that list is cleared.
+    implementationObject * drained;
+    while (toLoadInbox.try_pop(drained)) { (void)drained; }
 
-  // remove all objects that are still in memory
-  toLoad.clear();
-  inUse.clear();
-  implementations.clear();
-  delete[] outputAngles;
+    // remove all objects that are still in memory
+    toLoad.clear();
+    inUse.clear();
+    implementations.clear();
+    delete[] outputAngles;
+  } catch (...) {
+    // destructor must not propagate
+  }
 }
 
 void YSE::CHANNEL::managerObject::update() {
@@ -123,7 +127,7 @@ void YSE::CHANNEL::managerObject::update() {
 
 
 YSE::CHANNEL::implementationObject * YSE::CHANNEL::managerObject::addImplementation(YSE::channel * head) {
-  std::lock_guard<std::mutex> lk(implementationsMutex);
+  std::scoped_lock lk(implementationsMutex);
   implementations.emplace_front(head);
   return &implementations.front();
 }

@@ -57,7 +57,7 @@ namespace YSE {
         virtual void run() {
           std::vector<implementationObject*> pending;
           {
-            std::lock_guard<std::mutex> lk(obj->implementationsMutex);
+            std::scoped_lock lk(obj->implementationsMutex);
             for (auto & impl : obj->implementations) {
               if (impl.tryClaimForSetup()) {
                 pending.push_back(&impl);
@@ -92,7 +92,7 @@ namespace YSE {
         }
 
         virtual void run() {
-          std::lock_guard<std::mutex> lk(obj->implementationsMutex);
+          std::scoped_lock lk(obj->implementationsMutex);
           obj->implementations.remove_if(implementationObject::canBeDeleted);
         }
 

@@ -50,7 +50,6 @@ YSE::SOUND::implementationObject::implementationObject(sound * head) :
 	_postDspPtr(nullptr),
 	post_dsp(nullptr),
 	parent(nullptr),
-	connectedToParent(false),
 	startOffset(0),
 	stopOffset(0),
 	streaming(false),
