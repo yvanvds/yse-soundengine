@@ -5,7 +5,7 @@ last_updated_at: 2026-05-06
 
 # YSE Sound Engine — Project Overview
 
-**Version:** 1.0.77
+**Version:** 2.0.1
 **Language:** C++17
 **Platforms:** Windows (MSYS2/Clang64, MSVC), Linux, Android
 **Build:** CMake 3.20+ (primary, with `CMakePresets.json`), Visual Studio solution (Windows legacy)
@@ -24,8 +24,7 @@ Demo.Windows.Native/        # 18 C++ console demos (Demo00–Demo17 + Test01_Pit
 Yse.Android.Native/         # Android native demo
 YSEAndroidStudioNative/     # Android Studio native project
 Yse.Windows.Native/         # Windows static/shared lib build (VS)
-YseCppRelease/              # Release packaging helper
-GeneratePackage/            # Package generation scripts
+dist/                       # Release archives written by `python yse.py package` (gitignored)
 TestResources/              # Audio test files (drone.ogg, kick.ogg, demo.mid, …)
 dependencies/               # Vendored headers: portaudio/, rtmidi/, libsndfile/, libsndfile64/, doctest/
 cmake/                      # CMake helper scripts (demo_main.cpp.in template)
@@ -38,7 +37,8 @@ CMakePresets.json           # Named build presets (debug, release, tests-debug, 
 yse.py                      # Python CLI wrapper over cmake --preset / ctest --preset
 .clang-format               # clang-format style config (used by `yse.py format`)
 sonar-project.properties    # SonarCloud analysis configuration
-.github/workflows/build.yml # GitHub Actions: Linux Debug + coverage + SonarQube scan
+.github/workflows/build.yml     # GitHub Actions: Linux Debug + coverage + SonarQube scan
+.github/workflows/release.yml   # GitHub Actions: tag-driven release — Windows/Linux x64 archives
 documentation/              # Doxygen + Sphinx (Breathe, sphinx-book-theme) docs
 (known issues tracked in GitHub Issues, not in-repo)
 ```
@@ -76,6 +76,8 @@ python yse.py debug Demo00       # launches the demo under lldb
 python yse.py clean [--yes]      # removes all build dirs + coverage artifacts
 python yse.py analyze            # clang-tidy via compile_commands.json (sonar-scanner fallback)
 python yse.py format             # clang-format -i over YseEngine/ and Tests/
+python yse.py package            # build a release archive in dist/ (used by CI)
+python yse.py release patch      # bump VERSION (patch/minor/major), commit, tag, push
 ```
 
 Direct `cmake -B build ...` invocations remain fully valid; the presets are additive.

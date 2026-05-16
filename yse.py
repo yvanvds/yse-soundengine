@@ -14,15 +14,30 @@ are propagated unchanged.
 """
 
 import argparse
+import datetime
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
+import tarfile
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).parent.resolve()
 IS_WINDOWS = platform.system() == "Windows"
+
+# Anchored to the exact form in YseEngine/system.hpp so we never edit the wrong
+# constant. Captures: (prefix)(major).(minor).(patch)(suffix)
+VERSION_RE = re.compile(
+    r'^(\s*const\s+std::string\s+VERSION\s*=\s*")'
+    r'(\d+)\.(\d+)\.(\d+)'
+    r'("\s*;\s*)$',
+    re.MULTILINE,
+)
+VERSION_FILE = ROOT / "YseEngine" / "system.hpp"
+REPO_URL = "https://github.com/yvanvds/yse-soundengine"
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -367,8 +382,360 @@ def cmd_format(args):
 
 
 # ---------------------------------------------------------------------------
-# Argument parser
+# Release / package helpers
 # ---------------------------------------------------------------------------
+
+def _read_version():
+    """Parse (major, minor, patch) from YseEngine/system.hpp.
+
+    Returns (text, match, (major, minor, patch))."""
+    if not VERSION_FILE.exists():
+        print(f"error: {VERSION_FILE} not found.")
+        sys.exit(1)
+    text = VERSION_FILE.read_text(encoding="utf-8")
+    m = VERSION_RE.search(text)
+    if not m:
+        print(f"error: could not find `const std::string VERSION = \"X.Y.Z\";` in {VERSION_FILE}.")
+        sys.exit(1)
+    return text, m, (int(m.group(2)), int(m.group(3)), int(m.group(4)))
+
+
+def _version_string(triple):
+    return f"{triple[0]}.{triple[1]}.{triple[2]}"
+
+
+def _git_branch():
+    return subprocess.check_output(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=str(ROOT), text=True
+    ).strip()
+
+
+def _git_tag_exists(tag):
+    return subprocess.run(
+        ["git", "rev-parse", "--verify", "--quiet", tag],
+        cwd=str(ROOT), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    ).returncode == 0
+
+
+def cmd_release(args):
+    text, m, (major, minor, patch) = _read_version()
+    if args.level == "major":
+        new = (major + 1, 0, 0)
+    elif args.level == "minor":
+        new = (major, minor + 1, 0)
+    else:  # patch
+        new = (major, minor, patch + 1)
+
+    cur_str = _version_string((major, minor, patch))
+    new_str = _version_string(new)
+    tag = f"v{new_str}"
+
+    print(f"Current version: {cur_str}")
+    print(f"New version:     {new_str}")
+    print(f"Git tag:         {tag}")
+
+    if args.dry_run:
+        print("\n--dry-run: not writing, committing, or pushing.")
+        return
+
+    # Pre-flight: branch must be master or dev (the two branches CI watches).
+    branch = _git_branch()
+    if branch not in ("master", "dev"):
+        print(f"\nerror: current branch is {branch!r}; releases must come from 'master' or 'dev'.")
+        sys.exit(1)
+
+    # Pre-flight: working tree must be clean.
+    status = subprocess.check_output(
+        ["git", "status", "--porcelain"], cwd=str(ROOT), text=True
+    )
+    if status.strip():
+        print("\nerror: working tree is dirty. Commit or stash before releasing:")
+        print(status)
+        sys.exit(1)
+
+    # Pre-flight: tag must not exist locally or on origin.
+    if _git_tag_exists(tag):
+        print(f"\nerror: tag {tag} already exists locally.")
+        sys.exit(1)
+
+    # Rewrite the VERSION line in-place, preserving surrounding whitespace.
+    new_line = f'{m.group(1)}{new[0]}.{new[1]}.{new[2]}{m.group(5)}'
+    new_text = text[:m.start()] + new_line + text[m.end():]
+    VERSION_FILE.write_text(new_text, encoding="utf-8")
+    print(f"\nUpdated {VERSION_FILE.relative_to(ROOT)}.")
+
+    run(["git", "add", str(VERSION_FILE)], cwd=ROOT)
+    run(["git", "commit", "-m", f"Release {tag}"], cwd=ROOT)
+    run(["git", "tag", tag], cwd=ROOT)
+
+    if args.no_push:
+        print(f"\n--no-push: stopped before push. To publish:")
+        print(f"    git push && git push origin {tag}")
+        return
+
+    run(["git", "push"], cwd=ROOT)
+    run(["git", "push", "origin", tag], cwd=ROOT)
+    print(f"\nReleased {tag}.")
+    print(f"CI release workflow:")
+    print(f"    {REPO_URL}/actions")
+
+
+# ---------------------------------------------------------------------------
+# Package
+# ---------------------------------------------------------------------------
+
+def _collect_mingw_dlls(dll_path, mingw_prefix):
+    """Walk libyse.dll's PE imports recursively and return every dep DLL that
+    lives under <mingw_prefix>/bin/.  System DLLs (KERNEL32.dll, etc.) are
+    filtered out automatically because they don't live in MINGW_PREFIX."""
+    objdump = shutil.which("objdump")
+    if objdump is None:
+        print("error: objdump not found on PATH; cannot enumerate runtime DLLs.")
+        sys.exit(1)
+
+    bin_dir = Path(mingw_prefix) / "bin"
+    if not bin_dir.is_dir():
+        print(f"error: MINGW_PREFIX/bin not found at {bin_dir}.")
+        sys.exit(1)
+
+    found = set()                   # Path objects of MinGW DLLs to ship
+    seen_names = {dll_path.name.lower()}
+    queue = [dll_path]
+    while queue:
+        cur = queue.pop()
+        try:
+            out = subprocess.check_output(
+                [objdump, "-p", str(cur)], text=True, errors="replace"
+            )
+        except subprocess.CalledProcessError:
+            continue
+        for line in out.splitlines():
+            line = line.strip()
+            if not line.startswith("DLL Name:"):
+                continue
+            dep_name = line.split(":", 1)[1].strip()
+            key = dep_name.lower()
+            if key in seen_names:
+                continue
+            seen_names.add(key)
+            candidate = bin_dir / dep_name
+            if candidate.exists():
+                found.add(candidate)
+                queue.append(candidate)
+    return sorted(found)
+
+
+def _make_release_readme(version, platform_name, dlls):
+    today = datetime.date.today().isoformat()
+    if platform_name == "windows":
+        layout = (
+            "    include/        Public C++ headers (use `#include \"yse.hpp\"`)\n"
+            "    bin/            libyse.dll + bundled runtime dependencies\n"
+            "    lib/            libyse.dll.a (MinGW import library)"
+        )
+        deps_section = (
+            "All runtime dependencies are bundled in `bin/`. Just drop the contents of\n"
+            "`bin/` next to your executable (or add `bin/` to `PATH`). The bundled DLLs\n"
+            "come from MSYS2 Clang64 and include:\n\n"
+        )
+        deps_section += "\n".join(f"- `{d.name}`" for d in dlls) if dlls else "- (none — see bin/)"
+        link_hint = (
+            "Compile: `-I<archive>/include`\n"
+            "Link:    `-L<archive>/lib -lyse`\n"
+            "Run:     ensure `<archive>/bin/` is on `PATH` or copy its contents next to your `.exe`."
+        )
+    else:  # linux
+        layout = (
+            "    include/        Public C++ headers (use `#include \"yse.hpp\"`)\n"
+            "    lib/            libyse.so"
+        )
+        deps_section = (
+            "Install the system runtime packages:\n\n"
+            "```sh\n"
+            "# Debian/Ubuntu\n"
+            "sudo apt install libportaudio2 libsndfile1 librtmidi6\n\n"
+            "# Fedora/RHEL\n"
+            "sudo dnf install portaudio libsndfile rtmidi\n"
+            "```"
+        )
+        link_hint = (
+            "Compile: `-I<archive>/include`\n"
+            "Link:    `-L<archive>/lib -lyse`\n"
+            "Run:     ensure `<archive>/lib/` is on `LD_LIBRARY_PATH` (or install libyse.so system-wide)."
+        )
+
+    return f"""# libYSE {version} — {platform_name} x64
+
+A cross-platform sound engine written in C++. This archive contains the
+prebuilt shared library and public headers for **{platform_name} x86_64**.
+
+- Repository:   <{REPO_URL}>
+- Version:      {version}
+- Built:        {today}
+- Architecture: x86_64
+
+## Contents
+
+```
+{layout}
+    LICENSE.md      Eclipse Public License v2.0
+    README.md       This file
+```
+
+## Runtime dependencies
+
+{deps_section}
+
+## Using libYSE
+
+{link_hint}
+
+See the [project README]({REPO_URL}#readme) and
+[GitHub Issues]({REPO_URL}/issues) for build instructions, the full API
+surface, and known issues.
+
+## License
+
+libYSE is distributed under the Eclipse Public License, v 2.0. See
+`LICENSE.md` for the full text.
+"""
+
+
+def cmd_package(args):
+    _, _, version_triple = _read_version()
+    version = _version_string(version_triple)
+
+    # Resolve target platform.
+    requested = args.platform
+    if requested == "auto":
+        platform_name = "windows" if IS_WINDOWS else "linux"
+    else:
+        platform_name = requested
+
+    # Resolve source build directory.
+    build_dir = Path(args.build_dir)
+    if not build_dir.is_absolute():
+        build_dir = (ROOT / build_dir).resolve()
+    bin_dir = build_dir / "bin"
+    lib_dir_src = build_dir / "lib"
+
+    if not bin_dir.is_dir():
+        print(f"error: {bin_dir} not found. Run 'python yse.py build --release' first.")
+        sys.exit(1)
+
+    # Locate the built library.
+    if platform_name == "windows":
+        dll = bin_dir / "libyse.dll"
+        import_lib = lib_dir_src / "libyse.dll.a"
+        if not dll.exists():
+            print(f"error: {dll} not found.")
+            sys.exit(1)
+        if not import_lib.exists():
+            # MSVC fallback path: yse.lib in lib/, yse.dll in bin/. Not the
+            # configuration we ship, but warn rather than miss it silently.
+            print(f"warning: {import_lib} not found; archive will lack an import library.")
+    else:
+        shared = bin_dir / "libyse.so"
+        if not shared.exists():
+            print(f"error: {shared} not found.")
+            sys.exit(1)
+
+    # Prepare staging directory.
+    out_root = Path(args.out_dir)
+    if not out_root.is_absolute():
+        out_root = (ROOT / out_root).resolve()
+    pkg_name = f"libyse-v{version}-{platform_name}-x64"
+    stage = out_root / pkg_name
+    if stage.exists():
+        shutil.rmtree(stage)
+    stage.mkdir(parents=True)
+
+    # Copy headers — every .hpp under YseEngine/, preserving subdirectory layout.
+    src_engine = ROOT / "YseEngine"
+    include_root = stage / "include"
+    header_count = 0
+    for hpp in sorted(src_engine.rglob("*.hpp")):
+        rel = hpp.relative_to(src_engine)
+        target = include_root / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(hpp, target)
+        header_count += 1
+    print(f"Copied {header_count} header(s) into include/.")
+
+    # Copy the library + (Windows only) bundled runtime DLLs.
+    bundled = []
+    if platform_name == "windows":
+        out_bin = stage / "bin"
+        out_lib = stage / "lib"
+        out_bin.mkdir()
+        out_lib.mkdir()
+        shutil.copy2(dll, out_bin / dll.name)
+        print(f"Copied {dll.name} into bin/.")
+        if import_lib.exists():
+            shutil.copy2(import_lib, out_lib / import_lib.name)
+            print(f"Copied {import_lib.name} into lib/.")
+
+        mingw_prefix = os.environ.get("MINGW_PREFIX")
+        if not mingw_prefix:
+            # On a regular Windows shell (cmd/powershell) MINGW_PREFIX is unset.
+            # Try a sensible default for MSYS2 CLANG64.
+            mingw_prefix = "C:/msys64/clang64"
+            print(f"note: MINGW_PREFIX not set; defaulting to {mingw_prefix}")
+        elif mingw_prefix.startswith("/"):
+            # Inside an MSYS2 shell, MINGW_PREFIX is a POSIX path ("/clang64").
+            # The Windows-native Python can't dereference that — convert with cygpath.
+            cygpath = shutil.which("cygpath")
+            if cygpath is not None:
+                try:
+                    mingw_prefix = subprocess.check_output(
+                        [cygpath, "-w", mingw_prefix], text=True
+                    ).strip()
+                except subprocess.CalledProcessError:
+                    pass
+        bundled = _collect_mingw_dlls(out_bin / dll.name, mingw_prefix)
+        for d in bundled:
+            shutil.copy2(d, out_bin / d.name)
+        print(f"Bundled {len(bundled)} runtime DLL(s) into bin/.")
+    else:
+        out_lib = stage / "lib"
+        out_lib.mkdir()
+        shutil.copy2(shared, out_lib / shared.name)
+        print(f"Copied {shared.name} into lib/.")
+
+    # LICENSE.md
+    license_src = ROOT / "LICENSE.md"
+    if not license_src.exists():
+        print(f"error: {license_src} not found.")
+        sys.exit(1)
+    shutil.copy2(license_src, stage / "LICENSE.md")
+
+    # Generated README.md
+    (stage / "README.md").write_text(
+        _make_release_readme(version, platform_name, bundled),
+        encoding="utf-8",
+    )
+
+    # Archive — .zip on Windows, .tar.gz on Linux.
+    if platform_name == "windows":
+        archive = out_root / f"{pkg_name}.zip"
+        if archive.exists():
+            archive.unlink()
+        with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
+            for path in sorted(stage.rglob("*")):
+                if path.is_file():
+                    zf.write(path, arcname=path.relative_to(out_root))
+    else:
+        archive = out_root / f"{pkg_name}.tar.gz"
+        if archive.exists():
+            archive.unlink()
+        with tarfile.open(archive, "w:gz") as tf:
+            tf.add(stage, arcname=pkg_name)
+
+    print(f"\nPackage written to {archive}")
+    print(f"Staging dir:       {stage}")
+
+
+
 
 def build_parser():
     parser = argparse.ArgumentParser(
@@ -392,6 +759,10 @@ def build_parser():
   python yse.py analyze YseEngine/dsp/     same, limited to one directory
   python yse.py analyze YseEngine/sound.cpp  same, limited to a single file
   python yse.py format             run clang-format on YseEngine/ and Tests/
+  python yse.py package            build a release archive in dist/ (used by CI)
+  python yse.py package --platform linux    explicit target platform
+  python yse.py release patch      bump VERSION, commit, tag vX.Y.Z, push
+  python yse.py release minor --dry-run     preview without writing
 """,
     )
     sub = parser.add_subparsers(dest="command", metavar="command")
@@ -559,6 +930,66 @@ def build_parser():
         ),
     )
     p.set_defaults(func=cmd_format)
+
+    # package
+    p = sub.add_parser(
+        "package",
+        help="Build a release archive (headers + shared lib) under dist/",
+        description=(
+            "Stages a release tree under dist/libyse-vX.Y.Z-<platform>-x64/ and "
+            "produces a zip (Windows) or tar.gz (Linux) of the same.  The shared "
+            "library is read from <build-dir>/bin/ — run `python yse.py build "
+            "--release` first to populate it.\n\n"
+            "Windows packages bundle every runtime DLL libyse.dll depends on "
+            "(walked from objdump -p, filtered to MINGW_PREFIX/bin/) so the zip "
+            "is drop-in on any Windows machine.  Linux packages do not bundle "
+            "deps — consumers install libportaudio2/libsndfile1/librtmidi6 from "
+            "their distro package manager.\n\n"
+            "The version is read from YseEngine/system.hpp (`VERSION = \"X.Y.Z\"`)."
+        ),
+    )
+    p.add_argument(
+        "--platform", choices=("auto", "linux", "windows"), default="auto",
+        help="Target platform (default: derived from the host OS)",
+    )
+    p.add_argument(
+        "--build-dir", default="build",
+        help="CMake build directory whose bin/ holds libyse.* (default: build)",
+    )
+    p.add_argument(
+        "--out-dir", default="dist",
+        help="Where to stage the package and write the archive (default: dist)",
+    )
+    p.set_defaults(func=cmd_package)
+
+    # release
+    p = sub.add_parser(
+        "release",
+        help="Bump VERSION in system.hpp, commit, tag, push",
+        description=(
+            "Bumps the version string in YseEngine/system.hpp by one component "
+            "(patch/minor/major), commits the change as `Release vX.Y.Z`, tags "
+            "the commit `vX.Y.Z`, and pushes both branch and tag.  The tag push "
+            "triggers the release workflow at .github/workflows/release.yml, "
+            "which builds Windows and Linux archives and publishes a GitHub "
+            "Release.\n\n"
+            "Pre-flight checks: current branch must be 'master' or 'dev', the "
+            "working tree must be clean, and the new tag must not already exist."
+        ),
+    )
+    p.add_argument(
+        "level", choices=("patch", "minor", "major"),
+        help="Which version component to bump",
+    )
+    p.add_argument(
+        "--dry-run", action="store_true",
+        help="Print the planned bump without writing, committing, or pushing",
+    )
+    p.add_argument(
+        "--no-push", action="store_true",
+        help="Commit and tag locally, but do not push to origin",
+    )
+    p.set_defaults(func=cmd_release)
 
     return parser
 

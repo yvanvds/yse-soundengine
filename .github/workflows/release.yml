@@ -1,0 +1,124 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to (re-)build (e.g. v2.0.2). Leave empty to use the current branch HEAD.'
+        required: false
+        default: ''
+
+jobs:
+  build-linux:
+    name: Build (Linux x64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            pkg-config \
+            clang \
+            portaudio19-dev \
+            libsndfile1-dev \
+            librtmidi-dev
+
+      - name: Configure & build (release)
+        run: |
+          cmake --preset release
+          cmake --build --preset release
+
+      - name: Package
+        run: python3 yse.py package --platform linux
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: libyse-linux-x64
+          path: dist/libyse-*-linux-x64.tar.gz
+          if-no-files-found: error
+
+  build-windows:
+    name: Build (Windows x64)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - name: Setup MSYS2 (CLANG64)
+        uses: msys2/setup-msys2@e9898307ac31d1a803454791be09ab9973336e1c # v2.31.1
+        with:
+          msystem: CLANG64
+          update: false
+          install: >-
+            mingw-w64-clang-x86_64-cmake
+            mingw-w64-clang-x86_64-ninja
+            mingw-w64-clang-x86_64-clang
+            mingw-w64-clang-x86_64-binutils
+            mingw-w64-clang-x86_64-pkgconf
+            mingw-w64-clang-x86_64-portaudio
+            mingw-w64-clang-x86_64-libsndfile
+            mingw-w64-clang-x86_64-rtmidi
+            mingw-w64-clang-x86_64-python
+
+      - name: Configure & build (release)
+        run: |
+          cmake --preset release
+          cmake --build --preset release
+
+      - name: Package
+        run: python yse.py package --platform windows
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: libyse-windows-x64
+          # The msys2 shell runs from the workspace root; dist/ lives there too.
+          path: dist/libyse-*-windows-x64.zip
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: artifacts
+          pattern: 'libyse-*'
+          merge-multiple: true
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ inputs.tag || github.ref_name }}"
+          echo "Publishing release for tag: $TAG"
+          ls -la artifacts/
+          gh release create "$TAG" \
+            --title "libYSE $TAG" \
+            --generate-notes \
+            artifacts/libyse-*-linux-x64.tar.gz \
+            artifacts/libyse-*-windows-x64.zip
