@@ -296,8 +296,21 @@ TEST_CASE("sweepFilter: SQUARE shape constructs and processes without crash") {
     CHECK(maxAbs(buf[0]) < 10.0f);
 }
 
-// NOTE: sweepFilter cannot be tested with non-STANDARD_BUFFERSIZE buffers
-// until the interpolate4 buffer-overflow bug is fixed (tracked in issue #29).
-// All sweepFilter tests above run with 128-sample buffers to avoid the bug.
+// Regression test for issue #29 (interpolate4 buffer not resized).  Prior to
+// the fix, feeding a sweepFilter a buffer larger than STANDARD_BUFFERSIZE
+// (128 samples) caused interpolate4 to write past the end of its internal
+// out buffer — surfacing on Windows MSYS2 Clang64 as STATUS_HEAP_CORRUPTION
+// (exit 0xC0000374).
+TEST_CASE("sweepFilter: process accepts buffers larger than STANDARD_BUFFERSIZE") {
+    YSE::DSP::MODULES::sweepFilter s;
+    s.speed(1.0f).depth(50).frequency(50);
+    MULTICHANNELBUFFER buf(1);
+    buf[0].resize(512); // 4x STANDARD_BUFFERSIZE — would corrupt heap before fix
+    for (int iter = 0; iter < 5; ++iter) {
+        fillSine(buf[0], 1000.0f);
+        s.process(buf);
+        CHECK(maxAbs(buf[0]) < 10.0f);
+    }
+}
 
 } // TEST_SUITE("dsp")
