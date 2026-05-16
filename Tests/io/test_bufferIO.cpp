@@ -83,6 +83,41 @@ TEST_CASE("BufferIO: public API exercised on a single instance") {
         CHECK(io.RemoveBuffer(data));
         CHECK_FALSE(io.BufferExists(data));
     }
+
+    SUBCASE("RemoveBuffer fails for unknown pointer") {
+        char unknown[4] = {0};
+        CHECK_FALSE(io.RemoveBuffer(unknown));
+    }
+
+    SUBCASE("RemoveBufferByName clears via BufferNameExists") {
+        char data[4] = {1, 2, 3, 4};
+        REQUIRE(io.AddBuffer("name-roundtrip", data, 4));
+        CHECK(io.BufferNameExists("name-roundtrip"));
+        CHECK(io.RemoveBufferByName("name-roundtrip"));
+        CHECK_FALSE(io.BufferNameExists("name-roundtrip"));
+    }
+}
+
+} // TEST_SUITE("io")
+
+// Separate TEST_SUITE so the storeCopy=true instance does not collide with the
+// shared default-constructed one above (the BufferIO process-global is
+// recreated whenever the previous instance dies — see the comment at the top
+// of this file).
+TEST_SUITE("io") {
+
+TEST_CASE("BufferIO storeCopy mode: owned copy survives caller scope") {
+    YSE::BufferIO io(/*storeCopy=*/true);
+    io.SetActive(true);
+    {
+        char volatile_data[8] = {1, 2, 3, 4, 5, 6, 7, 8};
+        REQUIRE(io.AddBuffer("copy-survives", volatile_data, 8));
+        CHECK(io.BufferNameExists("copy-survives"));
+    } // volatile_data goes out of scope; the owned copy is intact.
+    CHECK(io.BufferNameExists("copy-survives"));
+    // Remove by name in copy mode runs delete[] on the owned copy.
+    CHECK(io.RemoveBufferByName("copy-survives"));
+    io.SetActive(false);
 }
 
 } // TEST_SUITE("io")

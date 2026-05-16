@@ -35,6 +35,7 @@ add_executable(yse_tests
   sound/test_sound_impl.cpp
   sound/test_sound_concurrency.cpp
   sound/test_sound_bufferIO.cpp
+  sound/test_sound_manager.cpp
   reverb/test_reverb_dsp.cpp
   reverb/test_reverb_concurrency.cpp
   midi/test_midifile.cpp
