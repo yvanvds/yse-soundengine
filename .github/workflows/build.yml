@@ -29,7 +29,21 @@ jobs:
             portaudio19-dev \
             libsndfile1-dev \
             librtmidi-dev \
-            gcovr
+            gcovr \
+            alsa-utils \
+            linux-modules-extra-$(uname -r)
+      - name: Set up ALSA dummy audio device
+        # Unlocks the audio-thread DSP code paths (readInterleaved, oscillator
+        # fast loops, sound playback lifecycle) in the integration test suite
+        # so coverage reflects actual playback rather than the engine's idle
+        # state. snd-aloop is the standard ALSA loopback driver and is
+        # available in linux-modules-extra on GitHub Actions ubuntu-latest.
+        run: |
+          sudo modprobe snd-aloop || sudo modprobe snd-dummy
+          aplay -l || true
+          # Make sure a default output device is selectable by PortAudio.
+          echo "defaults.pcm.card 0" | sudo tee /etc/asound.conf
+          echo "defaults.ctl.card 0" | sudo tee -a /etc/asound.conf
       - name: Configure CMake
         run: >
           cmake -B build -G Ninja
