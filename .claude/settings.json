@@ -14,7 +14,9 @@
     ],
     "additionalDirectories": [
       "\\tmp\\gh-issues",
-      "d:\\tmp\\gh-issues"
+      "d:\\tmp\\gh-issues",
+      "C:\\Users\\yvan\\.claude\\plans",
+      "d:\\yse-bench-history"
     ]
   }
 }
