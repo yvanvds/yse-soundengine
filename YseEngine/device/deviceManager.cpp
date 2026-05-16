@@ -71,6 +71,20 @@ bool YSE::DEVICE::deviceManager::doOnCallback(int numSamples)
   return true;
 }
 
+void YSE::DEVICE::deviceManager::renderOneBlock()
+{
+  master->dsp();
+  master->buffersToParent();
+}
+
+void YSE::DEVICE::deviceManager::renderOffline(int blocks)
+{
+  for (int i = 0; i < blocks; ++i) {
+    if (!doOnCallback(STANDARD_BUFFERSIZE)) continue;
+    renderOneBlock();
+  }
+}
+
 void YSE::DEVICE::deviceManager::setMaster(CHANNEL::implementationObject * ptr)
 {
   master = ptr;

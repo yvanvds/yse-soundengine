@@ -48,7 +48,7 @@ void buildSmallGraph(YSE::patcher& p) {
 // ── Graph construction ───────────────────────────────────────────────────
 
 static void BM_Patcher_BuildSmallGraph(benchmark::State& state) {
-    if (!BenchHelpers::engineInit()) {
+    if (!BenchHelpers::engineInitOffline()) {
         state.SkipWithError("YSE::System().init() failed");
         return;
     }
@@ -65,7 +65,7 @@ BENCHMARK(BM_Patcher_BuildSmallGraph);
 // ── CreateObject only — isolates per-object construction cost ────────────
 
 static void BM_Patcher_CreateObject(benchmark::State& state) {
-    if (!BenchHelpers::engineInit()) {
+    if (!BenchHelpers::engineInitOffline()) {
         state.SkipWithError("YSE::System().init() failed");
         return;
     }
@@ -86,7 +86,7 @@ BENCHMARK(BM_Patcher_CreateObject);
 // ── Connect — pure edge-insertion cost ───────────────────────────────────
 
 static void BM_Patcher_Connect(benchmark::State& state) {
-    if (!BenchHelpers::engineInit()) {
+    if (!BenchHelpers::engineInitOffline()) {
         state.SkipWithError("YSE::System().init() failed");
         return;
     }
@@ -109,7 +109,7 @@ BENCHMARK(BM_Patcher_Connect);
 // ── JSON serialise ───────────────────────────────────────────────────────
 
 static void BM_Patcher_DumpJSON(benchmark::State& state) {
-    if (!BenchHelpers::engineInit()) {
+    if (!BenchHelpers::engineInitOffline()) {
         state.SkipWithError("YSE::System().init() failed");
         return;
     }
@@ -127,7 +127,7 @@ BENCHMARK(BM_Patcher_DumpJSON);
 // ── JSON parse — load preset, the common save-state path ─────────────────
 
 static void BM_Patcher_ParseJSON(benchmark::State& state) {
-    if (!BenchHelpers::engineInit()) {
+    if (!BenchHelpers::engineInitOffline()) {
         state.SkipWithError("YSE::System().init() failed");
         return;
     }
@@ -149,7 +149,7 @@ BENCHMARK(BM_Patcher_ParseJSON);
 // ── External message dispatch ────────────────────────────────────────────
 
 static void BM_Patcher_PassFloat(benchmark::State& state) {
-    if (!BenchHelpers::engineInit()) {
+    if (!BenchHelpers::engineInitOffline()) {
         state.SkipWithError("YSE::System().init() failed");
         return;
     }

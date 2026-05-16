@@ -31,4 +31,17 @@ inline bool engineInit() {
     return true;
 }
 
+// Initialise without opening an audio device — for benchmarks that drive
+// the engine via DEVICE::Manager().renderOffline(blocks). Skips the
+// PortAudio addCallback() entirely, so no stream is opened and no real
+// audio thread runs. Pa_Initialize() still runs (it probes backends at
+// the OS layer and prints noise to stderr on Linux without a default
+// card, but does not block). After this call the engine is in the same
+// state as engineInit() would leave it — channels created, managers
+// active — except no audio callback is firing.
+inline bool engineInitOffline() {
+    if (engineInitialized()) return true;
+    return YSE::System().initOffline();
+}
+
 } // namespace BenchHelpers

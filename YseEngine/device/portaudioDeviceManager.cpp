@@ -52,8 +52,7 @@ int YSE::DEVICE::managerObject::paCallback(
   UInt pos = 0;
   while (pos < static_cast<UInt>(numSamples)) {
     if (manager->bufferPos == STANDARD_BUFFERSIZE) {
-      manager->master->dsp();
-      manager->master->buffersToParent();
+      manager->renderOneBlock();
       manager->bufferPos = 0;
     }
     

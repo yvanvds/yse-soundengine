@@ -107,7 +107,7 @@ SoundPool& soundPool() {
 // ── System().update() with a 100-sound steady-state scene ────────────────
 
 static void BM_Engine_UpdateTick_100Sounds(benchmark::State& state) {
-    if (!BenchHelpers::engineInit()) {
+    if (!BenchHelpers::engineInitOffline()) {
         state.SkipWithError("YSE::System().init() failed");
         return;
     }
@@ -126,7 +126,7 @@ BENCHMARK(BM_Engine_UpdateTick_100Sounds);
 // ── System().update() with a 100-sound scene + global reverb ─────────────
 
 static void BM_Engine_UpdateTick_100Sounds_Reverb(benchmark::State& state) {
-    if (!BenchHelpers::engineInit()) {
+    if (!BenchHelpers::engineInitOffline()) {
         state.SkipWithError("YSE::System().init() failed");
         return;
     }
@@ -156,7 +156,7 @@ BENCHMARK(BM_Engine_UpdateTick_100Sounds_Reverb);
 // stops being O(1).
 
 static void BM_Engine_ListenerPosUpdate(benchmark::State& state) {
-    if (!BenchHelpers::engineInit()) {
+    if (!BenchHelpers::engineInitOffline()) {
         state.SkipWithError("YSE::System().init() failed");
         return;
     }
@@ -169,3 +169,92 @@ static void BM_Engine_ListenerPosUpdate(benchmark::State& state) {
     }
 }
 BENCHMARK(BM_Engine_ListenerPosUpdate);
+
+// ── Audio-thread DSP throughput ───────────────────────────────────────────
+//
+// renderOffline(blocks) runs the same audio-callback body that PortAudio
+// drives in production — master->dsp() + buffersToParent() per
+// STANDARD_BUFFERSIZE block — synchronously on the bench thread, with no
+// real audio device. This is the only place we measure the *audio-thread*
+// cost (the channel-tree walk, sound rendering, channel mixing, reverb
+// DSP). The UpdateTick_* benchmarks above measure the *control plane*
+// cost — drain managers, dispatch messages, refresh timing — which is the
+// other half of what runs per callback.
+//
+// Render counts are sized so each Google Benchmark iteration does enough
+// work to dwarf the per-iteration overhead but completes well under a
+// second. STANDARD_BUFFERSIZE = 128 samples at 44.1 kHz ≈ 2.9 ms of
+// audio per block. 64 blocks per iteration ≈ 186 ms of "audio rendered",
+// which is realistic for one engine update window and gives stable timing.
+
+namespace {
+constexpr int kBlocksPerIter = 64;
+} // namespace
+
+static void BM_Engine_RenderOffline_100Sounds(benchmark::State& state) {
+    if (!BenchHelpers::engineInitOffline()) {
+        state.SkipWithError("YSE::System().initOffline() failed");
+        return;
+    }
+    (void) soundPool();
+
+    // Warmup: the first render block pays an order-of-magnitude cost
+    // over steady state (cold caches, sound state-transition burst, slow-
+    // pool drain). Burn through that before timing.
+    YSE::System().renderOffline(8);
+
+    for (auto _ : state) {
+        YSE::System().renderOffline(kBlocksPerIter);
+        benchmark::ClobberMemory();
+    }
+    state.SetItemsProcessed(state.iterations() * kBlocksPerIter * YSE::STANDARD_BUFFERSIZE);
+}
+BENCHMARK(BM_Engine_RenderOffline_100Sounds);
+
+static void BM_Engine_RenderOffline_100Sounds_Reverb(benchmark::State& state) {
+    if (!BenchHelpers::engineInitOffline()) {
+        state.SkipWithError("YSE::System().initOffline() failed");
+        return;
+    }
+    (void) soundPool();
+    YSE::System().getGlobalReverb().setActive(true);
+    YSE::System().getGlobalReverb().setPreset(YSE::REVERB_HALL);
+
+    // Drain the reverb-activation message before measuring.
+    YSE::System().renderOffline(4);
+
+    for (auto _ : state) {
+        YSE::System().renderOffline(kBlocksPerIter);
+        benchmark::ClobberMemory();
+    }
+    state.SetItemsProcessed(state.iterations() * kBlocksPerIter * YSE::STANDARD_BUFFERSIZE);
+
+    // Reset so subsequent benchmarks don't inherit the reverb.
+    YSE::System().getGlobalReverb().setActive(false);
+}
+BENCHMARK(BM_Engine_RenderOffline_100Sounds_Reverb);
+
+// Real-time factor: how many seconds of audio render per second of
+// wall-clock. RTF < 1 means the engine is faster than real-time. Larger
+// block count than the other two so Google Benchmark sees enough work for
+// a stable rate; reported in milliseconds.
+static void BM_Engine_RealtimeFactor_100Sounds(benchmark::State& state) {
+    if (!BenchHelpers::engineInitOffline()) {
+        state.SkipWithError("YSE::System().initOffline() failed");
+        return;
+    }
+    (void) soundPool();
+
+    constexpr int blocks = 400;  // ≈ 1.16 s of audio at 44.1 kHz / 128
+    for (auto _ : state) {
+        YSE::System().renderOffline(blocks);
+        benchmark::ClobberMemory();
+    }
+    const double audioSeconds =
+        static_cast<double>(state.iterations() * blocks * YSE::STANDARD_BUFFERSIZE)
+        / static_cast<double>(YSE::SAMPLERATE);
+    state.counters["audio_seconds"] = audioSeconds;
+    state.counters["realtime_factor"] = benchmark::Counter(
+        audioSeconds, benchmark::Counter::kIsRate | benchmark::Counter::kInvert);
+}
+BENCHMARK(BM_Engine_RealtimeFactor_100Sounds)->Unit(benchmark::kMillisecond);

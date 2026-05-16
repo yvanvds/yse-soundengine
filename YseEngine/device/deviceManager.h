@@ -52,6 +52,22 @@ namespace YSE {
 
       bool doOnCallback(int numSamples);
 
+      /* Render one STANDARD_BUFFERSIZE-sample block through the channel
+         tree (master->dsp() + master->buffersToParent()).  Extracted from
+         the audio backends' callbacks so the same path can be driven from
+         a benchmark via renderOffline().  Caller must have run
+         doOnCallback() first.
+      */
+      void renderOneBlock();
+
+      /* Drive the audio callback body N blocks synchronously, no real
+         audio device required.  For benchmarks and tests that need to
+         measure the DSP mix path.  Single-threaded — assumes no PortAudio
+         callback thread is running (caller must not have opened a device,
+         e.g. by using YSE::system::initOffline()).
+      */
+      void renderOffline(int blocks);
+
       void setMaster(CHANNEL::implementationObject * ptr);
       CHANNEL::implementationObject & getMaster();
 

@@ -26,6 +26,18 @@ YSE::system & YSE::System() {
 }
 
 Bool YSE::system::init() {
+	return initShared(true);
+}
+
+Bool YSE::system::initOffline() {
+	return initShared(false);
+}
+
+void YSE::system::renderOffline(int blocks) {
+	DEVICE::Manager().renderOffline(blocks);
+}
+
+Bool YSE::system::initShared(bool openDevice) {
 	if (INTERNAL::Global().active) {
 	INTERNAL::LogImpl().emit(E_DEBUG, "You're trying to initialize more than once!");
 	return true;
@@ -52,7 +64,9 @@ Bool YSE::system::init() {
 		maxSounds(50);
 		INTERNAL::Global().active = true;
 
-		DEVICE::Manager().addCallback();
+		if (openDevice) {
+			DEVICE::Manager().addCallback();
+		}
 
 #ifdef YSE_WINDOWS
     timeBeginPeriod(1);

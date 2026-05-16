@@ -43,7 +43,7 @@ YSE::reverb& reverbForBench() {
 // ── setPosition — the high-frequency call in a moving-listener scenario ──
 
 static void BM_Reverb_SetPosition(benchmark::State& state) {
-    if (!BenchHelpers::engineInit()) {
+    if (!BenchHelpers::engineInitOffline()) {
         state.SkipWithError("YSE::System().init() failed");
         return;
     }
@@ -64,7 +64,7 @@ BENCHMARK(BM_Reverb_SetPosition);
 // ── setPreset — relatively rare but worth tracking for sudden cost spikes ─
 
 static void BM_Reverb_SetPreset(benchmark::State& state) {
-    if (!BenchHelpers::engineInit()) {
+    if (!BenchHelpers::engineInitOffline()) {
         state.SkipWithError("YSE::System().init() failed");
         return;
     }
@@ -88,7 +88,7 @@ BENCHMARK(BM_Reverb_SetPreset);
 // ── setDryWetBalance — fired every frame by listener / reverb-zone blend ─
 
 static void BM_Reverb_SetDryWetBalance(benchmark::State& state) {
-    if (!BenchHelpers::engineInit()) {
+    if (!BenchHelpers::engineInitOffline()) {
         state.SkipWithError("YSE::System().init() failed");
         return;
     }
@@ -112,7 +112,7 @@ BENCHMARK(BM_Reverb_SetDryWetBalance);
 // activation path has gained allocator pressure or lock contention.
 
 static void BM_Reverb_GlobalToggle(benchmark::State& state) {
-    if (!BenchHelpers::engineInit()) {
+    if (!BenchHelpers::engineInitOffline()) {
         state.SkipWithError("YSE::System().init() failed");
         return;
     }
