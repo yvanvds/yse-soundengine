@@ -39,7 +39,7 @@ allowVirtual(true)
       head.load()->pimpl = nullptr;
     }
   } catch (...) {
-    // destructor must not propagate
+    INTERNAL::LogImpl().emit(E_ERROR, "CHANNEL::implementationObject destructor swallowed exception");
   }
 }
 

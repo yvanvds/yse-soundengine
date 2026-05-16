@@ -67,7 +67,7 @@ YSE::MIDI::deviceManager::deviceManager() = default;
 YSE::MIDI::deviceManager::~deviceManager() {
 	// unique_ptr members handle midiIn/midiOut cleanup automatically;
 	// only the explicit closePort() side-effect on map entries needs ordering.
-	for (auto& [id, port] : midiOutPorts) {
+	for (const auto& [id, port] : midiOutPorts) {
 		port->closePort();
 	}
 }
