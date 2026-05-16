@@ -10,6 +10,7 @@
 
 #include "math_functions.h"
 #include <math.h>
+#include <cstring>
 
 #define LOGTEN 2.302585092994f
 
@@ -103,13 +104,13 @@ struct sqrtTable {
     int i;
     for (i = 0; i < DUMTAB1SIZE; i++)
     {
-      union {
-        float f;
-        long l;
-      } u;
+      // One-shot table build at startup — use std::memcpy for portable
+      // int-bits→float type pun (cpp:S6232). The compiler folds it to a
+      // single load, identical asm to the old union trick.
       int32_t l = (i ? (i == DUMTAB1SIZE - 1 ? DUMTAB1SIZE - 2 : i) : 1) << 23;
-      u.l = l;
-      exptab[i] = 1. / sqrt(u.f);
+      float f;
+      std::memcpy(&f, &l, sizeof(float));
+      exptab[i] = 1. / sqrt(f);
     }
     for (i = 0; i < DUMTAB2SIZE; i++)
     {

@@ -18,7 +18,7 @@ userChannel(true), allowVirtual(true)
 {
 }
 
- YSE::CHANNEL::implementationObject::~implementationObject() {
+ YSE::CHANNEL::implementationObject::~implementationObject() noexcept {
   // exit the dsp thread for this channel
    join();
 
@@ -28,7 +28,7 @@ userChannel(true), allowVirtual(true)
   // parent->children when no audio-thread disconnect has happened (i.e.
   // setup-failure path: channels that died before connect() ran).
   if (INTERNAL::Global().isActive()) {
-    if (parent != nullptr && connectedToParent.load(std::memory_order_acquire)) {
+    if (parent != nullptr && connectedToParent.load(std::memory_order_acquire)) { // NOSONAR S8417: intentional acquire — pairs with release in doThisWhenReady() / Manager::update() for lock-free handshake
       parent->disconnect(this);
       childrenToParent();
     }
@@ -184,7 +184,7 @@ void YSE::CHANNEL::implementationObject::doThisWhenReady() {
   parent->connect(this);
   // Audio thread now owns the link into parent->children. Mark it so the
   // release path can disconnect us before the slow-pool deleteJob frees us.
-  connectedToParent.store(true, std::memory_order_release);
+  connectedToParent.store(true, std::memory_order_release); // NOSONAR S8417: intentional release — publishes the audio-thread connect to the dtor's acquire load
 }
 
 YSE::OBJECT_IMPLEMENTATION_STATE YSE::CHANNEL::implementationObject::getStatus() {

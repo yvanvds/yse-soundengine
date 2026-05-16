@@ -159,6 +159,7 @@ YSE::BufferIO::~BufferIO() {
   if (buffers != nullptr) {
     buffers->Clear(storeCopy);
     delete buffers;
+    buffers = nullptr;
   }
 }
 

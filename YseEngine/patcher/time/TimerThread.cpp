@@ -45,9 +45,11 @@ void timerThread::timerThreadWorker() {
         }
       }
       else {
-        // timer has stopped, notify thread
+        // timer has stopped — flag completion and notify the destroyImpl
+        // waiter. destroyImpl owns the active.erase to keep this Timer alive
+        // until its predicate-checked wait observes `destroyed == true`.
+        timer.destroyed = true;
         timer.waitCond->notify_all();
-        active.erase(timer.id);
       }
     }
     else {
@@ -141,10 +143,15 @@ bool timerThread::destroyImpl(ScopedLock & lock, timerThread::TimerMap::iterator
     timer.running = false;
 
     // assign a condition variable
-    timer.waitCond.reset(new ConditionVar);
-    
-    // block until the callback is finished
-    timer.waitCond->wait(lock);
+    timer.waitCond = std::make_unique<ConditionVar>();
+
+    // block until the callback is finished — predicate guards against
+    // spurious wakeup. Worker sets `destroyed = true` before notify_all().
+    timer.waitCond->wait(lock, [&timer]{ return timer.destroyed; });
+
+    // Worker deliberately leaves the cancelled Timer in `active` so this
+    // predicate can safely read `timer.destroyed`; erase it now.
+    active.erase(i);
   }
   else {
     queue.erase(timer);

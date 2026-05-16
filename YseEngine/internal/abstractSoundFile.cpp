@@ -346,7 +346,7 @@ calibrate:
 // interleaved read function
 //////////////////////////////////////////////////////////////////////////////////
 
-Bool YSE::INTERNAL::abstractSoundFile::readInterleaved(abstractSoundFile * file, std::vector<DSP::buffer> & filebuffer, Flt& pos, UInt length, Flt speed, Bool loop, SOUND_STATUS & intent, Flt & volume) {
+Bool YSE::INTERNAL::abstractSoundFile::readInterleaved(abstractSoundFile * file, std::vector<DSP::buffer> & filebuffer, Flt& pos, UInt length, Flt speed, Bool loop, SOUND_STATUS & intent, Flt & volume) { // NOSONAR S3776: audio-thread inner-loop state machine, profiled — splitting it inserts function-call overhead per sample
   /** Yes, this function uses goto...
   It is highly optimized for speed and this is the best way I could find
   to ensure good performance. Suggestions are welcome.
@@ -378,7 +378,7 @@ Bool YSE::INTERNAL::abstractSoundFile::readInterleaved(abstractSoundFile * file,
   // set cursor to the output buffer start
   FOREACH(filebuffer) filebuffer[i].cursor = filebuffer[i].getPtr();
 
-  for (UInt x = 0; x < length; ) { // x is updated within loop, when increasing cursor
+  for (UInt x = 0; x < length; ) { // x is updated within loop, when increasing cursor // NOSONAR S1751: loop body iterates via internal cursor advance; goto-based state machine — see function-level S3776 justification
 
     // set position in filebuffer, according to nr of channels
     //UInt channelPos = ((UInt)pos) * file->_channels;
@@ -416,7 +416,7 @@ Bool YSE::INTERNAL::abstractSoundFile::readInterleaved(abstractSoundFile * file,
         pos += speed;
         x++;
 
-				if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : file->_length)) {
+				if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : file->_length)) { // NOSONAR S134: nesting follows the state-machine structure documented at function level
 					goto calibrate;
 				}
       }

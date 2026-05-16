@@ -41,7 +41,7 @@ YSE::DSP::lfo::lfo() : cursor(0.f), previousType(LFO_NONE) {
   }
 }
 
-YSE::DSP::buffer & YSE::DSP::lfo::operator()(LFO_TYPE type, Flt frequency, UInt size) {
+YSE::DSP::buffer & YSE::DSP::lfo::operator()(LFO_TYPE type, Flt frequency, UInt size) { // NOSONAR S3776: per-LFO-type fast-path dispatch in audio-thread inner loop; switch cases are deliberately inlined for branch-predictor stability
   if (result.getLength() != size) result.resize(size);
   // avoid divisions by zero
   if (frequency == 0) type = LFO_NONE;

@@ -87,6 +87,11 @@ namespace YSE {
         std::unique_ptr<ConditionVar> waitCond;
 
         bool running;
+        // Set by the worker before notify_all() on the cancellation path; the
+        // destroyImpl predicate checks this to guard against spurious wakeup
+        // (cpp:S5404). The worker no longer erases from `active` itself —
+        // destroyImpl does, so this Timer is alive across the predicate read.
+        bool destroyed = false;
       };
 
       // comparison functor to sort the timer queue

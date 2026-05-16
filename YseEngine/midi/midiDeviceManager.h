@@ -5,6 +5,7 @@
 #include "../dependencies/rtmidi/include/RtMidi.h"
 #include "../midi/midiMessage.hpp"
 #include <map>
+#include <memory>
 
 namespace YSE {
 	namespace MIDI {
@@ -30,11 +31,11 @@ namespace YSE {
 		private:
 			bool isPrepared();
 
-			RtMidiIn* midiIn;
-			RtMidiOut* midiOut;
+			std::unique_ptr<RtMidiIn> midiIn;
+			std::unique_ptr<RtMidiOut> midiOut;
 			bool initialized;
 
-			std::map<unsigned int, RtMidiOut*> midiOutPorts;
+			std::map<unsigned int, std::unique_ptr<RtMidiOut>> midiOutPorts;
 		};
 
 		deviceManager& DeviceManager();

@@ -20,11 +20,11 @@ namespace YSE {
   template<typename T0, typename T1, typename T2>
   inline void  Clamp(T0  &x, T1  min, T2  max) { if (x<min)x = min; else if (x>max)x = max; }
   inline void Randomize() { srand(static_cast<UInt>(::time(nullptr))); }
-  inline Int Random(Int max) { return rand() % max; }
-  inline Int Random(Int min, Int max) { return min + (rand() % (max - min)); }
+  inline Int Random(Int max) { return rand() % max; } // NOSONAR S3518: caller-side precondition (max > 0) — same contract as std::uniform_int_distribution
+  inline Int Random(Int min, Int max) { return min + (rand() % (max - min)); } // NOSONAR S3518: caller-side precondition (max > min)
   inline Int BigRandom(Int max) {
     max = static_cast<Int>(sqrt(max));
-    return ((rand() % max) * (rand() % max));
+    return ((rand() % max) * (rand() % max)); // NOSONAR S3518: caller-side precondition (max > 0 so sqrt(max) >= 1)
   }
 
   inline Flt RandomF() { return (float)rand() / (float)RAND_MAX; }

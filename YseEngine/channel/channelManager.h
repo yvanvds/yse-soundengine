@@ -105,7 +105,7 @@ namespace YSE {
       /////////////////////////////////////////////////////////
       
       managerObject();
-      ~managerObject();
+      ~managerObject() noexcept;
 
       void update();
 

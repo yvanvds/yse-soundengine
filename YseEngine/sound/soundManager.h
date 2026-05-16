@@ -118,7 +118,7 @@ namespace YSE {
       ////////////////////////////////////////
 
       managerObject();
-      ~managerObject();
+      ~managerObject() noexcept;
 
       implementationObject * addImplementation(sound * head);
 
@@ -183,6 +183,13 @@ namespace YSE {
     private:
       setupJob mgrSetup;
       deleteJob mgrDelete;
+
+      // update() helpers — split out to keep the audio-thread tick function's
+      // cyclomatic complexity manageable (cpp:S3776).
+      void drainInbox();
+      void scrubToLoadAndScheduleSetup();
+      void promoteReadyImpls();
+      void syncAndReleaseInUse();
 
       /** the lastGain buffer of each sound is needed to provide smooth changes
       in volume for each channel. When the number of output channels is changed

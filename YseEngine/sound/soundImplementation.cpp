@@ -72,7 +72,7 @@ YSE::SOUND::implementationObject::~implementationObject() {
   // setup-failure path: impls that died before doThisWhenReady ever ran).
   // In that case `connectedToParent` is false and parent->sounds doesn't
   // contain us — the slow-pool just skips the disconnect entirely.
-  if (parent != nullptr && connectedToParent.load(std::memory_order_acquire)) {
+  if (parent != nullptr && connectedToParent.load(std::memory_order_acquire)) { // NOSONAR S8417: intentional acquire — pairs with release in doThisWhenReady() / Manager::update() handshake
     parent->disconnect(this);
   }
   // only streams should delete their source. Other files are shared.
@@ -80,7 +80,7 @@ YSE::SOUND::implementationObject::~implementationObject() {
     file->release(this);
   }
   if (post_dsp && post_dsp->calledfrom) post_dsp->calledfrom = nullptr;
-  if (sound * h = head.load(std::memory_order_acquire)) {
+  if (sound * h = head.load(std::memory_order_acquire)) { // NOSONAR S8417: intentional acquire — snapshot head, paired with release stores from removeInterface()
     h->pimpl = nullptr;
   }
 
@@ -241,7 +241,7 @@ bool YSE::SOUND::implementationObject::create(DSP::dspSourceObject & ptr, channe
   status_dsp = SS_STOPPED;
   status_upd = SS_STOPPED;
 
-  source_dsp.store(&ptr, std::memory_order_release);
+  source_dsp.store(&ptr, std::memory_order_release); // NOSONAR S8417: intentional release — publishes dsp source pointer to audio thread's acquire load in dsp()
   buffer = &ptr.samples;
   return true;
 }
@@ -288,7 +288,7 @@ void YSE::SOUND::implementationObject::setup() {
     // if object is ready and head is not null, just return
     if (objectStatus == OBJECT_READY) return;
 
-    if (source_dsp.load(std::memory_order_acquire) != nullptr || patcher != nullptr){// || synth != nullptr) {
+    if (source_dsp.load(std::memory_order_acquire) != nullptr || patcher != nullptr){// || synth != nullptr) { // NOSONAR S8417: intentional acquire — pairs with release in create() to safely observe published dsp source
       // dsp source sounds are a special case because there's no file involved
       resize();
     }
@@ -344,7 +344,7 @@ void YSE::SOUND::implementationObject::doThisWhenReady() {
   // Audio thread now owns the link into parent->sounds. Mark it so that the
   // audio thread's release path (in SOUND::Manager::update) knows it must
   // disconnect us before allowing the slow-pool deleteJob to free us.
-  connectedToParent.store(true, std::memory_order_release);
+  connectedToParent.store(true, std::memory_order_release); // NOSONAR S8417: intentional release — publishes audio-thread connect to the dtor / Manager::update() acquire loads
 }
 
 void YSE::SOUND::implementationObject::sendMessage(const messageObject & message) {
@@ -355,7 +355,7 @@ void YSE::SOUND::implementationObject::sync() {
   // Snapshot head once: ~sound() on another thread can race the null check
   // and null head via removeInterface() between the check and the deref
   // below, producing a SEGV at the offset of `_volume` from null.
-  sound * h = head.load(std::memory_order_acquire);
+  sound * h = head.load(std::memory_order_acquire); // NOSONAR S8417: intentional acquire — snapshot head once to avoid race with ~sound()/removeInterface()
   if (h == nullptr) {
     objectStatus = OBJECT_DONE;
 
@@ -610,7 +610,7 @@ Bool YSE::SOUND::implementationObject::dsp() {
   ///////////////////////////////////////////
   // fill buffer
   ///////////////////////////////////////////
-  DSP::dspSourceObject * src = source_dsp.load(std::memory_order_acquire);
+  DSP::dspSourceObject * src = source_dsp.load(std::memory_order_acquire); // NOSONAR S8417: intentional acquire — pairs with release in create()/Manager::update() to read user-supplied dsp source
   if (playerType == PT_DSP && src != nullptr) {
     src->process(status_dsp);
   }

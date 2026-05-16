@@ -52,7 +52,7 @@ namespace YSE {
       };
 
       managerObject();
-      ~managerObject();
+      ~managerObject() noexcept;
 
       /** reverbManager needs extra setup because we cannot create the needed reverb objects 
           in the constructor because the forward_list reverbs might not be ready at that
