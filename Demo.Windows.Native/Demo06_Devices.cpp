@@ -22,7 +22,7 @@ DemoDevices::DemoDevices()
     }
   }
 
-	drone.create("../../TestResources/drone.ogg", nullptr, true);
+	drone.create(YSE_TEST_RESOURCES_DIR "/drone.ogg", nullptr, true);
 	drone.play();
 }
 
