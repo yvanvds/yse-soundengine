@@ -61,6 +61,13 @@ html_theme = "sphinx_book_theme"
 html_title = "libYSE 2.0"
 html_static_path = ["_static"]
 
+# Logo and favicon are sourced from the repo-root `logo/` directory so the
+# README and the docs share a single canonical asset. Sphinx resolves the
+# path relative to this conf.py and copies the file into `_static/` at
+# build time.
+html_logo = "../../logo/yse-logo.svg"
+html_favicon = "../../logo/yse-icon.svg"
+
 html_theme_options = {
     "repository_url": "https://github.com/yvanvds/yse-soundengine",
     "use_repository_button": True,

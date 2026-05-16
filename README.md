@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo/yse-logo.svg" alt="libYSE" width="520">
+</p>
+
 # libYSE 2.0
 
 libYSE is a cross-platform sound engine written in C++. Version 2.0 removes the
