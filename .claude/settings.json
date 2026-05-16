@@ -6,7 +6,11 @@
       "Read(//c/Users/yvan/.claude/plans/**)",
       "Read(//c/Users/yvan/.claude/**)",
       "Skill(projcect-overview-bootstrap)",
-      "Skill(projcect-overview-bootstrap:*)"
+      "Skill(projcect-overview-bootstrap:*)",
+      "Skill(sonarqube:sonar-analyze)",
+      "Skill(sonarqube:sonar-analyze:*)",
+      "mcp__sonarqube__search_duplicated_files",
+      "mcp__sonarqube__get_duplications"
     ],
     "additionalDirectories": [
       "\\tmp\\gh-issues",
