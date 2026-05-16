@@ -10,7 +10,9 @@
       "Skill(sonarqube:sonar-analyze)",
       "Skill(sonarqube:sonar-analyze:*)",
       "mcp__sonarqube__search_duplicated_files",
-      "mcp__sonarqube__get_duplications"
+      "mcp__sonarqube__get_duplications",
+      "Read(//tmp/**)",
+      "Read(//d/tmp/**)"
     ],
     "additionalDirectories": [
       "\\tmp\\gh-issues",
