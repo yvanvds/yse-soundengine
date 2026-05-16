@@ -16,43 +16,58 @@
 #include "utils/vector.hpp"
 
 namespace YSE {
-    
-    /**
-     The Listener is a singleton object used to control your position
-     in the virtual space. With sound positions and listener position 
-     (and rotation) you control how the sound output is spread out over
-     the available speakers.
-     
-     Also the listener keeps track of its own velocity, ie. the speed at 
-     which the object is moving. This is used in doppler calculations.
-    */
+
+  /**
+   *  @brief Singleton representing the listener's position and orientation in the virtual scene.
+   *
+   *  The Listener defines the reference point used by the engine to pan sounds
+   *  across the available speakers, attenuate them by distance, and compute
+   *  doppler shifts. Update its position every frame (typically alongside
+   *  ``System().update()``) so velocity and doppler stay coherent.
+   *
+   *  Access through the free function ``Listener()``.
+   *
+   *  @see YSE::Listener
+   *  @see YSE::Pos
+   */
   class API listener {
   public:
 
-    Pos pos(); //< Get the current position of the listener.
-    Pos vel(); //< Get the current velocity of the listener. This is a calculated value. Velocity cannot be set manually.
-    Pos forward(); //< Get the 'forward' orientation of the listener.
-    Pos upward(); //< Get the 'upward' orientation of the listener.
-      
-    /**
-     Set the current position of the listener. If you want to use doppler
-     and velocity, you should update the position of the listener at a frequent
-     interval. Usually you will update the position just as often as you use 
-     System().update().
-    */
+    /** @brief Current listener position in world coordinates. */
+    Pos pos();
+
+    /** @brief Current listener velocity in units per second.
+     *
+     *  Derived from successive calls to ``pos(const Pos&)`` — it cannot be set
+     *  directly. Used internally for doppler calculations.
+     */
+    Pos vel();
+
+    /** @brief Forward-facing unit vector of the listener. */
+    Pos forward();
+
+    /** @brief Upward unit vector of the listener. */
+    Pos upward();
+
+    /** @brief Set the listener position.
+     *
+     *  Call once per frame to keep velocity-based effects (doppler, motion
+     *  panning) accurate. Setting the position less frequently is fine for
+     *  static scenes but will degrade the velocity estimate.
+     */
     listener& pos(const Pos &pos);
-      
-    /**
-     Set the orientation of the listener. The upward vector is optional, and assumes 
-     rotation on a horizontal plane by default.
-    */
+
+    /** @brief Set the listener orientation.
+     *
+     *  @param forward The direction the listener faces.
+     *  @param up      The upward axis. Defaults to (0, 1, 0), i.e. rotation
+     *                 confined to a horizontal plane.
+     */
     listener& orient(const Pos &forward, const Pos &up = Pos(0, 1, 0));
 
   };
 
-  /**
-    Functor to retrieve the singleton listener object.
-  */
+  /** @brief Access the singleton listener object. */
   API listener & Listener();
 }
 

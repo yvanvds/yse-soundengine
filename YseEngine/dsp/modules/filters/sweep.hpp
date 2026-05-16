@@ -22,28 +22,50 @@ namespace YSE {
   namespace DSP {
     namespace MODULES {
 
+      /**
+       *  @brief Auto-wah / sweep filter — LFO-modulated resonant filter as a chainable ``dspObject``.
+       *
+       *  Internally an oscillator drives a ``vcf`` to sweep its cutoff. The
+       *  oscillator shape is selectable at construction. Choose ``SAW`` for a
+       *  classic wah ramp, ``TRIANGLE`` for a smoother sweep, ``SQUARE`` for a
+       *  step.
+       */
       class API sweepFilter : public dspObject {
       public:
 
+        /** @brief LFO shape that drives the filter sweep. */
         enum SHAPE {
           TRIANGLE,
           SAW,
           SQUARE,
         };
 
+        /** @brief Construct with the chosen sweep shape. */
         sweepFilter(SHAPE shape = SAW);
         virtual ~sweepFilter() {};
 
+        /** @brief Set the LFO speed in Hz. */
         sweepFilter & speed(Flt value);
+
+        /** @brief Current LFO speed. */
         Flt           speed();
 
-        sweepFilter & depth(Int value); // 0 - 100
+        /** @brief Set the sweep depth as 0–100. */
+        sweepFilter & depth(Int value);
+
+        /** @brief Current sweep depth. */
         Int           depth();
 
-        sweepFilter & frequency(Int value); // 0 - 100
+        /** @brief Set the centre frequency as 0–100. */
+        sweepFilter & frequency(Int value);
+
+        /** @brief Current centre frequency value. */
         Int           frequency();
 
+        /** @brief dspObject lifecycle hook — allocates buffers. */
         virtual void create();
+
+        /** @brief dspObject audio-thread entry point. */
         virtual void process(MULTICHANNELBUFFER & buffer);
 
       private:

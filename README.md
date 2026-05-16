@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo/yse-logo.svg" alt="libYSE" width="520">
+</p>
+
 # libYSE 2.0
 
 libYSE is a cross-platform sound engine written in C++. Version 2.0 removes the
@@ -5,6 +9,14 @@ JUCE dependency; PortAudio and libsndfile are the only audio backends. Windows,
 Linux, and Android are supported. The CMake build described here covers Windows
 (MSYS2 Clang) and Linux (system Clang or GCC). Android is out of scope for this
 build system step.
+
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=yvanvds_yse-soundengine&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=yvanvds_yse-soundengine)
+[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=yvanvds_yse-soundengine&metric=bugs)](https://sonarcloud.io/summary/new_code?id=yvanvds_yse-soundengine)
+[![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=yvanvds_yse-soundengine&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=yvanvds_yse-soundengine)
+[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=yvanvds_yse-soundengine&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=yvanvds_yse-soundengine)
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=yvanvds_yse-soundengine&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=yvanvds_yse-soundengine)
+[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=yvanvds_yse-soundengine&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=yvanvds_yse-soundengine)
+
 
 ---
 

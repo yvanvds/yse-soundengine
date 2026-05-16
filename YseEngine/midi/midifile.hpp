@@ -17,25 +17,33 @@
 
 namespace YSE {
   namespace MIDI {
+    /// @cond INTERNAL
     class fileImpl;
-    
+    /// @endcond
+
+    /**
+     *  @brief Standard MIDI file playback.
+     *
+     *  Load a ``.mid`` file with ``create``, then control playback with
+     *  ``play`` / ``pause`` / ``stop``.
+     */
     class API file {
     public:
       file();
       ~file();
+
+      /** @brief Load a standard MIDI file.
+       *  @return ``true`` on success.
+       */
       bool create(const std::string & fileName);
 
-      // connected synths will read from this midifile,
-      // next to parsing their own midi input.
-      // Mind that to play the file you also need to:
-      // 1. use the play() function below
-      // 2. use the play() function on the sound which is 
-      //    connected to the synth
-      //void connect   (synth * player);
-      //void disconnect(synth * player);
-      
+      /** @brief Start or resume playback. */
       void play ();
+
+      /** @brief Pause playback. Resume with ``play``. */
       void pause();
+
+      /** @brief Stop playback and rewind to the start. */
       void stop ();
 
     private:

@@ -63,19 +63,15 @@ void YSE::MIDI::GenerateMidiError(const RtMidiError & error)
 }
 
 YSE::MIDI::deviceManager::deviceManager()
-	: midiIn(nullptr)
-	, midiOut(nullptr)
-	, initialized(false)
+	: initialized(false)
 {
-
 }
 
 YSE::MIDI::deviceManager::~deviceManager() {
-	if (midiIn != nullptr) delete midiIn;
-	if (midiOut != nullptr) delete midiOut;
-	for (auto it = midiOutPorts.begin(); it != midiOutPorts.end(); it++) {
-		it->second->closePort();
-		delete it->second;
+	// unique_ptr members handle midiIn/midiOut cleanup automatically;
+	// only the explicit closePort() side-effect on map entries needs ordering.
+	for (auto& entry : midiOutPorts) {
+		entry.second->closePort();
 	}
 }
 
@@ -112,12 +108,13 @@ const std::string YSE::MIDI::deviceManager::getMidiOutDeviceName(unsigned int ID
 }
 
 RtMidiOut* YSE::MIDI::deviceManager::getMidiOutPort(unsigned int ID) {
-	if (midiOutPorts.count(ID) > 0) return midiOutPorts[ID];
+	auto existing = midiOutPorts.find(ID);
+	if (existing != midiOutPorts.end()) return existing->second.get();
 
 	try {
-		midiOutPorts.emplace(ID, new RtMidiOut());
-		midiOutPorts[ID]->openPort(ID);
-		return midiOutPorts[ID];
+		auto inserted = midiOutPorts.emplace(ID, std::make_unique<RtMidiOut>());
+		inserted.first->second->openPort(ID);
+		return inserted.first->second.get();
 	}
 	catch (RtMidiError& error) {
 		MIDI::GenerateMidiError(error);
@@ -130,28 +127,7 @@ bool YSE::MIDI::deviceManager::isPrepared()
 	if (initialized) return true;
 
 	try {
-		if (midiIn != nullptr) {
-			delete midiIn;
-		}
-		midiIn = new RtMidiIn();
-	}
-	catch (RtMidiError& error) {
-		GenerateMidiError(error);
-		RtMidiError::Type type = error.getType();
-		
-		// return when this is more than a warning
-		if (type != RtMidiError::Type::WARNING && type != RtMidiError::Type::DEBUG_WARNING) {
-			delete midiIn;
-			midiIn = nullptr;
-			return false;
-		}
-	}
-	
-	try {
-		if (midiOut != nullptr) {
-			delete midiOut;
-		}
-		midiOut = new RtMidiOut();
+		midiIn = std::make_unique<RtMidiIn>();
 	}
 	catch (RtMidiError& error) {
 		GenerateMidiError(error);
@@ -159,8 +135,21 @@ bool YSE::MIDI::deviceManager::isPrepared()
 
 		// return when this is more than a warning
 		if (type != RtMidiError::Type::WARNING && type != RtMidiError::Type::DEBUG_WARNING) {
-			delete midiOut;
-			midiOut = nullptr;
+			midiIn.reset();
+			return false;
+		}
+	}
+
+	try {
+		midiOut = std::make_unique<RtMidiOut>();
+	}
+	catch (RtMidiError& error) {
+		GenerateMidiError(error);
+		RtMidiError::Type type = error.getType();
+
+		// return when this is more than a warning
+		if (type != RtMidiError::Type::WARNING && type != RtMidiError::Type::DEBUG_WARNING) {
+			midiOut.reset();
 			return false;
 		}
 	}

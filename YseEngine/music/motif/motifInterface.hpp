@@ -19,35 +19,56 @@
 
 namespace YSE {
 
+    /**
+     *  @brief A sequence of positioned notes — a re-usable phrase or pattern.
+     *
+     *  Add notes (with positions) via ``add``, optionally constrain the
+     *  starting pitch with a ``scale``, and hand the motif to a ``player``
+     *  which will trigger it at appropriate moments.
+     *
+     *  @see YSE::MUSIC::pNote
+     *  @see YSE::player
+     */
     class API  motif {
     public:
       motif();
       ~motif();
 
+      /** @brief Append a positioned note. */
       motif & add(const MUSIC::pNote & note);
 
+      /** @brief Remove every note. */
       motif & clear();
 
-      // manualy set the length of this motif.
+      /** @brief Set the motif length explicitly, in seconds. */
       motif & setLength(Flt length);
 
-      // automatically set the length of this motif to the position of the last note + its length
+      /** @brief Set the motif length automatically to the end of the last note. */
       motif & setLength();
 
-      // transpose up / down
+      /** @brief Transpose every note by ``pitch`` semitones. */
       motif & transpose(Flt pitch);
 
-      // A scale can be passed with possible starting points for this motif.
-      // A player object will use this information to determine valid transpositions.
+      /**
+       *  @brief Restrict legal starting pitches.
+       *
+       *  When a player picks a transposition for this motif it picks one whose
+       *  starting note belongs to ``validPitches``.
+       */
       motif & setFirstPitch(const scale & validPitches);
 
+      /** @brief Current motif length in seconds. */
       Flt getLength() { return length; }
+
+      /** @brief Whether the motif contains any notes. */
       Bool empty() { return notes.empty(); }
+
+      /** @brief Number of notes. */
       UInt size() { return (UInt)notes.size(); }
 
+      /** @brief Access the note at index ``pos``. */
       MUSIC::pNote & operator[](UInt pos);
 
-      // copy
       motif(const motif& other);
       motif & operator=(const motif & other);
 

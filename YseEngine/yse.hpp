@@ -11,6 +11,44 @@
 #ifndef YSE_HPP_INCLUDED
 #define YSE_HPP_INCLUDED
 
+/**
+ *  @namespace YSE
+ *  @brief Public API of libYSE — sound playback, mixing, and 3D positional audio.
+ *
+ *  Entry points: ``YSE::System`` (lifecycle and audio device), ``YSE::Listener``
+ *  (3D origin), ``YSE::sound`` (a playable source), ``YSE::channel`` (mixing
+ *  tree), ``YSE::reverb`` (positioned reverb zone), ``YSE::patcher`` (modular
+ *  DSP graph), ``YSE::player`` (note sequencer). Sub-namespaces group
+ *  domain-specific types: ``YSE::DSP`` for signal processing, ``YSE::MIDI``
+ *  for MIDI I/O, ``YSE::MUSIC`` for note / chord / motif primitives.
+ */
+
+/**
+ *  @namespace YSE::DSP
+ *  @brief Audio buffers, oscillators, filters, envelopes, and effect modules.
+ *
+ *  Build chains of ``DSP::dspObject`` to process a sound, ``DSP::dspSourceObject``
+ *  to feed one. Single-channel audio data lives in ``DSP::buffer`` and its
+ *  drawing / file / wavetable subclasses.
+ */
+
+/**
+ *  @namespace YSE::MIDI
+ *  @brief MIDI file playback and external device I/O.
+ *
+ *  ``MIDI::file`` plays back standard MIDI files; ``midiOut`` (Windows /
+ *  Linux only) sends messages to a MIDI port. The ``MIDI::midiMessage`` /
+ *  ``midiNote`` types wrap raw byte sequences.
+ */
+
+/**
+ *  @namespace YSE::MUSIC
+ *  @brief Music-theory primitives: notes, chords, positioned notes for motifs.
+ *
+ *  These types feed ``YSE::scale``, ``YSE::motif``, and ``YSE::player`` to
+ *  drive generative composition.
+ */
+
 #define YSE_SOUND
 
 #include <atomic>

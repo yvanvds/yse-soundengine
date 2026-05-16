@@ -12,12 +12,9 @@
 #define PLAYER_HPP_INCLUDED
 
 namespace YSE {
-  /** Every subSystem consists out of several class which are meant to work together.
-  They all have an interface, implementation, manager, message and a message enumeration.
-  */
+  class player;
 
-  class player; // interfaceObject
-
+  /// @cond INTERNAL
   namespace PLAYER {
     class implementationObject;
     class messageObject;
@@ -43,6 +40,7 @@ namespace YSE {
       MOTIF_FITS_SCALE,
     };
   }
+  /// @endcond
 
 }
 

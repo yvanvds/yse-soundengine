@@ -18,18 +18,35 @@
 namespace YSE {
   namespace DSP {
 
+    /**
+     *  @brief Sine-wave sound source.
+     *
+     *  The simplest possible source for ``YSE::sound::create(dspSourceObject&, ...)``.
+     *  Useful as a test tone, a tuning reference, or the building block for an
+     *  additive synth.
+     */
     class API sineWave : public dspSourceObject {
     public:
-      // object is thread safe
       sineWave();
 
-      // change the frequency instantly, or wait for the next note on status
+      /**
+       *  @brief Set the sine frequency in Hz.
+       *
+       *  Takes effect immediately, or on the next note-on transition if the
+       *  sound is in a stopped/paused state.
+       */
       void  frequency(float value) override;
+
+      /** @brief Current frequency. */
       float frequency();
 
       using dspSourceObject::process;
+
+      /** @brief dspSourceObject audio-thread entry point. */
       void process(SOUND_STATUS & intent) override;
-      virtual void process(SOUND_STATUS & intent, Int & latency); // use only during DSP
+
+      /** @brief Variant of ``process`` that reports latency. Audio-thread only. */
+      virtual void process(SOUND_STATUS & intent, Int & latency);
 
     private:
       sine sineGen;

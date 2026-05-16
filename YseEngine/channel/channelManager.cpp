@@ -23,7 +23,7 @@ YSE::CHANNEL::managerObject::managerObject()
   outputChannels(0) 
   {}
 
-YSE::CHANNEL::managerObject::~managerObject() {
+YSE::CHANNEL::managerObject::~managerObject() noexcept {
   // wait for jobs to finish
   mgrSetup.join();
   mgrDelete.join();
@@ -106,10 +106,10 @@ void YSE::CHANNEL::managerObject::update() {
         // BEFORE marking OBJECT_DELETE. The slow-pool's deleteJob filters
         // on OBJECT_DELETE so by the time it can free this impl, the
         // audio-thread-iterated lists no longer reference it.
-        if (ptr->parent != nullptr && ptr->connectedToParent.load(std::memory_order_acquire)) {
+        if (ptr->parent != nullptr && ptr->connectedToParent.load(std::memory_order_acquire)) { // NOSONAR S8417: intentional acquire — pairs with release in implementationObject ctor handshake
           ptr->childrenToParent();
           ptr->parent->disconnect(ptr);
-          ptr->connectedToParent.store(false, std::memory_order_release);
+          ptr->connectedToParent.store(false, std::memory_order_release); // NOSONAR S8417: intentional release — publishes audio-thread disconnect before slow-pool delete
         }
         ptr->setStatus(OBJECT_DELETE);
         runDelete = true;

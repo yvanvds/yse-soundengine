@@ -17,15 +17,28 @@
 
 
 namespace YSE {
-  // This interpolator works with a time delta as update argument.
-  // In every pass of the main loop, the update function should be called before
-  // retrieving the value.
+
+  /**
+   *  @brief Block-rate linear interpolator driven by an external time delta.
+   *
+   *  Call ``set`` to start interpolating toward a target over ``time`` seconds,
+   *  then call ``update(timeDelta)`` once per frame and ``operator()`` to read
+   *  the current value.
+   */
   class API linearInterpolator {
   public:
     linearInterpolator();
+
+    /** @brief Start a new ramp toward ``target`` over ``time`` seconds. */
     linearInterpolator & set(Flt target, Flt time = 0);
+
+    /** @brief Advance the interpolator by ``timeDelta`` seconds. */
     linearInterpolator & update(Flt timeDelta);
+
+    /** @brief Current target value. */
     Flt target();
+
+    /** @brief Current interpolated value. */
     Flt operator()();
 
   private:
@@ -33,16 +46,26 @@ namespace YSE {
     Flt totalTime, timeLeft;
   };
 
-  // A template class for an object interpolator. The values in the objects are
-  // not interpolated, but rather the current or target object is returned: if 
-  // 'timeLeft' becomes smaller, the chance of getting the target object instead
-  // of the current one becomes bigger.
+  /**
+   *  @brief Probabilistic cross-fade between two objects.
+   *
+   *  Unlike ``linearInterpolator``, this template does NOT blend the objects
+   *  themselves — it returns either the current or the target object on each
+   *  call. As ``timeLeft`` decreases, the probability of returning the target
+   *  rises until it reaches 1.0 at ``timeLeft == 0``. Useful for non-blendable
+   *  state (pointers, discrete enums, etc.).
+   */
   template <class TYPE> class objectInterpolator {
   public:
     objectInterpolator() : totalTime(0), timeLeft(0), _isSet(false) {}
-    
-    // Set a new target object. Be sure it has a valid copy constructor
-    // (unless type is a pointer)
+
+    /**
+     *  @brief Set a new target object.
+     *
+     *  ``TYPE`` must be copy-constructible unless it is itself a pointer.
+     *  Setting a target for the first time replaces the current value
+     *  immediately; subsequent calls start a cross-fade.
+     */
     objectInterpolator<TYPE> & set(TYPE obj, Flt time = 0) {
       if (!_isSet) {
         totalTime = timeLeft = 0;
@@ -56,7 +79,7 @@ namespace YSE {
       return *this;
     }
 
-    // call this function once for every loop
+    /** @brief Advance by ``timeDelta`` seconds. */
     objectInterpolator<TYPE> & update(Flt timeDelta) {
       if (timeLeft > 0) {
         timeLeft -= timeDelta;
@@ -68,7 +91,7 @@ namespace YSE {
       return *this;
     }
 
-    // get the object
+    /** @brief Return either the current or target object, weighted by how far the cross-fade has progressed. */
     TYPE & operator()() {
       if (timeLeft > 0) {
         return RandomF(totalTime) > timeLeft ? target : current;
@@ -76,6 +99,7 @@ namespace YSE {
       return current;
     }
 
+    /** @brief Whether any object has been set. */
     Bool isSet() { return _isSet; }
   private:
     TYPE current, target;

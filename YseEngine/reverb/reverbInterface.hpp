@@ -17,183 +17,154 @@
 
 namespace YSE {
 
+  /// @cond INTERNAL
   namespace REVERB {
     class managerObject;
     class implementationObject;
   }
+  /// @endcond
 
   /**
-     Reverb objects are actually just a collection of reverb settings. At the and of the DSP
-     chain the actual reverb object will look at all reverb settings that are close enough to
-     an the listener to have an impact. A final setting will then be created that takes all
-     other settings and their position into account. This generated setting is passed to
-     the actual reverb.
-
-     This technique makes if possible to have a general reverb setting and assign other
-     reverb settings to specified positions.
-     */
+   *  @brief A positioned reverb zone.
+   *
+   *  Each ``reverb`` object holds a set of parameters and a position in the
+   *  scene. At the end of every DSP frame the engine looks at every reverb
+   *  whose rolloff radius overlaps the listener and blends their parameters
+   *  by proximity into the single shared reverb processor. The effect: you
+   *  can drop multiple reverb zones around the world (cave, hall, bathroom)
+   *  and the listener smoothly transitions between them as they move.
+   *
+   *  A "global" reverb is also available through ``System().getGlobalReverb()``;
+   *  it is mixed in as the fallback wherever no positioned reverb reaches.
+   *
+   *  @see YSE::System
+   *  @see YSE::REVERB_PRESET
+   */
   class API reverb {
   public:
     /**
-    Creates a reverb object.
-    The global option should only be enabled internally!
-    */
+     *  @brief Construct a reverb zone.
+     *
+     *  @param global Reserved for the engine — leave as ``false`` in user code.
+     *                ``true`` is used internally by ``System().getGlobalReverb()``.
+     */
     reverb(bool global = false);
     ~reverb();
 
-    /**
-     Needed for internal setup of the reverb. This must be done after System().init() and before
-     doing anything else with this object
+    /** @brief Initialise the reverb.
+     *
+     *  Must be called after ``System().init()`` and before any other method on
+     *  this object.
      */
     void create();
+
+    /** @brief Whether this reverb has a live implementation. */
     bool isValid();
 
-    /**
-     Set the virtual position of this reverb setting.
-     */
+    /** @brief Set the position of the reverb zone in the scene. */
     reverb& setPosition(const Pos &value);
 
-    /**
-     Get the position of this reverb setting.
-     */
+    /** @brief Current zone position. */
     Pos getPosition();
 
     /**
-     The size of a reverb defines how far from the center position the settings will
-     taken into account at full effect.
+     *  @brief Radius within which the reverb is at full strength.
+     *
+     *  Inside this radius the zone is applied fully; beyond it, the strength
+     *  fades over the rolloff distance (see ``setRollOff``).
      */
     reverb& setSize(float value);
 
-    /**
-     Gets the size at which the reverb will have full effect.
-     */
+    /** @brief Current full-strength radius. */
     float getSize();
 
     /**
-     Reverb RollOff defines how long it takes for a reverb setting to go from full to
-     zero effect. So counting from the counter position there are two zones. Within the
-     first zone a reverb is fully in effect. That zone is assigned with the setSize() function.
-     This one defines the RollOff, which is the 'fade out' part of the reverb setting.
+     *  @brief Distance over which the reverb fades out.
+     *
+     *  Measured from the edge of the full-strength radius. Outside
+     *  ``size + rollOff`` from the center, this zone contributes nothing.
      */
     reverb& setRollOff(float value);
 
-    /**
-     Get the current RollOff value
-     */
+    /** @brief Current rolloff distance. */
     float getRollOff();
 
-    /**
-     Turn the reverb setting on or off.
-     */
+    /** @brief Enable or disable this reverb zone. */
     reverb& setActive(bool value);
 
-    /**
-     Find out if the reverb is active at the moment.
-     */
+    /** @brief Whether this reverb zone is currently active. */
     bool getActive();
 
-    /**
-     Set the roomsize.
-     */
+    /** @brief Set the simulated room size. Larger values give longer tails. */
     reverb& setRoomSize(float value);
 
-    /**
-     Get the current roomsize.
-     */
+    /** @brief Current room size. */
     float getRoomSize();
 
-    /**
-      Set the current damping value for this reverb.
-      */
+    /** @brief Set the high-frequency damping.
+     *
+     *  Higher damping makes the reverb tail darken faster, simulating soft
+     *  materials.
+     */
     reverb& setDamping(float value);
 
-    /**
-     Get the current damping value.
-     */
+    /** @brief Current damping value. */
     float getDamping();
 
-
     /**
-     This defines how much of the processed signal actually
-     makes it to the output of the reverb. In most circumstances
-     the dry and wet should add up to 1. If the sum is > 1 you
-     might get a distorted sound.
-
-     @param dry Defines how much of the original signal will be
-     left in the output signal.
-     @param wet Defines how much of the reverb should be added
-     to the output signal.
-
+     *  @brief Set the dry/wet balance.
+     *
+     *  @param dry How much of the source signal passes through unprocessed.
+     *  @param wet How much of the reverberated signal is mixed in.
+     *
+     *  @note ``dry + wet`` should usually be 1.0. Sums above 1.0 can clip.
      */
     reverb& setDryWetBalance(float dry, float wet);
 
-    /**
-     Get the 'wet' value for this reverb.
-     */
+    /** @brief Current wet level. */
     float getWet();
 
-    /**
-     Get the 'dry' value for this reverb.
-     */
+    /** @brief Current dry level. */
     float getDry();
 
     /**
-     This function modulates the processed reverb signal at a
-     certain frequency.
-
-     @param frequency The frequency at which to modulate the signal.
-     @param width The modulation width.
+     *  @brief Modulate the reverb tail.
+     *
+     *  Adds a slow LFO to the reverb output to break up metallic resonances.
+     *
+     *  @param frequency Modulation rate in Hz.
+     *  @param width     Modulation depth.
      */
     reverb& setModulation(float frequency, float width);
 
-    /**
-     Get the modulation frequency for this reverb.
-     */
+    /** @brief Current modulation frequency. */
     float getModulationFrequency();
 
-    /**
-     Get the modulation with for this reverb.
-     */
+    /** @brief Current modulation width. */
     float getModulationWidth();
 
     /**
-     In addition to the typical 'blurred' reverb output, you can add
-     up to 4 reflections. Every reflection can have its own gain
-     and time. This function sets the time for a reflection.
-
-     @param reflection The number of the reflection you'd like to change. Must be in
-     the range [0-3]
-     @param time       The time to which this reflection should be set.
-     @param gain       The gain of the specified reflection.
+     *  @brief Configure one of the four early reflections.
+     *
+     *  Layered on top of the diffuse reverb tail to give the perception of
+     *  nearby reflective surfaces.
+     *
+     *  @param reflection Reflection index in [0, 3].
+     *  @param time       Delay time of this reflection.
+     *  @param gain       Gain of this reflection.
      */
     reverb& setReflection(int reflection, int time, float gain);
 
-    /**
-      Get the time of the specified reflection.
-
-      @param reflection The number of the reflection. Must be in the range [0-3]
-      */
+    /** @brief Delay time of the given reflection. ``reflection`` is in [0, 3]. */
     int getReflectionTime(int reflection);
 
-    /**
-     Get the gain of the specified reflection.
-
-     @param reflection The number of the reflection. Must be in the range [0-3]
-     */
+    /** @brief Gain of the given reflection. ``reflection`` is in [0, 3]. */
     float getReflectionGain(int reflection);
 
-    /**
-     Set the reverb settings to a predefined preset.
+    /** @brief Apply a named preset (cave, hall, bathroom, ...).
+     *  @see YSE::REVERB_PRESET
      */
     reverb& setPreset(REVERB_PRESET value);
-
-    /**
-     Release the reverb object. It is not really needed to call this, because it will
-     be called at desctruction time anyway. But you could. It renders the object invalid.
-     */
-    //reverb& release();
-
-
 
   private:
     REVERB::implementationObject * pimpl;

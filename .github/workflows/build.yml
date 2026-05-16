@@ -30,6 +30,17 @@ jobs:
             libsndfile1-dev \
             librtmidi-dev \
             gcovr
+      # NOTE: headless audio playback (JACK dummy / PulseAudio null sink /
+      # snd-aloop) was investigated to unlock audio-thread DSP coverage on
+      # CI. None work reliably on GitHub Actions' Azure kernel:
+      #   - snd-aloop / snd-dummy not in linux-modules-extra for the runner kernel.
+      #   - PulseAudio null sink loads but is not visible to PortAudio's ALSA
+      #     backend (/proc/asound/cards stays empty, so no card enumerates).
+      #   - jackd2 dummy backend aborts on mlockall (CAP_IPC_LOCK + ulimit
+      #     memlock=-1 not available to non-Docker GitHub Actions jobs).
+      # A local reproduction is available via tools/ci-linux/Dockerfile.audio
+      # which gets audio paths exercised under Docker with --cap-add IPC_LOCK
+      # and --ulimit memlock=-1.
       - name: Configure CMake
         run: >
           cmake -B build -G Ninja

@@ -21,7 +21,7 @@ YSE::REVERB::managerObject::managerObject()
   reverbDSPObject.channels(CHANNEL::Manager().getNumberOfOutputs());
 }
 
-YSE::REVERB::managerObject::~managerObject() {
+YSE::REVERB::managerObject::~managerObject() noexcept {
   mgrDelete.join();
 
   // drain any pointers still queued by the main thread; they reference impls

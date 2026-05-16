@@ -18,90 +18,193 @@
 #include <string>
 
 namespace YSE {
-	const std::string VERSION = "1.0.77";
+  const std::string VERSION = "1.0.77";
+
+  /** @brief Signature of a user-supplied sound-occlusion callback.
+   *
+   *  Given the source and listener positions, return the attenuation factor
+   *  in the range [0.0, 1.0]: 0 means fully occluded, 1 means audible without
+   *  obstruction. Typical implementations raycast through game-world geometry.
+   */
   typedef float(*occlusionFunc)(const Pos& source, const Pos& listener);
 
+  /**
+   *  @brief Engine lifecycle, audio device control, and global effect settings.
+   *
+   *  ``system`` is the top-level entry point for libYSE. Construct nothing
+   *  directly — access the singleton through the ``System()`` free function.
+   *  The typical lifecycle is:
+   *
+   *  1. ``System().init()`` once at startup.
+   *  2. ``System().update()`` every frame.
+   *  3. ``System().close()`` once at shutdown.
+   *
+   *  Between init and close, the engine manages an audio device, runs the
+   *  DSP graph, and dispatches messages to playing sounds.
+   *
+   *  @see YSE::System
+   *  @see YSE::listener
+   */
   class API system {
   public:
     system();
 
+    /** @brief Initialise the engine and open the default audio device.
+     *  @return ``true`` on success, ``false`` if no device could be opened.
+     */
     bool init();
+
+    /** @brief Pump engine state.
+     *
+     *  Call once per frame from the main thread. Drives message delivery,
+     *  sound state transitions, virtualisation decisions, and listener
+     *  velocity calculations.
+     */
     void update();
+
+    /** @brief Shut down the engine and release the audio device. */
     void close();
 
-	void pause();
-	void resume();
-	int  missedCallbacks();
+    /** @brief Pause audio output. The engine keeps running but the device is silent. */
+    void pause();
 
-    /** Get a reference to the global reverb object. It's not active by default,
-        but when enabled, these reverb settings will be used when there's no
-        other reverb active at the current position. If one or more reverbs are
-        partially active (rolloff distance) the global reverb is added partially.
-    */
+    /** @brief Resume audio output after ``pause()``. */
+    void resume();
+
+    /** @brief Number of audio callbacks that have failed to complete on time.
+     *
+     *  A non-zero value indicates the audio thread is starved or the device
+     *  has disconnected. Useful as a watchdog signal for ``autoReconnect``.
+     */
+    int  missedCallbacks();
+
+    /** @brief Access the global reverb.
+     *
+     *  Disabled by default. When enabled, it acts as the fallback reverb at
+     *  any position not covered by a positioned ``reverb`` zone. Partially
+     *  rolled-off reverb zones are mixed against the global reverb.
+     */
     reverb & getGlobalReverb();
 
-    // This function gets you a list of all available audio devices, but it will only work
-    // with YSE as a static library, not with dynamic libraries.
-    
+    /** @brief All audio output devices visible to the engine.
+     *
+     *  @note Only available when libYSE is linked as a static library. When
+     *        linked dynamically, use ``getNumDevices`` / ``getDevice`` instead
+     *        to avoid leaking the standard-library ``std::vector`` across the
+     *        ABI boundary.
+     */
     const std::vector<device> & getDevices();
-    
-    // If YSE is used as a dynamic library, the following functions should be used
-    // to retrieve information about devices.
+
+    /** @brief Number of audio output devices available. */
     unsigned int getNumDevices();
+
+    /** @brief Audio device at index ``nr``. */
     const device & getDevice(unsigned int nr);
-    
+
+    /** @brief Open an audio device.
+     *
+     *  @param object Device + host + sample-rate configuration.
+     *  @param conf   Speaker layout. ``CT_AUTO`` picks stereo when possible.
+     */
     void openDevice(const deviceSetup & object, CHANNEL_TYPE conf = CT_AUTO);
+
+    /** @brief Close the currently open audio device. */
     void closeCurrentDevice();
 
-	const std::string & getDefaultDevice();
-	const std::string & getDefaultHost();
+    /** @brief Name of the platform default audio device. */
+    const std::string & getDefaultDevice();
+
+    /** @brief Name of the platform default audio host (e.g. WASAPI, ALSA). */
+    const std::string & getDefaultHost();
 
 #if YSE_WINDOWS || YSE_LINUX
-	// midi section
-	unsigned int getNumMidiInDevices();
-	unsigned int getNumMidiOutDevices();
+    /** @brief Number of MIDI input devices available. (Windows / Linux only.) */
+    unsigned int getNumMidiInDevices();
 
-	const std::string getMidiInDeviceName(unsigned int ID);
-	const std::string getMidiOutDeviceName(unsigned int ID);
+    /** @brief Number of MIDI output devices available. (Windows / Linux only.) */
+    unsigned int getNumMidiOutDevices();
+
+    /** @brief Name of the MIDI input device with the given ID. */
+    const std::string getMidiInDeviceName(unsigned int ID);
+
+    /** @brief Name of the MIDI output device with the given ID. */
+    const std::string getMidiOutDeviceName(unsigned int ID);
 #endif
-    // effects
-    //void insideCave(Bool status);
 
-    // sound occlusion
-    /* you should provide your own function for occlusion checks.
-      Assuming that your game uses physics, this is quite easy to implement.
-      All you have to do is a raycast form the first to the second position and see
-      if there are any objects inbetween that should occlude the sound and decide how
-      much you want to occlude it.
-    */
+    /** @brief Install a sound-occlusion callback.
+     *
+     *  The engine calls the function for every pair of (source, listener)
+     *  positions to compute how much a sound should be attenuated by world
+     *  geometry. Typical implementations issue a raycast through the game
+     *  physics engine. Pass ``nullptr`` to disable.
+     *
+     *  @see occlusionFunc
+     */
     system& occlusionCallback(float(*func)(const YSE::Pos&, const YSE::Pos&));
+
+    /** @brief Current occlusion callback, or ``nullptr`` if none installed. */
     occlusionFunc occlusionCallback();
 
+    /** @brief Route a channel through the under-water effect. */
     system & underWaterFX(const channel & target);
+
+    /** @brief Configure the depth (intensity) of the under-water effect.
+     *
+     *  @param value Depth in the range [0.0, 1.0]. 0 is dry, 1 is the maximum
+     *               low-pass / pitch-shift the effect applies.
+     */
     system & setUnderWaterDepth(float value);
 
+    /** @brief Set the maximum number of concurrently audible sounds.
+     *
+     *  When this limit is exceeded, the engine virtualises the least
+     *  significant sounds (typically furthest from the listener) instead of
+     *  rendering them, freeing CPU for the audible ones.
+     */
+    system& maxSounds(int value);
 
-    // config
-    //system& dopplerScale(Flt scale);	Flt dopplerScale();
-    //system& distanceFactor(Flt factor);	Flt distanceFactor();
-    //system& rolloffScale(Flt scale);	Flt rolloffScale();
-    system& maxSounds(int value);	int maxSounds(); // the maximum amount of sounds that are actually used. If the number of sounds exeeds this, the least significant ones will be turned virtual
+    /** @brief Current ``maxSounds`` limit. */
+    int maxSounds();
 
+    /** @brief Enable or disable the built-in audio test signal.
+     *
+     *  Outputs a steady tone through the audio device for verifying the
+     *  output chain.
+     */
     system& AudioTest(bool on);
 
-		system& autoReconnect(bool on, int delay);
+    /** @brief Configure automatic device reconnection.
+     *
+     *  @param on    When ``true``, the engine attempts to re-open the audio
+     *               device after a disconnection (e.g. headphones unplugged).
+     *  @param delay Milliseconds to wait between reconnection attempts.
+     */
+    system& autoReconnect(bool on, int delay);
 
-    // statistics
-    float cpuLoad(); // cpu load of the audio steam (not the YSE update system)
-    void sleep(unsigned int ms); // usefull for console applications if you don't want to run update at max speed
-		std::string Version() const { return VERSION; }
+    /** @brief CPU load of the audio thread as a fraction of the callback budget.
+     *
+     *  Distinct from the cost of ``update()`` on the main thread.
+     */
+    float cpuLoad();
+
+    /** @brief Sleep the calling thread for ``ms`` milliseconds.
+     *
+     *  Convenience for console applications that don't otherwise yield
+     *  between calls to ``update()``.
+     */
+    void sleep(unsigned int ms);
+
+    /** @brief libYSE version string. */
+    std::string Version() const { return VERSION; }
+
   private:
     float(*occlusionPtr)(const Pos& source, const Pos& listener);
-		int currentlyMissedCallbacks; // used to watch the audio callback and determine if it is still running
-		bool doAutoReconnect;
-		int reconnectDelay;
-	};
+    int currentlyMissedCallbacks;
+    bool doAutoReconnect;
+    int reconnectDelay;
+  };
 
+  /** @brief Access the singleton ``system`` object. */
   API system & System();
 }
 

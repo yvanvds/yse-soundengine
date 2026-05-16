@@ -16,58 +16,72 @@
 #include "headers/enums.hpp"
 
 namespace YSE {
-  // a base class with a virtual method which can be passed to the log
-  // class for custom output
+
+  /**
+   *  @brief Base class for custom log sinks.
+   *
+   *  Subclass and override ``AddMessage`` to route log output somewhere other
+   *  than the default log file — for example an in-game console or a
+   *  third-party telemetry system. Register the instance with
+   *  ``log::setHandler``.
+   */
   class API logHandler {
   public:
+    /** @brief Called by the engine for every log message. Default implementation discards it. */
     virtual void AddMessage(const std::string &) {}
     virtual ~logHandler() {}
   };
 
   /**
-      A singleton class for logging. Normally this will write messages to a file when asked for. The behaviour can be
-        overwritten though. Keep in mind that the logging system is
-        only available between System().Init() and System().close().
-  */
+   *  @brief Singleton logging facility.
+   *
+   *  By default the engine writes messages to a text file in the working
+   *  directory. Use ``setLogfile`` to redirect that file, or ``setHandler``
+   *  to bypass the file entirely and feed log lines into your own sink.
+   *
+   *  @note Logging is only active between ``System().init()`` and
+   *        ``System().close()``.
+   *  @see YSE::Log
+   */
   class API log {
   public:
-      
-    /** You can send your own log messages to the YSE log
-        system. They will be printed with the keyword 'app message'.
-        They will appear at Error loglevel.
-    */
-    log& sendMessage(const char * msg);
-      
-    /** set the current loglevel.
-        By default this is set to EL_DEBUG in debug mode
-        and EL_ERRORS in release mode. Other modes are
-        EL_WARNINGS and EL_NONE.
-    */
-    log& setLevel(ERROR_LEVEL value);
-      
-    /** Get the current loglevel.
-    */
-    ERROR_LEVEL getLevel();
-      
-    /** You can set a custom log handler here.
-        This overwrites the normal logfile output
-    */
-    log& setHandler(logHandler * handler); 
 
-    /** set the current output file. By default
-        this file is called 'YSElog.txt' and will be
-        placed in the work directory. (Dependant on OS)
-    */
+    /** @brief Send an application-level message to the YSE log.
+     *
+     *  The message is tagged ``app message`` and emitted at error log level
+     *  so it survives filters set above ``EL_DEBUG``.
+     */
+    log& sendMessage(const char * msg);
+
+    /** @brief Set the active log level.
+     *
+     *  Defaults to ``EL_DEBUG`` in debug builds and ``EL_ERROR`` in release
+     *  builds. Messages above the chosen level are dropped.
+     */
+    log& setLevel(ERROR_LEVEL value);
+
+    /** @brief Current log level. */
+    ERROR_LEVEL getLevel();
+
+    /** @brief Install a custom log handler.
+     *
+     *  Replaces the default file-based sink. Pass ``nullptr`` to restore the
+     *  default behaviour.
+     */
+    log& setHandler(logHandler * handler);
+
+    /** @brief Change the path of the default log file.
+     *
+     *  Defaults to ``YSElog.txt`` in the process working directory. Has no
+     *  effect after a custom handler has been installed via ``setHandler``.
+     */
     log& setLogfile(const char * path);
 
-    /** Get the current output file.
-    */
+    /** @brief Current log file path. */
     const char * getLogfile();
   };
-  
-  /**
-      A functor to retrieve the Logging object.
-  */
+
+  /** @brief Access the singleton logging object. */
   API log & Log();
 }
 

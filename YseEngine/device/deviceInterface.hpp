@@ -16,68 +16,115 @@
 #include "../yse.hpp"
 
 
-/** This class can hold the properties of a particular audio device. You're not
-    supposed to create object of this class yourself, but you can retrieve the
-    available audio devices from the System() object.
-*/
 namespace YSE {
 
-
+  /**
+   *  @brief Read-only descriptor of an audio device on the host system.
+   *
+   *  Enumerated and populated by the engine — applications retrieve instances
+   *  through ``System().getDevices()`` (or the indexed
+   *  ``getNumDevices`` / ``getDevice`` pair when libYSE is linked dynamically).
+   *  Use the device to inspect its name, host (ASIO / WASAPI / ALSA / ...),
+   *  available channel layouts, sample rates, and buffer sizes; then pass a
+   *  ``deviceSetup`` derived from that info to ``System().openDevice``.
+   *
+   *  @note Do not construct directly — instances handed out by the engine are
+   *        the only valid ones.
+   *
+   *  @see YSE::deviceSetup
+   *  @see YSE::system::openDevice
+   */
   class API device {
   public:
-    /** Don't create this object yourself! Instead, retrieve
-        available audio devices with YSE::System().getDevices()
-    */
+    /** @brief Default constructor used internally by the device enumerator. */
     device();
 
+    /** @brief Set the device name. Used by the engine when populating the device list. */
     device & setName(const std::string & name);
 
-    /** Get the name of this device
-    */
+    /** @brief Device name as reported by the host. */
     const std::string & getName() const;
 
+    /** @brief Set the host (driver) name. Used internally. */
     device & setTypeName(const std::string & name);
 
-    /** Get the type of the device. This is also known as the device host.
-        A system can have different hosts, like ASIO, Jack, etc.
-    */
+    /** @brief Host (driver) name, e.g. ``ASIO``, ``WASAPI``, ``ALSA``, ``JACK``. */
     const std::string & getTypeName() const;
 
+    /** @brief Internal: append an input channel name to the descriptor. */
     device & addInputChannelName(const std::string & name);
+
+    /** @brief Internal: append an output channel name to the descriptor. */
     device & addOutputChannelName(const std::string & name);
+
+    /** @brief Internal: register an available sample rate. */
     device & addAvailableSampleRate(double sr);
+
+    /** @brief Internal: register an available buffer size. */
     device & addAvailableBufferSize(int bs);
 
-    // These functions cannot be used if YSE is compiled as DLL, because
-    // you can't pass a vector if this is the case.
+    /** @brief All output channel names.
+     *  @note Not usable across DLL boundaries — use the indexed
+     *        ``getNumOutputChannelNames`` / ``getOutputChannelName`` pair when
+     *        libYSE is linked dynamically.
+     */
     const std::vector<std::string> & getOutputChannelNames() const;
+
+    /** @brief All input channel names. Same DLL caveat as ``getOutputChannelNames``. */
     const std::vector<std::string> & getInputChannelNames() const;
+
+    /** @brief All available sample rates. Same DLL caveat. */
     const std::vector<double> & getAvailableSampleRates() const;
+
+    /** @brief All available buffer sizes. Same DLL caveat. */
     const std::vector<int> & getAvailableBufferSizes() const;
 
-    // use these instead.
+    /** @brief Number of output channels. */
     unsigned int getNumOutputChannelNames() const;
+
+    /** @brief Name of output channel ``nr``. */
     const std::string & getOutputChannelName(unsigned int nr) const;
 
-		unsigned int getNumInputChannelNames() const;
+    /** @brief Number of input channels. */
+    unsigned int getNumInputChannelNames() const;
+
+    /** @brief Name of input channel ``nr``. */
     const std::string & getInputChannelName(unsigned int nr) const;
 
-		unsigned int getNumAvailableSampleRates() const;
+    /** @brief Number of supported sample rates. */
+    unsigned int getNumAvailableSampleRates() const;
+
+    /** @brief Supported sample rate at index ``nr``. */
     double getAvailableSampleRate(unsigned int nr) const;
 
-		unsigned int getNumAvailableBufferSizes() const;
+    /** @brief Number of supported buffer sizes. */
+    unsigned int getNumAvailableBufferSizes() const;
+
+    /** @brief Supported buffer size at index ``nr``. */
     int getAvailableBufferSize(unsigned int nr) const;
 
+    /** @brief Set the default buffer size to use when this device is opened. */
     device & setDefaultBufferSize(int value);
+
+    /** @brief Default buffer size for this device. */
     int getDefaultBufferSize() const;
 
+    /** @brief Set the reported output latency in samples. */
     device & setOutputLatency(int value);
+
+    /** @brief Reported output latency in samples. */
     int getOutputLatency() const;
 
+    /** @brief Set the reported input latency in samples. */
     device & setInputLatency(int value);
+
+    /** @brief Reported input latency in samples. */
     int getInputLatency() const;
 
+    /** @brief Set the host-assigned ID for this device. */
     device & setID(int value);
+
+    /** @brief Host-assigned ID for this device. */
     int getID() const;
 
   private:

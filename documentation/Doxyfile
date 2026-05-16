@@ -24,7 +24,10 @@ EXCLUDE_PATTERNS       = */internal/* \
                          *Manager.hpp \
                          *Manager.cpp \
                          *Message.h
-EXCLUDE_SYMBOLS        = INTERNAL::* *::INTERNAL nlohmann::* detail::*
+EXCLUDE_SYMBOLS        = INTERNAL::* *::INTERNAL \
+                         nlohmann::* detail::* \
+                         SOUND::* CHANNEL::* REVERB::* DEVICE::* \
+                         PATCHER::* SCALE::* PLAYER::* MOTIF::*
 
 # Output: XML only — Sphinx/Breathe consumes it. No HTML/LaTeX from Doxygen.
 # Doxygen auto-creates OUTPUT_DIRECTORY; XML_OUTPUT is then a sub-directory
@@ -46,13 +49,15 @@ PREDEFINED             = YSE_API= \
                          YSE_BUILD_DLL= \
                          _WIN32
 
-# Show as much as possible — Sphinx pages decide what is rendered.
-EXTRACT_ALL            = YES
+# Only documented symbols are exposed. Undocumented entities disappear from
+# the rendered docs — this turns the build into a punch-list for missing
+# Doxygen comments instead of papering over them.
+EXTRACT_ALL            = NO
 EXTRACT_PRIVATE        = NO
 EXTRACT_STATIC         = YES
 EXTRACT_LOCAL_CLASSES  = NO
-HIDE_UNDOC_MEMBERS     = NO
-HIDE_UNDOC_CLASSES     = NO
+HIDE_UNDOC_MEMBERS     = YES
+HIDE_UNDOC_CLASSES     = YES
 INLINE_INHERITED_MEMB  = YES
 
 # Symbol presentation.
@@ -62,8 +67,11 @@ BUILTIN_STL_SUPPORT    = YES
 SORT_MEMBER_DOCS       = NO
 SORT_BRIEF_DOCS        = NO
 
-# Quiet by default; warnings still print.
+# Quiet by default; warnings still print. WARN_IF_UNDOCUMENTED surfaces every
+# public symbol that still needs a Doxygen comment — once Phase 2 of the
+# documentation overhaul is complete, also set WARN_AS_ERROR=FAIL_ON_WARNINGS
+# so CI catches regressions.
 QUIET                  = YES
-WARN_IF_UNDOCUMENTED   = NO
+WARN_IF_UNDOCUMENTED   = YES
 WARN_IF_DOC_ERROR      = YES
 WARN_NO_PARAMDOC       = NO

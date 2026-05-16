@@ -1,0 +1,44 @@
+<svg width="240" height="240" viewBox="0 0 240 240" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>YSE icon</title>
+<desc>YSE icon: disk with chromatic-split Y monogram and layered sine waves.</desc>
+
+<style>
+.fg-s { stroke: #888a8c; }
+@media (prefers-color-scheme: dark) {
+  .fg-s { stroke: #d8d8d8; }
+}
+</style>
+
+<defs>
+<clipPath id="iconDiskClip">
+<circle cx="120" cy="120" r="110"/>
+</clipPath>
+</defs>
+
+<circle cx="120" cy="120" r="110" fill="none" stroke="#5b8def" stroke-width="2.5"/>
+<path d="M 10 115 A 110 110 0 0 1 50 35" fill="none" stroke="#e07a5f" stroke-width="2.5"/>
+
+<g clip-path="url(#iconDiskClip)">
+
+<g stroke="#e07a5f" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.9">
+<path d="M 114 115 L 114 180"/>
+<path d="M 114 115 L 72 55"/>
+<path d="M 114 115 L 156 55"/>
+</g>
+<g stroke="#5b8def" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.9">
+<path d="M 126 115 L 126 180"/>
+<path d="M 126 115 L 84 55"/>
+<path d="M 126 115 L 168 55"/>
+</g>
+<g class="fg-s" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" fill="none">
+<path d="M 120 115 L 120 180"/>
+<path d="M 120 115 L 78 55"/>
+<path d="M 120 115 L 162 55"/>
+</g>
+
+<path d="M 10 168 Q 23.75 113 37.5 168 T 65 168 T 92.5 168 T 120 168 T 147.5 168 T 175 168 T 202.5 168 T 230 168" fill="none" stroke="#e07a5f" stroke-width="3" opacity="0.9"/>
+<path d="M 10 172 Q 37.5 212 65 172 T 120 172 T 175 172 T 230 172" fill="none" stroke="#5b8def" stroke-width="3" opacity="0.9"/>
+<path d="M 10 170 Q 19.17 153 28.33 170 T 46.67 170 T 65 170 T 83.33 170 T 101.67 170 T 120 170 T 138.33 170 T 156.67 170 T 175 170 T 193.33 170 T 211.67 170 T 230 170" fill="none" class="fg-s" stroke-width="3"/>
+
+</g>
+</svg>

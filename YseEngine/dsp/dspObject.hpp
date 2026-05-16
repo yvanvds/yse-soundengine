@@ -20,51 +20,93 @@
 #include "math.hpp"
 
 namespace YSE {
+  /// @cond INTERNAL
   namespace SOUND {
     class implementationObject;
   }
+  /// @endcond
 
   namespace DSP {
-    // simple base class for a chainable dsp object
+
+    /**
+     *  @brief Base class for chainable DSP effects.
+     *
+     *  Subclass and implement ``create`` and ``process`` to define a custom
+     *  effect that can be linked into a sound's processing chain via
+     *  ``YSE::sound::setDSP``. The base class provides bypass control, a
+     *  wet/dry impact slider, and a built-in LFO that can modulate the
+     *  effect's parameters.
+     *
+     *  Chain instances together with ``link``: ``a.link(b); b.link(c);``.
+     */
     class API dspObject {
     public:
       dspObject();
       virtual ~dspObject();
 
-      
+      /** @brief One-time setup before processing starts.
+       *
+       *  Allocate buffers and any other heavyweight state here — never inside
+       *  ``process``. The engine calls ``create`` from a setup thread before
+       *  the first ``process`` call.
+       */
       virtual void create() = 0;
+
+      /** @brief Process one audio block in place.
+       *
+       *  Runs on the audio thread. Must be allocation-free and reasonably
+       *  bounded in time. Subclasses typically call ``createIfNeeded()`` at
+       *  the start, do their work, then call ``calculateImpact()`` at the end
+       *  to apply the wet/dry mix.
+       */
       virtual void process(MULTICHANNELBUFFER & buffer) = 0;
 
-      // link the output of this dsp to another dsp.
-      // If the dsp is already linked, the new dsp will
-      // be put between this object and the current next
-      // object.
+      /** @brief Insert ``next`` after this object in the processing chain.
+       *
+       *  If a downstream object is already linked, ``next`` is spliced between
+       *  this object and the existing next.
+       */
       void link(dspObject& next);
+
+      /** @brief Next object in the processing chain, or ``nullptr`` if this is the tail. */
       dspObject * link();
 
+      /** @brief Bypass this effect when ``true``. Bypassed effects still run but pass input through unchanged. */
       dspObject& bypass(Bool value) { _bypass = value; return *this; }
+
+      /** @brief Whether this effect is bypassed. */
       Bool       bypass() { return _bypass; }
 
-      // impact of this filter. Must be between 0 and 1
+      /** @brief Wet/dry mix in [0.0, 1.0]. 0 is fully dry, 1 is fully processed. */
       dspObject& impact(Flt value) { _impact = value; return *this; }
+
+      /** @brief Current wet/dry mix value. */
       Flt impact() { return _impact; }
 
+      /** @brief Set the modulation LFO shape. ``LFO_NONE`` disables modulation. */
       dspObject & lfoType(LFO_TYPE type) { _lfoType = type; return *this; }
+
+      /** @brief Current LFO shape. */
       LFO_TYPE lfoType() { return _lfoType; }
 
+      /** @brief Set the LFO frequency in Hz. */
       dspObject & lfoFrequency(Flt value) { _lfoFrequency = value; return *this; }
+
+      /** @brief Current LFO frequency. */
       Flt lfoFrequency() { return _lfoFrequency; }
 
-      dspObject ** calledfrom; // consider this private for now
+      /** @internal Engine-managed back-pointer. Treat as private. */
+      dspObject ** calledfrom;
 
     protected:
-      // call this at start of process()
+      /** @brief Subclass helper: run ``create`` lazily on first ``process`` call. */
       void createIfNeeded();
-      // call this in process to get current lfo buffer
+
+      /** @brief Subclass helper: access the current LFO buffer. */
       buffer & getLFO();
-      // call this at end of process()
+
+      /** @brief Subclass helper: apply the wet/dry mix between ``in`` and ``filtered``. */
       void calculateImpact(buffer & in, buffer & filtered);
-      
 
     private:
       dspObject * next;
@@ -79,16 +121,31 @@ namespace YSE {
       aFlt _lfoFrequency;
     };
 
-    // simple base class for a dsp object with sound generation
-    // DSPSource can be by sounds for sound generation. This is
-    // why some virtual functions have to be implemented.
+    /**
+     *  @brief Base class for DSP-driven sound sources.
+     *
+     *  Where ``dspObject`` is an effect, ``dspSourceObject`` is a generator —
+     *  it produces audio rather than transforming it. Subclass and implement
+     *  ``process`` and ``frequency`` to drive a ``YSE::sound`` from procedural
+     *  audio (see ``YSE::sound::create`` for the lifetime contract).
+     */
     class API dspSourceObject {
     public:
+      /** @brief Output buffers, one per audio channel. */
       std::vector<buffer> samples;
+
+      /** @brief Construct with ``buffers`` audio channels (1 = mono, 2 = stereo, ...). */
       dspSourceObject(Int buffers = 1);
 
-      // intent is what we should do (playing, start playing, start stopping etc...
+      /** @brief Fill ``samples`` with the next audio block.
+       *
+       *  @param intent The current playback intent (start, stop, pause, etc.)
+       *                — subclasses use this to drive amplitude envelopes and
+       *                trigger transitions.
+       */
       virtual void process(SOUND_STATUS & intent) = 0;
+
+      /** @brief Set the fundamental frequency of the generator. */
       virtual void frequency(Flt value) = 0;
     };
 

@@ -19,63 +19,101 @@
 
 namespace YSE {
 
+  /**
+   *  @brief Generative note sequencer.
+   *
+   *  Plays random notes within configurable pitch / velocity / gap / length
+   *  ranges, optionally constrained to a ``scale``, optionally drawing from
+   *  one or more weighted ``motif`` patterns instead of pure randomness. All
+   *  numeric setters accept an optional ``time`` parameter that linearly
+   *  interpolates from the current value to the target over that many seconds.
+   *
+   *  @see YSE::scale
+   *  @see YSE::motif
+   */
   class API player {
   public:
     player();
     ~player();
 
-    //player& create(synth & s);
+    /** @brief Start producing notes. */
     player& play();
+
+    /** @brief Stop producing notes. */
     player& stop();
+
+    /** @brief Whether the player is currently producing notes. */
     Bool isPlaying();
 
-    // Modifiers to change player behaviour. If a time value is provided the
-    // change will happen gradually (linear interpolation)
-      
-    // lowest and highest pitch that will be be played
-    player& setMinimumPitch(Flt target, Flt time = 0); // range 0 - 126
-    player& setMaximumPitch(Flt target, Flt time = 0); // range 1 - 127
+    /** @brief Set the lowest pitch the player may produce. Range [0, 126]. */
+    player& setMinimumPitch(Flt target, Flt time = 0);
 
-    // lowest and highest velocity
-    player& setMinimumVelocity(Flt target, Flt time = 0); // range 0 - 0.999999
-    player& setMaximumVelocity(Flt target, Flt time = 0); // range 0.000001 - 1
-      
-    // space between notes or motifs
-    player& setMinimumGap(Flt target, Flt time = 0); // range 0 - 
-    player& setMaximumGap(Flt target, Flt time = 0); // range 0 -
+    /** @brief Set the highest pitch the player may produce. Range [1, 127]. */
+    player& setMaximumPitch(Flt target, Flt time = 0);
 
-    // length of notes when no motif is supplied
-    player& setMinimumLength(Flt target, Flt time = 0); // range 0 -
-    player& setMaximumLength(Flt target, Flt time = 0); // range 0 -
+    /** @brief Set the lowest velocity. Range [0, 0.999999]. */
+    player& setMinimumVelocity(Flt target, Flt time = 0);
 
-    // number of simultanious voices to be played
+    /** @brief Set the highest velocity. Range [0.000001, 1]. */
+    player& setMaximumVelocity(Flt target, Flt time = 0);
+
+    /** @brief Set the minimum gap between successive notes / motifs, in seconds. */
+    player& setMinimumGap(Flt target, Flt time = 0);
+
+    /** @brief Set the maximum gap between successive notes / motifs, in seconds. */
+    player& setMaximumGap(Flt target, Flt time = 0);
+
+    /** @brief Set the minimum note length, in seconds. Used when no motif is active. */
+    player& setMinimumLength(Flt target, Flt time = 0);
+
+    /** @brief Set the maximum note length, in seconds. Used when no motif is active. */
+    player& setMaximumLength(Flt target, Flt time = 0);
+
+    /** @brief Set the number of simultaneous voices. */
     player& setVoices(UInt target, Flt time = 0);
 
-    // restrict played notes to this scale. the player makes a copy of this
-    // scale, so alterations you make afterwards are not passed to the player.
+    /**
+     *  @brief Constrain generated pitches to a scale.
+     *  @note The player keeps its own copy — modifying ``scale`` after this
+     *        call has no effect on the player.
+     */
     player& setScale(scale & scale, Flt time = 0);
 
-    // Provide the player with a motif. Instead of random notes, all voices will play this
-    // motif. Several motifs can be added and the player will pick a motif when needed,
-    // taking weight into account.
+    /**
+     *  @brief Add a motif to the player's pool.
+     *
+     *  When the player decides to play a motif (see ``playMotifs``) it picks
+     *  one weighted by ``weight``.
+     */
     player& addMotif(motif & motif, UInt weight = 1);
 
-    // remove this motif from the player
+    /** @brief Remove a previously added motif. */
     player& removeMotif(motif & motif);
 
-    // adjust the weight of a motif after it has been added
+    /** @brief Adjust the selection weight of an already-added motif. */
     player& adjustMotifWeight(motif & motif, UInt weight);
 
-    // With target == 0, the full motif is always played, with target == 1 only parts
-    // of the motif will be played. 
+    /**
+     *  @brief Probability that the player plays only part of a motif.
+     *
+     *  ``target == 0`` always plays full motifs, ``target == 1`` always plays
+     *  partial motifs, values in between mix the two.
+     */
     player& playPartialMotifs(Flt target, Flt time = 0);
 
-    // With target == 0 only random notes will be played, with target == 1 only motif
-    // notes will be played.
+    /**
+     *  @brief Probability that the player draws notes from a motif vs. random.
+     *
+     *  ``target == 0`` is pure random, ``target == 1`` is motifs only.
+     */
     player& playMotifs(Flt target, Flt time = 0);
 
-    // alter the notes in the motif to fit the current scale. If not, only the first note
-    // will be taken from the scale.
+    /**
+     *  @brief Probability that motif notes are quantised to the active scale.
+     *
+     *  ``target == 0`` plays motifs as written (only the first note is forced
+     *  onto the scale); ``target == 1`` snaps every note to the scale.
+     */
     player& fitMotifsToScale(Flt target, Flt time = 0);
 
 

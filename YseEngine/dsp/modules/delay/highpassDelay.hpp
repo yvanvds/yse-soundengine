@@ -18,11 +18,20 @@ namespace YSE {
   namespace DSP {
     namespace MODULES {
 
+      /**
+       *  @brief ``basicDelay`` with a high-pass filter in front.
+       *
+       *  Useful for ducking bass build-up in long delay tails. Inherits the
+       *  three-tap layout from ``basicDelay``.
+       */
       class API highPassDelay : public basicDelay {
       public:
         highPassDelay();
 
+        /** @brief Set the high-pass cutoff frequency in Hz. */
         highPassDelay & frequency(Flt value);
+
+        /** @brief Current cutoff frequency. */
         Flt frequency();
 
       private:

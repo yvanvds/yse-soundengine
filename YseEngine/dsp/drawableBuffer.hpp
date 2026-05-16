@@ -18,53 +18,73 @@ namespace YSE {
   namespace DSP {
     class API envelope;
 
+    /**
+     *  @brief Buffer that can be shaped procedurally with envelopes and lines.
+     *
+     *  Extends ``buffer`` with drawing primitives — useful for shaping control
+     *  signals, building wavetables, or constructing test signals offline. The
+     *  drawing primitives target buffers used as inputs to other DSP, not
+     *  buffers fed straight to the audio device, although the engine does not
+     *  prevent the latter.
+     */
     class API drawableBuffer : public buffer {
     public:
+      /** @brief Construct a drawable buffer. See ``buffer::buffer``. */
       drawableBuffer(UInt length = STANDARD_BUFFERSIZE, UInt overflow = 0) : buffer(length, overflow) {}
 
-      /** Apply an envelope to the current audiobuffer.
-      @param length       Desired length of the envelope in seconds. If length > 0, the
-      envelope will be scaled to this length. Otherwise the internal
-      length of the envelope will be used.
-      */
+      /**
+       *  @brief Multiply the buffer by an envelope shape.
+       *
+       *  @param env    Envelope to apply.
+       *  @param length Desired envelope length in seconds. If > 0 the envelope
+       *                is stretched or compressed to this length; if 0 the
+       *                envelope's internal length is used as-is.
+       */
       drawableBuffer & applyEnvelope(const envelope & env, Flt length = 0);
 
-      /** Draw data in a sound buffer. This is not meant for buffers
-      which will be sent to the audio output, but for buffers used to do
-      calculations on real audio buffers. Make sure that start and stop values
-      are within the bounds of this buffer (0 -> getLength()). If the startValue
-      differs from the stopValue, values inbetween will be created as a linear slope.
-
-      @param start        the position in the buffer you want to start drawing
-      @param stop         the position in the buffer you want to stop drawing
-      @param startValue   the value you want to start with. (Between -1 and 1)
-      @param stopValue    the value you want to stop at. (Between -1 and 1)
-      */
+      /**
+       *  @brief Draw a linear ramp between two positions.
+       *
+       *  Writes a straight line from ``(start, startValue)`` to
+       *  ``(stop, stopValue)`` into the buffer.
+       *
+       *  @param start      First sample index (in [0, getLength()]).
+       *  @param stop       Last sample index (in [0, getLength()]).
+       *  @param startValue Value at ``start``, in [-1.0, 1.0].
+       *  @param stopValue  Value at ``stop``, in [-1.0, 1.0].
+       */
       drawableBuffer & drawLine(UInt start, UInt stop, Flt startValue, Flt stopValue);
 
-      /** Fill (part of) a buffer with one value. This is not meant for buffers
-      which will be sent to the audio output, but for buffers used to do
-      calculations on real audio buffers. Make sure that start and stop values
-      are within the bounds of this buffer (0 -> getLength()). In a visual
-      representation the result is an horizontal line.
+      /**
+       *  @brief Fill a region with a constant value.
+       *
+       *  @param start First sample index.
+       *  @param stop  Last sample index.
+       *  @param value Value to write, in [-1.0, 1.0].
+       */
+      drawableBuffer & drawLine(UInt start, UInt stop, Flt value);
 
-      @param start        the position in the buffer you want to start drawing
-      @param stop         the position in the buffer you want to stop drawing
-      @param value        the value to set. (Between -1 and 1)
-      */
-      drawableBuffer & drawLine(UInt start, UInt stop, Flt value); // horizontal line
-
+      /** @brief Add ``f`` to every sample (returns drawableBuffer&). */
       drawableBuffer & operator+=(Flt f) { buffer::operator+=(f); return *this; }
+      /** @brief Subtract ``f`` from every sample. */
       drawableBuffer & operator-=(Flt f) { buffer::operator-=(f); return *this; }
+      /** @brief Multiply every sample by ``f``. */
       drawableBuffer & operator*=(Flt f) { buffer::operator*=(f); return *this; }
+      /** @brief Divide every sample by ``f``. */
       drawableBuffer & operator/=(Flt f) { buffer::operator/=(f); return *this; }
 
+      /** @brief Sample-wise add. */
       drawableBuffer & operator+=(const buffer & s) { buffer::operator+=(s); return *this; }
+      /** @brief Sample-wise subtract. */
       drawableBuffer & operator-=(const buffer & s) { buffer::operator-=(s); return *this; }
+      /** @brief Sample-wise multiply. */
       drawableBuffer & operator*=(const buffer & s) { buffer::operator*=(s); return *this; }
+      /** @brief Sample-wise divide. */
       drawableBuffer & operator/=(const buffer & s) { buffer::operator/=(s); return *this; }
 
+      /** @brief Copy-assign from a ``buffer``. */
       drawableBuffer & operator=(const buffer & s) { buffer::operator=(s); return *this; }
+      /** @brief Fill every sample with ``f``. */
       drawableBuffer & operator=(Flt f) { buffer::operator=(f); return *this; }
     };
 

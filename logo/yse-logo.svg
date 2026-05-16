@@ -1,0 +1,77 @@
+<svg width="680" height="360" viewBox="0 0 680 360" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>YSE sound engine logo</title>
+<desc>YSE sound engine logo: disk mark with chromatic-split Y monogram and layered sine waves, paired with the YSE wordmark and signal-flow chain.</desc>
+
+<style>
+.fg-t { fill: #888a8c; }
+.fg-s { stroke: #888a8c; }
+@media (prefers-color-scheme: dark) {
+  .fg-t { fill: #d8d8d8; }
+  .fg-s { stroke: #d8d8d8; }
+}
+</style>
+
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+<path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</marker>
+<clipPath id="diskClip">
+<circle cx="180" cy="180" r="110"/>
+</clipPath>
+</defs>
+
+<circle cx="180" cy="180" r="110" fill="none" stroke="#5b8def" stroke-width="2.5"/>
+<path d="M 70 175 A 110 110 0 0 1 110 95" fill="none" stroke="#e07a5f" stroke-width="2.5"/>
+
+<g clip-path="url(#diskClip)">
+
+<g stroke="#e07a5f" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.9">
+<path d="M 174 175 L 174 240"/>
+<path d="M 174 175 L 132 115"/>
+<path d="M 174 175 L 216 115"/>
+</g>
+<g stroke="#5b8def" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.9">
+<path d="M 186 175 L 186 240"/>
+<path d="M 186 175 L 144 115"/>
+<path d="M 186 175 L 228 115"/>
+</g>
+<g class="fg-s" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" fill="none">
+<path d="M 180 175 L 180 240"/>
+<path d="M 180 175 L 138 115"/>
+<path d="M 180 175 L 222 115"/>
+</g>
+
+<path d="M 70 228 Q 83.75 173 97.5 228 T 125 228 T 152.5 228 T 180 228 T 207.5 228 T 235 228 T 262.5 228 T 290 228" fill="none" stroke="#e07a5f" stroke-width="3" opacity="0.9"/>
+<path d="M 70 232 Q 97.5 272 125 232 T 180 232 T 235 232 T 290 232" fill="none" stroke="#5b8def" stroke-width="3" opacity="0.9"/>
+<path d="M 70 230 Q 79.17 213 88.33 230 T 106.67 230 T 125 230 T 143.33 230 T 161.67 230 T 180 230 T 198.33 230 T 216.67 230 T 235 230 T 253.33 230 T 271.67 230 T 290 230" fill="none" class="fg-s" stroke-width="3"/>
+
+</g>
+
+<g font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-weight="700" font-size="92" letter-spacing="6">
+<text x="333" y="200" fill="#e07a5f" opacity="0.85">YSE</text>
+<text x="337" y="200" fill="#5b8def" opacity="0.85">YSE</text>
+<text x="335" y="200" class="fg-t">YSE</text>
+</g>
+
+<g font-family="ui-monospace, monospace" font-weight="700" font-size="92" letter-spacing="6">
+<text x="342" y="200" class="fg-t" opacity="0.9" clip-path="inset(40% 0 52% 0)">YSE</text>
+<text x="328" y="200" class="fg-t" opacity="0.9" clip-path="inset(62% 0 26% 0)">YSE</text>
+</g>
+
+<text x="338" y="230" font-family="ui-monospace, monospace" font-size="13" font-weight="400" letter-spacing="4" fill="#5b8def">// sound · engine</text>
+
+<g stroke-width="1" fill="none" stroke-linecap="round" class="fg-s">
+<line x1="338" y1="252" x2="385" y2="252" marker-end="url(#arrow)"/>
+<rect x="388" y="244" width="40" height="16" rx="2"/>
+<line x1="430" y1="252" x2="475" y2="252" marker-end="url(#arrow)"/>
+<rect x="478" y="244" width="40" height="16" rx="2"/>
+<line x1="520" y1="252" x2="565" y2="252" marker-end="url(#arrow)"/>
+<circle cx="575" cy="252" r="6" stroke="#e07a5f"/>
+</g>
+<g font-family="ui-monospace, monospace" font-size="9" text-anchor="middle" class="fg-t">
+<text x="408" y="255">osc</text>
+<text x="498" y="255">dsp</text>
+</g>
+<text x="575" y="270" font-family="ui-monospace, monospace" font-size="9" text-anchor="middle" fill="#5b8def">out</text>
+
+</svg>

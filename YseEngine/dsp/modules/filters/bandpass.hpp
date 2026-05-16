@@ -17,24 +17,39 @@
 #include "../../filters.hpp"
 #include <memory>
 
-// only works on mono buffers!
-
 namespace YSE {
   namespace DSP {
     namespace MODULES {
 
+      /**
+       *  @brief Resonant band-pass filter packaged as a chainable ``dspObject``.
+       *
+       *  Wraps ``DSP::bandPass`` for use in a sound's DSP chain via
+       *  ``YSE::sound::setDSP``.
+       *
+       *  @note Mono only — feeds the first channel of the multichannel buffer.
+       */
       class API bandPassFilter : public dspObject {
       public:
         bandPassFilter();
         virtual ~bandPassFilter() {};
 
+        /** @brief Set the centre frequency in Hz. */
         bandPassFilter & frequency(Flt value);
+
+        /** @brief Current centre frequency. */
         Flt             frequency();
 
+        /** @brief Set the resonance (Q factor). */
         bandPassFilter & setQ(Flt value);
+
+        /** @brief Current Q factor. */
         Flt              getQ();
 
+        /** @brief dspObject lifecycle hook — allocates buffers. */
         virtual void create();
+
+        /** @brief dspObject audio-thread entry point. */
         virtual void process(MULTICHANNELBUFFER & buffer);
 
       private:

@@ -41,7 +41,7 @@ namespace YSE {
       Removes the implementation from the threadpool and moves all sounds and subchannels
       to its parent (if there is one).
       */
-      ~implementationObject();
+      ~implementationObject() noexcept;
 
       /** This function is called from channelManager::setup and creates the buffers
       needed for this channel.

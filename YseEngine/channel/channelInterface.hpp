@@ -20,133 +20,128 @@
 namespace YSE {
   class system;
 
+  /// @cond INTERNAL
   namespace SOUND {
     class managerObject;
     class implementationObject;
   }
+  /// @endcond
 
   /**
-    Channels are used to control groups of sounds simultaniously. (Quite comparable to
-    channel groups on a mixing console.) Every sound has to be linked to a channel at
-    creation time. Channel can also be linked to another channel, thus creating a tree-like
-    structure with subchannels. During DSP callback, all channels will render their
-    audio in a separate thread. For this reason it might be a good idea to distribute
-    your sounds over several channels.
-
-    For convenience, several typical channels are already created by the system. There's the
-    MainMix, which is the root of the channel tree. Other channels (all linked to MainMix) are:
-
-    - FX     : Intended for short audio effects
-    - Music  : Intended for playlists and other music
-    - Ambient: Intended for environmental sounds
-    - Voice  : Intended for dialogs
-    - Gui    : Intended for interface sounds
-
-    Of course you can use these channels for anything you like.
-    */
-
+   *  @brief A node in the channel tree — a group of sounds that mix together.
+   *
+   *  Channels work like the channel groups on a mixing console: every sound is
+   *  attached to a channel, and channels can themselves be attached to a parent
+   *  channel, forming a tree rooted at ``MainMix``. Each channel is rendered on
+   *  its own DSP thread, so spreading sounds across multiple channels can help
+   *  scale across cores.
+   *
+   *  Several pre-built channels are created for you and exposed through free
+   *  functions:
+   *
+   *  - ``ChannelMaster()``  — the root of the tree.
+   *  - ``ChannelFX()``      — short sound effects.
+   *  - ``ChannelMusic()``   — playlists and music.
+   *  - ``ChannelAmbient()`` — environmental loops.
+   *  - ``ChannelVoice()``   — dialogue.
+   *  - ``ChannelGui()``     — UI feedback.
+   *
+   *  Use them as-is or as roots for your own subtrees.
+   *
+   *  @see YSE::sound
+   */
   class API channel {
   public:
 
     /**
-        Creates the channel object. You do have to call this before using a custom channel.
-        Premade channels (FX and such) call this function internally.
+     *  @brief Create the channel and attach it to the tree.
+     *
+     *  Must be called before any other method. The pre-built channels
+     *  (``ChannelFX`` etc.) call this internally.
+     *
+     *  @param name   Channel name, used for log output.
+     *  @param parent Existing channel to attach to. Use ``ChannelMaster()`` for a
+     *                top-level channel.
+     */
+    channel& create(const char * name, channel& parent);
 
-        @param name     The name of the channel. This can be used in logfiles.
-        @param parent   The parent channel. All channels must be linked to an existing channel.
-        */
-    channel&  create(const char * name, channel& parent);
+    /** @brief Set the channel volume in the range [0.0, 1.0]. */
+    channel& setVolume(float value);
 
-    /**
-        Changes the volume of a channel. Range is 0-1.
-
-        @param value    The new volume for this channel
-        */
-    channel&  setVolume(float value);
-
-    /**
-        Get the volume of a channel.
-
-        @return The current volume
-        */
+    /** @brief Current channel volume. */
     float getVolume();
 
     /**
-        Move the channel to another branch in the channel tree. This detaches the channel from its
-        current parent and links it to another channel. All sounds and subchannels move along.
-
-        @param parent The new parent channel to link this channel to.
-        */
+     *  @brief Re-parent this channel.
+     *
+     *  Detaches from the current parent and links to ``parent``. All sounds and
+     *  subchannels move along.
+     */
     channel& moveTo(channel& parent);
 
     /**
-        Because reverb needs a lot of processing power, there's only one actual reverb object. By default this is attached to the mainMix,
-        thereby affecting all channels. If you want to use the reverb on only a subset of channels, call this function on
-        the intended channel. The reverb will be moved to this channel.
-        */
+     *  @brief Move the global reverb effect onto this channel.
+     *
+     *  libYSE runs a single reverb instance for performance reasons. By default
+     *  it sits on ``MainMix`` and affects every channel; call this to restrict
+     *  reverb to a subtree.
+     */
     channel& attachReverb();
 
-    /** Allow or disallow sounds within this channel to be virtual. If you don't know
-        what that means, read up on virtualisation in the manual. This function merely
-        turns virtualisation off or on for sounds in this channel.
-
-        @param value true means on, false means off
-        */
+    /**
+     *  @brief Allow or disallow sounds on this channel to be virtualised.
+     *
+     *  Virtualised sounds keep their playback state but stop consuming DSP
+     *  budget — the engine uses this to stay within ``System().maxSounds(...)``.
+     */
     channel& setVirtual(bool value);
 
-    /** Check if this channel allows sounds to go virtual.
-
-        @return true if virtualization is allowed
-    */
+    /** @brief Whether virtualisation is permitted on this channel. */
     bool getVirtual();
 
-    /** Check if this channel is valid. It's almost impossible for a channel to 
-        be invalid. Something would be very wrong with the whole system. (Can you
-        really run out of memory these days?)
-          
-        @return true if valid
-    */   
+    /** @brief Whether this channel has a live implementation. */
     bool isValid();
 
-    /** Get the name of the channel, mainly interesting for logging.
-
-        @return A const char pointer to the channel name
-    */
+    /** @brief Channel name (the value passed to ``create``). */
     const char * getName() { return name.c_str(); }
 
-    /**
-        The real initialisation of a channel is not done in the constructor.
-        */
+    /** @brief Construct an empty channel.
+     *
+     *  Channels are only usable after ``create`` has been called.
+     */
     channel();
     ~channel();
   private:
-      
-    /**
-        A special version of create. It is used internally to create the global channel. This is not meant to be used anywhere else.
-        */
+
     void createGlobal();
 
-    Flt volume; // to remember the channel volume
-    Bool allowVirtual; // allows virtual sounds in this channel (defaults to true)
+    Flt volume;
+    Bool allowVirtual;
     std::string name;
     CHANNEL::implementationObject * pimpl;
 
-    // friend classes
     friend class CHANNEL::implementationObject;
     friend class SOUND::implementationObject;
     friend class YSE::system;
     friend class SOUND::managerObject;
   };
-  
-  
-  /**
-   Use these functors to get access to the premade channels.
-  */
+
+  /** @brief Root of the channel tree. Every channel ultimately routes here. */
   API channel& ChannelMaster();
+
+  /** @brief Pre-built channel for short sound effects. */
   API channel& ChannelFX();
+
+  /** @brief Pre-built channel for playlists and music tracks. */
   API channel& ChannelMusic();
+
+  /** @brief Pre-built channel for environmental and ambient sounds. */
   API channel& ChannelAmbient();
+
+  /** @brief Pre-built channel for dialogue and voice-over. */
   API channel& ChannelVoice();
+
+  /** @brief Pre-built channel for user-interface sounds. */
   API channel& ChannelGui();
 }
 

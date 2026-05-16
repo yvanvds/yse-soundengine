@@ -13,12 +13,9 @@
 
 
 namespace YSE {
-  /** Every subSystem consists out of several class which are meant to work together.
-  They all have an interface, implementation, manager, message and a message enumeration.
-  */
-
   class motif;
 
+  /// @cond INTERNAL
   namespace MOTIF {
     class implementationObject;
     class messageObject;
@@ -32,6 +29,7 @@ namespace YSE {
       FIRST_PITCH,
     };
   }
+  /// @endcond
 
 }
 

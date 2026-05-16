@@ -28,11 +28,14 @@ add_executable(yse_tests
   patcher/test_dsp_objects.cpp
   patcher/test_generic_objects.cpp
   patcher/test_gui_objects.cpp
+  patcher/test_timerthread.cpp
   channel/test_channel.cpp
   channel/test_channel_concurrency.cpp
   sound/test_sound_state.cpp
   sound/test_sound_impl.cpp
   sound/test_sound_concurrency.cpp
+  sound/test_sound_bufferIO.cpp
+  sound/test_sound_manager.cpp
   reverb/test_reverb_dsp.cpp
   reverb/test_reverb_concurrency.cpp
   midi/test_midifile.cpp
@@ -41,6 +44,7 @@ add_executable(yse_tests
   music/test_note.cpp
   music/test_motif.cpp
   listener/test_listener.cpp
+  io/test_bufferIO.cpp
   integration/test_device.cpp
 )
 
@@ -157,6 +161,13 @@ add_test(
 )
 set_tests_properties(yse_tests_listener PROPERTIES LABELS listener)
 
+add_test(
+  NAME    yse_tests_io
+  COMMAND yse_tests --test-suite=io
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_io PROPERTIES LABELS io)
+
 # Concurrency stress tests for the SOUND/CHANNEL/REVERB managers.  These live
 # in the sound/channel/reverb test suites but each test case name starts with
 # "<sub> concurrency:" so doctest can filter by name.  Run via
@@ -195,5 +206,6 @@ set_source_files_properties(
   patcher/test_dsp_objects.cpp
   patcher/test_generic_objects.cpp
   patcher/test_gui_objects.cpp
+  patcher/test_timerthread.cpp
   PROPERTIES COMPILE_FLAGS "${_patcher_test_suppress}"
 )
