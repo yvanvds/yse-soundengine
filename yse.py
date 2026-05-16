@@ -91,6 +91,31 @@ def cmd_test(args):
             sys.exit(result.returncode)
 
 
+def cmd_bench(args):
+    run(["cmake", "--preset", "bench"])
+    run(["cmake", "--build", "--preset", "bench"])
+
+    suffix = ".exe" if IS_WINDOWS else ""
+    exe = ROOT / "build-bench" / "bin" / ("yse_benchmarks" + suffix)
+    if not exe.exists():
+        print(f"error: {exe} not found after build.")
+        sys.exit(1)
+
+    cmd = [str(exe)]
+    if args.filter:
+        cmd.append(f"--benchmark_filter={args.filter}")
+    if args.json:
+        cmd.append("--benchmark_format=json")
+    cmd.extend(args.extra)
+
+    # Working dir = bin/ so libyse.dll / libyse.so is found alongside the
+    # binary, matching how Tests/ runs.
+    bin_dir = exe.parent
+    _print_cmd([exe.name] + cmd[1:], cwd=bin_dir)
+    result = subprocess.run(cmd, cwd=str(bin_dir))
+    sys.exit(result.returncode)
+
+
 def _cmd_coverage_linux():
     run(["cmake", "--preset", "coverage"])
     run(["cmake", "--build", "--preset", "coverage"])
@@ -208,6 +233,7 @@ def cmd_clean(args):
         ROOT / "build-debug",
         ROOT / "build-tests",
         ROOT / "build-coverage",
+        ROOT / "build-bench",
     ]
     files_to_remove = [
         ROOT / "coverage.xml",
@@ -354,6 +380,8 @@ def build_parser():
   python yse.py build --release    configure + build (release)
   python yse.py test               build tests-debug preset, run ctest
   python yse.py test --integration same, plus the integration suite (needs real audio device)
+  python yse.py bench              build bench preset, run benchmark binary
+  python yse.py bench --filter Buffer  run only benchmarks matching 'Buffer'
   python yse.py coverage           coverage preset + report (Linux: gcovr→coverage.xml; Windows: llvm-cov→coverage-llvm.json)
   python yse.py run                run Demo00 from build-debug/bin/
   python yse.py run Demo05         run Demo05 (Reverb) from build-debug/bin/
@@ -400,6 +428,35 @@ def build_parser():
         help="Also run the integration suite (requires a real audio device)",
     )
     p.set_defaults(func=cmd_test)
+
+    # bench
+    p = sub.add_parser(
+        "bench",
+        help="Build the bench preset and run the benchmark binary",
+        description=(
+            "Configures with YSE_BUILD_BENCHMARKS=ON (bench preset), builds in "
+            "Release mode, then runs yse_benchmarks from build-bench/bin/.  "
+            "google-benchmark is fetched on first configure via FetchContent — "
+            "no system package required.\n\n"
+            "Filter to a subset with --filter (passed to Google Benchmark as "
+            "--benchmark_filter, supports regex).  Use --json for machine-readable "
+            "output suitable for the CI comparison action.  Anything after `--` "
+            "is forwarded verbatim to the binary."
+        ),
+    )
+    p.add_argument(
+        "--filter", default=None,
+        help="Regex passed to --benchmark_filter (e.g. 'Buffer.*')",
+    )
+    p.add_argument(
+        "--json", action="store_true",
+        help="Emit JSON output (--benchmark_format=json)",
+    )
+    p.add_argument(
+        "extra", nargs="*",
+        help="Extra arguments forwarded to yse_benchmarks (use -- to separate)",
+    )
+    p.set_defaults(func=cmd_bench)
 
     # coverage
     p = sub.add_parser(

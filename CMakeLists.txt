@@ -26,6 +26,9 @@ option(YSE_NATIVE_ARCH
 option(YSE_BUILD_TESTS
   "Build the Tests/ unit-test suite (requires doctest vendored under dependencies/doctest/)"
   OFF)
+option(YSE_BUILD_BENCHMARKS
+  "Build the Bench/ benchmark suite (fetches google-benchmark via FetchContent)"
+  OFF)
 option(YSE_ENABLE_COVERAGE
   "Instrument the build for code coverage — implies YSE_BUILD_TESTS; Linux/GCC or Clang only"
   OFF)
@@ -132,4 +135,37 @@ endif()
 if(YSE_BUILD_TESTS)
   enable_testing()
   add_subdirectory(Tests)
+endif()
+
+# ── Benchmarks ────────────────────────────────────────────────────────────────
+# Google Benchmark is fetched on demand so the default build has zero extra
+# dependencies.  Pinned to a tagged release; bump explicitly when needed so the
+# version is reproducible across CI runs and developer machines.
+if(YSE_BUILD_BENCHMARKS)
+  include(FetchContent)
+  set(BENCHMARK_ENABLE_TESTING     OFF CACHE BOOL "" FORCE)
+  set(BENCHMARK_ENABLE_INSTALL     OFF CACHE BOOL "" FORCE)
+  set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "" FORCE)
+  set(BENCHMARK_INSTALL_DOCS       OFF CACHE BOOL "" FORCE)
+  # Upstream's own build defaults to -Werror, which fails on newer Clang
+  # versions that warn about __COUNTER__ as a C2y extension (the same
+  # macro doctest uses; see Tests/CMakeLists.txt). It's a vendored
+  # dependency we're not modifying, so don't gate our build on its
+  # warning hygiene.
+  set(BENCHMARK_ENABLE_WERROR      OFF CACHE BOOL "" FORCE)
+  FetchContent_Declare(
+    benchmark
+    GIT_REPOSITORY https://github.com/google/benchmark.git
+    GIT_TAG        v1.9.0
+  )
+  FetchContent_MakeAvailable(benchmark)
+  # The engine's global -Wall -Wextra -Wpedantic propagates into upstream's
+  # translation units; silence the two diagnostics that fire there
+  # (-Wc2y-extensions on __COUNTER__, -Wswitch on a missing enum branch in
+  # sysinfo.cc). Scoped to the upstream targets so engine code is unaffected.
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+    target_compile_options(benchmark      PRIVATE -Wno-c2y-extensions -Wno-switch)
+    target_compile_options(benchmark_main PRIVATE -Wno-c2y-extensions -Wno-switch)
+  endif()
+  add_subdirectory(Bench)
 endif()

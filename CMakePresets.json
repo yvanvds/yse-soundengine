@@ -42,6 +42,17 @@
       }
     },
     {
+      "name": "bench",
+      "displayName": "Release + Benchmarks",
+      "description": "Release build with the Bench/ suite enabled (fetches google-benchmark on first configure)",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build-bench",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "YSE_BUILD_BENCHMARKS": "ON"
+      }
+    },
+    {
       "name": "coverage",
       "displayName": "Coverage (Linux only)",
       "description": "Coverage-instrumented debug build — requires GCC or Clang on Linux; gcovr must be installed to generate the report",
@@ -87,6 +98,11 @@
       "name": "tests-debug",
       "displayName": "Debug + Tests",
       "configurePreset": "tests-debug"
+    },
+    {
+      "name": "bench",
+      "displayName": "Release + Benchmarks",
+      "configurePreset": "bench"
     },
     {
       "name": "coverage",
