@@ -62,6 +62,7 @@ build-debug/
 build-tests/
 build-coverage/
 build-bench/
+build-bench-linux/
 build-asan/
 build-linux/
 build-linux-asan/
