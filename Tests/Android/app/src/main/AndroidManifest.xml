@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:label="YSE Tests"
+        android:hasCode="false"
+        android:allowBackup="false">
+
+        <!-- NativeActivity loads libyse_tests.so and calls android_main().
+             android:hasCode="false" tells AAPT we ship no Java/Kotlin classes
+             so the build doesn't fail looking for a missing Application
+             subclass. -->
+        <activity
+            android:name="android.app.NativeActivity"
+            android:exported="true"
+            android:label="YSE Tests">
+            <meta-data
+                android:name="android.app.lib_name"
+                android:value="yse_tests" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

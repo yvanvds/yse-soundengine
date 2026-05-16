@@ -25,8 +25,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)device\deviceInterface.hpp" />
     <ClInclude Include="$(MSBuildThisFileDirectory)device\deviceManager.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)device\deviceSetup.hpp" />
-    <ClInclude Include="$(MSBuildThisFileDirectory)device\OpenSL.h" />
-    <ClInclude Include="$(MSBuildThisFileDirectory)device\OpenSLImplementation.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)device\oboeImplementation.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)device\portaudioDeviceManager.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)dsp\ADSRenvelope.hpp" />
     <ClInclude Include="$(MSBuildThisFileDirectory)dsp\buffer.hpp" />
@@ -201,8 +200,7 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)device\deviceInterface.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)device\deviceManager.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)device\deviceSetup.cpp" />
-    <ClCompile Include="$(MSBuildThisFileDirectory)device\OpenSL.cpp" />
-    <ClCompile Include="$(MSBuildThisFileDirectory)device\OpenSLImplementation.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)device\oboeImplementation.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)device\portaudioDeviceManager.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)dsp\ADSRenvelope.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)dsp\buffer.cpp" />

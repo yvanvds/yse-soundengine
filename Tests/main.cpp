@@ -26,6 +26,10 @@
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 
+#if defined(__ANDROID__)
+#  include "support/android_entry.hpp"
+#else
+
 int main(int argc, char** argv) {
     doctest::Context context;
     context.applyCommandLine(argc, argv);
@@ -37,3 +41,5 @@ int main(int argc, char** argv) {
     }
     return res;
 }
+
+#endif

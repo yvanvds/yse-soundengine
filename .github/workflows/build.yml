@@ -69,3 +69,47 @@ jobs:
         with:
           args: >
             --define "sonar.cfamily.compile-commands=${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json"
+
+  build-android:
+    # Cross-compile libyse.so + libyse_tests.so for each target ABI using the
+    # NDK toolchain. Build-only — actually running the tests requires either an
+    # emulator (KVM unavailable on GitHub-hosted runners) or a physical device,
+    # both of which are deferred to a follow-up.
+    name: Android build (${{ matrix.abi }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [arm64-v8a, x86_64]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Install host build tools
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y cmake ninja-build
+      - name: Setup Android NDK
+        id: ndk
+        uses: nttld/setup-ndk@afb4c9964b521afb97c864b7d40b11e6911bd410 # v1.5.0
+        with:
+          ndk-version: r27
+          local-cache: true
+      - name: Configure CMake
+        run: >
+          cmake -B build-android -G Ninja
+          -DCMAKE_TOOLCHAIN_FILE=${{ steps.ndk.outputs.ndk-path }}/build/cmake/android.toolchain.cmake
+          -DANDROID_ABI=${{ matrix.abi }}
+          -DANDROID_PLATFORM=android-26
+          -DCMAKE_BUILD_TYPE=Debug
+          -DYSE_BUILD_TESTS=ON
+      - name: Build libyse.so + libyse_tests.so
+        run: cmake --build build-android --target yse yse_tests
+      - name: Upload artefacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: yse-android-${{ matrix.abi }}
+          path: |
+            build-android/bin/libyse.so
+            build-android/bin/libyse_tests.so
+          if-no-files-found: error
+          retention-days: 14

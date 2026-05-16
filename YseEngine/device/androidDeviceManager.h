@@ -6,8 +6,7 @@
 #include "../headers/types.hpp"
 #include "deviceManager.h"
 
-#include <SLES/OpenSLES.h>
-#include "OpenSLImplementation.h"
+#include "oboeImplementation.h"
 
 namespace YSE {
 
@@ -32,7 +31,7 @@ namespace YSE {
 
     private:
 
-      OpenSLImplementation implementation;
+      OboeImplementation implementation;
       bool initDone, open;
     };
 

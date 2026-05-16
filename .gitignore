@@ -68,6 +68,8 @@ build-linux/
 build-linux-asan/
 build-linux-tsan/
 build-linux-audio/
+build-android-arm64/
+build-android-x86_64/
 [Bb]in/
 [Oo]bj/
 

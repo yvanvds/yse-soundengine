@@ -21,8 +21,7 @@ Tests/                      # doctest unit-test suite (gated behind YSE_BUILD_TE
   support/                  # Shared test helpers (audio_helpers, null_device, fixtures)
   TEST_PLAN.md              # 13-phase test plan (utils → DSP → patcher → … → device)
 Demo.Windows.Native/        # 18 C++ console demos (Demo00–Demo17 + Test01_Pitch + combined Demo)
-Yse.Android.Native/         # Android native demo
-YSEAndroidStudioNative/     # Android Studio native project
+Tests/Android/              # Gradle wrapper that packages libyse_tests.so into a NativeActivity APK
 Yse.Windows.Native/         # Windows static/shared lib build (VS)
 dist/                       # Release archives written by `python yse.py package` (gitignored)
 TestResources/              # Audio test files (drone.ogg, kick.ogg, demo.mid, …)
@@ -342,9 +341,9 @@ class dspSourceObject {    // audio generator (replaces file)
 
 ### 6. Audio Device Layer
 
-**Files:** [device/deviceInterface.hpp](YseEngine/device/deviceInterface.hpp), [device/portaudioDeviceManager.cpp](YseEngine/device/portaudioDeviceManager.cpp), [device/OpenSL.cpp](YseEngine/device/OpenSL.cpp), [device/androidDeviceManager.cpp](YseEngine/device/androidDeviceManager.cpp)
+**Files:** [device/deviceInterface.hpp](YseEngine/device/deviceInterface.hpp), [device/portaudioDeviceManager.cpp](YseEngine/device/portaudioDeviceManager.cpp), [device/oboeImplementation.cpp](YseEngine/device/oboeImplementation.cpp), [device/androidDeviceManager.cpp](YseEngine/device/androidDeviceManager.cpp)
 
-Abstracts the OS audio API behind a single interface. PortAudio handles Windows (WASAPI/DirectSound/WDM — ASIO is not available with the MSYS2 package; see [issue #38](https://github.com/yvanvds/yse-soundengine/issues/38)) and Linux; OpenSL ES is used on Android.
+Abstracts the OS audio API behind a single interface. PortAudio handles Windows (WASAPI/DirectSound/WDM — ASIO is not available with the MSYS2 package; see [issue #38](https://github.com/yvanvds/yse-soundengine/issues/38)) and Linux; Oboe (AAudio on API 26+, OpenSL ES fallback) is used on Android.
 
 ```cpp
 const std::vector<device>& getDevices();
@@ -399,7 +398,7 @@ Patcher TUs share a set of warning suppressions (`-Wno-unused-parameter`, plus C
 
 **Files:** [internal/threadPool.cpp](YseEngine/internal/threadPool.cpp), [internal/thread.cpp](YseEngine/internal/thread.cpp), [utils/lfQueue.hpp](YseEngine/utils/lfQueue.hpp), [utils/atomicOps.hpp](YseEngine/utils/atomicOps.hpp)
 
-- **Audio callback thread** — managed by PortAudio/OpenSL ES; runs DSP chain at buffer rate.
+- **Audio callback thread** — managed by PortAudio/Oboe; runs DSP chain at buffer rate.
 - **Application thread** — drives `system::update()` each frame.
 - **Thread pool** — `threadPool` manages a set of `threadPoolThread` workers using a condition-variable-guarded job queue. Pool size defaults to `std::hardware_concurrency`.
 - **Communication** — all cross-thread state changes use a lock-free SPSC message queue (`utils/lfQueue.hpp`); no mutexes in the hot path.
@@ -445,7 +444,7 @@ sound.play()
                              └── occlusion low-pass filter
                                   └── channel volume (tree)
                                        └── reverb blend
-                                            └── device output (PortAudio / OpenSL ES)
+                                            └── device output (PortAudio / Oboe)
 ```
 
 ---

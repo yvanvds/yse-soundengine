@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.20)
-project(yse-soundengine LANGUAGES CXX)
+# C is needed only on Android (android_native_app_glue.c is the NativeActivity
+# entry-point shim) but FetchContent'd deps like libsndfile already enable it,
+# so declaring it here is consistent and cheap on desktop.
+project(yse-soundengine LANGUAGES C CXX)
 
 # ── Default build type ────────────────────────────────────────────────────────
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -38,18 +41,95 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # ── Dependencies ──────────────────────────────────────────────────────────────
 find_package(Threads REQUIRED)
-find_package(PkgConfig REQUIRED)
 
-pkg_check_modules(PortAudio REQUIRED IMPORTED_TARGET portaudio-2.0)
-pkg_check_modules(SndFile   REQUIRED IMPORTED_TARGET sndfile)
+if(ANDROID)
+  # 16 KB page size compatibility — Pixel 8/9 and Android 15 QPR1+ devices may
+  # run kernels with 16 KB pages, and PackageManager warns when installing APKs
+  # whose native libraries have 4 KB-aligned LOAD segments. Aligning to 16 KB
+  # makes the .so compatible with both page sizes at the cost of ~12 KB per
+  # LOAD segment in the on-disk image. Required by Play Store from Nov 2025.
+  add_link_options("-Wl,-z,max-page-size=16384")
 
-# RtMidi is required on every desktop platform we build for here (Windows and
-# Linux).  The MIDI device source files (device.cpp, midiDeviceManager.cpp)
-# need RtMidi symbols; they are guarded by `#if YSE_WINDOWS || YSE_LINUX` so
-# they remain compiled-out on Android, but the CMake build does not target
-# Android, so the dependency is unconditionally required here.
-pkg_check_modules(RtMidi REQUIRED IMPORTED_TARGET rtmidi)
-message(STATUS "RtMidi found — MIDI device backend enabled")
+  # The NDK toolchain provides no pkg-config in its sysroot. PortAudio and RtMidi
+  # have no desktop counterpart here:
+  #   • PortAudio is replaced by Oboe (audio I/O) — wired in a later phase.
+  #   • RtMidi is unused — midi/device.cpp and midi/midiDeviceManager.cpp are
+  #     `#if YSE_WINDOWS || YSE_LINUX`-guarded and compile to empty TUs.
+  # libsndfile is built from source via FetchContent below — WAV-only, no
+  # external codec libs (flac/ogg/vorbis/opus/mpeg).
+  message(STATUS "Android build — fetching libsndfile from source")
+
+  include(FetchContent)
+
+  # libsndfile 1.2.2's top-level CMakeLists declares cmake_minimum_required(3.1),
+  # which CMake 4.x rejects (compatibility with < 3.5 was removed). Forcing the
+  # policy floor unblocks the fetched build without patching upstream.
+  set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "" FORCE)
+
+  set(BUILD_PROGRAMS           OFF CACHE BOOL "" FORCE)
+  set(BUILD_EXAMPLES           OFF CACHE BOOL "" FORCE)
+  set(BUILD_TESTING            OFF CACHE BOOL "" FORCE)
+  set(BUILD_REGTEST            OFF CACHE BOOL "" FORCE)
+  set(BUILD_SHARED_LIBS        OFF CACHE BOOL "" FORCE)
+  set(ENABLE_EXTERNAL_LIBS     OFF CACHE BOOL "" FORCE)
+  set(ENABLE_MPEG              OFF CACHE BOOL "" FORCE)
+  set(ENABLE_CPACK             OFF CACHE BOOL "" FORCE)
+  set(ENABLE_PACKAGE_CONFIG    OFF CACHE BOOL "" FORCE)
+  set(INSTALL_PKGCONFIG_MODULE OFF CACHE BOOL "" FORCE)
+  set(INSTALL_MANPAGES         OFF CACHE BOOL "" FORCE)
+  FetchContent_Declare(
+    sndfile
+    GIT_REPOSITORY https://github.com/libsndfile/libsndfile.git
+    GIT_TAG        1.2.2
+  )
+  FetchContent_MakeAvailable(sndfile)
+
+  # Oboe: Google's audio I/O wrapper. Replaces the deprecated direct OpenSL ES
+  # backend. Oboe negotiates AAudio (API 26+, our minSdk) and falls back to
+  # OpenSL ES on the rare device where AAudio is unavailable.
+  FetchContent_Declare(
+    oboe
+    GIT_REPOSITORY https://github.com/google/oboe.git
+    GIT_TAG        1.9.3
+  )
+  FetchContent_MakeAvailable(oboe)
+
+  # Oboe's public headers trip -Wunused-parameter on virtuals like
+  # reportWorkload(int32_t appWorkload). Mark its include dirs SYSTEM so the
+  # diagnostic is suppressed in every TU that includes them transitively via
+  # androidDeviceManager.h → oboeImplementation.h.
+  get_target_property(_oboe_includes oboe INTERFACE_INCLUDE_DIRECTORIES)
+  if(_oboe_includes)
+    set_target_properties(oboe PROPERTIES INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${_oboe_includes}")
+  endif()
+else()
+  find_package(PkgConfig REQUIRED)
+
+  pkg_check_modules(PortAudio REQUIRED IMPORTED_TARGET portaudio-2.0)
+  pkg_check_modules(SndFile   REQUIRED IMPORTED_TARGET sndfile)
+
+  # RtMidi is required on every desktop platform we build for here (Windows and
+  # Linux).  The MIDI device source files (device.cpp, midiDeviceManager.cpp)
+  # need RtMidi symbols; they are guarded by `#if YSE_WINDOWS || YSE_LINUX` so
+  # they remain compiled-out on Android, but the CMake build does not target
+  # Android, so the dependency is unconditionally required here.
+  pkg_check_modules(RtMidi REQUIRED IMPORTED_TARGET rtmidi)
+  message(STATUS "RtMidi found — MIDI device backend enabled")
+endif()
+
+# yse::sndfile — uniform interface target so YseEngine/CMakeLists.txt doesn't
+# need a per-platform fork. On desktop it points at the pkg-config import
+# (system libsndfile); on Android it points at the FetchContent-built static
+# library above. A regular INTERFACE library (not IMPORTED) skips CMake's
+# generation-time path validation, which the FetchContent target's
+# build-time-only include dir would otherwise fail.
+add_library(yse_sndfile_iface INTERFACE)
+if(ANDROID)
+  target_link_libraries(yse_sndfile_iface INTERFACE sndfile)
+else()
+  target_link_libraries(yse_sndfile_iface INTERFACE PkgConfig::SndFile)
+endif()
+add_library(yse::sndfile ALIAS yse_sndfile_iface)
 
 # ── Compiler flags ────────────────────────────────────────────────────────────
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
