@@ -30,38 +30,32 @@ jobs:
             libsndfile1-dev \
             librtmidi-dev \
             gcovr \
-            pulseaudio \
-            pulseaudio-utils \
-            libasound2-plugins \
+            jackd2 \
             alsa-utils
-      - name: Set up PulseAudio null sink for headless audio playback
+      - name: Set up JACK dummy backend for headless audio playback
         # Unlocks audio-thread DSP code paths (readInterleaved, oscillator
         # fast loops, sound playback lifecycle) in the integration test suite
         # so coverage reflects actual playback rather than the engine's idle
         # state.
         #
-        # The Azure kernel on ubuntu-latest does not ship the snd-aloop or
-        # snd-dummy modules in linux-modules-extra, so we run a user-space
-        # PulseAudio daemon with a null sink and route ALSA through it via
-        # libasound2-plugins' pulse PCM. PortAudio's ALSA backend then sees a
-        # real, openable device and engineInitWithAudio() succeeds.
+        # The Azure kernel on ubuntu-latest does not ship the snd-aloop /
+        # snd-dummy ALSA modules and PulseAudio's null sink is not visible to
+        # PortAudio's ALSA backend without a real card in /proc/asound/cards.
+        # JACK's dummy driver provides a pure-userspace audio server that
+        # PortAudio (built with JACK support in portaudio19-dev) connects to
+        # directly, so engineInitWithAudio() succeeds and the callback fires.
         run: |
-          # Start PulseAudio in a way that survives the rest of the job; --start
-          # backgrounds it, --exit-idle-time=-1 keeps it alive after the test
-          # process exits.
-          pulseaudio --start --exit-idle-time=-1
-          # Give the daemon a beat to come up before pactl talks to it.
+          # -R disables realtime scheduling (no CAP_SYS_NICE on CI runners);
+          # -d dummy is the no-hardware backend; -r 44100 / -p 1024 / -n 2
+          # match YSE's default sample rate and a small buffer for tests.
+          jackd -R -d dummy -r 44100 -p 1024 -n 2 >/tmp/jackd.log 2>&1 &
           sleep 1
-          pactl load-module module-null-sink sink_name=ci_dummy_sink || true
-          pactl set-default-sink ci_dummy_sink || true
-          # Point ALSA's default PCM and ctl at PulseAudio so PortAudio's ALSA
-          # backend enumerates the null sink as the default device.
-          cat <<'EOF' | sudo tee /etc/asound.conf >/dev/null
-          pcm.!default { type pulse }
-          ctl.!default { type pulse }
-          EOF
-          pactl list short sinks || true
-          aplay -l || true
+          # Diagnostic: report whether jackd is alive and what backends are
+          # visible. Failures here don't abort the step; they surface in logs.
+          jack_lsp -p 2>/dev/null || echo "jack_lsp: no jack server running yet"
+          # PortAudio prefers JACK if PA_USE_JACK is compiled in. Set the
+          # environment variable that controls the default Host API choice.
+          echo "PA_ALSA_PLUGHW=1" >>"$GITHUB_ENV"
       - name: Configure CMake
         run: >
           cmake -B build -G Ninja
