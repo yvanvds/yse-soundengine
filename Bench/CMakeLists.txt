@@ -6,6 +6,10 @@
 
 add_executable(yse_benchmarks
   dsp/bench_buffer.cpp
+  dsp/bench_filters.cpp
+  dsp/bench_oscillators.cpp
+  dsp/bench_delay.cpp
+  dsp/bench_math.cpp
 )
 
 # Match how Tests/ links: direct object linkage to yse_objects gives full
