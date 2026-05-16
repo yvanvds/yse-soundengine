@@ -2,5 +2,6 @@
     "sonarlint.connectedMode.project": {
         "connectionId": "yvanvds",
         "projectKey": "yvanvds_yse-soundengine"
-    }
+    },
+    "sonarlint.pathToCompileCommands": "${workspaceFolder}\\build-tests\\compile_commands.json"
 }
