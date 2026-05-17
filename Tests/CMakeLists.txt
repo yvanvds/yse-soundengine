@@ -31,6 +31,7 @@ set(YSE_TEST_SOURCES
   patcher/test_timerthread.cpp
   channel/test_channel.cpp
   channel/test_channel_concurrency.cpp
+  channel/test_channel_metering.cpp
   sound/test_sound_state.cpp
   sound/test_sound_impl.cpp
   sound/test_sound_concurrency.cpp
