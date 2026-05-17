@@ -107,6 +107,21 @@ YSE_C_API float yse_system_cpu_load(YseSystem* sys) {
   return to_cpp(sys)->cpuLoad();
 }
 
+YSE_C_API double yse_system_get_active_sample_rate(YseSystem* sys) {
+  if (!sys) return 0.0;
+  return to_cpp(sys)->getActiveSampleRate();
+}
+
+YSE_C_API int yse_system_get_active_buffer_size(YseSystem* sys) {
+  if (!sys) return 0;
+  return to_cpp(sys)->getActiveBufferSize();
+}
+
+YSE_C_API int yse_system_get_active_output_latency(YseSystem* sys) {
+  if (!sys) return 0;
+  return to_cpp(sys)->getActiveOutputLatency();
+}
+
 YSE_C_API void yse_system_sleep(YseSystem* sys, unsigned int ms) {
   if (!sys) return;
   to_cpp(sys)->sleep(ms);

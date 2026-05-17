@@ -82,6 +82,19 @@ unsigned int OboeImplementation::GetCallbacksSinceLastUpdate() {
   return callbacksSinceLastUpdate.exchange(0);
 }
 
+int32_t OboeImplementation::getNegotiatedBufferSize() const {
+  return mStream ? mStream->getFramesPerBurst() : 0;
+}
+
+int32_t OboeImplementation::getNegotiatedOutputLatencyMs() const {
+  if (!mStream) return 0;
+  auto result = mStream->calculateLatencyMillis();
+  // result is a ResultWithValue<double>; only return the value when the
+  // underlying calculation succeeded (some streams report ErrorUnimplemented
+  // when the hardware can't sample timestamps).
+  return result ? (int32_t)result.value() : 0;
+}
+
 oboe::DataCallbackResult OboeImplementation::onAudioReady(oboe::AudioStream * /*stream*/,
                                                           void * audioData,
                                                           int32_t numFrames) {

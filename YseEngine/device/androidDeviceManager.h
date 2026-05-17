@@ -29,6 +29,11 @@ namespace YSE {
       virtual void openDevice(const YSE::deviceSetup & object);
       virtual void addCallback();
 
+      // Live device-state getters (see deviceManager.h for contract).
+      virtual double getActiveSampleRate()    const;
+      virtual int    getActiveBufferSize()    const;
+      virtual int    getActiveOutputLatency() const;
+
     private:
 
       OboeImplementation implementation;

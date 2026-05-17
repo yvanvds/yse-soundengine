@@ -210,6 +210,33 @@ namespace YSE {
      */
     float cpuLoad();
 
+    /// @name Active device readouts
+    /// Live state of the currently open audio device. Each returns 0 when no
+    /// device is open (pre-init, after ``close()``, or under ``initOffline()``).
+    /// Host applications use these to render device-info UI without having to
+    /// re-enumerate ``YSE::device`` descriptors, and to survive device
+    /// reconnects cleanly.
+    /// @{
+
+    /** @brief Currently negotiated sample rate in Hz. */
+    double getActiveSampleRate();
+
+    /** @brief Currently negotiated audio buffer size in frames.
+     *
+     *  This is the device's frames-per-callback (PortAudio's
+     *  ``framesPerBuffer`` / Oboe's ``framesPerBurst``) — NOT the engine's
+     *  internal ``STANDARD_BUFFERSIZE``, which may differ.
+     */
+    int getActiveBufferSize();
+
+    /** @brief Currently negotiated output latency in samples.
+     *
+     *  Convert to milliseconds with ``(latency / sampleRate) * 1000``.
+     */
+    int getActiveOutputLatency();
+
+    /// @}
+
     /** @brief Sleep the calling thread for ``ms`` milliseconds.
      *
      *  Convenience for console applications that don't otherwise yield

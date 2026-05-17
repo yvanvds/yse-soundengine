@@ -45,6 +45,7 @@ set(YSE_TEST_SOURCES
   music/test_motif.cpp
   listener/test_listener.cpp
   io/test_bufferIO.cpp
+  system/test_system_active_state.cpp
   integration/test_device.cpp
 )
 
@@ -180,6 +181,13 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_io PROPERTIES LABELS io)
+
+add_test(
+  NAME    yse_tests_system
+  COMMAND yse_tests --test-suite=system
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_system PROPERTIES LABELS system)
 
 # Concurrency stress tests for the SOUND/CHANNEL/REVERB managers.  These live
 # in the sound/channel/reverb test suites but each test case name starts with

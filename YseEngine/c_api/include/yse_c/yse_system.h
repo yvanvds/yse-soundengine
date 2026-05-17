@@ -35,6 +35,14 @@ YSE_C_API void       yse_system_resume(YseSystem* sys);
 YSE_C_API int        yse_system_missed_callbacks(YseSystem* sys);
 YSE_C_API float      yse_system_cpu_load(YseSystem* sys);
 
+/* Live state of the currently open audio device. Returns 0 when no device
+   is open (pre-init, after close, or initOffline path). Buffer size is the
+   device's frames-per-callback, NOT the engine block size. Output latency
+   is in samples; convert to ms with (latency / sample_rate) * 1000. */
+YSE_C_API double     yse_system_get_active_sample_rate(YseSystem* sys);
+YSE_C_API int        yse_system_get_active_buffer_size(YseSystem* sys);
+YSE_C_API int        yse_system_get_active_output_latency(YseSystem* sys);
+
 /* Convenience. */
 YSE_C_API void       yse_system_sleep(YseSystem* sys, unsigned int ms);
 

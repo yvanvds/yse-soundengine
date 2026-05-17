@@ -25,6 +25,10 @@ public:
 
   int32_t getNegotiatedSampleRate() const { return negotiatedSampleRate; }
 
+  // Live values queried from the open Oboe stream; 0 when no stream is open.
+  int32_t getNegotiatedBufferSize() const;
+  int32_t getNegotiatedOutputLatencyMs() const;
+
   oboe::DataCallbackResult onAudioReady(oboe::AudioStream * stream,
                                         void * audioData,
                                         int32_t numFrames) override;
