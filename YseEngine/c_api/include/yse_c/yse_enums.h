@@ -26,6 +26,14 @@ typedef enum YseChannelType {
   YSE_CT_CUSTOM  = 8
 } YseChannelType;
 
+/* Mirrors YSE::ERROR_LEVEL in headers/enums.hpp. */
+typedef enum YseErrorLevel {
+  YSE_EL_NONE    = 0,
+  YSE_EL_ERROR   = 1,
+  YSE_EL_WARNING = 2,
+  YSE_EL_DEBUG   = 3
+} YseErrorLevel;
+
 /* Mirrors YSE::OUT_TYPE in headers/enums.hpp (patcher outlet data type). */
 typedef enum YseOutType {
   YSE_OUT_INVALID = 0,

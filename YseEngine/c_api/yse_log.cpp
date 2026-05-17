@@ -1,0 +1,95 @@
+#include "yse_c/yse_log.h"
+#include "yse_c_internal.hpp"
+
+#include "../log.hpp"
+#include "../headers/enums.hpp"
+
+#include <cstring>
+#include <mutex>
+#include <string>
+
+namespace {
+  inline YSE::log* to_cpp(YseLog* l) { return reinterpret_cast<YSE::log*>(l); }
+
+  size_t copy_string(const char* src, char* buf, size_t cap) {
+    if (!src) src = "";
+    const size_t n_full = std::strlen(src);
+    if (buf != nullptr && cap > 0) {
+      const size_t n = n_full < cap - 1 ? n_full : cap - 1;
+      std::memcpy(buf, src, n);
+      buf[n] = '\0';
+    }
+    return n_full;
+  }
+
+  // Bridge from YSE's virtual logHandler to a C function pointer.
+  // Only one bridge instance exists for the singleton Log(); installing
+  // a new callback replaces the slot. The mutex serialises installation
+  // against the audio / engine threads that may be calling AddMessage.
+  class CallbackBridge : public YSE::logHandler {
+  public:
+    void install(YseLogCallback cb, void* user_data) {
+      std::lock_guard<std::mutex> lock(mu);
+      this->cb = cb;
+      this->user_data = user_data;
+    }
+    void AddMessage(const std::string& msg) override {
+      YseLogCallback fn;
+      void* ud;
+      {
+        std::lock_guard<std::mutex> lock(mu);
+        fn = cb;
+        ud = user_data;
+      }
+      if (fn) fn(msg.c_str(), ud);
+    }
+  private:
+    std::mutex mu;
+    YseLogCallback cb = nullptr;
+    void* user_data = nullptr;
+  };
+
+  CallbackBridge& bridge() {
+    static CallbackBridge instance;
+    return instance;
+  }
+}
+
+extern "C" {
+
+YSE_C_API YseLog* yse_log_get(void) {
+  return reinterpret_cast<YseLog*>(&YSE::Log());
+}
+
+YSE_C_API void yse_log_send_message(YseLog* log, const char* msg) {
+  if (log && msg) to_cpp(log)->sendMessage(msg);
+}
+
+YSE_C_API void yse_log_set_level(YseLog* log, YseErrorLevel level) {
+  if (log) to_cpp(log)->setLevel(static_cast<YSE::ERROR_LEVEL>(level));
+}
+
+YSE_C_API YseErrorLevel yse_log_get_level(YseLog* log) {
+  return log ? static_cast<YseErrorLevel>(to_cpp(log)->getLevel()) : YSE_EL_NONE;
+}
+
+YSE_C_API void yse_log_set_logfile(YseLog* log, const char* path) {
+  if (log && path) to_cpp(log)->setLogfile(path);
+}
+
+YSE_C_API size_t yse_log_get_logfile(YseLog* log, char* buf, size_t cap) {
+  if (!log) { if (buf && cap > 0) buf[0] = '\0'; return 0; }
+  return copy_string(to_cpp(log)->getLogfile(), buf, cap);
+}
+
+YSE_C_API void yse_log_set_callback(YseLog* log, YseLogCallback cb, void* user_data) {
+  if (!log) return;
+  bridge().install(cb, user_data);
+  // Installing the bridge unconditionally lets the user swap the callback
+  // pointer freely without re-installing on the YSE side. Passing nullptr
+  // for cb keeps the bridge installed but makes it a no-op; pass a real
+  // callback to start receiving messages.
+  to_cpp(log)->setHandler(cb ? &bridge() : nullptr);
+}
+
+} // extern "C"
