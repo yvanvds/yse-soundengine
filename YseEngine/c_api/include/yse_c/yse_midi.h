@@ -28,9 +28,13 @@
 extern "C" {
 #endif
 
+/* Owned — release with yse_midi_file_destroy. */
 typedef struct YseMidiFile YseMidiFile;
+/* Owned — release with yse_midi_out_destroy. */
 typedef struct YseMidiOut  YseMidiOut;
+/* Owned — release with yse_midi_in_destroy. */
 typedef struct YseMidiIn   YseMidiIn;
+/* Owned — release with yse_midi_note_destroy. */
 typedef struct YseMidiNote YseMidiNote;
 
 /* ─── standard MIDI file playback ─────────────────────────────────── */

@@ -13,7 +13,11 @@
 extern "C" {
 #endif
 
+/* Borrowed singleton — owned by the engine, never destroy.
+   Obtain via yse_system_get(). */
 typedef struct YseSystem  YseSystem;
+/* Forward declarations — see yse_channel.h / yse_reverb.h / yse_device.h
+   for ownership semantics. */
 typedef struct YseChannel YseChannel;
 typedef struct YseReverb  YseReverb;
 typedef struct YseDevice  YseDevice;

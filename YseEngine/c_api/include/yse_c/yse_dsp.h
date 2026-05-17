@@ -22,6 +22,9 @@
 extern "C" {
 #endif
 
+/* Owned — release with yse_dsp_buffer_destroy. Covers all four buffer
+   subclasses (plain, drawable, file, wavetable); the same destroy frees
+   the correct backing storage via dynamic_cast. */
 typedef struct YseDspBuffer YseDspBuffer;
 
 /* Constructors — one per subclass. The returned handle owns its native

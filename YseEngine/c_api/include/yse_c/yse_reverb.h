@@ -24,6 +24,8 @@
 extern "C" {
 #endif
 
+/* Owned via yse_reverb_create — release with yse_reverb_destroy.
+   Borrowed via yse_system_get_global_reverb — never destroy that. */
 typedef struct YseReverb YseReverb;
 
 /* Owned reverb zone — yse_reverb_create() runs both the C++ constructor
