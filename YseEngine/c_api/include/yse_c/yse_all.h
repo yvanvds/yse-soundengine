@@ -18,5 +18,6 @@
 #include "yse_dsp_modules.h"
 #include "yse_patcher.h"
 #include "yse_midi.h"
+#include "yse_music.h"
 
 #endif
