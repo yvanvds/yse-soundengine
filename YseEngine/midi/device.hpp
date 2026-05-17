@@ -3,11 +3,17 @@
 #include "../headers/defines.hpp"
 #if YSE_WINDOWS || YSE_LINUX
 
+#include <atomic>
+#include <cstddef>
+#include <vector>
+
 #include "midiMessage.hpp"
 #include "../headers/enums.hpp"
 
 /// @cond INTERNAL
+class RtMidiIn;
 class RtMidiOut;
+struct MidiInDispatchTester;
 /// @endcond
 
 namespace YSE {
@@ -92,6 +98,100 @@ namespace YSE {
 		bool isPrepared();
 
 		RtMidiOut* device;
+	};
+
+	/**
+	 *  @brief MIDI input port.
+	 *
+	 *  Open a port with ``create`` (using a device index obtained from
+	 *  ``System().getMidiInDeviceName(...)``), register one or both of the
+	 *  callbacks, then receive MIDI messages as they arrive on the device.
+	 *  The class is non-copyable / non-movable — wrap in a ``unique_ptr`` if
+	 *  you need transferable ownership.
+	 *
+	 *  Two callback styles are supported, independently. ``RawCallback``
+	 *  delivers the original byte sequence and is the right choice for
+	 *  full-protocol coverage (SysEx, clock, song-position). ``ParsedCallback``
+	 *  pre-decodes the common case (status nibble / channel nibble / two data
+	 *  bytes) and is the right choice for note-in / CC / pitch-bend handlers
+	 *  that just need typed fields. Either may be null to disable that path.
+	 *
+	 *  @note Callbacks fire on RtMidi's internal input thread. They must
+	 *        return quickly and may not block on I/O. The raw byte pointer
+	 *        is valid only for the duration of the call — copy it if you
+	 *        need to deliver it across threads. The C API exposes a
+	 *        ``yse_midi_in_*`` mirror that already does that copy for you.
+	 *  @note The dispatch path is internally decoupled from the registered
+	 *        host callbacks so that future engine-internal subscribers
+	 *        (patcher nodes, synth voices) can hook into the same port hub.
+	 *        See yvanvds/yse-soundengine#52.
+	 *  @note Windows / Linux only — backed by RtMidi.
+	 */
+	class API midiIn {
+	public:
+		/** @brief Signature for raw-bytes MIDI input callbacks. */
+		using RawCallback    = void (*)(double                timestampSec,
+		                                const unsigned char*  bytes,
+		                                std::size_t           len,
+		                                void*                 user_data);
+
+		/** @brief Signature for parsed MIDI input callbacks (status / channel / two data bytes). */
+		using ParsedCallback = void (*)(double                timestampSec,
+		                                unsigned char         status,
+		                                unsigned char         channel,
+		                                unsigned char         data1,
+		                                unsigned char         data2,
+		                                void*                 user_data);
+
+		midiIn();
+		~midiIn();
+
+		midiIn(const midiIn&) = delete;
+		midiIn& operator=(const midiIn&) = delete;
+		midiIn(midiIn&&) = delete;
+		midiIn& operator=(midiIn&&) = delete;
+
+		/** @brief Open the MIDI input device at the given port index. */
+		void create(unsigned int port);
+
+		/** @brief Close the currently open port. Safe to call when nothing is open. */
+		void close();
+
+		/** @brief Whether a port is currently open. */
+		bool isOpen() const;
+
+		/** @brief Install a raw-bytes callback. Pass ``nullptr`` to detach. */
+		void setRawCallback(RawCallback cb, void* user_data);
+
+		/** @brief Install a parsed callback. Pass ``nullptr`` to detach. */
+		void setParsedCallback(ParsedCallback cb, void* user_data);
+
+	private:
+		// RtMidi's setCallback entry point. Forwards to dispatch() so the
+		// raw / parsed subscribers are not coupled to the trampoline; this
+		// leaves room for future internal subscribers (patcher midiIn node,
+		// synth voices) without restructuring the RtMidi wiring.
+		static void rtMidiTrampoline(double ts,
+		                             std::vector<unsigned char>* msg,
+		                             void* userData);
+
+		// Fan-out point — host callbacks today, additive internal subscribers later.
+		void dispatch(double timestampSec,
+		              const unsigned char* bytes,
+		              std::size_t len);
+
+		RtMidiIn* device;
+
+		std::atomic<RawCallback>    rawCb{nullptr};
+		std::atomic<void*>          rawUser{nullptr};
+		std::atomic<ParsedCallback> parsedCb{nullptr};
+		std::atomic<void*>          parsedUser{nullptr};
+
+		// Test-only access to the private dispatch() path. Driven by
+		// Tests/midi/test_midi_in.cpp to verify the parsed-callback nibble
+		// split and the raw passthrough without needing an RtMidi virtual
+		// port (which is unavailable on Windows).
+		friend struct ::MidiInDispatchTester;
 	};
 
 }
