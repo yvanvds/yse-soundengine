@@ -2,6 +2,11 @@
   yse_sound.h — playable audio source.
   C ABI mirror of YseEngine/sound/soundInterface.hpp (YSE::sound).
   M1 scope: file-based create only. Buffer/DSP-source/patcher overloads land in M3/M5.
+
+  Convention: every void-returning function in this header is a null-safe
+  no-op when called with a NULL handle. Status queries return 0 / false
+  on NULL. Loads that can fail return YseStatus and populate
+  yse_last_error() on failure.
 */
 
 #ifndef YSE_C_SOUND_H_INCLUDED

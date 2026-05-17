@@ -6,9 +6,10 @@ session start. Pair with [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md).
 ## How we work
 
 1. **Issues first.** Every bug, feature, or enhancement is filed as a
-   GitHub issue *before* code is written. Branch from `master` as
-   `<issue-number>-<short-slug>`. PR through CI. The only exception is a
-   trivial doc fix.
+   GitHub issue *before* code is written. Branch from `dev` as
+   `<issue-number>-<short-slug>` and PR back to `dev`. `dev` is the
+   integration branch; periodic PRs from `dev` to `master` cut releases.
+   The only exception is a trivial doc fix.
 2. **Tests where sensible** (not dogmatically). DSP nodes, the C API
    surface, lifecycle/threading code, and reverb get tests first. Demos
    and one-off scripts don't need tests. The broader plan lives in
