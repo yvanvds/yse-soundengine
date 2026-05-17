@@ -184,6 +184,48 @@ YSE_C_API size_t yse_system_default_host(YseSystem* sys, char* buf, size_t cap) 
   return copy_string(to_cpp(sys)->getDefaultHost(), buf, cap);
 }
 
+// ─── MIDI device enumeration ───────────────────────────────────────────────
+
+YSE_C_API unsigned int yse_system_num_midi_in_devices(YseSystem* sys) {
+#if defined(_WIN32) || defined(_WIN64) || defined(__linux__)
+  if (!sys) return 0;
+  return to_cpp(sys)->getNumMidiInDevices();
+#else
+  (void)sys; return 0;
+#endif
+}
+
+YSE_C_API unsigned int yse_system_num_midi_out_devices(YseSystem* sys) {
+#if defined(_WIN32) || defined(_WIN64) || defined(__linux__)
+  if (!sys) return 0;
+  return to_cpp(sys)->getNumMidiOutDevices();
+#else
+  (void)sys; return 0;
+#endif
+}
+
+YSE_C_API size_t yse_system_midi_in_device_name(YseSystem* sys, unsigned int id, char* buf, size_t cap) {
+  if (buf && cap > 0) buf[0] = '\0';
+#if defined(_WIN32) || defined(_WIN64) || defined(__linux__)
+  if (!sys) return 0;
+  try { return copy_string(to_cpp(sys)->getMidiInDeviceName(id), buf, cap); }
+  catch (const std::exception&) { return 0; }
+#else
+  (void)sys; (void)id; (void)buf; (void)cap; return 0;
+#endif
+}
+
+YSE_C_API size_t yse_system_midi_out_device_name(YseSystem* sys, unsigned int id, char* buf, size_t cap) {
+  if (buf && cap > 0) buf[0] = '\0';
+#if defined(_WIN32) || defined(_WIN64) || defined(__linux__)
+  if (!sys) return 0;
+  try { return copy_string(to_cpp(sys)->getMidiOutDeviceName(id), buf, cap); }
+  catch (const std::exception&) { return 0; }
+#else
+  (void)sys; (void)id; (void)buf; (void)cap; return 0;
+#endif
+}
+
 // ─── global reverb ─────────────────────────────────────────────────────────
 
 YSE_C_API YseReverb* yse_system_get_global_reverb(YseSystem* sys) {

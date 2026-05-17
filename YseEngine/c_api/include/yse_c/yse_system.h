@@ -53,6 +53,12 @@ YSE_C_API void         yse_system_close_current_device(YseSystem* sys);
 YSE_C_API size_t       yse_system_default_device(YseSystem* sys, char* buf, size_t cap);
 YSE_C_API size_t       yse_system_default_host(YseSystem* sys, char* buf, size_t cap);
 
+/* MIDI devices (Windows / Linux only — Android builds report 0). */
+YSE_C_API unsigned int yse_system_num_midi_in_devices(YseSystem* sys);
+YSE_C_API unsigned int yse_system_num_midi_out_devices(YseSystem* sys);
+YSE_C_API size_t       yse_system_midi_in_device_name(YseSystem* sys, unsigned int id, char* buf, size_t cap);
+YSE_C_API size_t       yse_system_midi_out_device_name(YseSystem* sys, unsigned int id, char* buf, size_t cap);
+
 /* Global reverb — fallback wherever no positioned reverb zone reaches.
    Returned pointer is borrowed; never destroy. */
 YSE_C_API YseReverb*   yse_system_get_global_reverb(YseSystem* sys);
