@@ -51,9 +51,13 @@ YSE_C_API YseStatus yse_sound_load_file(
   if (!s) return YSE_ERR_INVALID_HANDLE;
   if (!filename) return YSE_ERR_INVALID_ARGUMENT;
   try {
+    // YSE::sound::create() nulls pimpl when SOUND::implementation::create()
+    // fails synchronously (file-not-found, format unsupported, etc.). isValid()
+    // therefore reports load success, not just impl existence — see
+    // soundInterface.cpp:39-51 (`pimpl = nullptr` on the failure branch).
     to_cpp(s)->create(filename, to_cpp_chan(ch), loop != 0, volume, streaming != 0);
     if (!to_cpp(s)->isValid()) {
-      yse_c::set_last_error("sound is not valid after load — file missing or unreadable");
+      yse_c::set_last_error(std::string("sound load failed for: ") + filename);
       return YSE_ERR_FILE_NOT_FOUND;
     }
     return YSE_OK;
