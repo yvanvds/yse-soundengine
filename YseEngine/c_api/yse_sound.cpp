@@ -5,6 +5,7 @@
 #include "../channel/channelInterface.hpp"
 #include "../dsp/buffer.hpp"
 #include "../dsp/dspObject.hpp"
+#include "../patcher/patcher.hpp"
 #include "../utils/vector.hpp"
 
 #include <exception>
@@ -90,6 +91,27 @@ YSE_C_API YseStatus yse_sound_load_buffer(
     return YSE_ERR_EXCEPTION;
   } catch (...) {
     yse_c::set_last_error("unknown C++ exception in yse_sound_load_buffer");
+    return YSE_ERR_EXCEPTION;
+  }
+}
+
+YSE_C_API YseStatus yse_sound_load_patcher(
+    YseSound* s, YsePatcher* patch, YseChannel* ch, float volume) {
+  if (!s) return YSE_ERR_INVALID_HANDLE;
+  if (!patch) return YSE_ERR_INVALID_ARGUMENT;
+  try {
+    auto& cpp_patch = *reinterpret_cast<YSE::patcher*>(patch);
+    to_cpp(s)->create(cpp_patch, to_cpp_chan(ch), volume);
+    if (!to_cpp(s)->isValid()) {
+      yse_c::set_last_error("sound is not valid after patcher-source create");
+      return YSE_ERR_GENERIC;
+    }
+    return YSE_OK;
+  } catch (const std::exception& e) {
+    yse_c::set_last_error(e.what());
+    return YSE_ERR_EXCEPTION;
+  } catch (...) {
+    yse_c::set_last_error("unknown C++ exception in yse_sound_load_patcher");
     return YSE_ERR_EXCEPTION;
   }
 }

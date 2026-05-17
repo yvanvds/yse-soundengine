@@ -17,6 +17,7 @@ typedef struct YseSound      YseSound;
 typedef struct YseChannel    YseChannel;
 typedef struct YseDspBuffer  YseDspBuffer;
 typedef struct YseDspObject  YseDspObject;
+typedef struct YsePatcher    YsePatcher;
 
 YSE_C_API YseSound*  yse_sound_create(void);
 YSE_C_API void       yse_sound_destroy(YseSound* s);
@@ -33,6 +34,11 @@ YSE_C_API YseStatus  yse_sound_load_file(
 YSE_C_API YseStatus  yse_sound_load_buffer(
     YseSound* s, YseDspBuffer* buf, YseChannel* ch,
     int loop, float volume);
+
+/* Initialize a sound from a patcher graph. The patcher must outlive the
+   sound. */
+YSE_C_API YseStatus  yse_sound_load_patcher(
+    YseSound* s, YsePatcher* patch, YseChannel* ch, float volume);
 
 YSE_C_API int        yse_sound_is_valid(YseSound* s);
 YSE_C_API int        yse_sound_is_ready(YseSound* s);

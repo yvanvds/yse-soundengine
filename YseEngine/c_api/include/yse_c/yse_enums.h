@@ -26,6 +26,17 @@ typedef enum YseChannelType {
   YSE_CT_CUSTOM  = 8
 } YseChannelType;
 
+/* Mirrors YSE::OUT_TYPE in headers/enums.hpp (patcher outlet data type). */
+typedef enum YseOutType {
+  YSE_OUT_INVALID = 0,
+  YSE_OUT_BANG    = 1,
+  YSE_OUT_FLOAT   = 2,
+  YSE_OUT_INT     = 3,
+  YSE_OUT_BUFFER  = 4,
+  YSE_OUT_LIST    = 5,
+  YSE_OUT_ANY     = 6
+} YseOutType;
+
 /* Mirrors YSE::DSP::LFO_TYPE in dsp/lfo.hpp. */
 typedef enum YseLfoType {
   YSE_LFO_NONE          = 0,
