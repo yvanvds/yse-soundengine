@@ -12,6 +12,9 @@
   #define YSE_C_HAVE_MIDI_OUT 0
 #endif
 
+#include <atomic>
+#include <cstdlib>
+#include <cstring>
 #include <exception>
 #include <string>
 
@@ -30,6 +33,43 @@ namespace {
     if (channel < 0) channel = 0;
     if (channel > 15) channel = 15;
     return static_cast<YSE::MIDI::M_CHANNEL>(channel);
+  }
+
+  // The C API needs to convert the C++ midiIn's zero-copy byte pointer into
+  // a malloc'd buffer that the receiver owns (mirrors the log-callback
+  // ownership contract). A wrapper struct carries that bridge state per
+  // YseMidiIn handle.
+  struct YseMidiInImpl {
+    YSE::midiIn cpp;
+    std::atomic<YseMidiInRawCallback> rawCb{nullptr};
+    std::atomic<void*>                rawUser{nullptr};
+  };
+
+  inline YseMidiInImpl* to_impl(YseMidiIn* m) {
+    return reinterpret_cast<YseMidiInImpl*>(m);
+  }
+
+  // Bridge registered with YSE::midiIn::setRawCallback. user_data is the
+  // YseMidiInImpl pointer; the user-facing callback + user_data live on the
+  // impl as atomics so they can be swapped from the host thread while the
+  // RtMidi input thread is dispatching.
+  void c_raw_bridge(double             ts,
+                    const unsigned char* bytes,
+                    std::size_t        len,
+                    void*              userData) {
+    auto* impl = static_cast<YseMidiInImpl*>(userData);
+    if (!impl || len == 0) return;
+    auto cb = impl->rawCb.load(std::memory_order_acquire);
+    if (!cb) return;
+    auto user = impl->rawUser.load(std::memory_order_acquire);
+    // Strings/buffers passed across NativeCallable.listener bridges to Dart
+    // are marshalled by pointer value, not deep copy — by the time the Dart
+    // handler runs, the std::vector backing the RtMidi-side pointer has been
+    // re-used. malloc a copy and hand ownership to the receiver.
+    auto* heap = static_cast<unsigned char*>(std::malloc(len));
+    if (!heap) return;
+    std::memcpy(heap, bytes, len);
+    cb(ts, heap, len, user);
   }
 #endif
 }
@@ -110,6 +150,61 @@ YSE_C_API void yse_midi_out_raw3(YseMidiOut* m, unsigned char a, unsigned char b
   if (m) to_cpp(m)->Raw(a, b, c);
 }
 
+// ─── midi input ─────────────────────────────────────────────────────
+
+YSE_C_API YseMidiIn* yse_midi_in_create(void) {
+  try { return reinterpret_cast<YseMidiIn*>(new YseMidiInImpl()); }
+  catch (const std::exception& e) { yse_c::set_last_error(e.what()); return nullptr; }
+  catch (...) { yse_c::set_last_error("midi_in_create: unknown C++ exception"); return nullptr; }
+}
+
+YSE_C_API void yse_midi_in_destroy(YseMidiIn* m) {
+  if (m) delete to_impl(m);
+}
+
+YSE_C_API void yse_midi_in_open(YseMidiIn* m, unsigned int port) {
+  if (m) to_impl(m)->cpp.create(port);
+}
+
+YSE_C_API void yse_midi_in_close(YseMidiIn* m) {
+  if (m) to_impl(m)->cpp.close();
+}
+
+YSE_C_API int yse_midi_in_is_open(YseMidiIn* m) {
+  return (m && to_impl(m)->cpp.isOpen()) ? 1 : 0;
+}
+
+YSE_C_API void yse_midi_in_set_raw_callback(YseMidiIn* m,
+                                            YseMidiInRawCallback cb,
+                                            void* user_data) {
+  if (!m) return;
+  auto* impl = to_impl(m);
+  // Publish the user-facing callback first so the bridge can never observe
+  // a half-installed state — release on both stores, acquire on read in
+  // c_raw_bridge.
+  impl->rawUser.store(user_data, std::memory_order_release);
+  impl->rawCb.store(cb, std::memory_order_release);
+  // Wire (or detach) the C++ side. The bridge carries impl* through the
+  // user_data slot so multiple YseMidiIn instances stay independent.
+  impl->cpp.setRawCallback(cb ? &c_raw_bridge : nullptr, impl);
+}
+
+YSE_C_API void yse_midi_in_set_parsed_callback(YseMidiIn* m,
+                                               YseMidiInParsedCallback cb,
+                                               void* user_data) {
+  if (!m) return;
+  // The parsed callback signature is layout-compatible between the C ABI
+  // typedef and the C++ class typedef (same scalar args, same calling
+  // convention), so pass straight through.
+  to_impl(m)->cpp.setParsedCallback(
+    reinterpret_cast<YSE::midiIn::ParsedCallback>(cb),
+    user_data);
+}
+
+YSE_C_API void yse_midi_in_free_message(unsigned char* bytes) {
+  if (bytes) std::free(bytes);
+}
+
 #else
 // Stub the midiOut surface on platforms without RtMidi so the C ABI is
 // uniform across builds. Each call sets last_error and returns / no-ops.
@@ -133,6 +228,19 @@ YSE_C_API void yse_midi_out_local_control(YseMidiOut*, int) {}
 YSE_C_API void yse_midi_out_omni(YseMidiOut*, int) {}
 YSE_C_API void yse_midi_out_poly(YseMidiOut*, int) {}
 YSE_C_API void yse_midi_out_raw3(YseMidiOut*, unsigned char, unsigned char, unsigned char) {}
+
+// midi input stubs — same RtMidi gate as the output side.
+YSE_C_API YseMidiIn* yse_midi_in_create(void) {
+  yse_c::set_last_error("midiIn is Windows/Linux only");
+  return nullptr;
+}
+YSE_C_API void yse_midi_in_destroy(YseMidiIn*) {}
+YSE_C_API void yse_midi_in_open(YseMidiIn*, unsigned int) {}
+YSE_C_API void yse_midi_in_close(YseMidiIn*) {}
+YSE_C_API int  yse_midi_in_is_open(YseMidiIn*) { return 0; }
+YSE_C_API void yse_midi_in_set_raw_callback(YseMidiIn*, YseMidiInRawCallback, void*) {}
+YSE_C_API void yse_midi_in_set_parsed_callback(YseMidiIn*, YseMidiInParsedCallback, void*) {}
+YSE_C_API void yse_midi_in_free_message(unsigned char* bytes) { if (bytes) std::free(bytes); }
 #endif
 
 // ─── midiNote ──────────────────────────────────────────────────────
