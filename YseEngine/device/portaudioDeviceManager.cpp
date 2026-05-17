@@ -12,6 +12,7 @@
 
 #include "portaudioDeviceManager.h"
 #include "internalHeaders.h"
+#include "internal/denormalGuard.h"
 #ifdef __WINDOWS__
 #include "pa_asio.h"
 #endif
@@ -44,6 +45,7 @@ int YSE::DEVICE::managerObject::paCallback(
   , const PaStreamCallbackTimeInfo* /*timeInfo*/
   , PaStreamCallbackFlags /*statusFlags*/
   , void * userData) {
+  YSE::INTERNAL::enableFlushToZero();
   YSE::DEVICE::managerObject * manager = (YSE::DEVICE::managerObject *)userData;
 	manager->callbacksSinceLastUpdate++;
 
