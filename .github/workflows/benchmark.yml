@@ -4,10 +4,12 @@ on:
     branches:
       - master
       - dev
+  # PRs trigger only when targeting master — internal feature PRs to dev get
+  # the cheap CI lane (Sonar Linux only). Benchmark regressions still gate the
+  # dev → master step, and push-to-dev keeps the bench-history continuous.
   pull_request:
     branches:
       - master
-      - dev
   workflow_dispatch:
 
 # One bench run at a time per ref. Two pushes back-to-back to dev would

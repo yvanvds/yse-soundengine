@@ -5,7 +5,7 @@
 #include "../midi/midiNote.hpp"
 #include "../headers/enums.hpp"
 
-#if defined(_WIN32) || defined(_WIN64) || defined(__linux__)
+#if YSE_WINDOWS || YSE_LINUX
   #include "../midi/device.hpp"
   #define YSE_C_HAVE_MIDI_OUT 1
 #else
