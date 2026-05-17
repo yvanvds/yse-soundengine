@@ -4,10 +4,10 @@
 
 Test01_Pitch::Test01_Pitch()
 {
-	sound1.create("../TestResources/a440_44100_16b.wav", nullptr, true);
-	sound2.create("../TestResources/a440_44100_8b.wav", nullptr, true);
-	sound3.create("../TestResources/a440_22050_16b.wav", nullptr, true);
-	sound4.create("../TestResources/a440_44100_16b.ogg", nullptr, true);
+	sound1.create(YSE_TEST_RESOURCES_DIR "/a440_44100_16b.wav", nullptr, true);
+	sound2.create(YSE_TEST_RESOURCES_DIR "/a440_44100_8b.wav", nullptr, true);
+	sound3.create(YSE_TEST_RESOURCES_DIR "/a440_22050_16b.wav", nullptr, true);
+	sound4.create(YSE_TEST_RESOURCES_DIR "/a440_44100_16b.ogg", nullptr, true);
 	
 	SetTitle("All sounds Should have equal Pitch (440Hz)");
 	AddAction('1', "Toggle 44100, 16 bit wav sample", std::bind(&Test01_Pitch::toggleSound1, this));

@@ -18,7 +18,7 @@
 #include <string>
 
 namespace YSE {
-  const std::string VERSION = "1.0.77";
+  const std::string VERSION = "2.0.2";
 
   /** @brief Signature of a user-supplied sound-occlusion callback.
    *
@@ -53,6 +53,29 @@ namespace YSE {
      *  @return ``true`` on success, ``false`` if no device could be opened.
      */
     bool init();
+
+    /** @brief Initialise the engine without opening an audio device.
+     *
+     *  For benchmarks, automated tests, and headless tooling that need a
+     *  fully-configured engine but no PortAudio stream — same channel
+     *  tree, same DSP graph, no audio thread. Once initialised this way,
+     *  drive the engine via ``System().renderOffline(blocks)`` rather
+     *  than the audio callback.
+     *
+     *  @return ``true`` on success.
+     */
+    bool initOffline();
+
+    /** @brief Render N audio blocks synchronously on the calling thread.
+     *
+     *  Runs the same callback body the audio thread executes in
+     *  production — manager update, channel-tree DSP, channel mixing,
+     *  reverb — for ``blocks`` × ``STANDARD_BUFFERSIZE`` samples worth of
+     *  output, which is discarded. Use only after ``initOffline()``;
+     *  driving this concurrently with a live audio thread would race the
+     *  manager-update path.
+     */
+    void renderOffline(int blocks);
 
     /** @brief Pump engine state.
      *
@@ -198,6 +221,12 @@ namespace YSE {
     std::string Version() const { return VERSION; }
 
   private:
+    /// @cond INTERNAL
+    // Shared body of init() / initOffline(); when openDevice is false,
+    // skips the addCallback() that opens the PortAudio stream.
+    bool initShared(bool openDevice);
+    /// @endcond
+
     float(*occlusionPtr)(const Pos& source, const Pos& listener);
     int currentlyMissedCallbacks;
     bool doAutoReconnect;

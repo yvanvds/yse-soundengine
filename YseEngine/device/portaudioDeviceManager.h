@@ -29,7 +29,7 @@ namespace YSE {
         managerObject();
         ~managerObject();
 
-        virtual Bool init();
+        virtual Bool init(bool openDevice = true);
         virtual void close();
         virtual Flt cpuLoad();
 

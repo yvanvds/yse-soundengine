@@ -223,3 +223,9 @@ Pages is configured for the repo with **Source: GitHub Actions**
 ## Known issues
 
 Tracked in [GitHub Issues](https://github.com/yvanvds/yse-soundengine/issues).
+
+---
+
+## License
+
+libYSE is distributed under the [Eclipse Public License, v 2.0](LICENSE.md).

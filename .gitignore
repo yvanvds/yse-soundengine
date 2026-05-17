@@ -61,11 +61,15 @@ build/
 build-debug/
 build-tests/
 build-coverage/
+build-bench/
+build-bench-linux/
 build-asan/
 build-linux/
 build-linux-asan/
 build-linux-tsan/
 build-linux-audio/
+build-android-arm64/
+build-android-x86_64/
 [Bb]in/
 [Oo]bj/
 

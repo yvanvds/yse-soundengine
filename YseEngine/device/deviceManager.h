@@ -29,7 +29,12 @@ namespace YSE {
       deviceManager();
       virtual ~deviceManager();
 
-      virtual Bool init ();
+      /* `openDevice = false` is the offline path: backends that probe
+         hardware (PortAudio's Pa_Initialize, ALSA/JACK/HDA enumeration)
+         must skip that work entirely.  Verified bench scenario: bare
+         GHA Ubuntu runners take down the VM if Pa_Initialize runs even
+         when no stream is later opened (see Bench/README.md). */
+      virtual Bool init (bool openDevice = true);
       virtual void close() {};
 
 			virtual void pause() = 0;
@@ -51,6 +56,22 @@ namespace YSE {
 	  virtual void addCallback() {};
 
       bool doOnCallback(int numSamples);
+
+      /* Render one STANDARD_BUFFERSIZE-sample block through the channel
+         tree (master->dsp() + master->buffersToParent()).  Extracted from
+         the audio backends' callbacks so the same path can be driven from
+         a benchmark via renderOffline().  Caller must have run
+         doOnCallback() first.
+      */
+      void renderOneBlock();
+
+      /* Drive the audio callback body N blocks synchronously, no real
+         audio device required.  For benchmarks and tests that need to
+         measure the DSP mix path.  Single-threaded — assumes no PortAudio
+         callback thread is running (caller must not have opened a device,
+         e.g. by using YSE::system::initOffline()).
+      */
+      void renderOffline(int blocks);
 
       void setMaster(CHANNEL::implementationObject * ptr);
       CHANNEL::implementationObject & getMaster();

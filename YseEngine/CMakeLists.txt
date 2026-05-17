@@ -12,9 +12,7 @@ set(YSE_SRCS
   device/deviceInterface.cpp
   device/deviceManager.cpp
   device/deviceSetup.cpp
-  device/juceDeviceManager.cpp
-  device/OpenSL.cpp
-  device/OpenSLImplementation.cpp
+  device/oboeImplementation.cpp
   device/portaudioDeviceManager.cpp
   dsp/ADSRenvelope.cpp
   dsp/buffer.cpp
@@ -53,7 +51,6 @@ set(YSE_SRCS
   internal/abstractSoundFile.cpp
   internal/customFileReader.cpp
   internal/global.cpp
-  internal/juceSoundFile.cpp
   internal/lsfSoundfile.cpp
   internal/reverbDSP.cpp
   internal/settings.cpp
@@ -279,23 +276,62 @@ target_include_directories(yse_objects
 
 target_compile_definitions(yse_objects
   PRIVATE
-    PORTAUDIO_BACKEND
-    LIBSOUNDFILE_BACKEND
-    YSE_DLL_BUILD   # activate __declspec(dllexport) via the API macro in headers/defines.hpp
-                    # (PRIVATE: applies only when compiling these sources, not test sources)
+    # YSE_DLL_BUILD: activate __declspec(dllexport) via the API macro in headers/defines.hpp
+    # (PRIVATE: applies only when compiling these sources, not test sources)
+    YSE_DLL_BUILD
 )
+
+# LIBSOUNDFILE_BACKEND is defined on every platform: lsfSoundfile.cpp + the
+# customFileReader/abstractSoundFile chain need it to compile.
+# PORTAUDIO_BACKEND gates portaudioDeviceManager.cpp and its #include in
+# internalHeaders.h — only desktop builds want it; Android uses
+# androidDeviceManager + Oboe instead.
+target_compile_definitions(yse_objects PRIVATE
+  LIBSOUNDFILE_BACKEND
+)
+if(NOT ANDROID)
+  target_compile_definitions(yse_objects PRIVATE PORTAUDIO_BACKEND)
+else()
+  # androidDeviceManager.cpp gates its entire contents on `#if YSE_ANDROID`
+  # before any header has been included. defines.hpp sets YSE_ANDROID from
+  # __ANDROID__ but only once it is itself included, so we set the macro at
+  # the compiler level here.
+  target_compile_definitions(yse_objects PRIVATE YSE_ANDROID=1)
+endif()
 
 # External deps are PUBLIC so both yse (SHARED) and yse_tests inherit them.
 target_link_libraries(yse_objects
   PUBLIC
-    PkgConfig::PortAudio
-    PkgConfig::SndFile
-    PkgConfig::RtMidi
     Threads::Threads
+    yse::sndfile
 )
+
+if(NOT ANDROID)
+  target_link_libraries(yse_objects
+    PUBLIC
+      PkgConfig::PortAudio
+      PkgConfig::RtMidi
+  )
+else()
+  # Oboe is the audio I/O backend (transparently uses AAudio on API 26+ and
+  # falls back to OpenSL ES on rare devices). `log` provides __android_log_print
+  # used by the engine's logImplementation on Android.
+  target_link_libraries(yse_objects
+    PUBLIC
+      oboe
+      log
+  )
+endif()
 
 if(WIN32)
   target_link_libraries(yse_objects PUBLIC winmm)
+endif()
+
+# ── C ABI bridge ──────────────────────────────────────────────────────────────
+# Folds extern "C" wrappers (yse_*) into the same DLL so language bindings
+# can consume libyse.dll without C++ ABI compatibility.
+if(YSE_BUILD_C_API)
+  include(${CMAKE_CURRENT_LIST_DIR}/c_api/CMakeLists.txt)
 endif()
 
 # ── Shared library target ─────────────────────────────────────────────────────

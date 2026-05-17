@@ -25,11 +25,11 @@ DemoChannels::DemoChannels() : customChannel(new YSE::channel)
 	customChannel->create("myChannel", YSE::ChannelMaster());
 
 	// add a sound to your custom channel
-	kick.create("../../TestResources/kick.ogg", customChannel, true); 
+	kick.create(YSE_TEST_RESOURCES_DIR "/kick.ogg", customChannel, true);
 	kick.play();
 
 	// add a sound to the music channel
-	pulse.create("../../TestResources/pulse1.ogg", &YSE::ChannelMusic(), true);
+	pulse.create(YSE_TEST_RESOURCES_DIR "/pulse1.ogg", &YSE::ChannelMusic(), true);
 	pulse.play();
 
 	SetTitle("Custom Channels");

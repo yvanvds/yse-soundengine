@@ -63,10 +63,6 @@
 
 #include "internal/abstractSoundFile.h"
 
-#if JUCE_BACKEND
-#include "internal/juceSoundFile.h"
-#endif
-
 #if LIBSOUNDFILE_BACKEND
 #include "internal/lsfSoundfile.h"
 #endif

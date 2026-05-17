@@ -1,0 +1,112 @@
+name: Benchmarks
+on:
+  push:
+    branches:
+      - master
+      - dev
+  pull_request:
+    branches:
+      - master
+      - dev
+  workflow_dispatch:
+
+# One bench run at a time per ref. Two pushes back-to-back to dev would
+# otherwise race each other writing to the bench-history branch, and the
+# second would be rejected by the action's auto-push.
+concurrency:
+  group: bench-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write       # push results to bench-history
+  pull-requests: write  # comment on PRs when a regression alert fires
+
+jobs:
+  benchmark:
+    name: Run benchmarks
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      # Mirrors build.yml's install line minus gcovr — the benchmark binary
+      # links the same PortAudio / libsndfile / RtMidi as the engine.
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            pkg-config \
+            portaudio19-dev \
+            libsndfile1-dev \
+            librtmidi-dev
+
+      # google-benchmark is fetched on first configure (~30 s); cache it so
+      # repeat runs reuse the clone. The cache key intentionally pins to the
+      # tag we declared in CMakeLists.txt — bump the suffix when bumping the
+      # tag so a stale cache doesn't paper over a deliberate upgrade.
+      - name: Cache FetchContent (google-benchmark)
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            build-bench/_deps/benchmark-src
+            build-bench/_deps/benchmark-subbuild
+          key: bench-fetchcontent-${{ runner.os }}-benchmark-v1.9.0
+
+      - name: Configure
+        run: cmake --preset bench
+
+      - name: Build
+        run: cmake --build --preset bench
+
+      # Run the full suite. Engine-touching benchmarks use
+      # `BenchHelpers::engineInitOffline()` (which calls
+      # `YSE::System().initOffline()`).  In offline mode the device
+      # manager skips `Pa_Initialize()` entirely — no ALSA / JACK probe,
+      # no PortAudio stream — so a runner without audio hardware just
+      # works.  (Earlier versions called `Pa_Initialize()` unconditionally,
+      # which took down bare GHA runners ~20 s after the probe.)
+      #
+      # 3 repetitions + aggregates-only gives mean/median/stddev per
+      # benchmark without 3x the row count, which keeps the GitHub Action
+      # comparison tractable.
+      # Split stdout (human-readable tabular, lines flush per-bench so the
+      # GHA log shows live progress) from the JSON file the comparison
+      # step needs.  Previously we redirected JSON to the file, which made
+      # the step look silent for the full ~4 min run and any mid-run kill
+      # left zero diagnostic output.
+      - name: Run benchmarks
+        run: |
+          ./build-bench/bin/yse_benchmarks \
+            --benchmark_repetitions=3 \
+            --benchmark_report_aggregates_only=true \
+            --benchmark_out=bench-results.json \
+            --benchmark_out_format=json
+          echo "=== first 30 lines of bench-results.json ==="
+          head -30 bench-results.json
+
+      # Compare-and-store step. Behaviour split by event:
+      #   - push:   write to bench-history (auto-push), update the chart,
+      #             fail-soft on regression (comment but don't fail the job).
+      #   - PR:     compare against bench-history baseline; comment on
+      #             regression; never write to bench-history.
+      #
+      # alert-threshold '110%' = anything 10% slower than the baseline fires
+      # an alert. Starts loose because shared GH Actions runners are noisy;
+      # tighten in Phase 5 once we have history to calibrate against.
+      - name: Compare against baseline
+        uses: benchmark-action/github-action-benchmark@52576c92bccf6ac60c8223ec7eb2565637cae9ba # v1.22.1
+        with:
+          name: libYSE benchmarks
+          tool: 'googlecpp'
+          output-file-path: bench-results.json
+          gh-pages-branch: bench-history
+          benchmark-data-dir-path: ''   # write to bench-history root, not a subdir
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: ${{ github.event_name == 'push' }}
+          alert-threshold: '110%'
+          fail-on-alert: false
+          comment-on-alert: true
+          summary-always: true

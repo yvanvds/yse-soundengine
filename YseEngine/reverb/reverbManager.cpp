@@ -35,7 +35,7 @@ YSE::REVERB::managerObject::~managerObject() noexcept {
     inUse.clear();
     implementations.clear();
   } catch (...) {
-    // destructor must not propagate
+    INTERNAL::LogImpl().emit(E_ERROR, "REVERB::Manager destructor swallowed exception");
   }
 }
 

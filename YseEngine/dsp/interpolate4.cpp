@@ -35,6 +35,7 @@ Int YSE::DSP::interpolate4::onset() {
 }
 
 YSE::DSP::buffer & YSE::DSP::interpolate4::operator()(YSE::DSP::buffer & in) {
+  if (in.getLength() != out.getLength()) out.resize(in.getLength());
   Int n = in.getLength();
   Flt * inData = in.getPtr();
   Flt * outData = out.getPtr();

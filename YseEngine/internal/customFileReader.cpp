@@ -40,7 +40,13 @@ void YSE::INTERNAL::customFileReader::Close(void * fileHandle) {
 }
 
 void YSE::INTERNAL::customFileReader::UpdateVIO() {
-#if defined(YSE_WINDOWS) || defined(YSE_ANDROID)
+// On Windows (LLP64), libsndfile's sf_count_t is `long long` — direct
+// assignment of YSE's `long long`-typed callbacks works without a cast.
+// On LP64 platforms (Linux, macOS, modern 64-bit Android) sf_count_t is `long`,
+// so the callback pointers must be cast through the SF_VIRTUAL_IO signature.
+// The legacy 32-bit Android (armeabi-v7a) path matched the Windows shape, but
+// this build no longer targets ILP32 ABIs.
+#if defined(YSE_WINDOWS)
   CALLBACK::vio.get_filelen = CALLBACK::lengthPtr;
   CALLBACK::vio.read = CALLBACK::readPtr;
   CALLBACK::vio.seek = CALLBACK::seekPtr;

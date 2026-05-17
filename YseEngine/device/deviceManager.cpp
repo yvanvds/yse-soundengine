@@ -24,9 +24,9 @@ YSE::DEVICE::deviceManager::~deviceManager()
   close();
 }
 
-Bool YSE::DEVICE::deviceManager::init()
+Bool YSE::DEVICE::deviceManager::init(bool openDevice)
 {
-  updateDeviceList();
+  if (openDevice) updateDeviceList();
   return true;
 }
 
@@ -69,6 +69,20 @@ bool YSE::DEVICE::deviceManager::doOnCallback(int numSamples)
   }
 
   return true;
+}
+
+void YSE::DEVICE::deviceManager::renderOneBlock()
+{
+  master->dsp();
+  master->buffersToParent();
+}
+
+void YSE::DEVICE::deviceManager::renderOffline(int blocks)
+{
+  for (int i = 0; i < blocks; ++i) {
+    if (!doOnCallback(STANDARD_BUFFERSIZE)) continue;
+    renderOneBlock();
+  }
 }
 
 void YSE::DEVICE::deviceManager::setMaster(CHANNEL::implementationObject * ptr)

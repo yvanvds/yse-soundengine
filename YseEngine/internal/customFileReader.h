@@ -13,7 +13,7 @@
 #include "../classes.hpp"
 #include "../headers/types.hpp"
 
-#include "../../dependencies/libsndfile/include/sndfile.hh"
+#include <sndfile.hh>
 
 namespace YSE {
   namespace INTERNAL {

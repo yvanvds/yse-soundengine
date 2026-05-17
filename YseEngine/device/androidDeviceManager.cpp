@@ -2,9 +2,10 @@
 
 #include "androidDeviceManager.h"
 #include "../internalHeaders.h"
-#include "OpenSLImplementation.h"
 
-#define CONV16BIT 32768
+// Initial value before the Oboe stream opens. OboeImplementation::openStream
+// overwrites this with stream->getSampleRate() (typically 48 kHz on modern
+// Android devices) so the rest of the engine sees the negotiated rate.
 UInt YSE::SAMPLERATE = 44100;
 
 YSE::DEVICE::managerObject & YSE::DEVICE::Manager() {
@@ -19,15 +20,15 @@ YSE::DEVICE::managerObject::managerObject()
 
 YSE::DEVICE::managerObject::~managerObject() {}
 
-Bool YSE::DEVICE::managerObject::init() {
+Bool YSE::DEVICE::managerObject::init(bool openDevice) {
   YSE::Log().sendMessage("androidDeviceManager: init started");
-  if (!initDone) {
+  if (openDevice && !initDone) {
     implementation.Setup();
+    initDone = true;
+    open = true;
   }
-  initDone = true;
-  open = true;
   YSE::Log().sendMessage("androidDeviceManager: init done");
-  deviceManager::init();
+  deviceManager::init(openDevice);
   return true;
 }
 
@@ -37,11 +38,16 @@ void YSE::DEVICE::managerObject::updateDeviceList() {
   YSE::device d;
   d.setID(0);
   d.setName("Android Audio");
-  d.setTypeName("OpenSL ES");
+  d.setTypeName("Oboe");
   d.addOutputChannelName("Left");
   d.addOutputChannelName("Right");
   d.setOutputLatency(100);
-  d.addAvailableSampleRate(44100);
+  // Reflect the actual rate Oboe negotiated with the device, if the stream is
+  // already open; otherwise fall back to the conservative 44.1 kHz default.
+  const UInt rate = implementation.getNegotiatedSampleRate() > 0
+                  ? (UInt)implementation.getNegotiatedSampleRate()
+                  : 44100u;
+  d.addAvailableSampleRate(rate);
   devices.push_back(d);
 }
 

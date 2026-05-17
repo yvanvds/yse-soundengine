@@ -19,6 +19,14 @@ target_include_directories(yse_demo_common PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 # (i.e. the YseEngine/ root) and link against libyse.
 target_link_libraries(yse_demo_common PUBLIC yse)
 
+# Inject the absolute path to TestResources/ as a string-literal macro so
+# demo source files do not depend on the binary's working directory. PUBLIC
+# so it propagates to every demo executable that links yse_demo_common
+# (each Demo* target via add_yse_demo() and the combined Demo target).
+target_compile_definitions(yse_demo_common PUBLIC
+  "YSE_TEST_RESOURCES_DIR=\"${CMAKE_SOURCE_DIR}/TestResources\""
+)
+
 # ── Demo builder function ─────────────────────────────────────────────────────
 # Creates a standalone demo executable from a single Demo*.cpp source.
 # A minimal main() is generated from cmake/demo_main.cpp.in; it calls

@@ -6,8 +6,7 @@
 #include "../headers/types.hpp"
 #include "deviceManager.h"
 
-#include <SLES/OpenSLES.h>
-#include "OpenSLImplementation.h"
+#include "oboeImplementation.h"
 
 namespace YSE {
 
@@ -18,7 +17,7 @@ namespace YSE {
       managerObject();
       ~managerObject();
 
-      virtual bool init();
+      virtual bool init(bool openDevice = true);
       virtual void close();
       virtual float cpuLoad() { return 0.f; } // not implemented for android
 
@@ -32,7 +31,7 @@ namespace YSE {
 
     private:
 
-      OpenSLImplementation implementation;
+      OboeImplementation implementation;
       bool initDone, open;
     };
 

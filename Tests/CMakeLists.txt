@@ -2,7 +2,7 @@
 # Gated behind YSE_BUILD_TESTS (default OFF); this file is only processed when
 # that option is ON.  See the root CMakeLists.txt for the coverage option.
 
-add_executable(yse_tests
+set(YSE_TEST_SOURCES
   main.cpp
   test_sanity.cpp
   dsp/test_buffer.cpp
@@ -48,6 +48,27 @@ add_executable(yse_tests
   integration/test_device.cpp
 )
 
+if(ANDROID)
+  # NativeActivity dynamically loads the test runner as libyse_tests.so. The
+  # NDK ships android_native_app_glue (translates ANativeActivity callbacks
+  # into a polled event queue consumable from android_main()); we compile its
+  # single C source directly into the library.
+  add_library(yse_tests SHARED
+    ${YSE_TEST_SOURCES}
+    support/android_asset_bridge.cpp
+    "${CMAKE_ANDROID_NDK}/sources/android/native_app_glue/android_native_app_glue.c"
+  )
+  target_include_directories(yse_tests PRIVATE
+    "${CMAKE_ANDROID_NDK}/sources/android/native_app_glue"
+  )
+  target_link_libraries(yse_tests PRIVATE android)
+  # android_native_app_glue.c uses ANativeActivity_onCreate as its entry
+  # symbol; the linker would otherwise drop it as unused (no static refs).
+  target_link_options(yse_tests PRIVATE "-u" "ANativeActivity_onCreate")
+else()
+  add_executable(yse_tests ${YSE_TEST_SOURCES})
+endif()
+
 # doctest is header-only; expose it as an INTERFACE library so the include path
 # is propagated to any future test targets without repetition.
 add_library(doctest INTERFACE)
@@ -66,8 +87,12 @@ target_link_libraries(yse_tests
 target_compile_features(yse_tests PRIVATE cxx_std_17)
 
 # doctest uses __COUNTER__, which Clang warns about as a C2y extension.
-# Suppress it here rather than editing the vendored header.
-target_compile_options(yse_tests PRIVATE $<$<CXX_COMPILER_ID:Clang>:-Wno-c2y-extensions>)
+# Suppress it here rather than editing the vendored header. The NDK's bundled
+# Clang doesn't recognise -Wno-c2y-extensions (older diagnostic name), so skip
+# on Android where -Wunknown-warning-option would otherwise fire on every TU.
+if(NOT ANDROID)
+  target_compile_options(yse_tests PRIVATE $<$<CXX_COMPILER_ID:Clang>:-Wno-c2y-extensions>)
+endif()
 
 # Put the test binary in the same directory as the shared library so the OS
 # dynamic-loader finds libyse.dll / libyse.so at runtime without extra rpath
@@ -76,21 +101,9 @@ set_target_properties(yse_tests PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 
-# Register with CTest.
-#
-# yse_unit_tests excludes the integration suite. Both `Tests/integration/test_device.cpp`
-# and the `[integration]`-tagged live-audio variants of the concurrency tests
-# resume the PortAudio stream via `engineInitWithAudio()`. With audio live, any
-# subsequent test that drives `Manager().update()` directly (the unit-tests'
-# `drainSoundManager()` / `drain()` helpers) races against the audio callback's
-# own update() — `update()` is single-threaded by design. The engine-level race
-# fix (Phases A-D) is unaffected by this; the constraint is purely a test
-# infrastructure invariant. The integration suite has its own ctest entry below.
-#
-# `--duration=true` is a workaround for the patcher-suite hang tracked in
-# issue #33 (the per-test I/O perturbs timing enough to mask the race). The
-# 600 s TIMEOUT ensures a future regression fails the CI job instead of
-# sitting until the GitHub runner-level timeout.
+# Register with CTest. Skipped on Android — the test runner is a .so loaded by
+# NativeActivity, not an executable, so CTest cannot drive it directly.
+if(NOT ANDROID)
 add_test(
   NAME    yse_unit_tests
   COMMAND yse_tests --test-suite-exclude=integration --duration=true
@@ -178,20 +191,34 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_concurrency PROPERTIES LABELS concurrency)
+endif()  # NOT ANDROID — close the CTest registration block
 
-target_compile_definitions(yse_tests PRIVATE
-  "YSE_TEST_FIXTURES_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/support/fixtures\""
-)
+if(ANDROID)
+  # The APK's android_main() extracts assets/fixtures/ into the NativeActivity's
+  # internal data path; tests then load files from here via the existing macro.
+  # The path is deterministic for a given applicationId — keep this in sync with
+  # the namespace set in Tests/Android/app/build.gradle.kts.
+  target_compile_definitions(yse_tests PRIVATE
+    "YSE_TEST_FIXTURES_DIR=\"/data/user/0/net.attrx.yse.tests/files/fixtures\""
+  )
+else()
+  target_compile_definitions(yse_tests PRIVATE
+    "YSE_TEST_FIXTURES_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/support/fixtures\""
+  )
+endif()
+
+if(NOT ANDROID)
+  add_test(
+    NAME    yse_tests_integration
+    COMMAND yse_tests --test-suite=integration
+    WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+  )
+  set_tests_properties(yse_tests_integration PROPERTIES LABELS integration)
+endif()
 
 # Patcher test TUs include pObject.h and concrete node headers that use the
 # same unused-parameter / json.hpp pragma suppressions applied to patcher
 # source files in YseEngine/CMakeLists.txt.
-add_test(
-  NAME    yse_tests_integration
-  COMMAND yse_tests --test-suite=integration
-  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
-)
-set_tests_properties(yse_tests_integration PROPERTIES LABELS integration)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   set(_patcher_test_suppress "-Wno-unused-parameter -Wno-deprecated-literal-operator -Wno-tautological-overlap-compare")

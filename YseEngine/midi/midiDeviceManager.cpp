@@ -67,7 +67,7 @@ YSE::MIDI::deviceManager::deviceManager() = default;
 YSE::MIDI::deviceManager::~deviceManager() {
 	// unique_ptr members handle midiIn/midiOut cleanup automatically;
 	// only the explicit closePort() side-effect on map entries needs ordering.
-	for (auto& [id, port] : midiOutPorts) {
+	for (const auto& [id, port] : midiOutPorts) {
 		port->closePort();
 	}
 }
@@ -110,8 +110,9 @@ RtMidiOut* YSE::MIDI::deviceManager::getMidiOutPort(unsigned int ID) {
 	}
 
 	try {
-		auto [iter, ok] = midiOutPorts.emplace(ID, std::make_unique<RtMidiOut>());
-		iter->second->openPort(ID);
+		auto port = std::make_unique<RtMidiOut>();
+		port->openPort(ID);
+		auto [iter, ok] = midiOutPorts.emplace(ID, std::move(port));
 		return iter->second.get();
 	}
 	catch (RtMidiError& error) {

@@ -124,9 +124,6 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)device\deviceSetup.hpp">
       <Filter>device</Filter>
     </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)device\juceDeviceManager.h">
-      <Filter>device</Filter>
-    </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)device\portaudioDeviceManager.h">
       <Filter>device</Filter>
     </ClInclude>
@@ -251,9 +248,6 @@
       <Filter>internal</Filter>
     </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)internal\global.h">
-      <Filter>internal</Filter>
-    </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)internal\juceSoundFile.h">
       <Filter>internal</Filter>
     </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)internal\lsfSoundfile.h">
@@ -425,7 +419,9 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)internal\AudioTest.h">
       <Filter>internal</Filter>
     </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)device\OpenSLImplementation.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)device\oboeImplementation.h">
+      <Filter>device</Filter>
+    </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\pEnums.h">
       <Filter>patcher</Filter>
     </ClInclude>
@@ -565,9 +561,6 @@
       <Filter>patcher\guiObjects</Filter>
     </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)patcher\genericObjects\gReceive.h" />
-    <ClInclude Include="$(MSBuildThisFileDirectory)device\OpenSL.h">
-      <Filter>device</Filter>
-    </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)midi\midiMessage.hpp">
       <Filter>midi</Filter>
     </ClInclude>
@@ -625,9 +618,6 @@
       <Filter>device</Filter>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)device\deviceSetup.cpp">
-      <Filter>device</Filter>
-    </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)device\juceDeviceManager.cpp">
       <Filter>device</Filter>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)device\portaudioDeviceManager.cpp">
@@ -742,9 +732,6 @@
       <Filter>internal</Filter>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)internal\global.cpp">
-      <Filter>internal</Filter>
-    </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)internal\juceSoundFile.cpp">
       <Filter>internal</Filter>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)internal\lsfSoundfile.cpp">
@@ -868,7 +855,9 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)internal\AudioTest.cpp">
       <Filter>internal</Filter>
     </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)device\OpenSLImplementation.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)device\oboeImplementation.cpp">
+      <Filter>device</Filter>
+    </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\generatorObjects\pSine.cpp">
       <Filter>patcher\generatorObjects</Filter>
     </ClCompile>
@@ -997,9 +986,6 @@
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\genericObjects\gReceive.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)patcher\guiObjects\gButton.cpp" />
-    <ClCompile Include="$(MSBuildThisFileDirectory)device\OpenSL.cpp">
-      <Filter>device</Filter>
-    </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)midi\midiNote.cpp">
       <Filter>midi</Filter>
     </ClCompile>

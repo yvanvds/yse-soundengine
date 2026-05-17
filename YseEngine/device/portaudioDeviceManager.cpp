@@ -52,8 +52,7 @@ int YSE::DEVICE::managerObject::paCallback(
   UInt pos = 0;
   while (pos < static_cast<UInt>(numSamples)) {
     if (manager->bufferPos == STANDARD_BUFFERSIZE) {
-      manager->master->dsp();
-      manager->master->buffersToParent();
+      manager->renderOneBlock();
       manager->bufferPos = 0;
     }
     
@@ -89,7 +88,18 @@ int YSE::DEVICE::managerObject::paCallback(
 }
 
 
-Bool YSE::DEVICE::managerObject::init() {
+Bool YSE::DEVICE::managerObject::init(bool openDevice) {
+  // Offline init skips Pa_Initialize entirely.  On Linux runners without
+  // audio hardware (bare GHA Ubuntu), Pa_Initialize probes ALSA/JACK and
+  // either hangs or leaves the runner in a state that takes the VM down
+  // ~20 s later — even though no PortAudio stream is ever opened.
+  // Skipping it is safe: openDevice / addCallback / openStream are the
+  // only callers of PortAudio APIs downstream, and they're all gated on
+  // openDevice as well.
+  if (!openDevice) {
+    return deviceManager::init(false);
+  }
+
   if (!initDone) {
     err = Pa_Initialize();
     if (err != paNoError) {
@@ -99,7 +109,7 @@ Bool YSE::DEVICE::managerObject::init() {
     initDone = true;
   }
 
-  deviceManager::init();
+  deviceManager::init(true);
   return true;
 }
 

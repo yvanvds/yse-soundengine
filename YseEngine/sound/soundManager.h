@@ -20,6 +20,7 @@
 #include "soundImplementation.h"
 #include "../classes.hpp"
 #include "../internal/threadPool.h"
+#include "../internal/managerJobs.hpp"
 #include "../utils/lfQueue.hpp"
 
 
@@ -35,87 +36,7 @@ namespace YSE {
     */
     class managerObject {
     public:
-      
-      ////////////////////////////////////////
-      // setup threadpool job
-      ////////////////////////////////////////
-
-      /** A job to add to the lowpriority threadpool when there are implementationObjects
-      that need to be setup.
-      */
-      class setupJob : public INTERNAL::threadPoolJob {
-      public:
-
-        /** The job will be initialized with a name for debug purposes and a pointer
-        to the managerObject it is supposed to work with. The managerObject takes
-        care of adding this job to a low priority threadpool every time it sees
-        that there are implementationObjects that need to be set up.
-        */
-        setupJob(managerObject * obj)
-          : obj(obj) {
-
-        }
-
-        /** This function is called from the threadpool and does the intented work
-        (Which is called the setup function of the objects that need to be loaded).
-
-        The slow-pool worker iterates the canonical `implementations` list under
-        `implementationsMutex` (shared only with the main thread). For each impl
-        whose status is still `OBJECT_CREATED`, a CAS claims it (→
-        `OBJECT_SETTING_UP`) and the pointer is snapshotted. The mutex is then
-        released *before* calling `setup()` (which may do file I/O), so the main
-        thread is not blocked on disk.
-        */
-        virtual void run() {
-          std::vector<implementationObject*> pending;
-          {
-            std::scoped_lock lk(obj->implementationsMutex);
-            for (auto & impl : obj->implementations) {
-              if (impl.tryClaimForSetup()) {
-                pending.push_back(&impl);
-              }
-            }
-          }
-          for (auto * p : pending) p->setup();
-        }
-
-      private:
-        managerObject * obj;
-      };
-
-      ////////////////////////////////////////
-      // delete threadpool job
-      ////////////////////////////////////////
-      /** A job to add to the lowpriority threadpool when there are implementationObjects
-      to be deleted
-      */
-      class deleteJob : public INTERNAL::threadPoolJob {
-      public:
-
-
-
-        /** The job will be initialized with a name for debug purposes and a pointer
-        to the managerObject it is supposed to work with. The managerObject takes
-        care of adding this job to a low priority threadpool every time it sees
-        that there are implementationObjects that need to be deleted.
-        */
-        deleteJob(managerObject * obj)
-          : obj(obj) {
-
-        }
-
-        virtual void run() {
-          std::scoped_lock lk(obj->implementationsMutex);
-          obj->implementations.remove_if(implementationObject::canBeDeleted);
-        }
-
-      private:
-        managerObject * obj;
-      };
-
-      ////////////////////////////////////////
-      // managerObject
-      ////////////////////////////////////////
+      using ImplementationType = implementationObject;
 
       managerObject();
       ~managerObject() noexcept;
@@ -181,8 +102,8 @@ namespace YSE {
       
 
     private:
-      setupJob mgrSetup;
-      deleteJob mgrDelete;
+      INTERNAL::managerSetupJob<managerObject> mgrSetup;
+      INTERNAL::managerDeleteJob<managerObject> mgrDelete;
 
       // update() helpers — split out to keep the audio-thread tick function's
       // cyclomatic complexity manageable (cpp:S3776).
@@ -240,8 +161,8 @@ namespace YSE {
       // should be released. It will result in the deleteJob to be added to the threadpool.
       aBool runDelete;
 
-      friend class setupJob;
-      friend class deleteJob;
+      friend class INTERNAL::managerSetupJob<managerObject>;
+      friend class INTERNAL::managerDeleteJob<managerObject>;
 
     };
 
