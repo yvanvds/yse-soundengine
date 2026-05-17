@@ -3,6 +3,7 @@
 
 #include "../sound/soundInterface.hpp"
 #include "../channel/channelInterface.hpp"
+#include "../dsp/buffer.hpp"
 #include "../utils/vector.hpp"
 
 #include <exception>
@@ -66,6 +67,28 @@ YSE_C_API YseStatus yse_sound_load_file(
     return YSE_ERR_EXCEPTION;
   } catch (...) {
     yse_c::set_last_error("unknown C++ exception in yse_sound_load_file");
+    return YSE_ERR_EXCEPTION;
+  }
+}
+
+YSE_C_API YseStatus yse_sound_load_buffer(
+    YseSound* s, YseDspBuffer* buf, YseChannel* ch,
+    int loop, float volume) {
+  if (!s) return YSE_ERR_INVALID_HANDLE;
+  if (!buf) return YSE_ERR_INVALID_ARGUMENT;
+  try {
+    auto& cpp_buf = *reinterpret_cast<YSE::DSP::buffer*>(buf);
+    to_cpp(s)->create(cpp_buf, to_cpp_chan(ch), loop != 0, volume);
+    if (!to_cpp(s)->isValid()) {
+      yse_c::set_last_error("sound is not valid after buffer-source create");
+      return YSE_ERR_GENERIC;
+    }
+    return YSE_OK;
+  } catch (const std::exception& e) {
+    yse_c::set_last_error(e.what());
+    return YSE_ERR_EXCEPTION;
+  } catch (...) {
+    yse_c::set_last_error("unknown C++ exception in yse_sound_load_buffer");
     return YSE_ERR_EXCEPTION;
   }
 }
