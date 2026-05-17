@@ -13,7 +13,7 @@
       Singletons (yse_system_get, yse_listener_get, yse_log_get), pre-built
       channels, device descriptors enumerated from the engine, and pHandles
       that belong to a parent YsePatcher. Calling the home destroy on these
-       is undefined behaviour.
+       is undefined behavior.
 
   When adding a new opaque type, follow the same shape so Dart's finaliser
   bookkeeping stays straight.
