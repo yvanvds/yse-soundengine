@@ -75,6 +75,12 @@ jobs:
     # NDK toolchain. Build-only — actually running the tests requires either an
     # emulator (KVM unavailable on GitHub-hosted runners) or a physical device,
     # both of which are deferred to a follow-up.
+    #
+    # Trigger gate: run on every push to master/dev (continuous coverage) and
+    # on PRs that target master (release gate). Skip on PRs that target dev so
+    # day-to-day feature work doesn't burn ~5 min of NDK cross-compile per push
+    # — Android-specific regressions get caught at the dev → master step.
+    if: github.event_name == 'push' || github.base_ref == 'master'
     name: Android build (${{ matrix.abi }})
     runs-on: ubuntu-latest
     timeout-minutes: 25

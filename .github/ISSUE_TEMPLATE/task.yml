@@ -1,0 +1,34 @@
+name: Task
+description: Internal work — infra, refactor, chore, dependency bump, docs.
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What needs to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: The motivation. If this is part of a larger initiative, link the parent issue.
+  - type: textarea
+    id: done-when
+    attributes:
+      label: Done when
+      description: A short checklist for completion.
+  - type: dropdown
+    id: layer
+    attributes:
+      label: Layer
+      description: Pick the area most likely affected. Maintainers apply labels at triage.
+      options:
+        - engine
+        - dsp
+        - audio-io
+        - midi
+        - music
+        - c-api
+        - tests
+        - android
+        - infra

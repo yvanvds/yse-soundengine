@@ -47,6 +47,20 @@ namespace YSE {
          for testing.
       */
 	  virtual Flt cpuLoad() { return 0.f; };
+
+      /* Live values for the currently open audio device. All three return
+         0 when no device is open — host applications can use that to drive
+         "device disconnected" UI states. Sample rate is the engine's
+         negotiated rate (typically YSE::SAMPLERATE) cast to double for ABI
+         stability across the C interface. Buffer size is the device's
+         frames-per-callback (PortAudio's framesPerBuffer / Oboe's
+         framesPerBurst), NOT YSE::STANDARD_BUFFERSIZE — they may differ.
+         Output latency is reported in samples (frames) to match the existing
+         YSE::device descriptor unit; convert to ms with
+         (latency / sampleRate * 1000) on the consumer side. */
+      virtual double getActiveSampleRate()    const { return 0.0; }
+      virtual int    getActiveBufferSize()    const { return 0; }
+      virtual int    getActiveOutputLatency() const { return 0; }
       
       /* this method should populate the devices vector.
       */

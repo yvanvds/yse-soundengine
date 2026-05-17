@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Project overview
+    url: https://github.com/yvanvds/yse-soundengine/blob/master/PROJECT_OVERVIEW.md
+    about: Architecture, build presets, and module layout.
+  - name: README
+    url: https://github.com/yvanvds/yse-soundengine/blob/master/README.md
+    about: Quick-start build recipe.

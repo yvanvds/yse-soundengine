@@ -160,6 +160,18 @@ Flt YSE::system::cpuLoad() {
   return DEVICE::Manager().cpuLoad();
 }
 
+double YSE::system::getActiveSampleRate() {
+  return DEVICE::Manager().getActiveSampleRate();
+}
+
+int YSE::system::getActiveBufferSize() {
+  return DEVICE::Manager().getActiveBufferSize();
+}
+
+int YSE::system::getActiveOutputLatency() {
+  return DEVICE::Manager().getActiveOutputLatency();
+}
+
 void YSE::system::sleep(unsigned int ms) {
 #if defined YSE_WINDOWS
   Sleep(ms);

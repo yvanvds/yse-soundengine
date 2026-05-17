@@ -47,6 +47,14 @@ int YSE::DEVICE::managerObject::paCallback(
   YSE::DEVICE::managerObject * manager = (YSE::DEVICE::managerObject *)userData;
 	manager->callbacksSinceLastUpdate++;
 
+  // PortAudio is opened with paFramesPerBufferUnspecified — capture whatever
+  // framesPerBuffer the backend negotiated on the first callback so the live
+  // getter can report it. Relaxed: any callback after the first will overwrite
+  // with the same value when the device is stable.
+  if (manager->activeBufferSize.load(std::memory_order_relaxed) == 0) {
+    manager->activeBufferSize.store((int)numSamples, std::memory_order_release);
+  }
+
   if (!manager->doOnCallback(numSamples)) return 0;
 
   UInt pos = 0;
@@ -151,6 +159,13 @@ void YSE::DEVICE::managerObject::addCallback() {
     return;
   } else open = true;
 
+  // Cache the negotiated output latency in samples for the live API.
+  if (const PaStreamInfo * sinfo = Pa_GetStreamInfo(stream)) {
+    activeOutputLatencySamples.store(
+      (int)(sinfo->outputLatency * (double)SAMPLERATE),
+      std::memory_order_release);
+  }
+
   err = Pa_StartStream(stream);
   if (err != paNoError) {
     audioDeviceError(err);
@@ -181,6 +196,10 @@ void YSE::DEVICE::managerObject::close() {
     }
     open = false;
   }
+
+  // No active device — the live getters report 0 until the next open.
+  activeBufferSize.store(0, std::memory_order_release);
+  activeOutputLatencySamples.store(0, std::memory_order_release);
 }
 
 void YSE::DEVICE::managerObject::terminate() {
@@ -287,6 +306,17 @@ void YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup & object) {
   }
   else open = true;
 
+  // Cache live device state. When the caller pinned a non-zero bufferSize we
+  // can populate it immediately; otherwise the first paCallback captures it.
+  if (object.bufferSize != 0) {
+    activeBufferSize.store((int)object.bufferSize, std::memory_order_release);
+  }
+  if (const PaStreamInfo * sinfo = Pa_GetStreamInfo(stream)) {
+    activeOutputLatencySamples.store(
+      (int)(sinfo->outputLatency * (double)SAMPLERATE),
+      std::memory_order_release);
+  }
+
   err = Pa_StartStream(stream);
   if (err != paNoError) {
     audioDeviceError(err);
@@ -304,6 +334,20 @@ Flt YSE::DEVICE::managerObject::cpuLoad() {
     return (Flt)Pa_GetStreamCpuLoad(stream);
   }
   return 0.f;
+}
+
+double YSE::DEVICE::managerObject::getActiveSampleRate() const {
+  // SAMPLERATE retains its last value across close(); gate on the open flag so
+  // consumers see a clean "no device" → 0 transition.
+  return open ? (double)SAMPLERATE : 0.0;
+}
+
+int YSE::DEVICE::managerObject::getActiveBufferSize() const {
+  return activeBufferSize.load(std::memory_order_acquire);
+}
+
+int YSE::DEVICE::managerObject::getActiveOutputLatency() const {
+  return activeOutputLatencySamples.load(std::memory_order_acquire);
 }
 
 #endif // PORTAUDIO_BACKEND

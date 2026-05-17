@@ -1,0 +1,37 @@
+name: Enhancement
+description: An improvement to an existing capability — clearer, faster, safer, more flexible.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What should be enhanced?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why now?
+      description: What changed, what was learned, what motivates this enhancement?
+    validations:
+      required: true
+  - type: textarea
+    id: non-goals
+    attributes:
+      label: Non-goals
+      description: Anything explicitly out of scope.
+  - type: dropdown
+    id: layer
+    attributes:
+      label: Layer
+      description: Pick the area most likely affected. Maintainers apply labels at triage.
+      options:
+        - engine
+        - dsp
+        - audio-io
+        - midi
+        - music
+        - c-api
+        - tests
+        - android
+        - infra
