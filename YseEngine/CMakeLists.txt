@@ -327,6 +327,13 @@ if(WIN32)
   target_link_libraries(yse_objects PUBLIC winmm)
 endif()
 
+# ── C ABI bridge ──────────────────────────────────────────────────────────────
+# Folds extern "C" wrappers (yse_*) into the same DLL so language bindings
+# can consume libyse.dll without C++ ABI compatibility.
+if(YSE_BUILD_C_API)
+  include(${CMAKE_CURRENT_LIST_DIR}/c_api/CMakeLists.txt)
+endif()
+
 # ── Shared library target ─────────────────────────────────────────────────────
 # Consumers (demos, external code) link against this target only.
 add_library(yse SHARED)

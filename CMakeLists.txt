@@ -35,6 +35,9 @@ option(YSE_BUILD_BENCHMARKS
 option(YSE_ENABLE_COVERAGE
   "Instrument the build for code coverage — implies YSE_BUILD_TESTS; Linux/GCC or Clang only"
   OFF)
+option(YSE_BUILD_C_API
+  "Build the extern \"C\" ABI bridge (yse_*) inside libyse so language bindings (Dart, Python, ...) can consume the DLL without C++ ABI compatibility"
+  ON)
 
 # Export compile_commands.json for SonarCloud's C++ analyser and clangd.
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
