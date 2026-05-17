@@ -26,6 +26,21 @@ typedef enum YseChannelType {
   YSE_CT_CUSTOM  = 8
 } YseChannelType;
 
+/* Mirrors YSE::REVERB_PRESET in headers/enums.hpp. */
+typedef enum YseReverbPreset {
+  YSE_REVERB_OFF        = 0,
+  YSE_REVERB_GENERIC    = 1,
+  YSE_REVERB_PADDED     = 2,
+  YSE_REVERB_ROOM       = 3,
+  YSE_REVERB_BATHROOM   = 4,
+  YSE_REVERB_STONEROOM  = 5,
+  YSE_REVERB_LARGEROOM  = 6,
+  YSE_REVERB_HALL       = 7,
+  YSE_REVERB_CAVE       = 8,
+  YSE_REVERB_SEWERPIPE  = 9,
+  YSE_REVERB_UNDERWATER = 10
+} YseReverbPreset;
+
 #ifdef __cplusplus
 }
 #endif

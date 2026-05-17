@@ -12,5 +12,7 @@
 #include "yse_listener.h"
 #include "yse_channel.h"
 #include "yse_sound.h"
+#include "yse_device.h"
+#include "yse_reverb.h"
 
 #endif
