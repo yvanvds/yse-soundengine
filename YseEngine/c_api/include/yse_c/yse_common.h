@@ -49,6 +49,10 @@ typedef struct yse_pos_t {
 
 YSE_C_API const char* yse_version(void);
 
+/* Returns the last error message recorded on the calling thread (the
+   slot is thread-local). The returned pointer is valid until the next
+   yse_* call from the same thread; copy the string if you need to hold
+   onto it. Empty string when no error has been recorded. */
 YSE_C_API const char* yse_last_error(void);
 YSE_C_API void        yse_clear_last_error(void);
 

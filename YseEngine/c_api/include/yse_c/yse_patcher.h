@@ -23,7 +23,11 @@
 extern "C" {
 #endif
 
+/* Owned — release with yse_patcher_destroy. */
 typedef struct YsePatcher YsePatcher;
+/* Borrowed — owned by the parent YsePatcher. Release with
+   yse_patcher_delete_object(patcher, handle); never call a destroy on
+   the handle directly. */
 typedef struct YsePHandle YsePHandle;
 
 /* ─── patcher lifecycle ────────────────────────────────────────────── */

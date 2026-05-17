@@ -13,7 +13,10 @@
 extern "C" {
 #endif
 
+/* Owned — release with yse_sound_destroy. */
 typedef struct YseSound      YseSound;
+/* Forward declarations — see yse_channel.h / yse_dsp.h / yse_dsp_modules.h /
+   yse_patcher.h for ownership semantics. */
 typedef struct YseChannel    YseChannel;
 typedef struct YseDspBuffer  YseDspBuffer;
 typedef struct YseDspObject  YseDspObject;

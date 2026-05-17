@@ -15,6 +15,9 @@ extern "C"
 {
 #endif
 
+	/* Owned via yse_channel_create — release with yse_channel_destroy.
+	   Borrowed via the yse_channel_master / _fx / _music / _ambient /
+	   _voice / _gui pre-built accessors — never destroy those. */
 	typedef struct YseChannel YseChannel;
 
 	/* Pre-built channels — borrowed pointers, never destroy. */
