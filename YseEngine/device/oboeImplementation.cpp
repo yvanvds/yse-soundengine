@@ -4,6 +4,7 @@
 
 #include "../implementations/logImplementation.h"
 #include "../internalHeaders.h"
+#include "../internal/denormalGuard.h"
 
 OboeImplementation::OboeImplementation()
   : bufferPos(YSE::STANDARD_BUFFERSIZE)
@@ -98,6 +99,7 @@ int32_t OboeImplementation::getNegotiatedOutputLatencyMs() const {
 oboe::DataCallbackResult OboeImplementation::onAudioReady(oboe::AudioStream * /*stream*/,
                                                           void * audioData,
                                                           int32_t numFrames) {
+  YSE::INTERNAL::enableFlushToZero();
   ++callbacksSinceLastUpdate;
 
   float * dest = static_cast<float *>(audioData);
