@@ -41,6 +41,11 @@ namespace YSE {
         virtual void openDevice(const YSE::deviceSetup & object);
         virtual void addCallback();
 
+        // Live device-state getters (see deviceManager.h for contract).
+        virtual double getActiveSampleRate()    const;
+        virtual int    getActiveBufferSize()    const;
+        virtual int    getActiveOutputLatency() const;
+
         static int paCallback(
                 const void *input
                 , void *output
@@ -59,6 +64,12 @@ namespace YSE {
         bool initDone, open, started;
 
         std::atomic<unsigned int> callbacksSinceLastUpdate;
+
+        // Cached live device state, populated post-Pa_OpenStream and reset on
+        // close(). Buffer size is captured on the first paCallback invocation
+        // because we open the stream with paFramesPerBufferUnspecified.
+        std::atomic<int> activeBufferSize{0};
+        std::atomic<int> activeOutputLatencySamples{0};
     };
 
     managerObject & Manager();
