@@ -84,5 +84,20 @@ void YSE::DEVICE::managerObject::close() {
   //YSE::Log().sendMessage("androidDeviceManager: Close done");
 }
 
+double YSE::DEVICE::managerObject::getActiveSampleRate() const {
+  return open ? (double)implementation.getNegotiatedSampleRate() : 0.0;
+}
+
+int YSE::DEVICE::managerObject::getActiveBufferSize() const {
+  return open ? implementation.getNegotiatedBufferSize() : 0;
+}
+
+int YSE::DEVICE::managerObject::getActiveOutputLatency() const {
+  if (!open) return 0;
+  const int32_t ms   = implementation.getNegotiatedOutputLatencyMs();
+  const int32_t rate = implementation.getNegotiatedSampleRate();
+  return (int)((double)ms * (double)rate / 1000.0);
+}
+
 
 #endif
