@@ -1,0 +1,53 @@
+name: Bug
+description: Something is broken or behaves contrary to the documented contract.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A short description of the observed behaviour.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should have happened?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Build preset / demo / test that exhibits the bug
+        2. ...
+        3. Observe
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: OS + version, compiler/toolchain, CMake preset, audio backend, commit SHA.
+      placeholder: "Windows 11 MSYS2 Clang64 18.1.8, preset=tests-debug, PortAudio/WASAPI, commit 5e5e290"
+  - type: dropdown
+    id: layer
+    attributes:
+      label: Layer
+      description: Pick the area most likely affected. Maintainers apply labels at triage.
+      options:
+        - engine
+        - dsp
+        - audio-io
+        - midi
+        - music
+        - c-api
+        - tests
+        - android
+        - infra
+  - type: checkboxes
+    id: realtime
+    attributes:
+      label: Real-time / audio-thread path?
+      description: Tick if the bug involves code that runs on the audio callback (allocations, locks, blocking I/O are forbidden there).
+      options:
+        - label: This bug is on (or close to) the audio-thread path.
