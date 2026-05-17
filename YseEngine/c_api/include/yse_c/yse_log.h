@@ -36,7 +36,7 @@ YSE_C_API size_t        yse_log_get_logfile(YseLog* log, char* buf, size_t cap);
 /* The receiver OWNS msg and must release it with yse_log_free_message
    when finished. The pointer is allocated with malloc by the bridge so
    any C client can free() it directly if preferred. */
-typedef void (*YseLogCallback)(char* msg, void* user_data);
+typedef void (YSE_C_CALLBACK *YseLogCallback)(char* msg, void* user_data);
 
 /* Replaces the default file sink. Pass NULL for cb to restore the default.
    user_data is opaque — forwarded to every callback invocation. */
