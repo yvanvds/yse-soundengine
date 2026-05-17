@@ -4,6 +4,7 @@
 #include "../log.hpp"
 #include "../headers/enums.hpp"
 
+#include <cstdlib>
 #include <cstring>
 #include <mutex>
 #include <string>
@@ -41,7 +42,18 @@ namespace {
         fn = cb;
         ud = user_data;
       }
-      if (fn) fn(msg.c_str(), ud);
+      if (!fn) return;
+      // Strings passed across NativeCallable.listener bridges to Dart
+      // are marshalled by pointer value, not deep copy — by the time
+      // the Dart handler runs, the std::string backing this pointer
+      // has long been destroyed. Allocate a fresh malloc'd copy that
+      // the receiver is contractually obliged to release via
+      // yse_log_free_message.
+      char* copy = static_cast<char*>(std::malloc(msg.size() + 1));
+      if (!copy) return;
+      std::memcpy(copy, msg.c_str(), msg.size());
+      copy[msg.size()] = '\0';
+      fn(copy, ud);
     }
   private:
     std::mutex mu;
@@ -80,6 +92,10 @@ YSE_C_API void yse_log_set_logfile(YseLog* log, const char* path) {
 YSE_C_API size_t yse_log_get_logfile(YseLog* log, char* buf, size_t cap) {
   if (!log) { if (buf && cap > 0) buf[0] = '\0'; return 0; }
   return copy_string(to_cpp(log)->getLogfile(), buf, cap);
+}
+
+YSE_C_API void yse_log_free_message(char* msg) {
+  if (msg) std::free(msg);
 }
 
 YSE_C_API void yse_log_set_callback(YseLog* log, YseLogCallback cb, void* user_data) {
