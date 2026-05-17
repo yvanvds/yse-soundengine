@@ -4,9 +4,9 @@
 #include "../log.hpp"
 #include "../headers/enums.hpp"
 
+#include <atomic>
 #include <cstdlib>
 #include <cstring>
-#include <mutex>
 #include <string>
 
 namespace {
@@ -25,30 +25,33 @@ namespace {
 
   // Bridge from YSE's virtual logHandler to a C function pointer.
   // Only one bridge instance exists for the singleton Log(); installing
-  // a new callback replaces the slot. The mutex serialises installation
-  // against the audio / engine threads that may be calling AddMessage.
+  // a new callback replaces the slot. The callback + user_data pair lives
+  // as atomics so AddMessage (called from whichever thread emitted the
+  // log) never blocks on installer state — mirrors the pattern used by
+  // the midiIn raw bridge in yse_midi.cpp. See issue #58.
   class CallbackBridge : public YSE::logHandler {
   public:
     void install(YseLogCallback cb, void* user_data) {
-      std::lock_guard<std::mutex> lock(mu);
-      this->cb = cb;
-      this->user_data = user_data;
+      // Publish user_data first; AddMessage gates on a non-null cb, so
+      // any reader that observes the new cb is guaranteed to also see
+      // the matching user_data via the acquire/release pair.
+      this->user_data.store(user_data, std::memory_order_release);
+      this->cb.store(cb, std::memory_order_release);
     }
     void AddMessage(const std::string& msg) override {
-      YseLogCallback fn;
-      void* ud;
-      {
-        std::lock_guard<std::mutex> lock(mu);
-        fn = cb;
-        ud = user_data;
-      }
+      auto fn = cb.load(std::memory_order_acquire);
       if (!fn) return;
+      auto ud = user_data.load(std::memory_order_acquire);
       // Strings passed across NativeCallable.listener bridges to Dart
       // are marshalled by pointer value, not deep copy — by the time
       // the Dart handler runs, the std::string backing this pointer
       // has long been destroyed. Allocate a fresh malloc'd copy that
       // the receiver is contractually obliged to release via
       // yse_log_free_message.
+      //
+      // malloc on this path is acceptable today because log emits never
+      // originate on the audio callback. If that ever changes, this
+      // bridge needs a preallocated message pool — see issue #62.
       char* copy = static_cast<char*>(std::malloc(msg.size() + 1));
       if (!copy) return;
       std::memcpy(copy, msg.c_str(), msg.size());
@@ -56,9 +59,8 @@ namespace {
       fn(copy, ud);
     }
   private:
-    std::mutex mu;
-    YseLogCallback cb = nullptr;
-    void* user_data = nullptr;
+    std::atomic<YseLogCallback> cb{nullptr};
+    std::atomic<void*>          user_data{nullptr};
   };
 
   CallbackBridge& bridge() {

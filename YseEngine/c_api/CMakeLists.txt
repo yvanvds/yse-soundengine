@@ -7,6 +7,11 @@
 # Included from YseEngine/CMakeLists.txt via include() AFTER yse_objects has
 # been defined; never add_subdirectory()'d (the goal is to extend an existing
 # target, not create a new one).
+#
+# Adding a new callback that the engine invokes on a non-host thread?
+# Read the "Callback bridge rules" block at the top of yse_c_internal.hpp
+# first. The short version: atomic-swap callback pointer (no mutex), no
+# malloc on audio-callback-reachable paths, YSE_C_CALLBACK on the typedef.
 
 set(YSE_C_API_SRCS
   yse_common.cpp
@@ -23,6 +28,7 @@ set(YSE_C_API_SRCS
   yse_music.cpp
   yse_log.cpp
   yse_buffer_io.cpp
+  yse_enums_check.cpp
 )
 list(TRANSFORM YSE_C_API_SRCS PREPEND "${CMAKE_CURRENT_LIST_DIR}/")
 
