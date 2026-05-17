@@ -25,6 +25,16 @@
   #endif
 #endif
 
+/* Calling-convention marker for callback function pointer typedefs that
+   the engine invokes across the C ABI. Made explicit on Windows so the
+   ABI is unambiguous across compilers (MSVC, Clang, MinGW); a no-op on
+   x64 / ARM64 / non-Windows where only one C calling convention exists. */
+#if defined(_WIN32) || defined(_WIN64)
+  #define YSE_C_CALLBACK __cdecl
+#else
+  #define YSE_C_CALLBACK
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
