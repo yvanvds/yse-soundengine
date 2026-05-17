@@ -19,6 +19,7 @@ set(YSE_C_API_SRCS
   yse_dsp.cpp
   yse_dsp_modules.cpp
   yse_patcher.cpp
+  yse_midi.cpp
 )
 list(TRANSFORM YSE_C_API_SRCS PREPEND "${CMAKE_CURRENT_LIST_DIR}/")
 
