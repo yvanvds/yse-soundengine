@@ -11,6 +11,10 @@
 
   Object type identifiers are the same strings YSE::OBJ exposes
   ("~sine", ".+", "~lp", etc.). See patcher/pObjectList.hpp upstream.
+
+  Convention: every void-returning function in this header is a null-safe
+  no-op when called with a NULL handle (patcher or phandle). Status
+  queries return 0 / false / NULL on NULL.
 */
 
 #ifndef YSE_C_PATCHER_H_INCLUDED
