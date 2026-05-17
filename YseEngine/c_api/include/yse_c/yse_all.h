@@ -15,5 +15,6 @@
 #include "yse_device.h"
 #include "yse_reverb.h"
 #include "yse_dsp.h"
+#include "yse_dsp_modules.h"
 
 #endif

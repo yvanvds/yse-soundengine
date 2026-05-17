@@ -16,6 +16,7 @@ extern "C" {
 typedef struct YseSound      YseSound;
 typedef struct YseChannel    YseChannel;
 typedef struct YseDspBuffer  YseDspBuffer;
+typedef struct YseDspObject  YseDspObject;
 
 YSE_C_API YseSound*  yse_sound_create(void);
 YSE_C_API void       yse_sound_destroy(YseSound* s);
@@ -77,6 +78,11 @@ YSE_C_API float      yse_sound_get_time(YseSound* s);
 YSE_C_API unsigned int yse_sound_length(YseSound* s);
 
 YSE_C_API void       yse_sound_move_to(YseSound* s, YseChannel* target);
+
+/* DSP effect chain. The dspObject pointer is borrowed; the engine reads it
+   on the audio thread. Must outlive the sound. Pass NULL to clear. */
+YSE_C_API void          yse_sound_set_dsp(YseSound* s, YseDspObject* dsp);
+YSE_C_API YseDspObject* yse_sound_get_dsp(YseSound* s);
 
 #ifdef __cplusplus
 }

@@ -4,6 +4,7 @@
 #include "../sound/soundInterface.hpp"
 #include "../channel/channelInterface.hpp"
 #include "../dsp/buffer.hpp"
+#include "../dsp/dspObject.hpp"
 #include "../utils/vector.hpp"
 
 #include <exception>
@@ -160,6 +161,16 @@ YSE_C_API unsigned int yse_sound_length(YseSound* s) {
 YSE_C_API void yse_sound_move_to(YseSound* s, YseChannel* target) {
   if (!s || !target) return;
   to_cpp(s)->moveTo(*to_cpp_chan(target));
+}
+
+YSE_C_API void yse_sound_set_dsp(YseSound* s, YseDspObject* dsp) {
+  if (!s) return;
+  to_cpp(s)->setDSP(reinterpret_cast<YSE::DSP::dspObject*>(dsp));
+}
+
+YSE_C_API YseDspObject* yse_sound_get_dsp(YseSound* s) {
+  if (!s) return nullptr;
+  return reinterpret_cast<YseDspObject*>(to_cpp(s)->getDSP());
 }
 
 } // extern "C"

@@ -26,6 +26,31 @@ typedef enum YseChannelType {
   YSE_CT_CUSTOM  = 8
 } YseChannelType;
 
+/* Mirrors YSE::DSP::LFO_TYPE in dsp/lfo.hpp. */
+typedef enum YseLfoType {
+  YSE_LFO_NONE          = 0,
+  YSE_LFO_SAW           = 1,
+  YSE_LFO_SAW_REVERSED  = 2,
+  YSE_LFO_TRIANGLE      = 3,
+  YSE_LFO_SINE          = 4,
+  YSE_LFO_SQUARE        = 5,
+  YSE_LFO_RANDOM        = 6
+} YseLfoType;
+
+/* Mirrors YSE::DSP::MODULES::sweepFilter::SHAPE. */
+typedef enum YseDspSweepShape {
+  YSE_SWEEP_TRIANGLE = 0,
+  YSE_SWEEP_SAW      = 1,
+  YSE_SWEEP_SQUARE   = 2
+} YseDspSweepShape;
+
+/* Mirrors YSE::DSP::MODULES::basicDelay::DELAY_NR. */
+typedef enum YseDspDelayTap {
+  YSE_DELAY_TAP_FIRST  = 0,
+  YSE_DELAY_TAP_SECOND = 1,
+  YSE_DELAY_TAP_THIRD  = 2
+} YseDspDelayTap;
+
 /* Mirrors YSE::REVERB_PRESET in headers/enums.hpp. */
 typedef enum YseReverbPreset {
   YSE_REVERB_OFF        = 0,

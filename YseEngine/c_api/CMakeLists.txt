@@ -17,6 +17,7 @@ set(YSE_C_API_SRCS
   yse_reverb.cpp
   yse_device.cpp
   yse_dsp.cpp
+  yse_dsp_modules.cpp
 )
 list(TRANSFORM YSE_C_API_SRCS PREPEND "${CMAKE_CURRENT_LIST_DIR}/")
 
