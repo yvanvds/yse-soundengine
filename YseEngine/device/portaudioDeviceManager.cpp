@@ -143,7 +143,19 @@ void YSE::DEVICE::managerObject::addCallback() {
   }
 #endif
   params.hostApiSpecificStreamInfo = nullptr;
-  SAMPLERATE = (UInt)info->defaultSampleRate;
+  // Session-locked: once the lock is set at the end of system::initShared(),
+  // SAMPLERATE can only be re-written to its current value (e.g. by
+  // pause()/resume() cycles which reopen the stream against the same device).
+  // A debug assert catches genuine mid-session rate-change attempts; the
+  // write itself is skipped so SAMPLERATE-derived caches (LFO tables, reverb
+  // tunings, ADSR breakpoints) stay coherent.
+  {
+    const UInt newRate = (UInt)info->defaultSampleRate;
+    assert(!INTERNAL::Global().isSampleRateLocked() || newRate == SAMPLERATE);
+    if (!INTERNAL::Global().isSampleRateLocked()) {
+      SAMPLERATE = newRate;
+    }
+  }
 
   err = Pa_OpenStream(
     &stream
@@ -289,7 +301,14 @@ void YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup & object) {
   }
 #endif
   params.hostApiSpecificStreamInfo = nullptr;
-  SAMPLERATE = (UInt)info->defaultSampleRate;
+  // See note at the addCallback() writer above.
+  {
+    const UInt newRate = (UInt)info->defaultSampleRate;
+    assert(!INTERNAL::Global().isSampleRateLocked() || newRate == SAMPLERATE);
+    if (!INTERNAL::Global().isSampleRateLocked()) {
+      SAMPLERATE = newRate;
+    }
+  }
 
   err = Pa_OpenStream(
     &stream
