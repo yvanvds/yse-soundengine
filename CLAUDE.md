@@ -23,6 +23,14 @@ session start. Pair with [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md).
 5. **Layered structure.** Engine internals → C API → bindings/demos.
    `YseEngine/c_api/` is the only entry point for FFI consumers. Keep
    `PROJECT_OVERVIEW.md` current after structural changes.
+6. **Analyze before committing.** Run `python yse.py analyze <changed-files>`
+   on the files touched in a commit and address any **new** findings. The
+   project's [.clang-tidy](.clang-tidy) baseline keeps the noise floor low
+   (~50 pre-existing findings across `YseEngine/`, tracked as backlog —
+   don't fix in passing). New findings in *modified* code should be cleared
+   before the commit, fixing or with a focused `// NOLINT(check-name): why`
+   when the check is genuinely wrong for that line. The `fix-issues` skill
+   governs how to triage findings.
 
 ## Issue templates
 

@@ -1,0 +1,79 @@
+# clang-tidy baseline for the YSE Sound Engine.
+#
+# Goal: surface real bugs without drowning in stylistic noise. The check set
+# is opt-in (-* first) rather than opt-out, so adding a new check is a
+# deliberate decision rather than a surprise.
+#
+# RT-thread performance is non-negotiable in this codebase — checks that
+# push toward heavier abstractions on the audio callback path (std::function
+# over function pointer, virtual dispatch, atomic-with-default-memory-order)
+# are intentionally OFF. See CLAUDE.md and the fix-issues skill for the
+# project stance.
+#
+# A handful of high-volume categories with low signal-to-noise on this
+# codebase are also disabled below; they represent pre-existing tech debt
+# that won't be paid down per-commit (modernize-use-nullptr across the
+# legacy DSP code, etc.). Re-enable a specific check if a focused cleanup
+# pass is planned.
+#
+# Vendored deps under dependencies/ and generated code under build*/ are
+# excluded via HeaderFilterRegex.
+
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  -bugprone-implicit-widening-of-multiplication-result,
+  -bugprone-branch-clone,
+  -bugprone-macro-parentheses,
+  -bugprone-throwing-static-initialization,
+  -bugprone-exception-escape,
+  -bugprone-reserved-identifier,
+  clang-analyzer-core.*,
+  clang-analyzer-cplusplus.*,
+  clang-analyzer-deadcode.*,
+  clang-analyzer-nullability.*,
+  clang-analyzer-optin.cplusplus.VirtualCall,
+  clang-analyzer-security.insecureAPI.*,
+  clang-analyzer-unix.*,
+  cert-dcl21-cpp,
+  cert-dcl50-cpp,
+  cert-dcl58-cpp,
+  cert-err34-c,
+  cert-flp30-c,
+  cert-mem57-cpp,
+  cert-msc50-cpp,
+  cert-msc51-cpp,
+  cert-oop54-cpp,
+  cert-str34-c,
+  cppcoreguidelines-slicing,
+  cppcoreguidelines-virtual-class-destructor,
+  misc-definitions-in-headers,
+  misc-unused-using-decls,
+  misc-misleading-bidirectional,
+  misc-misleading-identifier,
+  modernize-use-override,
+  modernize-redundant-void-arg,
+  performance-faster-string-find,
+  performance-for-range-copy,
+  performance-implicit-conversion-in-loop,
+  performance-inefficient-string-concatenation,
+  performance-inefficient-vector-operation,
+  performance-move-const-arg,
+  performance-noexcept-move-constructor,
+  performance-trivially-destructible,
+  performance-unnecessary-copy-initialization,
+  readability-misleading-indentation,
+  readability-redundant-control-flow,
+  readability-redundant-smartptr-get,
+  readability-string-compare,
+
+WarningsAsErrors: ''
+
+# Apply checks only to our own headers under YseEngine/ and Tests/.
+HeaderFilterRegex: '.*(YseEngine|Tests)[/\\][^/\\]*\.h(pp)?$'
+
+CheckOptions:
+  - key: performance-move-const-arg.CheckTriviallyCopyableMove
+    value: 'false'
