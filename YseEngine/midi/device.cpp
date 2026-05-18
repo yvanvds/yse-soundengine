@@ -1,5 +1,5 @@
 #include "headers/defines.hpp"
-#if YSE_WINDOWS || YSE_LINUX
+#if YSE_ENABLE_MIDI_DEVICE
 #include "device.hpp"
 #include "RtMidi.h"
 #include "midiDeviceManager.h"

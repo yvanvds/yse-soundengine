@@ -230,7 +230,7 @@ const std::string & YSE::system::getDefaultHost() {
   return DEVICE::Manager().getDefaultTypeName();
 }
 
-#if YSE_WINDOWS || YSE_LINUX
+#if YSE_ENABLE_MIDI_DEVICE
 unsigned int YSE::system::getNumMidiInDevices()
 {
 	return MIDI::DeviceManager().getNumMidiInDevices();
