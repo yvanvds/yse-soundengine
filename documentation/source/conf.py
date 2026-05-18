@@ -18,7 +18,7 @@ from pathlib import Path
 project = "libYSE"
 author = "Yvan Vander Sanden"
 copyright = "2014-2026, Yvan Vander Sanden"
-release = "2.0"
+release = "2.1"
 
 # -- General configuration ---------------------------------------------------
 
@@ -58,7 +58,7 @@ breathe_show_include = False
 # -- HTML output -------------------------------------------------------------
 
 html_theme = "sphinx_book_theme"
-html_title = "libYSE 2.0"
+html_title = "libYSE 2.1"
 html_static_path = ["_static"]
 
 # Logo and favicon are sourced from the repo-root `logo/` directory so the
