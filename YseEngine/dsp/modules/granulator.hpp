@@ -40,10 +40,11 @@ namespace YSE {
          *
          *  @param poolSize  Size of the circular input buffer in samples.
          *                   Limits how far back into the input the granulator
-         *                   can reach. Default is 5 seconds at 44.1 kHz.
+         *                   can reach. Default is 5 seconds at the engine's
+         *                   current sample rate.
          *  @param maxGrains Maximum number of grains alive simultaneously.
          */
-        granulator(UInt poolSize = 44100 * 5, UInt maxGrains = 16);
+        granulator(UInt poolSize = SAMPLERATE * 5, UInt maxGrains = 16);
         virtual ~granulator() {};
 
         /** @brief dspObject lifecycle hook — allocates buffers. */

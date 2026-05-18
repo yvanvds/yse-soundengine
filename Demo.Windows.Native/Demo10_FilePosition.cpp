@@ -34,50 +34,50 @@ void DemoFilePosition::ExplainDemo()
 
 void DemoFilePosition::Zero()
 {
-  sound.time(11.2f * 44100);
+  sound.time(11.2f * YSE::SAMPLERATE);
 }
 
 void DemoFilePosition::One()
 {
-  sound.time(10.0f * 44100);
+  sound.time(10.0f * YSE::SAMPLERATE);
 }
 
 void DemoFilePosition::Two()
 {
-  sound.time(9.0f * 44100);
+  sound.time(9.0f * YSE::SAMPLERATE);
 }
 
 void DemoFilePosition::Three()
 {
-  sound.time(8.0f * 44100);
+  sound.time(8.0f * YSE::SAMPLERATE);
 }
 
 void DemoFilePosition::Four()
 {
-  sound.time(6.7f * 44100);
+  sound.time(6.7f * YSE::SAMPLERATE);
 }
 
 void DemoFilePosition::Five()
 {
-  sound.time(5.5f * 44100);
+  sound.time(5.5f * YSE::SAMPLERATE);
 }
 
 void DemoFilePosition::Six()
 {
-  sound.time(4.3f * 44100);
+  sound.time(4.3f * YSE::SAMPLERATE);
 }
 
 void DemoFilePosition::Seven()
 {
-  sound.time(3.2f * 44100);
+  sound.time(3.2f * YSE::SAMPLERATE);
 }
 
 void DemoFilePosition::Eight()
 {
-  sound.time(2.0f * 44100);
+  sound.time(2.0f * YSE::SAMPLERATE);
 }
 
 void DemoFilePosition::Nine()
 {
-  sound.time(1.0f * 44100);
+  sound.time(1.0f * YSE::SAMPLERATE);
 }
