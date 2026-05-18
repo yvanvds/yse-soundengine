@@ -19,6 +19,7 @@
 #include "headers/types.hpp"
 #include "deviceManager.h"
 #include "portaudio.h"
+#include <chrono>
 
 namespace YSE {
   
@@ -57,6 +58,12 @@ namespace YSE {
     private:
         void terminate();
 
+        // Fold one callback's wall-clock elapsed time into cpuLoadEma.
+        // Called by paCallback on every exit path. Single producer (the
+        // PortAudio callback thread), so relaxed atomics are sufficient.
+        void updateCpuLoadEma(std::chrono::steady_clock::time_point cbStart,
+                              unsigned long numSamples);
+
         void audioDeviceError(PaError err);
         PaStream * stream;
         PaError err;
@@ -70,6 +77,13 @@ namespace YSE {
         // because we open the stream with paFramesPerBufferUnspecified.
         std::atomic<int> activeBufferSize{0};
         std::atomic<int> activeOutputLatencySamples{0};
+
+        // EMA-smoothed callback wall-clock load (issue #82). Written by
+        // paCallback at the end of each render (relaxed, single producer),
+        // read by cpuLoad() on the control thread (relaxed — no
+        // synchronisation needed, callers just want a recent value).
+        // Reset to 0 on close() so a fresh device starts clean.
+        std::atomic<float> cpuLoadEma{0.f};
     };
 
     managerObject & Manager();
