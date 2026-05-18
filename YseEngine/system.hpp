@@ -210,6 +210,18 @@ namespace YSE {
      */
     float cpuLoad();
 
+    /** @brief Engine session sample rate in Hz.
+     *
+     *  The rate the engine locked to when ``init()`` / ``initOffline()`` ran.
+     *  Stays constant across the entire session, including pause / resume
+     *  cycles where ``getActiveSampleRate()`` transiently drops to 0. Returns
+     *  0 before the lock is established (pre-init).
+     *
+     *  Use this when scheduling sample-count-driven work that must outlive a
+     *  pause; use ``getActiveSampleRate()`` for live device-state UI.
+     */
+    double getSampleRate();
+
     /// @name Active device readouts
     /// Live state of the currently open audio device. Each returns 0 when no
     /// device is open (pre-init, after ``close()``, or under ``initOffline()``).
