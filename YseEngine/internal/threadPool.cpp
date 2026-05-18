@@ -11,6 +11,7 @@
 #include "threadPool.h"
 #include <assert.h>
 #include "../system.hpp"
+#include "denormalGuard.h"
 
 YSE::INTERNAL::threadPoolJob::threadPoolJob() : shouldStop(false), inQueue(false), isDone(false) {}
 
@@ -36,6 +37,12 @@ void YSE::INTERNAL::threadPoolJob::activate() {
 YSE::INTERNAL::threadPoolThread::threadPoolThread(threadPool * pool) : pool(pool) {}
 
 void YSE::INTERNAL::threadPoolThread::run() {
+  // Worker threads also run DSP (CHANNEL::implementationObject::run dispatches
+  // child-channel dsp() here via addFastJob). MXCSR/FPCR is per-thread, so the
+  // FTZ/DAZ set on the audio callback thread does not reach us — set it once
+  // when the worker starts. See issue #81 and denormalGuard.h.
+  enableFlushToZero();
+
   while (!threadShouldExit()) {
     threadPoolJob * job = pool->getJob();
     if (job == nullptr) return;
