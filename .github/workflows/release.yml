@@ -92,9 +92,83 @@ jobs:
           path: dist/libyse-*-windows-x64.zip
           if-no-files-found: error
 
+  build-android:
+    # Cross-compile libyse.so for each Android ABI we ship. Mirrors the
+    # build.yml Android matrix, but with CMAKE_BUILD_TYPE=Release and
+    # without the tests target — release packages don't ship libyse_tests.so.
+    name: Build (Android ${{ matrix.abi }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [arm64-v8a, x86_64]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - name: Install host build tools
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y cmake ninja-build
+
+      - name: Setup Android NDK
+        id: ndk
+        uses: nttld/setup-ndk@afb4c9964b521afb97c864b7d40b11e6911bd410 # v1.5.0
+        with:
+          ndk-version: r27
+          local-cache: true
+
+      - name: Configure & build (release)
+        run: >
+          cmake -B build-android -G Ninja
+          -DCMAKE_TOOLCHAIN_FILE=${{ steps.ndk.outputs.ndk-path }}/build/cmake/android.toolchain.cmake
+          -DANDROID_ABI=${{ matrix.abi }}
+          -DANDROID_PLATFORM=android-26
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build libyse.so
+        run: cmake --build build-android --target yse
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: android-libs-${{ matrix.abi }}
+          path: build-android/bin/libyse.so
+          if-no-files-found: error
+          retention-days: 1
+
+  package-android:
+    # Merge the per-ABI matrix outputs into a single multi-ABI bundle
+    # (lib/<abi>/libyse.so + headers + LICENSE + README) for upload.
+    name: Package (Android multi-ABI)
+    needs: build-android
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: android-libs
+          pattern: 'android-libs-*'
+
+      - name: Package
+        run: python3 yse.py package --platform android --android-libs android-libs
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: libyse-android
+          path: dist/libyse-*-android.tar.gz
+          if-no-files-found: error
+
   publish:
     name: Publish GitHub Release
-    needs: [build-linux, build-windows]
+    needs: [build-linux, build-windows, package-android]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -121,4 +195,5 @@ jobs:
             --title "libYSE $TAG" \
             --generate-notes \
             artifacts/libyse-*-linux-x64.tar.gz \
-            artifacts/libyse-*-windows-x64.zip
+            artifacts/libyse-*-windows-x64.zip \
+            artifacts/libyse-*-android.tar.gz
