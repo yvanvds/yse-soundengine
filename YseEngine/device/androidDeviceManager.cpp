@@ -53,10 +53,16 @@ void YSE::DEVICE::managerObject::updateDeviceList() {
 
 void YSE::DEVICE::managerObject::pause() {
 	implementation.Suspend();
+	// Mirror the PortAudio observable behavior: while paused, the live
+	// getActive* getters report 0. We don't tear down the Oboe stream (resume
+	// would otherwise have to re-negotiate against the device), we only flip
+	// the manager's `open` flag the getters gate on. Issue #74.
+	open = false;
 }
 
 void YSE::DEVICE::managerObject::resume() {
 	implementation.Resume();
+	open = true;
 }
 
 void YSE::DEVICE::managerObject::addCallback() {
@@ -77,8 +83,10 @@ void YSE::DEVICE::managerObject::close() {
   //YSE::Log().sendMessage("androidDeviceManager: Close started");
 
   if (!initDone) return;
-  if (!open) return;
 
+  // implementation.Stop() is idempotent (guarded on mStream != nullptr) so a
+  // close() after pause() — which now clears `open` but leaves the Oboe stream
+  // suspended — still tears the stream down on the engine-shutdown path.
   implementation.Stop();
   initDone = open = false;
   //YSE::Log().sendMessage("androidDeviceManager: Close done");
@@ -96,7 +104,12 @@ int YSE::DEVICE::managerObject::getActiveOutputLatency() const {
   if (!open) return 0;
   const int32_t ms   = implementation.getNegotiatedOutputLatencyMs();
   const int32_t rate = implementation.getNegotiatedSampleRate();
-  return (int)((double)ms * (double)rate / 1000.0);
+  const int samplesFromMs = (int)((double)ms * (double)rate / 1000.0);
+  if (samplesFromMs > 0) return samplesFromMs;
+  // Some Pixel hardware reports ErrorUnimplemented for calculateLatencyMillis;
+  // fall back to a single burst worth of frames as a coarse latency estimate
+  // so the live API stays non-zero on an open stream. Issue #74.
+  return (int)implementation.getNegotiatedBufferSize();
 }
 
 
