@@ -53,6 +53,18 @@ TEST_CASE("system: active sample rate is 0 while engine is paused")
     CHECK(YSE::System().getActiveSampleRate() == doctest::Approx(0.0));
 }
 
+// ─── Session sample rate: locked at init(), survives pause ──────────────────
+
+TEST_CASE("system: session sample rate is positive after init even while paused")
+{
+    if (!TestHelpers::engineInit()) return;
+    // Distinct from getActiveSampleRate(): the session rate is the engine-wide
+    // value locked during initShared() and stays constant across the session.
+    // engineInit() leaves the device paused — the session getter should still
+    // report a positive value.
+    CHECK(YSE::System().getSampleRate() > 0.0);
+}
+
 TEST_CASE("system: active buffer size is 0 while engine is paused")
 {
     if (!TestHelpers::engineInit()) return;
@@ -83,6 +95,16 @@ TEST_CASE("system: active output latency is positive after resuming audio")
     CHECK(YSE::System().getActiveOutputLatency() > 0);
 }
 
+TEST_CASE("system: session sample rate matches active rate when audio is resumed")
+{
+    if (!TestHelpers::engineInitWithAudio()) return;
+    if (YSE::System().getNumDevices() == 0) return;
+    // When the device is open, the session rate and the active (live) rate
+    // return the same locked value.
+    CHECK(YSE::System().getSampleRate()
+          == doctest::Approx(YSE::System().getActiveSampleRate()));
+}
+
 TEST_CASE("system: active buffer size is positive after at least one audio callback")
 {
     if (!TestHelpers::engineInitWithAudio()) return;
@@ -111,6 +133,15 @@ TEST_CASE("system: active output latency yields a believable ms value")
 
 // ─── C API mirror agrees with the C++ getters ────────────────────────────────
 
+TEST_CASE("system: C API getSampleRate mirrors the C++ value")
+{
+    if (!TestHelpers::engineInit()) return;
+    YseSystem* sys = yse_system_get();
+    REQUIRE(sys != nullptr);
+    CHECK(yse_system_get_sample_rate(sys)
+          == doctest::Approx(YSE::System().getSampleRate()));
+}
+
 TEST_CASE("system: C API getActiveSampleRate mirrors the C++ value")
 {
     if (!TestHelpers::engineInit()) return;
@@ -138,6 +169,7 @@ TEST_CASE("system: C API getActiveOutputLatency mirrors the C++ value")
 
 TEST_CASE("system: C API getters return 0 on a NULL system handle")
 {
+    CHECK(yse_system_get_sample_rate(nullptr) == doctest::Approx(0.0));
     CHECK(yse_system_get_active_sample_rate(nullptr) == doctest::Approx(0.0));
     CHECK(yse_system_get_active_buffer_size(nullptr) == 0);
     CHECK(yse_system_get_active_output_latency(nullptr) == 0);

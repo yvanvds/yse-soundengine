@@ -107,6 +107,11 @@ YSE_C_API float yse_system_cpu_load(YseSystem* sys) {
   return to_cpp(sys)->cpuLoad();
 }
 
+YSE_C_API double yse_system_get_sample_rate(YseSystem* sys) {
+  if (!sys) return 0.0;
+  return to_cpp(sys)->getSampleRate();
+}
+
 YSE_C_API double yse_system_get_active_sample_rate(YseSystem* sys) {
   if (!sys) return 0.0;
   return to_cpp(sys)->getActiveSampleRate();

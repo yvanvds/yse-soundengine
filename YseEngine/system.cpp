@@ -169,6 +169,13 @@ Flt YSE::system::cpuLoad() {
   return DEVICE::Manager().cpuLoad();
 }
 
+double YSE::system::getSampleRate() {
+  // The session lock is set at the end of initShared(); before that, SAMPLERATE
+  // still holds its 44100 default and reporting it would mislead hosts that
+  // start sample-count-driven work pre-init.
+  return INTERNAL::Global().isSampleRateLocked() ? (double)SAMPLERATE : 0.0;
+}
+
 double YSE::system::getActiveSampleRate() {
   return DEVICE::Manager().getActiveSampleRate();
 }
