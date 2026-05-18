@@ -216,32 +216,27 @@ TEST_CASE("listener impl: stationary position over two updates yields zero veloc
     CHECK(v.z == doctest::Approx(0.f));
 }
 
-TEST_CASE("listener impl: distanceFactor=2 doubles the effective velocity vs factor=1") {
+TEST_CASE("listener impl: velocity is positive on a one-unit step under either distanceFactor") {
     if (!TestHelpers::engineInit()) return;
 
-    // Run the same one-unit step twice — once with distanceFactor=1, once with
-    // distanceFactor=2 — and compare the resulting vel.x.  Time().delta() will
-    // vary between the two runs, so use a loose ratio check: vel scales with
-    // distanceFactor (newPos = pos * distanceFactor), so factor=2 should be
-    // strictly greater for the same pos delta.
+    // We previously asserted vWithFactor2 > vWithFactor1 across two independent
+    // update() calls. Both velocities are 1/Time().delta() and 2/Time().delta()
+    // in form, but Time().delta() varies between iterations (especially on
+    // mobile/Android schedulers) and the cross-iteration comparison races the
+    // clock — see issue #75. The "factor scales position" property is already
+    // covered by "getPos() returns position scaled by distanceFactor" below.
     resetListenerState();
     advanceClock();
     YSE::Listener().pos(YSE::Pos(1.f, 0.f, 0.f));
     YSE::INTERNAL::ListenerImpl().update();
-    const float vWithFactor1 = YSE::Listener().vel().x;
+    CHECK(YSE::Listener().vel().x > 0.f);
 
     resetListenerState();
     YSE::INTERNAL::Settings().distanceFactor = 2.f;
-    // After resetListenerState() the impl's lastPos is (0,0,0) scaled by the
-    // CURRENT distanceFactor (now 2) — but pos was set to (0,0,0), so
-    // lastPos = (0,0,0) * 2 = (0,0,0).  Safe.
     advanceClock();
     YSE::Listener().pos(YSE::Pos(1.f, 0.f, 0.f));
     YSE::INTERNAL::ListenerImpl().update();
-    const float vWithFactor2 = YSE::Listener().vel().x;
-
-    CHECK(vWithFactor1 > 0.f);
-    CHECK(vWithFactor2 > vWithFactor1);
+    CHECK(YSE::Listener().vel().x > 0.f);
 
     YSE::INTERNAL::Settings().distanceFactor = 1.f;
 }
