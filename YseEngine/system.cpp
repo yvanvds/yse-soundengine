@@ -68,6 +68,12 @@ Bool YSE::system::initShared(bool openDevice) {
 			DEVICE::Manager().addCallback();
 		}
 
+		// addCallback() is the last point at which the backend can negotiate
+		// SAMPLERATE (PortAudio on desktop, Oboe on Android). After this, lock
+		// SAMPLERATE for the rest of the session — DSP lookup tables and other
+		// derived caches assume a stable rate per session.
+		INTERNAL::Global().sampleRateLocked = true;
+
 #ifdef YSE_WINDOWS
     timeBeginPeriod(1);
 #endif
@@ -97,6 +103,9 @@ void YSE::system::close() {
   YSE::PATCHER::TimerThread().Clear();
 
   if (INTERNAL::Global().active) {
+    // Release the SAMPLERATE lock first so the next init() pass can rewrite
+    // SAMPLERATE if the host opens a device with a different negotiated rate.
+    INTERNAL::Global().sampleRateLocked = false;
     INTERNAL::Global().active = false;
     DEVICE::Manager().close();
     INTERNAL::Global().close();

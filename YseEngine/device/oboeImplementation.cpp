@@ -40,7 +40,19 @@ bool OboeImplementation::openStream(int channels) {
   }
 
   negotiatedSampleRate = mStream->getSampleRate();
-  YSE::SAMPLERATE = (UInt)negotiatedSampleRate;
+  // Session-locked: once the lock is set at the end of system::initShared(),
+  // SAMPLERATE can only be re-written to its current value (e.g. by the
+  // pause()/resume() reopen path, or onErrorAfterClose rebuild on the same
+  // device). A debug assert catches genuine mid-session rate-change attempts
+  // (e.g. headphone-disconnect landing on a different rate); the write is
+  // skipped so SAMPLERATE-derived caches stay coherent.
+  {
+    const UInt newRate = (UInt)negotiatedSampleRate;
+    assert(!YSE::INTERNAL::Global().isSampleRateLocked() || newRate == YSE::SAMPLERATE);
+    if (!YSE::INTERNAL::Global().isSampleRateLocked()) {
+      YSE::SAMPLERATE = newRate;
+    }
+  }
 
   delete[] sourceChannels;
   sourceChannels = new float * [numChannels];

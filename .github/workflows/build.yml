@@ -51,6 +51,13 @@ jobs:
           build-wrapper-linux-x86-64 --out-dir "$BUILD_WRAPPER_OUT_DIR" cmake --build build
       - name: Run tests
         run: ctest --test-dir build --output-on-failure
+      - name: Run tests at forced 48 kHz
+        # Cross-checks that DSP code and tests are rate-agnostic. Honoured by
+        # Tests/main.cpp:applyForcedSampleRateFromEnv() which writes
+        # YSE::SAMPLERATE before any DSP object is constructed. See #72.
+        env:
+          YSE_TEST_FORCED_RATE: "48000"
+        run: ctest --test-dir build --output-on-failure
       - name: Generate coverage report
         run: |
           gcovr \

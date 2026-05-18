@@ -43,6 +43,12 @@ the values were obtained by listening tests.                */
 static const int combtuning[8] = { 1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617 };
 static const int allpasstuning[4] = { 556, 441, 341, 225 };
 
+// The combtuning / allpasstuning arrays above are calibrated for this
+// reference sample rate. At runtime the tunings are scaled by
+// (SAMPLERATE / kReverbTuningReferenceRate) so the perceived reverb
+// character stays consistent across device-negotiated sample rates.
+static constexpr float kReverbTuningReferenceRate = 44100.0f;
+
 // static inline functions and pointer for speed optimisation
 UInt ch;
 Int filterIndex;
@@ -369,11 +375,11 @@ YSE::INTERNAL::reverbChannel::reverbChannel() : delayline(3000), bufComb(COMBS),
   Int rnd = Random(50);
   // recalculate the reverb parameters in case we don't run at 44.1kHz
   for (Int i = 0; i < COMBS; i++) {
-    combTuning[i] = (Int)((combtuning[i] + rnd) * (SAMPLERATE / 44100.0f));
+    combTuning[i] = (Int)((combtuning[i] + rnd) * (SAMPLERATE / kReverbTuningReferenceRate));
   }
 
   for (int i = 0; i < APASS; i++) {
-    allTuning[i] = (Int)((allpasstuning[i] + rnd) * (SAMPLERATE / 44100.0f));
+    allTuning[i] = (Int)((allpasstuning[i] + rnd) * (SAMPLERATE / kReverbTuningReferenceRate));
   }
 
   // get memory for delay lines
@@ -404,11 +410,11 @@ YSE::INTERNAL::reverbChannel::reverbChannel(const reverbChannel& /*source*/): de
     Int rnd = Random(50);
   // recalculate the reverb parameters in case we don't run at 44.1kHz
   for (Int i = 0; i < COMBS; i++) {
-    combTuning[i] = (Int)((combtuning[i] + rnd) * (SAMPLERATE / 44100.0f));
+    combTuning[i] = (Int)((combtuning[i] + rnd) * (SAMPLERATE / kReverbTuningReferenceRate));
   }
 
   for (int i = 0; i < APASS; i++) {
-    allTuning[i] = (Int)((allpasstuning[i] + rnd) * (SAMPLERATE / 44100.0f));
+    allTuning[i] = (Int)((allpasstuning[i] + rnd) * (SAMPLERATE / kReverbTuningReferenceRate));
   }
 
   // get memory for delay lines
