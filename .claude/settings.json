@@ -13,7 +13,8 @@
       "mcp__sonarqube__get_duplications",
       "Read(//tmp/**)",
       "Read(//d/tmp/**)",
-      "Edit(/.claude/skills/c-api-extend/**)"
+      "Edit(/.claude/skills/c-api-extend/**)",
+      "Edit(/.claude/skills/fix-issues/**)"
     ],
     "additionalDirectories": [
       "\\tmp\\gh-issues",
