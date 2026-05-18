@@ -24,18 +24,25 @@ TEST_CASE("sine: all samples bounded in [-1, +1]") {
     }
 }
 
-TEST_CASE("sine: output is periodic at 441 Hz (period = 100 samples at 44100 Hz)") {
-    // 44100 / 441 = 100 exactly; 400 samples = 4 full periods.
+// Pick a frequency that divides SAMPLERATE exactly so 100 samples cover
+// exactly one period. At 44100 Hz this is 441 Hz; at 48000 Hz it's 480 Hz.
+// The choice keeps the test rate-agnostic while still hitting integer samples
+// per period (so the periodicity / zero-mean checks don't drift on FP rounding).
+static inline float oneHundredSamplePeriodFreq() {
+    return (float)YSE::SAMPLERATE / 100.0f;
+}
+
+TEST_CASE("sine: output is periodic with period = 100 samples") {
     YSE::DSP::sine osc;
     osc.reset();
-    YSE::DSP::buffer& buf = osc(441.0f, 400);
+    YSE::DSP::buffer& buf = osc(oneHundredSamplePeriodFreq(), 400);
     CHECK(TestHelpers::checkPeriodicity(buf, 100, 0.01f));
 }
 
-TEST_CASE("sine: zero mean over a full 441 Hz period (100 samples)") {
+TEST_CASE("sine: zero mean over a full period (100 samples)") {
     YSE::DSP::sine osc;
     osc.reset();
-    YSE::DSP::buffer& buf = osc(441.0f, 100);
+    YSE::DSP::buffer& buf = osc(oneHundredSamplePeriodFreq(), 100);
     float* ptr = buf.getPtr();
     float sum = 0.0f;
     for (unsigned i = 0; i < buf.getLength(); ++i) sum += ptr[i];
