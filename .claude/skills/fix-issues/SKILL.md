@@ -172,13 +172,31 @@ when the warning only exists on one toolchain.
 7. **Report.** Summarize: groups fixed, mechanism used per group, any items
    deferred and why, any audio-thread-adjacent code touched.
 
+## Running clang-tidy locally
+
+A baseline check set lives at [.clang-tidy](../../../.clang-tidy). Invoke
+analysis through the project wrapper rather than calling `clang-tidy`
+directly — the wrapper picks the right `compile_commands.json` and avoids
+the "doctest/doctest.h not found" failure mode on test files:
+
+```powershell
+python yse.py analyze YseEngine/dsp/lfo.cpp        # one file
+python yse.py analyze YseEngine/device/            # one directory
+python yse.py analyze                              # whole project (slow)
+```
+
+Per CLAUDE.md item 6, run `python yse.py analyze <changed-files>` before
+committing and clear any **new** findings on the modified code. The
+baseline (~50 pre-existing findings across `YseEngine/`) is tracked as
+backlog — don't fix in passing during unrelated work.
+
 ## Things that are out of scope for this skill
 
-- Adding new warnings to the build (enabling `-Wfoo` that wasn't on before)
+- Adding new compiler warnings to the build (enabling `-Wfoo` that wasn't
+  on before) without an accompanying issue
 - Migrating to a newer C++ standard
 - Replacing project utilities (`aFlt`, `MULTICHANNELBUFFER`, the message
   queue, `dspObject::link()`) with standard-library equivalents
-- Adding clang-tidy or sanitizers to the build pipeline
 - Reformatting code that happens to be near a warning
 
 If any of those would actually help, raise them as a separate proposal,
