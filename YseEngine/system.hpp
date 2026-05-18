@@ -209,9 +209,21 @@ namespace YSE {
      */
     system& autoReconnect(bool on, int delay);
 
-    /** @brief CPU load of the audio thread as a fraction of the callback budget.
+    /** @brief Audio callback wall-clock load as a fraction of the buffer period.
      *
-     *  Distinct from the cost of ``update()`` on the main thread.
+     *  Measured by YSE: timestamps taken at the entry/exit of each backend
+     *  callback (PortAudio's ``paCallback`` or Oboe's ``onAudioReady``) and
+     *  divided by the buffer's audio time. EMA-smoothed with a ~1 s time
+     *  constant. Returns 0 when no device is open.
+     *
+     *  This is a **dropout-risk** indicator: 1.0 means the callback is taking
+     *  as long as the buffer it produces, i.e. the next buffer will arrive
+     *  late. It does NOT reflect total engine CPU across the threadpool
+     *  workers — for that, see issue #84.
+     *
+     *  Distinct from the cost of ``update()`` on the main thread. Replaces
+     *  the previous pass-through of ``Pa_GetStreamCpuLoad``, which read as
+     *  inflated under WASAPI shared mode after periods of silence (see #82).
      */
     float cpuLoad();
 

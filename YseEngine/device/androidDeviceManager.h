@@ -19,7 +19,7 @@ namespace YSE {
 
       virtual bool init(bool openDevice = true);
       virtual void close();
-      virtual float cpuLoad() { return 0.f; } // not implemented for android
+      virtual float cpuLoad() { return implementation.cpuLoad(); }
 
 			virtual void pause();
 			virtual void resume();
