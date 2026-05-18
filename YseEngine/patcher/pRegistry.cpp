@@ -49,9 +49,13 @@
 #include "midi/mMidiControl.h"
 #include "midi/mMidiNoteOff.h"
 #include "midi/mMidiNoteOn.h"
-#include "midi/mMidiOut.h"
 #include "midi/mMidiPolyPressure.h"
 #include "midi/mMidiProgramChange.h"
+#endif
+// mMidiOut is the only patcher midi object that depends on the RtMidi-backed
+// device backend; the other six just emit MIDI bytes and don't need it.
+#if YSE_WINDOWS && YSE_ENABLE_MIDI_DEVICE
+#include "midi/mMidiOut.h"
 #endif
 
 using namespace YSE::PATCHER;
@@ -114,9 +118,11 @@ pRegistry::pRegistry() {
   Add(OBJ::M_CONTROL, mMidiControl::Create);
   Add(OBJ::M_NOTEOFF, mMidiNoteOff::Create);
   Add(OBJ::M_NOTEON, mMidiNoteOn::Create);
-  Add(OBJ::M_OUT, mMidiOut::Create);
   Add(OBJ::M_POLYPRESS, mMidiPolyPressure::Create);
   Add(OBJ::M_PROGCHANGE, mMidiProgramChange::Create);
+#endif
+#if YSE_WINDOWS && YSE_ENABLE_MIDI_DEVICE
+  Add(OBJ::M_OUT, mMidiOut::Create);
 #endif
 }
 

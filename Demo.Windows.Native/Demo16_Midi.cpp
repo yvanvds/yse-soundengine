@@ -3,6 +3,7 @@
 #include "Demo16_Midi.h"
 #include <iostream>
 
+#if YSE_ENABLE_MIDI_DEVICE
 DemoMidi::DemoMidi()
 	: firstNote(true)
 {
@@ -63,4 +64,5 @@ void DemoMidi::AllNotesOff() {
 	output1.NoteOn(YSE::MIDI::CH_01, 60, 0);
 	output2.NoteOn(YSE::MIDI::CH_01, YSE::MIDI::D4, 0);
 }
+#endif // YSE_ENABLE_MIDI_DEVICE
 

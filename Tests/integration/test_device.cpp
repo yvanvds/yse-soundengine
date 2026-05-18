@@ -106,9 +106,9 @@ TEST_CASE("device: default device name is non-empty when devices exist") {
     CHECK_FALSE(YSE::System().getDefaultDevice().empty());
 }
 
-// ─── MIDI device enumeration (Windows only) ───────────────────────────────────
+// ─── MIDI device enumeration (gated on YSE_ENABLE_MIDI_DEVICE) ───────────────
 
-#if YSE_WINDOWS
+#if YSE_WINDOWS && YSE_ENABLE_MIDI_DEVICE
 TEST_CASE("midi: getNumMidiInDevices does not crash") {
     if (!TestHelpers::engineInit()) return;
     (void)YSE::System().getNumMidiInDevices();
@@ -129,7 +129,7 @@ TEST_CASE("midi: device names are accessible without crash") {
     for (unsigned int i = 0; i < nOut; i++) (void)YSE::System().getMidiOutDeviceName(i);
     CHECK(true);
 }
-#endif // YSE_WINDOWS
+#endif // YSE_WINDOWS && YSE_ENABLE_MIDI_DEVICE
 
 // ─── Engine lifecycle ─────────────────────────────────────────────────────────
 

@@ -140,11 +140,16 @@ namespace YSE {
     /** @brief Name of the platform default audio host (e.g. WASAPI, ALSA). */
     const std::string & getDefaultHost();
 
-#if YSE_WINDOWS || YSE_LINUX
-    /** @brief Number of MIDI input devices available. (Windows / Linux only.) */
+#if YSE_ENABLE_MIDI_DEVICE
+    /** @brief Number of MIDI input devices available.
+     *
+     *  Present only when libyse was built with ``YSE_ENABLE_MIDI_DEVICE=ON``
+     *  (default on Windows/Linux). When the option is OFF the function is
+     *  not declared at all — gate consumer code on ``#if YSE_ENABLE_MIDI_DEVICE``.
+     */
     unsigned int getNumMidiInDevices();
 
-    /** @brief Number of MIDI output devices available. (Windows / Linux only.) */
+    /** @brief Number of MIDI output devices available. */
     unsigned int getNumMidiOutDevices();
 
     /** @brief Name of the MIDI input device with the given ID. */

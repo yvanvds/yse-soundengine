@@ -38,6 +38,21 @@ option(YSE_ENABLE_COVERAGE
 option(YSE_BUILD_C_API
   "Build the extern \"C\" ABI bridge (yse_*) inside libyse so language bindings (Dart, Python, ...) can consume the DLL without C++ ABI compatibility"
   ON)
+# YSE_ENABLE_MIDI_DEVICE: gate the RtMidi-backed MIDI device backend. Default
+# ON on Windows/Linux desktop (preserves the prior unconditional behavior),
+# OFF on Android (RtMidi isn't built there anyway) and Mac (already excluded
+# in source). When OFF, RtMidi is not required at configure time and the
+# midi/device.cpp + midi/midiDeviceManager.cpp sources are dropped — the rest
+# of the engine (MIDI file playback, midiNote, etc.) is unaffected.
+if(WIN32 OR (UNIX AND NOT APPLE AND NOT ANDROID))
+  set(_yse_midi_device_default ON)
+else()
+  set(_yse_midi_device_default OFF)
+endif()
+option(YSE_ENABLE_MIDI_DEVICE
+  "Build the RtMidi-backed MIDI device backend (Windows/Linux). When OFF, libyse builds without MIDI device I/O and does not require RtMidi at configure time."
+  ${_yse_midi_device_default})
+unset(_yse_midi_device_default)
 
 # Export compile_commands.json for SonarCloud's C++ analyser and clangd.
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -111,13 +126,16 @@ else()
   pkg_check_modules(PortAudio REQUIRED IMPORTED_TARGET portaudio-2.0)
   pkg_check_modules(SndFile   REQUIRED IMPORTED_TARGET sndfile)
 
-  # RtMidi is required on every desktop platform we build for here (Windows and
-  # Linux).  The MIDI device source files (device.cpp, midiDeviceManager.cpp)
-  # need RtMidi symbols; they are guarded by `#if YSE_WINDOWS || YSE_LINUX` so
-  # they remain compiled-out on Android, but the CMake build does not target
-  # Android, so the dependency is unconditionally required here.
-  pkg_check_modules(RtMidi REQUIRED IMPORTED_TARGET rtmidi)
-  message(STATUS "RtMidi found — MIDI device backend enabled")
+  # RtMidi is the dependency of the MIDI device backend (midi/device.cpp,
+  # midi/midiDeviceManager.cpp). Required when YSE_ENABLE_MIDI_DEVICE is ON,
+  # which is the default on Windows/Linux. Set the option OFF to build libyse
+  # on a desktop without RtMidi installed — at the cost of no MIDI device I/O.
+  if(YSE_ENABLE_MIDI_DEVICE)
+    pkg_check_modules(RtMidi REQUIRED IMPORTED_TARGET rtmidi)
+    message(STATUS "RtMidi found — MIDI device backend enabled")
+  else()
+    message(STATUS "YSE_ENABLE_MIDI_DEVICE=OFF — skipping RtMidi dependency")
+  endif()
 endif()
 
 # yse::sndfile — uniform interface target so YseEngine/CMakeLists.txt doesn't
