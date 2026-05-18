@@ -251,6 +251,18 @@ add_library(yse_objects OBJECT ${YSE_SRCS})
 # the shared library on Linux.
 set_target_properties(yse_objects PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+# Hide every symbol by default on ELF/Mach-O platforms (Linux, macOS, iOS,
+# BSD, Android) so libyse.so / .dylib exports only the API-tagged surface
+# reachable from yse.hpp. Windows is unaffected — its DLL export model uses
+# __declspec(dllexport) annotations directly from the API macro and has no
+# fpvisibility equivalent. Issue #34.
+if(NOT WIN32)
+  set_target_properties(yse_objects PROPERTIES
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+  )
+endif()
+
 target_compile_features(yse_objects PUBLIC cxx_std_17)
 
 # Expose YseEngine/ as the public include root so consumers can use
@@ -338,11 +350,17 @@ endif()
 # Consumers (demos, external code) link against this target only.
 add_library(yse SHARED)
 
-set_target_properties(yse PROPERTIES
-  OUTPUT_NAME yse
-  CXX_VISIBILITY_PRESET default
-  VISIBILITY_INLINES_HIDDEN OFF
-)
+set_target_properties(yse PROPERTIES OUTPUT_NAME yse)
+
+# Mirror the visibility settings applied to yse_objects so the linked
+# shared library exports the same API surface. See the comment on
+# yse_objects above. Issue #34.
+if(NOT WIN32)
+  set_target_properties(yse PROPERTIES
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+  )
+endif()
 
 # Pull in the compiled objects and their transitive link dependencies.
 target_link_libraries(yse PRIVATE yse_objects)
