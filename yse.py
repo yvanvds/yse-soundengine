@@ -282,10 +282,12 @@ def cmd_clean(args):
 
 
 def cmd_analyze(args):
-    # Find compile_commands.json — prefer debug, fall back to tests or release.
+    # Find compile_commands.json. Prefer build-tests because it includes both
+    # engine and test sources; build-debug omits the Tests/ targets and would
+    # fail clang-tidy on test files with "doctest/doctest.h not found".
     candidates = [
-        ROOT / "build-debug" / "compile_commands.json",
         ROOT / "build-tests" / "compile_commands.json",
+        ROOT / "build-debug" / "compile_commands.json",
         ROOT / "build" / "compile_commands.json",
     ]
     compile_commands_dir = None

@@ -17,6 +17,7 @@ set(YSE_TEST_SOURCES
   dsp/test_filters.cpp
   dsp/test_delay.cpp
   dsp/test_envelope.cpp
+  dsp/test_lfo_rate_robustness.cpp
   dsp/test_fourier.cpp
   dsp/test_modules.cpp
   dsp/test_module_filters.cpp

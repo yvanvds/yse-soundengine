@@ -19,9 +19,14 @@ YSE::DSP::fileBuffer LfoSineTable(0);
 
 YSE::DSP::lfo::lfo() : cursor(0.f), previousType(LFO_NONE) {
   result = 1;
-  if (LfoSawTable.getLength() == 0) {
-    // This is the first lfo object in use.
-    // Initialize all lookup tables now.
+  // Rebuild the static tables whenever their size diverges from the live
+  // SAMPLERATE. On Android with Oboe, SAMPLERATE can be overwritten when the
+  // device stream opens (e.g. 44100 → 48000 on a Pixel 7), and the per-sample
+  // wrap math reads the current SAMPLERATE — so tables sized at an earlier
+  // rate read past their end. The rebuild runs on the control thread (every
+  // lfo() caller is control-thread); audio-thread readers only race during
+  // operator(), never during construction.
+  if (LfoSawTable.getLength() != SAMPLERATE) {
     LfoSawTable.resize(SAMPLERATE);
     LfoSawTable.drawLine(0, SAMPLERATE - 200, 1.f, 0.f);
     LfoSawTable.drawLine(SAMPLERATE - 200, SAMPLERATE, 0.f, 1.f);
@@ -122,9 +127,12 @@ YSE::DSP::buffer & YSE::DSP::lfo::operator()(LFO_TYPE type, Flt frequency, UInt 
       Flt * out = result.getPtr();
       Flt * in = LfoSawTable.getPtr();
       while (samplesToProcess) {
+        // Wrap before the cast: (UInt)negative-float is implementation-
+        // defined and on arm64 produces a huge index that reads past the
+        // table (SIGSEGV on Android, garbage > 1.0 elsewhere).
+        if (cursor < 0) cursor += SAMPLERATE;
         *out++ = in[(UInt)cursor];
         cursor -= frequency;
-        if (cursor < 0) cursor += SAMPLERATE;
         samplesToProcess--;
       }
       break;

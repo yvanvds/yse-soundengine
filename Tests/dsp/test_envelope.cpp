@@ -124,19 +124,28 @@ TEST_CASE("ADSRenvelope: ATTACK resets phase to the beginning") {
     CHECK(buf.getPtr()[0] == doctest::Approx(0.0f).epsilon(1e-4f));
 }
 
+// 0.1 s envelope length expressed in 128-sample blocks at the live SAMPLERATE.
+// ceil(0.1 * SAMPLERATE / STANDARD_BUFFERSIZE):
+//   - 44100 Hz: 4410 samples → 35 blocks (block 34 still <4410; block 35 crosses)
+//   - 48000 Hz: 4800 samples → 38 blocks
+static inline int blocksToExhaustTenthSecond() {
+    const unsigned samples = (unsigned)(0.1f * (float)YSE::SAMPLERATE);
+    return (int)((samples + YSE::STANDARD_BUFFERSIZE - 1) / YSE::STANDARD_BUFFERSIZE);
+}
+
 TEST_CASE("ADSRenvelope: isAtEnd false during playback, true after envelope exhausted") {
     YSE::DSP::ADSRenvelope adsr;
     adsr.addPoint({0.0f, 0.0f, 1.0f});
     adsr.addPoint({0.1f, 1.0f, 1.0f});
     adsr.generate();
-    // 34 calls × 128 = 4352 < 4410 → not done.
-    // 35th call crosses envelopeEnd → endReached = true.
-    adsr(YSE::DSP::ADSRenvelope::ATTACK);
+    const int total = blocksToExhaustTenthSecond();
+    adsr(YSE::DSP::ADSRenvelope::ATTACK);  // counts as block 1
     CHECK(!adsr.isAtEnd());
-    for (int i = 0; i < 33; ++i)
+    // Process up to but not including the block that crosses envelopeEnd.
+    for (int i = 1; i < total - 1; ++i)
         adsr(YSE::DSP::ADSRenvelope::RESUME);
     CHECK(!adsr.isAtEnd());
-    adsr(YSE::DSP::ADSRenvelope::RESUME);  // 35th call
+    adsr(YSE::DSP::ADSRenvelope::RESUME);  // crossing block
     CHECK(adsr.isAtEnd());
 }
 
@@ -145,8 +154,9 @@ TEST_CASE("ADSRenvelope: output is silent after envelope exhausted") {
     adsr.addPoint({0.0f, 0.0f, 1.0f});
     adsr.addPoint({0.1f, 1.0f, 1.0f});
     adsr.generate();
+    const int total = blocksToExhaustTenthSecond();
     adsr(YSE::DSP::ADSRenvelope::ATTACK);
-    for (int i = 0; i < 34; ++i)
+    for (int i = 1; i < total; ++i)
         adsr(YSE::DSP::ADSRenvelope::RESUME);
     REQUIRE(adsr.isAtEnd());
     YSE::DSP::buffer& buf = adsr(YSE::DSP::ADSRenvelope::RESUME);

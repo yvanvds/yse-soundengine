@@ -147,7 +147,18 @@
 
 
 //==============================================================================
-// DLL building settings on Windows (Clang/MinGW)
+// Public-API export / visibility annotation.
+//
+// Windows DLL builds (Clang/MinGW) use __declspec(dllexport / dllimport): the
+// consumer side picks "import" via the YSE_DLL define configured by CMake's
+// INTERFACE compile definitions on the `yse` target.
+//
+// ELF / Mach-O builds (Linux, macOS, iOS, BSD, Android) use the GCC/Clang
+// visibility attribute. Pair with CXX_VISIBILITY_PRESET=hidden on the library
+// target so the only exported symbols are the ones explicitly tagged here.
+// The YSE_DLL leg is a no-op because ELF has no "import" counterpart —
+// visibility is a producer-side concept; consumers see all default-visibility
+// symbols automatically.
 #if YSE_WINDOWS && YSE_CLANG
   #ifdef YSE_DLL_BUILD
     #define API __declspec(dllexport)
@@ -156,11 +167,7 @@
     #define API __declspec(dllimport)
     #define EXTERN extern
   #endif
-#endif
-
-//==============================================================================
-// DLL building on mac
-#if YSE_MAC
+#elif YSE_LINUX || YSE_MAC || YSE_IOS || YSE_BSD || YSE_ANDROID
   #ifdef YSE_DLL_BUILD
     #define API __attribute__((visibility("default")))
     #define EXTERN

@@ -6,9 +6,10 @@ session start. Pair with [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md).
 ## How we work
 
 1. **Issues first.** Every bug, feature, or enhancement is filed as a
-   GitHub issue *before* code is written. Branch from `master` as
-   `<issue-number>-<short-slug>`. PR through CI. The only exception is a
-   trivial doc fix.
+   GitHub issue *before* code is written. Branch from `dev` as
+   `<issue-number>-<short-slug>` and PR back to `dev`. `dev` is the
+   integration branch; periodic PRs from `dev` to `master` cut releases.
+   The only exception is a trivial doc fix.
 2. **Tests where sensible** (not dogmatically). DSP nodes, the C API
    surface, lifecycle/threading code, and reverb get tests first. Demos
    and one-off scripts don't need tests. The broader plan lives in
@@ -22,6 +23,14 @@ session start. Pair with [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md).
 5. **Layered structure.** Engine internals → C API → bindings/demos.
    `YseEngine/c_api/` is the only entry point for FFI consumers. Keep
    `PROJECT_OVERVIEW.md` current after structural changes.
+6. **Analyze before committing.** Run `python yse.py analyze <changed-files>`
+   on the files touched in a commit and address any **new** findings. The
+   project's [.clang-tidy](.clang-tidy) baseline keeps the noise floor low
+   (~50 pre-existing findings across `YseEngine/`, tracked as backlog —
+   don't fix in passing). New findings in *modified* code should be cleared
+   before the commit, fixing or with a focused `// NOLINT(check-name): why`
+   when the check is genuinely wrong for that line. The `fix-issues` skill
+   governs how to triage findings.
 
 ## Issue templates
 

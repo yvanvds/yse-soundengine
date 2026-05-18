@@ -69,10 +69,14 @@ add_yse_demo(Demo14 Demo14_LoadPatcher     DemoLoadPatcher)
 add_yse_demo(Demo15 Demo15_RestartAudio    DemoRestartAudio)
 add_yse_demo(Test01 Test01_Pitch           Test01_Pitch)
 
-# Demo16 and Demo17 use YSE::midiOut which requires the RtMidi backend.
-# RtMidi is now an unconditional dependency on every desktop platform, so
-# these are always built.
-add_yse_demo(Demo16 Demo16_Midi        DemoMidi)
+# Demo16 directly uses YSE::midiOut which is gated behind the
+# YSE_ENABLE_MIDI_DEVICE CMake option (default ON). When that's OFF the
+# DemoMidi class doesn't compile, so the standalone executable is skipped.
+# Demo17 uses the patcher M_OUT object via pHandle — that compiles fine,
+# the patcher registry just won't have M_OUT to instantiate at runtime.
+if(YSE_ENABLE_MIDI_DEVICE)
+  add_yse_demo(Demo16 Demo16_Midi DemoMidi)
+endif()
 add_yse_demo(Demo17 Demo17_MidiPatcher DemoMidiPatcher)
 
 # ── Combined Demo executable (all pages via menu) ─────────────────────────────

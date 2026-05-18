@@ -12,9 +12,18 @@
 
 #include "portaudioDeviceManager.h"
 #include "internalHeaders.h"
+#include "internal/denormalGuard.h"
+#include <chrono>
+#include <cmath>
 #ifdef __WINDOWS__
 #include "pa_asio.h"
 #endif
+
+namespace {
+  // Time constant for the cpuLoad EMA, in seconds. ~1 s means the reading
+  // settles within a few seconds and isn't dominated by per-callback jitter.
+  constexpr double kCpuLoadTau = 1.0;
+}
 
 UInt YSE::SAMPLERATE = 44100;
 
@@ -44,6 +53,11 @@ int YSE::DEVICE::managerObject::paCallback(
   , const PaStreamCallbackTimeInfo* /*timeInfo*/
   , PaStreamCallbackFlags /*statusFlags*/
   , void * userData) {
+  YSE::INTERNAL::enableFlushToZero();
+  // Issue #82: Pa_GetStreamCpuLoad was unreliable under WASAPI shared mode
+  // (plateaued at ~50% after silence). Time the callback ourselves with
+  // steady_clock; cpuLoad() returns the EMA of (elapsed / buffer-period).
+  const auto cbStart = std::chrono::steady_clock::now();
   YSE::DEVICE::managerObject * manager = (YSE::DEVICE::managerObject *)userData;
 	manager->callbacksSinceLastUpdate++;
 
@@ -55,7 +69,10 @@ int YSE::DEVICE::managerObject::paCallback(
     manager->activeBufferSize.store((int)numSamples, std::memory_order_release);
   }
 
-  if (!manager->doOnCallback(numSamples)) return 0;
+  if (!manager->doOnCallback(numSamples)) {
+    manager->updateCpuLoadEma(cbStart, numSamples);
+    return 0;
+  }
 
   UInt pos = 0;
   while (pos < static_cast<UInt>(numSamples)) {
@@ -91,8 +108,24 @@ int YSE::DEVICE::managerObject::paCallback(
 
   }
 
-	
+  manager->updateCpuLoadEma(cbStart, numSamples);
   return 0;
+}
+
+void YSE::DEVICE::managerObject::updateCpuLoadEma(
+    std::chrono::steady_clock::time_point cbStart,
+    unsigned long numSamples) {
+  const auto cbEnd = std::chrono::steady_clock::now();
+  const double elapsedSec = std::chrono::duration<double>(cbEnd - cbStart).count();
+  const double bufferSec = double(numSamples) / double(SAMPLERATE);
+  if (bufferSec <= 0.0) return;
+
+  const float sample = float(elapsedSec / bufferSec);
+  // First-order EMA with tau ≈ kCpuLoadTau. alpha = 1 - exp(-dt/tau) keeps
+  // the smoothing time constant stable regardless of buffer size.
+  const float alpha = float(1.0 - std::exp(-bufferSec / kCpuLoadTau));
+  const float prev = cpuLoadEma.load(std::memory_order_relaxed);
+  cpuLoadEma.store(prev + alpha * (sample - prev), std::memory_order_relaxed);
 }
 
 
@@ -141,7 +174,19 @@ void YSE::DEVICE::managerObject::addCallback() {
   }
 #endif
   params.hostApiSpecificStreamInfo = nullptr;
-  SAMPLERATE = (UInt)info->defaultSampleRate;
+  // Session-locked: once the lock is set at the end of system::initShared(),
+  // SAMPLERATE can only be re-written to its current value (e.g. by
+  // pause()/resume() cycles which reopen the stream against the same device).
+  // A debug assert catches genuine mid-session rate-change attempts; the
+  // write itself is skipped so SAMPLERATE-derived caches (LFO tables, reverb
+  // tunings, ADSR breakpoints) stay coherent.
+  {
+    const UInt newRate = (UInt)info->defaultSampleRate;
+    assert(!INTERNAL::Global().isSampleRateLocked() || newRate == SAMPLERATE);
+    if (!INTERNAL::Global().isSampleRateLocked()) {
+      SAMPLERATE = newRate;
+    }
+  }
 
   err = Pa_OpenStream(
     &stream
@@ -200,6 +245,7 @@ void YSE::DEVICE::managerObject::close() {
   // No active device — the live getters report 0 until the next open.
   activeBufferSize.store(0, std::memory_order_release);
   activeOutputLatencySamples.store(0, std::memory_order_release);
+  cpuLoadEma.store(0.f, std::memory_order_relaxed);
 }
 
 void YSE::DEVICE::managerObject::terminate() {
@@ -287,7 +333,14 @@ void YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup & object) {
   }
 #endif
   params.hostApiSpecificStreamInfo = nullptr;
-  SAMPLERATE = (UInt)info->defaultSampleRate;
+  // See note at the addCallback() writer above.
+  {
+    const UInt newRate = (UInt)info->defaultSampleRate;
+    assert(!INTERNAL::Global().isSampleRateLocked() || newRate == SAMPLERATE);
+    if (!INTERNAL::Global().isSampleRateLocked()) {
+      SAMPLERATE = newRate;
+    }
+  }
 
   err = Pa_OpenStream(
     &stream
@@ -330,10 +383,7 @@ void YSE::DEVICE::managerObject::audioDeviceError(PaError /*error*/) {
 }
 
 Flt YSE::DEVICE::managerObject::cpuLoad() {
-  if (stream != nullptr) {
-    return (Flt)Pa_GetStreamCpuLoad(stream);
-  }
-  return 0.f;
+  return cpuLoadEma.load(std::memory_order_relaxed);
 }
 
 double YSE::DEVICE::managerObject::getActiveSampleRate() const {

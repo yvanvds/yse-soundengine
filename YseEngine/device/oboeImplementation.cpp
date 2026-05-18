@@ -2,8 +2,16 @@
 
 #if YSE_ANDROID
 
+#include <chrono>
+#include <cmath>
 #include "../implementations/logImplementation.h"
 #include "../internalHeaders.h"
+#include "../internal/denormalGuard.h"
+
+namespace {
+  // See portaudioDeviceManager.cpp for the rationale on the time constant.
+  constexpr double kCpuLoadTau = 1.0;
+}
 
 OboeImplementation::OboeImplementation()
   : bufferPos(YSE::STANDARD_BUFFERSIZE)
@@ -39,7 +47,19 @@ bool OboeImplementation::openStream(int channels) {
   }
 
   negotiatedSampleRate = mStream->getSampleRate();
-  YSE::SAMPLERATE = (UInt)negotiatedSampleRate;
+  // Session-locked: once the lock is set at the end of system::initShared(),
+  // SAMPLERATE can only be re-written to its current value (e.g. by the
+  // pause()/resume() reopen path, or onErrorAfterClose rebuild on the same
+  // device). A debug assert catches genuine mid-session rate-change attempts
+  // (e.g. headphone-disconnect landing on a different rate); the write is
+  // skipped so SAMPLERATE-derived caches stay coherent.
+  {
+    const UInt newRate = (UInt)negotiatedSampleRate;
+    assert(!YSE::INTERNAL::Global().isSampleRateLocked() || newRate == YSE::SAMPLERATE);
+    if (!YSE::INTERNAL::Global().isSampleRateLocked()) {
+      YSE::SAMPLERATE = newRate;
+    }
+  }
 
   delete[] sourceChannels;
   sourceChannels = new float * [numChannels];
@@ -68,6 +88,7 @@ void OboeImplementation::Stop() {
   mStream->stop();
   mStream->close();
   mStream.reset();
+  cpuLoadEma.store(0.f, std::memory_order_relaxed);
 }
 
 void OboeImplementation::Suspend() {
@@ -98,12 +119,18 @@ int32_t OboeImplementation::getNegotiatedOutputLatencyMs() const {
 oboe::DataCallbackResult OboeImplementation::onAudioReady(oboe::AudioStream * /*stream*/,
                                                           void * audioData,
                                                           int32_t numFrames) {
+  YSE::INTERNAL::enableFlushToZero();
+  // Issue #82: our own callback wall-clock measurement, mirroring the
+  // PortAudio path so system::cpuLoad() reports a consistent number
+  // across backends.
+  const auto cbStart = std::chrono::steady_clock::now();
   ++callbacksSinceLastUpdate;
 
   float * dest = static_cast<float *>(audioData);
 
   if (!YSE::DEVICE::Manager().doOnCallback(numFrames)) {
     std::memset(dest, 0, sizeof(float) * numFrames * numChannels);
+    updateCpuLoadEma(cbStart, numFrames);
     return oboe::DataCallbackResult::Continue;
   }
 
@@ -138,7 +165,22 @@ oboe::DataCallbackResult OboeImplementation::onAudioReady(oboe::AudioStream * /*
     pos += size;
   }
 
+  updateCpuLoadEma(cbStart, numFrames);
   return oboe::DataCallbackResult::Continue;
+}
+
+void OboeImplementation::updateCpuLoadEma(
+    std::chrono::steady_clock::time_point cbStart,
+    int32_t numFrames) {
+  const auto cbEnd = std::chrono::steady_clock::now();
+  const double elapsedSec = std::chrono::duration<double>(cbEnd - cbStart).count();
+  const double bufferSec = double(numFrames) / double(YSE::SAMPLERATE);
+  if (bufferSec <= 0.0) return;
+
+  const float sample = float(elapsedSec / bufferSec);
+  const float alpha = float(1.0 - std::exp(-bufferSec / kCpuLoadTau));
+  const float prev = cpuLoadEma.load(std::memory_order_relaxed);
+  cpuLoadEma.store(prev + alpha * (sample - prev), std::memory_order_relaxed);
 }
 
 void OboeImplementation::onErrorAfterClose(oboe::AudioStream * /*stream*/, oboe::Result error) {

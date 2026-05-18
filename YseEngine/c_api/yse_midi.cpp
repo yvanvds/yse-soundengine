@@ -5,7 +5,7 @@
 #include "../midi/midiNote.hpp"
 #include "../headers/enums.hpp"
 
-#if YSE_WINDOWS || YSE_LINUX
+#if YSE_ENABLE_MIDI_DEVICE
   #include "../midi/device.hpp"
   #define YSE_C_HAVE_MIDI_OUT 1
 #else

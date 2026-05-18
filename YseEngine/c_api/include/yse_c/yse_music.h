@@ -22,10 +22,15 @@
 extern "C" {
 #endif
 
+/* Owned — release with yse_note_destroy. */
 typedef struct YseNote   YseNote;
+/* Owned — release with yse_pnote_destroy. */
 typedef struct YsePNote  YsePNote;
+/* Owned — release with yse_scale_destroy. */
 typedef struct YseScale  YseScale;
+/* Owned — release with yse_motif_destroy. */
 typedef struct YseMotif  YseMotif;
+/* Owned — release with yse_player_destroy. */
 typedef struct YsePlayer YsePlayer;
 
 /* ─── note ────────────────────────────────────────────────────────── */

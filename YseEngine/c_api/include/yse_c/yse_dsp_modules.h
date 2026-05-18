@@ -21,6 +21,8 @@
 extern "C" {
 #endif
 
+/* Owned — release with yse_dsp_object_destroy. Covers every effect
+   subclass via the shared handle type. */
 typedef struct YseDspObject YseDspObject;
 
 /* ─── constructors ────────────────────────────────────────────────────── */

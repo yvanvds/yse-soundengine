@@ -13,7 +13,11 @@
 extern "C" {
 #endif
 
+/* Borrowed singleton — owned by the engine, never destroy.
+   Obtain via yse_system_get(). */
 typedef struct YseSystem  YseSystem;
+/* Forward declarations — see yse_channel.h / yse_reverb.h / yse_device.h
+   for ownership semantics. */
 typedef struct YseChannel YseChannel;
 typedef struct YseReverb  YseReverb;
 typedef struct YseDevice  YseDevice;
@@ -34,6 +38,13 @@ YSE_C_API void       yse_system_resume(YseSystem* sys);
 /* Diagnostics. */
 YSE_C_API int        yse_system_missed_callbacks(YseSystem* sys);
 YSE_C_API float      yse_system_cpu_load(YseSystem* sys);
+
+/* Engine session sample rate in Hz. Stays constant for the lifetime of an
+   init()/close() session, including across pause/resume cycles where the
+   live "active" rate transiently drops to 0. Returns 0 before init(). Use
+   this for sample-count-driven scheduling that must outlive a pause; use
+   yse_system_get_active_sample_rate() for live device-state UI. */
+YSE_C_API double     yse_system_get_sample_rate(YseSystem* sys);
 
 /* Live state of the currently open audio device. Returns 0 when no device
    is open (pre-init, after close, or initOffline path). Buffer size is the

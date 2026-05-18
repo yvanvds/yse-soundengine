@@ -17,6 +17,7 @@
 extern "C" {
 #endif
 
+/* Owned — release with yse_buffer_io_destroy. */
 typedef struct YseBufferIO YseBufferIO;
 
 /* store_copy=1 copies the supplied bytes; store_copy=0 keeps a pointer

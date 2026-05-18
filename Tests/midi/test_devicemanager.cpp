@@ -13,9 +13,9 @@
 //     no device is attached
 //   - Raw(string) handles 0/1/2/3+ byte inputs without out-of-bounds reads
 //
-// The whole TU is guarded by the same YSE_WINDOWS || YSE_LINUX condition that
-// gates midiDeviceManager.cpp and device.cpp — on platforms where those files
-// are not compiled, the deviceManager / midiOut symbols don't exist.
+// The whole TU is guarded by the same YSE_ENABLE_MIDI_DEVICE option that
+// gates midiDeviceManager.cpp and device.cpp — when the option is OFF those
+// files are not compiled and the deviceManager / midiOut symbols don't exist.
 //
 // No engine initialisation is required.  The MIDI singleton stands on its own
 // and does not depend on PortAudio.
@@ -23,7 +23,7 @@
 #include <doctest/doctest.h>
 #include "headers/defines.hpp"
 
-#if YSE_WINDOWS || YSE_LINUX
+#if YSE_ENABLE_MIDI_DEVICE
 
 #include "midi/midiDeviceManager.h"
 #include "midi/device.hpp"
@@ -269,4 +269,4 @@ TEST_CASE("midiOut::create on an out-of-range port leaves device null") {
 
 } // TEST_SUITE("midi")
 
-#endif // YSE_WINDOWS || YSE_LINUX
+#endif // YSE_ENABLE_MIDI_DEVICE

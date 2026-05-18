@@ -68,6 +68,12 @@ Bool YSE::system::initShared(bool openDevice) {
 			DEVICE::Manager().addCallback();
 		}
 
+		// addCallback() is the last point at which the backend can negotiate
+		// SAMPLERATE (PortAudio on desktop, Oboe on Android). After this, lock
+		// SAMPLERATE for the rest of the session — DSP lookup tables and other
+		// derived caches assume a stable rate per session.
+		INTERNAL::Global().sampleRateLocked = true;
+
 #ifdef YSE_WINDOWS
     timeBeginPeriod(1);
 #endif
@@ -97,6 +103,9 @@ void YSE::system::close() {
   YSE::PATCHER::TimerThread().Clear();
 
   if (INTERNAL::Global().active) {
+    // Release the SAMPLERATE lock first so the next init() pass can rewrite
+    // SAMPLERATE if the host opens a device with a different negotiated rate.
+    INTERNAL::Global().sampleRateLocked = false;
     INTERNAL::Global().active = false;
     DEVICE::Manager().close();
     INTERNAL::Global().close();
@@ -160,6 +169,13 @@ Flt YSE::system::cpuLoad() {
   return DEVICE::Manager().cpuLoad();
 }
 
+double YSE::system::getSampleRate() {
+  // The session lock is set at the end of initShared(); before that, SAMPLERATE
+  // still holds its 44100 default and reporting it would mislead hosts that
+  // start sample-count-driven work pre-init.
+  return INTERNAL::Global().isSampleRateLocked() ? (double)SAMPLERATE : 0.0;
+}
+
 double YSE::system::getActiveSampleRate() {
   return DEVICE::Manager().getActiveSampleRate();
 }
@@ -214,7 +230,7 @@ const std::string & YSE::system::getDefaultHost() {
   return DEVICE::Manager().getDefaultTypeName();
 }
 
-#if YSE_WINDOWS || YSE_LINUX
+#if YSE_ENABLE_MIDI_DEVICE
 unsigned int YSE::system::getNumMidiInDevices()
 {
 	return MIDI::DeviceManager().getNumMidiInDevices();

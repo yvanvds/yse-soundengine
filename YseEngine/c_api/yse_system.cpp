@@ -107,6 +107,11 @@ YSE_C_API float yse_system_cpu_load(YseSystem* sys) {
   return to_cpp(sys)->cpuLoad();
 }
 
+YSE_C_API double yse_system_get_sample_rate(YseSystem* sys) {
+  if (!sys) return 0.0;
+  return to_cpp(sys)->getSampleRate();
+}
+
 YSE_C_API double yse_system_get_active_sample_rate(YseSystem* sys) {
   if (!sys) return 0.0;
   return to_cpp(sys)->getActiveSampleRate();
@@ -202,7 +207,7 @@ YSE_C_API size_t yse_system_default_host(YseSystem* sys, char* buf, size_t cap) 
 // ─── MIDI device enumeration ───────────────────────────────────────────────
 
 YSE_C_API unsigned int yse_system_num_midi_in_devices(YseSystem* sys) {
-#if YSE_WINDOWS || YSE_LINUX
+#if YSE_ENABLE_MIDI_DEVICE
   if (!sys) return 0;
   return to_cpp(sys)->getNumMidiInDevices();
 #else
@@ -211,7 +216,7 @@ YSE_C_API unsigned int yse_system_num_midi_in_devices(YseSystem* sys) {
 }
 
 YSE_C_API unsigned int yse_system_num_midi_out_devices(YseSystem* sys) {
-#if YSE_WINDOWS || YSE_LINUX
+#if YSE_ENABLE_MIDI_DEVICE
   if (!sys) return 0;
   return to_cpp(sys)->getNumMidiOutDevices();
 #else
@@ -221,7 +226,7 @@ YSE_C_API unsigned int yse_system_num_midi_out_devices(YseSystem* sys) {
 
 YSE_C_API size_t yse_system_midi_in_device_name(YseSystem* sys, unsigned int id, char* buf, size_t cap) {
   if (buf && cap > 0) buf[0] = '\0';
-#if YSE_WINDOWS || YSE_LINUX
+#if YSE_ENABLE_MIDI_DEVICE
   if (!sys) return 0;
   try { return copy_string(to_cpp(sys)->getMidiInDeviceName(id), buf, cap); }
   catch (const std::exception&) { return 0; }
@@ -232,7 +237,7 @@ YSE_C_API size_t yse_system_midi_in_device_name(YseSystem* sys, unsigned int id,
 
 YSE_C_API size_t yse_system_midi_out_device_name(YseSystem* sys, unsigned int id, char* buf, size_t cap) {
   if (buf && cap > 0) buf[0] = '\0';
-#if YSE_WINDOWS || YSE_LINUX
+#if YSE_ENABLE_MIDI_DEVICE
   if (!sys) return 0;
   try { return copy_string(to_cpp(sys)->getMidiOutDeviceName(id), buf, cap); }
   catch (const std::exception&) { return 0; }

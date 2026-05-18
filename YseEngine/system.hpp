@@ -140,11 +140,16 @@ namespace YSE {
     /** @brief Name of the platform default audio host (e.g. WASAPI, ALSA). */
     const std::string & getDefaultHost();
 
-#if YSE_WINDOWS || YSE_LINUX
-    /** @brief Number of MIDI input devices available. (Windows / Linux only.) */
+#if YSE_ENABLE_MIDI_DEVICE
+    /** @brief Number of MIDI input devices available.
+     *
+     *  Present only when libyse was built with ``YSE_ENABLE_MIDI_DEVICE=ON``
+     *  (default on Windows/Linux). When the option is OFF the function is
+     *  not declared at all — gate consumer code on ``#if YSE_ENABLE_MIDI_DEVICE``.
+     */
     unsigned int getNumMidiInDevices();
 
-    /** @brief Number of MIDI output devices available. (Windows / Linux only.) */
+    /** @brief Number of MIDI output devices available. */
     unsigned int getNumMidiOutDevices();
 
     /** @brief Name of the MIDI input device with the given ID. */
@@ -204,11 +209,35 @@ namespace YSE {
      */
     system& autoReconnect(bool on, int delay);
 
-    /** @brief CPU load of the audio thread as a fraction of the callback budget.
+    /** @brief Audio callback wall-clock load as a fraction of the buffer period.
      *
-     *  Distinct from the cost of ``update()`` on the main thread.
+     *  Measured by YSE: timestamps taken at the entry/exit of each backend
+     *  callback (PortAudio's ``paCallback`` or Oboe's ``onAudioReady``) and
+     *  divided by the buffer's audio time. EMA-smoothed with a ~1 s time
+     *  constant. Returns 0 when no device is open.
+     *
+     *  This is a **dropout-risk** indicator: 1.0 means the callback is taking
+     *  as long as the buffer it produces, i.e. the next buffer will arrive
+     *  late. It does NOT reflect total engine CPU across the threadpool
+     *  workers — for that, see issue #84.
+     *
+     *  Distinct from the cost of ``update()`` on the main thread. Replaces
+     *  the previous pass-through of ``Pa_GetStreamCpuLoad``, which read as
+     *  inflated under WASAPI shared mode after periods of silence (see #82).
      */
     float cpuLoad();
+
+    /** @brief Engine session sample rate in Hz.
+     *
+     *  The rate the engine locked to when ``init()`` / ``initOffline()`` ran.
+     *  Stays constant across the entire session, including pause / resume
+     *  cycles where ``getActiveSampleRate()`` transiently drops to 0. Returns
+     *  0 before the lock is established (pre-init).
+     *
+     *  Use this when scheduling sample-count-driven work that must outlive a
+     *  pause; use ``getActiveSampleRate()`` for live device-state UI.
+     */
+    double getSampleRate();
 
     /// @name Active device readouts
     /// Live state of the currently open audio device. Each returns 0 when no

@@ -3,6 +3,10 @@
   C ABI mirror of YseEngine/channel/channelInterface.hpp (YSE::channel + pre-built
   free-function accessors ChannelMaster, ChannelFX, ChannelMusic, ChannelAmbient,
   ChannelVoice, ChannelGui).
+
+  Convention: every void-returning function in this header is a null-safe
+  no-op when called with a NULL handle. Status queries (is_valid, get_*)
+  return 0 / false / NULL on NULL.
 */
 
 #ifndef YSE_C_CHANNEL_H_INCLUDED
@@ -15,6 +19,9 @@ extern "C"
 {
 #endif
 
+	/* Owned via yse_channel_create — release with yse_channel_destroy.
+	   Borrowed via the yse_channel_master / _fx / _music / _ambient /
+	   _voice / _gui pre-built accessors — never destroy those. */
 	typedef struct YseChannel YseChannel;
 
 	/* Pre-built channels — borrowed pointers, never destroy. */

@@ -150,13 +150,18 @@ set(YSE_SRCS
   patcher/midi/mMidiProgramChange.cpp
   # midiNote is a plain data class with no platform dependencies.
   midi/midiNote.cpp
-  # MIDI device I/O (RtMidi-backed). The sources themselves carry a
-  # `#if YSE_WINDOWS || YSE_LINUX` guard so they compile to empty TUs on
-  # Android; on the desktop platforms this CMake build targets they are
-  # always built.
-  midi/midiDeviceManager.cpp
-  midi/device.cpp
 )
+
+# MIDI device backend (RtMidi-backed). Gated behind YSE_ENABLE_MIDI_DEVICE
+# (default ON on Windows/Linux, OFF on Android/Mac). The sources still carry
+# a `#if YSE_ENABLE_MIDI_DEVICE` guard so accidental inclusion produces empty
+# TUs, but the canonical path adds them only when the option is ON.
+if(YSE_ENABLE_MIDI_DEVICE)
+  list(APPEND YSE_SRCS
+    midi/midiDeviceManager.cpp
+    midi/device.cpp
+  )
+endif()
 
 # ── Source-file-scoped warning suppressions ───────────────────────────────────
 # cJSON is a vendored C file; suppress all its warnings rather than patching it.
@@ -251,6 +256,18 @@ add_library(yse_objects OBJECT ${YSE_SRCS})
 # the shared library on Linux.
 set_target_properties(yse_objects PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+# Hide every symbol by default on ELF/Mach-O platforms (Linux, macOS, iOS,
+# BSD, Android) so libyse.so / .dylib exports only the API-tagged surface
+# reachable from yse.hpp. Windows is unaffected — its DLL export model uses
+# __declspec(dllexport) annotations directly from the API macro and has no
+# fpvisibility equivalent. Issue #34.
+if(NOT WIN32)
+  set_target_properties(yse_objects PROPERTIES
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+  )
+endif()
+
 target_compile_features(yse_objects PUBLIC cxx_std_17)
 
 # Expose YseEngine/ as the public include root so consumers can use
@@ -268,11 +285,16 @@ target_include_directories(yse_objects
     # shipped by the MSYS2 portaudio package; the vendored copies fill the gap.
     # We still link against the system library — only the headers are borrowed.
     ${CMAKE_SOURCE_DIR}/dependencies/portaudio/include
+)
+
+if(YSE_ENABLE_MIDI_DEVICE)
+  target_include_directories(yse_objects PRIVATE
     # midiDeviceManager.h uses "../dependencies/rtmidi/include/RtMidi.h" as a
     # relative path; device.cpp uses a bare "RtMidi.h". Both resolve once this
     # directory is in the include search path.
     ${CMAKE_SOURCE_DIR}/dependencies/rtmidi/include
-)
+  )
+endif()
 
 target_compile_definitions(yse_objects
   PRIVATE
@@ -299,6 +321,14 @@ else()
   target_compile_definitions(yse_objects PRIVATE YSE_ANDROID=1)
 endif()
 
+# YSE_ENABLE_MIDI_DEVICE: propagated PUBLIC so it reaches both the engine TUs
+# and any consumer that includes the public headers (system.hpp, midi/device.hpp,
+# yse_c/yse_midi.h). When 0/undefined, the MIDI device APIs are compiled out
+# of every layer (engine, C API, public headers, tests).
+if(YSE_ENABLE_MIDI_DEVICE)
+  target_compile_definitions(yse_objects PUBLIC YSE_ENABLE_MIDI_DEVICE=1)
+endif()
+
 # External deps are PUBLIC so both yse (SHARED) and yse_tests inherit them.
 target_link_libraries(yse_objects
   PUBLIC
@@ -307,11 +337,10 @@ target_link_libraries(yse_objects
 )
 
 if(NOT ANDROID)
-  target_link_libraries(yse_objects
-    PUBLIC
-      PkgConfig::PortAudio
-      PkgConfig::RtMidi
-  )
+  target_link_libraries(yse_objects PUBLIC PkgConfig::PortAudio)
+  if(YSE_ENABLE_MIDI_DEVICE)
+    target_link_libraries(yse_objects PUBLIC PkgConfig::RtMidi)
+  endif()
 else()
   # Oboe is the audio I/O backend (transparently uses AAudio on API 26+ and
   # falls back to OpenSL ES on rare devices). `log` provides __android_log_print
@@ -338,11 +367,17 @@ endif()
 # Consumers (demos, external code) link against this target only.
 add_library(yse SHARED)
 
-set_target_properties(yse PROPERTIES
-  OUTPUT_NAME yse
-  CXX_VISIBILITY_PRESET default
-  VISIBILITY_INLINES_HIDDEN OFF
-)
+set_target_properties(yse PROPERTIES OUTPUT_NAME yse)
+
+# Mirror the visibility settings applied to yse_objects so the linked
+# shared library exports the same API surface. See the comment on
+# yse_objects above. Issue #34.
+if(NOT WIN32)
+  set_target_properties(yse PROPERTIES
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+  )
+endif()
 
 # Pull in the compiled objects and their transitive link dependencies.
 target_link_libraries(yse PRIVATE yse_objects)
@@ -354,3 +389,11 @@ target_compile_definitions(yse
   INTERFACE
     YSE_DLL   # activate __declspec(dllimport) for consumers linking against the shared library
 )
+
+# Mirror YSE_ENABLE_MIDI_DEVICE to consumers of the shared library — yse_objects
+# is linked PRIVATE above, so its PUBLIC definitions don't transit through.
+# Demos and language bindings need to know whether the MIDI device APIs are
+# declared on the engine they're linking against.
+if(YSE_ENABLE_MIDI_DEVICE)
+  target_compile_definitions(yse INTERFACE YSE_ENABLE_MIDI_DEVICE=1)
+endif()

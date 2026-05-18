@@ -106,9 +106,9 @@ TEST_CASE("device: default device name is non-empty when devices exist") {
     CHECK_FALSE(YSE::System().getDefaultDevice().empty());
 }
 
-// ─── MIDI device enumeration (Windows only) ───────────────────────────────────
+// ─── MIDI device enumeration (gated on YSE_ENABLE_MIDI_DEVICE) ───────────────
 
-#if YSE_WINDOWS
+#if YSE_WINDOWS && YSE_ENABLE_MIDI_DEVICE
 TEST_CASE("midi: getNumMidiInDevices does not crash") {
     if (!TestHelpers::engineInit()) return;
     (void)YSE::System().getNumMidiInDevices();
@@ -129,7 +129,7 @@ TEST_CASE("midi: device names are accessible without crash") {
     for (unsigned int i = 0; i < nOut; i++) (void)YSE::System().getMidiOutDeviceName(i);
     CHECK(true);
 }
-#endif // YSE_WINDOWS
+#endif // YSE_WINDOWS && YSE_ENABLE_MIDI_DEVICE
 
 // ─── Engine lifecycle ─────────────────────────────────────────────────────────
 
@@ -151,6 +151,24 @@ TEST_CASE("engine: repeated update calls do not crash") {
 TEST_CASE("engine: cpuLoad returns a non-negative value") {
     if (!TestHelpers::engineInit()) return;
     CHECK(YSE::System().cpuLoad() >= 0.0f);
+}
+
+// Issue #82: cpuLoad() is our own callback wall-clock / buffer-period EMA.
+// Without any user graph attached, the engine's per-callback work is tiny;
+// the smoothed reading should sit well below 1.0 (would mean callback taking
+// the entire buffer period). 0.5 is a generous ceiling that catches a
+// totally broken measurement without being flaky on slow CI machines.
+TEST_CASE("engine: cpuLoad stays bounded with no graph activity") {
+    if (!TestHelpers::engineInitWithAudio()) return;
+    if (YSE::System().getNumDevices() == 0) return;
+    // Let callbacks fire long enough for the ~1 s EMA to settle.
+    for (int i = 0; i < 30; i++) {
+        YSE::System().sleep(50);
+        YSE::System().update();
+    }
+    const float load = YSE::System().cpuLoad();
+    CHECK(load >= 0.0f);
+    CHECK(load < 0.5f);
 }
 
 // ─── Audio callback ───────────────────────────────────────────────────────────

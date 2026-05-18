@@ -50,8 +50,13 @@ void OtherMenu::RestartAudioDemo() {
 
 void OtherMenu::MidiDemo()
 {
+#if YSE_ENABLE_MIDI_DEVICE
 	DemoMidi demo;
 	demo.Run();
+#else
+	std::cout << "MIDI device backend was disabled at build time "
+	          << "(YSE_ENABLE_MIDI_DEVICE=OFF)." << std::endl;
+#endif
 	ShowMenu();
 }
 

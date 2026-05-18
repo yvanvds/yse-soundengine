@@ -24,7 +24,7 @@ void YSE::INTERNAL::global::addFastJob(threadPoolJob * job) {
   fastThreads.addJob(job);
 }
 
-YSE::INTERNAL::global::global() : slowThreads(1), fastThreads(), update(false), active(false) {}
+YSE::INTERNAL::global::global() : slowThreads(1), fastThreads(), update(false), active(false), sampleRateLocked(false) {}
 
 void YSE::INTERNAL::global::init() {
   REVERB::Manager().create();

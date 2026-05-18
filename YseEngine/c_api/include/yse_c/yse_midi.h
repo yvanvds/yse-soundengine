@@ -28,9 +28,13 @@
 extern "C" {
 #endif
 
+/* Owned — release with yse_midi_file_destroy. */
 typedef struct YseMidiFile YseMidiFile;
+/* Owned — release with yse_midi_out_destroy. */
 typedef struct YseMidiOut  YseMidiOut;
+/* Owned — release with yse_midi_in_destroy. */
 typedef struct YseMidiIn   YseMidiIn;
+/* Owned — release with yse_midi_note_destroy. */
 typedef struct YseMidiNote YseMidiNote;
 
 /* ─── standard MIDI file playback ─────────────────────────────────── */
@@ -70,20 +74,20 @@ YSE_C_API void         yse_midi_out_raw3(YseMidiOut* m, unsigned char a, unsigne
 
 /* Raw-bytes callback. `bytes` is malloc'd by the engine; the receiver owns
    it and must release with yse_midi_in_free_message. Length is in bytes. */
-typedef void (*YseMidiInRawCallback)(double               timestamp_sec,
-                                     unsigned char*       bytes,
-                                     size_t               len,
-                                     void*                user_data);
+typedef void (YSE_C_CALLBACK *YseMidiInRawCallback)(double               timestamp_sec,
+                                                    unsigned char*       bytes,
+                                                    size_t               len,
+                                                    void*                user_data);
 
 /* Parsed callback. status/channel are pre-split from the first byte; data1
    and data2 are zero for messages shorter than 3 bytes. No ownership
    transfer. */
-typedef void (*YseMidiInParsedCallback)(double               timestamp_sec,
-                                        unsigned char        status,
-                                        unsigned char        channel,
-                                        unsigned char        data1,
-                                        unsigned char        data2,
-                                        void*                user_data);
+typedef void (YSE_C_CALLBACK *YseMidiInParsedCallback)(double               timestamp_sec,
+                                                       unsigned char        status,
+                                                       unsigned char        channel,
+                                                       unsigned char        data1,
+                                                       unsigned char        data2,
+                                                       void*                user_data);
 
 YSE_C_API YseMidiIn*   yse_midi_in_create(void);
 YSE_C_API void         yse_midi_in_destroy(YseMidiIn* m);

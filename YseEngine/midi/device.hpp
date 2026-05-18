@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../headers/defines.hpp"
-#if YSE_WINDOWS || YSE_LINUX
+#if YSE_ENABLE_MIDI_DEVICE
 
 #include <atomic>
 #include <cstddef>

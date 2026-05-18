@@ -23,7 +23,7 @@
 #include <cstring>
 #include "headers/defines.hpp"
 
-#if YSE_WINDOWS || YSE_LINUX
+#if YSE_ENABLE_MIDI_DEVICE
 
 #include "midi/device.hpp"
 #include "yse_c/yse_midi.h"
@@ -288,4 +288,4 @@ TEST_CASE("yse_midi_in C API: NULL handle returns 0 on is_open")
 
 } // TEST_SUITE("midi")
 
-#endif // YSE_WINDOWS || YSE_LINUX
+#endif // YSE_ENABLE_MIDI_DEVICE

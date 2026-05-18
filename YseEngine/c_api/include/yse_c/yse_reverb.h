@@ -8,6 +8,10 @@
     - Borrowed: yse_system_get_global_reverb() → YseReverb*. Never destroy.
                 The global reverb is the fallback wherever no positioned zone
                 reaches; rolled-off positioned zones mix against it.
+
+  Convention: every void-returning function in this header is a null-safe
+  no-op when called with a NULL handle. Status queries return 0 / false on
+  NULL.
 */
 
 #ifndef YSE_C_REVERB_H_INCLUDED
@@ -20,6 +24,8 @@
 extern "C" {
 #endif
 
+/* Owned via yse_reverb_create — release with yse_reverb_destroy.
+   Borrowed via yse_system_get_global_reverb — never destroy that. */
 typedef struct YseReverb YseReverb;
 
 /* Owned reverb zone — yse_reverb_create() runs both the C++ constructor

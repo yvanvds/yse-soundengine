@@ -23,11 +23,19 @@ namespace YSE {
     public:
       bool isActive() { return active; }
 
+      // True between the end of system::initShared() and the start of
+      // system::close(). Within a session, SAMPLERATE is immutable: the device
+      // writers in portaudioDeviceManager.cpp / oboeImplementation.cpp assert
+      // !isSampleRateLocked() before mutating SAMPLERATE. Lookup tables and
+      // other SAMPLERATE-derived caches across the engine rely on this
+      // contract.
+      bool isSampleRateLocked() { return sampleRateLocked; }
+
       void addSlowJob(threadPoolJob * job);
       void addFastJob(threadPoolJob * job);
-      
-      void flagForUpdate() { 
-        update++; 
+
+      void flagForUpdate() {
+        update++;
       }
       bool needsUpdate() { return update > 0;  }
       void updateDone() { update--; }
@@ -44,6 +52,7 @@ namespace YSE {
 
       aInt update;
       aBool active; // set true after System().init(), false at System().close()
+      aBool sampleRateLocked;
 
 
       friend class YSE::system; // system needs access to the init and close method
