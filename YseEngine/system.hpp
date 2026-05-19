@@ -218,12 +218,12 @@ namespace YSE {
      *
      *  This is a **dropout-risk** indicator: 1.0 means the callback is taking
      *  as long as the buffer it produces, i.e. the next buffer will arrive
-     *  late. It does NOT reflect total engine CPU across the threadpool
-     *  workers — for that, see issue #84.
+     *  late.
      *
-     *  Distinct from the cost of ``update()`` on the main thread. Replaces
-     *  the previous pass-through of ``Pa_GetStreamCpuLoad``, which read as
-     *  inflated under WASAPI shared mode after periods of silence (see #82).
+     *  Distinct from the cost of ``update()`` on the main thread. Timed
+     *  ourselves (rather than reading ``Pa_GetStreamCpuLoad``) so the Oboe /
+     *  Android backend can report a comparable number — that API doesn't
+     *  exist there.
      */
     float cpuLoad();
 

@@ -54,9 +54,10 @@ int YSE::DEVICE::managerObject::paCallback(
   , PaStreamCallbackFlags /*statusFlags*/
   , void * userData) {
   YSE::INTERNAL::enableFlushToZero();
-  // Issue #82: Pa_GetStreamCpuLoad was unreliable under WASAPI shared mode
-  // (plateaued at ~50% after silence). Time the callback ourselves with
-  // steady_clock; cpuLoad() returns the EMA of (elapsed / buffer-period).
+  // cpuLoad() reports a wall-clock ratio (time in callback / buffer period),
+  // EMA-smoothed. We time it ourselves with steady_clock rather than reading
+  // Pa_GetStreamCpuLoad so the Oboe path can report a comparable number
+  // (PortAudio's number doesn't exist on the Android backend).
   const auto cbStart = std::chrono::steady_clock::now();
   YSE::DEVICE::managerObject * manager = (YSE::DEVICE::managerObject *)userData;
 	manager->callbacksSinceLastUpdate++;
