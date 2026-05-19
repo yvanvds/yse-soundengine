@@ -14,7 +14,8 @@
       "Read(//tmp/**)",
       "Read(//d/tmp/**)",
       "Edit(/.claude/skills/c-api-extend/**)",
-      "Edit(/.claude/skills/fix-issues/**)"
+      "Edit(/.claude/skills/fix-issues/**)",
+      "Edit(/.claude/skills/release/**)"
     ],
     "additionalDirectories": [
       "\\tmp\\gh-issues",
