@@ -84,10 +84,13 @@ Phase 5 — Synthesis and control
 
 Modular synthesis, presets, device resilience, MIDI.
 
-- ``Demo13_Patcher`` — build a synthesis graph programmatically with
-  ``YSE::patcher`` (sine generator → LFO modulator → DAC, saved to JSON).
-- ``Demo14_LoadPatcher`` — restore a patcher graph from a JSON file and
-  drive its parameters at runtime.
+.. toctree::
+   :maxdepth: 1
+
+   05_patcher
+
+Other demos in this phase:
+
 - ``Demo15_RestartAudio`` — pause / resume / handle device disconnection
   with ``YSE::System().pause()`` and ``autoReconnect(...)``.
 - ``Demo16_Midi`` — enumerate MIDI output ports with
