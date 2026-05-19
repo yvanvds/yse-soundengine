@@ -137,22 +137,67 @@ Wait for CI on this PR too (`gh pr checks --watch`). When green, merge
 with `--merge` (release commits should stay individually identifiable on
 master — do **not** squash).
 
-### 8. Run the bump on master
+### 8. Run the bump and route it through a release PR
+
+`master` is a protected branch — direct pushes are rejected, including
+the one `yse.py release` would attempt. The bump has to land via PR.
+The local-side prep mirrors what `yse.py release` does but stops short
+of pushing to `master`:
 
 ```sh
 git checkout master
 git pull --ff-only origin master
-python yse.py release patch|minor|major
+python yse.py release patch|minor|major    # creates the bump commit + local tag,
+                                            # then fails at `git push` due to branch protection
 ```
 
-`yse.py release` will:
-- bump VERSION in system.hpp,
-- commit `Release vX.Y.Z`,
-- tag `vX.Y.Z`,
-- push both the commit and the tag to `origin/master`.
+The push failure is expected — `yse.py release` does not yet know about
+branch protection. Recover by moving the bump commit onto a release
+branch and discarding the local tag (the tag has to land on the merge
+commit, not the bump commit; matches the existing `v2.1.0`/`v2.0.2`
+pattern):
+
+```sh
+git checkout -b release-vX.Y.Z      # carries the new "Release vX.Y.Z" bump commit
+git branch -f master origin/master  # rewind local master to the unbumped origin tip
+git tag -d vX.Y.Z                   # the tag goes on the merge commit later, not the bump
+git push -u origin release-vX.Y.Z
+```
+
+Open the bump PR (this is the second PR in the release path; the first
+was step 7's `dev → master` promotion). Title is the **same** as the
+step-7 PR for searchability — it shows up as e.g. "Release v2.1.1" in
+both PR lists.
+
+```sh
+gh pr create --base master --head release-vX.Y.Z \
+  --title "Release vX.Y.Z" \
+  --body "Version bump for the vX.Y.Z release. Routed through a PR because branch protection on master requires it (same path as release-v2.1.0 \\u2192 PR #87)."
+```
+
+Wait for CI (`gh pr checks --watch`). When green, merge with `--merge`.
+
+Pull master, then **tag the merge commit** (not the bump commit) — this
+matches how `v2.1.0` was tagged (`git show v2.1.0` → points at PR #87's
+merge commit, not at `54d1d96 Release v2.1.0`):
+
+```sh
+git checkout master
+git pull --ff-only origin master
+git tag vX.Y.Z $(git rev-parse origin/master)
+git push origin vX.Y.Z
+```
 
 The `release.yml` workflow fires on the `v*` tag push and builds +
 publishes the GitHub release.
+
+> **Skill follow-up:** `yse.py release` is mid-way: it bumps and tags
+> locally but cannot push to a protected master. Either teach it about
+> branch protection (open the release PR itself, wait, merge, tag the
+> merge commit) or split it into two subcommands (`release-bump` that
+> just bumps + commits on the current branch, and `release-tag` that
+> tags an arbitrary commit and pushes the tag). Until that lands, the
+> dance above is the manual fallback.
 
 ### 9. Sync the release commit back to dev
 
@@ -164,7 +209,13 @@ gh pr create --base dev --head master \
   --body "Brings the version bump commit and tag back to dev so the two branches stay in sync."
 ```
 
-Merge with `--merge`. Confirm dev is now at the same tip as master.
+Merge **immediately** with `--merge` — no CI wait. `build.yml`,
+`benchmark.yml`, `release.yml`, and `documentation.yml` all skip the
+master → dev sync PR (either by trigger filter or by the
+`head_ref == 'master'` guard in `build.yml`'s job condition). Every
+commit on master already passed CI on the PR that put it there. After
+merge, fast-forward local dev and confirm it's at the same tip as
+master.
 
 ### 10. Report status to the user
 
@@ -189,20 +240,23 @@ About to release vX.Y.Z:
   Current:  v<cur>
   New:      v<new>  (<bump-kind>)
 
-  Branch:   dev → master (via two PRs)
-  Tag:      vX.Y.Z on master
+  Branch:   dev → master → release-vX.Y.Z bump → master (three PRs)
+  Tag:      vX.Y.Z on the bump PR's merge commit on master
   Workflow: release.yml will publish Linux x64, Windows x64, Android multi-ABI archives
 
   C API drift check: <none | <list of headers worth reviewing>>
 
   Steps that will run unattended after you confirm:
-    1. release-prep PR on dev (README + PROJECT_OVERVIEW.md refresh)
+    1. release-prep PR on dev (skill housekeeping + README/PROJECT_OVERVIEW.md refresh)
     2. wait for CI, merge to dev
-    3. dev → master PR
+    3. dev → master release PR (carries everything since last release)
     4. wait for CI, merge to master
-    5. yse.py release <kind> on master (commits, tags, pushes)
-    6. release.yml fires on the tag
-    7. master → dev sync PR
+    5. yse.py release <kind> locally → push fails on protected master (expected)
+    6. move bump commit to release-vX.Y.Z branch, open PR → master
+    7. wait for CI, merge with --merge
+    8. tag the merge commit with vX.Y.Z, push tag
+    9. release.yml fires on the tag — builds + publishes the GitHub release
+   10. master → dev sync PR (no CI wait — sync PRs are skipped by every workflow)
 ```
 
 After "yes", run end-to-end without further pauses. Surface CI failures
@@ -212,6 +266,16 @@ immediately if they happen; do not retry destructive steps on your own.
 
 - Don't run `yse.py release` on `dev`. Even though the script allows
   it, the project convention is that release tags live on `master`.
+- Don't try to push the bump commit directly to `master` after a
+  rebound `yse.py release` push fails. Master is protected; the bump
+  has to ride through its own PR (step 8). The expected end state of
+  `yse.py release` on a protected master is: local bump commit, local
+  tag, push rejected, you take it from there.
+- Don't tag the bump commit. Tag the **merge commit** of the bump PR —
+  matches how `v2.1.0` (and earlier) were tagged. `release.yml` doesn't
+  care which commit the tag points at, but having it on the merge
+  commit means `git show vX.Y.Z` lands on the merge that introduced
+  the bump to `master`, which is what readers expect.
 - Don't squash-merge the release PR — release commits should be
   individually identifiable in `master`'s history.
 - Don't bump the version yourself in `system.hpp` — `yse.py release`
@@ -241,9 +305,11 @@ You:
 6. Show the plan + confirmation gate. User confirms.
 7. Branch `release/v2.1.1-prep` from dev, refresh PROJECT_OVERVIEW.md (incremental update). README header stays at "libYSE 2.1". Commit + push + PR + wait CI + merge.
 8. dev → master PR, wait CI, merge.
-9. `git checkout master && python yse.py release patch`. release.yml fires.
-10. master → dev sync PR, merge.
-11. Report URLs.
+9. `git checkout master && python yse.py release patch`. Push fails on protected master (expected).
+10. `git checkout -b release-v2.1.1 && git branch -f master origin/master && git tag -d v2.1.1`. Push branch, open PR → master, wait CI, merge.
+11. `git checkout master && git pull && git tag v2.1.1 $(git rev-parse origin/master) && git push origin v2.1.1`. release.yml fires.
+12. master → dev sync PR, merge.
+13. Report URLs.
 
 ## File / branch invariants this skill assumes
 

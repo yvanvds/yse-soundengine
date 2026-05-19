@@ -8,12 +8,17 @@ on:
     types: [opened, synchronize, reopened]
 jobs:
   build:
-    # Skip the PR-event run when the head branch is `dev` (i.e. dev → master
-    # release PRs). The push to dev that brought the SHA in has already run
-    # this workflow against the same commit — running it again via the PR
-    # trigger is pure duplication. PRs from feature branches (→ dev or →
-    # master) still run normally because their head_ref is not 'dev'.
-    if: github.event_name == 'push' || github.head_ref != 'dev'
+    # Skip the PR-event run when the head branch is `dev` or `master`.
+    # The push to either branch that brought the SHAs in has already run
+    # this workflow against the same commits — running it again via the
+    # PR trigger is pure duplication. PRs from feature branches still
+    # run normally because their head_ref is neither 'dev' nor 'master'.
+    #
+    # Covers two release-flow PR types:
+    # - dev → master release PR: head_ref == 'dev'
+    # - master → dev post-release sync PR (carries the version bump
+    #   commit back): head_ref == 'master'
+    if: github.event_name == 'push' || (github.head_ref != 'dev' && github.head_ref != 'master')
     name: Build and analyze
     runs-on: ubuntu-latest
     timeout-minutes: 20
