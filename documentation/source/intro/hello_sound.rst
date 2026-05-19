@@ -41,7 +41,10 @@ What just happened
 - ``YSE::sound s; s.create("drone.ogg");`` allocates a sound object and
   loads an audio file. The file path is relative to the working directory.
 - ``s.isValid()`` is the safety check after ``create``. False means the
-  file could not be opened or decoded — log and exit.
+  file could not be found at the given path — log and exit. (Decoding
+  happens asynchronously on a background worker; ``isReady()`` reports when
+  the sound is fully loaded, but ``play()`` is safe to call even while
+  loading — it queues the start.)
 - ``s.play()`` starts playback. The call returns immediately; the sound
   plays on the audio thread.
 - ``std::cin.get()`` is there to keep the program alive long enough to

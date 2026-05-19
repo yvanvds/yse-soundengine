@@ -46,8 +46,9 @@ Channel
 
 :cpp:class:`YSE::channel` is a node in a mixing tree. Every sound is attached
 to a channel; channels can themselves be attached to a parent channel,
-forming a tree rooted at ``MainMix``. Each channel renders on its own DSP
-thread, so spreading sounds across channels also spreads them across cores.
+forming a tree rooted at ``MainMix``. Child channels dispatch their DSP work
+to a thread pool, so spreading sounds across channels lets the engine
+parallelise mixing across cores.
 
 A small set of pre-built channels (``ChannelMaster``, ``ChannelMusic``,
 ``ChannelAmbient``, ``ChannelVoice``, ``ChannelGui``, ``ChannelFX``) is
