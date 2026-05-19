@@ -1,5 +1,5 @@
 <!-- META
-last_updated_commit: 51a4a94622379dd291d432b762c3d92bd6d0b505
+last_updated_commit: 7b174590d349e9148f715c083bfd5057d4b68b7a
 last_updated_at: 2026-05-19
 -->
 
@@ -31,7 +31,10 @@ documentation/                   # Doxygen + Sphinx + Breathe (sphinx-book-theme
   source/intro/                  # Install + hello-sound + mental-model
   source/tutorials/              # 5 tutorial pages (play, properties, 3D, channels, reverb)
   source/api/                    # Breathe-driven API reference (12 grouped pages)
+  source/_data/                  # Committed data snapshots consumed by Sphinx hooks (patcher_objects.json)
+  source/_templates/             # Jinja templates rendered by the pre-build hook in conf.py
 tools/ci-linux/                  # Docker images for local Linux CI reproduction (Dockerfile, Dockerfile.audio)
+tools/dump_patcher_metadata/     # `dump_patcher_meta` — emits the patcher_objects.json snapshot used by the docs hook
 TestResources/                   # Audio files used by demos (drone.ogg, kick.ogg, demo.mid, …)
 dependencies/                    # Vendored headers: portaudio/, rtmidi/, doctest/, etc.
 cmake/                           # CMake helper templates (demo_main.cpp.in)
@@ -81,6 +84,7 @@ python yse.py analyze [path]       # clang-tidy via compile_commands.json (sonar
 python yse.py format               # clang-format -i over YseEngine/ and Tests/
 python yse.py package              # release archive in dist/ (consumed by CI)
 python yse.py release patch        # bump VERSION (patch/minor/major), commit, tag, push
+python yse.py dump-patcher-meta    # regenerate documentation/source/_data/patcher_objects.json
 ```
 
 Direct `cmake -B build ...` invocations remain fully valid — the presets are additive.
@@ -92,6 +96,7 @@ Direct `cmake -B build ...` invocations remain fully valid — the presets are a
 | `YSE_BUILD_TESTS` | OFF | Build the `Tests/` doctest suite; adds `yse_tests` target and enables CTest |
 | `YSE_BUILD_BENCHMARKS` | OFF | Build the `Bench/` google-benchmark suite (fetched via FetchContent, pinned tag) |
 | `YSE_BUILD_C_API` | **ON** | Fold the `extern "C"` ABI bridge (yse_*) into `libyse` so language bindings (Dart FFI, Python ctypes, …) can consume the DLL without C++ ABI compatibility |
+| `YSE_BUILD_TOOLS` | OFF | Build developer tools under `tools/` (currently `dump_patcher_meta`). Enabled automatically by `python yse.py dump-patcher-meta` |
 | `YSE_ENABLE_MIDI_DEVICE` | ON on desktop, OFF on Android | RtMidi-backed MIDI device backend. OFF compiles MIDI device source files out and skips the RtMidi configure-time dependency |
 | `YSE_ENABLE_LTO` | OFF | Link-time optimization for Release builds |
 | `YSE_NATIVE_ARCH` | OFF | `-march=native` (local dev only — not distributable) |

@@ -249,6 +249,7 @@ def cmd_clean(args):
         ROOT / "build-tests",
         ROOT / "build-coverage",
         ROOT / "build-bench",
+        ROOT / "build-tools",
     ]
     files_to_remove = [
         ROOT / "coverage.xml",
@@ -352,6 +353,42 @@ def cmd_analyze(args):
             print("  Debian/Ubuntu:  sudo apt install clang-tidy")
             print("  Fedora/RHEL:    sudo dnf install clang-tools-extra")
         sys.exit(1)
+
+
+def cmd_dump_patcher_meta(args):
+    # Configures + builds the dump_patcher_meta executable in its own
+    # build dir (build-tools/) so it doesn't collide with the demo/test
+    # presets, then runs it and writes the JSON snapshot consumed by the
+    # Sphinx documentation hook. Uses a dedicated build dir so toggling
+    # YSE_BUILD_TOOLS doesn't force a reconfigure of the normal debug
+    # build.
+    build_dir = ROOT / "build-tools"
+    run([
+        "cmake", "-S", str(ROOT), "-B", str(build_dir),
+        "-G", "Ninja",
+        "-DCMAKE_BUILD_TYPE=Debug",
+        "-DYSE_BUILD_TOOLS=ON",
+    ])
+    run(["cmake", "--build", str(build_dir), "--target", "dump_patcher_meta"])
+
+    suffix = ".exe" if IS_WINDOWS else ""
+    exe = build_dir / "bin" / ("dump_patcher_meta" + suffix)
+    if not exe.exists():
+        print(f"error: {exe} not found after build.")
+        sys.exit(1)
+
+    out_path = Path(args.output) if args.output else (
+        ROOT / "documentation" / "source" / "_data" / "patcher_objects.json"
+    )
+    if not out_path.is_absolute():
+        out_path = (ROOT / out_path).resolve()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    _print_cmd([exe.name, str(out_path)], cwd=exe.parent)
+    result = subprocess.run([str(exe), str(out_path)], cwd=str(exe.parent))
+    if result.returncode != 0:
+        sys.exit(result.returncode)
+    print(f"\nPatcher metadata snapshot written to {out_path}")
 
 
 def cmd_format(args):
@@ -834,6 +871,7 @@ def build_parser():
   python yse.py analyze YseEngine/dsp/     same, limited to one directory
   python yse.py analyze YseEngine/sound.cpp  same, limited to a single file
   python yse.py format             run clang-format on YseEngine/ and Tests/
+  python yse.py dump-patcher-meta  regenerate documentation/source/_data/patcher_objects.json
   python yse.py package            build a release archive in dist/ (used by CI)
   python yse.py package --platform linux    explicit target platform
   python yse.py package --platform android --android-libs <dir>   multi-ABI bundle from CI per-ABI artefacts
@@ -994,6 +1032,27 @@ def build_parser():
         help="Optional .cpp file or directory to limit analysis to (default: full tree)",
     )
     p.set_defaults(func=cmd_analyze)
+
+    # dump-patcher-meta
+    p = sub.add_parser(
+        "dump-patcher-meta",
+        help="Regenerate the patcher_objects.json snapshot consumed by the docs",
+        description=(
+            "Builds the dump_patcher_meta executable (YSE_BUILD_TOOLS=ON, "
+            "build-tools/ directory) and runs it to (re)generate the JSON "
+            "snapshot of every registered patcher object's in-code metadata.\n\n"
+            "The default output path is documentation/source/_data/patcher_objects.json, "
+            "which is rendered into documentation/source/api/patcher_objects.rst by "
+            "the Sphinx pre-build hook in documentation/source/conf.py. Re-run this "
+            "command after changing ADD_DESCRIPTION / ADD_CATEGORY / INLET_DOC / "
+            "OUTLET_DOC / PARAM_DOC in any patcher object so the rendered docs match."
+        ),
+    )
+    p.add_argument(
+        "-o", "--output", default=None,
+        help="Override the output path (default: documentation/source/_data/patcher_objects.json)",
+    )
+    p.set_defaults(func=cmd_dump_patcher_meta)
 
     # format
     p = sub.add_parser(
