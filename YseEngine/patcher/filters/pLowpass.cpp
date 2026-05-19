@@ -21,6 +21,13 @@ CONSTRUCT_DSP() {
 
   buffer = nullptr;
   frequency = 0.f;
+
+  ADD_DESCRIPTION("Single-pole lowpass filter. Attenuates content above the cutoff frequency.");
+  ADD_CATEGORY(pCategory::FILTER);
+  INLET_DOC(0, "in", "Audio input buffer.", "-1.0 to 1.0");
+  INLET_DOC(1, "cutoff", "Cutoff frequency in Hz.", "0-20000 Hz");
+  OUTLET_DOC(0, "out", "Filtered audio output.", "-1.0 to 1.0");
+  PARAM_DOC("frequency", "0", "Initial cutoff frequency in Hz.", "0-20000 Hz");
 }
 
 RESET() // {

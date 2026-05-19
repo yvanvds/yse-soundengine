@@ -29,6 +29,7 @@ set(YSE_TEST_SOURCES
   patcher/test_dsp_objects.cpp
   patcher/test_generic_objects.cpp
   patcher/test_gui_objects.cpp
+  patcher/test_doc_coverage.cpp
   patcher/test_timerthread.cpp
   channel/test_channel.cpp
   channel/test_channel_concurrency.cpp
@@ -244,6 +245,7 @@ set_source_files_properties(
   patcher/test_dsp_objects.cpp
   patcher/test_generic_objects.cpp
   patcher/test_gui_objects.cpp
+  patcher/test_doc_coverage.cpp
   patcher/test_timerthread.cpp
   PROPERTIES COMPILE_FLAGS "${_patcher_test_suppress}"
 )

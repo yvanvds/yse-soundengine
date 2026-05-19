@@ -29,6 +29,15 @@ CONSTRUCT_DSP() {
   in = nullptr;
   center = nullptr;
   sharpness = 0.f;
+
+  ADD_DESCRIPTION("Voltage-controlled (heterodyne) filter. Mixes the input with a center-frequency buffer; sharpness controls resonance. Emits real and imaginary components on two buffer outlets.");
+  ADD_CATEGORY(pCategory::FILTER);
+  INLET_DOC(0, "in", "Audio input buffer.", "-1.0 to 1.0");
+  INLET_DOC(1, "center", "Center-frequency buffer (typically a sine at the target frequency).", "-1.0 to 1.0");
+  INLET_DOC(2, "sharpness", "Resonance / sharpness control.", "0.0-1.0");
+  OUTLET_DOC(0, "real", "Real component of the filtered signal.", "-1.0 to 1.0");
+  OUTLET_DOC(1, "imag", "Imaginary component of the filtered signal.", "-1.0 to 1.0");
+  PARAM_DOC("sharpness", "0", "Initial resonance / sharpness.", "0.0-1.0");
 }
 
 RESET() // {

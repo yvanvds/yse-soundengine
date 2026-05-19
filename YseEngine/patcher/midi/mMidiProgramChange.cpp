@@ -16,6 +16,12 @@ CONSTRUCT() {
 	ADD_PARAM(channel);
 
 	channel = cvalue = 0;
+
+	ADD_DESCRIPTION("MIDI Program Change message generator. Emits a status/program packet on every value change.");
+	ADD_CATEGORY(pCategory::MIDI);
+	INLET_DOC(0, "program", "Program number (also fires the output).", "0-127");
+	OUTLET_DOC(0, "midi", "Encoded MIDI Program Change message.", "");
+	PARAM_DOC("channel", "0", "MIDI channel offset (0-based).", "0-15");
 }
 
 INT_IN(SetIntValue) {

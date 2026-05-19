@@ -2,6 +2,7 @@
 #include "../dsp/buffer.hpp"
 #include "../headers/enums.hpp"
 #include "../utils/json.hpp"
+#include <string>
 #include <vector>
 
 namespace YSE {
@@ -10,13 +11,13 @@ namespace YSE {
     class pObject;
     struct inlet;
 
-    
+
 
     struct outlet {
       outlet(OUT_TYPE type);
       ~outlet();
 
-      inline OUT_TYPE Type() const { return type; } 
+      inline OUT_TYPE Type() const { return type; }
 
       void SendBang(THREAD thread);
       void SendFloat(float value, THREAD thread);
@@ -34,10 +35,22 @@ namespace YSE {
       unsigned int GetTarget(unsigned int connection);
       unsigned int GetTargetInlet(unsigned int connection);
 
+      // Documentation surface — see inlet::SetDoc for usage notes.
+      void SetDoc(const std::string & label,
+                  const std::string & doc,
+                  const std::string & range);
+      const std::string & GetDocLabel() const { return docLabel; }
+      const std::string & GetDocDescription() const { return docDescription; }
+      const std::string & GetRange() const { return docRange; }
+
     private:
       OUT_TYPE type;
 
       std::vector<inlet*> connections;
+
+      std::string docLabel;
+      std::string docDescription;
+      std::string docRange;
     };
 
   }

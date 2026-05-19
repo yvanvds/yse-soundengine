@@ -29,6 +29,15 @@ CONSTRUCT_DSP() {
 
   buffer = nullptr;
   frequency = Q = 0.f;
+
+  ADD_DESCRIPTION("Bandpass filter. Passes a frequency band centered on 'frequency' with bandwidth shaped by 'Q' (resonance).");
+  ADD_CATEGORY(pCategory::FILTER);
+  INLET_DOC(0, "in", "Audio input buffer.", "-1.0 to 1.0");
+  INLET_DOC(1, "freq", "Center frequency in Hz.", "0-20000 Hz");
+  INLET_DOC(2, "Q", "Resonance / inverse bandwidth — higher narrows the band.", "0.1-100");
+  OUTLET_DOC(0, "out", "Filtered audio output.", "-1.0 to 1.0");
+  PARAM_DOC("frequency", "0", "Initial center frequency in Hz.", "0-20000 Hz");
+  PARAM_DOC("Q", "0", "Initial Q / resonance.", "0.1-100");
 }
 
 RESET() // {

@@ -24,6 +24,14 @@ CONSTRUCT() {
 
   activeOutlet = 0;
   numOutlets = 2;
+
+  ADD_DESCRIPTION("Demultiplexer. Routes a value inlet to one of N outlets, selected by inlet 0. activeOutlet=0 silences output; 1-based otherwise.");
+  ADD_CATEGORY(pCategory::GENERIC);
+  INLET_DOC(0, "select", "1-based outlet index to forward to (0 = mute).", "0+");
+  INLET_DOC(1, "in", "Value inlet — accepts bang / int / float / list.", "");
+  OUTLET_DOC(0, "out0", "Outlet 0 — emits the routed value when select == 1.", "");
+  OUTLET_DOC(1, "out1", "Outlet 1 — emits the routed value when select == 2.", "");
+  PARAM_DOC("numOutlets", "2", "Number of value outlets (additional outlets are created by SetParams).", "1+");
 }
 
 INT_IN(SetActiveOutlet) {

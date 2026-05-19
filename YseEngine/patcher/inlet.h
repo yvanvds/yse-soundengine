@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include "../headers/enums.hpp"
+#include "pEnums.h"
 
 namespace YSE {
   namespace PATCHER {
@@ -26,7 +27,7 @@ namespace YSE {
       void RegisterInt(intFunc f);
       void RegisterList(listFunc f);
       void RegisterBuffer(bufferFunc f);
-      
+
       void SetBang(THREAD thread);
       void SetInt(int value, THREAD thread);
       void SetFloat(float value, THREAD thread);
@@ -46,6 +47,22 @@ namespace YSE {
       int GetObjectID();
       int GetPosition();
 
+      // Documentation surface. Populated in object constructors via the
+      // INLET_DOC macro; consumed by the test_doc_coverage doctest and by
+      // future binding-side metadata generators (issue #105). RT-cold: never
+      // touched on the audio thread.
+      void SetDoc(const std::string & label,
+                  const std::string & doc,
+                  const std::string & range);
+      const std::string & GetDocLabel() const { return docLabel; }
+      const std::string & GetDocDescription() const { return docDescription; }
+      const std::string & GetRange() const { return docRange; }
+
+      // Bitmask of InletType values indicating which message types this inlet
+      // currently has handlers for. Reflects the REG_*_IN() calls in the
+      // owning object's constructor.
+      unsigned int GetAcceptedTypes() const;
+
     private:
       pObject * obj;
       bool dspReady;
@@ -60,6 +77,10 @@ namespace YSE {
 
       outlet * dspConnection;
       std::vector<outlet*> connections;
+
+      std::string docLabel;
+      std::string docDescription;
+      std::string docRange;
     };
   }
 }

@@ -18,6 +18,13 @@ CONSTRUCT() {
   ADD_PARAM(startValue);
   ADD_PARAM(step);
 
+  ADD_DESCRIPTION("Step counter. Bang increments the current value by 'step' and emits it. Send 'reset' as a list to return to startValue.");
+  ADD_CATEGORY(pCategory::MATH);
+  INLET_DOC(0, "control", "Bang to step / int to set the value / list 'reset' to return to startValue.", "any int");
+  INLET_DOC(1, "step", "Sets the increment used on each bang.", "any int");
+  OUTLET_DOC(0, "out", "Current counter value.", "any int");
+  PARAM_DOC("startValue", "0", "Initial counter value (and the value 'reset' returns to).", "any int");
+  PARAM_DOC("step", "1", "Increment applied on each bang.", "any int");
 }
 
 INT_IN(SetIntValue) {
