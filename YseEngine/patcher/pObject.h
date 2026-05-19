@@ -71,6 +71,14 @@ namespace YSE {
 
       void SetParent(pObject * parent);
       inline const std::string & DataName() { return dataName; }
+
+      // Documentation surface. The fields are populated in derived-class
+      // constructors via the ADD_DESCRIPTION / ADD_CATEGORY macros; consumed
+      // by the test_doc_coverage doctest and (later) by binding-side
+      // metadata generators. RT-cold.
+      const std::string & GetDescription() const { return description; }
+      pCategory GetCategory() const { return category; }
+      const std::vector<ParamDoc> & GetParamDocs() const { return parms.GetDocs(); }
     protected:
 
       std::vector<inlet> inputs;
@@ -86,6 +94,10 @@ namespace YSE {
 
       // for incoming data
       std::string dataName;
+
+      // Documentation metadata — see GetDescription() / GetCategory().
+      std::string description;
+      pCategory category = pCategory::UNSET;
     };
 
   }
@@ -138,6 +150,16 @@ namespace YSE {
 #define ADD_OUT_ANY outputs.emplace_back(OUT_TYPE::ANY)
 
 #define ADD_PARAM(var) parms.Register(var)
+
+// Documentation macros — populate the metadata fields read by the
+// test_doc_coverage doctest. RT-cold: all of these only run during
+// pObject construction. ``range`` is a free-form string (e.g. "0-127",
+// "0.0-1.0", "20-20000 Hz", or "" when not applicable).
+#define ADD_DESCRIPTION(text)                       description = (text)
+#define ADD_CATEGORY(cat)                           category = (cat)
+#define INLET_DOC(idx, label, doc, range)           inputs[(idx)].SetDoc((label), (doc), (range))
+#define OUTLET_DOC(idx, label, doc, range)          outputs[(idx)].SetDoc((label), (doc), (range))
+#define PARAM_DOC(name, defaultVal, doc, range)     parms.SetDoc((name), (defaultVal), (doc), (range))
 
 #define _HAS_GUI virtual std::string GetGuiValue();
 #define GUI_VALUE() std::string className::GetGuiValue()

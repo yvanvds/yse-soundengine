@@ -36,6 +36,13 @@ void Parameters::RegisterParse(parmFunc f) {
   onParse = f;
 }
 
+void Parameters::SetDoc(const std::string & name,
+                        const std::string & defaultValue,
+                        const std::string & doc,
+                        const std::string & range) {
+  docs.push_back({name, defaultValue, doc, range});
+}
+
 const std::string & Parameters::Get() {
   return current;
 }

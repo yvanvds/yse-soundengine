@@ -16,6 +16,11 @@ CONSTRUCT()
   REG_INT_IN(SetFreqInt);
 
   ADD_OUT_FLOAT;
+
+  ADD_DESCRIPTION("Converts a frequency in Hz to its MIDI note number (with A4 == 69, fractional output).");
+  ADD_CATEGORY(pCategory::MATH);
+  INLET_DOC(0, "freq", "Frequency in Hz.", "0-20000 Hz");
+  OUTLET_DOC(0, "midi", "MIDI note number — fractional.", "any float");
 }
 
 FLOAT_IN(SetFrequency) {

@@ -13,6 +13,12 @@ CONSTRUCT() {
 	ADD_OUT_LIST;
 
 	ADD_PARAM(message);
+
+	ADD_DESCRIPTION("Static list. Bang re-sends the stored list; list updates the stored payload.");
+	ADD_CATEGORY(pCategory::GUI);
+	INLET_DOC(0, "trigger/set", "Bang re-sends the stored list; list replaces it.", "");
+	OUTLET_DOC(0, "out", "Stored list payload.", "");
+	PARAM_DOC("message", "", "Initial list payload.", "any string");
 }
 
 BANG_IN(Bang) {

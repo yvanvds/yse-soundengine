@@ -24,6 +24,13 @@ CONSTRUCT_DSP() {
   ADD_OUT_BUFFER;
 
   ADD_PARAM(rightFloatIn);
+
+  ADD_DESCRIPTION("Audio-rate divide. Divides the left buffer by either the right buffer (audio-rate) or the right float (control-rate). A right-float of 0 is silently treated as a no-op.");
+  ADD_CATEGORY(pCategory::MATH);
+  INLET_DOC(0, "left", "Left operand — audio buffer.", "any float");
+  INLET_DOC(1, "right", "Right operand — audio buffer or float (non-zero).", "any non-zero float");
+  OUTLET_DOC(0, "out", "left / right.", "any float");
+  PARAM_DOC("right", "1.0", "Initial right-operand float (used until a buffer arrives on inlet 1). 0 disables division.", "any non-zero float");
 }
 
 BUFFER_IN(SetLeftBuffer) {

@@ -19,6 +19,13 @@ CONSTRUCT() {
 	ADD_PARAM(channel);
 
 	channel = pitch = pressure = 0;
+
+	ADD_DESCRIPTION("MIDI Polyphonic Key Pressure message generator. Inlet 0 fires the message with the stored pressure value.");
+	ADD_CATEGORY(pCategory::MIDI);
+	INLET_DOC(0, "pitch", "MIDI note number (also fires the output).", "0-127");
+	INLET_DOC(1, "pressure", "Pressure value for the note (stored until next pitch).", "0-127");
+	OUTLET_DOC(0, "midi", "Encoded MIDI Poly Key Pressure message.", "");
+	PARAM_DOC("channel", "0", "MIDI channel offset (0-based).", "0-15");
 }
 
 INT_IN(SetIntPitch) {
