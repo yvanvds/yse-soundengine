@@ -546,6 +546,23 @@ def _make_release_readme(version, platform_name, dlls):
             "Link:    `-L<archive>/lib -lyse`\n"
             "Run:     ensure `<archive>/bin/` is on `PATH` or copy its contents next to your `.exe`."
         )
+    elif platform_name == "android":
+        layout = (
+            "    include/                Public C++ headers (use `#include \"yse.hpp\"`)\n"
+            "    lib/<abi>/libyse.so     One libyse.so per Android ABI shipped"
+        )
+        deps_section = (
+            "libYSE on Android uses Oboe for audio I/O — it is statically linked\n"
+            "into `libyse.so`, so the only system requirement is `android-26` (API 26\n"
+            "/ Android 8.0 Oreo) or newer."
+        )
+        link_hint = (
+            "Gradle:   copy the `lib/` directory into your module's\n"
+            "          `src/main/jniLibs/` source set (e.g. `app/src/main/jniLibs/`).\n"
+            "          Reference from JNI / Kotlin code with `System.loadLibrary(\"yse\")`.\n"
+            "CMake:    point your toolchain at `include/` for headers and link the\n"
+            "          ABI-matching `lib/<abi>/libyse.so`."
+        )
     else:  # linux
         layout = (
             "    include/        Public C++ headers (use `#include \"yse.hpp\"`)\n"
@@ -566,15 +583,21 @@ def _make_release_readme(version, platform_name, dlls):
             "Run:     ensure `<archive>/lib/` is on `LD_LIBRARY_PATH` (or install libyse.so system-wide)."
         )
 
-    return f"""# libYSE {version} — {platform_name} x64
+    arch_label = "multi-ABI" if platform_name == "android" else "x86_64"
+    platform_blurb = (
+        "**Android** with one `libyse.so` per ABI (see `lib/<abi>/`)"
+        if platform_name == "android"
+        else f"**{platform_name} x86_64**"
+    )
+    return f"""# libYSE {version} — {platform_name} ({arch_label})
 
 A cross-platform sound engine written in C++. This archive contains the
-prebuilt shared library and public headers for **{platform_name} x86_64**.
+prebuilt shared library and public headers for {platform_blurb}.
 
 - Repository:   <{REPO_URL}>
 - Version:      {version}
 - Built:        {today}
-- Architecture: x86_64
+- Architecture: {arch_label}
 
 ## Contents
 
@@ -614,19 +637,24 @@ def cmd_package(args):
     else:
         platform_name = requested
 
-    # Resolve source build directory.
-    build_dir = Path(args.build_dir)
-    if not build_dir.is_absolute():
-        build_dir = (ROOT / build_dir).resolve()
-    bin_dir = build_dir / "bin"
-    lib_dir_src = build_dir / "lib"
+    # Resolve source layout differently per platform:
+    #   - windows/linux: read from a single CMake build dir's bin/.
+    #   - android: per-ABI .so files arrive separately (from CI matrix
+    #     artefacts), grouped under --android-libs. No host build dir.
+    dll = None
+    import_lib = None
+    shared = None
+    abi_libs = {}  # only populated for android: { abi_name -> Path(libyse.so) }
 
-    if not bin_dir.is_dir():
-        print(f"error: {bin_dir} not found. Run 'python yse.py build --release' first.")
-        sys.exit(1)
-
-    # Locate the built library.
     if platform_name == "windows":
+        build_dir = Path(args.build_dir)
+        if not build_dir.is_absolute():
+            build_dir = (ROOT / build_dir).resolve()
+        bin_dir = build_dir / "bin"
+        lib_dir_src = build_dir / "lib"
+        if not bin_dir.is_dir():
+            print(f"error: {bin_dir} not found. Run 'python yse.py build --release' first.")
+            sys.exit(1)
         dll = bin_dir / "libyse.dll"
         import_lib = lib_dir_src / "libyse.dll.a"
         if not dll.exists():
@@ -636,17 +664,52 @@ def cmd_package(args):
             # MSVC fallback path: yse.lib in lib/, yse.dll in bin/. Not the
             # configuration we ship, but warn rather than miss it silently.
             print(f"warning: {import_lib} not found; archive will lack an import library.")
-    else:
+    elif platform_name == "linux":
+        build_dir = Path(args.build_dir)
+        if not build_dir.is_absolute():
+            build_dir = (ROOT / build_dir).resolve()
+        bin_dir = build_dir / "bin"
+        if not bin_dir.is_dir():
+            print(f"error: {bin_dir} not found. Run 'python yse.py build --release' first.")
+            sys.exit(1)
         shared = bin_dir / "libyse.so"
         if not shared.exists():
             print(f"error: {shared} not found.")
             sys.exit(1)
+    elif platform_name == "android":
+        # Android packaging consumes per-ABI build outputs from CI
+        # download-artifact: each subdir under --android-libs holds one
+        # libyse.so. The subdir name (with an optional "android-libs-"
+        # prefix stripped) becomes the ABI in the bundle's lib/<abi>/ tree.
+        libs_root = Path(args.android_libs)
+        if not libs_root.is_absolute():
+            libs_root = (ROOT / libs_root).resolve()
+        if not libs_root.is_dir():
+            print(f"error: --android-libs {libs_root} not found.")
+            sys.exit(1)
+        prefix = "android-libs-"
+        for sub in sorted(libs_root.iterdir()):
+            if not sub.is_dir():
+                continue
+            so = sub / "libyse.so"
+            if not so.exists():
+                continue
+            abi = sub.name[len(prefix):] if sub.name.startswith(prefix) else sub.name
+            abi_libs[abi] = so
+        if not abi_libs:
+            print(f"error: no per-ABI libyse.so found under {libs_root}.")
+            sys.exit(1)
+        print(f"Including ABIs: {', '.join(sorted(abi_libs))}")
+    else:
+        print(f"error: unknown platform {platform_name!r}.")
+        sys.exit(1)
 
     # Prepare staging directory.
     out_root = Path(args.out_dir)
     if not out_root.is_absolute():
         out_root = (ROOT / out_root).resolve()
-    pkg_name = f"libyse-v{version}-{platform_name}-x64"
+    arch_suffix = "android" if platform_name == "android" else f"{platform_name}-x64"
+    pkg_name = f"libyse-v{version}-{arch_suffix}"
     stage = out_root / pkg_name
     if stage.exists():
         shutil.rmtree(stage)
@@ -698,7 +761,17 @@ def cmd_package(args):
         for d in bundled:
             shutil.copy2(d, out_bin / d.name)
         print(f"Bundled {len(bundled)} runtime DLL(s) into bin/.")
-    else:
+    elif platform_name == "android":
+        # JNI-convention lib/<abi>/libyse.so layout. Apps can drop the lib
+        # tree straight into src/main/jniLibs/.
+        out_lib = stage / "lib"
+        out_lib.mkdir()
+        for abi, so in abi_libs.items():
+            abi_dir = out_lib / abi
+            abi_dir.mkdir()
+            shutil.copy2(so, abi_dir / "libyse.so")
+            print(f"Copied lib/{abi}/libyse.so.")
+    else:  # linux
         out_lib = stage / "lib"
         out_lib.mkdir()
         shutil.copy2(shared, out_lib / shared.name)
@@ -763,6 +836,7 @@ def build_parser():
   python yse.py format             run clang-format on YseEngine/ and Tests/
   python yse.py package            build a release archive in dist/ (used by CI)
   python yse.py package --platform linux    explicit target platform
+  python yse.py package --platform android --android-libs <dir>   multi-ABI bundle from CI per-ABI artefacts
   python yse.py release patch      bump VERSION, commit, tag vX.Y.Z, push
   python yse.py release minor --dry-run     preview without writing
 """,
@@ -951,7 +1025,7 @@ def build_parser():
         ),
     )
     p.add_argument(
-        "--platform", choices=("auto", "linux", "windows"), default="auto",
+        "--platform", choices=("auto", "linux", "windows", "android"), default="auto",
         help="Target platform (default: derived from the host OS)",
     )
     p.add_argument(
@@ -961,6 +1035,15 @@ def build_parser():
     p.add_argument(
         "--out-dir", default="dist",
         help="Where to stage the package and write the archive (default: dist)",
+    )
+    # Android is special: each ABI is cross-compiled in its own CI job, then
+    # the package step consumes the downloaded artifacts. Each subdir under
+    # this directory is treated as one ABI (its name, stripped of an optional
+    # `android-libs-` prefix, becomes the ABI name in the bundle's lib/<abi>/
+    # layout). Ignored for non-android platforms.
+    p.add_argument(
+        "--android-libs", default="android-libs",
+        help="Directory of per-ABI libyse.so subdirs (android only; default: android-libs)",
     )
     p.set_defaults(func=cmd_package)
 

@@ -39,10 +39,10 @@ YSE::INTERNAL::soundFile::~soundFile() {
 }
 
 void YSE::INTERNAL::soundFile::loadStreaming() {
-#ifdef __WINDOWS__
   assert(handle == nullptr);
   if (IO().getActive()) {
-
+    // Custom-IO streaming has never been implemented; the empty body leaves
+    // state at LOADING. The path is unused in the supported builds.
   }
   else {
     handle = new SndfileHandle(fileName);
@@ -50,7 +50,7 @@ void YSE::INTERNAL::soundFile::loadStreaming() {
       _sampleRateAdjustment = static_cast<Flt>(handle->samplerate()) / static_cast<Flt>(SAMPLERATE);
       _length = (Int)handle->frames();
       _channels = handle->channels();
-      
+
       Int size = STREAM_BUFFERSIZE * _channels;
       _iBuffer = new Flt[size];
       _streamPos = 0;
@@ -62,13 +62,11 @@ void YSE::INTERNAL::soundFile::loadStreaming() {
       state = INVALID;
     }
   }
-#endif
 }
 
 void YSE::INTERNAL::soundFile::loadNonStreaming() {
   assert(handle == nullptr);
   void * ptr = nullptr;
-#ifdef __WINDOWS__
 
   if (IO().getActive()) {
     long long size;
@@ -78,7 +76,7 @@ void YSE::INTERNAL::soundFile::loadNonStreaming() {
       state = INVALID;
       return;
     }
-    
+
     std::ostringstream message;
     message << "SoundFile: loading buffer ";
     message << fileName << " with size " << size;
@@ -89,12 +87,12 @@ void YSE::INTERNAL::soundFile::loadNonStreaming() {
   else {
     handle = new SndfileHandle(fileName);
   }
-    
+
   if (*handle) {
     _sampleRateAdjustment = static_cast<Flt>(handle->samplerate()) / static_cast<Flt>(SAMPLERATE);
     _length = (Int)handle->frames();
     _channels = handle->channels();
-      
+
     Int size = _length * _channels;
     _iBuffer = new Flt[size];
     Long read = handle->readf(_iBuffer, _length);
@@ -118,9 +116,7 @@ void YSE::INTERNAL::soundFile::loadNonStreaming() {
     state = INVALID;
   }
 
-
   if (ptr != nullptr) INTERNAL::customFileReader::Close(ptr);
- #endif
 }
 
 Bool YSE::INTERNAL::soundFile::fillStream(Bool loop) {

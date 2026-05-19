@@ -11,6 +11,7 @@ If the XML directory is missing, Sphinx will emit empty API pages — run
 Doxygen first.
 """
 
+import re
 from pathlib import Path
 
 # -- Project information -----------------------------------------------------
@@ -18,7 +19,34 @@ from pathlib import Path
 project = "libYSE"
 author = "Yvan Vander Sanden"
 copyright = "2014-2026, Yvan Vander Sanden"
-release = "2.1"
+
+
+def _read_engine_version():
+    """Parse the canonical VERSION literal out of YseEngine/system.hpp.
+
+    Single source of truth for the docs banner. ``yse.py release`` writes
+    to ``system.hpp`` only; this picks it up at Sphinx-build time so the
+    docs never lag a release. See issue #89.
+    """
+    engine_hpp = (
+        Path(__file__).resolve().parent.parent.parent / "YseEngine" / "system.hpp"
+    )
+    m = re.search(
+        r'VERSION\s*=\s*"(\d+)\.(\d+)\.(\d+)"',
+        engine_hpp.read_text(encoding="utf-8"),
+    )
+    if not m:
+        raise RuntimeError(
+            f"VERSION literal not found in {engine_hpp}; docs build cannot "
+            f"determine the release banner."
+        )
+    return m.group(1), m.group(2), m.group(3)
+
+
+_major, _minor, _patch = _read_engine_version()
+# Sphinx convention: ``version`` is short (X.Y), ``release`` is full (X.Y.Z).
+version = f"{_major}.{_minor}"
+release = f"{_major}.{_minor}.{_patch}"
 
 # -- General configuration ---------------------------------------------------
 
@@ -58,7 +86,7 @@ breathe_show_include = False
 # -- HTML output -------------------------------------------------------------
 
 html_theme = "sphinx_book_theme"
-html_title = "libYSE 2.1"
+html_title = f"libYSE {version}"
 html_static_path = ["_static"]
 
 # Logo and favicon are sourced from the repo-root `logo/` directory so the

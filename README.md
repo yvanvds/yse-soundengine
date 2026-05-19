@@ -2,13 +2,20 @@
   <img src="logo/yse-logo.svg" alt="libYSE" width="520">
 </p>
 
-# libYSE 2.0
+# libYSE 2.1
 
-libYSE is a cross-platform sound engine written in C++. Version 2.0 removes the
-JUCE dependency; PortAudio and libsndfile are the only audio backends. Windows,
-Linux, and Android are supported. The CMake build described here covers Windows
-(MSYS2 Clang) and Linux (system Clang or GCC). Android is out of scope for this
-build system step.
+libYSE is a cross-platform sound engine written in C++. PortAudio handles audio
+I/O on desktop, Oboe (AAudio + OpenSL ES fallback) on Android, and libsndfile
+decodes sample files everywhere. Windows, Linux, and Android are all supported
+by the CMake build:
+
+- **Windows** — MSYS2 Clang64 (primary) or MSVC
+- **Linux** — system Clang or GCC (Ubuntu/Debian, Fedora/RHEL)
+- **Android** — NDK r27+, API 26+, arm64-v8a and x86_64 (built via Gradle in `Tests/Android/`)
+
+A flat `extern "C"` ABI (`yse_c/yse_*.h`) is folded into the same shared library
+so language bindings (Dart FFI, Python ctypes, …) can call it without C++ ABI
+compatibility — enabled by default via the `YSE_BUILD_C_API` option.
 
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=yvanvds_yse-soundengine&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=yvanvds_yse-soundengine)
 [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=yvanvds_yse-soundengine&metric=bugs)](https://sonarcloud.io/summary/new_code?id=yvanvds_yse-soundengine)
@@ -36,10 +43,10 @@ pacman -S --needed \
   mingw-w64-clang-x86_64-rtmidi
 ```
 
-`rtmidi` is required on Windows because the MIDI device source files link
-against it. If you skip it, `cmake` will fail with a clear error. See
-[issue #35](https://github.com/yvanvds/yse-soundengine/issues/35) for the
-proposal to gate this behind a `YSE_ENABLE_MIDI_DEVICE` CMake option.
+`rtmidi` is required when the MIDI device backend is enabled (the default on
+desktop). To build without it, configure with `-DYSE_ENABLE_MIDI_DEVICE=OFF` —
+the rest of the engine (MIDI file playback, music primitives, patcher) is
+unaffected and still builds.
 
 ### Configure and build
 
@@ -76,6 +83,10 @@ cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
 |---|---|---|
 | `YSE_ENABLE_LTO` | `OFF` | Link-time optimisation for Release builds |
 | `YSE_NATIVE_ARCH` | `OFF` | Add `-march=native` (local builds only — not for distributable binaries) |
+| `YSE_BUILD_TESTS` | `OFF` | Build the `Tests/` doctest suite and enable CTest |
+| `YSE_BUILD_BENCHMARKS` | `OFF` | Build the `Bench/` google-benchmark suite (fetched on demand) |
+| `YSE_BUILD_C_API` | `ON` | Fold the `extern "C"` ABI bridge into `libyse` |
+| `YSE_ENABLE_MIDI_DEVICE` | `ON` (desktop) | RtMidi-backed MIDI device backend |
 
 ---
 
@@ -97,9 +108,9 @@ sudo dnf install \
   portaudio-devel libsndfile-devel rtmidi-devel
 ```
 
-`librtmidi` (the ALSA-backed MIDI device library) is required on Linux just
-like it is on Windows: the MIDI device source files link against it. If you
-skip it, `cmake` will fail with a clear error.
+`librtmidi` (the ALSA-backed MIDI device library) is required when the MIDI
+device backend is enabled (the default on Linux). Configure with
+`-DYSE_ENABLE_MIDI_DEVICE=OFF` to build without it.
 
 ### Configure and build
 
@@ -117,6 +128,35 @@ cd build/bin
 
 The `$ORIGIN` rpath is embedded in each demo binary so that `libyse.so` is
 found automatically from the same directory.
+
+---
+
+## Building on Android
+
+The Android build is wired through Gradle in `Tests/Android/`. It produces a
+NativeActivity APK that ships `libyse_tests.so` (the full test suite) for two
+ABIs — `arm64-v8a` and `x86_64`. The release workflow at
+`.github/workflows/release.yml` builds production multi-ABI archives the same
+way and publishes them as release assets.
+
+### Prerequisites
+
+- NDK r27+ installed (Android Studio's SDK Manager → NDK (Side by side))
+- Gradle 8+ (the wrapper in `Tests/Android/gradlew` will use it automatically)
+- An attached device or emulator at API 26+
+
+### Build and run on-device
+
+```sh
+cd Tests/Android
+./gradlew installDebug
+adb shell am start -n net.attrx.yse.tests/.MainActivity
+adb logcat -s yse_tests
+```
+
+The engine fetches libsndfile 1.2.2 and Oboe 1.9.3 from source via
+`FetchContent` on the first configure — no system packages are required. RtMidi
+is unused on Android (the MIDI device source files compile to empty TUs).
 
 ---
 
@@ -212,11 +252,16 @@ Pages is configured for the repo with **Source: GitHub Actions**
 
 | Directory | Contents |
 |---|---|
-| `YseEngine/` | Engine source (compiled into `libyse`) |
-| `Demo.Windows.Native/` | Native C++ demos (one executable each) |
+| `YseEngine/` | Engine source (compiled into `libyse`); `c_api/` holds the flat C ABI bridge |
+| `Tests/` | doctest unit suite (`YSE_BUILD_TESTS=ON`); `Tests/Android/` packages it as a NativeActivity APK |
+| `Bench/` | google-benchmark suite (`YSE_BUILD_BENCHMARKS=ON`); CI pushes results to the `bench-history` orphan branch |
+| `Demo.Windows.Native/` | Native C++ demos (one executable each) — Windows only |
 | `TestResources/` | Audio files referenced by demos |
 | `documentation/` | Doxygen + Sphinx + Breathe documentation sources |
-| `dependencies/` | Vendored headers (rtmidi headers used by build; PortAudio/libsndfile vendored copies unused) |
+| `tools/ci-linux/` | Docker images for local Linux CI reproduction (`Dockerfile`, `Dockerfile.audio`) |
+| `dependencies/` | Vendored headers (rtmidi, doctest); PortAudio/libsndfile system packages on desktop |
+
+A deeper architectural reference lives in [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md).
 
 ---
 

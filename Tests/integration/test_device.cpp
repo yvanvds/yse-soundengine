@@ -23,8 +23,12 @@
 // null_device.hpp and is not tested here; shutdown is exercised by process exit.
 
 #include <doctest/doctest.h>
+#include <algorithm>
 #include <atomic>
 #include <cmath>
+#include <filesystem>
+#include <fstream>
+#include <vector>
 #include "yse.hpp"
 #include "support/null_device.hpp"
 #include "headers/defines.hpp"
@@ -45,6 +49,40 @@ struct ConstantSource : YSE::DSP::dspSourceObject {
         UInt len = samples[0].getLength();
         for (UInt i = 0; i < len; i++) p[i] = 0.5f;
         intent = YSE::SS_PLAYING;
+    }
+    void frequency(float) override {}
+};
+
+// Multi-sine DSP source — 11 sine generators feeding a low-pass, modelled
+// on AudioTest's shepard tone (YseEngine/internal/AudioTest.cpp) and on
+// Demo07_DspSource. This is the canonical "several sines + IIR feedback"
+// shape that triggered the original #53 / #82 reports; using it in the
+// recovery test keeps the cpuLoad measurement honest against exactly the
+// graph topology the bug appeared with. File-scope for the same lifetime
+// reason as ConstantSource.
+struct MultiSineSource : YSE::DSP::dspSourceObject {
+    static constexpr int kNumGens = 11;
+    YSE::DSP::sine    generators[kNumGens];
+    YSE::DSP::lowPass lp;
+    YSE::DSP::buffer  out;
+    float             freq[kNumGens];
+
+    MultiSineSource() {
+        // Spread sines across the audible band — keeps every generator
+        // contributing real signal rather than collapsing into beating.
+        for (int i = 0; i < kNumGens; ++i) {
+            freq[i] = 110.f + (float)i * 87.f;
+        }
+        lp.setFrequency(1500.f);
+    }
+
+    void process(YSE::SOUND_STATUS& intent) override {
+        out = 0.0f;
+        for (int i = 0; i < kNumGens; ++i) out += generators[i](freq[i]);
+        out *= (1.f / (float)kNumGens);
+        YSE::DSP::buffer& result = lp(out);
+        for (UInt i = 0; i < samples.size(); ++i) samples[i] = result;
+        if (intent == YSE::SS_WANTSTOSTOP) intent = YSE::SS_STOPPED;
     }
     void frequency(float) override {}
 };
@@ -70,8 +108,9 @@ struct ProbeEffect : YSE::DSP::dspObject {
     }
 };
 
-static ConstantSource g_source;
-static ProbeEffect    g_probe;
+static ConstantSource  g_source;
+static MultiSineSource g_multi_sine;
+static ProbeEffect     g_probe;
 
 // Sleep briefly, pump one update tick, then report whether the audio callback
 // fired during that interval (missedCallbacks resets to 0 when callbacks arrive).
@@ -169,6 +208,109 @@ TEST_CASE("engine: cpuLoad stays bounded with no graph activity") {
     const float load = YSE::System().cpuLoad();
     CHECK(load >= 0.0f);
     CHECK(load < 0.5f);
+}
+
+// Issue #82 regression guard. Original report: cpuLoad stayed elevated for
+// seconds after sound.stop(), then was eventually root-caused to YSE's
+// default empty child channels (ambient/fx/music/gui/voice — see
+// system.cpp's initShared) being dispatched to the fast threadpool every
+// render. The audio thread's join() on those workers spin-slept in 2 ms
+// increments, adding ~10 ms of fake wall-clock per callback once the
+// source was silent (during playback the source work hid the wait).
+//
+// Fixed by skipping addFastJob for children with no work in
+// channelImplementation::dsp(); this test samples cpuLoad once per
+// second through idle → playing → stopped phases and asserts the
+// stopped reading decays back to the idle baseline. CSV trace written
+// to a deterministic temp path for offline correlation.
+//
+// The graph mirrors AudioTest (11 sines + low-pass), the same DSP
+// shape from the original repro, so the test also exercises the
+// FTZ/DAZ path on the audio thread (issue #53 / PR #70).
+//
+// Total runtime: ~13 s on a Release build. Run explicitly with:
+//
+//   python yse.py test --integration
+//   yse_tests --test-suite=integration --test-case='*cpuLoad recovers*'
+TEST_CASE("engine: cpuLoad recovers after multi-sine playback stops [issue #82]") {
+    if (!TestHelpers::engineInitWithAudio()) return;
+    if (YSE::System().getNumDevices() == 0) return;
+
+    auto sample_cpu = []() { return YSE::System().cpuLoad(); };
+
+    // Let the EMA settle (~1 s time constant) before the trace begins so
+    // we have a clean idle baseline to compare the post-stop reading to.
+    for (int i = 0; i < 4; i++) {
+        YSE::System().sleep(500);
+        YSE::System().update();
+    }
+    const float idle_baseline = sample_cpu();
+
+    struct Sample {
+        int         t_secs;
+        const char* phase;
+        float       cpu;
+    };
+    std::vector<Sample> trace;
+    trace.push_back({0, "idle", idle_baseline});
+
+    YSE::sound s;
+    s.create(g_multi_sine);
+    s.relative(true);
+    s.play();
+
+    // 5 seconds of active playback.
+    for (int i = 1; i <= 5; i++) {
+        YSE::System().sleep(1000);
+        YSE::System().update();
+        trace.push_back({i, "playing", sample_cpu()});
+    }
+
+    s.stop();
+
+    // 5 seconds after stop. By the end of this window the ~1 s EMA should
+    // have decayed any "playing" contribution to under 1 %, so the final
+    // reading should sit very close to the idle baseline.
+    for (int i = 1; i <= 5; i++) {
+        YSE::System().sleep(1000);
+        YSE::System().update();
+        trace.push_back({5 + i, "stopped", sample_cpu()});
+    }
+
+    // Drop the trace to a deterministic temp path. Whoever runs the test
+    // can diff this against an external CPU probe to confirm whether the
+    // engine reading still drifts up under their setup.
+    const auto log_path = std::filesystem::temp_directory_path() / "yse_cpuload_issue82.csv";
+    {
+        std::ofstream csv(log_path);
+        csv << "t_secs,phase,cpu_load\n";
+        for (const auto& smp : trace) {
+            csv << smp.t_secs << "," << smp.phase << "," << smp.cpu << "\n";
+        }
+    }
+    MESSAGE("cpuLoad trace written to " << log_path.string());
+
+    float max_playing = 0.f;
+    for (int i = 1; i <= 5; i++) max_playing = std::max(max_playing, trace[i].cpu);
+    const float final_stopped = trace.back().cpu;
+
+    INFO("idle_baseline = " << idle_baseline);
+    INFO("max_playing   = " << max_playing);
+    INFO("final_stopped = " << final_stopped);
+
+    // Sanity bounds: nothing negative, no impossible (>1.0) values.
+    for (const auto& smp : trace) {
+        CHECK(smp.cpu >= 0.0f);
+        CHECK(smp.cpu < 1.5f);
+    }
+
+    // The recovery assertion. 5 s after stop with a ~1 s tau, the playing
+    // component has decayed by e^-5 ≈ 0.7 %, so the final reading must
+    // sit very close to the idle baseline. Allow a generous 25 % of
+    // max_playing as slack for slow machines and EMA noise; if the
+    // engine still reports half its playing value at this point, the
+    // bug from the original report is back.
+    CHECK(final_stopped <= max_playing * 0.25f + idle_baseline + 0.01f);
 }
 
 // ─── Audio callback ───────────────────────────────────────────────────────────

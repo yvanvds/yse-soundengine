@@ -56,6 +56,9 @@ documentation/source/_doxygen/
 [Rr]elease/
 [Rr]elease32/
 [Rr]elease64/
+# Exempt skill directories — `[Rr]elease/` above would otherwise hide the
+# .claude/skills/release/ tooling skill that ships with the repo.
+!.claude/skills/**
 x64/
 build/
 build-debug/
@@ -67,6 +70,8 @@ build-asan/
 build-linux/
 build-linux-asan/
 build-linux-tsan/
+build-linux-audio-clean/
+build-linux-audio-diag/
 build-linux-audio/
 build-android-arm64/
 build-android-x86_64/

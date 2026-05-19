@@ -1,56 +1,63 @@
 <!-- META
-last_updated_commit: cf77d87df92c012437bdadd2c7e006fd5b1a4498
-last_updated_at: 2026-05-06
+last_updated_commit: 51a4a94622379dd291d432b762c3d92bd6d0b505
+last_updated_at: 2026-05-19
 -->
 
 # YSE Sound Engine — Project Overview
 
-**Version:** 2.0.1
+**Version:** 2.1.0 (single source of truth: [`YseEngine/system.hpp`](YseEngine/system.hpp))
 **Language:** C++17
-**Platforms:** Windows (MSYS2/Clang64, MSVC), Linux, Android
-**Build:** CMake 3.20+ (primary, with `CMakePresets.json`), Visual Studio solution (Windows legacy)
-**Key Dependencies:** PortAudio (audio I/O), libsndfile (file loading), RtMidi (MIDI device I/O — required on every desktop platform), pthreads
+**Platforms:** Windows (MSYS2/Clang64, MSVC), Linux (gcc/clang), Android (NDK r27+, API 26+, arm64-v8a + x86_64)
+**Build:** CMake 3.20+ via `CMakePresets.json`; Android wraps the same CMake invocation through Gradle in `Tests/Android/`
+**Key Dependencies:** PortAudio (desktop audio I/O), Oboe (Android audio I/O), libsndfile (file loading), RtMidi (MIDI device I/O — desktop only, gated by `YSE_ENABLE_MIDI_DEVICE`), pthreads, doctest + google-benchmark (vendored / fetched for tests + benches)
 
 ---
 
 ## Repository Layout
 
 ```
-YseEngine/                  # Core C++ sound engine — built as shared library (libyse)
-Tests/                      # doctest unit-test suite (gated behind YSE_BUILD_TESTS)
-  support/                  # Shared test helpers (audio_helpers, null_device, fixtures)
-  TEST_PLAN.md              # 13-phase test plan (utils → DSP → patcher → … → device)
-Demo.Windows.Native/        # 18 C++ console demos (Demo00–Demo17 + Test01_Pitch + combined Demo)
-Tests/Android/              # Gradle wrapper that packages libyse_tests.so into a NativeActivity APK
-Yse.Windows.Native/         # Windows static/shared lib build (VS)
-dist/                       # Release archives written by `python yse.py package` (gitignored)
-TestResources/              # Audio test files (drone.ogg, kick.ogg, demo.mid, …)
-dependencies/               # Vendored headers: portaudio/, rtmidi/, libsndfile/, libsndfile64/, doctest/
-cmake/                      # CMake helper scripts (demo_main.cpp.in template)
-build/                      # Out-of-tree Release build (gitignored)
-build-debug/                # Out-of-tree Debug build (gitignored)
-build-tests/                # tests-debug preset output (gitignored)
-build-coverage/             # coverage / coverage-windows preset output (gitignored)
-CMakeLists.txt              # Root CMake build (adds YseEngine + Demo.Windows.Native + Tests)
-CMakePresets.json           # Named build presets (debug, release, tests-debug, coverage, coverage-windows)
-yse.py                      # Python CLI wrapper over cmake --preset / ctest --preset
-.clang-format               # clang-format style config (used by `yse.py format`)
-sonar-project.properties    # SonarCloud analysis configuration
-.github/workflows/build.yml     # GitHub Actions: Linux Debug + coverage + SonarQube scan
-.github/workflows/release.yml   # GitHub Actions: tag-driven release — Windows/Linux x64 archives
-documentation/              # Doxygen + Sphinx (Breathe, sphinx-book-theme) docs
-(known issues tracked in GitHub Issues, not in-repo)
+YseEngine/                       # Core C++ sound engine — compiled to libyse (SHARED)
+  c_api/                         # extern "C" ABI bridge (yse_*) folded into libyse for FFI bindings
+    include/yse_c/               # Public C headers (yse_all.h aggregates all subsystems)
+Tests/                           # doctest suite (~863 TEST_CASEs across 46 TUs) — gated by YSE_BUILD_TESTS
+  Android/                       # Gradle wrapper that packages libyse_tests.so into a NativeActivity APK
+  support/                       # audio_helpers, null_device, android_asset_bridge, fixtures
+  TEST_PLAN.md                   # Phased roadmap (utils → DSP → patcher → … → device)
+Bench/                           # google-benchmark suite — gated by YSE_BUILD_BENCHMARKS
+  dsp/ patcher/ integration/     # bench_* TUs; results pushed to the `bench-history` orphan branch by CI
+Demo.Windows.Native/             # 18 C++ console demos (Demo00–Demo17 + Test01_Pitch + combined Demo)
+Yse.Windows.Native/              # Legacy Windows static/shared lib build (Visual Studio project)
+documentation/                   # Doxygen + Sphinx + Breathe (sphinx-book-theme); published to GitHub Pages
+  source/intro/                  # Install + hello-sound + mental-model
+  source/tutorials/              # 5 tutorial pages (play, properties, 3D, channels, reverb)
+  source/api/                    # Breathe-driven API reference (12 grouped pages)
+tools/ci-linux/                  # Docker images for local Linux CI reproduction (Dockerfile, Dockerfile.audio)
+TestResources/                   # Audio files used by demos (drone.ogg, kick.ogg, demo.mid, …)
+dependencies/                    # Vendored headers: portaudio/, rtmidi/, doctest/, etc.
+cmake/                           # CMake helper templates (demo_main.cpp.in)
+logo/                            # SVG/PNG artwork (yse-logo.svg, yse-icon.svg)
+dist/                            # Release archives written by `yse.py package` (gitignored)
+CMakeLists.txt                   # Root build
+CMakePresets.json                # Named build presets (debug, release, tests-debug, coverage[-windows])
+yse.py                           # Python CLI wrapper over cmake --preset / ctest --preset
+.clang-tidy                      # Opt-in baseline; analyze-before-commit workflow via `yse.py analyze`
+.clang-format                    # clang-format config (used by `yse.py format`)
+sonar-project.properties         # SonarCloud analysis configuration
+.github/workflows/build.yml          # SonarQube Linux Debug + coverage on push/PR
+.github/workflows/release.yml        # Tag-driven release: Windows/Linux x64 + Android multi-ABI archives
+.github/workflows/benchmark.yml      # google-benchmark runs; writes the bench-history orphan branch
+.github/workflows/documentation.yml  # Doxygen + Sphinx → GitHub Pages on push to master
 ```
 
-The old .NET/Xamarin wrappers (`NetYse/`, `YSE.NET.PCL/`, `Yse.NET.Standard/`, `Yse.NET.Android/`), WPF demo, and UWP build have been removed.
+The old .NET/Xamarin wrappers, the WPF demo, the UWP build, and the JUCE backend have all been removed.
 
 ---
 
 ## Build System
 
-### Recommended entry point: CMakePresets.json + yse.py
+### Recommended entry point: `CMakePresets.json` + `yse.py`
 
-`CMakePresets.json` at the repo root defines every named build configuration:
+`CMakePresets.json` at the repo root defines every named build configuration. IDEs with CMake Tools support (VS Code, CLion, Visual Studio) auto-discover the presets. `yse.py` wraps them for terminal use:
 
 | Preset | Binary dir | Purpose |
 |--------|-----------|---------|
@@ -58,118 +65,81 @@ The old .NET/Xamarin wrappers (`NetYse/`, `YSE.NET.PCL/`, `Yse.NET.Standard/`, `
 | `release` | `build/` | Optimized release |
 | `tests-debug` | `build-tests/` | Debug + `YSE_BUILD_TESTS=ON` |
 | `coverage` | `build-coverage/` | Linux only — gcc/clang `--coverage` instrumentation |
-| `coverage-windows` | `build-coverage/` | Windows/Clang only — LLVM source-based coverage (`-fprofile-instr-generate`) |
-
-IDEs with CMake Tools support (VS Code, CLion, Visual Studio) auto-discover the presets. The Python script `yse.py` wraps them for terminal use:
+| `coverage-windows` | `build-coverage/` | Windows/Clang only — LLVM source-based coverage |
 
 ```sh
-python yse.py build              # cmake --preset debug + cmake --build --preset debug
-python yse.py build --release    # release variant
-python yse.py test               # tests-debug preset, then ctest --preset tests-debug
-python yse.py test --integration # same, plus integration suite (needs real audio device)
-python yse.py coverage           # coverage preset + report
-                                 #   Linux:   gcovr --sonarqube → coverage.xml
-                                 #   Windows: llvm-profdata + llvm-cov → coverage-llvm.json
-python yse.py run [Demo]         # runs a demo from build-debug/bin/ (default: Demo00)
-python yse.py debug Demo00       # launches the demo under lldb
-python yse.py clean [--yes]      # removes all build dirs + coverage artifacts
-python yse.py analyze            # clang-tidy via compile_commands.json (sonar-scanner fallback)
-python yse.py format             # clang-format -i over YseEngine/ and Tests/
-python yse.py package            # build a release archive in dist/ (used by CI)
-python yse.py release patch      # bump VERSION (patch/minor/major), commit, tag, push
+python yse.py build                # cmake --preset debug + build
+python yse.py build --release      # release variant
+python yse.py test                 # tests-debug preset + ctest
+python yse.py test --integration   # also run the integration suite (needs a real audio device)
+python yse.py coverage             # coverage preset + report (gcovr → coverage.xml on Linux,
+                                   # llvm-profdata+llvm-cov → coverage-llvm.json on Windows)
+python yse.py run [Demo]           # run a demo from build-debug/bin/ (default: Demo00)
+python yse.py debug Demo00         # launch a demo under lldb
+python yse.py clean [--yes]        # remove all build dirs + coverage artefacts
+python yse.py analyze [path]       # clang-tidy via compile_commands.json (sonar-scanner fallback)
+python yse.py format               # clang-format -i over YseEngine/ and Tests/
+python yse.py package              # release archive in dist/ (consumed by CI)
+python yse.py release patch        # bump VERSION (patch/minor/major), commit, tag, push
 ```
 
-Direct `cmake -B build ...` invocations remain fully valid; the presets are additive.
+Direct `cmake -B build ...` invocations remain fully valid — the presets are additive.
 
-### CMake (direct invocation)
-
-```bash
-# Release
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build
-
-# Debug
-cmake -B build-debug -DCMAKE_BUILD_TYPE=Debug
-cmake --build build-debug
-```
-
-All binaries land in `<build-dir>/bin/`. Demos must be run from that directory (`cd build/bin && ./Demo00.exe`) because audio file paths are hardcoded as `../../TestResources/...`.
-
-**CMake options:**
+### CMake options
 
 | Option | Default | Description |
 |--------|---------|-------------|
+| `YSE_BUILD_TESTS` | OFF | Build the `Tests/` doctest suite; adds `yse_tests` target and enables CTest |
+| `YSE_BUILD_BENCHMARKS` | OFF | Build the `Bench/` google-benchmark suite (fetched via FetchContent, pinned tag) |
+| `YSE_BUILD_C_API` | **ON** | Fold the `extern "C"` ABI bridge (yse_*) into `libyse` so language bindings (Dart FFI, Python ctypes, …) can consume the DLL without C++ ABI compatibility |
+| `YSE_ENABLE_MIDI_DEVICE` | ON on desktop, OFF on Android | RtMidi-backed MIDI device backend. OFF compiles MIDI device source files out and skips the RtMidi configure-time dependency |
 | `YSE_ENABLE_LTO` | OFF | Link-time optimization for Release builds |
 | `YSE_NATIVE_ARCH` | OFF | `-march=native` (local dev only — not distributable) |
-| `YSE_BUILD_TESTS` | OFF | Build the `Tests/` doctest suite; adds `yse_tests` target and enables CTest |
 | `YSE_ENABLE_COVERAGE` | OFF | gcov/gcovr coverage; forces `YSE_BUILD_TESTS=ON`; Linux only (GCC/Clang) |
 | `YSE_LLVM_COVERAGE` | OFF | LLVM source-based coverage (`-fprofile-instr-generate`); Clang only — mutually exclusive with `YSE_ENABLE_COVERAGE` |
 
 `CMAKE_EXPORT_COMPILE_COMMANDS=ON` is set unconditionally so `compile_commands.json` is always generated for clangd and SonarCloud.
 
-**Compiler flags (GCC/Clang):** `-Wall -Wextra -Wpedantic`, plus `-O3 -fno-math-errno` (Release). `-ffast-math` is **deliberately not used** — it breaks IEEE 754 semantics in ways that produce subtle DSP bugs (NaN propagation, denormal flushing).
+**Compiler flags (GCC/Clang):** `-Wall -Wextra -Wpedantic`, plus `-O3 -fno-math-errno` (Release). `-ffast-math` is **deliberately not used** — it breaks IEEE 754 semantics in ways that produce subtle DSP bugs (NaN propagation, denormal flushing). Linux/macOS builds use `CXX_VISIBILITY_PRESET hidden` + per-symbol `API` annotations — issue [#34](https://github.com/yvanvds/yse-soundengine/issues/34) was closed in commit `e080c16`.
 
-**Test build commands:**
+### Platform dependencies
 
-```bash
-# Build and run tests (no coverage)
-cmake --preset tests-debug
-cmake --build --preset tests-debug
-ctest --preset tests-debug
-# Optionally also run the integration suite (real audio device required):
-build-tests/bin/yse_tests --test-suite=integration   # or: python yse.py test --integration
-
-# Coverage (Linux): writes coverage.xml for SonarQube
-cmake --preset coverage
-cmake --build --preset coverage
-ctest --preset coverage
-gcovr --root . --filter ./YseEngine/ --filter ./Tests/ --sonarqube --output coverage.xml
-
-# Coverage (Windows/Clang64): writes coverage-llvm.json
-python yse.py coverage   # easiest path — handles LLVM_PROFILE_FILE plumbing
-```
-
-**Platform dependencies (MSYS2/Clang64):**
+**MSYS2/Clang64 (Windows):**
 
 ```
-pacman -S mingw-w64-clang-x86_64-portaudio
-pacman -S mingw-w64-clang-x86_64-libsndfile
-pacman -S mingw-w64-clang-x86_64-rtmidi
+pacman -S mingw-w64-clang-x86_64-portaudio \
+          mingw-w64-clang-x86_64-libsndfile \
+          mingw-w64-clang-x86_64-rtmidi
 ```
 
-**Platform dependencies (Debian/Ubuntu):**
+**Debian/Ubuntu (Linux):**
 
 ```
 sudo apt install cmake ninja-build clang \
                  libportaudio-dev libsndfile1-dev librtmidi-dev
 ```
 
-RtMidi is a **mandatory dependency on every desktop platform** the CMake build targets (Windows and Linux). The MIDI device source files are guarded by `#if YSE_WINDOWS || YSE_LINUX` and link against RtMidi symbols; CMake configuration fails with a clear error if the package is missing. Android compiles the MIDI device files out and does not need RtMidi.
-
-See [GitHub Issues](https://github.com/yvanvds/yse-soundengine/issues) for documented build quirks (ELF visibility follow-up [#34](https://github.com/yvanvds/yse-soundengine/issues/34), ASIO fallback [#38](https://github.com/yvanvds/yse-soundengine/issues/38), demo run-directory [#36](https://github.com/yvanvds/yse-soundengine/issues/36), etc.).
+**Android (NDK):** No pkg-config in the sysroot. libsndfile is fetched from source (1.2.2, WAV-only, no external codec libs), Oboe is fetched at tag 1.9.3, RtMidi is not used. Link options include `-Wl,-z,max-page-size=16384` for Android 15+ 16 KB page-size compatibility (Play Store requirement, Nov 2025+).
 
 ---
 
-## CI / SonarQube
+## CI / Distribution
 
-The single GitHub Actions workflow at [.github/workflows/build.yml](.github/workflows/build.yml) runs on push to `master` and on pull requests:
+Four GitHub Actions workflows under `.github/workflows/`:
 
-| Step | What it does |
-|------|--------------|
-| Install Build Wrapper | SonarSource `install-build-wrapper@v6.0.0` |
-| Install dependencies | `cmake ninja-build pkg-config portaudio19-dev libsndfile1-dev librtmidi-dev gcovr` |
-| Configure CMake | `cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DYSE_ENABLE_COVERAGE=ON` |
-| Run Build Wrapper | `build-wrapper-linux-x86-64 --out-dir … cmake --build build` |
-| Run tests | `ctest --test-dir build --output-on-failure` |
-| Generate coverage | `gcovr --root . --filter YseEngine/ --filter Tests/ --gcov-ignore-parse-errors --sonarqube --output coverage.xml build` |
-| SonarQube Scan | `sonarqube-scan-action@v6.0.0` with `sonar.cfamily.compile-commands` from the build wrapper |
+| Workflow | Triggers | What it does |
+|----------|----------|--------------|
+| `build.yml` | push (master/dev), PR | Linux Debug + `YSE_ENABLE_COVERAGE=ON` build, ctest, gcovr SonarQube report, SonarCloud scan (`yvanvds_yse-soundengine`) |
+| `release.yml` | tag `v*`, manual | Builds Linux x64, Windows x64, and Android multi-ABI release archives → `dist/` → uploaded as GH release assets |
+| `benchmark.yml` | push (master/dev), PR to master | Runs google-benchmark; results pushed to the `bench-history` orphan branch; PR comments on regressions |
+| `documentation.yml` | push to master | Doxygen + Sphinx HTML → GitHub Pages |
 
-The runner is `ubuntu-latest`. There is currently **no Windows CI job**; Windows is built and tested locally via `yse.py`. A Windows job using `coverage-windows` is a natural follow-up (the preset and `yse.py coverage` already work end-to-end there).
+Headless audio coverage on GHA is **not** feasible — `snd-aloop`, `PulseAudio null sink`, and JACK-dummy all fail for kernel-module / capability reasons on the Azure-hosted runner kernel. The Linux Docker image at `tools/ci-linux/Dockerfile.audio` reproduces the headless JACK-dummy environment locally (requires `--cap-add IPC_LOCK --ulimit memlock=-1 --shm-size=512m`).
 
 `sonar-project.properties` declares:
 - `sonar.projectKey=yvanvds_yse-soundengine`, `sonar.organization=yvanvds`
 - `sonar.sources=YseEngine`, `sonar.tests=Tests`
-- Exclusions: `dependencies/**`, vendored `YseEngine/json/**`, all `build*/`, legacy native projects, packaging helpers
+- Exclusions: `dependencies/**`, vendored `YseEngine/json/**`, all `build*/`, legacy native projects
 - `sonar.cfamily.compile-commands=build/compile_commands.json`
 - `sonar.coverageReportPaths=coverage.xml`
 
@@ -177,18 +147,17 @@ The runner is `ubuntu-latest`. There is currently **no Windows CI job**; Windows
 
 ## Sound Engine Architecture (`YseEngine/`)
 
-The engine is compiled as a **shared library** (`libyse.dll` / `libyse.so`). The single include entry point is `yse.hpp`.
+The engine is compiled as a **shared library** (`libyse.dll` / `libyse.so`). Two public entry points:
+
+- `yse.hpp` — full C++ API, single header.
+- `yse_c/yse_all.h` — flat `extern "C"` ABI for language bindings (Dart FFI, Python ctypes, …).
 
 ### Build target structure
 
-The engine is split into two CMake targets:
+- **`yse_objects`** — `OBJECT` library containing every engine source file plus (if `YSE_BUILD_C_API=ON`) the `yse_*` C bridge. Compiled with `YSE_DLL_BUILD` and `POSITION_INDEPENDENT_CODE ON` so the same objects can link into either a SHARED library or a static test binary. Hidden default ELF visibility; public symbols marked with the `API` macro from `headers/defines.hpp`.
+- **`yse`** — `SHARED` library that consumes `yse_objects` via `PRIVATE` linkage. Propagates `YSE_DLL` to consumers via `INTERFACE`, which switches `API` to `__declspec(dllimport)` on Windows.
 
-- **`yse_objects`** — `OBJECT` library containing every engine source file. Compiled with `YSE_DLL_BUILD` defined (activates `__declspec(dllexport)` via the `API` macro in `headers/defines.hpp`). `POSITION_INDEPENDENT_CODE ON` so the same objects can be linked into either a SHARED library or a static test binary.
-- **`yse`** — `SHARED` library that consumes `yse_objects` via `target_link_libraries(... PRIVATE yse_objects)`. Propagates `YSE_DLL` to consumers via `INTERFACE`, which switches the `API` macro to `__declspec(dllimport)`.
-
-The test executable links `yse_objects` directly (bypassing the DLL export boundary), so white-box tests can reach internal symbols without API annotations on them. Both build paths produce an identical `libyse.dll` export table.
-
-Linux/macOS currently use `CXX_VISIBILITY_PRESET default` (export-all); switching ELF builds to `-fvisibility=hidden` + per-symbol `visibility("default")` is tracked in [issue #34](https://github.com/yvanvds/yse-soundengine/issues/34).
+The test executable / shared-lib (on Android, a `.so` loaded by NativeActivity) links `yse_objects` directly, bypassing the DLL export boundary so white-box tests can reach internal symbols.
 
 ### Subsystem Map
 
@@ -202,8 +171,8 @@ Application
     ├── reverb                 positional room effects
     ├── player                 polyphonic note sequencer
     ├── patcher                modular DSP graph (Max/MSP-style)
-    ├── MIDI                   file + device I/O
-    └── (synth)                polyphonic sampler/DSP synth — API defined, currently commented out in yse.hpp
+    ├── MIDI                   file + (optionally) device I/O
+    └── (synth)                polyphonic sampler/DSP synth — implemented but not exposed (commented out in yse.hpp)
 ```
 
 ---
@@ -212,7 +181,7 @@ Application
 
 **Files:** [sound/soundInterface.hpp](YseEngine/sound/soundInterface.hpp), [sound/soundImplementation.cpp](YseEngine/sound/soundImplementation.cpp), [sound/soundManager.cpp](YseEngine/sound/soundManager.cpp)
 
-Each public `YSE::sound` wraps a private `SOUND::implementationObject`. State changes are posted as messages to the audio thread; they are never applied directly.
+Each public `YSE::sound` wraps a private `SOUND::implementationObject`. State changes are posted as messages to the audio thread — they are never applied directly.
 
 **Creation variants:**
 
@@ -224,21 +193,11 @@ sound.create(dspSourceObject, channel, volume);   // procedural source
 sound.create(patcher, channel, volume);           // modular synthesis
 ```
 
-**Key per-sound properties:**
+**Implementation state machine:** `OBJECT_CONSTRUCTED → OBJECT_CREATED → OBJECT_SETTING_UP → OBJECT_SETUP → OBJECT_READY → OBJECT_RELEASE → OBJECT_DELETE_PENDING → OBJECT_DELETE` with a documented use-after-free fence around the `OBJECT_DELETE_PENDING` handshake (see soundManager.cpp comments).
 
-| Property | Description |
-|----------|-------------|
-| position (Pos) | 3D world position |
-| size (float) | rolloff distance |
-| speed (float) | playback speed / pitch (negative → reverse playback for buffered sounds) |
-| volume | with optional fade time |
-| spread | multichannel stereo spread |
-| relative | move with listener (2D mode) |
-| doppler | enable doppler pitch shift |
-| occlusion | 0–1 low-pass filter amount |
-
-**Implementation state machine:** `CONSTRUCTED → CREATED → LOADED → READY → DONE`
 **Play intent states:** `SI_NONE / SI_PLAY / SI_STOP / SI_PAUSE / SI_TOGGLE / SI_RESTART`
+
+**Per-sound properties:** position (Pos), size (rolloff distance), speed (negative → reverse playback), volume (with fade time), spread, relative, doppler, occlusion (0–1 LPF amount).
 
 ---
 
@@ -246,15 +205,7 @@ sound.create(patcher, channel, volume);           // modular synthesis
 
 **Files:** [listener.hpp](YseEngine/listener.hpp), [implementations/listenerImplementation.cpp](YseEngine/implementations/listenerImplementation.cpp)
 
-`YSE::Listener()` is a singleton representing the listener's point of view. Its velocity is derived automatically from position deltas each update tick.
-
-**Per-frame pipeline for each active sound:**
-
-1. Compute distance from sound position to listener position.
-2. Apply inverse-distance volume attenuation (governed by `size`).
-3. Compute angle → map to stereo/surround pan coefficients.
-4. If `doppler` is set, shift pitch based on relative radial velocity.
-5. If an occlusion callback is registered, query it for a 0–1 occlusion value and apply a corresponding low-pass filter.
+`YSE::Listener()` is a singleton representing the listener's point of view. Per-frame pipeline for each active sound: inverse-distance attenuation, angle → stereo/surround pan, doppler shift from radial velocity, optional user-supplied occlusion callback → LPF.
 
 **Occlusion hook:**
 
@@ -262,8 +213,7 @@ sound.create(patcher, channel, volume);           // modular synthesis
 system& occlusionCallback(float(*func)(const Pos& source, const Pos& listener));
 ```
 
-**Output channel configurations:**
-`CT_MONO CT_STEREO CT_QUAD CT_51 CT_51SIDE CT_61 CT_71 CT_CUSTOM`
+**Output channel configurations:** `CT_MONO CT_STEREO CT_QUAD CT_51 CT_51SIDE CT_61 CT_71 CT_CUSTOM`
 
 ---
 
@@ -271,19 +221,9 @@ system& occlusionCallback(float(*func)(const Pos& source, const Pos& listener));
 
 **Files:** [channel/channelInterface.hpp](YseEngine/channel/channelInterface.hpp), [channel/channelImplementation.cpp](YseEngine/channel/channelImplementation.cpp), [channel/channelManager.cpp](YseEngine/channel/channelManager.cpp)
 
-Channels form a **tree** whose root is `MainMix`. Five pre-made leaf channels: `FX`, `Music`, `Ambient`, `Voice`, `GUI`. Custom channels can be inserted anywhere. Volume and effects cascade from leaves to root.
+Channels form a **tree** rooted at `MainMix`, with five pre-made leaves (`FX`, `Music`, `Ambient`, `Voice`, `GUI`) and arbitrary user-created children. Sounds can be reparented via `moveTo` at runtime. Sounds beyond a distance threshold are virtualized to save CPU.
 
-```
-MainMix
-├── FX
-├── Music
-├── Ambient
-├── Voice
-└── GUI
-    └── (custom children …)
-```
-
-Sounds can be reparented (`moveTo`) at runtime. Channels support virtual sound culling (sounds beyond a distance threshold are suspended to save CPU).
+Issue [#82](https://github.com/yvanvds/yse-soundengine/issues/82) added measured-callback-timing-based `cpuLoad` and fixed a fast-pool dispatch overhead for empty child channels.
 
 ---
 
@@ -291,20 +231,18 @@ Sounds can be reparented (`moveTo`) at runtime. Channels support virtual sound c
 
 **Files:** [reverb/reverbInterface.hpp](YseEngine/reverb/reverbInterface.hpp), [reverb/reverbImplementation.cpp](YseEngine/reverb/reverbImplementation.cpp), [reverb/reverbManager.cpp](YseEngine/reverb/reverbManager.cpp), [internal/reverbDSP.cpp](YseEngine/internal/reverbDSP.cpp), [internal/underWaterEffect.cpp](YseEngine/internal/underWaterEffect.cpp)
 
-One actual Freeverb-derived reverb processor; multiple `YSE::reverb` objects each represent a positioned zone. The engine blends them by proximity to the listener. A global reverb can be set via `System().getGlobalReverb()`.
+One Freeverb-derived reverb processor; multiple `YSE::reverb` objects each represent a positioned zone. The engine blends them by proximity to the listener. A global reverb is available via `System().getGlobalReverb()`.
 
 **Reverb properties:** position, size, rollOff, roomSize, damping, dryWetBalance, modulation.
 **Built-in presets:** `REVERB_OFF, GENERIC, PADDED, ROOM, BATHROOM, STONEROOM, LARGEROOM, HALL, CAVE, SEWERPIPE, UNDERWATER`
 
-A separate `underWaterEffect` filter is attached per channel via `system::underWaterFX(channel)` and `setUnderWaterDepth(...)`.
+A separate `underWaterEffect` filter attaches per channel via `system::underWaterFX(channel)` + `setUnderWaterDepth(...)`.
 
 ---
 
 ### 5. DSP System
 
-**Files:** [dsp/dspObject.hpp](YseEngine/dsp/dspObject.hpp), [dsp/buffer.hpp](YseEngine/dsp/buffer.hpp), [dsp/fileBuffer.hpp](YseEngine/dsp/fileBuffer.hpp), `dsp/` modules
-
-#### Base abstractions
+**Files:** [dsp/dspObject.hpp](YseEngine/dsp/dspObject.hpp), [dsp/buffer.hpp](YseEngine/dsp/buffer.hpp), [dsp/fileBuffer.hpp](YseEngine/dsp/fileBuffer.hpp), `dsp/modules/`
 
 ```cpp
 class dspObject {          // filter / effect in a chain
@@ -320,10 +258,8 @@ class dspSourceObject {    // audio generator (replaces file)
 };
 ```
 
-`DSP::buffer` — single-channel float buffer with thread-safe length query and arithmetic operators.
+`DSP::buffer` — single-channel float buffer with arithmetic operators.
 `MULTICHANNELBUFFER` — `std::vector<DSP::buffer>`; supports mono-to-surround spreading.
-
-#### Available DSP modules
 
 | Category | Modules |
 |----------|---------|
@@ -343,16 +279,12 @@ class dspSourceObject {    // audio generator (replaces file)
 
 **Files:** [device/deviceInterface.hpp](YseEngine/device/deviceInterface.hpp), [device/portaudioDeviceManager.cpp](YseEngine/device/portaudioDeviceManager.cpp), [device/oboeImplementation.cpp](YseEngine/device/oboeImplementation.cpp), [device/androidDeviceManager.cpp](YseEngine/device/androidDeviceManager.cpp)
 
-Abstracts the OS audio API behind a single interface. PortAudio handles Windows (WASAPI/DirectSound/WDM — ASIO is not available with the MSYS2 package; see [issue #38](https://github.com/yvanvds/yse-soundengine/issues/38)) and Linux; Oboe (AAudio on API 26+, OpenSL ES fallback) is used on Android.
+Abstracts the OS audio API behind a single interface.
 
-```cpp
-const std::vector<device>& getDevices();
-unsigned int getNumDevices();
-const device& getDevice(unsigned int n);
-void openDevice(const deviceSetup&, CHANNEL_TYPE = CT_AUTO);
-```
+- **Desktop:** PortAudio handles Windows (WASAPI/DirectSound/WDM — ASIO is not available with the MSYS2 package; see [issue #38](https://github.com/yvanvds/yse-soundengine/issues/38)) and Linux (ALSA/JACK).
+- **Android:** Oboe 1.9.3 negotiates AAudio on API 26+ (our minSdk) and falls back to OpenSL ES on rare devices where AAudio is unavailable. `androidDeviceManager.cpp` is the platform-specific entry point.
 
-The engine monitors for missed callbacks and can auto-reconnect on device dropout (`system::autoReconnect(bool, int delay)`).
+The engine monitors for missed callbacks and can auto-reconnect on device dropout (`system::autoReconnect(bool, int delay)`). `cpuLoad()` is now measured from the audio callback itself rather than relying on PortAudio's `Pa_GetStreamCpuLoad` (issue #82).
 
 ---
 
@@ -360,11 +292,13 @@ The engine monitors for missed callbacks and can auto-reconnect on device dropou
 
 **Files:** [dsp/fileBuffer.hpp](YseEngine/dsp/fileBuffer.hpp), [internal/abstractSoundFile.cpp](YseEngine/internal/abstractSoundFile.cpp), [internal/lsfSoundfile.cpp](YseEngine/internal/lsfSoundfile.cpp)
 
-- **Buffered (default):** file loaded fully into memory; shared across all sounds using the same path; auto-released when unused.
+- **Buffered (default):** file loaded fully into memory by a slow-pool worker; shared across all sounds using the same path; auto-released when unused.
 - **Streaming:** per-sound disk read; for large files where memory is the constraint.
-- Custom file-reader callbacks are supported (e.g., network streams) via [internal/customFileReader.cpp](YseEngine/internal/customFileReader.cpp).
+- Custom file-reader callbacks (e.g., network streams) via [internal/customFileReader.cpp](YseEngine/internal/customFileReader.cpp).
 
-libsndfile is the underlying decoder (`LIBSOUNDFILE_BACKEND` is the only file backend defined for the CMake build).
+libsndfile is the only file backend (`LIBSOUNDFILE_BACKEND` is defined on every platform). On Android, libsndfile is FetchContent-built (WAV only, no external codec libs).
+
+Until issue [#46](https://github.com/yvanvds/yse-soundengine/issues/46) (closed in PR #95) the `loadStreaming` / `loadNonStreaming` bodies were guarded by `__WINDOWS__` and therefore empty stubs on Linux/macOS/Android — files never transitioned to `READY` outside of Windows.
 
 ---
 
@@ -372,7 +306,7 @@ libsndfile is the underlying decoder (`LIBSOUNDFILE_BACKEND` is the only file ba
 
 **Files:** [patcher/patcher.hpp](YseEngine/patcher/patcher.hpp), [patcher/patcherImplementation.cpp](YseEngine/patcher/patcherImplementation.cpp), [patcher/pRegistry.cpp](YseEngine/patcher/pRegistry.cpp)
 
-A Max/MSP-style node graph for building synthesis and effect networks in code or JSON.
+A Max/MSP-style node graph for building synthesis and effect networks in code or via JSON serialisation.
 
 ```cpp
 pHandle* obj = patcher.CreateObject("pSine", "440");
@@ -381,54 +315,65 @@ patcher.DumpJSON();          // serialize
 patcher.ParseJSON(content);  // restore
 ```
 
-**Node categories:**
-- generators: `pSine`, `dSaw`, `dNoise`
-- filters: `pLowpass`, `pHighpass`, `pBandpass`, `dVcf`
-- math: `dAdd`, `dSubstract`, `dMultiply`, `dDivide`, `dClip`, `gAdd`, `gSubstract`, `gMultiply`, `gDivide`, `gRandom`, `gCounter`, `pMidiToFrequency`, `pFrequencyToMidi`
-- generic: `pDac`, `pLine`, `gGate`, `gSwitch`, `gSend`, `gReceive`, `gRoute`
-- GUI controls: `gButton`, `gSlider`, `gToggle`, `gFloat`, `gInt`, `gList`, `gMessage`, `gText`
-- time: `gMetro` (with `TimerThread`)
-- MIDI: `mMidiNoteOn`, `mMidiNoteOff`, `mMidiControl`, `mMidiProgramChange`, `mMidiChannelPressure`, `mMidiPolyPressure`, `mMidiOut`
+Node categories: generators (`pSine`, `dSaw`, `dNoise`), filters (`pLowpass`, `pHighpass`, `pBandpass`, `dVcf`), math (`dAdd`, `dSubstract`, `dMultiply`, `dDivide`, `dClip`, `g*` integer variants, `gRandom`, `gCounter`, `pMidiToFrequency`, `pFrequencyToMidi`), generic (`pDac`, `pLine`, `gGate`, `gSwitch`, `gSend`, `gReceive`, `gRoute`), GUI controls (`gButton`, `gSlider`, `gToggle`, `gFloat`, `gInt`, `gList`, `gMessage`, `gText`), time (`gMetro` driven by `TimerThread`), MIDI (`mMidi*` family).
 
-Patcher TUs share a set of warning suppressions (`-Wno-unused-parameter`, plus Clang-specific `-Wno-deprecated-literal-operator -Wno-tautological-overlap-compare` from the vendored `json.hpp`) applied per-source-file in `YseEngine/CMakeLists.txt` and mirrored in `Tests/CMakeLists.txt` for patcher tests.
+Patcher TUs share warning suppressions for `-Wno-unused-parameter` plus Clang-specific noise from the vendored `json.hpp`.
 
 ---
 
-### 9. Threading & Concurrency Model
+### 9. C ABI Bridge (`YseEngine/c_api/`)
+
+A flat `extern "C"` surface compiled into `libyse` so language bindings (Dart FFI, Python ctypes, …) can consume the DLL without C++ ABI compatibility. Source files are folded into `yse_objects` via `include(c_api/CMakeLists.txt)` — never `add_subdirectory()`'d, the goal is to extend the existing target.
+
+```
+c_api/include/yse_c/         # Public C headers — Dart's ffigen entry point
+  yse_all.h                  # Aggregate header (includes the rest)
+  yse_system.h yse_listener.h yse_channel.h yse_sound.h yse_reverb.h
+  yse_device.h yse_dsp.h yse_dsp_modules.h yse_patcher.h yse_midi.h
+  yse_music.h yse_log.h yse_buffer_io.h yse_common.h yse_enums.h
+c_api/                       # Wrappers (yse_*.cpp) and the internal helper header yse_c_internal.hpp
+```
+
+Callback bridge conventions (atomic-swap callback pointer, no mutex, no malloc on audio-callback-reachable paths, `YSE_C_CALLBACK` on the typedef) are documented in `yse_c_internal.hpp` and enforced by the `c-api-extend` skill.
+
+---
+
+### 10. Threading & Concurrency Model
 
 **Files:** [internal/threadPool.cpp](YseEngine/internal/threadPool.cpp), [internal/thread.cpp](YseEngine/internal/thread.cpp), [utils/lfQueue.hpp](YseEngine/utils/lfQueue.hpp), [utils/atomicOps.hpp](YseEngine/utils/atomicOps.hpp)
 
-- **Audio callback thread** — managed by PortAudio/Oboe; runs DSP chain at buffer rate.
-- **Application thread** — drives `system::update()` each frame.
-- **Thread pool** — `threadPool` manages a set of `threadPoolThread` workers using a condition-variable-guarded job queue. Pool size defaults to `std::hardware_concurrency`.
-- **Communication** — all cross-thread state changes use a lock-free SPSC message queue (`utils/lfQueue.hpp`); no mutexes in the hot path.
-- **Thread-safe atomic wrappers:** `aBool`, `aInt`, `aUInt`, `aFlt` (thin `std::atomic<T>` aliases in `utils/atomicOps.hpp`).
+- **Audio callback thread** — managed by PortAudio/Oboe; runs DSP chain at buffer rate. FTZ/DAZ enabled per thread (issue [#81](https://github.com/yvanvds/yse-soundengine/issues/81)).
+- **Application thread** — drives `system::update()` each frame; only flags for update, the audio thread drains.
+- **Thread pool** — `threadPool` manages a set of `threadPoolThread` workers on a CV-guarded job queue. The "slow pool" is single-threaded by construction (`slowThreads(1)`) so file loads + the manager setup/delete jobs are serialised.
+- **Communication** — cross-thread state changes use a lock-free SPSC inbox (`utils/lfQueue.hpp`) between the main and audio threads. The audio thread never takes a mutex on the hot path.
+- **Lifecycle fences** — `OBJECT_DELETE_PENDING` handshake prevents the slow-pool deleter from freeing an impl while the audio thread still has it in `toLoad`; `connectedToParent` atomic flag coordinates parent-channel disconnect.
+- **Atomic wrappers:** `aBool`, `aInt`, `aUInt`, `aFlt` (thin `std::atomic<T>` aliases in `utils/atomicOps.hpp`).
 
 ---
 
-### 10. MIDI
+### 11. MIDI
 
 **Files:** `midi/` directory
 
-- **File playback** (`midifile.hpp`, `midifileImplementation.cpp`, `midifileManager.cpp`) — load and play standard MIDI files.
-- **Device I/O** (`device.cpp`, `midiDeviceManager.cpp`, `midiNote.cpp`) — wraps RtMidi; required on Windows and Linux desktop builds. Enumerate via `System().getNumMidiInDevices()` / `getNumMidiOutDevices()`. The Linux backend uses RtMidi's ALSA driver and is lightly tested in practice (see [issue #35](https://github.com/yvanvds/yse-soundengine/issues/35) for the proposed `YSE_ENABLE_MIDI_DEVICE` gate).
-- **Patcher integration** — `patcher/midi/` registers MIDI objects (NoteOn, NoteOff, Control, ProgramChange, PolyPressure, ChannelPressure, MidiOut) in the patcher node registry; registered unconditionally in `pRegistry.cpp`.
+- **File playback** — load and play standard MIDI files; always available.
+- **Device I/O** — RtMidi-backed; gated by `YSE_ENABLE_MIDI_DEVICE` (ON by default on Windows/Linux desktop, OFF on Android/Mac). Issue [#35](https://github.com/yvanvds/yse-soundengine/issues/35) was closed in commit `899260b`.
+- **Patcher integration** — `patcher/midi/` registers MIDI objects (NoteOn, NoteOff, Control, ProgramChange, PolyPressure, ChannelPressure, MidiOut) in the patcher node registry.
 
 ---
 
-### 11. Music / Composition
+### 12. Music / Composition
 
 **Files:** `music/`, `player/`
 
-Polyphonic note player with scale constraints, motif sequencing, and randomized pitch/velocity/gap ranges. Exposes `YSE::scale`, `YSE::motif`, `YSE::player`, `YSE::note`, `YSE::pNote`, `YSE::chord` as public objects.
+Polyphonic note player with scale constraints, motif sequencing, and randomised pitch/velocity/gap ranges. Exposes `YSE::scale`, `YSE::motif`, `YSE::player`, `YSE::note`, `YSE::pNote`, `YSE::chord` as public objects.
 
 ---
 
-### 12. Synth (In Progress)
+### 13. Synth (Implemented but unexposed)
 
-**Files:** `synth/` — `synthInterface.hpp/.cpp`, `samplerSound.cpp`, `dspSound.cpp`, `dspVoice.hpp/.cpp`, `dspVoiceInternal.cpp`
+**Files:** `synth/` — `synthInterface.hpp/.cpp`, `synthManager.h/.cpp`, `synthImplementation.h/.cpp`, `samplerSound.cpp`, `dspSound.cpp`, `dspVoice.hpp/.cpp`, `dspVoiceInternal.cpp`
 
-A polyphonic sampler/DSP synth system. The implementation files are compiled into the library; the public interface (`synth.hpp`, `synthInterface.hpp`, `dspVoice.hpp`) is commented out in `yse.hpp` and not yet part of the public API.
+Polyphonic sampler/DSP synth. The source files compile into the library; the public interface (`synth.hpp`, `synthInterface.hpp`, `dspVoice.hpp`) is commented out in [yse.hpp](YseEngine/yse.hpp) and not yet part of the public API.
 
 ---
 
@@ -454,118 +399,125 @@ sound.play()
 | Pattern | Where used |
 |---------|-----------|
 | Interface + Implementation (pimpl) | `sound`, `channel`, `reverb`, `synth` — public API decoupled from audio-thread objects |
-| Message queue | All sound/channel/reverb/player/motif/scale state changes; keeps audio callback lock-free |
-| Manager singletons | `soundManager`, `channelManager`, `reverbManager`, `motifManager`, `scaleManager`, `playerManager` |
+| Lock-free SPSC inbox | Main → audio handoff for new impls (no mutex on the audio path) |
+| Manager singletons | `soundManager`, `channelManager`, `reverbManager`, `motifManager`, `scaleManager`, `playerManager`, `midifileManager` |
+| Manager job templates | `managerSetupJob`/`managerDeleteJob` factor the common setup/delete-tick body across sound/channel/reverb |
 | Singleton globals | `YSE::System()`, `YSE::Listener()`, `INTERNAL::Global()` |
-| Thread pool | Parallel DSP work dispatched via `threadPool` / `threadPoolJob` |
+| Single-threaded "slow pool" | Serialises file loads + manager setup/delete jobs |
 | Chain of Responsibility | DSP `link()` — each processor hands buffer to next |
 | Proximity blending | Reverb zones blended by listener distance |
 | OBJECT-library + SHARED-library split | `yse_objects` consumed by both `yse` (DLL export) and `yse_tests` (direct linkage, full symbol visibility) |
+| Atomic-swap callback bridge | C API wraps C++ callbacks with `YSE_C_CALLBACK` typedefs; no mutex on the audio path |
 
 ---
 
 ## Demo Applications
 
-**Location:** [Demo.Windows.Native/](Demo.Windows.Native/)
-**18 demos** (Demo00–Demo17) plus `Test01_Pitch` and a combined `Demo` executable that wires every page through `MenuTop.cpp`.
+**Location:** [Demo.Windows.Native/](Demo.Windows.Native/) — Windows-only (uses Windows console APIs and relies on RtMidi for MIDI demos).
+18 demos (Demo00–Demo17) plus `Test01_Pitch` and a combined `Demo` executable that wires every page through `MenuTop.cpp`.
 
-| Demo | Topic |
-|------|-------|
-| Demo00 | Basic playback (`drone.ogg`) |
-| Demo01 | Sound properties |
-| Demo02 | 3D positioning |
-| Demo03 | Virtual sounds |
-| Demo04 | Channel mixer |
-| Demo05 | Reverb zones |
-| Demo06 | Device enumeration |
-| Demo07 | DSP source |
-| Demo08 | Occlusion |
-| Demo09 | Streaming |
-| Demo10 | File position |
-| Demo11 | Virtual I/O |
-| Demo12 | AudioTest |
-| Demo13 | Patcher synthesis |
-| Demo14 | Load patcher from JSON |
-| Demo15 | Audio device restart |
-| Demo16 | MIDI device output (requires RtMidi) |
-| Demo17 | MIDI patcher |
-| Test01_Pitch | Pitch test |
+| Demo | Topic | Demo | Topic |
+|------|-------|------|-------|
+| Demo00 | Basic playback (`drone.ogg`) | Demo09 | Streaming |
+| Demo01 | Sound properties | Demo10 | File position |
+| Demo02 | 3D positioning | Demo11 | Virtual I/O |
+| Demo03 | Virtual sounds | Demo12 | AudioTest |
+| Demo04 | Channel mixer | Demo13 | Patcher synthesis |
+| Demo05 | Reverb zones | Demo14 | Load patcher from JSON |
+| Demo06 | Device enumeration | Demo15 | Audio device restart |
+| Demo07 | DSP source | Demo16 | MIDI device output |
+| Demo08 | Occlusion | Demo17 | MIDI patcher |
+| Test01_Pitch | Pitch test | | |
 
 Each standalone executable is generated from a per-target `main_<Demo>.cpp` produced by `configure_file()` against `cmake/demo_main.cpp.in`. Shared menu/page infrastructure lives in the `yse_demo_common` static library.
 
 ---
 
-## Unit Tests (`Tests/`)
+## Tests (`Tests/`)
 
-**Location:** [Tests/](Tests/)
-**Framework:** [doctest](https://github.com/doctest/doctest) v2.4.11, vendored at `dependencies/doctest/doctest.h`.
-**Build gate:** `YSE_BUILD_TESTS=ON` (default OFF — demos and Android builds are unaffected).
-**Roadmap:** [Tests/TEST_PLAN.md](Tests/TEST_PLAN.md) — 13 phased subsystems (utils → DSP buffers → DSP math → DSP filters → DSP modules → patcher → channel → sound → reverb → MIDI → music → device integration). Phases 1–13 are all scaffolded and most have committed tests.
+**Framework:** [doctest](https://github.com/doctest/doctest) v2.4.11 vendored at `dependencies/doctest/doctest.h`.
+**Scale:** ~863 TEST_CASEs across 46 translation units.
+**Build gate:** `YSE_BUILD_TESTS=ON` (default OFF — demos and Android library builds are unaffected).
+**Roadmap:** [Tests/TEST_PLAN.md](Tests/TEST_PLAN.md).
 
-All test files compile into a single executable (`yse_tests`) which links `yse_objects` directly (bypassing the DLL boundary) so internal symbols are reachable without API annotations. The doctest runner is defined in [Tests/main.cpp](Tests/main.cpp) via `DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN`. Tests are organized into doctest `TEST_SUITE` tags so subsets can be run via `--test-suite=<name>`.
-
-### Layout
+All test files compile into a single executable (`yse_tests`) — except on Android where it's built as `libyse_tests.so` loaded by a NativeActivity APK (`Tests/Android/`). Both variants link `yse_objects` directly, bypassing the DLL boundary so internal symbols are reachable without `API` annotations.
 
 ```
 Tests/
-  main.cpp                          # doctest entry point
-  test_sanity.cpp                   # smoke test
+  main.cpp                            # doctest entry point
+  test_sanity.cpp                     # smoke test
+  Android/                            # Gradle wrapper → NativeActivity APK
   support/
-    audio_helpers.hpp               # makeBuffer, makeRamp, makeImpulse, measureRms,
-                                    # buffersNearlyEqual, peakBinIndex, decaysToSilence, …
-    null_device.hpp                 # TestHelpers::engineInit() — calls System().init()
-                                    # safe to skip stream open if no output device
+    audio_helpers.hpp                 # makeBuffer, measureRms, peakBinIndex, …
+    null_device.hpp                   # engineInit / engineInitWithAudio helpers
+    android_asset_bridge.cpp          # Extracts assets/fixtures/ to internal data path
     fixtures/
-      test_mono_44100.wav           # 244 B mono PCM fixture
-      test_type0.mid                # 41 B Type-0 MIDI fixture
-  utils/      (test_atomic, test_vector, test_lfqueue)
-  dsp/        (test_buffer, test_ramp, test_math_scalars, test_math_converters,
-               test_oscillators, test_filters, test_delay, test_envelope,
-               test_fourier, test_modules)
-  patcher/    (test_graph, test_nodes, test_patcher_math)
-  channel/    (test_channel)
-  sound/      (test_sound_state)
-  reverb/     (test_reverb_dsp)
-  midi/       (test_midifile)
-  music/      (test_scale, test_note, test_motif)
-  integration/ (test_device — DISABLED in CTest by default)
+      test_mono_44100.wav             # 244 B mono PCM
+      test_type0.mid                  # 41 B Type-0 MIDI
+  utils/    dsp/    patcher/    channel/    sound/    reverb/
+  midi/     music/  listener/  system/      io/       integration/
 ```
 
 ### Per-suite CTest entries
 
-`Tests/CMakeLists.txt` registers a catchall `yse_unit_tests` plus per-suite entries with CTest labels:
+`Tests/CMakeLists.txt` registers a catchall `yse_unit_tests` plus per-suite entries with CTest labels (`dsp`, `utils`, `patcher`, `channel`, `sound`, `reverb`, `midi`, `music`). The `integration` suite is `DISABLED TRUE` by default — opt in via `ctest -L integration` or `python yse.py test --integration` (needs a real audio device).
 
-| CTest name | Label | Notes |
-|-----------|-------|-------|
-| `yse_unit_tests` | — | Full suite |
-| `yse_tests_dsp` | `dsp` | |
-| `yse_tests_utils` | `utils` | |
-| `yse_tests_patcher` | `patcher` | |
-| `yse_tests_channel` | `channel` | Requires `null_device` |
-| `yse_tests_sound` | `sound` | Requires `null_device` and the WAV fixture |
-| `yse_tests_reverb` | `reverb` | |
-| `yse_tests_midi` | `midi` | Uses MIDI fixture; no device opened |
-| `yse_tests_music` | `music` | |
-| `yse_tests_integration` | `integration` | `DISABLED TRUE` — opt-in via `ctest -L integration` |
+### Test fixture path
 
-The fixture directory is exposed to test code via `YSE_TEST_FIXTURES_DIR` (compile definition pointing at `Tests/support/fixtures`).
-
-### Known regressions sentinelled by tests
-
-`Tests/dsp/test_buffer.cpp` covers two known DSP buffer bugs (file separate GitHub issues for each before fixing):
-- Uninitialised `cursor` and `sampleRateAdjustment` in fresh `DSP::buffer` instances.
-- `buffer::maxValue()` SIMD unroll bug for buffers of length ≥ 8 with the maximum at a non-leading position.
-
-These tests stand as regression sentinels and may be marked `[!shouldfail]` until the underlying fixes land.
+Exposed via `YSE_TEST_FIXTURES_DIR` compile definition:
+- Desktop: `${CMAKE_CURRENT_SOURCE_DIR}/support/fixtures`
+- Android: `/data/user/0/net.attrx.yse.tests/files/fixtures` (populated by `android_asset_bridge.cpp` extracting from APK assets at startup)
 
 ---
 
-## Vendored Dependencies
+## Benchmarks (`Bench/`)
 
-| Library | Location | Used for |
-|---------|----------|---------|
-| PortAudio headers | `dependencies/portaudio/include/` | Windows-specific extension headers (`pa_asio.h`, WASAPI) not shipped by the MSYS2 package; library itself comes from the system |
-| RtMidi headers | `dependencies/rtmidi/include/` | Header search path that resolves both `"RtMidi.h"` and `"../dependencies/rtmidi/include/RtMidi.h"`; library comes from the system |
-| libsndfile / libsndfile64 | `dependencies/libsndfile*/` | Vendored copies retained but unused by the CMake build (system library is used) |
-| doctest | `dependencies/doctest/doctest.h` | Single-header C++ test framework (v2.4.11, MIT licence). Exposed as the `doctest` INTERFACE library in `Tests/CMakeLists.txt`. |
-| cJSON | `YseEngine/json/cJSON.cpp` | Vendored C JSON parser used by patcher serialisation; warnings suppressed file-wide (`-w`) and excluded from SonarQube analysis. |
+**Framework:** google-benchmark, fetched at tag `v1.9.0`.
+**Build gate:** `YSE_BUILD_BENCHMARKS=ON`.
+**CI:** `.github/workflows/benchmark.yml` runs on push to master/dev and PRs to master; results are pushed to the orphan `bench-history` branch (never merged into mainline) so historical bench data accumulates without polluting `dev`/`master`.
+
+Layout:
+```
+Bench/
+  dsp/         (bench_buffer, bench_delay, bench_filters, bench_math, bench_oscillators, bench_reverb)
+  patcher/     (bench_patcher)
+  integration/ (bench_mixing)
+  support/     (bench_helpers.hpp)
+```
+
+---
+
+## Documentation (`documentation/`)
+
+**Tooling:** Doxygen 1.9+ → XML → Sphinx + Breathe + sphinx-book-theme → HTML.
+**Output:** [github.io/yse-soundengine/](https://yvanvds.github.io/yse-soundengine/) (deployed by `documentation.yml` on push to master).
+
+```
+documentation/
+  Doxyfile                         # Doxygen config (XML output → source/_doxygen/xml/)
+  requirements.txt                 # Sphinx + Breathe + sphinx-book-theme
+  Makefile / make.bat              # `make html`, `make sphinx`, `make doxygen`, `make serve`
+  source/
+    conf.py                        # Reads VERSION from YseEngine/system.hpp (PR #89)
+    index.rst                      # Landing page
+    intro/                         # install, hello_sound, mental_model
+    tutorials/                     # 5 pages: play, properties, 3D, channels, reverb
+    api/                           # 12 grouped pages: core, sounds, channels, dsp, dsp_modules,
+                                   # devices, midi, music, patcher, player, utils, index
+```
+
+The version string in `conf.py` is auto-synced from `YseEngine/system.hpp` so the published docs always match the released library.
+
+---
+
+## Vendored / Fetched Dependencies
+
+| Library | Source | Used for |
+|---------|--------|---------|
+| PortAudio headers | `dependencies/portaudio/include/` | Windows-specific extension headers not shipped by the MSYS2 package; the library itself comes from the system |
+| RtMidi headers | `dependencies/rtmidi/include/` | Header search path that resolves both `"RtMidi.h"` and the vendored copy; library comes from the system |
+| libsndfile 1.2.2 | FetchContent (Android only) | WAV-only static build, no external codec libs |
+| Oboe 1.9.3 | FetchContent (Android only) | Audio I/O — AAudio with OpenSL ES fallback |
+| doctest 2.4.11 | `dependencies/doctest/doctest.h` | Single-header C++ test framework (MIT) |
+| google-benchmark 1.9.0 | FetchContent (when `YSE_BUILD_BENCHMARKS=ON`) | Benchmarks |
+| cJSON | `YseEngine/json/cJSON.cpp` | Patcher JSON serialisation; warnings suppressed file-wide and excluded from SonarQube |

@@ -104,6 +104,19 @@ void YSE::CHANNEL::implementationObject::dsp()
 	// calculate child channels if there are any
 	for (auto i = children.begin(); i != children.end(); ++i)
 	{
+		// Skip the fast-pool dispatch for children that have no work this
+		// render. Their dsp() would early-return at the top of this same
+		// function anyway, but the dispatch + matching join() in
+		// buffersToParent() would otherwise spin-sleep in 2 ms increments
+		// waiting for the worker to wake up and signal isDone. YSE's
+		// System().init() creates five default child channels of master
+		// (ambient/fx/music/gui/voice — see system.cpp); apps that don't
+		// use them — and especially silent / post-stop graphs where the
+		// audio thread has no source work to fill the dispatch→join gap —
+		// were losing ~10 ms of fake wall-clock per callback waiting for
+		// those no-op workers. Observed as the cpuLoad post-stop spike in
+		// issue #82.
+		if ((*i)->children.empty() && (*i)->sounds.empty()) continue;
 		INTERNAL::Global().addFastJob(*i);
 	}
 

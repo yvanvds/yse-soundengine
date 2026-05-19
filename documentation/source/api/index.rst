@@ -45,3 +45,9 @@ The pages below are generated from the source code by Doxygen + Breathe.
    :caption: Utilities
 
    utils
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Language bindings
+
+   c_api
