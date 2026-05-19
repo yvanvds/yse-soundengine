@@ -2,8 +2,11 @@ Install
 =======
 
 libYSE builds with CMake 3.20+ on Windows (MSYS2 Clang64, MSVC), Linux, and
-Android. The audio backends are PortAudio and libsndfile; MIDI device I/O
-uses RtMidi.
+Android. The audio backends are PortAudio (desktop) and Oboe (Android);
+libsndfile decodes sample files. MIDI device I/O uses RtMidi on desktop and
+is gated by the ``YSE_ENABLE_MIDI_DEVICE`` CMake option — on by default on
+Windows/Linux, off on Android. Configure with ``-DYSE_ENABLE_MIDI_DEVICE=OFF``
+to build without RtMidi.
 
 Linux (Debian / Ubuntu)
 -----------------------
@@ -48,6 +51,31 @@ Open an **MSYS2 CLANG64** shell:
    cmake --build build
 
 The shared library and demo executables land in ``build/bin/``.
+
+Android
+-------
+
+The Android build is wired through Gradle in ``Tests/Android/`` and produces
+a NativeActivity APK that ships the test suite for two ABIs
+(``arm64-v8a`` and ``x86_64``). libsndfile 1.2.2 and Oboe 1.9.3 are fetched
+from source on first configure — no system packages required.
+
+Prerequisites:
+
+- NDK r27+ (installed via Android Studio's SDK Manager → NDK (Side by side))
+- Gradle 8+ (the wrapper at ``Tests/Android/gradlew`` will use it
+  automatically)
+- An attached device or emulator at API 26+
+
+.. code-block:: sh
+
+   cd Tests/Android
+   ./gradlew installDebug
+   adb shell am start -n net.attrx.yse.tests/.MainActivity
+   adb logcat -s yse_tests
+
+The release workflow at ``.github/workflows/release.yml`` builds production
+multi-ABI archives the same way and publishes them as release assets.
 
 Adding libYSE to your CMake project
 -----------------------------------

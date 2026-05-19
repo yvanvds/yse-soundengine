@@ -37,11 +37,18 @@ Supported platforms
 -------------------
 
 - **Windows** (MSYS2 / Clang64, MSVC)
-- **Linux** (Clang or GCC)
-- **Android** (out of scope of the CMake build but supported as a target)
+- **Linux** (Clang or GCC, x64)
+- **Android** (NDK r27+, API 26+, ``arm64-v8a`` and ``x86_64`` — built via
+  Gradle in ``Tests/Android/``; release archives published by CI)
 
-The audio backends are PortAudio and libsndfile; MIDI device I/O uses
-RtMidi.
+The audio backends are PortAudio on desktop and Oboe (AAudio with OpenSL ES
+fallback) on Android. libsndfile decodes sample files everywhere. MIDI device
+I/O uses RtMidi on desktop and is gated behind the ``YSE_ENABLE_MIDI_DEVICE``
+CMake option (on by default on Windows/Linux, off on Android).
+
+A flat ``extern "C"`` ABI (``yse_c/yse_*.h``) is folded into the same shared
+library so language bindings (Dart FFI, Python ctypes, …) can call the engine
+without C++ ABI compatibility — enabled by default via ``YSE_BUILD_C_API=ON``.
 
 Licence
 -------
