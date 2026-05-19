@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779200973491,
+  "lastUpdate": 1779205270409,
   "repoUrl": "https://github.com/yvanvds/yse-soundengine",
   "entries": {
     "libYSE benchmarks": [
@@ -77448,6 +77448,1662 @@ window.BENCHMARK_DATA = {
             "value": 0.009025470102458454,
             "unit": "ms/iter",
             "extra": "iterations: 3\ncpu: 0.037207507690786276 ms\nthreads: 1"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "yvan@attr-x.net",
+            "name": "yvan vander sanden",
+            "username": "yvanvds"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7af6533cc69a08d00b1eb063a807953fa7091e31",
+          "message": "Merge pull request #94 from yvanvds/82-investigate-poststop-cost\n\nchannel: skip fast-pool dispatch for empty child channels (fixes #82)",
+          "timestamp": "2026-05-19T17:35:21+02:00",
+          "tree_id": "85731733423d333cf406c4bcdd289a76fcfda723",
+          "url": "https://github.com/yvanvds/yse-soundengine/commit/7af6533cc69a08d00b1eb063a807953fa7091e31"
+        },
+        "date": 1779205269339,
+        "tool": "googlecpp",
+        "benches": [
+          {
+            "name": "BM_BufferAddScalar/128_mean",
+            "value": 10.78261937542536,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 10.781701982112905 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferAddScalar/128_median",
+            "value": 10.790635443550245,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 10.790113567848381 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferAddScalar/128_stddev",
+            "value": 0.04793573961282119,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.04730562990859662 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferAddScalar/128_cv",
+            "value": 0.004445648867293916,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.004387584630615627 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferAddScalar/512_mean",
+            "value": 38.46369205043056,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 38.461547458850326 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferAddScalar/512_median",
+            "value": 38.46749835622725,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 38.465692888126824 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferAddScalar/512_stddev",
+            "value": 0.006991597304936339,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.008482929538741827 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferAddScalar/512_cv",
+            "value": 0.0001817713519484689,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.00022055611641257127 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferAddScalar/1024_mean",
+            "value": 75.54010898776771,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 75.53582039861831 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferAddScalar/1024_median",
+            "value": 75.53040693126826,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 75.52703294389406 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferAddScalar/1024_stddev",
+            "value": 0.07876567736987372,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.08034289923744105 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferAddScalar/1024_cv",
+            "value": 0.0010427000758316135,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0010636397250133084 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferSubScalar/128_mean",
+            "value": 10.903137132270087,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 10.9023045326347 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferSubScalar/128_median",
+            "value": 10.839284232700265,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 10.838480702999304 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferSubScalar/128_stddev",
+            "value": 0.11427139153585643,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.11413159938373298 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferSubScalar/128_cv",
+            "value": 0.01048059747846761,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.010468575615558542 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferSubScalar/512_mean",
+            "value": 38.55253214476367,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 38.55022319354182 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferSubScalar/512_median",
+            "value": 38.559734934263865,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 38.556439611968045 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferSubScalar/512_stddev",
+            "value": 0.012806069596898893,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.013292200336813775 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferSubScalar/512_cv",
+            "value": 0.0003321719452515457,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0003448021628845088 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferSubScalar/1024_mean",
+            "value": 75.59302439622041,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 75.58799332112942 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferSubScalar/1024_median",
+            "value": 75.52718366495098,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 75.52161862234864 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferSubScalar/1024_stddev",
+            "value": 0.1703554695350522,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.17198828446702538 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferSubScalar/1024_cv",
+            "value": 0.002253587164896789,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.002275338673648171 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferMulScalar/128_mean",
+            "value": 1006.0122146666686,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 1005.9404453333328 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferMulScalar/128_median",
+            "value": 1004.1477160000057,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 1004.0640539999989 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferMulScalar/128_stddev",
+            "value": 3.7979071818446415,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 3.7939214454559043 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferMulScalar/128_cv",
+            "value": 0.0037752098100548785,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.003771516955160038 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferMulScalar/512_mean",
+            "value": 4031.392361239856,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 4031.089999487931 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferMulScalar/512_median",
+            "value": 4031.023126934597,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 4030.7083613646446 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferMulScalar/512_stddev",
+            "value": 1.1489293663069702,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 1.1376031238068776 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferMulScalar/512_cv",
+            "value": 0.0002849956698220306,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.00028220732455772193 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferMulScalar/1024_mean",
+            "value": 7395.016455972492,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 7394.579387877961 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferMulScalar/1024_median",
+            "value": 7393.926117981687,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 7393.510647360957 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferMulScalar/1024_stddev",
+            "value": 1.9612286749624557,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 1.9103955909219126 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferMulScalar/1024_cv",
+            "value": 0.00026520950786776057,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0002583508122251891 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferDivScalar/128_mean",
+            "value": 1087.0470253333337,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 1086.9438766666683 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferDivScalar/128_median",
+            "value": 1085.2314409999906,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 1085.110051000001 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferDivScalar/128_stddev",
+            "value": 3.7625721635860487,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 3.745929344228514 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferDivScalar/128_cv",
+            "value": 0.0034612781930315186,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0034462950890492695 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferDivScalar/512_mean",
+            "value": 4299.034126651261,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 4298.670397719561 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferDivScalar/512_median",
+            "value": 4299.087564901728,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 4298.7426823498245 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferDivScalar/512_stddev",
+            "value": 0.8831666070247279,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.855453469313152 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferDivScalar/512_cv",
+            "value": 0.0002054337279040564,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.00019900420133792275 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferDivScalar/1024_mean",
+            "value": 7769.39443277202,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 7768.698018305381 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferDivScalar/1024_median",
+            "value": 7765.500540236796,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 7764.863593824564 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferDivScalar/1024_stddev",
+            "value": 7.2610992107791015,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 7.245665310838183 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferDivScalar/1024_cv",
+            "value": 0.0009345772406857241,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0009326743417964276 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferAddBuffer/128_mean",
+            "value": 14.136893879586694,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 14.135824558554324 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferAddBuffer/128_median",
+            "value": 14.139218317484195,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 14.137772853341124 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferAddBuffer/128_stddev",
+            "value": 0.004752205428242207,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.004300790863956427 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferAddBuffer/128_cv",
+            "value": 0.0003361562637959862,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.00030424761188435905 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferAddBuffer/512_mean",
+            "value": 47.205686281521984,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 47.20291659609052 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferAddBuffer/512_median",
+            "value": 47.19577205026368,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 47.19405440350707 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferAddBuffer/512_stddev",
+            "value": 0.04533212592622011,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.04709432031291557 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferAddBuffer/512_cv",
+            "value": 0.0009603107061270444,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0009976993734496494 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferAddBuffer/1024_mean",
+            "value": 91.43631412716609,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 91.42959567419761 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferAddBuffer/1024_median",
+            "value": 91.44581935428728,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 91.44122790730364 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferAddBuffer/1024_stddev",
+            "value": 0.02975435726028848,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.03023827327552324 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferAddBuffer/1024_cv",
+            "value": 0.0003254107248779438,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0003307274089155443 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferSubBuffer/128_mean",
+            "value": 14.182761790882454,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 14.181718709870523 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferSubBuffer/128_median",
+            "value": 14.125629553910374,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 14.124612202772065 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferSubBuffer/128_stddev",
+            "value": 0.10553919024039353,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.1052790430236626 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferSubBuffer/128_cv",
+            "value": 0.007441370855445134,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.007423574333792705 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferSubBuffer/512_mean",
+            "value": 47.373875108570594,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 47.37131562564874 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferSubBuffer/512_median",
+            "value": 47.22008523278344,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 47.21854816746005 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferSubBuffer/512_stddev",
+            "value": 0.27363278988583356,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.27278254618163195 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferSubBuffer/512_cv",
+            "value": 0.005776027172333418,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0057583907598702305 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferSubBuffer/1024_mean",
+            "value": 91.5100177139209,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 91.50600633236057 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferSubBuffer/1024_median",
+            "value": 91.53605885789268,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 91.53216988566584 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferSubBuffer/1024_stddev",
+            "value": 0.05798383038128407,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0601927587741688 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferSubBuffer/1024_cv",
+            "value": 0.0006336336920243358,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0006578011781602798 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferMulBuffer/128_mean",
+            "value": 14.133269574929196,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 14.132558468025207 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferMulBuffer/128_median",
+            "value": 14.140597356048012,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 14.1402359538803 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferMulBuffer/128_stddev",
+            "value": 0.013969812836780242,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.013979985405686741 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferMulBuffer/128_cv",
+            "value": 0.0009884346125797455,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.000989204144268452 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferMulBuffer/512_mean",
+            "value": 47.208881631893924,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 47.20549934777114 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferMulBuffer/512_median",
+            "value": 47.20487361622193,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 47.2003855076042 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferMulBuffer/512_stddev",
+            "value": 0.06681339341099653,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.06596787213423663 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferMulBuffer/512_cv",
+            "value": 0.0014152716840861988,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0013974615891305339 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferMulBuffer/1024_mean",
+            "value": 91.54567580372505,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 91.53913520167113 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferMulBuffer/1024_median",
+            "value": 91.4495503831317,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 91.44287267860786 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferMulBuffer/1024_stddev",
+            "value": 0.18917073176149168,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.19020288095759794 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferMulBuffer/1024_cv",
+            "value": 0.0020664081629270603,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.002077831307216955 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferDivBuffer/128_mean",
+            "value": 110.6136910227649,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 110.6084312960139 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferDivBuffer/128_median",
+            "value": 110.62010072731267,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 110.61572638868762 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferDivBuffer/128_stddev",
+            "value": 0.02007812241598381,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.024203694273875666 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferDivBuffer/128_cv",
+            "value": 0.00018151570777844876,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0002188232306550027 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferDivBuffer/512_mean",
+            "value": 442.46010991967415,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 442.44116886638557 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferDivBuffer/512_median",
+            "value": 442.48792908467135,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 442.4774280742076 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferDivBuffer/512_stddev",
+            "value": 0.12320925728258604,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.12874599029766157 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferDivBuffer/512_cv",
+            "value": 0.00027846410223275023,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0002909900781329462 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferDivBuffer/1024_mean",
+            "value": 885.7408859465758,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 885.6609678291807 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferDivBuffer/1024_median",
+            "value": 885.0832682434933,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 885.0095637842602 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferDivBuffer/1024_stddev",
+            "value": 1.338540772168536,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 1.329331791214882 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BufferDivBuffer/1024_cv",
+            "value": 0.0015112103250580569,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0015009488274877584 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_HighPass_mean",
+            "value": 2365.292701246084,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 2365.1704029764264 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_HighPass_median",
+            "value": 2363.642834460547,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 2363.5600377008886 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_HighPass_stddev",
+            "value": 2.860394845262336,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 2.8269502607366266 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_HighPass_cv",
+            "value": 0.0012093196092624909,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0011952416862561265 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_LowPass_mean",
+            "value": 3843.371046695731,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 3843.148069548177 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_LowPass_median",
+            "value": 3835.626268110076,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 3835.3346384584424 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_LowPass_stddev",
+            "value": 14.559623042459855,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 14.553714258793098 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_LowPass_cv",
+            "value": 0.003788242890307775,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.00378692519658867 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BandPass_mean",
+            "value": 3676.76625239762,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 3676.5049178030463 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BandPass_median",
+            "value": 3676.7377650489943,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 3676.6857247956727 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BandPass_stddev",
+            "value": 0.32441351913492517,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.47520526685530223 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BandPass_cv",
+            "value": 0.00008823338141862433,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.00012925462565116565 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BiQuad_Lowpass_mean",
+            "value": 3896.9849704447606,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 3896.63046408839 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BiQuad_Lowpass_median",
+            "value": 3900.442541655229,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 3899.8754385866628 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BiQuad_Lowpass_stddev",
+            "value": 12.440608375257915,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 12.46004807768089 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BiQuad_Lowpass_cv",
+            "value": 0.0031923675532774948,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.003197646836802601 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BiQuad_Highpass_mean",
+            "value": 3897.4833229113488,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 3897.170610283551 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BiQuad_Highpass_median",
+            "value": 3900.2302242223327,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 3899.859313933486 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BiQuad_Highpass_stddev",
+            "value": 11.081197515403504,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 11.205315218984126 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BiQuad_Highpass_cv",
+            "value": 0.002843167397346565,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0028752436933134023 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BiQuad_Bandpass_mean",
+            "value": 3901.828928369486,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 3901.532150767836 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BiQuad_Bandpass_median",
+            "value": 3908.219061917853,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 3907.930236049722 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BiQuad_Bandpass_stddev",
+            "value": 13.799010176855434,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 13.795051107938457 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BiQuad_Bandpass_cv",
+            "value": 0.003536549251692033,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.003535803518938974 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BiQuad_Notch_mean",
+            "value": 3879.005772198265,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 3878.660446178315 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BiQuad_Notch_median",
+            "value": 3879.5062769877145,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 3879.46223526336 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BiQuad_Notch_stddev",
+            "value": 4.6726403051570395,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 4.5910697990373945 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BiQuad_Notch_cv",
+            "value": 0.00120459740963701,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0011836740706604061 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BiQuad_Peak_mean",
+            "value": 3902.9507585066513,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 3902.4987693350345 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BiQuad_Peak_median",
+            "value": 3908.06871802318,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 3907.6625315578954 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BiQuad_Peak_stddev",
+            "value": 15.586869226562358,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 15.760991524192471 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BiQuad_Peak_cv",
+            "value": 0.003993611549566721,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.004038692247141455 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BiQuad_Lowshelf_mean",
+            "value": 3902.887477692489,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 3902.5731364548114 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BiQuad_Lowshelf_median",
+            "value": 3909.5266666297794,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 3909.3983412597668 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BiQuad_Lowshelf_stddev",
+            "value": 26.643898204644625,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 26.597457339576863 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BiQuad_Lowshelf_cv",
+            "value": 0.006826714415143053,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.006815364224983781 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BiQuad_Highshelf_mean",
+            "value": 3900.8644009670134,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 3900.5632697854767 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BiQuad_Highshelf_median",
+            "value": 3900.079032545216,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 3899.84741285342 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BiQuad_Highshelf_stddev",
+            "value": 13.191255321394571,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 13.09776968815651 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_BiQuad_Highshelf_cv",
+            "value": 0.0033816236519589086,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.003357917506328993 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Sine_FixedFreq_mean",
+            "value": 1944.6409250340193,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 1944.469620961836 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Sine_FixedFreq_median",
+            "value": 1944.4315067350456,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 1944.149719697886 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Sine_FixedFreq_stddev",
+            "value": 0.9829479521801922,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 1.068700393725638 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Sine_FixedFreq_cv",
+            "value": 0.0005054650138883591,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0005496102290335619 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Sine_ModFreq_mean",
+            "value": 2052.900951390777,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 2052.665908318761 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Sine_ModFreq_median",
+            "value": 2044.9370668582596,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 2044.7821010423067 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Sine_ModFreq_stddev",
+            "value": 14.219926577678839,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 14.012294860999987 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Sine_ModFreq_cv",
+            "value": 0.006926747521864255,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.006826388456208532 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Saw_FixedFreq_mean",
+            "value": 1442.7515972656167,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 1442.6029499827102 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Saw_FixedFreq_median",
+            "value": 1442.7670319425304,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 1442.6009396933841 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Saw_FixedFreq_stddev",
+            "value": 0.191635359119625,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.20034829796913725 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Saw_FixedFreq_cv",
+            "value": 0.00013282630182688622,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0001388797229144294 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Saw_ModFreq_mean",
+            "value": 1477.5470050053666,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 1477.4085179240844 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Saw_ModFreq_median",
+            "value": 1474.8990200264282,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 1474.8203045300388 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Saw_ModFreq_stddev",
+            "value": 5.6989454835701805,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 5.6461377035158415 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Saw_ModFreq_cv",
+            "value": 0.0038570315964665232,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0038216496216288668 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Oscillator_FixedFreq_mean",
+            "value": 3535.9422536612346,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 3535.6031460310533 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Oscillator_FixedFreq_median",
+            "value": 3535.213507405071,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 3535.1506373469106 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Oscillator_FixedFreq_stddev",
+            "value": 1.5471093199863797,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 1.4386852620641057 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Oscillator_FixedFreq_cv",
+            "value": 0.0004375380617102698,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0004069136728988162 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Oscillator_ModFreq_mean",
+            "value": 4256.802973548225,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 4256.494979223681 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Oscillator_ModFreq_median",
+            "value": 4257.697944664015,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 4257.315688659193 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Oscillator_ModFreq_stddev",
+            "value": 2.0310397813410135,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 1.7982202141125638 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Oscillator_ModFreq_cv",
+            "value": 0.00047712797467063786,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.00042246501473391414 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Noise_mean",
+            "value": 1257.164591286456,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 1257.064817795109 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Noise_median",
+            "value": 1257.2673922854824,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 1257.1416970706134 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Noise_stddev",
+            "value": 0.18140555050570803,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.18578771505371725 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Noise_cv",
+            "value": 0.0001442973750319167,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0001477948570540609 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Delay_Process_mean",
+            "value": 460.58293821159094,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 460.54243046066836 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Delay_Process_median",
+            "value": 460.5446885816568,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 460.517753287164 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Delay_Process_stddev",
+            "value": 0.12394952967964461,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.1338709700098662 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Delay_Process_cv",
+            "value": 0.0002691144621225687,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.00029068107769344645 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Delay_ReadFixed_mean",
+            "value": 942.9264728451523,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 942.855506223629 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Delay_ReadFixed_median",
+            "value": 942.7868712759791,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 942.6850409389161 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Delay_ReadFixed_stddev",
+            "value": 0.588084927774159,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.5772305020915808 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Delay_ReadFixed_cv",
+            "value": 0.0006236805781894029,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0006122152315825492 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Delay_ReadModulated_mean",
+            "value": 1791.7557664837466,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 1791.5917439525128 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Delay_ReadModulated_median",
+            "value": 1791.0391516252457,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 1790.878704923685 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Delay_ReadModulated_stddev",
+            "value": 3.181133714582162,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 3.294104526441862 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Delay_ReadModulated_cv",
+            "value": 0.001775428199583818,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0018386468555467812 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Clip_mean",
+            "value": 133.87255728253828,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 133.8586259540203 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Clip_median",
+            "value": 133.87816376134768,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 133.860057856275 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Clip_stddev",
+            "value": 0.10665046994616756,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.10782778490647432 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Clip_cv",
+            "value": 0.00079665670179947,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.000805534825551792 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Sqrt_mean",
+            "value": 1792.4988545598235,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 1792.340681391827 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Sqrt_median",
+            "value": 1791.94392037569,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 1791.7185136249775 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Sqrt_stddev",
+            "value": 1.1374767682913356,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 1.1646607785239076 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Sqrt_cv",
+            "value": 0.0006345760084575682,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.000649798774650085 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_RSqrt_mean",
+            "value": 1686.771986531365,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 1686.6355223923647 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_RSqrt_median",
+            "value": 1686.8497251834706,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 1686.6919790165955 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_RSqrt_stddev",
+            "value": 0.17444047256905468,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.09921590416382763 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_RSqrt_cv",
+            "value": 0.0001034167474690931,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.000058824744793171064 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Wrap_mean",
+            "value": 871.0438455552577,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 870.9829344702847 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Wrap_median",
+            "value": 869.4291968762519,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 869.3504924613294 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Wrap_stddev",
+            "value": 5.2168798384974275,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 5.201114765268442 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Wrap_cv",
+            "value": 0.005989227597575026,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.005971546122693738 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_MidiToFreq_mean",
+            "value": 6008.24586147681,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 6007.748675126296 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_MidiToFreq_median",
+            "value": 6010.076524934319,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 6009.735358815856 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_MidiToFreq_stddev",
+            "value": 5.544689630964719,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 5.461486928138535 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_MidiToFreq_cv",
+            "value": 0.0009228466608724712,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0009090738017638066 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_FreqToMidi_mean",
+            "value": 5731.2286733816545,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 5730.6293563810805 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_FreqToMidi_median",
+            "value": 5729.076554002187,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 5728.389243990103 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_FreqToMidi_stddev",
+            "value": 4.668981694772868,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 4.759139255303636 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_FreqToMidi_cv",
+            "value": 0.0008146563260436058,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0008304740996735923 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_DbToRms_mean",
+            "value": 601.3470059185026,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 601.2922653552577 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_DbToRms_median",
+            "value": 601.1702354805983,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 601.1314036971161 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_DbToRms_stddev",
+            "value": 0.35540190518021114,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.3836331697831397 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_DbToRms_cv",
+            "value": 0.000591009686058663,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0006380144762987766 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_RmsToDb_mean",
+            "value": 6157.581205910727,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 6157.128232214686 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_RmsToDb_median",
+            "value": 6152.874845944873,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 6152.4915137856915 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_RmsToDb_stddev",
+            "value": 8.443907584635634,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 8.294793603998647 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_RmsToDb_cv",
+            "value": 0.0013713026758835499,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0013471854558103063 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Reverb_SetPosition/iterations:100000_mean",
+            "value": 8.740323333427114,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 8.74204333323784 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Reverb_SetPosition/iterations:100000_median",
+            "value": 8.535110000025272,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 8.533999999826847 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Reverb_SetPosition/iterations:100000_stddev",
+            "value": 0.3594309953419124,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.3612079950573324 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Reverb_SetPosition/iterations:100000_cv",
+            "value": 0.04112330649911759,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.04131848599788967 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Reverb_SetPreset/iterations:100000_mean",
+            "value": 50.26134333320442,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 50.265443333330495 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Reverb_SetPreset/iterations:100000_median",
+            "value": 50.68617999995695,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 50.69152999993776 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Reverb_SetPreset/iterations:100000_stddev",
+            "value": 6.1302356976831724,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 6.130834793417681 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Reverb_SetPreset/iterations:100000_cv",
+            "value": 0.12196720762203188,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.12196917776615707 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Reverb_SetDryWetBalance/iterations:100000_mean",
+            "value": 10.270110000002811,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 10.272790000082447 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Reverb_SetDryWetBalance/iterations:100000_median",
+            "value": 7.76776999998674,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 7.769750000079512 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Reverb_SetDryWetBalance/iterations:100000_stddev",
+            "value": 4.902979794788905,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 4.904225489826611 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Reverb_SetDryWetBalance/iterations:100000_cv",
+            "value": 0.47740285106854385,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.4773995662120273 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Reverb_GlobalToggle/iterations:100000_mean",
+            "value": 15.014879999929084,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 15.01768333326936 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Reverb_GlobalToggle/iterations:100000_median",
+            "value": 14.145399999847541,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 14.149869999755538 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Reverb_GlobalToggle/iterations:100000_stddev",
+            "value": 1.8517416114126604,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 1.8506159747594388 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Reverb_GlobalToggle/iterations:100000_cv",
+            "value": 0.12332710027795137,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.12322912487172269 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Patcher_BuildSmallGraph/iterations:100000_mean",
+            "value": 2851.8441099998886,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 2851.506543333358 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Patcher_BuildSmallGraph/iterations:100000_median",
+            "value": 2852.0680799999814,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 2851.92507000005 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Patcher_BuildSmallGraph/iterations:100000_stddev",
+            "value": 20.669875086456397,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 20.546347251061352 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Patcher_BuildSmallGraph/iterations:100000_cv",
+            "value": 0.007247897952759139,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.007205435771872036 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Patcher_CreateObject/iterations:100000_mean",
+            "value": 571.6489299999239,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 571.5832533333771 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Patcher_CreateObject/iterations:100000_median",
+            "value": 571.7817099997546,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 571.7890500000067 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Patcher_CreateObject/iterations:100000_stddev",
+            "value": 1.895461257067984,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 1.7920197065742374 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Patcher_CreateObject/iterations:100000_cv",
+            "value": 0.0033157785444787526,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0031351858126064413 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Patcher_Connect/iterations:100000_mean",
+            "value": 43.019279999991035,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 43.02465333334263 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Patcher_Connect/iterations:100000_median",
+            "value": 41.87702000024274,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 41.87902000012401 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Patcher_Connect/iterations:100000_stddev",
+            "value": 1.998351896001999,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 2.003838357032435 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Patcher_Connect/iterations:100000_cv",
+            "value": 0.0464524719149743,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0465741894886932 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Patcher_DumpJSON_mean",
+            "value": 4730.123676774417,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 4729.743561735645 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Patcher_DumpJSON_median",
+            "value": 4736.052450996866,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 4735.435691070497 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Patcher_DumpJSON_stddev",
+            "value": 15.67462474654465,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 15.802404599835066 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Patcher_DumpJSON_cv",
+            "value": 0.0033137875069756202,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0033410700587826704 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Patcher_ParseJSON/iterations:100000_mean",
+            "value": 15449.30537666668,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 15447.315613333216 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Patcher_ParseJSON/iterations:100000_median",
+            "value": 14611.941629999594,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 14610.070899999811 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Patcher_ParseJSON/iterations:100000_stddev",
+            "value": 3070.820313558119,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 3070.4043388756077 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Patcher_ParseJSON/iterations:100000_cv",
+            "value": 0.19876753282358087,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.19876620739369205 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Patcher_PassFloat/iterations:100000_mean",
+            "value": 29.454146666883688,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 29.453683333523866 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Patcher_PassFloat/iterations:100000_median",
+            "value": 30.24019000008593,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 30.240990000152124 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Patcher_PassFloat/iterations:100000_stddev",
+            "value": 4.659875299333338,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 4.655094064900786 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Patcher_PassFloat/iterations:100000_cv",
+            "value": 0.15820778486760903,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.15804794300896174 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Engine_UpdateTick_100Sounds_mean",
+            "value": 15.582159586816758,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 15.580872828016512 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Engine_UpdateTick_100Sounds_median",
+            "value": 15.58276813474257,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 15.581217368571997 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Engine_UpdateTick_100Sounds_stddev",
+            "value": 0.002532250610679045,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0017318210054818386 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Engine_UpdateTick_100Sounds_cv",
+            "value": 0.00016250960571739028,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.00011115044866856178 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Engine_UpdateTick_100Sounds_Reverb_mean",
+            "value": 15.574896044867522,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 15.573664651891695 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Engine_UpdateTick_100Sounds_Reverb_median",
+            "value": 15.573485533445464,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 15.571978211462202 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Engine_UpdateTick_100Sounds_Reverb_stddev",
+            "value": 0.004070440576076545,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.0033528299344809664 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Engine_UpdateTick_100Sounds_Reverb_cv",
+            "value": 0.0002613462436186146,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.00021528843784842297 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Engine_ListenerPosUpdate/iterations:100000_mean",
+            "value": 20.76528333342746,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 20.768329999990936 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Engine_ListenerPosUpdate/iterations:100000_median",
+            "value": 20.08024000019759,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 20.082730000012816 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Engine_ListenerPosUpdate/iterations:100000_stddev",
+            "value": 1.2207490394607752,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 1.2229892788406536 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Engine_ListenerPosUpdate/iterations:100000_cv",
+            "value": 0.05878797894828829,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.058887222941911434 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Engine_RenderOffline_100Sounds_mean",
+            "value": 99391553.40333343,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 3287410.4033332206 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Engine_RenderOffline_100Sounds_median",
+            "value": 99276044.1400003,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 3303047.2299998333 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Engine_RenderOffline_100Sounds_stddev",
+            "value": 536677.5883835786,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 501661.3587583929 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Engine_RenderOffline_100Sounds_cv",
+            "value": 0.005399629747265619,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.15260076997071642 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Engine_RenderOffline_100Sounds_Reverb_mean",
+            "value": 101277188.00666665,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 5078012.9600000605 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Engine_RenderOffline_100Sounds_Reverb_median",
+            "value": 101429033.4399999,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 5105353.259999958 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Engine_RenderOffline_100Sounds_Reverb_stddev",
+            "value": 712844.0435111389,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 545223.9307409109 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Engine_RenderOffline_100Sounds_Reverb_cv",
+            "value": 0.007038544982747896,
+            "unit": "ns/iter",
+            "extra": "iterations: 3\ncpu: 0.10736954297590143 ns\nthreads: 1"
+          },
+          {
+            "name": "BM_Engine_RealtimeFactor_100Sounds_mean",
+            "value": 643.6254391000015,
+            "unit": "ms/iter",
+            "extra": "iterations: 3\ncpu: 40.72961213333315 ms\nthreads: 1"
+          },
+          {
+            "name": "BM_Engine_RealtimeFactor_100Sounds_median",
+            "value": 643.6741643999994,
+            "unit": "ms/iter",
+            "extra": "iterations: 3\ncpu: 41.10464569999976 ms\nthreads: 1"
+          },
+          {
+            "name": "BM_Engine_RealtimeFactor_100Sounds_stddev",
+            "value": 0.9243698037947353,
+            "unit": "ms/iter",
+            "extra": "iterations: 3\ncpu: 1.2085109656681414 ms\nthreads: 1"
+          },
+          {
+            "name": "BM_Engine_RealtimeFactor_100Sounds_cv",
+            "value": 0.0014361921509617552,
+            "unit": "ms/iter",
+            "extra": "iterations: 3\ncpu: 0.02967155596061017 ms\nthreads: 1"
           }
         ]
       }
