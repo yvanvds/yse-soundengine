@@ -210,14 +210,23 @@ TEST_CASE("engine: cpuLoad stays bounded with no graph activity") {
     CHECK(load < 0.5f);
 }
 
-// Issue #82 (reopened): the original report observed Pa_GetStreamCpuLoad
-// staying elevated after stopping AudioTest, and the phi client still sees
-// elevated cpuLoad after stopping its sine playback even after the timing
-// rewrite landed. Diagnose by sampling cpuLoad once per second through a
-// full idle → playing → stopped cycle and writing the trace to a CSV the
-// user can post-hoc correlate against an external probe (GetProcessTimes,
-// perf, etc.). The graph here mirrors AudioTest (11 sines + low-pass),
-// the same DSP shape that triggered both #53 and #82.
+// Issue #82 regression guard. Original report: cpuLoad stayed elevated for
+// seconds after sound.stop(), then was eventually root-caused to YSE's
+// default empty child channels (ambient/fx/music/gui/voice — see
+// system.cpp's initShared) being dispatched to the fast threadpool every
+// render. The audio thread's join() on those workers spin-slept in 2 ms
+// increments, adding ~10 ms of fake wall-clock per callback once the
+// source was silent (during playback the source work hid the wait).
+//
+// Fixed by skipping addFastJob for children with no work in
+// channelImplementation::dsp(); this test samples cpuLoad once per
+// second through idle → playing → stopped phases and asserts the
+// stopped reading decays back to the idle baseline. CSV trace written
+// to a deterministic temp path for offline correlation.
+//
+// The graph mirrors AudioTest (11 sines + low-pass), the same DSP
+// shape from the original repro, so the test also exercises the
+// FTZ/DAZ path on the audio thread (issue #53 / PR #70).
 //
 // Total runtime: ~13 s on a Release build. Run explicitly with:
 //
