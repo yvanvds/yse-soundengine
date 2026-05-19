@@ -14,9 +14,13 @@
 // removeInterface() (setting head = nullptr) before going out of scope.
 
 #include <doctest/doctest.h>
+#include <chrono>
+#include <thread>
 #include "sound/soundInterface.hpp"
+#include "sound/soundManager.h"
 #include "sound/soundMessage.h"
 #include "dsp/dspObject.hpp"
+#include "internal/time.h"
 #include "support/null_device.hpp"
 
 // Minimal no-op DSP source used to create sounds without file I/O.
@@ -433,6 +437,32 @@ TEST_CASE("sound: WAV file sound destructs cleanly") {
         YSE::sound s;
         s.create(WAV_FIXTURE);
     } // ~sound() fires here
+}
+
+// Regression: issue #46. The slow-pool's soundFile load runs on every desktop
+// build, but a stale __WINDOWS__ guard around lsfSoundfile.cpp's loadStreaming
+// / loadNonStreaming bodies meant the function did nothing on Linux/macOS —
+// `state` stayed at LOADING forever, the impl never reached OBJECT_SETUP, and
+// isReady() never became true. This test guarantees a WAV-loaded sound
+// actually transitions to READY after the manager pumps the inbox and the
+// slow-pool finishes the load.
+TEST_CASE("sound: WAV file reaches OBJECT_READY after manager updates") {
+    if (!TestHelpers::engineInit()) return;
+    YSE::sound s;
+    s.create(WAV_FIXTURE);
+    if (!s.isValid()) return; // fixture missing in this environment
+
+    // Pump the manager directly (test thread drives update; audio is paused).
+    // Budget: ~1 s wall-clock — loading a 244-byte WAV through the single
+    // slow-pool worker normally completes within a couple of update ticks.
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+    while (std::chrono::steady_clock::now() < deadline) {
+        YSE::INTERNAL::Time().update();
+        YSE::SOUND::Manager().update();
+        if (s.isReady()) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+    CHECK(s.isReady());
 }
 
 } // TEST_SUITE("sound")
