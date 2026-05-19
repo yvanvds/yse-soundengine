@@ -38,6 +38,9 @@ option(YSE_ENABLE_COVERAGE
 option(YSE_BUILD_C_API
   "Build the extern \"C\" ABI bridge (yse_*) inside libyse so language bindings (Dart, Python, ...) can consume the DLL without C++ ABI compatibility"
   ON)
+option(YSE_BUILD_TOOLS
+  "Build developer tools (e.g. dump_patcher_meta — regenerates documentation/source/_data/patcher_objects.json). OFF in CI/release builds; turned on automatically by `python yse.py dump-patcher-meta`."
+  OFF)
 # YSE_ENABLE_MIDI_DEVICE: gate the RtMidi-backed MIDI device backend. Default
 # ON on Windows/Linux desktop (preserves the prior unconditional behavior),
 # OFF on Android (RtMidi isn't built there anyway) and Mac (already excluded
@@ -236,6 +239,10 @@ endif()
 if(YSE_BUILD_TESTS)
   enable_testing()
   add_subdirectory(Tests)
+endif()
+
+if(YSE_BUILD_TOOLS)
+  add_subdirectory(tools/dump_patcher_metadata)
 endif()
 
 # ── Benchmarks ────────────────────────────────────────────────────────────────
