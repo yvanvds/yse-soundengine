@@ -3,10 +3,21 @@
 
 #include "../patcher/patcher.hpp"
 #include "../patcher/pHandle.hpp"
+#include "../patcher/pObject.h"
+#include "../patcher/pRegistry.h"
+#include "../patcher/pEnums.h"
+#include "../patcher/inlet.h"
+#include "../patcher/outlet.h"
+#include "../patcher/parameters.h"
+#include "../headers/enums.hpp"
 
+#include <cstdlib>
 #include <cstring>
 #include <exception>
+#include <memory>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace {
   inline YSE::patcher* to_cpp(YsePatcher* p) {
@@ -27,6 +38,165 @@ namespace {
     }
     return src.size();
   }
+
+  // ── Registry metadata cache ─────────────────────────────────────────
+  // Built lazily on the first metadata API call by instantiating every
+  // registered object once and copying its in-code doc fields into a
+  // process-static structure. Strings are owned by the cache; their
+  // c_str() pointers stay valid until process exit, which is the
+  // lifetime contract the header documents.
+  //
+  // Main-thread only — std::call_once / function-local static
+  // initialisation is fine here because none of these calls are reached
+  // from the audio callback.
+
+  struct InletMeta {
+    std::string label;
+    std::string doc;
+    std::string range;
+    unsigned int accepts;
+  };
+  struct OutletMeta {
+    std::string label;
+    std::string doc;
+    std::string range;
+    YseOutType type;
+  };
+  struct ParamMeta {
+    std::string name;
+    std::string defaultValue;
+    std::string doc;
+    std::string range;
+  };
+  struct TypeMeta {
+    std::string name;
+    std::string description;
+    YsePCategory category;
+    bool isDsp;
+    std::vector<InletMeta> inlets;
+    std::vector<OutletMeta> outlets;
+    std::vector<ParamMeta> params;
+  };
+
+  YsePCategory mapCategory(YSE::PATCHER::pCategory c) {
+    using YSE::PATCHER::pCategory;
+    switch (c) {
+      case pCategory::UNSET:   return YSE_PCAT_UNSET;
+      case pCategory::OSC:     return YSE_PCAT_OSC;
+      case pCategory::FILTER:  return YSE_PCAT_FILTER;
+      case pCategory::MATH:    return YSE_PCAT_MATH;
+      case pCategory::GENERIC: return YSE_PCAT_GENERIC;
+      case pCategory::GUI:     return YSE_PCAT_GUI;
+      case pCategory::TIME:    return YSE_PCAT_TIME;
+      case pCategory::MIDI:    return YSE_PCAT_MIDI;
+    }
+    return YSE_PCAT_UNSET;
+  }
+
+  const char* categoryName(YsePCategory c) {
+    switch (c) {
+      case YSE_PCAT_UNSET:   return "UNSET";
+      case YSE_PCAT_OSC:     return "OSC";
+      case YSE_PCAT_FILTER:  return "FILTER";
+      case YSE_PCAT_MATH:    return "MATH";
+      case YSE_PCAT_GENERIC: return "GENERIC";
+      case YSE_PCAT_GUI:     return "GUI";
+      case YSE_PCAT_TIME:    return "TIME";
+      case YSE_PCAT_MIDI:    return "MIDI";
+    }
+    return "UNKNOWN";
+  }
+
+  const char* outTypeName(YseOutType t) {
+    switch (t) {
+      case YSE_OUT_INVALID: return "INVALID";
+      case YSE_OUT_BANG:    return "BANG";
+      case YSE_OUT_FLOAT:   return "FLOAT";
+      case YSE_OUT_INT:     return "INT";
+      case YSE_OUT_BUFFER:  return "BUFFER";
+      case YSE_OUT_LIST:    return "LIST";
+      case YSE_OUT_ANY:     return "ANY";
+    }
+    return "UNKNOWN";
+  }
+
+  struct MetaCache {
+    std::vector<TypeMeta> types;
+    std::unordered_map<std::string, size_t> indexByName;
+  };
+
+  const MetaCache& buildCache() {
+    static const MetaCache cache = [] {
+      MetaCache c;
+      auto names = YSE::PATCHER::Register().AllNames();
+      c.types.reserve(names.size());
+      for (const auto& name : names) {
+        std::unique_ptr<YSE::PATCHER::pObject> obj(
+            YSE::PATCHER::Register().Get(name));
+        if (!obj) continue;
+
+        TypeMeta tm;
+        tm.name = name;
+        tm.description = obj->GetDescription();
+        tm.category = mapCategory(obj->GetCategory());
+        tm.isDsp = obj->IsDSPObject();
+
+        tm.inlets.reserve(static_cast<size_t>(obj->NumInputs()));
+        for (int i = 0; i < obj->NumInputs(); ++i) {
+          auto* port = obj->GetInlet(i);
+          InletMeta im;
+          if (port) {
+            im.label = port->GetDocLabel();
+            im.doc = port->GetDocDescription();
+            im.range = port->GetRange();
+            im.accepts = port->GetAcceptedTypes();
+          } else {
+            im.accepts = 0;
+          }
+          tm.inlets.push_back(std::move(im));
+        }
+
+        tm.outlets.reserve(static_cast<size_t>(obj->NumOutputs()));
+        for (int i = 0; i < obj->NumOutputs(); ++i) {
+          auto* port = obj->GetOutlet(i);
+          OutletMeta om;
+          om.type = static_cast<YseOutType>(
+              obj->GetOutputType(static_cast<unsigned int>(i)));
+          if (port) {
+            om.label = port->GetDocLabel();
+            om.doc = port->GetDocDescription();
+            om.range = port->GetRange();
+          }
+          tm.outlets.push_back(std::move(om));
+        }
+
+        const auto& paramDocs = obj->GetParamDocs();
+        tm.params.reserve(paramDocs.size());
+        for (const auto& pd : paramDocs) {
+          ParamMeta pm;
+          pm.name = pd.name;
+          pm.defaultValue = pd.defaultValue;
+          pm.doc = pd.doc;
+          pm.range = pd.range;
+          tm.params.push_back(std::move(pm));
+        }
+
+        c.indexByName.emplace(tm.name, c.types.size());
+        c.types.push_back(std::move(tm));
+      }
+      return c;
+    }();
+    return cache;
+  }
+
+  const TypeMeta* findType(const char* type_name) {
+    if (!type_name) return nullptr;
+    const auto& cache = buildCache();
+    auto it = cache.indexByName.find(type_name);
+    if (it == cache.indexByName.end()) return nullptr;
+    return &cache.types[it->second];
+  }
+
 }
 
 extern "C" {
@@ -177,6 +347,189 @@ YSE_C_API unsigned int yse_phandle_get_connection_target(YsePHandle* h, unsigned
 }
 YSE_C_API unsigned int yse_phandle_get_connection_target_inlet(YsePHandle* h, unsigned int outlet, unsigned int connection) {
   return h ? to_cpp(h)->GetConnectionTargetInlet(outlet, connection) : 0;
+}
+
+// ─── registry metadata ───────────────────────────────────────────────
+
+YSE_C_API int yse_patcher_get_type_count(void) {
+  return static_cast<int>(buildCache().types.size());
+}
+
+YSE_C_API const char* yse_patcher_get_type_name(int index) {
+  const auto& cache = buildCache();
+  if (index < 0 || static_cast<size_t>(index) >= cache.types.size()) return "";
+  return cache.types[static_cast<size_t>(index)].name.c_str();
+}
+
+YSE_C_API const char* yse_patcher_get_type_description(const char* type_name) {
+  const TypeMeta* t = findType(type_name);
+  return t ? t->description.c_str() : "";
+}
+
+YSE_C_API YsePCategory yse_patcher_get_type_category(const char* type_name) {
+  const TypeMeta* t = findType(type_name);
+  return t ? t->category : YSE_PCAT_UNSET;
+}
+
+YSE_C_API int yse_patcher_get_type_is_dsp(const char* type_name) {
+  const TypeMeta* t = findType(type_name);
+  return (t && t->isDsp) ? 1 : 0;
+}
+
+YSE_C_API int yse_patcher_get_inlet_count(const char* type_name) {
+  const TypeMeta* t = findType(type_name);
+  return t ? static_cast<int>(t->inlets.size()) : 0;
+}
+
+YSE_C_API void yse_patcher_get_inlet_info(const char* type_name, int idx,
+                                          const char** label,
+                                          const char** doc,
+                                          const char** range,
+                                          unsigned int* accepts_bitmask) {
+  const TypeMeta* t = findType(type_name);
+  if (!t || idx < 0 || static_cast<size_t>(idx) >= t->inlets.size()) {
+    if (label)           *label = "";
+    if (doc)             *doc = "";
+    if (range)           *range = "";
+    if (accepts_bitmask) *accepts_bitmask = 0;
+    return;
+  }
+  const InletMeta& in = t->inlets[static_cast<size_t>(idx)];
+  if (label)           *label = in.label.c_str();
+  if (doc)             *doc = in.doc.c_str();
+  if (range)           *range = in.range.c_str();
+  if (accepts_bitmask) *accepts_bitmask = in.accepts;
+}
+
+YSE_C_API int yse_patcher_get_outlet_count(const char* type_name) {
+  const TypeMeta* t = findType(type_name);
+  return t ? static_cast<int>(t->outlets.size()) : 0;
+}
+
+YSE_C_API void yse_patcher_get_outlet_info(const char* type_name, int idx,
+                                           const char** label,
+                                           const char** doc,
+                                           const char** range,
+                                           YseOutType* type) {
+  const TypeMeta* t = findType(type_name);
+  if (!t || idx < 0 || static_cast<size_t>(idx) >= t->outlets.size()) {
+    if (label) *label = "";
+    if (doc)   *doc = "";
+    if (range) *range = "";
+    if (type)  *type = YSE_OUT_INVALID;
+    return;
+  }
+  const OutletMeta& out = t->outlets[static_cast<size_t>(idx)];
+  if (label) *label = out.label.c_str();
+  if (doc)   *doc = out.doc.c_str();
+  if (range) *range = out.range.c_str();
+  if (type)  *type = out.type;
+}
+
+YSE_C_API int yse_patcher_get_param_count(const char* type_name) {
+  const TypeMeta* t = findType(type_name);
+  return t ? static_cast<int>(t->params.size()) : 0;
+}
+
+YSE_C_API void yse_patcher_get_param_info(const char* type_name, int idx,
+                                          const char** name,
+                                          const char** doc,
+                                          const char** default_value,
+                                          const char** range) {
+  const TypeMeta* t = findType(type_name);
+  if (!t || idx < 0 || static_cast<size_t>(idx) >= t->params.size()) {
+    if (name)          *name = "";
+    if (doc)           *doc = "";
+    if (default_value) *default_value = "";
+    if (range)         *range = "";
+    return;
+  }
+  const ParamMeta& pm = t->params[static_cast<size_t>(idx)];
+  if (name)          *name = pm.name.c_str();
+  if (doc)           *doc = pm.doc.c_str();
+  if (default_value) *default_value = pm.defaultValue.c_str();
+  if (range)         *range = pm.range.c_str();
+}
+
+YSE_C_API char* yse_patcher_get_metadata_json(void) {
+  // Mirrors tools/dump_patcher_metadata/main.cpp exactly so binding-side
+  // consumers can swap between the file-on-disk snapshot and the in-memory
+  // string without noticing the difference.
+  try {
+    nlohmann::json root = nlohmann::json::object();
+    const auto& cache = buildCache();
+    for (const auto& tm : cache.types) {
+      nlohmann::json entry = nlohmann::json::object();
+      entry["name"] = tm.name;
+      entry["category"] = categoryName(tm.category);
+      entry["is_dsp"] = tm.isDsp;
+      entry["description"] = tm.description;
+
+      nlohmann::json inlets = nlohmann::json::array();
+      for (size_t i = 0; i < tm.inlets.size(); ++i) {
+        const auto& in = tm.inlets[i];
+        nlohmann::json p = nlohmann::json::object();
+        p["index"] = static_cast<int>(i);
+        p["label"] = in.label;
+        p["doc"] = in.doc;
+        p["range"] = in.range;
+        nlohmann::json accepts = nlohmann::json::array();
+        if (in.accepts & YSE_IN_ACCEPTS_BUFFER) accepts.push_back("BUFFER");
+        if (in.accepts & YSE_IN_ACCEPTS_FLOAT)  accepts.push_back("FLOAT");
+        if (in.accepts & YSE_IN_ACCEPTS_INT)    accepts.push_back("INT");
+        if (in.accepts & YSE_IN_ACCEPTS_BANG)   accepts.push_back("BANG");
+        if (in.accepts & YSE_IN_ACCEPTS_LIST)   accepts.push_back("LIST");
+        p["accepts"] = std::move(accepts);
+        inlets.push_back(std::move(p));
+      }
+      entry["inlets"] = std::move(inlets);
+
+      nlohmann::json outlets = nlohmann::json::array();
+      for (size_t i = 0; i < tm.outlets.size(); ++i) {
+        const auto& out = tm.outlets[i];
+        nlohmann::json p = nlohmann::json::object();
+        p["index"] = static_cast<int>(i);
+        p["label"] = out.label;
+        p["doc"] = out.doc;
+        p["range"] = out.range;
+        p["type"] = outTypeName(out.type);
+        outlets.push_back(std::move(p));
+      }
+      entry["outlets"] = std::move(outlets);
+
+      nlohmann::json params = nlohmann::json::array();
+      for (const auto& pm : tm.params) {
+        nlohmann::json p = nlohmann::json::object();
+        p["name"] = pm.name;
+        p["default"] = pm.defaultValue;
+        p["doc"] = pm.doc;
+        p["range"] = pm.range;
+        params.push_back(std::move(p));
+      }
+      entry["params"] = std::move(params);
+
+      root[tm.name] = std::move(entry);
+    }
+    const std::string serialized = root.dump(2);
+    char* buf = static_cast<char*>(std::malloc(serialized.size() + 1));
+    if (!buf) {
+      yse_c::set_last_error("yse_patcher_get_metadata_json: out of memory");
+      return nullptr;
+    }
+    std::memcpy(buf, serialized.data(), serialized.size());
+    buf[serialized.size()] = '\0';
+    return buf;
+  } catch (const std::exception& e) {
+    yse_c::set_last_error(e.what());
+    return nullptr;
+  } catch (...) {
+    yse_c::set_last_error("yse_patcher_get_metadata_json: unknown C++ exception");
+    return nullptr;
+  }
+}
+
+YSE_C_API void yse_free_string(char* s) {
+  std::free(s);
 }
 
 } // extern "C"

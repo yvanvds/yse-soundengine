@@ -95,6 +95,66 @@ YSE_C_API unsigned int yse_phandle_get_connections(YsePHandle* h, unsigned int o
 YSE_C_API unsigned int yse_phandle_get_connection_target(YsePHandle* h, unsigned int outlet, unsigned int connection);
 YSE_C_API unsigned int yse_phandle_get_connection_target_inlet(YsePHandle* h, unsigned int outlet, unsigned int connection);
 
+/* ─── registry metadata ──────────────────────────────────────────────
+   Read-only access to the in-code documentation captured by the
+   pRegistry (issue #102). Lets a binding generate its own node palette
+   or documentation site without forking the registry.
+
+   These functions are main-thread only. They are NOT RT-safe and must
+   not be called from the audio callback.
+
+   String returns point at engine-owned storage with a lifetime tied to
+   the process; the cache is built lazily on the first metadata call and
+   never freed. The pointers stay valid for the rest of the process and
+   may be safely cached by the binding.
+
+   The exception is yse_patcher_get_metadata_json(), which allocates a
+   fresh buffer per call; the caller must release it with
+   yse_free_string(). The JSON layout is identical to the snapshot
+   emitted by `yse.py dump-patcher-meta` (modulo object order — both
+   iterate the registry's lexicographic order).
+
+   Lookups by an unknown type_name return 0 / "" / YSE_PCAT_UNSET /
+   YSE_OUT_INVALID. NULL out-pointers in *_get_inlet_info /
+   *_get_outlet_info / *_get_param_info are skipped, so callers can
+   ignore fields they don't need. */
+
+YSE_C_API int           yse_patcher_get_type_count(void);
+YSE_C_API const char*   yse_patcher_get_type_name(int index);
+
+YSE_C_API const char*   yse_patcher_get_type_description(const char* type_name);
+YSE_C_API YsePCategory  yse_patcher_get_type_category(const char* type_name);
+YSE_C_API int           yse_patcher_get_type_is_dsp(const char* type_name);
+
+YSE_C_API int  yse_patcher_get_inlet_count(const char* type_name);
+YSE_C_API void yse_patcher_get_inlet_info(const char* type_name, int idx,
+                                          const char** label,
+                                          const char** doc,
+                                          const char** range,
+                                          unsigned int* accepts_bitmask);
+
+YSE_C_API int  yse_patcher_get_outlet_count(const char* type_name);
+YSE_C_API void yse_patcher_get_outlet_info(const char* type_name, int idx,
+                                           const char** label,
+                                           const char** doc,
+                                           const char** range,
+                                           YseOutType* type);
+
+YSE_C_API int  yse_patcher_get_param_count(const char* type_name);
+YSE_C_API void yse_patcher_get_param_info(const char* type_name, int idx,
+                                          const char** name,
+                                          const char** doc,
+                                          const char** default_value,
+                                          const char** range);
+
+/* Returns a fresh malloc'd JSON snapshot of every registered object's
+   metadata. One-stop shop for bindings that want to cache the metadata
+   or regenerate their own reference at build time. The caller must
+   release the buffer with yse_free_string(); returns NULL on
+   allocation failure. */
+YSE_C_API char* yse_patcher_get_metadata_json(void);
+YSE_C_API void  yse_free_string(char* s);
+
 #ifdef __cplusplus
 }
 #endif
