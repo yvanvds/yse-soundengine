@@ -1,11 +1,11 @@
 <!-- META
-last_updated_commit: 7b174590d349e9148f715c083bfd5057d4b68b7a
-last_updated_at: 2026-05-19
+last_updated_commit: 115fa3d0e8671a8365098cd3f4bfc3292bc12042
+last_updated_at: 2026-05-21
 -->
 
 # YSE Sound Engine — Project Overview
 
-**Version:** 2.1.0 (single source of truth: [`YseEngine/system.hpp`](YseEngine/system.hpp))
+**Version:** 2.2.0 (single source of truth: [`YseEngine/system.hpp`](YseEngine/system.hpp))
 **Language:** C++17
 **Platforms:** Windows (MSYS2/Clang64, MSVC), Linux (gcc/clang), Android (NDK r27+, API 26+, arm64-v8a + x86_64)
 **Build:** CMake 3.20+ via `CMakePresets.json`; Android wraps the same CMake invocation through Gradle in `Tests/Android/`
@@ -29,7 +29,7 @@ Demo.Windows.Native/             # 18 C++ console demos (Demo00–Demo17 + Test0
 Yse.Windows.Native/              # Legacy Windows static/shared lib build (Visual Studio project)
 documentation/                   # Doxygen + Sphinx + Breathe (sphinx-book-theme); published to GitHub Pages
   source/intro/                  # Install + hello-sound + mental-model
-  source/tutorials/              # 5 tutorial pages (play, properties, 3D, channels, reverb)
+  source/tutorials/              # 6 tutorial pages (play, properties, 3D, channels, reverb, patcher)
   source/api/                    # Breathe-driven API reference (12 grouped pages)
   source/_data/                  # Committed data snapshots consumed by Sphinx hooks (patcher_objects.json)
   source/_templates/             # Jinja templates rendered by the pre-build hook in conf.py
@@ -322,6 +322,8 @@ patcher.ParseJSON(content);  // restore
 
 Node categories: generators (`pSine`, `dSaw`, `dNoise`), filters (`pLowpass`, `pHighpass`, `pBandpass`, `dVcf`), math (`dAdd`, `dSubstract`, `dMultiply`, `dDivide`, `dClip`, `g*` integer variants, `gRandom`, `gCounter`, `pMidiToFrequency`, `pFrequencyToMidi`), generic (`pDac`, `pLine`, `gGate`, `gSwitch`, `gSend`, `gReceive`, `gRoute`), GUI controls (`gButton`, `gSlider`, `gToggle`, `gFloat`, `gInt`, `gList`, `gMessage`, `gText`), time (`gMetro` driven by `TimerThread`), MIDI (`mMidi*` family).
 
+**Per-object documentation metadata.** Each patcher object's constructor declares its description, category, inlet/outlet roles, and parameter schema via the `ADD_DESCRIPTION`, `ADD_CATEGORY`, `INLET_DOC`, `OUTLET_DOC`, and `PARAM_DOC` macros (see [patcher/pObject.h](YseEngine/patcher/pObject.h)). The registry exposes the parsed metadata through `pRegistry` accessors and a parallel `yse_patcher_*` C API surface, and `tools/dump_patcher_metadata` emits a JSON snapshot ([documentation/source/_data/patcher_objects.json](documentation/source/_data/patcher_objects.json)) that a Sphinx `conf.py` hook renders into the `api/patcher` reference. Coverage is enforced by [Tests/patcher/test_doc_coverage.cpp](Tests/patcher/test_doc_coverage.cpp), which fails the build if any registered object lacks metadata, and per-object C API parity is asserted in [Tests/patcher/test_c_api_metadata.cpp](Tests/patcher/test_c_api_metadata.cpp).
+
 Patcher TUs share warning suppressions for `-Wno-unused-parameter` plus Clang-specific noise from the vendored `json.hpp`.
 
 ---
@@ -506,7 +508,7 @@ documentation/
     conf.py                        # Reads VERSION from YseEngine/system.hpp (PR #89)
     index.rst                      # Landing page
     intro/                         # install, hello_sound, mental_model
-    tutorials/                     # 5 pages: play, properties, 3D, channels, reverb
+    tutorials/                     # 6 pages: play, properties, 3D, channels, reverb, patcher
     api/                           # 12 grouped pages: core, sounds, channels, dsp, dsp_modules,
                                    # devices, midi, music, patcher, player, utils, index
 ```
