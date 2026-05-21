@@ -47,6 +47,7 @@ EXPAND_ONLY_PREDEF     = NO
 SKIP_FUNCTION_MACROS   = NO
 PREDEFINED             = YSE_API= \
                          YSE_BUILD_DLL= \
+                         YSE_C_CALLBACK= \
                          _WIN32
 
 # Only documented symbols are exposed. Undocumented entities disappear from
