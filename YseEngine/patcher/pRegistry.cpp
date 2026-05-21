@@ -140,3 +140,12 @@ bool pRegistry::IsValidObject(const char * objectID) {
   auto it = map.find(objectID);
   return it != map.end();
 }
+
+std::vector<std::string> pRegistry::AllNames() const {
+  std::vector<std::string> names;
+  names.reserve(map.size());
+  for (const auto & entry : map) {
+    names.push_back(entry.first);
+  }
+  return names;
+}

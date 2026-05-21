@@ -28,9 +28,20 @@ retired and removed.
   inlining a TODO comment that no one will find later. Workarounds in test
   code should reference the issue number (e.g. `// see #29`) instead of a
   file path.
-- **Close on landing:** when a fix is merged, close the issue with
-  `gh issue close <n> --reason completed`. If the fix is partial, leave
-  the issue open and edit the body to describe what is still outstanding.
+- **Close on landing — always.** Every fixed issue must end up closed on
+  GitHub. Two paths:
+  - Preferred: write `Closes #<n>` (or `Fixes #<n>`) in the PR body so
+    GitHub auto-closes the issue when the PR merges into the default
+    branch. Verify after merge — auto-close does not fire for PRs
+    targeting non-default branches (e.g. this repo's `dev` integration
+    branch), so a `dev` PR still needs the manual close below once the
+    merge to `master` lands.
+  - Manual: `gh issue close <n> --reason completed` after merge, with a
+    short comment if context is non-obvious (`gh issue comment <n> -b
+    "fixed in <sha>"`). Use `--reason not planned` when closing as
+    wontfix or duplicate.
+  - Partial fix: leave the issue open and edit the body to describe what
+    is still outstanding, rather than closing and filing a follow-up.
 - **Search before filing:** `gh issue list --search "<keyword>"` —
   duplicates are easy to make when descriptions live across multiple
   subsystems.
@@ -171,6 +182,10 @@ when the warning only exists on one toolchain.
    typically show up at runtime, not at compile time).
 7. **Report.** Summarize: groups fixed, mechanism used per group, any items
    deferred and why, any audio-thread-adjacent code touched.
+8. **Close.** Once the fix merges, ensure every referenced GitHub issue is
+   closed (PR keyword auto-close or `gh issue close <n> --reason
+   completed` — see "Close on landing" above). Partial fixes stay open
+   with an updated body.
 
 ## Running clang-tidy locally
 

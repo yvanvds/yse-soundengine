@@ -14,6 +14,12 @@ CONSTRUCT() {
   ADD_PARAM(dataName);
 
   ADD_OUT_ANY;
+
+  ADD_DESCRIPTION("Named receive endpoint. Forwards values arriving from any matching gSend (same dataName) in the patcher.");
+  ADD_CATEGORY(pCategory::GENERIC);
+  INLET_DOC(0, "in", "Wired inlet (rarely used — receives typically pair with gSend by name).", "");
+  OUTLET_DOC(0, "out", "Forwarded value from matching gSend nodes.", "");
+  PARAM_DOC("dataName", "", "Name to listen for; must match the dataName of one or more gSend nodes.", "any identifier");
 }
 
 BANG_IN(SetBangValue) {

@@ -74,6 +74,33 @@ smoothly between cave, hall, and bathroom as they walk.
 A "global" reverb (``YSE::System().getGlobalReverb()``) acts as the fallback
 everywhere no positioned zone reaches.
 
+Patcher
+-------
+
+:cpp:class:`YSE::patcher` is a Max/MSP-style modular DSP graph: a
+collection of small objects (oscillators, filters, math, MIDI, GUI
+controls) wired together by inlets and outlets. Use it when a sound is
+not a file to play but a network to evaluate — procedural synthesis,
+parameter mapping, generative MIDI.
+
+.. code-block:: cpp
+
+    YSE::patcher p;
+    p.create();
+    auto osc  = p.CreateObject(YSE::OBJ::D_SINE, "440");
+    auto out  = p.CreateObject(YSE::OBJ::D_DAC);
+    p.Connect(osc, 0, out, 0);
+    sound.create(p, ChannelMaster);  // play the patcher as a sound source
+
+Graphs can be serialised with ``DumpJSON()`` and rebuilt with
+``ParseJSON()`` — pair the engine with an external editor or ship
+presets as plain text.
+
+The full set of registered object types — every inlet, outlet,
+parameter, and accepted message type — is listed on the
+:doc:`../api/patcher_objects` reference page, generated directly from
+the engine source so it can never drift.
+
 Putting it together
 -------------------
 

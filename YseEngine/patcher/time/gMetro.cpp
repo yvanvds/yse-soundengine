@@ -20,6 +20,13 @@ CONSTRUCT() {
 
   period = 1000;
   id = 0;
+
+  ADD_DESCRIPTION("Periodic bang generator. Once toggled on, emits a bang every 'period' milliseconds (and immediately on start). Toggle off to stop.");
+  ADD_CATEGORY(pCategory::TIME);
+  INLET_DOC(0, "on/off", "Non-zero int starts the metronome; 0 stops it.", "0 or 1");
+  INLET_DOC(1, "period", "Sets the bang interval in milliseconds.", "1+ ms");
+  OUTLET_DOC(0, "out", "Periodic bang.", "");
+  PARAM_DOC("period", "1000", "Initial interval in milliseconds.", "1+ ms");
 }
 
 INT_IN(Toggle) {

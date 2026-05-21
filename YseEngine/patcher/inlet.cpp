@@ -156,3 +156,21 @@ int inlet::GetObjectID() {
 int inlet::GetPosition() {
   return position;
 }
+
+void inlet::SetDoc(const std::string & label,
+                   const std::string & doc,
+                   const std::string & range) {
+  docLabel = label;
+  docDescription = doc;
+  docRange = range;
+}
+
+unsigned int inlet::GetAcceptedTypes() const {
+  unsigned int mask = IT_NONE;
+  if (onBuffer) mask |= IT_BUFFER;
+  if (onFloat)  mask |= IT_FLOAT;
+  if (onInt)    mask |= IT_INT;
+  if (onBang)   mask |= IT_BANG;
+  if (onList)   mask |= IT_LIST;
+  return mask;
+}

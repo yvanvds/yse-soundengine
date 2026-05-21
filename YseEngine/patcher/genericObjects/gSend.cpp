@@ -13,6 +13,11 @@ CONSTRUCT() {
   REG_LIST_IN(SetListValue);
 
   ADD_PARAM(dataName);
+
+  ADD_DESCRIPTION("Named send endpoint. Broadcasts incoming values to every gReceive in the patcher whose dataName matches.");
+  ADD_CATEGORY(pCategory::GENERIC);
+  INLET_DOC(0, "in", "Value inlet — accepts bang / int / float / list.", "");
+  PARAM_DOC("dataName", "", "Name to broadcast on; matching gReceive nodes will emit the forwarded value.", "any identifier");
 }
 
 BANG_IN(SetBangValue) {

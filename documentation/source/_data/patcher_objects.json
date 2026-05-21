@@ -1,0 +1,1625 @@
+{
+  ".*": {
+    "category": "MATH",
+    "description": "Control-rate multiply. Emits left * right as a float whenever inlet 0 fires.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Left operand — fires the multiplication.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Right operand — stored until next multiply.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".*",
+    "outlets": [
+      {
+        "doc": "left * right.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Initial right-operand value.",
+        "name": "right",
+        "range": "any float"
+      }
+    ]
+  },
+  ".+": {
+    "category": "MATH",
+    "description": "Control-rate add. Emits left + right as a float whenever inlet 0 fires.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Left operand — fires the addition.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Right operand — stored until next add.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".+",
+    "outlets": [
+      {
+        "doc": "left + right.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Initial right-operand value.",
+        "name": "right",
+        "range": "any float"
+      }
+    ]
+  },
+  ".-": {
+    "category": "MATH",
+    "description": "Control-rate subtract. Emits left - right as a float whenever inlet 0 fires.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Left operand — fires the subtraction.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Right operand — stored until next subtract.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".-",
+    "outlets": [
+      {
+        "doc": "left - right.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Initial right-operand value.",
+        "name": "right",
+        "range": "any float"
+      }
+    ]
+  },
+  "./": {
+    "category": "MATH",
+    "description": "Control-rate divide. Emits left / right as a float whenever inlet 0 fires; division by zero emits 0.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Left operand — fires the division.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Right operand — stored until next divide. Zero forces output to 0.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": "./",
+    "outlets": [
+      {
+        "doc": "left / right (or 0 when right == 0).",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Initial right-operand value.",
+        "name": "right",
+        "range": "any float"
+      }
+    ]
+  },
+  ".b": {
+    "category": "GUI",
+    "description": "Momentary button. Any input (bang/int/float) lights the button until the next GUI poll; emits a bang on every calculate tick.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "Press — bang/int/float all light the button.",
+        "index": 0,
+        "label": "trigger",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".b",
+    "outlets": [
+      {
+        "doc": "Bang emitted on every calculate tick.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": []
+  },
+  ".channelpressure": {
+    "category": "MIDI",
+    "description": "MIDI Channel Pressure (aftertouch) message generator. Emits a status/value MIDI packet on every value change.",
+    "inlets": [
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "Aftertouch pressure value (also fires the output).",
+        "index": 0,
+        "label": "pressure",
+        "range": "0-127"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".channelpressure",
+    "outlets": [
+      {
+        "doc": "Encoded MIDI Channel Pressure message.",
+        "index": 0,
+        "label": "midi",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "MIDI channel offset (0-based).",
+        "name": "channel",
+        "range": "0-15"
+      }
+    ]
+  },
+  ".controlchange": {
+    "category": "MIDI",
+    "description": "MIDI Control Change message generator. Emits a 3-byte status/controller/value packet on every value change.",
+    "inlets": [
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "Controller value (also fires the output).",
+        "index": 0,
+        "label": "value",
+        "range": "0-127"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".controlchange",
+    "outlets": [
+      {
+        "doc": "Encoded MIDI Control Change message.",
+        "index": 0,
+        "label": "midi",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "MIDI channel offset (0-based).",
+        "name": "channel",
+        "range": "0-15"
+      },
+      {
+        "default": "0",
+        "doc": "Controller number.",
+        "name": "controller",
+        "range": "0-127"
+      }
+    ]
+  },
+  ".counter": {
+    "category": "MATH",
+    "description": "Step counter. Bang increments the current value by 'step' and emits it. Send 'reset' as a list to return to startValue.",
+    "inlets": [
+      {
+        "accepts": [
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Bang to step / int to set the value / list 'reset' to return to startValue.",
+        "index": 0,
+        "label": "control",
+        "range": "any int"
+      },
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "Sets the increment used on each bang.",
+        "index": 1,
+        "label": "step",
+        "range": "any int"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".counter",
+    "outlets": [
+      {
+        "doc": "Current counter value.",
+        "index": 0,
+        "label": "out",
+        "range": "any int",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Initial counter value (and the value 'reset' returns to).",
+        "name": "startValue",
+        "range": "any int"
+      },
+      {
+        "default": "1",
+        "doc": "Increment applied on each bang.",
+        "name": "step",
+        "range": "any int"
+      }
+    ]
+  },
+  ".f": {
+    "category": "GUI",
+    "description": "Float number box. Stores a float; inlet 0 sets-and-fires (bang re-emits the current value), inlet 1 sets silently.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "Sets the value and emits it; bang re-emits the current value.",
+        "index": 0,
+        "label": "set/bang",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Silently updates the stored value without emitting.",
+        "index": 1,
+        "label": "silent set",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".f",
+    "outlets": [
+      {
+        "doc": "Current float value.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Initial value.",
+        "name": "value",
+        "range": "any float"
+      }
+    ]
+  },
+  ".ftom": {
+    "category": "MATH",
+    "description": "Converts a frequency in Hz to its MIDI note number (with A4 == 69, fractional output).",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Frequency in Hz.",
+        "index": 0,
+        "label": "freq",
+        "range": "0-20000 Hz"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".ftom",
+    "outlets": [
+      {
+        "doc": "MIDI note number — fractional.",
+        "index": 0,
+        "label": "midi",
+        "range": "any float",
+        "type": "FLOAT"
+      }
+    ],
+    "params": []
+  },
+  ".gate": {
+    "category": "GENERIC",
+    "description": "Demultiplexer. Routes a value inlet to one of N outlets, selected by inlet 0. activeOutlet=0 silences output; 1-based otherwise.",
+    "inlets": [
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "1-based outlet index to forward to (0 = mute).",
+        "index": 0,
+        "label": "select",
+        "range": "0+"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Value inlet — accepts bang / int / float / list.",
+        "index": 1,
+        "label": "in",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".gate",
+    "outlets": [
+      {
+        "doc": "Outlet 0 — emits the routed value when select == 1.",
+        "index": 0,
+        "label": "out0",
+        "range": "",
+        "type": "ANY"
+      },
+      {
+        "doc": "Outlet 1 — emits the routed value when select == 2.",
+        "index": 1,
+        "label": "out1",
+        "range": "",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "2",
+        "doc": "Number of value outlets (additional outlets are created by SetParams).",
+        "name": "numOutlets",
+        "range": "1+"
+      }
+    ]
+  },
+  ".i": {
+    "category": "GUI",
+    "description": "Integer number box. Stores an int; inlet 0 sets-and-fires (bang re-emits the current value), inlet 1 sets silently.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "Sets the value and emits it; bang re-emits the current value.",
+        "index": 0,
+        "label": "set/bang",
+        "range": "any int"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Silently updates the stored value without emitting.",
+        "index": 1,
+        "label": "silent set",
+        "range": "any int"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".i",
+    "outlets": [
+      {
+        "doc": "Current integer value.",
+        "index": 0,
+        "label": "out",
+        "range": "any int",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Initial value.",
+        "name": "value",
+        "range": "any int"
+      }
+    ]
+  },
+  ".l": {
+    "category": "GUI",
+    "description": "Static list. Bang re-sends the stored list; list updates the stored payload.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Bang re-sends the stored list; list replaces it.",
+        "index": 0,
+        "label": "trigger/set",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".l",
+    "outlets": [
+      {
+        "doc": "Stored list payload.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "Initial list payload.",
+        "name": "message",
+        "range": "any string"
+      }
+    ]
+  },
+  ".m": {
+    "category": "GUI",
+    "description": "Static message. Bang re-sends the stored message; list updates the stored payload.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Bang re-sends the stored message; list replaces it.",
+        "index": 0,
+        "label": "trigger/set",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".m",
+    "outlets": [
+      {
+        "doc": "Stored message broadcast as a SetMessage.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "Initial message payload.",
+        "name": "message",
+        "range": "any string"
+      }
+    ]
+  },
+  ".metro": {
+    "category": "TIME",
+    "description": "Periodic bang generator. Once toggled on, emits a bang every 'period' milliseconds (and immediately on start). Toggle off to stop.",
+    "inlets": [
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "Non-zero int starts the metronome; 0 stops it.",
+        "index": 0,
+        "label": "on/off",
+        "range": "0 or 1"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Sets the bang interval in milliseconds.",
+        "index": 1,
+        "label": "period",
+        "range": "1+ ms"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".metro",
+    "outlets": [
+      {
+        "doc": "Periodic bang.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "1000",
+        "doc": "Initial interval in milliseconds.",
+        "name": "period",
+        "range": "1+ ms"
+      }
+    ]
+  },
+  ".midiout": {
+    "category": "MIDI",
+    "description": "MIDI device output. Sends raw MIDI byte lists to the selected hardware port; understands 'allnotesoff', 'reset', 'omni on/off', 'poly on/off', and 'local control on/off' as control messages.",
+    "inlets": [
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "Raw MIDI byte list to send to the device.",
+        "index": 0,
+        "label": "midi",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".midiout",
+    "outlets": [],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Index of the output MIDI port.",
+        "name": "port",
+        "range": "device-dependent"
+      }
+    ]
+  },
+  ".mtof": {
+    "category": "MATH",
+    "description": "Converts a MIDI note number (with A4 == 69) to its frequency in Hz.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "MIDI note number — fractional values are supported.",
+        "index": 0,
+        "label": "midi",
+        "range": "0-127"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".mtof",
+    "outlets": [
+      {
+        "doc": "Frequency in Hz.",
+        "index": 0,
+        "label": "freq",
+        "range": "8.18-12543 Hz",
+        "type": "FLOAT"
+      }
+    ],
+    "params": []
+  },
+  ".noteoff": {
+    "category": "MIDI",
+    "description": "MIDI Note-Off message generator. Inlet 0 fires the message; emits a 3-byte status/pitch/velocity packet as a list.",
+    "inlets": [
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "MIDI note number (also fires the output).",
+        "index": 0,
+        "label": "pitch",
+        "range": "0-127"
+      },
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "Release velocity (stored until next pitch).",
+        "index": 1,
+        "label": "velocity",
+        "range": "0-127"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".noteoff",
+    "outlets": [
+      {
+        "doc": "Encoded MIDI Note-Off message (status, pitch, velocity).",
+        "index": 0,
+        "label": "midi",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "MIDI channel offset (0-based).",
+        "name": "channel",
+        "range": "0-15"
+      }
+    ]
+  },
+  ".noteon": {
+    "category": "MIDI",
+    "description": "MIDI Note-On message generator. Inlet 0 fires the message; emits a 3-byte status/pitch/velocity packet as a list.",
+    "inlets": [
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "MIDI note number (also fires the output).",
+        "index": 0,
+        "label": "pitch",
+        "range": "0-127"
+      },
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "Note velocity (stored until next pitch).",
+        "index": 1,
+        "label": "velocity",
+        "range": "0-127"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".noteon",
+    "outlets": [
+      {
+        "doc": "Encoded MIDI Note-On message (status, pitch, velocity).",
+        "index": 0,
+        "label": "midi",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "MIDI channel offset (0-based).",
+        "name": "channel",
+        "range": "0-15"
+      }
+    ]
+  },
+  ".polypressure": {
+    "category": "MIDI",
+    "description": "MIDI Polyphonic Key Pressure message generator. Inlet 0 fires the message with the stored pressure value.",
+    "inlets": [
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "MIDI note number (also fires the output).",
+        "index": 0,
+        "label": "pitch",
+        "range": "0-127"
+      },
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "Pressure value for the note (stored until next pitch).",
+        "index": 1,
+        "label": "pressure",
+        "range": "0-127"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".polypressure",
+    "outlets": [
+      {
+        "doc": "Encoded MIDI Poly Key Pressure message.",
+        "index": 0,
+        "label": "midi",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "MIDI channel offset (0-based).",
+        "name": "channel",
+        "range": "0-15"
+      }
+    ]
+  },
+  ".programchange": {
+    "category": "MIDI",
+    "description": "MIDI Program Change message generator. Emits a status/program packet on every value change.",
+    "inlets": [
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "Program number (also fires the output).",
+        "index": 0,
+        "label": "program",
+        "range": "0-127"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".programchange",
+    "outlets": [
+      {
+        "doc": "Encoded MIDI Program Change message.",
+        "index": 0,
+        "label": "midi",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "MIDI channel offset (0-based).",
+        "name": "channel",
+        "range": "0-15"
+      }
+    ]
+  },
+  ".r": {
+    "category": "GENERIC",
+    "description": "Named receive endpoint. Forwards values arriving from any matching gSend (same dataName) in the patcher.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Wired inlet (rarely used — receives typically pair with gSend by name).",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".r",
+    "outlets": [
+      {
+        "doc": "Forwarded value from matching gSend nodes.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "Name to listen for; must match the dataName of one or more gSend nodes.",
+        "name": "dataName",
+        "range": "any identifier"
+      }
+    ]
+  },
+  ".random": {
+    "category": "MATH",
+    "description": "Random integer generator. On bang, emits a uniformly distributed integer in [0, range).",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG"
+        ],
+        "doc": "Trigger — emits a fresh random integer.",
+        "index": 0,
+        "label": "bang",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Sets the exclusive upper bound of the output range.",
+        "index": 1,
+        "label": "range",
+        "range": "1+"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".random",
+    "outlets": [
+      {
+        "doc": "Random integer in [0, range).",
+        "index": 0,
+        "label": "out",
+        "range": "0 to range-1",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "2",
+        "doc": "Initial exclusive upper bound.",
+        "name": "range",
+        "range": "1+"
+      }
+    ]
+  },
+  ".route": {
+    "category": "GENERIC",
+    "description": "Match-and-route. Compares the incoming value to each token in the list parameter and forwards to the matching outlet; unmatched values go to the final fall-through outlet. Outlets are created when the list parameter is set.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Value inlet — accepts bang / int / float / list.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".route",
+    "outlets": [],
+    "params": [
+      {
+        "default": "",
+        "doc": "Space-separated list of match tokens; one outlet is created per token plus one fall-through outlet.",
+        "name": "list",
+        "range": "any tokens"
+      }
+    ]
+  },
+  ".s": {
+    "category": "GENERIC",
+    "description": "Named send endpoint. Broadcasts incoming values to every gReceive in the patcher whose dataName matches.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Value inlet — accepts bang / int / float / list.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".s",
+    "outlets": [],
+    "params": [
+      {
+        "default": "",
+        "doc": "Name to broadcast on; matching gReceive nodes will emit the forwarded value.",
+        "name": "dataName",
+        "range": "any identifier"
+      }
+    ]
+  },
+  ".slider": {
+    "category": "GUI",
+    "description": "Slider control. Stores a normalized float in [0, 1]; ints/floats are clamped on input. Emits the stored value on every calculate tick.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "Sets the slider position; bang is a no-op trigger that still fires the output.",
+        "index": 0,
+        "label": "set/bang",
+        "range": "0.0-1.0"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".slider",
+    "outlets": [
+      {
+        "doc": "Current slider value (clamped to [0, 1]).",
+        "index": 0,
+        "label": "out",
+        "range": "0.0-1.0",
+        "type": "FLOAT"
+      }
+    ],
+    "params": []
+  },
+  ".switch": {
+    "category": "GENERIC",
+    "description": "Selector switch. Routes one of N value inlets to a single outlet, chosen by the index on inlet 0. The number of value inlets is set by the numInlets parameter.",
+    "inlets": [
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "Index (0-based) of the value inlet to forward.",
+        "index": 0,
+        "label": "select",
+        "range": "0+"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Value inlet 0 — accepts bang / int / float / list.",
+        "index": 1,
+        "label": "in0",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Value inlet 1 — accepts bang / int / float / list.",
+        "index": 2,
+        "label": "in1",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".switch",
+    "outlets": [
+      {
+        "doc": "Forwarded value from the currently selected inlet.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "2",
+        "doc": "Number of value inlets (additional inlets are created by SetParams).",
+        "name": "numInlets",
+        "range": "1+"
+      }
+    ]
+  },
+  ".t": {
+    "category": "GUI",
+    "description": "Latching on/off toggle. Int sets the state directly (0 = off, non-zero = on); bang flips it. Emits 0 or 1 every calculate tick.",
+    "inlets": [
+      {
+        "accepts": [
+          "INT",
+          "BANG"
+        ],
+        "doc": "Int sets state (0 = off, !=0 = on); bang flips the current state.",
+        "index": 0,
+        "label": "set/toggle",
+        "range": "0 or 1"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".t",
+    "outlets": [
+      {
+        "doc": "Current state — 0 or 1.",
+        "index": 0,
+        "label": "out",
+        "range": "0 or 1",
+        "type": "INT"
+      }
+    ],
+    "params": []
+  },
+  ".text": {
+    "category": "GUI",
+    "description": "Text label. Holds a string parameter for display; no inlets, no outlets — purely a visual annotation.",
+    "inlets": [],
+    "is_dsp": false,
+    "name": ".text",
+    "outlets": [],
+    "params": [
+      {
+        "default": "",
+        "doc": "Label text.",
+        "name": "text",
+        "range": "any string"
+      }
+    ]
+  },
+  "~*": {
+    "category": "MATH",
+    "description": "Audio-rate multiply. Multiplies the left buffer by either the right buffer (audio-rate) or the right float (control-rate). The canonical 'gain' / ring-mod node.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "Left operand — audio buffer.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT"
+        ],
+        "doc": "Right operand — audio buffer or float (gain).",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~*",
+    "outlets": [
+      {
+        "doc": "left * right.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1.0",
+        "doc": "Initial right-operand float (used until a buffer arrives on inlet 1).",
+        "name": "right",
+        "range": "any float"
+      }
+    ]
+  },
+  "~+": {
+    "category": "MATH",
+    "description": "Audio-rate add. Sums the left buffer with either the right buffer (audio-rate) or the right float (control-rate).",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "Left operand — audio buffer.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT"
+        ],
+        "doc": "Right operand — audio buffer or float.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~+",
+    "outlets": [
+      {
+        "doc": "left + right.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1.0",
+        "doc": "Initial right-operand float (used until a buffer arrives on inlet 1).",
+        "name": "right",
+        "range": "any float"
+      }
+    ]
+  },
+  "~-": {
+    "category": "MATH",
+    "description": "Audio-rate subtract. Subtracts either the right buffer (audio-rate) or the right float (control-rate) from the left buffer.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "Left operand — audio buffer.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT"
+        ],
+        "doc": "Right operand — audio buffer or float.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~-",
+    "outlets": [
+      {
+        "doc": "left - right.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1.0",
+        "doc": "Initial right-operand float (used until a buffer arrives on inlet 1).",
+        "name": "right",
+        "range": "any float"
+      }
+    ]
+  },
+  "~/": {
+    "category": "MATH",
+    "description": "Audio-rate divide. Divides the left buffer by either the right buffer (audio-rate) or the right float (control-rate). A right-float of 0 is silently treated as a no-op.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "Left operand — audio buffer.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT"
+        ],
+        "doc": "Right operand — audio buffer or float (non-zero).",
+        "index": 1,
+        "label": "right",
+        "range": "any non-zero float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~/",
+    "outlets": [
+      {
+        "doc": "left / right.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1.0",
+        "doc": "Initial right-operand float (used until a buffer arrives on inlet 1). 0 disables division.",
+        "name": "right",
+        "range": "any non-zero float"
+      }
+    ]
+  },
+  "~bp": {
+    "category": "FILTER",
+    "description": "Bandpass filter. Passes a frequency band centered on 'frequency' with bandwidth shaped by 'Q' (resonance).",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "Audio input buffer.",
+        "index": 0,
+        "label": "in",
+        "range": "-1.0 to 1.0"
+      },
+      {
+        "accepts": [
+          "FLOAT"
+        ],
+        "doc": "Center frequency in Hz.",
+        "index": 1,
+        "label": "freq",
+        "range": "0-20000 Hz"
+      },
+      {
+        "accepts": [
+          "FLOAT"
+        ],
+        "doc": "Resonance / inverse bandwidth — higher narrows the band.",
+        "index": 2,
+        "label": "Q",
+        "range": "0.1-100"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~bp",
+    "outlets": [
+      {
+        "doc": "Filtered audio output.",
+        "index": 0,
+        "label": "out",
+        "range": "-1.0 to 1.0",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Initial center frequency in Hz.",
+        "name": "frequency",
+        "range": "0-20000 Hz"
+      },
+      {
+        "default": "0",
+        "doc": "Initial Q / resonance.",
+        "name": "Q",
+        "range": "0.1-100"
+      }
+    ]
+  },
+  "~hp": {
+    "category": "FILTER",
+    "description": "Single-pole highpass filter. Attenuates content below the cutoff frequency.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "Audio input buffer.",
+        "index": 0,
+        "label": "in",
+        "range": "-1.0 to 1.0"
+      },
+      {
+        "accepts": [
+          "FLOAT"
+        ],
+        "doc": "Cutoff frequency in Hz.",
+        "index": 1,
+        "label": "cutoff",
+        "range": "0-20000 Hz"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~hp",
+    "outlets": [
+      {
+        "doc": "Filtered audio output.",
+        "index": 0,
+        "label": "out",
+        "range": "-1.0 to 1.0",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Initial cutoff frequency in Hz.",
+        "name": "frequency",
+        "range": "0-20000 Hz"
+      }
+    ]
+  },
+  "~line": {
+    "category": "GENERIC",
+    "description": "Linear-ramp generator. Ramps an audio-rate value toward a target over a given time in ms. The 'stop' message freezes the ramp at the current value.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT"
+        ],
+        "doc": "Target value to ramp toward.",
+        "index": 0,
+        "label": "target",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT"
+        ],
+        "doc": "Ramp duration in milliseconds.",
+        "index": 1,
+        "label": "time",
+        "range": "0+ ms"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~line",
+    "outlets": [
+      {
+        "doc": "Audio-rate ramp output.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Initial target value.",
+        "name": "target",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "Initial ramp time in milliseconds.",
+        "name": "time",
+        "range": "0+ ms"
+      }
+    ]
+  },
+  "~lp": {
+    "category": "FILTER",
+    "description": "Single-pole lowpass filter. Attenuates content above the cutoff frequency.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "Audio input buffer.",
+        "index": 0,
+        "label": "in",
+        "range": "-1.0 to 1.0"
+      },
+      {
+        "accepts": [
+          "FLOAT"
+        ],
+        "doc": "Cutoff frequency in Hz.",
+        "index": 1,
+        "label": "cutoff",
+        "range": "0-20000 Hz"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~lp",
+    "outlets": [
+      {
+        "doc": "Filtered audio output.",
+        "index": 0,
+        "label": "out",
+        "range": "-1.0 to 1.0",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Initial cutoff frequency in Hz.",
+        "name": "frequency",
+        "range": "0-20000 Hz"
+      }
+    ]
+  },
+  "~noise": {
+    "category": "OSC",
+    "description": "White-noise generator. Emits a fresh DSP buffer of pseudo-random samples on every audio frame.",
+    "inlets": [],
+    "is_dsp": true,
+    "name": "~noise",
+    "outlets": [
+      {
+        "doc": "White-noise audio output.",
+        "index": 0,
+        "label": "out",
+        "range": "-1.0 to 1.0",
+        "type": "BUFFER"
+      }
+    ],
+    "params": []
+  },
+  "~saw": {
+    "category": "OSC",
+    "description": "Audio-rate sawtooth oscillator. Frequency can be set with a float or modulated with a DSP buffer.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT"
+        ],
+        "doc": "Oscillator frequency in Hz. Accepts a DSP buffer (FM) or a float.",
+        "index": 0,
+        "label": "freq",
+        "range": "0-20000 Hz"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~saw",
+    "outlets": [
+      {
+        "doc": "Sawtooth wave audio output.",
+        "index": 0,
+        "label": "out",
+        "range": "-1.0 to 1.0",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "440",
+        "doc": "Initial frequency in Hz.",
+        "name": "frequency",
+        "range": "0-20000 Hz"
+      }
+    ]
+  },
+  "~sine": {
+    "category": "OSC",
+    "description": "Audio-rate sine oscillator. Frequency can be set with a float or modulated with a DSP buffer.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT"
+        ],
+        "doc": "Oscillator frequency in Hz. Accepts a DSP buffer (FM) or a float.",
+        "index": 0,
+        "label": "freq",
+        "range": "0-20000 Hz"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~sine",
+    "outlets": [
+      {
+        "doc": "Sine wave audio output.",
+        "index": 0,
+        "label": "out",
+        "range": "-1.0 to 1.0",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "440",
+        "doc": "Initial frequency in Hz.",
+        "name": "frequency",
+        "range": "0-20000 Hz"
+      }
+    ]
+  },
+  "~vcf": {
+    "category": "FILTER",
+    "description": "Voltage-controlled (heterodyne) filter. Mixes the input with a center-frequency buffer; sharpness controls resonance. Emits real and imaginary components on two buffer outlets.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "Audio input buffer.",
+        "index": 0,
+        "label": "in",
+        "range": "-1.0 to 1.0"
+      },
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "Center-frequency buffer (typically a sine at the target frequency).",
+        "index": 1,
+        "label": "center",
+        "range": "-1.0 to 1.0"
+      },
+      {
+        "accepts": [
+          "FLOAT"
+        ],
+        "doc": "Resonance / sharpness control.",
+        "index": 2,
+        "label": "sharpness",
+        "range": "0.0-1.0"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~vcf",
+    "outlets": [
+      {
+        "doc": "Real component of the filtered signal.",
+        "index": 0,
+        "label": "real",
+        "range": "-1.0 to 1.0",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "Imaginary component of the filtered signal.",
+        "index": 1,
+        "label": "imag",
+        "range": "-1.0 to 1.0",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Initial resonance / sharpness.",
+        "name": "sharpness",
+        "range": "0.0-1.0"
+      }
+    ]
+  }
+}

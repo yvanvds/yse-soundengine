@@ -92,3 +92,11 @@ unsigned int outlet::GetTargetInlet(unsigned int connection) {
   }
   return 0;
 }
+
+void outlet::SetDoc(const std::string & label,
+                    const std::string & doc,
+                    const std::string & range) {
+  docLabel = label;
+  docDescription = doc;
+  docRange = range;
+}

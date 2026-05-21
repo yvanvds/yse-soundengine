@@ -17,6 +17,13 @@ CONSTRUCT() {
 	ADD_PARAM(controller);
 
 	channel = controller = cvalue = 0;
+
+	ADD_DESCRIPTION("MIDI Control Change message generator. Emits a 3-byte status/controller/value packet on every value change.");
+	ADD_CATEGORY(pCategory::MIDI);
+	INLET_DOC(0, "value", "Controller value (also fires the output).", "0-127");
+	OUTLET_DOC(0, "midi", "Encoded MIDI Control Change message.", "");
+	PARAM_DOC("channel", "0", "MIDI channel offset (0-based).", "0-15");
+	PARAM_DOC("controller", "0", "Controller number.", "0-127");
 }
 
 INT_IN(SetIntValue) {

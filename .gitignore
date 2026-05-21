@@ -36,6 +36,9 @@ local.properties
 
 documentation/build/
 documentation/source/_doxygen/
+# patcher_objects.rst is rendered from patcher_objects.json by the Sphinx
+# pre-build hook in conf.py; the JSON is committed, the rendered .rst is not.
+documentation/source/api/patcher_objects.rst
 
 #################
 ## Visual Studio
@@ -75,6 +78,7 @@ build-linux-audio-diag/
 build-linux-audio/
 build-android-arm64/
 build-android-x86_64/
+build-tools/
 [Bb]in/
 [Oo]bj/
 

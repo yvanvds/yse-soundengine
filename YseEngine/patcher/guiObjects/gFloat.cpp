@@ -20,6 +20,13 @@ CONSTRUCT() {
   ADD_PARAM(value);
 
   value = 0;
+
+  ADD_DESCRIPTION("Float number box. Stores a float; inlet 0 sets-and-fires (bang re-emits the current value), inlet 1 sets silently.");
+  ADD_CATEGORY(pCategory::GUI);
+  INLET_DOC(0, "set/bang", "Sets the value and emits it; bang re-emits the current value.", "any float");
+  INLET_DOC(1, "silent set", "Silently updates the stored value without emitting.", "any float");
+  OUTLET_DOC(0, "out", "Current float value.", "any float");
+  PARAM_DOC("value", "0", "Initial value.", "any float");
 }
 
 FLOAT_IN(SetFloat) {

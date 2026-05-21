@@ -19,6 +19,13 @@ CONSTRUCT() {
   ADD_PARAM(rightIn);
 
   leftIn = rightIn = 0;
+
+  ADD_DESCRIPTION("Control-rate divide. Emits left / right as a float whenever inlet 0 fires; division by zero emits 0.");
+  ADD_CATEGORY(pCategory::MATH);
+  INLET_DOC(0, "left", "Left operand — fires the division.", "any float");
+  INLET_DOC(1, "right", "Right operand — stored until next divide. Zero forces output to 0.", "any float");
+  OUTLET_DOC(0, "out", "left / right (or 0 when right == 0).", "any float");
+  PARAM_DOC("right", "0", "Initial right-operand value.", "any float");
 }
 
 FLOAT_IN(SetLeftFloat) {

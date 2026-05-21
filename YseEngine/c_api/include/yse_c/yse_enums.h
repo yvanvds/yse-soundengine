@@ -70,6 +70,31 @@ typedef enum YseDspDelayTap {
   YSE_DELAY_TAP_THIRD  = 2
 } YseDspDelayTap;
 
+/* Mirrors YSE::PATCHER::pCategory in patcher/pEnums.h. The patcher
+   registry exposes this through the metadata API so binding-side
+   documentation generators can group objects without inspecting the
+   engine source. */
+typedef enum YsePCategory {
+  YSE_PCAT_UNSET   = 0,
+  YSE_PCAT_OSC     = 1,
+  YSE_PCAT_FILTER  = 2,
+  YSE_PCAT_MATH    = 3,
+  YSE_PCAT_GENERIC = 4,
+  YSE_PCAT_GUI     = 5,
+  YSE_PCAT_TIME    = 6,
+  YSE_PCAT_MIDI    = 7
+} YsePCategory;
+
+/* Bitmask of message types an inlet accepts; mirrors
+   YSE::PATCHER::InletType. OR the flags together; check with `&`. */
+typedef enum YseInletAccepts {
+  YSE_IN_ACCEPTS_BUFFER = 1u << 0,
+  YSE_IN_ACCEPTS_FLOAT  = 1u << 1,
+  YSE_IN_ACCEPTS_INT    = 1u << 2,
+  YSE_IN_ACCEPTS_BANG   = 1u << 3,
+  YSE_IN_ACCEPTS_LIST   = 1u << 4
+} YseInletAccepts;
+
 /* Mirrors YSE::REVERB_PRESET in headers/enums.hpp. */
 typedef enum YseReverbPreset {
   YSE_REVERB_OFF        = 0,
