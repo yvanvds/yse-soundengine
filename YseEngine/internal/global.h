@@ -11,14 +11,18 @@
 #ifndef GLOBAL_H_INCLUDED
 #define GLOBAL_H_INCLUDED
 
+#include <memory>
+
 #include "../headers/types.hpp"
 #include "../classes.hpp"
 #include "threadPool.h"
 
-namespace YSE {  
-    
+namespace YSE {
+
   namespace INTERNAL {
-    
+
+    class NamedBus;
+
     class global {
     public:
       bool isActive() { return active; }
@@ -40,7 +44,14 @@ namespace YSE {
       bool needsUpdate() { return update > 0;  }
       void updateDone() { update--; }
 
+      // Global named bus (issue #121). Constructed lazily in init() and
+      // destroyed in close() so subscribers, the SPSC queue, and the next
+      // handle counter do not persist across an init/close cycle. Calling
+      // namedBus() before init() or after close() is a programming error.
+      NamedBus& namedBus();
+
       global();
+      ~global();
 
 
     private:
@@ -49,6 +60,8 @@ namespace YSE {
 
       threadPool slowThreads;
       threadPool fastThreads;
+
+      std::unique_ptr<NamedBus> bus;
 
       aInt update;
       aBool active; // set true after System().init(), false at System().close()

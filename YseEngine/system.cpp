@@ -86,6 +86,10 @@ Bool YSE::system::initShared(bool openDevice) {
 
 void YSE::system::update() {
   INTERNAL::Global().flagForUpdate();
+  // Drain any publishes the audio thread queued since the last update tick
+  // and dispatch them synchronously to their subscribers. Cheap when empty:
+  // a single SPSC peek + early exit.
+  INTERNAL::Global().namedBus().drainPending();
 	unsigned int callbacks = DEVICE::Manager().GetCallbacksSinceLastUpdate();
 	if (callbacks == 0) {
 		currentlyMissedCallbacks++;

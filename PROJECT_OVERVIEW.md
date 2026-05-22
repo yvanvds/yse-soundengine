@@ -1,6 +1,6 @@
 <!-- META
-last_updated_commit: 115fa3d0e8671a8365098cd3f4bfc3292bc12042
-last_updated_at: 2026-05-21
+last_updated_commit: dc8fb40
+last_updated_at: 2026-05-22
 -->
 
 # YSE Sound Engine — Project Overview
@@ -355,6 +355,7 @@ Callback bridge conventions (atomic-swap callback pointer, no mutex, no malloc o
 - **Communication** — cross-thread state changes use a lock-free SPSC inbox (`utils/lfQueue.hpp`) between the main and audio threads. The audio thread never takes a mutex on the hot path.
 - **Lifecycle fences** — `OBJECT_DELETE_PENDING` handshake prevents the slow-pool deleter from freeing an impl while the audio thread still has it in `toLoad`; `connectedToParent` atomic flag coordinates parent-channel disconnect.
 - **Atomic wrappers:** `aBool`, `aInt`, `aUInt`, `aFlt` (thin `std::atomic<T>` aliases in `utils/atomicOps.hpp`).
+- **Global named bus** ([internal/namedBus.h](YseEngine/internal/namedBus.h)) — `INTERNAL::Bus()` is the by-name addressing substrate underneath the live-coding DSL (epic [#119](https://github.com/yvanvds/yse-soundengine/issues/119)). Subscribers register against UTF-8 names; publishes from the main thread dispatch synchronously, publishes from the audio thread (`T_DSP`) enqueue into a pre-sized SPSC `lfQueue` and are drained from `system::update()`. The audio-thread path is allocation-free and lock-free — only `int` and `float` payloads fit the pooled-message footprint (strings and lists from `T_DSP` are dropped silently). Subscription registration takes a `std::shared_mutex` and never runs on the audio thread. Lifetime is tied to `System::init` / `System::close`: state does not persist across sessions.
 
 ---
 

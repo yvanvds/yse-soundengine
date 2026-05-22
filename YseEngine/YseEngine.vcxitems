@@ -72,6 +72,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)internal\customFileReader.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)internal\global.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)internal\lsfSoundfile.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)internal\namedBus.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)internal\reverbDSP.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)internal\settings.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)internal\thread.h" />
@@ -241,6 +242,7 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)internal\customFileReader.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)internal\global.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)internal\lsfSoundfile.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)internal\namedBus.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)internal\reverbDSP.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)internal\settings.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)internal\thread.cpp" />
