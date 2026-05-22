@@ -69,7 +69,7 @@ namespace YSE {
       inline unsigned int GetID() { return ID; }
       void DumpJson(nlohmann::json::value_type & json);
 
-      void SetParent(pObject * parent);
+      virtual void SetParent(pObject * parent);
       inline const std::string & DataName() { return dataName; }
 
       // Documentation surface. The fields are populated in derived-class

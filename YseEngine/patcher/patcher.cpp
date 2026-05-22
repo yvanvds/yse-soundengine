@@ -29,10 +29,30 @@ void patcher::create(int mainOutputs) {
   pimpl = new PATCHER::patcherImplementation(mainOutputs, this);
 	if (pimpl != nullptr) {
 		INTERNAL::LogImpl().emit(E_DEBUG, "Patcher Created.");
+    if (!pendingName.empty()) {
+      pimpl->SetName(pendingName);
+      pendingName.clear();
+    }
 	}
 	else {
 		INTERNAL::LogImpl().emit(E_ERROR, "Patcher could not be Created.");
 	}
+}
+
+patcher & patcher::name(const std::string & n) {
+  if (pimpl != nullptr) {
+    pimpl->SetName(n);
+  }
+  else {
+    // Stash until create() runs. The impl is what owns the canonical name.
+    pendingName = n;
+  }
+  return *this;
+}
+
+const std::string & patcher::name() const {
+  if (pimpl != nullptr) return pimpl->Name();
+  return pendingName;
 }
 
 pHandle * patcher::CreateObject(const std::string & type, const std::string & args) {
