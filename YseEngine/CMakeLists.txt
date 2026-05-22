@@ -52,6 +52,7 @@ set(YSE_SRCS
   internal/customFileReader.cpp
   internal/global.cpp
   internal/lsfSoundfile.cpp
+  internal/namedBus.cpp
   internal/reverbDSP.cpp
   internal/settings.cpp
   internal/thread.cpp

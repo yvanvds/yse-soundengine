@@ -253,6 +253,9 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)internal\lsfSoundfile.h">
       <Filter>internal</Filter>
     </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)internal\namedBus.h">
+      <Filter>internal</Filter>
+    </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)internal\reverbDSP.h">
       <Filter>internal</Filter>
     </ClInclude>
@@ -735,6 +738,9 @@
       <Filter>internal</Filter>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)internal\lsfSoundfile.cpp">
+      <Filter>internal</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)internal\namedBus.cpp">
       <Filter>internal</Filter>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)internal\reverbDSP.cpp">

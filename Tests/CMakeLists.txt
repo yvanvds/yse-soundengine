@@ -50,6 +50,7 @@ set(YSE_TEST_SOURCES
   music/test_motif.cpp
   listener/test_listener.cpp
   io/test_bufferIO.cpp
+  system/test_named_bus.cpp
   system/test_system_active_state.cpp
   integration/test_device.cpp
 )

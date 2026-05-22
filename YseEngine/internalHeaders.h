@@ -58,6 +58,7 @@
 #include "implementations/logImplementation.h"
 
 #include "internal/global.h"
+#include "internal/namedBus.h"
 #include "internal/reverbDSP.h"
 #include "internal/settings.h"
 
