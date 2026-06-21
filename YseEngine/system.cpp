@@ -78,6 +78,10 @@ Bool YSE::system::initShared(bool openDevice) {
     timeBeginPeriod(1);
 #endif
 
+		// Boot the embedded interpreter (issue #124) after the audio device is
+		// open. No-op unless built with YSE_ENABLE_PYTHON.
+		INTERNAL::Global().startScripting();
+
 		return true;
 	}
 	INTERNAL::LogImpl().emit(E_ERROR, "YSE System object failed to initialize");
@@ -90,6 +94,10 @@ void YSE::system::update() {
   // and dispatch them synchronously to their subscribers. Cheap when empty:
   // a single SPSC peek + early exit.
   INTERNAL::Global().namedBus().drainPending();
+  // Wake the script thread once per tick so future scheduled work can advance
+  // (issue #124 establishes the wake; #126/#127 add the scheduling). No-op
+  // unless built with YSE_ENABLE_PYTHON.
+  INTERNAL::Global().wakeScripting();
 	unsigned int callbacks = DEVICE::Manager().GetCallbacksSinceLastUpdate();
 	if (callbacks == 0) {
 		currentlyMissedCallbacks++;
@@ -107,6 +115,10 @@ void YSE::system::close() {
   YSE::PATCHER::TimerThread().Clear();
 
   if (INTERNAL::Global().active) {
+    // Finalize the embedded interpreter (issue #124) before the audio device
+    // closes, mirroring the start ordering in initShared(). No-op unless built
+    // with YSE_ENABLE_PYTHON.
+    INTERNAL::Global().stopScripting();
     // Release the SAMPLERATE lock first so the next init() pass can rewrite
     // SAMPLERATE if the host opens a device with a different negotiated rate.
     INTERNAL::Global().sampleRateLocked = false;

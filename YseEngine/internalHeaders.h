@@ -59,6 +59,10 @@
 
 #include "internal/global.h"
 #include "internal/namedBus.h"
+
+#if YSE_ENABLE_PYTHON
+#include "python/scriptRuntime.h"
+#endif
 #include "internal/reverbDSP.h"
 #include "internal/settings.h"
 

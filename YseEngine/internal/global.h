@@ -50,6 +50,16 @@ namespace YSE {
       // namedBus() before init() or after close() is a programming error.
       NamedBus& namedBus();
 
+      // Embedded-CPython lifecycle (issue #124). These are no-ops unless the
+      // engine was built with YSE_ENABLE_PYTHON; the interpreter and the
+      // script thread it owns are file-static in global.cpp so this header
+      // carries no Python dependency and no macro-dependent layout. Called by
+      // system::init / update / close around the audio-device boundary —
+      // start after the device opens, stop before it closes.
+      void startScripting();
+      void wakeScripting();
+      void stopScripting();
+
       global();
       ~global();
 

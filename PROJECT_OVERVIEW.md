@@ -102,8 +102,18 @@ Direct `cmake -B build ...` invocations remain fully valid — the presets are a
 | `YSE_NATIVE_ARCH` | OFF | `-march=native` (local dev only — not distributable) |
 | `YSE_ENABLE_COVERAGE` | OFF | gcov/gcovr coverage; forces `YSE_BUILD_TESTS=ON`; Linux only (GCC/Clang) |
 | `YSE_LLVM_COVERAGE` | OFF | LLVM source-based coverage (`-fprofile-instr-generate`); Clang only — mutually exclusive with `YSE_ENABLE_COVERAGE` |
+| `YSE_ENABLE_PYTHON` | OFF | Embed a CPython interpreter for the live-coding DSL (desktop only; fatal error on Android). OFF is byte-for-byte equivalent to a build without the option. See **Python embedding** below |
 
 `CMAKE_EXPORT_COMPILE_COMMANDS=ON` is set unconditionally so `compile_commands.json` is always generated for clangd and SonarCloud.
+
+### Python embedding (`YSE_ENABLE_PYTHON`)
+
+Optional embedded CPython for the live-coding DSL (epic [#119](https://github.com/yvanvds/yse-soundengine/issues/119); this infrastructure is issue [#124](https://github.com/yvanvds/yse-soundengine/issues/124)). **Desktop only** — enabling it on Android is a configure-time `FATAL_ERROR`. **OFF by default**, and when OFF no Python headers, symbols, or runtime cost enter the build.
+
+- **Sourcing (Option C).** `cmake/YsePython.cmake` locates a system / prebuilt libpython via `find_package(Python3 ≥ 3.10 COMPONENTS Development.Embed)` and links it into `yse_objects`. On MSYS2 Clang64 discovery is anchored to the toolchain's own Python (the `clang++` prefix) so the ABI-matched `libpython3.x.dll.a` is used rather than a registry MSVC install. This **deviates** from the issue's "FetchContent + static + build-time-frozen stdlib" wording: CPython ships no CMake build and does not build under Clang64. Practical consequences: linkage is whatever the platform provides (typically **shared** libpython — deployments must ship/locate it at runtime); the interpreter **version follows the host** (not a pinned 3.12.x).
+- **Runtime isolation instead of a build-time freeze.** `INTERNAL::ScriptRuntime` (`YseEngine/python/`) boots the interpreter with an *isolated* `PyConfig` — no environment, no user site, signal handlers off (the `Py_InitializeEx(0)` intent), and `site_import = 0` so site-packages (and therefore any third-party package) is never importable. `PyConfig.home` is anchored to the located install (`YSE_PYTHON_HOME`) so the standard library still resolves. Net: the epic's "no third-party packages" tenet holds; "curated frozen subset / empty `sys.path`" becomes "full stdlib of the located interpreter, isolated from site-packages".
+- **Lifecycle & threading.** The runtime is a process-global owned in `global.cpp` (kept out of `global.h` so the header carries no Python type and no macro-dependent layout). `system::init` boots it after the audio device opens (`startScripting`), `system::update` wakes it once per tick (`wakeScripting`), `system::close` finalizes it before the device closes (`stopScripting`). A dedicated script thread (subclassing `INTERNAL::thread`) holds the GIL on wake and services two lock-free SPSC queues — inbound `EvalRequest` (source `exec`'d in `__main__`) and outbound `EvalResult` (status + `traceback.format_exception` text). The user-facing `yse_run_script` C API and the `yse` Python module are **not** part of this layer (issues #125 / #126).
+- **No CI by default.** No preset enables `YSE_ENABLE_PYTHON`; existing builds are unaffected. Local enable, e.g. `cmake -S . -B build-python -DYSE_BUILD_TESTS=ON -DYSE_ENABLE_PYTHON=ON` then run `yse_tests --test-suite=python` (the `yse_tests_python` CTest entry). The 50× init/finalize leak case is meaningful when run in that isolated process (the suite owns the interpreter); inside the full binary it attaches to an already-booted interpreter instead.
 
 **Compiler flags (GCC/Clang):** `-Wall -Wextra -Wpedantic`, plus `-O3 -fno-math-errno` (Release). `-ffast-math` is **deliberately not used** — it breaks IEEE 754 semantics in ways that produce subtle DSP bugs (NaN propagation, denormal flushing). Linux/macOS builds use `CXX_VISIBILITY_PRESET hidden` + per-symbol `API` annotations — issue [#34](https://github.com/yvanvds/yse-soundengine/issues/34) was closed in commit `e080c16`.
 
@@ -123,6 +133,9 @@ pacman -S mingw-w64-clang-x86_64-portaudio \
 sudo apt install cmake ninja-build clang \
                  libportaudio-dev libsndfile1-dev librtmidi-dev
 ```
+
+For `YSE_ENABLE_PYTHON=ON` add the Python embedding headers + libpython:
+`mingw-w64-clang-x86_64-python` (MSYS2 Clang64) or `python3-dev` (Debian/Ubuntu).
 
 **Android (NDK):** No pkg-config in the sysroot. libsndfile is fetched from source (1.2.2, WAV-only, no external codec libs), Oboe is fetched at tag 1.9.3, RtMidi is not used. Link options include `-Wl,-z,max-page-size=16384` for Android 15+ 16 KB page-size compatibility (Play Store requirement, Nov 2025+).
 
