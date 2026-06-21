@@ -54,6 +54,27 @@ namespace YSE {
     void create(int mainOutputs);
 
     /**
+     *  @brief Set the patcher's name (used as the prefix on the global bus).
+     *
+     *  Every ``gSend`` inside this patcher publishes its value to the global
+     *  ``NamedBus`` under ``"<patcherName>.<dataName>"`` (issue #122). Two
+     *  patchers that share the same name route their sends/receives
+     *  together; patchers with distinct names stay isolated even when their
+     *  inner ``dataName`` values collide.
+     *
+     *  Calling this after creating ``gReceive`` objects transparently
+     *  re-subscribes them under the new name. If ``create()`` has not yet
+     *  been called the value is stashed and applied at ``create()`` time.
+     *
+     *  Default: an auto-generated identifier of the form
+     *  ``"patcher_<N>"`` where ``N`` increments per process.
+     */
+    patcher & name(const std::string & n);
+
+    /** @brief Current patcher name. See ``name(const std::string&)``. */
+    const std::string & name() const;
+
+    /**
      *  @brief Add an object to the patcher.
      *
      *  @param type Type identifier (see ``YSE::OBJ``).
@@ -111,6 +132,10 @@ namespace YSE {
 
   private:
     PATCHER::patcherImplementation * pimpl;
+    // Name stashed when name() is called before create(). Empty otherwise —
+    // the impl's auto-generated default is the source of truth once create()
+    // has run.
+    std::string pendingName;
     friend class YSE::sound;
   };
 

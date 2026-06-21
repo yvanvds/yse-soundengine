@@ -839,7 +839,7 @@
   },
   ".r": {
     "category": "GENERIC",
-    "description": "Named receive endpoint. Forwards values arriving from any matching gSend (same dataName) in the patcher.",
+    "description": "Named receive endpoint. Forwards values arriving from any matching gSend (same dataName) in the patcher, and from any gSend in any patcher with the same name via the global bus (\"<patcherName>.<dataName>\").",
     "inlets": [
       {
         "accepts": [
@@ -871,6 +871,12 @@
         "doc": "Name to listen for; must match the dataName of one or more gSend nodes.",
         "name": "dataName",
         "range": "any identifier"
+      },
+      {
+        "default": "0",
+        "doc": "Reserved for future receive-side filters; ignored today (the bus subscription is always active).",
+        "name": "globalOnly",
+        "range": "0 or 1"
       }
     ]
   },
@@ -949,7 +955,7 @@
   },
   ".s": {
     "category": "GENERIC",
-    "description": "Named send endpoint. Broadcasts incoming values to every gReceive in the patcher whose dataName matches.",
+    "description": "Named send endpoint. Broadcasts incoming values to every gReceive in the patcher whose dataName matches, and publishes them on the global bus as \"<patcherName>.<dataName>\" so cross-patcher routing works without explicit wiring.",
     "inlets": [
       {
         "accepts": [
@@ -973,6 +979,12 @@
         "doc": "Name to broadcast on; matching gReceive nodes will emit the forwarded value.",
         "name": "dataName",
         "range": "any identifier"
+      },
+      {
+        "default": "0",
+        "doc": "When 1, skip in-patcher delivery and publish only to the global bus.",
+        "name": "globalOnly",
+        "range": "0 or 1"
       }
     ]
   },

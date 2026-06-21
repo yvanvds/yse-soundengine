@@ -4,20 +4,45 @@
 #include "pObjectList.hpp"
 #include "../headers/enums.hpp"
 #include "genericObjects/pDac.h"
+#include "genericObjects/gReceive.h"
 #include "pHandle.hpp"
 #include "../utils/json.hpp"
+#include <atomic>
 #include <string>
 #include "../implementations/logImplementation.h"
 
 using namespace YSE::PATCHER;
+
+namespace {
+  // Process-wide counter feeding the auto-generated "patcher_<N>" default
+  // name (issue #122). Distinct from pObject::CreateID() so the patcher
+  // counter is not perturbed by inner-object construction.
+  std::atomic<unsigned int> g_nextPatcherIndex{0};
+}
 
 patcherImplementation::patcherImplementation(int mainOutputs, YSE::patcher * head)
   : pObject(false)
   , controlledBySound(false)
   , head(head)
   , fileHandlerActive(false)
+  , patcherName("patcher_" + std::to_string(g_nextPatcherIndex.fetch_add(1, std::memory_order_relaxed)))
 {
   output.resize(mainOutputs);
+}
+
+void patcherImplementation::SetName(const std::string & n) {
+  if (n == patcherName) return;
+  mtx.lock();
+  patcherName = n;
+  // Re-subscribe every gReceive in this patcher so the new prefix takes
+  // effect immediately. Iteration is safe because gReceive::Resubscribe
+  // only touches the gReceive's own subscription handle.
+  for (auto & x : objects) {
+    if (strcmp(x.second->Type(), OBJ::G_RECEIVE) == 0) {
+      static_cast<gReceive*>(x.second)->Resubscribe();
+    }
+  }
+  mtx.unlock();
 }
 
 patcherImplementation::~patcherImplementation() {

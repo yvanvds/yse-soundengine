@@ -12,6 +12,12 @@ namespace YSE {
       _FLOAT_IN(SetFloatValue)
       _BANG_IN(SetBangValue)
       _LIST_IN(SetListValue)
+
+    private:
+      // 0 = also fire the in-patcher PassData/PassBang path (default),
+      // 1 = publish only to the global bus. Parsed from the second
+      // constructor argument (issue #122).
+      int globalOnly = 0;
   };
 }
 }

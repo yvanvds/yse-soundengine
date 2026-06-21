@@ -16,6 +16,13 @@ namespace YSE {
       patcherImplementation(int mainOutputs, patcher * head);
       virtual ~patcherImplementation();
 
+      // Patcher name used as the bus prefix for inner gSend / gReceive
+      // routing (issue #122). Default is an auto-generated "patcher_<N>"
+      // identifier (process-wide counter). SetName() re-subscribes every
+      // gReceive in the patcher so that a rename is transparent.
+      const std::string & Name() const { return patcherName; }
+      void SetName(const std::string & n);
+
       virtual const char * Type() const;
       virtual void ResetDSP();
       virtual void Calculate(THREAD thread);
@@ -54,6 +61,10 @@ namespace YSE {
       bool fileHandlerActive;
       std::map<pHandle*, pObject*> objects;
 			oscHandler * oscHandle = nullptr;
+
+      // Bus-prefix for inner gSend/gReceive routing (issue #122). Defaulted
+      // to "patcher_<N>" in the ctor; mutated by SetName().
+      std::string patcherName;
 
 			std::string GetRecieveObjectsAsString();
     };
