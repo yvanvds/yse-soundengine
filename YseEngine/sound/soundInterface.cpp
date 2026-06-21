@@ -12,6 +12,39 @@
 #include "../patcher/patcherImplementation.h"
 //#include "../synth/synthInterface.hpp"
 
+#include <mutex>
+#include <unordered_set>
+#include <variant>
+#include <vector>
+
+namespace {
+// Process-wide registry of sound names currently claimed as bus producers.
+// Naming happens on the main thread; the mutex is a cheap defensive guard
+// against construction from multiple threads and never sits on the audio
+// path. The "sound." prefix lives in its own namespace, independent of
+// channel names.
+std::mutex& soundNameMutex() {
+  static std::mutex m;
+  return m;
+}
+
+std::unordered_set<std::string>& soundNames() {
+  static std::unordered_set<std::string> names;
+  return names;
+}
+
+// Returns true when the name was free and is now claimed by the caller.
+bool claimSoundName(const std::string& name) {
+  std::lock_guard<std::mutex> lock(soundNameMutex());
+  return soundNames().insert(name).second;
+}
+
+void releaseSoundName(const std::string& name) {
+  std::lock_guard<std::mutex> lock(soundNameMutex());
+  soundNames().erase(name);
+}
+} // namespace
+
 YSE::sound::sound()
 	: pimpl(nullptr)
 	, _pos(0.f)
@@ -29,11 +62,71 @@ YSE::sound::sound()
     {}
 
 YSE::sound::~sound() {
+  unregisterFromBus();
   if (pimpl != nullptr) {
     pimpl->removeInterface();
 	Log().sendMessage("removed sound");
     pimpl = nullptr;
   }
+}
+
+YSE::sound& YSE::sound::name(const std::string& n) {
+  if (n == _name) return *this;
+  unregisterFromBus();
+  _name = n;
+  registerOnBus();
+  return *this;
+}
+
+void YSE::sound::registerOnBus() {
+  if (_name.empty()) return;
+  // No bus before System::init() or after System::close(). Naming while the
+  // engine is down is a silent no-op (mirrors the patcher gReceive contract).
+  if (!INTERNAL::Global().isActive()) return;
+
+  if (!claimSoundName(_name)) {
+    INTERNAL::LogImpl().emit(E_FILE_ERROR,
+      "sound name '" + _name + "' is already in use; bus registration rejected");
+    return;
+  }
+  _busOwner = true;
+
+  using YSE::INTERNAL::Bus;
+  using YSE::INTERNAL::BusValue;
+  const std::string base = "sound." + _name + ".";
+
+  // The callbacks fire on the main thread (synchronous T_GUI publish or the
+  // drainPending() tick). Each guards isValid() so values arriving before
+  // create() — or after the sound is gone — are dropped instead of touching a
+  // null implementation.
+  _busHandles[0] = Bus().subscribe(base + "volume", [this](const BusValue& v) {
+    if (auto* f = std::get_if<float>(&v)) { if (isValid()) volume(*f); }
+    else if (auto* i = std::get_if<int>(&v)) { if (isValid()) volume(static_cast<float>(*i)); }
+  });
+  _busHandles[1] = Bus().subscribe(base + "speed", [this](const BusValue& v) {
+    if (auto* f = std::get_if<float>(&v)) { if (isValid()) speed(*f); }
+    else if (auto* i = std::get_if<int>(&v)) { if (isValid()) speed(static_cast<float>(*i)); }
+  });
+  _busHandles[2] = Bus().subscribe(base + "position", [this](const BusValue& v) {
+    if (auto* vec = std::get_if<std::vector<float>>(&v)) {
+      if (vec->size() == 3 && isValid()) pos(Pos((*vec)[0], (*vec)[1], (*vec)[2]));
+    }
+  });
+}
+
+void YSE::sound::unregisterFromBus() {
+  if (!_busOwner) return;
+  // Guard the bus access: a sound destructed after System::close() must not
+  // touch the torn-down bus. The name registry is independent of the bus, so
+  // releasing the name is always safe.
+  if (INTERNAL::Global().isActive()) {
+    for (auto& handle : _busHandles) {
+      if (handle != 0) INTERNAL::Bus().unsubscribe(handle);
+    }
+  }
+  for (auto& handle : _busHandles) handle = 0;
+  releaseSoundName(_name);
+  _busOwner = false;
 }
 
 void YSE::sound::create(const char * fileName, channel * ch, bool loop, float volume, bool streaming) {

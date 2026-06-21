@@ -11,6 +11,7 @@
 #ifndef CHANNELINTERFACE_H_INCLUDED
 #define CHANNELINTERFACE_H_INCLUDED
 
+#include <cstdint>
 #include <string>
 #include "../headers/defines.hpp"
 #include "../headers/types.hpp"
@@ -69,6 +70,25 @@ class API channel
 	/** @brief Set the channel volume in the range [0.0, 1.0]. */
 	channel& setVolume(float value);
 
+	/**
+	 *  @brief Assign a bus-addressable name to this channel.
+	 *
+	 *  Names the channel on the global named bus (issue #123, epic #119) so
+	 *  live coders can drive it by string address. Once named ``music``, the
+	 *  channel subscribes to ``channel.music.volume`` → ``float`` (also accepts
+	 *  ``int``), calling ``setVolume()``.
+	 *
+	 *  This is independent of the log name passed to ``create``. Anonymous
+	 *  channels (the default) are not addressable; passing ``""`` clears the
+	 *  name and removes the subscription. Two channels cannot share a name —
+	 *  the second ``name()`` is rejected and logged, the first wins. The bus is
+	 *  only live between ``System::init()`` and ``System::close()``.
+	 *
+	 *  @param n The name, or ``""`` to make the channel anonymous again.
+	 *  @return ``*this`` for fluent chaining.
+	 */
+	channel& name(const std::string& n);
+
 	/** @brief Current channel volume. */
 	float getVolume();
 
@@ -106,7 +126,7 @@ class API channel
 	/** @brief Channel name (the value passed to ``create``). */
 	const char* getName()
 	{
-		return name.c_str();
+		return logName.c_str();
 	}
 
 	/// @name Output peak metering
@@ -155,10 +175,22 @@ class API channel
   private:
 	void createGlobal();
 
+	// Bus addressing (issue #123). Subscribe/unsubscribe the named-bus
+	// address for this channel. No-ops while the engine bus is down.
+	void registerOnBus();
+	void unregisterFromBus();
+
 	Flt volume;
 	Bool allowVirtual;
-	std::string name;
+	std::string logName;  // label passed to create(); used for log output
 	CHANNEL::implementationObject* pimpl;
+
+	// Bus addressing state. Empty busName = anonymous = not on the bus.
+	// busOwner is true only when this channel won the name and holds a live
+	// subscription.
+	std::string   busName;
+	std::uint64_t busVolumeHandle { 0 };
+	bool          busOwner { false };
 
 	friend class CHANNEL::implementationObject;
 	friend class SOUND::implementationObject;

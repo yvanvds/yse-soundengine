@@ -11,6 +11,9 @@
 #ifndef SOUNDINTERFACE_H_INCLUDED
 #define SOUNDINTERFACE_H_INCLUDED
 
+#include <cstdint>
+#include <string>
+
 #include "../classes.hpp"
 #include "../headers/defines.hpp"
 #include "../patcher/patcher.hpp"
@@ -131,6 +134,31 @@ namespace YSE {
      *  methods on this.
      */
     bool isValid();
+
+    /**
+     *  @brief Assign a bus-addressable name to this sound.
+     *
+     *  Names the sound on the global named bus (issue #123, epic #119) so live
+     *  coders can drive it by string address rather than by C++ handle. Once
+     *  named ``foo``, the sound subscribes to:
+     *
+     *  - ``sound.foo.volume``   → ``float`` (also accepts ``int``), calls ``volume()``
+     *  - ``sound.foo.speed``    → ``float`` (also accepts ``int``), calls ``speed()``
+     *  - ``sound.foo.position`` → ``list[float]`` of length 3, becomes a ``Pos``
+     *
+     *  Anonymous sounds (the default) are not addressable. Passing an empty
+     *  string clears the name and removes the bus subscriptions. Renaming
+     *  re-subscribes under the new name.
+     *
+     *  Two sounds cannot share a name: the second ``name()`` is rejected and
+     *  logged via the engine's error path; the first registration wins. The
+     *  bus is only live between ``System::init()`` and ``System::close()`` —
+     *  naming a sound while the engine is down is a no-op.
+     *
+     *  @param n The name, or ``""`` to make the sound anonymous again.
+     *  @return ``*this`` for fluent chaining.
+     */
+    sound& name(const std::string& n);
 
     /** @brief Set the position of this sound in the virtual scene. */
     void pos(const Pos &v);
@@ -313,6 +341,11 @@ namespace YSE {
       
 
   private:
+    // Bus addressing (issue #123). Subscribe/unsubscribe the named-bus
+    // addresses for this sound. No-ops while the engine bus is down.
+    void registerOnBus();
+    void unregisterFromBus();
+
     SOUND::implementationObject * pimpl;
 
     // These values keep the last set value and are used by getters
@@ -331,6 +364,13 @@ namespace YSE {
     UInt _fadeAndStopTime;
     DSP::dspObject * _dsp;
     channel * _parent;
+
+    // Bus addressing state. Empty name = anonymous = not on the bus.
+    // Handles index 0 = volume, 1 = speed, 2 = position. _busOwner is true
+    // only when this sound won the name and holds live subscriptions.
+    std::string   _name;
+    std::uint64_t _busHandles[3] { 0, 0, 0 };
+    bool          _busOwner { false };
 
     
 
