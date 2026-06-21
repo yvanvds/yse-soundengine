@@ -174,9 +174,16 @@ shapes for specific names:
 - `sound.<name>.position` → `list[float]` of length 3
 - `channel.<name>.volume` → `float`
 
+A published `int` on a scalar `float` address (`volume`, `speed`) is
+coerced via `float(x)` rather than treated as a mismatch — consistent
+with the per-element coercion the `list` type already applies. This is
+the only implicit numeric coercion; everything else follows the
+[value type table](#value-types).
+
 A type mismatch on an engine-owned address (e.g. publishing a string
-to `sound.kick.volume`) is logged on the C++ side but does not raise
-in the script. This is deliberate: from the script's perspective,
+to `sound.kick.volume`, or a `position` list whose length is not 3) is
+ignored on the C++ side and does not raise in the script. This is
+deliberate: from the script's perspective,
 publishes are fire-and-forget. The error appears in engine logs;
 the bus does not route it back to the publisher.
 
@@ -447,8 +454,9 @@ This is intentional:
 - A publish to an unsubscribed name. The bus silently drops it
   ([#121][gh-121]).
 - A type mismatch on an engine-owned address (e.g. string to
-  `sound.kick.volume`). Logged on the C++ side, not surfaced to
-  scripts.
+  `sound.kick.volume`). Silently ignored on the C++ side, not surfaced
+  to scripts. (A duplicate *producer* name is the one engine-side case
+  that does log — see [collision policy](#collision-policy).)
 - `yse.unsubscribe` with a stale handle. No-op.
 
 ### Callback lifecycle on exception
