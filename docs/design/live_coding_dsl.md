@@ -66,8 +66,19 @@ later under the same primitive names without a new design pass:
 - **No persistent script state across `System::close`/`init`.** The
   interpreter is finalized on close. Re-init starts from a blank
   `__main__`.
-- **No third-party packages.** Frozen stdlib subset only — see
-  [#124][gh-124] for the curated module list.
+- **No third-party packages.** See [#124][gh-124]. *Implementation note:*
+  #124 sources CPython via `find_package` (a system / prebuilt libpython)
+  and isolates it at **runtime** with `PyConfig` — isolated mode, no
+  environment, and `site_import = 0` so site-packages (hence any
+  third-party package) is never importable — rather than baking a
+  **build-time** frozen module subset as originally envisaged. The
+  "no third-party packages" guarantee holds; the practical difference is
+  that the interpreter sees the *full* standard library of the located
+  install (anchored via `PyConfig.home`), not a curated subset, and its
+  version follows the host rather than a pinned 3.12.x. The CPython static
+  build + freeze tooling proved impractical (no CMake build; unsupported
+  under the project's MSYS2 Clang64 toolchain). See PROJECT_OVERVIEW.md
+  "Python embedding" for the full rationale.
 
 ---
 

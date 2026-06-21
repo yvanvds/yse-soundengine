@@ -79,6 +79,7 @@ build-linux-audio/
 build-android-arm64/
 build-android-x86_64/
 build-tools/
+build-python-tests/
 [Bb]in/
 [Oo]bj/
 

@@ -58,6 +58,13 @@ set(YSE_TEST_SOURCES
   integration/test_device.cpp
 )
 
+# Embedded-CPython runtime tests (issue #124) — only when the option is ON.
+# The TU is guarded by YSE_ENABLE_PYTHON, which propagates from yse_objects
+# (defined PUBLIC there) to this target via the yse_objects link below.
+if(YSE_ENABLE_PYTHON)
+  list(APPEND YSE_TEST_SOURCES python/test_script_runtime.cpp)
+endif()
+
 if(ANDROID)
   # NativeActivity dynamically loads the test runner as libyse_tests.so. The
   # NDK ships android_native_app_glue (translates ANativeActivity callbacks
@@ -197,6 +204,17 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_system PROPERTIES LABELS system)
+
+# Embedded-CPython runtime suite (issue #124). Only present when the option is
+# ON; otherwise the suite has no test cases and registering it would fail.
+if(YSE_ENABLE_PYTHON)
+  add_test(
+    NAME    yse_tests_python
+    COMMAND yse_tests --test-suite=python
+    WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+  )
+  set_tests_properties(yse_tests_python PROPERTIES LABELS python)
+endif()
 
 # Concurrency stress tests for the SOUND/CHANNEL/REVERB managers.  These live
 # in the sound/channel/reverb test suites but each test case name starts with

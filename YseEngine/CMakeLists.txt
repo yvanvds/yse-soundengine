@@ -164,6 +164,15 @@ if(YSE_ENABLE_MIDI_DEVICE)
   )
 endif()
 
+# Embedded-CPython script runtime (issue #124). Only compiled when the option
+# is ON; the TU also carries an internal `#if YSE_ENABLE_PYTHON` guard so an
+# accidental inclusion produces an empty object file.
+if(YSE_ENABLE_PYTHON)
+  list(APPEND YSE_SRCS
+    python/scriptRuntime.cpp
+  )
+endif()
+
 # ── Source-file-scoped warning suppressions ───────────────────────────────────
 # cJSON is a vendored C file; suppress all its warnings rather than patching it.
 set_source_files_properties(json/cJSON.cpp
@@ -328,6 +337,18 @@ endif()
 # of every layer (engine, C API, public headers, tests).
 if(YSE_ENABLE_MIDI_DEVICE)
   target_compile_definitions(yse_objects PUBLIC YSE_ENABLE_MIDI_DEVICE=1)
+endif()
+
+# Embedded CPython (issue #124). Python3::Python is linked PUBLIC so the
+# consuming targets (the `yse` shared library and the `yse_tests` executable,
+# which both pull in yse_objects) inherit libpython at link time. The
+# YSE_ENABLE_PYTHON macro is PUBLIC so yse_tests — which links yse_objects
+# directly — sees it too. YSE_PYTHON_HOME is engine-private: only
+# scriptRuntime.cpp consumes it.
+if(YSE_ENABLE_PYTHON)
+  target_link_libraries(yse_objects PUBLIC Python3::Python)
+  target_compile_definitions(yse_objects PUBLIC YSE_ENABLE_PYTHON=1)
+  target_compile_definitions(yse_objects PRIVATE "YSE_PYTHON_HOME=\"${YSE_PYTHON_HOME}\"")
 endif()
 
 # External deps are PUBLIC so both yse (SHARED) and yse_tests inherit them.
