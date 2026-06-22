@@ -60,6 +60,29 @@ namespace YSE {
       void wakeScripting();
       void stopScripting();
 
+      // Scripting C-API bridge (issue #125). The C API (yse_python.cpp) is the
+      // only consumer; these stay in INTERNAL so the C ABI surface never leaks
+      // a C++ type. All are no-ops (or trivial stores) unless the engine was
+      // built with YSE_ENABLE_PYTHON, and they carry no Python dependency.
+
+      // Sink invoked on the main thread, once per Error result drained from the
+      // script runtime's outbound queue in drainScriptResults(). The string is
+      // the formatted traceback and is valid only for the duration of the call.
+      using ScriptErrorSink = void (*)(const char* traceback, void* userdata);
+
+      // Install (or clear, with nullptr) the error sink. Stored with the
+      // project's atomic-swap callback convention so the C API can install or
+      // replace it concurrently with a dispatch already in flight.
+      void setScriptErrorSink(ScriptErrorSink sink, void* userdata);
+
+      // Enqueue UTF-8 source for asynchronous evaluation on the script thread.
+      // The runtime takes a copy; the caller may free its buffer on return.
+      void pushScript(std::string source);
+
+      // Drain every completed result; for each Error, invoke the installed sink
+      // with its traceback. Called from system::update() on the main thread.
+      void drainScriptResults();
+
       global();
       ~global();
 

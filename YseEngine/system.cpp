@@ -98,6 +98,10 @@ void YSE::system::update() {
   // (issue #124 establishes the wake; #126/#127 add the scheduling). No-op
   // unless built with YSE_ENABLE_PYTHON.
   INTERNAL::Global().wakeScripting();
+  // Deliver any completed script results to the C API error callback (issue
+  // #125). Drains on the main thread, so the callback fires here — never on
+  // the script thread. No-op unless built with YSE_ENABLE_PYTHON.
+  INTERNAL::Global().drainScriptResults();
 	unsigned int callbacks = DEVICE::Manager().GetCallbacksSinceLastUpdate();
 	if (callbacks == 0) {
 		currentlyMissedCallbacks++;
