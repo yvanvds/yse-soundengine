@@ -279,6 +279,83 @@ TEST_CASE("yse module: cancel_all keeps same-generation registrations") {
   CHECK(std::get<int>(echo.last()) == 3);
 }
 
+TEST_CASE("yse module: a schedule from an older generation still fires after a "
+          "reload without cancel_all") {
+  if (!TestHelpers::engineInit()) return;
+
+  BusCapture ready, fired;
+  ScopedSub readySub("ysemod.schedreload.ready", ready);
+  ScopedSub firedSub("ysemod.schedreload.fired", fired);
+
+  // Evaluation A (generation G): arm a schedule far enough out that it cannot
+  // mature before evaluation B runs.
+  run("yse.schedule(8, lambda: yse.send('ysemod.schedreload.fired', 1))\n");
+  // Evaluation B (generation G+1): a plain marker, NO cancel_all.
+  run("yse.send('ysemod.schedreload.ready', 1)\n");
+  REQUIRE(pumpCount(ready, 1));
+
+  // Pump past the 8-tick horizon: the gen-G schedule survived the reload.
+  REQUIRE(pumpCount(fired, 1));
+  CHECK(std::get<int>(fired.last()) == 1);
+}
+
+TEST_CASE("yse module: cancel_all on reload tears down an older-generation "
+          "schedule before it fires") {
+  if (!TestHelpers::engineInit()) return;
+
+  BusCapture ready, fired;
+  ScopedSub readySub("ysemod.schedcancel.ready", ready);
+  ScopedSub firedSub("ysemod.schedcancel.fired", fired);
+
+  // Evaluation A (generation G): same schedule as above.
+  run("yse.schedule(8, lambda: yse.send('ysemod.schedcancel.fired', 1))\n");
+  // Evaluation B (generation G+1): the editor prefix wipes generation G.
+  run("yse.cancel_all()\n"
+      "yse.send('ysemod.schedcancel.ready', 1)\n");
+  REQUIRE(pumpCount(ready, 1));
+
+  // Pump well past the horizon; the gen-G schedule must never fire.
+  for (int i = 0; i < 20; ++i) {
+    YSE::System().update();
+    YSE::System().sleep(10);
+  }
+  CHECK(fired.count() == 0);
+}
+
+TEST_CASE("yse module: fresh_scope wipes earlier generations but keeps its own "
+          "block's registrations") {
+  if (!TestHelpers::engineInit()) return;
+
+  BusCapture ready, oldEcho, newEcho;
+  ScopedSub readySub("ysemod.fresh.ready", ready);
+  ScopedSub oldEchoSub("ysemod.fresh.old.echo", oldEcho);
+  ScopedSub newEchoSub("ysemod.fresh.new.echo", newEcho);
+
+  // Evaluation A (generation G): an older-generation subscriber.
+  run("yse.on('ysemod.fresh.old.in', "
+      "lambda v: yse.send('ysemod.fresh.old.echo', v))\n");
+
+  // Evaluation B (generation G+1): fresh_scope() cancels generation G on entry,
+  // then registers a new subscriber inside the block — which must survive.
+  run("with yse.fresh_scope():\n"
+      "    yse.on('ysemod.fresh.new.in', "
+      "lambda v: yse.send('ysemod.fresh.new.echo', v))\n"
+      "yse.send('ysemod.fresh.ready', 1)\n");
+  REQUIRE(pumpCount(ready, 1));
+
+  // The new (in-block) subscriber fires; the old one was torn down.
+  bus().publish("ysemod.fresh.new.in", BusValue{7}, YSE::T_GUI);
+  REQUIRE(pumpCount(newEcho, 1));
+  CHECK(std::get<int>(newEcho.last()) == 7);
+
+  bus().publish("ysemod.fresh.old.in", BusValue{9}, YSE::T_GUI);
+  for (int i = 0; i < 10; ++i) {
+    YSE::System().update();
+    YSE::System().sleep(10);
+  }
+  CHECK(oldEcho.count() == 0);
+}
+
 TEST_CASE("yse module: send rejects non-bus types via the error callback") {
   if (!TestHelpers::engineInit()) return;
   ErrSink sink;
