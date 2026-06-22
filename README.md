@@ -168,7 +168,9 @@ Flutter-style CLI for the common tasks.  On Windows run it via:
 ```sh
 python yse.py build              # configure + debug build (default)
 python yse.py build --release    # release build
+python yse.py build --python     # debug build with the embedded-Python live-coding feature (desktop only)
 python yse.py test               # build tests-debug preset, run ctest
+python yse.py test --python      # tests-debug-python preset — also runs the embedded-interpreter suite
 python yse.py coverage           # coverage build + gcovr report (Linux only)
 python yse.py run                # run Demo00 from build-debug/bin/
 python yse.py run Demo05         # run a specific demo
