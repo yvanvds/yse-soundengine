@@ -21,5 +21,6 @@
 #include "yse_music.h"
 #include "yse_log.h"
 #include "yse_buffer_io.h"
+#include "yse_python.h"
 
 #endif

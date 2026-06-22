@@ -56,6 +56,7 @@ set(YSE_TEST_SOURCES
   system/test_named_bus.cpp
   system/test_system_active_state.cpp
   integration/test_device.cpp
+  python/test_c_api_python.cpp
 )
 
 # Embedded-CPython runtime tests (issue #124) — only when the option is ON.

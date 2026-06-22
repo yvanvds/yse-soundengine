@@ -201,9 +201,22 @@ namespace YSE {
       }
       PyObject* globals = PyModule_GetDict(mainModule);  // borrowed
 
-      // Py_file_input accepts multi-statement source (e.g. "result = 1 + 1").
-      PyObject* ret =
-          PyRun_String(source.c_str(), Py_file_input, globals, globals);
+      // Compile explicitly so the source carries the filename "<script>": the
+      // DSL spec (docs/design/live_coding_dsl.md) and issue #125 require
+      // tracebacks — and SyntaxError caret lines — to read File "<script>".
+      // PyRun_String would default that name to "<string>". Py_file_input
+      // accepts multi-statement source (e.g. "result = 1 + 1").
+      PyObject* code =
+          Py_CompileString(source.c_str(), "<script>", Py_file_input);
+      if (code == nullptr) {
+        // Compilation failure (SyntaxError): the error indicator is set.
+        result.status = EvalStatus::Error;
+        result.traceback = formatCurrentException();
+        return result;
+      }
+
+      PyObject* ret = PyEval_EvalCode(code, globals, globals);
+      Py_DECREF(code);
       if (ret != nullptr) {
         Py_DECREF(ret);
         result.status = EvalStatus::Ok;

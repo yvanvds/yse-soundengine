@@ -13,6 +13,7 @@
 
 #if YSE_ENABLE_PYTHON
 #include "../python/scriptRuntime.h"
+#include <atomic>
 #include <memory>
 namespace {
   // Process-global script runtime, owned here rather than as a global:: member
@@ -20,6 +21,15 @@ namespace {
   // YSE_ENABLE_PYTHON (which would otherwise be an ODR hazard between engine
   // and test translation units).
   std::unique_ptr<YSE::INTERNAL::ScriptRuntime> g_scriptRuntime;
+
+  // Error sink the C API (issue #125) installs. Stored as atomics so the host
+  // thread can swap it while the main thread is mid-dispatch in
+  // drainScriptResults() — the project's lock-free callback-bridge convention
+  // (see yse_c_internal.hpp). user_data is published before the function
+  // pointer (release) and read after it (acquire) so a dispatch never sees a
+  // half-installed pair.
+  std::atomic<YSE::INTERNAL::global::ScriptErrorSink> g_scriptErrorSink{nullptr};
+  std::atomic<void*>                                  g_scriptErrorUser{nullptr};
 }
 #endif
 
@@ -65,6 +75,46 @@ void YSE::INTERNAL::global::stopScripting() {
   if (g_scriptRuntime) {
     g_scriptRuntime->stop();
     g_scriptRuntime.reset();
+  }
+#endif
+}
+
+void YSE::INTERNAL::global::setScriptErrorSink(ScriptErrorSink sink, void* userdata) {
+#if YSE_ENABLE_PYTHON
+  // Publish user_data first, then the function pointer, both with release
+  // ordering — mirrors the acquire loads in drainScriptResults().
+  g_scriptErrorUser.store(userdata, std::memory_order_release);
+  g_scriptErrorSink.store(sink, std::memory_order_release);
+#else
+  (void)sink;
+  (void)userdata;
+#endif
+}
+
+void YSE::INTERNAL::global::pushScript(std::string source) {
+#if YSE_ENABLE_PYTHON
+  if (g_scriptRuntime) g_scriptRuntime->pushEval(std::move(source));
+#else
+  (void)source;
+#endif
+}
+
+void YSE::INTERNAL::global::drainScriptResults() {
+#if YSE_ENABLE_PYTHON
+  if (!g_scriptRuntime) return;
+  EvalResult result;
+  while (g_scriptRuntime->tryPopResult(result)) {
+    if (result.status != EvalStatus::Error) continue;
+    // Load the function pointer first, bail if cleared, then its user_data —
+    // acquire ordering pairs with the releases in setScriptErrorSink(). Re-read
+    // per result so a swap between two drained errors takes effect immediately
+    // and the previous sink never receives a later traceback.
+    ScriptErrorSink sink = g_scriptErrorSink.load(std::memory_order_acquire);
+    if (sink == nullptr) continue;
+    void* user = g_scriptErrorUser.load(std::memory_order_acquire);
+    // result.traceback outlives the call; the pointer is valid only for its
+    // duration (documented contract in yse_python.h).
+    sink(result.traceback.c_str(), user);
   }
 #endif
 }
