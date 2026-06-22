@@ -67,14 +67,19 @@ The old .NET/Xamarin wrappers, the WPF demo, the UWP build, and the JUCE backend
 | `debug` | `build-debug/` | Library + demos, no tests |
 | `release` | `build/` | Optimized release |
 | `tests-debug` | `build-tests/` | Debug + `YSE_BUILD_TESTS=ON` |
+| `debug-python` | `build-debug-python/` | `debug` + `YSE_ENABLE_PYTHON=ON` (embedded-CPython live-coding; desktop only) |
+| `release-python` | `build-python/` | `release` + `YSE_ENABLE_PYTHON=ON` (desktop only) |
+| `tests-debug-python` | `build-tests-python/` | `tests-debug` + `YSE_ENABLE_PYTHON=ON` — runs the embedded-interpreter suite |
 | `coverage` | `build-coverage/` | Linux only — gcc/clang `--coverage` instrumentation |
 | `coverage-windows` | `build-coverage/` | Windows/Clang only — LLVM source-based coverage |
 
 ```sh
 python yse.py build                # cmake --preset debug + build
 python yse.py build --release      # release variant
+python yse.py build --python       # debug variant with embedded-Python live-coding (YSE_ENABLE_PYTHON=ON, desktop only)
 python yse.py test                 # tests-debug preset + ctest
 python yse.py test --integration   # also run the integration suite (needs a real audio device)
+python yse.py test --python        # tests-debug-python preset — also runs the embedded-interpreter suite
 python yse.py coverage             # coverage preset + report (gcovr → coverage.xml on Linux,
                                    # llvm-profdata+llvm-cov → coverage-llvm.json on Windows)
 python yse.py run [Demo]           # run a demo from build-debug/bin/ (default: Demo00)

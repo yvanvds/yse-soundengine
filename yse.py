@@ -79,18 +79,22 @@ def _demo_exe(name):
 
 def cmd_build(args):
     preset = "release" if args.release else "debug"
+    if args.python:
+        preset += "-python"
     run(["cmake", "--preset", preset])
     run(["cmake", "--build", "--preset", preset])
 
 
 def cmd_test(args):
-    run(["cmake", "--preset", "tests-debug"])
-    run(["cmake", "--build", "--preset", "tests-debug"])
-    run(["ctest", "--preset", "tests-debug"])
+    preset = "tests-debug-python" if args.python else "tests-debug"
+    build_dir = "build-tests-python" if args.python else "build-tests"
+    run(["cmake", "--preset", preset])
+    run(["cmake", "--build", "--preset", preset])
+    run(["ctest", "--preset", preset])
 
     if args.integration:
         suffix = ".exe" if IS_WINDOWS else ""
-        exe = ROOT / "build-tests" / "bin" / ("yse_tests" + suffix)
+        exe = ROOT / build_dir / "bin" / ("yse_tests" + suffix)
         if not exe.exists():
             print(f"error: {exe} not found after build.")
             sys.exit(1)
@@ -250,6 +254,9 @@ def cmd_clean(args):
         ROOT / "build-coverage",
         ROOT / "build-bench",
         ROOT / "build-tools",
+        ROOT / "build-debug-python",
+        ROOT / "build-python",
+        ROOT / "build-tests-python",
     ]
     files_to_remove = [
         ROOT / "coverage.xml",
@@ -857,8 +864,10 @@ def build_parser():
         epilog="""examples:
   python yse.py build              configure + build (debug)
   python yse.py build --release    configure + build (release)
+  python yse.py build --python     configure + build (debug) with embedded-Python live-coding (YSE_ENABLE_PYTHON=ON)
   python yse.py test               build tests-debug preset, run ctest
   python yse.py test --integration same, plus the integration suite (needs real audio device)
+  python yse.py test --python      build tests-debug-python preset so the embedded-interpreter suite runs
   python yse.py bench              build bench preset, run benchmark binary
   python yse.py bench --filter Buffer  run only benchmarks matching 'Buffer'
   python yse.py coverage           coverage preset + report (Linux: gcovr→coverage.xml; Windows: llvm-cov→coverage-llvm.json)
@@ -892,6 +901,11 @@ def build_parser():
         "--release", action="store_true",
         help="Use the release preset instead of debug",
     )
+    p.add_argument(
+        "--python", action="store_true",
+        help="Enable the embedded-CPython live-coding feature (YSE_ENABLE_PYTHON=ON; "
+             "uses the *-python preset; desktop only)",
+    )
     p.set_defaults(func=cmd_build)
 
     # test
@@ -911,6 +925,12 @@ def build_parser():
     p.add_argument(
         "--integration", action="store_true",
         help="Also run the integration suite (requires a real audio device)",
+    )
+    p.add_argument(
+        "--python", action="store_true",
+        help="Enable the embedded-CPython live-coding feature (YSE_ENABLE_PYTHON=ON; "
+             "uses the tests-debug-python preset so the embedded-interpreter suite "
+             "runs; desktop only)",
     )
     p.set_defaults(func=cmd_test)
 

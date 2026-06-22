@@ -42,6 +42,36 @@
       }
     },
     {
+      "name": "debug-python",
+      "displayName": "Debug + Python",
+      "description": "Debug build with the embedded-CPython live-coding feature enabled (YSE_ENABLE_PYTHON=ON; desktop only)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/build-debug-python",
+      "cacheVariables": {
+        "YSE_ENABLE_PYTHON": "ON"
+      }
+    },
+    {
+      "name": "release-python",
+      "displayName": "Release + Python",
+      "description": "Optimized release build with the embedded-CPython live-coding feature enabled (YSE_ENABLE_PYTHON=ON; desktop only)",
+      "inherits": "release",
+      "binaryDir": "${sourceDir}/build-python",
+      "cacheVariables": {
+        "YSE_ENABLE_PYTHON": "ON"
+      }
+    },
+    {
+      "name": "tests-debug-python",
+      "displayName": "Debug + Tests + Python",
+      "description": "Debug test build with the embedded-CPython live-coding feature enabled, so the #127 hot-reload/runtime suite runs (YSE_ENABLE_PYTHON=ON; desktop only)",
+      "inherits": "tests-debug",
+      "binaryDir": "${sourceDir}/build-tests-python",
+      "cacheVariables": {
+        "YSE_ENABLE_PYTHON": "ON"
+      }
+    },
+    {
       "name": "bench",
       "displayName": "Release + Benchmarks",
       "description": "Release build with the Bench/ suite enabled (fetches google-benchmark on first configure)",
@@ -100,6 +130,21 @@
       "configurePreset": "tests-debug"
     },
     {
+      "name": "debug-python",
+      "displayName": "Debug + Python",
+      "configurePreset": "debug-python"
+    },
+    {
+      "name": "release-python",
+      "displayName": "Release + Python",
+      "configurePreset": "release-python"
+    },
+    {
+      "name": "tests-debug-python",
+      "displayName": "Debug + Tests + Python",
+      "configurePreset": "tests-debug-python"
+    },
+    {
       "name": "bench",
       "displayName": "Release + Benchmarks",
       "configurePreset": "bench"
@@ -130,6 +175,12 @@
       "name": "tests-debug",
       "displayName": "Debug tests",
       "configurePreset": "tests-debug",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "tests-debug-python",
+      "displayName": "Debug tests + Python",
+      "configurePreset": "tests-debug-python",
       "output": { "outputOnFailure": true }
     },
     {

@@ -80,6 +80,9 @@ build-android-arm64/
 build-android-x86_64/
 build-tools/
 build-python-tests/
+build-debug-python/
+build-python/
+build-tests-python/
 [Bb]in/
 [Oo]bj/
 
