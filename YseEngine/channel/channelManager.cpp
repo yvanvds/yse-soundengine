@@ -142,6 +142,33 @@ Bool YSE::CHANNEL::managerObject::empty() {
   return implementations.empty();
 }
 
+void YSE::CHANNEL::managerObject::destroy() {
+  // Runs from system::close() after both thread pools have been joined and the
+  // audio device is closed, with Global().active already false, so nothing
+  // else can touch these lists and the impl destructors take their inactive
+  // path (no audio-thread parent disconnect). Mirrors
+  // REVERB::Manager().destroy() (issue #132).
+
+  // These are no-ops once the pools are down, but mirror the destructor's
+  // contract that no setup/delete job is mid-flight before the lists are torn.
+  mgrSetup.join();
+  mgrDelete.join();
+
+  // Drain the main->audio inbox; the pointers it holds reference impls owned
+  // by `implementations` and would dangle once that list is cleared below.
+  implementationObject * drained;
+  while (toLoadInbox.try_pop(drained)) { (void)drained; }
+  toLoad.clear();
+  inUse.clear();
+  {
+    std::scoped_lock lk(implementationsMutex);
+    // Each impl destructor nulls its interface's pimpl, clearing the persistent
+    // master/named channels so the next System::init() re-creates them cleanly.
+    implementations.clear();
+  }
+  runDelete = false;
+}
+
 YSE::channel & YSE::CHANNEL::managerObject::master() {
   return _master;
 }

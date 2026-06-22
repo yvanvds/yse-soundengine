@@ -139,6 +139,11 @@ void YSE::INTERNAL::global::close() {
   // first wait for all threads to exit
   slowThreads.shutdown();
   fastThreads.shutdown();
+  // Threads are joined now, so the reverb manager's session state can be torn
+  // down synchronously. This clears the global reverb's implementation handle
+  // so a subsequent System::init() can re-create it instead of asserting
+  // (issue #132).
+  REVERB::Manager().destroy();
   // Tear down the bus last — by this point the audio device is already
   // closed (system::close() ran DEVICE::Manager().close() before us), so
   // no audio-thread producer can still be enqueuing publish() messages.

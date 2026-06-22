@@ -129,6 +129,12 @@ void YSE::system::close() {
     INTERNAL::Global().active = false;
     DEVICE::Manager().close();
     INTERNAL::Global().close();
+    // Tear down the channel manager last: Global().close() has joined both
+    // thread pools and the device is already closed, so the persistent
+    // master/named channels can be cleared synchronously. This drops their
+    // implementation handles so the next System::init() can re-create them
+    // instead of asserting (issue #132).
+    CHANNEL::Manager().destroy();
   }
 
 #ifdef YSE_WINDOWS

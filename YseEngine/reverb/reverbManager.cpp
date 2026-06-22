@@ -44,6 +44,31 @@ void YSE::REVERB::managerObject::create() {
   calculatedValues.create();
 }
 
+void YSE::REVERB::managerObject::destroy() {
+  // Runs from INTERNAL::global::close() after both thread pools have been
+  // joined and the audio device is closed, so nothing else can touch these
+  // lists while we clear them.
+
+  // Drain the main->audio inbox; the pointers it holds reference impls owned
+  // by `implementations` and would dangle once that list is cleared below.
+  implementationObject * drained;
+  while (toLoadInbox.try_pop(drained)) { (void)drained; }
+  toLoad.clear();
+  inUse.clear();
+  {
+    std::scoped_lock lk(implementationsMutex);
+    implementations.clear();
+  }
+  runDelete = false;
+
+  // The global and calculated reverbs are persistent members that outlive the
+  // session; their implementations were just destroyed above. Clear the now
+  // dangling handles so the next System::init() re-runs reverb::create()
+  // cleanly instead of tripping assert(pimpl == nullptr) (issue #132).
+  globalReverb.pimpl = nullptr;
+  calculatedValues.pimpl = nullptr;
+}
+
 YSE::REVERB::implementationObject * YSE::REVERB::managerObject::addImplementation(YSE::reverb * head) {
   std::scoped_lock lk(implementationsMutex);
   implementations.emplace_front(head);

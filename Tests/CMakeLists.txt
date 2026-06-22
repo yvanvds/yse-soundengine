@@ -55,6 +55,7 @@ set(YSE_TEST_SOURCES
   io/test_bufferIO.cpp
   system/test_named_bus.cpp
   system/test_system_active_state.cpp
+  system/test_lifecycle.cpp
   integration/test_device.cpp
   python/test_c_api_python.cpp
 )
@@ -125,10 +126,24 @@ set_target_properties(yse_tests PROPERTIES
 if(NOT ANDROID)
 add_test(
   NAME    yse_unit_tests
-  COMMAND yse_tests --test-suite-exclude=integration --duration=true
+  # `lifecycle` is excluded alongside `integration`: it drives System::close(),
+  # which permanently stops the global thread pools and would break every later
+  # suite sharing this process. It runs in its own process via yse_tests_lifecycle.
+  COMMAND yse_tests --test-suite-exclude=integration,lifecycle --duration=true
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_unit_tests PROPERTIES TIMEOUT 600)
+
+# Engine init/close lifecycle (issue #132). Isolated in its own process because
+# System::close() tears down process-global state (thread pools, named bus) that
+# the rest of the suite assumes stays up. Uses initOffline(), so no audio
+# hardware is needed and it runs in CI.
+add_test(
+  NAME    yse_tests_lifecycle
+  COMMAND yse_tests --test-suite=lifecycle
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_lifecycle PROPERTIES LABELS lifecycle)
 
 add_test(
   NAME    yse_tests_dsp

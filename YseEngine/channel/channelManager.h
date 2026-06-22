@@ -34,6 +34,17 @@ namespace YSE {
 
       void update();
 
+      /** Tear down all per-session channel state so the manager can be
+          re-created by a subsequent System::init(). Called from system::close()
+          after both thread pools are joined and the audio device is closed,
+          with Global().active already false. Clearing `implementations` runs
+          each impl's destructor, which nulls its interface's pimpl — including
+          the persistent master/ambient/fx/music/gui/voice channels — so
+          channel::create()/createGlobal() do not trip their
+          assert(pimpl == nullptr) on the next init (issue #132).
+      */
+      void destroy();
+
       implementationObject * addImplementation(channel * head);
       void setup(implementationObject * impl);
       Bool empty();
