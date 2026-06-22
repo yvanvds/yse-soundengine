@@ -83,6 +83,7 @@ build-python-tests/
 build-debug-python/
 build-python/
 build-tests-python/
+build-tests-python-asan/
 [Bb]in/
 [Oo]bj/
 
