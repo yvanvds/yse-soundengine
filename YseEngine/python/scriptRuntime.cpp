@@ -29,70 +29,11 @@
 #include <utility>
 
 #include "scriptRuntime.h"
+#include "py_traceback.h"
+#include "dsl_runtime.h"
 
 namespace YSE {
   namespace INTERNAL {
-
-    namespace {
-
-      // Format the *current* Python exception the way the DSL spec mandates:
-      // exactly what traceback.format_exception produces. Falls back to
-      // "<TypeName>: <message>" if the traceback module cannot be imported, so
-      // the type name and message survive even in a degraded interpreter.
-      // The GIL must be held; clears the error indicator before returning.
-      std::string formatCurrentException() {
-        PyObject *type = nullptr, *value = nullptr, *tb = nullptr;
-        PyErr_Fetch(&type, &value, &tb);
-        PyErr_NormalizeException(&type, &value, &tb);
-        if (tb != nullptr && value != nullptr) {
-          PyException_SetTraceback(value, tb);
-        }
-
-        std::string out;
-
-        // Preferred path: traceback.format_exception(value) -> list[str].
-        // Single-argument form (3.10+) reads the traceback off the exception.
-        if (value != nullptr) {
-          PyObject* tbmod = PyImport_ImportModule("traceback");
-          if (tbmod != nullptr) {
-            PyObject* lines =
-                PyObject_CallMethod(tbmod, "format_exception", "O", value);
-            if (lines != nullptr) {
-              PyObject* sep = PyUnicode_FromString("");
-              PyObject* joined = sep ? PyUnicode_Join(sep, lines) : nullptr;
-              if (joined != nullptr) {
-                const char* utf8 = PyUnicode_AsUTF8(joined);
-                if (utf8 != nullptr) out = utf8;
-                Py_DECREF(joined);
-              }
-              Py_XDECREF(sep);
-              Py_DECREF(lines);
-            }
-            Py_DECREF(tbmod);
-          }
-        }
-
-        // Fallback: reconstruct "<TypeName>: <message>" directly.
-        if (out.empty() && value != nullptr) {
-          const char* tname = Py_TYPE(value)->tp_name;
-          PyObject* str = PyObject_Str(value);
-          const char* msg = str ? PyUnicode_AsUTF8(str) : nullptr;
-          out = std::string(tname ? tname : "Exception");
-          if (msg != nullptr && msg[0] != '\0') {
-            out += ": ";
-            out += msg;
-          }
-          Py_XDECREF(str);
-        }
-
-        Py_XDECREF(type);
-        Py_XDECREF(value);
-        Py_XDECREF(tb);
-        PyErr_Clear();
-        return out;
-      }
-
-    } // namespace
 
     ScriptRuntime::ScriptRuntime() = default;
 
@@ -160,6 +101,10 @@ namespace YSE {
       if (ownsInterpreter_) {
         // Re-acquire the GIL on this (the initializing) thread, then finalize.
         PyEval_RestoreThread(static_cast<PyThreadState*>(mainThreadState_));
+        // Release every Python object the `yse` module still holds (subscription
+        // callbacks, scheduled callables) before tearing the interpreter down,
+        // so no PyObject outlives Py_FinalizeEx.
+        dsl::shutdown();
         Py_FinalizeEx();
         mainThreadState_ = nullptr;
         ownsInterpreter_ = false;
@@ -241,9 +186,22 @@ namespace YSE {
         // Drain inbound under the GIL — also on the shutdown wake, so requests
         // queued just before stop() are not silently dropped.
         PyGILState_STATE gil = PyGILState_Ensure();
+        // Make `yse` reachable in __main__ before the first script runs; a
+        // no-op once bound (idempotent per interpreter instance).
+        dsl::ensureBound();
         EvalRequest request;
         while (inbound_.try_pop(request)) {
+          // Open a fresh generation so on/schedule/latch handles created by this
+          // evaluation are tagged with it (yse.cancel_all uses the tag).
+          dsl::beginGeneration();
           outbound_.push(evaluate(request.source));
+        }
+        // Fire matured schedules and deliver queued bus callbacks (yse.on /
+        // yse.latch) on the script thread, after the eval drain — the cadence
+        // the DSL spec's threading model mandates. A handler that raises is
+        // surfaced through the same error sink as a top-level eval failure.
+        for (auto& tb : dsl::onWake()) {
+          outbound_.push(EvalResult{EvalStatus::Error, std::move(tb)});
         }
         PyGILState_Release(gil);
 

@@ -13,6 +13,7 @@ add_executable(yse_benchmarks
   dsp/bench_reverb.cpp
   patcher/bench_patcher.cpp
   integration/bench_mixing.cpp
+  integration/bench_yse_dsl.cpp
 )
 
 # Match how Tests/ links: direct object linkage to yse_objects gives full
