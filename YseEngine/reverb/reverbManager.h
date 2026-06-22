@@ -37,6 +37,16 @@ namespace YSE {
       */
       void create();
 
+      /** Tear down all per-session reverb state so the manager can be
+          re-created by a subsequent System::init(). Called from
+          INTERNAL::global::close() after the slow-pool and audio threads have
+          been shut down, so the implementation lists are cleared synchronously
+          without racing either thread. Clears the persistent global/calculated
+          reverbs' implementation handles so reverb::create() does not trip its
+          assert(pimpl == nullptr) on the next init (issue #132).
+      */
+      void destroy();
+
       /** Request a new implementationObject. This should be called from the interfaceObject.
       It creates an implementationObject that will be linked to the interfaceObject.
 
