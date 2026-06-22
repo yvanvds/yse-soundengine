@@ -274,6 +274,32 @@ class Latch:
 
 def latch(name):
     return Latch(name)
+
+
+class _FreshScope:
+    """Context manager returned by ``fresh_scope()``.
+
+    Calls ``cancel_all()`` on entry, so every subscription and schedule from
+    a strictly older generation is torn down before the block's body runs.
+    Registrations made *inside* the block belong to the current generation
+    and therefore survive — exactly as if the script had opened with a bare
+    ``cancel_all()``. The exit is a no-op; exceptions propagate unchanged.
+    """
+    __slots__ = ()
+
+    def __enter__(self):
+        cancel_all()
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+
+def fresh_scope():
+    """Wipe earlier generations before running this block. Sugar for a
+    ``cancel_all()`` at the top of the body — see the hot-reload section of
+    docs/design/live_coding_dsl.md."""
+    return _FreshScope()
 )PY";
 
       } // namespace

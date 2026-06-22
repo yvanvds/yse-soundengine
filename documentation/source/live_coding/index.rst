@@ -108,6 +108,40 @@ The primitives
       yse.cancel_all()   # wipe the previous evaluation
       # ... the rest of the script ...
 
+``yse.fresh_scope()``
+   A context manager that calls :func:`yse.cancel_all` on entry — sugar for
+   composers who prefer to scope a fresh start to a block rather than prefix the
+   whole script. Registrations made *inside* the ``with`` block belong to the
+   current evaluation and survive; everything from older evaluations is torn
+   down before the body runs.
+
+   .. code-block:: python
+
+      with yse.fresh_scope():
+          yse.on("trigger", on_trigger)
+          yse.schedule(4, kick)
+
+   This is exactly equivalent to opening the block's body with a bare
+   ``yse.cancel_all()``.
+
+Hot-reload pattern
+------------------
+
+Because libYSE never auto-clears state between evaluations, layering is the
+default: re-evaluating a script *adds* its subscriptions and schedules on top of
+what earlier evaluations installed. To get *replacement* behaviour instead — the
+usual expectation when iterating on a patch — start each evaluation from a clean
+slate. Either prefix the script:
+
+.. code-block:: python
+
+   yse.cancel_all()
+   # ... the patch ...
+
+or wrap it in :func:`yse.fresh_scope`. The Phi editor's "Evaluate" button can be
+configured to inject the ``yse.cancel_all()`` prefix automatically; composers who
+want to layer can omit it per evaluation.
+
 Addressing
 ----------
 
