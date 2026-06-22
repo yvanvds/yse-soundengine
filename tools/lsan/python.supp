@@ -1,0 +1,68 @@
+# LeakSanitizer suppressions for the embedded CPython interpreter (issue #133).
+#
+# Why this file exists
+# --------------------
+# Py_Finalize intentionally does NOT free every byte the interpreter touched:
+# interned strings, the small-integer cache, statically allocated type objects,
+# the GC's permanent generation, and pymalloc arena bookkeeping all stay
+# resident by design. Under AddressSanitizer's leak detector these surface as
+# leaks even though our embedding code is clean — and they drown out the leaks
+# we actually care about in the 50-cycle init->close test
+# (Tests/python/test_script_runtime.cpp): the script thread, the inbound/
+# outbound lfQueues, and the traceback std::strings we copy out on each eval.
+#
+# Scope discipline
+# ----------------
+# Every entry below names an *interpreter-internal* allocation site. LSan
+# matches each suppression as a substring against every frame of a leak's
+# stack, so a leak that originates in OUR code is still reported even when it
+# later calls into CPython — only leaks allocated *inside* the interpreter are
+# silenced. The 50-cycle test therefore still fails on a leaked thread, queue,
+# or traceback string.
+#
+# Usage: LSAN_OPTIONS=suppressions=tools/lsan/python.supp
+# Wired into the `tests-debug-python-asan` CMake preset's CI job.
+
+# Catch-all: anything still reachable inside the shared libpython when it
+# leaks. Covers interned-string / type-object / frozen-module state that
+# resolves only to the .so on a stripped system libpython.
+leak:libpython3
+
+# Named interpreter allocators, for when the system libpython is symbolized
+# and frames resolve to functions rather than the bare object name.
+leak:pymalloc_alloc
+leak:_PyObject_Malloc
+leak:_PyObject_Realloc
+leak:PyObject_Malloc
+leak:PyObject_Realloc
+leak:_PyMem_RawMalloc
+leak:_PyMem_RawRealloc
+leak:_PyMem_RawCalloc
+leak:_PyObject_GC_New
+leak:_PyObject_GC_NewVar
+leak:_PyObject_GC_Resize
+
+# Interned strings and the unicode object allocator.
+leak:PyUnicode_New
+leak:_PyUnicode_New
+leak:_PyUnicode_InternMortal
+leak:_PyUnicode_InternImmortal
+leak:PyUnicode_InternInPlace
+
+# Long (int) object cache and type-object construction.
+leak:_PyLong_New
+leak:PyType_Ready
+leak:type_new
+
+# Interpreter/runtime bootstrap state that lives until process exit.
+leak:_PyRuntime
+leak:pyinit_main
+leak:pycore_interp_init
+leak:init_interp_main
+leak:_PyImport_Init
+leak:PyImport_ImportModule
+leak:_imp_create_builtin
+
+# pybind11 registers the embedded `yse` module's type info at static-init
+# time; that registry is interpreter-lifetime and never torn down.
+leak:pybind11

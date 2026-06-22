@@ -139,3 +139,66 @@ jobs:
             build-android/bin/libyse_tests.so
           if-no-files-found: error
           retention-days: 14
+
+  build-python:
+    # Embedded-CPython acceptance (epic #119, follow-up to #124). Verifies the
+    # YSE_ENABLE_PYTHON=ON build configures, links against the system libpython,
+    # and passes the `python` ctest label on Linux/clang. The `clang+asan` leg
+    # additionally runs that suite under AddressSanitizer + LeakSanitizer so the
+    # 50-cycle init->close test catches a leaked script thread, lfQueue, or
+    # traceback string — CPython's own interpreter-lifetime state is filtered
+    # out by tools/lsan/python.supp.
+    #
+    # Same trigger gate as the `build` job: continuous on push to dev/master,
+    # plus feature-branch PRs; skipped on release/sync PRs whose head is dev or
+    # master (the push that landed those SHAs already ran this).
+    if: github.event_name == 'push' || (github.head_ref != 'dev' && github.head_ref != 'master')
+    name: Python build (${{ matrix.label }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: clang
+            preset: tests-debug-python
+            bdir: build-tests-python
+          - label: clang+asan
+            preset: tests-debug-python-asan
+            bdir: build-tests-python-asan
+            asan: true
+    env:
+      CC: clang
+      CXX: clang++
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Install dependencies
+        # python3-dev: the libpython we embed (find_package Python3 Development.Embed).
+        # libclang-rt-dev: clang's compiler-rt, which ships libclang_rt.asan — not
+        # pulled in by the base clang package, so the ASan leg fails to link without it.
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            pkg-config \
+            clang \
+            libclang-rt-dev \
+            portaudio19-dev \
+            libsndfile1-dev \
+            librtmidi-dev \
+            python3-dev
+      - name: Configure (${{ matrix.preset }})
+        run: cmake --preset ${{ matrix.preset }}
+      - name: Build
+        run: cmake --build --preset ${{ matrix.preset }}
+      - name: Run python suite
+        # ctest -L python runs the yse_tests_python entry in its own process, so
+        # the ASan leg gets a clean Py_Initialize/Py_Finalize re-entry boundary
+        # for the 50-cycle leak check. The suppressions path MUST be absolute:
+        # the test binary's working directory is <bdir>/bin, so a repo-relative
+        # path resolves wrong and ASan aborts with "failed to read suppressions
+        # file". Empty (and thus ignored) on the non-ASan leg.
+        env:
+          LSAN_OPTIONS: ${{ matrix.asan && format('suppressions={0}/tools/lsan/python.supp', github.workspace) || '' }}
+        run: ctest --test-dir ${{ matrix.bdir }} -L python --output-on-failure

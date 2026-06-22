@@ -72,6 +72,26 @@
       }
     },
     {
+      "name": "tests-debug-python-asan",
+      "displayName": "Debug + Tests + Python + ASan/LSan (Linux/clang)",
+      "description": "tests-debug-python under AddressSanitizer + LeakSanitizer with clang. Drives the embedded-CPython 50-cycle leak test (issue #133); run with LSAN_OPTIONS=suppressions=tools/lsan/python.supp so CPython interpreter state (interned strings, small-int cache, frozen types) is filtered out and only our own leaks (queues, script thread, traceback strings) surface. Linux only — Windows ASan ships no leak detector.",
+      "inherits": "tests-debug-python",
+      "binaryDir": "${sourceDir}/build-tests-python-asan",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_C_FLAGS": "-fsanitize=address -fno-omit-frame-pointer",
+        "CMAKE_CXX_FLAGS": "-fsanitize=address -fno-omit-frame-pointer",
+        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address",
+        "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=address"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
       "name": "bench",
       "displayName": "Release + Benchmarks",
       "description": "Release build with the Bench/ suite enabled (fetches google-benchmark on first configure)",
@@ -145,6 +165,16 @@
       "configurePreset": "tests-debug-python"
     },
     {
+      "name": "tests-debug-python-asan",
+      "displayName": "Debug + Tests + Python + ASan/LSan",
+      "configurePreset": "tests-debug-python-asan",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
       "name": "bench",
       "displayName": "Release + Benchmarks",
       "configurePreset": "bench"
@@ -182,6 +212,21 @@
       "displayName": "Debug tests + Python",
       "configurePreset": "tests-debug-python",
       "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "tests-debug-python-asan",
+      "displayName": "Debug tests + Python + ASan/LSan",
+      "configurePreset": "tests-debug-python-asan",
+      "output": { "outputOnFailure": true },
+      "filter": { "include": { "label": "python" } },
+      "environment": {
+        "LSAN_OPTIONS": "suppressions=${sourceDir}/tools/lsan/python.supp"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
     },
     {
       "name": "coverage",
