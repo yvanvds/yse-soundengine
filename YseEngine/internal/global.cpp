@@ -13,6 +13,7 @@
 
 #if YSE_ENABLE_PYTHON
 #include "../python/scriptRuntime.h"
+#include "../python/dsl_runtime.h"
 #include <atomic>
 #include <memory>
 namespace {
@@ -57,6 +58,9 @@ YSE::INTERNAL::NamedBus& YSE::INTERNAL::global::namedBus() {
 
 void YSE::INTERNAL::global::startScripting() {
 #if YSE_ENABLE_PYTHON
+  // Reset the DSL tick/generation for a fresh session before the worker
+  // launches (yse.tick starts at 0 on every System::init).
+  dsl::reset();
   if (!g_scriptRuntime) {
     g_scriptRuntime = std::make_unique<ScriptRuntime>();
   }
@@ -66,6 +70,9 @@ void YSE::INTERNAL::global::startScripting() {
 
 void YSE::INTERNAL::global::wakeScripting() {
 #if YSE_ENABLE_PYTHON
+  // Advance the DSL tick once per update before waking the worker so the
+  // script thread sees the new tick when it processes schedules.
+  dsl::advanceTick();
   if (g_scriptRuntime) g_scriptRuntime->wake();
 #endif
 }

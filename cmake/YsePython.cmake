@@ -64,3 +64,19 @@ file(TO_CMAKE_PATH "${_yse_python_prefix}" YSE_PYTHON_HOME)
 message(STATUS
   "YSE_ENABLE_PYTHON: embedding Python ${Python3_VERSION} "
   "(home: ${YSE_PYTHON_HOME}; lib: ${Python3_LIBRARIES})")
+
+# pybind11 supplies the binding layer for the `yse` module (issue #126). We need
+# its headers only — Python itself is already located above via FindPython3 and
+# linked as Python3::Python. PYBIND11_NOPYTHON skips pybind11's own Python
+# discovery (which would re-run find_package and could resolve a different
+# interpreter), leaving just the header-only `pybind11::headers` target. The
+# `PYBIND11_EMBEDDED_MODULE(yse, ...)` macro in yse_module.cpp registers the
+# module with PyImport_AppendInittab at static-init time, before Py_Initialize.
+include(FetchContent)
+set(PYBIND11_NOPYTHON ON CACHE BOOL "" FORCE)
+FetchContent_Declare(
+  pybind11
+  GIT_REPOSITORY https://github.com/pybind/pybind11.git
+  GIT_TAG        v2.13.6
+)
+FetchContent_MakeAvailable(pybind11)

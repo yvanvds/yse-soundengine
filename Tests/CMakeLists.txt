@@ -64,6 +64,7 @@ set(YSE_TEST_SOURCES
 # (defined PUBLIC there) to this target via the yse_objects link below.
 if(YSE_ENABLE_PYTHON)
   list(APPEND YSE_TEST_SOURCES python/test_script_runtime.cpp)
+  list(APPEND YSE_TEST_SOURCES python/test_yse_module.cpp)
 endif()
 
 if(ANDROID)

@@ -170,6 +170,7 @@ endif()
 if(YSE_ENABLE_PYTHON)
   list(APPEND YSE_SRCS
     python/scriptRuntime.cpp
+    python/yse_module.cpp
   )
 endif()
 
@@ -347,6 +348,9 @@ endif()
 # scriptRuntime.cpp consumes it.
 if(YSE_ENABLE_PYTHON)
   target_link_libraries(yse_objects PUBLIC Python3::Python)
+  # pybind11 headers are engine-private: only yse_module.cpp includes them, so
+  # the binding layer never leaks into the public headers or the test TU.
+  target_link_libraries(yse_objects PRIVATE pybind11::headers)
   target_compile_definitions(yse_objects PUBLIC YSE_ENABLE_PYTHON=1)
   target_compile_definitions(yse_objects PRIVATE "YSE_PYTHON_HOME=\"${YSE_PYTHON_HOME}\"")
 endif()

@@ -28,6 +28,12 @@ The :doc:`api/index` is the full reference.
 
 .. toctree::
    :maxdepth: 2
+   :caption: Live coding
+
+   live_coding/index
+
+.. toctree::
+   :maxdepth: 2
    :caption: API reference
 
    api/index

@@ -431,7 +431,7 @@ filename `"<script>"`, so traceback lines read:
 ```
 Traceback (most recent call last):
   File "<script>", line 3, in <module>
-    yse.send("kick.volume", "loud")
+    yse.send("kick.volume", {"too": "complex"})
 TypeError: yse.send: value must be int, float, str, or list of numbers
 ```
 
@@ -700,7 +700,7 @@ yse.on("patcher.bass.trigger", lambda v: yse.send("patcher.lead.trigger", v))
 The script:
 
 ```python
-yse.send("kick.volume", "loud")  # wrong type
+yse.send("kick.volume", {"too": "complex"})  # not a bus value type
 ```
 
 Produces, on the host's error callback:
@@ -708,9 +708,15 @@ Produces, on the host's error callback:
 ```
 Traceback (most recent call last):
   File "<script>", line 1, in <module>
-    yse.send("kick.volume", "loud")
+    yse.send("kick.volume", {"too": "complex"})
 TypeError: yse.send: value must be int, float, str, or list of numbers
 ```
+
+(A `str` *is* a valid bus value — `yse.send("kick.volume", "loud")` publishes
+the string and the engine-side `volume` setter ignores the type mismatch
+silently, per the [engine-property mapping](#mapping-to-engine-properties). The
+example above uses a `dict`, which is genuinely outside the
+[value type table](#value-types).)
 
 The interpreter state is cleared; subsequent `yse_run_script` calls
 work normally.
