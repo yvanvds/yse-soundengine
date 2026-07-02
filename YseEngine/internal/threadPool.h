@@ -62,12 +62,21 @@ namespace YSE {
       // only used by threadPoolThread, returns nullptr if there's no job to execute
       threadPoolJob * getJob();
 
-      // shutdown this pool. Call this before deconstructing
+      // (Re)spawn the worker threads and mark the pool active. Called by the
+      // constructor and, after a shutdown(), by global::init() to revive the
+      // pool for a fresh engine session (issue #140). Idempotent: a no-op while
+      // the pool is already active.
+      void startup();
+
+      // shutdown this pool: drain the queue, join every worker, and drop the
+      // (now-joined) thread objects so a later startup() re-spawns cleanly. Call
+      // before deconstructing; safe to call on an already-inactive pool.
       void shutdown();
 
     private:
       std::queue<threadPoolJob*> jobs;
       std::forward_list<threadPoolThread> threads;
+      Int poolSize; // resolved worker count, reused when startup() re-spawns
       aBool active;
       std::mutex mutex;
       std::condition_variable cv;

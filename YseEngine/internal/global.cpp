@@ -131,6 +131,12 @@ YSE::INTERNAL::global::global() : slowThreads(1), fastThreads(), bus(), update(f
 YSE::INTERNAL::global::~global() = default;
 
 void YSE::INTERNAL::global::init() {
+  // Revive the worker pools first: close() joins them for good, so a second
+  // session would otherwise start with dead pools — no slow-pool file loading,
+  // no fast-pool DSP fan-out or manager setup/delete jobs (issue #140). No-op
+  // on the very first session, where the pools are still live from the ctor.
+  slowThreads.startup();
+  fastThreads.startup();
   REVERB::Manager().create();
   bus = std::make_unique<NamedBus>();
 }
