@@ -127,13 +127,6 @@ set(YSE_SRCS
   sound/soundImplementation.cpp
   sound/soundInterface.cpp
   sound/soundManager.cpp
-  synth/dspSound.cpp
-  synth/dspVoice.cpp
-  synth/dspVoiceInternal.cpp
-  synth/samplerSound.cpp
-  synth/synthImplementation.cpp
-  synth/synthInterface.cpp
-  synth/synthManager.cpp
   utils/fileFunctions.cpp
   utils/interpolators.cpp
   utils/vector.cpp
