@@ -50,30 +50,37 @@ void YSE::INTERNAL::threadPoolThread::run() {
   }
 }
 
-YSE::INTERNAL::threadPool::threadPool(Int numThreads) : active(true){
-  if (numThreads == -1) {
-    numThreads = std::thread::hardware_concurrency();
+YSE::INTERNAL::threadPool::threadPool(Int numThreads) : poolSize(numThreads), active(false) {
+  if (poolSize == -1) {
+    poolSize = std::thread::hardware_concurrency();
   }
 
   // this might happen if hardware_concurrency() is not well defined or not computable
   // in which case we need at least one thread to continue
-  if (numThreads == 0) {
-    numThreads = 1;
+  if (poolSize == 0) {
+    poolSize = 1;
   }
 
-  for (Int i = 0; i < numThreads; i++) {
-    threads.emplace_front(this);
-    threads.front().start();
-  }
+  startup();
 }
 
 YSE::INTERNAL::threadPool::~threadPool() {
   shutdown();
 }
 
+void YSE::INTERNAL::threadPool::startup() {
+  if (active) return; // already running — startup() is idempotent
+  active = true;
+  for (Int i = 0; i < poolSize; i++) {
+    threads.emplace_front(this);
+    threads.front().start();
+  }
+}
+
 void YSE::INTERNAL::threadPool::shutdown() {
   {
     std::unique_lock<std::mutex> lock(mutex);
+    if (!active) return; // already shut down — nothing to join or drain
     active = false;
     while (!jobs.empty()) {
       jobs.front()->inQueue = false;
@@ -85,6 +92,10 @@ void YSE::INTERNAL::threadPool::shutdown() {
   for (auto i = threads.begin(); i != threads.end(); ++i) {
     i->stop();
   }
+  // Drop the now-joined worker objects; startup() re-populates the list when
+  // the pool is revived for the next session (issue #140). Clearing also lets
+  // ~threadPoolThread's assert(!isRunning()) pass — every handle is null now.
+  threads.clear();
 }
 
 void YSE::INTERNAL::threadPool::addJob(threadPoolJob * job) {
