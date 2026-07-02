@@ -24,10 +24,6 @@
 #include "sound/soundManager.h"
 #include "sound/soundMessage.h"
 
-#include "synth/synthImplementation.h"
-#include "synth/synthManager.h"
-#include "synth/synthMessage.h"
-
 #include "player/playerImplementation.h"
 #include "player/playerManager.h"
 #include "player/playerMessage.h"

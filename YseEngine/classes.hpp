@@ -16,7 +16,6 @@
 #include "sound/sound.hpp"
 #include "reverb/reverb.hpp"
 #include "device/device.hpp"
-//#include "synth/synth.hpp"
 #include "player/player.hpp"
 #include "music/scale/scale.hpp"
 
