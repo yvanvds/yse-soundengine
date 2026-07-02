@@ -647,7 +647,7 @@ prebuilt shared library and public headers for {platform_blurb}.
 
 ```
 {layout}
-    LICENSE.md      Eclipse Public License v2.0
+    LICENSE.md      MIT License
     README.md       This file
 ```
 
@@ -665,8 +665,8 @@ surface, and known issues.
 
 ## License
 
-libYSE is distributed under the Eclipse Public License, v 2.0. See
-`LICENSE.md` for the full text.
+libYSE is distributed under the MIT License. See `LICENSE.md` for the full
+text.
 """
 
 

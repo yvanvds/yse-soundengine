@@ -275,4 +275,4 @@ Tracked in [GitHub Issues](https://github.com/yvanvds/yse-soundengine/issues).
 
 ## License
 
-libYSE is distributed under the [Eclipse Public License, v 2.0](LICENSE.md).
+libYSE is distributed under the [MIT License](LICENSE.md).
