@@ -17,6 +17,8 @@
 #include "patcher/pHandle.hpp"
 #include "patcher/pObjectList.hpp"
 #include "dsp/buffer.hpp"
+#include <chrono>
+#include <thread>
 
 using YSE::PATCHER::patcherImplementation;
 
@@ -93,6 +95,69 @@ TEST_SUITE("patcher") {
       p.Calculate(YSE::T_DSP);
       CHECK(p.output[0].isSilent());
     }
+  }
+
+  // ---- Background reclamation of retired GraphState/objects (issue #227) ----
+
+  TEST_CASE("reclaim: deleting a source leaves its former sink usable") {
+    // The retired source's inlet/outlet destructors call Disconnect on their
+    // peers; UnwireFromPeers must have cleared that wiring at delete time so the
+    // deferred teardown touches only the retired object, never the live dac. If
+    // it didn't, the dac's inlet would be left dangling and reusing it would
+    // corrupt the graph.
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* noise = p.CreateObject(YSE::OBJ::D_NOISE, "");
+    YSE::pHandle* dac = p.CreateObject(YSE::OBJ::D_DAC, "");
+    p.Connect(noise, 0, dac, 0);
+    p.Calculate(YSE::T_DSP);
+    REQUIRE_FALSE(p.output[0].isSilent());
+
+    p.DeleteObject(noise);
+    p.Calculate(YSE::T_DSP);
+    CHECK(p.output[0].isSilent());
+
+    // Wire a fresh source into the surviving dac and render: the dac's inlet
+    // must still be clean.
+    YSE::pHandle* noise2 = p.CreateObject(YSE::OBJ::D_NOISE, "");
+    p.Connect(noise2, 0, dac, 0);
+    p.Calculate(YSE::T_DSP);
+    CHECK_FALSE(p.output[0].isSilent());
+  }
+
+  TEST_CASE("reclaim: the background pool drains retired snapshots, not the dtor") {
+    // Every connect/disconnect retires a GraphState. If reclamation were broken
+    // the retire lists would grow with the edit count (only the destructor would
+    // ever free them). With the background pool draining once the audio epoch has
+    // advanced two blocks past retirement, the pending count stays small no
+    // matter how many edits churn through. Each Calculate advances the epoch.
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* noise = p.CreateObject(YSE::OBJ::D_NOISE, "");
+    YSE::pHandle* dac = p.CreateObject(YSE::OBJ::D_DAC, "");
+
+    for (int i = 0; i < 200; ++i) {
+      p.Connect(noise, 0, dac, 0);
+      p.Calculate(YSE::T_DSP);
+      p.Disconnect(noise, 0, dac, 0);
+      p.Calculate(YSE::T_DSP);
+      p.Calculate(YSE::T_DSP);
+    }
+
+    // Let the background worker catch up. Re-arm with a light edit each spin so a
+    // reclaimer that gave up on a momentarily-stalled epoch is retriggered; the
+    // rendered blocks keep the epoch moving so it can cross the +2 grace.
+    for (int spins = 0; spins < 2000 && p.PendingRetired() > 4; ++spins) {
+      p.Connect(noise, 0, dac, 0);
+      p.Calculate(YSE::T_DSP);
+      p.Disconnect(noise, 0, dac, 0);
+      p.Calculate(YSE::T_DSP);
+      p.Calculate(YSE::T_DSP);
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    // A handful of just-retired snapshots may still be inside the +2 grace, but
+    // the 400+ retired over the churn must be gone — reclaimed by the pool, not
+    // waiting for teardown.
+    CHECK(p.PendingRetired() <= 4);
   }
 
   TEST_CASE("graphstate: ParseJSON publishes a renderable graph in one swap") {
