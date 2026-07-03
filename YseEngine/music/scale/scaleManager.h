@@ -25,17 +25,15 @@ namespace YSE {
 
       void update();
 
-      implementationObject * addImplementation(scale * head);
+      implementationObject* addImplementation(scale* head);
 
     private:
       std::forward_list<implementationObject> implementations;
     };
 
-    managerObject & Manager();
+    managerObject& Manager();
 
-  }
-}
+  } // namespace SCALE
+} // namespace YSE
 
-
-
-#endif  // SCALEMANAGER_H_INCLUDED
+#endif // SCALEMANAGER_H_INCLUDED

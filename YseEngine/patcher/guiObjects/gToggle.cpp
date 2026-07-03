@@ -14,15 +14,19 @@ CONSTRUCT() {
 
   value = false;
 
-  ADD_DESCRIPTION("Latching on/off toggle. Int sets the state directly (0 = off, non-zero = on); bang flips it. Emits 0 or 1 every calculate tick.");
+  ADD_DESCRIPTION("Latching on/off toggle. Int sets the state directly (0 = off, non-zero = on); "
+                  "bang flips it. Emits 0 or 1 every calculate tick.");
   ADD_CATEGORY(pCategory::GUI);
-  INLET_DOC(0, "set/toggle", "Int sets state (0 = off, !=0 = on); bang flips the current state.", "0 or 1");
+  INLET_DOC(0, "set/toggle", "Int sets state (0 = off, !=0 = on); bang flips the current state.",
+            "0 or 1");
   OUTLET_DOC(0, "out", "Current state — 0 or 1.", "0 or 1");
 }
 
 INT_IN(SetValue) {
-  if (value == 0) this->value = false;
-  else this->value = true;
+  if (value == 0)
+    this->value = false;
+  else
+    this->value = true;
 }
 
 BANG_IN(Bang) {

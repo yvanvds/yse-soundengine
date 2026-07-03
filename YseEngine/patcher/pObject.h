@@ -30,28 +30,32 @@ namespace YSE {
 
     class API pObject {
     public:
-      pObject(bool isDSPObject, pObject * parent = nullptr);
-	  virtual ~pObject() {}
+      pObject(bool isDSPObject, pObject* parent = nullptr);
+      virtual ~pObject() {}
 
-      virtual const char * Type() const = 0;
+      virtual const char* Type() const = 0;
       virtual void Calculate(THREAD thread) = 0;
-      virtual void SetMessage(const std::string & message, float value) = 0;
+      virtual void SetMessage(const std::string& message, float value) = 0;
 
-      void SetParams(const std::string & args);
-      const std::string & GetParams();
+      void SetParams(const std::string& args);
+      const std::string& GetParams();
 
-      void ConnectInlet(outlet * from, int toPin);
-      void DisconnectInlet(outlet * from, int toPin);
+      void ConnectInlet(outlet* from, int toPin);
+      void DisconnectInlet(outlet* from, int toPin);
 
-      virtual void ConnectOutlet(inlet * dest, int toPin);
+      virtual void ConnectOutlet(inlet* dest, int toPin);
       // outputs will be disconnected from the other side
 
-      inline int NumInputs() const { return (int)inputs.size(); }
-      inline int NumOutputs() const { return (int)outputs.size(); }
+      inline int NumInputs() const {
+        return (int)inputs.size();
+      }
+      inline int NumOutputs() const {
+        return (int)outputs.size();
+      }
 
       OUT_TYPE GetOutputType(unsigned int output) const;
-      inlet * GetInlet(int number);
-      outlet * GetOutlet(int number);
+      inlet* GetInlet(int number);
+      outlet* GetOutlet(int number);
       unsigned int GetConnections(unsigned int outlet);
       unsigned int GetConnectionTarget(unsigned int outlet, unsigned int connection);
       unsigned int GetConnectionTargetInlet(unsigned int outlet, unsigned int connection);
@@ -59,34 +63,48 @@ namespace YSE {
       virtual void ResetDSP();
       void CalculateIfReady(THREAD thread);
       bool IsDSPStartPoint();
-      inline bool IsDSPObject() { return DSP; }
+      inline bool IsDSPObject() {
+        return DSP;
+      }
 
-      std::string GetGuiProperty(const std::string & key);
-      void SetGuiProperty(const std::string & key, const std::string & value);
-      virtual std::string GetGuiValue() { return ""; }
-      
+      std::string GetGuiProperty(const std::string& key);
+      void SetGuiProperty(const std::string& key, const std::string& value);
+      virtual std::string GetGuiValue() {
+        return "";
+      }
+
       static unsigned int CreateID();
-      inline unsigned int GetID() { return ID; }
-      void DumpJson(nlohmann::json::value_type & json);
+      inline unsigned int GetID() {
+        return ID;
+      }
+      void DumpJson(nlohmann::json::value_type& json);
 
-      virtual void SetParent(pObject * parent);
-      inline const std::string & DataName() { return dataName; }
+      virtual void SetParent(pObject* parent);
+      inline const std::string& DataName() {
+        return dataName;
+      }
 
       // Documentation surface. The fields are populated in derived-class
       // constructors via the ADD_DESCRIPTION / ADD_CATEGORY macros; consumed
       // by the test_doc_coverage doctest and (later) by binding-side
       // metadata generators. RT-cold.
-      const std::string & GetDescription() const { return description; }
-      pCategory GetCategory() const { return category; }
-      const std::vector<ParamDoc> & GetParamDocs() const { return parms.GetDocs(); }
-    protected:
+      const std::string& GetDescription() const {
+        return description;
+      }
+      pCategory GetCategory() const {
+        return category;
+      }
+      const std::vector<ParamDoc>& GetParamDocs() const {
+        return parms.GetDocs();
+      }
 
+    protected:
       std::vector<inlet> inputs;
       std::vector<outlet> outputs;
       std::map<std::string, std::string> guiProperties;
 
       Parameters parms;
-      pObject * parent;
+      pObject* parent;
       bool DSP;
 
       // for storage
@@ -104,43 +122,68 @@ namespace YSE {
 }
 
 // these macro's should make creating patcher objects a bit easier
-#define PATCHER_CLASS(className, name) class className : public pObject { public: className(); virtual const char * Type() const {return name;} CREATE(className)
-#define CREATE(className)  static pObject * Create() { return new className(); }
+#define PATCHER_CLASS(className, name)                                                             \
+  class className : public pObject {                                                               \
+  public:                                                                                          \
+    className();                                                                                   \
+    virtual const char* Type() const {                                                             \
+      return name;                                                                                 \
+    }                                                                                              \
+    CREATE(className)
+#define CREATE(className)                                                                          \
+  static pObject* Create() {                                                                       \
+    return new className();                                                                        \
+  }
 
-#define _DO_MESSAGES virtual void SetMessage(const std::string & message, float value);
-#define _NO_MESSAGES virtual void SetMessage(const std::string &, float) {}
-#define MESSAGES() void className::SetMessage(const std::string & message, float value)
+#define _DO_MESSAGES virtual void SetMessage(const std::string& message, float value);
+#define _NO_MESSAGES                                                                               \
+  virtual void SetMessage(const std::string&, float) {}
+#define MESSAGES() void className::SetMessage(const std::string& message, float value)
 
 #define _DO_CALCULATE virtual void Calculate(YSE::THREAD thread);
-#define _NO_CALCULATE virtual void Calculate(YSE::THREAD) {}
+#define _NO_CALCULATE                                                                              \
+  virtual void Calculate(YSE::THREAD) {}
 #define CALC() void className::Calculate(YSE::THREAD thread)
 
 #define _DO_RESET virtual void ResetDSP();
-#define RESET() void className::ResetDSP() { pObject::ResetDSP();
+#define RESET()                                                                                    \
+  void className::ResetDSP() {                                                                     \
+    pObject::ResetDSP();
 
-#define _BUFFER_IN(funcName) void funcName(YSE::DSP::buffer * buffer, int inlet, YSE::THREAD thread);
+#define _BUFFER_IN(funcName) void funcName(YSE::DSP::buffer* buffer, int inlet, YSE::THREAD thread);
 #define _FLOAT_IN(funcName) void funcName(float value, int inlet, YSE::THREAD thread);
 #define _INT_IN(funcName) void funcName(int value, int inlet, YSE::THREAD thread);
 #define _BANG_IN(funcName) void funcName(int inlet, YSE::THREAD thread);
-#define _LIST_IN(funcName) void funcName(const std::string & value, int inlet, YSE::THREAD thread);
+#define _LIST_IN(funcName) void funcName(const std::string& value, int inlet, YSE::THREAD thread);
 
-#define BUFFER_IN(funcName) void className::funcName(YSE::DSP::buffer * buffer, int inlet, YSE::THREAD thread)
+#define BUFFER_IN(funcName)                                                                        \
+  void className::funcName(YSE::DSP::buffer* buffer, int inlet, YSE::THREAD thread)
 #define FLOAT_IN(funcName) void className::funcName(float value, int inlet, YSE::THREAD thread)
 #define INT_IN(funcName) void className::funcName(int value, int inlet, YSE::THREAD thread)
 #define BANG_IN(funcName) void className::funcName(int inlet, YSE::THREAD thread)
-#define LIST_IN(funcName) void className::funcName(const std::string & value, int inlet, YSE::THREAD thread)
+#define LIST_IN(funcName)                                                                          \
+  void className::funcName(const std::string& value, int inlet, YSE::THREAD thread)
 
 #define ADD_IN_0 inputs.emplace_back(this, true, 0)
 #define ADD_IN_1 inputs.emplace_back(this, false, 1)
 #define ADD_IN_2 inputs.emplace_back(this, false, 2)
 #define ADD_IN_3 inputs.emplace_back(this, false, 3)
 
-#define REG_BUFFER_IN(funcName) inputs.back().RegisterBuffer(std::bind(&className::funcName, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3))
-#define REG_FLOAT_IN(funcName) inputs.back().RegisterFloat(std::bind(&className::funcName, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3))
-#define REG_INT_IN(funcName) inputs.back().RegisterInt(std::bind(&className::funcName, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3))
-#define REG_LIST_IN(funcName) inputs.back().RegisterList(std::bind(&className::funcName, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3))
-#define REG_BANG_IN(funcName) inputs.back().RegisterBang(std::bind(&className::funcName, this, std::placeholders::_1, std::placeholders::_2))
-
+#define REG_BUFFER_IN(funcName)                                                                    \
+  inputs.back().RegisterBuffer(std::bind(&className::funcName, this, std::placeholders::_1,        \
+                                         std::placeholders::_2, std::placeholders::_3))
+#define REG_FLOAT_IN(funcName)                                                                     \
+  inputs.back().RegisterFloat(std::bind(&className::funcName, this, std::placeholders::_1,         \
+                                        std::placeholders::_2, std::placeholders::_3))
+#define REG_INT_IN(funcName)                                                                       \
+  inputs.back().RegisterInt(std::bind(&className::funcName, this, std::placeholders::_1,           \
+                                      std::placeholders::_2, std::placeholders::_3))
+#define REG_LIST_IN(funcName)                                                                      \
+  inputs.back().RegisterList(std::bind(&className::funcName, this, std::placeholders::_1,          \
+                                       std::placeholders::_2, std::placeholders::_3))
+#define REG_BANG_IN(funcName)                                                                      \
+  inputs.back().RegisterBang(                                                                      \
+      std::bind(&className::funcName, this, std::placeholders::_1, std::placeholders::_2))
 
 #define ADD_OUT_BUFFER outputs.emplace_back(OUT_TYPE::BUFFER)
 #define ADD_OUT_FLOAT outputs.emplace_back(OUT_TYPE::FLOAT)
@@ -155,11 +198,11 @@ namespace YSE {
 // test_doc_coverage doctest. RT-cold: all of these only run during
 // pObject construction. ``range`` is a free-form string (e.g. "0-127",
 // "0.0-1.0", "20-20000 Hz", or "" when not applicable).
-#define ADD_DESCRIPTION(text)                       description = (text)
-#define ADD_CATEGORY(cat)                           category = (cat)
-#define INLET_DOC(idx, label, doc, range)           inputs[(idx)].SetDoc((label), (doc), (range))
-#define OUTLET_DOC(idx, label, doc, range)          outputs[(idx)].SetDoc((label), (doc), (range))
-#define PARAM_DOC(name, defaultVal, doc, range)     parms.SetDoc((name), (defaultVal), (doc), (range))
+#define ADD_DESCRIPTION(text) description = (text)
+#define ADD_CATEGORY(cat) category = (cat)
+#define INLET_DOC(idx, label, doc, range) inputs[(idx)].SetDoc((label), (doc), (range))
+#define OUTLET_DOC(idx, label, doc, range) outputs[(idx)].SetDoc((label), (doc), (range))
+#define PARAM_DOC(name, defaultVal, doc, range) parms.SetDoc((name), (defaultVal), (doc), (range))
 
 #define _HAS_GUI virtual std::string GetGuiValue();
 #define GUI_VALUE() std::string className::GetGuiValue()
@@ -173,4 +216,3 @@ namespace YSE {
 #define PARM_PARSE() void className::ParseParams()
 #define REG_PARM_CLEAR parms.RegisterClear(std::bind(&className::ClearParams, this))
 #define REG_PARM_PARSE parms.RegisterParse(std::bind(&className::ParseParams, this))
-

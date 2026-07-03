@@ -12,7 +12,7 @@
 
 YSE::DSP::MODULES::difference::difference() : parmFrequency(400.f), parmAmplitude(0.5f) {}
 
-YSE::DSP::MODULES::difference & YSE::DSP::MODULES::difference::frequency(Flt value) {
+YSE::DSP::MODULES::difference& YSE::DSP::MODULES::difference::frequency(Flt value) {
   parmFrequency.store(value);
   return *this;
 }
@@ -21,7 +21,7 @@ Flt YSE::DSP::MODULES::difference::frequency() {
   return parmFrequency;
 }
 
-YSE::DSP::MODULES::difference & YSE::DSP::MODULES::difference::amplitude(Flt value) {
+YSE::DSP::MODULES::difference& YSE::DSP::MODULES::difference::amplitude(Flt value) {
   parmAmplitude.store(value);
   return *this;
 }
@@ -37,7 +37,7 @@ void YSE::DSP::MODULES::difference::create() {
   clipper->set(-1, 1);
 }
 
-void YSE::DSP::MODULES::difference::process(MULTICHANNELBUFFER & buffer) {
+void YSE::DSP::MODULES::difference::process(MULTICHANNELBUFFER& buffer) {
   createIfNeeded();
 
   if (buffer[0].getLength() != result->getLength()) {

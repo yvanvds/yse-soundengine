@@ -16,7 +16,7 @@ namespace YSE {
       They all have an interface, implementation, manager, message and a message enumeration.
   */
 
-	class reverb; // interface object
+  class reverb; // interface object
 
   namespace REVERB {
     class implementationObject;
@@ -33,10 +33,8 @@ namespace YSE {
       MODULATION,
       REFLECTION,
     };
-  }
+  } // namespace REVERB
 
-}
+} // namespace YSE
 
-
-
-#endif  // REVERB_H_INCLUDED
+#endif // REVERB_H_INCLUDED

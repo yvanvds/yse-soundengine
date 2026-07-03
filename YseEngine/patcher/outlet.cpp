@@ -6,9 +6,7 @@
 
 using namespace YSE::PATCHER;
 
-outlet::outlet(YSE::OUT_TYPE type)
-  : type(type)
-{}
+outlet::outlet(YSE::OUT_TYPE type) : type(type) {}
 
 outlet::~outlet() {
   for (unsigned int i = 0; i < connections.size(); i++) {
@@ -34,32 +32,32 @@ void outlet::SendInt(int value, YSE::THREAD thread) {
   }
 }
 
-void outlet::SendList(const std::string & value, YSE::THREAD thread) {
+void outlet::SendList(const std::string& value, YSE::THREAD thread) {
   for (unsigned int i = 0; i < connections.size(); i++) {
     connections[i]->SetList(value, thread);
   }
 }
 
 void outlet::SendMessage(const std::string& value, YSE::THREAD thread) {
-	for (unsigned int i = 0; i < connections.size(); i++) {
-		connections[i]->SetMessage(value, thread);
-	}
+  for (unsigned int i = 0; i < connections.size(); i++) {
+    connections[i]->SetMessage(value, thread);
+  }
 }
 
-void outlet::SendBuffer(YSE::DSP::buffer * value, YSE::THREAD thread) {
+void outlet::SendBuffer(YSE::DSP::buffer* value, YSE::THREAD thread) {
   for (unsigned int i = 0; i < connections.size(); i++) {
     connections[i]->SetBuffer(value, thread);
   }
 }
 
-void outlet::Connect(inlet * in) {
+void outlet::Connect(inlet* in) {
   for (unsigned int i = 0; i < connections.size(); i++) {
     if (connections[i] == in) return;
   }
   connections.push_back(in);
 }
 
-void outlet::Disconnect(inlet * in) {
+void outlet::Disconnect(inlet* in) {
   for (unsigned int i = 0; i < connections.size(); i++) {
     if (connections[i] == in) {
       connections.erase(connections.begin() + i);
@@ -67,7 +65,7 @@ void outlet::Disconnect(inlet * in) {
   }
 }
 
-void outlet::DumpJSON(nlohmann::json::value_type & json) {
+void outlet::DumpJSON(nlohmann::json::value_type& json) {
   json["Count"] = connections.size();
   for (unsigned int i = 0; i < connections.size(); i++) {
     json[std::to_string(i)]["Object"] = connections[i]->GetObjectID();
@@ -93,9 +91,7 @@ unsigned int outlet::GetTargetInlet(unsigned int connection) {
   return 0;
 }
 
-void outlet::SetDoc(const std::string & label,
-                    const std::string & doc,
-                    const std::string & range) {
+void outlet::SetDoc(const std::string& label, const std::string& doc, const std::string& range) {
   docLabel = label;
   docDescription = doc;
   docRange = range;

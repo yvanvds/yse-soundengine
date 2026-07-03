@@ -10,12 +10,12 @@
 
 #include "time.h"
 
-YSE::INTERNAL::time & YSE::INTERNAL::Time() {
+YSE::INTERNAL::time& YSE::INTERNAL::Time() {
   static time t;
   return t;
 }
 
-YSE::INTERNAL::time & YSE::INTERNAL::DeviceTime() {
+YSE::INTERNAL::time& YSE::INTERNAL::DeviceTime() {
   static time t;
   return t;
 }

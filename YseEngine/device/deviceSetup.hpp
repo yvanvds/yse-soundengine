@@ -15,28 +15,25 @@
 
 namespace YSE {
 
-
   class API deviceSetup {
   public:
     deviceSetup();
 
-    deviceSetup & setInput(const device & in);
-    deviceSetup & setOutput(const device & out);
-    deviceSetup & setSampleRate(double value);
-    deviceSetup & setBufferSize(int value);
+    deviceSetup& setInput(const device& in);
+    deviceSetup& setOutput(const device& out);
+    deviceSetup& setSampleRate(double value);
+    deviceSetup& setBufferSize(int value);
     int getOutputChannels() const;
 
   private:
-    const device *  in;
-    const device * out;
+    const device* in;
+    const device* out;
     double sampleRate;
     int bufferSize;
 
     friend class YSE::DEVICE::managerObject;
   };
 
-}
+} // namespace YSE
 
-
-
-#endif  // DEVICEIMPLEMENTATION_H_INCLUDED
+#endif // DEVICEIMPLEMENTATION_H_INCLUDED

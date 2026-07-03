@@ -80,18 +80,18 @@ namespace YSE {
       // Called once per `system::update()` tick.
       void drainPending();
 
-      static constexpr std::size_t kNameCapacity = 63;  // null terminator follows
+      static constexpr std::size_t kNameCapacity = 63; // null terminator follows
       static constexpr std::size_t kQueueCapacity = 1024;
 
     private:
       struct PooledMessage {
         enum class Kind : std::uint8_t { Int = 1, Float = 2 };
-        Kind kind { Kind::Int };
-        char nameStorage[kNameCapacity + 1] {};
+        Kind kind{Kind::Int};
+        char nameStorage[kNameCapacity + 1]{};
         union {
           int i;
           float f;
-        } value {};
+        } value{};
       };
 
       struct Subscription {
@@ -111,7 +111,7 @@ namespace YSE {
       // touch it without synchronisation. unique_ptr because lfQueue is
       // non-movable and needs a non-default capacity.
       std::vector<std::unique_ptr<lfQueue<PooledMessage>>> audioQueues_;
-      std::atomic<std::size_t> nextSlot_ { 0 };
+      std::atomic<std::size_t> nextSlot_{0};
       // Distinguishes this bus instance from any earlier one a surviving
       // thread may have cached a slot against — engine restart builds a fresh
       // NamedBus that may reuse the same address (issue #187).
@@ -120,7 +120,7 @@ namespace YSE {
       mutable std::shared_mutex subsMutex_;
       std::unordered_map<std::string, std::vector<Subscription>> subs_;
       std::unordered_map<SubHandle, std::string> handleIndex_;
-      std::atomic<SubHandle> nextHandle_ { 1 };
+      std::atomic<SubHandle> nextHandle_{1};
     };
 
     NamedBus& Bus();
@@ -128,4 +128,4 @@ namespace YSE {
   } // namespace INTERNAL
 } // namespace YSE
 
-#endif  // NAMED_BUS_H_INCLUDED
+#endif // NAMED_BUS_H_INCLUDED

@@ -12,7 +12,7 @@
 #include "motifInterface.hpp"
 #include <algorithm>
 
-Bool noteCompare(const YSE::MUSIC::pNote & a, const YSE::MUSIC::pNote & b) {
+Bool noteCompare(const YSE::MUSIC::pNote& a, const YSE::MUSIC::pNote& b) {
   return a.getPosition() < b.getPosition();
 }
 
@@ -24,7 +24,7 @@ YSE::motif::~motif() {
   pimpl->removeInterface();
 }
 
-YSE::motif & YSE::motif::add(const MUSIC::pNote & note) {
+YSE::motif& YSE::motif::add(const MUSIC::pNote& note) {
   notes.emplace_back(note);
   sort();
 
@@ -44,7 +44,7 @@ void YSE::motif::sort() {
   std::sort(notes.begin(), notes.end(), noteCompare);
 }
 
-YSE::motif & YSE::motif::clear() {
+YSE::motif& YSE::motif::clear() {
   notes.clear();
   MOTIF::messageObject m;
   m.ID = MOTIF::CLEAR;
@@ -53,9 +53,9 @@ YSE::motif & YSE::motif::clear() {
   return *this;
 }
 
-YSE::motif & YSE::motif::setLength(Flt length) {
+YSE::motif& YSE::motif::setLength(Flt length) {
   this->length = length;
-  
+
   MOTIF::messageObject m;
   m.ID = MOTIF::LENGTH;
   m.floatValue = length;
@@ -64,11 +64,10 @@ YSE::motif & YSE::motif::setLength(Flt length) {
   return *this;
 }
 
-YSE::motif & YSE::motif::setLength() {
+YSE::motif& YSE::motif::setLength() {
   if (notes.empty()) {
     length = 0;
-  }
-  else {
+  } else {
     length = notes.back().getPosition() + notes.back().getLength();
   }
 
@@ -80,7 +79,7 @@ YSE::motif & YSE::motif::setLength() {
   return *this;
 }
 
-YSE::motif & YSE::motif::transpose(Flt pitch) {
+YSE::motif& YSE::motif::transpose(Flt pitch) {
   FOREACH(notes) {
     notes[i].setPitch(notes[i].getPitch() + pitch);
   }
@@ -93,7 +92,7 @@ YSE::motif & YSE::motif::transpose(Flt pitch) {
   return *this;
 }
 
-YSE::motif & YSE::motif::setFirstPitch(const scale & validPitches) {
+YSE::motif& YSE::motif::setFirstPitch(const scale& validPitches) {
   MOTIF::messageObject m;
   m.ID = MOTIF::FIRST_PITCH;
   m.ptr = validPitches.pimpl;
@@ -101,6 +100,6 @@ YSE::motif & YSE::motif::setFirstPitch(const scale & validPitches) {
   return *this;
 }
 
-YSE::MUSIC::pNote & YSE::motif::operator[](UInt pos) {
+YSE::MUSIC::pNote& YSE::motif::operator[](UInt pos) {
   return notes[pos];
 }

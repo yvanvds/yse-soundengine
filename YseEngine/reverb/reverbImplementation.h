@@ -20,14 +20,13 @@
 
 namespace YSE {
   namespace REVERB {
-    
+
     /**
       The implementation counterpart of a reverb interface.
     */
-    class implementationObject  {
+    class implementationObject {
     public:
-      
-      implementationObject(reverb * head); // < Constructor needs a pointer to the interface
+      implementationObject(reverb* head); // < Constructor needs a pointer to the interface
       virtual ~implementationObject();
       Bool readyCheck();
       void removeInterface();
@@ -35,8 +34,10 @@ namespace YSE {
       void setStatus(OBJECT_IMPLEMENTATION_STATE value);
 
       void sync();
-      virtual void parseMessage(const messageObject & message); // < Parse all messages, if any
-      inline void sendMessage(const messageObject & message) { messages.push(message); }
+      virtual void parseMessage(const messageObject& message); // < Parse all messages, if any
+      inline void sendMessage(const messageObject& message) {
+        messages.push(message);
+      }
 
       /**
       This function is used by the forward_list remove_if function
@@ -49,18 +50,17 @@ namespace YSE {
       This function is used by the forward_list remove_if function on the
       audio-thread-owned `toLoad` list.
       */
-      static bool canBeRemovedFromLoading(const implementationObject * impl) {
-        if (impl->objectStatus == OBJECT_READY
-          || impl->objectStatus == OBJECT_RELEASE
-          || impl->objectStatus == OBJECT_DELETE) {
+      static bool canBeRemovedFromLoading(const implementationObject* impl) {
+        if (impl->objectStatus == OBJECT_READY || impl->objectStatus == OBJECT_RELEASE ||
+            impl->objectStatus == OBJECT_DELETE) {
           return true;
         }
 
         return false;
       }
-      
+
     private:
-      std::atomic<reverb *> head; // < The interface connected to this object
+      std::atomic<reverb*> head; // < The interface connected to this object
       std::atomic<OBJECT_IMPLEMENTATION_STATE> objectStatus; // < the status of this object
       lfQueue<messageObject> messages;
 
@@ -75,9 +75,7 @@ namespace YSE {
       friend class YSE::REVERB::managerObject;
     };
 
-  }
-}
+  } // namespace REVERB
+} // namespace YSE
 
-
-
-#endif  // REVERBIMPLEMENTATION_H_INCLUDED
+#endif // REVERBIMPLEMENTATION_H_INCLUDED

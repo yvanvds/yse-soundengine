@@ -8,18 +8,18 @@ namespace YSE {
   namespace PATCHER {
 
     PATCHER_CLASS(dSaw, YSE::OBJ::D_SAW)
-      _NO_MESSAGES
-      _DO_CALCULATE
-      _DO_RESET
+    _NO_MESSAGES
+    _DO_CALCULATE
+    _DO_RESET
 
-      _FLOAT_IN(SetFrequency)
-      _BUFFER_IN(SetFrequencyBuffer)
+    _FLOAT_IN(SetFrequency)
+    _BUFFER_IN(SetFrequencyBuffer)
 
-private:
-  DSP::saw saw;
+  private:
+    DSP::saw saw;
 
-  aFlt frequency;
-  DSP::buffer * freqBuffer;
+    aFlt frequency;
+    DSP::buffer* freqBuffer;
   };
 }
 }

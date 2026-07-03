@@ -13,7 +13,7 @@
 
 #include <string>
 #include "../internalHeaders.h"
-//#include "../synth/synthImplementation.h"
+// #include "../synth/synthImplementation.h"
 #include <forward_list>
 
 namespace YSE {
@@ -21,44 +21,42 @@ namespace YSE {
 
     class fileImpl {
     public:
-      fileImpl(file * head);
+      fileImpl(file* head);
       ~fileImpl();
 
-      bool create(const std::string & fileName);
+      bool create(const std::string& fileName);
 
-      void play ();
+      void play();
       void pause();
-      void stop ();
+      void stop();
 
-      //void connect   (synth * player);
-      //void disconnect(synth * player);
+      // void connect   (synth * player);
+      // void disconnect(synth * player);
 
-      //void getMessages(MidiBuffer & incomingMidi);
+      // void getMessages(MidiBuffer & incomingMidi);
 
       // this is called only by a synth destructor which still
       // has pointers to this file acive
-      //void removeDevice(SYNTH::implementationObject * player);
+      // void removeDevice(SYNTH::implementationObject * player);
       void removeInterface();
       bool hasInterface();
 
     private:
       // interface object
-      file * head;
+      file* head;
 
-      //MidiFile midiFile;
-      //MidiMessageSequence sequence;
+      // MidiFile midiFile;
+      // MidiMessageSequence sequence;
 
       std::atomic<SOUND_STATUS> intent;
 
       bool hasFile;
-      //int startSample;
+      // int startSample;
 
-      //std::forward_list<YSE::SYNTH::implementationObject *> readers;
+      // std::forward_list<YSE::SYNTH::implementationObject *> readers;
     };
 
-  }
-}
+  } // namespace MIDI
+} // namespace YSE
 
-
-
-#endif  // MIDIFILEIMPLEMENTATION_H_INCLUDED
+#endif // MIDIFILEIMPLEMENTATION_H_INCLUDED

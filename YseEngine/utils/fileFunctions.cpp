@@ -16,7 +16,6 @@
 #include <Windows.h>
 #include <filesystem>
 
-
 std::string YSE::GetCurrentWorkingDirectory() {
   char buffer[MAX_PATH];
   GetModuleFileNameA(NULL, buffer, MAX_PATH);
@@ -24,7 +23,7 @@ std::string YSE::GetCurrentWorkingDirectory() {
   return std::string(buffer).substr(0, pos);
 }
 
-bool YSE::IsPathAbsolute(const std::string & p) {
+bool YSE::IsPathAbsolute(const std::string& p) {
   std::filesystem::path path(p);
   return path.is_absolute();
 }
@@ -33,27 +32,23 @@ bool YSE::IsPathAbsolute(const std::string & p) {
 #include <limits.h>
 #include <unistd.h>
 
-std::string YSE::GetCurrentWorkingDirectory()
-{
-    char result[PATH_MAX];
-    ssize_t count = readlink("/proc/self/cwd", result, PATH_MAX);
-    return std::string(result, (count > 0) ? count : 0);
+std::string YSE::GetCurrentWorkingDirectory() {
+  char result[PATH_MAX];
+  ssize_t count = readlink("/proc/self/cwd", result, PATH_MAX);
+  return std::string(result, (count > 0) ? count : 0);
 }
 
-
 /// on linux this is a really simple check. sorry
-bool YSE::IsPathAbsolute(const std::string & p)
-{
-    // TODO_2018 std::filesystem::path path(p);
-    // TODO_2018 return path.is_absolute();
-    return (p[0] == '/');
+bool YSE::IsPathAbsolute(const std::string& p) {
+  // TODO_2018 std::filesystem::path path(p);
+  // TODO_2018 return path.is_absolute();
+  return (p[0] == '/');
 }
 
 #endif
 
 ///
-bool YSE::FileExists(const std::string & name)
-{
-    std::ifstream file(name);
-    return file.good();
+bool YSE::FileExists(const std::string& name) {
+  std::ifstream file(name);
+  return file.good();
 }

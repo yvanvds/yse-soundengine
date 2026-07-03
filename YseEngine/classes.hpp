@@ -28,7 +28,7 @@ namespace YSE {
   // tools
   class Pos;
   class aPos;
- 
+
   namespace DSP {
     // public dsp classes
     class buffer;
@@ -55,7 +55,7 @@ namespace YSE {
     class noise;
     class vcf;
     class oscillator;
-    
+
     // math functions
     class clip;
     class rSqrt;
@@ -76,15 +76,15 @@ namespace YSE {
     class hilbert;
     class ringModulator;
     class sineWave;
-  }
+  } // namespace DSP
 
   namespace MUSIC {
     class note;
     class pNote;
     class chord;
     class player;
-  }
-    
+  } // namespace MUSIC
+
   namespace INTERNAL {
     // internal classes
     class global;
@@ -96,14 +96,12 @@ namespace YSE {
     class soundFile;
     class time;
     class underWaterEffect;
-  }
+  } // namespace INTERNAL
 
   namespace MIDI {
-	  class midiMessage;
-	  class midiNote;
-  }
-}
+    class midiMessage;
+    class midiNote;
+  } // namespace MIDI
+} // namespace YSE
 
-
-
-#endif  // CLASSES_HPP_INCLUDED
+#endif // CLASSES_HPP_INCLUDED

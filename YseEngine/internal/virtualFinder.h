@@ -24,7 +24,8 @@ namespace YSE {
     Int getLimit();
     void calculate();
     bool inRange(Flt value); // check if this value is ok according to the last calculations
-    virtualFinder(Int resolution); // argument is the initial resolution. This can be adjusted internally when needed.
+    virtualFinder(Int resolution); // argument is the initial resolution. This can be adjusted
+                                   // internally when needed.
 
   private:
     Int resolution;
@@ -32,14 +33,13 @@ namespace YSE {
     Int currentLimit;
     Flt range; // the calculated range
     Flt maximum; // the biggest value since last reset
-    Flt calculatedMax; // the biggest value before last reset (we can assume this is about the same as the new value will be)
+    Flt calculatedMax; // the biggest value before last reset (we can assume this is about the same
+                       // as the new value will be)
     Int entries; // how many entries are added since reset
     std::vector<Int> bin;
   };
 
-  virtualFinder & VirtualSoundFinder();
-}
+  virtualFinder& VirtualSoundFinder();
+} // namespace YSE
 
-
-
-#endif  // VIRTUALFINDER_H_INCLUDED
+#endif // VIRTUALFINDER_H_INCLUDED

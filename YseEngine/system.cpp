@@ -12,80 +12,78 @@ Author:  yvan
 #include "patcher/time/TimerThread.h"
 #include "device/portaudioDeviceManager.h"
 
-
 #ifdef YSE_WINDOWS
 #include <Windows.h>
 #else
 #include <unistd.h>
 #endif
 
-
-YSE::system & YSE::System() {
-	static YSE::system s;
-	return s;
+YSE::system& YSE::System() {
+  static YSE::system s;
+  return s;
 }
 
 Bool YSE::system::init() {
-	return initShared(true);
+  return initShared(true);
 }
 
 Bool YSE::system::initOffline() {
-	return initShared(false);
+  return initShared(false);
 }
 
 void YSE::system::renderOffline(int blocks) {
-	DEVICE::Manager().renderOffline(blocks);
+  DEVICE::Manager().renderOffline(blocks);
 }
 
 Bool YSE::system::initShared(bool openDevice) {
-	if (INTERNAL::Global().active) {
-	INTERNAL::LogImpl().emit(E_DEBUG, "You're trying to initialize more than once!");
-	return true;
-	}
-	// global objects should always be loaded before anything else!
-	INTERNAL::Global().init();
-	currentlyMissedCallbacks = 0;
-	doAutoReconnect = false;
-	reconnectDelay = 0;
+  if (INTERNAL::Global().active) {
+    INTERNAL::LogImpl().emit(E_DEBUG, "You're trying to initialize more than once!");
+    return true;
+  }
+  // global objects should always be loaded before anything else!
+  INTERNAL::Global().init();
+  currentlyMissedCallbacks = 0;
+  doAutoReconnect = false;
+  reconnectDelay = 0;
 
-	if (DEVICE::Manager().init(openDevice)) {
-		INTERNAL::LogImpl().emit(E_DEBUG, "YSE System object initialized");
+  if (DEVICE::Manager().init(openDevice)) {
+    INTERNAL::LogImpl().emit(E_DEBUG, "YSE System object initialized");
 
-		// initialize channels
-		CHANNEL::Manager().setChannelConf(CT_STEREO);
-		CHANNEL::Manager().changeChannelConf();
-		CHANNEL::Manager().master().createGlobal();
-		CHANNEL::Manager().ambient().create("ambientChannel", CHANNEL::Manager().master());
-		CHANNEL::Manager().FX().create("fxChannel", CHANNEL::Manager().master());
-		CHANNEL::Manager().music().create("musicChannel", CHANNEL::Manager().master());
-		CHANNEL::Manager().gui().create("guiChannel", CHANNEL::Manager().master());
-		CHANNEL::Manager().voice().create("voiceChannel", CHANNEL::Manager().master());
+    // initialize channels
+    CHANNEL::Manager().setChannelConf(CT_STEREO);
+    CHANNEL::Manager().changeChannelConf();
+    CHANNEL::Manager().master().createGlobal();
+    CHANNEL::Manager().ambient().create("ambientChannel", CHANNEL::Manager().master());
+    CHANNEL::Manager().FX().create("fxChannel", CHANNEL::Manager().master());
+    CHANNEL::Manager().music().create("musicChannel", CHANNEL::Manager().master());
+    CHANNEL::Manager().gui().create("guiChannel", CHANNEL::Manager().master());
+    CHANNEL::Manager().voice().create("voiceChannel", CHANNEL::Manager().master());
 
-		maxSounds(50);
-		INTERNAL::Global().active = true;
+    maxSounds(50);
+    INTERNAL::Global().active = true;
 
-		if (openDevice) {
-			DEVICE::Manager().addCallback();
-		}
+    if (openDevice) {
+      DEVICE::Manager().addCallback();
+    }
 
-		// addCallback() is the last point at which the backend can negotiate
-		// SAMPLERATE (PortAudio on desktop, Oboe on Android). After this, lock
-		// SAMPLERATE for the rest of the session — DSP lookup tables and other
-		// derived caches assume a stable rate per session.
-		INTERNAL::Global().sampleRateLocked = true;
+    // addCallback() is the last point at which the backend can negotiate
+    // SAMPLERATE (PortAudio on desktop, Oboe on Android). After this, lock
+    // SAMPLERATE for the rest of the session — DSP lookup tables and other
+    // derived caches assume a stable rate per session.
+    INTERNAL::Global().sampleRateLocked = true;
 
 #ifdef YSE_WINDOWS
     timeBeginPeriod(1);
 #endif
 
-		// Boot the embedded interpreter (issue #124) after the audio device is
-		// open. No-op unless built with YSE_ENABLE_PYTHON.
-		INTERNAL::Global().startScripting();
+    // Boot the embedded interpreter (issue #124) after the audio device is
+    // open. No-op unless built with YSE_ENABLE_PYTHON.
+    INTERNAL::Global().startScripting();
 
-		return true;
-	}
-	INTERNAL::LogImpl().emit(E_ERROR, "YSE System object failed to initialize");
-	return false;
+    return true;
+  }
+  INTERNAL::LogImpl().emit(E_ERROR, "YSE System object failed to initialize");
+  return false;
 }
 
 void YSE::system::update() {
@@ -102,17 +100,16 @@ void YSE::system::update() {
   // #125). Drains on the main thread, so the callback fires here — never on
   // the script thread. No-op unless built with YSE_ENABLE_PYTHON.
   INTERNAL::Global().drainScriptResults();
-	unsigned int callbacks = DEVICE::Manager().GetCallbacksSinceLastUpdate();
-	if (callbacks == 0) {
-		currentlyMissedCallbacks++;
-		if (doAutoReconnect && currentlyMissedCallbacks > reconnectDelay) {
-			pause();
-			resume();
-		}
-	}
-	else {
-		currentlyMissedCallbacks = 0;
-	}
+  unsigned int callbacks = DEVICE::Manager().GetCallbacksSinceLastUpdate();
+  if (callbacks == 0) {
+    currentlyMissedCallbacks++;
+    if (doAutoReconnect && currentlyMissedCallbacks > reconnectDelay) {
+      pause();
+      resume();
+    }
+  } else {
+    currentlyMissedCallbacks = 0;
+  }
 }
 
 void YSE::system::close() {
@@ -143,24 +140,24 @@ void YSE::system::close() {
 }
 
 void YSE::system::pause() {
-	DEVICE::Manager().pause();
+  DEVICE::Manager().pause();
 }
 
 void YSE::system::resume() {
-	DEVICE::Manager().resume();
+  DEVICE::Manager().resume();
 }
 
 int YSE::system::missedCallbacks() {
-	return currentlyMissedCallbacks;
+  return currentlyMissedCallbacks;
 }
 
 YSE::system& YSE::system::autoReconnect(bool on, int delay) {
-	doAutoReconnect = on;
-	reconnectDelay = delay;
-	return *this;
+  doAutoReconnect = on;
+  reconnectDelay = delay;
+  return *this;
 }
 
-YSE::system& YSE::system::occlusionCallback(float(*func)(const YSE::Pos&, const YSE::Pos&)) {
+YSE::system& YSE::system::occlusionCallback(float (*func)(const YSE::Pos&, const YSE::Pos&)) {
   occlusionPtr = func;
   return *this;
 }
@@ -169,15 +166,14 @@ YSE::occlusionFunc YSE::system::occlusionCallback() {
   return occlusionPtr;
 }
 
-YSE::system::system() : occlusionPtr(nullptr) {
-}
+YSE::system::system() : occlusionPtr(nullptr) {}
 
-YSE::system & YSE::system::underWaterFX(const channel & target) {
+YSE::system& YSE::system::underWaterFX(const channel& target) {
   INTERNAL::UnderWaterEffect().channel(target.pimpl);
   return *this;
 }
 
-YSE::system & YSE::system::setUnderWaterDepth(float value) {
+YSE::system& YSE::system::setUnderWaterDepth(float value) {
   INTERNAL::UnderWaterEffect().setDepth(value);
   return *this;
 }
@@ -218,22 +214,21 @@ void YSE::system::sleep(unsigned int ms) {
 #if defined YSE_WINDOWS
   Sleep(ms);
 #else
-  usleep(static_cast<useconds_t>(ms)* 1000);
+  usleep(static_cast<useconds_t>(ms) * 1000);
 #endif
 }
 
-YSE::reverb & YSE::system::getGlobalReverb() {
+YSE::reverb& YSE::system::getGlobalReverb() {
   return REVERB::Manager().getGlobalReverb();
 }
 
-const std::vector<YSE::device> & YSE::system::getDevices() {
+const std::vector<YSE::device>& YSE::system::getDevices() {
   return DEVICE::Manager().getDeviceList();
 }
 
-void YSE::system::openDevice(const deviceSetup & object, CHANNEL_TYPE conf) {
+void YSE::system::openDevice(const deviceSetup& object, CHANNEL_TYPE conf) {
   DEVICE::Manager().openDevice(object);
   CHANNEL::Manager().setChannelConf(conf, object.getOutputChannels());
-
 }
 
 void YSE::system::closeCurrentDevice() {
@@ -244,42 +239,38 @@ UInt YSE::system::getNumDevices() {
   return static_cast<UInt>(DEVICE::Manager().getDeviceList().size());
 }
 
-const YSE::device & YSE::system::getDevice(unsigned int nr) {
+const YSE::device& YSE::system::getDevice(unsigned int nr) {
   return DEVICE::Manager().getDeviceList()[nr];
 }
 
-const std::string & YSE::system::getDefaultDevice() {
+const std::string& YSE::system::getDefaultDevice() {
   return DEVICE::Manager().getDefaultDeviceName();
 }
 
-const std::string & YSE::system::getDefaultHost() {
+const std::string& YSE::system::getDefaultHost() {
   return DEVICE::Manager().getDefaultTypeName();
 }
 
 #if YSE_ENABLE_MIDI_DEVICE
-unsigned int YSE::system::getNumMidiInDevices()
-{
-	return MIDI::DeviceManager().getNumMidiInDevices();
+unsigned int YSE::system::getNumMidiInDevices() {
+  return MIDI::DeviceManager().getNumMidiInDevices();
 }
 
-unsigned int YSE::system::getNumMidiOutDevices()
-{
-	return MIDI::DeviceManager().getNumMidiOutDevices();
+unsigned int YSE::system::getNumMidiOutDevices() {
+  return MIDI::DeviceManager().getNumMidiOutDevices();
 }
 
-const std::string YSE::system::getMidiInDeviceName(unsigned int ID)
-{
-	return MIDI::DeviceManager().getMidiInDeviceName(ID);
+const std::string YSE::system::getMidiInDeviceName(unsigned int ID) {
+  return MIDI::DeviceManager().getMidiInDeviceName(ID);
 }
 
-const std::string YSE::system::getMidiOutDeviceName(unsigned int ID)
-{
-	std::string result = MIDI::DeviceManager().getMidiOutDeviceName(ID);
-	return result;
+const std::string YSE::system::getMidiOutDeviceName(unsigned int ID) {
+  std::string result = MIDI::DeviceManager().getMidiOutDeviceName(ID);
+  return result;
 }
 #endif
 
-YSE::system & YSE::system::AudioTest(bool on) {
+YSE::system& YSE::system::AudioTest(bool on) {
 #ifdef __WINDOWS__
   YSE::INTERNAL::Test().On(on);
 #endif

@@ -75,9 +75,9 @@
 
 namespace yse_c {
 
-// Stash a human-readable error in the thread-local last_error slot.
-// Retrieved by the C client via yse_last_error().
-void set_last_error(const char* msg);
-void set_last_error(const std::string& msg);
+  // Stash a human-readable error in the thread-local last_error slot.
+  // Retrieved by the C client via yse_last_error().
+  void set_last_error(const char* msg);
+  void set_last_error(const std::string& msg);
 
 } // namespace yse_c

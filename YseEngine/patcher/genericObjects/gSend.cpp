@@ -17,11 +17,17 @@ CONSTRUCT() {
   ADD_PARAM(dataName);
   ADD_PARAM(globalOnly);
 
-  ADD_DESCRIPTION("Named send endpoint. Broadcasts incoming values to every gReceive in the patcher whose dataName matches, and publishes them on the global bus as \"<patcherName>.<dataName>\" so cross-patcher routing works without explicit wiring.");
+  ADD_DESCRIPTION(
+      "Named send endpoint. Broadcasts incoming values to every gReceive in the patcher whose "
+      "dataName matches, and publishes them on the global bus as \"<patcherName>.<dataName>\" so "
+      "cross-patcher routing works without explicit wiring.");
   ADD_CATEGORY(pCategory::GENERIC);
   INLET_DOC(0, "in", "Value inlet — accepts bang / int / float / list.", "");
-  PARAM_DOC("dataName", "", "Name to broadcast on; matching gReceive nodes will emit the forwarded value.", "any identifier");
-  PARAM_DOC("globalOnly", "0", "When 1, skip in-patcher delivery and publish only to the global bus.", "0 or 1");
+  PARAM_DOC("dataName", "",
+            "Name to broadcast on; matching gReceive nodes will emit the forwarded value.",
+            "any identifier");
+  PARAM_DOC("globalOnly", "0",
+            "When 1, skip in-patcher delivery and publish only to the global bus.", "0 or 1");
 }
 
 // RT-safety: on T_DSP the bus publish path is allocation-free and lock-free
@@ -38,12 +44,12 @@ namespace {
   inline bool busAvailable() {
     return YSE::INTERNAL::Global().isActive();
   }
-}
+} // namespace
 
 // `parent` is a patcherImplementation by construction (the patcher hands
 // itself to every object via SetParent); the cast mirrors the existing
 // PassData calls below.
-void gSend::SetParent(pObject * newParent) {
+void gSend::SetParent(pObject* newParent) {
   pObject::SetParent(newParent);
   RefreshBusAddress();
 }
@@ -53,13 +59,13 @@ void gSend::RefreshBusAddress() {
     busAddress_.clear();
     return;
   }
-  auto * p = static_cast<patcherImplementation*>(parent);
+  auto* p = static_cast<patcherImplementation*>(parent);
   busAddress_ = p->Name() + "." + dataName;
 }
 
 BANG_IN(SetBangValue) {
   if (parent == nullptr) return;
-  auto * p = static_cast<patcherImplementation*>(parent);
+  auto* p = static_cast<patcherImplementation*>(parent);
   if (!globalOnly) {
     p->PassBang(dataName, thread);
   }
@@ -71,7 +77,7 @@ BANG_IN(SetBangValue) {
 
 INT_IN(SetIntValue) {
   if (parent == nullptr) return;
-  auto * p = static_cast<patcherImplementation*>(parent);
+  auto* p = static_cast<patcherImplementation*>(parent);
   if (!globalOnly) {
     p->PassData(value, dataName, thread);
   }
@@ -82,7 +88,7 @@ INT_IN(SetIntValue) {
 
 FLOAT_IN(SetFloatValue) {
   if (parent == nullptr) return;
-  auto * p = static_cast<patcherImplementation*>(parent);
+  auto* p = static_cast<patcherImplementation*>(parent);
   if (!globalOnly) {
     p->PassData(value, dataName, thread);
   }
@@ -93,7 +99,7 @@ FLOAT_IN(SetFloatValue) {
 
 LIST_IN(SetListValue) {
   if (parent == nullptr) return;
-  auto * p = static_cast<patcherImplementation*>(parent);
+  auto* p = static_cast<patcherImplementation*>(parent);
   if (!globalOnly) {
     p->PassData(value, dataName, thread);
   }

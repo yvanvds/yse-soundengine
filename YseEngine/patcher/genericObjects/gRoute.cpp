@@ -16,10 +16,15 @@ CONSTRUCT() {
 
   ADD_PARAM(list);
 
-  ADD_DESCRIPTION("Match-and-route. Compares the incoming value to each token in the list parameter and forwards to the matching outlet; unmatched values go to the final fall-through outlet. Outlets are created when the list parameter is set.");
+  ADD_DESCRIPTION("Match-and-route. Compares the incoming value to each token in the list "
+                  "parameter and forwards to the matching outlet; unmatched values go to the final "
+                  "fall-through outlet. Outlets are created when the list parameter is set.");
   ADD_CATEGORY(pCategory::GENERIC);
   INLET_DOC(0, "in", "Value inlet — accepts bang / int / float / list.", "");
-  PARAM_DOC("list", "", "Space-separated list of match tokens; one outlet is created per token plus one fall-through outlet.", "any tokens");
+  PARAM_DOC("list", "",
+            "Space-separated list of match tokens; one outlet is created per token plus one "
+            "fall-through outlet.",
+            "any tokens");
 }
 
 PARM_CLEAR() {
@@ -70,8 +75,7 @@ LIST_IN(SetListValue) {
   size_t pos = 0;
   if ((pos = value.find(" ")) != std::string::npos) {
     token = value.substr(0, pos);
-  }
-  else {
+  } else {
     token = value;
   }
 

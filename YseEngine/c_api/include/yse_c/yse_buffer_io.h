@@ -23,14 +23,14 @@ typedef struct YseBufferIO YseBufferIO;
 /* store_copy=1 copies the supplied bytes; store_copy=0 keeps a pointer
    to the caller's buffer (which must outlive the registration). */
 YSE_C_API YseBufferIO* yse_buffer_io_create(int store_copy);
-YSE_C_API void         yse_buffer_io_destroy(YseBufferIO* io);
+YSE_C_API void yse_buffer_io_destroy(YseBufferIO* io);
 
-YSE_C_API void         yse_buffer_io_set_active(YseBufferIO* io, int on);
-YSE_C_API int          yse_buffer_io_get_active(YseBufferIO* io);
+YSE_C_API void yse_buffer_io_set_active(YseBufferIO* io, int on);
+YSE_C_API int yse_buffer_io_get_active(YseBufferIO* io);
 
-YSE_C_API int          yse_buffer_io_name_exists(YseBufferIO* io, const char* id);
-YSE_C_API int          yse_buffer_io_add(YseBufferIO* io, const char* id, char* buffer, int length);
-YSE_C_API int          yse_buffer_io_remove_by_name(YseBufferIO* io, const char* id);
+YSE_C_API int yse_buffer_io_name_exists(YseBufferIO* io, const char* id);
+YSE_C_API int yse_buffer_io_add(YseBufferIO* io, const char* id, char* buffer, int length);
+YSE_C_API int yse_buffer_io_remove_by_name(YseBufferIO* io, const char* id);
 
 #ifdef __cplusplus
 }

@@ -20,29 +20,27 @@ namespace YSE {
     class customFileReader {
     public:
       customFileReader();
-     ~customFileReader();
-      
-      static bool Open(const char * filename, long long * filesize, void ** fileHandle);
-      static void Close(void * fileHandle);
+      ~customFileReader();
+
+      static bool Open(const char* filename, long long* filesize, void** fileHandle);
+      static void Close(void* fileHandle);
 
       static void UpdateVIO();
       static void ResetVIO();
-      static SF_VIRTUAL_IO & GetVIO();
+      static SF_VIRTUAL_IO& GetVIO();
     };
 
     namespace CALLBACK {
-      extern bool(*openPtr)(const char * filename, long long * filesize, void ** fileHandle);
-      extern void(*closePtr)(void * fileHandle);
-      extern long long(*readPtr)(void * destBuffer, long long maxBytesToRead, void * fileHandle);
-      extern long long(*getPosPtr)(void * fileHandle);
-      extern bool(*fileExists)(const char * filename);
-      extern long long(*lengthPtr)(void * fileHandle);
-      extern long long(*seekPtr)(long long offset, int whence, void * fileHandle);
-    }
-    
-  }
-}
+      extern bool (*openPtr)(const char* filename, long long* filesize, void** fileHandle);
+      extern void (*closePtr)(void* fileHandle);
+      extern long long (*readPtr)(void* destBuffer, long long maxBytesToRead, void* fileHandle);
+      extern long long (*getPosPtr)(void* fileHandle);
+      extern bool (*fileExists)(const char* filename);
+      extern long long (*lengthPtr)(void* fileHandle);
+      extern long long (*seekPtr)(long long offset, int whence, void* fileHandle);
+    } // namespace CALLBACK
 
+  } // namespace INTERNAL
+} // namespace YSE
 
-
-#endif  // CUSTOMFILEREADER_H_INCLUDED
+#endif // CUSTOMFILEREADER_H_INCLUDED

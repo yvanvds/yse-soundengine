@@ -8,7 +8,6 @@
   ==============================================================================
 */
 
-
 #ifndef LISTENER_H_INCLUDED
 #define LISTENER_H_INCLUDED
 
@@ -32,7 +31,6 @@ namespace YSE {
    */
   class API listener {
   public:
-
     /** @brief Current listener position in world coordinates. */
     Pos pos();
 
@@ -55,7 +53,7 @@ namespace YSE {
      *  panning) accurate. Setting the position less frequently is fine for
      *  static scenes but will degrade the velocity estimate.
      */
-    listener& pos(const Pos &pos);
+    listener& pos(const Pos& pos);
 
     /** @brief Set the listener orientation.
      *
@@ -63,14 +61,11 @@ namespace YSE {
      *  @param up      The upward axis. Defaults to (0, 1, 0), i.e. rotation
      *                 confined to a horizontal plane.
      */
-    listener& orient(const Pos &forward, const Pos &up = Pos(0, 1, 0));
-
+    listener& orient(const Pos& forward, const Pos& up = Pos(0, 1, 0));
   };
 
   /** @brief Access the singleton listener object. */
-  API listener & Listener();
-}
+  API listener& Listener();
+} // namespace YSE
 
-
-
-#endif  // LISTENER_H_INCLUDED
+#endif // LISTENER_H_INCLUDED

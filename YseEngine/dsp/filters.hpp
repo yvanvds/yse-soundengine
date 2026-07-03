@@ -26,11 +26,11 @@ namespace YSE {
     class API filterBase {
     public:
       filterBase();
-      filterBase( const filterBase &);
+      filterBase(const filterBase&);
       virtual ~filterBase() = default;
 
       /** @brief Process the buffer in place. */
-      virtual buffer & operator()(buffer & in) = 0;
+      virtual buffer& operator()(buffer& in) = 0;
 
     protected:
       aFlt freq;
@@ -55,7 +55,7 @@ namespace YSE {
       highPass& setFrequency(Flt f);
 
       /** @brief Process ``in`` in place. */
-      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in);
     };
 
     /**
@@ -70,7 +70,7 @@ namespace YSE {
       lowPass& setFrequency(Flt f);
 
       /** @brief Process ``in`` in place. */
-      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in);
     };
 
     /**
@@ -91,7 +91,7 @@ namespace YSE {
       bandPass& setQ(Flt q);
 
       /** @brief Process ``in`` in place. */
-      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in);
 
       bandPass();
 
@@ -141,7 +141,7 @@ namespace YSE {
       biQuad& setRaw(Flt fb1, Flt fb2, Flt ff1, Flt ff2, Flt ff3);
 
       /** @brief Process ``in`` in place. */
-      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in);
 
     private:
       void calc();
@@ -164,7 +164,7 @@ namespace YSE {
       sampleHold& set(Flt value);
 
       /** @brief Process ``in`` gated by ``signal``. */
-      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in, YSE::DSP::buffer & signal);
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in, YSE::DSP::buffer& signal);
 
       sampleHold();
 
@@ -176,10 +176,7 @@ namespace YSE {
     // The variable-cutoff filter (``vcf``) lives in oscillators.hpp because
     // it shares state and code paths with the oscillator family.
 
-  }
-}
+  } // namespace DSP
+} // namespace YSE
 
-
-
-
-#endif  // FILTERS_H_INCLUDED
+#endif // FILTERS_H_INCLUDED

@@ -12,8 +12,7 @@
 #include "../../internalHeaders.h"
 #include <algorithm>
 
-YSE::SCALE::implementationObject::implementationObject(scale * head)
-: head(head) {}
+YSE::SCALE::implementationObject::implementationObject(scale* head) : head(head) {}
 
 YSE::SCALE::implementationObject::~implementationObject() {
   if (head.load() != nullptr) {
@@ -43,7 +42,7 @@ void YSE::SCALE::implementationObject::removeInterface() {
   head.store(nullptr);
 }
 
-void YSE::SCALE::implementationObject::parseMessage(const messageObject & message) {
+void YSE::SCALE::implementationObject::parseMessage(const messageObject& message) {
   switch (message.ID) {
   case ADD:
     add(message.floatPair[0], message.floatPair[1]);
@@ -69,8 +68,7 @@ void YSE::SCALE::implementationObject::add(Flt pitch, Flt step) {
       pitches.push_back(pitch);
       pitch += step;
     }
-  }
-  else {
+  } else {
     pitches.push_back(pitch);
   }
 
@@ -89,19 +87,16 @@ void YSE::SCALE::implementationObject::remove(Flt pitch, Flt step) {
       if ((*iter) > pitch) pitch += step;
       if ((*iter) == pitch) {
         iter = pitches.erase(iter);
-      }
-      else {
+      } else {
         ++iter;
       }
     }
-  }
-  else {
+  } else {
     // remove pitch from scale
     for (auto iter = pitches.begin(); iter != pitches.end();) {
       if ((*iter) == pitch) {
         iter = pitches.erase(iter);
-      }
-      else {
+      } else {
         ++iter;
       }
     }

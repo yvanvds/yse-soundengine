@@ -51,8 +51,7 @@ namespace YSE {
       if (value != nullptr) {
         PyObject* tbmod = PyImport_ImportModule("traceback");
         if (tbmod != nullptr) {
-          PyObject* lines =
-              PyObject_CallMethod(tbmod, "format_exception", "O", value);
+          PyObject* lines = PyObject_CallMethod(tbmod, "format_exception", "O", value);
           if (lines != nullptr) {
             PyObject* sep = PyUnicode_FromString("");
             PyObject* joined = sep ? PyUnicode_Join(sep, lines) : nullptr;
@@ -91,6 +90,6 @@ namespace YSE {
   } // namespace INTERNAL
 } // namespace YSE
 
-#endif  // YSE_ENABLE_PYTHON
+#endif // YSE_ENABLE_PYTHON
 
-#endif  // YSE_PYTHON_PY_TRACEBACK_H
+#endif // YSE_PYTHON_PY_TRACEBACK_H

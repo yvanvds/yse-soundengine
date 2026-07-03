@@ -45,28 +45,28 @@ namespace YSE {
       */
       void destroy();
 
-      implementationObject * addImplementation(channel * head);
-      void setup(implementationObject * impl);
+      implementationObject* addImplementation(channel* head);
+      void setup(implementationObject* impl);
       Bool empty();
-      
+
       // channel output configuration from interface
       void setChannelConf(CHANNEL_TYPE type, Int outputs = 2);
-      
+
       // switch to the new configureation during audio callback
       void changeChannelConf();
-      
+
       UInt getNumberOfOutputs();
-      Flt  getOutputAngle(UInt nr);
+      Flt getOutputAngle(UInt nr);
 
-      channel & master();
-      channel & FX();
-      channel & music();
-      channel & ambient();
-      channel & voice();
-      channel & gui();
+      channel& master();
+      channel& FX();
+      channel& music();
+      channel& ambient();
+      channel& voice();
+      channel& gui();
 
-      void setMaster(implementationObject * impl);
-      
+      void setMaster(implementationObject* impl);
+
     private:
       // Once an object is ready for use, a pointer is placed in this container. The manager will
       // update and sync all these objects during the dsp callback function
@@ -102,7 +102,7 @@ namespace YSE {
       channel _gui;
 
       // channel output configuration
-      aFlt * outputAngles;
+      aFlt* outputAngles;
       aUInt outputChannels;
       std::atomic<CHANNEL_TYPE> channelType;
 
@@ -119,11 +119,9 @@ namespace YSE {
       friend class INTERNAL::managerDeleteJob<managerObject>;
     };
 
-    managerObject & Manager();
+    managerObject& Manager();
 
-  }
-}
+  } // namespace CHANNEL
+} // namespace YSE
 
-
-
-#endif  // CHANNELMANAGER_H_INCLUDED
+#endif // CHANNELMANAGER_H_INCLUDED

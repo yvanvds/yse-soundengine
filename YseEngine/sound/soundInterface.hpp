@@ -23,7 +23,6 @@
 #endif
 
 namespace YSE {
-  
 
   /**
    *  @brief A playable instance of an audio source.
@@ -71,7 +70,8 @@ namespace YSE {
      *                   for large one-off assets; avoid for sounds played
      *                   repeatedly.
      */
-    void create(const char * fileName, channel * ch = nullptr, bool loop = false, float volume = 1.0f, bool streaming = false);
+    void create(const char* fileName, channel* ch = nullptr, bool loop = false, float volume = 1.0f,
+                bool streaming = false);
 
     /**
      *  @brief Create a sound backed by an in-memory DSP buffer.
@@ -84,14 +84,16 @@ namespace YSE {
      *  @param loop   Loop continuously when ``true``.
      *  @param volume Initial volume in the range [0.0, 1.0].
      */
-    void create(YSE::DSP::buffer & buffer, channel * ch = nullptr, bool loop = false, float volume = 1.f);
+    void create(YSE::DSP::buffer& buffer, channel* ch = nullptr, bool loop = false,
+                float volume = 1.f);
 
     /** @brief Multichannel variant of the buffer-based ``create``.
      *
      *  Identical to the single-buffer overload except that the source carries
      *  multiple channels (stereo or surround).
      */
-    void create(MULTICHANNELBUFFER & buffer, channel * ch = nullptr, bool loop = false, float volume = 1.0f);
+    void create(MULTICHANNELBUFFER& buffer, channel* ch = nullptr, bool loop = false,
+                float volume = 1.0f);
 
     /**
      *  @brief Create a sound driven by a custom DSP source.
@@ -115,7 +117,7 @@ namespace YSE {
      *           file scope, hold via ``std::shared_ptr``, or stop the sound and
      *           drain the manager before ``dsp`` goes out of scope.
      */
-    void create(YSE::DSP::dspSourceObject & dsp, channel * ch = nullptr, float volume = 1.0f);
+    void create(YSE::DSP::dspSourceObject& dsp, channel* ch = nullptr, float volume = 1.0f);
 
     /**
      *  @brief Create a sound driven by a patcher graph.
@@ -124,7 +126,7 @@ namespace YSE {
      *  @param ch      Channel to attach to. ``nullptr`` uses ``MainMix``.
      *  @param volume  Initial volume in the range [0.0, 1.0].
      */
-    void create(YSE::patcher & patcher, channel * ch = nullptr, float volume = 1.0f);
+    void create(YSE::patcher& patcher, channel* ch = nullptr, float volume = 1.0f);
 
     /**
      *  @brief Whether this interface has a live implementation.
@@ -161,7 +163,7 @@ namespace YSE {
     sound& name(const std::string& n);
 
     /** @brief Set the position of this sound in the virtual scene. */
-    void pos(const Pos &v);
+    void pos(const Pos& v);
 
     /** @brief Current position of this sound. */
     Pos pos();
@@ -330,15 +332,13 @@ namespace YSE {
      *
      *  @param target The new parent channel.
      */
-    void moveTo(channel & target);
+    void moveTo(channel& target);
 
     /** @brief Attach a DSP effect chain to this sound. */
-    void setDSP(YSE::DSP::dspObject * value);
+    void setDSP(YSE::DSP::dspObject* value);
 
     /** @brief Currently attached DSP effect chain, or ``nullptr`` if none. */
-    YSE::DSP::dspObject * getDSP();
-
-      
+    YSE::DSP::dspObject* getDSP();
 
   private:
     // Bus addressing (issue #123). Subscribe/unsubscribe the named-bus
@@ -346,15 +346,15 @@ namespace YSE {
     void registerOnBus();
     void unregisterFromBus();
 
-    SOUND::implementationObject * pimpl;
+    SOUND::implementationObject* pimpl;
 
     // These values keep the last set value and are used by getters
     // so that we don't have to query the implementation
-    Pos  _pos;
-    Flt  _spread;
-    Flt  _volume;
-    Flt  _speed;
-    Flt  _size;
+    Pos _pos;
+    Flt _spread;
+    Flt _volume;
+    Flt _speed;
+    Flt _size;
     Bool _loop;
     Bool _relative;
     Bool _doppler;
@@ -362,24 +362,18 @@ namespace YSE {
     Bool _occlusion;
 
     UInt _fadeAndStopTime;
-    DSP::dspObject * _dsp;
-    channel * _parent;
+    DSP::dspObject* _dsp;
+    channel* _parent;
 
     // Bus addressing state. Empty name = anonymous = not on the bus.
     // Handles index 0 = volume, 1 = speed, 2 = position. _busOwner is true
     // only when this sound won the name and holds live subscriptions.
-    std::string   _name;
-    std::uint64_t _busHandles[3] { 0, 0, 0 };
-    bool          _busOwner { false };
-
-    
+    std::string _name;
+    std::uint64_t _busHandles[3]{0, 0, 0};
+    bool _busOwner{false};
 
     friend class SOUND::implementationObject;
   };
-}
+} // namespace YSE
 
-
-
-
-
-#endif  // SOUND_H_INCLUDED
+#endif // SOUND_H_INCLUDED

@@ -15,13 +15,13 @@
 // Distributed under the simplified BSD license (see the license file that
 // should have come with this header).
 
-// Provides portable (VC++2010+, Intel ICC 13, GCC 4.7+, and anything C++11 compliant) implementation
-// of low-level memory barriers, plus a few semi-portable utility macros (for inlining and alignment).
-// Also has a basic atomic type (limited to hardware-supported atomics with no memory ordering guarantees).
-// Uses the AE_* prefix for macros (historical reasons), and the "moodycamel" namespace for symbols.
+// Provides portable (VC++2010+, Intel ICC 13, GCC 4.7+, and anything C++11 compliant)
+// implementation of low-level memory barriers, plus a few semi-portable utility macros (for
+// inlining and alignment). Also has a basic atomic type (limited to hardware-supported atomics with
+// no memory ordering guarantees). Uses the AE_* prefix for macros (historical reasons), and the
+// "moodycamel" namespace for symbols.
 
 #include <cassert>
-
 
 // Platform detection
 #if defined(__INTEL_COMPILER)
@@ -44,21 +44,18 @@
 #define AE_ARCH_UNKNOWN
 #endif
 
-
 // AE_UNUSED
 #define AE_UNUSED(x) ((void)x)
-
 
 // AE_FORCEINLINE
 #if defined(AE_VCPP) || defined(AE_ICC)
 #define AE_FORCEINLINE __forceinline
 #elif defined(AE_GCC)
-//#define AE_FORCEINLINE __attribute__((always_inline)) 
+// #define AE_FORCEINLINE __attribute__((always_inline))
 #define AE_FORCEINLINE inline
 #else
 #define AE_FORCEINLINE inline
 #endif
-
 
 // AE_ALIGN
 #if defined(AE_VCPP) || defined(AE_ICC)
@@ -69,7 +66,6 @@
 // Assume GCC compliant syntax...
 #define AE_ALIGN(x) __attribute__((aligned(x)))
 #endif
-
 
 // Portable atomic fences implemented below:
 
@@ -87,7 +83,7 @@ namespace YSE {
     memory_order_sync = memory_order_seq_cst
   };
 
-}    // end namespace moodycamel
+} // namespace YSE
 
 #if defined(AE_VCPP) || defined(AE_ICC)
 // VS2010 and ICC13 don't support std::atomic_*_fence, implement our own fences
@@ -106,24 +102,33 @@ namespace YSE {
 #define AeLiteSync __lwsync
 #endif
 
-
 #ifdef AE_VCPP
 #pragma warning(push)
-#pragma warning(disable: 4316)
-#pragma warning(disable: 4365)		// Disable erroneous 'conversion from long to unsigned int, signed/unsigned mismatch' error when using `assert`
+#pragma warning(disable : 4316)
+#pragma warning(disable : 4365) // Disable erroneous 'conversion from long to unsigned int,
+                                // signed/unsigned mismatch' error when using `assert`
 #endif
 
 namespace YSE {
 
-  AE_FORCEINLINE void compiler_fence(memory_order order)
-  {
+  AE_FORCEINLINE void compiler_fence(memory_order order) {
     switch (order) {
-    case memory_order_relaxed: break;
-    case memory_order_acquire: _ReadBarrier(); break;
-    case memory_order_release: _WriteBarrier(); break;
-    case memory_order_acq_rel: _ReadWriteBarrier(); break;
-    case memory_order_seq_cst: _ReadWriteBarrier(); break;
-    default: assert(false);
+    case memory_order_relaxed:
+      break;
+    case memory_order_acquire:
+      _ReadBarrier();
+      break;
+    case memory_order_release:
+      _WriteBarrier();
+      break;
+    case memory_order_acq_rel:
+      _ReadWriteBarrier();
+      break;
+    case memory_order_seq_cst:
+      _ReadWriteBarrier();
+      break;
+    default:
+      assert(false);
     }
   }
 
@@ -131,24 +136,30 @@ namespace YSE {
   // acquire and release semantics automatically (so only need compiler
   // barriers for those).
 #if defined(AE_ARCH_X86) || defined(AE_ARCH_X64)
-  AE_FORCEINLINE void fence(memory_order order)
-  {
+  AE_FORCEINLINE void fence(memory_order order) {
     switch (order) {
-    case memory_order_relaxed: break;
-    case memory_order_acquire: _ReadBarrier(); break;
-    case memory_order_release: _WriteBarrier(); break;
-    case memory_order_acq_rel: _ReadWriteBarrier(); break;
+    case memory_order_relaxed:
+      break;
+    case memory_order_acquire:
+      _ReadBarrier();
+      break;
+    case memory_order_release:
+      _WriteBarrier();
+      break;
+    case memory_order_acq_rel:
+      _ReadWriteBarrier();
+      break;
     case memory_order_seq_cst:
       _ReadWriteBarrier();
       AeFullSync();
       _ReadWriteBarrier();
       break;
-    default: assert(false);
+    default:
+      assert(false);
     }
   }
 #else
-  AE_FORCEINLINE void fence(memory_order order)
-  {
+  AE_FORCEINLINE void fence(memory_order order) {
     // Non-specialized arch, use heavier memory barriers everywhere just in case :-(
     switch (order) {
     case memory_order_relaxed:
@@ -173,47 +184,63 @@ namespace YSE {
       AeFullSync();
       _ReadWriteBarrier();
       break;
-    default: assert(false);
+    default:
+      assert(false);
     }
   }
 #endif
-}    // end namespace YSE
+} // end namespace YSE
 #else
 // Use standard library of atomics
 #include <atomic>
 
 namespace YSE {
 
-  AE_FORCEINLINE void compiler_fence(memory_order order)
-  {
+  AE_FORCEINLINE void compiler_fence(memory_order order) {
     switch (order) {
-    case memory_order_relaxed: break;
-    case memory_order_acquire: std::atomic_signal_fence(std::memory_order_acquire); break;
-    case memory_order_release: std::atomic_signal_fence(std::memory_order_release); break;
-    case memory_order_acq_rel: std::atomic_signal_fence(std::memory_order_acq_rel); break;
-    case memory_order_seq_cst: std::atomic_signal_fence(std::memory_order_seq_cst); break;
-    default: assert(false);
+    case memory_order_relaxed:
+      break;
+    case memory_order_acquire:
+      std::atomic_signal_fence(std::memory_order_acquire);
+      break;
+    case memory_order_release:
+      std::atomic_signal_fence(std::memory_order_release);
+      break;
+    case memory_order_acq_rel:
+      std::atomic_signal_fence(std::memory_order_acq_rel);
+      break;
+    case memory_order_seq_cst:
+      std::atomic_signal_fence(std::memory_order_seq_cst);
+      break;
+    default:
+      assert(false);
     }
   }
 
-  AE_FORCEINLINE void fence(memory_order order)
-  {
+  AE_FORCEINLINE void fence(memory_order order) {
     switch (order) {
-    case memory_order_relaxed: break;
-    case memory_order_acquire: std::atomic_thread_fence(std::memory_order_acquire); break;
-    case memory_order_release: std::atomic_thread_fence(std::memory_order_release); break;
-    case memory_order_acq_rel: std::atomic_thread_fence(std::memory_order_acq_rel); break;
-    case memory_order_seq_cst: std::atomic_thread_fence(std::memory_order_seq_cst); break;
-    default: assert(false);
+    case memory_order_relaxed:
+      break;
+    case memory_order_acquire:
+      std::atomic_thread_fence(std::memory_order_acquire);
+      break;
+    case memory_order_release:
+      std::atomic_thread_fence(std::memory_order_release);
+      break;
+    case memory_order_acq_rel:
+      std::atomic_thread_fence(std::memory_order_acq_rel);
+      break;
+    case memory_order_seq_cst:
+      std::atomic_thread_fence(std::memory_order_seq_cst);
+      break;
+    default:
+      assert(false);
     }
   }
 
-}    // end namespace moodycamel
+} // namespace YSE
 
 #endif
-
-
-
 
 #if !defined(AE_VCPP) || _MSC_VER >= 1700
 #define AE_USE_STD_ATOMIC_FOR_WEAK_ATOMIC
@@ -226,49 +253,55 @@ namespace YSE {
 
 // WARNING: *NOT* A REPLACEMENT FOR std::atomic. READ CAREFULLY:
 // Provides basic support for atomic variables -- no memory ordering guarantees are provided.
-// The guarantee of atomicity is only made for types that already have atomic load and store guarantees
-// at the hardware level -- on most platforms this generally means aligned pointers and integers (only).
+// The guarantee of atomicity is only made for types that already have atomic load and store
+// guarantees at the hardware level -- on most platforms this generally means aligned pointers and
+// integers (only).
 namespace YSE {
-  template<typename T>
-  class weak_atomic
-  {
+  template <typename T> class weak_atomic {
   public:
-    weak_atomic() { }
+    weak_atomic() {}
 #ifdef AE_VCPP
-#pragma warning(disable: 4100)		// Get rid of (erroneous) 'unreferenced formal parameter' warning
+#pragma warning(disable : 4100) // Get rid of (erroneous) 'unreferenced formal parameter' warning
 #endif
-    template<typename U> weak_atomic(U&& x) : value(std::forward<U>(x)) {  }
-    weak_atomic(weak_atomic const& other) : value(other.value) {  }
-    weak_atomic(weak_atomic&& other) : value(std::move(other.value)) {  }
+    template <typename U> weak_atomic(U&& x) : value(std::forward<U>(x)) {}
+    weak_atomic(weak_atomic const& other) : value(other.value) {}
+    weak_atomic(weak_atomic&& other) : value(std::move(other.value)) {}
 #ifdef AE_VCPP
-#pragma warning(default: 4100)
+#pragma warning(default : 4100)
 #endif
 
-    AE_FORCEINLINE operator T() const { return load(); }
-
+    AE_FORCEINLINE operator T() const {
+      return load();
+    }
 
 #ifndef AE_USE_STD_ATOMIC_FOR_WEAK_ATOMIC
-    template<typename U> AE_FORCEINLINE weak_atomic const& operator=(U&& x) { value = std::forward<U>(x); return *this; }
-    AE_FORCEINLINE weak_atomic const& operator=(weak_atomic const& other) { value = other.value; return *this; }
+    template <typename U> AE_FORCEINLINE weak_atomic const& operator=(U&& x) {
+      value = std::forward<U>(x);
+      return *this;
+    }
+    AE_FORCEINLINE weak_atomic const& operator=(weak_atomic const& other) {
+      value = other.value;
+      return *this;
+    }
 
-    AE_FORCEINLINE T load() const { return value; }
+    AE_FORCEINLINE T load() const {
+      return value;
+    }
 #else
-    template<typename U>
-    AE_FORCEINLINE weak_atomic const& operator=(U&& x)
-    {
+    template <typename U> AE_FORCEINLINE weak_atomic const& operator=(U&& x) {
       value.store(std::forward<U>(x), std::memory_order_relaxed);
       return *this;
     }
 
-    AE_FORCEINLINE weak_atomic const& operator=(weak_atomic const& other)
-    {
+    AE_FORCEINLINE weak_atomic const& operator=(weak_atomic const& other) {
       value.store(other.value.load(std::memory_order_relaxed), std::memory_order_relaxed);
       return *this;
     }
 
-    AE_FORCEINLINE T load() const { return value.load(std::memory_order_relaxed); }
+    AE_FORCEINLINE T load() const {
+      return value.load(std::memory_order_relaxed);
+    }
 #endif
-
 
   private:
 #ifndef AE_USE_STD_ATOMIC_FOR_WEAK_ATOMIC
@@ -280,13 +313,10 @@ namespace YSE {
 #endif
   };
 
-}	// end namespace YSE
-
+} // end namespace YSE
 
 #ifdef AE_VCPP
 #pragma warning(pop)
 #endif
 
-
-
-#endif  // ATOMICOPS_HPP_INCLUDED
+#endif // ATOMICOPS_HPP_INCLUDED

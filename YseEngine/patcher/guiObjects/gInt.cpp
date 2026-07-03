@@ -23,9 +23,11 @@ CONSTRUCT() {
 
   value = 0;
 
-  ADD_DESCRIPTION("Integer number box. Stores an int; inlet 0 sets-and-fires (bang re-emits the current value), inlet 1 sets silently.");
+  ADD_DESCRIPTION("Integer number box. Stores an int; inlet 0 sets-and-fires (bang re-emits the "
+                  "current value), inlet 1 sets silently.");
   ADD_CATEGORY(pCategory::GUI);
-  INLET_DOC(0, "set/bang", "Sets the value and emits it; bang re-emits the current value.", "any int");
+  INLET_DOC(0, "set/bang", "Sets the value and emits it; bang re-emits the current value.",
+            "any int");
   INLET_DOC(1, "silent set", "Silently updates the stored value without emitting.", "any int");
   OUTLET_DOC(0, "out", "Current integer value.", "any int");
   PARAM_DOC("value", "0", "Initial value.", "any int");
@@ -33,23 +35,23 @@ CONSTRUCT() {
 
 INT_IN(SetInt) {
   this->value = value;
-  //INTERNAL::LogImpl().emit(E_DEBUG, "Patcher: gInt input " + std::to_string(value));
+  // INTERNAL::LogImpl().emit(E_DEBUG, "Patcher: gInt input " + std::to_string(value));
 }
 
 FLOAT_IN(SetFloat) {
   this->value = (int)value;
-  //INTERNAL::LogImpl().emit(E_DEBUG, "Patcher: gInt input " + std::to_string(value));
+  // INTERNAL::LogImpl().emit(E_DEBUG, "Patcher: gInt input " + std::to_string(value));
 }
 
 BANG_IN(Bang) {
   // nothing to do here, but needed to trigger output of value
 }
 
-GUI_VALUE(){
+GUI_VALUE() {
   return std::to_string(value.load());
 }
 
 CALC() {
   outputs[0].SendInt(value, thread);
-  //INTERNAL::LogImpl().emit(E_DEBUG, "Patcher: gInt output " + std::to_string(value));
+  // INTERNAL::LogImpl().emit(E_DEBUG, "Patcher: gInt output " + std::to_string(value));
 }

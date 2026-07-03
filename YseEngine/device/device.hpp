@@ -21,14 +21,12 @@ namespace YSE {
   class deviceSetup;
 
   namespace DEVICE {
-    class managerObject;   
+    class managerObject;
     class deviceManager;
 
-	  managerObject & Manager();
-  }
+    managerObject& Manager();
+  } // namespace DEVICE
 
-}
+} // namespace YSE
 
-
-
-#endif  // DEVICE_H_INCLUDED
+#endif // DEVICE_H_INCLUDED

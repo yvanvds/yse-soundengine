@@ -46,16 +46,23 @@ namespace YSE {
       buffer(UInt length = STANDARD_BUFFERSIZE, UInt overflow = 0);
 
       /** @brief Copy-construct from another buffer. */
-      buffer(const buffer & cp);
+      buffer(const buffer& cp);
 
       /** @brief Length in samples (frames). */
-      inline UInt getLength   () const { return (UInt)storage.size() - overflow; }
+      inline UInt getLength() const {
+        return (UInt)storage.size() - overflow;
+      }
 
       /** @brief Length in milliseconds at the engine sample rate. */
-      inline UInt	getLengthMS () const { return static_cast<UInt>((storage.size() - overflow) / static_cast<Flt>(SAMPLERATE * 0.001)); }
+      inline UInt getLengthMS() const {
+        return static_cast<UInt>((storage.size() - overflow) /
+                                 static_cast<Flt>(SAMPLERATE * 0.001));
+      }
 
       /** @brief Length in seconds at the engine sample rate. */
-      inline Flt	getLengthSec() const { return ((storage.size() - overflow) / static_cast<Flt>(SAMPLERATE)); }
+      inline Flt getLengthSec() const {
+        return ((storage.size() - overflow) / static_cast<Flt>(SAMPLERATE));
+      }
 
       /** @brief Whether every sample in the buffer is zero. */
       bool isSilent() const;
@@ -69,37 +76,39 @@ namespace YSE {
        *           Prefer the operator overloads, ``copyFrom``, or the
        *           ``drawableBuffer`` interface where possible.
        */
-      inline Flt * getPtr() { return storage.data(); }
+      inline Flt* getPtr() {
+        return storage.data();
+      }
 
       /** @brief Add ``f`` to every sample. */
-      buffer & operator+=(Flt f);
+      buffer& operator+=(Flt f);
 
       /** @brief Subtract ``f`` from every sample. */
-      buffer & operator-=(Flt f);
+      buffer& operator-=(Flt f);
 
       /** @brief Multiply every sample by ``f``. */
-      buffer & operator*=(Flt f);
+      buffer& operator*=(Flt f);
 
       /** @brief Divide every sample by ``f``. */
-      buffer & operator/=(Flt f);
+      buffer& operator/=(Flt f);
 
       /** @brief Sample-wise add ``s`` into this buffer. */
-      buffer & operator+=(const buffer & s);
+      buffer& operator+=(const buffer& s);
 
       /** @brief Sample-wise subtract ``s`` from this buffer. */
-      buffer & operator-=(const buffer & s);
+      buffer& operator-=(const buffer& s);
 
       /** @brief Sample-wise multiply this buffer by ``s``. */
-      buffer & operator*=(const buffer & s);
+      buffer& operator*=(const buffer& s);
 
       /** @brief Sample-wise divide this buffer by ``s``. */
-      buffer & operator/=(const buffer & s);
+      buffer& operator/=(const buffer& s);
 
       /** @brief Copy-assign from another buffer. */
-      buffer & operator=(const buffer & s);
+      buffer& operator=(const buffer& s);
 
       /** @brief Fill every sample with ``f``. */
-      buffer & operator=(Flt f);
+      buffer& operator=(Flt f);
 
       /** @brief Copy a region from ``s`` into this buffer.
        *
@@ -108,10 +117,10 @@ namespace YSE {
        *  @param DestPos   First sample written in this buffer.
        *  @param length    Number of samples to copy.
        */
-      buffer & copyFrom(const buffer & s, UInt SourcePos, UInt DestPos, UInt length);
+      buffer& copyFrom(const buffer& s, UInt SourcePos, UInt DestPos, UInt length);
 
       /** @brief Swap contents with another buffer in O(1). */
-      buffer & swap(buffer & s);
+      buffer& swap(buffer& s);
 
       /** @brief Last sample of the buffer. */
       Flt getBack();
@@ -121,7 +130,7 @@ namespace YSE {
        *  The buffer never mutates this on its own; it's a parking slot for
        *  user code that needs to remember a position across calls.
        */
-      Flt * cursor;
+      Flt* cursor;
 
       /** @brief Resize the buffer.
        *
@@ -129,23 +138,30 @@ namespace YSE {
        *  @param value  Value used to initialise newly added samples when
        *                ``length`` exceeds the current size.
        */
-      buffer & resize(UInt length, Flt value = 0.f);
+      buffer& resize(UInt length, Flt value = 0.f);
 
       /** @brief Sample-rate adjustment factor used by the engine to play this
        *         buffer at the correct speed when its native rate differs from
        *         the engine rate.
        */
-      inline Flt getSampleRateAdjustment() { return sampleRateAdjustment; }
+      inline Flt getSampleRateAdjustment() {
+        return sampleRateAdjustment;
+      }
 
       /** @brief Set the sample-rate adjustment factor. Normally only the engine calls this. */
-      inline void setSampleRateAdjustment(Flt s) { sampleRateAdjustment = s; }
+      inline void setSampleRateAdjustment(Flt s) {
+        sampleRateAdjustment = s;
+      }
 
       /** @brief Refresh the overflow tail (a copy of the first ``overflow`` samples).
        *
        *  Most mutating operations already maintain this; calling it manually is
        *  rarely necessary.
        */
-      inline void copyOverflow() { for (UInt i = 0; i < overflow; i++) storage[getLength() + i] = storage[i]; }
+      inline void copyOverflow() {
+        for (UInt i = 0; i < overflow; i++)
+          storage[getLength() + i] = storage[i];
+      }
 
     protected:
       std::vector<Flt> storage;
@@ -154,9 +170,7 @@ namespace YSE {
 
       UInt overflow;
     };
-  }
-}
+  } // namespace DSP
+} // namespace YSE
 
-
-
-#endif  // SAMPLE_H_INCLUDED
+#endif // SAMPLE_H_INCLUDED

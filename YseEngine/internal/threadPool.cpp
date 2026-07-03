@@ -35,7 +35,7 @@ namespace {
     std::this_thread::yield();
 #endif
   }
-}
+} // namespace
 
 YSE::INTERNAL::threadPoolJob::threadPoolJob() : shouldStop(false), inQueue(false), isDone(false) {}
 
@@ -64,14 +64,14 @@ void YSE::INTERNAL::threadPoolJob::join() {
 }
 
 void YSE::INTERNAL::threadPoolJob::activate() {
-  if (shouldStop || isDone)  return;
+  if (shouldStop || isDone) return;
 
   run();
   isDone = true;
   inQueue = false;
 }
 
-YSE::INTERNAL::threadPoolThread::threadPoolThread(threadPool * pool) : pool(pool) {}
+YSE::INTERNAL::threadPoolThread::threadPoolThread(threadPool* pool) : pool(pool) {}
 
 void YSE::INTERNAL::threadPoolThread::run() {
   // Worker threads also run DSP (CHANNEL::implementationObject::run dispatches
@@ -81,7 +81,7 @@ void YSE::INTERNAL::threadPoolThread::run() {
   enableFlushToZero();
 
   while (!threadShouldExit()) {
-    threadPoolJob * job = pool->getJob();
+    threadPoolJob* job = pool->getJob();
     if (job == nullptr) return;
     job->activate();
   }
@@ -89,7 +89,9 @@ void YSE::INTERNAL::threadPoolThread::run() {
 
 YSE::INTERNAL::threadPool::threadPool(Int numThreads, poolClass cls)
   : jobs(cls == poolClass::render ? RENDER_CAPACITY : BACKGROUND_CAPACITY),
-    poolSize(numThreads), classOf(cls), active(false) {
+    poolSize(numThreads),
+    classOf(cls),
+    active(false) {
   if (poolSize == -1) {
     poolSize = std::thread::hardware_concurrency();
   }
@@ -131,7 +133,7 @@ void YSE::INTERNAL::threadPool::shutdown() {
   // forever. Marking inQueue=false is enough (join() exits on !inQueue); we do
   // not run them. No lock: getJob() stops popping once active is false, so this
   // thread is the only consumer of the ring now.
-  threadPoolJob * job = nullptr;
+  threadPoolJob* job = nullptr;
   while (jobs.try_pop(job)) {
     job->inQueue = false;
     job->isDone = true;
@@ -146,7 +148,7 @@ void YSE::INTERNAL::threadPool::shutdown() {
   threads.clear();
 }
 
-void YSE::INTERNAL::threadPool::addJob(threadPoolJob * job) {
+void YSE::INTERNAL::threadPool::addJob(threadPoolJob* job) {
   if (!active) return;
 
   job->start();
@@ -166,14 +168,14 @@ void YSE::INTERNAL::threadPool::addJob(threadPoolJob * job) {
   }
 }
 
-YSE::INTERNAL::threadPoolJob * YSE::INTERNAL::threadPool::getJob() {
+YSE::INTERNAL::threadPoolJob* YSE::INTERNAL::threadPool::getJob() {
   // Adaptive backoff: pick up work within nanoseconds while the pool is hot
   // (busy render), fall to a cooperative yield, and only start sleeping once
   // the pool has been idle for a while so an idle engine doesn't peg a core.
   // No producer-side wakeup is needed, so addJob() never has to lock or notify.
   using clock = std::chrono::steady_clock;
   auto idleStart = clock::now();
-  threadPoolJob * job = nullptr;
+  threadPoolJob* job = nullptr;
 
   while (active) {
     if (jobs.try_pop(job)) return job;

@@ -46,128 +46,130 @@ YSE::DSP::lfo::lfo() : cursor(0.f), previousType(LFO_NONE) {
   }
 }
 
-YSE::DSP::buffer & YSE::DSP::lfo::operator()(LFO_TYPE type, Flt frequency, UInt size) { // NOSONAR S3776: per-LFO-type fast-path dispatch in audio-thread inner loop; switch cases are deliberately inlined for branch-predictor stability
+YSE::DSP::buffer& YSE::DSP::lfo::operator()(
+    LFO_TYPE type, Flt frequency,
+    UInt size) { // NOSONAR S3776: per-LFO-type fast-path dispatch in audio-thread inner loop;
+                 // switch cases are deliberately inlined for branch-predictor stability
   if (result.getLength() != size) result.resize(size);
   // avoid divisions by zero
   if (frequency == 0) type = LFO_NONE;
-  
+
   switch (type) {
-    case LFO_NONE: {
-      result = 1;
+  case LFO_NONE: {
+    result = 1;
+    previousType = type;
+    break;
+  }
+
+  case LFO_RANDOM:
+  case LFO_SQUARE: {
+    // shorten current value if new frequency is lower
+    UInt phaseLength = (UInt)(SAMPLERATE / frequency * 0.5f);
+    if (phaseLength < lineLength) lineLength = phaseLength;
+
+    if (previousType != type) {
+      lineLength = phaseLength;
+      currentLineValue = type == LFO_SQUARE ? 1.f : RandomF();
       previousType = type;
-      break;
     }
 
-    case LFO_RANDOM:
-    case LFO_SQUARE: {
-      // shorten current value if new frequency is lower
-      UInt phaseLength = (UInt)(SAMPLERATE / frequency * 0.5f);
-      if (phaseLength < lineLength) lineLength = phaseLength;
+    if (lineLength > result.getLength()) {
+      lineLength -= result.getLength();
+      result = currentLineValue;
+    } else {
+      UInt samplesToProcess = result.getLength();
+      UInt pos = 0;
+      while (samplesToProcess) {
+        UInt steps = lineLength > samplesToProcess ? samplesToProcess : lineLength;
+        if (previousLineValue != currentLineValue) {
+          UInt rampSteps = steps > 200 ? 200 : steps;
+          result.drawLine(pos, pos + rampSteps, previousLineValue, currentLineValue);
+          result.drawLine(pos + rampSteps, pos + steps, currentLineValue);
+          previousLineValue = currentLineValue;
+        } else {
+          result.drawLine(pos, pos + steps, currentLineValue);
+        }
 
-      if (previousType != type) {
-        lineLength = phaseLength;
-        currentLineValue = type == LFO_SQUARE ? 1.f : RandomF();
-        previousType = type;
-      }
+        lineLength -= steps;
 
-      if (lineLength > result.getLength()) {
-        lineLength -= result.getLength();
-        result = currentLineValue;
-      } else {
-        UInt samplesToProcess = result.getLength();
-        UInt pos = 0;
-        while (samplesToProcess) {
-          UInt steps = lineLength > samplesToProcess ? samplesToProcess : lineLength;
-          if (previousLineValue != currentLineValue) {
-            UInt rampSteps = steps > 200 ? 200 : steps;
-            result.drawLine(pos, pos + rampSteps, previousLineValue, currentLineValue);
-            result.drawLine(pos + rampSteps, pos + steps, currentLineValue);
-            previousLineValue = currentLineValue;
-          }
+        if (!lineLength) {
+          previousLineValue = currentLineValue;
+          if (type == LFO_SQUARE)
+            currentLineValue = currentLineValue > 0.9f ? 0.f : 1.f;
           else {
-            result.drawLine(pos, pos + steps, currentLineValue);
+            // type = LFO_RANDOM
+            currentLineValue = RandomF();
           }
-          
-          lineLength -= steps;
-          
-          if (!lineLength) {
-            previousLineValue = currentLineValue;
-            if (type == LFO_SQUARE) currentLineValue = currentLineValue > 0.9f ? 0.f : 1.f;
-            else {
-              // type = LFO_RANDOM
-              currentLineValue = RandomF();
-            }
-            lineLength = phaseLength;
-          }
-          
-          pos += steps;
-          samplesToProcess -= steps;
-        }   
-      }
-      break;
-    }
+          lineLength = phaseLength;
+        }
 
-    case LFO_SAW: {
-      previousType = LFO_SAW;
-      UInt samplesToProcess = result.getLength();
-      Flt * out = result.getPtr();
-      Flt * in  = LfoSawTable.getPtr();
-      while (samplesToProcess) {
-        *out++ = in[(UInt)cursor];
-        cursor += frequency;
-        if (cursor >= SAMPLERATE) cursor -= SAMPLERATE;
-        samplesToProcess--;
+        pos += steps;
+        samplesToProcess -= steps;
       }
-      break;
     }
+    break;
+  }
 
-    case LFO_SAW_REVERSED: {
-      previousType = LFO_SAW_REVERSED;
-      UInt samplesToProcess = result.getLength();
-      Flt * out = result.getPtr();
-      Flt * in = LfoSawTable.getPtr();
-      while (samplesToProcess) {
-        // Wrap before the cast: (UInt)negative-float is implementation-
-        // defined and on arm64 produces a huge index that reads past the
-        // table (SIGSEGV on Android, garbage > 1.0 elsewhere).
-        if (cursor < 0) cursor += SAMPLERATE;
-        *out++ = in[(UInt)cursor];
-        cursor -= frequency;
-        samplesToProcess--;
-      }
-      break;
+  case LFO_SAW: {
+    previousType = LFO_SAW;
+    UInt samplesToProcess = result.getLength();
+    Flt* out = result.getPtr();
+    Flt* in = LfoSawTable.getPtr();
+    while (samplesToProcess) {
+      *out++ = in[(UInt)cursor];
+      cursor += frequency;
+      if (cursor >= SAMPLERATE) cursor -= SAMPLERATE;
+      samplesToProcess--;
     }
+    break;
+  }
 
-    case LFO_TRIANGLE: {
-      previousType = LFO_TRIANGLE;
-      UInt samplesToProcess = result.getLength();
-      Flt * out = result.getPtr();
-      Flt * in = LfoTriangleTable.getPtr();
-      while (samplesToProcess) {
-        *out++ = in[(UInt)cursor];
-        cursor += frequency;
-        if (cursor >= SAMPLERATE) cursor -= SAMPLERATE;
-        samplesToProcess--;
-      }
-      break;
+  case LFO_SAW_REVERSED: {
+    previousType = LFO_SAW_REVERSED;
+    UInt samplesToProcess = result.getLength();
+    Flt* out = result.getPtr();
+    Flt* in = LfoSawTable.getPtr();
+    while (samplesToProcess) {
+      // Wrap before the cast: (UInt)negative-float is implementation-
+      // defined and on arm64 produces a huge index that reads past the
+      // table (SIGSEGV on Android, garbage > 1.0 elsewhere).
+      if (cursor < 0) cursor += SAMPLERATE;
+      *out++ = in[(UInt)cursor];
+      cursor -= frequency;
+      samplesToProcess--;
     }
+    break;
+  }
 
-    case LFO_SINE: {
-      previousType = LFO_SINE;
-      UInt samplesToProcess = result.getLength();
-      Flt * out = result.getPtr();
-      Flt * in = LfoTriangleTable.getPtr();
-      while (samplesToProcess) {
-        *out++ = in[(UInt)cursor];
-        cursor += frequency;
-        if (cursor >= SAMPLERATE) cursor -= SAMPLERATE;
-        samplesToProcess--;
-      }
-      break;
+  case LFO_TRIANGLE: {
+    previousType = LFO_TRIANGLE;
+    UInt samplesToProcess = result.getLength();
+    Flt* out = result.getPtr();
+    Flt* in = LfoTriangleTable.getPtr();
+    while (samplesToProcess) {
+      *out++ = in[(UInt)cursor];
+      cursor += frequency;
+      if (cursor >= SAMPLERATE) cursor -= SAMPLERATE;
+      samplesToProcess--;
     }
+    break;
+  }
+
+  case LFO_SINE: {
+    previousType = LFO_SINE;
+    UInt samplesToProcess = result.getLength();
+    Flt* out = result.getPtr();
+    Flt* in = LfoTriangleTable.getPtr();
+    while (samplesToProcess) {
+      *out++ = in[(UInt)cursor];
+      cursor += frequency;
+      if (cursor >= SAMPLERATE) cursor -= SAMPLERATE;
+      samplesToProcess--;
+    }
+    break;
+  }
   }
 
   previousLineValue = result.getBack();
   return result;
 }
-

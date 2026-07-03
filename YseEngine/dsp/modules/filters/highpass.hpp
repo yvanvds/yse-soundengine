@@ -11,7 +11,6 @@
 #ifndef HIGHPASS_H_INCLUDED
 #define HIGHPASS_H_INCLUDED
 
-
 #include "../../../headers/defines.hpp"
 #include "../../dspObject.hpp"
 #include "../../filters.hpp"
@@ -35,16 +34,16 @@ namespace YSE {
         virtual ~highPassFilter() {};
 
         /** @brief Set the cutoff frequency in Hz. */
-        highPassFilter & frequency(Flt value);
+        highPassFilter& frequency(Flt value);
 
         /** @brief Current cutoff frequency. */
-        Flt             frequency();
+        Flt frequency();
 
         /** @brief dspObject lifecycle hook — allocates buffers. */
         virtual void create();
 
         /** @brief dspObject audio-thread entry point. */
-        virtual void process(MULTICHANNELBUFFER & buffer);
+        virtual void process(MULTICHANNELBUFFER& buffer);
 
       private:
         aFlt parmFrequency;
@@ -52,11 +51,8 @@ namespace YSE {
         std::shared_ptr<highPass> hp;
       };
 
+    } // namespace MODULES
+  } // namespace DSP
+} // namespace YSE
 
-    }
-  }
-}
-
-
-
-#endif  // HIGHPASS_H_INCLUDED
+#endif // HIGHPASS_H_INCLUDED

@@ -6,10 +6,10 @@
 #include "../headers/enums.hpp"
 
 #if YSE_ENABLE_MIDI_DEVICE
-  #include "../midi/device.hpp"
-  #define YSE_C_HAVE_MIDI_OUT 1
+#include "../midi/device.hpp"
+#define YSE_C_HAVE_MIDI_OUT 1
 #else
-  #define YSE_C_HAVE_MIDI_OUT 0
+#define YSE_C_HAVE_MIDI_OUT 0
 #endif
 
 #include <atomic>
@@ -42,7 +42,7 @@ namespace {
   struct YseMidiInImpl {
     YSE::midiIn cpp;
     std::atomic<YseMidiInRawCallback> rawCb{nullptr};
-    std::atomic<void*>                rawUser{nullptr};
+    std::atomic<void*> rawUser{nullptr};
   };
 
   inline YseMidiInImpl* to_impl(YseMidiIn* m) {
@@ -53,10 +53,7 @@ namespace {
   // YseMidiInImpl pointer; the user-facing callback + user_data live on the
   // impl as atomics so they can be swapped from the host thread while the
   // RtMidi input thread is dispatching.
-  void c_raw_bridge(double             ts,
-                    const unsigned char* bytes,
-                    std::size_t        len,
-                    void*              userData) {
+  void c_raw_bridge(double ts, const unsigned char* bytes, std::size_t len, void* userData) {
     auto* impl = static_cast<YseMidiInImpl*>(userData);
     if (!impl || len == 0) return;
     auto cb = impl->rawCb.load(std::memory_order_acquire);
@@ -72,18 +69,26 @@ namespace {
     cb(ts, heap, len, user);
   }
 #endif
-}
+} // namespace
 
 extern "C" {
 
 // ─── midi file ─────────────────────────────────────────────────────
 
 YSE_C_API YseMidiFile* yse_midi_file_create(void) {
-  try { return reinterpret_cast<YseMidiFile*>(new YSE::MIDI::file()); }
-  catch (const std::exception& e) { yse_c::set_last_error(e.what()); return nullptr; }
-  catch (...) { yse_c::set_last_error("midi_file_create: unknown C++ exception"); return nullptr; }
+  try {
+    return reinterpret_cast<YseMidiFile*>(new YSE::MIDI::file());
+  } catch (const std::exception& e) {
+    yse_c::set_last_error(e.what());
+    return nullptr;
+  } catch (...) {
+    yse_c::set_last_error("midi_file_create: unknown C++ exception");
+    return nullptr;
+  }
 }
-YSE_C_API void yse_midi_file_destroy(YseMidiFile* f) { if (f) delete to_cpp(f); }
+YSE_C_API void yse_midi_file_destroy(YseMidiFile* f) {
+  if (f) delete to_cpp(f);
+}
 
 YSE_C_API YseStatus yse_midi_file_load(YseMidiFile* f, const char* filename) {
   if (!f) return YSE_ERR_INVALID_HANDLE;
@@ -94,37 +99,62 @@ YSE_C_API YseStatus yse_midi_file_load(YseMidiFile* f, const char* filename) {
       return YSE_ERR_FILE_NOT_FOUND;
     }
     return YSE_OK;
-  } catch (const std::exception& e) { yse_c::set_last_error(e.what()); return YSE_ERR_EXCEPTION; }
-    catch (...) { yse_c::set_last_error("midi_file_load: unknown C++ exception"); return YSE_ERR_EXCEPTION; }
+  } catch (const std::exception& e) {
+    yse_c::set_last_error(e.what());
+    return YSE_ERR_EXCEPTION;
+  } catch (...) {
+    yse_c::set_last_error("midi_file_load: unknown C++ exception");
+    return YSE_ERR_EXCEPTION;
+  }
 }
 
-YSE_C_API void yse_midi_file_play(YseMidiFile* f)  { if (f) to_cpp(f)->play(); }
-YSE_C_API void yse_midi_file_pause(YseMidiFile* f) { if (f) to_cpp(f)->pause(); }
-YSE_C_API void yse_midi_file_stop(YseMidiFile* f)  { if (f) to_cpp(f)->stop(); }
+YSE_C_API void yse_midi_file_play(YseMidiFile* f) {
+  if (f) to_cpp(f)->play();
+}
+YSE_C_API void yse_midi_file_pause(YseMidiFile* f) {
+  if (f) to_cpp(f)->pause();
+}
+YSE_C_API void yse_midi_file_stop(YseMidiFile* f) {
+  if (f) to_cpp(f)->stop();
+}
 
 // ─── midi out (Windows/Linux only) ─────────────────────────────────
 
 #if YSE_C_HAVE_MIDI_OUT
 
 YSE_C_API YseMidiOut* yse_midi_out_create(void) {
-  try { return reinterpret_cast<YseMidiOut*>(new YSE::midiOut()); }
-  catch (const std::exception& e) { yse_c::set_last_error(e.what()); return nullptr; }
-  catch (...) { yse_c::set_last_error("midi_out_create: unknown C++ exception"); return nullptr; }
+  try {
+    return reinterpret_cast<YseMidiOut*>(new YSE::midiOut());
+  } catch (const std::exception& e) {
+    yse_c::set_last_error(e.what());
+    return nullptr;
+  } catch (...) {
+    yse_c::set_last_error("midi_out_create: unknown C++ exception");
+    return nullptr;
+  }
 }
-YSE_C_API void yse_midi_out_destroy(YseMidiOut* m) { if (m) delete to_cpp(m); }
+YSE_C_API void yse_midi_out_destroy(YseMidiOut* m) {
+  if (m) delete to_cpp(m);
+}
 
 YSE_C_API void yse_midi_out_open(YseMidiOut* m, unsigned int port) {
   if (m) to_cpp(m)->create(port);
 }
 
 YSE_C_API void yse_midi_out_note_on(YseMidiOut* m, int channel, int pitch, int velocity) {
-  if (m) to_cpp(m)->NoteOn(ch(channel), static_cast<unsigned char>(pitch), static_cast<unsigned char>(velocity));
+  if (m)
+    to_cpp(m)->NoteOn(ch(channel), static_cast<unsigned char>(pitch),
+                      static_cast<unsigned char>(velocity));
 }
 YSE_C_API void yse_midi_out_note_off(YseMidiOut* m, int channel, int pitch, int velocity) {
-  if (m) to_cpp(m)->NoteOff(ch(channel), static_cast<unsigned char>(pitch), static_cast<unsigned char>(velocity));
+  if (m)
+    to_cpp(m)->NoteOff(ch(channel), static_cast<unsigned char>(pitch),
+                       static_cast<unsigned char>(velocity));
 }
 YSE_C_API void yse_midi_out_poly_pressure(YseMidiOut* m, int channel, int pitch, int value) {
-  if (m) to_cpp(m)->PolyPressure(ch(channel), static_cast<unsigned char>(pitch), static_cast<unsigned char>(value));
+  if (m)
+    to_cpp(m)->PolyPressure(ch(channel), static_cast<unsigned char>(pitch),
+                            static_cast<unsigned char>(value));
 }
 YSE_C_API void yse_midi_out_channel_pressure(YseMidiOut* m, int channel, int value) {
   if (m) to_cpp(m)->ChannelPressure(ch(channel), static_cast<unsigned char>(value));
@@ -133,18 +163,32 @@ YSE_C_API void yse_midi_out_program_change(YseMidiOut* m, int channel, int value
   if (m) to_cpp(m)->ProgramChange(ch(channel), static_cast<unsigned char>(value));
 }
 YSE_C_API void yse_midi_out_control_change(YseMidiOut* m, int channel, int controller, int value) {
-  if (m) to_cpp(m)->ControlChange(ch(channel), static_cast<unsigned char>(controller), static_cast<unsigned char>(value));
+  if (m)
+    to_cpp(m)->ControlChange(ch(channel), static_cast<unsigned char>(controller),
+                             static_cast<unsigned char>(value));
 }
 YSE_C_API void yse_midi_out_all_notes_off_channel(YseMidiOut* m, int channel) {
   if (m) to_cpp(m)->AllNotesOff(ch(channel));
 }
-YSE_C_API void yse_midi_out_all_notes_off(YseMidiOut* m) { if (m) to_cpp(m)->AllNotesOff(); }
-YSE_C_API void yse_midi_out_reset_channel(YseMidiOut* m, int channel) { if (m) to_cpp(m)->Reset(ch(channel)); }
-YSE_C_API void yse_midi_out_reset(YseMidiOut* m) { if (m) to_cpp(m)->Reset(); }
+YSE_C_API void yse_midi_out_all_notes_off(YseMidiOut* m) {
+  if (m) to_cpp(m)->AllNotesOff();
+}
+YSE_C_API void yse_midi_out_reset_channel(YseMidiOut* m, int channel) {
+  if (m) to_cpp(m)->Reset(ch(channel));
+}
+YSE_C_API void yse_midi_out_reset(YseMidiOut* m) {
+  if (m) to_cpp(m)->Reset();
+}
 
-YSE_C_API void yse_midi_out_local_control(YseMidiOut* m, int on) { if (m) to_cpp(m)->LocalControl(on != 0); }
-YSE_C_API void yse_midi_out_omni(YseMidiOut* m, int on)          { if (m) to_cpp(m)->Omni(on != 0); }
-YSE_C_API void yse_midi_out_poly(YseMidiOut* m, int on)          { if (m) to_cpp(m)->Poly(on != 0); }
+YSE_C_API void yse_midi_out_local_control(YseMidiOut* m, int on) {
+  if (m) to_cpp(m)->LocalControl(on != 0);
+}
+YSE_C_API void yse_midi_out_omni(YseMidiOut* m, int on) {
+  if (m) to_cpp(m)->Omni(on != 0);
+}
+YSE_C_API void yse_midi_out_poly(YseMidiOut* m, int on) {
+  if (m) to_cpp(m)->Poly(on != 0);
+}
 
 YSE_C_API void yse_midi_out_raw3(YseMidiOut* m, unsigned char a, unsigned char b, unsigned char c) {
   if (m) to_cpp(m)->Raw(a, b, c);
@@ -153,9 +197,15 @@ YSE_C_API void yse_midi_out_raw3(YseMidiOut* m, unsigned char a, unsigned char b
 // ─── midi input ─────────────────────────────────────────────────────
 
 YSE_C_API YseMidiIn* yse_midi_in_create(void) {
-  try { return reinterpret_cast<YseMidiIn*>(new YseMidiInImpl()); }
-  catch (const std::exception& e) { yse_c::set_last_error(e.what()); return nullptr; }
-  catch (...) { yse_c::set_last_error("midi_in_create: unknown C++ exception"); return nullptr; }
+  try {
+    return reinterpret_cast<YseMidiIn*>(new YseMidiInImpl());
+  } catch (const std::exception& e) {
+    yse_c::set_last_error(e.what());
+    return nullptr;
+  } catch (...) {
+    yse_c::set_last_error("midi_in_create: unknown C++ exception");
+    return nullptr;
+  }
 }
 
 YSE_C_API void yse_midi_in_destroy(YseMidiIn* m) {
@@ -174,8 +224,7 @@ YSE_C_API int yse_midi_in_is_open(YseMidiIn* m) {
   return (m && to_impl(m)->cpp.isOpen()) ? 1 : 0;
 }
 
-YSE_C_API void yse_midi_in_set_raw_callback(YseMidiIn* m,
-                                            YseMidiInRawCallback cb,
+YSE_C_API void yse_midi_in_set_raw_callback(YseMidiIn* m, YseMidiInRawCallback cb,
                                             void* user_data) {
   if (!m) return;
   auto* impl = to_impl(m);
@@ -189,16 +238,13 @@ YSE_C_API void yse_midi_in_set_raw_callback(YseMidiIn* m,
   impl->cpp.setRawCallback(cb ? &c_raw_bridge : nullptr, impl);
 }
 
-YSE_C_API void yse_midi_in_set_parsed_callback(YseMidiIn* m,
-                                               YseMidiInParsedCallback cb,
+YSE_C_API void yse_midi_in_set_parsed_callback(YseMidiIn* m, YseMidiInParsedCallback cb,
                                                void* user_data) {
   if (!m) return;
   // The parsed callback signature is layout-compatible between the C ABI
   // typedef and the C++ class typedef (same scalar args, same calling
   // convention), so pass straight through.
-  to_impl(m)->cpp.setParsedCallback(
-    reinterpret_cast<YSE::midiIn::ParsedCallback>(cb),
-    user_data);
+  to_impl(m)->cpp.setParsedCallback(reinterpret_cast<YSE::midiIn::ParsedCallback>(cb), user_data);
 }
 
 YSE_C_API void yse_midi_in_free_message(unsigned char* bytes) {
@@ -237,24 +283,44 @@ YSE_C_API YseMidiIn* yse_midi_in_create(void) {
 YSE_C_API void yse_midi_in_destroy(YseMidiIn*) {}
 YSE_C_API void yse_midi_in_open(YseMidiIn*, unsigned int) {}
 YSE_C_API void yse_midi_in_close(YseMidiIn*) {}
-YSE_C_API int  yse_midi_in_is_open(YseMidiIn*) { return 0; }
+YSE_C_API int yse_midi_in_is_open(YseMidiIn*) {
+  return 0;
+}
 YSE_C_API void yse_midi_in_set_raw_callback(YseMidiIn*, YseMidiInRawCallback, void*) {}
 YSE_C_API void yse_midi_in_set_parsed_callback(YseMidiIn*, YseMidiInParsedCallback, void*) {}
-YSE_C_API void yse_midi_in_free_message(unsigned char* bytes) { if (bytes) std::free(bytes); }
+YSE_C_API void yse_midi_in_free_message(unsigned char* bytes) {
+  if (bytes) std::free(bytes);
+}
 #endif
 
 // ─── midiNote ──────────────────────────────────────────────────────
 
 YSE_C_API YseMidiNote* yse_midi_note_create(unsigned char note, unsigned int velocity) {
-  try { return reinterpret_cast<YseMidiNote*>(new YSE::MIDI::midiNote(note, velocity)); }
-  catch (const std::exception& e) { yse_c::set_last_error(e.what()); return nullptr; }
-  catch (...) { yse_c::set_last_error("midi_note_create: unknown C++ exception"); return nullptr; }
+  try {
+    return reinterpret_cast<YseMidiNote*>(new YSE::MIDI::midiNote(note, velocity));
+  } catch (const std::exception& e) {
+    yse_c::set_last_error(e.what());
+    return nullptr;
+  } catch (...) {
+    yse_c::set_last_error("midi_note_create: unknown C++ exception");
+    return nullptr;
+  }
 }
-YSE_C_API void yse_midi_note_destroy(YseMidiNote* n) { if (n) delete to_cpp(n); }
+YSE_C_API void yse_midi_note_destroy(YseMidiNote* n) {
+  if (n) delete to_cpp(n);
+}
 
-YSE_C_API void          yse_midi_note_set_note(YseMidiNote* n, unsigned char v)     { if (n) to_cpp(n)->note(v); }
-YSE_C_API unsigned char yse_midi_note_get_note(YseMidiNote* n)                      { return n ? to_cpp(n)->note() : 0; }
-YSE_C_API void          yse_midi_note_set_velocity(YseMidiNote* n, unsigned char v) { if (n) to_cpp(n)->velocity(v); }
-YSE_C_API unsigned char yse_midi_note_get_velocity(YseMidiNote* n)                  { return n ? to_cpp(n)->velocity() : 0; }
+YSE_C_API void yse_midi_note_set_note(YseMidiNote* n, unsigned char v) {
+  if (n) to_cpp(n)->note(v);
+}
+YSE_C_API unsigned char yse_midi_note_get_note(YseMidiNote* n) {
+  return n ? to_cpp(n)->note() : 0;
+}
+YSE_C_API void yse_midi_note_set_velocity(YseMidiNote* n, unsigned char v) {
+  if (n) to_cpp(n)->velocity(v);
+}
+YSE_C_API unsigned char yse_midi_note_get_velocity(YseMidiNote* n) {
+  return n ? to_cpp(n)->velocity() : 0;
+}
 
 } // extern "C"

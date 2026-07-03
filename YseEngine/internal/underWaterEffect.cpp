@@ -10,8 +10,7 @@
 
 #include "../internalHeaders.h"
 
-
-YSE::INTERNAL::underWaterEffect & YSE::INTERNAL::UnderWaterEffect() {
+YSE::INTERNAL::underWaterEffect& YSE::INTERNAL::UnderWaterEffect() {
   static underWaterEffect u;
   return u;
 }
@@ -23,30 +22,31 @@ YSE::INTERNAL::underWaterEffect::underWaterEffect() : activeChannel(nullptr) {
   verb.setActive(false);
 }
 
-YSE::INTERNAL::underWaterEffect & YSE::INTERNAL::underWaterEffect::channel(CHANNEL::implementationObject * ch) {
+YSE::INTERNAL::underWaterEffect&
+YSE::INTERNAL::underWaterEffect::channel(CHANNEL::implementationObject* ch) {
   activeChannel = ch;
   return *this;
 }
 
-YSE::CHANNEL::implementationObject * YSE::INTERNAL::underWaterEffect::channel() {
+YSE::CHANNEL::implementationObject* YSE::INTERNAL::underWaterEffect::channel() {
   return activeChannel;
 }
 
-YSE::INTERNAL::underWaterEffect & YSE::INTERNAL::underWaterEffect::setDepth(Flt value) {
+YSE::INTERNAL::underWaterEffect& YSE::INTERNAL::underWaterEffect::setDepth(Flt value) {
   depth = value;
   if (depth > 0) {
     verb.setActive(true);
     verb.setPosition(ListenerImpl().pos);
-  }
-  else {
+  } else {
     verb.setActive(false);
   }
   return *this;
 }
 
-YSE::INTERNAL::underWaterEffect & YSE::INTERNAL::underWaterEffect::apply(MULTICHANNELBUFFER & channelBuffer) {
+YSE::INTERNAL::underWaterEffect&
+YSE::INTERNAL::underWaterEffect::apply(MULTICHANNELBUFFER& channelBuffer) {
   if (depth > 1) {
-    // sound underwater is more position neutral. Because the speed of sound 
+    // sound underwater is more position neutral. Because the speed of sound
     // is much higher, the ear cannot hear from what direction it comes.
 
     // first create a buffer that contains all sound with neutral positions
@@ -63,11 +63,10 @@ YSE::INTERNAL::underWaterEffect & YSE::INTERNAL::underWaterEffect::apply(MULTICH
 
     if (depth > 5.0f) {
       // completely disregard position info
-    for (UInt i = 0; i < channelBuffer.size(); ++i) {
-      channelBuffer[i] = lpBuffer;
+      for (UInt i = 0; i < channelBuffer.size(); ++i) {
+        channelBuffer[i] = lpBuffer;
       }
-    }
-    else {
+    } else {
       // partly replace with position-neutral version
       lpBuffer *= (depth / 5.0f);
       for (UInt i = 0; i < channelBuffer.size(); ++i) {

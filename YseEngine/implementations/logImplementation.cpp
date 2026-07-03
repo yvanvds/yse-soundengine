@@ -16,7 +16,7 @@
 #include <android/log.h>
 #endif
 
-YSE::INTERNAL::logImplementation & YSE::INTERNAL::LogImpl() {
+YSE::INTERNAL::logImplementation& YSE::INTERNAL::LogImpl() {
   static logImplementation impl;
   return impl;
 }
@@ -49,22 +49,22 @@ void YSE::INTERNAL::logImplementation::setLevel(YSE::ERROR_LEVEL value) {
   level = value;
 }
 
-void YSE::INTERNAL::logImplementation::setHandler(logHandler * handler) {
+void YSE::INTERNAL::logImplementation::setHandler(logHandler* handler) {
   this->handler = handler;
 }
 
-void YSE::INTERNAL::logImplementation::setLogfile(const char * path) {
-	logFile.close();
-	logFileName = path;
-	logFile.open(path, std::ios::out | std::ios::app);
-	logFile << "=== start of YSE log ===" << std::endl;
+void YSE::INTERNAL::logImplementation::setLogfile(const char* path) {
+  logFile.close();
+  logFileName = path;
+  logFile.open(path, std::ios::out | std::ios::app);
+  logFile << "=== start of YSE log ===" << std::endl;
 }
 
-const std::string & YSE::INTERNAL::logImplementation::getLogfile() {
-	return logFileName;
+const std::string& YSE::INTERNAL::logImplementation::getLogfile() {
+  return logFileName;
 }
 
-void YSE::INTERNAL::logImplementation::logMessage(const std::string & message) {
+void YSE::INTERNAL::logImplementation::logMessage(const std::string& message) {
   if (level == EL_NONE) return;
 
   if (handler != nullptr) {
@@ -72,17 +72,23 @@ void YSE::INTERNAL::logImplementation::logMessage(const std::string & message) {
   } else {
     logFile << message << std::endl;
   }
-#ifdef YSE_ANDROID 
+#ifdef YSE_ANDROID
   __android_log_print(ANDROID_LOG_INFO, "YSE", "%s", message.c_str());
 #endif
 }
 
-void YSE::INTERNAL::logImplementation::emit(ERROR_CODE value, const std::string & info) {
+void YSE::INTERNAL::logImplementation::emit(ERROR_CODE value, const std::string& info) {
   switch (level) {
-    case EL_NONE: return;
-    case EL_ERROR: if (value > E_WARNING_MESSAGES) return; break;
-    case EL_WARNING: if (value > E_DEBUG_MESSAGES) return; break;
-    case EL_DEBUG: break;
+  case EL_NONE:
+    return;
+  case EL_ERROR:
+    if (value > E_WARNING_MESSAGES) return;
+    break;
+  case EL_WARNING:
+    if (value > E_DEBUG_MESSAGES) return;
+    break;
+  case EL_DEBUG:
+    break;
   }
 
   std::string result = errorToText(value);
@@ -90,46 +96,79 @@ void YSE::INTERNAL::logImplementation::emit(ERROR_CODE value, const std::string 
   logMessage(result);
 }
 
-const char * YSE::INTERNAL::logImplementation::errorToText(YSE::ERROR_CODE value) {
+const char* YSE::INTERNAL::logImplementation::errorToText(YSE::ERROR_CODE value) {
   switch (value) {
     // errors
-  case E_ERROR_MESSAGES: return "(Error Indicator) ";
-    case E_ERROR					: return "(Error) ";
-    case E_MUTEX_UNSTABLE			: return "(Error) The audio thread locking has become unstable.";
-    case E_AUDIODEVICE				: return "(Error) Audio device: ";
-    case E_FILE_BYTE_COUNT			: return "(Error) SoundFile has wrong size.";
-    case E_FILEREADER				: return "(Error) File reader: ";
-    case E_TRACK_NOT_STARTED		: return "(Error) Unable to start a music track.";
-    case E_TRACK_TIMER_STOP			: return "(Error) Unable to stop track timer.";
-	case E_MIDI_UNSPECIFIED			: return "(Error) Unknown MIDI error";
-	case E_MIDI_NO_DEVICES_FOUND	: return "(Error) no MIDI devices found on system";
-	case E_MIDI_INVALID_DEVICE		: return "(Error) an invalid MIDI device ID was specified";
-	case E_MIDI_MEMORY_ERROR		: return "(Error) an error during memory allocation in the MIDI subroutines";
-	case E_MIDI_INVALID_PARAMETER	: return "(Error) an invalid parameter was specified to a MIDI function";
-	case E_MIDI_INVALID_USE			: return "(Error) the MIDI function was called incorrectly";
-	case E_MIDI_DRIVER_ERROR		: return "(Error) A MIDI system driver error occured";
-	case E_MIDI_SYSTEM_ERROR		: return "(Error) a MIDI system error occured";
-	case E_MIDI_THREAD_ERROR		: return "(Error) a MIDI thread error occured";
-    
-    case E_APP_MESSAGE			: return "(App Message) ";
-    
-    // warnings
-    case E_WARNING_MESSAGES		: return "(Warning Indicator) ";
-    case E_WARNING              : return "(Warning) ";
-    case E_FILE_NOT_FOUND       : return "(Warning) Soundfile not found: ";
-    case E_FILE_ERROR           : return "(Warning) Error while loading file: ";
-    case E_SOUND_OBJECT_IN_USE  : return "(Warning) Sound object already in use when create was called.";
-    case E_SOUND_OBJECT_NO_INIT : return "(Warning) Sound object used without creating it first.";
-    case E_REVERB_NO_INIT       : return "(Warning) Reverb object is used without creating it";
-    case E_CHANNEL_OBJECT_IN_USE: return "(Warning) Channel object already in use when create was called.";
-	case E_MIDI_WARNING			: return "(Warning) Non-Critical MIDI error";
-    // debug
-    case E_DEBUG_MESSAGES		: return "(Debug Indicator) ";
-    case E_DEBUG				: return "(Debug) ";
-    case E_SOUND_ADDED			: return "(Debug) Sound added to system.";
-    case E_SOUND_WRONG			: return "(Debug) Object error with sound: ";
-    case E_SOUND_DELETED		: return "(Debug) Sound deleted from system.";
-	case E_MIDI_DEBUG_WARNING	: return "(Debug) Non-Critical MIDI error.";
+  case E_ERROR_MESSAGES:
+    return "(Error Indicator) ";
+  case E_ERROR:
+    return "(Error) ";
+  case E_MUTEX_UNSTABLE:
+    return "(Error) The audio thread locking has become unstable.";
+  case E_AUDIODEVICE:
+    return "(Error) Audio device: ";
+  case E_FILE_BYTE_COUNT:
+    return "(Error) SoundFile has wrong size.";
+  case E_FILEREADER:
+    return "(Error) File reader: ";
+  case E_TRACK_NOT_STARTED:
+    return "(Error) Unable to start a music track.";
+  case E_TRACK_TIMER_STOP:
+    return "(Error) Unable to stop track timer.";
+  case E_MIDI_UNSPECIFIED:
+    return "(Error) Unknown MIDI error";
+  case E_MIDI_NO_DEVICES_FOUND:
+    return "(Error) no MIDI devices found on system";
+  case E_MIDI_INVALID_DEVICE:
+    return "(Error) an invalid MIDI device ID was specified";
+  case E_MIDI_MEMORY_ERROR:
+    return "(Error) an error during memory allocation in the MIDI subroutines";
+  case E_MIDI_INVALID_PARAMETER:
+    return "(Error) an invalid parameter was specified to a MIDI function";
+  case E_MIDI_INVALID_USE:
+    return "(Error) the MIDI function was called incorrectly";
+  case E_MIDI_DRIVER_ERROR:
+    return "(Error) A MIDI system driver error occured";
+  case E_MIDI_SYSTEM_ERROR:
+    return "(Error) a MIDI system error occured";
+  case E_MIDI_THREAD_ERROR:
+    return "(Error) a MIDI thread error occured";
+
+  case E_APP_MESSAGE:
+    return "(App Message) ";
+
+  // warnings
+  case E_WARNING_MESSAGES:
+    return "(Warning Indicator) ";
+  case E_WARNING:
+    return "(Warning) ";
+  case E_FILE_NOT_FOUND:
+    return "(Warning) Soundfile not found: ";
+  case E_FILE_ERROR:
+    return "(Warning) Error while loading file: ";
+  case E_SOUND_OBJECT_IN_USE:
+    return "(Warning) Sound object already in use when create was called.";
+  case E_SOUND_OBJECT_NO_INIT:
+    return "(Warning) Sound object used without creating it first.";
+  case E_REVERB_NO_INIT:
+    return "(Warning) Reverb object is used without creating it";
+  case E_CHANNEL_OBJECT_IN_USE:
+    return "(Warning) Channel object already in use when create was called.";
+  case E_MIDI_WARNING:
+    return "(Warning) Non-Critical MIDI error";
+  // debug
+  case E_DEBUG_MESSAGES:
+    return "(Debug Indicator) ";
+  case E_DEBUG:
+    return "(Debug) ";
+  case E_SOUND_ADDED:
+    return "(Debug) Sound added to system.";
+  case E_SOUND_WRONG:
+    return "(Debug) Object error with sound: ";
+  case E_SOUND_DELETED:
+    return "(Debug) Sound deleted from system.";
+  case E_MIDI_DEBUG_WARNING:
+    return "(Debug) Non-Critical MIDI error.";
   };
 
   return "(Error) no YSE::ERROR_CODE is found for this error.";

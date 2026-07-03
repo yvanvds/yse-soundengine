@@ -25,17 +25,15 @@ namespace YSE {
 
       void update();
 
-      implementationObject * addImplementation(motif * head);
+      implementationObject* addImplementation(motif* head);
 
     private:
       std::forward_list<implementationObject> implementations;
     };
 
-    managerObject & Manager();
+    managerObject& Manager();
 
-  }
-}
+  } // namespace MOTIF
+} // namespace YSE
 
-
-
-#endif  // MOTIFMANAGER_H_INCLUDED
+#endif // MOTIFMANAGER_H_INCLUDED

@@ -22,7 +22,7 @@ YSE::MIDI::file::~file() {
   }
 }
 
-bool YSE::MIDI::file::create(const std::string & filename) {
+bool YSE::MIDI::file::create(const std::string& filename) {
   return pimpl->create(filename);
 }
 

@@ -20,31 +20,33 @@
 #define DENORMAL_GUARD_H_INCLUDED
 
 #if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
-  #include <pmmintrin.h>
-  #include <xmmintrin.h>
+#include <pmmintrin.h>
+#include <xmmintrin.h>
 #elif defined(__aarch64__) || defined(__arm__)
-  #include <cstdint>
+#include <cstdint>
 #endif
 
-namespace YSE { namespace INTERNAL {
+namespace YSE {
+  namespace INTERNAL {
 
-inline void enableFlushToZero() {
+    inline void enableFlushToZero() {
 #if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
-  _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
-  _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+      _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+      _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
 #elif defined(__aarch64__)
-  std::uint64_t fpcr;
-  asm volatile("mrs %0, fpcr" : "=r"(fpcr));
-  fpcr |= (std::uint64_t(1) << 24);
-  asm volatile("msr fpcr, %0" : : "r"(fpcr));
+      std::uint64_t fpcr;
+      asm volatile("mrs %0, fpcr" : "=r"(fpcr));
+      fpcr |= (std::uint64_t(1) << 24);
+      asm volatile("msr fpcr, %0" : : "r"(fpcr));
 #elif defined(__arm__)
-  std::uint32_t fpscr;
-  asm volatile("vmrs %0, fpscr" : "=r"(fpscr));
-  fpscr |= (std::uint32_t(1) << 24);
-  asm volatile("vmsr fpscr, %0" : : "r"(fpscr));
+      std::uint32_t fpscr;
+      asm volatile("vmrs %0, fpscr" : "=r"(fpscr));
+      fpscr |= (std::uint32_t(1) << 24);
+      asm volatile("vmsr fpscr, %0" : : "r"(fpscr));
 #endif
-}
+    }
 
-}}
+  } // namespace INTERNAL
+} // namespace YSE
 
 #endif

@@ -28,10 +28,7 @@ namespace YSE {
       VIRTUAL,
       ATTACH_REVERB,
     };
-  }
-}
+  } // namespace CHANNEL
+} // namespace YSE
 
-
-
-
-#endif  // CHANNEL_H_INCLUDED
+#endif // CHANNEL_H_INCLUDED

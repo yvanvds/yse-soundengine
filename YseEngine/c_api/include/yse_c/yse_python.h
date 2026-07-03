@@ -36,8 +36,7 @@ YSE_C_API void yse_run_script(const char* src);
 /* Callback that receives formatted tracebacks from uncaught Python exceptions
    and syntax errors. `traceback_utf8` is owned by the engine and valid only
    for the duration of the call — copy it if you need to retain it. */
-typedef void (YSE_C_CALLBACK *yse_script_error_cb)(
-    const char* traceback_utf8, void* userdata);
+typedef void(YSE_C_CALLBACK* yse_script_error_cb)(const char* traceback_utf8, void* userdata);
 
 /* Register the error callback. Pass NULL to clear. Thread-safe via atomic
    swap (the project's callback-bridge convention): installing or replacing
@@ -47,11 +46,10 @@ typedef void (YSE_C_CALLBACK *yse_script_error_cb)(
    On an ON build the callback fires on the host thread that drives
    yse_system_update(), once per failed script. Works identically on an OFF
    build (it just stores the pointer), so a host may register unconditionally. */
-YSE_C_API void yse_set_script_error_callback(
-    yse_script_error_cb cb, void* userdata);
+YSE_C_API void yse_set_script_error_callback(yse_script_error_cb cb, void* userdata);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  /* YSE_C_PYTHON_H_INCLUDED */
+#endif /* YSE_C_PYTHON_H_INCLUDED */

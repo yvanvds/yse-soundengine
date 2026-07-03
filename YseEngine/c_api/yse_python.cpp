@@ -27,7 +27,7 @@ namespace {
   // Host-facing callback + user_data. user_data is published before the
   // function pointer (release) and read after it (acquire); see the bridge.
   std::atomic<yse_script_error_cb> g_userCb{nullptr};
-  std::atomic<void*>               g_userData{nullptr};
+  std::atomic<void*> g_userData{nullptr};
 
   // Fixed sink handed to the engine. The `userdata` slot from the engine side
   // is unused — the host callback and its user_data are read from the atomics

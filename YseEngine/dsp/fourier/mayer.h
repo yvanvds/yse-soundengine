@@ -13,11 +13,10 @@
 
 #include "../../headers/types.hpp"
 
-void mayer_fht     (Flt *fz, int n);
-void mayer_fft     (int n, Flt *real, Flt *imag);
-void mayer_ifft    (int n, Flt *real, Flt *imag);
-void mayer_realfft (int n, Flt *real           );
-void mayer_realifft(int n, Flt *real           );
+void mayer_fht(Flt* fz, int n);
+void mayer_fft(int n, Flt* real, Flt* imag);
+void mayer_ifft(int n, Flt* real, Flt* imag);
+void mayer_realfft(int n, Flt* real);
+void mayer_realifft(int n, Flt* real);
 
-
-#endif  // MAYER_H_INCLUDED
+#endif // MAYER_H_INCLUDED

@@ -25,18 +25,16 @@ namespace YSE {
 
       void update(Flt delta);
 
-      //implementationObject * addImplementation(player * head, synth * s);
-      void removeImplementation(implementationObject * impl);
-      
+      // implementationObject * addImplementation(player * head, synth * s);
+      void removeImplementation(implementationObject* impl);
+
     private:
       std::forward_list<implementationObject> implementations;
     };
 
-    managerObject & Manager();
+    managerObject& Manager();
 
-  }
-}
+  } // namespace PLAYER
+} // namespace YSE
 
-
-
-#endif  // PLAYERMANAGER_H_INCLUDED
+#endif // PLAYERMANAGER_H_INCLUDED

@@ -26,7 +26,7 @@ namespace YSE {
     class messageObject {
     public:
       /** The ID of a message defines how it will be stored in the implementation
-      */
+       */
       MESSAGE ID;
 
       union {
@@ -34,9 +34,7 @@ namespace YSE {
       };
     };
 
-  }
-}
+  } // namespace SCALE
+} // namespace YSE
 
-
-
-#endif  // SCALEMESSAGE_H_INCLUDED
+#endif // SCALEMESSAGE_H_INCLUDED

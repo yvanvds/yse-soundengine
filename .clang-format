@@ -2,30 +2,39 @@
 Language:        Cpp
 BasedOnStyle:    LLVM
 
-# Indentation — tabs, 4-wide, matching the existing demo/engine code
-IndentWidth:     4
-TabWidth:        4
-UseTab:          Always
+# Indentation — 2-space, spaces only, matching the committed engine/test code
+IndentWidth:     2
+TabWidth:        2
+UseTab:          Never
 
 # Column limit — keep lines readable without being too strict
 ColumnLimit:     100
 
-# Brace placement — Allman (open brace on its own line), matching Demo*.cpp
-BreakBeforeBraces: Allman
+# Brace placement — K&R / attach (open brace on the same line)
+BreakBeforeBraces: Attach
 
-# Constructor initializer lists — one entry per line
-ConstructorInitializerAllOnOneLineOrOnePerLine: true
-BreakConstructorInitializersBeforeComma: true
-ConstructorInitializerIndentWidth: 4
+# Namespaces are indented (namespace YSE { namespace INTERNAL { ... })
+NamespaceIndentation: All
 
-# Pointer/reference alignment — left-attached (int* p)
+# Constructor initializer lists — colon leads the continuation line
+BreakConstructorInitializers: BeforeColon
+ConstructorInitializerIndentWidth: 2
+PackConstructorInitializers: NextLine
+
+# Pointer/reference alignment — left-attached (int* p, int& r)
 PointerAlignment: Left
 ReferenceAlignment: Left
 
-# Short forms — leave empty functions on one line; never collapse if/loops
+# Short forms — keep guard clauses (if (x) return;) on one line, as the code has
 AllowShortFunctionsOnASingleLine: Empty
-AllowShortIfStatementsOnASingleLine: Never
+AllowShortIfStatementsOnASingleLine: WithoutElse
 AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Empty
+
+# Trailing comments — keep a single space, don't column-align across lines.
+# Alignment is also unstable (non-idempotent) after an inline `}`.
+AlignTrailingComments:
+  Kind: Never
 
 # Include sorting — keep existing grouping, don't reorder across blocks
 SortIncludes:    false

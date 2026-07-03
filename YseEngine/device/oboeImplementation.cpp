@@ -11,11 +11,9 @@
 namespace {
   // See portaudioDeviceManager.cpp for the rationale on the time constant.
   constexpr double kCpuLoadTau = 1.0;
-}
+} // namespace
 
-OboeImplementation::OboeImplementation()
-  : bufferPos(YSE::STANDARD_BUFFERSIZE)
-{}
+OboeImplementation::OboeImplementation() : bufferPos(YSE::STANDARD_BUFFERSIZE) {}
 
 OboeImplementation::~OboeImplementation() {
   Stop();
@@ -32,12 +30,12 @@ bool OboeImplementation::openStream(int channels) {
 
   oboe::AudioStreamBuilder builder;
   builder.setDirection(oboe::Direction::Output)
-         ->setPerformanceMode(oboe::PerformanceMode::LowLatency)
-         ->setSharingMode(oboe::SharingMode::Exclusive)
-         ->setFormat(oboe::AudioFormat::Float)
-         ->setChannelCount(channels)
-         ->setDataCallback(this)
-         ->setErrorCallback(this);
+      ->setPerformanceMode(oboe::PerformanceMode::LowLatency)
+      ->setSharingMode(oboe::SharingMode::Exclusive)
+      ->setFormat(oboe::AudioFormat::Float)
+      ->setChannelCount(channels)
+      ->setDataCallback(this)
+      ->setErrorCallback(this);
 
   oboe::Result result = builder.openStream(mStream);
   if (result != oboe::Result::OK) {
@@ -62,7 +60,7 @@ bool OboeImplementation::openStream(int channels) {
   }
 
   delete[] sourceChannels;
-  sourceChannels = new float * [numChannels];
+  sourceChannels = new float*[numChannels];
   bufferPos = YSE::STANDARD_BUFFERSIZE;
 
   result = mStream->requestStart();
@@ -116,9 +114,8 @@ int32_t OboeImplementation::getNegotiatedOutputLatencyMs() const {
   return result ? (int32_t)result.value() : 0;
 }
 
-oboe::DataCallbackResult OboeImplementation::onAudioReady(oboe::AudioStream * /*stream*/,
-                                                          void * audioData,
-                                                          int32_t numFrames) {
+oboe::DataCallbackResult OboeImplementation::onAudioReady(oboe::AudioStream* /*stream*/,
+                                                          void* audioData, int32_t numFrames) {
   YSE::INTERNAL::enableFlushToZero();
   // Issue #82: our own callback wall-clock measurement, mirroring the
   // PortAudio path so system::cpuLoad() reports a consistent number
@@ -126,7 +123,7 @@ oboe::DataCallbackResult OboeImplementation::onAudioReady(oboe::AudioStream * /*
   const auto cbStart = std::chrono::steady_clock::now();
   ++callbacksSinceLastUpdate;
 
-  float * dest = static_cast<float *>(audioData);
+  float* dest = static_cast<float*>(audioData);
 
   if (!YSE::DEVICE::Manager().doOnCallback(numFrames)) {
     std::memset(dest, 0, sizeof(float) * numFrames * numChannels);
@@ -136,8 +133,8 @@ oboe::DataCallbackResult OboeImplementation::onAudioReady(oboe::AudioStream * /*
 
   UInt pos = 0;
   const UInt totalFrames = (UInt)numFrames;
-  auto & master = YSE::DEVICE::Manager().getMaster();
-  auto & out = master.GetBuffers();
+  auto& master = YSE::DEVICE::Manager().getMaster();
+  auto& out = master.GetBuffers();
 
   while (pos < totalFrames) {
     if (bufferPos == YSE::STANDARD_BUFFERSIZE) {
@@ -147,8 +144,8 @@ oboe::DataCallbackResult OboeImplementation::onAudioReady(oboe::AudioStream * /*
     }
 
     UInt size = (totalFrames - pos) > (YSE::STANDARD_BUFFERSIZE - bufferPos)
-              ? (YSE::STANDARD_BUFFERSIZE - bufferPos)
-              : (totalFrames - pos);
+                    ? (YSE::STANDARD_BUFFERSIZE - bufferPos)
+                    : (totalFrames - pos);
 
     for (int i = 0; i < numChannels; i++) {
       sourceChannels[i] = out[i].getPtr() + bufferPos;
@@ -169,9 +166,8 @@ oboe::DataCallbackResult OboeImplementation::onAudioReady(oboe::AudioStream * /*
   return oboe::DataCallbackResult::Continue;
 }
 
-void OboeImplementation::updateCpuLoadEma(
-    std::chrono::steady_clock::time_point cbStart,
-    int32_t numFrames) {
+void OboeImplementation::updateCpuLoadEma(std::chrono::steady_clock::time_point cbStart,
+                                          int32_t numFrames) {
   const auto cbEnd = std::chrono::steady_clock::now();
   const double elapsedSec = std::chrono::duration<double>(cbEnd - cbStart).count();
   const double bufferSec = double(numFrames) / double(YSE::SAMPLERATE);
@@ -183,7 +179,7 @@ void OboeImplementation::updateCpuLoadEma(
   cpuLoadEma.store(prev + alpha * (sample - prev), std::memory_order_relaxed);
 }
 
-void OboeImplementation::onErrorAfterClose(oboe::AudioStream * /*stream*/, oboe::Result error) {
+void OboeImplementation::onErrorAfterClose(oboe::AudioStream* /*stream*/, oboe::Result error) {
   // Oboe has already closed the stream by the time this fires (vs. onErrorBeforeClose).
   // Headphone unplug / USB device removal trips Disconnected; transparently rebuild.
   YSE::INTERNAL::LogImpl().emit(YSE::E_DEBUG, "Oboe: stream disconnected, restarting");

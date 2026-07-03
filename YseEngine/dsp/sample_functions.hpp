@@ -25,14 +25,14 @@ namespace YSE {
      *  @return ``true`` on success, ``false`` if the file cannot be opened or
      *          the requested channel does not exist.
      */
-    bool API LoadFromFile(const char * fileName, buffer & buffer, UInt channel = 0);
+    bool API LoadFromFile(const char* fileName, buffer& buffer, UInt channel = 0);
 
     /**
      *  @brief Load every channel of an audio file into a multichannel buffer.
      *
      *  @return ``true`` on success, ``false`` on read error.
      */
-    bool API LoadFromFile(const char * fileName, MULTICHANNELBUFFER & buffer);
+    bool API LoadFromFile(const char* fileName, MULTICHANNELBUFFER& buffer);
 
     /**
      *  @brief Save a single-channel buffer to a mono WAV file.
@@ -40,16 +40,14 @@ namespace YSE {
      *  @note WAV is currently the only supported output format.
      *  @return ``true`` on success, ``false`` on write error.
      */
-    bool API SaveToFile(const char * fileName, buffer & buffer);
+    bool API SaveToFile(const char* fileName, buffer& buffer);
 
     /** @brief Save a multichannel buffer to a WAV file. */
-    bool API SaveToFile(const char * fileName, MULTICHANNELBUFFER & buffer);
+    bool API SaveToFile(const char* fileName, MULTICHANNELBUFFER& buffer);
 
     /** @brief Scale ``buffer`` so its peak absolute sample value equals 1.0. */
-    void API Normalize(buffer & buffer);
-  }
-}
+    void API Normalize(buffer& buffer);
+  } // namespace DSP
+} // namespace YSE
 
-
-
-#endif  // SAMPLE_FUNCTIONS_H_INCLUDED
+#endif // SAMPLE_FUNCTIONS_H_INCLUDED

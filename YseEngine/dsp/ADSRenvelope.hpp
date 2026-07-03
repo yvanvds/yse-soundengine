@@ -38,20 +38,16 @@ namespace YSE {
        */
       struct breakPoint {
         breakPoint(Flt time, Flt value, Flt coef, Bool loopStart = false, Bool loopEnd = false)
-          : time(time),
-            value(value),
-            coef(coef),
-            loopStart(loopStart),
-            loopEnd(loopEnd) {}
+          : time(time), value(value), coef(coef), loopStart(loopStart), loopEnd(loopEnd) {}
         Flt time, value, coef;
         Bool loopStart, loopEnd;
       };
 
       /** @brief Playback phases driven by ``operator()``. */
       enum STATE {
-        ATTACK,   ///< Advance through the envelope from the start.
-        RESUME,   ///< Loop within the sustain region (between loopStart and loopEnd).
-        RELEASE,  ///< Advance from the current position to the end.
+        ATTACK, ///< Advance through the envelope from the start.
+        RESUME, ///< Loop within the sustain region (between loopStart and loopEnd).
+        RELEASE, ///< Advance from the current position to the end.
       };
 
       /**
@@ -60,7 +56,7 @@ namespace YSE {
        *  @warning Breakpoints must be added in ascending time order — the
        *           class does not sort them.
        */
-      void addPoint(const breakPoint & point);
+      void addPoint(const breakPoint& point);
 
       /**
        *  @brief Compile the breakpoints into the runtime envelope.
@@ -71,28 +67,28 @@ namespace YSE {
       void generate();
 
       /** @brief Produce the next envelope block for the given phase. */
-      YSE::DSP::buffer & operator()(STATE state, UInt length = STANDARD_BUFFERSIZE);
+      YSE::DSP::buffer& operator()(STATE state, UInt length = STANDARD_BUFFERSIZE);
 
       /** @brief Save the breakpoints to a file. */
-      void saveToFile(const char * fileName);
+      void saveToFile(const char* fileName);
 
       /** @brief Whether the release phase has finished playing. */
-      inline Bool isAtEnd() { return endReached; }
+      inline Bool isAtEnd() {
+        return endReached;
+      }
 
     private:
       std::vector<breakPoint> breakPoints;
       buffer envelope, result;
-      Flt * phase;
-      Flt * loopStart;
-      Flt * loopEnd;
-      Flt * envelopeEnd;
+      Flt* phase;
+      Flt* loopStart;
+      Flt* loopEnd;
+      Flt* envelopeEnd;
       Bool looping;
       Bool endReached;
     };
 
-  }
-}
+  } // namespace DSP
+} // namespace YSE
 
-
-
-#endif  // ADSRENVELOPE_HPP_INCLUDED
+#endif // ADSRENVELOPE_HPP_INCLUDED

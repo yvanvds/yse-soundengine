@@ -10,14 +10,12 @@
 
 #include "midifileImplementation.h"
 
-YSE::MIDI::fileImpl::fileImpl(file * head)
-: head(head)
-, intent(SS_STOPPED)
-, hasFile(false)
+YSE::MIDI::fileImpl::fileImpl(file* head)
+  : head(head),
+    intent(SS_STOPPED),
+    hasFile(false)
 //, startSample(0)
-{
-
-}
+{}
 
 YSE::MIDI::fileImpl::~fileImpl() {
   // disconnect all players
@@ -26,14 +24,14 @@ YSE::MIDI::fileImpl::~fileImpl() {
   }*/
 }
 
-bool YSE::MIDI::fileImpl::create(const std::string & /*fileName*/) {
+bool YSE::MIDI::fileImpl::create(const std::string& /*fileName*/) {
   assert(!hasFile);
 
   /*if (!IO().getActive()) {
     File file = File::getCurrentWorkingDirectory().getChildFile(juce::String(fileName));
     if (!file.existsAsFile()) {
-      INTERNAL::LogImpl().emit(E_FILE_ERROR, "file not found for " + file.getFullPathName().toStdString());
-      return false;
+      INTERNAL::LogImpl().emit(E_FILE_ERROR, "file not found for " +
+  file.getFullPathName().toStdString()); return false;
     }
     FileInputStream * midiFileInputStream = file.createInputStream();
     midiFile.readFrom(*midiFileInputStream);
@@ -123,7 +121,7 @@ void YSE::MIDI::fileImpl::getMessages(MidiBuffer & incomingMidi) {
       }
       intent = SS_PAUSED;
       return;
-                          
+
     }
     case SS_WANTSTOSTOP: {
       for (int i = 1; i < 17; i++) {
@@ -138,14 +136,14 @@ void YSE::MIDI::fileImpl::getMessages(MidiBuffer & incomingMidi) {
       break;
     }
   }
-    
+
   Int currentEvent = sequence.getNextIndexAtTime(startSample / (double)SAMPLERATE);
   Int currentSample = (Int)(sequence.getEventTime(currentEvent) * SAMPLERATE);
 
-  while ((currentSample - startSample) < (Int)STANDARD_BUFFERSIZE && currentEvent < sequence.getNumEvents()) {  
-    incomingMidi.addEvent(sequence.getEventPointer(currentEvent)->message, currentSample - startSample);
-    currentEvent++;
-    currentSample = (Int)(sequence.getEventTime(currentEvent) * SAMPLERATE);
+  while ((currentSample - startSample) < (Int)STANDARD_BUFFERSIZE && currentEvent <
+sequence.getNumEvents()) { incomingMidi.addEvent(sequence.getEventPointer(currentEvent)->message,
+currentSample - startSample); currentEvent++; currentSample =
+(Int)(sequence.getEventTime(currentEvent) * SAMPLERATE);
   }
 
   if (currentEvent > sequence.getNumEvents()) {

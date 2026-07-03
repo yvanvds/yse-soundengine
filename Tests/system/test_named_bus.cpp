@@ -30,51 +30,63 @@
 
 namespace {
 
-std::atomic<int>  g_alloc_count{0};
-std::atomic<bool> g_alloc_probe_active{false};
+  std::atomic<int> g_alloc_count{0};
+  std::atomic<bool> g_alloc_probe_active{false};
 
-struct ProbeScope {
-    ProbeScope()  { g_alloc_count = 0; g_alloc_probe_active = true; }
-    ~ProbeScope() { g_alloc_probe_active = false; }
-};
+  struct ProbeScope {
+    ProbeScope() {
+      g_alloc_count = 0;
+      g_alloc_probe_active = true;
+    }
+    ~ProbeScope() {
+      g_alloc_probe_active = false;
+    }
+  };
 
 } // namespace
 
 void* operator new(std::size_t n) {
-    if (g_alloc_probe_active.load(std::memory_order_relaxed))
-        g_alloc_count.fetch_add(1, std::memory_order_relaxed);
-    if (void* p = std::malloc(n == 0 ? 1 : n)) return p;
-    throw std::bad_alloc{};
+  if (g_alloc_probe_active.load(std::memory_order_relaxed))
+    g_alloc_count.fetch_add(1, std::memory_order_relaxed);
+  if (void* p = std::malloc(n == 0 ? 1 : n)) return p;
+  throw std::bad_alloc{};
 }
 
-void operator delete(void* p) noexcept { std::free(p); }
-void operator delete(void* p, std::size_t) noexcept { std::free(p); }
+void operator delete(void* p) noexcept {
+  std::free(p);
+}
+void operator delete(void* p, std::size_t) noexcept {
+  std::free(p);
+}
 
 TEST_SUITE("system") {
 
-TEST_CASE("named bus: subscribe then publish on T_GUI fires the callback synchronously") {
+  TEST_CASE("named bus: subscribe then publish on T_GUI fires the callback synchronously") {
     REQUIRE(TestHelpers::engineInit());
     auto& bus = YSE::INTERNAL::Bus();
 
     int received = 0;
     auto h = bus.subscribe("ch.test.gui", [&](const YSE::INTERNAL::BusValue& v) {
-        if (auto* i = std::get_if<int>(&v)) received = *i;
+      if (auto* i = std::get_if<int>(&v)) received = *i;
     });
 
     bus.publish("ch.test.gui", YSE::INTERNAL::BusValue{42}, YSE::T_GUI);
     CHECK(received == 42);
 
     bus.unsubscribe(h);
-}
+  }
 
-TEST_CASE("named bus: T_DSP publish is queued and dispatched on drainPending") {
+  TEST_CASE("named bus: T_DSP publish is queued and dispatched on drainPending") {
     REQUIRE(TestHelpers::engineInit());
     auto& bus = YSE::INTERNAL::Bus();
 
     float received = 0.0f;
-    int   hits = 0;
+    int hits = 0;
     auto h = bus.subscribe("ch.test.dsp", [&](const YSE::INTERNAL::BusValue& v) {
-        if (auto* f = std::get_if<float>(&v)) { received = *f; ++hits; }
+      if (auto* f = std::get_if<float>(&v)) {
+        received = *f;
+        ++hits;
+      }
     });
 
     bus.publish("ch.test.dsp", YSE::INTERNAL::BusValue{1.25f}, YSE::T_DSP);
@@ -86,9 +98,9 @@ TEST_CASE("named bus: T_DSP publish is queued and dispatched on drainPending") {
     CHECK(received == doctest::Approx(1.25f));
 
     bus.unsubscribe(h);
-}
+  }
 
-TEST_CASE("named bus: unsubscribe stops delivery on both paths") {
+  TEST_CASE("named bus: unsubscribe stops delivery on both paths") {
     REQUIRE(TestHelpers::engineInit());
     auto& bus = YSE::INTERNAL::Bus();
 
@@ -104,9 +116,9 @@ TEST_CASE("named bus: unsubscribe stops delivery on both paths") {
     bus.publish("ch.test.unsub", YSE::INTERNAL::BusValue{3}, YSE::T_DSP);
     bus.drainPending();
     CHECK(count == 1);
-}
+  }
 
-TEST_CASE("named bus: publish to a name with no subscribers does not allocate") {
+  TEST_CASE("named bus: publish to a name with no subscribers does not allocate") {
     REQUIRE(TestHelpers::engineInit());
     auto& bus = YSE::INTERNAL::Bus();
 
@@ -114,19 +126,19 @@ TEST_CASE("named bus: publish to a name with no subscribers does not allocate") 
     const std::string name = "ch.test.empty";
 
     {
-        ProbeScope probe;
-        bus.publish(name, YSE::INTERNAL::BusValue{7}, YSE::T_GUI);
-        bus.publish(name, YSE::INTERNAL::BusValue{0.5f}, YSE::T_DSP);
+      ProbeScope probe;
+      bus.publish(name, YSE::INTERNAL::BusValue{7}, YSE::T_GUI);
+      bus.publish(name, YSE::INTERNAL::BusValue{0.5f}, YSE::T_DSP);
     }
 
     CHECK(g_alloc_count.load() == 0);
-}
+  }
 
-TEST_CASE("named bus: audio-thread publish path does not allocate at scale") {
+  TEST_CASE("named bus: audio-thread publish path does not allocate at scale") {
     REQUIRE(TestHelpers::engineInit());
     auto& bus = YSE::INTERNAL::Bus();
 
-    constexpr int kSubs     = 1000;
+    constexpr int kSubs = 1000;
     constexpr int kPublishes = 1000;
 
     // Register 1000 subscribers spread across a few names. Pre-allocate the
@@ -141,19 +153,17 @@ TEST_CASE("named bus: audio-thread publish path does not allocate at scale") {
     const std::string nameB = "ch.scale.b";
 
     for (int i = 0; i < kSubs; ++i) {
-        handles.push_back(bus.subscribe((i & 1) ? nameA : nameB, cb));
+      handles.push_back(bus.subscribe((i & 1) ? nameA : nameB, cb));
     }
 
     YSE::INTERNAL::BusValue intVal{99};
     YSE::INTERNAL::BusValue fltVal{0.25f};
 
     {
-        ProbeScope probe;
-        for (int i = 0; i < kPublishes; ++i) {
-            bus.publish((i & 1) ? nameA : nameB,
-                        (i & 1) ? intVal : fltVal,
-                        YSE::T_DSP);
-        }
+      ProbeScope probe;
+      for (int i = 0; i < kPublishes; ++i) {
+        bus.publish((i & 1) ? nameA : nameB, (i & 1) ? intVal : fltVal, YSE::T_DSP);
+      }
     }
 
     CHECK(g_alloc_count.load() == 0);
@@ -164,10 +174,11 @@ TEST_CASE("named bus: audio-thread publish path does not allocate at scale") {
     // nameB (500 subscribers each) — so 1000 * 500 == 500'000 dispatches.
     CHECK(hits == kPublishes * (kSubs / 2));
 
-    for (auto h : handles) bus.unsubscribe(h);
-}
+    for (auto h : handles)
+      bus.unsubscribe(h);
+  }
 
-TEST_CASE("named bus: T_DSP publish drops string/list payloads silently") {
+  TEST_CASE("named bus: T_DSP publish drops string/list payloads silently") {
     REQUIRE(TestHelpers::engineInit());
     auto& bus = YSE::INTERNAL::Bus();
 
@@ -177,7 +188,8 @@ TEST_CASE("named bus: T_DSP publish drops string/list payloads silently") {
     // String and list payloads on T_DSP exceed the pooled-message footprint
     // and must be dropped silently rather than queued.
     bus.publish("ch.test.dsp.drop", YSE::INTERNAL::BusValue{std::string("nope")}, YSE::T_DSP);
-    bus.publish("ch.test.dsp.drop", YSE::INTERNAL::BusValue{std::vector<float>{1.0f, 2.0f}}, YSE::T_DSP);
+    bus.publish("ch.test.dsp.drop", YSE::INTERNAL::BusValue{std::vector<float>{1.0f, 2.0f}},
+                YSE::T_DSP);
     bus.drainPending();
     CHECK(hits == 0);
 
@@ -186,9 +198,9 @@ TEST_CASE("named bus: T_DSP publish drops string/list payloads silently") {
     CHECK(hits == 1);
 
     bus.unsubscribe(h);
-}
+  }
 
-TEST_CASE("named bus: concurrent T_DSP publishers each keep their own queue") {
+  TEST_CASE("named bus: concurrent T_DSP publishers each keep their own queue") {
     // Regression for issue #187: gSend publishes on T_DSP from whichever thread
     // renders the owning channel, and child channels render concurrently on
     // fast-pool workers. A single shared SPSC queue would have two producers
@@ -197,39 +209,42 @@ TEST_CASE("named bus: concurrent T_DSP publishers each keep their own queue") {
     REQUIRE(TestHelpers::engineInit());
     auto& bus = YSE::INTERNAL::Bus();
 
-    constexpr int kThreads   = 4;
-    constexpr int kPerThread = 500;  // < per-queue capacity, so nothing drops
+    constexpr int kThreads = 4;
+    constexpr int kPerThread = 500; // < per-queue capacity, so nothing drops
 
     std::array<int, kThreads> hits{};
     std::vector<YSE::INTERNAL::SubHandle> handles;
     handles.reserve(kThreads);
     for (int t = 0; t < kThreads; ++t) {
-        handles.push_back(bus.subscribe("ch.mt." + std::to_string(t),
-            [t, &hits](const YSE::INTERNAL::BusValue& v) {
-                if (std::get_if<int>(&v)) ++hits[t];
-            }));
+      handles.push_back(
+          bus.subscribe("ch.mt." + std::to_string(t), [t, &hits](const YSE::INTERNAL::BusValue& v) {
+            if (std::get_if<int>(&v)) ++hits[t];
+          }));
     }
 
     std::vector<std::thread> workers;
     workers.reserve(kThreads);
     for (int t = 0; t < kThreads; ++t) {
-        workers.emplace_back([t, &bus] {
-            const std::string name = "ch.mt." + std::to_string(t);
-            for (int i = 0; i < kPerThread; ++i)
-                bus.publish(name, YSE::INTERNAL::BusValue{i}, YSE::T_DSP);
-        });
+      workers.emplace_back([t, &bus] {
+        const std::string name = "ch.mt." + std::to_string(t);
+        for (int i = 0; i < kPerThread; ++i)
+          bus.publish(name, YSE::INTERNAL::BusValue{i}, YSE::T_DSP);
+      });
     }
-    for (auto& w : workers) w.join();
+    for (auto& w : workers)
+      w.join();
 
     // Nothing is delivered until the consumer drains — on the main thread.
     bus.drainPending();
 
-    for (int t = 0; t < kThreads; ++t) CHECK(hits[t] == kPerThread);
+    for (int t = 0; t < kThreads; ++t)
+      CHECK(hits[t] == kPerThread);
 
-    for (auto h : handles) bus.unsubscribe(h);
-}
+    for (auto h : handles)
+      bus.unsubscribe(h);
+  }
 
-TEST_CASE("named bus: duplicate subscriptions on a name each get called") {
+  TEST_CASE("named bus: duplicate subscriptions on a name each get called") {
     REQUIRE(TestHelpers::engineInit());
     auto& bus = YSE::INTERNAL::Bus();
 
@@ -243,6 +258,6 @@ TEST_CASE("named bus: duplicate subscriptions on a name each get called") {
 
     bus.unsubscribe(h1);
     bus.unsubscribe(h2);
-}
+  }
 
 } // TEST_SUITE("system")

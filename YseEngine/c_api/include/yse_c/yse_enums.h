@@ -15,59 +15,59 @@ extern "C" {
 
 /* Mirrors YSE::CHANNEL_TYPE in headers/enums.hpp. */
 typedef enum YseChannelType {
-  YSE_CT_AUTO    = 0,
-  YSE_CT_MONO    = 1,
-  YSE_CT_STEREO  = 2,
-  YSE_CT_QUAD    = 3,
-  YSE_CT_51      = 4,
-  YSE_CT_51SIDE  = 5,
-  YSE_CT_61      = 6,
-  YSE_CT_71      = 7,
-  YSE_CT_CUSTOM  = 8
+  YSE_CT_AUTO = 0,
+  YSE_CT_MONO = 1,
+  YSE_CT_STEREO = 2,
+  YSE_CT_QUAD = 3,
+  YSE_CT_51 = 4,
+  YSE_CT_51SIDE = 5,
+  YSE_CT_61 = 6,
+  YSE_CT_71 = 7,
+  YSE_CT_CUSTOM = 8
 } YseChannelType;
 
 /* Mirrors YSE::ERROR_LEVEL in headers/enums.hpp. */
 typedef enum YseErrorLevel {
-  YSE_EL_NONE    = 0,
-  YSE_EL_ERROR   = 1,
+  YSE_EL_NONE = 0,
+  YSE_EL_ERROR = 1,
   YSE_EL_WARNING = 2,
-  YSE_EL_DEBUG   = 3
+  YSE_EL_DEBUG = 3
 } YseErrorLevel;
 
 /* Mirrors YSE::OUT_TYPE in headers/enums.hpp (patcher outlet data type). */
 typedef enum YseOutType {
   YSE_OUT_INVALID = 0,
-  YSE_OUT_BANG    = 1,
-  YSE_OUT_FLOAT   = 2,
-  YSE_OUT_INT     = 3,
-  YSE_OUT_BUFFER  = 4,
-  YSE_OUT_LIST    = 5,
-  YSE_OUT_ANY     = 6
+  YSE_OUT_BANG = 1,
+  YSE_OUT_FLOAT = 2,
+  YSE_OUT_INT = 3,
+  YSE_OUT_BUFFER = 4,
+  YSE_OUT_LIST = 5,
+  YSE_OUT_ANY = 6
 } YseOutType;
 
 /* Mirrors YSE::DSP::LFO_TYPE in dsp/lfo.hpp. */
 typedef enum YseLfoType {
-  YSE_LFO_NONE          = 0,
-  YSE_LFO_SAW           = 1,
-  YSE_LFO_SAW_REVERSED  = 2,
-  YSE_LFO_TRIANGLE      = 3,
-  YSE_LFO_SINE          = 4,
-  YSE_LFO_SQUARE        = 5,
-  YSE_LFO_RANDOM        = 6
+  YSE_LFO_NONE = 0,
+  YSE_LFO_SAW = 1,
+  YSE_LFO_SAW_REVERSED = 2,
+  YSE_LFO_TRIANGLE = 3,
+  YSE_LFO_SINE = 4,
+  YSE_LFO_SQUARE = 5,
+  YSE_LFO_RANDOM = 6
 } YseLfoType;
 
 /* Mirrors YSE::DSP::MODULES::sweepFilter::SHAPE. */
 typedef enum YseDspSweepShape {
   YSE_SWEEP_TRIANGLE = 0,
-  YSE_SWEEP_SAW      = 1,
-  YSE_SWEEP_SQUARE   = 2
+  YSE_SWEEP_SAW = 1,
+  YSE_SWEEP_SQUARE = 2
 } YseDspSweepShape;
 
 /* Mirrors YSE::DSP::MODULES::basicDelay::DELAY_NR. */
 typedef enum YseDspDelayTap {
-  YSE_DELAY_TAP_FIRST  = 0,
+  YSE_DELAY_TAP_FIRST = 0,
   YSE_DELAY_TAP_SECOND = 1,
-  YSE_DELAY_TAP_THIRD  = 2
+  YSE_DELAY_TAP_THIRD = 2
 } YseDspDelayTap;
 
 /* Mirrors YSE::PATCHER::pCategory in patcher/pEnums.h. The patcher
@@ -75,38 +75,38 @@ typedef enum YseDspDelayTap {
    documentation generators can group objects without inspecting the
    engine source. */
 typedef enum YsePCategory {
-  YSE_PCAT_UNSET   = 0,
-  YSE_PCAT_OSC     = 1,
-  YSE_PCAT_FILTER  = 2,
-  YSE_PCAT_MATH    = 3,
+  YSE_PCAT_UNSET = 0,
+  YSE_PCAT_OSC = 1,
+  YSE_PCAT_FILTER = 2,
+  YSE_PCAT_MATH = 3,
   YSE_PCAT_GENERIC = 4,
-  YSE_PCAT_GUI     = 5,
-  YSE_PCAT_TIME    = 6,
-  YSE_PCAT_MIDI    = 7
+  YSE_PCAT_GUI = 5,
+  YSE_PCAT_TIME = 6,
+  YSE_PCAT_MIDI = 7
 } YsePCategory;
 
 /* Bitmask of message types an inlet accepts; mirrors
    YSE::PATCHER::InletType. OR the flags together; check with `&`. */
 typedef enum YseInletAccepts {
   YSE_IN_ACCEPTS_BUFFER = 1u << 0,
-  YSE_IN_ACCEPTS_FLOAT  = 1u << 1,
-  YSE_IN_ACCEPTS_INT    = 1u << 2,
-  YSE_IN_ACCEPTS_BANG   = 1u << 3,
-  YSE_IN_ACCEPTS_LIST   = 1u << 4
+  YSE_IN_ACCEPTS_FLOAT = 1u << 1,
+  YSE_IN_ACCEPTS_INT = 1u << 2,
+  YSE_IN_ACCEPTS_BANG = 1u << 3,
+  YSE_IN_ACCEPTS_LIST = 1u << 4
 } YseInletAccepts;
 
 /* Mirrors YSE::REVERB_PRESET in headers/enums.hpp. */
 typedef enum YseReverbPreset {
-  YSE_REVERB_OFF        = 0,
-  YSE_REVERB_GENERIC    = 1,
-  YSE_REVERB_PADDED     = 2,
-  YSE_REVERB_ROOM       = 3,
-  YSE_REVERB_BATHROOM   = 4,
-  YSE_REVERB_STONEROOM  = 5,
-  YSE_REVERB_LARGEROOM  = 6,
-  YSE_REVERB_HALL       = 7,
-  YSE_REVERB_CAVE       = 8,
-  YSE_REVERB_SEWERPIPE  = 9,
+  YSE_REVERB_OFF = 0,
+  YSE_REVERB_GENERIC = 1,
+  YSE_REVERB_PADDED = 2,
+  YSE_REVERB_ROOM = 3,
+  YSE_REVERB_BATHROOM = 4,
+  YSE_REVERB_STONEROOM = 5,
+  YSE_REVERB_LARGEROOM = 6,
+  YSE_REVERB_HALL = 7,
+  YSE_REVERB_CAVE = 8,
+  YSE_REVERB_SEWERPIPE = 9,
   YSE_REVERB_UNDERWATER = 10
 } YseReverbPreset;
 

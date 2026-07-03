@@ -11,12 +11,12 @@
 #include "midifileManager.h"
 #include "../internalHeaders.h"
 
-YSE::MIDI::managerObject & YSE::MIDI::Manager() {
+YSE::MIDI::managerObject& YSE::MIDI::Manager() {
   static managerObject m;
   return m;
 }
 
-YSE::MIDI::fileImpl * YSE::MIDI::managerObject::addImplementation(YSE::MIDI::file * head) {
+YSE::MIDI::fileImpl* YSE::MIDI::managerObject::addImplementation(YSE::MIDI::file* head) {
   implementations.emplace_front(head);
   return &implementations.front();
 }
@@ -31,4 +31,3 @@ void YSE::MIDI::managerObject::update() {
     previous++;
   }
 }
-

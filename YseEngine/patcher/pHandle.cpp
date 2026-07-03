@@ -7,13 +7,12 @@
 
 using namespace YSE;
 
-pHandle::pHandle(PATCHER::pObject * object) : object(object) {}
+pHandle::pHandle(PATCHER::pObject* object) : object(object) {}
 
-const char * pHandle::Type() const {
+const char* pHandle::Type() const {
   if (!object) {
     return "Invalid Handle";
-  }
-  else {
+  } else {
     return object->Type();
   }
 }
@@ -26,25 +25,24 @@ void YSE::pHandle::SetIntData(unsigned int inlet, int value) {
   object->GetInlet(inlet)->SetInt(value, T_GUI);
 }
 
-void YSE::pHandle::SetFloatData(unsigned int inlet, float value)
-{
+void YSE::pHandle::SetFloatData(unsigned int inlet, float value) {
   object->GetInlet(inlet)->SetFloat(value, T_GUI);
 }
 
-void YSE::pHandle::SetListData(unsigned int inlet, const std::string & value) {
+void YSE::pHandle::SetListData(unsigned int inlet, const std::string& value) {
   object->GetInlet(inlet)->SetList(value, T_GUI);
 }
 
-void YSE::pHandle::SetParams(const std::string & args) {
+void YSE::pHandle::SetParams(const std::string& args) {
   INTERNAL::LogImpl().emit(E_DEBUG, "Handle: Passing arguments: " + args);
   object->SetParams(args);
 }
 
-std::string YSE::pHandle::GetGuiProperty(const std::string & key) {
+std::string YSE::pHandle::GetGuiProperty(const std::string& key) {
   return object->GetGuiProperty(key);
 }
 
-void YSE::pHandle::SetGuiProperty(const std::string & key, const std::string & value) {
+void YSE::pHandle::SetGuiProperty(const std::string& key, const std::string& value) {
   object->SetGuiProperty(key, value);
 }
 
@@ -91,4 +89,3 @@ unsigned int YSE::pHandle::GetConnectionTargetInlet(unsigned int outlet, unsigne
 std::string YSE::pHandle::GetGuiValue() {
   return object->GetGuiValue();
 }
-

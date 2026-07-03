@@ -14,9 +14,9 @@
 #include <vector>
 #include <memory>
 
+using YSE::INTERNAL::poolClass;
 using YSE::INTERNAL::threadPool;
 using YSE::INTERNAL::threadPoolJob;
-using YSE::INTERNAL::poolClass;
 
 namespace {
   // A job that records the thread it ran on and bumps a shared counter.
@@ -30,42 +30,49 @@ namespace {
       counter->fetch_add(1, std::memory_order_relaxed);
     }
   };
-}
+} // namespace
 
 TEST_SUITE("internal") {
 
-TEST_CASE("threadPool: every dispatched render job runs and joins") {
+  TEST_CASE("threadPool: every dispatched render job runs and joins") {
     threadPool pool(4, poolClass::render);
     std::atomic<int> counter{0};
 
     constexpr int N = 500;
     std::vector<std::unique_ptr<CountJob>> jobs;
     jobs.reserve(N);
-    for (int i = 0; i < N; ++i) jobs.emplace_back(std::make_unique<CountJob>(&counter));
+    for (int i = 0; i < N; ++i)
+      jobs.emplace_back(std::make_unique<CountJob>(&counter));
 
-    for (auto& j : jobs) pool.addJob(j.get());
-    for (auto& j : jobs) j->join();
+    for (auto& j : jobs)
+      pool.addJob(j.get());
+    for (auto& j : jobs)
+      j->join();
 
     CHECK(counter.load() == N);
-    for (auto& j : jobs) CHECK(j->isQueued() == false);
-}
+    for (auto& j : jobs)
+      CHECK(j->isQueued() == false);
+  }
 
-TEST_CASE("threadPool: background pool runs fire-and-forget jobs") {
+  TEST_CASE("threadPool: background pool runs fire-and-forget jobs") {
     threadPool pool(1, poolClass::background);
     std::atomic<int> counter{0};
 
     constexpr int N = 100;
     std::vector<std::unique_ptr<CountJob>> jobs;
     jobs.reserve(N);
-    for (int i = 0; i < N; ++i) jobs.emplace_back(std::make_unique<CountJob>(&counter));
+    for (int i = 0; i < N; ++i)
+      jobs.emplace_back(std::make_unique<CountJob>(&counter));
 
-    for (auto& j : jobs) pool.addJob(j.get());
-    for (auto& j : jobs) j->join();
+    for (auto& j : jobs)
+      pool.addJob(j.get());
+    for (auto& j : jobs)
+      j->join();
 
     CHECK(counter.load() == N);
-}
+  }
 
-TEST_CASE("threadPool: join() returns promptly (no 2 ms sleep quantum)") {
+  TEST_CASE("threadPool: join() returns promptly (no 2 ms sleep quantum)") {
     threadPool pool(4, poolClass::render);
     std::atomic<int> counter{0};
 
@@ -75,18 +82,21 @@ TEST_CASE("threadPool: join() returns promptly (no 2 ms sleep quantum)") {
     constexpr int N = 50;
     std::vector<std::unique_ptr<CountJob>> jobs;
     jobs.reserve(N);
-    for (int i = 0; i < N; ++i) jobs.emplace_back(std::make_unique<CountJob>(&counter));
+    for (int i = 0; i < N; ++i)
+      jobs.emplace_back(std::make_unique<CountJob>(&counter));
 
     auto t0 = std::chrono::steady_clock::now();
-    for (auto& j : jobs) pool.addJob(j.get());
-    for (auto& j : jobs) j->join();
+    for (auto& j : jobs)
+      pool.addJob(j.get());
+    for (auto& j : jobs)
+      j->join();
     auto elapsed = std::chrono::steady_clock::now() - t0;
 
     CHECK(counter.load() == N);
     CHECK(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() < 50);
-}
+  }
 
-TEST_CASE("threadPool: render ring overflow falls back to inline execution") {
+  TEST_CASE("threadPool: render ring overflow falls back to inline execution") {
     // RENDER_CAPACITY is 4096. Stalling all workers and then dispatching more
     // than the ring holds forces the inline fallback path: no job is dropped.
     threadPool pool(2, poolClass::render);
@@ -98,7 +108,8 @@ TEST_CASE("threadPool: render ring overflow falls back to inline execution") {
       std::atomic<bool>* release;
       explicit BlockJob(std::atomic<bool>* r) : release(r) {}
       void run() override {
-        while (!release->load(std::memory_order_acquire)) std::this_thread::yield();
+        while (!release->load(std::memory_order_acquire))
+          std::this_thread::yield();
       }
     };
 
@@ -120,22 +131,27 @@ TEST_CASE("threadPool: render ring overflow falls back to inline execution") {
     }
 
     release.store(true, std::memory_order_release);
-    for (auto& b : blockers) b->join();
-    for (auto& j : jobs) j->join();
+    for (auto& b : blockers)
+      b->join();
+    for (auto& j : jobs)
+      j->join();
 
     CHECK(counter.load() == N); // nothing dropped
-}
+  }
 
-TEST_CASE("threadPool: survives shutdown()/startup() cycling") {
+  TEST_CASE("threadPool: survives shutdown()/startup() cycling") {
     threadPool pool(2, poolClass::render);
     std::atomic<int> counter{0};
 
     auto runBatch = [&](int n) {
       std::vector<std::unique_ptr<CountJob>> jobs;
       jobs.reserve(n);
-      for (int i = 0; i < n; ++i) jobs.emplace_back(std::make_unique<CountJob>(&counter));
-      for (auto& j : jobs) pool.addJob(j.get());
-      for (auto& j : jobs) j->join();
+      for (int i = 0; i < n; ++i)
+        jobs.emplace_back(std::make_unique<CountJob>(&counter));
+      for (auto& j : jobs)
+        pool.addJob(j.get());
+      for (auto& j : jobs)
+        j->join();
     };
 
     runBatch(50);
@@ -149,6 +165,6 @@ TEST_CASE("threadPool: survives shutdown()/startup() cycling") {
     runBatch(50);
 
     CHECK(counter.load() == 100);
-}
+  }
 
 } // TEST_SUITE

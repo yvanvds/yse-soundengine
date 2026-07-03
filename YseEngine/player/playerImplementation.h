@@ -24,27 +24,27 @@ namespace YSE {
 
     class implementationObject {
     public:
-      //implementationObject(player * head, synth * s);
+      // implementationObject(player * head, synth * s);
       ~implementationObject();
 
       bool update(Flt delta);
-      void parseMessage(const messageObject & message);
+      void parseMessage(const messageObject& message);
 
-      inline void sendMessage(const messageObject & message) {
+      inline void sendMessage(const messageObject& message) {
         messages.push(message);
       }
 
       void removeInterface();
 
     private:
-      std::atomic<player *> head;
+      std::atomic<player*> head;
       lfQueue<messageObject> messages;
-      //synth * instrument;
+      // synth * instrument;
       float waitTime;
-      
+
       struct voice {
-        voice(bool active) : isActive(active), notePlaying(false), 
-                             motifPlaying(false), duration(0) {}
+        voice(bool active)
+          : isActive(active), notePlaying(false), motifPlaying(false), duration(0) {}
         Bool isActive;
         Bool notePlaying;
         Bool motifPlaying;
@@ -56,8 +56,8 @@ namespace YSE {
         std::vector<MUSIC::pNote> motif;
       };
 
-      void setVoiceFromMotif(voice & v, Flt delta);
-      
+      void setVoiceFromMotif(voice& v, Flt delta);
+
       std::deque<MUSIC::note> notes;
       std::vector<voice> voices;
       UInt activeVoices;
@@ -80,7 +80,7 @@ namespace YSE {
       objectInterpolator<YSE::SCALE::implementationObject*> scale;
 
       struct wMotif {
-        YSE::MOTIF::implementationObject * motif;
+        YSE::MOTIF::implementationObject* motif;
         UInt weight;
       };
 
@@ -90,9 +90,7 @@ namespace YSE {
       friend class PLAYER::managerObject;
     };
 
-  }
-}
+  } // namespace PLAYER
+} // namespace YSE
 
-
-
-#endif  // PLAYER_HPP_INCLUDED
+#endif // PLAYER_HPP_INCLUDED

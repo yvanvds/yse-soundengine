@@ -29,22 +29,21 @@ namespace YSE {
         highPassDelay();
 
         /** @brief Set the high-pass cutoff frequency in Hz. */
-        highPassDelay & frequency(Flt value);
+        highPassDelay& frequency(Flt value);
 
         /** @brief Current cutoff frequency. */
         Flt frequency();
 
       private:
         virtual void createPreFilter();
-        virtual void applyPreFilter(DSP::buffer & buffer);
+        virtual void applyPreFilter(DSP::buffer& buffer);
 
         aFlt parmFrequency;
         std::shared_ptr<DSP::highPass> hp;
-
       };
 
-    }
-  }
-}
+    } // namespace MODULES
+  } // namespace DSP
+} // namespace YSE
 
-#endif  // HIGHPASSDELAY_HPP_INCLUDED
+#endif // HIGHPASSDELAY_HPP_INCLUDED

@@ -14,7 +14,7 @@
 #include "../headers/defines.hpp"
 #include "../headers/types.hpp"
 #include "player.hpp"
-//#include "../synth/synth.hpp"
+// #include "../synth/synth.hpp"
 #include "../music/motif/motif.hpp"
 
 namespace YSE {
@@ -77,7 +77,7 @@ namespace YSE {
      *  @note The player keeps its own copy — modifying ``scale`` after this
      *        call has no effect on the player.
      */
-    player& setScale(scale & scale, Flt time = 0);
+    player& setScale(scale& scale, Flt time = 0);
 
     /**
      *  @brief Add a motif to the player's pool.
@@ -85,13 +85,13 @@ namespace YSE {
      *  When the player decides to play a motif (see ``playMotifs``) it picks
      *  one weighted by ``weight``.
      */
-    player& addMotif(motif & motif, UInt weight = 1);
+    player& addMotif(motif& motif, UInt weight = 1);
 
     /** @brief Remove a previously added motif. */
-    player& removeMotif(motif & motif);
+    player& removeMotif(motif& motif);
 
     /** @brief Adjust the selection weight of an already-added motif. */
-    player& adjustMotifWeight(motif & motif, UInt weight);
+    player& adjustMotifWeight(motif& motif, UInt weight);
 
     /**
      *  @brief Probability that the player plays only part of a motif.
@@ -116,18 +116,13 @@ namespace YSE {
      */
     player& fitMotifsToScale(Flt target, Flt time = 0);
 
-
-
   private:
-    PLAYER::implementationObject * pimpl;
+    PLAYER::implementationObject* pimpl;
     Bool _isPlaying;
 
     friend class PLAYER::implementationObject;
   };
 
-  
-}
+} // namespace YSE
 
-
-
-#endif  // PLAYERINTERFACE_HPP_INCLUDED
+#endif // PLAYERINTERFACE_HPP_INCLUDED

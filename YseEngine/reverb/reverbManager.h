@@ -31,7 +31,7 @@ namespace YSE {
       managerObject();
       ~managerObject() noexcept;
 
-      /** reverbManager needs extra setup because we cannot create the needed reverb objects 
+      /** reverbManager needs extra setup because we cannot create the needed reverb objects
           in the constructor because the forward_list reverbs might not be ready at that
           instant.
       */
@@ -54,7 +54,7 @@ namespace YSE {
 
       @return       A pointer to a new object implementation
       */
-      implementationObject * addImplementation(reverb * head);
+      implementationObject* addImplementation(reverb* head);
 
       /** This function instructs the manager to put the implementation
       in a list of objects to load. It is called from the interfaceObject
@@ -62,10 +62,10 @@ namespace YSE {
 
       &param impl   The implementation to setup
       */
-      void setup(implementationObject * impl);
+      void setup(implementationObject* impl);
 
       /** Returns true if no implementations exist
-      */
+       */
       Bool empty();
 
       /** This function calculates the effective reverb from all active reverbs within
@@ -75,14 +75,14 @@ namespace YSE {
 
       /** This attaches the reverb to a channel. Reverb will be applied to this channel only.
           Because applying reverb needs a lot of cpu time, this is the default way to work
-          with reverb. If you really want to use more than one reverb, it can be added 
+          with reverb. If you really want to use more than one reverb, it can be added
           as a post-DSPobject to a sound or a channel.
       */
-      void attachToChannel(CHANNEL::implementationObject * ptr);
+      void attachToChannel(CHANNEL::implementationObject* ptr);
 
       /** If the reverb is attached to a channel, it will be applied here
-      */
-      void process(CHANNEL::implementationObject * ptr); 
+       */
+      void process(CHANNEL::implementationObject* ptr);
 
       /** This function is called by the system if the number of channels changes, because
           it needs to change the reverb output channels to reflect this.
@@ -92,11 +92,12 @@ namespace YSE {
       /** Returns a reference to the global reverb interface. These are the settings that will
           become active if no combination of local reverbs is fully active at the current location.
       */
-      reverb & getGlobalReverb();
+      reverb& getGlobalReverb();
 
     private:
-      INTERNAL::reverbDSP reverbDSPObject; // this is the actual reverb object (there can be only one)
-      CHANNEL::implementationObject * reverbChannel; // < the channel on which to apply this reverb
+      INTERNAL::reverbDSP
+          reverbDSPObject; // this is the actual reverb object (there can be only one)
+      CHANNEL::implementationObject* reverbChannel; // < the channel on which to apply this reverb
 
       reverb globalReverb;
       reverb calculatedValues;
@@ -131,11 +132,8 @@ namespace YSE {
       friend class INTERNAL::managerDeleteJob<managerObject>;
     };
 
-    managerObject & Manager();
-  }
-}
+    managerObject& Manager();
+  } // namespace REVERB
+} // namespace YSE
 
-
-
-
-#endif  // REVERBMANAGER_H_INCLUDED
+#endif // REVERBMANAGER_H_INCLUDED

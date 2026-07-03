@@ -1,6 +1,6 @@
 #pragma once
 
-#define DEFOBJ(name, tag) static constexpr char const * name = tag
+#define DEFOBJ(name, tag) static constexpr char const* name = tag
 
 namespace YSE {
   /**
@@ -40,7 +40,7 @@ namespace YSE {
     DEFOBJ(G_BUTTON, ".b");
     DEFOBJ(G_TOGGLE, ".t");
     DEFOBJ(G_MESSAGE, ".m");
-	DEFOBJ(G_LIST, ".l");
+    DEFOBJ(G_LIST, ".l");
     DEFOBJ(G_TEXT, ".text");
     DEFOBJ(G_COUNTER, ".counter");
     DEFOBJ(G_SWITCH, ".switch");
@@ -70,12 +70,12 @@ namespace YSE {
     DEFOBJ(D_BANDPASS, "~bp");
     DEFOBJ(D_VCF, "~vcf");
 
-	DEFOBJ(M_OUT, ".midiout");
-	DEFOBJ(M_NOTEON, ".noteon");
-	DEFOBJ(M_NOTEOFF, ".noteoff");
-	DEFOBJ(M_CONTROL, ".controlchange");
-	DEFOBJ(M_POLYPRESS, ".polypressure");
-	DEFOBJ(M_CHANPRESS, ".channelpressure");
-	DEFOBJ(M_PROGCHANGE, ".programchange");
+    DEFOBJ(M_OUT, ".midiout");
+    DEFOBJ(M_NOTEON, ".noteon");
+    DEFOBJ(M_NOTEOFF, ".noteoff");
+    DEFOBJ(M_CONTROL, ".controlchange");
+    DEFOBJ(M_POLYPRESS, ".polypressure");
+    DEFOBJ(M_CHANPRESS, ".channelpressure");
+    DEFOBJ(M_PROGCHANGE, ".programchange");
   };
-}
+} // namespace YSE

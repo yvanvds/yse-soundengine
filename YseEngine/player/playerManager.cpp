@@ -10,7 +10,7 @@
 
 #include "../internalHeaders.h"
 
-YSE::PLAYER::managerObject & YSE::PLAYER::Manager() {
+YSE::PLAYER::managerObject& YSE::PLAYER::Manager() {
   static managerObject m;
   return m;
 }
@@ -23,7 +23,7 @@ YSE::PLAYER::managerObject::~managerObject() {
 
 void YSE::PLAYER::managerObject::update(Flt delta) {
   auto previous = implementations.before_begin();
-  for (auto i = implementations.begin(); i != implementations.end(); ) {
+  for (auto i = implementations.begin(); i != implementations.end();) {
     if (!i->update(delta)) {
       i = implementations.erase_after(previous);
     }
@@ -32,10 +32,6 @@ void YSE::PLAYER::managerObject::update(Flt delta) {
   }
 }
 
-/*YSE::PLAYER::implementationObject * YSE::PLAYER::managerObject::addImplementation(player * head, synth * s) {
-  implementations.emplace_front(head, s);
-  return &implementations.front();
+/*YSE::PLAYER::implementationObject * YSE::PLAYER::managerObject::addImplementation(player * head,
+synth * s) { implementations.emplace_front(head, s); return &implementations.front();
 }*/
-
-
-

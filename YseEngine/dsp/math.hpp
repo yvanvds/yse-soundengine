@@ -42,7 +42,7 @@ namespace YSE {
       clip() : low(-1.0f), high(1.0f) {}
 
       /** @brief Process ``in`` in place. */
-      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in);
 
     private:
       aFlt low;
@@ -59,8 +59,9 @@ namespace YSE {
     class API rSqrt {
     public:
       /** @brief Process ``in`` in place. */
-      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in);
       rSqrt();
+
     private:
       YSE::DSP::buffer buffer;
     };
@@ -74,8 +75,9 @@ namespace YSE {
     class API sqrt {
     public:
       /** @brief Process ``in`` in place. */
-      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in);
       sqrt();
+
     private:
       YSE::DSP::buffer buffer;
     };
@@ -84,7 +86,8 @@ namespace YSE {
     class API wrap {
     public:
       /** @brief Process ``in`` in place. */
-      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in);
+
     private:
       YSE::DSP::buffer buffer;
     };
@@ -93,7 +96,8 @@ namespace YSE {
     class API midiToFreq {
     public:
       /** @brief Process ``in`` in place. */
-      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in);
+
     private:
       YSE::DSP::buffer buffer;
     };
@@ -102,7 +106,8 @@ namespace YSE {
     class API freqToMidi {
     public:
       /** @brief Process ``in`` in place. */
-      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in);
+
     private:
       YSE::DSP::buffer buffer;
     };
@@ -111,7 +116,8 @@ namespace YSE {
     class API dbToRms {
     public:
       /** @brief Process ``in`` in place. */
-      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in);
+
     private:
       YSE::DSP::buffer buffer;
     };
@@ -120,7 +126,8 @@ namespace YSE {
     class API rmsToDb {
     public:
       /** @brief Process ``in`` in place. */
-      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in);
+
     private:
       YSE::DSP::buffer buffer;
     };
@@ -129,7 +136,8 @@ namespace YSE {
     class API dbToPow {
     public:
       /** @brief Process ``in`` in place. */
-      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in);
+
     private:
       YSE::DSP::buffer buffer;
     };
@@ -138,7 +146,8 @@ namespace YSE {
     class API powToDb {
     public:
       /** @brief Process ``in`` in place. */
-      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in);
+
     private:
       YSE::DSP::buffer buffer;
     };
@@ -147,7 +156,8 @@ namespace YSE {
     class API pow {
     public:
       /** @brief Compute ``in1[i] ** in2[i]`` in place. */
-      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in1, YSE::DSP::buffer & in2);
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in1, YSE::DSP::buffer& in2);
+
     private:
       YSE::DSP::buffer buffer;
     };
@@ -156,7 +166,8 @@ namespace YSE {
     class API exp {
     public:
       /** @brief Process ``in`` in place. */
-      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in);
+
     private:
       YSE::DSP::buffer buffer;
     };
@@ -165,7 +176,8 @@ namespace YSE {
     class API log {
     public:
       /** @brief Compute ``log_{in2}(in1)`` in place. */
-      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in1, YSE::DSP::buffer & in2);
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in1, YSE::DSP::buffer& in2);
+
     private:
       YSE::DSP::buffer buffer;
     };
@@ -174,7 +186,8 @@ namespace YSE {
     class API abs {
     public:
       /** @brief Process ``in`` in place. */
-      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in);
+
     private:
       YSE::DSP::buffer buffer;
     };
@@ -189,11 +202,12 @@ namespace YSE {
     class API inverter {
     public:
       /** @brief Process ``in`` in place. ``zeroToOne`` selects the inversion mode. */
-      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in, bool zeroToOne = false);
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in, bool zeroToOne = false);
+
     private:
       YSE::DSP::buffer buffer;
     };
-  }
-}
+  } // namespace DSP
+} // namespace YSE
 
-#endif  // MATH_H_INCLUDED
+#endif // MATH_H_INCLUDED

@@ -11,4 +11,6 @@
 #include "vector.hpp"
 #include "../utils/atomicPos.h"
 
-YSE::Pos::Pos(const aPos & v) { set(v.x.load(), v.y.load(), v.z.load()); }
+YSE::Pos::Pos(const aPos& v) {
+  set(v.x.load(), v.y.load(), v.z.load());
+}

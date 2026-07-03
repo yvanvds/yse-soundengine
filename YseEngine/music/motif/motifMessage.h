@@ -26,7 +26,7 @@ namespace YSE {
     class messageObject {
     public:
       /** The ID of a message defines how it will be stored in the implementation
-      */
+       */
       MESSAGE ID;
 
 #if defined(__clang__)
@@ -35,7 +35,7 @@ namespace YSE {
 #endif
       union {
         Flt floatValue;
-        void * ptr;
+        void* ptr;
         struct {
           Flt position;
           Flt pitch;
@@ -43,18 +43,13 @@ namespace YSE {
           Flt length;
           Int channel;
         } note;
-
       };
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #endif
     };
 
-  }
-}
+  } // namespace MOTIF
+} // namespace YSE
 
-
-
-
-
-#endif  // MOTIFMESSAGE_H_INCLUDED
+#endif // MOTIFMESSAGE_H_INCLUDED

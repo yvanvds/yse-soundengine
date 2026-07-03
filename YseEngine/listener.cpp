@@ -10,7 +10,7 @@
 
 #include "internalHeaders.h"
 
-YSE::listener & YSE::Listener() {
+YSE::listener& YSE::Listener() {
   static listener l;
   return l;
 }
@@ -31,14 +31,14 @@ YSE::Pos YSE::listener::upward() {
   return INTERNAL::ListenerImpl().up;
 }
 
-YSE::listener& YSE::listener::pos(const Pos &pos) {
+YSE::listener& YSE::listener::pos(const Pos& pos) {
   INTERNAL::ListenerImpl().pos.x = pos.x;
   INTERNAL::ListenerImpl().pos.y = pos.y;
   INTERNAL::ListenerImpl().pos.z = pos.z;
   return (*this);
 }
 
-YSE::listener& YSE::listener::orient(const Pos &forward, const Pos &up) {
+YSE::listener& YSE::listener::orient(const Pos& forward, const Pos& up) {
   INTERNAL::ListenerImpl().forward = forward;
   INTERNAL::ListenerImpl().up = up;
   return (*this);

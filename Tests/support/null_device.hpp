@@ -41,36 +41,36 @@
 
 namespace TestHelpers {
 
-// Returns true if the master channel has already been initialised via System().init().
-inline bool engineInitialized() {
+  // Returns true if the master channel has already been initialised via System().init().
+  inline bool engineInitialized() {
     return YSE::ChannelMaster().isValid();
-}
+  }
 
-// Initialise the full engine state and pause the audio stream so the test
-// thread is the sole driver of `Manager().update()`. Returns true on
-// success, false if init failed (typically CI without a default audio
-// device — addCallback() is a no-op there).
-inline bool engineInit() {
+  // Initialise the full engine state and pause the audio stream so the test
+  // thread is the sole driver of `Manager().update()`. Returns true on
+  // success, false if init failed (typically CI without a default audio
+  // device — addCallback() is a no-op there).
+  inline bool engineInit() {
     if (engineInitialized()) return true;
     if (!YSE::System().init()) return false;
     YSE::System().pause();
     return true;
-}
+  }
 
-// Like engineInit() but resumes the audio stream afterwards. Use only in
-// integration tests that exercise the live audio callback path, and pump
-// the engine via `YSE::System().update()` + `System().sleep()` rather than
-// `Manager().update()` to avoid double-driving the manager update from two
-// threads. The local-static gate keeps resume() idempotent across multiple
-// test cases.
-inline bool engineInitWithAudio() {
+  // Like engineInit() but resumes the audio stream afterwards. Use only in
+  // integration tests that exercise the live audio callback path, and pump
+  // the engine via `YSE::System().update()` + `System().sleep()` rather than
+  // `Manager().update()` to avoid double-driving the manager update from two
+  // threads. The local-static gate keeps resume() idempotent across multiple
+  // test cases.
+  inline bool engineInitWithAudio() {
     if (!engineInit()) return false;
     static bool audioResumed = false;
     if (!audioResumed) {
-        YSE::System().resume();
-        audioResumed = true;
+      YSE::System().resume();
+      audioResumed = true;
     }
     return true;
-}
+  }
 
 } // namespace TestHelpers

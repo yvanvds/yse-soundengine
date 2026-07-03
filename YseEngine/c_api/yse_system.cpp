@@ -30,7 +30,7 @@ namespace {
     }
     return src.size();
   }
-}
+} // namespace
 
 extern "C" {
 
@@ -174,7 +174,8 @@ YSE_C_API YseDevice* yse_system_get_device(YseSystem* sys, unsigned int idx) {
   }
 }
 
-YSE_C_API YseStatus yse_system_open_device(YseSystem* sys, const YseDeviceSetup* setup, YseChannelType layout) {
+YSE_C_API YseStatus yse_system_open_device(YseSystem* sys, const YseDeviceSetup* setup,
+                                           YseChannelType layout) {
   if (!sys) return YSE_ERR_INVALID_HANDLE;
   if (!setup) return YSE_ERR_INVALID_ARGUMENT;
   try {
@@ -195,12 +196,18 @@ YSE_C_API void yse_system_close_current_device(YseSystem* sys) {
 }
 
 YSE_C_API size_t yse_system_default_device(YseSystem* sys, char* buf, size_t cap) {
-  if (!sys) { if (buf && cap > 0) buf[0] = '\0'; return 0; }
+  if (!sys) {
+    if (buf && cap > 0) buf[0] = '\0';
+    return 0;
+  }
   return copy_string(to_cpp(sys)->getDefaultDevice(), buf, cap);
 }
 
 YSE_C_API size_t yse_system_default_host(YseSystem* sys, char* buf, size_t cap) {
-  if (!sys) { if (buf && cap > 0) buf[0] = '\0'; return 0; }
+  if (!sys) {
+    if (buf && cap > 0) buf[0] = '\0';
+    return 0;
+  }
   return copy_string(to_cpp(sys)->getDefaultHost(), buf, cap);
 }
 
@@ -211,7 +218,8 @@ YSE_C_API unsigned int yse_system_num_midi_in_devices(YseSystem* sys) {
   if (!sys) return 0;
   return to_cpp(sys)->getNumMidiInDevices();
 #else
-  (void)sys; return 0;
+  (void)sys;
+  return 0;
 #endif
 }
 
@@ -220,29 +228,46 @@ YSE_C_API unsigned int yse_system_num_midi_out_devices(YseSystem* sys) {
   if (!sys) return 0;
   return to_cpp(sys)->getNumMidiOutDevices();
 #else
-  (void)sys; return 0;
+  (void)sys;
+  return 0;
 #endif
 }
 
-YSE_C_API size_t yse_system_midi_in_device_name(YseSystem* sys, unsigned int id, char* buf, size_t cap) {
+YSE_C_API size_t yse_system_midi_in_device_name(YseSystem* sys, unsigned int id, char* buf,
+                                                size_t cap) {
   if (buf && cap > 0) buf[0] = '\0';
 #if YSE_ENABLE_MIDI_DEVICE
   if (!sys) return 0;
-  try { return copy_string(to_cpp(sys)->getMidiInDeviceName(id), buf, cap); }
-  catch (const std::exception&) { return 0; }
+  try {
+    return copy_string(to_cpp(sys)->getMidiInDeviceName(id), buf, cap);
+  } catch (const std::exception&) {
+    return 0;
+  }
 #else
-  (void)sys; (void)id; (void)buf; (void)cap; return 0;
+  (void)sys;
+  (void)id;
+  (void)buf;
+  (void)cap;
+  return 0;
 #endif
 }
 
-YSE_C_API size_t yse_system_midi_out_device_name(YseSystem* sys, unsigned int id, char* buf, size_t cap) {
+YSE_C_API size_t yse_system_midi_out_device_name(YseSystem* sys, unsigned int id, char* buf,
+                                                 size_t cap) {
   if (buf && cap > 0) buf[0] = '\0';
 #if YSE_ENABLE_MIDI_DEVICE
   if (!sys) return 0;
-  try { return copy_string(to_cpp(sys)->getMidiOutDeviceName(id), buf, cap); }
-  catch (const std::exception&) { return 0; }
+  try {
+    return copy_string(to_cpp(sys)->getMidiOutDeviceName(id), buf, cap);
+  } catch (const std::exception&) {
+    return 0;
+  }
 #else
-  (void)sys; (void)id; (void)buf; (void)cap; return 0;
+  (void)sys;
+  (void)id;
+  (void)buf;
+  (void)cap;
+  return 0;
 #endif
 }
 

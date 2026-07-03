@@ -26,7 +26,8 @@ namespace YSE {
     class API fileBuffer : public drawableBuffer {
     public:
       /** @brief Construct a file buffer. See ``buffer::buffer``. */
-      fileBuffer(UInt length = STANDARD_BUFFERSIZE, UInt overflow = 0) : drawableBuffer(length, overflow) {}
+      fileBuffer(UInt length = STANDARD_BUFFERSIZE, UInt overflow = 0)
+        : drawableBuffer(length, overflow) {}
 
       /**
        *  @brief Load one channel from an audio file.
@@ -36,24 +37,28 @@ namespace YSE {
        *  @return ``true`` on success, ``false`` if the file cannot be opened or
        *          the requested channel does not exist.
        */
-      bool load(const char * fileName, UInt channel = 0);
+      bool load(const char* fileName, UInt channel = 0);
 
       /**
        *  @brief Save the contents to a mono WAV file.
        *  @note WAV is currently the only supported output format.
        */
-      bool save(const char * fileName);
+      bool save(const char* fileName);
 
       /** @brief Copy-assign from a ``buffer``. */
-      fileBuffer & operator=(const buffer & s) { buffer::operator=(s); return *this; }
+      fileBuffer& operator=(const buffer& s) {
+        buffer::operator=(s);
+        return *this;
+      }
       /** @brief Fill every sample with ``value``. */
-      fileBuffer & operator=(Flt value) { buffer::operator=(value); return *this; }
+      fileBuffer& operator=(Flt value) {
+        buffer::operator=(value);
+        return *this;
+      }
     };
 
-  }
+  } // namespace DSP
 
-}
+} // namespace YSE
 
-
-
-#endif  // FILEBUFFER_H_INCLUDED
+#endif // FILEBUFFER_H_INCLUDED

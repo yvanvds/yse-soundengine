@@ -12,7 +12,7 @@
 #define MIDIFILE_H_INCLUDED
 
 #include <string>
-//#include "../synth/synth.hpp"
+// #include "../synth/synth.hpp"
 #include "../headers/defines.hpp"
 
 namespace YSE {
@@ -35,23 +35,21 @@ namespace YSE {
       /** @brief Load a standard MIDI file.
        *  @return ``true`` on success.
        */
-      bool create(const std::string & fileName);
+      bool create(const std::string& fileName);
 
       /** @brief Start or resume playback. */
-      void play ();
+      void play();
 
       /** @brief Pause playback. Resume with ``play``. */
       void pause();
 
       /** @brief Stop playback and rewind to the start. */
-      void stop ();
+      void stop();
 
     private:
-      fileImpl * pimpl;
+      fileImpl* pimpl;
     };
-  }
-}
+  } // namespace MIDI
+} // namespace YSE
 
-
-
-#endif  // MIDIFILE_H_INCLUDED
+#endif // MIDIFILE_H_INCLUDED

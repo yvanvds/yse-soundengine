@@ -17,13 +17,13 @@
 #include "patcher/pEnums.h"
 #include "patcher/parameters.h"
 
-using YSE::PATCHER::pObject;
 using YSE::PATCHER::pCategory;
+using YSE::PATCHER::pObject;
 using YSE::PATCHER::Register;
 
 TEST_SUITE("patcher") {
 
-TEST_CASE("doc coverage: every registered object documents itself") {
+  TEST_CASE("doc coverage: every registered object documents itself") {
     auto names = Register().AllNames();
 
     // Sanity check — guards against a registry that silently went empty
@@ -32,37 +32,37 @@ TEST_CASE("doc coverage: every registered object documents itself") {
     // assertions below carry the real work.
     REQUIRE(names.size() > 0);
 
-    for (const auto & name : names) {
-        CAPTURE(name);
-        std::unique_ptr<pObject> obj(Register().Get(name));
-        REQUIRE(obj != nullptr);
+    for (const auto& name : names) {
+      CAPTURE(name);
+      std::unique_ptr<pObject> obj(Register().Get(name));
+      REQUIRE(obj != nullptr);
 
-        REQUIRE_FALSE(obj->GetDescription().empty());
-        REQUIRE(obj->GetCategory() != pCategory::UNSET);
+      REQUIRE_FALSE(obj->GetDescription().empty());
+      REQUIRE(obj->GetCategory() != pCategory::UNSET);
 
-        for (int i = 0; i < obj->NumInputs(); ++i) {
-            CAPTURE(i);
-            auto * port = obj->GetInlet(i);
-            REQUIRE(port != nullptr);
-            REQUIRE_FALSE(port->GetDocLabel().empty());
-            REQUIRE_FALSE(port->GetDocDescription().empty());
-        }
+      for (int i = 0; i < obj->NumInputs(); ++i) {
+        CAPTURE(i);
+        auto* port = obj->GetInlet(i);
+        REQUIRE(port != nullptr);
+        REQUIRE_FALSE(port->GetDocLabel().empty());
+        REQUIRE_FALSE(port->GetDocDescription().empty());
+      }
 
-        for (int i = 0; i < obj->NumOutputs(); ++i) {
-            CAPTURE(i);
-            auto * port = obj->GetOutlet(i);
-            REQUIRE(port != nullptr);
-            REQUIRE_FALSE(port->GetDocLabel().empty());
-            REQUIRE_FALSE(port->GetDocDescription().empty());
-        }
+      for (int i = 0; i < obj->NumOutputs(); ++i) {
+        CAPTURE(i);
+        auto* port = obj->GetOutlet(i);
+        REQUIRE(port != nullptr);
+        REQUIRE_FALSE(port->GetDocLabel().empty());
+        REQUIRE_FALSE(port->GetDocDescription().empty());
+      }
 
-        const auto & paramDocs = obj->GetParamDocs();
-        for (const auto & p : paramDocs) {
-            CAPTURE(p.name);
-            REQUIRE_FALSE(p.name.empty());
-            REQUIRE_FALSE(p.doc.empty());
-        }
+      const auto& paramDocs = obj->GetParamDocs();
+      for (const auto& p : paramDocs) {
+        CAPTURE(p.name);
+        REQUIRE_FALSE(p.name.empty());
+        REQUIRE_FALSE(p.doc.empty());
+      }
     }
-}
+  }
 
-}  // TEST_SUITE
+} // TEST_SUITE

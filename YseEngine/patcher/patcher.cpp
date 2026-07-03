@@ -6,19 +6,14 @@
 
 using namespace YSE;
 
-patcher::patcher()
-  : pimpl(nullptr)
-{
-
-}
+patcher::patcher() : pimpl(nullptr) {}
 
 patcher::~patcher() {
   if (pimpl != nullptr) {
-		INTERNAL::LogImpl().emit(E_DEBUG, "Deleting Patcher.");
+    INTERNAL::LogImpl().emit(E_DEBUG, "Deleting Patcher.");
     if (pimpl->controlledBySound) {
       pimpl->head.store(nullptr);
-    }
-    else {
+    } else {
       delete pimpl;
     }
   }
@@ -27,43 +22,41 @@ patcher::~patcher() {
 void patcher::create(int mainOutputs) {
   if (pimpl != nullptr) return;
   pimpl = new PATCHER::patcherImplementation(mainOutputs, this);
-	if (pimpl != nullptr) {
-		INTERNAL::LogImpl().emit(E_DEBUG, "Patcher Created.");
+  if (pimpl != nullptr) {
+    INTERNAL::LogImpl().emit(E_DEBUG, "Patcher Created.");
     if (!pendingName.empty()) {
       pimpl->SetName(pendingName);
       pendingName.clear();
     }
-	}
-	else {
-		INTERNAL::LogImpl().emit(E_ERROR, "Patcher could not be Created.");
-	}
+  } else {
+    INTERNAL::LogImpl().emit(E_ERROR, "Patcher could not be Created.");
+  }
 }
 
-patcher & patcher::name(const std::string & n) {
+patcher& patcher::name(const std::string& n) {
   if (pimpl != nullptr) {
     pimpl->SetName(n);
-  }
-  else {
+  } else {
     // Stash until create() runs. The impl is what owns the canonical name.
     pendingName = n;
   }
   return *this;
 }
 
-const std::string & patcher::name() const {
+const std::string& patcher::name() const {
   if (pimpl != nullptr) return pimpl->Name();
   return pendingName;
 }
 
-pHandle * patcher::CreateObject(const std::string & type, const std::string & args) {
-	if (pimpl == nullptr) {
-		INTERNAL::LogImpl().emit(E_ERROR, "Unable to create object: " + type);
-		return nullptr;
-	}
+pHandle* patcher::CreateObject(const std::string& type, const std::string& args) {
+  if (pimpl == nullptr) {
+    INTERNAL::LogImpl().emit(E_ERROR, "Unable to create object: " + type);
+    return nullptr;
+  }
   return pimpl->CreateObject(type, args);
 }
 
-void patcher::DeleteObject(pHandle * obj) {
+void patcher::DeleteObject(pHandle* obj) {
   if (pimpl == nullptr) return;
   pimpl->DeleteObject(obj);
 }
@@ -73,17 +66,17 @@ void patcher::Clear() {
   pimpl->Clear();
 }
 
-void patcher::Connect(pHandle * from, int outlet, pHandle * to, int inlet) {
+void patcher::Connect(pHandle* from, int outlet, pHandle* to, int inlet) {
   if (pimpl == nullptr) return;
   pimpl->Connect(from, outlet, to, inlet);
 }
 
-void patcher::Disconnect(pHandle * from, int outlet, pHandle * to, int inlet) {
+void patcher::Disconnect(pHandle* from, int outlet, pHandle* to, int inlet) {
   if (pimpl == nullptr) return;
   pimpl->Disconnect(from, outlet, to, inlet);
 }
 
-bool patcher::IsValidObject(const char * type) {
+bool patcher::IsValidObject(const char* type) {
   return YSE::PATCHER::Register().IsValidObject(type);
 }
 
@@ -93,7 +86,7 @@ std::string patcher::DumpJSON() {
   return result;
 }
 
-void patcher::ParseJSON(const std::string & content) {
+void patcher::ParseJSON(const std::string& content) {
   if (pimpl == nullptr) return;
   pimpl->ParseJSON(content);
 }
@@ -103,52 +96,52 @@ unsigned int patcher::Objects() {
   return pimpl->Objects();
 }
 
-YSE::pHandle * patcher::GetHandleFromList(unsigned int obj) {
+YSE::pHandle* patcher::GetHandleFromList(unsigned int obj) {
   if (pimpl == nullptr) return nullptr;
   return pimpl->GetHandleFromList(obj);
 }
 
-YSE::pHandle * patcher::GetHandleFromID(unsigned int objID) {
+YSE::pHandle* patcher::GetHandleFromID(unsigned int objID) {
   if (pimpl == nullptr) return nullptr;
   return pimpl->GetHandleFromID(objID);
 }
 
-bool patcher::PassBang(const std::string & to) {
-	if (pimpl == nullptr) {
-		INTERNAL::LogImpl().emit(E_ERROR, "PassBang called on nullptr to " + to);
-		return false;
-	}
+bool patcher::PassBang(const std::string& to) {
+  if (pimpl == nullptr) {
+    INTERNAL::LogImpl().emit(E_ERROR, "PassBang called on nullptr to " + to);
+    return false;
+  }
   return pimpl->PassBang(to, T_GUI);
 }
 
-bool patcher::PassData(int value, const std::string & to) {
+bool patcher::PassData(int value, const std::string& to) {
   if (pimpl == nullptr) {
-		INTERNAL::LogImpl().emit(E_ERROR, "PassData (int) called on nullptr to " + to);
-		return false;
-	}
+    INTERNAL::LogImpl().emit(E_ERROR, "PassData (int) called on nullptr to " + to);
+    return false;
+  }
   return pimpl->PassData(value, to, T_GUI);
 }
 
-bool patcher::PassData(float value, const std::string & to) {
+bool patcher::PassData(float value, const std::string& to) {
   if (pimpl == nullptr) {
-		INTERNAL::LogImpl().emit(E_ERROR, "PassData (float) called on nullptr to " + to);
-		return false;
-	}
+    INTERNAL::LogImpl().emit(E_ERROR, "PassData (float) called on nullptr to " + to);
+    return false;
+  }
   return pimpl->PassData(value, to, T_GUI);
 }
 
-bool patcher::PassData(const std::string & value, const std::string & to) {
+bool patcher::PassData(const std::string& value, const std::string& to) {
   if (pimpl == nullptr) {
-		INTERNAL::LogImpl().emit(E_ERROR, "PassData (string) called on nullptr to " + to);
-		return false;
-	}
+    INTERNAL::LogImpl().emit(E_ERROR, "PassData (string) called on nullptr to " + to);
+    return false;
+  }
   return pimpl->PassData(value, to, T_GUI);
 }
 
-void patcher::SetOscHandler(oscHandler * handler) {
-	if (pimpl == nullptr) {
-		INTERNAL::LogImpl().emit(E_ERROR, "SetOscHandler called on nullptr");
-		return;
-	}
-	pimpl->SetHandler(handler);
+void patcher::SetOscHandler(oscHandler* handler) {
+  if (pimpl == nullptr) {
+    INTERNAL::LogImpl().emit(E_ERROR, "SetOscHandler called on nullptr");
+    return;
+  }
+  pimpl->SetHandler(handler);
 }

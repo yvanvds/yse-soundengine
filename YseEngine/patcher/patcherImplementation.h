@@ -13,61 +13,63 @@ namespace YSE {
 
     class patcherImplementation : public pObject {
     public:
-      patcherImplementation(int mainOutputs, patcher * head);
+      patcherImplementation(int mainOutputs, patcher* head);
       virtual ~patcherImplementation();
 
       // Patcher name used as the bus prefix for inner gSend / gReceive
       // routing (issue #122). Default is an auto-generated "patcher_<N>"
       // identifier (process-wide counter). SetName() re-subscribes every
       // gReceive in the patcher so that a rename is transparent.
-      const std::string & Name() const { return patcherName; }
-      void SetName(const std::string & n);
+      const std::string& Name() const {
+        return patcherName;
+      }
+      void SetName(const std::string& n);
 
-      virtual const char * Type() const;
+      virtual const char* Type() const;
       virtual void ResetDSP();
       virtual void Calculate(THREAD thread);
 
-      virtual void SetMessage(const std::string &, float) {}
+      virtual void SetMessage(const std::string&, float) {}
 
-      pHandle * CreateObject(const std::string & type, const std::string & args);
-      void DeleteObject(pHandle * obj);
+      pHandle* CreateObject(const std::string& type, const std::string& args);
+      void DeleteObject(pHandle* obj);
       void Clear();
-      
-      void Connect(pHandle * from, int outlet, pHandle * to, int inlet);
-      void Disconnect(pHandle * from, int outlet, pHandle * to, int inlet);
+
+      void Connect(pHandle* from, int outlet, pHandle* to, int inlet);
+      void Disconnect(pHandle* from, int outlet, pHandle* to, int inlet);
 
       std::string DumpJSON();
-      void ParseJSON(const std::string & content);
+      void ParseJSON(const std::string& content);
 
       unsigned int Objects();
-      YSE::pHandle * GetHandleFromList(unsigned int obj);
-      YSE::pHandle * GetHandleFromID(unsigned int objID);
+      YSE::pHandle* GetHandleFromList(unsigned int obj);
+      YSE::pHandle* GetHandleFromID(unsigned int objID);
 
-      std::vector<YSE::DSP::buffer>  output;
+      std::vector<YSE::DSP::buffer> output;
 
       aBool controlledBySound;
       std::atomic<patcher*> head;
 
       // for external data input
-      bool PassBang(const std::string & to, THREAD thread);
-      bool PassData(int value, const std::string & to, THREAD thread);
-      bool PassData(float value, const std::string & to, THREAD thread);
-      bool PassData(const std::string & value, const std::string & to, THREAD thread);
+      bool PassBang(const std::string& to, THREAD thread);
+      bool PassData(int value, const std::string& to, THREAD thread);
+      bool PassData(float value, const std::string& to, THREAD thread);
+      bool PassData(const std::string& value, const std::string& to, THREAD thread);
 
-			void SetHandler(oscHandler * handler);
+      void SetHandler(oscHandler* handler);
 
     private:
       std::mutex mtx;
       bool fileHandlerActive;
       std::map<pHandle*, pObject*> objects;
-			oscHandler * oscHandle = nullptr;
+      oscHandler* oscHandle = nullptr;
 
       // Bus-prefix for inner gSend/gReceive routing (issue #122). Defaulted
       // to "patcher_<N>" in the ctor; mutated by SetName().
       std::string patcherName;
 
-			std::string GetRecieveObjectsAsString();
+      std::string GetRecieveObjectsAsString();
     };
 
-  }
-}
+  } // namespace PATCHER
+} // namespace YSE

@@ -16,12 +16,12 @@ void YSE::DSP::MODULES::lowPassDelay::createPreFilter() {
   lp.reset(new DSP::lowPass);
 }
 
-void YSE::DSP::MODULES::lowPassDelay::applyPreFilter(DSP::buffer & buffer) {
+void YSE::DSP::MODULES::lowPassDelay::applyPreFilter(DSP::buffer& buffer) {
   (*lp).setFrequency(parmFrequency);
   buffer = (*lp)(buffer);
 }
 
-YSE::DSP::MODULES::lowPassDelay & YSE::DSP::MODULES::lowPassDelay::frequency(Flt value) {
+YSE::DSP::MODULES::lowPassDelay& YSE::DSP::MODULES::lowPassDelay::frequency(Flt value) {
   parmFrequency.store(value);
   return *this;
 }

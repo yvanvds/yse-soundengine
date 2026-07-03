@@ -29,29 +29,27 @@ namespace YSE {
       interpolate4();
 
       /** @brief Set the source buffer to read from. */
-      interpolate4 & source(buffer & data);
+      interpolate4& source(buffer& data);
 
       /** @brief Currently attached source buffer. */
-      buffer * source();
+      buffer* source();
 
       /** @brief Set the read-offset relative to the start of the source. */
-      interpolate4 & onset(Int value);
+      interpolate4& onset(Int value);
 
       /** @brief Current read-offset. */
       Int onset();
 
       /** @brief Resample ``in`` (treated as fractional positions) through the cubic kernel. */
-      buffer & operator()(YSE::DSP::buffer & in);
+      buffer& operator()(YSE::DSP::buffer& in);
 
     private:
-      buffer * data;
+      buffer* data;
       buffer out;
       aInt parmOnset;
     };
 
-  }
-}
+  } // namespace DSP
+} // namespace YSE
 
-
-
-#endif  // INTERPOLATE4_HPP_INCLUDED
+#endif // INTERPOLATE4_HPP_INCLUDED

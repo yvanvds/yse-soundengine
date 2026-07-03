@@ -60,7 +60,7 @@
 
 using namespace YSE::PATCHER;
 
-YSE::PATCHER::pRegistry & YSE::PATCHER::Register() {
+YSE::PATCHER::pRegistry& YSE::PATCHER::Register() {
   static pRegistry s;
   return s;
 }
@@ -85,7 +85,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_SUBSTRACT, dSubstract::Create);
   Add(OBJ::D_MULTIPLY, dMultiply::Create);
   Add(OBJ::D_DIVIDE, dDivide::Create);
-  
+
   // Generic GUI
   Add(OBJ::G_INT, gInt::Create);
   Add(OBJ::G_FLOAT, gFloat::Create);
@@ -126,17 +126,17 @@ pRegistry::pRegistry() {
 #endif
 }
 
-pObject* pRegistry::Get(const std::string & objectID) {
+pObject* pRegistry::Get(const std::string& objectID) {
   auto it = map.find(objectID);
   if (it != map.end()) return it->second();
   return nullptr;
 }
 
-void pRegistry::Add(const std::string & objectID, pObjectFunc f) {
+void pRegistry::Add(const std::string& objectID, pObjectFunc f) {
   map.insert(std::pair<std::string, pObjectFunc>(objectID, f));
 }
 
-bool pRegistry::IsValidObject(const char * objectID) {
+bool pRegistry::IsValidObject(const char* objectID) {
   auto it = map.find(objectID);
   return it != map.end();
 }
@@ -144,7 +144,7 @@ bool pRegistry::IsValidObject(const char * objectID) {
 std::vector<std::string> pRegistry::AllNames() const {
   std::vector<std::string> names;
   names.reserve(map.size());
-  for (const auto & entry : map) {
+  for (const auto& entry : map) {
     names.push_back(entry.first);
   }
   return names;

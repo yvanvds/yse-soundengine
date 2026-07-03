@@ -19,18 +19,15 @@ namespace YSE {
 
     class managerObject {
     public:
-      fileImpl * addImplementation(file * head);
+      fileImpl* addImplementation(file* head);
       void update();
 
     private:
       std::forward_list<fileImpl> implementations;
-
     };
 
-    managerObject & Manager();
-  }
-}
+    managerObject& Manager();
+  } // namespace MIDI
+} // namespace YSE
 
-
-
-#endif  // MIDIFILEMANAGER_H_INCLUDED
+#endif // MIDIFILEMANAGER_H_INCLUDED

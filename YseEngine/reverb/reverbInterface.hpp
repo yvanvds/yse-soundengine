@@ -21,7 +21,7 @@ namespace YSE {
   namespace REVERB {
     class managerObject;
     class implementationObject;
-  }
+  } // namespace REVERB
   /// @endcond
 
   /**
@@ -62,7 +62,7 @@ namespace YSE {
     bool isValid();
 
     /** @brief Set the position of the reverb zone in the scene. */
-    reverb& setPosition(const Pos &value);
+    reverb& setPosition(const Pos& value);
 
     /** @brief Current zone position. */
     Pos getPosition();
@@ -167,7 +167,7 @@ namespace YSE {
     reverb& setPreset(REVERB_PRESET value);
 
   private:
-    REVERB::implementationObject * pimpl;
+    REVERB::implementationObject* pimpl;
 
     Bool connectedToManager;
     Bool active;
@@ -189,8 +189,6 @@ namespace YSE {
     friend class REVERB::implementationObject;
   };
 
-}
+} // namespace YSE
 
-
-
-#endif  // REVERB_H_INCLUDED
+#endif // REVERB_H_INCLUDED

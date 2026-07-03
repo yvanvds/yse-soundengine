@@ -25,7 +25,9 @@ namespace YSE {
 
     class global {
     public:
-      bool isActive() { return active; }
+      bool isActive() {
+        return active;
+      }
 
       // True between the end of system::initShared() and the start of
       // system::close(). Within a session, SAMPLERATE is immutable: the device
@@ -33,16 +35,22 @@ namespace YSE {
       // !isSampleRateLocked() before mutating SAMPLERATE. Lookup tables and
       // other SAMPLERATE-derived caches across the engine rely on this
       // contract.
-      bool isSampleRateLocked() { return sampleRateLocked; }
+      bool isSampleRateLocked() {
+        return sampleRateLocked;
+      }
 
-      void addSlowJob(threadPoolJob * job);
-      void addFastJob(threadPoolJob * job);
+      void addSlowJob(threadPoolJob* job);
+      void addFastJob(threadPoolJob* job);
 
       void flagForUpdate() {
         update++;
       }
-      bool needsUpdate() { return update > 0;  }
-      void updateDone() { update--; }
+      bool needsUpdate() {
+        return update > 0;
+      }
+      void updateDone() {
+        update--;
+      }
 
       // Global named bus (issue #121). Constructed lazily in init() and
       // destroyed in close() so subscribers, the SPSC queue, and the next
@@ -86,7 +94,6 @@ namespace YSE {
       global();
       ~global();
 
-
     private:
       void init();
       void close();
@@ -100,14 +107,11 @@ namespace YSE {
       aBool active; // set true after System().init(), false at System().close()
       aBool sampleRateLocked;
 
-
       friend class YSE::system; // system needs access to the init and close method
     };
 
-    global & Global();
-  }
-}
+    global& Global();
+  } // namespace INTERNAL
+} // namespace YSE
 
-
-
-#endif  // GLOBAL_H_INCLUDED
+#endif // GLOBAL_H_INCLUDED

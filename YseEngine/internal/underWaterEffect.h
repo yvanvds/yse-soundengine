@@ -23,11 +23,13 @@ namespace YSE {
     class underWaterEffect {
     public:
       underWaterEffect();
-      underWaterEffect & channel(CHANNEL::implementationObject * ch);
-      CHANNEL::implementationObject * channel();
+      underWaterEffect& channel(CHANNEL::implementationObject* ch);
+      CHANNEL::implementationObject* channel();
 
-      underWaterEffect & setDepth(Flt value); // reverb has to be done before channel reverb processing
-      underWaterEffect & apply(MULTICHANNELBUFFER & channelBuffer); // lowpass has to be done AFTER channel reverb processing
+      underWaterEffect&
+      setDepth(Flt value); // reverb has to be done before channel reverb processing
+      underWaterEffect& apply(MULTICHANNELBUFFER& channelBuffer); // lowpass has to be done AFTER
+                                                                  // channel reverb processing
 
     private:
       Flt depth;
@@ -35,14 +37,13 @@ namespace YSE {
       DSP::buffer lpBuffer;
       DSP::lowPass filter;
       reverb verb;
-      std::atomic<CHANNEL::implementationObject *> activeChannel; // only one channel can get the underwatereffect
+      std::atomic<CHANNEL::implementationObject*>
+          activeChannel; // only one channel can get the underwatereffect
     };
 
-    underWaterEffect & UnderWaterEffect();
+    underWaterEffect& UnderWaterEffect();
 
-  }
-}
+  } // namespace INTERNAL
+} // namespace YSE
 
-
-
-#endif  // UNDERWATEREFFECT_H_INCLUDED
+#endif // UNDERWATEREFFECT_H_INCLUDED

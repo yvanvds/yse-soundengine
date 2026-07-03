@@ -11,9 +11,9 @@
 #include "player.hpp"
 #include "../internalHeaders.h"
 #include "../music/note.hpp"
-//#include "../synth/synthInterface.hpp"
+// #include "../synth/synthInterface.hpp"
 
-/*YSE::PLAYER::implementationObject::implementationObject(player* head, synth * s) 
+/*YSE::PLAYER::implementationObject::implementationObject(player* head, synth * s)
   : head(head), instrument(s), waitTime(0.f), playing(false) {
   minimumPitch.set(0.f);
   maximumPitch.set(128.f);
@@ -29,7 +29,6 @@
   voices.emplace_back(true);
 }*/
 
-
 YSE::PLAYER::implementationObject::~implementationObject() {
   if (head.load() != nullptr) {
     head.load()->pimpl = nullptr;
@@ -40,7 +39,7 @@ bool YSE::PLAYER::implementationObject::update(Flt delta) {
   if (head.load() == nullptr) return false;
 
   // instrument is not connected
-  //if (!instrument) return true;
+  // if (!instrument) return true;
 
   // parse messages
   messageObject message;
@@ -53,10 +52,10 @@ bool YSE::PLAYER::implementationObject::update(Flt delta) {
     std::deque<MUSIC::note>::iterator i = notes.begin();
     while (i != notes.end()) {
       if (!i->update(delta)) {
-        //instrument->noteOff(*i);
+        // instrument->noteOff(*i);
         i = notes.erase(i);
-      }
-      else i++;
+      } else
+        i++;
     }
   }
 
@@ -82,8 +81,7 @@ bool YSE::PLAYER::implementationObject::update(Flt delta) {
   while ((UInt)numVoices() > activeVoices) {
     if (voices.size() > activeVoices) {
       voices[activeVoices].isActive = true;
-    }
-    else {
+    } else {
       voices.emplace_back(true);
     }
     activeVoices++;
@@ -95,14 +93,14 @@ bool YSE::PLAYER::implementationObject::update(Flt delta) {
   }
 
   // evaluate voices state
-  for (UInt i = 0; i < voices.size(); i++) { 
-    
+  for (UInt i = 0; i < voices.size(); i++) {
+
     // check motif if it's playing
     if (voices[i].motifPlaying) {
       setVoiceFromMotif(voices[i], delta);
     }
-    
-    else if(voices[i].isActive) {
+
+    else if (voices[i].isActive) {
       voices[i].duration -= delta;
       if (voices[i].duration <= 0) {
         // first check if a motif should be played
@@ -119,10 +117,12 @@ bool YSE::PLAYER::implementationObject::update(Flt delta) {
         else {
           voices[i].duration = RandomF(minLength(), maxLength());
           voices[i].notePlaying = true;
-          Flt pitch = static_cast<Flt>(Random(static_cast<Int>(minimumPitch()), static_cast<Int>(maximumPitch())));
+          Flt pitch = static_cast<Flt>(
+              Random(static_cast<Int>(minimumPitch()), static_cast<Int>(maximumPitch())));
           if (scale.isSet()) pitch = scale()->getNearest(pitch);
-          notes.emplace_back(MUSIC::note(pitch, RandomF(minimumVelocity(), maximumVelocity()), voices[i].duration));
-          //instrument->noteOn(notes.back());
+          notes.emplace_back(MUSIC::note(pitch, RandomF(minimumVelocity(), maximumVelocity()),
+                                         voices[i].duration));
+          // instrument->noteOn(notes.back());
         }
       }
     }
@@ -131,7 +131,7 @@ bool YSE::PLAYER::implementationObject::update(Flt delta) {
   return true;
 }
 
-void YSE::PLAYER::implementationObject::setVoiceFromMotif(voice & v, Flt delta) {
+void YSE::PLAYER::implementationObject::setVoiceFromMotif(voice& v, Flt delta) {
   // pick a new motif if needed
   if (v.motif.empty()) {
     // TODO is this really the best way to select a motif on weight?
@@ -141,7 +141,7 @@ void YSE::PLAYER::implementationObject::setVoiceFromMotif(voice & v, Flt delta) 
     }
 
     UInt weight = Random(totalWeight);
-    MOTIF::implementationObject * m = motifs[0].motif;
+    MOTIF::implementationObject* m = motifs[0].motif;
 
     totalWeight = 0;
     FOREACH(motifs) {
@@ -152,10 +152,8 @@ void YSE::PLAYER::implementationObject::setVoiceFromMotif(voice & v, Flt delta) 
       }
     }
 
-	
-
     if (RandomF() < partialMotif()) {
-      // copy just a part from the motif     
+      // copy just a part from the motif
       UInt start = Random(m->size() - 1);
       UInt count = 1 + Random(m->size() - start - 1);
       UInt end = start + count;
@@ -167,8 +165,7 @@ void YSE::PLAYER::implementationObject::setVoiceFromMotif(voice & v, Flt delta) 
       }
 
       v.duration = v.motif.back().getPosition() + v.motif.back().getLength();
-    }
-    else {
+    } else {
       for (UInt i = 0; i < m->size(); i++) {
         v.motif.emplace_back(m->getNote(i));
       }
@@ -178,11 +175,13 @@ void YSE::PLAYER::implementationObject::setVoiceFromMotif(voice & v, Flt delta) 
     // transpose within range
     Flt transposition;
     if (m->getValidPitches() != nullptr && m->getValidPitches()->size()) {
-      Flt pitch = static_cast<Flt>(m->getValidPitches()->getNearest(static_cast<Flt>((Random(static_cast<Int>(minimumPitch()), static_cast<Int>(maximumPitch()))))));
-      transposition = pitch - v.motif[0].getPitch();     
-    }
-    else {
-      transposition = static_cast<Flt>(Random(static_cast<Int>(minimumPitch() - v.motif[0].getPitch()), static_cast<Int>(maximumPitch() - v.motif[0].getPitch())));
+      Flt pitch = static_cast<Flt>(m->getValidPitches()->getNearest(static_cast<Flt>(
+          (Random(static_cast<Int>(minimumPitch()), static_cast<Int>(maximumPitch()))))));
+      transposition = pitch - v.motif[0].getPitch();
+    } else {
+      transposition =
+          static_cast<Flt>(Random(static_cast<Int>(minimumPitch() - v.motif[0].getPitch()),
+                                  static_cast<Int>(maximumPitch() - v.motif[0].getPitch())));
     }
     FOREACH(v.motif) {
       v.motif[i].setPitch(v.motif[i].getPitch() + transposition);
@@ -207,19 +206,17 @@ void YSE::PLAYER::implementationObject::setVoiceFromMotif(voice & v, Flt delta) 
       note.setPitch(scale()->getNearest(note.getPitch()));
     }
     notes.push_back(note);
-    //instrument->noteOn(note);
+    // instrument->noteOn(note);
     v.motifPos++;
   }
-  
+
   v.motifTime += delta;
   if (v.motifTime >= v.duration) {
     v.motif.clear();
     v.motifPlaying = false;
     v.duration = 0;
   }
-  
 }
-
 
 void YSE::PLAYER::implementationObject::removeInterface() {
   /*if (instrument != nullptr) {
@@ -232,16 +229,16 @@ void YSE::PLAYER::implementationObject::removeInterface() {
   head.store(nullptr);
 }
 
-void YSE::PLAYER::implementationObject::parseMessage(const messageObject & message) {
+void YSE::PLAYER::implementationObject::parseMessage(const messageObject& message) {
   switch (message.ID) {
-  case PLAY: 
+  case PLAY:
     playing = message.boolValue;
     break;
   case MIN_PITCH:
-    minimumPitch   .set(message.floatPair[0], message.floatPair[1]);
+    minimumPitch.set(message.floatPair[0], message.floatPair[1]);
     break;
   case MAX_PITCH:
-    maximumPitch   .set(message.floatPair[0], message.floatPair[1]);
+    maximumPitch.set(message.floatPair[0], message.floatPair[1]);
     break;
   case MIN_VELOCITY:
     minimumVelocity.set(message.floatPair[0], message.floatPair[1]);
@@ -250,19 +247,19 @@ void YSE::PLAYER::implementationObject::parseMessage(const messageObject & messa
     maximumVelocity.set(message.floatPair[0], message.floatPair[1]);
     break;
   case MIN_GAP:
-    minGap         .set(message.floatPair[0], message.floatPair[1]);
+    minGap.set(message.floatPair[0], message.floatPair[1]);
     break;
   case MAX_GAP:
-    maxGap         .set(message.floatPair[0], message.floatPair[1]);
+    maxGap.set(message.floatPair[0], message.floatPair[1]);
     break;
   case MIN_LENGTH:
-    minLength      .set(message.floatPair[0], message.floatPair[1]);
+    minLength.set(message.floatPair[0], message.floatPair[1]);
     break;
   case MAX_LENGTH:
-    maxLength      .set(message.floatPair[0], message.floatPair[1]);
+    maxLength.set(message.floatPair[0], message.floatPair[1]);
     break;
   case VOICES:
-    numVoices      .set(message.floatPair[0], message.floatPair[1]);
+    numVoices.set(message.floatPair[0], message.floatPair[1]);
     break;
   case SCALE:
     scale.set((SCALE::implementationObject*)message.object.ptr, message.object.time);
@@ -294,14 +291,13 @@ void YSE::PLAYER::implementationObject::parseMessage(const messageObject & messa
     }
     break;
   case PARTIAL_MOTIF:
-    partialMotif   .set(message.floatPair[0], message.floatPair[1]);
+    partialMotif.set(message.floatPair[0], message.floatPair[1]);
     break;
   case PLAY_MOTIF:
-    playMotif      .set(message.floatPair[0], message.floatPair[1]);
+    playMotif.set(message.floatPair[0], message.floatPair[1]);
     break;
   case MOTIF_FITS_SCALE:
-    motifToScale   .set(message.floatPair[0], message.floatPair[1]);
+    motifToScale.set(message.floatPair[0], message.floatPair[1]);
     break;
   }
-
 }
