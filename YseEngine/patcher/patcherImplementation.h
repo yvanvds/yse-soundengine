@@ -49,6 +49,13 @@ namespace YSE {
       void DeleteObject(pHandle* obj);
       void Clear();
 
+      // Live SetParams re-parse on an object this patcher owns (issue #234).
+      // Never mutates a published object: scalar params are pre-parsed into a
+      // ParamMsg and applied by the audio thread at the top of the next block;
+      // pin-count / string re-parses build a replacement object off the live
+      // path and publish it with the usual GraphState swap. Control thread.
+      void SetObjectParams(YSE::pHandle* handle, const std::string& args);
+
       void Connect(pHandle* from, int outlet, pHandle* to, int inlet);
       void Disconnect(pHandle* from, int outlet, pHandle* to, int inlet);
 
@@ -135,6 +142,32 @@ namespace YSE {
       // iff a matching receiver exists (so the caller only falls back to OSC
       // when there is genuinely no in-patcher target).
       bool EnqueueValue(ValueMsg& msg, const std::string& to);
+
+      // ---- Live SetParams (issue #234) ----
+
+      // Scalar param writes staged per SetParams call. POD so it rides the
+      // lock-free queue by value — nothing to reclaim. `target` is compared
+      // (never dereferenced) against the pinned snapshot's object list before
+      // the ops are applied, which makes delivery safe across a concurrent
+      // DeleteObject, exactly like the by-name value messages.
+      static constexpr std::size_t kParamOpsCap = 8;
+      static constexpr std::size_t kParamQueueCapacity = 64;
+      struct ParamMsg {
+        pObject* target;
+        int count;
+        ParamOp ops[kParamOpsCap];
+      };
+
+      // Audio thread, top of Calculate (before the value drain): apply every
+      // queued scalar plan whose target is still in the pinned snapshot.
+      // Plain/atomic stores only — no allocation, no locks.
+      void ApplyPendingParams(const GraphState* g);
+
+      // Structural re-parse: build a replacement object with the new params
+      // off the live path, transfer identity (storage ID, GUI properties, the
+      // pHandle), rewire surviving pin indices, publish, and retire the old
+      // object through the epoch reclaimer. Caller holds mtx.
+      void ReplaceObjectUnlocked(YSE::pHandle* handle, const std::string& args);
 
       // Unlocked cores of CreateObject / Connect: do the structural mutation
       // assuming mtx is already held and publish nothing. The public wrappers
@@ -237,6 +270,9 @@ namespace YSE {
       // audio thread, draining in Calculate. mpmcQueue is a superset of SPSC, so
       // concurrent producers are safe too.
       YSE::mpmcQueue<ValueMsg> valueQueue_{kValueQueueCapacity};
+      // Deferred scalar param plans (issue #234). Producers: control threads
+      // in SetObjectParams. Consumer: the audio thread in ApplyPendingParams.
+      YSE::mpmcQueue<ParamMsg> paramQueue_{kParamQueueCapacity};
       // Audio-thread-only scratch buffer for delivering List payloads. Reserved
       // to kValueListCap in the ctor so assigning any inline list value reuses
       // this buffer instead of allocating on the audio thread, while still

@@ -1,6 +1,7 @@
 
 #include "pHandle.hpp"
 #include "patcher.hpp"
+#include "patcherImplementation.h"
 #include "pEnums.h"
 #include "pObject.h"
 #include "../implementations/logImplementation.h"
@@ -35,7 +36,18 @@ void YSE::pHandle::SetListData(unsigned int inlet, const std::string& value) {
 
 void YSE::pHandle::SetParams(const std::string& args) {
   INTERNAL::LogImpl().emit(E_DEBUG, "Handle: Passing arguments: " + args);
-  object->SetParams(args);
+  // An object owned by a patcher may be rendering right now: never re-parse
+  // it in place (that mutates pin vectors and param fields the audio thread
+  // reads — issue #234). Route through the patcher, which stages an RT-safe
+  // scalar apply or a structural replacement. `parent` is the owning
+  // patcherImplementation by construction (see pObject::CurrentBlockGraph);
+  // a standalone object (unit tests) keeps the synchronous parse.
+  PATCHER::pObject* parent = object->Parent();
+  if (parent != nullptr) {
+    static_cast<PATCHER::patcherImplementation*>(parent)->SetObjectParams(this, args);
+  } else {
+    object->SetParams(args);
+  }
 }
 
 std::string YSE::pHandle::GetGuiProperty(const std::string& key) {

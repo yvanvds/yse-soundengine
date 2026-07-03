@@ -45,6 +45,60 @@ const std::string& Parameters::Get() {
   return current;
 }
 
+bool Parameters::NeedsRebuild() const {
+  if (onClear != nullptr || onParse != nullptr) return true;
+  for (const parameter& p : parms) {
+    if (p.type == STRING || p.type == LIST) return true;
+  }
+  return false;
+}
+
+int Parameters::BuildPlan(const std::string& args, ParamOp* ops, int cap) {
+  if (args.size() == 0) return 0;
+
+  int count = 0;
+  size_t pos = 0;
+  unsigned int currentArg = 0;
+  std::string arg = args + " "; // important to get the last argument
+  std::string token;
+  while ((pos = arg.find(' ')) != std::string::npos) {
+    token = arg.substr(0, pos);
+
+    if (currentArg < parms.size()) {
+      if (count >= cap) return -1;
+      switch (parms[currentArg].type) {
+      case FLOAT:
+      case ATOMIC_FLOAT: {
+        ops[count].type = parms[currentArg].type;
+        ops[count].dest = parms[currentArg].value;
+        ops[count].f = std::stof(token);
+        count++;
+        break;
+      }
+      case INT:
+      case ATOMIC_INT: {
+        ops[count].type = parms[currentArg].type;
+        ops[count].dest = parms[currentArg].value;
+        ops[count].i = std::stoi(token);
+        count++;
+        break;
+      }
+      default:
+        // STRING/LIST (or unknown) cannot be patched in place — signal the
+        // caller to take the structural-rebuild path instead.
+        return -1;
+      }
+    } else {
+      INTERNAL::LogImpl().emit(E_DEBUG, "Too many arguments for this object.");
+    }
+    arg.erase(0, pos + 1);
+    currentArg++;
+  }
+
+  current = args;
+  return count;
+}
+
 void Parameters::Set(const std::string& args) {
   if (onClear != nullptr) onClear();
   if (args.size() == 0) return;

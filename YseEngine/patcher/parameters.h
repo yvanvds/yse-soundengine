@@ -24,6 +24,18 @@ namespace YSE {
 
     typedef std::function<void()> parmFunc;
 
+    // One pre-parsed scalar write of a live SetParams re-parse (issue #234).
+    // Built on the control thread by Parameters::BuildPlan and applied with a
+    // plain/atomic store on the audio thread at the top of the next block, so
+    // the live field is never written concurrently with the render that reads
+    // it. POD on purpose: plans ride a bounded lock-free queue by value.
+    struct ParamOp {
+      PARM_TYPE type;
+      void* dest;
+      int i;
+      float f;
+    };
+
     // Per-parameter documentation entry. Populated via PARAM_DOC in object
     // constructors; the order is expected to match the Register() call order
     // for the corresponding object.
@@ -45,6 +57,22 @@ namespace YSE {
       void Register(std::vector<std::string>& list);
 
       void Set(const std::string& args);
+
+      // Whether a live re-parse must rebuild the object instead of patching
+      // scalar fields (issue #234): true when the object registered
+      // clear/parse callbacks (they translate params into pin structure) or
+      // any STRING/LIST param (strings cannot be written allocation-free and
+      // are read on both threads once the object is published).
+      bool NeedsRebuild() const;
+
+      // Tokenize `args` exactly like Set(), but record the scalar writes into
+      // `ops` instead of touching the live fields, and update the stored
+      // param string. Returns the number of ops written, 0 for empty args, or
+      // -1 when the plan does not fit `cap` (or a non-scalar param sneaks in)
+      // — the caller must then fall back to the structural rebuild. Parse
+      // errors (std::stof on garbage) throw here, on the calling thread,
+      // exactly as Set() does. Only meaningful when NeedsRebuild() is false.
+      int BuildPlan(const std::string& args, ParamOp* ops, int cap);
 
       void RegisterClear(parmFunc f);
       void RegisterParse(parmFunc f);
