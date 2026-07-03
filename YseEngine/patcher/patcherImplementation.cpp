@@ -53,6 +53,10 @@ void patcherImplementation::SetName(const std::string& n) {
 patcherImplementation::~patcherImplementation() {
   // memory cleanup
   Clear();
+  // The audio thread is stopped at destruction, so reclaim unconditionally:
+  // the deferred retire lists (and the final published snapshot) are freed
+  // here rather than waiting on the block counter.
+  FreeAllRetired();
 }
 
 const char* patcherImplementation::Type() const {
@@ -61,16 +65,24 @@ const char* patcherImplementation::Type() const {
 
 void patcherImplementation::Calculate(YSE::THREAD thread) {
   // works a bit different in case of patchers!
-  // only called by the main patcher to generate output
-  mtx.lock();
+  // only called by the main patcher to generate output.
+  //
+  // No mutex here (issue #226): the topology is read through one atomic load
+  // of the published GraphState, pinned for the whole block so every send and
+  // readiness query the traversal makes resolves against a coherent snapshot.
+  const GraphState* g = active_.load(std::memory_order_acquire);
+  audioBlock_.fetch_add(1, std::memory_order_acq_rel);
+  currentBlockGraph_.store(g, std::memory_order_release);
 
-  // invalidate all dsp buffers
-  ResetDSP();
+  if (g != nullptr) {
+    // invalidate all dsp buffers
+    for (unsigned int i = 0; i < g->objects.size(); i++) {
+      g->objects[i]->ResetDSP();
+    }
 
-  // calculate all objects
-  for (const auto& any : objects) {
-    if (any.second->IsDSPStartPoint()) {
-      any.second->Calculate(thread);
+    // calculate all dsp start points; the push traversal fans out from here
+    for (unsigned int i = 0; i < g->startPoints.size(); i++) {
+      g->startPoints[i]->Calculate(thread);
     }
   }
 
@@ -81,10 +93,11 @@ void patcherImplementation::Calculate(YSE::THREAD thread) {
 
   // sum outputs
   int counter = 0;
-  for (const auto& any : objects) {
-    if (strcmp(any.second->Type(), YSE::OBJ::D_DAC) == 0) {
+  if (g != nullptr) {
+    for (unsigned int d = 0; d < g->dacs.size(); d++) {
+      pDac* dac = static_cast<pDac*>(g->dacs[d]);
       for (unsigned int i = 0; i < output.size(); i++) {
-        YSE::DSP::buffer* ptr = ((pDac*)any.second)->GetBuffer(i);
+        YSE::DSP::buffer* ptr = dac->GetBuffer(i);
         if (ptr != nullptr) {
           output[i] = *ptr;
         }
@@ -100,7 +113,9 @@ void patcherImplementation::Calculate(YSE::THREAD thread) {
     }
   }
 
-  mtx.unlock();
+  // Unpin: between blocks the topology helpers fall back to the live wiring
+  // (control-thread / standalone path) instead of a possibly-retired snapshot.
+  currentBlockGraph_.store(nullptr, std::memory_order_release);
 }
 
 void patcherImplementation::ResetDSP() {
@@ -119,14 +134,21 @@ void patcherImplementation::Connect(YSE::pHandle* from, int outlet, YSE::pHandle
   } else {
     INTERNAL::LogImpl().emit(E_ERROR, "Patcher: Invalid Connection");
   }
-  if (!fileHandlerActive) mtx.unlock();
+  // In batch mode (ParseJSON) publish once at the end; otherwise swap now.
+  if (!fileHandlerActive) {
+    RebuildAndPublish();
+    mtx.unlock();
+  }
 }
 
 void patcherImplementation::Disconnect(YSE::pHandle* from, int outlet, YSE::pHandle* to,
                                        int inlet) {
   if (!fileHandlerActive) mtx.lock();
   to->object->DisconnectInlet(from->object->GetOutlet(outlet), inlet);
-  if (!fileHandlerActive) mtx.unlock();
+  if (!fileHandlerActive) {
+    RebuildAndPublish();
+    mtx.unlock();
+  }
 }
 
 YSE::pHandle* patcherImplementation::CreateObject(const std::string& type,
@@ -137,6 +159,10 @@ YSE::pHandle* patcherImplementation::CreateObject(const std::string& type,
 
   if (type == OBJ::D_DAC) {
     object = new pDac((int)output.size());
+    // Give the DAC its patcher parent too, so its inlets resolve DSP-readiness
+    // from the pinned snapshot on the audio thread rather than the live wiring
+    // (issue #226).
+    object->SetParent(this);
   } else {
     object = Register().Get(type);
     if (object != nullptr) {
@@ -154,7 +180,11 @@ YSE::pHandle* patcherImplementation::CreateObject(const std::string& type,
 
   if (!fileHandlerActive) mtx.lock();
   objects.insert(std::pair<YSE::pHandle*, pObject*>(handle, object));
-  if (!fileHandlerActive) mtx.unlock();
+  AssignGraphIds(object);
+  if (!fileHandlerActive) {
+    RebuildAndPublish();
+    mtx.unlock();
+  }
   INTERNAL::LogImpl().emit(E_DEBUG, "Patcher: " + type + " created");
   return handle;
 }
@@ -166,25 +196,34 @@ void patcherImplementation::DeleteObject(YSE::pHandle* handle) {
     handle->object->GetInlet(0)->SetInt(0, YSE::THREAD::T_GUI);
   }
 
+  pObject* object = handle->object;
   objects.erase(handle);
-
-  delete handle->object;
+  // Detach from peers so the next snapshot holds no reference to it, but do
+  // not free it yet — an in-flight audio block may still walk the retired
+  // snapshot that references it. The free is deferred to the reclaimer.
+  object->UnwireFromPeers();
+  if (!fileHandlerActive) RebuildAndPublish();
+  retiredObjects_.emplace_back(object, audioBlock_.load(std::memory_order_acquire));
+  // The handle is never referenced by a GraphState, so it can go immediately.
   delete handle;
+
   if (!fileHandlerActive) mtx.unlock();
 }
 
 void patcherImplementation::Clear() {
   if (!fileHandlerActive) mtx.lock();
 
+  std::uint64_t at = audioBlock_.load(std::memory_order_acquire);
   for (auto it = objects.begin(); it != objects.end(); ++it) {
     if (it->first->Type() == OBJ::G_METRO) {
       it->second->GetInlet(0)->SetInt(0, YSE::THREAD::T_GUI);
     }
-
-    delete it->first;
-    delete it->second;
+    it->second->UnwireFromPeers();
+    retiredObjects_.emplace_back(it->second, at);
+    delete it->first; // handle: not referenced by a GraphState
   }
   objects.clear();
+  if (!fileHandlerActive) RebuildAndPublish();
   if (!fileHandlerActive) mtx.unlock();
 }
 
@@ -270,6 +309,9 @@ void patcherImplementation::ParseJSON(const std::string& content) {
     }
   }
   fileHandlerActive = false;
+  // Every create/connect above ran in batch mode (no per-edit swap); publish
+  // the whole parsed graph in a single atomic swap now.
+  RebuildAndPublish();
   mtx.unlock();
 }
 
@@ -380,4 +422,94 @@ std::string patcherImplementation::GetRecieveObjectsAsString() {
 
 void patcherImplementation::SetHandler(YSE::oscHandler* handler) {
   oscHandle = handler;
+}
+
+void patcherImplementation::AssignGraphIds(pObject* object) {
+  for (int i = 0; i < object->NumInputs(); i++) {
+    PATCHER::inlet* in = object->GetInlet(i);
+    if (in != nullptr && in->GraphId() < 0) in->SetGraphId(nextInletId_++);
+  }
+  for (int i = 0; i < object->NumOutputs(); i++) {
+    PATCHER::outlet* out = object->GetOutlet(i);
+    if (out != nullptr && out->GraphId() < 0) out->SetGraphId(nextOutletId_++);
+  }
+}
+
+YSE::PATCHER::GraphState* patcherImplementation::BuildGraph() {
+  GraphState* g = new GraphState();
+  g->outletTargets.resize(nextOutletId_);
+  g->inletHasDsp.assign(nextInletId_, 0);
+
+  for (const auto& any : objects) {
+    pObject* object = any.second;
+    g->objects.push_back(object);
+    if (object->IsDSPStartPoint()) g->startPoints.push_back(object);
+    if (strcmp(object->Type(), YSE::OBJ::D_DAC) == 0) g->dacs.push_back(object);
+
+    for (int i = 0; i < object->NumOutputs(); i++) {
+      PATCHER::outlet* out = object->GetOutlet(i);
+      if (out == nullptr) continue;
+      int id = out->GraphId();
+      if (id >= 0 && id < nextOutletId_) g->outletTargets[id] = out->Targets();
+    }
+    for (int i = 0; i < object->NumInputs(); i++) {
+      PATCHER::inlet* in = object->GetInlet(i);
+      if (in == nullptr) continue;
+      int id = in->GraphId();
+      if (id >= 0 && id < nextInletId_) {
+        g->inletHasDsp[id] = in->HasActiveDSPConnection() ? 1 : 0;
+      }
+    }
+  }
+  return g;
+}
+
+void patcherImplementation::RebuildAndPublish() {
+  GraphState* next = BuildGraph();
+  // Only the control thread writes active_ (under mtx), so a relaxed load of
+  // the prior pointer is fine; the audio thread reads it with acquire.
+  const GraphState* old = active_.load(std::memory_order_relaxed);
+  active_.store(next, std::memory_order_release);
+  if (old != nullptr) {
+    retiredGraphs_.emplace_back(old, audioBlock_.load(std::memory_order_acquire));
+  }
+  DrainRetired();
+}
+
+void patcherImplementation::DrainRetired() {
+  const std::uint64_t now = audioBlock_.load(std::memory_order_acquire);
+  // Interim reclamation (issue #227 replaces this): a snapshot retired at block
+  // C is safe to free once the audio thread has started at least two later
+  // blocks, so no in-flight block can still hold it. Free graphs before the
+  // objects they point into.
+  for (std::size_t i = 0; i < retiredGraphs_.size();) {
+    if (now >= retiredGraphs_[i].second + 2) {
+      delete retiredGraphs_[i].first;
+      retiredGraphs_.erase(retiredGraphs_.begin() + i);
+    } else {
+      ++i;
+    }
+  }
+  for (std::size_t i = 0; i < retiredObjects_.size();) {
+    if (now >= retiredObjects_[i].second + 2) {
+      delete retiredObjects_[i].first;
+      retiredObjects_.erase(retiredObjects_.begin() + i);
+    } else {
+      ++i;
+    }
+  }
+}
+
+void patcherImplementation::FreeAllRetired() {
+  // Graphs first — they hold inlet* pointers into the objects.
+  for (std::size_t i = 0; i < retiredGraphs_.size(); i++) {
+    delete retiredGraphs_[i].first;
+  }
+  retiredGraphs_.clear();
+  const GraphState* g = active_.exchange(nullptr, std::memory_order_acq_rel);
+  delete g;
+  for (std::size_t i = 0; i < retiredObjects_.size(); i++) {
+    delete retiredObjects_[i].first;
+  }
+  retiredObjects_.clear();
 }

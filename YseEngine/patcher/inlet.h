@@ -46,6 +46,21 @@ namespace YSE {
       bool Connect(outlet* out);
       void Disconnect(outlet* out);
 
+      // Drop this inlet's incoming edges and remove it from the outlets that
+      // fed it, so a deleted object leaves no dangling reference in the next
+      // GraphState (issue #226). Mirrors the destructor's peer cleanup but
+      // leaves the inlet allocated.
+      void UnwireFromPeers();
+
+      // Dense, lifetime-stable id assigned when the owning object is added to a
+      // patcher; indexes GraphState::inletHasDsp. -1 until assigned.
+      inline int GraphId() const {
+        return graphId;
+      }
+      inline void SetGraphId(int id) {
+        graphId = id;
+      }
+
       int GetObjectID();
       int GetPosition();
 
@@ -74,6 +89,8 @@ namespace YSE {
       bool dspReady;
       bool active;
       int position;
+      // See GraphId(). -1 = unassigned (standalone object, no patcher).
+      int graphId = -1;
 
       intFunc onInt;
       voidFunc onBang;

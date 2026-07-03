@@ -25,6 +25,9 @@
 namespace YSE {
   namespace PATCHER {
 
+    struct GraphState;
+    class patcherImplementation;
+
     typedef std::function<void(int, int)> intCallbackFunc;
     typedef std::function<void(int, float)> floatCallbackFunc;
 
@@ -32,6 +35,16 @@ namespace YSE {
     public:
       pObject(bool isDSPObject, pObject* parent = nullptr);
       virtual ~pObject() {}
+
+      // The GraphState the owning patcher has pinned for the current audio
+      // block, or null when the patcher is between blocks or this object has no
+      // patcher (standalone / unit-test use). Outlets and inlets consult it to
+      // resolve topology on the audio thread without a lock (issue #226).
+      const GraphState* CurrentBlockGraph() const;
+
+      // Detach this object from every peer it is wired to, without freeing it,
+      // so the next GraphState holds no reference to it (issue #226).
+      void UnwireFromPeers();
 
       virtual const char* Type() const = 0;
       virtual void Calculate(THREAD thread) = 0;
@@ -185,12 +198,12 @@ namespace YSE {
   inputs.back().RegisterBang(                                                                      \
       std::bind(&className::funcName, this, std::placeholders::_1, std::placeholders::_2))
 
-#define ADD_OUT_BUFFER outputs.emplace_back(OUT_TYPE::BUFFER)
-#define ADD_OUT_FLOAT outputs.emplace_back(OUT_TYPE::FLOAT)
-#define ADD_OUT_INT outputs.emplace_back(OUT_TYPE::INT)
-#define ADD_OUT_BANG outputs.emplace_back(OUT_TYPE::BANG)
-#define ADD_OUT_LIST outputs.emplace_back(OUT_TYPE::LIST)
-#define ADD_OUT_ANY outputs.emplace_back(OUT_TYPE::ANY)
+#define ADD_OUT_BUFFER outputs.emplace_back(this, OUT_TYPE::BUFFER)
+#define ADD_OUT_FLOAT outputs.emplace_back(this, OUT_TYPE::FLOAT)
+#define ADD_OUT_INT outputs.emplace_back(this, OUT_TYPE::INT)
+#define ADD_OUT_BANG outputs.emplace_back(this, OUT_TYPE::BANG)
+#define ADD_OUT_LIST outputs.emplace_back(this, OUT_TYPE::LIST)
+#define ADD_OUT_ANY outputs.emplace_back(this, OUT_TYPE::ANY)
 
 #define ADD_PARAM(var) parms.Register(var)
 

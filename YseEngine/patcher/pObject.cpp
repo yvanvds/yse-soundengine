@@ -1,6 +1,7 @@
 
 #include "pObject.h"
 #include "pHandle.hpp"
+#include "patcherImplementation.h"
 #include "../headers/enums.hpp"
 #include "../implementations/logImplementation.h"
 
@@ -9,6 +10,23 @@ using namespace YSE::PATCHER;
 unsigned int LastPatcherObjectID = 0;
 unsigned int pObject::CreateID() {
   return LastPatcherObjectID++;
+}
+
+// ``parent`` is the owning patcherImplementation by construction (set via
+// SetParent when the object is added). null for a standalone object or the
+// patcher itself, in which case there is no snapshot to consult.
+const YSE::PATCHER::GraphState* pObject::CurrentBlockGraph() const {
+  if (parent == nullptr) return nullptr;
+  return static_cast<patcherImplementation*>(parent)->CurrentBlockGraph();
+}
+
+void pObject::UnwireFromPeers() {
+  for (unsigned int i = 0; i < inputs.size(); i++) {
+    inputs[i].UnwireFromPeers();
+  }
+  for (unsigned int i = 0; i < outputs.size(); i++) {
+    outputs[i].UnwireFromPeers();
+  }
 }
 
 pObject::pObject(bool isDSPObject, pObject* parent)
