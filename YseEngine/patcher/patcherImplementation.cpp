@@ -34,7 +34,6 @@ patcherImplementation::patcherImplementation(int mainOutputs, YSE::patcher* head
   : pObject(false),
     controlledBySound(false),
     head(head),
-    fileHandlerActive(false),
     patcherName("patcher_" +
                 std::to_string(g_nextPatcherIndex.fetch_add(1, std::memory_order_relaxed))) {
   output.resize(mainOutputs);
@@ -155,8 +154,8 @@ void patcherImplementation::ResetDSP() {
   }
 }
 
-void patcherImplementation::Connect(YSE::pHandle* from, int outlet, YSE::pHandle* to, int inlet) {
-  if (!fileHandlerActive) mtx.lock();
+void patcherImplementation::ConnectUnlocked(YSE::pHandle* from, int outlet, YSE::pHandle* to,
+                                            int inlet) {
   PATCHER::outlet* out = from->object->GetOutlet(outlet);
   PATCHER::inlet* in = to->object->GetInlet(inlet);
   if (out != nullptr && in != nullptr) {
@@ -165,26 +164,23 @@ void patcherImplementation::Connect(YSE::pHandle* from, int outlet, YSE::pHandle
   } else {
     INTERNAL::LogImpl().emit(E_ERROR, "Patcher: Invalid Connection");
   }
-  // In batch mode (ParseJSON) publish once at the end; otherwise swap now.
-  if (!fileHandlerActive) {
-    RebuildAndPublish();
-    mtx.unlock();
-  }
+}
+
+void patcherImplementation::Connect(YSE::pHandle* from, int outlet, YSE::pHandle* to, int inlet) {
+  std::scoped_lock lk(mtx);
+  ConnectUnlocked(from, outlet, to, inlet);
+  RebuildAndPublish();
 }
 
 void patcherImplementation::Disconnect(YSE::pHandle* from, int outlet, YSE::pHandle* to,
                                        int inlet) {
-  if (!fileHandlerActive) mtx.lock();
+  std::scoped_lock lk(mtx);
   to->object->DisconnectInlet(from->object->GetOutlet(outlet), inlet);
-  if (!fileHandlerActive) {
-    RebuildAndPublish();
-    mtx.unlock();
-  }
+  RebuildAndPublish();
 }
 
-YSE::pHandle* patcherImplementation::CreateObject(const std::string& type,
-                                                  const std::string& args) {
-  YSE::pHandle* handle = nullptr;
+YSE::pHandle* patcherImplementation::CreateObjectUnlocked(const std::string& type,
+                                                          const std::string& args) {
   pObject* object = nullptr;
   INTERNAL::LogImpl().emit(E_DEBUG, "Patcher: Trying to create " + type);
 
@@ -207,21 +203,23 @@ YSE::pHandle* patcherImplementation::CreateObject(const std::string& type,
     return nullptr;
   }
 
-  handle = new YSE::pHandle(object);
-
-  if (!fileHandlerActive) mtx.lock();
+  YSE::pHandle* handle = new YSE::pHandle(object);
   objects.insert(std::pair<YSE::pHandle*, pObject*>(handle, object));
   AssignGraphIds(object);
-  if (!fileHandlerActive) {
-    RebuildAndPublish();
-    mtx.unlock();
-  }
   INTERNAL::LogImpl().emit(E_DEBUG, "Patcher: " + type + " created");
   return handle;
 }
 
+YSE::pHandle* patcherImplementation::CreateObject(const std::string& type,
+                                                  const std::string& args) {
+  std::scoped_lock lk(mtx);
+  YSE::pHandle* handle = CreateObjectUnlocked(type, args);
+  if (handle != nullptr) RebuildAndPublish();
+  return handle;
+}
+
 void patcherImplementation::DeleteObject(YSE::pHandle* handle) {
-  if (!fileHandlerActive) mtx.lock();
+  std::scoped_lock lk(mtx);
 
   if (handle->Type() == OBJ::G_METRO) {
     handle->object->GetInlet(0)->SetInt(0, YSE::THREAD::T_GUI);
@@ -233,23 +231,21 @@ void patcherImplementation::DeleteObject(YSE::pHandle* handle) {
   // not free it yet — an in-flight audio block may still walk the retired
   // snapshot that references it. The free is deferred to the reclaimer.
   object->UnwireFromPeers();
-  if (!fileHandlerActive) RebuildAndPublish();
+  RebuildAndPublish();
   // Tag the object only after RebuildAndPublish has retired the graph that last
   // referenced it, so its epoch is >= that graph's — the graphs-first drain then
   // guarantees no retired graph outlives an object it points into.
   {
-    std::scoped_lock lk(reclaimMtx_);
+    std::scoped_lock rlk(reclaimMtx_);
     retiredObjects_.emplace_back(object, audioBlock_.load(std::memory_order_acquire));
   }
   ScheduleReclaim();
   // The handle is never referenced by a GraphState, so it can go immediately.
   delete handle;
-
-  if (!fileHandlerActive) mtx.unlock();
 }
 
 void patcherImplementation::Clear() {
-  if (!fileHandlerActive) mtx.lock();
+  std::scoped_lock lk(mtx);
 
   std::vector<pObject*> doomed;
   doomed.reserve(objects.size());
@@ -262,18 +258,17 @@ void patcherImplementation::Clear() {
     delete it->first; // handle: not referenced by a GraphState
   }
   objects.clear();
-  if (!fileHandlerActive) RebuildAndPublish();
+  RebuildAndPublish();
   // Tag the removed objects only after their covering graph has been retired by
   // RebuildAndPublish, so each object's epoch is >= that graph's (see the
   // graphs-first invariant in ReclaimElapsed).
   {
-    std::scoped_lock lk(reclaimMtx_);
+    std::scoped_lock rlk(reclaimMtx_);
     const std::uint64_t at = audioBlock_.load(std::memory_order_acquire);
     for (pObject* obj : doomed)
       retiredObjects_.emplace_back(obj, at);
   }
   ScheduleReclaim();
-  if (!fileHandlerActive) mtx.unlock();
 }
 
 using json = nlohmann::json;
@@ -281,15 +276,16 @@ std::string patcherImplementation::DumpJSON() {
   json j;
   int counter = 0;
 
-  mtx.lock();
-  fileHandlerActive = true;
-  for (const auto& any : objects) {
-    std::string name = "object " + std::to_string(counter);
-    any.second->DumpJson(j[name]);
-    counter++;
+  // Read a consistent object set under mtx. mtx is control-thread only (issue
+  // #226), so serialising here never blocks the audio callback.
+  {
+    std::scoped_lock lk(mtx);
+    for (const auto& any : objects) {
+      std::string name = "object " + std::to_string(counter);
+      any.second->DumpJson(j[name]);
+      counter++;
+    }
   }
-  fileHandlerActive = false;
-  mtx.unlock();
 
   std::string result = j.dump(2, ' ', true);
   return result;
@@ -300,13 +296,18 @@ void patcherImplementation::ParseJSON(const std::string& content) {
 
   std::map<int, pHandle*> OldIDs;
 
-  mtx.lock();
-  fileHandlerActive = true;
+  // Build the whole parsed graph under one lock and publish it with a single
+  // atomic swap at the end (issue #228): the audio thread never sees a
+  // partial graph — it keeps rendering the previously-published snapshot until
+  // RebuildAndPublish below installs the finished one. The *Unlocked cores do
+  // the create/connect work without re-taking mtx or publishing per edit, which
+  // is what let the old fileHandlerActive re-entrancy flag be retired.
+  std::scoped_lock lk(mtx);
   // restore objects first
   for (auto obj = j.begin(); obj != j.end(); ++obj) {
     std::string type = obj.value()["type"].get<std::string>();
     std::string args = obj.value()["parms"].get<std::string>();
-    pHandle* handle = CreateObject(type, args);
+    pHandle* handle = CreateObjectUnlocked(type, args);
 
     // handle can be null if called without gui context
     if (handle != nullptr) {
@@ -351,17 +352,16 @@ void patcherImplementation::ParseJSON(const std::string& content) {
         }
 
         if (targetHandle != nullptr && sourceHandle != nullptr) {
-          Connect(sourceHandle, outlet, targetHandle, inlet);
+          ConnectUnlocked(sourceHandle, outlet, targetHandle, inlet);
         }
       }
       outlet++;
     }
   }
-  fileHandlerActive = false;
-  // Every create/connect above ran in batch mode (no per-edit swap); publish
-  // the whole parsed graph in a single atomic swap now.
+  // Every create/connect above mutated only the freshly-built objects (never
+  // referenced by the still-active snapshot); publish the whole parsed graph in
+  // a single atomic swap now.
   RebuildAndPublish();
-  mtx.unlock();
 }
 
 unsigned int patcherImplementation::Objects() {

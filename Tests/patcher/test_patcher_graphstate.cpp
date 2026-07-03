@@ -173,4 +173,48 @@ TEST_SUITE("patcher") {
     CHECK_FALSE(dst.output[0].isSilent());
   }
 
+  // ---- Off-thread file handlers / retired fileHandlerActive (issue #228) ----
+
+  TEST_CASE("filehandlers: ParseJSON publishes exactly one graph for the whole file") {
+    // The parse builds every object + connection under one lock and swaps once.
+    // On a fresh patcher active_ starts null, so a correct single publish retires
+    // nothing. If the per-edit publish had crept back (the old fileHandlerActive
+    // batching lost), each CreateObject/Connect would retire an intermediate
+    // graph and PendingRetired() would climb with the object/edge count.
+    patcherImplementation src(1, nullptr);
+    src.Connect(src.CreateObject(YSE::OBJ::D_NOISE, ""), 0, src.CreateObject(YSE::OBJ::D_DAC, ""),
+                0);
+    std::string dump = src.DumpJSON();
+
+    patcherImplementation dst(1, nullptr);
+    dst.ParseJSON(dump);
+    CHECK(dst.PendingRetired() == 0);
+    dst.Calculate(YSE::T_DSP);
+    CHECK_FALSE(dst.output[0].isSilent());
+  }
+
+  TEST_CASE("filehandlers: Clear silences the next block and is reclaim-safe") {
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* noise = p.CreateObject(YSE::OBJ::D_NOISE, "");
+    YSE::pHandle* dac = p.CreateObject(YSE::OBJ::D_DAC, "");
+    p.Connect(noise, 0, dac, 0);
+    p.Calculate(YSE::T_DSP);
+    REQUIRE_FALSE(p.output[0].isSilent());
+
+    // Clearing a rendering patcher publishes an empty graph and retires the old
+    // objects; a block that ran the retired snapshot must not touch freed memory
+    // (an ASan build would trip). The next block renders silence.
+    p.Clear();
+    p.Calculate(YSE::T_DSP);
+    CHECK(p.output[0].isSilent());
+
+    // The patcher is reusable after a clear: re-parse a fresh graph into it.
+    patcherImplementation src(1, nullptr);
+    src.Connect(src.CreateObject(YSE::OBJ::D_NOISE, ""), 0, src.CreateObject(YSE::OBJ::D_DAC, ""),
+                0);
+    p.ParseJSON(src.DumpJSON());
+    p.Calculate(YSE::T_DSP);
+    CHECK_FALSE(p.output[0].isSilent());
+  }
+
 } // TEST_SUITE("patcher")
