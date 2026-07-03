@@ -5,6 +5,7 @@
 #include "../headers/enums.hpp"
 #include "genericObjects/pDac.h"
 #include "genericObjects/gReceive.h"
+#include "genericObjects/gSend.h"
 #include "pHandle.hpp"
 #include "../utils/json.hpp"
 #include <atomic>
@@ -40,6 +41,10 @@ void patcherImplementation::SetName(const std::string & n) {
   for (auto & x : objects) {
     if (strcmp(x.second->Type(), OBJ::G_RECEIVE) == 0) {
       static_cast<gReceive*>(x.second)->Resubscribe();
+    } else if (strcmp(x.second->Type(), OBJ::G_SEND) == 0) {
+      // Keep gSend's cached bus address in step with the receivers that just
+      // re-anchored, so sends still reach them under the new name (issue #187).
+      static_cast<gSend*>(x.second)->RefreshBusAddress();
     }
   }
   mtx.unlock();

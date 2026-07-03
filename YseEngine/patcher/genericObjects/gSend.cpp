@@ -24,19 +24,13 @@ CONSTRUCT() {
   PARAM_DOC("globalOnly", "0", "When 1, skip in-patcher delivery and publish only to the global bus.", "0 or 1");
 }
 
-// Publish helper. `parent` is a patcherImplementation by construction (the
-// patcher hands itself to every object via SetParent); the cast mirrors the
-// existing PassData calls in this file. RT-safety: on T_DSP the bus
-// publish path is allocation-free and lock-free for int/float; bang and
-// list payloads silently drop on T_DSP per the bus contract.
+// RT-safety: on T_DSP the bus publish path is allocation-free and lock-free
+// for int/float; bang and list payloads silently drop on T_DSP per the bus
+// contract. The address is precomputed off the audio thread (SetParent /
+// RefreshBusAddress) into busAddress_ so no std::string is built here.
 namespace {
   using YSE::INTERNAL::Bus;
   using YSE::INTERNAL::BusValue;
-
-  inline std::string busAddress(YSE::PATCHER::patcherImplementation * p,
-                                const std::string & dataName) {
-    return p->Name() + "." + dataName;
-  }
 
   // The bus is owned by INTERNAL::Global() between init() and close(); skip
   // publishing outside that window so tests instantiating a patcher without
@@ -44,6 +38,23 @@ namespace {
   inline bool busAvailable() {
     return YSE::INTERNAL::Global().isActive();
   }
+}
+
+// `parent` is a patcherImplementation by construction (the patcher hands
+// itself to every object via SetParent); the cast mirrors the existing
+// PassData calls below.
+void gSend::SetParent(pObject * newParent) {
+  pObject::SetParent(newParent);
+  RefreshBusAddress();
+}
+
+void gSend::RefreshBusAddress() {
+  if (parent == nullptr) {
+    busAddress_.clear();
+    return;
+  }
+  auto * p = static_cast<patcherImplementation*>(parent);
+  busAddress_ = p->Name() + "." + dataName;
 }
 
 BANG_IN(SetBangValue) {
@@ -54,7 +65,7 @@ BANG_IN(SetBangValue) {
   }
   if (busAvailable()) {
     // Bang on the bus is a monostate publish — only delivered on T_GUI.
-    Bus().publish(busAddress(p, dataName), BusValue{}, thread);
+    Bus().publish(busAddress_, BusValue{}, thread);
   }
 }
 
@@ -65,7 +76,7 @@ INT_IN(SetIntValue) {
     p->PassData(value, dataName, thread);
   }
   if (busAvailable()) {
-    Bus().publish(busAddress(p, dataName), BusValue{value}, thread);
+    Bus().publish(busAddress_, BusValue{value}, thread);
   }
 }
 
@@ -76,7 +87,7 @@ FLOAT_IN(SetFloatValue) {
     p->PassData(value, dataName, thread);
   }
   if (busAvailable()) {
-    Bus().publish(busAddress(p, dataName), BusValue{value}, thread);
+    Bus().publish(busAddress_, BusValue{value}, thread);
   }
 }
 
@@ -87,6 +98,6 @@ LIST_IN(SetListValue) {
     p->PassData(value, dataName, thread);
   }
   if (busAvailable()) {
-    Bus().publish(busAddress(p, dataName), BusValue{value}, thread);
+    Bus().publish(busAddress_, BusValue{value}, thread);
   }
 }

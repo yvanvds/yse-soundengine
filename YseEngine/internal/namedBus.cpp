@@ -11,13 +11,65 @@
 #include "namedBus.h"
 
 #include <algorithm>
+#include <thread>
 
 namespace YSE {
   namespace INTERNAL {
 
-    NamedBus::NamedBus() : audioQueue_(kQueueCapacity) {}
+    namespace {
+      // Monotonic across the whole process so every NamedBus instance gets a
+      // distinct stamp even when a new one is allocated at the address a freed
+      // one used (engine restart). Paired with the thread_local slot cache in
+      // producerQueue().
+      std::atomic<std::uint64_t> g_busGeneration { 0 };
+
+      // Per-thread slot into the current bus's queue pool. `generation` marks
+      // which bus instance `index` was claimed against; a mismatch means this
+      // thread has not yet claimed a slot on the live bus.
+      struct ProducerSlot {
+        std::uint64_t generation = 0;
+        std::size_t   index = 0;
+        bool          valid = false;
+      };
+      thread_local ProducerSlot t_slot;
+
+      // Provision a queue per render thread: the audio callback thread plus one
+      // per fast-pool worker (sized to hardware_concurrency), with headroom for
+      // transient producers. Bounded so a machine reporting a huge core count
+      // does not reserve an unreasonable amount of queue memory.
+      std::size_t provisionedQueueCount() {
+        unsigned int hw = std::thread::hardware_concurrency();
+        if (hw == 0) hw = 4;  // hardware_concurrency() may report 0
+        std::size_t count = static_cast<std::size_t>(hw) + 4;
+        constexpr std::size_t kMaxQueues = 128;
+        return count < kMaxQueues ? count : kMaxQueues;
+      }
+    }  // namespace
+
+    NamedBus::NamedBus()
+      : generation_(g_busGeneration.fetch_add(1, std::memory_order_relaxed) + 1) {
+      const std::size_t count = provisionedQueueCount();
+      audioQueues_.reserve(count);
+      for (std::size_t i = 0; i < count; ++i) {
+        audioQueues_.push_back(std::make_unique<lfQueue<PooledMessage>>(kQueueCapacity));
+      }
+    }
 
     NamedBus::~NamedBus() = default;
+
+    lfQueue<NamedBus::PooledMessage>* NamedBus::producerQueue() {
+      // Claim a slot the first time this thread publishes on the live bus. The
+      // fetch_add runs at most once per thread per session — steady-state
+      // publishing hits neither an atomic nor a lock here.
+      if (t_slot.generation != generation_) {
+        const std::size_t slot = nextSlot_.fetch_add(1, std::memory_order_relaxed);
+        t_slot.generation = generation_;
+        t_slot.index = slot;
+        t_slot.valid = slot < audioQueues_.size();
+      }
+      if (!t_slot.valid) return nullptr;  // more producers than provisioned
+      return audioQueues_[t_slot.index].get();
+    }
 
     NamedBus& Bus() {
       return Global().namedBus();
@@ -40,13 +92,19 @@ namespace YSE {
           return;
         }
 
+        // Route to this thread's own SPSC queue. producerQueue() returns null
+        // only if more render threads publish than were provisioned — drop
+        // rather than share a queue and break the single-producer contract.
+        lfQueue<PooledMessage>* queue = producerQueue();
+        if (queue == nullptr) return;
+
         const std::size_t n = name.size() < kNameCapacity ? name.size() : kNameCapacity;
         std::memcpy(msg.nameStorage, name.data(), n);
         msg.nameStorage[n] = '\0';
 
         // try_push never allocates; if the queue is saturated the message is
         // dropped rather than blocking the audio callback.
-        audioQueue_.try_push(msg);
+        queue->try_push(msg);
         return;
       }
 
@@ -81,14 +139,19 @@ namespace YSE {
     }
 
     void NamedBus::drainPending() {
+      // Drain every producer queue. Each is single-consumer (only this call
+      // pops), so touching them all from the update thread is race-free. Empty
+      // queues cost a single try_pop; slots past nextSlot_ are never claimed.
       PooledMessage msg;
-      while (audioQueue_.try_pop(msg)) {
-        BusValue value;
-        switch (msg.kind) {
-          case PooledMessage::Kind::Int:   value = msg.value.i; break;
-          case PooledMessage::Kind::Float: value = msg.value.f; break;
+      for (auto& queue : audioQueues_) {
+        while (queue->try_pop(msg)) {
+          BusValue value;
+          switch (msg.kind) {
+            case PooledMessage::Kind::Int:   value = msg.value.i; break;
+            case PooledMessage::Kind::Float: value = msg.value.f; break;
+          }
+          dispatch(std::string(msg.nameStorage), value);
         }
-        dispatch(std::string(msg.nameStorage), value);
       }
     }
 
