@@ -382,6 +382,9 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)utils\lfQueue.hpp">
       <Filter>utils</Filter>
     </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)utils\mpmcQueue.hpp">
+      <Filter>utils</Filter>
+    </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)utils\misc.hpp">
       <Filter>utils</Filter>
     </ClInclude>

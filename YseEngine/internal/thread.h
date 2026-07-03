@@ -32,6 +32,16 @@ namespace YSE {
       void start();
       void stop();
 
+      // Best-effort thread priority. `high` raises this thread toward the
+      // audio-callback priority band (SCHED_FIFO on POSIX / THREAD_PRIORITY_-
+      // HIGHEST on Windows) so a render worker can't be preempted by ordinary
+      // work while the callback spins in threadPoolJob::join() waiting for it
+      // (issue #188). Must be called after start(); a no-op if the underlying
+      // handle isn't running yet. Failure (e.g. POSIX RT scheduling denied to
+      // an unprivileged process) is silently ignored — correctness never
+      // depends on the priority actually taking effect.
+      void setPriority(bool high);
+
       bool isRunning() const;
       bool threadShouldExit() const;
 

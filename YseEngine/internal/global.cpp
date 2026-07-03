@@ -126,7 +126,9 @@ void YSE::INTERNAL::global::drainScriptResults() {
 #endif
 }
 
-YSE::INTERNAL::global::global() : slowThreads(1), fastThreads(), bus(), update(false), active(false), sampleRateLocked(false) {}
+YSE::INTERNAL::global::global()
+  : slowThreads(1, poolClass::background), fastThreads(-1, poolClass::render),
+    bus(), update(false), active(false), sampleRateLocked(false) {}
 
 YSE::INTERNAL::global::~global() = default;
 
