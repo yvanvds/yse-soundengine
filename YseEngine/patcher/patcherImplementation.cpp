@@ -9,6 +9,7 @@
 #include "pHandle.hpp"
 #include "../utils/json.hpp"
 #include <atomic>
+#include <cstring>
 #include <string>
 #include "../implementations/logImplementation.h"
 
@@ -19,6 +20,11 @@ namespace {
   // name (issue #122). Distinct from pObject::CreateID() so the patcher
   // counter is not perturbed by inner-object construction.
   std::atomic<unsigned int> g_nextPatcherIndex{0};
+
+  // Shared empty list argument for DispatchToReceiver on the non-list value
+  // kinds (Bang/Int/Float), so those paths pass a std::string& without building
+  // a temporary. Never read for those kinds.
+  const std::string kEmptyList;
 } // namespace
 
 patcherImplementation::patcherImplementation(int mainOutputs, YSE::patcher* head)
@@ -29,6 +35,9 @@ patcherImplementation::patcherImplementation(int mainOutputs, YSE::patcher* head
     patcherName("patcher_" +
                 std::to_string(g_nextPatcherIndex.fetch_add(1, std::memory_order_relaxed))) {
   output.resize(mainOutputs);
+  // Pre-size the audio-thread list-delivery scratch so SetList never allocates
+  // on the callback path (issue #225).
+  listScratch_.reserve(kValueListCap);
 }
 
 void patcherImplementation::SetName(const std::string& n) {
@@ -73,6 +82,11 @@ void patcherImplementation::Calculate(YSE::THREAD thread) {
   const GraphState* g = active_.load(std::memory_order_acquire);
   audioBlock_.fetch_add(1, std::memory_order_acq_rel);
   currentBlockGraph_.store(g, std::memory_order_release);
+
+  // Deliver queued value messages (PassBang/PassData) before rendering, now
+  // that the snapshot is pinned so their fan-out resolves through it. This is
+  // where inlet handlers run — only ever on the audio thread (issue #225).
+  DeliverPendingValues(g);
 
   if (g != nullptr) {
     // invalidate all dsp buffers
@@ -337,14 +351,15 @@ YSE::pHandle* patcherImplementation::GetHandleFromID(unsigned int objID) {
 }
 
 bool patcherImplementation::PassBang(const std::string& to, YSE::THREAD thread) {
-  for (auto& x : objects) {
-    if (strcmp(x.second->Type(), OBJ::G_RECEIVE) == 0) {
-      if (to.compare(x.second->DataName()) == 0) {
-        x.second->GetInlet(0)->SetBang(thread);
-        return true;
-      }
-    }
+  if (thread == YSE::T_DSP) {
+    // Already on the audio thread (a gSend fanning out during traversal):
+    // deliver synchronously against the pinned snapshot, same block, no lock.
+    return DispatchToReceiver(currentBlockGraph_.load(std::memory_order_acquire), ValueKind::Bang,
+                              to.c_str(), 0, 0.f, kEmptyList, thread);
   }
+  ValueMsg msg{};
+  msg.kind = ValueKind::Bang;
+  if (EnqueueValue(msg, to)) return true;
   if (oscHandle != nullptr) {
     oscHandle->Send(to);
     return true;
@@ -355,14 +370,14 @@ bool patcherImplementation::PassBang(const std::string& to, YSE::THREAD thread) 
 }
 
 bool patcherImplementation::PassData(int value, const std::string& to, YSE::THREAD thread) {
-  for (auto& x : objects) {
-    if (strcmp(x.second->Type(), OBJ::G_RECEIVE) == 0) {
-      if (to.compare(x.second->DataName()) == 0) {
-        x.second->GetInlet(0)->SetInt(value, thread);
-        return true;
-      }
-    }
+  if (thread == YSE::T_DSP) {
+    return DispatchToReceiver(currentBlockGraph_.load(std::memory_order_acquire), ValueKind::Int,
+                              to.c_str(), value, 0.f, kEmptyList, thread);
   }
+  ValueMsg msg{};
+  msg.kind = ValueKind::Int;
+  msg.intVal = value;
+  if (EnqueueValue(msg, to)) return true;
   if (oscHandle != nullptr) {
     oscHandle->Send(to, value);
     return true;
@@ -373,14 +388,14 @@ bool patcherImplementation::PassData(int value, const std::string& to, YSE::THRE
 }
 
 bool patcherImplementation::PassData(float value, const std::string& to, YSE::THREAD thread) {
-  for (auto& x : objects) {
-    if (strcmp(x.second->Type(), OBJ::G_RECEIVE) == 0) {
-      if (to.compare(x.second->DataName()) == 0) {
-        x.second->GetInlet(0)->SetFloat(value, thread);
-        return true;
-      }
-    }
+  if (thread == YSE::T_DSP) {
+    return DispatchToReceiver(currentBlockGraph_.load(std::memory_order_acquire), ValueKind::Float,
+                              to.c_str(), 0, value, kEmptyList, thread);
   }
+  ValueMsg msg{};
+  msg.kind = ValueKind::Float;
+  msg.floatVal = value;
+  if (EnqueueValue(msg, to)) return true;
   if (oscHandle != nullptr) {
     oscHandle->Send(to, value);
     return true;
@@ -392,14 +407,29 @@ bool patcherImplementation::PassData(float value, const std::string& to, YSE::TH
 
 bool patcherImplementation::PassData(const std::string& value, const std::string& to,
                                      YSE::THREAD thread) {
-  for (auto& x : objects) {
-    if (strcmp(x.second->Type(), OBJ::G_RECEIVE) == 0) {
-      if (to.compare(x.second->DataName()) == 0) {
-        x.second->GetInlet(0)->SetList(value, thread);
-        return true;
-      }
-    }
+  if (thread == YSE::T_DSP) {
+    // Synchronous audio-thread delivery takes the value by reference — no inline
+    // buffer, so no length limit on this path.
+    return DispatchToReceiver(currentBlockGraph_.load(std::memory_order_acquire), ValueKind::List,
+                              to.c_str(), 0, 0.f, value, thread);
   }
+  // The deferred payload rides the queue inline; over-long values can't take the
+  // RT-safe path. Log and drop rather than truncate or allocate — but still let
+  // OSC (control-thread, no length limit) handle it if wired.
+  if (value.size() >= kValueListCap) {
+    INTERNAL::LogImpl().emit(
+        E_FILE_ERROR, "Patcher: list value too long for value queue, dropped (to " + to + ")");
+    if (oscHandle != nullptr) {
+      oscHandle->Send(to, value);
+      return true;
+    }
+    return false;
+  }
+
+  ValueMsg msg{};
+  msg.kind = ValueKind::List;
+  std::memcpy(msg.listVal, value.c_str(), value.size() + 1);
+  if (EnqueueValue(msg, to)) return true;
   if (oscHandle != nullptr) {
     oscHandle->Send(to, value);
     return true;
@@ -407,6 +437,90 @@ bool patcherImplementation::PassData(const std::string& value, const std::string
   INTERNAL::LogImpl().emit(E_FILE_ERROR, "Cannot find target " + to + ". Valid targets are" +
                                              GetRecieveObjectsAsString());
   return false;
+}
+
+bool patcherImplementation::DispatchToReceiver(const GraphState* g, ValueKind kind, const char* to,
+                                               int intVal, float floatVal,
+                                               const std::string& listVal, YSE::THREAD thread) {
+  if (g == nullptr) return false;
+  for (pObject* obj : g->objects) {
+    if (strcmp(obj->Type(), OBJ::G_RECEIVE) != 0) continue;
+    if (obj->DataName() != to) continue;
+    PATCHER::inlet* in = obj->GetInlet(0);
+    if (in == nullptr) return true; // matched, but nothing to deliver into
+    switch (kind) {
+    case ValueKind::Bang:
+      in->SetBang(thread);
+      break;
+    case ValueKind::Int:
+      in->SetInt(intVal, thread);
+      break;
+    case ValueKind::Float:
+      in->SetFloat(floatVal, thread);
+      break;
+    case ValueKind::List:
+      in->SetList(listVal, thread);
+      break;
+    }
+    return true;
+  }
+  return false;
+}
+
+bool patcherImplementation::EnqueueValue(ValueMsg& msg, const std::string& to) {
+  // The target receiver is carried by name and re-resolved on the audio thread.
+  // Over-long names can't ride the inline buffer; treat as "no in-patcher
+  // target" so the caller can still try OSC, and log rather than truncate.
+  if (to.size() >= kValueNameCap) {
+    INTERNAL::LogImpl().emit(E_FILE_ERROR,
+                             "Patcher: receiver name too long for value queue: " + to);
+    return false;
+  }
+  std::memcpy(msg.target, to.c_str(), to.size() + 1);
+
+  // Does a matching gReceive exist in this patcher? Scan under mtx so `objects`
+  // is never read concurrently with a structural edit. mtx is control-thread
+  // only now (issue #226) and never blocks the audio thread.
+  bool found = false;
+  mtx.lock();
+  for (auto& x : objects) {
+    if (strcmp(x.second->Type(), OBJ::G_RECEIVE) == 0 && to == x.second->DataName()) {
+      found = true;
+      break;
+    }
+  }
+  mtx.unlock();
+  if (!found) return false;
+
+  if (!valueQueue_.try_push(msg)) {
+    // Backpressure: the audio thread hasn't drained yet. Never block or allocate
+    // on the control thread — drop and log. The target existed, so return true
+    // regardless (don't spuriously fall back to OSC for a real in-patcher one).
+    INTERNAL::LogImpl().emit(E_ERROR, "Patcher: value queue full; dropped message to " + to);
+  }
+  return true;
+}
+
+void patcherImplementation::DeliverPendingValues(const GraphState* g) {
+  // Audio thread. Drain the whole queue every block so it can't grow unbounded,
+  // even when the patcher is empty (no snapshot to deliver into -> dropped).
+  // Re-resolving each target by name against the pinned snapshot is what makes
+  // this safe across a concurrent delete: a removed receiver is simply absent.
+  // Dispatch with T_GUI semantics (these messages originated on the control
+  // thread): set the parameter / forward the value; this block's own traversal
+  // renders it.
+  ValueMsg msg;
+  while (valueQueue_.try_pop(msg)) {
+    if (g == nullptr) continue;
+    if (msg.kind == ValueKind::List) {
+      // assign() into the reserved scratch reuses its buffer (no allocation on
+      // the audio thread) while giving SetList the std::string& it expects.
+      listScratch_.assign(msg.listVal);
+      DispatchToReceiver(g, msg.kind, msg.target, 0, 0.f, listScratch_, YSE::T_GUI);
+    } else {
+      DispatchToReceiver(g, msg.kind, msg.target, msg.intVal, msg.floatVal, kEmptyList, YSE::T_GUI);
+    }
+  }
 }
 
 std::string patcherImplementation::GetRecieveObjectsAsString() {

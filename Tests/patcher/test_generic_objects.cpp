@@ -3,8 +3,10 @@
 //
 // gSend is parent-coupled: its SetXValue handlers cast `parent` to
 // `patcherImplementation*` and call PassData on it.  The realistic path is
-// therefore exercised through a real `YSE::patcher` containing both gSend and
-// gReceive with matching dataNames.
+// therefore exercised through a patcher containing both gSend and gReceive with
+// matching dataNames.  Because control-thread PassData now defers delivery to
+// the audio thread (issue #225), the gSend->gReceive case drives
+// patcherImplementation directly so it can drain the value queue via Calculate.
 //
 // gMetro spawns a background TimerThread tick.  Tests stop the metro before
 // destruction (Toggle 0) so the dtor's id==0 branch runs and no temporary
@@ -13,6 +15,7 @@
 #include <doctest/doctest.h>
 #include <string>
 #include "patcher/patcher.hpp"
+#include "patcher/patcherImplementation.h"
 #include "patcher/pHandle.hpp"
 #include "patcher/pObjectList.hpp"
 #include "patcher/genericObjects/gGate.h"
@@ -381,8 +384,10 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("gSend -> gReceive: matching dataName carries bang/int/float/list") {
-    YSE::patcher p;
-    p.create(2);
+    // Driven from the control thread, so gSend's PassData fan-out is deferred to
+    // the audio thread (issue #225). Use patcherImplementation directly so the
+    // value queue can be drained with an explicit Calculate.
+    YSE::PATCHER::patcherImplementation p(2, nullptr);
     YSE::pHandle* send = p.CreateObject(YSE::OBJ::G_SEND, "channelA");
     YSE::pHandle* recv = p.CreateObject(YSE::OBJ::G_RECEIVE, "channelA");
     REQUIRE(send != nullptr);
@@ -396,6 +401,11 @@ TEST_SUITE("patcher") {
     send->SetIntData(0, 11);
     send->SetFloatData(0, 0.125f);
     send->SetListData(0, "msg body");
+
+    // Drain the in-patcher value queue. (When the global bus is active gSend
+    // also delivers via the bus, but this Calculate covers the local path too;
+    // deferral itself is covered by test_patcher_value_queue.)
+    p.Calculate(YSE::T_DSP);
 
     CHECK(sink.gotBang);
     CHECK(sink.gotInt);
