@@ -1,6 +1,7 @@
 #include "inlet.h"
 #include "outlet.h"
 #include "pObject.h"
+#include "graphState.h"
 
 using namespace YSE::PATCHER;
 
@@ -103,8 +104,32 @@ void inlet::SetMessage(const std::string& message, YSE::THREAD thread, float val
 }
 
 bool inlet::WaitingForDSP() const {
-  if (dspConnection == nullptr) return false;
+  // Whether this inlet has an active buffer input comes from the pinned
+  // snapshot when the patcher is mid-block (audio-thread path), else from the
+  // live ``dspConnection`` (control-thread / standalone path). See #226.
+  const GraphState* graph = obj ? obj->CurrentBlockGraph() : nullptr;
+  bool hasDsp;
+  if (graph != nullptr && graphId >= 0 &&
+      static_cast<size_t>(graphId) < graph->inletHasDsp.size()) {
+    hasDsp = graph->inletHasDsp[graphId] != 0;
+  } else {
+    hasDsp = (dspConnection != nullptr);
+  }
+  if (!hasDsp) return false;
   return !dspReady;
+}
+
+void inlet::UnwireFromPeers() {
+  // Detach from the buffer input and every control-edge source. Clear our own
+  // lists first so the peers' Disconnect(this) calls stay consistent.
+  outlet* dsp = dspConnection;
+  dspConnection = nullptr;
+  std::vector<outlet*> conns;
+  conns.swap(connections);
+  if (dsp != nullptr) dsp->Disconnect(this);
+  for (unsigned int i = 0; i < conns.size(); i++) {
+    conns[i]->Disconnect(this);
+  }
 }
 
 bool inlet::Connect(outlet* out) {
