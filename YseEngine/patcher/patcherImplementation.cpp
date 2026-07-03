@@ -712,6 +712,13 @@ void patcherImplementation::DeliverPendingValues(const GraphState* g) {
 }
 
 std::string patcherImplementation::GetRecieveObjectsAsString() {
+  // Reached from the PassBang/PassData not-found log path on the control thread
+  // (the target receiver was concurrently removed). Scan `objects` under mtx so
+  // it is never read while another control thread mutates the graph — mtx is
+  // control-thread only and never blocks the audio callback (issue #226). The
+  // callers release mtx in EnqueueValue before falling through here, so there is
+  // no re-entrancy.
+  std::scoped_lock lk(mtx);
   std::string result;
   for (auto& x : objects) {
 

@@ -86,6 +86,21 @@ def cmd_build(args):
 
 
 def cmd_test(args):
+    sanitizer = getattr(args, "sanitizer", None)
+    if sanitizer:
+        # ASan/TSan gate for the #229 patcher concurrency stress test. clang +
+        # sanitizer runtime are Linux-only here (Windows/MSYS2 clang ships no
+        # TSan and no ASan leak detector), matching the preset conditions.
+        if IS_WINDOWS:
+            print("error: --sanitizer builds require Linux/clang (see the "
+                  "tests-asan / tests-tsan presets).")
+            sys.exit(1)
+        preset = "tests-asan" if sanitizer == "asan" else "tests-tsan"
+        run(["cmake", "--preset", preset])
+        run(["cmake", "--build", "--preset", preset])
+        run(["ctest", "--preset", preset])
+        return
+
     preset = "tests-debug-python" if args.python else "tests-debug"
     build_dir = "build-tests-python" if args.python else "build-tests"
     run(["cmake", "--preset", preset])
@@ -931,6 +946,12 @@ def build_parser():
         help="Enable the embedded-CPython live-coding feature (YSE_ENABLE_PYTHON=ON; "
              "uses the tests-debug-python preset so the embedded-interpreter suite "
              "runs; desktop only)",
+    )
+    p.add_argument(
+        "--sanitizer", choices=["asan", "tsan"],
+        help="Build the patcher concurrency stress test (#229) under Address- or "
+             "ThreadSanitizer (tests-asan / tests-tsan presets) and run just that "
+             "test. Linux/clang only.",
     )
     p.set_defaults(func=cmd_test)
 

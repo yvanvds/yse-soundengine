@@ -202,3 +202,54 @@ jobs:
         env:
           LSAN_OPTIONS: ${{ matrix.asan && format('suppressions={0}/tools/lsan/python.supp', github.workspace) || '' }}
         run: ctest --test-dir ${{ matrix.bdir }} -L python --output-on-failure
+
+  build-sanitizers:
+    # Patcher concurrency acceptance gate (issue #229, epic #189): drive
+    # concurrent live-edit + render of a patcher under Thread- and
+    # AddressSanitizer so a regression in the wait-free graph model (a data race
+    # or a use-after-free of a retired GraphState/object on the audio thread) is
+    # caught. Both legs build only the tests-<san> preset and run just the
+    # patcher concurrency test (the preset filters by name). Local repro:
+    # tools/ci-linux/Dockerfile.sanitizers.
+    #
+    # Same trigger gate as the `build` job: continuous on push to dev/master,
+    # plus feature-branch PRs; skipped on release/sync PRs whose head is dev or
+    # master (the push that landed those SHAs already ran this).
+    if: github.event_name == 'push' || (github.head_ref != 'dev' && github.head_ref != 'master')
+    name: Sanitizers (${{ matrix.san }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        san: [tsan, asan]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Install dependencies
+        # libclang-rt-dev ships libclang_rt.{asan,tsan}; not pulled in by the base
+        # clang package, so the sanitizer legs fail to link without it.
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            pkg-config \
+            clang \
+            libclang-rt-dev \
+            portaudio19-dev \
+            libsndfile1-dev \
+            librtmidi-dev
+      - name: Lower ASLR entropy for the sanitizer runtime
+        # ubuntu-latest runners ship vm.mmap_rnd_bits=32, which the ASan/TSan
+        # shadow mapping cannot accommodate ("unexpected memory mapping" abort).
+        # 28 is the entropy the sanitizer runtimes are built for.
+        run: sudo sysctl -w vm.mmap_rnd_bits=28
+      - name: Configure (tests-${{ matrix.san }})
+        run: cmake --preset tests-${{ matrix.san }}
+      - name: Build
+        run: cmake --build --preset tests-${{ matrix.san }}
+      - name: Run patcher concurrency gate
+        # The tests-${san} test preset filters to yse_tests_patcher_concurrency
+        # and sets ASAN_OPTIONS=detect_leaks=0 on the asan leg (the process-global
+        # thread pools / named bus are intentionally never torn down).
+        run: ctest --preset tests-${{ matrix.san }} --output-on-failure

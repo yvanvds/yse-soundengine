@@ -1,0 +1,45 @@
+# Clang + sanitizer-runtime image for reproducing the patcher concurrency
+# acceptance gate (issue #229) locally. Mirrors the `clang+tsan` / `clang+asan`
+# legs in .github/workflows/build.yml so a sanitizer failure can be reproduced
+# from Windows without waiting on CI.
+#
+# Usage from PowerShell at repo root (TSan needs an unconfined seccomp profile
+# and ASLR disabled, so the container runs the binary under `setarch -R`):
+#   docker build -t yse-ci-san -f tools/ci-linux/Dockerfile.sanitizers .
+#   docker run --rm --security-opt seccomp=unconfined -e SAN=tsan \
+#       -v "${PWD}:/workspace" yse-ci-san
+#   docker run --rm --security-opt seccomp=unconfined -e SAN=asan \
+#       -v "${PWD}:/workspace" yse-ci-san
+
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update -y && apt-get install -y --no-install-recommends \
+        clang \
+        libclang-rt-dev \
+        cmake \
+        ninja-build \
+        pkg-config \
+        portaudio19-dev \
+        libsndfile1-dev \
+        librtmidi-dev \
+        util-linux \
+        ca-certificates \
+        git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+
+# SAN selects the sanitizer (tsan|asan). ASan disables the leak detector: the
+# process-global thread pools / named bus are intentionally never torn down, so
+# this gate is about use-after-free on the live-edit path, not leaks. The test
+# binary is launched by CTest under `setarch -R` (ASLR off) so TSan's shadow
+# mapping is stable under Docker.
+CMD ["bash", "-c", "set -ex && \
+    SAN=${SAN:-tsan} && \
+    PRESET=tests-${SAN} && \
+    export ASAN_OPTIONS=detect_leaks=0 && \
+    cmake --preset ${PRESET} && \
+    cmake --build --preset ${PRESET} && \
+    setarch -R ctest --preset ${PRESET} --output-on-failure"]
