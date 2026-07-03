@@ -41,7 +41,16 @@ namespace YSE {
 
     private:
 
-      Bool fillStream(Bool loop);
+      // Fill `dest` with up to STREAM_BUFFERSIZE frames from the current handle
+      // position, zero-padding the tail at non-loop EOF. Returns the number of
+      // real (non-padded) frames written (== STREAM_BUFFERSIZE unless EOF was hit
+      // without looping). Does blocking disk I/O — slow pool / load only, never
+      // the audio thread (issue #185).
+      UInt fillBuffer(Flt * dest, Bool loop);
+
+      // Slow-pool entry point: refill the back buffer and publish it. Overrides
+      // the base hook driven by _refillJob.
+      void fillBackBuffer() override;
 
       SndfileHandle * handle;
 
