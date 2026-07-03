@@ -19,6 +19,7 @@
 #include <forward_list>
 #include <atomic>
 #include <cstdint>
+#include <mutex>
 #include "threadPool.h"
 
 namespace YSE {
@@ -67,7 +68,10 @@ namespace YSE {
       // to keep track of clients
       void attach (SOUND::implementationObject * impl);
       void release(SOUND::implementationObject * impl);
-      bool inUse();
+      // Advance the idle timer by `dt` seconds and report whether this file is
+      // still in use (has clients, or hasn't been idle long enough to GC).
+      // Runs on the slow-pool GC job (issue #186), never the audio thread.
+      bool inUse(Flt dt);
 
     protected:
       static Bool readNonInterleaved(abstractSoundFile * file, std::vector<DSP::buffer> & filebuffer, Flt& pos, UInt length, Flt speed, Bool loop, SOUND_STATUS & intent, Flt & volume);
@@ -151,8 +155,13 @@ namespace YSE {
       Long _frontValidFrames;
       Bool _frontTerminal;
 
-      // for keeping track of objects using this file      
+      // for keeping track of objects using this file
+      // clientList is crossed by three roles: attach (main thread, from
+      // implementationObject::create), release (slow pool, from
+      // ~implementationObject) and the idle check in inUse() (slow-pool GC job,
+      // issue #186). None run on the audio thread, so this mutex is RT-safe.
       std::forward_list<SOUND::implementationObject*> clientList;
+      std::mutex clientListMutex;
       Flt idleTime;
 
     private:
