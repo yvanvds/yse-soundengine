@@ -179,6 +179,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)utils\interpolators.hpp" />
     <ClInclude Include="$(MSBuildThisFileDirectory)utils\json.hpp" />
     <ClInclude Include="$(MSBuildThisFileDirectory)utils\lfQueue.hpp" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)utils\mpmcQueue.hpp" />
     <ClInclude Include="$(MSBuildThisFileDirectory)utils\misc.hpp" />
     <ClInclude Include="$(MSBuildThisFileDirectory)utils\vector.hpp" />
     <ClInclude Include="$(MSBuildThisFileDirectory)yse.hpp" />

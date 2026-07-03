@@ -13,7 +13,9 @@ set(YSE_TEST_SOURCES
   utils/test_atomic.cpp
   utils/test_vector.cpp
   utils/test_lfqueue.cpp
+  utils/test_mpmcqueue.cpp
   utils/test_interpolators.cpp
+  internal/test_threadpool.cpp
   dsp/test_filters.cpp
   dsp/test_delay.cpp
   dsp/test_envelope.cpp
