@@ -44,9 +44,10 @@ CMakeLists.txt                   # Root build
 CMakePresets.json                # Named build presets (debug, release, tests-debug, coverage[-windows])
 yse.py                           # Python CLI wrapper over cmake --preset / ctest --preset
 .clang-tidy                      # Opt-in baseline; analyze-before-commit workflow via `yse.py analyze`
-.clang-format                    # clang-format config (used by `yse.py format`)
+.clang-format                    # clang-format config — the repo style: 2-space indent, K&R/attach braces, 100-col (used by `yse.py format`)
 sonar-project.properties         # SonarCloud analysis configuration
 .github/workflows/build.yml          # SonarQube Linux Debug + coverage on push/PR
+.github/workflows/format.yml         # clang-format --dry-run --Werror over YseEngine/ + Tests/ on push/PR
 .github/workflows/release.yml        # Tag-driven release: Windows/Linux x64 + Android multi-ABI archives
 .github/workflows/benchmark.yml      # google-benchmark runs; writes the bench-history orphan branch
 .github/workflows/documentation.yml  # Doxygen + Sphinx → GitHub Pages on push to master

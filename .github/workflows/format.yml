@@ -1,0 +1,38 @@
+name: clang-format
+
+# Guards against the .clang-format config and the committed sources drifting
+# apart again (issue #137). Runs a formatting-only dry run over the engine and
+# test sources; fails the PR if any file is not already clang-format-clean.
+on:
+  push:
+    branches:
+      - master
+      - dev
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  clang-format:
+    # Mirror build.yml's release-flow gate: the push that landed the SHAs on
+    # dev/master already ran this workflow, so skip the duplicate PR-event run
+    # for dev -> master (head_ref == 'dev') and master -> dev sync (== 'master').
+    if: github.event_name == 'push' || (github.head_ref != 'dev' && github.head_ref != 'master')
+    name: Check formatting
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Install clang-format
+        # Pin the exact version the tree was formatted with. The PyPI wheel
+        # bundles the real LLVM clang-format binary, so CI matches a maintainer's
+        # local `clang-format` (MSYS2 Clang64 22.1.4) without an apt source.
+        run: pipx install clang-format==22.1.4
+      - name: Report version
+        run: clang-format --version
+      - name: Check YseEngine/ and Tests/ are clang-format-clean
+        # --dry-run --Werror exits non-zero on the first file that would change.
+        run: >
+          find YseEngine Tests
+          \( -name '*.cpp' -o -name '*.hpp' -o -name '*.h' \)
+          -print0
+          | xargs -0 clang-format --style=file --dry-run --Werror
