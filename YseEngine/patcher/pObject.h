@@ -53,7 +53,13 @@ namespace YSE {
       void SetParams(const std::string& args);
       const std::string& GetParams();
 
-      void ConnectInlet(outlet* from, int toPin);
+      // Returns false when the inlet refuses the connection (it already has a
+      // buffer source, or the edge is a duplicate). The caller must not record
+      // the edge on the outlet side in that case: a one-sided outlet->inlet
+      // edge is invisible to Disconnect/UnwireFromPeers and ends up as a
+      // dangling inlet* in every GraphState built after the target object is
+      // deleted (issue #237).
+      bool ConnectInlet(outlet* from, int toPin);
       void DisconnectInlet(outlet* from, int toPin);
 
       virtual void ConnectOutlet(inlet* dest, int toPin);

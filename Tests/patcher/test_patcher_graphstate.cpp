@@ -193,6 +193,60 @@ TEST_SUITE("patcher") {
     CHECK_FALSE(dst.output[0].isSilent());
   }
 
+  // ---- One-sided edges from refused connections (issue #237) ----
+
+  TEST_CASE("connect: a refused buffer connection leaves no one-sided outlet edge") {
+    // An inlet holds at most one buffer source (dspConnection is a single
+    // slot), so a second buffer connection into the same inlet is refused on
+    // the inlet side. The outlet must not record the edge in that case: a
+    // one-sided outlet->inlet edge is invisible to Disconnect and
+    // UnwireFromPeers (both clean up from the inlet's records), so it gets
+    // compiled into every GraphState built after the target object is deleted
+    // and the audio thread walks a freed inlet through the *live* snapshot —
+    // the #237 use-after-free.
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* noiseA = p.CreateObject(YSE::OBJ::D_NOISE, "");
+    YSE::pHandle* noiseB = p.CreateObject(YSE::OBJ::D_NOISE, "");
+    YSE::pHandle* sw = p.CreateObject(YSE::OBJ::G_SWITCH, "3");
+
+    p.Connect(noiseA, 0, sw, 0);
+    CHECK(noiseA->GetConnections(0) == 1);
+
+    // Second buffer source into the same inlet: refused by the inlet, so the
+    // outlet side must stay clean too.
+    p.Connect(noiseB, 0, sw, 0);
+    CHECK(noiseB->GetConnections(0) == 0);
+  }
+
+  TEST_CASE("connect: deleting the target of a refused connection leaves no dangling edge") {
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* noiseA = p.CreateObject(YSE::OBJ::D_NOISE, "");
+    YSE::pHandle* noiseB = p.CreateObject(YSE::OBJ::D_NOISE, "");
+    YSE::pHandle* sw = p.CreateObject(YSE::OBJ::G_SWITCH, "3");
+    p.Connect(noiseA, 0, sw, 0);
+    p.Connect(noiseB, 0, sw, 0); // refused: inlet 0 already has a buffer source
+
+    p.DeleteObject(sw);
+    CHECK(noiseA->GetConnections(0) == 0);
+    CHECK(noiseB->GetConnections(0) == 0);
+
+    // Keep rendering while the background pool reclaims the deleted gSwitch.
+    // Both noises are start points, so every block resolves their outlet
+    // targets from the pinned snapshot; a leftover one-sided edge would make
+    // these blocks read the freed inlet (an ASan/TSan build trips here).
+    YSE::pHandle* dac = p.CreateObject(YSE::OBJ::D_DAC, "");
+    for (int spins = 0; spins < 2000 && p.PendingRetired() > 4; ++spins) {
+      p.Connect(noiseA, 0, dac, 0);
+      p.Calculate(YSE::T_DSP);
+      p.Disconnect(noiseA, 0, dac, 0);
+      p.Calculate(YSE::T_DSP);
+      p.Calculate(YSE::T_DSP);
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    p.Calculate(YSE::T_DSP);
+    CHECK(p.output[0].isSilent());
+  }
+
   TEST_CASE("filehandlers: Clear silences the next block and is reclaim-safe") {
     patcherImplementation p(1, nullptr);
     YSE::pHandle* noise = p.CreateObject(YSE::OBJ::D_NOISE, "");
