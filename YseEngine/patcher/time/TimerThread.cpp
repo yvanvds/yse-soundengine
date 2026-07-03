@@ -48,7 +48,13 @@ void timerThread::timerThreadWorker() {
         timer.waitCond->notify_all();
       }
     } else {
-      wakeUp.wait_until(lock, timer.next);
+      // Copy the deadline onto the stack before waiting: `timer` references a
+      // node of `active`, and a concurrent ClearTimer/Clear can erase (free)
+      // that node while wait_until has the lock released. wait_until re-reads
+      // the time_point after re-acquiring the lock to compute its return
+      // status, so passing timer.next directly is a use-after-free (#240).
+      Timestamp deadline = timer.next;
+      wakeUp.wait_until(lock, deadline);
     }
   }
 }

@@ -135,6 +135,25 @@ TEST_SUITE("patcher") {
     CHECK(t.empty());
   }
 
+  TEST_CASE("timerThread: cancel while the worker parks in wait_until (regression #240)") {
+    // The worker parks in wait_until(lock, timer.next), where `timer` is a
+    // reference into the `active` map node. A concurrent ClearTimer erases and
+    // frees that node while the wait has the lock released; wait_until then
+    // re-reads timer.next after re-locking to compute its return status. Before
+    // the fix that read touched freed memory (ASan heap-use-after-free at
+    // TimerThread.cpp:51). Churn add→park→cancel many times to hit the window.
+    YSE::PATCHER::timerThread t;
+    for (int i = 0; i < 500; ++i) {
+      // 200ms deadline so the worker enters wait_until rather than firing;
+      // the callback must never run within this loop.
+      auto id = t.Add(200, 0, [] {});
+      // Give the worker a beat to pick up the timer and park in wait_until.
+      std::this_thread::sleep_for(1ms);
+      t.ClearTimer(id); // frees the node the parked wait_until references
+    }
+    CHECK(t.empty());
+  }
+
   TEST_CASE("timerThread: setInterval with chrono duration overloads") {
     YSE::PATCHER::timerThread t;
     std::atomic<int> count{0};
