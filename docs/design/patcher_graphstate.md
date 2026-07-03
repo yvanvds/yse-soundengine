@@ -248,6 +248,23 @@ demonstrably loaded a newer pointer). This is correct but not optimal;
 under the same rule, so a deleted object outlives any block that could
 still touch it.
 
+> **Update ([#227][gh-227], landed):** the interim now runs on the
+> background pool instead of the control thread. Each structural edit
+> parks retired snapshots/objects (tagged with `audioBlock_`) under a
+> dedicated `reclaimMtx_` and schedules a `reclaimJob` on
+> `INTERNAL::threadPool` (`poolClass::background`). The job frees anything
+> the audio thread has advanced two blocks past — the same `+2` epoch
+> rule, now observed with an `acquire` load so the free happens-after the
+> last render that could touch it — and, while the epoch keeps advancing
+> and work remains, hands off to a sibling job (a `threadPoolJob` cannot
+> re-enqueue itself from inside `run()`) so the final edit's items are
+> reclaimed without waiting for another edit. A stalled epoch (paused
+> engine) ends the chain; leftovers are freed at the next edit or at
+> teardown (`FreeAllRetired`). The audio thread still only bumps
+> `audioBlock_` — no allocation, free, or wait. Objects are tagged only
+> *after* their covering graph is retired, so an object is never freed
+> while a retired graph still points into it.
+
 ## Scope of #226
 
 **In scope:**

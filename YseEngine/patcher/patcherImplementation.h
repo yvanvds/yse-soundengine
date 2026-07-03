@@ -6,6 +6,7 @@
 #include "patcher.hpp"
 #include "graphState.h"
 #include "../utils/mpmcQueue.hpp"
+#include "../internal/threadPool.h"
 #include <atomic>
 #include <cstdint>
 #include <map>
@@ -57,6 +58,13 @@ namespace YSE {
       unsigned int Objects();
       YSE::pHandle* GetHandleFromList(unsigned int obj);
       YSE::pHandle* GetHandleFromID(unsigned int objID);
+
+      // Number of retired GraphStates + objects still awaiting background
+      // reclamation (issue #227). Diagnostics / tests only: takes reclaimMtx_,
+      // so control-thread only. A value that stays small across many edits shows
+      // the background pool is draining retired state rather than letting it pile
+      // up until teardown.
+      std::size_t PendingRetired();
 
       std::vector<YSE::DSP::buffer> output;
 
@@ -134,11 +142,47 @@ namespace YSE {
       // Stamp lifetime-stable graph ids on a newly added object's inlets/outlets.
       void AssignGraphIds(pObject* obj);
       // Build the next GraphState, publish it with one atomic swap, retire the
-      // previous one, and reclaim anything the audio thread has moved past.
+      // previous one, and schedule background reclamation.
       void RebuildAndPublish();
-      // Free retired GraphStates/objects the audio thread can no longer be
-      // using (interim reclamation; the real epoch scheme is issue #227).
-      void DrainRetired();
+
+      // ---- Epoch reclamation on the background pool (issue #227) ----
+      //
+      // A retired GraphState (or object removed by Delete/Clear) can still be
+      // referenced by an audio block in flight, so it must be freed neither on
+      // the audio thread nor on the control thread the instant it is retired.
+      // Instead it is parked, tagged with the block count at retirement, and
+      // freed on the background pool once the audio thread has provably advanced
+      // two blocks past that epoch — at which point no in-flight Calculate can
+      // still hold it (the `+2` grace is proven in the .cpp). The audio thread
+      // only bumps audioBlock_; it never allocates, frees, or waits.
+      struct reclaimJob : INTERNAL::threadPoolJob {
+        patcherImplementation* owner = nullptr;
+        // The other half of a ping-pong pair. A threadPoolJob cannot re-enqueue
+        // *itself* from inside run() (activate() clears its queued/done flags
+        // after run() returns, which would swallow the re-enqueue), so a pass
+        // that still has work hands off to its sibling instead.
+        reclaimJob* sibling = nullptr;
+        void run() override {
+          owner->RunReclaimPass(sibling);
+        }
+      };
+
+      // Free every retired item whose grace period has elapsed relative to
+      // `now`; returns true if any retired items are still pending. Frees graphs
+      // before objects — a graph holds inlet* into the objects, and an object is
+      // always tagged at an epoch >= the graph that last referenced it, so any
+      // graph still pointing into an object freed here is freed in the same pass.
+      // Caller holds reclaimMtx_.
+      bool ReclaimElapsed(std::uint64_t now);
+      // Background-pool body: drain what is safe now and, while the audio epoch
+      // keeps advancing and items remain, hand off to `next` so the final edit's
+      // items are reclaimed without waiting for another edit. A stalled epoch
+      // (engine paused/stopped) ends the chain — leftovers aren't being raced
+      // and are freed at the next edit or at teardown.
+      void RunReclaimPass(reclaimJob* next);
+      // Control thread: enqueue a reclaim pass on the background pool unless one
+      // is already pending or the patcher is being torn down. Coalesced.
+      void ScheduleReclaim();
       // Unconditionally free everything retired plus the active graph. Called
       // from the destructor, where the audio thread is already stopped.
       void FreeAllRetired();
@@ -154,13 +198,28 @@ namespace YSE {
       // Snapshot pinned for the duration of the block being rendered. Written
       // by the audio thread at the start/end of Calculate.
       std::atomic<const GraphState*> currentBlockGraph_{nullptr};
-      // Monotonic count of rendered blocks, used by the interim reclaimer to
+      // Monotonic count of rendered blocks; the reclaimer reads it (acquire) to
       // tell when the audio thread has advanced past a retired snapshot.
       std::atomic<std::uint64_t> audioBlock_{0};
+
       // Retired snapshots / deleted objects awaiting reclamation, tagged with
-      // the block count at retirement. Control-thread only, guarded by mtx.
+      // the block count at retirement. Produced by the control thread and drained
+      // by the background pool, so guarded by reclaimMtx_ (never taken on the
+      // audio thread). reclaimMtx_ is an inner lock: an edit already holding mtx
+      // may take it, but the background reclaimer takes only reclaimMtx_.
+      std::mutex reclaimMtx_;
       std::vector<std::pair<const GraphState*, std::uint64_t>> retiredGraphs_;
       std::vector<std::pair<pObject*, std::uint64_t>> retiredObjects_;
+      // Two-element ping-pong so a reclaim pass that still has work can re-arm
+      // without re-enqueuing itself (see reclaimJob). Wired up in the ctor.
+      reclaimJob reclaimJobs_[2];
+      // Epoch observed by the previous reclaim pass; a pass re-arms only when the
+      // epoch has moved since, so a stalled audio thread can't spin the pool.
+      // Guarded by reclaimMtx_.
+      std::uint64_t lastReclaimEpoch_ = 0;
+      // Set once at teardown to stop scheduling and re-arming reclaim passes so
+      // the destructor's joins terminate. Read on the background pool.
+      std::atomic<bool> shuttingDown_{false};
       // Per-patcher dense id counters for inlets / outlets. Never reused, so
       // ids stay stable across edits.
       int nextInletId_ = 0;

@@ -10,8 +10,11 @@
 #include "../utils/json.hpp"
 #include <atomic>
 #include <cstring>
+#include <mutex>
 #include <string>
+#include <vector>
 #include "../implementations/logImplementation.h"
+#include "../internal/global.h"
 
 using namespace YSE::PATCHER;
 
@@ -38,6 +41,12 @@ patcherImplementation::patcherImplementation(int mainOutputs, YSE::patcher* head
   // Pre-size the audio-thread list-delivery scratch so SetList never allocates
   // on the callback path (issue #225).
   listScratch_.reserve(kValueListCap);
+  // Wire the two reclaim jobs into a ping-pong pair (issue #227): each re-arms
+  // the other so a reclaim pass with remaining work never re-enqueues itself.
+  reclaimJobs_[0].owner = this;
+  reclaimJobs_[0].sibling = &reclaimJobs_[1];
+  reclaimJobs_[1].owner = this;
+  reclaimJobs_[1].sibling = &reclaimJobs_[0];
 }
 
 void patcherImplementation::SetName(const std::string& n) {
@@ -60,10 +69,18 @@ void patcherImplementation::SetName(const std::string& n) {
 }
 
 patcherImplementation::~patcherImplementation() {
+  // Stop scheduling and re-arming reclaim passes first, so the joins below
+  // terminate instead of chasing a self-perpetuating ping-pong.
+  shuttingDown_.store(true, std::memory_order_release);
   // memory cleanup
   Clear();
+  // A reclaim pass already handed to the background pool may still be draining
+  // the retire lists; wait for both halves of the ping-pong to finish before we
+  // free those lists from under them. shuttingDown_ guarantees neither re-arms.
+  reclaimJobs_[0].join();
+  reclaimJobs_[1].join();
   // The audio thread is stopped at destruction, so reclaim unconditionally:
-  // the deferred retire lists (and the final published snapshot) are freed
+  // the remaining retire lists (and the final published snapshot) are freed
   // here rather than waiting on the block counter.
   FreeAllRetired();
 }
@@ -217,7 +234,14 @@ void patcherImplementation::DeleteObject(YSE::pHandle* handle) {
   // snapshot that references it. The free is deferred to the reclaimer.
   object->UnwireFromPeers();
   if (!fileHandlerActive) RebuildAndPublish();
-  retiredObjects_.emplace_back(object, audioBlock_.load(std::memory_order_acquire));
+  // Tag the object only after RebuildAndPublish has retired the graph that last
+  // referenced it, so its epoch is >= that graph's — the graphs-first drain then
+  // guarantees no retired graph outlives an object it points into.
+  {
+    std::scoped_lock lk(reclaimMtx_);
+    retiredObjects_.emplace_back(object, audioBlock_.load(std::memory_order_acquire));
+  }
+  ScheduleReclaim();
   // The handle is never referenced by a GraphState, so it can go immediately.
   delete handle;
 
@@ -227,17 +251,28 @@ void patcherImplementation::DeleteObject(YSE::pHandle* handle) {
 void patcherImplementation::Clear() {
   if (!fileHandlerActive) mtx.lock();
 
-  std::uint64_t at = audioBlock_.load(std::memory_order_acquire);
+  std::vector<pObject*> doomed;
+  doomed.reserve(objects.size());
   for (auto it = objects.begin(); it != objects.end(); ++it) {
     if (it->first->Type() == OBJ::G_METRO) {
       it->second->GetInlet(0)->SetInt(0, YSE::THREAD::T_GUI);
     }
     it->second->UnwireFromPeers();
-    retiredObjects_.emplace_back(it->second, at);
+    doomed.push_back(it->second);
     delete it->first; // handle: not referenced by a GraphState
   }
   objects.clear();
   if (!fileHandlerActive) RebuildAndPublish();
+  // Tag the removed objects only after their covering graph has been retired by
+  // RebuildAndPublish, so each object's epoch is >= that graph's (see the
+  // graphs-first invariant in ReclaimElapsed).
+  {
+    std::scoped_lock lk(reclaimMtx_);
+    const std::uint64_t at = audioBlock_.load(std::memory_order_acquire);
+    for (pObject* obj : doomed)
+      retiredObjects_.emplace_back(obj, at);
+  }
+  ScheduleReclaim();
   if (!fileHandlerActive) mtx.unlock();
 }
 
@@ -331,6 +366,11 @@ void patcherImplementation::ParseJSON(const std::string& content) {
 
 unsigned int patcherImplementation::Objects() {
   return static_cast<unsigned int>(objects.size());
+}
+
+std::size_t patcherImplementation::PendingRetired() {
+  std::scoped_lock lk(reclaimMtx_);
+  return retiredGraphs_.size() + retiredObjects_.size();
 }
 
 YSE::pHandle* patcherImplementation::GetHandleFromList(unsigned int obj) {
@@ -585,16 +625,29 @@ void patcherImplementation::RebuildAndPublish() {
   const GraphState* old = active_.load(std::memory_order_relaxed);
   active_.store(next, std::memory_order_release);
   if (old != nullptr) {
+    std::scoped_lock lk(reclaimMtx_);
     retiredGraphs_.emplace_back(old, audioBlock_.load(std::memory_order_acquire));
   }
-  DrainRetired();
+  ScheduleReclaim();
 }
 
-void patcherImplementation::DrainRetired() {
-  const std::uint64_t now = audioBlock_.load(std::memory_order_acquire);
-  // Interim reclamation (issue #227 replaces this): a snapshot retired at block
-  // C is safe to free once the audio thread has started at least two later
-  // blocks, so no in-flight block can still hold it. Free graphs before the
+void patcherImplementation::ScheduleReclaim() {
+  if (shuttingDown_.load(std::memory_order_acquire)) return;
+  // One pending pass is enough: it drains everything currently safe. isQueued()
+  // covers both a job waiting in the ring and one mid-run, so either half of the
+  // ping-pong being live suppresses a duplicate enqueue.
+  if (reclaimJobs_[0].isQueued() || reclaimJobs_[1].isQueued()) return;
+  // A background job: never runs inline on the caller and never blocks the audio
+  // thread. If the pool is inactive the job is simply not queued; the retire
+  // lists then wait for the next edit or for the destructor's FreeAllRetired.
+  INTERNAL::Global().addSlowJob(&reclaimJobs_[0]);
+}
+
+bool patcherImplementation::ReclaimElapsed(std::uint64_t now) {
+  // A snapshot retired at block C is safe to free once the audio thread has
+  // started at least two later blocks: the last block that could still hold it
+  // finished its render before block C+2's counter bump, which this pass's
+  // acquire load of audioBlock_ synchronizes-with. Free graphs before the
   // objects they point into.
   for (std::size_t i = 0; i < retiredGraphs_.size();) {
     if (now >= retiredGraphs_[i].second + 2) {
@@ -611,6 +664,26 @@ void patcherImplementation::DrainRetired() {
     } else {
       ++i;
     }
+  }
+  return !retiredGraphs_.empty() || !retiredObjects_.empty();
+}
+
+void patcherImplementation::RunReclaimPass(reclaimJob* next) {
+  bool remaining;
+  bool advancing;
+  {
+    std::scoped_lock lk(reclaimMtx_);
+    const std::uint64_t now = audioBlock_.load(std::memory_order_acquire);
+    remaining = ReclaimElapsed(now);
+    // The epoch moved since the previous pass -> the audio thread is live and
+    // will keep crossing retirement thresholds, so it is worth another pass. A
+    // frozen epoch means the engine is paused/stopped (leftovers aren't being
+    // raced) or nothing new became safe; either way, stop.
+    advancing = (now != lastReclaimEpoch_);
+    lastReclaimEpoch_ = now;
+  }
+  if (remaining && advancing && !shuttingDown_.load(std::memory_order_acquire)) {
+    INTERNAL::Global().addSlowJob(next);
   }
 }
 
