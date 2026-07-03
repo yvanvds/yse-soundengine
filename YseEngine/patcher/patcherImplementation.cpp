@@ -159,8 +159,19 @@ void patcherImplementation::ConnectUnlocked(YSE::pHandle* from, int outlet, YSE:
   PATCHER::outlet* out = from->object->GetOutlet(outlet);
   PATCHER::inlet* in = to->object->GetInlet(inlet);
   if (out != nullptr && in != nullptr) {
-    from->object->ConnectOutlet(in, outlet);
-    to->object->ConnectInlet(out, inlet);
+    // Ask the inlet first: it refuses a second buffer source (and duplicate
+    // edges). Only record the edge on the outlet when the inlet accepted it —
+    // a one-sided outlet->inlet edge survives Disconnect/UnwireFromPeers (both
+    // clean up from the inlet's records) and gets compiled into every later
+    // GraphState, so once the target object is deleted and reclaimed the audio
+    // thread reads a freed inlet through the *live* snapshot (issue #237).
+    if (to->object->ConnectInlet(out, inlet)) {
+      from->object->ConnectOutlet(in, outlet);
+    } else {
+      INTERNAL::LogImpl().emit(E_ERROR,
+                               "Patcher: connection refused (duplicate edge or inlet already has "
+                               "a buffer source)");
+    }
   } else {
     INTERNAL::LogImpl().emit(E_ERROR, "Patcher: Invalid Connection");
   }

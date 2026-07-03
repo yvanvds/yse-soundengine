@@ -67,8 +67,8 @@ void pObject::SetParams(const std::string& args) {
   parms.Set(args);
 }
 
-void pObject::ConnectInlet(outlet* from, int inlet) {
-  inputs[inlet].Connect(from);
+bool pObject::ConnectInlet(outlet* from, int inlet) {
+  return inputs[inlet].Connect(from);
 }
 
 void pObject::DisconnectInlet(outlet* from, int inlet) {
