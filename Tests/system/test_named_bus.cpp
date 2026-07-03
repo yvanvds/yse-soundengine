@@ -14,10 +14,12 @@
 // TU because no other test needs it; if a future TU also wants it, lift the
 // probe into a shared header.
 
+#include <array>
 #include <atomic>
 #include <cstdlib>
 #include <new>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <doctest/doctest.h>
@@ -184,6 +186,47 @@ TEST_CASE("named bus: T_DSP publish drops string/list payloads silently") {
     CHECK(hits == 1);
 
     bus.unsubscribe(h);
+}
+
+TEST_CASE("named bus: concurrent T_DSP publishers each keep their own queue") {
+    // Regression for issue #187: gSend publishes on T_DSP from whichever thread
+    // renders the owning channel, and child channels render concurrently on
+    // fast-pool workers. A single shared SPSC queue would have two producers
+    // racing in inner_enqueue → torn indices and lost messages. Each producing
+    // thread must own its own queue, so every message survives.
+    REQUIRE(TestHelpers::engineInit());
+    auto& bus = YSE::INTERNAL::Bus();
+
+    constexpr int kThreads   = 4;
+    constexpr int kPerThread = 500;  // < per-queue capacity, so nothing drops
+
+    std::array<int, kThreads> hits{};
+    std::vector<YSE::INTERNAL::SubHandle> handles;
+    handles.reserve(kThreads);
+    for (int t = 0; t < kThreads; ++t) {
+        handles.push_back(bus.subscribe("ch.mt." + std::to_string(t),
+            [t, &hits](const YSE::INTERNAL::BusValue& v) {
+                if (std::get_if<int>(&v)) ++hits[t];
+            }));
+    }
+
+    std::vector<std::thread> workers;
+    workers.reserve(kThreads);
+    for (int t = 0; t < kThreads; ++t) {
+        workers.emplace_back([t, &bus] {
+            const std::string name = "ch.mt." + std::to_string(t);
+            for (int i = 0; i < kPerThread; ++i)
+                bus.publish(name, YSE::INTERNAL::BusValue{i}, YSE::T_DSP);
+        });
+    }
+    for (auto& w : workers) w.join();
+
+    // Nothing is delivered until the consumer drains — on the main thread.
+    bus.drainPending();
+
+    for (int t = 0; t < kThreads; ++t) CHECK(hits[t] == kPerThread);
+
+    for (auto h : handles) bus.unsubscribe(h);
 }
 
 TEST_CASE("named bus: duplicate subscriptions on a name each get called") {

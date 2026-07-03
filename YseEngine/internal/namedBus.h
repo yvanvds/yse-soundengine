@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <cstring>
 #include <functional>
+#include <memory>
 #include <shared_mutex>
 #include <string>
 #include <unordered_map>
@@ -49,11 +50,18 @@ namespace YSE {
       // Publish a value to `name`.
       //
       //   thread == T_GUI : dispatch synchronously to every subscriber.
-      //   thread == T_DSP : enqueue into the lock-free SPSC queue. The queue
-      //                     entry has a fixed footprint, so only int and float
-      //                     values are accepted on the audio path. String /
-      //                     list / monostate publishes from T_DSP are dropped
-      //                     silently (no allocation, no log) — composers route
+      //   thread == T_DSP : enqueue into this thread's lock-free SPSC queue.
+      //                     Multiple render threads publish concurrently (the
+      //                     audio callback thread plus every fast-pool worker
+      //                     that renders a child channel), so each producing
+      //                     thread owns its own queue — claimed on first use
+      //                     and drained from `drainPending()`. This keeps every
+      //                     queue genuinely single-producer/single-consumer
+      //                     (issue #187). The queue entry has a fixed
+      //                     footprint, so only int and float values are
+      //                     accepted on the audio path. String / list /
+      //                     monostate publishes from T_DSP are dropped silently
+      //                     (no allocation, no log) — composers route
       //                     non-trivial payloads through main-thread bridges.
       //                     Names longer than `kNameCapacity` bytes are
       //                     truncated; producers must keep names short.
@@ -93,7 +101,22 @@ namespace YSE {
 
       void dispatch(const std::string& name, const BusValue& value);
 
-      lfQueue<PooledMessage> audioQueue_;
+      // Route this thread's T_DSP publish to its own SPSC queue, claiming a
+      // slot on first use. Returns nullptr once every provisioned slot is
+      // taken (more render threads than expected) — the caller then drops.
+      lfQueue<PooledMessage>* producerQueue();
+
+      // One SPSC queue per potential render-thread producer. Fixed at
+      // construction (never resized) so `producerQueue()` and `drainPending()`
+      // touch it without synchronisation. unique_ptr because lfQueue is
+      // non-movable and needs a non-default capacity.
+      std::vector<std::unique_ptr<lfQueue<PooledMessage>>> audioQueues_;
+      std::atomic<std::size_t> nextSlot_ { 0 };
+      // Distinguishes this bus instance from any earlier one a surviving
+      // thread may have cached a slot against — engine restart builds a fresh
+      // NamedBus that may reuse the same address (issue #187).
+      const std::uint64_t generation_;
+
       mutable std::shared_mutex subsMutex_;
       std::unordered_map<std::string, std::vector<Subscription>> subs_;
       std::unordered_map<SubHandle, std::string> handleIndex_;
