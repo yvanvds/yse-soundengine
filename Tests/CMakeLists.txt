@@ -38,6 +38,7 @@ set(YSE_TEST_SOURCES
   channel/test_channel_metering.cpp
   channel/test_channel_bus.cpp
   sound/test_sound_state.cpp
+  sound/test_sound_streaming.cpp
   sound/test_sound_impl.cpp
   sound/test_sound_concurrency.cpp
   sound/test_sound_bufferIO.cpp
@@ -102,6 +103,14 @@ target_link_libraries(yse_tests
   PRIVATE
     yse_objects   # direct object linkage: full symbol access without API export boundary
     doctest
+    yse::sndfile  # test_sound_streaming.cpp needs sndfile.hh (fixture writer + INTERNAL::soundFile)
+)
+
+# test_sound_streaming.cpp drives INTERNAL::soundFile directly, whose header is
+# gated behind LIBSOUNDFILE_BACKEND (defined PRIVATE on yse_objects). Enable the
+# gate for just this one TU so the rest of the suite is unaffected (issue #185).
+set_source_files_properties(sound/test_sound_streaming.cpp PROPERTIES
+  COMPILE_DEFINITIONS LIBSOUNDFILE_BACKEND
 )
 
 target_compile_features(yse_tests PRIVATE cxx_std_17)

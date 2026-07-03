@@ -34,7 +34,12 @@ YSE::INTERNAL::soundFile::soundFile(MULTICHANNELBUFFER * buffer)
 }
 
 YSE::INTERNAL::soundFile::~soundFile() {
+  // A back-buffer refill may still be queued or running on the slow pool. Let it
+  // finish before we free the handle and buffers it writes to, or it would touch
+  // freed memory (issue #185). join() returns immediately if nothing is in flight.
+  _refillJob.join();
   if (_iBuffer != nullptr) delete[] _iBuffer;
+  if (_iBufferBack != nullptr) delete[] _iBufferBack;
   if (handle != nullptr) delete handle;
 }
 
@@ -52,9 +57,18 @@ void YSE::INTERNAL::soundFile::loadStreaming() {
       _channels = handle->channels();
 
       Int size = STREAM_BUFFERSIZE * _channels;
-      _iBuffer = new Flt[size];
+      _iBuffer = new Flt[size];       // front buffer (audio thread plays)
+      _iBufferBack = new Flt[size];   // back buffer (slow pool prefills) — issue #185
       _streamPos = 0;
-      fillStream(false);
+
+      // Prime the front buffer (buffer 0). The back-buffer prefetch is scheduled
+      // by the first read() once the real loop flag is known, so we don't guess
+      // it here. Mark the front buffer's real-frame count; it is never treated as
+      // terminal (stop is decided by the back-buffer fills that know `loop`).
+      UInt valid = fillBuffer(_iBuffer, false);
+      _frontValidFrames = (Long)valid;
+      _frontTerminal = false;
+      _frontBufferBase = 0;
       state = READY;
     }
     else {
@@ -119,14 +133,13 @@ void YSE::INTERNAL::soundFile::loadNonStreaming() {
   if (ptr != nullptr) INTERNAL::customFileReader::Close(ptr);
 }
 
-Bool YSE::INTERNAL::soundFile::fillStream(Bool loop) {
-	if (_needsReset) {
-		handle->seek(0, SEEK_SET);
-		_streamPos = 0;
-		_needsReset = false;
-	}
+UInt YSE::INTERNAL::soundFile::fillBuffer(Flt * dest, Bool loop) {
+  if (_needsReset.exchange(false, std::memory_order_relaxed)) {
+    handle->seek(0, SEEK_SET);
+    _streamPos = 0;
+  }
   Int framesToRead = STREAM_BUFFERSIZE;
-  Flt * ptr = _iBuffer;
+  Flt * ptr = dest;
 
   while (framesToRead > 0) {
     U64 read = handle->readf(ptr, framesToRead);
@@ -139,18 +152,35 @@ Bool YSE::INTERNAL::soundFile::fillStream(Bool loop) {
         _streamPos = 0;
       }
       else {
-        framesToRead *= _channels;
-        while (framesToRead--) *ptr++ = 0.0f;
+        // non-loop EOF: zero-pad the remainder and report the real frame count
+        UInt valid = STREAM_BUFFERSIZE - (UInt)framesToRead;
+        Int zeros = framesToRead * _channels;
+        while (zeros-- > 0) *ptr++ = 0.0f;
         _streamPos = 0;
-        return false;
+        return valid;
       }
     }
     else {
-      return true;
+      return STREAM_BUFFERSIZE;
     }
-    
   }
-  return false;
+  return STREAM_BUFFERSIZE;
+}
+
+void YSE::INTERNAL::soundFile::fillBackBuffer() {
+  Bool loop = _streamLoop.load(std::memory_order_relaxed);
+  // Tag this fill with the generation observed at the start. reset() (on stop)
+  // bumps _fillGen, so the audio thread discards a fill that began before the
+  // stop instead of playing its stale position on restart (issue #185).
+  uint32_t gen = _fillGen.load(std::memory_order_acquire);
+  UInt valid = fillBuffer(_iBufferBack, loop);
+  // Publish: these are read by the audio thread after its acquire load of
+  // _backReady, so the release store below makes them visible.
+  _backValidFrames.store((Long)valid, std::memory_order_relaxed);
+  _backTerminal.store(valid < STREAM_BUFFERSIZE, std::memory_order_relaxed);
+  _backGen.store(gen, std::memory_order_relaxed);
+  _backReady.store(true, std::memory_order_release);
+  _refillInFlight.store(false, std::memory_order_relaxed);
 }
 
 

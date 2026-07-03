@@ -10,17 +10,24 @@
 
 #include "../internalHeaders.h"
 #include <string.h>
+#include <cassert>
 
 YSE::INTERNAL::abstractSoundFile::abstractSoundFile(bool interleaved)
   : useInterleavedBuffer(interleaved)
   , _iBuffer(nullptr)
+  , _iBufferBack(nullptr)
   , _audioBuffer(nullptr)
   , _multiChannelBuffer(nullptr)
   , state(NEW)
   , _sampleRateAdjustment(1.f)
   , _channels(0)
+  , _needsReset(false)
+  , _frontBufferBase(0)
+  , _frontValidFrames(0)
+  , _frontTerminal(false)
   , idleTime(0)
 {
+  _refillJob.owner = this;
 }
 
 YSE::INTERNAL::abstractSoundFile::abstractSoundFile(const std::string & fileName, bool interleaved)
@@ -69,6 +76,19 @@ Bool YSE::INTERNAL::abstractSoundFile::read(std::vector<DSP::buffer> & filebuffe
   else return readNonInterleaved(this, filebuffer, pos, length, speed, loop, intent, volume);
 }
 
+void YSE::INTERNAL::abstractSoundFile::requestRefill(Bool loop) {
+  // Called from the audio thread. Publishes the current loop flag and schedules
+  // at most one back-buffer refill on the slow pool. Never touches the disk.
+  _streamLoop.store(loop, std::memory_order_relaxed);
+  // A filled back buffer is already waiting to be swapped in — nothing to do.
+  if (_backReady.load(std::memory_order_acquire)) return;
+  // Schedule exactly one refill; _refillInFlight is cleared by fillBackBuffer().
+  Bool expected = false;
+  if (_refillInFlight.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
+    Global().addSlowJob(&_refillJob);
+  }
+}
+
 
 Bool YSE::INTERNAL::abstractSoundFile::readNonInterleaved(abstractSoundFile * file, std::vector<DSP::buffer> & filebuffer, Flt& pos, UInt length, Flt speed, Bool loop, SOUND_STATUS & intent, Flt & volume) {
   /** Yes, this function uses goto...
@@ -81,18 +101,11 @@ Bool YSE::INTERNAL::abstractSoundFile::readNonInterleaved(abstractSoundFile * fi
   // adjust speed for sample rate
   speed *= file->_sampleRateAdjustment;
 
-  // don't play streaming sounds backwards
-  if (file->_streaming && speed < 0) speed = 0;
+  // Non-interleaved sources (audio-buffer / multichannel) are never streaming;
+  // streaming always uses the interleaved path, so no disk refill happens here
+  // (issue #185). Guard it so a future change can't reintroduce a blocking read.
+  assert(!file->_streaming);
 
-  Flt realPos = 0;
-  if (file->_streaming) {
-    realPos = pos;
-    while (pos >= STREAM_BUFFERSIZE) {
-      pos -= STREAM_BUFFERSIZE;
-    }
-    realPos -= pos;
-  }
-  
   // this is for a smooth fade-in to avoid glitches
   if (intent == SS_WANTSTOPLAY) {
     intent = SS_PLAYING;
@@ -280,26 +293,6 @@ Bool YSE::INTERNAL::abstractSoundFile::readNonInterleaved(abstractSoundFile * fi
       }
 
 calibrate:
-      if (file->_streaming) {
-        while (pos >= STREAM_BUFFERSIZE) {
-          if(file->fillStream(loop)) {
-            pos -= STREAM_BUFFERSIZE;
-            realPos += STREAM_BUFFERSIZE;
-            if (realPos >= file->_length) {
-              realPos -= file->_length;
-            }
-          }
-          else {
-            pos = 0;
-						realPos = 0;
-            intent = SS_STOPPED;
-            volume = 0.f;
-            file->_streamPos = 0;
-            continue;
-          }
-        }
-      }
-      else 
       {
         // if we get here, pos is past the end or before the beginning
         // recalibrate position now. We can't simply set it to the end
@@ -316,31 +309,61 @@ calibrate:
       }
     }
 
-    // This label creates a safe point to start processing the next channel when the 
+    // This label creates a safe point to start processing the next channel when the
     // current one is done
     nextBuffer: ;
   }
 
-  if (file->_streaming) pos += realPos;
   // make sure position is reset to zero if playing has stopped during this read
   if (intent == SS_STOPPED) {
     pos = 0;
-		realPos = 0;
-    if (file->_streaming) {
-			file->reset();
-      if (file->fillStream(loop)) {
-        //pos -= STREAM_BUFFERSIZE;
-        //realPos += STREAM_BUFFERSIZE;
-        //if (realPos >= file->_length) {
-        //  realPos -= file->_length;
-        //}
-      }
-      pos += realPos;
-    }
   }
   return true;
 }
 
+
+// Try to bring the prefetched back buffer in as the new front buffer. Runs on
+// the audio thread; never touches the disk. See issue #185.
+YSE::INTERNAL::abstractSoundFile::swapResult
+YSE::INTERNAL::abstractSoundFile::streamSwap(abstractSoundFile * file, Flt & pos, Flt & streamEnd, Bool loop) {
+  if (file->_frontTerminal) return SWAP_TERMINAL;
+
+  // Drop a back buffer prefetched before a stop (its stream position is stale)
+  // so it is refilled from the current position instead of played on restart.
+  if (file->_backReady.load(std::memory_order_acquire)
+      && file->_backGen.load(std::memory_order_relaxed) != file->_fillGen.load(std::memory_order_relaxed)) {
+    file->_backReady.store(false, std::memory_order_relaxed);
+  }
+
+  if (!file->_backReady.load(std::memory_order_acquire)) {
+    file->requestRefill(loop); // prefetch not ready yet — caller emits silence
+    return SWAP_UNDERRUN;
+  }
+
+  // Publish-safe: _backValidFrames/_backTerminal were written before the
+  // _backReady release store we just acquired above.
+  Long consumed = file->_frontValidFrames;
+  Flt * tmp = file->_iBuffer;
+  file->_iBuffer = file->_iBufferBack;
+  file->_iBufferBack = tmp;
+  file->_frontValidFrames = file->_backValidFrames.load(std::memory_order_relaxed);
+  file->_frontTerminal = file->_backTerminal.load(std::memory_order_relaxed);
+  file->_frontBufferBase += consumed;
+  file->_backReady.store(false, std::memory_order_relaxed);
+  pos -= (Flt)consumed;
+  streamEnd = (Flt)file->_frontValidFrames;
+  file->requestRefill(loop); // prefetch the next buffer
+  return SWAP_DONE;
+}
+
+// Called on stop (audio thread): reset to frame 0 and arm an async re-prime so
+// the next play starts at the beginning. reset() empties the front state and
+// bumps the fill generation; requestRefill schedules the from-0 refill now so a
+// prompt restart finds it ready.
+void YSE::INTERNAL::abstractSoundFile::streamReprime(abstractSoundFile * file, Bool loop) {
+  file->reset();
+  file->requestRefill(loop);
+}
 
 //////////////////////////////////////////////////////////////////////////////////
 // interleaved read function
@@ -360,13 +383,31 @@ Bool YSE::INTERNAL::abstractSoundFile::readInterleaved(abstractSoundFile * file,
   // don't play streaming sounds backwards
   if (file->_streaming && speed < 0) speed = 0;
 
-  Flt realPos = 0;
+  // For streaming, `pos` is buffer-local in [0, streamEnd) where streamEnd is the
+  // count of real frames in the current front buffer (issue #185). For other
+  // sources the per-sample checks below use file->_length directly.
+  Flt streamEnd = (Flt)file->_frontValidFrames;
+
   if (file->_streaming) {
-    realPos = pos;
-    while (pos >= STREAM_BUFFERSIZE) {
-      pos -= STREAM_BUFFERSIZE;
+    // Keep the refill pipeline primed (schedules at most one slow-pool fill).
+    file->requestRefill(loop);
+    // Resolve any buffer boundary reached on a previous block *before* indexing
+    // into the front buffer in the state machine below. Never blocks on disk.
+    while (pos >= streamEnd) {
+      swapResult r = streamSwap(file, pos, streamEnd, loop);
+      if (r == SWAP_DONE) continue;
+      // Terminal (EOF) or underrun: emit a silent block and retry next callback.
+      FOREACH(filebuffer) {
+        Flt * o = filebuffer[i].getPtr();
+        for (UInt k = 0; k < length; ++k) o[k] = 0.f;
+      }
+      if (r == SWAP_TERMINAL) {
+        intent = SS_STOPPED;
+        pos = 0;
+        streamReprime(file, loop);
+      }
+      return true;
     }
-    realPos -= pos;
   }
 
   // this is for a smooth fade-in to avoid glitches
@@ -416,7 +457,7 @@ Bool YSE::INTERNAL::abstractSoundFile::readInterleaved(abstractSoundFile * file,
         pos += speed;
         x++;
 
-				if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : file->_length)) { // NOSONAR S134: nesting follows the state-machine structure documented at function level
+				if (pos < 0 || pos >= (file->_streaming ? streamEnd : file->_length)) { // NOSONAR S134: nesting follows the state-machine structure documented at function level
 					goto calibrate;
 				}
       }
@@ -430,7 +471,7 @@ Bool YSE::INTERNAL::abstractSoundFile::readInterleaved(abstractSoundFile * file,
         volume += 0.005f;
         x++;
 
-        if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : file->_length)) goto calibrate;
+        if (pos < 0 || pos >= (file->_streaming ? streamEnd : file->_length)) goto calibrate;
 
         if ((volume >= 1.f)) {
           // full volume is reached. Move to the optimized version
@@ -449,7 +490,7 @@ Bool YSE::INTERNAL::abstractSoundFile::readInterleaved(abstractSoundFile * file,
         volume -= 0.005f;
         x++;
 
-        if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : file->_length)) goto calibrate;
+        if (pos < 0 || pos >= (file->_streaming ? streamEnd : file->_length)) goto calibrate;
 
         if ((volume <= 0.f)) {
           // fade out complete, switch intent to paused and restart
@@ -469,7 +510,7 @@ Bool YSE::INTERNAL::abstractSoundFile::readInterleaved(abstractSoundFile * file,
         volume -= 0.005f;
         x++;
 
-        if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : file->_length)) goto calibrate;
+        if (pos < 0 || pos >= (file->_streaming ? streamEnd : file->_length)) goto calibrate;
 
         if ((volume <= 0.f)) {
           // fade out complete, switch intent to paused and restart
@@ -483,23 +524,30 @@ Bool YSE::INTERNAL::abstractSoundFile::readInterleaved(abstractSoundFile * file,
 
 calibrate:
     if (file->_streaming) {
-      while (pos >= STREAM_BUFFERSIZE) {
-        if (file->fillStream(loop)) {
-          pos -= STREAM_BUFFERSIZE;
-          realPos += STREAM_BUFFERSIZE;
-          if (realPos  >= file->_length) {
-						while (realPos >= STREAM_BUFFERSIZE) {
-							realPos -= STREAM_BUFFERSIZE;
-						}
-          }
+      // Boundary reached mid-block. Swap in prefetched buffers (never blocks on
+      // disk — see issue #185). On underrun, zero-fill the rest of this block and
+      // resume next callback. On EOF, stop.
+      Bool silence = false;
+      while (pos >= streamEnd) {
+        swapResult r = streamSwap(file, pos, streamEnd, loop);
+        if (r == SWAP_DONE) {
+          in = file->_iBuffer; // the front buffer pointer changed
+          continue;
         }
-        else {
+        if (r == SWAP_TERMINAL) {
           pos = 0;
-					realPos = 0;
           intent = SS_STOPPED;
           volume = 0.f;
-          file->_streamPos = 0;
-          continue;
+        }
+        else {
+          silence = true; // underrun
+        }
+        break;
+      }
+      if (silence) {
+        while (x < length) {
+          FOREACH(filebuffer) *filebuffer[i].cursor++ = 0;
+          x++;
         }
       }
     }
@@ -525,28 +573,13 @@ calibrate:
 
     goto startAgain;
   }
-  
 
-	if (file->_streaming) {
-		if (realPos < 0) {
-		}
-		pos += realPos;
-	}
   // make sure position is reset to zero if playing has stopped during this read
   if (intent == SS_STOPPED) {
     pos = 0;
-		realPos = 0;
-    if (file->_streaming) {
-			file->reset();
-      if (file->fillStream(loop)) {
-        //pos -= STREAM_BUFFERSIZE;
-        //realPos += STREAM_BUFFERSIZE;
-        //if (realPos >= file->_length) {
-        //  realPos -= file->_length;
-        //}
-      }
-      pos += realPos;
-    }
+    // For a stopped stream, arm an async re-prime from frame 0 so the next play
+    // starts at the beginning. No disk I/O on the audio thread (issue #185).
+    if (file->_streaming) streamReprime(file, loop);
   }
   return true;
 }
@@ -579,7 +612,18 @@ YSE::INTERNAL::FILESTATE YSE::INTERNAL::abstractSoundFile::getState() {
 }
 
 YSE::INTERNAL::abstractSoundFile & YSE::INTERNAL::abstractSoundFile::reset() {
-  _needsReset = true;
+  // Called on stop (audio thread only — from read() and dspFunc_parseIntent).
+  // Resets to frame 0 for the next play: the audio-owned front state is emptied
+  // so the next read() swaps in a freshly-filled buffer, the next disk fill seeks
+  // back to 0, and the generation is bumped so any fill that started before this
+  // stop (stale position) is discarded rather than played on restart. The
+  // prefetched back buffer is dropped for the same reason. (issue #185)
+  _frontValidFrames = 0;
+  _frontTerminal = false;
+  _frontBufferBase = 0;
+  _needsReset.store(true, std::memory_order_relaxed);
+  _fillGen.fetch_add(1, std::memory_order_release);
+  _backReady.store(false, std::memory_order_relaxed);
   return *this;
 }
 
