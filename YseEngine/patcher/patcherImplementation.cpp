@@ -8,6 +8,7 @@
 #include "genericObjects/gSend.h"
 #include "pHandle.hpp"
 #include "../utils/json.hpp"
+#include <algorithm>
 #include <atomic>
 #include <cstring>
 #include <mutex>
@@ -99,9 +100,12 @@ void patcherImplementation::Calculate(YSE::THREAD thread) {
   audioBlock_.fetch_add(1, std::memory_order_acq_rel);
   currentBlockGraph_.store(g, std::memory_order_release);
 
-  // Deliver queued value messages (PassBang/PassData) before rendering, now
-  // that the snapshot is pinned so their fan-out resolves through it. This is
-  // where inlet handlers run — only ever on the audio thread (issue #225).
+  // Apply queued scalar param plans first (issue #234), then deliver queued
+  // value messages (PassBang/PassData), both before rendering and against the
+  // pinned snapshot. Param stores land before any handler or render read of
+  // this block, so a SetParams that precedes a PassData on the control thread
+  // is also observed in that order here.
+  ApplyPendingParams(g);
   DeliverPendingValues(g);
 
   if (g != nullptr) {
@@ -253,6 +257,139 @@ void patcherImplementation::DeleteObject(YSE::pHandle* handle) {
   ScheduleReclaim();
   // The handle is never referenced by a GraphState, so it can go immediately.
   delete handle;
+}
+
+void patcherImplementation::SetObjectParams(YSE::pHandle* handle, const std::string& args) {
+  std::scoped_lock lk(mtx);
+  pObject* object = handle->object;
+  if (object == nullptr) return;
+
+  if (!object->ParamsNeedRebuild()) {
+    // Scalar-only params: pre-parse into a POD plan on this thread (parse
+    // errors throw here, never on the audio thread) and hand it to the audio
+    // thread for an allocation-free apply at the top of the next block. The
+    // stored param string is updated eagerly, so GetParams/DumpJSON reflect
+    // the new args immediately.
+    ParamMsg msg{};
+    msg.target = object;
+    const int count = object->BuildParamPlan(args, msg.ops, (int)kParamOpsCap);
+    if (count == 0) return; // nothing to apply (empty args or no scalar writes)
+    if (count > 0) {
+      msg.count = count;
+      if (!paramQueue_.try_push(msg)) {
+        // Backpressure: never block or allocate — drop and log, like the
+        // value queue. The queue drains every block, so sustained loss means
+        // the audio thread is stalled.
+        INTERNAL::LogImpl().emit(E_ERROR, "Patcher: param queue full; dropped SetParams for " +
+                                              std::string(object->Type()));
+      }
+      return;
+    }
+    // count < 0: the plan overflowed the inline cap. Fall through to the
+    // structural rebuild, which is correct for any object.
+  }
+  ReplaceObjectUnlocked(handle, args);
+}
+
+void patcherImplementation::ApplyPendingParams(const GraphState* g) {
+  // Audio thread. Drain the whole queue every block so it can't grow
+  // unbounded. A plan is applied only when its target is still in the pinned
+  // snapshot: a replaced/deleted object is simply absent and the plan is
+  // dropped. The pointer is compared, never dereferenced, and a retired
+  // object outlives any block that could still pin a snapshot holding it
+  // (issue #227's two-block grace), so the comparison itself is safe.
+  ParamMsg msg;
+  while (paramQueue_.try_pop(msg)) {
+    if (g == nullptr) continue;
+    bool present = false;
+    for (pObject* obj : g->objects) {
+      if (obj == msg.target) {
+        present = true;
+        break;
+      }
+    }
+    if (!present) continue;
+    for (int i = 0; i < msg.count; i++) {
+      const ParamOp& op = msg.ops[i];
+      switch (op.type) {
+      case PARM_TYPE::FLOAT:
+        *((float*)op.dest) = op.f;
+        break;
+      case PARM_TYPE::ATOMIC_FLOAT:
+        ((std::atomic<float>*)op.dest)->store(op.f, std::memory_order_relaxed);
+        break;
+      case PARM_TYPE::INT:
+        *((int*)op.dest) = op.i;
+        break;
+      case PARM_TYPE::ATOMIC_INT:
+        ((std::atomic<int>*)op.dest)->store(op.i, std::memory_order_relaxed);
+        break;
+      default:
+        break; // STRING/LIST never ride the scalar queue
+      }
+    }
+  }
+}
+
+void patcherImplementation::ReplaceObjectUnlocked(YSE::pHandle* handle, const std::string& args) {
+  pObject* old = handle->object;
+  pObject* fresh = Register().Get(old->Type());
+  if (fresh == nullptr) {
+    // Not registry-built (the DAC) — but the DAC registers no params, so a
+    // re-parse can never legitimately land here. Leave the object untouched.
+    INTERNAL::LogImpl().emit(E_ERROR, "Patcher: cannot rebuild " + std::string(old->Type()) +
+                                          " for a live SetParams; params unchanged");
+    return;
+  }
+
+  // Params first, then parent — the same order as CreateObjectUnlocked, so a
+  // gReceive/gSend anchors its bus subscription/address under the *new*
+  // dataName. The object is not yet published: pin callbacks may freely
+  // grow/shrink its inlets/outlets here.
+  fresh->SetParams(args);
+  fresh->CopyStorageIdentity(*old);
+  fresh->SetParent(this);
+  AssignGraphIds(fresh);
+
+  // Rewire the peers' edges onto the replacement for every pin index that
+  // survives the re-parse; edges on removed pins are dropped, like the old
+  // in-place pop_back did. Inlet-first (issue #237): record the edge on the
+  // source outlet only when the destination inlet accepted it.
+  const int ins = std::min(old->NumInputs(), fresh->NumInputs());
+  for (int i = 0; i < ins; i++) {
+    PATCHER::inlet* oldIn = old->GetInlet(i);
+    PATCHER::inlet* freshIn = fresh->GetInlet(i);
+    if (oldIn == nullptr || freshIn == nullptr) continue;
+    for (PATCHER::outlet* src : oldIn->Sources()) {
+      if (freshIn->Connect(src)) src->Connect(freshIn);
+    }
+    if (PATCHER::outlet* dsp = oldIn->DspSource()) {
+      if (freshIn->Connect(dsp)) dsp->Connect(freshIn);
+    }
+  }
+  const int outs = std::min(old->NumOutputs(), fresh->NumOutputs());
+  for (int o = 0; o < outs; o++) {
+    PATCHER::outlet* oldOut = old->GetOutlet(o);
+    PATCHER::outlet* freshOut = fresh->GetOutlet(o);
+    if (oldOut == nullptr || freshOut == nullptr) continue;
+    for (PATCHER::inlet* dest : oldOut->Targets()) {
+      if (dest->Connect(freshOut)) freshOut->Connect(dest);
+    }
+  }
+
+  // Detach the old object so the next snapshot holds no reference to it, swap
+  // the handle over, and publish. The old object is freed by the reclaimer
+  // once the audio thread has provably advanced past every snapshot that
+  // could still reference it — exactly like DeleteObject.
+  old->UnwireFromPeers();
+  objects[handle] = fresh;
+  handle->object = fresh;
+  RebuildAndPublish();
+  {
+    std::scoped_lock rlk(reclaimMtx_);
+    retiredObjects_.emplace_back(old, audioBlock_.load(std::memory_order_acquire));
+  }
+  ScheduleReclaim();
 }
 
 void patcherImplementation::Clear() {

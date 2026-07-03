@@ -53,6 +53,27 @@ namespace YSE {
       void SetParams(const std::string& args);
       const std::string& GetParams();
 
+      // Live-SetParams support (issue #234). A re-parse on a published object
+      // must not mutate it in place; the owning patcher asks these to decide
+      // and stage the RT-safe route instead.
+      bool ParamsNeedRebuild() const {
+        return parms.NeedsRebuild();
+      }
+      int BuildParamPlan(const std::string& args, ParamOp* ops, int cap) {
+        return parms.BuildPlan(args, ops, cap);
+      }
+      // Take over the persistent identity of the object this one replaces:
+      // the storage ID (DumpJSON references) and the GUI properties. Pin
+      // layout, params, and DSP state are deliberately not copied — the
+      // replacement was just built from the new param string.
+      void CopyStorageIdentity(const pObject& from) {
+        ID = from.ID;
+        guiProperties = from.guiProperties;
+      }
+      inline pObject* Parent() const {
+        return parent;
+      }
+
       // Returns false when the inlet refuses the connection (it already has a
       // buffer source, or the edge is a duplicate). The caller must not record
       // the edge on the outlet side in that case: a one-sided outlet->inlet

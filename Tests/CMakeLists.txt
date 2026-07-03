@@ -35,6 +35,7 @@ set(YSE_TEST_SOURCES
   patcher/test_c_api_metadata.cpp
   patcher/test_patcher_bus.cpp
   patcher/test_patcher_graphstate.cpp
+  patcher/test_patcher_setparams.cpp
   patcher/test_patcher_value_queue.cpp
   patcher/test_timerthread.cpp
   channel/test_channel.cpp
@@ -303,6 +304,7 @@ set_source_files_properties(
   patcher/test_c_api_metadata.cpp
   patcher/test_patcher_bus.cpp
   patcher/test_patcher_graphstate.cpp
+  patcher/test_patcher_setparams.cpp
   patcher/test_patcher_value_queue.cpp
   patcher/test_timerthread.cpp
   PROPERTIES COMPILE_FLAGS "${_patcher_test_suppress}"

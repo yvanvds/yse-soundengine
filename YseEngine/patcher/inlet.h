@@ -46,6 +46,16 @@ namespace YSE {
       bool Connect(outlet* out);
       void Disconnect(outlet* out);
 
+      // The live (control-thread) incoming edges: the control-edge sources
+      // and the single DSP source. Read by the structural-replacement rewiring
+      // of a live SetParams re-parse (issue #234); control thread only.
+      inline const std::vector<outlet*>& Sources() const {
+        return connections;
+      }
+      inline outlet* DspSource() const {
+        return dspConnection;
+      }
+
       // Drop this inlet's incoming edges and remove it from the outlets that
       // fed it, so a deleted object leaves no dangling reference in the next
       // GraphState (issue #226). Mirrors the destructor's peer cleanup but
