@@ -25,11 +25,9 @@ namespace YSE {
       REMOVE,
       CLEAR,
     };
-  }
+  } // namespace SCALE
   /// @endcond
 
-}
+} // namespace YSE
 
-
-
-#endif  // SCALE_HPP_INCLUDED
+#endif // SCALE_HPP_INCLUDED

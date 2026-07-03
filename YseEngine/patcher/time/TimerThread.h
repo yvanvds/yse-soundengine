@@ -19,8 +19,7 @@ namespace YSE {
       static timerID constexpr noTimer = timerID(0);
       using timerFunc = std::function<void()>;
 
-      template<typename... Args>
-      using boundHandlerType = std::function<void(Args...)>;
+      template <typename... Args> using boundHandlerType = std::function<void(Args...)>;
 
       using millisec = std::int64_t;
 
@@ -29,29 +28,23 @@ namespace YSE {
 
       timerID Add(millisec msDelay, millisec msPeriod, timerFunc func);
 
-      template<typename SRep, typename SPer,
-        typename PRep, typename PPer,
-        typename... Args>
-        timerID Add(
-          typename std::chrono::duration<SRep, SPer> const & delay,
-          typename std::chrono::duration<PRep, PPer> const & period,
-          boundHandlerType<Args...> handler, 
-          Args&& ...args);
+      template <typename SRep, typename SPer, typename PRep, typename PPer, typename... Args>
+      timerID Add(typename std::chrono::duration<SRep, SPer> const& delay,
+                  typename std::chrono::duration<PRep, PPer> const& period,
+                  boundHandlerType<Args...> handler, Args&&... args);
 
-      template<typename... Args>
-      timerID Add(millisec msDelay,
-        millisec msPeriod,
-        boundHandlerType<Args...> handler,
-        Args&& ...args);
+      template <typename... Args>
+      timerID Add(millisec msDelay, millisec msPeriod, boundHandlerType<Args...> handler,
+                  Args&&... args);
 
       timerID setInterval(timerFunc func, millisec period);
       timerID setTimeout(timerFunc func, millisec period);
 
-      template<typename... Args>
-      timerID setInterval(boundHandlerType<Args...> handler, millisec period, Args&& ...args);
+      template <typename... Args>
+      timerID setInterval(boundHandlerType<Args...> handler, millisec period, Args&&... args);
 
-      template<typename... Args>
-      timerID setTimeout(boundHandlerType<Args...> handler, millisec period, Args&& ...args);
+      template <typename... Args>
+      timerID setTimeout(boundHandlerType<Args...> handler, millisec period, Args&&... args);
 
       bool ClearTimer(timerID id);
       void Clear();
@@ -71,12 +64,12 @@ namespace YSE {
       struct Timer {
         explicit Timer(timerID id = 0);
         Timer(Timer&& r) noexcept;
-        Timer & operator=(Timer&& r) noexcept;
+        Timer& operator=(Timer&& r) noexcept;
 
         Timer(timerID id, Timestamp next, Duration period, timerFunc func) noexcept;
 
-        Timer(Timer const & r) = delete;
-        Timer(&operator=(Timer const & r)) = delete;
+        Timer(Timer const& r) = delete;
+        Timer(&operator=(Timer const& r)) = delete;
 
         timerID id;
         Timestamp next;
@@ -95,9 +88,8 @@ namespace YSE {
       };
 
       // comparison functor to sort the timer queue
-      struct NextActiveComparator
-      {
-        bool operator()(Timer const & a, Timer const & b) const noexcept {
+      struct NextActiveComparator {
+        bool operator()(Timer const& a, Timer const& b) const noexcept {
           return a.next < b.next;
         }
       };
@@ -108,7 +100,7 @@ namespace YSE {
       using TimerMap = std::unordered_map<timerID, Timer>;
 
       void timerThreadWorker();
-      bool destroyImpl(ScopedLock & lock, TimerMap::iterator i, bool notify);
+      bool destroyImpl(ScopedLock& lock, TimerMap::iterator i, bool notify);
 
       timerID nextId;
       TimerMap active;
@@ -120,59 +112,38 @@ namespace YSE {
       bool done;
     };
 
-    timerThread & TimerThread();
+    timerThread& TimerThread();
 
-    template<typename SRep, typename SPer,
-      typename PRep, typename PPer,
-      typename... Args>
-      timerThread::timerID timerThread::Add(
-        typename std::chrono::duration<SRep, SPer> const & delay,
-        typename std::chrono::duration<PRep, PPer> const & period,
-        boundHandlerType<Args...> handler, Args&& ...args) {
+    template <typename SRep, typename SPer, typename PRep, typename PPer, typename... Args>
+    timerThread::timerID timerThread::Add(typename std::chrono::duration<SRep, SPer> const& delay,
+                                          typename std::chrono::duration<PRep, PPer> const& period,
+                                          boundHandlerType<Args...> handler, Args&&... args) {
 
-      millisec msDelay = std::chrono::duration_cast<
-        std::chrono::milliseconds>(delay).count();
+      millisec msDelay = std::chrono::duration_cast<std::chrono::milliseconds>(delay).count();
 
-      millisec msPeriod = std::chrono::duration_cast<
-        std::chrono::milliseconds>(period).count();
+      millisec msPeriod = std::chrono::duration_cast<std::chrono::milliseconds>(period).count();
 
       return Add(msDelay, msPeriod, std::move(handler), std::forward<Args>(args)...);
     }
 
-    template<typename... Args>
-    timerThread::timerID timerThread::Add(
-      millisec msDelay,
-      millisec msPeriod,
-      boundHandlerType<Args...> handler,
-      Args&& ...args)
-    {
-      return Add(msDelay, msPeriod,
-        std::bind(std::move(handler),
-          std::forward<Args>(args)...));
+    template <typename... Args>
+    timerThread::timerID timerThread::Add(millisec msDelay, millisec msPeriod,
+                                          boundHandlerType<Args...> handler, Args&&... args) {
+      return Add(msDelay, msPeriod, std::bind(std::move(handler), std::forward<Args>(args)...));
     }
 
     // Javascript-like setInterval
-    template<typename... Args>
-    timerThread::timerID timerThread::setInterval(
-      boundHandlerType<Args...> handler,
-      millisec period,
-      Args&& ...args)
-    {
-      return setInterval(std::bind(std::move(handler),
-        std::forward<Args>(args)...),
-        period);
+    template <typename... Args>
+    timerThread::timerID timerThread::setInterval(boundHandlerType<Args...> handler,
+                                                  millisec period, Args&&... args) {
+      return setInterval(std::bind(std::move(handler), std::forward<Args>(args)...), period);
     }
 
     // Javascript-like setTimeout
-    template<typename... Args>
-    timerThread::timerID timerThread::setTimeout(
-      boundHandlerType<Args...> handler,
-      millisec timeout,
-      Args&& ...args)
-    {
-      return setTimeout(std::bind(std::move(handler),
-        std::forward<Args>(args)...),
-        timeout);
+    template <typename... Args>
+    timerThread::timerID timerThread::setTimeout(boundHandlerType<Args...> handler,
+                                                 millisec timeout, Args&&... args) {
+      return setTimeout(std::bind(std::move(handler), std::forward<Args>(args)...), timeout);
     }
-  }
-}
+  } // namespace PATCHER
+} // namespace YSE

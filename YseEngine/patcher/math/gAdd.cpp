@@ -30,7 +30,6 @@ CONSTRUCT() {
 
 FLOAT_IN(SetLeftFloat) {
   leftIn = value;
-
 }
 
 FLOAT_IN(SetRightFloat) {
@@ -39,7 +38,6 @@ FLOAT_IN(SetRightFloat) {
 
 INT_IN(SetLeftInt) {
   leftIn = (float)value;
-
 }
 
 INT_IN(SetRightInt) {

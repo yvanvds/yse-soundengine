@@ -21,20 +21,19 @@ void YSE::DSP::dspObject::link(YSE::DSP::dspObject& next) {
   this->next = &next;
 }
 
-YSE::DSP::dspObject * YSE::DSP::dspObject::link() {
+YSE::DSP::dspObject* YSE::DSP::dspObject::link() {
   return this->next;
 }
 
-YSE::DSP::dspObject::dspObject() 
-  : calledfrom(nullptr), 
-	next(nullptr),
-    previous(nullptr), 
-    _bypass(false), 
+YSE::DSP::dspObject::dspObject()
+  : calledfrom(nullptr),
+    next(nullptr),
+    previous(nullptr),
+    _bypass(false),
     _needsCreate(true),
-	_impact(1.f),
+    _impact(1.f),
     _lfoType(LFO_NONE),
-	_lfoFrequency(0.f)
-    {
+    _lfoFrequency(0.f) {
   lfoOsc.reset(new lfo);
   invertedImpact.reset(new inverter);
 }
@@ -52,15 +51,15 @@ void YSE::DSP::dspObject::createIfNeeded() {
   }
 }
 
-void YSE::DSP::dspObject::calculateImpact(buffer & in, buffer & filtered) {
-  buffer & lfoImpact = (*lfoOsc)(_lfoType, _lfoFrequency, in.getLength());
+void YSE::DSP::dspObject::calculateImpact(buffer& in, buffer& filtered) {
+  buffer& lfoImpact = (*lfoOsc)(_lfoType, _lfoFrequency, in.getLength());
   lfoImpact *= _impact;
-  buffer & inImpact = (*invertedImpact)(lfoImpact, true);
+  buffer& inImpact = (*invertedImpact)(lfoImpact, true);
   in *= inImpact;
   filtered *= lfoImpact;
   in += filtered;
 }
 
-YSE::DSP::buffer & YSE::DSP::dspObject::getLFO() {
+YSE::DSP::buffer& YSE::DSP::dspObject::getLFO() {
   return (*lfoOsc)(_lfoType, _lfoFrequency);
 }

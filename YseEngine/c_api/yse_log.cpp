@@ -10,7 +10,9 @@
 #include <string>
 
 namespace {
-  inline YSE::log* to_cpp(YseLog* l) { return reinterpret_cast<YSE::log*>(l); }
+  inline YSE::log* to_cpp(YseLog* l) {
+    return reinterpret_cast<YSE::log*>(l);
+  }
 
   size_t copy_string(const char* src, char* buf, size_t cap) {
     if (!src) src = "";
@@ -58,16 +60,17 @@ namespace {
       copy[msg.size()] = '\0';
       fn(copy, ud);
     }
+
   private:
     std::atomic<YseLogCallback> cb{nullptr};
-    std::atomic<void*>          user_data{nullptr};
+    std::atomic<void*> user_data{nullptr};
   };
 
   CallbackBridge& bridge() {
     static CallbackBridge instance;
     return instance;
   }
-}
+} // namespace
 
 extern "C" {
 
@@ -92,7 +95,10 @@ YSE_C_API void yse_log_set_logfile(YseLog* log, const char* path) {
 }
 
 YSE_C_API size_t yse_log_get_logfile(YseLog* log, char* buf, size_t cap) {
-  if (!log) { if (buf && cap > 0) buf[0] = '\0'; return 0; }
+  if (!log) {
+    if (buf && cap > 0) buf[0] = '\0';
+    return 0;
+  }
   return copy_string(to_cpp(log)->getLogfile(), buf, cap);
 }
 

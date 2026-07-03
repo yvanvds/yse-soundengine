@@ -24,7 +24,6 @@
 #include "../internal/managerJobs.hpp"
 #include "../utils/lfQueue.hpp"
 
-
 // global object for file loading
 // used in system.cpp, soundimpl.cpp and soundfile.cpp
 
@@ -42,7 +41,7 @@ namespace YSE {
       managerObject();
       ~managerObject() noexcept;
 
-      implementationObject * addImplementation(sound * head);
+      implementationObject* addImplementation(sound* head);
 
       /** Add a new soundfile to the system and return a pointer to it. If the file already
           exists, it will not be loaded anew but a pointer to the existing file will be
@@ -53,16 +52,16 @@ namespace YSE {
 
           @return       A pointer to the soundFile object for this file
       */
-      //INTERNAL::soundFile * addFile(const File & file);
+      // INTERNAL::soundFile * addFile(const File & file);
 
       // an alternative version of addFile for custom filesystems set with IO()
-      INTERNAL::soundFile * addFile(const std::string & fileName);
+      INTERNAL::soundFile* addFile(const std::string& fileName);
 
       // an alternative version to add memory buffers
-      INTERNAL::soundFile * addFile(YSE::DSP::buffer * buffer);
-      INTERNAL::soundFile * addFile(MULTICHANNELBUFFER * buffer);
+      INTERNAL::soundFile* addFile(YSE::DSP::buffer* buffer);
+      INTERNAL::soundFile* addFile(MULTICHANNELBUFFER* buffer);
 
-      void setup(implementationObject * impl);
+      void setup(implementationObject* impl);
 
       /** Run the soundManager update. This function is responsable for most of the
           action on sound implementations and sound files.
@@ -77,30 +76,27 @@ namespace YSE {
 
           @param value    The desired number of sounds
       */
-      //void setMaxSounds(Int value);	
-      
+      // void setMaxSounds(Int value);
+
       /** Get the maximum amount of sounds to be processed.
-      */
-      //Int getMaxSounds();
+       */
+      // Int getMaxSounds();
 
       /** Retrieve a reader for a file format. This function is used by soundFile
           objects.
-      
+
           @param file   The file to retrieve a reader for.
       */
-	  // TODO: replace this
-      //AudioFormatReader * getReader(const File & f);
-      //AudioFormatReader * getReader(juce::InputStream * source);
-      
-      
-      /** Hints the sounds manager that it should check for implementations that are 
+      // TODO: replace this
+      // AudioFormatReader * getReader(const File & f);
+      // AudioFormatReader * getReader(juce::InputStream * source);
+
+      /** Hints the sounds manager that it should check for implementations that are
           no longer in use. This is called by the implementations themselves, when they
           find out they're no longer needed.
       */
 
-      //Bool inRange(Flt dist);
-
-      
+      // Bool inRange(Flt dist);
 
     private:
       INTERNAL::managerSetupJob<managerObject> mgrSetup;
@@ -123,8 +119,10 @@ namespace YSE {
       // Slow-pool job wrapper that drives garbageCollectFiles().
       class fileGCJob : public INTERNAL::threadPoolJob {
       public:
-        managerObject * owner = nullptr;
-        void run() override { owner->garbageCollectFiles(); }
+        managerObject* owner = nullptr;
+        void run() override {
+          owner->garbageCollectFiles();
+        }
       };
       fileGCJob mgrFileGC;
 
@@ -153,11 +151,11 @@ namespace YSE {
       // a format Manager to assist in reading audio files
       // It is used by soundFiles, but put here because we only need one for all files.
       // TODO: replace this
-	  //juce::AudioFormatManager formatManager;
+      // juce::AudioFormatManager formatManager;
 
       // the maximum distance before turning virtual
       // This value is calculated on every update
-      //aFlt maxDistance;
+      // aFlt maxDistance;
 
       // Once an object is ready for use, a pointer is placed in this container. The manager will
       // update and sync all these objects during the dsp callback function
@@ -192,15 +190,11 @@ namespace YSE {
 
       friend class INTERNAL::managerSetupJob<managerObject>;
       friend class INTERNAL::managerDeleteJob<managerObject>;
-
     };
 
-    managerObject & Manager();
+    managerObject& Manager();
 
-  }
-}
+  } // namespace SOUND
+} // namespace YSE
 
-
-
-
-#endif  // SOUNDLOADER_H_INCLUDED
+#endif // SOUNDLOADER_H_INCLUDED

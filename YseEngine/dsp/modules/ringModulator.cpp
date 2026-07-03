@@ -26,7 +26,7 @@ void YSE::DSP::ringModulator::create() {
   result.reset(new buffer);
 }
 
-void YSE::DSP::ringModulator::process(MULTICHANNELBUFFER & buffer) {
+void YSE::DSP::ringModulator::process(MULTICHANNELBUFFER& buffer) {
   createIfNeeded();
 
   if (buffer[0].getLength() != result->getLength()) {
@@ -34,10 +34,10 @@ void YSE::DSP::ringModulator::process(MULTICHANNELBUFFER & buffer) {
   }
 
   // generate sine wave at wanted frequency
-  YSE::DSP::buffer & sin = (*sineGen)(parmFrequency, buffer[0].getLength());
+  YSE::DSP::buffer& sin = (*sineGen)(parmFrequency, buffer[0].getLength());
 
   (*result) = buffer[0];
   (*result) *= sin;
-  
+
   calculateImpact(buffer[0], (*result));
 }

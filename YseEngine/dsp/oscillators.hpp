@@ -35,10 +35,10 @@ namespace YSE {
     class API saw {
     public:
       /** @brief Generate a fresh block at ``frequency`` Hz. */
-      YSE::DSP::buffer & operator()(Flt frequency, UInt length = STANDARD_BUFFERSIZE);
+      YSE::DSP::buffer& operator()(Flt frequency, UInt length = STANDARD_BUFFERSIZE);
 
       /** @brief Generate one block driven by per-sample frequency in ``in``. */
-      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in);
       saw();
 
     private:
@@ -47,7 +47,7 @@ namespace YSE {
       Flt frequency;
       YSE::DSP::buffer buffer;
 
-      Flt *inPtr;
+      Flt* inPtr;
       void calc(Bool useFrequency);
     };
 
@@ -59,7 +59,7 @@ namespace YSE {
     class API cosine {
     public:
       /** @brief Generate one block driven by per-sample frequency in ``in``. */
-      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in);
       cosine();
 
     private:
@@ -75,10 +75,10 @@ namespace YSE {
     class API sine {
     public:
       /** @brief Generate a fresh block at ``frequency`` Hz. */
-      YSE::DSP::buffer & operator()(Flt frequency, UInt length = STANDARD_BUFFERSIZE);
+      YSE::DSP::buffer& operator()(Flt frequency, UInt length = STANDARD_BUFFERSIZE);
 
       /** @brief Generate one block driven by per-sample frequency in ``in``. */
-      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in);
       sine();
 
       /** @brief Reset the phase to zero. */
@@ -90,7 +90,7 @@ namespace YSE {
       Flt conv;
       Flt frequency;
 
-      Flt *inPtr;
+      Flt* inPtr;
       void calc(Bool useFrequency);
     };
 
@@ -108,13 +108,13 @@ namespace YSE {
       oscillator();
 
       /** @brief Generate a fresh block at ``frequency`` Hz. */
-      YSE::DSP::buffer & operator()(Flt frequency, UInt length = STANDARD_BUFFERSIZE);
+      YSE::DSP::buffer& operator()(Flt frequency, UInt length = STANDARD_BUFFERSIZE);
 
       /** @brief Generate one block driven by per-sample frequency in ``in``. */
-      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in);
 
       /** @brief Attach a wavetable as the oscillator's waveform source. */
-      void initialize(wavetable & source);
+      void initialize(wavetable& source);
 
       /** @brief Reset the phase to zero. */
       void reset();
@@ -124,9 +124,9 @@ namespace YSE {
       Dbl phase;
       Flt conv;
       Flt frequency;
-      wavetable * table;
+      wavetable* table;
 
-      Flt *inPtr;
+      Flt* inPtr;
       void calc(Bool useFrequency);
     };
 
@@ -139,7 +139,7 @@ namespace YSE {
     class API noise {
     public:
       /** @brief Generate a fresh noise block of ``length`` samples. */
-      YSE::DSP::buffer & operator()(UInt length = STANDARD_BUFFERSIZE);
+      YSE::DSP::buffer& operator()(UInt length = STANDARD_BUFFERSIZE);
       noise();
 
     private:
@@ -160,13 +160,13 @@ namespace YSE {
       vcf& sharpness(Flt q);
 
       /** @brief Filter ``in`` with cutoff tracked from ``center``. */
-      vcf& operator()(YSE::DSP::buffer & in, YSE::DSP::buffer & center);
+      vcf& operator()(YSE::DSP::buffer& in, YSE::DSP::buffer& center);
 
       /** @brief Most recent real-part output buffer. */
-      YSE::DSP::buffer & real();
+      YSE::DSP::buffer& real();
 
       /** @brief Most recent imaginary-part output buffer. */
-      YSE::DSP::buffer & imag();
+      YSE::DSP::buffer& imag();
       vcf();
 
     private:
@@ -178,9 +178,7 @@ namespace YSE {
       YSE::DSP::buffer imagBuffer;
     };
 
-  }
-}
+  } // namespace DSP
+} // namespace YSE
 
-
-
-#endif  // OSCILLATORS_H_INCLUDED
+#endif // OSCILLATORS_H_INCLUDED

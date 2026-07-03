@@ -4,7 +4,7 @@
 
 using namespace YSE::PATCHER;
 
-timerThread & YSE::PATCHER::TimerThread() {
+timerThread& YSE::PATCHER::TimerThread() {
   static timerThread s;
   return s;
 }
@@ -14,22 +14,20 @@ void timerThread::timerThreadWorker() {
 
   while (!done) {
     if (queue.empty()) {
-      //wait for done or work
-      wakeUp.wait(lock, [this] {
-        return done || !queue.empty();
-      });
+      // wait for done or work
+      wakeUp.wait(lock, [this] { return done || !queue.empty(); });
       continue;
     }
 
     auto queueHead = queue.begin();
-    Timer & timer = *queueHead;
+    Timer& timer = *queueHead;
     auto now = Clock::now();
     if (now >= timer.next) {
       queue.erase(queueHead);
       timer.running = true;
 
       lock.unlock();
-      timer.func(); // execute timer 
+      timer.func(); // execute timer
       lock.lock();
 
       if (timer.running) {
@@ -39,30 +37,23 @@ void timerThread::timerThreadWorker() {
         if (timer.period.count() > 0) {
           timer.next = timer.next + timer.period;
           queue.emplace(timer);
-        }
-        else {
+        } else {
           active.erase(timer.id);
         }
-      }
-      else {
+      } else {
         // timer has stopped — flag completion and notify the destroyImpl
         // waiter. destroyImpl owns the active.erase to keep this Timer alive
         // until its predicate-checked wait observes `destroyed == true`.
         timer.destroyed = true;
         timer.waitCond->notify_all();
       }
-    }
-    else {
+    } else {
       wakeUp.wait_until(lock, timer.next);
     }
   }
 }
 
-timerThread::timerThread()
-  : nextId(noTimer + 1)
-  , queue()
-  , done(false) {
-}
+timerThread::timerThread() : nextId(noTimer + 1), queue(), done(false) {}
 
 timerThread::~timerThread() {
   ScopedLock lock(sync);
@@ -92,7 +83,8 @@ timerThread::timerID timerThread::Add(millisec msDelay, millisec msPeriod, timer
   }
 
   auto id = nextId++;
-  auto iter = active.emplace(id, Timer(id, Clock::now() + Duration(msDelay), Duration(msPeriod), std::move(func)));
+  auto iter = active.emplace(
+      id, Timer(id, Clock::now() + Duration(msDelay), Duration(msPeriod), std::move(func)));
 
   Queue::iterator place = queue.emplace(iter.first->second);
 
@@ -119,8 +111,7 @@ void timerThread::Clear() {
   }
 }
 
-std::size_t timerThread::size() const noexcept
-{
+std::size_t timerThread::size() const noexcept {
   ScopedLock lock(sync);
   return active.size();
 }
@@ -131,12 +122,12 @@ bool timerThread::empty() const noexcept {
 }
 
 // if notify is true, returns with lock unlocked
-bool timerThread::destroyImpl(ScopedLock & lock, timerThread::TimerMap::iterator i, bool notify) {
+bool timerThread::destroyImpl(ScopedLock& lock, timerThread::TimerMap::iterator i, bool notify) {
   assert(lock.owns_lock());
 
   if (i == active.end()) return false;
 
-  Timer & timer = i->second;
+  Timer& timer = i->second;
 
   if (timer.running) {
     // if callback in progress, flag for deletion
@@ -147,13 +138,12 @@ bool timerThread::destroyImpl(ScopedLock & lock, timerThread::TimerMap::iterator
 
     // block until the callback is finished — predicate guards against
     // spurious wakeup. Worker sets `destroyed = true` before notify_all().
-    timer.waitCond->wait(lock, [&timer]{ return timer.destroyed; });
+    timer.waitCond->wait(lock, [&timer] { return timer.destroyed; });
 
     // Worker deliberately leaves the cancelled Timer in `active` so this
     // predicate can safely read `timer.destroyed`; erase it now.
     active.erase(i);
-  }
-  else {
+  } else {
     queue.erase(timer);
     active.erase(i);
 
@@ -165,22 +155,15 @@ bool timerThread::destroyImpl(ScopedLock & lock, timerThread::TimerMap::iterator
   return true;
 }
 
-timerThread::Timer::Timer(timerThread::timerID id)
-  : id(id)
-{}
+timerThread::Timer::Timer(timerThread::timerID id) : id(id) {}
 
-timerThread::Timer::Timer(Timer && r) noexcept
-  : id(std::move(r.id))
-  , next(std::move(r.next))
-  , period(std::move(r.period))
-  , func(std::move(r.func))
-  , running(r.running)
-{}
+timerThread::Timer::Timer(Timer&& r) noexcept
+  : id(std::move(r.id)),
+    next(std::move(r.next)),
+    period(std::move(r.period)),
+    func(std::move(r.func)),
+    running(r.running) {}
 
-timerThread::Timer::Timer(timerThread::timerID id, Timestamp next, Duration period, timerFunc func) noexcept
-  : id(id)
-  , next(next)
-  , period(period)
-  , func(std::move(func))
-  , running(false)
-{}
+timerThread::Timer::Timer(timerThread::timerID id, Timestamp next, Duration period,
+                          timerFunc func) noexcept
+  : id(id), next(next), period(period), func(std::move(func)), running(false) {}

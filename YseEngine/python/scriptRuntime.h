@@ -88,22 +88,22 @@ namespace YSE {
       void run() override;
 
     private:
-      EvalResult evaluate(const std::string& source);  // GIL must be held
+      EvalResult evaluate(const std::string& source); // GIL must be held
 
       lfQueue<EvalRequest> inbound_;
-      lfQueue<EvalResult>  outbound_;
+      lfQueue<EvalResult> outbound_;
 
-      std::mutex              mutex_;
+      std::mutex mutex_;
       std::condition_variable cv_;
-      bool pendingWake_   = false;
+      bool pendingWake_ = false;
       bool stopRequested_ = false;
 
-      bool  started_         = false;
-      bool  ownsInterpreter_ = false;
-      void* mainThreadState_ = nullptr;  // PyThreadState* saved after init
+      bool started_ = false;
+      bool ownsInterpreter_ = false;
+      void* mainThreadState_ = nullptr; // PyThreadState* saved after init
     };
 
   } // namespace INTERNAL
 } // namespace YSE
 
-#endif  // YSE_PYTHON_SCRIPTRUNTIME_H
+#endif // YSE_PYTHON_SCRIPTRUNTIME_H

@@ -8,8 +8,6 @@
   ==============================================================================
 */
 
-
-
 #ifndef PLAYERMESSAGE_H_INCLUDED
 #define PLAYERMESSAGE_H_INCLUDED
 
@@ -28,7 +26,7 @@ namespace YSE {
     class messageObject {
     public:
       /** The ID of a message defines how it will be stored in the implementation
-      */
+       */
       MESSAGE ID;
 
       /** The data is stored in a union, so to not use more data as needed. Other types
@@ -47,7 +45,7 @@ namespace YSE {
         Flt floatValue;
         Flt floatPair[2]; // linear interpolation, 0 = target value, 1 = time
         struct {
-          void * ptr;
+          void* ptr;
           Flt time;
         } object;
       };
@@ -56,9 +54,7 @@ namespace YSE {
 #endif
     };
 
-  }
-}
+  } // namespace PLAYER
+} // namespace YSE
 
-
-
-#endif  // PLAYERMESSAGE_H_INCLUDED
+#endif // PLAYERMESSAGE_H_INCLUDED

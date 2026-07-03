@@ -4,16 +4,16 @@
 namespace YSE {
   namespace PATCHER {
     PATCHER_CLASS(gToggle, YSE::OBJ::G_TOGGLE)
-      _NO_MESSAGES
-      _DO_CALCULATE
+    _NO_MESSAGES
+    _DO_CALCULATE
 
-      _INT_IN(SetValue)
-      _BANG_IN(Bang)
+    _INT_IN(SetValue)
+    _BANG_IN(Bang)
 
-      _HAS_GUI
+    _HAS_GUI
 
-private:
-  std::atomic<bool> value;
+  private:
+    std::atomic<bool> value;
   };
-  }
+}
 }

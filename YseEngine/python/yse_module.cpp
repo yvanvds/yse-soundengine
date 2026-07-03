@@ -79,34 +79,34 @@ namespace YSE {
         std::atomic<long long> g_tick{0};
 
         // Script-thread-only state (serialised by the GIL).
-        long long g_generation = 0;   // current generation; ++ per evaluation
-        long long g_nextSubId = 1;    // public handle for yse.on subscriptions
-        long long g_nextSchedId = 1;  // public handle for yse.schedule
-        bool g_bound = false;         // is `yse` bound into __main__ yet?
+        long long g_generation = 0; // current generation; ++ per evaluation
+        long long g_nextSubId = 1; // public handle for yse.on subscriptions
+        long long g_nextSchedId = 1; // public handle for yse.schedule
+        bool g_bound = false; // is `yse` bound into __main__ yet?
 
         struct Subscription {
-          SubHandle  busHandle;   // handle into NamedBus, for teardown
-          long long  generation;  // generation tag (cancel_all granularity)
-          py::object callback;    // Python handler; GIL-only
+          SubHandle busHandle; // handle into NamedBus, for teardown
+          long long generation; // generation tag (cancel_all granularity)
+          py::object callback; // Python handler; GIL-only
         };
         std::unordered_map<long long, Subscription> g_subs;
 
         struct Schedule {
-          long long  fireAt;        // tick at which it matures
-          long long  creationTick;  // tick when scheduled (the >guard for N=0)
-          long long  generation;
+          long long fireAt; // tick at which it matures
+          long long creationTick; // tick when scheduled (the >guard for N=0)
+          long long generation;
           py::object fn;
-          py::object args;    // py::args (a tuple)
-          py::object kwargs;  // py::kwargs (a dict)
+          py::object args; // py::args (a tuple)
+          py::object kwargs; // py::kwargs (a dict)
         };
         std::vector<Schedule> g_scheds;
 
         // Bus deliveries waiting for the script thread to dispatch them.
         struct Pending {
           long long subId;
-          BusValue  value;
+          BusValue value;
         };
-        std::mutex           g_pendingMutex;
+        std::mutex g_pendingMutex;
         std::vector<Pending> g_pending;
 
         constexpr const char* kSendTypeMsg =
@@ -127,7 +127,8 @@ namespace YSE {
           if (const std::string* p = std::get_if<std::string>(&value)) return py::str(*p);
           if (const std::vector<float>* p = std::get_if<std::vector<float>>(&value)) {
             py::list out;
-            for (float f : *p) out.append(py::float_(f));
+            for (float f : *p)
+              out.append(py::float_(f));
             return std::move(out);
           }
           return py::none();
@@ -193,7 +194,7 @@ namespace YSE {
 
         void py_unsubscribe(long long handle) {
           auto it = g_subs.find(handle);
-          if (it == g_subs.end()) return;  // unknown / stale handle: no-op
+          if (it == g_subs.end()) return; // unknown / stale handle: no-op
           Global().namedBus().unsubscribe(it->second.busHandle);
           g_subs.erase(it);
         }
@@ -223,13 +224,13 @@ namespace YSE {
               drop.push_back(kv.first);
             }
           }
-          for (long long id : drop) g_subs.erase(id);
+          for (long long id : drop)
+            g_subs.erase(id);
 
           const long long gen = g_generation;
-          g_scheds.erase(
-              std::remove_if(g_scheds.begin(), g_scheds.end(),
-                             [gen](const Schedule& s) { return s.generation < gen; }),
-              g_scheds.end());
+          g_scheds.erase(std::remove_if(g_scheds.begin(), g_scheds.end(),
+                                        [gen](const Schedule& s) { return s.generation < gen; }),
+                         g_scheds.end());
         }
 
         // Python source for the parts most naturally written in Python: the
@@ -378,7 +379,7 @@ def fresh_scope():
           // Copy the callback out before invoking — the handler may unsubscribe
           // itself or others, mutating g_subs.
           auto it = g_subs.find(p.subId);
-          if (it == g_subs.end()) continue;  // unsubscribed since enqueue
+          if (it == g_subs.end()) continue; // unsubscribed since enqueue
           py::object cb = it->second.callback;
           py::object value = busValueToPy(p.value);
           try {
@@ -432,4 +433,4 @@ PYBIND11_EMBEDDED_MODULE(yse, m) {
   py::exec(dsl::kBootstrap, m.attr("__dict__"));
 }
 
-#endif  // YSE_ENABLE_PYTHON
+#endif // YSE_ENABLE_PYTHON

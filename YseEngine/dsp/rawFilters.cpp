@@ -11,7 +11,7 @@
 #include <cassert>
 #include "rawFilters.hpp"
 
-YSE::DSP::buffer & YSE::DSP::realOnePole::operator()(buffer & in1, buffer & in2) {
+YSE::DSP::buffer& YSE::DSP::realOnePole::operator()(buffer& in1, buffer& in2) {
   if (in1.getLength() != in2.getLength()) {
     // buffers should have the same size!
     assert(false);
@@ -20,9 +20,9 @@ YSE::DSP::buffer & YSE::DSP::realOnePole::operator()(buffer & in1, buffer & in2)
   }
 
   UInt n = in1.getLength();
-  Flt * in1Ptr = in1.getPtr();
-  Flt * in2Ptr = in2.getPtr();
-  Flt * outPtr = out.getPtr();
+  Flt* in1Ptr = in1.getPtr();
+  Flt* in2Ptr = in2.getPtr();
+  Flt* outPtr = out.getPtr();
 
   for (UInt i = 0; i < n; i++) {
     Flt next = *in1Ptr++;
@@ -35,7 +35,7 @@ YSE::DSP::buffer & YSE::DSP::realOnePole::operator()(buffer & in1, buffer & in2)
 
 /*********************************************************************/
 
-YSE::DSP::buffer & YSE::DSP::realOneZero::operator()(buffer & in1, buffer & in2) {
+YSE::DSP::buffer& YSE::DSP::realOneZero::operator()(buffer& in1, buffer& in2) {
   if (in1.getLength() != in2.getLength()) {
     // buffers should have the same size!
     assert(false);
@@ -44,9 +44,9 @@ YSE::DSP::buffer & YSE::DSP::realOneZero::operator()(buffer & in1, buffer & in2)
   }
 
   UInt n = in1.getLength();
-  Flt * in1Ptr = in1.getPtr();
-  Flt * in2Ptr = in2.getPtr();
-  Flt * outPtr = out.getPtr();
+  Flt* in1Ptr = in1.getPtr();
+  Flt* in2Ptr = in2.getPtr();
+  Flt* outPtr = out.getPtr();
 
   for (UInt i = 0; i < n; i++) {
     Flt next = *in1Ptr++;
@@ -60,7 +60,7 @@ YSE::DSP::buffer & YSE::DSP::realOneZero::operator()(buffer & in1, buffer & in2)
 
 /*********************************************************************/
 
-YSE::DSP::buffer & YSE::DSP::realOneZeroReversed::operator()(buffer & in1, buffer & in2) {
+YSE::DSP::buffer& YSE::DSP::realOneZeroReversed::operator()(buffer& in1, buffer& in2) {
   if (in1.getLength() != in2.getLength()) {
     // buffers should have the same size!
     assert(false);
@@ -69,9 +69,9 @@ YSE::DSP::buffer & YSE::DSP::realOneZeroReversed::operator()(buffer & in1, buffe
   }
 
   UInt n = in1.getLength();
-  Flt * in1Ptr = in1.getPtr();
-  Flt * in2Ptr = in2.getPtr();
-  Flt * outPtr = out.getPtr();
+  Flt* in1Ptr = in1.getPtr();
+  Flt* in2Ptr = in2.getPtr();
+  Flt* outPtr = out.getPtr();
 
   for (UInt i = 0; i < n; i++) {
     Flt next = *in1Ptr++;
@@ -90,7 +90,8 @@ YSE::DSP::complexOnePole::complexOnePole() : lastReal(0), lastImaginary(0) {
   out.emplace_back(STANDARD_BUFFERSIZE);
 }
 
-MULTICHANNELBUFFER & YSE::DSP::complexOnePole::operator()(MULTICHANNELBUFFER & in1, MULTICHANNELBUFFER & in2) {
+MULTICHANNELBUFFER& YSE::DSP::complexOnePole::operator()(MULTICHANNELBUFFER& in1,
+                                                         MULTICHANNELBUFFER& in2) {
   if (in1.size() != 2 || in2.size() != 2) {
     // every input should contain a real and imaginary part
     assert(false);
@@ -99,9 +100,8 @@ MULTICHANNELBUFFER & YSE::DSP::complexOnePole::operator()(MULTICHANNELBUFFER & i
     return out;
   }
 
-  if ( in1[0].getLength() != in1[1].getLength()
-    || in1[0].getLength() != in2[0].getLength()
-    || in1[0].getLength() != in2[1].getLength()) {
+  if (in1[0].getLength() != in1[1].getLength() || in1[0].getLength() != in2[0].getLength() ||
+      in1[0].getLength() != in2[1].getLength()) {
     // every input should have the same length
     assert(false);
     out[0] = 0;
@@ -109,12 +109,12 @@ MULTICHANNELBUFFER & YSE::DSP::complexOnePole::operator()(MULTICHANNELBUFFER & i
     return out;
   }
 
-  Flt * realIn1 = in1[0].getPtr();
-  Flt * realIn2 = in2[0].getPtr();
-  Flt * realOut = out[0].getPtr();
-  Flt * imaginaryIn1 = in1[1].getPtr();
-  Flt * imaginaryIn2 = in2[1].getPtr();
-  Flt * imaginaryOut = out[1].getPtr();
+  Flt* realIn1 = in1[0].getPtr();
+  Flt* realIn2 = in2[0].getPtr();
+  Flt* realOut = out[0].getPtr();
+  Flt* imaginaryIn1 = in1[1].getPtr();
+  Flt* imaginaryIn2 = in2[1].getPtr();
+  Flt* imaginaryOut = out[1].getPtr();
 
   UInt n = in1[0].getLength();
   for (UInt i = 0; i < n; i++) {
@@ -124,7 +124,8 @@ MULTICHANNELBUFFER & YSE::DSP::complexOnePole::operator()(MULTICHANNELBUFFER & i
     Flt coefImaginary = *imaginaryIn2++;
 
     Flt tempReal = *realOut++ = nextReal + lastReal * coefReal - lastImaginary * coefImaginary;
-    lastImaginary = *imaginaryOut++ = nextImaginary + lastReal * coefImaginary + lastImaginary * coefReal;
+    lastImaginary = *imaginaryOut++ =
+        nextImaginary + lastReal * coefImaginary + lastImaginary * coefReal;
     lastReal = tempReal;
   }
 
@@ -138,7 +139,8 @@ YSE::DSP::complexOneZero::complexOneZero() : lastReal(0), lastImaginary(0) {
   out.emplace_back(STANDARD_BUFFERSIZE);
 }
 
-MULTICHANNELBUFFER & YSE::DSP::complexOneZero::operator()(MULTICHANNELBUFFER & in1, MULTICHANNELBUFFER & in2) {
+MULTICHANNELBUFFER& YSE::DSP::complexOneZero::operator()(MULTICHANNELBUFFER& in1,
+                                                         MULTICHANNELBUFFER& in2) {
   if (in1.size() != 2 || in2.size() != 2) {
     // every input should contain a real and imaginary part
     assert(false);
@@ -147,9 +149,8 @@ MULTICHANNELBUFFER & YSE::DSP::complexOneZero::operator()(MULTICHANNELBUFFER & i
     return out;
   }
 
-  if (in1[0].getLength() != in1[1].getLength()
-    || in1[0].getLength() != in2[0].getLength()
-    || in1[0].getLength() != in2[1].getLength()) {
+  if (in1[0].getLength() != in1[1].getLength() || in1[0].getLength() != in2[0].getLength() ||
+      in1[0].getLength() != in2[1].getLength()) {
     // every input should have the same length
     assert(false);
     out[0] = 0;
@@ -157,12 +158,12 @@ MULTICHANNELBUFFER & YSE::DSP::complexOneZero::operator()(MULTICHANNELBUFFER & i
     return out;
   }
 
-  Flt * realIn1 = in1[0].getPtr();
-  Flt * realIn2 = in2[0].getPtr();
-  Flt * realOut = out[0].getPtr();
-  Flt * imaginaryIn1 = in1[1].getPtr();
-  Flt * imaginaryIn2 = in2[1].getPtr();
-  Flt * imaginaryOut = out[1].getPtr();
+  Flt* realIn1 = in1[0].getPtr();
+  Flt* realIn2 = in2[0].getPtr();
+  Flt* realOut = out[0].getPtr();
+  Flt* imaginaryIn1 = in1[1].getPtr();
+  Flt* imaginaryIn2 = in2[1].getPtr();
+  Flt* imaginaryOut = out[1].getPtr();
 
   UInt n = in1[0].getLength();
   for (UInt i = 0; i < n; i++) {
@@ -187,7 +188,8 @@ YSE::DSP::complexOneZeroReversed::complexOneZeroReversed() : lastReal(0), lastIm
   out.emplace_back(STANDARD_BUFFERSIZE);
 }
 
-MULTICHANNELBUFFER & YSE::DSP::complexOneZeroReversed::operator()(MULTICHANNELBUFFER & in1, MULTICHANNELBUFFER & in2) {
+MULTICHANNELBUFFER& YSE::DSP::complexOneZeroReversed::operator()(MULTICHANNELBUFFER& in1,
+                                                                 MULTICHANNELBUFFER& in2) {
   if (in1.size() != 2 || in2.size() != 2) {
     // every input should contain a real and imaginary part
     assert(false);
@@ -196,9 +198,8 @@ MULTICHANNELBUFFER & YSE::DSP::complexOneZeroReversed::operator()(MULTICHANNELBU
     return out;
   }
 
-  if (in1[0].getLength() != in1[1].getLength()
-    || in1[0].getLength() != in2[0].getLength()
-    || in1[0].getLength() != in2[1].getLength()) {
+  if (in1[0].getLength() != in1[1].getLength() || in1[0].getLength() != in2[0].getLength() ||
+      in1[0].getLength() != in2[1].getLength()) {
     // every input should have the same length
     assert(false);
     out[0] = 0;
@@ -206,12 +207,12 @@ MULTICHANNELBUFFER & YSE::DSP::complexOneZeroReversed::operator()(MULTICHANNELBU
     return out;
   }
 
-  Flt * realIn1 = in1[0].getPtr();
-  Flt * realIn2 = in2[0].getPtr();
-  Flt * realOut = out[0].getPtr();
-  Flt * imaginaryIn1 = in1[1].getPtr();
-  Flt * imaginaryIn2 = in2[1].getPtr();
-  Flt * imaginaryOut = out[1].getPtr();
+  Flt* realIn1 = in1[0].getPtr();
+  Flt* realIn2 = in2[0].getPtr();
+  Flt* realOut = out[0].getPtr();
+  Flt* imaginaryIn1 = in1[1].getPtr();
+  Flt* imaginaryIn2 = in2[1].getPtr();
+  Flt* imaginaryOut = out[1].getPtr();
 
   UInt n = in1[0].getLength();
   for (UInt i = 0; i < n; i++) {
@@ -228,4 +229,3 @@ MULTICHANNELBUFFER & YSE::DSP::complexOneZeroReversed::operator()(MULTICHANNELBU
 
   return out;
 }
-

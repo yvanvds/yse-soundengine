@@ -13,10 +13,9 @@
 YSE::MUSIC::pNote::pNote(Flt position, Flt pitch, Flt volume, Flt length, Int channel)
   : note(pitch, volume, length, channel), position(position) {}
 
-YSE::MUSIC::pNote::pNote(const note & object, Flt position) 
-: note(object), position(position) {}
+YSE::MUSIC::pNote::pNote(const note& object, Flt position) : note(object), position(position) {}
 
-YSE::MUSIC::pNote & YSE::MUSIC::pNote::setPosition(Flt value) {
+YSE::MUSIC::pNote& YSE::MUSIC::pNote::setPosition(Flt value) {
   position = value;
   return *this;
 }
@@ -24,4 +23,3 @@ YSE::MUSIC::pNote & YSE::MUSIC::pNote::setPosition(Flt value) {
 Flt YSE::MUSIC::pNote::getPosition() const {
   return position;
 }
-

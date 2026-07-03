@@ -19,23 +19,24 @@ namespace YSE {
 
     class time {
     public:
-
       void update();
 
       Flt delta();
 
-      time() { current = last = 0; d = 0.0f; }
+      time() {
+        current = last = 0;
+        d = 0.0f;
+      }
+
     private:
       ULong current;
       ULong last;
       Flt d; // delta
     };
 
-    time & Time(); // updates every time update is called
-    time & DeviceTime(); // updates every time the devices asks for a buffer
-  }
-}
+    time& Time(); // updates every time update is called
+    time& DeviceTime(); // updates every time the devices asks for a buffer
+  } // namespace INTERNAL
+} // namespace YSE
 
-
-
-#endif  // TIME_H_INCLUDED
+#endif // TIME_H_INCLUDED

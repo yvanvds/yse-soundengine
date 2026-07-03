@@ -40,10 +40,18 @@ namespace YSE {
       virtual void run() = 0;
 
       void join();
-      void stop() { shouldStop = true; }
-      void start() { shouldStop = false;  isDone = false; inQueue = true; }
+      void stop() {
+        shouldStop = true;
+      }
+      void start() {
+        shouldStop = false;
+        isDone = false;
+        inQueue = true;
+      }
       void activate(); // this is called by the threadPoolThread
-      bool isQueued() { return inQueue; }
+      bool isQueued() {
+        return inQueue;
+      }
 
     private:
       aBool shouldStop;
@@ -54,11 +62,11 @@ namespace YSE {
 
     class threadPoolThread : public thread {
     public:
-      explicit threadPoolThread(threadPool * pool);
+      explicit threadPoolThread(threadPool* pool);
       virtual void run();
 
     private:
-      threadPool * pool;
+      threadPool* pool;
     };
 
     class threadPool {
@@ -72,10 +80,10 @@ namespace YSE {
       // and lets a worker pick it up. Never locks, allocates, or blocks — safe
       // to call from the audio callback. For a render pool, a full ring falls
       // back to running the job inline on the caller so no DSP work is dropped.
-      void addJob(threadPoolJob * job);
+      void addJob(threadPoolJob* job);
 
       // only used by threadPoolThread, returns nullptr when the pool shuts down
-      threadPoolJob * getJob();
+      threadPoolJob* getJob();
 
       // (Re)spawn the worker threads and mark the pool active. Called by the
       // constructor and, after a shutdown(), by global::init() to revive the
@@ -98,15 +106,12 @@ namespace YSE {
 
       mpmcQueue<threadPoolJob*> jobs;
       std::forward_list<threadPoolThread> threads;
-      Int poolSize;        // resolved worker count, reused when startup() re-spawns
-      poolClass classOf;   // render vs background behaviour
+      Int poolSize; // resolved worker count, reused when startup() re-spawns
+      poolClass classOf; // render vs background behaviour
       aBool active;
     };
 
-  }
-}
+  } // namespace INTERNAL
+} // namespace YSE
 
-
-
-
-#endif  // THREADPOOL_H_INCLUDED
+#endif // THREADPOOL_H_INCLUDED

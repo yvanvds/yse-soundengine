@@ -19,18 +19,18 @@ namespace YSE {
 
     class implementationObject {
     public:
-      implementationObject(scale * head);
+      implementationObject(scale* head);
       ~implementationObject();
 
       bool update();
-      void parseMessage(const messageObject & message);
-      inline void sendMessage(const messageObject & message) {
+      void parseMessage(const messageObject& message);
+      inline void sendMessage(const messageObject& message) {
         messages.push(message);
       }
 
       void removeInterface();
 
-      /* TODO: the next functions are doubles of the interface functions. 
+      /* TODO: the next functions are doubles of the interface functions.
          Is there a way to avoid this?
       */
 
@@ -59,7 +59,7 @@ namespace YSE {
       void clear();
 
     private:
-      std::atomic<scale *> head;
+      std::atomic<scale*> head;
       std::vector<Flt> pitches;
       Bool needsSorting;
 
@@ -69,9 +69,7 @@ namespace YSE {
       friend class SCALE::managerObject;
     };
 
-  }
-}
+  } // namespace SCALE
+} // namespace YSE
 
-
-
-#endif  // SCALEIMPLEMENTATION_H_INCLUDED
+#endif // SCALEIMPLEMENTATION_H_INCLUDED

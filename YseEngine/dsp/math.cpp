@@ -8,7 +8,6 @@
   ==============================================================================
 */
 
-
 #include "math.hpp"
 #include <cmath>
 
@@ -21,7 +20,6 @@ Flt YSE::DSP::FreqToMidi(Flt freq) {
 }
 
 /*******************************************************************************************/
-
 
 YSE::DSP::clip& YSE::DSP::clip::set(Flt low, Flt high) {
   this->low = low;
@@ -39,11 +37,10 @@ YSE::DSP::clip& YSE::DSP::clip::setHigh(Flt high) {
   return (*this);
 }
 
-
-YSE::DSP::buffer & YSE::DSP::clip::operator()(YSE::DSP::buffer & in) {
+YSE::DSP::buffer& YSE::DSP::clip::operator()(YSE::DSP::buffer& in) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
-  Flt * inPtr = in.getPtr();
-  Flt * outPtr = buffer.getPtr();
+  Flt* inPtr = in.getPtr();
+  Flt* outPtr = buffer.getPtr();
   UInt length = in.getLength();
 
   Flt min = low;
@@ -66,15 +63,13 @@ YSE::DSP::buffer & YSE::DSP::clip::operator()(YSE::DSP::buffer & in) {
 Flt rsqrt_exptab[DUMTAB1SIZE], rsqrt_mantissatab[DUMTAB2SIZE];
 Bool rSqrtInitOK = false;
 
-
-
 void setupSqrt() {
   if (rSqrtInitOK) return;
 
   for (Int i = 0; i < DUMTAB1SIZE; i++) {
     Flt f;
     Int l = (i ? (i == DUMTAB1SIZE - 1 ? DUMTAB1SIZE - 2 : i) : 1) << 23;
-    *(Int *)(&f) = l;
+    *(Int*)(&f) = l;
     rsqrt_exptab[i] = 1.0f / sqrt(f);
   }
 
@@ -90,16 +85,17 @@ YSE::DSP::rSqrt::rSqrt() {
   setupSqrt();
 }
 
-YSE::DSP::buffer & YSE::DSP::rSqrt::operator()(YSE::DSP::buffer & in) {
+YSE::DSP::buffer& YSE::DSP::rSqrt::operator()(YSE::DSP::buffer& in) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
-  Flt * inPtr = in.getPtr();
-  Flt * outPtr = buffer.getPtr();
+  Flt* inPtr = in.getPtr();
+  Flt* outPtr = buffer.getPtr();
   UInt length = in.getLength();
 
   while (length--) {
     Flt f = *inPtr;
-    Int l = *(Int *)(inPtr++);
-    if (f < 0) *outPtr++ = 0;
+    Int l = *(Int*)(inPtr++);
+    if (f < 0)
+      *outPtr++ = 0;
     else {
       Flt g = rsqrt_exptab[(l >> 23) & 0xff] * rsqrt_mantissatab[(l >> 13) & 0x3ff];
       *outPtr++ = 1.5f * g - 0.5f * g * g * g * f;
@@ -115,16 +111,17 @@ YSE::DSP::sqrt::sqrt() {
   setupSqrt();
 }
 
-YSE::DSP::buffer & YSE::DSP::sqrt::operator()(YSE::DSP::buffer & in) {
+YSE::DSP::buffer& YSE::DSP::sqrt::operator()(YSE::DSP::buffer& in) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
-  Flt * inPtr = in.getPtr();
-  Flt * outPtr = buffer.getPtr();
+  Flt* inPtr = in.getPtr();
+  Flt* outPtr = buffer.getPtr();
   UInt length = in.getLength();
 
   while (length--) {
     Flt f = *inPtr;
-    Int l = *(Int *)(inPtr++);
-    if (f < 0) *outPtr++ = 0;
+    Int l = *(Int*)(inPtr++);
+    if (f < 0)
+      *outPtr++ = 0;
     else {
       Flt g = rsqrt_exptab[(l >> 23) & 0xff] * rsqrt_mantissatab[(l >> 13) & 0x3ff];
       *outPtr++ = f * (1.5f * g - 0.5f * g * g * g * f);
@@ -136,17 +133,19 @@ YSE::DSP::buffer & YSE::DSP::sqrt::operator()(YSE::DSP::buffer & in) {
 
 /*******************************************************************************************/
 
-YSE::DSP::buffer & YSE::DSP::wrap::operator()(YSE::DSP::buffer & in) {
+YSE::DSP::buffer& YSE::DSP::wrap::operator()(YSE::DSP::buffer& in) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
-  Flt * inPtr = in.getPtr();
-  Flt * outPtr = buffer.getPtr();
+  Flt* inPtr = in.getPtr();
+  Flt* outPtr = buffer.getPtr();
   UInt length = in.getLength();
 
   while (length--) {
     Flt f = *inPtr++;
     Int k = (Int)f;
-    if (f > 0) *outPtr++ = f - k;
-    else *outPtr++ = f - (k - 1);
+    if (f > 0)
+      *outPtr++ = f - k;
+    else
+      *outPtr++ = f - (k - 1);
   }
 
   return buffer;
@@ -154,15 +153,16 @@ YSE::DSP::buffer & YSE::DSP::wrap::operator()(YSE::DSP::buffer & in) {
 
 /*******************************************************************************************/
 
-YSE::DSP::buffer & YSE::DSP::midiToFreq::operator()(YSE::DSP::buffer & in) {
+YSE::DSP::buffer& YSE::DSP::midiToFreq::operator()(YSE::DSP::buffer& in) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
-  Flt * inPtr = in.getPtr();
-  Flt * outPtr = buffer.getPtr();
+  Flt* inPtr = in.getPtr();
+  Flt* outPtr = buffer.getPtr();
   UInt length = in.getLength();
 
   for (; length--; inPtr++, outPtr++) {
     Flt f = *inPtr;
-    if (f < -1500) *outPtr = 0;
+    if (f < -1500)
+      *outPtr = 0;
     else {
       if (f > 1499) f = 1499;
       *outPtr = 8.17579891564f * ::exp(.0577622650f * f);
@@ -174,10 +174,10 @@ YSE::DSP::buffer & YSE::DSP::midiToFreq::operator()(YSE::DSP::buffer & in) {
 
 /*******************************************************************************************/
 
-YSE::DSP::buffer & YSE::DSP::freqToMidi::operator()(YSE::DSP::buffer & in) {
+YSE::DSP::buffer& YSE::DSP::freqToMidi::operator()(YSE::DSP::buffer& in) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
-  Flt * inPtr = in.getPtr();
-  Flt * outPtr = buffer.getPtr();
+  Flt* inPtr = in.getPtr();
+  Flt* outPtr = buffer.getPtr();
   UInt length = in.getLength();
 
 #pragma clang diagnostic push
@@ -190,22 +190,22 @@ YSE::DSP::buffer & YSE::DSP::freqToMidi::operator()(YSE::DSP::buffer & in) {
   return buffer;
 }
 
-
 /*******************************************************************************************/
 
 #define LOGTEN 2.302585092994f
 
-YSE::DSP::buffer & YSE::DSP::dbToRms::operator()(YSE::DSP::buffer & in) {
+YSE::DSP::buffer& YSE::DSP::dbToRms::operator()(YSE::DSP::buffer& in) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
-  Flt * inPtr = in.getPtr();
-  Flt * outPtr = buffer.getPtr();
+  Flt* inPtr = in.getPtr();
+  Flt* outPtr = buffer.getPtr();
   UInt length = in.getLength();
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-value"
   for (; length--; *inPtr++, *outPtr++) {
     Flt f = *inPtr;
-    if (f <= 0) *outPtr = 0;
+    if (f <= 0)
+      *outPtr = 0;
     else {
       if (f > 485) f = 485;
       *outPtr = ::exp((LOGTEN * 0.05f) * (f - 100.0f));
@@ -217,17 +217,18 @@ YSE::DSP::buffer & YSE::DSP::dbToRms::operator()(YSE::DSP::buffer & in) {
 
 /*******************************************************************************************/
 
-YSE::DSP::buffer & YSE::DSP::rmsToDb::operator()(YSE::DSP::buffer & in) {
+YSE::DSP::buffer& YSE::DSP::rmsToDb::operator()(YSE::DSP::buffer& in) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
-  Flt * inPtr = in.getPtr();
-  Flt * outPtr = buffer.getPtr();
+  Flt* inPtr = in.getPtr();
+  Flt* outPtr = buffer.getPtr();
   UInt length = in.getLength();
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-value"
   for (; length--; *inPtr++, *outPtr++) {
     Flt f = *inPtr;
-    if (f <= 0) *outPtr = 0;
+    if (f <= 0)
+      *outPtr = 0;
     else {
       Flt g = 100 + 20.0f / LOGTEN * ::log(f);
       *outPtr = (g < 0 ? 0 : g);
@@ -239,17 +240,18 @@ YSE::DSP::buffer & YSE::DSP::rmsToDb::operator()(YSE::DSP::buffer & in) {
 
 /*******************************************************************************************/
 
-YSE::DSP::buffer & YSE::DSP::dbToPow::operator()(YSE::DSP::buffer & in) {
+YSE::DSP::buffer& YSE::DSP::dbToPow::operator()(YSE::DSP::buffer& in) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
-  Flt * inPtr = in.getPtr();
-  Flt * outPtr = buffer.getPtr();
+  Flt* inPtr = in.getPtr();
+  Flt* outPtr = buffer.getPtr();
   UInt length = in.getLength();
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-value"
   for (; length--; *inPtr++, *outPtr++) {
     Flt f = *inPtr;
-    if (f <= 0) *outPtr = 0;
+    if (f <= 0)
+      *outPtr = 0;
     else {
       if (f > 870) f = 870;
       *outPtr = ::exp((LOGTEN * 0.1f) * (f - 100.0f));
@@ -261,17 +263,18 @@ YSE::DSP::buffer & YSE::DSP::dbToPow::operator()(YSE::DSP::buffer & in) {
 
 /*******************************************************************************************/
 
-YSE::DSP::buffer & YSE::DSP::powToDb::operator()(YSE::DSP::buffer & in) {
+YSE::DSP::buffer& YSE::DSP::powToDb::operator()(YSE::DSP::buffer& in) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
-  Flt * inPtr = in.getPtr();
-  Flt * outPtr = buffer.getPtr();
+  Flt* inPtr = in.getPtr();
+  Flt* outPtr = buffer.getPtr();
   UInt length = in.getLength();
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-value"
   for (; length--; *inPtr++, *outPtr++) {
     Flt f = *inPtr;
-    if (f <= 0) *outPtr = 0;
+    if (f <= 0)
+      *outPtr = 0;
     else {
       Flt g = 100 + 10.0f / LOGTEN * ::log(f);
       *outPtr = (g < 0 ? 0 : g);
@@ -283,17 +286,19 @@ YSE::DSP::buffer & YSE::DSP::powToDb::operator()(YSE::DSP::buffer & in) {
 
 /*******************************************************************************************/
 
-YSE::DSP::buffer & YSE::DSP::pow::operator()(YSE::DSP::buffer & in1, YSE::DSP::buffer & in2) {
+YSE::DSP::buffer& YSE::DSP::pow::operator()(YSE::DSP::buffer& in1, YSE::DSP::buffer& in2) {
   if (in1.getLength() != buffer.getLength()) buffer.resize(in1.getLength());
-  Flt * in1Ptr = in1.getPtr();
-  Flt * in2Ptr = in2.getPtr();
-  Flt * outPtr = buffer.getPtr();
+  Flt* in1Ptr = in1.getPtr();
+  Flt* in2Ptr = in2.getPtr();
+  Flt* outPtr = buffer.getPtr();
   UInt length = in1.getLength();
 
   while (length--) {
     Flt f = *in1Ptr++;
-    if (f > 0) *outPtr = ::pow(f, *in2Ptr);
-    else *outPtr = 0;
+    if (f > 0)
+      *outPtr = ::pow(f, *in2Ptr);
+    else
+      *outPtr = 0;
     outPtr++;
     in2Ptr++;
   }
@@ -301,47 +306,49 @@ YSE::DSP::buffer & YSE::DSP::pow::operator()(YSE::DSP::buffer & in1, YSE::DSP::b
   return buffer;
 }
 
-
 /*******************************************************************************************/
 
-YSE::DSP::buffer & YSE::DSP::exp::operator()(YSE::DSP::buffer & in) {
+YSE::DSP::buffer& YSE::DSP::exp::operator()(YSE::DSP::buffer& in) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
-  Flt * inPtr = in.getPtr();
-  Flt * outPtr = buffer.getPtr();
+  Flt* inPtr = in.getPtr();
+  Flt* outPtr = buffer.getPtr();
   UInt length = in.getLength();
 
-  while (length--) *outPtr++ = ::exp(*inPtr++);
+  while (length--)
+    *outPtr++ = ::exp(*inPtr++);
 
   return buffer;
 }
 
 /*******************************************************************************************/
 
-YSE::DSP::buffer & YSE::DSP::log::operator()(YSE::DSP::buffer & in1, YSE::DSP::buffer & in2) {
+YSE::DSP::buffer& YSE::DSP::log::operator()(YSE::DSP::buffer& in1, YSE::DSP::buffer& in2) {
   if (in1.getLength() != buffer.getLength()) buffer.resize(in1.getLength());
-  Flt * in1Ptr = in1.getPtr();
-  Flt * in2Ptr = in2.getPtr();
-  Flt * outPtr = buffer.getPtr();
+  Flt* in1Ptr = in1.getPtr();
+  Flt* in2Ptr = in2.getPtr();
+  Flt* outPtr = buffer.getPtr();
   UInt length = in1.getLength();
 
   while (length--) {
     Flt f = *in1Ptr++, g = *in2Ptr++;
-    if (f <= 0) *outPtr = ::log(f);
-    else if (g <= 0) *outPtr = ::log(f);
-    else *outPtr = ::log(f) / ::log(g);
+    if (f <= 0)
+      *outPtr = ::log(f);
+    else if (g <= 0)
+      *outPtr = ::log(f);
+    else
+      *outPtr = ::log(f) / ::log(g);
     outPtr++;
   }
 
   return buffer;
 }
 
-
 /*******************************************************************************************/
 
-YSE::DSP::buffer & YSE::DSP::abs::operator()(YSE::DSP::buffer & in) {
+YSE::DSP::buffer& YSE::DSP::abs::operator()(YSE::DSP::buffer& in) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
-  Flt * inPtr = in.getPtr();
-  Flt * outPtr = buffer.getPtr();
+  Flt* inPtr = in.getPtr();
+  Flt* outPtr = buffer.getPtr();
   UInt length = in.getLength();
 
   while (length--) {
@@ -352,30 +359,37 @@ YSE::DSP::buffer & YSE::DSP::abs::operator()(YSE::DSP::buffer & in) {
   return buffer;
 }
 
-YSE::DSP::buffer & YSE::DSP::inverter::operator()(YSE::DSP::buffer & in, bool zeroToOne) {
+YSE::DSP::buffer& YSE::DSP::inverter::operator()(YSE::DSP::buffer& in, bool zeroToOne) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
   UInt l = buffer.getLength();
-  Flt * inPtr = in.getPtr();
-  Flt * outPtr = buffer.getPtr();
+  Flt* inPtr = in.getPtr();
+  Flt* outPtr = buffer.getPtr();
 
   if (zeroToOne) {
     for (; l > 7; l -= 8, inPtr += 8, outPtr += 8) {
-      outPtr[0] = 1 - inPtr[0]; outPtr[1] = 1 - inPtr[1];
-      outPtr[2] = 1 - inPtr[2]; outPtr[3] = 1 - inPtr[3];
-      outPtr[4] = 1 - inPtr[4]; outPtr[5] = 1 - inPtr[5];
-      outPtr[6] = 1 - inPtr[6]; outPtr[7] = 1 - inPtr[7];
+      outPtr[0] = 1 - inPtr[0];
+      outPtr[1] = 1 - inPtr[1];
+      outPtr[2] = 1 - inPtr[2];
+      outPtr[3] = 1 - inPtr[3];
+      outPtr[4] = 1 - inPtr[4];
+      outPtr[5] = 1 - inPtr[5];
+      outPtr[6] = 1 - inPtr[6];
+      outPtr[7] = 1 - inPtr[7];
     }
 
     while (l--) {
       *outPtr++ = 1 - *inPtr++;
     }
-  }
-  else {
+  } else {
     for (; l > 7; l -= 8, inPtr += 8, outPtr += 8) {
-      outPtr[0] = -inPtr[0]; outPtr[1] = -inPtr[1];
-      outPtr[2] = -inPtr[2]; outPtr[3] = -inPtr[3];
-      outPtr[4] = -inPtr[4]; outPtr[5] = -inPtr[5];
-      outPtr[6] = -inPtr[6]; outPtr[7] = -inPtr[7];
+      outPtr[0] = -inPtr[0];
+      outPtr[1] = -inPtr[1];
+      outPtr[2] = -inPtr[2];
+      outPtr[3] = -inPtr[3];
+      outPtr[4] = -inPtr[4];
+      outPtr[5] = -inPtr[5];
+      outPtr[6] = -inPtr[6];
+      outPtr[7] = -inPtr[7];
     }
 
     while (l--) {

@@ -28,25 +28,25 @@ using TestHelpers::MessageSink;
 
 TEST_SUITE("patcher") {
 
-// ─── gButton ──────────────────────────────────────────────────────────────────
+  // ─── gButton ──────────────────────────────────────────────────────────────────
 
-TEST_CASE("gButton: type name, input/output count, and output type") {
+  TEST_CASE("gButton: type name, input/output count, and output type") {
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* h = p.CreateObject(YSE::OBJ::G_BUTTON);
     REQUIRE(h != nullptr);
     CHECK(std::string(h->Type()) == ".b");
-    CHECK(h->GetInputs()  == 1);
+    CHECK(h->GetInputs() == 1);
     CHECK(h->GetOutputs() == 1);
     CHECK(h->OutputDataType(0) == YSE::OUT_TYPE::BANG);
-}
+  }
 
-TEST_CASE("gButton: initial GUI value is 'off'") {
+  TEST_CASE("gButton: initial GUI value is 'off'") {
     YSE::PATCHER::gButton btn;
     CHECK(btn.GetGuiValue() == "off");
-}
+  }
 
-TEST_CASE("gButton: bang/int/float each set on=true and emit one bang downstream") {
+  TEST_CASE("gButton: bang/int/float each set on=true and emit one bang downstream") {
     YSE::PATCHER::gButton btn;
     BangSink sink;
     btn.ConnectOutlet(sink.GetInlet(0), 0);
@@ -55,7 +55,7 @@ TEST_CASE("gButton: bang/int/float each set on=true and emit one bang downstream
     btn.GetInlet(0)->SetBang(YSE::T_GUI);
     CHECK(sink.bangCount == 1);
     CHECK(btn.GetGuiValue() == "on");
-    CHECK(btn.GetGuiValue() == "off");  // GUI_VALUE clears on read
+    CHECK(btn.GetGuiValue() == "off"); // GUI_VALUE clears on read
 
     btn.GetInlet(0)->SetInt(42, YSE::T_GUI);
     CHECK(sink.bangCount == 2);
@@ -64,27 +64,27 @@ TEST_CASE("gButton: bang/int/float each set on=true and emit one bang downstream
     btn.GetInlet(0)->SetFloat(0.5f, YSE::T_GUI);
     CHECK(sink.bangCount == 3);
     CHECK(btn.GetGuiValue() == "on");
-}
+  }
 
-// ─── gFloat ───────────────────────────────────────────────────────────────────
+  // ─── gFloat ───────────────────────────────────────────────────────────────────
 
-TEST_CASE("gFloat: type name, input/output count, and output type") {
+  TEST_CASE("gFloat: type name, input/output count, and output type") {
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* h = p.CreateObject(YSE::OBJ::G_FLOAT);
     REQUIRE(h != nullptr);
     CHECK(std::string(h->Type()) == ".f");
-    CHECK(h->GetInputs()  == 2);
+    CHECK(h->GetInputs() == 2);
     CHECK(h->GetOutputs() == 1);
     CHECK(h->OutputDataType(0) == YSE::OUT_TYPE::FLOAT);
-}
+  }
 
-TEST_CASE("gFloat: initial GUI value is 0") {
+  TEST_CASE("gFloat: initial GUI value is 0") {
     YSE::PATCHER::gFloat f;
     CHECK(f.GetGuiValue() == std::to_string(0.f));
-}
+  }
 
-TEST_CASE("gFloat: float on active inlet stores and emits the value") {
+  TEST_CASE("gFloat: float on active inlet stores and emits the value") {
     YSE::PATCHER::gFloat f;
     FloatSink sink;
     f.ConnectOutlet(sink.GetInlet(0), 0);
@@ -94,9 +94,9 @@ TEST_CASE("gFloat: float on active inlet stores and emits the value") {
     CHECK(sink.gotFloat);
     CHECK(sink.received == doctest::Approx(2.5f));
     CHECK(f.GetGuiValue() == std::to_string(2.5f));
-}
+  }
 
-TEST_CASE("gFloat: int on active inlet is cast to float") {
+  TEST_CASE("gFloat: int on active inlet is cast to float") {
     YSE::PATCHER::gFloat f;
     FloatSink sink;
     f.ConnectOutlet(sink.GetInlet(0), 0);
@@ -104,9 +104,9 @@ TEST_CASE("gFloat: int on active inlet is cast to float") {
 
     f.GetInlet(0)->SetInt(7, YSE::T_GUI);
     CHECK(sink.received == doctest::Approx(7.0f));
-}
+  }
 
-TEST_CASE("gFloat: inlet 1 stores a value but does not emit; bang on inlet 0 sends it") {
+  TEST_CASE("gFloat: inlet 1 stores a value but does not emit; bang on inlet 0 sends it") {
     YSE::PATCHER::gFloat f;
     FloatSink sink;
     f.ConnectOutlet(sink.GetInlet(0), 0);
@@ -118,27 +118,27 @@ TEST_CASE("gFloat: inlet 1 stores a value but does not emit; bang on inlet 0 sen
     f.GetInlet(0)->SetBang(YSE::T_GUI);
     CHECK(sink.gotFloat);
     CHECK(sink.received == doctest::Approx(9.0f));
-}
+  }
 
-// ─── gInt ─────────────────────────────────────────────────────────────────────
+  // ─── gInt ─────────────────────────────────────────────────────────────────────
 
-TEST_CASE("gInt: type name, input/output count, and output type") {
+  TEST_CASE("gInt: type name, input/output count, and output type") {
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* h = p.CreateObject(YSE::OBJ::G_INT);
     REQUIRE(h != nullptr);
     CHECK(std::string(h->Type()) == ".i");
-    CHECK(h->GetInputs()  == 2);
+    CHECK(h->GetInputs() == 2);
     CHECK(h->GetOutputs() == 1);
     CHECK(h->OutputDataType(0) == YSE::OUT_TYPE::INT);
-}
+  }
 
-TEST_CASE("gInt: initial GUI value is 0") {
+  TEST_CASE("gInt: initial GUI value is 0") {
     YSE::PATCHER::gInt i;
     CHECK(i.GetGuiValue() == std::to_string(0));
-}
+  }
 
-TEST_CASE("gInt: int on active inlet stores and emits the value") {
+  TEST_CASE("gInt: int on active inlet stores and emits the value") {
     YSE::PATCHER::gInt i;
     IntSink sink;
     i.ConnectOutlet(sink.GetInlet(0), 0);
@@ -148,9 +148,9 @@ TEST_CASE("gInt: int on active inlet stores and emits the value") {
     CHECK(sink.gotInt);
     CHECK(sink.received == 42);
     CHECK(i.GetGuiValue() == std::to_string(42));
-}
+  }
 
-TEST_CASE("gInt: float on active inlet is truncated to int") {
+  TEST_CASE("gInt: float on active inlet is truncated to int") {
     YSE::PATCHER::gInt i;
     IntSink sink;
     i.ConnectOutlet(sink.GetInlet(0), 0);
@@ -158,9 +158,9 @@ TEST_CASE("gInt: float on active inlet is truncated to int") {
 
     i.GetInlet(0)->SetFloat(3.9f, YSE::T_GUI);
     CHECK(sink.received == 3);
-}
+  }
 
-TEST_CASE("gInt: inlet 1 stores a value but does not emit; bang on inlet 0 sends it") {
+  TEST_CASE("gInt: inlet 1 stores a value but does not emit; bang on inlet 0 sends it") {
     YSE::PATCHER::gInt i;
     IntSink sink;
     i.ConnectOutlet(sink.GetInlet(0), 0);
@@ -171,22 +171,22 @@ TEST_CASE("gInt: inlet 1 stores a value but does not emit; bang on inlet 0 sends
 
     i.GetInlet(0)->SetBang(YSE::T_GUI);
     CHECK(sink.received == 99);
-}
+  }
 
-// ─── gList ────────────────────────────────────────────────────────────────────
+  // ─── gList ────────────────────────────────────────────────────────────────────
 
-TEST_CASE("gList: type name, input/output count, and output type") {
+  TEST_CASE("gList: type name, input/output count, and output type") {
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* h = p.CreateObject(YSE::OBJ::G_LIST);
     REQUIRE(h != nullptr);
     CHECK(std::string(h->Type()) == ".l");
-    CHECK(h->GetInputs()  == 1);
+    CHECK(h->GetInputs() == 1);
     CHECK(h->GetOutputs() == 1);
     CHECK(h->OutputDataType(0) == YSE::OUT_TYPE::LIST);
-}
+  }
 
-TEST_CASE("gList: SetParams initialises the stored message; bang emits it") {
+  TEST_CASE("gList: SetParams initialises the stored message; bang emits it") {
     YSE::PATCHER::gList list;
     // Parameters::Set splits on spaces and only the first token reaches a
     // STRING param.  Use a single-token message for the SetParams path.
@@ -199,9 +199,9 @@ TEST_CASE("gList: SetParams initialises the stored message; bang emits it") {
     CHECK(sink.gotList);
     CHECK(sink.received == "hello");
     CHECK(list.GetGuiValue() == "hello");
-}
+  }
 
-TEST_CASE("gList: list-in updates the stored message without auto-emitting") {
+  TEST_CASE("gList: list-in updates the stored message without auto-emitting") {
     YSE::PATCHER::gList list;
     ListSink sink;
     list.ConnectOutlet(sink.GetInlet(0), 0);
@@ -213,28 +213,28 @@ TEST_CASE("gList: list-in updates the stored message without auto-emitting") {
 
     list.GetInlet(0)->SetBang(YSE::T_GUI);
     CHECK(sink.received == "alpha beta");
-}
+  }
 
-TEST_CASE("gList: inlet::SetMessage routes to SetMessage and updates the stored value") {
+  TEST_CASE("gList: inlet::SetMessage routes to SetMessage and updates the stored value") {
     YSE::PATCHER::gList list;
     list.GetInlet(0)->SetMessage("via message", YSE::T_GUI);
     CHECK(list.GetGuiValue() == "via message");
-}
+  }
 
-// ─── gMessage ─────────────────────────────────────────────────────────────────
+  // ─── gMessage ─────────────────────────────────────────────────────────────────
 
-TEST_CASE("gMessage: type name, input/output count, and output type") {
+  TEST_CASE("gMessage: type name, input/output count, and output type") {
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* h = p.CreateObject(YSE::OBJ::G_MESSAGE);
     REQUIRE(h != nullptr);
     CHECK(std::string(h->Type()) == ".m");
-    CHECK(h->GetInputs()  == 1);
+    CHECK(h->GetInputs() == 1);
     CHECK(h->GetOutputs() == 1);
     CHECK(h->OutputDataType(0) == YSE::OUT_TYPE::LIST);
-}
+  }
 
-TEST_CASE("gMessage: bang dispatches the stored message via SendMessage") {
+  TEST_CASE("gMessage: bang dispatches the stored message via SendMessage") {
     YSE::PATCHER::gMessage msg;
     // Parameters::Set splits on spaces; only a single token reaches the
     // message STRING param.  Multi-token messages must arrive via SetList.
@@ -246,9 +246,9 @@ TEST_CASE("gMessage: bang dispatches the stored message via SendMessage") {
     msg.GetInlet(0)->SetBang(YSE::T_GUI);
     CHECK(sink.gotMessage);
     CHECK(sink.received == "payload");
-}
+  }
 
-TEST_CASE("gMessage: list-in updates the stored message") {
+  TEST_CASE("gMessage: list-in updates the stored message") {
     YSE::PATCHER::gMessage msg;
     MessageSink sink;
     msg.ConnectOutlet(sink.GetInlet(0), 0);
@@ -259,28 +259,28 @@ TEST_CASE("gMessage: list-in updates the stored message") {
 
     msg.GetInlet(0)->SetBang(YSE::T_GUI);
     CHECK(sink.received == "new payload");
-}
+  }
 
-TEST_CASE("gMessage: inlet::SetMessage routes through SetMessage handler") {
+  TEST_CASE("gMessage: inlet::SetMessage routes through SetMessage handler") {
     YSE::PATCHER::gMessage msg;
     msg.GetInlet(0)->SetMessage("from inlet", YSE::T_GUI);
     CHECK(msg.GetGuiValue() == "from inlet");
-}
+  }
 
-// ─── gSlider ──────────────────────────────────────────────────────────────────
+  // ─── gSlider ──────────────────────────────────────────────────────────────────
 
-TEST_CASE("gSlider: type name, input/output count, and output type") {
+  TEST_CASE("gSlider: type name, input/output count, and output type") {
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* h = p.CreateObject(YSE::OBJ::G_SLIDER);
     REQUIRE(h != nullptr);
     CHECK(std::string(h->Type()) == ".slider");
-    CHECK(h->GetInputs()  == 1);
+    CHECK(h->GetInputs() == 1);
     CHECK(h->GetOutputs() == 1);
     CHECK(h->OutputDataType(0) == YSE::OUT_TYPE::FLOAT);
-}
+  }
 
-TEST_CASE("gSlider: float in range is passed through to outlet") {
+  TEST_CASE("gSlider: float in range is passed through to outlet") {
     YSE::PATCHER::gSlider slider;
     FloatSink sink;
     slider.ConnectOutlet(sink.GetInlet(0), 0);
@@ -289,9 +289,9 @@ TEST_CASE("gSlider: float in range is passed through to outlet") {
     slider.GetInlet(0)->SetFloat(0.5f, YSE::T_GUI);
     CHECK(sink.received == doctest::Approx(0.5f));
     CHECK(slider.GetGuiValue() == std::to_string(0.5f));
-}
+  }
 
-TEST_CASE("gSlider: value below 0 is clamped to 0") {
+  TEST_CASE("gSlider: value below 0 is clamped to 0") {
     YSE::PATCHER::gSlider slider;
     FloatSink sink;
     slider.ConnectOutlet(sink.GetInlet(0), 0);
@@ -299,9 +299,9 @@ TEST_CASE("gSlider: value below 0 is clamped to 0") {
 
     slider.GetInlet(0)->SetFloat(-0.5f, YSE::T_GUI);
     CHECK(sink.received == doctest::Approx(0.0f));
-}
+  }
 
-TEST_CASE("gSlider: value above 1 is clamped to 1") {
+  TEST_CASE("gSlider: value above 1 is clamped to 1") {
     YSE::PATCHER::gSlider slider;
     FloatSink sink;
     slider.ConnectOutlet(sink.GetInlet(0), 0);
@@ -309,9 +309,9 @@ TEST_CASE("gSlider: value above 1 is clamped to 1") {
 
     slider.GetInlet(0)->SetFloat(1.5f, YSE::T_GUI);
     CHECK(sink.received == doctest::Approx(1.0f));
-}
+  }
 
-TEST_CASE("gSlider: int input is cast to float and clamped") {
+  TEST_CASE("gSlider: int input is cast to float and clamped") {
     YSE::PATCHER::gSlider slider;
     FloatSink sink;
     slider.ConnectOutlet(sink.GetInlet(0), 0);
@@ -322,9 +322,9 @@ TEST_CASE("gSlider: int input is cast to float and clamped") {
 
     slider.GetInlet(0)->SetInt(-3, YSE::T_GUI);
     CHECK(sink.received == doctest::Approx(0.0f));
-}
+  }
 
-TEST_CASE("gSlider: bang is a no-op on value but still triggers Calculate") {
+  TEST_CASE("gSlider: bang is a no-op on value but still triggers Calculate") {
     YSE::PATCHER::gSlider slider;
     FloatSink sink;
     slider.ConnectOutlet(sink.GetInlet(0), 0);
@@ -335,45 +335,45 @@ TEST_CASE("gSlider: bang is a no-op on value but still triggers Calculate") {
     slider.GetInlet(0)->SetBang(YSE::T_GUI);
     CHECK(sink.gotFloat);
     CHECK(sink.received == doctest::Approx(0.4f));
-}
+  }
 
-// ─── gText ────────────────────────────────────────────────────────────────────
+  // ─── gText ────────────────────────────────────────────────────────────────────
 
-TEST_CASE("gText: type name, zero inputs and outputs") {
+  TEST_CASE("gText: type name, zero inputs and outputs") {
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* h = p.CreateObject(YSE::OBJ::G_TEXT);
     REQUIRE(h != nullptr);
     CHECK(std::string(h->Type()) == ".text");
-    CHECK(h->GetInputs()  == 0);
+    CHECK(h->GetInputs() == 0);
     CHECK(h->GetOutputs() == 0);
-}
+  }
 
-TEST_CASE("gText: SetParams stores its single string parameter") {
+  TEST_CASE("gText: SetParams stores its single string parameter") {
     YSE::PATCHER::gText t;
     t.SetParams("descriptive label");
     CHECK(t.GetParams() == "descriptive label");
-}
+  }
 
-// ─── gToggle ──────────────────────────────────────────────────────────────────
+  // ─── gToggle ──────────────────────────────────────────────────────────────────
 
-TEST_CASE("gToggle: type name, input/output count, and output type") {
+  TEST_CASE("gToggle: type name, input/output count, and output type") {
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* h = p.CreateObject(YSE::OBJ::G_TOGGLE);
     REQUIRE(h != nullptr);
     CHECK(std::string(h->Type()) == ".t");
-    CHECK(h->GetInputs()  == 1);
+    CHECK(h->GetInputs() == 1);
     CHECK(h->GetOutputs() == 1);
     CHECK(h->OutputDataType(0) == YSE::OUT_TYPE::INT);
-}
+  }
 
-TEST_CASE("gToggle: initial GUI value is 'off'") {
+  TEST_CASE("gToggle: initial GUI value is 'off'") {
     YSE::PATCHER::gToggle t;
     CHECK(t.GetGuiValue() == "off");
-}
+  }
 
-TEST_CASE("gToggle: SetValue(non-zero) sets on, SetValue(0) sets off, and each emits the int") {
+  TEST_CASE("gToggle: SetValue(non-zero) sets on, SetValue(0) sets off, and each emits the int") {
     YSE::PATCHER::gToggle t;
     IntSink sink;
     t.ConnectOutlet(sink.GetInlet(0), 0);
@@ -390,18 +390,18 @@ TEST_CASE("gToggle: SetValue(non-zero) sets on, SetValue(0) sets off, and each e
     t.GetInlet(0)->SetInt(7, YSE::T_GUI);
     CHECK(sink.received == 1);
     CHECK(t.GetGuiValue() == "on");
-}
+  }
 
-TEST_CASE("gToggle: bang flips the stored value and emits") {
+  TEST_CASE("gToggle: bang flips the stored value and emits") {
     YSE::PATCHER::gToggle t;
     IntSink sink;
     t.ConnectOutlet(sink.GetInlet(0), 0);
     sink.ConnectInlet(t.GetOutlet(0), 0);
 
-    t.GetInlet(0)->SetBang(YSE::T_GUI);   // off -> on
+    t.GetInlet(0)->SetBang(YSE::T_GUI); // off -> on
     CHECK(sink.received == 1);
-    t.GetInlet(0)->SetBang(YSE::T_GUI);   // on -> off
+    t.GetInlet(0)->SetBang(YSE::T_GUI); // on -> off
     CHECK(sink.received == 0);
-}
+  }
 
 } // TEST_SUITE("patcher")

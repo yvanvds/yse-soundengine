@@ -29,19 +29,25 @@ namespace {
     }
     return src.size();
   }
-}
+} // namespace
 
 extern "C" {
 
 // ─── device descriptor ─────────────────────────────────────────────────────
 
 YSE_C_API size_t yse_device_get_name(YseDevice* dev, char* buf, size_t cap) {
-  if (!dev) { if (buf && cap > 0) buf[0] = '\0'; return 0; }
+  if (!dev) {
+    if (buf && cap > 0) buf[0] = '\0';
+    return 0;
+  }
   return copy_string(to_cpp(dev)->getName(), buf, cap);
 }
 
 YSE_C_API size_t yse_device_get_type_name(YseDevice* dev, char* buf, size_t cap) {
-  if (!dev) { if (buf && cap > 0) buf[0] = '\0'; return 0; }
+  if (!dev) {
+    if (buf && cap > 0) buf[0] = '\0';
+    return 0;
+  }
   return copy_string(to_cpp(dev)->getTypeName(), buf, cap);
 }
 
@@ -49,8 +55,12 @@ YSE_C_API unsigned int yse_device_num_output_channels(YseDevice* dev) {
   return dev ? to_cpp(dev)->getNumOutputChannelNames() : 0;
 }
 
-YSE_C_API size_t yse_device_get_output_channel_name(YseDevice* dev, unsigned int idx, char* buf, size_t cap) {
-  if (!dev) { if (buf && cap > 0) buf[0] = '\0'; return 0; }
+YSE_C_API size_t yse_device_get_output_channel_name(YseDevice* dev, unsigned int idx, char* buf,
+                                                    size_t cap) {
+  if (!dev) {
+    if (buf && cap > 0) buf[0] = '\0';
+    return 0;
+  }
   try {
     return copy_string(to_cpp(dev)->getOutputChannelName(idx), buf, cap);
   } catch (const std::exception&) {
@@ -63,8 +73,12 @@ YSE_C_API unsigned int yse_device_num_input_channels(YseDevice* dev) {
   return dev ? to_cpp(dev)->getNumInputChannelNames() : 0;
 }
 
-YSE_C_API size_t yse_device_get_input_channel_name(YseDevice* dev, unsigned int idx, char* buf, size_t cap) {
-  if (!dev) { if (buf && cap > 0) buf[0] = '\0'; return 0; }
+YSE_C_API size_t yse_device_get_input_channel_name(YseDevice* dev, unsigned int idx, char* buf,
+                                                   size_t cap) {
+  if (!dev) {
+    if (buf && cap > 0) buf[0] = '\0';
+    return 0;
+  }
   try {
     return copy_string(to_cpp(dev)->getInputChannelName(idx), buf, cap);
   } catch (const std::exception&) {
@@ -87,10 +101,18 @@ YSE_C_API int yse_device_get_buffer_size(YseDevice* dev, unsigned int idx) {
   return dev ? to_cpp(dev)->getAvailableBufferSize(idx) : 0;
 }
 
-YSE_C_API int yse_device_default_buffer_size(YseDevice* dev) { return dev ? to_cpp(dev)->getDefaultBufferSize() : 0; }
-YSE_C_API int yse_device_output_latency(YseDevice* dev)      { return dev ? to_cpp(dev)->getOutputLatency()    : 0; }
-YSE_C_API int yse_device_input_latency(YseDevice* dev)       { return dev ? to_cpp(dev)->getInputLatency()     : 0; }
-YSE_C_API int yse_device_get_id(YseDevice* dev)              { return dev ? to_cpp(dev)->getID()               : 0; }
+YSE_C_API int yse_device_default_buffer_size(YseDevice* dev) {
+  return dev ? to_cpp(dev)->getDefaultBufferSize() : 0;
+}
+YSE_C_API int yse_device_output_latency(YseDevice* dev) {
+  return dev ? to_cpp(dev)->getOutputLatency() : 0;
+}
+YSE_C_API int yse_device_input_latency(YseDevice* dev) {
+  return dev ? to_cpp(dev)->getInputLatency() : 0;
+}
+YSE_C_API int yse_device_get_id(YseDevice* dev) {
+  return dev ? to_cpp(dev)->getID() : 0;
+}
 
 // ─── device setup ──────────────────────────────────────────────────────────
 

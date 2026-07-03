@@ -33,12 +33,10 @@ namespace YSE {
   //
   // T must be trivially copyable (this queue stores pointers). Capacity is
   // rounded up to the next power of two so the index wrap is a single mask.
-  template <typename T>
-  class mpmcQueue {
+  template <typename T> class mpmcQueue {
   public:
     explicit mpmcQueue(std::size_t capacity)
-      : buffer_(new cell[roundUpPow2(capacity)]),
-        capacityMask_(roundUpPow2(capacity) - 1) {
+      : buffer_(new cell[roundUpPow2(capacity)]), capacityMask_(roundUpPow2(capacity) - 1) {
       for (std::size_t i = 0; i <= capacityMask_; ++i) {
         buffer_[i].sequence.store(i, std::memory_order_relaxed);
       }
@@ -93,7 +91,9 @@ namespace YSE {
       return true;
     }
 
-    std::size_t capacity() const { return capacityMask_ + 1; }
+    std::size_t capacity() const {
+      return capacityMask_ + 1;
+    }
 
   private:
     struct cell {

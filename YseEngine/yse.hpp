@@ -106,7 +106,7 @@
 #include "channel/channel.hpp"
 #include "channel/channelInterface.hpp"
 
-//#include "sound/sound.hpp"
+// #include "sound/sound.hpp"
 #include "sound/soundInterface.hpp"
 
 #include "midi/midifile.hpp"
@@ -137,5 +137,4 @@
 #include "io.hpp"
 #include "BufferIO.hpp"
 
-
-#endif  // YSE_HPP_INCLUDED
+#endif // YSE_HPP_INCLUDED

@@ -18,13 +18,11 @@ namespace YSE {
   std::string GetCurrentWorkingDirectory();
 
   /** @brief Whether a file at ``name`` exists on disk. */
-  bool FileExists(const std::string & name);
+  bool FileExists(const std::string& name);
 
   /** @brief Whether ``path`` is absolute (vs. relative to the working directory). */
-  bool IsPathAbsolute(const std::string & path);
+  bool IsPathAbsolute(const std::string& path);
 
-}
+} // namespace YSE
 
-
-
-#endif  // FILEFUNCTIONS_HPP_INCLUDED
+#endif // FILEFUNCTIONS_HPP_INCLUDED

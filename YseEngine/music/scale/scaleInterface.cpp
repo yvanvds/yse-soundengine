@@ -20,7 +20,7 @@ YSE::scale::~scale() {
   pimpl->removeInterface();
 }
 
-YSE::scale & YSE::scale::add(Flt pitch, Flt step) {
+YSE::scale& YSE::scale::add(Flt pitch, Flt step) {
   if (step > 0) {
     // find lowest occurance of this pitch
     while (pitch + step > 0) {
@@ -32,8 +32,7 @@ YSE::scale & YSE::scale::add(Flt pitch, Flt step) {
       pitches.push_back(pitch);
       pitch += step;
     }
-  }
-  else {
+  } else {
     pitches.push_back(pitch);
   }
 
@@ -49,7 +48,7 @@ YSE::scale & YSE::scale::add(Flt pitch, Flt step) {
   return *this;
 }
 
-YSE::scale & YSE::scale::remove(Flt pitch, Flt step) {
+YSE::scale& YSE::scale::remove(Flt pitch, Flt step) {
   if (step > 0) {
     // find lowest occurance of this pitch
     while (pitch + step > 0) {
@@ -61,19 +60,16 @@ YSE::scale & YSE::scale::remove(Flt pitch, Flt step) {
       if ((*iter) > pitch) pitch += step;
       if ((*iter) == pitch) {
         iter = pitches.erase(iter);
-      }
-      else {
+      } else {
         ++iter;
       }
     }
-  }
-  else {
+  } else {
     // remove pitch from scale
     for (auto iter = pitches.begin(); iter != pitches.end();) {
       if ((*iter) == pitch) {
         iter = pitches.erase(iter);
-      }
-      else {
+      } else {
         ++iter;
       }
     }
@@ -117,7 +113,7 @@ UInt YSE::scale::size() const {
   return static_cast<UInt>(pitches.size());
 }
 
-YSE::scale & YSE::scale::clear() {
+YSE::scale& YSE::scale::clear() {
   pitches.clear();
   SCALE::messageObject m;
   m.ID = SCALE::CLEAR;
@@ -125,9 +121,7 @@ YSE::scale & YSE::scale::clear() {
   return *this;
 }
 
-
-
-YSE::scale & YSE::scale::operator=(const scale & other) {
+YSE::scale& YSE::scale::operator=(const scale& other) {
   clear();
 
   FOREACH(other.pitches) {
@@ -137,7 +131,7 @@ YSE::scale & YSE::scale::operator=(const scale & other) {
   return *this;
 }
 
-YSE::scale::scale(const scale & other) {
+YSE::scale::scale(const scale& other) {
   pimpl = SCALE::Manager().addImplementation(this);
   *this = other;
 }

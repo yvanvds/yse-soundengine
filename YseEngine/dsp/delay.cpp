@@ -15,7 +15,7 @@
 #define SAMPBLK 4
 
 YSE::DSP::delay::delay(Int size) : bufferlength(size), buffer(size + XTRASAMPS), size(size) {}
-YSE::DSP::delay::delay(const YSE::DSP::delay & source) {
+YSE::DSP::delay::delay(const YSE::DSP::delay& source) {
   delay(source.size);
 }
 
@@ -24,7 +24,7 @@ YSE::DSP::delay& YSE::DSP::delay::setSize(UInt size) {
   return (*this);
 }
 
-YSE::DSP::delay& YSE::DSP::delay::process(YSE::DSP::buffer & s) {
+YSE::DSP::delay& YSE::DSP::delay::process(YSE::DSP::buffer& s) {
   {
     Int nsamps = (Int)(this->size * SAMPLERATE * 0.001f);
     if (nsamps < 1) nsamps = 1;
@@ -38,12 +38,12 @@ YSE::DSP::delay& YSE::DSP::delay::process(YSE::DSP::buffer & s) {
   }
 
   currentLength = s.getLength();
-  Flt * in = s.getPtr();
+  Flt* in = s.getPtr();
   UInt length = currentLength;
   Int ph = phase;
-  Flt * vp = buffer.data();
-  Flt * bp = vp + ph;
-  Flt * ep = vp + bufferlength + XTRASAMPS;
+  Flt* vp = buffer.data();
+  Flt* bp = vp + ph;
+  Flt* ep = vp + bufferlength + XTRASAMPS;
   ph += currentLength;
 
   while (length--) {
@@ -64,20 +64,22 @@ YSE::DSP::delay& YSE::DSP::delay::process(YSE::DSP::buffer & s) {
   return (*this);
 }
 
-YSE::DSP::delay& YSE::DSP::delay::read(YSE::DSP::buffer & result, UInt delayTime) {
+YSE::DSP::delay& YSE::DSP::delay::read(YSE::DSP::buffer& result, UInt delayTime) {
   if (result.getLength() < currentLength) result.resize(currentLength);
   UInt delaySamples = (UInt)(SAMPLERATE * delayTime * 0.001f) + currentLength;
-  if (delaySamples < result.getLength()) delaySamples = result.getLength();
-  else if (delaySamples > bufferlength - DEFDELVS) delaySamples = bufferlength - DEFDELVS;
+  if (delaySamples < result.getLength())
+    delaySamples = result.getLength();
+  else if (delaySamples > bufferlength - DEFDELVS)
+    delaySamples = bufferlength - DEFDELVS;
 
   Int ph = phase - delaySamples;
 
-  Flt * vp = buffer.data();
-  Flt * ep = vp + (bufferlength + XTRASAMPS);
+  Flt* vp = buffer.data();
+  Flt* ep = vp + (bufferlength + XTRASAMPS);
   if (ph < 0) ph += bufferlength;
-  Flt *bp = vp + ph;
+  Flt* bp = vp + ph;
 
-  Flt * out = result.getPtr();
+  Flt* out = result.getPtr();
 
   Int length = currentLength;
   while (length--) {
@@ -88,41 +90,43 @@ YSE::DSP::delay& YSE::DSP::delay::read(YSE::DSP::buffer & result, UInt delayTime
   return (*this);
 }
 
-YSE::DSP::delay& YSE::DSP::delay::read(YSE::DSP::buffer & result, YSE::DSP::buffer & delayTime) {
+YSE::DSP::delay& YSE::DSP::delay::read(YSE::DSP::buffer& result, YSE::DSP::buffer& delayTime) {
   if (result.getLength() < currentLength) result.resize(currentLength);
 
-  Flt * ctrl = delayTime.getPtr();
-  Flt * out = result.getPtr();
+  Flt* ctrl = delayTime.getPtr();
+  Flt* out = result.getPtr();
 
-  Flt * vp = buffer.data();
-  //Flt * ep = vp + (impl->bufferlength + XTRASAMPS);
+  Flt* vp = buffer.data();
+  // Flt * ep = vp + (impl->bufferlength + XTRASAMPS);
 
   for (UInt i = 0; i < result.getLength(); i++) {
     UInt delaySamples = (UInt)(SAMPLERATE * ctrl[i] * 0.001f) + currentLength;
-    if (delaySamples < result.getLength()) delaySamples = result.getLength();
-    else if (delaySamples > bufferlength - DEFDELVS) delaySamples = bufferlength - DEFDELVS;
+    if (delaySamples < result.getLength())
+      delaySamples = result.getLength();
+    else if (delaySamples > bufferlength - DEFDELVS)
+      delaySamples = bufferlength - DEFDELVS;
 
     Int ph = phase - delaySamples + i;
     if (ph < 0) ph += bufferlength;
-    Flt *bp = vp + ph;
+    Flt* bp = vp + ph;
     *out++ = *bp;
   }
 
   return (*this);
 }
 
-
-void YSE::DSP::readInterpolated(YSE::DSP::buffer & ctrl, YSE::DSP::buffer& out, YSE::DSP::buffer & buffer, UInt &pos) {
-  Flt * input = ctrl.getPtr();
-  Flt * output = out.getPtr();
+void YSE::DSP::readInterpolated(YSE::DSP::buffer& ctrl, YSE::DSP::buffer& out,
+                                YSE::DSP::buffer& buffer, UInt& pos) {
+  Flt* input = ctrl.getPtr();
+  Flt* output = out.getPtr();
   Int n = ctrl.getLength();
   Int nsamps = buffer.getLength();
   Flt limit = nsamps - n - 1.0f;
   Flt fn = n - 1.0f;
 
-  Flt * vp = buffer.getPtr();
-  Flt *bp = nullptr;
-  Flt *wp = vp + pos;
+  Flt* vp = buffer.getPtr();
+  Flt* bp = nullptr;
+  Flt* wp = vp + pos;
 
   while (n--) {
     Flt delsamps = SAMPLERATE * *input++, frac;
@@ -141,12 +145,9 @@ void YSE::DSP::readInterpolated(YSE::DSP::buffer & ctrl, YSE::DSP::buffer& out, 
     b = bp[-1];
     a = bp[0];
     cminusb = c - b;
-    *output++ = b + frac * (
-      cminusb - 0.1666667f * (1.0f - frac) * (
-      (d - a - 3.0f * cminusb) * frac + (d + 2.0f * a - 3.0f * b)
-      )
-      );
-
+    *output++ =
+        b + frac * (cminusb - 0.1666667f * (1.0f - frac) *
+                                  ((d - a - 3.0f * cminusb) * frac + (d + 2.0f * a - 3.0f * b)));
   }
   pos = (UInt)(bp - vp);
 }

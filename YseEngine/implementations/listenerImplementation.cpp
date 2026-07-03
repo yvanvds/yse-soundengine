@@ -8,10 +8,9 @@
   ==============================================================================
 */
 
-
 #include "../internalHeaders.h"
 
-YSE::INTERNAL::listenerImplementation & YSE::INTERNAL::ListenerImpl() {
+YSE::INTERNAL::listenerImplementation& YSE::INTERNAL::ListenerImpl() {
   static listenerImplementation impl;
   return impl;
 }

@@ -8,7 +8,7 @@
   ==============================================================================
 */
 
-#include<assert.h>
+#include <assert.h>
 
 #include "yse.hpp"
 
@@ -76,5 +76,3 @@
 #include "dsp/math_functions.h"
 
 #include "internal/AudioTest.h"
-
-

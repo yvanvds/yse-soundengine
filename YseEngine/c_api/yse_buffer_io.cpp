@@ -9,14 +9,20 @@ namespace {
   inline YSE::BufferIO* to_cpp(YseBufferIO* io) {
     return reinterpret_cast<YSE::BufferIO*>(io);
   }
-}
+} // namespace
 
 extern "C" {
 
 YSE_C_API YseBufferIO* yse_buffer_io_create(int store_copy) {
-  try { return reinterpret_cast<YseBufferIO*>(new YSE::BufferIO(store_copy != 0)); }
-  catch (const std::exception& e) { yse_c::set_last_error(e.what()); return nullptr; }
-  catch (...) { yse_c::set_last_error("buffer_io_create: unknown C++ exception"); return nullptr; }
+  try {
+    return reinterpret_cast<YseBufferIO*>(new YSE::BufferIO(store_copy != 0));
+  } catch (const std::exception& e) {
+    yse_c::set_last_error(e.what());
+    return nullptr;
+  } catch (...) {
+    yse_c::set_last_error("buffer_io_create: unknown C++ exception");
+    return nullptr;
+  }
 }
 
 YSE_C_API void yse_buffer_io_destroy(YseBufferIO* io) {

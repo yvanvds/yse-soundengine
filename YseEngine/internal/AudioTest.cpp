@@ -1,6 +1,6 @@
 #include "AudioTest.h"
 
-YSE::INTERNAL::AudioTest & YSE::INTERNAL::Test() {
+YSE::INTERNAL::AudioTest& YSE::INTERNAL::Test() {
   static AudioTest s;
   return s;
 }
@@ -10,7 +10,7 @@ class shepard : public YSE::DSP::dspSourceObject {
 public:
   // process function is pure virtual in dspSource
   // you HAVE to implement it
-  virtual void process(YSE::SOUND_STATUS & intent);
+  virtual void process(YSE::SOUND_STATUS& intent);
   // constructor can be implement if you need it
   // (you probably will)
   shepard();
@@ -48,14 +48,13 @@ shepard::shepard() {
 
   lp.setFrequency(1000);
   lpFreq = 500;
-
 }
 
-void shepard::process(YSE::SOUND_STATUS & intent) {
+void shepard::process(YSE::SOUND_STATUS& intent) {
   // first clear the output buffer
   out = 0.0f;
-  //out += generators[5](freq[5]);
-  // add all sine generators to the output
+  // out += generators[5](freq[5]);
+  //  add all sine generators to the output
   for (UInt i = 0; i < 11; i++) {
     out += generators[i](freq[i]);
 
@@ -68,7 +67,7 @@ void shepard::process(YSE::SOUND_STATUS & intent) {
   out *= 0.1f;
 
   // most DSP object will return a reference to an AUDIOBUFFER.
-  YSE::DSP::buffer & result = lp(out);
+  YSE::DSP::buffer& result = lp(out);
 
   // if you need to alter the result afterwards, you should not use a reference but
   // AUDIOBUFFER result = lp(out);
@@ -76,7 +75,7 @@ void shepard::process(YSE::SOUND_STATUS & intent) {
   // and preferably create the sample object when setting up your dsp object. Creating a
   // new sample in the process function will require memory allocation every time it runs.
 
-  // copy buffer to all channels (YSE creates the buffer vector for your dsp, according to 
+  // copy buffer to all channels (YSE creates the buffer vector for your dsp, according to
   // the channels chosen for the current output device
   for (UInt i = 0; i < samples.size(); i++) {
     samples[i] = result;
@@ -106,8 +105,7 @@ YSE::INTERNAL::AudioTest::~AudioTest() {
 void YSE::INTERNAL::AudioTest::On(bool value) {
   if (value) {
     testSound.play();
-  }
-  else {
+  } else {
     testSound.stop();
   }
 }

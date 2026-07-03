@@ -27,7 +27,7 @@ namespace YSE {
       realOnePole() : lastSample(0) {}
 
       /** @brief Apply one-pole IIR: ``out[i] = in1[i] + in2[i] * out[i-1]``. */
-      buffer & operator()(buffer & in1, buffer & in2);
+      buffer& operator()(buffer& in1, buffer& in2);
 
     private:
       Flt lastSample;
@@ -44,7 +44,7 @@ namespace YSE {
       realOneZero() : lastSample(0) {}
 
       /** @brief Apply one-zero FIR. */
-      buffer & operator()(buffer & in1, buffer & in2);
+      buffer& operator()(buffer& in1, buffer& in2);
 
     private:
       Flt lastSample;
@@ -60,7 +60,7 @@ namespace YSE {
       realOneZeroReversed() : lastSample(0) {}
 
       /** @brief Apply reversed one-zero FIR. */
-      buffer & operator()(buffer & in1, buffer & in2);
+      buffer& operator()(buffer& in1, buffer& in2);
 
     private:
       Flt lastSample;
@@ -79,7 +79,7 @@ namespace YSE {
       complexOnePole();
 
       /** @brief Apply the complex one-pole filter. */
-      MULTICHANNELBUFFER & operator()(MULTICHANNELBUFFER & in1, MULTICHANNELBUFFER & in2);
+      MULTICHANNELBUFFER& operator()(MULTICHANNELBUFFER& in1, MULTICHANNELBUFFER& in2);
 
     private:
       Flt lastReal, lastImaginary;
@@ -92,29 +92,28 @@ namespace YSE {
       complexOneZero();
 
       /** @brief Apply the complex one-zero filter. */
-      MULTICHANNELBUFFER & operator()(MULTICHANNELBUFFER & in1, MULTICHANNELBUFFER & in2);
+      MULTICHANNELBUFFER& operator()(MULTICHANNELBUFFER& in1, MULTICHANNELBUFFER& in2);
 
     private:
       Flt lastReal, lastImaginary;
       MULTICHANNELBUFFER out;
     };
 
-    /** @brief Complex one-zero FIR with reversed sign. See ``complexOnePole`` for the channel convention. */
+    /** @brief Complex one-zero FIR with reversed sign. See ``complexOnePole`` for the channel
+     * convention. */
     class API complexOneZeroReversed {
     public:
       complexOneZeroReversed();
 
       /** @brief Apply the reversed complex one-zero filter. */
-      MULTICHANNELBUFFER & operator()(MULTICHANNELBUFFER & in1, MULTICHANNELBUFFER & in2);
+      MULTICHANNELBUFFER& operator()(MULTICHANNELBUFFER& in1, MULTICHANNELBUFFER& in2);
 
     private:
       Flt lastReal, lastImaginary;
       MULTICHANNELBUFFER out;
     };
 
-  }
-}
+  } // namespace DSP
+} // namespace YSE
 
-
-
-#endif  // RAWFILTERS_HPP_INCLUDED
+#endif // RAWFILTERS_HPP_INCLUDED

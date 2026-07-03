@@ -20,7 +20,7 @@
   }
 }*/
 
-bool YSE::DSP::fileBuffer::load(const char * /*fileName*/, UInt /*channel*/) {
+bool YSE::DSP::fileBuffer::load(const char* /*fileName*/, UInt /*channel*/) {
   /*ScopedPointer<AudioFormatReader> reader = getReader(fileName);
   if (reader == nullptr) return false;
   if (channel >= reader->numChannels) return false;
@@ -42,14 +42,13 @@ bool YSE::DSP::fileBuffer::load(const char * /*fileName*/, UInt /*channel*/) {
   return true;
 }
 
-bool YSE::DSP::fileBuffer::save(const char * fileName) {
+bool YSE::DSP::fileBuffer::save(const char* fileName) {
   std::string fn = fileName;
   fn += ".wav";
 
   if (IO().getActive()) {
     return false; // not implemented yet
-  }
-  else {
+  } else {
     // check if file exists
     /*File file;
     file = File::getCurrentWorkingDirectory().getChildFile(fn.c_str());
@@ -58,7 +57,8 @@ bool YSE::DSP::fileBuffer::save(const char * fileName) {
 
     if (fileStream != nullptr) {
       WavAudioFormat wavFormat;
-      AudioFormatWriter * writer = wavFormat.createWriterFor(fileStream, SAMPLERATE, 1, 16, StringPairArray(), 0);
+      AudioFormatWriter * writer = wavFormat.createWriterFor(fileStream, SAMPLERATE, 1, 16,
+    StringPairArray(), 0);
 
       if (writer != nullptr) {
         fileStream.release();
@@ -71,7 +71,7 @@ bool YSE::DSP::fileBuffer::save(const char * fileName) {
         delete[] array;
       }
     }
-	*/
+  */
   }
 
   return true;

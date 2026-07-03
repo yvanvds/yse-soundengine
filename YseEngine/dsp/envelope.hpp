@@ -27,7 +27,6 @@ namespace YSE {
      */
     class API envelope {
     public:
-
       /** @brief One vertex of the envelope: a value at a given time in seconds. */
       struct breakPoint {
         breakPoint(Flt time, Flt value) : time(time), value(value) {}
@@ -44,10 +43,10 @@ namespace YSE {
        *                    responsiveness.
        *  @return ``true`` on success.
        */
-      bool create(YSE::DSP::buffer & source, Int windowSize = 15);
+      bool create(YSE::DSP::buffer& source, Int windowSize = 15);
 
       /** @brief Load a previously saved breakpoint file. */
-      bool create(const char * fileName);
+      bool create(const char* fileName);
 
       /** @brief Scale every value so the peak equals 1.0. */
       void normalize();
@@ -55,7 +54,7 @@ namespace YSE {
       /** @brief Save the breakpoint set to a file.
        *  @return ``true`` on success, ``false`` on write error.
        */
-      bool saveToFile(const char * fileName) const;
+      bool saveToFile(const char* fileName) const;
 
       /** @brief Number of breakpoints. */
       UInt elms() const;
@@ -64,15 +63,13 @@ namespace YSE {
       Flt getLengthSec() const;
 
       /** @brief Access a breakpoint by index. */
-      const breakPoint & operator[](UInt pos) const;
+      const breakPoint& operator[](UInt pos) const;
 
     private:
       std::vector<breakPoint> breakPoints;
     };
 
-  }
-}
+  } // namespace DSP
+} // namespace YSE
 
-
-
-#endif  // ENVELOPE_H_INCLUDED
+#endif // ENVELOPE_H_INCLUDED

@@ -8,15 +8,12 @@
 // Android devices) so the rest of the engine sees the negotiated rate.
 UInt YSE::SAMPLERATE = 44100;
 
-YSE::DEVICE::managerObject & YSE::DEVICE::Manager() {
+YSE::DEVICE::managerObject& YSE::DEVICE::Manager() {
   static managerObject d;
   return d;
 }
 
-YSE::DEVICE::managerObject::managerObject() 
-  : initDone(false)
-  , open(false)
-{}
+YSE::DEVICE::managerObject::managerObject() : initDone(false), open(false) {}
 
 YSE::DEVICE::managerObject::~managerObject() {}
 
@@ -45,42 +42,42 @@ void YSE::DEVICE::managerObject::updateDeviceList() {
   // Reflect the actual rate Oboe negotiated with the device, if the stream is
   // already open; otherwise fall back to the conservative 44.1 kHz default.
   const UInt rate = implementation.getNegotiatedSampleRate() > 0
-                  ? (UInt)implementation.getNegotiatedSampleRate()
-                  : 44100u;
+                        ? (UInt)implementation.getNegotiatedSampleRate()
+                        : 44100u;
   d.addAvailableSampleRate(rate);
   devices.push_back(d);
 }
 
 void YSE::DEVICE::managerObject::pause() {
-	implementation.Suspend();
-	// Mirror the PortAudio observable behavior: while paused, the live
-	// getActive* getters report 0. We don't tear down the Oboe stream (resume
-	// would otherwise have to re-negotiate against the device), we only flip
-	// the manager's `open` flag the getters gate on. Issue #74.
-	open = false;
+  implementation.Suspend();
+  // Mirror the PortAudio observable behavior: while paused, the live
+  // getActive* getters report 0. We don't tear down the Oboe stream (resume
+  // would otherwise have to re-negotiate against the device), we only flip
+  // the manager's `open` flag the getters gate on. Issue #74.
+  open = false;
 }
 
 void YSE::DEVICE::managerObject::resume() {
-	implementation.Resume();
-	open = true;
+  implementation.Resume();
+  open = true;
 }
 
 void YSE::DEVICE::managerObject::addCallback() {
   implementation.Start(YSE::DEVICE::Manager().getMaster().GetBuffers().size());
-  //YSE::Log().sendMessage("androidDeviceManager: Callback Added");
+  // YSE::Log().sendMessage("androidDeviceManager: Callback Added");
 }
 
 unsigned int YSE::DEVICE::managerObject::GetCallbacksSinceLastUpdate() {
-	return implementation.GetCallbacksSinceLastUpdate();
+  return implementation.GetCallbacksSinceLastUpdate();
 }
 
-void YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup & object) {
+void YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
   // android only has one device for now
   return;
 }
 
 void YSE::DEVICE::managerObject::close() {
-  //YSE::Log().sendMessage("androidDeviceManager: Close started");
+  // YSE::Log().sendMessage("androidDeviceManager: Close started");
 
   if (!initDone) return;
 
@@ -89,7 +86,7 @@ void YSE::DEVICE::managerObject::close() {
   // suspended — still tears the stream down on the engine-shutdown path.
   implementation.Stop();
   initDone = open = false;
-  //YSE::Log().sendMessage("androidDeviceManager: Close done");
+  // YSE::Log().sendMessage("androidDeviceManager: Close done");
 }
 
 double YSE::DEVICE::managerObject::getActiveSampleRate() const {
@@ -102,7 +99,7 @@ int YSE::DEVICE::managerObject::getActiveBufferSize() const {
 
 int YSE::DEVICE::managerObject::getActiveOutputLatency() const {
   if (!open) return 0;
-  const int32_t ms   = implementation.getNegotiatedOutputLatencyMs();
+  const int32_t ms = implementation.getNegotiatedOutputLatencyMs();
   const int32_t rate = implementation.getNegotiatedSampleRate();
   const int samplesFromMs = (int)((double)ms * (double)rate / 1000.0);
   if (samplesFromMs > 0) return samplesFromMs;
@@ -111,6 +108,5 @@ int YSE::DEVICE::managerObject::getActiveOutputLatency() const {
   // so the live API stays non-zero on an open stream. Issue #74.
   return (int)implementation.getNegotiatedBufferSize();
 }
-
 
 #endif

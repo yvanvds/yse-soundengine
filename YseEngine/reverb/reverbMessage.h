@@ -11,12 +11,11 @@
 #ifndef REVERBMESSAGE_H_INCLUDED
 #define REVERBMESSAGE_H_INCLUDED
 
-
 #include "reverb.hpp"
 
 namespace YSE {
   namespace REVERB {
-    
+
     /*
        Message objects are used to send messages from interface to implementation. In this
        case, a message will be sent from a reverbInterfaceObject to a
@@ -26,7 +25,7 @@ namespace YSE {
     class messageObject {
     public:
       /** The ID of a message defines how it will be stored in the implementation
-      */
+       */
       MESSAGE ID;
 
       /** The data is stored in a union, so to not use more data as needed. Other types
@@ -35,16 +34,14 @@ namespace YSE {
       used in by all subSystems. So don't.)
       */
       union {
-        Bool   boolValue;
-        Flt    vecValue[3];
-        Flt    floatValue;
-        UInt   uintValue;
-        void * ptrValue;
+        Bool boolValue;
+        Flt vecValue[3];
+        Flt floatValue;
+        UInt uintValue;
+        void* ptrValue;
       };
     };
-  }
-}
+  } // namespace REVERB
+} // namespace YSE
 
-
-
-#endif  // REVERBMESSAGE_H_INCLUDED
+#endif // REVERBMESSAGE_H_INCLUDED

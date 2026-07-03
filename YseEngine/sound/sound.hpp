@@ -40,10 +40,8 @@ namespace YSE {
       FADE_AND_STOP,
       MOVE,
     };
-  }
+  } // namespace SOUND
 
-}
+} // namespace YSE
 
-
-
-#endif  // SOUND_H_INCLUDED
+#endif // SOUND_H_INCLUDED

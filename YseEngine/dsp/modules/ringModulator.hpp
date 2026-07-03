@@ -35,13 +35,13 @@ namespace YSE {
       ringModulator& frequency(Flt value);
 
       /** @brief Current carrier frequency. */
-      Flt            frequency();
+      Flt frequency();
 
       /** @brief dspObject lifecycle hook — allocates buffers. */
       virtual void create();
 
       /** @brief dspObject audio-thread entry point. */
-      virtual void process(MULTICHANNELBUFFER & buffer);
+      virtual void process(MULTICHANNELBUFFER& buffer);
 
     private:
       aFlt parmFrequency;
@@ -50,10 +50,7 @@ namespace YSE {
       std::shared_ptr<buffer> result;
     };
 
-  }
-}
+  } // namespace DSP
+} // namespace YSE
 
-
-
-
-#endif  // RINGMODULATOR_H_INCLUDED
+#endif // RINGMODULATOR_H_INCLUDED

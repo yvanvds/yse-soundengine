@@ -17,14 +17,13 @@ namespace YSE {
     namespace MODULES {
       buffer mtofTable(0);
     }
-  }
-}
+  } // namespace DSP
+} // namespace YSE
 
-YSE::DSP::MODULES::sweepFilter::sweepFilter(SHAPE shape) : parmSpeed(0), parmDepth(0), parmFrequency(0), shape(shape) {
+YSE::DSP::MODULES::sweepFilter::sweepFilter(SHAPE shape)
+  : parmSpeed(0), parmDepth(0), parmFrequency(0), shape(shape) {}
 
-}
-
-YSE::DSP::MODULES::sweepFilter & YSE::DSP::MODULES::sweepFilter::frequency(Int value) {
+YSE::DSP::MODULES::sweepFilter& YSE::DSP::MODULES::sweepFilter::frequency(Int value) {
   Clamp(value, 0, 100);
   parmFrequency.store(value);
   return *this;
@@ -34,7 +33,7 @@ Int YSE::DSP::MODULES::sweepFilter::frequency() {
   return parmFrequency;
 }
 
-YSE::DSP::MODULES::sweepFilter & YSE::DSP::MODULES::sweepFilter::depth(Int value) {
+YSE::DSP::MODULES::sweepFilter& YSE::DSP::MODULES::sweepFilter::depth(Int value) {
   Clamp(value, 0, 100);
   parmDepth.store(value);
   return *this;
@@ -44,7 +43,7 @@ Int YSE::DSP::MODULES::sweepFilter::depth() {
   return parmDepth;
 }
 
-YSE::DSP::MODULES::sweepFilter & YSE::DSP::MODULES::sweepFilter::speed(Flt value) {
+YSE::DSP::MODULES::sweepFilter& YSE::DSP::MODULES::sweepFilter::speed(Flt value) {
   parmSpeed.store(value);
   return *this;
 }
@@ -55,11 +54,17 @@ Flt YSE::DSP::MODULES::sweepFilter::speed() {
 
 void YSE::DSP::MODULES::sweepFilter::create() {
   table.reset(new wavetable);
-  
+
   switch (shape) {
-    case TRIANGLE: table->createTriangle(8, SAMPLERATE); break;
-    case SAW: table->createSaw(8, SAMPLERATE); break;
-    case SQUARE: table->createSquare(8, SAMPLERATE); break;
+  case TRIANGLE:
+    table->createTriangle(8, SAMPLERATE);
+    break;
+  case SAW:
+    table->createSaw(8, SAMPLERATE);
+    break;
+  case SQUARE:
+    table->createSquare(8, SAMPLERATE);
+    break;
   }
 
   osc.reset(new oscillator);
@@ -71,7 +76,7 @@ void YSE::DSP::MODULES::sweepFilter::create() {
 
   if (!mtofTable.getLength()) {
     mtofTable.resize(130);
-    Flt * t = mtofTable.getPtr();
+    Flt* t = mtofTable.getPtr();
     for (int i = 0; i < 130; i++) {
       *t++ = MidiToFreq((float)i);
     }
@@ -80,7 +85,7 @@ void YSE::DSP::MODULES::sweepFilter::create() {
   interpolator->source(mtofTable);
 }
 
-void YSE::DSP::MODULES::sweepFilter::process(MULTICHANNELBUFFER & buffer) {
+void YSE::DSP::MODULES::sweepFilter::process(MULTICHANNELBUFFER& buffer) {
   createIfNeeded();
 
   if (buffer[0].getLength() != result->getLength()) {
@@ -90,7 +95,7 @@ void YSE::DSP::MODULES::sweepFilter::process(MULTICHANNELBUFFER & buffer) {
   (*result) = (*osc)(parmSpeed, buffer[0].getLength());
   (*result) *= (float)parmDepth;
   (*result) += (float)parmFrequency;
-  DSP::buffer & interpolated = (*interpolator)(*result);
+  DSP::buffer& interpolated = (*interpolator)(*result);
   (*result) = (*filter)(buffer[0], interpolated).real();
 
   calculateImpact(buffer[0], (*result));

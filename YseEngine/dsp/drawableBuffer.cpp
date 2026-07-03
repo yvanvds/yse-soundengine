@@ -16,7 +16,7 @@
 namespace YSE {
   namespace DSP {
 
-    drawableBuffer & YSE::DSP::drawableBuffer::applyEnvelope(const envelope & env, Flt length) {
+    drawableBuffer& YSE::DSP::drawableBuffer::applyEnvelope(const envelope& env, Flt length) {
       if (length == 0) {
         length = env.getLengthSec();
       }
@@ -34,18 +34,16 @@ namespace YSE {
       Flt fraction = 0.f;
       Flt envelopeValue = env[0].value;
 
-      Flt * ptr = storage.data();
+      Flt* ptr = storage.data();
 
-      for (UInt i = 0; i < storage.size(); i++)
-      {
+      for (UInt i = 0; i < storage.size(); i++) {
         if (!endOfEnvelope && targetTime <= i) { // will always be true on first point
 
           if (targetPoint + 1 == env.elms()) {
             endOfEnvelope = true;
             targetTime = (float)getLength();
             fraction = 0;
-          }
-          else {
+          } else {
             Flt startTime = targetTime;
             targetPoint++;
             targetTime = env[targetPoint].time * multiplier * SAMPLERATE;
@@ -61,13 +59,15 @@ namespace YSE {
       return *this;
     }
 
-    drawableBuffer & YSE::DSP::drawableBuffer::drawLine(UInt start, UInt stop, Flt startValue, Flt stopValue) {
-      stop  = std::min(stop,  static_cast<UInt>(storage.size()));
+    drawableBuffer& YSE::DSP::drawableBuffer::drawLine(UInt start, UInt stop, Flt startValue,
+                                                       Flt stopValue) {
+      stop = std::min(stop, static_cast<UInt>(storage.size()));
       start = std::min(start, stop);
       if (start >= stop) return *this;
 
-      Flt frac = (stopValue - startValue) / static_cast<Flt>(stop - start > 1 ? stop - start : 1); // don't divide by zero
-      Flt * ptr = storage.data();
+      Flt frac = (stopValue - startValue) /
+                 static_cast<Flt>(stop - start > 1 ? stop - start : 1); // don't divide by zero
+      Flt* ptr = storage.data();
       Flt value = startValue;
       for (UInt i = start; i < stop; i++) {
         ptr[i] = value;
@@ -76,18 +76,17 @@ namespace YSE {
       return *this;
     }
 
-
-    drawableBuffer & YSE::DSP::drawableBuffer::drawLine(UInt start, UInt stop, Flt value) {
-      stop  = std::min(stop,  static_cast<UInt>(storage.size()));
+    drawableBuffer& YSE::DSP::drawableBuffer::drawLine(UInt start, UInt stop, Flt value) {
+      stop = std::min(stop, static_cast<UInt>(storage.size()));
       start = std::min(start, stop);
       if (start >= stop) return *this;
 
-      Flt * ptr = storage.data();
+      Flt* ptr = storage.data();
       for (UInt i = start; i < stop; i++) {
         ptr[i] = value;
       }
       return *this;
     }
 
-  }
-}
+  } // namespace DSP
+} // namespace YSE

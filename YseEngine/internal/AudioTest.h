@@ -19,10 +19,10 @@ namespace YSE {
 
     private:
       sound testSound;
-      shepard * shep;
+      shepard* shep;
     };
 
-    AudioTest & Test();
-  }
-}
+    AudioTest& Test();
+  } // namespace INTERNAL
+} // namespace YSE
 #endif

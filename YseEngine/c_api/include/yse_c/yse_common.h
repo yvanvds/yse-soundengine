@@ -10,19 +10,19 @@
 #include <stddef.h>
 
 #if defined(_WIN32) || defined(_WIN64)
-  #if defined(YSE_DLL_BUILD)
-    #define YSE_C_API __declspec(dllexport)
-  #elif defined(YSE_DLL)
-    #define YSE_C_API __declspec(dllimport)
-  #else
-    #define YSE_C_API
-  #endif
+#if defined(YSE_DLL_BUILD)
+#define YSE_C_API __declspec(dllexport)
+#elif defined(YSE_DLL)
+#define YSE_C_API __declspec(dllimport)
 #else
-  #if defined(YSE_DLL_BUILD)
-    #define YSE_C_API __attribute__((visibility("default")))
-  #else
-    #define YSE_C_API
-  #endif
+#define YSE_C_API
+#endif
+#else
+#if defined(YSE_DLL_BUILD)
+#define YSE_C_API __attribute__((visibility("default")))
+#else
+#define YSE_C_API
+#endif
 #endif
 
 /* Calling-convention marker for callback function pointer typedefs that
@@ -30,9 +30,9 @@
    ABI is unambiguous across compilers (MSVC, Clang, MinGW); a no-op on
    x64 / ARM64 / non-Windows where only one C calling convention exists. */
 #if defined(_WIN32) || defined(_WIN64)
-  #define YSE_C_CALLBACK __cdecl
+#define YSE_C_CALLBACK __cdecl
 #else
-  #define YSE_C_CALLBACK
+#define YSE_C_CALLBACK
 #endif
 
 #ifdef __cplusplus
@@ -64,7 +64,7 @@ YSE_C_API const char* yse_version(void);
    yse_* call from the same thread; copy the string if you need to hold
    onto it. Empty string when no error has been recorded. */
 YSE_C_API const char* yse_last_error(void);
-YSE_C_API void        yse_clear_last_error(void);
+YSE_C_API void yse_clear_last_error(void);
 
 #ifdef __cplusplus
 }

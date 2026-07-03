@@ -26,7 +26,7 @@ namespace YSE {
    *  in the range [0.0, 1.0]: 0 means fully occluded, 1 means audible without
    *  obstruction. Typical implementations raycast through game-world geometry.
    */
-  typedef float(*occlusionFunc)(const Pos& source, const Pos& listener);
+  typedef float (*occlusionFunc)(const Pos& source, const Pos& listener);
 
   /**
    *  @brief Engine lifecycle, audio device control, and global effect settings.
@@ -99,7 +99,7 @@ namespace YSE {
      *  A non-zero value indicates the audio thread is starved or the device
      *  has disconnected. Useful as a watchdog signal for ``autoReconnect``.
      */
-    int  missedCallbacks();
+    int missedCallbacks();
 
     /** @brief Access the global reverb.
      *
@@ -107,7 +107,7 @@ namespace YSE {
      *  any position not covered by a positioned ``reverb`` zone. Partially
      *  rolled-off reverb zones are mixed against the global reverb.
      */
-    reverb & getGlobalReverb();
+    reverb& getGlobalReverb();
 
     /** @brief All audio output devices visible to the engine.
      *
@@ -116,29 +116,29 @@ namespace YSE {
      *        to avoid leaking the standard-library ``std::vector`` across the
      *        ABI boundary.
      */
-    const std::vector<device> & getDevices();
+    const std::vector<device>& getDevices();
 
     /** @brief Number of audio output devices available. */
     unsigned int getNumDevices();
 
     /** @brief Audio device at index ``nr``. */
-    const device & getDevice(unsigned int nr);
+    const device& getDevice(unsigned int nr);
 
     /** @brief Open an audio device.
      *
      *  @param object Device + host + sample-rate configuration.
      *  @param conf   Speaker layout. ``CT_AUTO`` picks stereo when possible.
      */
-    void openDevice(const deviceSetup & object, CHANNEL_TYPE conf = CT_AUTO);
+    void openDevice(const deviceSetup& object, CHANNEL_TYPE conf = CT_AUTO);
 
     /** @brief Close the currently open audio device. */
     void closeCurrentDevice();
 
     /** @brief Name of the platform default audio device. */
-    const std::string & getDefaultDevice();
+    const std::string& getDefaultDevice();
 
     /** @brief Name of the platform default audio host (e.g. WASAPI, ALSA). */
-    const std::string & getDefaultHost();
+    const std::string& getDefaultHost();
 
 #if YSE_ENABLE_MIDI_DEVICE
     /** @brief Number of MIDI input devices available.
@@ -168,20 +168,20 @@ namespace YSE {
      *
      *  @see occlusionFunc
      */
-    system& occlusionCallback(float(*func)(const YSE::Pos&, const YSE::Pos&));
+    system& occlusionCallback(float (*func)(const YSE::Pos&, const YSE::Pos&));
 
     /** @brief Current occlusion callback, or ``nullptr`` if none installed. */
     occlusionFunc occlusionCallback();
 
     /** @brief Route a channel through the under-water effect. */
-    system & underWaterFX(const channel & target);
+    system& underWaterFX(const channel& target);
 
     /** @brief Configure the depth (intensity) of the under-water effect.
      *
      *  @param value Depth in the range [0.0, 1.0]. 0 is dry, 1 is the maximum
      *               low-pass / pitch-shift the effect applies.
      */
-    system & setUnderWaterDepth(float value);
+    system& setUnderWaterDepth(float value);
 
     /** @brief Set the maximum number of concurrently audible sounds.
      *
@@ -274,7 +274,9 @@ namespace YSE {
     void sleep(unsigned int ms);
 
     /** @brief libYSE version string. */
-    std::string Version() const { return VERSION; }
+    std::string Version() const {
+      return VERSION;
+    }
 
   private:
     /// @cond INTERNAL
@@ -283,16 +285,14 @@ namespace YSE {
     bool initShared(bool openDevice);
     /// @endcond
 
-    float(*occlusionPtr)(const Pos& source, const Pos& listener);
+    float (*occlusionPtr)(const Pos& source, const Pos& listener);
     int currentlyMissedCallbacks;
     bool doAutoReconnect;
     int reconnectDelay;
   };
 
   /** @brief Access the singleton ``system`` object. */
-  API system & System();
-}
+  API system& System();
+} // namespace YSE
 
-
-
-#endif  // SYSTEM_H_INCLUDED
+#endif // SYSTEM_H_INCLUDED

@@ -19,26 +19,26 @@ namespace {
   // name (issue #122). Distinct from pObject::CreateID() so the patcher
   // counter is not perturbed by inner-object construction.
   std::atomic<unsigned int> g_nextPatcherIndex{0};
-}
+} // namespace
 
-patcherImplementation::patcherImplementation(int mainOutputs, YSE::patcher * head)
-  : pObject(false)
-  , controlledBySound(false)
-  , head(head)
-  , fileHandlerActive(false)
-  , patcherName("patcher_" + std::to_string(g_nextPatcherIndex.fetch_add(1, std::memory_order_relaxed)))
-{
+patcherImplementation::patcherImplementation(int mainOutputs, YSE::patcher* head)
+  : pObject(false),
+    controlledBySound(false),
+    head(head),
+    fileHandlerActive(false),
+    patcherName("patcher_" +
+                std::to_string(g_nextPatcherIndex.fetch_add(1, std::memory_order_relaxed))) {
   output.resize(mainOutputs);
 }
 
-void patcherImplementation::SetName(const std::string & n) {
+void patcherImplementation::SetName(const std::string& n) {
   if (n == patcherName) return;
   mtx.lock();
   patcherName = n;
   // Re-subscribe every gReceive in this patcher so the new prefix takes
   // effect immediately. Iteration is safe because gReceive::Resubscribe
   // only touches the gReceive's own subscription handle.
-  for (auto & x : objects) {
+  for (auto& x : objects) {
     if (strcmp(x.second->Type(), OBJ::G_RECEIVE) == 0) {
       static_cast<gReceive*>(x.second)->Resubscribe();
     } else if (strcmp(x.second->Type(), OBJ::G_SEND) == 0) {
@@ -55,7 +55,7 @@ patcherImplementation::~patcherImplementation() {
   Clear();
 }
 
-const char * patcherImplementation::Type() const {
+const char* patcherImplementation::Type() const {
   return YSE::OBJ::PATCHER;
 }
 
@@ -74,7 +74,7 @@ void patcherImplementation::Calculate(YSE::THREAD thread) {
     }
   }
 
-  // clear output 
+  // clear output
   for (unsigned int i = 0; i < output.size(); i++) {
     output[i] = 0;
   }
@@ -82,9 +82,9 @@ void patcherImplementation::Calculate(YSE::THREAD thread) {
   // sum outputs
   int counter = 0;
   for (const auto& any : objects) {
-    if (strcmp(any.second->Type(), YSE::OBJ::D_DAC) == 0) {			
+    if (strcmp(any.second->Type(), YSE::OBJ::D_DAC) == 0) {
       for (unsigned int i = 0; i < output.size(); i++) {
-        YSE::DSP::buffer * ptr = ((pDac*)any.second)->GetBuffer(i);
+        YSE::DSP::buffer* ptr = ((pDac*)any.second)->GetBuffer(i);
         if (ptr != nullptr) {
           output[i] = *ptr;
         }
@@ -93,7 +93,7 @@ void patcherImplementation::Calculate(YSE::THREAD thread) {
     }
   }
 
-  // normalize output 
+  // normalize output
   if (counter > 1) {
     for (unsigned int i = 0; i < output.size(); i++) {
       output[i] /= (float)counter;
@@ -109,36 +109,35 @@ void patcherImplementation::ResetDSP() {
   }
 }
 
-
-void patcherImplementation::Connect(YSE::pHandle * from, int outlet, YSE::pHandle * to, int inlet) {
+void patcherImplementation::Connect(YSE::pHandle* from, int outlet, YSE::pHandle* to, int inlet) {
   if (!fileHandlerActive) mtx.lock();
-  PATCHER::outlet * out = from->object->GetOutlet(outlet);
-  PATCHER::inlet * in = to->object->GetInlet(inlet);
+  PATCHER::outlet* out = from->object->GetOutlet(outlet);
+  PATCHER::inlet* in = to->object->GetInlet(inlet);
   if (out != nullptr && in != nullptr) {
-	  from->object->ConnectOutlet(in, outlet);
-	  to->object->ConnectInlet(out, inlet);
-  }
-  else {
-	  INTERNAL::LogImpl().emit(E_ERROR, "Patcher: Invalid Connection");
+    from->object->ConnectOutlet(in, outlet);
+    to->object->ConnectInlet(out, inlet);
+  } else {
+    INTERNAL::LogImpl().emit(E_ERROR, "Patcher: Invalid Connection");
   }
   if (!fileHandlerActive) mtx.unlock();
 }
 
-void patcherImplementation::Disconnect(YSE::pHandle * from, int outlet, YSE::pHandle * to, int inlet) {
+void patcherImplementation::Disconnect(YSE::pHandle* from, int outlet, YSE::pHandle* to,
+                                       int inlet) {
   if (!fileHandlerActive) mtx.lock();
   to->object->DisconnectInlet(from->object->GetOutlet(outlet), inlet);
   if (!fileHandlerActive) mtx.unlock();
 }
 
-YSE::pHandle * patcherImplementation::CreateObject(const std::string & type, const std::string & args) {
-  YSE::pHandle * handle = nullptr;
-  pObject * object = nullptr;
+YSE::pHandle* patcherImplementation::CreateObject(const std::string& type,
+                                                  const std::string& args) {
+  YSE::pHandle* handle = nullptr;
+  pObject* object = nullptr;
   INTERNAL::LogImpl().emit(E_DEBUG, "Patcher: Trying to create " + type);
-  
+
   if (type == OBJ::D_DAC) {
     object = new pDac((int)output.size());
-  }
-  else {
+  } else {
     object = Register().Get(type);
     if (object != nullptr) {
       object->SetParams(args);
@@ -152,7 +151,7 @@ YSE::pHandle * patcherImplementation::CreateObject(const std::string & type, con
   }
 
   handle = new YSE::pHandle(object);
-  
+
   if (!fileHandlerActive) mtx.lock();
   objects.insert(std::pair<YSE::pHandle*, pObject*>(handle, object));
   if (!fileHandlerActive) mtx.unlock();
@@ -160,12 +159,12 @@ YSE::pHandle * patcherImplementation::CreateObject(const std::string & type, con
   return handle;
 }
 
-void patcherImplementation::DeleteObject(YSE::pHandle * handle) {
-  if(!fileHandlerActive) mtx.lock();
+void patcherImplementation::DeleteObject(YSE::pHandle* handle) {
+  if (!fileHandlerActive) mtx.lock();
 
-	if (handle->Type() == OBJ::G_METRO) {
-		handle->object->GetInlet(0)->SetInt(0, YSE::THREAD::T_GUI);
-	}
+  if (handle->Type() == OBJ::G_METRO) {
+    handle->object->GetInlet(0)->SetInt(0, YSE::THREAD::T_GUI);
+  }
 
   objects.erase(handle);
 
@@ -175,18 +174,18 @@ void patcherImplementation::DeleteObject(YSE::pHandle * handle) {
 }
 
 void patcherImplementation::Clear() {
-	if (!fileHandlerActive) mtx.lock();
+  if (!fileHandlerActive) mtx.lock();
 
   for (auto it = objects.begin(); it != objects.end(); ++it) {
-		if (it->first->Type() == OBJ::G_METRO) {
-			it->second->GetInlet(0)->SetInt(0, YSE::THREAD::T_GUI);
-		}
+    if (it->first->Type() == OBJ::G_METRO) {
+      it->second->GetInlet(0)->SetInt(0, YSE::THREAD::T_GUI);
+    }
 
     delete it->first;
     delete it->second;
   }
-	objects.clear();
-	if (!fileHandlerActive) mtx.unlock();
+  objects.clear();
+  if (!fileHandlerActive) mtx.unlock();
 }
 
 using json = nlohmann::json;
@@ -208,7 +207,7 @@ std::string patcherImplementation::DumpJSON() {
   return result;
 }
 
-void patcherImplementation::ParseJSON(const std::string & content) {
+void patcherImplementation::ParseJSON(const std::string& content) {
   auto j = json::parse(content);
 
   std::map<int, pHandle*> OldIDs;
@@ -219,7 +218,7 @@ void patcherImplementation::ParseJSON(const std::string & content) {
   for (auto obj = j.begin(); obj != j.end(); ++obj) {
     std::string type = obj.value()["type"].get<std::string>();
     std::string args = obj.value()["parms"].get<std::string>();
-    pHandle * handle = CreateObject(type, args);
+    pHandle* handle = CreateObject(type, args);
 
     // handle can be null if called without gui context
     if (handle != nullptr) {
@@ -239,7 +238,7 @@ void patcherImplementation::ParseJSON(const std::string & content) {
     int outlet = 0;
     auto outs = obj.value()["outputs"];
     for (auto out = outs.begin(); out != outs.end(); ++out) {
-      
+
       if (out.value().count("Count") == 0) {
         continue;
       }
@@ -250,8 +249,8 @@ void patcherImplementation::ParseJSON(const std::string & content) {
         int target = connection["Object"].get<int>();
         int inlet = connection["Inlet"].get<int>();
 
-        pHandle * sourceHandle = nullptr;
-        pHandle * targetHandle = nullptr;
+        pHandle* sourceHandle = nullptr;
+        pHandle* targetHandle = nullptr;
 
         auto a = OldIDs.find(source);
         if (a != OldIDs.end()) {
@@ -278,7 +277,7 @@ unsigned int patcherImplementation::Objects() {
   return static_cast<unsigned int>(objects.size());
 }
 
-YSE::pHandle * patcherImplementation::GetHandleFromList(unsigned int obj) {
+YSE::pHandle* patcherImplementation::GetHandleFromList(unsigned int obj) {
   // TODO: not really brilliant, this code
   unsigned int pos = 0;
   for (auto& x : objects) {
@@ -288,92 +287,97 @@ YSE::pHandle * patcherImplementation::GetHandleFromList(unsigned int obj) {
   return 0;
 }
 
-YSE::pHandle * patcherImplementation::GetHandleFromID(unsigned int objID) {
+YSE::pHandle* patcherImplementation::GetHandleFromID(unsigned int objID) {
   for (auto& x : objects) {
     if (x.second->GetID() == objID) return x.first;
   }
   return nullptr;
-} 
+}
 
-bool patcherImplementation::PassBang(const std::string & to, YSE::THREAD thread) {
+bool patcherImplementation::PassBang(const std::string& to, YSE::THREAD thread) {
   for (auto& x : objects) {
     if (strcmp(x.second->Type(), OBJ::G_RECEIVE) == 0) {
       if (to.compare(x.second->DataName()) == 0) {
         x.second->GetInlet(0)->SetBang(thread);
-				return true;
+        return true;
       }
     }
   }
-	if (oscHandle != nullptr) {
-		oscHandle->Send(to);
-		return true;
-	}
-	INTERNAL::LogImpl().emit(E_FILE_ERROR, "Cannot find target " + to + ". Valid targets are" + GetRecieveObjectsAsString());
-	return false;
+  if (oscHandle != nullptr) {
+    oscHandle->Send(to);
+    return true;
+  }
+  INTERNAL::LogImpl().emit(E_FILE_ERROR, "Cannot find target " + to + ". Valid targets are" +
+                                             GetRecieveObjectsAsString());
+  return false;
 }
 
-bool patcherImplementation::PassData(int value, const std::string & to, YSE::THREAD thread) {
+bool patcherImplementation::PassData(int value, const std::string& to, YSE::THREAD thread) {
   for (auto& x : objects) {
-		if (strcmp(x.second->Type(), OBJ::G_RECEIVE) == 0) {
+    if (strcmp(x.second->Type(), OBJ::G_RECEIVE) == 0) {
       if (to.compare(x.second->DataName()) == 0) {
         x.second->GetInlet(0)->SetInt(value, thread);
-				return true;
+        return true;
       }
     }
   }
-	if (oscHandle != nullptr) {
-		oscHandle->Send(to, value);
-		return true;
-	}
-	INTERNAL::LogImpl().emit(E_FILE_ERROR, "Cannot find target " + to + ". Valid targets are" + GetRecieveObjectsAsString());
-	return false;
+  if (oscHandle != nullptr) {
+    oscHandle->Send(to, value);
+    return true;
+  }
+  INTERNAL::LogImpl().emit(E_FILE_ERROR, "Cannot find target " + to + ". Valid targets are" +
+                                             GetRecieveObjectsAsString());
+  return false;
 }
 
-bool patcherImplementation::PassData(float value, const std::string & to, YSE::THREAD thread) {
+bool patcherImplementation::PassData(float value, const std::string& to, YSE::THREAD thread) {
   for (auto& x : objects) {
-		if (strcmp(x.second->Type(), OBJ::G_RECEIVE) == 0) {
+    if (strcmp(x.second->Type(), OBJ::G_RECEIVE) == 0) {
       if (to.compare(x.second->DataName()) == 0) {
         x.second->GetInlet(0)->SetFloat(value, thread);
-				return true;
+        return true;
       }
     }
   }
-	if (oscHandle != nullptr) {
-		oscHandle->Send(to, value);
-		return true;
-	}
-	INTERNAL::LogImpl().emit(E_FILE_ERROR, "Cannot find target " + to + ". Valid targets are" + GetRecieveObjectsAsString());
-	return false;
+  if (oscHandle != nullptr) {
+    oscHandle->Send(to, value);
+    return true;
+  }
+  INTERNAL::LogImpl().emit(E_FILE_ERROR, "Cannot find target " + to + ". Valid targets are" +
+                                             GetRecieveObjectsAsString());
+  return false;
 }
 
-bool patcherImplementation::PassData(const std::string & value, const std::string & to, YSE::THREAD thread) {
+bool patcherImplementation::PassData(const std::string& value, const std::string& to,
+                                     YSE::THREAD thread) {
   for (auto& x : objects) {
-		if (strcmp(x.second->Type(), OBJ::G_RECEIVE) == 0) {
+    if (strcmp(x.second->Type(), OBJ::G_RECEIVE) == 0) {
       if (to.compare(x.second->DataName()) == 0) {
         x.second->GetInlet(0)->SetList(value, thread);
-				return true;
+        return true;
       }
     }
   }
-	if (oscHandle != nullptr) {
-		oscHandle->Send(to, value);
-		return true;
-	}
-	INTERNAL::LogImpl().emit(E_FILE_ERROR, "Cannot find target " + to + ". Valid targets are" + GetRecieveObjectsAsString());
-	return false;
+  if (oscHandle != nullptr) {
+    oscHandle->Send(to, value);
+    return true;
+  }
+  INTERNAL::LogImpl().emit(E_FILE_ERROR, "Cannot find target " + to + ". Valid targets are" +
+                                             GetRecieveObjectsAsString());
+  return false;
 }
 
 std::string patcherImplementation::GetRecieveObjectsAsString() {
-	std::string result;
-	for (auto& x : objects) {
-		
-		if (strcmp(x.second->Type(), OBJ::G_RECEIVE) == 0) {
-			result += " " + x.second->DataName();
-		}
-	}
-	return result;
+  std::string result;
+  for (auto& x : objects) {
+
+    if (strcmp(x.second->Type(), OBJ::G_RECEIVE) == 0) {
+      result += " " + x.second->DataName();
+    }
+  }
+  return result;
 }
 
-void patcherImplementation::SetHandler(YSE::oscHandler * handler) {
-	oscHandle = handler;
+void patcherImplementation::SetHandler(YSE::oscHandler* handler) {
+  oscHandle = handler;
 }

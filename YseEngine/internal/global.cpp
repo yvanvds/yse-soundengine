@@ -30,21 +30,20 @@ namespace {
   // pointer (release) and read after it (acquire) so a dispatch never sees a
   // half-installed pair.
   std::atomic<YSE::INTERNAL::global::ScriptErrorSink> g_scriptErrorSink{nullptr};
-  std::atomic<void*>                                  g_scriptErrorUser{nullptr};
-}
+  std::atomic<void*> g_scriptErrorUser{nullptr};
+} // namespace
 #endif
 
-
-YSE::INTERNAL::global & YSE::INTERNAL::Global() {
-    static global s;
-    return s;
+YSE::INTERNAL::global& YSE::INTERNAL::Global() {
+  static global s;
+  return s;
 }
 
-void YSE::INTERNAL::global::addSlowJob(threadPoolJob * job) {
+void YSE::INTERNAL::global::addSlowJob(threadPoolJob* job) {
   slowThreads.addJob(job);
 }
 
-void YSE::INTERNAL::global::addFastJob(threadPoolJob * job) {
+void YSE::INTERNAL::global::addFastJob(threadPoolJob* job) {
   fastThreads.addJob(job);
 }
 
@@ -127,8 +126,12 @@ void YSE::INTERNAL::global::drainScriptResults() {
 }
 
 YSE::INTERNAL::global::global()
-  : slowThreads(1, poolClass::background), fastThreads(-1, poolClass::render),
-    bus(), update(false), active(false), sampleRateLocked(false) {}
+  : slowThreads(1, poolClass::background),
+    fastThreads(-1, poolClass::render),
+    bus(),
+    update(false),
+    active(false),
+    sampleRateLocked(false) {}
 
 YSE::INTERNAL::global::~global() = default;
 

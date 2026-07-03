@@ -12,20 +12,20 @@ struct android_app;
 
 namespace yse_tests {
 
-// Walk every file under the APK's `assets/fixtures/` tree and copy it under
-// app->activity->internalDataPath/fixtures/ (the only filesystem location a
-// NativeActivity is reliably allowed to write to). Idempotent — re-running
-// over an already-populated dest is safe (existing files are overwritten).
-//
-// Returns false if the activity has no asset manager or any file fails to
-// extract; on failure, callers should log and continue so tests that don't
-// load fixtures still run.
-bool extractFixturesFromAssets(struct android_app * app);
+  // Walk every file under the APK's `assets/fixtures/` tree and copy it under
+  // app->activity->internalDataPath/fixtures/ (the only filesystem location a
+  // NativeActivity is reliably allowed to write to). Idempotent — re-running
+  // over an already-populated dest is safe (existing files are overwritten).
+  //
+  // Returns false if the activity has no asset manager or any file fails to
+  // extract; on failure, callers should log and continue so tests that don't
+  // load fixtures still run.
+  bool extractFixturesFromAssets(struct android_app* app);
 
-// Path to the extracted fixtures directory (valid after a successful
-// extractFixturesFromAssets call). Returns nullptr otherwise.
-const char * fixturesDir();
+  // Path to the extracted fixtures directory (valid after a successful
+  // extractFixturesFromAssets call). Returns nullptr otherwise.
+  const char* fixturesDir();
 
-}  // namespace yse_tests
+} // namespace yse_tests
 
-#endif  // __ANDROID__
+#endif // __ANDROID__

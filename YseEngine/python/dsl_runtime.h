@@ -63,4 +63,4 @@ namespace YSE {
   } // namespace INTERNAL
 } // namespace YSE
 
-#endif  // YSE_PYTHON_DSL_RUNTIME_H
+#endif // YSE_PYTHON_DSL_RUNTIME_H

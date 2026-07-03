@@ -13,33 +13,34 @@
 
 #include <vector>
 
-#if (defined (_WIN32) || defined (_WIN64))
-  #define       YSE_WIN32 1
-  #define       YSE_WINDOWS 1
-#define				__WINDOWS__
-#elif defined (__ANDROID__)
-  #undef        YSE_ANDROID
-  #define       YSE_ANDROID 1
-#elif defined (LINUX) || defined (__linux__)
-  #define     YSE_LINUX 1
-#elif defined (__APPLE_CPP__) || defined(__APPLE_CC__)
-  #define Point CarbonDummyPointName // (workaround to avoid definition of "Point" by old Carbon headers)
-  #define Component CarbonDummyCompName
-  #include <CoreFoundation/CoreFoundation.h> // (needed to find out what platform we're using)
-  #undef Point
-  #undef Component
+#if (defined(_WIN32) || defined(_WIN64))
+#define YSE_WIN32 1
+#define YSE_WINDOWS 1
+#define __WINDOWS__
+#elif defined(__ANDROID__)
+#undef YSE_ANDROID
+#define YSE_ANDROID 1
+#elif defined(LINUX) || defined(__linux__)
+#define YSE_LINUX 1
+#elif defined(__APPLE_CPP__) || defined(__APPLE_CC__)
+#define Point                                                                                      \
+  CarbonDummyPointName // (workaround to avoid definition of "Point" by old Carbon headers)
+#define Component CarbonDummyCompName
+#include <CoreFoundation/CoreFoundation.h> // (needed to find out what platform we're using)
+#undef Point
+#undef Component
 
-  #if TARGET_OS_IPHONE || TARGET_IPHONE_SIMULATOR
-    #define     YSE_IPHONE 1
-    #define     YSE_IOS 1
-  #else
-    #define     YSE_MAC 1
-  #endif
-
-#elif defined (__FreeBSD__)
-  #define       YSE_BSD 1
+#if TARGET_OS_IPHONE || TARGET_IPHONE_SIMULATOR
+#define YSE_IPHONE 1
+#define YSE_IOS 1
 #else
-  #error "Unknown platform!"
+#define YSE_MAC 1
+#endif
+
+#elif defined(__FreeBSD__)
+#define YSE_BSD 1
+#else
+#error "Unknown platform!"
 #endif
 
 //==============================================================================
@@ -67,12 +68,13 @@
 //==============================================================================
 #if YSE_MAC || YSE_IOS
 
-#if defined (DEBUG) || defined (_DEBUG) || ! (defined (NDEBUG) || defined (_NDEBUG))
+#if defined(DEBUG) || defined(_DEBUG) || !(defined(NDEBUG) || defined(_NDEBUG))
 #define YSE_DEBUG 1
 #endif
 
-#if ! (defined (DEBUG) || defined (_DEBUG) || defined (NDEBUG) || defined (_NDEBUG))
-#warning "Neither NDEBUG or DEBUG has been defined - you should set one of these to make it clear whether this is a release build,"
+#if !(defined(DEBUG) || defined(_DEBUG) || defined(NDEBUG) || defined(_NDEBUG))
+#warning                                                                                           \
+    "Neither NDEBUG or DEBUG has been defined - you should set one of these to make it clear whether this is a release build,"
 #endif
 
 #ifdef __LITTLE_ENDIAN__
@@ -87,9 +89,9 @@
 #define YSE_32BIT 1
 #endif
 
-#if defined (__ppc__) || defined (__ppc64__)
+#if defined(__ppc__) || defined(__ppc64__)
 #define YSE_PPC 1
-#elif defined (__arm__) || defined (__arm64__)
+#elif defined(__arm__) || defined(__arm64__)
 #define YSE_ARM 1
 #else
 #define YSE_INTEL 1
@@ -99,8 +101,9 @@
 #error "Building for OSX 10.3 is no longer supported!"
 #endif
 
-#if YSE_MAC && ! defined (MAC_OS_X_VERSION_10_5)
-#error "To build with 10.4 compatibility, use a 10.5 or 10.6 SDK and set the deployment target to 10.4"
+#if YSE_MAC && !defined(MAC_OS_X_VERSION_10_5)
+#error                                                                                             \
+    "To build with 10.4 compatibility, use a 10.5 or 10.6 SDK and set the deployment target to 10.4"
 #endif
 #endif
 
@@ -112,7 +115,7 @@
 #endif
 
 // Allow override for big-endian Linux platforms
-#if defined (__LITTLE_ENDIAN__) || ! defined (YSE_BIG_ENDIAN)
+#if defined(__LITTLE_ENDIAN__) || !defined(YSE_BIG_ENDIAN)
 #define YSE_LITTLE_ENDIAN 1
 #undef YSE_BIG_ENDIAN
 #else
@@ -120,7 +123,7 @@
 #define YSE_BIG_ENDIAN 1
 #endif
 
-#if defined (__LP64__) || defined (_LP64)
+#if defined(__LP64__) || defined(_LP64)
 #define YSE_64BIT 1
 #else
 #define YSE_32BIT 1
@@ -139,12 +142,11 @@
 #ifdef __clang__
 #define YSE_CLANG 1
 #define YSE_GCC 1
-#elif defined (__GNUC__)
+#elif defined(__GNUC__)
 #define YSE_GCC 1
 #else
 #error unknown compiler
 #endif
-
 
 //==============================================================================
 // Public-API export / visibility annotation.
@@ -160,26 +162,26 @@
 // visibility is a producer-side concept; consumers see all default-visibility
 // symbols automatically.
 #if YSE_WINDOWS && YSE_CLANG
-  #ifdef YSE_DLL_BUILD
-    #define API __declspec(dllexport)
-    #define EXTERN
-  #elif defined(YSE_DLL)
-    #define API __declspec(dllimport)
-    #define EXTERN extern
-  #endif
+#ifdef YSE_DLL_BUILD
+#define API __declspec(dllexport)
+#define EXTERN
+#elif defined(YSE_DLL)
+#define API __declspec(dllimport)
+#define EXTERN extern
+#endif
 #elif YSE_LINUX || YSE_MAC || YSE_IOS || YSE_BSD || YSE_ANDROID
-  #ifdef YSE_DLL_BUILD
-    #define API __attribute__((visibility("default")))
-    #define EXTERN
-  #elif defined(YSE_DLL)
-    #define API
-    #define EXTERN extern
-  #endif
+#ifdef YSE_DLL_BUILD
+#define API __attribute__((visibility("default")))
+#define EXTERN
+#elif defined(YSE_DLL)
+#define API
+#define EXTERN extern
+#endif
 #endif
 
 //==============================================================================
 #ifndef API
-#define API   /**< This macro is added to all public class declarations. */
+#define API /**< This macro is added to all public class declarations. */
 #define EXTERN
 #endif
 
@@ -197,4 +199,4 @@
 
 #define MULTICHANNELBUFFER std::vector<YSE::DSP::buffer>
 
-#endif  // DEFINES_HPP_INCLUDED
+#endif // DEFINES_HPP_INCLUDED

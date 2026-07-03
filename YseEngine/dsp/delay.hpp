@@ -43,7 +43,7 @@ namespace YSE {
        *  Call once per audio processing tick. Must precede ``read`` calls for
        *  that tick.
        */
-      delay& process(buffer & buffer);
+      delay& process(buffer& buffer);
 
       /**
        *  @brief Read from the delay at a fixed offset.
@@ -60,11 +60,11 @@ namespace YSE {
        *  @param delayTime Per-sample offsets in samples. Use this for
        *                   modulated delays (chorus, flanger).
        */
-      delay& read(buffer & result, buffer & delayTime);
+      delay& read(buffer& result, buffer& delayTime);
 
       /** @brief Construct a delay line of the given initial size. */
       delay(Int size);
-      delay(const delay &);
+      delay(const delay&);
 
     private:
       UInt bufferlength;
@@ -81,11 +81,9 @@ namespace YSE {
      *  Free function for tabular interpolation lookups — useful when reading
      *  from a buffer at fractional sample positions.
      */
-    API void readInterpolated(buffer & ctrl, buffer & out, buffer & buffer, UInt &pos);
+    API void readInterpolated(buffer& ctrl, buffer& out, buffer& buffer, UInt& pos);
 
-  }
-}
+  } // namespace DSP
+} // namespace YSE
 
-
-
-#endif  // DELAY_H_INCLUDED
+#endif // DELAY_H_INCLUDED

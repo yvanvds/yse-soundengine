@@ -10,7 +10,7 @@
 
 #include "../internalHeaders.h"
 #include "../patcher/patcherImplementation.h"
-//#include "../synth/synthInterface.hpp"
+// #include "../synth/synthInterface.hpp"
 
 #include <mutex>
 #include <unordered_set>
@@ -18,54 +18,53 @@
 #include <vector>
 
 namespace {
-// Process-wide registry of sound names currently claimed as bus producers.
-// Naming happens on the main thread; the mutex is a cheap defensive guard
-// against construction from multiple threads and never sits on the audio
-// path. The "sound." prefix lives in its own namespace, independent of
-// channel names.
-std::mutex& soundNameMutex() {
-  static std::mutex m;
-  return m;
-}
+  // Process-wide registry of sound names currently claimed as bus producers.
+  // Naming happens on the main thread; the mutex is a cheap defensive guard
+  // against construction from multiple threads and never sits on the audio
+  // path. The "sound." prefix lives in its own namespace, independent of
+  // channel names.
+  std::mutex& soundNameMutex() {
+    static std::mutex m;
+    return m;
+  }
 
-std::unordered_set<std::string>& soundNames() {
-  static std::unordered_set<std::string> names;
-  return names;
-}
+  std::unordered_set<std::string>& soundNames() {
+    static std::unordered_set<std::string> names;
+    return names;
+  }
 
-// Returns true when the name was free and is now claimed by the caller.
-bool claimSoundName(const std::string& name) {
-  std::lock_guard<std::mutex> lock(soundNameMutex());
-  return soundNames().insert(name).second;
-}
+  // Returns true when the name was free and is now claimed by the caller.
+  bool claimSoundName(const std::string& name) {
+    std::lock_guard<std::mutex> lock(soundNameMutex());
+    return soundNames().insert(name).second;
+  }
 
-void releaseSoundName(const std::string& name) {
-  std::lock_guard<std::mutex> lock(soundNameMutex());
-  soundNames().erase(name);
-}
+  void releaseSoundName(const std::string& name) {
+    std::lock_guard<std::mutex> lock(soundNameMutex());
+    soundNames().erase(name);
+  }
 } // namespace
 
 YSE::sound::sound()
-	: pimpl(nullptr)
-	, _pos(0.f)
-	, _spread(0)
-	, _volume(0.f)
-	, _speed(1.f)
-	, _size(0.f)
-	, _loop(0.f)
-	, _relative(false)
-	, _doppler(true)
-	, _pan2D(false)
-	, _occlusion(false)
-	, _fadeAndStopTime(0)
-	, _dsp(nullptr)
-    {}
+  : pimpl(nullptr),
+    _pos(0.f),
+    _spread(0),
+    _volume(0.f),
+    _speed(1.f),
+    _size(0.f),
+    _loop(0.f),
+    _relative(false),
+    _doppler(true),
+    _pan2D(false),
+    _occlusion(false),
+    _fadeAndStopTime(0),
+    _dsp(nullptr) {}
 
 YSE::sound::~sound() {
   unregisterFromBus();
   if (pimpl != nullptr) {
     pimpl->removeInterface();
-	Log().sendMessage("removed sound");
+    Log().sendMessage("removed sound");
     pimpl = nullptr;
   }
 }
@@ -85,8 +84,8 @@ void YSE::sound::registerOnBus() {
   if (!INTERNAL::Global().isActive()) return;
 
   if (!claimSoundName(_name)) {
-    INTERNAL::LogImpl().emit(E_FILE_ERROR,
-      "sound name '" + _name + "' is already in use; bus registration rejected");
+    INTERNAL::LogImpl().emit(E_FILE_ERROR, "sound name '" + _name +
+                                               "' is already in use; bus registration rejected");
     return;
   }
   _busOwner = true;
@@ -100,12 +99,18 @@ void YSE::sound::registerOnBus() {
   // create() — or after the sound is gone — are dropped instead of touching a
   // null implementation.
   _busHandles[0] = Bus().subscribe(base + "volume", [this](const BusValue& v) {
-    if (auto* f = std::get_if<float>(&v)) { if (isValid()) volume(*f); }
-    else if (auto* i = std::get_if<int>(&v)) { if (isValid()) volume(static_cast<float>(*i)); }
+    if (auto* f = std::get_if<float>(&v)) {
+      if (isValid()) volume(*f);
+    } else if (auto* i = std::get_if<int>(&v)) {
+      if (isValid()) volume(static_cast<float>(*i));
+    }
   });
   _busHandles[1] = Bus().subscribe(base + "speed", [this](const BusValue& v) {
-    if (auto* f = std::get_if<float>(&v)) { if (isValid()) speed(*f); }
-    else if (auto* i = std::get_if<int>(&v)) { if (isValid()) speed(static_cast<float>(*i)); }
+    if (auto* f = std::get_if<float>(&v)) {
+      if (isValid()) speed(*f);
+    } else if (auto* i = std::get_if<int>(&v)) {
+      if (isValid()) speed(static_cast<float>(*i));
+    }
   });
   _busHandles[2] = Bus().subscribe(base + "position", [this](const BusValue& v) {
     if (auto* vec = std::get_if<std::vector<float>>(&v)) {
@@ -124,12 +129,14 @@ void YSE::sound::unregisterFromBus() {
       if (handle != 0) INTERNAL::Bus().unsubscribe(handle);
     }
   }
-  for (auto& handle : _busHandles) handle = 0;
+  for (auto& handle : _busHandles)
+    handle = 0;
   releaseSoundName(_name);
   _busOwner = false;
 }
 
-void YSE::sound::create(const char * fileName, channel * ch, bool loop, float volume, bool streaming) {
+void YSE::sound::create(const char* fileName, channel* ch, bool loop, float volume,
+                        bool streaming) {
   assert(pimpl == nullptr);
 
   pimpl = SOUND::Manager().addImplementation(this);
@@ -143,7 +150,7 @@ void YSE::sound::create(const char * fileName, channel * ch, bool loop, float vo
   }
 }
 
-void YSE::sound::create(YSE::DSP::buffer & buffer, channel * ch, bool loop, float volume) {
+void YSE::sound::create(YSE::DSP::buffer& buffer, channel* ch, bool loop, float volume) {
   assert(pimpl == nullptr);
 
   pimpl = SOUND::Manager().addImplementation(this);
@@ -153,7 +160,7 @@ void YSE::sound::create(YSE::DSP::buffer & buffer, channel * ch, bool loop, floa
   SOUND::Manager().setup(pimpl);
 }
 
-void YSE::sound::create(MULTICHANNELBUFFER & buffer, channel * ch, bool loop, float volume) {
+void YSE::sound::create(MULTICHANNELBUFFER& buffer, channel* ch, bool loop, float volume) {
   assert(pimpl == nullptr);
 
   pimpl = SOUND::Manager().addImplementation(this);
@@ -163,7 +170,7 @@ void YSE::sound::create(MULTICHANNELBUFFER & buffer, channel * ch, bool loop, fl
   SOUND::Manager().setup(pimpl);
 }
 
-void YSE::sound::create(YSE::DSP::dspSourceObject & dsp, channel * ch, float volume) {
+void YSE::sound::create(YSE::DSP::dspSourceObject& dsp, channel* ch, float volume) {
   assert(pimpl == nullptr);
 
   pimpl = SOUND::Manager().addImplementation(this);
@@ -172,7 +179,7 @@ void YSE::sound::create(YSE::DSP::dspSourceObject & dsp, channel * ch, float vol
   SOUND::Manager().setup(pimpl);
 }
 
-void YSE::sound::create(YSE::patcher & patch, channel * ch, float volume) {
+void YSE::sound::create(YSE::patcher& patch, channel* ch, float volume) {
   assert(pimpl == nullptr);
 
   pimpl = SOUND::Manager().addImplementation(this);
@@ -190,12 +197,11 @@ void YSE::sound::create(YSE::patcher & patch, channel * ch, float volume) {
   return *this;
 }*/
 
-
 Bool YSE::sound::isValid() {
   return pimpl != nullptr;
 }
 
-void YSE::sound::pos(const Pos &v) {
+void YSE::sound::pos(const Pos& v) {
   if (_pos != v) {
     _pos = v;
     SOUND::messageObject m;
@@ -204,7 +210,7 @@ void YSE::sound::pos(const Pos &v) {
     m.vecValue[1] = v.y;
     m.vecValue[2] = v.z;
     pimpl->sendMessage(m);
-  } 
+  }
 }
 
 YSE::Pos YSE::sound::pos() {
@@ -228,7 +234,7 @@ Flt YSE::sound::spread() {
 
 void YSE::sound::volume(Flt value, UInt time) {
   Clamp(value, 0.f, 1.f);
-  if (_volume!= value) {
+  if (_volume != value) {
     _volume = value;
     SOUND::messageObject m;
     m.ID = SOUND::VOLUME_VALUE;
@@ -240,7 +246,7 @@ void YSE::sound::volume(Flt value, UInt time) {
       m2.ID = SOUND::VOLUME_TIME;
       m2.uintValue = time;
       pimpl->sendMessage(m2);
-    }    
+    }
   }
 }
 
@@ -289,7 +295,6 @@ void YSE::sound::looping(Bool value) {
 Bool YSE::sound::looping() {
   return _loop;
 }
-
 
 void YSE::sound::play() {
   SOUND::messageObject m;
@@ -356,7 +361,7 @@ Bool YSE::sound::isStreaming() {
   return pimpl->_head_streaming;
 }
 
-void YSE::sound::setDSP(YSE::DSP::dspObject * value) {
+void YSE::sound::setDSP(YSE::DSP::dspObject* value) {
   if (_dsp != value) {
     _dsp = value;
     SOUND::messageObject m;
@@ -366,12 +371,12 @@ void YSE::sound::setDSP(YSE::DSP::dspObject * value) {
   }
 }
 
-YSE::DSP::dspObject * YSE::sound::getDSP() {
+YSE::DSP::dspObject* YSE::sound::getDSP() {
   return _dsp;
 }
 
 void YSE::sound::time(Flt value) {
-  // don't compare with local time var in this case because 
+  // don't compare with local time var in this case because
   // that value is set by the implementation
   SOUND::messageObject m;
   m.ID = SOUND::TIME;
@@ -443,7 +448,7 @@ void YSE::sound::fadeAndStop(UInt time) {
   pimpl->sendMessage(m);
 }
 
-void YSE::sound::moveTo(channel & target) {
+void YSE::sound::moveTo(channel& target) {
   if (_parent != &target) {
     _parent = &target;
     SOUND::messageObject m;

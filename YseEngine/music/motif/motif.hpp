@@ -11,7 +11,6 @@
 #ifndef MOTIF_HPP_INCLUDED
 #define MOTIF_HPP_INCLUDED
 
-
 namespace YSE {
   class motif;
 
@@ -28,11 +27,9 @@ namespace YSE {
       TRANSPOSE,
       FIRST_PITCH,
     };
-  }
+  } // namespace MOTIF
   /// @endcond
 
-}
+} // namespace YSE
 
-
-
-#endif  // MOTIF_HPP_INCLUDED
+#endif // MOTIF_HPP_INCLUDED

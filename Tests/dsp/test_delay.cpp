@@ -14,21 +14,22 @@
 
 TEST_SUITE("dsp") {
 
-TEST_CASE("delay: zero delay time returns the most recently written buffer") {
+  TEST_CASE("delay: zero delay time returns the most recently written buffer") {
     // After process(in), read(result, 0) should recover the exact same samples.
     // Derivation: delaySamples = SAMPLERATE*0*0.001 + currentLength = currentLength,
     // so ph = phase - currentLength = write start position. ✓
-    YSE::DSP::delay d(1000);  // 1000 ms internal buffer
+    YSE::DSP::delay d(1000); // 1000 ms internal buffer
     YSE::DSP::buffer in(128);
     float* ptr = in.getPtr();
-    for (unsigned i = 0; i < 128; ++i) ptr[i] = static_cast<float>(i) * 0.01f;
+    for (unsigned i = 0; i < 128; ++i)
+      ptr[i] = static_cast<float>(i) * 0.01f;
     d.process(in);
     YSE::DSP::buffer result(128);
     d.read(result, 0u);
     CHECK(TestHelpers::buffersNearlyEqual(result, in, 1e-5f));
-}
+  }
 
-TEST_CASE("delay: second write replaces first at zero delay") {
+  TEST_CASE("delay: second write replaces first at zero delay") {
     YSE::DSP::delay d(1000);
     YSE::DSP::buffer first(128);
     first = 1.0f;
@@ -41,9 +42,9 @@ TEST_CASE("delay: second write replaces first at zero delay") {
     YSE::DSP::buffer expected(128);
     expected = 0.5f;
     CHECK(TestHelpers::buffersNearlyEqual(result, expected, 1e-5f));
-}
+  }
 
-TEST_CASE("delay: large delay on sparsely written buffer returns zeros") {
+  TEST_CASE("delay: large delay on sparsely written buffer returns zeros") {
     // After writing one buffer, a 500 ms read-back wraps to an area never written.
     YSE::DSP::delay d(1000);
     YSE::DSP::buffer in(128);
@@ -53,10 +54,10 @@ TEST_CASE("delay: large delay on sparsely written buffer returns zeros") {
     d.read(result, 500u);
     float* ptr = result.getPtr();
     for (unsigned i = 0; i < result.getLength(); ++i)
-        CHECK(std::abs(ptr[i]) < 1e-5f);
-}
+      CHECK(std::abs(ptr[i]) < 1e-5f);
+  }
 
-TEST_CASE("delay: setSize updates delay capacity without crash") {
+  TEST_CASE("delay: setSize updates delay capacity without crash") {
     YSE::DSP::delay d(100);
     d.setSize(500);
     YSE::DSP::buffer in(128);
@@ -67,6 +68,6 @@ TEST_CASE("delay: setSize updates delay capacity without crash") {
     YSE::DSP::buffer expected(128);
     expected = 0.75f;
     CHECK(TestHelpers::buffersNearlyEqual(result, expected, 1e-5f));
-}
+  }
 
 } // TEST_SUITE("dsp")

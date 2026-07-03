@@ -25,10 +25,8 @@ namespace YSE {
       settings() : dopplerScale(1.f), distanceFactor(1.f), rolloffScale(1.f) {}
     };
 
-    settings & Settings();
-  }
-}
+    settings& Settings();
+  } // namespace INTERNAL
+} // namespace YSE
 
-
-
-#endif  // SETTINGS_H_INCLUDED
+#endif // SETTINGS_H_INCLUDED

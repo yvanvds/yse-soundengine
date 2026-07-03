@@ -10,7 +10,7 @@
 
 #include "settings.h"
 
-YSE::INTERNAL::settings & YSE::INTERNAL::Settings() {
+YSE::INTERNAL::settings& YSE::INTERNAL::Settings() {
   static settings s;
   return s;
 }

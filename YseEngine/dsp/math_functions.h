@@ -17,11 +17,11 @@
 namespace YSE {
   namespace DSP {
 
-    Flt* maximum(Flt *in1, Flt *in2, Flt *out, UInt length);
-    Flt* maximum(Flt *in, Flt  f, Flt *out, UInt length);
+    Flt* maximum(Flt* in1, Flt* in2, Flt* out, UInt length);
+    Flt* maximum(Flt* in, Flt f, Flt* out, UInt length);
 
-    Flt* minimum(Flt *in1, Flt *in2, Flt *out, UInt length);
-    Flt* minimum(Flt *in, Flt  f, Flt *out, UInt length);
+    Flt* minimum(Flt* in1, Flt* in2, Flt* out, UInt length);
+    Flt* minimum(Flt* in, Flt f, Flt* out, UInt length);
 
     // utility functions
     Flt powToDb(Flt f);
@@ -29,13 +29,11 @@ namespace YSE {
     Flt dbToPow(Flt f);
     Flt dbToRms(Flt f);
 
-    Flt getMaxAmplitude(buffer & source);
-    Flt getMaxAmplitude(Flt * pos, UInt windowSize);
+    Flt getMaxAmplitude(buffer& source);
+    Flt getMaxAmplitude(Flt* pos, UInt windowSize);
 
-    void sqrtFunc(Flt * in, Flt * out, UInt length);
-  }
-}
+    void sqrtFunc(Flt* in, Flt* out, UInt length);
+  } // namespace DSP
+} // namespace YSE
 
-
-
-#endif  // MATH_FUNCTIONS_H_INCLUDED
+#endif // MATH_FUNCTIONS_H_INCLUDED

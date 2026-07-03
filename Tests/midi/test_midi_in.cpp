@@ -31,61 +31,53 @@
 // Friend-declared in YSE::midiIn so tests can drive dispatch() directly
 // without needing a real MIDI port (RtMidi's openVirtualPort is unavailable
 // on Windows; this keeps the parser test deterministic on every platform).
-struct MidiInDispatchTester
-{
-    static void dispatch(YSE::midiIn& m, double ts, const unsigned char* bytes, std::size_t len)
-    {
-        m.dispatch(ts, bytes, len);
-    }
+struct MidiInDispatchTester {
+  static void dispatch(YSE::midiIn& m, double ts, const unsigned char* bytes, std::size_t len) {
+    m.dispatch(ts, bytes, len);
+  }
 };
 
-namespace
-{
+namespace {
 
-// Shared sinks for the dispatch tests. Static so callback pointers are
-// always-valid C function pointers (no closure state needed).
-struct RawSink
-{
+  // Shared sinks for the dispatch tests. Static so callback pointers are
+  // always-valid C function pointers (no closure state needed).
+  struct RawSink {
     std::atomic<int> calls{0};
     std::atomic<double> lastTs{0.0};
     std::atomic<std::size_t> lastLen{0};
     unsigned char lastBytes[8]{};
-};
-struct ParsedSink
-{
+  };
+  struct ParsedSink {
     std::atomic<int> calls{0};
     std::atomic<double> lastTs{0.0};
     std::atomic<unsigned char> status{0};
     std::atomic<unsigned char> channel{0};
     std::atomic<unsigned char> data1{0};
     std::atomic<unsigned char> data2{0};
-};
+  };
 
-RawSink    g_raw;
-ParsedSink g_parsed;
+  RawSink g_raw;
+  ParsedSink g_parsed;
 
-void rawCb(double ts, const unsigned char* bytes, std::size_t len, void*)
-{
+  void rawCb(double ts, const unsigned char* bytes, std::size_t len, void*) {
     g_raw.calls.fetch_add(1, std::memory_order_relaxed);
     g_raw.lastTs.store(ts, std::memory_order_relaxed);
     g_raw.lastLen.store(len, std::memory_order_relaxed);
     const std::size_t n = len < sizeof(g_raw.lastBytes) ? len : sizeof(g_raw.lastBytes);
     std::memcpy(g_raw.lastBytes, bytes, n);
-}
+  }
 
-void parsedCb(double ts, unsigned char s, unsigned char c,
-              unsigned char d1, unsigned char d2, void*)
-{
+  void parsedCb(double ts, unsigned char s, unsigned char c, unsigned char d1, unsigned char d2,
+                void*) {
     g_parsed.calls.fetch_add(1, std::memory_order_relaxed);
     g_parsed.lastTs.store(ts, std::memory_order_relaxed);
     g_parsed.status.store(s, std::memory_order_relaxed);
     g_parsed.channel.store(c, std::memory_order_relaxed);
     g_parsed.data1.store(d1, std::memory_order_relaxed);
     g_parsed.data2.store(d2, std::memory_order_relaxed);
-}
+  }
 
-void resetSinks()
-{
+  void resetSinks() {
     g_raw.calls.store(0, std::memory_order_relaxed);
     g_raw.lastLen.store(0, std::memory_order_relaxed);
     std::memset(g_raw.lastBytes, 0, sizeof(g_raw.lastBytes));
@@ -94,47 +86,41 @@ void resetSinks()
     g_parsed.channel.store(0, std::memory_order_relaxed);
     g_parsed.data1.store(0, std::memory_order_relaxed);
     g_parsed.data2.store(0, std::memory_order_relaxed);
-}
+  }
 
 } // namespace
 
-TEST_SUITE("midi")
-{
+TEST_SUITE("midi") {
 
-// ─── midiIn default state ────────────────────────────────────────────────────
+  // ─── midiIn default state ────────────────────────────────────────────────────
 
-TEST_CASE("midiIn: default-constructed instance is closed")
-{
+  TEST_CASE("midiIn: default-constructed instance is closed") {
     YSE::midiIn in;
     CHECK_FALSE(in.isOpen());
-}
+  }
 
-TEST_CASE("midiIn: close() on a never-opened instance is safe")
-{
+  TEST_CASE("midiIn: close() on a never-opened instance is safe") {
     YSE::midiIn in;
     in.close();
     CHECK_FALSE(in.isOpen());
-}
+  }
 
-TEST_CASE("midiIn: create on an out-of-range port leaves the instance closed")
-{
+  TEST_CASE("midiIn: create on an out-of-range port leaves the instance closed") {
     YSE::midiIn in;
     in.create(9999);
     CHECK_FALSE(in.isOpen());
-}
+  }
 
-TEST_CASE("midiIn: setRawCallback / setParsedCallback accept nullptr without crashing")
-{
+  TEST_CASE("midiIn: setRawCallback / setParsedCallback accept nullptr without crashing") {
     YSE::midiIn in;
     in.setRawCallback(nullptr, nullptr);
     in.setParsedCallback(nullptr, nullptr);
     CHECK(true);
-}
+  }
 
-// ─── Dispatch fan-out via the friend test struct ────────────────────────────
+  // ─── Dispatch fan-out via the friend test struct ────────────────────────────
 
-TEST_CASE("midiIn dispatch: raw callback receives the original bytes")
-{
+  TEST_CASE("midiIn dispatch: raw callback receives the original bytes") {
     resetSinks();
     YSE::midiIn in;
     in.setRawCallback(rawCb, nullptr);
@@ -148,10 +134,9 @@ TEST_CASE("midiIn dispatch: raw callback receives the original bytes")
     CHECK(g_raw.lastBytes[0] == 0x91);
     CHECK(g_raw.lastBytes[1] == 0x3C);
     CHECK(g_raw.lastBytes[2] == 0x64);
-}
+  }
 
-TEST_CASE("midiIn dispatch: parsed callback splits status / channel / data bytes")
-{
+  TEST_CASE("midiIn dispatch: parsed callback splits status / channel / data bytes") {
     resetSinks();
     YSE::midiIn in;
     in.setParsedCallback(parsedCb, nullptr);
@@ -162,14 +147,13 @@ TEST_CASE("midiIn dispatch: parsed callback splits status / channel / data bytes
 
     CHECK(g_parsed.calls.load() == 1);
     CHECK(g_parsed.lastTs.load() == doctest::Approx(0.5));
-    CHECK(g_parsed.status.load()  == 0x90);  // Note-On status nibble
-    CHECK(g_parsed.channel.load() == 0x06);  // channel nibble
-    CHECK(g_parsed.data1.load()   == 0x3C);
-    CHECK(g_parsed.data2.load()   == 0x64);
-}
+    CHECK(g_parsed.status.load() == 0x90); // Note-On status nibble
+    CHECK(g_parsed.channel.load() == 0x06); // channel nibble
+    CHECK(g_parsed.data1.load() == 0x3C);
+    CHECK(g_parsed.data2.load() == 0x64);
+  }
 
-TEST_CASE("midiIn dispatch: 2-byte message (Program Change) reports data2 as 0")
-{
+  TEST_CASE("midiIn dispatch: 2-byte message (Program Change) reports data2 as 0") {
     resetSinks();
     YSE::midiIn in;
     in.setParsedCallback(parsedCb, nullptr);
@@ -177,14 +161,13 @@ TEST_CASE("midiIn dispatch: 2-byte message (Program Change) reports data2 as 0")
     const unsigned char msg[2] = {0xC2, 0x05}; // Program Change ch 2, program 5
     MidiInDispatchTester::dispatch(in, 0.0, msg, 2);
 
-    CHECK(g_parsed.status.load()  == 0xC0);
+    CHECK(g_parsed.status.load() == 0xC0);
     CHECK(g_parsed.channel.load() == 0x02);
-    CHECK(g_parsed.data1.load()   == 0x05);
-    CHECK(g_parsed.data2.load()   == 0x00);
-}
+    CHECK(g_parsed.data1.load() == 0x05);
+    CHECK(g_parsed.data2.load() == 0x00);
+  }
 
-TEST_CASE("midiIn dispatch: 1-byte message (clock) reports data1/data2 as 0")
-{
+  TEST_CASE("midiIn dispatch: 1-byte message (clock) reports data1/data2 as 0") {
     resetSinks();
     YSE::midiIn in;
     in.setParsedCallback(parsedCb, nullptr);
@@ -193,12 +176,11 @@ TEST_CASE("midiIn dispatch: 1-byte message (clock) reports data1/data2 as 0")
     MidiInDispatchTester::dispatch(in, 0.0, msg, 1);
 
     CHECK(g_parsed.status.load() == 0xF0);
-    CHECK(g_parsed.data1.load()  == 0x00);
-    CHECK(g_parsed.data2.load()  == 0x00);
-}
+    CHECK(g_parsed.data1.load() == 0x00);
+    CHECK(g_parsed.data2.load() == 0x00);
+  }
 
-TEST_CASE("midiIn dispatch: empty buffer dispatches nothing")
-{
+  TEST_CASE("midiIn dispatch: empty buffer dispatches nothing") {
     resetSinks();
     YSE::midiIn in;
     in.setRawCallback(rawCb, nullptr);
@@ -213,10 +195,9 @@ TEST_CASE("midiIn dispatch: empty buffer dispatches nothing")
     // production, but the unit guard here keeps the member function safe.
     // No callback should have fired.
     CHECK(g_raw.calls.load() == 0);
-}
+  }
 
-TEST_CASE("midiIn dispatch: detaching the raw callback stops further raw fires")
-{
+  TEST_CASE("midiIn dispatch: detaching the raw callback stops further raw fires") {
     resetSinks();
     YSE::midiIn in;
     in.setRawCallback(rawCb, nullptr);
@@ -228,10 +209,9 @@ TEST_CASE("midiIn dispatch: detaching the raw callback stops further raw fires")
     in.setRawCallback(nullptr, nullptr);
     MidiInDispatchTester::dispatch(in, 0.0, msg, 3);
     CHECK(g_raw.calls.load() == 1); // unchanged
-}
+  }
 
-TEST_CASE("midiIn dispatch: both callbacks fire independently when both are set")
-{
+  TEST_CASE("midiIn dispatch: both callbacks fire independently when both are set") {
     resetSinks();
     YSE::midiIn in;
     in.setRawCallback(rawCb, nullptr);
@@ -244,47 +224,42 @@ TEST_CASE("midiIn dispatch: both callbacks fire independently when both are set"
     CHECK(g_parsed.calls.load() == 1);
     CHECK(g_parsed.status.load() == 0xB0);
     CHECK(g_parsed.channel.load() == 0x04);
-}
+  }
 
-// ─── C API mirror ───────────────────────────────────────────────────────────
+  // ─── C API mirror ───────────────────────────────────────────────────────────
 
-TEST_CASE("yse_midi_in C API: create/destroy lifecycle")
-{
+  TEST_CASE("yse_midi_in C API: create/destroy lifecycle") {
     YseMidiIn* m = yse_midi_in_create();
     REQUIRE(m != nullptr);
     CHECK(yse_midi_in_is_open(m) == 0);
     yse_midi_in_destroy(m);
-}
+  }
 
-TEST_CASE("yse_midi_in C API: open on an invalid port leaves the handle closed")
-{
+  TEST_CASE("yse_midi_in C API: open on an invalid port leaves the handle closed") {
     YseMidiIn* m = yse_midi_in_create();
     REQUIRE(m != nullptr);
     yse_midi_in_open(m, 9999);
     CHECK(yse_midi_in_is_open(m) == 0);
     yse_midi_in_destroy(m);
-}
+  }
 
-TEST_CASE("yse_midi_in C API: callback setters accept nullptr without crashing")
-{
+  TEST_CASE("yse_midi_in C API: callback setters accept nullptr without crashing") {
     YseMidiIn* m = yse_midi_in_create();
     REQUIRE(m != nullptr);
     yse_midi_in_set_raw_callback(m, nullptr, nullptr);
     yse_midi_in_set_parsed_callback(m, nullptr, nullptr);
     yse_midi_in_destroy(m);
     CHECK(true);
-}
+  }
 
-TEST_CASE("yse_midi_in C API: free_message safely handles nullptr")
-{
+  TEST_CASE("yse_midi_in C API: free_message safely handles nullptr") {
     yse_midi_in_free_message(nullptr);
     CHECK(true);
-}
+  }
 
-TEST_CASE("yse_midi_in C API: NULL handle returns 0 on is_open")
-{
+  TEST_CASE("yse_midi_in C API: NULL handle returns 0 on is_open") {
     CHECK(yse_midi_in_is_open(nullptr) == 0);
-}
+  }
 
 } // TEST_SUITE("midi")
 

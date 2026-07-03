@@ -10,13 +10,24 @@
 
 #include "basicDelay.hpp"
 
-YSE::DSP::MODULES::basicDelay::basicDelay() : time0(0.f), time1(0.f), time2(0.f), gain0(0.f), gain1(0.f), gain2(0.f) {}
+YSE::DSP::MODULES::basicDelay::basicDelay()
+  : time0(0.f), time1(0.f), time2(0.f), gain0(0.f), gain1(0.f), gain2(0.f) {}
 
-YSE::DSP::MODULES::basicDelay & YSE::DSP::MODULES::basicDelay::set(basicDelay::DELAY_NR nr, Flt time, Flt gain) {
+YSE::DSP::MODULES::basicDelay& YSE::DSP::MODULES::basicDelay::set(basicDelay::DELAY_NR nr, Flt time,
+                                                                  Flt gain) {
   switch (nr) {
-    case FIRST : time0.store(time); gain0.store(gain); break;
-    case SECOND: time1.store(time); gain1.store(gain); break;
-    case THIRD : time2.store(time); gain2.store(gain); break;
+  case FIRST:
+    time0.store(time);
+    gain0.store(gain);
+    break;
+  case SECOND:
+    time1.store(time);
+    gain1.store(gain);
+    break;
+  case THIRD:
+    time2.store(time);
+    gain2.store(gain);
+    break;
   }
 
   return *this;
@@ -24,20 +35,26 @@ YSE::DSP::MODULES::basicDelay & YSE::DSP::MODULES::basicDelay::set(basicDelay::D
 
 Flt YSE::DSP::MODULES::basicDelay::time(basicDelay::DELAY_NR nr) {
   switch (nr) {
-    case FIRST : return time0;
-    case SECOND: return time1;
-    case THIRD : return time2;
+  case FIRST:
+    return time0;
+  case SECOND:
+    return time1;
+  case THIRD:
+    return time2;
   }
-	return time0; // stop complaining about control paths
+  return time0; // stop complaining about control paths
 }
 
 Flt YSE::DSP::MODULES::basicDelay::gain(basicDelay::DELAY_NR nr) {
   switch (nr) {
-  case FIRST : return gain0;
-  case SECOND: return gain1;
-  case THIRD : return gain2;
+  case FIRST:
+    return gain0;
+  case SECOND:
+    return gain1;
+  case THIRD:
+    return gain2;
   }
-	return gain0; // stop complaining about control paths
+  return gain0; // stop complaining about control paths
 }
 
 void YSE::DSP::MODULES::basicDelay::create() {
@@ -48,9 +65,9 @@ void YSE::DSP::MODULES::basicDelay::create() {
 }
 
 void YSE::DSP::MODULES::basicDelay::createPreFilter() {}
-void YSE::DSP::MODULES::basicDelay::applyPreFilter(DSP::buffer & /*buffer*/) {}
+void YSE::DSP::MODULES::basicDelay::applyPreFilter(DSP::buffer& /*buffer*/) {}
 
-void YSE::DSP::MODULES::basicDelay::process(MULTICHANNELBUFFER & buffer) {
+void YSE::DSP::MODULES::basicDelay::process(MULTICHANNELBUFFER& buffer) {
   createIfNeeded();
 
   if (buffer[0].getLength() != result->getLength()) {

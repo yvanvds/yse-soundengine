@@ -19,12 +19,9 @@
 #include <sched.h>
 #endif
 
-YSE::INTERNAL::thread::thread()
-: shouldExit(false) {
-}
+YSE::INTERNAL::thread::thread() : shouldExit(false) {}
 
-YSE::INTERNAL::thread::~thread()
-{
+YSE::INTERNAL::thread::~thread() {
   assert(!isRunning());
   stop();
 }

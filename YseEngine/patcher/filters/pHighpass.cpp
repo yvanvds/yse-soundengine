@@ -32,7 +32,7 @@ CONSTRUCT_DSP() {
 }
 
 RESET() // {
-  buffer = nullptr;
+buffer = nullptr;
 }
 
 BUFFER_IN(SetBuffer) {

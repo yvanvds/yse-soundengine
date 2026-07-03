@@ -11,7 +11,6 @@
 #ifndef THREAD_H_INCLUDED
 #define THREAD_H_INCLUDED
 
-
 #include "../headers/types.hpp"
 #include <thread>
 #include <memory>
@@ -23,7 +22,6 @@ namespace YSE {
 
     class thread {
     public:
-
       thread();
       virtual ~thread();
 
@@ -50,12 +48,7 @@ namespace YSE {
       aBool shouldExit;
     };
 
-  }
-}
+  } // namespace INTERNAL
+} // namespace YSE
 
-
-
-
-
-
-#endif  // THREAD_H_INCLUDED
+#endif // THREAD_H_INCLUDED

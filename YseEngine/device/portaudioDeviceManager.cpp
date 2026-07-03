@@ -23,44 +23,44 @@ namespace {
   // Time constant for the cpuLoad EMA, in seconds. ~1 s means the reading
   // settles within a few seconds and isn't dominated by per-callback jitter.
   constexpr double kCpuLoadTau = 1.0;
-}
+} // namespace
 
 UInt YSE::SAMPLERATE = 44100;
 
-YSE::DEVICE::managerObject & YSE::DEVICE::Manager() {
+YSE::DEVICE::managerObject& YSE::DEVICE::Manager() {
   static managerObject d;
   return d;
 }
 
 YSE::DEVICE::managerObject::managerObject()
-  : stream(nullptr)
-  , bufferPos(STANDARD_BUFFERSIZE)
-  , initDone(false)
-  , open(false)
-  , started(false)
-	, callbacksSinceLastUpdate(0)
-{}
+  : stream(nullptr),
+    bufferPos(STANDARD_BUFFERSIZE),
+    initDone(false),
+    open(false),
+    started(false),
+    callbacksSinceLastUpdate(0) {}
 
 YSE::DEVICE::managerObject::~managerObject() {
   close();
   terminate();
 }
 
-int YSE::DEVICE::managerObject::paCallback(
-    const void * /*input*/
-  , void *output
-  , unsigned long numSamples
-  , const PaStreamCallbackTimeInfo* /*timeInfo*/
-  , PaStreamCallbackFlags /*statusFlags*/
-  , void * userData) {
+int YSE::DEVICE::managerObject::paCallback(const void* /*input*/
+                                           ,
+                                           void* output, unsigned long numSamples,
+                                           const PaStreamCallbackTimeInfo* /*timeInfo*/
+                                           ,
+                                           PaStreamCallbackFlags /*statusFlags*/
+                                           ,
+                                           void* userData) {
   YSE::INTERNAL::enableFlushToZero();
   // cpuLoad() reports a wall-clock ratio (time in callback / buffer period),
   // EMA-smoothed. We time it ourselves with steady_clock rather than reading
   // Pa_GetStreamCpuLoad so the Oboe path can report a comparable number
   // (PortAudio's number doesn't exist on the Android backend).
   const auto cbStart = std::chrono::steady_clock::now();
-  YSE::DEVICE::managerObject * manager = (YSE::DEVICE::managerObject *)userData;
-	manager->callbacksSinceLastUpdate++;
+  YSE::DEVICE::managerObject* manager = (YSE::DEVICE::managerObject*)userData;
+  manager->callbacksSinceLastUpdate++;
 
   // PortAudio is opened with paFramesPerBufferUnspecified — capture whatever
   // framesPerBuffer the backend negotiated on the first callback so the live
@@ -81,13 +81,15 @@ int YSE::DEVICE::managerObject::paCallback(
       manager->renderOneBlock();
       manager->bufferPos = 0;
     }
-    
-    UInt size = (numSamples - pos) >(STANDARD_BUFFERSIZE - manager->bufferPos) ? (STANDARD_BUFFERSIZE - manager->bufferPos) : ((UInt)numSamples - pos);
-    
+
+    UInt size = (numSamples - pos) > (STANDARD_BUFFERSIZE - manager->bufferPos)
+                    ? (STANDARD_BUFFERSIZE - manager->bufferPos)
+                    : ((UInt)numSamples - pos);
+
     for (UInt i = 0; i < manager->master->out.size(); i++) {
       UInt l = size;
-      Flt * ptr1 = ((Flt **)output)[i] + pos;
-      Flt * ptr2 = manager->master->out[i].getPtr() + manager->bufferPos;
+      Flt* ptr1 = ((Flt**)output)[i] + pos;
+      Flt* ptr2 = manager->master->out[i].getPtr() + manager->bufferPos;
 
       for (; l > 7; l -= 8, ptr1 += 8, ptr2 += 8) {
         ptr1[0] = ptr2[0] < -1.f ? -1.f : ptr2[0] > 1.f ? 1.f : ptr2[0];
@@ -106,16 +108,14 @@ int YSE::DEVICE::managerObject::paCallback(
     }
     manager->bufferPos += size;
     pos += size;
-
   }
 
   manager->updateCpuLoadEma(cbStart, numSamples);
   return 0;
 }
 
-void YSE::DEVICE::managerObject::updateCpuLoadEma(
-    std::chrono::steady_clock::time_point cbStart,
-    unsigned long numSamples) {
+void YSE::DEVICE::managerObject::updateCpuLoadEma(std::chrono::steady_clock::time_point cbStart,
+                                                  unsigned long numSamples) {
   const auto cbEnd = std::chrono::steady_clock::now();
   const double elapsedSec = std::chrono::duration<double>(cbEnd - cbStart).count();
   const double bufferSec = double(numSamples) / double(SAMPLERATE);
@@ -128,7 +128,6 @@ void YSE::DEVICE::managerObject::updateCpuLoadEma(
   const float prev = cpuLoadEma.load(std::memory_order_relaxed);
   cpuLoadEma.store(prev + alpha * (sample - prev), std::memory_order_relaxed);
 }
-
 
 Bool YSE::DEVICE::managerObject::init(bool openDevice) {
   // Offline init skips Pa_Initialize entirely.  On Linux runners without
@@ -163,7 +162,7 @@ void YSE::DEVICE::managerObject::addCallback() {
     INTERNAL::LogImpl().emit(E_WARNING, "No default audio output device found.");
     return;
   }
-  const PaDeviceInfo * info = Pa_GetDeviceInfo(params.device);
+  const PaDeviceInfo* info = Pa_GetDeviceInfo(params.device);
   params.channelCount = info->maxOutputChannels;
   params.sampleFormat = paFloat32 | paNonInterleaved;
   params.suggestedLatency = info->defaultHighOutputLatency;
@@ -189,40 +188,34 @@ void YSE::DEVICE::managerObject::addCallback() {
     }
   }
 
-  err = Pa_OpenStream(
-    &stream
-    , NULL
-    , &params
-    , SAMPLERATE
-    , paFramesPerBufferUnspecified
-    , paNoFlag
-    , paCallback
-    , this
-  );
+  err = Pa_OpenStream(&stream, NULL, &params, SAMPLERATE, paFramesPerBufferUnspecified, paNoFlag,
+                      paCallback, this);
 
   if (err != paNoError) {
     audioDeviceError(err);
     return;
-  } else open = true;
+  } else
+    open = true;
 
   // Cache the negotiated output latency in samples for the live API.
-  if (const PaStreamInfo * sinfo = Pa_GetStreamInfo(stream)) {
-    activeOutputLatencySamples.store(
-      (int)(sinfo->outputLatency * (double)SAMPLERATE),
-      std::memory_order_release);
+  if (const PaStreamInfo* sinfo = Pa_GetStreamInfo(stream)) {
+    activeOutputLatencySamples.store((int)(sinfo->outputLatency * (double)SAMPLERATE),
+                                     std::memory_order_release);
   }
 
   err = Pa_StartStream(stream);
   if (err != paNoError) {
     audioDeviceError(err);
     return;
-  } else started = true;
+  } else
+    started = true;
 
   {
     std::string hostName = Pa_GetHostApiInfo(Pa_GetDeviceInfo(params.device)->hostApi)->name;
-    INTERNAL::LogImpl().emit(E_DEBUG, "Audio device: " + hostName +
-      " @ " + std::to_string(SAMPLERATE) + " Hz" +
-      ", suggested latency " + std::to_string((int)(params.suggestedLatency * 1000)) + " ms");
+    INTERNAL::LogImpl().emit(E_DEBUG,
+                             "Audio device: " + hostName + " @ " + std::to_string(SAMPLERATE) +
+                                 " Hz" + ", suggested latency " +
+                                 std::to_string((int)(params.suggestedLatency * 1000)) + " ms");
   }
 }
 
@@ -235,7 +228,7 @@ void YSE::DEVICE::managerObject::close() {
     started = false;
   }
 
-  if(open) {
+  if (open) {
     err = Pa_CloseStream(stream);
     if (err != paNoError) {
       audioDeviceError(err);
@@ -260,17 +253,17 @@ void YSE::DEVICE::managerObject::terminate() {
 }
 
 void YSE::DEVICE::managerObject::pause() {
-	close();
+  close();
 }
 
 void YSE::DEVICE::managerObject::resume() {
-	addCallback();
+  addCallback();
 }
 
 unsigned int YSE::DEVICE::managerObject::GetCallbacksSinceLastUpdate() {
-	unsigned int result = callbacksSinceLastUpdate;
-	callbacksSinceLastUpdate = 0;
-	return result;
+  unsigned int result = callbacksSinceLastUpdate;
+  callbacksSinceLastUpdate = 0;
+  return result;
 }
 
 void YSE::DEVICE::managerObject::updateDeviceList() {
@@ -283,8 +276,8 @@ void YSE::DEVICE::managerObject::updateDeviceList() {
   }
 
   for (Int i = 0; i < count; i++) {
-    const PaDeviceInfo * info = Pa_GetDeviceInfo(i);
-    const PaHostApiInfo * hostInfo = Pa_GetHostApiInfo(info->hostApi);
+    const PaDeviceInfo* info = Pa_GetDeviceInfo(i);
+    const PaHostApiInfo* hostInfo = Pa_GetHostApiInfo(info->hostApi);
     YSE::device d;
 
     d.setID(i);
@@ -302,27 +295,26 @@ void YSE::DEVICE::managerObject::updateDeviceList() {
     d.setInputLatency((Int)info->defaultLowInputLatency);
     d.setOutputLatency((Int)info->defaultLowOutputLatency);
     d.addAvailableSampleRate((Int)info->defaultSampleRate);
-    
-    devices.push_back(d);
 
+    devices.push_back(d);
   }
 
-	const PaHostApiInfo * hostInfo = Pa_GetHostApiInfo(Pa_GetDefaultHostApi());
-	defaultTypeName = hostInfo->name;
-	
-	const PaDeviceInfo * deviceInfo = Pa_GetDeviceInfo(Pa_GetDefaultOutputDevice());
-	if (deviceInfo != nullptr) {
-		defaultDeviceName = deviceInfo->name;
-	}
+  const PaHostApiInfo* hostInfo = Pa_GetHostApiInfo(Pa_GetDefaultHostApi());
+  defaultTypeName = hostInfo->name;
+
+  const PaDeviceInfo* deviceInfo = Pa_GetDeviceInfo(Pa_GetDefaultOutputDevice());
+  if (deviceInfo != nullptr) {
+    defaultDeviceName = deviceInfo->name;
+  }
 }
 
-void YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup & object) {
+void YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
   if (!initDone) return;
   close();
 
   PaStreamParameters params;
   params.device = object.out->getID();
-  const PaDeviceInfo * info = Pa_GetDeviceInfo(params.device);
+  const PaDeviceInfo* info = Pa_GetDeviceInfo(params.device);
   params.channelCount = object.getOutputChannels();
   params.sampleFormat = paFloat32 | paNonInterleaved;
   params.suggestedLatency = info->defaultHighOutputLatency;
@@ -343,40 +335,32 @@ void YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup & object) {
     }
   }
 
-  err = Pa_OpenStream(
-    &stream
-    , NULL
-    , &params
-    , SAMPLERATE
-    , object.bufferSize == 0 ? paFramesPerBufferUnspecified : object.bufferSize
-    , paNoFlag
-    , paCallback
-    , this
-  );
+  err = Pa_OpenStream(&stream, NULL, &params, SAMPLERATE,
+                      object.bufferSize == 0 ? paFramesPerBufferUnspecified : object.bufferSize,
+                      paNoFlag, paCallback, this);
 
   if (err != paNoError) {
     audioDeviceError(err);
     return;
-  }
-  else open = true;
+  } else
+    open = true;
 
   // Cache live device state. When the caller pinned a non-zero bufferSize we
   // can populate it immediately; otherwise the first paCallback captures it.
   if (object.bufferSize != 0) {
     activeBufferSize.store((int)object.bufferSize, std::memory_order_release);
   }
-  if (const PaStreamInfo * sinfo = Pa_GetStreamInfo(stream)) {
-    activeOutputLatencySamples.store(
-      (int)(sinfo->outputLatency * (double)SAMPLERATE),
-      std::memory_order_release);
+  if (const PaStreamInfo* sinfo = Pa_GetStreamInfo(stream)) {
+    activeOutputLatencySamples.store((int)(sinfo->outputLatency * (double)SAMPLERATE),
+                                     std::memory_order_release);
   }
 
   err = Pa_StartStream(stream);
   if (err != paNoError) {
     audioDeviceError(err);
     return;
-  }
-  else started = true;
+  } else
+    started = true;
 }
 
 void YSE::DEVICE::managerObject::audioDeviceError(PaError /*error*/) {

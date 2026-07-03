@@ -20,19 +20,26 @@ CONSTRUCT() {
 
   ADD_OUT_ANY;
 
-  ADD_DESCRIPTION("Named receive endpoint. Forwards values arriving from any matching gSend (same dataName) in the patcher, and from any gSend in any patcher with the same name via the global bus (\"<patcherName>.<dataName>\").");
+  ADD_DESCRIPTION("Named receive endpoint. Forwards values arriving from any matching gSend (same "
+                  "dataName) in the patcher, and from any gSend in any patcher with the same name "
+                  "via the global bus (\"<patcherName>.<dataName>\").");
   ADD_CATEGORY(pCategory::GENERIC);
   INLET_DOC(0, "in", "Wired inlet (rarely used — receives typically pair with gSend by name).", "");
   OUTLET_DOC(0, "out", "Forwarded value from matching gSend nodes.", "");
-  PARAM_DOC("dataName", "", "Name to listen for; must match the dataName of one or more gSend nodes.", "any identifier");
-  PARAM_DOC("globalOnly", "0", "Reserved for future receive-side filters; ignored today (the bus subscription is always active).", "0 or 1");
+  PARAM_DOC("dataName", "",
+            "Name to listen for; must match the dataName of one or more gSend nodes.",
+            "any identifier");
+  PARAM_DOC("globalOnly", "0",
+            "Reserved for future receive-side filters; ignored today (the bus subscription is "
+            "always active).",
+            "0 or 1");
 }
 
 gReceive::~gReceive() {
   unsubscribeIfNeeded();
 }
 
-void gReceive::SetParent(pObject * newParent) {
+void gReceive::SetParent(pObject* newParent) {
   pObject::SetParent(newParent);
   // Whenever the parent changes (including for the first time during
   // patcherImplementation::CreateObject), re-anchor the bus subscription
@@ -63,12 +70,12 @@ void gReceive::subscribeFromParent() {
   // exercise the patcher graph without spinning up the engine fall through
   // to the inlet-driven local routing path that existed before issue #122.
   if (!YSE::INTERNAL::Global().isActive()) return;
-  auto * p = static_cast<patcherImplementation*>(parent);
+  auto* p = static_cast<patcherImplementation*>(parent);
   // Callback fires either synchronously from a T_GUI publisher or from
   // `NamedBus::drainPending` on the main thread. Either way it is safe to
   // route through the receive object's outlet with T_GUI semantics.
   const std::string address = p->Name() + "." + dataName;
-  busHandle = Bus().subscribe(address, [this](const BusValue & v) {
+  busHandle = Bus().subscribe(address, [this](const BusValue& v) {
     if (std::holds_alternative<int>(v)) {
       outputs[0].SendInt(std::get<int>(v), YSE::T_GUI);
     } else if (std::holds_alternative<float>(v)) {

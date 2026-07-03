@@ -5,8 +5,7 @@ using namespace YSE::PATCHER;
 
 #define className pLine
 
-CONSTRUCT_DSP()
-{
+CONSTRUCT_DSP() {
   // in 0: target value (float)
   // in 1: time in milliseconds (int)
 
@@ -25,7 +24,8 @@ CONSTRUCT_DSP()
 
   stop = false;
 
-  ADD_DESCRIPTION("Linear-ramp generator. Ramps an audio-rate value toward a target over a given time in ms. The 'stop' message freezes the ramp at the current value.");
+  ADD_DESCRIPTION("Linear-ramp generator. Ramps an audio-rate value toward a target over a given "
+                  "time in ms. The 'stop' message freezes the ramp at the current value.");
   ADD_CATEGORY(pCategory::GENERIC);
   INLET_DOC(0, "target", "Target value to ramp toward.", "any float");
   INLET_DOC(1, "time", "Ramp duration in milliseconds.", "0+ ms");
@@ -52,8 +52,7 @@ CALC() {
   if (stop) {
     ramp.stop();
     stop = false;
-  }
-  else {
+  } else {
     ramp.setIfNew(target, (int)time);
   }
   ramp.update();

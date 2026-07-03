@@ -27,26 +27,26 @@
 
 namespace {
 
-using YSE::INTERNAL::EvalResult;
-using YSE::INTERNAL::EvalStatus;
-using YSE::INTERNAL::ScriptRuntime;
+  using YSE::INTERNAL::EvalResult;
+  using YSE::INTERNAL::EvalStatus;
+  using YSE::INTERNAL::ScriptRuntime;
 
-// The worker processes a pushed request as soon as it is notified; poll the
-// outbound queue with a bounded wait rather than guessing a fixed delay.
-bool waitForResult(ScriptRuntime& rt, EvalResult& out,
-                   int tries = 300, unsigned int sleepMs = 10) {
+  // The worker processes a pushed request as soon as it is notified; poll the
+  // outbound queue with a bounded wait rather than guessing a fixed delay.
+  bool waitForResult(ScriptRuntime& rt, EvalResult& out, int tries = 300,
+                     unsigned int sleepMs = 10) {
     for (int i = 0; i < tries; ++i) {
-        if (rt.tryPopResult(out)) return true;
-        YSE::System().sleep(sleepMs);
+      if (rt.tryPopResult(out)) return true;
+      YSE::System().sleep(sleepMs);
     }
     return false;
-}
+  }
 
 } // namespace
 
 TEST_SUITE("python") {
 
-TEST_CASE("python: a successful eval reports Ok") {
+  TEST_CASE("python: a successful eval reports Ok") {
     ScriptRuntime rt;
     rt.start();
 
@@ -58,9 +58,9 @@ TEST_CASE("python: a successful eval reports Ok") {
     CHECK(out.traceback.empty());
 
     rt.stop();
-}
+  }
 
-TEST_CASE("python: a raised exception reports Error with a traceback") {
+  TEST_CASE("python: a raised exception reports Error with a traceback") {
     ScriptRuntime rt;
     rt.start();
 
@@ -74,9 +74,9 @@ TEST_CASE("python: a raised exception reports Error with a traceback") {
     CHECK(out.traceback.find("ValueError: boom") != std::string::npos);
 
     rt.stop();
-}
+  }
 
-TEST_CASE("python: requests queued before stop() are still drained") {
+  TEST_CASE("python: requests queued before stop() are still drained") {
     ScriptRuntime rt;
     rt.start();
 
@@ -91,30 +91,30 @@ TEST_CASE("python: requests queued before stop() are still drained") {
     CHECK(second.status == EvalStatus::Ok);
 
     rt.stop();
-}
+  }
 
-TEST_CASE("python: 50 init->close cycles boot and finalize cleanly") {
+  TEST_CASE("python: 50 init->close cycles boot and finalize cleanly") {
     // Exercises Py_Initialize/Py_Finalize re-entry in one process. Under ASan
     // this is the leak check from the issue's acceptance criteria.
     for (int i = 0; i < 50; ++i) {
-        ScriptRuntime rt;
-        rt.start();
-        rt.pushEval("cycle = 1 + 1");
-        EvalResult out;
-        REQUIRE(waitForResult(rt, out));
-        CHECK(out.status == EvalStatus::Ok);
-        rt.stop();
+      ScriptRuntime rt;
+      rt.start();
+      rt.pushEval("cycle = 1 + 1");
+      EvalResult out;
+      REQUIRE(waitForResult(rt, out));
+      CHECK(out.status == EvalStatus::Ok);
+      rt.stop();
     }
-}
+  }
 
-// NOTE: the real engine wiring (System::initOffline -> startScripting,
-// update -> wakeScripting, close -> stopScripting) is intentionally NOT
-// exercised here. Driving System init/close from a shared-process test trips a
-// pre-existing reverb teardown assertion on re-init (issue #132), unrelated to
-// Python. The wiring is a thin pass-through to ScriptRuntime, which these
-// cases cover directly; the engine-level boot is validated manually until #132
-// makes repeated init/close safe.
+  // NOTE: the real engine wiring (System::initOffline -> startScripting,
+  // update -> wakeScripting, close -> stopScripting) is intentionally NOT
+  // exercised here. Driving System init/close from a shared-process test trips a
+  // pre-existing reverb teardown assertion on re-init (issue #132), unrelated to
+  // Python. The wiring is a thin pass-through to ScriptRuntime, which these
+  // cases cover directly; the engine-level boot is validated manually until #132
+  // makes repeated init/close safe.
 
 } // TEST_SUITE("python")
 
-#endif  // YSE_ENABLE_PYTHON
+#endif // YSE_ENABLE_PYTHON

@@ -21,15 +21,15 @@ namespace YSE {
       // distinct stamp even when a new one is allocated at the address a freed
       // one used (engine restart). Paired with the thread_local slot cache in
       // producerQueue().
-      std::atomic<std::uint64_t> g_busGeneration { 0 };
+      std::atomic<std::uint64_t> g_busGeneration{0};
 
       // Per-thread slot into the current bus's queue pool. `generation` marks
       // which bus instance `index` was claimed against; a mismatch means this
       // thread has not yet claimed a slot on the live bus.
       struct ProducerSlot {
         std::uint64_t generation = 0;
-        std::size_t   index = 0;
-        bool          valid = false;
+        std::size_t index = 0;
+        bool valid = false;
       };
       thread_local ProducerSlot t_slot;
 
@@ -39,12 +39,12 @@ namespace YSE {
       // does not reserve an unreasonable amount of queue memory.
       std::size_t provisionedQueueCount() {
         unsigned int hw = std::thread::hardware_concurrency();
-        if (hw == 0) hw = 4;  // hardware_concurrency() may report 0
+        if (hw == 0) hw = 4; // hardware_concurrency() may report 0
         std::size_t count = static_cast<std::size_t>(hw) + 4;
         constexpr std::size_t kMaxQueues = 128;
         return count < kMaxQueues ? count : kMaxQueues;
       }
-    }  // namespace
+    } // namespace
 
     NamedBus::NamedBus()
       : generation_(g_busGeneration.fetch_add(1, std::memory_order_relaxed) + 1) {
@@ -67,7 +67,7 @@ namespace YSE {
         t_slot.index = slot;
         t_slot.valid = slot < audioQueues_.size();
       }
-      if (!t_slot.valid) return nullptr;  // more producers than provisioned
+      if (!t_slot.valid) return nullptr; // more producers than provisioned
       return audioQueues_[t_slot.index].get();
     }
 
@@ -115,7 +115,7 @@ namespace YSE {
     SubHandle NamedBus::subscribe(const std::string& name, Subscriber callback) {
       const SubHandle handle = nextHandle_.fetch_add(1, std::memory_order_relaxed);
       std::unique_lock lock(subsMutex_);
-      subs_[name].push_back(Subscription{ handle, std::move(callback) });
+      subs_[name].push_back(Subscription{handle, std::move(callback)});
       handleIndex_.emplace(handle, name);
       return handle;
     }
@@ -127,10 +127,9 @@ namespace YSE {
       auto subsIt = subs_.find(idxIt->second);
       if (subsIt != subs_.end()) {
         auto& list = subsIt->second;
-        list.erase(
-          std::remove_if(list.begin(), list.end(),
-            [handle](const Subscription& s) { return s.handle == handle; }),
-          list.end());
+        list.erase(std::remove_if(list.begin(), list.end(),
+                                  [handle](const Subscription& s) { return s.handle == handle; }),
+                   list.end());
         if (list.empty()) {
           subs_.erase(subsIt);
         }
@@ -147,8 +146,12 @@ namespace YSE {
         while (queue->try_pop(msg)) {
           BusValue value;
           switch (msg.kind) {
-            case PooledMessage::Kind::Int:   value = msg.value.i; break;
-            case PooledMessage::Kind::Float: value = msg.value.f; break;
+          case PooledMessage::Kind::Int:
+            value = msg.value.i;
+            break;
+          case PooledMessage::Kind::Float:
+            value = msg.value.f;
+            break;
           }
           dispatch(std::string(msg.nameStorage), value);
         }

@@ -11,13 +11,13 @@ namespace {
 
 namespace yse_c {
 
-void set_last_error(const char* msg) {
-  g_last_error = msg ? msg : "";
-}
+  void set_last_error(const char* msg) {
+    g_last_error = msg ? msg : "";
+  }
 
-void set_last_error(const std::string& msg) {
-  g_last_error = msg;
-}
+  void set_last_error(const std::string& msg) {
+    g_last_error = msg;
+  }
 
 } // namespace yse_c
 

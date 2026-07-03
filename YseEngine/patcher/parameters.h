@@ -17,10 +17,8 @@ namespace YSE {
     };
 
     struct parameter {
-      parameter(PARM_TYPE type, void * value) 
-        : value(value), type(type)
-      {}
-      void * value;
+      parameter(PARM_TYPE type, void* value) : value(value), type(type) {}
+      void* value;
       PARM_TYPE type;
     };
 
@@ -39,28 +37,31 @@ namespace YSE {
     class Parameters {
     public:
       Parameters() : onClear(nullptr), onParse(nullptr) {}
-      void Register(int & value);
-      void Register(std::atomic<int> & value);
-      void Register(float & value);
-      void Register(std::atomic<float> & value);
-      void Register(std::string & value);
-      void Register(std::vector<std::string> & list);
+      void Register(int& value);
+      void Register(std::atomic<int>& value);
+      void Register(float& value);
+      void Register(std::atomic<float>& value);
+      void Register(std::string& value);
+      void Register(std::vector<std::string>& list);
 
-      void Set(const std::string & args);
+      void Set(const std::string& args);
 
       void RegisterClear(parmFunc f);
       void RegisterParse(parmFunc f);
 
-      const std::string & Get();
+      const std::string& Get();
 
       // Documentation surface. SetDoc() appends a ParamDoc entry; call once
       // per ADD_PARAM in the same order. RT-cold: only called at construction.
-      void SetDoc(const std::string & name,
-                  const std::string & defaultValue,
-                  const std::string & doc,
-                  const std::string & range);
-      const std::vector<ParamDoc> & GetDocs() const { return docs; }
-      std::size_t Count() const { return parms.size(); }
+      void SetDoc(const std::string& name, const std::string& defaultValue, const std::string& doc,
+                  const std::string& range);
+      const std::vector<ParamDoc>& GetDocs() const {
+        return docs;
+      }
+      std::size_t Count() const {
+        return parms.size();
+      }
+
     private:
       std::vector<parameter> parms;
       std::string current;
@@ -69,5 +70,5 @@ namespace YSE {
       std::vector<ParamDoc> docs;
     };
 
-  }
-}
+  } // namespace PATCHER
+} // namespace YSE

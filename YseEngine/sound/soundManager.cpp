@@ -13,16 +13,13 @@
 #include "../internal/virtualFinder.h"
 #include "../channel/channelManager.h"
 
-YSE::SOUND::managerObject & YSE::SOUND::Manager() {
+YSE::SOUND::managerObject& YSE::SOUND::Manager() {
   static managerObject m;
   return m;
 }
 
-
-YSE::SOUND::managerObject::managerObject()
-  : mgrSetup(this),
-    mgrDelete(this) {
-  //formatManager.registerBasicFormats();
+YSE::SOUND::managerObject::managerObject() : mgrSetup(this), mgrDelete(this) {
+  // formatManager.registerBasicFormats();
   mgrFileGC.owner = this;
 }
 
@@ -35,8 +32,10 @@ YSE::SOUND::managerObject::~managerObject() noexcept {
 
     // drain any pointers still queued by the main thread; they reference impls
     // owned by `implementations` and will be freed when that list is cleared.
-    implementationObject * drained;
-    while (toLoadInbox.try_pop(drained)) { (void)drained; }
+    implementationObject* drained;
+    while (toLoadInbox.try_pop(drained)) {
+      (void)drained;
+    }
 
     // remove all objects that are still in memory
     toLoad.clear();
@@ -53,78 +52,73 @@ YSE::SOUND::managerObject::~managerObject() noexcept {
   }
 }
 
-
-YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addFile(const std::string & fileName) {
+YSE::INTERNAL::soundFile* YSE::SOUND::managerObject::addFile(const std::string& fileName) {
   // Serialise with the slow-pool GC job that erases from soundFiles (issue #186).
   std::scoped_lock lk(soundFilesMutex);
   // find out if this file already exists
   for (auto i = soundFiles.begin(); i != soundFiles.end(); ++i) {
-    if ( i->contains(fileName)) {
+    if (i->contains(fileName)) {
       return &(*i);
     }
   }
 
   // if we got here, the file does not exist yet
   soundFiles.emplace_front(fileName);
-  INTERNAL::soundFile & sf = soundFiles.front();
+  INTERNAL::soundFile& sf = soundFiles.front();
   if (sf.create()) {
     return &sf;
-  }
-  else {
+  } else {
     return nullptr;
   }
 }
 
-
-YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addFile(YSE::DSP::buffer * buffer) {
+YSE::INTERNAL::soundFile* YSE::SOUND::managerObject::addFile(YSE::DSP::buffer* buffer) {
   // Serialise with the slow-pool GC job that erases from soundFiles (issue #186).
   std::scoped_lock lk(soundFilesMutex);
   // find out if this file already exists
   for (auto i = soundFiles.begin(); i != soundFiles.end(); ++i) {
-    if ( i->contains(buffer)) {
+    if (i->contains(buffer)) {
       return &(*i);
     }
   }
 
   // if we got here, the file does not exist yet
   soundFiles.emplace_front(buffer);
-  INTERNAL::soundFile & sf = soundFiles.front();
+  INTERNAL::soundFile& sf = soundFiles.front();
   if (sf.create()) {
     return &sf;
-  }
-  else {
+  } else {
     return nullptr;
   }
 }
 
-YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addFile(MULTICHANNELBUFFER * buffer) {
+YSE::INTERNAL::soundFile* YSE::SOUND::managerObject::addFile(MULTICHANNELBUFFER* buffer) {
   // Serialise with the slow-pool GC job that erases from soundFiles (issue #186).
   std::scoped_lock lk(soundFilesMutex);
   // find out if this file already exists
   for (auto i = soundFiles.begin(); i != soundFiles.end(); ++i) {
-    if ( i->contains(buffer)) {
+    if (i->contains(buffer)) {
       return &(*i);
     }
   }
 
   // if we got here, the file does not exist yet
   soundFiles.emplace_front(buffer);
-  INTERNAL::soundFile & sf = soundFiles.front();
+  INTERNAL::soundFile& sf = soundFiles.front();
   if (sf.create()) {
     return &sf;
-  }
-  else {
+  } else {
     return nullptr;
   }
 }
 
-YSE::SOUND::implementationObject * YSE::SOUND::managerObject::addImplementation(YSE::sound * head) {
+YSE::SOUND::implementationObject* YSE::SOUND::managerObject::addImplementation(YSE::sound* head) {
   std::scoped_lock lk(implementationsMutex);
   implementations.emplace_front(head);
   return &implementations.front();
 }
 
-void YSE::SOUND::managerObject::setup(YSE::SOUND::implementationObject * impl) {
+void YSE::SOUND::managerObject::setup(YSE::SOUND::implementationObject* impl) {
   impl->setStatus(OBJECT_CREATED);
   // Hand off to the audio thread via the lock-free inbox; the audio thread
   // will drain it into `toLoad` at the top of update().
@@ -132,8 +126,9 @@ void YSE::SOUND::managerObject::setup(YSE::SOUND::implementationObject * impl) {
 }
 
 void YSE::SOUND::managerObject::drainInbox() {
-  implementationObject * p;
-  while (toLoadInbox.try_pop(p)) toLoad.emplace_front(p);
+  implementationObject* p;
+  while (toLoadInbox.try_pop(p))
+    toLoad.emplace_front(p);
 }
 
 void YSE::SOUND::managerObject::scrubToLoadAndScheduleSetup() {
@@ -144,11 +139,16 @@ void YSE::SOUND::managerObject::scrubToLoadAndScheduleSetup() {
   // so the slow-pool can't free a pointer that's still in the
   // audio-thread-iterated list. See enums.hpp for the PENDING rationale.
   auto previous = toLoad.before_begin();
-  for (auto it = toLoad.begin(); it != toLoad.end(); ) {
-    implementationObject * p = *it;
-    OBJECT_IMPLEMENTATION_STATE s = p->objectStatus.load(std::memory_order_acquire); // NOSONAR S8417: intentional acquire — read impl state published by setup-failure path
+  for (auto it = toLoad.begin(); it != toLoad.end();) {
+    implementationObject* p = *it;
+    OBJECT_IMPLEMENTATION_STATE s = p->objectStatus.load(
+        std::memory_order_acquire); // NOSONAR S8417: intentional acquire — read impl state
+                                    // published by setup-failure path
     if (s == OBJECT_DELETE_PENDING) {
-      p->objectStatus.store(OBJECT_DELETE, std::memory_order_release); // NOSONAR S8417: intentional release — publish DELETE state to slow-pool deleteJob's acquire load
+      p->objectStatus.store(
+          OBJECT_DELETE,
+          std::memory_order_release); // NOSONAR S8417: intentional release — publish DELETE state
+                                      // to slow-pool deleteJob's acquire load
       runDelete = true;
       it = toLoad.erase_after(previous);
     } else if (s == OBJECT_READY || s == OBJECT_RELEASE || s == OBJECT_DELETE) {
@@ -170,8 +170,8 @@ void YSE::SOUND::managerObject::promoteReadyImpls() {
   // the slow-pool frees the impl, and the next remove_if call dereferences
   // the freed pointer (ASan-confirmed).
   auto previous = toLoad.before_begin();
-  for (auto i = toLoad.begin(); i != toLoad.end(); ) {
-    implementationObject * ptr = *i;
+  for (auto i = toLoad.begin(); i != toLoad.end();) {
+    implementationObject* ptr = *i;
     if (ptr->readyCheck()) {
       inUse.emplace_front(ptr);
       ptr->doThisWhenReady();
@@ -188,22 +188,29 @@ void YSE::SOUND::managerObject::syncAndReleaseInUse() {
   for (auto i = inUse.begin(); i != inUse.end();) {
     (*i)->sync();
     if ((*i)->getStatus() == OBJECT_RELEASE) {
-      implementationObject * ptr = (*i);
+      implementationObject* ptr = (*i);
       i = inUse.erase_after(previous);
       // Audio-thread-side disconnect: remove this impl from parent->sounds
       // BEFORE marking it OBJECT_DELETE. The slow-pool's deleteJob filters
       // on OBJECT_DELETE, so any impl visible to it has already been pulled
       // from the audio-thread-iterated `sounds` list — no race on
       // sounds.remove() in the destructor.
-      if (ptr->parent != nullptr && ptr->connectedToParent.load(std::memory_order_acquire)) { // NOSONAR S8417: intentional acquire — pairs with release in doThisWhenReady()
+      if (ptr->parent != nullptr &&
+          ptr->connectedToParent.load(
+              std::memory_order_acquire)) { // NOSONAR S8417: intentional acquire — pairs with
+                                            // release in doThisWhenReady()
         ptr->parent->disconnect(ptr);
-        ptr->connectedToParent.store(false, std::memory_order_release); // NOSONAR S8417: intentional release — publishes audio-thread disconnect before slow-pool delete
+        ptr->connectedToParent.store(
+            false, std::memory_order_release); // NOSONAR S8417: intentional release — publishes
+                                               // audio-thread disconnect before slow-pool delete
       }
       // Defensive: null the user-supplied DSP source pointer before the
       // impl becomes eligible for destruction. If the user destroyed their
       // dspSourceObject slightly before this point, the audio thread's
       // dsp() will now load nullptr instead of a dangling pointer.
-      ptr->source_dsp.store(nullptr, std::memory_order_release); // NOSONAR S8417: intentional release — publishes nulled dsp source to audio thread's acquire load
+      ptr->source_dsp.store(
+          nullptr, std::memory_order_release); // NOSONAR S8417: intentional release — publishes
+                                               // nulled dsp source to audio thread's acquire load
       ptr->setStatus(OBJECT_DELETE);
       runDelete = true;
       continue;
@@ -243,7 +250,6 @@ void YSE::SOUND::managerObject::update() {
   syncAndReleaseInUse();
 
   VirtualSoundFinder().calculate();
-
 }
 
 void YSE::SOUND::managerObject::garbageCollectFiles() {
@@ -253,13 +259,14 @@ void YSE::SOUND::managerObject::garbageCollectFiles() {
   // callback (it accumulated Time().delta() there). ~soundFile — with its
   // sf_close and delete[] — now runs here on the erase, off the callback.
   std::clock_t now = std::clock();
-  Flt dt = (lastGCClock == 0) ? 0.f
-                              : static_cast<Flt>(now - lastGCClock) / static_cast<Flt>(CLOCKS_PER_SEC);
+  Flt dt = (lastGCClock == 0)
+               ? 0.f
+               : static_cast<Flt>(now - lastGCClock) / static_cast<Flt>(CLOCKS_PER_SEC);
   lastGCClock = now;
 
   std::scoped_lock lk(soundFilesMutex);
   auto iMinus = soundFiles.before_begin();
-  for (auto i = soundFiles.begin(); i != soundFiles.end(); ) {
+  for (auto i = soundFiles.begin(); i != soundFiles.end();) {
     if (i->isQueued() || i->inUse(dt)) {
       iMinus = i;
       ++i;
@@ -281,11 +288,10 @@ AudioFormatReader * YSE::SOUND::managerObject::getReader(juce::InputStream * sou
   return formatManager.createReaderFor(source);
 }*/
 
-
-
 void YSE::SOUND::managerObject::adjustLastGainBuffer() {
   for (auto i = inUse.begin(); i != inUse.end(); ++i) {
-    UInt j = static_cast<UInt>((*i)->lastGain.size()); // need to store previous size for deep resize
+    UInt j =
+        static_cast<UInt>((*i)->lastGain.size()); // need to store previous size for deep resize
     (*i)->lastGain.resize(CHANNEL::Manager().getNumberOfOutputs());
     for (; j < (*i)->lastGain.size(); j++) {
       (*i)->lastGain[j].resize((*i)->buffer->size(), 0.0f);

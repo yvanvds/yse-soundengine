@@ -11,7 +11,6 @@
 #ifndef BASICDELAY_HPP_INCLUDED
 #define BASICDELAY_HPP_INCLUDED
 
-
 #include "../../../headers/defines.hpp"
 #include "../../dspObject.hpp"
 #include "../../delay.hpp"
@@ -32,7 +31,6 @@ namespace YSE {
        */
       class API basicDelay : public dspObject {
       public:
-
         /** @brief Which of the three delay taps to address. */
         enum DELAY_NR {
           FIRST,
@@ -48,7 +46,7 @@ namespace YSE {
          *  @param time Delay time in milliseconds.
          *  @param gain Gain for this tap.
          */
-        basicDelay & set(DELAY_NR nr, Flt time, Flt gain);
+        basicDelay& set(DELAY_NR nr, Flt time, Flt gain);
 
         /** @brief Current delay time of tap ``nr``. */
         Flt time(DELAY_NR nr);
@@ -60,14 +58,16 @@ namespace YSE {
         virtual void create();
 
         /** @brief dspObject audio-thread entry point. */
-        virtual void process(MULTICHANNELBUFFER & buffer);
+        virtual void process(MULTICHANNELBUFFER& buffer);
 
       protected:
-        /** @brief Hook for subclasses to construct a pre-filter (used by ``lowPassDelay`` / ``highPassDelay``). */
+        /** @brief Hook for subclasses to construct a pre-filter (used by ``lowPassDelay`` /
+         * ``highPassDelay``). */
         virtual void createPreFilter();
 
-        /** @brief Hook for subclasses to apply their pre-filter to ``buffer`` before reading from the delay line. */
-        virtual void applyPreFilter(DSP::buffer & buffer);
+        /** @brief Hook for subclasses to apply their pre-filter to ``buffer`` before reading from
+         * the delay line. */
+        virtual void applyPreFilter(DSP::buffer& buffer);
 
         aFlt time0, time1, time2;
         aFlt gain0, gain1, gain2;
@@ -77,12 +77,8 @@ namespace YSE {
         std::shared_ptr<DSP::buffer> reader;
       };
 
+    } // namespace MODULES
+  } // namespace DSP
+} // namespace YSE
 
-    }
-  }
-}
-
-
-
-
-#endif  // BASICDELAY_HPP_INCLUDED
+#endif // BASICDELAY_HPP_INCLUDED

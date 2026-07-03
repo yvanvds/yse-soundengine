@@ -10,13 +10,12 @@
 
 #include "../internalHeaders.h"
 
-
-YSE::REVERB::managerObject & YSE::REVERB::Manager() {
+YSE::REVERB::managerObject& YSE::REVERB::Manager() {
   static managerObject m;
   return m;
 }
 
-YSE::REVERB::managerObject::managerObject() 
+YSE::REVERB::managerObject::managerObject()
   : globalReverb(true), calculatedValues(true), mgrDelete(this) {
   reverbDSPObject.channels(CHANNEL::Manager().getNumberOfOutputs());
 }
@@ -27,8 +26,10 @@ YSE::REVERB::managerObject::~managerObject() noexcept {
 
     // drain any pointers still queued by the main thread; they reference impls
     // owned by `implementations` and will be freed when that list is cleared.
-    implementationObject * drained;
-    while (toLoadInbox.try_pop(drained)) { (void)drained; }
+    implementationObject* drained;
+    while (toLoadInbox.try_pop(drained)) {
+      (void)drained;
+    }
 
     // remove all objects that are still in memory
     toLoad.clear();
@@ -51,8 +52,10 @@ void YSE::REVERB::managerObject::destroy() {
 
   // Drain the main->audio inbox; the pointers it holds reference impls owned
   // by `implementations` and would dangle once that list is cleared below.
-  implementationObject * drained;
-  while (toLoadInbox.try_pop(drained)) { (void)drained; }
+  implementationObject* drained;
+  while (toLoadInbox.try_pop(drained)) {
+    (void)drained;
+  }
   toLoad.clear();
   inUse.clear();
   {
@@ -69,7 +72,8 @@ void YSE::REVERB::managerObject::destroy() {
   calculatedValues.pimpl = nullptr;
 }
 
-YSE::REVERB::implementationObject * YSE::REVERB::managerObject::addImplementation(YSE::reverb * head) {
+YSE::REVERB::implementationObject*
+YSE::REVERB::managerObject::addImplementation(YSE::reverb* head) {
   std::scoped_lock lk(implementationsMutex);
   implementations.emplace_front(head);
   return &implementations.front();
@@ -86,7 +90,7 @@ void YSE::REVERB::managerObject::setOutputChannels(Int value) {
   reverbDSPObject.channels(value);
 }
 
-YSE::reverb & YSE::REVERB::managerObject::getGlobalReverb() {
+YSE::reverb& YSE::REVERB::managerObject::getGlobalReverb() {
   return globalReverb;
 }
 
@@ -99,8 +103,9 @@ void YSE::REVERB::managerObject::update() {
   // drain the main→audio inbox of newly-set-up impls
   ///////////////////////////////////////////
   {
-    implementationObject * p;
-    while (toLoadInbox.try_pop(p)) toLoad.emplace_front(p);
+    implementationObject* p;
+    while (toLoadInbox.try_pop(p))
+      toLoad.emplace_front(p);
   }
 
   toLoad.remove_if(implementationObject::canBeRemovedFromLoading);
@@ -118,8 +123,8 @@ void YSE::REVERB::managerObject::update() {
   ///////////////////////////////////////////
   {
     auto previous = toLoad.before_begin();
-    for (auto i = toLoad.begin(); i != toLoad.end(); ) {
-      implementationObject * ptr = *i;
+    for (auto i = toLoad.begin(); i != toLoad.end();) {
+      implementationObject* ptr = *i;
       if (ptr->readyCheck()) {
         inUse.emplace_front(ptr);
         i = toLoad.erase_after(previous);
@@ -138,7 +143,7 @@ void YSE::REVERB::managerObject::update() {
     for (auto i = inUse.begin(); i != inUse.end();) {
       (*i)->sync();
       if ((*i)->getStatus() == OBJECT_RELEASE) {
-        implementationObject * ptr = (*i);
+        implementationObject* ptr = (*i);
         i = inUse.erase_after(previous);
         ptr->setStatus(OBJECT_DELETE);
         runDelete = true;
@@ -152,7 +157,8 @@ void YSE::REVERB::managerObject::update() {
   Int reverbsActive = 0;
   calculatedValues.setPreset(REVERB_OFF);
   calculatedValues.setActive(false);
-  calculatedValues.setDryWetBalance(0.f, 0.f); // this is ok here, because this reverb is only used for calculating the real one
+  calculatedValues.setDryWetBalance(
+      0.f, 0.f); // this is ok here, because this reverb is only used for calculating the real one
 
   ///////////////////////////////////////
   // find local reverbs within distance
@@ -190,8 +196,7 @@ void YSE::REVERB::managerObject::update() {
       calculatedValues.earlyPtr[j] /= reverbsActive;
       calculatedValues.earlyGain[j] /= reverbsActive;
     }
-  }
-  else if (reverbsActive == 0) {
+  } else if (reverbsActive == 0) {
     // no reverbs are within distance. Check for rolloff's
     Flt partial = 0;
     for (auto i = inUse.begin(); i != inUse.end(); ++i) {
@@ -207,7 +212,8 @@ void YSE::REVERB::managerObject::update() {
         calculatedValues.modFrequency += (*i)->modFrequency * adjust;
         calculatedValues.modWidth += (*i)->modWidth * adjust;
         for (Int j = 0; j < 4; j++) {
-          calculatedValues.earlyPtr[j] = static_cast<Int>(calculatedValues.earlyPtr[j] + (*i)->earlyPtr[j] * adjust);
+          calculatedValues.earlyPtr[j] =
+              static_cast<Int>(calculatedValues.earlyPtr[j] + (*i)->earlyPtr[j] * adjust);
           calculatedValues.earlyGain[j] += (*i)->earlyGain[j] * adjust;
         }
         partial += adjust;
@@ -246,7 +252,8 @@ void YSE::REVERB::managerObject::update() {
         calculatedValues.modWidth += globalReverb.modWidth * (1 - partial);
         for (Int j = 0; j < 4; j++) {
           calculatedValues.earlyGain[j] += globalReverb.earlyGain[j] * (1 - partial);
-          calculatedValues.earlyPtr[j] = static_cast<Int>(calculatedValues.earlyPtr[j] + globalReverb.earlyGain[j] * (1 - partial));
+          calculatedValues.earlyPtr[j] = static_cast<Int>(
+              calculatedValues.earlyPtr[j] + globalReverb.earlyGain[j] * (1 - partial));
         }
       }
     }
@@ -255,19 +262,16 @@ void YSE::REVERB::managerObject::update() {
   // end of calculations, disable reverb if no wet signal
   if (calculatedValues.wet < 0.001) {
     calculatedValues.active = false;
-  }
-  else {
+  } else {
     calculatedValues.active = true;
   }
 }
 
-
-
-void YSE::REVERB::managerObject::attachToChannel(YSE::CHANNEL::implementationObject * ptr) {
+void YSE::REVERB::managerObject::attachToChannel(YSE::CHANNEL::implementationObject* ptr) {
   reverbChannel = ptr;
 }
 
-void YSE::REVERB::managerObject::process(YSE::CHANNEL::implementationObject * ptr) {
+void YSE::REVERB::managerObject::process(YSE::CHANNEL::implementationObject* ptr) {
   if (ptr != reverbChannel) return;
   if (!calculatedValues.active) return;
   reverbDSPObject.set(calculatedValues);

@@ -13,7 +13,7 @@
 #include <vector>
 #include "../utils/misc.hpp"
 
-#define UNITBIT32 1572864.f  /* 3*2^19; bit 32 has place value 1 */
+#define UNITBIT32 1572864.f /* 3*2^19; bit 32 has place value 1 */
 #define HIOFFSET 1
 #define LOWOFFSET 0
 
@@ -36,16 +36,15 @@ namespace YSE {
     class cosTable {
     public:
       cosTable();
-      Flt * operator()();
+      Flt* operator()();
+
     private:
       std::vector<Flt> table;
     };
 
+    saw::saw() : phase(0), conv(0), frequency(440) {}
 
-
-    saw::saw() : phase(0), conv(0), frequency(440)  {}
-
-    YSE::DSP::buffer & saw::operator()(YSE::DSP::buffer & in) {
+    YSE::DSP::buffer& saw::operator()(YSE::DSP::buffer& in) {
       if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
 
       inPtr = in.getPtr();
@@ -54,7 +53,7 @@ namespace YSE {
       return buffer;
     }
 
-    YSE::DSP::buffer & saw::operator()(Flt frequency, UInt length) {
+    YSE::DSP::buffer& saw::operator()(Flt frequency, UInt length) {
       if (length != buffer.getLength()) buffer.resize(length);
 
       this->frequency = frequency;
@@ -63,9 +62,8 @@ namespace YSE {
       return buffer;
     }
 
-
     void saw::calc(Bool useFrequency) {
-      Flt * outPtr = buffer.getPtr();
+      Flt* outPtr = buffer.getPtr();
       UInt length = buffer.getLength();
 
       conv = 1.f / SAMPLERATE;
@@ -74,42 +72,46 @@ namespace YSE {
       Int normhipart;
 
       tf.d = UNITBIT32;
-      normhipart = tf.i[HIOFFSET]; // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see union tablePhase declaration above
+      normhipart = tf.i[HIOFFSET]; // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see
+                                   // union tablePhase declaration above
       tf.d = dphase;
 
       while (length--) {
-        tf.i[HIOFFSET] = normhipart; // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see union tablePhase declaration above
-        if (useFrequency) dphase += frequency * conv;
-        else	dphase += *inPtr++ * conv;
+        tf.i[HIOFFSET] = normhipart; // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see
+                                     // union tablePhase declaration above
+        if (useFrequency)
+          dphase += frequency * conv;
+        else
+          dphase += *inPtr++ * conv;
         *outPtr++ = static_cast<Flt>(tf.d) - UNITBIT32;
         tf.d = dphase;
       }
 
-      tf.i[HIOFFSET] = normhipart; // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see union tablePhase declaration above
+      tf.i[HIOFFSET] = normhipart; // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see
+                                   // union tablePhase declaration above
       phase = tf.d - UNITBIT32;
-
     }
 
     /**********************************************************************************/
 
 #define LOGCOSTABSIZE 9
-#define COSTABSIZE (1<<LOGCOSTABSIZE)
+#define COSTABSIZE (1 << LOGCOSTABSIZE)
 
     cosTable::cosTable() : table(COSTABSIZE + 1) {
-      Flt *fp;
+      Flt* fp;
       Flt phase = 0;
       Flt phsinc = (2.f * YSE::Pi) / COSTABSIZE;
 
       fp = table.data();
-      for (Int i = COSTABSIZE + 1; i--; fp++, phase += phsinc) *fp = ::cos(phase);
-
+      for (Int i = COSTABSIZE + 1; i--; fp++, phase += phsinc)
+        *fp = ::cos(phase);
     }
 
-    Flt * cosTable::operator()() {
+    Flt* cosTable::operator()() {
       return table.data();
     }
 
-    Flt * CosTable() {
+    Flt* CosTable() {
       static cosTable table;
       return table();
     }
@@ -118,28 +120,32 @@ namespace YSE {
 
     cosine::cosine() {}
 
-    YSE::DSP::buffer & cosine::operator()(YSE::DSP::buffer & in) {
+    YSE::DSP::buffer& cosine::operator()(YSE::DSP::buffer& in) {
       if (in.getLength() != buffer.getLength()) {
         buffer.resize(in.getLength());
       }
 
-      Flt * inPtr = in.getPtr();
-      Flt * outPtr = buffer.getPtr();
-      UInt  length = in.getLength();
+      Flt* inPtr = in.getPtr();
+      Flt* outPtr = buffer.getPtr();
+      UInt length = in.getLength();
 
-      Flt * tab = CosTable();
-      Flt * addr, f1, f2, frac;
-      Dbl   dphase;
-      int   normhipart;
+      Flt* tab = CosTable();
+      Flt *addr, f1, f2, frac;
+      Dbl dphase;
+      int normhipart;
       tablePhase tf;
 
       tf.d = UNITBIT32;
-      normhipart = tf.i[HIOFFSET]; // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see union tablePhase declaration above
+      normhipart = tf.i[HIOFFSET]; // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see
+                                   // union tablePhase declaration above
 
       dphase = (Dbl)(*inPtr++ * static_cast<Flt>(COSTABSIZE)) + UNITBIT32;
       tf.d = dphase;
-      addr = tab + (tf.i[HIOFFSET] & (COSTABSIZE - 1)); // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see union tablePhase declaration above
-      tf.i[HIOFFSET] = normhipart; // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see union tablePhase declaration above
+      addr = tab +
+             (tf.i[HIOFFSET] & (COSTABSIZE - 1)); // NOSONAR S6232: intentional UNITBIT32 fast-phase
+                                                  // pun — see union tablePhase declaration above
+      tf.i[HIOFFSET] = normhipart; // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see
+                                   // union tablePhase declaration above
 
       while (--length) {
         dphase = (Dbl)(*inPtr++ * static_cast<Flt>(COSTABSIZE)) + UNITBIT32;
@@ -147,9 +153,12 @@ namespace YSE {
         tf.d = dphase;
         f1 = addr[0];
         f2 = addr[1];
-        addr = tab + (tf.i[HIOFFSET] & (COSTABSIZE - 1)); // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see union tablePhase declaration above
+        addr = tab + (tf.i[HIOFFSET] &
+                      (COSTABSIZE - 1)); // NOSONAR S6232: intentional UNITBIT32 fast-phase pun —
+                                         // see union tablePhase declaration above
         *outPtr++ = f1 + frac * (f2 - f1);
-        tf.i[HIOFFSET] = normhipart; // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see union tablePhase declaration above
+        tf.i[HIOFFSET] = normhipart; // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see
+                                     // union tablePhase declaration above
       }
 
       frac = static_cast<Flt>(tf.d) - UNITBIT32;
@@ -169,7 +178,7 @@ namespace YSE {
       conv = 0;
     }
 
-    YSE::DSP::buffer & sine::operator()(YSE::DSP::buffer & in) {
+    YSE::DSP::buffer& sine::operator()(YSE::DSP::buffer& in) {
       if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
 
       inPtr = in.getPtr();
@@ -178,7 +187,7 @@ namespace YSE {
       return buffer;
     }
 
-    YSE::DSP::buffer & sine::operator()(Flt frequency, UInt length) {
+    YSE::DSP::buffer& sine::operator()(Flt frequency, UInt length) {
       if (length != buffer.getLength()) buffer.resize(length);
 
       this->frequency = frequency;
@@ -187,9 +196,8 @@ namespace YSE {
       return buffer;
     }
 
-
     void sine::calc(Bool useFrequency) {
-      Flt * outPtr = buffer.getPtr();
+      Flt* outPtr = buffer.getPtr();
       UInt length = buffer.getLength();
 
       Flt *tab = CosTable(), *addr, f1, f2, frac;
@@ -200,15 +208,20 @@ namespace YSE {
       conv = COSTABSIZE / static_cast<Flt>(SAMPLERATE);
 
       tf.d = UNITBIT32;
-      normhipart = tf.i[HIOFFSET]; // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see union tablePhase declaration above
+      normhipart = tf.i[HIOFFSET]; // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see
+                                   // union tablePhase declaration above
 
       tf.d = dphase;
-      if (useFrequency) dphase += frequency * conv;
-      else	{
+      if (useFrequency)
+        dphase += frequency * conv;
+      else {
         dphase += *inPtr++ * conv;
       }
-      addr = tab + (tf.i[HIOFFSET] & (COSTABSIZE - 1)); // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see union tablePhase declaration above
-      tf.i[HIOFFSET] = normhipart; // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see union tablePhase declaration above
+      addr = tab +
+             (tf.i[HIOFFSET] & (COSTABSIZE - 1)); // NOSONAR S6232: intentional UNITBIT32 fast-phase
+                                                  // pun — see union tablePhase declaration above
+      tf.i[HIOFFSET] = normhipart; // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see
+                                   // union tablePhase declaration above
       frac = static_cast<Flt>(tf.d) - UNITBIT32;
 
       while (--length) {
@@ -216,10 +229,15 @@ namespace YSE {
         f1 = addr[0];
         f2 = addr[1];
 
-        if (useFrequency) dphase += frequency * conv;
-        else	dphase += *inPtr++ * conv;
-        addr = tab + (tf.i[HIOFFSET] & (COSTABSIZE - 1)); // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see union tablePhase declaration above
-        tf.i[HIOFFSET] = normhipart; // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see union tablePhase declaration above
+        if (useFrequency)
+          dphase += frequency * conv;
+        else
+          dphase += *inPtr++ * conv;
+        addr = tab + (tf.i[HIOFFSET] &
+                      (COSTABSIZE - 1)); // NOSONAR S6232: intentional UNITBIT32 fast-phase pun —
+                                         // see union tablePhase declaration above
+        tf.i[HIOFFSET] = normhipart; // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see
+                                     // union tablePhase declaration above
         *outPtr++ = f1 + frac * (f2 - f1);
         frac = static_cast<Flt>(tf.d) - UNITBIT32;
       }
@@ -228,9 +246,11 @@ namespace YSE {
       *outPtr++ = f1 + frac * (f2 - f1);
 
       tf.d = UNITBIT32 * COSTABSIZE;
-      normhipart = tf.i[HIOFFSET]; // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see union tablePhase declaration above
+      normhipart = tf.i[HIOFFSET]; // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see
+                                   // union tablePhase declaration above
       tf.d = dphase + (UNITBIT32 * COSTABSIZE - UNITBIT32);
-      tf.i[HIOFFSET] = normhipart; // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see union tablePhase declaration above
+      tf.i[HIOFFSET] = normhipart; // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see
+                                   // union tablePhase declaration above
       phase = tf.d - UNITBIT32 * COSTABSIZE;
     }
 
@@ -245,11 +265,11 @@ namespace YSE {
       conv = 0;
     }
 
-    void oscillator::initialize(wavetable & source) {
+    void oscillator::initialize(wavetable& source) {
       table = &source;
     }
 
-    YSE::DSP::buffer & oscillator::operator()(YSE::DSP::buffer & in) {
+    YSE::DSP::buffer& oscillator::operator()(YSE::DSP::buffer& in) {
       if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
 
       inPtr = in.getPtr();
@@ -258,7 +278,7 @@ namespace YSE {
       return buffer;
     }
 
-    YSE::DSP::buffer & oscillator::operator()(Flt frequency, UInt length) {
+    YSE::DSP::buffer& oscillator::operator()(Flt frequency, UInt length) {
       if (length != buffer.getLength()) buffer.resize(length);
 
       this->frequency = frequency;
@@ -268,38 +288,35 @@ namespace YSE {
     }
 
     void oscillator::calc(Bool useFrequency) {
-      Flt * outPtr = buffer.getPtr();
+      Flt* outPtr = buffer.getPtr();
       UInt bufferLength = buffer.getLength();
-      Flt * tablePtr = table->getPtr();
+      Flt* tablePtr = table->getPtr();
       UInt tableLength = table->getLength();
       Flt f1, f2;
 
       Flt increase = tableLength / static_cast<Flt>(SAMPLERATE);
 
-
-
-      while (bufferLength--) {        
+      while (bufferLength--) {
         f1 = tablePtr[static_cast<UInt>(phase)];
         f2 = tablePtr[static_cast<UInt>(phase) + 1];
         *outPtr++ = f1 + (phase - static_cast<Int>(phase)) * (f2 - f1);
 
         phase += (useFrequency ? frequency : *inPtr++) * increase;
 
-        while (phase >= tableLength) phase -= tableLength;
-        while (phase < 0) phase += tableLength;
-
+        while (phase >= tableLength)
+          phase -= tableLength;
+        while (phase < 0)
+          phase += tableLength;
       }
-
     }
 
     /**********************************************************************************/
 
     noise::noise() : value(307 * 1319) {}
 
-
-    YSE::DSP::buffer & noise::operator()(UInt length) {
+    YSE::DSP::buffer& noise::operator()(UInt length) {
       if (length != buffer.getLength()) buffer.resize(length);
-      Flt * outPtr = buffer.getPtr();
+      Flt* outPtr = buffer.getPtr();
 
       while (length--) {
         *outPtr++ = ((float)((value & 0x7fffffff) - 0x40000000)) * (float)(1.0 / 0x40000000);
@@ -311,7 +328,6 @@ namespace YSE {
 
     /*******************************************************************************************/
 
-
     vcf::vcf() {
       q = im = re = isr = 0;
     }
@@ -321,17 +337,21 @@ namespace YSE {
       return (*this);
     }
 
-    YSE::DSP::buffer & vcf::real() { return realBuffer; }
-    YSE::DSP::buffer & vcf::imag() { return imagBuffer; }
+    YSE::DSP::buffer& vcf::real() {
+      return realBuffer;
+    }
+    YSE::DSP::buffer& vcf::imag() {
+      return imagBuffer;
+    }
 
-    vcf & vcf::operator()(YSE::DSP::buffer & in, YSE::DSP::buffer & center) {
+    vcf& vcf::operator()(YSE::DSP::buffer& in, YSE::DSP::buffer& center) {
       if (in.getLength() != realBuffer.getLength()) realBuffer.resize(in.getLength());
       if (in.getLength() != imagBuffer.getLength()) imagBuffer.resize(in.getLength());
 
-      Flt * inPtr = in.getPtr();
-      Flt * centerPtr = center.getPtr();
-      Flt * out1Ptr = realBuffer.getPtr();
-      Flt * out2Ptr = imagBuffer.getPtr();
+      Flt* inPtr = in.getPtr();
+      Flt* centerPtr = center.getPtr();
+      Flt* out1Ptr = realBuffer.getPtr();
+      Flt* out2Ptr = imagBuffer.getPtr();
       UInt length = in.getLength();
 
       isr = Pi2 / static_cast<Flt>(SAMPLERATE);
@@ -346,9 +366,10 @@ namespace YSE {
       tablePhase tf;
 
       tf.d = UNITBIT32;
-      normhipart = tf.i[HIOFFSET]; // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see union tablePhase declaration above
+      normhipart = tf.i[HIOFFSET]; // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see
+                                   // union tablePhase declaration above
 #ifdef _MSC_VER
-#pragma warning ( disable : 4018 )
+#pragma warning(disable : 4018)
 #endif
       for (Int i = 0; i < static_cast<Int>(length); i++) {
         float cf, cfindx, r, oneminusr;
@@ -361,9 +382,12 @@ namespace YSE {
         oneminusr = 1.0f - r;
         dphase = ((Dbl)(cfindx)) + UNITBIT32;
         tf.d = dphase;
-        tabindex = tf.i[HIOFFSET] & (COSTABSIZE - 1); // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see union tablePhase declaration above
+        tabindex =
+            tf.i[HIOFFSET] & (COSTABSIZE - 1); // NOSONAR S6232: intentional UNITBIT32 fast-phase
+                                               // pun — see union tablePhase declaration above
         addr = tab + tabindex;
-        tf.i[HIOFFSET] = normhipart; // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see union tablePhase declaration above
+        tf.i[HIOFFSET] = normhipart; // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see
+                                     // union tablePhase declaration above
         frac = static_cast<Flt>(tf.d) - UNITBIT32;
         f1 = addr[0];
         f2 = addr[1];
@@ -383,5 +407,5 @@ namespace YSE {
       return *this;
     }
 
-  } // end DSP
-}   // end YSE
+  } // namespace DSP
+} // namespace YSE

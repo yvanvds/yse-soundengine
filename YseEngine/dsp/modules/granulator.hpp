@@ -51,13 +51,15 @@ namespace YSE {
         virtual void create();
 
         /** @brief dspObject audio-thread entry point. */
-        virtual void process(MULTICHANNELBUFFER & buffer);
+        virtual void process(MULTICHANNELBUFFER& buffer);
 
         /** @brief Set the spawn rate in grains per second. */
-        granulator & grainFrequency(UInt value);
+        granulator& grainFrequency(UInt value);
 
         /** @brief Current spawn rate. */
-        UInt grainFrequency() { return parmFrequency; }
+        UInt grainFrequency() {
+          return parmFrequency;
+        }
 
         /**
          *  @brief Set the grain length.
@@ -65,10 +67,12 @@ namespace YSE {
          *  @param samples Length in samples.
          *  @param random  Random variation around ``samples``, in samples.
          */
-        granulator & grainLength(UInt samples, UInt random = 0);
+        granulator& grainLength(UInt samples, UInt random = 0);
 
         /** @brief Current grain length. */
-        UInt grainLength() { return parmLength; }
+        UInt grainLength() {
+          return parmLength;
+        }
 
         /**
          *  @brief Set the grain pitch shift.
@@ -76,23 +80,27 @@ namespace YSE {
          *  @param pitch  Pitch multiplier (1.0 = unchanged, 2.0 = octave up).
          *  @param random Random pitch variation.
          */
-        granulator & grainTranspose(Flt pitch, Flt random = 0);
+        granulator& grainTranspose(Flt pitch, Flt random = 0);
 
         /** @brief Current grain pitch multiplier. */
-        Flt grainTranspose() { return parmTranspose; }
+        Flt grainTranspose() {
+          return parmTranspose;
+        }
 
         /** @brief Set the output gain. */
-        granulator & gain(Flt value);
+        granulator& gain(Flt value);
 
         /** @brief Current output gain. */
-        Flt gain() { return parmGain; }
+        Flt gain() {
+          return parmGain;
+        }
 
       private:
         UInt poolSize;
         UInt poolPosition;
         std::shared_ptr<DSP::buffer> pool;
         clip limiter;
-        
+
         aUInt parmFrequency;
         aUInt parmLength;
         aUInt parmLengthRandom;
@@ -102,14 +110,13 @@ namespace YSE {
 
         Flt leftOverStarts;
         UInt maxGrains;
-        std::shared_ptr<std::vector<grain> > grainPool;
+        std::shared_ptr<std::vector<grain>> grainPool;
 
         UInt readPos;
       };
 
-    }
-  }
-}
+    } // namespace MODULES
+  } // namespace DSP
+} // namespace YSE
 
-
-#endif  // GRANULATOR_HPP_INCLUDED
+#endif // GRANULATOR_HPP_INCLUDED

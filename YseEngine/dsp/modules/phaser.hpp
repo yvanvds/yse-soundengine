@@ -35,22 +35,22 @@ namespace YSE {
         virtual ~phaser() {};
 
         /** @brief Set the sweep LFO frequency. Typically very low; default 0.3 Hz. Must be > 0. */
-        phaser & frequency(Flt value);
+        phaser& frequency(Flt value);
 
         /** @brief Current LFO frequency. */
-        Flt      frequency();
+        Flt frequency();
 
         /** @brief Set the sweep range coefficient. Default 0.1; values above 0.5 are unstable. */
-        phaser & range(Flt value);
+        phaser& range(Flt value);
 
         /** @brief Current sweep range. */
-        Flt      range();
+        Flt range();
 
         /** @brief dspObject lifecycle hook — allocates buffers. */
         virtual void create();
 
         /** @brief dspObject audio-thread entry point. */
-        virtual void process(MULTICHANNELBUFFER & buffer);
+        virtual void process(MULTICHANNELBUFFER& buffer);
 
       private:
         aFlt parmFrequency;
@@ -69,10 +69,8 @@ namespace YSE {
         std::shared_ptr<buffer> result;
       };
 
-    }
-  }
-}
+    } // namespace MODULES
+  } // namespace DSP
+} // namespace YSE
 
-
-
-#endif  // PHASER_HPP_INCLUDED
+#endif // PHASER_HPP_INCLUDED

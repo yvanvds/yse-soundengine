@@ -48,13 +48,12 @@ namespace YSE {
 
       if (Py_IsInitialized() == 0) {
         PyConfig config;
-        PyConfig_InitIsolatedConfig(&config);   // isolated: no env, no user site
-        config.install_signal_handlers = 0;     // == Py_InitializeEx(0)
-        config.site_import = 0;                  // exclude site-packages
+        PyConfig_InitIsolatedConfig(&config); // isolated: no env, no user site
+        config.install_signal_handlers = 0; // == Py_InitializeEx(0)
+        config.site_import = 0; // exclude site-packages
 
 #ifdef YSE_PYTHON_HOME
-        PyStatus hst =
-            PyConfig_SetBytesString(&config, &config.home, YSE_PYTHON_HOME);
+        PyStatus hst = PyConfig_SetBytesString(&config, &config.home, YSE_PYTHON_HOME);
         if (PyStatus_Exception(hst)) {
           std::fprintf(stderr, "[yse] Python home config failed: %s\n",
                        hst.err_msg ? hst.err_msg : "unknown");
@@ -83,7 +82,7 @@ namespace YSE {
 
       stopRequested_ = false;
       started_ = true;
-      thread::start();  // launches run() on the script thread
+      thread::start(); // launches run() on the script thread
     }
 
     void ScriptRuntime::stop() {
@@ -96,7 +95,7 @@ namespace YSE {
         pendingWake_ = true;
       }
       cv_.notify_one();
-      thread::stop();  // sets the base exit flag and joins the worker
+      thread::stop(); // sets the base exit flag and joins the worker
 
       if (ownsInterpreter_) {
         // Re-acquire the GIL on this (the initializing) thread, then finalize.
@@ -137,22 +136,21 @@ namespace YSE {
     EvalResult ScriptRuntime::evaluate(const std::string& source) {
       EvalResult result;
 
-      PyObject* mainModule = PyImport_AddModule("__main__");  // borrowed
+      PyObject* mainModule = PyImport_AddModule("__main__"); // borrowed
       if (mainModule == nullptr) {
         result.status = EvalStatus::Error;
         result.traceback = formatCurrentException();
         if (result.traceback.empty()) result.traceback = "internal: no __main__";
         return result;
       }
-      PyObject* globals = PyModule_GetDict(mainModule);  // borrowed
+      PyObject* globals = PyModule_GetDict(mainModule); // borrowed
 
       // Compile explicitly so the source carries the filename "<script>": the
       // DSL spec (docs/design/live_coding_dsl.md) and issue #125 require
       // tracebacks — and SyntaxError caret lines — to read File "<script>".
       // PyRun_String would default that name to "<string>". Py_file_input
       // accepts multi-statement source (e.g. "result = 1 + 1").
-      PyObject* code =
-          Py_CompileString(source.c_str(), "<script>", Py_file_input);
+      PyObject* code = Py_CompileString(source.c_str(), "<script>", Py_file_input);
       if (code == nullptr) {
         // Compilation failure (SyntaxError): the error indicator is set.
         result.status = EvalStatus::Error;
@@ -177,9 +175,7 @@ namespace YSE {
       for (;;) {
         {
           std::unique_lock<std::mutex> lock(mutex_);
-          cv_.wait(lock, [this] {
-            return pendingWake_ || stopRequested_ || threadShouldExit();
-          });
+          cv_.wait(lock, [this] { return pendingWake_ || stopRequested_ || threadShouldExit(); });
           pendingWake_ = false;
         }
 
@@ -212,4 +208,4 @@ namespace YSE {
   } // namespace INTERNAL
 } // namespace YSE
 
-#endif  // YSE_ENABLE_PYTHON
+#endif // YSE_ENABLE_PYTHON

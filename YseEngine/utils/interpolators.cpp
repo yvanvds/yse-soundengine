@@ -11,9 +11,9 @@
 #include "interpolators.hpp"
 
 YSE::linearInterpolator::linearInterpolator()
-: startValue(0), targetValue(0), currentValue(0), totalTime(0), timeLeft(0) {}
+  : startValue(0), targetValue(0), currentValue(0), totalTime(0), timeLeft(0) {}
 
-YSE::linearInterpolator & YSE::linearInterpolator::set(Flt target, Flt time) {
+YSE::linearInterpolator& YSE::linearInterpolator::set(Flt target, Flt time) {
   startValue = currentValue;
   targetValue = target;
   totalTime = timeLeft = time;
@@ -31,17 +31,15 @@ Flt YSE::linearInterpolator::operator()() {
   return currentValue;
 }
 
-YSE::linearInterpolator & YSE::linearInterpolator::update(Flt timeDelta) {
+YSE::linearInterpolator& YSE::linearInterpolator::update(Flt timeDelta) {
   if (timeLeft > 0) {
     timeLeft -= timeDelta;
     if (timeLeft < 0) timeLeft = 0;
     if (timeLeft == 0) {
       currentValue = targetValue;
-    }
-    else {
+    } else {
       currentValue = startValue + ((targetValue - startValue) * (1 - (timeLeft / totalTime)));
     }
   }
   return *this;
 }
-

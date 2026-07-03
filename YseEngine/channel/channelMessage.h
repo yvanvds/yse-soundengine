@@ -15,7 +15,7 @@
 
 namespace YSE {
   namespace CHANNEL {
-    
+
     /*
        Message objects are used to send messages from interface to implementation. In this
        case, a message will be sent from a channelInterfaceObject to a
@@ -25,7 +25,7 @@ namespace YSE {
     class messageObject {
     public:
       /** The ID of a message defines how it will be stored in the implementation
-      */
+       */
       MESSAGE ID;
 
       /** The data is stored in a union, so to not use more data as needed. Other types
@@ -34,15 +34,14 @@ namespace YSE {
       used in by all subSystems. So don't.)
       */
       union {
-        Bool   boolValue;
-        Flt    vecValue[3];
-        Flt    floatValue;
-        UInt   uintValue;
-        void * ptrValue;
+        Bool boolValue;
+        Flt vecValue[3];
+        Flt floatValue;
+        UInt uintValue;
+        void* ptrValue;
       };
     };
-  }
-}
+  } // namespace CHANNEL
+} // namespace YSE
 
-
-#endif  // CHANNELMESSAGE_H_INCLUDED
+#endif // CHANNELMESSAGE_H_INCLUDED

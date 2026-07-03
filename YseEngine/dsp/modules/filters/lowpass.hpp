@@ -34,16 +34,16 @@ namespace YSE {
         virtual ~lowPassFilter() {};
 
         /** @brief Set the cutoff frequency in Hz. */
-        lowPassFilter & frequency(Flt value);
+        lowPassFilter& frequency(Flt value);
 
         /** @brief Current cutoff frequency. */
-        Flt             frequency();
+        Flt frequency();
 
         /** @brief dspObject lifecycle hook — allocates buffers. */
         virtual void create();
 
         /** @brief dspObject audio-thread entry point. */
-        virtual void process(MULTICHANNELBUFFER & buffer);
+        virtual void process(MULTICHANNELBUFFER& buffer);
 
       private:
         aFlt parmFrequency;
@@ -51,10 +51,8 @@ namespace YSE {
         std::shared_ptr<lowPass> lp;
       };
 
+    } // namespace MODULES
+  } // namespace DSP
+} // namespace YSE
 
-    }
-  }
-}
-
-
-#endif  // LOWPASS_H_INCLUDED
+#endif // LOWPASS_H_INCLUDED

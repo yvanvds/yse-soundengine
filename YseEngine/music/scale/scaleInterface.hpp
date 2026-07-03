@@ -29,7 +29,7 @@ namespace YSE {
    *  @see YSE::player
    *  @see YSE::motif
    */
-  class API  scale {
+  class API scale {
   public:
     scale();
     ~scale();
@@ -41,7 +41,7 @@ namespace YSE {
      *  @param step  Octave step. ``12`` (default) replicates the pitch at
      *               every octave. Values <= 0 add only the exact pitch.
      */
-    scale & add(Flt pitch, Flt step = 12);
+    scale& add(Flt pitch, Flt step = 12);
 
     /**
      *  @brief Remove a pitch from the scale.
@@ -49,7 +49,7 @@ namespace YSE {
      *  @param pitch The MIDI pitch to remove.
      *  @param step  Octave step — by default the pitch is removed at every octave.
      */
-    scale & remove(Flt pitch, Flt step = 12);
+    scale& remove(Flt pitch, Flt step = 12);
 
     /** @brief Whether ``pitch`` is a member of the scale. */
     Bool has(Flt pitch);
@@ -61,15 +61,15 @@ namespace YSE {
     UInt size() const;
 
     /** @brief Remove every pitch. */
-    scale & clear();
+    scale& clear();
 
     scale(const scale& other);
-    scale & operator=(const scale & other);
+    scale& operator=(const scale& other);
 
   private:
-    SCALE::implementationObject * pimpl;
+    SCALE::implementationObject* pimpl;
 
-    // keep list of pitches in the interface as well as in the 
+    // keep list of pitches in the interface as well as in the
     // implementation, because we need to be able to copy them.
     std::vector<Flt> pitches;
 
@@ -78,8 +78,6 @@ namespace YSE {
     friend class motif;
   };
 
-}
+} // namespace YSE
 
-
-
-#endif  // SCALEINTERFACE_H_INCLUDED
+#endif // SCALEINTERFACE_H_INCLUDED

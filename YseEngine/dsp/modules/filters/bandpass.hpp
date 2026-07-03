@@ -11,7 +11,6 @@
 #ifndef BANDPASS_H_INCLUDED
 #define BANDPASS_H_INCLUDED
 
-
 #include "../../../headers/defines.hpp"
 #include "../../dspObject.hpp"
 #include "../../filters.hpp"
@@ -35,22 +34,22 @@ namespace YSE {
         virtual ~bandPassFilter() {};
 
         /** @brief Set the centre frequency in Hz. */
-        bandPassFilter & frequency(Flt value);
+        bandPassFilter& frequency(Flt value);
 
         /** @brief Current centre frequency. */
-        Flt             frequency();
+        Flt frequency();
 
         /** @brief Set the resonance (Q factor). */
-        bandPassFilter & setQ(Flt value);
+        bandPassFilter& setQ(Flt value);
 
         /** @brief Current Q factor. */
-        Flt              getQ();
+        Flt getQ();
 
         /** @brief dspObject lifecycle hook — allocates buffers. */
         virtual void create();
 
         /** @brief dspObject audio-thread entry point. */
-        virtual void process(MULTICHANNELBUFFER & buffer);
+        virtual void process(MULTICHANNELBUFFER& buffer);
 
       private:
         aFlt parmFrequency;
@@ -59,11 +58,8 @@ namespace YSE {
         std::shared_ptr<bandPass> bp;
       };
 
+    } // namespace MODULES
+  } // namespace DSP
+} // namespace YSE
 
-    }
-  }
-}
-
-
-
-#endif  // BANDPASS_H_INCLUDED
+#endif // BANDPASS_H_INCLUDED

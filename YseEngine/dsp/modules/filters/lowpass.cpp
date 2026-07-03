@@ -12,7 +12,7 @@
 
 YSE::DSP::MODULES::lowPassFilter::lowPassFilter() : parmFrequency(1000.f) {}
 
-YSE::DSP::MODULES::lowPassFilter & YSE::DSP::MODULES::lowPassFilter::frequency(Flt value) {
+YSE::DSP::MODULES::lowPassFilter& YSE::DSP::MODULES::lowPassFilter::frequency(Flt value) {
   parmFrequency.store(value);
   return *this;
 }
@@ -26,7 +26,7 @@ void YSE::DSP::MODULES::lowPassFilter::create() {
   result.reset(new buffer);
 }
 
-void YSE::DSP::MODULES::lowPassFilter::process(MULTICHANNELBUFFER & buffer) {
+void YSE::DSP::MODULES::lowPassFilter::process(MULTICHANNELBUFFER& buffer) {
   createIfNeeded();
 
   if (buffer[0].getLength() != result->getLength()) {

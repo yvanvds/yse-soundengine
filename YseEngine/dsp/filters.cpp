@@ -12,13 +12,21 @@
 #include <math.h>
 #include "../utils/misc.hpp"
 
-YSE::DSP::filterBase::filterBase() : freq(0), gain(0), q(0),
-last(0), previous(0),
-coef1(0), coef2(0),
-ff1(0), ff2(0), ff3(0), fb1(0), fb2(0) {
-}
+YSE::DSP::filterBase::filterBase()
+  : freq(0),
+    gain(0),
+    q(0),
+    last(0),
+    previous(0),
+    coef1(0),
+    coef2(0),
+    ff1(0),
+    ff2(0),
+    ff3(0),
+    fb1(0),
+    fb2(0) {}
 
-YSE::DSP::filterBase::filterBase(const YSE::DSP::filterBase & source)  {
+YSE::DSP::filterBase::filterBase(const YSE::DSP::filterBase& source) {
   freq.store(source.freq);
   gain.store(source.gain);
   q = source.q;
@@ -42,11 +50,11 @@ YSE::DSP::highPass& YSE::DSP::highPass::setFrequency(Flt f) {
   return (*this);
 }
 
-YSE::DSP::buffer & YSE::DSP::highPass::operator()(YSE::DSP::buffer & in) {
+YSE::DSP::buffer& YSE::DSP::highPass::operator()(YSE::DSP::buffer& in) {
   if (in.getLength() != samples.getLength()) samples.resize(in.getLength());
 
-  Flt * inPtr = in.getPtr();
-  Flt * outPtr = samples.getPtr();
+  Flt* inPtr = in.getPtr();
+  Flt* outPtr = samples.getPtr();
   UInt length = in.getLength();
   Flt coef = coef1;
   if (coef < 1) {
@@ -55,8 +63,7 @@ YSE::DSP::buffer & YSE::DSP::highPass::operator()(YSE::DSP::buffer & in) {
       *outPtr++ = f - last;
       last = f;
     }
-  }
-  else {
+  } else {
     last = 0;
     return in;
   }
@@ -65,7 +72,6 @@ YSE::DSP::buffer & YSE::DSP::highPass::operator()(YSE::DSP::buffer & in) {
 }
 
 /*******************************************************************************************/
-
 
 YSE::DSP::lowPass& YSE::DSP::lowPass::setFrequency(Flt f) {
   if (f < 0) f = 0;
@@ -76,11 +82,11 @@ YSE::DSP::lowPass& YSE::DSP::lowPass::setFrequency(Flt f) {
   return (*this);
 }
 
-YSE::DSP::buffer & YSE::DSP::lowPass::operator()(YSE::DSP::buffer & in) {
+YSE::DSP::buffer& YSE::DSP::lowPass::operator()(YSE::DSP::buffer& in) {
   if (in.getLength() != samples.getLength()) samples.resize(in.getLength());
 
-  Flt * inPtr = in.getPtr();
-  Flt * outPtr = samples.getPtr();
+  Flt* inPtr = in.getPtr();
+  Flt* outPtr = samples.getPtr();
   UInt length = in.getLength();
 
   Flt feedback = 1 - coef1;
@@ -92,7 +98,6 @@ YSE::DSP::buffer & YSE::DSP::lowPass::operator()(YSE::DSP::buffer & in) {
 }
 
 /*******************************************************************************************/
-
 
 YSE::DSP::bandPass& YSE::DSP::bandPass::set(Flt freq, Flt q) {
   this->freq = freq;
@@ -118,9 +123,11 @@ void YSE::DSP::bandPass::calcCoef() {
   if (freq < 0.001) freq = 10;
   if (q < 0) q = 0;
   omega = freq * (2.0f * 3.14159f) / SAMPLERATE;
-  if (q < 0.001) oneminusr = 1.0f;
-  else oneminusr = omega / q;
-  if (oneminusr >  1.0f) oneminusr = 1.0f;
+  if (q < 0.001)
+    oneminusr = 1.0f;
+  else
+    oneminusr = omega / q;
+  if (oneminusr > 1.0f) oneminusr = 1.0f;
   r = 1.0f - oneminusr;
   coef1 = 2.0f * qCos(omega) * r;
   coef2 = -r * r;
@@ -131,20 +138,22 @@ void YSE::DSP::bandPass::calcCoef() {
 float YSE::DSP::bandPass::qCos(Flt omega) {
   if (omega >= -(0.5 * 3.14159f) && omega <= 0.5f * 3.14159f) {
     Flt result = omega * omega;
-    return (((result * result * result * (-1.0f / 720.0f) + result * result * (1.0f / 24.0f)) - result * 0.5f) + 1);
-  }
-  else return 0;
+    return (((result * result * result * (-1.0f / 720.0f) + result * result * (1.0f / 24.0f)) -
+             result * 0.5f) +
+            1);
+  } else
+    return 0;
 }
 
 YSE::DSP::bandPass::bandPass() {
   calcCoef();
 }
 
-YSE::DSP::buffer & YSE::DSP::bandPass::operator()(YSE::DSP::buffer & in) {
+YSE::DSP::buffer& YSE::DSP::bandPass::operator()(YSE::DSP::buffer& in) {
   if (in.getLength() != samples.getLength()) samples.resize(in.getLength());
 
-  Flt * inPtr = in.getPtr();
-  Flt * outPtr = samples.getPtr();
+  Flt* inPtr = in.getPtr();
+  Flt* outPtr = samples.getPtr();
   UInt length = in.getLength();
 
   // copy to Flt because we don't want atomic in whole buffer loops
@@ -162,7 +171,6 @@ YSE::DSP::buffer & YSE::DSP::bandPass::operator()(YSE::DSP::buffer & in) {
 }
 
 /*******************************************************************************************/
-
 
 YSE::DSP::biQuad& YSE::DSP::biQuad::setType(BQ_TYPE type) {
   this->type = type;
@@ -203,8 +211,7 @@ YSE::DSP::biQuad& YSE::DSP::biQuad::setRaw(Flt fb1, Flt fb2, Flt ff1, Flt ff2, F
   Bool zero = true;
   if (discriminant < 0) {
     if (fb2 >= -1.0f) zero = false;
-  }
-  else {
+  } else {
     if (fb1 <= 2.0f && fb1 >= -2.0f && 1.0f - fb1 - fb2 >= 0 && 1.0f + fb1 - fb2 >= 0) zero = false;
   }
   if (zero) fb1 = fb2 = ff1 = ff2 = ff3 = 0;
@@ -217,11 +224,11 @@ YSE::DSP::biQuad& YSE::DSP::biQuad::setRaw(Flt fb1, Flt fb2, Flt ff1, Flt ff2, F
   return (*this);
 }
 
-YSE::DSP::buffer & YSE::DSP::biQuad::operator()(YSE::DSP::buffer & in) {
+YSE::DSP::buffer& YSE::DSP::biQuad::operator()(YSE::DSP::buffer& in) {
   if (in.getLength() != samples.getLength()) samples.resize(in.getLength());
 
-  Flt * inPtr = in.getPtr();
-  Flt * outPtr = samples.getPtr();
+  Flt* inPtr = in.getPtr();
+  Flt* outPtr = samples.getPtr();
   UInt length = in.getLength();
 
   Flt output;
@@ -243,8 +250,6 @@ YSE::DSP::buffer & YSE::DSP::biQuad::operator()(YSE::DSP::buffer & in) {
   return samples;
 }
 
-
-
 void YSE::DSP::biQuad::calc() {
   Flt norm;
   Flt v = (float)pow(10, std::abs(gain.load()) / 20.0f);
@@ -252,98 +257,94 @@ void YSE::DSP::biQuad::calc() {
 
   switch (type) {
   case BQ_LOWPASS: {
-                     norm = 1 / (1 + k / q + k * k);
-                     ff1 = k * k * norm;
-                     ff2 = 2 * ff1;
-                     ff3 = ff1.load();
-                     fb1 = 2 * (k * k - 1) * norm;
-                     fb2 = (1 - k / q + k * k) * norm;
-                     break;
+    norm = 1 / (1 + k / q + k * k);
+    ff1 = k * k * norm;
+    ff2 = 2 * ff1;
+    ff3 = ff1.load();
+    fb1 = 2 * (k * k - 1) * norm;
+    fb2 = (1 - k / q + k * k) * norm;
+    break;
   }
   case BQ_HIGHPASS: {
-                      norm = 1 / (1 + k / q + k * k);
-                      ff1 = 1 * norm;
-                      ff2 = -2 * ff1;
-                      ff3 = ff1.load();
-                      fb1 = 2 * (k * k - 1) * norm;
-                      fb2 = (1 - k / q + k * k) * norm;
-                      break;
+    norm = 1 / (1 + k / q + k * k);
+    ff1 = 1 * norm;
+    ff2 = -2 * ff1;
+    ff3 = ff1.load();
+    fb1 = 2 * (k * k - 1) * norm;
+    fb2 = (1 - k / q + k * k) * norm;
+    break;
   }
   case BQ_BANDPASS: {
-                      norm = 1 / (1 + k / q + k * k);
-                      ff1 = k / q * norm;
-                      ff2 = 0;
-                      ff3 = -ff1;
-                      fb1 = 2 * (k * k - 1) * norm;
-                      fb2 = (1 - k / q + k * k) * norm;
-                      break;
+    norm = 1 / (1 + k / q + k * k);
+    ff1 = k / q * norm;
+    ff2 = 0;
+    ff3 = -ff1;
+    fb1 = 2 * (k * k - 1) * norm;
+    fb2 = (1 - k / q + k * k) * norm;
+    break;
   }
   case BQ_NOTCH: {
-                   norm = 1 / (1 + k / q + k * k);
-                   ff1 = (1 + k * k) * norm;
-                   ff2 = 2 * (k * k - 1) * norm;
-                   ff3 = ff1.load();
-                   fb1 = ff2.load();
-                   fb2 = (1 - k / q + k * k) * norm;
-                   break;
+    norm = 1 / (1 + k / q + k * k);
+    ff1 = (1 + k * k) * norm;
+    ff2 = 2 * (k * k - 1) * norm;
+    ff3 = ff1.load();
+    fb1 = ff2.load();
+    fb2 = (1 - k / q + k * k) * norm;
+    break;
   }
   case BQ_PEAK: {
-                  if (gain >= 0) {
-                    norm = 1 / (1 + 1 / q * k + k * k);
-                    ff1 = (1 + v / q * k + k * k) * norm;
-                    ff2 = 2 * (k * k - 1) * norm;
-                    ff3 = (1 - v / q * k + k * k) * norm;
-                    fb1 = ff2.load();
-                    fb2 = (1 - 1 / q * k + k * k) * norm;
-                  }
-                  else {
-                    norm = 1 / (1 + v / q * k + k * k);
-                    ff1 = (1 + 1 / q * k + k * k) * norm;
-                    ff2 = 2 * (k * k - 1) * norm;
-                    ff3 = (1 - 1 / q * k + k * k) * norm;
-                    fb1 = ff2.load();
-                    fb2 = (1 - v / q * k + k * k) * norm;
-                  }
-                  break;
+    if (gain >= 0) {
+      norm = 1 / (1 + 1 / q * k + k * k);
+      ff1 = (1 + v / q * k + k * k) * norm;
+      ff2 = 2 * (k * k - 1) * norm;
+      ff3 = (1 - v / q * k + k * k) * norm;
+      fb1 = ff2.load();
+      fb2 = (1 - 1 / q * k + k * k) * norm;
+    } else {
+      norm = 1 / (1 + v / q * k + k * k);
+      ff1 = (1 + 1 / q * k + k * k) * norm;
+      ff2 = 2 * (k * k - 1) * norm;
+      ff3 = (1 - 1 / q * k + k * k) * norm;
+      fb1 = ff2.load();
+      fb2 = (1 - v / q * k + k * k) * norm;
+    }
+    break;
   }
   case BQ_LOWSHELF: {
-                      if (gain >= 0) {
-                        norm = 1 / (1 + Sqrt2 * k + k * k);
-                        ff1 = (1 + sqrt(2 * v) * k + v * k * k) * norm;
-                        ff2 = 2 * (v * k * k - 1) * norm;
-                        ff3 = (1 - sqrt(2 * v) * k + v * k * k) * norm;
-                        fb1 = 2 * (k * k - 1) * norm;
-                        fb2 = (1 - Sqrt2 * k + k * k) * norm;
-                      }
-                      else {
-                        norm = 1 / (1 + sqrt(2 * v) * k + v * k * k);
-                        ff1 = (1 + Sqrt2 * k + k * k) * norm;
-                        ff2 = 2 * (k * k - 1) * norm;
-                        ff3 = (1 - Sqrt2 * k + k * k) * norm;
-                        fb1 = 2 * (v * k * k - 1) * norm;
-                        fb2 = (1 - sqrt(2 * v) * k + v * k * k) * norm;
-                      }
-                      break;
+    if (gain >= 0) {
+      norm = 1 / (1 + Sqrt2 * k + k * k);
+      ff1 = (1 + sqrt(2 * v) * k + v * k * k) * norm;
+      ff2 = 2 * (v * k * k - 1) * norm;
+      ff3 = (1 - sqrt(2 * v) * k + v * k * k) * norm;
+      fb1 = 2 * (k * k - 1) * norm;
+      fb2 = (1 - Sqrt2 * k + k * k) * norm;
+    } else {
+      norm = 1 / (1 + sqrt(2 * v) * k + v * k * k);
+      ff1 = (1 + Sqrt2 * k + k * k) * norm;
+      ff2 = 2 * (k * k - 1) * norm;
+      ff3 = (1 - Sqrt2 * k + k * k) * norm;
+      fb1 = 2 * (v * k * k - 1) * norm;
+      fb2 = (1 - sqrt(2 * v) * k + v * k * k) * norm;
+    }
+    break;
   }
   case BQ_HIGHSHELF: {
-                       if (gain >= 0) {
-                         norm = 1 / (1 + Sqrt2 * k + k * k);
-                         ff1 = (v + sqrt(2 * v) * k + k * k) * norm;
-                         ff2 = 2 * (k * k - v) * norm;
-                         ff3 = (v - sqrt(2 * v) * k + k * k) * norm;
-                         fb1 = 2 * (k * k - 1) * norm;
-                         fb2 = (1 - Sqrt2 * k + k * k) * norm;
-                       }
-                       else {
-                         norm = 1 / (v + sqrt(2 * v) * k + k * k);
-                         ff1 = (1 + Sqrt2 * k + k * k) * norm;
-                         ff2 = 2 * (k * k - 1) * norm;
-                         ff3 = (1 - Sqrt2 * k + k * k) * norm;
-                         fb1 = 2 * (k * k - v) * norm;
-                         fb2 = (v - sqrt(2 * v) * k + k * k) * norm;
-                       }
-                       break;
-
+    if (gain >= 0) {
+      norm = 1 / (1 + Sqrt2 * k + k * k);
+      ff1 = (v + sqrt(2 * v) * k + k * k) * norm;
+      ff2 = 2 * (k * k - v) * norm;
+      ff3 = (v - sqrt(2 * v) * k + k * k) * norm;
+      fb1 = 2 * (k * k - 1) * norm;
+      fb2 = (1 - Sqrt2 * k + k * k) * norm;
+    } else {
+      norm = 1 / (v + sqrt(2 * v) * k + k * k);
+      ff1 = (1 + Sqrt2 * k + k * k) * norm;
+      ff2 = 2 * (k * k - 1) * norm;
+      ff3 = (1 - Sqrt2 * k + k * k) * norm;
+      fb1 = 2 * (k * k - v) * norm;
+      fb2 = (v - sqrt(2 * v) * k + k * k) * norm;
+    }
+    break;
   }
   }
   fb1 = -fb1;
@@ -353,8 +354,7 @@ void YSE::DSP::biQuad::calc() {
   Bool zero = true;
   if (discriminant < 0) {
     if (fb2 >= -1.0f) zero = false;
-  }
-  else {
+  } else {
     if (fb1 <= 2.0f && fb1 >= -2.0f && 1.0f - fb1 - fb2 >= 0 && 1.0f + fb1 - fb2 >= 0) zero = false;
   }
   if (zero) fb1 = fb2 = ff1 = ff2 = ff3 = 0;
@@ -362,8 +362,7 @@ void YSE::DSP::biQuad::calc() {
 
 /*******************************************************************************************/
 
-YSE::DSP::sampleHold::sampleHold() : lastIn(0), lastOut(0) {
-}
+YSE::DSP::sampleHold::sampleHold() : lastIn(0), lastOut(0) {}
 
 YSE::DSP::sampleHold& YSE::DSP::sampleHold::reset(Flt value) {
   lastIn = value;
@@ -375,12 +374,12 @@ YSE::DSP::sampleHold& YSE::DSP::sampleHold::set(Flt value) {
   return (*this);
 }
 
-YSE::DSP::buffer & YSE::DSP::sampleHold::operator()(YSE::DSP::buffer & in, YSE::DSP::buffer & signal) {
+YSE::DSP::buffer& YSE::DSP::sampleHold::operator()(YSE::DSP::buffer& in, YSE::DSP::buffer& signal) {
   if (in.getLength() != samples.getLength()) samples.resize(in.getLength());
 
-  Flt * inPtr = in.getPtr();
-  Flt * sigPtr = signal.getPtr();
-  Flt * outPtr = samples.getPtr();
+  Flt* inPtr = in.getPtr();
+  Flt* sigPtr = signal.getPtr();
+  Flt* outPtr = samples.getPtr();
   UInt length = in.getLength();
 
   // it's a bad idea to parse the whole buffer with atomics, so make a copy first
@@ -400,10 +399,3 @@ YSE::DSP::buffer & YSE::DSP::sampleHold::operator()(YSE::DSP::buffer & in, YSE::
 
   return samples;
 }
-
-
-
-
-
-
-

@@ -8,33 +8,34 @@ using namespace YSE::PATCHER;
 #define className mMidiProgramChange
 
 CONSTRUCT() {
-	ADD_IN_0;
-	REG_INT_IN(SetIntValue);
+  ADD_IN_0;
+  REG_INT_IN(SetIntValue);
 
-	ADD_OUT_LIST;
+  ADD_OUT_LIST;
 
-	ADD_PARAM(channel);
+  ADD_PARAM(channel);
 
-	channel = cvalue = 0;
+  channel = cvalue = 0;
 
-	ADD_DESCRIPTION("MIDI Program Change message generator. Emits a status/program packet on every value change.");
-	ADD_CATEGORY(pCategory::MIDI);
-	INLET_DOC(0, "program", "Program number (also fires the output).", "0-127");
-	OUTLET_DOC(0, "midi", "Encoded MIDI Program Change message.", "");
-	PARAM_DOC("channel", "0", "MIDI channel offset (0-based).", "0-15");
+  ADD_DESCRIPTION("MIDI Program Change message generator. Emits a status/program packet on every "
+                  "value change.");
+  ADD_CATEGORY(pCategory::MIDI);
+  INLET_DOC(0, "program", "Program number (also fires the output).", "0-127");
+  OUTLET_DOC(0, "midi", "Encoded MIDI Program Change message.", "");
+  PARAM_DOC("channel", "0", "MIDI channel offset (0-based).", "0-15");
 }
 
 INT_IN(SetIntValue) {
-	cvalue = (int)value;
-	if (cvalue < 0) cvalue = 0;
-	if (cvalue > 127) cvalue = 127;
+  cvalue = (int)value;
+  if (cvalue < 0) cvalue = 0;
+  if (cvalue > 127) cvalue = 127;
 }
 
 CALC() {
-	std::string message = "000";
-	message[0] = 0xC0 + channel;
-	message[1] = cvalue;
-	message[2] = 0;
-	outputs[0].SendList(message, thread);
+  std::string message = "000";
+  message[0] = 0xC0 + channel;
+  message[1] = cvalue;
+  message[2] = 0;
+  outputs[0].SendList(message, thread);
 }
 #endif

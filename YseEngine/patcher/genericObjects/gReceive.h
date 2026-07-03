@@ -17,36 +17,36 @@ namespace YSE {
   namespace PATCHER {
 
     PATCHER_CLASS(gReceive, YSE::OBJ::G_RECEIVE)
-      _NO_MESSAGES
-      _NO_CALCULATE
+    _NO_MESSAGES
+    _NO_CALCULATE
 
-      _INT_IN(SetIntValue)
-      _FLOAT_IN(SetFloatValue)
-      _BANG_IN(SetBangValue)
-      _LIST_IN(SetListValue)
+    _INT_IN(SetIntValue)
+    _FLOAT_IN(SetFloatValue)
+    _BANG_IN(SetBangValue)
+    _LIST_IN(SetListValue)
 
-    public:
-      ~gReceive() override;
+  public:
+    ~gReceive() override;
 
-      // Override of pObject::SetParent — once the parent patcher is known
-      // the receiver attaches itself to the global bus.
-      void SetParent(pObject * parent) override;
+    // Override of pObject::SetParent — once the parent patcher is known
+    // the receiver attaches itself to the global bus.
+    void SetParent(pObject* parent) override;
 
-      // Re-subscribe under the current parent patcher's name. Called by
-      // `patcherImplementation::SetName` when the patcher is renamed so
-      // existing receivers keep working under the new bus prefix.
-      void Resubscribe();
+    // Re-subscribe under the current parent patcher's name. Called by
+    // `patcherImplementation::SetName` when the patcher is renamed so
+    // existing receivers keep working under the new bus prefix.
+    void Resubscribe();
 
-    private:
-      void unsubscribeIfNeeded();
-      void subscribeFromParent();
+  private:
+    void unsubscribeIfNeeded();
+    void subscribeFromParent();
 
-      YSE::INTERNAL::SubHandle busHandle = 0;  // 0 == not subscribed
-      // `globalOnly` mirrors the gSend flag but on the receive side it has
-      // no behavioural effect today — the bus subscription is unconditional.
-      // The parameter slot is reserved so the symmetric DSL surface stays
-      // stable when later iterations of issue #119 add receive-side filters.
-      int globalOnly = 0;
+    YSE::INTERNAL::SubHandle busHandle = 0; // 0 == not subscribed
+    // `globalOnly` mirrors the gSend flag but on the receive side it has
+    // no behavioural effect today — the bus subscription is unconditional.
+    // The parameter slot is reserved so the symmetric DSL surface stays
+    // stable when later iterations of issue #119 add receive-side filters.
+    int globalOnly = 0;
   };
 }
 }
