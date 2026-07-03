@@ -5,6 +5,7 @@
 #include "../dsp/buffer.hpp"
 #include "patcher.hpp"
 #include "graphState.h"
+#include "../utils/mpmcQueue.hpp"
 #include <atomic>
 #include <cstdint>
 #include <map>
@@ -62,7 +63,13 @@ namespace YSE {
       aBool controlledBySound;
       std::atomic<patcher*> head;
 
-      // for external data input
+      // for external data input. These run on the control/GUI thread: they no
+      // longer poke inlets directly (that raced the audio thread's Calculate and
+      // was a genuine UAF through Parameters::Set — issue #225). Instead a value
+      // message is enqueued on a lock-free queue and delivered to the inlet on
+      // the audio thread at the top of the next Calculate. The bool return still
+      // means "a matching gReceive exists in this patcher (message enqueued)";
+      // when none exists the call falls back to the OSC handler as before.
       bool PassBang(const std::string& to, THREAD thread);
       bool PassData(int value, const std::string& to, THREAD thread);
       bool PassData(float value, const std::string& to, THREAD thread);
@@ -71,6 +78,56 @@ namespace YSE {
       void SetHandler(oscHandler* handler);
 
     private:
+      // Kinds of deferred value message carried on the SPSC command queue
+      // (issue #225). One per PassBang / PassData overload.
+      enum class ValueKind : std::uint8_t { Bang, Int, Float, List };
+
+      // Longest target (gReceive) name and list payload that ride the queue
+      // inline. Names/values longer than this can't be delivered through the
+      // RT-safe path; the control thread logs and drops rather than truncating
+      // silently or allocating. Chosen well above any realistic identifier /
+      // space-separated value list.
+      static constexpr std::size_t kValueNameCap = 64;
+      static constexpr std::size_t kValueListCap = 256;
+      // Fixed queue depth (messages buffered between two audio blocks). Bounded
+      // and allocated once; a full queue drops-with-log, never blocks the
+      // control thread and never allocates on the audio thread.
+      static constexpr std::size_t kValueQueueCapacity = 256;
+
+      // A deferred value delivery. Trivially copyable (POD) so it can ride the
+      // lock-free mpmcQueue by value — no heap, so nothing to reclaim. The
+      // target receiver is carried by name and re-resolved against the pinned
+      // GraphState on the audio thread, which makes delivery inherently safe
+      // across a concurrent DeleteObject: a removed receiver is simply absent
+      // from the snapshot and the message is dropped.
+      struct ValueMsg {
+        ValueKind kind;
+        int intVal;
+        float floatVal;
+        char target[kValueNameCap]; // null-terminated gReceive DataName()
+        char listVal[kValueListCap]; // null-terminated; List kind only
+      };
+
+      // Deliver every queued value message against the pinned snapshot. Audio
+      // thread only, called from Calculate after currentBlockGraph_ is stored so
+      // value propagation resolves through the snapshot. Dispatches with T_GUI
+      // semantics (set the parameter; the block's own traversal renders it).
+      void DeliverPendingValues(const GraphState* g);
+
+      // Find the gReceive named `to` in snapshot g and deliver the value to its
+      // inlet 0. Audio thread only (no allocation: `to` is a C-string and the
+      // list value is a caller-owned reference). Returns true iff a matching
+      // receiver exists. Shared by the deferred drain and the synchronous
+      // audio-thread path (gSend fan-out during traversal).
+      bool DispatchToReceiver(const GraphState* g, ValueKind kind, const char* to, int intVal,
+                              float floatVal, const std::string& listVal, THREAD thread);
+
+      // Control thread. Copies `to` into msg.target, checks whether a matching
+      // gReceive exists in this patcher, and if so enqueues msg. Returns true
+      // iff a matching receiver exists (so the caller only falls back to OSC
+      // when there is genuinely no in-patcher target).
+      bool EnqueueValue(ValueMsg& msg, const std::string& to);
+
       // Compile the current object wiring into a fresh immutable GraphState.
       // Control-thread only (allocates). See graphState.h.
       GraphState* BuildGraph();
@@ -108,6 +165,17 @@ namespace YSE {
       // ids stay stable across edits.
       int nextInletId_ = 0;
       int nextOutletId_ = 0;
+
+      // Lock-free command queue for deferred value delivery (issue #225).
+      // Producers: control/GUI threads (PassBang / PassData). Consumer: the
+      // audio thread, draining in Calculate. mpmcQueue is a superset of SPSC, so
+      // concurrent producers are safe too.
+      YSE::mpmcQueue<ValueMsg> valueQueue_{kValueQueueCapacity};
+      // Audio-thread-only scratch buffer for delivering List payloads. Reserved
+      // to kValueListCap in the ctor so assigning any inline list value reuses
+      // this buffer instead of allocating on the audio thread, while still
+      // handing inlet::SetList the const std::string& it expects.
+      std::string listScratch_;
 
       // Bus-prefix for inner gSend/gReceive routing (issue #122). Defaulted
       // to "patcher_<N>" in the ctor; mutated by SetName().
