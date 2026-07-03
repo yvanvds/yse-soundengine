@@ -136,6 +136,14 @@ namespace YSE {
       // when there is genuinely no in-patcher target).
       bool EnqueueValue(ValueMsg& msg, const std::string& to);
 
+      // Unlocked cores of CreateObject / Connect: do the structural mutation
+      // assuming mtx is already held and publish nothing. The public wrappers
+      // lock and publish once; ParseJSON drives these directly so an entire
+      // parsed graph is built under one lock and swapped in with a single
+      // publish (this is why no per-op re-entrancy flag is needed — issue #228).
+      pHandle* CreateObjectUnlocked(const std::string& type, const std::string& args);
+      void ConnectUnlocked(pHandle* from, int outlet, pHandle* to, int inlet);
+
       // Compile the current object wiring into a fresh immutable GraphState.
       // Control-thread only (allocates). See graphState.h.
       GraphState* BuildGraph();
@@ -188,7 +196,6 @@ namespace YSE {
       void FreeAllRetired();
 
       std::mutex mtx;
-      bool fileHandlerActive;
       std::map<pHandle*, pObject*> objects;
       oscHandler* oscHandle = nullptr;
 
