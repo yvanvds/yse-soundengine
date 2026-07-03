@@ -627,9 +627,14 @@ YSE::INTERNAL::abstractSoundFile & YSE::INTERNAL::abstractSoundFile::reset() {
   return *this;
 }
 
-bool YSE::INTERNAL::abstractSoundFile::inUse() {
+bool YSE::INTERNAL::abstractSoundFile::inUse(Flt dt) {
+  // Runs on the slow-pool GC job (issue #186), never the audio thread. The idle
+  // timer is advanced by the elapsed time the caller measured between GC passes
+  // (previously Time().delta() accumulated per audio callback). clientList is
+  // guarded because attach/release run on other threads.
+  std::scoped_lock lk(clientListMutex);
   if (clientList.empty()) {
-    idleTime += Time().delta();
+    idleTime += dt;
   }
   if (idleTime > 30) {
     return false;
@@ -638,6 +643,7 @@ bool YSE::INTERNAL::abstractSoundFile::inUse() {
 }
 
 void YSE::INTERNAL::abstractSoundFile::attach(YSE::SOUND::implementationObject * impl) {
+  std::scoped_lock lk(clientListMutex);
   for (auto i = clientList.begin(); i != clientList.end(); ++i) {
     if (*i == impl) return;
   }
@@ -645,6 +651,7 @@ void YSE::INTERNAL::abstractSoundFile::attach(YSE::SOUND::implementationObject *
 }
 
 void YSE::INTERNAL::abstractSoundFile::release(SOUND::implementationObject *impl) {
+  std::scoped_lock lk(clientListMutex);
   auto previous = clientList.before_begin();
   for (auto i = clientList.begin(); i != clientList.end(); ++i) {
     if(*i == impl) {

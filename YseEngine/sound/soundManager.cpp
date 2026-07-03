@@ -19,10 +19,11 @@ YSE::SOUND::managerObject & YSE::SOUND::Manager() {
 }
 
 
-YSE::SOUND::managerObject::managerObject() 
+YSE::SOUND::managerObject::managerObject()
   : mgrSetup(this),
     mgrDelete(this) {
   //formatManager.registerBasicFormats();
+  mgrFileGC.owner = this;
 }
 
 YSE::SOUND::managerObject::~managerObject() noexcept {
@@ -30,6 +31,7 @@ YSE::SOUND::managerObject::~managerObject() noexcept {
     // wait for jobs to finish
     mgrSetup.join();
     mgrDelete.join();
+    mgrFileGC.join();
 
     // drain any pointers still queued by the main thread; they reference impls
     // owned by `implementations` and will be freed when that list is cleared.
@@ -42,7 +44,10 @@ YSE::SOUND::managerObject::~managerObject() noexcept {
     implementations.clear();
 
     // remove all sounds that are still in memory
-    soundFiles.clear();
+    {
+      std::scoped_lock lk(soundFilesMutex);
+      soundFiles.clear();
+    }
   } catch (...) {
     INTERNAL::LogImpl().emit(E_ERROR, "SOUND::Manager destructor swallowed exception");
   }
@@ -50,6 +55,8 @@ YSE::SOUND::managerObject::~managerObject() noexcept {
 
 
 YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addFile(const std::string & fileName) {
+  // Serialise with the slow-pool GC job that erases from soundFiles (issue #186).
+  std::scoped_lock lk(soundFilesMutex);
   // find out if this file already exists
   for (auto i = soundFiles.begin(); i != soundFiles.end(); ++i) {
     if ( i->contains(fileName)) {
@@ -70,6 +77,8 @@ YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addFile(const std::string 
 
 
 YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addFile(YSE::DSP::buffer * buffer) {
+  // Serialise with the slow-pool GC job that erases from soundFiles (issue #186).
+  std::scoped_lock lk(soundFilesMutex);
   // find out if this file already exists
   for (auto i = soundFiles.begin(); i != soundFiles.end(); ++i) {
     if ( i->contains(buffer)) {
@@ -89,6 +98,8 @@ YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addFile(YSE::DSP::buffer *
 }
 
 YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addFile(MULTICHANNELBUFFER * buffer) {
+  // Serialise with the slow-pool GC job that erases from soundFiles (issue #186).
+  std::scoped_lock lk(soundFilesMutex);
   // find out if this file already exists
   for (auto i = soundFiles.begin(); i != soundFiles.end(); ++i) {
     if ( i->contains(buffer)) {
@@ -207,15 +218,14 @@ void YSE::SOUND::managerObject::update() {
   // drain the main→audio inbox of newly-set-up impls
   drainInbox();
 
-  // garbage-collect finished soundFiles
-  auto iMinus = soundFiles.before_begin();
-  for (auto i = soundFiles.begin(); i != soundFiles.end(); ) {
-    if (i->isQueued() || i->inUse()) {
-      iMinus = i;
-      ++i;
-    } else {
-      i = soundFiles.erase_after(iMinus);
-    }
+  // Hand soundFile garbage collection to the slow pool (issue #186). The audio
+  // thread must not iterate or erase `soundFiles`: erasing runs ~soundFile
+  // (sf_close + delete[]) on the callback and races addFile on the main thread.
+  // Throttle to roughly once a second so the GC job isn't re-queued every tick.
+  fileGCTimer += INTERNAL::Time().delta();
+  if (fileGCTimer >= 1.0f && !mgrFileGC.isQueued()) {
+    fileGCTimer = 0.f;
+    INTERNAL::Global().addSlowJob(&mgrFileGC);
   }
 
   VirtualSoundFinder().reset();
@@ -233,7 +243,30 @@ void YSE::SOUND::managerObject::update() {
   syncAndReleaseInUse();
 
   VirtualSoundFinder().calculate();
-  
+
+}
+
+void YSE::SOUND::managerObject::garbageCollectFiles() {
+  // Runs on the slow pool (mgrFileGC), never the audio thread (issue #186).
+  // Measure the wall time elapsed since the previous pass so the per-file idle
+  // timer advances at the same rate it did when this loop ran every audio
+  // callback (it accumulated Time().delta() there). ~soundFile — with its
+  // sf_close and delete[] — now runs here on the erase, off the callback.
+  std::clock_t now = std::clock();
+  Flt dt = (lastGCClock == 0) ? 0.f
+                              : static_cast<Flt>(now - lastGCClock) / static_cast<Flt>(CLOCKS_PER_SEC);
+  lastGCClock = now;
+
+  std::scoped_lock lk(soundFilesMutex);
+  auto iMinus = soundFiles.before_begin();
+  for (auto i = soundFiles.begin(); i != soundFiles.end(); ) {
+    if (i->isQueued() || i->inUse(dt)) {
+      iMinus = i;
+      ++i;
+    } else {
+      i = soundFiles.erase_after(iMinus);
+    }
+  }
 }
 
 Bool YSE::SOUND::managerObject::empty() {

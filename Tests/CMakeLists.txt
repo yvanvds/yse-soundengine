@@ -43,6 +43,7 @@ set(YSE_TEST_SOURCES
   sound/test_sound_concurrency.cpp
   sound/test_sound_bufferIO.cpp
   sound/test_sound_manager.cpp
+  sound/test_sound_file_gc.cpp
   sound/test_sound_bus.cpp
   reverb/test_reverb_dsp.cpp
   reverb/test_reverb_concurrency.cpp

@@ -14,6 +14,7 @@
 #include <forward_list>
 #include <mutex>
 #include <vector>
+#include <ctime>
 #include "sound.hpp"
 #include "soundMessage.h"
 #include "soundInterface.hpp"
@@ -112,14 +113,42 @@ namespace YSE {
       void promoteReadyImpls();
       void syncAndReleaseInUse();
 
+      // Garbage-collect unused soundFiles. Runs on the slow pool via mgrFileGC —
+      // NEVER on the audio thread: erasing a soundFile runs ~soundFile (sf_close +
+      // delete[]) which must stay off the callback, and the erase races addFile
+      // on the main thread. Owns `soundFiles` structure together with addFile
+      // under `soundFilesMutex` (same pattern as the impl managers). (issue #186)
+      void garbageCollectFiles();
+
+      // Slow-pool job wrapper that drives garbageCollectFiles().
+      class fileGCJob : public INTERNAL::threadPoolJob {
+      public:
+        managerObject * owner = nullptr;
+        void run() override { owner->garbageCollectFiles(); }
+      };
+      fileGCJob mgrFileGC;
+
+      // Audio-thread-only: accumulates Time().delta() so update() hands the GC to
+      // the slow pool at most about once a second instead of every callback.
+      Flt fileGCTimer = 0.f;
+      // Slow-pool-only (GC job): previous std::clock() sample, used to measure the
+      // elapsed time fed to soundFile::inUse() for the idle timer.
+      std::clock_t lastGCClock = 0;
+
       /** the lastGain buffer of each sound is needed to provide smooth changes
       in volume for each channel. When the number of output channels is changed
       this buffer has to change accordingly. This is done by this function.
       */
       void adjustLastGainBuffer();
 
-      // a forward list containing all sound files
+      // a forward list containing all sound files. Structure is touched by the
+      // main thread (addFile) and the slow-pool GC job (garbageCollectFiles);
+      // the audio thread never iterates or erases it. Guarded by soundFilesMutex.
       std::forward_list<INTERNAL::soundFile> soundFiles;
+
+      // Guards `soundFiles` between the main thread (addFile) and the slow-pool
+      // GC job. Never taken by the audio thread. (issue #186)
+      std::mutex soundFilesMutex;
 
       // a format Manager to assist in reading audio files
       // It is used by soundFiles, but put here because we only need one for all files.
