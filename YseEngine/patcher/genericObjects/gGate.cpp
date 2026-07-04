@@ -52,26 +52,38 @@ PARM_PARSE() {
   }
 }
 
+// Snapshot activeOutlet once per value delivery. Reading the atomic separately
+// for the bounds check and the index is a TOCTOU: a concurrent SetActiveOutlet
+// (control thread) could satisfy the check with a valid index and then have the
+// index expression sample a larger value, driving `outputs[]` out of bounds
+// (issue #197). `outputs` itself is never resized on a published object — a
+// live SetParams that changes the outlet count goes through the graph-swap
+// rebuild path (issue #234), not an in-place PARM_PARSE — so a single load of
+// the selector is all that is needed here.
 BANG_IN(SetBangValue) {
-  if (activeOutlet > 0 && (unsigned int)activeOutlet <= outputs.size()) {
-    outputs[activeOutlet - 1].SendBang(thread);
+  const int active = activeOutlet.load(std::memory_order_relaxed);
+  if (active > 0 && (unsigned int)active <= outputs.size()) {
+    outputs[active - 1].SendBang(thread);
   }
 }
 
 INT_IN(SetIntValue) {
-  if (activeOutlet > 0 && (unsigned int)activeOutlet <= outputs.size()) {
-    outputs[activeOutlet - 1].SendInt(value, thread);
+  const int active = activeOutlet.load(std::memory_order_relaxed);
+  if (active > 0 && (unsigned int)active <= outputs.size()) {
+    outputs[active - 1].SendInt(value, thread);
   }
 }
 
 FLOAT_IN(SetFloatValue) {
-  if (activeOutlet > 0 && (unsigned int)activeOutlet <= outputs.size()) {
-    outputs[activeOutlet - 1].SendFloat(value, thread);
+  const int active = activeOutlet.load(std::memory_order_relaxed);
+  if (active > 0 && (unsigned int)active <= outputs.size()) {
+    outputs[active - 1].SendFloat(value, thread);
   }
 }
 
 LIST_IN(SetListValue) {
-  if (activeOutlet > 0 && (unsigned int)activeOutlet <= outputs.size()) {
-    outputs[activeOutlet - 1].SendList(value, thread);
+  const int active = activeOutlet.load(std::memory_order_relaxed);
+  if (active > 0 && (unsigned int)active <= outputs.size()) {
+    outputs[active - 1].SendList(value, thread);
   }
 }

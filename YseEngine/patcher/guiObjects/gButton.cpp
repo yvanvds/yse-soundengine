@@ -33,9 +33,12 @@ FLOAT_IN(SetFloat) {
 }
 
 GUI_VALUE() {
-  bool value = on;
-  on = false;
-  return value ? "on" : "off";
+  // Atomic read-and-clear. A plain `bool v = on; on = false;` is a load then a
+  // separate store, so a press that lands between the two (writers run on the
+  // audio thread during traversal and on the control thread) is silently
+  // cleared and never reported — a lost press (issue #197). exchange() reads
+  // and clears in one indivisible step.
+  return on.exchange(false, std::memory_order_relaxed) ? "on" : "off";
 }
 
 CALC() {

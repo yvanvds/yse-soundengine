@@ -30,7 +30,16 @@ INT_IN(SetValue) {
 }
 
 BANG_IN(Bang) {
-  value = !value;
+  // Atomic flip. A plain `value = !value` is an atomic load followed by a
+  // separate atomic store, so two concurrent bangs (GUI/timer thread racing
+  // the audio thread) can both read the same state and collapse into a single
+  // flip — a lost update (issue #197). compare_exchange makes it a real RMW;
+  // the retry loop is lock-free and never allocates, so it is audio-thread
+  // safe. std::atomic<bool> has no fetch_xor, hence the CAS.
+  bool current = value.load(std::memory_order_relaxed);
+  while (!value.compare_exchange_weak(current, !current, std::memory_order_relaxed)) {
+    // `current` is refreshed with the latest value on failure; retry.
+  }
 }
 
 GUI_VALUE() {
