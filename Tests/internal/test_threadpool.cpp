@@ -10,6 +10,7 @@
 #include "internal/threadPool.h"
 #include <atomic>
 #include <chrono>
+#include <new>
 #include <thread>
 #include <vector>
 #include <memory>
@@ -137,6 +138,36 @@ TEST_SUITE("internal") {
       j->join();
 
     CHECK(counter.load() == N); // nothing dropped
+  }
+
+  TEST_CASE("threadPool: join() waits for the worker's final store (no teardown race)") {
+    // Regression for issue #239. activate() publishes completion as
+    // `isDone=true; inQueue=false;`, so inQueue is the worker's genuinely last
+    // store into the job. The old join() spun on isDone and returned in the
+    // window before that trailing inQueue store, letting the owner destroy the
+    // job while the worker still had a store pending — a teardown
+    // use-after-free the TSan CI caught on the patcher suite.
+    //
+    // Here we reuse a single storage slot: construct a job, dispatch it, join,
+    // destroy it, then immediately reconstruct another in the same bytes. If
+    // join() returns too early the worker's trailing store races the destructor
+    // and the placement-new that follows — exactly the "activate() inQueue store
+    // vs threadPoolJob() ctor" race from the issue's TSan trace. Build under
+    // TSan (build-linux-tsan) to observe the race; a plain build simply confirms
+    // every job still runs. With join() waiting on inQueue the reuse is safe.
+    threadPool pool(4, poolClass::render);
+    std::atomic<int> counter{0};
+
+    alignas(CountJob) unsigned char storage[sizeof(CountJob)];
+    constexpr int N = 20000;
+    for (int i = 0; i < N; ++i) {
+      auto* job = new (storage) CountJob(&counter);
+      pool.addJob(job);
+      job->join();
+      job->~CountJob();
+    }
+
+    CHECK(counter.load() == N);
   }
 
   TEST_CASE("threadPool: survives shutdown()/startup() cycling") {
