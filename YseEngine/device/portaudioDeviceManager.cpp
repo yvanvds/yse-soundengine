@@ -261,9 +261,11 @@ void YSE::DEVICE::managerObject::resume() {
 }
 
 unsigned int YSE::DEVICE::managerObject::GetCallbacksSinceLastUpdate() {
-  unsigned int result = callbacksSinceLastUpdate;
-  callbacksSinceLastUpdate = 0;
-  return result;
+  // Atomically read-and-reset so a callback increment landing between the read
+  // and the store isn't erased (issue #198). A lost increment could otherwise
+  // make this return 0 and feed a spurious "device stalled" reading into
+  // system::update(). Matches the Oboe path's exchange(0).
+  return callbacksSinceLastUpdate.exchange(0);
 }
 
 void YSE::DEVICE::managerObject::updateDeviceList() {
