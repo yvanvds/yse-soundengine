@@ -854,7 +854,8 @@ void YSE::SOUND::implementationObject::toChannels() {
 
     // final gain assignment
     for (UInt j = 0; j < parent->out.size(); ++j) {
-      parent->outConf[j].ratio = static_cast<Flt>(pow(parent->outConf[j].initGain, 2) / power);
+      parent->outConf[j].ratio = computePanRatio(parent->outConf[j].initGain, power,
+                                                 static_cast<UInt>(parent->out.size()));
       channelBuffer = (*buffer)[x];
       parent->outConf[j].finalGain = sqrt(correctPower * parent->outConf[j].ratio);
 
@@ -908,6 +909,20 @@ Flt YSE::SOUND::implementationObject::computeSpeakerOverlap(Flt angleA, Flt angl
   // this speaker face the source" pan use one consistent curve. Coincident
   // speakers overlap fully (1), opposite speakers not at all (0). (#207)
   return (1 + cos(angleA - angleB)) * 0.5f;
+}
+
+Flt YSE::SOUND::implementationObject::computePanRatio(Flt initGain, Flt power, UInt speakerCount) {
+  // Guard the pan normalisation against a zero (or non-finite) total power.
+  // `power` is the sum of pow(initGain,2) over all speakers; it collapses to ~0
+  // when every speaker is antipodal to the source angle (a mono layout with the
+  // source directly behind the listener, or any degenerate custom layout).
+  // pow(initGain,2)/power is then 0/0 = NaN, which poisons the whole mix and
+  // latches into lastGain (#202). `!(power > minPower)` also rejects NaN power.
+  // Fall back to an equal 1/N split so every speaker gets a finite share.
+  constexpr Flt minPower = 1e-9f;
+  if (speakerCount == 0) return 0.f;
+  if (!(power > minPower)) return 1.f / static_cast<Flt>(speakerCount);
+  return static_cast<Flt>(pow(initGain, 2) / power);
 }
 
 Flt YSE::SOUND::implementationObject::computeDopplerRatio(const Pos& sourceVel,

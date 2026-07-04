@@ -21,7 +21,9 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <limits>
 #include <thread>
+#include <vector>
 #include "yse.hpp"
 #include "sound/soundInterface.hpp"
 #include "sound/soundManager.h"
@@ -697,6 +699,102 @@ TEST_SUITE("sound") {
     const float sourceAngle = 2.1f;
     const float panTerm = (1.f + std::cos(speakerAngle - sourceAngle)) * 0.5f;
     CHECK(Impl::computeSpeakerOverlap(speakerAngle, sourceAngle) == doctest::Approx(panTerm));
+  }
+
+  // ─── Pan-power normalisation: no NaN on degenerate layouts (#202) ───────────
+  //
+  // Regression tests for the divide-by-zero in toChannels(). Each speaker's
+  // share of the source power is pow(initGain,2) / power, where `power` is the
+  // sum of pow(initGain,2) over every speaker. On a MONO layout with the source
+  // directly behind the listener the only speaker's initPan = (1+cos(π))/2 = 0,
+  // so initGain = 0, power = 0, and the division is 0/0 = NaN — which multiplies
+  // into the block, propagates through the whole mix and latches into lastGain,
+  // poisoning subsequent blocks. computePanRatio must fall back to an equal 1/N
+  // split whenever `power` collapses (or is non-finite) so the gains stay finite
+  // for every source angle on every layout. These call the pure helper directly
+  // (and reconstruct the toChannels() pan math from the other pure helpers) so
+  // the assertions are exact and independent of any audio device.
+
+  TEST_CASE("panRatio: normal power splits proportionally to pow(initGain,2) (#202)") {
+    using Impl = YSE::SOUND::implementationObject;
+    // Two speakers, gains 0.8 / 0.6 -> power = 0.64 + 0.36 = 1.0.
+    const float g0 = 0.8f, g1 = 0.6f;
+    const float power = g0 * g0 + g1 * g1;
+    CHECK(Impl::computePanRatio(g0, power, 2) == doctest::Approx(g0 * g0 / power));
+    CHECK(Impl::computePanRatio(g1, power, 2) == doctest::Approx(g1 * g1 / power));
+    // Shares of a well-posed layout sum to 1.
+    CHECK(Impl::computePanRatio(g0, power, 2) + Impl::computePanRatio(g1, power, 2) ==
+          doctest::Approx(1.f));
+  }
+
+  TEST_CASE("panRatio: zero total power falls back to an equal 1/N split (#202)") {
+    using Impl = YSE::SOUND::implementationObject;
+    // The mono degenerate case: single speaker, power collapsed to 0 -> full gain.
+    CHECK(Impl::computePanRatio(0.f, 0.f, 1) == doctest::Approx(1.f));
+    // Four antipodal speakers: each gets 1/4, and the split still sums to 1.
+    CHECK(Impl::computePanRatio(0.f, 0.f, 4) == doctest::Approx(0.25f));
+  }
+
+  TEST_CASE("panRatio: result is finite for zero, tiny, and non-finite power (#202)") {
+    using Impl = YSE::SOUND::implementationObject;
+    // Pre-fix pow(0,2)/0 == NaN. All of these must return a finite number.
+    CHECK(std::isfinite(Impl::computePanRatio(0.f, 0.f, 1)));
+    CHECK(std::isfinite(Impl::computePanRatio(0.f, 1e-30f, 2))); // below the 1e-9 floor
+    CHECK(std::isfinite(Impl::computePanRatio(0.f, std::numeric_limits<float>::quiet_NaN(), 2)));
+  }
+
+  TEST_CASE("panRatio: a zero-speaker layout returns 0 rather than dividing by zero (#202)") {
+    using Impl = YSE::SOUND::implementationObject;
+    CHECK(Impl::computePanRatio(0.f, 0.f, 0) == doctest::Approx(0.f));
+  }
+
+  TEST_CASE("panRatio: mono, source directly behind the listener, yields a finite gain (#202)") {
+    using Impl = YSE::SOUND::implementationObject;
+    // Reproduce toChannels()'s per-speaker math for a MONO layout (one speaker at
+    // angle 0, as setMono() configures) with the source directly behind the
+    // listener (angle π) — the exact scenario from issue #202's repro.
+    const float speakerAngle = 0.f;
+    const float sourceAngle = static_cast<float>(YSE::Pi);
+    const float initPan = (1.f + std::cos(speakerAngle - sourceAngle)) * 0.5f; // -> 0
+    const float effective = Impl::computeSpeakerOverlap(speakerAngle, speakerAngle); // self == 1
+    const float initGain = initPan / effective; // -> 0
+    const float power = initGain * initGain; // -> 0 (degenerate)
+    const float ratio = Impl::computePanRatio(initGain, power, 1);
+    const float correctPower = 1.f; // near field: toChannels() clamps this to 1
+    const float finalGain = std::sqrt(correctPower * ratio);
+    CHECK(std::isfinite(finalGain));
+    CHECK(finalGain == doctest::Approx(1.f)); // equal 1/N split, N=1 -> full gain
+  }
+
+  TEST_CASE("panRatio: final gain stays finite across a full source-angle sweep (#202)") {
+    using Impl = YSE::SOUND::implementationObject;
+    // Sweep the source all the way around for a mono (1 speaker @0) and a stereo
+    // (±90°) layout, recomputing the toChannels() pan math at each angle. Every
+    // resulting gain must be finite — pre-fix the mono antipode produced NaN.
+    const std::vector<std::vector<float>> layouts = {
+        {0.f}, // mono
+        {-static_cast<float>(YSE::Pi) / 2.f, static_cast<float>(YSE::Pi) / 2.f}, // stereo
+    };
+    for (const auto& speakers : layouts) {
+      for (int i = 0; i <= 360; ++i) {
+        const float src = static_cast<float>(i) * static_cast<float>(YSE::Pi) / 180.f;
+        std::vector<float> initGain(speakers.size());
+        float power = 0.f;
+        for (std::size_t s = 0; s < speakers.size(); ++s) {
+          const float initPan = (1.f + std::cos(speakers[s] - src)) * 0.5f;
+          float effective = 0.f;
+          for (float other : speakers)
+            effective += Impl::computeSpeakerOverlap(speakers[s], other);
+          initGain[s] = initPan / effective;
+          power += initGain[s] * initGain[s];
+        }
+        for (std::size_t s = 0; s < speakers.size(); ++s) {
+          const float ratio =
+              Impl::computePanRatio(initGain[s], power, static_cast<UInt>(speakers.size()));
+          CHECK(std::isfinite(std::sqrt(1.f * ratio)));
+        }
+      }
+    }
   }
 
   // ─── Doppler ratio: multiplicative + scaled + clamped (#208) ────────────────

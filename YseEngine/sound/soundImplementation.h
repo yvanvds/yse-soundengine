@@ -182,6 +182,20 @@ namespace YSE {
       static Flt computeDopplerRatio(const Pos& sourceVel, const Pos& listenerVel, const Pos& dist,
                                      Flt dopplerScale);
 
+      /** Per-speaker share of the source's power, in [0..1]. Normally this is
+          ``pow(initGain,2) / power`` — the speaker's fraction of the total
+          emitted power. When every speaker is antipodal to the source angle
+          (e.g. a mono layout with the source directly behind the listener) the
+          total ``power`` collapses to ~0 and that division becomes 0/0 = NaN,
+          which multiplies into the block, propagates through the whole mix and
+          latches into ``lastGain`` — poisoning every subsequent block. In that
+          degenerate case (or any non-finite ``power``) the source falls back to
+          an equal ``1/speakerCount`` split so the gains stay finite for every
+          source angle on every layout. Kept as a pure static helper so the
+          normalisation stays unit-testable in isolation. See issue #202.
+      */
+      static Flt computePanRatio(Flt initGain, Flt power, UInt speakerCount);
+
       void removeInterface();
 
       OBJECT_IMPLEMENTATION_STATE getStatus();
