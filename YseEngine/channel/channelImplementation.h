@@ -12,10 +12,16 @@
 #define CHANNELIMPLEMENTATION_H_INCLUDED
 
 #include <atomic>
-#include <forward_list>
 #include "../classes.hpp"
 #include "../utils/lfQueue.hpp"
+#include "../utils/intrusiveForwardList.hpp"
 #include "../internal/threadPool.h"
+// The `sounds` intrusive list forms a pointer-to-member into
+// SOUND::implementationObject, which requires the complete type here (a bare
+// forward declaration sufficed for the old std::forward_list<T*>). This is an
+// acyclic dependency: soundImplementation.h refers to CHANNEL only through the
+// forward declaration in classes.hpp. (issue #194)
+#include "../sound/soundImplementation.h"
 
 namespace YSE {
   namespace CHANNEL {
@@ -229,6 +235,14 @@ namespace YSE {
       }
 
     private:
+      // Intrusive forward-list links (issue #194). `_mgrNext` threads this impl
+      // through the CHANNEL manager's audio-thread toLoad/inUse lists (mutually
+      // exclusive membership). `_childNext` threads it through its parent
+      // channel's `children` list. Both are touched only on the audio thread,
+      // replacing the std::forward_list<T*> nodes without per-tick heap churn.
+      implementationObject* _mgrNext = nullptr;
+      implementationObject* _childNext = nullptr;
+
       std::atomic<channel*> head; // < The interface connected to this object
       std::atomic<OBJECT_IMPLEMENTATION_STATE> objectStatus; // < the status of this object
       lfQueue<messageObject> messages;
@@ -244,8 +258,13 @@ namespace YSE {
       // and parent->sounds traversal.
       std::atomic<bool> connectedToParent{false};
 
-      std::forward_list<CHANNEL::implementationObject*> children;
-      std::forward_list<SOUND::implementationObject*> sounds;
+      // Intrusive lists keyed on the per-impl link fields — zero heap churn on
+      // the audio-thread connect()/disconnect() paths (issue #194).
+      IntrusiveForwardList<CHANNEL::implementationObject,
+                           &CHANNEL::implementationObject::_childNext>
+          children;
+      IntrusiveForwardList<SOUND::implementationObject, &SOUND::implementationObject::_channelNext>
+          sounds;
 
       std::vector<output> outConf;
       std::vector<DSP::buffer> out;

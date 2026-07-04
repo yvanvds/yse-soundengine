@@ -72,6 +72,12 @@ namespace YSE {
       }
 
     private:
+      // Intrusive forward-list link (issue #194). Threads this impl through the
+      // REVERB manager's audio-thread toLoad/inUse lists (mutually exclusive
+      // membership, so one link suffices). Touched only on the audio thread,
+      // replacing the std::forward_list<T*> node without per-tick heap churn.
+      implementationObject* _mgrNext = nullptr;
+
       std::atomic<reverb*> head; // < The interface connected to this object
       std::atomic<OBJECT_IMPLEMENTATION_STATE> objectStatus; // < the status of this object
       lfQueue<messageObject> messages;

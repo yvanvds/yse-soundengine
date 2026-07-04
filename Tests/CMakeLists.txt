@@ -5,6 +5,7 @@
 set(YSE_TEST_SOURCES
   main.cpp
   test_sanity.cpp
+  support/alloc_probe.cpp
   dsp/test_buffer.cpp
   dsp/test_ramp.cpp
   dsp/test_math_scalars.cpp
@@ -15,6 +16,7 @@ set(YSE_TEST_SOURCES
   utils/test_lfqueue.cpp
   utils/test_mpmcqueue.cpp
   utils/test_interpolators.cpp
+  utils/test_intrusive_list.cpp
   internal/test_threadpool.cpp
   dsp/test_filters.cpp
   dsp/test_delay.cpp
@@ -52,6 +54,8 @@ set(YSE_TEST_SOURCES
   sound/test_sound_manager.cpp
   sound/test_sound_file_gc.cpp
   sound/test_sound_bus.cpp
+  sound/test_virtual_finder.cpp
+  sound/test_manager_alloc.cpp
   reverb/test_reverb_dsp.cpp
   reverb/test_reverb_concurrency.cpp
   midi/test_midifile.cpp

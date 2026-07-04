@@ -33,6 +33,15 @@ namespace YSE {
                                    // internally when needed.
 
   private:
+    // The histogram resolution adapts at runtime, but the backing `bin` buffer
+    // is allocated once at construction to RESOLUTION_MAX and never resized —
+    // reset()/add()/calculate() all run on the audio thread and must not touch
+    // the heap (issue #194). `resolution` is the logical bin count in use and
+    // is clamped to [RESOLUTION_MIN, RESOLUTION_MAX]; only bins [0, resolution)
+    // are ever read or written.
+    static constexpr Int RESOLUTION_MIN = 2;
+    static constexpr Int RESOLUTION_MAX = 128;
+
     Int resolution;
     aInt limit; // the number of entries that should be in range
     Int currentLimit;
@@ -41,7 +50,7 @@ namespace YSE {
     Flt calculatedMax; // the biggest value before last reset (we can assume this is about the same
                        // as the new value will be)
     Int entries; // how many entries are added since reset
-    std::vector<Int> bin;
+    std::vector<Int> bin; // fixed size RESOLUTION_MAX; logical size is `resolution`
   };
 
   virtualFinder& VirtualSoundFinder();

@@ -18,7 +18,12 @@ YSE::virtualFinder& YSE::VirtualSoundFinder() {
 
 YSE::virtualFinder::virtualFinder(Int resolution)
   : resolution(resolution), limit(50), maximum(0.f), calculatedMax(10.f) {
-  bin.resize(resolution, 0);
+  // Clamp the requested initial resolution into the valid band and allocate the
+  // backing histogram once at its maximum size. It is never resized afterwards
+  // (issue #194): calculate() only adjusts the logical `resolution`.
+  if (this->resolution < RESOLUTION_MIN) this->resolution = RESOLUTION_MIN;
+  if (this->resolution > RESOLUTION_MAX) this->resolution = RESOLUTION_MAX;
+  bin.resize(RESOLUTION_MAX, 0);
 }
 
 void YSE::virtualFinder::setLimit(Int value) {
@@ -35,7 +40,7 @@ void YSE::virtualFinder::reset() {
   else
     calculatedMax = 10;
 
-  for (UInt i = 0; i < bin.size(); i++)
+  for (Int i = 0; i < resolution; i++)
     bin[i] = 0;
   maximum = 0;
   entries = 0;
@@ -50,8 +55,11 @@ void YSE::virtualFinder::add(Flt value) {
     sort = 0;
   else
     sort = static_cast<Int>(value / (calculatedMax / resolution));
-  if ((UInt)sort > bin.size() - 1) {
-    sort = bin.size() - 1;
+  if (sort > resolution - 1) {
+    sort = resolution - 1;
+  }
+  if (sort < 0) {
+    sort = 0;
   }
   bin[sort]++;
 }
@@ -70,8 +78,8 @@ void YSE::virtualFinder::calculate() {
   // add up bins until we have enough entries
   Int count = 0;
   currentLimit = limit.load();
-  UInt i;
-  for (i = 0; i < bin.size(); i++) {
+  Int i;
+  for (i = 0; i < resolution; i++) {
     count += bin[i];
     if (count > currentLimit) {
       break;
@@ -83,13 +91,12 @@ void YSE::virtualFinder::calculate() {
     range -= calculatedMax / resolution * (1 - (count - currentLimit) / bin[i]);
 
     // if the difference between the count and the limit is more than 10%, we have to enlarge our
-    // resolution
+    // resolution; if it is very small we can shrink it. The backing buffer is never resized — we
+    // only move the logical `resolution` within [RESOLUTION_MIN, RESOLUTION_MAX] (issue #194).
     if (abs(count - currentLimit) > currentLimit / 10.f) {
-      resolution++;
-      bin.resize(resolution);
+      if (resolution < RESOLUTION_MAX) resolution++;
     } else if (abs(count - currentLimit) < currentLimit / 50.f) {
-      resolution--;
-      bin.resize(resolution);
+      if (resolution > RESOLUTION_MIN) resolution--;
     }
   } else {
     range = maximum;

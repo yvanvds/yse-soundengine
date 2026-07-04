@@ -128,7 +128,7 @@ void YSE::SOUND::managerObject::setup(YSE::SOUND::implementationObject* impl) {
 void YSE::SOUND::managerObject::drainInbox() {
   implementationObject* p;
   while (toLoadInbox.try_pop(p))
-    toLoad.emplace_front(p);
+    toLoad.push_front(p);
 }
 
 void YSE::SOUND::managerObject::scrubToLoadAndScheduleSetup() {
@@ -138,9 +138,8 @@ void YSE::SOUND::managerObject::scrubToLoadAndScheduleSetup() {
   // the slow-pool delete job — but only AFTER erasing them from toLoad,
   // so the slow-pool can't free a pointer that's still in the
   // audio-thread-iterated list. See enums.hpp for the PENDING rationale.
-  auto previous = toLoad.before_begin();
-  for (auto it = toLoad.begin(); it != toLoad.end();) {
-    implementationObject* p = *it;
+  for (auto c = toLoad.front(); c.valid();) {
+    implementationObject* p = c.get();
     OBJECT_IMPLEMENTATION_STATE s = p->objectStatus.load(
         std::memory_order_acquire); // NOSONAR S8417: intentional acquire — read impl state
                                     // published by setup-failure path
@@ -150,12 +149,11 @@ void YSE::SOUND::managerObject::scrubToLoadAndScheduleSetup() {
           std::memory_order_release); // NOSONAR S8417: intentional release — publish DELETE state
                                       // to slow-pool deleteJob's acquire load
       runDelete = true;
-      it = toLoad.erase_after(previous);
+      c.erase();
     } else if (s == OBJECT_READY || s == OBJECT_RELEASE || s == OBJECT_DELETE) {
-      it = toLoad.erase_after(previous);
+      c.erase();
     } else {
-      previous = it;
-      ++it;
+      c.next();
     }
   }
   INTERNAL::Global().addSlowJob(&mgrSetup);
@@ -169,27 +167,27 @@ void YSE::SOUND::managerObject::promoteReadyImpls() {
   // in the inUse iteration below, runDelete is set, deleteJob is enqueued,
   // the slow-pool frees the impl, and the next remove_if call dereferences
   // the freed pointer (ASan-confirmed).
-  auto previous = toLoad.before_begin();
-  for (auto i = toLoad.begin(); i != toLoad.end();) {
-    implementationObject* ptr = *i;
+  for (auto c = toLoad.front(); c.valid();) {
+    implementationObject* ptr = c.get();
     if (ptr->readyCheck()) {
-      inUse.emplace_front(ptr);
+      // Unlink from toLoad BEFORE linking into inUse: both lists share the
+      // impl's single `_mgrNext` link, so the erase (which reads _mgrNext to
+      // stitch toLoad) must happen before push_front overwrites it (issue #194).
+      c.erase();
+      inUse.push_front(ptr);
       ptr->doThisWhenReady();
-      i = toLoad.erase_after(previous);
     } else {
-      previous = i;
-      ++i;
+      c.next();
     }
   }
 }
 
 void YSE::SOUND::managerObject::syncAndReleaseInUse() {
-  auto previous = inUse.before_begin();
-  for (auto i = inUse.begin(); i != inUse.end();) {
-    (*i)->sync();
-    if ((*i)->getStatus() == OBJECT_RELEASE) {
-      implementationObject* ptr = (*i);
-      i = inUse.erase_after(previous);
+  for (auto c = inUse.front(); c.valid();) {
+    implementationObject* ptr = c.get();
+    ptr->sync();
+    if (ptr->getStatus() == OBJECT_RELEASE) {
+      c.erase();
       // Audio-thread-side disconnect: remove this impl from parent->sounds
       // BEFORE marking it OBJECT_DELETE. The slow-pool's deleteJob filters
       // on OBJECT_DELETE, so any impl visible to it has already been pulled
@@ -213,11 +211,10 @@ void YSE::SOUND::managerObject::syncAndReleaseInUse() {
                                                // nulled dsp source to audio thread's acquire load
       ptr->setStatus(OBJECT_DELETE);
       runDelete = true;
-      continue;
+      continue; // c already refers to the successor after erase()
     }
-    (*i)->update();
-    previous = i;
-    ++i;
+    ptr->update();
+    c.next();
   }
 }
 

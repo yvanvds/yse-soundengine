@@ -23,6 +23,7 @@
 #include "../internal/threadPool.h"
 #include "../internal/managerJobs.hpp"
 #include "../utils/lfQueue.hpp"
+#include "../utils/intrusiveForwardList.hpp"
 
 // global object for file loading
 // used in system.cpp, soundimpl.cpp and soundfile.cpp
@@ -157,9 +158,11 @@ namespace YSE {
       // This value is calculated on every update
       // aFlt maxDistance;
 
-      // Once an object is ready for use, a pointer is placed in this container. The manager will
-      // update and sync all these objects during the dsp callback function
-      std::forward_list<implementationObject*> inUse;
+      // Once an object is ready for use, it is linked into this container. The
+      // manager updates and syncs all these objects during the dsp callback.
+      // Intrusive (link embedded in the impl via `_mgrNext`) so linking on the
+      // audio thread never allocates (issue #194).
+      IntrusiveForwardList<implementationObject, &implementationObject::_mgrNext> inUse;
 
       // Lock-free SPSC inbox: main thread pushes here from setup(); audio thread
       // drains it into `toLoad` at the top of update(). This is the only
@@ -168,9 +171,11 @@ namespace YSE {
 
       // Audio-thread-owned working list of impls awaiting OBJECT_READY. The
       // audio thread drains the inbox into it, iterates it to detect readiness,
-      // and remove_ifs ready/released/deleted impls out of it. No other thread
-      // touches this list.
-      std::forward_list<implementationObject*> toLoad;
+      // and removes ready/released/deleted impls out of it. No other thread
+      // touches this list. Intrusive on the same `_mgrNext` link as `inUse` —
+      // an impl is only ever in one of the two (it moves from toLoad to inUse),
+      // so a single embedded link is sufficient and allocation-free.
+      IntrusiveForwardList<implementationObject, &implementationObject::_mgrNext> toLoad;
 
       // Canonical list of all implementationObjects for this subsystem. Touched
       // by the main thread (emplace_front in addImplementation) and the

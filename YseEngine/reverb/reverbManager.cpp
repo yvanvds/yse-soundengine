@@ -105,7 +105,7 @@ void YSE::REVERB::managerObject::update() {
   {
     implementationObject* p;
     while (toLoadInbox.try_pop(p))
-      toLoad.emplace_front(p);
+      toLoad.push_front(p);
   }
 
   toLoad.remove_if(implementationObject::canBeRemovedFromLoading);
@@ -122,15 +122,15 @@ void YSE::REVERB::managerObject::update() {
   // manager update() for the use-after-free rationale this avoids.
   ///////////////////////////////////////////
   {
-    auto previous = toLoad.before_begin();
-    for (auto i = toLoad.begin(); i != toLoad.end();) {
-      implementationObject* ptr = *i;
+    for (auto c = toLoad.front(); c.valid();) {
+      implementationObject* ptr = c.get();
       if (ptr->readyCheck()) {
-        inUse.emplace_front(ptr);
-        i = toLoad.erase_after(previous);
+        // Unlink from toLoad before linking into inUse: both share the impl's
+        // single `_mgrNext` link (issue #194).
+        c.erase();
+        inUse.push_front(ptr);
       } else {
-        previous = i;
-        ++i;
+        c.next();
       }
     }
   }
@@ -139,18 +139,16 @@ void YSE::REVERB::managerObject::update() {
   // sync and update implementations
   ///////////////////////////////////////////
   {
-    auto previous = inUse.before_begin();
-    for (auto i = inUse.begin(); i != inUse.end();) {
-      (*i)->sync();
-      if ((*i)->getStatus() == OBJECT_RELEASE) {
-        implementationObject* ptr = (*i);
-        i = inUse.erase_after(previous);
+    for (auto c = inUse.front(); c.valid();) {
+      implementationObject* ptr = c.get();
+      ptr->sync();
+      if (ptr->getStatus() == OBJECT_RELEASE) {
+        c.erase();
         ptr->setStatus(OBJECT_DELETE);
         runDelete = true;
-        continue;
+        continue; // c already refers to the successor after erase()
       }
-      previous = i;
-      ++i;
+      c.next();
     }
   }
 
