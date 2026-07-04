@@ -125,8 +125,16 @@ TEST_SUITE("reverb") {
     stop.store(true, std::memory_order_release);
     setter.join();
 
+    // The global reverb is a process-scoped singleton whose state persists
+    // across test cases (engineInit() runs System().init() only once). This
+    // test mutates its `active` flag, so restore the clean post-init state
+    // (active == true) — otherwise the order-dependent case
+    // "reverb: Manager global reverb is active after engine init" fails
+    // whenever the linker registers this TU first (as on Linux CI).
+    gr.setActive(true);
+
     drainReverbs(40);
-    CHECK(true);
+    CHECK(gr.getActive() == true);
   }
 
 } // TEST_SUITE("reverb")
