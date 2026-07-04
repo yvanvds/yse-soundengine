@@ -74,6 +74,22 @@ namespace YSE {
       */
       void resize(bool deep = false);
 
+      /** Precompute the per-speaker density-compensation weights
+          (output::effective) from the current speaker geometry.
+
+          effective[i] = Σ_j computeSpeakerOverlap(angle_i, angle_j) over every
+          non-LFE output j. It depends only on the speaker angles / LFE flags,
+          never on the source or the audio block, so it is computed once on a
+          layout change (setup()/resize(), off the audio thread) rather than
+          being recomputed per source channel per block inside toChannels() —
+          the term is the entire O(N^2)-transcendental cost of the panner and is
+          a no-op on symmetric layouts. LFE outputs are skipped in both the i and
+          j sums, matching toChannels() (issue #203); their effective is left
+          untouched and never read. Kept as a pure static so the weighting stays
+          unit-testable in isolation. See issue #211.
+      */
+      static void computeEffectiveSpeakerWeights(std::vector<output>& outConf);
+
       /** This function is called by channelManager::update (from dsp callback) and verifies
       if the channel is ready to be played. It will then be moved from toCreate
       to inUse.
