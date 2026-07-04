@@ -102,9 +102,14 @@ namespace YSE {
       // Make sure we get the latest version of all variables from other CPUs:
       fence(memory_order_sync);
 
-      // Destroy any remaining objects in queue and free memory
-      Block* tailBlock_ = tailBlock;
-      Block* block = frontBlock;
+      // Destroy any remaining objects in queue and free memory.
+      // Blocks form a circular linked list; walk the whole circle back to the
+      // starting block so every block (including the tail block and any free
+      // blocks between the tail and front) is destroyed. Stopping at tailBlock
+      // — as an earlier version did — leaked the tail block, the free blocks,
+      // and any live elements still held in the tail block.
+      Block* frontBlock_ = frontBlock;
+      Block* block = frontBlock_;
       do {
         Block* nextBlock = block->next;
         size_t blockFront = block->front;
@@ -119,7 +124,7 @@ namespace YSE {
         delete block;
         block = nextBlock;
 
-      } while (block != tailBlock_);
+      } while (block != frontBlock_);
     }
 
     // Enqueues a copy of element if there is room in the queue.
