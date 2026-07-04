@@ -10,6 +10,7 @@
 
 #include "math_functions.h"
 #include <math.h>
+#include <cstdint>
 #include <cstring>
 
 #define LOGTEN 2.302585092994f
@@ -131,7 +132,8 @@ void YSE::DSP::sqrtFunc(Flt* in, Flt* out, UInt length) {
   sqrtTable& s = SqrtTable();
   while (length--) {
     float f = *in;
-    long l = *(long*)(in++);
+    std::uint32_t l;
+    std::memcpy(&l, in++, sizeof(l));
     if (f < 0)
       *out++ = 0;
     else {
