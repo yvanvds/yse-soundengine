@@ -63,6 +63,15 @@ namespace YSE {
       UInt length(); // length of the source in frames
       FILESTATE getState(); // current state of the file, (ready, invalid or loading)
 
+      // Live-instance accounting for tests (issue #218). Returns the number of
+      // abstractSoundFile objects currently alive, so a test can assert that a
+      // streaming sound's per-impl soundFile is actually freed on teardown (the
+      // leak was that ~implementationObject never deleted it). Incremented in
+      // the base constructor and decremented in the destructor — both run off
+      // the audio thread (main thread / slow pool), so this counter is never
+      // touched on any real-time path.
+      static long liveInstances();
+
       // set
       abstractSoundFile& reset(); // indicate that stream needs to reset (after stop)
       // Seek a streaming sound to an absolute frame (issue #217). Called on the
@@ -185,6 +194,10 @@ namespace YSE {
     private:
       // default constructor should only be used internally
       abstractSoundFile(bool interleaved);
+
+      // Count of live abstractSoundFile instances (issue #218 test oracle).
+      // Never mutated on the audio thread — see liveInstances() above.
+      static std::atomic<long> s_liveInstances;
     };
 
   } // namespace INTERNAL

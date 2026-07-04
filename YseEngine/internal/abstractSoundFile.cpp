@@ -12,6 +12,12 @@
 #include <string.h>
 #include <cassert>
 
+std::atomic<long> YSE::INTERNAL::abstractSoundFile::s_liveInstances{0};
+
+long YSE::INTERNAL::abstractSoundFile::liveInstances() {
+  return s_liveInstances.load(std::memory_order_acquire);
+}
+
 YSE::INTERNAL::abstractSoundFile::abstractSoundFile(bool interleaved)
   : useInterleavedBuffer(interleaved),
     _iBuffer(nullptr),
@@ -27,6 +33,9 @@ YSE::INTERNAL::abstractSoundFile::abstractSoundFile(bool interleaved)
     _frontTerminal(false),
     idleTime(0) {
   _refillJob.owner = this;
+  // All constructors delegate here, so this single increment covers every
+  // abstractSoundFile instance (issue #218 test oracle).
+  s_liveInstances.fetch_add(1, std::memory_order_release);
 }
 
 YSE::INTERNAL::abstractSoundFile::abstractSoundFile(const std::string& fileName, bool interleaved)
@@ -643,7 +652,9 @@ Bool YSE::INTERNAL::abstractSoundFile::contains(MULTICHANNELBUFFER* buffer) {
   return this->_multiChannelBuffer == buffer;
 }
 
-YSE::INTERNAL::abstractSoundFile::~abstractSoundFile() {}
+YSE::INTERNAL::abstractSoundFile::~abstractSoundFile() {
+  s_liveInstances.fetch_sub(1, std::memory_order_release);
+}
 
 Int YSE::INTERNAL::abstractSoundFile::channels() {
   return _channels;
