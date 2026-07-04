@@ -366,9 +366,15 @@ void YSE::SOUND::implementationObject::sendMessage(const messageObject& message)
 }
 
 void YSE::SOUND::implementationObject::sync() {
-  // Snapshot head once: ~sound() on another thread can race the null check
-  // and null head via removeInterface() between the check and the deref
-  // below, producing a SEGV at the offset of `_volume` from null.
+  // Snapshot head once so we can detect that ~sound() has run: removeInterface()
+  // nulls `head` (release store) when the user object is destroyed, and this
+  // acquire load observes that. We use the snapshot ONLY to branch on
+  // destruction — sync() must never write through it. ~sound() can complete
+  // (and the user-owned interface storage be reclaimed) at any point after the
+  // load, so a store back through `h` would be a use-after-free (issue #191).
+  // All values the interface reads back are published through impl-side atomics
+  // (`_head_time`, `_head_status`, ...) that outlive the interface, never pushed
+  // into the interface object.
   sound* h =
       head.load(std::memory_order_acquire); // NOSONAR S8417: intentional acquire — snapshot head
                                             // once to avoid race with ~sound()/removeInterface()
@@ -397,7 +403,11 @@ void YSE::SOUND::implementationObject::sync() {
   // sync dsp values
   currentVolume_upd = currentVolume_dsp;
   _head_time = currentFilePos;
-  h->_volume = currentVolume_dsp;
+  // NB: the actual playing volume is intentionally NOT pushed back into the
+  // user-owned interface object here. Doing so (`h->_volume = ...`) raced
+  // ~sound() and wrote freed memory (issue #191). `sound::volume()` returns
+  // the last-set (clamped) value from its own cache, consistent with every
+  // sibling getter (speed/spread/size/pos), none of which sync() writes to.
   status_upd = status_dsp;
   _head_status = status_upd;
 }

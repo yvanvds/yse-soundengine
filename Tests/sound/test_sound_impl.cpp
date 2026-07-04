@@ -127,14 +127,28 @@ TEST_SUITE("sound") {
     drainSoundManager();
     // time>0 sends both messages — exercises the VOLUME_TIME arm too.
     s.volume(0.5f, 100u);
-    // Read the interface mirror *before* drainSoundManager: sync() overwrites
-    // _volume from currentVolume_dsp (= 0 until dsp() runs in the audio
-    // callback, which never fires under TestHelpers::engineInit's null
-    // device), so checking after drain would observe the clobber instead of
-    // the value we just set.
     CHECK(s.volume() == doctest::Approx(0.5f));
     drainSoundManager();
     CHECK(true);
+  }
+
+  // Regression for issue #191: sync() used to push the live dsp volume back
+  // into the user-owned interface object (`h->_volume = currentVolume_dsp`),
+  // a use-after-free window against ~sound() AND a clobber of the getter's
+  // last-set cache. The write-through is gone; volume() must survive a full
+  // sync cycle and keep returning the value the user set (like every sibling
+  // getter). Pre-fix this observed the clobber (currentVolume_dsp == 0 under
+  // the null device, since dsp() never runs) and returned 0.0 instead of 0.5.
+  TEST_CASE("sound impl: sync() no longer clobbers the volume getter (#191)") {
+    if (!TestHelpers::engineInit()) return;
+    YSE::sound s;
+    s.create(g_src);
+    drainSoundManager();
+    s.volume(0.5f);
+    // Drive several sync() cycles — exactly the path that used to write through
+    // the freed interface pointer. The set value must persist.
+    drainSoundManager();
+    CHECK(s.volume() == doctest::Approx(0.5f));
   }
 
   TEST_CASE("sound impl: SPEED message is parsed without crash") {
