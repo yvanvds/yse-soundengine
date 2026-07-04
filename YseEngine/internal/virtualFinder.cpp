@@ -56,10 +56,14 @@ void YSE::virtualFinder::add(Flt value) {
   bin[sort]++;
 }
 
-bool YSE::virtualFinder::inRange(Flt value) {
+bool YSE::virtualFinder::inRange(Flt value, bool wasReal) {
   if (entries < currentLimit) return true;
-  if (value < range) return true;
-  return false;
+  // Hysteresis (issue #206): a sound already real holds on until it drifts ~5%
+  // past the cutoff, while a virtual sound must come ~5% inside the cutoff
+  // before it is promoted back. The ~10% gap between the two thresholds keeps a
+  // sound hovering at the boundary from toggling every tick as `range` wobbles.
+  Flt threshold = wasReal ? range * 1.05f : range * 0.95f;
+  return value < threshold;
 }
 
 void YSE::virtualFinder::calculate() {

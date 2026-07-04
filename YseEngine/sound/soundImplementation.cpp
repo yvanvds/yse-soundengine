@@ -31,6 +31,8 @@ YSE::SOUND::implementationObject::implementationObject(sound* head)
     velocity(0.f),
     pitch(1.f),
     size(1.0f),
+    isVirtual(false),
+    virtualFadeOut(false),
     setVolume(false),
     volumeValue(0),
     volumeTime(0),
@@ -589,7 +591,26 @@ Bool YSE::SOUND::implementationObject::dsp() {
   }
 
   if (status_dsp == SS_STOPPED || status_dsp == SS_PAUSED) return false;
-  if (parent->allowVirtual && !VirtualSoundFinder().inRange(virtualDist)) return false;
+
+  ///////////////////////////////////////////
+  // virtualization (issue #206)
+  ///////////////////////////////////////////
+  // A sound crossing the virtualization threshold must not be hard-muted
+  // between two blocks (that steps its contribution to zero in one buffer — an
+  // audible click). Instead it gets exactly one farewell block whose channel
+  // gains are forced to 0, so the 50-sample ramp in dspFunc_calculateGain()
+  // slides it down to silence. inRange() applies a hysteresis band around the
+  // cutoff so a sound sitting on the boundary doesn't flutter real/virtual.
+  if (parent->allowVirtual) {
+    bool real = VirtualSoundFinder().inRange(virtualDist, /*wasReal=*/!isVirtual);
+    virtualAction act = computeVirtualAction(real, isVirtual);
+    isVirtual = act.nowVirtual;
+    virtualFadeOut = act.fadeOut;
+    if (!act.render) return false;
+  } else {
+    isVirtual = false;
+    virtualFadeOut = false;
+  }
 
   ///////////////////////////////////////////
   // set volume at sound level
@@ -798,6 +819,10 @@ void YSE::SOUND::implementationObject::toChannels() {
 
       // add volume control now
       if (occlusionActive) parent->outConf[j].finalGain *= 1 - occlusion_dsp;
+      // Farewell block for a sound going virtual (#206): target gain 0 so
+      // dspFunc_calculateGain() ramps from lastGain down to silence instead of
+      // the sound simply vanishing on the next (skipped) block.
+      if (virtualFadeOut) parent->outConf[j].finalGain = 0.f;
       dspFunc_calculateGain(j, x);
       channelBuffer *= fader();
       parent->out[j] += channelBuffer;
@@ -834,6 +859,18 @@ Flt YSE::SOUND::implementationObject::computeVirtualDist(Flt distance, Flt size,
   constexpr Flt minVolume = 0.0001f;
   if (volume < minVolume) volume = minVolume;
   return effectiveDist / volume;
+}
+
+YSE::SOUND::implementationObject::virtualAction
+YSE::SOUND::implementationObject::computeVirtualAction(bool real, bool wasVirtual) {
+  // Real: render normally (re-entry from virtual ramps back up from the 0 that
+  // the farewell block left in lastGain, so no stale-gain jump either).
+  if (real) return {/*render=*/true, /*fadeOut=*/false, /*nowVirtual=*/false};
+  // First block going virtual: still render, but with gains forced to 0 so the
+  // block ramps down to silence (one farewell fade instead of a click).
+  if (!wasVirtual) return {/*render=*/true, /*fadeOut=*/true, /*nowVirtual=*/true};
+  // Already faded out on a previous block: stay silent (skip render entirely).
+  return {/*render=*/false, /*fadeOut=*/false, /*nowVirtual=*/true};
 }
 
 bool YSE::SOUND::implementationObject::sortSoundObjects(implementationObject* lhs,

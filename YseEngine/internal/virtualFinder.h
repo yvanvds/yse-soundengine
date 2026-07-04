@@ -23,7 +23,12 @@ namespace YSE {
     void setLimit(Int value);
     Int getLimit();
     void calculate();
-    bool inRange(Flt value); // check if this value is ok according to the last calculations
+    // Check if this value is still in range according to the last calculation.
+    // `wasReal` is this sound's state on the previous block: a ~10% hysteresis
+    // band around the cutoff (real sounds hold on 5% past it, virtual sounds
+    // must come 5% inside it) stops a sound sitting on the boundary from
+    // fluttering real/virtual on consecutive update ticks (issue #206).
+    bool inRange(Flt value, bool wasReal);
     virtualFinder(Int resolution); // argument is the initial resolution. This can be adjusted
                                    // internally when needed.
 
