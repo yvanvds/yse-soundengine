@@ -573,6 +573,110 @@ TEST_SUITE("sound") {
     CHECK(Impl::computeSpeakerOverlap(speakerAngle, sourceAngle) == doctest::Approx(panTerm));
   }
 
+  // ─── Doppler ratio: multiplicative + scaled + clamped (#208) ────────────────
+  //
+  // Regression tests for the additive, unsmoothed doppler. computeDopplerRatio
+  // returns a playback-rate *multiplier*: 1.0 when nothing moves, > 1 for a
+  // closing pair (pitch up), < 1 for a receding pair (pitch down). The old code
+  // added `1 - 1/ratio` to the pitch instead of multiplying, which only matched
+  // near pitch = 1. These call the pure helper directly so the assertions are
+  // exact and independent of the update-tick timing that used to warble it.
+  //
+  // Geometry convention: `dist` is the source→listener axis (source position
+  // minus listener position, i.e. from listener toward source in the engine's
+  // `newPos - Listener().newPos`). A source velocity pointing along +dist moves
+  // it *away* from the listener (receding); pointing along -dist moves it toward
+  // the listener (approaching).
+
+  TEST_CASE("doppler: a stationary source/listener pair yields ratio 1.0 (#208)") {
+    using Impl = YSE::SOUND::implementationObject;
+    const float r =
+        Impl::computeDopplerRatio(YSE::Pos(0.f), YSE::Pos(0.f), YSE::Pos(10.f, 0.f, 0.f), 1.f);
+    CHECK(r == doctest::Approx(1.f));
+  }
+
+  TEST_CASE("doppler: a source approaching the listener pitches up (ratio > 1) (#208)") {
+    using Impl = YSE::SOUND::implementationObject;
+    // Source sits at +10 on x; velocity toward the listener is -x (along -dist).
+    const YSE::Pos dist(10.f, 0.f, 0.f);
+    const YSE::Pos approaching(-30.f, 0.f, 0.f); // 30 m/s toward listener
+    const float r = Impl::computeDopplerRatio(approaching, YSE::Pos(0.f), dist, 1.f);
+    CHECK(r > 1.f);
+    // Physical value: (344 + 0) / (344 + (-30)) = 344/314 ≈ 1.0955.
+    CHECK(r == doctest::Approx(344.f / 314.f));
+  }
+
+  TEST_CASE("doppler: a source receding from the listener pitches down (ratio < 1) (#208)") {
+    using Impl = YSE::SOUND::implementationObject;
+    const YSE::Pos dist(10.f, 0.f, 0.f);
+    const YSE::Pos receding(30.f, 0.f, 0.f); // 30 m/s away from listener (along +dist)
+    const float r = Impl::computeDopplerRatio(receding, YSE::Pos(0.f), dist, 1.f);
+    CHECK(r < 1.f);
+    // Physical value: (344 + 0) / (344 + 30) = 344/374 ≈ 0.9198.
+    CHECK(r == doctest::Approx(344.f / 374.f));
+  }
+
+  TEST_CASE("doppler: is multiplicative, not additive (the #208 fix)") {
+    using Impl = YSE::SOUND::implementationObject;
+    // The bug added `1 - 1/ratio` to pitch. For a receding source the physical
+    // ratio is 344/374. The additive linearisation would have produced
+    // 1 + (1 - 374/344) = 1 - 30/344 ≈ 0.9128, whereas the correct multiplier is
+    // 344/374 ≈ 0.9198. Require the helper to return the true ratio, not the
+    // linearised value — they differ enough to distinguish.
+    const YSE::Pos dist(10.f, 0.f, 0.f);
+    const float ratio =
+        Impl::computeDopplerRatio(YSE::Pos(30.f, 0.f, 0.f), YSE::Pos(0.f), dist, 1.f);
+    const float additive = 1.f + (1.f - 374.f / 344.f); // what the old code applied
+    CHECK(ratio == doctest::Approx(344.f / 374.f));
+    CHECK(ratio != doctest::Approx(additive));
+    CHECK(ratio > additive); // the correct multiplier is the larger of the two here
+  }
+
+  TEST_CASE("doppler: dopplerScale amplifies the deviation from unity (#208)") {
+    using Impl = YSE::SOUND::implementationObject;
+    const YSE::Pos dist(10.f, 0.f, 0.f);
+    const YSE::Pos vel(30.f, 0.f, 0.f); // receding
+    const float base = Impl::computeDopplerRatio(vel, YSE::Pos(0.f), dist, 1.f);
+    const float scaled = Impl::computeDopplerRatio(vel, YSE::Pos(0.f), dist, 2.f);
+    const float off = Impl::computeDopplerRatio(vel, YSE::Pos(0.f), dist, 0.f);
+    // scale 0 disables the effect; scale 2 doubles the deviation from 1.
+    CHECK(off == doctest::Approx(1.f));
+    CHECK(scaled == doctest::Approx(1.f + (base - 1.f) * 2.f));
+  }
+
+  TEST_CASE("doppler: listener motion contributes to the ratio (#208)") {
+    using Impl = YSE::SOUND::implementationObject;
+    const YSE::Pos dist(10.f, 0.f, 0.f);
+    // Listener moving toward the source (+x, along +dist) raises the numerator
+    // and pitches the sound up.
+    const float r = Impl::computeDopplerRatio(YSE::Pos(0.f), YSE::Pos(30.f, 0.f, 0.f), dist, 1.f);
+    CHECK(r > 1.f);
+    CHECK(r == doctest::Approx(374.f / 344.f));
+  }
+
+  TEST_CASE("doppler: a co-located pair returns 1.0 rather than dividing by zero (#208)") {
+    using Impl = YSE::SOUND::implementationObject;
+    const float r =
+        Impl::computeDopplerRatio(YSE::Pos(5.f, 0.f, 0.f), YSE::Pos(0.f), YSE::Pos(0.f), 1.f);
+    CHECK(r == doctest::Approx(1.f));
+  }
+
+  TEST_CASE("doppler: the ratio is clamped to a sane band for super-sonic speeds (#208)") {
+    using Impl = YSE::SOUND::implementationObject;
+    const YSE::Pos dist(10.f, 0.f, 0.f);
+    // Source closing far faster than the speed of sound: denominator goes
+    // non-positive. The helper must not return a negative or unbounded rate.
+    const float closing =
+        Impl::computeDopplerRatio(YSE::Pos(-1000.f, 0.f, 0.f), YSE::Pos(0.f), dist, 1.f);
+    CHECK(closing > 0.f);
+    CHECK(closing <= 4.f + 1e-4f);
+    // Receding far faster than sound: stays positive and clamped, never negative.
+    const float fleeing =
+        Impl::computeDopplerRatio(YSE::Pos(1000.f, 0.f, 0.f), YSE::Pos(0.f), dist, 1.f);
+    CHECK(fleeing >= 0.25f - 1e-4f);
+    CHECK(fleeing <= 1.f);
+  }
+
   // ─── Manager update loop / lifecycle ─────────────────────────────────────────
 
   TEST_CASE("sound impl: sync() detects head==nullptr after destructor and releases impl") {
