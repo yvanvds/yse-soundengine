@@ -47,13 +47,22 @@ void YSE::INTERNAL::threadPoolJob::join() {
   // Bounded-spin wait, called from the audio callback (buffersToParent) — it
   // must never sleep or lock. The old implementation slept in 2 ms quanta,
   // burning ~70% of a 2.9 ms render block waiting on a worker (issue #188).
-  // Instead spin on the done flag, relaxing the CPU for a while and then
-  // yielding so a not-yet-scheduled worker can run. Render workers run at
-  // raised priority, so the yield path is rarely reached.
+  // Instead spin on a flag, relaxing the CPU for a while and then yielding so a
+  // not-yet-scheduled worker can run. Render workers run at raised priority, so
+  // the yield path is rarely reached.
+  //
+  // Wait on inQueue, not isDone (issue #239). activate() (and shutdown()) write
+  // inQueue=false *after* isDone=true, so inQueue is the worker's genuinely last
+  // store into this job. Spinning on isDone let join() return in the window
+  // between those two stores; the owner could then destroy the job while the
+  // worker still had inQueue=false pending, landing that store in freed (or
+  // reused) memory — a teardown use-after-free the TSan CI caught on the patcher
+  // suite. Waiting on inQueue guarantees the worker is completely finished with
+  // this job's memory before join() returns. A job that was never queued has
+  // inQueue==false and returns immediately.
   constexpr int YIELD_AFTER = 8192;
   int spins = 0;
-  while (!isDone) {
-    if (!inQueue) return; // never queued, or already drained by shutdown()
+  while (inQueue) {
     if (spins < YIELD_AFTER) {
       cpuRelax();
       ++spins;
@@ -135,8 +144,12 @@ void YSE::INTERNAL::threadPool::shutdown() {
   // thread is the only consumer of the ring now.
   threadPoolJob* job = nullptr;
   while (jobs.try_pop(job)) {
-    job->inQueue = false;
+    // inQueue must be the last store, matching activate() and join()'s wait
+    // flag (issue #239): a join() racing this drain returns only once inQueue is
+    // clear, so isDone must land first or the trailing store lands in freed
+    // memory.
     job->isDone = true;
+    job->inQueue = false;
   }
 
   for (auto i = threads.begin(); i != threads.end(); ++i) {
