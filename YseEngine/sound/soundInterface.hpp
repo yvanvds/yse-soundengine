@@ -24,6 +24,16 @@
 
 namespace YSE {
 
+  namespace SOUND {
+    // Control-thread occlusion driver (issue #209). Invoked once per
+    // System().update() on the application thread; runs every registered
+    // sound's user occlusion callback off the audio callback thread and
+    // delivers the result to the implementation via the message queue.
+    // Declared here so the sound interface can befriend it; defined in
+    // soundInterface.cpp.
+    void updateOcclusion();
+  } // namespace SOUND
+
   /**
    *  @brief A playable instance of an audio source.
    *
@@ -360,6 +370,11 @@ namespace YSE {
     Bool _doppler;
     Bool _pan2D;
     Bool _occlusion;
+    // Last occlusion value delivered to the implementation. Cached so the
+    // control-thread driver only enqueues an OCCLUSION_VALUE message when the
+    // callback result actually changes (issue #209), matching the compare-then-
+    // send pattern used by every other setter.
+    Flt _occlusionValue{0.f};
 
     UInt _fadeAndStopTime;
     DSP::dspObject* _dsp;
@@ -373,6 +388,9 @@ namespace YSE {
     bool _busOwner{false};
 
     friend class SOUND::implementationObject;
+    // The control-thread occlusion driver reads _pos / pimpl / _occlusionValue
+    // and enqueues OCCLUSION_VALUE messages directly (issue #209).
+    friend void SOUND::updateOcclusion();
   };
 } // namespace YSE
 

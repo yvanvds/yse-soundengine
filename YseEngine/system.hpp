@@ -22,9 +22,12 @@ namespace YSE {
 
   /** @brief Signature of a user-supplied sound-occlusion callback.
    *
-   *  Given the source and listener positions, return the attenuation factor
-   *  in the range [0.0, 1.0]: 0 means fully occluded, 1 means audible without
-   *  obstruction. Typical implementations raycast through game-world geometry.
+   *  Given the source and listener positions, return the occlusion amount in
+   *  the range [0.0, 1.0]: 0 means no obstruction (full volume), 1 means fully
+   *  occluded (silent). The engine applies it as a gain duck
+   *  (``finalGain *= 1 - occlusion``). Typical implementations raycast through
+   *  game-world geometry. See ``system::occlusionCallback`` for the threading
+   *  contract — this runs on the control thread, not the audio callback.
    */
   typedef float (*occlusionFunc)(const Pos& source, const Pos& listener);
 
@@ -161,10 +164,20 @@ namespace YSE {
 
     /** @brief Install a sound-occlusion callback.
      *
-     *  The engine calls the function for every pair of (source, listener)
-     *  positions to compute how much a sound should be attenuated by world
-     *  geometry. Typical implementations issue a raycast through the game
-     *  physics engine. Pass ``nullptr`` to disable.
+     *  The engine calls the function for every occlusion-enabled sound to
+     *  compute how much it should be attenuated by world geometry. The returned
+     *  factor is applied as a gain duck (``finalGain *= 1 - occlusion``).
+     *  Typical implementations issue a raycast through the game physics engine.
+     *  Pass ``nullptr`` to disable.
+     *
+     *  @note **Threading.** The callback runs on the thread that calls
+     *        ``System().update()`` (the application/control thread), once per
+     *        occlusion-enabled sound per update tick — never on the audio
+     *        callback thread. The result is delivered to the audio thread over
+     *        the lock-free sound message queue. This means a raycast that takes
+     *        locks or allocates cannot stall the audio callback (issue #209),
+     *        but it also means the callback must not block ``update()`` for
+     *        long.
      *
      *  @see occlusionFunc
      */

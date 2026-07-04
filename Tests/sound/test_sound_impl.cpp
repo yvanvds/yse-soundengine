@@ -348,31 +348,66 @@ TEST_SUITE("sound") {
     CHECK(true);
   }
 
-  // ─── Occlusion callback path ─────────────────────────────────────────────────
+  // ─── Occlusion callback path (issue #209) ────────────────────────────────────
+  //
+  // The user occlusion callback must run on the CONTROL thread (inside
+  // System().update() -> SOUND::updateOcclusion()), never on the audio callback
+  // thread (SOUND::Manager().update(), which the device callback drives). Its
+  // clamped result reaches the implementation over the sound message queue as an
+  // OCCLUSION_VALUE message. Pre-#209 the callback ran inside
+  // implementationObject::update() on the audio thread — a real-time violation.
 
-  TEST_CASE("sound impl: update() invokes occlusion callback when occlusion is enabled") {
+  TEST_CASE(
+      "sound impl: occlusion callback runs on the control thread, not the audio thread (#209)") {
     if (!TestHelpers::engineInit()) return;
     YSE::sound s;
     s.create(g_src);
     s.occlusion(true);
     drainSoundManager();
+
     g_occlusionCallCount = 0;
     YSE::System().occlusionCallback(occlusionStub);
+
+    // Audio-thread path: pumping the manager (exactly what the device callback
+    // does) must NOT invoke the user callback. Pre-#209 this ran the callback in
+    // implementationObject::update() and the count would be > 0 — the regression.
     drainSoundManager(12);
-    // Callback may be invoked multiple times across the update iterations.
+    CHECK(g_occlusionCallCount == 0);
+
+    // Control-thread path: the driver invoked from System().update() runs it.
+    YSE::SOUND::updateOcclusion();
     CHECK(g_occlusionCallCount > 0);
+
+    // The delivered OCCLUSION_VALUE message must parse cleanly on the next sync.
+    drainSoundManager();
+
     // Reset the callback so it doesn't leak into other tests.
     YSE::System().occlusionCallback(nullptr);
   }
 
-  TEST_CASE("sound impl: update() skips occlusion when callback is null") {
+  TEST_CASE("sound impl: updateOcclusion() is a no-op when the callback is null (#209)") {
     if (!TestHelpers::engineInit()) return;
     YSE::sound s;
     s.create(g_src);
     s.occlusion(true);
     YSE::System().occlusionCallback(nullptr);
+    YSE::SOUND::updateOcclusion(); // no callback installed -> nothing to run
     drainSoundManager(12);
     CHECK(true);
+  }
+
+  TEST_CASE(
+      "sound impl: updateOcclusion() only runs callbacks for occlusion-enabled sounds (#209)") {
+    if (!TestHelpers::engineInit()) return;
+    YSE::sound s;
+    s.create(g_src);
+    // Deliberately do NOT enable occlusion on this sound.
+    drainSoundManager();
+    g_occlusionCallCount = 0;
+    YSE::System().occlusionCallback(occlusionStub);
+    YSE::SOUND::updateOcclusion();
+    CHECK(g_occlusionCallCount == 0);
+    YSE::System().occlusionCallback(nullptr);
   }
 
   // ─── Virtual-sound finder budget ─────────────────────────────────────────────

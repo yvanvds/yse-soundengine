@@ -32,6 +32,7 @@ namespace YSE {
       LOOP,
       INTENT,
       OCCLUSION,
+      OCCLUSION_VALUE,
       DSP,
       TIME,
       RELATIVE,
