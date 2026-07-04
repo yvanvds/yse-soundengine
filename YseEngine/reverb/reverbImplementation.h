@@ -34,6 +34,18 @@ namespace YSE {
       void setStatus(OBJECT_IMPLEMENTATION_STATE value);
 
       void sync();
+
+      /**
+      Copy only the DSP parameter fields of this (audio-thread-synced)
+      implementation into the interface object `dst`, leaving `dst`'s pimpl,
+      connection and global state untouched. Used by managerObject on the
+      audio thread to fold the global reverb into its scratch interface
+      without aliasing pimpls (issue #192). Reading from the impl — which the
+      audio thread owns after sync() — also avoids the data race on the
+      interface's own parameter fields, which the main thread writes.
+      */
+      void copyParamsInto(reverb& dst) const;
+
       virtual void parseMessage(const messageObject& message); // < Parse all messages, if any
       inline void sendMessage(const messageObject& message) {
         messages.push(message);

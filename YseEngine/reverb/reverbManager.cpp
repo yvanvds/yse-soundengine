@@ -237,23 +237,32 @@ void YSE::REVERB::managerObject::update() {
 
     // if partial == 0, we can just use the global reverb object
     else if (partial == 0) {
-      calculatedValues = globalReverb;
+      // Fold in the global reverb by copying only its DSP parameter fields —
+      // never its pimpl (issue #192). Source the values from the impl the
+      // audio thread just sync()'d, not the interface fields the main thread
+      // writes concurrently.
+      if (globalReverb.pimpl != nullptr) {
+        globalReverb.pimpl->copyParamsInto(calculatedValues);
+      }
       return; // important because active could be overwritten at the end of this function
     }
 
     // if sum of partial reverbs < 1 we have to add (part of) the global reverb
     else if (partial < 1) {
-      if (globalReverb.getActive()) {
-        calculatedValues.roomsize += globalReverb.roomsize * (1 - partial);
-        calculatedValues.damp += globalReverb.damp * (1 - partial);
-        calculatedValues.wet += globalReverb.wet * (1 - partial);
-        calculatedValues.dry += globalReverb.dry * (1 - partial);
-        calculatedValues.modFrequency += globalReverb.modFrequency * (1 - partial);
-        calculatedValues.modWidth += globalReverb.modWidth * (1 - partial);
+      // Read the global reverb's parameters from its synced impl (issue #192);
+      // the interface fields are written by the main thread and racy here.
+      const implementationObject* g = globalReverb.pimpl;
+      if (g != nullptr && g->active) {
+        calculatedValues.roomsize += g->roomsize * (1 - partial);
+        calculatedValues.damp += g->damp * (1 - partial);
+        calculatedValues.wet += g->wet * (1 - partial);
+        calculatedValues.dry += g->dry * (1 - partial);
+        calculatedValues.modFrequency += g->modFrequency * (1 - partial);
+        calculatedValues.modWidth += g->modWidth * (1 - partial);
         for (Int j = 0; j < 4; j++) {
-          calculatedValues.earlyGain[j] += globalReverb.earlyGain[j] * (1 - partial);
-          calculatedValues.earlyPtr[j] = static_cast<Int>(
-              calculatedValues.earlyPtr[j] + globalReverb.earlyGain[j] * (1 - partial));
+          calculatedValues.earlyGain[j] += g->earlyGain[j] * (1 - partial);
+          calculatedValues.earlyPtr[j] =
+              static_cast<Int>(calculatedValues.earlyPtr[j] + g->earlyGain[j] * (1 - partial));
         }
       }
     }

@@ -51,6 +51,17 @@ namespace YSE {
     reverb(bool global = false);
     ~reverb();
 
+    /**
+     *  @brief Copy-assignment is deleted.
+     *
+     *  A ``reverb`` owns a raw ``pimpl`` that the engine tracks by interface
+     *  identity. Copy-assigning would alias two interfaces onto a single
+     *  implementation and turn that impl's single-producer/single-consumer
+     *  message queue into a dual-producer queue on the audio thread
+     *  (issue #192). Copying a reverb is never valid — forbid it.
+     */
+    reverb& operator=(const reverb&) = delete;
+
     /** @brief Initialise the reverb.
      *
      *  Must be called after ``System().init()`` and before any other method on
