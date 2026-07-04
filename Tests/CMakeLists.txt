@@ -55,6 +55,7 @@ set(YSE_TEST_SOURCES
   reverb/test_reverb_dsp.cpp
   reverb/test_reverb_concurrency.cpp
   midi/test_midifile.cpp
+  midi/test_midifile_concurrency.cpp
   midi/test_devicemanager.cpp
   midi/test_midi_in.cpp
   music/test_scale.cpp

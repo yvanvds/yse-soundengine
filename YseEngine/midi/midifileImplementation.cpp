@@ -13,6 +13,7 @@
 YSE::MIDI::fileImpl::fileImpl(file* head)
   : head(head),
     intent(SS_STOPPED),
+    objectStatus(OBJECT_READY),
     hasFile(false)
 //, startSample(0)
 {}
@@ -157,9 +158,17 @@ currentSample - startSample); currentEvent++; currentSample =
 }*/
 
 void YSE::MIDI::fileImpl::removeInterface() {
-  head = nullptr;
+  head.store(nullptr);
 }
 
 bool YSE::MIDI::fileImpl::hasInterface() {
-  return (head != nullptr);
+  return (head.load() != nullptr);
+}
+
+YSE::OBJECT_IMPLEMENTATION_STATE YSE::MIDI::fileImpl::getStatus() const {
+  return objectStatus.load();
+}
+
+void YSE::MIDI::fileImpl::setStatus(YSE::OBJECT_IMPLEMENTATION_STATE value) {
+  objectStatus.store(value);
 }
