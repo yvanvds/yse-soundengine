@@ -22,8 +22,10 @@
 #include <cstring>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <shared_mutex>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <utility>
 #include <variant>
@@ -49,7 +51,17 @@ namespace YSE {
 
       // Publish a value to `name`.
       //
-      //   thread == T_GUI : dispatch synchronously to every subscriber.
+      //   thread == T_GUI : if the caller is the control thread (the one that
+      //                     constructed the bus and runs drainPending()),
+      //                     dispatch synchronously to every subscriber. A T_GUI
+      //                     publish arriving on ANY other thread — the gMetro
+      //                     timer thread, a script thread — is instead parked in
+      //                     the control-thread inbox and dispatched on the next
+      //                     drainPending(). Inline dispatch off the control
+      //                     thread would run a subscriber's setter, which pushes
+      //                     into a per-implementation single-producer message
+      //                     queue, concurrently with the control thread's own
+      //                     setters — corrupting that SPSC queue (issue #193).
       //   thread == T_DSP : enqueue into this thread's lock-free SPSC queue.
       //                     Multiple render threads publish concurrently (the
       //                     audio callback thread plus every fast-pool worker
@@ -116,6 +128,25 @@ namespace YSE {
       // thread may have cached a slot against — engine restart builds a fresh
       // NamedBus that may reuse the same address (issue #187).
       const std::uint64_t generation_;
+
+      // Identity of the control thread: the thread that constructs the bus
+      // (System::init runs on it) and that also runs subscribe(), dispatch()
+      // and drainPending(). Set once at construction and only ever read
+      // thereafter, so no synchronisation is needed — the constructing thread
+      // happens-before every other thread that later publishes. A T_GUI
+      // publish comparing unequal to this is off the control thread and must be
+      // deferred rather than dispatched inline (issue #193).
+      const std::thread::id controlThread_;
+
+      // T_GUI publishes that arrived on a non-control thread (gMetro timer
+      // thread, script thread), parked here and drained on the control thread
+      // in drainPending(). Guarded by pendingMutex_. The producers are
+      // control-rate threads that may lock; the audio thread never reaches this
+      // path (it publishes only on T_DSP, handled lock-free above). Holding a
+      // full BusValue keeps every payload kind — bang / int / float / string /
+      // list — intact, unlike the fixed-footprint audio-path pool.
+      std::mutex pendingMutex_;
+      std::vector<std::pair<std::string, BusValue>> pendingControl_;
 
       mutable std::shared_mutex subsMutex_;
       std::unordered_map<std::string, std::vector<Subscription>> subs_;

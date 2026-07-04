@@ -11,7 +11,9 @@
 #include "namedBus.h"
 
 #include <algorithm>
+#include <mutex>
 #include <thread>
+#include <utility>
 
 namespace YSE {
   namespace INTERNAL {
@@ -47,7 +49,8 @@ namespace YSE {
     } // namespace
 
     NamedBus::NamedBus()
-      : generation_(g_busGeneration.fetch_add(1, std::memory_order_relaxed) + 1) {
+      : generation_(g_busGeneration.fetch_add(1, std::memory_order_relaxed) + 1),
+        controlThread_(std::this_thread::get_id()) {
       const std::size_t count = provisionedQueueCount();
       audioQueues_.reserve(count);
       for (std::size_t i = 0; i < count; ++i) {
@@ -108,8 +111,26 @@ namespace YSE {
         return;
       }
 
-      // Main-thread / GUI path: synchronous dispatch.
-      dispatch(name, value);
+      // Control-thread / GUI path. Only the control thread may dispatch
+      // synchronously: a subscriber callback runs an interface setter, which
+      // pushes into a per-implementation single-producer message queue, and
+      // that queue tolerates exactly one producer. A T_GUI publish arriving on
+      // another thread (the gMetro timer thread propagating a bang, a script
+      // thread) must therefore NOT dispatch inline — doing so would race the
+      // control thread on those SPSC queues and cross-link their block lists
+      // (issue #193). Park it for the next drainPending() instead.
+      if (std::this_thread::get_id() == controlThread_) {
+        dispatch(name, value);
+        return;
+      }
+
+      // Off-control-thread publish. These producers are control-rate threads
+      // (never the audio callback, which only ever publishes on T_DSP above),
+      // so taking a mutex here does not touch the real-time path.
+      {
+        std::lock_guard<std::mutex> lock(pendingMutex_);
+        pendingControl_.emplace_back(name, value);
+      }
     }
 
     SubHandle NamedBus::subscribe(const std::string& name, Subscriber callback) {
@@ -155,6 +176,21 @@ namespace YSE {
           }
           dispatch(std::string(msg.nameStorage), value);
         }
+      }
+
+      // Drain T_GUI publishes that were deferred from a non-control thread
+      // (issue #193): the gMetro timer thread or a script thread parked them
+      // here instead of dispatching inline, which would have raced the control
+      // thread on the per-implementation SPSC message queues. Swap the inbox
+      // out under the lock, then dispatch with the lock released so a
+      // subscriber may re-enter publish() / subscribe() without deadlocking.
+      std::vector<std::pair<std::string, BusValue>> deferred;
+      {
+        std::lock_guard<std::mutex> lock(pendingMutex_);
+        deferred.swap(pendingControl_);
+      }
+      for (auto& entry : deferred) {
+        dispatch(entry.first, entry.second);
       }
     }
 

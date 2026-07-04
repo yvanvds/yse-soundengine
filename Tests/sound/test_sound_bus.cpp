@@ -9,6 +9,7 @@
 #include <doctest/doctest.h>
 
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "sound/soundInterface.hpp"
@@ -183,6 +184,37 @@ TEST_SUITE("sound") {
     s2.name("clearme");
     publishFloat("sound.clearme.volume", 0.2f);
     CHECK(s2.volume() == doctest::Approx(0.2f));
+  }
+
+  TEST_CASE("sound bus: off-thread volume publish is deferred, never raced onto the SPSC queue") {
+    // Regression for issue #193 at the level the bug actually bites: a
+    // gMetro-style T_GUI publish arriving on another thread must not run the
+    // sound's volume() setter inline — that would push into the sound's
+    // single-producer message queue concurrently with the application/control
+    // thread and cross-link its block list. The publish is instead deferred
+    // and applied on the control thread in drainPending(). Before the fix the
+    // volume would already read 0.5 before the drain (dispatched on the worker
+    // thread), failing the first check.
+    if (!TestHelpers::engineInit()) return;
+    SilentSource src;
+    YSE::sound s;
+    s.create(src);
+    s.name("mt193");
+
+    std::thread worker([] {
+      YSE::INTERNAL::Bus().publish("sound.mt193.volume", YSE::INTERNAL::BusValue{0.5f}, YSE::T_GUI);
+    });
+    worker.join();
+
+    // Deferred: not applied on the worker thread.
+    CHECK(s.volume() == doctest::Approx(0.0f));
+
+    // Applied on the control (test main) thread when the inbox is drained.
+    YSE::INTERNAL::Bus().drainPending();
+    CHECK(s.volume() == doctest::Approx(0.5f));
+
+    // `s` is destroyed at scope exit, which unsubscribes and releases the
+    // process-global "mt193" name — no shared-state residue for later cases.
   }
 
 } // TEST_SUITE("sound")

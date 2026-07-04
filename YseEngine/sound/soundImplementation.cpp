@@ -362,6 +362,22 @@ void YSE::SOUND::implementationObject::doThisWhenReady() {
 }
 
 void YSE::SOUND::implementationObject::sendMessage(const messageObject& message) {
+#ifndef NDEBUG
+  // Single-producer contract (issue #193): `messages` is an SPSC queue, so
+  // every push must originate on the same control thread. The engine keeps
+  // this true by deferring off-thread bus publishes (the gMetro timer thread,
+  // a script thread) to the control thread in NamedBus::drainPending(). A
+  // firing assert means an interface setter was driven concurrently from a
+  // second thread — fix that caller rather than widening the queue.
+  const std::thread::id caller = std::this_thread::get_id();
+  if (!_producerThreadKnown) {
+    _producerThread = caller;
+    _producerThreadKnown = true;
+  } else {
+    assert(caller == _producerThread &&
+           "sound message queue pushed from more than one thread (issue #193)");
+  }
+#endif
   messages.push(message);
 }
 

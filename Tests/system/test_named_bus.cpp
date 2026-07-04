@@ -275,6 +275,96 @@ TEST_SUITE("system") {
       bus.unsubscribe(h);
   }
 
+  TEST_CASE("named bus: off-control-thread T_GUI publish is deferred to drainPending") {
+    // Regression for issue #193: a T_GUI publish is only safe to dispatch
+    // inline on the control thread, because a subscriber callback runs an
+    // interface setter that pushes into a per-implementation single-producer
+    // message queue. The gMetro timer thread (and script threads) publish
+    // T_GUI too; inline dispatch there would race the control thread on those
+    // SPSC queues. Such publishes must be deferred to the control thread's
+    // drainPending() instead. Before the fix this callback fired synchronously
+    // on the worker thread (hits == 1 before the drain, dispatched on the
+    // worker's id) — both checks below would fail.
+    REQUIRE(TestHelpers::engineInit());
+    auto& bus = YSE::INTERNAL::Bus();
+
+    std::atomic<int> hits{0};
+    std::thread::id dispatchThread;
+    auto h = bus.subscribe("ch.mt.gui", [&](const YSE::INTERNAL::BusValue& v) {
+      if (std::get_if<int>(&v)) {
+        dispatchThread = std::this_thread::get_id();
+        hits.fetch_add(1, std::memory_order_relaxed);
+      }
+    });
+
+    // Publish from a worker thread standing in for the gMetro timer thread.
+    std::thread worker([&] { bus.publish("ch.mt.gui", YSE::INTERNAL::BusValue{7}, YSE::T_GUI); });
+    worker.join();
+
+    // Deferred, exactly like a T_DSP publish — nothing delivered yet.
+    CHECK(hits.load() == 0);
+
+    // Drained and dispatched on the control (test main) thread.
+    bus.drainPending();
+    CHECK(hits.load() == 1);
+    CHECK(dispatchThread == std::this_thread::get_id());
+
+    bus.unsubscribe(h);
+  }
+
+  TEST_CASE("named bus: control-thread T_GUI publish still dispatches synchronously") {
+    // The fix must not regress the common case: a T_GUI publish issued on the
+    // control thread (which is where the bus was constructed and where
+    // drainPending() runs) still fires its subscribers inline, no drain needed.
+    REQUIRE(TestHelpers::engineInit());
+    auto& bus = YSE::INTERNAL::Bus();
+
+    int received = 0;
+    auto h = bus.subscribe("ch.ct.gui", [&](const YSE::INTERNAL::BusValue& v) {
+      if (auto* i = std::get_if<int>(&v)) received = *i;
+    });
+
+    bus.publish("ch.ct.gui", YSE::INTERNAL::BusValue{55}, YSE::T_GUI);
+    CHECK(received == 55); // synchronous, before any drainPending()
+
+    bus.unsubscribe(h);
+  }
+
+  TEST_CASE("named bus: deferred publish preserves string/list payloads") {
+    // The off-control-thread inbox carries a full BusValue, so payload kinds
+    // the fixed-footprint audio pool drops (string, list) survive the deferral
+    // and arrive intact on drainPending() (issue #193).
+    REQUIRE(TestHelpers::engineInit());
+    auto& bus = YSE::INTERNAL::Bus();
+
+    std::string gotStr;
+    std::vector<float> gotList;
+    auto h = bus.subscribe("ch.mt.payload", [&](const YSE::INTERNAL::BusValue& v) {
+      if (auto* s = std::get_if<std::string>(&v))
+        gotStr = *s;
+      else if (auto* l = std::get_if<std::vector<float>>(&v))
+        gotList = *l;
+    });
+
+    std::thread worker([&] {
+      bus.publish("ch.mt.payload", YSE::INTERNAL::BusValue{std::string("hi")}, YSE::T_GUI);
+      bus.publish("ch.mt.payload", YSE::INTERNAL::BusValue{std::vector<float>{4.0f, 5.0f}},
+                  YSE::T_GUI);
+    });
+    worker.join();
+
+    CHECK(gotStr.empty());
+    CHECK(gotList.empty());
+
+    bus.drainPending();
+    CHECK(gotStr == "hi");
+    REQUIRE(gotList.size() == 2);
+    CHECK(gotList[0] == doctest::Approx(4.0f));
+    CHECK(gotList[1] == doctest::Approx(5.0f));
+
+    bus.unsubscribe(h);
+  }
+
   TEST_CASE("named bus: duplicate subscriptions on a name each get called") {
     REQUIRE(TestHelpers::engineInit());
     auto& bus = YSE::INTERNAL::Bus();
