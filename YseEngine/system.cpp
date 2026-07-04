@@ -88,6 +88,11 @@ Bool YSE::system::initShared(bool openDevice) {
 
 void YSE::system::update() {
   INTERNAL::Global().flagForUpdate();
+  // Run user occlusion callbacks on this (control) thread and hand the results
+  // to the audio thread via the sound message queue. Keeps user raycast code
+  // off the audio callback path (issue #209). No-op when no callback is
+  // installed or no sound has occlusion enabled.
+  SOUND::updateOcclusion();
   // Drain any publishes the audio thread queued since the last update tick
   // and dispatch them synchronously to their subscribers. Cheap when empty:
   // a single SPSC peek + early exit.

@@ -445,6 +445,12 @@ void YSE::SOUND::implementationObject::parseMessage(const messageObject& message
     occlusionActive = message.boolValue;
     break;
   }
+  case MESSAGE::OCCLUSION_VALUE: {
+    // Result of the user occlusion callback, computed on the control thread in
+    // SOUND::updateOcclusion() and already clamped to [0, 1] there (issue #209).
+    occlusion_dsp = message.floatValue;
+    break;
+  }
   case MESSAGE::DSP: {
     addDSP(*(DSP::dspObject*)message.ptrValue);
     break;
@@ -540,10 +546,12 @@ void YSE::SOUND::implementationObject::update() {
   ///////////////////////////////////////////
   // sound occlusion (optional)
   ///////////////////////////////////////////
-  if (System().occlusionCallback() != nullptr && occlusionActive) {
-    occlusion_dsp = System().occlusionCallback()(newPos, INTERNAL::ListenerImpl().newPos);
-    Clamp(occlusion_dsp, 0.f, 1.f);
-  }
+  // The user occlusion callback is NOT invoked here: update() runs on the audio
+  // callback thread (deviceManager::doOnCallback -> SOUND::Manager().update()),
+  // and user raycast code must never run there (issue #209). The callback now
+  // runs on the control thread in SOUND::updateOcclusion() (driven by
+  // System().update()); its clamped result arrives via the OCCLUSION_VALUE
+  // message and is stored in occlusion_dsp, which dsp() applies as a gain duck.
 
   ///////////////////////////////////////////
   // dsp processing (optional)

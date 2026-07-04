@@ -43,6 +43,38 @@ namespace {
     std::lock_guard<std::mutex> lock(soundNameMutex());
     soundNames().erase(name);
   }
+
+  // Registry of sounds with occlusion enabled (issue #209). The user occlusion
+  // callback used to run inside SOUND::implementationObject::update(), which
+  // executes on the audio callback thread — a real-time violation, since the
+  // callback typically raycasts through game-world geometry (locks, allocation,
+  // blocking I/O). Instead we track the occlusion-enabled interface objects here
+  // and run their callbacks on the control thread in SOUND::updateOcclusion(),
+  // delivering the result to the implementation over the existing message queue.
+  //
+  // Registration and iteration both happen on the application thread (occlusion
+  // setter / destructor / System().update()); the mutex is a cheap defensive
+  // guard against construction from multiple threads and never sits on the
+  // audio path.
+  std::mutex& occlusionMutex() {
+    static std::mutex m;
+    return m;
+  }
+
+  std::unordered_set<YSE::sound*>& occlusionSounds() {
+    static std::unordered_set<YSE::sound*> s;
+    return s;
+  }
+
+  void registerOcclusion(YSE::sound* s) {
+    std::lock_guard<std::mutex> lock(occlusionMutex());
+    occlusionSounds().insert(s);
+  }
+
+  void unregisterOcclusion(YSE::sound* s) {
+    std::lock_guard<std::mutex> lock(occlusionMutex());
+    occlusionSounds().erase(s);
+  }
 } // namespace
 
 YSE::sound::sound()
@@ -62,6 +94,9 @@ YSE::sound::sound()
 
 YSE::sound::~sound() {
   unregisterFromBus();
+  // Drop out of the control-thread occlusion registry before the interface goes
+  // away, so updateOcclusion() can never touch a destroyed sound (issue #209).
+  unregisterOcclusion(this);
   if (pimpl != nullptr) {
     pimpl->removeInterface();
     Log().sendMessage("removed sound");
@@ -346,6 +381,13 @@ Bool YSE::sound::isStopped() {
 void YSE::sound::occlusion(Bool value) {
   if (_occlusion != value) {
     _occlusion = value;
+    // Enrol / withdraw from the control-thread occlusion driver (issue #209).
+    // The driver only runs the user callback for sounds that are registered.
+    if (value) {
+      registerOcclusion(this);
+    } else {
+      unregisterOcclusion(this);
+    }
     SOUND::messageObject m;
     m.ID = SOUND::OCCLUSION;
     m.boolValue = value;
@@ -455,5 +497,46 @@ void YSE::sound::moveTo(channel& target) {
     m.ID = SOUND::MOVE;
     m.ptrValue = _parent;
     pimpl->sendMessage(m);
+  }
+}
+
+void YSE::SOUND::updateOcclusion() {
+  // Runs on the application (control) thread, driven once per System().update().
+  // This is the whole point of issue #209: the user occlusion callback must not
+  // execute on the audio callback thread, where a raycast's locks / allocations
+  // / blocking I/O would cause priority-inversion stalls and dropouts.
+  occlusionFunc cb = System().occlusionCallback();
+  if (cb == nullptr) return;
+
+  const Flt df = INTERNAL::Settings().distanceFactor;
+  // Scale the listener position exactly as listenerImplementation::update()
+  // does (newPos = pos * distanceFactor), but compute it here from the atomic
+  // listener position so we never read the audio thread's non-atomic newPos.
+  const Pos listenerScaled = Listener().pos() * df;
+
+  // Snapshot the registry under the lock, then invoke callbacks with the lock
+  // released. A user callback that (pathologically) creates or destroys a sound
+  // would otherwise re-enter the registry mutex and deadlock, or mutate the set
+  // mid-iteration.
+  std::vector<YSE::sound*> snapshot;
+  {
+    std::lock_guard<std::mutex> lock(occlusionMutex());
+    snapshot.assign(occlusionSounds().begin(), occlusionSounds().end());
+  }
+
+  for (YSE::sound* s : snapshot) {
+    if (s->pimpl == nullptr) continue; // create() not (yet) succeeded
+    Flt occ = cb(s->_pos * df, listenerScaled);
+    Clamp(occ, 0.f, 1.f);
+    // Only enqueue when the value changes — matches the compare-then-send
+    // pattern of every other setter and keeps the SPSC queue near-empty when
+    // occlusion is static.
+    if (s->_occlusionValue != occ) {
+      s->_occlusionValue = occ;
+      SOUND::messageObject m;
+      m.ID = SOUND::OCCLUSION_VALUE;
+      m.floatValue = occ;
+      s->pimpl->sendMessage(m);
+    }
   }
 }
