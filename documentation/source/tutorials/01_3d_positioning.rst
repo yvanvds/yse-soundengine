@@ -56,6 +56,27 @@ facing — call ``Listener().orient(forward, up)``. The default ``up``
 vector is ``(0, 1, 0)``, which constrains rotation to the horizontal
 plane.
 
+Panning is horizontal-only
+--------------------------
+
+The engine positions sounds on a **horizontal ring** around the listener.
+The panner derives a sound's direction from its ``x`` and ``z`` coordinates
+(the azimuth, ``atan2(x, z)``); the ``y`` (height) coordinate feeds distance
+attenuation and doppler but **never** decides which speaker a sound comes
+from. Two sources at the same ``x`` / ``z`` but different heights pan
+identically — raising a sound overhead does not lift it out of the ring.
+
+This matches the supported speaker layouts (mono through 7.1), which are all
+horizontal. Height channels (7.1.4, dome, or ambisonic layouts) are not
+currently supported.
+
+One consequence worth knowing for flyover scenarios (aircraft, projectiles
+passing over the listener): as a source approaches straight overhead its
+horizontal position shrinks to almost nothing, so the azimuth would otherwise
+jump around wildly. The engine detects this and smoothly blends a near-zenith
+source toward an equal-power, all-speaker spread, so a flyover fades to
+"everywhere" rather than sweeping the full circle at full gain.
+
 What you learned
 ----------------
 
@@ -64,6 +85,8 @@ What you learned
 - ``sound.pos(p)`` writes, ``sound.pos()`` reads.
 - The ``YSE::Listener()`` singleton works the same way.
 - Doppler is automatic — keep updates frequent.
+- Panning is horizontal-only: ``x`` / ``z`` set the direction, ``y`` only
+  affects distance. A source near the zenith blends to an omni spread.
 
 Next
 ----

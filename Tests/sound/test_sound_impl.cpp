@@ -18,6 +18,7 @@
 // give it a few milliseconds + several update calls to settle.
 
 #include <doctest/doctest.h>
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cmath>
@@ -861,6 +862,131 @@ TEST_SUITE("sound") {
     // Pre-fix the angle was -90°, which put all the gain on output 0 (left).
     CHECK(gainR > gainL);
     CHECK(gainL == doctest::Approx(0.f)); // fully panned to output 1 (right)
+  }
+
+  // ─── Zenith flyover: horizontal-fraction pan directionality (#210) ──────────
+  //
+  // The panner is horizontal-only: computeSourceAngle projects elevation out
+  // with atan2(x, z). Near the zenith the horizontal components shrink to noise,
+  // so a source flying over the listener would sweep the azimuth (and thus the
+  // pan) around the full circle at full gain. computeHorizontalFraction returns
+  // sqrt(x²+z²)/sqrt(x²+y²+z²) in [0..1]; toChannels() multiplies the cardioid's
+  // cosine by it so an overhead source blends toward an equal-power omni spread
+  // instead of sweeping. These call the pure helper directly (and, for the
+  // end-to-end case, compose it with the toChannels() pan math from the other
+  // pure helpers) so the assertions are exact and independent of any device.
+
+  TEST_CASE("horizFraction: a source on the horizon keeps full directionality (== 1) (#210)") {
+    using Impl = YSE::SOUND::implementationObject;
+    // Purely horizontal directions (y == 0) must be unaffected: fraction == 1.
+    CHECK(Impl::computeHorizontalFraction(YSE::Pos(3.f, 0.f, 4.f)) == doctest::Approx(1.f));
+    CHECK(Impl::computeHorizontalFraction(YSE::Pos(0.f, 0.f, 10.f)) == doctest::Approx(1.f));
+    CHECK(Impl::computeHorizontalFraction(YSE::Pos(-5.f, 0.f, 0.f)) == doctest::Approx(1.f));
+  }
+
+  TEST_CASE("horizFraction: a source at the zenith collapses to zero directionality (#210)") {
+    using Impl = YSE::SOUND::implementationObject;
+    // Straight overhead / underfoot: no horizontal extent -> fraction 0.
+    CHECK(Impl::computeHorizontalFraction(YSE::Pos(0.f, 7.f, 0.f)) == doctest::Approx(0.f));
+    CHECK(Impl::computeHorizontalFraction(YSE::Pos(0.f, -7.f, 0.f)) == doctest::Approx(0.f));
+  }
+
+  TEST_CASE("horizFraction: a 45° elevation gives sqrt(1/2) (#210)") {
+    using Impl = YSE::SOUND::implementationObject;
+    // Horizontal extent == vertical extent -> horiz/total = 1/sqrt(2).
+    const float f = Impl::computeHorizontalFraction(YSE::Pos(0.f, 1.f, 1.f));
+    CHECK(f == doctest::Approx(std::sqrt(0.5f)));
+  }
+
+  TEST_CASE("horizFraction: a co-located source returns 1 (unchanged near-field) (#210)") {
+    using Impl = YSE::SOUND::implementationObject;
+    // Zero-length direction has neither azimuth nor elevation; the guard returns
+    // full directionality so the existing co-located behaviour is untouched.
+    CHECK(Impl::computeHorizontalFraction(YSE::Pos(0.f, 0.f, 0.f)) == doctest::Approx(1.f));
+  }
+
+  TEST_CASE("horizFraction: stays within [0..1] across an elevation sweep (#210)") {
+    using Impl = YSE::SOUND::implementationObject;
+    // Rotate the source from the horizon up to the zenith; the weight must fall
+    // monotonically from 1 to 0 and never leave [0..1].
+    float prev = 2.f;
+    for (int i = 0; i <= 90; ++i) {
+      const float rad = static_cast<float>(i) * static_cast<float>(YSE::Pi) / 180.f;
+      const float f = Impl::computeHorizontalFraction(
+          YSE::Pos(std::cos(rad), std::sin(rad), 0.f)); // unit vector, elevation i°
+      CHECK(f >= -1e-4f);
+      CHECK(f <= 1.f + 1e-4f);
+      CHECK(f <= prev + 1e-4f); // non-increasing as elevation rises
+      prev = f;
+    }
+  }
+
+  TEST_CASE("horizFraction: a zenith source pans equally to both stereo speakers (#210)") {
+    using Impl = YSE::SOUND::implementationObject;
+    // End-to-end: a source directly overhead has an ill-defined azimuth. With
+    // the horizontal fraction folded into the pan term, the (1+cos)/2 cardioid
+    // collapses to a flat 0.5 for every speaker, so a stereo layout receives
+    // equal gain left and right instead of an azimuth-swept split.
+    const std::vector<float> speakers = {
+        -static_cast<float>(YSE::Pi) / 2.f, // output 0 = left
+        +static_cast<float>(YSE::Pi) / 2.f, // output 1 = right
+    };
+    const YSE::Pos overhead(0.f, 10.f, 0.f);
+    const float src = Impl::computeSourceAngle(true, overhead, YSE::Pos(0.f));
+    const float hf = Impl::computeHorizontalFraction(overhead); // -> 0
+    std::vector<float> initGain(speakers.size());
+    float power = 0.f;
+    for (std::size_t s = 0; s < speakers.size(); ++s) {
+      const float initPan = (1.f + hf * std::cos(speakers[s] - src)) * 0.5f; // -> 0.5 flat
+      float effective = 0.f;
+      for (float other : speakers)
+        effective += Impl::computeSpeakerOverlap(speakers[s], other);
+      initGain[s] = initPan / effective;
+      power += initGain[s] * initGain[s];
+    }
+    const float gainL = std::sqrt(1.f * Impl::computePanRatio(initGain[0], power, 2));
+    const float gainR = std::sqrt(1.f * Impl::computePanRatio(initGain[1], power, 2));
+    CHECK(gainL == doctest::Approx(gainR)); // equal-power omni spread
+    CHECK(gainL > 0.f);
+  }
+
+  TEST_CASE("horizFraction: an overhead flyover no longer sweeps the pan (#210)") {
+    using Impl = YSE::SOUND::implementationObject;
+    // Walk a source across the sky at near-zenith height on a small x/z circle —
+    // the exact geometry that produced a full-circle pan sweep pre-fix. With the
+    // horizontal fraction scaling directionality, the per-speaker gains stay
+    // essentially pinned to the equal-power split across the whole pass, so the
+    // left/right imbalance never blows up.
+    const std::vector<float> speakers = {
+        -static_cast<float>(YSE::Pi) / 2.f,
+        +static_cast<float>(YSE::Pi) / 2.f,
+    };
+    const float height = 100.f; // very high overhead
+    const float radius = 1.f; // tiny horizontal circle -> azimuth swings fully
+    float maxImbalance = 0.f;
+    for (int i = 0; i < 360; ++i) {
+      const float rad = static_cast<float>(i) * static_cast<float>(YSE::Pi) / 180.f;
+      const YSE::Pos p(radius * std::cos(rad), height, radius * std::sin(rad));
+      const float src = Impl::computeSourceAngle(true, p, YSE::Pos(0.f));
+      const float hf = Impl::computeHorizontalFraction(p);
+      std::vector<float> initGain(speakers.size());
+      float power = 0.f;
+      for (std::size_t s = 0; s < speakers.size(); ++s) {
+        const float initPan = (1.f + hf * std::cos(speakers[s] - src)) * 0.5f;
+        float effective = 0.f;
+        for (float other : speakers)
+          effective += Impl::computeSpeakerOverlap(speakers[s], other);
+        initGain[s] = initPan / effective;
+        power += initGain[s] * initGain[s];
+      }
+      const float gainL = std::sqrt(1.f * Impl::computePanRatio(initGain[0], power, 2));
+      const float gainR = std::sqrt(1.f * Impl::computePanRatio(initGain[1], power, 2));
+      maxImbalance = std::max(maxImbalance, std::fabs(gainL - gainR));
+    }
+    // The horizontal fraction here is radius/sqrt(radius²+height²) ≈ 0.01, so any
+    // residual pan imbalance is negligible. Pre-fix (hf == 1) the same pass swung
+    // fully hard-left to hard-right (imbalance up to ~1.0).
+    CHECK(maxImbalance < 0.05f);
   }
 
   // ─── Doppler ratio: multiplicative + scaled + clamped (#208) ────────────────

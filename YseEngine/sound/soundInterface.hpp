@@ -172,7 +172,18 @@ namespace YSE {
      */
     sound& name(const std::string& n);
 
-    /** @brief Set the position of this sound in the virtual scene. */
+    /** @brief Set the position of this sound in the virtual scene.
+     *
+     *  Accepts a full 3D ``Pos``, but the panner is **horizontal-only**: the
+     *  azimuth is taken from the ``x`` / ``z`` components (``atan2(x, z)``)
+     *  while the ``y`` (height) component only affects distance attenuation and
+     *  doppler, never which speaker a sound pans to. Two sources at the same
+     *  ``x`` / ``z`` but different heights pan identically. As a source
+     *  approaches straight overhead the azimuth is deliberately faded toward an
+     *  equal-power omni spread so a flyover degrades gracefully rather than
+     *  sweeping the full circle (issue #210). True height reproduction
+     *  (7.1.4 / dome layouts) is not currently supported.
+     */
     void pos(const Pos& v);
 
     /** @brief Current position of this sound. */

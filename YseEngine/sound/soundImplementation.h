@@ -214,6 +214,29 @@ namespace YSE {
       */
       static Flt computeSourceAngle(bool relative, const Pos& dir, const Pos& listenerForward);
 
+      /** How horizontal the source direction is, in [0..1], used to tame the
+          zenith flyover artifact (issue #210).
+
+          The panner is horizontal-only: ``computeSourceAngle()`` projects the
+          elevation (``y``) out with ``atan2(x, z)``. Near the zenith (a source
+          almost straight overhead or underfoot) the horizontal components
+          ``x`` / ``z`` shrink to noise, so a tiny positional change swings the
+          azimuth wildly — a source flying over the listener would sweep the
+          full circle at full gain, an audible artifact.
+
+          This returns ``sqrt(x² + z²) / sqrt(x² + y² + z²)`` — the fraction of
+          the source's distance that lies in the horizontal plane. It is 1 for
+          a source on the horizon (full directionality) and falls to 0 at the
+          zenith. ``toChannels()`` multiplies the cardioid pan term's cosine by
+          this factor, so an overhead source blends smoothly toward an
+          equal-power omni spread (no well-defined azimuth) instead of sweeping.
+          A degenerate zero-length direction (source co-located with the
+          listener) returns 1 to leave the existing near-field behaviour
+          unchanged. Kept as a pure static helper so it stays unit-testable in
+          isolation.
+      */
+      static Flt computeHorizontalFraction(const Pos& dir);
+
       void removeInterface();
 
       OBJECT_IMPLEMENTATION_STATE getStatus();
@@ -299,6 +322,11 @@ namespace YSE {
       Pos newPos, lastPos, velocityVec;
       Flt distance;
       Flt angle;
+      // How horizontal the source is, in [0..1] (issue #210). Scales the pan
+      // directionality so a near-zenith source blends toward equal-power omni
+      // instead of sweeping the azimuth. Written in update(), read in
+      // toChannels(); 1 = full directionality (default).
+      Flt horizFraction;
       // for pitch shift and doppler
       // dopplerRatio is a playback-rate *multiplier* (1.0 = no shift), written
       // by update() on the control thread and read by dsp() on the audio thread.
