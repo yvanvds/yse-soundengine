@@ -13,7 +13,7 @@ YSE::DEVICE::managerObject& YSE::DEVICE::Manager() {
   return d;
 }
 
-YSE::DEVICE::managerObject::managerObject() : initDone(false), open(false) {}
+YSE::DEVICE::managerObject::managerObject() {}
 
 YSE::DEVICE::managerObject::~managerObject() {}
 
@@ -71,6 +71,13 @@ unsigned int YSE::DEVICE::managerObject::GetCallbacksSinceLastUpdate() {
   return implementation.GetCallbacksSinceLastUpdate();
 }
 
+void YSE::DEVICE::managerObject::serviceReconnect() {
+  // Runs on the control thread (system::update). Hands the pending reopen to the
+  // Oboe implementation, which rebuilds a disconnected stream off the error
+  // thread (issue #200).
+  implementation.serviceReconnect();
+}
+
 void YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
   // android only has one device for now
   return;
@@ -85,7 +92,8 @@ void YSE::DEVICE::managerObject::close() {
   // close() after pause() — which now clears `open` but leaves the Oboe stream
   // suspended — still tears the stream down on the engine-shutdown path.
   implementation.Stop();
-  initDone = open = false;
+  initDone = false;
+  open = false;
   // YSE::Log().sendMessage("androidDeviceManager: Close done");
 }
 

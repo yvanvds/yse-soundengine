@@ -182,11 +182,26 @@ void OboeImplementation::updateCpuLoadEma(std::chrono::steady_clock::time_point 
 void OboeImplementation::onErrorAfterClose(oboe::AudioStream* /*stream*/, oboe::Result error) {
   // Oboe has already closed the stream by the time this fires (vs. onErrorBeforeClose).
   // Headphone unplug / USB device removal trips Disconnected; transparently rebuild.
-  YSE::INTERNAL::LogImpl().emit(YSE::E_DEBUG, "Oboe: stream disconnected, restarting");
+  //
+  // This runs on Oboe's error thread. It must NOT touch mStream, allocate
+  // (openStream does `new float*[]`), or write the plain members the audio
+  // callback reads — doing so raced a concurrent close()/pause() from the main
+  // thread (issue #200). Only flag the request; serviceReconnect() performs the
+  // reopen from the main-thread update path.
   if (error == oboe::Result::ErrorDisconnected) {
-    mStream.reset();
-    openStream(numChannels);
+    YSE::INTERNAL::LogImpl().emit(YSE::E_DEBUG, "Oboe: stream disconnected, reconnect requested");
+    reconnectRequested = true;
   }
+}
+
+void OboeImplementation::serviceReconnect() {
+  // Runs on the main-thread update path (system::update via the device manager),
+  // never the Oboe error thread. Because close()/pause()/resume() are also
+  // driven from that thread, rebuilding here serialises the reopen with them —
+  // closing the cross-thread race the error-thread reopen had (issue #200).
+  if (!reconnectRequested.exchange(false)) return;
+  mStream.reset();
+  openStream(numChannels);
 }
 
 #endif

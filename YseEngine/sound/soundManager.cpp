@@ -274,7 +274,16 @@ void YSE::SOUND::managerObject::garbageCollectFiles() {
 }
 
 Bool YSE::SOUND::managerObject::empty() {
-  return implementations.empty();
+  // Called only from the audio callback (deviceManager::doOnCallback). It must
+  // read ONLY audio-thread-owned state: `toLoad` and `inUse` are single-thread
+  // (audio) by design, whereas `implementations` is mutated by the main thread
+  // (addImplementation) and the slow-pool (deleteJob) under implementationsMutex.
+  // Reading `implementations`' head from the callback without that lock was a
+  // data race (issue #200). An impl becomes audible only once it has been
+  // drained from the inbox into `toLoad` and promoted into `inUse`, so the
+  // combined emptiness of those two lists is the audio thread's authoritative
+  // "nothing to render" signal.
+  return toLoad.empty() && inUse.empty();
 }
 
 /*AudioFormatReader * YSE::SOUND::managerObject::getReader(const File & f) {

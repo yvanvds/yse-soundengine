@@ -42,8 +42,17 @@ public:
                                         int32_t numFrames) override;
 
   // Stream disconnected (headphone unplug, USB removed, etc.). Oboe has already
-  // closed the stream; we rebuild it on a non-realtime thread.
+  // closed the stream. Runs on Oboe's error thread: it only records that a
+  // rebuild is due and returns — the actual reopen happens in serviceReconnect()
+  // on the main thread (issue #200).
   void onErrorAfterClose(oboe::AudioStream* stream, oboe::Result error) override;
+
+  // Perform a pending stream rebuild requested by onErrorAfterClose. Must be
+  // called from the main-thread update path (never the audio or error thread)
+  // so the reopen — which allocates and rewrites members the audio callback
+  // reads — is serialised with close()/pause()/resume() (issue #200). No-op
+  // when no reconnect has been requested.
+  void serviceReconnect();
 
 private:
   bool openStream(int channels);
@@ -61,6 +70,11 @@ private:
 
   std::atomic<unsigned int> callbacksSinceLastUpdate{0};
   std::atomic<float> cpuLoadEma{0.f};
+
+  // Set by onErrorAfterClose (Oboe error thread), consumed by serviceReconnect
+  // (main thread). Decouples the disconnect notification from the actual stream
+  // rebuild so the reopen never runs on the error thread (issue #200).
+  std::atomic<bool> reconnectRequested{false};
 };
 
 #endif
