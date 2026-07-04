@@ -539,10 +539,7 @@ void YSE::SOUND::implementationObject::update() {
   if (doppler) {
     velocityVec = (newPos - lastPos) * (1 / INTERNAL::Time().delta());
 
-    Pos listenerVelocity;
-    listenerVelocity.x = INTERNAL::ListenerImpl().vel.x.load();
-    listenerVelocity.y = INTERNAL::ListenerImpl().vel.y.load();
-    listenerVelocity.z = INTERNAL::ListenerImpl().vel.z.load();
+    Pos listenerVelocity = INTERNAL::ListenerImpl().vel.load();
 
     if (!(velocityVec == Pos(0) && listenerVelocity == Pos(0))) {
       Pos dist = relative ? newPos : newPos - INTERNAL::ListenerImpl().newPos;
@@ -560,9 +557,10 @@ void YSE::SOUND::implementationObject::update() {
   Pos dir = relative ? newPos : newPos - INTERNAL::ListenerImpl().newPos;
   if (relative)
     a = -atan2(dir.x, dir.z);
-  else
-    a = (atan2(dir.x, dir.z) - atan2(INTERNAL::ListenerImpl().forward.x.load(),
-                                     INTERNAL::ListenerImpl().forward.z.load()));
+  else {
+    const Pos listenerForward = INTERNAL::ListenerImpl().forward.load();
+    a = (atan2(dir.x, dir.z) - atan2(listenerForward.x, listenerForward.z));
+  }
   while (a > Pi)
     a -= Pi2;
   while (a < -Pi)

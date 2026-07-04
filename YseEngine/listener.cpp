@@ -32,14 +32,12 @@ YSE::Pos YSE::listener::upward() {
 }
 
 YSE::listener& YSE::listener::pos(const Pos& pos) {
-  INTERNAL::ListenerImpl().pos.x = pos.x;
-  INTERNAL::ListenerImpl().pos.y = pos.y;
-  INTERNAL::ListenerImpl().pos.z = pos.z;
+  INTERNAL::ListenerImpl().pos.store(pos);
   return (*this);
 }
 
 YSE::listener& YSE::listener::orient(const Pos& forward, const Pos& up) {
-  INTERNAL::ListenerImpl().forward = forward;
-  INTERNAL::ListenerImpl().up = up;
+  INTERNAL::ListenerImpl().forward.store(forward);
+  INTERNAL::ListenerImpl().up.store(up);
   return (*this);
 }

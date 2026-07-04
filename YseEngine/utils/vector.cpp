@@ -12,5 +12,24 @@
 #include "../utils/atomicPos.h"
 
 YSE::Pos::Pos(const aPos& v) {
-  set(v.x.load(), v.y.load(), v.z.load());
+  v.loadInto(x, y, z);
+}
+
+YSE::aPos::aPos(const Pos& v) {
+  store(v.x, v.y, v.z);
+}
+
+YSE::aPos& YSE::aPos::operator=(const Pos& v) {
+  store(v.x, v.y, v.z);
+  return *this;
+}
+
+void YSE::aPos::store(const Pos& v) {
+  store(v.x, v.y, v.z);
+}
+
+YSE::Pos YSE::aPos::load() const {
+  Flt x, y, z;
+  loadInto(x, y, z);
+  return Pos(x, y, z);
 }
