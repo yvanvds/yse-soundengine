@@ -797,6 +797,72 @@ TEST_SUITE("sound") {
     }
   }
 
+  // ─── Source-angle mapping: relative vs world frame (#204) ───────────────────
+  //
+  // Regression tests for the left↔right mirror in the relative / pan2D pan path.
+  // The engine's convention (CHANNEL::setStereo()) puts the right speaker at
+  // +90° (output 1) and the left at -90° (output 0). update() derives the source
+  // pan angle from atan2(dir.x, dir.z), which is +90° for a source on +x. The
+  // relative branch used to *negate* that (-90°), imaging every relative /
+  // pan2D source on the wrong speaker (#204). computeSourceAngle must take the
+  // relative angle directly so both frames agree. These call the pure helper
+  // (and, for the end-to-end case, compose it with the toChannels() pan math
+  // from the other pure helpers) so the assertions are exact and independent of
+  // any audio device.
+
+  TEST_CASE("sourceAngle: a relative source at +x images right (+90°), not left (#204)") {
+    using Impl = YSE::SOUND::implementationObject;
+    // dir already lives in the listener's frame; listenerForward is ignored.
+    const float a = Impl::computeSourceAngle(true, YSE::Pos(1.f, 0.f, 0.f), YSE::Pos(0.f));
+    CHECK(a == doctest::Approx(static_cast<float>(YSE::Pi) / 2.f)); // pre-fix this was -π/2
+  }
+
+  TEST_CASE("sourceAngle: relative and world frames agree for a +z-facing listener (#204)") {
+    using Impl = YSE::SOUND::implementationObject;
+    const YSE::Pos src(1.f, 0.f, 0.f);
+    const YSE::Pos fwd(0.f, 0.f, 1.f); // listener looking down +z
+    const float world = Impl::computeSourceAngle(false, src, fwd);
+    const float rel = Impl::computeSourceAngle(true, src, YSE::Pos(0.f));
+    CHECK(world == doctest::Approx(static_cast<float>(YSE::Pi) / 2.f)); // right speaker
+    CHECK(rel == doctest::Approx(world)); // frames must not mirror each other
+  }
+
+  TEST_CASE("sourceAngle: world frame rotates with the listener's facing (#204)") {
+    using Impl = YSE::SOUND::implementationObject;
+    // Listener turned 90° to face +x: a source on +x is now straight ahead (0°).
+    const float a =
+        Impl::computeSourceAngle(false, YSE::Pos(1.f, 0.f, 0.f), YSE::Pos(1.f, 0.f, 0.f));
+    CHECK(a == doctest::Approx(0.f));
+  }
+
+  TEST_CASE("sourceAngle: a relative +x source pans to the right speaker end-to-end (#204)") {
+    using Impl = YSE::SOUND::implementationObject;
+    // Compose the full update()->toChannels() mapping for a stereo layout: the
+    // source angle feeds the toChannels() pan math (computeSpeakerOverlap +
+    // computePanRatio). Output 0 = left (-90°), output 1 = right (+90°), exactly
+    // as setStereo() configures them.
+    const std::vector<float> speakers = {
+        -static_cast<float>(YSE::Pi) / 2.f, // output 0 = left
+        +static_cast<float>(YSE::Pi) / 2.f, // output 1 = right
+    };
+    const float src = Impl::computeSourceAngle(true, YSE::Pos(1.f, 0.f, 0.f), YSE::Pos(0.f));
+    std::vector<float> initGain(speakers.size());
+    float power = 0.f;
+    for (std::size_t s = 0; s < speakers.size(); ++s) {
+      const float initPan = (1.f + std::cos(speakers[s] - src)) * 0.5f;
+      float effective = 0.f;
+      for (float other : speakers)
+        effective += Impl::computeSpeakerOverlap(speakers[s], other);
+      initGain[s] = initPan / effective;
+      power += initGain[s] * initGain[s];
+    }
+    const float gainL = std::sqrt(1.f * Impl::computePanRatio(initGain[0], power, 2));
+    const float gainR = std::sqrt(1.f * Impl::computePanRatio(initGain[1], power, 2));
+    // Pre-fix the angle was -90°, which put all the gain on output 0 (left).
+    CHECK(gainR > gainL);
+    CHECK(gainL == doctest::Approx(0.f)); // fully panned to output 1 (right)
+  }
+
   // ─── Doppler ratio: multiplicative + scaled + clamped (#208) ────────────────
   //
   // Regression tests for the additive, unsmoothed doppler. computeDopplerRatio
