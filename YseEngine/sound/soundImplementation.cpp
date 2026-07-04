@@ -36,6 +36,7 @@ YSE::SOUND::implementationObject::implementationObject(sound* head)
     newPos(0.f),
     lastPos(0.f),
     velocityVec(0.f),
+    horizFraction(1.f),
     dopplerRatio(1.f),
     pitch(1.f),
     size(1.0f),
@@ -558,6 +559,12 @@ void YSE::SOUND::implementationObject::update() {
   // relative branch ignores it (dir is already in the listener's frame).
   Pos listenerForward = relative ? Pos(0) : INTERNAL::ListenerImpl().forward.load();
   angle = computeSourceAngle(relative, dir, listenerForward); // back to atomic
+  // The panner is horizontal-only (computeSourceAngle projects elevation out),
+  // so near the zenith the azimuth becomes ill-conditioned and a flyover source
+  // would sweep the full circle at full gain. Scale the pan directionality by
+  // how horizontal the source is, so an overhead source blends toward
+  // equal-power omni instead of sweeping (issue #210).
+  horizFraction = computeHorizontalFraction(dir);
 
   ///////////////////////////////////////////
   // sound occlusion (optional)
@@ -834,8 +841,12 @@ void YSE::SOUND::implementationObject::toChannels() {
     // initial panning
     for (UInt i = 0; i < parent->outConf.size(); i++) {
       if (parent->outConf[i].isLFE) continue; // LFE is not azimuth-panned
+      // horizFraction scales the cardioid's directionality (issue #210): a
+      // source on the horizon (== 1) keeps the full (1 + cos)/2 pan, while a
+      // near-zenith source (-> 0) collapses the cosine term, leaving a flat 0.5
+      // for every speaker — an equal-power omni spread instead of a wild sweep.
       parent->outConf[i].initPan =
-          (1 + cos(parent->outConf[i].angle - (angle + spreadAdjust))) * 0.5f;
+          (1 + horizFraction * cos(parent->outConf[i].angle - (angle + spreadAdjust))) * 0.5f;
       parent->outConf[i].effective = 0;
       // effective speakers
       for (UInt j = 0; j < parent->outConf.size(); j++) {
@@ -948,6 +959,22 @@ Flt YSE::SOUND::implementationObject::computeSourceAngle(bool relative, const Po
   while (a < -Pi)
     a += Pi2;
   return a;
+}
+
+Flt YSE::SOUND::implementationObject::computeHorizontalFraction(const Pos& dir) {
+  // Fraction of the source distance that lies in the horizontal (x-z) plane,
+  // in [0..1]. computeSourceAngle uses atan2(x, z), so the azimuth is only
+  // well-defined while there is meaningful horizontal extent; this weight lets
+  // toChannels() fade the pan directionality out as the source approaches the
+  // zenith (issue #210).
+  Flt horiz = static_cast<Flt>(sqrt(dir.x * dir.x + dir.z * dir.z));
+  Flt total = static_cast<Flt>(sqrt(dir.x * dir.x + dir.y * dir.y + dir.z * dir.z));
+  // A zero-length direction (source co-located with the listener) has no
+  // azimuth *and* no elevation; there is nothing to tame, so return full
+  // directionality to leave the existing near-field behaviour untouched.
+  constexpr Flt minTotal = 1e-9f;
+  if (total < minTotal) return 1.f;
+  return horiz / total;
 }
 
 Flt YSE::SOUND::implementationObject::computeDopplerRatio(const Pos& sourceVel,
