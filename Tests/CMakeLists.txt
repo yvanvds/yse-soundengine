@@ -38,6 +38,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_setparams.cpp
   patcher/test_patcher_value_queue.cpp
   patcher/test_patcher_concurrency.cpp
+  patcher/test_patcher_feedback_loop.cpp
   patcher/test_timerthread.cpp
   channel/test_channel.cpp
   channel/test_channel_concurrency.cpp
@@ -320,6 +321,7 @@ set_source_files_properties(
   patcher/test_patcher_setparams.cpp
   patcher/test_patcher_value_queue.cpp
   patcher/test_patcher_concurrency.cpp
+  patcher/test_patcher_feedback_loop.cpp
   patcher/test_timerthread.cpp
   PROPERTIES COMPILE_FLAGS "${_patcher_test_suppress}"
 )

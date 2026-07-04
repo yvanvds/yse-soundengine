@@ -7,6 +7,44 @@
 
 using namespace YSE::PATCHER;
 
+namespace {
+  // Wait-free recursion guard for the synchronous message send path (issue
+  // #236). A feedback cycle in the message graph — e.g. a gSend/gReceive pair
+  // whose receive output is wired back into the send's inlet, or a purely
+  // local cycle among generic objects — has no natural termination: a single
+  // value entering the cycle recurses through outlet::Send* until the stack
+  // overflows (STATUS_STACK_OVERFLOW). Every fan-out edge, whether it travels
+  // the local wiring, the in-patcher PassData dispatch, or the global bus,
+  // passes back through outlet::Send*, so a depth ceiling here breaks any
+  // cycle regardless of the route taken.
+  //
+  // RT-safety: the counter is thread_local, so each thread (control/GUI and
+  // each audio render thread) tracks its own send depth independently. Reading
+  // and mutating it is a plain TLS load/store — no allocation, no lock, no
+  // syscall — so this is safe on the audio-thread fan-out path where PassData
+  // dispatches synchronously (T_DSP). When the ceiling is reached the fan-out
+  // is dropped, terminating the cycle instead of crashing.
+  //
+  // The ceiling is chosen well above any realistic acyclic fan-out depth (a
+  // message chain that deep is already pathological) yet low enough that the
+  // bounded stack usage stays comfortably within the smallest render-thread
+  // stack.
+  constexpr unsigned int kMaxSendDepth = 64;
+  thread_local unsigned int tSendDepth = 0;
+
+  // RAII depth tracker. ``allowed`` is false when constructing this frame would
+  // exceed the ceiling, in which case the caller must not fan out.
+  struct SendDepthGuard {
+    bool allowed;
+    SendDepthGuard() : allowed(tSendDepth < kMaxSendDepth) {
+      ++tSendDepth;
+    }
+    ~SendDepthGuard() {
+      --tSendDepth;
+    }
+  };
+} // namespace
+
 outlet::outlet(pObject* owner, YSE::OUT_TYPE type) : type(type), owner(owner) {}
 
 outlet::~outlet() {
@@ -30,6 +68,8 @@ const std::vector<YSE::PATCHER::inlet*>& outlet::resolveTargets() const {
 }
 
 void outlet::SendBang(YSE::THREAD thread) {
+  SendDepthGuard guard;
+  if (!guard.allowed) return;
   const auto& targets = resolveTargets();
   for (unsigned int i = 0; i < targets.size(); i++) {
     targets[i]->SetBang(thread);
@@ -37,6 +77,8 @@ void outlet::SendBang(YSE::THREAD thread) {
 }
 
 void outlet::SendFloat(float value, YSE::THREAD thread) {
+  SendDepthGuard guard;
+  if (!guard.allowed) return;
   const auto& targets = resolveTargets();
   for (unsigned int i = 0; i < targets.size(); i++) {
     targets[i]->SetFloat(value, thread);
@@ -44,6 +86,8 @@ void outlet::SendFloat(float value, YSE::THREAD thread) {
 }
 
 void outlet::SendInt(int value, YSE::THREAD thread) {
+  SendDepthGuard guard;
+  if (!guard.allowed) return;
   const auto& targets = resolveTargets();
   for (unsigned int i = 0; i < targets.size(); i++) {
     targets[i]->SetInt(value, thread);
@@ -51,6 +95,8 @@ void outlet::SendInt(int value, YSE::THREAD thread) {
 }
 
 void outlet::SendList(const std::string& value, YSE::THREAD thread) {
+  SendDepthGuard guard;
+  if (!guard.allowed) return;
   const auto& targets = resolveTargets();
   for (unsigned int i = 0; i < targets.size(); i++) {
     targets[i]->SetList(value, thread);
@@ -58,6 +104,8 @@ void outlet::SendList(const std::string& value, YSE::THREAD thread) {
 }
 
 void outlet::SendMessage(const std::string& value, YSE::THREAD thread) {
+  SendDepthGuard guard;
+  if (!guard.allowed) return;
   const auto& targets = resolveTargets();
   for (unsigned int i = 0; i < targets.size(); i++) {
     targets[i]->SetMessage(value, thread);
@@ -65,6 +113,8 @@ void outlet::SendMessage(const std::string& value, YSE::THREAD thread) {
 }
 
 void outlet::SendBuffer(YSE::DSP::buffer* value, YSE::THREAD thread) {
+  SendDepthGuard guard;
+  if (!guard.allowed) return;
   const auto& targets = resolveTargets();
   for (unsigned int i = 0; i < targets.size(); i++) {
     targets[i]->SetBuffer(value, thread);
