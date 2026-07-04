@@ -395,6 +395,49 @@ TEST_SUITE("sound") {
     CHECK(true);
   }
 
+  // ─── virtualDist metric: volume weighting (#205) ────────────────────────────
+  //
+  // Regression tests for the inverted volume weighting. The VirtualSoundFinder
+  // keeps the sounds with the *smallest* virtualDist real (see inRange /
+  // sortSoundObjects); importance must therefore rise with volume and fall with
+  // distance. Before the fix the metric multiplied by volume, so a muted sound
+  // scored 0 (maximally important) and outranked loud ones. These call the pure
+  // helper directly so the assertions are exact and don't depend on the finder's
+  // adaptive histogram.
+
+  TEST_CASE("virtualDist: at equal distance a louder sound outranks a quieter one") {
+    using Impl = YSE::SOUND::implementationObject;
+    const float loud = Impl::computeVirtualDist(10.f, 0.f, 1.0f);
+    const float quiet = Impl::computeVirtualDist(10.f, 0.f, 0.25f);
+    // Lower == more important. The loud sound must be more important.
+    CHECK(loud < quiet);
+  }
+
+  TEST_CASE("virtualDist: a muted sound does NOT outrank an audible one (#205)") {
+    using Impl = YSE::SOUND::implementationObject;
+    // Same distance, one fully audible, one muted. Pre-fix the muted sound
+    // scored 0 and was always kept; post-fix it must score higher (less
+    // important) than the audible sound.
+    const float audible = Impl::computeVirtualDist(10.f, 0.f, 1.0f);
+    const float muted = Impl::computeVirtualDist(10.f, 0.f, 0.0f);
+    CHECK(muted > audible);
+  }
+
+  TEST_CASE("virtualDist: at equal volume a nearer sound outranks a farther one") {
+    using Impl = YSE::SOUND::implementationObject;
+    const float near = Impl::computeVirtualDist(5.f, 0.f, 1.0f);
+    const float far = Impl::computeVirtualDist(50.f, 0.f, 1.0f);
+    CHECK(near < far);
+  }
+
+  TEST_CASE("virtualDist: is non-negative and clamps a listener inside `size` to 0") {
+    using Impl = YSE::SOUND::implementationObject;
+    // distance < size -> effective distance clamps to 0 -> maximally important.
+    CHECK(Impl::computeVirtualDist(2.f, 10.f, 1.0f) == doctest::Approx(0.f));
+    // A muted, in-size sound is still finite and non-negative.
+    CHECK(Impl::computeVirtualDist(2.f, 10.f, 0.0f) >= 0.f);
+  }
+
   // ─── Manager update loop / lifecycle ─────────────────────────────────────────
 
   TEST_CASE("sound impl: sync() detects head==nullptr after destructor and releases impl") {

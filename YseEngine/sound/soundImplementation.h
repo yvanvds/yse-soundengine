@@ -130,6 +130,15 @@ namespace YSE {
       */
       static bool sortSoundObjects(implementationObject*, implementationObject*);
 
+      /** Compute the virtualization priority metric for a sound. Lower values
+          are more important (kept real); the VirtualSoundFinder virtualizes the
+          sounds with the *highest* values first. Importance rises with volume
+          and falls with distance, so quiet distant sounds are virtualized
+          before loud near ones. A muted sound (volume ~ 0) yields a very large
+          value and is virtualized outright rather than promoted. See issue #205.
+      */
+      static Flt computeVirtualDist(Flt distance, Flt size, Flt volume);
+
       void removeInterface();
 
       OBJECT_IMPLEMENTATION_STATE getStatus();
