@@ -176,6 +176,7 @@ void YSE::CHANNEL::implementationObject::setup() {
       outConf[i].angle = CHANNEL::Manager().getOutputAngle(i);
       outConf[i].isLFE = CHANNEL::Manager().getOutputIsLFE(i);
     }
+    computeEffectiveSpeakerWeights(outConf);
     objectStatus = OBJECT_SETUP;
   }
 }
@@ -190,6 +191,7 @@ void YSE::CHANNEL::implementationObject::resize(bool deep) {
     outConf[i].angle = CHANNEL::Manager().getOutputAngle(i);
     outConf[i].isLFE = CHANNEL::Manager().getOutputIsLFE(i);
   }
+  computeEffectiveSpeakerWeights(outConf);
   if (deep) {
     for (auto i = children.begin(); i != children.end(); ++i) {
       (*i)->resize(true);
@@ -198,6 +200,27 @@ void YSE::CHANNEL::implementationObject::resize(bool deep) {
     for (auto i = sounds.begin(); i != sounds.end(); ++i) {
       (*i)->resize();
     }
+  }
+}
+
+void YSE::CHANNEL::implementationObject::computeEffectiveSpeakerWeights(
+    std::vector<output>& outConf) {
+  // The density-compensation term effective[i] = Σ_j overlap(angle_i, angle_j)
+  // depends only on the speaker geometry, not on the source or the audio block.
+  // Precompute it here (layout-change time) so toChannels() can read it instead
+  // of paying the O(N^2) cos cost per source channel per block (issue #211).
+  // LFE outputs are excluded from the azimuth pan, matching toChannels() which
+  // skips them in both the i and j loops (issue #203); their effective is left
+  // at the default and never read. The summation order over non-LFE speakers is
+  // kept identical to the old inline loop so the result is bit-for-bit the same.
+  for (UInt i = 0; i < outConf.size(); i++) {
+    if (outConf[i].isLFE) continue;
+    Flt sum = 0;
+    for (UInt j = 0; j < outConf.size(); j++) {
+      if (outConf[j].isLFE) continue;
+      sum += SOUND::implementationObject::computeSpeakerOverlap(outConf[i].angle, outConf[j].angle);
+    }
+    outConf[i].effective = sum;
   }
 }
 

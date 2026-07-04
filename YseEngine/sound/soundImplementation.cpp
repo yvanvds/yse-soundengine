@@ -847,13 +847,10 @@ void YSE::SOUND::implementationObject::toChannels() {
       // for every speaker — an equal-power omni spread instead of a wild sweep.
       parent->outConf[i].initPan =
           (1 + horizFraction * cos(parent->outConf[i].angle - (angle + spreadAdjust))) * 0.5f;
-      parent->outConf[i].effective = 0;
-      // effective speakers
-      for (UInt j = 0; j < parent->outConf.size(); j++) {
-        if (parent->outConf[j].isLFE) continue;
-        parent->outConf[i].effective +=
-            computeSpeakerOverlap(parent->outConf[i].angle, parent->outConf[j].angle);
-      }
+      // The speaker-density term effective[i] depends only on the speaker
+      // geometry, so it is precomputed once on layout change in
+      // CHANNEL::implementationObject::computeEffectiveSpeakerWeights() instead
+      // of being recomputed here per source channel per block (issue #211).
       // initial gain
       parent->outConf[i].initGain = parent->outConf[i].initPan / parent->outConf[i].effective;
     }
