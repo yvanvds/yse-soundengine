@@ -16,15 +16,29 @@
 #include "../utils/lfQueue.hpp"
 #include "../utils/interpolators.hpp"
 #include "../music/note.hpp"
+#include "../music/pNote.hpp"
 #include "../dsp/ramp.hpp"
-#include <deque>
+#include <vector>
 
 namespace YSE {
   namespace PLAYER {
 
+    // Fixed ceilings for the preallocated audio-thread pools (issue #195). The
+    // note generator runs on the audio callback and must not allocate, so every
+    // container it touches is reserved to these bounds at construction time and
+    // never grows past them: generation above the ceiling is dropped rather than
+    // triggering a heap reallocation.
+    static constexpr UInt MAX_VOICES = 32; // polyphony ceiling
+    static constexpr UInt MAX_MOTIF_NOTES = 256; // notes copied per voice motif
+    static constexpr UInt MAX_MOTIFS = 64; // weighted motifs in the pool
+    static constexpr UInt MAX_NOTES = 512; // concurrently sounding notes
+
     class implementationObject {
     public:
-      // implementationObject(player * head, synth * s);
+      // Constructing an implementation preallocates every pool it uses on the
+      // audio thread. `head` may be null (used by tests that drive update()
+      // directly); when non-null the interface's pimpl is wired back here.
+      explicit implementationObject(player* head);
       ~implementationObject();
 
       bool update(Flt delta);
@@ -35,6 +49,12 @@ namespace YSE {
       }
 
       void removeInterface();
+
+      // Read-only inspection of the sounding-note pool. Lets the RT-allocation
+      // test assert the pool stays within its fixed ceiling (#195).
+      UInt noteCount() const {
+        return static_cast<UInt>(notes.size());
+      }
 
     private:
       std::atomic<player*> head;
@@ -58,7 +78,7 @@ namespace YSE {
 
       void setVoiceFromMotif(voice& v, Flt delta);
 
-      std::deque<MUSIC::note> notes;
+      std::vector<MUSIC::note> notes;
       std::vector<voice> voices;
       UInt activeVoices;
 

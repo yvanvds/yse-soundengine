@@ -65,6 +65,7 @@ set(YSE_TEST_SOURCES
   music/test_scale.cpp
   music/test_note.cpp
   music/test_motif.cpp
+  music/test_player_alloc.cpp
   listener/test_listener.cpp
   io/test_bufferIO.cpp
   system/test_named_bus.cpp

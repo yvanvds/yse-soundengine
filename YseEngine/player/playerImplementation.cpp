@@ -13,8 +13,8 @@
 #include "../music/note.hpp"
 // #include "../synth/synthInterface.hpp"
 
-/*YSE::PLAYER::implementationObject::implementationObject(player* head, synth * s)
-  : head(head), instrument(s), waitTime(0.f), playing(false) {
+YSE::PLAYER::implementationObject::implementationObject(player* head)
+  : head(head), waitTime(0.f), activeVoices(1), playing(false) {
   minimumPitch.set(0.f);
   maximumPitch.set(128.f);
   minimumVelocity.set(0.f);
@@ -24,10 +24,22 @@
   minLength.set(0.1f);
   maxLength.set(1.f);
   numVoices.set(1.f);
-  activeVoices = 1;
-  voices.reserve(32);
-  voices.emplace_back(true);
-}*/
+
+  // Preallocate every audio-thread pool up to its fixed ceiling so the note
+  // generator in update() never allocates (issue #195). All the voices exist
+  // up front; activeVoices selects how many are live. Each voice's motif buffer
+  // and the shared note / motif pools are reserved once here.
+  notes.reserve(MAX_NOTES);
+  motifs.reserve(MAX_MOTIFS);
+  voices.reserve(MAX_VOICES);
+  for (UInt i = 0; i < MAX_VOICES; i++) {
+    voices.emplace_back(false);
+    voices.back().motif.reserve(MAX_MOTIF_NOTES);
+  }
+  voices[0].isActive = true;
+
+  if (head != nullptr) head->pimpl = this;
+}
 
 YSE::PLAYER::implementationObject::~implementationObject() {
   if (head.load() != nullptr) {
@@ -47,13 +59,15 @@ bool YSE::PLAYER::implementationObject::update(Flt delta) {
     parseMessage(message);
   }
 
-  // update notes and delete on note off
+  // update notes and delete on note off. Swap-and-pop keeps this allocation-free
+  // (pop_back never releases the reserved buffer) on the audio thread (#195).
   {
-    std::deque<MUSIC::note>::iterator i = notes.begin();
-    while (i != notes.end()) {
-      if (!i->update(delta)) {
-        // instrument->noteOff(*i);
-        i = notes.erase(i);
+    UInt i = 0;
+    while (i < notes.size()) {
+      if (!notes[i].update(delta)) {
+        // instrument->noteOff(notes[i]);
+        notes[i] = notes.back();
+        notes.pop_back();
       } else
         i++;
     }
@@ -77,17 +91,15 @@ bool YSE::PLAYER::implementationObject::update(Flt delta) {
   // don't play new notes if we're stopped
   if (!playing) return true;
 
-  // adjust number of active voices if needed
-  while ((UInt)numVoices() > activeVoices) {
-    if (voices.size() > activeVoices) {
-      voices[activeVoices].isActive = true;
-    } else {
-      voices.emplace_back(true);
-    }
+  // adjust number of active voices if needed. All MAX_VOICES voices are
+  // preallocated, so growing just flips isActive — never allocates — and the
+  // fixed polyphony ceiling caps activeVoices at voices.size() (#195).
+  while ((UInt)numVoices() > activeVoices && activeVoices < voices.size()) {
+    voices[activeVoices].isActive = true;
     activeVoices++;
   }
 
-  while ((UInt)numVoices() < activeVoices) {
+  while ((UInt)numVoices() < activeVoices && activeVoices > 0) {
     voices[activeVoices - 1].isActive = false;
     activeVoices--;
   }
@@ -120,9 +132,13 @@ bool YSE::PLAYER::implementationObject::update(Flt delta) {
           Flt pitch = static_cast<Flt>(
               Random(static_cast<Int>(minimumPitch()), static_cast<Int>(maximumPitch())));
           if (scale.isSet()) pitch = scale()->getNearest(pitch);
-          notes.emplace_back(MUSIC::note(pitch, RandomF(minimumVelocity(), maximumVelocity()),
-                                         voices[i].duration));
-          // instrument->noteOn(notes.back());
+          // Drop the note rather than grow the pool if the note ceiling is hit,
+          // keeping generation allocation-free on the audio thread (#195).
+          if (notes.size() < notes.capacity()) {
+            notes.emplace_back(pitch, RandomF(minimumVelocity(), maximumVelocity()),
+                               voices[i].duration);
+            // instrument->noteOn(notes.back());
+          }
         }
       }
     }
@@ -157,6 +173,8 @@ void YSE::PLAYER::implementationObject::setVoiceFromMotif(voice& v, Flt delta) {
       UInt start = Random(m->size() - 1);
       UInt count = 1 + Random(m->size() - start - 1);
       UInt end = start + count;
+      // Never copy past the voice's reserved motif buffer (#195).
+      if (end - start > v.motif.capacity()) end = start + static_cast<UInt>(v.motif.capacity());
 
       Flt offset = m->getNote(start).getPosition();
       for (; start < end; start++) {
@@ -166,7 +184,10 @@ void YSE::PLAYER::implementationObject::setVoiceFromMotif(voice& v, Flt delta) {
 
       v.duration = v.motif.back().getPosition() + v.motif.back().getLength();
     } else {
-      for (UInt i = 0; i < m->size(); i++) {
+      UInt count = m->size();
+      // Never copy past the voice's reserved motif buffer (#195).
+      if (count > v.motif.capacity()) count = static_cast<UInt>(v.motif.capacity());
+      for (UInt i = 0; i < count; i++) {
         v.motif.emplace_back(m->getNote(i));
       }
       v.duration = m->getLength();
@@ -205,8 +226,11 @@ void YSE::PLAYER::implementationObject::setVoiceFromMotif(voice& v, Flt delta) {
     if (RandomF() < motifToScale()) {
       note.setPitch(scale()->getNearest(note.getPitch()));
     }
-    notes.push_back(note);
-    // instrument->noteOn(note);
+    // Drop rather than grow the pool if the note ceiling is hit (#195).
+    if (notes.size() < notes.capacity()) {
+      notes.push_back(note);
+      // instrument->noteOn(note);
+    }
     v.motifPos++;
   }
 
@@ -272,7 +296,9 @@ void YSE::PLAYER::implementationObject::parseMessage(const messageObject& messag
       // no doubles!
       if (motifs[i].motif == m.motif) assert(false);
     }
-    motifs.emplace_back(m);
+    // Bounded by MAX_MOTIFS so the motif pool never reallocates on the audio
+    // thread; extra motifs past the ceiling are ignored (#195).
+    if (motifs.size() < motifs.capacity()) motifs.emplace_back(m);
     break;
   case REM_MOTIF:
     FOREACH(motifs) {
