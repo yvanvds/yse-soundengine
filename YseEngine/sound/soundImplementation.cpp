@@ -795,7 +795,7 @@ void YSE::SOUND::implementationObject::toChannels() {
       // effective speakers
       for (UInt j = 0; j < parent->outConf.size(); j++) {
         parent->outConf[i].effective +=
-            (1 + cos(parent->outConf[i].angle - parent->outConf[j].angle) * 0.5f);
+            computeSpeakerOverlap(parent->outConf[i].angle, parent->outConf[j].angle);
       }
       // initial gain
       parent->outConf[i].initGain = parent->outConf[i].initPan / parent->outConf[i].effective;
@@ -859,6 +859,14 @@ Flt YSE::SOUND::implementationObject::computeVirtualDist(Flt distance, Flt size,
   constexpr Flt minVolume = 0.0001f;
   if (volume < minVolume) volume = minVolume;
   return effectiveDist / volume;
+}
+
+Flt YSE::SOUND::implementationObject::computeSpeakerOverlap(Flt angleA, Flt angleB) {
+  // Cardioid weight in [0..1] — the same parenthesization as the pan term above
+  // so a "how much do these two speakers overlap" weight and a "how much does
+  // this speaker face the source" pan use one consistent curve. Coincident
+  // speakers overlap fully (1), opposite speakers not at all (0). (#207)
+  return (1 + cos(angleA - angleB)) * 0.5f;
 }
 
 YSE::SOUND::implementationObject::virtualAction
