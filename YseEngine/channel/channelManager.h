@@ -59,6 +59,12 @@ namespace YSE {
       UInt getNumberOfOutputs();
       Flt getOutputAngle(UInt nr);
 
+      /** @brief True when output @p nr is the low-frequency-effects (.1) channel.
+          The LFE output is excluded from azimuth panning; positional sounds are
+          never panned into it. Returns false when @p nr is out of range or the
+          current layout has no LFE. */
+      Bool getOutputIsLFE(UInt nr);
+
       channel& master();
       channel& FX();
       channel& music();
@@ -104,10 +110,20 @@ namespace YSE {
       channel _voice;
       channel _gui;
 
-      // channel output configuration
+      // channel output configuration. `outputAngles` holds the azimuth (radians)
+      // of each physical output; `outputIsLFE` marks the low-frequency-effects
+      // (.1) output so it is kept out of azimuth panning. Both arrays are sized
+      // to `outputChannels` and value-initialised in changeChannelConf().
       aFlt* outputAngles;
+      aBool* outputIsLFE;
       aUInt outputChannels;
       std::atomic<CHANNEL_TYPE> channelType;
+
+      // Bounds-checked writers used by the layout presets below, so a preset can
+      // never write past the allocated `outputChannels` even if it is applied to
+      // a device with fewer channels than the layout expects.
+      void setAngle(UInt idx, Flt degrees);
+      void setLFE(UInt idx);
 
       void setMono();
       void setStereo();

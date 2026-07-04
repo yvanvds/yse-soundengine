@@ -300,9 +300,19 @@ namespace YSE {
       Flt effective;
       Flt ratio;
       Flt finalGain;
+      // True for the low-frequency-effects (.1) output. Such an output is kept
+      // out of azimuth panning: positional sounds are never panned into it
+      // (issue #203).
+      Bool isLFE;
 
       output()
-        : angle(0.f), initPan(0.f), initGain(1.f), effective(1.f), ratio(1.f), finalGain(1.f) {}
+        : angle(0.f),
+          initPan(0.f),
+          initGain(1.f),
+          effective(1.f),
+          ratio(1.f),
+          finalGain(1.f),
+          isLFE(false) {}
     };
 
   } // namespace CHANNEL

@@ -16,7 +16,11 @@ YSE::CHANNEL::managerObject& YSE::CHANNEL::Manager() {
 }
 
 YSE::CHANNEL::managerObject::managerObject()
-  : mgrSetup(this), mgrDelete(this), outputAngles(nullptr), outputChannels(0) {}
+  : mgrSetup(this),
+    mgrDelete(this),
+    outputAngles(nullptr),
+    outputIsLFE(nullptr),
+    outputChannels(0) {}
 
 YSE::CHANNEL::managerObject::~managerObject() noexcept {
   try {
@@ -36,6 +40,7 @@ YSE::CHANNEL::managerObject::~managerObject() noexcept {
     inUse.clear();
     implementations.clear();
     delete[] outputAngles;
+    delete[] outputIsLFE;
   } catch (...) {
     INTERNAL::LogImpl().emit(E_ERROR, "CHANNEL::Manager destructor swallowed exception");
   }
@@ -208,6 +213,14 @@ Flt YSE::CHANNEL::managerObject::getOutputAngle(UInt nr) {
   }
 }
 
+Bool YSE::CHANNEL::managerObject::getOutputIsLFE(UInt nr) {
+  if (nr >= outputChannels || outputIsLFE == nullptr) {
+    return false;
+  } else {
+    return outputIsLFE[nr];
+  }
+}
+
 void YSE::CHANNEL::managerObject::setMaster(CHANNEL::implementationObject* impl) {
   impl->objectStatus = OBJECT_CREATED;
   impl->setup();
@@ -220,8 +233,16 @@ void YSE::CHANNEL::managerObject::setChannelConf(CHANNEL_TYPE type, Int outputs)
 }
 
 void YSE::CHANNEL::managerObject::changeChannelConf() {
+  const UInt count = outputChannels.load();
   delete[] outputAngles;
-  outputAngles = new aFlt[outputChannels.load()];
+  delete[] outputIsLFE;
+  // Value-initialise (the trailing ()): std::atomic has no default member
+  // initialiser, so `new aFlt[n]` alone would leave every angle indeterminate.
+  // Presets below only touch the outputs their layout defines, so any output a
+  // preset skips (e.g. an LFE, or a channel beyond the layout) must already
+  // read as 0° / not-LFE rather than garbage (issue #203).
+  outputAngles = new aFlt[count]();
+  outputIsLFE = new aBool[count]();
   switch (channelType.load()) {
   case CT_AUTO:
     setAuto(outputChannels);
@@ -260,6 +281,11 @@ void YSE::CHANNEL::managerObject::changeChannelConf() {
 }
 
 void YSE::CHANNEL::managerObject::setAuto(Int count) {
+  // `count` is the device's physical channel count. Map it onto the standard
+  // layout with that many channels. The .1 layouts (6 = 5.1, 7 = 6.1, 8 = 7.1)
+  // carry an LFE at the platform-standard index 3. Counts without a defined
+  // channel order here (3, 5, >8) fall back to stereo rather than guessing a
+  // speaker order (issue #203).
   switch (count) {
   case 1:
     setMono();
@@ -269,9 +295,6 @@ void YSE::CHANNEL::managerObject::setAuto(Int count) {
     break;
   case 4:
     setQuad();
-    break;
-  case 5:
-    set51();
     break;
   case 6:
     set51();
@@ -288,53 +311,73 @@ void YSE::CHANNEL::managerObject::setAuto(Int count) {
   }
 }
 
+void YSE::CHANNEL::managerObject::setAngle(UInt idx, Flt degrees) {
+  if (idx < outputChannels.load()) {
+    outputAngles[idx] = Pi / 180.0f * degrees;
+  }
+}
+
+void YSE::CHANNEL::managerObject::setLFE(UInt idx) {
+  if (idx < outputChannels.load()) {
+    outputIsLFE[idx] = true;
+  }
+}
+
 void YSE::CHANNEL::managerObject::setMono() {
-  outputAngles[0] = 0;
+  setAngle(0, 0.0f);
 }
 
 void YSE::CHANNEL::managerObject::setStereo() {
-  outputAngles[0] = Pi / 180.0f * -90.0f;
-  outputAngles[1] = Pi / 180.0f * 90.0f;
+  setAngle(0, -90.0f);
+  setAngle(1, 90.0f);
 }
 
 void YSE::CHANNEL::managerObject::setQuad() {
-  outputAngles[0] = Pi / 180.0f * -45.0f;
-  outputAngles[1] = Pi / 180.0f * 45.0f;
-  outputAngles[2] = Pi / 180.0f * -135.0f;
-  outputAngles[3] = Pi / 180.0f * 135.0f;
+  setAngle(0, -45.0f);
+  setAngle(1, 45.0f);
+  setAngle(2, -135.0f);
+  setAngle(3, 135.0f);
 }
 
+// 5.1 — platform channel order: FL FR FC LFE BL BR.
 void YSE::CHANNEL::managerObject::set51() {
-  outputAngles[0] = Pi / 180.0f * -45.0f;
-  outputAngles[1] = Pi / 180.0f * 45.0f;
-  outputAngles[2] = Pi / 180.0f * 0.0f;
-  outputAngles[3] = Pi / 180.0f * -135.0f;
-  outputAngles[4] = Pi / 180.0f * 135.0f;
+  setAngle(0, -45.0f); // front left
+  setAngle(1, 45.0f); // front right
+  setAngle(2, 0.0f); // front center
+  setLFE(3); // low-frequency effects
+  setAngle(4, -135.0f); // back left
+  setAngle(5, 135.0f); // back right
 }
 
+// 5.1 with side surrounds — FL FR FC LFE SL SR.
 void YSE::CHANNEL::managerObject::set51Side() {
-  outputAngles[0] = Pi / 180.0f * -45.0f;
-  outputAngles[1] = Pi / 180.0f * 45.0f;
-  outputAngles[2] = Pi / 180.0f * 0.0f;
-  outputAngles[3] = Pi / 180.0f * -90.0f;
-  outputAngles[4] = Pi / 180.0f * 90.0f;
+  setAngle(0, -45.0f); // front left
+  setAngle(1, 45.0f); // front right
+  setAngle(2, 0.0f); // front center
+  setLFE(3); // low-frequency effects
+  setAngle(4, -90.0f); // side left
+  setAngle(5, 90.0f); // side right
 }
 
+// 6.1 — platform channel order: FL FR FC LFE SL SR BC.
 void YSE::CHANNEL::managerObject::set61() {
-  outputAngles[0] = Pi / 180.0f * -45.0f;
-  outputAngles[1] = Pi / 180.0f * 45.0f;
-  outputAngles[2] = Pi / 180.0f * 0.0f;
-  outputAngles[3] = Pi / 180.0f * -90.0f;
-  outputAngles[4] = Pi / 180.0f * 90.0f;
-  outputAngles[5] = Pi / 180.0f * 180.0f;
+  setAngle(0, -45.0f); // front left
+  setAngle(1, 45.0f); // front right
+  setAngle(2, 0.0f); // front center
+  setLFE(3); // low-frequency effects
+  setAngle(4, -90.0f); // side left
+  setAngle(5, 90.0f); // side right
+  setAngle(6, 180.0f); // back center
 }
 
+// 7.1 — platform channel order: FL FR FC LFE BL BR SL SR.
 void YSE::CHANNEL::managerObject::set71() {
-  outputAngles[0] = Pi / 180.0f * -45.0f;
-  outputAngles[1] = Pi / 180.0f * 45.0f;
-  outputAngles[2] = Pi / 180.0f * 0.0f;
-  outputAngles[3] = Pi / 180.0f * -90.0f;
-  outputAngles[4] = Pi / 180.0f * 90.0f;
-  outputAngles[5] = Pi / 180.0f * -135.0f;
-  outputAngles[6] = Pi / 180.0f * 135.0f;
+  setAngle(0, -45.0f); // front left
+  setAngle(1, 45.0f); // front right
+  setAngle(2, 0.0f); // front center
+  setLFE(3); // low-frequency effects
+  setAngle(4, -135.0f); // back left
+  setAngle(5, 135.0f); // back right
+  setAngle(6, -90.0f); // side left
+  setAngle(7, 90.0f); // side right
 }

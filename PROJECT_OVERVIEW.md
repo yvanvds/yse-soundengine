@@ -240,7 +240,7 @@ system& occlusionCallback(float(*func)(const Pos& source, const Pos& listener));
 
 The callback runs on the **control thread** (inside `System().update()`), once per occlusion-enabled sound per tick — never on the audio callback thread. Its clamped result is handed to the audio thread over the sound message queue, so a raycast that locks or allocates cannot stall the audio callback ([#209](https://github.com/yvanvds/yse-soundengine/issues/209)).
 
-**Output channel configurations:** `CT_MONO CT_STEREO CT_QUAD CT_51 CT_51SIDE CT_61 CT_71 CT_CUSTOM`
+**Output channel configurations:** `CT_MONO CT_STEREO CT_QUAD CT_51 CT_51SIDE CT_61 CT_71 CT_CUSTOM`. The `.1` layouts follow the platform-standard channel order (`FL FR FC LFE …`) with the LFE at index 3; the LFE output is flagged and excluded from azimuth panning, so positional sounds are never panned into the subwoofer ([#203](https://github.com/yvanvds/yse-soundengine/issues/203)).
 
 ---
 

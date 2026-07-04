@@ -47,6 +47,7 @@ set(YSE_TEST_SOURCES
   channel/test_channel_concurrency.cpp
   channel/test_channel_metering.cpp
   channel/test_channel_bus.cpp
+  channel/test_channel_layout.cpp
   sound/test_sound_state.cpp
   sound/test_sound_streaming.cpp
   sound/test_sound_impl.cpp
