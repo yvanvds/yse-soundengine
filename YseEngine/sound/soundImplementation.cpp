@@ -553,19 +553,11 @@ void YSE::SOUND::implementationObject::update() {
   ///////////////////////////////////////////
   // calculate angle
   ///////////////////////////////////////////
-  Flt a = angle; // avoid using atomic all the time
   Pos dir = relative ? newPos : newPos - INTERNAL::ListenerImpl().newPos;
-  if (relative)
-    a = -atan2(dir.x, dir.z);
-  else {
-    const Pos listenerForward = INTERNAL::ListenerImpl().forward.load();
-    a = (atan2(dir.x, dir.z) - atan2(listenerForward.x, listenerForward.z));
-  }
-  while (a > Pi)
-    a -= Pi2;
-  while (a < -Pi)
-    a += Pi2;
-  angle = a; // back to atomic
+  // Only touch the listener's atomic forward vector in the world branch; the
+  // relative branch ignores it (dir is already in the listener's frame).
+  Pos listenerForward = relative ? Pos(0) : INTERNAL::ListenerImpl().forward.load();
+  angle = computeSourceAngle(relative, dir, listenerForward); // back to atomic
 
   ///////////////////////////////////////////
   // sound occlusion (optional)
@@ -937,6 +929,25 @@ Flt YSE::SOUND::implementationObject::computePanRatio(Flt initGain, Flt power, U
   if (speakerCount == 0) return 0.f;
   if (!(power > minPower)) return 1.f / static_cast<Flt>(speakerCount);
   return static_cast<Flt>(pow(initGain, 2) / power);
+}
+
+Flt YSE::SOUND::implementationObject::computeSourceAngle(bool relative, const Pos& dir,
+                                                         const Pos& listenerForward) {
+  // atan2(x, z) gives +90° for a source on +x, which maps to the right speaker
+  // (see CHANNEL::setStereo()). The relative branch takes this angle directly;
+  // it must NOT be negated, or relative / pan2D sounds mirror left↔right (#204).
+  Flt a = static_cast<Flt>(atan2(dir.x, dir.z));
+  if (!relative) {
+    // World frame: measure the source direction against the listener's facing.
+    a -= static_cast<Flt>(atan2(listenerForward.x, listenerForward.z));
+  }
+  // A world-frame difference of two atan2 results can leave (-2π, 2π); wrap it
+  // back into (-π, π] so downstream pan math sees a canonical angle.
+  while (a > Pi)
+    a -= Pi2;
+  while (a < -Pi)
+    a += Pi2;
+  return a;
 }
 
 Flt YSE::SOUND::implementationObject::computeDopplerRatio(const Pos& sourceVel,

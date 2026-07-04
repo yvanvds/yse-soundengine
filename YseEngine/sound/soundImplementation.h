@@ -196,6 +196,24 @@ namespace YSE {
       */
       static Flt computePanRatio(Flt initGain, Flt power, UInt speakerCount);
 
+      /** Pan angle of a source relative to the listener, in radians and wrapped
+          to (-π, π]. The engine's convention (see CHANNEL::setStereo()) puts the
+          right speaker at +90° and the left at -90°, so a source at +x must map
+          to +90° on both frames.
+
+          - World frame (``relative == false``): the source direction is measured
+            against the listener's own facing, so ``dir`` is the listener→source
+            vector and ``listenerForward`` the listener's forward vector.
+          - Relative frame (``relative == true``): ``dir`` already lives in the
+            listener's frame, so the angle is taken directly and
+            ``listenerForward`` is ignored. This branch must NOT negate the angle
+            — doing so mirrored relative / pan2D sounds left↔right (issue #204).
+
+          Kept as a pure static helper so the mapping stays unit-testable in
+          isolation.
+      */
+      static Flt computeSourceAngle(bool relative, const Pos& dir, const Pos& listenerForward);
+
       void removeInterface();
 
       OBJECT_IMPLEMENTATION_STATE getStatus();
