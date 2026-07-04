@@ -52,10 +52,24 @@ void* operator new(std::size_t n) {
   throw std::bad_alloc{};
 }
 
+// Route the nothrow form through malloc too. libsndfile's sndfile.hh allocates
+// SNDFILE_ref with `new (std::nothrow)`; without this override that allocation
+// would go through the default (ASan-instrumented) operator new while the
+// matching delete below frees it with std::free, which AddressSanitizer flags
+// as an alloc-dealloc-mismatch (issue #219).
+void* operator new(std::size_t n, const std::nothrow_t&) noexcept {
+  if (g_alloc_probe_active.load(std::memory_order_relaxed))
+    g_alloc_count.fetch_add(1, std::memory_order_relaxed);
+  return std::malloc(n == 0 ? 1 : n);
+}
+
 void operator delete(void* p) noexcept {
   std::free(p);
 }
 void operator delete(void* p, std::size_t) noexcept {
+  std::free(p);
+}
+void operator delete(void* p, const std::nothrow_t&) noexcept {
   std::free(p);
 }
 
