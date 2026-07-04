@@ -65,6 +65,12 @@ namespace YSE {
 
       // set
       abstractSoundFile& reset(); // indicate that stream needs to reset (after stop)
+      // Seek a streaming sound to an absolute frame (issue #217). Called on the
+      // audio thread: it never touches the disk. It resets the audio-owned front
+      // state and arms an async re-prime from `frame` on the slow pool, so the
+      // next read() swaps in a buffer filled from the requested position. Mirrors
+      // reset()/streamReprime but with an arbitrary target frame instead of 0.
+      void seek(Long frame, Bool loop);
 
       // to keep track of clients
       void attach(SOUND::implementationObject* impl);
@@ -140,6 +146,11 @@ namespace YSE {
       // Written by the audio thread (reset() on stop), read/cleared by the slow
       // pool (fillBackBuffer) — must be atomic now that the fill is off-thread.
       std::atomic<Bool> _needsReset;
+      // Absolute frame the next disk fill should seek to when _needsReset is
+      // observed. Written by the audio thread (reset() -> 0, seek() -> target),
+      // read by the slow pool in fillBuffer(). Atomic for the cross-thread hand-
+      // off. (issue #217)
+      std::atomic<Long> _seekTarget{0};
 
       // Double-buffer publication (issue #185). Writer = slow pool, reader = audio.
       // _backValidFrames/_backTerminal/_backGen are written before the _backReady

@@ -228,6 +228,104 @@ TEST_SUITE("sound") {
     }
   }
 
+  // 6. Seeking a streaming sound to an absolute frame re-primes the stream from
+  //    that frame (issue #217). Before the fix, setFilePos assigned an absolute
+  //    frame to the buffer-local filePtr and never re-seeked the handle, so
+  //    playback landed somewhere in the resident 1 s window instead of the target.
+  TEST_CASE("streaming: seek re-primes the stream from the requested frame") {
+    if (!TestHelpers::engineInit()) return;
+
+    std::vector<float> src;
+    std::string path = writeWav(3 * S, src); // long enough to seek well past buffer 0
+    soundFile f(path);
+    f.create(true);
+    REQUIRE(waitReady(f));
+
+    Flt pos = 0.f, vol = 1.f;
+    SOUND_STATUS intent = YSE::SS_PLAYING_FULL_VOLUME;
+    std::vector<float> out;
+
+    // Play a little from the start so we are mid-stream, then seek forward to an
+    // absolute frame that lies beyond the initially-primed front buffer.
+    for (int b = 0; b < 4; ++b) {
+      readBlock(f, pos, false, intent, vol, out);
+      breathe(b);
+    }
+
+    const long target = 2 * S + 5000; // absolute frame, past buffer 0's window
+    f.seek(target, false);
+    // Mirror the audio thread: filePtr (pos) resets to the new front buffer start.
+    pos = 0.f;
+    vol = 1.f;
+    intent = YSE::SS_PLAYING_FULL_VOLUME;
+
+    // Playback must resume with the samples at `target`, sample-accurate.
+    long frame = target;
+    const long verifyTo = target + 3 * static_cast<long>(YSE::STANDARD_BUFFERSIZE);
+    for (int b = 0; frame < verifyTo; ++b) {
+      bool stopped = readBlock(f, pos, false, intent, vol, out);
+      REQUIRE_FALSE(stopped);
+      for (UInt j = 0; j < YSE::STANDARD_BUFFERSIZE && frame < verifyTo; ++j, ++frame) {
+        CHECK(out[j] == doctest::Approx(src[static_cast<size_t>(frame)]).epsilon(0.0001));
+      }
+      breathe(b);
+    }
+  }
+
+  // 7. Seeking backward (to a frame before the current window) also re-seeks the
+  //    handle, and a subsequent stop/reset still returns to frame 0 — i.e. the
+  //    seek target does not leak into the reset path (issue #217).
+  TEST_CASE("streaming: seek backward then reset returns to frame 0") {
+    if (!TestHelpers::engineInit()) return;
+
+    std::vector<float> src;
+    std::string path = writeWav(3 * S, src);
+    soundFile f(path);
+    f.create(true);
+    REQUIRE(waitReady(f));
+
+    Flt pos = 0.f, vol = 1.f;
+    SOUND_STATUS intent = YSE::SS_PLAYING_FULL_VOLUME;
+    std::vector<float> out;
+
+    // Advance past the first buffer boundary.
+    for (int b = 0; b < 400; ++b) {
+      readBlock(f, pos, false, intent, vol, out);
+      breathe(b);
+    }
+
+    // Seek back to a small non-zero frame and verify the samples there.
+    const long target = 1234;
+    f.seek(target, false);
+    pos = 0.f;
+    vol = 1.f;
+    intent = YSE::SS_PLAYING_FULL_VOLUME;
+    long frame = target;
+    for (int b = 0; b < 8; ++b) {
+      bool stopped = readBlock(f, pos, false, intent, vol, out);
+      REQUIRE_FALSE(stopped);
+      for (UInt j = 0; j < YSE::STANDARD_BUFFERSIZE; ++j, ++frame) {
+        CHECK(out[j] == doctest::Approx(src[static_cast<size_t>(frame)]).epsilon(0.0001));
+      }
+      breathe(b);
+    }
+
+    // A stop/reset must still return to frame 0 (seek target cleared by reset()).
+    f.reset();
+    pos = 0.f;
+    vol = 1.f;
+    intent = YSE::SS_PLAYING_FULL_VOLUME;
+    frame = 0;
+    for (int b = 0; b < 8; ++b) {
+      bool stopped = readBlock(f, pos, false, intent, vol, out);
+      REQUIRE_FALSE(stopped);
+      for (UInt j = 0; j < YSE::STANDARD_BUFFERSIZE; ++j, ++frame) {
+        CHECK(out[j] == doctest::Approx(src[static_cast<size_t>(frame)]).epsilon(0.0001));
+      }
+      breathe(b);
+    }
+  }
+
   // 5. Destroying a streaming soundFile while a refill is in flight must not crash
   //    or touch freed memory (the dtor joins the refill job). Run under ASan/TSan
   //    in CI for the real teardown-race coverage.

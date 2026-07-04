@@ -667,10 +667,33 @@ YSE::INTERNAL::abstractSoundFile& YSE::INTERNAL::abstractSoundFile::reset() {
   _frontValidFrames = 0;
   _frontTerminal = false;
   _frontBufferBase = 0;
+  _seekTarget.store(0, std::memory_order_relaxed);
   _needsReset.store(true, std::memory_order_relaxed);
   _fillGen.fetch_add(1, std::memory_order_release);
   _backReady.store(false, std::memory_order_relaxed);
   return *this;
+}
+
+void YSE::INTERNAL::abstractSoundFile::seek(Long frame, Bool loop) {
+  // Audio-thread entry point for a play-position change on a streaming sound
+  // (issue #217). Like reset() this empties the audio-owned front state and bumps
+  // the fill generation so any refill that started before this seek (stale
+  // position) is discarded rather than played. The difference is the target
+  // frame: the next disk fill seeks to `frame` instead of 0. The disk seek and
+  // fill run on the slow pool (fillBuffer via requestRefill), never here.
+  if (frame < 0) frame = 0;
+  if (frame > _length) frame = _length;
+  _frontValidFrames = 0;
+  _frontTerminal = false;
+  _frontBufferBase = frame;
+  _seekTarget.store(frame, std::memory_order_relaxed);
+  _needsReset.store(true, std::memory_order_relaxed);
+  _fillGen.fetch_add(1, std::memory_order_release);
+  _backReady.store(false, std::memory_order_relaxed);
+  // Prompt the from-`frame` refill now so a read() soon after finds it ready.
+  // The read() path re-requests if this one is dropped (stale back buffer), so
+  // scheduling is guaranteed even under a racing in-flight fill.
+  requestRefill(loop);
 }
 
 bool YSE::INTERNAL::abstractSoundFile::inUse(Flt dt) {
