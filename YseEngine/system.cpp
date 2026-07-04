@@ -163,12 +163,12 @@ YSE::system& YSE::system::autoReconnect(bool on, int delay) {
 }
 
 YSE::system& YSE::system::occlusionCallback(float (*func)(const YSE::Pos&, const YSE::Pos&)) {
-  occlusionPtr = func;
+  occlusionPtr.store(func, std::memory_order_release);
   return *this;
 }
 
 YSE::occlusionFunc YSE::system::occlusionCallback() {
-  return occlusionPtr;
+  return occlusionPtr.load(std::memory_order_acquire);
 }
 
 YSE::system::system() : occlusionPtr(nullptr) {}

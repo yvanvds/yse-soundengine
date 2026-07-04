@@ -18,6 +18,7 @@
 // give it a few milliseconds + several update calls to settle.
 
 #include <doctest/doctest.h>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <thread>
@@ -85,6 +86,10 @@ namespace {
   float occlusionStub(const YSE::Pos&, const YSE::Pos&) {
     ++g_occlusionCallCount;
     return 0.25f;
+  }
+  // Second, distinct callback so the round-trip test can tell the two apart.
+  float occlusionStub2(const YSE::Pos&, const YSE::Pos&) {
+    return 0.5f;
   }
 
 } // namespace
@@ -421,6 +426,78 @@ TEST_SUITE("sound") {
     YSE::System().occlusionCallback(occlusionStub);
     YSE::SOUND::updateOcclusion();
     CHECK(g_occlusionCallCount == 0);
+    YSE::System().occlusionCallback(nullptr);
+  }
+
+  // ─── Occlusion callback pointer is atomic (issue #199) ───────────────────────
+  //
+  // occlusionPtr is written by System().occlusionCallback(func) on the
+  // application thread and read by SOUND::updateOcclusion() on the control
+  // thread. It must be a std::atomic with release-store / acquire-load ordering
+  // (matching the C API callback-bridge convention) — a plain function pointer
+  // is a data race and lets the compiler cache the load. These tests pin the
+  // observable contract; the concurrency test is the one ThreadSanitizer flags
+  // on the pre-#199 plain-pointer version.
+
+  TEST_CASE("system: occlusionCallback install/read round-trips through the atomic (#199)") {
+    if (!TestHelpers::engineInit()) return;
+    YSE::System().occlusionCallback(nullptr);
+    CHECK(YSE::System().occlusionCallback() == nullptr);
+
+    YSE::System().occlusionCallback(occlusionStub);
+    CHECK(YSE::System().occlusionCallback() == occlusionStub);
+
+    // Overwrite with a distinct callback — the getter must observe the new one.
+    YSE::System().occlusionCallback(occlusionStub2);
+    CHECK(YSE::System().occlusionCallback() == occlusionStub2);
+
+    YSE::System().occlusionCallback(nullptr);
+    CHECK(YSE::System().occlusionCallback() == nullptr);
+  }
+
+  TEST_CASE("system: occlusion callback atomic is lock-free (RT-safe) (#199)") {
+    // The control-thread read must never take a lock; guarantee it at compile
+    // time. Function pointers are pointer-sized, so this holds on every target.
+    CHECK(std::atomic<YSE::occlusionFunc>::is_always_lock_free);
+  }
+
+  TEST_CASE("system: concurrent install + read of the occlusion callback is race-free (#199)") {
+    if (!TestHelpers::engineInit()) return;
+    // A writer thread swaps the callback while a reader thread repeatedly loads
+    // it. On the fixed (atomic) code this is well-defined; on the pre-#199 plain
+    // pointer it is a data race that ThreadSanitizer reports. The reader only
+    // ever sees one of the installed values (or null) — never a torn pointer.
+    //
+    // Both threads spin on a start gate and then run for a fixed wall-clock
+    // window so their accesses genuinely overlap — otherwise the writer can
+    // finish before the reader is even scheduled and the race never manifests.
+    std::atomic<bool> go{false};
+    std::atomic<bool> readerFault{false};
+    auto deadline = [] {
+      return std::chrono::steady_clock::now() + std::chrono::milliseconds(150);
+    };
+    std::thread writer([&] {
+      while (!go.load(std::memory_order_acquire)) {}
+      const auto end = deadline();
+      int i = 0;
+      while (std::chrono::steady_clock::now() < end) {
+        YSE::System().occlusionCallback((i++ & 1) ? occlusionStub : occlusionStub2);
+      }
+    });
+    std::thread reader([&] {
+      while (!go.load(std::memory_order_acquire)) {}
+      const auto end = deadline();
+      while (std::chrono::steady_clock::now() < end) {
+        YSE::occlusionFunc cb = YSE::System().occlusionCallback();
+        if (!(cb == nullptr || cb == occlusionStub || cb == occlusionStub2)) {
+          readerFault.store(true, std::memory_order_relaxed);
+        }
+      }
+    });
+    go.store(true, std::memory_order_release);
+    writer.join();
+    reader.join();
+    CHECK(readerFault.load(std::memory_order_relaxed) == false);
     YSE::System().occlusionCallback(nullptr);
   }
 

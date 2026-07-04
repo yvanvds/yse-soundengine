@@ -15,6 +15,7 @@
 #include "headers/enums.hpp"
 #include "utils/vector.hpp"
 #include "classes.hpp"
+#include <atomic>
 #include <string>
 
 namespace YSE {
@@ -298,7 +299,13 @@ namespace YSE {
     bool initShared(bool openDevice);
     /// @endcond
 
-    float (*occlusionPtr)(const Pos& source, const Pos& listener);
+    // Written by occlusionCallback(func) on the application thread, read by
+    // SOUND::updateOcclusion() (also the control thread, but a different caller
+    // may install the callback than the one driving update()). Atomic with
+    // release/acquire ordering per the C API callback-bridge convention
+    // (c_api/yse_c_internal.hpp §callback bridge rules) — a plain pointer here
+    // is a data race and licenses the compiler to cache the load (issue #199).
+    std::atomic<occlusionFunc> occlusionPtr;
     int currentlyMissedCallbacks;
     bool doAutoReconnect;
     int reconnectDelay;
