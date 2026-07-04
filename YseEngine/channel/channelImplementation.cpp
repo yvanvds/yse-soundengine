@@ -174,6 +174,7 @@ void YSE::CHANNEL::implementationObject::setup() {
     lastPeakLinearPost.resize(numOutputs);
     for (UInt i = 0; i < numOutputs; i++) {
       outConf[i].angle = CHANNEL::Manager().getOutputAngle(i);
+      outConf[i].isLFE = CHANNEL::Manager().getOutputIsLFE(i);
     }
     objectStatus = OBJECT_SETUP;
   }
@@ -187,6 +188,7 @@ void YSE::CHANNEL::implementationObject::resize(bool deep) {
   lastPeakLinearPost.resize(numOutputs);
   for (UInt i = 0; i < numOutputs; i++) {
     outConf[i].angle = CHANNEL::Manager().getOutputAngle(i);
+    outConf[i].isLFE = CHANNEL::Manager().getOutputIsLFE(i);
   }
   if (deep) {
     for (auto i = children.begin(); i != children.end(); ++i) {

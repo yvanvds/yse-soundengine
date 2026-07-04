@@ -822,6 +822,17 @@ void YSE::SOUND::implementationObject::toChannels() {
 #ifdef _MSC_VER
 #pragma warning(disable : 4258)
 #endif
+  // Count the LFE outputs so the pan normalisation below runs over the real
+  // (positional) speakers only. The .1 output receives no azimuth-panned
+  // content — sounds are never panned into the subwoofer (issue #203).
+  UInt lfeCount = 0;
+  for (UInt i = 0; i < parent->outConf.size(); i++) {
+    if (parent->outConf[i].isLFE) lfeCount++;
+  }
+  const UInt realSpeakers = (parent->out.size() > lfeCount)
+                                ? static_cast<UInt>(parent->out.size()) - lfeCount
+                                : static_cast<UInt>(parent->out.size());
+
   for (UInt x = 0; x < buffer->size(); x++) {
     // calculate spread value for multichannel sounds
     Flt spreadAdjust = 0;
@@ -830,11 +841,13 @@ void YSE::SOUND::implementationObject::toChannels() {
 
     // initial panning
     for (UInt i = 0; i < parent->outConf.size(); i++) {
+      if (parent->outConf[i].isLFE) continue; // LFE is not azimuth-panned
       parent->outConf[i].initPan =
           (1 + cos(parent->outConf[i].angle - (angle + spreadAdjust))) * 0.5f;
       parent->outConf[i].effective = 0;
       // effective speakers
       for (UInt j = 0; j < parent->outConf.size(); j++) {
+        if (parent->outConf[j].isLFE) continue;
         parent->outConf[i].effective +=
             computeSpeakerOverlap(parent->outConf[i].angle, parent->outConf[j].angle);
       }
@@ -844,6 +857,7 @@ void YSE::SOUND::implementationObject::toChannels() {
     // emitted power
     Flt power = 0;
     for (UInt i = 0; i < parent->outConf.size(); i++) {
+      if (parent->outConf[i].isLFE) continue;
       power += static_cast<Flt>(pow(parent->outConf[i].initGain, 2));
     }
     // calculated power
@@ -854,8 +868,8 @@ void YSE::SOUND::implementationObject::toChannels() {
 
     // final gain assignment
     for (UInt j = 0; j < parent->out.size(); ++j) {
-      parent->outConf[j].ratio = computePanRatio(parent->outConf[j].initGain, power,
-                                                 static_cast<UInt>(parent->out.size()));
+      if (parent->outConf[j].isLFE) continue; // leave the LFE buffer silent
+      parent->outConf[j].ratio = computePanRatio(parent->outConf[j].initGain, power, realSpeakers);
       channelBuffer = (*buffer)[x];
       parent->outConf[j].finalGain = sqrt(correctPower * parent->outConf[j].ratio);
 
