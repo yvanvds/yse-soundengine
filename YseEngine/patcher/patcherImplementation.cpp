@@ -190,7 +190,18 @@ void patcherImplementation::Connect(YSE::pHandle* from, int outlet, YSE::pHandle
 void patcherImplementation::Disconnect(YSE::pHandle* from, int outlet, YSE::pHandle* to,
                                        int inlet) {
   std::scoped_lock lk(mtx);
-  to->object->DisconnectInlet(from->object->GetOutlet(outlet), inlet);
+  // Mirror ConnectUnlocked's guard: GetOutlet/GetInlet return null for an
+  // out-of-range pin. Passing a null outlet into inlet::Disconnect segfaults
+  // (a disconnected inlet has dspConnection == nullptr, so `dspConnection ==
+  // out` is true and it derefs the null outlet), and an out-of-range inlet
+  // indexes inputs[] out of bounds (issue #235).
+  PATCHER::outlet* out = from->object->GetOutlet(outlet);
+  PATCHER::inlet* in = to->object->GetInlet(inlet);
+  if (out != nullptr && in != nullptr) {
+    to->object->DisconnectInlet(out, inlet);
+  } else {
+    INTERNAL::LogImpl().emit(E_ERROR, "Patcher: Invalid Disconnection");
+  }
   RebuildAndPublish();
 }
 

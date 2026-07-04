@@ -97,6 +97,54 @@ TEST_SUITE("patcher") {
     CHECK(sine->GetConnections(0) == 0u);
   }
 
+  // Regression for issue #235: Disconnect must guard a missing outlet/inlet the
+  // same way Connect does. A ~dac has no outlets, so from->GetOutlet(0) returns
+  // null; before the fix that null flowed into inlet::Disconnect and segfaulted
+  // (a disconnected inlet has dspConnection == nullptr == out, so it derefed the
+  // null outlet). These calls must be safe no-ops now, not crashes.
+  TEST_CASE("patcher: Disconnect on a source with no outlet is a safe no-op (issue #235)") {
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* dac = p.CreateObject(YSE::OBJ::D_DAC, "");
+    YSE::pHandle* add = p.CreateObject(YSE::OBJ::D_ADD);
+    REQUIRE(dac != nullptr);
+    REQUIRE(add != nullptr);
+
+    // ~dac has no outlets — outlet 0 does not exist. Must not crash.
+    p.Disconnect(dac, 0, add, 0);
+    CHECK(p.Objects() == 2u);
+  }
+
+  TEST_CASE("patcher: Disconnect with out-of-range outlet index is a safe no-op (issue #235)") {
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* sine = p.CreateObject(YSE::OBJ::D_SINE);
+    YSE::pHandle* add = p.CreateObject(YSE::OBJ::D_ADD);
+    REQUIRE(sine != nullptr);
+    REQUIRE(add != nullptr);
+
+    p.Connect(sine, 0, add, 0);
+    // Outlet 99 does not exist on a sine — GetOutlet returns null.
+    p.Disconnect(sine, 99, add, 0);
+    // The real edge is untouched and nothing crashed.
+    CHECK(sine->GetConnections(0) == 1u);
+  }
+
+  TEST_CASE("patcher: Disconnect with out-of-range inlet index is a safe no-op (issue #235)") {
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* sine = p.CreateObject(YSE::OBJ::D_SINE);
+    YSE::pHandle* add = p.CreateObject(YSE::OBJ::D_ADD);
+    REQUIRE(sine != nullptr);
+    REQUIRE(add != nullptr);
+
+    p.Connect(sine, 0, add, 0);
+    // Inlet 99 does not exist on an add — GetInlet returns null, and the
+    // former inputs[99] out-of-bounds index is avoided.
+    p.Disconnect(sine, 0, add, 99);
+    CHECK(sine->GetConnections(0) == 1u);
+  }
+
   TEST_CASE("patcher: connection target reports correct object ID and inlet index") {
     YSE::patcher p;
     p.create(2);
