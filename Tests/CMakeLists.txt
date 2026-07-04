@@ -70,6 +70,7 @@ set(YSE_TEST_SOURCES
   listener/test_listener.cpp
   listener/test_listener_concurrency.cpp
   io/test_bufferIO.cpp
+  io/test_callback_counter.cpp
   system/test_named_bus.cpp
   system/test_system_active_state.cpp
   system/test_lifecycle.cpp
