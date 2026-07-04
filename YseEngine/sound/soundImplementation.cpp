@@ -484,11 +484,7 @@ void YSE::SOUND::implementationObject::update() {
   } else {
     distance = Dist(newPos, INTERNAL::ListenerImpl().newPos);
   }
-  virtualDist = (distance - size) * currentVolume_upd;
-  if (virtualDist < 0) virtualDist = 0;
-  /*if (virtualDist > 1000.f) {
-    assert(false);
-  }*/
+  virtualDist = computeVirtualDist(distance, size, currentVolume_upd);
 
   ///////////////////////////////////////////
   // calculate doppler effect
@@ -823,6 +819,21 @@ void YSE::SOUND::implementationObject::addDSP(DSP::dspObject& ptr) {
 
   post_dsp = &ptr;
   post_dsp->calledfrom = &post_dsp;
+}
+
+Flt YSE::SOUND::implementationObject::computeVirtualDist(Flt distance, Flt size, Flt volume) {
+  // Effective distance beyond the sound's own size; a near/large sound whose
+  // listener sits inside `size` clamps to 0 (maximally important).
+  Flt effectiveDist = distance - size;
+  if (effectiveDist < 0) effectiveDist = 0;
+
+  // Importance rises with volume and falls with distance: divide the clamped
+  // effective distance by volume so quiet sounds score high (virtualized first)
+  // and loud near sounds score low (kept real). A muted sound (volume ~ 0)
+  // yields a very large value and is virtualized outright. (#205)
+  constexpr Flt minVolume = 0.0001f;
+  if (volume < minVolume) volume = minVolume;
+  return effectiveDist / volume;
 }
 
 bool YSE::SOUND::implementationObject::sortSoundObjects(implementationObject* lhs,
