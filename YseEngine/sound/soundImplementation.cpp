@@ -76,9 +76,23 @@ YSE::SOUND::implementationObject::~implementationObject() {
                                         // in doThisWhenReady() / Manager::update() handshake
     parent->disconnect(this);
   }
-  // only streams should delete their source. Other files are shared.
-  if (file != nullptr && !streaming) {
-    file->release(this);
+  if (file != nullptr) {
+    if (streaming) {
+      // Streaming impls own their soundFile outright — it is allocated with
+      // `new` in create() and never registered with the shared-file manager,
+      // so nothing else will ever free it. Delete it exactly once here (issue
+      // #218). This destructor runs on the slow-pool deleteJob
+      // (managerDeleteJob::run erasing from the implementations list), never
+      // the audio thread — which is the only place blocking is allowed,
+      // because ~soundFile join()s an in-flight back-buffer refill before
+      // freeing its handle/buffers (constraint from #185).
+      delete file;
+      file = nullptr;
+    } else {
+      // Other files are shared and reference-counted by the manager; just drop
+      // our client reference so the GC can reclaim it once idle.
+      file->release(this);
+    }
   }
   if (post_dsp && post_dsp->calledfrom) post_dsp->calledfrom = nullptr;
   if (sound* h = head.load(

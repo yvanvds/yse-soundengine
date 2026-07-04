@@ -29,6 +29,7 @@
 #include "yse.hpp"
 #include "internal/lsfSoundfile.h"
 #include "internal/time.h"
+#include "sound/soundManager.h"
 #include "dsp/buffer.hpp"
 #include "support/null_device.hpp"
 
@@ -348,6 +349,51 @@ TEST_SUITE("sound") {
     } // ~soundFile joins the refill job before freeing the handle/buffers
 
     CHECK(true); // reaching here without a crash / ASan report is the assertion
+  }
+
+  // 8. A streaming sound owns its per-impl soundFile directly (allocated with
+  //    `new` in implementationObject::create). Before issue #218,
+  //    ~implementationObject never deleted that owned file, so every streaming
+  //    sound leaked its soundFile (handle + two ~172 KB stream buffers) for the
+  //    process lifetime. Drive one streaming sound through the full public-API
+  //    lifecycle and assert the live-soundFile count returns to its baseline
+  //    once the slow-pool deleteJob has torn the impl down. Without the fix the
+  //    count stays at baseline + 1 and the final CHECK fails.
+  TEST_CASE("streaming: per-impl soundFile is freed on teardown (issue #218)") {
+    if (!TestHelpers::engineInit()) return;
+
+    std::vector<float> src;
+    std::string path = writeWav(2 * S, src);
+
+    const long baseline = soundFile::liveInstances();
+
+    {
+      YSE::sound s;
+      s.create(path.c_str(), nullptr, false, 1.0f, /*streaming*/ true);
+      // create() allocates the owned streaming soundFile synchronously, so one
+      // extra instance is live immediately.
+      CHECK(soundFile::liveInstances() == baseline + 1);
+      // Pump the manager so the impl is set up and promoted to inUse (the audio
+      // thread is paused under engineInit, so the test thread drives update()).
+      for (int i = 0; i < 15; ++i) {
+        YSE::INTERNAL::Time().update();
+        YSE::SOUND::Manager().update();
+        std::this_thread::sleep_for(std::chrono::milliseconds(3));
+      }
+      CHECK(soundFile::liveInstances() == baseline + 1);
+    } // ~sound() nulls the head; the next sync() releases the impl.
+
+    // Pump until the slow-pool deleteJob has run ~implementationObject (which,
+    // with the fix, deletes the owned streaming file). Poll with a deadline so
+    // the test doesn't depend on an exact iteration count for async teardown.
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+    while (std::chrono::steady_clock::now() < deadline && soundFile::liveInstances() != baseline) {
+      YSE::INTERNAL::Time().update();
+      YSE::SOUND::Manager().update();
+      std::this_thread::sleep_for(std::chrono::milliseconds(3));
+    }
+
+    CHECK(soundFile::liveInstances() == baseline);
   }
 
 } // TEST_SUITE("sound")
