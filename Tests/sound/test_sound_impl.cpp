@@ -438,6 +438,86 @@ TEST_SUITE("sound") {
     CHECK(Impl::computeVirtualDist(2.f, 10.f, 0.0f) >= 0.f);
   }
 
+  // ─── Virtualization boundary: hysteresis + farewell fade (#206) ─────────────
+  //
+  // Two independent regressions for the hard-mute-without-fade / flutter bug:
+  //  1. virtualFinder::inRange applies a ~10% hysteresis band around the cutoff
+  //     so a sound sitting on the boundary can't toggle real/virtual each tick.
+  //  2. computeVirtualAction gives a sound crossing to virtual exactly one
+  //     farewell block (rendered, gains forced to 0) before it goes silent, so
+  //     its contribution ramps to zero instead of stepping (clicking).
+
+  TEST_CASE("virtualFinder: hysteresis widens the real region for already-real sounds (#206)") {
+    YSE::virtualFinder vf(10);
+    vf.setLimit(2);
+    // Mirror the production cycle (SOUND::Manager: reset -> add -> calculate);
+    // reset() zeroes the entry counter and seeds calculatedMax to 10, so each
+    // of the 10 bins spans 1.0 and the histogram of {1,2,3,4,5} yields a finite
+    // cutoff `range` (== 4.0 here).
+    vf.reset();
+    vf.add(1.f);
+    vf.add(2.f);
+    vf.add(3.f);
+    vf.add(4.f);
+    vf.add(5.f);
+    vf.calculate();
+
+    // Sweep candidate distances. For every value the region kept real when the
+    // sound was ALREADY real must be a superset of the region promoted from
+    // virtual: `promoted ⇒ keptReal`. And the two verdicts must differ for at
+    // least one value — otherwise the thresholds coincide and there is no
+    // hysteresis, which is exactly the flutter the fix removes.
+    bool differsSomewhere = false;
+    for (float v = 0.f; v <= 12.f; v += 0.05f) {
+      const bool keptReal = vf.inRange(v, /*wasReal=*/true);
+      const bool promoted = vf.inRange(v, /*wasReal=*/false);
+      CHECK((keptReal || !promoted)); // promoted implies keptReal
+      if (keptReal != promoted) differsSomewhere = true;
+    }
+    CHECK(differsSomewhere);
+  }
+
+  TEST_CASE("virtualFinder: under the budget every sound is real regardless of state (#206)") {
+    YSE::virtualFinder vf(10);
+    vf.setLimit(50); // limit far above the number of entries -> nobody virtual
+    vf.reset();
+    vf.add(1.f);
+    vf.add(9.f);
+    vf.calculate();
+    CHECK(vf.inRange(9.f, /*wasReal=*/true) == true);
+    CHECK(vf.inRange(9.f, /*wasReal=*/false) == true);
+  }
+
+  TEST_CASE("computeVirtualAction: a real sound renders normally, no fade (#206)") {
+    using Impl = YSE::SOUND::implementationObject;
+    // Fresh real sound.
+    auto a = Impl::computeVirtualAction(/*real=*/true, /*wasVirtual=*/false);
+    CHECK(a.render);
+    CHECK_FALSE(a.fadeOut);
+    CHECK_FALSE(a.nowVirtual);
+    // Re-entry from virtual: renders again, clears the virtual state, no fade.
+    auto b = Impl::computeVirtualAction(/*real=*/true, /*wasVirtual=*/true);
+    CHECK(b.render);
+    CHECK_FALSE(b.fadeOut);
+    CHECK_FALSE(b.nowVirtual);
+  }
+
+  TEST_CASE("computeVirtualAction: first block going virtual gets one farewell fade (#206)") {
+    using Impl = YSE::SOUND::implementationObject;
+    auto a = Impl::computeVirtualAction(/*real=*/false, /*wasVirtual=*/false);
+    CHECK(a.render); // still rendered this block...
+    CHECK(a.fadeOut); // ...but with gains forced to 0 so it ramps to silence
+    CHECK(a.nowVirtual);
+  }
+
+  TEST_CASE("computeVirtualAction: an already-virtual sound stays silent (#206)") {
+    using Impl = YSE::SOUND::implementationObject;
+    auto a = Impl::computeVirtualAction(/*real=*/false, /*wasVirtual=*/true);
+    CHECK_FALSE(a.render); // skipped entirely — no repeated fade, no click
+    CHECK_FALSE(a.fadeOut);
+    CHECK(a.nowVirtual);
+  }
+
   // ─── Manager update loop / lifecycle ─────────────────────────────────────────
 
   TEST_CASE("sound impl: sync() detects head==nullptr after destructor and releases impl") {

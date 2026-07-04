@@ -139,6 +139,19 @@ namespace YSE {
       */
       static Flt computeVirtualDist(Flt distance, Flt size, Flt volume);
 
+      /** The per-block virtualization decision, kept as a pure static helper so
+          the transition logic stays unit-testable in isolation (see issue #206).
+          @param real       The VirtualSoundFinder's hysteresis-aware verdict for
+                            this block (true = the sound should be audible).
+          @param wasVirtual This sound's virtual state after the previous block.
+       */
+      struct virtualAction {
+        bool render; // run dsp() + toChannels() for this block?
+        bool fadeOut; // force channel gains to 0 so the block ramps to silence
+        bool nowVirtual; // this sound's virtual state after this block
+      };
+      static virtualAction computeVirtualAction(bool real, bool wasVirtual);
+
       void removeInterface();
 
       OBJECT_IMPLEMENTATION_STATE getStatus();
@@ -226,6 +239,9 @@ namespace YSE {
       // virtual sound calculation
 
       Flt virtualDist; // gain sum of all channels
+      Bool isVirtual; // this sound's virtual state after the previous dsp block (#206)
+      Bool virtualFadeOut; // set in dsp(), read in toChannels(): force gains to 0 for
+                           // one farewell block so going virtual fades instead of clicks (#206)
 
       // volume
       // TODO: check if ramp getValue is threadsafe
