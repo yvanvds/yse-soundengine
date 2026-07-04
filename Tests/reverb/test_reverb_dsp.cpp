@@ -15,6 +15,7 @@
 // sequentially so there is no data-race concern.
 
 #include <doctest/doctest.h>
+#include <type_traits>
 // Channel headers must precede reverbManager.h because the manager references
 // CHANNEL::implementationObject without a forward declaration.
 // types.hpp defines Bool/Flt/UInt etc. needed by channelMessage.h.
@@ -128,6 +129,21 @@ TEST_SUITE("reverb") {
     CHECK(YSE::REVERB::DAMP != YSE::REVERB::DRY_WET);
     CHECK(YSE::REVERB::DRY_WET != YSE::REVERB::MODULATION);
     CHECK(YSE::REVERB::MODULATION != YSE::REVERB::REFLECTION);
+  }
+
+  // ─── reverb copy semantics (issue #192) ──────────────────────────────────────
+
+  TEST_CASE("reverb: copy-assignment is deleted (issue #192)") {
+    // A reverb owns a raw pimpl the engine tracks by interface identity.
+    // Copy-assigning default-copies pimpl, aliasing two interfaces onto one
+    // implementation — which the manager used to do on the audio thread
+    // (`calculatedValues = globalReverb`), turning the impl's SPSC message
+    // queue into a dual-producer queue. Copy-assignment must stay deleted so
+    // this cannot recur. (This is also enforced at compile time: reinstating
+    // the assignment would fail the static_assert below.)
+    static_assert(!std::is_copy_assignable<YSE::reverb>::value,
+                  "reverb must not be copy-assignable (issue #192)");
+    CHECK_FALSE(std::is_copy_assignable<YSE::reverb>::value);
   }
 
   // ─── reverb interface default state (no engine required) ─────────────────────

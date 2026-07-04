@@ -70,6 +70,24 @@ void YSE::REVERB::implementationObject::sync() {
   }
 }
 
+void YSE::REVERB::implementationObject::copyParamsInto(YSE::reverb& dst) const {
+  // Copy only the DSP parameter fields. Never touch dst.pimpl / connection /
+  // global state: the manager folds the global reverb into its audio-thread
+  // scratch object and must not alias the two interfaces onto one impl, which
+  // would make the impl's SPSC message queue dual-produced (issue #192).
+  dst.active = active;
+  dst.roomsize = roomsize;
+  dst.damp = damp;
+  dst.wet = wet;
+  dst.dry = dry;
+  dst.modFrequency = modFrequency;
+  dst.modWidth = modWidth;
+  for (Int i = 0; i < 4; i++) {
+    dst.earlyPtr[i] = earlyPtr[i];
+    dst.earlyGain[i] = earlyGain[i];
+  }
+}
+
 void YSE::REVERB::implementationObject::parseMessage(const messageObject& message) {
   switch (message.ID) {
   case MESSAGE::POSITION: {

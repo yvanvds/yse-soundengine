@@ -84,4 +84,49 @@ TEST_SUITE("reverb") {
     CHECK(true);
   }
 
+  // ─── Global reverb setters race with update() (issue #192) ───────────────────
+
+  TEST_CASE("reverb concurrency: global reverb setters race with update()") {
+    if (!TestHelpers::engineInit()) return;
+
+    // Regression for issue #192. The manager used to copy-assign globalReverb
+    // into its audio-thread scratch object (`calculatedValues = globalReverb`),
+    // aliasing pimpl. From then on the audio-thread setters on calculatedValues
+    // pushed into globalReverb's SPSC message queue while the main thread also
+    // produced via the public global-reverb setters — a dual-producer queue.
+    // Here the setter thread is the (single, legitimate) producer and update()
+    // is the consumer; with the fix there is exactly one producer. Under TSan
+    // the old code trips a data race, and the SPSC queue can corrupt/crash even
+    // without it.
+    YSE::reverb& gr = YSE::REVERB::Manager().getGlobalReverb();
+    gr.setActive(true);
+
+    std::atomic<bool> stop{false};
+    std::thread setter([&]() {
+      const YSE::REVERB_PRESET presets[] = {YSE::REVERB_HALL, YSE::REVERB_CAVE, YSE::REVERB_ROOM,
+                                            YSE::REVERB_OFF};
+      int i = 0;
+      while (!stop.load(std::memory_order_acquire)) {
+        gr.setPreset(presets[i & 3]);
+        gr.setActive((i & 1) == 0);
+        gr.setDryWetBalance(0.5f, 0.5f);
+        ++i;
+        std::this_thread::sleep_for(std::chrono::microseconds(20));
+      }
+    });
+
+    // Audio side: no positioned reverbs are in range, so update() takes the
+    // partial == 0 steady-state branch that used to alias pimpl.
+    for (int i = 0; i < 2000; ++i) {
+      YSE::INTERNAL::Time().update();
+      YSE::REVERB::Manager().update();
+    }
+
+    stop.store(true, std::memory_order_release);
+    setter.join();
+
+    drainReverbs(40);
+    CHECK(true);
+  }
+
 } // TEST_SUITE("reverb")
