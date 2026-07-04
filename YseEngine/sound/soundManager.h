@@ -69,6 +69,9 @@ namespace YSE {
       */
       void update();
 
+      // Audio-thread-only: reports whether there is anything to render. Reads
+      // the audio-thread-owned toLoad/inUse lists, never the mutex-guarded
+      // `implementations` list. Call only from the audio callback. (issue #200)
       Bool empty();
 
       /** Sets the maximum amount of sounds to be processed. The soundmanager

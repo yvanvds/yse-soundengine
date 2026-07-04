@@ -38,14 +38,47 @@ namespace {
 
 TEST_SUITE("sound") {
 
-  TEST_CASE("SOUND::Manager: empty() reports state of implementations list") {
+  TEST_CASE("SOUND::Manager: empty() reflects active (toLoad/inUse) impls, not the raw list") {
     if (!TestHelpers::engineInit()) return;
-    // The manager is a singleton that has been touched by every prior test
-    // in this process, so empty() may already be false; assert only that the
-    // call itself is safe and returns a bool — covers the empty() definition.
-    bool e = YSE::SOUND::Manager().empty();
-    (void)e;
-    CHECK(true);
+    // empty() is the audio thread's "nothing to render" signal. After #200 it
+    // reads only the audio-thread-owned toLoad/inUse lists, never the
+    // mutex-guarded `implementations` list. A live DSP sound must make it
+    // report non-empty.
+    {
+      YSE::sound s;
+      s.create(g_src);
+      drain(); // let the impl reach inUse
+      CHECK(YSE::SOUND::Manager().empty() == false);
+      s.stop();
+    }
+    drain(); // release + delete the impl
+  }
+
+  TEST_CASE("SOUND::Manager: a failed file-create never flips empty() to non-empty (#200)") {
+    if (!TestHelpers::engineInit()) return;
+    // Regression for #200: sound::create(fileName) adds an implementationObject
+    // to `implementations` BEFORE it validates the file, then on a missing file
+    // fails without ever handing the impl to setup() — so it lingers in
+    // `implementations` but never enters toLoad/inUse. The pre-fix empty()
+    // read `implementations.empty()`, so this stuck impl made it report
+    // non-empty forever (and, worse, read that list lock-free from the audio
+    // callback). The fixed empty() ignores it.
+    //
+    // Assert the invariant rather than an absolute empty() value: the SOUND
+    // manager is a process-wide singleton other tests have touched, so the
+    // baseline may already be non-empty. `after == before` holds on the fixed
+    // code regardless; on the pre-fix code it breaks whenever the baseline is
+    // empty (true -> false), so the test can only ever fail on a regression.
+    drain(); // settle any pending lifecycle work first
+    const bool before = YSE::SOUND::Manager().empty();
+    {
+      YSE::sound s;
+      s.create("/no/such/file.wav"); // FileExists() fails -> create() returns false
+      CHECK(s.isValid() == false); // confirm we hit the failure path
+    }
+    drain();
+    const bool after = YSE::SOUND::Manager().empty();
+    CHECK(after == before);
   }
 
   TEST_CASE("SOUND::Manager: addFile by filename returns a valid soundFile pointer or null") {

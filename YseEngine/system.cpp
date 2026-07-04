@@ -105,6 +105,10 @@ void YSE::system::update() {
   // #125). Drains on the main thread, so the callback fires here — never on
   // the script thread. No-op unless built with YSE_ENABLE_PYTHON.
   INTERNAL::Global().drainScriptResults();
+  // Rebuild a disconnected audio device on this control thread rather than the
+  // backend's error thread (e.g. Oboe's onErrorAfterClose). No-op on backends
+  // that reconnect synchronously (issue #200).
+  DEVICE::Manager().serviceReconnect();
   unsigned int callbacks = DEVICE::Manager().GetCallbacksSinceLastUpdate();
   if (callbacks == 0) {
     currentlyMissedCallbacks++;

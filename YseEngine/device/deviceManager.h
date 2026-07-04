@@ -77,6 +77,13 @@ namespace YSE {
       virtual void openDevice(const YSE::deviceSetup&) {};
       virtual void addCallback() {};
 
+      /* Service a device rebuild requested from a backend error thread (e.g.
+         Oboe's onErrorAfterClose flags a disconnect). Called once per
+         control-thread tick from system::update() so the actual reopen runs on
+         the main thread rather than the backend's error thread. No-op for
+         backends without deferred reconnect. (issue #200) */
+      virtual void serviceReconnect() {};
+
       bool doOnCallback(int numSamples);
 
       /* Render one STANDARD_BUFFERSIZE-sample block through the channel
