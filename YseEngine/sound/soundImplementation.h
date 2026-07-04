@@ -160,6 +160,25 @@ namespace YSE {
       */
       static Flt computeSpeakerOverlap(Flt angleA, Flt angleB);
 
+      /** Doppler playback-rate multiplier for a moving source/listener pair.
+
+          The observed frequency is the emitted frequency times a *ratio*
+          ``(c + rList) / (c + rSource)`` where ``c`` is the speed of sound and
+          ``rSource`` / ``rList`` are the radial (along the source→listener axis)
+          components of the source and listener velocities. Doppler is a
+          frequency ratio, so it must be applied multiplicatively to the
+          playback speed (``pitch * ratio``), not added to it — the old additive
+          linearisation was only accurate at pitch = 1 and low speeds. Returns
+          exactly 1.0 (no shift) when neither party moves or the pair is
+          co-located. ``dopplerScale`` scales the deviation from unity, and the
+          result is clamped to a sane band so a super-sonic closing speed can't
+          drive the playback rate negative or unbounded on the audio thread.
+          Kept as a pure static helper so the ratio math stays unit-testable in
+          isolation. See issue #208.
+      */
+      static Flt computeDopplerRatio(const Pos& sourceVel, const Pos& listenerVel, const Pos& dist,
+                                     Flt dopplerScale);
+
       void removeInterface();
 
       OBJECT_IMPLEMENTATION_STATE getStatus();
@@ -237,7 +256,12 @@ namespace YSE {
       Flt distance;
       Flt angle;
       // for pitch shift and doppler
-      Flt velocity;
+      // dopplerRatio is a playback-rate *multiplier* (1.0 = no shift), written
+      // by update() on the control thread and read by dsp() on the audio thread.
+      // dopplerSlew slews that stepwise target at block rate so an uneven
+      // update tick rate can't inject a pitch warble (issue #208).
+      Flt dopplerRatio;
+      DSP::lint dopplerSlew;
       Flt pitch;
       // the distance before distance attenuation begins.
       Flt size;

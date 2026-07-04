@@ -12,6 +12,14 @@
 #include "../utils/fileFunctions.hpp"
 #include "../patcher/patcherImplementation.h"
 
+namespace {
+  // Time constant (ms) over which the doppler playback-rate ratio is slewed in
+  // dsp(). Long enough to iron out the stepwise, jittery update-tick target
+  // into an audible glide, short enough that the pitch still tracks a fast
+  // mover without lag. See issue #208.
+  constexpr Int DOPPLER_SLEW_MS = 30;
+} // namespace
+
 YSE::SOUND::implementationObject::implementationObject(sound* head)
   : _head_streaming(false),
     _head_length(0),
@@ -28,7 +36,7 @@ YSE::SOUND::implementationObject::implementationObject(sound* head)
     newPos(0.f),
     lastPos(0.f),
     velocityVec(0.f),
-    velocity(0.f),
+    dopplerRatio(1.f),
     pitch(1.f),
     size(1.0f),
     isVirtual(false),
@@ -491,10 +499,12 @@ void YSE::SOUND::implementationObject::update() {
   ///////////////////////////////////////////
   // calculate doppler effect
   ///////////////////////////////////////////
-  Flt vel = velocity; // avoid using atomic all the time
-  if (!doppler)
-    vel = 0;
-  else {
+  // Doppler is a frequency *ratio* applied multiplicatively to the playback
+  // rate (see computeDopplerRatio / issue #208). update() computes the stepwise
+  // target here; dsp() slews it at block rate so an uneven update tick can't
+  // warble the pitch. A ratio of 1.0 means "no shift".
+  Flt ratio = 1.0f;
+  if (doppler) {
     velocityVec = (newPos - lastPos) * (1 / INTERNAL::Time().delta());
 
     Pos listenerVelocity;
@@ -502,22 +512,14 @@ void YSE::SOUND::implementationObject::update() {
     listenerVelocity.y = INTERNAL::ListenerImpl().vel.y.load();
     listenerVelocity.z = INTERNAL::ListenerImpl().vel.z.load();
 
-    if (velocityVec == Pos(0) && listenerVelocity == Pos(0))
-      vel = 0;
-    else {
+    if (!(velocityVec == Pos(0) && listenerVelocity == Pos(0))) {
       Pos dist = relative ? newPos : newPos - INTERNAL::ListenerImpl().newPos;
-      if (dist != Pos(0)) {
-        Flt rSound = Dot(velocityVec, dist) / dist.length();
-        Flt rList = Dot(listenerVelocity, dist) / dist.length();
-        vel = 1 - (440 / (((344.0f + rList) / (344.0f + rSound)) * 440));
-        vel *= INTERNAL::Settings().dopplerScale;
-      }
+      ratio = computeDopplerRatio(velocityVec, listenerVelocity, dist,
+                                  INTERNAL::Settings().dopplerScale);
     }
   }
   lastPos = newPos;
-  // disregard rounding errors
-  if (abs(vel) < 0.01f) vel = 0.0f;
-  velocity = vel; // back to atomic
+  dopplerRatio = ratio; // back to atomic; slewed in dsp()
 
   ///////////////////////////////////////////
   // calculate angle
@@ -656,6 +658,13 @@ Bool YSE::SOUND::implementationObject::dsp() {
   ///////////////////////////////////////////
   // fill buffer
   ///////////////////////////////////////////
+  // Slew the doppler ratio toward its latest (stepwise) target at block rate so
+  // the playback rate glides instead of stepping. Playback rate is the ratio
+  // times the user pitch — doppler is multiplicative, never additive (#208).
+  dopplerSlew.setIfNew(dopplerRatio, DOPPLER_SLEW_MS);
+  dopplerSlew.update();
+  Flt playbackRate = pitch * dopplerSlew();
+
   DSP::dspSourceObject* src = source_dsp.load(
       std::memory_order_acquire); // NOSONAR S8417: intentional acquire — pairs with release in
                                   // create()/Manager::update() to read user-supplied dsp source
@@ -669,8 +678,8 @@ Bool YSE::SOUND::implementationObject::dsp() {
   //   synth->process(status_dsp);
   // }
   else if (playerType == PT_FILE &&
-           file->read(filebuffer, filePtr, STANDARD_BUFFERSIZE, pitch + velocity, looping,
-                      status_dsp, bufferVolume) == false) {
+           file->read(filebuffer, filePtr, STANDARD_BUFFERSIZE, playbackRate, looping, status_dsp,
+                      bufferVolume) == false) {
     // non looping sound has reached end of file
     /*filePtr = 0;
     _status = SS_STOPPED;
@@ -867,6 +876,39 @@ Flt YSE::SOUND::implementationObject::computeSpeakerOverlap(Flt angleA, Flt angl
   // this speaker face the source" pan use one consistent curve. Coincident
   // speakers overlap fully (1), opposite speakers not at all (0). (#207)
   return (1 + cos(angleA - angleB)) * 0.5f;
+}
+
+Flt YSE::SOUND::implementationObject::computeDopplerRatio(const Pos& sourceVel,
+                                                          const Pos& listenerVel, const Pos& dist,
+                                                          Flt dopplerScale) {
+  constexpr Flt speedOfSound = 344.0f; // m/s, dry air ~20°C
+  // Two octaves either way. A super-sonic closing speed would otherwise drive
+  // the denominator toward (or past) zero and blow the playback rate up or
+  // negative; clamping keeps the audio thread safe for any input. (#208)
+  constexpr Flt minRatio = 0.25f;
+  constexpr Flt maxRatio = 4.0f;
+
+  Pos d = dist; // local copy: Pos::length() is non-const
+  Flt len = d.length();
+  if (len == 0.f) return 1.0f; // co-located: no well-defined radial axis, no shift
+
+  // Radial (along the source→listener axis) components of each velocity.
+  Flt rSource = Dot(sourceVel, d) / len;
+  Flt rList = Dot(listenerVel, d) / len;
+
+  // Observed = emitted * (c + rList) / (c + rSource). Applied multiplicatively
+  // to the playback rate, unlike the old additive `1 - 1/ratio` linearisation
+  // which was only accurate near pitch = 1 and low speeds.
+  Flt denom = speedOfSound + rSource;
+  if (denom <= 0.f) return maxRatio; // source closing at/above the speed of sound
+  Flt ratio = (speedOfSound + rList) / denom;
+
+  // dopplerScale amplifies/attenuates the deviation from unity, not the ratio
+  // itself, so scale = 0 disables the effect and scale = 1 is physical.
+  ratio = 1.0f + (ratio - 1.0f) * dopplerScale;
+
+  Clamp(ratio, minRatio, maxRatio);
+  return ratio;
 }
 
 YSE::SOUND::implementationObject::virtualAction
