@@ -85,8 +85,14 @@ namespace YSE {
 
 } // namespace YSE
 
-#if defined(AE_VCPP) || defined(AE_ICC)
-// VS2010 and ICC13 don't support std::atomic_*_fence, implement our own fences
+#if (defined(AE_VCPP) && _MSC_VER < 1700) || defined(AE_ICC)
+// VS2010 and ICC13 don't support std::atomic_*_fence, implement our own fences.
+// Only pre-VS2012 MSVC (_MSC_VER < 1700) needs this legacy intrinsic path;
+// modern MSVC falls through to the std::atomic_thread_fence path below. That
+// also avoids referencing the never-defined AeFullSync/AeLiteSync macros on
+// architectures with no intrinsic branch here (e.g. MSVC/ARM64, which lands in
+// AE_ARCH_UNKNOWN), which would otherwise fail to compile. This mirrors the
+// _MSC_VER >= 1700 gate already used for weak_atomic below.
 
 #include <intrin.h>
 

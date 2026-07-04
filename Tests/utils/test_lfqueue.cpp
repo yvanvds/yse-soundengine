@@ -5,6 +5,41 @@
 #include <thread>
 #include <vector>
 
+namespace {
+  // Element type that tracks how many instances are currently alive. Used to
+  // prove the queue destructor runs ~T() for every element it still holds.
+  struct LiveCounter {
+    static int live;
+    int value;
+    LiveCounter() : value(0) {
+      ++live;
+    }
+    explicit LiveCounter(int v) : value(v) {
+      ++live;
+    }
+    LiveCounter(const LiveCounter& o) : value(o.value) {
+      ++live;
+    }
+    LiveCounter(LiveCounter&& o) noexcept : value(o.value) {
+      ++live;
+    }
+    // Assignment transfers the value only — neither object is created or
+    // destroyed, so the live count is unchanged.
+    LiveCounter& operator=(const LiveCounter& o) {
+      if (this != &o) value = o.value;
+      return *this;
+    }
+    LiveCounter& operator=(LiveCounter&& o) noexcept {
+      if (this != &o) value = o.value;
+      return *this;
+    }
+    ~LiveCounter() {
+      --live;
+    }
+  };
+  int LiveCounter::live = 0;
+} // namespace
+
 TEST_SUITE("utils") {
 
   TEST_CASE("lfQueue: single element push/pop round-trip") {
@@ -102,6 +137,46 @@ TEST_SUITE("utils") {
     REQUIRE(static_cast<int>(received.size()) == N);
     for (int i = 0; i < N; ++i)
       CHECK(received[i] == i);
+  }
+
+  TEST_CASE("lfQueue: destructor destroys every element across all blocks (issue #201)") {
+    // Regression: the destructor walked frontBlock..tailBlock and stopped
+    // *before* the tail block, so any live elements still sitting in the tail
+    // block (and the tail block's memory, plus any free blocks) were leaked.
+    LiveCounter::live = 0;
+    {
+      // maxSize=1 gives a 1-slot initial block; push() then doubles the block
+      // size on each overflow, so 16 un-popped elements span several blocks and
+      // the last few land in the tail block.
+      YSE::lfQueue<LiveCounter> q(1);
+      for (int i = 0; i < 16; ++i)
+        q.push(LiveCounter(i));
+      CHECK(LiveCounter::live == 16);
+    } // queue destroyed here
+    CHECK(LiveCounter::live == 0);
+  }
+
+  TEST_CASE("lfQueue: destructor walks the full block circle when free blocks exist "
+            "(issue #201)") {
+    // After allocating several blocks and then draining the queue, the block
+    // circle contains empty "free" blocks between the tail and front. The
+    // destructor must delete those too. This also exercises the full-circle
+    // walk over empty blocks without double-free or crash.
+    LiveCounter::live = 0;
+    {
+      YSE::lfQueue<LiveCounter> q(1);
+      for (int i = 0; i < 16; ++i)
+        q.push(LiveCounter(i));
+      LiveCounter out;
+      for (int i = 0; i < 16; ++i)
+        CHECK(q.try_pop(out) == true);
+      CHECK(LiveCounter::live == 1); // only `out` remains alive
+      // Re-fill partially so the tail advances into the previously-freed blocks.
+      for (int i = 0; i < 5; ++i)
+        q.push(LiveCounter(i));
+      CHECK(LiveCounter::live == 6); // `out` + 5 queued
+    } // queue destroyed here — 5 queued elements must be destructed
+    CHECK(LiveCounter::live == 0);
   }
 
 } // TEST_SUITE("utils")
