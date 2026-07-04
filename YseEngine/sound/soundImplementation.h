@@ -152,6 +152,14 @@ namespace YSE {
       };
       static virtualAction computeVirtualAction(bool real, bool wasVirtual);
 
+      /** Cardioid overlap weight between two speakers, in [0..1]. Used by the
+          density compensation in toChannels() to count how many speakers
+          effectively overlap a given one (coincident speakers -> 1, opposite
+          speakers -> 0). Kept as a pure static helper so the weighting stays
+          unit-testable and mirrors the pan term's parenthesization. See #207.
+      */
+      static Flt computeSpeakerOverlap(Flt angleA, Flt angleB);
+
       void removeInterface();
 
       OBJECT_IMPLEMENTATION_STATE getStatus();

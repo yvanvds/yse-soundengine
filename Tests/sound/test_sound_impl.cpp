@@ -19,6 +19,7 @@
 
 #include <doctest/doctest.h>
 #include <chrono>
+#include <cmath>
 #include <thread>
 #include "yse.hpp"
 #include "sound/soundInterface.hpp"
@@ -516,6 +517,60 @@ TEST_SUITE("sound") {
     CHECK_FALSE(a.render); // skipped entirely — no repeated fade, no click
     CHECK_FALSE(a.fadeOut);
     CHECK(a.nowVirtual);
+  }
+
+  // ─── Speaker-density overlap weight (#207) ──────────────────────────────────
+  //
+  // Regression tests for the mis-parenthesized density term. The overlap weight
+  // that toChannels() sums into `effective` must be the same cardioid as the pan
+  // term: (1 + cos(Δ)) * 0.5f, range [0..1]. The pre-fix code multiplied 0.5f
+  // into cos only — (1 + cos(Δ) * 0.5f) — giving range [0.5..1.5], offset by
+  // +0.5 per speaker pair. These call the pure helper directly so the assertions
+  // are exact and independent of any speaker layout.
+
+  TEST_CASE("speakerOverlap: coincident speakers overlap fully (== 1) (#207)") {
+    using Impl = YSE::SOUND::implementationObject;
+    // Δ = 0. Fixed formula: (1 + 1) * 0.5 = 1.0. Pre-fix: 1 + 1*0.5 = 1.5.
+    CHECK(Impl::computeSpeakerOverlap(0.f, 0.f) == doctest::Approx(1.f));
+    CHECK(Impl::computeSpeakerOverlap(1.2f, 1.2f) == doctest::Approx(1.f));
+  }
+
+  TEST_CASE("speakerOverlap: opposite speakers do not overlap (== 0) (#207)") {
+    using Impl = YSE::SOUND::implementationObject;
+    // Δ = π. Fixed formula: (1 + (-1)) * 0.5 = 0.0. Pre-fix: 1 + (-1)*0.5 = 0.5.
+    CHECK(Impl::computeSpeakerOverlap(0.f, static_cast<float>(YSE::Pi)) == doctest::Approx(0.f));
+  }
+
+  TEST_CASE("speakerOverlap: perpendicular speakers give the half weight (#207)") {
+    using Impl = YSE::SOUND::implementationObject;
+    // Δ = π/2. Fixed formula: (1 + 0) * 0.5 = 0.5. Pre-fix: 1 + 0*0.5 = 1.0.
+    CHECK(Impl::computeSpeakerOverlap(0.f, static_cast<float>(YSE::Pi) * 0.5f) ==
+          doctest::Approx(0.5f));
+  }
+
+  TEST_CASE("speakerOverlap: weight stays within [0..1] across a full sweep (#207)") {
+    using Impl = YSE::SOUND::implementationObject;
+    // Pre-fix the range was [0.5..1.5]; the fixed cardioid must never leave
+    // [0..1] for any angular separation. Step through a full turn in integer
+    // increments to keep the loop induction non-floating-point.
+    for (int i = 0; i <= 360; ++i) {
+      const float d = static_cast<float>(i) * static_cast<float>(YSE::Pi) / 180.f;
+      const float w = Impl::computeSpeakerOverlap(0.f, d);
+      CHECK(w >= -1e-4f);
+      CHECK(w <= 1.f + 1e-4f);
+    }
+  }
+
+  TEST_CASE("speakerOverlap: mirrors the pan term's parenthesization (#207)") {
+    using Impl = YSE::SOUND::implementationObject;
+    // The overlap weight must use the exact same curve as the pan term in
+    // toChannels(): initPan = (1 + cos(speakerAngle - sourceAngle)) * 0.5f.
+    // Recompute the pan formula independently and require a match — this is the
+    // relationship the bug broke.
+    const float speakerAngle = 0.7f;
+    const float sourceAngle = 2.1f;
+    const float panTerm = (1.f + std::cos(speakerAngle - sourceAngle)) * 0.5f;
+    CHECK(Impl::computeSpeakerOverlap(speakerAngle, sourceAngle) == doctest::Approx(panTerm));
   }
 
   // ─── Manager update loop / lifecycle ─────────────────────────────────────────
