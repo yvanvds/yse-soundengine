@@ -12,6 +12,9 @@
 #define SOUNDIMPLEMENTATION_H_INCLUDED
 
 #include <forward_list>
+#ifndef NDEBUG
+#include <thread>
+#endif
 #include "../classes.hpp"
 #include "sound.hpp"
 #include "../dsp/buffer.hpp"
@@ -335,6 +338,16 @@ namespace YSE {
       std::atomic<sound*> head; // < The interface connected to this object
       std::atomic<OBJECT_IMPLEMENTATION_STATE> objectStatus; // < the status of this object
       lfQueue<messageObject> messages;
+
+#ifndef NDEBUG
+      // Debug-only guard for the single-producer contract of `messages`
+      // (issue #193). The queue is SPSC, so every sendMessage() must run on
+      // the same control thread. sendMessage() records the first producer here
+      // and asserts subsequent pushes match. Debug-build only, so it never
+      // changes the release ABI/layout.
+      std::thread::id _producerThread;
+      bool _producerThreadKnown = false;
+#endif
 
       enum PLAYER_TYPE {
         PT_FILE,
