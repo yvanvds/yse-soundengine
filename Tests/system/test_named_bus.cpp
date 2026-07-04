@@ -45,6 +45,22 @@ namespace {
 
 } // namespace
 
+// ThreadSanitizer ships its own replaceable operator new/delete in
+// libclang_rt.tsan_cxx, so defining ours too is a multiple-definition link
+// error (issue #229 wired a TSan build of this binary). Skip the allocation
+// probe under TSan: the audio-path checks below assert g_alloc_count == 0, which
+// then holds trivially because the counter is never touched. ASan tolerates the
+// override, so it is kept there.
+#if defined(__has_feature)
+#if __has_feature(thread_sanitizer)
+#define YSE_UNDER_TSAN 1
+#endif
+#endif
+#if defined(__SANITIZE_THREAD__)
+#define YSE_UNDER_TSAN 1
+#endif
+
+#ifndef YSE_UNDER_TSAN
 void* operator new(std::size_t n) {
   if (g_alloc_probe_active.load(std::memory_order_relaxed))
     g_alloc_count.fetch_add(1, std::memory_order_relaxed);
@@ -72,6 +88,7 @@ void operator delete(void* p, std::size_t) noexcept {
 void operator delete(void* p, const std::nothrow_t&) noexcept {
   std::free(p);
 }
+#endif // YSE_UNDER_TSAN
 
 TEST_SUITE("system") {
 

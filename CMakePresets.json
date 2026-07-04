@@ -92,6 +92,46 @@
       }
     },
     {
+      "name": "tests-asan",
+      "displayName": "Debug + Tests + ASan (Linux/clang)",
+      "description": "tests-debug under AddressSanitizer with clang — the heap/use-after-free half of the #229 patcher concurrency acceptance gate (epic #189). Leak detection is disabled via ASAN_OPTIONS=detect_leaks=0 in the test preset, because the process-global thread pools / named bus are intentionally never torn down; this gate is about UAF on the live-edit path, not leaks. Linux only.",
+      "inherits": "tests-debug",
+      "binaryDir": "${sourceDir}/build-tests-asan",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_C_FLAGS": "-fsanitize=address -fno-omit-frame-pointer",
+        "CMAKE_CXX_FLAGS": "-fsanitize=address -fno-omit-frame-pointer",
+        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address",
+        "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=address"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
+      "name": "tests-tsan",
+      "displayName": "Debug + Tests + TSan (Linux/clang)",
+      "description": "tests-debug under ThreadSanitizer with clang — the data-race half of the #229 patcher concurrency acceptance gate (epic #189). Drives concurrent live-edit + render of a patcher and must be race-free. Linux only.",
+      "inherits": "tests-debug",
+      "binaryDir": "${sourceDir}/build-tests-tsan",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_C_FLAGS": "-fsanitize=thread -fno-omit-frame-pointer",
+        "CMAKE_CXX_FLAGS": "-fsanitize=thread -fno-omit-frame-pointer",
+        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=thread",
+        "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=thread"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
       "name": "bench",
       "displayName": "Release + Benchmarks",
       "description": "Release build with the Bench/ suite enabled (fetches google-benchmark on first configure)",
@@ -175,6 +215,26 @@
       }
     },
     {
+      "name": "tests-asan",
+      "displayName": "Debug + Tests + ASan",
+      "configurePreset": "tests-asan",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
+      "name": "tests-tsan",
+      "displayName": "Debug + Tests + TSan",
+      "configurePreset": "tests-tsan",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
       "name": "bench",
       "displayName": "Release + Benchmarks",
       "configurePreset": "bench"
@@ -222,6 +282,33 @@
       "environment": {
         "LSAN_OPTIONS": "suppressions=${sourceDir}/tools/lsan/python.supp"
       },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
+      "name": "tests-asan",
+      "displayName": "ASan patcher concurrency test",
+      "configurePreset": "tests-asan",
+      "output": { "outputOnFailure": true },
+      "filter": { "include": { "name": "yse_tests_patcher_concurrency" } },
+      "environment": {
+        "ASAN_OPTIONS": "detect_leaks=0"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
+      "name": "tests-tsan",
+      "displayName": "TSan patcher concurrency test",
+      "configurePreset": "tests-tsan",
+      "output": { "outputOnFailure": true },
+      "filter": { "include": { "name": "yse_tests_patcher_concurrency" } },
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",

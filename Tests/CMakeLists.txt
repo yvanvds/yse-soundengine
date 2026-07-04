@@ -37,6 +37,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_graphstate.cpp
   patcher/test_patcher_setparams.cpp
   patcher/test_patcher_value_queue.cpp
+  patcher/test_patcher_concurrency.cpp
   patcher/test_timerthread.cpp
   channel/test_channel.cpp
   channel/test_channel_concurrency.cpp
@@ -181,6 +182,18 @@ add_test(
 )
 set_tests_properties(yse_tests_patcher PROPERTIES LABELS patcher TIMEOUT 300)
 
+# Patcher concurrency stress test (issue #229), registered on its own so the
+# sanitizer CI legs can target just it (`ctest -R yse_tests_patcher_concurrency`)
+# under TSan/ASan without paying for the whole suite — the `concurrency` label
+# is shared with the channel/sound/reverb concurrency tests, so the sanitizer
+# presets match by name, not by label. It also runs as part of yse_tests_patcher.
+add_test(
+  NAME    yse_tests_patcher_concurrency
+  COMMAND yse_tests --test-case=concurrency:* --duration=true
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_patcher_concurrency PROPERTIES LABELS "patcher;concurrency" TIMEOUT 300)
+
 add_test(
   NAME    yse_tests_channel
   COMMAND yse_tests --test-suite=channel
@@ -306,6 +319,7 @@ set_source_files_properties(
   patcher/test_patcher_graphstate.cpp
   patcher/test_patcher_setparams.cpp
   patcher/test_patcher_value_queue.cpp
+  patcher/test_patcher_concurrency.cpp
   patcher/test_timerthread.cpp
   PROPERTIES COMPILE_FLAGS "${_patcher_test_suppress}"
 )
