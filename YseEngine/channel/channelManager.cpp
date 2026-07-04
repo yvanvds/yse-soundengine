@@ -51,7 +51,7 @@ void YSE::CHANNEL::managerObject::update() {
   {
     implementationObject* p;
     while (toLoadInbox.try_pop(p))
-      toLoad.emplace_front(p);
+      toLoad.push_front(p);
   }
 
   ///////////////////////////////////////////
@@ -79,16 +79,16 @@ void YSE::CHANNEL::managerObject::update() {
   // the freed pointer (ASan-confirmed).
   ///////////////////////////////////////////
   {
-    auto previous = toLoad.before_begin();
-    for (auto i = toLoad.begin(); i != toLoad.end();) {
-      implementationObject* ptr = *i;
+    for (auto c = toLoad.front(); c.valid();) {
+      implementationObject* ptr = c.get();
       if (ptr->readyCheck()) {
-        inUse.emplace_front(ptr);
+        // Unlink from toLoad before linking into inUse: both share the impl's
+        // single `_mgrNext` link (issue #194).
+        c.erase();
+        inUse.push_front(ptr);
         ptr->doThisWhenReady();
-        i = toLoad.erase_after(previous);
       } else {
-        previous = i;
-        ++i;
+        c.next();
       }
     }
   }
@@ -97,12 +97,11 @@ void YSE::CHANNEL::managerObject::update() {
   // sync implementations
   ///////////////////////////////////////////
   {
-    auto previous = inUse.before_begin();
-    for (auto i = inUse.begin(); i != inUse.end();) {
-      (*i)->sync();
-      if ((*i)->getStatus() == OBJECT_RELEASE) {
-        implementationObject* ptr = (*i);
-        i = inUse.erase_after(previous);
+    for (auto c = inUse.front(); c.valid();) {
+      implementationObject* ptr = c.get();
+      ptr->sync();
+      if (ptr->getStatus() == OBJECT_RELEASE) {
+        c.erase();
         // Audio-thread-side disconnect: reparent any children to this
         // channel's parent and remove this channel from parent->children
         // BEFORE marking OBJECT_DELETE. The slow-pool's deleteJob filters
@@ -120,10 +119,9 @@ void YSE::CHANNEL::managerObject::update() {
         }
         ptr->setStatus(OBJECT_DELETE);
         runDelete = true;
-        continue;
+        continue; // c already refers to the successor after erase()
       }
-      previous = i;
-      ++i;
+      c.next();
     }
   }
 }

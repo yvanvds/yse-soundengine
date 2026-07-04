@@ -227,6 +227,15 @@ namespace YSE {
       std::atomic<SOUND_STATUS> _head_status; // what it is currently doing
 
     private:
+      // Intrusive forward-list links (issue #194). `_mgrNext` threads this impl
+      // through the SOUND manager's audio-thread toLoad/inUse lists (membership
+      // in those two is mutually exclusive, so one link suffices).
+      // `_channelNext` threads it through its parent channel's `sounds` list.
+      // Both are touched only on the audio thread, exactly like the
+      // std::forward_list<T*> nodes they replace — but without heap churn.
+      implementationObject* _mgrNext = nullptr;
+      implementationObject* _channelNext = nullptr;
+
       void dspFunc_parseIntent();
       void dspFunc_calculateGain(Int channel, Int source);
 

@@ -7,17 +7,11 @@
 //   - 1000 subscribers + 1000 audio-path publishes: no heap allocations
 //   - publish() to a name with no subscribers is a no-op (no allocation)
 //
-// Allocation probe: the operator-new replacement below is a "replaceable
-// allocation function" per [basic.stc.dynamic.allocation]. It counts calls
-// only while `g_alloc_probe_active` is true so the rest of the test binary
-// (doctest, STL, std::function, ...) is unaffected. The probe lives in this
-// TU because no other test needs it; if a future TU also wants it, lift the
-// probe into a shared header.
+// The heap-allocation probe used by the no-allocation checks lives in the
+// shared support/alloc_probe.{hpp,cpp} (issue #194 lifted it out of this TU so
+// the manager / virtualFinder RT tests can reuse it).
 
 #include <array>
-#include <atomic>
-#include <cstdlib>
-#include <new>
 #include <string>
 #include <thread>
 #include <vector>
@@ -26,69 +20,13 @@
 
 #include "yse.hpp"
 #include "internal/namedBus.h"
+#include "support/alloc_probe.hpp"
 #include "support/null_device.hpp"
 
 namespace {
-
-  std::atomic<int> g_alloc_count{0};
-  std::atomic<bool> g_alloc_probe_active{false};
-
-  struct ProbeScope {
-    ProbeScope() {
-      g_alloc_count = 0;
-      g_alloc_probe_active = true;
-    }
-    ~ProbeScope() {
-      g_alloc_probe_active = false;
-    }
-  };
-
+  using TestHelpers::g_alloc_count;
+  using TestHelpers::ProbeScope;
 } // namespace
-
-// ThreadSanitizer ships its own replaceable operator new/delete in
-// libclang_rt.tsan_cxx, so defining ours too is a multiple-definition link
-// error (issue #229 wired a TSan build of this binary). Skip the allocation
-// probe under TSan: the audio-path checks below assert g_alloc_count == 0, which
-// then holds trivially because the counter is never touched. ASan tolerates the
-// override, so it is kept there.
-#if defined(__has_feature)
-#if __has_feature(thread_sanitizer)
-#define YSE_UNDER_TSAN 1
-#endif
-#endif
-#if defined(__SANITIZE_THREAD__)
-#define YSE_UNDER_TSAN 1
-#endif
-
-#ifndef YSE_UNDER_TSAN
-void* operator new(std::size_t n) {
-  if (g_alloc_probe_active.load(std::memory_order_relaxed))
-    g_alloc_count.fetch_add(1, std::memory_order_relaxed);
-  if (void* p = std::malloc(n == 0 ? 1 : n)) return p;
-  throw std::bad_alloc{};
-}
-
-// Route the nothrow form through malloc too. libsndfile's sndfile.hh allocates
-// SNDFILE_ref with `new (std::nothrow)`; without this override that allocation
-// would go through the default (ASan-instrumented) operator new while the
-// matching delete below frees it with std::free, which AddressSanitizer flags
-// as an alloc-dealloc-mismatch (issue #219).
-void* operator new(std::size_t n, const std::nothrow_t&) noexcept {
-  if (g_alloc_probe_active.load(std::memory_order_relaxed))
-    g_alloc_count.fetch_add(1, std::memory_order_relaxed);
-  return std::malloc(n == 0 ? 1 : n);
-}
-
-void operator delete(void* p) noexcept {
-  std::free(p);
-}
-void operator delete(void* p, std::size_t) noexcept {
-  std::free(p);
-}
-void operator delete(void* p, const std::nothrow_t&) noexcept {
-  std::free(p);
-}
-#endif // YSE_UNDER_TSAN
 
 TEST_SUITE("system") {
 

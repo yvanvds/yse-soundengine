@@ -102,6 +102,10 @@ namespace YSE {
     class midiMessage;
     class midiNote;
   } // namespace MIDI
+
+  namespace PATCHER {
+    class patcherImplementation;
+  } // namespace PATCHER
 } // namespace YSE
 
 #endif // CLASSES_HPP_INCLUDED

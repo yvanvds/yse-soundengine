@@ -20,6 +20,7 @@
 #include "../internal/threadPool.h"
 #include "../internal/managerJobs.hpp"
 #include "../utils/lfQueue.hpp"
+#include "../utils/intrusiveForwardList.hpp"
 
 namespace YSE {
   namespace REVERB {
@@ -104,9 +105,10 @@ namespace YSE {
 
       INTERNAL::managerDeleteJob<managerObject> mgrDelete;
 
-      // Once an object is ready for use, a pointer is placed in this container. The manager will
-      // update and sync all these objects during the dsp callback function
-      std::forward_list<implementationObject*> inUse;
+      // Once an object is ready for use, it is linked into this container. The
+      // manager updates and syncs all these objects during the dsp callback.
+      // Intrusive (link embedded via `_mgrNext`) — allocation-free (issue #194).
+      IntrusiveForwardList<implementationObject, &implementationObject::_mgrNext> inUse;
 
       // Lock-free SPSC inbox: main thread pushes here from setup(); audio
       // thread drains it into `toLoad` at the top of update(). Reverb impls
@@ -114,8 +116,9 @@ namespace YSE {
       // OBJECT_SETUP in setup()) — the inbox is purely a main→audio handoff.
       lfQueue<implementationObject*> toLoadInbox;
 
-      // Audio-thread-owned working list of impls awaiting OBJECT_READY.
-      std::forward_list<implementationObject*> toLoad;
+      // Audio-thread-owned working list of impls awaiting OBJECT_READY. Shares
+      // the `_mgrNext` link with `inUse` (an impl is only ever in one of them).
+      IntrusiveForwardList<implementationObject, &implementationObject::_mgrNext> toLoad;
 
       // Canonical list of all implementationObjects. Touched by main thread
       // (addImplementation emplace_front) and the slow-pool worker
