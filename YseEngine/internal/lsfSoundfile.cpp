@@ -121,8 +121,11 @@ void YSE::INTERNAL::soundFile::loadNonStreaming() {
 
 UInt YSE::INTERNAL::soundFile::fillBuffer(Flt* dest, Bool loop) {
   if (_needsReset.exchange(false, std::memory_order_relaxed)) {
-    handle->seek(0, SEEK_SET);
-    _streamPos = 0;
+    // Seek to the frame armed by the audio thread: 0 after a stop/reset, or the
+    // requested absolute frame after a setFilePos seek (issue #217).
+    Long target = _seekTarget.load(std::memory_order_relaxed);
+    handle->seek(target, SEEK_SET);
+    _streamPos = (Int)target;
   }
   Int framesToRead = STREAM_BUFFERSIZE;
   Flt* ptr = dest;

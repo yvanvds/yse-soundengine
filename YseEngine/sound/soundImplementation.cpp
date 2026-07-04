@@ -617,7 +617,19 @@ Bool YSE::SOUND::implementationObject::dsp() {
   ///////////////////////////////////////////
   if (setFilePos) {
     Clamp(newFilePos, 0.f, static_cast<Flt>(file->length()));
-    filePtr = newFilePos;
+    if (streaming) {
+      // For a streaming sound filePtr is buffer-local (issue #185), so an
+      // absolute frame index can't just be assigned to it. Arm an async seek:
+      // the disk seek + re-prime from `newFilePos` runs on the slow pool (never
+      // the audio thread), and filePtr resets to the start of the freshly primed
+      // front buffer. _frontBufferBase is set to the target inside seek(). (#217)
+      file->seek(static_cast<Long>(newFilePos), looping);
+      filePtr = 0.f;
+    } else {
+      // Non-streaming: the whole file is resident, so filePtr is a valid
+      // absolute index into the buffer.
+      filePtr = newFilePos;
+    }
     setFilePos = false;
   }
 
