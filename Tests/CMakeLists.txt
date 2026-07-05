@@ -26,6 +26,7 @@ set(YSE_TEST_SOURCES
   dsp/test_modules.cpp
   dsp/test_module_filters.cpp
   dsp/test_module_delays.cpp
+  dsp/test_synth_voice.cpp
   patcher/test_graph.cpp
   patcher/test_nodes.cpp
   patcher/test_patcher_math.cpp
