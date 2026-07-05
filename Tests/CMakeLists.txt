@@ -60,6 +60,8 @@ set(YSE_TEST_SOURCES
   sound/test_sound_bus.cpp
   sound/test_virtual_finder.cpp
   sound/test_manager_alloc.cpp
+  synth/test_synth.cpp
+  synth/test_synth_close.cpp
   reverb/test_reverb_dsp.cpp
   reverb/test_reverb_concurrency.cpp
   midi/test_midifile.cpp
@@ -161,10 +163,11 @@ set_target_properties(yse_tests PROPERTIES
 if(NOT ANDROID)
 add_test(
   NAME    yse_unit_tests
-  # `lifecycle` is excluded alongside `integration`: it drives System::close(),
-  # which permanently stops the global thread pools and would break every later
-  # suite sharing this process. It runs in its own process via yse_tests_lifecycle.
-  COMMAND yse_tests --test-suite-exclude=integration,lifecycle --duration=true
+  # `lifecycle` and `synthlifecycle` are excluded alongside `integration`: they
+  # drive System::close(), which permanently stops the global thread pools and
+  # would break every later suite sharing this process. Each runs in its own
+  # process via yse_tests_lifecycle / yse_tests_synthlifecycle.
+  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle --duration=true
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_unit_tests PROPERTIES TIMEOUT 600)
@@ -233,6 +236,23 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_reverb PROPERTIES LABELS reverb)
+
+add_test(
+  NAME    yse_tests_synth
+  COMMAND yse_tests --test-suite=synth
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_synth PROPERTIES LABELS synth)
+
+# Synth engine-close / offline lifecycle tests. Isolated in their own process
+# for the same reason as yse_tests_lifecycle: they drive System::close(). Kept
+# separate from the `lifecycle` process on purpose (see test_synth_close.cpp).
+add_test(
+  NAME    yse_tests_synthlifecycle
+  COMMAND yse_tests --test-suite=synthlifecycle
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_synthlifecycle PROPERTIES LABELS "synth;lifecycle")
 
 add_test(
   NAME    yse_tests_midi

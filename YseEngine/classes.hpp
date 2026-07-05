@@ -14,6 +14,7 @@
 #include "utils/vector.hpp"
 #include "channel/channel.hpp"
 #include "sound/sound.hpp"
+#include "synth/synth.hpp"
 #include "reverb/reverb.hpp"
 #include "device/device.hpp"
 #include "player/player.hpp"
