@@ -19,6 +19,7 @@
 #include "sound/soundInterface.hpp"
 #include "sound/soundManager.h"
 #include "sound/soundMessage.h"
+#include "patcher/patcher.hpp"
 #include "dsp/dspObject.hpp"
 #include "internal/time.h"
 #include "support/null_device.hpp"
@@ -462,6 +463,38 @@ TEST_SUITE("sound") {
       std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
     CHECK(s.isReady());
+  }
+
+  // ─── one-patcher-per-sound enforcement (issue #287) ──────────────────────────
+
+  // Two sounds must never share a patcher: they would call Calculate() on the
+  // same graph concurrently from two render threads (heap corruption / UAF).
+  // create() must refuse the second sound and leave it invalid, while the first
+  // keeps ownership.
+  TEST_CASE("sound: second sound from the same patcher is refused (#287)") {
+    if (!TestHelpers::engineInit()) return;
+
+    YSE::patcher p;
+    p.create(1);
+
+    YSE::sound first;
+    first.create(p);
+    CHECK(first.isValid());
+
+    YSE::sound second;
+    second.create(p);
+    CHECK_FALSE(second.isValid());
+  }
+
+  // A patcher that was never create()-d has a null impl; building a sound from
+  // it must be refused rather than dereference null.
+  TEST_CASE("sound: sound from an uncreated patcher is refused (#287)") {
+    if (!TestHelpers::engineInit()) return;
+
+    YSE::patcher p; // no p.create()
+    YSE::sound s;
+    s.create(p);
+    CHECK_FALSE(s.isValid());
   }
 
 } // TEST_SUITE("sound")

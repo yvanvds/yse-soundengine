@@ -100,8 +100,12 @@ YSE_C_API YseStatus yse_sound_load_patcher(YseSound* s, YsePatcher* patch, YseCh
   try {
     auto& cpp_patch = *reinterpret_cast<YSE::patcher*>(patch);
     to_cpp(s)->create(cpp_patch, to_cpp_chan(ch), volume);
+    // create() refuses when the patcher is already controlled by another sound
+    // (one patcher per sound — issue #287) or was never created; on refusal the
+    // sound is left invalid. Mirror that as an error status for C consumers.
     if (!to_cpp(s)->isValid()) {
-      yse_c::set_last_error("sound is not valid after patcher-source create");
+      yse_c::set_last_error(
+          "sound not created: patcher is invalid or already controlled by another sound");
       return YSE_ERR_GENERIC;
     }
     return YSE_OK;

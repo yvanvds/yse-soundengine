@@ -219,8 +219,14 @@ void YSE::sound::create(YSE::patcher& patch, channel* ch, float volume) {
 
   pimpl = SOUND::Manager().addImplementation(this);
   if (ch == nullptr) ch = &CHANNEL::Manager().master();
-  pimpl->create(patch.pimpl, ch, volume);
-  SOUND::Manager().setup(pimpl);
+  // create() refuses when the patcher is already owned by another sound
+  // (issue #287); on refusal the impl is released and the sound stays invalid.
+  if (pimpl->create(patch.pimpl, ch, volume)) {
+    SOUND::Manager().setup(pimpl);
+  } else {
+    pimpl->setStatus(OBJECT_RELEASE);
+    pimpl = nullptr;
+  }
 }
 
 /*YSE::sound& YSE::sound::create(SYNTH::interfaceObject & synth, channel *ch, Flt volume) {
