@@ -96,9 +96,14 @@ void YSE::INTERNAL::threadPoolJob::join() {
 }
 
 void YSE::INTERNAL::threadPoolJob::activate() {
-  if (shouldStop || isDone) return;
-
-  run();
+  // Only run when the job is live, but ALWAYS clear the queued flags on the way
+  // out — even on the stopped/already-done early-out. join() waits on inQueue
+  // (issue #239), so an activate() that returned without clearing it would leave
+  // a stopped-but-queued job spinning any future join() forever (issue #285).
+  // No live caller stops a queued job today, but the trap is latent. Preserve
+  // the #239 store order: isDone must land before inQueue so a racing join()'s
+  // trailing store can't land in freed memory.
+  if (!shouldStop && !isDone) run();
   isDone = true;
   inQueue = false;
 }
