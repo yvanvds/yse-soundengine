@@ -10,7 +10,7 @@
 
 #include "../internalHeaders.h"
 #include "../patcher/patcherImplementation.h"
-// #include "../synth/synthInterface.hpp"
+#include "../synth/synthInterface.hpp"
 
 #include <mutex>
 #include <unordered_set>
@@ -229,14 +229,21 @@ void YSE::sound::create(YSE::patcher& patch, channel* ch, float volume) {
   }
 }
 
-/*YSE::sound& YSE::sound::create(SYNTH::interfaceObject & synth, channel *ch, Flt volume) {
+void YSE::sound::create(YSE::synth& synth, channel* ch, float volume) {
   assert(pimpl == nullptr);
+
+  // Ensure the synth has a live implementation, then attach its aggregate
+  // output source through the existing dspSourceObject render path. All
+  // synth-specific work (drain / allocate / mix) happens inside that source's
+  // process(), which the sound already knows how to call — no new audio-thread
+  // path is opened (docs/design/synth_core.md §9).
+  if (!synth.isValid()) synth.create();
+
   pimpl = SOUND::Manager().addImplementation(this);
   if (ch == nullptr) ch = &CHANNEL::Manager().master();
-  pimpl->create(synth.pimpl, ch, volume);
+  pimpl->create(synth.pimpl->getOutputSource(), ch, volume);
   SOUND::Manager().setup(pimpl);
-  return *this;
-}*/
+}
 
 Bool YSE::sound::isValid() {
   return pimpl != nullptr;

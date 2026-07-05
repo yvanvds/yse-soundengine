@@ -30,6 +30,7 @@ bool YSE::DEVICE::deviceManager::doOnCallback(int numSamples) {
     INTERNAL::Time().update();
     INTERNAL::ListenerImpl().update();
     SOUND::Manager().update();
+    SYNTH::Manager().update();
     CHANNEL::Manager().update();
     REVERB::Manager().update();
     MIDI::Manager().update();
@@ -43,7 +44,6 @@ bool YSE::DEVICE::deviceManager::doOnCallback(int numSamples) {
   // between two buffer updates and should have the least latency possible
   INTERNAL::DeviceTime().update();
   PLAYER::Manager().update((Flt)numSamples / (Flt)SAMPLERATE);
-  // SYNTH::Manager().update();
 
   if (SOUND::Manager().empty()) return false;
 

@@ -109,6 +109,10 @@
 // #include "sound/sound.hpp"
 #include "sound/soundInterface.hpp"
 
+#include "synth/dspVoice.hpp"
+#include "synth/sineVoice.hpp"
+#include "synth/synthInterface.hpp"
+
 #include "midi/midifile.hpp"
 #include "midi/midiMessage.hpp"
 #include "midi/midiNote.hpp"

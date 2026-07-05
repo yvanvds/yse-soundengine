@@ -128,6 +128,9 @@ set(YSE_SRCS
   sound/soundInterface.cpp
   sound/soundManager.cpp
   synth/sineVoice.cpp
+  synth/synthImplementation.cpp
+  synth/synthInterface.cpp
+  synth/synthManager.cpp
   utils/fileFunctions.cpp
   utils/interpolators.cpp
   utils/vector.cpp

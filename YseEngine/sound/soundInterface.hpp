@@ -139,6 +139,24 @@ namespace YSE {
     void create(YSE::patcher& patcher, channel* ch = nullptr, float volume = 1.0f);
 
     /**
+     *  @brief Create a sound driven by a polyphonic ``YSE::synth``.
+     *
+     *  Attaches the synth's aggregate voice pool behind this sound, which
+     *  supplies the single 3D position, channel routing, and master play/stop
+     *  intent. Calls ``synth.create()`` for you if you have not. Build the
+     *  synth's voices with ``synth.addVoices(...)`` *before* this call.
+     *
+     *  @param synth  The synth to render. Must outlive the sound (see warning).
+     *  @param ch     Channel to attach to. ``nullptr`` uses ``MainMix``.
+     *  @param volume Initial volume in the range [0.0, 1.0].
+     *
+     *  @warning **Lifetime contract.** The ``synth`` must outlive this sound —
+     *           until after the sound's destructor AND the engine's slow-pool
+     *           delete tick. Same shape as the raw ``dspSourceObject`` overload.
+     */
+    void create(YSE::synth& synth, channel* ch = nullptr, float volume = 1.0f);
+
+    /**
      *  @brief Whether this interface has a live implementation.
      *
      *  Returns ``true`` for the entire lifetime of a successfully ``create``-d
