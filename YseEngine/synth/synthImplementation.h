@@ -24,6 +24,7 @@
 #ifndef YSE_SYNTH_SYNTHIMPLEMENTATION_H
 #define YSE_SYNTH_SYNTHIMPLEMENTATION_H
 
+#include <array>
 #include <atomic>
 #include <cstdint>
 #include <memory>
@@ -48,6 +49,13 @@ namespace YSE {
 
   namespace SYNTH {
 
+    /** Audio-thread note-rewrite hook (§7). A free function / captureless
+        lambda that may rewrite note number and velocity in place before the
+        keyboard state and allocator see the event. Deliberately a plain
+        function pointer so it carries no heap closure the audio thread would
+        have to reason about. */
+    using NoteCallback = void (*)(bool noteOn, float* noteNumber, float* velocity);
+
     /**
         Internal counterpart of a ``YSE::synth``. Created and destroyed by the
         SYNTH::managerObject; the user never touches one directly.
@@ -62,6 +70,11 @@ namespace YSE {
       /** Push a note/control message onto the SPSC inbox (control thread). */
       void sendMessage(const messageObject& message);
 
+      /** Install (or clear, with nullptr) the audio-thread onNoteEvent hook.
+          Set directly via an atomic pointer — it never crosses the inbox (§7).
+          Called on the control thread; acquire-loaded on the audio thread. */
+      void setNoteCallback(NoteCallback func);
+
       /** Record a pending voice-group request. The clones themselves are built
           later, on the setup pool, in setup(). Called on the control thread;
           guarded by buildMutex against the setup pool. */
@@ -70,6 +83,17 @@ namespace YSE {
 
       /** Total allocated voices across every group. Thread-safe. */
       int getNumVoices() const;
+
+      // ---- keyboard-state introspection -----------------------------------
+      // Read the last-seen per-channel keyboard values. Intended for tests and
+      // future C-API/metering readback; all audio-thread state, read here
+      // without synchronisation is a best-effort snapshot. channel is 1..16.
+      Flt getChannelPitchWheel(int channel) const;
+      Flt getChannelController(int channel, int number) const;
+      Flt getChannelAftertouch(int channel) const;
+      bool getSustain(int channel) const;
+      bool getSostenuto(int channel) const;
+      bool getSoftPedal(int channel) const;
 
       // ---- attachment -----------------------------------------------------
 
@@ -132,6 +156,13 @@ namespace YSE {
         int note = -1; // MIDI note sounding here (-1 = free)
         int channel = 0; // channel that triggered it
         uint64_t age = 0; // allocation stamp; smaller = older
+        // ---- keyboard / pedal bookkeeping (§5) ----
+        // A sounding voice is released (intent -> SS_WANTSTOSTOP) only once its
+        // key is up AND no pedal still claims it. keyDown tracks the physical
+        // key; heldBySustain / heldBySostenuto track a pedal deferring release.
+        bool keyDown = false; // physical key is down (NOTE_ON..NOTE_OFF)
+        bool heldBySustain = false; // sustain pedal is deferring this release
+        bool heldBySostenuto = false; // captured + deferred by the sostenuto pedal
         // engine-owned declick for click-free stealing
         bool stealing = false; // fading the OLD note out before re-arming
         int stealPos = 0; // samples elapsed into the steal fade
@@ -161,12 +192,47 @@ namespace YSE {
         int highNote;
       };
 
+      // ---- per-channel keyboard state (§5) -------------------------------
+      // One entry per MIDI channel (1..16). Owned and mutated only on the audio
+      // thread (written in parseMessage, read while allocating / delivering).
+      // Fixed-size — no allocation on any control path.
+      struct channelState {
+        bool sustain = false; // CC 64 held
+        bool sostenuto = false; // CC 66 held
+        bool softPedal = false; // CC 67 held
+        Flt pitchWheel = 0.f; // last wheel value, [-1, 1]
+        Flt aftertouch = 0.f; // last channel-wide pressure, [0, 1]
+        std::array<Flt, 128> controller{}; // last value of each CC, [0, 1]
+      };
+      static constexpr int kNumChannels = 16;
+      // Map a MIDI channel (1..16) to a channels[] index, clamped so a stray
+      // channel value can never index out of bounds on the audio thread.
+      static int channelIndex(int channel) {
+        if (channel < 1) return 0;
+        if (channel > kNumChannels) return kNumChannels - 1;
+        return channel - 1;
+      }
+      channelState& channelFor(int channel) {
+        return channels[channelIndex(channel)];
+      }
+
       // ---- audio-thread render path --------------------------------------
       void renderBlock(SOUND_STATUS& masterIntent);
       void parseMessage(const messageObject& message);
       void handleNoteOn(int channel, int note, Flt velocity);
       void handleNoteOff(int channel, int note);
       void handleAllNotesOff(int channel);
+      // keyboard / controller ops (§5 / §6)
+      void handlePitchWheel(int channel, Flt value);
+      void handleController(int channel, int number, Flt value);
+      void handleAftertouch(int channel, int note, Flt value);
+      void handleSustain(int channel, bool down);
+      void handleSostenuto(int channel, bool down);
+      void handleSoftPedal(int channel, bool down);
+      // release a slot only if its key is up and no pedal still claims it
+      void releaseIfUnheld(voiceSlot& slot);
+      // forward the channel's current wheel value to one voice / all its voices
+      void primeVoicePitchWheel(dspVoice& voice, int channel);
       void allocateInGroup(voiceGroup& group, int channel, int note, Flt velocity);
       void freeAllVoices();
       void mixVoice(dspVoice& voice, Flt gain);
@@ -198,6 +264,13 @@ namespace YSE {
       std::atomic<int> numVoicesTotal{0};
       uint64_t ageCounter = 0; // audio thread only
       int stealFadeSamples = 1; // computed in setup()
+
+      // Per-channel keyboard state (§5). Audio thread only.
+      std::array<channelState, kNumChannels> channels;
+
+      // onNoteEvent hook (§7): release-store from the control thread,
+      // acquire-load on the audio thread; never crosses the message inbox.
+      std::atomic<NoteCallback> noteCallback{nullptr};
 
       friend class SYNTH::managerObject;
       friend class INTERNAL::managerSetupJob<managerObject>;

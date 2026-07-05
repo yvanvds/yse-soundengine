@@ -90,6 +90,48 @@ namespace YSE {
        *  A bulk note-off: voices enter their normal release, they are not cut. */
       interfaceObject& allNotesOff(int channel = 0);
 
+      // ---- keyboard state, pedals and controllers (§5) ----------------------
+
+      /** @brief Bend every voice on ``channel``. ``value`` is normalised to
+       *  [-1, 1] (0 = centre). How far a voice bends is the voice's concern. */
+      interfaceObject& pitchWheel(int channel, float value);
+
+      /** @brief Send a control-change. ``value`` is normalised to [0, 1].
+       *
+       *  CC 64 / 66 / 67 act as the sustain / sostenuto / soft pedals; every
+       *  other CC number is stored as the channel's last controller value. */
+      interfaceObject& controller(int channel, int number, float value);
+
+      /** @brief Apply aftertouch pressure, normalised to [0, 1].
+       *
+       *  ``noteNumber == -1`` is channel-wide (every voice on the channel);
+       *  otherwise only the voice(s) sounding that note receive it. */
+      interfaceObject& aftertouch(int channel, int noteNumber, float value);
+
+      /** @brief Sustain pedal (CC 64). Down defers NOTE_OFF releases on the
+       *  channel; up releases every note that was waiting on it. */
+      interfaceObject& sustain(int channel, bool down);
+
+      /** @brief Sostenuto pedal (CC 66). Down captures the currently-held notes
+       *  and sustains only those; up releases them. */
+      interfaceObject& sostenuto(int channel, bool down);
+
+      /** @brief Soft pedal (CC 67). While down, notes that START scale their
+       *  velocity down; sounding voices are unaffected. */
+      interfaceObject& softPedal(int channel, bool down);
+
+      /** @brief Install an audio-thread note-rewrite hook, or clear it with
+       *  ``nullptr``.
+       *
+       *  ``func`` runs on the audio thread for every NOTE_ON / NOTE_OFF, before
+       *  keyboard bookkeeping and allocation, and may rewrite ``*noteNumber``
+       *  and ``*velocity`` in place — the classic use is transposition,
+       *  retuning, velocity curves or note filtering. Only a free function or
+       *  captureless lambda is accepted (it carries no heap closure). It must
+       *  obey the same real-time rules as a voice ``process()``: no allocation,
+       *  no locks, no blocking. See docs/design/synth_core.md §7. */
+      interfaceObject& onNoteEvent(void (*func)(bool noteOn, float* noteNumber, float* velocity));
+
       /** @brief Total number of allocated voices across all groups. */
       int getNumVoices() const;
 

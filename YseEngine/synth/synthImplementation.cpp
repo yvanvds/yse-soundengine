@@ -13,6 +13,7 @@
 #include "../internalHeaders.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 
 namespace YSE {
@@ -22,6 +23,14 @@ namespace YSE {
     // tail is force-faded over this window so stealing never clicks, regardless
     // of the user voice's own (possibly seconds-long) release. See §4.
     static const Flt kStealFadeSec = 0.005f;
+
+    // Velocity scaling applied to notes that START while the soft pedal (CC 67)
+    // is held (§5). Fixed; affects only new notes, never sounding voices.
+    static const Flt kSoftPedalGain = 0.7f;
+
+    // A controller value at or above this counts as a pedal "down" when a pedal
+    // arrives as a raw CC (64/66/67) rather than via the typed pedal setters.
+    static const Flt kPedalThreshold = 0.5f;
 
     implementationObject::implementationObject(interfaceObject* head)
       : head(head), objectStatus(OBJECT_CONSTRUCTED), messages(1024), output(*this, 1) {}
@@ -62,8 +71,39 @@ namespace YSE {
       pendingGroups.push_back({prototype, numVoices, channel, lowestNote, highestNote});
     }
 
+    void implementationObject::setNoteCallback(NoteCallback func) {
+      // Release-store so the audio thread's acquire-load sees a fully-published
+      // function pointer. nullptr simply disables the hook.
+      noteCallback.store(func, std::memory_order_release);
+    }
+
     int implementationObject::getNumVoices() const {
       return numVoicesTotal.load(std::memory_order_relaxed);
+    }
+
+    Flt implementationObject::getChannelPitchWheel(int channel) const {
+      return channels[channelIndex(channel)].pitchWheel;
+    }
+
+    Flt implementationObject::getChannelController(int channel, int number) const {
+      if (number < 0 || number > 127) return 0.f;
+      return channels[channelIndex(channel)].controller[static_cast<size_t>(number)];
+    }
+
+    Flt implementationObject::getChannelAftertouch(int channel) const {
+      return channels[channelIndex(channel)].aftertouch;
+    }
+
+    bool implementationObject::getSustain(int channel) const {
+      return channels[channelIndex(channel)].sustain;
+    }
+
+    bool implementationObject::getSostenuto(int channel) const {
+      return channels[channelIndex(channel)].sostenuto;
+    }
+
+    bool implementationObject::getSoftPedal(int channel) const {
+      return channels[channelIndex(channel)].softPedal;
     }
 
     DSP::dspSourceObject& implementationObject::getOutputSource() {
@@ -199,8 +239,12 @@ namespace YSE {
               slot.note = slot.pendNote;
               slot.channel = slot.pendChannel;
               slot.age = slot.pendAge;
+              slot.keyDown = true; // the new note's key is down
+              slot.heldBySustain = false;
+              slot.heldBySostenuto = false;
               v->frequency(static_cast<Flt>(slot.pendNote));
               v->velocity(slot.pendVelocity);
+              primeVoicePitchWheel(*v, slot.pendChannel); // start in tune (§5)
               slot.intent = SS_WANTSTOPLAY;
             }
           } else if (slot.intent != SS_STOPPED) {
@@ -247,6 +291,9 @@ namespace YSE {
           slot.note = -1;
           slot.stealing = false;
           slot.stealPos = 0;
+          slot.keyDown = false;
+          slot.heldBySustain = false;
+          slot.heldBySostenuto = false;
         }
       }
     }
@@ -264,14 +311,44 @@ namespace YSE {
       case ALL_NOTES_OFF:
         handleAllNotesOff(message.allOff.channel);
         break;
-      default:
-        // PITCH_WHEEL / CONTROLLER / AFTERTOUCH / pedals are handled by the
-        // keyboard-state issue (#154); ignored here.
+      case PITCH_WHEEL:
+        handlePitchWheel(message.wheel.channel, message.wheel.value);
+        break;
+      case CONTROLLER:
+        handleController(message.cc.channel, message.cc.number, message.cc.value);
+        break;
+      case AFTERTOUCH:
+        handleAftertouch(message.touch.channel, message.touch.note, message.touch.value);
+        break;
+      case SUSTAIN:
+        handleSustain(message.pedal.channel, message.pedal.down);
+        break;
+      case SOSTENUTO:
+        handleSostenuto(message.pedal.channel, message.pedal.down);
+        break;
+      case SOFTPEDAL:
+        handleSoftPedal(message.pedal.channel, message.pedal.down);
         break;
       }
     }
 
     void implementationObject::handleNoteOn(int channel, int note, Flt velocity) {
+      // §5 step 1: let the onNoteEvent hook rewrite note/velocity in flight,
+      // before any keyboard bookkeeping or allocation. The rewritten values are
+      // what the held-note state and allocator use.
+      float n = static_cast<float>(note);
+      float v = velocity;
+      NoteCallback cb = noteCallback.load(std::memory_order_acquire);
+      if (cb != nullptr) cb(true, &n, &v);
+      note = static_cast<int>(std::lround(n));
+      velocity = v;
+
+      // §5 step 2: soft pedal scales the velocity of notes started while it is
+      // held (it never retroactively changes sounding voices).
+      if (channelFor(channel).softPedal) velocity *= kSoftPedalGain;
+
+      // §5 steps 3-4: allocate into every matching group; each allocation primes
+      // the new voice with the channel's current pitch-wheel value.
       for (auto& g : groups) {
         if (groupMatches(g, channel, note)) {
           allocateInGroup(g, channel, note, velocity);
@@ -280,27 +357,158 @@ namespace YSE {
     }
 
     void implementationObject::handleNoteOff(int channel, int note) {
-      // Release every voice sounding this (channel, note). #153 releases
-      // immediately; pedal-deferred release is #154.
+      // §5 step 1: the hook may rewrite the note to the same value a matching
+      // NOTE_ON produced, so the release finds the right voice.
+      float n = static_cast<float>(note);
+      float v = 0.f;
+      NoteCallback cb = noteCallback.load(std::memory_order_acquire);
+      if (cb != nullptr) cb(false, &n, &v);
+      note = static_cast<int>(std::lround(n));
+
+      // The key is up now. Whether the voice actually releases depends on the
+      // pedals (§5): sustain defers all releases; sostenuto defers only notes it
+      // captured. A deferred voice keeps sounding until the pedal lets go.
+      channelState& cs = channelFor(channel);
       for (auto& g : groups) {
         for (auto& slot : g.slots) {
-          if (!slot.stealing && slot.note == note && slot.channel == channel &&
-              slot.intent != SS_STOPPED && slot.intent != SS_WANTSTOSTOP) {
+          if (slot.stealing || slot.note != note || slot.channel != channel || !slot.keyDown)
+            continue;
+          slot.keyDown = false;
+          if (cs.sustain) slot.heldBySustain = true;
+          // heldBySostenuto is already set (or not) from when the pedal went
+          // down; a note played after sostenuto engaged is not captured.
+          releaseIfUnheld(slot);
+        }
+      }
+    }
+
+    void implementationObject::handleAllNotesOff(int channel) {
+      // A bulk, unconditional release of every sounding voice on the channel(s)
+      // (§4): voices enter their normal release tail rather than being cut. Any
+      // pedal claim is dropped so nothing lingers.
+      for (auto& g : groups) {
+        for (auto& slot : g.slots) {
+          if (slot.stealing || slot.intent == SS_STOPPED || slot.intent == SS_WANTSTOSTOP) continue;
+          if (channel == 0 || slot.channel == channel) {
+            slot.keyDown = false;
+            slot.heldBySustain = false;
+            slot.heldBySostenuto = false;
             slot.intent = SS_WANTSTOSTOP;
           }
         }
       }
     }
 
-    void implementationObject::handleAllNotesOff(int channel) {
+    void implementationObject::releaseIfUnheld(voiceSlot& slot) {
+      // A voice releases only once its key is up and no pedal still claims it.
+      if (!slot.keyDown && !slot.heldBySustain && !slot.heldBySostenuto && !slot.stealing &&
+          slot.intent != SS_STOPPED && slot.intent != SS_WANTSTOSTOP) {
+        slot.intent = SS_WANTSTOSTOP;
+      }
+    }
+
+    // ---- keyboard: pitch wheel / controllers / aftertouch / pedals --------
+
+    void implementationObject::primeVoicePitchWheel(dspVoice& voice, int channel) {
+      voice._pitchWheel.store(channelFor(channel).pitchWheel, std::memory_order_relaxed);
+    }
+
+    void implementationObject::handlePitchWheel(int channel, Flt value) {
+      channelFor(channel).pitchWheel = value;
+      // Forward to every voice currently sounding on this channel so a bend
+      // moves the notes already down, not just future ones (§5).
       for (auto& g : groups) {
-        for (auto& slot : g.slots) {
-          if (!slot.stealing && slot.intent != SS_STOPPED && slot.intent != SS_WANTSTOSTOP &&
-              (channel == 0 || slot.channel == channel)) {
-            slot.intent = SS_WANTSTOSTOP;
+        for (size_t i = 0; i < g.slots.size(); ++i) {
+          voiceSlot& s = g.slots[i];
+          if (s.channel == channel && s.intent != SS_STOPPED) {
+            g.voices[i]->_pitchWheel.store(value, std::memory_order_relaxed);
           }
         }
       }
+    }
+
+    void implementationObject::handleController(int channel, int number, Flt value) {
+      // CC 64/66/67 ARE the pedals — intercept them (§5/§6). A raw CC crosses
+      // the same threshold the typed pedal setters use.
+      switch (number) {
+      case 64:
+        handleSustain(channel, value >= kPedalThreshold);
+        return;
+      case 66:
+        handleSostenuto(channel, value >= kPedalThreshold);
+        return;
+      case 67:
+        handleSoftPedal(channel, value >= kPedalThreshold);
+        return;
+      default:
+        break;
+      }
+      // Every other CC is stored as the channel's last value for that number.
+      // The core does not itself map CCs to synthesis parameters (that is the
+      // instrument/modulation-matrix concern, #148); it only records them.
+      if (number >= 0 && number <= 127) {
+        channelFor(channel).controller[static_cast<size_t>(number)] = value;
+      }
+    }
+
+    void implementationObject::handleAftertouch(int channel, int note, Flt value) {
+      channelFor(channel).aftertouch = value; // last channel pressure
+      // note == -1 broadcasts to every voice on the channel; otherwise it
+      // reaches only the voice(s) sounding that note (§5).
+      for (auto& g : groups) {
+        for (size_t i = 0; i < g.slots.size(); ++i) {
+          voiceSlot& s = g.slots[i];
+          if (s.channel != channel || s.intent == SS_STOPPED) continue;
+          if (note == -1 || s.note == note) {
+            g.voices[i]->_aftertouch.store(value, std::memory_order_relaxed);
+          }
+        }
+      }
+    }
+
+    void implementationObject::handleSustain(int channel, bool down) {
+      channelState& cs = channelFor(channel);
+      cs.sustain = down;
+      if (down) return; // pedal down: future NOTE_OFFs defer — nothing to do now
+      // Pedal up: drop the sustain claim on every voice on this channel; any
+      // whose key is up (and not still held by sostenuto) releases now.
+      for (auto& g : groups) {
+        for (auto& slot : g.slots) {
+          if (slot.channel == channel && slot.heldBySustain) {
+            slot.heldBySustain = false;
+            releaseIfUnheld(slot);
+          }
+        }
+      }
+    }
+
+    void implementationObject::handleSostenuto(int channel, bool down) {
+      channelState& cs = channelFor(channel);
+      cs.sostenuto = down;
+      if (down) {
+        // Snapshot the currently-held keys: only these voices are captured.
+        for (auto& g : groups) {
+          for (auto& slot : g.slots) {
+            if (slot.channel == channel && slot.keyDown) slot.heldBySostenuto = true;
+          }
+        }
+        return;
+      }
+      // Pedal up: release any captured voice whose key is no longer held (unless
+      // sustain still holds it); clear the capture.
+      for (auto& g : groups) {
+        for (auto& slot : g.slots) {
+          if (slot.channel == channel && slot.heldBySostenuto) {
+            slot.heldBySostenuto = false;
+            releaseIfUnheld(slot);
+          }
+        }
+      }
+    }
+
+    void implementationObject::handleSoftPedal(int channel, bool down) {
+      // Only affects the velocity of FUTURE notes — no effect on sounding voices.
+      channelFor(channel).softPedal = down;
     }
 
     void implementationObject::allocateInGroup(voiceGroup& group, int channel, int note,
@@ -312,8 +520,12 @@ namespace YSE {
           s.note = note;
           s.channel = channel;
           s.age = ++ageCounter;
+          s.keyDown = true;
+          s.heldBySustain = false;
+          s.heldBySostenuto = false;
           group.voices[i]->frequency(static_cast<Flt>(note));
           group.voices[i]->velocity(velocity);
+          primeVoicePitchWheel(*group.voices[i], channel); // start in tune (§5)
           s.intent = SS_WANTSTOPLAY;
           return;
         }

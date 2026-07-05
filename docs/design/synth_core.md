@@ -247,12 +247,17 @@ public:
   void velocity(Flt v)      { _velocity.store(v, std::memory_order_relaxed); }
   Flt  getVelocity() const  { return _velocity.load(std::memory_order_relaxed); }
   Flt  getAftertouch() const{ return _aftertouch.load(std::memory_order_relaxed); }
+  // Channel pitch-wheel position in [-1,1], forwarded by the keyboard state
+  // machine (§5). A voice reads this alongside getFrequency() and chooses its
+  // own bend range; the core only delivers the normalised position.
+  Flt  getPitchWheel() const{ return _pitchWheel.load(std::memory_order_relaxed); }
 
 private:
   aFlt _frequency{440.f};
   aFlt _velocity{0.f};
   aFlt _aftertouch{0.f};
-  friend class implementationObject;   // sets _aftertouch, drives intent
+  aFlt _pitchWheel{0.f};
+  friend class implementationObject;   // sets _aftertouch / _pitchWheel, drives intent
 };
 
 }} // namespace YSE::SYNTH
@@ -298,6 +303,7 @@ in `process()`:
 | frequency (Hz) | allocator on NOTE_ON | voice `process()` | `aFlt _frequency` via `frequency(midiNote)` |
 | velocity [0,1] | allocator on NOTE_ON | voice `process()` | `aFlt _velocity` |
 | aftertouch [0,1] | allocator on AFTERTOUCH | voice `process()` | `aFlt _aftertouch` |
+| pitch wheel [-1,1] | keyboard on PITCH_WHEEL + primed on NOTE_ON | voice `process()` | `aFlt _pitchWheel` |
 | gate / phase | allocator | voice `process()` | the `SOUND_STATUS& intent` argument |
 
 The `intent` argument is the gate. The allocator holds one

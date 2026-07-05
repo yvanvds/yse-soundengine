@@ -107,6 +107,20 @@ namespace YSE {
         return _aftertouch.load(std::memory_order_relaxed);
       }
 
+      /**
+       *  @brief Current pitch-wheel position in [-1, 1] for this voice's channel.
+       *
+       *  The keyboard state machine forwards the channel's pitch-wheel value to
+       *  every voice sounding on that channel (and primes a new voice with the
+       *  current value on note start). How far a voice bends for a given wheel
+       *  position — the bend range in semitones — is the voice's concern; the
+       *  core only delivers the normalised position. See
+       *  docs/design/synth_core.md §5.
+       */
+      Flt getPitchWheel() const {
+        return _pitchWheel.load(std::memory_order_relaxed);
+      }
+
     protected:
       /**
        *  @brief Copy the note atomics (and base output buffers) into a fresh,
@@ -121,13 +135,15 @@ namespace YSE {
         _frequency.store(o._frequency.load(std::memory_order_relaxed), std::memory_order_relaxed);
         _velocity.store(o._velocity.load(std::memory_order_relaxed), std::memory_order_relaxed);
         _aftertouch.store(o._aftertouch.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        _pitchWheel.store(o._pitchWheel.load(std::memory_order_relaxed), std::memory_order_relaxed);
       }
 
     private:
       aFlt _frequency{440.f};
       aFlt _velocity{0.f};
       aFlt _aftertouch{0.f};
-      friend class implementationObject; // sets _aftertouch, drives intent
+      aFlt _pitchWheel{0.f};
+      friend class implementationObject; // sets _aftertouch / _pitchWheel, drives intent
     };
 
   } // namespace SYNTH
