@@ -27,15 +27,7 @@
 
 #include "midi/device.hpp"
 #include "yse_c/yse_midi.h"
-
-// Friend-declared in YSE::midiIn so tests can drive dispatch() directly
-// without needing a real MIDI port (RtMidi's openVirtualPort is unavailable
-// on Windows; this keeps the parser test deterministic on every platform).
-struct MidiInDispatchTester {
-  static void dispatch(YSE::midiIn& m, double ts, const unsigned char* bytes, std::size_t len) {
-    m.dispatch(ts, bytes, len);
-  }
-};
+#include "support/midi_dispatch_tester.hpp"
 
 namespace {
 

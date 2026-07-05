@@ -32,6 +32,13 @@ namespace YSE {
       fileImpl* addImplementation(file* head);
       void update();
 
+      /** Advance every live file's playback by ``numSamples`` and push the
+          events that fall in this block onto their connected synths (issue
+          #155). Called once per audio callback, separately from update()'s
+          lifecycle tick, so playback stays block-accurate (mirrors how
+          PLAYER::Manager().update() is driven every callback). Audio thread. */
+      void updatePlayback(int numSamples);
+
     private:
       // Canonical list of all fileImpls. Touched by the main thread
       // (addImplementation emplace_front) and by the slow-pool deleteJob

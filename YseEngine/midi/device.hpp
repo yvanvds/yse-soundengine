@@ -9,6 +9,7 @@
 
 #include "midiMessage.hpp"
 #include "../headers/enums.hpp"
+#include "../synth/synth.hpp" // YSE::synth / SYNTH::interfaceObject (device -> synth routing)
 
 /// @cond INTERNAL
 class RtMidiIn;
@@ -161,6 +162,23 @@ namespace YSE {
     /** @brief Install a parsed callback. Pass ``nullptr`` to detach. */
     void setParsedCallback(ParsedCallback cb, void* user_data);
 
+    /** @brief Route incoming device MIDI into a synth (issue #155).
+     *
+     *  Every channel-voice message received on the open port is delivered to
+     *  ``synth`` — mapped to the synth's normalized note API and pushed
+     *  lock-free onto its inbox, on RtMidi's input thread. ``channelFilter``
+     *  is a 1..16 MIDI channel to accept, or 0 for every channel. May be
+     *  called for several synths; calling it again for an already-connected
+     *  synth just updates its channel filter.
+     *
+     *  @warning ``synth`` must outlive the connection — ``disconnect`` it (or
+     *           close / destroy this port) before destroying the synth. This
+     *           is a control-thread call; do not call it from the callbacks. */
+    void connect(YSE::synth& synth, int channelFilter = 0);
+
+    /** @brief Stop routing incoming device MIDI into ``synth``. */
+    void disconnect(YSE::synth& synth);
+
   private:
     // RtMidi's setCallback entry point. Forwards to dispatch() so the
     // raw / parsed subscribers are not coupled to the trampoline; this
@@ -177,6 +195,18 @@ namespace YSE {
     std::atomic<void*> rawUser{nullptr};
     std::atomic<ParsedCallback> parsedCb{nullptr};
     std::atomic<void*> parsedUser{nullptr};
+
+    // Internal synth subscribers (issue #155). A fixed-size atomic table so
+    // connect/disconnect (control thread) never lock and dispatch() (RtMidi
+    // input thread) never allocates. `channel` is 0 (all) or a 1..16 filter.
+    // This is the "additive internal subscribers" hook the port fan-out was
+    // left open for — see the dispatch() comment and yvanvds/yse-soundengine#52.
+    static constexpr std::size_t kMaxSynthSubs = 8;
+    struct synthSub {
+      std::atomic<SYNTH::interfaceObject*> synth{nullptr};
+      std::atomic<int> channel{0};
+    };
+    synthSub synthSubs[kMaxSynthSubs];
 
     // Test-only access to the private dispatch() path. Driven by
     // Tests/midi/test_midi_in.cpp to verify the parsed-callback nibble

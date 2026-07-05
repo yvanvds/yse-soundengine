@@ -12,7 +12,7 @@
 #define MIDIFILE_H_INCLUDED
 
 #include <string>
-// #include "../synth/synth.hpp"
+#include "../synth/synth.hpp" // YSE::synth (for connect/disconnect)
 #include "../headers/defines.hpp"
 
 namespace YSE {
@@ -45,6 +45,19 @@ namespace YSE {
 
       /** @brief Stop playback and rewind to the start. */
       void stop();
+
+      /** @brief Route this file's playback into a synth.
+       *
+       *  While the file plays, every note / controller / pitch-bend event it
+       *  contains is delivered to ``synth`` (block-accurately, on the audio
+       *  thread). May be called for several synths to drive them together.
+       *
+       *  @warning ``synth`` must outlive the connection: ``disconnect`` it (or
+       *           destroy this file) before destroying the synth. */
+      void connect(YSE::synth& synth);
+
+      /** @brief Stop routing this file's playback into ``synth``. */
+      void disconnect(YSE::synth& synth);
 
     private:
       fileImpl* pimpl;

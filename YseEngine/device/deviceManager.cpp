@@ -44,6 +44,9 @@ bool YSE::DEVICE::deviceManager::doOnCallback(int numSamples) {
   // between two buffer updates and should have the least latency possible
   INTERNAL::DeviceTime().update();
   PLAYER::Manager().update((Flt)numSamples / (Flt)SAMPLERATE);
+  // MIDI file playback is advanced every block too (issue #155) so events reach
+  // the connected synths block-accurately, before the synths render this block.
+  MIDI::Manager().updatePlayback(numSamples);
 
   if (SOUND::Manager().empty()) return false;
 
