@@ -37,11 +37,11 @@ void YSE::MIDI::file::pause() {
 void YSE::MIDI::file::stop() {
   pimpl->stop();
 }
-/*
-void YSE::MIDI::file::connect(synth * player) {
-  pimpl->connect(player);
+
+void YSE::MIDI::file::connect(YSE::synth& synth) {
+  pimpl->connect(&synth);
 }
 
-void YSE::MIDI::file::disconnect(synth * player) {
-  pimpl->disconnect(player);
-}*/
+void YSE::MIDI::file::disconnect(YSE::synth& synth) {
+  pimpl->disconnect(&synth);
+}

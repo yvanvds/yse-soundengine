@@ -69,6 +69,8 @@ set(YSE_TEST_SOURCES
   midi/test_midifile_concurrency.cpp
   midi/test_devicemanager.cpp
   midi/test_midi_in.cpp
+  midi/test_midi_synth_routing.cpp
+  midi/test_midi_synth.cpp
   music/test_scale.cpp
   music/test_note.cpp
   music/test_motif.cpp
@@ -164,11 +166,12 @@ set_target_properties(yse_tests PROPERTIES
 if(NOT ANDROID)
 add_test(
   NAME    yse_unit_tests
-  # `lifecycle` and `synthlifecycle` are excluded alongside `integration`: they
-  # drive System::close(), which permanently stops the global thread pools and
-  # would break every later suite sharing this process. Each runs in its own
-  # process via yse_tests_lifecycle / yse_tests_synthlifecycle.
-  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle --duration=true
+  # `lifecycle`, `synthlifecycle` and `midisynth` are excluded alongside
+  # `integration`: they drive System::close(), which permanently stops the
+  # global thread pools and would break every later suite sharing this process.
+  # Each runs in its own process via
+  # yse_tests_lifecycle / yse_tests_synthlifecycle / yse_tests_midisynth.
+  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,midisynth --duration=true
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_unit_tests PROPERTIES TIMEOUT 600)
@@ -261,6 +264,17 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_midi PROPERTIES LABELS midi)
+
+# End-to-end MIDI -> synth routing (issue #155). Isolated in its own process for
+# the same reason as yse_tests_synthlifecycle: it drives System::close() and
+# constructs the synth + sound managers, whose static teardown must not leak
+# into other suites (issue #298). Uses initOffline(), so it runs in CI.
+add_test(
+  NAME    yse_tests_midisynth
+  COMMAND yse_tests --test-suite=midisynth
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_midisynth PROPERTIES LABELS "midi;synth;lifecycle")
 
 add_test(
   NAME    yse_tests_music

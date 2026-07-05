@@ -3,6 +3,8 @@
 #include "device.hpp"
 #include "RtMidi.h"
 #include "midiDeviceManager.h"
+#include "synth/synthInterface.hpp"
+#include "midi/midiSynthRouting.hpp"
 
 YSE::midiOut::midiOut() : device(nullptr) {}
 
@@ -262,6 +264,37 @@ void YSE::midiIn::setParsedCallback(ParsedCallback cb, void* user_data) {
   parsedCb.store(cb, std::memory_order_release);
 }
 
+void YSE::midiIn::connect(YSE::synth& synth, int channelFilter) {
+  // Already connected? Just refresh its channel filter.
+  for (auto& sub : synthSubs) {
+    if (sub.synth.load(std::memory_order_acquire) == &synth) {
+      sub.channel.store(channelFilter, std::memory_order_relaxed);
+      return;
+    }
+  }
+  // Claim a free slot. The CAS publishes the pointer with release ordering so
+  // the RtMidi thread's acquire-load in dispatch() sees a valid synth.
+  for (auto& sub : synthSubs) {
+    SYNTH::interfaceObject* expected = nullptr;
+    if (sub.synth.compare_exchange_strong(expected, &synth, std::memory_order_acq_rel)) {
+      sub.channel.store(channelFilter, std::memory_order_relaxed);
+      return;
+    }
+  }
+  // Table full (>kMaxSynthSubs synths on one port) — a rare misconfiguration;
+  // ignore rather than grow a table the RtMidi thread reads lock-free.
+}
+
+void YSE::midiIn::disconnect(YSE::synth& synth) {
+  for (auto& sub : synthSubs) {
+    if (sub.synth.load(std::memory_order_acquire) == &synth) {
+      sub.channel.store(0, std::memory_order_relaxed); // reset filter for reuse
+      sub.synth.store(nullptr, std::memory_order_release);
+      return;
+    }
+  }
+}
+
 void YSE::midiIn::rtMidiTrampoline(double ts, std::vector<unsigned char>* msg, void* userData) {
   if (msg == nullptr || msg->empty() || userData == nullptr) return;
   auto* self = static_cast<midiIn*>(userData);
@@ -290,6 +323,26 @@ void YSE::midiIn::dispatch(double timestampSec, const unsigned char* bytes, std:
     const unsigned char data1 = len > 1 ? bytes[1] : 0;
     const unsigned char data2 = len > 2 ? bytes[2] : 0;
     pcb(timestampSec, status, channel, data1, data2, parsedUser.load(std::memory_order_acquire));
+  }
+
+  // Internal synth subscribers (issue #155). This is the additive fan-out the
+  // port hub was left open for: route every channel-voice message to each
+  // connected synth whose channel filter matches. Each routed call maps raw
+  // MIDI onto the synth's normalized note API and lock-free try_pushes onto its
+  // inbox — safe to run here on RtMidi's input thread.
+  const unsigned char statusNibble = static_cast<unsigned char>(bytes[0] & 0xF0);
+  if (MIDI::isChannelVoiceStatus(statusNibble)) {
+    const unsigned char channelNibble = static_cast<unsigned char>(bytes[0] & 0x0F);
+    const int synthChannel = static_cast<int>(channelNibble) + 1;
+    const unsigned char d1 = len > 1 ? bytes[1] : 0;
+    const unsigned char d2 = len > 2 ? bytes[2] : 0;
+    for (auto& sub : synthSubs) {
+      SYNTH::interfaceObject* s = sub.synth.load(std::memory_order_acquire);
+      if (s == nullptr) continue;
+      const int filter = sub.channel.load(std::memory_order_relaxed);
+      if (filter == 0 || filter == synthChannel)
+        MIDI::routeChannelVoiceMessage(*s, statusNibble, channelNibble, d1, d2);
+    }
   }
 }
 

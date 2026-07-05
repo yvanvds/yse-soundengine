@@ -89,3 +89,12 @@ void YSE::MIDI::managerObject::update() {
     ++i;
   }
 }
+
+void YSE::MIDI::managerObject::updatePlayback(int numSamples) {
+  // Audio-thread-owned working list — safe to walk here (same thread that
+  // drains it in update()). Each file advances its own clock and pushes any
+  // events for this block onto its connected synths' inboxes.
+  for (fileImpl* impl : inUse) {
+    impl->advance(numSamples);
+  }
+}

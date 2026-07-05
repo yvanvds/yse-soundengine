@@ -3,21 +3,24 @@
 // Coverage:
 //   - midiMessage base class: getRaw() pointer validity and raw vector properties
 //   - midiNote construction, note/velocity getters/setters, raw byte layout
-//   - midifile lifecycle: construction, create (stub), destruction
+//   - midifile lifecycle: construction, create, destruction
 //   - midifileManager: singleton identity, update(), orphan removal
-//   - MIDI Type-0 fixture: verifies fixture file exists for future parsing tests
+//   - SMF parser (issue #155): decodes the Type-0 fixture into a time-sorted
+//     event list with correct note numbers, velocities and sample times
 //
-// Note: MIDI file parsing (midifileImplementation::create) is currently stubbed;
-// the fixture is committed for future use when parsing is implemented.
-// No engine initialisation is required — the MIDI classes are independent of
-// PortAudio and the audio graph.
+// No engine initialisation is required — the MIDI classes (and the SMF parser)
+// are independent of PortAudio and the audio graph. SAMPLERATE is initialised
+// to 44100 by the device translation unit at static-init time.
 
 #include <doctest/doctest.h>
+#include <cstdint>
+#include <cstdio>
 #include <fstream>
 #include <string>
 #include "midi/midiMessage.hpp"
 #include "midi/midiNote.hpp"
 #include "midi/midifile.hpp"
+#include "midi/midifileImplementation.h"
 #include "midi/midifileManager.h"
 
 TEST_SUITE("midi") {
@@ -120,17 +123,18 @@ TEST_SUITE("midi") {
     { YSE::MIDI::file f; } // ~file() calls pimpl->removeInterface()
   }
 
-  TEST_CASE("midifile: create with any filename returns true (stub)") {
+  TEST_CASE("midifile: create on a missing file returns false") {
     YSE::MIDI::file f;
     bool ok = f.create("nonexistent.mid");
-    CHECK(ok == true);
+    CHECK(ok == false);
   }
 
   TEST_CASE("midifile: multiple file objects can coexist") {
+    const std::string fixture = std::string(YSE_TEST_FIXTURES_DIR) + "/test_type0.mid";
     YSE::MIDI::file a;
     YSE::MIDI::file b;
-    bool ok1 = a.create("a.mid");
-    bool ok2 = b.create("b.mid");
+    bool ok1 = a.create(fixture);
+    bool ok2 = b.create(fixture);
     CHECK(ok1 == true);
     CHECK(ok2 == true);
   }
@@ -151,6 +155,60 @@ TEST_SUITE("midi") {
     // Manager().update() removes that implementation from the forward_list.
     { YSE::MIDI::file f; }
     YSE::MIDI::Manager().update();
+  }
+
+  // ─── SMF parser (issue #155) ─────────────────────────────────────────────────
+
+  TEST_CASE("SMF parser: missing file leaves no events and fails") {
+    YSE::MIDI::fileImpl impl(nullptr);
+    CHECK(impl.create("does-not-exist.mid") == false);
+    CHECK(impl.events().empty());
+  }
+
+  TEST_CASE("SMF parser: Type-0 fixture decodes to a note-on then note-off") {
+    // test_type0.mid: 96 PPQN, 120 BPM tempo meta, note-on C4 vel 127 at tick 0,
+    // note-off C4 at tick 96 (one quarter = 0.5 s), end-of-track.
+    YSE::MIDI::fileImpl impl(nullptr);
+    REQUIRE(impl.create(std::string(YSE_TEST_FIXTURES_DIR) + "/test_type0.mid"));
+
+    const auto& ev = impl.events();
+    REQUIRE(ev.size() == 2);
+
+    // Event 0: note-on, channel 1 (status 0x90), note 60, velocity 127, at t=0.
+    CHECK((ev[0].status & 0xF0) == 0x90);
+    CHECK((ev[0].status & 0x0F) == 0x00);
+    CHECK(ev[0].data1 == 60);
+    CHECK(ev[0].data2 == 127);
+    CHECK(ev[0].sampleTime == 0u);
+
+    // Event 1: note-off (status 0x80), note 60, half a second later.
+    CHECK((ev[1].status & 0xF0) == 0x80);
+    CHECK(ev[1].data1 == 60);
+    // 96 ticks at 96 PPQN, 120 BPM = one quarter note = 0.5 s.
+    CHECK(ev[1].sampleTime == static_cast<uint64_t>(YSE::SAMPLERATE) / 2u);
+  }
+
+  TEST_CASE("SMF parser: events come back sorted by sample time") {
+    YSE::MIDI::fileImpl impl(nullptr);
+    REQUIRE(impl.create(std::string(YSE_TEST_FIXTURES_DIR) + "/test_type0.mid"));
+    const auto& ev = impl.events();
+    for (std::size_t i = 1; i < ev.size(); ++i)
+      CHECK(ev[i - 1].sampleTime <= ev[i].sampleTime);
+  }
+
+  TEST_CASE("SMF parser: garbage data is rejected without crashing") {
+    // A file that exists but is not a valid MIDI file must fail create() (not
+    // crash) and leave the event list empty.
+    const std::string tmp = std::string(YSE_TEST_FIXTURES_DIR) + "/garbage_not_midi.tmp";
+    {
+      std::ofstream out(tmp, std::ios::binary);
+      const char junk[] = "this is definitely not a midi file";
+      out.write(junk, sizeof(junk));
+    }
+    YSE::MIDI::fileImpl impl(nullptr);
+    CHECK(impl.create(tmp) == false);
+    CHECK(impl.events().empty());
+    std::remove(tmp.c_str());
   }
 
   // ─── MIDI fixture existence ───────────────────────────────────────────────────
