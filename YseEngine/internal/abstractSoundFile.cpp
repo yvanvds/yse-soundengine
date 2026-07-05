@@ -292,8 +292,7 @@ Bool YSE::INTERNAL::abstractSoundFile::readNonInterleaved(abstractSoundFile* fil
             out += 16;
 
             // check if we're past the end and readjust position if so
-            if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : len))
-              goto calibrate;
+            if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : len)) goto calibrate;
 
             // since l > 15, the output buffer is not full yet
             goto mainLoop;
@@ -306,8 +305,7 @@ Bool YSE::INTERNAL::abstractSoundFile::readNonInterleaved(abstractSoundFile* fil
               pos += speed;
 
               // check if we're past the end and readjust position if so
-              if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : len))
-                goto calibrate;
+              if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : len)) goto calibrate;
             }
           }
           goto nextBuffer; // this output channel buffer is full if we get here
@@ -320,8 +318,7 @@ Bool YSE::INTERNAL::abstractSoundFile::readNonInterleaved(abstractSoundFile* fil
           *out++ = in[(UInt)pos] * volume;
           pos += speed;
           volume += 0.005f;
-          if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : len))
-            goto calibrate;
+          if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : len)) goto calibrate;
           if ((volume >= 1.f)) {
             // full volume is reached. Move to the optimized version
             volume = 1.f;
@@ -338,8 +335,7 @@ Bool YSE::INTERNAL::abstractSoundFile::readNonInterleaved(abstractSoundFile* fil
           *out++ = in[(UInt)pos] * volume;
           pos += speed;
           volume -= 0.005f;
-          if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : len))
-            goto calibrate;
+          if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : len)) goto calibrate;
           if ((volume <= 0.f)) {
             // fade out complete, switch intent to paused and restart
             // The rest of the buffer will be filled with zeroes
@@ -357,8 +353,7 @@ Bool YSE::INTERNAL::abstractSoundFile::readNonInterleaved(abstractSoundFile* fil
           *out++ = in[(UInt)pos] * volume;
           pos += speed;
           volume -= 0.005f;
-          if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : len))
-            goto calibrate;
+          if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : len)) goto calibrate;
           if ((volume <= 0.f)) {
             // fade out complete, switch intent to stopped and restart
             // The rest of the buffer will be filled with zeroes
@@ -551,10 +546,9 @@ Bool YSE::INTERNAL::abstractSoundFile::readInterleaved(
         x++;
 
         if (pos < 0 ||
-            pos >= (file->_streaming
-                        ? streamEnd
-                        : len)) { // NOSONAR S134: nesting follows the state-machine
-                                            // structure documented at function level
+            pos >= (file->_streaming ? streamEnd
+                                     : len)) { // NOSONAR S134: nesting follows the state-machine
+                                               // structure documented at function level
           goto calibrate;
         }
       }
