@@ -22,6 +22,7 @@
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <string>
 #include <thread>
 #include <vector>
@@ -99,6 +100,61 @@ namespace {
   }
 
   const long S = static_cast<long>(YSE::STREAM_BUFFERSIZE); // 44100
+
+  // Minimal in-memory backend for abstractSoundFile so the stale-generation
+  // race of issue #283 can be reproduced deterministically. The production
+  // publication protocol (abstractSoundFile::fillBackBuffer) is exercised
+  // unchanged; only the blocking disk fill is replaced by an emulated file
+  // handle, with a hook at the exact interleaving point: after fillBackBuffer()
+  // captured the fill generation, before the fill consumes the reset flag —
+  // where the audio thread's reset()/seek() races in.
+  class staleGenFile : public YSE::INTERNAL::abstractSoundFile {
+  public:
+    staleGenFile() : abstractSoundFile("stale-gen-probe", true) {
+      _length = 10 * static_cast<int>(S); // so seek() targets aren't clamped
+    }
+    void loadStreaming() override {}
+    void loadNonStreaming() override {}
+
+    std::function<void()> onFillStart; // runs once, at the race point
+    Long handlePos = S; // emulated handle position (front buffer 0 already read)
+    Long lastFillStart = -1; // where the most recent fill read from
+    int seeks = 0;
+
+    UInt fillBuffer(Flt* /*dest*/, Bool /*loop*/) override {
+      if (onFillStart) {
+        auto hook = std::move(onFillStart);
+        onFillStart = nullptr;
+        hook();
+      }
+      // Mirror the production backend's reset handling (lsfSoundfile.cpp).
+      if (_needsReset.exchange(false, std::memory_order_relaxed)) {
+        handlePos = _seekTarget.load(std::memory_order_relaxed);
+        ++seeks;
+      }
+      lastFillStart = handlePos;
+      handlePos += S;
+      return YSE::STREAM_BUFFERSIZE;
+    }
+
+    // Drive one back-buffer fill the way the slow pool does: requestRefill()
+    // marks the refill in flight before the job runs fillBackBuffer().
+    void runFill() {
+      _refillInFlight.store(true, std::memory_order_relaxed);
+      fillBackBuffer();
+    }
+
+    bool needsReset() {
+      return _needsReset.load(std::memory_order_relaxed);
+    }
+    bool backIsStale() {
+      return _backGen.load(std::memory_order_relaxed) != _fillGen.load(std::memory_order_relaxed);
+    }
+    // What streamSwap does with a stale-generation back buffer: discard it.
+    void discardStaleBack() {
+      _backReady.store(false, std::memory_order_relaxed);
+    }
+  };
 
 } // namespace
 
@@ -394,6 +450,49 @@ TEST_SUITE("sound") {
     }
 
     CHECK(soundFile::liveInstances() == baseline);
+  }
+
+  // 9. Issue #283 regression: a stop (reset) that lands after an in-flight fill
+  //    captured its generation but before that fill consumed the reset flag must
+  //    not be swallowed. The stale fill's output is (rightly) discarded, so the
+  //    reset must be re-armed for the accepted fill — otherwise the restart
+  //    resumes STREAM_BUFFERSIZE frames late. Reproduced deterministically with
+  //    an in-memory backend; no engine or slow pool involved.
+  TEST_CASE("streaming: reset consumed by a stale-generation fill is re-armed (issue #283)") {
+    staleGenFile f;
+
+    // F1 starts; the audio thread's stop lands at the race point.
+    f.onFillStart = [&f] { f.reset(); };
+    f.runFill(); // F1
+    CHECK(f.seeks == 1); // F1 consumed the reset and seeked to 0...
+    CHECK(f.lastFillStart == 0);
+    REQUIRE(f.backIsStale()); // ...but its output is stale-tagged
+    f.discardStaleBack(); // and streamSwap discards it
+
+    // The reset must have been re-armed so the accepted fill F2 seeks again.
+    CHECK(f.needsReset()); // without the fix: false (F1 swallowed the reset)
+    f.runFill(); // F2 — the fill whose output is accepted
+    CHECK(f.lastFillStart == 0); // without the fix: S (wrong file position)
+    CHECK_FALSE(f.backIsStale());
+  }
+
+  // 10. Same interleaving with a non-zero seek target (the issue-#217 path):
+  //     the re-armed reset must land the accepted fill on the requested frame,
+  //     since _seekTarget is not consumed by the reset exchange.
+  TEST_CASE("streaming: seek consumed by a stale-generation fill is re-armed (issue #283)") {
+    staleGenFile f;
+
+    const Long target = 4321;
+    f.onFillStart = [&f, target] { f.seek(target, false); };
+    f.runFill(); // F1 — consumes the seek, output stale-tagged
+    CHECK(f.lastFillStart == target);
+    REQUIRE(f.backIsStale());
+    f.discardStaleBack();
+
+    CHECK(f.needsReset()); // re-armed; _seekTarget still holds `target`
+    f.runFill(); // F2
+    CHECK(f.lastFillStart == target); // without the fix: target + S
+    CHECK_FALSE(f.backIsStale());
   }
 
 } // TEST_SUITE("sound")

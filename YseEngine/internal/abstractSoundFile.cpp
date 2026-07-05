@@ -98,6 +98,32 @@ void YSE::INTERNAL::abstractSoundFile::requestRefill(Bool loop) {
   }
 }
 
+void YSE::INTERNAL::abstractSoundFile::fillBackBuffer() {
+  Bool loop = _streamLoop.load(std::memory_order_relaxed);
+  // Tag this fill with the generation observed at the start. reset() (on stop)
+  // and seek() bump _fillGen, so the audio thread discards a fill that began
+  // before the stop/seek instead of playing its stale position (issue #185).
+  uint32_t gen = _fillGen.load(std::memory_order_acquire);
+  UInt valid = fillBuffer(_iBufferBack, loop);
+  // If a reset()/seek() landed while this fill ran, the fill may have consumed
+  // the reset flag (seeked the handle and filled from the target) even though
+  // its output is tagged with the old generation and will be discarded by
+  // streamSwap. Re-arm the reset so the *accepted* fill seeks to the latest
+  // _seekTarget instead of resuming at this fill's end position (issue #283).
+  // Re-arming is idempotent: the exchange in fillBuffer does not consume
+  // _seekTarget, so the worst case is an extra seek to the already-armed target.
+  if (_fillGen.load(std::memory_order_acquire) != gen) {
+    _needsReset.store(true, std::memory_order_relaxed);
+  }
+  // Publish: these are read by the audio thread after its acquire load of
+  // _backReady, so the release store below makes them visible.
+  _backValidFrames.store((Long)valid, std::memory_order_relaxed);
+  _backTerminal.store(valid < STREAM_BUFFERSIZE, std::memory_order_relaxed);
+  _backGen.store(gen, std::memory_order_relaxed);
+  _backReady.store(true, std::memory_order_release);
+  _refillInFlight.store(false, std::memory_order_relaxed);
+}
+
 Bool YSE::INTERNAL::abstractSoundFile::readNonInterleaved(abstractSoundFile* file,
                                                           std::vector<DSP::buffer>& filebuffer,
                                                           Flt& pos, UInt length, Flt speed,

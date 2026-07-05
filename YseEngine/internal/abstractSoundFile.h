@@ -113,9 +113,18 @@ namespace YSE {
       // helper (called from the audio thread's read()) makes sure exactly one
       // refill of the back buffer is scheduled on the slow pool.
       void requestRefill(Bool loop);
-      // Fill the back buffer from disk. Runs on the slow pool via _refillJob;
-      // must never be called on the audio thread. Implemented by the backend.
-      virtual void fillBackBuffer() = 0;
+      // Fill the back buffer from disk and publish it to the audio thread. Runs
+      // on the slow pool via _refillJob; must never be called on the audio
+      // thread. The generation-tagged publication protocol (issue #185) and the
+      // reset re-arm (issue #283) live here in the base; the actual disk fill is
+      // the backend's fillBuffer().
+      void fillBackBuffer();
+      // Backend disk fill: write up to STREAM_BUFFERSIZE frames into `dest` from
+      // the current stream position, honoring _needsReset/_seekTarget and the
+      // loop flag, zero-padding the tail at non-loop EOF. Returns the number of
+      // real (non-padded) frames written. Does blocking disk I/O — slow pool /
+      // load only, never the audio thread (issue #185).
+      virtual UInt fillBuffer(Flt* dest, Bool loop) = 0;
 
       // Slow-pool job that drives fillBackBuffer() for this file. A dedicated job
       // (rather than reusing the abstractSoundFile load job) is required: the load

@@ -42,12 +42,9 @@ namespace YSE {
       // position, zero-padding the tail at non-loop EOF. Returns the number of
       // real (non-padded) frames written (== STREAM_BUFFERSIZE unless EOF was hit
       // without looping). Does blocking disk I/O — slow pool / load only, never
-      // the audio thread (issue #185).
-      UInt fillBuffer(Flt* dest, Bool loop);
-
-      // Slow-pool entry point: refill the back buffer and publish it. Overrides
-      // the base hook driven by _refillJob.
-      void fillBackBuffer() override;
+      // the audio thread (issue #185). Called by the base's fillBackBuffer(),
+      // which owns the generation-tagged publication (issues #185/#283).
+      UInt fillBuffer(Flt* dest, Bool loop) override;
 
       SndfileHandle* handle;
     };

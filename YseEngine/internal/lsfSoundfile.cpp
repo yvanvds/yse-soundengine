@@ -155,20 +155,4 @@ UInt YSE::INTERNAL::soundFile::fillBuffer(Flt* dest, Bool loop) {
   return STREAM_BUFFERSIZE;
 }
 
-void YSE::INTERNAL::soundFile::fillBackBuffer() {
-  Bool loop = _streamLoop.load(std::memory_order_relaxed);
-  // Tag this fill with the generation observed at the start. reset() (on stop)
-  // bumps _fillGen, so the audio thread discards a fill that began before the
-  // stop instead of playing its stale position on restart (issue #185).
-  uint32_t gen = _fillGen.load(std::memory_order_acquire);
-  UInt valid = fillBuffer(_iBufferBack, loop);
-  // Publish: these are read by the audio thread after its acquire load of
-  // _backReady, so the release store below makes them visible.
-  _backValidFrames.store((Long)valid, std::memory_order_relaxed);
-  _backTerminal.store(valid < STREAM_BUFFERSIZE, std::memory_order_relaxed);
-  _backGen.store(gen, std::memory_order_relaxed);
-  _backReady.store(true, std::memory_order_release);
-  _refillInFlight.store(false, std::memory_order_relaxed);
-}
-
 #endif // LIBSOUNDFILE_BACKEND
