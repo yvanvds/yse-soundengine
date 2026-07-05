@@ -803,37 +803,43 @@ void YSE::SOUND::implementationObject::dspFunc_parseIntent() {
   headIntent = SI_NONE;
 }
 
-void YSE::SOUND::implementationObject::dspFunc_calculateGain(Int channel, Int source,
-                                                             Flt finalGain) {
-  if (lastGain[channel][source] == finalGain) {
-    channelBuffer *= (finalGain);
+void YSE::SOUND::implementationObject::gainAccumulate(const Flt* src, const Flt* fader, Flt* dest,
+                                                      UInt length, Flt& lastGain, Flt finalGain) {
+  // Fast path: gain unchanged since the last block -> flat multiply, no ramp and
+  // no state write (mirrors the old dspFunc_calculateGain early-out). Per sample:
+  // dest[i] += (src[i] * finalGain) * fader[i] — the exact operation tree the old
+  // copy -> *gain -> *fader -> += sequence produced, so the result is bit-identical.
+  if (lastGain == finalGain) {
+    for (UInt i = 0; i < length; i++) {
+      Flt v = src[i] * finalGain;
+      v *= fader[i];
+      dest[i] += v;
+    }
     return;
   }
 
-  Flt length = 50;
-  Clamp(length, 1.f, static_cast<Flt>(channelBuffer.getLength()));
-  Flt step = (finalGain - lastGain[channel][source]) / length;
-  Flt multiplier = lastGain[channel][source];
-  Flt* ptr = channelBuffer.getPtr();
-  for (UInt i = 0; i < length; i++) {
-    *ptr++ *= (multiplier);
+  // Ramp the gain from lastGain to finalGain over the first `rampLen` samples,
+  // then hold finalGain. The multiplier sequence (start, step, running +=) is
+  // identical to the old ramp, so every g[i] is bit-identical; folding the fader
+  // multiply and the accumulate into the same pass keeps the rounding order.
+  Flt rampLen = 50;
+  Clamp(rampLen, 1.f, static_cast<Flt>(length));
+  Flt step = (finalGain - lastGain) / rampLen;
+  Flt multiplier = lastGain;
+  UInt i = 0;
+  UInt ramp = static_cast<UInt>(rampLen);
+  for (; i < ramp; i++) {
+    Flt v = src[i] * multiplier;
+    v *= fader[i];
+    dest[i] += v;
     multiplier += step;
   }
-  UInt leftOvers = channelBuffer.getLength() - (UInt)length;
-  for (; leftOvers > 7; leftOvers -= 8, ptr += 8) {
-    ptr[0] *= finalGain;
-    ptr[1] *= finalGain;
-    ptr[2] *= finalGain;
-    ptr[3] *= finalGain;
-    ptr[4] *= finalGain;
-    ptr[5] *= finalGain;
-    ptr[6] *= finalGain;
-    ptr[7] *= finalGain;
+  for (; i < length; i++) {
+    Flt v = src[i] * finalGain;
+    v *= fader[i];
+    dest[i] += v;
   }
-
-  while (leftOvers--)
-    *ptr++ *= finalGain;
-  lastGain[channel][source] = finalGain;
+  lastGain = finalGain;
 }
 
 void YSE::SOUND::implementationObject::computeFinalGains() {
@@ -912,20 +918,30 @@ void YSE::SOUND::implementationObject::toChannels() {
     gainDirty = false;
   }
 
+  // The fader is a per-sample ramp block shared by every speaker and every
+  // source channel this block, so its pointer is fetched once. Previously the
+  // fader was applied as its own full-buffer pass per (source, speaker); it is
+  // now folded into the single MAC pass below (issue #213).
+  const Flt* faderPtr = fader().getPtr();
+
   for (UInt x = 0; x < buffer->size(); x++) {
+    // Read the source channel in place — no per-speaker copy. The old loop
+    // copied (*buffer)[x] into a scratch buffer for every speaker just so the
+    // in-place gain multiply had somewhere to write; the fused MAC reads the
+    // pristine source and accumulates straight into each output (issue #213).
+    const Flt* src = (*buffer)[x].getPtr();
+    UInt length = (*buffer)[x].getLength();
     for (UInt j = 0; j < parent->out.size(); ++j) {
       if (parent->outConf[j].isLFE) continue; // leave the LFE buffer silent
       Flt finalGain = finalGainCache[j][x];
-      // Farewell block for a sound going virtual (#206): target gain 0 so
-      // dspFunc_calculateGain() ramps from lastGain down to silence instead of
-      // the sound simply vanishing on the next (skipped) block. This is a
-      // per-block override, so it is applied on the cached value here rather
-      // than folded into computeFinalGains().
+      // Farewell block for a sound going virtual (#206): target gain 0 so the
+      // smoothing ramp glides from lastGain down to silence instead of the sound
+      // simply vanishing on the next (skipped) block. This is a per-block
+      // override, so it is applied on the cached value here rather than folded
+      // into computeFinalGains().
       if (virtualFadeOut) finalGain = 0.f;
-      channelBuffer = (*buffer)[x];
-      dspFunc_calculateGain(j, x, finalGain);
-      channelBuffer *= fader();
-      parent->out[j] += channelBuffer;
+      // Single fused pass: out[j][i] += (src[i] * gainRamp[i]) * fader[i].
+      gainAccumulate(src, faderPtr, parent->out[j].getPtr(), length, lastGain[j][x], finalGain);
     }
   }
 }

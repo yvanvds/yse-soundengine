@@ -817,6 +817,128 @@ TEST_SUITE("sound") {
     }
   }
 
+  // ─── Fused gain multiply-accumulate: bit-identical to the old passes (#213) ──
+  //
+  // toChannels() used to mix each (source channel, speaker) pair with four full
+  // buffer passes: copy the source into scratch, ramp-multiply the scratch by the
+  // per-speaker gain (dspFunc_calculateGain), multiply the scratch by the
+  // per-sample fader block, then accumulate into the output. Issue #213 fuses
+  // those into one scaled multiply-accumulate pass, gainAccumulate():
+  //
+  //     dest[i] += (src[i] * gainRamp[i]) * fader[i]
+  //
+  // This is a pure performance change — the mixed output and the latched lastGain
+  // must be bit-for-bit what the old four-pass sequence produced. The operation
+  // tree (which products round in which order) is preserved deliberately, so the
+  // equality below is exact (`==`), not an epsilon Approx. `oldPasses` below is a
+  // faithful transcription of the removed code path; each case pins one property
+  // the fusion could have broken: the no-change fast path, a rising ramp, a
+  // falling ramp to silence (the #206 farewell block), a buffer shorter than the
+  // 50-sample ramp (the Clamp branch), and accumulation on top of existing
+  // output (the mix is additive, not a store).
+  TEST_CASE("gainAccumulate: fused MAC is bit-identical to the old four-pass mix (#213)") {
+    using Impl = YSE::SOUND::implementationObject;
+
+    // Faithful transcription of the pre-#213 path: copy -> dspFunc_calculateGain
+    // ramp -> *fader -> += out. Returns the resulting lastGain via reference.
+    auto oldPasses = [](const std::vector<float>& src, const std::vector<float>& fader,
+                        std::vector<float>& out, float& lastGain, float finalGain) {
+      const UInt len = static_cast<UInt>(src.size());
+      std::vector<float> tmp = src; // pass 1: copy
+      if (lastGain == finalGain) { // dspFunc_calculateGain fast path
+        for (UInt i = 0; i < len; i++)
+          tmp[i] *= finalGain; // pass 2 (flat)
+      } else {
+        float length = 50.f;
+        if (length < 1.f) length = 1.f;
+        if (length > static_cast<float>(len)) length = static_cast<float>(len);
+        const float step = (finalGain - lastGain) / length;
+        float mult = lastGain;
+        UInt i = 0;
+        const UInt ramp = static_cast<UInt>(length);
+        for (; i < ramp; i++) { // pass 2: ramp
+          tmp[i] *= mult;
+          mult += step;
+        }
+        for (; i < len; i++)
+          tmp[i] *= finalGain; // pass 2: tail
+        lastGain = finalGain;
+      }
+      for (UInt i = 0; i < len; i++)
+        tmp[i] *= fader[i]; // pass 3: fader block
+      for (UInt i = 0; i < len; i++)
+        out[i] += tmp[i]; // pass 4: accumulate
+    };
+
+    // A source block, a non-trivial per-sample fader ramp, and a non-zero output
+    // preload (so the additive accumulate is actually exercised).
+    const UInt len = 128;
+    std::vector<float> src(len), fader(len), outSeed(len);
+    for (UInt i = 0; i < len; i++) {
+      src[i] = std::sin(0.13f * i) * 0.7f - 0.2f;
+      fader[i] = 0.3f + 0.5f * (static_cast<float>(i) / len); // fade-in style ramp
+      outSeed[i] = std::cos(0.07f * i) * 0.4f; // pre-existing mix content
+    }
+
+    struct Scenario {
+      const char* name;
+      float lastGain;
+      float finalGain;
+    };
+    const Scenario scenarios[] = {
+        {"unchanged gain (fast path)", 0.6f, 0.6f},
+        {"rising ramp", 0.2f, 0.9f},
+        {"falling ramp to silence (#206 farewell)", 0.8f, 0.0f},
+        {"tiny step", 0.5f, 0.5000001f},
+    };
+
+    for (const auto& sc : scenarios) {
+      CAPTURE(sc.name);
+      std::vector<float> outNew = outSeed, outOld = outSeed;
+      float lastNew = sc.lastGain, lastOld = sc.lastGain;
+
+      Impl::gainAccumulate(src.data(), fader.data(), outNew.data(), len, lastNew, sc.finalGain);
+      oldPasses(src, fader, outOld, lastOld, sc.finalGain);
+
+      for (UInt i = 0; i < len; i++) {
+        CAPTURE(i);
+        CHECK(outNew[i] == outOld[i]); // bit-for-bit, not Approx
+      }
+      CHECK(lastNew == lastOld); // latched gain state matches exactly
+    }
+
+    // Buffer shorter than the 50-sample ramp: exercises the Clamp(length, 1, len)
+    // branch so the whole block ramps and none of it holds finalGain.
+    {
+      const UInt shortLen = 16;
+      std::vector<float> ssrc(shortLen), sfad(shortLen), oNew(shortLen, 0.f), oOld(shortLen, 0.f);
+      for (UInt i = 0; i < shortLen; i++) {
+        ssrc[i] = 0.5f - 0.03f * i;
+        sfad[i] = 1.0f;
+      }
+      float lNew = 0.1f, lOld = 0.1f;
+      Impl::gainAccumulate(ssrc.data(), sfad.data(), oNew.data(), shortLen, lNew, 0.9f);
+      oldPasses(ssrc, sfad, oOld, lOld, 0.9f);
+      for (UInt i = 0; i < shortLen; i++) {
+        CAPTURE(i);
+        CHECK(oNew[i] == oOld[i]);
+      }
+      CHECK(lNew == lOld);
+    }
+
+    // The fast path must NOT advance lastGain (it is already equal); the ramp path
+    // must latch it to finalGain. Pin both so a future edit can't silently drop
+    // the state write the smoothing ramp depends on across blocks.
+    {
+      std::vector<float> s(4, 1.f), f(4, 1.f), o(4, 0.f);
+      float latched = 0.42f;
+      Impl::gainAccumulate(s.data(), f.data(), o.data(), 4, latched, 0.42f);
+      CHECK(latched == 0.42f); // unchanged
+      Impl::gainAccumulate(s.data(), f.data(), o.data(), 4, latched, 0.77f);
+      CHECK(latched == 0.77f); // advanced by the ramp path
+    }
+  }
+
   // ─── Source-angle mapping: relative vs world frame (#204) ───────────────────
   //
   // Regression tests for the left↔right mirror in the relative / pan2D pan path.
