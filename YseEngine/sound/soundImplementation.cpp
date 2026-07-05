@@ -262,6 +262,19 @@ bool YSE::SOUND::implementationObject::create(DSP::dspSourceObject& ptr, channel
 
 bool YSE::SOUND::implementationObject::create(PATCHER::patcherImplementation* ptr, channel* ch,
                                               float volume) {
+  // Enforce one-patcher-per-sound (issue #287). A patcher already owned by a
+  // sound must not back a second one: two sounds sharing a patcher would call
+  // Calculate() concurrently on two render threads, corrupting the graph state
+  // and breaking the #227 epoch-reclaim proof (use-after-free / heap
+  // corruption). Refuse rather than let user API misuse become a crash. A null
+  // impl (patcher never create()-d) is rejected here too, before the
+  // controlledBySound read that would otherwise dereference it.
+  if (ptr == nullptr || ptr->controlledBySound) {
+    INTERNAL::LogImpl().emit(
+        E_ERROR, "sound: patcher is already controlled by another sound (one patcher per sound)");
+    return false;
+  }
+
   parent = ch->pimpl;
   looping = false;
   fader.set(volume);
