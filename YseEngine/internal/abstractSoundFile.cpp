@@ -26,6 +26,7 @@ YSE::INTERNAL::abstractSoundFile::abstractSoundFile(bool interleaved)
     _multiChannelBuffer(nullptr),
     state(NEW),
     _sampleRateAdjustment(1.f),
+    _length(0),
     _channels(0),
     _needsReset(false),
     _frontBufferBase(0),
@@ -59,6 +60,12 @@ Bool YSE::INTERNAL::abstractSoundFile::create(Bool stream) {
     _streaming = false;
     _endReached = false;
     _needsReset = false;
+    // Publish the source length once, here on the (single-threaded) create path.
+    // The audio-thread read() no longer writes _length, so a buffer-backed file
+    // shared across sounds (addFile dedups by buffer pointer) is free of the
+    // formal data race that concurrent render-thread writes would create
+    // (issue #286).
+    _length = (Int)_audioBuffer->getLength();
     state = READY;
     return true;
   }
@@ -168,14 +175,20 @@ Bool YSE::INTERNAL::abstractSoundFile::readNonInterleaved(abstractSoundFile* fil
     Flt* out = filebuffer[i].getPtr();
     const Flt* in;
 
+    // Read the source length into a local; never write the shared member from
+    // this render-thread path (issue #286). _length is published once at
+    // create/load time. The multichannel source length is per-channel, so it is
+    // resolved inside this FOREACH iteration.
+    Int len;
     if (file->_audioBuffer) {
       in = file->_audioBuffer->getPtr();
-      file->_length = file->_audioBuffer->getLength();
+      len = (Int)file->_audioBuffer->getLength();
     } else if (file->_multiChannelBuffer) {
       in = file->_multiChannelBuffer->at(i).getPtr();
-      file->_length = file->_multiChannelBuffer->at(i).getLength();
+      len = (Int)file->_multiChannelBuffer->at(i).getLength();
     } else {
       in = file->_buffer[i];
+      len = file->_length;
     }
 
     UInt l = length;
@@ -227,12 +240,12 @@ Bool YSE::INTERNAL::abstractSoundFile::readNonInterleaved(abstractSoundFile* fil
         // if playing forward and we're past the end of the soundFile in
         // less than 16 steps, move one by one
         else if ((speed > 0) &&
-                 ((pos + speed * 16) >= (file->_streaming ? STREAM_BUFFERSIZE : file->_length))) {
+                 ((pos + speed * 16) >= (file->_streaming ? STREAM_BUFFERSIZE : len))) {
           while (l--) {
             *out++ = in[(UInt)pos];
             pos += speed;
             // check if we're past the end and readjust position if so
-            if (pos >= (file->_streaming ? STREAM_BUFFERSIZE : file->_length)) goto calibrate;
+            if (pos >= (file->_streaming ? STREAM_BUFFERSIZE : len)) goto calibrate;
           }
           goto nextBuffer; // this output channel buffer is full if we get here
         }
@@ -279,7 +292,7 @@ Bool YSE::INTERNAL::abstractSoundFile::readNonInterleaved(abstractSoundFile* fil
             out += 16;
 
             // check if we're past the end and readjust position if so
-            if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : file->_length))
+            if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : len))
               goto calibrate;
 
             // since l > 15, the output buffer is not full yet
@@ -293,7 +306,7 @@ Bool YSE::INTERNAL::abstractSoundFile::readNonInterleaved(abstractSoundFile* fil
               pos += speed;
 
               // check if we're past the end and readjust position if so
-              if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : file->_length))
+              if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : len))
                 goto calibrate;
             }
           }
@@ -307,7 +320,7 @@ Bool YSE::INTERNAL::abstractSoundFile::readNonInterleaved(abstractSoundFile* fil
           *out++ = in[(UInt)pos] * volume;
           pos += speed;
           volume += 0.005f;
-          if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : file->_length))
+          if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : len))
             goto calibrate;
           if ((volume >= 1.f)) {
             // full volume is reached. Move to the optimized version
@@ -325,7 +338,7 @@ Bool YSE::INTERNAL::abstractSoundFile::readNonInterleaved(abstractSoundFile* fil
           *out++ = in[(UInt)pos] * volume;
           pos += speed;
           volume -= 0.005f;
-          if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : file->_length))
+          if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : len))
             goto calibrate;
           if ((volume <= 0.f)) {
             // fade out complete, switch intent to paused and restart
@@ -344,7 +357,7 @@ Bool YSE::INTERNAL::abstractSoundFile::readNonInterleaved(abstractSoundFile* fil
           *out++ = in[(UInt)pos] * volume;
           pos += speed;
           volume -= 0.005f;
-          if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : file->_length))
+          if (pos < 0 || pos >= (file->_streaming ? STREAM_BUFFERSIZE : len))
             goto calibrate;
           if ((volume <= 0.f)) {
             // fade out complete, switch intent to stopped and restart
@@ -362,11 +375,11 @@ Bool YSE::INTERNAL::abstractSoundFile::readNonInterleaved(abstractSoundFile* fil
       // recalibrate position now. We can't simply set it to the end
       // or the beginning because this won't work with speed <> 1
       while (pos < 0)
-        pos += file->_length; // looping backwards
-      if (pos >= file->_length) {
+        pos += len; // looping backwards
+      if (pos >= len) {
         if (loop)
-          while (pos >= file->_length)
-            pos -= file->_length;
+          while (pos >= len)
+            pos -= len;
         else {
           // if no loop, fill the rest of the buffer with zero's
           pos = 0;
@@ -457,7 +470,7 @@ Bool YSE::INTERNAL::abstractSoundFile::readInterleaved(
 
   // For streaming, `pos` is buffer-local in [0, streamEnd) where streamEnd is the
   // count of real frames in the current front buffer (issue #185). For other
-  // sources the per-sample checks below use file->_length directly.
+  // sources the per-sample checks below use the local `len` (issue #286).
   Flt streamEnd = (Flt)file->_frontValidFrames;
 
   if (file->_streaming) {
@@ -502,11 +515,16 @@ Bool YSE::INTERNAL::abstractSoundFile::readInterleaved(
 
     const Flt* in;
 
+    // Read the source length into a local; never write the shared member from
+    // this render-thread path (issue #286). _length is published once at
+    // create/load time.
+    Int len;
     if (file->_audioBuffer) {
       in = file->_audioBuffer->getPtr();
-      file->_length = file->_audioBuffer->getLength();
+      len = (Int)file->_audioBuffer->getLength();
     } else {
       in = file->_iBuffer;
+      len = file->_length;
     }
 
   startAgain:
@@ -535,7 +553,7 @@ Bool YSE::INTERNAL::abstractSoundFile::readInterleaved(
         if (pos < 0 ||
             pos >= (file->_streaming
                         ? streamEnd
-                        : file->_length)) { // NOSONAR S134: nesting follows the state-machine
+                        : len)) { // NOSONAR S134: nesting follows the state-machine
                                             // structure documented at function level
           goto calibrate;
         }
@@ -551,7 +569,7 @@ Bool YSE::INTERNAL::abstractSoundFile::readInterleaved(
         volume += 0.005f;
         x++;
 
-        if (pos < 0 || pos >= (file->_streaming ? streamEnd : file->_length)) goto calibrate;
+        if (pos < 0 || pos >= (file->_streaming ? streamEnd : len)) goto calibrate;
 
         if ((volume >= 1.f)) {
           // full volume is reached. Move to the optimized version
@@ -571,7 +589,7 @@ Bool YSE::INTERNAL::abstractSoundFile::readInterleaved(
         volume -= 0.005f;
         x++;
 
-        if (pos < 0 || pos >= (file->_streaming ? streamEnd : file->_length)) goto calibrate;
+        if (pos < 0 || pos >= (file->_streaming ? streamEnd : len)) goto calibrate;
 
         if ((volume <= 0.f)) {
           // fade out complete, switch intent to paused and restart
@@ -592,7 +610,7 @@ Bool YSE::INTERNAL::abstractSoundFile::readInterleaved(
         volume -= 0.005f;
         x++;
 
-        if (pos < 0 || pos >= (file->_streaming ? streamEnd : file->_length)) goto calibrate;
+        if (pos < 0 || pos >= (file->_streaming ? streamEnd : len)) goto calibrate;
 
         if ((volume <= 0.f)) {
           // fade out complete, switch intent to paused and restart
@@ -636,11 +654,11 @@ Bool YSE::INTERNAL::abstractSoundFile::readInterleaved(
       // recalibrate position now. We can't simply set it to the end
       // or the beginning because this won't work with speed <> 1
       while (pos < 0)
-        pos += file->_length; // looping backwards
-      if (pos >= file->_length) {
+        pos += len; // looping backwards
+      if (pos >= len) {
         if (loop)
-          while (pos >= file->_length)
-            pos -= file->_length;
+          while (pos >= len)
+            pos -= len;
         else {
           // if no loop, fill the rest of the buffer with zero's
           pos = 0;

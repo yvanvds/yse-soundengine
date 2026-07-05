@@ -50,6 +50,7 @@ set(YSE_TEST_SOURCES
   channel/test_channel_layout.cpp
   sound/test_sound_state.cpp
   sound/test_sound_streaming.cpp
+  sound/test_sound_bufferrace.cpp
   sound/test_sound_impl.cpp
   sound/test_sound_concurrency.cpp
   sound/test_sound_bufferIO.cpp
@@ -128,6 +129,12 @@ target_link_libraries(yse_tests
 # gated behind LIBSOUNDFILE_BACKEND (defined PRIVATE on yse_objects). Enable the
 # gate for just this one TU so the rest of the suite is unaffected (issue #185).
 set_source_files_properties(sound/test_sound_streaming.cpp PROPERTIES
+  COMPILE_DEFINITIONS LIBSOUNDFILE_BACKEND
+)
+
+# test_sound_bufferrace.cpp also drives INTERNAL::soundFile directly (the
+# DSP::buffer-backed read path, issue #286), so it needs the same gate enabled.
+set_source_files_properties(sound/test_sound_bufferrace.cpp PROPERTIES
   COMPILE_DEFINITIONS LIBSOUNDFILE_BACKEND
 )
 
