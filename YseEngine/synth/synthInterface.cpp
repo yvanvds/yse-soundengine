@@ -83,6 +83,77 @@ namespace YSE {
       return *this;
     }
 
+    interfaceObject& interfaceObject::pitchWheel(int channel, float value) {
+      if (pimpl == nullptr) return *this;
+      messageObject m;
+      m.ID = PITCH_WHEEL;
+      m.wheel.channel = channel;
+      m.wheel.value = value;
+      pimpl->sendMessage(m);
+      return *this;
+    }
+
+    interfaceObject& interfaceObject::controller(int channel, int number, float value) {
+      if (pimpl == nullptr) return *this;
+      messageObject m;
+      m.ID = CONTROLLER;
+      m.cc.channel = channel;
+      m.cc.number = number;
+      m.cc.value = value;
+      pimpl->sendMessage(m);
+      return *this;
+    }
+
+    interfaceObject& interfaceObject::aftertouch(int channel, int noteNumber, float value) {
+      if (pimpl == nullptr) return *this;
+      messageObject m;
+      m.ID = AFTERTOUCH;
+      m.touch.channel = channel;
+      m.touch.note = noteNumber;
+      m.touch.value = value;
+      pimpl->sendMessage(m);
+      return *this;
+    }
+
+    interfaceObject& interfaceObject::sustain(int channel, bool down) {
+      if (pimpl == nullptr) return *this;
+      messageObject m;
+      m.ID = SUSTAIN;
+      m.pedal.channel = channel;
+      m.pedal.down = down;
+      pimpl->sendMessage(m);
+      return *this;
+    }
+
+    interfaceObject& interfaceObject::sostenuto(int channel, bool down) {
+      if (pimpl == nullptr) return *this;
+      messageObject m;
+      m.ID = SOSTENUTO;
+      m.pedal.channel = channel;
+      m.pedal.down = down;
+      pimpl->sendMessage(m);
+      return *this;
+    }
+
+    interfaceObject& interfaceObject::softPedal(int channel, bool down) {
+      if (pimpl == nullptr) return *this;
+      messageObject m;
+      m.ID = SOFTPEDAL;
+      m.pedal.channel = channel;
+      m.pedal.down = down;
+      pimpl->sendMessage(m);
+      return *this;
+    }
+
+    interfaceObject& interfaceObject::onNoteEvent(void (*func)(bool, float*, float*)) {
+      // The hook is set directly on the impl via an atomic pointer — it never
+      // crosses the message inbox (there is no CALLBACK op). See §7. Safe to
+      // call before create(): with no impl there is nothing to drive yet.
+      if (pimpl == nullptr) return *this;
+      pimpl->setNoteCallback(func);
+      return *this;
+    }
+
     int interfaceObject::getNumVoices() const {
       return pimpl != nullptr ? pimpl->getNumVoices() : 0;
     }

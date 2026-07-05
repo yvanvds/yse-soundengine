@@ -61,6 +61,7 @@ set(YSE_TEST_SOURCES
   sound/test_virtual_finder.cpp
   sound/test_manager_alloc.cpp
   synth/test_synth.cpp
+  synth/test_synth_keyboard.cpp
   synth/test_synth_close.cpp
   reverb/test_reverb_dsp.cpp
   reverb/test_reverb_concurrency.cpp

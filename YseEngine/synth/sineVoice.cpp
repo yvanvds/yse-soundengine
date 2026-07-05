@@ -10,8 +10,15 @@
 
 #include "sineVoice.hpp"
 
+#include <cmath>
+
 namespace YSE {
   namespace SYNTH {
+
+    // Pitch-wheel bend range for the reference voice, in semitones per unit of
+    // wheel deflection. ±1.0 wheel → ±2 semitones — the conventional default
+    // (§5 recommends this for built-in voices; the core does not enforce it).
+    static const Flt kBendRangeSemitones = 2.f;
 
     // Length of the flat sustain plateau built into the envelope, in seconds.
     // The ADSRenvelope holds sustain by looping this constant-value region
@@ -111,6 +118,17 @@ namespace YSE {
         phase = PLAYING;
         intent = SS_PLAYING;
       } else if (intent == SS_WANTSTOSTOP || intent == SS_WANTSTOPAUSE) {
+        if (phase == IDLE) {
+          // Released before it ever attacked — the note-on and note-off drained
+          // in the same audio block, or a pedal / all-notes-off release landed
+          // before the first render. Nothing is sounding, so settle at once:
+          // driving the envelope's RELEASE here would read its phase pointer
+          // before ATTACK ever primed it.
+          intent = (intent == SS_WANTSTOPAUSE) ? SS_PAUSED : SS_STOPPED;
+          for (UInt i = 0; i < samples.size(); i++)
+            samples[i] = 0.f;
+          return;
+        }
         // Note off: take the release transition once, then let it tail out.
         if (phase != RELEASING) {
           estate = DSP::ADSRenvelope::RELEASE;
@@ -128,8 +146,17 @@ namespace YSE {
         return;
       }
 
-      const Flt freq = getFrequency();
       const Flt vel = getVelocity();
+
+      // Apply the channel pitch wheel (delivered by the keyboard state machine,
+      // §5) as an exponential frequency ratio: value 0 leaves the note in tune,
+      // ±1 shifts it ±kBendRangeSemitones. Read once per block — cheap and
+      // allocation-free.
+      const Flt wheel = getPitchWheel();
+      Flt freq = getFrequency();
+      if (wheel != 0.f) {
+        freq *= std::exp2(wheel * kBendRangeSemitones / 12.f);
+      }
 
       DSP::buffer& sig = osc(freq);
       DSP::buffer& amp = (*env)(estate);
