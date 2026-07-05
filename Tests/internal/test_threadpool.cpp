@@ -176,6 +176,27 @@ TEST_SUITE("internal") {
     CHECK(counter.load() == N);
   }
 
+  TEST_CASE("threadPool: activate() on a stopped queued job clears inQueue (issue #285)") {
+    // Regression for issue #285. activate() used to early-return when
+    // shouldStop was set WITHOUT clearing inQueue. join() waits on inQueue
+    // (issue #239), so any future caller that stops a still-queued job and then
+    // joins or destroys it (~threadPoolJob calls join()) would spin forever — on
+    // the audio thread for a channel job. No live caller stops a queued job
+    // today, but the trap was latent. activate() must clear inQueue on every
+    // exit while still not running a stopped job.
+    std::atomic<int> counter{0};
+    CountJob job(&counter);
+
+    job.start(); // inQueue = true, exactly as addJob() would set it
+    CHECK(job.isQueued() == true);
+    job.stop(); // a future stop() caller marks it shouldStop
+    job.activate(); // a worker (or the inline fallback) picks it up
+
+    CHECK(counter.load() == 0); // a stopped job must not run
+    CHECK(job.isQueued() == false); // ...but must leave the queue flag cleared
+    job.join(); // and so join() returns instead of spinning
+  }
+
   TEST_CASE("threadPool: join() help-runs queued render jobs while it waits (issue #284)") {
     // Regression for issue #284. The spin-only join() made the audio
     // callback's completion depend on another thread's progress: with every
