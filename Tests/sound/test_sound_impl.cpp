@@ -64,12 +64,31 @@ namespace {
     void process(std::vector<YSE::DSP::buffer>&) override {}
   };
 
+  // DSP source that emits a constant DC level on every channel. Used by the
+  // gain-cache behavioural test (#212): a constant source makes the per-output
+  // channel peak a direct, block-stable readout of the pan gain, so we can watch
+  // the panner track the source across update ticks. File-scope for the same
+  // lifetime reason as the sources above.
+  struct DcSource : YSE::DSP::dspSourceObject {
+    void process(YSE::SOUND_STATUS& intent) override {
+      for (UInt c = 0; c < samples.size(); ++c) {
+        float* p = samples[c].getPtr();
+        UInt len = samples[c].getLength();
+        for (UInt i = 0; i < len; i++)
+          p[i] = 0.5f;
+      }
+      intent = YSE::SS_PLAYING;
+    }
+    void frequency(float) override {}
+  };
+
   // Shared file-scope instances reused across tests.  These are stateless, so
   // sharing is safe; each test sets the position / volume / etc. it needs.
   SilentSource g_src;
   SilentSource g_srcs[8]; // size = max N used in multi-sound tests below
   NopDsp g_dsp;
   NopDsp g_dsp2;
+  DcSource g_dc;
 
   // Drive SOUND::Manager().update() several times, with short sleeps so the
   // async setupJob has a chance to call setup() on freshly created sounds and
@@ -1153,6 +1172,88 @@ TEST_SUITE("sound") {
     drainSoundManager(20);
     YSE::System().maxSounds(64);
     CHECK(true);
+  }
+
+  // ─── Cached per-sound gain vectors (#212) ────────────────────────────────────
+  //
+  // toChannels() now reads its per-speaker gains from a per-sound cache
+  // (finalGainCache) that computeFinalGains() refills only when an update() tick
+  // sets gainDirty — instead of rerunning the cos/pow/sqrt derivation every
+  // 128-sample block. This is a pure performance change: the output must be
+  // bit-for-bit what the per-block recompute produced. The pure pan math is
+  // pinned by the #202/#210/#211 cases above; this end-to-end case pins the two
+  // properties the caching layer adds, which those pure tests cannot reach:
+  //
+  //   1. The cache is REUSED across blocks within one update tick (a second
+  //      rendered block with no intervening update() must give the identical
+  //      panned level — the cache is neither dropped nor recomputed to garbage).
+  //   2. The cache is INVALIDATED when the source moves (a new update() tick must
+  //      re-pan; a stuck dirty flag would freeze the pan and is exactly the
+  //      regression this optimisation risks).
+  //
+  // A constant-DC source makes each output's per-block peak a direct readout of
+  // its pan gain. Driven device-independently: System().update() flags exactly
+  // one update tick, renderOffline() then runs N blocks against that one tick —
+  // the very 1-tick-per-many-blocks cadence the caching targets. Audio is paused
+  // (engineInit), so the test thread is the sole driver of the render path.
+  TEST_CASE("gain cache: panning is stable per tick and re-pans when the source moves (#212)") {
+    if (!TestHelpers::engineInit()) return;
+
+    // Dedicated child channel so its per-output peak reflects only this sound.
+    YSE::channel ch;
+    ch.create("gaincache212", YSE::ChannelMaster());
+
+    YSE::sound s;
+    s.create(g_dc, &ch);
+    if (!s.isValid()) return;
+    s.relative(true); // angle taken directly from position, listener ignored
+    s.size(10.f); // near field: rolloff clamps to 1, so gains are a clean pan
+    s.pos(YSE::Pos(-5.f, 0.f, 0.f)); // hard left -> output 0 dominates
+    s.play();
+
+    auto leftPeak = [&]() { return ch.getPeakLinearPre(0); };
+    auto rightPeak = [&]() { return ch.getPeakLinearPre(1); };
+    auto audible = [&]() { return leftPeak() > 1e-4f || rightPeak() > 1e-4f; };
+
+    // Pump update+render until the async slow-pool setup promotes the sound and
+    // it mixes real signal. Best-effort with a deadline; if the host never
+    // delivers audio (e.g. no slow pool), there is nothing to assert.
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+    while (std::chrono::steady_clock::now() < deadline && !audible()) {
+      YSE::System().update();
+      YSE::System().renderOffline(2);
+      std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+    if (!audible()) return;
+
+    // Settled hard-left: left output carries the signal, right is ~silent.
+    const float leftL = leftPeak();
+    const float leftR = rightPeak();
+    CHECK(leftL > 0.05f);
+    CHECK(leftR < leftL * 0.1f);
+
+    // (1) Cache REUSE across blocks within one tick. renderOffline(1) twice with
+    // a single update() in between: the second block serves gains from the cache
+    // and must match the first bit-for-bit.
+    YSE::System().update();
+    YSE::System().renderOffline(1);
+    const float blockA = leftPeak();
+    YSE::System().renderOffline(1); // no update() -> cached gains
+    const float blockB = leftPeak();
+    CHECK(blockB == doctest::Approx(blockA));
+    CHECK(blockB > 0.05f);
+
+    // (2) Cache INVALIDATION on movement. Move hard-right and run a fresh tick;
+    // the pan must flip. A stuck gainDirty would leave it panned left.
+    s.pos(YSE::Pos(5.f, 0.f, 0.f));
+    YSE::System().update();
+    YSE::System().renderOffline(2); // >50 samples: smoothing ramp fully settles
+    const float rightL = leftPeak();
+    const float rightR = rightPeak();
+    CHECK(rightR > 0.05f);
+    CHECK(rightL < rightR * 0.1f);
+
+    s.stop();
   }
 
 } // TEST_SUITE("sound")

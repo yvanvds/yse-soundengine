@@ -292,7 +292,18 @@ namespace YSE {
       implementationObject* _channelNext = nullptr;
 
       void dspFunc_parseIntent();
-      void dspFunc_calculateGain(Int channel, Int source);
+      void dspFunc_calculateGain(Int channel, Int source, Flt finalGain);
+
+      /** Recompute the cached per-speaker gain vectors (finalGainCache) from the
+          current pan inputs (angle / distance / spread / horizFraction / size /
+          occlusion + speaker geometry). The full cardioid-pan + normalisation +
+          rolloff derivation (cos/pow/sqrt per speaker) only depends on values
+          that change once per update() tick, so it is run behind the gainDirty
+          flag instead of every 128-sample block — for a stationary source that
+          removes ~5 of every 6 recomputations while staying bit-identical
+          (issue #212). virtualFadeOut (#206) is a per-block override and is NOT
+          folded in here; toChannels() applies it on the cached value. */
+      void computeFinalGains();
 
       // for streaming sounds
       INTERNAL::soundFile* file;
@@ -302,6 +313,20 @@ namespace YSE {
       std::vector<DSP::buffer>* buffer;
       DSP::buffer channelBuffer; // temporary buffer to adjust channel gain
       std::vector<std::vector<Flt>> lastGain; // needed for each channel to smooth gain changes
+      // Cached per-speaker gain vectors, indexed [output channel][source channel]
+      // — same shape as lastGain. Filled by computeFinalGains() and read by
+      // toChannels(), which only does the smoothing ramp + mix on top. Recomputed
+      // (behind gainDirty) only when an update() tick changes a pan input, not
+      // every block (issue #212). Sized off the audio thread in resize().
+      std::vector<std::vector<Flt>> finalGainCache;
+      // Per-output transient scratch for the initial pan gains, presized in
+      // resize(). Replaces the old use of the shared, per-channel
+      // parent->outConf scratch fields (initPan/initGain/ratio) as per-sound
+      // scratch space — that sharing is what previously forbade caching (#212).
+      std::vector<Flt> initGainScratch;
+      // Set by update()/resize() when a pan input may have changed; consumed
+      // (and cleared) by toChannels() to trigger a finalGainCache recompute.
+      Bool gainDirty;
       Flt bufferVolume; // keep track of actual volume in buffer (may vary all the time, not used
                         // elsewhere)
 
