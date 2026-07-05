@@ -214,9 +214,14 @@ TEST_SUITE("internal") {
       j->join();
 
     CHECK(counter.load() == N);
-    // And the help must have happened on this (the joining) thread.
-    for (int i = 0; i < N; ++i)
-      CHECK(ranOn[i].load() == std::this_thread::get_id());
+    // And the help must have happened on this (the joining) thread. Compare
+    // outside CHECK: doctest would otherwise try to stringify the
+    // std::thread::id operands, which fails to compile on libstdc++
+    // (gcc 13/14 headers).
+    for (int i = 0; i < N; ++i) {
+      const bool ranOnJoiningThread = ranOn[i].load() == std::this_thread::get_id();
+      CHECK(ranOnJoiningThread);
+    }
 
     release.store(true, std::memory_order_release);
     blocker.join();
