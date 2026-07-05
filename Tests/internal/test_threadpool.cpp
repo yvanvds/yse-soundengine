@@ -8,6 +8,7 @@
 
 #include <doctest/doctest.h>
 #include "internal/threadPool.h"
+#include "internal/thread.h"
 #include <atomic>
 #include <chrono>
 #include <new>
@@ -29,6 +30,20 @@ namespace {
     void run() override {
       if (ranOn) ranOn->store(std::this_thread::get_id());
       counter->fetch_add(1, std::memory_order_relaxed);
+    }
+  };
+
+  // A job that signals when it starts running and then pins its worker thread
+  // until released.
+  struct BlockJob : threadPoolJob {
+    std::atomic<bool>* release;
+    std::atomic<bool>* started;
+    explicit BlockJob(std::atomic<bool>* r, std::atomic<bool>* s = nullptr)
+      : release(r), started(s) {}
+    void run() override {
+      if (started) started->store(true, std::memory_order_release);
+      while (!release->load(std::memory_order_acquire))
+        std::this_thread::yield();
     }
   };
 } // namespace
@@ -105,15 +120,6 @@ TEST_SUITE("internal") {
 
     // A blocking job pins a worker until released, so the ring can actually
     // fill instead of being drained as fast as we push.
-    struct BlockJob : threadPoolJob {
-      std::atomic<bool>* release;
-      explicit BlockJob(std::atomic<bool>* r) : release(r) {}
-      void run() override {
-        while (!release->load(std::memory_order_acquire))
-          std::this_thread::yield();
-      }
-    };
-
     std::atomic<bool> release{false};
     std::vector<std::unique_ptr<BlockJob>> blockers;
     for (int i = 0; i < 2; ++i) { // one per worker
@@ -168,6 +174,76 @@ TEST_SUITE("internal") {
     }
 
     CHECK(counter.load() == N);
+  }
+
+  TEST_CASE("threadPool: join() help-runs queued render jobs while it waits (issue #284)") {
+    // Regression for issue #284. The spin-only join() made the audio
+    // callback's completion depend on another thread's progress: with every
+    // worker preempted (or otherwise stalled), join() on a still-queued job
+    // spun/yielded until a worker came back. With help-running, join() pops
+    // runnable jobs from the same render ring and runs them on the calling
+    // thread, so it completes even when no worker makes any progress.
+    //
+    // Model the worst case exactly: a single-worker pool whose only worker is
+    // pinned by a blocking job. Every job queued behind it can then only run
+    // if join() helps. Without the fix this test never terminates.
+    threadPool pool(1, poolClass::render);
+
+    std::atomic<bool> release{false};
+    std::atomic<bool> started{false};
+    BlockJob blocker(&release, &started);
+    pool.addJob(&blocker);
+
+    // Wait until the worker has actually popped the blocker, so the ring
+    // holds only the jobs below and the worker is provably out of play.
+    while (!started.load(std::memory_order_acquire))
+      std::this_thread::yield();
+
+    constexpr int N = 32;
+    std::atomic<int> counter{0};
+    std::vector<std::atomic<std::thread::id>> ranOn(N);
+    std::vector<std::unique_ptr<CountJob>> jobs;
+    jobs.reserve(N);
+    for (int i = 0; i < N; ++i) {
+      jobs.emplace_back(std::make_unique<CountJob>(&counter, &ranOn[i]));
+      pool.addJob(jobs.back().get());
+    }
+
+    // The worker is pinned, so these joins can only return via help-running.
+    for (auto& j : jobs)
+      j->join();
+
+    CHECK(counter.load() == N);
+    // And the help must have happened on this (the joining) thread.
+    for (int i = 0; i < N; ++i)
+      CHECK(ranOn[i].load() == std::this_thread::get_id());
+
+    release.store(true, std::memory_order_release);
+    blocker.join();
+  }
+
+  TEST_CASE("thread: setPriority reports whether the request took effect (issue #284)") {
+    // setPriority used to swallow denial silently; threadPool::startup() now
+    // logs the degraded mode, which needs an observable result. Elevation
+    // (`high == true`) is genuinely platform/privilege dependent, so only its
+    // invariants are asserted here: false before start(), and a plain
+    // normal-priority request on a running thread must succeed everywhere.
+    struct NapThread : YSE::INTERNAL::thread {
+      void run() override {
+        while (!threadShouldExit())
+          std::this_thread::yield();
+      }
+    };
+
+    NapThread t;
+    CHECK(t.setPriority(true) == false); // no underlying handle yet
+    t.start();
+    CHECK(t.setPriority(false) == true); // normal priority is always grantable
+    // Best-effort elevation: result depends on OS privileges, must not crash
+    // and must leave the thread joinable either way.
+    (void)t.setPriority(true);
+    t.stop();
+    CHECK(t.isRunning() == false);
   }
 
   TEST_CASE("threadPool: survives shutdown()/startup() cycling") {

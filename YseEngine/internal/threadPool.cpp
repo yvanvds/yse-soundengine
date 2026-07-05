@@ -13,6 +13,7 @@
 #include <chrono>
 #include <thread>
 #include "../system.hpp"
+#include "../implementations/logImplementation.h"
 #include "denormalGuard.h"
 
 #if defined(_MSC_VER)
@@ -37,19 +38,34 @@ namespace {
   }
 } // namespace
 
-YSE::INTERNAL::threadPoolJob::threadPoolJob() : shouldStop(false), inQueue(false), isDone(false) {}
+YSE::INTERNAL::threadPoolJob::threadPoolJob()
+  : shouldStop(false), inQueue(false), isDone(false), pool(nullptr) {}
 
 YSE::INTERNAL::threadPoolJob::~threadPoolJob() {
   join();
 }
 
 void YSE::INTERNAL::threadPoolJob::join() {
-  // Bounded-spin wait, called from the audio callback (buffersToParent) — it
+  // Help-running wait, called from the audio callback (buffersToParent) — it
   // must never sleep or lock. The old implementation slept in 2 ms quanta,
-  // burning ~70% of a 2.9 ms render block waiting on a worker (issue #188).
-  // Instead spin on a flag, relaxing the CPU for a while and then yielding so a
-  // not-yet-scheduled worker can run. Render workers run at raised priority, so
-  // the yield path is rarely reached.
+  // burning ~70% of a 2.9 ms render block waiting on a worker (issue #188);
+  // its spin-only successor still made the callback's completion depend on
+  // another thread's progress (issue #284). Instead, while this job isn't
+  // finished, pop and run sibling jobs from the same render ring on this
+  // thread: "wait for a possibly-preempted worker" becomes "do the remaining
+  // render work yourself". The joined job itself may be the one popped, in
+  // which case it simply runs inline here. Only when the ring is empty (the
+  // job is mid-run on a worker) do we fall back to spinning, relaxing the CPU
+  // for a while and then yielding so a not-yet-scheduled worker can run.
+  // Render workers run at raised priority, so with helping the yield path is
+  // effectively unreachable — even when priority elevation was denied by the
+  // OS (see threadPool::startup), the callback keeps making progress instead
+  // of burning its budget on a preempted worker.
+  //
+  // Background-pool jobs never help (their `pool` stays nullptr — see
+  // threadPool::addJob): running disk-touching work on the joining thread
+  // would be wrong; they use the pure spin/yield path, and are never joined
+  // from the audio callback.
   //
   // Wait on inQueue, not isDone (issue #239). activate() (and shutdown()) write
   // inQueue=false *after* isDone=true, so inQueue is the worker's genuinely last
@@ -63,6 +79,13 @@ void YSE::INTERNAL::threadPoolJob::join() {
   constexpr int YIELD_AFTER = 8192;
   int spins = 0;
   while (inQueue) {
+    threadPool* p = pool.load(std::memory_order_relaxed);
+    if (p != nullptr && p->tryRunOne()) {
+      // Made progress on the render pass; re-check immediately and restart
+      // the backoff ladder.
+      spins = 0;
+      continue;
+    }
     if (spins < YIELD_AFTER) {
       cpuRelax();
       ++spins;
@@ -125,11 +148,20 @@ void YSE::INTERNAL::threadPool::startup() {
     threads.emplace_front(this);
     threads.front().start();
     // Render workers race the audio-callback deadline: raise them so ordinary
-    // threads can't preempt one while the callback spins in join() (issue
+    // threads can't preempt one while the callback waits in join() (issue
     // #188). Best-effort — a denied request just leaves the worker at default
-    // priority. Background workers stay at normal priority.
-    if (classOf == poolClass::render) {
-      threads.front().setPriority(true);
+    // priority (join()'s help-running keeps the callback making progress
+    // regardless), but log the denial once per process so deployments know
+    // they run in the degraded mode (issue #284): without elevation, a
+    // CPU-saturated box can preempt a worker mid-job and render latency
+    // depends on the OS scheduler. Typical on Linux/Android without rtprio
+    // privileges. Background workers stay at normal priority.
+    if (classOf == poolClass::render && !threads.front().setPriority(true)) {
+      static aBool priorityDenialLogged{false};
+      if (!priorityDenialLogged.exchange(true)) {
+        LogImpl().emit(E_WARNING, "render worker priority elevation denied by the OS; running "
+                                  "at default priority (degraded real-time scheduling)");
+      }
     }
   }
 }
@@ -140,8 +172,11 @@ void YSE::INTERNAL::threadPool::shutdown() {
 
   // Release any queued jobs so a pending join() returns instead of spinning
   // forever. Marking inQueue=false is enough (join() exits on !inQueue); we do
-  // not run them. No lock: getJob() stops popping once active is false, so this
-  // thread is the only consumer of the ring now.
+  // not run them. No lock: getJob() stops popping once active is false, so the
+  // only other possible consumer is a still-spinning join() help-running via
+  // tryRunOne() (issue #284) — the MPMC ring handles that concurrency, and a
+  // job it steals simply runs instead of being released here. Either way every
+  // queued job ends with inQueue == false.
   threadPoolJob* job = nullptr;
   while (jobs.try_pop(job)) {
     // inQueue must be the last store, matching activate() and join()'s wait
@@ -164,6 +199,13 @@ void YSE::INTERNAL::threadPool::shutdown() {
 void YSE::INTERNAL::threadPool::addJob(threadPoolJob* job) {
   if (!active) return;
 
+  // Publish which ring this job lives on before it becomes joinable, so
+  // join() can help-run sibling jobs while it waits (issue #284). Render
+  // pools only: a background job must never pull disk-touching work onto the
+  // thread that joins it. The store is ordered before start()'s inQueue=true
+  // (seq_cst), so any join() that observes the job as queued also sees the
+  // pool pointer.
+  job->pool.store(classOf == poolClass::render ? this : nullptr, std::memory_order_relaxed);
   job->start();
   if (jobs.try_push(job)) return;
 
@@ -179,6 +221,18 @@ void YSE::INTERNAL::threadPool::addJob(threadPoolJob* job) {
     assert(false && "background threadPool ring overflow");
     job->inQueue = false;
   }
+}
+
+bool YSE::INTERNAL::threadPool::tryRunOne() {
+  // One non-blocking pop + inline run, for join()'s help-running (issue
+  // #284). No allocation, no lock, no syscall — RT-safe on the audio
+  // callback, exactly like the ring-full inline fallback in addJob(). No
+  // `active` check: a job popped here would otherwise have been released
+  // unrun by shutdown()'s drain, and running it is just as correct.
+  threadPoolJob* job = nullptr;
+  if (!jobs.try_pop(job)) return false;
+  job->activate();
+  return true;
 }
 
 YSE::INTERNAL::threadPoolJob* YSE::INTERNAL::threadPool::getJob() {

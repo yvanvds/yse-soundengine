@@ -13,6 +13,7 @@
 
 #include "../headers/types.hpp"
 #include "../utils/mpmcQueue.hpp"
+#include <atomic>
 #include <forward_list>
 #include "thread.h"
 
@@ -57,6 +58,14 @@ namespace YSE {
       aBool shouldStop;
       aBool inQueue;
       aBool isDone;
+      // The render pool this job was last queued on, set by threadPool::addJob
+      // so join() can help-run sibling jobs from the same ring instead of
+      // spinning while it waits (issue #284). Stays nullptr for background
+      // pools: help-running there would put disk-touching work on the joining
+      // thread. Atomic only to keep the cross-thread publish TSan-clean; the
+      // pool (a process-lifetime singleton in engine use) always outlives any
+      // join() that observes inQueue == true.
+      std::atomic<threadPool*> pool;
       friend class threadPool;
     };
 
@@ -84,6 +93,14 @@ namespace YSE {
 
       // only used by threadPoolThread, returns nullptr when the pool shuts down
       threadPoolJob* getJob();
+
+      // Pop one queued job and run it on the calling thread; returns whether a
+      // job was run. Used by threadPoolJob::join() to help-run sibling jobs
+      // while it waits (issue #284): instead of burning its budget spinning on
+      // a possibly-preempted worker, the audio callback drains runnable work
+      // from the same render ring itself. Never locks, allocates, or blocks —
+      // safe on the audio callback, same as the inline fallback in addJob().
+      bool tryRunOne();
 
       // (Re)spawn the worker threads and mark the pool active. Called by the
       // constructor and, after a shutdown(), by global::init() to revive the
