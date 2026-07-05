@@ -26,6 +26,7 @@ YSE::SOUND::implementationObject::implementationObject(sound* head)
     _head_time(0.f),
     _head_status(SS_STOPPED),
     file(nullptr),
+    gainDirty(true),
     bufferVolume(0),
     filePtr(0.f),
     newFilePos(0),
@@ -327,10 +328,22 @@ void YSE::SOUND::implementationObject::setup() {
 }
 
 void YSE::SOUND::implementationObject::resize() {
-  lastGain.resize(CHANNEL::Manager().getNumberOfOutputs());
+  const UInt numOutputs = CHANNEL::Manager().getNumberOfOutputs();
+  lastGain.resize(numOutputs);
   for (UInt i = 0; i < lastGain.size(); i++) {
     lastGain[i].resize(buffer->size(), 0.0f);
   }
+  // Pre-size the gain cache and pan scratch off the audio thread (issue #212):
+  // the callback path only reads/cheap-writes these, never resizes them. Same
+  // [output][source] shape as lastGain.
+  finalGainCache.resize(numOutputs);
+  for (UInt i = 0; i < finalGainCache.size(); i++) {
+    finalGainCache[i].resize(buffer->size(), 0.0f);
+  }
+  initGainScratch.resize(numOutputs, 0.0f);
+  // The speaker layout / channel count just changed, so any cached gains are
+  // stale — force a recompute on the next toChannels().
+  gainDirty = true;
 }
 
 Bool YSE::SOUND::implementationObject::readyCheck() {
@@ -566,6 +579,12 @@ void YSE::SOUND::implementationObject::update() {
   // equal-power omni instead of sweeping (issue #210).
   horizFraction = computeHorizontalFraction(dir);
 
+  // The pan inputs (angle / distance / spread / size / occlusion / horizFraction)
+  // are only written here, once per update() tick. Mark the cached per-speaker
+  // gain vectors stale so toChannels() recomputes them once for this tick rather
+  // than every 128-sample block (issue #212).
+  gainDirty = true;
+
   ///////////////////////////////////////////
   // sound occlusion (optional)
   ///////////////////////////////////////////
@@ -784,8 +803,8 @@ void YSE::SOUND::implementationObject::dspFunc_parseIntent() {
   headIntent = SI_NONE;
 }
 
-void YSE::SOUND::implementationObject::dspFunc_calculateGain(Int channel, Int source) {
-  Flt finalGain = parent->outConf[channel].finalGain;
+void YSE::SOUND::implementationObject::dspFunc_calculateGain(Int channel, Int source,
+                                                             Flt finalGain) {
   if (lastGain[channel][source] == finalGain) {
     channelBuffer *= (finalGain);
     return;
@@ -817,7 +836,7 @@ void YSE::SOUND::implementationObject::dspFunc_calculateGain(Int channel, Int so
   lastGain[channel][source] = finalGain;
 }
 
-void YSE::SOUND::implementationObject::toChannels() {
+void YSE::SOUND::implementationObject::computeFinalGains() {
 #ifdef _MSC_VER
 #pragma warning(disable : 4258)
 #endif
@@ -832,6 +851,14 @@ void YSE::SOUND::implementationObject::toChannels() {
                                 ? static_cast<UInt>(parent->out.size()) - lfeCount
                                 : static_cast<UInt>(parent->out.size());
 
+  // The rolloff attenuation depends only on distance/size/rolloffScale, none of
+  // which vary across source channels, so it is hoisted out of the x loop. This
+  // yields the same value the old per-x computation did, bit-for-bit.
+  Flt dist = distance - size;
+  if (dist < 0) dist = 0;
+  Flt correctPower = 1 / pow(dist, (2 * INTERNAL::Settings().rolloffScale));
+  if (correctPower > 1) correctPower = 1;
+
   for (UInt x = 0; x < buffer->size(); x++) {
     // calculate spread value for multichannel sounds
     Flt spreadAdjust = 0;
@@ -845,41 +872,58 @@ void YSE::SOUND::implementationObject::toChannels() {
       // source on the horizon (== 1) keeps the full (1 + cos)/2 pan, while a
       // near-zenith source (-> 0) collapses the cosine term, leaving a flat 0.5
       // for every speaker — an equal-power omni spread instead of a wild sweep.
-      parent->outConf[i].initPan =
+      Flt initPan =
           (1 + horizFraction * cos(parent->outConf[i].angle - (angle + spreadAdjust))) * 0.5f;
       // The speaker-density term effective[i] depends only on the speaker
       // geometry, so it is precomputed once on layout change in
       // CHANNEL::implementationObject::computeEffectiveSpeakerWeights() instead
       // of being recomputed here per source channel per block (issue #211).
-      // initial gain
-      parent->outConf[i].initGain = parent->outConf[i].initPan / parent->outConf[i].effective;
+      // initial gain — kept in per-sound scratch, not the shared outConf (#212).
+      initGainScratch[i] = initPan / parent->outConf[i].effective;
     }
     // emitted power
     Flt power = 0;
     for (UInt i = 0; i < parent->outConf.size(); i++) {
       if (parent->outConf[i].isLFE) continue;
-      power += static_cast<Flt>(pow(parent->outConf[i].initGain, 2));
+      power += static_cast<Flt>(pow(initGainScratch[i], 2));
     }
-    // calculated power
-    Flt dist = distance - size;
-    if (dist < 0) dist = 0;
-    Flt correctPower = 1 / pow(dist, (2 * INTERNAL::Settings().rolloffScale));
-    if (correctPower > 1) correctPower = 1;
 
     // final gain assignment
     for (UInt j = 0; j < parent->out.size(); ++j) {
       if (parent->outConf[j].isLFE) continue; // leave the LFE buffer silent
-      parent->outConf[j].ratio = computePanRatio(parent->outConf[j].initGain, power, realSpeakers);
-      channelBuffer = (*buffer)[x];
-      parent->outConf[j].finalGain = sqrt(correctPower * parent->outConf[j].ratio);
+      Flt ratio = computePanRatio(initGainScratch[j], power, realSpeakers);
+      Flt finalGain = sqrt(correctPower * ratio);
 
       // add volume control now
-      if (occlusionActive) parent->outConf[j].finalGain *= 1 - occlusion_dsp;
+      if (occlusionActive) finalGain *= 1 - occlusion_dsp;
+      finalGainCache[j][x] = finalGain;
+    }
+  }
+}
+
+void YSE::SOUND::implementationObject::toChannels() {
+  // Recompute the per-speaker gain vectors only when an update() tick changed
+  // one of their inputs (angle / distance / spread / size / occlusion /
+  // horizFraction / speaker layout). Between ticks those inputs are constant,
+  // so the old per-block derivation produced bit-identical gains every block —
+  // here they are read straight from finalGainCache instead (issue #212).
+  if (gainDirty) {
+    computeFinalGains();
+    gainDirty = false;
+  }
+
+  for (UInt x = 0; x < buffer->size(); x++) {
+    for (UInt j = 0; j < parent->out.size(); ++j) {
+      if (parent->outConf[j].isLFE) continue; // leave the LFE buffer silent
+      Flt finalGain = finalGainCache[j][x];
       // Farewell block for a sound going virtual (#206): target gain 0 so
       // dspFunc_calculateGain() ramps from lastGain down to silence instead of
-      // the sound simply vanishing on the next (skipped) block.
-      if (virtualFadeOut) parent->outConf[j].finalGain = 0.f;
-      dspFunc_calculateGain(j, x);
+      // the sound simply vanishing on the next (skipped) block. This is a
+      // per-block override, so it is applied on the cached value here rather
+      // than folded into computeFinalGains().
+      if (virtualFadeOut) finalGain = 0.f;
+      channelBuffer = (*buffer)[x];
+      dspFunc_calculateGain(j, x, finalGain);
       channelBuffer *= fader();
       parent->out[j] += channelBuffer;
     }

@@ -311,24 +311,21 @@ namespace YSE {
     class output {
     public:
       Flt angle;
-      Flt initPan;
-      Flt initGain;
+      // Speaker-density normalisation term, precomputed on layout change in
+      // computeEffectiveSpeakerWeights() (issue #211). Read by the sound
+      // panner's computeFinalGains().
       Flt effective;
-      Flt ratio;
-      Flt finalGain;
       // True for the low-frequency-effects (.1) output. Such an output is kept
       // out of azimuth panning: positional sounds are never panned into it
       // (issue #203).
       Bool isLFE;
 
-      output()
-        : angle(0.f),
-          initPan(0.f),
-          initGain(1.f),
-          effective(1.f),
-          ratio(1.f),
-          finalGain(1.f),
-          isLFE(false) {}
+      // NB: the per-source pan scratch (initPan/initGain/ratio/finalGain) that
+      // used to live here was removed in issue #212. It was shared per-channel
+      // state written as per-sound scratch, which is exactly what forbade
+      // caching a sound's gain vector; each sound now owns its own scratch and
+      // cache (SOUND::implementationObject::finalGainCache / initGainScratch).
+      output() : angle(0.f), effective(1.f), isLFE(false) {}
     };
 
   } // namespace CHANNEL
