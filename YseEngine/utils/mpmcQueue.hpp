@@ -21,8 +21,16 @@ namespace YSE {
 
   // Bounded lock-free multi-producer / multi-consumer queue — Dmitry Vyukov's
   // array-of-cells algorithm. Fixed capacity, allocated once at construction;
-  // try_push / try_pop never lock, never allocate, and are wait-free bar the
-  // bounded CAS retry loop under producer/consumer contention.
+  // try_push / try_pop never lock and never allocate.
+  //
+  // The algorithm is lock-free, not wait-free. It guarantees system-wide
+  // progress, not per-operation progress: the CAS claim loop can retry under
+  // contention (bounded only by the number of concurrent claimers, not by a
+  // constant), and a producer preempted after claiming a cell but before
+  // publishing its sequence stalls consumers of that cell until it is
+  // rescheduled. This is safe on the audio callback — the operations are still
+  // non-blocking and allocation-free — but the callback is not guaranteed a
+  // wait-free hand-off if a peer worker is descheduled mid-claim (issue #284).
   //
   // Introduced for INTERNAL::threadPool (issue #188): the audio callback hands
   // DSP fan-out jobs (render pool) and manager/setup jobs (background pool) to
@@ -96,10 +104,22 @@ namespace YSE {
     }
 
   private:
-    struct cell {
+    // Producer and consumer cursors — and each ring cell — live on separate
+    // cache lines so the two cursors never share a line, and concurrent
+    // producers/consumers working adjacent cells don't ping-pong a shared line
+    // under render fan-out (issue #288). Padding the cell trades memory (the
+    // 4096-slot render ring grows to ~256 KB) for the removed false sharing.
+    static constexpr std::size_t CACHE_LINE = 64;
+
+    struct alignas(CACHE_LINE) cell {
       std::atomic<std::size_t> sequence;
       T data;
     };
+
+    // No two cells share a cache line: each occupies a whole line (or a whole
+    // number of lines once T pushes the payload past 64 bytes).
+    static_assert(alignof(cell) >= CACHE_LINE, "cell must be cache-line aligned");
+    static_assert(sizeof(cell) % CACHE_LINE == 0, "cell must span whole cache lines");
 
     static std::size_t roundUpPow2(std::size_t x) {
       if (x < 2) return 2;
@@ -112,10 +132,6 @@ namespace YSE {
       if (sizeof(std::size_t) > 4) x |= x >> 32;
       return x + 1;
     }
-
-    // Producer and consumer cursors live on separate cache lines so the two
-    // sides don't ping-pong a shared line under contention.
-    static constexpr std::size_t CACHE_LINE = 64;
 
     std::unique_ptr<cell[]> buffer_;
     const std::size_t capacityMask_;
