@@ -237,6 +237,22 @@ namespace YSE {
       */
       static Flt computeHorizontalFraction(const Pos& dir);
 
+      /** Fused scaled multiply-accumulate with the 50-sample smoothing ramp.
+          Replaces the old per-speaker sequence copy -> calculateGain -> *fader
+          -> += (four full-buffer passes) with a single MAC pass (issue #213):
+
+              dest[i] += (src[i] * g[i]) * fader[i]
+
+          where g[i] slews linearly from `lastGain` toward `finalGain` over the
+          first min(50,length) samples and then holds `finalGain`, and `lastGain`
+          is advanced to `finalGain`. When `lastGain` already equals `finalGain`
+          a flat gain is applied (no ramp), matching the old fast path. The
+          multiply/accumulate order reproduces the old code sample-for-sample, so
+          the mix is bit-identical. RT-safe: no allocation, no lock. Static + pure
+          (state passed by reference) so it stays unit-testable in isolation. */
+      static void gainAccumulate(const Flt* src, const Flt* fader, Flt* dest, UInt length,
+                                 Flt& lastGain, Flt finalGain);
+
       void removeInterface();
 
       OBJECT_IMPLEMENTATION_STATE getStatus();
@@ -292,7 +308,6 @@ namespace YSE {
       implementationObject* _channelNext = nullptr;
 
       void dspFunc_parseIntent();
-      void dspFunc_calculateGain(Int channel, Int source, Flt finalGain);
 
       /** Recompute the cached per-speaker gain vectors (finalGainCache) from the
           current pan inputs (angle / distance / spread / horizFraction / size /
@@ -311,7 +326,6 @@ namespace YSE {
       // buffers
       std::vector<DSP::buffer> filebuffer;
       std::vector<DSP::buffer>* buffer;
-      DSP::buffer channelBuffer; // temporary buffer to adjust channel gain
       std::vector<std::vector<Flt>> lastGain; // needed for each channel to smooth gain changes
       // Cached per-speaker gain vectors, indexed [output channel][source channel]
       // — same shape as lastGain. Filled by computeFinalGains() and read by
