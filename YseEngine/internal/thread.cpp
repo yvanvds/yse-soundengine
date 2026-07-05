@@ -52,16 +52,17 @@ void YSE::INTERNAL::thread::stop() {
   }
 }
 
-void YSE::INTERNAL::thread::setPriority(bool high) {
-  if (!handle) return;
+bool YSE::INTERNAL::thread::setPriority(bool high) {
+  if (!handle) return false;
 #if defined(_WIN32)
-  ::SetThreadPriority(static_cast<HANDLE>(handle->native_handle()),
-                      high ? THREAD_PRIORITY_HIGHEST : THREAD_PRIORITY_NORMAL);
+  return ::SetThreadPriority(static_cast<HANDLE>(handle->native_handle()),
+                             high ? THREAD_PRIORITY_HIGHEST : THREAD_PRIORITY_NORMAL) != 0;
 #else
   // Best-effort: raising to SCHED_FIFO needs privileges (CAP_SYS_NICE / RT
   // limits). If pthread_setschedparam fails we leave the thread at its default
   // policy — the spin-based join() still bounds the callback stall, priority is
-  // only an optimisation against preemption.
+  // only an optimisation against preemption. The result is reported so the
+  // caller can log the degraded mode once (issue #284).
   int policy = high ? SCHED_FIFO : SCHED_OTHER;
   sched_param param{};
   if (high) {
@@ -69,7 +70,7 @@ void YSE::INTERNAL::thread::setPriority(bool high) {
     int hi = ::sched_get_priority_max(SCHED_FIFO);
     param.sched_priority = (lo >= 0 && hi >= 0) ? lo + (hi - lo) / 2 : 0;
   }
-  ::pthread_setschedparam(handle->native_handle(), policy, &param);
+  return ::pthread_setschedparam(handle->native_handle(), policy, &param) == 0;
 #endif
 }
 
