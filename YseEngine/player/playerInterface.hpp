@@ -14,7 +14,7 @@
 #include "../headers/defines.hpp"
 #include "../headers/types.hpp"
 #include "player.hpp"
-// #include "../synth/synth.hpp"
+#include "../synth/synth.hpp" // YSE::synth (create target) (#156)
 #include "../music/motif/motif.hpp"
 
 namespace YSE {
@@ -35,6 +35,18 @@ namespace YSE {
   public:
     player();
     ~player();
+
+    /**
+     *  @brief Connect this player to a ``synth`` and register it with the engine.
+     *
+     *  Every note the player generates is delivered to ``instrument`` through its
+     *  public note API (the synth's lock-free inbox), so the same synth must not
+     *  be driven concurrently from another source. Must be called before
+     *  ``play()`` or any setter; calling those first is a no-op that logs a
+     *  warning rather than crashing. ``instrument`` must outlive this player.
+     *  Calling ``create`` twice is a no-op.
+     */
+    player& create(synth& instrument);
 
     /** @brief Start producing notes. */
     player& play();
@@ -117,6 +129,11 @@ namespace YSE {
     player& fitMotifsToScale(Flt target, Flt time = 0);
 
   private:
+    // Guard against use-before-create: returns true when a live implementation
+    // is attached, otherwise logs a warning and returns false so the caller can
+    // return early instead of dereferencing a null pimpl (#156 / #268).
+    bool checkCreated() const;
+
     PLAYER::implementationObject* pimpl;
     Bool _isPlaying;
 

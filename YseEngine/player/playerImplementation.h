@@ -13,11 +13,14 @@
 
 #include "../classes.hpp"
 #include "../headers/defines.hpp"
+#include "../headers/enums.hpp"
 #include "../utils/lfQueue.hpp"
 #include "../utils/interpolators.hpp"
 #include "../music/note.hpp"
 #include "../music/pNote.hpp"
+#include "../synth/synth.hpp" // SYNTH::interfaceObject — the synth the player drives (#156)
 #include "../dsp/ramp.hpp"
+#include <atomic>
 #include <vector>
 
 namespace YSE {
@@ -38,7 +41,9 @@ namespace YSE {
       // Constructing an implementation preallocates every pool it uses on the
       // audio thread. `head` may be null (used by tests that drive update()
       // directly); when non-null the interface's pimpl is wired back here.
-      explicit implementationObject(player* head);
+      // `instrument` is the synth this player feeds notes into (#156); null when
+      // a test drives generation in isolation with no synth attached.
+      explicit implementationObject(player* head, SYNTH::interfaceObject* instrument = nullptr);
       ~implementationObject();
 
       bool update(Flt delta);
@@ -50,6 +55,17 @@ namespace YSE {
 
       void removeInterface();
 
+      // ---- lifecycle (slow-pool delete job, mirrors the MIDI/synth managers) --
+      // The manager retires an orphaned player by flagging it OBJECT_DELETE and
+      // letting the slow-pool delete job reap it — the audio thread never frees
+      // an impl (#156, consistent with #155 / #190).
+      void setStatus(OBJECT_IMPLEMENTATION_STATE value) {
+        objectStatus.store(value);
+      }
+      static bool canBeDeleted(const implementationObject& impl) {
+        return impl.objectStatus.load() == OBJECT_DELETE;
+      }
+
       // Read-only inspection of the sounding-note pool. Lets the RT-allocation
       // test assert the pool stays within its fixed ceiling (#195).
       UInt noteCount() const {
@@ -59,7 +75,15 @@ namespace YSE {
     private:
       std::atomic<player*> head;
       lfQueue<messageObject> messages;
-      // synth * instrument;
+      // The synth this player feeds generated notes into. Set at construction
+      // from player::create(synth&); null when generation is driven in isolation
+      // (tests). Only touched on the audio thread in update() (#156).
+      SYNTH::interfaceObject* instrument;
+      // Lifecycle state for the audio-thread / slow-pool delete handoff. Starts
+      // OBJECT_READY (the player needs no async setup) and only moves to
+      // OBJECT_DELETE once the audio thread has retired it from the manager's
+      // working list (#156).
+      std::atomic<OBJECT_IMPLEMENTATION_STATE> objectStatus;
       float waitTime;
 
       struct voice {
