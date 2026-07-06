@@ -291,7 +291,7 @@ class dspSourceObject {    // audio generator (replaces file)
 | Category | Modules |
 |----------|---------|
 | Oscillators | sine, cosine, saw, noise, VCF, wavetable |
-| Filters | lowPass, highPass, bandPass, biQuad, sampleHold, sweep, phaser, raw filters |
+| Filters | lowPass, highPass, bandPass, biQuad, sampleHold, sweep, phaser, ladderFilter (Moog-style ZDF ladder), raw filters |
 | Envelopes | envelope, ADSRenvelope, ramp |
 | Modulators | LFO, delay, basicDelay, highpassDelay, lowpassDelay |
 | Math | clip, sqrt, rSqrt, wrap, midiToFreq, freqToMidi, dbToRms, rmsToDb |
@@ -405,7 +405,7 @@ Polyphonic note player with scale constraints, motif sequencing, and randomised 
 
 ### 13. Synth (Implemented but unexposed)
 
-**Files:** `synth/` — `synthInterface.hpp/.cpp`, `synthManager.h/.cpp`, `synthImplementation.h/.cpp`, `samplerSound.cpp`, `dspSound.cpp`, `dspVoice.hpp/.cpp`, `dspVoiceInternal.cpp`
+**Files:** `synth/` — `synthInterface.hpp/.cpp`, `synthManager.h/.cpp`, `synthImplementation.h/.cpp`, `dspVoice.hpp` (voice base), and built-in voices `sineVoice.hpp/.cpp` (reference sine + ADSR) and `vaVoice.hpp/.cpp` (virtual-analog + wavetable: multi-oscillator → `DSP::ladderFilter` → amp/filter ADSR + LFO, with a live-settable shared `vaParams` patch)
 
 Polyphonic sampler/DSP synth. The source files compile into the library; the public interface (`synth.hpp`, `synthInterface.hpp`, `dspVoice.hpp`) is commented out in [yse.hpp](YseEngine/yse.hpp) and not yet part of the public API.
 
