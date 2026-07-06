@@ -41,6 +41,7 @@ set(YSE_SRCS
   dsp/modules/hilbert.cpp
   dsp/modules/chorus.cpp
   dsp/modules/phaser.cpp
+  dsp/modules/plateReverb.cpp
   dsp/modules/ringModulator.cpp
   dsp/modules/sineWave.cpp
   dsp/oscillators.cpp

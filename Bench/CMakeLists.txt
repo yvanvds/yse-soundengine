@@ -11,6 +11,7 @@ add_executable(yse_benchmarks
   dsp/bench_delay.cpp
   dsp/bench_math.cpp
   dsp/bench_reverb.cpp
+  dsp/bench_plate_reverb.cpp
   internal/bench_mpmcqueue.cpp
   patcher/bench_patcher.cpp
   integration/bench_mixing.cpp
