@@ -14,7 +14,7 @@
 #include "../../../headers/defines.hpp"
 #include "../../dspObject.hpp"
 #include "../../filters.hpp"
-#include <memory>
+#include "../../perChannel.hpp"
 
 namespace YSE {
   namespace DSP {
@@ -24,9 +24,9 @@ namespace YSE {
        *  @brief Resonant band-pass filter packaged as a chainable ``dspObject``.
        *
        *  Wraps ``DSP::bandPass`` for use in a sound's DSP chain via
-       *  ``YSE::sound::setDSP``.
-       *
-       *  @note Mono only — feeds the first channel of the multichannel buffer.
+       *  ``YSE::sound::setDSP``. Processes every channel of the multichannel
+       *  buffer independently, each with its own filter state (see the
+       *  N-channel contract on ``dspObject::process``).
        */
       class API bandPassFilter : public dspObject {
       public:
@@ -54,8 +54,8 @@ namespace YSE {
       private:
         aFlt parmFrequency;
         aFlt parmQ;
-        std::shared_ptr<DSP::buffer> result;
-        std::shared_ptr<bandPass> bp;
+        DSP::buffer result; // per-block scratch, shared across channels
+        perChannel<bandPass> bp; // one filter per channel
       };
 
     } // namespace MODULES
