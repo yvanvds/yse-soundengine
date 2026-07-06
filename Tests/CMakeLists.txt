@@ -63,6 +63,7 @@ set(YSE_TEST_SOURCES
   synth/test_synth.cpp
   synth/test_synth_keyboard.cpp
   synth/test_synth_close.cpp
+  synth/test_c_api_synth.cpp
   reverb/test_reverb_dsp.cpp
   reverb/test_reverb_concurrency.cpp
   midi/test_midifile.cpp
@@ -167,11 +168,12 @@ set_target_properties(yse_tests PROPERTIES
 if(NOT ANDROID)
 add_test(
   NAME    yse_unit_tests
-  # `lifecycle`, `synthlifecycle`, `midisynth` and `playersynth` are excluded
-  # alongside `integration`: they drive System::close(), which permanently stops
-  # the global thread pools and would break every later suite sharing this
+  # `lifecycle`, `synthlifecycle`, `synthcapi`, `midisynth` and `playersynth` are
+  # excluded alongside `integration`: they drive System::close(), which permanently
+  # stops the global thread pools and would break every later suite sharing this
   # process. Each runs in its own process via yse_tests_lifecycle /
-  # yse_tests_synthlifecycle / yse_tests_midisynth / yse_tests_playersynth.
+  # yse_tests_synthlifecycle / yse_tests_synthcapi / yse_tests_midisynth /
+  # yse_tests_playersynth.
   #
   # `* concurrency: *` (the cross-subsystem create/destroy + race stress cases:
   # channel/sound/reverb/io/listener/midifile) is excluded here too and runs
@@ -184,7 +186,7 @@ add_test(
   # suite exclusions above and loses no coverage: yse_tests_concurrency plus the
   # per-suite entries still run every case. Tracked in #304; the root fix is
   # #41/#298 engine work.
-  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,midisynth,playersynth "--test-case-exclude=* concurrency: *" --duration=true
+  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthcapi,midisynth,playersynth "--test-case-exclude=* concurrency: *" --duration=true
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_unit_tests PROPERTIES TIMEOUT 600)
@@ -270,6 +272,19 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_synthlifecycle PROPERTIES LABELS "synth;lifecycle")
+
+# C-API synth surface (issue #157). Drives the synth entirely through the flat
+# C ABI under an offline engine (yse_system_init_offline), then yse_system_close().
+# Isolated in its own process for the same reason as yse_tests_synthlifecycle:
+# System::close() tears down process-global state (thread pools) the rest of the
+# suite assumes stays up (#298). initOffline() needs no audio hardware, so it
+# runs in CI.
+add_test(
+  NAME    yse_tests_synthcapi
+  COMMAND yse_tests --test-suite=synthcapi
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_synthcapi PROPERTIES LABELS "synth;c-api;lifecycle")
 
 add_test(
   NAME    yse_tests_midi

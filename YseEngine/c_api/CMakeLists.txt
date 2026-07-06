@@ -26,6 +26,7 @@ set(YSE_C_API_SRCS
   yse_patcher.cpp
   yse_midi.cpp
   yse_music.cpp
+  yse_synth.cpp
   yse_log.cpp
   yse_buffer_io.cpp
   yse_python.cpp
