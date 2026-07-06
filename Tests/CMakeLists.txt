@@ -77,6 +77,7 @@ set(YSE_TEST_SOURCES
   music/test_motif.cpp
   music/test_player_alloc.cpp
   music/test_player_synth.cpp
+  music/test_c_api_player.cpp
   listener/test_listener.cpp
   listener/test_listener_concurrency.cpp
   io/test_bufferIO.cpp
@@ -168,12 +169,12 @@ set_target_properties(yse_tests PROPERTIES
 if(NOT ANDROID)
 add_test(
   NAME    yse_unit_tests
-  # `lifecycle`, `synthlifecycle`, `synthcapi`, `midisynth` and `playersynth` are
-  # excluded alongside `integration`: they drive System::close(), which permanently
-  # stops the global thread pools and would break every later suite sharing this
-  # process. Each runs in its own process via yse_tests_lifecycle /
-  # yse_tests_synthlifecycle / yse_tests_synthcapi / yse_tests_midisynth /
-  # yse_tests_playersynth.
+  # `lifecycle`, `synthlifecycle`, `synthcapi`, `midisynth`, `playersynth` and
+  # `playercapi` are excluded alongside `integration`: they drive System::close(),
+  # which permanently stops the global thread pools and would break every later
+  # suite sharing this process. Each runs in its own process via yse_tests_lifecycle
+  # / yse_tests_synthlifecycle / yse_tests_synthcapi / yse_tests_midisynth /
+  # yse_tests_playersynth / yse_tests_playercapi.
   #
   # `* concurrency: *` (the cross-subsystem create/destroy + race stress cases:
   # channel/sound/reverb/io/listener/midifile) is excluded here too and runs
@@ -186,7 +187,7 @@ add_test(
   # suite exclusions above and loses no coverage: yse_tests_concurrency plus the
   # per-suite entries still run every case. Tracked in #304; the root fix is
   # #41/#298 engine work.
-  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthcapi,midisynth,playersynth "--test-case-exclude=* concurrency: *" --duration=true
+  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthcapi,midisynth,playersynth,playercapi "--test-case-exclude=* concurrency: *" --duration=true
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_unit_tests PROPERTIES TIMEOUT 600)
@@ -321,6 +322,19 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_playersynth PROPERTIES LABELS "music;synth;lifecycle")
+
+# C-API generative-player surface (issue #268). Drives the player create -> play
+# path entirely through the flat C ABI under an offline engine, then
+# yse_system_close(). Isolated in its own process for the same reason as
+# yse_tests_synthcapi / yse_tests_playersynth: System::close() tears down
+# process-global state (thread pools) the rest of the suite assumes stays up
+# (#298). initOffline() needs no audio hardware, so it runs in CI.
+add_test(
+  NAME    yse_tests_playercapi
+  COMMAND yse_tests --test-suite=playercapi
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_playercapi PROPERTIES LABELS "music;synth;c-api;lifecycle")
 
 add_test(
   NAME    yse_tests_listener
