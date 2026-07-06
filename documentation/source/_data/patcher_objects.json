@@ -1295,6 +1295,30 @@
       }
     ]
   },
+  "~adc": {
+    "category": "GENERIC",
+    "description": "Audio input into a patcher graph. When the patcher runs as a channel or sound insert, each outlet carries one channel of the host's incoming audio, so the graph can process external audio rather than only generating it.",
+    "inlets": [],
+    "is_dsp": true,
+    "name": "~adc",
+    "outlets": [
+      {
+        "doc": "One channel of the host's incoming audio, injected into the graph.",
+        "index": 0,
+        "label": "out",
+        "range": "-1.0 to 1.0",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "One channel of the host's incoming audio, injected into the graph.",
+        "index": 1,
+        "label": "out",
+        "range": "-1.0 to 1.0",
+        "type": "BUFFER"
+      }
+    ],
+    "params": []
+  },
   "~bp": {
     "category": "FILTER",
     "description": "Bandpass filter. Passes a frequency band centered on 'frequency' with bandwidth shaped by 'Q' (resonance).",

@@ -3,6 +3,7 @@
 #include "pObjectList.hpp"
 
 #include "genericObjects/pDac.h"
+#include "genericObjects/pAdc.h"
 #include "genericObjects/pLine.h"
 #include "genericObjects/gSwitch.h"
 #include "genericObjects/gGate.h"
@@ -70,6 +71,12 @@ pRegistry::pRegistry() {
 
   // Generic DSP
   Add(OBJ::D_LINE, pLine::Create);
+
+  // Audio input into the graph (patcher-as-insert, issue #167). Registered so
+  // ~adc is a valid, documented type and appears in the metadata snapshot; the
+  // rendered graph builds a channel-matched instance in
+  // patcherImplementation::CreateObjectUnlocked rather than via this Create().
+  Add(OBJ::D_ADC, pAdc::Create);
 
   Add(OBJ::D_SINE, pSine::Create);
   Add(OBJ::D_SAW, dSaw::Create);

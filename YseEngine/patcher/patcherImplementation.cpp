@@ -4,6 +4,7 @@
 #include "pObjectList.hpp"
 #include "../headers/enums.hpp"
 #include "genericObjects/pDac.h"
+#include "genericObjects/pAdc.h"
 #include "genericObjects/gReceive.h"
 #include "genericObjects/gSend.h"
 #include "pHandle.hpp"
@@ -158,6 +159,44 @@ void patcherImplementation::ResetDSP() {
   }
 }
 
+void patcherImplementation::ProcessAsInsert(MULTICHANNELBUFFER& io) {
+  // Audio thread. Run the patcher as an in-place insert effect over `io`
+  // (issue #167): feed the host's incoming audio to the graph's ~adc objects,
+  // render, then copy the summed ~dac output back over `io`.
+  //
+  // Channel-count contract between the host buffer and the graph I/O:
+  //   - Input:  ADC channel `ch` is fed io[ch] when ch < io.size(), else it is
+  //             left silent (null) — the graph simply gets no input on that
+  //             channel.
+  //   - Output: only the channels the graph produces are written back
+  //             (min(io.size(), output.size())). Host channels beyond the
+  //             graph's output count pass through unchanged (dry).
+  const GraphState* g = active_.load(std::memory_order_acquire);
+  if (g != nullptr) {
+    const unsigned int hostChannels = static_cast<unsigned int>(io.size());
+    for (pObject* obj : g->adcs) {
+      pAdc* adc = static_cast<pAdc*>(obj);
+      const unsigned int n = adc->NumChannels();
+      for (unsigned int ch = 0; ch < n; ch++) {
+        // The ADC pointers survive Calculate()'s ResetDSP pass (the ADC has no
+        // inlets to clear), so setting them here — just before the render — is
+        // exactly the ordering the graph traversal expects.
+        adc->SetChannelBuffer(ch, ch < hostChannels ? &io[ch] : nullptr);
+      }
+    }
+  }
+
+  // Existing render path: invalidates DSP state, fans out from the start points
+  // (the ~adc objects among them), and sums the ~dac buffers into `output`.
+  Calculate(YSE::T_DSP);
+
+  const unsigned int n =
+      std::min(static_cast<unsigned int>(io.size()), static_cast<unsigned int>(output.size()));
+  for (unsigned int ch = 0; ch < n; ch++) {
+    io[ch] = output[ch];
+  }
+}
+
 void patcherImplementation::ConnectUnlocked(YSE::pHandle* from, int outlet, YSE::pHandle* to,
                                             int inlet) {
   PATCHER::outlet* out = from->object->GetOutlet(outlet);
@@ -215,6 +254,13 @@ YSE::pHandle* patcherImplementation::CreateObjectUnlocked(const std::string& typ
     // Give the DAC its patcher parent too, so its inlets resolve DSP-readiness
     // from the pinned snapshot on the audio thread rather than the live wiring
     // (issue #226).
+    object->SetParent(this);
+  } else if (type == OBJ::D_ADC) {
+    // Like the DAC, the ADC is built with the patcher's real channel count
+    // rather than the registry's default-channel Create() (issue #167). The
+    // registry entry exists only so ~adc is a valid, documented type; the
+    // rendered graph always uses this channel-matched instance.
+    object = new pAdc((int)output.size());
     object->SetParent(this);
   } else {
     object = Register().Get(type);
@@ -765,6 +811,7 @@ YSE::PATCHER::GraphState* patcherImplementation::BuildGraph() {
     g->objects.push_back(object);
     if (object->IsDSPStartPoint()) g->startPoints.push_back(object);
     if (strcmp(object->Type(), YSE::OBJ::D_DAC) == 0) g->dacs.push_back(object);
+    if (strcmp(object->Type(), YSE::OBJ::D_ADC) == 0) g->adcs.push_back(object);
 
     for (int i = 0; i < object->NumOutputs(); i++) {
       PATCHER::outlet* out = object->GetOutlet(i);

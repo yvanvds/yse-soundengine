@@ -95,6 +95,9 @@
 #include "patcher/patcher.hpp"
 #include "patcher/pHandle.hpp"
 
+// patcher-as-insert adapter (issue #167)
+#include "dsp/patcherInsert.hpp"
+
 // utilities
 #include "utils/misc.hpp"
 #include "utils/vector.hpp"
