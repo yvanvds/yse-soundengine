@@ -25,6 +25,7 @@ set(YSE_SRCS
   dsp/fourier/fft.cpp
   dsp/fourier/mayer.cpp
   dsp/interpolate4.cpp
+  dsp/ladderFilter.cpp
   dsp/lfo.cpp
   dsp/math.cpp
   dsp/math_functions.cpp
@@ -135,6 +136,7 @@ set(YSE_SRCS
   sound/soundInterface.cpp
   sound/soundManager.cpp
   synth/sineVoice.cpp
+  synth/vaVoice.cpp
   synth/synthImplementation.cpp
   synth/synthInterface.cpp
   synth/synthManager.cpp

@@ -33,6 +33,8 @@ set(YSE_TEST_SOURCES
   dsp/test_module_compressor.cpp
   dsp/test_module_multichannel.cpp
   dsp/test_synth_voice.cpp
+  dsp/test_ladder_filter.cpp
+  dsp/test_va_voice.cpp
   patcher/test_graph.cpp
   patcher/test_nodes.cpp
   patcher/test_patcher_math.cpp
