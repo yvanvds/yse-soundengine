@@ -52,6 +52,46 @@ YSE::SOUND::managerObject::~managerObject() noexcept {
   }
 }
 
+void YSE::SOUND::managerObject::destroy() {
+  // Runs from system::close() after both thread pools are joined and the audio
+  // device is closed, with Global().active already false. Drains every
+  // lingering sound impl BEFORE CHANNEL::Manager().destroy() frees the channel
+  // impls, so no sound impl is left holding a dangling `parent` pointer — the
+  // root of the static-teardown / re-init use-after-free (issue #298). An impl
+  // whose interface was destroyed while the engine was up but that never got
+  // pumped to OBJECT_DELETE before close() lingers here otherwise: at the next
+  // init() the audio thread would reprocess it (parent already freed), and at
+  // static exit its destructor would disconnect from freed channel storage.
+  // Mirrors CHANNEL::Manager().destroy() (issue #132) and the "no persistence
+  // across init/close" guarantee (issue #121).
+
+  // No-ops once the pools are down, but mirror the destructor's contract that
+  // no setup/delete/GC job is mid-flight before the lists are torn.
+  mgrSetup.join();
+  mgrDelete.join();
+  mgrFileGC.join();
+
+  // Drain the main->audio inbox; the pointers it holds reference impls owned by
+  // `implementations` and would dangle once that list is cleared below.
+  implementationObject* drained;
+  while (toLoadInbox.try_pop(drained)) {
+    (void)drained;
+  }
+  toLoad.clear();
+  inUse.clear();
+  {
+    // Clear `implementations` before `soundFiles`: each impl destructor calls
+    // file->release(this) on its (shared) soundFile, which must still be alive.
+    std::scoped_lock lk(implementationsMutex);
+    implementations.clear();
+  }
+  {
+    std::scoped_lock lk(soundFilesMutex);
+    soundFiles.clear();
+  }
+  runDelete = false;
+}
+
 YSE::INTERNAL::soundFile* YSE::SOUND::managerObject::addFile(const std::string& fileName) {
   // Serialise with the slow-pool GC job that erases from soundFiles (issue #186).
   std::scoped_lock lk(soundFilesMutex);

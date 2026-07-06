@@ -74,6 +74,16 @@ namespace YSE {
       // `implementations` list. Call only from the audio callback. (issue #200)
       Bool empty();
 
+      /** Tear down every sound implementation synchronously from
+          system::close(). Called after both thread pools are joined and the
+          device is closed (Global().active already false), and BEFORE
+          CHANNEL::Manager().destroy() frees the channel impls — so no sound
+          impl is left holding a dangling `parent` pointer into freed channel
+          storage. This closes the static-teardown / re-init use-after-free
+          (issue #298) and honours the "no persistence across init/close"
+          guarantee (issue #121). Mirrors CHANNEL::Manager().destroy(). */
+      void destroy();
+
       /** Sets the maximum amount of sounds to be processed. The soundmanager
           will try to find the sounds that are most relevant and virtualize
           the rest.

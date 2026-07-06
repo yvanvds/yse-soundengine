@@ -135,6 +135,14 @@ void YSE::system::close() {
     INTERNAL::Global().active = false;
     DEVICE::Manager().close();
     INTERNAL::Global().close();
+    // Drain the sound manager BEFORE the channel manager: a sound impl that
+    // never reached OBJECT_DELETE before close() still holds a `parent` pointer
+    // into a channel impl. Freeing the channels first (CHANNEL::destroy) would
+    // leave that pointer dangling, to be dereferenced either at the next init()
+    // or during static teardown — a use-after-free (issue #298). Clearing the
+    // sound impls here, while the channels they reference are still alive,
+    // removes the lingering references entirely.
+    SOUND::Manager().destroy();
     // Tear down the channel manager last: Global().close() has joined both
     // thread pools and the device is already closed, so the persistent
     // master/named channels can be cleared synchronously. This drops their

@@ -253,3 +253,16 @@ jobs:
         # and sets ASAN_OPTIONS=detect_leaks=0 on the asan leg (the process-global
         # thread pools / named bus are intentionally never torn down).
         run: ctest --preset tests-${{ matrix.san }} --output-on-failure
+      - name: Run static-teardown UAF gate (lifecycle suite, issue #298)
+        # The lifecycle suite deliberately leaves a SOUND::implementationObject
+        # alive at engine teardown; its destructor used to read a freed parent
+        # channel impl during static destruction (issue #298), a flaky SIGSEGV
+        # that normal builds miss because it is heap-layout dependent. Run the
+        # isolated lifecycle process under AddressSanitizer so that
+        # use-after-free is caught deterministically. Asan leg only.
+        # detect_leaks=0 for the same reason as the patcher gate above (the
+        # process-global pools/bus are never torn down); this gate is about UAF.
+        if: matrix.san == 'asan'
+        env:
+          ASAN_OPTIONS: detect_leaks=0
+        run: ctest --test-dir build-tests-asan -R yse_tests_lifecycle --output-on-failure
