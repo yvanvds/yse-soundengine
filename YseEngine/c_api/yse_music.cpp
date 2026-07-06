@@ -1,4 +1,5 @@
 #include "yse_c/yse_music.h"
+#include "yse_c/yse_synth.h" // YseSynth handle — the synth a player is bound to (#268)
 #include "yse_c_internal.hpp"
 
 #include "../music/note.hpp"
@@ -198,9 +199,19 @@ YSE_C_API unsigned int yse_motif_size(YseMotif* m) {
 
 // ─── player ────────────────────────────────────────────────────────
 
-YSE_C_API YsePlayer* yse_player_create(void) {
+YSE_C_API YsePlayer* yse_player_create(YseSynth* synth) {
+  YSE::synth* instrument = yse_c::synth_from_handle(synth);
+  if (instrument == nullptr) {
+    yse_c::set_last_error("player_create: synth handle is NULL");
+    return nullptr;
+  }
   try {
-    return reinterpret_cast<YsePlayer*>(new YSE::player());
+    // Bind the player to its synth up front (player::create) — without this the
+    // pimpl is never assigned and every subsequent call is an inert no-op
+    // (issue #268). create() registers the player with PLAYER::Manager().
+    auto* p = new YSE::player();
+    p->create(*instrument);
+    return reinterpret_cast<YsePlayer*>(p);
   } catch (const std::exception& e) {
     yse_c::set_last_error(e.what());
     return nullptr;

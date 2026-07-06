@@ -29,6 +29,8 @@ namespace {
   inline YseSynthImpl* to_impl(YseSynth* h) {
     return reinterpret_cast<YseSynthImpl*>(h);
   }
+  // (definition of yse_c::synth_from_handle appears after this namespace, once
+  // to_impl / YseSynthImpl are in scope)
   inline YSE::sound* to_cpp(YseSound* s) {
     return reinterpret_cast<YSE::sound*>(s);
   }
@@ -37,6 +39,15 @@ namespace {
   }
 
 } // namespace
+
+// Cross-TU accessor declared in yse_c_internal.hpp: hand the engine synth out
+// to yse_music.cpp so a player can be created bound to it (issue #268). Kept
+// here, in the only TU that knows YseSynthImpl's layout.
+namespace yse_c {
+  YSE::synth* synth_from_handle(YseSynth* h) {
+    return h ? &to_impl(h)->synth : nullptr;
+  }
+} // namespace yse_c
 
 extern "C" {
 

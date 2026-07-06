@@ -33,6 +33,11 @@ typedef struct YseMotif YseMotif;
 /* Owned — release with yse_player_destroy. */
 typedef struct YsePlayer YsePlayer;
 
+/* Forward declaration — the synth a player drives. Owned by the caller and
+   created via yse_synth_create (see yse_synth.h); it must outlive the player.
+   The player feeds every note it generates into this synth's lock-free inbox. */
+typedef struct YseSynth YseSynth;
+
 /* ─── note ────────────────────────────────────────────────────────── */
 
 YSE_C_API YseNote* yse_note_create(float pitch, float volume, float length, int channel);
@@ -90,7 +95,14 @@ YSE_C_API unsigned int yse_motif_size(YseMotif* m);
 
 /* ─── player — generative sequencer ───────────────────────────────── */
 
-YSE_C_API YsePlayer* yse_player_create(void);
+/* Create a generative player bound to `synth` and register it with the engine.
+   `synth` must be a live handle from yse_synth_create and must outlive the
+   player — every note the player generates is delivered to it. Returns NULL
+   (with yse_last_error() set) when `synth` is NULL or on allocation failure.
+   This is the only create path: a player has no useful state until it is bound
+   to a synth, so unlike most create functions it takes its target up front
+   (issue #268). */
+YSE_C_API YsePlayer* yse_player_create(YseSynth* synth);
 YSE_C_API void yse_player_destroy(YsePlayer* p);
 YSE_C_API void yse_player_play(YsePlayer* p);
 YSE_C_API void yse_player_stop(YsePlayer* p);
