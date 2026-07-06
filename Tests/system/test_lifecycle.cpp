@@ -124,4 +124,74 @@ TEST_SUITE("lifecycle") {
     YSE::System().close();
   }
 
+  // Regression test for issue #298: a SOUND::implementationObject that is still
+  // alive at engine teardown (never drained to OBJECT_DELETE before close())
+  // must not use-after-free its parent channel impl.
+  //
+  // The ordering that triggers the bug: a file-backed sound is driven to
+  // OBJECT_READY — at which point doThisWhenReady() has run, so the impl is
+  // linked into its parent channel's `sounds` list and connectedToParent is
+  // set. The sound interface is then destroyed while the engine is still up,
+  // but close() is called BEFORE the manager pumps the impl through
+  // OBJECT_RELEASE→OBJECT_DELETE, so it lingers in SOUND::Manager's
+  // `implementations` list still pointing at its parent channel impl. Pre-fix,
+  // close() freed the channel impls (CHANNEL::Manager().destroy()) while that
+  // sound impl was still referencing one, leaving `parent` dangling — then
+  // dereferenced either at the next init() (the audio thread reprocesses the
+  // lingering impl and calls parent->disconnect on freed storage) or during
+  // static destruction of the manager singletons at process exit. A flaky
+  // SIGSEGV in normal builds (heap-layout dependent), a deterministic
+  // heap-use-after-free under AddressSanitizer. The fix drains the sound
+  // manager in close() (SOUND::Manager().destroy()) BEFORE the channels are
+  // freed, plus gates the impl destructor's parent disconnect on
+  // Global().isActive() as defence in depth.
+  //
+  // This case sets up exactly that lingering-impl-past-close state and then
+  // re-inits and closes again. Post-fix nothing dangles: the drain tears the
+  // impl down while its parent is still alive, so the re-init is clean and
+  // there is nothing left for static teardown to touch. The CHECKs below assert
+  // the cycle completes; the real regression gate is the AddressSanitizer CI
+  // leg, which runs this suite (build.yml: Sanitizers/asan) and would report
+  // the freed-parent read deterministically if the drain regressed.
+  TEST_CASE("lifecycle: a sound impl lingering past close() is torn down cleanly (issue #298)") {
+    YSE::System().close(); // normalize to a closed engine
+
+    if (!YSE::System().initOffline()) return; // no offline device on this host
+
+    {
+      YSE::sound s;
+      s.create(WAV_FIXTURE);
+      if (s.isValid()) { // skip only if the fixture is missing on this host
+        // Drive the sound all the way to OBJECT_READY so doThisWhenReady() has
+        // run: this is what links it into the parent channel and sets
+        // connectedToParent — the precondition for the dangling-parent bug.
+        // Audio is paused, so the test thread pumps the manager itself.
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+        while (std::chrono::steady_clock::now() < deadline) {
+          YSE::INTERNAL::Time().update();
+          YSE::SOUND::Manager().update();
+          if (s.isReady()) break;
+          std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+        CHECK(s.isReady());
+      }
+      // ~sound fires here (engine still up), nulling the impl's head. Crucially
+      // we do NOT pump SOUND::Manager().update() afterwards, so the impl never
+      // reaches OBJECT_DELETE and lingers into close() below with its parent
+      // link still live.
+    }
+
+    // close() must drain the still-connected sound impl (SOUND::Manager().
+    // destroy()) before freeing its parent channel — the fix for #298.
+    YSE::System().close();
+
+    // A second lifecycle: with the drain in place nothing from session 1
+    // survives, so re-init/close is clean. Pre-fix the lingering impl's stale
+    // parent pointer was reprocessed here (or blew up at static exit).
+    REQUIRE(YSE::System().initOffline());
+    YSE::System().close();
+
+    CHECK(true); // completing the cycle without a crash is the observable win
+  }
+
 } // TEST_SUITE("lifecycle")

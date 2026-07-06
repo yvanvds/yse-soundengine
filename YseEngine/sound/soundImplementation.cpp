@@ -82,7 +82,19 @@ YSE::SOUND::implementationObject::~implementationObject() {
   // setup-failure path: impls that died before doThisWhenReady ever ran).
   // In that case `connectedToParent` is false and parent->sounds doesn't
   // contain us — the slow-pool just skips the disconnect entirely.
-  if (parent != nullptr &&
+  //
+  // The isActive() gate handles engine teardown (issue #298): a sound impl
+  // that never drained to OBJECT_DELETE before System::close() lingers in
+  // SOUND::Manager's `implementations` list with connectedToParent still set.
+  // close() sets Global().active=false and then CHANNEL::Manager().destroy()
+  // frees the parent channel impls, so `parent` is already dangling by the
+  // time this runs — whether at close() or, worse, during static destruction
+  // of the Meyers-singleton managers (CHANNEL::Manager may be destroyed before
+  // SOUND::Manager). Touching parent->sounds then is a use-after-free. When the
+  // engine is inactive the whole graph is being torn down, so parent->sounds
+  // membership no longer matters — skip the disconnect. Mirrors the identical
+  // guard in ~CHANNEL::implementationObject.
+  if (INTERNAL::Global().isActive() && parent != nullptr &&
       connectedToParent.load(
           std::memory_order_acquire)) { // NOSONAR S8417: intentional acquire — pairs with release
                                         // in doThisWhenReady() / Manager::update() handshake
