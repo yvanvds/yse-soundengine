@@ -29,6 +29,7 @@ set(YSE_SRCS
   dsp/math.cpp
   dsp/math_functions.cpp
   dsp/modules/delay/basicDelay.cpp
+  dsp/modules/delay/feedbackDelay.cpp
   dsp/modules/delay/highpassDelay.cpp
   dsp/modules/delay/lowpassDelay.cpp
   dsp/modules/filters/bandpass.cpp

@@ -41,6 +41,7 @@
 #include "dsp/modules/delay/basicDelay.hpp"
 #include "dsp/modules/delay/lowpassDelay.hpp"
 #include "dsp/modules/delay/highpassDelay.hpp"
+#include "dsp/modules/delay/feedbackDelay.hpp"
 #include "headers/defines.hpp"
 #include "support/audio_helpers.hpp"
 #include "support/alloc_probe.hpp"
@@ -228,6 +229,14 @@ namespace {
       return m;
     };
   }
+  ModuleFactory feedbackDelayFactory() {
+    return [] {
+      auto m = std::make_unique<YSE::DSP::MODULES::feedbackDelay>();
+      // crossfeed left at 0 so channels stay independent (contract requirement).
+      m->time(5.0f).feedback(0.6f).damping(4000.0f);
+      return m;
+    };
+  }
 
   struct NamedFactory {
     const char* name;
@@ -245,6 +254,7 @@ namespace {
         {"basicDelay", basicDelayFactory()},
         {"lowPassDelay", lowPassDelayFactory()},
         {"highPassDelay", highPassDelayFactory()},
+        {"feedbackDelay", feedbackDelayFactory()},
     };
   }
 
