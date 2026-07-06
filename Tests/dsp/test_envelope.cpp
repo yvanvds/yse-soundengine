@@ -165,6 +165,53 @@ TEST_SUITE("dsp") {
       CHECK(ptr[i] == doctest::Approx(0.0f).epsilon(1e-5f));
   }
 
+  // Regression tests for #300: a RELEASE (or RESUME) issued before any ATTACK
+  // must not dereference the uninitialised `phase` pointer. This happens for a
+  // voice released before it ever renders a block (NOTE_ON + NOTE_OFF draining
+  // in one audio block, or an all-notes-off before the first render). Without
+  // the guard these crash / trip ASan; with it they settle to silence + isAtEnd.
+
+  TEST_CASE("ADSRenvelope: RELEASE before ATTACK is silent and at-end (no loop)") {
+    YSE::DSP::ADSRenvelope adsr;
+    adsr.addPoint({0.0f, 0.0f, 1.0f});
+    adsr.addPoint({0.1f, 1.0f, 1.0f});
+    adsr.generate();
+    // No ATTACK has primed `phase`.
+    YSE::DSP::buffer& buf = adsr(YSE::DSP::ADSRenvelope::RELEASE);
+    float* ptr = buf.getPtr();
+    for (unsigned i = 0; i < buf.getLength(); ++i)
+      CHECK(ptr[i] == doctest::Approx(0.0f).epsilon(1e-5f));
+    CHECK(adsr.isAtEnd());
+  }
+
+  TEST_CASE("ADSRenvelope: RELEASE before ATTACK is silent and at-end (sustain loop)") {
+    // A sustain loop makes generate() set loopEnd != nullptr, which drives the
+    // RELEASE branch's `while (*phase != *search) search--;` — the exact path
+    // from #300 that dereferences the uninitialised `phase`.
+    YSE::DSP::ADSRenvelope adsr;
+    adsr.addPoint({0.0f, 0.0f, 1.0f});
+    adsr.addPoint({0.05f, 1.0f, 1.0f, /*loopStart*/ true});
+    adsr.addPoint({0.1f, 1.0f, 1.0f, /*loopStart*/ false, /*loopEnd*/ true});
+    adsr.generate();
+    YSE::DSP::buffer& buf = adsr(YSE::DSP::ADSRenvelope::RELEASE);
+    float* ptr = buf.getPtr();
+    for (unsigned i = 0; i < buf.getLength(); ++i)
+      CHECK(ptr[i] == doctest::Approx(0.0f).epsilon(1e-5f));
+    CHECK(adsr.isAtEnd());
+  }
+
+  TEST_CASE("ADSRenvelope: RESUME before ATTACK is silent and at-end") {
+    YSE::DSP::ADSRenvelope adsr;
+    adsr.addPoint({0.0f, 0.0f, 1.0f});
+    adsr.addPoint({0.1f, 1.0f, 1.0f});
+    adsr.generate();
+    YSE::DSP::buffer& buf = adsr(YSE::DSP::ADSRenvelope::RESUME);
+    float* ptr = buf.getPtr();
+    for (unsigned i = 0; i < buf.getLength(); ++i)
+      CHECK(ptr[i] == doctest::Approx(0.0f).epsilon(1e-5f));
+    CHECK(adsr.isAtEnd());
+  }
+
   // ─── envelope (breakpoint extractor) ─────────────────────────────────────────
   //
   // Known implementation issue: envelope::create() computes the window size as

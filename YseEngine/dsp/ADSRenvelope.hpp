@@ -80,12 +80,12 @@ namespace YSE {
     private:
       std::vector<breakPoint> breakPoints;
       buffer envelope, result;
-      Flt* phase;
-      Flt* loopStart;
-      Flt* loopEnd;
-      Flt* envelopeEnd;
-      Bool looping;
-      Bool endReached;
+      Flt* phase = nullptr;
+      Flt* loopStart = nullptr;
+      Flt* loopEnd = nullptr;
+      Flt* envelopeEnd = nullptr;
+      Bool looping = false;
+      Bool endReached = false;
     };
 
   } // namespace DSP
