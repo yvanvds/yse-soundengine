@@ -36,6 +36,12 @@ namespace YSE {
       virtual void ResetDSP();
       virtual void Calculate(THREAD thread);
 
+      // Run the patcher as an in-place insert effect over a host buffer
+      // (issue #167): feed the incoming audio to the graph's ~adc objects,
+      // render, and copy the summed ~dac output back. Audio thread only.
+      // See the definition for the host/graph channel-count contract.
+      void ProcessAsInsert(MULTICHANNELBUFFER& io);
+
       // The GraphState pinned for the block currently being rendered, or null
       // between blocks. Read by inlets/outlets to resolve topology without a
       // lock (issue #226).

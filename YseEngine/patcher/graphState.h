@@ -35,6 +35,11 @@ namespace YSE {
       // DAC sinks whose channel buffers are summed into the patcher output.
       std::vector<pObject*> dacs;
 
+      // ADC sources fed by an external host buffer when the patcher runs as an
+      // insert (issue #167). The host adapter points each ADC's channels at the
+      // incoming audio before the block renders.
+      std::vector<pObject*> adcs;
+
       // outletTargets[outlet.graphId] = the inlets that outlet feeds. Empty for
       // ids that belong to deleted objects or outlets with no connections.
       std::vector<std::vector<inlet*>> outletTargets;

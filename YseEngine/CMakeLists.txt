@@ -28,6 +28,7 @@ set(YSE_SRCS
   dsp/lfo.cpp
   dsp/math.cpp
   dsp/math_functions.cpp
+  dsp/patcherInsert.cpp
   dsp/modules/delay/basicDelay.cpp
   dsp/modules/delay/feedbackDelay.cpp
   dsp/modules/delay/highpassDelay.cpp
@@ -90,6 +91,7 @@ set(YSE_SRCS
   patcher/genericObjects/gRoute.cpp
   patcher/genericObjects/gSend.cpp
   patcher/genericObjects/gSwitch.cpp
+  patcher/genericObjects/pAdc.cpp
   patcher/genericObjects/pDac.cpp
   patcher/genericObjects/pLine.cpp
   patcher/guiObjects/gButton.cpp
@@ -212,6 +214,7 @@ set_source_files_properties(
   patcher/genericObjects/gRoute.cpp
   patcher/genericObjects/gSend.cpp
   patcher/genericObjects/gSwitch.cpp
+  patcher/genericObjects/pAdc.cpp
   patcher/genericObjects/pDac.cpp
   patcher/genericObjects/pLine.cpp
   patcher/guiObjects/gButton.cpp
@@ -246,11 +249,13 @@ set_source_files_properties(
   PROPERTIES COMPILE_FLAGS "${PATCHER_SUPPRESS}"
 )
 
-# soundImplementation.cpp and soundInterface.cpp pull in json.hpp through patcher headers.
+# soundImplementation.cpp, soundInterface.cpp and dsp/patcherInsert.cpp pull in
+# json.hpp through patcher headers.
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   set_source_files_properties(
     sound/soundImplementation.cpp
     sound/soundInterface.cpp
+    dsp/patcherInsert.cpp
     PROPERTIES COMPILE_FLAGS "-Wno-deprecated-literal-operator -Wno-tautological-overlap-compare"
   )
 endif()

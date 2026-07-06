@@ -8,6 +8,9 @@ namespace YSE {
   namespace PATCHER {
     class patcherImplementation;
   }
+  namespace DSP {
+    class patcherInsert;
+  }
   /// @endcond
 
   /**
@@ -138,6 +141,9 @@ namespace YSE {
     // has run.
     std::string pendingName;
     friend class YSE::sound;
+    // The insert adapter reaches through to pimpl to render the graph in place
+    // (issue #167).
+    friend class YSE::DSP::patcherInsert;
   };
 
 } // namespace YSE
