@@ -12,13 +12,13 @@
 
 YSE::DSP::MODULES::highPassDelay::highPassDelay() : parmFrequency(1000.f) {}
 
-void YSE::DSP::MODULES::highPassDelay::createPreFilter() {
-  hp.reset(new DSP::highPass);
+void YSE::DSP::MODULES::highPassDelay::ensurePreFilter(std::size_t count) {
+  hp.ensure(count);
 }
 
-void YSE::DSP::MODULES::highPassDelay::applyPreFilter(DSP::buffer& buffer) {
-  (*hp).setFrequency(parmFrequency);
-  buffer = (*hp)(buffer);
+void YSE::DSP::MODULES::highPassDelay::applyPreFilter(DSP::buffer& buffer, std::size_t ch) {
+  hp[ch].setFrequency(parmFrequency);
+  buffer = hp[ch](buffer);
 }
 
 YSE::DSP::MODULES::highPassDelay& YSE::DSP::MODULES::highPassDelay::frequency(Flt value) {

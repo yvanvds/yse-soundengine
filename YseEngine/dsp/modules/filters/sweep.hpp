@@ -16,6 +16,7 @@
 #include "../../filters.hpp"
 #include "../../oscillators.hpp"
 #include "../../interpolate4.hpp"
+#include "../../perChannel.hpp"
 #include <memory>
 
 namespace YSE {
@@ -74,11 +75,15 @@ namespace YSE {
         aInt parmFrequency;
 
         SHAPE shape;
+        // Shared modulation path: the sweep LFO and its frequency mapping are
+        // identical for every channel, so they run once per block.
         std::shared_ptr<wavetable> table;
         std::shared_ptr<oscillator> osc;
-        std::shared_ptr<vcf> filter;
-        std::shared_ptr<DSP::buffer> result;
         std::shared_ptr<interpolate4> interpolator;
+        DSP::buffer control; // per-block scratch: the cutoff control signal
+        DSP::buffer result; // per-block scratch: one channel's filtered output
+        // Per-channel filter state — each channel keeps its own vcf memory.
+        perChannel<vcf> filter;
       };
 
     } // namespace MODULES

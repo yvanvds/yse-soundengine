@@ -57,6 +57,35 @@ namespace YSE {
        *  bounded in time. Subclasses typically call ``createIfNeeded()`` at
        *  the start, do their work, then call ``calculateImpact()`` at the end
        *  to apply the wet/dry mix.
+       *
+       *  ### N-channel processing contract
+       *
+       *  ``buffer`` is a ``MULTICHANNELBUFFER`` (a ``std::vector`` of
+       *  ``DSP::buffer``, one per audio channel). Implementations MUST:
+       *
+       *  - **Process every channel** ``buffer[0] .. buffer[buffer.size()-1]``,
+       *    not just ``buffer[0]``. Each channel is an independent signal; state
+       *    that remembers per-sample history (filter memory, delay lines,
+       *    oscillator phase driven by the audio) must be kept *per channel* so
+       *    it does not bleed between them. The ``DSP::perChannel<State>`` helper
+       *    exists for this fan-out; ``reverbDSP`` (per-channel ``reverbChannel``
+       *    structs) is the reference example.
+       *  - **Tolerate a changing channel count between calls.** The device can
+       *    restart with a different output-channel count, so ``buffer.size()``
+       *    may differ from the previous call. Re-sizing per-channel state to
+       *    match is allowed to allocate — that is the device-restart path, not
+       *    the steady state — but this is the *only* place allocation is
+       *    permitted. Do it via ``perChannel::ensure(buffer.size())`` (or an
+       *    equivalent size check) so a steady-state call with an unchanged
+       *    count allocates nothing.
+       *  - **Allocate only in** ``create()`` **or on that resize path.** The
+       *    common per-block scratch (block-length ``result`` buffers, etc.) is
+       *    (re)sized only when the block length changes, exactly as the input
+       *    channels are.
+       *
+       *  A single-channel buffer is the degenerate case: modules upgraded to
+       *  this contract are bit-identical to their former mono-only behaviour
+       *  when ``buffer.size() == 1``.
        */
       virtual void process(MULTICHANNELBUFFER& buffer) = 0;
 

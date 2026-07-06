@@ -57,53 +57,62 @@ Flt YSE::DSP::MODULES::basicDelay::gain(basicDelay::DELAY_NR nr) {
   return gain0; // stop complaining about control paths
 }
 
+YSE::DSP::MODULES::basicDelay::delayChannel::delayChannel() : line(static_cast<Int>(SAMPLERATE)) {}
+
 void YSE::DSP::MODULES::basicDelay::create() {
-  result.reset(new buffer);
-  delayBuffer.reset(new delay(SAMPLERATE));
-  reader.reset(new buffer);
-  createPreFilter();
+  // Per-channel delay lines are sized lazily in process() once the channel
+  // count is known; nothing to allocate up front.
 }
 
-void YSE::DSP::MODULES::basicDelay::createPreFilter() {}
-void YSE::DSP::MODULES::basicDelay::applyPreFilter(DSP::buffer& /*buffer*/) {}
+void YSE::DSP::MODULES::basicDelay::ensurePreFilter(std::size_t /*count*/) {}
+void YSE::DSP::MODULES::basicDelay::applyPreFilter(DSP::buffer& /*buffer*/, std::size_t /*ch*/) {}
 
 void YSE::DSP::MODULES::basicDelay::process(MULTICHANNELBUFFER& buffer) {
   createIfNeeded();
 
-  if (buffer[0].getLength() != result->getLength()) {
-    result->resize(buffer[0].getLength());
-    reader->resize(buffer[0].getLength());
+  if (buffer.empty()) return;
+
+  // Grow/shrink per-channel delay lines (and any subclass pre-filter) to match
+  // the channel count. Allocation-free once the count is stable.
+  channels.ensure(buffer.size());
+  ensurePreFilter(buffer.size());
+
+  for (std::size_t ch = 0; ch < buffer.size(); ++ch) {
+    if (buffer[ch].getLength() != result.getLength()) {
+      result.resize(buffer[ch].getLength());
+      reader.resize(buffer[ch].getLength());
+    }
+
+    result = buffer[ch];
+    applyPreFilter(buffer[ch], ch);
+
+    channels[ch].line.process(buffer[ch]);
+    Int delayCount = 1; // the original signal
+
+    // add delays to signal
+    if (gain0 > 0) {
+      channels[ch].line.read(reader, (UInt)time0);
+      reader *= gain0;
+      result += reader;
+      delayCount++;
+    }
+
+    if (gain1 > 0) {
+      channels[ch].line.read(reader, (UInt)time1);
+      reader *= gain1;
+      result += reader;
+      delayCount++;
+    }
+
+    if (gain2 > 0) {
+      channels[ch].line.read(reader, (UInt)time2);
+      reader *= gain2;
+      result += reader;
+      delayCount++;
+    }
+
+    // adjust total gain
+    result *= (1.f / delayCount);
+    calculateImpact(buffer[ch], result);
   }
-
-  (*result) = buffer[0];
-  applyPreFilter(buffer[0]);
-
-  delayBuffer->process(buffer[0]);
-  Int delayCount = 1; // the original signal
-
-  // add delays to signal
-  if (gain0 > 0) {
-    delayBuffer->read(*reader, (UInt)time0);
-    (*reader) *= gain0;
-    (*result) += (*reader);
-    delayCount++;
-  }
-
-  if (gain1 > 0) {
-    delayBuffer->read(*reader, (UInt)time1);
-    (*reader) *= gain1;
-    (*result) += (*reader);
-    delayCount++;
-  }
-
-  if (gain2 > 0) {
-    delayBuffer->read(*reader, (UInt)time2);
-    (*reader) *= gain2;
-    (*result) += (*reader);
-    delayCount++;
-  }
-
-  // adjust total gain
-  (*result) *= (1.f / delayCount);
-  calculateImpact(buffer[0], (*result));
 }

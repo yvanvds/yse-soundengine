@@ -35,11 +35,11 @@ namespace YSE {
         Flt frequency();
 
       private:
-        virtual void createPreFilter();
-        virtual void applyPreFilter(DSP::buffer& buffer);
+        virtual void ensurePreFilter(std::size_t count);
+        virtual void applyPreFilter(DSP::buffer& buffer, std::size_t ch);
 
         aFlt parmFrequency;
-        std::shared_ptr<DSP::lowPass> lp;
+        perChannel<DSP::lowPass> lp; // one pre-filter per channel
       };
 
     } // namespace MODULES

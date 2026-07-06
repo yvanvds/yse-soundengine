@@ -22,19 +22,25 @@ Flt YSE::DSP::MODULES::lowPassFilter::frequency() {
 }
 
 void YSE::DSP::MODULES::lowPassFilter::create() {
-  lp.reset(new lowPass);
-  result.reset(new buffer);
+  // Per-channel filters are sized lazily in process() once the channel count
+  // is known; nothing to allocate up front.
 }
 
 void YSE::DSP::MODULES::lowPassFilter::process(MULTICHANNELBUFFER& buffer) {
   createIfNeeded();
 
-  if (buffer[0].getLength() != result->getLength()) {
-    result->resize(buffer[0].getLength());
+  // Grow/shrink per-channel filter state to match the (possibly changed)
+  // channel count. Allocation-free once the count is stable.
+  lp.ensure(buffer.size());
+
+  for (std::size_t ch = 0; ch < buffer.size(); ++ch) {
+    if (buffer[ch].getLength() != result.getLength()) {
+      result.resize(buffer[ch].getLength());
+    }
+
+    lp[ch].setFrequency(parmFrequency);
+    result = lp[ch](buffer[ch]);
+
+    calculateImpact(buffer[ch], result);
   }
-
-  (*lp).setFrequency(parmFrequency);
-  (*result) = (*lp)(buffer[0]);
-
-  calculateImpact(buffer[0], (*result));
 }
