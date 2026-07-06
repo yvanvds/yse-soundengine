@@ -62,6 +62,15 @@ YSE::DSP::buffer& YSE::DSP::ADSRenvelope::operator()(STATE state, UInt length) {
     endReached = false;
   }
 
+  // A RELEASE/RESUME that arrives before any ATTACK has primed `phase` — e.g. a
+  // voice released before it ever rendered a block — has nothing to play. Treat
+  // it as already ended instead of dereferencing a null phase.
+  if (phase == nullptr) {
+    endReached = true;
+    result = 0.f;
+    return result;
+  }
+
   // when called after release has reached zero
   if (endReached) {
     result = 0.f;
