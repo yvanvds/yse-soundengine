@@ -20,6 +20,8 @@ YSE::reverb::reverb(bool global)
     dry(0.5f),
     modFrequency(0),
     modWidth(0),
+    size(0),
+    rolloff(0),
     global(global) {}
 
 YSE::reverb::~reverb() {

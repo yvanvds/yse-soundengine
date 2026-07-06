@@ -15,6 +15,8 @@
 // sequentially so there is no data-race concern.
 
 #include <doctest/doctest.h>
+#include <cstring> // std::memset — dirties storage for the issue #263 regression test
+#include <new> // placement new — construct reverb over pre-dirtied memory
 #include <type_traits>
 // Channel headers must precede reverbManager.h because the manager references
 // CHANNEL::implementationObject without a forward declaration.
@@ -176,6 +178,27 @@ TEST_SUITE("reverb") {
   TEST_CASE("reverb: default dry is 0.5") {
     YSE::reverb r;
     CHECK(r.getDry() == doctest::Approx(0.5f));
+  }
+
+  TEST_CASE("reverb: constructor initialises size and rolloff to zero (issue #263)") {
+    // The constructor must initialise `size` and `rolloff`; before the fix
+    // they were left out of the initialiser list, so getSize()/getRollOff()
+    // (and the setSize()/setRollOff() `if (size != value)` guards) read
+    // indeterminate memory.
+    //
+    // A plain stack-local reverb is an unreliable regression test: the stack
+    // slot is often already zero, so the uninitialised read masquerades as a
+    // pass. Instead we placement-new the object over a buffer pre-filled with
+    // non-zero bytes (0xFF, which reads back as a NaN when interpreted as a
+    // float). If the constructor leaves size/rolloff untouched, the getters
+    // return that NaN and the checks fail; the fix zero-initialises both.
+    alignas(YSE::reverb) unsigned char storage[sizeof(YSE::reverb)];
+    std::memset(storage, 0xFF, sizeof(storage));
+    YSE::reverb* r = new (storage) YSE::reverb();
+    CHECK(r->getSize() == doctest::Approx(0.0f));
+    CHECK(r->getRollOff() == doctest::Approx(0.0f));
+    // No create() was called, so pimpl is null and ~reverb() is trivial-safe.
+    r->~reverb();
   }
 
   TEST_CASE("reverb: default modulation frequency and width are zero") {
