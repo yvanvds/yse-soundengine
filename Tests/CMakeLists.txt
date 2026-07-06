@@ -75,6 +75,7 @@ set(YSE_TEST_SOURCES
   music/test_note.cpp
   music/test_motif.cpp
   music/test_player_alloc.cpp
+  music/test_player_synth.cpp
   listener/test_listener.cpp
   listener/test_listener_concurrency.cpp
   io/test_bufferIO.cpp
@@ -166,12 +167,12 @@ set_target_properties(yse_tests PROPERTIES
 if(NOT ANDROID)
 add_test(
   NAME    yse_unit_tests
-  # `lifecycle`, `synthlifecycle` and `midisynth` are excluded alongside
-  # `integration`: they drive System::close(), which permanently stops the
-  # global thread pools and would break every later suite sharing this process.
-  # Each runs in its own process via
-  # yse_tests_lifecycle / yse_tests_synthlifecycle / yse_tests_midisynth.
-  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,midisynth --duration=true
+  # `lifecycle`, `synthlifecycle`, `midisynth` and `playersynth` are excluded
+  # alongside `integration`: they drive System::close(), which permanently stops
+  # the global thread pools and would break every later suite sharing this
+  # process. Each runs in its own process via yse_tests_lifecycle /
+  # yse_tests_synthlifecycle / yse_tests_midisynth / yse_tests_playersynth.
+  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,midisynth,playersynth --duration=true
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_unit_tests PROPERTIES TIMEOUT 600)
@@ -282,6 +283,17 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_music PROPERTIES LABELS music)
+
+# End-to-end generative-player -> synth routing (issue #156). Isolated in its own
+# process for the same reason as yse_tests_midisynth: it drives System::close()
+# and constructs the synth + sound managers, whose static teardown must not leak
+# into other suites (issue #298). Uses initOffline(), so it runs in CI.
+add_test(
+  NAME    yse_tests_playersynth
+  COMMAND yse_tests --test-suite=playersynth
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_playersynth PROPERTIES LABELS "music;synth;lifecycle")
 
 add_test(
   NAME    yse_tests_listener

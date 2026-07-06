@@ -22,13 +22,20 @@ YSE::player::~player() {
   }
 }
 
-/*YSE::player & YSE::player::create(synth & s) {
-  assert(pimpl == nullptr);
-  pimpl = PLAYER::Manager().addImplementation(this, &s);
+YSE::player& YSE::player::create(YSE::synth& instrument) {
+  if (pimpl != nullptr) return *this; // already created — idempotent
+  pimpl = PLAYER::Manager().addImplementation(this, &instrument);
   return *this;
-}*/
+}
+
+bool YSE::player::checkCreated() const {
+  if (pimpl != nullptr) return true;
+  INTERNAL::LogImpl().emit(E_WARNING, "player: method called before create(synth&) — ignored");
+  return false;
+}
 
 YSE::player& YSE::player::play() {
+  if (!checkCreated()) return *this;
   PLAYER::messageObject m;
   m.ID = PLAYER::PLAY;
   m.boolValue = true;
@@ -38,6 +45,7 @@ YSE::player& YSE::player::play() {
 }
 
 YSE::player& YSE::player::stop() {
+  if (!checkCreated()) return *this;
   PLAYER::messageObject m;
   m.ID = PLAYER::PLAY;
   m.boolValue = false;
@@ -51,6 +59,7 @@ Bool YSE::player::isPlaying() {
 }
 
 YSE::player& YSE::player::setMinimumPitch(Flt target, Flt time) {
+  if (!checkCreated()) return *this;
   Clamp(target, 0.f, 126.f);
   PLAYER::messageObject m;
   m.ID = PLAYER::MIN_PITCH;
@@ -61,6 +70,7 @@ YSE::player& YSE::player::setMinimumPitch(Flt target, Flt time) {
 }
 
 YSE::player& YSE::player::setMaximumPitch(Flt target, Flt time) {
+  if (!checkCreated()) return *this;
   Clamp(target, 1.f, 127.f);
   PLAYER::messageObject m;
   m.ID = PLAYER::MAX_PITCH;
@@ -71,6 +81,7 @@ YSE::player& YSE::player::setMaximumPitch(Flt target, Flt time) {
 }
 
 YSE::player& YSE::player::setMinimumVelocity(Flt target, Flt time) {
+  if (!checkCreated()) return *this;
   Clamp(target, 0.f, 0.999999f);
   PLAYER::messageObject m;
   m.ID = PLAYER::MIN_VELOCITY;
@@ -81,6 +92,7 @@ YSE::player& YSE::player::setMinimumVelocity(Flt target, Flt time) {
 }
 
 YSE::player& YSE::player::setMaximumVelocity(Flt target, Flt time) {
+  if (!checkCreated()) return *this;
   Clamp(target, 0.000001f, 1.f);
   PLAYER::messageObject m;
   m.ID = PLAYER::MAX_VELOCITY;
@@ -91,6 +103,7 @@ YSE::player& YSE::player::setMaximumVelocity(Flt target, Flt time) {
 }
 
 YSE::player& YSE::player::setMinimumGap(Flt target, Flt time) {
+  if (!checkCreated()) return *this;
   if (target < 0) target = 0;
   PLAYER::messageObject m;
   m.ID = PLAYER::MIN_GAP;
@@ -101,6 +114,7 @@ YSE::player& YSE::player::setMinimumGap(Flt target, Flt time) {
 }
 
 YSE::player& YSE::player::setMaximumGap(Flt target, Flt time) {
+  if (!checkCreated()) return *this;
   if (target < 0) target = 0;
   PLAYER::messageObject m;
   m.ID = PLAYER::MAX_GAP;
@@ -111,6 +125,7 @@ YSE::player& YSE::player::setMaximumGap(Flt target, Flt time) {
 }
 
 YSE::player& YSE::player::setMinimumLength(Flt target, Flt time) {
+  if (!checkCreated()) return *this;
   if (target < 0) target = 0;
   PLAYER::messageObject m;
   m.ID = PLAYER::MIN_LENGTH;
@@ -121,6 +136,7 @@ YSE::player& YSE::player::setMinimumLength(Flt target, Flt time) {
 }
 
 YSE::player& YSE::player::setMaximumLength(Flt target, Flt time) {
+  if (!checkCreated()) return *this;
   if (target < 0) target = 0;
   PLAYER::messageObject m;
   m.ID = PLAYER::MAX_LENGTH;
@@ -131,6 +147,7 @@ YSE::player& YSE::player::setMaximumLength(Flt target, Flt time) {
 }
 
 YSE::player& YSE::player::setVoices(UInt target, Flt time) {
+  if (!checkCreated()) return *this;
   PLAYER::messageObject m;
   m.ID = PLAYER::VOICES;
   m.floatPair[0] = static_cast<Flt>(target);
@@ -140,6 +157,7 @@ YSE::player& YSE::player::setVoices(UInt target, Flt time) {
 }
 
 YSE::player& YSE::player::setScale(YSE::scale& scale, Flt time) {
+  if (!checkCreated()) return *this;
   PLAYER::messageObject m;
   m.ID = PLAYER::SCALE;
   m.object.ptr = scale.pimpl;
@@ -149,6 +167,7 @@ YSE::player& YSE::player::setScale(YSE::scale& scale, Flt time) {
 }
 
 YSE::player& YSE::player::addMotif(YSE::motif& motif, UInt weight) {
+  if (!checkCreated()) return *this;
   PLAYER::messageObject m;
   m.ID = PLAYER::ADD_MOTIF;
   m.object.ptr = motif.pimpl;
@@ -158,6 +177,7 @@ YSE::player& YSE::player::addMotif(YSE::motif& motif, UInt weight) {
 }
 
 YSE::player& YSE::player::removeMotif(YSE::motif& motif) {
+  if (!checkCreated()) return *this;
   PLAYER::messageObject m;
   m.ID = PLAYER::REM_MOTIF;
   m.object.ptr = motif.pimpl;
@@ -166,6 +186,7 @@ YSE::player& YSE::player::removeMotif(YSE::motif& motif) {
 }
 
 YSE::player& YSE::player::adjustMotifWeight(YSE::motif& motif, UInt weight) {
+  if (!checkCreated()) return *this;
   PLAYER::messageObject m;
   m.ID = PLAYER::ADJUST_MOTIF;
   m.object.ptr = motif.pimpl;
@@ -175,6 +196,7 @@ YSE::player& YSE::player::adjustMotifWeight(YSE::motif& motif, UInt weight) {
 }
 
 YSE::player& YSE::player::playPartialMotifs(Flt target, Flt time) {
+  if (!checkCreated()) return *this;
   PLAYER::messageObject m;
   m.ID = PLAYER::PARTIAL_MOTIF;
   m.floatPair[0] = target;
@@ -184,6 +206,7 @@ YSE::player& YSE::player::playPartialMotifs(Flt target, Flt time) {
 }
 
 YSE::player& YSE::player::playMotifs(Flt target, Flt time) {
+  if (!checkCreated()) return *this;
   PLAYER::messageObject m;
   m.ID = PLAYER::PLAY_MOTIF;
   m.floatPair[0] = target;
@@ -193,6 +216,7 @@ YSE::player& YSE::player::playMotifs(Flt target, Flt time) {
 }
 
 YSE::player& YSE::player::fitMotifsToScale(Flt target, Flt time) {
+  if (!checkCreated()) return *this;
   PLAYER::messageObject m;
   m.ID = PLAYER::MOTIF_FITS_SCALE;
   m.floatPair[0] = target;

@@ -11,10 +11,16 @@
 #include "player.hpp"
 #include "../internalHeaders.h"
 #include "../music/note.hpp"
-// #include "../synth/synthInterface.hpp"
+#include "../synth/synthInterface.hpp" // instrument->noteOn/noteOff (#156)
 
-YSE::PLAYER::implementationObject::implementationObject(player* head)
-  : head(head), waitTime(0.f), activeVoices(1), playing(false) {
+YSE::PLAYER::implementationObject::implementationObject(player* head,
+                                                        SYNTH::interfaceObject* instrument)
+  : head(head),
+    instrument(instrument),
+    objectStatus(OBJECT_READY),
+    waitTime(0.f),
+    activeVoices(1),
+    playing(false) {
   minimumPitch.set(0.f);
   maximumPitch.set(128.f);
   minimumVelocity.set(0.f);
@@ -48,10 +54,20 @@ YSE::PLAYER::implementationObject::~implementationObject() {
 }
 
 bool YSE::PLAYER::implementationObject::update(Flt delta) {
-  if (head.load() == nullptr) return false;
-
-  // instrument is not connected
-  // if (!instrument) return true;
+  if (head.load() == nullptr) {
+    // The interface is gone. Release any notes still sounding on the synth so a
+    // mid-note teardown does not leave hanging voices, then signal the manager
+    // to retire us. This runs on the audio thread (the same thread that
+    // generates and expires notes), so touching `notes` here is race-free — it
+    // is the old removeInterface() note-off loop moved onto the correct thread
+    // and guarded against the no-synth case (#156).
+    if (instrument != nullptr) {
+      for (auto& n : notes)
+        instrument->noteOff(n);
+    }
+    notes.clear();
+    return false;
+  }
 
   // parse messages
   messageObject message;
@@ -65,7 +81,9 @@ bool YSE::PLAYER::implementationObject::update(Flt delta) {
     UInt i = 0;
     while (i < notes.size()) {
       if (!notes[i].update(delta)) {
-        // instrument->noteOff(notes[i]);
+        // A finished note releases its voice on the synth (#156). Guarded so a
+        // player with no attached synth (tests) still expires notes normally.
+        if (instrument != nullptr) instrument->noteOff(notes[i]);
         notes[i] = notes.back();
         notes.pop_back();
       } else
@@ -137,7 +155,9 @@ bool YSE::PLAYER::implementationObject::update(Flt delta) {
           if (notes.size() < notes.capacity()) {
             notes.emplace_back(pitch, RandomF(minimumVelocity(), maximumVelocity()),
                                voices[i].duration);
-            // instrument->noteOn(notes.back());
+            // Start the note on the synth (#156). noteOn(MUSIC::note) is a
+            // non-allocating try_push onto the synth's SPSC inbox.
+            if (instrument != nullptr) instrument->noteOn(notes.back());
           }
         }
       }
@@ -229,7 +249,8 @@ void YSE::PLAYER::implementationObject::setVoiceFromMotif(voice& v, Flt delta) {
     // Drop rather than grow the pool if the note ceiling is hit (#195).
     if (notes.size() < notes.capacity()) {
       notes.push_back(note);
-      // instrument->noteOn(note);
+      // Start the motif note on the synth (#156).
+      if (instrument != nullptr) instrument->noteOn(note);
     }
     v.motifPos++;
   }
@@ -243,13 +264,10 @@ void YSE::PLAYER::implementationObject::setVoiceFromMotif(voice& v, Flt delta) {
 }
 
 void YSE::PLAYER::implementationObject::removeInterface() {
-  /*if (instrument != nullptr) {
-    std::deque<MUSIC::note>::iterator i = notes.begin();
-    while (i != notes.end()) {
-      instrument->noteOff(*i);
-      ++i;
-    }
-  }*/
+  // Called from ~player on the interface thread — just publish the orphaning.
+  // Outstanding notes are released on the audio thread by update() when it next
+  // observes head == nullptr, so the note-off loop that used to live here (and
+  // would have raced the audio thread over `notes`) is gone (#156).
   head.store(nullptr);
 }
 
