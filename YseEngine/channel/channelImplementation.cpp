@@ -11,7 +11,12 @@
 #include "../internalHeaders.h"
 
 YSE::CHANNEL::implementationObject::implementationObject(channel* head)
-  : head(head), newVolume(1.f), lastVolume(1.f), parent(nullptr), allowVirtual(true) {}
+  : head(head),
+    newVolume(1.f),
+    lastVolume(1.f),
+    parent(nullptr),
+    insert_dsp(nullptr),
+    allowVirtual(true) {}
 
 YSE::CHANNEL::implementationObject::~implementationObject() noexcept {
   try {
@@ -32,6 +37,14 @@ YSE::CHANNEL::implementationObject::~implementationObject() noexcept {
         parent->disconnect(this);
         childrenToParent();
       }
+    }
+
+    // Sever the insert plugin's back-reference before we die, so a plugin that
+    // outlives this channel (e.g. a process-lifetime static destroyed at exit)
+    // can't write through calledfrom into our freed insert_dsp field. Mirrors
+    // the sound-path guard in ~SOUND::implementationObject (#298).
+    if (insert_dsp != nullptr && insert_dsp->calledfrom != nullptr) {
+      insert_dsp->calledfrom = nullptr;
     }
 
     if (head.load() != nullptr) {
@@ -109,6 +122,12 @@ void YSE::CHANNEL::implementationObject::dsp() {
     }
   }
 
+  // Pre-fader insert chain: process the summed channel signal in place, before
+  // reverb and before the channel volume is applied (buffersToParent). The
+  // `out` vector is MULTICHANNELBUFFER-shaped, so it type-matches
+  // dspObject::process (N-channel contract, #158).
+  if (insert_dsp != nullptr) processInsertDSP();
+
   REVERB::Manager().process(this);
 
   if (INTERNAL::UnderWaterEffect().channel() == this) {
@@ -161,6 +180,32 @@ void YSE::CHANNEL::implementationObject::buffersToParent() {
 
 void YSE::CHANNEL::implementationObject::attachUnderWaterFX() {
   INTERNAL::UnderWaterEffect().channel(this);
+}
+
+void YSE::CHANNEL::implementationObject::addDSP(DSP::dspObject* ptr) {
+  // Detach any previously-attached plugin first and clear its back-reference
+  // (calledfrom) — otherwise, when that old plugin is destructed later, its
+  // destructor's `*calledfrom = nullptr` would write to this impl's insert_dsp
+  // field, which may already have been freed. Same discipline as
+  // SOUND::implementationObject::addDSP (the sound-path UAF, #298). Pointer
+  // swap only: safe on the audio thread, no allocation or locking. A null
+  // `ptr` simply detaches the chain.
+  if (insert_dsp != nullptr) {
+    insert_dsp->calledfrom = nullptr;
+  }
+
+  insert_dsp = ptr;
+  if (insert_dsp != nullptr) {
+    insert_dsp->calledfrom = &insert_dsp;
+  }
+}
+
+void YSE::CHANNEL::implementationObject::processInsertDSP() {
+  DSP::dspObject* ptr = insert_dsp;
+  while (ptr != nullptr) {
+    if (!ptr->bypass()) ptr->process(out);
+    ptr = ptr->link();
+  }
 }
 
 void YSE::CHANNEL::implementationObject::setup() {
@@ -274,6 +319,9 @@ void YSE::CHANNEL::implementationObject::parseMessage(const messageObject& messa
   switch (message.ID) {
   case ATTACH_REVERB:
     REVERB::Manager().attachToChannel(this);
+    break;
+  case ATTACH_DSP:
+    addDSP((DSP::dspObject*)message.ptrValue);
     break;
   case MOVE: {
     channel* ptr = (channel*)message.ptrValue;

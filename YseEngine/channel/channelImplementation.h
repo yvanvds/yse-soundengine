@@ -199,6 +199,24 @@ namespace YSE {
         return out;
       }
 
+      /**
+        Attach (or replace/detach) the pre-fader insert DSP chain for this
+        channel. Mirrors SOUND::implementationObject::addDSP: the previously
+        attached head's back-reference (calledfrom) is cleared before the swap
+        so a later destruction of the old plugin can't write through a stale
+        pointer into this impl's insert_dsp field (the sound-path UAF fixed in
+        #298). Passing nullptr detaches the chain. Runs on the audio thread via
+        parseMessage(ATTACH_DSP) — pointer-swap only, no allocation or locking.
+      */
+      void addDSP(DSP::dspObject* ptr);
+
+      /**
+        Run the attached insert chain over `out` in place. Called from dsp()
+        pre-fader (before reverb); public so the pre-fader insert behaviour can
+        be driven directly in tests after populating `out`.
+      */
+      void processInsertDSP();
+
       /////////////////////////////////////////////////////
       // Output peak metering (control-thread readers)
       /////////////////////////////////////////////////////
@@ -284,6 +302,13 @@ namespace YSE {
 
       std::vector<output> outConf;
       std::vector<DSP::buffer> out;
+
+      // Head of the pre-fader insert DSP chain, or nullptr when none is
+      // attached. Owned by the caller (the interface's dspObject), not by this
+      // impl. Swapped only on the audio thread in addDSP(); the plugin's
+      // `calledfrom` back-reference points here so a plugin destroyed before
+      // detach nulls this field instead of leaving it dangling.
+      DSP::dspObject* insert_dsp;
 
       // Per-output peak (absolute sample value), refreshed once per DSP block.
       // Sized to out.size() and resized on the same path as out (audio thread

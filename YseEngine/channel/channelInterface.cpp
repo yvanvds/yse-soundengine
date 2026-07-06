@@ -170,6 +170,21 @@ YSE::channel& YSE::channel::attachReverb() {
   return (*this);
 }
 
+YSE::channel& YSE::channel::setDSP(YSE::DSP::dspObject* value) {
+  if (_dsp != value) {
+    _dsp = value;
+    CHANNEL::messageObject m;
+    m.ID = CHANNEL::ATTACH_DSP;
+    m.ptrValue = value;
+    pimpl->sendMessage(m);
+  }
+  return (*this);
+}
+
+YSE::DSP::dspObject* YSE::channel::getDSP() {
+  return _dsp;
+}
+
 int YSE::channel::getNumOutputs() {
   if (pimpl == nullptr) return 0;
   return pimpl->getNumOutputs();
