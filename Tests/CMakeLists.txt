@@ -172,7 +172,19 @@ add_test(
   # the global thread pools and would break every later suite sharing this
   # process. Each runs in its own process via yse_tests_lifecycle /
   # yse_tests_synthlifecycle / yse_tests_midisynth / yse_tests_playersynth.
-  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,midisynth,playersynth --duration=true
+  #
+  # `* concurrency: *` (the cross-subsystem create/destroy + race stress cases:
+  # channel/sound/reverb/io/listener/midifile) is excluded here too and runs
+  # only in the dedicated, uncrowded yse_tests_concurrency process — the exact
+  # same filter that entry uses to *include* them. In this ~1100-case combined
+  # process the channel manager two-thread churn case hits a pre-existing,
+  # heap-layout-dependent cross-thread manager race (#41/#298 lineage): the wide
+  # race window makes it flake (hang or SIGSEGV) regardless of the code under
+  # test — a latent landmine that also flakes on dev. Isolating these mirrors the
+  # suite exclusions above and loses no coverage: yse_tests_concurrency plus the
+  # per-suite entries still run every case. Tracked in #304; the root fix is
+  # #41/#298 engine work.
+  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,midisynth,playersynth "--test-case-exclude=* concurrency: *" --duration=true
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_unit_tests PROPERTIES TIMEOUT 600)
