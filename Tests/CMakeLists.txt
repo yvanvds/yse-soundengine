@@ -27,6 +27,7 @@ set(YSE_TEST_SOURCES
   dsp/test_module_filters.cpp
   dsp/test_module_delays.cpp
   dsp/test_module_feedback_delay.cpp
+  dsp/test_module_chorus.cpp
   dsp/test_module_multichannel.cpp
   dsp/test_synth_voice.cpp
   patcher/test_graph.cpp

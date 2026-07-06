@@ -39,6 +39,7 @@ set(YSE_SRCS
   dsp/modules/fm/difference.cpp
   dsp/modules/granulator.cpp
   dsp/modules/hilbert.cpp
+  dsp/modules/chorus.cpp
   dsp/modules/phaser.cpp
   dsp/modules/ringModulator.cpp
   dsp/modules/sineWave.cpp
