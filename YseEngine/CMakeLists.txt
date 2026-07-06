@@ -40,6 +40,8 @@ set(YSE_SRCS
   dsp/modules/granulator.cpp
   dsp/modules/hilbert.cpp
   dsp/modules/chorus.cpp
+  dsp/modules/compressor.cpp
+  dsp/modules/parametricEQ.cpp
   dsp/modules/phaser.cpp
   dsp/modules/plateReverb.cpp
   dsp/modules/ringModulator.cpp
