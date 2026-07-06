@@ -50,6 +50,7 @@ set(YSE_TEST_SOURCES
   channel/test_channel_metering.cpp
   channel/test_channel_bus.cpp
   channel/test_channel_layout.cpp
+  channel/test_channel_dsp.cpp
   sound/test_sound_state.cpp
   sound/test_sound_streaming.cpp
   sound/test_sound_bufferrace.cpp

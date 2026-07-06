@@ -27,6 +27,7 @@ namespace YSE {
       MOVE,
       VIRTUAL,
       ATTACH_REVERB,
+      ATTACH_DSP,
     };
   } // namespace CHANNEL
 } // namespace YSE

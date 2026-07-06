@@ -13,6 +13,7 @@
 
 #include <cstdint>
 #include <string>
+#include "../classes.hpp"
 #include "../headers/defines.hpp"
 #include "../headers/types.hpp"
 #include "channel.hpp"
@@ -107,6 +108,29 @@ namespace YSE {
     channel& attachReverb();
 
     /**
+     *  @brief Attach a pre-fader insert DSP effect to this channel.
+     *
+     *  Mirrors ``YSE::sound::setDSP`` but at the channel level: the effect
+     *  processes this channel's *summed* output (all its sounds and
+     *  subchannels mixed together) in place, **pre-fader** — before reverb and
+     *  before the channel volume is applied. This is the DAW "insert" slot;
+     *  put a delay on ``ChannelMusic()`` or a compressor on ``ChannelVoice()``.
+     *
+     *  The effect must honour the N-channel ``dspObject::process`` contract
+     *  (process every channel of the buffer). Chain several effects with
+     *  ``dspObject::link``. Pass ``nullptr`` to detach. The engine takes no
+     *  ownership — the ``dspObject`` must outlive the channel or be detached
+     *  first.
+     *
+     *  @param value The effect chain head, or ``nullptr`` to detach.
+     *  @return ``*this`` for fluent chaining.
+     */
+    channel& setDSP(DSP::dspObject* value);
+
+    /** @brief The currently attached insert effect, or ``nullptr`` if none. */
+    DSP::dspObject* getDSP();
+
+    /**
      *  @brief Allow or disallow sounds on this channel to be virtualised.
      *
      *  Virtualised sounds keep their playback state but stop consuming DSP
@@ -180,6 +204,11 @@ namespace YSE {
     Bool allowVirtual;
     std::string logName; // label passed to create(); used for log output
     CHANNEL::implementationObject* pimpl;
+
+    // Cached head of the attached insert chain (interface-side mirror of the
+    // impl's insert_dsp). Used by getDSP() and to skip redundant messages when
+    // setDSP() is called with an unchanged pointer. Not owned.
+    DSP::dspObject* _dsp{nullptr};
 
     // Bus addressing state. Empty busName = anonymous = not on the bus.
     // busOwner is true only when this channel won the name and holds a live
