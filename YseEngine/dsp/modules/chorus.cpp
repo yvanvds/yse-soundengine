@@ -207,11 +207,20 @@ void YSE::DSP::MODULES::chorus::process(MULTICHANNELBUFFER& buffer) {
       if (delaySamps < 1.0f) delaySamps = 1.0f;
       if (delaySamps > maxDelaySamps) delaySamps = maxDelaySamps;
 
-      // Fractional (linearly interpolated) read from the circular line.
+      // Fractional (linearly interpolated) read from the circular line. Wrap
+      // the read position into [0, lineSize) on both sides: when delaySamps is
+      // fractionally larger than wp, rp goes slightly negative and the
+      // += lineSize can round up to exactly lineSize in float, which would index
+      // one past the end. The upper wrap and the i0 clamp keep the read in
+      // bounds and click-free.
+      const Flt lineSizeF = static_cast<Flt>(lineSize);
       Flt rp = static_cast<Flt>(wp) - delaySamps;
       while (rp < 0.0f)
-        rp += static_cast<Flt>(lineSize);
+        rp += lineSizeF;
+      while (rp >= lineSizeF)
+        rp -= lineSizeF;
       std::size_t i0 = static_cast<std::size_t>(rp);
+      if (i0 >= lineSize) i0 = lineSize - 1; // guard the float boundary
       const Flt frac = rp - static_cast<Flt>(i0);
       std::size_t i1 = i0 + 1;
       if (i1 >= lineSize) i1 = 0;

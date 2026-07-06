@@ -12,8 +12,11 @@
 // click-free by construction. The wet/dry balance is the inherited impact();
 // default impact = 1 is fully wet.
 //
-// No audio device required — SAMPLERATE is initialised to 44100 by the
-// portaudioDeviceManager translation unit at static-initialisation time.
+// No audio device required — SAMPLERATE is initialised by the
+// portaudioDeviceManager translation unit at static-initialisation time (44100
+// by default; CI also forces 48000 via YSE_TEST_FORCED_RATE). Every tone and
+// observation window below is derived from the *actual* SAMPLERATE so the tests
+// hold at any rate.
 
 #include <doctest/doctest.h>
 #include <cmath>
@@ -23,20 +26,25 @@
 #include "support/audio_helpers.hpp"
 
 static constexpr float kPi = 3.14159265358979323846f;
-static constexpr float kSr = 44100.0f;
 
 namespace {
 
+  // The engine sample rate this test run is using (honours the forced-rate env).
+  inline float sr() {
+    return static_cast<float>(YSE::SAMPLERATE);
+  }
+
   // Phase-continuous sine generator: the *input* stream has no block-boundary
   // discontinuity of its own, so any jump in the output comes purely from the
-  // effect — exactly what the click-free test needs to isolate.
+  // effect — exactly what the click-free test needs to isolate. The tone is
+  // generated at the actual engine rate, so `freq` is correct in the stream.
   struct SineGen {
     double phase = 0.0;
     float freq;
     explicit SineGen(float f) : freq(f) {}
     void fill(YSE::DSP::buffer& buf) {
       float* p = buf.getPtr();
-      double inc = 2.0 * static_cast<double>(kPi) * freq / kSr;
+      double inc = 2.0 * static_cast<double>(kPi) * freq / static_cast<double>(sr());
       for (unsigned i = 0; i < buf.getLength(); ++i) {
         p[i] = static_cast<float>(std::sin(phase));
         phase += inc;
@@ -51,7 +59,7 @@ namespace {
   inline void fillSine(YSE::DSP::buffer& buf, float freq) {
     float* p = buf.getPtr();
     for (unsigned i = 0; i < buf.getLength(); ++i)
-      p[i] = std::sin(2.0f * kPi * freq * static_cast<float>(i) / kSr);
+      p[i] = std::sin(2.0f * kPi * freq * static_cast<float>(i) / sr());
   }
 
   inline float maxAbs(YSE::DSP::buffer& buf) {
@@ -84,18 +92,25 @@ namespace {
   }
 
   // Peak-to-peak spread of the interval (in samples) between successive upward
-  // zero crossings — a proxy for the pitch modulation depth of a sine.
+  // zero crossings — a proxy for the pitch-modulation depth of a sine. The
+  // crossing position is interpolated to sub-sample precision, so the metric is
+  // continuous (not quantised to the sample grid) and a pure, unmodulated tone
+  // reads a spread of ~0 regardless of the sample rate.
   float zeroCrossPeriodSpread(const std::vector<float>& sig, std::size_t skip) {
     float minP = 1e30f, maxP = -1e30f;
-    long lastCross = -1;
+    double lastCross = -1.0;
     for (std::size_t i = skip + 1; i < sig.size(); ++i) {
       if (sig[i - 1] <= 0.0f && sig[i] > 0.0f) { // rising zero crossing
-        if (lastCross >= 0) {
-          float period = static_cast<float>(static_cast<long>(i) - lastCross);
+        // Linear-interpolated sub-sample position where the signal hits zero.
+        double denom = static_cast<double>(sig[i]) - static_cast<double>(sig[i - 1]);
+        double cross = static_cast<double>(i - 1);
+        if (denom != 0.0) cross += -static_cast<double>(sig[i - 1]) / denom;
+        if (lastCross >= 0.0) {
+          float period = static_cast<float>(cross - lastCross);
           if (period < minP) minP = period;
           if (period > maxP) maxP = period;
         }
-        lastCross = static_cast<long>(i);
+        lastCross = cross;
       }
     }
     if (maxP < 0.0f) return 0.0f;
@@ -161,8 +176,11 @@ TEST_SUITE("dsp") {
     // First block: read position is ~15 ms back = silence (line just primed).
     CHECK(TestHelpers::measureRms(buf[0]) < 1e-4f);
 
+    // The ~15 ms base delay is a rate-dependent number of blocks; cover it with
+    // margin so the delayed impulse is guaranteed to surface at any sample rate.
+    const int blocks = static_cast<int>(std::ceil(0.015f * sr() / 128.0f)) + 6;
     bool sawWet = false;
-    for (int iter = 0; iter < 12; ++iter) { // ~15 ms ≈ 5 blocks; look a bit further
+    for (int iter = 0; iter < blocks; ++iter) {
       zeroFill(buf[0]);
       c.process(buf);
       if (TestHelpers::measureRms(buf[0]) > 1e-3f) {
@@ -179,22 +197,26 @@ TEST_SUITE("dsp") {
     // A moving delay pitch-modulates the wet copy. With a larger depth the
     // delay sweeps further per LFO cycle, so the instantaneous pitch deviates
     // more — measured here as a wider spread of zero-crossing periods.
-    auto spreadFor = [](float depth) {
+    // Skip past the delay-line fill + smoother settle (well beyond the ~15 ms
+    // base delay) before measuring, at whatever the sample rate is.
+    const std::size_t skip = static_cast<std::size_t>(0.05f * sr());
+    auto spreadFor = [skip](float depth) {
       YSE::DSP::MODULES::chorus c;
       c.mode(YSE::DSP::MODULES::MODE_CHORUS).rate(2.0f).depth(depth).impact(1.0f);
-      // ~1.5 LFO cycles at 2 Hz; skip the first block while the line fills.
+      // ~1.5 LFO cycles at 2 Hz.
       std::vector<float> out = runContinuous(c, 1000.0f, 260);
-      return zeroCrossPeriodSpread(out, 512);
+      return zeroCrossPeriodSpread(out, skip);
     };
     float shallow = spreadFor(0.1f);
     float deep = spreadFor(0.9f);
     // Deeper modulation must widen the pitch swing appreciably.
     CHECK(deep > shallow * 1.5f);
-    // A zero-depth chorus is a fixed delay — no pitch modulation at all.
+    // A zero-depth chorus is a fixed delay — no pitch modulation at all, so its
+    // (sub-sample-interpolated) period spread is essentially zero.
     YSE::DSP::MODULES::chorus flat;
     flat.mode(YSE::DSP::MODULES::MODE_CHORUS).rate(2.0f).depth(0.0f).impact(1.0f);
     std::vector<float> flatOut = runContinuous(flat, 1000.0f, 260);
-    CHECK(zeroCrossPeriodSpread(flatOut, 512) < shallow);
+    CHECK(zeroCrossPeriodSpread(flatOut, skip) < shallow);
   }
 
   // ─── flanger: comb notches, and they move ─────────────────────────────────────
@@ -242,7 +264,8 @@ TEST_SUITE("dsp") {
         c.process(buf);
       }
       float minR = 1e30f, maxR = -1e30f;
-      int blocksPerSecond = static_cast<int>(kSr / 128.0f) + 1;
+      // Observe a full LFO period (1 s at rate 1 Hz), plus a block of slack.
+      int blocksPerSecond = static_cast<int>(sr() / 128.0f) + 2;
       for (int b = 0; b < blocksPerSecond; ++b) {
         gen.fill(buf[0]);
         c.process(buf);
