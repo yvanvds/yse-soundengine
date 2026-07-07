@@ -17,6 +17,11 @@ A flat `extern "C"` ABI (`yse_c/yse_*.h`) is folded into the same shared library
 so language bindings (Dart FFI, Python ctypes, …) can call it without C++ ABI
 compatibility — enabled by default via the `YSE_BUILD_C_API` option.
 
+**What is YSE trying to be?** Neither a game-audio engine nor a DAW: an
+authored signal graph played by spatial and physical controllers, built
+for experimental electronic music and live performance. The full
+orientation lives in [docs/project_vision.md](docs/project_vision.md).
+
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=yvanvds_yse-soundengine&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=yvanvds_yse-soundengine)
 [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=yvanvds_yse-soundengine&metric=bugs)](https://sonarcloud.io/summary/new_code?id=yvanvds_yse-soundengine)
 [![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=yvanvds_yse-soundengine&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=yvanvds_yse-soundengine)

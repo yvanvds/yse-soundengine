@@ -10,6 +10,7 @@ last_updated_at: 2026-05-22
 **Platforms:** Windows (MSYS2/Clang64, MSVC), Linux (gcc/clang), Android (NDK r27+, API 26+, arm64-v8a + x86_64)
 **Build:** CMake 3.20+ via `CMakePresets.json`; Android wraps the same CMake invocation through Gradle in `Tests/Android/`
 **Key Dependencies:** PortAudio (desktop audio I/O), Oboe (Android audio I/O), libsndfile (file loading), RtMidi (MIDI device I/O — desktop only, gated by `YSE_ENABLE_MIDI_DEVICE`), pthreads, doctest + google-benchmark (vendored / fetched for tests + benches)
+**Vision:** what YSE is trying to be — and the design-review stance every scoping decision assumes — lives in [`docs/project_vision.md`](docs/project_vision.md)
 
 ---
 
