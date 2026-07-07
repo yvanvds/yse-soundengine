@@ -290,10 +290,10 @@
     },
     {
       "name": "tests-asan",
-      "displayName": "ASan patcher concurrency test",
+      "displayName": "ASan concurrency tests (patcher + send/return)",
       "configurePreset": "tests-asan",
       "output": { "outputOnFailure": true },
-      "filter": { "include": { "name": "yse_tests_patcher_concurrency" } },
+      "filter": { "include": { "name": "yse_tests_patcher_concurrency|yse_tests_sendstress" } },
       "environment": {
         "ASAN_OPTIONS": "detect_leaks=0"
       },
@@ -305,10 +305,10 @@
     },
     {
       "name": "tests-tsan",
-      "displayName": "TSan patcher concurrency test",
+      "displayName": "TSan concurrency tests (patcher + send/return)",
       "configurePreset": "tests-tsan",
       "output": { "outputOnFailure": true },
-      "filter": { "include": { "name": "yse_tests_patcher_concurrency" } },
+      "filter": { "include": { "name": "yse_tests_patcher_concurrency|yse_tests_sendstress" } },
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",

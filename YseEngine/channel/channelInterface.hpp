@@ -13,6 +13,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 #include "../classes.hpp"
 #include "../headers/defines.hpp"
 #include "../headers/types.hpp"
@@ -62,8 +63,77 @@ namespace YSE {
      *  @param name   Channel name, used for log output.
      *  @param parent Existing channel to attach to. Use ``ChannelMaster()`` for a
      *                top-level channel.
+     *  @param sendSlots Number of aux-send slots to allocate for this channel
+     *                (issue #165). Sized once off the audio thread and never
+     *                resized. Default 4; raise it for a channel that fans out to
+     *                many return buses.
      */
-    channel& create(const char* name, channel& parent);
+    channel& create(const char* name, channel& parent, int sendSlots = 4);
+
+    /**
+     *  @brief Create this channel as a send/return bus.
+     *
+     *  A return bus is an ordinary channel (it keeps ``setDSP`` inserts,
+     *  ``attachReverb``, ``setVolume``, and metering) with two differences: it is
+     *  excluded from the normal mix tree, and other channels route scaled copies
+     *  of their signal into it via ``send``. Its output folds into ``MainMix``
+     *  after the source tree, so a single reverb or delay on a return can serve
+     *  many channels (the classic aux-send topology). A return may itself
+     *  ``send`` into another return (an acyclic delay→reverb chain, for example);
+     *  cycles are rejected at wiring time.
+     *
+     *  Call this instead of ``create`` — not after it. The engine takes no
+     *  ownership of any effect attached with ``setDSP``.
+     *
+     *  @param name      Channel name, used for log output.
+     *  @param sendSlots Number of aux-send slots on the return itself (for
+     *                   return→return routing). Default 4.
+     *  @return ``*this`` for fluent chaining (e.g. ``r.makeReturn("verb").setDSP(&plate)``).
+     */
+    channel& makeReturn(const char* name = "return", int sendSlots = 4);
+
+    /** @brief Whether this channel is a send/return bus (issue #165). */
+    bool isReturn() const;
+
+    /**
+     *  @brief Route a scaled copy of this channel into a return bus.
+     *
+     *  Wires send slot @p slot (in ``[0, sendSlots)``) to @p returnBus at the
+     *  given @p level. The send is **post-fader** by default (it follows this
+     *  channel's own volume); pass ``preFader = true`` for a cue-style send
+     *  independent of the fader. Re-calling ``send`` on the same slot re-points
+     *  it. The level ramps in, so wiring a live send never clicks.
+     *
+     *  Illegal wirings are rejected on the calling (control) thread and logged,
+     *  never reaching the audio thread: a target that is not a return, a
+     *  self-send, or a return→return edge that would close a cycle.
+     *
+     *  @param slot      Send-slot index in ``[0, sendSlots)``.
+     *  @param returnBus A channel created with ``makeReturn``.
+     *  @param level     Send gain (typically ``[0, 1]``).
+     *  @param preFader  Tap before this channel's fader when true (default false).
+     *  @return ``*this`` for fluent chaining.
+     */
+    channel& send(int slot, channel& returnBus, float level, bool preFader = false);
+
+    /**
+     *  @brief Set a send slot's level, ramped and click-free.
+     *
+     *  Safe to call every control tick — send levels are designed as modulation
+     *  targets (a patcher outlet, a live-coded expression, a proximity rule), so
+     *  continuous writes fuse into the per-block ramp without zippering.
+     *
+     *  @param slot  Send-slot index in ``[0, sendSlots)``.
+     *  @param level New send gain.
+     *  @return ``*this`` for fluent chaining.
+     */
+    channel& setSendLevel(int slot, float level);
+
+    /** @brief Detach send slot @p slot (fully disconnects it from its return). */
+    channel& clearSend(int slot);
+
+    /** @brief Current target level of send slot @p slot, or 0 if unset/invalid. */
+    float getSendLevel(int slot) const;
 
     /** @brief Set the channel volume in the range [0.0, 1.0]. */
     channel& setVolume(float value);
@@ -216,6 +286,24 @@ namespace YSE {
     std::string busName;
     std::uint64_t busVolumeHandle{0};
     bool busOwner{false};
+
+    // ─── Send/return state (issue #165) ───
+    // Control-thread mirror of this channel's send wiring. Lets the interface
+    // validate slots, report getSendLevel(), and maintain the control-thread
+    // return→return graph (remove the old edge when a slot is re-pointed). None
+    // of this is touched on the audio thread — the impl carries its own copy,
+    // updated via messages.
+    bool _isReturn{false};
+    int _sendSlots{0};
+    struct SendMirror {
+      channel* target{nullptr}; // interface identity of the target return
+      CHANNEL::implementationObject* targetImpl{
+          nullptr}; // graph key (value only; never dereferenced)
+      float level{0.f};
+      bool preFader{false};
+      bool graphEdge{false}; // this slot contributed a return→return graph edge
+    };
+    std::vector<SendMirror> _sends;
 
     friend class CHANNEL::implementationObject;
     friend class SOUND::implementationObject;
