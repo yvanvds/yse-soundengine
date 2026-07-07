@@ -17,6 +17,10 @@
 #include "../dsp/modules/parametricEQ.hpp"
 #include "../dsp/modules/compressor.hpp"
 #include "../patcher/pEnums.h"
+#include "../synth/positionHandler.hpp"
+#include "../synth/positionHandlers.hpp"
+
+#include <type_traits>
 
 namespace {
 
@@ -101,6 +105,27 @@ namespace {
   YSE_ASSERT_ENUM(YSE_IN_ACCEPTS_INT, YSE::PATCHER::IT_INT);
   YSE_ASSERT_ENUM(YSE_IN_ACCEPTS_BANG, YSE::PATCHER::IT_BANG);
   YSE_ASSERT_ENUM(YSE_IN_ACCEPTS_LIST, YSE::PATCHER::IT_LIST);
+
+  // YseSynthHandlerParam ↔ YSE::SYNTH::HandlerParamIndex
+  YSE_ASSERT_ENUM(YSE_HANDLER_PARAM_CENTER_X, YSE::SYNTH::HP_CENTER_X);
+  YSE_ASSERT_ENUM(YSE_HANDLER_PARAM_CENTER_Y, YSE::SYNTH::HP_CENTER_Y);
+  YSE_ASSERT_ENUM(YSE_HANDLER_PARAM_CENTER_Z, YSE::SYNTH::HP_CENTER_Z);
+
+  // YseSynthPositionHandler has no single engine kind-enum to value-mirror (each
+  // built-in is a distinct class in positionHandlers.hpp), so guard it
+  // structurally: the shipped handler classes must exist and derive from
+  // positionHandler, and the count sentinel must match the number of kinds the
+  // dispatch in yse_synth.cpp maps. Adding a built-in must update both sides.
+  static_assert(std::is_base_of<YSE::SYNTH::positionHandler, YSE::SYNTH::staticHandler>::value,
+                "C ABI drift: YSE::SYNTH::staticHandler must derive from positionHandler");
+  static_assert(
+      std::is_base_of<YSE::SYNTH::positionHandler, YSE::SYNTH::randomSpreadHandler>::value,
+      "C ABI drift: YSE::SYNTH::randomSpreadHandler must derive from positionHandler");
+  static_assert(std::is_base_of<YSE::SYNTH::positionHandler, YSE::SYNTH::orbitHandler>::value,
+                "C ABI drift: YSE::SYNTH::orbitHandler must derive from positionHandler");
+  static_assert(YSE_POSITION_HANDLER_COUNT == 3,
+                "C ABI drift: YseSynthPositionHandler no longer matches the built-in handler set "
+                "— update yse_enums.h and the dispatch in yse_synth.cpp");
 
   // YseReverbPreset ↔ YSE::REVERB_PRESET
   YSE_ASSERT_ENUM(YSE_REVERB_OFF, YSE::REVERB_OFF);
