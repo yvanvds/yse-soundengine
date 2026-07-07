@@ -13,6 +13,9 @@
 #include "../dsp/lfo.hpp"
 #include "../dsp/modules/filters/sweep.hpp"
 #include "../dsp/modules/delay/basicDelay.hpp"
+#include "../dsp/modules/chorus.hpp"
+#include "../dsp/modules/parametricEQ.hpp"
+#include "../dsp/modules/compressor.hpp"
 #include "../patcher/pEnums.h"
 
 namespace {
@@ -66,6 +69,21 @@ namespace {
   YSE_ASSERT_ENUM(YSE_DELAY_TAP_FIRST, YSE::DSP::MODULES::basicDelay::FIRST);
   YSE_ASSERT_ENUM(YSE_DELAY_TAP_SECOND, YSE::DSP::MODULES::basicDelay::SECOND);
   YSE_ASSERT_ENUM(YSE_DELAY_TAP_THIRD, YSE::DSP::MODULES::basicDelay::THIRD);
+
+  // YseChorusMode ↔ YSE::DSP::MODULES::chorusMode
+  YSE_ASSERT_ENUM(YSE_CHORUS_MODE_CHORUS, YSE::DSP::MODULES::MODE_CHORUS);
+  YSE_ASSERT_ENUM(YSE_CHORUS_MODE_FLANGER, YSE::DSP::MODULES::MODE_FLANGER);
+
+  // YseEqBand ↔ YSE::DSP::MODULES::eqBand
+  YSE_ASSERT_ENUM(YSE_EQ_LOW_SHELF, YSE::DSP::MODULES::EQ_LOW_SHELF);
+  YSE_ASSERT_ENUM(YSE_EQ_PEAK_1, YSE::DSP::MODULES::EQ_PEAK_1);
+  YSE_ASSERT_ENUM(YSE_EQ_PEAK_2, YSE::DSP::MODULES::EQ_PEAK_2);
+  YSE_ASSERT_ENUM(YSE_EQ_HIGH_SHELF, YSE::DSP::MODULES::EQ_HIGH_SHELF);
+  YSE_ASSERT_ENUM(YSE_EQ_BAND_COUNT, YSE::DSP::MODULES::EQ_BAND_COUNT);
+
+  // YseCompressorDetector ↔ YSE::DSP::MODULES::compressorDetector
+  YSE_ASSERT_ENUM(YSE_COMPRESSOR_DETECT_PEAK, YSE::DSP::MODULES::DETECT_PEAK);
+  YSE_ASSERT_ENUM(YSE_COMPRESSOR_DETECT_RMS, YSE::DSP::MODULES::DETECT_RMS);
 
   // YsePCategory ↔ YSE::PATCHER::pCategory
   YSE_ASSERT_ENUM(YSE_PCAT_UNSET, YSE::PATCHER::pCategory::UNSET);

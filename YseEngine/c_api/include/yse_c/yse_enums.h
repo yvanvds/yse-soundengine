@@ -70,6 +70,30 @@ typedef enum YseDspDelayTap {
   YSE_DELAY_TAP_THIRD = 2
 } YseDspDelayTap;
 
+/* Mirrors YSE::DSP::MODULES::chorusMode (chorus.hpp) — the chorus/flanger
+   topology switch. */
+typedef enum YseChorusMode {
+  YSE_CHORUS_MODE_CHORUS = 0, /* Longer base delay, wide slow sweep. */
+  YSE_CHORUS_MODE_FLANGER = 1 /* Short base delay, feedback comb. */
+} YseChorusMode;
+
+/* Mirrors YSE::DSP::MODULES::eqBand (parametricEQ.hpp) — the four fixed
+   bands of the parametric EQ. YSE_EQ_BAND_COUNT is the sentinel count. */
+typedef enum YseEqBand {
+  YSE_EQ_LOW_SHELF = 0,
+  YSE_EQ_PEAK_1 = 1,
+  YSE_EQ_PEAK_2 = 2,
+  YSE_EQ_HIGH_SHELF = 3,
+  YSE_EQ_BAND_COUNT = 4
+} YseEqBand;
+
+/* Mirrors YSE::DSP::MODULES::compressorDetector (compressor.hpp) — the
+   level-detector mode. */
+typedef enum YseCompressorDetector {
+  YSE_COMPRESSOR_DETECT_PEAK = 0, /* Instantaneous linked peak. */
+  YSE_COMPRESSOR_DETECT_RMS = 1 /* Short mean-square window. */
+} YseCompressorDetector;
+
 /* Mirrors YSE::PATCHER::pCategory in patcher/pEnums.h. The patcher
    registry exposes this through the metadata API so binding-side
    documentation generators can group objects without inspecting the

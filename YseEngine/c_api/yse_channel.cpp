@@ -2,6 +2,7 @@
 #include "yse_c_internal.hpp"
 
 #include "../channel/channelInterface.hpp"
+#include "../dsp/dspObject.hpp"
 
 #include <exception>
 
@@ -54,9 +55,82 @@ YSE_C_API YseChannel* yse_channel_create(const char* name, YseChannel* parent) {
   }
 }
 
+YSE_C_API YseChannel* yse_channel_create_with_sends(const char* name, YseChannel* parent,
+                                                    int send_slots) {
+  if (!name || !parent) {
+    yse_c::set_last_error("yse_channel_create_with_sends: name and parent must be non-null");
+    return nullptr;
+  }
+  try {
+    auto* ch = new YSE::channel();
+    ch->create(name, *to_cpp(parent), send_slots);
+    return reinterpret_cast<YseChannel*>(ch);
+  } catch (const std::exception& e) {
+    yse_c::set_last_error(e.what());
+    return nullptr;
+  } catch (...) {
+    yse_c::set_last_error("unknown C++ exception in yse_channel_create_with_sends");
+    return nullptr;
+  }
+}
+
+YSE_C_API YseChannel* yse_channel_create_return(const char* name, int send_slots) {
+  if (!name) {
+    yse_c::set_last_error("yse_channel_create_return: name must be non-null");
+    return nullptr;
+  }
+  try {
+    auto* ch = new YSE::channel();
+    ch->makeReturn(name, send_slots);
+    return reinterpret_cast<YseChannel*>(ch);
+  } catch (const std::exception& e) {
+    yse_c::set_last_error(e.what());
+    return nullptr;
+  } catch (...) {
+    yse_c::set_last_error("unknown C++ exception in yse_channel_create_return");
+    return nullptr;
+  }
+}
+
 YSE_C_API void yse_channel_destroy(YseChannel* ch) {
   if (!ch) return;
   delete to_cpp(ch);
+}
+
+YSE_C_API int yse_channel_is_return(YseChannel* ch) {
+  if (!ch) return 0;
+  return to_cpp(ch)->isReturn() ? 1 : 0;
+}
+
+YSE_C_API void yse_channel_send(YseChannel* ch, int slot, YseChannel* return_bus, float level,
+                                int pre_fader) {
+  if (!ch || !return_bus) return;
+  to_cpp(ch)->send(slot, *to_cpp(return_bus), level, pre_fader != 0);
+}
+
+YSE_C_API void yse_channel_set_send_level(YseChannel* ch, int slot, float level) {
+  if (!ch) return;
+  to_cpp(ch)->setSendLevel(slot, level);
+}
+
+YSE_C_API void yse_channel_clear_send(YseChannel* ch, int slot) {
+  if (!ch) return;
+  to_cpp(ch)->clearSend(slot);
+}
+
+YSE_C_API float yse_channel_get_send_level(YseChannel* ch, int slot) {
+  if (!ch) return 0.0f;
+  return to_cpp(ch)->getSendLevel(slot);
+}
+
+YSE_C_API void yse_channel_set_dsp(YseChannel* ch, YseDspObject* dsp) {
+  if (!ch) return;
+  to_cpp(ch)->setDSP(reinterpret_cast<YSE::DSP::dspObject*>(dsp));
+}
+
+YSE_C_API YseDspObject* yse_channel_get_dsp(YseChannel* ch) {
+  if (!ch) return nullptr;
+  return reinterpret_cast<YseDspObject*>(to_cpp(ch)->getDSP());
 }
 
 YSE_C_API void yse_channel_set_volume(YseChannel* ch, float value) {

@@ -14,6 +14,11 @@
 #include "../dsp/modules/ringModulator.hpp"
 #include "../dsp/modules/granulator.hpp"
 #include "../dsp/modules/fm/difference.hpp"
+#include "../dsp/modules/delay/feedbackDelay.hpp"
+#include "../dsp/modules/chorus.hpp"
+#include "../dsp/modules/plateReverb.hpp"
+#include "../dsp/modules/parametricEQ.hpp"
+#include "../dsp/modules/compressor.hpp"
 
 #include <exception>
 
@@ -96,6 +101,22 @@ YSE_C_API YseDspObject* yse_dsp_granulator_create(unsigned int pool_size, unsign
     yse_c::set_last_error("granulator_create: unknown C++ exception");
     return nullptr;
   }
+}
+
+YSE_C_API YseDspObject* yse_dsp_feedback_delay_create(void) {
+  return mk<YSE::DSP::MODULES::feedbackDelay>();
+}
+YSE_C_API YseDspObject* yse_dsp_chorus_create(void) {
+  return mk<YSE::DSP::MODULES::chorus>();
+}
+YSE_C_API YseDspObject* yse_dsp_plate_reverb_create(void) {
+  return mk<YSE::DSP::MODULES::plateReverb>();
+}
+YSE_C_API YseDspObject* yse_dsp_eq_create(void) {
+  return mk<YSE::DSP::MODULES::parametricEQ>();
+}
+YSE_C_API YseDspObject* yse_dsp_compressor_create(void) {
+  return mk<YSE::DSP::MODULES::compressor>();
 }
 
 YSE_C_API void yse_dsp_object_destroy(YseDspObject* obj) {
@@ -306,6 +327,193 @@ YSE_C_API void yse_dsp_granulator_set_gain(YseDspObject* o, float v) {
 YSE_C_API float yse_dsp_granulator_get_gain(YseDspObject* o) {
   auto* g = as<YSE::DSP::MODULES::granulator>(o);
   return g ? g->gain() : 0.0f;
+}
+
+// ─── feedback delay (#160) ────────────────────────────────────────────
+
+YSE_C_API void yse_dsp_feedback_delay_set_time(YseDspObject* o, float ms) {
+  auto* d = as<YSE::DSP::MODULES::feedbackDelay>(o);
+  if (d) d->time(ms);
+}
+YSE_C_API float yse_dsp_feedback_delay_get_time(YseDspObject* o) {
+  auto* d = as<YSE::DSP::MODULES::feedbackDelay>(o);
+  return d ? d->time() : 0.0f;
+}
+YSE_C_API void yse_dsp_feedback_delay_set_feedback(YseDspObject* o, float amount) {
+  auto* d = as<YSE::DSP::MODULES::feedbackDelay>(o);
+  if (d) d->feedback(amount);
+}
+YSE_C_API float yse_dsp_feedback_delay_get_feedback(YseDspObject* o) {
+  auto* d = as<YSE::DSP::MODULES::feedbackDelay>(o);
+  return d ? d->feedback() : 0.0f;
+}
+YSE_C_API void yse_dsp_feedback_delay_set_damping(YseDspObject* o, float hz) {
+  auto* d = as<YSE::DSP::MODULES::feedbackDelay>(o);
+  if (d) d->damping(hz);
+}
+YSE_C_API float yse_dsp_feedback_delay_get_damping(YseDspObject* o) {
+  auto* d = as<YSE::DSP::MODULES::feedbackDelay>(o);
+  return d ? d->damping() : 0.0f;
+}
+YSE_C_API void yse_dsp_feedback_delay_set_crossfeed(YseDspObject* o, float amount) {
+  auto* d = as<YSE::DSP::MODULES::feedbackDelay>(o);
+  if (d) d->crossfeed(amount);
+}
+YSE_C_API float yse_dsp_feedback_delay_get_crossfeed(YseDspObject* o) {
+  auto* d = as<YSE::DSP::MODULES::feedbackDelay>(o);
+  return d ? d->crossfeed() : 0.0f;
+}
+
+// ─── chorus / flanger (#161) ──────────────────────────────────────────
+
+YSE_C_API void yse_dsp_chorus_set_mode(YseDspObject* o, YseChorusMode mode) {
+  auto* c = as<YSE::DSP::MODULES::chorus>(o);
+  if (c) c->mode(static_cast<YSE::DSP::MODULES::chorusMode>(mode));
+}
+YSE_C_API YseChorusMode yse_dsp_chorus_get_mode(YseDspObject* o) {
+  auto* c = as<YSE::DSP::MODULES::chorus>(o);
+  return c ? static_cast<YseChorusMode>(c->mode()) : YSE_CHORUS_MODE_CHORUS;
+}
+YSE_C_API void yse_dsp_chorus_set_rate(YseDspObject* o, float hz) {
+  auto* c = as<YSE::DSP::MODULES::chorus>(o);
+  if (c) c->rate(hz);
+}
+YSE_C_API float yse_dsp_chorus_get_rate(YseDspObject* o) {
+  auto* c = as<YSE::DSP::MODULES::chorus>(o);
+  return c ? c->rate() : 0.0f;
+}
+YSE_C_API void yse_dsp_chorus_set_depth(YseDspObject* o, float value) {
+  auto* c = as<YSE::DSP::MODULES::chorus>(o);
+  if (c) c->depth(value);
+}
+YSE_C_API float yse_dsp_chorus_get_depth(YseDspObject* o) {
+  auto* c = as<YSE::DSP::MODULES::chorus>(o);
+  return c ? c->depth() : 0.0f;
+}
+YSE_C_API void yse_dsp_chorus_set_feedback(YseDspObject* o, float value) {
+  auto* c = as<YSE::DSP::MODULES::chorus>(o);
+  if (c) c->feedback(value);
+}
+YSE_C_API float yse_dsp_chorus_get_feedback(YseDspObject* o) {
+  auto* c = as<YSE::DSP::MODULES::chorus>(o);
+  return c ? c->feedback() : 0.0f;
+}
+YSE_C_API void yse_dsp_chorus_set_spread(YseDspObject* o, float value) {
+  auto* c = as<YSE::DSP::MODULES::chorus>(o);
+  if (c) c->spread(value);
+}
+YSE_C_API float yse_dsp_chorus_get_spread(YseDspObject* o) {
+  auto* c = as<YSE::DSP::MODULES::chorus>(o);
+  return c ? c->spread() : 0.0f;
+}
+
+// ─── plate reverb (#162) ──────────────────────────────────────────────
+
+YSE_C_API void yse_dsp_plate_reverb_set_decay(YseDspObject* o, float value) {
+  auto* p = as<YSE::DSP::MODULES::plateReverb>(o);
+  if (p) p->decay(value);
+}
+YSE_C_API float yse_dsp_plate_reverb_get_decay(YseDspObject* o) {
+  auto* p = as<YSE::DSP::MODULES::plateReverb>(o);
+  return p ? p->decay() : 0.0f;
+}
+YSE_C_API void yse_dsp_plate_reverb_set_damping(YseDspObject* o, float hz) {
+  auto* p = as<YSE::DSP::MODULES::plateReverb>(o);
+  if (p) p->damping(hz);
+}
+YSE_C_API float yse_dsp_plate_reverb_get_damping(YseDspObject* o) {
+  auto* p = as<YSE::DSP::MODULES::plateReverb>(o);
+  return p ? p->damping() : 0.0f;
+}
+YSE_C_API void yse_dsp_plate_reverb_set_predelay(YseDspObject* o, float ms) {
+  auto* p = as<YSE::DSP::MODULES::plateReverb>(o);
+  if (p) p->preDelay(ms);
+}
+YSE_C_API float yse_dsp_plate_reverb_get_predelay(YseDspObject* o) {
+  auto* p = as<YSE::DSP::MODULES::plateReverb>(o);
+  return p ? p->preDelay() : 0.0f;
+}
+
+// ─── parametric EQ (#163) ─────────────────────────────────────────────
+
+YSE_C_API void yse_dsp_eq_set_frequency(YseDspObject* o, YseEqBand band, float hz) {
+  auto* e = as<YSE::DSP::MODULES::parametricEQ>(o);
+  if (e) e->frequency(static_cast<YSE::DSP::MODULES::eqBand>(band), hz);
+}
+YSE_C_API float yse_dsp_eq_get_frequency(YseDspObject* o, YseEqBand band) {
+  auto* e = as<YSE::DSP::MODULES::parametricEQ>(o);
+  return e ? e->frequency(static_cast<YSE::DSP::MODULES::eqBand>(band)) : 0.0f;
+}
+YSE_C_API void yse_dsp_eq_set_gain(YseDspObject* o, YseEqBand band, float db) {
+  auto* e = as<YSE::DSP::MODULES::parametricEQ>(o);
+  if (e) e->gain(static_cast<YSE::DSP::MODULES::eqBand>(band), db);
+}
+YSE_C_API float yse_dsp_eq_get_gain(YseDspObject* o, YseEqBand band) {
+  auto* e = as<YSE::DSP::MODULES::parametricEQ>(o);
+  return e ? e->gain(static_cast<YSE::DSP::MODULES::eqBand>(band)) : 0.0f;
+}
+YSE_C_API void yse_dsp_eq_set_q(YseDspObject* o, YseEqBand band, float value) {
+  auto* e = as<YSE::DSP::MODULES::parametricEQ>(o);
+  if (e) e->q(static_cast<YSE::DSP::MODULES::eqBand>(band), value);
+}
+YSE_C_API float yse_dsp_eq_get_q(YseDspObject* o, YseEqBand band) {
+  auto* e = as<YSE::DSP::MODULES::parametricEQ>(o);
+  return e ? e->q(static_cast<YSE::DSP::MODULES::eqBand>(band)) : 0.0f;
+}
+
+// ─── compressor (#163) ────────────────────────────────────────────────
+
+YSE_C_API void yse_dsp_compressor_set_detector(YseDspObject* o, YseCompressorDetector mode) {
+  auto* c = as<YSE::DSP::MODULES::compressor>(o);
+  if (c) c->detector(static_cast<YSE::DSP::MODULES::compressorDetector>(mode));
+}
+YSE_C_API YseCompressorDetector yse_dsp_compressor_get_detector(YseDspObject* o) {
+  auto* c = as<YSE::DSP::MODULES::compressor>(o);
+  return c ? static_cast<YseCompressorDetector>(c->detector()) : YSE_COMPRESSOR_DETECT_PEAK;
+}
+YSE_C_API void yse_dsp_compressor_set_threshold(YseDspObject* o, float db) {
+  auto* c = as<YSE::DSP::MODULES::compressor>(o);
+  if (c) c->threshold(db);
+}
+YSE_C_API float yse_dsp_compressor_get_threshold(YseDspObject* o) {
+  auto* c = as<YSE::DSP::MODULES::compressor>(o);
+  return c ? c->threshold() : 0.0f;
+}
+YSE_C_API void yse_dsp_compressor_set_ratio(YseDspObject* o, float value) {
+  auto* c = as<YSE::DSP::MODULES::compressor>(o);
+  if (c) c->ratio(value);
+}
+YSE_C_API float yse_dsp_compressor_get_ratio(YseDspObject* o) {
+  auto* c = as<YSE::DSP::MODULES::compressor>(o);
+  return c ? c->ratio() : 0.0f;
+}
+YSE_C_API void yse_dsp_compressor_set_attack(YseDspObject* o, float ms) {
+  auto* c = as<YSE::DSP::MODULES::compressor>(o);
+  if (c) c->attack(ms);
+}
+YSE_C_API float yse_dsp_compressor_get_attack(YseDspObject* o) {
+  auto* c = as<YSE::DSP::MODULES::compressor>(o);
+  return c ? c->attack() : 0.0f;
+}
+YSE_C_API void yse_dsp_compressor_set_release(YseDspObject* o, float ms) {
+  auto* c = as<YSE::DSP::MODULES::compressor>(o);
+  if (c) c->release(ms);
+}
+YSE_C_API float yse_dsp_compressor_get_release(YseDspObject* o) {
+  auto* c = as<YSE::DSP::MODULES::compressor>(o);
+  return c ? c->release() : 0.0f;
+}
+YSE_C_API void yse_dsp_compressor_set_makeup(YseDspObject* o, float db) {
+  auto* c = as<YSE::DSP::MODULES::compressor>(o);
+  if (c) c->makeup(db);
+}
+YSE_C_API float yse_dsp_compressor_get_makeup(YseDspObject* o) {
+  auto* c = as<YSE::DSP::MODULES::compressor>(o);
+  return c ? c->makeup() : 0.0f;
+}
+YSE_C_API float yse_dsp_compressor_get_gain_reduction_db(YseDspObject* o) {
+  auto* c = as<YSE::DSP::MODULES::compressor>(o);
+  return c ? c->gainReductionDb() : 0.0f;
 }
 
 } // extern "C"

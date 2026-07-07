@@ -62,6 +62,7 @@ set(YSE_TEST_SOURCES
   channel/test_channel_layout.cpp
   channel/test_channel_dsp.cpp
   channel/test_channel_sends.cpp
+  channel/test_c_api_channel.cpp
   sound/test_sound_state.cpp
   sound/test_sound_streaming.cpp
   sound/test_sound_bufferrace.cpp
@@ -205,7 +206,10 @@ add_test(
   # `sendstress` is excluded too: like the lifecycle suites it drives
   # System::initOffline() (process-global engine state), so it must run in its
   # own process (yse_tests_sendstress) rather than in this shared one.
-  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthcapi,midisynth,playersynth,playercapi,sendstress "--test-case-exclude=* concurrency: *" --duration=true
+  # `channelcapi` (issue #166 C-API channel-DSP/send surface) is excluded for
+  # the same reason — it drives yse_system_init_offline() and runs in its own
+  # process (yse_tests_channelcapi).
+  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthcapi,midisynth,playersynth,playercapi,sendstress,channelcapi "--test-case-exclude=* concurrency: *" --duration=true
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_unit_tests PROPERTIES TIMEOUT 600)
@@ -422,6 +426,18 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_sendstress PROPERTIES LABELS "channel;concurrency" TIMEOUT 300)
+
+# C-API channel-DSP, effect-module, and send/return surface (issue #166). Drives
+# the channel insert + send-to-plate-return graph entirely through the flat C
+# ABI under an offline engine (yse_system_init_offline), so it runs on headless
+# CI. Isolated in its own process for the same reason as yse_tests_sendstress:
+# it drives process-global engine state via init_offline().
+add_test(
+  NAME    yse_tests_channelcapi
+  COMMAND yse_tests --test-suite=channelcapi
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_channelcapi PROPERTIES LABELS "channel;c-api" TIMEOUT 300)
 endif()  # NOT ANDROID — close the CTest registration block
 
 if(ANDROID)
