@@ -75,7 +75,9 @@ set(YSE_TEST_SOURCES
   synth/test_synth.cpp
   synth/test_synth_keyboard.cpp
   synth/test_synth_close.cpp
+  synth/test_synth_positioning.cpp
   synth/test_c_api_synth.cpp
+  dsp/test_panner.cpp
   reverb/test_reverb_dsp.cpp
   reverb/test_reverb_concurrency.cpp
   midi/test_midifile.cpp
@@ -199,7 +201,7 @@ add_test(
   # suite exclusions above and loses no coverage: yse_tests_concurrency plus the
   # per-suite entries still run every case. Tracked in #304; the root fix is
   # #41/#298 engine work.
-  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthcapi,midisynth,playersynth,playercapi "--test-case-exclude=* concurrency: *" --duration=true
+  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthcapi,midisynth,playersynth,playercapi "--test-case-exclude=* concurrency: *" --duration=true
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_unit_tests PROPERTIES TIMEOUT 600)
@@ -285,6 +287,19 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_synthlifecycle PROPERTIES LABELS "synth;lifecycle")
+
+# Per-note positioned-sound infrastructure (issue #169). Isolated in its own
+# process for the same reason as yse_tests_synthlifecycle: the note-storm, steal,
+# and close-mid-swarm cases drive System::initOffline()/close(), which tear down
+# process-global state the rest of the suite assumes stays up (#298). This is the
+# process the ASan/TSan CI runs (tools/ci-linux/) to catch note-rate lifecycle
+# races. initOffline() needs no audio hardware, so it runs in CI.
+add_test(
+  NAME    yse_tests_synthpositioning
+  COMMAND yse_tests --test-suite=synthpositioning
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_synthpositioning PROPERTIES LABELS "synth;lifecycle")
 
 # C-API synth surface (issue #157). Drives the synth entirely through the flat
 # C ABI under an offline engine (yse_system_init_offline), then yse_system_close().

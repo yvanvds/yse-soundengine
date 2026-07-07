@@ -65,6 +65,24 @@ namespace TestHelpers {
     return (n > 0) ? std::sqrt(sum / static_cast<float>(n)) : 0.0f;
   }
 
+  // Root-mean-square amplitude across ALL channels of a multichannel buffer,
+  // normalised by a single channel's length. For an equal-power panned bed (the
+  // Route 2 synth aggregate, issue #169) the per-speaker gains satisfy
+  // Σ gain² == 1, so this recovers the original source RMS regardless of how the
+  // signal was spread across speakers — i.e. it measures the note's amplitude
+  // independently of the pan. Assumes every channel has the same length.
+  inline float combinedRms(std::vector<YSE::DSP::buffer>& bed) {
+    float sum = 0.0f;
+    unsigned n = 0;
+    for (auto& b : bed) {
+      float* ptr = b.getPtr();
+      n = b.getLength();
+      for (unsigned i = 0; i < n; ++i)
+        sum += ptr[i] * ptr[i];
+    }
+    return (n > 0) ? std::sqrt(sum / static_cast<float>(n)) : 0.0f;
+  }
+
   // Returns the bin index in [1, N/2] with maximum magnitude in an FFT output.
   // real and im must point to arrays of at least N floats (output of fft or mayer_fft).
   // Bin 0 (DC) is excluded; returns 1 if N < 4.

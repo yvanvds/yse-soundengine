@@ -59,7 +59,13 @@ namespace YSE {
       Bool create(YSE::DSP::buffer& buffer, channel* ch, Bool loop, Flt volume);
       Bool create(MULTICHANNELBUFFER& buffer, channel* ch, Bool loop, Flt volume);
 
-      Bool create(DSP::dspSourceObject& ptr, channel* ch, Flt volume);
+      /** Attach a DSP source. When @p preSpatialized is true the source already
+          produces a device-width, per-voice-panned bed (a Route 2 synth, issue
+          #169): toChannels() then plays it straight through 1:1 to the matching
+          output channels WITHOUT applying its own cardioid pan, so the signal is
+          not panned twice. Read once on the audio thread; not a lifecycle
+          change. See docs/design/per_note_positioning.md §7. */
+      Bool create(DSP::dspSourceObject& ptr, channel* ch, Flt volume, bool preSpatialized = false);
 
       bool create(PATCHER::patcherImplementation* patcher, channel* ch, float volume);
 
@@ -464,6 +470,13 @@ namespace YSE {
       };
 
       PLAYER_TYPE playerType;
+
+      // Route 2 pre-spatialized attachment (issue #169). Set once in create()
+      // for a synth whose aggregate source already produced a device-width,
+      // per-voice-panned bed; read once per block on the audio thread in
+      // toChannels() to select the 1:1 passthrough instead of the cardioid pan.
+      // Never true for files, patchers, or raw dsp sources.
+      Bool preSpatialized;
 
       friend class YSE::SOUND::managerObject;
       friend class YSE::CHANNEL::implementationObject;

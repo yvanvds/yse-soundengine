@@ -452,23 +452,25 @@ TEST_SUITE("synth") {
     render(impl, 2);
     CHECK(TestHelpers::measureRms(impl.getOutputSource().samples[0]) < 1e-3f); // no pressure yet
 
-    // Per-note pressure reaches the voice sounding note 60.
+    // Per-note pressure reaches the voice sounding note 60. The aggregate is now
+    // a per-voice-panned device-width bed (Route 2, issue #169), so measure the
+    // note's amplitude across the whole bed — combinedRms is pan-invariant.
     impl.sendMessage(aftertouchMsg(1, 60, 0.8f));
     render(impl, 2);
     CHECK(impl.getChannelAftertouch(1) == doctest::Approx(0.8f));
-    CHECK(TestHelpers::measureRms(impl.getOutputSource().samples[0]) ==
+    CHECK(TestHelpers::combinedRms(impl.getOutputSource().samples) ==
           doctest::Approx(0.8f).epsilon(0.02));
 
     // A wrong-note message does not touch it.
     impl.sendMessage(aftertouchMsg(1, 61, 0.2f));
     render(impl, 2);
-    CHECK(TestHelpers::measureRms(impl.getOutputSource().samples[0]) ==
+    CHECK(TestHelpers::combinedRms(impl.getOutputSource().samples) ==
           doctest::Approx(0.8f).epsilon(0.02));
 
     // Channel-wide (note -1) reaches it.
     impl.sendMessage(aftertouchMsg(1, -1, 0.4f));
     render(impl, 2);
-    CHECK(TestHelpers::measureRms(impl.getOutputSource().samples[0]) ==
+    CHECK(TestHelpers::combinedRms(impl.getOutputSource().samples) ==
           doctest::Approx(0.4f).epsilon(0.02));
   }
 
