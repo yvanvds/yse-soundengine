@@ -1,0 +1,6 @@
+// Overlapping layered zones (below the 4-layer bound). Notes in the shared
+// range sound all matching regions simultaneously.
+<global> pitch_keycenter=60
+<region> sample=*silence lokey=60 hikey=72
+<region> sample=*silence lokey=60 hikey=72
+<region> sample=*silence lokey=64 hikey=67

@@ -65,6 +65,7 @@ set(YSE_SRCS
   dsp/ramp.cpp
   dsp/rawFilters.cpp
   dsp/sample_functions.cpp
+  dsp/sfzModel.cpp
   dsp/wavetable.cpp
   implementations/listenerImplementation.cpp
   implementations/logImplementation.cpp

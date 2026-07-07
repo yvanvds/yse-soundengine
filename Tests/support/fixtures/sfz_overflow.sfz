@@ -1,0 +1,10 @@
+// A cell with more than YSE_MAX_REGION_LAYERS (4) matching regions. At
+// note 60 / velocity 64 all five match; the widest (region 0) is truncated
+// by the priority rule (narrowest velocity range, then narrowest key range,
+// then last-in-file). The parser also flags a parse-time overflow warning.
+<global> pitch_keycenter=60
+<region> sample=*silence lokey=0  hikey=127 lovel=1  hivel=127
+<region> sample=*silence lokey=60 hikey=60  lovel=1  hivel=127
+<region> sample=*silence lokey=60 hikey=60  lovel=64 hivel=64
+<region> sample=*silence lokey=59 hikey=61  lovel=1  hivel=127
+<region> sample=*silence lokey=60 hikey=72  lovel=1  hivel=127
