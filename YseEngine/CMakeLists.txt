@@ -48,6 +48,17 @@ set(YSE_SRCS
   dsp/modules/plateReverb.cpp
   dsp/modules/ringModulator.cpp
   dsp/modules/sineWave.cpp
+  dsp/fm/fmPatch.cpp
+  dsp/fm/fmVoice.cpp
+  dsp/fm/msfa/sin.cc
+  dsp/fm/msfa/exp2.cc
+  dsp/fm/msfa/freqlut.cc
+  dsp/fm/msfa/lfo.cc
+  dsp/fm/msfa/env.cc
+  dsp/fm/msfa/pitchenv.cc
+  dsp/fm/msfa/fm_op_kernel.cc
+  dsp/fm/msfa/fm_core.cc
+  dsp/fm/msfa/dx7note.cc
   dsp/oscillators.cpp
   dsp/ramp.cpp
   dsp/rawFilters.cpp
@@ -183,6 +194,24 @@ endif()
 # ── Source-file-scoped warning suppressions ───────────────────────────────────
 # cJSON is a vendored C file; suppress all its warnings rather than patching it.
 set_source_files_properties(json/cJSON.cpp
+  PROPERTIES COMPILE_FLAGS "-w"
+)
+
+# The dsp/fm/msfa/ files are ported verbatim from music-synthesizer-for-android
+# (Apache-2.0, see NOTICE). They are treated like vendored third-party code:
+# suppress compiler warnings rather than patching upstream style, and they are
+# kept out of the clang-tidy pass (yse.py analyze globs *.cpp only, and these
+# are *.cc). Issue #176.
+set_source_files_properties(
+  dsp/fm/msfa/sin.cc
+  dsp/fm/msfa/exp2.cc
+  dsp/fm/msfa/freqlut.cc
+  dsp/fm/msfa/lfo.cc
+  dsp/fm/msfa/env.cc
+  dsp/fm/msfa/pitchenv.cc
+  dsp/fm/msfa/fm_op_kernel.cc
+  dsp/fm/msfa/fm_core.cc
+  dsp/fm/msfa/dx7note.cc
   PROPERTIES COMPILE_FLAGS "-w"
 )
 
