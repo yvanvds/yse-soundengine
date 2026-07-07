@@ -78,6 +78,7 @@ set(YSE_TEST_SOURCES
   synth/test_synth_keyboard.cpp
   synth/test_synth_close.cpp
   synth/test_synth_positioning.cpp
+  synth/test_synth_handlers.cpp
   synth/test_c_api_synth.cpp
   dsp/test_panner.cpp
   reverb/test_reverb_dsp.cpp
@@ -209,7 +210,7 @@ add_test(
   # `channelcapi` (issue #166 C-API channel-DSP/send surface) is excluded for
   # the same reason — it drives yse_system_init_offline() and runs in its own
   # process (yse_tests_channelcapi).
-  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthcapi,midisynth,playersynth,playercapi,sendstress,channelcapi "--test-case-exclude=* concurrency: *" --duration=true
+  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthhandlers,synthcapi,midisynth,playersynth,playercapi,sendstress,channelcapi "--test-case-exclude=* concurrency: *" --duration=true
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_unit_tests PROPERTIES TIMEOUT 600)
@@ -308,6 +309,18 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_synthpositioning PROPERTIES LABELS "synth;lifecycle")
+
+# Position handlers (issue #170). Isolated in its own process for the same reason
+# as yse_tests_synthpositioning: the lifecycle / steal cases drive
+# System::initOffline()/close(). This process also runs under ASan/TSan in
+# tools/ci-linux/ to catch handler-lifetime races. initOffline() needs no audio
+# hardware, so it runs in CI.
+add_test(
+  NAME    yse_tests_synthhandlers
+  COMMAND yse_tests --test-suite=synthhandlers
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_synthhandlers PROPERTIES LABELS "synth;lifecycle")
 
 # C-API synth surface (issue #157). Drives the synth entirely through the flat
 # C ABI under an offline engine (yse_system_init_offline), then yse_system_close().

@@ -71,6 +71,18 @@ namespace YSE {
       pendingGroups.push_back({prototype, numVoices, channel, lowestNote, highestNote});
     }
 
+    void implementationObject::setPositionHandler(positionHandler* prototype) {
+      std::scoped_lock lk(buildMutex);
+      if (objectStatus.load(std::memory_order_acquire) >= OBJECT_SETUP) {
+        // Handlers, like voice groups, are immutable once built: the audio
+        // thread reads them lock-free. Reject rather than race the reader (§8).
+        INTERNAL::LogImpl().emit(E_WARNING,
+                                 "SYNTH: positionHandler() after setup is not supported");
+        return;
+      }
+      handlerPrototype = prototype; // caller-owned; cloned per slot in setup()
+    }
+
     void implementationObject::setNoteCallback(NoteCallback func) {
       // Release-store so the audio thread's acquire-load sees a fully-published
       // function pointer. nullptr simply disables the hook.
@@ -106,6 +118,19 @@ namespace YSE {
       return channels[channelIndex(channel)].softPedal;
     }
 
+    Pos implementationObject::getVoicePosition(int channel, int note) const {
+      // Best-effort audio-thread snapshot (like the keyboard getters above): the
+      // first voice sounding (channel, note) reports its current position.
+      for (const auto& g : groups) {
+        for (const auto& slot : g.slots) {
+          if (slot.channel == channel && slot.note == note && slot.intent != SS_STOPPED) {
+            return slot.position;
+          }
+        }
+      }
+      return Pos(0.f);
+    }
+
     DSP::dspSourceObject& implementationObject::getOutputSource() {
       return output;
     }
@@ -130,6 +155,15 @@ namespace YSE {
         g.voices.reserve(static_cast<size_t>(req.numVoices));
         for (int k = 0; k < req.numVoices; ++k) {
           g.voices.emplace_back(req.prototype->clone());
+        }
+        // Clone one position handler per voice slot (#170), parallel to voices.
+        // With no handler attached the vector stays empty and every voice falls
+        // back to the aggregate position (the epic is strictly additive).
+        if (handlerPrototype != nullptr) {
+          g.handlers.reserve(static_cast<size_t>(req.numVoices));
+          for (int k = 0; k < req.numVoices; ++k) {
+            g.handlers.emplace_back(handlerPrototype->clone());
+          }
         }
         groups.push_back(std::move(g));
       }
@@ -271,15 +305,26 @@ namespace YSE {
       // 4. Render each active voice, then spread its mono output across the
       //    device-width bed at its own position (issue #169, design §7).
       const int blockLen = static_cast<int>(output.samples[0].getLength());
+      // Per-block wall time in seconds, fed to handler update(delta). Derived
+      // from the block length so trajectories are deterministic and frame-rate
+      // independent (design §8), not tied to the control-thread clock.
+      const Flt delta =
+          SAMPLERATE > 0 ? static_cast<Flt>(blockLen) / static_cast<Flt>(SAMPLERATE) : 0.f;
       for (auto& g : groups) {
         for (size_t i = 0; i < g.slots.size(); ++i) {
           voiceSlot& slot = g.slots[i];
           dspVoice* v = g.voices[i].get();
 
+          positionHandler* handler = handlerFor(g, i);
+
           if (slot.stealing) {
             // Keep rendering the OLD note, force-faded to silence over the steal
             // window, then spread it at its current position so a stolen note
-            // fades cleanly along whatever direction it currently occupies.
+            // fades cleanly along whatever direction it currently occupies. The
+            // OLD handler keeps steering it through the fade (design §11).
+            if (handler != nullptr) {
+              slot.position = handler->update(buildContext(g, i), delta);
+            }
             v->process(slot.intent);
             fillStealFader(slot, blockLen);
             slot.panner.update(slot.position);
@@ -296,10 +341,18 @@ namespace YSE {
               slot.keyDown = true; // the new note's key is down
               slot.heldBySustain = false;
               slot.heldBySostenuto = false;
-              slot.position = Pos(0.f); // no handler yet — re-seed to the aggregate (#170)
+              slot.releaseNotified = false;
               v->frequency(static_cast<Flt>(slot.pendNote));
               v->velocity(slot.pendVelocity);
               primeVoicePitchWheel(*v, slot.pendChannel); // start in tune (§5)
+              // Re-seed the position: the handler fully re-inits for the new note
+              // (§11), else fall back to the aggregate. buildContext now reads the
+              // new note's freq/velocity set just above.
+              if (handler != nullptr) {
+                slot.position = handler->noteOn(buildContext(g, i));
+              } else {
+                slot.position = Pos(0.f);
+              }
               // The panner's smoothing ramp starts from the faded-to-zero gain,
               // so the new note fades up from silence at its own direction — no
               // positional glide from the stolen note (design §11).
@@ -307,8 +360,20 @@ namespace YSE {
               slot.intent = SS_WANTSTOPLAY;
             }
           } else if (slot.intent != SS_STOPPED) {
+            // Signal the release edge exactly once so a handler can react to the
+            // note dying (design §10). Position control continues through the
+            // tail via update() below.
+            if (handler != nullptr && slot.intent == SS_WANTSTOSTOP && !slot.releaseNotified) {
+              handler->onRelease(buildContext(g, i));
+              slot.releaseNotified = true;
+            }
             v->process(slot.intent); // may settle the intent to SS_STOPPED
             fillUnitFader(blockLen);
+            // Steer the voice's position for this block (design §7). Skip once the
+            // voice has just stopped — the slot is about to free.
+            if (handler != nullptr && slot.intent != SS_STOPPED) {
+              slot.position = handler->update(buildContext(g, i), delta);
+            }
             slot.panner.update(slot.position);
             slot.panner.spread(v->samples, voiceFader.data(), output.samples);
             if (slot.intent == SS_STOPPED) {
@@ -351,6 +416,47 @@ namespace YSE {
       }
     }
 
+    // ---- position handlers (#170) -----------------------------------------
+
+    voiceContext implementationObject::buildContext(voiceGroup& group, size_t i) {
+      // A fresh stack view of the voice's live note state for the handler hooks.
+      // Reads the voice's own atomics (frequency/velocity/aftertouch/wheel) and
+      // points at the channel's controller row + the shared handler-param block.
+      const voiceSlot& s = group.slots[i];
+      const dspVoice* v = group.voices[i].get();
+      voiceContext ctx;
+      ctx.frequency = v->getFrequency();
+      ctx.velocity = v->getVelocity();
+      ctx.aftertouch = v->getAftertouch();
+      ctx.pitchWheel = v->getPitchWheel();
+      ctx.channel = s.channel;
+      ctx.note = s.note;
+      ctx.controllers_ = channelFor(s.channel).controller.data();
+      ctx.handlerParams_ = handlerParams.data();
+      ctx.numHandlerParams_ = kMaxHandlerParams;
+      return ctx;
+    }
+
+    void implementationObject::handleHandlerParam(int index, Flt value) {
+      if (index >= 0 && index < kMaxHandlerParams) {
+        handlerParams[static_cast<size_t>(index)] = value; // read by handlers next block
+      }
+    }
+
+    void implementationObject::handleNotePosition(int channel, int note, const Pos& pos) {
+      // Imperative override for app-driven trajectories: place every voice
+      // sounding (channel, note) at pos. When a handler is attached its next
+      // update() re-steers the voice, so this is primarily for the no-handler
+      // case (the main thread owning the trajectory). §9.
+      for (auto& g : groups) {
+        for (auto& slot : g.slots) {
+          if (slot.channel == channel && slot.note == note && slot.intent != SS_STOPPED) {
+            slot.position = pos;
+          }
+        }
+      }
+    }
+
     // ---- keyboard / allocator ---------------------------------------------
 
     void implementationObject::parseMessage(const messageObject& message) {
@@ -381,6 +487,14 @@ namespace YSE {
         break;
       case SOFTPEDAL:
         handleSoftPedal(message.pedal.channel, message.pedal.down);
+        break;
+      case HANDLER_PARAM:
+        handleHandlerParam(message.handlerParam.index, message.handlerParam.value);
+        break;
+      case NOTE_POSITION:
+        handleNotePosition(
+            message.notePosition.channel, message.notePosition.note,
+            Pos(message.notePosition.x, message.notePosition.y, message.notePosition.z));
         break;
       }
     }
@@ -576,9 +690,19 @@ namespace YSE {
           s.keyDown = true;
           s.heldBySustain = false;
           s.heldBySostenuto = false;
+          s.releaseNotified = false;
           group.voices[i]->frequency(static_cast<Flt>(note));
           group.voices[i]->velocity(velocity);
           primeVoicePitchWheel(*group.voices[i], channel); // start in tune (§5)
+          // Seed the note's position from its handler (#170) — a full re-init,
+          // since this slot may have played before; else the aggregate origin.
+          // Reset the panner so the new note pans clean from its own direction.
+          if (positionHandler* h = handlerFor(group, i)) {
+            s.position = h->noteOn(buildContext(group, i));
+            s.panner.reset();
+          } else {
+            s.position = Pos(0.f);
+          }
           s.intent = SS_WANTSTOPLAY;
           return;
         }

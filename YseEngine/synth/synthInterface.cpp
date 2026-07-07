@@ -12,6 +12,7 @@
 #include "synthInterface.hpp"
 #include "../internalHeaders.h"
 #include "../music/note.hpp"
+#include "positionHandler.hpp"
 #include "synthManager.h"
 
 #include <cmath>
@@ -143,6 +144,41 @@ namespace YSE {
       m.pedal.down = down;
       pimpl->sendMessage(m);
       return *this;
+    }
+
+    interfaceObject& interfaceObject::positionHandler(YSE::SYNTH::positionHandler& prototype) {
+      // Records the prototype under buildMutex; cloned per voice slot in setup().
+      // Like addVoices/onNoteEvent, harmless before create() has an impl.
+      if (pimpl == nullptr) create();
+      pimpl->setPositionHandler(&prototype);
+      return *this;
+    }
+
+    interfaceObject& interfaceObject::handlerParam(int index, float value) {
+      if (pimpl == nullptr) return *this;
+      messageObject m;
+      m.ID = HANDLER_PARAM;
+      m.handlerParam.index = index;
+      m.handlerParam.value = value;
+      pimpl->sendMessage(m);
+      return *this;
+    }
+
+    interfaceObject& interfaceObject::notePosition(int channel, int noteNumber, const Pos& pos) {
+      if (pimpl == nullptr) return *this;
+      messageObject m;
+      m.ID = NOTE_POSITION;
+      m.notePosition.channel = channel;
+      m.notePosition.note = noteNumber;
+      m.notePosition.x = pos.x;
+      m.notePosition.y = pos.y;
+      m.notePosition.z = pos.z;
+      pimpl->sendMessage(m);
+      return *this;
+    }
+
+    Pos interfaceObject::getVoicePosition(int channel, int noteNumber) const {
+      return pimpl != nullptr ? pimpl->getVoicePosition(channel, noteNumber) : Pos(0.f);
     }
 
     interfaceObject& interfaceObject::onNoteEvent(void (*func)(bool, float*, float*)) {
