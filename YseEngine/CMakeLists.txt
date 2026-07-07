@@ -50,6 +50,7 @@ set(YSE_SRCS
   dsp/modules/sineWave.cpp
   dsp/fm/fmPatch.cpp
   dsp/fm/fmVoice.cpp
+  dsp/fm/dx7Sysex.cpp
   dsp/fm/msfa/sin.cc
   dsp/fm/msfa/exp2.cc
   dsp/fm/msfa/freqlut.cc
