@@ -1,0 +1,22 @@
+// Lenient parse (spec Example 5 + §14.6): an unknown header, OUT opcodes, a
+// malformed known value, a missing-sample region, and a region with no
+// sample. Exactly one valid region survives; the rest are skipped/dropped
+// and logged, never a parse failure.
+<weird>
+depth=5
+
+<region>
+sample=*silence
+pitch_keycenter=48
+cutoff=800          // OUT: filter
+lfo01_freq=5        // OUT: LFO
+fileg_attack=0.2    // OUT: filter EG
+sw_last=24          // OUT: key switching
+lovel=notanumber    // malformed known value -> default (1) kept
+
+<region>
+sample=does_not_exist_12345.wav   // missing file -> region dropped
+pitch_keycenter=50
+
+<region>
+pitch_keycenter=52   // no sample opcode -> region dropped

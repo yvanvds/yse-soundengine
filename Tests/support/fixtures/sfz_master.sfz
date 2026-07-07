@@ -1,0 +1,15 @@
+// Four-level inheritance: <global> <master> <group> <region> (spec §3).
+// Region 1 overrides the master volume, proving innermost-wins.
+<global>
+ampeg_release=0.5
+pitch_keytrack=100
+
+<master>
+volume=-3
+pitch_keycenter=48
+
+<group>
+loop_mode=one_shot
+
+<region> sample=*silence lokey=36 hikey=47
+<region> sample=*silence lokey=48 hikey=59 volume=-6

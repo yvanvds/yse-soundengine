@@ -1,0 +1,6 @@
+// Buffer de-duplication + note-name parsing. Two regions naming the same
+// real file share one sample-table entry. Keys are given as note names
+// (c4 = 60, sfizz/SFZ middle-C convention).
+<group> loop_mode=loop_continuous
+<region> sample=test_mono_44100.wav key=c4
+<region> sample=test_mono_44100.wav lokey=c5 hikey=c6 pitch_keycenter=c5
