@@ -36,6 +36,7 @@ set(YSE_TEST_SOURCES
   dsp/test_ladder_filter.cpp
   dsp/test_va_voice.cpp
   dsp/test_fm_voice.cpp
+  dsp/test_dx7_sysex.cpp
   patcher/test_graph.cpp
   patcher/test_nodes.cpp
   patcher/test_patcher_math.cpp
