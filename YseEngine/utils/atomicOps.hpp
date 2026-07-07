@@ -257,6 +257,26 @@ namespace YSE {
 #endif
 #include <utility>
 
+// ThreadSanitizer cannot model standalone `std::atomic_thread_fence`, which is
+// exactly how this SPSC queue publishes non-atomic element data (a relaxed
+// index store guarded by a release fence, observed via a relaxed index load
+// guarded by an acquire fence — see lfQueue.hpp). The algorithm is correct, but
+// TSan reports a false-positive data race on the element move because it cannot
+// see the fence-established happens-before. When (and only when) building under
+// TSan, promote the weak_atomic index load/store to seq_cst so the
+// synchronisation rides on the atomic accesses themselves — which TSan does
+// model — instead of the standalone fences. This is a sanitizer-only visibility
+// change: normal debug/release builds keep the original relaxed+fence fast path
+// byte-for-byte, so there is no runtime cost off the TSan leg. (issue #165)
+#if defined(__has_feature)
+#if __has_feature(thread_sanitizer)
+#define YSE_WEAK_ATOMIC_TSAN 1
+#endif
+#endif
+#if !defined(YSE_WEAK_ATOMIC_TSAN) && defined(__SANITIZE_THREAD__)
+#define YSE_WEAK_ATOMIC_TSAN 1
+#endif
+
 // WARNING: *NOT* A REPLACEMENT FOR std::atomic. READ CAREFULLY:
 // Provides basic support for atomic variables -- no memory ordering guarantees are provided.
 // The guarantee of atomicity is only made for types that already have atomic load and store
@@ -294,18 +314,23 @@ namespace YSE {
       return value;
     }
 #else
+#ifdef YSE_WEAK_ATOMIC_TSAN
+    static constexpr std::memory_order weak_order = std::memory_order_seq_cst;
+#else
+    static constexpr std::memory_order weak_order = std::memory_order_relaxed;
+#endif
     template <typename U> AE_FORCEINLINE weak_atomic const& operator=(U&& x) {
-      value.store(std::forward<U>(x), std::memory_order_relaxed);
+      value.store(std::forward<U>(x), weak_order);
       return *this;
     }
 
     AE_FORCEINLINE weak_atomic const& operator=(weak_atomic const& other) {
-      value.store(other.value.load(std::memory_order_relaxed), std::memory_order_relaxed);
+      value.store(other.value.load(weak_order), weak_order);
       return *this;
     }
 
     AE_FORCEINLINE T load() const {
-      return value.load(std::memory_order_relaxed);
+      return value.load(weak_order);
     }
 #endif
 

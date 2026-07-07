@@ -16,6 +16,21 @@
 namespace YSE {
   namespace CHANNEL {
 
+    // Send/return message payloads (issue #165). Named (not anonymous nested)
+    // so the shared messageObject union stays -Wpedantic clean. Both fit inside
+    // the existing union footprint (max member Flt[3] = 12 bytes; the void*
+    // alignment already rounds the union to 16 bytes on a 64-bit ABI), so the
+    // shared message size does not grow.
+    struct sendPayload {
+      void* target; // CHANNEL::implementationObject* of the return
+      Int slot;
+      Bool preFader;
+    };
+    struct sendLevelPayload {
+      Int slot;
+      Flt level;
+    };
+
     /*
        Message objects are used to send messages from interface to implementation. In this
        case, a message will be sent from a channelInterfaceObject to a
@@ -39,6 +54,12 @@ namespace YSE {
         Flt floatValue;
         UInt uintValue;
         void* ptrValue;
+
+        // Send/return payloads (issue #165). `send` carries an ADD_SEND (target
+        // return + slot index + tap point); `sendLevel` carries a SEND_LEVEL
+        // (slot + level). REMOVE_SEND / SET_GENERATION reuse uintValue.
+        sendPayload send;
+        sendLevelPayload sendLevel;
       };
     };
   } // namespace CHANNEL

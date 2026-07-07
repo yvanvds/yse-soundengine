@@ -38,6 +38,13 @@ YSE::CHANNEL::managerObject::~managerObject() noexcept {
     // remove all objects that are still in memory
     toLoad.clear();
     inUse.clear();
+    returns.clear();
+    {
+      std::scoped_lock lk(returnGraphMutex);
+      returnNodes.clear();
+      returnEdges.clear();
+      returnGenPosted.clear();
+    }
     implementations.clear();
     delete[] outputAngles;
     delete[] outputIsLFE;
@@ -122,6 +129,11 @@ void YSE::CHANNEL::managerObject::update() {
               false, std::memory_order_release); // NOSONAR S8417: intentional release — publishes
                                                  // audio-thread disconnect before slow-pool delete
         }
+        // Sever every send this impl participates in (both directions) and, if
+        // it is a return, unlink it from the `returns` list — on the audio
+        // thread, BEFORE OBJECT_DELETE makes it eligible for the slow-pool free.
+        // Guarantees no live send slot dereferences the freed impl (issue #165 §9).
+        ptr->detachSends();
         ptr->setStatus(OBJECT_DELETE);
         runDelete = true;
         continue; // c already refers to the successor after erase()
@@ -168,6 +180,13 @@ void YSE::CHANNEL::managerObject::destroy() {
   }
   toLoad.clear();
   inUse.clear();
+  returns.clear();
+  {
+    std::scoped_lock lk(returnGraphMutex);
+    returnNodes.clear();
+    returnEdges.clear();
+    returnGenPosted.clear();
+  }
   {
     std::scoped_lock lk(implementationsMutex);
     // Each impl destructor nulls its interface's pimpl, clearing the persistent
@@ -380,4 +399,161 @@ void YSE::CHANNEL::managerObject::set71() {
   setAngle(5, 135.0f); // back right
   setAngle(6, -90.0f); // side left
   setAngle(7, 90.0f); // side right
+}
+
+/////////////////////////////////////////////////////
+// Send / return buses (issue #165)
+/////////////////////////////////////////////////////
+
+// ─── Audio-thread render helpers ───
+
+void YSE::CHANNEL::managerObject::zeroReturnBuffers() {
+  for (auto i = returns.begin(); i != returns.end(); ++i) {
+    (*i)->clearBuffers();
+  }
+}
+
+void YSE::CHANNEL::managerObject::processReturns(implementationObject* master) {
+  if (returns.empty()) return;
+
+  // Returns are few, so a per-block scan for the max generation is trivial and
+  // avoids having to track a running maximum across teardown.
+  Int maxGen = 0;
+  for (auto i = returns.begin(); i != returns.end(); ++i) {
+    if ((*i)->generation > maxGen) maxGen = (*i)->generation;
+  }
+
+  // Process generation by generation, ascending. Within a generation returns are
+  // mutually independent (their sends only target strictly-higher generations,
+  // enforced at wiring time), so all can be dispatched to the fast pool at once
+  // and then joined + finalized serially in list order (deterministic += order).
+  for (Int g = 0; g <= maxGen; ++g) {
+    for (auto i = returns.begin(); i != returns.end(); ++i) {
+      if ((*i)->generation == g) INTERNAL::Global().addFastJob(*i);
+    }
+    for (auto i = returns.begin(); i != returns.end(); ++i) {
+      if ((*i)->generation == g) {
+        (*i)->join();
+        (*i)->finalizeReturn(master);
+      }
+    }
+  }
+}
+
+void YSE::CHANNEL::managerObject::linkReturn(implementationObject* r) {
+  returns.push_front(r);
+}
+
+void YSE::CHANNEL::managerObject::unlinkReturn(implementationObject* r) {
+  returns.remove(r);
+}
+
+// ─── Control-thread wiring graph ───
+
+bool YSE::CHANNEL::managerObject::returnReachable(implementationObject* from,
+                                                  implementationObject* to) {
+  // Depth-first walk from `from` over return→return edges; true if `to` is
+  // reachable. Bounded by the (small) number of returns. Control thread, under
+  // returnGraphMutex.
+  if (from == to) return true;
+  std::vector<implementationObject*> stack;
+  std::unordered_set<implementationObject*> seen;
+  stack.push_back(from);
+  seen.insert(from);
+  while (!stack.empty()) {
+    implementationObject* n = stack.back();
+    stack.pop_back();
+    auto it = returnEdges.find(n);
+    if (it == returnEdges.end()) continue;
+    for (auto& [next, cnt] : it->second) {
+      if (cnt <= 0) continue;
+      if (next == to) return true;
+      if (seen.insert(next).second) stack.push_back(next);
+    }
+  }
+  return false;
+}
+
+void YSE::CHANNEL::managerObject::recomputeAndPostGenerations() {
+  // Longest-path layering over the return→return DAG (returns are few; a simple
+  // relaxation to a fixpoint is ample). generation(n) = 0 for a return with no
+  // incoming return→return edge, else 1 + max(generation(pred)).
+  std::unordered_map<implementationObject*, Int> gen;
+  gen.reserve(returnNodes.size());
+  for (auto* n : returnNodes)
+    gen[n] = 0;
+
+  for (std::size_t pass = 0; pass < returnNodes.size(); ++pass) {
+    bool changed = false;
+    for (auto& [from, tos] : returnEdges) {
+      if (returnNodes.find(from) == returnNodes.end()) continue;
+      const Int gf = gen[from];
+      for (auto& [to, cnt] : tos) {
+        if (cnt <= 0 || returnNodes.find(to) == returnNodes.end()) continue;
+        if (gen[to] < gf + 1) {
+          gen[to] = gf + 1;
+          changed = true;
+        }
+      }
+    }
+    if (!changed) break;
+  }
+
+  // Message only the returns whose generation actually changed — a single scalar
+  // write applied in sync() on the audio thread.
+  for (auto* n : returnNodes) {
+    const Int g = gen[n];
+    auto it = returnGenPosted.find(n);
+    if (it == returnGenPosted.end() || it->second != g) {
+      returnGenPosted[n] = g;
+      messageObject m;
+      m.ID = SET_GENERATION;
+      m.uintValue = (UInt)g;
+      n->sendMessage(m);
+    }
+  }
+}
+
+void YSE::CHANNEL::managerObject::registerReturnGraph(implementationObject* r) {
+  std::scoped_lock lk(returnGraphMutex);
+  returnNodes.insert(r);
+  returnGenPosted[r] = 0; // matches the impl's default generation (0)
+}
+
+void YSE::CHANNEL::managerObject::unregisterReturnGraph(implementationObject* r) {
+  std::scoped_lock lk(returnGraphMutex);
+  returnNodes.erase(r);
+  returnEdges.erase(r); // outgoing edges
+  for (auto& [from, tos] : returnEdges) // incoming edges
+    tos.erase(r);
+  returnGenPosted.erase(r);
+  recomputeAndPostGenerations();
+}
+
+bool YSE::CHANNEL::managerObject::tryAddReturnEdge(implementationObject* from,
+                                                   implementationObject* to) {
+  std::scoped_lock lk(returnGraphMutex);
+  // Adding from→to closes a cycle iff `to` can already reach `from`.
+  if (returnReachable(to, from)) return false;
+  returnEdges[from][to]++;
+  recomputeAndPostGenerations();
+  return true;
+}
+
+void YSE::CHANNEL::managerObject::removeReturnEdge(implementationObject* from,
+                                                   implementationObject* to) {
+  std::scoped_lock lk(returnGraphMutex);
+  auto it = returnEdges.find(from);
+  if (it == returnEdges.end()) return;
+  auto jt = it->second.find(to);
+  if (jt == it->second.end()) return;
+  if (jt->second > 0) --jt->second;
+  if (jt->second <= 0) it->second.erase(jt);
+  recomputeAndPostGenerations();
+}
+
+Int YSE::CHANNEL::managerObject::returnGenerationOf(implementationObject* r) {
+  std::scoped_lock lk(returnGraphMutex);
+  auto it = returnGenPosted.find(r);
+  return it == returnGenPosted.end() ? -1 : it->second;
 }

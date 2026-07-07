@@ -61,6 +61,7 @@ set(YSE_TEST_SOURCES
   channel/test_channel_bus.cpp
   channel/test_channel_layout.cpp
   channel/test_channel_dsp.cpp
+  channel/test_channel_sends.cpp
   sound/test_sound_state.cpp
   sound/test_sound_streaming.cpp
   sound/test_sound_bufferrace.cpp
@@ -199,7 +200,10 @@ add_test(
   # suite exclusions above and loses no coverage: yse_tests_concurrency plus the
   # per-suite entries still run every case. Tracked in #304; the root fix is
   # #41/#298 engine work.
-  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthcapi,midisynth,playersynth,playercapi "--test-case-exclude=* concurrency: *" --duration=true
+  # `sendstress` is excluded too: like the lifecycle suites it drives
+  # System::initOffline() (process-global engine state), so it must run in its
+  # own process (yse_tests_sendstress) rather than in this shared one.
+  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthcapi,midisynth,playersynth,playercapi,sendstress "--test-case-exclude=* concurrency: *" --duration=true
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_unit_tests PROPERTIES TIMEOUT 600)
@@ -390,6 +394,19 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_concurrency PROPERTIES LABELS concurrency)
+
+# Send/return offline-render + threading gate (issue #165). Runs under an
+# offline engine (no audio device), so it executes on headless CI and under the
+# TSan/ASan sanitizer legs — the `tests-tsan` / `tests-asan` presets include
+# this entry by name (see CMakePresets.json). Isolated in its own process
+# because it drives System::initOffline(); shares the `concurrency` label with
+# the other stress suites.
+add_test(
+  NAME    yse_tests_sendstress
+  COMMAND yse_tests --test-suite=sendstress --duration=true
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_sendstress PROPERTIES LABELS "channel;concurrency" TIMEOUT 300)
 endif()  # NOT ANDROID — close the CTest registration block
 
 if(ANDROID)
