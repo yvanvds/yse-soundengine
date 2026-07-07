@@ -39,6 +39,25 @@ namespace YSE {
       }
     };
 
+    // One aux-send slot on a channel (issue #165; design
+    // docs/design/send_return_buses.md §6). A channel owns a fixed vector of
+    // these, sized once at setup() on the slow pool and never resized on the
+    // render path, so `&sends[i]` is a stable node address. A slot is active
+    // when `target != nullptr`; the send then accumulates a ramped, scaled copy
+    // of the channel's `out` into `target->out` during the serial summation
+    // walk. `regNext` is the intrusive back-reference link: the slot is threaded
+    // into `target`'s sendRegistry so a return teardown can sever every slot
+    // pointing at it before the impl is freed (the many-to-one generalization of
+    // the insert chain's `calledfrom` guard). All fields are touched only on the
+    // audio thread.
+    struct sendSlot {
+      implementationObject* target = nullptr; // a return, or nullptr = empty
+      Flt newLevel = 0.f; // control-thread target level (via SEND_LEVEL)
+      Flt lastLevel = 0.f; // audio-thread ramp state
+      Bool preFader = false; // tap point for this slot
+      sendSlot* regNext = nullptr; // next slot in target's back-reference registry
+    };
+
     /**
       This is the implementation side of a channel. It should only be used internally.
     */
@@ -218,6 +237,53 @@ namespace YSE {
       void processInsertDSP();
 
       /////////////////////////////////////////////////////
+      // Send / return buses (issue #165)
+      /////////////////////////////////////////////////////
+      /**
+        Accumulate a ramped, scaled copy of this channel's `out` into every
+        active send slot whose tap point matches @p preFaderPhase. Runs on the
+        audio callback thread only, from the serial summation walk
+        (buffersToParent) for source channels and from finalizeReturn() for
+        returns — never on a parallel worker. The ramp is fused into the
+        multiply-accumulate exactly like adjustVolume(), so live send-level moves
+        are click-free. Public so tests can drive it after populating `out`.
+      */
+      void runSendTaps(bool preFaderPhase);
+
+      /**
+        The fast-pool job body for a return bus: runs the return's own DSP
+        (insert chain + optional reverb / underwater FX) in place over the
+        already-accumulated `out`, then publishes the pre-fader peak. Mirrors the
+        tail of dsp(); dispatched from CHANNEL::Manager::processReturns() exactly
+        like a source channel's dsp(). Single-writer over this return's own `out`.
+      */
+      void processReturnInsert();
+
+      /**
+        Serial finalize step for a return, run on the audio thread after its
+        processReturnInsert() job is joined: applies the return fader, publishes
+        the post-fader peak, runs the return's own send taps (targets are always
+        a strictly higher generation), then folds the return into @p master. See
+        design §7.
+      */
+      void finalizeReturn(implementationObject* master);
+
+      /**
+        Audio-thread teardown of every send this impl participates in, run at
+        OBJECT_RELEASE before the impl becomes eligible for the slow-pool delete.
+        Unlinks this channel's own active slots from their targets' registries,
+        and — if this is a return — severs every slot pointing at it and unlinks
+        it from the manager's returns list. Guarantees no live send slot
+        dereferences a freed return (design §9).
+      */
+      void detachSends();
+
+      /** @brief True when this channel is a send/return bus (issue #165). */
+      bool getIsReturn() const {
+        return isReturn;
+      }
+
+      /////////////////////////////////////////////////////
       // Output peak metering (control-thread readers)
       /////////////////////////////////////////////////////
       /** @brief Number of output channels currently allocated for this implementation. */
@@ -276,6 +342,11 @@ namespace YSE {
       // replacing the std::forward_list<T*> nodes without per-tick heap churn.
       implementationObject* _mgrNext = nullptr;
       implementationObject* _childNext = nullptr;
+      // Threads a return bus through the CHANNEL manager's audio-thread `returns`
+      // list (issue #165). Only returns use it; a return is in `returns` (render
+      // phase) in addition to `inUse` (lifecycle/sync), so it needs a link
+      // distinct from `_mgrNext`. nullptr for ordinary channels.
+      implementationObject* _returnNext = nullptr;
 
       std::atomic<channel*> head; // < The interface connected to this object
       std::atomic<OBJECT_IMPLEMENTATION_STATE> objectStatus; // < the status of this object
@@ -320,6 +391,29 @@ namespace YSE {
 
       Bool userChannel = true; // channel is created by user and not crucial for the system
       Bool allowVirtual;
+
+      // ─── Send / return bus state (issue #165) ───
+      // `isReturn`, `sendSlotCount` are control-thread writes applied before the
+      // impl is handed to the slow/audio threads (mirrors `parent`), then treated
+      // as immutable — published once via the setup/ready handshake, read after.
+      // `generation` and `sends` are mutated only on the audio thread.
+      Bool isReturn = false; // this channel is a return bus (excluded from the dsp tree)
+      Int generation = 0; // return processing-order layer (SET_GENERATION); audio thread only
+      Int sendSlotCount = 4; // number of send slots; sized once in setup()
+      Bool sendsSized = false; // guards the one-time setup() sizing of `sends`
+
+      // Fixed vector of send slots, sized once at setup() and never resized on
+      // the render path (so slot addresses stay stable as registry nodes).
+      std::vector<sendSlot> sends;
+
+      // Back-reference registry: the send slots currently targeting THIS return.
+      // Mutated only on the audio thread (ADD_SEND / REMOVE_SEND / detachSends).
+      // Empty for non-return channels.
+      IntrusiveForwardList<sendSlot, &sendSlot::regNext> sendRegistry;
+
+      /** Accumulate one active slot's ramped, scaled `out` into its target
+          return's `out`. Audio thread only; no allocation or locking. */
+      void accumulateSend(sendSlot& slot);
 
       friend class SOUND::implementationObject;
       friend class YSE::channel;
