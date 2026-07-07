@@ -16,6 +16,24 @@ This follows the design-issue-first pattern proven by
 [docs/design/synth_core.md][doc-synth] ([#151][gh-151]) and
 [docs/design/live_coding_dsl.md][doc-dsl] ([#120][gh-120]).
 
+> **Amended 2026-07-07, pre-merge design review.** Three decisions were
+> revised: **return→return sends are allowed** (the routing is an
+> acyclic DAG validated at wiring time; the flat "nesting limit = 0" was
+> justified mainly by the epic's earlier non-goal, and delay-throw-into-
+> reverb is bread-and-butter routing — see
+> [§10](#cycle-prevention-at-wiring-time)); the **returns phase
+> parallelizes each return's insert chain on the fast pool** (returns
+> host the engine's heaviest DSP; processing them serially on the
+> callback thread while the pool idles wasted the engine's own machinery
+> — see [§7](#the-block-cycle-with-sends-and-returns)); and the
+> **send-slot count is a per-channel setup choice** (default 4) rather
+> than a compile-time constant. Two forward notes were added: returns
+> are the intended successor home for *spatial* reverb (zone-bound
+> returns with proximity-modulated sends), and send levels are expected
+> **modulation targets** written at control rate — see
+> [§12b](#forward-notes-spatial-reverb-and-modulated-sends) and
+> [docs/project_vision.md](../project_vision.md).
+
 The specification builds on the **final** channel semantics as merged in
 [#159][gh-159] (channel insert DSP chain) and [#158][gh-158] (the
 N-channel `dspObject::process` contract). Everything below is grounded in
@@ -39,6 +57,7 @@ listed in [§13](#current-engine-anchors).
 10. [Cycle prevention at wiring time](#cycle-prevention-at-wiring-time)
 11. [Public API surface (proposed)](#public-api-surface-proposed)
 12. [Out of scope (explicit)](#out-of-scope-explicit)
+12b. [Forward notes: spatial reverb and modulated sends](#forward-notes-spatial-reverb-and-modulated-sends)
 13. [Current-engine anchors](#current-engine-anchors)
 14. [Acceptance checklist mapping](#acceptance-checklist-mapping)
 15. [Cross-references](#cross-references)
@@ -72,9 +91,11 @@ listed in [§13](#current-engine-anchors).
 
 Deferred deliberately; see [§12](#out-of-scope-explicit) for the full list
 with rationale. In short: no sidechain taps, no per-sound sends, no
-return→return nesting (the stated nesting limit is **zero** levels for
-v1), no arbitrary routing graph, no PDC/latency compensation, and no send
-automation beyond the per-block linear ramp.
+cyclic routing (the routing is an acyclic DAG — return→return sends are
+**allowed**, cycles are rejected at wiring time), no PDC/latency
+compensation, and no send-automation *engine* (send levels ramp linearly
+per block; they are, however, designed to be *written* at control rate by
+external drivers — [§12b](#forward-notes-spatial-reverb-and-modulated-sends)).
 
 ## Why the engine has no precedent
 
@@ -138,12 +159,12 @@ exactly this discipline.
 |---|---|
 | Tap point: pre- vs post-fader | **Per-send choice.** Each send slot carries a `preFader` flag. Default **post-fader** (taps after `adjustVolume()` in the summation walk). Pre-fader taps the channel's `out` before `adjustVolume()` in the same walk. |
 | Return representation | **A `YSE::channel` flagged `isReturn`.** Reuses buffers, fader, inserts, reverb, metering, lifecycle. No new bus object type. |
-| Send granularity | **Per-channel only.** Per-sound sends are out of scope. |
-| Sends per channel | **Fixed `N = 4`** slots per channel, allocated once at channel setup — allocation-free wiring. |
-| Send level | Ramped per-block linear, identical to `adjustVolume()`. |
+| Send granularity | **Per-channel only.** Per-sound sends are out of scope (per-*voice* sends from synths are a named forward direction, [§12b](#forward-notes-spatial-reverb-and-modulated-sends)). |
+| Sends per channel | **Per-channel count chosen at channel setup** (default `4`), slots allocated once on the slow pool — wiring stays allocation-free. |
+| Send level | Ramped per-block linear, identical to `adjustVolume()`. Expected to be *written* at control rate by modulation drivers ([§12b](#forward-notes-spatial-reverb-and-modulated-sends)). |
 | Cross-channel hand-off | Sends **accumulate into return buffers during the serial `buffersToParent()` walk**, at the channel's own tap point. One writer thread → no locks, no atomics on the accumulation. |
-| Join / ordering point | Returns are processed **inside master's `buffersToParent()`, after the source-tree child recursion completes and before master's own fader** — so every source send has already been accumulated, and returns are still covered by the master fader. |
-| Cycle prevention | Enforced on the **setup/control thread at wiring time**. With return→return disallowed, sources→returns→master is a DAG by construction; the check is a local type test, no graph traversal. |
+| Join / ordering point | Returns are processed **inside master's `buffersToParent()`, after the source-tree child recursion completes and before master's own fader** — in ascending **generation** order; within a generation, each return's insert chain is **dispatched to the fast pool** and help-joined. |
+| Cycle prevention | Enforced on the **setup/control thread at wiring time**. Return→return sends are allowed; a bounded DFS over the return-send graph rejects cycles, and each return carries a **generation index** (longest-path layer) that fixes the audio-thread processing order. |
 | Return lifecycle | Return = channel = existing manager lifecycle. Send-target safety on return teardown uses an intrusive **back-reference registry** (the many-to-one generalization of the insert chain's `calledfrom` guard). |
 
 ## Return-bus representation
@@ -179,16 +200,20 @@ A return differs from an ordinary channel in exactly three ways:
 3. **It is processed in an explicit returns phase**, after all source
    sends have accumulated and before the master fader.
 
-A return still lives at "one level" in the routing sense: **sources →
-returns → master** ([#146][gh-146] non-goal: "buses are one level"). A
-return's final output always folds into master; a return may not itself be
-a send *target* of another return (v1 nesting limit = 0, see
-[§10](#cycle-prevention-at-wiring-time) and [§12](#out-of-scope-explicit)).
+The routing shape is **sources → return DAG → master**. A return's final
+output always folds into master, and a return may itself hold sends
+targeting other returns (a delay return throwing into a reverb return —
+bread-and-butter mixing). The only structural rule is **acyclicity**,
+validated at wiring time ([§10](#cycle-prevention-at-wiring-time)). The
+epic's original "buses are one level" non-goal was reviewed and lifted:
+it protected nothing in the threading model (the extension is a
+control-thread check plus a fixed processing order), and it blocked a
+standard technique.
 
 ## Send slots and tap points
 
-Each channel impl gains a fixed array of `N = 4` send slots, allocated
-once with the impl (never on the audio thread):
+Each channel impl gains an array of send slots sized **once at channel
+setup on the slow pool** (never on the audio thread):
 
 ```
 struct sendSlot {
@@ -198,13 +223,16 @@ struct sendSlot {
   Bool preFader;                          // tap point for this slot
   // intrusive back-reference link (see §9), no heap node
 };
-sendSlot sends[YSE_MAX_SENDS_PER_CHANNEL /* = 4 */];
+std::vector<sendSlot> sends;  // sized in setup(); default 4, per-channel choice
 ```
 
-`N = 4` is a fixed small bound chosen so wiring stays allocation-free and
-the per-channel send loop is trivially bounded; it matches the reverb's
-own 4-tap early-reflection precedent and is comfortably DAW-typical. A
-send is "active" when `target != nullptr`.
+The count defaults to `4` and is a per-channel creation parameter, not a
+compile-time constant — a channel that fans out to many returns (the
+zone-reverb direction, [§12b](#forward-notes-spatial-reverb-and-modulated-sends))
+asks for more at create time. What matters for RT-safety is only that the
+array is sized before the channel reaches the render path and never
+resized on it; the per-block send loop stays bounded by the chosen count.
+A send is "active" when `target != nullptr`.
 
 **Tap point semantics** (both evaluated in the serial summation walk, so
 they read a *finalized* `out`):
@@ -246,11 +274,39 @@ master->buffersToParent():
   zeroReturnBuffers();          // (0) clear every return's `out` — once, before any send
   for child in master.children: // (1) source tree: sums into master->out,
       child->buffersToParent(); //     and taps sends into return buffers (below)
-  processReturns();             // (2) each return: inserts/reverb, fader, += into master->out
+  processReturns();             // (2) generation-ordered, fast-pool-parallel (below)
   adjustVolume();               // (3) master fader over sources + returns
   publish master peak;          // (4)
   // parent == nullptr → done
+
+processReturns():               // audio thread; returns grouped by generation (§10)
+  for g in 0 .. maxGeneration:
+    for r in returns where r.generation == g:
+        Global().addFastJob(r->returnDspJob);   // insert chain + reverb over r->out
+    for r in returns where r.generation == g:
+        r->join();              // help-running wait, as in the source tree
+        r->adjustVolume();      // the return's own fader
+        publish r peak;
+        run r's send taps;      // pre/post-fader, targets are generation > g only
+        master->out[i] += r->out[i];
 ```
+
+**The returns phase is parallel where it is expensive and serial where
+it must be ordered.** Each return's insert chain — the reverbs and
+delays that are the whole point of a return, and the heaviest DSP in the
+engine — runs as a fast-pool job, exactly like a source channel's
+`dsp()`. Each job writes only *its own* return's `out` (single-writer,
+unchanged discipline). The accumulation steps — a return's send taps
+into later-generation returns and its fold into `master->out` — stay on
+the audio thread, serial, after the join, exactly like the source tree's
+`parent += out`. By the time `processReturns()` runs, the source-tree
+fast jobs are all joined, so the pool is otherwise idle — three reverb
+returns cost roughly one reverb of wall-clock instead of three. Within a
+generation, returns are mutually independent by construction (a
+generation-`g` return's sends may only target generations `> g`,
+enforced at wiring time, [§10](#cycle-prevention-at-wiring-time)), so
+dispatch order inside a generation is irrelevant; the iteration order is
+fixed only for determinism of the `+=` sequence.
 
 And every non-master channel's `buffersToParent()` gains the send tap:
 
@@ -280,20 +336,21 @@ buffersToParent():             // non-master channel
   that subtree. Therefore, by the time (1) completes, **every source
   channel has already run its send taps** and every return `out` holds the
   complete accumulated send signal. No send can arrive late.
-- `processReturns()` (2) runs each return's insert chain / reverb over its
-  accumulated `out`, applies the return's own fader, and does
-  `master->out[i] += return->out[i]`. Because this happens **before**
-  master's `adjustVolume()` (3), returns are correctly covered by the
-  master fader (DAW-standard: the master fader is last).
+- `processReturns()` (2) runs each return's insert chain / reverb over
+  its accumulated `out` (fast-pool job), then — after the join — applies
+  the return's own fader, runs the return's own send taps (targets are
+  strictly later generations), and does
+  `master->out[i] += return->out[i]`. Because all of this happens
+  **before** master's `adjustVolume()` (3), returns are correctly covered
+  by the master fader (DAW-standard: the master fader is last).
+- A generation-`g` return's `out` is complete before any generation-`g`
+  job is dispatched: source sends accumulated during (1), and
+  earlier-generation returns' sends accumulated during their own serial
+  post-join step — which finishes before generation `g` dispatches.
 - A pre-fader send reads `out` before `adjustVolume()`; a post-fader send
   reads it after. Both taps and the `parent += out` summation write
   disjoint buffers, so their relative order within the channel body is
   irrelevant.
-
-The returns phase (2) is itself serial and iterates the returns list in a
-fixed order. With return→return disallowed, returns are mutually
-independent (none reads another's `out`), so any iteration order is
-correct; the order is fixed only for determinism.
 
 ## Threading model and RT-safety argument
 
@@ -301,11 +358,12 @@ This is the crux of the design gate. The claim: **send/return adds no lock,
 no atomic, and no allocation to the render path, and introduces no data
 race.**
 
-1. **The parallel phase never accumulates across channels.** Fast-pool
+1. **The parallel phases never accumulate across channels.** Fast-pool
    workers run `dsp()`, which writes only the worker's own channel `out`
-   (and dispatches grandchildren). Sends are *not* applied in `dsp()`.
-   Returns are never dispatched. So the concurrent phase keeps strict
-   single-writer-per-buffer, exactly as today.
+   (and dispatches grandchildren); a return's fast-pool job runs only the
+   return's insert chain, in place, over the return's own `out`. Sends
+   are *not* applied in `dsp()` or in return jobs. So every concurrent
+   phase keeps strict single-writer-per-buffer, exactly as today.
 
 2. **All cross-channel writes happen in the serial walk.** Send
    accumulation and the returns phase run inside `buffersToParent()` /
@@ -335,15 +393,22 @@ race.**
 5. **Teardown is ordered on the audio thread** (see [§9](#lifecycle-creating-and-destroying-returns-and-sends))
    so no send slot can dereference a freed return.
 
-6. **Help-running wait is unaffected.** The returns phase runs after the
-   source recursion's `join()`s; it adds serial audio-thread work but
-   dispatches nothing new and waits on nothing, so the `threadPool.cpp:48`
-   help-running contract is untouched.
+6. **Help-running wait is reused, not stretched.** The returns phase
+   dispatches return-insert jobs to the fast pool and `join()`s them with
+   the identical help-running wait (`threadPool.cpp:48`) the source tree
+   already uses — if a worker hasn't finished, the audio thread runs
+   return jobs inline. No new synchronization primitive, no sleep, no
+   lock. And because the source-tree jobs are all joined before
+   `processReturns()` runs, the pool is idle at that point — the returns
+   phase *reclaims* otherwise-wasted parallelism for the heaviest DSP in
+   the engine (a design-review requirement: N reverb returns must not
+   serialize N reverbs onto the callback thread).
 
 The net new render-path cost is deterministic and bounded: one zeroing of
-each return buffer per block, up to `N` ramped MACs per active-send
-channel, and one insert/fader/summation per return — all on the audio
-thread, none of it synchronizing.
+each return buffer per block, up to `sendCount` ramped MACs per
+active-send channel, and one insert/fader/summation per return — with the
+insert chains running concurrently on the fast pool, and none of it
+synchronizing beyond the existing help-running join.
 
 ## Lifecycle: creating and destroying returns and sends
 
@@ -371,6 +436,9 @@ The interface posts a message:
 - `REMOVE_SEND{ slot }` — audio thread unlinks the back-reference node and
   clears `target` (setting a level of 0 is a soft mute; `REMOVE_SEND` fully
   detaches).
+- `SET_GENERATION{ value }` — posted to a return when a wiring change
+  alters its generation index ([§10](#cycle-prevention-at-wiring-time));
+  a single scalar write.
 
 All are pointer/scalar writes on the audio thread; no allocation.
 
@@ -411,38 +479,41 @@ The routing must never let a return feed itself or an ancestor, which on
 the audio thread would be an infinite accumulation or a read of a
 half-summed buffer.
 
-**v1 makes cycles structurally impossible** by the one-level rule:
+**v1 allows the full acyclic case.** Return→return sends are legal
+routing (a delay return throwing into a reverb return); the only
+structural rule is that the send graph over returns is a **DAG**. The
+first draft's "nesting limit = 0" was justified mainly by the epic's
+earlier non-goal, and review rejected precedent-as-argument: the
+extension costs a control-thread graph check and a fixed processing
+order — nothing on the render path changes its nature.
 
-- A **channel** may send only to a channel flagged `isReturn`.
-- A **return** may *not* be a send target of another return (nesting limit
-  = 0). A return's signal reaches master only through the returns phase,
-  never through a send.
-
-Under these two rules the routing is a DAG by construction —
-sources → returns → master — with no back edges possible, so **no graph
-traversal is needed**. Validation reduces to a local type check performed
-on the **setup/control thread at wiring time**, before the `ADD_SEND`
-message is posted:
+Validation runs on the **setup/control thread at wiring time**, before
+the `ADD_SEND` message is posted:
 
 1. reject if `target` is not a valid, `isReturn` channel;
 2. reject if `target == source` (self-send);
-3. reject if `source` is itself a return (return→return, out of scope for
-   v1).
+3. if `source` is itself a return: run a **bounded DFS** over the
+   control-thread wiring graph (the control thread mirrors all accepted
+   sends) from `target` along return→return edges; reject if it reaches
+   `source` (cycle). Returns are few; the walk is trivial and never
+   touches audio-thread state.
 
-A rejected wiring is logged (via `LogImpl().emit`) and the message is never
-posted, so the audio thread only ever sees legal routings. Because the
-check is on the control thread and is a plain field test, it costs nothing
-on the render path and cannot fail late.
+A rejected wiring is logged (via `LogImpl().emit`) and the message is
+never posted, so the audio thread only ever sees legal routings.
 
-**Forward note (not implemented):** if a future version lifts the nesting
-limit to depth 1 (e.g. a reverb return feeding a delay return), cycle
-prevention would need a bounded DFS ancestor-walk over the return→return
-edges at wiring time (still control-thread), and the returns phase would
-need to iterate returns in dependency (topologically sorted) order so an
-upstream return is fully summed before a downstream one reads it. The
-accumulate-into-return discipline itself is unchanged by that extension —
-only the wiring-time check and the returns-phase ordering grow. v1 does
-neither.
+**Generation indexing fixes the processing order.** After accepting a
+wiring change that adds or removes a return→return edge, the control
+thread recomputes each return's **generation** — its longest-path depth
+over incoming return→return edges (a return fed only by source channels
+is generation 0; a return fed by a generation-0 return is generation 1;
+and so on). Any return whose generation changed gets a
+`SET_GENERATION{ value }` message: a single scalar write applied in
+`sync()` on the audio thread, no allocation. The audio-thread returns
+phase simply iterates generations in ascending order
+([§7](#the-block-cycle-with-sends-and-returns)); it never inspects the
+graph. The invariant the wiring rules guarantee: **a return's sends only
+target returns of a strictly higher generation**, so within a generation
+returns are mutually independent and safe to process concurrently.
 
 ## Public API surface (proposed)
 
@@ -466,13 +537,27 @@ float    channel::getSendLevel(int slot) const;
 
 A return, being a channel, keeps `setDSP()` (its insert chain — the actual
 effect), `attachReverb()`, `setVolume()` (return fader), and the peak
-metering getters unchanged. Typical use:
+metering getters unchanged — and, being a channel, a return may itself
+call `send()` (targeting another return; the wiring check enforces
+acyclicity, [§10](#cycle-prevention-at-wiring-time)). The send-slot count
+is a creation-time parameter (default 4). Typical use:
 
 ```cpp
-YSE::channel verb;  verb.makeReturn().setDSP(&plateReverb);  // a reverb return
+YSE::channel verb;   verb.makeReturn().setDSP(&plateReverb);   // a reverb return
+YSE::channel slap;   slap.makeReturn().setDSP(&pingPongDelay); // a delay return
 music.send(0, verb, 0.3f);          // 30% post-fader throw from the music channel
-voice.send(0, verb, 0.15f, true);   // 15% pre-fader throw from the voice channel
+voice.send(0, slap, 0.2f);          // delay throw from the voice channel
+slap.send(0, verb, 0.25f);          // the delay tail washes into the reverb (DAG)
 ```
+
+**Send levels are modulation targets.** `setSendLevel()` maps to a
+bounded inbox message and a one-block linear ramp, which means it is
+safe and click-free to call **every control tick**. This is deliberate:
+the anticipated writers are not only user code but control-rate drivers
+— a patcher outlet, a live-coded expression, or a listener/zone
+proximity rule ([§12b](#forward-notes-spatial-reverb-and-modulated-sends)).
+Implementations of [#165][gh-165]/[#166][gh-166] must not assume send
+levels are set-and-forget.
 
 ## Out of scope (explicit)
 
@@ -482,23 +567,51 @@ names without a new design pass:
 - **Sidechain taps.** A send feeding another module's *detector/control*
   input (e.g. a compressor keyed off another channel) is a different
   routing with different timing; explicitly out ([#146][gh-146] non-goal).
-- **Return→return nesting.** The stated nesting limit is **zero**: a return
-  may not be the target of another send. Even one level is out of scope for
-  v1 (rationale and the extension shape are in
-  [§10](#cycle-prevention-at-wiring-time)). This honors the epic's
-  "buses are one level: channels → returns → master."
 - **Per-sound sends.** Sends are per-channel only. Per-sound sends would
-  multiply the buffer/scratch count and the surface; a sound that needs its
-  own send balance can live on its own channel.
-- **Arbitrary routing graphs.** No general node graph; the topology is
-  fixed at sources → returns → master ([#146][gh-146] non-goal).
+  multiply the buffer/scratch count and the surface; a sound that needs
+  its own send balance can live on its own channel. Per-*voice* sends
+  from a synth's positioned notes are a named forward direction
+  ([§12b](#forward-notes-spatial-reverb-and-modulated-sends)), not v1.
+- **Cyclic or feedback routing.** The topology is sources → return DAG →
+  master; cycles are rejected at wiring time
+  ([§10](#cycle-prevention-at-wiring-time)). Deliberate feedback routing
+  (a return feeding a *source* channel) is a different feature with a
+  different stability story.
 - **Latency compensation / PDC.** A return with a long insert latency is
   not delay-compensated against the dry path ([#146][gh-146] non-goal).
-- **Send automation beyond the per-block linear ramp.** Levels ramp
-  linearly over one block, as `adjustVolume()` does; no curve/segment
-  automation engine.
-- **More than `N = 4` sends per channel.** Fixed small bound to stay
-  allocation-free; raising it is a constant change, not a design change.
+- **A send automation engine.** Levels ramp linearly over one block, as
+  `adjustVolume()` does; no curve/segment automation engine. (External
+  control-rate *writers* are expected and supported —
+  [§11](#public-api-surface-proposed).)
+
+## Forward notes: spatial reverb and modulated sends
+
+Not implemented by [#165][gh-165]/[#166][gh-166]; recorded so this
+architecture is built with its successors in mind (context:
+[docs/project_vision.md](../project_vision.md)).
+
+1. **Returns are the intended successor home for spatial reverb.** The
+   engine's localized reverb (`REVERB::Manager`, the in-place
+   zone-parameter blend at `reverbManager.cpp:281`) predates this
+   architecture. The vision-aligned re-expression is: a reverb **zone**
+   becomes a *return bus bound to a region of space*, and
+   listener/source proximity **modulates the send levels** into it —
+   ordinary routing, spatially driven. Distinct spaces crossfade as real
+   wet signals instead of morphing one parameter set. The morphing
+   reverb itself survives as a module — a reverb whose preset
+   interpolation is a control input, with proximity as one possible
+   driver among many. Consequences now: the in-place `reverbManager`
+   path is **legacy-bound and must not grow new features**, and the
+   returns phase was designed parallel ([§7](#the-block-cycle-with-sends-and-returns))
+   precisely because several simultaneous zone reverbs are the expected
+   load, not an edge case.
+2. **Per-voice sends** — a positioned synth note contributing to zone
+   returns by *its own* position (per
+   [docs/design/per_note_positioning.md](per_note_positioning.md), which
+   keeps reverb per-aggregate for v1) — would need per-voice send gains
+   estimated inside the synth and accumulated into the channel's send
+   taps. The send-slot architecture here doesn't preclude it; it is a
+   named future design pass, not scope creep for [#165][gh-165].
 
 ## Current-engine anchors
 
@@ -540,21 +653,24 @@ Issue [#164][gh-164] acceptance items and where each is settled:
   the serial walk (no single-writer violation — argued in
   [§8](#threading-model-and-rt-safety-argument)).
 - **Send levels (per-channel? per-sound? count? ramped?).**
-  [§6](#send-slots-and-tap-points): per-channel only, `N = 4` fixed slots,
-  ramped like `adjustVolume()`; per-sound out of scope
-  ([§12](#out-of-scope-explicit)).
+  [§6](#send-slots-and-tap-points): per-channel only, slot count chosen
+  at channel setup (default 4), ramped like `adjustVolume()`; per-sound
+  out of scope ([§12](#out-of-scope-explicit)).
 - **RT-safe cross-channel hand-off (where in the block cycle, ordering, no
   locks).** [§7](#the-block-cycle-with-sends-and-returns) +
   [§8](#threading-model-and-rt-safety-argument): accumulation in the serial
   `buffersToParent()` walk; returns processed in master's body after the
-  source recursion and before the master fader; single writer thread → no
+  source recursion and before the master fader, generation-ordered, with
+  insert chains parallel on the fast pool; single writer per buffer → no
   locks/atomics.
 - **Cycle prevention at wiring time (setup thread).**
-  [§10](#cycle-prevention-at-wiring-time): one-level rule makes routing a
-  DAG; local type check on the control thread.
+  [§10](#cycle-prevention-at-wiring-time): return→return allowed; bounded
+  control-thread DFS rejects cycles; generation indices fix the
+  audio-thread order.
 - **Out of scope (sidechain, nested return-to-return beyond a stated
-  limit).** [§12](#out-of-scope-explicit): both listed; nesting limit
-  stated as zero.
+  limit).** [§12](#out-of-scope-explicit): sidechain out; the stated
+  nesting limit is **acyclicity** (any depth, no cycles) — revised from
+  the first draft's zero, see the amendment note.
 - **`docs/design/send_return_buses.md` merged; implementation issue
   references it as its contract.** This document; [#165][gh-165] and
   [#166][gh-166] cite it.
