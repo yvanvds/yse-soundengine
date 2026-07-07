@@ -1,15 +1,23 @@
 #include "yse_c/yse_synth.h"
 #include "yse_c_internal.hpp"
+#include "yse_instrument_internal.hpp"
 
 #include "../synth/synthInterface.hpp"
 #include "../synth/sineVoice.hpp"
+#include "../synth/samplerVoice.hpp"
+#include "../synth/vaVoice.hpp"
 #include "../synth/dspVoice.hpp"
 #include "../synth/positionHandler.hpp"
 #include "../synth/positionHandlers.hpp"
+#include "../dsp/fm/fmVoice.hpp"
+#include "../dsp/fm/fmPatch.hpp"
+#include "../dsp/lfo.hpp"
 #include "../sound/soundInterface.hpp"
 #include "../channel/channelInterface.hpp"
 #include "../utils/vector.hpp"
 
+#include <algorithm>
+#include <atomic>
 #include <exception>
 #include <memory>
 #include <vector>
@@ -33,6 +41,15 @@ namespace {
     // the single attached prototype and frees it on destroy. Allocated on the
     // control thread only.
     std::unique_ptr<YSE::SYNTH::positionHandler> positionHandler;
+
+    // The live, shared patch of the synth's VA / FM voice group (issue #178),
+    // if one was added. add_voices_va / add_voices_fm record the prototype's
+    // shared patch here so the yse_synth_va_set_* / yse_synth_fm_set_* setters
+    // can steer it after the prototype has been cloned. The voice clones share
+    // the same patch object, so a setter reaches every voice. Null until the
+    // matching add-voices is called.
+    std::shared_ptr<YSE::SYNTH::vaParams> vaPatch;
+    std::shared_ptr<YSE::SYNTH::fmPatch> fmPatch;
   };
 
   inline YseSynthImpl* to_impl(YseSynth* h) {
@@ -109,6 +126,271 @@ YSE_C_API YseStatus yse_synth_add_voices_sine(YseSynth* h, int num_voices, int c
   } catch (...) {
     yse_c::set_last_error("yse_synth_add_voices_sine: unknown C++ exception");
     return YSE_ERR_EXCEPTION;
+  }
+}
+
+// ─── instrument voice groups (issue #178) ──────────────────────────────
+
+YSE_C_API YseStatus yse_synth_add_voices_sampler(YseSynth* h, YseSfzInstrument* instrument,
+                                                 int num_voices) {
+  if (!h) return YSE_ERR_INVALID_HANDLE;
+  if (num_voices <= 0) return YSE_ERR_INVALID_ARGUMENT;
+  // Validated against the instrument-handle registry; a NULL / destroyed handle
+  // returns nullptr (and is logged) rather than dereferencing junk.
+  auto inst = yse_c::sampler_instrument_from_handle(instrument);
+  if (!inst) return YSE_ERR_INVALID_ARGUMENT;
+  try {
+    auto* impl = to_impl(h);
+    // Same prototype-ownership discipline as the sine path: build the prototype,
+    // hand ownership to the handle BEFORE addVoices records its raw pointer. The
+    // clones share the immutable region table + resident PCM (never duplicated).
+    auto proto = std::make_unique<YSE::SYNTH::samplerVoice>();
+    proto->setInstrument(inst);
+    YSE::SYNTH::dspVoice* raw = proto.get();
+    impl->prototypes.push_back(std::move(proto));
+    impl->synth.addVoices(*raw, num_voices, 0, 0, 127);
+    return YSE_OK;
+  } catch (const std::exception& e) {
+    yse_c::set_last_error(e.what());
+    return YSE_ERR_EXCEPTION;
+  } catch (...) {
+    yse_c::set_last_error("yse_synth_add_voices_sampler: unknown C++ exception");
+    return YSE_ERR_EXCEPTION;
+  }
+}
+
+YSE_C_API YseStatus yse_synth_add_voices_va(YseSynth* h, int num_voices) {
+  if (!h) return YSE_ERR_INVALID_HANDLE;
+  if (num_voices <= 0) return YSE_ERR_INVALID_ARGUMENT;
+  try {
+    auto* impl = to_impl(h);
+    auto proto = std::make_unique<YSE::SYNTH::vaVoice>();
+    // Record the shared patch so the va setters can steer it after cloning; the
+    // clones share this same vaParams (carried across clone() by shared_ptr).
+    impl->vaPatch = proto->patch();
+    YSE::SYNTH::dspVoice* raw = proto.get();
+    impl->prototypes.push_back(std::move(proto));
+    impl->synth.addVoices(*raw, num_voices, 0, 0, 127);
+    return YSE_OK;
+  } catch (const std::exception& e) {
+    yse_c::set_last_error(e.what());
+    return YSE_ERR_EXCEPTION;
+  } catch (...) {
+    yse_c::set_last_error("yse_synth_add_voices_va: unknown C++ exception");
+    return YSE_ERR_EXCEPTION;
+  }
+}
+
+YSE_C_API YseStatus yse_synth_add_voices_fm(YseSynth* h, int num_voices) {
+  if (!h) return YSE_ERR_INVALID_HANDLE;
+  if (num_voices <= 0) return YSE_ERR_INVALID_ARGUMENT;
+  try {
+    auto* impl = to_impl(h);
+    auto proto = std::make_unique<YSE::SYNTH::fmVoice>();
+    impl->fmPatch = proto->patch();
+    YSE::SYNTH::dspVoice* raw = proto.get();
+    impl->prototypes.push_back(std::move(proto));
+    impl->synth.addVoices(*raw, num_voices, 0, 0, 127);
+    return YSE_OK;
+  } catch (const std::exception& e) {
+    yse_c::set_last_error(e.what());
+    return YSE_ERR_EXCEPTION;
+  } catch (...) {
+    yse_c::set_last_error("yse_synth_add_voices_fm: unknown C++ exception");
+    return YSE_ERR_EXCEPTION;
+  }
+}
+
+// ─── VA patch parameters (issue #178) ──────────────────────────────────
+
+namespace {
+  // The synth's VA patch, or nullptr for a NULL handle / no VA group. Setters
+  // below no-op on nullptr, matching the header's null-safe contract.
+  inline YSE::SYNTH::vaParams* va(YseSynth* h) {
+    return h ? to_impl(h)->vaPatch.get() : nullptr;
+  }
+  inline bool oscInRange(int osc) {
+    return osc >= 0 && osc < YSE::SYNTH::vaParams::kNumOsc;
+  }
+} // namespace
+
+YSE_C_API void yse_synth_va_set_osc_wave(YseSynth* h, int osc, YseVaWaveform wave) {
+  auto* p = va(h);
+  if (p && oscInRange(osc))
+    p->oscWave[osc].store(static_cast<int>(wave), std::memory_order_relaxed);
+}
+YSE_C_API void yse_synth_va_set_osc_detune(YseSynth* h, int osc, float semitones) {
+  auto* p = va(h);
+  if (p && oscInRange(osc)) p->oscDetune[osc].store(semitones, std::memory_order_relaxed);
+}
+YSE_C_API void yse_synth_va_set_osc_level(YseSynth* h, int osc, float level) {
+  auto* p = va(h);
+  if (p && oscInRange(osc)) p->oscLevel[osc].store(level, std::memory_order_relaxed);
+}
+YSE_C_API void yse_synth_va_set_osc_pulse_width(YseSynth* h, int osc, float width) {
+  auto* p = va(h);
+  if (p && oscInRange(osc)) p->oscPulseWidth[osc].store(width, std::memory_order_relaxed);
+}
+YSE_C_API void yse_synth_va_set_wavetable_position(YseSynth* h, float position) {
+  if (auto* p = va(h)) p->wavetablePosition.store(position, std::memory_order_relaxed);
+}
+YSE_C_API void yse_synth_va_set_cutoff(YseSynth* h, float hz) {
+  if (auto* p = va(h)) p->cutoff.store(hz, std::memory_order_relaxed);
+}
+YSE_C_API void yse_synth_va_set_resonance(YseSynth* h, float resonance) {
+  if (auto* p = va(h)) p->resonance.store(resonance, std::memory_order_relaxed);
+}
+YSE_C_API void yse_synth_va_set_key_tracking(YseSynth* h, float amount) {
+  if (auto* p = va(h)) p->keyTracking.store(amount, std::memory_order_relaxed);
+}
+YSE_C_API void yse_synth_va_set_filter_env_amount(YseSynth* h, float octaves) {
+  if (auto* p = va(h)) p->filterEnvAmount.store(octaves, std::memory_order_relaxed);
+}
+YSE_C_API void yse_synth_va_set_filter_vel_amount(YseSynth* h, float octaves) {
+  if (auto* p = va(h)) p->filterVelAmount.store(octaves, std::memory_order_relaxed);
+}
+YSE_C_API void yse_synth_va_set_amp_attack(YseSynth* h, float seconds) {
+  if (auto* p = va(h)) p->ampAttack.store(seconds, std::memory_order_relaxed);
+}
+YSE_C_API void yse_synth_va_set_amp_decay(YseSynth* h, float seconds) {
+  if (auto* p = va(h)) p->ampDecay.store(seconds, std::memory_order_relaxed);
+}
+YSE_C_API void yse_synth_va_set_amp_sustain(YseSynth* h, float level) {
+  if (auto* p = va(h)) p->ampSustain.store(level, std::memory_order_relaxed);
+}
+YSE_C_API void yse_synth_va_set_amp_release(YseSynth* h, float seconds) {
+  if (auto* p = va(h)) p->ampRelease.store(seconds, std::memory_order_relaxed);
+}
+YSE_C_API void yse_synth_va_set_amp_vel_amount(YseSynth* h, float amount) {
+  if (auto* p = va(h)) p->ampVelAmount.store(amount, std::memory_order_relaxed);
+}
+YSE_C_API void yse_synth_va_set_filter_attack(YseSynth* h, float seconds) {
+  if (auto* p = va(h)) p->filterAttack.store(seconds, std::memory_order_relaxed);
+}
+YSE_C_API void yse_synth_va_set_filter_decay(YseSynth* h, float seconds) {
+  if (auto* p = va(h)) p->filterDecay.store(seconds, std::memory_order_relaxed);
+}
+YSE_C_API void yse_synth_va_set_filter_sustain(YseSynth* h, float level) {
+  if (auto* p = va(h)) p->filterSustain.store(level, std::memory_order_relaxed);
+}
+YSE_C_API void yse_synth_va_set_filter_release(YseSynth* h, float seconds) {
+  if (auto* p = va(h)) p->filterRelease.store(seconds, std::memory_order_relaxed);
+}
+YSE_C_API void yse_synth_va_set_lfo_type(YseSynth* h, YseLfoType type) {
+  if (auto* p = va(h)) p->lfoType.store(static_cast<int>(type), std::memory_order_relaxed);
+}
+YSE_C_API void yse_synth_va_set_lfo_rate(YseSynth* h, float hz) {
+  if (auto* p = va(h)) p->lfoRate.store(hz, std::memory_order_relaxed);
+}
+YSE_C_API void yse_synth_va_set_lfo_to_pitch(YseSynth* h, float semitones) {
+  if (auto* p = va(h)) p->lfoToPitch.store(semitones, std::memory_order_relaxed);
+}
+YSE_C_API void yse_synth_va_set_lfo_to_cutoff(YseSynth* h, float octaves) {
+  if (auto* p = va(h)) p->lfoToCutoff.store(octaves, std::memory_order_relaxed);
+}
+YSE_C_API void yse_synth_va_set_lfo_to_wavetable(YseSynth* h, float amount) {
+  if (auto* p = va(h)) p->lfoToWavetable.store(amount, std::memory_order_relaxed);
+}
+YSE_C_API void yse_synth_va_set_gain(YseSynth* h, float gain) {
+  if (auto* p = va(h)) p->gain.store(gain, std::memory_order_relaxed);
+}
+
+YSE_C_API void yse_synth_va_load_wavetable(YseSynth* h, int slot, const float* cycle,
+                                           size_t length) {
+  auto* p = va(h);
+  if (!p || !cycle || length == 0 || slot < 0) return;
+  // Setup-thread reshape of the morph bank; copy into a vector for the engine
+  // API. Off the audio thread by contract (documented in the header).
+  std::vector<Flt> cyc(cycle, cycle + length);
+  p->loadWavetable(slot, cyc);
+}
+
+// ─── FM patch (issue #178) ─────────────────────────────────────────────
+
+namespace {
+  inline YSE::SYNTH::fmPatch* fm(YseSynth* h) {
+    return h ? to_impl(h)->fmPatch.get() : nullptr;
+  }
+  // Clamp a C int into a DX7 byte field's valid range before storing, so a
+  // stray C value can never overflow the uint8_t or index a routing table out
+  // of bounds (the header documents the ranges; the engine also clamps).
+  inline U8 clampByte(int v, int lo, int hi) {
+    return static_cast<U8>(v < lo ? lo : (v > hi ? hi : v));
+  }
+  inline bool fmOpInRange(int op) {
+    return op >= 0 && op < 6;
+  }
+} // namespace
+
+YSE_C_API YseStatus yse_synth_fm_set_patch(YseSynth* h, YseDx7Bank* bank, int index) {
+  if (!h) return YSE_ERR_INVALID_HANDLE;
+  auto* p = fm(h);
+  if (!p) return YSE_ERR_INVALID_HANDLE; // no FM group established
+  const YSE::SYNTH::dx7Bank* b = yse_c::dx7_bank_from_handle(bank);
+  if (!b) return YSE_ERR_INVALID_ARGUMENT; // NULL / destroyed bank (logged)
+  if (index < 0 || static_cast<size_t>(index) >= b->voices.size()) {
+    yse_c::set_last_error("yse_synth_fm_set_patch: patch index out of range");
+    return YSE_ERR_INVALID_ARGUMENT;
+  }
+  *p = b->voices[static_cast<size_t>(index)]; // plain-data copy; next note-on bakes it
+  return YSE_OK;
+}
+
+YSE_C_API void yse_synth_fm_set_algorithm(YseSynth* h, int algorithm) {
+  if (auto* p = fm(h)) p->algorithm = clampByte(algorithm, 0, 31);
+}
+YSE_C_API void yse_synth_fm_set_feedback(YseSynth* h, int feedback) {
+  if (auto* p = fm(h)) p->feedback = clampByte(feedback, 0, 7);
+}
+YSE_C_API void yse_synth_fm_set_transpose(YseSynth* h, int transpose) {
+  if (auto* p = fm(h)) p->transpose = clampByte(transpose, 0, 48);
+}
+YSE_C_API void yse_synth_fm_set_lfo_speed(YseSynth* h, int speed) {
+  if (auto* p = fm(h)) p->lfoSpeed = clampByte(speed, 0, 99);
+}
+YSE_C_API void yse_synth_fm_set_lfo_delay(YseSynth* h, int delay) {
+  if (auto* p = fm(h)) p->lfoDelay = clampByte(delay, 0, 99);
+}
+YSE_C_API void yse_synth_fm_set_lfo_waveform(YseSynth* h, int waveform) {
+  if (auto* p = fm(h)) p->lfoWaveform = clampByte(waveform, 0, 5);
+}
+YSE_C_API void yse_synth_fm_set_lfo_pitch_mod_depth(YseSynth* h, int depth) {
+  if (auto* p = fm(h)) p->lfoPitchModDepth = clampByte(depth, 0, 99);
+}
+YSE_C_API void yse_synth_fm_set_lfo_amp_mod_depth(YseSynth* h, int depth) {
+  if (auto* p = fm(h)) p->lfoAmpModDepth = clampByte(depth, 0, 99);
+}
+YSE_C_API void yse_synth_fm_set_pitch_mod_sens(YseSynth* h, int sensitivity) {
+  if (auto* p = fm(h)) p->pitchModSens = clampByte(sensitivity, 0, 7);
+}
+YSE_C_API void yse_synth_fm_set_op_output_level(YseSynth* h, int op, int level) {
+  auto* p = fm(h);
+  if (p && fmOpInRange(op)) p->op[op].outputLevel = clampByte(level, 0, 99);
+}
+YSE_C_API void yse_synth_fm_set_op_freq_coarse(YseSynth* h, int op, int coarse) {
+  auto* p = fm(h);
+  if (p && fmOpInRange(op)) p->op[op].freqCoarse = clampByte(coarse, 0, 31);
+}
+YSE_C_API void yse_synth_fm_set_op_freq_fine(YseSynth* h, int op, int fine) {
+  auto* p = fm(h);
+  if (p && fmOpInRange(op)) p->op[op].freqFine = clampByte(fine, 0, 99);
+}
+YSE_C_API void yse_synth_fm_set_op_detune(YseSynth* h, int op, int detune) {
+  auto* p = fm(h);
+  if (p && fmOpInRange(op)) p->op[op].detune = clampByte(detune, 0, 14);
+}
+YSE_C_API void yse_synth_fm_set_op_osc_mode(YseSynth* h, int op, int mode) {
+  auto* p = fm(h);
+  if (p && fmOpInRange(op)) p->op[op].oscMode = clampByte(mode, 0, 1);
+}
+YSE_C_API void yse_synth_fm_set_op_enabled(YseSynth* h, int op, int enabled) {
+  auto* p = fm(h);
+  if (p && fmOpInRange(op)) {
+    U8 bit = static_cast<U8>(1u << op);
+    if (enabled)
+      p->opEnabled = static_cast<U8>(p->opEnabled | bit);
+    else
+      p->opEnabled = static_cast<U8>(p->opEnabled & ~bit);
   }
 }
 

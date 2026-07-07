@@ -27,6 +27,7 @@ set(YSE_C_API_SRCS
   yse_midi.cpp
   yse_music.cpp
   yse_synth.cpp
+  yse_instrument.cpp
   yse_log.cpp
   yse_buffer_io.cpp
   yse_python.cpp

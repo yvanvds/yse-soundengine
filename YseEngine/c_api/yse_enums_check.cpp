@@ -19,6 +19,7 @@
 #include "../patcher/pEnums.h"
 #include "../synth/positionHandler.hpp"
 #include "../synth/positionHandlers.hpp"
+#include "../synth/vaVoice.hpp"
 
 #include <type_traits>
 
@@ -63,6 +64,14 @@ namespace {
   YSE_ASSERT_ENUM(YSE_LFO_SINE, YSE::DSP::LFO_SINE);
   YSE_ASSERT_ENUM(YSE_LFO_SQUARE, YSE::DSP::LFO_SQUARE);
   YSE_ASSERT_ENUM(YSE_LFO_RANDOM, YSE::DSP::LFO_RANDOM);
+
+  // YseVaWaveform ↔ YSE::SYNTH::VA_WAVEFORM
+  YSE_ASSERT_ENUM(YSE_VA_SAW, YSE::SYNTH::VA_SAW);
+  YSE_ASSERT_ENUM(YSE_VA_PULSE, YSE::SYNTH::VA_PULSE);
+  YSE_ASSERT_ENUM(YSE_VA_TRIANGLE, YSE::SYNTH::VA_TRIANGLE);
+  YSE_ASSERT_ENUM(YSE_VA_SINE, YSE::SYNTH::VA_SINE);
+  YSE_ASSERT_ENUM(YSE_VA_NOISE, YSE::SYNTH::VA_NOISE);
+  YSE_ASSERT_ENUM(YSE_VA_WAVETABLE, YSE::SYNTH::VA_WAVETABLE);
 
   // YseDspSweepShape ↔ YSE::DSP::MODULES::sweepFilter::SHAPE
   YSE_ASSERT_ENUM(YSE_SWEEP_TRIANGLE, YSE::DSP::MODULES::sweepFilter::TRIANGLE);

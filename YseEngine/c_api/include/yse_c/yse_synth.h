@@ -12,12 +12,29 @@
   yse_synth_get_num_voices() for the cloned count) — exactly like a
   file-backed sound is not playable until its buffer finishes loading.
 
-  Scope: only the BUILT-IN reference voice (sine + ADSR, issue #152) is
-  exposed, via yse_synth_add_voices_sine. Defining a custom dspVoice
-  subclass from C is deliberately DEFERRED — it needs the same audio-thread
-  dspSourceObject callback plumbing that keeps dspSourceObject unwrapped
-  (see yse_dsp.h and docs/design/synth_core.md §1 non-goals). Instrument
-  voices (#148) will add more yse_synth_add_voices_* variants later.
+  Scope: the BUILT-IN voice types are exposed via yse_synth_add_voices_*: the
+  reference sine + ADSR voice (issue #152), and the three instruments (issue
+  #178) — the SFZ sampler (add_voices_sampler, fed a YseSfzInstrument loaded
+  through yse_instrument.h), the virtual-analog + wavetable voice
+  (add_voices_va, with per-parameter setters below), and the DX7-class 6-op FM
+  voice (add_voices_fm, patched from a YseDx7Bank or the headline setters
+  below). Defining a CUSTOM dspVoice subclass from C is deliberately DEFERRED —
+  it needs the same audio-thread dspSourceObject callback plumbing that keeps
+  dspSourceObject unwrapped (see yse_dsp.h and docs/design/synth_core.md §1
+  non-goals).
+
+  Parameter reach (parity, #178): the VA voice's live patch (YSE::SYNTH::vaParams)
+  is fully covered by the yse_synth_va_set_* setters below — every field is a
+  glitch-free atomic, so each setter is safe to call while voices play. The FM
+  voice's patch (YSE::SYNTH::fmPatch) is plain DX7 voice data; its full 155-
+  parameter set is authored by importing a DX7 bank and selecting a patch
+  (yse_synth_fm_set_patch), and the headline globals + per-operator level/
+  frequency are also reachable directly via the yse_synth_fm_set_* setters. FM
+  patch edits take effect on the NEXT note-on (the FM core bakes operator state
+  at key-down, like the hardware between notes), so the FM setters are not
+  glitch-free mid-note — unlike the VA ones. The sampler voice has no live tone
+  parameters: its sound is the immutable SFZ instrument, authored at load time
+  through yse_instrument.h (yse_sfz_load / yse_sfz_load_config).
 
   Per-note 3D positioning (issue #171, §14 of
   docs/design/per_note_positioning.md) is exposed by the same policy: only the
@@ -43,7 +60,8 @@
 #define YSE_C_SYNTH_H_INCLUDED
 
 #include "yse_common.h"
-#include "yse_enums.h" /* YseSynthPositionHandler, YseSynthHandlerParam */
+#include "yse_enums.h" /* YseSynthPositionHandler, YseSynthHandlerParam, YseVaWaveform, YseLfoType */
+#include "yse_instrument.h" /* YseSfzInstrument, YseDx7Bank (sampler / FM assets) */
 
 #ifdef __cplusplus
 extern "C" {
@@ -97,6 +115,107 @@ YSE_C_API int yse_synth_is_valid(YseSynth* h);
 YSE_C_API YseStatus yse_synth_add_voices_sine(YseSynth* h, int num_voices, int channel,
                                               int lowest_note, int highest_note, float attack,
                                               float decay, float sustain, float release);
+
+/* ─── instrument voice groups (issue #178) ────────────────────────────────
+   Each adds `num_voices` clones of the named built-in instrument voice,
+   responding omni (all channels) across the full key range — the SFZ regions /
+   patch decide how a note actually sounds. Like add_voices_sine, they must be
+   called BEFORE the synth is played; adding voices after the pool is built is
+   rejected. Return YseStatus; on failure yse_last_error() is set and no group
+   is added. */
+
+/* Add a group of SFZ sampler voices rendering `instrument` (loaded via
+   yse_sfz_load / yse_sfz_load_config). The instrument's region table and PCM
+   are shared with the voice group, which retains its own reference — so the
+   YseSfzInstrument handle may be destroyed right after this returns.
+   YSE_ERR_INVALID_ARGUMENT if `instrument` is NULL or already destroyed. */
+YSE_C_API YseStatus yse_synth_add_voices_sampler(YseSynth* h, YseSfzInstrument* instrument,
+                                                 int num_voices);
+
+/* Add a group of virtual-analog + wavetable voices with a fresh default patch.
+   This establishes the synth's VA patch; the yse_synth_va_set_* setters below
+   steer it. Call once per synth (a second call replaces which patch the setters
+   target — layering multiple VA groups is out of scope for the C API). */
+YSE_C_API YseStatus yse_synth_add_voices_va(YseSynth* h, int num_voices);
+
+/* Add a group of DX7-class 6-operator FM voices with the built-in sine test
+   patch. This establishes the synth's FM patch; select a DX7 voice into it with
+   yse_synth_fm_set_patch, or dial the headline params with yse_synth_fm_set_*.
+   Call once per synth (see add_voices_va's note). */
+YSE_C_API YseStatus yse_synth_add_voices_fm(YseSynth* h, int num_voices);
+
+/* ─── VA patch parameters (issue #178) ─────────────────────────────────────
+   Steer the synth's VA patch (established by yse_synth_add_voices_va). Every
+   value is a glitch-free atomic read on the audio thread, so these are safe to
+   call while voices play. All are null-safe no-ops on a NULL handle or a synth
+   with no VA group. `osc` is the oscillator index 0..2 (out-of-range ignored).
+   Times are in seconds; sustains and normalised depths in [0, 1] unless noted. */
+YSE_C_API void yse_synth_va_set_osc_wave(YseSynth* h, int osc, YseVaWaveform wave);
+YSE_C_API void yse_synth_va_set_osc_detune(YseSynth* h, int osc, float semitones);
+YSE_C_API void yse_synth_va_set_osc_level(YseSynth* h, int osc, float level);
+YSE_C_API void yse_synth_va_set_osc_pulse_width(YseSynth* h, int osc, float width);
+YSE_C_API void yse_synth_va_set_wavetable_position(YseSynth* h, float position);
+YSE_C_API void yse_synth_va_set_cutoff(YseSynth* h, float hz);
+YSE_C_API void yse_synth_va_set_resonance(YseSynth* h, float resonance);
+YSE_C_API void yse_synth_va_set_key_tracking(YseSynth* h, float amount);
+YSE_C_API void yse_synth_va_set_filter_env_amount(YseSynth* h, float octaves);
+YSE_C_API void yse_synth_va_set_filter_vel_amount(YseSynth* h, float octaves);
+YSE_C_API void yse_synth_va_set_amp_attack(YseSynth* h, float seconds);
+YSE_C_API void yse_synth_va_set_amp_decay(YseSynth* h, float seconds);
+YSE_C_API void yse_synth_va_set_amp_sustain(YseSynth* h, float level);
+YSE_C_API void yse_synth_va_set_amp_release(YseSynth* h, float seconds);
+YSE_C_API void yse_synth_va_set_amp_vel_amount(YseSynth* h, float amount);
+YSE_C_API void yse_synth_va_set_filter_attack(YseSynth* h, float seconds);
+YSE_C_API void yse_synth_va_set_filter_decay(YseSynth* h, float seconds);
+YSE_C_API void yse_synth_va_set_filter_sustain(YseSynth* h, float level);
+YSE_C_API void yse_synth_va_set_filter_release(YseSynth* h, float seconds);
+YSE_C_API void yse_synth_va_set_lfo_type(YseSynth* h, YseLfoType type);
+YSE_C_API void yse_synth_va_set_lfo_rate(YseSynth* h, float hz);
+YSE_C_API void yse_synth_va_set_lfo_to_pitch(YseSynth* h, float semitones);
+YSE_C_API void yse_synth_va_set_lfo_to_cutoff(YseSynth* h, float octaves);
+YSE_C_API void yse_synth_va_set_lfo_to_wavetable(YseSynth* h, float amount);
+YSE_C_API void yse_synth_va_set_gain(YseSynth* h, float gain);
+
+/* Install a single-cycle waveform into the VA wavetable morph bank at `slot`
+   (used by YSE_VA_WAVETABLE mode). `cycle` points to `length` normalised
+   samples (one period). SETUP-THREAD only — this reshapes table storage; call
+   before the synth is played, not while voices render. Null-safe no-op on a
+   NULL handle / cycle, an empty length, or a synth with no VA group. */
+YSE_C_API void yse_synth_va_load_wavetable(YseSynth* h, int slot, const float* cycle,
+                                           size_t length);
+
+/* ─── FM patch (issue #178) ────────────────────────────────────────────────
+   Author the synth's FM patch (established by yse_synth_add_voices_fm). Edits
+   take effect on the NEXT note-on (the FM core bakes operator state at key-
+   down), so these are not glitch-free mid-note. All are null-safe no-ops on a
+   NULL handle or a synth with no FM group. */
+
+/* Copy patch `index` from a DX7 bank (imported via yse_dx7_import_sysex) into
+   the synth's FM patch — the way to reach the full 155-parameter DX7 voice from
+   C. The patch is copied, so `bank` may be destroyed afterwards.
+   YSE_ERR_INVALID_ARGUMENT for a NULL / destroyed bank or an out-of-range
+   index; YSE_ERR_INVALID_HANDLE for a NULL synth or one with no FM group. */
+YSE_C_API YseStatus yse_synth_fm_set_patch(YseSynth* h, YseDx7Bank* bank, int index);
+
+/* Headline global params (DX7 ranges; clamped defensively engine-side). */
+YSE_C_API void yse_synth_fm_set_algorithm(YseSynth* h, int algorithm); /* 0..31 */
+YSE_C_API void yse_synth_fm_set_feedback(YseSynth* h, int feedback); /* 0..7  */
+YSE_C_API void yse_synth_fm_set_transpose(YseSynth* h, int transpose); /* 0..48, 24 = none */
+YSE_C_API void yse_synth_fm_set_lfo_speed(YseSynth* h, int speed); /* 0..99 */
+YSE_C_API void yse_synth_fm_set_lfo_delay(YseSynth* h, int delay); /* 0..99 */
+YSE_C_API void yse_synth_fm_set_lfo_waveform(YseSynth* h, int waveform); /* 0..5  */
+YSE_C_API void yse_synth_fm_set_lfo_pitch_mod_depth(YseSynth* h, int depth); /* 0..99 */
+YSE_C_API void yse_synth_fm_set_lfo_amp_mod_depth(YseSynth* h, int depth); /* 0..99 */
+YSE_C_API void yse_synth_fm_set_pitch_mod_sens(YseSynth* h, int sensitivity); /* 0..7 */
+
+/* Headline per-operator params. `op` is the operator index 0..5 (OP1..OP6);
+   out-of-range is ignored. */
+YSE_C_API void yse_synth_fm_set_op_output_level(YseSynth* h, int op, int level); /* 0..99 */
+YSE_C_API void yse_synth_fm_set_op_freq_coarse(YseSynth* h, int op, int coarse); /* 0..31 */
+YSE_C_API void yse_synth_fm_set_op_freq_fine(YseSynth* h, int op, int fine); /* 0..99 */
+YSE_C_API void yse_synth_fm_set_op_detune(YseSynth* h, int op, int detune); /* 0..14, 7 = centre */
+YSE_C_API void yse_synth_fm_set_op_osc_mode(YseSynth* h, int op, int mode); /* 0 ratio, 1 fixed */
+YSE_C_API void yse_synth_fm_set_op_enabled(YseSynth* h, int op, int enabled); /* 0/1 */
 
 /* Total number of allocated (cloned) voices across every group. Zero until
    the setup pool finishes cloning; poll it to know the synth is playable. */

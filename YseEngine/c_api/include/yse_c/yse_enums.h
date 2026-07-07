@@ -56,6 +56,17 @@ typedef enum YseLfoType {
   YSE_LFO_RANDOM = 6
 } YseLfoType;
 
+/* Mirrors YSE::SYNTH::VA_WAVEFORM in synth/vaVoice.hpp — the oscillator
+   waveform selector for the virtual-analog voice (yse_synth_va_set_osc_wave). */
+typedef enum YseVaWaveform {
+  YSE_VA_SAW = 0, /* Band-limited sawtooth. */
+  YSE_VA_PULSE = 1, /* Band-limited pulse with variable width (PWM). */
+  YSE_VA_TRIANGLE = 2, /* Band-limited triangle. */
+  YSE_VA_SINE = 3, /* Sine. */
+  YSE_VA_NOISE = 4, /* White noise. */
+  YSE_VA_WAVETABLE = 5 /* Morph across the wavetable bank. */
+} YseVaWaveform;
+
 /* Mirrors YSE::DSP::MODULES::sweepFilter::SHAPE. */
 typedef enum YseDspSweepShape {
   YSE_SWEEP_TRIANGLE = 0,
