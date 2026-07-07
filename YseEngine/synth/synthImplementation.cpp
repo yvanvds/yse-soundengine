@@ -142,6 +142,12 @@ namespace YSE {
 
       stealFadeSamples = std::max(1, static_cast<int>(SAMPLERATE * kStealFadeSec));
 
+      // Size the device-width aggregate bed and every voice's panner here on the
+      // setup pool — the ONLY place (besides a device restart) this allocates
+      // (issue #169). After this, note-on/off and every render block touch only
+      // pre-allocated storage.
+      ensureDeviceWidth();
+
       // Publish groups to the audio thread. Storing inside the lock closes the
       // window where an addVoiceGroup() could append a request this setup will
       // never build (it is serialised on buildMutex and now sees OBJECT_SETUP).
@@ -178,6 +184,38 @@ namespace YSE {
 
     // ---- audio-thread render path -----------------------------------------
 
+    void implementationObject::ensureDeviceWidth() {
+      // Fall back to a single (mono) channel when there is no device geometry
+      // (headless unit tests / pre-init), matching the panner's own fallback so
+      // the bed is never zero-width.
+      int no = static_cast<int>(CHANNEL::Manager().getNumberOfOutputs());
+      if (no < 1) no = 1;
+      if (no == builtForOutputs && output.samples.size() == static_cast<size_t>(no)) {
+        return; // steady state: nothing to size
+      }
+      // First sizing (setup pool) or a device restart (audio thread). Allocation
+      // is permitted on exactly this path — the same exception the engine already
+      // makes when the device output count changes (deviceManager: master->
+      // resize(true)). It never runs at note rate.
+      output.samples.resize(static_cast<size_t>(no));
+      for (auto& b : output.samples) {
+        if (b.getLength() != STANDARD_BUFFERSIZE) b.resize(STANDARD_BUFFERSIZE);
+      }
+      for (auto& g : groups) {
+        for (size_t i = 0; i < g.slots.size(); ++i) {
+          UInt srcCh = static_cast<UInt>(g.voices[i]->samples.size());
+          if (srcCh == 0) srcCh = 1;
+          g.slots[i].panner.resize(srcCh);
+        }
+      }
+      if (voiceFader.size() < STANDARD_BUFFERSIZE) {
+        voiceFader.assign(STANDARD_BUFFERSIZE, 1.f);
+      } else {
+        std::fill(voiceFader.begin(), voiceFader.end(), 1.f);
+      }
+      builtForOutputs = no;
+    }
+
     void implementationObject::renderBlock(SOUND_STATUS& masterIntent) {
       const OBJECT_IMPLEMENTATION_STATE st = objectStatus.load(std::memory_order_acquire);
       const bool ready = (st == OBJECT_SETUP || st == OBJECT_READY);
@@ -190,11 +228,22 @@ namespace YSE {
         if (ready) parseMessage(m);
       }
 
-      // 2. Clear the aggregate.
+      if (!ready) {
+        // 2. Clear whatever aggregate buffers exist (may be unsized pre-setup).
+        for (auto& b : output.samples)
+          b = 0.f;
+        return;
+      }
+
+      // Size the device-width bed + voice panners to the current output width.
+      // No-op in the steady state; only the first call and a device restart
+      // allocate (the accepted device-restart exception). Must precede the clear
+      // so freshly grown buffers start at zero before voices accumulate into them.
+      ensureDeviceWidth();
+
+      // 2. Clear the aggregate bed.
       for (auto& b : output.samples)
         b = 0.f;
-
-      if (!ready) return;
 
       // 3. Honour the sound-level master intent as a gate over the whole pool.
       switch (masterIntent) {
@@ -219,7 +268,8 @@ namespace YSE {
         return;
       }
 
-      // 4. Render + mix every active voice.
+      // 4. Render each active voice, then spread its mono output across the
+      //    device-width bed at its own position (issue #169, design §7).
       const int blockLen = static_cast<int>(output.samples[0].getLength());
       for (auto& g : groups) {
         for (size_t i = 0; i < g.slots.size(); ++i) {
@@ -227,9 +277,13 @@ namespace YSE {
           dspVoice* v = g.voices[i].get();
 
           if (slot.stealing) {
-            // Keep rendering the OLD note, faded out by the engine ramp.
+            // Keep rendering the OLD note, force-faded to silence over the steal
+            // window, then spread it at its current position so a stolen note
+            // fades cleanly along whatever direction it currently occupies.
             v->process(slot.intent);
-            mixVoiceRamp(*v, slot);
+            fillStealFader(slot, blockLen);
+            slot.panner.update(slot.position);
+            slot.panner.spread(v->samples, voiceFader.data(), output.samples);
             slot.stealPos += blockLen;
             if (slot.stealPos >= stealFadeSamples) {
               // Fade complete: re-arm this slot with the new note. It begins on
@@ -242,14 +296,21 @@ namespace YSE {
               slot.keyDown = true; // the new note's key is down
               slot.heldBySustain = false;
               slot.heldBySostenuto = false;
+              slot.position = Pos(0.f); // no handler yet — re-seed to the aggregate (#170)
               v->frequency(static_cast<Flt>(slot.pendNote));
               v->velocity(slot.pendVelocity);
               primeVoicePitchWheel(*v, slot.pendChannel); // start in tune (§5)
+              // The panner's smoothing ramp starts from the faded-to-zero gain,
+              // so the new note fades up from silence at its own direction — no
+              // positional glide from the stolen note (design §11).
+              slot.panner.reset();
               slot.intent = SS_WANTSTOPLAY;
             }
           } else if (slot.intent != SS_STOPPED) {
             v->process(slot.intent); // may settle the intent to SS_STOPPED
-            mixVoice(*v, 1.f);
+            fillUnitFader(blockLen);
+            slot.panner.update(slot.position);
+            slot.panner.spread(v->samples, voiceFader.data(), output.samples);
             if (slot.intent == SS_STOPPED) {
               slot.note = -1; // release tail finished — slot is free again
             }
@@ -258,29 +319,21 @@ namespace YSE {
       }
     }
 
-    void implementationObject::mixVoice(dspVoice& voice, Flt gain) {
-      Flt* dst = output.samples[0].getPtr();
-      const UInt len = output.samples[0].getLength();
-      for (auto& vb : voice.samples) {
-        Flt* src = vb.getPtr();
-        const UInt n = std::min(len, vb.getLength());
-        for (UInt s = 0; s < n; ++s)
-          dst[s] += src[s] * gain;
-      }
+    void implementationObject::fillUnitFader(int blockLen) {
+      const int n = std::min(blockLen, static_cast<int>(voiceFader.size()));
+      for (int s = 0; s < n; ++s)
+        voiceFader[static_cast<size_t>(s)] = 1.f;
     }
 
-    void implementationObject::mixVoiceRamp(dspVoice& voice, voiceSlot& slot) {
-      Flt* dst = output.samples[0].getPtr();
-      const UInt len = output.samples[0].getLength();
+    void implementationObject::fillStealFader(const voiceSlot& slot, int blockLen) {
+      // Mirrors the old mixVoiceRamp gain: a linear fade to silence over the
+      // steal window, now delivered through the panner's per-sample fader input.
       const Flt fade = static_cast<Flt>(stealFadeSamples);
-      for (auto& vb : voice.samples) {
-        Flt* src = vb.getPtr();
-        const UInt n = std::min(len, vb.getLength());
-        for (UInt s = 0; s < n; ++s) {
-          Flt g = 1.f - static_cast<Flt>(slot.stealPos + static_cast<int>(s)) / fade;
-          if (g < 0.f) g = 0.f;
-          dst[s] += src[s] * g;
-        }
+      const int n = std::min(blockLen, static_cast<int>(voiceFader.size()));
+      for (int s = 0; s < n; ++s) {
+        Flt gVal = 1.f - static_cast<Flt>(slot.stealPos + s) / fade;
+        if (gVal < 0.f) gVal = 0.f;
+        voiceFader[static_cast<size_t>(s)] = gVal;
       }
     }
 

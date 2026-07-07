@@ -36,6 +36,7 @@ namespace YSE {
     class drawableBuffer;
     class dspObject;
     class dspSourceObject;
+    class panner;
 
     // filters
     class highPass;

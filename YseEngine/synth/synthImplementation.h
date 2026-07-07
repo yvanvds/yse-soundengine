@@ -33,9 +33,11 @@
 
 #include "../classes.hpp"
 #include "../dsp/dspObject.hpp"
+#include "../dsp/panner.hpp"
 #include "../headers/enums.hpp"
 #include "../headers/types.hpp"
 #include "../utils/lfQueue.hpp"
+#include "../utils/vector.hpp"
 #include "dspVoice.hpp"
 #include "synth.hpp"
 #include "synthMessage.h"
@@ -170,6 +172,14 @@ namespace YSE {
         int pendChannel = 0;
         Flt pendVelocity = 0.f;
         uint64_t pendAge = 0;
+        // ---- per-note 3D positioning (issue #169, Route 2) ----
+        // The voice's current position, consumed by its panner. With no position
+        // handler attached (this epic is infrastructure only — handlers land in
+        // #170) it stays at the origin, so every voice spreads at the listener-
+        // relative centre. panner spreads this voice's mono output across the
+        // device-width aggregate bed; both are built on the setup pool.
+        Pos position{0.f};
+        DSP::panner panner;
       };
 
       // A group is one addVoices() call: n identical voices with a channel
@@ -217,6 +227,12 @@ namespace YSE {
       }
 
       // ---- audio-thread render path --------------------------------------
+      // Ensure the aggregate bed and every voice's panner are sized to the
+      // current device output width. A no-op in the steady state (one int
+      // compare); on the first call and on a device restart it re-sizes, which
+      // allocates — the same accepted device-restart exception the engine makes
+      // in deviceManager (master->resize(true)). Never allocates at note rate.
+      void ensureDeviceWidth();
       void renderBlock(SOUND_STATUS& masterIntent);
       void parseMessage(const messageObject& message);
       void handleNoteOn(int channel, int note, Flt velocity);
@@ -235,8 +251,11 @@ namespace YSE {
       void primeVoicePitchWheel(dspVoice& voice, int channel);
       void allocateInGroup(voiceGroup& group, int channel, int note, Flt velocity);
       void freeAllVoices();
-      void mixVoice(dspVoice& voice, Flt gain);
-      void mixVoiceRamp(dspVoice& voice, voiceSlot& slot);
+      // Fill the per-voice fader scratch: all-ones for a normal voice, or the
+      // declining steal ramp for a voice being stolen (issue #169). Consumed by
+      // panner.spread() as its per-sample gain envelope.
+      void fillUnitFader(int blockLen);
+      void fillStealFader(const voiceSlot& slot, int blockLen);
 
       static bool groupMatches(const voiceGroup& group, int channel, int note) {
         return (group.channel == 0 || group.channel == channel) && note >= group.lowNote &&
@@ -264,6 +283,14 @@ namespace YSE {
       std::atomic<int> numVoicesTotal{0};
       uint64_t ageCounter = 0; // audio thread only
       int stealFadeSamples = 1; // computed in setup()
+      // Device output width the aggregate bed + voice panners are currently
+      // sized for (issue #169). -1 until first sized; compared in
+      // ensureDeviceWidth() to detect a device restart. Audio thread + setup.
+      int builtForOutputs = -1;
+      // Per-voice gain envelope scratch for spread(): filled with 1.0 for a
+      // normal voice or the declining steal ramp for a voice being stolen.
+      // Sized once (device-restart path); never reallocated at note rate.
+      std::vector<Flt> voiceFader;
 
       // Per-channel keyboard state (§5). Audio thread only.
       std::array<channelState, kNumChannels> channels;

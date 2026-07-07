@@ -11,6 +11,7 @@
 #include "../internalHeaders.h"
 #include "../utils/fileFunctions.hpp"
 #include "../patcher/patcherImplementation.h"
+#include "../dsp/panner.hpp"
 
 namespace {
   // Time constant (ms) over which the doppler playback-rate ratio is slewed in
@@ -66,7 +67,8 @@ YSE::SOUND::implementationObject::implementationObject(sound* head)
     stopOffset(0),
     streaming(false),
     head(head),
-    objectStatus(OBJECT_CONSTRUCTED) {
+    objectStatus(OBJECT_CONSTRUCTED),
+    preSpatialized(false) {
   fader.set(0.5f);
 
 #if defined YSE_DEBUG
@@ -256,11 +258,16 @@ Bool YSE::SOUND::implementationObject::create(MULTICHANNELBUFFER& buffer, channe
   }
 }
 
-bool YSE::SOUND::implementationObject::create(DSP::dspSourceObject& ptr, channel* ch, Flt volume) {
+bool YSE::SOUND::implementationObject::create(DSP::dspSourceObject& ptr, channel* ch, Flt volume,
+                                              bool preSpatialized) {
   parent = ch->pimpl;
   looping = false;
   fader.set(volume);
   playerType = PT_DSP;
+  // Route 2: a synth's aggregate source already produced a device-width,
+  // per-voice-panned bed — play it straight through instead of re-panning it
+  // (issue #169). Read once per block in toChannels().
+  this->preSpatialized = preSpatialized;
 
   status_dsp = SS_STOPPED;
   status_upd = SS_STOPPED;
@@ -830,41 +837,10 @@ void YSE::SOUND::implementationObject::dspFunc_parseIntent() {
 
 void YSE::SOUND::implementationObject::gainAccumulate(const Flt* src, const Flt* fader, Flt* dest,
                                                       UInt length, Flt& lastGain, Flt finalGain) {
-  // Fast path: gain unchanged since the last block -> flat multiply, no ramp and
-  // no state write (mirrors the old dspFunc_calculateGain early-out). Per sample:
-  // dest[i] += (src[i] * finalGain) * fader[i] — the exact operation tree the old
-  // copy -> *gain -> *fader -> += sequence produced, so the result is bit-identical.
-  if (lastGain == finalGain) {
-    for (UInt i = 0; i < length; i++) {
-      Flt v = src[i] * finalGain;
-      v *= fader[i];
-      dest[i] += v;
-    }
-    return;
-  }
-
-  // Ramp the gain from lastGain to finalGain over the first `rampLen` samples,
-  // then hold finalGain. The multiplier sequence (start, step, running +=) is
-  // identical to the old ramp, so every g[i] is bit-identical; folding the fader
-  // multiply and the accumulate into the same pass keeps the rounding order.
-  Flt rampLen = 50;
-  Clamp(rampLen, 1.f, static_cast<Flt>(length));
-  Flt step = (finalGain - lastGain) / rampLen;
-  Flt multiplier = lastGain;
-  UInt i = 0;
-  UInt ramp = static_cast<UInt>(rampLen);
-  for (; i < ramp; i++) {
-    Flt v = src[i] * multiplier;
-    v *= fader[i];
-    dest[i] += v;
-    multiplier += step;
-  }
-  for (; i < length; i++) {
-    Flt v = src[i] * finalGain;
-    v *= fader[i];
-    dest[i] += v;
-  }
-  lastGain = finalGain;
+  // Forwards to the single shared copy in DSP::panner (issue #169). The math was
+  // lifted verbatim, so the mix stays bit-identical (#213); keeping this thin
+  // forwarder preserves the public helper surface the tests exercise.
+  DSP::panner::gainAccumulate(src, fader, dest, length, lastGain, finalGain);
 }
 
 void YSE::SOUND::implementationObject::computeFinalGains() {
@@ -933,6 +909,30 @@ void YSE::SOUND::implementationObject::computeFinalGains() {
 }
 
 void YSE::SOUND::implementationObject::toChannels() {
+  // Route 2 pre-spatialized bed (issue #169): the source already panned each
+  // voice across the device output channels, so play it straight through 1:1
+  // WITHOUT the cardioid pan — re-panning would pan an already-panned signal.
+  // Only the aggregate-level gains stay: the fader, plus the per-aggregate
+  // occlusion duck and the virtualization farewell fade, both of which remain a
+  // sound-level concern under Route 2 (design §5). buffer[j] maps to output j.
+  if (preSpatialized) {
+    const Flt* faderPtr = fader().getPtr();
+    Flt aggGain = 1.f;
+    if (occlusionActive) aggGain *= 1 - occlusion_dsp;
+    if (virtualFadeOut) aggGain = 0.f;
+    const UInt srcN = static_cast<UInt>(buffer->size());
+    for (UInt j = 0; j < parent->out.size(); ++j) {
+      if (parent->outConf[j].isLFE) continue; // the bed carries no LFE content
+      if (j >= srcN) continue; // source narrower than the device (transient on restart)
+      const Flt* src = (*buffer)[j].getPtr();
+      UInt length = (*buffer)[j].getLength();
+      // lastGain[j][0] is the single smoothing scalar for this 1:1 tap; inner
+      // index 0 is always valid (buffer has >= 1 channel).
+      gainAccumulate(src, faderPtr, parent->out[j].getPtr(), length, lastGain[j][0], aggGain);
+    }
+    return;
+  }
+
   // Recompute the per-speaker gain vectors only when an update() tick changed
   // one of their inputs (angle / distance / spread / size / occlusion /
   // horizFraction / speaker layout). Between ticks those inputs are constant,
@@ -988,108 +988,36 @@ void YSE::SOUND::implementationObject::addDSP(DSP::dspObject& ptr) {
 }
 
 Flt YSE::SOUND::implementationObject::computeVirtualDist(Flt distance, Flt size, Flt volume) {
-  // Effective distance beyond the sound's own size; a near/large sound whose
-  // listener sits inside `size` clamps to 0 (maximally important).
-  Flt effectiveDist = distance - size;
-  if (effectiveDist < 0) effectiveDist = 0;
-
-  // Importance rises with volume and falls with distance: divide the clamped
-  // effective distance by volume so quiet sounds score high (virtualized first)
-  // and loud near sounds score low (kept real). A muted sound (volume ~ 0)
-  // yields a very large value and is virtualized outright. (#205)
-  constexpr Flt minVolume = 0.0001f;
-  if (volume < minVolume) volume = minVolume;
-  return effectiveDist / volume;
+  // Forwards to the single shared copy in DSP::panner (issue #169). See #205.
+  return DSP::panner::computeVirtualDist(distance, size, volume);
 }
 
 Flt YSE::SOUND::implementationObject::computeSpeakerOverlap(Flt angleA, Flt angleB) {
-  // Cardioid weight in [0..1] — the same parenthesization as the pan term above
-  // so a "how much do these two speakers overlap" weight and a "how much does
-  // this speaker face the source" pan use one consistent curve. Coincident
-  // speakers overlap fully (1), opposite speakers not at all (0). (#207)
-  return (1 + cos(angleA - angleB)) * 0.5f;
+  // Forwards to the single shared copy in DSP::panner (issue #169). See #207.
+  return DSP::panner::computeSpeakerOverlap(angleA, angleB);
 }
 
 Flt YSE::SOUND::implementationObject::computePanRatio(Flt initGain, Flt power, UInt speakerCount) {
-  // Guard the pan normalisation against a zero (or non-finite) total power.
-  // `power` is the sum of pow(initGain,2) over all speakers; it collapses to ~0
-  // when every speaker is antipodal to the source angle (a mono layout with the
-  // source directly behind the listener, or any degenerate custom layout).
-  // pow(initGain,2)/power is then 0/0 = NaN, which poisons the whole mix and
-  // latches into lastGain (#202). `!(power > minPower)` also rejects NaN power.
-  // Fall back to an equal 1/N split so every speaker gets a finite share.
-  constexpr Flt minPower = 1e-9f;
-  if (speakerCount == 0) return 0.f;
-  if (!(power > minPower)) return 1.f / static_cast<Flt>(speakerCount);
-  return static_cast<Flt>(pow(initGain, 2) / power);
+  // Forwards to the single shared copy in DSP::panner (issue #169). See #202.
+  return DSP::panner::computePanRatio(initGain, power, speakerCount);
 }
 
 Flt YSE::SOUND::implementationObject::computeSourceAngle(bool relative, const Pos& dir,
                                                          const Pos& listenerForward) {
-  // atan2(x, z) gives +90° for a source on +x, which maps to the right speaker
-  // (see CHANNEL::setStereo()). The relative branch takes this angle directly;
-  // it must NOT be negated, or relative / pan2D sounds mirror left↔right (#204).
-  Flt a = static_cast<Flt>(atan2(dir.x, dir.z));
-  if (!relative) {
-    // World frame: measure the source direction against the listener's facing.
-    a -= static_cast<Flt>(atan2(listenerForward.x, listenerForward.z));
-  }
-  // A world-frame difference of two atan2 results can leave (-2π, 2π); wrap it
-  // back into (-π, π] so downstream pan math sees a canonical angle.
-  while (a > Pi)
-    a -= Pi2;
-  while (a < -Pi)
-    a += Pi2;
-  return a;
+  // Forwards to the single shared copy in DSP::panner (issue #169). See #204.
+  return DSP::panner::computeSourceAngle(relative, dir, listenerForward);
 }
 
 Flt YSE::SOUND::implementationObject::computeHorizontalFraction(const Pos& dir) {
-  // Fraction of the source distance that lies in the horizontal (x-z) plane,
-  // in [0..1]. computeSourceAngle uses atan2(x, z), so the azimuth is only
-  // well-defined while there is meaningful horizontal extent; this weight lets
-  // toChannels() fade the pan directionality out as the source approaches the
-  // zenith (issue #210).
-  Flt horiz = static_cast<Flt>(sqrt(dir.x * dir.x + dir.z * dir.z));
-  Flt total = static_cast<Flt>(sqrt(dir.x * dir.x + dir.y * dir.y + dir.z * dir.z));
-  // A zero-length direction (source co-located with the listener) has no
-  // azimuth *and* no elevation; there is nothing to tame, so return full
-  // directionality to leave the existing near-field behaviour untouched.
-  constexpr Flt minTotal = 1e-9f;
-  if (total < minTotal) return 1.f;
-  return horiz / total;
+  // Forwards to the single shared copy in DSP::panner (issue #169). See #210.
+  return DSP::panner::computeHorizontalFraction(dir);
 }
 
 Flt YSE::SOUND::implementationObject::computeDopplerRatio(const Pos& sourceVel,
                                                           const Pos& listenerVel, const Pos& dist,
                                                           Flt dopplerScale) {
-  constexpr Flt speedOfSound = 344.0f; // m/s, dry air ~20°C
-  // Two octaves either way. A super-sonic closing speed would otherwise drive
-  // the denominator toward (or past) zero and blow the playback rate up or
-  // negative; clamping keeps the audio thread safe for any input. (#208)
-  constexpr Flt minRatio = 0.25f;
-  constexpr Flt maxRatio = 4.0f;
-
-  Pos d = dist; // local copy: Pos::length() is non-const
-  Flt len = d.length();
-  if (len == 0.f) return 1.0f; // co-located: no well-defined radial axis, no shift
-
-  // Radial (along the source→listener axis) components of each velocity.
-  Flt rSource = Dot(sourceVel, d) / len;
-  Flt rList = Dot(listenerVel, d) / len;
-
-  // Observed = emitted * (c + rList) / (c + rSource). Applied multiplicatively
-  // to the playback rate, unlike the old additive `1 - 1/ratio` linearisation
-  // which was only accurate near pitch = 1 and low speeds.
-  Flt denom = speedOfSound + rSource;
-  if (denom <= 0.f) return maxRatio; // source closing at/above the speed of sound
-  Flt ratio = (speedOfSound + rList) / denom;
-
-  // dopplerScale amplifies/attenuates the deviation from unity, not the ratio
-  // itself, so scale = 0 disables the effect and scale = 1 is physical.
-  ratio = 1.0f + (ratio - 1.0f) * dopplerScale;
-
-  Clamp(ratio, minRatio, maxRatio);
-  return ratio;
+  // Forwards to the single shared copy in DSP::panner (issue #169). See #208.
+  return DSP::panner::computeDopplerRatio(sourceVel, listenerVel, dist, dopplerScale);
 }
 
 YSE::SOUND::implementationObject::virtualAction

@@ -29,6 +29,7 @@ set(YSE_SRCS
   dsp/lfo.cpp
   dsp/math.cpp
   dsp/math_functions.cpp
+  dsp/panner.cpp
   dsp/patcherInsert.cpp
   dsp/modules/delay/basicDelay.cpp
   dsp/modules/delay/feedbackDelay.cpp

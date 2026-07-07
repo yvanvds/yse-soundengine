@@ -241,7 +241,10 @@ void YSE::sound::create(YSE::synth& synth, channel* ch, float volume) {
 
   pimpl = SOUND::Manager().addImplementation(this);
   if (ch == nullptr) ch = &CHANNEL::Manager().master();
-  pimpl->create(synth.pimpl->getOutputSource(), ch, volume);
+  // Attach as a pre-spatialized source (issue #169): the synth's aggregate now
+  // produces a device-width, per-voice-panned bed which the sound plays straight
+  // through without re-panning (docs/design/per_note_positioning.md §7).
+  pimpl->create(synth.pimpl->getOutputSource(), ch, volume, /*preSpatialized=*/true);
   SOUND::Manager().setup(pimpl);
 }
 

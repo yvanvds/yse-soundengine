@@ -39,6 +39,9 @@ namespace YSE {
       friend class underWaterEffect;
       friend class YSE::listener;
       friend class reverbManager;
+      // The per-voice panner (issue #169) reads the same listener snapshot the
+      // sound path does — position and forward — to derive each voice's pan.
+      friend class YSE::DSP::panner;
     };
 
     listenerImplementation& ListenerImpl();
