@@ -27,6 +27,19 @@ This follows the design-issue-first pattern proven by
 engine's most delicate machinery — the sound lifecycle or the
 spatialization pipeline — so the trade-off deserves a written decision.
 
+> **Amended 2026-07-07, pre-merge design review.** The Route 2 decision
+> **stands**, but the argument is re-weighted: the deciding factor is
+> the **granularity-correctness case of [§5](#what-per-note-spatialization-means-here)**
+> (per-note occlusion and per-note virtualization are *wrong at that
+> granularity*, and Route 1 forces them on with no off switch) — not
+> implementation risk, and not consistency with the recently settled
+> synth-core model, which per the project review stance
+> ([docs/project_vision.md](../project_vision.md)) is context, never a
+> verdict. Also added: a forward note on per-voice participation in
+> reverb space (Route 2's honest ceiling), the framing of
+> `HANDLER_PARAM` as an early instance of the addressable-parameter
+> direction, and a fix to the swarm example's shared-state mechanism.
+
 ## Table of contents
 
 1. [Goals and non-goals](#goals-and-non-goals)
@@ -156,20 +169,30 @@ touched.
 | Position update path | Handlers run **autonomously on the audio thread** (zero per-block main→audio traffic). Imperative per-note / per-handler-param updates ride the existing synth inbox as a bounded, allocation-free op ([§9](#message-op-set-additions)). |
 | Sound-side change | **One narrow seam:** the synth's owning sound plays a pre-spatialized, device-width bed **without re-panning** it. A create-time flag, read once on the audio thread — not a lifecycle change. See [§7](#the-multichannel-aggregate-and-its-attachment). |
 
-The deciding factor is **blast radius against note-rate safety**. Route 1
-forces the engine's most race-audited machinery — the sound manager,
-subject of the [#185][gh-185]–[#201][gh-201] and [#283][gh-283]–[#290][gh-290]
-lock-free audits — to support a usage pattern (park/reactivate at note
-rate) it was never built for, and it *demolishes* the "one synth = one
-sound = one aggregate" model that [synth_core.md §9][doc-synth] just
-established. Route 2 confines the new code to a fresh, unit-testable
-`panner` component and the synth's own mix loop, leaves the sound
-lifecycle untouched, and is note-rate-safe **by construction** because
-notes were already lifecycle-free in the synth core. The extra CPU (a
-per-voice smoothing-gain vector) is the same order either way, and Route 2
-lets us include exactly the per-note features that make sense while
-excluding the ones ([§5](#what-per-note-spatialization-means-here)) that
-do not.
+The deciding factor is **granularity correctness**
+([§5](#what-per-note-spatialization-means-here)): not everything a
+`YSE::sound` computes *should* be per-note. Per-note occlusion (a user
+raycast per note per control tick) and per-note virtualization
+(note-rate churn in the global budget heuristic) are wrong at that
+granularity — and under Route 1 they come along automatically, with no
+off switch short of re-plumbing the sound impl. Route 2 is the only
+route that lets the engine pick the split: pan and distance per voice,
+occlusion / virtualization / reverb per aggregate. That argument stands
+on the problem domain alone and would survive even if Route 1 were free
+to build.
+
+Second-order but real: Route 2 confines the new code to a fresh,
+unit-testable `panner` component and the synth's own mix loop, is
+note-rate-safe **by construction** (notes were already lifecycle-free in
+the synth core), and avoids re-purposing the race-audited sound-manager
+lifecycle ([#185][gh-185]–[#201][gh-201],
+[#283][gh-283]–[#290][gh-290]) for a park/reactivate pattern it was
+never built for. Consistency with the [synth_core.md §9][doc-synth]
+aggregate model is a genuine cost saved, but — per the project review
+stance — a prior decision is context, not a verdict; had §5 pointed the
+other way, the synth-core model would have been the thing to reopen.
+The extra CPU (a per-voice smoothing-gain vector) is the same order
+either way.
 
 ---
 
@@ -178,7 +201,19 @@ do not.
 Route 1 is attractive precisely because per-sound spatialization already
 works — but the three tie-breakers all point the other way.
 
-- **Blast radius (decisive).** Pooling note-sounds means inventing a
+- **Correctness — it inherits the wrong things "for free" (decisive).**
+  The appeal of Route 1 is that doppler, distance, occlusion, and
+  virtualization all come along automatically. But per-note occlusion (a
+  user raycast per note per control tick) and per-note virtualization
+  (note-rate churn in the global `VirtualSoundFinder`) are things the
+  epic explicitly does **not** want ([§1 non-goals](#goals-and-non-goals))
+  — and in a performance-instrument engine they are wrong at that
+  granularity, not merely expensive. "For free" here means "cannot be
+  switched off without re-plumbing the sound impl" — exactly the wrong
+  default. This is the argument that decides the fork on the problem
+  domain alone.
+
+- **Blast radius (supporting).** Pooling note-sounds means inventing a
   "parked but ready" state for `SOUND::implementationObject`: an impl that
   stays in `inUse`, stays `connectedToParent`, stays out of the
   `VirtualSoundFinder` while silent, and can be re-armed with a new source
@@ -193,23 +228,16 @@ works — but the three tie-breakers all point the other way.
   purpose it was not designed for is the highest-risk change available in
   the engine.
 
-- **It contradicts the just-settled synth model.** [synth_core.md
-  §9][doc-synth] fixes "one synth = one `dspSourceObject` = one
-  `YSE::sound` = one position" and builds the aggregate `outputSource`
-  around it. Route 1 discards the aggregate: a synth becomes a *manager of
-  N sounds*, the voice-group/allocator/stealing design still owns the
-  voices, but each voice's audio now has to reach its own sound impl — a
-  second ownership graph layered on the first. Two lifecycles for one
-  synth.
-
-- **Correctness — it inherits the wrong things "for free."** The appeal
-  of Route 1 is that doppler, distance, occlusion, and virtualization all
-  come along automatically. But per-note occlusion (a user raycast per
-  note per control tick) and per-note virtualization (note-rate churn in
-  the global `VirtualSoundFinder`) are things the epic explicitly does
-  **not** want ([§1 non-goals](#goals-and-non-goals)). "For free" here
-  means "cannot be switched off without re-plumbing the sound impl" —
-  exactly the wrong default.
+- **Structural cost (supporting, not decisive on its own).**
+  [synth_core.md §9][doc-synth] fixes "one synth = one `dspSourceObject`
+  = one `YSE::sound` = one position" and builds the aggregate
+  `outputSource` around it. Route 1 discards the aggregate: a synth
+  becomes a *manager of N sounds*, the voice-group/allocator/stealing
+  design still owns the voices, but each voice's audio now has to reach
+  its own sound impl — a second ownership graph layered on the first.
+  Two lifecycles for one synth. (Stated as a structural observation, not
+  an appeal to precedent: if the correctness case above had favoured
+  Route 1, the synth-core model would have been the thing to revise.)
 
 - **CPU is not the discriminator.** Both routes carry the one unavoidable
   per-note cost the epic flagged: a per-note gain-smoothing vector
@@ -249,6 +277,21 @@ fallback/reference position — while per-voice `panner`s refine only the
 the cheap answer and the correct one, and it is only *available* under
 Route 2, where the synth keeps a single aggregate. (Under Route 1 every
 quantity is per-note whether you want it or not.)
+
+**Forward note — the honest ceiling of per-aggregate reverb.** For a
+swarm spread across a large space, all notes sharing the aggregate's
+reverb send is an audible fidelity limit: a note deep in one acoustic
+zone and a note in another get the same wet character. The
+vision-aligned successor (see
+[send_return_buses.md §12b](send_return_buses.md#forward-notes-spatial-reverb-and-modulated-sends)
+and [docs/project_vision.md](../project_vision.md)) is **per-voice send
+estimation into zone-bound return buses** — per-voice send gains derived
+from each voice's position, accumulated into the owning channel's send
+taps. The device-width bed does not preclude this (send estimation
+happens *before* the bed collapses voices); it is a named future design
+pass, not part of this epic. Route 1's pooled note-sounds remain the
+fallback if genuinely independent per-note sound citizenship is ever
+needed; nothing here forecloses it.
 
 ---
 
@@ -432,6 +475,10 @@ struct voiceContext {
   Int note;         // MIDI note number
   // controllers: read a live CC the synth already stores (§5 of synth_core.md)
   Flt controller(int number) const;
+  // shared handler params: read the group's param block, written by
+  // HANDLER_PARAM messages on the audio thread (§9). Same-thread read —
+  // no atomics needed in handler code.
+  Flt handlerParam(int index) const;
 };
 ```
 
@@ -504,6 +551,18 @@ thread contract.
 The `Pos` payload (three `Flt`) fits the existing tagged-union message
 ([synth_core.md §6][doc-synth]) with a new named struct per op — no
 positional aliasing, matching the synth-core message discipline.
+
+**Forward note — `HANDLER_PARAM` is an early instance of a broader
+direction.** Per the project vision
+([docs/project_vision.md](../project_vision.md)), engine parameters are
+expected to become *addressable* modulation targets, written at control
+rate by patcher objects, live-coded expressions, or physics — not only
+by direct API calls. `HANDLER_PARAM` (like the send-level messages of
+[send_return_buses.md §11](send_return_buses.md#public-api-surface-proposed))
+is designed for exactly that write pattern: bounded, allocation-free,
+safe every control tick. Implementations of [#170][gh-170] should treat
+"a patcher outlet steers the swarm centre" as an expected caller, not a
+special case.
 
 ---
 
@@ -718,23 +777,24 @@ public:
     phase_  = 0.f;                        // FULL reinit — slot may be reused (§11)
     radius_ = 1.f + 3.f * ctx.velocity;   // velocity → orbit radius
     speed_  = 2.f;                        // rad/s
-    return positionAt(phase_);
+    return positionAt(ctx, phase_);
   }
-  Pos update(const voiceContext&, Flt delta) override {
+  Pos update(const voiceContext& ctx, Flt delta) override {
     phase_ += speed_ * delta;             // advance orbit (frame-rate-independent)
-    return positionAt(phase_);
+    return positionAt(ctx, phase_);
   }
   void onRelease(const voiceContext&) override {
     speed_ *= 0.5f;                       // slow the orbit through the tail
   }
 private:
-  Pos positionAt(Flt p) const {
-    // shared centre read from param block index 0..2 (set via handlerParam)
-    Pos c = centre_.load();               // atomic shared param
+  Pos positionAt(const voiceContext& ctx, Flt p) const {
+    // shared centre from the group's param block (indices 0..2), written
+    // by HANDLER_PARAM on the audio thread (§9) — same-thread read, no
+    // atomics in handler code.
+    Pos c(ctx.handlerParam(0), ctx.handlerParam(1), ctx.handlerParam(2));
     return Pos(c.x + radius_ * cosf(p), c.y, c.z + radius_ * sinf(p));
   }
   Flt phase_ = 0.f, radius_ = 1.f, speed_ = 2.f;
-  // centre_ is a shared param updated by HANDLER_PARAM (§9)
 };
 
 // 2. Build the synth: 32 voices, one orbit handler cloned per slot.
