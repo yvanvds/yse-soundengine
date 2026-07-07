@@ -350,6 +350,22 @@ voice holding a layer with `off_by = N` — via the steal fade
 scan is field compares only. This is a small, bounded extension of the
 allocator's existing steal pass, not a new lifecycle.
 
+> **Implementation note (#174).** The round-robin counters and the choke
+> coordination live in a shared, audio-thread-only state block owned by the
+> `samplerVoice` prototype and carried across `clone()` by shared pointer
+> (`SYNTH::samplerInstrument`), rather than baked into the generic synth
+> allocator. Every voice of one instrument shares that block, so the per-key
+> `seqCounter[128]` and the per-group choke generations are visible across
+> voices, yet the allocator ([synth_core.md][doc-synth]) stays instrument-
+> agnostic. NOTE_ON reads/increments `seqCounter[note]` and fires its layers'
+> choke groups on the voice's own audio-thread `process()` edge; a sounding
+> voice whose `off_by` group's generation has advanced choking itself —
+> `off_mode=fast` via a ~5 ms voice-side declick fade (the steal-fade
+> equivalent), `off_mode=normal` via its own `ampeg_release`. The observable
+> behaviour — round-robin cycle order, choke pairs — matches this section; only
+> the home of the mutable state differs (voice-shared block vs allocator), which
+> keeps the change self-contained and the region table strictly immutable.
+
 ---
 
 ## Region selection

@@ -151,6 +151,7 @@ set(YSE_SRCS
   sound/soundManager.cpp
   synth/sineVoice.cpp
   synth/vaVoice.cpp
+  synth/samplerVoice.cpp
   synth/positionHandlers.cpp
   synth/synthImplementation.cpp
   synth/synthInterface.cpp

@@ -10,34 +10,65 @@
 
 #include "fileBuffer.hpp"
 #include "../internalHeaders.h"
+#include "../internal/customFileReader.h"
 #include "../io.hpp"
 
-/*namespace YSE {
-  namespace DSP {
+#include <algorithm>
+#include <sndfile.hh>
+#include <vector>
 
-    // exists in sampleFunctions.cpp
-    juce::AudioFormatReader * getReader(const char * fileName);
+// Resident full-preload of one channel of an audio file into this buffer
+// (issue #174). #173 deferred PCM decode to the sampler as the first consumer,
+// because this was a non-functional stub. It is now a real libsndfile-backed
+// load: the whole file is decoded into RAM on the calling (setup / slow-pool)
+// thread — never the audio thread — so the sampler voice's process() is a pure
+// in-RAM interpolated read (spec §9/§10). Honours the custom-IO backend
+// (BufferIO / IO()) exactly as INTERNAL::soundFile::loadNonStreaming does.
+bool YSE::DSP::fileBuffer::load(const char* fileName, UInt channel) {
+  if (fileName == nullptr) return false;
+
+  void* ioHandle = nullptr;
+  SndfileHandle handle;
+  if (IO().getActive()) {
+    long long size = 0;
+    if (!INTERNAL::customFileReader::Open(fileName, &size, &ioHandle)) return false;
+    handle = SndfileHandle(INTERNAL::customFileReader::GetVIO(), ioHandle);
+  } else {
+    handle = SndfileHandle(fileName);
   }
-}*/
 
-bool YSE::DSP::fileBuffer::load(const char* /*fileName*/, UInt /*channel*/) {
-  /*ScopedPointer<AudioFormatReader> reader = getReader(fileName);
-  if (reader == nullptr) return false;
-  if (channel >= reader->numChannels) return false;
+  if (!handle) {
+    if (ioHandle != nullptr) INTERNAL::customFileReader::Close(ioHandle);
+    return false;
+  }
 
-  juce::AudioSampleBuffer tBuf;
-  tBuf.setSize(reader->numChannels, (Int)reader->lengthInSamples);
-  reader->read(&tBuf, 0, (Int)reader->lengthInSamples, 0, true, true);
+  const int fileChannels = handle.channels();
+  const long frames = static_cast<long>(handle.frames());
+  if (static_cast<int>(channel) >= fileChannels || frames <= 0) {
+    if (ioHandle != nullptr) INTERNAL::customFileReader::Close(ioHandle);
+    return false;
+  }
 
-  setSampleRateAdjustment(static_cast<Flt>(reader->sampleRate) / static_cast<Flt>(SAMPLERATE));
+  setSampleRateAdjustment(static_cast<Flt>(handle.samplerate()) / static_cast<Flt>(SAMPLERATE));
+  resize(static_cast<UInt>(frames));
+  Flt* out = getPtr();
 
-  resize(tBuf.getNumSamples());
-  const float * in = tBuf.getReadPointer(channel);
-  Flt * out = getPtr();
-  for (int i = 0; i < tBuf.getNumSamples(); i++) {
-    *out++ = *in++;
-  }*/
+  // Read interleaved in bounded chunks and pull out the requested channel. A
+  // fixed scratch keeps peak memory low for many-channel files.
+  const long kChunkFrames = 8192;
+  std::vector<float> scratch(static_cast<size_t>(kChunkFrames) * fileChannels);
+  long done = 0;
+  while (done < frames) {
+    sf_count_t want = std::min<long>(kChunkFrames, frames - done);
+    sf_count_t got = handle.readf(scratch.data(), want);
+    if (got <= 0) break;
+    for (sf_count_t i = 0; i < got; ++i) {
+      out[done + i] = scratch[static_cast<size_t>(i) * fileChannels + channel];
+    }
+    done += got;
+  }
 
+  if (ioHandle != nullptr) INTERNAL::customFileReader::Close(ioHandle);
   copyOverflow();
   return true;
 }
