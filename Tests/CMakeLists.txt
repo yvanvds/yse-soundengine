@@ -34,6 +34,7 @@ set(YSE_TEST_SOURCES
   dsp/test_module_multichannel.cpp
   dsp/test_synth_voice.cpp
   dsp/test_sfz_parser.cpp
+  dsp/test_sampler_voice.cpp
   dsp/test_ladder_filter.cpp
   dsp/test_va_voice.cpp
   dsp/test_fm_voice.cpp

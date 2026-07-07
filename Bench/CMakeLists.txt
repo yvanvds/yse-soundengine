@@ -13,6 +13,7 @@ add_executable(yse_benchmarks
   dsp/bench_reverb.cpp
   dsp/bench_plate_reverb.cpp
   dsp/bench_va_voice.cpp
+  dsp/bench_sampler_voice.cpp
   internal/bench_mpmcqueue.cpp
   patcher/bench_patcher.cpp
   integration/bench_mixing.cpp
