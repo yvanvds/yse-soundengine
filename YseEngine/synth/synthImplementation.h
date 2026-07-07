@@ -39,6 +39,7 @@
 #include "../utils/lfQueue.hpp"
 #include "../utils/vector.hpp"
 #include "dspVoice.hpp"
+#include "positionHandler.hpp"
 #include "synth.hpp"
 #include "synthMessage.h"
 
@@ -83,6 +84,12 @@ namespace YSE {
       void addVoiceGroup(dspVoice* prototype, int numVoices, int channel, int lowestNote,
                          int highestNote);
 
+      /** Record the position-handler prototype to clone once per voice slot in
+          setup() (#170). nullptr clears it. Rejected (with a warning) after
+          setup, like addVoiceGroup — the audio thread reads the handlers
+          lock-free once built. Control thread; guarded by buildMutex. */
+      void setPositionHandler(positionHandler* prototype);
+
       /** Total allocated voices across every group. Thread-safe. */
       int getNumVoices() const;
 
@@ -96,6 +103,10 @@ namespace YSE {
       bool getSustain(int channel) const;
       bool getSostenuto(int channel) const;
       bool getSoftPedal(int channel) const;
+      // Current position of a voice sounding (channel, note), or the origin if
+      // none is. Best-effort audio-thread snapshot (like the getters above);
+      // intended for tests and future C-API/metering readback (#170/#171).
+      Pos getVoicePosition(int channel, int note) const;
 
       // ---- attachment -----------------------------------------------------
 
@@ -165,6 +176,10 @@ namespace YSE {
         bool keyDown = false; // physical key is down (NOTE_ON..NOTE_OFF)
         bool heldBySustain = false; // sustain pedal is deferring this release
         bool heldBySostenuto = false; // captured + deferred by the sostenuto pedal
+        // Position handler edge tracking (#170): set once onRelease() has fired
+        // for this note's release, cleared when the slot is (re-)armed. Keeps
+        // onRelease a single edge call however many times the slot is scanned.
+        bool releaseNotified = false;
         // engine-owned declick for click-free stealing
         bool stealing = false; // fading the OLD note out before re-arming
         int stealPos = 0; // samples elapsed into the steal fade
@@ -187,6 +202,10 @@ namespace YSE {
       struct voiceGroup {
         std::vector<std::unique_ptr<dspVoice>> voices;
         std::vector<voiceSlot> slots; // parallel to voices
+        // Per-slot position handler (#170). Either empty (no handler attached —
+        // every voice uses the aggregate position) or exactly one clone per
+        // voice slot, parallel to voices/slots. Built on the setup pool.
+        std::vector<std::unique_ptr<positionHandler>> handlers;
         int channel = 0; // 0 = omni
         int lowNote = 0;
         int highNote = 127;
@@ -242,6 +261,16 @@ namespace YSE {
       void handlePitchWheel(int channel, Flt value);
       void handleController(int channel, int number, Flt value);
       void handleAftertouch(int channel, int note, Flt value);
+      // per-note positioning ops (#170)
+      void handleHandlerParam(int index, Flt value);
+      void handleNotePosition(int channel, int note, const Pos& pos);
+      // Fill a voiceContext for the handler paired with slot i of `group`.
+      // Reads the voice's live note atomics and the channel/handler-param state.
+      voiceContext buildContext(voiceGroup& group, size_t i);
+      // The handler paired with slot i, or nullptr when no handler is attached.
+      static positionHandler* handlerFor(voiceGroup& group, size_t i) {
+        return group.handlers.empty() ? nullptr : group.handlers[i].get();
+      }
       void handleSustain(int channel, bool down);
       void handleSostenuto(int channel, bool down);
       void handleSoftPedal(int channel, bool down);
@@ -278,7 +307,17 @@ namespace YSE {
       // the container is immutable for the impl's lifetime.
       std::vector<voiceGroup> groups;
       std::vector<groupRequest> pendingGroups; // control -> setup pool
-      std::mutex buildMutex; // guards pendingGroups / groups build
+      // Position-handler prototype recorded by setPositionHandler(), cloned once
+      // per voice slot in setup() (#170). Raw, caller-owned (like a voice
+      // prototype); nullptr = no handler attached.
+      positionHandler* handlerPrototype = nullptr;
+      std::mutex buildMutex; // guards pendingGroups / groups / handlerPrototype
+
+      // Shared handler-param block (#170, §9). Written by HANDLER_PARAM on the
+      // audio thread, read by every live handler through voiceContext the same
+      // block. Audio thread only — no atomics needed (same-thread access).
+      static constexpr int kMaxHandlerParams = 16;
+      std::array<Flt, kMaxHandlerParams> handlerParams{};
 
       std::atomic<int> numVoicesTotal{0};
       uint64_t ageCounter = 0; // audio thread only

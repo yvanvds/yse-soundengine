@@ -114,6 +114,8 @@
 
 #include "synth/dspVoice.hpp"
 #include "synth/sineVoice.hpp"
+#include "synth/positionHandler.hpp"
+#include "synth/positionHandlers.hpp"
 #include "synth/synthInterface.hpp"
 
 #include "midi/midifile.hpp"

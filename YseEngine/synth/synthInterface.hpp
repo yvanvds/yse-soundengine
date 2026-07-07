@@ -17,6 +17,7 @@
 
 #include "../classes.hpp"
 #include "../headers/defines.hpp"
+#include "../utils/vector.hpp" // Pos (notePosition / getVoicePosition)
 #include "synth.hpp"
 
 namespace YSE {
@@ -119,6 +120,38 @@ namespace YSE {
       /** @brief Soft pedal (CC 67). While down, notes that START scale their
        *  velocity down; sounding voices are unaffected. */
       interfaceObject& softPedal(int channel, bool down);
+
+      // ---- per-note 3D positioning (§14, issue #170) -----------------------
+
+      /** @brief Clone ``prototype`` once per voice slot as this synth's position
+       *  handler, giving every note its own 3D position and movement.
+       *
+       *  With no handler attached, every voice uses the synth's aggregate
+       *  position — so this call is purely additive. Ship-in handlers are
+       *  ``SYNTH::staticHandler`` / ``SYNTH::randomSpreadHandler`` /
+       *  ``SYNTH::orbitHandler``, or derive your own from
+       *  ``SYNTH::positionHandler``.
+       *
+       *  @warning ``prototype`` must outlive setup — the engine reads it to
+       *           clone but neither copies nor owns it. Call before the synth is
+       *           attached and played (rejected after setup, like ``addVoices``). */
+      interfaceObject& positionHandler(YSE::SYNTH::positionHandler& prototype);
+
+      /** @brief Set a shared handler parameter by index (e.g. the swarm centre
+       *  at indices 0..2). All of the synth's live handlers read it next block.
+       *  A bounded, allocation-free message — safe to call every control tick. */
+      interfaceObject& handlerParam(int index, float value);
+
+      /** @brief Imperatively place the voice(s) sounding ``noteNumber`` on
+       *  ``channel`` at ``pos`` (app-driven trajectories). A bounded,
+       *  allocation-free message. When a handler is attached it re-steers the
+       *  voice next block, so this is primarily for the no-handler case. */
+      interfaceObject& notePosition(int channel, int noteNumber, const Pos& pos);
+
+      /** @brief Current position of a voice sounding (``channel``, ``noteNumber``),
+       *  or the origin if none is. Best-effort audio-thread snapshot for
+       *  tests / metering. */
+      Pos getVoicePosition(int channel, int noteNumber) const;
 
       /** @brief Install an audio-thread note-rewrite hook, or clear it with
        *  ``nullptr``.

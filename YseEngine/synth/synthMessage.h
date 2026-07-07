@@ -61,6 +61,17 @@ namespace YSE {
       Int channel;
       Bool down; // SUSTAIN / SOSTENUTO / SOFTPEDAL  (handled by #154)
     };
+    // Per-note positioning ops (#170). Pos is stored as three loose Flt (not a
+    // Pos member) so the union stays trivial — no positional aliasing.
+    struct HandlerParamData {
+      Int index;
+      Flt value;
+    };
+    struct NotePositionData {
+      Int channel;
+      Int note;
+      Flt x, y, z; // the target position, unpacked
+    };
 
     class messageObject {
     public:
@@ -75,6 +86,8 @@ namespace YSE {
         ControllerData cc; // CONTROLLER
         AftertouchData touch; // AFTERTOUCH
         PedalData pedal; // SUSTAIN / SOSTENUTO / SOFTPEDAL
+        HandlerParamData handlerParam; // HANDLER_PARAM
+        NotePositionData notePosition; // NOTE_POSITION
       };
     };
 

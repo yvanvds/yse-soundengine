@@ -26,6 +26,7 @@ namespace YSE {
     class messageObject;
     class managerObject;
     class dspVoice;
+    class positionHandler;
 
     /** The control events the interface can push onto an implementation's
         lock-free inbox. #153 wires up the note ops (NOTE_ON / NOTE_OFF /
@@ -43,6 +44,10 @@ namespace YSE {
       SUSTAIN,
       SOSTENUTO,
       SOFTPEDAL,
+      // Per-note positioning (#170). HANDLER_PARAM updates the synth's shared
+      // handler-param block; NOTE_POSITION imperatively places sounding notes.
+      HANDLER_PARAM,
+      NOTE_POSITION,
     };
   } // namespace SYNTH
 
