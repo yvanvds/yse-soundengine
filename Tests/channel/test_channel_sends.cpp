@@ -186,7 +186,8 @@ TEST_SUITE("channel") {
           doctest::Approx(step * static_cast<float>(YSE::STANDARD_BUFFERSIZE - 1)));
   }
 
-  TEST_CASE("channel sends: a level change ramps linearly across the block, never steps (no zipper)") {
+  TEST_CASE(
+      "channel sends: a level change ramps linearly across the block, never steps (no zipper)") {
     if (!TestHelpers::engineInit()) return;
     implementationObject src(nullptr), ret(nullptr);
     primeImpl(src);
@@ -262,14 +263,14 @@ TEST_SUITE("channel") {
     retPre.clearBuffers();
     retPost.clearBuffers();
     src.runSendTaps(true);
-    CHECK_FALSE(allEqual(retPre.GetBuffers(), 0.f));  // pre got signal (ramped)
-    CHECK(allEqual(retPost.GetBuffers(), 0.f));       // post untouched
+    CHECK_FALSE(allEqual(retPre.GetBuffers(), 0.f)); // pre got signal (ramped)
+    CHECK(allEqual(retPost.GetBuffers(), 0.f)); // post untouched
 
     // Post-fader phase: only the post slot taps.
     retPre.clearBuffers();
     retPost.clearBuffers();
     src.runSendTaps(false);
-    CHECK(allEqual(retPre.GetBuffers(), 0.f));        // pre untouched this phase
+    CHECK(allEqual(retPre.GetBuffers(), 0.f)); // pre untouched this phase
     CHECK_FALSE(allEqual(retPost.GetBuffers(), 0.f)); // post got signal
   }
 
@@ -521,7 +522,8 @@ namespace {
 
 TEST_SUITE("sendstress") {
 
-  TEST_CASE("sends stress: 8 senders into 2 reverb returns render race-free under live level moves") {
+  TEST_CASE(
+      "sends stress: 8 senders into 2 reverb returns render race-free under live level moves") {
     if (!ensureOffline()) return;
     LogSilencer silence;
 
@@ -638,7 +640,7 @@ TEST_SUITE("sendstress") {
     snd.play();
     pump();
 
-    src.send(0, delayRet, 0.8f);      // source -> delay return (gen 0)
+    src.send(0, delayRet, 0.8f); // source -> delay return (gen 0)
     delayRet.send(0, reverbRet, 0.8f); // delay -> reverb return (gen 1)
     CHECK(delayRet.getSendLevel(0) == doctest::Approx(0.8f));
 

@@ -249,8 +249,8 @@ YSE::channel& YSE::channel::send(int slot, channel& returnBus, float level, bool
   bool newGraphEdge = false;
   if (_isReturn) {
     if (!CHANNEL::Manager().tryAddReturnEdge(pimpl, returnBus.pimpl)) {
-      INTERNAL::LogImpl().emit(
-          E_ERROR, "channel send: rejected — would create a cycle in the return graph");
+      INTERNAL::LogImpl().emit(E_ERROR,
+                               "channel send: rejected — would create a cycle in the return graph");
       return *this;
     }
     newGraphEdge = true;

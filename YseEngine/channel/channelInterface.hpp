@@ -297,7 +297,8 @@ namespace YSE {
     int _sendSlots{0};
     struct SendMirror {
       channel* target{nullptr}; // interface identity of the target return
-      CHANNEL::implementationObject* targetImpl{nullptr}; // graph key (value only; never dereferenced)
+      CHANNEL::implementationObject* targetImpl{
+          nullptr}; // graph key (value only; never dereferenced)
       float level{0.f};
       bool preFader{false};
       bool graphEdge{false}; // this slot contributed a return→return graph edge
