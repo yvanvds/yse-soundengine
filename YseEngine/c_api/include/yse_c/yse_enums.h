@@ -119,6 +119,32 @@ typedef enum YseInletAccepts {
   YSE_IN_ACCEPTS_LIST = 1u << 4
 } YseInletAccepts;
 
+/* Selects which built-in per-note position handler
+   yse_synth_set_position_handler attaches. Mirrors the three shipped handler
+   classes in synth/positionHandlers.hpp (staticHandler / randomSpreadHandler /
+   orbitHandler). This is a C-API-owned dispatch selector: the engine has no
+   single enum of handler kinds (each is a distinct class), so its drift guard
+   is structural, not a value mirror — the exhaustive dispatch in yse_synth.cpp
+   plus the YSE_POSITION_HANDLER_COUNT sentinel and the is_base_of asserts in
+   yse_enums_check.cpp. Keep YSE_POSITION_HANDLER_COUNT last. */
+typedef enum YseSynthPositionHandler {
+  YSE_POSITION_HANDLER_STATIC = 0, /* staticHandler — one fixed position. */
+  YSE_POSITION_HANDLER_RANDOM_SPREAD = 1, /* randomSpreadHandler — seeded scatter. */
+  YSE_POSITION_HANDLER_ORBIT = 2, /* orbitHandler — the swarm handler. */
+  YSE_POSITION_HANDLER_COUNT = 3 /* sentinel — number of kinds; keep last. */
+} YseSynthPositionHandler;
+
+/* Shared handler-parameter indices the built-in handlers read for their
+   steerable centre; mirrors YSE::SYNTH::HandlerParamIndex in
+   synth/positionHandlers.hpp. Pass one to yse_synth_handler_param to move the
+   swarm / spread centre at runtime. Indices 0..2 are the centre X / Y / Z;
+   higher indices (up to the engine's block size) are free for custom use. */
+typedef enum YseSynthHandlerParam {
+  YSE_HANDLER_PARAM_CENTER_X = 0,
+  YSE_HANDLER_PARAM_CENTER_Y = 1,
+  YSE_HANDLER_PARAM_CENTER_Z = 2
+} YseSynthHandlerParam;
+
 /* Mirrors YSE::REVERB_PRESET in headers/enums.hpp. */
 typedef enum YseReverbPreset {
   YSE_REVERB_OFF = 0,

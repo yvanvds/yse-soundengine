@@ -19,6 +19,17 @@
   (see yse_dsp.h and docs/design/synth_core.md §1 non-goals). Instrument
   voices (#148) will add more yse_synth_add_voices_* variants later.
 
+  Per-note 3D positioning (issue #171, §14 of
+  docs/design/per_note_positioning.md) is exposed by the same policy: only the
+  BUILT-IN position handlers (static / random-spread / orbit) are selectable,
+  via yse_synth_set_position_handler with the YseSynthPositionHandler enum.
+  Defining a CUSTOM position handler (subclassing YSE::SYNTH::positionHandler
+  from C) is DEFERRED for the same reason a custom dspVoice is — its noteOn /
+  update / onRelease hooks run on the AUDIO THREAD, which needs the callback
+  plumbing that keeps dspSourceObject unwrapped (see yse_dsp.h). Per-note
+  position readback here is a single best-effort snapshot
+  (yse_synth_get_voice_position), not a continuous readback stream.
+
   Convention: every void-returning function in this header is a null-safe
   no-op when called with a NULL handle. Status queries return 0 / false on
   NULL. Operations that can fail (add-voices, attach) return YseStatus and
@@ -32,6 +43,7 @@
 #define YSE_C_SYNTH_H_INCLUDED
 
 #include "yse_common.h"
+#include "yse_enums.h" /* YseSynthPositionHandler, YseSynthHandlerParam */
 
 #ifdef __cplusplus
 extern "C" {
@@ -135,6 +147,75 @@ YSE_C_API void yse_synth_set_note_callback(YseSynth* h, YseSynthNoteCallback cb)
    yse_last_error() is set. */
 YSE_C_API YseStatus yse_synth_attach_to_sound(YseSynth* h, YseSound* sound, YseChannel* channel,
                                               float volume);
+
+/* ─── per-note 3D positioning (issue #171) ────────────────────────────────
+
+   Configuration for yse_synth_set_position_handler. One flat, ffigen-friendly
+   struct covering every built-in handler; only the fields belonging to the
+   selected kind are read. Pass NULL to take the engine's defaults for that
+   kind. Mirrors the chainable setters on YSE::SYNTH::staticHandler /
+   randomSpreadHandler / orbitHandler. All positions are in the same coordinate
+   frame as a sound position. */
+typedef struct YseSynthPositionParams {
+  /* YSE_POSITION_HANDLER_STATIC — the single fixed position. */
+  float static_x;
+  float static_y;
+  float static_z;
+
+  /* YSE_POSITION_HANDLER_RANDOM_SPREAD */
+  float spread_radius; /* radius of the scatter sphere around the centre */
+  unsigned int spread_seed; /* base RNG seed (a given seed reproduces the scatter) */
+
+  /* YSE_POSITION_HANDLER_ORBIT */
+  float orbit_radius; /* base orbit radius */
+  float orbit_velocity_radius; /* extra radius added at full velocity */
+  float orbit_aftertouch_widen; /* fraction of extra radius at full aftertouch */
+  float orbit_rate; /* orbit angular speed, radians per second */
+  float orbit_height; /* vertical offset of the orbit plane */
+  float orbit_release_slow; /* rate multiplier once the note is released */
+} YseSynthPositionParams;
+
+/* Attach one of the built-in per-note position handlers, giving every voice its
+   own 3D position and movement (mirrors YSE::synth::positionHandler with a
+   shipped handler prototype). `kind` selects the handler; `params` configures
+   it (NULL = engine defaults for that kind). The handle keeps the prototype
+   alive; the engine clones it once per voice slot on the setup pool.
+
+   Must be called BEFORE the synth is attached/played — like add-voices, the
+   engine rejects a handler swap after the voice pool is built (it logs a
+   warning and keeps the existing handler; the call still returns YSE_OK).
+   Returns YSE_ERR_INVALID_ARGUMENT for an unknown `kind`; yse_last_error() is
+   set on failure.
+
+   Custom C-side handlers (subclassing YSE::SYNTH::positionHandler from C) are
+   DEFERRED — the hooks run on the AUDIO THREAD, the same callback-plumbing gap
+   that keeps custom dspVoice / dspSourceObject unwrapped (see yse_dsp.h and the
+   scope note at the top of this header). Only the built-ins are reachable. */
+YSE_C_API YseStatus yse_synth_set_position_handler(YseSynth* h, YseSynthPositionHandler kind,
+                                                   const YseSynthPositionParams* params);
+
+/* Update a shared handler parameter at runtime (message-based, RT-safe). All of
+   the synth's live handlers read the block next audio block, so this steers the
+   swarm / spread centre from the control thread. `index` is a
+   YseSynthHandlerParam (0..2 = centre X / Y / Z); out-of-range indices are
+   ignored engine-side. A bounded, allocation-free message — safe to call every
+   control tick. */
+YSE_C_API void yse_synth_handler_param(YseSynth* h, int index, float value);
+
+/* Imperatively place the voice(s) sounding `note_number` on `channel` at
+   (x, y, z) — app-driven trajectories (mirrors YSE::synth::notePosition). A
+   bounded, allocation-free message. When a handler is attached it re-steers the
+   voice next block, so this is primarily for the no-handler case. */
+YSE_C_API void yse_synth_note_position(YseSynth* h, int channel, int note_number, float x, float y,
+                                       float z);
+
+/* Best-effort snapshot of the current position of a voice sounding
+   (channel, note_number); writes the origin (0, 0, 0) if none is sounding
+   (mirrors YSE::synth::getVoicePosition, intended for tests / metering). Any of
+   the out pointers may be NULL. This is a single snapshot, not a per-note
+   readback stream. On a NULL synth handle it writes the origin. */
+YSE_C_API void yse_synth_get_voice_position(YseSynth* h, int channel, int note_number, float* x,
+                                            float* y, float* z);
 
 #ifdef __cplusplus
 }

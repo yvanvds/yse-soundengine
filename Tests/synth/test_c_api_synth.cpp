@@ -13,6 +13,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <thread>
 
 #include "yse_c/yse_synth.h"
@@ -262,6 +263,253 @@ TEST_SUITE("synthcapi") {
     yse_sound_destroy(snd);
     yse_synth_destroy(syn);
     drainFor(sys, 300ms); // let the delete jobs free the impls before close
+    yse_system_close(sys);
+  }
+
+  // ─── per-note positioning: NULL-handle safety (no engine required) ─────────
+
+  TEST_CASE("c-api synth: position-handler NULL handles are null-safe") {
+    YseSynthPositionParams params{};
+    // Fallible entry point rejects a NULL handle explicitly.
+    CHECK(yse_synth_set_position_handler(nullptr, YSE_POSITION_HANDLER_RANDOM_SPREAD, &params) ==
+          YSE_ERR_INVALID_HANDLE);
+    // Void entry points must no-op, not crash, on a NULL handle.
+    yse_synth_handler_param(nullptr, YSE_HANDLER_PARAM_CENTER_X, 1.0f);
+    yse_synth_note_position(nullptr, 1, 60, 1.0f, 2.0f, 3.0f);
+    // get_voice_position writes the origin on a NULL handle and tolerates NULL outs.
+    float x = 9.f, y = 9.f, z = 9.f;
+    yse_synth_get_voice_position(nullptr, 1, 60, &x, &y, &z);
+    CHECK(x == 0.f);
+    CHECK(y == 0.f);
+    CHECK(z == 0.f);
+    yse_synth_get_voice_position(nullptr, 1, 60, nullptr, nullptr, nullptr);
+  }
+
+  // ─── randomSpread: distinct per-note positions + steerable centre ──────────
+  //
+  // The issue's acceptance case, driven entirely through the flat C ABI: create
+  // a synth, select the random-spread handler, play notes, and observe distinct
+  // per-note positions via engine introspection (yse_synth_get_voice_position).
+  // Then steer the shared centre with yse_synth_handler_param and confirm the
+  // whole scatter tracks it.
+
+  TEST_CASE("c-api synth: randomSpread gives distinct per-note positions") {
+    YseSystem* sys = yse_system_get();
+    REQUIRE(sys != nullptr);
+    yse_system_close(sys);
+    if (yse_system_init_offline(sys) != YSE_OK) return;
+
+    YseSynth* syn = yse_synth_create();
+    REQUIRE(syn != nullptr);
+    REQUIRE(yse_synth_add_voices_sine(syn, 8, 0, 0, 127, 0.005f, 0.05f, 0.8f, 0.05f) == YSE_OK);
+
+    // Select the random-spread handler with a generous radius and a fixed seed,
+    // BEFORE attach (the engine rejects a handler swap after the pool is built).
+    YseSynthPositionParams params{};
+    params.spread_radius = 5.0f;
+    params.spread_seed = 1234u;
+    REQUIRE(yse_synth_set_position_handler(syn, YSE_POSITION_HANDLER_RANDOM_SPREAD, &params) ==
+            YSE_OK);
+
+    YseSound* snd = yse_sound_create();
+    REQUIRE(snd != nullptr);
+    REQUIRE(yse_synth_attach_to_sound(syn, snd, nullptr, 0.8f) == YSE_OK);
+    yse_sound_play(snd);
+    REQUIRE(drainUntilVoices(sys, syn, 8));
+
+    // Sound six distinct notes; each lands on its own slot with its own draw.
+    const int base = 60;
+    const int n = 6;
+    for (int i = 0; i < n; ++i)
+      yse_synth_note_on(syn, 1, base + i, 0.7f);
+    render(sys, 3);
+
+    // Collect each note's position and require distinct scatter: at least one
+    // pair differs (radius 5 across separate RNG streams -> effectively all do).
+    float px[n], py[n], pz[n];
+    for (int i = 0; i < n; ++i)
+      yse_synth_get_voice_position(syn, 1, base + i, &px[i], &py[i], &pz[i]);
+    int distinctPairs = 0;
+    for (int i = 0; i < n; ++i) {
+      // Draw sits inside the radius sphere around the origin centre.
+      CHECK(std::sqrt(px[i] * px[i] + py[i] * py[i] + pz[i] * pz[i]) <= 5.0f * 1.7321f + 1e-3f);
+      for (int j = i + 1; j < n; ++j) {
+        if (px[i] != px[j] || py[i] != py[j] || pz[i] != pz[j]) ++distinctPairs;
+      }
+    }
+    CHECK(distinctPairs > 0);
+
+    // Steer the shared centre far along +X; the held scatter tracks it next block.
+    float bx = px[0];
+    yse_synth_handler_param(syn, YSE_HANDLER_PARAM_CENTER_X, 100.0f);
+    render(sys, 3);
+    float ax = 0.f, ay = 0.f, az = 0.f;
+    yse_synth_get_voice_position(syn, 1, base, &ax, &ay, &az);
+    CHECK(ax > bx + 90.0f); // moved by ~the centre shift, radius aside
+
+    yse_synth_all_notes_off(syn, 0);
+    render(sys, 6);
+
+    yse_sound_destroy(snd);
+    yse_synth_destroy(syn);
+    drainFor(sys, 300ms);
+    yse_system_close(sys);
+  }
+
+  // ─── orbit: swarm notes trace distinct, moving orbits ──────────────────────
+
+  TEST_CASE("c-api synth: orbit handler moves voices over time") {
+    YseSystem* sys = yse_system_get();
+    REQUIRE(sys != nullptr);
+    yse_system_close(sys);
+    if (yse_system_init_offline(sys) != YSE_OK) return;
+
+    YseSynth* syn = yse_synth_create();
+    REQUIRE(syn != nullptr);
+    REQUIRE(yse_synth_add_voices_sine(syn, 8, 0, 0, 127, 0.005f, 0.05f, 0.8f, 0.1f) == YSE_OK);
+
+    // Fixed-radius orbit so phase alone separates notes; a brisk rate so a few
+    // blocks visibly advance each orbit.
+    YseSynthPositionParams params{};
+    params.orbit_radius = 2.0f;
+    params.orbit_velocity_radius = 0.0f;
+    params.orbit_aftertouch_widen = 0.0f;
+    params.orbit_rate = 4.0f;
+    params.orbit_height = 0.0f;
+    params.orbit_release_slow = 0.5f;
+    REQUIRE(yse_synth_set_position_handler(syn, YSE_POSITION_HANDLER_ORBIT, &params) == YSE_OK);
+
+    YseSound* snd = yse_sound_create();
+    REQUIRE(snd != nullptr);
+    REQUIRE(yse_synth_attach_to_sound(syn, snd, nullptr, 0.8f) == YSE_OK);
+    yse_sound_play(snd);
+    REQUIRE(drainUntilVoices(sys, syn, 8));
+
+    const int base = 48;
+    const int n = 6;
+    for (int i = 0; i < n; ++i)
+      yse_synth_note_on(syn, 1, base + i, 0.8f);
+    render(sys, 2);
+
+    // Distinct per note, and each sits on the fixed-radius ring.
+    float fx[n], fy[n], fz[n];
+    for (int i = 0; i < n; ++i) {
+      yse_synth_get_voice_position(syn, 1, base + i, &fx[i], &fy[i], &fz[i]);
+      CHECK(std::sqrt(fx[i] * fx[i] + fz[i] * fz[i]) == doctest::Approx(2.0).epsilon(0.05));
+    }
+    int distinctPairs = 0;
+    for (int i = 0; i < n; ++i)
+      for (int j = i + 1; j < n; ++j)
+        if (fx[i] != fx[j] || fz[i] != fz[j]) ++distinctPairs;
+    CHECK(distinctPairs > 0);
+
+    // Advance several blocks: every note's orbit has moved.
+    render(sys, 30);
+    int moved = 0;
+    for (int i = 0; i < n; ++i) {
+      float cx = 0.f, cy = 0.f, cz = 0.f;
+      yse_synth_get_voice_position(syn, 1, base + i, &cx, &cy, &cz);
+      if (cx != fx[i] || cz != fz[i]) ++moved;
+    }
+    CHECK(moved == n);
+
+    yse_synth_all_notes_off(syn, 0);
+    render(sys, 6);
+
+    yse_sound_destroy(snd);
+    yse_synth_destroy(syn);
+    drainFor(sys, 300ms);
+    yse_system_close(sys);
+  }
+
+  // ─── static handler holds a fixed position; unknown kind is rejected ───────
+
+  TEST_CASE("c-api synth: static handler fixes every voice's position") {
+    YseSystem* sys = yse_system_get();
+    REQUIRE(sys != nullptr);
+    yse_system_close(sys);
+    if (yse_system_init_offline(sys) != YSE_OK) return;
+
+    YseSynth* syn = yse_synth_create();
+    REQUIRE(syn != nullptr);
+    REQUIRE(yse_synth_add_voices_sine(syn, 4, 0, 0, 127, 0.005f, 0.05f, 0.8f, 0.05f) == YSE_OK);
+
+    // Unknown kind is rejected before any prototype is built.
+    CHECK(yse_synth_set_position_handler(syn, (YseSynthPositionHandler)999, nullptr) ==
+          YSE_ERR_INVALID_ARGUMENT);
+
+    YseSynthPositionParams params{};
+    params.static_x = 7.0f;
+    params.static_y = -1.0f;
+    params.static_z = -3.0f;
+    REQUIRE(yse_synth_set_position_handler(syn, YSE_POSITION_HANDLER_STATIC, &params) == YSE_OK);
+
+    YseSound* snd = yse_sound_create();
+    REQUIRE(snd != nullptr);
+    REQUIRE(yse_synth_attach_to_sound(syn, snd, nullptr, 0.8f) == YSE_OK);
+    yse_sound_play(snd);
+    REQUIRE(drainUntilVoices(sys, syn, 4));
+
+    yse_synth_note_on(syn, 1, 60, 0.9f);
+    render(sys, 3);
+    float x = 0.f, y = 0.f, z = 0.f;
+    yse_synth_get_voice_position(syn, 1, 60, &x, &y, &z);
+    CHECK(x == doctest::Approx(7.0f));
+    CHECK(y == doctest::Approx(-1.0f));
+    CHECK(z == doctest::Approx(-3.0f));
+
+    yse_synth_all_notes_off(syn, 0);
+    render(sys, 6);
+
+    yse_sound_destroy(snd);
+    yse_synth_destroy(syn);
+    drainFor(sys, 300ms);
+    yse_system_close(sys);
+  }
+
+  // ─── no handler: default origin, then app-driven notePosition placement ────
+  //
+  // With no handler attached, notePosition is the imperative placement path (a
+  // handler would re-steer the voice each block; see the header docs).
+
+  TEST_CASE("c-api synth: notePosition places voices with no handler") {
+    YseSystem* sys = yse_system_get();
+    REQUIRE(sys != nullptr);
+    yse_system_close(sys);
+    if (yse_system_init_offline(sys) != YSE_OK) return;
+
+    YseSynth* syn = yse_synth_create();
+    REQUIRE(syn != nullptr);
+    REQUIRE(yse_synth_add_voices_sine(syn, 4, 0, 0, 127, 0.005f, 0.05f, 0.8f, 0.05f) == YSE_OK);
+    // No set_position_handler call — voices default to the aggregate origin.
+
+    YseSound* snd = yse_sound_create();
+    REQUIRE(snd != nullptr);
+    REQUIRE(yse_synth_attach_to_sound(syn, snd, nullptr, 0.8f) == YSE_OK);
+    yse_sound_play(snd);
+    REQUIRE(drainUntilVoices(sys, syn, 4));
+
+    yse_synth_note_on(syn, 1, 60, 0.9f);
+    render(sys, 3);
+    float x = 9.f, y = 9.f, z = 9.f;
+    yse_synth_get_voice_position(syn, 1, 60, &x, &y, &z);
+    CHECK(x == doctest::Approx(0.0f));
+    CHECK(y == doctest::Approx(0.0f));
+    CHECK(z == doctest::Approx(0.0f));
+
+    // notePosition places the voice imperatively (bounded RT-safe message).
+    yse_synth_note_position(syn, 1, 60, -4.0f, 0.0f, 2.0f);
+    render(sys, 3);
+    yse_synth_get_voice_position(syn, 1, 60, &x, &y, &z);
+    CHECK(x == doctest::Approx(-4.0f));
+    CHECK(z == doctest::Approx(2.0f));
+
+    yse_synth_all_notes_off(syn, 0);
+    render(sys, 6);
+
+    yse_sound_destroy(snd);
+    yse_synth_destroy(syn);
+    drainFor(sys, 300ms);
     yse_system_close(sys);
   }
 

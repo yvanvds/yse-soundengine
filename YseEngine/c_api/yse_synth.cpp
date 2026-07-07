@@ -4,8 +4,11 @@
 #include "../synth/synthInterface.hpp"
 #include "../synth/sineVoice.hpp"
 #include "../synth/dspVoice.hpp"
+#include "../synth/positionHandler.hpp"
+#include "../synth/positionHandlers.hpp"
 #include "../sound/soundInterface.hpp"
 #include "../channel/channelInterface.hpp"
+#include "../utils/vector.hpp"
 
 #include <exception>
 #include <memory>
@@ -24,6 +27,12 @@ namespace {
   struct YseSynthImpl {
     YSE::synth synth;
     std::vector<std::unique_ptr<YSE::SYNTH::dspVoice>> prototypes;
+    // The position-handler prototype (issue #171). Like a voice prototype, the
+    // engine records a raw pointer at set-position-handler time and clones from
+    // it LATER on the setup pool; it never copies or owns it. So the handle owns
+    // the single attached prototype and frees it on destroy. Allocated on the
+    // control thread only.
+    std::unique_ptr<YSE::SYNTH::positionHandler> positionHandler;
   };
 
   inline YseSynthImpl* to_impl(YseSynth* h) {
@@ -177,6 +186,84 @@ YSE_C_API YseStatus yse_synth_attach_to_sound(YseSynth* h, YseSound* sound, YseC
     yse_c::set_last_error("yse_synth_attach_to_sound: unknown C++ exception");
     return YSE_ERR_EXCEPTION;
   }
+}
+
+// ─── per-note 3D positioning (issue #171) ──────────────────────────────
+
+YSE_C_API YseStatus yse_synth_set_position_handler(YseSynth* h, YseSynthPositionHandler kind,
+                                                   const YseSynthPositionParams* params) {
+  if (!h) return YSE_ERR_INVALID_HANDLE;
+  // Drift tripwire: if a built-in handler kind is added to yse_enums.h, this
+  // dispatch (and the count) must grow to match. See yse_enums_check.cpp.
+  static_assert(YSE_POSITION_HANDLER_COUNT == 3,
+                "add a case below when a built-in position-handler kind is added");
+  try {
+    auto* impl = to_impl(h);
+    std::unique_ptr<YSE::SYNTH::positionHandler> proto;
+    switch (kind) {
+    case YSE_POSITION_HANDLER_STATIC: {
+      auto p = std::make_unique<YSE::SYNTH::staticHandler>();
+      if (params) p->position(YSE::Pos(params->static_x, params->static_y, params->static_z));
+      proto = std::move(p);
+      break;
+    }
+    case YSE_POSITION_HANDLER_RANDOM_SPREAD: {
+      auto p = std::make_unique<YSE::SYNTH::randomSpreadHandler>();
+      if (params) p->radius(params->spread_radius).seed(params->spread_seed);
+      proto = std::move(p);
+      break;
+    }
+    case YSE_POSITION_HANDLER_ORBIT: {
+      auto p = std::make_unique<YSE::SYNTH::orbitHandler>();
+      if (params)
+        p->radius(params->orbit_radius)
+            .velocityRadius(params->orbit_velocity_radius)
+            .aftertouchWiden(params->orbit_aftertouch_widen)
+            .rate(params->orbit_rate)
+            .height(params->orbit_height)
+            .releaseSlow(params->orbit_release_slow);
+      proto = std::move(p);
+      break;
+    }
+    case YSE_POSITION_HANDLER_COUNT:
+    default:
+      yse_c::set_last_error("yse_synth_set_position_handler: unknown handler kind");
+      return YSE_ERR_INVALID_ARGUMENT;
+    }
+    // Keep the prototype alive past the setup pool's clone() (the engine records
+    // a raw pointer and clones LATER). The handle owns it; swapping in a new
+    // prototype frees any earlier one — safe before setup (the engine has not
+    // read it yet) and harmless after (the engine's per-slot clones are already
+    // independent and the swap is engine-rejected). The pointed-to object never
+    // moves (only the unique_ptr does), so the recorded pointer stays valid.
+    YSE::SYNTH::positionHandler* raw = proto.get();
+    impl->positionHandler = std::move(proto);
+    impl->synth.positionHandler(*raw);
+    return YSE_OK;
+  } catch (const std::exception& e) {
+    yse_c::set_last_error(e.what());
+    return YSE_ERR_EXCEPTION;
+  } catch (...) {
+    yse_c::set_last_error("yse_synth_set_position_handler: unknown C++ exception");
+    return YSE_ERR_EXCEPTION;
+  }
+}
+
+YSE_C_API void yse_synth_handler_param(YseSynth* h, int index, float value) {
+  if (h) to_impl(h)->synth.handlerParam(index, value);
+}
+
+YSE_C_API void yse_synth_note_position(YseSynth* h, int channel, int note_number, float x, float y,
+                                       float z) {
+  if (h) to_impl(h)->synth.notePosition(channel, note_number, YSE::Pos(x, y, z));
+}
+
+YSE_C_API void yse_synth_get_voice_position(YseSynth* h, int channel, int note_number, float* x,
+                                            float* y, float* z) {
+  YSE::Pos p = h ? to_impl(h)->synth.getVoicePosition(channel, note_number) : YSE::Pos(0.f);
+  if (x) *x = p.x;
+  if (y) *y = p.y;
+  if (z) *z = p.z;
 }
 
 } // extern "C"
