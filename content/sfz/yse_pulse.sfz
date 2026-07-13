@@ -1,0 +1,6 @@
+// yse_pulse.sfz — original CC0 instrument (issue #179).
+// Uses only the SFZ v1 opcode subset from docs/design/sfz_opcode_subset.md.
+<region>
+sample=samples/yse_pulse_c4.wav
+lokey=0 hikey=127 pitch_keycenter=60
+ampeg_attack=0.001 ampeg_release=0.2
