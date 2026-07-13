@@ -74,6 +74,15 @@ DSP and patcher
 .. doxygenfile:: c_api/include/yse_c/yse_patcher.h
    :project: libYSE
 
+Synth and instruments
+---------------------
+
+.. doxygenfile:: c_api/include/yse_c/yse_synth.h
+   :project: libYSE
+
+.. doxygenfile:: c_api/include/yse_c/yse_instrument.h
+   :project: libYSE
+
 MIDI and music
 --------------
 

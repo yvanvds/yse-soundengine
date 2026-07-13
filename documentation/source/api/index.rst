@@ -29,10 +29,17 @@ The pages below are generated from the source code by Doxygen + Breathe.
 
 .. toctree::
    :maxdepth: 1
+   :caption: Synthesis
+
+   synth
+
+.. toctree::
+   :maxdepth: 1
    :caption: DSP
 
    dsp
    dsp_modules
+   effects
 
 .. toctree::
    :maxdepth: 1
