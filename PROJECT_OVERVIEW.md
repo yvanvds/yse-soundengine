@@ -26,7 +26,7 @@ Tests/                           # doctest suite (~863 TEST_CASEs across 46 TUs)
   TEST_PLAN.md                   # Phased roadmap (utils → DSP → patcher → … → device)
 Bench/                           # google-benchmark suite — gated by YSE_BUILD_BENCHMARKS
   dsp/ patcher/ integration/     # bench_* TUs; results pushed to the `bench-history` orphan branch by CI
-Demo.Windows.Native/             # 18 C++ console demos (Demo00–Demo17 + Test01_Pitch + combined Demo)
+Demo.Windows.Native/             # 22 C++ console demos (Demo00–Demo21 + Test01_Pitch + combined Demo)
 Yse.Windows.Native/              # Legacy Windows static/shared lib build (Visual Studio project)
 documentation/                   # Doxygen + Sphinx + Breathe (sphinx-book-theme); published to GitHub Pages
   source/intro/                  # Install + hello-sound + mental-model
@@ -449,19 +449,21 @@ sound.play()
 ## Demo Applications
 
 **Location:** [Demo.Windows.Native/](Demo.Windows.Native/) — Windows-only (uses Windows console APIs and relies on RtMidi for MIDI demos).
-18 demos (Demo00–Demo17) plus `Test01_Pitch` and a combined `Demo` executable that wires every page through `MenuTop.cpp`.
+22 demos (Demo00–Demo21) plus `Test01_Pitch` and a combined `Demo` executable that wires every page through `MenuTop.cpp`. Demo18–Demo21 are the synth & effects end-to-end showcases (issue #180); they read bundled assets from the optional content pack (issue #179) and degrade with a clear message when it is absent.
 
 | Demo | Topic | Demo | Topic |
 |------|-------|------|-------|
-| Demo00 | Basic playback (`drone.ogg`) | Demo09 | Streaming |
-| Demo01 | Sound properties | Demo10 | File position |
-| Demo02 | 3D positioning | Demo11 | Virtual I/O |
-| Demo03 | Virtual sounds | Demo12 | AudioTest |
-| Demo04 | Channel mixer | Demo13 | Patcher synthesis |
-| Demo05 | Reverb zones | Demo14 | Load patcher from JSON |
-| Demo06 | Device enumeration | Demo15 | Audio device restart |
-| Demo07 | DSP source | Demo16 | MIDI device output |
-| Demo08 | Occlusion | Demo17 | MIDI patcher |
+| Demo00 | Basic playback (`drone.ogg`) | Demo11 | Virtual I/O |
+| Demo01 | Sound properties | Demo12 | AudioTest |
+| Demo02 | 3D positioning | Demo13 | Patcher synthesis |
+| Demo03 | Virtual sounds | Demo14 | Load patcher from JSON |
+| Demo04 | Channel mixer | Demo15 | Audio device restart |
+| Demo05 | Reverb zones | Demo16 | MIDI device output |
+| Demo06 | Device enumeration | Demo17 | MIDI patcher |
+| Demo07 | DSP source | Demo18 | FM + MIDI keyboard (DX7 bank) |
+| Demo08 | Occlusion | Demo19 | SFZ piano (sustain pedal) |
+| Demo09 | Streaming | Demo20 | Swarm (orbiting notes) |
+| Demo10 | File position | Demo21 | Mixer (insert chain + send/return reverb) |
 | Test01_Pitch | Pitch test | | |
 
 Each standalone executable is generated from a per-target `main_<Demo>.cpp` produced by `configure_file()` against `cmake/demo_main.cpp.in`. Shared menu/page infrastructure lives in the `yse_demo_common` static library.

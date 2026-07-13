@@ -5,6 +5,7 @@
 #include "MenuBasics.h"
 #include "MenuOther.h"
 #include "MenuDsp.h"
+#include "MenuSynth.h"
 
 TopMenu::TopMenu()
 {
@@ -15,6 +16,7 @@ TopMenu::TopMenu()
 	AddAction('3', "Composition Examples", std::bind(&TopMenu::ComposerExamples, this));
 	AddAction('4', "File Manipulation Examples", std::bind(&TopMenu::FileExamples, this));
 	AddAction('5', "Other Examples", std::bind(&TopMenu::OtherExamples, this));
+	AddAction('6', "Synth & Effects Examples", std::bind(&TopMenu::SynthExamples, this));
 }
 
 void TopMenu::BasicAudioExamples()
@@ -42,6 +44,13 @@ void TopMenu::FileExamples()
 void TopMenu::OtherExamples()
 {
   OtherMenu menu;
+  menu.Run();
+  ShowMenu();
+}
+
+void TopMenu::SynthExamples()
+{
+  MenuSynth menu;
   menu.Run();
   ShowMenu();
 }

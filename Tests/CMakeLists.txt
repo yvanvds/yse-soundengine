@@ -107,6 +107,7 @@ set(YSE_TEST_SOURCES
   system/test_lifecycle.cpp
   integration/test_device.cpp
   integration/test_content_pack.cpp
+  integration/test_synth_demos.cpp
   python/test_c_api_python.cpp
 )
 
@@ -214,7 +215,7 @@ add_test(
   # `channelcapi` (issue #166 C-API channel-DSP/send surface) is excluded for
   # the same reason — it drives yse_system_init_offline() and runs in its own
   # process (yse_tests_channelcapi).
-  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthhandlers,synthcapi,instrumentcapi,midisynth,playersynth,playercapi,sendstress,channelcapi "--test-case-exclude=* concurrency: *" --duration=true
+  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthhandlers,synthcapi,instrumentcapi,midisynth,playersynth,playercapi,sendstress,channelcapi,synthdemos "--test-case-exclude=* concurrency: *" --duration=true
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_unit_tests PROPERTIES TIMEOUT 600)
@@ -370,6 +371,18 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_midisynth PROPERTIES LABELS "midi;synth;lifecycle")
+
+# Synth & effects demo scenes (issue #180). Isolated in its own process for the
+# same reason as yse_tests_midisynth: it drives System::initOffline()/close() and
+# builds the synth + channel managers, whose static teardown must not leak into
+# other suites (issue #298). Loads the bundled content pack (skips gracefully if
+# absent) and uses initOffline(), so it runs in CI.
+add_test(
+  NAME    yse_tests_synthdemos
+  COMMAND yse_tests --test-suite=synthdemos
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_synthdemos PROPERTIES LABELS "synth;infra;lifecycle")
 
 add_test(
   NAME    yse_tests_music
