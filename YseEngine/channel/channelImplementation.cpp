@@ -12,6 +12,19 @@
 
 YSE::CHANNEL::implementationObject::implementationObject(channel* head)
   : head(head),
+    // Initialise objectStatus in the ctor, not left to the first setStatus():
+    // addImplementation() emplaces this impl into the mutex-guarded
+    // `implementations` list BEFORE create() calls Manager().setup() (which sets
+    // OBJECT_CREATED). In C++17 std::atomic's default ctor leaves the value
+    // indeterminate, so during that window the slow-pool deleteJob —
+    // `implementations.remove_if(canBeDeleted)`, canBeDeleted == (status ==
+    // OBJECT_DELETE) — could read the garbage bytes as OBJECT_DELETE and free
+    // the node the worker thread is still constructing (heap-layout-dependent
+    // UAF / hang, issue #336). emplace_front runs under implementationsMutex and
+    // the setup/delete jobs read under the same mutex, so this OBJECT_CONSTRUCTED
+    // write is published before either job can observe the impl. SOUND and REVERB
+    // already initialise objectStatus this way; CHANNEL was the outlier.
+    objectStatus(OBJECT_CONSTRUCTED),
     newVolume(1.f),
     lastVolume(1.f),
     parent(nullptr),
