@@ -106,6 +106,7 @@ set(YSE_TEST_SOURCES
   system/test_system_active_state.cpp
   system/test_lifecycle.cpp
   integration/test_device.cpp
+  integration/test_content_pack.cpp
   python/test_c_api_python.cpp
 )
 
@@ -484,6 +485,13 @@ else()
   )
 endif()
 
+# Content-pack smoke test (issue #179): point the test at the pack root. The
+# test skips gracefully when the directory or an individual asset is absent, so
+# on Android (where this host path does not exist on-device) it is a no-op.
+target_compile_definitions(yse_tests PRIVATE
+  "YSE_CONTENT_PACK_DIR=\"${YSE_CONTENT_PACK_DIR}\""
+)
+
 if(NOT ANDROID)
   add_test(
     NAME    yse_tests_integration
@@ -491,6 +499,15 @@ if(NOT ANDROID)
     WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
   )
   set_tests_properties(yse_tests_integration PROPERTIES LABELS integration)
+
+  # Content-pack smoke test (issue #179). Offline file loads only (no device,
+  # no engine init), so it runs on headless CI in its own suite.
+  add_test(
+    NAME    yse_tests_contentpack
+    COMMAND yse_tests --test-suite=contentpack
+    WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+  )
+  set_tests_properties(yse_tests_contentpack PROPERTIES LABELS "contentpack;infra")
 endif()
 
 # Patcher test TUs include pObject.h and concrete node headers that use the

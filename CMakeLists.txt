@@ -72,6 +72,11 @@ unset(_yse_midi_device_default)
 # Export compile_commands.json for SonarCloud's C++ analyser and clangd.
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# ── Optional content pack (issue #179) ────────────────────────────────────────
+# Defines YSE_CONTENT_PACK_DIR and the opt-in fetch/install path. With its
+# options OFF (the default) this is a no-op — nothing is baked into the library.
+include(${CMAKE_SOURCE_DIR}/cmake/YseContentPack.cmake)
+
 # ── Dependencies ──────────────────────────────────────────────────────────────
 find_package(Threads REQUIRED)
 
