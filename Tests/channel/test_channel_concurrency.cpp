@@ -20,10 +20,13 @@
 #include <doctest/doctest.h>
 #include <atomic>
 #include <chrono>
+#include <cstring>
+#include <new>
 #include <string>
 #include <thread>
 #include "yse.hpp"
 #include "channel/channelInterface.hpp"
+#include "channel/channelImplementation.h"
 #include "channel/channelManager.h"
 #include "sound/soundManager.h"
 #include "internal/time.h"
@@ -45,6 +48,36 @@ namespace {
 } // namespace
 
 TEST_SUITE("channel") {
+
+  // ─── Regression: a freshly constructed impl is never seen as deletable ───────
+
+  TEST_CASE("channel concurrency: fresh impl status is OBJECT_CONSTRUCTED "
+            "regardless of prior memory (issue #336)") {
+    // Root cause of the flaky channel two-thread churn hang/segfault: the
+    // channel implementationObject ctor left `objectStatus` (a C++17
+    // std::atomic, whose default ctor does NOT zero the value) uninitialised.
+    // channel::create() emplaces the impl into the mutex-guarded
+    // `implementations` list (addImplementation) and only AFTERWARDS calls
+    // Manager().setup(), which sets OBJECT_CREATED. During that window the
+    // slow-pool deleteJob runs `implementations.remove_if(canBeDeleted)` with
+    // canBeDeleted == (objectStatus == OBJECT_DELETE). If the recycled heap slot
+    // happened to hold the OBJECT_DELETE bit-pattern, the job freed the node the
+    // worker thread was still constructing — a heap-layout-dependent UAF (crash)
+    // or corrupted intrusive list (hang). SOUND/REVERB already initialised
+    // objectStatus in their ctors; CHANNEL was the outlier.
+    //
+    // Poison the storage, then placement-construct an impl over it: with the ctor
+    // fix objectStatus reads OBJECT_CONSTRUCTED; without it the poison survives
+    // and the impl presents as some other (possibly deletable) state. This is
+    // deterministic — it fails on the unpatched ctor and passes with the fix.
+    alignas(YSE::CHANNEL::implementationObject) unsigned char
+        storage[sizeof(YSE::CHANNEL::implementationObject)];
+    std::memset(storage, 0xFF, sizeof(storage));
+    auto* impl = new (storage) YSE::CHANNEL::implementationObject(nullptr);
+    CHECK(impl->getStatus() == YSE::OBJECT_CONSTRUCTED);
+    CHECK_FALSE(YSE::CHANNEL::implementationObject::canBeDeleted(*impl));
+    impl->~implementationObject();
+  }
 
   // ─── Single-thread churn: many channel create→destroy cycles ─────────────────
 
