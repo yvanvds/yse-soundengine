@@ -1,6 +1,6 @@
 <!-- META
-last_updated_commit: dc8fb40
-last_updated_at: 2026-05-22
+last_updated_commit: ce0fe64
+last_updated_at: 2026-07-14
 -->
 
 # YSE Sound Engine — Project Overview
@@ -30,8 +30,9 @@ Demo.Windows.Native/             # 22 C++ console demos (Demo00–Demo21 + Test0
 Yse.Windows.Native/              # Legacy Windows static/shared lib build (Visual Studio project)
 documentation/                   # Doxygen + Sphinx + Breathe (sphinx-book-theme); published to GitHub Pages
   source/intro/                  # Install + hello-sound + mental-model
-  source/tutorials/              # 6 tutorial pages (play, properties, 3D, channels, reverb, patcher)
-  source/api/                    # Breathe-driven API reference (12 grouped pages)
+  source/tutorials/              # 11 tutorial pages (play, properties, 3D, channels, reverb, patcher,
+                                 # first-synth, custom-voice, instruments, mixing, per-note-3D)
+  source/api/                    # Breathe-driven API reference (14 grouped pages, incl. synth + effects)
   source/_data/                  # Committed data snapshots consumed by Sphinx hooks (patcher_objects.json)
   source/_templates/             # Jinja templates rendered by the pre-build hook in conf.py
 tools/ci-linux/                  # Docker images for local Linux CI reproduction (Dockerfile, Dockerfile.audio)
@@ -198,7 +199,8 @@ Application
     ├── player                 polyphonic note sequencer
     ├── patcher                modular DSP graph (Max/MSP-style)
     ├── MIDI                   file + (optionally) device I/O
-    └── (synth)                polyphonic sampler/DSP synth — implemented but not exposed (commented out in yse.hpp)
+    └── synth                  polyphonic instrument host (sine / VA / SFZ sampler / DX7 FM voices,
+                               per-note 3D handlers) ──→ sound ──→ channel
 ```
 
 ---
@@ -251,6 +253,8 @@ The callback runs on the **control thread** (inside `System().update()`), once p
 
 Channels form a **tree** rooted at `MainMix`, with five pre-made leaves (`FX`, `Music`, `Ambient`, `Voice`, `GUI`) and arbitrary user-created children. Sounds can be reparented via `moveTo` at runtime. Sounds beyond a distance threshold are virtualized to save CPU.
 
+Each channel also carries a pre-fader **insert** DSP chain (`setDSP`) and up to N **aux sends** to **return buses** (`makeReturn` / `send` / `setSendLevel` / `clearSend`), plus pre/post-fader peak metering (linear + dBFS, combined and per-output). See the signal-path diagram below for how inserts and sends sit in the mix. Send levels are ramped internally, so they are click-free to set every control tick.
+
 Issue [#82](https://github.com/yvanvds/yse-soundengine/issues/82) added measured-callback-timing-based `cpuLoad` and fixed a fast-pool dispatch overhead for empty child channels.
 
 ---
@@ -298,8 +302,11 @@ class dspSourceObject {    // audio generator (replaces file)
 | Math | clip, sqrt, rSqrt, wrap, midiToFreq, freqToMidi, dbToRms, rmsToDb |
 | Spectral | Hilbert transformer, ring modulator |
 | Granular | granulator |
-| FM | difference (FM pair) |
+| FM | difference (FM pair); 6-operator DX7-class engine under `dsp/fm/` (`fmVoice`, `fmPatch`, `dx7Sysex`, MSFA core) |
+| Mix / channel-strip | parametric EQ, compressor, chorus/flanger, plate reverb (Dattorro), feedback delay — N-channel `dspObject` modules for channel inserts and return buses |
 | Fourier | fft.cpp + mayer.cpp (real-input FFT) |
+
+`dspObject` carries an N-channel processing contract (issue #158): `process(std::vector<DSP::buffer>&)` handles the full device layout, so inserts and return effects work at any output width.
 
 ---
 
@@ -404,11 +411,15 @@ Polyphonic note player with scale constraints, motif sequencing, and randomised 
 
 ---
 
-### 13. Synth (Implemented but unexposed)
+### 13. Synth (Polyphonic instrument host)
 
-**Files:** `synth/` — `synthInterface.hpp/.cpp`, `synthManager.h/.cpp`, `synthImplementation.h/.cpp`, `dspVoice.hpp` (voice base), and built-in voices `sineVoice.hpp/.cpp` (reference sine + ADSR) and `vaVoice.hpp/.cpp` (virtual-analog + wavetable: multi-oscillator → `DSP::ladderFilter` → amp/filter ADSR + LFO, with a live-settable shared `vaParams` patch)
+**Files:** `synth/` — `synthInterface.hpp/.cpp`, `synthManager.h/.cpp`, `synthImplementation.h/.cpp`, `synthMessage.h`, `dspVoice.hpp` (voice base), `positionHandler.hpp` + `positionHandlers.hpp/.cpp` (per-note 3D). Built-in voices: `sineVoice.hpp/.cpp` (reference sine + ADSR), `vaVoice.hpp/.cpp` (virtual-analog + wavetable → `DSP::ladderFilter` → amp/filter ADSR + LFO, live `vaParams` patch), `samplerVoice.hpp/.cpp` (SFZ sampler), and the FM voice under `dsp/fm/` (`fmVoice`, `fmPatch`, `dx7Sysex` importer, MSFA core in `dsp/fm/msfa/`).
 
-Polyphonic sampler/DSP synth. The source files compile into the library; the public interface (`synth.hpp`, `synthInterface.hpp`, `dspVoice.hpp`) is commented out in [yse.hpp](YseEngine/yse.hpp) and not yet part of the public API.
+The synth subsystem (epics [#145](https://github.com/yvanvds/yse-soundengine/issues/145)–[#149](https://github.com/yvanvds/yse-soundengine/issues/149)) is now public. A `YSE::synth` owns a pool of voices, note allocation, voice stealing and full keyboard state (pedals, controllers, pitch wheel, aftertouch); a `SYNTH::dspVoice` subclass owns only what one note sounds like. Build the pool with `create().addVoices(prototype, n)`, attach behind a positioned `YSE::sound` via `sound::create(synth&, …)`, then drive with `noteOn` / `noteOff`. Cloning happens off the audio thread on the setup pool (the synth becomes playable a moment after `addVoices`, like a file-backed sound). Voice `process()` / `clone()` follow the RT contract: allocate in the constructor / `clone()` (setup thread), never in `process()` (audio thread).
+
+**Per-note 3D positioning (Route 2, #169–#171).** Attach a `SYNTH::positionHandler` prototype with `synth::positionHandler(...)` to give every voice its own 3D position, updated per block — the "swarm". Ship-in handlers: `staticHandler`, `randomSpreadHandler`, `orbitHandler`. Steer the whole swarm from the control thread with `handlerParam(index, value)` (indices 0..2 = centre) or place a note imperatively with `notePosition(...)`; both are bounded, allocation-free messages.
+
+Instruments load from portable formats off the audio thread: `samplerVoice::loadSFZ(path)` (SFZ region model in `dsp/sfzModel.hpp` / `dsp/sfzParser`), and `dx7SysEx::loadBank(path, bank)` → `fmVoice::setPatch(...)` (applied on the next note-on). The C API mirror lives in `c_api/include/yse_c/yse_synth.h` + `yse_instrument.h` (built-in voices / handlers only; custom C-side voices are deferred).
 
 ---
 
@@ -416,16 +427,21 @@ Polyphonic sampler/DSP synth. The source files compile into the library; the pub
 
 ```
 sound.play()
-    └── DSP source (file buffer / dspSourceObject / patcher)
+    └── DSP source (file buffer / dspSourceObject / patcher / synth voice pool)
          └── speed / pitch shifting
               └── user DSP chain (dspObject link list)
-                   └── 3D attenuation + pan (distance, angle)
+                   └── 3D attenuation + pan (distance, angle)  [per-voice with a position handler]
                         └── doppler pitch adjustment
                              └── occlusion low-pass filter
-                                  └── channel volume (tree)
-                                       └── reverb blend
-                                            └── device output (PortAudio / Oboe)
+                                  └── channel insert chain (pre-fader, setDSP)
+                                       └── channel volume / fader (tree)
+                                            ├── aux sends ──→ return bus (makeReturn) ──┐
+                                            │                   └── return insert (e.g. plate reverb)
+                                            └── reverb blend  ◄─────────────────────────┘
+                                                 └── device output (PortAudio / Oboe)
 ```
+
+Channel routing (epic [#146](https://github.com/yvanvds/yse-soundengine/issues/146)): each `YSE::channel` carries an optional pre-fader **insert** chain (`setDSP`, a linked `dspObject` list) and up to N **aux sends** to **return buses** (`makeReturn` / `send` / `setSendLevel`). Returns are ordinary channels flagged as returns — they keep their own inserts and may send onward to other returns (the send graph must stay acyclic). Mix-grade effect modules for these slots live in `dsp/modules/` (`parametricEQ`, `compressor`, `chorus`, `plateReverb`, `delay/feedbackDelay`).
 
 ---
 
@@ -516,11 +532,15 @@ Exposed via `YSE_TEST_FIXTURES_DIR` compile definition:
 Layout:
 ```
 Bench/
-  dsp/         (bench_buffer, bench_delay, bench_filters, bench_math, bench_oscillators, bench_reverb)
+  dsp/         (bench_buffer, bench_delay, bench_filters, bench_math, bench_oscillators, bench_reverb,
+               bench_plate_reverb, bench_va_voice, bench_sampler_voice, bench_fm_voice)
+  internal/    (bench_mpmcqueue)
   patcher/     (bench_patcher)
-  integration/ (bench_mixing)
+  integration/ (bench_mixing, bench_synth_effects, bench_yse_dsl)
   support/     (bench_helpers.hpp)
 ```
+
+The synth & effects sweep (issue [#181](https://github.com/yvanvds/yse-soundengine/issues/181)) adds per-voice Tier-1 benches (`bench_fm_voice`, alongside the existing `bench_va_voice` / `bench_sampler_voice`, each with a `sineVoice` reference baseline) and Tier-3 macro scenarios in `bench_synth_effects` (voice-count scaling, channel insert-chain cost, send fan-in, N positioned notes), all driven offline via `System().renderOffline(blocks)`.
 
 ---
 
@@ -538,9 +558,10 @@ documentation/
     conf.py                        # Reads VERSION from YseEngine/system.hpp (PR #89)
     index.rst                      # Landing page
     intro/                         # install, hello_sound, mental_model
-    tutorials/                     # 6 pages: play, properties, 3D, channels, reverb, patcher
-    api/                           # 12 grouped pages: core, sounds, channels, dsp, dsp_modules,
-                                   # devices, midi, music, patcher, player, utils, index
+    tutorials/                     # 11 pages: play, properties, 3D, channels, reverb, patcher,
+                                   # first-synth, custom-voice, instruments, mixing, per-note-3D
+    api/                           # 14 grouped pages: core, sounds, channels, dsp, dsp_modules,
+                                   # synth, effects, devices, midi, music, patcher, player, utils, index
 ```
 
 The version string in `conf.py` is auto-synced from `YseEngine/system.hpp` so the published docs always match the released library.
