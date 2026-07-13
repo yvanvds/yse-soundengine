@@ -82,6 +82,7 @@ set(YSE_TEST_SOURCES
   synth/test_synth_positioning.cpp
   synth/test_synth_handlers.cpp
   synth/test_c_api_synth.cpp
+  synth/test_c_api_instrument.cpp
   dsp/test_panner.cpp
   reverb/test_reverb_dsp.cpp
   reverb/test_reverb_concurrency.cpp
@@ -212,7 +213,7 @@ add_test(
   # `channelcapi` (issue #166 C-API channel-DSP/send surface) is excluded for
   # the same reason — it drives yse_system_init_offline() and runs in its own
   # process (yse_tests_channelcapi).
-  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthhandlers,synthcapi,midisynth,playersynth,playercapi,sendstress,channelcapi "--test-case-exclude=* concurrency: *" --duration=true
+  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthhandlers,synthcapi,instrumentcapi,midisynth,playersynth,playercapi,sendstress,channelcapi "--test-case-exclude=* concurrency: *" --duration=true
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_unit_tests PROPERTIES TIMEOUT 600)
@@ -336,6 +337,20 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_synthcapi PROPERTIES LABELS "synth;c-api;lifecycle")
+
+# C-API instrument surface (issue #178). Drives the sampler / VA / FM instrument
+# voices and their loadable assets (SFZ instrument + DX7 bank) entirely through
+# the flat C ABI under an offline engine (yse_system_init_offline), then
+# yse_system_close(). Isolated in its own process for the same reason as
+# yse_tests_synthcapi: System::close() tears down process-global state (thread
+# pools) the rest of the suite assumes stays up (#298). initOffline() needs no
+# audio hardware, so it runs in CI.
+add_test(
+  NAME    yse_tests_instrumentcapi
+  COMMAND yse_tests --test-suite=instrumentcapi
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_instrumentcapi PROPERTIES LABELS "synth;c-api;lifecycle")
 
 add_test(
   NAME    yse_tests_midi

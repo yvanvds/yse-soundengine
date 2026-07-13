@@ -19,6 +19,7 @@
 #include "yse_patcher.h"
 #include "yse_midi.h"
 #include "yse_music.h"
+#include "yse_instrument.h"
 #include "yse_synth.h"
 #include "yse_log.h"
 #include "yse_buffer_io.h"
