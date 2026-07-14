@@ -84,6 +84,11 @@ Flt YSE::CLOCK::managerObject::currentTempo(const std::string& name) {
   return clock != nullptr ? clock->currentTempo() : 0.f;
 }
 
+YSE::CLOCK::domainClock* YSE::CLOCK::managerObject::lookup(const std::string& name) {
+  std::scoped_lock lk(implementationsMutex);
+  return findLive(name);
+}
+
 void YSE::CLOCK::managerObject::update(Flt delta) {
   ///////////////////////////////////////////
   // drain the control->audio inbox of newly-created clocks into the working list

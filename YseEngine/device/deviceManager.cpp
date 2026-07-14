@@ -49,6 +49,10 @@ bool YSE::DEVICE::deviceManager::doOnCallback(int numSamples) {
   // callback, regardless of whether any sound is playing — and are advanced
   // before the empty()-sounds early-out below.
   CLOCK::Manager().update((Flt)numSamples / (Flt)SAMPLERATE);
+  // Clip transports (issue #250) are advanced right after the clocks, every
+  // audio callback, so each transport reads its bound clock's freshly-updated
+  // beat window and fires the note events that fall inside this block.
+  CLIP::Manager().update();
   // MIDI file playback is advanced every block too (issue #155) so events reach
   // the connected synths block-accurately, before the synths render this block.
   MIDI::Manager().updatePlayback(numSamples);

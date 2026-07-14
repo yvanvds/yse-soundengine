@@ -69,6 +69,18 @@ namespace YSE {
           Control/UI thread. */
       Flt currentTempo(const std::string& name);
 
+      /** Resolve a live clock by name to a stable pointer a clip transport can
+          hold and read (``beatPosition``) every audio block. Returns nullptr
+          for an unknown name. Control thread only.
+
+          Lifetime is caller-managed, matching the engine's other cross-object
+          bindings (MIDI file -> synth, MIDI device -> synth): the bound clock
+          must outlive every transport bound to it — destroy or unbind the
+          transport before ``destroyClock``. The returned pointer references an
+          object owned by ``implementations`` and only reads its published
+          atomics, so it is safe to poll from the audio thread. */
+      domainClock* lookup(const std::string& name);
+
       /** Audio-thread tick, driven every callback with the block duration in
           seconds. Drains newly-created clocks, advances each live clock, and
           retires released clocks for slow-pool deletion. */

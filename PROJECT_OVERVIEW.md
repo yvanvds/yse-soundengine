@@ -371,7 +371,7 @@ c_api/include/yse_c/         # Public C headers — Dart's ffigen entry point
   yse_all.h                  # Aggregate header (includes the rest)
   yse_system.h yse_listener.h yse_channel.h yse_sound.h yse_reverb.h
   yse_device.h yse_dsp.h yse_dsp_modules.h yse_patcher.h yse_midi.h
-  yse_music.h yse_log.h yse_buffer_io.h yse_common.h yse_enums.h
+  yse_clip.h yse_music.h yse_log.h yse_buffer_io.h yse_common.h yse_enums.h
 c_api/                       # Wrappers (yse_*.cpp) and the internal helper header yse_c_internal.hpp
 ```
 
@@ -417,7 +417,19 @@ Polyphonic note player with scale constraints, motif sequencing, and randomised 
 
 A set of named musical (beat) clocks derived from the single sample clock (issue [#249](https://github.com/yvanvds/yse-soundengine/issues/249), a capability request from Phi's polytemporal timing model). Each clock is a **beat accumulator**: `CLOCK::Manager().update(blockSeconds)` runs every audio callback (wired into `deviceManager::doOnCallback`, alongside `PLAYER::Manager().update`) and advances each clock by `blockSeconds × tempo / 60`, so beat position is the running integral of tempo — no absolute-time schedule. Because every clock derives from the one audio callback, polytemporal relationships stay exact and deterministic.
 
-Tempo is a **playable, rampable control**: `setTempo(name, bpm, rampSeconds)` slews linearly (instant when `rampSeconds` is 0) and is never clamped (0 pauses, negative runs backward). Clocks are created/destroyed/queried by name at runtime. The manager follows the PLAYER lock-free lifecycle (canonical `forward_list` under a mutex → SPSC inbox → audio-owned `inUse` working list → slow-pool delete job); the audio thread never allocates, locks, or frees. `beatPosition` / `currentTempo` read published atomics and are safe to poll from the UI thread at frame rate (playhead display). Public surface: `YSE::system::createClock / destroyClock / clockExists / setTempo / beatPosition / currentTempo`, mirrored in the C ABI as `yse_system_*_clock` / `yse_system_set_tempo` / `yse_system_beat_position` / `yse_system_current_tempo`. Clip transports that bind to these clocks are a separate issue.
+Tempo is a **playable, rampable control**: `setTempo(name, bpm, rampSeconds)` slews linearly (instant when `rampSeconds` is 0) and is never clamped (0 pauses, negative runs backward). Clocks are created/destroyed/queried by name at runtime. The manager follows the PLAYER lock-free lifecycle (canonical `forward_list` under a mutex → SPSC inbox → audio-owned `inUse` working list → slow-pool delete job); the audio thread never allocates, locks, or frees. `beatPosition` / `currentTempo` read published atomics and are safe to poll from the UI thread at frame rate (playhead display). Public surface: `YSE::system::createClock / destroyClock / clockExists / setTempo / beatPosition / currentTempo`, mirrored in the C ABI as `yse_system_*_clock` / `yse_system_set_tempo` / `yse_system_beat_position` / `yse_system_current_tempo`. Clip transports that bind to these clocks are [§12c](#12c-clip-transport).
+
+---
+
+### 12c. Clip Transport
+
+**Files:** [clip/clip.hpp](YseEngine/clip/clip.hpp) (public `YSE::clip` + `YSE::clipEvent`), [clip/clipTransport.h](YseEngine/clip/clipTransport.h) / [.cpp](YseEngine/clip/clipTransport.cpp) (audio-thread timing impl), [clip/clipManager.h](YseEngine/clip/clipManager.h) / [.cpp](YseEngine/clip/clipManager.cpp), [clip/clipInterface.cpp](YseEngine/clip/clipInterface.cpp)
+
+A `YSE::clip` loops a flat, immutable list of beat-timed note events (`clipEvent`: `startBeat`, `durationBeats`, `channel`, `pitch`, `velocity`, optional per-note `pitchBend`) against a bound [domain clock](#12b-domain-clocks), dispatched from the audio thread so the UI never dispatches a note (issue [#250](https://github.com/yvanvds/yse-soundengine/issues/250), a Phi capability request). Every audio block, `CLIP::Manager().update()` (wired into `deviceManager::doOnCallback` right after `CLOCK::Manager().update()`, so the clocks are already advanced) converts the block's beat boundaries into a `(from, to]` window on the clock and fires exactly the events whose crossings fall inside it — events are *evaluated per block*, never scheduled ahead in absolute time, so tempo changes on the clock bend the clip immediately with no rescheduling. `startBeat` is taken modulo the loop length, so events repeat every loop.
+
+The event list is **replaceable while playing**: `setEvents` publishes a new immutable list that the audio thread swaps in at the next block boundary through an atomic single-slot handoff plus a lock-free `retired` queue the control thread reclaims — no allocation, lock, or free on the audio thread. **Sounding-note bookkeeping survives the swap**: each note-on records its own absolute off-beat in a bounded audio-thread-owned set, so a note that vanished from the new list still gets its note-off on time. `play` / `stop` / `isPlaying`; `stop` releases everything sounding. Multiple clips run concurrently, each on its own clock.
+
+Output currently targets one or more `YSE::synth` instances — the RT-safe internal event-queue sink, reached through the same `SYNTH::interfaceObject` note API MIDI-file playback uses. The transport is agnostic to the sink (its firing core is templated over the sink type, unit-tested against a recording sink), so an external MIDI-out sink can be added on the same seam. Lifecycle mirrors the CLOCK / MIDI-file managers (canonical `forward_list` under a mutex → SPSC inbox → audio-owned `inUse` working list → slow-pool delete job). Public surface mirrored in the C ABI as `yse_clip_*` ([clip/clip.hpp](YseEngine/clip/clip.hpp) → [c_api/include/yse_c/yse_clip.h](YseEngine/c_api/include/yse_c/yse_clip.h)). Bound clocks are caller-owned and must outlive the clip (same contract as MIDI-file → synth binding).
 
 ---
 

@@ -10,6 +10,9 @@ set(YSE_SRCS
   channel/channelManager.cpp
   clock/domainClock.cpp
   clock/clockManager.cpp
+  clip/clipInterface.cpp
+  clip/clipManager.cpp
+  clip/clipTransport.cpp
   device/androidDeviceManager.cpp
   device/deviceInterface.cpp
   device/deviceManager.cpp
