@@ -883,7 +883,11 @@ void YSE::SOUND::implementationObject::computeFinalGains() {
   // pre-sum step interacts with mix-loop fusion and is out of scope, #213/#215).
   const UInt sourceChannels = static_cast<UInt>(buffer->size());
   const bool spreadCollapsed = (spread == 0.f) || (sourceChannels <= 1);
-  const UInt channelsToCompute = spreadCollapsed ? 1u : sourceChannels;
+  // Guard the empty-buffer transient: with no source channels there is nothing
+  // to compute, and finalGainCache columns are zero-length — the original
+  // `x < buffer->size()` loop ran zero passes there, so the collapsed path must
+  // too (a bare `1` would write finalGainCache[j][0] out of bounds).
+  const UInt channelsToCompute = (spreadCollapsed && sourceChannels > 0) ? 1u : sourceChannels;
 
   for (UInt x = 0; x < channelsToCompute; x++) {
     // calculate spread value for multichannel sounds
