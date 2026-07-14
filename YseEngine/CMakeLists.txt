@@ -8,6 +8,8 @@ set(YSE_SRCS
   channel/channelImplementation.cpp
   channel/channelInterface.cpp
   channel/channelManager.cpp
+  clock/domainClock.cpp
+  clock/clockManager.cpp
   device/androidDeviceManager.cpp
   device/deviceInterface.cpp
   device/deviceManager.cpp

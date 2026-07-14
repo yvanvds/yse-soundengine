@@ -41,6 +41,9 @@
 #include "music/motif/motifManager.h"
 #include "music/motif/motifMessage.h"
 
+#include "clock/domainClock.h"
+#include "clock/clockManager.h"
+
 #include "midi/midiDeviceManager.h"
 
 #include "midi/midifileImplementation.h"

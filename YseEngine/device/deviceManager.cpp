@@ -44,6 +44,11 @@ bool YSE::DEVICE::deviceManager::doOnCallback(int numSamples) {
   // between two buffer updates and should have the least latency possible
   INTERNAL::DeviceTime().update();
   PLAYER::Manager().update((Flt)numSamples / (Flt)SAMPLERATE);
+  // Advance every domain clock by this block's duration (issue #249). Domain
+  // clocks derive from the single sample clock, so they tick here — every audio
+  // callback, regardless of whether any sound is playing — and are advanced
+  // before the empty()-sounds early-out below.
+  CLOCK::Manager().update((Flt)numSamples / (Flt)SAMPLERATE);
   // MIDI file playback is advanced every block too (issue #155) so events reach
   // the connected synths block-accurately, before the synths render this block.
   MIDI::Manager().updatePlayback(numSamples);

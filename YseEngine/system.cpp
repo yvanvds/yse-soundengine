@@ -208,6 +208,31 @@ Flt YSE::system::cpuLoad() {
   return DEVICE::Manager().cpuLoad();
 }
 
+bool YSE::system::createClock(const std::string& name, float initialTempo) {
+  return CLOCK::Manager().createClock(name, initialTempo);
+}
+
+void YSE::system::destroyClock(const std::string& name) {
+  CLOCK::Manager().destroyClock(name);
+}
+
+bool YSE::system::clockExists(const std::string& name) {
+  return CLOCK::Manager().clockExists(name);
+}
+
+YSE::system& YSE::system::setTempo(const std::string& name, float bpm, float rampSeconds) {
+  CLOCK::Manager().setTempo(name, bpm, rampSeconds);
+  return *this;
+}
+
+double YSE::system::beatPosition(const std::string& name) {
+  return CLOCK::Manager().beatPosition(name);
+}
+
+float YSE::system::currentTempo(const std::string& name) {
+  return CLOCK::Manager().currentTempo(name);
+}
+
 double YSE::system::getSampleRate() {
   // The session lock is set at the end of initShared(); before that, SAMPLERATE
   // still holds its 44100 default and reporting it would mislead hosts that
