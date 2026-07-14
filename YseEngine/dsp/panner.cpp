@@ -55,7 +55,11 @@ namespace YSE {
       constexpr Flt minPower = 1e-9f;
       if (speakerCount == 0) return 0.f;
       if (!(power > minPower)) return 1.f / static_cast<Flt>(speakerCount);
-      return static_cast<Flt>(::pow(initGain, 2) / power);
+      // Trivial squaring: initGain * initGain instead of a double ::pow(initGain, 2)
+      // (#214). This is the per-speaker "ratio loop" squaring the issue calls out;
+      // it moved here from SOUND::implementationObject when #169 consolidated the
+      // panner math into this shared helper.
+      return initGain * initGain / power;
     }
 
     Flt panner::computeSourceAngle(bool relative, const Pos& dir, const Pos& listenerForward) {

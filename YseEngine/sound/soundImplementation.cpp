@@ -13,6 +13,8 @@
 #include "../patcher/patcherImplementation.h"
 #include "../dsp/panner.hpp"
 
+#include <cmath> // std::cos / std::pow float overloads in the panner hot path (#214)
+
 namespace {
   // Time constant (ms) over which the doppler playback-rate ratio is slewed in
   // dsp(). Long enough to iron out the stepwise, jittery update-tick target
@@ -863,7 +865,11 @@ void YSE::SOUND::implementationObject::computeFinalGains() {
   // yields the same value the old per-x computation did, bit-for-bit.
   Flt dist = distance - size;
   if (dist < 0) dist = 0;
-  Flt correctPower = 1 / pow(dist, (2 * INTERNAL::Settings().rolloffScale));
+  // std::pow with an Flt (float) exponent selects the single-precision overload;
+  // the bare pow(...) would promote the args to double (#214). dist and
+  // rolloffScale are both Flt, so this is a genuine powf, computed once per
+  // update tick (this whole function only runs when gainDirty).
+  Flt correctPower = 1 / std::pow(dist, (2 * INTERNAL::Settings().rolloffScale));
   if (correctPower > 1) correctPower = 1;
 
   for (UInt x = 0; x < buffer->size(); x++) {
@@ -880,7 +886,7 @@ void YSE::SOUND::implementationObject::computeFinalGains() {
       // near-zenith source (-> 0) collapses the cosine term, leaving a flat 0.5
       // for every speaker — an equal-power omni spread instead of a wild sweep.
       Flt initPan =
-          (1 + horizFraction * cos(parent->outConf[i].angle - (angle + spreadAdjust))) * 0.5f;
+          (1 + horizFraction * std::cos(parent->outConf[i].angle - (angle + spreadAdjust))) * 0.5f;
       // The speaker-density term effective[i] depends only on the speaker
       // geometry, so it is precomputed once on layout change in
       // CHANNEL::implementationObject::computeEffectiveSpeakerWeights() instead
@@ -892,7 +898,8 @@ void YSE::SOUND::implementationObject::computeFinalGains() {
     Flt power = 0;
     for (UInt i = 0; i < parent->outConf.size(); i++) {
       if (parent->outConf[i].isLFE) continue;
-      power += static_cast<Flt>(pow(initGainScratch[i], 2));
+      // Trivial squaring: g * g instead of a double pow(g, 2) (#214).
+      power += initGainScratch[i] * initGainScratch[i];
     }
 
     // final gain assignment
