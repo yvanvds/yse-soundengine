@@ -136,6 +136,20 @@ namespace YSE {
       // happens-before every other thread that later publishes. A T_GUI
       // publish comparing unequal to this is off the control thread and must be
       // deferred rather than dispatched inline (issue #193).
+      //
+      // The identity is deliberately frozen at construction rather than derived
+      // from the first drainPending() call (issue #290). Construction is the
+      // earliest possible signal, and capturing it here lets a control-thread
+      // T_GUI publish dispatch inline immediately — before update() has ever
+      // run a drain tick (a behaviour the "control-thread T_GUI publish
+      // dispatches synchronously" test pins down). Deriving it lazily would
+      // force every such publish onto the deferred path until the first
+      // update(). The contract this rests on — System::init() and
+      // System::update() run on the same control thread — is the engine-wide
+      // single-control-thread assumption, documented on system::update(). An
+      // app that inits on one thread but updates on another still behaves
+      // correctly (all publishes take the deferred path) but loses the inline
+      // fast path.
       const std::thread::id controlThread_;
 
       // T_GUI publishes that arrived on a non-control thread (gMetro timer
