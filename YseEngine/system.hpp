@@ -287,6 +287,57 @@ namespace YSE {
      */
     void sleep(unsigned int ms);
 
+    /// @name Domain clocks (issue #249)
+    /// A set of named musical (beat) clocks, each a beat accumulator derived
+    /// from the audio callback. Every audio block a clock advances by
+    /// ``blockSeconds × tempo / 60`` at its current tempo, so beat position is
+    /// the running integral of tempo — no absolute-time schedule. Because all
+    /// clocks derive from the single sample clock, polytemporal relationships
+    /// stay exact and deterministic. Tempo is a playable, rampable control.
+    ///
+    /// **Threading.** ``createClock`` / ``destroyClock`` / ``setTempo`` are
+    /// control-thread operations; ``beatPosition`` / ``currentTempo`` may be
+    /// read from the UI thread at frame rate (e.g. for a playhead). None of
+    /// them run on or block the audio callback.
+    /// @{
+
+    /** @brief Create a domain clock.
+     *
+     *  @param name         Unique domain name. Empty names are rejected.
+     *  @param initialTempo Starting tempo in BPM (default 120).
+     *  @return ``true`` on success; ``false`` if the name is empty or a live
+     *          clock already owns it (first registration wins).
+     */
+    bool createClock(const std::string& name, float initialTempo = 120.f);
+
+    /** @brief Destroy a domain clock. No-op for an unknown name.
+     *
+     *  The clock stops being visible to queries immediately; its beat/tempo
+     *  advancement stops on the next audio callback.
+     */
+    void destroyClock(const std::string& name);
+
+    /** @brief Whether a live domain clock with ``name`` exists. */
+    bool clockExists(const std::string& name);
+
+    /** @brief Ramp a domain clock's tempo toward ``bpm`` over ``rampSeconds``.
+     *
+     *  Instant when ``rampSeconds`` is 0; otherwise linear. Tempo is a played
+     *  control signal — call it as often as you like. It is not clamped: 0
+     *  pauses the clock and a negative tempo runs it backwards. No-op for an
+     *  unknown name.
+     */
+    system& setTempo(const std::string& name, float bpm, float rampSeconds = 0.f);
+
+    /** @brief Current beat position (running integral of tempo) of a clock, or
+     *         0 for an unknown name. */
+    double beatPosition(const std::string& name);
+
+    /** @brief Current tempo in BPM of a clock, or 0 for an unknown name. */
+    float currentTempo(const std::string& name);
+
+    /// @}
+
     /** @brief libYSE version string. */
     std::string Version() const {
       return VERSION;

@@ -411,6 +411,16 @@ Polyphonic note player with scale constraints, motif sequencing, and randomised 
 
 ---
 
+### 12b. Domain Clocks
+
+**Files:** [clock/domainClock.h](YseEngine/clock/domainClock.h) / [.cpp](YseEngine/clock/domainClock.cpp), [clock/clockManager.h](YseEngine/clock/clockManager.h) / [.cpp](YseEngine/clock/clockManager.cpp)
+
+A set of named musical (beat) clocks derived from the single sample clock (issue [#249](https://github.com/yvanvds/yse-soundengine/issues/249), a capability request from Phi's polytemporal timing model). Each clock is a **beat accumulator**: `CLOCK::Manager().update(blockSeconds)` runs every audio callback (wired into `deviceManager::doOnCallback`, alongside `PLAYER::Manager().update`) and advances each clock by `blockSeconds × tempo / 60`, so beat position is the running integral of tempo — no absolute-time schedule. Because every clock derives from the one audio callback, polytemporal relationships stay exact and deterministic.
+
+Tempo is a **playable, rampable control**: `setTempo(name, bpm, rampSeconds)` slews linearly (instant when `rampSeconds` is 0) and is never clamped (0 pauses, negative runs backward). Clocks are created/destroyed/queried by name at runtime. The manager follows the PLAYER lock-free lifecycle (canonical `forward_list` under a mutex → SPSC inbox → audio-owned `inUse` working list → slow-pool delete job); the audio thread never allocates, locks, or frees. `beatPosition` / `currentTempo` read published atomics and are safe to poll from the UI thread at frame rate (playhead display). Public surface: `YSE::system::createClock / destroyClock / clockExists / setTempo / beatPosition / currentTempo`, mirrored in the C ABI as `yse_system_*_clock` / `yse_system_set_tempo` / `yse_system_beat_position` / `yse_system_current_tempo`. Clip transports that bind to these clocks are a separate issue.
+
+---
+
 ### 13. Synth (Polyphonic instrument host)
 
 **Files:** `synth/` — `synthInterface.hpp/.cpp`, `synthManager.h/.cpp`, `synthImplementation.h/.cpp`, `synthMessage.h`, `dspVoice.hpp` (voice base), `positionHandler.hpp` + `positionHandlers.hpp/.cpp` (per-note 3D). Built-in voices: `sineVoice.hpp/.cpp` (reference sine + ADSR), `vaVoice.hpp/.cpp` (virtual-analog + wavetable → `DSP::ladderFilter` → amp/filter ADSR + LFO, live `vaParams` patch), `samplerVoice.hpp/.cpp` (SFZ sampler), and the FM voice under `dsp/fm/` (`fmVoice`, `fmPatch`, `dx7Sysex` importer, MSFA core in `dsp/fm/msfa/`).

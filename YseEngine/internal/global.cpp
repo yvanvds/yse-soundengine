@@ -155,6 +155,11 @@ void YSE::INTERNAL::global::close() {
   // so a subsequent System::init() can re-create it instead of asserting
   // (issue #132).
   REVERB::Manager().destroy();
+  // Clear every domain clock (issue #249) so no beat/tempo state persists into
+  // the next session. Safe to tear down synchronously here: the device is
+  // already closed and both pools are joined, so no audio thread can advance a
+  // clock and no slow job can reap one.
+  CLOCK::Manager().clear();
   // Tear down the bus last — by this point the audio device is already
   // closed (system::close() ran DEVICE::Manager().close() before us), so
   // no audio-thread producer can still be enqueuing publish() messages.

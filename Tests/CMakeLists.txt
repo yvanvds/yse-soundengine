@@ -105,6 +105,7 @@ set(YSE_TEST_SOURCES
   system/test_named_bus.cpp
   system/test_system_active_state.cpp
   system/test_lifecycle.cpp
+  clock/test_domain_clocks.cpp
   integration/test_device.cpp
   integration/test_content_pack.cpp
   integration/test_synth_demos.cpp
@@ -215,7 +216,11 @@ add_test(
   # `channelcapi` (issue #166 C-API channel-DSP/send surface) is excluded for
   # the same reason — it drives yse_system_init_offline() and runs in its own
   # process (yse_tests_channelcapi).
-  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthhandlers,synthcapi,instrumentcapi,midisynth,playersynth,playercapi,sendstress,channelcapi,synthdemos "--test-case-exclude=* concurrency: *" --duration=true
+  # `clock` (issue #249 domain clocks) is excluded too: its cases drive
+  # CLOCK::Manager().update() directly on the test thread to advance beats
+  # deterministically, which would race a live audio thread from another suite
+  # in this shared process. It runs isolated in yse_tests_clock.
+  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthhandlers,synthcapi,instrumentcapi,midisynth,playersynth,playercapi,sendstress,channelcapi,synthdemos,clock "--test-case-exclude=* concurrency: *" --duration=true
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_unit_tests PROPERTIES TIMEOUT 600)
@@ -237,6 +242,17 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_dsp PROPERTIES LABELS dsp)
+
+# Domain clocks (issue #249). Isolated in its own process: the cases drive
+# CLOCK::Manager().update() directly to advance beats deterministically, so
+# they must not share a process with a suite that runs a live audio thread
+# (which would also tick the clock manager). No audio device needed.
+add_test(
+  NAME    yse_tests_clock
+  COMMAND yse_tests --test-suite=clock
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_clock PROPERTIES LABELS clock)
 
 add_test(
   NAME    yse_tests_utils

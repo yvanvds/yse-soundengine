@@ -142,6 +142,68 @@ YSE_C_API int yse_system_get_max_sounds(YseSystem* sys) {
   return to_cpp(sys)->maxSounds();
 }
 
+YSE_C_API int yse_system_create_clock(YseSystem* sys, const char* name, float initial_tempo) {
+  if (!sys || !name) return 0;
+  try {
+    return to_cpp(sys)->createClock(name, initial_tempo) ? 1 : 0;
+  } catch (const std::exception& e) {
+    yse_c::set_last_error(e.what());
+    return 0;
+  } catch (...) {
+    yse_c::set_last_error("unknown C++ exception in yse_system_create_clock");
+    return 0;
+  }
+}
+
+YSE_C_API void yse_system_destroy_clock(YseSystem* sys, const char* name) {
+  if (!sys || !name) return;
+  try {
+    to_cpp(sys)->destroyClock(name);
+  } catch (...) {
+    yse_c::set_last_error("unknown C++ exception in yse_system_destroy_clock");
+  }
+}
+
+YSE_C_API int yse_system_clock_exists(YseSystem* sys, const char* name) {
+  if (!sys || !name) return 0;
+  try {
+    return to_cpp(sys)->clockExists(name) ? 1 : 0;
+  } catch (...) {
+    yse_c::set_last_error("unknown C++ exception in yse_system_clock_exists");
+    return 0;
+  }
+}
+
+YSE_C_API void yse_system_set_tempo(YseSystem* sys, const char* name, float bpm,
+                                    float ramp_seconds) {
+  if (!sys || !name) return;
+  try {
+    to_cpp(sys)->setTempo(name, bpm, ramp_seconds);
+  } catch (...) {
+    yse_c::set_last_error("unknown C++ exception in yse_system_set_tempo");
+  }
+}
+
+YSE_C_API double yse_system_beat_position(YseSystem* sys, const char* name) {
+  if (!sys || !name) return 0.0;
+  try {
+    return to_cpp(sys)->beatPosition(name);
+  } catch (...) {
+    yse_c::set_last_error("unknown C++ exception in yse_system_beat_position");
+    return 0.0;
+  }
+}
+
+YSE_C_API float yse_system_current_tempo(YseSystem* sys, const char* name) {
+  if (!sys || !name) return 0.0f;
+  try {
+    return to_cpp(sys)->currentTempo(name);
+  } catch (...) {
+    yse_c::set_last_error("unknown C++ exception in yse_system_current_tempo");
+    return 0.0f;
+  }
+}
+
 YSE_C_API void yse_system_audio_test(YseSystem* sys, int on) {
   if (!sys) return;
   to_cpp(sys)->AudioTest(on != 0);
