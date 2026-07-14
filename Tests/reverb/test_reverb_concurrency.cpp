@@ -16,10 +16,12 @@
 #include <doctest/doctest.h>
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <thread>
 #include "yse.hpp"
 #include "reverb/reverbInterface.hpp"
 #include "reverb/reverbManager.h"
+#include "internal/reverbDSP.h"
 #include "internal/time.h"
 #include "support/null_device.hpp"
 
@@ -135,6 +137,52 @@ TEST_SUITE("reverb") {
 
     drainReverbs(40);
     CHECK(gr.getActive() == true);
+  }
+
+  // ─── reverbDSP instances process concurrently (issue #326) ───────────────────
+
+  TEST_CASE("reverb concurrency: independent reverbDSP instances process concurrently") {
+    // The morphing reverb module (issue #326) puts additional reverbDSP
+    // instances on channel inserts, which the fast-pool workers process
+    // concurrently with the manager's global instance. The DSP core's
+    // inner-loop state used to live in file-scope globals — a data race the
+    // moment two instances process at once. All state is per-instance now;
+    // under TSan the pre-fix code trips on the shared kernels, the fixed code
+    // is clean. No engine needed: the instances are self-contained.
+    constexpr int kThreads = 2;
+    constexpr int kBlocks = 200;
+
+    std::thread workers[kThreads];
+    std::atomic<bool> finite[kThreads];
+
+    for (int w = 0; w < kThreads; ++w) {
+      finite[w].store(true);
+      workers[w] = std::thread([w, &finite]() {
+        YSE::INTERNAL::reverbDSP verb;
+        verb.channels(2);
+        verb.bypass(false);
+
+        MULTICHANNELBUFFER buf(2);
+        for (int i = 0; i < kBlocks; ++i) {
+          buf[0] = 0.0f;
+          buf[1] = 0.0f;
+          buf[0].getPtr()[0] = 1.0f; // fresh impulse every block
+          buf[1].getPtr()[0] = 1.0f;
+          verb.process(buf);
+        }
+
+        float* ptr = buf[0].getPtr();
+        for (unsigned i = 0; i < buf[0].getLength(); ++i) {
+          if (!std::isfinite(ptr[i])) finite[w].store(false);
+        }
+      });
+    }
+
+    for (auto& worker : workers)
+      worker.join();
+
+    for (const auto& f : finite)
+      CHECK(f.load());
   }
 
 } // TEST_SUITE("reverb")

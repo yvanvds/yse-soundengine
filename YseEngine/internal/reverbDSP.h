@@ -18,6 +18,7 @@
 #include "../dsp/ramp.hpp"
 #include "../dsp/dspObject.hpp"
 #include "../reverb/reverb.hpp"
+#include "../reverb/reverbPresets.hpp"
 
 #define COMBS 8
 #define APASS 4
@@ -53,6 +54,11 @@ namespace YSE {
       reverbChannel(const reverbChannel& source);
     };
 
+    // Every piece of working state — including the comb/allpass feedback and
+    // damping coefficients that used to be file-scope globals — is a member,
+    // so independent instances can process concurrently (e.g. the manager's
+    // global instance and DSP::MODULES::morphingReverb inserts on channels
+    // handled by different fast-pool workers, issue #326).
     class reverbDSP : DSP::dspObject {
     public:
       Flt _gain;
@@ -61,6 +67,10 @@ namespace YSE {
       Flt _wet, _wet1, _wet2;
       Bool _freeze;
       Bool _bypass;
+      Flt _combFeedback;
+      Flt _allpassFeedback;
+      Flt _combDamp1;
+      Flt _combDamp2;
 
       // faders for smooth value adjustment
       DSP::lint _roomsizeFader;
@@ -109,11 +119,24 @@ namespace YSE {
 
       void set(reverb& impl);
 
+      /** Apply a full parameter set (typically a blend produced by
+          REVERB::morph) through the faders, so successive control-rate calls
+          ramp click-free. Used by DSP::MODULES::morphingReverb (issue #326);
+          the manager path keeps using set(reverb&). Values are clamped to the
+          same ranges the interface setters enforce. */
+      void set(const REVERB::presetValues& params);
+
       virtual void create() {}
       virtual void process(MULTICHANNELBUFFER& buffer);
       void update();
       reverbDSP();
       ~reverbDSP();
+
+    private:
+      // Re-entrant comb/allpass kernels: all state is passed in or read from
+      // members, never from globals (issue #326).
+      Flt combProcess(Flt input, std::vector<Flt>& buf, Flt& filterStore, Int& index, Int tuning);
+      void allpassProcess(Flt& value, std::vector<Flt>& buf, Int& index, Int tuning);
     };
 
   } // namespace INTERNAL

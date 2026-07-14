@@ -49,6 +49,7 @@ set(YSE_SRCS
   dsp/modules/hilbert.cpp
   dsp/modules/chorus.cpp
   dsp/modules/compressor.cpp
+  dsp/modules/morphingReverb.cpp
   dsp/modules/parametricEQ.cpp
   dsp/modules/phaser.cpp
   dsp/modules/plateReverb.cpp
@@ -151,6 +152,7 @@ set(YSE_SRCS
   reverb/reverbImplementation.cpp
   reverb/reverbInterface.cpp
   reverb/reverbManager.cpp
+  reverb/reverbPresets.cpp
   sound/soundImplementation.cpp
   sound/soundInterface.cpp
   sound/soundManager.cpp

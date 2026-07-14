@@ -11,8 +11,9 @@
 // fails (e.g. no PortAudio host APIs in CI), those cases return without asserting.
 //
 // reverbDSP tests drive the Freeverb DSP object directly (no engine init needed).
-// The DSP object uses static module-level globals for its inner loop; tests run
-// sequentially so there is no data-race concern.
+// Since issue #326 the DSP object keeps all working state in the instance
+// (the inner-loop globals are gone), so independent instances are genuinely
+// independent — see the instance-independence case below.
 
 #include <doctest/doctest.h>
 #include <cstring> // std::memset — dirties storage for the issue #263 regression test
@@ -398,6 +399,26 @@ TEST_SUITE("reverb") {
     YSE::INTERNAL::reverbDSP verb;
     verb.combFeedback(0.8f);
     CHECK(verb.combFeedback() == doctest::Approx(0.8f));
+  }
+
+  TEST_CASE("reverbDSP: instances hold independent state (issue #326)") {
+    // The comb/allpass feedback and damping coefficients used to be file-scope
+    // globals, shared by every reverbDSP in the process. With the morphing
+    // reverb module (issue #326) several instances can exist — the manager's
+    // global one plus channel inserts — so this state must be per-instance.
+    // Pre-fix, the second instance's setters overwrote the first's values.
+    YSE::INTERNAL::reverbDSP verbA;
+    YSE::INTERNAL::reverbDSP verbB;
+
+    verbA.combFeedback(0.9f);
+    verbB.combFeedback(0.1f);
+    CHECK(verbA.combFeedback() == doctest::Approx(0.9f));
+    CHECK(verbB.combFeedback() == doctest::Approx(0.1f));
+
+    verbA.allpassFeedback(0.7f);
+    verbB.allpassFeedback(0.2f);
+    CHECK(verbA.allpassFeedback() == doctest::Approx(0.7f));
+    CHECK(verbB.allpassFeedback() == doctest::Approx(0.2f));
   }
 
   TEST_CASE("reverbDSP: allpassFeedback getter/setter round-trip") {

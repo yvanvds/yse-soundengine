@@ -29,6 +29,7 @@ set(YSE_TEST_SOURCES
   dsp/test_module_feedback_delay.cpp
   dsp/test_module_chorus.cpp
   dsp/test_module_plate_reverb.cpp
+  dsp/test_module_morphing_reverb.cpp
   dsp/test_module_parametric_eq.cpp
   dsp/test_module_compressor.cpp
   dsp/test_module_multichannel.cpp
