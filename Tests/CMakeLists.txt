@@ -106,6 +106,7 @@ set(YSE_TEST_SOURCES
   system/test_system_active_state.cpp
   system/test_lifecycle.cpp
   clock/test_domain_clocks.cpp
+  clip/test_clip_transport.cpp
   integration/test_device.cpp
   integration/test_content_pack.cpp
   integration/test_synth_demos.cpp
@@ -220,7 +221,10 @@ add_test(
   # CLOCK::Manager().update() directly on the test thread to advance beats
   # deterministically, which would race a live audio thread from another suite
   # in this shared process. It runs isolated in yse_tests_clock.
-  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthhandlers,synthcapi,instrumentcapi,midisynth,playersynth,playercapi,sendstress,channelcapi,synthdemos,clock "--test-case-exclude=* concurrency: *" --duration=true
+  # `clip` (issue #250 clip transport) is excluded for the same reason as
+  # `clock`: its cases drive CLOCK::Manager().update() / CLIP::Manager().update()
+  # directly on the test thread. It runs isolated in yse_tests_clip.
+  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthhandlers,synthcapi,instrumentcapi,midisynth,playersynth,playercapi,sendstress,channelcapi,synthdemos,clock,clip "--test-case-exclude=* concurrency: *" --duration=true
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_unit_tests PROPERTIES TIMEOUT 600)
@@ -253,6 +257,16 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_clock PROPERTIES LABELS clock)
+
+# Clip transport (issue #250). Isolated for the same reason as the clock suite:
+# the cases drive CLOCK::Manager().update() / CLIP::Manager().update() directly
+# on the test thread. No audio device needed.
+add_test(
+  NAME    yse_tests_clip
+  COMMAND yse_tests --test-suite=clip
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_clip PROPERTIES LABELS clip)
 
 add_test(
   NAME    yse_tests_utils
