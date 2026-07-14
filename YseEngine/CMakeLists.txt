@@ -55,6 +55,7 @@ set(YSE_SRCS
   dsp/modules/plateReverb.cpp
   dsp/modules/ringModulator.cpp
   dsp/modules/sineWave.cpp
+  dsp/modules/underWater.cpp
   dsp/fm/fmPatch.cpp
   dsp/fm/fmVoice.cpp
   dsp/fm/dx7Sysex.cpp

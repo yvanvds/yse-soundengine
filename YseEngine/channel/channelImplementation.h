@@ -208,12 +208,6 @@ namespace YSE {
        */
       void adjustVolume();
 
-      /**
-        Attach the premade special effect for 'underwater' simulation to this channel
-      */
-
-      void attachUnderWaterFX();
-
       inline std::vector<DSP::buffer>& GetBuffers() {
         return out;
       }
@@ -252,7 +246,7 @@ namespace YSE {
 
       /**
         The fast-pool job body for a return bus: runs the return's own DSP
-        (insert chain + optional reverb / underwater FX) in place over the
+        (insert chain + optional reverb) in place over the
         already-accumulated `out`, then publishes the pre-fader peak. Mirrors the
         tail of dsp(); dispatched from CHANNEL::Manager::processReturns() exactly
         like a source channel's dsp(). Single-writer over this return's own `out`.

@@ -186,7 +186,14 @@ YSE::occlusionFunc YSE::system::occlusionCallback() {
 YSE::system::system() : occlusionPtr(nullptr) {}
 
 YSE::system& YSE::system::underWaterFX(const channel& target) {
-  INTERNAL::UnderWaterEffect().channel(target.pimpl);
+  // The stock underwater effect is an ordinary insert module since issue
+  // #327; the driver attaches it through the normal channel::setDSP path,
+  // which needs a live implementation to message.
+  if (target.pimpl == nullptr) {
+    INTERNAL::LogImpl().emit(E_ERROR, "underWaterFX: channel is not created; ignored");
+    return *this;
+  }
+  INTERNAL::UnderWaterEffect().attach(target);
   return *this;
 }
 

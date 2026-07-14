@@ -30,6 +30,7 @@ set(YSE_TEST_SOURCES
   dsp/test_module_chorus.cpp
   dsp/test_module_plate_reverb.cpp
   dsp/test_module_morphing_reverb.cpp
+  dsp/test_module_underwater.cpp
   dsp/test_module_parametric_eq.cpp
   dsp/test_module_compressor.cpp
   dsp/test_module_multichannel.cpp
@@ -65,6 +66,7 @@ set(YSE_TEST_SOURCES
   channel/test_channel_layout.cpp
   channel/test_channel_dsp.cpp
   channel/test_channel_sends.cpp
+  channel/test_channel_underwater.cpp
   channel/test_c_api_channel.cpp
   sound/test_sound_state.cpp
   sound/test_sound_streaming.cpp

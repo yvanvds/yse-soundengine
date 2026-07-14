@@ -268,7 +268,7 @@ One Freeverb-derived reverb processor; multiple `YSE::reverb` objects each repre
 **Reverb properties:** position, size, rollOff, roomSize, damping, dryWetBalance, modulation.
 **Built-in presets:** `REVERB_OFF, GENERIC, PADDED, ROOM, BATHROOM, STONEROOM, LARGEROOM, HALL, CAVE, SEWERPIPE, UNDERWATER`
 
-A separate `underWaterEffect` filter attaches per channel via `system::underWaterFX(channel)` + `setUnderWaterDepth(...)`.
+The underwater treatment is an ordinary insert module (`dsp/modules/underWater.hpp`, issue #327). `system::underWaterFX(channel)` binds the engine's default instance to a channel's insert slot through the normal `setDSP` path, and `setUnderWaterDepth(...)` drives it at control rate (listener depth below the water plane) alongside a matching `REVERB_UNDERWATER` zone; user code can instantiate and drive the module directly instead.
 
 ---
 
@@ -463,7 +463,7 @@ sound.play()
                                                  └── device output (PortAudio / Oboe)
 ```
 
-Channel routing (epic [#146](https://github.com/yvanvds/yse-soundengine/issues/146)): each `YSE::channel` carries an optional pre-fader **insert** chain (`setDSP`, a linked `dspObject` list) and up to N **aux sends** to **return buses** (`makeReturn` / `send` / `setSendLevel`). Returns are ordinary channels flagged as returns — they keep their own inserts and may send onward to other returns (the send graph must stay acyclic). Mix-grade effect modules for these slots live in `dsp/modules/` (`parametricEQ`, `compressor`, `chorus`, `plateReverb`, `morphingReverb`, `delay/feedbackDelay`).
+Channel routing (epic [#146](https://github.com/yvanvds/yse-soundengine/issues/146)): each `YSE::channel` carries an optional pre-fader **insert** chain (`setDSP`, a linked `dspObject` list) and up to N **aux sends** to **return buses** (`makeReturn` / `send` / `setSendLevel`). Returns are ordinary channels flagged as returns — they keep their own inserts and may send onward to other returns (the send graph must stay acyclic). Mix-grade effect modules for these slots live in `dsp/modules/` (`parametricEQ`, `compressor`, `chorus`, `plateReverb`, `morphingReverb`, `underWater`, `delay/feedbackDelay`).
 
 ---
 
