@@ -90,7 +90,10 @@ namespace YSE {
     }
 
     int implementationObject::getNumVoices() const {
-      return numVoicesTotal.load(std::memory_order_relaxed);
+      // Acquire pairs with the release store at the end of setup(): a caller
+      // that observes the final voice count also observes OBJECT_SETUP — the
+      // synth accepts (and no longer defers) messages from that point on (#352).
+      return numVoicesTotal.load(std::memory_order_acquire);
     }
 
     Flt implementationObject::getChannelPitchWheel(int channel) const {
@@ -172,7 +175,6 @@ namespace YSE {
       int total = 0;
       for (auto& g : groups)
         total += static_cast<int>(g.voices.size());
-      numVoicesTotal.store(total, std::memory_order_relaxed);
 
       stealFadeSamples = std::max(1, static_cast<int>(SAMPLERATE * kStealFadeSec));
 
@@ -186,6 +188,12 @@ namespace YSE {
       // window where an addVoiceGroup() could append a request this setup will
       // never build (it is serialised on buildMutex and now sees OBJECT_SETUP).
       objectStatus.store(OBJECT_SETUP, std::memory_order_release);
+
+      // The voice count is published strictly after OBJECT_SETUP: observing
+      // getNumVoices() == N must imply the synth is message-ready, because the
+      // count is the public readiness signal hosts and tests poll before
+      // sending notes (#352). Release pairs with the acquire in getNumVoices().
+      numVoicesTotal.store(total, std::memory_order_release);
     }
 
     bool implementationObject::readyCheck() {
@@ -254,19 +262,23 @@ namespace YSE {
       const OBJECT_IMPLEMENTATION_STATE st = objectStatus.load(std::memory_order_acquire);
       const bool ready = (st == OBJECT_SETUP || st == OBJECT_READY);
 
-      // 1. Drain the inbox so every note event for this block takes effect
-      //    before any audio is produced. Events arriving before the synth is
-      //    ready are discarded (they have no group to target yet).
-      messageObject m;
-      while (messages.try_pop(m)) {
-        if (ready) parseMessage(m);
-      }
-
       if (!ready) {
-        // 2. Clear whatever aggregate buffers exist (may be unsized pre-setup).
+        // Not set up yet: leave the inbox untouched so the render path never
+        // destroys queued events — messages arriving while the voices are
+        // still cloning stay in the SPSC inbox and take effect on the first
+        // ready block (#352; the only drop is sendMessage()'s logged overflow).
+        // Just clear whatever aggregate buffers exist (may be unsized
+        // pre-setup).
         for (auto& b : output.samples)
           b = 0.f;
         return;
+      }
+
+      // 1. Drain the inbox so every note event for this block takes effect
+      //    before any audio is produced.
+      messageObject m;
+      while (messages.try_pop(m)) {
+        parseMessage(m);
       }
 
       // Size the device-width bed + voice panners to the current output width.

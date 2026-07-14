@@ -59,6 +59,22 @@ namespace {
     return std::sqrt(static_cast<double>(p.x) * p.x + static_cast<double>(p.z) * p.z);
   }
 
+  // A sineVoice whose clone() sleeps on the setup pool. Cloning N of these
+  // holds the synth in OBJECT_SETTING_UP for a deterministic, machine-speed-
+  // independent window while the owning sound is already rendering — exactly
+  // the state in which a pre-#352 renderBlock() destroyed queued messages.
+  class SlowCloneVoice : public YSE::SYNTH::sineVoice {
+  public:
+    SlowCloneVoice() = default;
+    YSE::SYNTH::dspVoice* clone() override {
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+      return new SlowCloneVoice(*this);
+    }
+
+  private:
+    SlowCloneVoice(const SlowCloneVoice&) = default;
+  };
+
   // A handler that echoes voiceContext fields straight into a position, so a
   // test can assert exactly which live value reached the handler. It is also the
   // minimal "write your own handler" example (steers position only, RT-safe).
@@ -440,6 +456,53 @@ TEST_SUITE("synthhandlers") {
       YSE::Pos p = syn.getVoicePosition(1, 60);
       CHECK(p.x == doctest::Approx(7.f));
       CHECK(p.z == doctest::Approx(-3.f));
+
+      snd.stop();
+      pump(4);
+    }
+    pump(4);
+    YSE::System().close();
+    CHECK(true);
+  }
+
+  // ── Messages sent before setup completes are deferred, not dropped (#352):
+  //    a note queued while the voices are still cloning on the setup pool must
+  //    survive and arm once the synth is ready. SlowCloneVoice pins the synth
+  //    in OBJECT_SETTING_UP while the owning sound already renders, so the
+  //    offline pump exercises the not-ready inbox path deterministically. ──
+  TEST_CASE("synthhandlers: notes sent before setup are deferred until ready") {
+    YSE::System().close();
+    if (!YSE::System().initOffline()) return;
+
+    SlowCloneVoice voiceProto;
+    voiceProto.attack(0.005f).sustain(0.8f).release(0.05f);
+    YSE::SYNTH::orbitHandler proto;
+    proto.radius(2.f).velocityRadius(0.f).rate(1.f);
+    {
+      YSE::synth syn;
+      syn.create().addVoices(voiceProto, 4).positionHandler(proto); // ~200 ms setup
+      YSE::sound snd;
+      snd.create(syn);
+      snd.play();
+      // Queue the note NOW — the setup job has not even been scheduled yet.
+      syn.noteOn(1, 60, 0.8f);
+
+      // Render for ~100 ms of wall time. The single setup worker is asleep in
+      // SlowCloneVoice::clone(), so the sound comes up and renders many blocks
+      // while the synth is still OBJECT_SETTING_UP — the exact window in which
+      // the queued note used to be popped and discarded.
+      const auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds(100);
+      while (std::chrono::steady_clock::now() < until) {
+        YSE::System().update();
+        YSE::System().renderOffline(1);
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+      }
+
+      // Once the voices exist the deferred note must arm on the next blocks
+      // and sit on the handler's radius-2 ring — not silently vanish.
+      REQUIRE(bringToReady(syn, 4));
+      pump(2);
+      CHECK(planarRadius(syn.getVoicePosition(1, 60)) == doctest::Approx(2.0).epsilon(0.05));
 
       snd.stop();
       pump(4);
