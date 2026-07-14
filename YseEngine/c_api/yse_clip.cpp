@@ -2,6 +2,9 @@
 #include "yse_c_internal.hpp"
 
 #include "../clip/clip.hpp"
+#if YSE_ENABLE_MIDI_DEVICE
+#include "../midi/device.hpp"
+#endif
 
 #include <exception>
 #include <vector>
@@ -10,6 +13,13 @@ namespace {
   inline YSE::clip* to_cpp(YseClip* c) {
     return reinterpret_cast<YSE::clip*>(c);
   }
+#if YSE_ENABLE_MIDI_DEVICE
+  // Same handle representation as yse_midi.cpp: a YseMidiOut* is a
+  // reinterpret_cast YSE::midiOut*.
+  inline YSE::midiOut* to_cpp(YseMidiOut* m) {
+    return reinterpret_cast<YSE::midiOut*>(m);
+  }
+#endif
 } // namespace
 
 extern "C" {
@@ -81,6 +91,28 @@ YSE_C_API void yse_clip_disconnect_synth(YseClip* c, YseSynth* synth) {
   if (!c) return;
   YSE::synth* s = yse_c::synth_from_handle(synth);
   if (s) to_cpp(c)->disconnect(*s);
+}
+
+YSE_C_API void yse_clip_connect_midi_out(YseClip* c, YseMidiOut* m) {
+#if YSE_ENABLE_MIDI_DEVICE
+  if (!c || !m) return;
+  to_cpp(c)->connect(*to_cpp(m));
+#else
+  (void)c;
+  (void)m;
+  yse_c::set_last_error("clip MIDI-out is Windows/Linux only");
+#endif
+}
+
+YSE_C_API void yse_clip_disconnect_midi_out(YseClip* c, YseMidiOut* m) {
+#if YSE_ENABLE_MIDI_DEVICE
+  if (!c || !m) return;
+  to_cpp(c)->disconnect(*to_cpp(m));
+#else
+  (void)c;
+  (void)m;
+  yse_c::set_last_error("clip MIDI-out is Windows/Linux only");
+#endif
 }
 
 YSE_C_API void yse_clip_play(YseClip* c) {

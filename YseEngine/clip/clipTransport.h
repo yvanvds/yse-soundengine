@@ -14,13 +14,18 @@
 #include <atomic>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <vector>
 
 #include "clip.hpp"
+#include "../headers/defines.hpp"
 #include "../headers/enums.hpp"
 #include "../utils/lfQueue.hpp"
 #include "../synth/synth.hpp"
+#if YSE_ENABLE_MIDI_DEVICE
+#include "../midi/midiOutSender.h" // outEvent encoders + the sender hand-off (#350)
+#endif
 
 namespace YSE {
   namespace CLOCK {
@@ -59,6 +64,17 @@ namespace YSE {
 
       void connect(SYNTH::interfaceObject* target);
       void disconnect(SYNTH::interfaceObject* target);
+
+#if YSE_ENABLE_MIDI_DEVICE
+      /** Route playback to an external MIDI-out port (issue #350). `port` is a
+          device-manager-owned RtMidi port (alive until process exit), resolved
+          on the control thread. Lazily starts the engine-wide sender thread.
+          The audio thread never touches RtMidi: fired events are stamped with
+          the block's absolute send time and handed to MIDI::OutSender()'s
+          bounded lock-free queue. */
+      void connectMidiOut(RtMidiOut* port);
+      void disconnectMidiOut(RtMidiOut* port);
+#endif
 
       void play() {
         intent.store(SS_WANTSTOPLAY, std::memory_order_release);
@@ -220,6 +236,23 @@ namespace YSE {
       // connect/disconnect never lock and advance() never allocates).
       static constexpr std::size_t kMaxSynths = 8;
       std::array<std::atomic<SYNTH::interfaceObject*>, kMaxSynths> synths;
+
+#if YSE_ENABLE_MIDI_DEVICE
+      // Connected external MIDI-out ports (issue #350). Device-manager-owned
+      // RtMidi ports; same fixed atomic table pattern as `synths`.
+      static constexpr std::size_t kMaxMidiOuts = 4;
+      std::array<std::atomic<RtMidiOut*>, kMaxMidiOuts> midiPorts;
+
+      // Audio-thread: absolute send deadline for the next firing block. All
+      // events fired in one block share the block's deadline — block-accurate,
+      // the same granularity as the internal synth sink, and it preserves the
+      // note-off-before-note-on ordering evaluateWindow guarantees (per-event
+      // sub-block stamps could reorder same-pitch off/on pairs in the sender
+      // and hang notes). Paced forward one block per callback, resynced to
+      // `now` when the callback fell behind, so a burst of catch-up callbacks
+      // does not bunch messages on the wire.
+      std::int64_t nextDueNs = 0;
+#endif
     };
 
   } // namespace CLIP

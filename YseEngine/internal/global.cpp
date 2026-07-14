@@ -10,6 +10,9 @@
 
 #include "../internalHeaders.h"
 #include "namedBus.h"
+#if YSE_ENABLE_MIDI_DEVICE
+#include "../midi/midiOutSender.h" // clip-transport MIDI-out sender (issue #350)
+#endif
 
 #if YSE_ENABLE_PYTHON
 #include "../python/scriptRuntime.h"
@@ -164,6 +167,14 @@ void YSE::INTERNAL::global::close() {
   // device is closed and both pools are joined.
   CLIP::Manager().clear();
   CLOCK::Manager().clear();
+#if YSE_ENABLE_MIDI_DEVICE
+  // Stop the clip-transport MIDI-out sender thread (issue #350). The device is
+  // closed and the pools are joined, so nothing can still enqueue; stop() also
+  // flushes queued messages (chiefly note-offs from stopping clips) to their
+  // ports, which the MIDI device manager keeps open until process exit. A
+  // later init() + clip connect lazily restarts the sender.
+  MIDI::OutSender().stop();
+#endif
   // Tear down the bus last — by this point the audio device is already
   // closed (system::close() ran DEVICE::Manager().close() before us), so
   // no audio-thread producer can still be enqueuing publish() messages.
