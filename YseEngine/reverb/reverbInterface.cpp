@@ -9,6 +9,7 @@
 */
 
 #include "../internalHeaders.h"
+#include "reverbPresets.hpp"
 
 YSE::reverb::reverb(bool global)
   : pimpl(nullptr),
@@ -241,70 +242,14 @@ Flt YSE::reverb::getReflectionGain(Int reflection) {
 }
 
 YSE::reverb& YSE::reverb::setPreset(REVERB_PRESET value) {
-  switch (value) {
-  case REVERB_OFF:
-    setRoomSize(0.f).setDamping(0.f).setDryWetBalance(1.f, 0.f).setModulation(0.f, 0.f);
-    setReflection(0, 0, 0.f).setReflection(1, 0, 0.f).setReflection(2, 0, 0.f).setReflection(3, 0,
-                                                                                             0.f);
-    break;
-  case REVERB_GENERIC:
-    setRoomSize(0.5f).setDamping(0.5f).setDryWetBalance(0.6f, 0.4f).setModulation(0.f, 0.f);
-    setReflection(0, 0, 0.f).setReflection(1, 0, 0.f).setReflection(2, 0, 0.f).setReflection(3, 0,
-                                                                                             0.f);
-    break;
-  case REVERB_PADDED:
-    setRoomSize(0.1f).setDamping(0.9f).setDryWetBalance(0.9f, 0.1f).setModulation(0.f, 0.f);
-    setReflection(0, 0, 0.f).setReflection(1, 0, 0.f).setReflection(2, 0, 0.f).setReflection(3, 0,
-                                                                                             0.f);
-    break;
-  case REVERB_ROOM:
-    setRoomSize(0.3f).setDamping(0.8f).setDryWetBalance(0.7f, 0.3f).setModulation(0.f, 0.f);
-    setReflection(0, 0, 0.f).setReflection(1, 0, 0.f).setReflection(2, 0, 0.f).setReflection(3, 0,
-                                                                                             0.f);
-    break;
-  case REVERB_BATHROOM:
-    setRoomSize(0.2f).setDamping(0.1f).setDryWetBalance(0.3f, 0.7f).setModulation(0.f, 0.f);
-    setReflection(0, 0, 1.f)
-        .setReflection(1, 20, 0.7f)
-        .setReflection(2, 50, 0.5f)
-        .setReflection(3, 85, 0.3f);
-    break;
-  case REVERB_STONEROOM:
-    setRoomSize(0.3f).setDamping(0.01f).setDryWetBalance(0.3f, 0.7f).setModulation(0.f, 0.f);
-    setReflection(0, 30, 0.8f)
-        .setReflection(1, 70, 0.3f)
-        .setReflection(2, 100, 0.5f)
-        .setReflection(3, 150, 0.3f);
-    break;
-  case REVERB_LARGEROOM:
-    setRoomSize(0.7f).setDamping(0.8f).setDryWetBalance(0.7f, 0.3f).setModulation(0.f, 0.f);
-    setReflection(0, 0, 0.f).setReflection(1, 0, 0.f).setReflection(2, 0, 0.f).setReflection(3, 0,
-                                                                                             0.f);
-    break;
-  case REVERB_HALL:
-    setRoomSize(0.7f).setDamping(0.4f).setDryWetBalance(0.5f, 0.5f).setModulation(0.f, 0.f);
-    setReflection(0, 0, 0.f).setReflection(1, 0, 0.f).setReflection(2, 0, 0.f).setReflection(3, 0,
-                                                                                             0.f);
-    break;
-  case REVERB_CAVE:
-    setRoomSize(1.0f).setDamping(0.3f).setDryWetBalance(0.3f, 0.7f).setModulation(0.f, 0.f);
-    setReflection(0, 100, 0.8f)
-        .setReflection(1, 250, 0.6f)
-        .setReflection(2, 400, 0.4f)
-        .setReflection(3, 800, 0.5f);
-    break;
-  case REVERB_SEWERPIPE:
-    setRoomSize(0.5f).setDamping(0.1f).setDryWetBalance(0.3f, 0.7f).setModulation(3.5f, 20.0f);
-    setReflection(0, 200, 0.05f)
-        .setReflection(1, 600, 0.04f)
-        .setReflection(2, 1100, 0.01f)
-        .setReflection(3, 0, 0.f);
-    break;
-  case REVERB_UNDERWATER:
-    setRoomSize(0.1f).setDamping(0.2f).setDryWetBalance(0.3f, 0.7f).setModulation(3.5f, 20.0f);
-    setReflection(0, 0, 0.f).setReflection(1, 0, 0.f).setReflection(2, 0, 0.f).setReflection(3, 0,
-                                                                                             0.f);
-    break;
+  // The preset values live in the shared table (reverbPresets.hpp, issue
+  // #326) so the morphing reverb module blends exactly the parameter sets
+  // this interface applies.
+  const REVERB::presetValues& p = REVERB::getPresetValues(value);
+  setRoomSize(p.roomsize).setDamping(p.damp).setDryWetBalance(p.dry, p.wet);
+  setModulation(p.modFrequency, p.modWidth);
+  for (Int i = 0; i < 4; i++) {
+    setReflection(i, static_cast<Int>(p.earlyTime[i]), p.earlyGain[i]);
   }
 
   return *this;

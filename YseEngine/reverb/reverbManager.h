@@ -25,6 +25,13 @@
 namespace YSE {
   namespace REVERB {
 
+    /** The global, listener-proximity-driven reverb path. This in-place blend
+        is legacy-bound (project vision / send_return_buses.md §12b): bug fixes
+        yes, new features no. Proximity here is the *default driver* of the
+        engine's reverb core; for a user-drivable morph between presets — as a
+        channel or return insert — use DSP::MODULES::morphingReverb, which
+        exposes the same preset interpolation as a control input (issue #326).
+    */
     class managerObject {
     public:
       using ImplementationType = implementationObject;
