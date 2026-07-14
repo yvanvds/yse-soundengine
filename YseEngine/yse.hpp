@@ -118,6 +118,8 @@
 #include "synth/positionHandlers.hpp"
 #include "synth/synthInterface.hpp"
 
+#include "clip/clip.hpp"
+
 #include "midi/midifile.hpp"
 #include "midi/midiMessage.hpp"
 #include "midi/midiNote.hpp"

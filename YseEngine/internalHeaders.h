@@ -44,6 +44,9 @@
 #include "clock/domainClock.h"
 #include "clock/clockManager.h"
 
+#include "clip/clipTransport.h"
+#include "clip/clipManager.h"
+
 #include "midi/midiDeviceManager.h"
 
 #include "midi/midifileImplementation.h"
