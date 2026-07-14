@@ -872,7 +872,24 @@ void YSE::SOUND::implementationObject::computeFinalGains() {
   Flt correctPower = 1 / std::pow(dist, (2 * INTERNAL::Settings().rolloffScale));
   if (correctPower > 1) correctPower = 1;
 
-  for (UInt x = 0; x < buffer->size(); x++) {
+  // With the default spread == 0 every source channel maps to the identical
+  // angle (spreadAdjust == 0 for all x), so the whole pan / normalisation /
+  // rolloff derivation below yields a bit-identical gain column for every
+  // source channel. Compute that column once and replicate it, instead of
+  // redoing the cos / pow / sqrt work C times per update tick (issue #215). A
+  // multichannel buffer with a non-zero spread still runs the full per-channel
+  // loop. This dedups only the cached gains — toChannels()'s per-source-channel
+  // mix pass and its separate lastGain ramp states are untouched (the further
+  // pre-sum step interacts with mix-loop fusion and is out of scope, #213/#215).
+  const UInt sourceChannels = static_cast<UInt>(buffer->size());
+  const bool spreadCollapsed = (spread == 0.f) || (sourceChannels <= 1);
+  // Guard the empty-buffer transient: with no source channels there is nothing
+  // to compute, and finalGainCache columns are zero-length — the original
+  // `x < buffer->size()` loop ran zero passes there, so the collapsed path must
+  // too (a bare `1` would write finalGainCache[j][0] out of bounds).
+  const UInt channelsToCompute = (spreadCollapsed && sourceChannels > 0) ? 1u : sourceChannels;
+
+  for (UInt x = 0; x < channelsToCompute; x++) {
     // calculate spread value for multichannel sounds
     Flt spreadAdjust = 0;
     if (buffer->size() > 1)
@@ -911,6 +928,18 @@ void YSE::SOUND::implementationObject::computeFinalGains() {
       // add volume control now
       if (occlusionActive) finalGain *= 1 - occlusion_dsp;
       finalGainCache[j][x] = finalGain;
+    }
+  }
+
+  // spread == 0 (or a mono source): column 0 holds the gains every source
+  // channel shares, so fan it out to the rest instead of recomputing identical
+  // values. Skip the LFE outputs — their columns are never read by toChannels()
+  // and never written by the loop above, so they stay untouched here too.
+  if (spreadCollapsed) {
+    for (UInt j = 0; j < parent->out.size(); ++j) {
+      if (parent->outConf[j].isLFE) continue;
+      for (UInt x = 1; x < sourceChannels; x++)
+        finalGainCache[j][x] = finalGainCache[j][0];
     }
   }
 }

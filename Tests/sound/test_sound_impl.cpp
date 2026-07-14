@@ -82,6 +82,25 @@ namespace {
     void frequency(float) override {}
   };
 
+  // Stereo variant of DcSource for the spread==0 multichannel dedup test (#215).
+  // Both source channels carry the same constant DC, so with spread==0 they pan
+  // through the identical per-speaker gains; the summed per-output peak is then a
+  // clean readout of that shared pan, and two source channels exercise the
+  // gain-column replication path computeFinalGains() takes when spread==0.
+  struct StereoDcSource : YSE::DSP::dspSourceObject {
+    StereoDcSource() : YSE::DSP::dspSourceObject(2) {}
+    void process(YSE::SOUND_STATUS& intent) override {
+      for (UInt c = 0; c < samples.size(); ++c) {
+        float* p = samples[c].getPtr();
+        UInt len = samples[c].getLength();
+        for (UInt i = 0; i < len; i++)
+          p[i] = 0.5f;
+      }
+      intent = YSE::SS_PLAYING;
+    }
+    void frequency(float) override {}
+  };
+
   // Shared file-scope instances reused across tests.  These are stateless, so
   // sharing is safe; each test sets the position / volume / etc. it needs.
   SilentSource g_src;
@@ -89,6 +108,7 @@ namespace {
   NopDsp g_dsp;
   NopDsp g_dsp2;
   DcSource g_dc;
+  StereoDcSource g_dcStereo;
 
   // Drive SOUND::Manager().update() several times, with short sleeps so the
   // async setupJob has a chance to call setup() on freshly created sounds and
@@ -1370,6 +1390,64 @@ TEST_SUITE("sound") {
     s.pos(YSE::Pos(5.f, 0.f, 0.f));
     YSE::System().update();
     YSE::System().renderOffline(2); // >50 samples: smoothing ramp fully settles
+    const float rightL = leftPeak();
+    const float rightR = rightPeak();
+    CHECK(rightR > 0.05f);
+    CHECK(rightL < rightR * 0.1f);
+
+    s.stop();
+  }
+
+  // ─── spread == 0 multichannel gain dedup (#215) ──────────────────────────────
+  //
+  // computeFinalGains() derives a per-speaker gain column for each source
+  // channel. With the default spread == 0 every source channel maps to the
+  // identical angle, so all columns are bit-identical; the optimisation computes
+  // column 0 once and replicates it to the rest. This must not change the
+  // rendered output: a stereo source panned hard-left must still land on the
+  // left output with the right output near-silent. Same offline, audio-paused
+  // driving as the #212 case; the only difference is the two-channel source,
+  // which is the path the replication loop covers.
+  TEST_CASE("gain dedup: a stereo source with spread==0 pans as one point source (#215)") {
+    if (!TestHelpers::engineInit()) return;
+
+    YSE::channel ch;
+    ch.create("gaindedup215", YSE::ChannelMaster());
+
+    YSE::sound s;
+    s.create(g_dcStereo, &ch);
+    if (!s.isValid()) return;
+    s.relative(true); // angle straight from position, listener ignored
+    s.size(10.f); // near field: rolloff clamps to 1
+    CHECK(s.spread() == doctest::Approx(0.f)); // default: the deduped path
+    s.pos(YSE::Pos(-5.f, 0.f, 0.f)); // hard left -> output 0 dominates
+    s.play();
+
+    auto leftPeak = [&]() { return ch.getPeakLinearPre(0); };
+    auto rightPeak = [&]() { return ch.getPeakLinearPre(1); };
+    auto audible = [&]() { return leftPeak() > 1e-4f || rightPeak() > 1e-4f; };
+
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+    while (std::chrono::steady_clock::now() < deadline && !audible()) {
+      YSE::System().update();
+      YSE::System().renderOffline(2);
+      std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+    if (!audible()) return;
+
+    // Both source channels sum through the same left-dominant gains: left output
+    // carries the signal, right stays near-silent. A broken replication (garbage
+    // column, wrong bounds) would unbalance or silence this.
+    const float leftL = leftPeak();
+    const float leftR = rightPeak();
+    CHECK(leftL > 0.05f);
+    CHECK(leftR < leftL * 0.1f);
+
+    // Re-pan hard-right through a fresh tick: the deduped columns must still
+    // follow the source, proving the replication tracks per-tick updates.
+    s.pos(YSE::Pos(5.f, 0.f, 0.f));
+    YSE::System().update();
+    YSE::System().renderOffline(2);
     const float rightL = leftPeak();
     const float rightR = rightPeak();
     CHECK(rightR > 0.05f);
