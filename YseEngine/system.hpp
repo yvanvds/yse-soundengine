@@ -92,7 +92,27 @@ namespace YSE {
     /** @brief Shut down the engine and release the audio device. */
     void close();
 
-    /** @brief Pause audio output. The engine keeps running but the device is silent. */
+    /** @brief Pause audio output. The engine keeps running but the device is silent.
+     *
+     *  ``pause()`` closes the audio stream, so the audio tick stops draining the
+     *  lock-free control-to-audio inboxes (per-object message queues and the
+     *  managers' ``toLoadInbox``es). Interface setters and object creation called
+     *  while paused keep enqueuing onto those queues; the messages are held and
+     *  delivered in order on ``resume()``, not dropped. This is intentional — the
+     *  queues carry ordered discrete commands (play/stop, position, load-handoff
+     *  pointers), so silently dropping them would corrupt state, unlike the
+     *  latest-value-wins parameter queues (NamedBus, patcher) which do cap.
+     *
+     *  The consequence is unbounded memory growth if an app pushes a very large
+     *  number of setter/creation calls while paused: ``lfQueue`` allocates
+     *  doubling-size blocks on demand and never frees them, so the peak retained
+     *  capacity persists for the queue's lifetime even after the backlog drains.
+     *  All allocation happens producer-side on the control thread, so this never
+     *  violates audio-thread real-time discipline. Applications that drive a heavy
+     *  control-rate workload should keep the engine running (leave the device open)
+     *  rather than pausing, or simply avoid issuing large batches of setters while
+     *  paused. See issue #289.
+     */
     void pause();
 
     /** @brief Resume audio output after ``pause()``. */
