@@ -18,6 +18,7 @@
 #include "../internal/threadPool.h"
 #include "../internal/managerJobs.hpp"
 #include "../utils/lfQueue.hpp"
+#include "../utils/intrusiveForwardList.hpp"
 
 namespace YSE {
   namespace MIDI {
@@ -56,8 +57,9 @@ namespace YSE {
       lfQueue<fileImpl*> toLoadInbox;
 
       // Audio-thread-owned working list. update() iterates and erases from this
-      // list only; the impls it points at live in `implementations`.
-      std::forward_list<fileImpl*> inUse;
+      // list only; the impls it points at live in `implementations`. Intrusive
+      // (link embedded via `_mgrNext`) — allocation-free (issue #266).
+      IntrusiveForwardList<fileImpl, &fileImpl::_mgrNext> inUse;
 
       // Reaps impls flagged OBJECT_DELETE off the audio thread on the slow pool.
       INTERNAL::managerDeleteJob<managerObject> mgrDelete;

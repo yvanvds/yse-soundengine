@@ -16,7 +16,13 @@
 #include <cstdint>
 #include <string>
 #include <vector>
-#include "../internalHeaders.h"
+// Public umbrella header only (enums, types, and the MIDI::file class). NOT
+// internalHeaders.h: the manager below now embeds an intrusive list keyed on a
+// pointer-to-member of this class, so it needs `fileImpl` complete — pulling in
+// the manager headers here would form an include cycle that leaves `fileImpl`
+// incomplete at the manager's declaration (issue #266). This mirrors how the
+// sound/reverb impl headers stay off internalHeaders.h.
+#include "../yse.hpp"
 #include "../synth/synth.hpp" // YSE::synth / SYNTH::interfaceObject forward decls
 
 namespace YSE {
@@ -96,6 +102,13 @@ namespace YSE {
       }
 
     private:
+      // Intrusive forward-list link (issue #266, mirrors #194). Threads this
+      // impl through the MIDI file manager's audio-thread `inUse` list. Touched
+      // only on the audio thread, replacing the std::forward_list<T*> node so
+      // MIDI-file start/stop no longer churns a heap node per tick. MIDI files
+      // skip the toLoad stage, so a single link suffices.
+      fileImpl* _mgrNext = nullptr;
+
       // Deliver one decoded event to every connected synth (audio thread).
       void dispatchEvent(const fileEvent& event);
       // Release every held note on every connected synth (pause / stop / EOT).
@@ -129,6 +142,9 @@ namespace YSE {
       // each event's status byte, so no per-connection channel filter is needed.
       static constexpr std::size_t kMaxSynths = 8;
       std::array<std::atomic<SYNTH::interfaceObject*>, kMaxSynths> synths;
+
+      // Grants the manager access to the intrusive `_mgrNext` link (issue #266).
+      friend class managerObject;
     };
 
   } // namespace MIDI

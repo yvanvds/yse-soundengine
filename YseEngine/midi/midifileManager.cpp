@@ -58,7 +58,7 @@ void YSE::MIDI::managerObject::update() {
   {
     fileImpl* p;
     while (toLoadInbox.try_pop(p))
-      inUse.emplace_front(p);
+      inUse.push_front(p);
   }
 
   ///////////////////////////////////////////
@@ -76,17 +76,15 @@ void YSE::MIDI::managerObject::update() {
   // impl is flagged OBJECT_DELETE and left in `implementations` for the
   // slow-pool deleteJob to reap — it is never freed on the audio thread.
   ///////////////////////////////////////////
-  auto previous = inUse.before_begin();
-  for (auto i = inUse.begin(); i != inUse.end();) {
-    if (!(*i)->hasInterface()) {
-      fileImpl* ptr = *i;
-      i = inUse.erase_after(previous);
+  for (auto c = inUse.front(); c.valid();) {
+    fileImpl* ptr = c.get();
+    if (!ptr->hasInterface()) {
+      c.erase();
       ptr->setStatus(OBJECT_DELETE);
       runDelete = true;
-      continue;
+      continue; // c already refers to the successor after erase()
     }
-    previous = i;
-    ++i;
+    c.next();
   }
 }
 
