@@ -25,6 +25,7 @@ set(YSE_C_API_SRCS
   yse_dsp_modules.cpp
   yse_patcher.cpp
   yse_midi.cpp
+  yse_clip.cpp
   yse_music.cpp
   yse_synth.cpp
   yse_instrument.cpp
