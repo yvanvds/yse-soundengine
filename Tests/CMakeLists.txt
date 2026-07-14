@@ -201,17 +201,15 @@ add_test(
   # / yse_tests_synthlifecycle / yse_tests_synthcapi / yse_tests_midisynth /
   # yse_tests_playersynth / yse_tests_playercapi.
   #
-  # `* concurrency: *` (the cross-subsystem create/destroy + race stress cases:
-  # channel/sound/reverb/io/listener/midifile) is excluded here too and runs
-  # only in the dedicated, uncrowded yse_tests_concurrency process — the exact
-  # same filter that entry uses to *include* them. In this ~1100-case combined
-  # process the channel manager two-thread churn case hits a pre-existing,
-  # heap-layout-dependent cross-thread manager race (#41/#298 lineage): the wide
-  # race window makes it flake (hang or SIGSEGV) regardless of the code under
-  # test — a latent landmine that also flakes on dev. Isolating these mirrors the
-  # suite exclusions above and loses no coverage: yse_tests_concurrency plus the
-  # per-suite entries still run every case. Tracked in #304; the root fix is
-  # #41/#298 engine work.
+  # The `* concurrency: *` stress cases run here again (issue #304). They were
+  # temporarily excluded when the crowded ~1100-case process flaked (hang or
+  # SIGSEGV) in the channel two-thread churn case; the root cause turned out to
+  # be the channel impl ctor leaving `objectStatus` uninitialised, letting the
+  # slow-pool deleteJob free a node mid-construction (issue #336, fixed in
+  # PR #337). With that fixed, running the stress cases in this warm-heap,
+  # thread-churning process is deliberate coverage — it is exactly the
+  # environment that exposed #336 — on top of the dedicated
+  # yse_tests_concurrency entry and the per-suite entries.
   # `sendstress` is excluded too: like the lifecycle suites it drives
   # System::initOffline() (process-global engine state), so it must run in its
   # own process (yse_tests_sendstress) rather than in this shared one.
@@ -225,7 +223,7 @@ add_test(
   # `clip` (issue #250 clip transport) is excluded for the same reason as
   # `clock`: its cases drive CLOCK::Manager().update() / CLIP::Manager().update()
   # directly on the test thread. It runs isolated in yse_tests_clip.
-  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthhandlers,synthcapi,instrumentcapi,midisynth,playersynth,playercapi,sendstress,channelcapi,synthdemos,clock,clip "--test-case-exclude=* concurrency: *" --duration=true
+  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthhandlers,synthcapi,instrumentcapi,midisynth,playersynth,playercapi,sendstress,channelcapi,synthdemos,clock,clip --duration=true
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_unit_tests PROPERTIES TIMEOUT 600)
