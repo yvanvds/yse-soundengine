@@ -223,7 +223,7 @@ namespace YSE {
     /// Lock-free getters returning the latest per-block peak of this channel's
     /// output buffers. Refresh granularity is one audio block (so polling
     /// faster than the audio block rate yields no new data). ``Pre`` reads
-    /// the peak measured at the end of ``dsp()`` (after reverb/underwater FX,
+    /// the peak measured at the end of ``dsp()`` (after inserts and reverb,
     /// before the channel volume is applied); ``Post`` reads the peak
     /// measured immediately after ``adjustVolume()`` — what listeners hear.
     /// Per-output overloads take an index in ``[0, getNumOutputs())``;

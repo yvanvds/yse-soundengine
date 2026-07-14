@@ -108,7 +108,7 @@ YSE_C_API const char* yse_channel_get_name(YseChannel* ch);
 
 /* Output peak metering — see channelInterface.hpp for semantics.
  *
- * "Pre" reads the peak measured at the end of dsp() (after reverb/underwater FX,
+ * "Pre" reads the peak measured at the end of dsp() (after inserts and reverb,
  * before the channel volume is applied); "Post" reads the peak measured
  * immediately after adjustVolume() — what listeners hear. Per-output overloads
  * take an index in [0, yse_channel_get_num_outputs()); out-of-range indices

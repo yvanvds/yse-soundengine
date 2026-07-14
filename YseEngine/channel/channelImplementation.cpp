@@ -150,10 +150,6 @@ void YSE::CHANNEL::implementationObject::dsp() {
 
   REVERB::Manager().process(this);
 
-  if (INTERNAL::UnderWaterEffect().channel() == this) {
-    INTERNAL::UnderWaterEffect().apply(out);
-  }
-
   // Publish pre-volume peak for VU consumers. Sized in lock-step with `out`
   // in setup()/resize(); the std::min guards against a resize race.
   const UInt n = (UInt)std::min(out.size(), lastPeakLinearPre.size());
@@ -223,10 +219,6 @@ void YSE::CHANNEL::implementationObject::buffersToParent() {
     // parent size is not checked but should be ok because it's adjusted before calling this
     parent->out[i] += out[i];
   }
-}
-
-void YSE::CHANNEL::implementationObject::attachUnderWaterFX() {
-  INTERNAL::UnderWaterEffect().channel(this);
 }
 
 void YSE::CHANNEL::implementationObject::addDSP(DSP::dspObject* ptr) {
@@ -305,15 +297,11 @@ void YSE::CHANNEL::implementationObject::processReturnInsert() {
   // `out` already holds the accumulated sends (zeroed at block start by the
   // master, summed by the source tree and any earlier-generation returns). Run
   // the return's own DSP in place — its insert chain is the effect (e.g. a plate
-  // reverb on a send return), plus any attached global reverb / underwater FX —
-  // mirroring the tail of dsp(). Single-writer over this return's own `out`.
+  // reverb on a send return), plus any attached global reverb — mirroring the
+  // tail of dsp(). Single-writer over this return's own `out`.
   if (insert_dsp != nullptr) processInsertDSP();
 
   REVERB::Manager().process(this);
-
-  if (INTERNAL::UnderWaterEffect().channel() == this) {
-    INTERNAL::UnderWaterEffect().apply(out);
-  }
 
   // Publish pre-volume peak (mirrors dsp()).
   const UInt n = (UInt)std::min(out.size(), lastPeakLinearPre.size());

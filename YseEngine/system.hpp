@@ -228,13 +228,32 @@ namespace YSE {
     /** @brief Current occlusion callback, or ``nullptr`` if none installed. */
     occlusionFunc occlusionCallback();
 
-    /** @brief Route a channel through the under-water effect. */
+    /** @brief Route a channel through the built-in under-water effect.
+     *
+     *  Since issue #327 the underwater treatment is an ordinary insert module
+     *  (``DSP::MODULES::underWater``); this call places the engine's default
+     *  instance at the head of @p target's insert chain through the normal
+     *  ``channel::setDSP`` message path. It therefore occupies the channel's
+     *  insert slot: a later ``setDSP`` on the same channel replaces it, and
+     *  vice versa. Only one channel carries the stock effect at a time —
+     *  calling this again with a different channel moves it. To combine the
+     *  effect with other inserts, or to drive it from your own control logic,
+     *  instantiate your own ``DSP::MODULES::underWater`` instead.
+     */
     system& underWaterFX(const channel& target);
 
-    /** @brief Configure the depth (intensity) of the under-water effect.
+    /** @brief Set the listener's depth below the water surface.
      *
-     *  @param value Depth in the range [0.0, 1.0]. 0 is dry, 1 is the maximum
-     *               low-pass / pitch-shift the effect applies.
+     *  The default spatial driver of the underwater module: evaluate it at
+     *  control rate on your update thread and the value is delivered to the
+     *  audio thread as an ordinary wait-free parameter write.
+     *
+     *  @param value Depth below the surface in world distance units. Zero or
+     *               less disables the effect entirely; the low-passed,
+     *               position-neutral treatment fades in above 1 and is fully
+     *               position-neutral from 5 down. Any positive depth also
+     *               enables the built-in underwater reverb zone at the
+     *               listener's position.
      */
     system& setUnderWaterDepth(float value);
 

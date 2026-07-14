@@ -120,8 +120,12 @@ YSE_C_API float yse_system_current_tempo(YseSystem* sys, const char* name);
    Returned pointer is borrowed; never destroy. */
 YSE_C_API YseReverb* yse_system_get_global_reverb(YseSystem* sys);
 
-/* Underwater effect: routes a channel through the built-in low-pass /
-   pitch-shift "underwater" filter. Depth is in [0.0, 1.0]. */
+/* Underwater effect: attaches the engine's underwater insert module to the
+   channel's insert slot (the same slot yse_channel_set_dsp uses; the two
+   replace each other). Depth is the listener's distance below the water
+   surface in world units: <= 0 disables the effect, the low-passed
+   position-neutral treatment fades in above 1 and saturates at 5. A positive
+   depth also enables the built-in underwater reverb zone. */
 YSE_C_API void yse_system_underwater_fx(YseSystem* sys, const YseChannel* target);
 YSE_C_API void yse_system_set_underwater_depth(YseSystem* sys, float depth);
 
