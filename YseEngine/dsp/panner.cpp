@@ -238,7 +238,12 @@ namespace YSE {
       // out of the source-channel loop exactly like the sound path.
       Flt dist = distance - size;
       if (dist < 0) dist = 0;
-      Flt correctPower = 1 / ::pow(dist, (2 * INTERNAL::Settings().rolloffScale));
+      // std::pow with an Flt (float) exponent selects the single-precision
+      // overload; the bare ::pow would promote the args to double (#341, sibling
+      // of #214 which made the same change in the sound path). dist and
+      // rolloffScale are both Flt, so this is a genuine powf, computed once per
+      // gain recompute (this whole function only runs when gainDirty).
+      Flt correctPower = 1 / std::pow(dist, (2 * INTERNAL::Settings().rolloffScale));
       if (correctPower > 1) correctPower = 1;
 
       for (UInt x = 0; x < srcChannels; x++) {
@@ -249,13 +254,16 @@ namespace YSE {
 
         for (UInt i = 0; i < numOutputs; i++) {
           if (spkIsLFE[i]) continue; // LFE is not azimuth-panned
-          Flt initPan = (1 + horizFraction * ::cos(spkAngle[i] - (angle + spreadAdjust))) * 0.5f;
+          // std::cos on an Flt argument selects the float overload instead of
+          // promoting to double (#341) — same as the sound path since #214.
+          Flt initPan = (1 + horizFraction * std::cos(spkAngle[i] - (angle + spreadAdjust))) * 0.5f;
           initGainScratch[i] = initPan / spkEffective[i];
         }
         Flt power = 0;
         for (UInt i = 0; i < numOutputs; i++) {
           if (spkIsLFE[i]) continue;
-          power += static_cast<Flt>(::pow(initGainScratch[i], 2));
+          // Trivial squaring: g * g instead of a double ::pow(g, 2) (#341).
+          power += initGainScratch[i] * initGainScratch[i];
         }
 
         for (UInt j = 0; j < numOutputs; ++j) {
