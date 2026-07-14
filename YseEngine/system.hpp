@@ -54,6 +54,13 @@ namespace YSE {
     system();
 
     /** @brief Initialise the engine and open the default audio device.
+     *
+     *  @note **Threading.** This call runs on and *defines* the engine's
+     *        control thread. Call ``update()`` and ``close()`` from the same
+     *        thread. The control-thread identity is captured here and never
+     *        re-derived, so driving ``init()`` and ``update()`` from different
+     *        threads silently loses the named-bus inline fast path — see the
+     *        ``update()`` threading note (issue #290).
      *  @return ``true`` on success, ``false`` if no device could be opened.
      */
     bool init();
@@ -86,6 +93,20 @@ namespace YSE {
      *  Call once per frame from the main thread. Drives message delivery,
      *  sound state transitions, virtualisation decisions, and listener
      *  velocity calculations.
+     *
+     *  @note **Threading.** ``update()`` must be called from the same thread
+     *        that called ``init()`` — the engine's single control thread. That
+     *        identity is frozen when the engine initialises (not re-derived per
+     *        tick) and decides who may dispatch control-rate (``T_GUI``)
+     *        named-bus publishes inline; a publish from any other thread is
+     *        instead deferred to the next ``update()`` tick to keep the
+     *        per-object message queues single-producer (issue #193). Driving
+     *        ``init()`` and ``update()`` from *different* threads is
+     *        unsupported: it stays functionally correct — every publish simply
+     *        takes the deferred path and is dispatched on whichever thread runs
+     *        ``update()`` — but permanently forfeits the inline fast path,
+     *        because the control thread is captured at ``init()`` rather than
+     *        followed from ``update()`` (issue #290).
      */
     void update();
 
