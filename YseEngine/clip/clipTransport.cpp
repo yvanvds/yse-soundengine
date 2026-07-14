@@ -41,6 +41,66 @@ namespace {
     }
   };
 
+#if YSE_ENABLE_MIDI_DEVICE
+  // Audio-thread sink that fans one fired note out to every connected external
+  // MIDI-out port (issue #350). Each call encodes the wire bytes, stamps them
+  // with the block's absolute send deadline, and try_pushes onto the sender's
+  // bounded lock-free queue — no allocation, no lock, no RtMidi on this thread.
+  // A full queue drops the message rather than block.
+  struct midiOutFanout {
+    std::array<std::atomic<RtMidiOut*>, 4>* ports;
+    YSE::MIDI::outSender* sender;
+    std::int64_t dueNs;
+
+    void noteOn(int channel, int pitch, float velocity) {
+      for (auto& slot : *ports) {
+        RtMidiOut* p = slot.load(std::memory_order_acquire);
+        if (p != nullptr)
+          sender->tryEnqueue(YSE::MIDI::makeNoteOn(p, dueNs, channel, pitch, velocity));
+      }
+    }
+    void noteOff(int channel, int pitch, float velocity) {
+      for (auto& slot : *ports) {
+        RtMidiOut* p = slot.load(std::memory_order_acquire);
+        if (p != nullptr)
+          sender->tryEnqueue(YSE::MIDI::makeNoteOff(p, dueNs, channel, pitch, velocity));
+      }
+    }
+    void pitchWheel(int channel, float value) {
+      for (auto& slot : *ports) {
+        RtMidiOut* p = slot.load(std::memory_order_acquire);
+        if (p != nullptr) sender->tryEnqueue(YSE::MIDI::makePitchWheel(p, dueNs, channel, value));
+      }
+    }
+  };
+#else
+  struct midiOutFanout { // MIDI device backend compiled out — no-op sink half
+    void noteOn(int, int, float) {}
+    void noteOff(int, int, float) {}
+    void pitchWheel(int, float) {}
+  };
+#endif
+
+  // The transport's real output sink: internal synth inboxes + external
+  // MIDI-out queue, both fed from the same evaluateWindow firing.
+  struct clipSink {
+    synthFanout synths;
+    midiOutFanout midi;
+
+    void noteOn(int channel, int pitch, float velocity) {
+      synths.noteOn(channel, pitch, velocity);
+      midi.noteOn(channel, pitch, velocity);
+    }
+    void noteOff(int channel, int pitch, float velocity) {
+      synths.noteOff(channel, pitch, velocity);
+      midi.noteOff(channel, pitch, velocity);
+    }
+    void pitchWheel(int channel, float value) {
+      synths.pitchWheel(channel, value);
+      midi.pitchWheel(channel, value);
+    }
+  };
+
 } // namespace
 
 YSE::CLIP::transport::transport(clip* head)
@@ -49,6 +109,10 @@ YSE::CLIP::transport::transport(clip* head)
   // synth table must be explicitly cleared before the audio thread reads it.
   for (auto& slot : synths)
     slot.store(nullptr, std::memory_order_relaxed);
+#if YSE_ENABLE_MIDI_DEVICE
+  for (auto& slot : midiPorts)
+    slot.store(nullptr, std::memory_order_relaxed);
+#endif
 }
 
 YSE::CLIP::transport::~transport() {
@@ -105,8 +169,57 @@ void YSE::CLIP::transport::disconnect(SYNTH::interfaceObject* target) {
   }
 }
 
+#if YSE_ENABLE_MIDI_DEVICE
+
+void YSE::CLIP::transport::connectMidiOut(RtMidiOut* port) {
+  if (port == nullptr) return;
+  int freeIdx = -1;
+  for (std::size_t i = 0; i < kMaxMidiOuts; ++i) {
+    RtMidiOut* cur = midiPorts[i].load(std::memory_order_acquire);
+    if (cur == port) return; // already connected
+    if (cur == nullptr && freeIdx < 0) freeIdx = static_cast<int>(i);
+  }
+  if (freeIdx < 0) return; // table full — ignore rather than grow a lock-free table
+  // Spin up the sender before the audio thread can see the port, so the first
+  // fired events find a live consumer (they would only be delayed, not lost,
+  // but the ordering keeps the contract simple).
+  MIDI::OutSender().start();
+  midiPorts[static_cast<std::size_t>(freeIdx)].store(port, std::memory_order_release);
+}
+
+void YSE::CLIP::transport::disconnectMidiOut(RtMidiOut* port) {
+  if (port == nullptr) return;
+  for (auto& slot : midiPorts) {
+    if (slot.load(std::memory_order_acquire) == port) {
+      slot.store(nullptr, std::memory_order_release);
+      return;
+    }
+  }
+}
+
+#endif // YSE_ENABLE_MIDI_DEVICE
+
 void YSE::CLIP::transport::advance() {
-  synthFanout sink{&synths};
+  clipSink sink{};
+  sink.synths.synths = &synths;
+#if YSE_ENABLE_MIDI_DEVICE
+  sink.midi.ports = &midiPorts;
+  sink.midi.sender = &MIDI::OutSender();
+  // Absolute send deadline shared by every event this block fires: paced one
+  // block per callback, resynced to `now` when the callback fell behind. Only
+  // stamped when a port is connected — no clock read on the pure-synth path.
+  bool anyMidi = false;
+  for (auto& slot : midiPorts) {
+    if (slot.load(std::memory_order_relaxed) != nullptr) {
+      anyMidi = true;
+      break;
+    }
+  }
+  if (anyMidi) {
+    const std::int64_t now = MIDI::nowNs();
+    sink.midi.dueNs = nextDueNs > now ? nextDueNs : now;
+  }
+#endif
 
   switch (intent.load(std::memory_order_acquire)) {
   case SS_WANTSTOPLAY:
@@ -147,5 +260,19 @@ void YSE::CLIP::transport::advance() {
   }
 
   evaluateWindow(sink, lastBeat, curBeat);
+
+#if YSE_ENABLE_MIDI_DEVICE
+  if (anyMidi) {
+    // Pace the next block's deadline one block ahead. Block duration derives
+    // from the beat window at the clock's current tempo (a ramping tempo makes
+    // this approximate — well within the block-accurate contract).
+    const double tempo = clock->currentTempo();
+    if (tempo > 0.0) {
+      nextDueNs =
+          sink.midi.dueNs + static_cast<std::int64_t>((curBeat - lastBeat) * 60.0e9 / tempo);
+    }
+  }
+#endif
+
   lastBeat = curBeat;
 }

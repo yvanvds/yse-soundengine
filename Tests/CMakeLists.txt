@@ -94,6 +94,7 @@ set(YSE_TEST_SOURCES
   midi/test_midifile_alloc.cpp
   midi/test_devicemanager.cpp
   midi/test_midi_in.cpp
+  midi/test_midi_out_sender.cpp
   midi/test_midi_synth_routing.cpp
   midi/test_midi_synth.cpp
   music/test_scale.cpp

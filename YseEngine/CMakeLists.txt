@@ -191,6 +191,8 @@ if(YSE_ENABLE_MIDI_DEVICE)
   list(APPEND YSE_SRCS
     midi/midiDeviceManager.cpp
     midi/device.cpp
+    # Clip-transport external MIDI-out sender thread (issue #350).
+    midi/midiOutSender.cpp
   )
 endif()
 

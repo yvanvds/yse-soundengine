@@ -95,6 +95,15 @@ namespace YSE {
     /** @brief Send a raw MIDI byte string. */
     void Raw(const std::string& value);
 
+    /// @cond INTERNAL
+    /** Engine-internal (issue #350): the underlying RtMidi port. Owned by the
+        MIDI device manager (alive until process exit); nullptr until create()
+        has opened a port. Used by the clip transport's MIDI-out sink. */
+    RtMidiOut* rawPort() const {
+      return device;
+    }
+    /// @endcond
+
   private:
     bool isPrepared();
 

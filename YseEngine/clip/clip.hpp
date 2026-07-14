@@ -53,6 +53,10 @@ namespace YSE {
   }
   /// @endcond
 
+#if YSE_ENABLE_MIDI_DEVICE
+  class midiOut; // midi/device.hpp — external MIDI-out sink target (issue #350)
+#endif
+
   /**
    *  @brief A looping clip transport: plays a timed note-event list against a
    *         domain clock, dispatched from the audio thread.
@@ -69,10 +73,12 @@ namespace YSE {
    *  respect to the audio thread. Sounding-note bookkeeping survives the swap —
    *  a note that vanished from the new list still gets its note-off on time.
    *
-   *  Output currently targets one or more ``YSE::synth`` instances (block-
-   *  accurate, on the audio thread), the RT-safe internal event-queue target;
-   *  the transport itself is agnostic to the sink, so an external MIDI-out sink
-   *  can be added on the same seam.
+   *  Output targets one or more ``YSE::synth`` instances (block-accurate, on
+   *  the audio thread, via the RT-safe internal event queues) and — on builds
+   *  with ``YSE_ENABLE_MIDI_DEVICE`` — one or more external MIDI output ports
+   *  (issue #350): fired messages are stamped with an absolute send time and
+   *  drained by a dedicated sender thread, so the RtMidi send never happens on
+   *  the audio callback.
    *
    *  Multiple clips run concurrently, each on its own clock. Non-copyable /
    *  non-movable — wrap in a ``unique_ptr`` if you need transferable ownership.
@@ -115,6 +121,27 @@ namespace YSE {
 
     /** @brief Stop routing this clip's playback into ``synth``. */
     clip& disconnect(YSE::synth& synth);
+
+#if YSE_ENABLE_MIDI_DEVICE
+    /** @brief Route this clip's playback to an external MIDI output port
+     *         (issue #350). Present only when libyse was built with
+     *         ``YSE_ENABLE_MIDI_DEVICE=ON``.
+     *
+     *  The transport keeps deciding event timing block-accurately on the audio
+     *  thread; the fired messages are stamped with an absolute send time and
+     *  handed to a dedicated sender thread through a bounded lock-free queue —
+     *  the RtMidi send never happens on the audio callback.
+     *
+     *  ``out`` must have opened a port (``midiOut::create``) before connecting;
+     *  connecting an unopened ``midiOut`` is ignored. The underlying device
+     *  port is engine-owned and stays open, so the ``midiOut`` object itself
+     *  may be destroyed after connecting. May be called for several ports.
+     *  Control thread only. */
+    clip& connect(midiOut& out);
+
+    /** @brief Stop routing this clip's playback to ``out``'s port. */
+    clip& disconnect(midiOut& out);
+#endif
 
     /** @brief Start (or restart) playback from the clock's current beat. */
     clip& play();

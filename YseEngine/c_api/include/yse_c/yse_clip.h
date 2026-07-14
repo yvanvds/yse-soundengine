@@ -8,9 +8,12 @@
   replaceable while playing; the swap is lock-free with respect to the audio
   thread and sounding notes still receive their note-off across the swap.
 
-  Output currently targets one or more YseSynth instances (RT-safe internal
-  event queues). Channels are 1..16; pitches are 0..127; velocity and pitch bend
-  are normalized (see YseClipEvent).
+  Output targets one or more YseSynth instances (RT-safe internal event queues)
+  and — on builds with MIDI device support — one or more external MIDI output
+  ports (issue #350): the audio thread stamps fired messages with an absolute
+  send time and a dedicated sender thread performs the RtMidi sends, so the
+  audio callback never touches the device. Channels are 1..16; pitches are
+  0..127; velocity and pitch bend are normalized (see YseClipEvent).
 */
 
 #ifndef YSE_C_CLIP_H_INCLUDED
@@ -26,6 +29,8 @@ extern "C" {
 typedef struct YseClip YseClip;
 /* Opaque synth handle (defined in yse_synth.h). */
 typedef struct YseSynth YseSynth;
+/* Opaque MIDI-out handle (defined in yse_midi.h). */
+typedef struct YseMidiOut YseMidiOut;
 
 /* One timed note event, positioned in beats on the bound domain clock.
    Layout-compatible with YSE::clipEvent. */
@@ -57,6 +62,18 @@ YSE_C_API void yse_clip_set_loop_length(YseClip* c, double beats);
    The synth must outlive the connection. */
 YSE_C_API void yse_clip_connect_synth(YseClip* c, YseSynth* synth);
 YSE_C_API void yse_clip_disconnect_synth(YseClip* c, YseSynth* synth);
+
+/* Route this clip's playback to an external MIDI output port (issue #350).
+   `m` must already have opened a port (yse_midi_out_open); connecting an
+   unopened handle is ignored. The underlying device port is engine-owned and
+   stays open, so `m` itself may be destroyed after connecting. May be called
+   for several ports. The audio thread stamps fired messages with an absolute
+   send time and hands them to a dedicated sender thread over a bounded
+   lock-free queue — timing stays block-accurate, and the audio callback never
+   performs the send. On builds without MIDI device support these set
+   last_error and no-op. */
+YSE_C_API void yse_clip_connect_midi_out(YseClip* c, YseMidiOut* m);
+YSE_C_API void yse_clip_disconnect_midi_out(YseClip* c, YseMidiOut* m);
 
 YSE_C_API void yse_clip_play(YseClip* c);
 YSE_C_API void yse_clip_stop(YseClip* c);
