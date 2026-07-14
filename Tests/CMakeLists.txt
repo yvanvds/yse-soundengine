@@ -88,6 +88,7 @@ set(YSE_TEST_SOURCES
   reverb/test_reverb_concurrency.cpp
   midi/test_midifile.cpp
   midi/test_midifile_concurrency.cpp
+  midi/test_midifile_alloc.cpp
   midi/test_devicemanager.cpp
   midi/test_midi_in.cpp
   midi/test_midi_synth_routing.cpp

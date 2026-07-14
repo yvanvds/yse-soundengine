@@ -22,6 +22,9 @@
 #include <cstdint>
 #include <fstream>
 
+// The header now pulls only the public umbrella (issue #266); the definitions
+// this TU needs (INTERNAL::LogImpl) still come from internalHeaders.h.
+#include "../internalHeaders.h"
 #include "../synth/synthInterface.hpp"
 #include "midiSynthRouting.hpp"
 
