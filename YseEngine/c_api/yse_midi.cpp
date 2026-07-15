@@ -118,6 +118,23 @@ YSE_C_API void yse_midi_file_stop(YseMidiFile* f) {
   if (f) to_cpp(f)->stop();
 }
 
+YSE_C_API void yse_midi_file_connect_synth(YseMidiFile* f, YseSynth* synth) {
+  if (!f) return;
+  // synth_from_handle (defined in yse_synth.cpp) yields the engine synth backing
+  // the opaque YseSynth; a NULL / never-created handle yields nullptr. connect()
+  // only records the pointer in the file's fixed-size, lock-free synth table, so
+  // no loaded file or active playback is required here. Mirrors the always-on
+  // midifile surface (unlike midi device I/O, this is not RtMidi-gated).
+  YSE::synth* s = yse_c::synth_from_handle(synth);
+  if (s) to_cpp(f)->connect(*s);
+}
+
+YSE_C_API void yse_midi_file_disconnect_synth(YseMidiFile* f, YseSynth* synth) {
+  if (!f) return;
+  YSE::synth* s = yse_c::synth_from_handle(synth);
+  if (s) to_cpp(f)->disconnect(*s);
+}
+
 // ─── midi out (Windows/Linux only) ─────────────────────────────────
 
 #if YSE_C_HAVE_MIDI_OUT
