@@ -42,6 +42,96 @@
       }
     },
     {
+      "name": "debug-python",
+      "displayName": "Debug + Python",
+      "description": "Debug build with the embedded-CPython live-coding feature enabled (YSE_ENABLE_PYTHON=ON; desktop only)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/build-debug-python",
+      "cacheVariables": {
+        "YSE_ENABLE_PYTHON": "ON"
+      }
+    },
+    {
+      "name": "release-python",
+      "displayName": "Release + Python",
+      "description": "Optimized release build with the embedded-CPython live-coding feature enabled (YSE_ENABLE_PYTHON=ON; desktop only)",
+      "inherits": "release",
+      "binaryDir": "${sourceDir}/build-python",
+      "cacheVariables": {
+        "YSE_ENABLE_PYTHON": "ON"
+      }
+    },
+    {
+      "name": "tests-debug-python",
+      "displayName": "Debug + Tests + Python",
+      "description": "Debug test build with the embedded-CPython live-coding feature enabled, so the #127 hot-reload/runtime suite runs (YSE_ENABLE_PYTHON=ON; desktop only)",
+      "inherits": "tests-debug",
+      "binaryDir": "${sourceDir}/build-tests-python",
+      "cacheVariables": {
+        "YSE_ENABLE_PYTHON": "ON"
+      }
+    },
+    {
+      "name": "tests-debug-python-asan",
+      "displayName": "Debug + Tests + Python + ASan/LSan (Linux/clang)",
+      "description": "tests-debug-python under AddressSanitizer + LeakSanitizer with clang. Drives the embedded-CPython 50-cycle leak test (issue #133); run with LSAN_OPTIONS=suppressions=tools/lsan/python.supp so CPython interpreter state (interned strings, small-int cache, frozen types) is filtered out and only our own leaks (queues, script thread, traceback strings) surface. Linux only — Windows ASan ships no leak detector.",
+      "inherits": "tests-debug-python",
+      "binaryDir": "${sourceDir}/build-tests-python-asan",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_C_FLAGS": "-fsanitize=address -fno-omit-frame-pointer",
+        "CMAKE_CXX_FLAGS": "-fsanitize=address -fno-omit-frame-pointer",
+        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address",
+        "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=address"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
+      "name": "tests-asan",
+      "displayName": "Debug + Tests + ASan (Linux/clang)",
+      "description": "tests-debug under AddressSanitizer with clang — the heap/use-after-free half of the #229 patcher concurrency acceptance gate (epic #189). Leak detection is disabled via ASAN_OPTIONS=detect_leaks=0 in the test preset, because the process-global thread pools / named bus are intentionally never torn down; this gate is about UAF on the live-edit path, not leaks. Linux only.",
+      "inherits": "tests-debug",
+      "binaryDir": "${sourceDir}/build-tests-asan",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_C_FLAGS": "-fsanitize=address -fno-omit-frame-pointer",
+        "CMAKE_CXX_FLAGS": "-fsanitize=address -fno-omit-frame-pointer",
+        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address",
+        "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=address"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
+      "name": "tests-tsan",
+      "displayName": "Debug + Tests + TSan (Linux/clang)",
+      "description": "tests-debug under ThreadSanitizer with clang — the data-race half of the #229 patcher concurrency acceptance gate (epic #189). Drives concurrent live-edit + render of a patcher and must be race-free. Linux only.",
+      "inherits": "tests-debug",
+      "binaryDir": "${sourceDir}/build-tests-tsan",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_C_FLAGS": "-fsanitize=thread -fno-omit-frame-pointer",
+        "CMAKE_CXX_FLAGS": "-fsanitize=thread -fno-omit-frame-pointer",
+        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=thread",
+        "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=thread"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
       "name": "bench",
       "displayName": "Release + Benchmarks",
       "description": "Release build with the Bench/ suite enabled (fetches google-benchmark on first configure)",
@@ -100,6 +190,51 @@
       "configurePreset": "tests-debug"
     },
     {
+      "name": "debug-python",
+      "displayName": "Debug + Python",
+      "configurePreset": "debug-python"
+    },
+    {
+      "name": "release-python",
+      "displayName": "Release + Python",
+      "configurePreset": "release-python"
+    },
+    {
+      "name": "tests-debug-python",
+      "displayName": "Debug + Tests + Python",
+      "configurePreset": "tests-debug-python"
+    },
+    {
+      "name": "tests-debug-python-asan",
+      "displayName": "Debug + Tests + Python + ASan/LSan",
+      "configurePreset": "tests-debug-python-asan",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
+      "name": "tests-asan",
+      "displayName": "Debug + Tests + ASan",
+      "configurePreset": "tests-asan",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
+      "name": "tests-tsan",
+      "displayName": "Debug + Tests + TSan",
+      "configurePreset": "tests-tsan",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
       "name": "bench",
       "displayName": "Release + Benchmarks",
       "configurePreset": "bench"
@@ -131,6 +266,54 @@
       "displayName": "Debug tests",
       "configurePreset": "tests-debug",
       "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "tests-debug-python",
+      "displayName": "Debug tests + Python",
+      "configurePreset": "tests-debug-python",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "tests-debug-python-asan",
+      "displayName": "Debug tests + Python + ASan/LSan",
+      "configurePreset": "tests-debug-python-asan",
+      "output": { "outputOnFailure": true },
+      "filter": { "include": { "label": "python" } },
+      "environment": {
+        "LSAN_OPTIONS": "suppressions=${sourceDir}/tools/lsan/python.supp"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
+      "name": "tests-asan",
+      "displayName": "ASan concurrency tests (patcher + send/return)",
+      "configurePreset": "tests-asan",
+      "output": { "outputOnFailure": true },
+      "filter": { "include": { "name": "yse_tests_patcher_concurrency|yse_tests_sendstress" } },
+      "environment": {
+        "ASAN_OPTIONS": "detect_leaks=0"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
+      "name": "tests-tsan",
+      "displayName": "TSan concurrency tests (patcher + send/return)",
+      "configurePreset": "tests-tsan",
+      "output": { "outputOnFailure": true },
+      "filter": { "include": { "name": "yse_tests_patcher_concurrency|yse_tests_sendstress" } },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
     },
     {
       "name": "coverage",

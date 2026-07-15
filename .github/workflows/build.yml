@@ -139,3 +139,130 @@ jobs:
             build-android/bin/libyse_tests.so
           if-no-files-found: error
           retention-days: 14
+
+  build-python:
+    # Embedded-CPython acceptance (epic #119, follow-up to #124). Verifies the
+    # YSE_ENABLE_PYTHON=ON build configures, links against the system libpython,
+    # and passes the `python` ctest label on Linux/clang. The `clang+asan` leg
+    # additionally runs that suite under AddressSanitizer + LeakSanitizer so the
+    # 50-cycle init->close test catches a leaked script thread, lfQueue, or
+    # traceback string — CPython's own interpreter-lifetime state is filtered
+    # out by tools/lsan/python.supp.
+    #
+    # Same trigger gate as the `build` job: continuous on push to dev/master,
+    # plus feature-branch PRs; skipped on release/sync PRs whose head is dev or
+    # master (the push that landed those SHAs already ran this).
+    if: github.event_name == 'push' || (github.head_ref != 'dev' && github.head_ref != 'master')
+    name: Python build (${{ matrix.label }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: clang
+            preset: tests-debug-python
+            bdir: build-tests-python
+          - label: clang+asan
+            preset: tests-debug-python-asan
+            bdir: build-tests-python-asan
+            asan: true
+    env:
+      CC: clang
+      CXX: clang++
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Install dependencies
+        # python3-dev: the libpython we embed (find_package Python3 Development.Embed).
+        # libclang-rt-dev: clang's compiler-rt, which ships libclang_rt.asan — not
+        # pulled in by the base clang package, so the ASan leg fails to link without it.
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            pkg-config \
+            clang \
+            libclang-rt-dev \
+            portaudio19-dev \
+            libsndfile1-dev \
+            librtmidi-dev \
+            python3-dev
+      - name: Configure (${{ matrix.preset }})
+        run: cmake --preset ${{ matrix.preset }}
+      - name: Build
+        run: cmake --build --preset ${{ matrix.preset }}
+      - name: Run python suite
+        # ctest -L python runs the yse_tests_python entry in its own process, so
+        # the ASan leg gets a clean Py_Initialize/Py_Finalize re-entry boundary
+        # for the 50-cycle leak check. The suppressions path MUST be absolute:
+        # the test binary's working directory is <bdir>/bin, so a repo-relative
+        # path resolves wrong and ASan aborts with "failed to read suppressions
+        # file". Empty (and thus ignored) on the non-ASan leg.
+        env:
+          LSAN_OPTIONS: ${{ matrix.asan && format('suppressions={0}/tools/lsan/python.supp', github.workspace) || '' }}
+        run: ctest --test-dir ${{ matrix.bdir }} -L python --output-on-failure
+
+  build-sanitizers:
+    # Patcher concurrency acceptance gate (issue #229, epic #189): drive
+    # concurrent live-edit + render of a patcher under Thread- and
+    # AddressSanitizer so a regression in the wait-free graph model (a data race
+    # or a use-after-free of a retired GraphState/object on the audio thread) is
+    # caught. Both legs build only the tests-<san> preset and run just the
+    # patcher concurrency test (the preset filters by name). Local repro:
+    # tools/ci-linux/Dockerfile.sanitizers.
+    #
+    # Same trigger gate as the `build` job: continuous on push to dev/master,
+    # plus feature-branch PRs; skipped on release/sync PRs whose head is dev or
+    # master (the push that landed those SHAs already ran this).
+    if: github.event_name == 'push' || (github.head_ref != 'dev' && github.head_ref != 'master')
+    name: Sanitizers (${{ matrix.san }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        san: [tsan, asan]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Install dependencies
+        # libclang-rt-dev ships libclang_rt.{asan,tsan}; not pulled in by the base
+        # clang package, so the sanitizer legs fail to link without it.
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            pkg-config \
+            clang \
+            libclang-rt-dev \
+            portaudio19-dev \
+            libsndfile1-dev \
+            librtmidi-dev
+      - name: Lower ASLR entropy for the sanitizer runtime
+        # ubuntu-latest runners ship vm.mmap_rnd_bits=32, which the ASan/TSan
+        # shadow mapping cannot accommodate ("unexpected memory mapping" abort).
+        # 28 is the entropy the sanitizer runtimes are built for.
+        run: sudo sysctl -w vm.mmap_rnd_bits=28
+      - name: Configure (tests-${{ matrix.san }})
+        run: cmake --preset tests-${{ matrix.san }}
+      - name: Build
+        run: cmake --build --preset tests-${{ matrix.san }}
+      - name: Run patcher concurrency gate
+        # The tests-${san} test preset filters to yse_tests_patcher_concurrency
+        # and sets ASAN_OPTIONS=detect_leaks=0 on the asan leg (the process-global
+        # thread pools / named bus are intentionally never torn down).
+        run: ctest --preset tests-${{ matrix.san }} --output-on-failure
+      - name: Run static-teardown UAF gate (lifecycle suite, issue #298)
+        # The lifecycle suite deliberately leaves a SOUND::implementationObject
+        # alive at engine teardown; its destructor used to read a freed parent
+        # channel impl during static destruction (issue #298), a flaky SIGSEGV
+        # that normal builds miss because it is heap-layout dependent. Run the
+        # isolated lifecycle process under AddressSanitizer so that
+        # use-after-free is caught deterministically. Asan leg only.
+        # detect_leaks=0 for the same reason as the patcher gate above (the
+        # process-global pools/bus are never torn down); this gate is about UAF.
+        if: matrix.san == 'asan'
+        env:
+          ASAN_OPTIONS: detect_leaks=0
+        run: ctest --test-dir build-tests-asan -R yse_tests_lifecycle --output-on-failure

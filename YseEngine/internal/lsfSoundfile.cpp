@@ -11,30 +11,26 @@
 #if LIBSOUNDFILE_BACKEND
 
 #include "../internalHeaders.h"
-#include	<sndfile.hh>
+#include <sndfile.hh>
 
-
-YSE::INTERNAL::soundFile::soundFile(const std::string & fileName)
-  : abstractSoundFile(fileName, true)
-  , handle(nullptr)
-{
-	Log().sendMessage("sound added");
+YSE::INTERNAL::soundFile::soundFile(const std::string& fileName)
+  : abstractSoundFile(fileName, true), handle(nullptr) {
+  Log().sendMessage("sound added");
 }
 
-YSE::INTERNAL::soundFile::soundFile(YSE::DSP::buffer * buffer)
-  : abstractSoundFile(buffer)
-  , handle(nullptr)
-{
-}
+YSE::INTERNAL::soundFile::soundFile(YSE::DSP::buffer* buffer)
+  : abstractSoundFile(buffer), handle(nullptr) {}
 
-YSE::INTERNAL::soundFile::soundFile(MULTICHANNELBUFFER * buffer)
-  : abstractSoundFile(buffer)
-  , handle(nullptr)
-{
-}
+YSE::INTERNAL::soundFile::soundFile(MULTICHANNELBUFFER* buffer)
+  : abstractSoundFile(buffer), handle(nullptr) {}
 
 YSE::INTERNAL::soundFile::~soundFile() {
+  // A back-buffer refill may still be queued or running on the slow pool. Let it
+  // finish before we free the handle and buffers it writes to, or it would touch
+  // freed memory (issue #185). join() returns immediately if nothing is in flight.
+  _refillJob.join();
   if (_iBuffer != nullptr) delete[] _iBuffer;
+  if (_iBufferBack != nullptr) delete[] _iBufferBack;
   if (handle != nullptr) delete handle;
 }
 
@@ -43,8 +39,7 @@ void YSE::INTERNAL::soundFile::loadStreaming() {
   if (IO().getActive()) {
     // Custom-IO streaming has never been implemented; the empty body leaves
     // state at LOADING. The path is unused in the supported builds.
-  }
-  else {
+  } else {
     handle = new SndfileHandle(fileName);
     if (*handle) {
       _sampleRateAdjustment = static_cast<Flt>(handle->samplerate()) / static_cast<Flt>(SAMPLERATE);
@@ -52,13 +47,21 @@ void YSE::INTERNAL::soundFile::loadStreaming() {
       _channels = handle->channels();
 
       Int size = STREAM_BUFFERSIZE * _channels;
-      _iBuffer = new Flt[size];
+      _iBuffer = new Flt[size]; // front buffer (audio thread plays)
+      _iBufferBack = new Flt[size]; // back buffer (slow pool prefills) — issue #185
       _streamPos = 0;
-      fillStream(false);
+
+      // Prime the front buffer (buffer 0). The back-buffer prefetch is scheduled
+      // by the first read() once the real loop flag is known, so we don't guess
+      // it here. Mark the front buffer's real-frame count; it is never treated as
+      // terminal (stop is decided by the back-buffer fills that know `loop`).
+      UInt valid = fillBuffer(_iBuffer, false);
+      _frontValidFrames = (Long)valid;
+      _frontTerminal = false;
+      _frontBufferBase = 0;
       state = READY;
-    }
-    else {
-      LogImpl().emit(E_FILEREADER, "Unable to read " +fileName);
+    } else {
+      LogImpl().emit(E_FILEREADER, "Unable to read " + fileName);
       state = INVALID;
     }
   }
@@ -66,7 +69,7 @@ void YSE::INTERNAL::soundFile::loadStreaming() {
 
 void YSE::INTERNAL::soundFile::loadNonStreaming() {
   assert(handle == nullptr);
-  void * ptr = nullptr;
+  void* ptr = nullptr;
 
   if (IO().getActive()) {
     long long size;
@@ -83,8 +86,7 @@ void YSE::INTERNAL::soundFile::loadNonStreaming() {
     YSE::Log().sendMessage(message.str().c_str());
 
     handle = new SndfileHandle(INTERNAL::customFileReader::GetVIO(), ptr);
-  }
-  else {
+  } else {
     handle = new SndfileHandle(fileName);
   }
 
@@ -99,19 +101,17 @@ void YSE::INTERNAL::soundFile::loadNonStreaming() {
 
     std::ostringstream message;
     message << "SoundFile: reading from buffer ";
-    message << fileName << " with size " << size << " (length " << _length
-      << " * channels " << _channels << " for " << read << " bytes.";
+    message << fileName << " with size " << size << " (length " << _length << " * channels "
+            << _channels << " for " << read << " bytes.";
     YSE::Log().sendMessage(message.str().c_str());
 
     if (read != _length) {
       LogImpl().emit(E_FILEREADER, handle->strError());
-    }
-    else {
+    } else {
       // file is read, but must be converted to non interleaved model
       state = READY;
     }
-  }
-  else {
+  } else {
     LogImpl().emit(E_FILEREADER, "Unable to read " + fileName);
     state = INVALID;
   }
@@ -119,14 +119,16 @@ void YSE::INTERNAL::soundFile::loadNonStreaming() {
   if (ptr != nullptr) INTERNAL::customFileReader::Close(ptr);
 }
 
-Bool YSE::INTERNAL::soundFile::fillStream(Bool loop) {
-	if (_needsReset) {
-		handle->seek(0, SEEK_SET);
-		_streamPos = 0;
-		_needsReset = false;
-	}
+UInt YSE::INTERNAL::soundFile::fillBuffer(Flt* dest, Bool loop) {
+  if (_needsReset.exchange(false, std::memory_order_relaxed)) {
+    // Seek to the frame armed by the audio thread: 0 after a stop/reset, or the
+    // requested absolute frame after a setFilePos seek (issue #217).
+    Long target = _seekTarget.load(std::memory_order_relaxed);
+    handle->seek(target, SEEK_SET);
+    _streamPos = (Int)target;
+  }
   Int framesToRead = STREAM_BUFFERSIZE;
-  Flt * ptr = _iBuffer;
+  Flt* ptr = dest;
 
   while (framesToRead > 0) {
     U64 read = handle->readf(ptr, framesToRead);
@@ -137,21 +139,20 @@ Bool YSE::INTERNAL::soundFile::fillStream(Bool loop) {
       if (loop) {
         handle->seek(0, SEEK_SET);
         _streamPos = 0;
-      }
-      else {
-        framesToRead *= _channels;
-        while (framesToRead--) *ptr++ = 0.0f;
+      } else {
+        // non-loop EOF: zero-pad the remainder and report the real frame count
+        UInt valid = STREAM_BUFFERSIZE - (UInt)framesToRead;
+        Int zeros = framesToRead * _channels;
+        while (zeros-- > 0)
+          *ptr++ = 0.0f;
         _streamPos = 0;
-        return false;
+        return valid;
       }
+    } else {
+      return STREAM_BUFFERSIZE;
     }
-    else {
-      return true;
-    }
-    
   }
-  return false;
+  return STREAM_BUFFERSIZE;
 }
-
 
 #endif // LIBSOUNDFILE_BACKEND

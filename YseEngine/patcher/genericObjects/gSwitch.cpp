@@ -32,13 +32,16 @@ CONSTRUCT() {
   activeInlet = 0;
   numInlets = 2;
 
-  ADD_DESCRIPTION("Selector switch. Routes one of N value inlets to a single outlet, chosen by the index on inlet 0. The number of value inlets is set by the numInlets parameter.");
+  ADD_DESCRIPTION(
+      "Selector switch. Routes one of N value inlets to a single outlet, chosen by the index on "
+      "inlet 0. The number of value inlets is set by the numInlets parameter.");
   ADD_CATEGORY(pCategory::GENERIC);
   INLET_DOC(0, "select", "Index (0-based) of the value inlet to forward.", "0+");
   INLET_DOC(1, "in0", "Value inlet 0 — accepts bang / int / float / list.", "");
   INLET_DOC(2, "in1", "Value inlet 1 — accepts bang / int / float / list.", "");
   OUTLET_DOC(0, "out", "Forwarded value from the currently selected inlet.", "");
-  PARAM_DOC("numInlets", "2", "Number of value inlets (additional inlets are created by SetParams).", "1+");
+  PARAM_DOC("numInlets", "2",
+            "Number of value inlets (additional inlets are created by SetParams).", "1+");
 }
 
 INT_IN(SetActiveInlet) {

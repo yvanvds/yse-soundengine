@@ -31,10 +31,6 @@ namespace YSE {
   // see the lock contract enforced in portaudioDeviceManager.cpp /
   // oboeImplementation.cpp.
   extern API UInt SAMPLERATE;
-}
-  
-  
+} // namespace YSE
 
-
-
-#endif  // CONSTANTS_H_INCLUDED
+#endif // CONSTANTS_H_INCLUDED

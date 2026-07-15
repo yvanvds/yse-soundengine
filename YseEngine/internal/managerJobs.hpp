@@ -26,33 +26,32 @@
 namespace YSE {
   namespace INTERNAL {
 
-    template <typename Manager>
-    class managerSetupJob : public threadPoolJob {
+    template <typename Manager> class managerSetupJob : public threadPoolJob {
     public:
-      explicit managerSetupJob(Manager * obj) : obj(obj) {}
+      explicit managerSetupJob(Manager* obj) : obj(obj) {}
 
       void run() override {
         using Impl = typename Manager::ImplementationType;
         std::vector<Impl*> pending;
         {
           std::scoped_lock lk(obj->implementationsMutex);
-          for (auto & impl : obj->implementations) {
+          for (auto& impl : obj->implementations) {
             if (impl.tryClaimForSetup()) {
               pending.push_back(&impl);
             }
           }
         }
-        for (auto * p : pending) p->setup();
+        for (auto* p : pending)
+          p->setup();
       }
 
     private:
-      Manager * obj;
+      Manager* obj;
     };
 
-    template <typename Manager>
-    class managerDeleteJob : public threadPoolJob {
+    template <typename Manager> class managerDeleteJob : public threadPoolJob {
     public:
-      explicit managerDeleteJob(Manager * obj) : obj(obj) {}
+      explicit managerDeleteJob(Manager* obj) : obj(obj) {}
 
       void run() override {
         using Impl = typename Manager::ImplementationType;
@@ -61,10 +60,10 @@ namespace YSE {
       }
 
     private:
-      Manager * obj;
+      Manager* obj;
     };
 
-  }
-}
+  } // namespace INTERNAL
+} // namespace YSE
 
 #endif // YSE_INTERNAL_MANAGERJOBS_HPP_INCLUDED

@@ -26,28 +26,24 @@ namespace YSE {
        */
       class API lowPassDelay : public basicDelay {
       public:
-
         lowPassDelay();
 
         /** @brief Set the low-pass cutoff frequency in Hz. */
-        lowPassDelay & frequency(Flt value);
+        lowPassDelay& frequency(Flt value);
 
         /** @brief Current cutoff frequency. */
         Flt frequency();
 
       private:
-        virtual void createPreFilter();
-        virtual void applyPreFilter(DSP::buffer & buffer);
+        virtual void ensurePreFilter(std::size_t count);
+        virtual void applyPreFilter(DSP::buffer& buffer, std::size_t ch);
 
         aFlt parmFrequency;
-        std::shared_ptr<DSP::lowPass> lp;
-
+        perChannel<DSP::lowPass> lp; // one pre-filter per channel
       };
 
-    }
-  }
-}
+    } // namespace MODULES
+  } // namespace DSP
+} // namespace YSE
 
-
-
-#endif  // LOWPASSDELAY_HPP_INCLUDED
+#endif // LOWPASSDELAY_HPP_INCLUDED

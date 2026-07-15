@@ -1,0 +1,8 @@
+// Round-robin + choke, a hi-hat pair (spec Example 6). Two closed-hat
+// samples alternate on key 42 (seq_position/seq_length); the open hat on
+// key 46 is choked by the closed group and vice versa (group/off_by).
+<group> lokey=42 hikey=42 pitch_keycenter=42 group=1 off_by=2
+<region> sample=*silence seq_length=2 seq_position=1
+<region> sample=*silence seq_length=2 seq_position=2
+
+<region> sample=*silence lokey=46 hikey=46 pitch_keycenter=46 group=2 off_by=1 loop_mode=one_shot

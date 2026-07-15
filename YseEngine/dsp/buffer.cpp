@@ -11,7 +11,6 @@
 #include <cassert>
 #include "buffer.hpp"
 
-
 namespace YSE {
   namespace DSP {
 
@@ -19,99 +18,141 @@ namespace YSE {
     // vector to be allocated in the application memory instead of the dll memory, causing
     // a dll boundary crossing when resizing it later.
     buffer::buffer(UInt length, UInt overflow)
-        : storage(length + overflow), sampleRateAdjustment(1.0f), overflow(overflow) {
+      : storage(length + overflow), sampleRateAdjustment(1.0f), overflow(overflow) {
       cursor = storage.data();
     }
-    
-    buffer::buffer(const buffer & cp) : storage(cp.storage.size()) {
+
+    buffer::buffer(const buffer& cp) : storage(cp.storage.size()) {
       operator=(cp);
     }
 
-    buffer & buffer::operator+=(Flt f) {
+    buffer& buffer::operator+=(Flt f) {
       UInt l = (UInt)storage.size();
-      Flt * ptr = storage.data();
+      Flt* ptr = storage.data();
       for (; l > 7; l -= 8, ptr += 8) {
-        ptr[0] += f; ptr[1] += f; ptr[2] += f; ptr[3] += f;
-        ptr[4] += f; ptr[5] += f; ptr[6] += f; ptr[7] += f;
+        ptr[0] += f;
+        ptr[1] += f;
+        ptr[2] += f;
+        ptr[3] += f;
+        ptr[4] += f;
+        ptr[5] += f;
+        ptr[6] += f;
+        ptr[7] += f;
       }
-      while (l--) *ptr++ += f;
+      while (l--)
+        *ptr++ += f;
       return (*this);
     }
 
-    buffer & buffer::operator+=(const buffer & s) {
+    buffer& buffer::operator+=(const buffer& s) {
       // use length of shortest buffer to prevent memory errors
       UInt l = getLength() < s.getLength() ? getLength() : s.getLength();
-      Flt * ptr1 = storage.data();
-      const Flt * ptr2 = s.storage.data();
+      Flt* ptr1 = storage.data();
+      const Flt* ptr2 = s.storage.data();
 
       for (; l > 7; l -= 8, ptr1 += 8, ptr2 += 8) {
-        ptr1[0] += ptr2[0]; ptr1[1] += ptr2[1]; ptr1[2] += ptr2[2]; ptr1[3] += ptr2[3];
-        ptr1[4] += ptr2[4]; ptr1[5] += ptr2[5]; ptr1[6] += ptr2[6]; ptr1[7] += ptr2[7];
+        ptr1[0] += ptr2[0];
+        ptr1[1] += ptr2[1];
+        ptr1[2] += ptr2[2];
+        ptr1[3] += ptr2[3];
+        ptr1[4] += ptr2[4];
+        ptr1[5] += ptr2[5];
+        ptr1[6] += ptr2[6];
+        ptr1[7] += ptr2[7];
       }
-      while (l--) *ptr1++ += *ptr2++;
+      while (l--)
+        *ptr1++ += *ptr2++;
 
       copyOverflow();
 
       return (*this);
     }
 
-    buffer & buffer::operator-=(Flt f) {
+    buffer& buffer::operator-=(Flt f) {
       UInt l = (UInt)storage.size();
-      Flt * ptr = storage.data();
+      Flt* ptr = storage.data();
       for (; l > 7; l -= 8, ptr += 8) {
-        ptr[0] -= f; ptr[1] -= f; ptr[2] -= f; ptr[3] -= f;
-        ptr[4] -= f; ptr[5] -= f; ptr[6] -= f; ptr[7] -= f;
+        ptr[0] -= f;
+        ptr[1] -= f;
+        ptr[2] -= f;
+        ptr[3] -= f;
+        ptr[4] -= f;
+        ptr[5] -= f;
+        ptr[6] -= f;
+        ptr[7] -= f;
       }
-      while (l--) *ptr++ -= f;
+      while (l--)
+        *ptr++ -= f;
       return (*this);
     }
 
-    buffer & buffer::operator-=(const buffer & s) {
+    buffer& buffer::operator-=(const buffer& s) {
       // use length of shortest buffer to prevent memory errors
       UInt l = getLength() < s.getLength() ? getLength() : s.getLength();
-      Flt * ptr1 = storage.data();
-      const Flt * ptr2 = s.storage.data();
+      Flt* ptr1 = storage.data();
+      const Flt* ptr2 = s.storage.data();
       for (; l > 7; l -= 8, ptr1 += 8, ptr2 += 8) {
-        ptr1[0] -= ptr2[0]; ptr1[1] -= ptr2[1]; ptr1[2] -= ptr2[2]; ptr1[3] -= ptr2[3];
-        ptr1[4] -= ptr2[4]; ptr1[5] -= ptr2[5]; ptr1[6] -= ptr2[6]; ptr1[7] -= ptr2[7];
+        ptr1[0] -= ptr2[0];
+        ptr1[1] -= ptr2[1];
+        ptr1[2] -= ptr2[2];
+        ptr1[3] -= ptr2[3];
+        ptr1[4] -= ptr2[4];
+        ptr1[5] -= ptr2[5];
+        ptr1[6] -= ptr2[6];
+        ptr1[7] -= ptr2[7];
       }
-      while (l--) *ptr1++ -= *ptr2++;
+      while (l--)
+        *ptr1++ -= *ptr2++;
 
       copyOverflow();
 
       return (*this);
     }
 
-    buffer & buffer::operator*=(Flt f) {
+    buffer& buffer::operator*=(Flt f) {
       UInt l = (UInt)storage.size();
-      Flt * ptr = storage.data();
+      Flt* ptr = storage.data();
       for (; l > 7; l -= 8, ptr += 8) {
-        ptr[0] *= f; ptr[1] *= f; ptr[2] *= f; ptr[3] *= f;
-        ptr[4] *= f; ptr[5] *= f; ptr[6] *= f; ptr[7] *= f;
+        ptr[0] *= f;
+        ptr[1] *= f;
+        ptr[2] *= f;
+        ptr[3] *= f;
+        ptr[4] *= f;
+        ptr[5] *= f;
+        ptr[6] *= f;
+        ptr[7] *= f;
       }
-      while (l--) *ptr++ *= f;
+      while (l--)
+        *ptr++ *= f;
       return (*this);
     }
 
-    buffer & buffer::operator*=(const buffer & s) {
+    buffer& buffer::operator*=(const buffer& s) {
       // use length of shortest buffer to prevent memory errors
       UInt l = getLength() < s.getLength() ? getLength() : s.getLength();
-      Flt * ptr1 = storage.data();
-      const Flt * ptr2 = s.storage.data();
+      Flt* ptr1 = storage.data();
+      const Flt* ptr2 = s.storage.data();
       for (; l > 7; l -= 8, ptr1 += 8, ptr2 += 8) {
-        ptr1[0] *= ptr2[0]; ptr1[1] *= ptr2[1]; ptr1[2] *= ptr2[2]; ptr1[3] *= ptr2[3];
-        ptr1[4] *= ptr2[4]; ptr1[5] *= ptr2[5]; ptr1[6] *= ptr2[6]; ptr1[7] *= ptr2[7];
+        ptr1[0] *= ptr2[0];
+        ptr1[1] *= ptr2[1];
+        ptr1[2] *= ptr2[2];
+        ptr1[3] *= ptr2[3];
+        ptr1[4] *= ptr2[4];
+        ptr1[5] *= ptr2[5];
+        ptr1[6] *= ptr2[6];
+        ptr1[7] *= ptr2[7];
       }
-      while (l--) *ptr1++ *= *ptr2++;
+      while (l--)
+        *ptr1++ *= *ptr2++;
 
       copyOverflow();
 
       return (*this);
     }
 
-    buffer & buffer::operator/=(Flt f) {
+    buffer& buffer::operator/=(Flt f) {
       UInt l = (UInt)storage.size();
-      Flt * ptr = storage.data();
+      Flt* ptr = storage.data();
       for (; l > 7; l -= 8, ptr += 8) {
         ptr[0] = (f ? ptr[0] /= f : 0);
         ptr[1] = (f ? ptr[1] /= f : 0);
@@ -122,15 +163,16 @@ namespace YSE {
         ptr[6] = (f ? ptr[6] /= f : 0);
         ptr[7] = (f ? ptr[7] /= f : 0);
       }
-      while (l--) *ptr++ = (f ? *ptr / f : 0);
+      while (l--)
+        *ptr++ = (f ? *ptr / f : 0);
       return (*this);
     }
 
-    buffer & buffer::operator/=(const buffer & s) {
+    buffer& buffer::operator/=(const buffer& s) {
       // use length of shortest buffer to prevent memory errors
       UInt l = getLength() < s.getLength() ? getLength() : s.getLength();
-      Flt * ptr1 = storage.data();
-      const Flt * ptr2 = s.storage.data();
+      Flt* ptr1 = storage.data();
+      const Flt* ptr2 = s.storage.data();
       for (; l > 7; l -= 8, ptr1 += 8, ptr2 += 8) {
         ptr1[0] = (ptr2[0] ? ptr1[0] /= ptr2[0] : 0);
         ptr1[1] = (ptr2[1] ? ptr1[1] /= ptr2[1] : 0);
@@ -140,7 +182,6 @@ namespace YSE {
         ptr1[5] = (ptr2[5] ? ptr1[5] /= ptr2[5] : 0);
         ptr1[6] = (ptr2[6] ? ptr1[6] /= ptr2[6] : 0);
         ptr1[7] = (ptr2[7] ? ptr1[7] /= ptr2[7] : 0);
-
       }
       while (l--) {
         *ptr1 = (*ptr2 ? *ptr1 / *ptr2 : 0);
@@ -152,7 +193,7 @@ namespace YSE {
       return (*this);
     }
 
-    buffer & buffer::operator=(const buffer & s) {
+    buffer& buffer::operator=(const buffer& s) {
       if (storage.size() != s.storage.size()) {
         resize((UInt)s.storage.size());
       }
@@ -160,8 +201,8 @@ namespace YSE {
       overflow = s.overflow;
 
       UInt l = (UInt)storage.size();
-      Flt * ptr1 = storage.data();
-      const Flt * ptr2 = s.storage.data();
+      Flt* ptr1 = storage.data();
+      const Flt* ptr2 = s.storage.data();
 
       for (; l > 7; l -= 8, ptr1 += 8, ptr2 += 8) {
         ptr1[0] = ptr2[0];
@@ -172,15 +213,15 @@ namespace YSE {
         ptr1[5] = ptr2[5];
         ptr1[6] = ptr2[6];
         ptr1[7] = ptr2[7];
-
       }
-      while (l--) *ptr1++ = *ptr2++;
+      while (l--)
+        *ptr1++ = *ptr2++;
       return (*this);
     }
 
-    buffer & buffer::operator=(Flt f) {
+    buffer& buffer::operator=(Flt f) {
       UInt l = (UInt)storage.size();
-      Flt * ptr1 = storage.data();
+      Flt* ptr1 = storage.data();
       for (; l > 7; l -= 8, ptr1 += 8) {
         ptr1[0] = f;
         ptr1[1] = f;
@@ -190,60 +231,59 @@ namespace YSE {
         ptr1[5] = f;
         ptr1[6] = f;
         ptr1[7] = f;
-
       }
-      while (l--) *ptr1++ = f;
+      while (l--)
+        *ptr1++ = f;
       return (*this);
     }
 
-		bool buffer::isSilent() const {
-			UInt l = (UInt)storage.size();
-			const Flt * ptr1 = storage.data();
-			for (; l > 7; l -= 8, ptr1 += 8) {
-				if (ptr1[0] != 0) return false;
-				if (ptr1[1] != 0) return false;
-				if (ptr1[2] != 0) return false;
-				if (ptr1[3] != 0) return false;
-				if (ptr1[4] != 0) return false;
-				if (ptr1[5] != 0) return false;
-				if (ptr1[6] != 0) return false;
-				if (ptr1[7] != 0) return false;
+    bool buffer::isSilent() const {
+      UInt l = (UInt)storage.size();
+      const Flt* ptr1 = storage.data();
+      for (; l > 7; l -= 8, ptr1 += 8) {
+        if (ptr1[0] != 0) return false;
+        if (ptr1[1] != 0) return false;
+        if (ptr1[2] != 0) return false;
+        if (ptr1[3] != 0) return false;
+        if (ptr1[4] != 0) return false;
+        if (ptr1[5] != 0) return false;
+        if (ptr1[6] != 0) return false;
+        if (ptr1[7] != 0) return false;
+      }
+      while (l--)
+        if (*ptr1++ != 0) return false;
+      return true;
+    }
 
-			}
-			while (l--) if (*ptr1++ != 0) return false;
-			return true;
-		}
+    float buffer::maxValue() const {
+      float max = -100.f;
+      UInt l = (UInt)storage.size();
+      const Flt* ptr1 = storage.data();
+      for (; l > 7; l -= 8, ptr1 += 8) {
+        if (ptr1[0] > max) max = ptr1[0];
+        if (ptr1[1] > max) max = ptr1[1];
+        if (ptr1[2] > max) max = ptr1[2];
+        if (ptr1[3] > max) max = ptr1[3];
+        if (ptr1[4] > max) max = ptr1[4];
+        if (ptr1[5] > max) max = ptr1[5];
+        if (ptr1[6] > max) max = ptr1[6];
+        if (ptr1[7] > max) max = ptr1[7];
+      }
+      while (l--) {
+        if (*ptr1 > max) max = *ptr1;
+        ptr1++;
+      }
+      return max;
+    }
 
-		float buffer::maxValue() const {
-			float max = -100.f;
-			UInt l = (UInt)storage.size();
-			const Flt * ptr1 = storage.data();
-			for (; l > 7; l -= 8, ptr1 += 8) {
-				if (ptr1[0] > max) max = ptr1[0];
-				if (ptr1[1] > max) max = ptr1[1];
-				if (ptr1[2] > max) max = ptr1[2];
-				if (ptr1[3] > max) max = ptr1[3];
-				if (ptr1[4] > max) max = ptr1[4];
-				if (ptr1[5] > max) max = ptr1[5];
-				if (ptr1[6] > max) max = ptr1[6];
-				if (ptr1[7] > max) max = ptr1[7];
-
-			}
-			while (l--) {
-				if (*ptr1 > max) max = *ptr1;
-				ptr1++;
-			}
-			return max;
-		}
-
-    buffer & buffer::copyFrom(const buffer & s, UInt sourcePos, UInt destPos, UInt length) {
+    buffer& buffer::copyFrom(const buffer& s, UInt sourcePos, UInt destPos, UInt length) {
       // TODO: don't just return if buffers are not long enough!
       if ((UInt)(sourcePos + length) > s.storage.size()) return (*this);
-      if ((UInt)(destPos   + length) > storage.size()) return (*this);
+      if ((UInt)(destPos + length) > storage.size()) return (*this);
 
       UInt l = length;
-      Flt * ptr1 = storage.data() + destPos;
-      const Flt * ptr2 = s.storage.data() + sourcePos;
+      Flt* ptr1 = storage.data() + destPos;
+      const Flt* ptr2 = s.storage.data() + sourcePos;
       for (; l > 7; l -= 8, ptr1 += 8, ptr2 += 8) {
         ptr1[0] = ptr2[0];
         ptr1[1] = ptr2[1];
@@ -253,14 +293,14 @@ namespace YSE {
         ptr1[5] = ptr2[5];
         ptr1[6] = ptr2[6];
         ptr1[7] = ptr2[7];
-
       }
-      while (l--) *ptr1++ = *ptr2++;
+      while (l--)
+        *ptr1++ = *ptr2++;
 
       return (*this);
     }
 
-    buffer & buffer::swap(buffer & s) {
+    buffer& buffer::swap(buffer& s) {
       if (getLength() != s.getLength()) {
         // only swap with a buffer of the same length
         assert(false);
@@ -268,34 +308,49 @@ namespace YSE {
       }
 
       UInt l = (UInt)storage.size();
-      Flt * ptr1 = storage.data();
-      Flt * ptr2 = s.storage.data();
+      Flt* ptr1 = storage.data();
+      Flt* ptr2 = s.storage.data();
       Flt extra;
 
       for (; l > 7; l -= 8, ptr1 += 8, ptr2 += 8) {
-        extra = ptr1[0]; ptr1[0] = ptr2[0]; ptr2[0] = extra;
-        extra = ptr1[1]; ptr1[1] = ptr2[1]; ptr2[1] = extra;
-        extra = ptr1[2]; ptr1[2] = ptr2[2]; ptr2[2] = extra;
-        extra = ptr1[3]; ptr1[3] = ptr2[3]; ptr2[3] = extra;
-        extra = ptr1[4]; ptr1[4] = ptr2[4]; ptr2[4] = extra;
-        extra = ptr1[5]; ptr1[5] = ptr2[5]; ptr2[5] = extra;
-        extra = ptr1[6]; ptr1[6] = ptr2[6]; ptr2[6] = extra;
-        extra = ptr1[7]; ptr1[7] = ptr2[7]; ptr2[7] = extra;
+        extra = ptr1[0];
+        ptr1[0] = ptr2[0];
+        ptr2[0] = extra;
+        extra = ptr1[1];
+        ptr1[1] = ptr2[1];
+        ptr2[1] = extra;
+        extra = ptr1[2];
+        ptr1[2] = ptr2[2];
+        ptr2[2] = extra;
+        extra = ptr1[3];
+        ptr1[3] = ptr2[3];
+        ptr2[3] = extra;
+        extra = ptr1[4];
+        ptr1[4] = ptr2[4];
+        ptr2[4] = extra;
+        extra = ptr1[5];
+        ptr1[5] = ptr2[5];
+        ptr2[5] = extra;
+        extra = ptr1[6];
+        ptr1[6] = ptr2[6];
+        ptr2[6] = extra;
+        extra = ptr1[7];
+        ptr1[7] = ptr2[7];
+        ptr2[7] = extra;
       }
 
       while (l--) {
-        extra = *ptr1; *ptr1++ = *ptr2; *ptr2++ = extra;
+        extra = *ptr1;
+        *ptr1++ = *ptr2;
+        *ptr2++ = extra;
       }
       return (*this);
     }
 
-
-    buffer & buffer::resize(UInt length, Flt value) {
+    buffer& buffer::resize(UInt length, Flt value) {
       storage.resize(length + overflow, value);
       return (*this);
     }
-
-    
 
     Flt YSE::DSP::buffer::getBack() {
       // TODO: what to do with the overflow?
@@ -303,7 +358,6 @@ namespace YSE {
     }
 
     /************************************************************************/
-
 
   } // namespace DSP
 } // namespace YSE

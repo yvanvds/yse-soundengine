@@ -39,51 +39,49 @@ namespace YSE {
      *  stores an implementation-defined handle in ``fileHandle``, and returns
      *  ``true`` on success.
      */
-    io& open       (bool      (*funcPtr)(const char * filename, long long * filesize,     void ** fileHandle));
+    io& open(bool (*funcPtr)(const char* filename, long long* filesize, void** fileHandle));
 
     /** @brief Install the close callback. */
-    io& close      (void      (*funcPtr)(                                                 void *  fileHandle));
+    io& close(void (*funcPtr)(void* fileHandle));
 
     /** @brief Install the read callback.
      *
      *  Reads up to ``maxBytesToRead`` bytes into ``destBuffer``. Returns the
      *  number of bytes actually read, or 0 at end-of-file.
      */
-    io& read       (long long (*funcPtr)(void * destBuffer    , long long maxBytesToRead, void *  fileHandle));
+    io& read(long long (*funcPtr)(void* destBuffer, long long maxBytesToRead, void* fileHandle));
 
     /** @brief Install the get-position callback. Returns the current read offset in bytes. */
-    io& getPosition(long long (*funcPtr)(                                                 void *  fileHandle));
+    io& getPosition(long long (*funcPtr)(void* fileHandle));
 
     /** @brief Install the file-exists callback. */
-    io& fileExists (bool      (*funcPtr)(const char * filename));
+    io& fileExists(bool (*funcPtr)(const char* filename));
 
     /** @brief Install the length callback. Returns the total size of the open file in bytes. */
-    io& length     (long long (*funcPtr)(                                                  void *  fileHandle));
+    io& length(long long (*funcPtr)(void* fileHandle));
 
     /** @brief Install the seek callback.
      *
      *  ``whence`` matches the FILEPOINT enum (``FP_START``, ``FP_CURRENT``,
      *  ``FP_END``). Returns the new absolute position.
      */
-    io& seek       (long long (*funcPtr)(long long offset     , int whence,                void *  fileHandle));
+    io& seek(long long (*funcPtr)(long long offset, int whence, void* fileHandle));
 
     /** @brief Enable or disable the custom IO layer.
      *
      *  When inactive, libYSE falls back to its default platform file I/O.
      */
-    io&  setActive(bool value);
+    io& setActive(bool value);
 
     /** @brief Whether the custom IO callbacks are currently active. */
-    Bool getActive(          );
+    Bool getActive();
 
   private:
     aBool active;
   };
 
   /** @brief Access the singleton custom-IO object. */
-  API io & IO();
-}
+  API io& IO();
+} // namespace YSE
 
-
-
-#endif  // IO_H_INCLUDED
+#endif // IO_H_INCLUDED

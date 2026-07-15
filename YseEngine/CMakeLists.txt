@@ -8,6 +8,11 @@ set(YSE_SRCS
   channel/channelImplementation.cpp
   channel/channelInterface.cpp
   channel/channelManager.cpp
+  clock/domainClock.cpp
+  clock/clockManager.cpp
+  clip/clipInterface.cpp
+  clip/clipManager.cpp
+  clip/clipTransport.cpp
   device/androidDeviceManager.cpp
   device/deviceInterface.cpp
   device/deviceManager.cpp
@@ -25,10 +30,14 @@ set(YSE_SRCS
   dsp/fourier/fft.cpp
   dsp/fourier/mayer.cpp
   dsp/interpolate4.cpp
+  dsp/ladderFilter.cpp
   dsp/lfo.cpp
   dsp/math.cpp
   dsp/math_functions.cpp
+  dsp/panner.cpp
+  dsp/patcherInsert.cpp
   dsp/modules/delay/basicDelay.cpp
+  dsp/modules/delay/feedbackDelay.cpp
   dsp/modules/delay/highpassDelay.cpp
   dsp/modules/delay/lowpassDelay.cpp
   dsp/modules/filters/bandpass.cpp
@@ -38,13 +47,32 @@ set(YSE_SRCS
   dsp/modules/fm/difference.cpp
   dsp/modules/granulator.cpp
   dsp/modules/hilbert.cpp
+  dsp/modules/chorus.cpp
+  dsp/modules/compressor.cpp
+  dsp/modules/morphingReverb.cpp
+  dsp/modules/parametricEQ.cpp
   dsp/modules/phaser.cpp
+  dsp/modules/plateReverb.cpp
   dsp/modules/ringModulator.cpp
   dsp/modules/sineWave.cpp
+  dsp/modules/underWater.cpp
+  dsp/fm/fmPatch.cpp
+  dsp/fm/fmVoice.cpp
+  dsp/fm/dx7Sysex.cpp
+  dsp/fm/msfa/sin.cc
+  dsp/fm/msfa/exp2.cc
+  dsp/fm/msfa/freqlut.cc
+  dsp/fm/msfa/lfo.cc
+  dsp/fm/msfa/env.cc
+  dsp/fm/msfa/pitchenv.cc
+  dsp/fm/msfa/fm_op_kernel.cc
+  dsp/fm/msfa/fm_core.cc
+  dsp/fm/msfa/dx7note.cc
   dsp/oscillators.cpp
   dsp/ramp.cpp
   dsp/rawFilters.cpp
   dsp/sample_functions.cpp
+  dsp/sfzModel.cpp
   dsp/wavetable.cpp
   implementations/listenerImplementation.cpp
   implementations/logImplementation.cpp
@@ -52,6 +80,7 @@ set(YSE_SRCS
   internal/customFileReader.cpp
   internal/global.cpp
   internal/lsfSoundfile.cpp
+  internal/namedBus.cpp
   internal/reverbDSP.cpp
   internal/settings.cpp
   internal/thread.cpp
@@ -84,6 +113,7 @@ set(YSE_SRCS
   patcher/genericObjects/gRoute.cpp
   patcher/genericObjects/gSend.cpp
   patcher/genericObjects/gSwitch.cpp
+  patcher/genericObjects/pAdc.cpp
   patcher/genericObjects/pDac.cpp
   patcher/genericObjects/pLine.cpp
   patcher/guiObjects/gButton.cpp
@@ -123,13 +153,14 @@ set(YSE_SRCS
   reverb/reverbImplementation.cpp
   reverb/reverbInterface.cpp
   reverb/reverbManager.cpp
+  reverb/reverbPresets.cpp
   sound/soundImplementation.cpp
   sound/soundInterface.cpp
   sound/soundManager.cpp
-  synth/dspSound.cpp
-  synth/dspVoice.cpp
-  synth/dspVoiceInternal.cpp
-  synth/samplerSound.cpp
+  synth/sineVoice.cpp
+  synth/vaVoice.cpp
+  synth/samplerVoice.cpp
+  synth/positionHandlers.cpp
   synth/synthImplementation.cpp
   synth/synthInterface.cpp
   synth/synthManager.cpp
@@ -160,12 +191,42 @@ if(YSE_ENABLE_MIDI_DEVICE)
   list(APPEND YSE_SRCS
     midi/midiDeviceManager.cpp
     midi/device.cpp
+    # Clip-transport external MIDI-out sender thread (issue #350).
+    midi/midiOutSender.cpp
+  )
+endif()
+
+# Embedded-CPython script runtime (issue #124). Only compiled when the option
+# is ON; the TU also carries an internal `#if YSE_ENABLE_PYTHON` guard so an
+# accidental inclusion produces an empty object file.
+if(YSE_ENABLE_PYTHON)
+  list(APPEND YSE_SRCS
+    python/scriptRuntime.cpp
+    python/yse_module.cpp
   )
 endif()
 
 # ── Source-file-scoped warning suppressions ───────────────────────────────────
 # cJSON is a vendored C file; suppress all its warnings rather than patching it.
 set_source_files_properties(json/cJSON.cpp
+  PROPERTIES COMPILE_FLAGS "-w"
+)
+
+# The dsp/fm/msfa/ files are ported verbatim from music-synthesizer-for-android
+# (Apache-2.0, see NOTICE). They are treated like vendored third-party code:
+# suppress compiler warnings rather than patching upstream style, and they are
+# kept out of the clang-tidy pass (yse.py analyze globs *.cpp only, and these
+# are *.cc). Issue #176.
+set_source_files_properties(
+  dsp/fm/msfa/sin.cc
+  dsp/fm/msfa/exp2.cc
+  dsp/fm/msfa/freqlut.cc
+  dsp/fm/msfa/lfo.cc
+  dsp/fm/msfa/env.cc
+  dsp/fm/msfa/pitchenv.cc
+  dsp/fm/msfa/fm_op_kernel.cc
+  dsp/fm/msfa/fm_core.cc
+  dsp/fm/msfa/dx7note.cc
   PROPERTIES COMPILE_FLAGS "-w"
 )
 
@@ -199,6 +260,7 @@ set_source_files_properties(
   patcher/genericObjects/gRoute.cpp
   patcher/genericObjects/gSend.cpp
   patcher/genericObjects/gSwitch.cpp
+  patcher/genericObjects/pAdc.cpp
   patcher/genericObjects/pDac.cpp
   patcher/genericObjects/pLine.cpp
   patcher/guiObjects/gButton.cpp
@@ -233,11 +295,13 @@ set_source_files_properties(
   PROPERTIES COMPILE_FLAGS "${PATCHER_SUPPRESS}"
 )
 
-# soundImplementation.cpp and soundInterface.cpp pull in json.hpp through patcher headers.
+# soundImplementation.cpp, soundInterface.cpp and dsp/patcherInsert.cpp pull in
+# json.hpp through patcher headers.
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   set_source_files_properties(
     sound/soundImplementation.cpp
     sound/soundInterface.cpp
+    dsp/patcherInsert.cpp
     PROPERTIES COMPILE_FLAGS "-Wno-deprecated-literal-operator -Wno-tautological-overlap-compare"
   )
 endif()
@@ -327,6 +391,21 @@ endif()
 # of every layer (engine, C API, public headers, tests).
 if(YSE_ENABLE_MIDI_DEVICE)
   target_compile_definitions(yse_objects PUBLIC YSE_ENABLE_MIDI_DEVICE=1)
+endif()
+
+# Embedded CPython (issue #124). Python3::Python is linked PUBLIC so the
+# consuming targets (the `yse` shared library and the `yse_tests` executable,
+# which both pull in yse_objects) inherit libpython at link time. The
+# YSE_ENABLE_PYTHON macro is PUBLIC so yse_tests — which links yse_objects
+# directly — sees it too. YSE_PYTHON_HOME is engine-private: only
+# scriptRuntime.cpp consumes it.
+if(YSE_ENABLE_PYTHON)
+  target_link_libraries(yse_objects PUBLIC Python3::Python)
+  # pybind11 headers are engine-private: only yse_module.cpp includes them, so
+  # the binding layer never leaks into the public headers or the test TU.
+  target_link_libraries(yse_objects PRIVATE pybind11::headers)
+  target_compile_definitions(yse_objects PUBLIC YSE_ENABLE_PYTHON=1)
+  target_compile_definitions(yse_objects PRIVATE "YSE_PYTHON_HOME=\"${YSE_PYTHON_HOME}\"")
 endif()
 
 # External deps are PUBLIC so both yse (SHARED) and yse_tests inherit them.

@@ -11,6 +11,9 @@
 #ifndef SOUNDINTERFACE_H_INCLUDED
 #define SOUNDINTERFACE_H_INCLUDED
 
+#include <cstdint>
+#include <string>
+
 #include "../classes.hpp"
 #include "../headers/defines.hpp"
 #include "../patcher/patcher.hpp"
@@ -20,7 +23,16 @@
 #endif
 
 namespace YSE {
-  
+
+  namespace SOUND {
+    // Control-thread occlusion driver (issue #209). Invoked once per
+    // System().update() on the application thread; runs every registered
+    // sound's user occlusion callback off the audio callback thread and
+    // delivers the result to the implementation via the message queue.
+    // Declared here so the sound interface can befriend it; defined in
+    // soundInterface.cpp.
+    void updateOcclusion();
+  } // namespace SOUND
 
   /**
    *  @brief A playable instance of an audio source.
@@ -68,7 +80,8 @@ namespace YSE {
      *                   for large one-off assets; avoid for sounds played
      *                   repeatedly.
      */
-    void create(const char * fileName, channel * ch = nullptr, bool loop = false, float volume = 1.0f, bool streaming = false);
+    void create(const char* fileName, channel* ch = nullptr, bool loop = false, float volume = 1.0f,
+                bool streaming = false);
 
     /**
      *  @brief Create a sound backed by an in-memory DSP buffer.
@@ -81,14 +94,16 @@ namespace YSE {
      *  @param loop   Loop continuously when ``true``.
      *  @param volume Initial volume in the range [0.0, 1.0].
      */
-    void create(YSE::DSP::buffer & buffer, channel * ch = nullptr, bool loop = false, float volume = 1.f);
+    void create(YSE::DSP::buffer& buffer, channel* ch = nullptr, bool loop = false,
+                float volume = 1.f);
 
     /** @brief Multichannel variant of the buffer-based ``create``.
      *
      *  Identical to the single-buffer overload except that the source carries
      *  multiple channels (stereo or surround).
      */
-    void create(MULTICHANNELBUFFER & buffer, channel * ch = nullptr, bool loop = false, float volume = 1.0f);
+    void create(MULTICHANNELBUFFER& buffer, channel* ch = nullptr, bool loop = false,
+                float volume = 1.0f);
 
     /**
      *  @brief Create a sound driven by a custom DSP source.
@@ -112,7 +127,7 @@ namespace YSE {
      *           file scope, hold via ``std::shared_ptr``, or stop the sound and
      *           drain the manager before ``dsp`` goes out of scope.
      */
-    void create(YSE::DSP::dspSourceObject & dsp, channel * ch = nullptr, float volume = 1.0f);
+    void create(YSE::DSP::dspSourceObject& dsp, channel* ch = nullptr, float volume = 1.0f);
 
     /**
      *  @brief Create a sound driven by a patcher graph.
@@ -121,7 +136,25 @@ namespace YSE {
      *  @param ch      Channel to attach to. ``nullptr`` uses ``MainMix``.
      *  @param volume  Initial volume in the range [0.0, 1.0].
      */
-    void create(YSE::patcher & patcher, channel * ch = nullptr, float volume = 1.0f);
+    void create(YSE::patcher& patcher, channel* ch = nullptr, float volume = 1.0f);
+
+    /**
+     *  @brief Create a sound driven by a polyphonic ``YSE::synth``.
+     *
+     *  Attaches the synth's aggregate voice pool behind this sound, which
+     *  supplies the single 3D position, channel routing, and master play/stop
+     *  intent. Calls ``synth.create()`` for you if you have not. Build the
+     *  synth's voices with ``synth.addVoices(...)`` *before* this call.
+     *
+     *  @param synth  The synth to render. Must outlive the sound (see warning).
+     *  @param ch     Channel to attach to. ``nullptr`` uses ``MainMix``.
+     *  @param volume Initial volume in the range [0.0, 1.0].
+     *
+     *  @warning **Lifetime contract.** The ``synth`` must outlive this sound —
+     *           until after the sound's destructor AND the engine's slow-pool
+     *           delete tick. Same shape as the raw ``dspSourceObject`` overload.
+     */
+    void create(YSE::synth& synth, channel* ch = nullptr, float volume = 1.0f);
 
     /**
      *  @brief Whether this interface has a live implementation.
@@ -132,8 +165,44 @@ namespace YSE {
      */
     bool isValid();
 
-    /** @brief Set the position of this sound in the virtual scene. */
-    void pos(const Pos &v);
+    /**
+     *  @brief Assign a bus-addressable name to this sound.
+     *
+     *  Names the sound on the global named bus (issue #123, epic #119) so live
+     *  coders can drive it by string address rather than by C++ handle. Once
+     *  named ``foo``, the sound subscribes to:
+     *
+     *  - ``sound.foo.volume``   → ``float`` (also accepts ``int``), calls ``volume()``
+     *  - ``sound.foo.speed``    → ``float`` (also accepts ``int``), calls ``speed()``
+     *  - ``sound.foo.position`` → ``list[float]`` of length 3, becomes a ``Pos``
+     *
+     *  Anonymous sounds (the default) are not addressable. Passing an empty
+     *  string clears the name and removes the bus subscriptions. Renaming
+     *  re-subscribes under the new name.
+     *
+     *  Two sounds cannot share a name: the second ``name()`` is rejected and
+     *  logged via the engine's error path; the first registration wins. The
+     *  bus is only live between ``System::init()`` and ``System::close()`` —
+     *  naming a sound while the engine is down is a no-op.
+     *
+     *  @param n The name, or ``""`` to make the sound anonymous again.
+     *  @return ``*this`` for fluent chaining.
+     */
+    sound& name(const std::string& n);
+
+    /** @brief Set the position of this sound in the virtual scene.
+     *
+     *  Accepts a full 3D ``Pos``, but the panner is **horizontal-only**: the
+     *  azimuth is taken from the ``x`` / ``z`` components (``atan2(x, z)``)
+     *  while the ``y`` (height) component only affects distance attenuation and
+     *  doppler, never which speaker a sound pans to. Two sources at the same
+     *  ``x`` / ``z`` but different heights pan identically. As a source
+     *  approaches straight overhead the azimuth is deliberately faded toward an
+     *  equal-power omni spread so a flyover degrades gracefully rather than
+     *  sweeping the full circle (issue #210). True height reproduction
+     *  (7.1.4 / dome layouts) is not currently supported.
+     */
+    void pos(const Pos& v);
 
     /** @brief Current position of this sound. */
     Pos pos();
@@ -302,44 +371,56 @@ namespace YSE {
      *
      *  @param target The new parent channel.
      */
-    void moveTo(channel & target);
+    void moveTo(channel& target);
 
     /** @brief Attach a DSP effect chain to this sound. */
-    void setDSP(YSE::DSP::dspObject * value);
+    void setDSP(YSE::DSP::dspObject* value);
 
     /** @brief Currently attached DSP effect chain, or ``nullptr`` if none. */
-    YSE::DSP::dspObject * getDSP();
-
-      
+    YSE::DSP::dspObject* getDSP();
 
   private:
-    SOUND::implementationObject * pimpl;
+    // Bus addressing (issue #123). Subscribe/unsubscribe the named-bus
+    // addresses for this sound. No-ops while the engine bus is down.
+    void registerOnBus();
+    void unregisterFromBus();
+
+    SOUND::implementationObject* pimpl;
 
     // These values keep the last set value and are used by getters
     // so that we don't have to query the implementation
-    Pos  _pos;
-    Flt  _spread;
-    Flt  _volume;
-    Flt  _speed;
-    Flt  _size;
+    Pos _pos;
+    Flt _spread;
+    Flt _volume;
+    Flt _speed;
+    Flt _size;
     Bool _loop;
     Bool _relative;
     Bool _doppler;
     Bool _pan2D;
     Bool _occlusion;
+    // Last occlusion value delivered to the implementation. Cached so the
+    // control-thread driver only enqueues an OCCLUSION_VALUE message when the
+    // callback result actually changes (issue #209), matching the compare-then-
+    // send pattern used by every other setter.
+    Flt _occlusionValue{0.f};
 
     UInt _fadeAndStopTime;
-    DSP::dspObject * _dsp;
-    channel * _parent;
+    DSP::dspObject* _dsp;
+    channel* _parent;
 
-    
+    // Bus addressing state. Empty name = anonymous = not on the bus.
+    // Handles index 0 = volume, 1 = speed, 2 = position. _busOwner is true
+    // only when this sound won the name and holds live subscriptions.
+    std::string _name;
+    std::uint64_t _busHandles[3]{0, 0, 0};
+    bool _busOwner{false};
 
     friend class SOUND::implementationObject;
+    // The control-thread occlusion driver reads _pos / pimpl / _occlusionValue
+    // and enqueues OCCLUSION_VALUE messages directly (issue #209).
+    friend void SOUND::updateOcclusion();
   };
-}
+} // namespace YSE
 
-
-
-
-
-#endif  // SOUND_H_INCLUDED
+#endif // SOUND_H_INCLUDED

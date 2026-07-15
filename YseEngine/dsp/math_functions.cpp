@@ -10,22 +10,23 @@
 
 #include "math_functions.h"
 #include <math.h>
+#include <cstdint>
 #include <cstring>
 
 #define LOGTEN 2.302585092994f
 
-
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-value"
-Flt* YSE::DSP::maximum(Flt *in1, Flt *in2, Flt *out, UInt length) {
+Flt* YSE::DSP::maximum(Flt* in1, Flt* in2, Flt* out, UInt length) {
   while (length--) {
     *out++ = (*in1 > *in2 ? *in1 : *in2);
-    in1++; in2++;
+    in1++;
+    in2++;
   }
   return out;
 }
 
-Flt* YSE::DSP::maximum(Flt *in, Flt f, Flt *out, UInt length) {
+Flt* YSE::DSP::maximum(Flt* in, Flt f, Flt* out, UInt length) {
   while (length--) {
     *out++ = (*in > f ? *in : f);
     *in++;
@@ -33,15 +34,16 @@ Flt* YSE::DSP::maximum(Flt *in, Flt f, Flt *out, UInt length) {
   return out;
 }
 
-Flt* YSE::DSP::minimum(Flt *in1, Flt *in2, Flt *out, UInt length) {
+Flt* YSE::DSP::minimum(Flt* in1, Flt* in2, Flt* out, UInt length) {
   while (length--) {
     *out++ = (*in1 < *in2 ? *in1 : *in2);
-    in1++; in2++;
+    in1++;
+    in2++;
   }
   return out;
 }
 
-Flt* YSE::DSP::minimum(Flt *in, Flt f, Flt *out, UInt length) {
+Flt* YSE::DSP::minimum(Flt* in, Flt f, Flt* out, UInt length) {
   while (length--) {
     *out++ = (*in < f ? *in : f);
     *in++;
@@ -78,12 +80,12 @@ Flt YSE::DSP::dbToRms(Flt f) {
   return (exp((LOGTEN * 0.05f) * (f - 100.f)));
 }
 
-Flt YSE::DSP::getMaxAmplitude(buffer & source) {
+Flt YSE::DSP::getMaxAmplitude(buffer& source) {
   return getMaxAmplitude(source.getPtr(), source.getLength());
 }
 
-Flt YSE::DSP::getMaxAmplitude(Flt * pos, UInt windowSize) {
-  Flt * p = pos; // W don't want to change pos because the user might not expect that
+Flt YSE::DSP::getMaxAmplitude(Flt* pos, UInt windowSize) {
+  Flt* p = pos; // W don't want to change pos because the user might not expect that
   Flt result = 0.f;
   for (UInt i = 0; i < windowSize; i++) {
     if (*p > result) {
@@ -102,8 +104,7 @@ Flt YSE::DSP::getMaxAmplitude(Flt * pos, UInt windowSize) {
 struct sqrtTable {
   sqrtTable() {
     int i;
-    for (i = 0; i < DUMTAB1SIZE; i++)
-    {
+    for (i = 0; i < DUMTAB1SIZE; i++) {
       // One-shot table build at startup — use std::memcpy for portable
       // int-bits→float type pun (cpp:S6232). The compiler folds it to a
       // single load, identical asm to the old union trick.
@@ -112,33 +113,31 @@ struct sqrtTable {
       std::memcpy(&f, &l, sizeof(float));
       exptab[i] = static_cast<float>(1. / sqrt(f));
     }
-    for (i = 0; i < DUMTAB2SIZE; i++)
-    {
+    for (i = 0; i < DUMTAB2SIZE; i++) {
       float f = 1 + (1. / DUMTAB2SIZE) * i;
       mantissatab[i] = 1. / sqrt(f);
     }
   }
 
-  float exptab     [DUMTAB1SIZE];
+  float exptab[DUMTAB1SIZE];
   float mantissatab[DUMTAB2SIZE];
-
 };
 
-sqrtTable & SqrtTable() {
+sqrtTable& SqrtTable() {
   static sqrtTable t;
   return t;
 }
 
-
-void YSE::DSP::sqrtFunc(Flt * in, Flt * out, UInt length) {
-  sqrtTable & s = SqrtTable();
+void YSE::DSP::sqrtFunc(Flt* in, Flt* out, UInt length) {
+  sqrtTable& s = SqrtTable();
   while (length--) {
     float f = *in;
-    long l = *(long *)(in++);
-    if (f < 0) *out++ = 0;
+    std::uint32_t l;
+    std::memcpy(&l, in++, sizeof(l));
+    if (f < 0)
+      *out++ = 0;
     else {
-      float g = s.exptab[(l >> 23) & 0xff] *
-        s.mantissatab[(l >> 13) & 0x3ff];
+      float g = s.exptab[(l >> 23) & 0xff] * s.mantissatab[(l >> 13) & 0x3ff];
       *out++ = f * (1.5 * g - 0.5 * g * g * g * f);
     }
   }

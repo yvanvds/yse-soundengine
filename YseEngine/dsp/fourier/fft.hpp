@@ -19,11 +19,10 @@ namespace YSE {
 
     class API fft {
     public:
-
       // updates the object and returns real part
-      YSE::DSP::buffer & operator()(YSE::DSP::buffer & real, YSE::DSP::buffer & imaginary);
-      YSE::DSP::buffer & getReal();
-      YSE::DSP::buffer & getImaginary();
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& real, YSE::DSP::buffer& imaginary);
+      YSE::DSP::buffer& getReal();
+      YSE::DSP::buffer& getImaginary();
 
     private:
       buffer real, imaginary;
@@ -31,11 +30,10 @@ namespace YSE {
 
     class API inverseFft {
     public:
-
       // updates the object and returns real part
-      YSE::DSP::buffer & operator()(YSE::DSP::buffer & real, YSE::DSP::buffer & imaginary);
-      YSE::DSP::buffer & getReal();
-      YSE::DSP::buffer & getImaginary();
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& real, YSE::DSP::buffer& imaginary);
+      YSE::DSP::buffer& getReal();
+      YSE::DSP::buffer& getImaginary();
 
     private:
       buffer real, imaginary;
@@ -43,9 +41,9 @@ namespace YSE {
 
     class API realFft {
     public:
-      YSE::DSP::buffer & operator()(YSE::DSP::buffer & in);
-      YSE::DSP::buffer & getReal();
-      YSE::DSP::buffer & getImaginary();
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in);
+      YSE::DSP::buffer& getReal();
+      YSE::DSP::buffer& getImaginary();
 
     private:
       buffer real, imaginary;
@@ -53,8 +51,8 @@ namespace YSE {
 
     class API inverseRealFft {
     public:
-      YSE::DSP::buffer & operator()(YSE::DSP::buffer & real, YSE::DSP::buffer & imaginary);
-      YSE::DSP::buffer & getReal();
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& real, YSE::DSP::buffer& imaginary);
+      YSE::DSP::buffer& getReal();
 
     private:
       buffer real;
@@ -62,17 +60,15 @@ namespace YSE {
 
     class API fftStats {
     public:
-      void operator()(YSE::DSP::buffer & real, YSE::DSP::buffer & imaginary);
-      YSE::DSP::buffer & getFrequencies();
-      YSE::DSP::buffer & getAmplitudes();
+      void operator()(YSE::DSP::buffer& real, YSE::DSP::buffer& imaginary);
+      YSE::DSP::buffer& getFrequencies();
+      YSE::DSP::buffer& getAmplitudes();
 
     private:
       buffer frequencies, amplitudes;
     };
 
-  }
-}
+  } // namespace DSP
+} // namespace YSE
 
-
-
-#endif  // FFT_H_INCLUDED
+#endif // FFT_H_INCLUDED

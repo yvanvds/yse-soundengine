@@ -28,7 +28,7 @@ namespace YSE {
   class API logHandler {
   public:
     /** @brief Called by the engine for every log message. Default implementation discards it. */
-    virtual void AddMessage(const std::string &) {}
+    virtual void AddMessage(const std::string&) {}
     virtual ~logHandler() {}
   };
 
@@ -45,13 +45,12 @@ namespace YSE {
    */
   class API log {
   public:
-
     /** @brief Send an application-level message to the YSE log.
      *
      *  The message is tagged ``app message`` and emitted at error log level
      *  so it survives filters set above ``EL_DEBUG``.
      */
-    log& sendMessage(const char * msg);
+    log& sendMessage(const char* msg);
 
     /** @brief Set the active log level.
      *
@@ -68,22 +67,21 @@ namespace YSE {
      *  Replaces the default file-based sink. Pass ``nullptr`` to restore the
      *  default behaviour.
      */
-    log& setHandler(logHandler * handler);
+    log& setHandler(logHandler* handler);
 
     /** @brief Change the path of the default log file.
      *
      *  Defaults to ``YSElog.txt`` in the process working directory. Has no
      *  effect after a custom handler has been installed via ``setHandler``.
      */
-    log& setLogfile(const char * path);
+    log& setLogfile(const char* path);
 
     /** @brief Current log file path. */
-    const char * getLogfile();
+    const char* getLogfile();
   };
 
   /** @brief Access the singleton logging object. */
-  API log & Log();
-}
+  API log& Log();
+} // namespace YSE
 
-
-#endif  // LOG_H_INCLUDED
+#endif // LOG_H_INCLUDED

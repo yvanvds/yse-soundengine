@@ -1,7 +1,6 @@
 #include "pBandpass.h"
 #include "../pObjectList.hpp"
 
-
 using namespace YSE::PATCHER;
 
 #define className pBandpass
@@ -30,7 +29,8 @@ CONSTRUCT_DSP() {
   buffer = nullptr;
   frequency = Q = 0.f;
 
-  ADD_DESCRIPTION("Bandpass filter. Passes a frequency band centered on 'frequency' with bandwidth shaped by 'Q' (resonance).");
+  ADD_DESCRIPTION("Bandpass filter. Passes a frequency band centered on 'frequency' with bandwidth "
+                  "shaped by 'Q' (resonance).");
   ADD_CATEGORY(pCategory::FILTER);
   INLET_DOC(0, "in", "Audio input buffer.", "-1.0 to 1.0");
   INLET_DOC(1, "freq", "Center frequency in Hz.", "0-20000 Hz");
@@ -41,7 +41,7 @@ CONSTRUCT_DSP() {
 }
 
 RESET() // {
-  buffer = nullptr;
+buffer = nullptr;
 }
 
 BUFFER_IN(SetBuffer) {

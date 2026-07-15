@@ -1,0 +1,5 @@
+// Velocity layers (spec Example 3). Non-overlapping, so the choice is
+// unambiguous. pitch_keycenter inherited from <global>.
+<global> pitch_keycenter=60
+<region> sample=*silence lovel=1   hivel=63
+<region> sample=*silence lovel=64  hivel=127

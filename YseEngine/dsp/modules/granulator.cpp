@@ -28,7 +28,7 @@ namespace YSE {
       public:
         grain(bool value) : needsInfo(value), state(GS_STOPPED) {}
 
-        void start(UInt grainLength, UInt waitTime, Flt pitch, DSP::buffer * pool) {
+        void start(UInt grainLength, UInt waitTime, Flt pitch, DSP::buffer* pool) {
           state = GS_START;
           this->grainLength = grainLength;
           this->waitTime = waitTime;
@@ -40,25 +40,27 @@ namespace YSE {
           int min = offset + this->waitTime;
           int max = offset + this->waitTime + pool->getLength() - grainLength;
           poolPos = min + BigRandom(max - min);
-          while (poolPos > pool->getLength()) poolPos -= pool->getLength();
+          while (poolPos > pool->getLength())
+            poolPos -= pool->getLength();
 
           this->currentGain = 0;
         }
 
-        void process(DSP::buffer * pool, DSP::buffer * output) {
+        void process(DSP::buffer* pool, DSP::buffer* output) {
           if (state == GS_STOPPED) return;
-          Flt * poolPtr = pool->getPtr();
+          Flt* poolPtr = pool->getPtr();
 
-          Flt * outPtr = output->getPtr();
+          Flt* outPtr = output->getPtr();
           UInt n = output->getLength();
 
           if (state == GS_START) {
-            while (n-- && --waitTime) outPtr++;
+            while (n-- && --waitTime)
+              outPtr++;
             if (waitTime <= 0) {
               state = GS_FADE_IN;
               n++;
-            }
-            else return;
+            } else
+              return;
           }
 
           if (state == GS_FADE_IN) {
@@ -70,8 +72,10 @@ namespace YSE {
               grainLength--;
             }
             if (currentGain >= 1) {
-              if (grainLength - 100 > 0) state = GS_SUSTAIN;
-              else state = GS_FADE_OUT;
+              if (grainLength - 100 > 0)
+                state = GS_SUSTAIN;
+              else
+                state = GS_FADE_OUT;
               n++;
             }
           }
@@ -83,7 +87,7 @@ namespace YSE {
               if (poolPos >= pool->getLength()) poolPos -= pool->getLength();
               grainLength--;
             }
-            if (grainLength  <= 100) {
+            if (grainLength <= 100) {
               state = GS_FADE_OUT;
               n++;
             }
@@ -101,27 +105,28 @@ namespace YSE {
               state = GS_STOPPED;
             }
           }
-         
         }
 
         bool needsInfo;
         UInt grainLength;
         Int waitTime;
         Flt pitch;
-        DSP::buffer * pool;
+        DSP::buffer* pool;
         Flt poolPos;
         Flt currentGain;
         GRAIN_STATE state;
       };
-    }
-  }
-}
+    } // namespace MODULES
+  } // namespace DSP
+} // namespace YSE
 
-YSE::DSP::MODULES::granulator::granulator(UInt poolSize, UInt maxGrains) 
-: poolSize(poolSize), parmTranspose(0), parmTransposeRandom(0), parmGain(1.0f)
-, leftOverStarts(0.f)
-, maxGrains(maxGrains)
-{
+YSE::DSP::MODULES::granulator::granulator(UInt poolSize, UInt maxGrains)
+  : poolSize(poolSize),
+    parmTranspose(0),
+    parmTransposeRandom(0),
+    parmGain(1.0f),
+    leftOverStarts(0.f),
+    maxGrains(maxGrains) {
   limiter.set(-0.97, 0.97);
 }
 
@@ -137,16 +142,15 @@ void YSE::DSP::MODULES::granulator::create() {
   }
 }
 
-void YSE::DSP::MODULES::granulator::process(MULTICHANNELBUFFER & buffer) {
+void YSE::DSP::MODULES::granulator::process(MULTICHANNELBUFFER& buffer) {
   createIfNeeded();
-  
+
   // add current buffer to pool
   if (pool->getLength() - poolPosition >= buffer[0].getLength()) {
     pool->copyFrom(buffer[0], 0, poolPosition, buffer[0].getLength());
     poolPosition += buffer[0].getLength();
     if (poolPosition == pool->getLength()) poolPosition = 0;
-  }
-  else {
+  } else {
     UInt length = pool->getLength() - poolPosition;
     pool->copyFrom(buffer[0], 0, poolPosition, length);
     poolPosition = 0;
@@ -156,7 +160,6 @@ void YSE::DSP::MODULES::granulator::process(MULTICHANNELBUFFER & buffer) {
 
   pool->cursor = pool->getPtr() + poolPosition;
 
-  
   // see how many grains should be started during this buffer
   Flt newGrains = parmFrequency / (SAMPLERATE / static_cast<Flt>(buffer[0].getLength()));
   leftOverStarts += newGrains - static_cast<Int>(newGrains);
@@ -167,18 +170,19 @@ void YSE::DSP::MODULES::granulator::process(MULTICHANNELBUFFER & buffer) {
 
   // activate grains if needed
   UInt num = static_cast<Int>(newGrains);
-  if(num) for (UInt i = 0; i < grainPool->size(); i++) {
-    if (grainPool->at(i).state == GS_STOPPED) {
-      UInt length = parmLength;
-      if (parmLengthRandom) length += Random(-(int)parmLengthRandom, parmLengthRandom);
-      Int wait = YSE::BigRandom(poolSize);
-      Flt pitch = 1 + parmTranspose;
-      if (parmTransposeRandom > 0) pitch += RandomF(-parmTransposeRandom, parmTransposeRandom);
-      grainPool->at(i).start(length, wait, pitch, pool.get());
-      num--;
-      if (!num) break;
+  if (num)
+    for (UInt i = 0; i < grainPool->size(); i++) {
+      if (grainPool->at(i).state == GS_STOPPED) {
+        UInt length = parmLength;
+        if (parmLengthRandom) length += Random(-(int)parmLengthRandom, parmLengthRandom);
+        Int wait = YSE::BigRandom(poolSize);
+        Flt pitch = 1 + parmTranspose;
+        if (parmTransposeRandom > 0) pitch += RandomF(-parmTransposeRandom, parmTransposeRandom);
+        grainPool->at(i).start(length, wait, pitch, pool.get());
+        num--;
+        if (!num) break;
+      }
     }
-  }
 
   // create new grains if needed
   while (num--) {
@@ -199,27 +203,29 @@ void YSE::DSP::MODULES::granulator::process(MULTICHANNELBUFFER & buffer) {
   }
 
   // adjust gain
-  buffer[0] *= parmGain;  
+  buffer[0] *= parmGain;
 }
 
-YSE::DSP::MODULES::granulator & YSE::DSP::MODULES::granulator::grainLength(UInt samples, UInt random ) {
+YSE::DSP::MODULES::granulator& YSE::DSP::MODULES::granulator::grainLength(UInt samples,
+                                                                          UInt random) {
   parmLength = samples;
   parmLengthRandom = random;
   return *this;
 }
 
-YSE::DSP::MODULES::granulator & YSE::DSP::MODULES::granulator::grainFrequency(UInt value) {
+YSE::DSP::MODULES::granulator& YSE::DSP::MODULES::granulator::grainFrequency(UInt value) {
   parmFrequency = value;
   return *this;
 }
 
-YSE::DSP::MODULES::granulator & YSE::DSP::MODULES::granulator::grainTranspose(Flt pitch, Flt random) {
+YSE::DSP::MODULES::granulator& YSE::DSP::MODULES::granulator::grainTranspose(Flt pitch,
+                                                                             Flt random) {
   parmTranspose = pitch;
   parmTransposeRandom = random;
   return *this;
 }
 
-YSE::DSP::MODULES::granulator & YSE::DSP::MODULES::granulator::gain(Flt value) {
+YSE::DSP::MODULES::granulator& YSE::DSP::MODULES::granulator::gain(Flt value) {
   parmGain = value;
   return *this;
 }

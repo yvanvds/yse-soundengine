@@ -31,7 +31,7 @@ namespace YSE {
       }
     };
 
-    void YSE::DSP::sineWave::process(SOUND_STATUS & intent, Int & latency) {
+    void YSE::DSP::sineWave::process(SOUND_STATUS& intent, Int& latency) {
       Flt lastVolume = volumeCurve.getBack();
       Clamp(lastVolume, 0.f, 1.f);
 
@@ -41,23 +41,19 @@ namespace YSE {
           // complete fade out if needed
           if (lastVolume > 0) {
             volumeCurve.drawLine(0, (UInt)(lastVolume * 200), lastVolume, 0);
-            volumeCurve.drawLine((UInt)((lastVolume)* 200), STANDARD_BUFFERSIZE, 0);
-          }
-          else {
+            volumeCurve.drawLine((UInt)((lastVolume) * 200), STANDARD_BUFFERSIZE, 0);
+          } else {
             volumeCurve = 0.f;
           }
-        }
-        else if (intent == SS_PLAYING) {
+        } else if (intent == SS_PLAYING) {
           // complete fade in if needed
           if (lastVolume < 1) {
             volumeCurve.drawLine(0, (UInt)((1 - lastVolume) * 200), lastVolume, 1);
             volumeCurve.drawLine((UInt)((1 - lastVolume) * 200), STANDARD_BUFFERSIZE, 1);
-          }
-          else {
+          } else {
             volumeCurve = 1.f;
           }
-        }
-        else {
+        } else {
           // in all other cases continue the previous volume status
           volumeCurve = lastVolume;
         }
@@ -67,54 +63,45 @@ namespace YSE {
         if (intent != SS_PLAYING) {
           // just keep the last freqency
           frequencyCurve = currentFrequency;
-        }
-        else {
+        } else {
           currentFrequency = parmFrequency;
           frequencyCurve = currentFrequency;
         }
 
-      }
-      else if (latency == 0) {
+      } else if (latency == 0) {
         // no latency at all, just do everything at the beginning of the sample
         if (intent == SS_STOPPED || intent == SS_PAUSED) {
           // complete fade out if needed
           if (lastVolume > 0) {
             volumeCurve.drawLine(0, (UInt)(lastVolume * 200), lastVolume, 0);
-            volumeCurve.drawLine((UInt)((lastVolume)* 200), STANDARD_BUFFERSIZE, 0);
-          }
-          else {
+            volumeCurve.drawLine((UInt)((lastVolume) * 200), STANDARD_BUFFERSIZE, 0);
+          } else {
             volumeCurve = 0.f;
           }
           frequencyCurve = currentFrequency;
-        }
-        else if (intent == SS_PLAYING) {
+        } else if (intent == SS_PLAYING) {
           // complete fade in if needed
           if (lastVolume < 1) {
             volumeCurve.drawLine(0, (UInt)((1 - lastVolume) * 200), lastVolume, 1);
             volumeCurve.drawLine((UInt)((1 - lastVolume) * 200), STANDARD_BUFFERSIZE, 1);
-          }
-          else {
+          } else {
             volumeCurve = 1.f;
           }
           frequencyCurve = currentFrequency;
-        }
-        else if (intent == SS_WANTSTOPLAY || intent == SS_WANTSTORESTART) {
+        } else if (intent == SS_WANTSTOPLAY || intent == SS_WANTSTORESTART) {
           volumeCurve.drawLine(0, 200, lastVolume, 1);
           volumeCurve.drawLine(200, STANDARD_BUFFERSIZE, 1);
           currentFrequency = parmFrequency;
           frequencyCurve = currentFrequency;
           intent = SS_PLAYING;
-        }
-        else if (intent == SS_WANTSTOPAUSE || intent == SS_WANTSTOSTOP) {
+        } else if (intent == SS_WANTSTOPAUSE || intent == SS_WANTSTOSTOP) {
           volumeCurve.drawLine(0, 200, lastVolume, 0);
           volumeCurve.drawLine(200, STANDARD_BUFFERSIZE, 0);
           frequencyCurve = currentFrequency;
           intent = SS_STOPPED;
         }
 
-
-      }
-      else {
+      } else {
         // latency > 0, but smaller as buffersize
         // this means the change has to come somewhere in the middle of the sample
 
@@ -123,28 +110,26 @@ namespace YSE {
           // complete fade out if needed
           if (lastVolume > 0) {
             volumeCurve.drawLine(0, (UInt)(lastVolume * 200), lastVolume, 0);
-            volumeCurve.drawLine((UInt)((lastVolume)* 200), STANDARD_BUFFERSIZE, 0);
-          }
-          else {
+            volumeCurve.drawLine((UInt)((lastVolume) * 200), STANDARD_BUFFERSIZE, 0);
+          } else {
             volumeCurve = 0.f;
           }
           frequencyCurve = currentFrequency;
 
-        }
-        else if (intent == SS_PLAYING) {
+        } else if (intent == SS_PLAYING) {
           // complete fade in if needed
           if (lastVolume < 1) {
             volumeCurve.drawLine(0, (UInt)((1 - lastVolume) * 200), lastVolume, 1);
             volumeCurve.drawLine((UInt)((1 - lastVolume) * 200), STANDARD_BUFFERSIZE, 1);
-          }
-          else {
+          } else {
             volumeCurve = 1.f;
           }
           frequencyCurve = currentFrequency;
 
-        }
-        else if (intent == SS_WANTSTOPLAY || intent == SS_WANTSTORESTART) {
-          Int slopeLength = (latency + 200) >= static_cast<Int>(STANDARD_BUFFERSIZE) ? static_cast<Int>(STANDARD_BUFFERSIZE) - latency : 200;
+        } else if (intent == SS_WANTSTOPLAY || intent == SS_WANTSTORESTART) {
+          Int slopeLength = (latency + 200) >= static_cast<Int>(STANDARD_BUFFERSIZE)
+                                ? static_cast<Int>(STANDARD_BUFFERSIZE) - latency
+                                : 200;
           volumeCurve.drawLine(0, latency, lastVolume);
           volumeCurve.drawLine(latency, latency + slopeLength, lastVolume, slopeLength * 0.005f);
           if ((latency + slopeLength) < static_cast<Int>(STANDARD_BUFFERSIZE)) {
@@ -157,11 +142,13 @@ namespace YSE {
 
           intent = SS_PLAYING;
 
-        }
-        else if (intent == SS_WANTSTOSTOP || intent == SS_WANTSTOPAUSE) {
-          Int slopeLength = latency + 200 > static_cast<Int>(STANDARD_BUFFERSIZE) ? static_cast<Int>(STANDARD_BUFFERSIZE) - latency : 200;
+        } else if (intent == SS_WANTSTOSTOP || intent == SS_WANTSTOPAUSE) {
+          Int slopeLength = latency + 200 > static_cast<Int>(STANDARD_BUFFERSIZE)
+                                ? static_cast<Int>(STANDARD_BUFFERSIZE) - latency
+                                : 200;
           volumeCurve.drawLine(0, latency, lastVolume);
-          volumeCurve.drawLine(latency, latency + slopeLength, lastVolume, 1 - slopeLength * 0.005f);
+          volumeCurve.drawLine(latency, latency + slopeLength, lastVolume,
+                               1 - slopeLength * 0.005f);
           if (latency + slopeLength < static_cast<Int>(STANDARD_BUFFERSIZE)) {
             volumeCurve.drawLine(latency + slopeLength, STANDARD_BUFFERSIZE, 0);
           }
@@ -171,8 +158,7 @@ namespace YSE {
         }
       }
 
-
-      YSE::DSP::buffer & sin = sineGen(frequencyCurve);
+      YSE::DSP::buffer& sin = sineGen(frequencyCurve);
       for (UInt i = 0; i < samples.size(); i++) {
         samples[i] = sin;
         samples[i] *= volumeCurve;
@@ -188,7 +174,7 @@ namespace YSE {
       frequencyCurve = 0.f;
     }
 
-    void YSE::DSP::sineWave::process(SOUND_STATUS & intent) {
+    void YSE::DSP::sineWave::process(SOUND_STATUS& intent) {
       Int latency = 0;
       process(intent, latency);
     }
@@ -201,7 +187,5 @@ namespace YSE {
       return parmFrequency;
     }
 
-
-
-  }
-}
+  } // namespace DSP
+} // namespace YSE

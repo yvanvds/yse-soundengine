@@ -13,38 +13,82 @@
 
 #include "../classes.hpp"
 #include "../headers/defines.hpp"
+#include "../headers/enums.hpp"
 #include "../utils/lfQueue.hpp"
 #include "../utils/interpolators.hpp"
 #include "../music/note.hpp"
+#include "../music/pNote.hpp"
+#include "../synth/synth.hpp" // SYNTH::interfaceObject — the synth the player drives (#156)
 #include "../dsp/ramp.hpp"
-#include <deque>
+#include <atomic>
+#include <vector>
 
 namespace YSE {
   namespace PLAYER {
 
+    // Fixed ceilings for the preallocated audio-thread pools (issue #195). The
+    // note generator runs on the audio callback and must not allocate, so every
+    // container it touches is reserved to these bounds at construction time and
+    // never grows past them: generation above the ceiling is dropped rather than
+    // triggering a heap reallocation.
+    static constexpr UInt MAX_VOICES = 32; // polyphony ceiling
+    static constexpr UInt MAX_MOTIF_NOTES = 256; // notes copied per voice motif
+    static constexpr UInt MAX_MOTIFS = 64; // weighted motifs in the pool
+    static constexpr UInt MAX_NOTES = 512; // concurrently sounding notes
+
     class implementationObject {
     public:
-      //implementationObject(player * head, synth * s);
+      // Constructing an implementation preallocates every pool it uses on the
+      // audio thread. `head` may be null (used by tests that drive update()
+      // directly); when non-null the interface's pimpl is wired back here.
+      // `instrument` is the synth this player feeds notes into (#156); null when
+      // a test drives generation in isolation with no synth attached.
+      explicit implementationObject(player* head, SYNTH::interfaceObject* instrument = nullptr);
       ~implementationObject();
 
       bool update(Flt delta);
-      void parseMessage(const messageObject & message);
+      void parseMessage(const messageObject& message);
 
-      inline void sendMessage(const messageObject & message) {
+      inline void sendMessage(const messageObject& message) {
         messages.push(message);
       }
 
       void removeInterface();
 
+      // ---- lifecycle (slow-pool delete job, mirrors the MIDI/synth managers) --
+      // The manager retires an orphaned player by flagging it OBJECT_DELETE and
+      // letting the slow-pool delete job reap it — the audio thread never frees
+      // an impl (#156, consistent with #155 / #190).
+      void setStatus(OBJECT_IMPLEMENTATION_STATE value) {
+        objectStatus.store(value);
+      }
+      static bool canBeDeleted(const implementationObject& impl) {
+        return impl.objectStatus.load() == OBJECT_DELETE;
+      }
+
+      // Read-only inspection of the sounding-note pool. Lets the RT-allocation
+      // test assert the pool stays within its fixed ceiling (#195).
+      UInt noteCount() const {
+        return static_cast<UInt>(notes.size());
+      }
+
     private:
-      std::atomic<player *> head;
+      std::atomic<player*> head;
       lfQueue<messageObject> messages;
-      //synth * instrument;
+      // The synth this player feeds generated notes into. Set at construction
+      // from player::create(synth&); null when generation is driven in isolation
+      // (tests). Only touched on the audio thread in update() (#156).
+      SYNTH::interfaceObject* instrument;
+      // Lifecycle state for the audio-thread / slow-pool delete handoff. Starts
+      // OBJECT_READY (the player needs no async setup) and only moves to
+      // OBJECT_DELETE once the audio thread has retired it from the manager's
+      // working list (#156).
+      std::atomic<OBJECT_IMPLEMENTATION_STATE> objectStatus;
       float waitTime;
-      
+
       struct voice {
-        voice(bool active) : isActive(active), notePlaying(false), 
-                             motifPlaying(false), duration(0) {}
+        voice(bool active)
+          : isActive(active), notePlaying(false), motifPlaying(false), duration(0) {}
         Bool isActive;
         Bool notePlaying;
         Bool motifPlaying;
@@ -56,9 +100,9 @@ namespace YSE {
         std::vector<MUSIC::pNote> motif;
       };
 
-      void setVoiceFromMotif(voice & v, Flt delta);
-      
-      std::deque<MUSIC::note> notes;
+      void setVoiceFromMotif(voice& v, Flt delta);
+
+      std::vector<MUSIC::note> notes;
       std::vector<voice> voices;
       UInt activeVoices;
 
@@ -80,7 +124,7 @@ namespace YSE {
       objectInterpolator<YSE::SCALE::implementationObject*> scale;
 
       struct wMotif {
-        YSE::MOTIF::implementationObject * motif;
+        YSE::MOTIF::implementationObject* motif;
         UInt weight;
       };
 
@@ -90,9 +134,7 @@ namespace YSE {
       friend class PLAYER::managerObject;
     };
 
-  }
-}
+  } // namespace PLAYER
+} // namespace YSE
 
-
-
-#endif  // PLAYER_HPP_INCLUDED
+#endif // PLAYER_HPP_INCLUDED

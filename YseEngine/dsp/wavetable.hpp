@@ -39,10 +39,10 @@ namespace YSE {
        *                   high pitches.
        *  @param length    Resolution of the table in samples.
        */
-      void createSaw     (Int harmonics, Int length);
+      void createSaw(Int harmonics, Int length);
 
       /** @brief Fill the table with a band-limited square wave. See ``createSaw``. */
-      void createSquare  (Int harmonics, Int length);
+      void createSquare(Int harmonics, Int length);
 
       /** @brief Fill the table with a band-limited triangle wave. See ``createSaw``. */
       void createTriangle(Int harmonics, Int length);
@@ -56,12 +56,10 @@ namespace YSE {
        *  @param length    Resolution of the table in samples.
        *  @param phase     Initial phase offset in radians.
        */
-      void createFourierTable(const std::vector<Flt> & harmonics, Int length, Flt phase);
+      void createFourierTable(const std::vector<Flt>& harmonics, Int length, Flt phase);
     };
 
-  }
-}
+  } // namespace DSP
+} // namespace YSE
 
-
-
-#endif  // WAVETABLE_HPP_INCLUDED
+#endif // WAVETABLE_HPP_INCLUDED

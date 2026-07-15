@@ -15,24 +15,24 @@
 
 #define LOGTEN 2.302585092994
 
-#define	muted					0
-#define	fixedgain			0.015f
-#define scalewet			3.0f
-#define scaledry			2.0f
-#define scaledamp			0.4f
-#define scaleroom			0.28f
-#define offsetroom		0.7f
-#define initialroom		0.5f
-#define initialdamp		0.5f
-#define initialwet		1.0f/scalewet
-#define initialdry		0.0f
-#define initialwidth	1.0f
-#define initialmode		0
+#define muted 0
+#define fixedgain 0.015f
+#define scalewet 3.0f
+#define scaledry 2.0f
+#define scaledamp 0.4f
+#define scaleroom 0.28f
+#define offsetroom 0.7f
+#define initialroom 0.5f
+#define initialdamp 0.5f
+#define initialwet 1.0f / scalewet
+#define initialdry 0.0f
+#define initialwidth 1.0f
+#define initialmode 0
 #define initialbypass 0
-#define freezemode		0.5f
-#define	stereospread	23
+#define freezemode 0.5f
+#define stereospread 23
 
-inline void Undenormal(Flt &v) {
+inline void Undenormal(Flt& v) {
   if (v != 0 && fabsf(v) < std::numeric_limits<float>::min()) v = 0;
 }
 
@@ -40,8 +40,8 @@ inline void Undenormal(Flt &v) {
 they will probably be OK for 48KHz sample rate
 but would need scaling for 96KHz (or other) sample rates.
 the values were obtained by listening tests.                */
-static const int combtuning[8] = { 1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617 };
-static const int allpasstuning[4] = { 556, 441, 341, 225 };
+static const int combtuning[8] = {1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617};
+static const int allpasstuning[4] = {556, 441, 341, 225};
 
 // The combtuning / allpasstuning arrays above are calibrated for this
 // reference sample rate. At runtime the tunings are scaled by
@@ -49,51 +49,41 @@ static const int allpasstuning[4] = { 556, 441, 341, 225 };
 // character stays consistent across device-negotiated sample rates.
 static constexpr float kReverbTuningReferenceRate = 44100.0f;
 
-// static inline functions and pointer for speed optimisation
-UInt ch;
-Int filterIndex;
-Int * curCombIndex;
-Int * curCombTuning;
-std::vector< std::vector<Flt> > * curBufComb;
-Flt * curFilterStore;
-std::vector< std::vector<Flt> > * curBufAll;
-Int * curAllIndex;
-Int * curAllTuning;
-Flt _allpassFeedback;
-Flt _combFeedback;
-Flt combDamp1;
-Flt combDamp2;
-Int bufferIndex;
+// The comb/allpass kernels and every loop-carried working value used to be
+// file-scope globals ("for speed optimisation", 2014). That made the whole
+// DSP core non-re-entrant: two reverbDSP instances processing concurrently
+// (the manager's global instance and a morphingReverb channel insert on
+// another fast-pool worker) raced on them. All state now lives in the
+// instance; the kernels below take their per-filter state by reference and
+// keep the exact arithmetic of the old globals-based versions (issue #326).
 
-static inline Flt combProcess(Flt input) {
-  Flt output;
-  output = (*curBufComb)[filterIndex][bufferIndex];
+inline Flt YSE::INTERNAL::reverbDSP::combProcess(Flt input, std::vector<Flt>& buf, Flt& filterStore,
+                                                 Int& index, Int tuning) {
+  Flt output = buf[index];
   Undenormal(output);
 
-  curFilterStore[filterIndex] = (output * combDamp2) + (curFilterStore[filterIndex] * combDamp1);
-  Undenormal(curFilterStore[filterIndex]);
+  filterStore = (output * _combDamp2) + (filterStore * _combDamp1);
+  Undenormal(filterStore);
 
-  (*curBufComb)[filterIndex][bufferIndex] = input + (curFilterStore[filterIndex] * _combFeedback);
-  if (++bufferIndex >= curCombTuning[filterIndex]) bufferIndex = 0;
+  buf[index] = input + (filterStore * _combFeedback);
+  if (++index >= tuning) index = 0;
   return output;
 }
 
-static inline void allpassProcess(Flt & input) {
-  Flt bufout;
-
-  bufout = (*curBufAll)[filterIndex][bufferIndex];
+inline void YSE::INTERNAL::reverbDSP::allpassProcess(Flt& value, std::vector<Flt>& buf, Int& index,
+                                                     Int tuning) {
+  Flt bufout = buf[index];
   Undenormal(bufout);
 
-  (*curBufAll)[filterIndex][bufferIndex] = input + (bufout * _allpassFeedback);
-  if (++bufferIndex >= curAllTuning[filterIndex]) bufferIndex = 0;
+  buf[index] = value + (bufout * _allpassFeedback);
+  if (++index >= tuning) index = 0;
 
-  input = -input + bufout;
+  value = -value + bufout;
 }
 
-
 void YSE::INTERNAL::reverbDSP::combDamp(Flt value) {
-  combDamp1 = value;
-  combDamp2 = 1 - value;
+  _combDamp1 = value;
+  _combDamp2 = 1 - value;
 }
 
 YSE::INTERNAL::reverbDSP& YSE::INTERNAL::reverbDSP::combFeedback(Flt value) {
@@ -119,7 +109,8 @@ YSE::INTERNAL::reverbDSP& YSE::INTERNAL::reverbDSP::bypass(Bool value) {
   if (_bypass) {
     if (_freeze) return (*this);
 
-    for (UInt i = 0; i < channel.size(); i++) channel[i].clear();
+    for (UInt i = 0; i < channel.size(); i++)
+      channel[i].clear();
   }
 
   return (*this);
@@ -129,7 +120,7 @@ Bool YSE::INTERNAL::reverbDSP::bypass() {
   return _bypass;
 }
 
-void YSE::INTERNAL::reverbDSP::process(MULTICHANNELBUFFER & buffer) {
+void YSE::INTERNAL::reverbDSP::process(MULTICHANNELBUFFER& buffer) {
   if (_bypass) return;
   if (channel.empty()) return;
   update();
@@ -144,72 +135,67 @@ void YSE::INTERNAL::reverbDSP::process(MULTICHANNELBUFFER & buffer) {
     cosPtr2 = cos2(modPtr);
   }
 
-  for (ch = 0; ch < channel.size(); ch++) {
-    Flt * ptr = buffer[ch].getPtr();
-    channel[ch].out = 0;
-    Flt * out = channel[ch].out.getPtr();
+  for (UInt ch = 0; ch < channel.size(); ch++) {
+    reverbChannel& c = channel[ch];
+    Flt* ptr = buffer[ch].getPtr();
+    c.out = 0;
+    Flt* out = c.out.getPtr();
     Int length = buffer[ch].getLength();
-    curCombIndex = channel[ch].combIndex;
-    curBufComb = &channel[ch].bufComb;
-    curFilterStore = channel[ch].filterStore;
-    curCombTuning = channel[ch].combTuning;
-    curBufAll = &channel[ch].bufAll;
-    curAllIndex = channel[ch].allIndex;
-    curAllTuning = channel[ch].allTuning;
 
     // update delay line
-    channel[ch].delayline.process(buffer[ch]);
+    c.delayline.process(buffer[ch]);
     for (Int i = 0; i < 4; i++) {
-      if (channel[ch].earlyVolume[i].getValue() > 0) {
-        channel[ch].delayline.read(channel[ch].early[i], channel[ch].earlyPtr[i]());
-        channel[ch].early[i] *= channel[ch].earlyVolume[i]();
-        buffer[ch] += channel[ch].early[i];
+      if (c.earlyVolume[i].getValue() > 0) {
+        c.delayline.read(c.early[i], c.earlyPtr[i]());
+        c.early[i] *= c.earlyVolume[i]();
+        buffer[ch] += c.early[i];
       }
     }
 
     for (; length > 7; length -= 8, ptr += 8, out += 8) {
-      //ptr[0] = ptr[1] = ptr[2] = ptr[3] = ptr[4] = ptr[5] = ptr[6] = ptr[7] = 0;			
-      for (filterIndex = 0; filterIndex < COMBS; filterIndex++) {
-        bufferIndex = curCombIndex[filterIndex];
+      for (Int filterIndex = 0; filterIndex < COMBS; filterIndex++) {
+        std::vector<Flt>& buf = c.bufComb[filterIndex];
+        Flt& store = c.filterStore[filterIndex];
+        Int& index = c.combIndex[filterIndex];
+        const Int tuning = c.combTuning[filterIndex];
 
-        out[0] += combProcess(ptr[0] * _gain);
-        out[1] += combProcess(ptr[1] * _gain);
-        out[2] += combProcess(ptr[2] * _gain);
-        out[3] += combProcess(ptr[3] * _gain);
-        out[4] += combProcess(ptr[4] * _gain);
-        out[5] += combProcess(ptr[5] * _gain);
-        out[6] += combProcess(ptr[6] * _gain);
-        out[7] += combProcess(ptr[7] * _gain);
-        curCombIndex[filterIndex] = bufferIndex;
+        out[0] += combProcess(ptr[0] * _gain, buf, store, index, tuning);
+        out[1] += combProcess(ptr[1] * _gain, buf, store, index, tuning);
+        out[2] += combProcess(ptr[2] * _gain, buf, store, index, tuning);
+        out[3] += combProcess(ptr[3] * _gain, buf, store, index, tuning);
+        out[4] += combProcess(ptr[4] * _gain, buf, store, index, tuning);
+        out[5] += combProcess(ptr[5] * _gain, buf, store, index, tuning);
+        out[6] += combProcess(ptr[6] * _gain, buf, store, index, tuning);
+        out[7] += combProcess(ptr[7] * _gain, buf, store, index, tuning);
       }
 
-      for (filterIndex = 0; filterIndex < APASS; filterIndex++) {
-        bufferIndex = curAllIndex[filterIndex];
-        allpassProcess(out[0]);
-        allpassProcess(out[1]);
-        allpassProcess(out[2]);
-        allpassProcess(out[3]);
-        allpassProcess(out[4]);
-        allpassProcess(out[5]);
-        allpassProcess(out[6]);
-        allpassProcess(out[7]);
-        curAllIndex[filterIndex] = bufferIndex;
+      for (Int filterIndex = 0; filterIndex < APASS; filterIndex++) {
+        std::vector<Flt>& buf = c.bufAll[filterIndex];
+        Int& index = c.allIndex[filterIndex];
+        const Int tuning = c.allTuning[filterIndex];
+
+        allpassProcess(out[0], buf, index, tuning);
+        allpassProcess(out[1], buf, index, tuning);
+        allpassProcess(out[2], buf, index, tuning);
+        allpassProcess(out[3], buf, index, tuning);
+        allpassProcess(out[4], buf, index, tuning);
+        allpassProcess(out[5], buf, index, tuning);
+        allpassProcess(out[6], buf, index, tuning);
+        allpassProcess(out[7], buf, index, tuning);
       }
     }
 
     while (length--) {
       // accumulate comb filters in parallel
-      for (filterIndex = 0; filterIndex < COMBS; filterIndex++) {
-        bufferIndex = curCombIndex[filterIndex];
-        *out += combProcess(*ptr * _gain);
-        curCombIndex[filterIndex] = bufferIndex;
+      for (Int filterIndex = 0; filterIndex < COMBS; filterIndex++) {
+        *out += combProcess(*ptr * _gain, c.bufComb[filterIndex], c.filterStore[filterIndex],
+                            c.combIndex[filterIndex], c.combTuning[filterIndex]);
       }
 
       // feed through allpass in series
-      for (filterIndex = 0; filterIndex < APASS; filterIndex++) {
-        bufferIndex = curAllIndex[filterIndex];
-        allpassProcess(*out);
-        curAllIndex[filterIndex] = bufferIndex;
+      for (Int filterIndex = 0; filterIndex < APASS; filterIndex++) {
+        allpassProcess(*out, c.bufAll[filterIndex], c.allIndex[filterIndex],
+                       c.allTuning[filterIndex]);
       }
       ptr++;
       out++;
@@ -226,8 +212,7 @@ void YSE::INTERNAL::reverbDSP::process(MULTICHANNELBUFFER & buffer) {
       buffer[ch] *= _dryFader();
       channel[ch].hil1 *= _wet1;
       buffer[ch] += channel[ch].hil1;
-    }
-    else {
+    } else {
       buffer[ch] *= _dryFader();
       channel[ch].out *= _wet1;
       buffer[ch] += channel[ch].out;
@@ -254,8 +239,7 @@ void YSE::INTERNAL::reverbDSP::update() {
     _roomsize1 = 1.;
     _damp1 = 0.;
     _gain = muted;
-  }
-  else {
+  } else {
     _roomsize1 = _roomsizeFader();
     _damp1 = _dampFader();
     _gain = static_cast<Flt>(fixedgain);
@@ -266,7 +250,7 @@ void YSE::INTERNAL::reverbDSP::update() {
 }
 
 YSE::INTERNAL::reverbDSP& YSE::INTERNAL::reverbDSP::roomSize(Flt value) {
-  _roomsizeFader.setIfNew((value*scaleroom) + offsetroom, 1000);
+  _roomsizeFader.setIfNew((value * scaleroom) + offsetroom, 1000);
   return (*this);
 }
 
@@ -275,7 +259,7 @@ Flt YSE::INTERNAL::reverbDSP::roomSize() {
 }
 
 YSE::INTERNAL::reverbDSP& YSE::INTERNAL::reverbDSP::damp(Flt value) {
-  _dampFader.setIfNew(value*scaledamp, 1000);
+  _dampFader.setIfNew(value * scaledamp, 1000);
   return (*this);
 }
 
@@ -329,7 +313,7 @@ void YSE::INTERNAL::reverbDSP::modulate(Flt frequency, Flt width) {
   _modWidth.setIfNew(width, 1000);
 }
 
-void YSE::INTERNAL::reverbDSP::set(YSE::reverb & params) {
+void YSE::INTERNAL::reverbDSP::set(YSE::reverb& params) {
   if (!params.getActive()) {
     bypass(true);
     return;
@@ -345,8 +329,49 @@ void YSE::INTERNAL::reverbDSP::set(YSE::reverb & params) {
 
   for (Int i = 0; i < 4; i++) {
     for (UInt ch = 0; ch < channel.size(); ch++) {
-      channel[ch].earlyPtr[i].setIfNew((float)(params.getReflectionTime(i) + channel[ch].earlyOffset), 1000);
+      channel[ch].earlyPtr[i].setIfNew(
+          (float)(params.getReflectionTime(i) + channel[ch].earlyOffset), 1000);
       channel[ch].earlyVolume[i].setIfNew(params.getReflectionGain(i), 1000);
+    }
+  }
+}
+
+void YSE::INTERNAL::reverbDSP::set(const YSE::REVERB::presetValues& params) {
+  // Mirrors set(reverb&) but takes a plain parameter set, so a control input
+  // (DSP::MODULES::morphingReverb) can feed blended presets straight into the
+  // faders. set(reverb&) relies on the interface setters' clamping; a
+  // presetValues can come from user code, so clamp here instead. Runs on the
+  // audio thread: no allocation, faders ramp so repeated control-rate calls
+  // stay click-free.
+  bypass(false);
+
+  Flt value = params.roomsize;
+  Clamp(value, 0.f, 1.f);
+  roomSize(value);
+
+  value = params.damp;
+  Clamp(value, 0.f, 1.f);
+  damp(value);
+
+  value = params.wet;
+  Clamp(value, 0.f, 1.f);
+  wet(value);
+
+  value = params.dry;
+  Clamp(value, 0.f, 1.f);
+  dry(value);
+
+  width(0);
+  modulate(params.modFrequency, params.modWidth < 0.f ? 0.f : params.modWidth);
+
+  for (Int i = 0; i < 4; i++) {
+    Flt time = params.earlyTime[i];
+    Clamp(time, 0.f, 2999.f);
+    Flt gain = params.earlyGain[i];
+    Clamp(gain, 0.f, 1.f);
+    for (UInt ch = 0; ch < channel.size(); ch++) {
+      channel[ch].earlyPtr[i].setIfNew(time + channel[ch].earlyOffset, 1000);
+      channel[ch].earlyVolume[i].setIfNew(gain, 1000);
     }
   }
 }
@@ -358,6 +383,9 @@ YSE::INTERNAL::reverbDSP::reverbDSP() {
   _modFrequency.set(0, 0);
   _modWidth.set(0, 0);
   _allpassFeedback = 0.5;
+  _combFeedback = 0;
+  _combDamp1 = 0;
+  _combDamp2 = 1;
   wet(initialwet);
   roomSize(initialroom);
   dry(initialdry);
@@ -367,9 +395,7 @@ YSE::INTERNAL::reverbDSP::reverbDSP() {
   bypass(false); // extra call doesn't cost much time
 }
 
-YSE::INTERNAL::reverbDSP::~reverbDSP() {
-
-}
+YSE::INTERNAL::reverbDSP::~reverbDSP() {}
 
 YSE::INTERNAL::reverbChannel::reverbChannel() : delayline(3000), bufComb(COMBS), bufAll(APASS) {
   Int rnd = Random(50);
@@ -392,7 +418,7 @@ YSE::INTERNAL::reverbChannel::reverbChannel() : delayline(3000), bufComb(COMBS),
     bufAll[i].resize(allTuning[i]);
     allIndex[i] = 0;
   }
-  
+
   earlyOffset = Random(30);
   /*earlyPtr[0] = 60;
   earlyPtr[1] = 100;
@@ -406,8 +432,9 @@ YSE::INTERNAL::reverbChannel::reverbChannel() : delayline(3000), bufComb(COMBS),
   clear();
 }
 
-YSE::INTERNAL::reverbChannel::reverbChannel(const reverbChannel& /*source*/): delayline(3000), bufComb(COMBS), bufAll(APASS) {
-    Int rnd = Random(50);
+YSE::INTERNAL::reverbChannel::reverbChannel(const reverbChannel& /*source*/)
+  : delayline(3000), bufComb(COMBS), bufAll(APASS) {
+  Int rnd = Random(50);
   // recalculate the reverb parameters in case we don't run at 44.1kHz
   for (Int i = 0; i < COMBS; i++) {
     combTuning[i] = (Int)((combtuning[i] + rnd) * (SAMPLERATE / kReverbTuningReferenceRate));
@@ -427,9 +454,9 @@ YSE::INTERNAL::reverbChannel::reverbChannel(const reverbChannel& /*source*/): de
     bufAll[i].resize(allTuning[i]);
     allIndex[i] = 0;
   }
-  
+
   earlyOffset = Random(30);
-  clear();  
+  clear();
 }
 
 void YSE::INTERNAL::reverbChannel::clear() {
@@ -449,6 +476,3 @@ void YSE::INTERNAL::reverbChannel::update() {
     earlyVolume[i].update();
   }
 }
-
-
-

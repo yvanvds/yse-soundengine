@@ -10,7 +10,7 @@
 
 #include "../../internalHeaders.h"
 
-YSE::MOTIF::managerObject & YSE::MOTIF::Manager() {
+YSE::MOTIF::managerObject& YSE::MOTIF::Manager() {
   static managerObject m;
   return m;
 }
@@ -26,16 +26,14 @@ void YSE::MOTIF::managerObject::update() {
   for (auto i = implementations.begin(); i != implementations.end();) {
     if (!i->update()) {
       i = implementations.erase_after(previous);
-    }
-    else {
+    } else {
       previous = i;
       ++i;
     }
   }
 }
 
-YSE::MOTIF::implementationObject * YSE::MOTIF::managerObject::addImplementation(motif * head) {
+YSE::MOTIF::implementationObject* YSE::MOTIF::managerObject::addImplementation(motif* head) {
   implementations.emplace_front(head);
   return &implementations.front();
 }
-

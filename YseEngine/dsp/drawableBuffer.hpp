@@ -30,7 +30,8 @@ namespace YSE {
     class API drawableBuffer : public buffer {
     public:
       /** @brief Construct a drawable buffer. See ``buffer::buffer``. */
-      drawableBuffer(UInt length = STANDARD_BUFFERSIZE, UInt overflow = 0) : buffer(length, overflow) {}
+      drawableBuffer(UInt length = STANDARD_BUFFERSIZE, UInt overflow = 0)
+        : buffer(length, overflow) {}
 
       /**
        *  @brief Multiply the buffer by an envelope shape.
@@ -40,7 +41,7 @@ namespace YSE {
        *                is stretched or compressed to this length; if 0 the
        *                envelope's internal length is used as-is.
        */
-      drawableBuffer & applyEnvelope(const envelope & env, Flt length = 0);
+      drawableBuffer& applyEnvelope(const envelope& env, Flt length = 0);
 
       /**
        *  @brief Draw a linear ramp between two positions.
@@ -53,7 +54,7 @@ namespace YSE {
        *  @param startValue Value at ``start``, in [-1.0, 1.0].
        *  @param stopValue  Value at ``stop``, in [-1.0, 1.0].
        */
-      drawableBuffer & drawLine(UInt start, UInt stop, Flt startValue, Flt stopValue);
+      drawableBuffer& drawLine(UInt start, UInt stop, Flt startValue, Flt stopValue);
 
       /**
        *  @brief Fill a region with a constant value.
@@ -62,35 +63,63 @@ namespace YSE {
        *  @param stop  Last sample index.
        *  @param value Value to write, in [-1.0, 1.0].
        */
-      drawableBuffer & drawLine(UInt start, UInt stop, Flt value);
+      drawableBuffer& drawLine(UInt start, UInt stop, Flt value);
 
       /** @brief Add ``f`` to every sample (returns drawableBuffer&). */
-      drawableBuffer & operator+=(Flt f) { buffer::operator+=(f); return *this; }
+      drawableBuffer& operator+=(Flt f) {
+        buffer::operator+=(f);
+        return *this;
+      }
       /** @brief Subtract ``f`` from every sample. */
-      drawableBuffer & operator-=(Flt f) { buffer::operator-=(f); return *this; }
+      drawableBuffer& operator-=(Flt f) {
+        buffer::operator-=(f);
+        return *this;
+      }
       /** @brief Multiply every sample by ``f``. */
-      drawableBuffer & operator*=(Flt f) { buffer::operator*=(f); return *this; }
+      drawableBuffer& operator*=(Flt f) {
+        buffer::operator*=(f);
+        return *this;
+      }
       /** @brief Divide every sample by ``f``. */
-      drawableBuffer & operator/=(Flt f) { buffer::operator/=(f); return *this; }
+      drawableBuffer& operator/=(Flt f) {
+        buffer::operator/=(f);
+        return *this;
+      }
 
       /** @brief Sample-wise add. */
-      drawableBuffer & operator+=(const buffer & s) { buffer::operator+=(s); return *this; }
+      drawableBuffer& operator+=(const buffer& s) {
+        buffer::operator+=(s);
+        return *this;
+      }
       /** @brief Sample-wise subtract. */
-      drawableBuffer & operator-=(const buffer & s) { buffer::operator-=(s); return *this; }
+      drawableBuffer& operator-=(const buffer& s) {
+        buffer::operator-=(s);
+        return *this;
+      }
       /** @brief Sample-wise multiply. */
-      drawableBuffer & operator*=(const buffer & s) { buffer::operator*=(s); return *this; }
+      drawableBuffer& operator*=(const buffer& s) {
+        buffer::operator*=(s);
+        return *this;
+      }
       /** @brief Sample-wise divide. */
-      drawableBuffer & operator/=(const buffer & s) { buffer::operator/=(s); return *this; }
+      drawableBuffer& operator/=(const buffer& s) {
+        buffer::operator/=(s);
+        return *this;
+      }
 
       /** @brief Copy-assign from a ``buffer``. */
-      drawableBuffer & operator=(const buffer & s) { buffer::operator=(s); return *this; }
+      drawableBuffer& operator=(const buffer& s) {
+        buffer::operator=(s);
+        return *this;
+      }
       /** @brief Fill every sample with ``f``. */
-      drawableBuffer & operator=(Flt f) { buffer::operator=(f); return *this; }
+      drawableBuffer& operator=(Flt f) {
+        buffer::operator=(f);
+        return *this;
+      }
     };
 
-  }
-}
+  } // namespace DSP
+} // namespace YSE
 
-
-
-#endif  // DRAWABLEBUFFER_H_INCLUDED
+#endif // DRAWABLEBUFFER_H_INCLUDED

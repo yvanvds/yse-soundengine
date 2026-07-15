@@ -73,11 +73,28 @@
 
 #include <string>
 
+// Forward declarations for the cross-TU synth-handle accessor below. Kept
+// minimal so this header stays free of engine includes; the definitions live
+// in yse_synth.cpp (YseSynthImpl) and the engine synth headers.
+struct YseSynth;
+namespace YSE {
+  namespace SYNTH {
+    class interfaceObject;
+  }
+  typedef SYNTH::interfaceObject synth;
+} // namespace YSE
+
 namespace yse_c {
 
-// Stash a human-readable error in the thread-local last_error slot.
-// Retrieved by the C client via yse_last_error().
-void set_last_error(const char* msg);
-void set_last_error(const std::string& msg);
+  // Stash a human-readable error in the thread-local last_error slot.
+  // Retrieved by the C client via yse_last_error().
+  void set_last_error(const char* msg);
+  void set_last_error(const std::string& msg);
+
+  // Return the engine synth backing a YseSynth handle, or nullptr for a NULL
+  // handle. Defined in yse_synth.cpp — lets yse_music.cpp's player create()
+  // reach the synth a player must drive without exposing YseSynthImpl's private
+  // layout across translation units (issue #268).
+  YSE::synth* synth_from_handle(YseSynth* h);
 
 } // namespace yse_c

@@ -1,22 +1,21 @@
 #include "inlet.h"
 #include "outlet.h"
 #include "pObject.h"
-
+#include "graphState.h"
 
 using namespace YSE::PATCHER;
 
-inlet::inlet(pObject * obj, bool active, int position)
-  : obj(obj)
-  , dspReady(false)
-  , active(active)
-  , position(position)
-  , onInt(nullptr)
-  , onBang(nullptr)
-  , onFloat(nullptr)
-  , onList(nullptr)
-  , onBuffer(nullptr)
-  , dspConnection(nullptr)
-{}
+inlet::inlet(pObject* obj, bool active, int position)
+  : obj(obj),
+    dspReady(false),
+    active(active),
+    position(position),
+    onInt(nullptr),
+    onBang(nullptr),
+    onFloat(nullptr),
+    onList(nullptr),
+    onBuffer(nullptr),
+    dspConnection(nullptr) {}
 
 inlet::~inlet() {
   if (dspConnection != nullptr) {
@@ -77,7 +76,7 @@ void inlet::SetFloat(float value, YSE::THREAD thread) {
   }
 }
 
-void inlet::SetList(const std::string & value, YSE::THREAD thread) {
+void inlet::SetList(const std::string& value, YSE::THREAD thread) {
   if (onList) {
     onList(value, position, thread);
     if (active) {
@@ -87,7 +86,7 @@ void inlet::SetList(const std::string & value, YSE::THREAD thread) {
   }
 }
 
-void inlet::SetBuffer(YSE::DSP::buffer * buffer, YSE::THREAD thread) {
+void inlet::SetBuffer(YSE::DSP::buffer* buffer, YSE::THREAD thread) {
   if (onBuffer) {
     onBuffer(buffer, position, thread);
     dspReady = true;
@@ -96,7 +95,7 @@ void inlet::SetBuffer(YSE::DSP::buffer * buffer, YSE::THREAD thread) {
   }
 }
 
-void inlet::SetMessage(const std::string & message, YSE::THREAD thread, float value) {
+void inlet::SetMessage(const std::string& message, YSE::THREAD thread, float value) {
   obj->SetMessage(message, value);
   if (active) {
     if (obj->IsDSPObject() && thread == T_GUI) return;
@@ -105,28 +104,51 @@ void inlet::SetMessage(const std::string & message, YSE::THREAD thread, float va
 }
 
 bool inlet::WaitingForDSP() const {
-  if (dspConnection == nullptr) return false;
+  // Whether this inlet has an active buffer input comes from the pinned
+  // snapshot when the patcher is mid-block (audio-thread path), else from the
+  // live ``dspConnection`` (control-thread / standalone path). See #226.
+  const GraphState* graph = obj ? obj->CurrentBlockGraph() : nullptr;
+  bool hasDsp;
+  if (graph != nullptr && graphId >= 0 &&
+      static_cast<size_t>(graphId) < graph->inletHasDsp.size()) {
+    hasDsp = graph->inletHasDsp[graphId] != 0;
+  } else {
+    hasDsp = (dspConnection != nullptr);
+  }
+  if (!hasDsp) return false;
   return !dspReady;
 }
 
-bool inlet::Connect(outlet * out) {
+void inlet::UnwireFromPeers() {
+  // Detach from the buffer input and every control-edge source. Clear our own
+  // lists first so the peers' Disconnect(this) calls stay consistent.
+  outlet* dsp = dspConnection;
+  dspConnection = nullptr;
+  std::vector<outlet*> conns;
+  conns.swap(connections);
+  if (dsp != nullptr) dsp->Disconnect(this);
+  for (unsigned int i = 0; i < conns.size(); i++) {
+    conns[i]->Disconnect(this);
+  }
+}
+
+bool inlet::Connect(outlet* out) {
   if (out->Type() == OUT_TYPE::BUFFER) {
     if (dspConnection == nullptr) {
       dspConnection = out;
       return true;
-    }
-    else return false;
-  }
-  else {
+    } else
+      return false;
+  } else {
     for (unsigned int i = 0; i < connections.size(); i++) {
       if (connections[i] == out) return false;
-    } 
+    }
     connections.push_back(out);
     return true;
   }
 }
 
-void inlet::Disconnect(outlet * out) {
+void inlet::Disconnect(outlet* out) {
   if (dspConnection == out) {
     dspConnection->Disconnect(this);
     dspConnection = nullptr;
@@ -157,9 +179,7 @@ int inlet::GetPosition() {
   return position;
 }
 
-void inlet::SetDoc(const std::string & label,
-                   const std::string & doc,
-                   const std::string & range) {
+void inlet::SetDoc(const std::string& label, const std::string& doc, const std::string& range) {
   docLabel = label;
   docDescription = doc;
   docRange = range;
@@ -168,9 +188,9 @@ void inlet::SetDoc(const std::string & label,
 unsigned int inlet::GetAcceptedTypes() const {
   unsigned int mask = IT_NONE;
   if (onBuffer) mask |= IT_BUFFER;
-  if (onFloat)  mask |= IT_FLOAT;
-  if (onInt)    mask |= IT_INT;
-  if (onBang)   mask |= IT_BANG;
-  if (onList)   mask |= IT_LIST;
+  if (onFloat) mask |= IT_FLOAT;
+  if (onInt) mask |= IT_INT;
+  if (onBang) mask |= IT_BANG;
+  if (onList) mask |= IT_LIST;
   return mask;
 }

@@ -34,19 +34,21 @@ namespace YSE {
          must skip that work entirely.  Verified bench scenario: bare
          GHA Ubuntu runners take down the VM if Pa_Initialize runs even
          when no stream is later opened (see Bench/README.md). */
-      virtual Bool init (bool openDevice = true);
+      virtual Bool init(bool openDevice = true);
       virtual void close() {};
 
-			virtual void pause() = 0;
-			virtual void resume() = 0;
-			virtual unsigned int GetCallbacksSinceLastUpdate() = 0;
+      virtual void pause() = 0;
+      virtual void resume() = 0;
+      virtual unsigned int GetCallbacksSinceLastUpdate() = 0;
 
       /* If the audio backend provides a method to retrieve
          the cpu load, use it. Otherwise just return a number.
          YSE does not depend on this method, but it can be useful
          for testing.
       */
-	  virtual Flt cpuLoad() { return 0.f; };
+      virtual Flt cpuLoad() {
+        return 0.f;
+      };
 
       /* Live values for the currently open audio device. All three return
          0 when no device is open — host applications can use that to drive
@@ -58,16 +60,29 @@ namespace YSE {
          Output latency is reported in samples (frames) to match the existing
          YSE::device descriptor unit; convert to ms with
          (latency / sampleRate * 1000) on the consumer side. */
-      virtual double getActiveSampleRate()    const { return 0.0; }
-      virtual int    getActiveBufferSize()    const { return 0; }
-      virtual int    getActiveOutputLatency() const { return 0; }
-      
+      virtual double getActiveSampleRate() const {
+        return 0.0;
+      }
+      virtual int getActiveBufferSize() const {
+        return 0;
+      }
+      virtual int getActiveOutputLatency() const {
+        return 0;
+      }
+
       /* this method should populate the devices vector.
-      */
+       */
       virtual void updateDeviceList() {};
 
-	  virtual void openDevice(const YSE::deviceSetup &) {};
-	  virtual void addCallback() {};
+      virtual void openDevice(const YSE::deviceSetup&) {};
+      virtual void addCallback() {};
+
+      /* Service a device rebuild requested from a backend error thread (e.g.
+         Oboe's onErrorAfterClose flags a disconnect). Called once per
+         control-thread tick from system::update() so the actual reopen runs on
+         the main thread rather than the backend's error thread. No-op for
+         backends without deferred reconnect. (issue #200) */
+      virtual void serviceReconnect() {};
 
       bool doOnCallback(int numSamples);
 
@@ -87,29 +102,25 @@ namespace YSE {
       */
       void renderOffline(int blocks);
 
-      void setMaster(CHANNEL::implementationObject * ptr);
-      CHANNEL::implementationObject & getMaster();
+      void setMaster(CHANNEL::implementationObject* ptr);
+      CHANNEL::implementationObject& getMaster();
 
-      
-      const std::vector<device> & getDeviceList();
+      const std::vector<device>& getDeviceList();
 
-      const std::string & getDefaultTypeName();
-      const std::string & getDefaultDeviceName();
+      const std::string& getDefaultTypeName();
+      const std::string& getDefaultDeviceName();
 
     protected:
       std::vector<device> devices;
       std::string defaultTypeName;
       std::string defaultDeviceName;
 
-      CHANNEL::implementationObject * master;
+      CHANNEL::implementationObject* master;
       int currentInputChannels, currentOutputChannels;
-
     };
 
-  }
+  } // namespace DEVICE
 
-}
+} // namespace YSE
 
-
-
-#endif  // ABSTRACTDEVICEMANAGER_H_INCLUDED
+#endif // ABSTRACTDEVICEMANAGER_H_INCLUDED

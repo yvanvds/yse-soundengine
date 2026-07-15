@@ -10,45 +10,45 @@
 
 TEST_SUITE("patcher") {
 
-// ─── pRegistry ────────────────────────────────────────────────────────────────
+  // ─── pRegistry ────────────────────────────────────────────────────────────────
 
-TEST_CASE("pRegistry: IsValidObject returns true for registered types") {
+  TEST_CASE("pRegistry: IsValidObject returns true for registered types") {
     CHECK(YSE::patcher::IsValidObject(YSE::OBJ::D_SINE));
     CHECK(YSE::patcher::IsValidObject(YSE::OBJ::D_SAW));
     CHECK(YSE::patcher::IsValidObject(YSE::OBJ::G_MULTIPLY));
     CHECK(YSE::patcher::IsValidObject(YSE::OBJ::D_ADD));
     CHECK(YSE::patcher::IsValidObject(YSE::OBJ::D_LOWPASS));
-}
+  }
 
-TEST_CASE("pRegistry: IsValidObject returns false for unknown type") {
+  TEST_CASE("pRegistry: IsValidObject returns false for unknown type") {
     CHECK_FALSE(YSE::patcher::IsValidObject("not_a_real_object"));
-}
+  }
 
-// ─── patcher lifecycle ────────────────────────────────────────────────────────
+  // ─── patcher lifecycle ────────────────────────────────────────────────────────
 
-TEST_CASE("patcher: create initializes an empty graph") {
+  TEST_CASE("patcher: create initializes an empty graph") {
     YSE::patcher p;
     p.create(2);
     CHECK(p.Objects() == 0u);
-}
+  }
 
-TEST_CASE("patcher: CreateObject returns non-null handle for valid type") {
+  TEST_CASE("patcher: CreateObject returns non-null handle for valid type") {
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* h = p.CreateObject(YSE::OBJ::D_SINE);
     REQUIRE(h != nullptr);
     CHECK(p.Objects() == 1u);
-}
+  }
 
-TEST_CASE("patcher: CreateObject returns null for unknown type") {
+  TEST_CASE("patcher: CreateObject returns null for unknown type") {
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* h = p.CreateObject("not_a_real_object");
     CHECK(h == nullptr);
     CHECK(p.Objects() == 0u);
-}
+  }
 
-TEST_CASE("patcher: DeleteObject reduces object count") {
+  TEST_CASE("patcher: DeleteObject reduces object count") {
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* h = p.CreateObject(YSE::OBJ::G_MULTIPLY);
@@ -56,9 +56,9 @@ TEST_CASE("patcher: DeleteObject reduces object count") {
     CHECK(p.Objects() == 1u);
     p.DeleteObject(h);
     CHECK(p.Objects() == 0u);
-}
+  }
 
-TEST_CASE("patcher: Clear removes all objects") {
+  TEST_CASE("patcher: Clear removes all objects") {
     YSE::patcher p;
     p.create(2);
     p.CreateObject(YSE::OBJ::D_SINE);
@@ -66,62 +66,110 @@ TEST_CASE("patcher: Clear removes all objects") {
     CHECK(p.Objects() == 2u);
     p.Clear();
     CHECK(p.Objects() == 0u);
-}
+  }
 
-// ─── Connections ──────────────────────────────────────────────────────────────
+  // ─── Connections ──────────────────────────────────────────────────────────────
 
-TEST_CASE("patcher: Connect increments outlet connection count") {
+  TEST_CASE("patcher: Connect increments outlet connection count") {
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* sine = p.CreateObject(YSE::OBJ::D_SINE);
-    YSE::pHandle* add  = p.CreateObject(YSE::OBJ::D_ADD);
+    YSE::pHandle* add = p.CreateObject(YSE::OBJ::D_ADD);
     REQUIRE(sine != nullptr);
-    REQUIRE(add  != nullptr);
+    REQUIRE(add != nullptr);
 
     CHECK(sine->GetConnections(0) == 0u);
     p.Connect(sine, 0, add, 0);
     CHECK(sine->GetConnections(0) == 1u);
-}
+  }
 
-TEST_CASE("patcher: Disconnect decrements outlet connection count") {
+  TEST_CASE("patcher: Disconnect decrements outlet connection count") {
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* sine = p.CreateObject(YSE::OBJ::D_SINE);
-    YSE::pHandle* add  = p.CreateObject(YSE::OBJ::D_ADD);
+    YSE::pHandle* add = p.CreateObject(YSE::OBJ::D_ADD);
     REQUIRE(sine != nullptr);
-    REQUIRE(add  != nullptr);
+    REQUIRE(add != nullptr);
 
     p.Connect(sine, 0, add, 0);
     CHECK(sine->GetConnections(0) == 1u);
     p.Disconnect(sine, 0, add, 0);
     CHECK(sine->GetConnections(0) == 0u);
-}
+  }
 
-TEST_CASE("patcher: connection target reports correct object ID and inlet index") {
+  // Regression for issue #235: Disconnect must guard a missing outlet/inlet the
+  // same way Connect does. A ~dac has no outlets, so from->GetOutlet(0) returns
+  // null; before the fix that null flowed into inlet::Disconnect and segfaulted
+  // (a disconnected inlet has dspConnection == nullptr == out, so it derefed the
+  // null outlet). These calls must be safe no-ops now, not crashes.
+  TEST_CASE("patcher: Disconnect on a source with no outlet is a safe no-op (issue #235)") {
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* dac = p.CreateObject(YSE::OBJ::D_DAC, "");
+    YSE::pHandle* add = p.CreateObject(YSE::OBJ::D_ADD);
+    REQUIRE(dac != nullptr);
+    REQUIRE(add != nullptr);
+
+    // ~dac has no outlets — outlet 0 does not exist. Must not crash.
+    p.Disconnect(dac, 0, add, 0);
+    CHECK(p.Objects() == 2u);
+  }
+
+  TEST_CASE("patcher: Disconnect with out-of-range outlet index is a safe no-op (issue #235)") {
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* sine = p.CreateObject(YSE::OBJ::D_SINE);
-    YSE::pHandle* add  = p.CreateObject(YSE::OBJ::D_ADD);
+    YSE::pHandle* add = p.CreateObject(YSE::OBJ::D_ADD);
     REQUIRE(sine != nullptr);
-    REQUIRE(add  != nullptr);
+    REQUIRE(add != nullptr);
 
     p.Connect(sine, 0, add, 0);
-    CHECK(sine->GetConnectionTarget(0, 0)      == add->GetID());
+    // Outlet 99 does not exist on a sine — GetOutlet returns null.
+    p.Disconnect(sine, 99, add, 0);
+    // The real edge is untouched and nothing crashed.
+    CHECK(sine->GetConnections(0) == 1u);
+  }
+
+  TEST_CASE("patcher: Disconnect with out-of-range inlet index is a safe no-op (issue #235)") {
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* sine = p.CreateObject(YSE::OBJ::D_SINE);
+    YSE::pHandle* add = p.CreateObject(YSE::OBJ::D_ADD);
+    REQUIRE(sine != nullptr);
+    REQUIRE(add != nullptr);
+
+    p.Connect(sine, 0, add, 0);
+    // Inlet 99 does not exist on an add — GetInlet returns null, and the
+    // former inputs[99] out-of-bounds index is avoided.
+    p.Disconnect(sine, 0, add, 99);
+    CHECK(sine->GetConnections(0) == 1u);
+  }
+
+  TEST_CASE("patcher: connection target reports correct object ID and inlet index") {
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* sine = p.CreateObject(YSE::OBJ::D_SINE);
+    YSE::pHandle* add = p.CreateObject(YSE::OBJ::D_ADD);
+    REQUIRE(sine != nullptr);
+    REQUIRE(add != nullptr);
+
+    p.Connect(sine, 0, add, 0);
+    CHECK(sine->GetConnectionTarget(0, 0) == add->GetID());
     CHECK(sine->GetConnectionTargetInlet(0, 0) == 0u);
-}
+  }
 
-// ─── Handle lookup ────────────────────────────────────────────────────────────
+  // ─── Handle lookup ────────────────────────────────────────────────────────────
 
-TEST_CASE("patcher: GetHandleFromList returns a valid handle") {
+  TEST_CASE("patcher: GetHandleFromList returns a valid handle") {
     YSE::patcher p;
     p.create(2);
     p.CreateObject(YSE::OBJ::D_SINE);
     REQUIRE(p.Objects() == 1u);
     YSE::pHandle* found = p.GetHandleFromList(0);
     CHECK(found != nullptr);
-}
+  }
 
-TEST_CASE("patcher: GetHandleFromID retrieves the correct handle") {
+  TEST_CASE("patcher: GetHandleFromID retrieves the correct handle") {
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* h = p.CreateObject(YSE::OBJ::D_SINE);
@@ -129,18 +177,18 @@ TEST_CASE("patcher: GetHandleFromID retrieves the correct handle") {
     unsigned int id = h->GetID();
     YSE::pHandle* found = p.GetHandleFromID(id);
     CHECK(found == h);
-}
+  }
 
-// ─── JSON round-trip ─────────────────────────────────────────────────────────
+  // ─── JSON round-trip ─────────────────────────────────────────────────────────
 
-TEST_CASE("patcher: DumpJSON on empty patcher returns non-empty JSON") {
+  TEST_CASE("patcher: DumpJSON on empty patcher returns non-empty JSON") {
     YSE::patcher p;
     p.create(2);
     std::string j = p.DumpJSON();
     CHECK(!j.empty());
-}
+  }
 
-TEST_CASE("patcher: DumpJSON serialises every created object") {
+  TEST_CASE("patcher: DumpJSON serialises every created object") {
     YSE::patcher p;
     p.create(2);
     p.CreateObject(YSE::OBJ::D_SINE);
@@ -148,9 +196,9 @@ TEST_CASE("patcher: DumpJSON serialises every created object") {
     std::string j = p.DumpJSON();
     CHECK(j.find("object 0") != std::string::npos);
     CHECK(j.find("object 1") != std::string::npos);
-}
+  }
 
-TEST_CASE("patcher: ParseJSON on the output of DumpJSON reproduces object count") {
+  TEST_CASE("patcher: ParseJSON on the output of DumpJSON reproduces object count") {
     YSE::patcher source;
     source.create(2);
     source.CreateObject(YSE::OBJ::D_SINE);
@@ -161,6 +209,6 @@ TEST_CASE("patcher: ParseJSON on the output of DumpJSON reproduces object count"
     target.create(2);
     target.ParseJSON(dump);
     CHECK(target.Objects() == 2u);
-}
+  }
 
 } // TEST_SUITE("patcher")

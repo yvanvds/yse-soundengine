@@ -15,7 +15,6 @@
 #include "../headers/types.hpp"
 #include "misc.hpp"
 
-
 namespace YSE {
 
   /**
@@ -30,10 +29,10 @@ namespace YSE {
     linearInterpolator();
 
     /** @brief Start a new ramp toward ``target`` over ``time`` seconds. */
-    linearInterpolator & set(Flt target, Flt time = 0);
+    linearInterpolator& set(Flt target, Flt time = 0);
 
     /** @brief Advance the interpolator by ``timeDelta`` seconds. */
-    linearInterpolator & update(Flt timeDelta);
+    linearInterpolator& update(Flt timeDelta);
 
     /** @brief Current target value. */
     Flt target();
@@ -66,13 +65,12 @@ namespace YSE {
      *  Setting a target for the first time replaces the current value
      *  immediately; subsequent calls start a cross-fade.
      */
-    objectInterpolator<TYPE> & set(TYPE obj, Flt time = 0) {
+    objectInterpolator<TYPE>& set(TYPE obj, Flt time = 0) {
       if (!_isSet) {
         totalTime = timeLeft = 0;
         current = obj;
         _isSet = true;
-      }
-      else {
+      } else {
         totalTime = timeLeft = time;
         timeLeft > 0 ? target = obj : current = obj;
       }
@@ -80,7 +78,7 @@ namespace YSE {
     }
 
     /** @brief Advance by ``timeDelta`` seconds. */
-    objectInterpolator<TYPE> & update(Flt timeDelta) {
+    objectInterpolator<TYPE>& update(Flt timeDelta) {
       if (timeLeft > 0) {
         timeLeft -= timeDelta;
         if (timeLeft <= 0) {
@@ -91,8 +89,9 @@ namespace YSE {
       return *this;
     }
 
-    /** @brief Return either the current or target object, weighted by how far the cross-fade has progressed. */
-    TYPE & operator()() {
+    /** @brief Return either the current or target object, weighted by how far the cross-fade has
+     * progressed. */
+    TYPE& operator()() {
       if (timeLeft > 0) {
         return RandomF(totalTime) > timeLeft ? target : current;
       }
@@ -100,13 +99,16 @@ namespace YSE {
     }
 
     /** @brief Whether any object has been set. */
-    Bool isSet() { return _isSet; }
+    Bool isSet() {
+      return _isSet;
+    }
+
   private:
     TYPE current, target;
     Flt totalTime, timeLeft;
     Bool _isSet;
   };
 
-}
+} // namespace YSE
 
-#endif  // INTERPOLATORS_H_INCLUDED
+#endif // INTERPOLATORS_H_INCLUDED

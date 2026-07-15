@@ -33,34 +33,34 @@
 // first call into the test binary so it works in both the desktop main()
 // below and the Android NativeActivity entry in android_entry.hpp.
 namespace TestHelpers {
-    void applyForcedSampleRateFromEnv() {
-        const char* forced = std::getenv("YSE_TEST_FORCED_RATE");
-        if (!forced || !*forced) return;
-        unsigned long parsed = std::strtoul(forced, nullptr, 10);
-        if (parsed == 0) return;
-        // SAMPLERATE has its default static-init value at this point; no engine
-        // session is open yet, so the lock in INTERNAL::Global() is still false
-        // and this write is permitted.
-        YSE::SAMPLERATE = (UInt)parsed;
-    }
-}
+  void applyForcedSampleRateFromEnv() {
+    const char* forced = std::getenv("YSE_TEST_FORCED_RATE");
+    if (!forced || !*forced) return;
+    unsigned long parsed = std::strtoul(forced, nullptr, 10);
+    if (parsed == 0) return;
+    // SAMPLERATE has its default static-init value at this point; no engine
+    // session is open yet, so the lock in INTERNAL::Global() is still false
+    // and this write is permitted.
+    YSE::SAMPLERATE = (UInt)parsed;
+  }
+} // namespace TestHelpers
 
 #if defined(__ANDROID__)
-#  include "support/android_entry.hpp"
+#include "support/android_entry.hpp"
 #else
 
 int main(int argc, char** argv) {
-    TestHelpers::applyForcedSampleRateFromEnv();
+  TestHelpers::applyForcedSampleRateFromEnv();
 
-    doctest::Context context;
-    context.applyCommandLine(argc, argv);
-    const int res = context.run();
-    if (context.shouldExit()) return res;
+  doctest::Context context;
+  context.applyCommandLine(argc, argv);
+  const int res = context.run();
+  if (context.shouldExit()) return res;
 
-    if (TestHelpers::engineInitialized()) {
-        YSE::System().close();
-    }
-    return res;
+  if (TestHelpers::engineInitialized()) {
+    YSE::System().close();
+  }
+  return res;
 }
 
 #endif

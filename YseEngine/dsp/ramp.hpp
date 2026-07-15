@@ -41,16 +41,16 @@ namespace YSE {
       ramp& update();
 
       /** @brief Most recent ramp block. */
-      YSE::DSP::buffer & operator()();
+      YSE::DSP::buffer& operator()();
 
       /** @brief Same as ``operator()``. */
-      YSE::DSP::buffer & getSample();
+      YSE::DSP::buffer& getSample();
 
       /** @brief Current scalar ramp value (block-rate). */
-      Flt    getValue();
+      Flt getValue();
 
       ramp();
-      ramp(ramp &);
+      ramp(ramp&);
 
     private:
       aFlt target;
@@ -64,7 +64,7 @@ namespace YSE {
       Flt inc, bigInc;
       Int nTicks;
       Int l;
-      Flt * ptr;
+      Flt* ptr;
       Flt f;
     };
 
@@ -95,6 +95,7 @@ namespace YSE {
       /** @brief Current value. */
       Flt operator()();
       lint();
+
     private:
       aFlt targetValue, currentValue, step;
       aBool up, calculate;
@@ -105,13 +106,13 @@ namespace YSE {
      *  @brief Cheap in-place fade-in over the first ``length`` samples of ``s``.
      *  @note ``length`` must not exceed ``s.getLength()``.
      */
-    API void FastFadeIn(YSE::DSP::buffer & s, UInt length);
+    API void FastFadeIn(YSE::DSP::buffer& s, UInt length);
 
     /**
      *  @brief Cheap in-place fade-out over the first ``length`` samples of ``s``.
      *  @note ``length`` must not exceed ``s.getLength()``.
      */
-    API void FastFadeOut(YSE::DSP::buffer & s, UInt length);
+    API void FastFadeOut(YSE::DSP::buffer& s, UInt length);
 
     /**
      *  @brief Linearly slew the gain of ``s`` from ``currentGain`` to ``newGain``.
@@ -119,11 +120,9 @@ namespace YSE {
      *  Applied to the first ``length`` samples. Used internally to avoid
      *  zipper noise on volume changes.
      */
-    API void ChangeGain(YSE::DSP::buffer & s, Flt currentGain, Flt newGain, UInt length);
+    API void ChangeGain(YSE::DSP::buffer& s, Flt currentGain, Flt newGain, UInt length);
 
-  }
-}
+  } // namespace DSP
+} // namespace YSE
 
-
-
-#endif  // RAMP_H_INCLUDED
+#endif // RAMP_H_INCLUDED

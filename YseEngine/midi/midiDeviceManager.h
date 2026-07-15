@@ -8,40 +8,40 @@
 #include <memory>
 
 namespace YSE {
-	namespace MIDI {
+  namespace MIDI {
 
-		class deviceManager {
-		public:
-			deviceManager();
-			~deviceManager();
+    class deviceManager {
+    public:
+      deviceManager();
+      ~deviceManager();
 
-			deviceManager(const deviceManager&) = delete;
-			deviceManager& operator=(const deviceManager&) = delete;
-			deviceManager(deviceManager&&) = delete;
-			deviceManager& operator=(deviceManager&&) = delete;
+      deviceManager(const deviceManager&) = delete;
+      deviceManager& operator=(const deviceManager&) = delete;
+      deviceManager(deviceManager&&) = delete;
+      deviceManager& operator=(deviceManager&&) = delete;
 
-			unsigned int getNumMidiInDevices();
-			unsigned int getNumMidiOutDevices();
+      unsigned int getNumMidiInDevices();
+      unsigned int getNumMidiOutDevices();
 
-			const std::string getMidiInDeviceName(unsigned int ID);
-			const std::string getMidiOutDeviceName(unsigned int ID);
+      const std::string getMidiInDeviceName(unsigned int ID);
+      const std::string getMidiOutDeviceName(unsigned int ID);
 
-			RtMidiOut * getMidiOutPort(unsigned int ID);
+      RtMidiOut* getMidiOutPort(unsigned int ID);
 
-		private:
-			bool isPrepared();
+    private:
+      bool isPrepared();
 
-			std::unique_ptr<RtMidiIn> midiIn;
-			std::unique_ptr<RtMidiOut> midiOut;
-			bool initialized = false;
+      std::unique_ptr<RtMidiIn> midiIn;
+      std::unique_ptr<RtMidiOut> midiOut;
+      bool initialized = false;
 
-			std::map<unsigned int, std::unique_ptr<RtMidiOut>> midiOutPorts;
-		};
+      std::map<unsigned int, std::unique_ptr<RtMidiOut>> midiOutPorts;
+    };
 
-		deviceManager& DeviceManager();
+    deviceManager& DeviceManager();
 
-		void GenerateMidiError(const RtMidiError & error);
-	}
-}
+    void GenerateMidiError(const RtMidiError& error);
+  } // namespace MIDI
+} // namespace YSE
 
 #endif

@@ -99,6 +99,21 @@ Other demos in this phase:
 - ``Demo17_MidiPatcher`` — pipe MIDI messages into a patcher graph through
   ``.noteon`` / ``.noteoff`` / ``.controlchange`` objects.
 
+Phase 6 — Synths, instruments, and effects
+------------------------------------------
+
+Polyphonic synthesis, custom and sampled/FM instruments, channel-strip
+mixing, and per-note 3D. These correspond to ``Demo18``–``Demo21``.
+
+.. toctree::
+   :maxdepth: 1
+
+   06_first_synth
+   07_custom_dspvoice
+   08_instruments
+   09_mixing_inserts_sends
+   10_per_note_3d
+
 How to follow along
 -------------------
 

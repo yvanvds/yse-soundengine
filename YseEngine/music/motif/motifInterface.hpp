@@ -19,75 +19,78 @@
 
 namespace YSE {
 
+  /**
+   *  @brief A sequence of positioned notes — a re-usable phrase or pattern.
+   *
+   *  Add notes (with positions) via ``add``, optionally constrain the
+   *  starting pitch with a ``scale``, and hand the motif to a ``player``
+   *  which will trigger it at appropriate moments.
+   *
+   *  @see YSE::MUSIC::pNote
+   *  @see YSE::player
+   */
+  class API motif {
+  public:
+    motif();
+    ~motif();
+
+    /** @brief Append a positioned note. */
+    motif& add(const MUSIC::pNote& note);
+
+    /** @brief Remove every note. */
+    motif& clear();
+
+    /** @brief Set the motif length explicitly, in seconds. */
+    motif& setLength(Flt length);
+
+    /** @brief Set the motif length automatically to the end of the last note. */
+    motif& setLength();
+
+    /** @brief Transpose every note by ``pitch`` semitones. */
+    motif& transpose(Flt pitch);
+
     /**
-     *  @brief A sequence of positioned notes — a re-usable phrase or pattern.
+     *  @brief Restrict legal starting pitches.
      *
-     *  Add notes (with positions) via ``add``, optionally constrain the
-     *  starting pitch with a ``scale``, and hand the motif to a ``player``
-     *  which will trigger it at appropriate moments.
-     *
-     *  @see YSE::MUSIC::pNote
-     *  @see YSE::player
+     *  When a player picks a transposition for this motif it picks one whose
+     *  starting note belongs to ``validPitches``.
      */
-    class API  motif {
-    public:
-      motif();
-      ~motif();
+    motif& setFirstPitch(const scale& validPitches);
 
-      /** @brief Append a positioned note. */
-      motif & add(const MUSIC::pNote & note);
+    /** @brief Current motif length in seconds. */
+    Flt getLength() {
+      return length;
+    }
 
-      /** @brief Remove every note. */
-      motif & clear();
+    /** @brief Whether the motif contains any notes. */
+    Bool empty() {
+      return notes.empty();
+    }
 
-      /** @brief Set the motif length explicitly, in seconds. */
-      motif & setLength(Flt length);
+    /** @brief Number of notes. */
+    UInt size() {
+      return (UInt)notes.size();
+    }
 
-      /** @brief Set the motif length automatically to the end of the last note. */
-      motif & setLength();
+    /** @brief Access the note at index ``pos``. */
+    MUSIC::pNote& operator[](UInt pos);
 
-      /** @brief Transpose every note by ``pitch`` semitones. */
-      motif & transpose(Flt pitch);
+    motif(const motif& other);
+    motif& operator=(const motif& other);
 
-      /**
-       *  @brief Restrict legal starting pitches.
-       *
-       *  When a player picks a transposition for this motif it picks one whose
-       *  starting note belongs to ``validPitches``.
-       */
-      motif & setFirstPitch(const scale & validPitches);
+  private:
+    // order notes according to position
+    void sort();
 
-      /** @brief Current motif length in seconds. */
-      Flt getLength() { return length; }
+    MOTIF::implementationObject* pimpl;
 
-      /** @brief Whether the motif contains any notes. */
-      Bool empty() { return notes.empty(); }
+    Flt length;
+    std::vector<MUSIC::pNote> notes;
 
-      /** @brief Number of notes. */
-      UInt size() { return (UInt)notes.size(); }
+    friend class MOTIF::implementationObject;
+    friend class player;
+  };
 
-      /** @brief Access the note at index ``pos``. */
-      MUSIC::pNote & operator[](UInt pos);
+} // namespace YSE
 
-      motif(const motif& other);
-      motif & operator=(const motif & other);
-
-    private:
-      // order notes according to position
-      void sort();
-
-      MOTIF::implementationObject * pimpl;
-
-      Flt length;
-      std::vector<MUSIC::pNote> notes;
-
-      friend class MOTIF::implementationObject;
-      friend class player;
-    };
-
-}
-
-
-
-
-#endif  // MOTIFINTERFACE_H_INCLUDED
+#endif // MOTIFINTERFACE_H_INCLUDED

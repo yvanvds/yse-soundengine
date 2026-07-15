@@ -1,0 +1,11 @@
+// Key split inheriting group defaults (spec Example 2). *silence stands in
+// for the real bass/lead samples so the mapping is testable without audio.
+<control>
+default_path=samples/
+
+<group>
+loop_mode=loop_continuous
+ampeg_release=0.3
+
+<region> sample=*silence lokey=0   hikey=47  pitch_keycenter=36
+<region> sample=*silence lokey=48  hikey=127 pitch_keycenter=72

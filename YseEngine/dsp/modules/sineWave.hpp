@@ -35,7 +35,7 @@ namespace YSE {
        *  Takes effect immediately, or on the next note-on transition if the
        *  sound is in a stopped/paused state.
        */
-      void  frequency(float value) override;
+      void frequency(float value) override;
 
       /** @brief Current frequency. */
       float frequency();
@@ -43,10 +43,10 @@ namespace YSE {
       using dspSourceObject::process;
 
       /** @brief dspSourceObject audio-thread entry point. */
-      void process(SOUND_STATUS & intent) override;
+      void process(SOUND_STATUS& intent) override;
 
       /** @brief Variant of ``process`` that reports latency. Audio-thread only. */
-      virtual void process(SOUND_STATUS & intent, Int & latency);
+      virtual void process(SOUND_STATUS& intent, Int& latency);
 
     private:
       sine sineGen;
@@ -57,10 +57,7 @@ namespace YSE {
       Flt currentFrequency;
     };
 
-  }
-}
+  } // namespace DSP
+} // namespace YSE
 
-
-
-
-#endif  // SINEWAVE_H_INCLUDED
+#endif // SINEWAVE_H_INCLUDED

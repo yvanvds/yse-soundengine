@@ -8,17 +8,17 @@ namespace YSE {
   namespace PATCHER {
 
     PATCHER_CLASS(pLowpass, YSE::OBJ::D_LOWPASS)
-      _NO_MESSAGES
-      _DO_CALCULATE
-      _DO_RESET
+    _NO_MESSAGES
+    _DO_CALCULATE
+    _DO_RESET
 
-      _BUFFER_IN(SetBuffer)
-      _FLOAT_IN(SetFrequency)
+    _BUFFER_IN(SetBuffer)
+    _FLOAT_IN(SetFrequency)
 
-    private:
-      DSP::buffer * buffer;
-      aFlt frequency;
-      DSP::lowPass filter;
-    };
-  }
+  private:
+    DSP::buffer* buffer;
+    aFlt frequency;
+    DSP::lowPass filter;
+  };
+}
 }

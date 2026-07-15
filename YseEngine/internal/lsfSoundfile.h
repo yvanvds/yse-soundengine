@@ -17,8 +17,6 @@
 #pragma comment(lib, "libsndfile-1.lib")
 #endif
 
-
-
 #include "abstractSoundFile.h"
 #include "sndfile.hh"
 
@@ -28,10 +26,10 @@ namespace YSE {
 
     class soundFile : public abstractSoundFile {
     public:
-      soundFile(const std::string  & fileName);
-      soundFile(const std::string & ID, char * fileBuffer, int length);
-      soundFile(YSE::DSP::buffer   * buffer);
-      soundFile(MULTICHANNELBUFFER * buffer);
+      soundFile(const std::string& fileName);
+      soundFile(const std::string& ID, char* fileBuffer, int length);
+      soundFile(YSE::DSP::buffer* buffer);
+      soundFile(MULTICHANNELBUFFER* buffer);
       ~soundFile();
 
       using abstractSoundFile::abstractSoundFile;
@@ -40,18 +38,20 @@ namespace YSE {
       virtual void loadNonStreaming();
 
     private:
+      // Fill `dest` with up to STREAM_BUFFERSIZE frames from the current handle
+      // position, zero-padding the tail at non-loop EOF. Returns the number of
+      // real (non-padded) frames written (== STREAM_BUFFERSIZE unless EOF was hit
+      // without looping). Does blocking disk I/O — slow pool / load only, never
+      // the audio thread (issue #185). Called by the base's fillBackBuffer(),
+      // which owns the generation-tagged publication (issues #185/#283).
+      UInt fillBuffer(Flt* dest, Bool loop) override;
 
-      Bool fillStream(Bool loop);
-
-      SndfileHandle * handle;
-
+      SndfileHandle* handle;
     };
 
-  }
+  } // namespace INTERNAL
 
-}
+} // namespace YSE
 
-
-
-#endif  // LSFSOUNDFILE_H_INCLUDED
+#endif // LSFSOUNDFILE_H_INCLUDED
 #endif // LIBSOUNDFILE_BACKEND

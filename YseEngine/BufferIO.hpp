@@ -39,10 +39,10 @@ namespace YSE {
     bool GetActive();
 
     /** @brief Whether a buffer is registered under the given ID. */
-    bool BufferNameExists(const char * ID);
+    bool BufferNameExists(const char* ID);
 
     /** @brief Whether the given byte buffer is currently registered. */
-    bool BufferExists(char * buffer);
+    bool BufferExists(char* buffer);
 
     /**
      *  @brief Register a byte buffer under an ID.
@@ -52,13 +52,13 @@ namespace YSE {
      *
      *  @return ``true`` on success, ``false`` if the ID is already in use.
      */
-    bool AddBuffer(const char * ID, char * buffer, int length);
+    bool AddBuffer(const char* ID, char* buffer, int length);
 
     /** @brief Unregister a buffer by its ID. */
-    bool RemoveBufferByName(const char * ID);
+    bool RemoveBufferByName(const char* ID);
 
     /** @brief Unregister a buffer by its address. */
-    bool RemoveBuffer(char * buffer);
+    bool RemoveBuffer(char* buffer);
 
     ~BufferIO();
 
@@ -67,6 +67,6 @@ namespace YSE {
     bool storeCopy;
   };
 
-}
+} // namespace YSE
 
 #endif

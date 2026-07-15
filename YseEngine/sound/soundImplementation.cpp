@@ -11,55 +11,70 @@
 #include "../internalHeaders.h"
 #include "../utils/fileFunctions.hpp"
 #include "../patcher/patcherImplementation.h"
+#include "../dsp/panner.hpp"
 
-YSE::SOUND::implementationObject::implementationObject(sound * head) :
-	_head_streaming(false),
-	_head_length(0),
-	_head_time(0.f),
-	_head_status(SS_STOPPED),
-	file(nullptr),
-	bufferVolume(0),
-	filePtr(0.f),
-	newFilePos(0),
-	currentFilePos(0),
-	setFilePos(false),
-	headIntent(SI_NONE),
-	pos(0.0f),
-	newPos(0.f),
-	lastPos(0.f),
-	velocityVec(0.f),
-	velocity(0.f),
-	pitch(1.f),
-	size(1.0f),
-	setVolume(false),
-	volumeValue(0),
-	volumeTime(0),
-	setFadeAndStop(false),
-	fadeAndStopTime(0),
-	stopAfterFade(false),
-	currentVolume_dsp(0),
-	looping(false),
-	relative(false),
-	doppler(true),
-	occlusionActive(false),
-	occlusion_dsp(0.f),
-	spread(0),
-	patcher(nullptr),
-	source_dsp(nullptr),
-	_setPostDSP(false),
-	_postDspPtr(nullptr),
-	post_dsp(nullptr),
-	parent(nullptr),
-	startOffset(0),
-	stopOffset(0),
-	streaming(false),
-	head(head),
-	objectStatus(OBJECT_CONSTRUCTED)
-  {
+#include <cmath> // std::cos / std::pow float overloads in the panner hot path (#214)
+
+namespace {
+  // Time constant (ms) over which the doppler playback-rate ratio is slewed in
+  // dsp(). Long enough to iron out the stepwise, jittery update-tick target
+  // into an audible glide, short enough that the pitch still tracks a fast
+  // mover without lag. See issue #208.
+  constexpr Int DOPPLER_SLEW_MS = 30;
+} // namespace
+
+YSE::SOUND::implementationObject::implementationObject(sound* head)
+  : _head_streaming(false),
+    _head_length(0),
+    _head_time(0.f),
+    _head_status(SS_STOPPED),
+    file(nullptr),
+    gainDirty(true),
+    bufferVolume(0),
+    filePtr(0.f),
+    newFilePos(0),
+    currentFilePos(0),
+    setFilePos(false),
+    headIntent(SI_NONE),
+    pos(0.0f),
+    newPos(0.f),
+    lastPos(0.f),
+    velocityVec(0.f),
+    horizFraction(1.f),
+    dopplerRatio(1.f),
+    pitch(1.f),
+    size(1.0f),
+    isVirtual(false),
+    virtualFadeOut(false),
+    setVolume(false),
+    volumeValue(0),
+    volumeTime(0),
+    setFadeAndStop(false),
+    fadeAndStopTime(0),
+    stopAfterFade(false),
+    currentVolume_dsp(0),
+    looping(false),
+    relative(false),
+    doppler(true),
+    occlusionActive(false),
+    occlusion_dsp(0.f),
+    spread(0),
+    patcher(nullptr),
+    source_dsp(nullptr),
+    _setPostDSP(false),
+    _postDspPtr(nullptr),
+    post_dsp(nullptr),
+    parent(nullptr),
+    startOffset(0),
+    stopOffset(0),
+    streaming(false),
+    head(head),
+    objectStatus(OBJECT_CONSTRUCTED),
+    preSpatialized(false) {
   fader.set(0.5f);
 
 #if defined YSE_DEBUG
-  //INTERNAL::Global().getLog().emit(E_SOUND_ADDED);
+  // INTERNAL::Global().getLog().emit(E_SOUND_ADDED);
 #endif
 }
 
@@ -71,23 +86,53 @@ YSE::SOUND::implementationObject::~implementationObject() {
   // setup-failure path: impls that died before doThisWhenReady ever ran).
   // In that case `connectedToParent` is false and parent->sounds doesn't
   // contain us — the slow-pool just skips the disconnect entirely.
-  if (parent != nullptr && connectedToParent.load(std::memory_order_acquire)) { // NOSONAR S8417: intentional acquire — pairs with release in doThisWhenReady() / Manager::update() handshake
+  //
+  // The isActive() gate handles engine teardown (issue #298): a sound impl
+  // that never drained to OBJECT_DELETE before System::close() lingers in
+  // SOUND::Manager's `implementations` list with connectedToParent still set.
+  // close() sets Global().active=false and then CHANNEL::Manager().destroy()
+  // frees the parent channel impls, so `parent` is already dangling by the
+  // time this runs — whether at close() or, worse, during static destruction
+  // of the Meyers-singleton managers (CHANNEL::Manager may be destroyed before
+  // SOUND::Manager). Touching parent->sounds then is a use-after-free. When the
+  // engine is inactive the whole graph is being torn down, so parent->sounds
+  // membership no longer matters — skip the disconnect. Mirrors the identical
+  // guard in ~CHANNEL::implementationObject.
+  if (INTERNAL::Global().isActive() && parent != nullptr &&
+      connectedToParent.load(
+          std::memory_order_acquire)) { // NOSONAR S8417: intentional acquire — pairs with release
+                                        // in doThisWhenReady() / Manager::update() handshake
     parent->disconnect(this);
   }
-  // only streams should delete their source. Other files are shared.
-  if (file != nullptr && !streaming) {
-    file->release(this);
+  if (file != nullptr) {
+    if (streaming) {
+      // Streaming impls own their soundFile outright — it is allocated with
+      // `new` in create() and never registered with the shared-file manager,
+      // so nothing else will ever free it. Delete it exactly once here (issue
+      // #218). This destructor runs on the slow-pool deleteJob
+      // (managerDeleteJob::run erasing from the implementations list), never
+      // the audio thread — which is the only place blocking is allowed,
+      // because ~soundFile join()s an in-flight back-buffer refill before
+      // freeing its handle/buffers (constraint from #185).
+      delete file;
+      file = nullptr;
+    } else {
+      // Other files are shared and reference-counted by the manager; just drop
+      // our client reference so the GC can reclaim it once idle.
+      file->release(this);
+    }
   }
   if (post_dsp && post_dsp->calledfrom) post_dsp->calledfrom = nullptr;
-  if (sound * h = head.load(std::memory_order_acquire)) { // NOSONAR S8417: intentional acquire — snapshot head, paired with release stores from removeInterface()
+  if (sound* h = head.load(
+          std::memory_order_acquire)) { // NOSONAR S8417: intentional acquire — snapshot head,
+                                        // paired with release stores from removeInterface()
     h->pimpl = nullptr;
   }
 
   if (patcher != nullptr && patcher->controlledBySound) {
     if (patcher->head != nullptr) {
       patcher->controlledBySound = false;
-    }
-    else {
+    } else {
       delete patcher;
     }
   }
@@ -99,89 +144,74 @@ std::string delim = "\\";
 std::string delim = "/";
 #endif
 
-
 ///
-bool YSE::SOUND::implementationObject::create(const std::string &fileName,
-                                              channel * ch, Bool loop,
-                                              Flt volume, Bool streaming)
-{
-    parent = ch->pimpl;
-    looping = loop;
-    fader.set(volume);
-    playerType = PT_FILE;
-    this->streaming = streaming;
+bool YSE::SOUND::implementationObject::create(const std::string& fileName, channel* ch, Bool loop,
+                                              Flt volume, Bool streaming) {
+  parent = ch->pimpl;
+  looping = loop;
+  fader.set(volume);
+  playerType = PT_FILE;
+  this->streaming = streaming;
 
-    printf("1implementationObject::create \n");
-    std::string fullName;
-    if (!IO().getActive()) {
-        if (IsPathAbsolute(fileName)) {
-            fullName = fileName;
-        }
-        else {
-            printf("1+implementationObject::create \n");
-            fullName = GetCurrentWorkingDirectory() + delim + fileName;
-        }
-        printf("2implementationObject::create %s\n", (const char*) fullName.c_str());
-
-        if (!FileExists(fullName)) {
-            INTERNAL::LogImpl().emit(E_FILE_ERROR, "file not found for " + fullName);
-            goto release;
-        }
-    }
-    else {
-        printf("3implementationObject::create \n");
-
-        fullName = fileName;
-        if (!INTERNAL::CALLBACK::fileExists(fileName.c_str())) {
-            INTERNAL::LogImpl().emit(E_FILE_ERROR, "file not found for " + fileName);
-            goto release;
-        }
-    }
-
-    if (!streaming) {
-        printf("4implementationObject::create \n");
-
-        file = SOUND::Manager().addFile(fullName);
-        status_dsp = SS_STOPPED;
-        status_upd = SS_STOPPED;
-
-        if (file == nullptr) {
-            goto release;
-        } else {
-            file->attach(this);
-            objectStatus = OBJECT_CREATED;
-            return true;
-        }
+  std::string fullName;
+  if (!IO().getActive()) {
+    if (IsPathAbsolute(fileName)) {
+      fullName = fileName;
     } else {
-        printf("5implementationObject::create \n");
-
-        // streams have their own soundfile
-        streaming = true;
-        status_dsp = SS_STOPPED;
-        status_upd = SS_STOPPED;
-
-        file = new INTERNAL::soundFile(fullName);
-
-        if(file->create(true)) {
-            printf("6implementationObject::create \n");
-
-            filebuffer.resize(file->channels());
-            buffer = &filebuffer;
-            return true;
-        } else {
-            delete file;
-            file = nullptr;
-            goto release;
-        }
+      fullName = GetCurrentWorkingDirectory() + delim + fileName;
     }
+
+    if (!FileExists(fullName)) {
+      INTERNAL::LogImpl().emit(E_FILE_ERROR, "file not found for " + fullName);
+      goto release;
+    }
+  } else {
+    fullName = fileName;
+    if (!INTERNAL::CALLBACK::fileExists(fileName.c_str())) {
+      INTERNAL::LogImpl().emit(E_FILE_ERROR, "file not found for " + fileName);
+      goto release;
+    }
+  }
+
+  if (!streaming) {
+    file = SOUND::Manager().addFile(fullName);
+    status_dsp = SS_STOPPED;
+    status_upd = SS_STOPPED;
+
+    if (file == nullptr) {
+      goto release;
+    } else {
+      file->attach(this);
+      objectStatus = OBJECT_CREATED;
+      return true;
+    }
+  } else {
+    // streams have their own soundfile
+    streaming = true;
+    status_dsp = SS_STOPPED;
+    status_upd = SS_STOPPED;
+
+    file = new INTERNAL::soundFile(fullName);
+
+    if (file->create(true)) {
+      filebuffer.resize(file->channels());
+      buffer = &filebuffer;
+      return true;
+    } else {
+      delete file;
+      file = nullptr;
+      goto release;
+    }
+  }
 
 release:
-    head = nullptr;
-    return false;
+  head = nullptr;
+  return false;
 }
 
 ///
-Bool YSE::SOUND::implementationObject::create(YSE::DSP::buffer & buffer, channel * ch, Bool loop, Flt volume) {
+Bool YSE::SOUND::implementationObject::create(YSE::DSP::buffer& buffer, channel* ch, Bool loop,
+                                              Flt volume) {
   parent = ch->pimpl;
   looping = loop;
   fader.set(volume);
@@ -197,8 +227,7 @@ Bool YSE::SOUND::implementationObject::create(YSE::DSP::buffer & buffer, channel
     this->buffer = &filebuffer;
     setup();
     return true;
-  }
-  else {
+  } else {
     delete file;
     file = nullptr;
     head = nullptr;
@@ -206,7 +235,8 @@ Bool YSE::SOUND::implementationObject::create(YSE::DSP::buffer & buffer, channel
   }
 }
 
-Bool YSE::SOUND::implementationObject::create(MULTICHANNELBUFFER & buffer, channel * ch, Bool loop, Flt volume) {
+Bool YSE::SOUND::implementationObject::create(MULTICHANNELBUFFER& buffer, channel* ch, Bool loop,
+                                              Flt volume) {
   parent = ch->pimpl;
   looping = loop;
   fader.set(volume);
@@ -222,8 +252,7 @@ Bool YSE::SOUND::implementationObject::create(MULTICHANNELBUFFER & buffer, chann
     this->buffer = &filebuffer;
     setup();
     return true;
-  }
-  else {
+  } else {
     delete file;
     file = nullptr;
     head = nullptr;
@@ -231,21 +260,42 @@ Bool YSE::SOUND::implementationObject::create(MULTICHANNELBUFFER & buffer, chann
   }
 }
 
-bool YSE::SOUND::implementationObject::create(DSP::dspSourceObject & ptr, channel * ch, Flt volume) {
+bool YSE::SOUND::implementationObject::create(DSP::dspSourceObject& ptr, channel* ch, Flt volume,
+                                              bool preSpatialized) {
   parent = ch->pimpl;
   looping = false;
   fader.set(volume);
   playerType = PT_DSP;
+  // Route 2: a synth's aggregate source already produced a device-width,
+  // per-voice-panned bed — play it straight through instead of re-panning it
+  // (issue #169). Read once per block in toChannels().
+  this->preSpatialized = preSpatialized;
 
   status_dsp = SS_STOPPED;
   status_upd = SS_STOPPED;
 
-  source_dsp.store(&ptr, std::memory_order_release); // NOSONAR S8417: intentional release — publishes dsp source pointer to audio thread's acquire load in dsp()
+  source_dsp.store(
+      &ptr, std::memory_order_release); // NOSONAR S8417: intentional release — publishes dsp source
+                                        // pointer to audio thread's acquire load in dsp()
   buffer = &ptr.samples;
   return true;
 }
 
-bool YSE::SOUND::implementationObject::create(PATCHER::patcherImplementation * ptr, channel * ch, float volume) {
+bool YSE::SOUND::implementationObject::create(PATCHER::patcherImplementation* ptr, channel* ch,
+                                              float volume) {
+  // Enforce one-patcher-per-sound (issue #287). A patcher already owned by a
+  // sound must not back a second one: two sounds sharing a patcher would call
+  // Calculate() concurrently on two render threads, corrupting the graph state
+  // and breaking the #227 epoch-reclaim proof (use-after-free / heap
+  // corruption). Refuse rather than let user API misuse become a crash. A null
+  // impl (patcher never create()-d) is rejected here too, before the
+  // controlledBySound read that would otherwise dereference it.
+  if (ptr == nullptr || ptr->controlledBySound) {
+    INTERNAL::LogImpl().emit(
+        E_ERROR, "sound: patcher is already controlled by another sound (one patcher per sound)");
+    return false;
+  }
+
   parent = ch->pimpl;
   looping = false;
   fader.set(volume);
@@ -259,11 +309,8 @@ bool YSE::SOUND::implementationObject::create(PATCHER::patcherImplementation * p
   buffer = &patcher->output;
   return true;
 }
-/*bool YSE::SOUND::implementationObject::create(SYNTH::implementationObject * ptr, channel * ch, Flt volume) {
-  parent = ch->pimpl;
-  looping = false;
-  fader.set(volume);
-  status_dsp = SS_STOPPED;
+/*bool YSE::SOUND::implementationObject::create(SYNTH::implementationObject * ptr, channel * ch, Flt
+volume) { parent = ch->pimpl; looping = false; fader.set(volume); status_dsp = SS_STOPPED;
   status_upd = SS_STOPPED;
 
   synth = ptr;
@@ -287,24 +334,25 @@ void YSE::SOUND::implementationObject::setup() {
     // if object is ready and head is not null, just return
     if (objectStatus == OBJECT_READY) return;
 
-    if (source_dsp.load(std::memory_order_acquire) != nullptr || patcher != nullptr){// || synth != nullptr) { // NOSONAR S8417: intentional acquire — pairs with release in create() to safely observe published dsp source
+    if (source_dsp.load(std::memory_order_acquire) != nullptr ||
+        patcher !=
+            nullptr) { // || synth != nullptr) { // NOSONAR S8417: intentional acquire — pairs with
+                       // release in create() to safely observe published dsp source
       // dsp source sounds are a special case because there's no file involved
       resize();
-    }
-    else if (streaming) {
+    } else if (streaming) {
       // streaming sounds do not have to wait until loaded
       filebuffer.resize(file->channels());
-	  _head_length = file->length();
+      _head_length = file->length();
       resize();
 
     } else if (file->getState() == INTERNAL::FILESTATE::READY) {
       // file is ready!
       filebuffer.resize(file->channels());
       buffer = &filebuffer;
-	  _head_length = file->length();
+      _head_length = file->length();
       resize();
-    }
-    else if (file->getState() == INTERNAL::FILESTATE::INVALID) {
+    } else if (file->getState() == INTERNAL::FILESTATE::INVALID) {
       // Same toLoad-lifetime reasoning as the head==null branch above.
       objectStatus = OBJECT_DELETE_PENDING;
       return;
@@ -314,10 +362,22 @@ void YSE::SOUND::implementationObject::setup() {
 }
 
 void YSE::SOUND::implementationObject::resize() {
-  lastGain.resize(CHANNEL::Manager().getNumberOfOutputs());
+  const UInt numOutputs = CHANNEL::Manager().getNumberOfOutputs();
+  lastGain.resize(numOutputs);
   for (UInt i = 0; i < lastGain.size(); i++) {
     lastGain[i].resize(buffer->size(), 0.0f);
   }
+  // Pre-size the gain cache and pan scratch off the audio thread (issue #212):
+  // the callback path only reads/cheap-writes these, never resizes them. Same
+  // [output][source] shape as lastGain.
+  finalGainCache.resize(numOutputs);
+  for (UInt i = 0; i < finalGainCache.size(); i++) {
+    finalGainCache[i].resize(buffer->size(), 0.0f);
+  }
+  initGainScratch.resize(numOutputs, 0.0f);
+  // The speaker layout / channel count just changed, so any cached gains are
+  // stale — force a recompute on the next toChannels().
+  gainDirty = true;
 }
 
 Bool YSE::SOUND::implementationObject::readyCheck() {
@@ -343,18 +403,45 @@ void YSE::SOUND::implementationObject::doThisWhenReady() {
   // Audio thread now owns the link into parent->sounds. Mark it so that the
   // audio thread's release path (in SOUND::Manager::update) knows it must
   // disconnect us before allowing the slow-pool deleteJob to free us.
-  connectedToParent.store(true, std::memory_order_release); // NOSONAR S8417: intentional release — publishes audio-thread connect to the dtor / Manager::update() acquire loads
+  connectedToParent.store(
+      true,
+      std::memory_order_release); // NOSONAR S8417: intentional release — publishes audio-thread
+                                  // connect to the dtor / Manager::update() acquire loads
 }
 
-void YSE::SOUND::implementationObject::sendMessage(const messageObject & message) {
+void YSE::SOUND::implementationObject::sendMessage(const messageObject& message) {
+#ifndef NDEBUG
+  // Single-producer contract (issue #193): `messages` is an SPSC queue, so
+  // every push must originate on the same control thread. The engine keeps
+  // this true by deferring off-thread bus publishes (the gMetro timer thread,
+  // a script thread) to the control thread in NamedBus::drainPending(). A
+  // firing assert means an interface setter was driven concurrently from a
+  // second thread — fix that caller rather than widening the queue.
+  const std::thread::id caller = std::this_thread::get_id();
+  if (!_producerThreadKnown) {
+    _producerThread = caller;
+    _producerThreadKnown = true;
+  } else {
+    assert(caller == _producerThread &&
+           "sound message queue pushed from more than one thread (issue #193)");
+  }
+#endif
   messages.push(message);
 }
 
 void YSE::SOUND::implementationObject::sync() {
-  // Snapshot head once: ~sound() on another thread can race the null check
-  // and null head via removeInterface() between the check and the deref
-  // below, producing a SEGV at the offset of `_volume` from null.
-  sound * h = head.load(std::memory_order_acquire); // NOSONAR S8417: intentional acquire — snapshot head once to avoid race with ~sound()/removeInterface()
+  // Snapshot head once so we can detect that ~sound() has run: removeInterface()
+  // nulls `head` (release store) when the user object is destroyed, and this
+  // acquire load observes that. We use the snapshot ONLY to branch on
+  // destruction — sync() must never write through it. ~sound() can complete
+  // (and the user-owned interface storage be reclaimed) at any point after the
+  // load, so a store back through `h` would be a use-after-free (issue #191).
+  // All values the interface reads back are published through impl-side atomics
+  // (`_head_time`, `_head_status`, ...) that outlive the interface, never pushed
+  // into the interface object.
+  sound* h =
+      head.load(std::memory_order_acquire); // NOSONAR S8417: intentional acquire — snapshot head
+                                            // once to avoid race with ~sound()/removeInterface()
   if (h == nullptr) {
     objectStatus = OBJECT_DONE;
 
@@ -366,8 +453,7 @@ void YSE::SOUND::implementationObject::sync() {
 
     if (status_dsp != SS_STOPPED && status_dsp != SS_WANTSTOSTOP) {
       status_dsp = SS_WANTSTOSTOP;
-    }
-    else if (status_dsp == SS_STOPPED) {
+    } else if (status_dsp == SS_STOPPED) {
       objectStatus = OBJECT_RELEASE;
     }
     return;
@@ -381,92 +467,100 @@ void YSE::SOUND::implementationObject::sync() {
   // sync dsp values
   currentVolume_upd = currentVolume_dsp;
   _head_time = currentFilePos;
-  h->_volume = currentVolume_dsp;
+  // NB: the actual playing volume is intentionally NOT pushed back into the
+  // user-owned interface object here. Doing so (`h->_volume = ...`) raced
+  // ~sound() and wrote freed memory (issue #191). `sound::volume()` returns
+  // the last-set (clamped) value from its own cache, consistent with every
+  // sibling getter (speed/spread/size/pos), none of which sync() writes to.
   status_upd = status_dsp;
   _head_status = status_upd;
 }
 
-void YSE::SOUND::implementationObject::parseMessage(const messageObject & message) {
+void YSE::SOUND::implementationObject::parseMessage(const messageObject& message) {
   // get new values from head
   switch (message.ID) {
-    case MESSAGE::POSITION: {
-      pos.x = message.vecValue[0];
-      pos.y = message.vecValue[1];
-      pos.z = message.vecValue[2];
-      break;
+  case MESSAGE::POSITION: {
+    pos.x = message.vecValue[0];
+    pos.y = message.vecValue[1];
+    pos.z = message.vecValue[2];
+    break;
+  }
+  case MESSAGE::SPREAD: {
+    spread = message.floatValue;
+    break;
+  }
+  case MESSAGE::VOLUME_VALUE: {
+    setVolume = true;
+    volumeTime = 0.f; // assume zero, will be set by SM_VOLUME_TIME if needed
+    volumeValue = message.floatValue;
+    break;
+  }
+  case MESSAGE::VOLUME_TIME: {
+    volumeTime = static_cast<Flt>(message.uintValue);
+    break;
+  }
+  case MESSAGE::SPEED: {
+    pitch = message.floatValue;
+    break;
+  }
+  case MESSAGE::SIZE: {
+    size = message.floatValue;
+    break;
+  }
+  case MESSAGE::LOOP: {
+    looping = message.boolValue;
+    break;
+  }
+  case MESSAGE::INTENT: {
+    headIntent = message.intentValue;
+    break;
+  }
+  case MESSAGE::OCCLUSION: {
+    occlusionActive = message.boolValue;
+    break;
+  }
+  case MESSAGE::OCCLUSION_VALUE: {
+    // Result of the user occlusion callback, computed on the control thread in
+    // SOUND::updateOcclusion() and already clamped to [0, 1] there (issue #209).
+    occlusion_dsp = message.floatValue;
+    break;
+  }
+  case MESSAGE::DSP: {
+    addDSP(*(DSP::dspObject*)message.ptrValue);
+    break;
+  }
+  case MESSAGE::TIME: {
+    newFilePos = message.floatValue;
+    setFilePos = true;
+    break;
+  }
+  case MESSAGE::RELATIVE: {
+    relative = message.boolValue;
+    break;
+  }
+  case MESSAGE::DOPPLER: {
+    doppler = message.boolValue;
+    break;
+  }
+  case MESSAGE::PAN2D: {
+    relative = message.boolValue;
+    doppler = !message.boolValue;
+    break;
+  }
+  case MESSAGE::FADE_AND_STOP: {
+    fadeAndStopTime = static_cast<Flt>(message.uintValue);
+    setFadeAndStop = true;
+    break;
+  }
+  case MESSAGE::MOVE: {
+    channel* ptr = (channel*)message.ptrValue;
+    if (ptr != nullptr) {
+      ptr->pimpl->connect(this);
     }
-    case MESSAGE::SPREAD: {
-      spread = message.floatValue;
-      break;
-    }
-    case MESSAGE::VOLUME_VALUE: {
-      setVolume = true;
-      volumeTime = 0.f; // assume zero, will be set by SM_VOLUME_TIME if needed
-      volumeValue = message.floatValue;
-      break;
-    }
-    case MESSAGE::VOLUME_TIME: {
-      volumeTime = static_cast<Flt>(message.uintValue);
-      break;
-    }
-    case MESSAGE::SPEED: {
-      pitch = message.floatValue;
-      break;
-    }
-    case MESSAGE::SIZE: {
-      size = message.floatValue;
-      break;
-    }
-    case MESSAGE::LOOP: {
-      looping = message.boolValue;
-      break;
-    }
-    case MESSAGE::INTENT: {
-      headIntent = message.intentValue;
-      break;
-    }
-    case MESSAGE::OCCLUSION: {
-      occlusionActive = message.boolValue;
-      break;
-    }
-    case MESSAGE::DSP: {
-      addDSP(*(DSP::dspObject *)message.ptrValue);
-      break;
-    }
-    case MESSAGE::TIME: {
-      newFilePos = message.floatValue;
-      setFilePos = true;
-      break;
-    }
-    case MESSAGE::RELATIVE: {
-      relative = message.boolValue;
-      break;
-    }
-    case MESSAGE::DOPPLER: {
-      doppler = message.boolValue;
-      break;
-    }
-    case MESSAGE::PAN2D: {
-      relative = message.boolValue;
-      doppler = !message.boolValue;
-      break;
-    }
-    case MESSAGE::FADE_AND_STOP: {
-      fadeAndStopTime = static_cast<Flt>(message.uintValue);
-      setFadeAndStop = true;
-      break;
-    }
-    case MESSAGE::MOVE: {
-      channel* ptr = (channel*)message.ptrValue;
-      if (ptr != nullptr) {
-        ptr->pimpl->connect(this);
-      }
-      break;
-    }
+    break;
+  }
   }
 }
-
-
 
 void YSE::SOUND::implementationObject::update() {
   ///////////////////////////////////////////
@@ -477,64 +571,63 @@ void YSE::SOUND::implementationObject::update() {
   // distance to listener
   if (relative) {
     distance = Dist(Pos(0), newPos);
-  }
-  else {
+  } else {
     distance = Dist(newPos, INTERNAL::ListenerImpl().newPos);
   }
-  virtualDist = (distance- size) * currentVolume_upd;
-  if (virtualDist < 0) virtualDist = 0;
-  /*if (virtualDist > 1000.f) {
-    assert(false);
-  }*/
+  virtualDist = computeVirtualDist(distance, size, currentVolume_upd);
 
   ///////////////////////////////////////////
-  // calculate doppler effect 
+  // calculate doppler effect
   ///////////////////////////////////////////
-  Flt vel = velocity; // avoid using atomic all the time
-  if (!doppler) vel = 0;
-  else {
+  // Doppler is a frequency *ratio* applied multiplicatively to the playback
+  // rate (see computeDopplerRatio / issue #208). update() computes the stepwise
+  // target here; dsp() slews it at block rate so an uneven update tick can't
+  // warble the pitch. A ratio of 1.0 means "no shift".
+  Flt ratio = 1.0f;
+  if (doppler) {
     velocityVec = (newPos - lastPos) * (1 / INTERNAL::Time().delta());
-    
-    Pos listenerVelocity;
-    listenerVelocity.x = INTERNAL::ListenerImpl().vel.x.load();
-    listenerVelocity.y = INTERNAL::ListenerImpl().vel.y.load();
-    listenerVelocity.z = INTERNAL::ListenerImpl().vel.z.load();
 
-    if (velocityVec == Pos(0) && listenerVelocity == Pos(0)) vel = 0;
-    else {
+    Pos listenerVelocity = INTERNAL::ListenerImpl().vel.load();
+
+    if (!(velocityVec == Pos(0) && listenerVelocity == Pos(0))) {
       Pos dist = relative ? newPos : newPos - INTERNAL::ListenerImpl().newPos;
-      if (dist != Pos(0)) {
-        Flt rSound = Dot(velocityVec, dist) / dist.length();
-        Flt rList = Dot(listenerVelocity, dist) / dist.length();
-        vel = 1 - (440 / (((344.0f + rList) / (344.0f + rSound)) * 440));
-        vel *= INTERNAL::Settings().dopplerScale;
-      }
+      ratio = computeDopplerRatio(velocityVec, listenerVelocity, dist,
+                                  INTERNAL::Settings().dopplerScale);
     }
-    
   }
   lastPos = newPos;
-  // disregard rounding errors
-  if (abs(vel) < 0.01f) vel = 0.0f;
-  velocity = vel; // back to atomic
+  dopplerRatio = ratio; // back to atomic; slewed in dsp()
 
   ///////////////////////////////////////////
   // calculate angle
   ///////////////////////////////////////////
-  Flt a = angle; // avoid using atomic all the time
   Pos dir = relative ? newPos : newPos - INTERNAL::ListenerImpl().newPos;
-  if (relative) a = -atan2(dir.x, dir.z);
-  else a = (atan2(dir.x, dir.z) - atan2(INTERNAL::ListenerImpl().forward.x.load(), INTERNAL::ListenerImpl().forward.z.load()));
-  while (a > Pi) a -= Pi2;
-  while (a < -Pi) a += Pi2;
-  angle = a; // back to atomic
+  // Only touch the listener's atomic forward vector in the world branch; the
+  // relative branch ignores it (dir is already in the listener's frame).
+  Pos listenerForward = relative ? Pos(0) : INTERNAL::ListenerImpl().forward.load();
+  angle = computeSourceAngle(relative, dir, listenerForward); // back to atomic
+  // The panner is horizontal-only (computeSourceAngle projects elevation out),
+  // so near the zenith the azimuth becomes ill-conditioned and a flyover source
+  // would sweep the full circle at full gain. Scale the pan directionality by
+  // how horizontal the source is, so an overhead source blends toward
+  // equal-power omni instead of sweeping (issue #210).
+  horizFraction = computeHorizontalFraction(dir);
+
+  // The pan inputs (angle / distance / spread / size / occlusion / horizFraction)
+  // are only written here, once per update() tick. Mark the cached per-speaker
+  // gain vectors stale so toChannels() recomputes them once for this tick rather
+  // than every 128-sample block (issue #212).
+  gainDirty = true;
 
   ///////////////////////////////////////////
   // sound occlusion (optional)
   ///////////////////////////////////////////
-  if (System().occlusionCallback() != nullptr && occlusionActive) {
-    occlusion_dsp = System().occlusionCallback()(newPos, INTERNAL::ListenerImpl().newPos);
-    Clamp(occlusion_dsp, 0.f, 1.f);
-  }
+  // The user occlusion callback is NOT invoked here: update() runs on the audio
+  // callback thread (deviceManager::doOnCallback -> SOUND::Manager().update()),
+  // and user raycast code must never run there (issue #209). The callback now
+  // runs on the control thread in SOUND::updateOcclusion() (driven by
+  // System().update()); its clamped result arrives via the OCCLUSION_VALUE
+  // message and is stored in occlusion_dsp, which dsp() applies as a gain duck.
 
   ///////////////////////////////////////////
   // dsp processing (optional)
@@ -543,11 +636,12 @@ void YSE::SOUND::implementationObject::update() {
     addDSP(*_postDspPtr);
     _setPostDSP = false;
   }
-  
+
   ///////////////////////////////////////////
   // add to virtual sound calculator
   ///////////////////////////////////////////
-  if (objectStatus < OBJECT_READY || status_upd == YSE::SS_STOPPED || status_upd == YSE::SS_PAUSED) {
+  if (objectStatus < OBJECT_READY || status_upd == YSE::SS_STOPPED ||
+      status_upd == YSE::SS_PAUSED) {
     return;
   }
   VirtualSoundFinder().add(virtualDist);
@@ -560,22 +654,49 @@ Bool YSE::SOUND::implementationObject::dsp() {
   ///////////////////////////////////////////
   dspFunc_parseIntent();
 
-	if (playerType == PT_PATCHER && status_dsp != SS_PLAYING) {
-		switch (status_dsp) {
-		    case SS_STOPPED:
-		    case SS_PAUSED:
-		    case SS_PLAYING:
-		    case SS_PLAYING_FULL_VOLUME:
-		        break;
-			case SS_WANTSTOPLAY: status_dsp = SS_PLAYING; break;
-			case SS_WANTSTORESTART: status_dsp = SS_PLAYING; break;
-			case SS_WANTSTOPAUSE: status_dsp = SS_PAUSED; break;
-			case SS_WANTSTOSTOP: status_dsp = SS_STOPPED; break;
-		}
-	}
+  if (playerType == PT_PATCHER && status_dsp != SS_PLAYING) {
+    switch (status_dsp) {
+    case SS_STOPPED:
+    case SS_PAUSED:
+    case SS_PLAYING:
+    case SS_PLAYING_FULL_VOLUME:
+      break;
+    case SS_WANTSTOPLAY:
+      status_dsp = SS_PLAYING;
+      break;
+    case SS_WANTSTORESTART:
+      status_dsp = SS_PLAYING;
+      break;
+    case SS_WANTSTOPAUSE:
+      status_dsp = SS_PAUSED;
+      break;
+    case SS_WANTSTOSTOP:
+      status_dsp = SS_STOPPED;
+      break;
+    }
+  }
 
   if (status_dsp == SS_STOPPED || status_dsp == SS_PAUSED) return false;
-  if (parent->allowVirtual && !VirtualSoundFinder().inRange(virtualDist)) return false;
+
+  ///////////////////////////////////////////
+  // virtualization (issue #206)
+  ///////////////////////////////////////////
+  // A sound crossing the virtualization threshold must not be hard-muted
+  // between two blocks (that steps its contribution to zero in one buffer — an
+  // audible click). Instead it gets exactly one farewell block whose channel
+  // gains are forced to 0, so the 50-sample ramp in dspFunc_calculateGain()
+  // slides it down to silence. inRange() applies a hysteresis band around the
+  // cutoff so a sound sitting on the boundary doesn't flutter real/virtual.
+  if (parent->allowVirtual) {
+    bool real = VirtualSoundFinder().inRange(virtualDist, /*wasReal=*/!isVirtual);
+    virtualAction act = computeVirtualAction(real, isVirtual);
+    isVirtual = act.nowVirtual;
+    virtualFadeOut = act.fadeOut;
+    if (!act.render) return false;
+  } else {
+    isVirtual = false;
+    virtualFadeOut = false;
+  }
 
   ///////////////////////////////////////////
   // set volume at sound level
@@ -602,25 +723,47 @@ Bool YSE::SOUND::implementationObject::dsp() {
   ///////////////////////////////////////////
   if (setFilePos) {
     Clamp(newFilePos, 0.f, static_cast<Flt>(file->length()));
-    filePtr = newFilePos;
+    if (streaming) {
+      // For a streaming sound filePtr is buffer-local (issue #185), so an
+      // absolute frame index can't just be assigned to it. Arm an async seek:
+      // the disk seek + re-prime from `newFilePos` runs on the slow pool (never
+      // the audio thread), and filePtr resets to the start of the freshly primed
+      // front buffer. _frontBufferBase is set to the target inside seek(). (#217)
+      file->seek(static_cast<Long>(newFilePos), looping);
+      filePtr = 0.f;
+    } else {
+      // Non-streaming: the whole file is resident, so filePtr is a valid
+      // absolute index into the buffer.
+      filePtr = newFilePos;
+    }
     setFilePos = false;
   }
 
   ///////////////////////////////////////////
   // fill buffer
   ///////////////////////////////////////////
-  DSP::dspSourceObject * src = source_dsp.load(std::memory_order_acquire); // NOSONAR S8417: intentional acquire — pairs with release in create()/Manager::update() to read user-supplied dsp source
+  // Slew the doppler ratio toward its latest (stepwise) target at block rate so
+  // the playback rate glides instead of stepping. Playback rate is the ratio
+  // times the user pitch — doppler is multiplicative, never additive (#208).
+  dopplerSlew.setIfNew(dopplerRatio, DOPPLER_SLEW_MS);
+  dopplerSlew.update();
+  Flt playbackRate = pitch * dopplerSlew();
+
+  DSP::dspSourceObject* src = source_dsp.load(
+      std::memory_order_acquire); // NOSONAR S8417: intentional acquire — pairs with release in
+                                  // create()/Manager::update() to read user-supplied dsp source
   if (playerType == PT_DSP && src != nullptr) {
     src->process(status_dsp);
-  }
-  else if (playerType == PT_PATCHER && patcher != nullptr) {
-		
+  } else if (playerType == PT_PATCHER && patcher != nullptr) {
+
     patcher->Calculate(YSE::T_DSP);
   }
-  //else if (synth != nullptr) {
-  //  synth->process(status_dsp);
-  //} 
-  else if (playerType == PT_FILE && file->read(filebuffer, filePtr, STANDARD_BUFFERSIZE, pitch + velocity, looping, status_dsp, bufferVolume) == false) {
+  // else if (synth != nullptr) {
+  //   synth->process(status_dsp);
+  // }
+  else if (playerType == PT_FILE &&
+           file->read(filebuffer, filePtr, STANDARD_BUFFERSIZE, playbackRate, looping, status_dsp,
+                      bufferVolume) == false) {
     // non looping sound has reached end of file
     /*filePtr = 0;
     _status = SS_STOPPED;
@@ -637,7 +780,7 @@ Bool YSE::SOUND::implementationObject::dsp() {
   // apply post dsp if needed
   ///////////////////////////////////////////
   if (post_dsp != nullptr) {
-    DSP::dspObject * ptr = post_dsp;
+    DSP::dspObject* ptr = post_dsp;
     while (ptr) {
       if (!ptr->bypass()) ptr->process(*buffer);
       ptr = ptr->link();
@@ -648,135 +791,223 @@ Bool YSE::SOUND::implementationObject::dsp() {
 
 void YSE::SOUND::implementationObject::dspFunc_parseIntent() {
   switch (headIntent) {
-    case SI_RESTART:
-    {
-      status_dsp  = SS_WANTSTORESTART;
-      break;
-    }
+  case SI_RESTART: {
+    status_dsp = SS_WANTSTORESTART;
+    break;
+  }
 
-    case SI_PLAY:
-    {
-      if (status_dsp  != SS_PLAYING && status_dsp  != SS_PLAYING_FULL_VOLUME)  {
-        status_dsp = SS_WANTSTOPLAY;
-      }
-      break;
+  case SI_PLAY: {
+    if (status_dsp != SS_PLAYING && status_dsp != SS_PLAYING_FULL_VOLUME) {
+      status_dsp = SS_WANTSTOPLAY;
     }
+    break;
+  }
 
-    case SI_PAUSE:
-    {
-      if (status_dsp  != SS_STOPPED && status_dsp  != SS_PAUSED) {
-        status_dsp = SS_WANTSTOPAUSE;
-      }
-      break;
+  case SI_PAUSE: {
+    if (status_dsp != SS_STOPPED && status_dsp != SS_PAUSED) {
+      status_dsp = SS_WANTSTOPAUSE;
     }
+    break;
+  }
 
-    case SI_STOP:
-    {
-      if (status_dsp != SS_STOPPED && status_dsp != SS_PAUSED) {
-        status_dsp = SS_WANTSTOSTOP;
-      }
-      else if (status_dsp == SS_PAUSED) {
-        status_dsp = SS_STOPPED;
-        filePtr = 0;
-        if (streaming) file->reset();
-      }
-      break;
+  case SI_STOP: {
+    if (status_dsp != SS_STOPPED && status_dsp != SS_PAUSED) {
+      status_dsp = SS_WANTSTOSTOP;
+    } else if (status_dsp == SS_PAUSED) {
+      status_dsp = SS_STOPPED;
+      filePtr = 0;
+      if (streaming) file->reset();
     }
+    break;
+  }
 
-    case SI_TOGGLE:
-    {
-      if (status_dsp  == SS_PLAYING || status_dsp  == SS_WANTSTOPLAY || status_dsp  == SS_PLAYING_FULL_VOLUME) status_dsp  = SS_WANTSTOPAUSE;
-      else status_dsp = SS_WANTSTOPLAY;
-      break;
-    }
+  case SI_TOGGLE: {
+    if (status_dsp == SS_PLAYING || status_dsp == SS_WANTSTOPLAY ||
+        status_dsp == SS_PLAYING_FULL_VOLUME)
+      status_dsp = SS_WANTSTOPAUSE;
+    else
+      status_dsp = SS_WANTSTOPLAY;
+    break;
+  }
 
-    case SI_NONE:
+  case SI_NONE:
     break;
   }
 
   headIntent = SI_NONE;
 }
 
-
-void YSE::SOUND::implementationObject::dspFunc_calculateGain(Int channel, Int source) {
-  Flt finalGain = parent->outConf[channel].finalGain;
-  if (lastGain[channel][source] == finalGain) {
-    channelBuffer *= (finalGain);
-    return;
-  }
-
-  Flt length = 50;
-  Clamp(length, 1.f, static_cast<Flt>(channelBuffer.getLength()));
-  Flt step = (finalGain - lastGain[channel][source]) / length;
-  Flt multiplier = lastGain[channel][source];
-  Flt * ptr = channelBuffer.getPtr();
-  for (UInt i = 0; i < length; i++) {
-    *ptr++ *= (multiplier);
-    multiplier += step;
-  }
-  UInt leftOvers = channelBuffer.getLength() - (UInt)length;
-  for (; leftOvers > 7; leftOvers -= 8, ptr += 8) {
-    ptr[0] *= finalGain;
-    ptr[1] *= finalGain;
-    ptr[2] *= finalGain;
-    ptr[3] *= finalGain;
-    ptr[4] *= finalGain;
-    ptr[5] *= finalGain;
-    ptr[6] *= finalGain;
-    ptr[7] *= finalGain;
-  }
-
-  while (leftOvers--) *ptr++ *= finalGain;
-  lastGain[channel][source] = finalGain;
+void YSE::SOUND::implementationObject::gainAccumulate(const Flt* src, const Flt* fader, Flt* dest,
+                                                      UInt length, Flt& lastGain, Flt finalGain) {
+  // Forwards to the single shared copy in DSP::panner (issue #169). The math was
+  // lifted verbatim, so the mix stays bit-identical (#213); keeping this thin
+  // forwarder preserves the public helper surface the tests exercise.
+  DSP::panner::gainAccumulate(src, fader, dest, length, lastGain, finalGain);
 }
 
-void YSE::SOUND::implementationObject::toChannels() {
+void YSE::SOUND::implementationObject::computeFinalGains() {
 #ifdef _MSC_VER
-#pragma warning ( disable : 4258 )
+#pragma warning(disable : 4258)
 #endif
-  for (UInt x = 0; x < buffer->size(); x++) {
+  // Count the LFE outputs so the pan normalisation below runs over the real
+  // (positional) speakers only. The .1 output receives no azimuth-panned
+  // content — sounds are never panned into the subwoofer (issue #203).
+  UInt lfeCount = 0;
+  for (UInt i = 0; i < parent->outConf.size(); i++) {
+    if (parent->outConf[i].isLFE) lfeCount++;
+  }
+  const UInt realSpeakers = (parent->out.size() > lfeCount)
+                                ? static_cast<UInt>(parent->out.size()) - lfeCount
+                                : static_cast<UInt>(parent->out.size());
+
+  // The rolloff attenuation depends only on distance/size/rolloffScale, none of
+  // which vary across source channels, so it is hoisted out of the x loop. This
+  // yields the same value the old per-x computation did, bit-for-bit.
+  Flt dist = distance - size;
+  if (dist < 0) dist = 0;
+  // std::pow with an Flt (float) exponent selects the single-precision overload;
+  // the bare pow(...) would promote the args to double (#214). dist and
+  // rolloffScale are both Flt, so this is a genuine powf, computed once per
+  // update tick (this whole function only runs when gainDirty).
+  Flt correctPower = 1 / std::pow(dist, (2 * INTERNAL::Settings().rolloffScale));
+  if (correctPower > 1) correctPower = 1;
+
+  // With the default spread == 0 every source channel maps to the identical
+  // angle (spreadAdjust == 0 for all x), so the whole pan / normalisation /
+  // rolloff derivation below yields a bit-identical gain column for every
+  // source channel. Compute that column once and replicate it, instead of
+  // redoing the cos / pow / sqrt work C times per update tick (issue #215). A
+  // multichannel buffer with a non-zero spread still runs the full per-channel
+  // loop. This dedups only the cached gains — toChannels()'s per-source-channel
+  // mix pass and its separate lastGain ramp states are untouched (the further
+  // pre-sum step interacts with mix-loop fusion and is out of scope, #213/#215).
+  const UInt sourceChannels = static_cast<UInt>(buffer->size());
+  const bool spreadCollapsed = (spread == 0.f) || (sourceChannels <= 1);
+  // Guard the empty-buffer transient: with no source channels there is nothing
+  // to compute, and finalGainCache columns are zero-length — the original
+  // `x < buffer->size()` loop ran zero passes there, so the collapsed path must
+  // too (a bare `1` would write finalGainCache[j][0] out of bounds).
+  const UInt channelsToCompute = (spreadCollapsed && sourceChannels > 0) ? 1u : sourceChannels;
+
+  for (UInt x = 0; x < channelsToCompute; x++) {
     // calculate spread value for multichannel sounds
     Flt spreadAdjust = 0;
-    if (buffer->size() > 1) spreadAdjust = (((2 * Pi / buffer->size()) * x) + (Pi / buffer->size()) - Pi) * spread;
+    if (buffer->size() > 1)
+      spreadAdjust = (((2 * Pi / buffer->size()) * x) + (Pi / buffer->size()) - Pi) * spread;
 
     // initial panning
     for (UInt i = 0; i < parent->outConf.size(); i++) {
-      parent->outConf[i].initPan = (1 + cos(parent->outConf[i].angle - (angle + spreadAdjust))) * 0.5f;
-      parent->outConf[i].effective = 0;
-      // effective speakers
-      for (UInt j = 0; j < parent->outConf.size(); j++) {
-        parent->outConf[i].effective += (1 + cos(parent->outConf[i].angle - parent->outConf[j].angle) * 0.5f);
-      }
-      // initial gain
-      parent->outConf[i].initGain = parent->outConf[i].initPan / parent->outConf[i].effective;
+      if (parent->outConf[i].isLFE) continue; // LFE is not azimuth-panned
+      // horizFraction scales the cardioid's directionality (issue #210): a
+      // source on the horizon (== 1) keeps the full (1 + cos)/2 pan, while a
+      // near-zenith source (-> 0) collapses the cosine term, leaving a flat 0.5
+      // for every speaker — an equal-power omni spread instead of a wild sweep.
+      Flt initPan =
+          (1 + horizFraction * std::cos(parent->outConf[i].angle - (angle + spreadAdjust))) * 0.5f;
+      // The speaker-density term effective[i] depends only on the speaker
+      // geometry, so it is precomputed once on layout change in
+      // CHANNEL::implementationObject::computeEffectiveSpeakerWeights() instead
+      // of being recomputed here per source channel per block (issue #211).
+      // initial gain — kept in per-sound scratch, not the shared outConf (#212).
+      initGainScratch[i] = initPan / parent->outConf[i].effective;
     }
     // emitted power
     Flt power = 0;
     for (UInt i = 0; i < parent->outConf.size(); i++) {
-      power += static_cast<Flt>(pow(parent->outConf[i].initGain, 2));
+      if (parent->outConf[i].isLFE) continue;
+      // Trivial squaring: g * g instead of a double pow(g, 2) (#214).
+      power += initGainScratch[i] * initGainScratch[i];
     }
-    // calculated power
-    Flt dist = distance - size;
-    if (dist < 0) dist = 0;
-    Flt correctPower = 1 / pow(dist, (2 * INTERNAL::Settings().rolloffScale));
-    if (correctPower > 1) correctPower = 1;
 
     // final gain assignment
     for (UInt j = 0; j < parent->out.size(); ++j) {
-      parent->outConf[j].ratio = static_cast<Flt>(pow(parent->outConf[j].initGain, 2) / power);
-      channelBuffer = (*buffer)[x];
-      parent->outConf[j].finalGain = sqrt(correctPower * parent->outConf[j].ratio);
+      if (parent->outConf[j].isLFE) continue; // leave the LFE buffer silent
+      Flt ratio = computePanRatio(initGainScratch[j], power, realSpeakers);
+      Flt finalGain = sqrt(correctPower * ratio);
 
       // add volume control now
-      if (occlusionActive) parent->outConf[j].finalGain *= 1 - occlusion_dsp;
-      dspFunc_calculateGain(j, x);
-      channelBuffer *= fader();
-      parent->out[j] += channelBuffer;
+      if (occlusionActive) finalGain *= 1 - occlusion_dsp;
+      finalGainCache[j][x] = finalGain;
+    }
+  }
+
+  // spread == 0 (or a mono source): column 0 holds the gains every source
+  // channel shares, so fan it out to the rest instead of recomputing identical
+  // values. Skip the LFE outputs — their columns are never read by toChannels()
+  // and never written by the loop above, so they stay untouched here too.
+  if (spreadCollapsed) {
+    for (UInt j = 0; j < parent->out.size(); ++j) {
+      if (parent->outConf[j].isLFE) continue;
+      for (UInt x = 1; x < sourceChannels; x++)
+        finalGainCache[j][x] = finalGainCache[j][0];
     }
   }
 }
 
-void YSE::SOUND::implementationObject::addDSP(DSP::dspObject & ptr) {
+void YSE::SOUND::implementationObject::toChannels() {
+  // Route 2 pre-spatialized bed (issue #169): the source already panned each
+  // voice across the device output channels, so play it straight through 1:1
+  // WITHOUT the cardioid pan — re-panning would pan an already-panned signal.
+  // Only the aggregate-level gains stay: the fader, plus the per-aggregate
+  // occlusion duck and the virtualization farewell fade, both of which remain a
+  // sound-level concern under Route 2 (design §5). buffer[j] maps to output j.
+  if (preSpatialized) {
+    const Flt* faderPtr = fader().getPtr();
+    Flt aggGain = 1.f;
+    if (occlusionActive) aggGain *= 1 - occlusion_dsp;
+    if (virtualFadeOut) aggGain = 0.f;
+    const UInt srcN = static_cast<UInt>(buffer->size());
+    for (UInt j = 0; j < parent->out.size(); ++j) {
+      if (parent->outConf[j].isLFE) continue; // the bed carries no LFE content
+      if (j >= srcN) continue; // source narrower than the device (transient on restart)
+      const Flt* src = (*buffer)[j].getPtr();
+      UInt length = (*buffer)[j].getLength();
+      // lastGain[j][0] is the single smoothing scalar for this 1:1 tap; inner
+      // index 0 is always valid (buffer has >= 1 channel).
+      gainAccumulate(src, faderPtr, parent->out[j].getPtr(), length, lastGain[j][0], aggGain);
+    }
+    return;
+  }
+
+  // Recompute the per-speaker gain vectors only when an update() tick changed
+  // one of their inputs (angle / distance / spread / size / occlusion /
+  // horizFraction / speaker layout). Between ticks those inputs are constant,
+  // so the old per-block derivation produced bit-identical gains every block —
+  // here they are read straight from finalGainCache instead (issue #212).
+  if (gainDirty) {
+    computeFinalGains();
+    gainDirty = false;
+  }
+
+  // The fader is a per-sample ramp block shared by every speaker and every
+  // source channel this block, so its pointer is fetched once. Previously the
+  // fader was applied as its own full-buffer pass per (source, speaker); it is
+  // now folded into the single MAC pass below (issue #213).
+  const Flt* faderPtr = fader().getPtr();
+
+  for (UInt x = 0; x < buffer->size(); x++) {
+    // Read the source channel in place — no per-speaker copy. The old loop
+    // copied (*buffer)[x] into a scratch buffer for every speaker just so the
+    // in-place gain multiply had somewhere to write; the fused MAC reads the
+    // pristine source and accumulates straight into each output (issue #213).
+    const Flt* src = (*buffer)[x].getPtr();
+    UInt length = (*buffer)[x].getLength();
+    for (UInt j = 0; j < parent->out.size(); ++j) {
+      if (parent->outConf[j].isLFE) continue; // leave the LFE buffer silent
+      Flt finalGain = finalGainCache[j][x];
+      // Farewell block for a sound going virtual (#206): target gain 0 so the
+      // smoothing ramp glides from lastGain down to silence instead of the sound
+      // simply vanishing on the next (skipped) block. This is a per-block
+      // override, so it is applied on the cached value here rather than folded
+      // into computeFinalGains().
+      if (virtualFadeOut) finalGain = 0.f;
+      // Single fused pass: out[j][i] += (src[i] * gainRamp[i]) * fader[i].
+      gainAccumulate(src, faderPtr, parent->out[j].getPtr(), length, lastGain[j][x], finalGain);
+    }
+  }
+}
+
+void YSE::SOUND::implementationObject::addDSP(DSP::dspObject& ptr) {
   // Detach any previously-attached DSP from this impl. Clear the OLD
   // dspObject's back-reference (calledfrom) — otherwise, when the OLD
   // dspObject is destructed later (e.g. a process-lifetime static at
@@ -792,7 +1023,53 @@ void YSE::SOUND::implementationObject::addDSP(DSP::dspObject & ptr) {
   post_dsp->calledfrom = &post_dsp;
 }
 
-bool YSE::SOUND::implementationObject::sortSoundObjects(implementationObject * lhs, implementationObject * rhs) {
+Flt YSE::SOUND::implementationObject::computeVirtualDist(Flt distance, Flt size, Flt volume) {
+  // Forwards to the single shared copy in DSP::panner (issue #169). See #205.
+  return DSP::panner::computeVirtualDist(distance, size, volume);
+}
+
+Flt YSE::SOUND::implementationObject::computeSpeakerOverlap(Flt angleA, Flt angleB) {
+  // Forwards to the single shared copy in DSP::panner (issue #169). See #207.
+  return DSP::panner::computeSpeakerOverlap(angleA, angleB);
+}
+
+Flt YSE::SOUND::implementationObject::computePanRatio(Flt initGain, Flt power, UInt speakerCount) {
+  // Forwards to the single shared copy in DSP::panner (issue #169). See #202.
+  return DSP::panner::computePanRatio(initGain, power, speakerCount);
+}
+
+Flt YSE::SOUND::implementationObject::computeSourceAngle(bool relative, const Pos& dir,
+                                                         const Pos& listenerForward) {
+  // Forwards to the single shared copy in DSP::panner (issue #169). See #204.
+  return DSP::panner::computeSourceAngle(relative, dir, listenerForward);
+}
+
+Flt YSE::SOUND::implementationObject::computeHorizontalFraction(const Pos& dir) {
+  // Forwards to the single shared copy in DSP::panner (issue #169). See #210.
+  return DSP::panner::computeHorizontalFraction(dir);
+}
+
+Flt YSE::SOUND::implementationObject::computeDopplerRatio(const Pos& sourceVel,
+                                                          const Pos& listenerVel, const Pos& dist,
+                                                          Flt dopplerScale) {
+  // Forwards to the single shared copy in DSP::panner (issue #169). See #208.
+  return DSP::panner::computeDopplerRatio(sourceVel, listenerVel, dist, dopplerScale);
+}
+
+YSE::SOUND::implementationObject::virtualAction
+YSE::SOUND::implementationObject::computeVirtualAction(bool real, bool wasVirtual) {
+  // Real: render normally (re-entry from virtual ramps back up from the 0 that
+  // the farewell block left in lastGain, so no stale-gain jump either).
+  if (real) return {/*render=*/true, /*fadeOut=*/false, /*nowVirtual=*/false};
+  // First block going virtual: still render, but with gains forced to 0 so the
+  // block ramps down to silence (one farewell fade instead of a click).
+  if (!wasVirtual) return {/*render=*/true, /*fadeOut=*/true, /*nowVirtual=*/true};
+  // Already faded out on a previous block: stay silent (skip render entirely).
+  return {/*render=*/false, /*fadeOut=*/false, /*nowVirtual=*/true};
+}
+
+bool YSE::SOUND::implementationObject::sortSoundObjects(implementationObject* lhs,
+                                                        implementationObject* rhs) {
   if (!lhs->parent->allowVirtual) return true;
   if (!rhs->parent->allowVirtual) return false;
   return (lhs->virtualDist < rhs->virtualDist);

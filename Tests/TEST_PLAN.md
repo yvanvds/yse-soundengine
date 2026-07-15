@@ -412,7 +412,7 @@ Preliminary `Tests/support/null_device.hpp` (stub-out if needed for patcher): a 
 
 **Source files under test:**
 - `YseEngine/internal/reverbDSP.h` / `reverbDSP.cpp` — Freeverb algorithm
-- `YseEngine/internal/underWaterEffect.h` / `underWaterEffect.cpp` — underwater reverb preset
+- `YseEngine/internal/underWaterEffect.h` / `underWaterEffect.cpp` — driver binding the underwater insert module (`YseEngine/dsp/modules/underWater.*`) to its default spatial control
 - `YseEngine/reverb/reverbImplementation.h` / `reverbImplementation.cpp`
 - `YseEngine/reverb/reverbManager.h` / `reverbManager.cpp`
 - `YseEngine/reverb/reverbInterface.hpp` / `reverbInterface.cpp`
@@ -424,7 +424,7 @@ Preliminary `Tests/support/null_device.hpp` (stub-out if needed for patcher): a 
 - Impulse response: feeding an impulse into `reverbDSP` and observing that the tail decays to silence within a bounded number of samples (tests the reverb tail, not exact values).
 - Wet/dry mix: at 100% dry the output equals the input; at 100% wet the output diverges from the input.
 - Stereo output: left and right channels are non-identical after the reverb (decorrelation).
-- `underWaterEffect`: output power is lower than input at frequencies above the expected lowpass cutoff (qualitative energy check).
+- `DSP::MODULES::underWater` (issue #327): output power is lower than input at frequencies above the expected lowpass cutoff (qualitative energy check) — covered in `Tests/dsp/test_module_underwater.cpp`; the driver/attach path is covered in `Tests/channel/test_channel_underwater.cpp`.
 
 **Test areas — reverb zone management:**
 - `reverbMessage`: construction and field accessors.

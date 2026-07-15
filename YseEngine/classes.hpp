@@ -14,9 +14,9 @@
 #include "utils/vector.hpp"
 #include "channel/channel.hpp"
 #include "sound/sound.hpp"
+#include "synth/synth.hpp"
 #include "reverb/reverb.hpp"
 #include "device/device.hpp"
-//#include "synth/synth.hpp"
 #include "player/player.hpp"
 #include "music/scale/scale.hpp"
 
@@ -29,13 +29,14 @@ namespace YSE {
   // tools
   class Pos;
   class aPos;
- 
+
   namespace DSP {
     // public dsp classes
     class buffer;
     class drawableBuffer;
     class dspObject;
     class dspSourceObject;
+    class panner;
 
     // filters
     class highPass;
@@ -56,7 +57,7 @@ namespace YSE {
     class noise;
     class vcf;
     class oscillator;
-    
+
     // math functions
     class clip;
     class rSqrt;
@@ -77,15 +78,15 @@ namespace YSE {
     class hilbert;
     class ringModulator;
     class sineWave;
-  }
+  } // namespace DSP
 
   namespace MUSIC {
     class note;
     class pNote;
     class chord;
     class player;
-  }
-    
+  } // namespace MUSIC
+
   namespace INTERNAL {
     // internal classes
     class global;
@@ -97,14 +98,16 @@ namespace YSE {
     class soundFile;
     class time;
     class underWaterEffect;
-  }
+  } // namespace INTERNAL
 
   namespace MIDI {
-	  class midiMessage;
-	  class midiNote;
-  }
-}
+    class midiMessage;
+    class midiNote;
+  } // namespace MIDI
 
+  namespace PATCHER {
+    class patcherImplementation;
+  } // namespace PATCHER
+} // namespace YSE
 
-
-#endif  // CLASSES_HPP_INCLUDED
+#endif // CLASSES_HPP_INCLUDED

@@ -25,12 +25,15 @@ CONSTRUCT_DSP() {
 
   ADD_PARAM(rightFloatIn);
 
-  ADD_DESCRIPTION("Audio-rate multiply. Multiplies the left buffer by either the right buffer (audio-rate) or the right float (control-rate). The canonical 'gain' / ring-mod node.");
+  ADD_DESCRIPTION(
+      "Audio-rate multiply. Multiplies the left buffer by either the right buffer (audio-rate) or "
+      "the right float (control-rate). The canonical 'gain' / ring-mod node.");
   ADD_CATEGORY(pCategory::MATH);
   INLET_DOC(0, "left", "Left operand — audio buffer.", "any float");
   INLET_DOC(1, "right", "Right operand — audio buffer or float (gain).", "any float");
   OUTLET_DOC(0, "out", "left * right.", "any float");
-  PARAM_DOC("right", "1.0", "Initial right-operand float (used until a buffer arrives on inlet 1).", "any float");
+  PARAM_DOC("right", "1.0", "Initial right-operand float (used until a buffer arrives on inlet 1).",
+            "any float");
 }
 
 BUFFER_IN(SetLeftBuffer) {
@@ -46,7 +49,7 @@ FLOAT_IN(SetRightFloat) {
 }
 
 RESET() // {
-  leftIn = rightIn = nullptr;
+leftIn = rightIn = nullptr;
 }
 
 CALC() {
@@ -56,8 +59,7 @@ CALC() {
 
   if (rightIn == nullptr) {
     output *= rightFloatIn;
-  }
-  else {
+  } else {
     output *= *rightIn;
   }
 

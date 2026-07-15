@@ -23,23 +23,37 @@ namespace YSE {
     void setLimit(Int value);
     Int getLimit();
     void calculate();
-    bool inRange(Flt value); // check if this value is ok according to the last calculations
-    virtualFinder(Int resolution); // argument is the initial resolution. This can be adjusted internally when needed.
+    // Check if this value is still in range according to the last calculation.
+    // `wasReal` is this sound's state on the previous block: a ~10% hysteresis
+    // band around the cutoff (real sounds hold on 5% past it, virtual sounds
+    // must come 5% inside it) stops a sound sitting on the boundary from
+    // fluttering real/virtual on consecutive update ticks (issue #206).
+    bool inRange(Flt value, bool wasReal);
+    virtualFinder(Int resolution); // argument is the initial resolution. This can be adjusted
+                                   // internally when needed.
 
   private:
+    // The histogram resolution adapts at runtime, but the backing `bin` buffer
+    // is allocated once at construction to RESOLUTION_MAX and never resized —
+    // reset()/add()/calculate() all run on the audio thread and must not touch
+    // the heap (issue #194). `resolution` is the logical bin count in use and
+    // is clamped to [RESOLUTION_MIN, RESOLUTION_MAX]; only bins [0, resolution)
+    // are ever read or written.
+    static constexpr Int RESOLUTION_MIN = 2;
+    static constexpr Int RESOLUTION_MAX = 128;
+
     Int resolution;
     aInt limit; // the number of entries that should be in range
     Int currentLimit;
     Flt range; // the calculated range
     Flt maximum; // the biggest value since last reset
-    Flt calculatedMax; // the biggest value before last reset (we can assume this is about the same as the new value will be)
+    Flt calculatedMax; // the biggest value before last reset (we can assume this is about the same
+                       // as the new value will be)
     Int entries; // how many entries are added since reset
-    std::vector<Int> bin;
+    std::vector<Int> bin; // fixed size RESOLUTION_MAX; logical size is `resolution`
   };
 
-  virtualFinder & VirtualSoundFinder();
-}
+  virtualFinder& VirtualSoundFinder();
+} // namespace YSE
 
-
-
-#endif  // VIRTUALFINDER_H_INCLUDED
+#endif // VIRTUALFINDER_H_INCLUDED

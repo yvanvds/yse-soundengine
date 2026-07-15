@@ -79,18 +79,46 @@ def _demo_exe(name):
 
 def cmd_build(args):
     preset = "release" if args.release else "debug"
-    run(["cmake", "--preset", preset])
+    if args.python:
+        preset += "-python"
+    # The presets carry no -D for the optional content pack, so append the
+    # opt-in cache variables on top of the preset when requested. --install
+    # implies --fetch: installing an un-assembled pack would ship only the
+    # committed CC0 seed, which is never what a user asking to install wants.
+    configure = ["cmake", "--preset", preset]
+    if args.content_pack or args.install_content_pack:
+        configure.append("-DYSE_FETCH_CONTENT_PACK=ON")
+    if args.install_content_pack:
+        configure.append("-DYSE_INSTALL_CONTENT_PACK=ON")
+    run(configure)
     run(["cmake", "--build", "--preset", preset])
 
 
 def cmd_test(args):
-    run(["cmake", "--preset", "tests-debug"])
-    run(["cmake", "--build", "--preset", "tests-debug"])
-    run(["ctest", "--preset", "tests-debug"])
+    sanitizer = getattr(args, "sanitizer", None)
+    if sanitizer:
+        # ASan/TSan gate for the #229 patcher concurrency stress test. clang +
+        # sanitizer runtime are Linux-only here (Windows/MSYS2 clang ships no
+        # TSan and no ASan leak detector), matching the preset conditions.
+        if IS_WINDOWS:
+            print("error: --sanitizer builds require Linux/clang (see the "
+                  "tests-asan / tests-tsan presets).")
+            sys.exit(1)
+        preset = "tests-asan" if sanitizer == "asan" else "tests-tsan"
+        run(["cmake", "--preset", preset])
+        run(["cmake", "--build", "--preset", preset])
+        run(["ctest", "--preset", preset])
+        return
+
+    preset = "tests-debug-python" if args.python else "tests-debug"
+    build_dir = "build-tests-python" if args.python else "build-tests"
+    run(["cmake", "--preset", preset])
+    run(["cmake", "--build", "--preset", preset])
+    run(["ctest", "--preset", preset])
 
     if args.integration:
         suffix = ".exe" if IS_WINDOWS else ""
-        exe = ROOT / "build-tests" / "bin" / ("yse_tests" + suffix)
+        exe = ROOT / build_dir / "bin" / ("yse_tests" + suffix)
         if not exe.exists():
             print(f"error: {exe} not found after build.")
             sys.exit(1)
@@ -250,6 +278,9 @@ def cmd_clean(args):
         ROOT / "build-coverage",
         ROOT / "build-bench",
         ROOT / "build-tools",
+        ROOT / "build-debug-python",
+        ROOT / "build-python",
+        ROOT / "build-tests-python",
     ]
     files_to_remove = [
         ROOT / "coverage.xml",
@@ -640,7 +671,7 @@ prebuilt shared library and public headers for {platform_blurb}.
 
 ```
 {layout}
-    LICENSE.md      Eclipse Public License v2.0
+    LICENSE.md      MIT License
     README.md       This file
 ```
 
@@ -658,8 +689,8 @@ surface, and known issues.
 
 ## License
 
-libYSE is distributed under the Eclipse Public License, v 2.0. See
-`LICENSE.md` for the full text.
+libYSE is distributed under the MIT License. See `LICENSE.md` for the full
+text.
 """
 
 
@@ -857,8 +888,11 @@ def build_parser():
         epilog="""examples:
   python yse.py build              configure + build (debug)
   python yse.py build --release    configure + build (release)
+  python yse.py build --python     configure + build (debug) with embedded-Python live-coding (YSE_ENABLE_PYTHON=ON)
+  python yse.py build --content-pack   configure + build (debug) and fetch the optional SFZ/DX7/FM content pack (YSE_FETCH_CONTENT_PACK=ON)
   python yse.py test               build tests-debug preset, run ctest
   python yse.py test --integration same, plus the integration suite (needs real audio device)
+  python yse.py test --python      build tests-debug-python preset so the embedded-interpreter suite runs
   python yse.py bench              build bench preset, run benchmark binary
   python yse.py bench --filter Buffer  run only benchmarks matching 'Buffer'
   python yse.py coverage           coverage preset + report (Linux: gcovr→coverage.xml; Windows: llvm-cov→coverage-llvm.json)
@@ -892,6 +926,24 @@ def build_parser():
         "--release", action="store_true",
         help="Use the release preset instead of debug",
     )
+    p.add_argument(
+        "--python", action="store_true",
+        help="Enable the embedded-CPython live-coding feature (YSE_ENABLE_PYTHON=ON; "
+             "uses the *-python preset; desktop only)",
+    )
+    p.add_argument(
+        "--content-pack", action="store_true",
+        help="Fetch the optional instrument content pack (SFZ instruments, "
+             "wavetables, and DX7/FM banks; YSE_FETCH_CONTENT_PACK=ON). The "
+             "instrument DSP is always compiled; this only pulls the factory "
+             "assets. Note the DX7 banks are tolerated-not-cleared content "
+             "(see CONTENT-LICENSES.md).",
+    )
+    p.add_argument(
+        "--install-content-pack", action="store_true",
+        help="Install the content pack under <prefix>/share/yse/content "
+             "(YSE_INSTALL_CONTENT_PACK=ON; implies --content-pack)",
+    )
     p.set_defaults(func=cmd_build)
 
     # test
@@ -911,6 +963,18 @@ def build_parser():
     p.add_argument(
         "--integration", action="store_true",
         help="Also run the integration suite (requires a real audio device)",
+    )
+    p.add_argument(
+        "--python", action="store_true",
+        help="Enable the embedded-CPython live-coding feature (YSE_ENABLE_PYTHON=ON; "
+             "uses the tests-debug-python preset so the embedded-interpreter suite "
+             "runs; desktop only)",
+    )
+    p.add_argument(
+        "--sanitizer", choices=["asan", "tsan"],
+        help="Build the patcher concurrency stress test (#229) under Address- or "
+             "ThreadSanitizer (tests-asan / tests-tsan presets) and run just that "
+             "test. Linux/clang only.",
     )
     p.set_defaults(func=cmd_test)
 

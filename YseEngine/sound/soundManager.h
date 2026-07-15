@@ -14,6 +14,7 @@
 #include <forward_list>
 #include <mutex>
 #include <vector>
+#include <ctime>
 #include "sound.hpp"
 #include "soundMessage.h"
 #include "soundInterface.hpp"
@@ -22,7 +23,7 @@
 #include "../internal/threadPool.h"
 #include "../internal/managerJobs.hpp"
 #include "../utils/lfQueue.hpp"
-
+#include "../utils/intrusiveForwardList.hpp"
 
 // global object for file loading
 // used in system.cpp, soundimpl.cpp and soundfile.cpp
@@ -41,7 +42,7 @@ namespace YSE {
       managerObject();
       ~managerObject() noexcept;
 
-      implementationObject * addImplementation(sound * head);
+      implementationObject* addImplementation(sound* head);
 
       /** Add a new soundfile to the system and return a pointer to it. If the file already
           exists, it will not be loaded anew but a pointer to the existing file will be
@@ -52,23 +53,36 @@ namespace YSE {
 
           @return       A pointer to the soundFile object for this file
       */
-      //INTERNAL::soundFile * addFile(const File & file);
+      // INTERNAL::soundFile * addFile(const File & file);
 
       // an alternative version of addFile for custom filesystems set with IO()
-      INTERNAL::soundFile * addFile(const std::string & fileName);
+      INTERNAL::soundFile* addFile(const std::string& fileName);
 
       // an alternative version to add memory buffers
-      INTERNAL::soundFile * addFile(YSE::DSP::buffer * buffer);
-      INTERNAL::soundFile * addFile(MULTICHANNELBUFFER * buffer);
+      INTERNAL::soundFile* addFile(YSE::DSP::buffer* buffer);
+      INTERNAL::soundFile* addFile(MULTICHANNELBUFFER* buffer);
 
-      void setup(implementationObject * impl);
+      void setup(implementationObject* impl);
 
       /** Run the soundManager update. This function is responsable for most of the
           action on sound implementations and sound files.
       */
       void update();
 
+      // Audio-thread-only: reports whether there is anything to render. Reads
+      // the audio-thread-owned toLoad/inUse lists, never the mutex-guarded
+      // `implementations` list. Call only from the audio callback. (issue #200)
       Bool empty();
+
+      /** Tear down every sound implementation synchronously from
+          system::close(). Called after both thread pools are joined and the
+          device is closed (Global().active already false), and BEFORE
+          CHANNEL::Manager().destroy() frees the channel impls — so no sound
+          impl is left holding a dangling `parent` pointer into freed channel
+          storage. This closes the static-teardown / re-init use-after-free
+          (issue #298) and honours the "no persistence across init/close"
+          guarantee (issue #121). Mirrors CHANNEL::Manager().destroy(). */
+      void destroy();
 
       /** Sets the maximum amount of sounds to be processed. The soundmanager
           will try to find the sounds that are most relevant and virtualize
@@ -76,30 +90,27 @@ namespace YSE {
 
           @param value    The desired number of sounds
       */
-      //void setMaxSounds(Int value);	
-      
+      // void setMaxSounds(Int value);
+
       /** Get the maximum amount of sounds to be processed.
-      */
-      //Int getMaxSounds();
+       */
+      // Int getMaxSounds();
 
       /** Retrieve a reader for a file format. This function is used by soundFile
           objects.
-      
+
           @param file   The file to retrieve a reader for.
       */
-	  // TODO: replace this
-      //AudioFormatReader * getReader(const File & f);
-      //AudioFormatReader * getReader(juce::InputStream * source);
-      
-      
-      /** Hints the sounds manager that it should check for implementations that are 
+      // TODO: replace this
+      // AudioFormatReader * getReader(const File & f);
+      // AudioFormatReader * getReader(juce::InputStream * source);
+
+      /** Hints the sounds manager that it should check for implementations that are
           no longer in use. This is called by the implementations themselves, when they
           find out they're no longer needed.
       */
 
-      //Bool inRange(Flt dist);
-
-      
+      // Bool inRange(Flt dist);
 
     private:
       INTERNAL::managerSetupJob<managerObject> mgrSetup;
@@ -112,27 +123,59 @@ namespace YSE {
       void promoteReadyImpls();
       void syncAndReleaseInUse();
 
+      // Garbage-collect unused soundFiles. Runs on the slow pool via mgrFileGC —
+      // NEVER on the audio thread: erasing a soundFile runs ~soundFile (sf_close +
+      // delete[]) which must stay off the callback, and the erase races addFile
+      // on the main thread. Owns `soundFiles` structure together with addFile
+      // under `soundFilesMutex` (same pattern as the impl managers). (issue #186)
+      void garbageCollectFiles();
+
+      // Slow-pool job wrapper that drives garbageCollectFiles().
+      class fileGCJob : public INTERNAL::threadPoolJob {
+      public:
+        managerObject* owner = nullptr;
+        void run() override {
+          owner->garbageCollectFiles();
+        }
+      };
+      fileGCJob mgrFileGC;
+
+      // Audio-thread-only: accumulates Time().delta() so update() hands the GC to
+      // the slow pool at most about once a second instead of every callback.
+      Flt fileGCTimer = 0.f;
+      // Slow-pool-only (GC job): previous std::clock() sample, used to measure the
+      // elapsed time fed to soundFile::inUse() for the idle timer.
+      std::clock_t lastGCClock = 0;
+
       /** the lastGain buffer of each sound is needed to provide smooth changes
       in volume for each channel. When the number of output channels is changed
       this buffer has to change accordingly. This is done by this function.
       */
       void adjustLastGainBuffer();
 
-      // a forward list containing all sound files
+      // a forward list containing all sound files. Structure is touched by the
+      // main thread (addFile) and the slow-pool GC job (garbageCollectFiles);
+      // the audio thread never iterates or erases it. Guarded by soundFilesMutex.
       std::forward_list<INTERNAL::soundFile> soundFiles;
+
+      // Guards `soundFiles` between the main thread (addFile) and the slow-pool
+      // GC job. Never taken by the audio thread. (issue #186)
+      std::mutex soundFilesMutex;
 
       // a format Manager to assist in reading audio files
       // It is used by soundFiles, but put here because we only need one for all files.
       // TODO: replace this
-	  //juce::AudioFormatManager formatManager;
+      // juce::AudioFormatManager formatManager;
 
       // the maximum distance before turning virtual
       // This value is calculated on every update
-      //aFlt maxDistance;
+      // aFlt maxDistance;
 
-      // Once an object is ready for use, a pointer is placed in this container. The manager will
-      // update and sync all these objects during the dsp callback function
-      std::forward_list<implementationObject*> inUse;
+      // Once an object is ready for use, it is linked into this container. The
+      // manager updates and syncs all these objects during the dsp callback.
+      // Intrusive (link embedded in the impl via `_mgrNext`) so linking on the
+      // audio thread never allocates (issue #194).
+      IntrusiveForwardList<implementationObject, &implementationObject::_mgrNext> inUse;
 
       // Lock-free SPSC inbox: main thread pushes here from setup(); audio thread
       // drains it into `toLoad` at the top of update(). This is the only
@@ -141,9 +184,11 @@ namespace YSE {
 
       // Audio-thread-owned working list of impls awaiting OBJECT_READY. The
       // audio thread drains the inbox into it, iterates it to detect readiness,
-      // and remove_ifs ready/released/deleted impls out of it. No other thread
-      // touches this list.
-      std::forward_list<implementationObject*> toLoad;
+      // and removes ready/released/deleted impls out of it. No other thread
+      // touches this list. Intrusive on the same `_mgrNext` link as `inUse` —
+      // an impl is only ever in one of the two (it moves from toLoad to inUse),
+      // so a single embedded link is sufficient and allocation-free.
+      IntrusiveForwardList<implementationObject, &implementationObject::_mgrNext> toLoad;
 
       // Canonical list of all implementationObjects for this subsystem. Touched
       // by the main thread (emplace_front in addImplementation) and the
@@ -163,15 +208,11 @@ namespace YSE {
 
       friend class INTERNAL::managerSetupJob<managerObject>;
       friend class INTERNAL::managerDeleteJob<managerObject>;
-
     };
 
-    managerObject & Manager();
+    managerObject& Manager();
 
-  }
-}
+  } // namespace SOUND
+} // namespace YSE
 
-
-
-
-#endif  // SOUNDLOADER_H_INCLUDED
+#endif // SOUNDLOADER_H_INCLUDED

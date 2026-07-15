@@ -13,5 +13,6 @@ public:
 	void ComposerExamples();
 	void FileExamples();
 	void OtherExamples();
+	void SynthExamples();
 };
 

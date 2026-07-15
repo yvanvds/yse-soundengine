@@ -27,6 +27,16 @@ target_compile_definitions(yse_demo_common PUBLIC
   "YSE_TEST_RESOURCES_DIR=\"${CMAKE_SOURCE_DIR}/TestResources\""
 )
 
+# Inject the content-pack root (issue #179) as a string-literal macro too, so the
+# synth & effects demos (issue #180) can find the bundled DX7 bank / SFZ
+# instrument regardless of the binary's working directory. YSE_CONTENT_PACK_DIR
+# is defined by cmake/YseContentPack.cmake (a CACHE PATH, so it is visible here
+# whatever the add_subdirectory order). The demos degrade with a clear message
+# when an asset under this root is absent.
+target_compile_definitions(yse_demo_common PUBLIC
+  "YSE_CONTENT_PACK_DIR=\"${YSE_CONTENT_PACK_DIR}\""
+)
+
 # ── Demo builder function ─────────────────────────────────────────────────────
 # Creates a standalone demo executable from a single Demo*.cpp source.
 # A minimal main() is generated from cmake/demo_main.cpp.in; it calls
@@ -79,6 +89,15 @@ if(YSE_ENABLE_MIDI_DEVICE)
 endif()
 add_yse_demo(Demo17 Demo17_MidiPatcher DemoMidiPatcher)
 
+# Synth & effects end-to-end demos (issue #180). These wire up the FM, sampler,
+# position-handler and channel-effect epics; MIDI-device input is used only
+# behind YSE_ENABLE_MIDI_DEVICE guards, so all four build regardless of that
+# option and degrade with a clear message when the content pack is absent.
+add_yse_demo(Demo18 Demo18_FMKeyboard DemoFMKeyboard)
+add_yse_demo(Demo19 Demo19_SfzPiano   DemoSfzPiano)
+add_yse_demo(Demo20 Demo20_Swarm      DemoSwarm)
+add_yse_demo(Demo21 Demo21_Mixer      DemoMixer)
+
 # ── Combined Demo executable (all pages via menu) ─────────────────────────────
 add_executable(Demo
   demo_main.cpp
@@ -86,6 +105,7 @@ add_executable(Demo
   MenuBasics.cpp
   MenuDsp.cpp
   MenuOther.cpp
+  MenuSynth.cpp
   Demo00_PlaySound.cpp
   Demo01_SoundProperties.cpp
   Demo02_3D.cpp
@@ -104,6 +124,10 @@ add_executable(Demo
   Demo15_RestartAudio.cpp
   Demo16_Midi.cpp
   Demo17_MidiPatcher.cpp
+  Demo18_FMKeyboard.cpp
+  Demo19_SfzPiano.cpp
+  Demo20_Swarm.cpp
+  Demo21_Mixer.cpp
   Test01_Pitch.cpp
 )
 target_compile_features(Demo PRIVATE cxx_std_17)

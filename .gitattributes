@@ -61,3 +61,8 @@
 #*.PDF   diff=astextplain
 #*.rtf   diff=astextplain
 #*.RTF   diff=astextplain
+
+# Content pack binary assets (issue #179) — force binary so line-ending
+# normalisation never corrupts them.
+*.syx binary
+*.wav binary

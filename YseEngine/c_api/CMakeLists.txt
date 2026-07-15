@@ -25,9 +25,13 @@ set(YSE_C_API_SRCS
   yse_dsp_modules.cpp
   yse_patcher.cpp
   yse_midi.cpp
+  yse_clip.cpp
   yse_music.cpp
+  yse_synth.cpp
+  yse_instrument.cpp
   yse_log.cpp
   yse_buffer_io.cpp
+  yse_python.cpp
   yse_enums_check.cpp
 )
 list(TRANSFORM YSE_C_API_SRCS PREPEND "${CMAKE_CURRENT_LIST_DIR}/")

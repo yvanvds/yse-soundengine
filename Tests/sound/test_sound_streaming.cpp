@@ -1,0 +1,500 @@
+// Tests for streaming-sound playback in the interleaved read path
+// (YseEngine/internal/abstractSoundFile.cpp + lsfSoundfile.cpp).
+//
+// Regression coverage for issue #185: streaming refills must happen on the slow
+// thread pool, never as blocking disk I/O on the audio callback. These tests
+// drive INTERNAL::soundFile::read() directly (playing the audio thread's role)
+// while the real slow pool fills the back buffer, and assert the produced audio
+// is correct across buffer boundaries, at end-of-file, when looping, and after a
+// stop/restart. They also exercise destruction while a refill is in flight.
+//
+// White-box access: this TU is compiled with LIBSOUNDFILE_BACKEND (set for just
+// this file in Tests/CMakeLists.txt) so it can see INTERNAL::soundFile and use
+// libsndfile to generate fixtures. The engine is initialised with the audio
+// stream paused (TestHelpers::engineInit), so the test thread is the sole caller
+// of read(); the slow pool still runs on its own worker threads.
+
+#if LIBSOUNDFILE_BACKEND
+
+#include <doctest/doctest.h>
+#include <sndfile.hh>
+#include <algorithm>
+#include <chrono>
+#include <cstdint>
+#include <filesystem>
+#include <functional>
+#include <string>
+#include <thread>
+#include <vector>
+
+#include "yse.hpp"
+#include "internal/lsfSoundfile.h"
+#include "internal/time.h"
+#include "sound/soundManager.h"
+#include "dsp/buffer.hpp"
+#include "support/null_device.hpp"
+
+using YSE::SOUND_STATUS;
+using YSE::INTERNAL::soundFile;
+// Flt / UInt / Bool are global typedefs (headers/types.hpp).
+
+namespace {
+
+  // A distinct, position-sensitive sample value for frame n. Using a hash makes a
+  // mis-swap (replaying the wrong buffer) produce clearly wrong values.
+  float sampleAt(long n) {
+    uint32_t h = static_cast<uint32_t>(n) * 2654435761u;
+    return static_cast<float>(((h >> 8) & 0xFFFF) / 32768.0 - 1.0);
+  }
+
+  // Write a mono float WAV of `frames` frames at the engine sample rate and return
+  // its path; also fills `src` with the exact samples written (float WAV is stored
+  // losslessly, so playback should reproduce these values bit-for-bit).
+  std::string writeWav(long frames, std::vector<float>& src) {
+    src.resize(static_cast<size_t>(frames));
+    for (long n = 0; n < frames; ++n)
+      src[static_cast<size_t>(n)] = sampleAt(n);
+
+    namespace fs = std::filesystem;
+    fs::path p = fs::temp_directory_path() / ("yse_stream_" + std::to_string(frames) + ".wav");
+    SndfileHandle h(p.string().c_str(), SFM_WRITE, SF_FORMAT_WAV | SF_FORMAT_FLOAT, 1,
+                    static_cast<int>(YSE::SAMPLERATE));
+    h.writef(src.data(), frames);
+    // SndfileHandle flushes and closes on destruction (end of this function).
+    return p.string();
+  }
+
+  // Wait for the slow-pool load to finish (state == READY) or time out.
+  bool waitReady(soundFile& f) {
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+    while (std::chrono::steady_clock::now() < deadline) {
+      if (f.getState() == YSE::INTERNAL::READY) return true;
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+    return f.getState() == YSE::INTERNAL::READY;
+  }
+
+  // Read one STANDARD_BUFFERSIZE block, transparently retrying a transient underrun
+  // (a fully silent block while still playing) after giving the slow pool time to
+  // land the refill. Returns true once the stream has stopped (EOF reached).
+  bool readBlock(soundFile& f, Flt& pos, Bool loop, SOUND_STATUS& intent, Flt& vol,
+                 std::vector<float>& out) {
+    for (int retry = 0; retry < 500; ++retry) {
+      std::vector<YSE::DSP::buffer> fb(1); // one mono output buffer of length STANDARD_BUFFERSIZE
+      f.read(fb, pos, YSE::STANDARD_BUFFERSIZE, 1.0f, loop, intent, vol);
+      const Flt* p = fb[0].getPtr();
+      out.assign(p, p + YSE::STANDARD_BUFFERSIZE);
+      if (intent == YSE::SS_STOPPED) return true;
+      bool allZero = std::all_of(out.begin(), out.end(), [](float v) { return v == 0.0f; });
+      if (!allZero) return false;
+      std::this_thread::sleep_for(std::chrono::milliseconds(3)); // underrun: let the refill land
+    }
+    return false;
+  }
+
+  // Small periodic pause so the slow pool always fills the next buffer well before
+  // the play cursor reaches it — keeps the tests free of (allowed but timing-
+  // dependent) underruns so frame accounting stays exact.
+  void breathe(int block) {
+    if ((block & 7) == 0) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+
+  const long S = static_cast<long>(YSE::STREAM_BUFFERSIZE); // 44100
+
+  // Minimal in-memory backend for abstractSoundFile so the stale-generation
+  // race of issue #283 can be reproduced deterministically. The production
+  // publication protocol (abstractSoundFile::fillBackBuffer) is exercised
+  // unchanged; only the blocking disk fill is replaced by an emulated file
+  // handle, with a hook at the exact interleaving point: after fillBackBuffer()
+  // captured the fill generation, before the fill consumes the reset flag —
+  // where the audio thread's reset()/seek() races in.
+  class staleGenFile : public YSE::INTERNAL::abstractSoundFile {
+  public:
+    staleGenFile() : abstractSoundFile("stale-gen-probe", true) {
+      _length = 10 * static_cast<int>(S); // so seek() targets aren't clamped
+    }
+    void loadStreaming() override {}
+    void loadNonStreaming() override {}
+
+    std::function<void()> onFillStart; // runs once, at the race point
+    Long handlePos = S; // emulated handle position (front buffer 0 already read)
+    Long lastFillStart = -1; // where the most recent fill read from
+    int seeks = 0;
+
+    UInt fillBuffer(Flt* /*dest*/, Bool /*loop*/) override {
+      if (onFillStart) {
+        auto hook = std::move(onFillStart);
+        onFillStart = nullptr;
+        hook();
+      }
+      // Mirror the production backend's reset handling (lsfSoundfile.cpp).
+      if (_needsReset.exchange(false, std::memory_order_relaxed)) {
+        handlePos = _seekTarget.load(std::memory_order_relaxed);
+        ++seeks;
+      }
+      lastFillStart = handlePos;
+      handlePos += S;
+      return YSE::STREAM_BUFFERSIZE;
+    }
+
+    // Drive one back-buffer fill the way the slow pool does: requestRefill()
+    // marks the refill in flight before the job runs fillBackBuffer().
+    void runFill() {
+      _refillInFlight.store(true, std::memory_order_relaxed);
+      fillBackBuffer();
+    }
+
+    bool needsReset() {
+      return _needsReset.load(std::memory_order_relaxed);
+    }
+    bool backIsStale() {
+      return _backGen.load(std::memory_order_relaxed) != _fillGen.load(std::memory_order_relaxed);
+    }
+    // What streamSwap does with a stale-generation back buffer: discard it.
+    void discardStaleBack() {
+      _backReady.store(false, std::memory_order_relaxed);
+    }
+  };
+
+} // namespace
+
+TEST_SUITE("sound") {
+
+  // 1. Audio stays sample-accurate across buffer boundaries (the core swap path).
+  TEST_CASE("streaming: audio is continuous across buffer boundaries") {
+    if (!TestHelpers::engineInit()) return;
+
+    std::vector<float> src;
+    std::string path = writeWav(2 * S + 10000, src); // spans two buffer boundaries
+    soundFile f(path);
+    f.create(true);
+    REQUIRE(waitReady(f));
+
+    Flt pos = 0.f, vol = 1.f;
+    SOUND_STATUS intent = YSE::SS_PLAYING_FULL_VOLUME;
+    std::vector<float> out;
+    long frame = 0;
+    const long verifyTo = 2 * S + 4000; // stays before EOF
+    for (int b = 0; frame < verifyTo; ++b) {
+      bool stopped = readBlock(f, pos, false, intent, vol, out);
+      REQUIRE_FALSE(stopped);
+      for (UInt j = 0; j < YSE::STANDARD_BUFFERSIZE && frame < static_cast<long>(src.size());
+           ++j, ++frame) {
+        CHECK(out[j] == doctest::Approx(src[static_cast<size_t>(frame)]).epsilon(0.0001));
+      }
+      breathe(b);
+    }
+  }
+
+  // 2. A non-looping stream longer than one buffer plays its full tail, then stops.
+  //    (The pre-#185 code dropped the final partial buffer — up to ~1 s of tail.)
+  TEST_CASE("streaming: non-looping stream plays its full tail then stops") {
+    if (!TestHelpers::engineInit()) return;
+
+    const long r = 12345; // 0 < r < S and not a multiple of STANDARD_BUFFERSIZE
+    std::vector<float> src;
+    std::string path = writeWav(S + r, src);
+    soundFile f(path);
+    f.create(true);
+    REQUIRE(waitReady(f));
+
+    Flt pos = 0.f, vol = 1.f;
+    SOUND_STATUS intent = YSE::SS_PLAYING_FULL_VOLUME;
+    std::vector<float> out;
+    long frame = 0;
+    bool stopped = false;
+    for (int b = 0; !stopped && b < 4000; ++b) {
+      stopped = readBlock(f, pos, false, intent, vol, out);
+      for (UInt j = 0; j < YSE::STANDARD_BUFFERSIZE; ++j) {
+        if (frame < static_cast<long>(src.size())) {
+          CHECK(out[j] == doctest::Approx(src[static_cast<size_t>(frame)]).epsilon(0.0001));
+          ++frame;
+        } else {
+          CHECK(out[j] == 0.0f); // past true EOF: silence
+        }
+      }
+      breathe(b);
+    }
+
+    CHECK(stopped);
+    CHECK(frame == static_cast<long>(src.size())); // every real frame played — no dropped tail
+  }
+
+  // 3. A looping stream wraps seamlessly and keeps producing the right samples.
+  TEST_CASE("streaming: looping stream wraps seamlessly") {
+    if (!TestHelpers::engineInit()) return;
+
+    const long len = S + 12345; // loop period straddling a buffer boundary
+    std::vector<float> src;
+    std::string path = writeWav(len, src);
+    soundFile f(path);
+    f.create(true);
+    REQUIRE(waitReady(f));
+
+    Flt pos = 0.f, vol = 1.f;
+    SOUND_STATUS intent = YSE::SS_PLAYING_FULL_VOLUME;
+    std::vector<float> out;
+    long frame = 0;
+    const long verifyTo = len + S + 4000; // read well past the first wrap
+    for (int b = 0; frame < verifyTo; ++b) {
+      bool stopped = readBlock(f, pos, true, intent, vol, out);
+      REQUIRE_FALSE(stopped); // a looping stream never stops
+      for (UInt j = 0; j < YSE::STANDARD_BUFFERSIZE && frame < verifyTo; ++j, ++frame) {
+        CHECK(out[j] == doctest::Approx(src[static_cast<size_t>(frame % len)]).epsilon(0.0001));
+      }
+      breathe(b);
+    }
+  }
+
+  // 4. Stopping a stream re-primes it; the next play starts from frame 0 again.
+  TEST_CASE("streaming: stop re-primes so restart plays from the start") {
+    if (!TestHelpers::engineInit()) return;
+
+    std::vector<float> src;
+    std::string path = writeWav(2 * S, src);
+    soundFile f(path);
+    f.create(true);
+    REQUIRE(waitReady(f));
+
+    Flt pos = 0.f, vol = 1.f;
+    SOUND_STATUS intent = YSE::SS_PLAYING_FULL_VOLUME;
+    std::vector<float> out;
+
+    // Play past the first boundary (into buffer 1).
+    for (int b = 0; b < 500; ++b) {
+      readBlock(f, pos, false, intent, vol, out);
+      breathe(b);
+    }
+
+    // Emulate the audio-thread stop action (mirrors dspFunc_parseIntent's
+    // file->reset() on a paused→stopped streaming sound).
+    f.reset();
+
+    // Restart: playback must resume from frame 0.
+    pos = 0.f;
+    vol = 1.f;
+    intent = YSE::SS_PLAYING_FULL_VOLUME;
+    long frame = 0;
+    for (int b = 0; b < 40; ++b) {
+      bool stopped = readBlock(f, pos, false, intent, vol, out);
+      REQUIRE_FALSE(stopped);
+      for (UInt j = 0; j < YSE::STANDARD_BUFFERSIZE; ++j, ++frame) {
+        CHECK(out[j] == doctest::Approx(src[static_cast<size_t>(frame)]).epsilon(0.0001));
+      }
+      breathe(b);
+    }
+  }
+
+  // 6. Seeking a streaming sound to an absolute frame re-primes the stream from
+  //    that frame (issue #217). Before the fix, setFilePos assigned an absolute
+  //    frame to the buffer-local filePtr and never re-seeked the handle, so
+  //    playback landed somewhere in the resident 1 s window instead of the target.
+  TEST_CASE("streaming: seek re-primes the stream from the requested frame") {
+    if (!TestHelpers::engineInit()) return;
+
+    std::vector<float> src;
+    std::string path = writeWav(3 * S, src); // long enough to seek well past buffer 0
+    soundFile f(path);
+    f.create(true);
+    REQUIRE(waitReady(f));
+
+    Flt pos = 0.f, vol = 1.f;
+    SOUND_STATUS intent = YSE::SS_PLAYING_FULL_VOLUME;
+    std::vector<float> out;
+
+    // Play a little from the start so we are mid-stream, then seek forward to an
+    // absolute frame that lies beyond the initially-primed front buffer.
+    for (int b = 0; b < 4; ++b) {
+      readBlock(f, pos, false, intent, vol, out);
+      breathe(b);
+    }
+
+    const long target = 2 * S + 5000; // absolute frame, past buffer 0's window
+    f.seek(target, false);
+    // Mirror the audio thread: filePtr (pos) resets to the new front buffer start.
+    pos = 0.f;
+    vol = 1.f;
+    intent = YSE::SS_PLAYING_FULL_VOLUME;
+
+    // Playback must resume with the samples at `target`, sample-accurate.
+    long frame = target;
+    const long verifyTo = target + 3 * static_cast<long>(YSE::STANDARD_BUFFERSIZE);
+    for (int b = 0; frame < verifyTo; ++b) {
+      bool stopped = readBlock(f, pos, false, intent, vol, out);
+      REQUIRE_FALSE(stopped);
+      for (UInt j = 0; j < YSE::STANDARD_BUFFERSIZE && frame < verifyTo; ++j, ++frame) {
+        CHECK(out[j] == doctest::Approx(src[static_cast<size_t>(frame)]).epsilon(0.0001));
+      }
+      breathe(b);
+    }
+  }
+
+  // 7. Seeking backward (to a frame before the current window) also re-seeks the
+  //    handle, and a subsequent stop/reset still returns to frame 0 — i.e. the
+  //    seek target does not leak into the reset path (issue #217).
+  TEST_CASE("streaming: seek backward then reset returns to frame 0") {
+    if (!TestHelpers::engineInit()) return;
+
+    std::vector<float> src;
+    std::string path = writeWav(3 * S, src);
+    soundFile f(path);
+    f.create(true);
+    REQUIRE(waitReady(f));
+
+    Flt pos = 0.f, vol = 1.f;
+    SOUND_STATUS intent = YSE::SS_PLAYING_FULL_VOLUME;
+    std::vector<float> out;
+
+    // Advance past the first buffer boundary.
+    for (int b = 0; b < 400; ++b) {
+      readBlock(f, pos, false, intent, vol, out);
+      breathe(b);
+    }
+
+    // Seek back to a small non-zero frame and verify the samples there.
+    const long target = 1234;
+    f.seek(target, false);
+    pos = 0.f;
+    vol = 1.f;
+    intent = YSE::SS_PLAYING_FULL_VOLUME;
+    long frame = target;
+    for (int b = 0; b < 8; ++b) {
+      bool stopped = readBlock(f, pos, false, intent, vol, out);
+      REQUIRE_FALSE(stopped);
+      for (UInt j = 0; j < YSE::STANDARD_BUFFERSIZE; ++j, ++frame) {
+        CHECK(out[j] == doctest::Approx(src[static_cast<size_t>(frame)]).epsilon(0.0001));
+      }
+      breathe(b);
+    }
+
+    // A stop/reset must still return to frame 0 (seek target cleared by reset()).
+    f.reset();
+    pos = 0.f;
+    vol = 1.f;
+    intent = YSE::SS_PLAYING_FULL_VOLUME;
+    frame = 0;
+    for (int b = 0; b < 8; ++b) {
+      bool stopped = readBlock(f, pos, false, intent, vol, out);
+      REQUIRE_FALSE(stopped);
+      for (UInt j = 0; j < YSE::STANDARD_BUFFERSIZE; ++j, ++frame) {
+        CHECK(out[j] == doctest::Approx(src[static_cast<size_t>(frame)]).epsilon(0.0001));
+      }
+      breathe(b);
+    }
+  }
+
+  // 5. Destroying a streaming soundFile while a refill is in flight must not crash
+  //    or touch freed memory (the dtor joins the refill job). Run under ASan/TSan
+  //    in CI for the real teardown-race coverage.
+  TEST_CASE("streaming: destruction with a refill in flight is clean") {
+    if (!TestHelpers::engineInit()) return;
+
+    std::vector<float> src;
+    std::string path = writeWav(3 * S, src);
+
+    for (int iter = 0; iter < 8; ++iter) {
+      soundFile f(path);
+      f.create(true);
+      REQUIRE(waitReady(f)); // load finished; only the back-buffer refill may be in flight
+      Flt pos = 0.f, vol = 1.f;
+      SOUND_STATUS intent = YSE::SS_PLAYING_FULL_VOLUME;
+      std::vector<YSE::DSP::buffer> fb(1);
+      // One read schedules the buffer-1 refill; drop the file immediately so the
+      // refill is very likely still queued/running when ~soundFile joins it.
+      f.read(fb, pos, YSE::STANDARD_BUFFERSIZE, 1.0f, false, intent, vol);
+    } // ~soundFile joins the refill job before freeing the handle/buffers
+
+    CHECK(true); // reaching here without a crash / ASan report is the assertion
+  }
+
+  // 8. A streaming sound owns its per-impl soundFile directly (allocated with
+  //    `new` in implementationObject::create). Before issue #218,
+  //    ~implementationObject never deleted that owned file, so every streaming
+  //    sound leaked its soundFile (handle + two ~172 KB stream buffers) for the
+  //    process lifetime. Drive one streaming sound through the full public-API
+  //    lifecycle and assert the live-soundFile count returns to its baseline
+  //    once the slow-pool deleteJob has torn the impl down. Without the fix the
+  //    count stays at baseline + 1 and the final CHECK fails.
+  TEST_CASE("streaming: per-impl soundFile is freed on teardown (issue #218)") {
+    if (!TestHelpers::engineInit()) return;
+
+    std::vector<float> src;
+    std::string path = writeWav(2 * S, src);
+
+    const long baseline = soundFile::liveInstances();
+
+    {
+      YSE::sound s;
+      s.create(path.c_str(), nullptr, false, 1.0f, /*streaming*/ true);
+      // create() allocates the owned streaming soundFile synchronously, so one
+      // extra instance is live immediately.
+      CHECK(soundFile::liveInstances() == baseline + 1);
+      // Pump the manager so the impl is set up and promoted to inUse (the audio
+      // thread is paused under engineInit, so the test thread drives update()).
+      for (int i = 0; i < 15; ++i) {
+        YSE::INTERNAL::Time().update();
+        YSE::SOUND::Manager().update();
+        std::this_thread::sleep_for(std::chrono::milliseconds(3));
+      }
+      CHECK(soundFile::liveInstances() == baseline + 1);
+    } // ~sound() nulls the head; the next sync() releases the impl.
+
+    // Pump until the slow-pool deleteJob has run ~implementationObject (which,
+    // with the fix, deletes the owned streaming file). Poll with a deadline so
+    // the test doesn't depend on an exact iteration count for async teardown.
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+    while (std::chrono::steady_clock::now() < deadline && soundFile::liveInstances() != baseline) {
+      YSE::INTERNAL::Time().update();
+      YSE::SOUND::Manager().update();
+      std::this_thread::sleep_for(std::chrono::milliseconds(3));
+    }
+
+    CHECK(soundFile::liveInstances() == baseline);
+  }
+
+  // 9. Issue #283 regression: a stop (reset) that lands after an in-flight fill
+  //    captured its generation but before that fill consumed the reset flag must
+  //    not be swallowed. The stale fill's output is (rightly) discarded, so the
+  //    reset must be re-armed for the accepted fill — otherwise the restart
+  //    resumes STREAM_BUFFERSIZE frames late. Reproduced deterministically with
+  //    an in-memory backend; no engine or slow pool involved.
+  TEST_CASE("streaming: reset consumed by a stale-generation fill is re-armed (issue #283)") {
+    staleGenFile f;
+
+    // F1 starts; the audio thread's stop lands at the race point.
+    f.onFillStart = [&f] { f.reset(); };
+    f.runFill(); // F1
+    CHECK(f.seeks == 1); // F1 consumed the reset and seeked to 0...
+    CHECK(f.lastFillStart == 0);
+    REQUIRE(f.backIsStale()); // ...but its output is stale-tagged
+    f.discardStaleBack(); // and streamSwap discards it
+
+    // The reset must have been re-armed so the accepted fill F2 seeks again.
+    CHECK(f.needsReset()); // without the fix: false (F1 swallowed the reset)
+    f.runFill(); // F2 — the fill whose output is accepted
+    CHECK(f.lastFillStart == 0); // without the fix: S (wrong file position)
+    CHECK_FALSE(f.backIsStale());
+  }
+
+  // 10. Same interleaving with a non-zero seek target (the issue-#217 path):
+  //     the re-armed reset must land the accepted fill on the requested frame,
+  //     since _seekTarget is not consumed by the reset exchange.
+  TEST_CASE("streaming: seek consumed by a stale-generation fill is re-armed (issue #283)") {
+    staleGenFile f;
+
+    const Long target = 4321;
+    f.onFillStart = [&f, target] { f.seek(target, false); };
+    f.runFill(); // F1 — consumes the seek, output stale-tagged
+    CHECK(f.lastFillStart == target);
+    REQUIRE(f.backIsStale());
+    f.discardStaleBack();
+
+    CHECK(f.needsReset()); // re-armed; _seekTarget still holds `target`
+    f.runFill(); // F2
+    CHECK(f.lastFillStart == target); // without the fix: target + S
+    CHECK_FALSE(f.backIsStale());
+  }
+
+} // TEST_SUITE("sound")
+
+#endif // LIBSOUNDFILE_BACKEND

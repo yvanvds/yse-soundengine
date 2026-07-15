@@ -75,3 +75,12 @@ DSP base
 
 .. doxygenfile:: dsp/dspObject.hpp
    :project: libYSE
+
+Per-channel state helper
+------------------------
+
+A fan-out helper for module authors: hold one ``State`` struct per channel so
+a multichannel ``dspObject`` keeps each channel's history independent.
+
+.. doxygenfile:: dsp/perChannel.hpp
+   :project: libYSE

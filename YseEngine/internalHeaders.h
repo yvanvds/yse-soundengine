@@ -8,7 +8,7 @@
   ==============================================================================
 */
 
-#include<assert.h>
+#include <assert.h>
 
 #include "yse.hpp"
 
@@ -25,6 +25,7 @@
 #include "sound/soundMessage.h"
 
 #include "synth/synthImplementation.h"
+#include "synth/synthInterface.hpp"
 #include "synth/synthManager.h"
 #include "synth/synthMessage.h"
 
@@ -39,6 +40,12 @@
 #include "music/motif/motifImplementation.h"
 #include "music/motif/motifManager.h"
 #include "music/motif/motifMessage.h"
+
+#include "clock/domainClock.h"
+#include "clock/clockManager.h"
+
+#include "clip/clipTransport.h"
+#include "clip/clipManager.h"
 
 #include "midi/midiDeviceManager.h"
 
@@ -58,6 +65,11 @@
 #include "implementations/logImplementation.h"
 
 #include "internal/global.h"
+#include "internal/namedBus.h"
+
+#if YSE_ENABLE_PYTHON
+#include "python/scriptRuntime.h"
+#endif
 #include "internal/reverbDSP.h"
 #include "internal/settings.h"
 
@@ -75,5 +87,3 @@
 #include "dsp/math_functions.h"
 
 #include "internal/AudioTest.h"
-
-

@@ -1,0 +1,6 @@
+// Velocity crossfade layers. The two regions overlap over velocity 60..80,
+// where both sound as layers (spec §2). xf_velcurve defaults to power;
+// region 2 selects the gain curve.
+<global> pitch_keycenter=60
+<region> sample=*silence lovel=1  hivel=80  xfin_lovel=1  xfin_hivel=20 xfout_lovel=60 xfout_hivel=80
+<region> sample=*silence lovel=60 hivel=127 xfin_lovel=60 xfin_hivel=80 xf_velcurve=gain

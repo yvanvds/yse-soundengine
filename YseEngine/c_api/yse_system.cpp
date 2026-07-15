@@ -30,7 +30,7 @@ namespace {
     }
     return src.size();
   }
-}
+} // namespace
 
 extern "C" {
 
@@ -142,6 +142,68 @@ YSE_C_API int yse_system_get_max_sounds(YseSystem* sys) {
   return to_cpp(sys)->maxSounds();
 }
 
+YSE_C_API int yse_system_create_clock(YseSystem* sys, const char* name, float initial_tempo) {
+  if (!sys || !name) return 0;
+  try {
+    return to_cpp(sys)->createClock(name, initial_tempo) ? 1 : 0;
+  } catch (const std::exception& e) {
+    yse_c::set_last_error(e.what());
+    return 0;
+  } catch (...) {
+    yse_c::set_last_error("unknown C++ exception in yse_system_create_clock");
+    return 0;
+  }
+}
+
+YSE_C_API void yse_system_destroy_clock(YseSystem* sys, const char* name) {
+  if (!sys || !name) return;
+  try {
+    to_cpp(sys)->destroyClock(name);
+  } catch (...) {
+    yse_c::set_last_error("unknown C++ exception in yse_system_destroy_clock");
+  }
+}
+
+YSE_C_API int yse_system_clock_exists(YseSystem* sys, const char* name) {
+  if (!sys || !name) return 0;
+  try {
+    return to_cpp(sys)->clockExists(name) ? 1 : 0;
+  } catch (...) {
+    yse_c::set_last_error("unknown C++ exception in yse_system_clock_exists");
+    return 0;
+  }
+}
+
+YSE_C_API void yse_system_set_tempo(YseSystem* sys, const char* name, float bpm,
+                                    float ramp_seconds) {
+  if (!sys || !name) return;
+  try {
+    to_cpp(sys)->setTempo(name, bpm, ramp_seconds);
+  } catch (...) {
+    yse_c::set_last_error("unknown C++ exception in yse_system_set_tempo");
+  }
+}
+
+YSE_C_API double yse_system_beat_position(YseSystem* sys, const char* name) {
+  if (!sys || !name) return 0.0;
+  try {
+    return to_cpp(sys)->beatPosition(name);
+  } catch (...) {
+    yse_c::set_last_error("unknown C++ exception in yse_system_beat_position");
+    return 0.0;
+  }
+}
+
+YSE_C_API float yse_system_current_tempo(YseSystem* sys, const char* name) {
+  if (!sys || !name) return 0.0f;
+  try {
+    return to_cpp(sys)->currentTempo(name);
+  } catch (...) {
+    yse_c::set_last_error("unknown C++ exception in yse_system_current_tempo");
+    return 0.0f;
+  }
+}
+
 YSE_C_API void yse_system_audio_test(YseSystem* sys, int on) {
   if (!sys) return;
   to_cpp(sys)->AudioTest(on != 0);
@@ -174,7 +236,8 @@ YSE_C_API YseDevice* yse_system_get_device(YseSystem* sys, unsigned int idx) {
   }
 }
 
-YSE_C_API YseStatus yse_system_open_device(YseSystem* sys, const YseDeviceSetup* setup, YseChannelType layout) {
+YSE_C_API YseStatus yse_system_open_device(YseSystem* sys, const YseDeviceSetup* setup,
+                                           YseChannelType layout) {
   if (!sys) return YSE_ERR_INVALID_HANDLE;
   if (!setup) return YSE_ERR_INVALID_ARGUMENT;
   try {
@@ -195,12 +258,18 @@ YSE_C_API void yse_system_close_current_device(YseSystem* sys) {
 }
 
 YSE_C_API size_t yse_system_default_device(YseSystem* sys, char* buf, size_t cap) {
-  if (!sys) { if (buf && cap > 0) buf[0] = '\0'; return 0; }
+  if (!sys) {
+    if (buf && cap > 0) buf[0] = '\0';
+    return 0;
+  }
   return copy_string(to_cpp(sys)->getDefaultDevice(), buf, cap);
 }
 
 YSE_C_API size_t yse_system_default_host(YseSystem* sys, char* buf, size_t cap) {
-  if (!sys) { if (buf && cap > 0) buf[0] = '\0'; return 0; }
+  if (!sys) {
+    if (buf && cap > 0) buf[0] = '\0';
+    return 0;
+  }
   return copy_string(to_cpp(sys)->getDefaultHost(), buf, cap);
 }
 
@@ -211,7 +280,8 @@ YSE_C_API unsigned int yse_system_num_midi_in_devices(YseSystem* sys) {
   if (!sys) return 0;
   return to_cpp(sys)->getNumMidiInDevices();
 #else
-  (void)sys; return 0;
+  (void)sys;
+  return 0;
 #endif
 }
 
@@ -220,29 +290,46 @@ YSE_C_API unsigned int yse_system_num_midi_out_devices(YseSystem* sys) {
   if (!sys) return 0;
   return to_cpp(sys)->getNumMidiOutDevices();
 #else
-  (void)sys; return 0;
+  (void)sys;
+  return 0;
 #endif
 }
 
-YSE_C_API size_t yse_system_midi_in_device_name(YseSystem* sys, unsigned int id, char* buf, size_t cap) {
+YSE_C_API size_t yse_system_midi_in_device_name(YseSystem* sys, unsigned int id, char* buf,
+                                                size_t cap) {
   if (buf && cap > 0) buf[0] = '\0';
 #if YSE_ENABLE_MIDI_DEVICE
   if (!sys) return 0;
-  try { return copy_string(to_cpp(sys)->getMidiInDeviceName(id), buf, cap); }
-  catch (const std::exception&) { return 0; }
+  try {
+    return copy_string(to_cpp(sys)->getMidiInDeviceName(id), buf, cap);
+  } catch (const std::exception&) {
+    return 0;
+  }
 #else
-  (void)sys; (void)id; (void)buf; (void)cap; return 0;
+  (void)sys;
+  (void)id;
+  (void)buf;
+  (void)cap;
+  return 0;
 #endif
 }
 
-YSE_C_API size_t yse_system_midi_out_device_name(YseSystem* sys, unsigned int id, char* buf, size_t cap) {
+YSE_C_API size_t yse_system_midi_out_device_name(YseSystem* sys, unsigned int id, char* buf,
+                                                 size_t cap) {
   if (buf && cap > 0) buf[0] = '\0';
 #if YSE_ENABLE_MIDI_DEVICE
   if (!sys) return 0;
-  try { return copy_string(to_cpp(sys)->getMidiOutDeviceName(id), buf, cap); }
-  catch (const std::exception&) { return 0; }
+  try {
+    return copy_string(to_cpp(sys)->getMidiOutDeviceName(id), buf, cap);
+  } catch (const std::exception&) {
+    return 0;
+  }
 #else
-  (void)sys; (void)id; (void)buf; (void)cap; return 0;
+  (void)sys;
+  (void)id;
+  (void)buf;
+  (void)cap;
+  return 0;
 #endif
 }
 

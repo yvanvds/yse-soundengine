@@ -10,7 +10,7 @@
 
 #include "../../internalHeaders.h"
 
-YSE::SCALE::managerObject & YSE::SCALE::Manager() {
+YSE::SCALE::managerObject& YSE::SCALE::Manager() {
   static managerObject m;
   return m;
 }
@@ -26,15 +26,14 @@ void YSE::SCALE::managerObject::update() {
   for (auto i = implementations.begin(); i != implementations.end();) {
     if (!i->update()) {
       i = implementations.erase_after(previous);
-    }
-    else {
+    } else {
       previous = i;
       ++i;
     }
   }
 }
 
-YSE::SCALE::implementationObject * YSE::SCALE::managerObject::addImplementation(scale * head) {
+YSE::SCALE::implementationObject* YSE::SCALE::managerObject::addImplementation(scale* head) {
   implementations.emplace_front(head);
   return &implementations.front();
 }

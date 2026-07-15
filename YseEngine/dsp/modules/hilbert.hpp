@@ -41,12 +41,10 @@ namespace YSE {
        *  @param out1 In-phase output.
        *  @param out2 Quadrature output (90° lagged from ``out1``).
        */
-      void operator()(YSE::DSP::buffer & in, YSE::DSP::buffer & out1, YSE::DSP::buffer & out2);
+      void operator()(YSE::DSP::buffer& in, YSE::DSP::buffer& out1, YSE::DSP::buffer& out2);
     };
 
-  }
-}
+  } // namespace DSP
+} // namespace YSE
 
-
-
-#endif  // HILBERT_H_INCLUDED
+#endif // HILBERT_H_INCLUDED

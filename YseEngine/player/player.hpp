@@ -39,11 +39,9 @@ namespace YSE {
       PLAY_MOTIF,
       MOTIF_FITS_SCALE,
     };
-  }
+  } // namespace PLAYER
   /// @endcond
 
-}
+} // namespace YSE
 
-
-
-#endif  // PLAYER_HPP_INCLUDED
+#endif // PLAYER_HPP_INCLUDED

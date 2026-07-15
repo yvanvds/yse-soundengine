@@ -41,6 +41,18 @@ option(YSE_BUILD_C_API
 option(YSE_BUILD_TOOLS
   "Build developer tools (e.g. dump_patcher_meta — regenerates documentation/source/_data/patcher_objects.json). OFF in CI/release builds; turned on automatically by `python yse.py dump-patcher-meta`."
   OFF)
+# YSE_ENABLE_PYTHON: embed a CPython interpreter for the live-coding DSL
+# (epic #119, infra issue #124). Desktop only — Android is explicitly
+# unsupported and fails fast below. OFF by default: when OFF, no Python
+# headers, symbols, or runtime cost enter the build (byte-for-byte equivalent
+# to a build without this option). Sourcing/isolation details live in
+# cmake/YsePython.cmake; the interpreter lifecycle lives in YseEngine/python/.
+option(YSE_ENABLE_PYTHON
+  "Embed CPython interpreter for the live-coding DSL (desktop only)"
+  OFF)
+if(YSE_ENABLE_PYTHON AND ANDROID)
+  message(FATAL_ERROR "YSE_ENABLE_PYTHON is not supported on Android.")
+endif()
 # YSE_ENABLE_MIDI_DEVICE: gate the RtMidi-backed MIDI device backend. Default
 # ON on Windows/Linux desktop (preserves the prior unconditional behavior),
 # OFF on Android (RtMidi isn't built there anyway) and Mac (already excluded
@@ -60,8 +72,20 @@ unset(_yse_midi_device_default)
 # Export compile_commands.json for SonarCloud's C++ analyser and clangd.
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# ── Optional content pack (issue #179) ────────────────────────────────────────
+# Defines YSE_CONTENT_PACK_DIR and the opt-in fetch/install path. With its
+# options OFF (the default) this is a no-op — nothing is baked into the library.
+include(${CMAKE_SOURCE_DIR}/cmake/YseContentPack.cmake)
+
 # ── Dependencies ──────────────────────────────────────────────────────────────
 find_package(Threads REQUIRED)
+
+# Embedded CPython (issue #124). Resolved here so the imported target and
+# YSE_PYTHON_HOME are visible to the YseEngine/ and Tests/ subdirectories. The
+# Android case has already been rejected with a FATAL_ERROR above.
+if(YSE_ENABLE_PYTHON)
+  include(${CMAKE_SOURCE_DIR}/cmake/YsePython.cmake)
+endif()
 
 if(ANDROID)
   # 16 KB page size compatibility — Pixel 8/9 and Android 15 QPR1+ devices may

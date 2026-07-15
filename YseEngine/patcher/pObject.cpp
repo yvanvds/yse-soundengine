@@ -1,6 +1,7 @@
 
 #include "pObject.h"
 #include "pHandle.hpp"
+#include "patcherImplementation.h"
 #include "../headers/enums.hpp"
 #include "../implementations/logImplementation.h"
 
@@ -11,14 +12,28 @@ unsigned int pObject::CreateID() {
   return LastPatcherObjectID++;
 }
 
-pObject::pObject(bool isDSPObject, pObject * parent) 
-  : parent(parent)
-  , DSP(isDSPObject)
-  , ID(CreateID())
-{}
+// ``parent`` is the owning patcherImplementation by construction (set via
+// SetParent when the object is added). null for a standalone object or the
+// patcher itself, in which case there is no snapshot to consult.
+const YSE::PATCHER::GraphState* pObject::CurrentBlockGraph() const {
+  if (parent == nullptr) return nullptr;
+  return static_cast<patcherImplementation*>(parent)->CurrentBlockGraph();
+}
+
+void pObject::UnwireFromPeers() {
+  for (unsigned int i = 0; i < inputs.size(); i++) {
+    inputs[i].UnwireFromPeers();
+  }
+  for (unsigned int i = 0; i < outputs.size(); i++) {
+    outputs[i].UnwireFromPeers();
+  }
+}
+
+pObject::pObject(bool isDSPObject, pObject* parent)
+  : parent(parent), DSP(isDSPObject), ID(CreateID()) {}
 
 bool pObject::IsDSPStartPoint() {
-  if(!DSP) return false;
+  if (!DSP) return false;
 
   for (unsigned int i = 0; i < inputs.size(); i++) {
     if (inputs[i].HasActiveDSPConnection()) return false;
@@ -44,24 +59,23 @@ void pObject::CalculateIfReady(YSE::THREAD thread) {
   Calculate(thread);
 }
 
-void pObject::SetParent(pObject * parent) {
+void pObject::SetParent(pObject* parent) {
   this->parent = parent;
 }
 
-void pObject::SetParams(const std::string & args) {
+void pObject::SetParams(const std::string& args) {
   parms.Set(args);
 }
 
-void pObject::ConnectInlet(outlet * from, int inlet)
-{
-  inputs[inlet].Connect(from);
+bool pObject::ConnectInlet(outlet* from, int inlet) {
+  return inputs[inlet].Connect(from);
 }
 
-void pObject::DisconnectInlet(outlet * from, int inlet) {
+void pObject::DisconnectInlet(outlet* from, int inlet) {
   inputs[inlet].Disconnect(from);
 }
 
-void pObject::ConnectOutlet(inlet * dest, int outlet) {
+void pObject::ConnectOutlet(inlet* dest, int outlet) {
   outputs[outlet].Connect(dest);
 }
 
@@ -71,19 +85,17 @@ YSE::OUT_TYPE pObject::GetOutputType(unsigned int output) const {
   return outputs[output].Type();
 }
 
-
-YSE::PATCHER::inlet * pObject::GetInlet(int number) {
-	if (static_cast<size_t>(number) >= inputs.size()) return nullptr;
-	return &(inputs[number]);
+YSE::PATCHER::inlet* pObject::GetInlet(int number) {
+  if (static_cast<size_t>(number) >= inputs.size()) return nullptr;
+  return &(inputs[number]);
 }
 
-YSE::PATCHER::outlet * pObject::GetOutlet(int number) {
-	if (static_cast<size_t>(number) >= outputs.size()) return nullptr;
-	return &(outputs[number]);
+YSE::PATCHER::outlet* pObject::GetOutlet(int number) {
+  if (static_cast<size_t>(number) >= outputs.size()) return nullptr;
+  return &(outputs[number]);
 }
 
-
-void pObject::DumpJson(nlohmann::json::value_type & json) {
+void pObject::DumpJson(nlohmann::json::value_type& json) {
   json["type"] = Type();
   json["ID"] = ID;
   json["parms"] = parms.Get();
@@ -92,12 +104,12 @@ void pObject::DumpJson(nlohmann::json::value_type & json) {
     outputs[i].DumpJSON(json["outputs"]["output " + std::to_string(i)]);
   }
 
-  for (auto const & x : guiProperties) {
+  for (auto const& x : guiProperties) {
     json["gui"][x.first] = x.second;
   }
 }
 
-const std::string & pObject::GetParams() {
+const std::string& pObject::GetParams() {
   return parms.Get();
 }
 
@@ -113,7 +125,7 @@ unsigned int pObject::GetConnectionTargetInlet(unsigned int outlet, unsigned int
   return outputs[outlet].GetTargetInlet(connection);
 }
 
-std::string pObject::GetGuiProperty(const std::string & key) {
+std::string pObject::GetGuiProperty(const std::string& key) {
   auto pos = guiProperties.find(key);
   if (pos == guiProperties.end()) {
     return "";
@@ -121,6 +133,6 @@ std::string pObject::GetGuiProperty(const std::string & key) {
   return pos->second;
 }
 
-void pObject::SetGuiProperty(const std::string & key, const std::string & value) {
+void pObject::SetGuiProperty(const std::string& key, const std::string& value) {
   guiProperties[key] = value;
 }

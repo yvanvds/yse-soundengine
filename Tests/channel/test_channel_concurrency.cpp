@@ -20,10 +20,13 @@
 #include <doctest/doctest.h>
 #include <atomic>
 #include <chrono>
+#include <cstring>
+#include <new>
 #include <string>
 #include <thread>
 #include "yse.hpp"
 #include "channel/channelInterface.hpp"
+#include "channel/channelImplementation.h"
 #include "channel/channelManager.h"
 #include "sound/soundManager.h"
 #include "internal/time.h"
@@ -31,67 +34,97 @@
 
 namespace {
 
-// Drain CHANNEL + SOUND managers — channels link with sounds and the
-// slow-pool deleteJob is shared, so both managers need ticking.
-void drainChannels(int iterations = 8, int sleepMs = 2) {
+  // Drain CHANNEL + SOUND managers — channels link with sounds and the
+  // slow-pool deleteJob is shared, so both managers need ticking.
+  void drainChannels(int iterations = 8, int sleepMs = 2) {
     for (int i = 0; i < iterations; ++i) {
-        YSE::INTERNAL::Time().update();
-        YSE::SOUND::Manager().update();
-        YSE::CHANNEL::Manager().update();
-        if (sleepMs > 0) std::this_thread::sleep_for(std::chrono::milliseconds(sleepMs));
+      YSE::INTERNAL::Time().update();
+      YSE::SOUND::Manager().update();
+      YSE::CHANNEL::Manager().update();
+      if (sleepMs > 0) std::this_thread::sleep_for(std::chrono::milliseconds(sleepMs));
     }
-}
+  }
 
 } // namespace
 
 TEST_SUITE("channel") {
 
-// ─── Single-thread churn: many channel create→destroy cycles ─────────────────
+  // ─── Regression: a freshly constructed impl is never seen as deletable ───────
 
-TEST_CASE("channel concurrency: single-thread create/destroy churn does not crash") {
+  TEST_CASE("channel concurrency: fresh impl status is OBJECT_CONSTRUCTED "
+            "regardless of prior memory (issue #336)") {
+    // Root cause of the flaky channel two-thread churn hang/segfault: the
+    // channel implementationObject ctor left `objectStatus` (a C++17
+    // std::atomic, whose default ctor does NOT zero the value) uninitialised.
+    // channel::create() emplaces the impl into the mutex-guarded
+    // `implementations` list (addImplementation) and only AFTERWARDS calls
+    // Manager().setup(), which sets OBJECT_CREATED. During that window the
+    // slow-pool deleteJob runs `implementations.remove_if(canBeDeleted)` with
+    // canBeDeleted == (objectStatus == OBJECT_DELETE). If the recycled heap slot
+    // happened to hold the OBJECT_DELETE bit-pattern, the job freed the node the
+    // worker thread was still constructing — a heap-layout-dependent UAF (crash)
+    // or corrupted intrusive list (hang). SOUND/REVERB already initialised
+    // objectStatus in their ctors; CHANNEL was the outlier.
+    //
+    // Poison the storage, then placement-construct an impl over it: with the ctor
+    // fix objectStatus reads OBJECT_CONSTRUCTED; without it the poison survives
+    // and the impl presents as some other (possibly deletable) state. This is
+    // deterministic — it fails on the unpatched ctor and passes with the fix.
+    alignas(YSE::CHANNEL::implementationObject) unsigned char
+        storage[sizeof(YSE::CHANNEL::implementationObject)];
+    std::memset(storage, 0xFF, sizeof(storage));
+    auto* impl = new (storage) YSE::CHANNEL::implementationObject(nullptr);
+    CHECK(impl->getStatus() == YSE::OBJECT_CONSTRUCTED);
+    CHECK_FALSE(YSE::CHANNEL::implementationObject::canBeDeleted(*impl));
+    impl->~implementationObject();
+  }
+
+  // ─── Single-thread churn: many channel create→destroy cycles ─────────────────
+
+  TEST_CASE("channel concurrency: single-thread create/destroy churn does not crash") {
     if (!TestHelpers::engineInit()) return;
 
     constexpr int N = 200;
     for (int i = 0; i < N; ++i) {
-        YSE::channel c;
-        c.create(("ch_" + std::to_string(i)).c_str(), YSE::ChannelFX());
-        if ((i & 0x0f) == 0) drainChannels(2);
+      YSE::channel c;
+      c.create(("ch_" + std::to_string(i)).c_str(), YSE::ChannelFX());
+      if ((i & 0x0f) == 0) drainChannels(2);
     } // ~channel at end of each iteration releases impl through OBJECT_RELEASE.
 
     drainChannels(40);
     CHECK(true);
-}
+  }
 
-// ─── Two-thread churn: worker creates/destroys while test thread updates ─────
+  // ─── Two-thread churn: worker creates/destroys while test thread updates ─────
 
-TEST_CASE("channel concurrency: two-thread create/destroy churn does not crash") {
+  TEST_CASE("channel concurrency: two-thread create/destroy churn does not crash") {
     if (!TestHelpers::engineInit()) return;
 
     std::atomic<bool> workerDone{false};
     constexpr int N = 100;
 
     std::thread worker([&]() {
-        for (int i = 0; i < N; ++i) {
-            YSE::channel c;
-            c.create(("worker_ch_" + std::to_string(i)).c_str(), YSE::ChannelMusic());
-            std::this_thread::sleep_for(std::chrono::microseconds(50));
-        }
-        workerDone.store(true, std::memory_order_release);
+      for (int i = 0; i < N; ++i) {
+        YSE::channel c;
+        c.create(("worker_ch_" + std::to_string(i)).c_str(), YSE::ChannelMusic());
+        std::this_thread::sleep_for(std::chrono::microseconds(50));
+      }
+      workerDone.store(true, std::memory_order_release);
     });
 
     int safety = 5000;
     while (!workerDone.load(std::memory_order_acquire) && --safety > 0) {
-        drainChannels(2, 0);
+      drainChannels(2, 0);
     }
     worker.join();
 
     drainChannels(40);
     CHECK(true);
-}
+  }
 
-// ─── Nested-release stress: childrenToParent has actual reparenting to do ────
+  // ─── Nested-release stress: childrenToParent has actual reparenting to do ────
 
-TEST_CASE("channel concurrency: nested channel release reparents children safely") {
+  TEST_CASE("channel concurrency: nested channel release reparents children safely") {
     if (!TestHelpers::engineInit()) return;
 
     // Create N "branch" channels each with a couple of leaf subchannels,
@@ -101,23 +134,23 @@ TEST_CASE("channel concurrency: nested channel release reparents children safely
     // for deletion.
     constexpr int N = 50;
     {
-        YSE::channel branches[N];
-        YSE::channel leavesA[N];
-        YSE::channel leavesB[N];
-        for (int i = 0; i < N; ++i) {
-            branches[i].create(("branch_" + std::to_string(i)).c_str(), YSE::ChannelMusic());
-            leavesA[i].create(("leafA_" + std::to_string(i)).c_str(), branches[i]);
-            leavesB[i].create(("leafB_" + std::to_string(i)).c_str(), branches[i]);
-        }
-        drainChannels(10);
-        // Scope exit: ~channel triggers OBJECT_RELEASE in reverse order
-        // (leavesB, leavesA, branches). Audio-thread's update will see
-        // each branch in OBJECT_RELEASE *after* the leaves have already
-        // been reparented away. Either ordering is fine — the
-        // childrenToParent() path is exercised in both.
+      YSE::channel branches[N];
+      YSE::channel leavesA[N];
+      YSE::channel leavesB[N];
+      for (int i = 0; i < N; ++i) {
+        branches[i].create(("branch_" + std::to_string(i)).c_str(), YSE::ChannelMusic());
+        leavesA[i].create(("leafA_" + std::to_string(i)).c_str(), branches[i]);
+        leavesB[i].create(("leafB_" + std::to_string(i)).c_str(), branches[i]);
+      }
+      drainChannels(10);
+      // Scope exit: ~channel triggers OBJECT_RELEASE in reverse order
+      // (leavesB, leavesA, branches). Audio-thread's update will see
+      // each branch in OBJECT_RELEASE *after* the leaves have already
+      // been reparented away. Either ordering is fine — the
+      // childrenToParent() path is exercised in both.
     }
     drainChannels(60);
     CHECK(true);
-}
+  }
 
 } // TEST_SUITE("channel")

@@ -2,225 +2,201 @@
   ==============================================================================
 
     synthInterface.cpp
-    Created: 6 Jul 2014 10:02:00pm
-    Author:  yvan
+    Public YSE::synth interface — a thin chainable pimpl over the
+    implementationObject. See synthInterface.hpp and docs/design/synth_core.md
+    §12.
 
   ==============================================================================
 */
 
-//#include "synthInterface.hpp"
-//#include "synthManager.h"
-//#include "../internalHeaders.h"
-//#include "../music/note.hpp"
-//
-//YSE::SYNTH::samplerConfig::samplerConfig()
-//: _channel(0) 
-//, _rootNote(60)
-//, _lowestNote(0)
-//, _highestNote(128) 
-//, _attackTime(0.f)
-//, _releaseTime(0.1f)
-//, _maxLength(10.f) {
-//
-//}
-//
-//YSE::SYNTH::samplerConfig & YSE::SYNTH::samplerConfig::name(const char * name) {
-//  _name = name;
-//  return *this;
-//}
-//
-//YSE::SYNTH::samplerConfig & YSE::SYNTH::samplerConfig::file(const char * file) {
-//  _file = file;
-//  return *this;
-//}
-//
-//YSE::SYNTH::samplerConfig & YSE::SYNTH::samplerConfig::channel(U8 channel) {
-//  _channel = channel;
-//  return *this;
-//}
-//
-//YSE::SYNTH::samplerConfig & YSE::SYNTH::samplerConfig::root(U8 rootNote) {
-//  _rootNote = rootNote;
-//  return *this;
-//}
-//
-//YSE::SYNTH::samplerConfig & YSE::SYNTH::samplerConfig::range(U8 low, U8 high) {
-//  _lowestNote = low;
-//  _highestNote = high;
-//  return *this;
-//}
-//
-//YSE::SYNTH::samplerConfig & YSE::SYNTH::samplerConfig::envelope(Flt attack, Flt release, Flt maxLength) {
-//  _attackTime = attack;
-//  _releaseTime = release;
-//  _maxLength = maxLength;
-//  return *this;
-//}
-//
-//YSE::SYNTH::interfaceObject::interfaceObject()
-//: pimpl(nullptr), numVoices(0)
-//{
-//}
-//
-//YSE::SYNTH::interfaceObject::~interfaceObject() {
-//  if (pimpl != nullptr) {
-//    pimpl->removeInterface();
-//    pimpl = nullptr;
-//  }
-//}
-//
-//YSE::SYNTH::interfaceObject & YSE::SYNTH::interfaceObject::create() {
-//  assert(pimpl == nullptr);
-//  pimpl = SYNTH::Manager().addImplementation(this);
-//  return *this;
-//}
-//
-//YSE::SYNTH::interfaceObject & YSE::SYNTH::interfaceObject::noteOn(int channel, int noteNumber, float velocity) {
-//  assert(pimpl != nullptr);
-//  messageObject m;
-//  m.ID = NOTE_ON;
-//  // TODO: it's really not good to put these ints in a float vector!!!
-//  m.vecValue[0] = (Flt)channel;
-//  m.vecValue[1] = (Flt)noteNumber;
-//  m.vecValue[2] = velocity;
-//  pimpl->sendMessage(m);
-//  return *this;
-//}
-//
-//YSE::SYNTH::interfaceObject & YSE::SYNTH::interfaceObject::noteOn(const MUSIC::note & note) {
-//  assert(pimpl != nullptr);
-//  messageObject m;
-//  m.ID = NOTE_ON;
-//  // TODO: it's really not good to put these ints in a float vector!!!
-//  m.vecValue[0] = (Flt)note.getChannel();
-//  m.vecValue[1] = note.getPitch();
-//  m.vecValue[2] = note.getVolume();
-//  pimpl->sendMessage(m);
-//  return *this;
-//}
-//
-//YSE::SYNTH::interfaceObject & YSE::SYNTH::interfaceObject::noteOff(int channel, int noteNumber) {
-//  assert(pimpl != nullptr);
-//  messageObject m;
-//  m.ID = NOTE_OFF;
-//  // TODO: it's really not good to put these ints in a float vector!!!
-//  m.vecValue[0] = (Flt)channel;
-//  m.vecValue[1] = (Flt)noteNumber;
-//  pimpl->sendMessage(m);
-//  return *this;
-//}
-//
-//YSE::SYNTH::interfaceObject & YSE::SYNTH::interfaceObject::noteOff(const MUSIC::note & note) {
-//  assert(pimpl != nullptr);
-//  messageObject m;
-//  m.ID = NOTE_OFF;
-//  // TODO: it's really not good to put these ints in a float vector!!!
-//  m.vecValue[0] = (Flt)note.getChannel();
-//  m.vecValue[1] = note.getPitch();
-//  pimpl->sendMessage(m);
-//  return *this;
-//}
-//
-//YSE::SYNTH::interfaceObject & YSE::SYNTH::interfaceObject::allNotesOff(int channel) {
-//  assert(pimpl != nullptr);
-//  messageObject m;
-//  m.ID = ALL_NOTES_OFF;
-//  m.uIntValue[0] = static_cast<U16>(channel);
-//  pimpl->sendMessage(m);
-//  return *this;
-//}
-//
-//YSE::SYNTH::interfaceObject & YSE::SYNTH::interfaceObject::addVoices(const YSE::SYNTH::samplerConfig & voice, int numVoices) {
-//  assert(pimpl != nullptr);
-//
-//  pimpl->addVoices(voice, numVoices);
-//  return *this;
-//}
-//
-//YSE::SYNTH::interfaceObject & YSE::SYNTH::interfaceObject::addVoices(dspVoice * voice, int numVoices, int channel, int lowestNote, int highestNote) {
-//  assert(pimpl != nullptr);
-//
-//  pimpl->addVoices(voice, numVoices, channel, lowestNote, highestNote);
-//  return *this;
-//}
-//
-//YSE::SYNTH::interfaceObject & YSE::SYNTH::interfaceObject::removeSound(const std::string & name) {
-//  assert(pimpl != nullptr);
-//  // removing sound is probably not thread safe
-//  // so we ask the implementation for the sound ID
-//  // and pass that as a message for thread safe deletion afterwards
-//  // messageObject m;
-//  // TODO
-//  return *this;
-//}
-//
-//YSE::SYNTH::interfaceObject & YSE::SYNTH::interfaceObject::pitchWheel(int channel, int value) {
-//  assert(pimpl != nullptr);
-//  messageObject m;
-//  m.ID = PITCH_WHEEL;
-//  m.intValue[0] = channel;
-//  m.intValue[1] = value;
-//  pimpl->sendMessage(m);
-//  return *this;
-//}
-//
-//YSE::SYNTH::interfaceObject & YSE::SYNTH::interfaceObject::controller(int channel, int number, int value) {
-//  assert(pimpl != nullptr);
-//  messageObject m;
-//  m.ID = CONTROLLER;
-//  m.intValue[0] = channel;
-//  m.intValue[1] = number;
-//  m.intValue[2] = value;
-//  pimpl->sendMessage(m);
-//  return *this;
-//}
-//
-//YSE::SYNTH::interfaceObject & YSE::SYNTH::interfaceObject::aftertouch(int channel, int noteNumber, int value) {
-//  assert(pimpl != nullptr);
-//  messageObject m;
-//  m.ID = AFTERTOUCH;
-//  m.intValue[0] = channel;
-//  m.intValue[1] = noteNumber;
-//  m.intValue[2] = value;
-//  pimpl->sendMessage(m);
-//  return *this;
-//}
-//
-//YSE::SYNTH::interfaceObject & YSE::SYNTH::interfaceObject::sustain(int channel, bool value) {
-//  assert(pimpl != nullptr);
-//  messageObject m;
-//  m.ID = SUSTAIN;
-//  m.cb.channel = channel;
-//  m.cb.value = value;
-//  pimpl->sendMessage(m);
-//  return *this;
-//}
-//
-//YSE::SYNTH::interfaceObject & YSE::SYNTH::interfaceObject::sostenuto(int channel, bool value) {
-//  assert(pimpl != nullptr);
-//  messageObject m;
-//  m.ID = SOSTENUTO;
-//  m.cb.channel = channel;
-//  m.cb.value = value;
-//  pimpl->sendMessage(m);
-//  return *this;
-//}
-//
-//YSE::SYNTH::interfaceObject & YSE::SYNTH::interfaceObject::softPedal(int channel, bool value) {
-//  assert(pimpl != nullptr);
-//  messageObject m;
-//  m.ID = SOFTPEDAL;
-//  m.cb.channel = channel;
-//  m.cb.value = value;
-//  pimpl->sendMessage(m);
-//  return *this;
-//}
-//
-//YSE::SYNTH::interfaceObject & YSE::SYNTH::interfaceObject::onNoteEvent(void(*func)(bool noteOn, float * noteNumber, float * velocity)) {
-//  assert(pimpl != nullptr);
-//  messageObject m;
-//  m.ID = CALLBACK;
-//  m.ptr = (void(*))func;
-//  pimpl->sendMessage(m);
-//  return *this;
-//}
+#include "synthInterface.hpp"
+#include "../internalHeaders.h"
+#include "../music/note.hpp"
+#include "positionHandler.hpp"
+#include "synthManager.h"
+
+#include <cmath>
+
+namespace YSE {
+  namespace SYNTH {
+
+    interfaceObject::interfaceObject() : pimpl(nullptr) {}
+
+    interfaceObject::~interfaceObject() {
+      if (pimpl != nullptr) {
+        pimpl->removeInterface();
+        pimpl = nullptr;
+      }
+    }
+
+    interfaceObject& interfaceObject::create() {
+      if (pimpl != nullptr) return *this; // idempotent
+      pimpl = Manager().addImplementation(this);
+      Manager().setup(pimpl);
+      return *this;
+    }
+
+    interfaceObject& interfaceObject::addVoices(dspVoice& prototype, int numVoices, int channel,
+                                                int lowestNote, int highestNote) {
+      if (pimpl == nullptr) create();
+      pimpl->addVoiceGroup(&prototype, numVoices, channel, lowestNote, highestNote);
+      return *this;
+    }
+
+    interfaceObject& interfaceObject::noteOn(int channel, int noteNumber, float velocity) {
+      if (pimpl == nullptr) return *this;
+      messageObject m;
+      m.ID = NOTE_ON;
+      m.noteOn.channel = channel;
+      m.noteOn.note = noteNumber;
+      m.noteOn.velocity = velocity;
+      pimpl->sendMessage(m);
+      return *this;
+    }
+
+    interfaceObject& interfaceObject::noteOff(int channel, int noteNumber, float velocity) {
+      if (pimpl == nullptr) return *this;
+      messageObject m;
+      m.ID = NOTE_OFF;
+      m.noteOff.channel = channel;
+      m.noteOff.note = noteNumber;
+      m.noteOff.velocity = velocity;
+      pimpl->sendMessage(m);
+      return *this;
+    }
+
+    interfaceObject& interfaceObject::noteOn(const MUSIC::note& note) {
+      return noteOn(note.getChannel(), static_cast<int>(std::lround(note.getPitch())),
+                    note.getVolume());
+    }
+
+    interfaceObject& interfaceObject::noteOff(const MUSIC::note& note) {
+      return noteOff(note.getChannel(), static_cast<int>(std::lround(note.getPitch())),
+                     note.getVolume());
+    }
+
+    interfaceObject& interfaceObject::allNotesOff(int channel) {
+      if (pimpl == nullptr) return *this;
+      messageObject m;
+      m.ID = ALL_NOTES_OFF;
+      m.allOff.channel = channel;
+      pimpl->sendMessage(m);
+      return *this;
+    }
+
+    interfaceObject& interfaceObject::pitchWheel(int channel, float value) {
+      if (pimpl == nullptr) return *this;
+      messageObject m;
+      m.ID = PITCH_WHEEL;
+      m.wheel.channel = channel;
+      m.wheel.value = value;
+      pimpl->sendMessage(m);
+      return *this;
+    }
+
+    interfaceObject& interfaceObject::controller(int channel, int number, float value) {
+      if (pimpl == nullptr) return *this;
+      messageObject m;
+      m.ID = CONTROLLER;
+      m.cc.channel = channel;
+      m.cc.number = number;
+      m.cc.value = value;
+      pimpl->sendMessage(m);
+      return *this;
+    }
+
+    interfaceObject& interfaceObject::aftertouch(int channel, int noteNumber, float value) {
+      if (pimpl == nullptr) return *this;
+      messageObject m;
+      m.ID = AFTERTOUCH;
+      m.touch.channel = channel;
+      m.touch.note = noteNumber;
+      m.touch.value = value;
+      pimpl->sendMessage(m);
+      return *this;
+    }
+
+    interfaceObject& interfaceObject::sustain(int channel, bool down) {
+      if (pimpl == nullptr) return *this;
+      messageObject m;
+      m.ID = SUSTAIN;
+      m.pedal.channel = channel;
+      m.pedal.down = down;
+      pimpl->sendMessage(m);
+      return *this;
+    }
+
+    interfaceObject& interfaceObject::sostenuto(int channel, bool down) {
+      if (pimpl == nullptr) return *this;
+      messageObject m;
+      m.ID = SOSTENUTO;
+      m.pedal.channel = channel;
+      m.pedal.down = down;
+      pimpl->sendMessage(m);
+      return *this;
+    }
+
+    interfaceObject& interfaceObject::softPedal(int channel, bool down) {
+      if (pimpl == nullptr) return *this;
+      messageObject m;
+      m.ID = SOFTPEDAL;
+      m.pedal.channel = channel;
+      m.pedal.down = down;
+      pimpl->sendMessage(m);
+      return *this;
+    }
+
+    interfaceObject& interfaceObject::positionHandler(YSE::SYNTH::positionHandler& prototype) {
+      // Records the prototype under buildMutex; cloned per voice slot in setup().
+      // Like addVoices/onNoteEvent, harmless before create() has an impl.
+      if (pimpl == nullptr) create();
+      pimpl->setPositionHandler(&prototype);
+      return *this;
+    }
+
+    interfaceObject& interfaceObject::handlerParam(int index, float value) {
+      if (pimpl == nullptr) return *this;
+      messageObject m;
+      m.ID = HANDLER_PARAM;
+      m.handlerParam.index = index;
+      m.handlerParam.value = value;
+      pimpl->sendMessage(m);
+      return *this;
+    }
+
+    interfaceObject& interfaceObject::notePosition(int channel, int noteNumber, const Pos& pos) {
+      if (pimpl == nullptr) return *this;
+      messageObject m;
+      m.ID = NOTE_POSITION;
+      m.notePosition.channel = channel;
+      m.notePosition.note = noteNumber;
+      m.notePosition.x = pos.x;
+      m.notePosition.y = pos.y;
+      m.notePosition.z = pos.z;
+      pimpl->sendMessage(m);
+      return *this;
+    }
+
+    Pos interfaceObject::getVoicePosition(int channel, int noteNumber) const {
+      return pimpl != nullptr ? pimpl->getVoicePosition(channel, noteNumber) : Pos(0.f);
+    }
+
+    interfaceObject& interfaceObject::onNoteEvent(void (*func)(bool, float*, float*)) {
+      // The hook is set directly on the impl via an atomic pointer — it never
+      // crosses the message inbox (there is no CALLBACK op). See §7. Safe to
+      // call before create(): with no impl there is nothing to drive yet.
+      if (pimpl == nullptr) return *this;
+      pimpl->setNoteCallback(func);
+      return *this;
+    }
+
+    int interfaceObject::getNumVoices() const {
+      return pimpl != nullptr ? pimpl->getNumVoices() : 0;
+    }
+
+    bool interfaceObject::isValid() const {
+      return pimpl != nullptr;
+    }
+
+  } // namespace SYNTH
+} // namespace YSE

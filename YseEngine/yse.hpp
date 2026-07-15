@@ -95,6 +95,9 @@
 #include "patcher/patcher.hpp"
 #include "patcher/pHandle.hpp"
 
+// patcher-as-insert adapter (issue #167)
+#include "dsp/patcherInsert.hpp"
+
 // utilities
 #include "utils/misc.hpp"
 #include "utils/vector.hpp"
@@ -106,12 +109,16 @@
 #include "channel/channel.hpp"
 #include "channel/channelInterface.hpp"
 
-//#include "sound/sound.hpp"
+// #include "sound/sound.hpp"
 #include "sound/soundInterface.hpp"
 
-//#include "synth/synth.hpp"
-//#include "synth/synthInterface.hpp"
-//#include "synth/dspVoice.hpp"
+#include "synth/dspVoice.hpp"
+#include "synth/sineVoice.hpp"
+#include "synth/positionHandler.hpp"
+#include "synth/positionHandlers.hpp"
+#include "synth/synthInterface.hpp"
+
+#include "clip/clip.hpp"
 
 #include "midi/midifile.hpp"
 #include "midi/midiMessage.hpp"
@@ -141,5 +148,4 @@
 #include "io.hpp"
 #include "BufferIO.hpp"
 
-
-#endif  // YSE_HPP_INCLUDED
+#endif // YSE_HPP_INCLUDED

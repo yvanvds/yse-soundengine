@@ -27,7 +27,6 @@ namespace YSE {
   // Distributed under the simplified BSD license (see the license file that
   // should have come with this header).
 
-
   // A lock-free queue for a single-consumer, single-producer architecture.
   // The queue is also wait-free in the common path (except if more memory
   // needs to be allocated, in which case malloc is called).
@@ -45,15 +44,13 @@ namespace YSE {
 
 #ifdef AE_VCPP
 #pragma warning(push)
-#pragma warning(disable: 4316)
-#pragma warning(disable: 4324)	// structure was padded due to __declspec(align())
-#pragma warning(disable: 4820)	// padding was added
-#pragma warning(disable: 4127)	// conditional expression is constant
+#pragma warning(disable : 4316)
+#pragma warning(disable : 4324) // structure was padded due to __declspec(align())
+#pragma warning(disable : 4820) // padding was added
+#pragma warning(disable : 4127) // conditional expression is constant
 #endif
 
-  template<typename T>
-  class lfQueue
-  {
+  template <typename T> class lfQueue {
     // Design: Based on a queue-of-queues. The low-level queues are just
     // circular buffers with front and tail indices indicating where the
     // next element to dequeue is and where the next element can be enqueued,
@@ -79,10 +76,12 @@ namespace YSE {
     // allocations. Allocates maxSize + 1, rounded up to the nearest power
     // of 2, elements.
     explicit lfQueue(size_t maxSize = 15)
-      : largestBlockSize(ceilToPow2(maxSize + 1))		// We need a spare slot to fit maxSize elements in the block
+      : largestBlockSize(
+            ceilToPow2(maxSize + 1)) // We need a spare slot to fit maxSize elements in the block
 #ifndef NDEBUG
-      , enqueuing(false)
-      , dequeuing(false)
+        ,
+        enqueuing(false),
+        dequeuing(false)
 #endif
     {
       assert(maxSize > 0);
@@ -99,14 +98,18 @@ namespace YSE {
 
     // Note: The queue should not be accessed concurrently while it's
     // being deleted. It's up to the user to synchronize this.
-    ~lfQueue()
-    {
+    ~lfQueue() {
       // Make sure we get the latest version of all variables from other CPUs:
       fence(memory_order_sync);
 
-      // Destroy any remaining objects in queue and free memory
-      Block* tailBlock_ = tailBlock;
-      Block* block = frontBlock;
+      // Destroy any remaining objects in queue and free memory.
+      // Blocks form a circular linked list; walk the whole circle back to the
+      // starting block so every block (including the tail block and any free
+      // blocks between the tail and front) is destroyed. Stopping at tailBlock
+      // — as an earlier version did — leaked the tail block, the free blocks,
+      // and any live elements still held in the tail block.
+      Block* frontBlock_ = frontBlock;
+      Block* block = frontBlock_;
       do {
         Block* nextBlock = block->next;
         size_t blockFront = block->front;
@@ -121,47 +124,39 @@ namespace YSE {
         delete block;
         block = nextBlock;
 
-      } while (block != tailBlock_);
+      } while (block != frontBlock_);
     }
-
 
     // Enqueues a copy of element if there is room in the queue.
     // Returns true if the element was enqueued, false otherwise.
     // Does not allocate memory.
-    AE_FORCEINLINE bool try_push(T const& element)
-    {
+    AE_FORCEINLINE bool try_push(T const& element) {
       return inner_enqueue<CannotAlloc>(element);
     }
 
     // Enqueues a moved copy of element if there is room in the queue.
     // Returns true if the element was enqueued, false otherwise.
     // Does not allocate memory.
-    AE_FORCEINLINE bool try_push(T&& element)
-    {
+    AE_FORCEINLINE bool try_push(T&& element) {
       return inner_enqueue<CannotAlloc>(std::forward<T>(element));
     }
 
-
     // Enqueues a copy of element on the queue.
     // Allocates an additional block of memory if needed.
-    AE_FORCEINLINE void push(T const& element)
-    {
+    AE_FORCEINLINE void push(T const& element) {
       inner_enqueue<CanAlloc>(element);
     }
 
     // Enqueues a moved copy of element on the queue.
     // Allocates an additional block of memory if needed.
-    AE_FORCEINLINE void push(T&& element)
-    {
+    AE_FORCEINLINE void push(T&& element) {
       inner_enqueue<CanAlloc>(std::forward<T>(element));
     }
-
 
     // Attempts to dequeue an element; if the queue is empty,
     // returns false instead. If the queue has at least one element,
     // moves front to result using operator=, then returns true.
-    bool try_pop(T& result)
-    {
+    bool try_pop(T& result) {
 #ifndef NDEBUG
       ReentrantGuard guard(this->dequeuing);
 #endif
@@ -196,8 +191,7 @@ namespace YSE {
 
         fence(memory_order_release);
         frontBlock_->front = blockFront;
-      }
-      else if (frontBlock_ != tailBlockAtStart) {
+      } else if (frontBlock_ != tailBlockAtStart) {
         // Front block is empty but there's another block ahead, advance to it
         Block* nextBlock = frontBlock_->next;
         // Don't need an acquire fence here since next can only ever be set on the tailBlock,
@@ -214,10 +208,11 @@ namespace YSE {
         AE_UNUSED(nextBlockTail);
 
         // We're done with this block, let the producer use it if it needs
-        fence(memory_order_release);		// Expose possibly pending changes to frontBlock->front from last dequeue
+        fence(memory_order_release); // Expose possibly pending changes to frontBlock->front from
+                                     // last dequeue
         frontBlock = frontBlock_ = nextBlock;
 
-        compiler_fence(memory_order_release);	// Not strictly needed
+        compiler_fence(memory_order_release); // Not strictly needed
 
         auto element = reinterpret_cast<T*>(frontBlock_->data + nextBlockFront * sizeof(T));
 
@@ -228,8 +223,7 @@ namespace YSE {
 
         fence(memory_order_release);
         frontBlock_->front = nextBlockFront;
-      }
-      else {
+      } else {
         // No elements in current block and no other block to advance to
         return false;
       }
@@ -237,13 +231,11 @@ namespace YSE {
       return true;
     }
 
-
     // Returns a pointer to the first element in the queue (the one that
     // would be removed next by a call to `try_dequeue`). If the queue appears
     // empty at the time the method is called, nullptr is returned instead.
     // Must be called only from the consumer thread.
-    T* peek()
-    {
+    T* peek() {
 #ifndef NDEBUG
       ReentrantGuard guard(this->dequeuing);
 #endif
@@ -259,8 +251,7 @@ namespace YSE {
 
       if (blockFront != blockTail) {
         return reinterpret_cast<T*>(frontBlock_->data + blockFront * sizeof(T));
-      }
-      else if (frontBlock_ != tailBlockAtStart) {
+      } else if (frontBlock_ != tailBlockAtStart) {
         Block* nextBlock = frontBlock_->next;
 
         size_t nextBlockFront = nextBlock->front.load();
@@ -272,13 +263,10 @@ namespace YSE {
       return nullptr;
     }
 
-
   private:
     enum AllocationMode { CanAlloc, CannotAlloc };
 
-    template<AllocationMode canAlloc, typename U>
-    bool inner_enqueue(U&& element)
-    {
+    template <AllocationMode canAlloc, typename U> bool inner_enqueue(U&& element) {
 #ifndef NDEBUG
       ReentrantGuard guard(this->enqueuing);
 #endif
@@ -299,18 +287,17 @@ namespace YSE {
       if (nextBlockTail != blockFront) {
         // This block has room for at least one more element
         char* location = tailBlock_->data + blockTail * sizeof(T);
-        new (location)T(std::forward<U>(element));
+        new (location) T(std::forward<U>(element));
 
         fence(memory_order_release);
         tailBlock_->tail = nextBlockTail;
-      }
-      else if (tailBlock_->next.load() != frontBlock) {
-        // Note that the reason we can't advance to the frontBlock and start adding new entries there
-        // is because if we did, then dequeue would stay in that block, eventually reading the new values,
-        // instead of advancing to the next full block (whose values were enqueued first and so should be
-        // consumed first).
+      } else if (tailBlock_->next.load() != frontBlock) {
+        // Note that the reason we can't advance to the frontBlock and start adding new entries
+        // there is because if we did, then dequeue would stay in that block, eventually reading the
+        // new values, instead of advancing to the next full block (whose values were enqueued first
+        // and so should be consumed first).
 
-        fence(memory_order_acquire);		// Ensure we get latest writes if we got the latest frontBlock
+        fence(memory_order_acquire); // Ensure we get latest writes if we got the latest frontBlock
 
         // tailBlock is full, but there's a free block ahead, use it
         Block* tailBlockNext = tailBlock_->next.load();
@@ -324,14 +311,13 @@ namespace YSE {
         AE_UNUSED(nextBlockFront);
 
         char* location = tailBlockNext->data + nextBlockTail * sizeof(T);
-        new (location)T(std::forward<U>(element));
+        new (location) T(std::forward<U>(element));
 
         tailBlockNext->tail = (nextBlockTail + 1) & tailBlockNext->sizeMask();
 
         fence(memory_order_release);
         tailBlock = tailBlockNext;
-      }
-      else if (canAlloc == CanAlloc) {
+      } else if (canAlloc == CanAlloc) {
         // tailBlock is full and there's no free block ahead; create a new block
         largestBlockSize *= 2;
         Block* newBlock = new Block(largestBlockSize);
@@ -352,12 +338,10 @@ namespace YSE {
 
         fence(memory_order_release);
         tailBlock = newBlock;
-      }
-      else if (canAlloc == CannotAlloc) {
+      } else if (canAlloc == CannotAlloc) {
         // Would have had to allocate a new block to enqueue, but not allowed
         return false;
-      }
-      else {
+      } else {
         assert(false && "Should be unreachable code");
         return false;
       }
@@ -365,17 +349,13 @@ namespace YSE {
       return true;
     }
 
-
     // Disable copying
     lfQueue(lfQueue const&) = delete;
 
     // Disable assignment
     lfQueue& operator=(lfQueue const&) = delete;
 
-
-
-    AE_FORCEINLINE static size_t ceilToPow2(size_t x)
-    {
+    AE_FORCEINLINE static size_t ceilToPow2(size_t x) {
       // From http://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
       --x;
       x |= x >> 1;
@@ -387,24 +367,25 @@ namespace YSE {
       ++x;
       return x;
     }
+
   private:
 #ifndef NDEBUG
-    struct ReentrantGuard
-    {
-      ReentrantGuard(bool& _inSection)
-      : inSection(_inSection)
-      {
+    struct ReentrantGuard {
+      ReentrantGuard(bool& _inSection) : inSection(_inSection) {
         assert(!inSection);
 #ifdef YSE_ANDROID
 #else
         if (inSection) {
-          throw std::runtime_error("ReaderWriterQueue does not support enqueuing or dequeuing elements from other elements' ctors and dtors");
+          throw std::runtime_error("ReaderWriterQueue does not support enqueuing or dequeuing "
+                                   "elements from other elements' ctors and dtors");
         }
 #endif
         inSection = true;
       }
 
-      ~ReentrantGuard() { inSection = false; }
+      ~ReentrantGuard() {
+        inSection = false;
+      }
 
     private:
       ReentrantGuard& operator=(ReentrantGuard const&);
@@ -414,32 +395,31 @@ namespace YSE {
     };
 #endif
 
-    struct Block
-    {
+    struct Block {
       // Avoid false-sharing by putting highly contended variables on their own cache lines
       AE_ALIGN(CACHE_LINE_SIZE)
-      weak_atomic<size_t> front;	// (Atomic) Elements are read from here
+      weak_atomic<size_t> front; // (Atomic) Elements are read from here
 
       AE_ALIGN(CACHE_LINE_SIZE)
-        weak_atomic<size_t> tail;	// (Atomic) Elements are enqueued here
+      weak_atomic<size_t> tail; // (Atomic) Elements are enqueued here
 
-      AE_ALIGN(CACHE_LINE_SIZE)	// next isn't very contended, but we don't want it on the same cache line as tail (which is)
-        weak_atomic<Block*> next;	// (Atomic)
+      AE_ALIGN(CACHE_LINE_SIZE) // next isn't very contended, but we don't want it on the same cache
+                                // line as tail (which is)
+      weak_atomic<Block*> next; // (Atomic)
 
-      char* data;		// Contents (on heap) are aligned to T's alignment
+      char* data; // Contents (on heap) are aligned to T's alignment
 
       const size_t size;
 
-      AE_FORCEINLINE size_t sizeMask() const { return size - 1; }
-
+      AE_FORCEINLINE size_t sizeMask() const {
+        return size - 1;
+      }
 
       // size must be a power of two (and greater than 0)
-      Block(size_t const& _size)
-        : front(0), tail(0), next(nullptr), size(_size)
-      {
+      Block(size_t const& _size) : front(0), tail(0), next(nullptr), size(_size) {
         // Allocate enough memory for an array of Ts, aligned
         size_t alignment = std::alignment_of<T>::value;
-        data = rawData = static_cast<char*>(std::malloc(sizeof(T)* size + alignment - 1));
+        data = rawData = static_cast<char*>(std::malloc(sizeof(T) * size + alignment - 1));
         assert(rawData);
         auto alignmentOffset = (uintptr_t)rawData % alignment;
         if (alignmentOffset != 0) {
@@ -447,8 +427,7 @@ namespace YSE {
         }
       }
 
-      ~Block()
-      {
+      ~Block() {
         std::free(rawData);
       }
 
@@ -462,13 +441,13 @@ namespace YSE {
 
   private:
     AE_ALIGN(CACHE_LINE_SIZE)
-      weak_atomic<Block*> frontBlock;		// (Atomic) Elements are enqueued to this block
+    weak_atomic<Block*> frontBlock; // (Atomic) Elements are enqueued to this block
 
     AE_ALIGN(CACHE_LINE_SIZE)
-      weak_atomic<Block*> tailBlock;		// (Atomic) Elements are dequeued from this block
+    weak_atomic<Block*> tailBlock; // (Atomic) Elements are dequeued from this block
 
-    AE_ALIGN(CACHE_LINE_SIZE)	// Ensure tailBlock gets its own cache line
-      size_t largestBlockSize;
+    AE_ALIGN(CACHE_LINE_SIZE) // Ensure tailBlock gets its own cache line
+    size_t largestBlockSize;
 
 #ifndef NDEBUG
     bool enqueuing;
@@ -480,6 +459,6 @@ namespace YSE {
 #pragma warning(pop)
 #endif
 
-}
+} // namespace YSE
 
-#endif  // LFQUEUE_H_INCLUDED
+#endif // LFQUEUE_H_INCLUDED

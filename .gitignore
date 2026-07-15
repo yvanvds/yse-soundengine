@@ -79,6 +79,14 @@ build-linux-audio/
 build-android-arm64/
 build-android-x86_64/
 build-tools/
+build-python-tests/
+build-debug-python/
+build-python/
+build-tests-python/
+build-tests-python-asan/
+build-tests-asan-gcc/
+build-tests-asan/
+build-tests-tsan/
 [Bb]in/
 [Oo]bj/
 
@@ -257,3 +265,22 @@ Generate.NET/YseEngine_wrap.cxx
 /packages
 YSElog.txt
 .claude/scheduled_tasks.lock
+.claude/settings.local.json
+
+#############
+## Content pack — fetched third-party sources (#179 / #367)
+#############
+# These DEST outputs are pulled on demand by -DYSE_FETCH_CONTENT_PACK=ON. They
+# stay on disk for a local build but are never committed / redistributed. The
+# committed CC0 seed (content/wavetables/ysewt_*.wav, content/sfz/yse_pulse.sfz,
+# content/sfz/samples/, content/fm/original/, content/fm/dx7-factory/README.md,
+# and the .gitkeep placeholders) lives outside these paths and stays tracked.
+/content/wavetables/akwf/
+/content/sfz/vsco2/
+/content/sfz/vcsl/
+/content/sfz/salamander/
+/content/sfz/freepats/
+# dx7-factory keeps its committed README.md + .gitkeep; only fetched banks/markers are ignored.
+/content/fm/dx7-factory/*.syx
+/content/fm/dx7-factory/*.SYX
+/content/fm/dx7-factory/.fetched

@@ -1,0 +1,21 @@
+Salamander Grand Piano — attribution (CC-BY 3.0)
+================================================
+
+The Salamander Grand Piano sampled-instrument set is distributed here under the
+Creative Commons Attribution 3.0 license (CC-BY 3.0). Its inclusion in the YSE
+content pack requires this attribution to travel with it.
+
+  Instrument : Salamander Grand Piano (Yamaha C5, 48kHz 24-bit)
+  Author     : Alexander Holm
+  License    : CC-BY 3.0  (https://creativecommons.org/licenses/by/3.0/)
+  Source     : https://archive.org/details/SalamanderGrandPianoV3
+
+Attribution text to reproduce in any distribution that ships these samples:
+
+  "Salamander Grand Piano by Alexander Holm, used under CC-BY 3.0."
+
+Note: the piano samples themselves are NOT committed to this repository. They
+are fetched only when a build opts in via -DYSE_FETCH_CONTENT_PACK=ON (see
+content/pack-manifest.cmake). This attribution file ships unconditionally so the
+CC-BY requirement is satisfied the moment the samples are present. The full
+provenance table is in the repo-root CONTENT-LICENSES.md.

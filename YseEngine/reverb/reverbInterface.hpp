@@ -21,7 +21,7 @@ namespace YSE {
   namespace REVERB {
     class managerObject;
     class implementationObject;
-  }
+  } // namespace REVERB
   /// @endcond
 
   /**
@@ -51,6 +51,17 @@ namespace YSE {
     reverb(bool global = false);
     ~reverb();
 
+    /**
+     *  @brief Copy-assignment is deleted.
+     *
+     *  A ``reverb`` owns a raw ``pimpl`` that the engine tracks by interface
+     *  identity. Copy-assigning would alias two interfaces onto a single
+     *  implementation and turn that impl's single-producer/single-consumer
+     *  message queue into a dual-producer queue on the audio thread
+     *  (issue #192). Copying a reverb is never valid — forbid it.
+     */
+    reverb& operator=(const reverb&) = delete;
+
     /** @brief Initialise the reverb.
      *
      *  Must be called after ``System().init()`` and before any other method on
@@ -62,7 +73,7 @@ namespace YSE {
     bool isValid();
 
     /** @brief Set the position of the reverb zone in the scene. */
-    reverb& setPosition(const Pos &value);
+    reverb& setPosition(const Pos& value);
 
     /** @brief Current zone position. */
     Pos getPosition();
@@ -167,7 +178,7 @@ namespace YSE {
     reverb& setPreset(REVERB_PRESET value);
 
   private:
-    REVERB::implementationObject * pimpl;
+    REVERB::implementationObject* pimpl;
 
     Bool connectedToManager;
     Bool active;
@@ -189,8 +200,6 @@ namespace YSE {
     friend class REVERB::implementationObject;
   };
 
-}
+} // namespace YSE
 
-
-
-#endif  // REVERB_H_INCLUDED
+#endif // REVERB_H_INCLUDED

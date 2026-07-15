@@ -16,6 +16,7 @@
 #include "../../filters.hpp"
 #include "../../oscillators.hpp"
 #include "../../interpolate4.hpp"
+#include "../../perChannel.hpp"
 #include <memory>
 
 namespace YSE {
@@ -23,7 +24,8 @@ namespace YSE {
     namespace MODULES {
 
       /**
-       *  @brief Auto-wah / sweep filter — LFO-modulated resonant filter as a chainable ``dspObject``.
+       *  @brief Auto-wah / sweep filter — LFO-modulated resonant filter as a chainable
+       * ``dspObject``.
        *
        *  Internally an oscillator drives a ``vcf`` to sweep its cutoff. The
        *  oscillator shape is selectable at construction. Choose ``SAW`` for a
@@ -32,7 +34,6 @@ namespace YSE {
        */
       class API sweepFilter : public dspObject {
       public:
-
         /** @brief LFO shape that drives the filter sweep. */
         enum SHAPE {
           TRIANGLE,
@@ -45,28 +46,28 @@ namespace YSE {
         virtual ~sweepFilter() {};
 
         /** @brief Set the LFO speed in Hz. */
-        sweepFilter & speed(Flt value);
+        sweepFilter& speed(Flt value);
 
         /** @brief Current LFO speed. */
-        Flt           speed();
+        Flt speed();
 
         /** @brief Set the sweep depth as 0–100. */
-        sweepFilter & depth(Int value);
+        sweepFilter& depth(Int value);
 
         /** @brief Current sweep depth. */
-        Int           depth();
+        Int depth();
 
         /** @brief Set the centre frequency as 0–100. */
-        sweepFilter & frequency(Int value);
+        sweepFilter& frequency(Int value);
 
         /** @brief Current centre frequency value. */
-        Int           frequency();
+        Int frequency();
 
         /** @brief dspObject lifecycle hook — allocates buffers. */
         virtual void create();
 
         /** @brief dspObject audio-thread entry point. */
-        virtual void process(MULTICHANNELBUFFER & buffer);
+        virtual void process(MULTICHANNELBUFFER& buffer);
 
       private:
         aFlt parmSpeed;
@@ -74,18 +75,21 @@ namespace YSE {
         aInt parmFrequency;
 
         SHAPE shape;
+        // Shared modulation path: the sweep LFO and its frequency mapping are
+        // identical for every channel, so they run once per block.
         std::shared_ptr<wavetable> table;
         std::shared_ptr<oscillator> osc;
-        std::shared_ptr<vcf> filter;
-        std::shared_ptr<DSP::buffer> result;
         std::shared_ptr<interpolate4> interpolator;
+        DSP::buffer control; // per-block scratch: the cutoff control signal
+        DSP::buffer result; // per-block scratch: one channel's filtered output
+        // Per-channel filter state — each channel keeps its own vcf memory.
+        perChannel<vcf> filter;
       };
 
-    }
+    } // namespace MODULES
 
-  }
+  } // namespace DSP
 
+} // namespace YSE
 
-}
-
-#endif  // SWEEP_HPP_INCLUDED
+#endif // SWEEP_HPP_INCLUDED

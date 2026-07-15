@@ -11,7 +11,6 @@
 #ifndef DIFFERENCE_H_INCLUDED
 #define DIFFERENCE_H_INCLUDED
 
-
 #include "../../../headers/defines.hpp"
 #include "../../dspObject.hpp"
 #include "../../filters.hpp"
@@ -38,13 +37,13 @@ namespace YSE {
         virtual ~difference() {};
 
         /** @brief Set the carrier frequency in Hz. */
-        difference & frequency(Flt value);
+        difference& frequency(Flt value);
 
         /** @brief Current carrier frequency. */
         Flt frequency();
 
         /** @brief Set the carrier amplitude. */
-        difference & amplitude(Flt value);
+        difference& amplitude(Flt value);
 
         /** @brief Current carrier amplitude. */
         Flt amplitude();
@@ -53,7 +52,7 @@ namespace YSE {
         virtual void create();
 
         /** @brief dspObject audio-thread entry point. */
-        virtual void process(MULTICHANNELBUFFER & buffer);
+        virtual void process(MULTICHANNELBUFFER& buffer);
 
       private:
         aFlt parmFrequency;
@@ -62,11 +61,10 @@ namespace YSE {
         std::shared_ptr<DSP::buffer> result;
         std::shared_ptr<sine> source;
         std::shared_ptr<clip> clipper;
-
       };
 
-    }
-  }
-}
+    } // namespace MODULES
+  } // namespace DSP
+} // namespace YSE
 
-#endif  // DIFFERENCE_H_INCLUDED
+#endif // DIFFERENCE_H_INCLUDED

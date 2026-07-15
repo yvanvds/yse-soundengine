@@ -13,16 +13,14 @@
 #include "../internal/virtualFinder.h"
 #include "../channel/channelManager.h"
 
-YSE::SOUND::managerObject & YSE::SOUND::Manager() {
+YSE::SOUND::managerObject& YSE::SOUND::Manager() {
   static managerObject m;
   return m;
 }
 
-
-YSE::SOUND::managerObject::managerObject() 
-  : mgrSetup(this),
-    mgrDelete(this) {
-  //formatManager.registerBasicFormats();
+YSE::SOUND::managerObject::managerObject() : mgrSetup(this), mgrDelete(this) {
+  // formatManager.registerBasicFormats();
+  mgrFileGC.owner = this;
 }
 
 YSE::SOUND::managerObject::~managerObject() noexcept {
@@ -30,11 +28,14 @@ YSE::SOUND::managerObject::~managerObject() noexcept {
     // wait for jobs to finish
     mgrSetup.join();
     mgrDelete.join();
+    mgrFileGC.join();
 
     // drain any pointers still queued by the main thread; they reference impls
     // owned by `implementations` and will be freed when that list is cleared.
-    implementationObject * drained;
-    while (toLoadInbox.try_pop(drained)) { (void)drained; }
+    implementationObject* drained;
+    while (toLoadInbox.try_pop(drained)) {
+      (void)drained;
+    }
 
     // remove all objects that are still in memory
     toLoad.clear();
@@ -42,78 +43,122 @@ YSE::SOUND::managerObject::~managerObject() noexcept {
     implementations.clear();
 
     // remove all sounds that are still in memory
-    soundFiles.clear();
+    {
+      std::scoped_lock lk(soundFilesMutex);
+      soundFiles.clear();
+    }
   } catch (...) {
     INTERNAL::LogImpl().emit(E_ERROR, "SOUND::Manager destructor swallowed exception");
   }
 }
 
+void YSE::SOUND::managerObject::destroy() {
+  // Runs from system::close() after both thread pools are joined and the audio
+  // device is closed, with Global().active already false. Drains every
+  // lingering sound impl BEFORE CHANNEL::Manager().destroy() frees the channel
+  // impls, so no sound impl is left holding a dangling `parent` pointer — the
+  // root of the static-teardown / re-init use-after-free (issue #298). An impl
+  // whose interface was destroyed while the engine was up but that never got
+  // pumped to OBJECT_DELETE before close() lingers here otherwise: at the next
+  // init() the audio thread would reprocess it (parent already freed), and at
+  // static exit its destructor would disconnect from freed channel storage.
+  // Mirrors CHANNEL::Manager().destroy() (issue #132) and the "no persistence
+  // across init/close" guarantee (issue #121).
 
-YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addFile(const std::string & fileName) {
+  // No-ops once the pools are down, but mirror the destructor's contract that
+  // no setup/delete/GC job is mid-flight before the lists are torn.
+  mgrSetup.join();
+  mgrDelete.join();
+  mgrFileGC.join();
+
+  // Drain the main->audio inbox; the pointers it holds reference impls owned by
+  // `implementations` and would dangle once that list is cleared below.
+  implementationObject* drained;
+  while (toLoadInbox.try_pop(drained)) {
+    (void)drained;
+  }
+  toLoad.clear();
+  inUse.clear();
+  {
+    // Clear `implementations` before `soundFiles`: each impl destructor calls
+    // file->release(this) on its (shared) soundFile, which must still be alive.
+    std::scoped_lock lk(implementationsMutex);
+    implementations.clear();
+  }
+  {
+    std::scoped_lock lk(soundFilesMutex);
+    soundFiles.clear();
+  }
+  runDelete = false;
+}
+
+YSE::INTERNAL::soundFile* YSE::SOUND::managerObject::addFile(const std::string& fileName) {
+  // Serialise with the slow-pool GC job that erases from soundFiles (issue #186).
+  std::scoped_lock lk(soundFilesMutex);
   // find out if this file already exists
   for (auto i = soundFiles.begin(); i != soundFiles.end(); ++i) {
-    if ( i->contains(fileName)) {
+    if (i->contains(fileName)) {
       return &(*i);
     }
   }
 
   // if we got here, the file does not exist yet
   soundFiles.emplace_front(fileName);
-  INTERNAL::soundFile & sf = soundFiles.front();
+  INTERNAL::soundFile& sf = soundFiles.front();
   if (sf.create()) {
     return &sf;
-  }
-  else {
+  } else {
     return nullptr;
   }
 }
 
-
-YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addFile(YSE::DSP::buffer * buffer) {
+YSE::INTERNAL::soundFile* YSE::SOUND::managerObject::addFile(YSE::DSP::buffer* buffer) {
+  // Serialise with the slow-pool GC job that erases from soundFiles (issue #186).
+  std::scoped_lock lk(soundFilesMutex);
   // find out if this file already exists
   for (auto i = soundFiles.begin(); i != soundFiles.end(); ++i) {
-    if ( i->contains(buffer)) {
+    if (i->contains(buffer)) {
       return &(*i);
     }
   }
 
   // if we got here, the file does not exist yet
   soundFiles.emplace_front(buffer);
-  INTERNAL::soundFile & sf = soundFiles.front();
+  INTERNAL::soundFile& sf = soundFiles.front();
   if (sf.create()) {
     return &sf;
-  }
-  else {
+  } else {
     return nullptr;
   }
 }
 
-YSE::INTERNAL::soundFile * YSE::SOUND::managerObject::addFile(MULTICHANNELBUFFER * buffer) {
+YSE::INTERNAL::soundFile* YSE::SOUND::managerObject::addFile(MULTICHANNELBUFFER* buffer) {
+  // Serialise with the slow-pool GC job that erases from soundFiles (issue #186).
+  std::scoped_lock lk(soundFilesMutex);
   // find out if this file already exists
   for (auto i = soundFiles.begin(); i != soundFiles.end(); ++i) {
-    if ( i->contains(buffer)) {
+    if (i->contains(buffer)) {
       return &(*i);
     }
   }
 
   // if we got here, the file does not exist yet
   soundFiles.emplace_front(buffer);
-  INTERNAL::soundFile & sf = soundFiles.front();
+  INTERNAL::soundFile& sf = soundFiles.front();
   if (sf.create()) {
     return &sf;
-  }
-  else {
+  } else {
     return nullptr;
   }
 }
 
-YSE::SOUND::implementationObject * YSE::SOUND::managerObject::addImplementation(YSE::sound * head) {
+YSE::SOUND::implementationObject* YSE::SOUND::managerObject::addImplementation(YSE::sound* head) {
   std::scoped_lock lk(implementationsMutex);
   implementations.emplace_front(head);
   return &implementations.front();
 }
 
-void YSE::SOUND::managerObject::setup(YSE::SOUND::implementationObject * impl) {
+void YSE::SOUND::managerObject::setup(YSE::SOUND::implementationObject* impl) {
   impl->setStatus(OBJECT_CREATED);
   // Hand off to the audio thread via the lock-free inbox; the audio thread
   // will drain it into `toLoad` at the top of update().
@@ -121,8 +166,9 @@ void YSE::SOUND::managerObject::setup(YSE::SOUND::implementationObject * impl) {
 }
 
 void YSE::SOUND::managerObject::drainInbox() {
-  implementationObject * p;
-  while (toLoadInbox.try_pop(p)) toLoad.emplace_front(p);
+  implementationObject* p;
+  while (toLoadInbox.try_pop(p))
+    toLoad.push_front(p);
 }
 
 void YSE::SOUND::managerObject::scrubToLoadAndScheduleSetup() {
@@ -132,19 +178,22 @@ void YSE::SOUND::managerObject::scrubToLoadAndScheduleSetup() {
   // the slow-pool delete job — but only AFTER erasing them from toLoad,
   // so the slow-pool can't free a pointer that's still in the
   // audio-thread-iterated list. See enums.hpp for the PENDING rationale.
-  auto previous = toLoad.before_begin();
-  for (auto it = toLoad.begin(); it != toLoad.end(); ) {
-    implementationObject * p = *it;
-    OBJECT_IMPLEMENTATION_STATE s = p->objectStatus.load(std::memory_order_acquire); // NOSONAR S8417: intentional acquire — read impl state published by setup-failure path
+  for (auto c = toLoad.front(); c.valid();) {
+    implementationObject* p = c.get();
+    OBJECT_IMPLEMENTATION_STATE s = p->objectStatus.load(
+        std::memory_order_acquire); // NOSONAR S8417: intentional acquire — read impl state
+                                    // published by setup-failure path
     if (s == OBJECT_DELETE_PENDING) {
-      p->objectStatus.store(OBJECT_DELETE, std::memory_order_release); // NOSONAR S8417: intentional release — publish DELETE state to slow-pool deleteJob's acquire load
+      p->objectStatus.store(
+          OBJECT_DELETE,
+          std::memory_order_release); // NOSONAR S8417: intentional release — publish DELETE state
+                                      // to slow-pool deleteJob's acquire load
       runDelete = true;
-      it = toLoad.erase_after(previous);
+      c.erase();
     } else if (s == OBJECT_READY || s == OBJECT_RELEASE || s == OBJECT_DELETE) {
-      it = toLoad.erase_after(previous);
+      c.erase();
     } else {
-      previous = it;
-      ++it;
+      c.next();
     }
   }
   INTERNAL::Global().addSlowJob(&mgrSetup);
@@ -158,48 +207,54 @@ void YSE::SOUND::managerObject::promoteReadyImpls() {
   // in the inUse iteration below, runDelete is set, deleteJob is enqueued,
   // the slow-pool frees the impl, and the next remove_if call dereferences
   // the freed pointer (ASan-confirmed).
-  auto previous = toLoad.before_begin();
-  for (auto i = toLoad.begin(); i != toLoad.end(); ) {
-    implementationObject * ptr = *i;
+  for (auto c = toLoad.front(); c.valid();) {
+    implementationObject* ptr = c.get();
     if (ptr->readyCheck()) {
-      inUse.emplace_front(ptr);
+      // Unlink from toLoad BEFORE linking into inUse: both lists share the
+      // impl's single `_mgrNext` link, so the erase (which reads _mgrNext to
+      // stitch toLoad) must happen before push_front overwrites it (issue #194).
+      c.erase();
+      inUse.push_front(ptr);
       ptr->doThisWhenReady();
-      i = toLoad.erase_after(previous);
     } else {
-      previous = i;
-      ++i;
+      c.next();
     }
   }
 }
 
 void YSE::SOUND::managerObject::syncAndReleaseInUse() {
-  auto previous = inUse.before_begin();
-  for (auto i = inUse.begin(); i != inUse.end();) {
-    (*i)->sync();
-    if ((*i)->getStatus() == OBJECT_RELEASE) {
-      implementationObject * ptr = (*i);
-      i = inUse.erase_after(previous);
+  for (auto c = inUse.front(); c.valid();) {
+    implementationObject* ptr = c.get();
+    ptr->sync();
+    if (ptr->getStatus() == OBJECT_RELEASE) {
+      c.erase();
       // Audio-thread-side disconnect: remove this impl from parent->sounds
       // BEFORE marking it OBJECT_DELETE. The slow-pool's deleteJob filters
       // on OBJECT_DELETE, so any impl visible to it has already been pulled
       // from the audio-thread-iterated `sounds` list — no race on
       // sounds.remove() in the destructor.
-      if (ptr->parent != nullptr && ptr->connectedToParent.load(std::memory_order_acquire)) { // NOSONAR S8417: intentional acquire — pairs with release in doThisWhenReady()
+      if (ptr->parent != nullptr &&
+          ptr->connectedToParent.load(
+              std::memory_order_acquire)) { // NOSONAR S8417: intentional acquire — pairs with
+                                            // release in doThisWhenReady()
         ptr->parent->disconnect(ptr);
-        ptr->connectedToParent.store(false, std::memory_order_release); // NOSONAR S8417: intentional release — publishes audio-thread disconnect before slow-pool delete
+        ptr->connectedToParent.store(
+            false, std::memory_order_release); // NOSONAR S8417: intentional release — publishes
+                                               // audio-thread disconnect before slow-pool delete
       }
       // Defensive: null the user-supplied DSP source pointer before the
       // impl becomes eligible for destruction. If the user destroyed their
       // dspSourceObject slightly before this point, the audio thread's
       // dsp() will now load nullptr instead of a dangling pointer.
-      ptr->source_dsp.store(nullptr, std::memory_order_release); // NOSONAR S8417: intentional release — publishes nulled dsp source to audio thread's acquire load
+      ptr->source_dsp.store(
+          nullptr, std::memory_order_release); // NOSONAR S8417: intentional release — publishes
+                                               // nulled dsp source to audio thread's acquire load
       ptr->setStatus(OBJECT_DELETE);
       runDelete = true;
-      continue;
+      continue; // c already refers to the successor after erase()
     }
-    (*i)->update();
-    previous = i;
-    ++i;
+    ptr->update();
+    c.next();
   }
 }
 
@@ -207,15 +262,14 @@ void YSE::SOUND::managerObject::update() {
   // drain the main→audio inbox of newly-set-up impls
   drainInbox();
 
-  // garbage-collect finished soundFiles
-  auto iMinus = soundFiles.before_begin();
-  for (auto i = soundFiles.begin(); i != soundFiles.end(); ) {
-    if (i->isQueued() || i->inUse()) {
-      iMinus = i;
-      ++i;
-    } else {
-      i = soundFiles.erase_after(iMinus);
-    }
+  // Hand soundFile garbage collection to the slow pool (issue #186). The audio
+  // thread must not iterate or erase `soundFiles`: erasing runs ~soundFile
+  // (sf_close + delete[]) on the callback and races addFile on the main thread.
+  // Throttle to roughly once a second so the GC job isn't re-queued every tick.
+  fileGCTimer += INTERNAL::Time().delta();
+  if (fileGCTimer >= 1.0f && !mgrFileGC.isQueued()) {
+    fileGCTimer = 0.f;
+    INTERNAL::Global().addSlowJob(&mgrFileGC);
   }
 
   VirtualSoundFinder().reset();
@@ -233,11 +287,43 @@ void YSE::SOUND::managerObject::update() {
   syncAndReleaseInUse();
 
   VirtualSoundFinder().calculate();
-  
+}
+
+void YSE::SOUND::managerObject::garbageCollectFiles() {
+  // Runs on the slow pool (mgrFileGC), never the audio thread (issue #186).
+  // Measure the wall time elapsed since the previous pass so the per-file idle
+  // timer advances at the same rate it did when this loop ran every audio
+  // callback (it accumulated Time().delta() there). ~soundFile — with its
+  // sf_close and delete[] — now runs here on the erase, off the callback.
+  std::clock_t now = std::clock();
+  Flt dt = (lastGCClock == 0)
+               ? 0.f
+               : static_cast<Flt>(now - lastGCClock) / static_cast<Flt>(CLOCKS_PER_SEC);
+  lastGCClock = now;
+
+  std::scoped_lock lk(soundFilesMutex);
+  auto iMinus = soundFiles.before_begin();
+  for (auto i = soundFiles.begin(); i != soundFiles.end();) {
+    if (i->isQueued() || i->inUse(dt)) {
+      iMinus = i;
+      ++i;
+    } else {
+      i = soundFiles.erase_after(iMinus);
+    }
+  }
 }
 
 Bool YSE::SOUND::managerObject::empty() {
-  return implementations.empty();
+  // Called only from the audio callback (deviceManager::doOnCallback). It must
+  // read ONLY audio-thread-owned state: `toLoad` and `inUse` are single-thread
+  // (audio) by design, whereas `implementations` is mutated by the main thread
+  // (addImplementation) and the slow-pool (deleteJob) under implementationsMutex.
+  // Reading `implementations`' head from the callback without that lock was a
+  // data race (issue #200). An impl becomes audible only once it has been
+  // drained from the inbox into `toLoad` and promoted into `inUse`, so the
+  // combined emptiness of those two lists is the audio thread's authoritative
+  // "nothing to render" signal.
+  return toLoad.empty() && inUse.empty();
 }
 
 /*AudioFormatReader * YSE::SOUND::managerObject::getReader(const File & f) {
@@ -248,11 +334,10 @@ AudioFormatReader * YSE::SOUND::managerObject::getReader(juce::InputStream * sou
   return formatManager.createReaderFor(source);
 }*/
 
-
-
 void YSE::SOUND::managerObject::adjustLastGainBuffer() {
   for (auto i = inUse.begin(); i != inUse.end(); ++i) {
-    UInt j = static_cast<UInt>((*i)->lastGain.size()); // need to store previous size for deep resize
+    UInt j =
+        static_cast<UInt>((*i)->lastGain.size()); // need to store previous size for deep resize
     (*i)->lastGain.resize(CHANNEL::Manager().getNumberOfOutputs());
     for (; j < (*i)->lastGain.size(); j++) {
       (*i)->lastGain[j].resize((*i)->buffer->size(), 0.0f);

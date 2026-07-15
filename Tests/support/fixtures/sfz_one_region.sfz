@@ -1,0 +1,5 @@
+// Minimal one-region instrument (spec Example 1).
+// Plays across all keys, pitch-tracked from note 60, every velocity.
+<region>
+sample=*silence
+pitch_keycenter=60

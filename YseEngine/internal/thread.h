@@ -11,7 +11,6 @@
 #ifndef THREAD_H_INCLUDED
 #define THREAD_H_INCLUDED
 
-
 #include "../headers/types.hpp"
 #include <thread>
 #include <memory>
@@ -23,7 +22,6 @@ namespace YSE {
 
     class thread {
     public:
-
       thread();
       virtual ~thread();
 
@@ -31,6 +29,19 @@ namespace YSE {
 
       void start();
       void stop();
+
+      // Best-effort thread priority. `high` raises this thread toward the
+      // audio-callback priority band (SCHED_FIFO on POSIX / THREAD_PRIORITY_-
+      // HIGHEST on Windows) so a render worker can't be preempted by ordinary
+      // work while the callback spins in threadPoolJob::join() waiting for it
+      // (issue #188). Must be called after start(); a no-op (returning false)
+      // if the underlying handle isn't running yet. Failure (e.g. POSIX RT
+      // scheduling denied to an unprivileged process) leaves the thread at its
+      // default priority — correctness never depends on the priority actually
+      // taking effect, but the caller can observe denial through the return
+      // value and surface the degraded mode (issue #284). Returns true when
+      // the OS accepted the request.
+      bool setPriority(bool high);
 
       bool isRunning() const;
       bool threadShouldExit() const;
@@ -40,12 +51,7 @@ namespace YSE {
       aBool shouldExit;
     };
 
-  }
-}
+  } // namespace INTERNAL
+} // namespace YSE
 
-
-
-
-
-
-#endif  // THREAD_H_INCLUDED
+#endif // THREAD_H_INCLUDED

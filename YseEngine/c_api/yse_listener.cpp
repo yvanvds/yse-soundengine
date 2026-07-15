@@ -20,7 +20,7 @@ namespace {
   inline YSE::Pos to_cpp(const yse_pos_t& p) {
     return YSE::Pos(p.x, p.y, p.z);
   }
-}
+} // namespace
 
 extern "C" {
 
@@ -53,8 +53,8 @@ YSE_C_API yse_pos_t yse_listener_get_upward(YseListener* l) {
   return to_c(to_cpp(l)->upward());
 }
 
-YSE_C_API void yse_listener_set_orient(
-    YseListener* l, const yse_pos_t* forward, const yse_pos_t* up) {
+YSE_C_API void yse_listener_set_orient(YseListener* l, const yse_pos_t* forward,
+                                       const yse_pos_t* up) {
   if (!l || !forward || !up) return;
   to_cpp(l)->orient(to_cpp(*forward), to_cpp(*up));
 }

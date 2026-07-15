@@ -26,18 +26,24 @@ void YSE::DSP::ringModulator::create() {
   result.reset(new buffer);
 }
 
-void YSE::DSP::ringModulator::process(MULTICHANNELBUFFER & buffer) {
+void YSE::DSP::ringModulator::process(MULTICHANNELBUFFER& buffer) {
   createIfNeeded();
 
-  if (buffer[0].getLength() != result->getLength()) {
-    result->resize(buffer[0].getLength());
+  if (buffer.empty()) return;
+
+  // A single carrier modulates every channel, so generate the sine once per
+  // block (advancing its phase once, exactly as in the mono case) and apply it
+  // to each channel in turn.
+  YSE::DSP::buffer& sin = (*sineGen)(parmFrequency, buffer[0].getLength());
+
+  for (std::size_t ch = 0; ch < buffer.size(); ++ch) {
+    if (buffer[ch].getLength() != result->getLength()) {
+      result->resize(buffer[ch].getLength());
+    }
+
+    (*result) = buffer[ch];
+    (*result) *= sin;
+
+    calculateImpact(buffer[ch], (*result));
   }
-
-  // generate sine wave at wanted frequency
-  YSE::DSP::buffer & sin = (*sineGen)(parmFrequency, buffer[0].getLength());
-
-  (*result) = buffer[0];
-  (*result) *= sin;
-  
-  calculateImpact(buffer[0], (*result));
 }

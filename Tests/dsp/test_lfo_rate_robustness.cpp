@@ -13,21 +13,21 @@
 
 TEST_SUITE("dsp") {
 
-TEST_CASE("lfo: LFO_SAW_REVERSED stays in bounds at the current SAMPLERATE") {
+  TEST_CASE("lfo: LFO_SAW_REVERSED stays in bounds at the current SAMPLERATE") {
     // Construct ten LFO instances and pump 128 samples through each — the
     // first construction sizes the static tables to the live SAMPLERATE,
     // subsequent constructions hit the size-match early-out path, and every
     // operator() exercises the cursor wrap. Any OOB read here would either
     // crash under ASAN/MTE or read garbage > 1.0.
     for (int call = 0; call < 10; ++call) {
-        YSE::DSP::lfo osc;
-        YSE::DSP::buffer& buf = osc(YSE::DSP::LFO_SAW_REVERSED, 2.0f);
-        float* ptr = buf.getPtr();
-        for (unsigned i = 0; i < buf.getLength(); ++i) {
-            CHECK(ptr[i] >= 0.0f);
-            CHECK(ptr[i] <= 1.0f);
-        }
+      YSE::DSP::lfo osc;
+      YSE::DSP::buffer& buf = osc(YSE::DSP::LFO_SAW_REVERSED, 2.0f);
+      float* ptr = buf.getPtr();
+      for (unsigned i = 0; i < buf.getLength(); ++i) {
+        CHECK(ptr[i] >= 0.0f);
+        CHECK(ptr[i] <= 1.0f);
+      }
     }
-}
+  }
 
 } // TEST_SUITE("dsp")

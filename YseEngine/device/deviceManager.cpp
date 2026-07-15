@@ -8,32 +8,21 @@
   ==============================================================================
 */
 
-
 #include "../internalHeaders.h"
 
+YSE::DEVICE::deviceManager::deviceManager()
+  : master(nullptr), currentInputChannels(0), currentOutputChannels(2) {}
 
-YSE::DEVICE::deviceManager::deviceManager() 
-  : master(nullptr)
-  , currentInputChannels(0)
-  , currentOutputChannels(2)
-{
-}
-
-YSE::DEVICE::deviceManager::~deviceManager()
-{
+YSE::DEVICE::deviceManager::~deviceManager() {
   close();
 }
 
-Bool YSE::DEVICE::deviceManager::init(bool openDevice)
-{
+Bool YSE::DEVICE::deviceManager::init(bool openDevice) {
   if (openDevice) updateDeviceList();
   return true;
 }
 
-
-
-bool YSE::DEVICE::deviceManager::doOnCallback(int numSamples)
-{
+bool YSE::DEVICE::deviceManager::doOnCallback(int numSamples) {
   if (master == nullptr) return false;
 
   if (INTERNAL::Global().needsUpdate()) {
@@ -41,6 +30,7 @@ bool YSE::DEVICE::deviceManager::doOnCallback(int numSamples)
     INTERNAL::Time().update();
     INTERNAL::ListenerImpl().update();
     SOUND::Manager().update();
+    SYNTH::Manager().update();
     CHANNEL::Manager().update();
     REVERB::Manager().update();
     MIDI::Manager().update();
@@ -54,7 +44,18 @@ bool YSE::DEVICE::deviceManager::doOnCallback(int numSamples)
   // between two buffer updates and should have the least latency possible
   INTERNAL::DeviceTime().update();
   PLAYER::Manager().update((Flt)numSamples / (Flt)SAMPLERATE);
-  //SYNTH::Manager().update();
+  // Advance every domain clock by this block's duration (issue #249). Domain
+  // clocks derive from the single sample clock, so they tick here — every audio
+  // callback, regardless of whether any sound is playing — and are advanced
+  // before the empty()-sounds early-out below.
+  CLOCK::Manager().update((Flt)numSamples / (Flt)SAMPLERATE);
+  // Clip transports (issue #250) are advanced right after the clocks, every
+  // audio callback, so each transport reads its bound clock's freshly-updated
+  // beat window and fires the note events that fall inside this block.
+  CLIP::Manager().update();
+  // MIDI file playback is advanced every block too (issue #155) so events reach
+  // the connected synths block-accurately, before the synths render this block.
+  MIDI::Manager().updatePlayback(numSamples);
 
   if (SOUND::Manager().empty()) return false;
 
@@ -71,41 +72,34 @@ bool YSE::DEVICE::deviceManager::doOnCallback(int numSamples)
   return true;
 }
 
-void YSE::DEVICE::deviceManager::renderOneBlock()
-{
+void YSE::DEVICE::deviceManager::renderOneBlock() {
   master->dsp();
   master->buffersToParent();
 }
 
-void YSE::DEVICE::deviceManager::renderOffline(int blocks)
-{
+void YSE::DEVICE::deviceManager::renderOffline(int blocks) {
   for (int i = 0; i < blocks; ++i) {
     if (!doOnCallback(STANDARD_BUFFERSIZE)) continue;
     renderOneBlock();
   }
 }
 
-void YSE::DEVICE::deviceManager::setMaster(CHANNEL::implementationObject * ptr)
-{
+void YSE::DEVICE::deviceManager::setMaster(CHANNEL::implementationObject* ptr) {
   master = ptr;
 }
 
-YSE::CHANNEL::implementationObject & YSE::DEVICE::deviceManager::getMaster()
-{
+YSE::CHANNEL::implementationObject& YSE::DEVICE::deviceManager::getMaster() {
   return *master;
 }
 
-const std::vector<YSE::device>& YSE::DEVICE::deviceManager::getDeviceList()
-{
+const std::vector<YSE::device>& YSE::DEVICE::deviceManager::getDeviceList() {
   return devices;
 }
 
-const std::string & YSE::DEVICE::deviceManager::getDefaultTypeName()
-{
+const std::string& YSE::DEVICE::deviceManager::getDefaultTypeName() {
   return defaultTypeName;
 }
 
-const std::string & YSE::DEVICE::deviceManager::getDefaultDeviceName()
-{
+const std::string& YSE::DEVICE::deviceManager::getDefaultDeviceName() {
   return defaultDeviceName;
 }

@@ -39,10 +39,10 @@ namespace YSE {
       pNote(Flt position, Flt pitch, Flt volume, Flt length, Int channel = 1);
 
       /** @brief Construct from an existing ``note`` plus a position. */
-      pNote(const note & object, Flt position = 0.f);
+      pNote(const note& object, Flt position = 0.f);
 
       /** @brief Set the time position. */
-      pNote & setPosition(Flt value);
+      pNote& setPosition(Flt value);
 
       /** @brief Current time position. */
       Flt getPosition() const;
@@ -51,9 +51,7 @@ namespace YSE {
       Flt position;
     };
 
-  }
-}
+  } // namespace MUSIC
+} // namespace YSE
 
-
-
-#endif  // PNOTE_HPP_INCLUDED
+#endif // PNOTE_HPP_INCLUDED

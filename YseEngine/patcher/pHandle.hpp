@@ -9,7 +9,7 @@ namespace YSE {
   namespace PATCHER {
     class pObject;
     class patcherImplementation;
-  }
+  } // namespace PATCHER
   /// @endcond
 
   /**
@@ -26,10 +26,10 @@ namespace YSE {
   class API pHandle {
   public:
     /** @brief Construct a handle around a patcher object. Engine-internal. */
-    pHandle(PATCHER::pObject * obj);
+    pHandle(PATCHER::pObject* obj);
 
     /** @brief Type identifier of the underlying object (see ``YSE::OBJ``). */
-    const char * Type() const;
+    const char* Type() const;
 
     /** @brief Send a bang to inlet ``inlet``. */
     void SetBang(unsigned int inlet);
@@ -41,16 +41,16 @@ namespace YSE {
     void SetFloatData(unsigned int inlet, float value);
 
     /** @brief Send a string or list to inlet ``inlet``. */
-    void SetListData(unsigned int inlet, const std::string & value);
+    void SetListData(unsigned int inlet, const std::string& value);
 
     /** @brief Reconfigure the object using a new argument string. */
-    void SetParams(const std::string & args);
+    void SetParams(const std::string& args);
 
     /** @brief Read a GUI property by key (used by patcher editors). */
-    std::string GetGuiProperty(const std::string & key);
+    std::string GetGuiProperty(const std::string& key);
 
     /** @brief Write a GUI property. */
-    void SetGuiProperty(const std::string & key, const std::string & value);
+    void SetGuiProperty(const std::string& key, const std::string& value);
 
     /** @brief Number of inlets on this object. */
     int GetInputs();
@@ -84,10 +84,10 @@ namespace YSE {
 
     /** @brief Current GUI display value for objects that have one (sliders, toggles, ...). */
     std::string GetGuiValue();
+
   private:
-    PATCHER::pObject * object;
+    PATCHER::pObject* object;
     friend class YSE::PATCHER::patcherImplementation;
   };
 
-
-}
+} // namespace YSE

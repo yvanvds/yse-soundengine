@@ -13,27 +13,28 @@
 namespace YSE {
   namespace INTERNAL {
     namespace CALLBACK {
-      bool(*openPtr)(const char * filename, long long * filesize, void ** fileHandle);
-      void(*closePtr)(void * fileHandle);
-      long long(*readPtr)(void * destBuffer, long long maxBytesToRead, void * fileHandle);
-      long long(*getPosPtr)(void * fileHandle);
-      bool(*fileExists)(const char * filename);
-      long long(*lengthPtr)(void * fileHandle);
-      long long(*seekPtr)(long long offset, int whence, void * fileHandle);
+      bool (*openPtr)(const char* filename, long long* filesize, void** fileHandle);
+      void (*closePtr)(void* fileHandle);
+      long long (*readPtr)(void* destBuffer, long long maxBytesToRead, void* fileHandle);
+      long long (*getPosPtr)(void* fileHandle);
+      bool (*fileExists)(const char* filename);
+      long long (*lengthPtr)(void* fileHandle);
+      long long (*seekPtr)(long long offset, int whence, void* fileHandle);
 
       SF_VIRTUAL_IO vio;
-    }
-  }
-}
+    } // namespace CALLBACK
+  } // namespace INTERNAL
+} // namespace YSE
 
-bool YSE::INTERNAL::customFileReader::Open(const char * filename, long long * filesize, void ** fileHandle) {
+bool YSE::INTERNAL::customFileReader::Open(const char* filename, long long* filesize,
+                                           void** fileHandle) {
   if (CALLBACK::openPtr != nullptr) {
     return CALLBACK::openPtr(filename, filesize, fileHandle);
   }
   return false;
 }
 
-void YSE::INTERNAL::customFileReader::Close(void * fileHandle) {
+void YSE::INTERNAL::customFileReader::Close(void* fileHandle) {
   if (CALLBACK::closePtr != nullptr) {
     CALLBACK::closePtr(fileHandle);
   }
@@ -53,11 +54,11 @@ void YSE::INTERNAL::customFileReader::UpdateVIO() {
   CALLBACK::vio.tell = CALLBACK::getPosPtr;
   CALLBACK::vio.write = NULL;
 #else
-	CALLBACK::vio.get_filelen = (long int(*)(void*)) CALLBACK::lengthPtr;
-	CALLBACK::vio.read = (long int(*)(void*, long int, void*)) CALLBACK::readPtr;
-	CALLBACK::vio.seek = (long int(*)(long int, int, void*)) CALLBACK::seekPtr;
-	CALLBACK::vio.tell = (long int(*)(void*)) CALLBACK::getPosPtr;
-	CALLBACK::vio.write = NULL;
+  CALLBACK::vio.get_filelen = (long int (*)(void*))CALLBACK::lengthPtr;
+  CALLBACK::vio.read = (long int (*)(void*, long int, void*))CALLBACK::readPtr;
+  CALLBACK::vio.seek = (long int (*)(long int, int, void*))CALLBACK::seekPtr;
+  CALLBACK::vio.tell = (long int (*)(void*))CALLBACK::getPosPtr;
+  CALLBACK::vio.write = NULL;
 #endif
 }
 
@@ -77,6 +78,6 @@ void YSE::INTERNAL::customFileReader::ResetVIO() {
   CALLBACK::seekPtr = nullptr;
 }
 
-SF_VIRTUAL_IO & YSE::INTERNAL::customFileReader::GetVIO() {
+SF_VIRTUAL_IO& YSE::INTERNAL::customFileReader::GetVIO() {
   return CALLBACK::vio;
 }

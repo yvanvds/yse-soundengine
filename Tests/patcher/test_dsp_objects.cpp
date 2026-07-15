@@ -23,40 +23,40 @@ static constexpr float kPi = 3.14159265358979323846f;
 
 namespace {
 
-inline void fillSine(YSE::DSP::buffer & buf, float freq, float sr = 44100.0f) {
+  inline void fillSine(YSE::DSP::buffer& buf, float freq, float sr = 44100.0f) {
     float* p = buf.getPtr();
     for (unsigned i = 0; i < buf.getLength(); ++i)
-        p[i] = std::sin(2.0f * kPi * freq * static_cast<float>(i) / sr);
-}
+      p[i] = std::sin(2.0f * kPi * freq * static_cast<float>(i) / sr);
+  }
 
-inline float maxAbs(YSE::DSP::buffer & b) {
+  inline float maxAbs(YSE::DSP::buffer& b) {
     float* p = b.getPtr();
     float m = 0.0f;
     for (unsigned i = 0; i < b.getLength(); ++i) {
-        float a = std::abs(p[i]);
-        if (a > m) m = a;
+      float a = std::abs(p[i]);
+      if (a > m) m = a;
     }
     return m;
-}
+  }
 
 } // anonymous namespace
 
 TEST_SUITE("patcher") {
 
-// ─── dNoise ───────────────────────────────────────────────────────────────────
+  // ─── dNoise ───────────────────────────────────────────────────────────────────
 
-TEST_CASE("dNoise: type name, input/output count, and output type") {
+  TEST_CASE("dNoise: type name, input/output count, and output type") {
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* h = p.CreateObject(YSE::OBJ::D_NOISE);
     REQUIRE(h != nullptr);
     CHECK(std::string(h->Type()) == "~noise");
-    CHECK(h->GetInputs()  == 0);
+    CHECK(h->GetInputs() == 0);
     CHECK(h->GetOutputs() == 1);
     CHECK(h->OutputDataType(0) == YSE::OUT_TYPE::BUFFER);
-}
+  }
 
-TEST_CASE("dNoise: emits a non-silent, bounded buffer") {
+  TEST_CASE("dNoise: emits a non-silent, bounded buffer") {
     YSE::PATCHER::dNoise node;
     BufferSink sink;
     node.ConnectOutlet(sink.GetInlet(0), 0);
@@ -69,9 +69,9 @@ TEST_CASE("dNoise: emits a non-silent, bounded buffer") {
     CHECK(peak > 0.0f);
     CHECK(peak <= 1.5f);
     CHECK_FALSE(sink.received->isSilent());
-}
+  }
 
-TEST_CASE("dNoise: successive calls produce different samples") {
+  TEST_CASE("dNoise: successive calls produce different samples") {
     YSE::PATCHER::dNoise node;
     BufferSink sink;
     node.ConnectOutlet(sink.GetInlet(0), 0);
@@ -90,31 +90,34 @@ TEST_CASE("dNoise: successive calls produce different samples") {
     float* b = sink.received->getPtr();
     unsigned n = first.getLength();
     for (unsigned i = 0; i < n; ++i) {
-        if (a[i] != b[i]) { anyDifferent = true; break; }
+      if (a[i] != b[i]) {
+        anyDifferent = true;
+        break;
+      }
     }
     CHECK(anyDifferent);
-}
+  }
 
-// ─── pLine ────────────────────────────────────────────────────────────────────
+  // ─── pLine ────────────────────────────────────────────────────────────────────
 
-TEST_CASE("pLine: type name, input/output count, and output type") {
+  TEST_CASE("pLine: type name, input/output count, and output type") {
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* h = p.CreateObject(YSE::OBJ::D_LINE);
     REQUIRE(h != nullptr);
     CHECK(std::string(h->Type()) == "~line");
-    CHECK(h->GetInputs()  == 2);
+    CHECK(h->GetInputs() == 2);
     CHECK(h->GetOutputs() == 1);
     CHECK(h->OutputDataType(0) == YSE::OUT_TYPE::BUFFER);
-}
+  }
 
-TEST_CASE("pLine: with time=0 reaches target immediately") {
+  TEST_CASE("pLine: with time=0 reaches target immediately") {
     YSE::PATCHER::pLine line;
     BufferSink sink;
     line.ConnectOutlet(sink.GetInlet(0), 0);
     sink.ConnectInlet(line.GetOutlet(0), 0);
 
-    line.GetInlet(1)->SetFloat(0.0f, YSE::T_GUI);  // time
+    line.GetInlet(1)->SetFloat(0.0f, YSE::T_GUI); // time
     line.GetInlet(0)->SetFloat(0.75f, YSE::T_GUI); // target
     line.Calculate(YSE::T_DSP);
 
@@ -122,9 +125,9 @@ TEST_CASE("pLine: with time=0 reaches target immediately") {
     // last sample should equal target since time was 0
     float last = sink.received->getPtr()[sink.received->getLength() - 1];
     CHECK(last == doctest::Approx(0.75f));
-}
+  }
 
-TEST_CASE("pLine: ramps toward target over a finite time") {
+  TEST_CASE("pLine: ramps toward target over a finite time") {
     YSE::PATCHER::pLine line;
     BufferSink sink;
     line.ConnectOutlet(sink.GetInlet(0), 0);
@@ -141,12 +144,13 @@ TEST_CASE("pLine: ramps toward target over a finite time") {
     CHECK(firstFrameLast >= 0.0f);
 
     // After enough iterations, ramp should converge close to target.
-    for (int i = 0; i < 5000; ++i) line.Calculate(YSE::T_DSP);
+    for (int i = 0; i < 5000; ++i)
+      line.Calculate(YSE::T_DSP);
     float settled = sink.received->getPtr()[sink.received->getLength() - 1];
     CHECK(settled == doctest::Approx(1.0f).epsilon(1e-3f));
-}
+  }
 
-TEST_CASE("pLine: 'stop' message halts the ramp at the current value") {
+  TEST_CASE("pLine: 'stop' message halts the ramp at the current value") {
     YSE::PATCHER::pLine line;
     BufferSink sink;
     line.ConnectOutlet(sink.GetInlet(0), 0);
@@ -156,7 +160,8 @@ TEST_CASE("pLine: 'stop' message halts the ramp at the current value") {
     line.GetInlet(0)->SetFloat(1.0f, YSE::T_GUI);
 
     // Run a few iterations so the ramp has advanced but isn't done.
-    for (int i = 0; i < 4; ++i) line.Calculate(YSE::T_DSP);
+    for (int i = 0; i < 4; ++i)
+      line.Calculate(YSE::T_DSP);
     REQUIRE(sink.received != nullptr);
     float midValue = sink.received->getPtr()[sink.received->getLength() - 1];
     REQUIRE(midValue < 1.0f);
@@ -166,23 +171,23 @@ TEST_CASE("pLine: 'stop' message halts the ramp at the current value") {
     line.Calculate(YSE::T_DSP);
 
     float afterStop = sink.received->getPtr()[sink.received->getLength() - 1];
-    CHECK(afterStop < 1.0f);  // should not have advanced to target
-}
+    CHECK(afterStop < 1.0f); // should not have advanced to target
+  }
 
-// ─── pBandpass ────────────────────────────────────────────────────────────────
+  // ─── pBandpass ────────────────────────────────────────────────────────────────
 
-TEST_CASE("pBandpass: type name, input/output count, and output type") {
+  TEST_CASE("pBandpass: type name, input/output count, and output type") {
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* h = p.CreateObject(YSE::OBJ::D_BANDPASS);
     REQUIRE(h != nullptr);
     CHECK(std::string(h->Type()) == "~bp");
-    CHECK(h->GetInputs()  == 3);
+    CHECK(h->GetInputs() == 3);
     CHECK(h->GetOutputs() == 1);
     CHECK(h->OutputDataType(0) == YSE::OUT_TYPE::BUFFER);
-}
+  }
 
-TEST_CASE("pBandpass: null input buffer produces no output") {
+  TEST_CASE("pBandpass: null input buffer produces no output") {
     YSE::PATCHER::pBandpass bp;
     BufferSink sink;
     bp.ConnectOutlet(sink.GetInlet(0), 0);
@@ -190,9 +195,9 @@ TEST_CASE("pBandpass: null input buffer produces no output") {
 
     bp.Calculate(YSE::T_DSP);
     CHECK(sink.received == nullptr);
-}
+  }
 
-TEST_CASE("pBandpass: center-frequency tone is preserved more than far-off tone") {
+  TEST_CASE("pBandpass: center-frequency tone is preserved more than far-off tone") {
     YSE::PATCHER::pBandpass onBand, offBand;
     BufferSink sinkOn, sinkOff;
     onBand.ConnectOutlet(sinkOn.GetInlet(0), 0);
@@ -207,20 +212,20 @@ TEST_CASE("pBandpass: center-frequency tone is preserved more than far-off tone"
 
     YSE::DSP::buffer onIn(128), offIn(128);
     for (int iter = 0; iter < 30; ++iter) {
-        fillSine(onIn, 1000.0f);
-        fillSine(offIn, 8000.0f);
-        onBand.GetInlet(0)->SetBuffer(&onIn, YSE::T_GUI);
-        offBand.GetInlet(0)->SetBuffer(&offIn, YSE::T_GUI);
-        onBand.Calculate(YSE::T_DSP);
-        offBand.Calculate(YSE::T_DSP);
+      fillSine(onIn, 1000.0f);
+      fillSine(offIn, 8000.0f);
+      onBand.GetInlet(0)->SetBuffer(&onIn, YSE::T_GUI);
+      offBand.GetInlet(0)->SetBuffer(&offIn, YSE::T_GUI);
+      onBand.Calculate(YSE::T_DSP);
+      offBand.Calculate(YSE::T_DSP);
     }
 
     REQUIRE(sinkOn.received != nullptr);
     REQUIRE(sinkOff.received != nullptr);
     CHECK(TestHelpers::measureRms(*sinkOn.received) > TestHelpers::measureRms(*sinkOff.received));
-}
+  }
 
-TEST_CASE("pBandpass: ResetDSP clears the buffer pointer") {
+  TEST_CASE("pBandpass: ResetDSP clears the buffer pointer") {
     YSE::PATCHER::pBandpass bp;
     BufferSink sink;
     bp.ConnectOutlet(sink.GetInlet(0), 0);
@@ -239,22 +244,22 @@ TEST_CASE("pBandpass: ResetDSP clears the buffer pointer") {
     bp.ResetDSP();
     bp.Calculate(YSE::T_DSP);
     CHECK(sink.received == nullptr);
-}
+  }
 
-// ─── pHighpass ────────────────────────────────────────────────────────────────
+  // ─── pHighpass ────────────────────────────────────────────────────────────────
 
-TEST_CASE("pHighpass: type name, input/output count, and output type") {
+  TEST_CASE("pHighpass: type name, input/output count, and output type") {
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* h = p.CreateObject(YSE::OBJ::D_HIGHPASS);
     REQUIRE(h != nullptr);
     CHECK(std::string(h->Type()) == "~hp");
-    CHECK(h->GetInputs()  == 2);
+    CHECK(h->GetInputs() == 2);
     CHECK(h->GetOutputs() == 1);
     CHECK(h->OutputDataType(0) == YSE::OUT_TYPE::BUFFER);
-}
+  }
 
-TEST_CASE("pHighpass: null input buffer produces no output") {
+  TEST_CASE("pHighpass: null input buffer produces no output") {
     YSE::PATCHER::pHighpass hp;
     BufferSink sink;
     hp.ConnectOutlet(sink.GetInlet(0), 0);
@@ -262,9 +267,9 @@ TEST_CASE("pHighpass: null input buffer produces no output") {
 
     hp.Calculate(YSE::T_DSP);
     CHECK(sink.received == nullptr);
-}
+  }
 
-TEST_CASE("pHighpass: attenuates a DC input after settling") {
+  TEST_CASE("pHighpass: attenuates a DC input after settling") {
     YSE::PATCHER::pHighpass hp;
     BufferSink sink;
     hp.ConnectOutlet(sink.GetInlet(0), 0);
@@ -275,16 +280,16 @@ TEST_CASE("pHighpass: attenuates a DC input after settling") {
     YSE::DSP::buffer in(128);
     in = 1.0f;
     for (int iter = 0; iter < 20; ++iter) {
-        hp.GetInlet(0)->SetBuffer(&in, YSE::T_GUI);
-        hp.Calculate(YSE::T_DSP);
+      hp.GetInlet(0)->SetBuffer(&in, YSE::T_GUI);
+      hp.Calculate(YSE::T_DSP);
     }
 
     REQUIRE(sink.received != nullptr);
     float last = sink.received->getPtr()[sink.received->getLength() - 1];
     CHECK(std::abs(last) < 0.1f);
-}
+  }
 
-TEST_CASE("pHighpass: passes high-frequency content more than DC") {
+  TEST_CASE("pHighpass: passes high-frequency content more than DC") {
     YSE::PATCHER::pHighpass hpDC, hpHi;
     BufferSink sinkDC, sinkHi;
     hpDC.ConnectOutlet(sinkDC.GetInlet(0), 0);
@@ -297,20 +302,20 @@ TEST_CASE("pHighpass: passes high-frequency content more than DC") {
 
     YSE::DSP::buffer bufDC(128), bufHi(128);
     for (int iter = 0; iter < 20; ++iter) {
-        bufDC = 1.0f;
-        fillSine(bufHi, 5000.0f);
-        hpDC.GetInlet(0)->SetBuffer(&bufDC, YSE::T_GUI);
-        hpHi.GetInlet(0)->SetBuffer(&bufHi, YSE::T_GUI);
-        hpDC.Calculate(YSE::T_DSP);
-        hpHi.Calculate(YSE::T_DSP);
+      bufDC = 1.0f;
+      fillSine(bufHi, 5000.0f);
+      hpDC.GetInlet(0)->SetBuffer(&bufDC, YSE::T_GUI);
+      hpHi.GetInlet(0)->SetBuffer(&bufHi, YSE::T_GUI);
+      hpDC.Calculate(YSE::T_DSP);
+      hpHi.Calculate(YSE::T_DSP);
     }
 
     REQUIRE(sinkDC.received != nullptr);
     REQUIRE(sinkHi.received != nullptr);
     CHECK(TestHelpers::measureRms(*sinkHi.received) > TestHelpers::measureRms(*sinkDC.received));
-}
+  }
 
-TEST_CASE("pHighpass: ResetDSP clears the buffer pointer") {
+  TEST_CASE("pHighpass: ResetDSP clears the buffer pointer") {
     YSE::PATCHER::pHighpass hp;
     BufferSink sink;
     hp.ConnectOutlet(sink.GetInlet(0), 0);
@@ -327,23 +332,23 @@ TEST_CASE("pHighpass: ResetDSP clears the buffer pointer") {
     hp.ResetDSP();
     hp.Calculate(YSE::T_DSP);
     CHECK(sink.received == nullptr);
-}
+  }
 
-// ─── dVcf ─────────────────────────────────────────────────────────────────────
+  // ─── dVcf ─────────────────────────────────────────────────────────────────────
 
-TEST_CASE("dVcf: type name, input/output count, and output type") {
+  TEST_CASE("dVcf: type name, input/output count, and output type") {
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* h = p.CreateObject(YSE::OBJ::D_VCF);
     REQUIRE(h != nullptr);
     CHECK(std::string(h->Type()) == "~vcf");
-    CHECK(h->GetInputs()  == 3);
+    CHECK(h->GetInputs() == 3);
     CHECK(h->GetOutputs() == 2);
     CHECK(h->OutputDataType(0) == YSE::OUT_TYPE::BUFFER);
     CHECK(h->OutputDataType(1) == YSE::OUT_TYPE::BUFFER);
-}
+  }
 
-TEST_CASE("dVcf: null input buffer produces no output") {
+  TEST_CASE("dVcf: null input buffer produces no output") {
     YSE::PATCHER::dVcf vcf;
     BufferSink out1, out2;
     vcf.ConnectOutlet(out1.GetInlet(0), 0);
@@ -355,9 +360,9 @@ TEST_CASE("dVcf: null input buffer produces no output") {
 
     CHECK(out1.received == nullptr);
     CHECK(out2.received == nullptr);
-}
+  }
 
-TEST_CASE("dVcf: null center buffer produces no output") {
+  TEST_CASE("dVcf: null center buffer produces no output") {
     YSE::PATCHER::dVcf vcf;
     BufferSink out1, out2;
     vcf.ConnectOutlet(out1.GetInlet(0), 0);
@@ -372,9 +377,9 @@ TEST_CASE("dVcf: null center buffer produces no output") {
 
     CHECK(out1.received == nullptr);
     CHECK(out2.received == nullptr);
-}
+  }
 
-TEST_CASE("dVcf: ResetDSP clears both buffer pointers") {
+  TEST_CASE("dVcf: ResetDSP clears both buffer pointers") {
     YSE::PATCHER::dVcf vcf;
     YSE::DSP::buffer in(128), center(128);
     fillSine(in, 1000.0f);
@@ -393,9 +398,9 @@ TEST_CASE("dVcf: ResetDSP clears both buffer pointers") {
 
     CHECK(out1.received == nullptr);
     CHECK(out2.received == nullptr);
-}
+  }
 
-TEST_CASE("dVcf: emits non-silent buffers on both outlets when fed valid inputs") {
+  TEST_CASE("dVcf: emits non-silent buffers on both outlets when fed valid inputs") {
     // Regression for issue #30: Calculate used to dereference a null DSP::buffer
     // for the imag output and segfault as soon as both inlets were connected.
     YSE::PATCHER::dVcf vcf;
@@ -405,15 +410,15 @@ TEST_CASE("dVcf: emits non-silent buffers on both outlets when fed valid inputs"
     vcf.ConnectOutlet(outImag.GetInlet(0), 1);
     outImag.ConnectInlet(vcf.GetOutlet(1), 0);
 
-    vcf.GetInlet(2)->SetFloat(2.0f, YSE::T_GUI);  // sharpness
+    vcf.GetInlet(2)->SetFloat(2.0f, YSE::T_GUI); // sharpness
 
     YSE::DSP::buffer in(128), center(128);
     center = 1000.0f;
     for (int iter = 0; iter < 30; ++iter) {
-        fillSine(in, 1000.0f);
-        vcf.GetInlet(0)->SetBuffer(&in, YSE::T_GUI);
-        vcf.GetInlet(1)->SetBuffer(&center, YSE::T_GUI);
-        vcf.Calculate(YSE::T_DSP);
+      fillSine(in, 1000.0f);
+      vcf.GetInlet(0)->SetBuffer(&in, YSE::T_GUI);
+      vcf.GetInlet(1)->SetBuffer(&center, YSE::T_GUI);
+      vcf.Calculate(YSE::T_DSP);
     }
 
     REQUIRE(outReal.received != nullptr);
@@ -427,12 +432,15 @@ TEST_CASE("dVcf: emits non-silent buffers on both outlets when fed valid inputs"
     float* i = outImag.received->getPtr();
     bool anyDifferent = false;
     for (unsigned k = 0; k < outReal.received->getLength(); ++k) {
-        if (r[k] != i[k]) { anyDifferent = true; break; }
+      if (r[k] != i[k]) {
+        anyDifferent = true;
+        break;
+      }
     }
     CHECK(anyDifferent);
-}
+  }
 
-TEST_CASE("dVcf: center-frequency tone is preserved more than far-off tone") {
+  TEST_CASE("dVcf: center-frequency tone is preserved more than far-off tone") {
     YSE::PATCHER::dVcf onBand, offBand;
     BufferSink sinkOn, sinkOff;
     onBand.ConnectOutlet(sinkOn.GetInlet(0), 0);
@@ -446,31 +454,31 @@ TEST_CASE("dVcf: center-frequency tone is preserved more than far-off tone") {
     YSE::DSP::buffer onIn(128), offIn(128), center(128);
     center = 1000.0f;
     for (int iter = 0; iter < 30; ++iter) {
-        fillSine(onIn, 1000.0f);
-        fillSine(offIn, 8000.0f);
-        onBand.GetInlet(0)->SetBuffer(&onIn, YSE::T_GUI);
-        onBand.GetInlet(1)->SetBuffer(&center, YSE::T_GUI);
-        offBand.GetInlet(0)->SetBuffer(&offIn, YSE::T_GUI);
-        offBand.GetInlet(1)->SetBuffer(&center, YSE::T_GUI);
-        onBand.Calculate(YSE::T_DSP);
-        offBand.Calculate(YSE::T_DSP);
+      fillSine(onIn, 1000.0f);
+      fillSine(offIn, 8000.0f);
+      onBand.GetInlet(0)->SetBuffer(&onIn, YSE::T_GUI);
+      onBand.GetInlet(1)->SetBuffer(&center, YSE::T_GUI);
+      offBand.GetInlet(0)->SetBuffer(&offIn, YSE::T_GUI);
+      offBand.GetInlet(1)->SetBuffer(&center, YSE::T_GUI);
+      onBand.Calculate(YSE::T_DSP);
+      offBand.Calculate(YSE::T_DSP);
     }
 
     REQUIRE(sinkOn.received != nullptr);
     REQUIRE(sinkOff.received != nullptr);
     CHECK(TestHelpers::measureRms(*sinkOn.received) > TestHelpers::measureRms(*sinkOff.received));
-}
+  }
 
-// ─── pDac ─────────────────────────────────────────────────────────────────────
+  // ─── pDac ─────────────────────────────────────────────────────────────────────
 
-TEST_CASE("pDac: constructs with N channels and accepts N buffer inputs") {
+  TEST_CASE("pDac: constructs with N channels and accepts N buffer inputs") {
     YSE::PATCHER::pDac dac(2);
     CHECK(std::string(dac.Type()) == "~dac");
-    CHECK(dac.NumInputs()  == 2);
+    CHECK(dac.NumInputs() == 2);
     CHECK(dac.NumOutputs() == 0);
-}
+  }
 
-TEST_CASE("pDac: stores per-channel input buffers and returns them via GetBuffer") {
+  TEST_CASE("pDac: stores per-channel input buffers and returns them via GetBuffer") {
     YSE::PATCHER::pDac dac(2);
 
     YSE::DSP::buffer ch0(128), ch1(128);
@@ -482,14 +490,14 @@ TEST_CASE("pDac: stores per-channel input buffers and returns them via GetBuffer
 
     CHECK(dac.GetBuffer(0) == &ch0);
     CHECK(dac.GetBuffer(1) == &ch1);
-}
+  }
 
-TEST_CASE("pDac: GetBuffer returns nullptr for out-of-range channel") {
+  TEST_CASE("pDac: GetBuffer returns nullptr for out-of-range channel") {
     YSE::PATCHER::pDac dac(2);
     CHECK(dac.GetBuffer(5) == nullptr);
-}
+  }
 
-TEST_CASE("pDac: ResetDSP clears every stored channel buffer pointer") {
+  TEST_CASE("pDac: ResetDSP clears every stored channel buffer pointer") {
     YSE::PATCHER::pDac dac(2);
     YSE::DSP::buffer ch0(128), ch1(128);
     dac.GetInlet(0)->SetBuffer(&ch0, YSE::T_GUI);
@@ -501,6 +509,6 @@ TEST_CASE("pDac: ResetDSP clears every stored channel buffer pointer") {
 
     CHECK(dac.GetBuffer(0) == nullptr);
     CHECK(dac.GetBuffer(1) == nullptr);
-}
+  }
 
 } // TEST_SUITE("patcher")

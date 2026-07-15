@@ -5,6 +5,7 @@
 set(YSE_TEST_SOURCES
   main.cpp
   test_sanity.cpp
+  support/alloc_probe.cpp
   dsp/test_buffer.cpp
   dsp/test_ramp.cpp
   dsp/test_math_scalars.cpp
@@ -13,7 +14,10 @@ set(YSE_TEST_SOURCES
   utils/test_atomic.cpp
   utils/test_vector.cpp
   utils/test_lfqueue.cpp
+  utils/test_mpmcqueue.cpp
   utils/test_interpolators.cpp
+  utils/test_intrusive_list.cpp
+  internal/test_threadpool.cpp
   dsp/test_filters.cpp
   dsp/test_delay.cpp
   dsp/test_envelope.cpp
@@ -22,6 +26,21 @@ set(YSE_TEST_SOURCES
   dsp/test_modules.cpp
   dsp/test_module_filters.cpp
   dsp/test_module_delays.cpp
+  dsp/test_module_feedback_delay.cpp
+  dsp/test_module_chorus.cpp
+  dsp/test_module_plate_reverb.cpp
+  dsp/test_module_morphing_reverb.cpp
+  dsp/test_module_underwater.cpp
+  dsp/test_module_parametric_eq.cpp
+  dsp/test_module_compressor.cpp
+  dsp/test_module_multichannel.cpp
+  dsp/test_synth_voice.cpp
+  dsp/test_sfz_parser.cpp
+  dsp/test_sampler_voice.cpp
+  dsp/test_ladder_filter.cpp
+  dsp/test_va_voice.cpp
+  dsp/test_fm_voice.cpp
+  dsp/test_dx7_sysex.cpp
   patcher/test_graph.cpp
   patcher/test_nodes.cpp
   patcher/test_patcher_math.cpp
@@ -31,28 +50,81 @@ set(YSE_TEST_SOURCES
   patcher/test_gui_objects.cpp
   patcher/test_doc_coverage.cpp
   patcher/test_c_api_metadata.cpp
+  patcher/test_patcher_bus.cpp
+  patcher/test_patcher_graphstate.cpp
+  patcher/test_patcher_setparams.cpp
+  patcher/test_patcher_value_queue.cpp
+  patcher/test_patcher_concurrency.cpp
+  patcher/test_patcher_object_races.cpp
+  patcher/test_patcher_feedback_loop.cpp
+  patcher/test_patcher_adc.cpp
   patcher/test_timerthread.cpp
   channel/test_channel.cpp
   channel/test_channel_concurrency.cpp
   channel/test_channel_metering.cpp
+  channel/test_channel_bus.cpp
+  channel/test_channel_layout.cpp
+  channel/test_channel_dsp.cpp
+  channel/test_channel_sends.cpp
+  channel/test_channel_underwater.cpp
+  channel/test_c_api_channel.cpp
   sound/test_sound_state.cpp
+  sound/test_sound_streaming.cpp
+  sound/test_sound_bufferrace.cpp
   sound/test_sound_impl.cpp
   sound/test_sound_concurrency.cpp
   sound/test_sound_bufferIO.cpp
   sound/test_sound_manager.cpp
+  sound/test_sound_file_gc.cpp
+  sound/test_sound_bus.cpp
+  sound/test_virtual_finder.cpp
+  sound/test_manager_alloc.cpp
+  synth/test_synth.cpp
+  synth/test_synth_keyboard.cpp
+  synth/test_synth_close.cpp
+  synth/test_synth_positioning.cpp
+  synth/test_synth_handlers.cpp
+  synth/test_c_api_synth.cpp
+  synth/test_c_api_instrument.cpp
+  dsp/test_panner.cpp
   reverb/test_reverb_dsp.cpp
   reverb/test_reverb_concurrency.cpp
   midi/test_midifile.cpp
+  midi/test_midifile_concurrency.cpp
+  midi/test_midifile_alloc.cpp
   midi/test_devicemanager.cpp
   midi/test_midi_in.cpp
+  midi/test_midi_out_sender.cpp
+  midi/test_midi_synth_routing.cpp
+  midi/test_midi_synth.cpp
   music/test_scale.cpp
   music/test_note.cpp
   music/test_motif.cpp
+  music/test_player_alloc.cpp
+  music/test_player_synth.cpp
+  music/test_c_api_player.cpp
   listener/test_listener.cpp
+  listener/test_listener_concurrency.cpp
   io/test_bufferIO.cpp
+  io/test_callback_counter.cpp
+  system/test_named_bus.cpp
   system/test_system_active_state.cpp
+  system/test_lifecycle.cpp
+  clock/test_domain_clocks.cpp
+  clip/test_clip_transport.cpp
   integration/test_device.cpp
+  integration/test_content_pack.cpp
+  integration/test_synth_demos.cpp
+  python/test_c_api_python.cpp
 )
+
+# Embedded-CPython runtime tests (issue #124) — only when the option is ON.
+# The TU is guarded by YSE_ENABLE_PYTHON, which propagates from yse_objects
+# (defined PUBLIC there) to this target via the yse_objects link below.
+if(YSE_ENABLE_PYTHON)
+  list(APPEND YSE_TEST_SOURCES python/test_script_runtime.cpp)
+  list(APPEND YSE_TEST_SOURCES python/test_yse_module.cpp)
+endif()
 
 if(ANDROID)
   # NativeActivity dynamically loads the test runner as libyse_tests.so. The
@@ -88,6 +160,20 @@ target_link_libraries(yse_tests
   PRIVATE
     yse_objects   # direct object linkage: full symbol access without API export boundary
     doctest
+    yse::sndfile  # test_sound_streaming.cpp needs sndfile.hh (fixture writer + INTERNAL::soundFile)
+)
+
+# test_sound_streaming.cpp drives INTERNAL::soundFile directly, whose header is
+# gated behind LIBSOUNDFILE_BACKEND (defined PRIVATE on yse_objects). Enable the
+# gate for just this one TU so the rest of the suite is unaffected (issue #185).
+set_source_files_properties(sound/test_sound_streaming.cpp PROPERTIES
+  COMPILE_DEFINITIONS LIBSOUNDFILE_BACKEND
+)
+
+# test_sound_bufferrace.cpp also drives INTERNAL::soundFile directly (the
+# DSP::buffer-backed read path, issue #286), so it needs the same gate enabled.
+set_source_files_properties(sound/test_sound_bufferrace.cpp PROPERTIES
+  COMPILE_DEFINITIONS LIBSOUNDFILE_BACKEND
 )
 
 target_compile_features(yse_tests PRIVATE cxx_std_17)
@@ -112,10 +198,50 @@ set_target_properties(yse_tests PROPERTIES
 if(NOT ANDROID)
 add_test(
   NAME    yse_unit_tests
-  COMMAND yse_tests --test-suite-exclude=integration --duration=true
+  # `lifecycle`, `synthlifecycle`, `synthcapi`, `midisynth`, `playersynth` and
+  # `playercapi` are excluded alongside `integration`: they drive System::close(),
+  # which permanently stops the global thread pools and would break every later
+  # suite sharing this process. Each runs in its own process via yse_tests_lifecycle
+  # / yse_tests_synthlifecycle / yse_tests_synthcapi / yse_tests_midisynth /
+  # yse_tests_playersynth / yse_tests_playercapi.
+  #
+  # The `* concurrency: *` stress cases run here again (issue #304). They were
+  # temporarily excluded when the crowded ~1100-case process flaked (hang or
+  # SIGSEGV) in the channel two-thread churn case; the root cause turned out to
+  # be the channel impl ctor leaving `objectStatus` uninitialised, letting the
+  # slow-pool deleteJob free a node mid-construction (issue #336, fixed in
+  # PR #337). With that fixed, running the stress cases in this warm-heap,
+  # thread-churning process is deliberate coverage — it is exactly the
+  # environment that exposed #336 — on top of the dedicated
+  # yse_tests_concurrency entry and the per-suite entries.
+  # `sendstress` is excluded too: like the lifecycle suites it drives
+  # System::initOffline() (process-global engine state), so it must run in its
+  # own process (yse_tests_sendstress) rather than in this shared one.
+  # `channelcapi` (issue #166 C-API channel-DSP/send surface) is excluded for
+  # the same reason — it drives yse_system_init_offline() and runs in its own
+  # process (yse_tests_channelcapi).
+  # `clock` (issue #249 domain clocks) is excluded too: its cases drive
+  # CLOCK::Manager().update() directly on the test thread to advance beats
+  # deterministically, which would race a live audio thread from another suite
+  # in this shared process. It runs isolated in yse_tests_clock.
+  # `clip` (issue #250 clip transport) is excluded for the same reason as
+  # `clock`: its cases drive CLOCK::Manager().update() / CLIP::Manager().update()
+  # directly on the test thread. It runs isolated in yse_tests_clip.
+  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthhandlers,synthcapi,instrumentcapi,midisynth,playersynth,playercapi,sendstress,channelcapi,synthdemos,clock,clip --duration=true
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_unit_tests PROPERTIES TIMEOUT 600)
+
+# Engine init/close lifecycle (issue #132). Isolated in its own process because
+# System::close() tears down process-global state (thread pools, named bus) that
+# the rest of the suite assumes stays up. Uses initOffline(), so no audio
+# hardware is needed and it runs in CI.
+add_test(
+  NAME    yse_tests_lifecycle
+  COMMAND yse_tests --test-suite=lifecycle
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_lifecycle PROPERTIES LABELS lifecycle)
 
 add_test(
   NAME    yse_tests_dsp
@@ -123,6 +249,27 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_dsp PROPERTIES LABELS dsp)
+
+# Domain clocks (issue #249). Isolated in its own process: the cases drive
+# CLOCK::Manager().update() directly to advance beats deterministically, so
+# they must not share a process with a suite that runs a live audio thread
+# (which would also tick the clock manager). No audio device needed.
+add_test(
+  NAME    yse_tests_clock
+  COMMAND yse_tests --test-suite=clock
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_clock PROPERTIES LABELS clock)
+
+# Clip transport (issue #250). Isolated for the same reason as the clock suite:
+# the cases drive CLOCK::Manager().update() / CLIP::Manager().update() directly
+# on the test thread. No audio device needed.
+add_test(
+  NAME    yse_tests_clip
+  COMMAND yse_tests --test-suite=clip
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_clip PROPERTIES LABELS clip)
 
 add_test(
   NAME    yse_tests_utils
@@ -137,6 +284,18 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_patcher PROPERTIES LABELS patcher TIMEOUT 300)
+
+# Patcher concurrency stress test (issue #229), registered on its own so the
+# sanitizer CI legs can target just it (`ctest -R yse_tests_patcher_concurrency`)
+# under TSan/ASan without paying for the whole suite — the `concurrency` label
+# is shared with the channel/sound/reverb concurrency tests, so the sanitizer
+# presets match by name, not by label. It also runs as part of yse_tests_patcher.
+add_test(
+  NAME    yse_tests_patcher_concurrency
+  COMMAND yse_tests --test-case=concurrency:* --duration=true
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_patcher_concurrency PROPERTIES LABELS "patcher;concurrency" TIMEOUT 300)
 
 add_test(
   NAME    yse_tests_channel
@@ -160,11 +319,103 @@ add_test(
 set_tests_properties(yse_tests_reverb PROPERTIES LABELS reverb)
 
 add_test(
+  NAME    yse_tests_synth
+  COMMAND yse_tests --test-suite=synth
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_synth PROPERTIES LABELS synth)
+
+# Synth engine-close / offline lifecycle tests. Isolated in their own process
+# for the same reason as yse_tests_lifecycle: they drive System::close(). Kept
+# separate from the `lifecycle` process on purpose (see test_synth_close.cpp).
+add_test(
+  NAME    yse_tests_synthlifecycle
+  COMMAND yse_tests --test-suite=synthlifecycle
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_synthlifecycle PROPERTIES LABELS "synth;lifecycle")
+
+# Per-note positioned-sound infrastructure (issue #169). Isolated in its own
+# process for the same reason as yse_tests_synthlifecycle: the note-storm, steal,
+# and close-mid-swarm cases drive System::initOffline()/close(), which tear down
+# process-global state the rest of the suite assumes stays up (#298). This is the
+# process the ASan/TSan CI runs (tools/ci-linux/) to catch note-rate lifecycle
+# races. initOffline() needs no audio hardware, so it runs in CI.
+add_test(
+  NAME    yse_tests_synthpositioning
+  COMMAND yse_tests --test-suite=synthpositioning
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_synthpositioning PROPERTIES LABELS "synth;lifecycle")
+
+# Position handlers (issue #170). Isolated in its own process for the same reason
+# as yse_tests_synthpositioning: the lifecycle / steal cases drive
+# System::initOffline()/close(). This process also runs under ASan/TSan in
+# tools/ci-linux/ to catch handler-lifetime races. initOffline() needs no audio
+# hardware, so it runs in CI.
+add_test(
+  NAME    yse_tests_synthhandlers
+  COMMAND yse_tests --test-suite=synthhandlers
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_synthhandlers PROPERTIES LABELS "synth;lifecycle")
+
+# C-API synth surface (issue #157). Drives the synth entirely through the flat
+# C ABI under an offline engine (yse_system_init_offline), then yse_system_close().
+# Isolated in its own process for the same reason as yse_tests_synthlifecycle:
+# System::close() tears down process-global state (thread pools) the rest of the
+# suite assumes stays up (#298). initOffline() needs no audio hardware, so it
+# runs in CI.
+add_test(
+  NAME    yse_tests_synthcapi
+  COMMAND yse_tests --test-suite=synthcapi
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_synthcapi PROPERTIES LABELS "synth;c-api;lifecycle")
+
+# C-API instrument surface (issue #178). Drives the sampler / VA / FM instrument
+# voices and their loadable assets (SFZ instrument + DX7 bank) entirely through
+# the flat C ABI under an offline engine (yse_system_init_offline), then
+# yse_system_close(). Isolated in its own process for the same reason as
+# yse_tests_synthcapi: System::close() tears down process-global state (thread
+# pools) the rest of the suite assumes stays up (#298). initOffline() needs no
+# audio hardware, so it runs in CI.
+add_test(
+  NAME    yse_tests_instrumentcapi
+  COMMAND yse_tests --test-suite=instrumentcapi
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_instrumentcapi PROPERTIES LABELS "synth;c-api;lifecycle")
+
+add_test(
   NAME    yse_tests_midi
   COMMAND yse_tests --test-suite=midi
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_midi PROPERTIES LABELS midi)
+
+# End-to-end MIDI -> synth routing (issue #155). Isolated in its own process for
+# the same reason as yse_tests_synthlifecycle: it drives System::close() and
+# constructs the synth + sound managers, whose static teardown must not leak
+# into other suites (issue #298). Uses initOffline(), so it runs in CI.
+add_test(
+  NAME    yse_tests_midisynth
+  COMMAND yse_tests --test-suite=midisynth
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_midisynth PROPERTIES LABELS "midi;synth;lifecycle")
+
+# Synth & effects demo scenes (issue #180). Isolated in its own process for the
+# same reason as yse_tests_midisynth: it drives System::initOffline()/close() and
+# builds the synth + channel managers, whose static teardown must not leak into
+# other suites (issue #298). Loads the bundled content pack (skips gracefully if
+# absent) and uses initOffline(), so it runs in CI.
+add_test(
+  NAME    yse_tests_synthdemos
+  COMMAND yse_tests --test-suite=synthdemos
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_synthdemos PROPERTIES LABELS "synth;infra;lifecycle")
 
 add_test(
   NAME    yse_tests_music
@@ -172,6 +423,30 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_music PROPERTIES LABELS music)
+
+# End-to-end generative-player -> synth routing (issue #156). Isolated in its own
+# process for the same reason as yse_tests_midisynth: it drives System::close()
+# and constructs the synth + sound managers, whose static teardown must not leak
+# into other suites (issue #298). Uses initOffline(), so it runs in CI.
+add_test(
+  NAME    yse_tests_playersynth
+  COMMAND yse_tests --test-suite=playersynth
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_playersynth PROPERTIES LABELS "music;synth;lifecycle")
+
+# C-API generative-player surface (issue #268). Drives the player create -> play
+# path entirely through the flat C ABI under an offline engine, then
+# yse_system_close(). Isolated in its own process for the same reason as
+# yse_tests_synthcapi / yse_tests_playersynth: System::close() tears down
+# process-global state (thread pools) the rest of the suite assumes stays up
+# (#298). initOffline() needs no audio hardware, so it runs in CI.
+add_test(
+  NAME    yse_tests_playercapi
+  COMMAND yse_tests --test-suite=playercapi
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_playercapi PROPERTIES LABELS "music;synth;c-api;lifecycle")
 
 add_test(
   NAME    yse_tests_listener
@@ -194,6 +469,17 @@ add_test(
 )
 set_tests_properties(yse_tests_system PROPERTIES LABELS system)
 
+# Embedded-CPython runtime suite (issue #124). Only present when the option is
+# ON; otherwise the suite has no test cases and registering it would fail.
+if(YSE_ENABLE_PYTHON)
+  add_test(
+    NAME    yse_tests_python
+    COMMAND yse_tests --test-suite=python
+    WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+  )
+  set_tests_properties(yse_tests_python PROPERTIES LABELS python)
+endif()
+
 # Concurrency stress tests for the SOUND/CHANNEL/REVERB managers.  These live
 # in the sound/channel/reverb test suites but each test case name starts with
 # "<sub> concurrency:" so doctest can filter by name.  Run via
@@ -204,6 +490,31 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_concurrency PROPERTIES LABELS concurrency)
+
+# Send/return offline-render + threading gate (issue #165). Runs under an
+# offline engine (no audio device), so it executes on headless CI and under the
+# TSan/ASan sanitizer legs — the `tests-tsan` / `tests-asan` presets include
+# this entry by name (see CMakePresets.json). Isolated in its own process
+# because it drives System::initOffline(); shares the `concurrency` label with
+# the other stress suites.
+add_test(
+  NAME    yse_tests_sendstress
+  COMMAND yse_tests --test-suite=sendstress --duration=true
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_sendstress PROPERTIES LABELS "channel;concurrency" TIMEOUT 300)
+
+# C-API channel-DSP, effect-module, and send/return surface (issue #166). Drives
+# the channel insert + send-to-plate-return graph entirely through the flat C
+# ABI under an offline engine (yse_system_init_offline), so it runs on headless
+# CI. Isolated in its own process for the same reason as yse_tests_sendstress:
+# it drives process-global engine state via init_offline().
+add_test(
+  NAME    yse_tests_channelcapi
+  COMMAND yse_tests --test-suite=channelcapi
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_channelcapi PROPERTIES LABELS "channel;c-api" TIMEOUT 300)
 endif()  # NOT ANDROID — close the CTest registration block
 
 if(ANDROID)
@@ -220,6 +531,13 @@ else()
   )
 endif()
 
+# Content-pack smoke test (issue #179): point the test at the pack root. The
+# test skips gracefully when the directory or an individual asset is absent, so
+# on Android (where this host path does not exist on-device) it is a no-op.
+target_compile_definitions(yse_tests PRIVATE
+  "YSE_CONTENT_PACK_DIR=\"${YSE_CONTENT_PACK_DIR}\""
+)
+
 if(NOT ANDROID)
   add_test(
     NAME    yse_tests_integration
@@ -227,6 +545,15 @@ if(NOT ANDROID)
     WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
   )
   set_tests_properties(yse_tests_integration PROPERTIES LABELS integration)
+
+  # Content-pack smoke test (issue #179). Offline file loads only (no device,
+  # no engine init), so it runs on headless CI in its own suite.
+  add_test(
+    NAME    yse_tests_contentpack
+    COMMAND yse_tests --test-suite=contentpack
+    WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+  )
+  set_tests_properties(yse_tests_contentpack PROPERTIES LABELS "contentpack;infra")
 endif()
 
 # Patcher test TUs include pObject.h and concrete node headers that use the
@@ -248,6 +575,14 @@ set_source_files_properties(
   patcher/test_gui_objects.cpp
   patcher/test_doc_coverage.cpp
   patcher/test_c_api_metadata.cpp
+  patcher/test_patcher_bus.cpp
+  patcher/test_patcher_graphstate.cpp
+  patcher/test_patcher_setparams.cpp
+  patcher/test_patcher_value_queue.cpp
+  patcher/test_patcher_concurrency.cpp
+  patcher/test_patcher_object_races.cpp
+  patcher/test_patcher_feedback_loop.cpp
+  patcher/test_patcher_adc.cpp
   patcher/test_timerthread.cpp
   PROPERTIES COMPILE_FLAGS "${_patcher_test_suppress}"
 )

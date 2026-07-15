@@ -21,31 +21,29 @@ namespace YSE {
   namespace INTERNAL {
     class logImplementation {
     public:
-
       ERROR_LEVEL getLevel();
-      void  setLevel(ERROR_LEVEL value);
-      void  setHandler(logHandler * handler);
-      const std::string & getLogfile();
-      void  setLogfile(const char * path);
+      void setLevel(ERROR_LEVEL value);
+      void setHandler(logHandler* handler);
+      const std::string& getLogfile();
+      void setLogfile(const char* path);
 
-      void emit(ERROR_CODE value, const std::string & info = "");
-      void logMessage(const std::string & message);
+      void emit(ERROR_CODE value, const std::string& info = "");
+      void logMessage(const std::string& message);
 
       logImplementation();
       ~logImplementation();
+
     private:
-      const char * errorToText(ERROR_CODE value);
-      logHandler * handler;
+      const char* errorToText(ERROR_CODE value);
+      logHandler* handler;
       ERROR_LEVEL level;
-	  std::ofstream logFile;
-	  std::string logFileName;
+      std::ofstream logFile;
+      std::string logFileName;
       Bool toDebugger;
     };
 
-    logImplementation & LogImpl();
-  }
-}
+    logImplementation& LogImpl();
+  } // namespace INTERNAL
+} // namespace YSE
 
-
-
-#endif  // LOGIMPLEMENTATION_H_INCLUDED
+#endif // LOGIMPLEMENTATION_H_INCLUDED

@@ -27,7 +27,7 @@ namespace {
   inline YSE::Pos to_cpp_pos(const yse_pos_t& p) {
     return YSE::Pos(p.x, p.y, p.z);
   }
-}
+} // namespace
 
 extern "C" {
 
@@ -48,9 +48,8 @@ YSE_C_API void yse_sound_destroy(YseSound* s) {
   delete to_cpp(s);
 }
 
-YSE_C_API YseStatus yse_sound_load_file(
-    YseSound* s, const char* filename, YseChannel* ch,
-    int loop, float volume, int streaming) {
+YSE_C_API YseStatus yse_sound_load_file(YseSound* s, const char* filename, YseChannel* ch, int loop,
+                                        float volume, int streaming) {
   if (!s) return YSE_ERR_INVALID_HANDLE;
   if (!filename) return YSE_ERR_INVALID_ARGUMENT;
   try {
@@ -73,9 +72,8 @@ YSE_C_API YseStatus yse_sound_load_file(
   }
 }
 
-YSE_C_API YseStatus yse_sound_load_buffer(
-    YseSound* s, YseDspBuffer* buf, YseChannel* ch,
-    int loop, float volume) {
+YSE_C_API YseStatus yse_sound_load_buffer(YseSound* s, YseDspBuffer* buf, YseChannel* ch, int loop,
+                                          float volume) {
   if (!s) return YSE_ERR_INVALID_HANDLE;
   if (!buf) return YSE_ERR_INVALID_ARGUMENT;
   try {
@@ -95,15 +93,19 @@ YSE_C_API YseStatus yse_sound_load_buffer(
   }
 }
 
-YSE_C_API YseStatus yse_sound_load_patcher(
-    YseSound* s, YsePatcher* patch, YseChannel* ch, float volume) {
+YSE_C_API YseStatus yse_sound_load_patcher(YseSound* s, YsePatcher* patch, YseChannel* ch,
+                                           float volume) {
   if (!s) return YSE_ERR_INVALID_HANDLE;
   if (!patch) return YSE_ERR_INVALID_ARGUMENT;
   try {
     auto& cpp_patch = *reinterpret_cast<YSE::patcher*>(patch);
     to_cpp(s)->create(cpp_patch, to_cpp_chan(ch), volume);
+    // create() refuses when the patcher is already controlled by another sound
+    // (one patcher per sound — issue #287) or was never created; on refusal the
+    // sound is left invalid. Mirror that as an error status for C consumers.
     if (!to_cpp(s)->isValid()) {
-      yse_c::set_last_error("sound is not valid after patcher-source create");
+      yse_c::set_last_error(
+          "sound not created: patcher is invalid or already controlled by another sound");
       return YSE_ERR_GENERIC;
     }
     return YSE_OK;
@@ -116,18 +118,40 @@ YSE_C_API YseStatus yse_sound_load_patcher(
   }
 }
 
-YSE_C_API int yse_sound_is_valid(YseSound* s)     { return s && to_cpp(s)->isValid()     ? 1 : 0; }
-YSE_C_API int yse_sound_is_ready(YseSound* s)     { return s && to_cpp(s)->isReady()     ? 1 : 0; }
-YSE_C_API int yse_sound_is_streaming(YseSound* s) { return s && to_cpp(s)->isStreaming() ? 1 : 0; }
+YSE_C_API int yse_sound_is_valid(YseSound* s) {
+  return s && to_cpp(s)->isValid() ? 1 : 0;
+}
+YSE_C_API int yse_sound_is_ready(YseSound* s) {
+  return s && to_cpp(s)->isReady() ? 1 : 0;
+}
+YSE_C_API int yse_sound_is_streaming(YseSound* s) {
+  return s && to_cpp(s)->isStreaming() ? 1 : 0;
+}
 
-YSE_C_API void yse_sound_play(YseSound* s)    { if (s) to_cpp(s)->play(); }
-YSE_C_API void yse_sound_pause(YseSound* s)   { if (s) to_cpp(s)->pause(); }
-YSE_C_API void yse_sound_stop(YseSound* s)    { if (s) to_cpp(s)->stop(); }
-YSE_C_API void yse_sound_toggle(YseSound* s)  { if (s) to_cpp(s)->toggle(); }
-YSE_C_API void yse_sound_restart(YseSound* s) { if (s) to_cpp(s)->restart(); }
-YSE_C_API int  yse_sound_is_playing(YseSound* s) { return s && to_cpp(s)->isPlaying() ? 1 : 0; }
-YSE_C_API int  yse_sound_is_paused(YseSound* s)  { return s && to_cpp(s)->isPaused()  ? 1 : 0; }
-YSE_C_API int  yse_sound_is_stopped(YseSound* s) { return s && to_cpp(s)->isStopped() ? 1 : 0; }
+YSE_C_API void yse_sound_play(YseSound* s) {
+  if (s) to_cpp(s)->play();
+}
+YSE_C_API void yse_sound_pause(YseSound* s) {
+  if (s) to_cpp(s)->pause();
+}
+YSE_C_API void yse_sound_stop(YseSound* s) {
+  if (s) to_cpp(s)->stop();
+}
+YSE_C_API void yse_sound_toggle(YseSound* s) {
+  if (s) to_cpp(s)->toggle();
+}
+YSE_C_API void yse_sound_restart(YseSound* s) {
+  if (s) to_cpp(s)->restart();
+}
+YSE_C_API int yse_sound_is_playing(YseSound* s) {
+  return s && to_cpp(s)->isPlaying() ? 1 : 0;
+}
+YSE_C_API int yse_sound_is_paused(YseSound* s) {
+  return s && to_cpp(s)->isPaused() ? 1 : 0;
+}
+YSE_C_API int yse_sound_is_stopped(YseSound* s) {
+  return s && to_cpp(s)->isStopped() ? 1 : 0;
+}
 
 YSE_C_API void yse_sound_set_pos(YseSound* s, const yse_pos_t* p) {
   if (!s || !p) return;
@@ -143,38 +167,76 @@ YSE_C_API void yse_sound_set_volume(YseSound* s, float v, unsigned int fade_ms) 
   if (!s) return;
   to_cpp(s)->volume(v, fade_ms);
 }
-YSE_C_API float yse_sound_get_volume(YseSound* s) { return s ? to_cpp(s)->volume() : 0.0f; }
+YSE_C_API float yse_sound_get_volume(YseSound* s) {
+  return s ? to_cpp(s)->volume() : 0.0f;
+}
 
-YSE_C_API void  yse_sound_set_speed(YseSound* s, float v) { if (s) to_cpp(s)->speed(v); }
-YSE_C_API float yse_sound_get_speed(YseSound* s)          { return s ? to_cpp(s)->speed() : 0.0f; }
+YSE_C_API void yse_sound_set_speed(YseSound* s, float v) {
+  if (s) to_cpp(s)->speed(v);
+}
+YSE_C_API float yse_sound_get_speed(YseSound* s) {
+  return s ? to_cpp(s)->speed() : 0.0f;
+}
 
-YSE_C_API void  yse_sound_set_size(YseSound* s, float v) { if (s) to_cpp(s)->size(v); }
-YSE_C_API float yse_sound_get_size(YseSound* s)          { return s ? to_cpp(s)->size() : 0.0f; }
+YSE_C_API void yse_sound_set_size(YseSound* s, float v) {
+  if (s) to_cpp(s)->size(v);
+}
+YSE_C_API float yse_sound_get_size(YseSound* s) {
+  return s ? to_cpp(s)->size() : 0.0f;
+}
 
-YSE_C_API void  yse_sound_set_spread(YseSound* s, float v) { if (s) to_cpp(s)->spread(v); }
-YSE_C_API float yse_sound_get_spread(YseSound* s)          { return s ? to_cpp(s)->spread() : 0.0f; }
+YSE_C_API void yse_sound_set_spread(YseSound* s, float v) {
+  if (s) to_cpp(s)->spread(v);
+}
+YSE_C_API float yse_sound_get_spread(YseSound* s) {
+  return s ? to_cpp(s)->spread() : 0.0f;
+}
 
-YSE_C_API void yse_sound_set_looping(YseSound* s, int v)   { if (s) to_cpp(s)->looping(v != 0); }
-YSE_C_API int  yse_sound_get_looping(YseSound* s)          { return s && to_cpp(s)->looping() ? 1 : 0; }
+YSE_C_API void yse_sound_set_looping(YseSound* s, int v) {
+  if (s) to_cpp(s)->looping(v != 0);
+}
+YSE_C_API int yse_sound_get_looping(YseSound* s) {
+  return s && to_cpp(s)->looping() ? 1 : 0;
+}
 
-YSE_C_API void yse_sound_set_relative(YseSound* s, int v)  { if (s) to_cpp(s)->relative(v != 0); }
-YSE_C_API int  yse_sound_get_relative(YseSound* s)         { return s && to_cpp(s)->relative() ? 1 : 0; }
+YSE_C_API void yse_sound_set_relative(YseSound* s, int v) {
+  if (s) to_cpp(s)->relative(v != 0);
+}
+YSE_C_API int yse_sound_get_relative(YseSound* s) {
+  return s && to_cpp(s)->relative() ? 1 : 0;
+}
 
-YSE_C_API void yse_sound_set_doppler(YseSound* s, int v)   { if (s) to_cpp(s)->doppler(v != 0); }
-YSE_C_API int  yse_sound_get_doppler(YseSound* s)          { return s && to_cpp(s)->doppler() ? 1 : 0; }
+YSE_C_API void yse_sound_set_doppler(YseSound* s, int v) {
+  if (s) to_cpp(s)->doppler(v != 0);
+}
+YSE_C_API int yse_sound_get_doppler(YseSound* s) {
+  return s && to_cpp(s)->doppler() ? 1 : 0;
+}
 
-YSE_C_API void yse_sound_set_pan2d(YseSound* s, int v)     { if (s) to_cpp(s)->pan2D(v != 0); }
-YSE_C_API int  yse_sound_get_pan2d(YseSound* s)            { return s && to_cpp(s)->pan2D() ? 1 : 0; }
+YSE_C_API void yse_sound_set_pan2d(YseSound* s, int v) {
+  if (s) to_cpp(s)->pan2D(v != 0);
+}
+YSE_C_API int yse_sound_get_pan2d(YseSound* s) {
+  return s && to_cpp(s)->pan2D() ? 1 : 0;
+}
 
-YSE_C_API void yse_sound_set_occlusion(YseSound* s, int v) { if (s) to_cpp(s)->occlusion(v != 0); }
-YSE_C_API int  yse_sound_get_occlusion(YseSound* s)        { return s && to_cpp(s)->occlusion() ? 1 : 0; }
+YSE_C_API void yse_sound_set_occlusion(YseSound* s, int v) {
+  if (s) to_cpp(s)->occlusion(v != 0);
+}
+YSE_C_API int yse_sound_get_occlusion(YseSound* s) {
+  return s && to_cpp(s)->occlusion() ? 1 : 0;
+}
 
 YSE_C_API void yse_sound_fade_and_stop(YseSound* s, unsigned int time_ms) {
   if (s) to_cpp(s)->fadeAndStop(time_ms);
 }
 
-YSE_C_API void yse_sound_set_time(YseSound* s, float samples) { if (s) to_cpp(s)->time(samples); }
-YSE_C_API float yse_sound_get_time(YseSound* s)               { return s ? to_cpp(s)->time() : 0.0f; }
+YSE_C_API void yse_sound_set_time(YseSound* s, float samples) {
+  if (s) to_cpp(s)->time(samples);
+}
+YSE_C_API float yse_sound_get_time(YseSound* s) {
+  return s ? to_cpp(s)->time() : 0.0f;
+}
 
 YSE_C_API unsigned int yse_sound_length(YseSound* s) {
   return s ? to_cpp(s)->length() : 0u;

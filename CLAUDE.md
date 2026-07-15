@@ -66,7 +66,9 @@ every preset:
 ```powershell
 python yse.py build              # debug preset
 python yse.py build --release    # release preset
+python yse.py build --python     # debug + embedded-Python live-coding (YSE_ENABLE_PYTHON, desktop only)
 python yse.py test               # tests-debug preset + ctest
+python yse.py test --python      # tests-debug-python preset + ctest (runs the embedded-interpreter suite)
 python yse.py run Demo00         # run a demo from build-debug/bin/
 python yse.py analyze            # clang-tidy
 python yse.py format             # clang-format -i

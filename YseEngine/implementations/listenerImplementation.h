@@ -23,8 +23,9 @@ namespace YSE {
       void update();
       listenerImplementation();
 
-      inline const Pos & getPos() { return newPos; }
-      
+      inline const Pos& getPos() {
+        return newPos;
+      }
 
     private:
       Pos newPos, lastPos;
@@ -38,12 +39,13 @@ namespace YSE {
       friend class underWaterEffect;
       friend class YSE::listener;
       friend class reverbManager;
+      // The per-voice panner (issue #169) reads the same listener snapshot the
+      // sound path does — position and forward — to derive each voice's pan.
+      friend class YSE::DSP::panner;
     };
-  
-    listenerImplementation & ListenerImpl();
-  }
-}
 
+    listenerImplementation& ListenerImpl();
+  } // namespace INTERNAL
+} // namespace YSE
 
-
-#endif  // LISTENERIMPLEMENTATION_H_INCLUDED
+#endif // LISTENERIMPLEMENTATION_H_INCLUDED
