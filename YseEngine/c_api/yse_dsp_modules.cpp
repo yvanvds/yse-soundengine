@@ -19,6 +19,8 @@
 #include "../dsp/modules/plateReverb.hpp"
 #include "../dsp/modules/parametricEQ.hpp"
 #include "../dsp/modules/compressor.hpp"
+#include "../dsp/modules/morphingReverb.hpp"
+#include "../reverb/reverbPresets.hpp"
 
 #include <exception>
 
@@ -41,6 +43,39 @@ namespace {
       yse_c::set_last_error("dsp_module create: unknown C++ exception");
       return nullptr;
     }
+  }
+
+  // Field-by-field conversions between the C mirror struct and the engine's
+  // REVERB::presetValues. The ABI struct layout is never assumed to match the
+  // engine one, so every field is copied explicitly.
+  inline YSE::REVERB::presetValues to_cpp_preset(const YseReverbPresetValues& v) {
+    YSE::REVERB::presetValues p;
+    p.roomsize = v.roomsize;
+    p.damp = v.damp;
+    p.dry = v.dry;
+    p.wet = v.wet;
+    p.modFrequency = v.mod_frequency;
+    p.modWidth = v.mod_width;
+    for (int i = 0; i < 4; ++i) {
+      p.earlyTime[i] = v.early_time[i];
+      p.earlyGain[i] = v.early_gain[i];
+    }
+    return p;
+  }
+
+  inline YseReverbPresetValues to_c_preset(const YSE::REVERB::presetValues& p) {
+    YseReverbPresetValues v;
+    v.roomsize = p.roomsize;
+    v.damp = p.damp;
+    v.dry = p.dry;
+    v.wet = p.wet;
+    v.mod_frequency = p.modFrequency;
+    v.mod_width = p.modWidth;
+    for (int i = 0; i < 4; ++i) {
+      v.early_time[i] = p.earlyTime[i];
+      v.early_gain[i] = p.earlyGain[i];
+    }
+    return v;
   }
 } // namespace
 
@@ -117,6 +152,9 @@ YSE_C_API YseDspObject* yse_dsp_eq_create(void) {
 }
 YSE_C_API YseDspObject* yse_dsp_compressor_create(void) {
   return mk<YSE::DSP::MODULES::compressor>();
+}
+YSE_C_API YseDspObject* yse_dsp_morphing_reverb_create(void) {
+  return mk<YSE::DSP::MODULES::morphingReverb>();
 }
 
 YSE_C_API void yse_dsp_object_destroy(YseDspObject* obj) {
@@ -514,6 +552,45 @@ YSE_C_API float yse_dsp_compressor_get_makeup(YseDspObject* o) {
 YSE_C_API float yse_dsp_compressor_get_gain_reduction_db(YseDspObject* o) {
   auto* c = as<YSE::DSP::MODULES::compressor>(o);
   return c ? c->gainReductionDb() : 0.0f;
+}
+
+// ─── morphing reverb (#326 module, #369 C API) ────────────────────────────
+
+YSE_C_API void yse_dsp_morphing_reverb_set_preset_a(YseDspObject* o, YseReverbPreset preset) {
+  auto* r = as<YSE::DSP::MODULES::morphingReverb>(o);
+  if (r) r->presetA(static_cast<YSE::REVERB_PRESET>(preset));
+}
+YSE_C_API void yse_dsp_morphing_reverb_set_preset_b(YseDspObject* o, YseReverbPreset preset) {
+  auto* r = as<YSE::DSP::MODULES::morphingReverb>(o);
+  if (r) r->presetB(static_cast<YSE::REVERB_PRESET>(preset));
+}
+YSE_C_API void yse_dsp_morphing_reverb_set_preset_a_values(YseDspObject* o,
+                                                           const YseReverbPresetValues* values) {
+  auto* r = as<YSE::DSP::MODULES::morphingReverb>(o);
+  if (r && values) r->presetA(to_cpp_preset(*values));
+}
+YSE_C_API void yse_dsp_morphing_reverb_set_preset_b_values(YseDspObject* o,
+                                                           const YseReverbPresetValues* values) {
+  auto* r = as<YSE::DSP::MODULES::morphingReverb>(o);
+  if (r && values) r->presetB(to_cpp_preset(*values));
+}
+YSE_C_API void yse_dsp_morphing_reverb_get_preset_a(YseDspObject* o, YseReverbPresetValues* out) {
+  if (!out) return;
+  auto* r = as<YSE::DSP::MODULES::morphingReverb>(o);
+  *out = r ? to_c_preset(r->presetA()) : YseReverbPresetValues{};
+}
+YSE_C_API void yse_dsp_morphing_reverb_get_preset_b(YseDspObject* o, YseReverbPresetValues* out) {
+  if (!out) return;
+  auto* r = as<YSE::DSP::MODULES::morphingReverb>(o);
+  *out = r ? to_c_preset(r->presetB()) : YseReverbPresetValues{};
+}
+YSE_C_API void yse_dsp_morphing_reverb_set_morph(YseDspObject* o, float value) {
+  auto* r = as<YSE::DSP::MODULES::morphingReverb>(o);
+  if (r) r->morph(value);
+}
+YSE_C_API float yse_dsp_morphing_reverb_get_morph(YseDspObject* o) {
+  auto* r = as<YSE::DSP::MODULES::morphingReverb>(o);
+  return r ? r->morph() : 0.0f;
 }
 
 } // extern "C"

@@ -303,6 +303,70 @@ TEST_SUITE("channelcapi") {
     yse_dsp_object_destroy(c);
   }
 
+  TEST_CASE("c-api dsp: morphing reverb presets + morph round-trip (#326/#369)") {
+    YseDspObject* m = yse_dsp_morphing_reverb_create();
+    REQUIRE(m != nullptr);
+
+    // Defaults (per #326): A = GENERIC, B = HALL, morph = 0 (pure A).
+    CHECK(yse_dsp_morphing_reverb_get_morph(m) == doctest::Approx(0.0f));
+
+    // Named-preset endpoints resolve to the shared preset table.
+    yse_dsp_morphing_reverb_set_preset_a(m, YSE_REVERB_CAVE);
+    yse_dsp_morphing_reverb_set_preset_b(m, YSE_REVERB_OFF);
+    YseReverbPresetValues a{};
+    YseReverbPresetValues b{};
+    yse_dsp_morphing_reverb_get_preset_a(m, &a);
+    yse_dsp_morphing_reverb_get_preset_b(m, &b);
+    CHECK(a.roomsize == doctest::Approx(1.0f)); // CAVE
+    CHECK(a.wet == doctest::Approx(0.7f));
+    CHECK(a.dry == doctest::Approx(0.3f));
+    CHECK(a.early_time[0] == doctest::Approx(100.0f));
+    CHECK(a.early_gain[0] == doctest::Approx(0.8f));
+    CHECK(b.dry == doctest::Approx(1.0f)); // OFF: dry pass-through
+    CHECK(b.wet == doctest::Approx(0.0f));
+
+    // Custom endpoint values round-trip field-for-field through the mirror
+    // struct (send/return flavour: fully wet).
+    YseReverbPresetValues custom{};
+    custom.roomsize = 0.42f;
+    custom.damp = 0.3f;
+    custom.dry = 0.0f;
+    custom.wet = 1.0f;
+    custom.mod_frequency = 2.5f;
+    custom.mod_width = 8.0f;
+    for (int i = 0; i < 4; ++i) {
+      custom.early_time[i] = 100.0f * static_cast<float>(i + 1);
+      custom.early_gain[i] = 0.1f * static_cast<float>(i + 1);
+    }
+    yse_dsp_morphing_reverb_set_preset_b_values(m, &custom);
+    YseReverbPresetValues got{};
+    yse_dsp_morphing_reverb_get_preset_b(m, &got);
+    CHECK(got.roomsize == doctest::Approx(0.42f));
+    CHECK(got.damp == doctest::Approx(0.3f));
+    CHECK(got.dry == doctest::Approx(0.0f));
+    CHECK(got.wet == doctest::Approx(1.0f));
+    CHECK(got.mod_frequency == doctest::Approx(2.5f));
+    CHECK(got.mod_width == doctest::Approx(8.0f));
+    for (int i = 0; i < 4; ++i) {
+      CHECK(got.early_time[i] == doctest::Approx(100.0f * static_cast<float>(i + 1)));
+      CHECK(got.early_gain[i] == doctest::Approx(0.1f * static_cast<float>(i + 1)));
+    }
+
+    // Morph control input (per #326) is stored and clamped to [0, 1].
+    yse_dsp_morphing_reverb_set_morph(m, 0.25f);
+    CHECK(yse_dsp_morphing_reverb_get_morph(m) == doctest::Approx(0.25f));
+    yse_dsp_morphing_reverb_set_morph(m, 7.5f);
+    CHECK(yse_dsp_morphing_reverb_get_morph(m) == doctest::Approx(1.0f));
+    yse_dsp_morphing_reverb_set_morph(m, -2.0f);
+    CHECK(yse_dsp_morphing_reverb_get_morph(m) == doctest::Approx(0.0f));
+
+    // Inherited dspObject surface reaches the same handle.
+    yse_dsp_object_set_bypass(m, 1);
+    CHECK(yse_dsp_object_get_bypass(m) == 1);
+
+    yse_dsp_object_destroy(m);
+  }
+
   // Module setters/getters are null-safe like the rest of the module surface.
   TEST_CASE("c-api dsp: new module setters/getters are null-safe") {
     yse_dsp_feedback_delay_set_time(nullptr, 1.f);
@@ -315,6 +379,17 @@ TEST_SUITE("channelcapi") {
     CHECK(yse_dsp_plate_reverb_get_decay(nullptr) == doctest::Approx(0.f));
     CHECK(yse_dsp_eq_get_gain(nullptr, YSE_EQ_PEAK_1) == doctest::Approx(0.f));
     CHECK(yse_dsp_compressor_get_gain_reduction_db(nullptr) == doctest::Approx(0.f));
+
+    // morphing reverb (#326/#369)
+    yse_dsp_morphing_reverb_set_preset_a(nullptr, YSE_REVERB_HALL);
+    yse_dsp_morphing_reverb_set_preset_b_values(nullptr, nullptr);
+    yse_dsp_morphing_reverb_set_morph(nullptr, 0.5f);
+    CHECK(yse_dsp_morphing_reverb_get_morph(nullptr) == doctest::Approx(0.f));
+    YseReverbPresetValues z; // getter must zero-fill on a NULL handle
+    yse_dsp_morphing_reverb_get_preset_a(nullptr, &z);
+    CHECK(z.roomsize == doctest::Approx(0.f));
+    CHECK(z.wet == doctest::Approx(0.f));
+    yse_dsp_morphing_reverb_get_preset_a(nullptr, nullptr); // no crash
   }
 
 } // TEST_SUITE("channelcapi")
