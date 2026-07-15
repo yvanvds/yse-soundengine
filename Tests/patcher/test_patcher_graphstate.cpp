@@ -341,4 +341,99 @@ TEST_SUITE("patcher") {
     CHECK_FALSE(p.output[0].isSilent());
   }
 
+  // ---- Free-list recycling of retired graph ids during churn (issue #364) ----
+
+  TEST_CASE("graphids: continuous create/delete churn recycles ids via the free-list") {
+    // #355's recompaction only fires when the patcher goes empty. A patcher that
+    // is continuously edited while at least one object always survives never
+    // empties, so the counters — and every snapshot's id-indexed tables — would
+    // climb with the lifetime create count. The free-list (issue #364) bounds
+    // that: the reclaimer returns a deleted object's ids once no snapshot can
+    // still index them, and AssignGraphIds pulls them before extending the
+    // counter, so the id space tracks the peak *simultaneous* object count.
+    patcherImplementation p(1, nullptr);
+    // A persistent noise->dac keeps one object live for the whole test, so the
+    // patcher never empties and compaction never runs — recycling is then the
+    // only mechanism that can keep the id space from growing. Toggling this edge
+    // also re-arms the background reclaimer each drain spin (a stalled epoch
+    // otherwise ends the reclaim chain until the next structural edit).
+    YSE::pHandle* noise = p.CreateObject(YSE::OBJ::D_NOISE, "");
+    YSE::pHandle* dac = p.CreateObject(YSE::OBJ::D_DAC, "");
+    REQUIRE(noise != nullptr);
+    REQUIRE(dac != nullptr);
+    p.Connect(noise, 0, dac, 0);
+    p.Calculate(YSE::T_DSP);
+
+    const std::size_t baseOut = p.OutletIdSpace();
+    const std::size_t baseIn = p.InletIdSpace();
+
+    // The first temp (a ~+ has two inlets and one outlet) finds an empty
+    // free-list, so it stamps fresh ids and lifts the high-water mark by exactly
+    // one temp's worth of pins. That peak is the bound every later temp must
+    // respect.
+    YSE::pHandle* first = p.CreateObject(YSE::OBJ::D_ADD, "");
+    REQUIRE(first != nullptr);
+    const std::size_t peakOut = p.OutletIdSpace();
+    const std::size_t peakIn = p.InletIdSpace();
+    REQUIRE(peakOut > baseOut); // the temp really consumed an outlet id
+    REQUIRE(peakIn > baseIn); // ... and inlet ids
+    p.DeleteObject(first);
+
+    for (int i = 0; i < 40; ++i) {
+      // Drain the reclaimer so the previous temp's ids are back on the free-list
+      // before the next create. Each spin toggles the persistent edge (re-arming
+      // the reclaimer) and renders blocks (advancing the audio epoch across the
+      // +2 grace); the background pool then frees the temp and recycles its ids
+      // (RecycleObjectIds pushes all of a temp's inlet + outlet ids under one
+      // reclaimMtx_ hold, so FreeIdCount jumps from 0 to the full count at once).
+      for (int spins = 0; spins < 3000 && p.FreeIdCount() == 0; ++spins) {
+        p.Disconnect(noise, 0, dac, 0);
+        p.Calculate(YSE::T_DSP);
+        p.Connect(noise, 0, dac, 0);
+        p.Calculate(YSE::T_DSP);
+        p.Calculate(YSE::T_DSP);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      }
+      REQUIRE(p.FreeIdCount() > 0); // the deleted temp's ids are recyclable now
+
+      YSE::pHandle* temp = p.CreateObject(YSE::OBJ::D_ADD, "");
+      REQUIRE(temp != nullptr);
+      // The create must have pulled recycled ids instead of extending the
+      // counters: the high-water mark never climbs past the single-temp peak,
+      // no matter how many temps churned through. Before the free-list these
+      // grew by one temp's pins every iteration.
+      CHECK(p.OutletIdSpace() == peakOut);
+      CHECK(p.InletIdSpace() == peakIn);
+      p.DeleteObject(temp);
+    }
+  }
+
+  TEST_CASE("graphids: churning a source into a live sink stays correct with recycling") {
+    // Reusing an id must not corrupt what the audio thread renders: an outlet
+    // whose id was recycled from a deleted object must resolve *its own* targets
+    // in the pinned snapshot, never a stale entry. Repeatedly wire a fresh source
+    // into the surviving dac, render, then delete it. Each create-after-delete
+    // recycles the previous source's ids (the edits re-arm the reclaimer and the
+    // renders advance the epoch), so the recycled outlet is exercised in the
+    // signal path every iteration. An ASan/TSan build additionally trips on any
+    // dangling reuse.
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* dac = p.CreateObject(YSE::OBJ::D_DAC, "");
+    REQUIRE(dac != nullptr);
+
+    for (int i = 0; i < 30; ++i) {
+      YSE::pHandle* noise = p.CreateObject(YSE::OBJ::D_NOISE, "");
+      REQUIRE(noise != nullptr);
+      p.Connect(noise, 0, dac, 0);
+      p.Calculate(YSE::T_DSP);
+      CHECK_FALSE(p.output[0].isSilent()); // the (recycled) outlet resolves its target
+
+      p.Disconnect(noise, 0, dac, 0);
+      p.DeleteObject(noise);
+      p.Calculate(YSE::T_DSP);
+      p.Calculate(YSE::T_DSP);
+      CHECK(p.output[0].isSilent()); // source gone -> silence, no stale target
+    }
+  }
+
 } // TEST_SUITE("patcher")
