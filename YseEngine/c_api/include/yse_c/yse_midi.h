@@ -36,6 +36,9 @@ typedef struct YseMidiOut YseMidiOut;
 typedef struct YseMidiIn YseMidiIn;
 /* Owned — release with yse_midi_note_destroy. */
 typedef struct YseMidiNote YseMidiNote;
+/* Opaque synth handle (defined in yse_synth.h) — target of
+   yse_midi_in_connect_synth. */
+typedef struct YseSynth YseSynth;
 
 /* ─── standard MIDI file playback ─────────────────────────────────── */
 
@@ -99,6 +102,21 @@ YSE_C_API void yse_midi_in_set_parsed_callback(YseMidiIn* m, YseMidiInParsedCall
 
 /* Release a byte buffer previously delivered to a YseMidiInRawCallback. */
 YSE_C_API void yse_midi_in_free_message(unsigned char* bytes);
+
+/* Route incoming device MIDI into a synth (issue #155). Every channel-voice
+   message received on the open port is mapped to the synth's normalized note
+   API and pushed lock-free onto its inbox, on RtMidi's input thread.
+   `channel_filter` is a 1..16 MIDI channel to accept, or 0 for every channel.
+   May be called for several synths (up to a small fixed cap); calling it again
+   for an already-connected synth just updates its channel filter. The synth
+   must outlive the connection — disconnect it (or close/destroy this port)
+   before destroying the synth. This is a control-thread call; do not call it
+   from the input callbacks. On builds without MIDI device support it no-ops. */
+YSE_C_API void yse_midi_in_connect_synth(YseMidiIn* m, YseSynth* synth, int channel_filter);
+
+/* Stop routing incoming device MIDI into `synth` (issue #155). Safe to call for
+   a synth that was never connected. */
+YSE_C_API void yse_midi_in_disconnect_synth(YseMidiIn* m, YseSynth* synth);
 
 /* ─── midiNote convenience value ──────────────────────────────────── */
 

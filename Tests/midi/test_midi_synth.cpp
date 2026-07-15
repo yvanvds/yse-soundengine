@@ -32,6 +32,8 @@
 #if YSE_ENABLE_MIDI_DEVICE
 #include "midi/device.hpp"
 #include "support/midi_dispatch_tester.hpp"
+#include "yse_c/yse_midi.h"
+#include "yse_c/yse_synth.h"
 #endif
 
 using namespace std::chrono_literals;
@@ -219,6 +221,48 @@ TEST_SUITE("midisynth") {
       }
       drain();
     }
+    drain();
+    YSE::System().close();
+    CHECK(true);
+  }
+
+  // ─── C API surface: yse_midi_in_connect_synth / disconnect_synth (#371) ─────
+  //
+  // Mirrors the "device MIDI -> connected synth" wiring above, but drives the
+  // connect / disconnect through the flat C ABI (yse_midi_in_* + yse_synth_*),
+  // proving the C wrapper bridges the opaque YseSynth / YseMidiIn handles into
+  // the engine's routing table and is null-safe. The note-delivery semantics
+  // (channel offset, filter, normalization) are pinned by the engine-level
+  // cases above and by test_midi_synth_routing.cpp; they are not reachable at
+  // the C layer, because the opaque YseMidiIn hides the inner YSE::midiIn the
+  // dispatch tester needs and no RtMidi port is available in CI.
+  TEST_CASE("midisynth: C API routes a MIDI input device into a synth (#371)") {
+    YSE::System().close();
+    if (!YSE::System().initOffline()) return;
+
+    YseSynth* syn = yse_synth_create();
+    REQUIRE(syn != nullptr);
+    YseMidiIn* in = yse_midi_in_create();
+    REQUIRE(in != nullptr);
+
+    // Connect omni, then re-connect to exercise the engine's idempotent
+    // "already connected -> refresh channel filter" path, then disconnect.
+    yse_midi_in_connect_synth(in, syn, 0);
+    yse_midi_in_connect_synth(in, syn, 2); // update filter to MIDI channel 2
+    yse_midi_in_disconnect_synth(in, syn);
+    yse_midi_in_disconnect_synth(in, syn); // disconnect when not connected: safe
+
+    // Null-safety matrix: any NULL handle / NULL synth combination is a no-op.
+    yse_midi_in_connect_synth(nullptr, syn, 0);
+    yse_midi_in_connect_synth(in, nullptr, 0);
+    yse_midi_in_connect_synth(nullptr, nullptr, 5);
+    yse_midi_in_disconnect_synth(nullptr, syn);
+    yse_midi_in_disconnect_synth(in, nullptr);
+
+    // Destroy the port before the synth (the port holds the routing pointer).
+    yse_midi_in_destroy(in);
+    yse_synth_destroy(syn);
+
     drain();
     YSE::System().close();
     CHECK(true);
