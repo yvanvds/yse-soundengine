@@ -15,6 +15,18 @@ See the tutorials for worked, compilable walk-throughs:
 :doc:`/tutorials/08_instruments`, and
 :doc:`/tutorials/10_per_note_3d`.
 
+.. note::
+
+   The instrument DSP below — the SFZ sampler voice and the DX7-class FM voice
+   — is **always compiled** into ``libyse``; there is no ``YSE_ENABLE_FM`` /
+   ``YSE_ENABLE_SFZ`` switch. The **factory sounds** these voices load (SFZ
+   instruments and samples, and the DX7/FM ``.SYX`` banks) are *not* part of
+   the library. They ship as an **opt-in content pack** fetched only when
+   libYSE is configured with ``-DYSE_FETCH_CONTENT_PACK=ON`` (or
+   ``python yse.py build --content-pack``). The DX7 factory-style banks are
+   *tolerated, not legally cleared* content — see the repository's
+   ``CONTENT-LICENSES.md`` and ``content/fm/dx7-factory/README.md``.
+
 The synth
 ---------
 
