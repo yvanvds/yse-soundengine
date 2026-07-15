@@ -50,3 +50,21 @@ A Dattorro-style plate reverb, well suited to a send/return bus.
 
 .. doxygenfile:: dsp/modules/plateReverb.hpp
    :project: libYSE
+
+Morphing reverb
+---------------
+
+The engine's zone/global reverb core as a chainable insert, with preset
+interpolation exposed as a ``morph`` control input.
+
+.. doxygenfile:: dsp/modules/morphingReverb.hpp
+   :project: libYSE
+
+Underwater
+----------
+
+The classic underwater treatment — a depth-driven low-pass blended toward a
+position-neutral mixdown — re-expressed as an ordinary insert.
+
+.. doxygenfile:: dsp/modules/underWater.hpp
+   :project: libYSE
