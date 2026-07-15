@@ -79,6 +79,40 @@ suppress_warnings = [
 
 # -- Breathe configuration ---------------------------------------------------
 
+# Doxygen >= 1.9.7 wraps markdown headings that skip levels (e.g. a `###`
+# with no enclosing `#`/`##`) in anonymous, title-less <sect1>/<sect2>
+# elements. Breathe (<= 4.36.0) crashes on the title-less <sect2>: its
+# generated parser never sets `.title` on docSect2Type when the element has
+# no <title> child, so visit_docsectN raises AttributeError. Patch the
+# renderer to hoist the children of anonymous sections instead of emitting
+# a section with an empty heading — the same flat structure older Doxygen
+# produced. Drop this once breathe handles anonymous sections upstream.
+
+
+def _patch_breathe_anonymous_sections():
+    from docutils import nodes
+    from breathe.renderer.sphinxrenderer import SphinxRenderer
+
+    def visit_docsectN(self, node):
+        title = getattr(node, "title", "") or ""
+        if not title:
+            return self.render_iterable(node.content_)
+        section = nodes.section()
+        section["ids"].append(self.get_refid(node.id))
+        section += nodes.title(title, title)
+        section += self.create_doxygen_target(node)
+        section += self.render_iterable(node.content_)
+        return [section]
+
+    SphinxRenderer.visit_docsectN = visit_docsectN
+    # The renderer dispatches through the `methods` dict, which captured the
+    # original function at class-definition time — repoint those entries too.
+    for key in ("docsect1", "docsect2", "docsect3"):
+        SphinxRenderer.methods[key] = visit_docsectN
+
+
+_patch_breathe_anonymous_sections()
+
 # Path is relative to this conf.py.
 _doxygen_xml = Path(__file__).parent / "_doxygen" / "xml"
 
