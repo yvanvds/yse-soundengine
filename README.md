@@ -227,7 +227,7 @@ factory banks are pulled only on demand by two opt-in CMake options (both
 
 | Option | Effect |
 |---|---|
-| `YSE_FETCH_CONTENT_PACK` | Download and SHA-256-verify the third-party pack sources into `content/` (an unpinned source is a hard error — hashes are verified, never invented) |
+| `YSE_FETCH_CONTENT_PACK` | Download the third-party pack sources into `content/`, verifying each against its SHA-256 pin when one is set (an unpinned source downloads unverified with a warning; pins are optional — never invented) |
 | `YSE_INSTALL_CONTENT_PACK` | Install the assembled pack to `<prefix>/share/yse/content` |
 
 Enable them through the Python workflow (no need to drop to raw `cmake`):
