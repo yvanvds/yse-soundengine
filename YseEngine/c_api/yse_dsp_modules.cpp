@@ -20,6 +20,8 @@
 #include "../dsp/modules/parametricEQ.hpp"
 #include "../dsp/modules/compressor.hpp"
 #include "../dsp/modules/morphingReverb.hpp"
+#include "../dsp/patcherInsert.hpp"
+#include "../patcher/patcher.hpp"
 #include "../reverb/reverbPresets.hpp"
 
 #include <exception>
@@ -155,6 +157,26 @@ YSE_C_API YseDspObject* yse_dsp_compressor_create(void) {
 }
 YSE_C_API YseDspObject* yse_dsp_morphing_reverb_create(void) {
   return mk<YSE::DSP::MODULES::morphingReverb>();
+}
+
+// Patcher-as-insert (#167 module, #370 C API). Unlike the no-arg module
+// creators, patcherInsert wraps a borrowed YSE::patcher, so a NULL patcher is
+// rejected rather than silently constructing an insert with nothing to render.
+YSE_C_API YseDspObject* yse_dsp_patcher_insert_create(YsePatcher* patcher) {
+  if (!patcher) {
+    yse_c::set_last_error("yse_dsp_patcher_insert_create: patcher is NULL");
+    return nullptr;
+  }
+  try {
+    auto* patch = reinterpret_cast<YSE::patcher*>(patcher);
+    return reinterpret_cast<YseDspObject*>(new YSE::DSP::patcherInsert(*patch));
+  } catch (const std::exception& e) {
+    yse_c::set_last_error(e.what());
+    return nullptr;
+  } catch (...) {
+    yse_c::set_last_error("patcher_insert_create: unknown C++ exception");
+    return nullptr;
+  }
 }
 
 YSE_C_API void yse_dsp_object_destroy(YseDspObject* obj) {

@@ -25,6 +25,9 @@ extern "C" {
    subclass via the shared handle type. */
 typedef struct YseDspObject YseDspObject;
 
+/* Forward declaration — see yse_patcher.h for ownership. */
+typedef struct YsePatcher YsePatcher;
+
 /* ─── constructors ────────────────────────────────────────────────────── */
 
 YSE_C_API YseDspObject* yse_dsp_lowpass_create(void);
@@ -51,6 +54,19 @@ YSE_C_API YseDspObject* yse_dsp_plate_reverb_create(void); /* #162 */
 YSE_C_API YseDspObject* yse_dsp_eq_create(void); /* #163 */
 YSE_C_API YseDspObject* yse_dsp_compressor_create(void); /* #163 */
 YSE_C_API YseDspObject* yse_dsp_morphing_reverb_create(void); /* #326 module, #369 C API */
+
+/* Patcher-as-insert (#167 module, #370 C API). Wraps a YsePatcher graph as a
+   chainable insert effect (YSE::DSP::patcherInsert): a hand-patched network
+   (a filter-delay, a custom EQ, ...) drives a sound or channel insert slot,
+   feeding the host buffer to the graph's ~adc objects and copying the summed
+   ~dac output back over it. The patcher should contain at least one ~adc and
+   one ~dac, and it must outlive the insert — the insert BORROWS the patcher, it
+   never owns or destroys it. Returns NULL and sets yse_last_error() when patcher
+   is NULL (the insert needs a graph to wrap). The returned handle is owned:
+   release it with yse_dsp_object_destroy(), drive it with the inherited
+   yse_dsp_object_* surface (bypass, impact, ...), and attach it with
+   yse_sound_set_dsp() or yse_channel_set_dsp(). */
+YSE_C_API YseDspObject* yse_dsp_patcher_insert_create(YsePatcher* patcher);
 
 YSE_C_API void yse_dsp_object_destroy(YseDspObject* obj);
 

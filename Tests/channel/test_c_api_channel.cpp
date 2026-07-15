@@ -32,6 +32,7 @@
 #include "yse_c/yse_dsp.h"
 #include "yse_c/yse_dsp_modules.h"
 #include "yse_c/yse_enums.h"
+#include "yse_c/yse_patcher.h"
 #include "yse_c/yse_sound.h"
 #include "yse_c/yse_system.h"
 
@@ -365,6 +366,74 @@ TEST_SUITE("channelcapi") {
     CHECK(yse_dsp_object_get_bypass(m) == 1);
 
     yse_dsp_object_destroy(m);
+  }
+
+  // ─── patcher-as-insert (#167 module, #370 C API) ─────────────────────────────
+
+  TEST_CASE("c-api dsp: patcher insert wraps a graph and renders on a channel (#167/#370)") {
+    REQUIRE(ensureOffline());
+
+    // Build a passthrough patcher graph (~adc -> ~dac, stereo) entirely through
+    // the C ABI, then wrap it as a chainable insert. The graph is function-scoped
+    // so it outlives the insert that borrows it.
+    YsePatcher* graph = yse_patcher_create();
+    REQUIRE(graph != nullptr);
+    yse_patcher_init(graph, 2);
+    YsePHandle* adc = yse_patcher_create_object(graph, "~adc", nullptr);
+    YsePHandle* dac = yse_patcher_create_object(graph, "~dac", nullptr);
+    REQUIRE(adc != nullptr);
+    REQUIRE(dac != nullptr);
+    yse_patcher_connect(graph, adc, 0, dac, 0);
+    yse_patcher_connect(graph, adc, 1, dac, 1);
+
+    YseDspObject* insert = yse_dsp_patcher_insert_create(graph);
+    REQUIRE(insert != nullptr);
+
+    // The inherited dspObject surface reaches the same handle.
+    yse_dsp_object_set_bypass(insert, 1);
+    CHECK(yse_dsp_object_get_bypass(insert) == 1);
+    yse_dsp_object_set_bypass(insert, 0);
+
+    // Attach the insert to a channel; it round-trips through the C handle.
+    YseChannel* ch = yse_channel_create("capi_pi", yse_channel_master());
+    REQUIRE(ch != nullptr);
+    yse_channel_set_dsp(ch, insert);
+    CHECK(yse_channel_get_dsp(ch) == insert);
+
+    // Drive a real tone through the channel and render: the patcher insert now
+    // runs on the audio path and the whole graph must stay finite.
+    pump();
+    YseDspBuffer* tone = makeToneBuffer();
+    REQUIRE(tone != nullptr);
+    YseSound* snd = yse_sound_create();
+    REQUIRE(snd != nullptr);
+    REQUIRE(yse_sound_load_buffer(snd, tone, ch, /*loop*/ 1, /*volume*/ 1.0f) == YSE_OK);
+    pump();
+    yse_sound_play(snd);
+    pump();
+    for (int i = 0; i < 8; ++i)
+      yse_system_render_offline(yse_system_get(), 16);
+
+    CHECK(std::isfinite(yse_channel_get_peak_linear_post(ch)));
+    CHECK(std::isfinite(yse_channel_get_peak_linear_post(yse_channel_master())));
+
+    // Tear down: detach the insert before the channel/sound fall away, then free
+    // the insert before the patcher it borrows, then the buffer.
+    yse_sound_stop(snd);
+    pump();
+    yse_channel_set_dsp(ch, nullptr);
+    yse_sound_destroy(snd);
+    yse_channel_destroy(ch);
+    pump();
+    yse_dsp_object_destroy(insert);
+    yse_patcher_destroy(graph);
+    yse_dsp_buffer_destroy(tone);
+  }
+
+  // A NULL patcher has no graph to wrap, so the creator reports failure rather
+  // than handing back an insert that can never render.
+  TEST_CASE("c-api dsp: patcher insert create rejects a NULL patcher (#370)") {
+    CHECK(yse_dsp_patcher_insert_create(nullptr) == nullptr);
   }
 
   // Module setters/getters are null-safe like the rest of the module surface.
