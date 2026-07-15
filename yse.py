@@ -81,7 +81,16 @@ def cmd_build(args):
     preset = "release" if args.release else "debug"
     if args.python:
         preset += "-python"
-    run(["cmake", "--preset", preset])
+    # The presets carry no -D for the optional content pack, so append the
+    # opt-in cache variables on top of the preset when requested. --install
+    # implies --fetch: installing an un-assembled pack would ship only the
+    # committed CC0 seed, which is never what a user asking to install wants.
+    configure = ["cmake", "--preset", preset]
+    if args.content_pack or args.install_content_pack:
+        configure.append("-DYSE_FETCH_CONTENT_PACK=ON")
+    if args.install_content_pack:
+        configure.append("-DYSE_INSTALL_CONTENT_PACK=ON")
+    run(configure)
     run(["cmake", "--build", "--preset", preset])
 
 
@@ -880,6 +889,7 @@ def build_parser():
   python yse.py build              configure + build (debug)
   python yse.py build --release    configure + build (release)
   python yse.py build --python     configure + build (debug) with embedded-Python live-coding (YSE_ENABLE_PYTHON=ON)
+  python yse.py build --content-pack   configure + build (debug) and fetch the optional SFZ/DX7/FM content pack (YSE_FETCH_CONTENT_PACK=ON)
   python yse.py test               build tests-debug preset, run ctest
   python yse.py test --integration same, plus the integration suite (needs real audio device)
   python yse.py test --python      build tests-debug-python preset so the embedded-interpreter suite runs
@@ -920,6 +930,19 @@ def build_parser():
         "--python", action="store_true",
         help="Enable the embedded-CPython live-coding feature (YSE_ENABLE_PYTHON=ON; "
              "uses the *-python preset; desktop only)",
+    )
+    p.add_argument(
+        "--content-pack", action="store_true",
+        help="Fetch the optional instrument content pack (SFZ instruments, "
+             "wavetables, and DX7/FM banks; YSE_FETCH_CONTENT_PACK=ON). The "
+             "instrument DSP is always compiled; this only pulls the factory "
+             "assets. Note the DX7 banks are tolerated-not-cleared content "
+             "(see CONTENT-LICENSES.md).",
+    )
+    p.add_argument(
+        "--install-content-pack", action="store_true",
+        help="Install the content pack under <prefix>/share/yse/content "
+             "(YSE_INSTALL_CONTENT_PACK=ON; implies --content-pack)",
     )
     p.set_defaults(func=cmd_build)
 

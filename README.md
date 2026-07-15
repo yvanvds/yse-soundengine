@@ -17,6 +17,14 @@ A flat `extern "C"` ABI (`yse_c/yse_*.h`) is folded into the same shared library
 so language bindings (Dart FFI, Python ctypes, …) can call it without C++ ABI
 compatibility — enabled by default via the `YSE_BUILD_C_API` option.
 
+Beyond sample playback, libYSE hosts a polyphonic **synth subsystem**: a
+virtual-analog / wavetable voice, a **DX7-class 6-operator FM voice** (with a
+DX7 SysEx bank importer), and an **SFZ sampler voice**. The instrument DSP is
+always compiled in — there is no feature switch to enable it. The *factory
+sounds* those voices load (SFZ instruments and samples, wavetables, DX7/FM
+`.SYX` banks) ship separately as an opt-in download — see
+[Content pack](#content-pack-optional-instrument-assets).
+
 **What is YSE trying to be?** Neither a game-audio engine nor a DAW: an
 authored signal graph played by spatial and physical controllers, built
 for experimental electronic music and live performance. The full
@@ -92,6 +100,8 @@ cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
 | `YSE_BUILD_BENCHMARKS` | `OFF` | Build the `Bench/` google-benchmark suite (fetched on demand) |
 | `YSE_BUILD_C_API` | `ON` | Fold the `extern "C"` ABI bridge into `libyse` |
 | `YSE_ENABLE_MIDI_DEVICE` | `ON` (desktop) | RtMidi-backed MIDI device backend |
+| `YSE_FETCH_CONTENT_PACK` | `OFF` | Download the optional instrument [content pack](#content-pack-optional-instrument-assets) (SFZ instruments, wavetables, DX7/FM banks) |
+| `YSE_INSTALL_CONTENT_PACK` | `OFF` | Install the content pack under `<prefix>/share/yse/content` |
 
 ---
 
@@ -174,6 +184,7 @@ Flutter-style CLI for the common tasks.  On Windows run it via:
 python yse.py build              # configure + debug build (default)
 python yse.py build --release    # release build
 python yse.py build --python     # debug build with the embedded-Python live-coding feature (desktop only)
+python yse.py build --content-pack  # debug build + fetch the optional SFZ/DX7/FM content pack
 python yse.py test               # build tests-debug preset, run ctest
 python yse.py test --python      # tests-debug-python preset — also runs the embedded-interpreter suite
 python yse.py coverage           # coverage build + gcovr report (Linux only)
@@ -195,6 +206,49 @@ automatically without any extra setup.
 
 Direct `cmake -B build ...` invocations remain fully valid — the presets are
 additive and do not change how the build works when invoked directly.
+
+---
+
+## Content pack (optional instrument assets)
+
+libYSE's instrument voices — the virtual-analog / wavetable voice, the
+DX7-class 6-operator **FM voice** (plus its DX7 SysEx bank importer), and the
+**SFZ sampler voice** — are **always compiled** into `libyse`. There is no
+`YSE_ENABLE_FM` / `YSE_ENABLE_SFZ` compile switch; the instrument DSP is always
+present.
+
+What *is* optional is the **content pack**: the factory sounds those voices
+load at runtime — SFZ instruments and samples, single-cycle wavetables, and
+DX7/FM `.SYX` banks. None of it is baked into the binary (`libyse` links no
+asset); it is plain data read by the normal file loaders. A small CC0 seed is
+committed under `content/`; the larger third-party collections and the DX7
+factory banks are pulled only on demand by two opt-in CMake options (both
+`OFF` by default):
+
+| Option | Effect |
+|---|---|
+| `YSE_FETCH_CONTENT_PACK` | Download and SHA-256-verify the third-party pack sources into `content/` (an unpinned source is a hard error — hashes are verified, never invented) |
+| `YSE_INSTALL_CONTENT_PACK` | Install the assembled pack to `<prefix>/share/yse/content` |
+
+Enable them through the Python workflow (no need to drop to raw `cmake`):
+
+```sh
+python yse.py build --content-pack                        # debug build + fetch the pack
+python yse.py build --release --content-pack              # release build + fetch
+python yse.py build --content-pack --install-content-pack # also install it
+```
+
+`--install-content-pack` implies `--content-pack`. The equivalent direct
+invocation is `cmake -B build -G Ninja -DYSE_FETCH_CONTENT_PACK=ON`.
+
+**DX7 factory-bank licensing caveat.** The DX7 factory-style ROM voice banks
+are **tolerated, but not legally cleared** — Yamaha has never released these
+voice data sets under an open license. They are fetched only when
+`YSE_FETCH_CONTENT_PACK` is ON, land in `content/fm/dx7-factory/`, and every
+consumer treats that folder as optional (deleting it is a clean opt-out). For
+an unambiguously CC0 FM bank authored by this project, use
+`content/fm/original/yse_originals.syx`. Full provenance and licenses for every
+asset are in [CONTENT-LICENSES.md](CONTENT-LICENSES.md).
 
 ---
 
