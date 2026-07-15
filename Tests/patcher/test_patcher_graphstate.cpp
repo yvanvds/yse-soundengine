@@ -271,4 +271,74 @@ TEST_SUITE("patcher") {
     CHECK_FALSE(p.output[0].isSilent());
   }
 
+  // ---- Graph-id recompaction on an empty patcher (issue #355) ----
+
+  TEST_CASE("graphids: repeated Clear + rebuild reuses the id space") {
+    // graphId is a per-patcher monotonic counter that sizes every new
+    // GraphState's id-indexed tables (outletTargets / inletHasDsp). Without
+    // recompaction the counters — and thus each snapshot's tables and per-edit
+    // rebuild cost — grow with the *total* objects ever created, unbounded over a
+    // long live-coding / preset-reload session. Recompacting when the patcher
+    // goes empty restarts the ids, so a fresh noise->dac always lands in the same
+    // small id range no matter how many Clear cycles preceded it.
+    patcherImplementation p(1, nullptr);
+    std::size_t baseOut = 0;
+    std::size_t baseIn = 0;
+    for (int i = 0; i < 50; ++i) {
+      YSE::pHandle* noise = p.CreateObject(YSE::OBJ::D_NOISE, "");
+      YSE::pHandle* dac = p.CreateObject(YSE::OBJ::D_DAC, "");
+      REQUIRE(noise != nullptr);
+      REQUIRE(dac != nullptr);
+      p.Connect(noise, 0, dac, 0);
+      p.Calculate(YSE::T_DSP);
+      CHECK_FALSE(p.output[0].isSilent());
+
+      if (i == 0) {
+        baseOut = p.OutletIdSpace();
+        baseIn = p.InletIdSpace();
+      }
+      // The id high-water mark must not grow with the iteration count: every
+      // rebuild starts from a compacted id space. Before the fix these climbed
+      // linearly and this would fail within a few iterations.
+      CHECK(p.OutletIdSpace() == baseOut);
+      CHECK(p.InletIdSpace() == baseIn);
+
+      p.Clear();
+      p.Calculate(YSE::T_DSP);
+      CHECK(p.output[0].isSilent());
+      // Clear empties the patcher, so the id counters reset to 0.
+      CHECK(p.OutletIdSpace() == 0);
+      CHECK(p.InletIdSpace() == 0);
+    }
+    // Sanity: the graph really did consume outlet ids, so the invariant above is
+    // meaningful (not vacuously satisfied by an all-zero id space).
+    CHECK(baseOut > 0);
+  }
+
+  TEST_CASE("graphids: deleting every object recompacts the id space") {
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* noise = p.CreateObject(YSE::OBJ::D_NOISE, "");
+    YSE::pHandle* dac = p.CreateObject(YSE::OBJ::D_DAC, "");
+    p.Connect(noise, 0, dac, 0);
+    const std::size_t firstOut = p.OutletIdSpace();
+    const std::size_t firstIn = p.InletIdSpace();
+    REQUIRE(firstOut > 0);
+
+    // Deleting objects one by one down to empty must recompact just like Clear.
+    p.DeleteObject(noise);
+    p.DeleteObject(dac);
+    p.Calculate(YSE::T_DSP);
+    CHECK(p.OutletIdSpace() == 0);
+    CHECK(p.InletIdSpace() == 0);
+
+    // Rebuilding the same graph reuses the same id range instead of extending it.
+    YSE::pHandle* noise2 = p.CreateObject(YSE::OBJ::D_NOISE, "");
+    YSE::pHandle* dac2 = p.CreateObject(YSE::OBJ::D_DAC, "");
+    p.Connect(noise2, 0, dac2, 0);
+    CHECK(p.OutletIdSpace() == firstOut);
+    CHECK(p.InletIdSpace() == firstIn);
+    p.Calculate(YSE::T_DSP);
+    CHECK_FALSE(p.output[0].isSilent());
+  }
+
 } // TEST_SUITE("patcher")

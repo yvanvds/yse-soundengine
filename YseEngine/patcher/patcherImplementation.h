@@ -79,6 +79,15 @@ namespace YSE {
       // up until teardown.
       std::size_t PendingRetired();
 
+      // Current outlet / inlet graph-id high-water marks — exactly the sizes
+      // BuildGraph gives every new GraphState's id-indexed tables (outletTargets
+      // / inletHasDsp). Recompacted to 0 whenever the patcher goes empty, so
+      // across Clear()/delete-all cycles they track the peak simultaneous object
+      // count rather than the lifetime creation count (issue #355). Diagnostics /
+      // tests only: takes mtx, so control-thread only.
+      std::size_t OutletIdSpace();
+      std::size_t InletIdSpace();
+
       std::vector<YSE::DSP::buffer> output;
 
       aBool controlledBySound;
@@ -188,6 +197,14 @@ namespace YSE {
       GraphState* BuildGraph();
       // Stamp lifetime-stable graph ids on a newly added object's inlets/outlets.
       void AssignGraphIds(pObject* obj);
+      // Recompact the inlet/outlet id space when no live object remains. A
+      // graph id is fixed for a live object's lifetime (the audio thread reads
+      // it unsynchronised to index the pinned snapshot), so ids can only be
+      // reclaimed when there is nothing live to re-stamp — an empty object set
+      // is exactly that case. Restarting the counters at 0 then bounds each
+      // GraphState's id-indexed tables by the peak simultaneous object count
+      // instead of the lifetime creation count (issue #355). Caller holds mtx.
+      void CompactGraphIdsIfEmpty();
       // Build the next GraphState, publish it with one atomic swap, retire the
       // previous one, and schedule background reclamation.
       void RebuildAndPublish();
@@ -266,8 +283,13 @@ namespace YSE {
       // Set once at teardown to stop scheduling and re-arming reclaim passes so
       // the destructor's joins terminate. Read on the background pool.
       std::atomic<bool> shuttingDown_{false};
-      // Per-patcher dense id counters for inlets / outlets. Never reused, so
-      // ids stay stable across edits.
+      // Per-patcher dense id counters for inlets / outlets. An id is fixed for a
+      // live object's lifetime (the audio thread reads it unsynchronised to
+      // index the pinned snapshot), so ids are never re-stamped while an object
+      // is live. The counters are recompacted to 0 only when the patcher holds
+      // no live object (Clear / delete-all), which bounds each GraphState's
+      // id-indexed tables by the peak simultaneous object count rather than the
+      // lifetime creation count (issue #355).
       int nextInletId_ = 0;
       int nextOutletId_ = 0;
 
