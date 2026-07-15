@@ -251,6 +251,22 @@ YSE_C_API void yse_midi_in_free_message(unsigned char* bytes) {
   if (bytes) std::free(bytes);
 }
 
+YSE_C_API void yse_midi_in_connect_synth(YseMidiIn* m, YseSynth* synth, int channel_filter) {
+  if (!m) return;
+  // synth_from_handle (defined in yse_synth.cpp) yields the engine synth backing
+  // the opaque YseSynth; a NULL / never-created handle yields nullptr. connect()
+  // only records the pointer in the port's lock-free subscriber table, so no
+  // engine device or open port is required here.
+  YSE::synth* s = yse_c::synth_from_handle(synth);
+  if (s) to_impl(m)->cpp.connect(*s, channel_filter);
+}
+
+YSE_C_API void yse_midi_in_disconnect_synth(YseMidiIn* m, YseSynth* synth) {
+  if (!m) return;
+  YSE::synth* s = yse_c::synth_from_handle(synth);
+  if (s) to_impl(m)->cpp.disconnect(*s);
+}
+
 #else
 // Stub the midiOut surface on platforms without RtMidi so the C ABI is
 // uniform across builds. Each call sets last_error and returns / no-ops.
@@ -291,6 +307,8 @@ YSE_C_API void yse_midi_in_set_parsed_callback(YseMidiIn*, YseMidiInParsedCallba
 YSE_C_API void yse_midi_in_free_message(unsigned char* bytes) {
   if (bytes) std::free(bytes);
 }
+YSE_C_API void yse_midi_in_connect_synth(YseMidiIn*, YseSynth*, int) {}
+YSE_C_API void yse_midi_in_disconnect_synth(YseMidiIn*, YseSynth*) {}
 #endif
 
 // ─── midiNote ──────────────────────────────────────────────────────
