@@ -1,11 +1,11 @@
 <!-- META
-last_updated_commit: ce0fe64
-last_updated_at: 2026-07-14
+last_updated_commit: 8bc0dc3
+last_updated_at: 2026-07-15
 -->
 
 # YSE Sound Engine — Project Overview
 
-**Version:** 2.2.0 (single source of truth: [`YseEngine/system.hpp`](YseEngine/system.hpp))
+**Version:** 2.3.0 (single source of truth: [`YseEngine/system.hpp`](YseEngine/system.hpp))
 **Language:** C++17
 **Platforms:** Windows (MSYS2/Clang64, MSVC), Linux (gcc/clang), Android (NDK r27+, API 26+, arm64-v8a + x86_64)
 **Build:** CMake 3.20+ via `CMakePresets.json`; Android wraps the same CMake invocation through Gradle in `Tests/Android/`
@@ -80,6 +80,7 @@ The old .NET/Xamarin wrappers, the WPF demo, the UWP build, and the JUCE backend
 python yse.py build                # cmake --preset debug + build
 python yse.py build --release      # release variant
 python yse.py build --python       # debug variant with embedded-Python live-coding (YSE_ENABLE_PYTHON=ON, desktop only)
+python yse.py build --content-pack  # also fetch the optional SFZ/DX7/FM instrument content pack (YSE_FETCH_CONTENT_PACK=ON)
 python yse.py test                 # tests-debug preset + ctest
 python yse.py test --integration   # also run the integration suite (needs a real audio device)
 python yse.py test --python        # tests-debug-python preset — also runs the embedded-interpreter suite
