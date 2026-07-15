@@ -303,6 +303,9 @@ void patcherImplementation::DeleteObject(YSE::pHandle* handle) {
   // not free it yet — an in-flight audio block may still walk the retired
   // snapshot that references it. The free is deferred to the reclaimer.
   object->UnwireFromPeers();
+  // If that was the patcher's last object, recompact the id space before the
+  // next graph is built: an empty object set binds no live id (issue #355).
+  CompactGraphIdsIfEmpty();
   RebuildAndPublish();
   // Tag the object only after RebuildAndPublish has retired the graph that last
   // referenced it, so its epoch is >= that graph's — the graphs-first drain then
@@ -463,6 +466,10 @@ void patcherImplementation::Clear() {
     delete it->first; // handle: not referenced by a GraphState
   }
   objects.clear();
+  // No live object remains, so the id space carries no stability constraint:
+  // recompact it before the empty graph is built so later rebuilds restart from
+  // a small id range instead of extending it every Clear (issue #355).
+  CompactGraphIdsIfEmpty();
   RebuildAndPublish();
   // Tag the removed objects only after their covering graph has been retired by
   // RebuildAndPublish, so each object's epoch is >= that graph's (see the
@@ -576,6 +583,16 @@ unsigned int patcherImplementation::Objects() {
 std::size_t patcherImplementation::PendingRetired() {
   std::scoped_lock lk(reclaimMtx_);
   return retiredGraphs_.size() + retiredObjects_.size();
+}
+
+std::size_t patcherImplementation::OutletIdSpace() {
+  std::scoped_lock lk(mtx);
+  return static_cast<std::size_t>(nextOutletId_);
+}
+
+std::size_t patcherImplementation::InletIdSpace() {
+  std::scoped_lock lk(mtx);
+  return static_cast<std::size_t>(nextInletId_);
 }
 
 YSE::pHandle* patcherImplementation::GetHandleFromList(unsigned int obj) {
@@ -798,6 +815,21 @@ void patcherImplementation::AssignGraphIds(pObject* object) {
   for (int i = 0; i < object->NumOutputs(); i++) {
     PATCHER::outlet* out = object->GetOutlet(i);
     if (out != nullptr && out->GraphId() < 0) out->SetGraphId(nextOutletId_++);
+  }
+}
+
+void patcherImplementation::CompactGraphIdsIfEmpty() {
+  // Only safe with no live object: a graph id must stay fixed for a live
+  // object's lifetime (the audio thread indexes the pinned snapshot by it with
+  // no synchronisation), so the counters may restart only when there is nothing
+  // live to re-stamp. Retired snapshots and objects keep their old ids and their
+  // own already-sized tables — they are never re-indexed — so this is safe even
+  // while their reclamation is still pending. Restarting at 0 bounds every later
+  // GraphState's id-indexed tables by the peak simultaneous object count instead
+  // of the lifetime creation count (issue #355).
+  if (objects.empty()) {
+    nextInletId_ = 0;
+    nextOutletId_ = 0;
   }
 }
 
