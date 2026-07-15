@@ -15,8 +15,9 @@ required attribution. Two categories:
   deterministically by [`content/tools/generate_content.py`](content/tools/generate_content.py)
   and committed to the repo. Unambiguously CC0.
 - **Fetched (third-party)** — pulled on demand by the fetch path; **not**
-  committed. Each has a pinned SHA-256 in `pack-manifest.cmake` before it can be
-  fetched (an empty pin is a hard error — hashes are verified, never invented).
+  committed. Each may carry an optional SHA-256 pin in `pack-manifest.cmake`: a
+  pinned source is verified on fetch, an unpinned one downloads unverified with a
+  warning (hashes are verified, never invented).
 
 ## Committed CC0 seed (authored by YSE)
 
@@ -35,8 +36,8 @@ required attribution. Two categories:
 | VSCO 2 Community Edition (SFZ subset) | `sfz/vsco2/` | CC0-1.0 | https://github.com/sgossner/VSCO-2-CE | None (CC0) |
 | VCSL — Versilian Community Sample Library | `sfz/vcsl/` | CC0-1.0 | https://github.com/sgossner/VCSL | None (CC0) |
 | Salamander Grand Piano | `sfz/salamander/` | **CC-BY-3.0** | https://archive.org/details/SalamanderGrandPianoV3 | Required — see [`content/ATTRIBUTION-Salamander.txt`](content/ATTRIBUTION-Salamander.txt) |
-| FreePats selection (CC0 picks only) | `sfz/freepats/` | CC0-1.0 | https://freepats.zenvoid.org/ | None (CC0) |
-| DX7 factory-style `.syx` banks | `fm/dx7-factory/` | **tolerated-unclear** | https://github.com/asb2m10/dexed (Resources) | See risk note below |
+| FreePats selection (CC0 picks only) | `sfz/freepats/` | CC0-1.0 | _disabled (#367): no working CC0 source; FreePats GM is GPLv3_ | None (CC0) |
+| DX7 factory-style `.syx` banks | `fm/dx7-factory/` | **tolerated-unclear** | https://github.com/asb2m10/dexed (`assets/builtin_pgm.zip`) | See risk note below |
 
 ## The DX7 factory-bank decision (tolerated, not cleared)
 

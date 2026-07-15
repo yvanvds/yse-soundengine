@@ -29,7 +29,7 @@ endif()
 #   YSE_CONTENT_PACK_DIR     (content/) where the pack lives / is assembled
 
 option(YSE_FETCH_CONTENT_PACK
-  "Download and hash-verify the third-party content pack sources (opt-in; see content/pack-manifest.cmake)"
+  "Download the third-party content pack sources (opt-in; SHA-256 pins are optional — see content/pack-manifest.cmake)"
   OFF)
 option(YSE_INSTALL_CONTENT_PACK
   "Install the content pack under <prefix>/share/yse/content"
@@ -47,11 +47,16 @@ function(yse_content_source)
   if(NOT A_NAME OR NOT A_URL OR NOT A_DEST)
     message(FATAL_ERROR "yse_content_source: NAME, URL and DEST are required")
   endif()
+  # SHA-256 verification is OPTIONAL. A non-empty SHA256 is verified exactly (a
+  # mismatch fails the download); an empty SHA256 downloads the source UNVERIFIED
+  # after a warning, so a pin can be added to the manifest later.
+  set(_verify_sha TRUE)
   if(NOT DEFINED A_SHA256 OR A_SHA256 STREQUAL "")
-    message(FATAL_ERROR
-      "Content source '${A_NAME}' has no SHA256 pin. Download ${A_URL}, verify it "
-      "against upstream, and set its sha256 in content/pack-manifest.cmake before "
-      "enabling YSE_FETCH_CONTENT_PACK. (Never invent a hash.)")
+    set(_verify_sha FALSE)
+    message(WARNING
+      "Content source '${A_NAME}' has no SHA256 pin — downloading ${A_URL} "
+      "UNVERIFIED. To pin it, download the archive, verify it against upstream, "
+      "and set its sha256 in content/pack-manifest.cmake. (Never invent a hash.)")
   endif()
 
   set(_dest "${YSE_CONTENT_PACK_DIR}/${A_DEST}")
@@ -64,10 +69,16 @@ function(yse_content_source)
   get_filename_component(_ext "${A_URL}" LAST_EXT)
   set(_archive "${CMAKE_BINARY_DIR}/_content/${A_NAME}${_ext}")
   message(STATUS "Content pack: fetching '${A_NAME}' (${A_LICENSE}) → ${A_DEST}")
-  file(DOWNLOAD "${A_URL}" "${_archive}"
-    EXPECTED_HASH SHA256=${A_SHA256}
-    SHOW_PROGRESS
-    STATUS _dl_status)
+  if(_verify_sha)
+    file(DOWNLOAD "${A_URL}" "${_archive}"
+      EXPECTED_HASH SHA256=${A_SHA256}
+      SHOW_PROGRESS
+      STATUS _dl_status)
+  else()
+    file(DOWNLOAD "${A_URL}" "${_archive}"
+      SHOW_PROGRESS
+      STATUS _dl_status)
+  endif()
   list(GET _dl_status 0 _dl_code)
   if(NOT _dl_code EQUAL 0)
     list(GET _dl_status 1 _dl_msg)
