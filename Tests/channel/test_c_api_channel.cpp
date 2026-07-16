@@ -32,6 +32,7 @@
 #include "yse_c/yse_dsp.h"
 #include "yse_c/yse_dsp_modules.h"
 #include "yse_c/yse_enums.h"
+#include "yse_c/yse_patcher.h"
 #include "yse_c/yse_sound.h"
 #include "yse_c/yse_system.h"
 
@@ -303,6 +304,138 @@ TEST_SUITE("channelcapi") {
     yse_dsp_object_destroy(c);
   }
 
+  TEST_CASE("c-api dsp: morphing reverb presets + morph round-trip (#326/#369)") {
+    YseDspObject* m = yse_dsp_morphing_reverb_create();
+    REQUIRE(m != nullptr);
+
+    // Defaults (per #326): A = GENERIC, B = HALL, morph = 0 (pure A).
+    CHECK(yse_dsp_morphing_reverb_get_morph(m) == doctest::Approx(0.0f));
+
+    // Named-preset endpoints resolve to the shared preset table.
+    yse_dsp_morphing_reverb_set_preset_a(m, YSE_REVERB_CAVE);
+    yse_dsp_morphing_reverb_set_preset_b(m, YSE_REVERB_OFF);
+    YseReverbPresetValues a{};
+    YseReverbPresetValues b{};
+    yse_dsp_morphing_reverb_get_preset_a(m, &a);
+    yse_dsp_morphing_reverb_get_preset_b(m, &b);
+    CHECK(a.roomsize == doctest::Approx(1.0f)); // CAVE
+    CHECK(a.wet == doctest::Approx(0.7f));
+    CHECK(a.dry == doctest::Approx(0.3f));
+    CHECK(a.early_time[0] == doctest::Approx(100.0f));
+    CHECK(a.early_gain[0] == doctest::Approx(0.8f));
+    CHECK(b.dry == doctest::Approx(1.0f)); // OFF: dry pass-through
+    CHECK(b.wet == doctest::Approx(0.0f));
+
+    // Custom endpoint values round-trip field-for-field through the mirror
+    // struct (send/return flavour: fully wet).
+    YseReverbPresetValues custom{};
+    custom.roomsize = 0.42f;
+    custom.damp = 0.3f;
+    custom.dry = 0.0f;
+    custom.wet = 1.0f;
+    custom.mod_frequency = 2.5f;
+    custom.mod_width = 8.0f;
+    for (int i = 0; i < 4; ++i) {
+      custom.early_time[i] = 100.0f * static_cast<float>(i + 1);
+      custom.early_gain[i] = 0.1f * static_cast<float>(i + 1);
+    }
+    yse_dsp_morphing_reverb_set_preset_b_values(m, &custom);
+    YseReverbPresetValues got{};
+    yse_dsp_morphing_reverb_get_preset_b(m, &got);
+    CHECK(got.roomsize == doctest::Approx(0.42f));
+    CHECK(got.damp == doctest::Approx(0.3f));
+    CHECK(got.dry == doctest::Approx(0.0f));
+    CHECK(got.wet == doctest::Approx(1.0f));
+    CHECK(got.mod_frequency == doctest::Approx(2.5f));
+    CHECK(got.mod_width == doctest::Approx(8.0f));
+    for (int i = 0; i < 4; ++i) {
+      CHECK(got.early_time[i] == doctest::Approx(100.0f * static_cast<float>(i + 1)));
+      CHECK(got.early_gain[i] == doctest::Approx(0.1f * static_cast<float>(i + 1)));
+    }
+
+    // Morph control input (per #326) is stored and clamped to [0, 1].
+    yse_dsp_morphing_reverb_set_morph(m, 0.25f);
+    CHECK(yse_dsp_morphing_reverb_get_morph(m) == doctest::Approx(0.25f));
+    yse_dsp_morphing_reverb_set_morph(m, 7.5f);
+    CHECK(yse_dsp_morphing_reverb_get_morph(m) == doctest::Approx(1.0f));
+    yse_dsp_morphing_reverb_set_morph(m, -2.0f);
+    CHECK(yse_dsp_morphing_reverb_get_morph(m) == doctest::Approx(0.0f));
+
+    // Inherited dspObject surface reaches the same handle.
+    yse_dsp_object_set_bypass(m, 1);
+    CHECK(yse_dsp_object_get_bypass(m) == 1);
+
+    yse_dsp_object_destroy(m);
+  }
+
+  // ─── patcher-as-insert (#167 module, #370 C API) ─────────────────────────────
+
+  TEST_CASE("c-api dsp: patcher insert wraps a graph and renders on a channel (#167/#370)") {
+    REQUIRE(ensureOffline());
+
+    // Build a passthrough patcher graph (~adc -> ~dac, stereo) entirely through
+    // the C ABI, then wrap it as a chainable insert. The graph is function-scoped
+    // so it outlives the insert that borrows it.
+    YsePatcher* graph = yse_patcher_create();
+    REQUIRE(graph != nullptr);
+    yse_patcher_init(graph, 2);
+    YsePHandle* adc = yse_patcher_create_object(graph, "~adc", nullptr);
+    YsePHandle* dac = yse_patcher_create_object(graph, "~dac", nullptr);
+    REQUIRE(adc != nullptr);
+    REQUIRE(dac != nullptr);
+    yse_patcher_connect(graph, adc, 0, dac, 0);
+    yse_patcher_connect(graph, adc, 1, dac, 1);
+
+    YseDspObject* insert = yse_dsp_patcher_insert_create(graph);
+    REQUIRE(insert != nullptr);
+
+    // The inherited dspObject surface reaches the same handle.
+    yse_dsp_object_set_bypass(insert, 1);
+    CHECK(yse_dsp_object_get_bypass(insert) == 1);
+    yse_dsp_object_set_bypass(insert, 0);
+
+    // Attach the insert to a channel; it round-trips through the C handle.
+    YseChannel* ch = yse_channel_create("capi_pi", yse_channel_master());
+    REQUIRE(ch != nullptr);
+    yse_channel_set_dsp(ch, insert);
+    CHECK(yse_channel_get_dsp(ch) == insert);
+
+    // Drive a real tone through the channel and render: the patcher insert now
+    // runs on the audio path and the whole graph must stay finite.
+    pump();
+    YseDspBuffer* tone = makeToneBuffer();
+    REQUIRE(tone != nullptr);
+    YseSound* snd = yse_sound_create();
+    REQUIRE(snd != nullptr);
+    REQUIRE(yse_sound_load_buffer(snd, tone, ch, /*loop*/ 1, /*volume*/ 1.0f) == YSE_OK);
+    pump();
+    yse_sound_play(snd);
+    pump();
+    for (int i = 0; i < 8; ++i)
+      yse_system_render_offline(yse_system_get(), 16);
+
+    CHECK(std::isfinite(yse_channel_get_peak_linear_post(ch)));
+    CHECK(std::isfinite(yse_channel_get_peak_linear_post(yse_channel_master())));
+
+    // Tear down: detach the insert before the channel/sound fall away, then free
+    // the insert before the patcher it borrows, then the buffer.
+    yse_sound_stop(snd);
+    pump();
+    yse_channel_set_dsp(ch, nullptr);
+    yse_sound_destroy(snd);
+    yse_channel_destroy(ch);
+    pump();
+    yse_dsp_object_destroy(insert);
+    yse_patcher_destroy(graph);
+    yse_dsp_buffer_destroy(tone);
+  }
+
+  // A NULL patcher has no graph to wrap, so the creator reports failure rather
+  // than handing back an insert that can never render.
+  TEST_CASE("c-api dsp: patcher insert create rejects a NULL patcher (#370)") {
+    CHECK(yse_dsp_patcher_insert_create(nullptr) == nullptr);
+  }
+
   // Module setters/getters are null-safe like the rest of the module surface.
   TEST_CASE("c-api dsp: new module setters/getters are null-safe") {
     yse_dsp_feedback_delay_set_time(nullptr, 1.f);
@@ -315,6 +448,17 @@ TEST_SUITE("channelcapi") {
     CHECK(yse_dsp_plate_reverb_get_decay(nullptr) == doctest::Approx(0.f));
     CHECK(yse_dsp_eq_get_gain(nullptr, YSE_EQ_PEAK_1) == doctest::Approx(0.f));
     CHECK(yse_dsp_compressor_get_gain_reduction_db(nullptr) == doctest::Approx(0.f));
+
+    // morphing reverb (#326/#369)
+    yse_dsp_morphing_reverb_set_preset_a(nullptr, YSE_REVERB_HALL);
+    yse_dsp_morphing_reverb_set_preset_b_values(nullptr, nullptr);
+    yse_dsp_morphing_reverb_set_morph(nullptr, 0.5f);
+    CHECK(yse_dsp_morphing_reverb_get_morph(nullptr) == doctest::Approx(0.f));
+    YseReverbPresetValues z; // getter must zero-fill on a NULL handle
+    yse_dsp_morphing_reverb_get_preset_a(nullptr, &z);
+    CHECK(z.roomsize == doctest::Approx(0.f));
+    CHECK(z.wet == doctest::Approx(0.f));
+    yse_dsp_morphing_reverb_get_preset_a(nullptr, nullptr); // no crash
   }
 
 } // TEST_SUITE("channelcapi")

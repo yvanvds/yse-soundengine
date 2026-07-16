@@ -88,6 +88,14 @@ namespace YSE {
       std::size_t OutletIdSpace();
       std::size_t InletIdSpace();
 
+      // Number of retired inlet + outlet graph ids currently parked on the
+      // free-list awaiting reuse (issue #364). A non-zero value after a
+      // create/delete churn (with the patcher never going empty) shows the
+      // reclaimer is returning ids for AssignGraphIds to recycle rather than
+      // letting the id space grow. Diagnostics / tests only: takes reclaimMtx_,
+      // so control-thread only.
+      std::size_t FreeIdCount();
+
       std::vector<YSE::DSP::buffer> output;
 
       aBool controlledBySound;
@@ -196,14 +204,23 @@ namespace YSE {
       // Control-thread only (allocates). See graphState.h.
       GraphState* BuildGraph();
       // Stamp lifetime-stable graph ids on a newly added object's inlets/outlets.
+      // Pulls a recycled id from the free-list before bumping the counter so a
+      // continuously edited patcher reuses the ids of its deleted objects (issue
+      // #364). Caller holds mtx; takes reclaimMtx_ for the free-list access.
       void AssignGraphIds(pObject* obj);
+      // Return a freed object's inlet/outlet graph ids to the free-list, but only
+      // if they belong to the current id generation — ids from a compacted-away
+      // numbering (issue #355) are dropped (issue #364). Caller holds reclaimMtx_.
+      void RecycleObjectIds(pObject* obj, std::uint64_t idGen);
       // Recompact the inlet/outlet id space when no live object remains. A
       // graph id is fixed for a live object's lifetime (the audio thread reads
       // it unsynchronised to index the pinned snapshot), so ids can only be
       // reclaimed when there is nothing live to re-stamp — an empty object set
       // is exactly that case. Restarting the counters at 0 then bounds each
       // GraphState's id-indexed tables by the peak simultaneous object count
-      // instead of the lifetime creation count (issue #355). Caller holds mtx.
+      // instead of the lifetime creation count (issue #355). Also bumps the id
+      // generation and drops the free-list, so ids from the old numbering are not
+      // recycled into the reset space (issue #364). Caller holds mtx.
       void CompactGraphIdsIfEmpty();
       // Build the next GraphState, publish it with one atomic swap, retire the
       // previous one, and schedule background reclamation.
@@ -265,6 +282,18 @@ namespace YSE {
       // tell when the audio thread has advanced past a retired snapshot.
       std::atomic<std::uint64_t> audioBlock_{0};
 
+      // A deleted object awaiting reclamation. `epoch` is the block count at
+      // retirement (the +2 grace is measured from it). `idGen` is the id-space
+      // generation the object's inlet/outlet graph ids belong to (issue #364):
+      // the reclaimer returns those ids to the free-list only when it still
+      // matches the current generation, so ids from a numbering that was
+      // compacted away (issue #355) are dropped rather than reused.
+      struct RetiredObject {
+        pObject* object;
+        std::uint64_t epoch;
+        std::uint64_t idGen;
+      };
+
       // Retired snapshots / deleted objects awaiting reclamation, tagged with
       // the block count at retirement. Produced by the control thread and drained
       // by the background pool, so guarded by reclaimMtx_ (never taken on the
@@ -272,7 +301,7 @@ namespace YSE {
       // may take it, but the background reclaimer takes only reclaimMtx_.
       std::mutex reclaimMtx_;
       std::vector<std::pair<const GraphState*, std::uint64_t>> retiredGraphs_;
-      std::vector<std::pair<pObject*, std::uint64_t>> retiredObjects_;
+      std::vector<RetiredObject> retiredObjects_;
       // Two-element ping-pong so a reclaim pass that still has work can re-arm
       // without re-enqueuing itself (see reclaimJob). Wired up in the ctor.
       reclaimJob reclaimJobs_[2];
@@ -292,6 +321,22 @@ namespace YSE {
       // lifetime creation count (issue #355).
       int nextInletId_ = 0;
       int nextOutletId_ = 0;
+
+      // Free-list of retired inlet / outlet graph ids (issue #364). The
+      // background reclaimer pushes a deleted object's ids here at the moment it
+      // frees the object — the point no live or retired snapshot can still index
+      // them — and AssignGraphIds pulls from here before bumping the counters. A
+      // continuously edited patcher that never goes empty (so #355's compaction
+      // never fires) thus reuses the id range of its deleted objects instead of
+      // growing it with the lifetime create count. Guarded by reclaimMtx_ and
+      // never touched on the audio thread; consumed under mtx -> reclaimMtx_.
+      std::vector<int> freeInletIds_;
+      std::vector<int> freeOutletIds_;
+      // Generation of the current id numbering. Bumped by CompactGraphIdsIfEmpty
+      // every time the counters reset, so ids stamped before a reset carry a
+      // stale generation and are dropped rather than recycled (see RetiredObject
+      // and RecycleObjectIds). Guarded by reclaimMtx_.
+      std::uint64_t idGeneration_ = 0;
 
       // Lock-free command queue for deferred value delivery (issue #225).
       // Producers: control/GUI threads (PassBang / PassData). Consumer: the

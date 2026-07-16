@@ -303,6 +303,14 @@ void patcherImplementation::DeleteObject(YSE::pHandle* handle) {
   // not free it yet — an in-flight audio block may still walk the retired
   // snapshot that references it. The free is deferred to the reclaimer.
   object->UnwireFromPeers();
+  // Capture the id generation this object's ids belong to *before* a possible
+  // recompaction below bumps it, so the reclaimer can tell whether they are
+  // still recyclable when it frees the object (issue #364).
+  std::uint64_t objGen;
+  {
+    std::scoped_lock rlk(reclaimMtx_);
+    objGen = idGeneration_;
+  }
   // If that was the patcher's last object, recompact the id space before the
   // next graph is built: an empty object set binds no live id (issue #355).
   CompactGraphIdsIfEmpty();
@@ -312,7 +320,7 @@ void patcherImplementation::DeleteObject(YSE::pHandle* handle) {
   // guarantees no retired graph outlives an object it points into.
   {
     std::scoped_lock rlk(reclaimMtx_);
-    retiredObjects_.emplace_back(object, audioBlock_.load(std::memory_order_acquire));
+    retiredObjects_.push_back({object, audioBlock_.load(std::memory_order_acquire), objGen});
   }
   ScheduleReclaim();
   // The handle is never referenced by a GraphState, so it can go immediately.
@@ -446,8 +454,11 @@ void patcherImplementation::ReplaceObjectUnlocked(YSE::pHandle* handle, const st
   handle->object = fresh;
   RebuildAndPublish();
   {
+    // No recompaction happens here (the patcher is never empty during a
+    // replace), so the current generation is the one the old object's ids belong
+    // to; the reclaimer recycles them when it frees the old object (issue #364).
     std::scoped_lock rlk(reclaimMtx_);
-    retiredObjects_.emplace_back(old, audioBlock_.load(std::memory_order_acquire));
+    retiredObjects_.push_back({old, audioBlock_.load(std::memory_order_acquire), idGeneration_});
   }
   ScheduleReclaim();
 }
@@ -466,6 +477,14 @@ void patcherImplementation::Clear() {
     delete it->first; // handle: not referenced by a GraphState
   }
   objects.clear();
+  // Capture the id generation the doomed objects' ids belong to before the
+  // recompaction below bumps it (issue #364): a Clear always empties the
+  // patcher, so their ids are a stale numbering the reclaimer must not recycle.
+  std::uint64_t objGen;
+  {
+    std::scoped_lock rlk(reclaimMtx_);
+    objGen = idGeneration_;
+  }
   // No live object remains, so the id space carries no stability constraint:
   // recompact it before the empty graph is built so later rebuilds restart from
   // a small id range instead of extending it every Clear (issue #355).
@@ -478,7 +497,7 @@ void patcherImplementation::Clear() {
     std::scoped_lock rlk(reclaimMtx_);
     const std::uint64_t at = audioBlock_.load(std::memory_order_acquire);
     for (pObject* obj : doomed)
-      retiredObjects_.emplace_back(obj, at);
+      retiredObjects_.push_back({obj, at, objGen});
   }
   ScheduleReclaim();
 }
@@ -593,6 +612,11 @@ std::size_t patcherImplementation::OutletIdSpace() {
 std::size_t patcherImplementation::InletIdSpace() {
   std::scoped_lock lk(mtx);
   return static_cast<std::size_t>(nextInletId_);
+}
+
+std::size_t patcherImplementation::FreeIdCount() {
+  std::scoped_lock lk(reclaimMtx_);
+  return freeInletIds_.size() + freeOutletIds_.size();
 }
 
 YSE::pHandle* patcherImplementation::GetHandleFromList(unsigned int obj) {
@@ -808,13 +832,50 @@ void patcherImplementation::SetHandler(YSE::oscHandler* handler) {
 }
 
 void patcherImplementation::AssignGraphIds(pObject* object) {
+  // Caller holds mtx. Recycled ids are produced by the background reclaimer
+  // under reclaimMtx_ (issue #364); pull from the free-list before extending the
+  // high-water mark so a continuously edited patcher reuses the id range of its
+  // deleted objects instead of growing it with the lifetime create count. A
+  // recycled id is always < the current counter, so it stays in bounds of every
+  // GraphState's id-indexed tables. mtx -> reclaimMtx_ is the established order;
+  // this never runs on the audio thread.
+  std::scoped_lock rlk(reclaimMtx_);
   for (int i = 0; i < object->NumInputs(); i++) {
     PATCHER::inlet* in = object->GetInlet(i);
-    if (in != nullptr && in->GraphId() < 0) in->SetGraphId(nextInletId_++);
+    if (in == nullptr || in->GraphId() >= 0) continue;
+    if (!freeInletIds_.empty()) {
+      in->SetGraphId(freeInletIds_.back());
+      freeInletIds_.pop_back();
+    } else {
+      in->SetGraphId(nextInletId_++);
+    }
   }
   for (int i = 0; i < object->NumOutputs(); i++) {
     PATCHER::outlet* out = object->GetOutlet(i);
-    if (out != nullptr && out->GraphId() < 0) out->SetGraphId(nextOutletId_++);
+    if (out == nullptr || out->GraphId() >= 0) continue;
+    if (!freeOutletIds_.empty()) {
+      out->SetGraphId(freeOutletIds_.back());
+      freeOutletIds_.pop_back();
+    } else {
+      out->SetGraphId(nextOutletId_++);
+    }
+  }
+}
+
+void patcherImplementation::RecycleObjectIds(pObject* object, std::uint64_t idGen) {
+  // Caller holds reclaimMtx_ (the background reclaimer, freeing this object now
+  // that no live or retired snapshot can still index its ids). Only return the
+  // ids to the free-list if they still belong to the current numbering: a
+  // CompactGraphIdsIfEmpty since retirement reset the counters, so these ids
+  // would collide with the fresh dense range if reused (issue #364).
+  if (idGen != idGeneration_) return;
+  for (int i = 0; i < object->NumInputs(); i++) {
+    PATCHER::inlet* in = object->GetInlet(i);
+    if (in != nullptr && in->GraphId() >= 0) freeInletIds_.push_back(in->GraphId());
+  }
+  for (int i = 0; i < object->NumOutputs(); i++) {
+    PATCHER::outlet* out = object->GetOutlet(i);
+    if (out != nullptr && out->GraphId() >= 0) freeOutletIds_.push_back(out->GraphId());
   }
 }
 
@@ -830,6 +891,14 @@ void patcherImplementation::CompactGraphIdsIfEmpty() {
   if (objects.empty()) {
     nextInletId_ = 0;
     nextOutletId_ = 0;
+    // The whole id space is reclaimed at once, so any recycled ids parked on the
+    // free-list belong to the pre-reset numbering and must be dropped; bumping
+    // the generation likewise marks the ids of still-pending retired objects as
+    // stale, so their deferred free won't push them into the reset space (#364).
+    std::scoped_lock rlk(reclaimMtx_);
+    freeInletIds_.clear();
+    freeOutletIds_.clear();
+    idGeneration_++;
   }
 }
 
@@ -903,8 +972,11 @@ bool patcherImplementation::ReclaimElapsed(std::uint64_t now) {
     }
   }
   for (std::size_t i = 0; i < retiredObjects_.size();) {
-    if (now >= retiredObjects_[i].second + 2) {
-      delete retiredObjects_[i].first;
+    if (now >= retiredObjects_[i].epoch + 2) {
+      // No live or retired snapshot can still index this object's ids now, so
+      // hand them back to the free-list for reuse before freeing it (issue #364).
+      RecycleObjectIds(retiredObjects_[i].object, retiredObjects_[i].idGen);
+      delete retiredObjects_[i].object;
       retiredObjects_.erase(retiredObjects_.begin() + i);
     } else {
       ++i;
@@ -941,7 +1013,7 @@ void patcherImplementation::FreeAllRetired() {
   const GraphState* g = active_.exchange(nullptr, std::memory_order_acq_rel);
   delete g;
   for (std::size_t i = 0; i < retiredObjects_.size(); i++) {
-    delete retiredObjects_[i].first;
+    delete retiredObjects_[i].object;
   }
   retiredObjects_.clear();
 }

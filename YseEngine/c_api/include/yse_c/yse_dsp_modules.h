@@ -25,6 +25,9 @@ extern "C" {
    subclass via the shared handle type. */
 typedef struct YseDspObject YseDspObject;
 
+/* Forward declaration — see yse_patcher.h for ownership. */
+typedef struct YsePatcher YsePatcher;
+
 /* ─── constructors ────────────────────────────────────────────────────── */
 
 YSE_C_API YseDspObject* yse_dsp_lowpass_create(void);
@@ -50,6 +53,20 @@ YSE_C_API YseDspObject* yse_dsp_chorus_create(void); /* #161 */
 YSE_C_API YseDspObject* yse_dsp_plate_reverb_create(void); /* #162 */
 YSE_C_API YseDspObject* yse_dsp_eq_create(void); /* #163 */
 YSE_C_API YseDspObject* yse_dsp_compressor_create(void); /* #163 */
+YSE_C_API YseDspObject* yse_dsp_morphing_reverb_create(void); /* #326 module, #369 C API */
+
+/* Patcher-as-insert (#167 module, #370 C API). Wraps a YsePatcher graph as a
+   chainable insert effect (YSE::DSP::patcherInsert): a hand-patched network
+   (a filter-delay, a custom EQ, ...) drives a sound or channel insert slot,
+   feeding the host buffer to the graph's ~adc objects and copying the summed
+   ~dac output back over it. The patcher should contain at least one ~adc and
+   one ~dac, and it must outlive the insert — the insert BORROWS the patcher, it
+   never owns or destroys it. Returns NULL and sets yse_last_error() when patcher
+   is NULL (the insert needs a graph to wrap). The returned handle is owned:
+   release it with yse_dsp_object_destroy(), drive it with the inherited
+   yse_dsp_object_* surface (bypass, impact, ...), and attach it with
+   yse_sound_set_dsp() or yse_channel_set_dsp(). */
+YSE_C_API YseDspObject* yse_dsp_patcher_insert_create(YsePatcher* patcher);
 
 YSE_C_API void yse_dsp_object_destroy(YseDspObject* obj);
 
@@ -186,6 +203,50 @@ YSE_C_API float yse_dsp_compressor_get_release(YseDspObject* obj);
 YSE_C_API void yse_dsp_compressor_set_makeup(YseDspObject* obj, float db);
 YSE_C_API float yse_dsp_compressor_get_makeup(YseDspObject* obj);
 YSE_C_API float yse_dsp_compressor_get_gain_reduction_db(YseDspObject* obj);
+
+/* ─── morphing reverb (#326 module, #369 C API) ───────────────────────────
+ * The engine's zone/global reverb core packaged as a chainable insert whose
+ * preset blend is a *control input*. Two endpoints — slot A and slot B — are
+ * each a named YseReverbPreset or a custom YseReverbPresetValues; set_morph()
+ * linearly interpolates between them (0 = pure A, 1 = pure B, clamped to
+ * [0, 1]). morph is a control-rate signal: writes are allocation-free and
+ * click-free (the reverb core's faders smooth every move), so any control
+ * thread may call set_morph at control rate. Defaults: A = REVERB_GENERIC,
+ * B = REVERB_HALL, morph = 0. Its wet/dry balance rides the morphed presets
+ * (each carries dry/wet), so the inherited yse_dsp_object_set_impact() is NOT
+ * applied — for send/return use give both slots custom values with dry = 0,
+ * wet = 1. */
+
+/* Plain-old-data mirror of YSE::REVERB::presetValues (reverb/reverbPresets.hpp)
+ * — one complete reverb parameter set: the payload of a named preset and the
+ * custom endpoint type of the morphing reverb. Fields are copied one by one
+ * across the ABI; the layout is not assumed to match the engine struct. */
+typedef struct YseReverbPresetValues {
+  float roomsize; /* simulated room size, [0, 1] */
+  float damp; /* high-frequency damping, [0, 1] */
+  float dry; /* unprocessed level, [0, 1] */
+  float wet; /* reverberated level, [0, 1] */
+  float mod_frequency; /* tail modulation rate, Hz (0 = off) */
+  float mod_width; /* tail modulation depth (0 = off) */
+  float early_time[4]; /* early reflection delays, samples, [0, 2999] */
+  float early_gain[4]; /* early reflection gains, [0, 1] */
+} YseReverbPresetValues;
+
+/* Set an endpoint from a named preset. */
+YSE_C_API void yse_dsp_morphing_reverb_set_preset_a(YseDspObject* obj, YseReverbPreset preset);
+YSE_C_API void yse_dsp_morphing_reverb_set_preset_b(YseDspObject* obj, YseReverbPreset preset);
+/* Set an endpoint from a custom parameter set. NULL values is a no-op. */
+YSE_C_API void yse_dsp_morphing_reverb_set_preset_a_values(YseDspObject* obj,
+                                                           const YseReverbPresetValues* values);
+YSE_C_API void yse_dsp_morphing_reverb_set_preset_b_values(YseDspObject* obj,
+                                                           const YseReverbPresetValues* values);
+/* Read an endpoint's current parameter set into *out. NULL out is a no-op;
+   a NULL handle zero-fills *out. */
+YSE_C_API void yse_dsp_morphing_reverb_get_preset_a(YseDspObject* obj, YseReverbPresetValues* out);
+YSE_C_API void yse_dsp_morphing_reverb_get_preset_b(YseDspObject* obj, YseReverbPresetValues* out);
+/* The morph control input: 0 = pure A, 1 = pure B, clamped to [0, 1]. */
+YSE_C_API void yse_dsp_morphing_reverb_set_morph(YseDspObject* obj, float value);
+YSE_C_API float yse_dsp_morphing_reverb_get_morph(YseDspObject* obj);
 
 #ifdef __cplusplus
 }
