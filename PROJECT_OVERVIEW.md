@@ -1,11 +1,11 @@
 <!-- META
-last_updated_commit: 8bc0dc3
-last_updated_at: 2026-07-15
+last_updated_commit: 0f1e731
+last_updated_at: 2026-07-16
 -->
 
 # YSE Sound Engine — Project Overview
 
-**Version:** 2.3.0 (single source of truth: [`YseEngine/system.hpp`](YseEngine/system.hpp))
+**Version:** 2.3.1 (single source of truth: [`YseEngine/system.hpp`](YseEngine/system.hpp))
 **Language:** C++17
 **Platforms:** Windows (MSYS2/Clang64, MSVC), Linux (gcc/clang), Android (NDK r27+, API 26+, arm64-v8a + x86_64)
 **Build:** CMake 3.20+ via `CMakePresets.json`; Android wraps the same CMake invocation through Gradle in `Tests/Android/`
