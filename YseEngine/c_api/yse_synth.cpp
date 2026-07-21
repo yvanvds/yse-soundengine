@@ -139,7 +139,8 @@ YSE_C_API YseStatus yse_synth_add_voices_sine(YseSynth* h, int num_voices, int c
 // ─── instrument voice groups (issue #178) ──────────────────────────────
 
 YSE_C_API YseStatus yse_synth_add_voices_sampler(YseSynth* h, YseSfzInstrument* instrument,
-                                                 int num_voices) {
+                                                 int num_voices, int channel, int lowest_note,
+                                                 int highest_note) {
   if (!h) return YSE_ERR_INVALID_HANDLE;
   if (num_voices <= 0) return YSE_ERR_INVALID_ARGUMENT;
   // Validated against the instrument-handle registry; a NULL / destroyed handle
@@ -155,7 +156,7 @@ YSE_C_API YseStatus yse_synth_add_voices_sampler(YseSynth* h, YseSfzInstrument* 
     proto->setInstrument(inst);
     YSE::SYNTH::dspVoice* raw = proto.get();
     impl->prototypes.push_back(std::move(proto));
-    impl->synth.addVoices(*raw, num_voices, 0, 0, 127);
+    impl->synth.addVoices(*raw, num_voices, channel, lowest_note, highest_note);
     return YSE_OK;
   } catch (const std::exception& e) {
     yse_c::set_last_error(e.what());
@@ -166,7 +167,8 @@ YSE_C_API YseStatus yse_synth_add_voices_sampler(YseSynth* h, YseSfzInstrument* 
   }
 }
 
-YSE_C_API YseStatus yse_synth_add_voices_va(YseSynth* h, int num_voices) {
+YSE_C_API YseStatus yse_synth_add_voices_va(YseSynth* h, int num_voices, int channel,
+                                            int lowest_note, int highest_note) {
   if (!h) return YSE_ERR_INVALID_HANDLE;
   if (num_voices <= 0) return YSE_ERR_INVALID_ARGUMENT;
   try {
@@ -177,7 +179,7 @@ YSE_C_API YseStatus yse_synth_add_voices_va(YseSynth* h, int num_voices) {
     impl->vaPatch = proto->patch();
     YSE::SYNTH::dspVoice* raw = proto.get();
     impl->prototypes.push_back(std::move(proto));
-    impl->synth.addVoices(*raw, num_voices, 0, 0, 127);
+    impl->synth.addVoices(*raw, num_voices, channel, lowest_note, highest_note);
     return YSE_OK;
   } catch (const std::exception& e) {
     yse_c::set_last_error(e.what());
@@ -188,7 +190,8 @@ YSE_C_API YseStatus yse_synth_add_voices_va(YseSynth* h, int num_voices) {
   }
 }
 
-YSE_C_API YseStatus yse_synth_add_voices_fm(YseSynth* h, int num_voices) {
+YSE_C_API YseStatus yse_synth_add_voices_fm(YseSynth* h, int num_voices, int channel,
+                                            int lowest_note, int highest_note) {
   if (!h) return YSE_ERR_INVALID_HANDLE;
   if (num_voices <= 0) return YSE_ERR_INVALID_ARGUMENT;
   try {
@@ -197,7 +200,7 @@ YSE_C_API YseStatus yse_synth_add_voices_fm(YseSynth* h, int num_voices) {
     impl->fmPatch = proto->patch();
     YSE::SYNTH::dspVoice* raw = proto.get();
     impl->prototypes.push_back(std::move(proto));
-    impl->synth.addVoices(*raw, num_voices, 0, 0, 127);
+    impl->synth.addVoices(*raw, num_voices, channel, lowest_note, highest_note);
     return YSE_OK;
   } catch (const std::exception& e) {
     yse_c::set_last_error(e.what());
