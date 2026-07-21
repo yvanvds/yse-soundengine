@@ -128,6 +128,17 @@ if(YSE_ENABLE_PYTHON)
   list(APPEND YSE_TEST_SOURCES python/test_yse_module.cpp)
 endif()
 
+# Docs-coverage guard for the C-API reference (issue #398). Reads the source
+# tree at test runtime (yse_c headers + documentation/source/api/c_api.rst)
+# via the YSE_REPO_ROOT define below, which has no equivalent on an Android
+# device — desktop only. Runs in the `system` suite and the monolithic entry.
+if(NOT ANDROID)
+  list(APPEND YSE_TEST_SOURCES system/test_api_doc_coverage.cpp)
+  set_source_files_properties(system/test_api_doc_coverage.cpp PROPERTIES
+    COMPILE_DEFINITIONS "YSE_REPO_ROOT=\"${CMAKE_SOURCE_DIR}\""
+  )
+endif()
+
 if(ANDROID)
   # NativeActivity dynamically loads the test runner as libyse_tests.so. The
   # NDK ships android_native_app_glue (translates ANativeActivity callbacks
