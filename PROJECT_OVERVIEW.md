@@ -1,6 +1,6 @@
 <!-- META
-last_updated_commit: 0f1e731
-last_updated_at: 2026-07-16
+last_updated_commit: ddf3a13
+last_updated_at: 2026-07-22
 -->
 
 # YSE Sound Engine — Project Overview
@@ -20,7 +20,7 @@ last_updated_at: 2026-07-16
 YseEngine/                       # Core C++ sound engine — compiled to libyse (SHARED)
   c_api/                         # extern "C" ABI bridge (yse_*) folded into libyse for FFI bindings
     include/yse_c/               # Public C headers (yse_all.h aggregates all subsystems)
-Tests/                           # doctest suite (~863 TEST_CASEs across 46 TUs) — gated by YSE_BUILD_TESTS
+Tests/                           # doctest suite (~1470 TEST_CASEs across ~116 TUs) — gated by YSE_BUILD_TESTS
   Android/                       # Gradle wrapper that packages libyse_tests.so into a NativeActivity APK
   support/                       # audio_helpers, null_device, android_asset_bridge, fixtures
   TEST_PLAN.md                   # Phased roadmap (utils → DSP → patcher → … → device)
@@ -280,7 +280,8 @@ The underwater treatment is an ordinary insert module (`dsp/modules/underWater.h
 ```cpp
 class dspObject {          // filter / effect in a chain
   virtual void process(MULTICHANNELBUFFER&) = 0;
-  void link(dspObject& next);
+  void link(dspObject& next);   // splice `next` in after this node
+  void unlink();                // clear the forward edge (#391) — lets a chain be reordered in place
   dspObject& bypass(Bool); dspObject& impact(Flt);
   dspObject& lfoType(LFO_TYPE); dspObject& lfoFrequency(Flt);
 };
@@ -374,9 +375,12 @@ c_api/include/yse_c/         # Public C headers — Dart's ffigen entry point
   yse_all.h                  # Aggregate header (includes the rest)
   yse_system.h yse_listener.h yse_channel.h yse_sound.h yse_reverb.h
   yse_device.h yse_dsp.h yse_dsp_modules.h yse_patcher.h yse_midi.h
-  yse_clip.h yse_music.h yse_log.h yse_buffer_io.h yse_common.h yse_enums.h
+  yse_clip.h yse_music.h yse_synth.h yse_instrument.h yse_python.h
+  yse_bus.h yse_log.h yse_buffer_io.h yse_common.h yse_enums.h
 c_api/                       # Wrappers (yse_*.cpp) and the internal helper header yse_c_internal.hpp
 ```
+
+`yse_bus.h` (issue #389) is the host bus tap: `yse_bus_tap_create(prefix, cb, user_data)` subscribes the host to a bus-address prefix and delivers `(address, value)` frames on the thread that drives `yse_system_update()` — the outbound counterpart to the script-error callback, and the blocking dependency for the Phi live-coding control plane. Every C header is wired into the Sphinx API reference and guarded against drift by [Tests/system/test_api_doc_coverage.cpp](Tests/system/test_api_doc_coverage.cpp) (issue #398).
 
 Callback bridge conventions (atomic-swap callback pointer, no mutex, no malloc on audio-callback-reachable paths, `YSE_C_CALLBACK` on the typedef) are documented in `yse_c_internal.hpp` and enforced by the `c-api-extend` skill.
 
@@ -392,7 +396,7 @@ Callback bridge conventions (atomic-swap callback pointer, no mutex, no malloc o
 - **Communication** — cross-thread state changes use a lock-free SPSC inbox (`utils/lfQueue.hpp`) between the main and audio threads. The audio thread never takes a mutex on the hot path.
 - **Lifecycle fences** — `OBJECT_DELETE_PENDING` handshake prevents the slow-pool deleter from freeing an impl while the audio thread still has it in `toLoad`; `connectedToParent` atomic flag coordinates parent-channel disconnect.
 - **Atomic wrappers:** `aBool`, `aInt`, `aUInt`, `aFlt` (thin `std::atomic<T>` aliases in `utils/atomicOps.hpp`).
-- **Global named bus** ([internal/namedBus.h](YseEngine/internal/namedBus.h)) — `INTERNAL::Bus()` is the by-name addressing substrate underneath the live-coding DSL (epic [#119](https://github.com/yvanvds/yse-soundengine/issues/119)). Subscribers register against UTF-8 names; publishes from the main thread dispatch synchronously, publishes from the audio thread (`T_DSP`) enqueue into a pre-sized SPSC `lfQueue` and are drained from `system::update()`. The audio-thread path is allocation-free and lock-free — only `int` and `float` payloads fit the pooled-message footprint (strings and lists from `T_DSP` are dropped silently). Subscription registration takes a `std::shared_mutex` and never runs on the audio thread. Lifetime is tied to `System::init` / `System::close`: state does not persist across sessions.
+- **Global named bus** ([internal/namedBus.h](YseEngine/internal/namedBus.h)) — `INTERNAL::Bus()` is the by-name addressing substrate underneath the live-coding DSL (epic [#119](https://github.com/yvanvds/yse-soundengine/issues/119)). Subscribers register against UTF-8 names; publishes from the main thread dispatch synchronously, publishes from the audio thread (`T_DSP`) enqueue into a pre-sized SPSC `lfQueue` and are drained from `system::update()`. The audio-thread path is allocation-free and lock-free — only `int` and `float` payloads fit the pooled-message footprint (strings and lists from `T_DSP` are dropped silently). Subscription registration takes a `std::shared_mutex` and never runs on the audio thread. Lifetime is tied to `System::init` / `System::close`: state does not persist across sessions. Beyond exact-name subscribers, the bus also supports **prefix taps** (issue #389): a subscriber registered against an address *prefix* receives every publish whose address starts with it, matched in `NamedBus::dispatch()` on the control thread (the `T_DSP` audio path is untouched — taps add no audio-thread cost). This is what the [`yse_bus.h`](#9-c-abi-bridge-yseenginec_api) host tap exposes to FFI consumers.
 
 ---
 
@@ -441,6 +445,8 @@ Output targets two sinks behind the same templated seam (the firing core is temp
 **Files:** `synth/` — `synthInterface.hpp/.cpp`, `synthManager.h/.cpp`, `synthImplementation.h/.cpp`, `synthMessage.h`, `dspVoice.hpp` (voice base), `positionHandler.hpp` + `positionHandlers.hpp/.cpp` (per-note 3D). Built-in voices: `sineVoice.hpp/.cpp` (reference sine + ADSR), `vaVoice.hpp/.cpp` (virtual-analog + wavetable → `DSP::ladderFilter` → amp/filter ADSR + LFO, live `vaParams` patch), `samplerVoice.hpp/.cpp` (SFZ sampler), and the FM voice under `dsp/fm/` (`fmVoice`, `fmPatch`, `dx7Sysex` importer, MSFA core in `dsp/fm/msfa/`).
 
 The synth subsystem (epics [#145](https://github.com/yvanvds/yse-soundengine/issues/145)–[#149](https://github.com/yvanvds/yse-soundengine/issues/149)) is now public. A `YSE::synth` owns a pool of voices, note allocation, voice stealing and full keyboard state (pedals, controllers, pitch wheel, aftertouch); a `SYNTH::dspVoice` subclass owns only what one note sounds like. Build the pool with `create().addVoices(prototype, n)`, attach behind a positioned `YSE::sound` via `sound::create(synth&, …)`, then drive with `noteOn` / `noteOff`. Cloning happens off the audio thread on the setup pool (the synth becomes playable a moment after `addVoices`, like a file-backed sound). Voice `process()` / `clone()` follow the RT contract: allocate in the constructor / `clone()` (setup thread), never in `process()` (audio thread).
+
+**Named-bus addressing (issue #388).** Like `YSE::sound` / `YSE::channel`, a synth carries an optional chainable `name(const std::string&)` (mirrored in the C ABI as `yse_synth_set_name`). A named synth registers `synth.<name>.note` / `.off` / controller addresses on the [global named bus](#10-threading--concurrency-model), so a live-coding script can drive it engine-direct through the reserved `synth.<name>.<event>` prefix locked in [docs/design/live_coding_dsl.md](docs/design/live_coding_dsl.md) — the callbacks reuse the existing RT-safe note message path. Naming follows the #123 producer-uniqueness rules (duplicate rejected + logged, `""` clears, anonymous synths not addressable). All four voice-group builders (`addVoices` and the C `yse_synth_add_voices_sine/_va/_fm/_sampler`, issue #390) carry a MIDI-channel + note-range filter, so one transport can drive a multitimbral or key-split synth rack.
 
 **Per-note 3D positioning (Route 2, #169–#171).** Attach a `SYNTH::positionHandler` prototype with `synth::positionHandler(...)` to give every voice its own 3D position, updated per block — the "swarm". Ship-in handlers: `staticHandler`, `randomSpreadHandler`, `orbitHandler`. Steer the whole swarm from the control thread with `handlerParam(index, value)` (indices 0..2 = centre) or place a note imperatively with `notePosition(...)`; both are bounded, allocation-free messages.
 
@@ -514,7 +520,7 @@ Each standalone executable is generated from a per-target `main_<Demo>.cpp` prod
 ## Tests (`Tests/`)
 
 **Framework:** [doctest](https://github.com/doctest/doctest) v2.4.11 vendored at `dependencies/doctest/doctest.h`.
-**Scale:** ~863 TEST_CASEs across 46 translation units.
+**Scale:** ~1470 TEST_CASEs across ~116 translation units.
 **Build gate:** `YSE_BUILD_TESTS=ON` (default OFF — demos and Android library builds are unaffected).
 **Roadmap:** [Tests/TEST_PLAN.md](Tests/TEST_PLAN.md).
 
