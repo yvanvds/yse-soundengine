@@ -76,6 +76,30 @@ this:
    it, document the gap in the release notes ("known to be missing from
    C API in this version").
 
+### 3b. API-reference coverage audit (docs drift)
+
+The Sphinx API reference enumerates C headers **explicitly** —
+`documentation/source/api/c_api.rst` carries one `doxygenfile` directive per
+`yse_c/*.h` header — so a brand-new header never appears on the docs site by
+itself. (This bit the v2.3.x cycle: `yse_clip.h`, `yse_python.h`, and
+`yse_bus.h` were all missing until the pre-v2.3.2 audit.) Check:
+
+```sh
+for h in YseEngine/c_api/include/yse_c/*.h; do
+  grep -q "$(basename "$h")" documentation/source/api/c_api.rst \
+    || echo "MISSING from c_api.rst: $(basename "$h")"
+done
+```
+
+Every hit is a doc gap: add a matching `doxygenfile` block (under a fitting
+section heading) in the release-prep PR (step 5).
+
+The C++ pages have the same failure mode at class granularity: for each new
+public class step 3 surfaced, confirm it renders somewhere under
+`documentation/source/api/*.rst` (a genuinely new subsystem needs a new page
+plus an `index.rst` toctree entry). There is no mechanical check for this
+side — use step 3's changed-header list as the worklist.
+
 ### 4. Build sanity + enum mirror check
 
 ```sh
@@ -102,8 +126,10 @@ Branch: `release/vX.Y.Z-prep` from `dev`.
   rewrite of a few sections.
 - Sphinx `conf.py` reads VERSION from `system.hpp` automatically (per
   PR #89) — **do not** edit `documentation/` for the version. Only
-  touch `documentation/source/` if a code change in this release also
-  changed user-facing behaviour that the intro/tutorials describe.
+  touch `documentation/source/` to close API-reference coverage gaps
+  found in step 3b (missing `doxygenfile` directives or pages), or if a
+  code change in this release also changed user-facing behaviour that
+  the intro/tutorials describe.
 
 Commit the prep PR with message:
 
@@ -245,6 +271,7 @@ About to release vX.Y.Z:
   Workflow: release.yml will publish Linux x64, Windows x64, Android multi-ABI archives
 
   C API drift check: <none | <list of headers worth reviewing>>
+  Docs coverage:     <complete | <headers missing from c_api.rst / classes without a page>>
 
   Steps that will run unattended after you confirm:
     1. release-prep PR on dev (skill housekeeping + README/PROJECT_OVERVIEW.md refresh)
