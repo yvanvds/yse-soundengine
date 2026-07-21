@@ -109,6 +109,7 @@ set(YSE_TEST_SOURCES
   io/test_bufferIO.cpp
   io/test_callback_counter.cpp
   system/test_named_bus.cpp
+  system/test_c_api_bus.cpp
   system/test_system_active_state.cpp
   system/test_lifecycle.cpp
   clock/test_domain_clocks.cpp
@@ -228,7 +229,11 @@ add_test(
   # `clip` (issue #250 clip transport) is excluded for the same reason as
   # `clock`: its cases drive CLOCK::Manager().update() / CLIP::Manager().update()
   # directly on the test thread. It runs isolated in yse_tests_clip.
-  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthhandlers,synthbus,synthcapi,instrumentcapi,midisynth,playersynth,playercapi,sendstress,channelcapi,synthdemos,clock,clip --duration=true
+  # `buscapi` (issue #389 host bus tap C API) is excluded like the other
+  # c-api lifecycle suites: it drives yse_system_init_offline()/close() —
+  # the tap-invalidation-at-close contract is part of the surface under
+  # test — so it runs in its own process (yse_tests_buscapi).
+  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthhandlers,synthbus,synthcapi,instrumentcapi,midisynth,playersynth,playercapi,sendstress,channelcapi,synthdemos,clock,clip,buscapi --duration=true
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_unit_tests PROPERTIES TIMEOUT 600)
@@ -399,6 +404,20 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_instrumentcapi PROPERTIES LABELS "synth;c-api;lifecycle")
+
+# C-API host bus tap surface (issue #389). Drives yse_bus_tap_create /
+# destroy through the flat C ABI under an offline engine, including the
+# yse_system_close() tap-invalidation contract. Isolated in its own process
+# for the same reason as yse_tests_synthcapi: System::close() tears down
+# process-global state (thread pools, named bus) the rest of the suite
+# assumes stays up (#298). initOffline() needs no audio hardware, so it runs
+# in CI.
+add_test(
+  NAME    yse_tests_buscapi
+  COMMAND yse_tests --test-suite=buscapi
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_buscapi PROPERTIES LABELS "system;c-api;lifecycle")
 
 add_test(
   NAME    yse_tests_midi

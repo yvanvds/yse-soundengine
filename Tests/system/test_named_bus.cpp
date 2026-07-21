@@ -303,6 +303,125 @@ TEST_SUITE("system") {
     bus.unsubscribe(h);
   }
 
+  TEST_CASE("named bus: prefix tap receives every matching publish with its full name") {
+    // Host prefix taps (issue #389): a tap registered on "tap.a." must see
+    // every publish whose name starts with that prefix — including names that
+    // have no exact-match subscriber at all (dispatch used to early-return on
+    // an unknown name; taps must still be scanned).
+    REQUIRE(TestHelpers::engineInit());
+    auto& bus = YSE::INTERNAL::Bus();
+
+    std::vector<std::string> names;
+    int ints = 0;
+    auto t =
+        bus.subscribeTap("tap.a.", [&](const std::string& name, const YSE::INTERNAL::BusValue& v) {
+          names.push_back(name);
+          if (std::get_if<int>(&v)) ++ints;
+        });
+
+    bus.publish("tap.a.play", YSE::INTERNAL::BusValue{1}, YSE::T_GUI);
+    bus.publish("tap.a.stop", YSE::INTERNAL::BusValue{2}, YSE::T_GUI);
+    bus.publish("tap.b.play", YSE::INTERNAL::BusValue{3}, YSE::T_GUI); // no match
+    bus.publish("tap.a", YSE::INTERNAL::BusValue{4}, YSE::T_GUI); // shorter than prefix
+
+    REQUIRE(names.size() == 2);
+    CHECK(names[0] == "tap.a.play");
+    CHECK(names[1] == "tap.a.stop");
+    CHECK(ints == 2);
+
+    bus.unsubscribeTap(t);
+  }
+
+  TEST_CASE("named bus: prefix tap delivers all five payload kinds incl. bang") {
+    // The bus carries bang (monostate) besides int/float/string/list — gSend's
+    // bang outlet publishes it. A tap must deliver every kind.
+    REQUIRE(TestHelpers::engineInit());
+    auto& bus = YSE::INTERNAL::Bus();
+
+    int bangs = 0, is = 0, fs = 0, ss = 0, ls = 0;
+    auto t =
+        bus.subscribeTap("tap.kinds.", [&](const std::string&, const YSE::INTERNAL::BusValue& v) {
+          if (std::holds_alternative<std::monostate>(v))
+            ++bangs;
+          else if (std::holds_alternative<int>(v))
+            ++is;
+          else if (std::holds_alternative<float>(v))
+            ++fs;
+          else if (std::holds_alternative<std::string>(v))
+            ++ss;
+          else if (std::holds_alternative<std::vector<float>>(v))
+            ++ls;
+        });
+
+    bus.publish("tap.kinds.bang", YSE::INTERNAL::BusValue{}, YSE::T_GUI);
+    bus.publish("tap.kinds.int", YSE::INTERNAL::BusValue{7}, YSE::T_GUI);
+    bus.publish("tap.kinds.float", YSE::INTERNAL::BusValue{0.5f}, YSE::T_GUI);
+    bus.publish("tap.kinds.str", YSE::INTERNAL::BusValue{std::string("s")}, YSE::T_GUI);
+    bus.publish("tap.kinds.list", YSE::INTERNAL::BusValue{std::vector<float>{1.0f}}, YSE::T_GUI);
+
+    CHECK(bangs == 1);
+    CHECK(is == 1);
+    CHECK(fs == 1);
+    CHECK(ss == 1);
+    CHECK(ls == 1);
+
+    bus.unsubscribeTap(t);
+  }
+
+  TEST_CASE("named bus: taps coexist with exact subscribers and unsubscribe cleanly") {
+    REQUIRE(TestHelpers::engineInit());
+    auto& bus = YSE::INTERNAL::Bus();
+
+    int exact = 0, tapAll = 0, tapNarrow = 0;
+    auto h = bus.subscribe("tap.co.x", [&](const YSE::INTERNAL::BusValue&) { ++exact; });
+    auto tAll =
+        bus.subscribeTap("", // empty prefix matches every address
+                         [&](const std::string&, const YSE::INTERNAL::BusValue&) { ++tapAll; });
+    auto tNarrow = bus.subscribeTap(
+        "tap.co.", [&](const std::string&, const YSE::INTERNAL::BusValue&) { ++tapNarrow; });
+
+    bus.publish("tap.co.x", YSE::INTERNAL::BusValue{1}, YSE::T_GUI);
+    CHECK(exact == 1);
+    CHECK(tapAll == 1);
+    CHECK(tapNarrow == 1);
+
+    bus.publish("elsewhere", YSE::INTERNAL::BusValue{2}, YSE::T_GUI);
+    CHECK(tapAll == 2);
+    CHECK(tapNarrow == 1);
+
+    bus.unsubscribeTap(tNarrow);
+    bus.publish("tap.co.x", YSE::INTERNAL::BusValue{3}, YSE::T_GUI);
+    CHECK(exact == 2);
+    CHECK(tapAll == 3);
+    CHECK(tapNarrow == 1); // unsubscribed — no further delivery
+
+    bus.unsubscribeTap(tAll);
+    bus.unsubscribe(h);
+  }
+
+  TEST_CASE("named bus: T_DSP and deferred T_GUI publishes reach taps on drainPending") {
+    // Audio-thread and off-control-thread publishes are already funnelled into
+    // dispatch() via drainPending(); the tap rides that path with zero extra
+    // audio-thread machinery.
+    REQUIRE(TestHelpers::engineInit());
+    auto& bus = YSE::INTERNAL::Bus();
+
+    int hits = 0;
+    auto t = bus.subscribeTap("tap.drain.",
+                              [&](const std::string&, const YSE::INTERNAL::BusValue&) { ++hits; });
+
+    bus.publish("tap.drain.dsp", YSE::INTERNAL::BusValue{1}, YSE::T_DSP);
+    std::thread worker(
+        [&] { bus.publish("tap.drain.gui", YSE::INTERNAL::BusValue{2}, YSE::T_GUI); });
+    worker.join();
+    CHECK(hits == 0); // nothing delivered before the drain
+
+    bus.drainPending();
+    CHECK(hits == 2);
+
+    bus.unsubscribeTap(t);
+  }
+
   TEST_CASE("named bus: duplicate subscriptions on a name each get called") {
     REQUIRE(TestHelpers::engineInit());
     auto& bus = YSE::INTERNAL::Bus();
