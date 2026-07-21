@@ -101,6 +101,13 @@ YSE_C_API int yse_synth_is_valid(YseSynth* h) {
   return h && to_impl(h)->synth.isValid() ? 1 : 0;
 }
 
+YSE_C_API void yse_synth_set_name(YseSynth* h, const char* name) {
+  // NULL is treated as "" (clear), so FFI callers can always pass through.
+  // Runs on the control thread; the engine's name() does the bus
+  // (de)registration and logs a duplicate-name rejection itself.
+  if (h) to_impl(h)->synth.name(name ? name : "");
+}
+
 // ─── voice groups (built-in voices only) ───────────────────────────────
 
 YSE_C_API YseStatus yse_synth_add_voices_sine(YseSynth* h, int num_voices, int channel,

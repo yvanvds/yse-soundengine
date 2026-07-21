@@ -84,6 +84,7 @@ set(YSE_TEST_SOURCES
   synth/test_synth_close.cpp
   synth/test_synth_positioning.cpp
   synth/test_synth_handlers.cpp
+  synth/test_synth_bus.cpp
   synth/test_c_api_synth.cpp
   synth/test_c_api_instrument.cpp
   dsp/test_panner.cpp
@@ -227,7 +228,7 @@ add_test(
   # `clip` (issue #250 clip transport) is excluded for the same reason as
   # `clock`: its cases drive CLOCK::Manager().update() / CLIP::Manager().update()
   # directly on the test thread. It runs isolated in yse_tests_clip.
-  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthhandlers,synthcapi,instrumentcapi,midisynth,playersynth,playercapi,sendstress,channelcapi,synthdemos,clock,clip --duration=true
+  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthhandlers,synthbus,synthcapi,instrumentcapi,midisynth,playersynth,playercapi,sendstress,channelcapi,synthdemos,clock,clip --duration=true
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_unit_tests PROPERTIES TIMEOUT 600)
@@ -359,6 +360,18 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_synthhandlers PROPERTIES LABELS "synth;lifecycle")
+
+# Synth named-bus addressing (issue #388). Publishes synth.<name>.* note /
+# controller events on the global bus and observes delivery through per-note
+# position handlers. Isolated in its own process for the same reason as
+# yse_tests_synthhandlers: every case drives System::initOffline()/close().
+# initOffline() needs no audio hardware, so it runs in CI.
+add_test(
+  NAME    yse_tests_synthbus
+  COMMAND yse_tests --test-suite=synthbus
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_synthbus PROPERTIES LABELS "synth;lifecycle")
 
 # C-API synth surface (issue #157). Drives the synth entirely through the flat
 # C ABI under an offline engine (yse_system_init_offline), then yse_system_close().
