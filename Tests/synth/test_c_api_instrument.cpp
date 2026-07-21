@@ -158,9 +158,9 @@ TEST_SUITE("instrumentcapi") {
     yse_dx7_destroy(nullptr);
 
     // add-voices reject NULL / invalid arguments.
-    CHECK(yse_synth_add_voices_sampler(nullptr, nullptr, 4) == YSE_ERR_INVALID_HANDLE);
-    CHECK(yse_synth_add_voices_va(nullptr, 4) == YSE_ERR_INVALID_HANDLE);
-    CHECK(yse_synth_add_voices_fm(nullptr, 4) == YSE_ERR_INVALID_HANDLE);
+    CHECK(yse_synth_add_voices_sampler(nullptr, nullptr, 4, 0, 0, 127) == YSE_ERR_INVALID_HANDLE);
+    CHECK(yse_synth_add_voices_va(nullptr, 4, 0, 0, 127) == YSE_ERR_INVALID_HANDLE);
+    CHECK(yse_synth_add_voices_fm(nullptr, 4, 0, 0, 127) == YSE_ERR_INVALID_HANDLE);
     CHECK(yse_synth_fm_set_patch(nullptr, nullptr, 0) == YSE_ERR_INVALID_HANDLE);
 
     // Every VA + FM setter is a null-safe no-op on a NULL synth.
@@ -255,7 +255,7 @@ TEST_SUITE("instrumentcapi") {
 
     YseSynth* syn = yse_synth_create();
     REQUIRE(syn != nullptr);
-    CHECK(yse_synth_add_voices_sampler(syn, inst, 4) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK(yse_synth_add_voices_sampler(syn, inst, 4, 0, 0, 127) == YSE_ERR_INVALID_ARGUMENT);
     yse_synth_destroy(syn);
   }
 
@@ -274,7 +274,7 @@ TEST_SUITE("instrumentcapi") {
 
     YseSynth* syn = yse_synth_create();
     REQUIRE(syn != nullptr);
-    REQUIRE(yse_synth_add_voices_sampler(syn, inst, 4) == YSE_OK);
+    REQUIRE(yse_synth_add_voices_sampler(syn, inst, 4, 0, 0, 127) == YSE_OK);
     // The voice group retains its own share — safe to drop the handle now.
     yse_sfz_destroy(inst);
 
@@ -311,7 +311,9 @@ TEST_SUITE("instrumentcapi") {
 
     YseSynth* syn = yse_synth_create();
     REQUIRE(syn != nullptr);
-    REQUIRE(yse_synth_add_voices_va(syn, 6) == YSE_OK);
+    // Channel 1 with the full key range — the notes below play on channel 1, so
+    // this also exercises the #390 channel window through a real render.
+    REQUIRE(yse_synth_add_voices_va(syn, 6, 1, 0, 127) == YSE_OK);
 
     // PARITY: exercise every vaParams field through its C setter. Setters are
     // glitch-free atomics, so this may run before or during play.
@@ -401,7 +403,7 @@ TEST_SUITE("instrumentcapi") {
 
     YseSynth* syn = yse_synth_create();
     REQUIRE(syn != nullptr);
-    REQUIRE(yse_synth_add_voices_fm(syn, 4) == YSE_OK);
+    REQUIRE(yse_synth_add_voices_fm(syn, 4, 0, 0, 127) == YSE_OK);
 
     // Select the imported patch — the way the full 155-parameter DX7 voice is
     // reached from C. Out-of-range / destroyed-bank guards return errors.
