@@ -25,6 +25,15 @@ namespace YSE {
       // producerQueue().
       std::atomic<std::uint64_t> g_busGeneration{0};
 
+      // Tap handles (issue #389) draw from a process-global counter rather
+      // than a per-bus one: a host-held tap handle can outlive the bus it was
+      // registered on (engine close/re-init), and per-bus numbering would let
+      // the next session's bus hand out the same value again — a stale
+      // unsubscribeTap() would then silently drop somebody else's live tap.
+      // Process-global numbering makes a stale handle permanently unknown, so
+      // unsubscribeTap() on it is a guaranteed no-op.
+      std::atomic<std::uint64_t> g_tapHandleCounter{0};
+
       // Per-thread slot into the current bus's queue pool. `generation` marks
       // which bus instance `index` was claimed against; a mismatch means this
       // thread has not yet claimed a slot on the live bus.
@@ -158,6 +167,20 @@ namespace YSE {
       handleIndex_.erase(idxIt);
     }
 
+    TapHandle NamedBus::subscribeTap(const std::string& prefix, TapSubscriber callback) {
+      const TapHandle handle = g_tapHandleCounter.fetch_add(1, std::memory_order_relaxed) + 1;
+      std::unique_lock lock(subsMutex_);
+      taps_.push_back(TapSubscription{handle, prefix, std::move(callback)});
+      return handle;
+    }
+
+    void NamedBus::unsubscribeTap(TapHandle handle) {
+      std::unique_lock lock(subsMutex_);
+      taps_.erase(std::remove_if(taps_.begin(), taps_.end(),
+                                 [handle](const TapSubscription& t) { return t.handle == handle; }),
+                  taps_.end());
+    }
+
     void NamedBus::drainPending() {
       // Drain every producer queue. Each is single-consumer (only this call
       // pops), so touching them all from the update thread is race-free. Empty
@@ -197,19 +220,36 @@ namespace YSE {
     void NamedBus::dispatch(const std::string& name, const BusValue& value) {
       // Copy out the matching callbacks under the shared lock, then invoke
       // them with the lock released. This lets a subscriber call back into
-      // subscribe()/unsubscribe() without self-deadlock.
+      // subscribe()/unsubscribe() without self-deadlock. When nothing matches
+      // (the common case for an unsubscribed name with no taps registered)
+      // neither vector allocates — the no-subscriber publish path stays
+      // allocation-free (pinned by the alloc-probe test).
       std::vector<Subscriber> callbacks;
+      std::vector<TapSubscriber> tapCallbacks;
       {
         std::shared_lock lock(subsMutex_);
         auto it = subs_.find(name);
-        if (it == subs_.end()) return;
-        callbacks.reserve(it->second.size());
-        for (const auto& sub : it->second) {
-          callbacks.push_back(sub.callback);
+        if (it != subs_.end()) {
+          callbacks.reserve(it->second.size());
+          for (const auto& sub : it->second) {
+            callbacks.push_back(sub.callback);
+          }
+        }
+        // Prefix taps (issue #389). Linear scan — the tap count is a handful
+        // of host-registered prefixes. dispatch() only ever runs on the
+        // control thread, so this costs the audio path nothing.
+        for (const auto& tap : taps_) {
+          if (name.size() >= tap.prefix.size() &&
+              name.compare(0, tap.prefix.size(), tap.prefix) == 0) {
+            tapCallbacks.push_back(tap.callback);
+          }
         }
       }
       for (auto& cb : callbacks) {
         cb(value);
+      }
+      for (auto& cb : tapCallbacks) {
+        cb(name, value);
       }
     }
 
