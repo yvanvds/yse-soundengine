@@ -19,7 +19,7 @@
 #include <string>
 
 namespace YSE {
-  const std::string VERSION = "2.3.1";
+  const std::string VERSION = "2.4.0";
 
   /** @brief Signature of a user-supplied sound-occlusion callback.
    *
