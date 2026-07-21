@@ -89,26 +89,32 @@ All inter-component routing goes through a single global named bus
 
 ### Reserved prefixes
 
-The engine owns three prefixes. Composer scripts may publish to and
+The engine owns four prefixes. Composer scripts may publish to and
 subscribe to these, but the engine is the canonical *producer* (sounds,
-channels) or *consumer* (patcher inlets) for these addresses.
+channels) or *consumer* (patcher inlets, synth note/controller events)
+for these addresses.
 
 | Prefix                       | Owner    | Source of truth                    |
 |------------------------------|----------|------------------------------------|
 | `sound.<name>.<prop>`        | engine   | [`YSE::sound`][gh-123] properties  |
 | `channel.<name>.<prop>`      | engine   | [`YSE::channel`][gh-123] props     |
 | `patcher.<name>.<slot>`      | engine   | `gSend` / `gReceive` ([#122][gh-122]) |
+| `synth.<name>.<event>`       | engine   | [`YSE::synth`][gh-388] note/controller events |
 
 `<name>` is the name assigned via the engine API (`sound.name(...)`,
-`channel.name(...)`, `patcher.name(...)`). `<prop>` and `<slot>` are
-the property or routing slot exposed by that object. Both are matched
-exact-string — case-sensitive, no globbing, no wildcards.
+`channel.name(...)`, `patcher.name(...)`, `synth.name(...)`). `<prop>`,
+`<slot>` and `<event>` are the property, routing slot or event exposed
+by that object. All are matched exact-string — case-sensitive, no
+globbing, no wildcards.
 
-The set of valid `<prop>` and `<slot>` names is fixed by the engine
-(see [#123][gh-123] for the initial sound/channel properties: `volume`,
-`speed`, `position`; see [#122][gh-122] for patcher slot rules). The
-DSL never expands or filters this set — whatever the bus exposes is
-what scripts see.
+The set of valid `<prop>`, `<slot>` and `<event>` names is fixed by
+the engine (see [#123][gh-123] for the initial sound/channel
+properties: `volume`, `speed`, `position`; see [#122][gh-122] for
+patcher slot rules; see [#388][gh-388] and the
+[synth event mapping](#mapping-to-synth-events) for the synth events:
+`note`, `off`, `cc`, `bend`, `aftertouch`, `alloff`). The DSL never
+expands or filters this set — whatever the bus exposes is what scripts
+see.
 
 ### Freeform names
 
@@ -197,6 +203,49 @@ ignored on the C++ side and does not raise in the script. This is
 deliberate: from the script's perspective,
 publishes are fire-and-forget. The error appears in engine logs;
 the bus does not route it back to the publisher.
+
+### Mapping to synth events
+
+A named [`YSE::synth`][gh-388] consumes note and controller *events*
+rather than properties. Every event is delivered through the synth's
+existing RT-safe message inbox — the bus subscriber runs on the
+control thread and enqueues exactly what the corresponding C++ setter
+(`noteOn`, `noteOff`, `controller`, …) would; no new audio-thread
+surface is opened.
+
+- `synth.<name>.note` → `list[float]` `[channel, note, velocity]` —
+  note-on. Maps to `synth::noteOn(channel, note, velocity)`.
+- `synth.<name>.off` → `list[float]` `[channel, note]` or
+  `[channel, note, velocity]` — note-off (release velocity defaults
+  to 0). Maps to `synth::noteOff(...)`.
+- `synth.<name>.cc` → `list[float]` `[channel, number, value]` —
+  control change, `value` normalised to [0, 1]. Maps to
+  `synth::controller(...)`. CC 64 / 66 / 67 act as the sustain /
+  sostenuto / soft pedals, exactly as in the C++ API — the pedals
+  deliberately get no addresses of their own.
+- `synth.<name>.bend` → `list[float]` `[channel, value]` — pitch
+  wheel, `value` normalised to [-1, 1] (0 = centre). Maps to
+  `synth::pitchWheel(...)`.
+- `synth.<name>.aftertouch` → `list[float]` `[channel, note, value]` —
+  pressure normalised to [0, 1]; `note == -1` is channel-wide. Maps to
+  `synth::aftertouch(...)`.
+- `synth.<name>.alloff` → `int` channel (0 = all channels; `float`
+  coerced via the scalar rule above). A bang (an empty publish from a
+  patcher `gSend`) is also accepted and releases all channels. Maps to
+  `synth::allNotesOff(...)`.
+
+`channel` and `note` list elements are rounded to the nearest integer
+(the bus's only sequence type is `list[float]`); `velocity` / `value`
+stay `float`. Channel semantics follow the synth API: 0 = omni /
+all channels, 1..16 = a specific MIDI channel. As with the property
+addresses above, a wrong shape (wrong list length, or a scalar where a
+list is expected) is silently ignored engine-side — fire-and-forget.
+
+Latency note: engine-direct delivery does not save a control tick over
+a host-mediated send. A script-thread publish is parked in the bus's
+control inbox and dispatched on the next `system::update()` either
+way; the win is removing the host round-trip and host-side glue, not
+a tick.
 
 ---
 
@@ -771,6 +820,8 @@ issues each cite it:
   primitives in this document).
 - [#127][gh-127] — Hot-reload cleanup + scheduling lifecycle
   (generation counter, `cancel_all`, `fresh_scope`).
+- [#388][gh-388] — Synth note/controller events on the bus (the
+  `synth.<name>.<event>` prefix).
 
 When implementing any of the above, treat this document as the
 authority on user-visible shape. If implementation makes one of these
@@ -785,3 +836,4 @@ sections wrong, update this document in the same PR.
 [gh-125]: https://github.com/yvanvds/yse-soundengine/issues/125
 [gh-126]: https://github.com/yvanvds/yse-soundengine/issues/126
 [gh-127]: https://github.com/yvanvds/yse-soundengine/issues/127
+[gh-388]: https://github.com/yvanvds/yse-soundengine/issues/388
