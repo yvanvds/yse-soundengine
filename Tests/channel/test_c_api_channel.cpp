@@ -436,6 +436,80 @@ TEST_SUITE("channelcapi") {
     CHECK(yse_dsp_patcher_insert_create(nullptr) == nullptr);
   }
 
+  // ─── forward-edge detach + live restructure pattern (#391) ───────────────────
+
+  // yse_dsp_object_link(head, NULL) detaches the forward edge (it used to be a
+  // silent no-op). This drives the exact restructure sequence the header
+  // documents — detach the chain from its owner, unlink, re-link in the new
+  // order, re-attach — entirely through the flat C ABI against a live offline
+  // render. If the NULL call regressed to a no-op, the stale forward edges
+  // would survive the rebuild and close a cycle in the chain walk, so the
+  // render below would never return (caught by the suite's ctest timeout).
+  // The precise pointer semantics are asserted engine-side in
+  // test_channel_dsp.cpp.
+  TEST_CASE("c-api dsp: link NULL detaches; live chain restructure stays safe (#391)") {
+    REQUIRE(ensureOffline());
+
+    YseChannel* ch = yse_channel_create("capi_unlink", yse_channel_master());
+    REQUIRE(ch != nullptr);
+
+    // A three-module insert chain: eq1 -> eq2 -> eq3.
+    YseDspObject* eq1 = yse_dsp_eq_create();
+    YseDspObject* eq2 = yse_dsp_eq_create();
+    YseDspObject* eq3 = yse_dsp_eq_create();
+    REQUIRE(eq1 != nullptr);
+    REQUIRE(eq2 != nullptr);
+    REQUIRE(eq3 != nullptr);
+    yse_dsp_object_link(eq1, eq2);
+    yse_dsp_object_link(eq2, eq3);
+    yse_channel_set_dsp(ch, eq1);
+    CHECK(yse_channel_get_dsp(ch) == eq1);
+
+    // Render a real tone through the chain.
+    pump();
+    YseDspBuffer* tone = makeToneBuffer();
+    REQUIRE(tone != nullptr);
+    YseSound* snd = yse_sound_create();
+    REQUIRE(snd != nullptr);
+    REQUIRE(yse_sound_load_buffer(snd, tone, ch, /*loop*/ 1, /*volume*/ 1.0f) == YSE_OK);
+    pump();
+    yse_sound_play(snd);
+    pump();
+    CHECK(std::isfinite(yse_channel_get_peak_linear_post(ch)));
+
+    // Documented RT-safe restructure: detach from the owner (pointer swap on
+    // the audio thread), clear the stale forward edges, rebuild as
+    // eq1 -> eq3 -> eq2, then re-attach the head.
+    yse_channel_set_dsp(ch, nullptr);
+    pump();
+    yse_dsp_object_link(eq1, nullptr); // detach eq1 -> eq2
+    yse_dsp_object_link(eq2, nullptr); // detach eq2 -> eq3
+    yse_dsp_object_link(eq1, eq3);
+    yse_dsp_object_link(eq3, eq2); // new order: eq1 -> eq3 -> eq2
+    yse_channel_set_dsp(ch, eq1);
+    CHECK(yse_channel_get_dsp(ch) == eq1);
+
+    // The rebuilt chain renders block after block: a stale-edge cycle would
+    // never return from the walk.
+    pump();
+    for (int i = 0; i < 8; ++i)
+      yse_system_render_offline(yse_system_get(), 16);
+    CHECK(std::isfinite(yse_channel_get_peak_linear_post(ch)));
+    CHECK(std::isfinite(yse_channel_get_peak_linear_post(yse_channel_master())));
+
+    // Tear down in the usual order.
+    yse_sound_stop(snd);
+    pump();
+    yse_channel_set_dsp(ch, nullptr);
+    yse_sound_destroy(snd);
+    yse_channel_destroy(ch);
+    pump();
+    yse_dsp_object_destroy(eq3);
+    yse_dsp_object_destroy(eq2);
+    yse_dsp_object_destroy(eq1);
+    yse_dsp_buffer_destroy(tone);
+  }
+
   // Module setters/getters are null-safe like the rest of the module surface.
   TEST_CASE("c-api dsp: new module setters/getters are null-safe") {
     yse_dsp_feedback_delay_set_time(nullptr, 1.f);

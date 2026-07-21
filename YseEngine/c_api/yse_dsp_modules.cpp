@@ -213,7 +213,12 @@ YSE_C_API float yse_dsp_object_get_lfo_frequency(YseDspObject* o) {
 }
 
 YSE_C_API void yse_dsp_object_link(YseDspObject* head, YseDspObject* next) {
-  if (!head || !next) return;
+  if (!head) return;
+  if (!next) {
+    // NULL next detaches the forward edge (#391) instead of no-oping.
+    to_cpp(head)->unlink();
+    return;
+  }
   to_cpp(head)->link(*to_cpp(next));
 }
 

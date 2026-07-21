@@ -80,6 +80,21 @@ YSE_C_API void yse_dsp_object_set_lfo_type(YseDspObject* obj, YseLfoType type);
 YSE_C_API YseLfoType yse_dsp_object_get_lfo_type(YseDspObject* obj);
 YSE_C_API void yse_dsp_object_set_lfo_frequency(YseDspObject* obj, float value);
 YSE_C_API float yse_dsp_object_get_lfo_frequency(YseDspObject* obj);
+
+/* Insert `next` after `head` in a processing chain (dspObject::link): with
+   head->X already linked, the result is head->next->X. Pass NULL as `next` to
+   detach the forward edge instead (dspObject::unlink, #391): head's next
+   pointer is cleared and the detached neighbour's back-pointer severed, so the
+   neighbour becomes a standalone chain again. Detaching never touches head's
+   own attachment to a sound/channel (that is yse_sound_set_dsp /
+   yse_channel_set_dsp territory).
+   RT-safety: the audio thread walks these links lock-free every block. To
+   restructure a chain attached to a live sound or channel, detach the chain
+   from its owner first (yse_channel_set_dsp(ch, NULL) / yse_sound_set_dsp(s,
+   NULL) — a pointer swap applied on the audio thread), re-link the objects
+   into the new order, then re-attach the new head. That keeps the audio
+   thread from ever observing a half-rewired chain; effect DSP state survives
+   because the objects themselves are untouched. */
 YSE_C_API void yse_dsp_object_link(YseDspObject* head, YseDspObject* next);
 
 /* ─── filter modules ─────────────────────────────────────────────────── */
