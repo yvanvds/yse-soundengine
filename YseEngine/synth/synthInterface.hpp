@@ -15,6 +15,9 @@
 #ifndef YSE_SYNTH_SYNTHINTERFACE_HPP
 #define YSE_SYNTH_SYNTHINTERFACE_HPP
 
+#include <cstdint>
+#include <string>
+
 #include "../classes.hpp"
 #include "../headers/defines.hpp"
 #include "../utils/vector.hpp" // Pos (notePosition / getVoicePosition)
@@ -55,6 +58,39 @@ namespace YSE {
        *  omit: ``sound::create(synth&, ...)`` calls it for you if you have not.
        */
       interfaceObject& create();
+
+      /**
+       *  @brief Assign a bus-addressable name to this synth.
+       *
+       *  Names the synth on the global named bus (issue #388, following the
+       *  sound/channel pattern of #123) so live coders can drive it by string
+       *  address rather than by C++ handle. Once named ``foo``, the synth
+       *  subscribes to (all payloads are ``list[float]`` unless noted; the
+       *  full shape contract lives in docs/design/live_coding_dsl.md):
+       *
+       *  - ``synth.foo.note``       → ``[channel, note, velocity]``, calls ``noteOn()``
+       *  - ``synth.foo.off``        → ``[channel, note(, velocity)]``, calls ``noteOff()``
+       *  - ``synth.foo.cc``         → ``[channel, number, value]``, calls ``controller()``
+       *  - ``synth.foo.bend``       → ``[channel, value]``, calls ``pitchWheel()``
+       *  - ``synth.foo.aftertouch`` → ``[channel, note, value]``, calls ``aftertouch()``
+       *  - ``synth.foo.alloff``     → ``int``/``float`` channel (bang = all),
+       *                               calls ``allNotesOff()``
+       *
+       *  The subscribers run on the control thread and enqueue through the
+       *  same RT-safe message inbox as the C++ setters — no new audio-thread
+       *  surface. Anonymous synths (the default) are not addressable. Passing
+       *  an empty string clears the name and removes the bus subscriptions.
+       *  Renaming re-subscribes under the new name.
+       *
+       *  Two synths cannot share a name: the second ``name()`` is rejected and
+       *  logged via the engine's error path; the first registration wins. The
+       *  bus is only live between ``System::init()`` and ``System::close()`` —
+       *  naming a synth while the engine is down is a no-op.
+       *
+       *  @param n The name, or ``""`` to make the synth anonymous again.
+       *  @return ``*this`` for fluent chaining.
+       */
+      interfaceObject& name(const std::string& n);
 
       /**
        *  @brief Clone ``prototype`` ``numVoices`` times into a voice group.
@@ -172,7 +208,20 @@ namespace YSE {
       bool isValid() const;
 
     private:
+      // Bus addressing (issue #388). Subscribe/unsubscribe the named-bus
+      // addresses for this synth. No-ops while the engine bus is down.
+      void registerOnBus();
+      void unregisterFromBus();
+
       implementationObject* pimpl = nullptr;
+
+      // Bus addressing state. Empty name = anonymous = not on the bus.
+      // Handles index 0 = note, 1 = off, 2 = cc, 3 = bend, 4 = aftertouch,
+      // 5 = alloff. _busOwner is true only when this synth won the name and
+      // holds live subscriptions.
+      std::string _name;
+      std::uint64_t _busHandles[6]{0, 0, 0, 0, 0, 0};
+      bool _busOwner{false};
 
       friend class YSE::sound; // sound::create(synth&, ...)
       friend class SYNTH::implementationObject; // impl holds our address

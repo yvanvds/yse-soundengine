@@ -16,6 +16,46 @@
 #include "synthManager.h"
 
 #include <cmath>
+#include <mutex>
+#include <string>
+#include <unordered_set>
+#include <variant>
+#include <vector>
+
+namespace {
+  // Process-wide registry of synth names currently claimed as bus producers
+  // (issue #388). The "synth." prefix lives in its own namespace, independent
+  // of the sound / channel / patcher name registries. Naming happens on the
+  // control thread; the mutex is a cheap defensive guard against construction
+  // from multiple threads and never sits on the audio path.
+  std::mutex& synthNameMutex() {
+    static std::mutex m;
+    return m;
+  }
+
+  std::unordered_set<std::string>& synthNames() {
+    static std::unordered_set<std::string> names;
+    return names;
+  }
+
+  // Returns true when the name was free and is now claimed by the caller.
+  bool claimSynthName(const std::string& name) {
+    std::lock_guard<std::mutex> lock(synthNameMutex());
+    return synthNames().insert(name).second;
+  }
+
+  void releaseSynthName(const std::string& name) {
+    std::lock_guard<std::mutex> lock(synthNameMutex());
+    synthNames().erase(name);
+  }
+
+  // Channel / note / controller numbers arrive as float — the bus's only
+  // sequence type is list[float] — and are rounded to the int the synth API
+  // expects (same rounding the MUSIC::note overloads use).
+  int toInt(float v) {
+    return static_cast<int>(std::lround(v));
+  }
+} // namespace
 
 namespace YSE {
   namespace SYNTH {
@@ -23,10 +63,100 @@ namespace YSE {
     interfaceObject::interfaceObject() : pimpl(nullptr) {}
 
     interfaceObject::~interfaceObject() {
+      unregisterFromBus();
       if (pimpl != nullptr) {
         pimpl->removeInterface();
         pimpl = nullptr;
       }
+    }
+
+    interfaceObject& interfaceObject::name(const std::string& n) {
+      if (n == _name) return *this;
+      unregisterFromBus();
+      _name = n;
+      registerOnBus();
+      return *this;
+    }
+
+    void interfaceObject::registerOnBus() {
+      if (_name.empty()) return;
+      // No bus before System::init() or after System::close(). Naming while
+      // the engine is down is a silent no-op (mirrors the sound contract).
+      if (!INTERNAL::Global().isActive()) return;
+
+      if (!claimSynthName(_name)) {
+        INTERNAL::LogImpl().emit(E_FILE_ERROR,
+                                 "synth name '" + _name +
+                                     "' is already in use; bus registration rejected");
+        return;
+      }
+      _busOwner = true;
+
+      using YSE::INTERNAL::Bus;
+      using YSE::INTERNAL::BusValue;
+      const std::string base = "synth." + _name + ".";
+
+      // The callbacks fire on the control thread (synchronous T_GUI publish
+      // or the drainPending() tick) and reuse the public setters, which
+      // enqueue into the implementation's RT-safe message inbox — exactly
+      // what the C++ calls do, so no new audio-thread surface is opened. The
+      // setters already no-op without an implementation, so events arriving
+      // before create() — or after release — are dropped safely. Payloads of
+      // the wrong shape are ignored per the DSL spec (fire-and-forget); the
+      // shape contract lives in docs/design/live_coding_dsl.md.
+      _busHandles[0] = Bus().subscribe(base + "note", [this](const BusValue& v) {
+        if (auto* vec = std::get_if<std::vector<float>>(&v)) {
+          if (vec->size() == 3) noteOn(toInt((*vec)[0]), toInt((*vec)[1]), (*vec)[2]);
+        }
+      });
+      _busHandles[1] = Bus().subscribe(base + "off", [this](const BusValue& v) {
+        if (auto* vec = std::get_if<std::vector<float>>(&v)) {
+          if (vec->size() == 2)
+            noteOff(toInt((*vec)[0]), toInt((*vec)[1]));
+          else if (vec->size() == 3)
+            noteOff(toInt((*vec)[0]), toInt((*vec)[1]), (*vec)[2]);
+        }
+      });
+      _busHandles[2] = Bus().subscribe(base + "cc", [this](const BusValue& v) {
+        if (auto* vec = std::get_if<std::vector<float>>(&v)) {
+          if (vec->size() == 3) controller(toInt((*vec)[0]), toInt((*vec)[1]), (*vec)[2]);
+        }
+      });
+      _busHandles[3] = Bus().subscribe(base + "bend", [this](const BusValue& v) {
+        if (auto* vec = std::get_if<std::vector<float>>(&v)) {
+          if (vec->size() == 2) pitchWheel(toInt((*vec)[0]), (*vec)[1]);
+        }
+      });
+      _busHandles[4] = Bus().subscribe(base + "aftertouch", [this](const BusValue& v) {
+        if (auto* vec = std::get_if<std::vector<float>>(&v)) {
+          if (vec->size() == 3) aftertouch(toInt((*vec)[0]), toInt((*vec)[1]), (*vec)[2]);
+        }
+      });
+      _busHandles[5] = Bus().subscribe(base + "alloff", [this](const BusValue& v) {
+        if (auto* i = std::get_if<int>(&v)) {
+          allNotesOff(*i);
+        } else if (auto* f = std::get_if<float>(&v)) {
+          allNotesOff(toInt(*f));
+        } else if (std::holds_alternative<std::monostate>(v)) {
+          allNotesOff(0); // bang (e.g. a patcher gSend) = release all channels
+        }
+      });
+    }
+
+    void interfaceObject::unregisterFromBus() {
+      if (!_busOwner) return;
+      // Guard the bus access: a synth destructed after System::close() must
+      // not touch the torn-down bus. The name registry is independent of the
+      // bus, so releasing the name is always safe.
+      if (INTERNAL::Global().isActive()) {
+        for (auto& handle : _busHandles) {
+          if (handle != 0) INTERNAL::Bus().unsubscribe(handle);
+        }
+      }
+      for (auto& handle : _busHandles)
+        handle = 0;
+      releaseSynthName(_name);
+      _busOwner = false;
     }
 
     interfaceObject& interfaceObject::create() {

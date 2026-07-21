@@ -102,6 +102,22 @@ YSE_C_API void yse_synth_destroy(YseSynth* h);
 /* Whether the synth has a live implementation (registered with the engine). */
 YSE_C_API int yse_synth_is_valid(YseSynth* h);
 
+/* Assign a bus-addressable name to the synth (mirrors YSE::synth::name, issue
+   #388). Once named "foo", the engine subscribes it to the global named bus
+   addresses synth.foo.note / .off / .cc / .bend / .aftertouch / .alloff, so
+   note and controller events published by name reach the synth engine-side
+   with no host round-trip. Payload shapes are locked by
+   docs/design/live_coding_dsl.md ("Mapping to synth events"); delivery
+   reuses the same RT-safe message inbox as the note/controller functions
+   above. Anonymous synths (the default) are not addressable.
+
+   NULL or "" clears the name and removes the subscriptions; renaming
+   re-subscribes under the new name. Names are unique per synth: a duplicate
+   is rejected and logged engine-side (first registration wins — there is no
+   error return, matching the C++ API). Only effective while the engine is
+   between init and close. */
+YSE_C_API void yse_synth_set_name(YseSynth* h, const char* name);
+
 /* ─── voice groups (built-in voices only) ─────────────────────────────── */
 
 /* Add a group of `num_voices` built-in sine voices (sine oscillator shaped
