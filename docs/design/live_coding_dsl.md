@@ -107,6 +107,15 @@ for these addresses.
 by that object. All are matched exact-string — case-sensitive, no
 globbing, no wildcards.
 
+> **Host tap.** The exact-match rule governs the *script-facing*
+> subscribe surface (`yse.on()`). The **host** additionally has a C API
+> tap — `yse_bus_tap_create` in `c_api/include/yse_c/yse_bus.h`
+> ([#389][gh-389]) — that subscribes to a bus address *prefix* and
+> receives every publish whose address starts with it (e.g. a
+> `phi.ctl.` tap for the live-coding control plane). That is host-only
+> plumbing, matched on the control thread; it does not add globbing or
+> wildcards to the DSL.
+
 The set of valid `<prop>`, `<slot>` and `<event>` names is fixed by
 the engine (see [#123][gh-123] for the initial sound/channel
 properties: `volume`, `speed`, `position`; see [#122][gh-122] for
@@ -837,3 +846,4 @@ sections wrong, update this document in the same PR.
 [gh-126]: https://github.com/yvanvds/yse-soundengine/issues/126
 [gh-127]: https://github.com/yvanvds/yse-soundengine/issues/127
 [gh-388]: https://github.com/yvanvds/yse-soundengine/issues/388
+[gh-389]: https://github.com/yvanvds/yse-soundengine/issues/389

@@ -25,5 +25,6 @@
 #include "yse_log.h"
 #include "yse_buffer_io.h"
 #include "yse_python.h"
+#include "yse_bus.h"
 
 #endif
