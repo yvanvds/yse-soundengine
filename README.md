@@ -2,7 +2,7 @@
   <img src="logo/yse-logo.svg" alt="libYSE" width="520">
 </p>
 
-# libYSE 2.3
+# libYSE 2.4
 
 libYSE is a cross-platform sound engine written in C++. PortAudio handles audio
 I/O on desktop, Oboe (AAudio + OpenSL ES fallback) on Android, and libsndfile

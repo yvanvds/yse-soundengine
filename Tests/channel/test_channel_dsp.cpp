@@ -10,6 +10,10 @@
 //     (#298): replacing clears the old plugin's back-reference, detaching with
 //     nullptr severs it, and a plugin destroyed before the channel nulls the
 //     impl's insert_dsp instead of leaving it dangling.
+//   - dspObject::unlink() (#391) detaches the forward edge: clears `next` and
+//     the detached neighbour's `previous`, leaves `calledfrom` alone, enables
+//     in-place chain reorder without stale-edge cycles, and the C ABI's
+//     yse_dsp_object_link(head, NULL) dispatches to it instead of no-oping.
 //   - Interface-level setDSP()/getDSP() round-trip on a live channel.
 //
 // The behavioural cases drive CHANNEL::implementationObject directly (the same
@@ -30,6 +34,7 @@
 #include "sound/soundManager.h"
 #include "internal/time.h"
 #include "support/null_device.hpp"
+#include "yse_c/yse_dsp_modules.h"
 
 namespace {
   // A minimal N-channel-aware insert module: multiplies every sample of every
@@ -238,6 +243,119 @@ TEST_SUITE("channel") {
     fill(bufs, 0.5f);
     impl.processInsertDSP();
     CHECK(allEqual(bufs, 0.5f));
+  }
+
+  // ─── Forward-edge detach: dspObject::unlink (#391) ─────────────────────────
+
+  TEST_CASE("channel dsp: unlink detaches the forward edge and is a no-op when unlinked") {
+    if (!TestHelpers::engineInit()) return;
+    GainDsp a(2.0f);
+    GainDsp b(3.0f);
+    a.link(b);
+    REQUIRE(a.link() == &b);
+
+    a.unlink();
+    CHECK(a.link() == nullptr);
+
+    a.unlink(); // nothing linked -> safe no-op
+    CHECK(a.link() == nullptr);
+  }
+
+  TEST_CASE("channel dsp: unlink clears the detached neighbour's previous back-pointer") {
+    if (!TestHelpers::engineInit()) return;
+    GainDsp a(2.0f);
+    GainDsp c(4.0f);
+    {
+      GainDsp b(3.0f);
+      a.link(b);
+      a.unlink(); // must clear b.previous, not just a.next
+      a.link(c); // a -> c
+    } // ~b with a stale previous would run previous->next = b.next, severing a -> c
+    CHECK(a.link() == &c);
+  }
+
+  TEST_CASE("channel dsp: unlink leaves calledfrom untouched") {
+    if (!TestHelpers::engineInit()) return;
+    GainDsp a(2.0f);
+    GainDsp b(3.0f);
+    YSE::DSP::dspObject* slot = &a; // stand-in for an owner's insert_dsp slot
+    a.calledfrom = &slot;
+    a.link(b);
+
+    a.unlink();
+    CHECK(a.calledfrom == &slot); // attachment back-reference is not unlink's job
+    CHECK(slot == &a);
+
+    a.calledfrom = nullptr; // detach before ~a so the stack slot isn't written
+  }
+
+  TEST_CASE("channel dsp: unlink enables in-place reorder without a stale-edge cycle") {
+    if (!TestHelpers::engineInit()) return;
+    GainDsp a(2.0f);
+    GainDsp b(3.0f);
+    GainDsp c(4.0f);
+    a.link(b);
+    b.link(c); // a -> b -> c
+    REQUIRE(a.link() == &b);
+    REQUIRE(b.link() == &c);
+
+    // A naive a.link(c) here would splice to a -> c -> b but leave b.next
+    // aimed at c, closing the walk cycle a -> c -> b -> c -> ... (#391).
+    // Clear the stale forward edges first, then rebuild the new order.
+    a.unlink();
+    b.unlink();
+    a.link(c);
+    c.link(b); // a -> c -> b
+    CHECK(a.link() == &c);
+    CHECK(c.link() == &b);
+    CHECK(b.link() == nullptr); // the tail terminates -> no cycle
+  }
+
+  TEST_CASE("channel dsp: unlink shortens an attached insert chain") {
+    if (!TestHelpers::engineInit()) return;
+    YSE::CHANNEL::implementationObject impl(nullptr);
+    primeImpl(impl);
+    auto& bufs = impl.GetBuffers();
+    REQUIRE(bufs.size() > 0);
+
+    GainDsp a(2.0f);
+    GainDsp b(3.0f);
+    a.link(b); // chain: a -> b
+    attach(impl, &a);
+    fill(bufs, 0.1f);
+    impl.processInsertDSP();
+    CHECK(allEqual(bufs, 0.6f)); // 0.1 * 2 * 3: both ran
+
+    a.unlink(); // drop b; a stays attached to the channel
+    fill(bufs, 0.1f);
+    impl.processInsertDSP();
+    CHECK(allEqual(bufs, 0.2f)); // 0.1 * 2: only a runs now
+  }
+
+  TEST_CASE("channel dsp: C ABI yse_dsp_object_link(head, NULL) detaches, not no-ops") {
+    if (!TestHelpers::engineInit()) return;
+    // The flat C ABI has no chain getter, so observe through the engine
+    // object — the same reinterpret_cast the C API implementation uses.
+    YseDspObject* a = yse_dsp_lowpass_create();
+    YseDspObject* b = yse_dsp_highpass_create();
+    REQUIRE(a != nullptr);
+    REQUIRE(b != nullptr);
+    auto* aCpp = reinterpret_cast<YSE::DSP::dspObject*>(a);
+    auto* bCpp = reinterpret_cast<YSE::DSP::dspObject*>(b);
+
+    yse_dsp_object_link(a, b);
+    REQUIRE(aCpp->link() == bCpp);
+
+    yse_dsp_object_link(a, nullptr); // detach the forward edge (#391)
+    CHECK(aCpp->link() == nullptr);
+
+    // A NULL head stays a null-safe no-op, with or without a next.
+    yse_dsp_object_link(nullptr, b);
+    yse_dsp_object_link(nullptr, nullptr);
+    CHECK(aCpp->link() == nullptr);
+
+    yse_dsp_object_destroy(b);
+    yse_dsp_object_destroy(a);
   }
 
   // ─── Interface-level API round-trip ────────────────────────────────────────

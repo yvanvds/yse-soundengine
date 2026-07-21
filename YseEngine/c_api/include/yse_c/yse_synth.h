@@ -102,6 +102,22 @@ YSE_C_API void yse_synth_destroy(YseSynth* h);
 /* Whether the synth has a live implementation (registered with the engine). */
 YSE_C_API int yse_synth_is_valid(YseSynth* h);
 
+/* Assign a bus-addressable name to the synth (mirrors YSE::synth::name, issue
+   #388). Once named "foo", the engine subscribes it to the global named bus
+   addresses synth.foo.note / .off / .cc / .bend / .aftertouch / .alloff, so
+   note and controller events published by name reach the synth engine-side
+   with no host round-trip. Payload shapes are locked by
+   docs/design/live_coding_dsl.md ("Mapping to synth events"); delivery
+   reuses the same RT-safe message inbox as the note/controller functions
+   above. Anonymous synths (the default) are not addressable.
+
+   NULL or "" clears the name and removes the subscriptions; renaming
+   re-subscribes under the new name. Names are unique per synth: a duplicate
+   is rejected and logged engine-side (first registration wins — there is no
+   error return, matching the C++ API). Only effective while the engine is
+   between init and close. */
+YSE_C_API void yse_synth_set_name(YseSynth* h, const char* name);
+
 /* ─── voice groups (built-in voices only) ─────────────────────────────── */
 
 /* Add a group of `num_voices` built-in sine voices (sine oscillator shaped
@@ -116,13 +132,17 @@ YSE_C_API YseStatus yse_synth_add_voices_sine(YseSynth* h, int num_voices, int c
                                               int lowest_note, int highest_note, float attack,
                                               float decay, float sustain, float release);
 
-/* ─── instrument voice groups (issue #178) ────────────────────────────────
+/* ─── instrument voice groups (issues #178, #390) ─────────────────────────
    Each adds `num_voices` clones of the named built-in instrument voice,
-   responding omni (all channels) across the full key range — the SFZ regions /
-   patch decide how a note actually sounds. Like add_voices_sine, they must be
-   called BEFORE the synth is played; adding voices after the pool is built is
-   rejected. Return YseStatus; on failure yse_last_error() is set and no group
-   is added. */
+   responding to note numbers in [lowest_note, highest_note] on `channel`
+   (0 = omni), mirroring YSE::synth::addVoices 1:1 — C has no default
+   arguments, so pass 0, 0, 127 for the historical omni / full-key-range
+   behaviour. The channel + note-range window is the voice group's allocation
+   filter; within that window the SFZ regions / patch still decide how a note
+   actually sounds. Like add_voices_sine, they may be called several times to
+   build layered, split, or multitimbral pools, and must be called BEFORE the
+   synth is played; adding voices after the pool is built is rejected. Return
+   YseStatus; on failure yse_last_error() is set and no group is added. */
 
 /* Add a group of SFZ sampler voices rendering `instrument` (loaded via
    yse_sfz_load / yse_sfz_load_config). The instrument's region table and PCM
@@ -130,19 +150,22 @@ YSE_C_API YseStatus yse_synth_add_voices_sine(YseSynth* h, int num_voices, int c
    YseSfzInstrument handle may be destroyed right after this returns.
    YSE_ERR_INVALID_ARGUMENT if `instrument` is NULL or already destroyed. */
 YSE_C_API YseStatus yse_synth_add_voices_sampler(YseSynth* h, YseSfzInstrument* instrument,
-                                                 int num_voices);
+                                                 int num_voices, int channel, int lowest_note,
+                                                 int highest_note);
 
 /* Add a group of virtual-analog + wavetable voices with a fresh default patch.
    This establishes the synth's VA patch; the yse_synth_va_set_* setters below
    steer it. Call once per synth (a second call replaces which patch the setters
    target — layering multiple VA groups is out of scope for the C API). */
-YSE_C_API YseStatus yse_synth_add_voices_va(YseSynth* h, int num_voices);
+YSE_C_API YseStatus yse_synth_add_voices_va(YseSynth* h, int num_voices, int channel,
+                                            int lowest_note, int highest_note);
 
 /* Add a group of DX7-class 6-operator FM voices with the built-in sine test
    patch. This establishes the synth's FM patch; select a DX7 voice into it with
    yse_synth_fm_set_patch, or dial the headline params with yse_synth_fm_set_*.
    Call once per synth (see add_voices_va's note). */
-YSE_C_API YseStatus yse_synth_add_voices_fm(YseSynth* h, int num_voices);
+YSE_C_API YseStatus yse_synth_add_voices_fm(YseSynth* h, int num_voices, int channel,
+                                            int lowest_note, int highest_note);
 
 /* ─── VA patch parameters (issue #178) ─────────────────────────────────────
    Steer the synth's VA patch (established by yse_synth_add_voices_va). Every

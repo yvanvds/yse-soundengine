@@ -99,6 +99,26 @@ namespace YSE {
       /** @brief Next object in the processing chain, or ``nullptr`` if this is the tail. */
       dspObject* link();
 
+      /** @brief Detach the forward edge of the chain at this object.
+       *
+       *  Clears this object's ``next`` pointer and the detached neighbour's
+       *  ``previous`` back-pointer, so the neighbour becomes a standalone
+       *  (potential) chain head. A no-op when nothing is linked. It does NOT
+       *  touch ``calledfrom`` — the sound/channel attachment back-reference is
+       *  owned by ``setDSP`` / engine teardown and only meaningful on a chain
+       *  head.
+       *
+       *  RT-safety: the audio thread walks ``next`` pointers lock-free every
+       *  block. To restructure a chain that is attached to a live sound or
+       *  channel, detach the chain from its owner first (``setDSP(nullptr)``
+       *  — a pointer swap applied on the audio thread), ``unlink()`` and
+       *  re-``link()`` the objects into the new order, then re-attach the new
+       *  head. That keeps the audio thread from ever observing a half-rewired
+       *  chain; effect DSP state survives because the objects themselves are
+       *  untouched.
+       */
+      void unlink();
+
       /** @brief Bypass this effect when ``true``. Bypassed effects still run but pass input through
        * unchanged. */
       dspObject& bypass(Bool value) {

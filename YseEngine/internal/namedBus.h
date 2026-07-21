@@ -40,6 +40,8 @@ namespace YSE {
     using BusValue = std::variant<std::monostate, int, float, std::string, std::vector<float>>;
     using SubHandle = std::uint64_t;
     using Subscriber = std::function<void(const BusValue&)>;
+    using TapHandle = std::uint64_t;
+    using TapSubscriber = std::function<void(const std::string& name, const BusValue&)>;
 
     class NamedBus {
     public:
@@ -87,6 +89,24 @@ namespace YSE {
       // unknown (e.g. already unsubscribed, or never issued).
       void unsubscribe(SubHandle handle);
 
+      // Register a prefix tap (issue #389): `callback` receives every dispatch
+      // whose name starts with `prefix` (plain byte-wise prefix — an empty
+      // prefix matches everything), together with the full name. Taps run on
+      // the control thread only, from dispatch(), after the exact-match
+      // subscribers for the name — the T_DSP publish path is untouched, so a
+      // tap adds zero audio-thread cost. Matching is a linear scan over the
+      // registered taps; callers register a handful of prefixes, not
+      // thousands. Tap handles are unique across every bus instance in the
+      // process (the counter is process-global), so a handle that outlives an
+      // engine restart can never alias a registration on the next session's
+      // bus — unsubscribeTap() on such a stale handle is a safe no-op. This
+      // backs the C API contract that host taps are invalidated by
+      // System::close() (c_api/yse_bus.cpp).
+      TapHandle subscribeTap(const std::string& prefix, TapSubscriber callback);
+
+      // Drop the tap that owns `handle`. No-op if the handle is unknown.
+      void unsubscribeTap(TapHandle handle);
+
       // Drain the audio-thread queue and dispatch each message. Must run on
       // the same thread that registers subscribers (main / update thread).
       // Called once per `system::update()` tick.
@@ -109,6 +129,12 @@ namespace YSE {
       struct Subscription {
         SubHandle handle;
         Subscriber callback;
+      };
+
+      struct TapSubscription {
+        TapHandle handle;
+        std::string prefix;
+        TapSubscriber callback;
       };
 
       void dispatch(const std::string& name, const BusValue& value);
@@ -165,6 +191,11 @@ namespace YSE {
       mutable std::shared_mutex subsMutex_;
       std::unordered_map<std::string, std::vector<Subscription>> subs_;
       std::unordered_map<SubHandle, std::string> handleIndex_;
+      // Prefix taps (issue #389), guarded by subsMutex_ like subs_. Kept in a
+      // flat vector: dispatch() scans it linearly, and the registered-tap
+      // count is expected to stay tiny (a host subscribes a handful of
+      // prefixes).
+      std::vector<TapSubscription> taps_;
       std::atomic<SubHandle> nextHandle_{1};
     };
 

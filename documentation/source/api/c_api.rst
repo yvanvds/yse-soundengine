@@ -92,6 +92,29 @@ MIDI and music
 .. doxygenfile:: c_api/include/yse_c/yse_music.h
    :project: libYSE
 
+Clip transport
+--------------
+
+Beat-timed note clips dispatched from the audio thread against a domain
+clock, targeting internal synths or an external MIDI-out port.
+
+.. doxygenfile:: c_api/include/yse_c/yse_clip.h
+   :project: libYSE
+
+Live coding: scripting and bus tap
+----------------------------------
+
+The embedded-Python live-coding surface (``YSE_ENABLE_PYTHON`` builds; the
+symbols exist in every build) and the host bus tap, which subscribes the
+host to a bus-address prefix and delivers ``(address, value)`` frames on the
+thread that drives ``yse_system_update()``.
+
+.. doxygenfile:: c_api/include/yse_c/yse_python.h
+   :project: libYSE
+
+.. doxygenfile:: c_api/include/yse_c/yse_bus.h
+   :project: libYSE
+
 Logging and buffer I/O
 ----------------------
 

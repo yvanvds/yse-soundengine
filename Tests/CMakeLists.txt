@@ -84,6 +84,7 @@ set(YSE_TEST_SOURCES
   synth/test_synth_close.cpp
   synth/test_synth_positioning.cpp
   synth/test_synth_handlers.cpp
+  synth/test_synth_bus.cpp
   synth/test_c_api_synth.cpp
   synth/test_c_api_instrument.cpp
   dsp/test_panner.cpp
@@ -108,6 +109,7 @@ set(YSE_TEST_SOURCES
   io/test_bufferIO.cpp
   io/test_callback_counter.cpp
   system/test_named_bus.cpp
+  system/test_c_api_bus.cpp
   system/test_system_active_state.cpp
   system/test_lifecycle.cpp
   clock/test_domain_clocks.cpp
@@ -124,6 +126,17 @@ set(YSE_TEST_SOURCES
 if(YSE_ENABLE_PYTHON)
   list(APPEND YSE_TEST_SOURCES python/test_script_runtime.cpp)
   list(APPEND YSE_TEST_SOURCES python/test_yse_module.cpp)
+endif()
+
+# Docs-coverage guard for the C-API reference (issue #398). Reads the source
+# tree at test runtime (yse_c headers + documentation/source/api/c_api.rst)
+# via the YSE_REPO_ROOT define below, which has no equivalent on an Android
+# device — desktop only. Runs in the `system` suite and the monolithic entry.
+if(NOT ANDROID)
+  list(APPEND YSE_TEST_SOURCES system/test_api_doc_coverage.cpp)
+  set_source_files_properties(system/test_api_doc_coverage.cpp PROPERTIES
+    COMPILE_DEFINITIONS "YSE_REPO_ROOT=\"${CMAKE_SOURCE_DIR}\""
+  )
 endif()
 
 if(ANDROID)
@@ -227,7 +240,11 @@ add_test(
   # `clip` (issue #250 clip transport) is excluded for the same reason as
   # `clock`: its cases drive CLOCK::Manager().update() / CLIP::Manager().update()
   # directly on the test thread. It runs isolated in yse_tests_clip.
-  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthhandlers,synthcapi,instrumentcapi,midisynth,playersynth,playercapi,sendstress,channelcapi,synthdemos,clock,clip --duration=true
+  # `buscapi` (issue #389 host bus tap C API) is excluded like the other
+  # c-api lifecycle suites: it drives yse_system_init_offline()/close() —
+  # the tap-invalidation-at-close contract is part of the surface under
+  # test — so it runs in its own process (yse_tests_buscapi).
+  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthhandlers,synthbus,synthcapi,instrumentcapi,midisynth,playersynth,playercapi,sendstress,channelcapi,synthdemos,clock,clip,buscapi --duration=true
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_unit_tests PROPERTIES TIMEOUT 600)
@@ -360,6 +377,18 @@ add_test(
 )
 set_tests_properties(yse_tests_synthhandlers PROPERTIES LABELS "synth;lifecycle")
 
+# Synth named-bus addressing (issue #388). Publishes synth.<name>.* note /
+# controller events on the global bus and observes delivery through per-note
+# position handlers. Isolated in its own process for the same reason as
+# yse_tests_synthhandlers: every case drives System::initOffline()/close().
+# initOffline() needs no audio hardware, so it runs in CI.
+add_test(
+  NAME    yse_tests_synthbus
+  COMMAND yse_tests --test-suite=synthbus
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_synthbus PROPERTIES LABELS "synth;lifecycle")
+
 # C-API synth surface (issue #157). Drives the synth entirely through the flat
 # C ABI under an offline engine (yse_system_init_offline), then yse_system_close().
 # Isolated in its own process for the same reason as yse_tests_synthlifecycle:
@@ -386,6 +415,20 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_instrumentcapi PROPERTIES LABELS "synth;c-api;lifecycle")
+
+# C-API host bus tap surface (issue #389). Drives yse_bus_tap_create /
+# destroy through the flat C ABI under an offline engine, including the
+# yse_system_close() tap-invalidation contract. Isolated in its own process
+# for the same reason as yse_tests_synthcapi: System::close() tears down
+# process-global state (thread pools, named bus) the rest of the suite
+# assumes stays up (#298). initOffline() needs no audio hardware, so it runs
+# in CI.
+add_test(
+  NAME    yse_tests_buscapi
+  COMMAND yse_tests --test-suite=buscapi
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_buscapi PROPERTIES LABELS "system;c-api;lifecycle")
 
 add_test(
   NAME    yse_tests_midi

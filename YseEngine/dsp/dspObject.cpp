@@ -25,6 +25,17 @@ YSE::DSP::dspObject* YSE::DSP::dspObject::link() {
   return this->next;
 }
 
+void YSE::DSP::dspObject::unlink() {
+  // Detach the forward edge only (#391): clear our next pointer and the
+  // detached neighbour's previous back-pointer. calledfrom is deliberately
+  // untouched — that is the sound/channel attachment back-reference, owned by
+  // setDSP / engine teardown.
+  if (next != nullptr) {
+    next->previous = nullptr;
+    next = nullptr;
+  }
+}
+
 YSE::DSP::dspObject::dspObject()
   : calledfrom(nullptr),
     next(nullptr),
