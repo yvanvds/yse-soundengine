@@ -25,7 +25,7 @@ jobs:
     env:
       BUILD_WRAPPER_OUT_DIR: build_wrapper_output_directory # Directory where build-wrapper output will be placed
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
       - name: Install Build Wrapper
@@ -109,7 +109,7 @@ jobs:
       matrix:
         abi: [arm64-v8a, x86_64]
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Install host build tools
         run: |
           sudo apt-get update -y
@@ -171,7 +171,7 @@ jobs:
       CC: clang
       CXX: clang++
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Install dependencies
         # python3-dev: the libpython we embed (find_package Python3 Development.Embed).
         # libclang-rt-dev: clang's compiler-rt, which ships libclang_rt.asan — not
@@ -224,7 +224,7 @@ jobs:
       matrix:
         san: [tsan, asan]
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Install dependencies
         # libclang-rt-dev ships libclang_rt.{asan,tsan}; not pulled in by the base
         # clang package, so the sanitizer legs fail to link without it.
