@@ -36,7 +36,7 @@ jobs:
     timeout-minutes: 25
 
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       # Mirrors build.yml's install line minus gcovr — the benchmark binary
       # links the same PortAudio / libsndfile / RtMidi as the engine.
