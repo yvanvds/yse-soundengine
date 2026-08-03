@@ -70,11 +70,24 @@ jobs:
           YSE_TEST_FORCED_RATE: "48000"
         run: ctest --test-dir build --output-on-failure
       - name: Generate coverage report
+        # --exclude-throw-branches / --exclude-unreachable-branches drop the
+        # implicit exception-unwind and never-entered edges GCC emits around
+        # anything that can throw.  gcov records them as real conditions, so
+        # without these flags trivial headers report 4 conditions with 3
+        # uncovered and Sonar's blended coverage is dominated by branches no
+        # test can ever reach.  See #416.  Keep in sync with the gcovr call in
+        # yse.py (_cmd_coverage_linux) so local and CI numbers agree.
+        #
+        # --filter 'Tests/' stays: Tests is declared as sonar.tests, so Sonar
+        # discards those entries on import (verified — test files report
+        # 0 coverable lines in the analysis) and they cannot skew the totals.
         run: |
           gcovr \
             --root . \
             --filter 'YseEngine/' \
             --filter 'Tests/' \
+            --exclude-throw-branches \
+            --exclude-unreachable-branches \
             --gcov-ignore-parse-errors \
             --sonarqube \
             --output coverage.xml \
