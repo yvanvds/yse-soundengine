@@ -500,10 +500,13 @@ Bool YSE::INTERNAL::abstractSoundFile::readInterleaved(
   // set cursor to the output buffer start
   FOREACH(filebuffer) filebuffer[i].cursor = filebuffer[i].getPtr();
 
-  for (UInt x = 0;
-       x < length;) { // x is updated within loop, when increasing cursor // NOSONAR S1751: loop
-                      // body iterates via internal cursor advance; goto-based state machine — see
-                      // function-level S3776 justification
+  // x is updated inside the body as the cursor advances. The goto-based state
+  // machine re-enters at `startAgain` rather than falling through to the loop
+  // header, so control never reaches the end of the body — which is why S1751
+  // ("loop body executes at most once") fires here. Termination is guaranteed
+  // by the explicit `x >= length` break below. See the function-level S3776
+  // justification.
+  for (UInt x = 0; x < length;) { // NOSONAR
 
     // set position in filebuffer, according to nr of channels
     // UInt channelPos = ((UInt)pos) * file->_channels;
@@ -545,10 +548,8 @@ Bool YSE::INTERNAL::abstractSoundFile::readInterleaved(
         pos += speed;
         x++;
 
-        if (pos < 0 ||
-            pos >= (file->_streaming ? streamEnd
-                                     : len)) { // NOSONAR S134: nesting follows the state-machine
-                                               // structure documented at function level
+        // S134: nesting follows the state-machine structure documented at function level.
+        if (pos < 0 || pos >= (file->_streaming ? streamEnd : len)) { // NOSONAR
           goto calibrate;
         }
       }
