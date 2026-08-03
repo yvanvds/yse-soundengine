@@ -84,7 +84,7 @@ YSE::MIDI::outSender::~outSender() {
   // and the drain still touches RtMidi — neither is nothrow.
   try {
     stop();
-  } catch (...) { // NOLINT(bugprone-empty-catch): swallowing *is* the handling
+  } catch (...) { // NOSONAR NOLINT(bugprone-empty-catch): swallowing *is* the handling
     // Deliberately silent, unlike the sibling manager destructors that log here.
     // This one is reached through the function-local static in OutSender(), so
     // it runs during static destruction at process exit — and LogImpl() is an
@@ -92,6 +92,11 @@ YSE::MIDI::outSender::~outSender() {
     // unspecified, while emit() allocates a std::string on top. Reporting the
     // failure would risk the exact use-after-free class that issue #298 fixed and
     // the ASan lifecycle gate guards. Shutdown is best-effort from here.
+    //
+    // cpp:S2486 asks for the exception to be handled or logged. Logging is the
+    // one thing this handler must not do, and this comment did not clear the
+    // rule on its own — hence the short marker on the catch line above, kept
+    // short so clang-format cannot strand it (issues #409, #434).
   }
 }
 
