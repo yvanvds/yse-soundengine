@@ -116,6 +116,21 @@ jobs:
           echo "version=$VER" >> "$GITHUB_OUTPUT"
           echo "Resolved sonar.projectVersion=$VER"
       - name: SonarQube Scan
+        # Skipped on pushes to master. SonarCloud's main branch is `dev` (renamed
+        # from `master` — it captures the DevOps default branch once at project
+        # import and never revisits it, so it had drifted). On the free plan only
+        # the main branch can be analysed: non-main branches report "Not analyzed"
+        # behind an Upgrade badge. Submitting a master analysis would therefore
+        # burn the full scan to produce nothing. See #429.
+        #
+        # Everything above this step — build, both ctest runs, the coverage
+        # report — still runs on master, and the android/python/sanitizer jobs
+        # keep their release gate. Only the upload has nowhere to go.
+        #
+        # PR events need no guard here: the job-level `if` already skips PRs
+        # whose head is `dev` or `master`, covering both the dev -> master
+        # release PR and the master -> dev sync PR.
+        if: ${{ !(github.event_name == 'push' && github.ref_name == 'master') }}
         uses: SonarSource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f # v8.2.1
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
