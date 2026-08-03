@@ -93,12 +93,35 @@ jobs:
             --output coverage.xml \
             build
           echo "=== coverage.xml preview ===" && head -20 coverage.xml
+      - name: Resolve project version for Sonar
+        id: version
+        # The New Code period is set to "Previous version", which only advances
+        # when sonar.projectVersion changes between analyses. It used to be
+        # hardcoded in sonar-project.properties and was never bumped: it sat at
+        # 1.0.77 from the day SonarCloud was wired up while the project shipped
+        # through v2.4.0. With no version change there is no baseline, so every
+        # line ever written counted as "new code" -- which is why new_coverage
+        # tracked overall coverage to within 0.1 points and 2018-era findings
+        # gated the rating. See #408.
+        #
+        # YseEngine/system.hpp is the authoritative version source (the release
+        # skill bumps it; Sphinx conf.py already reads it the same way, per
+        # PR #89). Deriving it here means it can never drift again.
+        run: |
+          VER=$(sed -n 's/.*VERSION[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' YseEngine/system.hpp | head -1)
+          if [ -z "$VER" ]; then
+            echo "::error file=YseEngine/system.hpp::could not parse VERSION -- sonar.projectVersion would silently fall back and break the New Code baseline"
+            exit 1
+          fi
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "Resolved sonar.projectVersion=$VER"
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f # v8.2.1
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: >
+            --define "sonar.projectVersion=${{ steps.version.outputs.version }}"
             --define "sonar.cfamily.compile-commands=${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json"
 
   build-android:
