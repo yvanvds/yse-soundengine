@@ -15,5 +15,6 @@ public:
 	void MidiDemo();
 	void MidiPatcherDemo();
 	void PitchTest();
+	void MissedCallbacksDemo();
 };
 

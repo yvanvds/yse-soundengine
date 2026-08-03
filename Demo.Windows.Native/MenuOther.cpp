@@ -8,6 +8,7 @@
 #include "Demo15_RestartAudio.h"
 #include "Demo16_Midi.h"
 #include "Demo17_MidiPatcher.h"
+#include "Demo22_MissedCallbacks.h"
 #include "Test01_Pitch.h"
 
 OtherMenu::OtherMenu()
@@ -20,6 +21,7 @@ OtherMenu::OtherMenu()
 	AddAction('5', "MIDI", std::bind(&OtherMenu::MidiDemo, this));
 	AddAction('6', "MIDI PAtcher", std::bind(&OtherMenu::MidiPatcherDemo, this));
 	AddAction('7', "Test Pitch", std::bind(&OtherMenu::PitchTest, this));
+	AddAction('8', "Missed Callbacks", std::bind(&OtherMenu::MissedCallbacksDemo, this));
 }
 
 void OtherMenu::DevicesDemo()
@@ -68,6 +70,12 @@ void OtherMenu::MidiPatcherDemo() {
 
 void OtherMenu::PitchTest() {
 	Test01_Pitch demo;
+	demo.Run();
+	ShowMenu();
+}
+
+void OtherMenu::MissedCallbacksDemo() {
+	DemoMissedCallbacks demo;
 	demo.Run();
 	ShowMenu();
 }

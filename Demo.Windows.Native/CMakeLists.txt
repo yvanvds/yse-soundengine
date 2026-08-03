@@ -98,6 +98,11 @@ add_yse_demo(Demo19 Demo19_SfzPiano   DemoSfzPiano)
 add_yse_demo(Demo20 Demo20_Swarm      DemoSwarm)
 add_yse_demo(Demo21 Demo21_Mixer      DemoMixer)
 
+# Minimal engine-only harness to reproduce idle missed-callback drift (issue
+# #406). Opens the device, idles, and latches a cumulative missed-callback
+# total; a sine source and a sample can each be toggled.
+add_yse_demo(Demo22 Demo22_MissedCallbacks DemoMissedCallbacks)
+
 # ── Combined Demo executable (all pages via menu) ─────────────────────────────
 add_executable(Demo
   demo_main.cpp
@@ -128,6 +133,7 @@ add_executable(Demo
   Demo19_SfzPiano.cpp
   Demo20_Swarm.cpp
   Demo21_Mixer.cpp
+  Demo22_MissedCallbacks.cpp
   Test01_Pitch.cpp
 )
 target_compile_features(Demo PRIVATE cxx_std_17)
