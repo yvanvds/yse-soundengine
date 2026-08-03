@@ -170,11 +170,18 @@ def _cmd_coverage_linux():
         return
 
     report = ROOT / "coverage.xml"
+    # The --exclude-*-branches flags must match the gcovr invocation in
+    # .github/workflows/build.yml, otherwise local and CI coverage disagree.
+    # They drop gcov's implicit exception-unwind / never-entered edges, which
+    # are not reachable by any test and otherwise dominate the condition
+    # coverage figure.  See #416.
     run([
         "gcovr",
         "--root", str(ROOT),
         "--filter", "./YseEngine/",
         "--filter", "./Tests/",
+        "--exclude-throw-branches",
+        "--exclude-unreachable-branches",
         "--sonarqube",
         "--output", str(report),
     ])
