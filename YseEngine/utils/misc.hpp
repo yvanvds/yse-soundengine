@@ -11,6 +11,7 @@
 #ifndef MISC_H_INCLUDED
 #define MISC_H_INCLUDED
 
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cmath>
@@ -52,6 +53,18 @@ namespace YSE {
    */
   namespace RANDOM {
 
+    // The three variables below carry a bare suppression marker on their
+    // declaration line. It is kept short on purpose: clang-format counts
+    // trailing comments toward the 100-column limit and would otherwise wrap
+    // the statement and strand the marker on the wrong line (issue #409).
+    //
+    // They suppress cpp:S5421, "global variables should be const". These *are*
+    // the generator's mutable state, so const is not on the table, and the usual
+    // way to hide them — a function-local `static` accessor — would put a
+    // lazy-initialisation guard check on every draw, including on the audio
+    // callback path. That is exactly what the constant initialisation below
+    // exists to avoid, and CLAUDE.md rule 3 forbids trading it away. See #434.
+
     /**
      *  @brief Global seed base, published by ``Randomize()``.
      *
@@ -59,24 +72,26 @@ namespace YSE {
      *  ``Randomize()`` gets a reproducible sequence — the same contract an
      *  unseeded ``rand()`` offered.
      */
-    inline std::atomic<UInt> SeedBase{0x9E3779B9u};
+    inline std::atomic<UInt> SeedBase{0x9E3779B9U}; // NOSONAR
 
     /** @brief Hands every thread a distinct stream index on its first draw. */
-    inline std::atomic<UInt> StreamCounter{0};
+    inline std::atomic<UInt> StreamCounter{0}; // NOSONAR
 
     /**
      *  @brief Per-thread generator state; ``{0, 0}`` means "not seeded yet".
      *
      *  Constant-initialised on purpose: a dynamically initialised
      *  ``thread_local`` would add a guard-variable check to every single draw.
+     *  ``std::array`` keeps that property — it is an aggregate, so ``{}`` is
+     *  still a constant initializer and the state stays in ``.tbss``.
      */
-    inline thread_local U64 State[2] = {0, 0};
+    inline thread_local std::array<U64, 2> State{}; // NOSONAR
 
     /** @brief SplitMix64 finalizer — turns a counter into well-distributed bits. */
     inline U64 Mix(U64 z) {
-      z += 0x9E3779B97F4A7C15ull;
-      z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ull;
-      z = (z ^ (z >> 27)) * 0x94D049BB133111EBull;
+      z += 0x9E3779B97F4A7C15ULL;
+      z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
+      z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
       return z ^ (z >> 31);
     }
 
@@ -88,10 +103,10 @@ namespace YSE {
      *  thread lands unless the host calls it earlier.
      */
     inline void SeedThread() {
-      const U64 base = static_cast<U64>(SeedBase.load(std::memory_order_relaxed));
-      const U64 stream = static_cast<U64>(StreamCounter.fetch_add(1, std::memory_order_relaxed));
+      const auto base = static_cast<U64>(SeedBase.load(std::memory_order_relaxed));
+      const auto stream = static_cast<U64>(StreamCounter.fetch_add(1, std::memory_order_relaxed));
       State[0] = Mix((base << 32) ^ (stream + 1));
-      State[1] = Mix(State[0]) | 1ull; // the |1 keeps the pair from ever being all-zero
+      State[1] = Mix(State[0]) | 1ULL; // the |1 keeps the pair from ever being all-zero
     }
 
     /** @brief xorshift128+ — 64 pseudo-random bits in a handful of instructions. */
@@ -147,7 +162,7 @@ namespace YSE {
    *  seeds its own copy, not the engine's.
    */
   inline void Randomize() {
-    const U64 now =
+    const auto now =
         static_cast<U64>(std::chrono::high_resolution_clock::now().time_since_epoch().count());
     RANDOM::SeedBase.store(static_cast<UInt>(RANDOM::Mix(now) >> 32), std::memory_order_relaxed);
     // Zeroing the state makes the calling thread re-seed from the new base on
@@ -173,7 +188,7 @@ namespace YSE {
     if (max <= min) return min;
     // Widened to 64 bit: a span such as [INT_MIN, INT_MAX) overflows Int.
     const I64 span = static_cast<I64>(max) - static_cast<I64>(min);
-    const I64 offset = static_cast<I64>(RANDOM::Bounded(static_cast<UInt>(span)));
+    const auto offset = static_cast<I64>(RANDOM::Bounded(static_cast<UInt>(span)));
     return static_cast<Int>(static_cast<I64>(min) + offset);
   }
 
@@ -183,7 +198,7 @@ namespace YSE {
    */
   inline Int BigRandom(Int max) {
     if (max <= 0) return 0;
-    const Int root = static_cast<Int>(std::sqrt(static_cast<Dbl>(max)));
+    const auto root = static_cast<Int>(std::sqrt(static_cast<Dbl>(max)));
     return Random(root) * Random(root);
   }
 
@@ -210,8 +225,8 @@ namespace YSE {
    */
   inline Flt* Random(Flt* min, Flt* max) {
     if (max <= min) return min;
-    U64 span = static_cast<U64>(max - min);
-    if (span > 0xFFFFFFFFull) span = 0xFFFFFFFFull; // the reduction takes a 32-bit bound
+    auto span = static_cast<U64>(max - min);
+    if (span > 0xFFFFFFFFULL) span = 0xFFFFFFFFULL; // the reduction takes a 32-bit bound
     return min + static_cast<std::ptrdiff_t>(RANDOM::Bounded(static_cast<UInt>(span)));
   }
 
