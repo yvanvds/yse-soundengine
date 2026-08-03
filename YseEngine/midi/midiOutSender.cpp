@@ -78,7 +78,21 @@ YSE::MIDI::outSender& YSE::MIDI::OutSender() {
 }
 
 YSE::MIDI::outSender::~outSender() {
-  stop();
+  // A destructor is implicitly noexcept, so anything escaping stop() would call
+  // std::terminate() and take the host process down instead of shutting the
+  // engine down (issue #414). stop() joins the worker and then drains the queue,
+  // and the drain still touches RtMidi — neither is nothrow.
+  try {
+    stop();
+  } catch (...) { // NOLINT(bugprone-empty-catch): swallowing *is* the handling
+    // Deliberately silent, unlike the sibling manager destructors that log here.
+    // This one is reached through the function-local static in OutSender(), so
+    // it runs during static destruction at process exit — and LogImpl() is an
+    // equally function-local static whose teardown order relative to this one is
+    // unspecified, while emit() allocates a std::string on top. Reporting the
+    // failure would risk the exact use-after-free class that issue #298 fixed and
+    // the ASan lifecycle gate guards. Shutdown is best-effort from here.
+  }
 }
 
 void YSE::MIDI::outSender::start() {
@@ -88,7 +102,12 @@ void YSE::MIDI::outSender::start() {
 
 void YSE::MIDI::outSender::stop() {
   running.store(false, std::memory_order_release);
-  if (worker.joinable()) worker.join();
+  // Never join the worker from the worker itself — that is the one join() error
+  // a caller can actually provoke (std::system_error /
+  // resource_deadlock_would_occur), reachable through the send hook, which runs
+  // on this thread. Skipping it here leaves `worker` joinable for the eventual
+  // control-thread stop() to join properly (issue #414).
+  if (worker.joinable() && worker.get_id() != std::this_thread::get_id()) worker.join();
   // The worker is joined (or was never started), so this thread is now the
   // queue's only consumer. Flush what is still pending immediately — a stopping
   // clip's releaseAll note-offs must reach the hardware even at shutdown.
