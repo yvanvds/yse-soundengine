@@ -62,11 +62,19 @@ void timerThread::timerThreadWorker() {
 timerThread::timerThread() : nextId(noTimer + 1), queue(), done(false) {}
 
 timerThread::~timerThread() {
-  ScopedLock lock(sync);
+  // The locked region gets its own scope so RAII releases the mutex on every
+  // path, rather than an explicit unlock() inside the branch that leaves this
+  // function's lock/unlock counts unbalanced (cpp:S8473). Ordering is
+  // unchanged: `done` is set under the lock, the mutex is released, and only
+  // then is the worker woken — so it never wakes onto a mutex we still hold.
+  bool needJoin;
+  {
+    ScopedLock lock(sync);
+    needJoin = worker.joinable();
+    if (needJoin) done = true;
+  }
 
-  if (worker.joinable()) {
-    done = true;
-    lock.unlock();
+  if (needJoin) {
     wakeUp.notify_all();
     worker.join();
   }
@@ -81,23 +89,31 @@ timerThread::timerID timerThread::setTimeout(timerFunc func, millisec timeout) {
 }
 
 timerThread::timerID timerThread::Add(millisec msDelay, millisec msPeriod, timerFunc func) {
-  ScopedLock lock(sync);
+  timerID id;
+  bool needNotify;
 
-  // start timer if not running
-  if (!worker.joinable()) {
-    worker = std::thread(&timerThread::timerThreadWorker, this);
+  // Scoped so RAII releases the mutex on every path, rather than an explicit
+  // unlock() that leaves this function's lock/unlock counts unbalanced
+  // (cpp:S8473). Ordering is unchanged: the mutex is released at the closing
+  // brace, before the notify below, so the worker never wakes onto a mutex we
+  // still hold.
+  {
+    ScopedLock lock(sync);
+
+    // start timer if not running
+    if (!worker.joinable()) {
+      worker = std::thread(&timerThread::timerThreadWorker, this);
+    }
+
+    id = nextId++;
+    auto iter = active.emplace(
+        id, Timer(id, Clock::now() + Duration(msDelay), Duration(msPeriod), std::move(func)));
+
+    Queue::iterator place = queue.emplace(iter.first->second);
+
+    // notify if in front of queue
+    needNotify = (place == queue.begin());
   }
-
-  auto id = nextId++;
-  auto iter = active.emplace(
-      id, Timer(id, Clock::now() + Duration(msDelay), Duration(msPeriod), std::move(func)));
-
-  Queue::iterator place = queue.emplace(iter.first->second);
-
-  // notify if in front of queue
-  bool needNotify = (place == queue.begin());
-
-  lock.unlock();
 
   if (needNotify) wakeUp.notify_all();
 
@@ -154,7 +170,13 @@ bool timerThread::destroyImpl(ScopedLock& lock, timerThread::TimerMap::iterator 
     active.erase(i);
 
     if (notify) {
-      lock.unlock();
+      // S8473: the unlock is deliberately unbalanced here and cannot be scoped
+      // away as in Add()/~timerThread(). The lock belongs to the caller (it
+      // arrives by reference) and the wait() above needs it, so this function
+      // documents that it "returns with lock unlocked" when notify is set. The
+      // mutex must be released *before* notify_all() so the worker does not
+      // wake straight onto a mutex we still hold.
+      lock.unlock(); // NOSONAR
       wakeUp.notify_all();
     }
   }
