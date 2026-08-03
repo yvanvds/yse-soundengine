@@ -17,6 +17,7 @@ set(YSE_TEST_SOURCES
   utils/test_mpmcqueue.cpp
   utils/test_interpolators.cpp
   utils/test_intrusive_list.cpp
+  utils/test_random.cpp
   internal/test_threadpool.cpp
   dsp/test_filters.cpp
   dsp/test_delay.cpp
