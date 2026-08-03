@@ -73,17 +73,35 @@ patcherImplementation::~patcherImplementation() {
   // Stop scheduling and re-arming reclaim passes first, so the joins below
   // terminate instead of chasing a self-perpetuating ping-pong.
   shuttingDown_.store(true, std::memory_order_release);
-  // memory cleanup
-  Clear();
-  // A reclaim pass already handed to the background pool may still be draining
-  // the retire lists; wait for both halves of the ping-pong to finish before we
-  // free those lists from under them. shuttingDown_ guarantees neither re-arms.
-  reclaimJobs_[0].join();
-  reclaimJobs_[1].join();
-  // The audio thread is stopped at destruction, so reclaim unconditionally:
-  // the remaining retire lists (and the final published snapshot) are freed
-  // here rather than waiting on the block counter.
-  FreeAllRetired();
+  // A destructor is implicitly noexcept, so anything escaping the teardown below
+  // would call std::terminate() and take the host process down instead of
+  // shutting the engine down (issue #414). Clear() locks and allocates, so it is
+  // the one step here that can realistically throw — guard it on its own rather
+  // than wrapping the whole body, because the joins and FreeAllRetired() beneath
+  // it must run even when it fails: a reclaim pass still on the background pool
+  // holds `this` and the retire lists it is draining.
+  try {
+    // memory cleanup
+    Clear();
+  } catch (...) {
+    INTERNAL::LogImpl().emit(E_ERROR, "PATCHER::patcherImplementation Clear swallowed exception");
+  }
+  try {
+    // A reclaim pass already handed to the background pool may still be draining
+    // the retire lists; wait for both halves of the ping-pong to finish before we
+    // free those lists from under them. shuttingDown_ guarantees neither re-arms.
+    // These joins are a spin-wait on an atomic flag (INTERNAL::threadPoolJob), not
+    // std::thread::join, so they carry no system_error of their own.
+    reclaimJobs_[0].join();
+    reclaimJobs_[1].join();
+    // The audio thread is stopped at destruction, so reclaim unconditionally:
+    // the remaining retire lists (and the final published snapshot) are freed
+    // here rather than waiting on the block counter.
+    FreeAllRetired();
+  } catch (...) {
+    INTERNAL::LogImpl().emit(E_ERROR,
+                             "PATCHER::patcherImplementation destructor swallowed exception");
+  }
 }
 
 const char* patcherImplementation::Type() const {

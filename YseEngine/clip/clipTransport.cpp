@@ -11,6 +11,7 @@
 
 #include "../clock/clockManager.h"
 #include "../clock/domainClock.h"
+#include "../implementations/logImplementation.h"
 #include "../synth/synthInterface.hpp"
 
 namespace {
@@ -116,13 +117,22 @@ YSE::CLIP::transport::transport(clip* head)
 }
 
 YSE::CLIP::transport::~transport() {
-  // The impl is only freed by the slow-pool delete job once the audio thread
-  // has retired it from `inUse`, so nothing on the audio thread still touches
-  // these buffers — safe to free here.
-  reclaimRetired();
-  delete current;
-  current = nullptr;
-  delete incoming.exchange(nullptr, std::memory_order_acquire);
+  // A destructor is implicitly noexcept, so anything escaping here would call
+  // std::terminate() and kill the host process instead of shutting the engine
+  // down (issue #414). The deletes below are nothrow, but reclaimRetired() goes
+  // through lfQueue::try_pop, which is not noexcept — its reentrancy guard can
+  // throw. Guard the whole body so this stays true as the teardown grows.
+  try {
+    // The impl is only freed by the slow-pool delete job once the audio thread
+    // has retired it from `inUse`, so nothing on the audio thread still touches
+    // these buffers — safe to free here.
+    reclaimRetired();
+    delete current;
+    current = nullptr;
+    delete incoming.exchange(nullptr, std::memory_order_acquire);
+  } catch (...) {
+    INTERNAL::LogImpl().emit(E_ERROR, "CLIP::transport destructor swallowed exception");
+  }
 }
 
 bool YSE::CLIP::transport::bind(const std::string& clockName) {
