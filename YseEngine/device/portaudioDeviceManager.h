@@ -60,9 +60,14 @@ namespace YSE {
       void updateCpuLoadEma(std::chrono::steady_clock::time_point cbStart,
                             unsigned long numSamples);
 
-      void audioDeviceError(PaError err);
+      void audioDeviceError(PaError err) const;
       PaStream* stream;
-      PaError err;
+
+      // Initialised in-class because updateDeviceList() reports a
+      // Pa_GetDeviceCount() failure through audioDeviceError() before any call
+      // has assigned `err` (issue #418) — on a headless host that is the first
+      // thing that happens.
+      PaError err = paNoError;
       UInt bufferPos;
       bool initDone, open, started;
 

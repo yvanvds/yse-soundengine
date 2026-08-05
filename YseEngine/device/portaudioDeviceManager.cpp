@@ -34,10 +34,6 @@ YSE::DEVICE::managerObject& YSE::DEVICE::Manager() {
 
 YSE::DEVICE::managerObject::managerObject()
   : stream(nullptr),
-    // Initialised because updateDeviceList() reports a Pa_GetDeviceCount()
-    // failure through audioDeviceError() before any call has assigned `err`
-    // (issue #418) — on a headless host that is the first thing that happens.
-    err(paNoError),
     bufferPos(STANDARD_BUFFERSIZE),
     initDone(false),
     open(false),
@@ -369,7 +365,7 @@ void YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
     started = true;
 }
 
-void YSE::DEVICE::managerObject::audioDeviceError(PaError error) {
+void YSE::DEVICE::managerObject::audioDeviceError(PaError error) const {
   // Report the code that was passed in, not the `err` member. Every caller but
   // one passes `err` anyway, so this is a no-op for them; updateDeviceList()
   // passes Pa_GetDeviceCount()'s negative return, which used to be reported as
