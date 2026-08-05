@@ -2165,6 +2165,121 @@
       }
     ]
   },
+  ".scale": {
+    "category": "MATH",
+    "description": "Control-rate range mapping. Maps the value on inlet 0 from the input range onto the output range and emits it as a float. An exponent other than 1 bends the mapping into a curve, symmetrically around the bottom of the input range. Like Max's default the mapping extrapolates: an input outside the input range gives an output outside the output range. Set the clip parameter to 1 to clamp the result to the output range instead. A degenerate input range (low equal to high) emits the output low, and any result that would not be finite emits 0 rather than a NaN or an infinity.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Value to map — fires the evaluation.",
+        "index": 0,
+        "label": "value",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Bottom of the input range — stored until the next evaluation.",
+        "index": 1,
+        "label": "inLow",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Top of the input range — stored until the next evaluation.",
+        "index": 2,
+        "label": "inHigh",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Bottom of the output range — stored until the next evaluation.",
+        "index": 3,
+        "label": "outLow",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Top of the output range — stored until the next evaluation.",
+        "index": 4,
+        "label": "outHigh",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Curve exponent, 1 for a linear mapping — stored until the next evaluation.",
+        "index": 5,
+        "label": "exponent",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".scale",
+    "outlets": [
+      {
+        "doc": "The input value mapped onto the output range.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Bottom of the input range.",
+        "name": "inLow",
+        "range": "any float"
+      },
+      {
+        "default": "127",
+        "doc": "Top of the input range.",
+        "name": "inHigh",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "Bottom of the output range.",
+        "name": "outLow",
+        "range": "any float"
+      },
+      {
+        "default": "1",
+        "doc": "Top of the output range.",
+        "name": "outHigh",
+        "range": "any float"
+      },
+      {
+        "default": "1",
+        "doc": "Curve exponent; 1 is a linear mapping.",
+        "name": "exponent",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "1 clamps the result to the output range, 0 lets it extrapolate (Max's default).",
+        "name": "clip",
+        "range": "0 or 1"
+      }
+    ]
+  },
   ".sin": {
     "category": "MATH",
     "description": "Control-rate sine. Emits sin(in) as a float whenever inlet 0 fires. The input is an angle in radians, as in Max.",
