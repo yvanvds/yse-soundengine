@@ -49,7 +49,7 @@ YSE::CHANNEL::managerObject::~managerObject() noexcept {
     delete[] outputAngles;
     delete[] outputIsLFE;
   } catch (...) {
-    INTERNAL::LogImpl().emit(E_ERROR, "CHANNEL::Manager destructor swallowed exception");
+    INTERNAL::EmitNoThrow(E_ERROR, "CHANNEL::Manager destructor swallowed exception");
   }
 }
 

@@ -10,15 +10,41 @@
 
 #include "logImplementation.h"
 #include "../internalHeaders.h"
+#include <atomic>
 #include <iostream>
 
 #ifdef YSE_ANDROID
 #include <android/log.h>
 #endif
 
+namespace {
+  // True once ~logImplementation() has begun. Constant-initialized, so unlike
+  // the object it describes this flag is valid for the whole process — which
+  // is the point: a destructor reaching EmitNoThrow() during static teardown
+  // needs an answer to "is the logger still there?" from *outside* the
+  // logger's own lifetime (issues #433, #298).
+  std::atomic<bool> logImplDestroyed{false};
+} // namespace
+
 YSE::INTERNAL::logImplementation& YSE::INTERNAL::LogImpl() {
   static logImplementation impl;
   return impl;
+}
+
+void YSE::INTERNAL::EmitNoThrow(YSE::ERROR_CODE value, const char* info) noexcept {
+  if (logImplDestroyed.load(std::memory_order_acquire)) return;
+
+  try {
+    // The std::string temporary is built *inside* the try, which is the whole
+    // point of the const char* parameter: at the call sites this replaces, the
+    // conversion happened in the catch handler's own frame, where a throw would
+    // escape the enclosing noexcept destructor and call std::terminate().
+    LogImpl().emit(value, info != nullptr ? info : "");
+  } catch (...) { // NOSONAR NOLINT(bugprone-empty-catch): swallowing *is* the handling
+    // There is no second channel to report a failed failure report on, and the
+    // caller is a destructor that must not throw. Dropping the message is the
+    // only outcome left.
+  }
 }
 
 YSE::INTERNAL::logImplementation::logImplementation() : handler(nullptr) {
@@ -37,6 +63,9 @@ YSE::INTERNAL::logImplementation::logImplementation() : handler(nullptr) {
 }
 
 YSE::INTERNAL::logImplementation::~logImplementation() {
+  // Publish before touching any member: from here on EmitNoThrow() must drop
+  // messages rather than reach into an object under teardown.
+  logImplDestroyed.store(true, std::memory_order_release);
   logFile << "=== end of YSE log ===" << std::endl;
   logFile.close();
 }

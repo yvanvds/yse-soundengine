@@ -33,7 +33,7 @@ YSE::MIDI::managerObject::~managerObject() noexcept {
     inUse.clear();
     implementations.clear();
   } catch (...) {
-    INTERNAL::LogImpl().emit(E_ERROR, "MIDI::Manager destructor swallowed exception");
+    INTERNAL::EmitNoThrow(E_ERROR, "MIDI::Manager destructor swallowed exception");
   }
 }
 

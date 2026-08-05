@@ -313,7 +313,12 @@ jobs:
         # use-after-free is caught deterministically. Asan leg only.
         # detect_leaks=0 for the same reason as the patcher gate above (the
         # process-global pools/bus are never torn down); this gate is about UAF.
+        #
+        # yse_tests_logsafety rides along (issue #433): INTERNAL::EmitNoThrow is
+        # what destructors report through during that same static teardown, and
+        # its lifetime guard against a already-destroyed logger belongs under the
+        # same UAF detector.
         if: matrix.san == 'asan'
         env:
           ASAN_OPTIONS: detect_leaks=0
-        run: ctest --test-dir build-tests-asan -R yse_tests_lifecycle --output-on-failure
+        run: ctest --test-dir build-tests-asan -R "yse_tests_lifecycle|yse_tests_logsafety" --output-on-failure

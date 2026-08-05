@@ -26,7 +26,7 @@ YSE::CLIP::managerObject::~managerObject() noexcept {
     inUse.clear();
     implementations.clear();
   } catch (...) {
-    INTERNAL::LogImpl().emit(E_ERROR, "CLIP::Manager destructor swallowed exception");
+    INTERNAL::EmitNoThrow(E_ERROR, "CLIP::Manager destructor swallowed exception");
   }
 }
 
