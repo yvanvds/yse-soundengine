@@ -98,8 +98,9 @@ namespace {
 
   // A fully populated descriptor. The engine's PortAudio enumerator is the only
   // other producer and it needs real hardware, so the tests build one by hand.
-  // Every scalar field is set explicitly — the default constructor leaves the
-  // int members indeterminate (filed separately, see the PR for #418).
+  // Every scalar field is set explicitly, so these cases assert on values they
+  // wrote rather than on the constructor's defaults — those are #565's contract
+  // and are covered by the capisurface suite.
   YSE::device makeDevice() {
     YSE::device d;
     d.setName("Test Output Device")

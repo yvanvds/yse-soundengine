@@ -10,6 +10,11 @@
   are copied into the buffer and a NUL terminator is appended. The return
   value is the full length of the string (excluding the NUL); pass cap=0 to
   query the required size before allocating.
+
+  The indexed getters (channel names, sample rates, buffer sizes) are
+  bound-checked: an index at or beyond the matching yse_device_num_*() count
+  yields the same result as a NULL handle — an empty out buffer and a return
+  of 0 / 0.0 — so iterating with a stale count is safe.
 */
 
 #ifndef YSE_C_DEVICE_H_INCLUDED

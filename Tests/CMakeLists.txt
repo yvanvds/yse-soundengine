@@ -19,6 +19,7 @@ set(YSE_TEST_SOURCES
   utils/test_intrusive_list.cpp
   utils/test_random.cpp
   internal/test_threadpool.cpp
+  internal/test_log_nothrow.cpp
   dsp/test_filters.cpp
   dsp/test_delay.cpp
   dsp/test_envelope.cpp
@@ -268,12 +269,17 @@ add_test(
   # yse_system_init_offline(), swaps the process-global log sink, and installs
   # the process-global BufferIO VFS hooks. It runs in its own process
   # (yse_tests_capisurface).
+  # `logsafety` (issue #433 noexcept destructor logging) is excluded for the
+  # log-sink half of that same reason: it installs a sink that throws on every
+  # message, which any other suite logging concurrently in this process — a
+  # live audio thread above all — would not survive. It runs in its own
+  # process (yse_tests_logsafety).
   # `devicelayer` (issue #418 device / audio-IO layer) is excluded for the same
   # family of reasons: it drives System::initOffline(), mutates the global
   # DEVICE::Manager() singleton (updateDeviceList / close / pause / resume) and
   # calls paCallback on the test thread. It runs in its own process
   # (yse_tests_devicelayer).
-  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthhandlers,synthbus,synthcapi,instrumentcapi,midisynth,playersynth,playercapi,sendstress,channelcapi,synthdemos,clock,clip,buscapi,capisurface,devicelayer --duration=true
+  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthhandlers,synthbus,synthcapi,instrumentcapi,midisynth,playersynth,playercapi,sendstress,channelcapi,synthdemos,clock,clip,buscapi,capisurface,logsafety,devicelayer --duration=true
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_unit_tests PROPERTIES TIMEOUT 600)
@@ -472,6 +478,18 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_capisurface PROPERTIES LABELS "system;c-api;lifecycle")
+
+# Destructor-safe logging (issue #433). Verifies INTERNAL::EmitNoThrow absorbs
+# a log sink that throws, where the plain emit() call it replaced propagated
+# straight out of an implicitly-noexcept destructor. Isolated in its own
+# process because it swaps the process-global log sink for a throwing one; no
+# engine session and no audio device, so it runs on headless CI.
+add_test(
+  NAME    yse_tests_logsafety
+  COMMAND yse_tests --test-suite=logsafety
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_logsafety PROPERTIES LABELS internal)
 
 # Device / audio-IO layer (issue #418). Covers the descriptor and setup
 # plumbing, the PortAudio manager's error / enumeration paths, the audio

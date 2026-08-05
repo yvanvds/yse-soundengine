@@ -64,6 +64,9 @@ YSE_C_API size_t yse_device_get_output_channel_name(YseDevice* dev, unsigned int
   try {
     return copy_string(to_cpp(dev)->getOutputChannelName(idx), buf, cap);
   } catch (const std::exception&) {
+    // The engine getter bound-checks with .at(), so an out-of-range index
+    // lands here: report an empty string instead of reading past the end
+    // (issue #565).
     if (buf && cap > 0) buf[0] = '\0';
     return 0;
   }
@@ -82,6 +85,7 @@ YSE_C_API size_t yse_device_get_input_channel_name(YseDevice* dev, unsigned int 
   try {
     return copy_string(to_cpp(dev)->getInputChannelName(idx), buf, cap);
   } catch (const std::exception&) {
+    // Out-of-range index — see yse_device_get_output_channel_name.
     if (buf && cap > 0) buf[0] = '\0';
     return 0;
   }
@@ -91,14 +95,27 @@ YSE_C_API unsigned int yse_device_num_sample_rates(YseDevice* dev) {
   return dev ? to_cpp(dev)->getNumAvailableSampleRates() : 0;
 }
 YSE_C_API double yse_device_get_sample_rate(YseDevice* dev, unsigned int idx) {
-  return dev ? to_cpp(dev)->getAvailableSampleRate(idx) : 0.0;
+  if (!dev) return 0.0;
+  try {
+    return to_cpp(dev)->getAvailableSampleRate(idx);
+  } catch (const std::exception&) {
+    // Out-of-range index: report 0.0 rather than letting the engine's
+    // std::out_of_range escape across the C ABI.
+    return 0.0;
+  }
 }
 
 YSE_C_API unsigned int yse_device_num_buffer_sizes(YseDevice* dev) {
   return dev ? to_cpp(dev)->getNumAvailableBufferSizes() : 0;
 }
 YSE_C_API int yse_device_get_buffer_size(YseDevice* dev, unsigned int idx) {
-  return dev ? to_cpp(dev)->getAvailableBufferSize(idx) : 0;
+  if (!dev) return 0;
+  try {
+    return to_cpp(dev)->getAvailableBufferSize(idx);
+  } catch (const std::exception&) {
+    // Out-of-range index — same contract as yse_device_get_sample_rate.
+    return 0;
+  }
 }
 
 YSE_C_API int yse_device_default_buffer_size(YseDevice* dev) {

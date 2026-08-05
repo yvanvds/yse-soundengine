@@ -37,7 +37,7 @@ YSE::SYNTH::managerObject::~managerObject() noexcept {
       implementations.clear();
     }
   } catch (...) {
-    INTERNAL::LogImpl().emit(E_ERROR, "SYNTH::Manager destructor swallowed exception");
+    INTERNAL::EmitNoThrow(E_ERROR, "SYNTH::Manager destructor swallowed exception");
   }
 }
 

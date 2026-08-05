@@ -11,7 +11,7 @@
 #include "deviceInterface.hpp"
 #include "../internalHeaders.h"
 
-YSE::device::device() {}
+YSE::device::device() : defaultBufferSize(0), inputLatency(0), outputLatency(0), ID(0) {}
 
 YSE::device& YSE::device::setName(const std::string& name) {
   this->name = name;
@@ -72,7 +72,7 @@ unsigned int YSE::device::getNumOutputChannelNames() const {
 }
 
 const std::string& YSE::device::getOutputChannelName(unsigned int nr) const {
-  return outputChannelNames[nr];
+  return outputChannelNames.at(nr);
 }
 
 unsigned int YSE::device::getNumInputChannelNames() const {
@@ -80,7 +80,7 @@ unsigned int YSE::device::getNumInputChannelNames() const {
 }
 
 const std::string& YSE::device::getInputChannelName(unsigned int nr) const {
-  return inputChannelNames[nr];
+  return inputChannelNames.at(nr);
 }
 
 unsigned int YSE::device::getNumAvailableSampleRates() const {
@@ -88,7 +88,7 @@ unsigned int YSE::device::getNumAvailableSampleRates() const {
 }
 
 double YSE::device::getAvailableSampleRate(unsigned int nr) const {
-  return sampleRates[nr];
+  return sampleRates.at(nr);
 }
 
 unsigned int YSE::device::getNumAvailableBufferSizes() const {
@@ -96,7 +96,7 @@ unsigned int YSE::device::getNumAvailableBufferSizes() const {
 }
 
 int YSE::device::getAvailableBufferSize(unsigned int nr) const {
-  return bufferSizes[nr];
+  return bufferSizes.at(nr);
 }
 
 YSE::device& YSE::device::setDefaultBufferSize(int value) {

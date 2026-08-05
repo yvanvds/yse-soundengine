@@ -131,7 +131,7 @@ YSE::CLIP::transport::~transport() {
     current = nullptr;
     delete incoming.exchange(nullptr, std::memory_order_acquire);
   } catch (...) {
-    INTERNAL::LogImpl().emit(E_ERROR, "CLIP::transport destructor swallowed exception");
+    INTERNAL::EmitNoThrow(E_ERROR, "CLIP::transport destructor swallowed exception");
   }
 }
 

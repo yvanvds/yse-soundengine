@@ -202,8 +202,16 @@ python yse.py analyze                              # whole project (slow)
 
 Per CLAUDE.md item 6, run `python yse.py analyze <changed-files>` before
 committing and clear any **new** findings on the modified code. The
-baseline (~50 pre-existing findings across `YseEngine/`) is tracked as
-backlog — don't fix in passing during unrelated work.
+baseline (~335 pre-existing findings across `YseEngine/` and `Tests/`, 285
+of them in headers) is tracked as backlog in #573 — don't fix in passing
+during unrelated work.
+
+Note that a header finding is reported once per *include spelling*, not once
+per header: clang-tidy dedupes on the literal path, so the same warning shows
+up again as `YseEngine/channel/../classes.hpp` after
+`YseEngine/classes.hpp`. A whole-project run prints ~3200 warning lines for
+~335 distinct findings. Judge "did I add a finding?" by the file:line, not by
+the line count.
 
 ## Things that are out of scope for this skill
 

@@ -31,7 +31,7 @@ YSE::CLOCK::managerObject::~managerObject() noexcept {
     inUse.clear();
     implementations.clear();
   } catch (...) {
-    INTERNAL::LogImpl().emit(E_ERROR, "CLOCK::Manager destructor swallowed exception");
+    INTERNAL::EmitNoThrow(E_ERROR, "CLOCK::Manager destructor swallowed exception");
   }
 }
 

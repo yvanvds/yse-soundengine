@@ -84,7 +84,7 @@ patcherImplementation::~patcherImplementation() {
     // memory cleanup
     Clear();
   } catch (...) {
-    INTERNAL::LogImpl().emit(E_ERROR, "PATCHER::patcherImplementation Clear swallowed exception");
+    INTERNAL::EmitNoThrow(E_ERROR, "PATCHER::patcherImplementation Clear swallowed exception");
   }
   try {
     // A reclaim pass already handed to the background pool may still be draining
@@ -99,8 +99,7 @@ patcherImplementation::~patcherImplementation() {
     // here rather than waiting on the block counter.
     FreeAllRetired();
   } catch (...) {
-    INTERNAL::LogImpl().emit(E_ERROR,
-                             "PATCHER::patcherImplementation destructor swallowed exception");
+    INTERNAL::EmitNoThrow(E_ERROR, "PATCHER::patcherImplementation destructor swallowed exception");
   }
 }
 

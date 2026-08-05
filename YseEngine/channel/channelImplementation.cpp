@@ -64,8 +64,7 @@ YSE::CHANNEL::implementationObject::~implementationObject() noexcept {
       head.load()->pimpl = nullptr;
     }
   } catch (...) {
-    INTERNAL::LogImpl().emit(E_ERROR,
-                             "CHANNEL::implementationObject destructor swallowed exception");
+    INTERNAL::EmitNoThrow(E_ERROR, "CHANNEL::implementationObject destructor swallowed exception");
   }
 }
 
