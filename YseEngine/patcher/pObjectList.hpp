@@ -13,6 +13,7 @@ namespace YSE {
    *  - DSP generators: ``D_SINE``, ``D_SAW``, ``D_NOISE``.
    *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``.
    *  - Comparison / logic: ``G_EQUAL``, ``G_LESS``, ``G_LOGICALAND``, ...
+   *  - Bitwise: ``G_BITAND``, ``G_BITOR``, ``G_SHIFTLEFT``, ``G_SHIFTRIGHT``.
    *  - DSP filters: ``D_LOWPASS``, ``D_HIGHPASS``, ``D_BANDPASS``, ``D_VCF``.
    *  - I/O: ``D_DAC``, ``D_ADC``, ``D_LINE``.
    *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_METRO``, ``G_RANDOM``.
@@ -60,6 +61,11 @@ namespace YSE {
     DEFOBJ(G_GREATEREQUAL, ".>=");
     DEFOBJ(G_LOGICALAND, ".&&");
     DEFOBJ(G_LOGICALOR, ".||");
+
+    DEFOBJ(G_BITAND, ".&");
+    DEFOBJ(G_BITOR, ".|");
+    DEFOBJ(G_SHIFTLEFT, ".<<");
+    DEFOBJ(G_SHIFTRIGHT, ".>>");
 
     DEFOBJ(G_RANDOM, ".random");
     DEFOBJ(G_METRO, ".metro");
