@@ -1005,6 +1005,34 @@
     ],
     "params": []
   },
+  ".atodb": {
+    "category": "MATH",
+    "description": "Control-rate linear amplitude to decibels. Emits the input amplitude expressed on the engine's decibel scale whenever inlet 0 fires. That scale is the one used by the rmsToDb DSP module and by the engine's own volume reporting: amplitude 1.0 is 100 dB, amplitude 0 is 0 dB, and the result never goes negative. Subtract 100 to read it as conventional dBFS.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Linear amplitude to convert — fires the evaluation. Zero and negative values emit 0.",
+        "index": 0,
+        "label": "in",
+        "range": "0.0 and up"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".atodb",
+    "outlets": [
+      {
+        "doc": "The amplitude in decibels, with 100 dB meaning an amplitude of 1.0.",
+        "index": 0,
+        "label": "out",
+        "range": "0-485 dB",
+        "type": "FLOAT"
+      }
+    ],
+    "params": []
+  },
   ".b": {
     "category": "GUI",
     "description": "Momentary button. Any input (bang/int/float) lights the button until the next GUI poll; emits a bang on every calculate tick.",
@@ -1033,6 +1061,58 @@
       }
     ],
     "params": []
+  },
+  ".cartopol": {
+    "category": "MATH",
+    "description": "Control-rate cartesian to polar conversion. Whenever inlet 0 fires it emits the polar form of the point (x, y): its distance from the origin on outlet 0 and its angle in radians, measured from the positive x axis, on outlet 1. Both outlets fire on every evaluation, right one first.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "x coordinate — fires the evaluation.",
+        "index": 0,
+        "label": "x",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "y coordinate — stored until the next evaluation.",
+        "index": 1,
+        "label": "y",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".cartopol",
+    "outlets": [
+      {
+        "doc": "Distance of (x, y) from the origin.",
+        "index": 0,
+        "label": "amplitude",
+        "range": "0 or higher",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "Angle of (x, y) in radians, measured from the positive x axis.",
+        "index": 1,
+        "label": "angle",
+        "range": "-pi to pi",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Initial y coordinate.",
+        "name": "y",
+        "range": "any float"
+      }
+    ]
   },
   ".channelpressure": {
     "category": "MIDI",
@@ -1214,6 +1294,34 @@
         "range": "any int"
       }
     ]
+  },
+  ".dbtoa": {
+    "category": "MATH",
+    "description": "Control-rate decibels to linear amplitude. Emits the input decibel level expressed as a linear amplitude whenever inlet 0 fires — the exact inverse of .atodb, so 100 dB gives an amplitude of 1.0 and 0 dB gives 0. Input is clamped at 485 dB to keep the result finite.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Decibel level to convert — fires the evaluation. Zero and negative values emit 0.",
+        "index": 0,
+        "label": "in",
+        "range": "0-485 dB"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".dbtoa",
+    "outlets": [
+      {
+        "doc": "The linear amplitude, with an amplitude of 1.0 meaning 100 dB.",
+        "index": 0,
+        "label": "out",
+        "range": "0.0 and up",
+        "type": "FLOAT"
+      }
+    ],
+    "params": []
   },
   ".div": {
     "category": "MATH",
@@ -1684,6 +1792,58 @@
         "doc": "MIDI channel offset (0-based).",
         "name": "channel",
         "range": "0-15"
+      }
+    ]
+  },
+  ".poltocar": {
+    "category": "MATH",
+    "description": "Control-rate polar to cartesian conversion. Whenever inlet 0 fires it emits the cartesian form of the polar point (amplitude, angle): the x coordinate on outlet 0 and the y coordinate on outlet 1. The inverse of .cartopol, so feeding one into the other returns the original pair. Both outlets fire on every evaluation, right one first.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Distance from the origin — fires the evaluation.",
+        "index": 0,
+        "label": "amplitude",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Angle in radians, measured from the positive x axis — stored until the next evaluation.",
+        "index": 1,
+        "label": "angle",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".poltocar",
+    "outlets": [
+      {
+        "doc": "x coordinate of the point.",
+        "index": 0,
+        "label": "x",
+        "range": "any float",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "y coordinate of the point.",
+        "index": 1,
+        "label": "y",
+        "range": "any float",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Initial angle in radians.",
+        "name": "angle",
+        "range": "any float"
       }
     ]
   },

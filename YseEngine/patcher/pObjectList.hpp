@@ -25,7 +25,8 @@ namespace YSE {
    *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_METRO``, ``G_RANDOM``.
    *  - Messaging: ``G_SEND``, ``G_RECEIVE``, ``G_ROUTE``, ``G_GATE``, ``G_SWITCH``.
    *  - MIDI: ``M_OUT``, ``M_NOTEON``, ``M_NOTEOFF``, ``M_CONTROL``.
-   *  - Conversion: ``MIDITOFREQUENCY``, ``FREQUENCYTOMIDI``.
+   *  - Conversion: ``MIDITOFREQUENCY``, ``FREQUENCYTOMIDI``, ``G_ATODB``,
+   *    ``G_DBTOA``, ``G_CARTOPOL``, ``G_POLTOCAR``.
    */
   struct API OBJ {
     DEFOBJ(PATCHER, "patcher");
@@ -109,6 +110,11 @@ namespace YSE {
 
     DEFOBJ(MIDITOFREQUENCY, ".mtof");
     DEFOBJ(FREQUENCYTOMIDI, ".ftom");
+
+    DEFOBJ(G_ATODB, ".atodb");
+    DEFOBJ(G_DBTOA, ".dbtoa");
+    DEFOBJ(G_CARTOPOL, ".cartopol");
+    DEFOBJ(G_POLTOCAR, ".poltocar");
 
     DEFOBJ(D_LOWPASS, "~lp");
     DEFOBJ(D_HIGHPASS, "~hp");

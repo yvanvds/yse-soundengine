@@ -135,9 +135,11 @@ set(YSE_SRCS
   patcher/math/gBitwise.cpp
   patcher/math/gCompare.cpp
   patcher/math/gCounter.cpp
+  patcher/math/gDbConvert.cpp
   patcher/math/gDivide.cpp
   patcher/math/gIntDiv.cpp
   patcher/math/gMultiply.cpp
+  patcher/math/gPolar.cpp
   patcher/math/gPow.cpp
   patcher/math/gRandom.cpp
   patcher/math/gReverse.cpp
@@ -290,9 +292,11 @@ set_source_files_properties(
   patcher/math/gBitwise.cpp
   patcher/math/gCompare.cpp
   patcher/math/gCounter.cpp
+  patcher/math/gDbConvert.cpp
   patcher/math/gDivide.cpp
   patcher/math/gIntDiv.cpp
   patcher/math/gMultiply.cpp
+  patcher/math/gPolar.cpp
   patcher/math/gPow.cpp
   patcher/math/gRandom.cpp
   patcher/math/gReverse.cpp
