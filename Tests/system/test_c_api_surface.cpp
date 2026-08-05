@@ -33,6 +33,8 @@
 
 #include <cstring>
 #include <mutex>
+#include <new> // placement new — constructs a device over pre-dirtied storage
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -65,8 +67,9 @@ namespace {
   // A fully populated device descriptor. The engine's enumerator is the only
   // other producer of these and it needs real hardware, so the tests build one
   // by hand and hand the C API the same reinterpret_cast the engine does in
-  // yse_system_get_device(). Every scalar field is set explicitly: the default
-  // constructor leaves the int members indeterminate.
+  // yse_system_get_device(). Every scalar field is set explicitly so the
+  // getters have distinguishable values to mirror (the constructor itself
+  // zero-initialises them — see the issue #565 case below).
   YSE::device makeDevice() {
     YSE::device d;
     d.setName("Test Output Device") // 18 chars — used by the truncation cases
@@ -235,6 +238,97 @@ TEST_SUITE("capisurface") {
     CHECK(yse_device_output_latency(nullptr) == 0);
     CHECK(yse_device_input_latency(nullptr) == 0);
     CHECK(yse_device_get_id(nullptr) == 0);
+  }
+
+  TEST_CASE("c-api device: out-of-range indices read as empty (issue #565)") {
+    // Before the fix the engine getters indexed with operator[], so the
+    // try/catch in the C API could never fire and the two scalar getters had
+    // no guard at all: an FFI consumer iterating with a stale count (a device
+    // list refreshed between yse_device_num_output_channels() and the name
+    // loop) got a silent out-of-bounds read. The engine now bound-checks with
+    // .at() and the C API translates that into the NULL-handle contract.
+    YSE::device d = makeDevice();
+    YseDevice* dev = handle(d);
+
+    char buf[16];
+    std::memset(buf, 'x', sizeof(buf));
+    CHECK(yse_device_get_output_channel_name(dev, 5, buf, sizeof(buf)) == 0);
+    CHECK(buf[0] == '\0');
+    std::memset(buf, 'x', sizeof(buf));
+    CHECK(yse_device_get_input_channel_name(dev, 5, buf, sizeof(buf)) == 0);
+    CHECK(buf[0] == '\0');
+
+    // The first index past the end is the one a stale count actually hits.
+    std::memset(buf, 'x', sizeof(buf));
+    CHECK(yse_device_get_output_channel_name(dev, yse_device_num_output_channels(dev), buf,
+                                             sizeof(buf)) == 0);
+    CHECK(buf[0] == '\0');
+    std::memset(buf, 'x', sizeof(buf));
+    CHECK(yse_device_get_input_channel_name(dev, yse_device_num_input_channels(dev), buf,
+                                            sizeof(buf)) == 0);
+    CHECK(buf[0] == '\0');
+
+    // No out buffer at all on an out-of-range index is still safe.
+    CHECK(yse_device_get_output_channel_name(dev, 5, nullptr, 0) == 0);
+    CHECK(yse_device_get_input_channel_name(dev, 5, nullptr, 0) == 0);
+
+    CHECK(yse_device_get_sample_rate(dev, 5) == doctest::Approx(0.0));
+    CHECK(yse_device_get_sample_rate(dev, yse_device_num_sample_rates(dev)) ==
+          doctest::Approx(0.0));
+    CHECK(yse_device_get_buffer_size(dev, 5) == 0);
+    CHECK(yse_device_get_buffer_size(dev, yse_device_num_buffer_sizes(dev)) == 0);
+
+    // An empty descriptor has no valid index at all.
+    YSE::device empty;
+    YseDevice* none = handle(empty);
+    std::memset(buf, 'x', sizeof(buf));
+    CHECK(yse_device_get_output_channel_name(none, 0, buf, sizeof(buf)) == 0);
+    CHECK(buf[0] == '\0');
+    std::memset(buf, 'x', sizeof(buf));
+    CHECK(yse_device_get_input_channel_name(none, 0, buf, sizeof(buf)) == 0);
+    CHECK(buf[0] == '\0');
+    CHECK(yse_device_get_sample_rate(none, 0) == doctest::Approx(0.0));
+    CHECK(yse_device_get_buffer_size(none, 0) == 0);
+  }
+
+  TEST_CASE("device: indexed getters throw rather than read past the end (issue #565)") {
+    // The C++ side of the same fix: the engine getters bound-check, so a C++
+    // consumer gets a defined std::out_of_range instead of undefined
+    // behaviour. This is what makes the C API's catch reachable.
+    YSE::device d = makeDevice();
+    const YSE::device& c = d;
+
+    CHECK_THROWS_AS((void)c.getOutputChannelName(5), std::out_of_range);
+    CHECK_THROWS_AS((void)c.getInputChannelName(5), std::out_of_range);
+    CHECK_THROWS_AS((void)c.getAvailableSampleRate(5), std::out_of_range);
+    CHECK_THROWS_AS((void)c.getAvailableBufferSize(5), std::out_of_range);
+
+    // In-range indices are untouched.
+    CHECK(c.getOutputChannelName(1) == "out 2");
+    CHECK(c.getAvailableBufferSize(1) == 512);
+  }
+
+  TEST_CASE("device: the constructor zero-initialises the scalar fields (issue #565)") {
+    // defaultBufferSize, inputLatency, outputLatency and ID were left out of
+    // the constructor, so yse_device_default_buffer_size() and friends
+    // returned whatever was in that memory unless the enumerator happened to
+    // set every one of them.
+    //
+    // A plain stack-local device is an unreliable regression test — the slot
+    // is often already zero. Placement-new over 0xFF-filled storage (which
+    // reads back as -1 for an int) makes the uninitialised read deterministic,
+    // the same trick test_reverb_dsp.cpp uses for issue #263.
+    alignas(YSE::device) unsigned char storage[sizeof(YSE::device)];
+    std::memset(storage, 0xFF, sizeof(storage));
+    YSE::device* d = new (storage) YSE::device();
+    YseDevice* dev = handle(*d);
+
+    CHECK(yse_device_default_buffer_size(dev) == 0);
+    CHECK(yse_device_output_latency(dev) == 0);
+    CHECK(yse_device_input_latency(dev) == 0);
+    CHECK(yse_device_get_id(dev) == 0);
+
+    d->~device();
   }
 
   // ─── yse_device.cpp: deviceSetup ───────────────────────────────────────────
