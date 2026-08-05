@@ -56,6 +56,7 @@
 #include "math/gAtan2.h"
 #include "math/gDbConvert.h"
 #include "math/gPolar.h"
+#include "math/gClip.h"
 #include "math/gScale.h"
 #include "math/gZmap.h"
 
@@ -140,6 +141,9 @@ pRegistry::pRegistry() {
   // Range mapping (issues #443, #444)
   Add(OBJ::G_SCALE, gScale::Create);
   Add(OBJ::G_ZMAP, gZmap::Create);
+
+  // Range limiting (issue #445)
+  Add(OBJ::G_CLIP, gClip::Create);
 
   // Trigonometric + hyperbolic functions (issue #441)
   Add(OBJ::G_SIN, gSin::Create);

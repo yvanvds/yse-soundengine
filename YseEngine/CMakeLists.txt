@@ -133,6 +133,7 @@ set(YSE_SRCS
   patcher/math/gAdd.cpp
   patcher/math/gAtan2.cpp
   patcher/math/gBitwise.cpp
+  patcher/math/gClip.cpp
   patcher/math/gCompare.cpp
   patcher/math/gCounter.cpp
   patcher/math/gDbConvert.cpp
@@ -292,6 +293,7 @@ set_source_files_properties(
   patcher/math/gAdd.cpp
   patcher/math/gAtan2.cpp
   patcher/math/gBitwise.cpp
+  patcher/math/gClip.cpp
   patcher/math/gCompare.cpp
   patcher/math/gCounter.cpp
   patcher/math/gDbConvert.cpp

@@ -1148,6 +1148,67 @@
       }
     ]
   },
+  ".clip": {
+    "category": "MATH",
+    "description": "Control-rate range limiting. Passes the value on inlet 0 through unchanged when it lies inside the [low, high] range and pins it to the nearest limit when it does not, emitting the result as a float. The control-rate counterpart of ~clip, and the object to reach for when a value must never leave the legal bounds of the parameter it drives. Unlike .zmap it does not rescale — the range is a limit, not a mapping. Limits given the wrong way round (low above high) are treated as an ordered pair and still clip against the right two numbers, and nothing non-finite can leave the object: the result is always inside the range.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Value to limit — fires the evaluation.",
+        "index": 0,
+        "label": "value",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Lower limit — stored until the next evaluation.",
+        "index": 1,
+        "label": "low",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Upper limit — stored until the next evaluation.",
+        "index": 2,
+        "label": "high",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".clip",
+    "outlets": [
+      {
+        "doc": "The input value clipped to [low, high].",
+        "index": 0,
+        "label": "out",
+        "range": "low to high",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "-1",
+        "doc": "Lower limit.",
+        "name": "low",
+        "range": "any float"
+      },
+      {
+        "default": "1",
+        "doc": "Upper limit.",
+        "name": "high",
+        "range": "any float"
+      }
+    ]
+  },
   ".controlchange": {
     "category": "MIDI",
     "description": "MIDI Control Change message generator. Emits a 3-byte status/controller/value packet on every value change.",
