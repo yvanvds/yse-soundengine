@@ -35,8 +35,8 @@ namespace YSE {
         Flt frequency();
 
       private:
-        virtual void ensurePreFilter(std::size_t count);
-        virtual void applyPreFilter(DSP::buffer& buffer, std::size_t ch);
+        void ensurePreFilter(std::size_t count) override;
+        void applyPreFilter(DSP::buffer& buffer, std::size_t ch) override;
 
         aFlt parmFrequency;
         perChannel<DSP::lowPass> lp; // one pre-filter per channel

@@ -45,6 +45,10 @@ namespace YSE {
        */
       bool save(const char* fileName);
 
+      // Covariant-return wrappers over the (non-virtual) base assignment
+      // operators, same idiom as drawableBuffer -- see the note there.
+      // NOLINTBEGIN(bugprone-derived-method-shadowing-base-method)
+
       /** @brief Copy-assign from a ``buffer``. */
       fileBuffer& operator=(const buffer& s) {
         buffer::operator=(s);
@@ -55,6 +59,7 @@ namespace YSE {
         buffer::operator=(value);
         return *this;
       }
+      // NOLINTEND(bugprone-derived-method-shadowing-base-method)
     };
 
   } // namespace DSP

@@ -72,7 +72,7 @@ namespace YSE {
     class threadPoolThread : public thread {
     public:
       explicit threadPoolThread(threadPool* pool);
-      virtual void run();
+      void run() override;
 
     private:
       threadPool* pool;

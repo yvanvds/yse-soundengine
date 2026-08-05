@@ -67,7 +67,7 @@ namespace YSE {
       class API parametricEQ : public dspObject {
       public:
         parametricEQ();
-        virtual ~parametricEQ() {};
+        ~parametricEQ() override {};
 
         /** @brief Set a band's centre/corner frequency in Hz (clamped to a sane
          *  audio range). */
@@ -91,10 +91,10 @@ namespace YSE {
         Flt q(eqBand band);
 
         /** @brief dspObject lifecycle hook. */
-        virtual void create();
+        void create() override;
 
         /** @brief dspObject audio-thread entry point. */
-        virtual void process(MULTICHANNELBUFFER& buffer);
+        void process(MULTICHANNELBUFFER& buffer) override;
 
       private:
         // Per-band user parameters (control-thread writes, audio-thread reads).

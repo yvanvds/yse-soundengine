@@ -88,7 +88,7 @@ namespace YSE {
       public:
         /** Defaults to ``depth() == 0`` — fully transparent. */
         underWater();
-        virtual ~underWater() {}
+        ~underWater() override {}
 
         /** @brief The depth control input, in distance units below the water
          *  surface. Negative values clamp to 0 (above water). Callable from
@@ -102,10 +102,10 @@ namespace YSE {
         /** @brief dspObject lifecycle hook. Nothing to allocate up front: the
          *  mixdown scratch is sized in ``process`` (the block length is only
          *  known there). */
-        virtual void create();
+        void create() override;
 
         /** @brief dspObject audio-thread entry point. */
-        virtual void process(MULTICHANNELBUFFER& buffer);
+        void process(MULTICHANNELBUFFER& buffer) override;
 
       private:
         aFlt parmDepth; // control threads write, the audio thread reads

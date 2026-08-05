@@ -4,7 +4,7 @@
 #include <vector>
 #include "pObject.h"
 
-typedef YSE::PATCHER::pObject* (*pObjectFunc)(void);
+typedef YSE::PATCHER::pObject* (*pObjectFunc)();
 
 namespace YSE {
   namespace PATCHER {

@@ -46,7 +46,7 @@ namespace YSE {
       class API feedbackDelay : public dspObject {
       public:
         feedbackDelay();
-        virtual ~feedbackDelay() {};
+        ~feedbackDelay() override {};
 
         /** @brief Set the delay time in milliseconds (clamped to the module's
          *  maximum). Changes are ramped to avoid zipper noise. */
@@ -78,10 +78,10 @@ namespace YSE {
         Flt crossfeed();
 
         /** @brief dspObject lifecycle hook. */
-        virtual void create();
+        void create() override;
 
         /** @brief dspObject audio-thread entry point. */
-        virtual void process(MULTICHANNELBUFFER& buffer);
+        void process(MULTICHANNELBUFFER& buffer) override;
 
       private:
         aFlt parmTime; // delay time, milliseconds

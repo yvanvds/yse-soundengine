@@ -21,7 +21,7 @@ namespace YSE {
     class patcherImplementation : public pObject {
     public:
       patcherImplementation(int mainOutputs, patcher* head);
-      virtual ~patcherImplementation();
+      ~patcherImplementation() override;
 
       // Patcher name used as the bus prefix for inner gSend / gReceive
       // routing (issue #122). Default is an auto-generated "patcher_<N>"
@@ -32,9 +32,9 @@ namespace YSE {
       }
       void SetName(const std::string& n);
 
-      virtual const char* Type() const;
-      virtual void ResetDSP();
-      virtual void Calculate(THREAD thread);
+      const char* Type() const override;
+      void ResetDSP() override;
+      void Calculate(THREAD thread) override;
 
       // Run the patcher as an in-place insert effect over a host buffer
       // (issue #167): feed the incoming audio to the graph's ~adc objects,
@@ -45,11 +45,23 @@ namespace YSE {
       // The GraphState pinned for the block currently being rendered, or null
       // between blocks. Read by inlets/outlets to resolve topology without a
       // lock (issue #226).
+      //
+      // This is the real accessor; pObject::CurrentBlockGraph() (non-virtual) is
+      // the forwarder that every *contained* object goes through -- it hops to
+      // its owning patcher and lands back here. The shadowing is therefore the
+      // intended direction of the relation, not accidental hiding. Reaching a
+      // patcherImplementation through a pObject* yields the base version, which
+      // returns null because a patcher has no parent; that is harmless, because
+      // the patcher's own inlets/outlets are never assigned a GraphState id
+      // (ids come from AssignObjectIds on objects *added* to the patcher, so
+      // theirs stay -1) and the `graphId >= 0` guard at both call sites already
+      // sends them down the live-wiring path. See issue #573.
+      // NOLINTNEXTLINE(bugprone-derived-method-shadowing-base-method)
       const GraphState* CurrentBlockGraph() const {
         return currentBlockGraph_.load(std::memory_order_acquire);
       }
 
-      virtual void SetMessage(const std::string&, float) {}
+      void SetMessage(const std::string&, float) override {}
 
       pHandle* CreateObject(const std::string& type, const std::string& args);
       void DeleteObject(pHandle* obj);

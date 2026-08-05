@@ -84,7 +84,6 @@ namespace YSE {
     class note;
     class pNote;
     class chord;
-    class player;
   } // namespace MUSIC
 
   namespace INTERNAL {
@@ -92,7 +91,6 @@ namespace YSE {
     class global;
     class listenerImplementation;
     class logImplementation;
-    class output;
     class settings;
     class reverbDSP;
     class soundFile;

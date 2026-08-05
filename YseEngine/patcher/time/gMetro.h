@@ -18,7 +18,7 @@ namespace YSE {
 
     void Bang();
 
-    ~gMetro();
+    ~gMetro() override;
 
   private:
     aInt period;

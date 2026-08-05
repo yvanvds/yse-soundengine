@@ -66,7 +66,7 @@ namespace YSE {
       class API plateReverb : public dspObject {
       public:
         plateReverb();
-        virtual ~plateReverb() {};
+        ~plateReverb() override {};
 
         /** @brief Set the tank decay in [0, 0.98]. Higher values recirculate the
          *  tank longer, lengthening the reverb tail (RT60). */
@@ -91,10 +91,10 @@ namespace YSE {
         Flt preDelay();
 
         /** @brief dspObject lifecycle hook. */
-        virtual void create();
+        void create() override;
 
         /** @brief dspObject audio-thread entry point. */
-        virtual void process(MULTICHANNELBUFFER& buffer);
+        void process(MULTICHANNELBUFFER& buffer) override;
 
       private:
         aFlt parmDecay; // tank decay, [0, 0.98]

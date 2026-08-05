@@ -16,6 +16,24 @@
 # legacy DSP code, etc.). Re-enable a specific check if a focused cleanup
 # pass is planned.
 #
+# bugprone-forward-declaration-namespace is off for a structural reason rather
+# than a volume one (issue #573). Its heuristic is "a forward declaration whose
+# name also exists in another namespace is probably a misplaced declaration" --
+# which is precisely how this engine is laid out on purpose. Every subsystem
+# gets its own namespace holding the same three class names: YSE::CHANNEL,
+# YSE::SOUND, YSE::SYNTH, YSE::REVERB, YSE::PLAYER, YSE::MOTIF, YSE::SCALE,
+# YSE::CLIP, YSE::CLOCK, YSE::DEVICE and YSE::MIDI each declare an
+# implementationObject, a messageObject and a managerObject (see the comment at
+# the top of channel/channel.hpp). The check therefore reports every subsystem
+# header against every other one -- 26 of the 29 sites it flagged were exactly
+# that pairing, and the count grows quadratically with each subsystem added.
+# The three sites that were *not* the convention were checked by hand: two were
+# genuinely dead declarations (YSE::MUSIC::player and YSE::INTERNAL::output,
+# neither ever defined nor referenced) and are deleted from classes.hpp in the
+# same commit; the third, YSE::clip vs YSE::DSP::clip, is two real and
+# unrelated classes. With those handled the check has no remaining signal here
+# and cannot be driven to zero without abandoning the subsystem layout.
+#
 # Vendored deps under dependencies/ and generated code under build*/ are
 # excluded via ExcludeHeaderFilterRegex.
 
@@ -30,6 +48,7 @@ Checks: >
   -bugprone-throwing-static-initialization,
   -bugprone-exception-escape,
   -bugprone-reserved-identifier,
+  -bugprone-forward-declaration-namespace,
   clang-analyzer-core.*,
   clang-analyzer-cplusplus.*,
   clang-analyzer-deadcode.*,
@@ -89,7 +108,22 @@ HeaderFilterRegex: '.*(YseEngine|Tests)[/\\].*\.h(pp)?$'
 # Vendored deps stay out of the report: dependencies/ (submodule-style checkouts)
 # and build*/_deps/ (FetchContent). We don't modify vendored sources, so their
 # findings are pure noise. Requires clang-tidy >= 19.
-ExcludeHeaderFilterRegex: '.*[/\\](dependencies|_deps)[/\\].*'
+#
+# YseEngine/utils/json.hpp is vendored too, it just predates the dependencies/
+# convention: it is a verbatim copy of nlohmann/json 3.0.1 (its upstream
+# copyright header is intact at the top of the file).  Widening
+# HeaderFilterRegex in #426 pulled its 10 findings into the report --
+# use-after-move, assignment-in-if-condition, assert-side-effect,
+# inc-dec-in-conditions, inefficient-string-concatenation.  Every one of them is
+# upstream's code, and patching a third-party single-header library in place is
+# exactly what the "don't modify vendored deps" rule exists to prevent, so it is
+# subtracted here rather than annotated in the file (issue #573).
+#
+# Note the alternation is matched as a search, not anchored: the filter sees the
+# include spelling the preprocessor resolved, and ours reach json.hpp through
+# relative hops (`YseEngine/sound/../patcher/../utils/json.hpp`), so the pattern
+# keys off the trailing `utils/json.hpp` rather than a full path.
+ExcludeHeaderFilterRegex: '.*[/\\](dependencies|_deps)[/\\].*|.*[/\\]utils[/\\]json\.hpp$'
 
 CheckOptions:
   - key: performance-move-const-arg.CheckTriviallyCopyableMove

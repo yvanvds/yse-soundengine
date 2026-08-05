@@ -33,6 +33,10 @@ namespace YSE {
       std::atomic<float> v{0.f};
       atomicPeak() = default;
       atomicPeak(const atomicPeak& o) : v(o.v.load(std::memory_order_relaxed)) {}
+      // The only member is a std::atomic<float>; self-assignment stores back the
+      // value it just loaded and owns no resource that a `this != &o` guard
+      // would protect (issue #573).
+      // NOLINTNEXTLINE(cert-oop54-cpp)
       atomicPeak& operator=(const atomicPeak& o) {
         v.store(o.v.load(std::memory_order_relaxed), std::memory_order_relaxed);
         return *this;
@@ -78,7 +82,7 @@ namespace YSE {
       Removes the implementation from the threadpool and moves all sounds and subchannels
       to its parent (if there is one).
       */
-      ~implementationObject() noexcept;
+      ~implementationObject() noexcept override;
 
       /** This function is called from channelManager::setup and creates the buffers
       needed for this channel.
@@ -184,7 +188,7 @@ namespace YSE {
         This will scale all sounds nicely over several cpu's as long as you don't
         put them all in one channel.
       */
-      virtual void run();
+      void run() override;
 
       /**
         This is the one that does all the work. It allso calls the dsp function

@@ -42,7 +42,7 @@ namespace YSE {
         };
 
         basicDelay();
-        virtual ~basicDelay() {};
+        ~basicDelay() override {};
 
         /** @brief Configure one of the three taps.
          *  @param nr   Tap to configure.
@@ -58,10 +58,10 @@ namespace YSE {
         Flt gain(DELAY_NR nr);
 
         /** @brief dspObject lifecycle hook — allocates buffers. */
-        virtual void create();
+        void create() override;
 
         /** @brief dspObject audio-thread entry point. */
-        virtual void process(MULTICHANNELBUFFER& buffer);
+        void process(MULTICHANNELBUFFER& buffer) override;
 
       protected:
         /** @brief Hook for subclasses to size their per-channel pre-filter state
