@@ -1377,6 +1377,64 @@
       }
     ]
   },
+  "~clip": {
+    "category": "MATH",
+    "description": "Audio-rate hard clipper. Constrains every sample of the input buffer to the [low, high] range — use it to tame stray peaks or as a deliberate distortion stage.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "Audio input buffer.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT"
+        ],
+        "doc": "Lower clipping threshold.",
+        "index": 1,
+        "label": "low",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT"
+        ],
+        "doc": "Upper clipping threshold.",
+        "index": 2,
+        "label": "high",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~clip",
+    "outlets": [
+      {
+        "doc": "Input clamped to [low, high].",
+        "index": 0,
+        "label": "out",
+        "range": "low to high",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "-1.0",
+        "doc": "Initial lower clipping threshold.",
+        "name": "low",
+        "range": "any float"
+      },
+      {
+        "default": "1.0",
+        "doc": "Initial upper clipping threshold.",
+        "name": "high",
+        "range": "any float"
+      }
+    ]
+  },
   "~hp": {
     "category": "FILTER",
     "description": "Single-pole highpass filter. Attenuates content below the cutoff frequency.",

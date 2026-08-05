@@ -3,9 +3,12 @@
 // No audio device required.
 
 #include <doctest/doctest.h>
+#include <algorithm>
+#include <string>
 #include "patcher/patcher.hpp"
 #include "patcher/pHandle.hpp"
 #include "patcher/pObjectList.hpp"
+#include "patcher/pRegistry.h"
 #include "patcher/math/gAdd.h"
 #include "patcher/math/gSubstract.h"
 #include "patcher/math/gDivide.h"
@@ -249,7 +252,46 @@ TEST_SUITE("patcher") {
   }
 
   // ─── dClip ───────────────────────────────────────────────────────────────────
-  // dClip is not in the patcher registry, so these tests use direct instantiation.
+  // Regression tests for issue #436: dClip was compiled and had an OBJ::D_CLIP
+  // constant but was never registered, so CreateObject("~clip") returned null.
+  // The behavioural tests below still instantiate directly (that is how the
+  // other DSP math nodes are driven without a graph), but the type is now
+  // reachable through the registry.
+
+  TEST_CASE("dClip: creatable through the registry (#436)") {
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* h = p.CreateObject(YSE::OBJ::D_CLIP);
+    REQUIRE(h != nullptr);
+    CHECK(std::string(h->Type()) == "~clip");
+    CHECK(h->GetInputs() == 3);
+    CHECK(h->GetOutputs() == 1);
+    CHECK(h->OutputDataType(0) == YSE::OUT_TYPE::BUFFER);
+  }
+
+  TEST_CASE("dClip: ~clip is listed by pRegistry::AllNames (#436)") {
+    const auto names = YSE::PATCHER::Register().AllNames();
+    CHECK(std::find(names.begin(), names.end(), std::string("~clip")) != names.end());
+  }
+
+  TEST_CASE("dClip: params survive a DumpJSON / ParseJSON round trip (#436)") {
+    YSE::patcher src;
+    src.create(2);
+    YSE::pHandle* h = src.CreateObject(YSE::OBJ::D_CLIP, "-0.25 0.75");
+    REQUIRE(h != nullptr);
+    const std::string json = src.DumpJSON();
+    CHECK(json.find("~clip") != std::string::npos);
+
+    YSE::patcher loaded;
+    loaded.create(2);
+    loaded.ParseJSON(json);
+    REQUIRE(loaded.Objects() == 1);
+
+    YSE::pHandle* restored = loaded.GetHandleFromList(0);
+    REQUIRE(restored != nullptr);
+    CHECK(std::string(restored->Type()) == "~clip");
+    CHECK(restored->GetParams() == "-0.25 0.75");
+  }
 
   TEST_CASE("dClip: type name, input/output count, and output type") {
     YSE::PATCHER::dClip clip;
@@ -257,6 +299,19 @@ TEST_SUITE("patcher") {
     CHECK(clip.NumInputs() == 3);
     CHECK(clip.NumOutputs() == 1);
     CHECK(clip.GetOutputType(0) == YSE::OUT_TYPE::BUFFER);
+  }
+
+  TEST_CASE("dClip: null input buffer produces no output (#436)") {
+    // Reachable via CreateObject now, so a ~clip left unconnected on inlet 0
+    // gets Calculate()d with a null buffer every block.
+    YSE::PATCHER::dClip clip;
+    BufferSink sink;
+    clip.ConnectOutlet(sink.GetInlet(0), 0);
+    sink.ConnectInlet(clip.GetOutlet(0), 0);
+
+    clip.Calculate(YSE::T_DSP);
+
+    CHECK(sink.received == nullptr);
   }
 
   TEST_CASE("dClip: samples outside [-0.5, 0.5] are clamped") {

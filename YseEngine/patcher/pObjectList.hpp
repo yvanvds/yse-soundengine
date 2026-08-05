@@ -13,7 +13,7 @@ namespace YSE {
    *  - DSP generators: ``D_SINE``, ``D_SAW``, ``D_NOISE``.
    *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``.
    *  - DSP filters: ``D_LOWPASS``, ``D_HIGHPASS``, ``D_BANDPASS``, ``D_VCF``.
-   *  - I/O: ``D_DAC``, ``D_ADC``, ``D_LINE``, ``D_OUT``.
+   *  - I/O: ``D_DAC``, ``D_ADC``, ``D_LINE``.
    *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_METRO``, ``G_RANDOM``.
    *  - Messaging: ``G_SEND``, ``G_RECEIVE``, ``G_ROUTE``, ``G_GATE``, ``G_SWITCH``.
    *  - MIDI: ``M_OUT``, ``M_NOTEON``, ``M_NOTEOFF``, ``M_CONTROL``.
@@ -27,7 +27,6 @@ namespace YSE {
     DEFOBJ(G_RECEIVE, ".r");
     DEFOBJ(G_SEND, ".s");
 
-    DEFOBJ(D_OUT, "~out");
     DEFOBJ(D_LINE, "~line");
 
     DEFOBJ(D_SINE, "~sine");
