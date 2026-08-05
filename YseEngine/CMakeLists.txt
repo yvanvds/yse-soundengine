@@ -141,6 +141,7 @@ set(YSE_SRCS
   patcher/math/gIntDiv.cpp
   patcher/math/gMultiply.cpp
   patcher/math/gPolar.cpp
+  patcher/math/gPong.cpp
   patcher/math/gPow.cpp
   patcher/math/gRandom.cpp
   patcher/math/gReverse.cpp
@@ -301,6 +302,7 @@ set_source_files_properties(
   patcher/math/gIntDiv.cpp
   patcher/math/gMultiply.cpp
   patcher/math/gPolar.cpp
+  patcher/math/gPong.cpp
   patcher/math/gPow.cpp
   patcher/math/gRandom.cpp
   patcher/math/gReverse.cpp
