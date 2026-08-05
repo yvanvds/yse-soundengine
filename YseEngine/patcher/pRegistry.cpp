@@ -49,6 +49,9 @@
 #include "math/gBitwise.h"
 #include "math/gReverse.h"
 #include "math/gIntDiv.h"
+#include "math/gUnaryMath.h"
+#include "math/gPow.h"
+#include "math/gRound.h"
 
 #if YSE_WINDOWS
 #include "midi/mMidiChannelPressure.h"
@@ -121,6 +124,12 @@ pRegistry::pRegistry() {
   Add(OBJ::G_REVERSEDIVIDE, gReverseDivide::Create);
   Add(OBJ::G_MODULO, gModulo::Create);
   Add(OBJ::G_INTDIVIDE, gIntDivide::Create);
+
+  // Elementary math functions (issue #440)
+  Add(OBJ::G_ABS, gAbs::Create);
+  Add(OBJ::G_SQRT, gSqrt::Create);
+  Add(OBJ::G_POW, gPow::Create);
+  Add(OBJ::G_ROUND, gRound::Create);
 
   // Comparison + logic operators (issue #437)
   Add(OBJ::G_EQUAL, gEqual::Create);
