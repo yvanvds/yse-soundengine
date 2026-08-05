@@ -15,6 +15,7 @@ are propagated unchanged.
 
 import argparse
 import datetime
+import json
 import os
 import platform
 import re
@@ -65,6 +66,20 @@ def run_to_file(cmd, output_path, cwd=None):
         result = subprocess.run(cmd, stdout=f, cwd=str(cwd) if cwd else None)
     if result.returncode != 0:
         sys.exit(result.returncode)
+
+
+def _check_json_report(path):
+    """Exit with an error unless *path* is a non-empty, parseable JSON file."""
+    path = Path(path)
+    if not path.exists() or path.stat().st_size == 0:
+        print(f"error: {path} is empty — the report generator wrote nothing.")
+        sys.exit(1)
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            json.load(f)
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        print(f"error: {path} is not valid JSON: {exc}")
+        sys.exit(1)
 
 
 def _demo_exe(name):
@@ -221,15 +236,26 @@ def _cmd_coverage_windows():
 
     # llvm-cov export writes the JSON to stdout; redirect to report file.
     # SonarQube ingests this via sonar.cfamily.llvm-cov.reportPath.
+    #
+    # Do NOT pass --format=json here: `export` emits JSON by default and its
+    # --format option only accepts text/lcov (json is a `show`/`report` value).
+    # Passing it made llvm-cov exit 1 with "Cannot find option named 'json'!"
+    # *after* the expensive configure/build/ctest steps had already run.  See
+    # #567.
     run_to_file(
         ["llvm-cov", "export",
          str(test_exe),
          f"--instr-profile={profdata}",
-         "--format=json",
          str(ROOT / "YseEngine"),
          str(ROOT / "Tests")],
         output_path=str(report),
     )
+
+    # llvm-cov can exit 0 having written nothing useful (bad filter paths, a
+    # future flag rename).  Fail loudly here rather than leaving a truncated
+    # report for SonarQube to silently ingest as "no coverage".
+    _check_json_report(report)
+
     print(f"\nCoverage report written to {report}")
     print(f"SonarQube property: sonar.cfamily.llvm-cov.reportPath={report.name}")
 

@@ -247,6 +247,11 @@ pip-log.txt
 # Unit test / coverage reports
 .coverage
 .tox
+# Reports written by `python yse.py coverage` (gcovr on Linux, llvm-cov on
+# Windows).  Generated artefacts — an empty coverage-llvm.json was committed
+# by accident once, see #567.
+coverage.xml
+coverage-llvm.json
 
 #Translations
 *.mo
