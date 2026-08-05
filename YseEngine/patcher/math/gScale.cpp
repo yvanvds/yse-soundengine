@@ -1,7 +1,6 @@
 #include "gScale.h"
 #include "../pObjectList.hpp"
-#include <algorithm>
-#include <cmath>
+#include "gRangeMap.h"
 
 using namespace YSE::PATCHER;
 
@@ -115,48 +114,10 @@ INT_IN(SetInt) {
 }
 
 CALC() {
-  const float span = inHigh - inLow;
-  float result;
-
-  if (span == 0.f) {
-    // A collapsed input range has no mapping to give: every input would divide
-    // by zero and come out as an infinity or a NaN. Emit the bottom of the
-    // output range, which is at least inside it, rather than 0 — which need
-    // not be.
-    result = outLow;
-  } else {
-    const float normalized = (input - inLow) / span;
-    float curved;
-    if (exponent == 1.f) {
-      // The overwhelmingly common case, and std::pow(x, 1) is not guaranteed
-      // to be exact. Skip it.
-      curved = normalized;
-    } else if (normalized >= 0.f) {
-      curved = std::pow(normalized, exponent);
-    } else {
-      // Max mirrors the curve below the input range rather than handing a
-      // negative base to pow (which has no real result for a fractional
-      // exponent).
-      curved = -std::pow(-normalized, exponent);
-    }
-    result = outLow + (outHigh - outLow) * curved;
-  }
-
-  // Reachable with a zero base and a negative exponent, with an operand that
-  // overflows, or simply when a neighbouring object hands us an infinity.
-  // Substitute 0 rather than let it escape and poison everything downstream —
-  // the convention ./ , .sqrt and .pow already use.
-  if (!std::isfinite(result)) result = 0.f;
-
-  if (clip != 0) {
-    // The output range may be given high-to-low (a descending mapping), so
-    // clamp against the ordered pair rather than assuming outLow < outHigh.
-    const float lo = std::min(outLow, outHigh);
-    const float hi = std::max(outLow, outHigh);
-    result = std::min(std::max(result, lo), hi);
-  }
-
-  // Two float compares, at most one libm call and one Send: no allocation, no
-  // lock, no I/O.
-  outputs[0].SendFloat(result, thread);
+  // The whole mapping — the degenerate-range guard, the mirrored exponent, the
+  // non-finite substitution and the ordered clamp — lives in MapRange, which
+  // .zmap (#444) shares. A divide, at most one libm call and one Send: no
+  // allocation, no lock, no I/O.
+  outputs[0].SendFloat(MapRange(input, inLow, inHigh, outLow, outHigh, exponent, clip != 0),
+                       thread);
 }

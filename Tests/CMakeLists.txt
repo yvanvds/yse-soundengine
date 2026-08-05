@@ -53,6 +53,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_trig.cpp
   patcher/test_patcher_unit_conversions.cpp
   patcher/test_patcher_scale.cpp
+  patcher/test_patcher_zmap.cpp
   patcher/test_math_wrappers.cpp
   patcher/test_dsp_objects.cpp
   patcher/test_generic_objects.cpp
@@ -742,6 +743,7 @@ set_source_files_properties(
   patcher/test_patcher_trig.cpp
   patcher/test_patcher_unit_conversions.cpp
   patcher/test_patcher_scale.cpp
+  patcher/test_patcher_zmap.cpp
   patcher/test_math_wrappers.cpp
   patcher/test_dsp_objects.cpp
   patcher/test_generic_objects.cpp

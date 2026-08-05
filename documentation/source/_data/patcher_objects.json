@@ -2551,6 +2551,99 @@
       }
     ]
   },
+  ".zmap": {
+    "category": "MATH",
+    "description": "Control-rate clipped range mapping. Maps the value on inlet 0 from the input range onto the output range and emits it as a float. Unlike .scale the mapping never extrapolates: a value outside the input range is pinned to the matching output limit, which makes this the safe choice for driving a parameter that must never leave its legal range. The mapping is always linear — use .scale for an exponential curve or for extrapolation. A descending output range (low above high) clips against the correct limits, a degenerate input range (low equal to high) emits the output low, and nothing non-finite can leave the object — the result is always inside the output range.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Value to map — fires the evaluation.",
+        "index": 0,
+        "label": "value",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Bottom of the input range — stored until the next evaluation.",
+        "index": 1,
+        "label": "inLow",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Top of the input range — stored until the next evaluation.",
+        "index": 2,
+        "label": "inHigh",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Bottom of the output range — stored until the next evaluation.",
+        "index": 3,
+        "label": "outLow",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Top of the output range — stored until the next evaluation.",
+        "index": 4,
+        "label": "outHigh",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".zmap",
+    "outlets": [
+      {
+        "doc": "The input value mapped onto the output range and clipped to it.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Bottom of the input range.",
+        "name": "inLow",
+        "range": "any float"
+      },
+      {
+        "default": "127",
+        "doc": "Top of the input range.",
+        "name": "inHigh",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "Bottom of the output range.",
+        "name": "outLow",
+        "range": "any float"
+      },
+      {
+        "default": "1",
+        "doc": "Top of the output range.",
+        "name": "outHigh",
+        "range": "any float"
+      }
+    ]
+  },
   ".|": {
     "category": "MATH",
     "description": "Control-rate bitwise OR. Emits left | right whenever inlet 0 fires. Floats truncate towards zero on input.",

@@ -148,6 +148,7 @@ set(YSE_SRCS
   patcher/math/gSubstract.cpp
   patcher/math/gTrig.cpp
   patcher/math/gUnaryMath.cpp
+  patcher/math/gZmap.cpp
   patcher/math/pFrequencyToMidi.cpp
   patcher/math/pMidiToFrequency.cpp
   patcher/outlet.cpp
@@ -306,6 +307,7 @@ set_source_files_properties(
   patcher/math/gSubstract.cpp
   patcher/math/gTrig.cpp
   patcher/math/gUnaryMath.cpp
+  patcher/math/gZmap.cpp
   patcher/math/pFrequencyToMidi.cpp
   patcher/math/pMidiToFrequency.cpp
   patcher/midi/mMidiChannelPressure.cpp
