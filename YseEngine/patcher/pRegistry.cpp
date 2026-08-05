@@ -27,6 +27,7 @@
 #include "time/gMetro.h"
 
 #include "math/dAdd.h"
+#include "math/dClip.h"
 #include "math/dSubstract.h"
 #include "math/dDivide.h"
 #include "math/dMultiply.h"
@@ -92,6 +93,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_SUBSTRACT, dSubstract::Create);
   Add(OBJ::D_MULTIPLY, dMultiply::Create);
   Add(OBJ::D_DIVIDE, dDivide::Create);
+  Add(OBJ::D_CLIP, dClip::Create);
 
   // Generic GUI
   Add(OBJ::G_INT, gInt::Create);

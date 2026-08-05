@@ -26,6 +26,17 @@ CONSTRUCT_DSP() {
   buffer = nullptr;
   low = -1.0f;
   high = 1.0f;
+
+  ADD_DESCRIPTION("Audio-rate hard clipper. Constrains every sample of the input buffer to the "
+                  "[low, high] range — use it to tame stray peaks or as a deliberate distortion "
+                  "stage.");
+  ADD_CATEGORY(pCategory::MATH);
+  INLET_DOC(0, "in", "Audio input buffer.", "any float");
+  INLET_DOC(1, "low", "Lower clipping threshold.", "any float");
+  INLET_DOC(2, "high", "Upper clipping threshold.", "any float");
+  OUTLET_DOC(0, "out", "Input clamped to [low, high].", "low to high");
+  PARAM_DOC("low", "-1.0", "Initial lower clipping threshold.", "any float");
+  PARAM_DOC("high", "1.0", "Initial upper clipping threshold.", "any float");
 }
 
 RESET() // {
@@ -45,6 +56,8 @@ FLOAT_IN(SetHigh) {
 }
 
 CALC() {
+  if (buffer == nullptr) return;
+
   clip.set(low, high);
   outputs[0].SendBuffer(&clip(*buffer), thread);
 }
