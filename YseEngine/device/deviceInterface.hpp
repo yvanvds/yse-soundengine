@@ -81,25 +81,33 @@ namespace YSE {
     /** @brief Number of output channels. */
     unsigned int getNumOutputChannelNames() const;
 
-    /** @brief Name of output channel ``nr``. */
+    /** @brief Name of output channel ``nr``.
+     *  @throws std::out_of_range if ``nr >= getNumOutputChannelNames()``.
+     */
     const std::string& getOutputChannelName(unsigned int nr) const;
 
     /** @brief Number of input channels. */
     unsigned int getNumInputChannelNames() const;
 
-    /** @brief Name of input channel ``nr``. */
+    /** @brief Name of input channel ``nr``.
+     *  @throws std::out_of_range if ``nr >= getNumInputChannelNames()``.
+     */
     const std::string& getInputChannelName(unsigned int nr) const;
 
     /** @brief Number of supported sample rates. */
     unsigned int getNumAvailableSampleRates() const;
 
-    /** @brief Supported sample rate at index ``nr``. */
+    /** @brief Supported sample rate at index ``nr``.
+     *  @throws std::out_of_range if ``nr >= getNumAvailableSampleRates()``.
+     */
     double getAvailableSampleRate(unsigned int nr) const;
 
     /** @brief Number of supported buffer sizes. */
     unsigned int getNumAvailableBufferSizes() const;
 
-    /** @brief Supported buffer size at index ``nr``. */
+    /** @brief Supported buffer size at index ``nr``.
+     *  @throws std::out_of_range if ``nr >= getNumAvailableBufferSizes()``.
+     */
     int getAvailableBufferSize(unsigned int nr) const;
 
     /** @brief Set the default buffer size to use when this device is opened. */
