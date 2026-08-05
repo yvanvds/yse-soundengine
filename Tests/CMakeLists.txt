@@ -111,10 +111,12 @@ set(YSE_TEST_SOURCES
   io/test_callback_counter.cpp
   system/test_named_bus.cpp
   system/test_c_api_bus.cpp
+  system/test_c_api_surface.cpp
   system/test_system_active_state.cpp
   system/test_lifecycle.cpp
   clock/test_domain_clocks.cpp
   clip/test_clip_transport.cpp
+  clip/test_c_api_clip.cpp
   integration/test_device.cpp
   integration/test_content_pack.cpp
   integration/test_synth_demos.cpp
@@ -245,7 +247,12 @@ add_test(
   # c-api lifecycle suites: it drives yse_system_init_offline()/close() —
   # the tap-invalidation-at-close contract is part of the surface under
   # test — so it runs in its own process (yse_tests_buscapi).
-  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthhandlers,synthbus,synthcapi,instrumentcapi,midisynth,playersynth,playercapi,sendstress,channelcapi,synthdemos,clock,clip,buscapi --duration=true
+  # `capisurface` (issue #417 device/reverb/log/listener/buffer-io C API) is
+  # excluded for the same family of reasons: it drives
+  # yse_system_init_offline(), swaps the process-global log sink, and installs
+  # the process-global BufferIO VFS hooks. It runs in its own process
+  # (yse_tests_capisurface).
+  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthhandlers,synthbus,synthcapi,instrumentcapi,midisynth,playersynth,playercapi,sendstress,channelcapi,synthdemos,clock,clip,buscapi,capisurface --duration=true
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_unit_tests PROPERTIES TIMEOUT 600)
@@ -430,6 +437,20 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_buscapi PROPERTIES LABELS "system;c-api;lifecycle")
+
+# C-API device / reverb / log / listener / buffer-io surface (issue #417).
+# Drives the five previously untested c_api translation units through the flat
+# C ABI under an offline engine. Isolated in its own process for three reasons
+# that each apply on their own: it calls yse_system_init_offline() (process-
+# global engine state), it swaps the process-global log sink while asserting on
+# the callback bridge, and it installs the process-global BufferIO VFS hooks.
+# initOffline() needs no audio hardware, so it runs in CI.
+add_test(
+  NAME    yse_tests_capisurface
+  COMMAND yse_tests --test-suite=capisurface
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_capisurface PROPERTIES LABELS "system;c-api;lifecycle")
 
 add_test(
   NAME    yse_tests_midi
