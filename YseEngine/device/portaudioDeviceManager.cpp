@@ -365,8 +365,12 @@ void YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
     started = true;
 }
 
-void YSE::DEVICE::managerObject::audioDeviceError(PaError /*error*/) {
-  INTERNAL::LogImpl().emit(E_AUDIODEVICE, Pa_GetErrorText(err));
+void YSE::DEVICE::managerObject::audioDeviceError(PaError error) const {
+  // Report the code that was passed in, not the `err` member. Every caller but
+  // one passes `err` anyway, so this is a no-op for them; updateDeviceList()
+  // passes Pa_GetDeviceCount()'s negative return, which used to be reported as
+  // whatever `err` happened to hold at the time (issue #418).
+  INTERNAL::LogImpl().emit(E_AUDIODEVICE, Pa_GetErrorText(error));
 }
 
 Flt YSE::DEVICE::managerObject::cpuLoad() {
