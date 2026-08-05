@@ -215,6 +215,8 @@ namespace YSE {
 #define ADD_IN_1 inputs.emplace_back(this, false, 1)
 #define ADD_IN_2 inputs.emplace_back(this, false, 2)
 #define ADD_IN_3 inputs.emplace_back(this, false, 3)
+#define ADD_IN_4 inputs.emplace_back(this, false, 4)
+#define ADD_IN_5 inputs.emplace_back(this, false, 5)
 
 #define REG_BUFFER_IN(funcName)                                                                    \
   inputs.back().RegisterBuffer(std::bind(&className::funcName, this, std::placeholders::_1,        \

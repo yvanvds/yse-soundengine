@@ -56,6 +56,7 @@
 #include "math/gAtan2.h"
 #include "math/gDbConvert.h"
 #include "math/gPolar.h"
+#include "math/gScale.h"
 
 #if YSE_WINDOWS
 #include "midi/mMidiChannelPressure.h"
@@ -134,6 +135,9 @@ pRegistry::pRegistry() {
   Add(OBJ::G_SQRT, gSqrt::Create);
   Add(OBJ::G_POW, gPow::Create);
   Add(OBJ::G_ROUND, gRound::Create);
+
+  // Range mapping (issue #443)
+  Add(OBJ::G_SCALE, gScale::Create);
 
   // Trigonometric + hyperbolic functions (issue #441)
   Add(OBJ::G_SIN, gSin::Create);
