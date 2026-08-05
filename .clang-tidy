@@ -17,7 +17,7 @@
 # pass is planned.
 #
 # Vendored deps under dependencies/ and generated code under build*/ are
-# excluded via HeaderFilterRegex.
+# excluded via ExcludeHeaderFilterRegex.
 
 Checks: >
   -*,
@@ -72,7 +72,24 @@ Checks: >
 WarningsAsErrors: ''
 
 # Apply checks only to our own headers under YseEngine/ and Tests/.
-HeaderFilterRegex: '.*(YseEngine|Tests)[/\\][^/\\]*\.h(pp)?$'
+#
+# The `.*` after the directory separator is load-bearing: it lets the filter
+# reach headers nested in subdirectories (YseEngine/dsp/, YseEngine/utils/,
+# Tests/support/, ...).  An earlier `[^/\\]*` here required the header to sit
+# *directly* under YseEngine/ or Tests/, which covered 8 of the 254 headers in
+# the tree and silently discarded every finding from the other 246 — see #426.
+#
+# The filter matches the include spelling the preprocessor resolved, not a
+# canonical path, and some of ours traverse back out of the tree
+# (`Tests/../dependencies/rtmidi/include/RtMidi.h`).  Those satisfy the widened
+# pattern, so vendored headers are subtracted again below rather than by trying
+# to express "no `..` after the anchor" — llvm::Regex has no lookahead.
+HeaderFilterRegex: '.*(YseEngine|Tests)[/\\].*\.h(pp)?$'
+
+# Vendored deps stay out of the report: dependencies/ (submodule-style checkouts)
+# and build*/_deps/ (FetchContent). We don't modify vendored sources, so their
+# findings are pure noise. Requires clang-tidy >= 19.
+ExcludeHeaderFilterRegex: '.*[/\\](dependencies|_deps)[/\\].*'
 
 CheckOptions:
   - key: performance-move-const-arg.CheckTriviallyCopyableMove
