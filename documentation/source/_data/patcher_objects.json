@@ -44,6 +44,51 @@
       }
     ]
   },
+  ".&": {
+    "category": "MATH",
+    "description": "Control-rate bitwise AND. Emits left & right whenever inlet 0 fires. Floats truncate towards zero on input.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Left operand — fires the evaluation. Floats truncate towards zero.",
+        "index": 0,
+        "label": "left",
+        "range": "any int"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Right operand — stored until the next evaluation. Floats truncate towards zero.",
+        "index": 1,
+        "label": "right",
+        "range": "any int"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".&",
+    "outlets": [
+      {
+        "doc": "The bitwise AND of both operands.",
+        "index": 0,
+        "label": "out",
+        "range": "any int",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Initial right-operand value.",
+        "name": "right",
+        "range": "any int"
+      }
+    ]
+  },
   ".&&": {
     "category": "MATH",
     "description": "Control-rate logical AND. Emits 1 when both operands are non-zero and 0 otherwise, whenever inlet 0 fires.",
@@ -314,6 +359,51 @@
       }
     ]
   },
+  ".<<": {
+    "category": "MATH",
+    "description": "Control-rate bit shift left. Emits left << right whenever inlet 0 fires. Shift counts below 0 shift by nothing and counts of 32 or more shift every bit out.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Left operand — fires the evaluation. Floats truncate towards zero.",
+        "index": 0,
+        "label": "left",
+        "range": "any int"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Right operand — stored until the next evaluation. Floats truncate towards zero.",
+        "index": 1,
+        "label": "right",
+        "range": "any int"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".<<",
+    "outlets": [
+      {
+        "doc": "The left operand shifted left by the right operand.",
+        "index": 0,
+        "label": "out",
+        "range": "any int",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Initial right-operand value.",
+        "name": "right",
+        "range": "any int"
+      }
+    ]
+  },
   ".<=": {
     "category": "MATH",
     "description": "Control-rate less-than-or-equal test. Emits 1 when left <= right and 0 otherwise, whenever inlet 0 fires.",
@@ -491,6 +581,51 @@
         "doc": "Initial right-operand value.",
         "name": "right",
         "range": "any float"
+      }
+    ]
+  },
+  ".>>": {
+    "category": "MATH",
+    "description": "Control-rate arithmetic bit shift right. Emits left >> right whenever inlet 0 fires. The sign bit is replicated, so negative values saturate at -1.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Left operand — fires the evaluation. Floats truncate towards zero.",
+        "index": 0,
+        "label": "left",
+        "range": "any int"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Right operand — stored until the next evaluation. Floats truncate towards zero.",
+        "index": 1,
+        "label": "right",
+        "range": "any int"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".>>",
+    "outlets": [
+      {
+        "doc": "The left operand shifted right by the right operand.",
+        "index": 0,
+        "label": "out",
+        "range": "any int",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Initial right-operand value.",
+        "name": "right",
+        "range": "any int"
       }
     ]
   },
@@ -1431,6 +1566,51 @@
         "doc": "Label text.",
         "name": "text",
         "range": "any string"
+      }
+    ]
+  },
+  ".|": {
+    "category": "MATH",
+    "description": "Control-rate bitwise OR. Emits left | right whenever inlet 0 fires. Floats truncate towards zero on input.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Left operand — fires the evaluation. Floats truncate towards zero.",
+        "index": 0,
+        "label": "left",
+        "range": "any int"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Right operand — stored until the next evaluation. Floats truncate towards zero.",
+        "index": 1,
+        "label": "right",
+        "range": "any int"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".|",
+    "outlets": [
+      {
+        "doc": "The bitwise OR of both operands.",
+        "index": 0,
+        "label": "out",
+        "range": "any int",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Initial right-operand value.",
+        "name": "right",
+        "range": "any int"
       }
     ]
   },

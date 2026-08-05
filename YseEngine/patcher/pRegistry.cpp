@@ -46,6 +46,7 @@
 #include "math/gRandom.h"
 #include "math/gCounter.h"
 #include "math/gCompare.h"
+#include "math/gBitwise.h"
 
 #if YSE_WINDOWS
 #include "midi/mMidiChannelPressure.h"
@@ -122,6 +123,12 @@ pRegistry::pRegistry() {
   Add(OBJ::G_GREATEREQUAL, gGreaterEqual::Create);
   Add(OBJ::G_LOGICALAND, gLogicalAnd::Create);
   Add(OBJ::G_LOGICALOR, gLogicalOr::Create);
+
+  // Bitwise operators (issue #438)
+  Add(OBJ::G_BITAND, gBitAnd::Create);
+  Add(OBJ::G_BITOR, gBitOr::Create);
+  Add(OBJ::G_SHIFTLEFT, gShiftLeft::Create);
+  Add(OBJ::G_SHIFTRIGHT, gShiftRight::Create);
 
   Add(OBJ::G_METRO, gMetro::Create);
 

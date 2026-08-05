@@ -131,6 +131,7 @@ set(YSE_SRCS
   patcher/math/dMultiply.cpp
   patcher/math/dSubstract.cpp
   patcher/math/gAdd.cpp
+  patcher/math/gBitwise.cpp
   patcher/math/gCompare.cpp
   patcher/math/gCounter.cpp
   patcher/math/gDivide.cpp
@@ -278,6 +279,7 @@ set_source_files_properties(
   patcher/math/dMultiply.cpp
   patcher/math/dSubstract.cpp
   patcher/math/gAdd.cpp
+  patcher/math/gBitwise.cpp
   patcher/math/gCompare.cpp
   patcher/math/gCounter.cpp
   patcher/math/gDivide.cpp
