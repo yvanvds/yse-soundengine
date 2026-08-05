@@ -54,6 +54,8 @@
 #include "math/gRound.h"
 #include "math/gTrig.h"
 #include "math/gAtan2.h"
+#include "math/gDbConvert.h"
+#include "math/gPolar.h"
 
 #if YSE_WINDOWS
 #include "midi/mMidiChannelPressure.h"
@@ -168,6 +170,12 @@ pRegistry::pRegistry() {
 
   Add(OBJ::MIDITOFREQUENCY, pMidiToFrequency::Create);
   Add(OBJ::FREQUENCYTOMIDI, pFrequencyToMidi::Create);
+
+  // Unit conversions (issue #442)
+  Add(OBJ::G_ATODB, gAToDb::Create);
+  Add(OBJ::G_DBTOA, gDbToA::Create);
+  Add(OBJ::G_CARTOPOL, gCarToPol::Create);
+  Add(OBJ::G_POLTOCAR, gPolToCar::Create);
 
   Add(OBJ::D_LOWPASS, pLowpass::Create);
   Add(OBJ::D_BANDPASS, pBandpass::Create);
