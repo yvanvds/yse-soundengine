@@ -1,4 +1,94 @@
 {
+  ".!-": {
+    "category": "MATH",
+    "description": "Control-rate reverse subtract. Emits right - left as a float whenever inlet 0 fires — the operands of .- in the other order, without needing a swap in front of it.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Left operand — fires the subtraction and is the value subtracted.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Right operand — stored until the next evaluation. This is the operand the result is computed from.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".!-",
+    "outlets": [
+      {
+        "doc": "right - left.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Initial right-operand value.",
+        "name": "right",
+        "range": "any float"
+      }
+    ]
+  },
+  ".!/": {
+    "category": "MATH",
+    "description": "Control-rate reverse divide. Emits right / left as a float whenever inlet 0 fires — the operands of ./ in the other order. Division by zero emits 0.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Left operand — fires the division and is the divisor. Zero forces the output to 0.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Right operand — stored until the next evaluation. This is the operand the result is computed from.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".!/",
+    "outlets": [
+      {
+        "doc": "right / left (or 0 when left == 0).",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Initial right-operand value.",
+        "name": "right",
+        "range": "any float"
+      }
+    ]
+  },
   ".!=": {
     "category": "MATH",
     "description": "Control-rate inequality test. Emits 1 when left != right and 0 otherwise, whenever inlet 0 fires.",
@@ -41,6 +131,51 @@
         "doc": "Initial right-operand value.",
         "name": "right",
         "range": "any float"
+      }
+    ]
+  },
+  ".%": {
+    "category": "MATH",
+    "description": "Control-rate modulo. Emits the remainder of left / right whenever inlet 0 fires — the usual way to wrap a counter. The remainder takes the sign of the left operand, floats truncate towards zero on input, and a divisor of 0 emits 0.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Left operand — the dividend, and fires the evaluation. Floats truncate towards zero.",
+        "index": 0,
+        "label": "left",
+        "range": "any int"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Right operand — the divisor, stored until the next evaluation. Floats truncate towards zero. Zero forces the output to 0.",
+        "index": 1,
+        "label": "right",
+        "range": "any int"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".%",
+    "outlets": [
+      {
+        "doc": "The remainder of left / right (or 0 when right == 0).",
+        "index": 0,
+        "label": "out",
+        "range": "any int",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Initial divisor.",
+        "name": "right",
+        "range": "any int"
       }
     ]
   },
@@ -779,6 +914,51 @@
         "default": "1",
         "doc": "Increment applied on each bang.",
         "name": "step",
+        "range": "any int"
+      }
+    ]
+  },
+  ".div": {
+    "category": "MATH",
+    "description": "Control-rate integer division. Emits left / right as an int whenever inlet 0 fires, truncating towards zero instead of producing the float ./ would. Floats truncate towards zero on input, and a divisor of 0 emits 0.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Left operand — the dividend, and fires the evaluation. Floats truncate towards zero.",
+        "index": 0,
+        "label": "left",
+        "range": "any int"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Right operand — the divisor, stored until the next evaluation. Floats truncate towards zero. Zero forces the output to 0.",
+        "index": 1,
+        "label": "right",
+        "range": "any int"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".div",
+    "outlets": [
+      {
+        "doc": "left / right truncated towards zero (or 0 when right == 0).",
+        "index": 0,
+        "label": "out",
+        "range": "any int",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Initial divisor.",
+        "name": "right",
         "range": "any int"
       }
     ]

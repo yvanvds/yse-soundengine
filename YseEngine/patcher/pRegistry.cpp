@@ -47,6 +47,8 @@
 #include "math/gCounter.h"
 #include "math/gCompare.h"
 #include "math/gBitwise.h"
+#include "math/gReverse.h"
+#include "math/gIntDiv.h"
 
 #if YSE_WINDOWS
 #include "midi/mMidiChannelPressure.h"
@@ -113,6 +115,12 @@ pRegistry::pRegistry() {
   Add(OBJ::G_SUBSTRACT, gSubstract::Create);
   Add(OBJ::G_RANDOM, gRandom::Create);
   Add(OBJ::G_COUNTER, gCounter::Create);
+
+  // Remaining arithmetic operators (issue #439)
+  Add(OBJ::G_REVERSESUBSTRACT, gReverseSubstract::Create);
+  Add(OBJ::G_REVERSEDIVIDE, gReverseDivide::Create);
+  Add(OBJ::G_MODULO, gModulo::Create);
+  Add(OBJ::G_INTDIVIDE, gIntDivide::Create);
 
   // Comparison + logic operators (issue #437)
   Add(OBJ::G_EQUAL, gEqual::Create);
