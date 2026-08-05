@@ -55,7 +55,7 @@ namespace YSE {
       class API chorus : public dspObject {
       public:
         chorus();
-        virtual ~chorus() {};
+        ~chorus() override {};
 
         /** @brief Select chorus or flanger topology. */
         chorus& mode(chorusMode value);
@@ -92,10 +92,10 @@ namespace YSE {
         Flt spread();
 
         /** @brief dspObject lifecycle hook. */
-        virtual void create();
+        void create() override;
 
         /** @brief dspObject audio-thread entry point. */
-        virtual void process(MULTICHANNELBUFFER& buffer);
+        void process(MULTICHANNELBUFFER& buffer) override;
 
       private:
         aFlt parmRate; // LFO rate, Hz

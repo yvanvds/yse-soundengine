@@ -30,12 +30,12 @@ namespace YSE {
       soundFile(const std::string& ID, char* fileBuffer, int length);
       soundFile(YSE::DSP::buffer* buffer);
       soundFile(MULTICHANNELBUFFER* buffer);
-      ~soundFile();
+      ~soundFile() override;
 
       using abstractSoundFile::abstractSoundFile;
 
-      virtual void loadStreaming(); // load from disk
-      virtual void loadNonStreaming();
+      void loadStreaming() override; // load from disk
+      void loadNonStreaming() override;
 
     private:
       // Fill `dest` with up to STREAM_BUFFERSIZE frames from the current handle

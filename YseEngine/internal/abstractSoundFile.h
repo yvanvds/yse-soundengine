@@ -43,10 +43,10 @@ namespace YSE {
 
       // will be called by constructor
 
-      virtual ~abstractSoundFile();
+      ~abstractSoundFile() override;
 
       Bool create(Bool stream = false);
-      void run(); // load from disk
+      void run() override; // load from disk
       virtual void loadStreaming() = 0;
       virtual void loadNonStreaming() = 0;
 

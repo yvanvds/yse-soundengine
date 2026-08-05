@@ -20,7 +20,7 @@
 # than a volume one (issue #573). Its heuristic is "a forward declaration whose
 # name also exists in another namespace is probably a misplaced declaration" --
 # which is precisely how this engine is laid out on purpose. Every subsystem
-# gets its own namespace holding the same four members: YSE::CHANNEL,
+# gets its own namespace holding the same three class names: YSE::CHANNEL,
 # YSE::SOUND, YSE::SYNTH, YSE::REVERB, YSE::PLAYER, YSE::MOTIF, YSE::SCALE,
 # YSE::CLIP, YSE::CLOCK, YSE::DEVICE and YSE::MIDI each declare an
 # implementationObject, a messageObject and a managerObject (see the comment at

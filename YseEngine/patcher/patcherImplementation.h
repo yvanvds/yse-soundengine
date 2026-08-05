@@ -21,7 +21,7 @@ namespace YSE {
     class patcherImplementation : public pObject {
     public:
       patcherImplementation(int mainOutputs, patcher* head);
-      virtual ~patcherImplementation();
+      ~patcherImplementation() override;
 
       // Patcher name used as the bus prefix for inner gSend / gReceive
       // routing (issue #122). Default is an auto-generated "patcher_<N>"
@@ -32,9 +32,9 @@ namespace YSE {
       }
       void SetName(const std::string& n);
 
-      virtual const char* Type() const;
-      virtual void ResetDSP();
-      virtual void Calculate(THREAD thread);
+      const char* Type() const override;
+      void ResetDSP() override;
+      void Calculate(THREAD thread) override;
 
       // Run the patcher as an in-place insert effect over a host buffer
       // (issue #167): feed the incoming audio to the graph's ~adc objects,
@@ -61,7 +61,7 @@ namespace YSE {
         return currentBlockGraph_.load(std::memory_order_acquire);
       }
 
-      virtual void SetMessage(const std::string&, float) {}
+      void SetMessage(const std::string&, float) override {}
 
       pHandle* CreateObject(const std::string& type, const std::string& args);
       void DeleteObject(pHandle* obj);

@@ -126,11 +126,11 @@ namespace YSE {
           same ranges the interface setters enforce. */
       void set(const REVERB::presetValues& params);
 
-      virtual void create() {}
-      virtual void process(MULTICHANNELBUFFER& buffer);
+      void create() override {}
+      void process(MULTICHANNELBUFFER& buffer) override;
       void update();
       reverbDSP();
-      ~reverbDSP();
+      ~reverbDSP() override;
 
     private:
       // Re-entrant comb/allpass kernels: all state is passed in or read from

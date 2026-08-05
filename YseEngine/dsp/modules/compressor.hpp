@@ -59,7 +59,7 @@ namespace YSE {
       class API compressor : public dspObject {
       public:
         compressor();
-        virtual ~compressor() {};
+        ~compressor() override {};
 
         /** @brief Select the peak or RMS level detector. */
         compressor& detector(compressorDetector value);
@@ -107,10 +107,10 @@ namespace YSE {
         Flt gainReductionDb();
 
         /** @brief dspObject lifecycle hook. */
-        virtual void create();
+        void create() override;
 
         /** @brief dspObject audio-thread entry point. */
-        virtual void process(MULTICHANNELBUFFER& buffer);
+        void process(MULTICHANNELBUFFER& buffer) override;
 
       private:
         aFlt parmThreshold; // dBFS

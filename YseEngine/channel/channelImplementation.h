@@ -82,7 +82,7 @@ namespace YSE {
       Removes the implementation from the threadpool and moves all sounds and subchannels
       to its parent (if there is one).
       */
-      ~implementationObject() noexcept;
+      ~implementationObject() noexcept override;
 
       /** This function is called from channelManager::setup and creates the buffers
       needed for this channel.
@@ -188,7 +188,7 @@ namespace YSE {
         This will scale all sounds nicely over several cpu's as long as you don't
         put them all in one channel.
       */
-      virtual void run();
+      void run() override;
 
       /**
         This is the one that does all the work. It allso calls the dsp function

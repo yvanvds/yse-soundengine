@@ -55,7 +55,7 @@ namespace YSE {
       highPass& setFrequency(Flt f);
 
       /** @brief Process ``in`` in place. */
-      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in);
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in) override;
     };
 
     /**
@@ -70,7 +70,7 @@ namespace YSE {
       lowPass& setFrequency(Flt f);
 
       /** @brief Process ``in`` in place. */
-      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in);
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in) override;
     };
 
     /**
@@ -91,7 +91,7 @@ namespace YSE {
       bandPass& setQ(Flt q);
 
       /** @brief Process ``in`` in place. */
-      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in);
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in) override;
 
       bandPass();
 
@@ -141,7 +141,7 @@ namespace YSE {
       biQuad& setRaw(Flt fb1, Flt fb2, Flt ff1, Flt ff2, Flt ff3);
 
       /** @brief Process ``in`` in place. */
-      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in);
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in) override;
 
     private:
       void calc();

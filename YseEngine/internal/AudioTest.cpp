@@ -10,14 +10,14 @@ class shepard : public YSE::DSP::dspSourceObject {
 public:
   // process function is pure virtual in dspSource
   // you HAVE to implement it
-  virtual void process(YSE::SOUND_STATUS& intent);
+  void process(YSE::SOUND_STATUS& intent) override;
   // constructor can be implement if you need it
   // (you probably will)
   shepard();
-  void frequency(Flt value);
+  void frequency(Flt value) override;
   Flt frequency();
 
-  virtual ~shepard() {}
+  ~shepard() override {}
 
 private:
   // in this case we add:
