@@ -45,6 +45,7 @@
 #include "math/gSubstract.h"
 #include "math/gRandom.h"
 #include "math/gCounter.h"
+#include "math/gCompare.h"
 
 #if YSE_WINDOWS
 #include "midi/mMidiChannelPressure.h"
@@ -111,6 +112,16 @@ pRegistry::pRegistry() {
   Add(OBJ::G_SUBSTRACT, gSubstract::Create);
   Add(OBJ::G_RANDOM, gRandom::Create);
   Add(OBJ::G_COUNTER, gCounter::Create);
+
+  // Comparison + logic operators (issue #437)
+  Add(OBJ::G_EQUAL, gEqual::Create);
+  Add(OBJ::G_NOTEQUAL, gNotEqual::Create);
+  Add(OBJ::G_LESS, gLess::Create);
+  Add(OBJ::G_LESSEQUAL, gLessEqual::Create);
+  Add(OBJ::G_GREATER, gGreater::Create);
+  Add(OBJ::G_GREATEREQUAL, gGreaterEqual::Create);
+  Add(OBJ::G_LOGICALAND, gLogicalAnd::Create);
+  Add(OBJ::G_LOGICALOR, gLogicalOr::Create);
 
   Add(OBJ::G_METRO, gMetro::Create);
 

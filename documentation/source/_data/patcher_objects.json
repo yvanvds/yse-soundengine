@@ -1,4 +1,94 @@
 {
+  ".!=": {
+    "category": "MATH",
+    "description": "Control-rate inequality test. Emits 1 when left != right and 0 otherwise, whenever inlet 0 fires.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Left operand — fires the evaluation.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Right operand — stored until the next evaluation.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".!=",
+    "outlets": [
+      {
+        "doc": "1 when left != right, 0 otherwise.",
+        "index": 0,
+        "label": "out",
+        "range": "0 or 1",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Initial right-operand value.",
+        "name": "right",
+        "range": "any float"
+      }
+    ]
+  },
+  ".&&": {
+    "category": "MATH",
+    "description": "Control-rate logical AND. Emits 1 when both operands are non-zero and 0 otherwise, whenever inlet 0 fires.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Left operand — fires the evaluation.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Right operand — stored until the next evaluation.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".&&",
+    "outlets": [
+      {
+        "doc": "1 when both operands are non-zero, 0 otherwise.",
+        "index": 0,
+        "label": "out",
+        "range": "0 or 1",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Initial right-operand value.",
+        "name": "right",
+        "range": "any float"
+      }
+    ]
+  },
   ".*": {
     "category": "MATH",
     "description": "Control-rate multiply. Emits left * right as a float whenever inlet 0 fires.",
@@ -168,6 +258,231 @@
         "label": "out",
         "range": "any float",
         "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Initial right-operand value.",
+        "name": "right",
+        "range": "any float"
+      }
+    ]
+  },
+  ".<": {
+    "category": "MATH",
+    "description": "Control-rate less-than test. Emits 1 when left < right and 0 otherwise, whenever inlet 0 fires.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Left operand — fires the evaluation.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Right operand — stored until the next evaluation.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".<",
+    "outlets": [
+      {
+        "doc": "1 when left < right, 0 otherwise.",
+        "index": 0,
+        "label": "out",
+        "range": "0 or 1",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Initial right-operand value.",
+        "name": "right",
+        "range": "any float"
+      }
+    ]
+  },
+  ".<=": {
+    "category": "MATH",
+    "description": "Control-rate less-than-or-equal test. Emits 1 when left <= right and 0 otherwise, whenever inlet 0 fires.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Left operand — fires the evaluation.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Right operand — stored until the next evaluation.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".<=",
+    "outlets": [
+      {
+        "doc": "1 when left <= right, 0 otherwise.",
+        "index": 0,
+        "label": "out",
+        "range": "0 or 1",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Initial right-operand value.",
+        "name": "right",
+        "range": "any float"
+      }
+    ]
+  },
+  ".==": {
+    "category": "MATH",
+    "description": "Control-rate equality test. Emits 1 when left == right and 0 otherwise, whenever inlet 0 fires.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Left operand — fires the evaluation.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Right operand — stored until the next evaluation.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".==",
+    "outlets": [
+      {
+        "doc": "1 when left == right, 0 otherwise.",
+        "index": 0,
+        "label": "out",
+        "range": "0 or 1",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Initial right-operand value.",
+        "name": "right",
+        "range": "any float"
+      }
+    ]
+  },
+  ".>": {
+    "category": "MATH",
+    "description": "Control-rate greater-than test. Emits 1 when left > right and 0 otherwise, whenever inlet 0 fires.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Left operand — fires the evaluation.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Right operand — stored until the next evaluation.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".>",
+    "outlets": [
+      {
+        "doc": "1 when left > right, 0 otherwise.",
+        "index": 0,
+        "label": "out",
+        "range": "0 or 1",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Initial right-operand value.",
+        "name": "right",
+        "range": "any float"
+      }
+    ]
+  },
+  ".>=": {
+    "category": "MATH",
+    "description": "Control-rate greater-than-or-equal test. Emits 1 when left >= right and 0 otherwise, whenever inlet 0 fires.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Left operand — fires the evaluation.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Right operand — stored until the next evaluation.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".>=",
+    "outlets": [
+      {
+        "doc": "1 when left >= right, 0 otherwise.",
+        "index": 0,
+        "label": "out",
+        "range": "0 or 1",
+        "type": "INT"
       }
     ],
     "params": [
@@ -1116,6 +1431,51 @@
         "doc": "Label text.",
         "name": "text",
         "range": "any string"
+      }
+    ]
+  },
+  ".||": {
+    "category": "MATH",
+    "description": "Control-rate logical OR. Emits 1 when either operand is non-zero and 0 otherwise, whenever inlet 0 fires.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Left operand — fires the evaluation.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Right operand — stored until the next evaluation.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".||",
+    "outlets": [
+      {
+        "doc": "1 when either operand is non-zero, 0 otherwise.",
+        "index": 0,
+        "label": "out",
+        "range": "0 or 1",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Initial right-operand value.",
+        "name": "right",
+        "range": "any float"
       }
     ]
   },
