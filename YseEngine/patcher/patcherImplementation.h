@@ -45,6 +45,18 @@ namespace YSE {
       // The GraphState pinned for the block currently being rendered, or null
       // between blocks. Read by inlets/outlets to resolve topology without a
       // lock (issue #226).
+      //
+      // This is the real accessor; pObject::CurrentBlockGraph() (non-virtual) is
+      // the forwarder that every *contained* object goes through -- it hops to
+      // its owning patcher and lands back here. The shadowing is therefore the
+      // intended direction of the relation, not accidental hiding. Reaching a
+      // patcherImplementation through a pObject* yields the base version, which
+      // returns null because a patcher has no parent; that is harmless, because
+      // the patcher's own inlets/outlets are never assigned a GraphState id
+      // (ids come from AssignObjectIds on objects *added* to the patcher, so
+      // theirs stay -1) and the `graphId >= 0` guard at both call sites already
+      // sends them down the live-wiring path. See issue #573.
+      // NOLINTNEXTLINE(bugprone-derived-method-shadowing-base-method)
       const GraphState* CurrentBlockGraph() const {
         return currentBlockGraph_.load(std::memory_order_acquire);
       }

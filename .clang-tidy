@@ -89,7 +89,22 @@ HeaderFilterRegex: '.*(YseEngine|Tests)[/\\].*\.h(pp)?$'
 # Vendored deps stay out of the report: dependencies/ (submodule-style checkouts)
 # and build*/_deps/ (FetchContent). We don't modify vendored sources, so their
 # findings are pure noise. Requires clang-tidy >= 19.
-ExcludeHeaderFilterRegex: '.*[/\\](dependencies|_deps)[/\\].*'
+#
+# YseEngine/utils/json.hpp is vendored too, it just predates the dependencies/
+# convention: it is a verbatim copy of nlohmann/json 3.0.1 (its upstream
+# copyright header is intact at the top of the file).  Widening
+# HeaderFilterRegex in #426 pulled its 10 findings into the report --
+# use-after-move, assignment-in-if-condition, assert-side-effect,
+# inc-dec-in-conditions, inefficient-string-concatenation.  Every one of them is
+# upstream's code, and patching a third-party single-header library in place is
+# exactly what the "don't modify vendored deps" rule exists to prevent, so it is
+# subtracted here rather than annotated in the file (issue #573).
+#
+# Note the alternation is matched as a search, not anchored: the filter sees the
+# include spelling the preprocessor resolved, and ours reach json.hpp through
+# relative hops (`YseEngine/sound/../patcher/../utils/json.hpp`), so the pattern
+# keys off the trailing `utils/json.hpp` rather than a full path.
+ExcludeHeaderFilterRegex: '.*[/\\](dependencies|_deps)[/\\].*|.*[/\\]utils[/\\]json\.hpp$'
 
 CheckOptions:
   - key: performance-move-const-arg.CheckTriviallyCopyableMove
