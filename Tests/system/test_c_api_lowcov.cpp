@@ -51,6 +51,7 @@
 
 #include <doctest/doctest.h>
 
+#include <chrono>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -82,6 +83,16 @@ namespace {
     return std::string(buf.data());
   }
 
+  // Pump until `s` reports ready or the budget runs out. Wall-clock rather than
+  // a fixed iteration count so a loaded CI machine cannot flake it — same
+  // 2-second budget the C++ lifecycle suite uses for this fixture
+  // (Tests/system/test_lifecycle.cpp).
+  void pumpUntilReady(YseSound* s) {
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while (yse_sound_is_ready(s) == 0 && std::chrono::steady_clock::now() < deadline)
+      capilowcov::pump(1);
+  }
+
   // Load the bundled mono fixture into a fresh sound on the master channel and
   // pump until it reports ready. Returns nullptr when the engine or the fixture
   // is unavailable, in which case the caller skips.
@@ -92,8 +103,7 @@ namespace {
       yse_sound_destroy(s);
       return nullptr;
     }
-    for (int i = 0; i < 100 && yse_sound_is_ready(s) == 0; ++i)
-      capilowcov::pump(1);
+    pumpUntilReady(s);
     return s;
   }
 
@@ -690,8 +700,7 @@ TEST_SUITE("capilowcov") {
     YseSound* s = yse_sound_create();
     REQUIRE(s != nullptr);
     REQUIRE(yse_sound_load_buffer(s, buf, yse_channel_master(), 1, 0.5f) == YSE_OK);
-    for (int i = 0; i < 100 && yse_sound_is_ready(s) == 0; ++i)
-      capilowcov::pump(1);
+    pumpUntilReady(s);
     CHECK(yse_sound_is_valid(s) == 1);
     // NB: the `loop` argument of yse_sound_load_buffer / _load_file reaches the
     // implementation but is not mirrored onto the interface, so the getter
