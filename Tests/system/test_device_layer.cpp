@@ -125,9 +125,9 @@ namespace {
   // the mix-copy body below actually runs. File scope: the create() contract
   // requires the source to outlive every sound built from it.
   struct SteadySource : YSE::DSP::dspSourceObject {
-    // DSP::dspSourceObject declares no destructor of its own; give this one a
-    // virtual destructor so the class is not deleted through a non-virtual base.
-    virtual ~SteadySource() = default;
+    // The hand-rolled virtual destructor this used to carry is no longer
+    // needed: DSP::dspSourceObject declares one itself as of #573.
+    ~SteadySource() override = default;
 
     void process(YSE::SOUND_STATUS& intent) override {
       for (UInt c = 0; c < samples.size(); ++c) {
