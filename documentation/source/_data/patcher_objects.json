@@ -1951,6 +1951,73 @@
       }
     ]
   },
+  ".pong": {
+    "category": "MATH",
+    "description": "Control-rate range limiting by folding or wrapping. Keeps the value on inlet 0 inside the [low, high] range and emits it as a float. Where .clip flattens an out-of-range value against the boundary, .pong reflects it back into the range (mode 3, fold, the default) or carries it around to the other side (mode 2, wrap) — the object to reach for when generative material has to stay in a register without collapsing onto the boundary, or when a counter has to behave like a phase. Mode 1 clips and mode 0 passes the value through unchanged. Limits given the wrong way round (low above high) are treated as an ordered pair and still fold against the right two numbers, and in every mode but 0 nothing non-finite can leave the object: the result is always inside the range.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Value to limit — fires the evaluation.",
+        "index": 0,
+        "label": "value",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Lower limit — stored until the next evaluation.",
+        "index": 1,
+        "label": "low",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Upper limit — stored until the next evaluation.",
+        "index": 2,
+        "label": "high",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".pong",
+    "outlets": [
+      {
+        "doc": "The input value folded, wrapped or clipped into [low, high].",
+        "index": 0,
+        "label": "out",
+        "range": "low to high",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "-1",
+        "doc": "Lower limit.",
+        "name": "low",
+        "range": "any float"
+      },
+      {
+        "default": "1",
+        "doc": "Upper limit.",
+        "name": "high",
+        "range": "any float"
+      },
+      {
+        "default": "3",
+        "doc": "0 none (pass through), 1 clip, 2 wrap, 3 fold.",
+        "name": "mode",
+        "range": "0 to 3"
+      }
+    ]
+  },
   ".pow": {
     "category": "MATH",
     "description": "Control-rate power. Emits base ^ exponent as a float whenever inlet 0 fires. Inputs with no real result — a negative base with a fractional exponent, or a zero base with a negative exponent — emit 0 rather than a NaN or an infinity.",

@@ -57,6 +57,7 @@
 #include "math/gDbConvert.h"
 #include "math/gPolar.h"
 #include "math/gClip.h"
+#include "math/gPong.h"
 #include "math/gScale.h"
 #include "math/gZmap.h"
 
@@ -142,8 +143,9 @@ pRegistry::pRegistry() {
   Add(OBJ::G_SCALE, gScale::Create);
   Add(OBJ::G_ZMAP, gZmap::Create);
 
-  // Range limiting (issue #445)
+  // Range limiting (issues #445, #446)
   Add(OBJ::G_CLIP, gClip::Create);
+  Add(OBJ::G_PONG, gPong::Create);
 
   // Trigonometric + hyperbolic functions (issue #441)
   Add(OBJ::G_SIN, gSin::Create);
