@@ -131,6 +131,7 @@ set(YSE_SRCS
   patcher/math/dMultiply.cpp
   patcher/math/dSubstract.cpp
   patcher/math/gAdd.cpp
+  patcher/math/gAtan2.cpp
   patcher/math/gBitwise.cpp
   patcher/math/gCompare.cpp
   patcher/math/gCounter.cpp
@@ -142,6 +143,7 @@ set(YSE_SRCS
   patcher/math/gReverse.cpp
   patcher/math/gRound.cpp
   patcher/math/gSubstract.cpp
+  patcher/math/gTrig.cpp
   patcher/math/gUnaryMath.cpp
   patcher/math/pFrequencyToMidi.cpp
   patcher/math/pMidiToFrequency.cpp
@@ -284,6 +286,7 @@ set_source_files_properties(
   patcher/math/dMultiply.cpp
   patcher/math/dSubstract.cpp
   patcher/math/gAdd.cpp
+  patcher/math/gAtan2.cpp
   patcher/math/gBitwise.cpp
   patcher/math/gCompare.cpp
   patcher/math/gCounter.cpp
@@ -295,6 +298,7 @@ set_source_files_properties(
   patcher/math/gReverse.cpp
   patcher/math/gRound.cpp
   patcher/math/gSubstract.cpp
+  patcher/math/gTrig.cpp
   patcher/math/gUnaryMath.cpp
   patcher/math/pFrequencyToMidi.cpp
   patcher/math/pMidiToFrequency.cpp
