@@ -57,6 +57,7 @@
 #include "math/gDbConvert.h"
 #include "math/gPolar.h"
 #include "math/gScale.h"
+#include "math/gZmap.h"
 
 #if YSE_WINDOWS
 #include "midi/mMidiChannelPressure.h"
@@ -136,8 +137,9 @@ pRegistry::pRegistry() {
   Add(OBJ::G_POW, gPow::Create);
   Add(OBJ::G_ROUND, gRound::Create);
 
-  // Range mapping (issue #443)
+  // Range mapping (issues #443, #444)
   Add(OBJ::G_SCALE, gScale::Create);
+  Add(OBJ::G_ZMAP, gZmap::Create);
 
   // Trigonometric + hyperbolic functions (issue #441)
   Add(OBJ::G_SIN, gSin::Create);
