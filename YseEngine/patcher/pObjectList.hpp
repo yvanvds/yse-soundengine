@@ -12,6 +12,8 @@ namespace YSE {
    *
    *  - DSP generators: ``D_SINE``, ``D_SAW``, ``D_NOISE``.
    *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``.
+   *  - Control math: ``G_ADD``, ``G_DIVIDE``, ``G_REVERSESUBSTRACT``,
+   *    ``G_REVERSEDIVIDE``, ``G_MODULO``, ``G_INTDIVIDE``.
    *  - Comparison / logic: ``G_EQUAL``, ``G_LESS``, ``G_LOGICALAND``, ...
    *  - Bitwise: ``G_BITAND``, ``G_BITOR``, ``G_SHIFTLEFT``, ``G_SHIFTRIGHT``.
    *  - DSP filters: ``D_LOWPASS``, ``D_HIGHPASS``, ``D_BANDPASS``, ``D_VCF``.
@@ -52,6 +54,11 @@ namespace YSE {
     DEFOBJ(G_SUBSTRACT, ".-");
     DEFOBJ(G_MULTIPLY, ".*");
     DEFOBJ(G_DIVIDE, "./");
+
+    DEFOBJ(G_REVERSESUBSTRACT, ".!-");
+    DEFOBJ(G_REVERSEDIVIDE, ".!/");
+    DEFOBJ(G_MODULO, ".%");
+    DEFOBJ(G_INTDIVIDE, ".div");
 
     DEFOBJ(G_EQUAL, ".==");
     DEFOBJ(G_NOTEQUAL, ".!=");

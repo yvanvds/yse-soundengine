@@ -135,8 +135,10 @@ set(YSE_SRCS
   patcher/math/gCompare.cpp
   patcher/math/gCounter.cpp
   patcher/math/gDivide.cpp
+  patcher/math/gIntDiv.cpp
   patcher/math/gMultiply.cpp
   patcher/math/gRandom.cpp
+  patcher/math/gReverse.cpp
   patcher/math/gSubstract.cpp
   patcher/math/pFrequencyToMidi.cpp
   patcher/math/pMidiToFrequency.cpp
@@ -283,8 +285,10 @@ set_source_files_properties(
   patcher/math/gCompare.cpp
   patcher/math/gCounter.cpp
   patcher/math/gDivide.cpp
+  patcher/math/gIntDiv.cpp
   patcher/math/gMultiply.cpp
   patcher/math/gRandom.cpp
+  patcher/math/gReverse.cpp
   patcher/math/gSubstract.cpp
   patcher/math/pFrequencyToMidi.cpp
   patcher/math/pMidiToFrequency.cpp
