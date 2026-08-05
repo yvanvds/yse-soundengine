@@ -32,7 +32,7 @@ YSE::PLAYER::managerObject::~managerObject() noexcept {
     inUse.clear();
     implementations.clear();
   } catch (...) {
-    INTERNAL::LogImpl().emit(E_ERROR, "PLAYER::Manager destructor swallowed exception");
+    INTERNAL::EmitNoThrow(E_ERROR, "PLAYER::Manager destructor swallowed exception");
   }
 }
 

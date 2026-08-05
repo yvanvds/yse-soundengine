@@ -48,7 +48,7 @@ YSE::SOUND::managerObject::~managerObject() noexcept {
       soundFiles.clear();
     }
   } catch (...) {
-    INTERNAL::LogImpl().emit(E_ERROR, "SOUND::Manager destructor swallowed exception");
+    INTERNAL::EmitNoThrow(E_ERROR, "SOUND::Manager destructor swallowed exception");
   }
 }
 
