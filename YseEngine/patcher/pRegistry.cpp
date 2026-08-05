@@ -52,6 +52,8 @@
 #include "math/gUnaryMath.h"
 #include "math/gPow.h"
 #include "math/gRound.h"
+#include "math/gTrig.h"
+#include "math/gAtan2.h"
 
 #if YSE_WINDOWS
 #include "midi/mMidiChannelPressure.h"
@@ -130,6 +132,21 @@ pRegistry::pRegistry() {
   Add(OBJ::G_SQRT, gSqrt::Create);
   Add(OBJ::G_POW, gPow::Create);
   Add(OBJ::G_ROUND, gRound::Create);
+
+  // Trigonometric + hyperbolic functions (issue #441)
+  Add(OBJ::G_SIN, gSin::Create);
+  Add(OBJ::G_COS, gCos::Create);
+  Add(OBJ::G_TAN, gTan::Create);
+  Add(OBJ::G_ASIN, gAsin::Create);
+  Add(OBJ::G_ACOS, gAcos::Create);
+  Add(OBJ::G_ATAN, gAtan::Create);
+  Add(OBJ::G_ATAN2, gAtan2::Create);
+  Add(OBJ::G_SINH, gSinh::Create);
+  Add(OBJ::G_COSH, gCosh::Create);
+  Add(OBJ::G_TANH, gTanh::Create);
+  Add(OBJ::G_ASINH, gAsinh::Create);
+  Add(OBJ::G_ACOSH, gAcosh::Create);
+  Add(OBJ::G_ATANH, gAtanh::Create);
 
   // Comparison + logic operators (issue #437)
   Add(OBJ::G_EQUAL, gEqual::Create);

@@ -792,6 +792,219 @@
     ],
     "params": []
   },
+  ".acos": {
+    "category": "MATH",
+    "description": "Control-rate arc-cosine. Emits acos(in) in radians as a float whenever inlet 0 fires. Inputs outside -1 to 1 have no real arc-cosine and emit 0 rather than a NaN.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Value to take the arc-cosine of — fires the evaluation. Values outside -1 to 1 force the output to 0.",
+        "index": 0,
+        "label": "in",
+        "range": "-1.0 to 1.0"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".acos",
+    "outlets": [
+      {
+        "doc": "The arc-cosine of the input, in radians.",
+        "index": 0,
+        "label": "out",
+        "range": "0 to pi",
+        "type": "FLOAT"
+      }
+    ],
+    "params": []
+  },
+  ".acosh": {
+    "category": "MATH",
+    "description": "Control-rate hyperbolic arc-cosine. Emits acosh(in) as a float whenever inlet 0 fires. Inputs below 1 have no real hyperbolic arc-cosine and emit 0 rather than a NaN.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Value to take the hyperbolic arc-cosine of — fires the evaluation. Values below 1 force the output to 0.",
+        "index": 0,
+        "label": "in",
+        "range": "1.0 or higher"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".acosh",
+    "outlets": [
+      {
+        "doc": "The hyperbolic arc-cosine of the input.",
+        "index": 0,
+        "label": "out",
+        "range": "0 or higher",
+        "type": "FLOAT"
+      }
+    ],
+    "params": []
+  },
+  ".asin": {
+    "category": "MATH",
+    "description": "Control-rate arc-sine. Emits asin(in) in radians as a float whenever inlet 0 fires. Inputs outside -1 to 1 have no real arc-sine and emit 0 rather than a NaN.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Value to take the arc-sine of — fires the evaluation. Values outside -1 to 1 force the output to 0.",
+        "index": 0,
+        "label": "in",
+        "range": "-1.0 to 1.0"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".asin",
+    "outlets": [
+      {
+        "doc": "The arc-sine of the input, in radians.",
+        "index": 0,
+        "label": "out",
+        "range": "-pi/2 to pi/2",
+        "type": "FLOAT"
+      }
+    ],
+    "params": []
+  },
+  ".asinh": {
+    "category": "MATH",
+    "description": "Control-rate hyperbolic arc-sine. Emits asinh(in) as a float whenever inlet 0 fires. Defined for every input.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Value to take the hyperbolic arc-sine of — fires the evaluation.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".asinh",
+    "outlets": [
+      {
+        "doc": "The hyperbolic arc-sine of the input.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "FLOAT"
+      }
+    ],
+    "params": []
+  },
+  ".atan": {
+    "category": "MATH",
+    "description": "Control-rate arc-tangent. Emits atan(in) in radians as a float whenever inlet 0 fires. Use .atan2 when the quadrant of the angle matters.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Value to take the arc-tangent of — fires the evaluation.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".atan",
+    "outlets": [
+      {
+        "doc": "The arc-tangent of the input, in radians.",
+        "index": 0,
+        "label": "out",
+        "range": "-pi/2 to pi/2",
+        "type": "FLOAT"
+      }
+    ],
+    "params": []
+  },
+  ".atan2": {
+    "category": "MATH",
+    "description": "Control-rate two-argument arc-tangent. Emits the angle in radians of the point (x, y) measured from the positive x axis, whenever inlet 0 fires. Unlike .atan it sees the signs of both operands, so it resolves the full circle rather than only the half plane — this is the angle half of a cartesian-to-polar conversion.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "y coordinate — fires the evaluation.",
+        "index": 0,
+        "label": "y",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "x coordinate — stored until the next evaluation.",
+        "index": 1,
+        "label": "x",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".atan2",
+    "outlets": [
+      {
+        "doc": "The angle of (x, y) in radians.",
+        "index": 0,
+        "label": "out",
+        "range": "-pi to pi",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Initial x coordinate.",
+        "name": "x",
+        "range": "any float"
+      }
+    ]
+  },
+  ".atanh": {
+    "category": "MATH",
+    "description": "Control-rate hyperbolic arc-tangent. Emits atanh(in) as a float whenever inlet 0 fires. The result is unbounded at ±1 and undefined beyond them, so inputs at or outside -1 to 1 emit 0 rather than an infinity or a NaN.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Value to take the hyperbolic arc-tangent of — fires the evaluation. Values at or outside -1 to 1 force the output to 0.",
+        "index": 0,
+        "label": "in",
+        "range": "greater than -1.0 and less than 1.0"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".atanh",
+    "outlets": [
+      {
+        "doc": "The hyperbolic arc-tangent of the input.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "FLOAT"
+      }
+    ],
+    "params": []
+  },
   ".b": {
     "category": "GUI",
     "description": "Momentary button. Any input (bang/int/float) lights the button until the next GUI poll; emits a bang on every calculate tick.",
@@ -894,6 +1107,62 @@
         "range": "0-127"
       }
     ]
+  },
+  ".cos": {
+    "category": "MATH",
+    "description": "Control-rate cosine. Emits cos(in) as a float whenever inlet 0 fires. The input is an angle in radians, as in Max.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Angle in radians — fires the evaluation.",
+        "index": 0,
+        "label": "in",
+        "range": "any float (radians)"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".cos",
+    "outlets": [
+      {
+        "doc": "The cosine of the input.",
+        "index": 0,
+        "label": "out",
+        "range": "-1.0 to 1.0",
+        "type": "FLOAT"
+      }
+    ],
+    "params": []
+  },
+  ".cosh": {
+    "category": "MATH",
+    "description": "Control-rate hyperbolic cosine. Emits cosh(in) as a float whenever inlet 0 fires. The result overflows for inputs beyond roughly ±89; 0 is emitted there rather than an infinity.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Value to take the hyperbolic cosine of — fires the evaluation.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".cosh",
+    "outlets": [
+      {
+        "doc": "The hyperbolic cosine of the input.",
+        "index": 0,
+        "label": "out",
+        "range": "1.0 or higher",
+        "type": "FLOAT"
+      }
+    ],
+    "params": []
   },
   ".counter": {
     "category": "MATH",
@@ -1736,6 +2005,62 @@
       }
     ]
   },
+  ".sin": {
+    "category": "MATH",
+    "description": "Control-rate sine. Emits sin(in) as a float whenever inlet 0 fires. The input is an angle in radians, as in Max.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Angle in radians — fires the evaluation.",
+        "index": 0,
+        "label": "in",
+        "range": "any float (radians)"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".sin",
+    "outlets": [
+      {
+        "doc": "The sine of the input.",
+        "index": 0,
+        "label": "out",
+        "range": "-1.0 to 1.0",
+        "type": "FLOAT"
+      }
+    ],
+    "params": []
+  },
+  ".sinh": {
+    "category": "MATH",
+    "description": "Control-rate hyperbolic sine. Emits sinh(in) as a float whenever inlet 0 fires. The result overflows for inputs beyond roughly ±89; 0 is emitted there rather than an infinity.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Value to take the hyperbolic sine of — fires the evaluation.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".sinh",
+    "outlets": [
+      {
+        "doc": "The hyperbolic sine of the input.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "FLOAT"
+      }
+    ],
+    "params": []
+  },
   ".slider": {
     "category": "GUI",
     "description": "Slider control. Stores a normalized float in [0, 1]; ints/floats are clamped on input. Emits the stored value on every calculate tick.",
@@ -1875,6 +2200,62 @@
         "label": "out",
         "range": "0 or 1",
         "type": "INT"
+      }
+    ],
+    "params": []
+  },
+  ".tan": {
+    "category": "MATH",
+    "description": "Control-rate tangent. Emits tan(in) as a float whenever inlet 0 fires. The input is an angle in radians, as in Max. Near an odd multiple of pi/2 the result grows without bound; if it stops being finite, 0 is emitted rather than an infinity.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Angle in radians — fires the evaluation.",
+        "index": 0,
+        "label": "in",
+        "range": "any float (radians)"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".tan",
+    "outlets": [
+      {
+        "doc": "The tangent of the input.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "FLOAT"
+      }
+    ],
+    "params": []
+  },
+  ".tanh": {
+    "category": "MATH",
+    "description": "Control-rate hyperbolic tangent. Emits tanh(in) as a float whenever inlet 0 fires. The output saturates smoothly towards -1 and 1, which is what makes it the usual waveshaping curve.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Value to take the hyperbolic tangent of — fires the evaluation.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".tanh",
+    "outlets": [
+      {
+        "doc": "The hyperbolic tangent of the input.",
+        "index": 0,
+        "label": "out",
+        "range": "-1.0 to 1.0",
+        "type": "FLOAT"
       }
     ],
     "params": []

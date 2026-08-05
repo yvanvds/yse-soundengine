@@ -15,6 +15,9 @@ namespace YSE {
    *  - Control math: ``G_ADD``, ``G_DIVIDE``, ``G_REVERSESUBSTRACT``,
    *    ``G_REVERSEDIVIDE``, ``G_MODULO``, ``G_INTDIVIDE``.
    *  - Elementary math: ``G_ABS``, ``G_SQRT``, ``G_POW``, ``G_ROUND``.
+   *  - Trigonometry / hyperbolics: ``G_SIN``, ``G_COS``, ``G_TAN``,
+   *    ``G_ASIN``, ``G_ACOS``, ``G_ATAN``, ``G_ATAN2``, ``G_SINH``,
+   *    ``G_COSH``, ``G_TANH``, ``G_ASINH``, ``G_ACOSH``, ``G_ATANH``.
    *  - Comparison / logic: ``G_EQUAL``, ``G_LESS``, ``G_LOGICALAND``, ...
    *  - Bitwise: ``G_BITAND``, ``G_BITOR``, ``G_SHIFTLEFT``, ``G_SHIFTRIGHT``.
    *  - DSP filters: ``D_LOWPASS``, ``D_HIGHPASS``, ``D_BANDPASS``, ``D_VCF``.
@@ -65,6 +68,20 @@ namespace YSE {
     DEFOBJ(G_SQRT, ".sqrt");
     DEFOBJ(G_POW, ".pow");
     DEFOBJ(G_ROUND, ".round");
+
+    DEFOBJ(G_SIN, ".sin");
+    DEFOBJ(G_COS, ".cos");
+    DEFOBJ(G_TAN, ".tan");
+    DEFOBJ(G_ASIN, ".asin");
+    DEFOBJ(G_ACOS, ".acos");
+    DEFOBJ(G_ATAN, ".atan");
+    DEFOBJ(G_ATAN2, ".atan2");
+    DEFOBJ(G_SINH, ".sinh");
+    DEFOBJ(G_COSH, ".cosh");
+    DEFOBJ(G_TANH, ".tanh");
+    DEFOBJ(G_ASINH, ".asinh");
+    DEFOBJ(G_ACOSH, ".acosh");
+    DEFOBJ(G_ATANH, ".atanh");
 
     DEFOBJ(G_EQUAL, ".==");
     DEFOBJ(G_NOTEQUAL, ".!=");
