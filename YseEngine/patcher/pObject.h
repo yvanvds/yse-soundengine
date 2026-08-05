@@ -162,11 +162,18 @@ namespace YSE {
 }
 
 // these macro's should make creating patcher objects a bit easier
+//
+// The members these macros emit all override pure virtuals on pObject --
+// PATCHER_CLASS always opens `class X : public pObject` -- so they are marked
+// `override`. clang-tidy's modernize-use-override cannot rewrite inside a macro
+// body, which is why they were the one group the #573 sweep did not reach; left
+// unmarked they also made every patcher object that marks anything else
+// `override` trip -Winconsistent-missing-override.
 #define PATCHER_CLASS(className, name)                                                             \
   class className : public pObject {                                                               \
   public:                                                                                          \
     className();                                                                                   \
-    virtual const char* Type() const {                                                             \
+    const char* Type() const override {                                                            \
       return name;                                                                                 \
     }                                                                                              \
     CREATE(className)
@@ -175,17 +182,17 @@ namespace YSE {
     return new className();                                                                        \
   }
 
-#define _DO_MESSAGES virtual void SetMessage(const std::string& message, float value);
+#define _DO_MESSAGES void SetMessage(const std::string& message, float value) override;
 #define _NO_MESSAGES                                                                               \
-  virtual void SetMessage(const std::string&, float) {}
+  void SetMessage(const std::string&, float) override {}
 #define MESSAGES() void className::SetMessage(const std::string& message, float value)
 
-#define _DO_CALCULATE virtual void Calculate(YSE::THREAD thread);
+#define _DO_CALCULATE void Calculate(YSE::THREAD thread) override;
 #define _NO_CALCULATE                                                                              \
-  virtual void Calculate(YSE::THREAD) {}
+  void Calculate(YSE::THREAD) override {}
 #define CALC() void className::Calculate(YSE::THREAD thread)
 
-#define _DO_RESET virtual void ResetDSP();
+#define _DO_RESET void ResetDSP() override;
 #define RESET()                                                                                    \
   void className::ResetDSP() {                                                                     \
     pObject::ResetDSP();
@@ -244,7 +251,7 @@ namespace YSE {
 #define OUTLET_DOC(idx, label, doc, range) outputs[(idx)].SetDoc((label), (doc), (range))
 #define PARAM_DOC(name, defaultVal, doc, range) parms.SetDoc((name), (defaultVal), (doc), (range))
 
-#define _HAS_GUI virtual std::string GetGuiValue();
+#define _HAS_GUI std::string GetGuiValue() override;
 #define GUI_VALUE() std::string className::GetGuiValue()
 
 #define CONSTRUCT_DSP() className::className() : pObject(true)
