@@ -137,9 +137,12 @@ set(YSE_SRCS
   patcher/math/gDivide.cpp
   patcher/math/gIntDiv.cpp
   patcher/math/gMultiply.cpp
+  patcher/math/gPow.cpp
   patcher/math/gRandom.cpp
   patcher/math/gReverse.cpp
+  patcher/math/gRound.cpp
   patcher/math/gSubstract.cpp
+  patcher/math/gUnaryMath.cpp
   patcher/math/pFrequencyToMidi.cpp
   patcher/math/pMidiToFrequency.cpp
   patcher/outlet.cpp
@@ -287,9 +290,12 @@ set_source_files_properties(
   patcher/math/gDivide.cpp
   patcher/math/gIntDiv.cpp
   patcher/math/gMultiply.cpp
+  patcher/math/gPow.cpp
   patcher/math/gRandom.cpp
   patcher/math/gReverse.cpp
+  patcher/math/gRound.cpp
   patcher/math/gSubstract.cpp
+  patcher/math/gUnaryMath.cpp
   patcher/math/pFrequencyToMidi.cpp
   patcher/math/pMidiToFrequency.cpp
   patcher/midi/mMidiChannelPressure.cpp

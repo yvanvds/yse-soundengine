@@ -764,6 +764,34 @@
       }
     ]
   },
+  ".abs": {
+    "category": "MATH",
+    "description": "Control-rate absolute value. Emits |in| as a float whenever inlet 0 fires.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Value to take the absolute value of — fires the evaluation.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".abs",
+    "outlets": [
+      {
+        "doc": "The absolute value of the input.",
+        "index": 0,
+        "label": "out",
+        "range": "0 or higher",
+        "type": "FLOAT"
+      }
+    ],
+    "params": []
+  },
   ".b": {
     "category": "GUI",
     "description": "Momentary button. Any input (bang/int/float) lights the button until the next GUI poll; emits a bang on every calculate tick.",
@@ -1433,6 +1461,51 @@
       }
     ]
   },
+  ".pow": {
+    "category": "MATH",
+    "description": "Control-rate power. Emits base ^ exponent as a float whenever inlet 0 fires. Inputs with no real result — a negative base with a fractional exponent, or a zero base with a negative exponent — emit 0 rather than a NaN or an infinity.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Base — fires the evaluation.",
+        "index": 0,
+        "label": "base",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Exponent — stored until the next evaluation.",
+        "index": 1,
+        "label": "exponent",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".pow",
+    "outlets": [
+      {
+        "doc": "base raised to the power of exponent (or 0 when that has no finite value).",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Initial exponent.",
+        "name": "exponent",
+        "range": "any float"
+      }
+    ]
+  },
   ".programchange": {
     "category": "MIDI",
     "description": "MIDI Program Change message generator. Emits a status/program packet on every value change.",
@@ -1554,6 +1627,51 @@
       }
     ]
   },
+  ".round": {
+    "category": "MATH",
+    "description": "Control-rate rounding. Emits the input snapped to the nearest multiple of the step whenever inlet 0 fires — a step of 0.5 snaps to halves, the default step of 1 rounds to the nearest integer, and a step of 0 passes the input through unchanged. Halfway values round away from zero.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Value to round — fires the evaluation.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Step to round to a multiple of — stored until the next evaluation. Zero disables rounding.",
+        "index": 1,
+        "label": "step",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".round",
+    "outlets": [
+      {
+        "doc": "The input snapped to the nearest multiple of the step.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "Initial step. 0 passes the input through unchanged.",
+        "name": "step",
+        "range": "any float"
+      }
+    ]
+  },
   ".route": {
     "category": "GENERIC",
     "description": "Match-and-route. Compares the incoming value to each token in the list parameter and forwards to the matching outlet; unmatched values go to the final fall-through outlet. Outlets are created when the list parameter is set.",
@@ -1642,6 +1760,34 @@
         "index": 0,
         "label": "out",
         "range": "0.0-1.0",
+        "type": "FLOAT"
+      }
+    ],
+    "params": []
+  },
+  ".sqrt": {
+    "category": "MATH",
+    "description": "Control-rate square root. Emits the square root of the input as a float whenever inlet 0 fires. A negative input emits 0 rather than a NaN.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Value to take the square root of — fires the evaluation. Negative values force the output to 0.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".sqrt",
+    "outlets": [
+      {
+        "doc": "The square root of the input (or 0 when the input is negative).",
+        "index": 0,
+        "label": "out",
+        "range": "0 or higher",
         "type": "FLOAT"
       }
     ],
