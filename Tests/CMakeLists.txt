@@ -119,6 +119,13 @@ set(YSE_TEST_SOURCES
   clock/test_domain_clocks.cpp
   clip/test_clip_transport.cpp
   clip/test_c_api_clip.cpp
+  # Low-coverage c_api surface (issue #568) — one `capilowcov` suite spread
+  # across the subsystem directories the wrapped TUs belong to.
+  dsp/test_c_api_dsp.cpp
+  music/test_c_api_music.cpp
+  midi/test_c_api_midi.cpp
+  patcher/test_c_api_patcher.cpp
+  system/test_c_api_lowcov.cpp
   integration/test_device.cpp
   integration/test_content_pack.cpp
   integration/test_synth_demos.cpp
@@ -279,7 +286,13 @@ add_test(
   # DEVICE::Manager() singleton (updateDeviceList / close / pause / resume) and
   # calls paCallback on the test thread. It runs in its own process
   # (yse_tests_devicelayer).
-  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthhandlers,synthbus,synthcapi,instrumentcapi,midisynth,playersynth,playercapi,sendstress,channelcapi,synthdemos,clock,clip,buscapi,capisurface,logsafety,devicelayer --duration=true
+  # `capilowcov` / `capilowcovlife` (issue #568 low-coverage c_api surface) are
+  # excluded for the same family of reasons as `capisurface`: the suite drives
+  # yse_system_init_offline() and mutates process-global engine state (channels,
+  # sounds, clocks, the device manager), and its teardown half calls
+  # yse_system_close_current_device() / yse_system_close(). They run in
+  # yse_tests_capilowcov and yse_tests_capilowcovlife.
+  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthhandlers,synthbus,synthcapi,instrumentcapi,midisynth,playersynth,playercapi,sendstress,channelcapi,synthdemos,clock,clip,buscapi,capisurface,logsafety,devicelayer,capilowcov,capilowcovlife --duration=true
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_unit_tests PROPERTIES TIMEOUT 600)
@@ -505,6 +518,33 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_devicelayer PROPERTIES LABELS "system;audio-io;lifecycle")
+
+# Low-coverage C-API surface (issue #568, follow-up to #417). Covers the eight
+# c_api translation units that #566 left below ~50%: yse_dsp.cpp,
+# yse_dsp_modules.cpp, yse_music.cpp, yse_midi.cpp, yse_patcher.cpp,
+# yse_system.cpp, yse_channel.cpp and yse_sound.cpp. The cases live in five TUs
+# under the subsystem directories they mirror but share one suite name so they
+# also share one offline engine session (Tests/support/capilowcov_offline.hpp).
+# Isolated in its own process for the same reason as yse_tests_capisurface: it
+# drives yse_system_init_offline() and mutates process-global engine state.
+# initOffline() needs no audio hardware, so it runs on headless CI.
+add_test(
+  NAME    yse_tests_capilowcov
+  COMMAND yse_tests --test-suite=capilowcov
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_capilowcov PROPERTIES LABELS "system;c-api;lifecycle" TIMEOUT 300)
+
+# Teardown half of the same surface: yse_system_close_current_device() followed
+# by yse_system_close(). Split off from yse_tests_capilowcov rather than ordered
+# last inside it, because closing the device / the pools would pull the ground
+# out from under every other case sharing that process (#298 lineage).
+add_test(
+  NAME    yse_tests_capilowcovlife
+  COMMAND yse_tests --test-suite=capilowcovlife
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_capilowcovlife PROPERTIES LABELS "system;c-api;lifecycle")
 
 add_test(
   NAME    yse_tests_midi
