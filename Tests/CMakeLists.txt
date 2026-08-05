@@ -112,6 +112,7 @@ set(YSE_TEST_SOURCES
   system/test_named_bus.cpp
   system/test_c_api_bus.cpp
   system/test_c_api_surface.cpp
+  system/test_device_layer.cpp
   system/test_system_active_state.cpp
   system/test_lifecycle.cpp
   clock/test_domain_clocks.cpp
@@ -192,6 +193,21 @@ set_source_files_properties(sound/test_sound_bufferrace.cpp PROPERTIES
   COMPILE_DEFINITIONS LIBSOUNDFILE_BACKEND
 )
 
+# test_device_layer.cpp drives DEVICE::Manager() and its static paCallback
+# directly (issue #418). Both are declared in device/portaudioDeviceManager.h,
+# which is gated behind PORTAUDIO_BACKEND — defined PRIVATE on yse_objects, so
+# it does not reach test sources. Enable the gate for just this TU, same
+# treatment as LIBSOUNDFILE_BACKEND above, and add PortAudio's include path
+# since the header pulls in portaudio.h. Desktop only: Android builds the Oboe
+# backend instead, and the TU's PortAudio cases compile out there, leaving the
+# descriptor / setup / AudioTest cases which need no backend.
+if(NOT ANDROID)
+  set_source_files_properties(system/test_device_layer.cpp PROPERTIES
+    COMPILE_DEFINITIONS PORTAUDIO_BACKEND
+  )
+  target_include_directories(yse_tests PRIVATE ${PortAudio_INCLUDE_DIRS})
+endif()
+
 target_compile_features(yse_tests PRIVATE cxx_std_17)
 
 # doctest uses __COUNTER__, which Clang warns about as a C2y extension.
@@ -252,7 +268,12 @@ add_test(
   # yse_system_init_offline(), swaps the process-global log sink, and installs
   # the process-global BufferIO VFS hooks. It runs in its own process
   # (yse_tests_capisurface).
-  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthhandlers,synthbus,synthcapi,instrumentcapi,midisynth,playersynth,playercapi,sendstress,channelcapi,synthdemos,clock,clip,buscapi,capisurface --duration=true
+  # `devicelayer` (issue #418 device / audio-IO layer) is excluded for the same
+  # family of reasons: it drives System::initOffline(), mutates the global
+  # DEVICE::Manager() singleton (updateDeviceList / close / pause / resume) and
+  # calls paCallback on the test thread. It runs in its own process
+  # (yse_tests_devicelayer).
+  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthhandlers,synthbus,synthcapi,instrumentcapi,midisynth,playersynth,playercapi,sendstress,channelcapi,synthdemos,clock,clip,buscapi,capisurface,devicelayer --duration=true
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_unit_tests PROPERTIES TIMEOUT 600)
@@ -451,6 +472,21 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_capisurface PROPERTIES LABELS "system;c-api;lifecycle")
+
+# Device / audio-IO layer (issue #418). Covers the descriptor and setup
+# plumbing, the PortAudio manager's error / enumeration paths, the audio
+# callback's clamp + partial-block copy, and the built-in diagnostic tone.
+# Everything runs against an offline engine with PortAudio deliberately never
+# initialised, which is what makes the "no devices" / "no default device"
+# branches deterministic — so it needs no audio hardware and runs on headless
+# CI. Isolated in its own process because it drives yse_system_init_offline()
+# and mutates the process-global DEVICE::Manager() singleton.
+add_test(
+  NAME    yse_tests_devicelayer
+  COMMAND yse_tests --test-suite=devicelayer
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_devicelayer PROPERTIES LABELS "system;audio-io;lifecycle")
 
 add_test(
   NAME    yse_tests_midi
