@@ -49,7 +49,7 @@ namespace {
 
   // Every no-arg module constructor in yse_dsp_modules.h, so the ownership and
   // inherited-control-surface cases can sweep the whole family.
-  using ModuleCtor = YseDspObject* (*)(void);
+  using ModuleCtor = YseDspObject* (*)();
 
   const ModuleCtor kModuleCtors[] = {
       &yse_dsp_lowpass_create,
