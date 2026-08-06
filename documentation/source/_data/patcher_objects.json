@@ -2861,6 +2861,43 @@
       }
     ]
   },
+  ".vexpr": {
+    "category": "MATH",
+    "description": "Evaluates a C-like mathematical expression once for every element of a list, so one object replaces an iteration loop: scaling a chord, transposing a motif or bending a set of breakpoints becomes a single box. The expression is the creation argument and the language is exactly .expr's - its $i1-$i9 and $f1-$f9 placeholders name the inlets ($i reads as an int, $f as a float), the object gets one inlet past the highest placeholder used, and the operators, the functions and the C type rules are the same, so read .expr for the details. The difference is the data: every inlet holds a list rather than a single value, and an int or a float is simply a one-item list. An inlet holding one item is broadcast across all the elements (Max's scalarmode 1), so a list on one inlet and a number on another scales the list; otherwise the number of results is the length of the shortest list among the inlets the expression actually reads. Inlet 0 is hot: it stores its list and evaluates, while the other inlets only store. A bang on inlet 0 re-evaluates from the stored lists. A single result is sent as an int or a float, and a longer one as a list. Lists are held at up to 256 items per inlet (Max's default maxsize) and anything past that is dropped. The expression is compiled once, when the parameter is set; evaluation only walks the compiled form and writes into a buffer reserved up front, so it allocates nothing and takes no lock. A malformed expression is reported to the log at parse time and the object then sends 0.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "List for the $i1 / $f1 placeholders — stores and fires the evaluation. An int or a float is stored as a one-item list, which is then broadcast across every element. Also accepts a bang, which re-evaluates from the stored lists.",
+        "index": 0,
+        "label": "$1",
+        "range": "any list of floats"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".vexpr",
+    "outlets": [
+      {
+        "doc": "One result per element. A single result is sent as an int or a float following the expression's type; two or more are sent as a list.",
+        "index": 0,
+        "label": "out",
+        "range": "any list of floats",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The expression to evaluate for every element, e.g. \"$f1 * $f2\". Placeholders $i1-$i9 and $f1-$f9 name the inlets and determine how many there are.",
+        "name": "expression",
+        "range": "any expression"
+      }
+    ]
+  },
   ".zmap": {
     "category": "MATH",
     "description": "Control-rate clipped range mapping. Maps the value on inlet 0 from the input range onto the output range and emits it as a float. Unlike .scale the mapping never extrapolates: a value outside the input range is pinned to the matching output limit, which makes this the safe choice for driving a parameter that must never leave its legal range. The mapping is always linear — use .scale for an exponential curve or for extrapolation. A descending output range (low above high) clips against the correct limits, a degenerate input range (low equal to high) emits the output low, and nothing non-finite can leave the object — the result is always inside the output range.",

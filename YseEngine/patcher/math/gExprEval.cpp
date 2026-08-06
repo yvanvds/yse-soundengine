@@ -1155,3 +1155,188 @@ int YSE::PATCHER::ExprParseFloatList(const char* text, float* out, int cap) {
   }
   return count;
 }
+
+// ─── number formatting ──────────────────────────────────────────────────────
+
+namespace {
+
+  // Exact powers of ten. Every value up to 1e22 is representable in a double
+  // without rounding, which is what makes Pow10 exact over the range a patcher
+  // realistically produces; beyond it the composed products drift by an ulp or
+  // two of *double*, which is still some twenty-five bits below the float
+  // precision the round-trip test below actually decides on.
+  const double kPow10[23] = {1e0,  1e1,  1e2,  1e3,  1e4,  1e5,  1e6,  1e7,  1e8,  1e9,  1e10, 1e11,
+                             1e12, 1e13, 1e14, 1e15, 1e16, 1e17, 1e18, 1e19, 1e20, 1e21, 1e22};
+
+  double Pow10(int e) {
+    const bool negative = e < 0;
+    if (negative) e = -e;
+    double r = 1.0;
+    while (e > 22) {
+      r *= kPow10[22];
+      e -= 22;
+    }
+    r *= kPow10[e];
+    return negative ? 1.0 / r : r;
+  }
+
+  // Integer powers of ten, for the digit-trimming loop. 10^9 fits an int64
+  // comfortably.
+  const long long kPow10i[10] = {1LL,      10LL,      100LL,      1000LL,      10000LL,
+                                 100000LL, 1000000LL, 10000000LL, 100000000LL, 1000000000LL};
+
+  // Write |value|'s digits into out; returns the length. Handles INT_MIN,
+  // which is why the magnitude is taken in unsigned arithmetic.
+  int FormatInt(int value, char* out) {
+    unsigned int u = value < 0 ? (0u - (unsigned int)value) : (unsigned int)value;
+    char digits[12];
+    int n = 0;
+    do {
+      digits[n++] = (char)('0' + (int)(u % 10u));
+      u /= 10u;
+    } while (u != 0u);
+
+    int len = 0;
+    if (value < 0) out[len++] = '-';
+    while (n > 0)
+      out[len++] = digits[--n];
+    return len;
+  }
+
+} // namespace
+
+int YSE::PATCHER::ExprFormatValue(const ExprValue& value, char* out, int cap) {
+  if (out == nullptr || cap < 2) {
+    if (out != nullptr && cap > 0) out[0] = '\0';
+    return 0;
+  }
+  if (cap < kExprValueTextMax) {
+    out[0] = '\0';
+    return 0;
+  }
+
+  if (value.isInt) {
+    const int len = FormatInt(value.i, out);
+    out[len] = '\0';
+    return len;
+  }
+
+  const float v = value.f;
+  // Both answered with the float spelling of zero: "0." is still a float to
+  // whatever parses this list back, and a non-finite value is the 0 the rest
+  // of the math family substitutes.
+  if (!std::isfinite(v) || v == 0.f) {
+    out[0] = '0';
+    out[1] = '.';
+    out[2] = '\0';
+    return 2;
+  }
+
+  const double a = std::fabs((double)v);
+
+  // Normalise to a nine-digit decimal mantissa: a ≈ m9 * 10^(e10 - 8), with
+  // m9 in [1e8, 1e9). log10 gets the exponent right to within one either way,
+  // so the loop only ever corrects by a single step.
+  int e10 = (int)std::floor(std::log10(a));
+  for (int guard = 0; guard < 4; guard++) {
+    const double scaled = a / Pow10(e10 - 8);
+    if (scaled >= 1e9) {
+      e10++;
+      continue;
+    }
+    if (scaled < 1e8) {
+      e10--;
+      continue;
+    }
+    break;
+  }
+  long long m9 = (long long)std::llround(a / Pow10(e10 - 8));
+  if (m9 >= 1000000000LL) {
+    m9 /= 10;
+    e10++;
+  }
+  if (m9 < 100000000LL) m9 = 100000000LL; // unreachable in practice; keeps the width
+
+  // Shortest round trip: the fewest significant digits that read back as the
+  // same float. Nine always works — it is the round-trip width of a float —
+  // so the loop always terminates with a usable answer.
+  long long mant = m9;
+  int digits = 9;
+  int exp10 = e10 - 8; // value == mant * 10^exp10
+  for (int p = 1; p <= 9; p++) {
+    const long long div = kPow10i[9 - p];
+    long long m = (m9 + div / 2) / div;
+    int e = (e10 - 8) + (9 - p);
+    if (m >= kPow10i[p]) { // the rounding carried, e.g. 999 -> 1000
+      m /= 10;
+      e++;
+    }
+    if ((float)((double)m * Pow10(e)) == (float)a) {
+      mant = m;
+      digits = p;
+      exp10 = e;
+      break;
+    }
+  }
+
+  // Split the mantissa into characters, most significant first.
+  char digitChars[10];
+  for (int i = digits - 1; i >= 0; i--) {
+    digitChars[i] = (char)('0' + (int)(mant % 10));
+    mant /= 10;
+  }
+
+  int len = 0;
+  if (v < 0.f) out[len++] = '-';
+
+  // Digits before the decimal point if this were written in full.
+  const int point = digits + exp10;
+
+  if (point > -4 && point <= 9) {
+    // Fixed point — the range a patcher actually works in.
+    if (point <= 0) {
+      out[len++] = '0';
+      out[len++] = '.';
+      for (int i = 0; i < -point; i++)
+        out[len++] = '0';
+      for (int i = 0; i < digits; i++)
+        out[len++] = digitChars[i];
+    } else if (point >= digits) {
+      for (int i = 0; i < digits; i++)
+        out[len++] = digitChars[i];
+      for (int i = 0; i < point - digits; i++)
+        out[len++] = '0';
+      // The trailing point is what keeps a whole-numbered float readable as a
+      // float rather than as an int.
+      out[len++] = '.';
+    } else {
+      for (int i = 0; i < point; i++)
+        out[len++] = digitChars[i];
+      out[len++] = '.';
+      for (int i = point; i < digits; i++)
+        out[len++] = digitChars[i];
+    }
+  } else {
+    // Exponent form; the 'e' marks it as a float on its own.
+    out[len++] = digitChars[0];
+    if (digits > 1) {
+      out[len++] = '.';
+      for (int i = 1; i < digits; i++)
+        out[len++] = digitChars[i];
+    }
+    out[len++] = 'e';
+    int e = point - 1;
+    if (e < 0) {
+      out[len++] = '-';
+      e = -e;
+    } else {
+      out[len++] = '+';
+    }
+    // Two digits always, as C's %e does; a float's exponent never needs more.
+    out[len++] = (char)('0' + (e / 10) % 10);
+    out[len++] = (char)('0' + e % 10);
+  }
+
+  out[len] = '\0';
+  return len;
+}

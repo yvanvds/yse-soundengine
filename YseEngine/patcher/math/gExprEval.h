@@ -268,5 +268,33 @@ namespace YSE {
      */
     int ExprParseFloatList(const char* text, float* out, int cap);
 
+    /// Buffer size ExprFormatValue() needs. The longest output it can produce
+    /// is a sign, nine significant digits, a decimal point and up to eight
+    /// padding zeros; 32 leaves room for that plus the terminator.
+    constexpr int kExprValueTextMax = 32;
+
+    /**
+     *  Render @p value as text into @p out, the inverse of
+     *  ExprParseFloatList(). RT-safe and the reason it is written by hand
+     *  rather than handed to ``snprintf``: no allocation, no locale (so the
+     *  decimal separator is always '.', which is what strtof on the receiving
+     *  end expects), no lock, no exception.
+     *
+     *  An int prints as digits. A float prints with the *fewest* significant
+     *  digits that read back as the same float — so 0.3f is "0.3" rather than
+     *  "0.300000012" — and always carries a decimal point or an exponent, so
+     *  a float stays visibly a float in the middle of a list. Magnitudes
+     *  outside [1e-4, 1e9) switch to a C-style exponent form. A non-finite
+     *  value prints as "0.", the same answer ExprProgram::Evaluate gives.
+     *
+     *  Shared because ``.vexpr`` (#450) formats its whole output as a list.
+     *
+     *  @param out  at least kExprValueTextMax bytes. Always NUL-terminated.
+     *  @return how many characters were written, excluding the terminator; 0
+     *          when @p cap is too small (nothing but the terminator is then
+     *          written).
+     */
+    int ExprFormatValue(const ExprValue& value, char* out, int cap);
+
   } // namespace PATCHER
 } // namespace YSE
