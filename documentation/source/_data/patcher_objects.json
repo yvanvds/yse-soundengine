@@ -2330,6 +2330,73 @@
       }
     ]
   },
+  ".prob": {
+    "category": "MATH",
+    "description": "Weighted transition table — a first-order Markov chain. The list '<from> <to> <weight>' records that going from one state to another carries that relative likelihood, and a bang makes one weighted jump from the current state and emits where it landed, which becomes the state the next bang departs from. For any one state the weights of its outgoing transitions are summed and each one's share of that sum is its probability, so 3 4 1 means 37.5% / 50% / 12.5%; a state may transition to itself. A weight of 0 keeps the pair in the table but makes it unreachable, which is how a transition is switched off, and negative weights clamp to 0. A state with no reachable transition is a dead end: outlet 0 stays silent, outlet 1 bangs, and the current state moves to the 'reset' fallback so the next bang can recover — one bang is one attempt, never a search. 'clear' forgets the table, 'dump' sends every entry out outlet 2 in insertion order, and an int sets the current state without emitting anything. The table is a fixed 1024-entry array and the weighted choice is a bounded prefix-sum scan rather than a rejection loop, so nothing on any path allocates or runs unbounded. A non-zero seed makes the whole walk reproducible across runs; exactly one random draw is taken per bang. Pairs with .anal, which builds the same table from an input stream.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Bang to make a weighted transition / int or float to set the current state without emitting / list '<from> <to> <weight>' to store a transition / list 'clear' to forget the table / list 'dump' to send it out outlet 2 / list 'reset <n>' to set the dead-end fallback state / list 'seed <n>' to restart the random sequence.",
+        "index": 0,
+        "label": "control",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Restarts the random sequence; 0 takes an arbitrary stream.",
+        "index": 1,
+        "label": "seed",
+        "range": "any int"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".prob",
+    "outlets": [
+      {
+        "doc": "The state jumped to. Silent when the current state is a dead end.",
+        "index": 0,
+        "label": "out",
+        "range": "any int",
+        "type": "INT"
+      },
+      {
+        "doc": "Bangs when the current state has no reachable transition; the walk then reverts to the reset state.",
+        "index": 1,
+        "label": "stuck",
+        "range": "",
+        "type": "BANG"
+      },
+      {
+        "doc": "One '<from> <to> <weight>' list per stored transition, in response to 'dump'.",
+        "index": 2,
+        "label": "dump",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "State the walk reverts to when it reaches a dead end, and the state it starts in.",
+        "name": "reset",
+        "range": "any int"
+      },
+      {
+        "default": "0",
+        "doc": "Random seed; non-zero replays the same walk every run, 0 picks an arbitrary stream.",
+        "name": "seed",
+        "range": "any int"
+      }
+    ]
+  },
   ".programchange": {
     "category": "MIDI",
     "description": "MIDI Program Change message generator. Emits a status/program packet on every value change.",
