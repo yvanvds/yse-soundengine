@@ -8,6 +8,7 @@
 #include "genericObjects/gSwitch.h"
 #include "genericObjects/gGate.h"
 #include "genericObjects/gRoute.h"
+#include "genericObjects/gSel.h"
 #include "genericObjects/gIf.h"
 #include "genericObjects/gRegexp.h"
 #include "genericObjects/gReceive.h"
@@ -119,6 +120,9 @@ pRegistry::pRegistry() {
   Add(OBJ::G_SWITCH, gSwitch::Create);
   Add(OBJ::G_GATE, gGate::Create);
   Add(OBJ::G_ROUTE, gRoute::Create);
+
+  // Bang the outlet whose selector the input matches (issue #465)
+  Add(OBJ::G_SEL, gSel::Create);
 
   // Conditional message dispatch (issue #451)
   Add(OBJ::G_IF, gIf::Create);

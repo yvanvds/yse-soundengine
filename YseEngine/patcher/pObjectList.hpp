@@ -35,8 +35,8 @@ namespace YSE {
    *  - Randomness: ``G_RANDOM``, ``G_DRUNK``, ``G_URN``, ``G_DECIDE``,
    *    ``G_PROB``, ``G_ANAL``, ``G_HISTO``.
    *  - Statistics: ``G_ANAL``, ``G_HISTO``, ``G_MEAN``.
-   *  - Messaging: ``G_SEND``, ``G_RECEIVE``, ``G_ROUTE``, ``G_GATE``,
-   *    ``G_SWITCH``, ``G_IF``, ``G_REGEXP``.
+   *  - Messaging: ``G_SEND``, ``G_RECEIVE``, ``G_ROUTE``, ``G_SEL``,
+   *    ``G_GATE``, ``G_SWITCH``, ``G_IF``, ``G_REGEXP``.
    *  - MIDI: ``M_OUT``, ``M_NOTEON``, ``M_NOTEOFF``, ``M_CONTROL``.
    *  - Conversion: ``MIDITOFREQUENCY``, ``FREQUENCYTOMIDI``, ``G_ATODB``,
    *    ``G_DBTOA``, ``G_CARTOPOL``, ``G_POLTOCAR``.
@@ -68,6 +68,7 @@ namespace YSE {
     DEFOBJ(G_SWITCH, ".switch");
     DEFOBJ(G_GATE, ".gate");
     DEFOBJ(G_ROUTE, ".route");
+    DEFOBJ(G_SEL, ".sel");
     DEFOBJ(G_IF, ".if");
     DEFOBJ(G_REGEXP, ".regexp");
 
