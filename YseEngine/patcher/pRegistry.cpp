@@ -13,6 +13,7 @@
 #include "genericObjects/gBangBang.h"
 #include "genericObjects/gOneBang.h"
 #include "genericObjects/gNext.h"
+#include "genericObjects/gBondo.h"
 #include "genericObjects/gMatch.h"
 #include "genericObjects/gUzi.h"
 #include "genericObjects/gIf.h"
@@ -148,6 +149,9 @@ pRegistry::pRegistry() {
   // Emit N bangs immediately, with a running index — the patcher's loop
   // (issue #473)
   Add(OBJ::G_UZI, gUzi::Create);
+
+  // Hold one value per inlet and release the whole set together (issue #474)
+  Add(OBJ::G_BONDO, gBondo::Create);
 
   // Conditional message dispatch (issue #451)
   Add(OBJ::G_IF, gIf::Create);
