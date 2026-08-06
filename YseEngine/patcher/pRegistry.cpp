@@ -9,6 +9,7 @@
 #include "genericObjects/gGate.h"
 #include "genericObjects/gRoute.h"
 #include "genericObjects/gIf.h"
+#include "genericObjects/gRegexp.h"
 #include "genericObjects/gReceive.h"
 #include "genericObjects/gSend.h"
 
@@ -109,6 +110,9 @@ pRegistry::pRegistry() {
 
   // Conditional message dispatch (issue #451)
   Add(OBJ::G_IF, gIf::Create);
+
+  // Regular-expression matching on symbols (issue #452)
+  Add(OBJ::G_REGEXP, gRegexp::Create);
 
   Add(OBJ::G_RECEIVE, gReceive::Create);
   Add(OBJ::G_SEND, gSend::Create);
