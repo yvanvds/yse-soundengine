@@ -2958,6 +2958,69 @@
     ],
     "params": []
   },
+  ".slide": {
+    "category": "MATH",
+    "description": "Logarithmic value smoothing — a one-pole filter on control values, following Max's y[n] = y[n-1] + (x[n] - y[n-1]) / slide. Each number received moves the running value a fraction of the way towards itself instead of replacing it, which is what turns stepped MIDI controller or envelope-follower data into a curve and keeps the parameter it drives from zippering. The two amounts are independent: slideUp applies when the incoming value is above the running one and slideDown when it is below, so a fast rise with a slow fall is one object rather than two. A slide of 1 passes the input straight through and larger amounts change proportionally more slowly, so 10 moves a tenth as fast; the parameter counts incoming values, not seconds, since the object is clocked by events rather than by the sample rate (use ~line for a linear ramp over a stated duration). An amount below 1 would make the recursion overshoot and ring, so anything below 1 — including 0 and negatives — is treated as 1. Once the running value is within one part in a million of the target it snaps onto it exactly, so the smoother settles on its input rather than stalling a rounding error short of it. A bang re-runs the filter on the last value received, 'set <n>' stages a value without emitting and 'reset' returns the running value to 0.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Value to smooth — fires one filter step / bang repeats the step on the last value / list 'set <n>' stages a value without emitting / list 'reset' zeroes the running value.",
+        "index": 0,
+        "label": "value",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Slide amount used while the input is above the running value.",
+        "index": 1,
+        "label": "slideUp",
+        "range": "1+"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Slide amount used while the input is below the running value.",
+        "index": 2,
+        "label": "slideDown",
+        "range": "1+"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".slide",
+    "outlets": [
+      {
+        "doc": "The smoothed value.",
+        "index": 0,
+        "label": "out",
+        "range": "between the previous output and the input",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "Slide amount used while the input is above the running value; below 1 reads as 1, which passes the input through.",
+        "name": "slideUp",
+        "range": "1+"
+      },
+      {
+        "default": "1",
+        "doc": "Slide amount used while the input is below the running value; below 1 reads as 1, which passes the input through.",
+        "name": "slideDown",
+        "range": "1+"
+      }
+    ]
+  },
   ".slider": {
     "category": "GUI",
     "description": "Slider control. Stores a normalized float in [0, 1]; ints/floats are clamped on input. Emits the stored value on every calculate tick.",

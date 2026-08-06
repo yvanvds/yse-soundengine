@@ -67,6 +67,7 @@
 #include "math/gClip.h"
 #include "math/gPong.h"
 #include "math/gSplit.h"
+#include "math/gSlide.h"
 #include "math/gExpr.h"
 #include "math/gVexpr.h"
 #include "math/gLinedrive.h"
@@ -189,6 +190,9 @@ pRegistry::pRegistry() {
 
   // Range routing (issue #448)
   Add(OBJ::G_SPLIT, gSplit::Create);
+
+  // Value smoothing (issue #459)
+  Add(OBJ::G_SLIDE, gSlide::Create);
 
   // Expression evaluation (issues #449, #450)
   Add(OBJ::G_EXPR, gExpr::Create);
