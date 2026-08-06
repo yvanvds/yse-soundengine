@@ -1429,6 +1429,75 @@
       }
     ]
   },
+  ".drunk": {
+    "category": "MATH",
+    "description": "Bounded random walk. Each bang moves the stored value by a random step and emits the new position, clipped into [0, range). Unlike .random, successive values are related — the walk drifts rather than jumps — which is what makes it usable for generative pitch, filter and position material. The step size is an exclusive magnitude limit: |step| < |stepSize|, so the default of 2 draws from {-1, 0, +1}. A negative step size uses the same magnitudes with zero excluded, so the walk is guaranteed to move on every bang. The walk clips at the range boundaries the way Max's does and therefore lingers at an edge it reaches; send the output through .pong for a reflecting or wrapping boundary instead. A non-zero seed makes the whole sequence reproducible across runs; seed 0 takes an arbitrary stream. Exactly one random draw is taken per bang.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Bang to take a step / int or float to set the position and emit it / list 'set <n>' to set it without emitting / list 'seed <n>' to restart the random sequence.",
+        "index": 0,
+        "label": "control",
+        "range": "0 to range-1"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Sets the exclusive upper bound of the walk.",
+        "index": 1,
+        "label": "range",
+        "range": "1+"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Sets the exclusive step magnitude limit; negative forbids a zero step.",
+        "index": 2,
+        "label": "stepSize",
+        "range": "any int"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".drunk",
+    "outlets": [
+      {
+        "doc": "Current position of the walk.",
+        "index": 0,
+        "label": "out",
+        "range": "0 to range-1",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "128",
+        "doc": "Exclusive upper bound of the walk.",
+        "name": "range",
+        "range": "1+"
+      },
+      {
+        "default": "2",
+        "doc": "Exclusive step magnitude limit; negative forbids a zero step.",
+        "name": "stepSize",
+        "range": "any int"
+      },
+      {
+        "default": "0",
+        "doc": "Random seed; non-zero replays the same walk every run, 0 picks a stream.",
+        "name": "seed",
+        "range": "any int"
+      }
+    ]
+  },
   ".expr": {
     "category": "MATH",
     "description": "Evaluates a C-like mathematical expression, replacing a tangle of arithmetic objects with one line of text. The expression is the creation argument; its $i1-$i9 and $f1-$f9 placeholders name the inlets ($i reads the inlet as an int, $f as a float), and the object gets one inlet past the highest placeholder used. Inlet 0 is hot: it stores its value and evaluates, while the other inlets only store. A list on inlet 0 fills the inlets left to right and evaluates; a bang re-evaluates with the stored values. Operators are C's, with C's precedence and C's types: + - * / % on two ints give an int (so $i1/$i2 is integer division), the comparisons (< <= > >= == !=), the logic (&& || !) and the bitwise operators (& | ^ << >> ~) always give an int, and ^ is exclusive-or rather than a power - use pow(). Functions: min, max, abs, int, float, pow, sqrt, exp, ln, log, log10, sin, cos, tan, asin, acos, atan, atan2, sinh, cosh, tanh, fact, round, floor, ceil. Division by zero gives 0 and a non-finite result gives 0, the convention the rest of the math family uses. The expression is compiled once, when the parameter is set; evaluation only walks the compiled form, so it allocates nothing and takes no lock. A malformed expression is reported to the log at parse time and the object then evaluates to 0. Max's table access ($s placeholders, size/sum/avg/store) and its random/noise functions are not supported and are rejected when the expression is compiled.",

@@ -141,6 +141,7 @@ set(YSE_SRCS
   patcher/math/gCounter.cpp
   patcher/math/gDbConvert.cpp
   patcher/math/gDivide.cpp
+  patcher/math/gDrunk.cpp
   patcher/math/gExpr.cpp
   patcher/math/gExprEval.cpp
   patcher/math/gIntDiv.cpp
@@ -309,6 +310,7 @@ set_source_files_properties(
   patcher/math/gCounter.cpp
   patcher/math/gDbConvert.cpp
   patcher/math/gDivide.cpp
+  patcher/math/gDrunk.cpp
   patcher/math/gExpr.cpp
   patcher/math/gIntDiv.cpp
   patcher/math/gLinedrive.cpp
