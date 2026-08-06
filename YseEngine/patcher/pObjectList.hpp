@@ -27,7 +27,8 @@ namespace YSE {
    *  - DSP filters: ``D_LOWPASS``, ``D_HIGHPASS``, ``D_BANDPASS``, ``D_VCF``.
    *  - I/O: ``D_DAC``, ``D_ADC``, ``D_LINE``.
    *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_METRO``, ``G_RANDOM``.
-   *  - Messaging: ``G_SEND``, ``G_RECEIVE``, ``G_ROUTE``, ``G_GATE``, ``G_SWITCH``.
+   *  - Messaging: ``G_SEND``, ``G_RECEIVE``, ``G_ROUTE``, ``G_GATE``,
+   *    ``G_SWITCH``, ``G_IF``.
    *  - MIDI: ``M_OUT``, ``M_NOTEON``, ``M_NOTEOFF``, ``M_CONTROL``.
    *  - Conversion: ``MIDITOFREQUENCY``, ``FREQUENCYTOMIDI``, ``G_ATODB``,
    *    ``G_DBTOA``, ``G_CARTOPOL``, ``G_POLTOCAR``.
@@ -58,6 +59,7 @@ namespace YSE {
     DEFOBJ(G_SWITCH, ".switch");
     DEFOBJ(G_GATE, ".gate");
     DEFOBJ(G_ROUTE, ".route");
+    DEFOBJ(G_IF, ".if");
 
     DEFOBJ(G_ADD, ".+");
     DEFOBJ(G_SUBSTRACT, ".-");
