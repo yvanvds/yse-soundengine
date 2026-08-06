@@ -61,6 +61,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_mean.cpp
   patcher/test_patcher_accum.cpp
   patcher/test_patcher_extremum.cpp
+  patcher/test_patcher_running_extremum.cpp
   patcher/test_patcher_scale.cpp
   patcher/test_patcher_zmap.cpp
   patcher/test_patcher_clip.cpp
@@ -769,6 +770,7 @@ set_source_files_properties(
   patcher/test_patcher_mean.cpp
   patcher/test_patcher_accum.cpp
   patcher/test_patcher_extremum.cpp
+  patcher/test_patcher_running_extremum.cpp
   patcher/test_patcher_scale.cpp
   patcher/test_patcher_zmap.cpp
   patcher/test_patcher_clip.cpp

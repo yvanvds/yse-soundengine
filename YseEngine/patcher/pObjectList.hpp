@@ -25,6 +25,7 @@ namespace YSE {
    *    ``G_COSH``, ``G_TANH``, ``G_ASINH``, ``G_ACOSH``, ``G_ATANH``.
    *  - Comparison / logic: ``G_EQUAL``, ``G_LESS``, ``G_LOGICALAND``, ...
    *  - Running comparison: ``G_MAXIMUM``, ``G_MINIMUM``.
+   *  - Running extremes: ``G_PEAK``, ``G_TROUGH``.
    *  - Bitwise: ``G_BITAND``, ``G_BITOR``, ``G_SHIFTLEFT``, ``G_SHIFTRIGHT``.
    *  - DSP filters: ``D_LOWPASS``, ``D_HIGHPASS``, ``D_BANDPASS``, ``D_VCF``.
    *  - I/O: ``D_DAC``, ``D_ADC``, ``D_LINE``.
@@ -123,6 +124,9 @@ namespace YSE {
 
     DEFOBJ(G_MAXIMUM, ".maximum");
     DEFOBJ(G_MINIMUM, ".minimum");
+
+    DEFOBJ(G_PEAK, ".peak");
+    DEFOBJ(G_TROUGH, ".trough");
 
     DEFOBJ(G_BITAND, ".&");
     DEFOBJ(G_BITOR, ".|");
