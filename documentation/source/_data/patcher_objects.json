@@ -2502,6 +2502,62 @@
       }
     ]
   },
+  ".onebang": {
+    "category": "GENERIC",
+    "description": "Lets one bang through and then closes until it is re-armed from the right inlet — Max's onebang, and the standard one-shot: fire a sound on the first trigger of a burst and ignore the rest until something explicitly re-enables it. Max: 'Allows a bang in the left inlet to pass through ONLY if a bang has been received in the right inlet. After that, a bang in the left inlet will not get through again until a bang has been received again in the right inlet.' The patcher could already count triggers with .counter and compare them with .sel or .past, but expressing 'once, then not again until I say so' that way takes three boxes and leaves the re-arm implicit in the numbers, where here it is a patch cord. The whole object is one bit of state and two properties of it are worth knowing. The right inlet is idempotent: arming an already-armed gate does not bank a second pass, because Max says the left inlet passes 'only if it has received a bang in its right inlet since the last time it sent out a bang' — a since, not a count — so five arms followed by five triggers is one pass and four rejects, never five passes. And nothing is ever swallowed: every message the left inlet accepts produces exactly one bang, on one outlet or the other, so the object gates where a bang goes rather than whether one happens. That is what makes the second outlet worth wiring. There are two of them, which the object's name does not suggest — Max: 'Otherwise, it sends a bang out its right outlet' — so a blocked bang is reported as a 'you were too early' signal rather than lost, and the two outlets together are a complete accounting of the left inlet's traffic. Exactly one fires per message, so unlike .trigger, .bangbang, .mean or .peak there is no right-to-left firing order to respect. Everything is a bang: Max gives int, float and list the description 'Same as a bang' and anything 'Converted to bang', so the payload is documented as discarded, and a 0 on the left inlet triggers the gate like anything else. That is worth stating because the number reads like a 'don't' — this is not .gate, and a value of 0 does not mean off anywhere in it, on either inlet; a patch that wants a numeric gate wants .gate. The word 'stop' on the left inlet is Max's manual disarm ('Undoes the effect of a bang in the right inlet'), silent, and it is the only word this object knows. Elsewhere in the family a symbol is a message the object would ignore anyway, so adding 'reset' costs nothing; here a symbol is a trigger, so every word learned is a bang silently no longer passed — and 'stop' plus a message on the right inlet already reach the entire state space. It is bare, as .change's 'mode' and .past's 'clear' are: 'stop 1' is a list, and a list is a bang. On the right inlet 'stop' arms rather than disarming, because Max scopes the message to the left inlet while marking int, float, list and anything 'in either inlet', and because the reference describes the arming inlet with no conditions at all — a patch is entitled to treat a cord into it as 'the gate is now open', which would hold only for inspected message text if one string out of all possible strings closed it instead. The object starts disarmed, which is Max's default and also the safe one, since an object that started armed would let a patch load fire a bang nobody armed it for; a non-zero creation argument starts it armed, as Max's does. The argument is a flag, so only its zero-ness is read, and it is read from the float as it arrived rather than from a truncated int: Max's int argument would make 0.5 a zero, but this patcher has one numeric type and a flag that flipped on the third decimal place of a number nobody meant as a value would be a trap. A token that is not a whole finite number is not an argument, so '.onebang wobble' and '.onebang inf' both start disarmed — non-finite is 'not a number' in this family, as .change inf starting at 0 already establishes. Calculate() does nothing: the object is driven by its inlets, and emitting on a DSP tick would re-fire the gate every block, which for a one-shot is the exact failure it exists to prevent.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Bang, int, float or list — whatever arrives is discarded and treated as a bang. If the gate is armed a bang leaves outlet 0 and the gate closes; if it is not, a bang leaves outlet 1 instead. Every message produces exactly one bang, on one outlet or the other. Also accepts the bare word 'stop', Max's manual disarm, which is silent; 'stop' with anything after it is an ordinary list and so an ordinary trigger.",
+        "index": 0,
+        "label": "in",
+        "range": "any"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Bang, int, float or list — anything at all re-arms the gate, so the next message on the left inlet passes. Silent, and idempotent: arming twice does not bank a second pass. Note that 'stop' arms here like any other message; the disarm lives on the left inlet, where Max documents it.",
+        "index": 1,
+        "label": "arm",
+        "range": "any"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".onebang",
+    "outlets": [
+      {
+        "doc": "A bang, when the left inlet fired while the gate was armed. The gate closes as this is sent, so anything reached from here already sees a disarmed object.",
+        "index": 0,
+        "label": "pass",
+        "range": "bang",
+        "type": "BANG"
+      },
+      {
+        "doc": "A bang, when the left inlet fired while the gate was closed — the 'you were too early' signal. Wire it to count or report the triggers that did not pass; leave it unconnected to get a plain one-shot.",
+        "index": 1,
+        "label": "reject",
+        "range": "bang",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Whether the gate starts open. A non-zero argument lets the first message on the left inlet pass, as Max's does; with no argument, a zero one, or a token that is not a whole finite number ('.onebang wobble', '.onebang inf'), the object starts closed and the first message goes out the reject outlet. Only the zero-ness is read, from the float as it arrived, so '.onebang 0.5' starts open where Max's int argument would truncate it to a zero.",
+        "name": "initial",
+        "range": "0 or non-zero"
+      }
+    ]
+  },
   ".past": {
     "category": "MATH",
     "description": "Sends a bang the moment a value crosses a threshold, and then stays quiet until the value drops back below and crosses again — edge detection on continuous control data, where the interesting event is the crossing rather than the thousand messages that follow while the value stays up there. A .>= into a .sel 1 would fire on every one of them; this fires once. Max states the rule in two halves and only both together define the object: it bangs when every number is at or above its threshold having not been so before, and it re-arms only when a number goes back BELOW (strictly less than) its threshold. The two are exact complements, so the object is a plain latch on 'value >= threshold' rather than a hysteresis band, and two edges follow that a naive implementation gets wrong. A value exactly at the threshold has crossed it, so '.past 5' fed 5 bangs. And a value exactly at the threshold does not re-arm it, so 10, 5, 10 bangs once rather than twice: equality belongs to the 'past it' side of the line going up and coming down alike. A freshly created object is un-latched, so a value that is already above the threshold when the first message arrives bangs immediately — nothing has met the threshold yet, so the first thing that does is a crossing, which is also the state 'clear' restores. The creation argument is a list and so is the input: numbers are compared element-wise against the corresponding thresholds and the bang is the conjunction, so '.past 60 100' is an AND gate of two thresholds in one box. Each element keeps its own met/not-met flag, which is what Max's per-element re-arm wording describes, so a list shorter than the threshold list updates only the elements it supplies and a plain int or float is simply the one-element case; numbers past the last threshold are ignored, and at most 256 thresholds are held. 'clear' drops every flag so the next crossing bangs again, silently and without touching the thresholds. 'set <numbers>' replaces the thresholds and deliberately does NOT re-arm, because a patch that drives the threshold from elsewhere sends 'set' continuously and an object that re-armed on each one would bang for every message above the line, which is a .>= and not a .past; surviving elements keep their flags, elements the new list adds start un-met, and the latch is re-derived from the flags. 'reset' is the patcher family's word rather than a Max message and means both halves at once — back to the creation-argument thresholds with a cleared latch — since after a 'set' there is otherwise no way back to the creation argument. All three are silent, and a message that is neither a word this object knows nor a list containing a number is ignored. A bang is not accepted: a message carrying no number cannot cross anything. Everything is a float, so Max's int-unless-the-argument-has-a-decimal-point duality is not reproduced. A non-finite number is read as 0 wherever it arrives, in the input and in the thresholds alike. On the threshold side that is load-bearing rather than tidy: a NaN compares false against everything, so a NaN threshold could never be met and would make the object permanently mute — and in a multi-threshold object it would mute the conjunction while every other element carried on working. A +infinity threshold does the same, and a -infinity one is met by every number there is, including the ones a patch sends to bring the value back down, so its element could never re-arm. On the input side the substitution buys consistency rather than safety: it is simply the answer the rest of the patcher gives a NaN it was handed.",

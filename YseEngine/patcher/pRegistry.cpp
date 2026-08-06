@@ -11,6 +11,7 @@
 #include "genericObjects/gSel.h"
 #include "genericObjects/gTrigger.h"
 #include "genericObjects/gBangBang.h"
+#include "genericObjects/gOneBang.h"
 #include "genericObjects/gIf.h"
 #include "genericObjects/gRegexp.h"
 #include "genericObjects/gReceive.h"
@@ -133,6 +134,9 @@ pRegistry::pRegistry() {
 
   // Fan one input out as a bang from many outlets, right to left (issue #467)
   Add(OBJ::G_BANGBANG, gBangBang::Create);
+
+  // Pass one bang per arming, reject the rest (issue #470)
+  Add(OBJ::G_ONEBANG, gOneBang::Create);
 
   // Conditional message dispatch (issue #451)
   Add(OBJ::G_IF, gIf::Create);
