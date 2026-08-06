@@ -49,6 +49,7 @@
 #include "math/gDrunk.h"
 #include "math/gUrn.h"
 #include "math/gDecide.h"
+#include "math/gProb.h"
 #include "math/gCounter.h"
 #include "math/gCompare.h"
 #include "math/gBitwise.h"
@@ -151,6 +152,9 @@ pRegistry::pRegistry() {
 
   // Random 0 or 1 per bang (issue #455)
   Add(OBJ::G_DECIDE, gDecide::Create);
+
+  // Weighted transition table / first-order Markov chain (issue #456)
+  Add(OBJ::G_PROB, gProb::Create);
 
   // Remaining arithmetic operators (issue #439)
   Add(OBJ::G_REVERSESUBSTRACT, gReverseSubstract::Create);
