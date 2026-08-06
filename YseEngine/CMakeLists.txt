@@ -108,6 +108,7 @@ set(YSE_SRCS
   patcher/generatorObjects/dNoise.cpp
   patcher/generatorObjects/dSaw.cpp
   patcher/generatorObjects/pSine.cpp
+  patcher/genericObjects/gBangBang.cpp
   patcher/genericObjects/gGate.cpp
   patcher/genericObjects/gIf.cpp
   patcher/genericObjects/gReceive.cpp
@@ -292,6 +293,7 @@ set_source_files_properties(
   patcher/generatorObjects/dNoise.cpp
   patcher/generatorObjects/dSaw.cpp
   patcher/generatorObjects/pSine.cpp
+  patcher/genericObjects/gBangBang.cpp
   patcher/genericObjects/gGate.cpp
   patcher/genericObjects/gIf.cpp
   patcher/genericObjects/gReceive.cpp

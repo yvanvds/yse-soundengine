@@ -213,6 +213,25 @@ namespace YSE {
     }
 
     /**
+     *  @brief ``"out0"``, ``"out1"``, ... — the documentation label of outlet
+     *         @p index on an object whose outlets are built from its arguments.
+     *
+     *  Only objects whose outlet *count* is a creation argument need this;
+     *  everywhere else the label is a literal in the constructor. Routed
+     *  through ``WriteInt`` rather than ``std::to_string`` because the patcher
+     *  has one way of turning an int into text and this is it — control-thread
+     *  only either way, since ``SetDoc`` is.
+     *
+     *  Written for ``.trigger`` (#466) and shared with ``.bangbang`` (#467),
+     *  which labels its outlets the same way for the same reason.
+     */
+    inline std::string OutletLabel(int index) {
+      char digits[FORMAT_INT_WIDTH];
+      const std::size_t written = WriteInt(index, digits);
+      return "out" + std::string(digits, written);
+    }
+
+    /**
      *  @brief Formats the first @p count of @p values as a space-separated
      *         list — the text form the patcher's list outlets carry.
      *

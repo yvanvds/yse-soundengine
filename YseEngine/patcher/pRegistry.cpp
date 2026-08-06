@@ -10,6 +10,7 @@
 #include "genericObjects/gRoute.h"
 #include "genericObjects/gSel.h"
 #include "genericObjects/gTrigger.h"
+#include "genericObjects/gBangBang.h"
 #include "genericObjects/gIf.h"
 #include "genericObjects/gRegexp.h"
 #include "genericObjects/gReceive.h"
@@ -127,6 +128,9 @@ pRegistry::pRegistry() {
 
   // Send one input to many outlets in right-to-left order (issue #466)
   Add(OBJ::G_TRIGGER, gTrigger::Create);
+
+  // Fan one input out as a bang from many outlets, right to left (issue #467)
+  Add(OBJ::G_BANGBANG, gBangBang::Create);
 
   // Conditional message dispatch (issue #451)
   Add(OBJ::G_IF, gIf::Create);

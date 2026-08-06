@@ -24,15 +24,6 @@ namespace {
     return false;
   }
 
-  // "out0", "out1", ... — the label of an outlet. Built through the shared
-  // WriteInt rather than std::to_string; control-thread only either way, but
-  // the patcher has one way of turning an int into text and this is it.
-  std::string OutLabel(int index) {
-    char digits[FORMAT_INT_WIDTH];
-    const std::size_t written = WriteInt(index, digits);
-    return "out" + std::string(digits, written);
-  }
-
   const char* KindDoc(gTrigger::Kind kind) {
     switch (kind) {
     case gTrigger::Kind::INT:
@@ -185,7 +176,7 @@ void gTrigger::ShapePorts() {
       ADD_OUT_LIST;
       break;
     }
-    outputs.back().SetDoc(OutLabel((int)i), KindDoc(slots[i].kind), KindRange(slots[i].kind));
+    outputs.back().SetDoc(OutletLabel((int)i), KindDoc(slots[i].kind), KindRange(slots[i].kind));
   }
 }
 
