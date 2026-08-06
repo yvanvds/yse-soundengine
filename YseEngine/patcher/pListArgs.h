@@ -83,6 +83,44 @@ namespace YSE {
       return count;
     }
 
+    /**
+     *  @brief True when @p text begins with the message word @p word, leaving
+     *         @p argOffset at the first character after it.
+     *
+     *  The fiddly half of reading a ``<word> <number>`` message, and the half
+     *  that is easy to get subtly wrong. The word has to *end* where it ends:
+     *  a bare prefix comparison accepts ``address 5`` as ``add 5``, because
+     *  every reader in this family steps over tokens it cannot parse and would
+     *  quietly skip the leftover ``ress`` before taking the 5. So a separator
+     *  is required after the word — which also means the bare word on its own
+     *  does not match, since a message word with no argument is not the same
+     *  message.
+     *
+     *  Deliberately stops at the word rather than going on to read the number:
+     *  the argument's type differs per caller. Pair it with ``ReadIntArgAt``
+     *  for an int argument (``seed 42``) or with ``ExprParseFloatList`` for a
+     *  float one, both of which skip the leading whitespace themselves. No
+     *  allocation, no locale, no exception — the same real-time properties as
+     *  the readers above, because list handlers run on whichever thread sent
+     *  the message.
+     *
+     *  Added for ``.peak`` / ``.trough`` (#463), whose ``set <n>`` reseeds the
+     *  running extreme without emitting.
+     */
+    inline bool MatchWord(const std::string& text, const char* word, std::size_t wordLength,
+                          std::size_t& argOffset) {
+      // Comparing the length first keeps compare() from being asked about a
+      // range the string does not have, and rejects the bare word in one go.
+      if (text.size() <= wordLength) return false;
+      if (text.compare(0, wordLength, word) != 0) return false;
+
+      const char separator = text[wordLength];
+      if (separator != ' ' && separator != '\t') return false;
+
+      argOffset = wordLength + 1;
+      return true;
+    }
+
     /** @brief Most values ``FormatIntList`` will write; longer lists are cut. */
     constexpr int FORMAT_LIST_MAX = 8;
 

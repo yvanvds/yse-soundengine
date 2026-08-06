@@ -57,6 +57,7 @@
 #include "math/gCounter.h"
 #include "math/gCompare.h"
 #include "math/gExtremum.h"
+#include "math/gRunningExtremum.h"
 #include "math/gBitwise.h"
 #include "math/gReverse.h"
 #include "math/gIntDiv.h"
@@ -236,6 +237,10 @@ pRegistry::pRegistry() {
   // Largest / smallest of the inputs (issue #462)
   Add(OBJ::G_MAXIMUM, gMaximum::Create);
   Add(OBJ::G_MINIMUM, gMinimum::Create);
+
+  // Running extremes — the pair that stores what it emits (issue #463)
+  Add(OBJ::G_PEAK, gPeak::Create);
+  Add(OBJ::G_TROUGH, gTrough::Create);
 
   // Bitwise operators (issue #438)
   Add(OBJ::G_BITAND, gBitAnd::Create);
