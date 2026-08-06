@@ -131,9 +131,11 @@ namespace YSE {
      *  No path allocates, locks or blocks. Matching is a bounded walk over at
      *  most ``MAX_SELECTORS`` entries doing a float compare or a length-checked
      *  ``std::string::compare`` against a character range — no ``substr``, no
-     *  ``std::to_string``, no locale. Reading the leading token of a list copies
-     *  it into a fixed stack buffer and hands it to the shared, allocation-free
-     *  ``ExprParseFloatList``. Exactly one ``Send`` follows. The selector table
+     *  ``std::to_string``, no locale. Deciding whether the leading token of a
+     *  list is a number goes through the shared, allocation-free
+     *  ``ReadNumericToken`` in ``pListArgs.h`` — extracted from here when
+     *  ``.trigger`` (#466) needed the same yes/no answer for its own creation
+     *  arguments. Exactly one ``Send`` follows. The selector table
      *  is built on the control thread by the parameter callbacks and is never
      *  resized afterwards; the only field a message handler writes is the value
      *  of selector 0, from the cold inlet, as a plain float store.

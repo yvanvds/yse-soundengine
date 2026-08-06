@@ -3643,6 +3643,50 @@
       }
     ]
   },
+  ".trigger": {
+    "category": "GENERIC",
+    "description": "Sends one input to many outlets in a defined right-to-left order, converting it per outlet on the way. Max's trigger, and the only object in the patcher whose point is ordering: everywhere else the order in which two branches run is an accident of how the patch was wired, and .trigger makes it a statement. Outlet n-1 is sent first and outlet 0 last, and each send completes in full — the whole subgraph hanging off that outlet, depth first — before the next one starts, because the patcher's send path calls the target inlet directly with no queue in between. That is what makes '.trigger b i' expressible: the int leaves the right outlet and lands in a cold inlet, and only then does the bang leave the left one, so the bang can never fire the old value. The order in which several patch cords from the same outlet are served is deliberately not guaranteed, as in Max; the answer to needing it is another .trigger. One outlet per argument, in argument order, and each argument is either a format letter or a constant. The five format letters convert whatever arrives: i sends an int (a float truncated towards zero, a list or bang as 0), f sends a float (an int widened, a list or bang as 0.), b sends a bang whatever arrived, l sends the input list unchanged or else the single-item list 0, and s sends the input text unchanged or else the empty symbol. Anything that is not one of those five letters is a constant, and a constant outlet emits its own value on every input, ignoring what arrived: a token that reads as a whole finite number is an int constant when it is spelled as one and a float constant when it carries a '.' or an exponent, which is how Max's own parser tells the two atoms apart, and anything else is a symbol constant that goes out as its own text. With no arguments there are two outlets, both i — Max's default. One deviation: this patcher has no symbol message, and text travels as a list message carrying a string, so an s outlet cannot ask whether what arrived was a symbol or a list. A list message therefore passes through both l and s unchanged, rather than inventing a single-token-is-a-symbol rule no other object follows. What survives is the useful half of Max's distinction — what the two do with everything else — so a number or a bang still leaves an l outlet as the list 0 and an s outlet as the empty symbol. It also means the list '5 6' leaves an i outlet as 0 rather than as 5, which is what Max says a list reaching an i outlet does: .trigger is not a list reader, .route and .sel are. At most 256 outlets are built.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Bang, int, float or list. Whatever arrives is sent out every outlet, right to left, converted per outlet.",
+        "index": 0,
+        "label": "in",
+        "range": "any"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".trigger",
+    "outlets": [
+      {
+        "doc": "The input as an int — a float is truncated towards zero, and a list or a bang becomes 0. Fired in right-to-left order with every other outlet.",
+        "index": 0,
+        "label": "out0",
+        "range": "any int",
+        "type": "INT"
+      },
+      {
+        "doc": "The input as an int — a float is truncated towards zero, and a list or a bang becomes 0. Fired in right-to-left order with every other outlet.",
+        "index": 1,
+        "label": "out1",
+        "range": "any int",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "i i",
+        "doc": "One argument per outlet, in order. 'i', 'f', 'b', 'l' and 's' are format letters that convert the input to an int, a float, a bang, a list or a symbol; anything else is a constant that outlet emits on every input. A constant token that reads as a whole finite number is an int when spelled as one and a float when it carries a '.' or an exponent; anything else is a symbol. With no argument there are two 'i' outlets. At most 256 are held.",
+        "name": "formats",
+        "range": "any list of i/f/b/l/s letters and constants"
+      }
+    ]
+  },
   ".trough": {
     "category": "MATH",
     "description": "Keeps the smallest number it has seen and sends it out only when a new one arrives — the mirror of .peak, for tracking minima, best-case timings and 'only react when this improves' logic. This is the running reading of the idea .minimum deliberately does not have: .minimum compares an input against a sticky comparand and forgets it, answering every message and never moving, while .trough stores what it emits and stays silent until the record is broken. Two inlets and three outlets, as in Max: a number on inlet 0 is kept and sent out outlet 0 if it is less than the stored trough and produces no value at all if it is not; outlet 1 carries 1 when the number was a new minimum and 0 when it was not, and outlet 2 carries the inverse so that 'it was not a record' is one cord rather than a cord plus a .== 0. The three are sent right to left, so anything the value triggers already sees the matching flags. A number on inlet 1 reseeds the trough and sends it out — always a new minimum, flags and all — which is the opposite of .minimum's silent cold inlet. A bang sends the stored minimum out outlet 0 alone, and before any input that is the 'initial' creation argument rather than silence. That argument defaults to 128, Max's value and not an oversight next to .peak's 0: a running extreme is only useful if its starting value can lose, this family refuses to store an infinity because one that wins would pin the outlet for good, and a trough starting at 0 would reject every positive number it was ever sent. Two silent messages on inlet 0 complete the object, because Max leaves a running extreme with no way back that does not announce itself: 'reset' returns to the initial argument and 'set <n>' stores n, both without emitting, so the next number received is the next trough event. 'clear' is deliberately absent, because on a '.trough 5' it could not be told whether it meant 0 or 5. A list is Max's two-element idiom — the second number becomes the new trough and is sent out, then the first is offered to it — with anything past the second ignored and a one-element list treated as a plain number. A message with no numbers in it is ignored. Everything is a float and outlet 0 is a float outlet: Max's int-unless-the-argument-has-a-decimal-point duality is not reproduced, because '.trough 5' and '.trough 5.0' are the same parameter string here. A non-finite number is read as 0 wherever it arrives, the convention ./ , .sqrt, .zmap, .clip, .slide and .mean already use, and it matters more here than anywhere else because this object keeps what it accepts: a stored NaN would lose every later comparison and be reported forever, and a stored +infinity would make every number a new minimum while -infinity would silence the outlet for good.",

@@ -1,10 +1,66 @@
 #pragma once
+#include <cmath>
 #include <cstddef>
+#include <cstdlib>
 #include <string>
 #include "../headers/types.hpp"
 
 namespace YSE {
   namespace PATCHER {
+
+    /** @brief Longest token ``ReadNumericToken`` will read as a number. */
+    constexpr std::size_t NUMBER_TEXT_MAX = 63;
+
+    /**
+     *  @brief True when the whole of the @p length characters at @p text is one
+     *         finite number, which is then written to @p out.
+     *
+     *  The strict counterpart of ``ExprParseFloatList``, and the difference is
+     *  the point: this answers *"is this token a number?"*, where the expression
+     *  reader answers *"give me the numbers in this text"*. The expression
+     *  reader **skips** what it cannot read, so ``5abc`` comes back as 5, and it
+     *  folds a non-finite result to **0**, so ``1e999`` comes back as a plain
+     *  zero. Both are right for a list of thresholds and wrong for deciding what
+     *  kind of thing a creation argument is: the first turns the symbol ``5abc``
+     *  into the number 5, and the second turns ``inf`` into a value that
+     *  collides with every real 0 a patch sends.
+     *
+     *  So a token that is only *partly* a number is not a number, and neither is
+     *  one that reads as a NaN or an infinity (including by overflow) — those
+     *  are more useful as the symbols they were typed as.
+     *
+     *  Written for ``.sel`` (#465) and shared with ``.trigger`` (#466), which
+     *  needs the same yes/no answer to tell a format letter from a constant.
+     *  Real-time properties match the rest of this header: one bounded copy into
+     *  a stack buffer and one ``strtof`` — no allocation, no exception, and the
+     *  same locale exposure ``ExprParseFloatList`` already has.
+     */
+    inline bool ReadNumericToken(const char* text, std::size_t length, float& out) {
+      if (length == 0 || length > NUMBER_TEXT_MAX) return false;
+
+      char buffer[NUMBER_TEXT_MAX + 1];
+      for (std::size_t i = 0; i < length; i++)
+        buffer[i] = text[i];
+      buffer[length] = '\0';
+
+      char* end = nullptr;
+      const float parsed = std::strtof(buffer, &end);
+
+      // The number has to *be* the token: strtof stops at the first character it
+      // cannot use, so without this "5abc" and "5e" would both read as 5.
+      if (end != buffer + length) return false;
+
+      // strtof also accepts "inf" and "nan", and overflows to infinity.
+      if (!std::isfinite(parsed)) return false;
+
+      out = parsed;
+      return true;
+    }
+
+    /** @brief ``ReadNumericToken`` over a whole ``std::string`` token. */
+    inline bool ReadNumericToken(const std::string& token, float& out) {
+      return ReadNumericToken(token.c_str(), token.size(), out);
+    }
 
     /**
      *  @brief Reads a decimal integer out of @p text starting at @p offset, and

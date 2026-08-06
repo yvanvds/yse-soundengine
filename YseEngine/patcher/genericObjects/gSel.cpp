@@ -1,9 +1,7 @@
 #include "gSel.h"
 #include "../pListArgs.h"
 #include "../pObjectList.hpp"
-#include <cmath>
 #include <cstddef>
-#include <cstdlib>
 #include <string>
 
 using namespace YSE::PATCHER;
@@ -12,58 +10,11 @@ using namespace YSE::PATCHER;
 
 namespace {
 
-  // Longest token this object will read as a number. A real number never comes
-  // close, and the ceiling is what lets the reader below copy into a stack
-  // buffer instead of allocating.
-  constexpr std::size_t kNumberTextMax = 63;
-
   // The separators Parameters::Set and the list outlets use. Hand-rolled rather
   // than std::isspace, which reads locale state another thread may be mutating
   // and is undefined for a negative char.
   bool IsSeparator(char c) {
     return c == ' ' || c == '\t' || c == '\n' || c == '\r';
-  }
-
-  /**
-   *  True when the whole of the @p length characters at @p text is one finite
-   *  number, which is then written to @p out. A creation argument or a leading
-   *  list token that fails this is a *symbol*.
-   *
-   *  The shared ``ExprParseFloatList`` is deliberately not used here, and both
-   *  reasons are about matching rather than parsing. It *skips* what it cannot
-   *  read, so "5abc" would come back as 5 and the symbol ``5abc`` would then
-   *  never reach the outlet a patch wired for it. And it maps a non-finite
-   *  result to 0 — the right answer for ``.past``'s thresholds, the wrong one
-   *  for a selector, since ``.sel 1e999`` would silently become a selector that
-   *  matches every plain 0 a patch sends. An end-pointer check answers both, and
-   *  ``ExprParseFloatList``'s signature cannot express either.
-   *
-   *  Same real-time properties as the shared readers otherwise: one bounded
-   *  copy into a stack buffer and one ``strtof`` — no allocation, no exception,
-   *  and the same locale exposure ``ExprParseFloatList`` already has.
-   */
-  bool ReadNumericToken(const char* text, std::size_t length, float& out) {
-    if (length == 0 || length > kNumberTextMax) return false;
-
-    char buffer[kNumberTextMax + 1];
-    for (std::size_t i = 0; i < length; i++)
-      buffer[i] = text[i];
-    buffer[length] = '\0';
-
-    char* end = nullptr;
-    const float parsed = std::strtof(buffer, &end);
-
-    // The number has to *be* the token: strtof stops at the first character it
-    // cannot use, so without this "5abc" and "5e" would both read as 5.
-    if (end != buffer + length) return false;
-
-    // strtof also accepts "inf" and "nan", and overflows to infinity. A NaN
-    // selector could never match anything and an infinite one only an overflow,
-    // so both are more useful as the symbols they were typed as.
-    if (!std::isfinite(parsed)) return false;
-
-    out = parsed;
-    return true;
   }
 
   // "match0", "match1", ... — the label of a match outlet. Built through the

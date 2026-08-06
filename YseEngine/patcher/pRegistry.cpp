@@ -9,6 +9,7 @@
 #include "genericObjects/gGate.h"
 #include "genericObjects/gRoute.h"
 #include "genericObjects/gSel.h"
+#include "genericObjects/gTrigger.h"
 #include "genericObjects/gIf.h"
 #include "genericObjects/gRegexp.h"
 #include "genericObjects/gReceive.h"
@@ -123,6 +124,9 @@ pRegistry::pRegistry() {
 
   // Bang the outlet whose selector the input matches (issue #465)
   Add(OBJ::G_SEL, gSel::Create);
+
+  // Send one input to many outlets in right-to-left order (issue #466)
+  Add(OBJ::G_TRIGGER, gTrigger::Create);
 
   // Conditional message dispatch (issue #451)
   Add(OBJ::G_IF, gIf::Create);

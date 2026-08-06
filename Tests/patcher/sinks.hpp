@@ -11,6 +11,8 @@
 
 #include "patcher/pObject.h"
 #include "dsp/buffer.hpp"
+#include <string>
+#include <vector>
 
 namespace TestHelpers {
 
@@ -151,6 +153,59 @@ namespace TestHelpers {
       intValue = 0;
       floatValue = 0.f;
       listValue.clear();
+    }
+  };
+
+  // Records *when* it was hit as well as what arrived, so the firing order of a
+  // multi-outlet object can be asserted rather than assumed.  Give each sink a
+  // distinct `tag` and point every one of them at the same `log`: the log then
+  // reads back as the exact sequence of sends, and a test that only counted
+  // hits could not tell a right-to-left object from a left-to-right one.
+  //
+  // Extracted for .trigger (#466), whose right-to-left ordering guarantee *is*
+  // the object.  Anything else that fires more than one outlet per input wants
+  // the same rig — .bangbang (#467) is the degenerate all-bang case, and
+  // .mean / .cartopol / .peak each grew a local copy of this before it was
+  // shared.
+  struct OrderSink : YSE::PATCHER::pObject {
+    enum Kind { NONE, BANG, INT, FLOAT, LIST };
+
+    std::vector<char>* log = nullptr;
+    char tag = '?';
+
+    Kind lastKind = NONE;
+    int lastInt = 0;
+    float lastFloat = 0.f;
+    std::string lastList;
+    int count = 0;
+
+    OrderSink() : pObject(false) {
+      inputs.emplace_back(this, true, 0);
+      inputs.back().RegisterBang([this](int, YSE::THREAD) { Record(BANG); });
+      inputs.back().RegisterInt([this](int v, int, YSE::THREAD) {
+        lastInt = v;
+        Record(INT);
+      });
+      inputs.back().RegisterFloat([this](float v, int, YSE::THREAD) {
+        lastFloat = v;
+        Record(FLOAT);
+      });
+      inputs.back().RegisterList([this](const std::string& v, int, YSE::THREAD) {
+        lastList = v;
+        Record(LIST);
+      });
+    }
+    const char* Type() const override {
+      return "order_sink";
+    }
+    void Calculate(YSE::THREAD) override {}
+    void SetMessage(const std::string&, float) override {}
+
+  private:
+    void Record(Kind kind) {
+      lastKind = kind;
+      count++;
+      if (log) log->push_back(tag);
     }
   };
 
