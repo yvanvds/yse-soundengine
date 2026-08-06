@@ -18,6 +18,7 @@ namespace YSE {
    *  - Range mapping: ``G_SCALE``, ``G_ZMAP``, ``G_LINEDRIVE``.
    *  - Range limiting: ``G_CLIP``, ``G_PONG``.
    *  - Range routing: ``G_SPLIT``.
+   *  - Smoothing: ``G_SLIDE``.
    *  - Expressions: ``G_EXPR``, ``G_VEXPR``.
    *  - Trigonometry / hyperbolics: ``G_SIN``, ``G_COS``, ``G_TAN``,
    *    ``G_ASIN``, ``G_ACOS``, ``G_ATAN``, ``G_ATAN2``, ``G_SINH``,
@@ -82,6 +83,8 @@ namespace YSE {
     DEFOBJ(G_PONG, ".pong");
 
     DEFOBJ(G_SPLIT, ".split");
+
+    DEFOBJ(G_SLIDE, ".slide");
 
     DEFOBJ(G_EXPR, ".expr");
     DEFOBJ(G_VEXPR, ".vexpr");
