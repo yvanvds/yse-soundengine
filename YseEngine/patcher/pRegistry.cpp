@@ -8,6 +8,7 @@
 #include "genericObjects/gSwitch.h"
 #include "genericObjects/gGate.h"
 #include "genericObjects/gRoute.h"
+#include "genericObjects/gIf.h"
 #include "genericObjects/gReceive.h"
 #include "genericObjects/gSend.h"
 
@@ -105,6 +106,10 @@ pRegistry::pRegistry() {
   Add(OBJ::G_SWITCH, gSwitch::Create);
   Add(OBJ::G_GATE, gGate::Create);
   Add(OBJ::G_ROUTE, gRoute::Create);
+
+  // Conditional message dispatch (issue #451)
+  Add(OBJ::G_IF, gIf::Create);
+
   Add(OBJ::G_RECEIVE, gReceive::Create);
   Add(OBJ::G_SEND, gSend::Create);
 

@@ -109,6 +109,7 @@ set(YSE_SRCS
   patcher/generatorObjects/dSaw.cpp
   patcher/generatorObjects/pSine.cpp
   patcher/genericObjects/gGate.cpp
+  patcher/genericObjects/gIf.cpp
   patcher/genericObjects/gReceive.cpp
   patcher/genericObjects/gRoute.cpp
   patcher/genericObjects/gSend.cpp
@@ -276,6 +277,7 @@ set_source_files_properties(
   patcher/generatorObjects/dSaw.cpp
   patcher/generatorObjects/pSine.cpp
   patcher/genericObjects/gGate.cpp
+  patcher/genericObjects/gIf.cpp
   patcher/genericObjects/gReceive.cpp
   patcher/genericObjects/gRoute.cpp
   patcher/genericObjects/gSend.cpp
