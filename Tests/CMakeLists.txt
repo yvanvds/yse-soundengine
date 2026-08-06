@@ -74,6 +74,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_trigger.cpp
   patcher/test_patcher_bangbang.cpp
   patcher/test_patcher_onebang.cpp
+  patcher/test_patcher_next.cpp
   patcher/test_patcher_slide.cpp
   patcher/test_patcher_expr.cpp
   patcher/test_patcher_vexpr.cpp
@@ -790,6 +791,7 @@ set_source_files_properties(
   patcher/test_patcher_trigger.cpp
   patcher/test_patcher_bangbang.cpp
   patcher/test_patcher_onebang.cpp
+  patcher/test_patcher_next.cpp
   patcher/test_patcher_slide.cpp
   patcher/test_patcher_expr.cpp
   patcher/test_patcher_vexpr.cpp

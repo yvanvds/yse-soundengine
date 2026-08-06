@@ -12,6 +12,7 @@
 #include "genericObjects/gTrigger.h"
 #include "genericObjects/gBangBang.h"
 #include "genericObjects/gOneBang.h"
+#include "genericObjects/gNext.h"
 #include "genericObjects/gIf.h"
 #include "genericObjects/gRegexp.h"
 #include "genericObjects/gReceive.h"
@@ -137,6 +138,7 @@ pRegistry::pRegistry() {
 
   // Pass one bang per arming, reject the rest (issue #470)
   Add(OBJ::G_ONEBANG, gOneBang::Create);
+  Add(OBJ::G_NEXT, gNext::Create);
 
   // Conditional message dispatch (issue #451)
   Add(OBJ::G_IF, gIf::Create);
