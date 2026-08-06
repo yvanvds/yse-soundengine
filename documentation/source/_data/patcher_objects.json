@@ -848,6 +848,49 @@
     ],
     "params": []
   },
+  ".anal": {
+    "category": "MATH",
+    "description": "Transition histogram — counts which number follows which. Every number received is counted as a pair with the number before it, and the running count of that pair comes out as the list '<previous> <current> <count>'. That is exactly the list .prob stores a transition from, so a patch cord from this outlet into a .prob is the whole integration: play a phrase in here and the .prob on the other end has learned its first-order style and will improvise in it. The two agree because .anal accumulates the count and .prob replaces the weight with it, so re-sending a growing pair never double-counts. The first number received has no predecessor and is only remembered. Inputs are clipped into [0, limit], which is why the limit defaults to 128 — a MIDI note number arrives unchanged. 'clear' forgets the counts but keeps the last number as the next pair's predecessor, 'reset' does the opposite, and 'dump' sends every stored pair out outlet 0 so a table learned earlier can be replayed into a .prob created later. The table holds 1024 distinct pairs: once it is full, pairs already in it keep counting and a new one is dropped with a bang on outlet 1 rather than evicting somebody else's statistics or reporting a count that no input produced.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Int or float to add the next number of the stream / list 'clear' to forget the counted pairs but keep the last number / list 'reset' to forget the last number but keep the counts / list 'dump' to send every stored pair out outlet 0.",
+        "index": 0,
+        "label": "in",
+        "range": "0 to limit"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".anal",
+    "outlets": [
+      {
+        "doc": "'<previous> <current> <count>' — how often this succession has been seen. Silent for the first number, and for a new pair that no longer fits the table.",
+        "index": 0,
+        "label": "pair",
+        "range": "",
+        "type": "LIST"
+      },
+      {
+        "doc": "Bangs when a pair could not be counted because the table already holds its 1024 distinct pairs.",
+        "index": 1,
+        "label": "full",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "128",
+        "doc": "Top of the input range; incoming numbers are clipped into [0, limit]. Clamped to 1-16384.",
+        "name": "limit",
+        "range": "1-16384"
+      }
+    ]
+  },
   ".asin": {
     "category": "MATH",
     "description": "Control-rate arc-sine. Emits asin(in) in radians as a float whenever inlet 0 fires. Inputs outside -1 to 1 have no real arc-sine and emit 0 rather than a NaN.",

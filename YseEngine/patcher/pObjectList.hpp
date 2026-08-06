@@ -28,7 +28,7 @@ namespace YSE {
    *  - I/O: ``D_DAC``, ``D_ADC``, ``D_LINE``.
    *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_METRO``, ``G_RANDOM``.
    *  - Randomness: ``G_RANDOM``, ``G_DRUNK``, ``G_URN``, ``G_DECIDE``,
-   *    ``G_PROB``.
+   *    ``G_PROB``, ``G_ANAL``.
    *  - Messaging: ``G_SEND``, ``G_RECEIVE``, ``G_ROUTE``, ``G_GATE``,
    *    ``G_SWITCH``, ``G_IF``, ``G_REGEXP``.
    *  - MIDI: ``M_OUT``, ``M_NOTEON``, ``M_NOTEOFF``, ``M_CONTROL``.
@@ -124,6 +124,7 @@ namespace YSE {
     DEFOBJ(G_URN, ".urn");
     DEFOBJ(G_DECIDE, ".decide");
     DEFOBJ(G_PROB, ".prob");
+    DEFOBJ(G_ANAL, ".anal");
     DEFOBJ(G_METRO, ".metro");
 
     DEFOBJ(D_ADD, "~+");
