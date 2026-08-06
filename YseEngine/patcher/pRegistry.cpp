@@ -58,6 +58,7 @@
 #include "math/gCompare.h"
 #include "math/gExtremum.h"
 #include "math/gRunningExtremum.h"
+#include "math/gPast.h"
 #include "math/gBitwise.h"
 #include "math/gReverse.h"
 #include "math/gIntDiv.h"
@@ -241,6 +242,9 @@ pRegistry::pRegistry() {
   // Running extremes — the pair that stores what it emits (issue #463)
   Add(OBJ::G_PEAK, gPeak::Create);
   Add(OBJ::G_TROUGH, gTrough::Create);
+
+  // Bang once when a threshold is crossed (issue #464)
+  Add(OBJ::G_PAST, gPast::Create);
 
   // Bitwise operators (issue #438)
   Add(OBJ::G_BITAND, gBitAnd::Create);

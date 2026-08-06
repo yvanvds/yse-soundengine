@@ -2408,6 +2408,42 @@
       }
     ]
   },
+  ".past": {
+    "category": "MATH",
+    "description": "Sends a bang the moment a value crosses a threshold, and then stays quiet until the value drops back below and crosses again — edge detection on continuous control data, where the interesting event is the crossing rather than the thousand messages that follow while the value stays up there. A .>= into a .sel 1 would fire on every one of them; this fires once. Max states the rule in two halves and only both together define the object: it bangs when every number is at or above its threshold having not been so before, and it re-arms only when a number goes back BELOW (strictly less than) its threshold. The two are exact complements, so the object is a plain latch on 'value >= threshold' rather than a hysteresis band, and two edges follow that a naive implementation gets wrong. A value exactly at the threshold has crossed it, so '.past 5' fed 5 bangs. And a value exactly at the threshold does not re-arm it, so 10, 5, 10 bangs once rather than twice: equality belongs to the 'past it' side of the line going up and coming down alike. A freshly created object is un-latched, so a value that is already above the threshold when the first message arrives bangs immediately — nothing has met the threshold yet, so the first thing that does is a crossing, which is also the state 'clear' restores. The creation argument is a list and so is the input: numbers are compared element-wise against the corresponding thresholds and the bang is the conjunction, so '.past 60 100' is an AND gate of two thresholds in one box. Each element keeps its own met/not-met flag, which is what Max's per-element re-arm wording describes, so a list shorter than the threshold list updates only the elements it supplies and a plain int or float is simply the one-element case; numbers past the last threshold are ignored, and at most 256 thresholds are held. 'clear' drops every flag so the next crossing bangs again, silently and without touching the thresholds. 'set <numbers>' replaces the thresholds and deliberately does NOT re-arm, because a patch that drives the threshold from elsewhere sends 'set' continuously and an object that re-armed on each one would bang for every message above the line, which is a .>= and not a .past; surviving elements keep their flags, elements the new list adds start un-met, and the latch is re-derived from the flags. 'reset' is the patcher family's word rather than a Max message and means both halves at once — back to the creation-argument thresholds with a cleared latch — since after a 'set' there is otherwise no way back to the creation argument. All three are silent, and a message that is neither a word this object knows nor a list containing a number is ignored. A bang is not accepted: a message carrying no number cannot cross anything. Everything is a float, so Max's int-unless-the-argument-has-a-decimal-point duality is not reproduced. A non-finite number is read as 0 wherever it arrives, in the input and in the thresholds alike. On the threshold side that is load-bearing rather than tidy: a NaN compares false against everything, so a NaN threshold could never be met and would make the object permanently mute — and in a multi-threshold object it would mute the conjunction while every other element carried on working. A +infinity threshold does the same, and a -infinity one is met by every number there is, including the ones a patch sends to bring the value back down, so its element could never re-arm. On the input side the substitution buys consistency rather than safety: it is simply the answer the rest of the patcher gives a NaN it was handed.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Int, float or list to compare against the thresholds — a bang goes out the moment every element is at or above its own threshold, having not been so before. Also accepts the messages 'clear' (drop every met flag so the next crossing bangs again), 'set <numbers>' (replace the thresholds, keeping the latch) and 'reset' (back to the creation-argument thresholds with the latch cleared). All three are silent.",
+        "index": 0,
+        "label": "in",
+        "range": "any list of floats"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".past",
+    "outlets": [
+      {
+        "doc": "Bang when every number is at or above its threshold, having not been so before. Silent until a number drops strictly below its threshold and the crossing happens again.",
+        "index": 0,
+        "label": "cross",
+        "range": "bang",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The thresholds to watch, as a list. A number must be at or above its threshold for the object to consider that element crossed, and all of them must be for the bang to go out. Defaults to a single threshold of 0; at most 256 are held.",
+        "name": "thresholds",
+        "range": "any list of floats"
+      }
+    ]
+  },
   ".peak": {
     "category": "MATH",
     "description": "Keeps the largest number it has seen and sends it out only when a new one arrives, which is what peak-hold metering, envelope maxima and 'only react when this gets worse' logic are made of. This is the running reading of the idea .maximum deliberately does not have: .maximum compares an input against a sticky comparand and forgets it, answering every message and never moving, while .peak stores what it emits and stays silent until the record is broken. Two inlets and three outlets, as in Max: a number on inlet 0 is kept and sent out outlet 0 if it is greater than the stored peak and produces no value at all if it is not; outlet 1 carries 1 when the number was a new peak and 0 when it was not, and outlet 2 carries the inverse so that 'it was not a record' is one cord rather than a cord plus a .== 0. The three are sent right to left, so anything the value triggers already sees the matching flags. A number on inlet 1 reseeds the peak and sends it out — always a new peak, flags and all — which is the opposite of .maximum's silent cold inlet. A bang sends the stored peak out outlet 0 alone, and before any input that is the 'initial' creation argument (0 by default, as in Max) rather than silence, since a patch that bangs its objects once on load has to get an answer. Two silent messages on inlet 0 complete the object, because Max leaves a running extreme with no way back that does not announce itself: 'reset' returns to the initial argument and 'set <n>' stores n, both without emitting, so the next number received is the next peak event. 'clear' is deliberately absent, because on a '.peak 5' it could not be told whether it meant 0 or 5. A list is Max's two-element idiom — the second number becomes the new peak and is sent out, then the first is offered to it — with anything past the second ignored and a one-element list treated as a plain number. A message with no numbers in it is ignored. Everything is a float and outlet 0 is a float outlet: Max's int-unless-the-argument-has-a-decimal-point duality is not reproduced, because '.peak 5' and '.peak 5.0' are the same parameter string here and guessing integral would silently round a peak a patch is metering with — put a .round on the outlet instead. A non-finite number is read as 0 wherever it arrives, the convention ./ , .sqrt, .zmap, .clip, .slide and .mean already use, and it matters more here than anywhere else because this object keeps what it accepts: a stored NaN would lose every later comparison and be reported forever, and a stored -infinity would make every number a new peak while +infinity would silence the outlet for good.",
