@@ -42,6 +42,13 @@ jobs:
     # we never learned how long it actually needed -- so the 2x-worst term is
     # taken against 20.1, giving 40. That is still 1/9 of GitHub's 360-minute
     # default, so a genuinely hung scan is killed inside the hour.
+    #
+    # One more reason the margin has to be wide: the clock includes runner
+    # acquisition, not just execution. Observed directly during the Actions
+    # incident of 2026-08-06 -- a run of this job reported started_at 16:59:04
+    # but did not execute step 1 until 17:07:26, so 8m22s of the budget was
+    # spent queueing before a single command ran. Sizing the cap against step
+    # durations alone therefore understates what it actually has to cover.
     timeout-minutes: 40
     env:
       BUILD_WRAPPER_OUT_DIR: build_wrapper_output_directory # Directory where build-wrapper output will be placed
