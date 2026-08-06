@@ -93,16 +93,13 @@ PARM_PARSE() {
 }
 
 void gProb::Dump(YSE::THREAD thread) {
-  int from = 0;
-  int to = 0;
-  int weight = 0;
+  int entry[TRANSITION_ITEMS] = {0, 0, 0};
   // Bounded by the table's capacity. Entry() re-reads the published count each
   // time, so an entry appended while the dump runs is either fully visible or
-  // not visible at all.
-  for (int i = 0; table.Entry(i, from, to, weight); ++i) {
-    outputs[2].SendList(
-        std::to_string(from) + " " + std::to_string(to) + " " + std::to_string(weight), thread);
-  }
+  // not visible at all. FormatIntList builds the line in one pass over a stack
+  // buffer rather than materialising a std::to_string temporary per term.
+  for (int i = 0; table.Entry(i, entry[0], entry[1], entry[2]); ++i)
+    outputs[2].SendList(FormatIntList(entry, TRANSITION_ITEMS), thread);
 }
 
 INT_IN(SetInt) {

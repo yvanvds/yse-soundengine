@@ -51,6 +51,7 @@
 #include "math/gDecide.h"
 #include "math/gProb.h"
 #include "math/gAnal.h"
+#include "math/gHisto.h"
 #include "math/gCounter.h"
 #include "math/gCompare.h"
 #include "math/gBitwise.h"
@@ -160,6 +161,10 @@ pRegistry::pRegistry() {
   // Transition histogram over an input stream — the learning half of the pair
   // above, and the object that feeds it (issue #457)
   Add(OBJ::G_ANAL, gAnal::Create);
+
+  // Histogram of the numbers received — the zeroth-order statistic next to
+  // .anal's first-order one (issue #458)
+  Add(OBJ::G_HISTO, gHisto::Create);
 
   // Remaining arithmetic operators (issue #439)
   Add(OBJ::G_REVERSESUBSTRACT, gReverseSubstract::Create);

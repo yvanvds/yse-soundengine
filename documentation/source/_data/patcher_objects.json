@@ -1752,6 +1752,60 @@
       }
     ]
   },
+  ".histo": {
+    "category": "MATH",
+    "description": "Histogram of the numbers received — one running count per value, reported as the list '<value> <count>'. Where .anal counts which number followed which, this counts how often each number appeared at all, so a patch can notice what it has already played and weight what it plays next towards or away from it. A number on inlet 0 is counted and its new count comes out; the same number on inlet 1 is only read, which is Max's right inlet. A bang re-reports the most recently counted number and its count without counting anything, and reports '0 0' before any number has arrived. The 'size' parameter names how many bins there are, so the accepted values are [0, size-1] — the default of 128 is why a MIDI note number arrives unchanged. A number outside that range is disregarded as it is in Max: not counted, nothing on outlet 0, and a bang on outlet 1 instead, since clipping it into range would pile every stray value onto the boundary bin and report a mode the stream never had. 'clear' zeroes every bin but keeps the last number, so a bang after it honestly reports a count of zero for that number, and 'dump' sends every non-empty bin out outlet 0 in ascending order. The bins are a fixed 4096-entry array, size is clamped into 1-4096, and a bin saturates rather than wrapping — nothing on any path allocates or runs unbounded.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Int or float to count the next number of the stream / bang to re-report the most recently counted number without counting it / list 'clear' to zero every bin / list 'dump' to send every non-empty bin out outlet 0.",
+        "index": 0,
+        "label": "in",
+        "range": "0 to size-1"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Reads the count of a number without counting it.",
+        "index": 1,
+        "label": "query",
+        "range": "0 to size-1"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".histo",
+    "outlets": [
+      {
+        "doc": "'<value> <count>' — how often this number has been counted. Silent for a number outside the histogram's range.",
+        "index": 0,
+        "label": "count",
+        "range": "",
+        "type": "LIST"
+      },
+      {
+        "doc": "Bangs when a number is outside [0, size-1] and so was neither counted nor read.",
+        "index": 1,
+        "label": "reject",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "128",
+        "doc": "Number of bins, so the accepted values are [0, size-1]. Clamped to 1-4096.",
+        "name": "size",
+        "range": "1-4096"
+      }
+    ]
+  },
   ".i": {
     "category": "GUI",
     "description": "Integer number box. Stores an int; inlet 0 sets-and-fires (bang re-emits the current value), inlet 1 sets silently.",
