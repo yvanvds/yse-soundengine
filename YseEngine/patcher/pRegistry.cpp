@@ -47,6 +47,7 @@
 #include "math/gSubstract.h"
 #include "math/gRandom.h"
 #include "math/gDrunk.h"
+#include "math/gUrn.h"
 #include "math/gCounter.h"
 #include "math/gCompare.h"
 #include "math/gBitwise.h"
@@ -143,6 +144,9 @@ pRegistry::pRegistry() {
 
   // Bounded random walk (issue #453)
   Add(OBJ::G_DRUNK, gDrunk::Create);
+
+  // Random numbers without repetition (issue #454)
+  Add(OBJ::G_URN, gUrn::Create);
 
   // Remaining arithmetic operators (issue #439)
   Add(OBJ::G_REVERSESUBSTRACT, gReverseSubstract::Create);

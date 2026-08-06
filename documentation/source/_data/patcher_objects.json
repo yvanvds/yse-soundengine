@@ -3030,6 +3030,64 @@
       }
     ]
   },
+  ".urn": {
+    "category": "MATH",
+    "description": "Random numbers without repetition. Each bang emits a value from [0, limit) that has not been emitted yet, so every value appears exactly once before any of them repeats — a shuffled deck rather than a die, which is what keeps generative sample and pitch selection free of the immediate repeats that read as a mistake. Once every value has been handed out the urn is empty: further bangs emit nothing on outlet 0 and bang outlet 1 instead. 'clear' refills and reshuffles it, and an int on inlet 1 sets a new limit and refills. The bag holds a whole shuffled permutation and a bang is a cursor step through it, so a draw costs the same whether the urn is full or has one value left — no rejection sampling, no unbounded retry loop. A non-zero seed makes the order reproducible across runs; seed 0 takes an arbitrary stream. The limit is clamped to 1-4096.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Bang to draw the next unused value / list 'clear' to refill and reshuffle the urn / list 'seed <n>' to restart the random sequence and reshuffle what is left.",
+        "index": 0,
+        "label": "control",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Sets the exclusive upper bound and refills the urn.",
+        "index": 1,
+        "label": "limit",
+        "range": "1-4096"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".urn",
+    "outlets": [
+      {
+        "doc": "Next value not yet drawn since the last refill. Silent once the urn is empty.",
+        "index": 0,
+        "label": "out",
+        "range": "0 to limit-1",
+        "type": "INT"
+      },
+      {
+        "doc": "Bangs when a bang arrives and every value has already been drawn.",
+        "index": 1,
+        "label": "empty",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "Exclusive upper bound of the drawn values; setting it refills the urn. Clamped to 1-4096.",
+        "name": "limit",
+        "range": "1-4096"
+      },
+      {
+        "default": "0",
+        "doc": "Random seed; non-zero replays the same orders every run, 0 picks an arbitrary stream.",
+        "name": "seed",
+        "range": "any int"
+      }
+    ]
+  },
   ".vexpr": {
     "category": "MATH",
     "description": "Evaluates a C-like mathematical expression once for every element of a list, so one object replaces an iteration loop: scaling a chord, transposing a motif or bending a set of breakpoints becomes a single box. The expression is the creation argument and the language is exactly .expr's - its $i1-$i9 and $f1-$f9 placeholders name the inlets ($i reads as an int, $f as a float), the object gets one inlet past the highest placeholder used, and the operators, the functions and the C type rules are the same, so read .expr for the details. The difference is the data: every inlet holds a list rather than a single value, and an int or a float is simply a one-item list. An inlet holding one item is broadcast across all the elements (Max's scalarmode 1), so a list on one inlet and a number on another scales the list; otherwise the number of results is the length of the shortest list among the inlets the expression actually reads. Inlet 0 is hot: it stores its list and evaluates, while the other inlets only store. A bang on inlet 0 re-evaluates from the stored lists. A single result is sent as an int or a float, and a longer one as a list. Lists are held at up to 256 items per inlet (Max's default maxsize) and anything past that is dropped. The expression is compiled once, when the parameter is set; evaluation only walks the compiled form and writes into a buffer reserved up front, so it allocates nothing and takes no lock. A malformed expression is reported to the log at parse time and the object then sends 0.",

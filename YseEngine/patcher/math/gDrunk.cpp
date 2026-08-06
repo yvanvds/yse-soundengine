@@ -1,6 +1,6 @@
 #include "gDrunk.h"
+#include "../pListArgs.h"
 #include "../pObjectList.hpp"
-#include <cstddef>
 #include <string>
 
 using namespace YSE::PATCHER;
@@ -13,41 +13,6 @@ namespace {
   // larger than the range anyway, and capping here keeps every intermediate
   // below 2^31 so the draw arithmetic cannot overflow.
   constexpr I64 MAX_STEP_MAGNITUDE = 1 << 30;
-
-  /**
-   *  Reads a decimal integer out of @p text starting at @p offset. Returns
-   *  false when there is no integer there; saturates rather than wrapping on
-   *  overflow.
-   *
-   *  Hand-rolled on purpose: this runs from an inlet handler, so it may run on
-   *  the audio thread. ``std::stoi`` would construct a ``std::string`` for the
-   *  argument (an allocation) and ``strtol`` reads locale state; this touches
-   *  neither, and has no failure path that throws.
-   */
-  bool ReadInt(const std::string& text, std::size_t offset, int& out) {
-    std::size_t i = offset;
-    while (i < text.size() && (text[i] == ' ' || text[i] == '\t'))
-      i++;
-
-    bool negative = false;
-    if (i < text.size() && (text[i] == '-' || text[i] == '+')) {
-      negative = (text[i] == '-');
-      i++;
-    }
-    if (i >= text.size() || text[i] < '0' || text[i] > '9') return false;
-
-    I64 value = 0;
-    while (i < text.size() && text[i] >= '0' && text[i] <= '9') {
-      value = (value * 10) + (text[i] - '0');
-      if (value > 0x7FFFFFFFLL) {
-        value = 0x7FFFFFFFLL;
-        break;
-      }
-      i++;
-    }
-    out = static_cast<int>(negative ? -value : value);
-    return true;
-  }
 
 } // namespace
 
@@ -192,14 +157,14 @@ LIST_IN(SetList) {
   int argument = 0;
   if (value.compare(0, 4, "set ") == 0) {
     // Sets the position without emitting — Max's `set`.
-    if (ReadInt(value, 4, argument)) MoveTo(argument);
+    if (ReadIntArg(value, 4, argument)) MoveTo(argument);
     return;
   }
   if (value.compare(0, 5, "seed ") == 0) {
     // Restarts the sequence. This is a live override: what a DumpJSON keeps is
     // the creation parameter, so a patch reloads with the seed it was saved
     // with, not with one sent at runtime.
-    if (ReadInt(value, 5, argument)) rng.Seed(static_cast<UInt>(argument));
+    if (ReadIntArg(value, 5, argument)) rng.Seed(static_cast<UInt>(argument));
   }
 }
 

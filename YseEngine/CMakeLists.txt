@@ -158,6 +158,7 @@ set(YSE_SRCS
   patcher/math/gSubstract.cpp
   patcher/math/gTrig.cpp
   patcher/math/gUnaryMath.cpp
+  patcher/math/gUrn.cpp
   patcher/math/gVexpr.cpp
   patcher/math/gZmap.cpp
   patcher/math/pFrequencyToMidi.cpp
@@ -326,6 +327,7 @@ set_source_files_properties(
   patcher/math/gSubstract.cpp
   patcher/math/gTrig.cpp
   patcher/math/gUnaryMath.cpp
+  patcher/math/gUrn.cpp
   patcher/math/gVexpr.cpp
   patcher/math/gZmap.cpp
   patcher/math/pFrequencyToMidi.cpp
