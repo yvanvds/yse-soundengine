@@ -83,5 +83,66 @@ namespace YSE {
       return count;
     }
 
+    /** @brief Most values ``FormatIntList`` will write; longer lists are cut. */
+    constexpr int FORMAT_LIST_MAX = 8;
+
+    // Widest a 32-bit int prints is 11 characters ("-2147483648"), and every
+    // value but the first also costs one separator.
+    constexpr int FORMAT_INT_WIDTH = 11;
+
+    /**
+     *  @brief Writes @p value as decimal into @p out and returns how many
+     *         characters that took. At most ``FORMAT_INT_WIDTH``.
+     *
+     *  The write half of ``ReadIntArgAt``, and hand-rolled for the same reason:
+     *  it neither allocates nor reads locale state, so it is safe on whichever
+     *  thread a message handler happens to run on.
+     */
+    inline std::size_t WriteInt(int value, char* out) {
+      char digits[FORMAT_INT_WIDTH];
+      int n = 0;
+      // Take the magnitude in 64 bits: negating INT_MIN as an int is undefined,
+      // and its magnitude is not representable as one.
+      I64 magnitude = value;
+      const bool negative = magnitude < 0;
+      if (negative) magnitude = -magnitude;
+      do {
+        digits[n++] = static_cast<char>('0' + (magnitude % 10));
+        magnitude /= 10;
+      } while (magnitude != 0);
+
+      std::size_t written = 0;
+      if (negative) out[written++] = '-';
+      while (n > 0)
+        out[written++] = digits[--n];
+      return written;
+    }
+
+    /**
+     *  @brief Formats the first @p count of @p values as a space-separated
+     *         list — the text form the patcher's list outlets carry.
+     *
+     *  Built once into a stack buffer and handed to ``std::string`` in one go,
+     *  rather than concatenating ``std::to_string`` results, which materialises
+     *  a temporary per term. A short list (the three-number transition entry
+     *  ``.anal`` and ``.prob`` trade in) fits small-string optimisation and so
+     *  costs no allocation at all; a long one costs exactly one. Still not a
+     *  path for the audio callback — a list outlet hands a ``std::string`` on —
+     *  but it is the cheapest honest way to build one.
+     *
+     *  Added for ``.anal`` (#457), which emits a list per number it receives;
+     *  ``.histo`` (#458) emits the same shape with two values.
+     */
+    inline std::string FormatIntList(const int* values, int count) {
+      if (count > FORMAT_LIST_MAX) count = FORMAT_LIST_MAX;
+      char buffer[FORMAT_LIST_MAX * (FORMAT_INT_WIDTH + 1)];
+      std::size_t length = 0;
+      for (int i = 0; i < count; ++i) {
+        if (i > 0) buffer[length++] = ' ';
+        length += WriteInt(values[i], buffer + length);
+      }
+      return std::string(buffer, length);
+    }
+
   } // namespace PATCHER
 } // namespace YSE

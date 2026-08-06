@@ -50,6 +50,7 @@
 #include "math/gUrn.h"
 #include "math/gDecide.h"
 #include "math/gProb.h"
+#include "math/gAnal.h"
 #include "math/gCounter.h"
 #include "math/gCompare.h"
 #include "math/gBitwise.h"
@@ -155,6 +156,10 @@ pRegistry::pRegistry() {
 
   // Weighted transition table / first-order Markov chain (issue #456)
   Add(OBJ::G_PROB, gProb::Create);
+
+  // Transition histogram over an input stream — the learning half of the pair
+  // above, and the object that feeds it (issue #457)
+  Add(OBJ::G_ANAL, gAnal::Create);
 
   // Remaining arithmetic operators (issue #439)
   Add(OBJ::G_REVERSESUBSTRACT, gReverseSubstract::Create);
