@@ -58,6 +58,75 @@ def run(cmd, cwd=None):
         sys.exit(result.returncode)
 
 
+# Windows caps an entire process command line at 32767 characters
+# (CreateProcess), and exceeding it fails the spawn outright with
+# "[WinError 206] The filename or extension is too long" — no partial work.
+# POSIX allows far more (ARG_MAX, typically megabytes) but is not unlimited
+# either, so both platforms get batched; only the budget differs.  See #598.
+MAX_CMDLINE = 30000 if IS_WINDOWS else 120000
+
+
+def _cmdline_cost(arg):
+    """Characters *arg* is worth on a command line: the text, the separating
+    space, and headroom for the quotes the platform may add around it."""
+    return len(str(arg)) + 3
+
+
+def batch_args(prefix, arguments, limit=MAX_CMDLINE):
+    """Split ``prefix + arguments`` into command lines shorter than *limit*.
+
+    Every batch repeats *prefix* and carries a slice of *arguments*.  An
+    argument too long to fit even alone still gets its own batch rather than
+    being dropped — a hopeless command line is better than a silently skipped
+    file.  Returns a list of command lists (never empty when *arguments* is
+    non-empty).
+    """
+    prefix = [str(c) for c in prefix]
+    base = sum(_cmdline_cost(c) for c in prefix)
+    batches = []
+    current = []
+    size = base
+    for arg in arguments:
+        arg = str(arg)
+        cost = _cmdline_cost(arg)
+        if current and size + cost > limit:
+            batches.append(prefix + current)
+            current = []
+            size = base
+        current.append(arg)
+        size += cost
+    if current:
+        batches.append(prefix + current)
+    return batches
+
+
+def run_batched(prefix, arguments, cwd=None):
+    """Run ``prefix + arguments`` over as many batches as the command-line
+    limit requires.
+
+    Only valid for tools whose per-argument work is independent (clang-format
+    -i, clang-tidy): splitting the list must not change the result.  Every
+    batch runs even if an earlier one failed, so a failure part-way through
+    still reports the remaining files; the first non-zero return code is then
+    propagated, matching ``run``.
+    """
+    batches = batch_args(prefix, arguments)
+    total = len(batches)
+    failure = 0
+    for index, batch in enumerate(batches, start=1):
+        count = len(batch) - len(prefix)
+        if cwd:
+            print(f"+ cd {cwd}", flush=True)
+        label = f" [batch {index}/{total}]" if total > 1 else ""
+        print("+", " ".join(str(c) for c in prefix),
+              f"<{count} file(s)>{label}", flush=True)
+        result = subprocess.run(batch, cwd=str(cwd) if cwd else None)
+        if result.returncode != 0 and failure == 0:
+            failure = result.returncode
+    if failure:
+        sys.exit(failure)
+
+
 def run_to_file(cmd, output_path, cwd=None):
     """Print and run *cmd*, writing stdout to output_path."""
     _print_cmd(cmd, cwd)
@@ -230,9 +299,15 @@ def _cmd_coverage_windows():
         print("error: no .profraw files found after running tests.")
         sys.exit(1)
 
-    run(["llvm-profdata", "merge", "-sparse"]
-        + [str(f) for f in profraw_files]
-        + ["-o", str(profdata)])
+    # One .profraw per test process, so this list is unbounded in the same way
+    # the format/analyze file lists are (#598).  Chunking is not an option here
+    # — a merge must see every input at once — so the paths go through
+    # llvm-profdata's --input-files response file instead of argv.
+    profraw_list = build_dir / "profraw-files.txt"
+    profraw_list.write_text(
+        "".join(f"{f}\n" for f in profraw_files), encoding="utf-8")
+    run(["llvm-profdata", "merge", "-sparse",
+         f"--input-files={profraw_list}", "-o", str(profdata)])
 
     # llvm-cov export writes the JSON to stdout; redirect to report file.
     # SonarQube ingests this via sonar.cfamily.llvm-cov.reportPath.
@@ -402,7 +477,11 @@ def cmd_analyze(args):
             print(f"Note: sonar-scanner is also on PATH ({sonar_scanner}) "
                   "and provides a deeper analysis including SonarCloud upload.\n")
 
-        run([clang_tidy, f"-p={compile_commands_dir}"] + [str(f) for f in files])
+        # Batched: the full file list is already ~19 KB of argv and growing,
+        # and clang-tidy treats each translation unit independently, so
+        # splitting the list cannot change the findings.  See #598.
+        run_batched([clang_tidy, f"-p={compile_commands_dir}"],
+                    [str(f) for f in files])
 
     elif sonar_scanner:
         print("clang-tidy not found — falling back to sonar-scanner (heavier analysis).")
@@ -480,7 +559,10 @@ def cmd_format(args):
         print("No source files found to format.")
         return
 
-    run([clang_format, "-i"] + [str(f) for f in files])
+    # Batched: the tree is well past Windows' 32 KB command-line cap, and
+    # clang-format -i rewrites each file independently, so splitting the list
+    # cannot change the result.  See #598.
+    run_batched([clang_format, "-i"], [str(f) for f in files])
     print(f"Formatted {len(files)} file(s).")
 
 
