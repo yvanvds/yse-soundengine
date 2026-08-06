@@ -153,6 +153,7 @@ set(YSE_SRCS
   patcher/math/gLinedrive.cpp
   patcher/math/gMean.cpp
   patcher/math/gMultiply.cpp
+  patcher/math/gPast.cpp
   patcher/math/gPolar.cpp
   patcher/math/gPong.cpp
   patcher/math/gProb.cpp
@@ -331,6 +332,7 @@ set_source_files_properties(
   patcher/math/gLinedrive.cpp
   patcher/math/gMean.cpp
   patcher/math/gMultiply.cpp
+  patcher/math/gPast.cpp
   patcher/math/gPolar.cpp
   patcher/math/gPong.cpp
   patcher/math/gProb.cpp
