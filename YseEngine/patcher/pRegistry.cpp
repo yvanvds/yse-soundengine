@@ -58,6 +58,7 @@
 #include "math/gPolar.h"
 #include "math/gClip.h"
 #include "math/gPong.h"
+#include "math/gSplit.h"
 #include "math/gLinedrive.h"
 #include "math/gScale.h"
 #include "math/gZmap.h"
@@ -148,6 +149,9 @@ pRegistry::pRegistry() {
   // Range limiting (issues #445, #446)
   Add(OBJ::G_CLIP, gClip::Create);
   Add(OBJ::G_PONG, gPong::Create);
+
+  // Range routing (issue #448)
+  Add(OBJ::G_SPLIT, gSplit::Create);
 
   // Trigonometric + hyperbolic functions (issue #441)
   Add(OBJ::G_SIN, gSin::Create);

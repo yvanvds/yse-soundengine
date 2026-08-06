@@ -2570,6 +2570,74 @@
     ],
     "params": []
   },
+  ".split": {
+    "category": "MATH",
+    "description": "Control-rate two-way routing by range. Tests the value on inlet 0 against the [low, high] range and passes it on unchanged: out of outlet 0 when it falls inside the range, out of outlet 1 when it does not. Both bounds are inclusive. Exactly one outlet fires per evaluation, which is what separates .split from the rest of the range family — .clip and .pong reshape the value, .split leaves it alone and decides where it goes. The building block for keyboard splits, velocity layers and zone-based dispatch: chain the out-of-range outlet into the next .split for the next zone. Limits given the wrong way round (low above high) are treated as an ordered pair and still split on the right two numbers. Nothing is computed and so nothing is substituted — a non-finite value is routed, and a NaN leaves the out-of-range outlet.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Value to route — fires the evaluation.",
+        "index": 0,
+        "label": "value",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Lower limit, inclusive — stored until the next evaluation.",
+        "index": 1,
+        "label": "low",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Upper limit, inclusive — stored until the next evaluation.",
+        "index": 2,
+        "label": "high",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".split",
+    "outlets": [
+      {
+        "doc": "The input value, unchanged, when it lies inside [low, high].",
+        "index": 0,
+        "label": "in",
+        "range": "low to high",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The input value, unchanged, when it lies outside [low, high].",
+        "index": 1,
+        "label": "out",
+        "range": "any float",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Lower limit, inclusive.",
+        "name": "low",
+        "range": "any float"
+      },
+      {
+        "default": "127",
+        "doc": "Upper limit, inclusive.",
+        "name": "high",
+        "range": "any float"
+      }
+    ]
+  },
   ".sqrt": {
     "category": "MATH",
     "description": "Control-rate square root. Emits the square root of the input as a float whenever inlet 0 fires. A negative input emits 0 rather than a NaN.",
