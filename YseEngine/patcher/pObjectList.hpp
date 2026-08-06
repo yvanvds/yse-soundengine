@@ -28,6 +28,7 @@ namespace YSE {
    *  - Running extremes: ``G_PEAK``, ``G_TROUGH``.
    *  - Threshold crossing: ``G_PAST``.
    *  - Change detection: ``G_CHANGE``.
+   *  - Zero-crossing edges: ``G_TOGEDGE``.
    *  - Bitwise: ``G_BITAND``, ``G_BITOR``, ``G_SHIFTLEFT``, ``G_SHIFTRIGHT``.
    *  - DSP filters: ``D_LOWPASS``, ``D_HIGHPASS``, ``D_BANDPASS``, ``D_VCF``.
    *  - I/O: ``D_DAC``, ``D_ADC``, ``D_LINE``.
@@ -137,6 +138,7 @@ namespace YSE {
     DEFOBJ(G_PAST, ".past");
 
     DEFOBJ(G_CHANGE, ".change");
+    DEFOBJ(G_TOGEDGE, ".togedge");
 
     DEFOBJ(G_BITAND, ".&");
     DEFOBJ(G_BITOR, ".|");

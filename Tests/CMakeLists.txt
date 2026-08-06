@@ -64,6 +64,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_running_extremum.cpp
   patcher/test_patcher_past.cpp
   patcher/test_patcher_change.cpp
+  patcher/test_patcher_togedge.cpp
   patcher/test_patcher_scale.cpp
   patcher/test_patcher_zmap.cpp
   patcher/test_patcher_clip.cpp
@@ -778,6 +779,7 @@ set_source_files_properties(
   patcher/test_patcher_running_extremum.cpp
   patcher/test_patcher_past.cpp
   patcher/test_patcher_change.cpp
+  patcher/test_patcher_togedge.cpp
   patcher/test_patcher_scale.cpp
   patcher/test_patcher_zmap.cpp
   patcher/test_patcher_clip.cpp

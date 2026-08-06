@@ -63,6 +63,7 @@
 #include "math/gRunningExtremum.h"
 #include "math/gPast.h"
 #include "math/gChange.h"
+#include "math/gTogEdge.h"
 #include "math/gBitwise.h"
 #include "math/gReverse.h"
 #include "math/gIntDiv.h"
@@ -261,6 +262,9 @@ pRegistry::pRegistry() {
 
   // Pass a number on only when it differs from the last one (issue #468)
   Add(OBJ::G_CHANGE, gChange::Create);
+
+  // Bang on a zero crossing, in either direction (issue #469)
+  Add(OBJ::G_TOGEDGE, gTogEdge::Create);
 
   // Bitwise operators (issue #438)
   Add(OBJ::G_BITAND, gBitAnd::Create);
