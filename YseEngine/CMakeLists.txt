@@ -148,6 +148,7 @@ set(YSE_SRCS
   patcher/math/gReverse.cpp
   patcher/math/gRound.cpp
   patcher/math/gScale.cpp
+  patcher/math/gSplit.cpp
   patcher/math/gSubstract.cpp
   patcher/math/gTrig.cpp
   patcher/math/gUnaryMath.cpp
@@ -310,6 +311,7 @@ set_source_files_properties(
   patcher/math/gReverse.cpp
   patcher/math/gRound.cpp
   patcher/math/gScale.cpp
+  patcher/math/gSplit.cpp
   patcher/math/gSubstract.cpp
   patcher/math/gTrig.cpp
   patcher/math/gUnaryMath.cpp

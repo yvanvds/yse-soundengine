@@ -56,6 +56,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_zmap.cpp
   patcher/test_patcher_clip.cpp
   patcher/test_patcher_pong.cpp
+  patcher/test_patcher_split.cpp
   patcher/test_patcher_linedrive.cpp
   patcher/test_math_wrappers.cpp
   patcher/test_dsp_objects.cpp
@@ -749,6 +750,7 @@ set_source_files_properties(
   patcher/test_patcher_zmap.cpp
   patcher/test_patcher_clip.cpp
   patcher/test_patcher_pong.cpp
+  patcher/test_patcher_split.cpp
   patcher/test_patcher_linedrive.cpp
   patcher/test_math_wrappers.cpp
   patcher/test_dsp_objects.cpp
