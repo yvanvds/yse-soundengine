@@ -11,19 +11,6 @@ using namespace YSE::PATCHER;
 
 namespace {
 
-  // True when the token is spelled as a float rather than an int — the test
-  // Max's own parser applies to decide whether an atom is an int atom or a
-  // float one, and the only thing left to decide it by once strtof has agreed
-  // the whole token is a number. `.` catches "5.", "5.0" and ".5"; the
-  // exponent catches "1e3", which Max also reads as a float.
-  bool LooksLikeFloat(const std::string& token) {
-    for (std::size_t i = 0; i < token.size(); i++) {
-      const char c = token[i];
-      if (c == '.' || c == 'e' || c == 'E') return true;
-    }
-    return false;
-  }
-
   const char* KindDoc(gTrigger::Kind kind) {
     switch (kind) {
     case gTrigger::Kind::INT:
@@ -229,7 +216,10 @@ PARM_PARSE() {
     // a constant."
     float number = 0.f;
     if (ReadNumericToken(token, number)) {
-      if (LooksLikeFloat(token)) {
+      // The int-atom / float-atom test lives in pListArgs.h next to the reader
+      // that agreed the token is a number; `.match` (#472) needs the same
+      // answer to echo a value back in the spelling it arrived in.
+      if (TokenLooksLikeFloat(token)) {
         slots.push_back(Slot{Kind::CONST_FLOAT, 0, number, token});
       } else {
         // Spelled as an int, so it is an int atom — but the token may still be

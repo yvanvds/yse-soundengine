@@ -111,6 +111,7 @@ set(YSE_SRCS
   patcher/genericObjects/gBangBang.cpp
   patcher/genericObjects/gGate.cpp
   patcher/genericObjects/gIf.cpp
+  patcher/genericObjects/gMatch.cpp
   patcher/genericObjects/gNext.cpp
   patcher/genericObjects/gOneBang.cpp
   patcher/genericObjects/gReceive.cpp
@@ -300,6 +301,7 @@ set_source_files_properties(
   patcher/genericObjects/gBangBang.cpp
   patcher/genericObjects/gGate.cpp
   patcher/genericObjects/gIf.cpp
+  patcher/genericObjects/gMatch.cpp
   patcher/genericObjects/gNext.cpp
   patcher/genericObjects/gOneBang.cpp
   patcher/genericObjects/gReceive.cpp

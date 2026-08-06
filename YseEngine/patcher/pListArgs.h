@@ -63,6 +63,38 @@ namespace YSE {
     }
 
     /**
+     *  @brief True when a token ``ReadNumericToken`` has already accepted is
+     *         spelled as a **float** rather than as an int.
+     *
+     *  The test Max's own parser applies to decide whether an atom is an int
+     *  atom or a float one, and the only thing left to decide it by once the
+     *  whole token has been agreed to be a number. ``.`` catches ``5.``,
+     *  ``5.0`` and ``.5``; the exponent catches ``1e3``, which Max also reads
+     *  as a float.
+     *
+     *  It matters wherever a number is going to be written back out, because
+     *  ``ExprFormatValue`` always gives a float a decimal point: without this
+     *  test the list ``1 2 3`` would come back as ``1. 2. 3.``.
+     *
+     *  Written for ``.trigger`` (#466), which classifies its constant
+     *  arguments with it, and shared with ``.match`` (#472), which has to
+     *  reproduce the spelling of the values it echoes back. No allocation, no
+     *  locale, no exception — one walk of the characters.
+     */
+    inline bool TokenLooksLikeFloat(const char* text, std::size_t length) {
+      for (std::size_t i = 0; i < length; i++) {
+        const char c = text[i];
+        if (c == '.' || c == 'e' || c == 'E') return true;
+      }
+      return false;
+    }
+
+    /** @brief ``TokenLooksLikeFloat`` over a whole ``std::string`` token. */
+    inline bool TokenLooksLikeFloat(const std::string& token) {
+      return TokenLooksLikeFloat(token.c_str(), token.size());
+    }
+
+    /**
      *  @brief Reads a decimal integer out of @p text starting at @p offset, and
      *         advances @p offset past it.
      *
