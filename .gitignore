@@ -90,6 +90,16 @@ build-tests-tsan/
 [Bb]in/
 [Oo]bj/
 
+# CTest scratch output (#601).  ctest writes Testing/Temporary/ — CTestCostData.txt,
+# LastTest.log and its LastTest.log.tmp* siblings — relative to its working
+# directory.  Inside a build dir that is already covered above, but a ctest run
+# whose cwd is the source tree (e.g. `ctest -N`, `ctest -T Test`, `ctest
+# --test-dir .`) drops the directory into the repo root, where a `git add -A`
+# after a test run can stage it by accident.  The project's own sources live in
+# Tests/ and TestResources/, so a directory named exactly Testing/ is always a
+# CTest artefact.
+Testing/
+
 # MSTest test Results
 [Tt]est[Rr]esult*/
 [Bb]uild[Ll]og.*
