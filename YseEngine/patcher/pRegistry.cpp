@@ -56,6 +56,7 @@
 #include "math/gAccum.h"
 #include "math/gCounter.h"
 #include "math/gCompare.h"
+#include "math/gExtremum.h"
 #include "math/gBitwise.h"
 #include "math/gReverse.h"
 #include "math/gIntDiv.h"
@@ -231,6 +232,10 @@ pRegistry::pRegistry() {
   Add(OBJ::G_GREATEREQUAL, gGreaterEqual::Create);
   Add(OBJ::G_LOGICALAND, gLogicalAnd::Create);
   Add(OBJ::G_LOGICALOR, gLogicalOr::Create);
+
+  // Largest / smallest of the inputs (issue #462)
+  Add(OBJ::G_MAXIMUM, gMaximum::Create);
+  Add(OBJ::G_MINIMUM, gMinimum::Create);
 
   // Bitwise operators (issue #438)
   Add(OBJ::G_BITAND, gBitAnd::Create);

@@ -147,6 +147,7 @@ set(YSE_SRCS
   patcher/math/gDrunk.cpp
   patcher/math/gExpr.cpp
   patcher/math/gExprEval.cpp
+  patcher/math/gExtremum.cpp
   patcher/math/gHisto.cpp
   patcher/math/gIntDiv.cpp
   patcher/math/gLinedrive.cpp
@@ -323,6 +324,7 @@ set_source_files_properties(
   patcher/math/gDivide.cpp
   patcher/math/gDrunk.cpp
   patcher/math/gExpr.cpp
+  patcher/math/gExtremum.cpp
   patcher/math/gHisto.cpp
   patcher/math/gIntDiv.cpp
   patcher/math/gLinedrive.cpp
