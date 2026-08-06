@@ -149,6 +149,7 @@ set(YSE_SRCS
   patcher/math/gHisto.cpp
   patcher/math/gIntDiv.cpp
   patcher/math/gLinedrive.cpp
+  patcher/math/gMean.cpp
   patcher/math/gMultiply.cpp
   patcher/math/gPolar.cpp
   patcher/math/gPong.cpp
@@ -323,6 +324,7 @@ set_source_files_properties(
   patcher/math/gHisto.cpp
   patcher/math/gIntDiv.cpp
   patcher/math/gLinedrive.cpp
+  patcher/math/gMean.cpp
   patcher/math/gMultiply.cpp
   patcher/math/gPolar.cpp
   patcher/math/gPong.cpp

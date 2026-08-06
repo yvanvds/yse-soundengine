@@ -2036,6 +2036,43 @@
       }
     ]
   },
+  ".mean": {
+    "category": "MATH",
+    "description": "Running average of every number received. Each int or float is added to a running sum and the new mean comes out of outlet 0, with the number of values it rests on out outlet 1; the count is sent first, so a patch triggering off the mean already holds the matching count. Unlike .slide, which forgets the past geometrically, this never forgets: the thousandth value counts exactly as much as the first. A bang re-sends the stored mean and count without adding anything, and before any number has arrived — or straight after a clear — that is 0 with a count of 0, since the mean of nothing has to be chosen rather than computed and 0/0 would put a NaN on the outlet. A list is Max's one-shot mean: the previously received numbers are cleared and the mean of the list items is sent, up to 256 items. 'clear' (or 'reset', accepted as a synonym) zeroes the sum and the count and emits nothing. The sum is kept in double and the count as an exact 64-bit integer, which is the point of the object: a float sum drifts, and worse, stagnates once it exceeds 2^24 times a new value — about seventeen million messages — after which further input contributes nothing at all while the count keeps climbing. In double the error stays within (n-1)*1.11e-16 relative to the average input magnitude, which is under one ulp of the float on the outlet even after a billion values, and the stagnation point moves to 9e15 messages. A non-finite input is folded in as 0 and still counted, the convention ./ , .sqrt, .zmap and .clip already use, which is also what keeps an infinity from pinning the mean forever.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Int or float to fold into the running average / bang to re-send the stored mean and count without adding anything / a list of numbers to report their mean and forget everything before it / list 'clear' (or 'reset') to zero the sum and the count.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".mean",
+    "outlets": [
+      {
+        "doc": "The average of every number received so far; 0 when none have been.",
+        "index": 0,
+        "label": "mean",
+        "range": "between the smallest and largest input",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "How many numbers the mean rests on, sent before the mean. Saturates at 2147483647; the mean itself stays correct past that.",
+        "index": 1,
+        "label": "count",
+        "range": "0 and up",
+        "type": "INT"
+      }
+    ],
+    "params": []
+  },
   ".metro": {
     "category": "TIME",
     "description": "Periodic bang generator. Once toggled on, emits a bang every 'period' milliseconds (and immediately on start). Toggle off to stop.",
