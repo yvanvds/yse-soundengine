@@ -62,6 +62,7 @@
 #include "math/gExtremum.h"
 #include "math/gRunningExtremum.h"
 #include "math/gPast.h"
+#include "math/gChange.h"
 #include "math/gBitwise.h"
 #include "math/gReverse.h"
 #include "math/gIntDiv.h"
@@ -257,6 +258,9 @@ pRegistry::pRegistry() {
 
   // Bang once when a threshold is crossed (issue #464)
   Add(OBJ::G_PAST, gPast::Create);
+
+  // Pass a number on only when it differs from the last one (issue #468)
+  Add(OBJ::G_CHANGE, gChange::Create);
 
   // Bitwise operators (issue #438)
   Add(OBJ::G_BITAND, gBitAnd::Create);

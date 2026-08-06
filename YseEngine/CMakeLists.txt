@@ -141,6 +141,7 @@ set(YSE_SRCS
   patcher/math/gAnal.cpp
   patcher/math/gAtan2.cpp
   patcher/math/gBitwise.cpp
+  patcher/math/gChange.cpp
   patcher/math/gClip.cpp
   patcher/math/gCompare.cpp
   patcher/math/gCounter.cpp
@@ -324,6 +325,7 @@ set_source_files_properties(
   patcher/math/gAnal.cpp
   patcher/math/gAtan2.cpp
   patcher/math/gBitwise.cpp
+  patcher/math/gChange.cpp
   patcher/math/gClip.cpp
   patcher/math/gCompare.cpp
   patcher/math/gCounter.cpp
