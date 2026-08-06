@@ -59,6 +59,7 @@
 #include "math/gClip.h"
 #include "math/gPong.h"
 #include "math/gSplit.h"
+#include "math/gExpr.h"
 #include "math/gLinedrive.h"
 #include "math/gScale.h"
 #include "math/gZmap.h"
@@ -152,6 +153,9 @@ pRegistry::pRegistry() {
 
   // Range routing (issue #448)
   Add(OBJ::G_SPLIT, gSplit::Create);
+
+  // Expression evaluation (issue #449)
+  Add(OBJ::G_EXPR, gExpr::Create);
 
   // Trigonometric + hyperbolic functions (issue #441)
   Add(OBJ::G_SIN, gSin::Create);

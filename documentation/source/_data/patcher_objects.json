@@ -1429,6 +1429,43 @@
       }
     ]
   },
+  ".expr": {
+    "category": "MATH",
+    "description": "Evaluates a C-like mathematical expression, replacing a tangle of arithmetic objects with one line of text. The expression is the creation argument; its $i1-$i9 and $f1-$f9 placeholders name the inlets ($i reads the inlet as an int, $f as a float), and the object gets one inlet past the highest placeholder used. Inlet 0 is hot: it stores its value and evaluates, while the other inlets only store. A list on inlet 0 fills the inlets left to right and evaluates; a bang re-evaluates with the stored values. Operators are C's, with C's precedence and C's types: + - * / % on two ints give an int (so $i1/$i2 is integer division), the comparisons (< <= > >= == !=), the logic (&& || !) and the bitwise operators (& | ^ << >> ~) always give an int, and ^ is exclusive-or rather than a power - use pow(). Functions: min, max, abs, int, float, pow, sqrt, exp, ln, log, log10, sin, cos, tan, asin, acos, atan, atan2, sinh, cosh, tanh, fact, round, floor, ceil. Division by zero gives 0 and a non-finite result gives 0, the convention the rest of the math family uses. The expression is compiled once, when the parameter is set; evaluation only walks the compiled form, so it allocates nothing and takes no lock. A malformed expression is reported to the log at parse time and the object then evaluates to 0. Max's table access ($s placeholders, size/sum/avg/store) and its random/noise functions are not supported and are rejected when the expression is compiled.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Value for the $i1 / $f1 placeholders — stores and fires the evaluation. Also accepts a bang (re-evaluate with the stored values) and a list (fill the inlets left to right, then evaluate).",
+        "index": 0,
+        "label": "$1",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".expr",
+    "outlets": [
+      {
+        "doc": "Result of the expression. An int when the expression's type is int, otherwise a float.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The expression to evaluate, e.g. \"($f1 * 0.5) + pow($f2, 2)\". Placeholders $i1-$i9 and $f1-$f9 name the inlets and determine how many there are.",
+        "name": "expression",
+        "range": "any expression"
+      }
+    ]
+  },
   ".f": {
     "category": "GUI",
     "description": "Float number box. Stores a float; inlet 0 sets-and-fires (bang re-emits the current value), inlet 1 sets silently.",
