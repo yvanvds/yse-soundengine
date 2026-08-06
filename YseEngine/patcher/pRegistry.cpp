@@ -14,6 +14,7 @@
 #include "genericObjects/gOneBang.h"
 #include "genericObjects/gNext.h"
 #include "genericObjects/gMatch.h"
+#include "genericObjects/gUzi.h"
 #include "genericObjects/gIf.h"
 #include "genericObjects/gRegexp.h"
 #include "genericObjects/gReceive.h"
@@ -143,6 +144,10 @@ pRegistry::pRegistry() {
 
   // Detect a sequence of values as it arrives (issue #472)
   Add(OBJ::G_MATCH, gMatch::Create);
+
+  // Emit N bangs immediately, with a running index — the patcher's loop
+  // (issue #473)
+  Add(OBJ::G_UZI, gUzi::Create);
 
   // Conditional message dispatch (issue #451)
   Add(OBJ::G_IF, gIf::Create);

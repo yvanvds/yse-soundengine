@@ -122,6 +122,7 @@ set(YSE_SRCS
   patcher/genericObjects/gSend.cpp
   patcher/genericObjects/gSwitch.cpp
   patcher/genericObjects/gTrigger.cpp
+  patcher/genericObjects/gUzi.cpp
   patcher/genericObjects/pAdc.cpp
   patcher/genericObjects/pDac.cpp
   patcher/genericObjects/pLine.cpp
@@ -311,6 +312,7 @@ set_source_files_properties(
   patcher/genericObjects/gSend.cpp
   patcher/genericObjects/gSwitch.cpp
   patcher/genericObjects/gTrigger.cpp
+  patcher/genericObjects/gUzi.cpp
   patcher/genericObjects/pAdc.cpp
   patcher/genericObjects/pDac.cpp
   patcher/genericObjects/pLine.cpp

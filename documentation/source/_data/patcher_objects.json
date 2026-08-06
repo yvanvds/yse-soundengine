@@ -4066,6 +4066,73 @@
       }
     ]
   },
+  ".uzi": {
+    "category": "GENERIC",
+    "description": "Sends a burst of bangs immediately, with a running index — Max's uzi, and the patcher's loop. Every other object answers one message with one message, so until now filling a table, building a chord or spawning a burst of grains had to come from outside the patch; .uzi 16 is sixteen iterations with an index, in one box, inside one stimulus. Three outlets, and their order is the object: per iteration the index goes out the right outlet first and the bang out the left outlet second, which is Max's right-to-left order and here the whole point — the idiom wires the index into whatever holds the loop variable and the bang into whatever reads it, so an index arriving after its bang would make every iteration read the previous one's number. Max's wording is 'the number of each bang is sent out': the number and the bang are one pair. The middle outlet is the carry, and Max states its position explicitly rather than leaving it to the rule — 'after the last bang is sent out its left outlet, uzi sends one bang out its middle outlet [...] much like the carry outlet on the counter object' — so .uzi 3 produces index 1, bang, index 2, bang, index 3, bang, carry, in that order, each send completing in full (the whole subgraph behind it, depth first) before the next starts. The index is 1-based, Max's 'numbering begins from 1', and the optional second creation argument moves the base, so .uzi 8 0 is the 0-based loop a table index usually wants. The whole burst is one logical event — Max's own next reference cites this object as the example — so .uzi into .next gives one bang out the separated outlet and the rest out the continued one, whatever the count. Where this departs from Max is bounding, and it has to: the send path is synchronous, so an unbounded .uzi is not a slow object but a hang. The count is clamped to 4096, the ceiling .urn already uses, so one stimulus can never cost more than 4096 iterations of this object; a larger count is reported rather than silently truncated, logged when it comes from the creation argument and readable as the gap between the requested and effective counts when it comes from a message. A start arriving while a run is in progress is refused and counted, so a bang outlet wired back into the start inlet terminates by construction rather than recursing N-deep per level until the stack goes. And the loop bound is pinned when the run starts, so a patch raising the count from the right inlet once per iteration — which is not a start and so never meets the guard — changes the next run rather than extending this one forever. pause (Max's break) stops a run from inside it, which is how a patch breaks out early: search a table with .uzi 4096 and pause the moment the value is found. It is read at the top of each iteration, so an iteration is atomic and an index is never left without its bang, and a paused run emits no carry, since the carry means the bangs have all been sent. resume (Max's continue) picks up where it stopped, numbering from wherever it left off and against the same pinned bound. offset n skips the first n iterations, Max's 'the number is subtracted from the previously assigned number of bangs'. An unrecognised symbol is ignored rather than converted to a bang: Max lists no anything method here, and where a stray message costs .bangbang one bang it would cost this object up to 4096. Floats are truncated towards zero on both inlets, as Max converts a float to an int. Calculate() does nothing — an emitting one would run the whole loop again on every DSP block from a stimulus no patch sent, which is the family's rule and here the most expensive possible way to break it.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang runs the loop; an int or float sets the count and then runs it, truncating towards zero. Also takes five words: 'pause' (or 'break') stops a run that is in progress, which only a message caused by the run's own output can do, and is silent and a no-op otherwise; 'resume' (or 'continue') sends the rest of a paused run, numbering from where it left off; 'offset n' skips the first n iterations of the next run. Any other symbol is ignored — this object does not convert anything to a bang. A start that arrives while a run is already in progress is refused, which is what makes an outlet wired back to here terminate.",
+        "index": 0,
+        "label": "start",
+        "range": "any"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "An int or float sets how many bangs the next run emits, without producing any output — Max's right inlet. Clamped to 0-4096. Setting it during a run applies to the next run, never to the one already going, so a patch feeding this inlet from the bang outlet cannot extend the loop it is inside.",
+        "index": 1,
+        "label": "count",
+        "range": "0-4096"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".uzi",
+    "outlets": [
+      {
+        "doc": "One bang per iteration, sent immediately after that iteration's index. The subgraph behind it runs to completion before the next iteration starts.",
+        "index": 0,
+        "label": "bang",
+        "range": "bang",
+        "type": "BANG"
+      },
+      {
+        "doc": "One bang, after the last bang of a completed run — 'all the bang messages have been sent', like the carry outlet on .counter. Wire it to whatever should happen once the loop is done. A run stopped by 'pause' does not fire it; a run of zero bangs does, so an after-the-loop branch is not silently skipped when the count computes to 0.",
+        "index": 1,
+        "label": "carry",
+        "range": "bang",
+        "type": "BANG"
+      },
+      {
+        "doc": "The number of each bang, sent just before it. Counts from 1 by default, or from the base creation argument, and continues from where it left off after a 'pause' and 'resume'.",
+        "index": 2,
+        "label": "index",
+        "range": "base to base+count-1",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "How many bangs a run emits. With no argument the object sends one, as Max's does. Clamped to 0-4096: 4096 is the documented ceiling, and a larger argument is clamped and logged rather than silently truncated. A float is truncated towards zero; an argument that is not a whole finite number leaves the default in place.",
+        "name": "count",
+        "range": "0-4096"
+      },
+      {
+        "default": "1",
+        "doc": "What the index counts from. Max: 'the base value defaults to 1 when no second argument is given', so .uzi 8 0 gives the 0-based indices a table wants. Clamped to +/- 1000000000, which is what keeps base+index inside the int range for any count.",
+        "name": "base",
+        "range": "-1000000000 to 1000000000"
+      }
+    ]
+  },
   ".vexpr": {
     "category": "MATH",
     "description": "Evaluates a C-like mathematical expression once for every element of a list, so one object replaces an iteration loop: scaling a chord, transposing a motif or bending a set of breakpoints becomes a single box. The expression is the creation argument and the language is exactly .expr's - its $i1-$i9 and $f1-$f9 placeholders name the inlets ($i reads as an int, $f as a float), the object gets one inlet past the highest placeholder used, and the operators, the functions and the C type rules are the same, so read .expr for the details. The difference is the data: every inlet holds a list rather than a single value, and an int or a float is simply a one-item list. An inlet holding one item is broadcast across all the elements (Max's scalarmode 1), so a list on one inlet and a number on another scales the list; otherwise the number of results is the length of the shortest list among the inlets the expression actually reads. Inlet 0 is hot: it stores its list and evaluates, while the other inlets only store. A bang on inlet 0 re-evaluates from the stored lists. A single result is sent as an int or a float, and a longer one as a list. Lists are held at up to 256 items per inlet (Max's default maxsize) and anything past that is dropped. The expression is compiled once, when the parameter is set; evaluation only walks the compiled form and writes into a buffer reserved up front, so it allocates nothing and takes no lock. A malformed expression is reported to the log at parse time and the object then sends 0.",
