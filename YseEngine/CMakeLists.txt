@@ -111,6 +111,8 @@ set(YSE_SRCS
   patcher/genericObjects/gGate.cpp
   patcher/genericObjects/gIf.cpp
   patcher/genericObjects/gReceive.cpp
+  patcher/genericObjects/gRegexEngine.cpp
+  patcher/genericObjects/gRegexp.cpp
   patcher/genericObjects/gRoute.cpp
   patcher/genericObjects/gSend.cpp
   patcher/genericObjects/gSwitch.cpp
@@ -279,6 +281,7 @@ set_source_files_properties(
   patcher/genericObjects/gGate.cpp
   patcher/genericObjects/gIf.cpp
   patcher/genericObjects/gReceive.cpp
+  patcher/genericObjects/gRegexp.cpp
   patcher/genericObjects/gRoute.cpp
   patcher/genericObjects/gSend.cpp
   patcher/genericObjects/gSwitch.cpp
