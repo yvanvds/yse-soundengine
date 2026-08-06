@@ -133,6 +133,7 @@ set(YSE_SRCS
   patcher/math/dDivide.cpp
   patcher/math/dMultiply.cpp
   patcher/math/dSubstract.cpp
+  patcher/math/gAccum.cpp
   patcher/math/gAdd.cpp
   patcher/math/gAnal.cpp
   patcher/math/gAtan2.cpp
@@ -309,6 +310,7 @@ set_source_files_properties(
   patcher/math/dDivide.cpp
   patcher/math/dMultiply.cpp
   patcher/math/dSubstract.cpp
+  patcher/math/gAccum.cpp
   patcher/math/gAdd.cpp
   patcher/math/gAnal.cpp
   patcher/math/gAtan2.cpp

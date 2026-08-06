@@ -53,6 +53,7 @@
 #include "math/gAnal.h"
 #include "math/gHisto.h"
 #include "math/gMean.h"
+#include "math/gAccum.h"
 #include "math/gCounter.h"
 #include "math/gCompare.h"
 #include "math/gBitwise.h"
@@ -170,6 +171,10 @@ pRegistry::pRegistry() {
 
   // Running average of the numbers received (issue #460)
   Add(OBJ::G_MEAN, gMean::Create);
+
+  // Register with add and multiply — the general-purpose counterpart of
+  // .counter (issue #461)
+  Add(OBJ::G_ACCUM, gAccum::Create);
 
   // Remaining arithmetic operators (issue #439)
   Add(OBJ::G_REVERSESUBSTRACT, gReverseSubstract::Create);
