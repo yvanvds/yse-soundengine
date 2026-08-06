@@ -180,18 +180,9 @@ TEST_SUITE("patcher") {
     CHECK(rig.op->GetParams().empty());
   }
 
-  // Clearing the parameters is the one argument string this object can be
-  // handed today, and it must leave a usable object rather than disturbing the
+  // Clearing the parameters is one of the two argument strings this object can
+  // be handed, and it must leave a usable object rather than disturbing the
   // state.
-  //
-  // The mirror case — a *non-empty* stray argument, which should be ignored —
-  // is deliberately not asserted here: it currently segfaults in
-  // Parameters::Set, which reads `parms.back()` on an empty vector for any
-  // object that registers no parameters. That is a pre-existing engine defect
-  // rather than anything about this object (`.mean` and the whole trigonometric
-  // family crash the same way, and it takes down `patcher::ParseJSON` for a
-  // patch file carrying such an argument), so it is filed as #627 and left to
-  // be pinned by the test that fixes it.
   TEST_CASE("togedge: clearing the parameters leaves a usable object (#469)") {
     Rig rig;
     rig.Send(5.f);
@@ -202,6 +193,29 @@ TEST_SUITE("patcher") {
 
     // Still fully functional, and still on the side it was left on: there is no
     // creation argument for a re-parse to restore it to.
+    rig.Send(0.f);
+    CHECK(rig.Order() == "f");
+  }
+
+  // The mirror case: a *non-empty* stray argument. It used to segfault in
+  // Parameters::Set, which read `parms.back()` on an empty vector for any
+  // object registering no parameters — not a .togedge defect but one this
+  // object's argument-free shape exposed, so it was filed and fixed as #627.
+  // The engine-level coverage lives in test_patcher_setparams.cpp; what
+  // belongs here is that .togedge's own state is untouched by the argument it
+  // does not want.
+  TEST_CASE("togedge: a stray creation argument is ignored, not obeyed (#469, #627)") {
+    Rig rig;
+    rig.Send(5.f);
+    rig.Clear();
+    REQUIRE(rig.op->IsHigh());
+
+    rig.op->SetParams("1");
+    CHECK(rig.Order().empty()); // ignoring it is silent
+    CHECK(rig.op->GetParams() == "1"); // but the string still round-trips
+    CHECK(rig.op->IsHigh()); // and it did not become an `initial` argument
+
+    // Unchanged object: the next crossing is the one the stored value implies.
     rig.Send(0.f);
     CHECK(rig.Order() == "f");
   }
