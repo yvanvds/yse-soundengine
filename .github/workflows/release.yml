@@ -170,6 +170,11 @@ jobs:
     name: Publish GitHub Release
     needs: [build-linux, build-windows, package-android]
     runs-on: ubuntu-latest
+    # Was the only job in this workflow with no cap at all, so it inherited
+    # GitHub's 360-minute default. Observed p90 0.32 min over 7 runs (checkout,
+    # artifact download, `gh release create`); 15 leaves ~45x headroom for a
+    # slow artifact download while still killing a hung upload. See #621.
+    timeout-minutes: 15
     permissions:
       contents: write
     steps:

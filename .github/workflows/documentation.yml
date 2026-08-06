@@ -54,6 +54,12 @@ jobs:
     name: Deploy to GitHub Pages
     needs: build
     runs-on: ubuntu-latest
+    # Was the only job in this workflow with no cap at all, so it inherited
+    # GitHub's 360-minute default -- a deploy-pages call stuck polling would
+    # have burned six hours of runner time. Observed p90 0.22 min over 18 runs,
+    # worst 0.23; 15 is ~65x that, generous enough that the external Pages
+    # service having a slow day cannot trip it. See #621 for the sizing rule.
+    timeout-minutes: 15
     permissions:
       pages: write
       id-token: write
