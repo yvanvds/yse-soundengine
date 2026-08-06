@@ -48,6 +48,7 @@
 #include "math/gRandom.h"
 #include "math/gDrunk.h"
 #include "math/gUrn.h"
+#include "math/gDecide.h"
 #include "math/gCounter.h"
 #include "math/gCompare.h"
 #include "math/gBitwise.h"
@@ -147,6 +148,9 @@ pRegistry::pRegistry() {
 
   // Random numbers without repetition (issue #454)
   Add(OBJ::G_URN, gUrn::Create);
+
+  // Random 0 or 1 per bang (issue #455)
+  Add(OBJ::G_DECIDE, gDecide::Create);
 
   // Remaining arithmetic operators (issue #439)
   Add(OBJ::G_REVERSESUBSTRACT, gReverseSubstract::Create);

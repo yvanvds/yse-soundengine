@@ -140,6 +140,7 @@ set(YSE_SRCS
   patcher/math/gCompare.cpp
   patcher/math/gCounter.cpp
   patcher/math/gDbConvert.cpp
+  patcher/math/gDecide.cpp
   patcher/math/gDivide.cpp
   patcher/math/gDrunk.cpp
   patcher/math/gExpr.cpp
@@ -310,6 +311,7 @@ set_source_files_properties(
   patcher/math/gCompare.cpp
   patcher/math/gCounter.cpp
   patcher/math/gDbConvert.cpp
+  patcher/math/gDecide.cpp
   patcher/math/gDivide.cpp
   patcher/math/gDrunk.cpp
   patcher/math/gExpr.cpp
