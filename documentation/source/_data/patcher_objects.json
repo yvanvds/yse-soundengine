@@ -1384,6 +1384,53 @@
     ],
     "params": []
   },
+  ".decide": {
+    "category": "MATH",
+    "description": "Coin flip. Every bang emits a 0 or a 1, chosen with equal probability — the cheapest possible branch, for probabilistic patterns, drum-machine fills and stochastic gating. An int or a float on the left inlet does the same thing as a bang, so any value source can drive it directly. The draw is unbiased rather than merely nearly so, and successive flips are uncorrelated, so the object is a fair coin and not an alternation. A non-zero seed makes the whole sequence reproducible across runs, which is what lets a generative patch replay exactly; seed 0 takes an arbitrary stream. An int on the right inlet, or the message 'seed <n>' on the left, restarts the sequence at runtime. Exactly one random draw is taken per flip.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Bang, int or float to flip the coin and emit the result / list 'seed <n>' to restart the random sequence.",
+        "index": 0,
+        "label": "control",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Restarts the random sequence; 0 takes an arbitrary stream.",
+        "index": 1,
+        "label": "seed",
+        "range": "any int"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".decide",
+    "outlets": [
+      {
+        "doc": "0 or 1, chosen with equal probability.",
+        "index": 0,
+        "label": "out",
+        "range": "0 or 1",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Random seed; non-zero replays the same flips every run, 0 picks an arbitrary stream.",
+        "name": "seed",
+        "range": "any int"
+      }
+    ]
+  },
   ".div": {
     "category": "MATH",
     "description": "Control-rate integer division. Emits left / right as an int whenever inlet 0 fires, truncating towards zero instead of producing the float ./ would. Floats truncate towards zero on input, and a divisor of 0 emits 0.",
