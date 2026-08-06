@@ -15,7 +15,7 @@ namespace YSE {
    *  - Control math: ``G_ADD``, ``G_DIVIDE``, ``G_REVERSESUBSTRACT``,
    *    ``G_REVERSEDIVIDE``, ``G_MODULO``, ``G_INTDIVIDE``.
    *  - Elementary math: ``G_ABS``, ``G_SQRT``, ``G_POW``, ``G_ROUND``.
-   *  - Range mapping: ``G_SCALE``, ``G_ZMAP``.
+   *  - Range mapping: ``G_SCALE``, ``G_ZMAP``, ``G_LINEDRIVE``.
    *  - Range limiting: ``G_CLIP``, ``G_PONG``.
    *  - Trigonometry / hyperbolics: ``G_SIN``, ``G_COS``, ``G_TAN``,
    *    ``G_ASIN``, ``G_ACOS``, ``G_ATAN``, ``G_ATAN2``, ``G_SINH``,
@@ -69,6 +69,7 @@ namespace YSE {
 
     DEFOBJ(G_SCALE, ".scale");
     DEFOBJ(G_ZMAP, ".zmap");
+    DEFOBJ(G_LINEDRIVE, ".linedrive");
 
     DEFOBJ(G_CLIP, ".clip");
     DEFOBJ(G_PONG, ".pong");

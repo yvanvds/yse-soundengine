@@ -1637,6 +1637,83 @@
       }
     ]
   },
+  ".linedrive": {
+    "category": "MATH",
+    "description": "Exponential scaling for control values. Maps the value on inlet 0 onto an exponential response curve and emits it as a float, following Max's formula: out = outputMax * curve^(input - inputMax). The input maximum is the anchor — feed it in and the output is exactly outputMax, whatever the curve — and below it the output falls away geometrically, one step of input always multiplying the output by curve. That is what makes a linear controller such as a MIDI CC or a slider feel even across its whole range when it drives a frequency or an amplitude, where .scale's linear mapping would bunch the audible change up at one end. Max requires a curve above 1; any positive curve is accepted here, one below 1 mirroring the response and 1 flattening it to the constant outputMax. A curve at or below 0 has no real exponential and emits 0, as does any result that would not be finite.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Value to scale — fires the evaluation.",
+        "index": 0,
+        "label": "value",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Input value that maps onto the output maximum — stored until the next evaluation.",
+        "index": 1,
+        "label": "inputMax",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Output value reached at the input maximum — stored until the next evaluation.",
+        "index": 2,
+        "label": "outputMax",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Curve base; larger is more steeply exponential, 1 is a constant — stored until the next evaluation.",
+        "index": 3,
+        "label": "curve",
+        "range": "greater than 0"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".linedrive",
+    "outlets": [
+      {
+        "doc": "The input value scaled along the exponential curve.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "127",
+        "doc": "Input value that maps onto the output maximum.",
+        "name": "inputMax",
+        "range": "any float"
+      },
+      {
+        "default": "1",
+        "doc": "Output value reached at the input maximum.",
+        "name": "outputMax",
+        "range": "any float"
+      },
+      {
+        "default": "1.06",
+        "doc": "Curve base; larger is more steeply exponential, 1 is a constant.",
+        "name": "curve",
+        "range": "greater than 0"
+      }
+    ]
+  },
   ".m": {
     "category": "GUI",
     "description": "Static message. Bang re-sends the stored message; list updates the stored payload.",

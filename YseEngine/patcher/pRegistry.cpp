@@ -58,6 +58,7 @@
 #include "math/gPolar.h"
 #include "math/gClip.h"
 #include "math/gPong.h"
+#include "math/gLinedrive.h"
 #include "math/gScale.h"
 #include "math/gZmap.h"
 
@@ -139,9 +140,10 @@ pRegistry::pRegistry() {
   Add(OBJ::G_POW, gPow::Create);
   Add(OBJ::G_ROUND, gRound::Create);
 
-  // Range mapping (issues #443, #444)
+  // Range mapping (issues #443, #444, #447)
   Add(OBJ::G_SCALE, gScale::Create);
   Add(OBJ::G_ZMAP, gZmap::Create);
+  Add(OBJ::G_LINEDRIVE, gLinedrive::Create);
 
   // Range limiting (issues #445, #446)
   Add(OBJ::G_CLIP, gClip::Create);
