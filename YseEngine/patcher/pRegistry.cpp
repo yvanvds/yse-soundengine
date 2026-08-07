@@ -18,6 +18,7 @@
 #include "genericObjects/gBuddy.h"
 #include "genericObjects/gCycle.h"
 #include "genericObjects/gMatch.h"
+#include "genericObjects/gFunnel.h"
 #include "genericObjects/gSpray.h"
 #include "genericObjects/gUzi.h"
 #include "genericObjects/gIf.h"
@@ -169,6 +170,9 @@ pRegistry::pRegistry() {
 
   // Distribute the values of a list to numbered outlets (issue #479)
   Add(OBJ::G_SPRAY, gSpray::Create);
+
+  // Tag incoming data with its inlet number and merge to one outlet (issue #480)
+  Add(OBJ::G_FUNNEL, gFunnel::Create);
 
   // Conditional message dispatch (issue #451)
   Add(OBJ::G_IF, gIf::Create);

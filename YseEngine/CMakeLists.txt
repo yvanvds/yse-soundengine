@@ -113,6 +113,7 @@ set(YSE_SRCS
   patcher/genericObjects/gBucket.cpp
   patcher/genericObjects/gBuddy.cpp
   patcher/genericObjects/gCycle.cpp
+  patcher/genericObjects/gFunnel.cpp
   patcher/genericObjects/gGate.cpp
   patcher/genericObjects/gIf.cpp
   patcher/genericObjects/gMatch.cpp
@@ -311,6 +312,7 @@ set_source_files_properties(
   patcher/genericObjects/gBucket.cpp
   patcher/genericObjects/gBuddy.cpp
   patcher/genericObjects/gCycle.cpp
+  patcher/genericObjects/gFunnel.cpp
   patcher/genericObjects/gGate.cpp
   patcher/genericObjects/gIf.cpp
   patcher/genericObjects/gMatch.cpp
