@@ -171,10 +171,12 @@ namespace YSE {
 
       /** Source velocity over one update tick, in units per second.
 
-          ``delta`` is the tick length ``INTERNAL::Time().delta()``, whose clock
-          is millisecond-quantised — two update ticks inside the same
-          millisecond measure exactly 0. Dividing by that gives ``+inf``, and a
-          *stationary* source (``newPos == lastPos``) then computes ``0 * inf``
+          ``delta`` is the tick length ``INTERNAL::Time().delta()``, which is 0
+          for a tick that measured no time — the clock's seeding tick, or two
+          update ticks inside one clock period (routine on the millisecond-
+          quantised ``std::clock()`` this used to be derived from, rare but not
+          impossible on the monotonic clock of #667). Dividing by that gives
+          ``+inf``, and a *stationary* source (``newPos == lastPos``) computes ``0 * inf``
           = NaN, which no downstream comparison rejects: the playback rate goes
           NaN and the playhead freezes there for the rest of playback. A tick
           that measured no time carries no velocity information, so ``previous``

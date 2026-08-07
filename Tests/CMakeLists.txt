@@ -22,6 +22,7 @@ set(YSE_TEST_SOURCES
   utils/test_random.cpp
   internal/test_threadpool.cpp
   internal/test_log_nothrow.cpp
+  internal/test_time.cpp
   dsp/test_filters.cpp
   dsp/test_delay.cpp
   dsp/test_envelope.cpp

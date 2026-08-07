@@ -68,12 +68,14 @@ namespace YSE {
 
       /** Velocity of a source (or the listener) from the distance it covered
           over one update tick of `delta` seconds. A tick that measured no time
-          — `delta` zero (Time()'s clock is millisecond-quantised, so two ticks
-          inside the same millisecond genuinely measure 0), negative or NaN —
-          carries no velocity information, so `previous` is held instead of
-          dividing by it: `1 / 0` is +inf and a stationary source's `0 * inf` is
-          NaN, which walks straight through computeDopplerRatio's comparisons
-          and latches the playhead at NaN (issue #660). */
+          — `delta` zero (Time()'s seeding tick reports 0, and two updates
+          inside one clock period still measure 0), negative or NaN — carries no
+          velocity information, so `previous` is held instead of dividing by it:
+          `1 / 0` is +inf and a stationary source's `0 * inf` is NaN, which walks
+          straight through computeDopplerRatio's comparisons and latches the
+          playhead at NaN (issue #660). The monotonic clock of #667 makes a
+          zero-length tick rare, not impossible — this guard is the backstop
+          either way. */
       static Pos computeVelocity(const Pos& newPos, const Pos& lastPos, Flt delta,
                                  const Pos& previous);
 

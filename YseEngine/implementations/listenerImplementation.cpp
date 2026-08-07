@@ -32,9 +32,9 @@ void YSE::INTERNAL::listenerImplementation::update() {
   newPos.y = p.y * (Settings().distanceFactor);
   newPos.z = p.z * (Settings().distanceFactor);
   // Same zero-tick rule the sound path applies to its own velocity
-  // (DSP::panner::computeVelocity, issue #660): Time()'s clock is
-  // millisecond-quantised, so two update ticks inside the same millisecond
-  // measure delta == 0. Dividing by that is +inf, and for a *stationary*
+  // (DSP::panner::computeVelocity, issue #660): a tick that measured no time
+  // reports delta == 0 — the clock's seeding tick, or two update ticks inside
+  // one clock period. Dividing by that is +inf, and for a *stationary*
   // listener 0 * inf is NaN — which every sound then loads as listenerVelocity
   // and pushes through computeDopplerRatio, latching its playhead at NaN. A
   // tick that measured no time carries no velocity information, so the last

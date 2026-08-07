@@ -122,9 +122,13 @@ TEST_SUITE("panner") {
 
   // ─── zero-length update tick (#660) ────────────────────────────────────────
   //
-  // INTERNAL::Time()'s clock is millisecond-quantised, so two update ticks
-  // inside the same millisecond report delta == 0. The old velocity derivation
-  // divided by that unconditionally: 1/0 is +inf, and a *stationary* source
+  // A tick that measured no time reports delta == 0. That was routine while
+  // INTERNAL::Time() ran on the millisecond-quantised std::clock() (two update
+  // ticks inside the same millisecond); on the monotonic clock of #667 it is
+  // rare but still reachable — the clock's own seeding tick, and any two
+  // updates landing inside one clock period — so these guards are still the
+  // backstop. The old velocity derivation divided by delta unconditionally:
+  // 1/0 is +inf, and a *stationary* source
   // (newPos == lastPos) then computes 0 * inf == NaN. Nothing downstream
   // rejects it — every guard on the way to the playback rate is an ordinary
   // comparison, all false for NaN — so the playhead latched at NaN for the rest

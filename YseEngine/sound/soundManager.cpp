@@ -295,11 +295,11 @@ void YSE::SOUND::managerObject::garbageCollectFiles() {
   // timer advances at the same rate it did when this loop ran every audio
   // callback (it accumulated Time().delta() there). ~soundFile — with its
   // sf_close and delete[] — now runs here on the erase, off the callback.
-  std::clock_t now = std::clock();
-  Flt dt = (lastGCClock == 0)
-               ? 0.f
-               : static_cast<Flt>(now - lastGCClock) / static_cast<Flt>(CLOCKS_PER_SEC);
+  const std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+  Flt dt =
+      haveGCClock ? static_cast<Flt>(std::chrono::duration<Dbl>(now - lastGCClock).count()) : 0.f;
   lastGCClock = now;
+  haveGCClock = true;
 
   std::scoped_lock lk(soundFilesMutex);
   auto iMinus = soundFiles.before_begin();

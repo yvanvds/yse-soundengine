@@ -586,9 +586,9 @@ void YSE::SOUND::implementationObject::update() {
   // warble the pitch. A ratio of 1.0 means "no shift".
   Flt ratio = 1.0f;
   if (doppler) {
-    // A zero-length tick (two updates inside the same millisecond) would make
-    // this divide inf and NaN out a stationary source's velocity; the helper
-    // holds the previous velocity for such a tick instead (issue #660).
+    // A tick that measured no time (two updates inside one clock period) would
+    // make this divide inf and NaN out a stationary source's velocity; the
+    // helper holds the previous velocity for such a tick instead (issue #660).
     velocityVec = computeVelocity(newPos, lastPos, INTERNAL::Time().delta(), velocityVec);
 
     Pos listenerVelocity = INTERNAL::ListenerImpl().vel.load();
