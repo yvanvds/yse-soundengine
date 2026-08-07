@@ -47,6 +47,8 @@
 
 #include <chrono>
 #include <cmath>
+#include <cstring>
+#include <new>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -111,8 +113,9 @@ namespace {
   // A fully populated descriptor. The engine's PortAudio enumerator is the only
   // other producer and it needs real hardware, so the tests build one by hand.
   // Every scalar field is set explicitly, so these cases assert on values they
-  // wrote rather than on the constructor's defaults — those are #565's contract
-  // and are covered by the capisurface suite.
+  // wrote rather than on the constructor's defaults — those are the #565/#569
+  // contract, covered by the placement-new case below and by the capisurface
+  // suite through the C ABI.
   YSE::device makeDevice() {
     YSE::device d;
     d.setName("Test Output Device")
@@ -187,6 +190,34 @@ TEST_SUITE("devicelayer") {
     CHECK(d.getInputChannelNames().empty());
     CHECK(d.getAvailableSampleRates().empty());
     CHECK(d.getAvailableBufferSizes().empty());
+  }
+
+  // The scalar half of the same descriptor, on the public C++ surface a linked
+  // application calls directly (issue #569). The capisurface suite asserts the
+  // same contract through the C ABI; this case owns it at the layer the fix
+  // lives in, so removing the default member initialisers from
+  // deviceInterface.hpp fails the suite that covers that file.
+  //
+  // A plain stack-local device would be an unreliable regression test — the
+  // slot is usually already zero. Placement-new over 0xFF-filled storage (which
+  // reads back as -1 for an int) makes an uninitialised read deterministic, the
+  // same trick the capisurface suite uses for #565 and test_reverb_dsp.cpp for
+  // #263.
+  TEST_CASE("device: a default-constructed descriptor's scalars are all zero (issue #569)") {
+    alignas(YSE::device) unsigned char storage[sizeof(YSE::device)];
+    std::memset(storage, 0xFF, sizeof(storage));
+    YSE::device* d = new (storage) YSE::device();
+
+    // 0 means "the host advertised nothing", and openDevice() reads it as
+    // paFramesPerBufferUnspecified — see the getter's doc comment.
+    CHECK(d->getDefaultBufferSize() == 0);
+    CHECK(d->getInputLatency() == 0);
+    CHECK(d->getOutputLatency() == 0);
+    // 0, not paNoDevice (-1): see the member-declaration note in
+    // deviceInterface.hpp and issue #661.
+    CHECK(d->getID() == 0);
+
+    d->~device();
   }
 
   TEST_CASE("device: every setter round-trips through its getter") {

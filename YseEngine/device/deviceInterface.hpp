@@ -113,7 +113,18 @@ namespace YSE {
     /** @brief Set the default buffer size to use when this device is opened. */
     device& setDefaultBufferSize(int value);
 
-    /** @brief Default buffer size for this device. */
+    /** @brief Default buffer size for this device, or ``0`` when the host does
+     *         not advertise one.
+     *
+     *  ``0`` means *unspecified*, not *zero frames*: fed to
+     *  ``deviceSetup::setBufferSize`` it asks the backend to pick the size
+     *  itself (PortAudio's ``paFramesPerBufferUnspecified``). The PortAudio
+     *  enumerator leaves it at ``0`` for every device it reports, because
+     *  ``PaDeviceInfo`` carries no equivalent field and inventing a number
+     *  would be worse than saying nothing (issue #569). Read
+     *  ``System().getActiveBufferSize()`` after the device is open for the
+     *  size actually negotiated.
+     */
     int getDefaultBufferSize() const;
 
     /** @brief Set the reported output latency in samples. */
@@ -143,9 +154,20 @@ namespace YSE {
     std::vector<double> sampleRates;
     std::vector<int> bufferSizes;
 
-    int defaultBufferSize;
-    int inputLatency, outputLatency;
-    int ID;
+    // Initialised here rather than in the constructor's mem-init list (issue
+    // #569). The four scalars sat uninitialised from 2014 until #565 precisely
+    // because the declarations and their initialisation lived in two different
+    // files; a default member initialiser keeps them in one place and covers
+    // any constructor added later, not just the one in deviceInterface.cpp.
+    //
+    // ID stays 0 rather than the -1 sentinel #569 floated: PortAudio's
+    // paNoDevice is -1, and managerObject::openDevice() feeds getID() straight
+    // into Pa_GetDeviceInfo() and dereferences the result without a null check,
+    // so a -1 default would turn an unpopulated descriptor from a wrong-device
+    // open into a null dereference. Guarding that call is issue #661.
+    int defaultBufferSize = 0;
+    int inputLatency = 0, outputLatency = 0;
+    int ID = 0;
 
     friend class DEVICE::managerObject;
   };
