@@ -32,7 +32,7 @@ namespace YSE {
     // ─── vaADSR ────────────────────────────────────────────────────────────────
 
     void vaADSR::configure(Flt attack, Flt decay, Flt sustain, Flt release, Flt sampleRate) {
-      sr = sampleRate > 1.f ? sampleRate : 44100.f;
+      sr = sampleRate > 1.f ? sampleRate : 48000.f;
       sus = clampf(sustain, 0.f, 1.f);
       const Flt eps = 1e-4f;
       const Flt a = attack > eps ? attack : eps;

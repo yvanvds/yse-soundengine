@@ -186,7 +186,7 @@ namespace YSE {
       Flt dInc = 1.f; // per-sample decay slope (toward sustain)
       Flt rSec = 0.1f; // release time in seconds (rate resolved at gateOff)
       Flt rInc = 1.f; // per-sample release slope (toward 0)
-      Flt sr = 44100.f;
+      Flt sr = 48000.f;
     };
 
     /**

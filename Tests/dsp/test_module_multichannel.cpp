@@ -22,7 +22,7 @@
 //      the audio path (the only allocation allowed is the create()/resize
 //      path, exercised outside the probe here).
 //
-// No audio device required — SAMPLERATE is initialised to 44100 by the
+// No audio device required — SAMPLERATE is initialised to 48000 by the
 // portaudioDeviceManager translation unit at static-initialisation time.
 
 #include <doctest/doctest.h>

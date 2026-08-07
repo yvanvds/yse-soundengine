@@ -1,6 +1,6 @@
 // Tests for YSE::DSP module classes: sineWave, ringModulator, hilbert, phaser,
 // granulator, and difference (FM).
-// No audio device required; SAMPLERATE is initialised to 44100 by the
+// No audio device required; SAMPLERATE is initialised to 48000 by the
 // portaudioDeviceManager translation unit at static-initialisation time.
 //
 // dspObject::calculateImpact combines dry (in) and wet (filtered) back into

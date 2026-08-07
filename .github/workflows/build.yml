@@ -90,12 +90,14 @@ jobs:
           build-wrapper-linux-x86-64 --out-dir "$BUILD_WRAPPER_OUT_DIR" cmake --build build
       - name: Run tests
         run: ctest --test-dir build --output-on-failure
-      - name: Run tests at forced 48 kHz
+      - name: Run tests at forced 44.1 kHz
         # Cross-checks that DSP code and tests are rate-agnostic. Honoured by
         # Tests/main.cpp:applyForcedSampleRateFromEnv() which writes
         # YSE::SAMPLERATE before any DSP object is constructed. See #72.
+        # 44100 since the default became 48000 (#646) — forcing the default
+        # would no longer cross-check anything.
         env:
-          YSE_TEST_FORCED_RATE: "48000"
+          YSE_TEST_FORCED_RATE: "44100"
         run: ctest --test-dir build --output-on-failure
       - name: Generate coverage report
         # --exclude-throw-branches / --exclude-unreachable-branches drop the

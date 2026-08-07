@@ -301,6 +301,31 @@ namespace YSE {
      */
     float cpuLoad();
 
+    /** @brief Request the audio sample rate for the next engine session.
+     *
+     *  The sample rate is an application setting, fixed per session: call
+     *  this before ``init()`` (or ``initOffline()``) and the engine asks the
+     *  audio backend to open the device at ``rate`` Hz — threaded through to
+     *  ``Pa_OpenStream`` on desktop and the Oboe stream builder on Android.
+     *  The device may refuse or negotiate a different rate; the *negotiated*
+     *  result stays authoritative and is reported by ``getSampleRate()``. A
+     *  refused request is a log line plus the negotiated fallback, never an
+     *  error. Offline / headless sessions have no device to negotiate with
+     *  and run exactly at the requested rate.
+     *
+     *  Pass 0 to clear the request; the backend then opens at the device
+     *  default (the engine's pre-negotiation initial value is 48000).
+     *
+     *  Changing the rate of a running session means ``close()`` followed by
+     *  ``init()`` — calling this mid-session only stores the request for the
+     *  next session. The request survives ``close()``, so a host can set it
+     *  once for repeated init/close cycles. (issue #646)
+     */
+    system& requestSampleRate(unsigned int rate);
+
+    /** @brief Currently requested sample rate in Hz, or 0 when none is set. */
+    unsigned int requestSampleRate();
+
     /** @brief Engine session sample rate in Hz.
      *
      *  The rate the engine locked to when ``init()`` / ``initOffline()`` ran.

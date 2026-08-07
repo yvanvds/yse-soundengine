@@ -39,6 +39,22 @@ YSE_C_API void yse_system_resume(YseSystem* sys);
 YSE_C_API int yse_system_missed_callbacks(YseSystem* sys);
 YSE_C_API float yse_system_cpu_load(YseSystem* sys);
 
+/* Request the audio sample rate for the next engine session (issue #646).
+   The sample rate is an application setting, fixed per session: call this
+   before yse_system_init / yse_system_init_offline. The device may refuse or
+   negotiate a different rate — the negotiated result stays authoritative and
+   is reported by yse_system_get_sample_rate(); a refused request is a log
+   line plus the negotiated fallback, never an error. Offline / headless
+   sessions run exactly at the requested rate. Pass 0 to clear the request
+   (the backend then opens at the device default; the pre-negotiation initial
+   value is 48000). Changing a running session's rate means yse_system_close()
+   followed by a new init; calling this mid-session only stores the request
+   for the next session. The request survives close. */
+YSE_C_API void yse_system_request_sample_rate(YseSystem* sys, unsigned int rate_hz);
+
+/* Currently requested sample rate in Hz, or 0 when no request is set. */
+YSE_C_API unsigned int yse_system_get_requested_sample_rate(YseSystem* sys);
+
 /* Engine session sample rate in Hz. Stays constant for the lifetime of an
    init()/close() session, including across pause/resume cycles where the
    live "active" rate transiently drops to 0. Returns 0 before init(). Use

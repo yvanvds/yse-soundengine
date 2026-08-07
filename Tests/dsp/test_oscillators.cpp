@@ -1,5 +1,5 @@
 // Tests for YSE::DSP oscillator classes, wavetable, interpolate4, and Normalize.
-// No audio device required; SAMPLERATE is initialised to 44100 by the
+// No audio device required; SAMPLERATE is initialised to 48000 by the
 // portaudioDeviceManager translation unit at static-initialisation time.
 
 #include <doctest/doctest.h>

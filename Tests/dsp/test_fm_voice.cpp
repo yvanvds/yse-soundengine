@@ -14,8 +14,8 @@
 //   - fmPatch::toUnpacked lays fields out at the byte offsets #177 depends on.
 //
 // No audio device required; SAMPLERATE is initialised by the
-// portaudioDeviceManager translation unit at static-initialisation time (44100
-// by default; CI also forces 48000). Tones and windows are derived from the
+// portaudioDeviceManager translation unit at static-initialisation time (48000
+// by default; CI also forces 44100). Tones and windows are derived from the
 // actual SAMPLERATE so the tests hold at any rate.
 
 #include <doctest/doctest.h>

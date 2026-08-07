@@ -217,7 +217,7 @@ namespace YSE {
       Stage stage = IDLE;
       Flt lvl = 0.0f;
       Flt sus = 1.0f;
-      Flt sr = 44100.0f;
+      Flt sr = 48000.0f;
       long delaySamps = 0, holdSamps = 0;
       long delayCnt = 0, holdCnt = 0;
       Flt aInc = 1.0f, dInc = 1.0f, rInc = 1.0f;
