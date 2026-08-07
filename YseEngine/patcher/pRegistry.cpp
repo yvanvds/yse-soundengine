@@ -72,6 +72,7 @@
 #include "math/gTogEdge.h"
 #include "math/gBitwise.h"
 #include "math/gReverse.h"
+#include "math/gSwap.h"
 #include "math/gIntDiv.h"
 #include "math/gUnaryMath.h"
 #include "math/gPow.h"
@@ -221,6 +222,10 @@ pRegistry::pRegistry() {
   Add(OBJ::G_REVERSEDIVIDE, gReverseDivide::Create);
   Add(OBJ::G_MODULO, gModulo::Create);
   Add(OBJ::G_INTDIVIDE, gIntDivide::Create);
+
+  // Reverse the order of a pair of numbers — the general form of .!- / .!/
+  // (issue #476)
+  Add(OBJ::G_SWAP, gSwap::Create);
 
   // Elementary math functions (issue #440)
   Add(OBJ::G_ABS, gAbs::Create);

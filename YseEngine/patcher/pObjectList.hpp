@@ -14,6 +14,7 @@ namespace YSE {
    *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``.
    *  - Control math: ``G_ADD``, ``G_DIVIDE``, ``G_REVERSESUBSTRACT``,
    *    ``G_REVERSEDIVIDE``, ``G_MODULO``, ``G_INTDIVIDE``.
+   *  - Operand order: ``G_SWAP``.
    *  - Elementary math: ``G_ABS``, ``G_SQRT``, ``G_POW``, ``G_ROUND``.
    *  - Range mapping: ``G_SCALE``, ``G_ZMAP``, ``G_LINEDRIVE``.
    *  - Range limiting: ``G_CLIP``, ``G_PONG``.
@@ -92,6 +93,7 @@ namespace YSE {
 
     DEFOBJ(G_REVERSESUBSTRACT, ".!-");
     DEFOBJ(G_REVERSEDIVIDE, ".!/");
+    DEFOBJ(G_SWAP, ".swap");
     DEFOBJ(G_MODULO, ".%");
     DEFOBJ(G_INTDIVIDE, ".div");
 

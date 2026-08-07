@@ -177,6 +177,7 @@ set(YSE_SRCS
   patcher/math/gSlide.cpp
   patcher/math/gSplit.cpp
   patcher/math/gSubstract.cpp
+  patcher/math/gSwap.cpp
   patcher/math/gTrig.cpp
   patcher/math/gUnaryMath.cpp
   patcher/math/gUrn.cpp
@@ -368,6 +369,7 @@ set_source_files_properties(
   patcher/math/gSlide.cpp
   patcher/math/gSplit.cpp
   patcher/math/gSubstract.cpp
+  patcher/math/gSwap.cpp
   patcher/math/gTrig.cpp
   patcher/math/gUnaryMath.cpp
   patcher/math/gUrn.cpp
