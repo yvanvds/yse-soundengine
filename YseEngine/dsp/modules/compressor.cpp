@@ -8,6 +8,7 @@
 */
 
 #include "compressor.hpp"
+#include "../smoother.hpp"
 #include <algorithm>
 #include <cmath>
 
@@ -32,12 +33,6 @@ namespace {
   }
   inline Flt linToDb(Flt lin) {
     return 20.0f * std::log10(lin + LEVEL_FLOOR);
-  }
-  // One-pole coefficient reaching 63% of a step in `sec` seconds.
-  inline Flt timeCoef(Flt sec, Flt sr) {
-    Flt samples = sec * sr;
-    if (samples < 1.0f) samples = 1.0f;
-    return 1.0f - std::exp(-1.0f / samples);
   }
 } // namespace
 
@@ -113,7 +108,7 @@ Flt YSE::DSP::MODULES::compressor::gainReductionDb() {
 }
 
 void YSE::DSP::MODULES::compressor::create() {
-  rmsCoef = timeCoef(RMS_WINDOW_SEC, static_cast<Flt>(SAMPLERATE));
+  rmsCoef = YSE::DSP::onePoleCoef(RMS_WINDOW_SEC, static_cast<Flt>(SAMPLERATE));
   gain = 1.0f;
   msEnv = 0.0f;
 }
@@ -137,12 +132,12 @@ void YSE::DSP::MODULES::compressor::process(MULTICHANNELBUFFER& buffer) {
   const Flt thresholdDb = parmThreshold.load();
   const Flt ratioVal = parmRatio.load();
   const Flt slope = 1.0f / ratioVal - 1.0f; // <= 0 : dB out per dB over threshold
-  const Flt attackCoef = timeCoef(parmAttack.load() * 0.001f, sr);
-  const Flt releaseCoef = timeCoef(parmRelease.load() * 0.001f, sr);
+  const Flt attackCoef = YSE::DSP::onePoleCoef(parmAttack.load() * 0.001f, sr);
+  const Flt releaseCoef = YSE::DSP::onePoleCoef(parmRelease.load() * 0.001f, sr);
   const Flt makeupLin = dbToLin(parmMakeup.load());
   const bool rms = (parmDetector.load() == DETECT_RMS);
   // Refresh the RMS window coefficient in case the sample rate changed.
-  rmsCoef = timeCoef(RMS_WINDOW_SEC, sr);
+  rmsCoef = YSE::DSP::onePoleCoef(RMS_WINDOW_SEC, sr);
 
   Flt g = gain;
   Flt ms = msEnv;
@@ -159,7 +154,7 @@ void YSE::DSP::MODULES::compressor::process(MULTICHANNELBUFFER& buffer) {
         sumSq += s * s;
       }
       const Flt meanSq = sumSq / static_cast<Flt>(n);
-      ms += (meanSq - ms) * rmsCoef;
+      ms = YSE::DSP::onePoleSmooth(ms, meanSq, rmsCoef);
       level = std::sqrt(ms);
     } else {
       Flt peak = 0.0f;
@@ -178,7 +173,7 @@ void YSE::DSP::MODULES::compressor::process(MULTICHANNELBUFFER& buffer) {
 
     // Attack when the gain must drop (more reduction), release when it recovers.
     const Flt coef = (targetGain < g) ? attackCoef : releaseCoef;
-    g += (targetGain - g) * coef;
+    g = YSE::DSP::onePoleSmooth(g, targetGain, coef);
 
     gb[i] = g * makeupLin;
   }

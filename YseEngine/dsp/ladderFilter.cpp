@@ -10,6 +10,7 @@
 
 #include "ladderFilter.hpp"
 #include "../headers/constants.hpp"
+#include "smoother.hpp"
 
 #include <cmath>
 
@@ -39,7 +40,7 @@ namespace YSE {
       gCur = gTarget;
       // ~1 ms coefficient glide at the engine sample rate — fast enough to
       // track played sweeps, slow enough to suppress zipper noise.
-      smoothCoef = 1.f - std::exp(-1.f / (0.001f * static_cast<Flt>(SAMPLERATE)));
+      smoothCoef = onePoleCoef(0.001f, static_cast<Flt>(SAMPLERATE));
     }
 
     void ladderFilter::computeTargetG() {
@@ -71,7 +72,7 @@ namespace YSE {
 
     Flt ladderFilter::process(Flt x) {
       // Glide the coefficient toward its target for click-free cutoff sweeps.
-      gCur += (gTarget - gCur) * smoothCoef;
+      gCur = onePoleSmooth(gCur, gTarget, smoothCoef);
 
       const Flt G = gCur / (1.f + gCur);
       const Flt k = resonance * kMaxFeedback;

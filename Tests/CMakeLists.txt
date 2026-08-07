@@ -11,6 +11,7 @@ set(YSE_TEST_SOURCES
   dsp/test_math_scalars.cpp
   dsp/test_math_converters.cpp
   dsp/test_oscillators.cpp
+  dsp/test_smoother.cpp
   utils/test_atomic.cpp
   utils/test_vector.cpp
   utils/test_lfqueue.cpp

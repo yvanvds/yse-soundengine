@@ -8,8 +8,8 @@
 */
 
 #include "feedbackDelay.hpp"
+#include "../../smoother.hpp"
 #include <algorithm>
-#include <cmath>
 
 namespace {
   // Maximum delay time the line can address, in milliseconds. Delay lines are
@@ -76,9 +76,7 @@ Flt YSE::DSP::MODULES::feedbackDelay::crossfeed() {
 void YSE::DSP::MODULES::feedbackDelay::create() {
   // One-pole coefficient for the per-sample delay-time smoother. Computed once
   // here (off the audio thread) from the engine sample rate.
-  Flt tauSamples = TIME_SMOOTH_TAU * static_cast<Flt>(SAMPLERATE);
-  if (tauSamples < 1.0f) tauSamples = 1.0f;
-  timeSmoothCoef = 1.0f - std::exp(-1.0f / tauSamples);
+  timeSmoothCoef = YSE::DSP::onePoleCoef(TIME_SMOOTH_TAU, static_cast<Flt>(SAMPLERATE));
   // Per-channel delay lines are sized on the first process() call once the
   // channel count is known, matching the other delay modules.
 }
@@ -123,7 +121,7 @@ void YSE::DSP::MODULES::feedbackDelay::process(MULTICHANNELBUFFER& buffer) {
     Flt cur = currentTime;
     Flt* t = timeBuffer.getPtr();
     for (std::size_t i = 0; i < length; ++i) {
-      cur += (target - cur) * timeSmoothCoef;
+      cur = YSE::DSP::onePoleSmooth(cur, target, timeSmoothCoef);
       t[i] = cur;
     }
     currentTime = cur;
