@@ -110,6 +110,7 @@ set(YSE_SRCS
   patcher/generatorObjects/pSine.cpp
   patcher/genericObjects/gBangBang.cpp
   patcher/genericObjects/gBondo.cpp
+  patcher/genericObjects/gBucket.cpp
   patcher/genericObjects/gBuddy.cpp
   patcher/genericObjects/gCycle.cpp
   patcher/genericObjects/gGate.cpp
@@ -306,6 +307,7 @@ set_source_files_properties(
   patcher/generatorObjects/pSine.cpp
   patcher/genericObjects/gBangBang.cpp
   patcher/genericObjects/gBondo.cpp
+  patcher/genericObjects/gBucket.cpp
   patcher/genericObjects/gBuddy.cpp
   patcher/genericObjects/gCycle.cpp
   patcher/genericObjects/gGate.cpp

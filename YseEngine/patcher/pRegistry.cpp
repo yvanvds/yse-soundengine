@@ -14,6 +14,7 @@
 #include "genericObjects/gOneBang.h"
 #include "genericObjects/gNext.h"
 #include "genericObjects/gBondo.h"
+#include "genericObjects/gBucket.h"
 #include "genericObjects/gBuddy.h"
 #include "genericObjects/gCycle.h"
 #include "genericObjects/gMatch.h"
@@ -161,6 +162,9 @@ pRegistry::pRegistry() {
 
   // Deal successive messages to successive outlets, wrapping round (issue #477)
   Add(OBJ::G_CYCLE, gCycle::Create);
+
+  // Shift values along a chain of outlets, one stage per input (issue #478)
+  Add(OBJ::G_BUCKET, gBucket::Create);
 
   // Conditional message dispatch (issue #451)
   Add(OBJ::G_IF, gIf::Create);

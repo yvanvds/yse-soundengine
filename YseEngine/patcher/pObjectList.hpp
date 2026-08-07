@@ -40,7 +40,7 @@ namespace YSE {
    *  - Statistics: ``G_ANAL``, ``G_HISTO``, ``G_MEAN``.
    *  - Messaging: ``G_SEND``, ``G_RECEIVE``, ``G_ROUTE``, ``G_SEL``,
    *    ``G_TRIGGER``, ``G_BANGBANG``, ``G_ONEBANG``, ``G_NEXT``, ``G_MATCH``,
-   *    ``G_BONDO``, ``G_BUDDY``, ``G_CYCLE``,
+   *    ``G_BONDO``, ``G_BUDDY``, ``G_CYCLE``, ``G_BUCKET``,
    *    ``G_GATE``, ``G_SWITCH``, ``G_IF``, ``G_REGEXP``.
    *  - Iteration: ``G_UZI``.
    *  - MIDI: ``M_OUT``, ``M_NOTEON``, ``M_NOTEOFF``, ``M_CONTROL``.
@@ -84,6 +84,7 @@ namespace YSE {
     DEFOBJ(G_BONDO, ".bondo");
     DEFOBJ(G_BUDDY, ".buddy");
     DEFOBJ(G_CYCLE, ".cycle");
+    DEFOBJ(G_BUCKET, ".bucket");
     DEFOBJ(G_IF, ".if");
     DEFOBJ(G_REGEXP, ".regexp");
 
