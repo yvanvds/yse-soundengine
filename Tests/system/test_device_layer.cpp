@@ -625,6 +625,72 @@ TEST_SUITE("devicelayer") {
 
 #endif // PORTAUDIO_BACKEND
 
+  // ─── speaker layout without a device (issue #668) ───────────────────────────
+  //
+  // The offline engine used to pick its layout up as a side effect of
+  // openDevice(): the backend opened nothing, but the setChannelConf() on the
+  // next line ran regardless. #665 made the layout follow the device that
+  // actually opened — right for a device session, and it left an offline one
+  // (this suite, renderOffline() benchmarks, headless CI) pinned to the
+  // CT_STEREO that initShared() installs, with no public way out.
+  // system::setChannelConfiguration() is that way out, and this is the
+  // user-visible claim it has to make good on: an engine brought up with
+  // initOffline(), no device and no deviceSetup anywhere in sight, renders in
+  // 5.1.
+  //
+  // Asserted on what the engine actually mixes into, not just on what the
+  // manager was told: getNumberOfOutputs() alone would pass on a manager that
+  // stored the request and never applied it. The master resize happens in
+  // deviceManager::doOnCallback(), which returns early while no sound is
+  // alive — hence the live source below.
+  //
+  // Placed after the PORTAUDIO_BACKEND region because it needs no backend at
+  // all, and before the AudioTest case, which has to stay last (see its note).
+  TEST_CASE("system: an offline engine renders in a non-stereo layout (issue #668)") {
+    if (!ensureOffline()) return;
+
+    auto& master = YSE::DEVICE::Manager().getMaster();
+    REQUIRE(YSE::CHANNEL::Manager().getNumberOfOutputs() == 2u);
+
+    YSE::sound s;
+    s.create(g_steady);
+    s.relative(true);
+    s.play();
+    pump();
+    REQUIRE(master.GetBuffers().size() == 2u);
+
+    YSE::System().setChannelConfiguration(YSE::CT_51, 6);
+    pump();
+
+    CHECK(YSE::CHANNEL::Manager().getNumberOfOutputs() == 6u);
+    CHECK(master.GetBuffers().size() == 6u);
+    // The layout, not merely the channel count: 5.1 puts the LFE at index 3,
+    // and it is the one output excluded from azimuth panning (issue #203).
+    CHECK(YSE::CHANNEL::Manager().getOutputIsLFE(3));
+    CHECK_FALSE(YSE::CHANNEL::Manager().getOutputIsLFE(0));
+
+    // A zero-output layout is refused with a diagnostic rather than accepted:
+    // doOnCallback() would resize the master to nothing on the next block and
+    // everything rendered after that would go nowhere — the same failure mode
+    // the openDevice() guards in #661 / #665 exist to prevent.
+    {
+      CapturingLog captured;
+      ScopedSink sink(&captured);
+      YSE::System().setChannelConfiguration(YSE::CT_STEREO, 0);
+      CHECK(captured.contains("no output channels"));
+    }
+    CHECK(YSE::CHANNEL::Manager().getNumberOfOutputs() == 6u);
+
+    // Chaining, like the other system setters.
+    CHECK(&YSE::System().setChannelConfiguration(YSE::CT_STEREO, 2) == &YSE::System());
+    pump();
+    CHECK(YSE::CHANNEL::Manager().getNumberOfOutputs() == 2u);
+    CHECK(master.GetBuffers().size() == 2u);
+
+    s.stop();
+    pump();
+  }
+
   // ─── built-in diagnostic tone (internal/AudioTest.cpp) ──────────────────────
   //
   // Decision for issue #418's "test it / gate it / remove it" question: TEST IT.

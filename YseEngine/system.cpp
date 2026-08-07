@@ -319,6 +319,25 @@ void YSE::system::openDevice(const deviceSetup& object, CHANNEL_TYPE conf) {
   CHANNEL::Manager().setChannelConf(conf, outputs);
 }
 
+YSE::system& YSE::system::setChannelConfiguration(CHANNEL_TYPE conf, Int outputs) {
+  // The layout half of openDevice(), without the device (issue #668). Since
+  // #665 the mixer follows the device that actually opened, so a session with
+  // no device to follow — initOffline(), headless CI, renderOffline()
+  // benchmarks — had no way at all to leave the stereo layout initShared()
+  // installs. This is that way.
+  //
+  // Same zero-output guard as openDevice(): deviceManager::doOnCallback()
+  // resizes the master to getNumberOfOutputs() on the next callback, so a
+  // zero-output layout means everything rendered after it goes nowhere.
+  if (outputs <= 0) {
+    INTERNAL::LogImpl().emit(E_WARNING,
+                             "Cannot set a channel configuration with no output channels.");
+    return *this;
+  }
+  CHANNEL::Manager().setChannelConf(conf, outputs);
+  return *this;
+}
+
 void YSE::system::closeCurrentDevice() {
   DEVICE::Manager().close();
 }
