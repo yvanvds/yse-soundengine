@@ -92,6 +92,7 @@ namespace YSE {
         // Audio-thread-only smoothing state for the delay time.
         Flt currentTime; // last smoothed delay time (ms)
         Flt timeSmoothCoef; // one-pole coefficient, computed in create()
+        UInt builtRate; // SAMPLERATE timeSmoothCoef was derived for (#637)
         Bool primed; // whether currentTime has been seeded yet
         std::size_t blockLength; // last seen block length (scratch sizing)
 

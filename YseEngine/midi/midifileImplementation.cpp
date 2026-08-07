@@ -18,7 +18,6 @@
 #include "midifileImplementation.h"
 
 #include <algorithm>
-#include <cmath>
 #include <cstdint>
 #include <fstream>
 
@@ -105,7 +104,7 @@ bool YSE::MIDI::fileImpl::create(const std::string& fileName) {
   // Reset so create() can be re-called (main thread, before play()).
   hasFile = false;
   midiEvents.clear();
-  playhead = 0;
+  playheadSec = 0.0;
   nextEvent = 0;
 
   std::vector<unsigned char> data = readWholeFile(fileName);
@@ -134,16 +133,18 @@ bool YSE::MIDI::fileImpl::create(const std::string& fileName) {
   pos = headerEnd; // skip any extra header bytes
 
   // Tick -> time conversion. PPQN (tempo-driven) is the common case; SMPTE is
-  // a fixed tick rate independent of tempo.
+  // a fixed tick rate independent of tempo. Times are kept in SECONDS — never
+  // samples — so the parsed events stay valid across a system::close()/init()
+  // cycle at a different device rate (issue #637); advance() converts against
+  // the live SAMPLERATE.
   const bool smpte = (division & 0x8000) != 0;
-  double smpteSamplesPerTick = 0.0;
+  double smpteSecondsPerTick = 0.0;
   uint32_t ppqn = 96;
   if (smpte) {
     const int framesPerSecond = -static_cast<int8_t>(division >> 8);
     const int ticksPerFrame = division & 0xFF;
     const double ticksPerSecond = static_cast<double>(framesPerSecond) * ticksPerFrame;
-    if (ticksPerSecond > 0.0)
-      smpteSamplesPerTick = static_cast<double>(SAMPLERATE) / ticksPerSecond;
+    if (ticksPerSecond > 0.0) smpteSecondsPerTick = 1.0 / ticksPerSecond;
   } else {
     ppqn = division & 0x7FFF;
     if (ppqn == 0) ppqn = 96; // guard against a zero division
@@ -254,10 +255,8 @@ bool YSE::MIDI::fileImpl::create(const std::string& fileName) {
         tempo[i - 1].cumUs + static_cast<double>(deltaTicks) * tempo[i - 1].usPerQuarter / ppqn;
   }
 
-  auto tickToSample = [&](uint64_t targetTick) -> uint64_t {
-    if (smpte)
-      return static_cast<uint64_t>(
-          std::llround(static_cast<double>(targetTick) * smpteSamplesPerTick));
+  auto tickToSeconds = [&](uint64_t targetTick) -> double {
+    if (smpte) return static_cast<double>(targetTick) * smpteSecondsPerTick;
     // Last tempo entry whose tick <= targetTick.
     std::size_t idx = 0;
     for (std::size_t i = 0; i < tempo.size(); ++i) {
@@ -268,17 +267,17 @@ bool YSE::MIDI::fileImpl::create(const std::string& fileName) {
     }
     const double us = tempo[idx].cumUs + static_cast<double>(targetTick - tempo[idx].tick) *
                                              tempo[idx].usPerQuarter / ppqn;
-    return static_cast<uint64_t>(std::llround(us * static_cast<double>(SAMPLERATE) / 1'000'000.0));
+    return us / 1'000'000.0;
   };
 
   midiEvents.reserve(raw.size());
   for (const RawEvent& e : raw)
-    midiEvents.push_back({tickToSample(e.tick), e.status, e.data1, e.data2});
+    midiEvents.push_back({tickToSeconds(e.tick), e.status, e.data1, e.data2});
 
   // Stable sort so simultaneous events keep their in-file (track) order.
   std::stable_sort(
       midiEvents.begin(), midiEvents.end(),
-      [](const fileEvent& a, const fileEvent& b) { return a.sampleTime < b.sampleTime; });
+      [](const fileEvent& a, const fileEvent& b) { return a.timeSeconds < b.timeSeconds; });
 
   hasFile = true;
   return true;
@@ -340,7 +339,7 @@ void YSE::MIDI::fileImpl::advance(int numSamples) {
     return;
   case SS_WANTSTOSTOP:
     allNotesOffToSynths();
-    playhead = 0;
+    playheadSec = 0.0;
     nextEvent = 0;
     intent.store(SS_STOPPED, std::memory_order_release);
     return;
@@ -350,17 +349,22 @@ void YSE::MIDI::fileImpl::advance(int numSamples) {
 
   if (!hasFile || numSamples <= 0) return;
 
-  const uint64_t blockEnd = playhead + static_cast<uint64_t>(numSamples);
-  while (nextEvent < midiEvents.size() && midiEvents[nextEvent].sampleTime < blockEnd) {
+  // Convert this block's span to seconds against the live SAMPLERATE (issue
+  // #637): the parsed timestamps are rate-independent seconds, so playback
+  // timing follows whatever rate the current session negotiated. One divide
+  // per block plus one compare per pending event — allocation-free.
+  const double blockEndSec =
+      playheadSec + static_cast<double>(numSamples) / static_cast<double>(SAMPLERATE);
+  while (nextEvent < midiEvents.size() && midiEvents[nextEvent].timeSeconds < blockEndSec) {
     dispatchEvent(midiEvents[nextEvent]);
     ++nextEvent;
   }
-  playhead = blockEnd;
+  playheadSec = blockEndSec;
 
   if (nextEvent >= midiEvents.size()) {
     // One-shot playback: release held notes and rewind to the start.
     allNotesOffToSynths();
-    playhead = 0;
+    playheadSec = 0.0;
     nextEvent = 0;
     intent.store(SS_STOPPED, std::memory_order_release);
   }

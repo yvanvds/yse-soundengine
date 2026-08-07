@@ -30,6 +30,12 @@ namespace YSE {
     public:
       void clear();
       void update();
+      /** Re-derive the comb/allpass tunings from the live SAMPLERATE and
+          (re)size the delay buffers to match, then clear them (issue #637).
+          Runs from the constructors and from reverbDSP::process() when the
+          rate changed across a close()/init() cycle — the accepted
+          device-restart allocation path (cf. plateReverb::build()). */
+      void retune();
 
       DSP::buffer out;
       DSP::delay delayline;
@@ -49,6 +55,7 @@ namespace YSE {
       std::vector<std::vector<Flt>> bufAll;
       Int allIndex[APASS];
       Int allTuning[APASS];
+      UInt builtRate; // SAMPLERATE the tunings/buffers were derived for (#637)
 
       reverbChannel();
       reverbChannel(const reverbChannel& source);

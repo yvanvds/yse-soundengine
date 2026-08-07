@@ -461,6 +461,100 @@ TEST_SUITE("dsp") {
     }
   }
 
+  // ─── sample-rate change survival (issue #637) ────────────────────────────
+
+  TEST_CASE("samplerVoice: playback speed re-derives from the live rate (issue #637)") {
+    // sampleRateAdjustment (fileRate / deviceRate) was baked at load time, so
+    // an instrument surviving a close()/init() cycle played every sample at
+    // the wrong pitch. With fileRate recorded, armLayer() now derives the
+    // speed from the live SAMPLERATE at every note-on.
+    const UInt buildRate = 48000;
+    TestHelpers::ScopedSampleRate atBuild(buildRate);
+
+    auto inst = std::make_shared<samplerInstrument>();
+    // A linear ramp: cubic interpolation reproduces it exactly, so the output
+    // step size *is* the playback speed.
+    int idx = addSample(*inst, 4000, [](long i) { return static_cast<float>(i) * 0.001f; });
+    inst->samples[static_cast<size_t>(idx)].fileRate = static_cast<float>(buildRate);
+    inst->model.regions.push_back(baseRegion(idx, 60));
+    inst->model.valid = true;
+
+    samplerVoice v;
+    v.setInstrument(inst);
+    v.frequency(60.0f); // at the keycenter: no pitch ratio
+    v.velocity(1.0f);
+
+    // Session 1 (the rate the file was "loaded" at): speed 1.
+    SOUND_STATUS intent = YSE::SS_WANTSTOPLAY;
+    v.process(intent);
+    float* out = v.samples[0].getPtr();
+    CHECK(out[2] - out[1] == doctest::Approx(0.001f).epsilon(1e-3f));
+
+    // "Reopen" at half the rate: the same note must read the file at speed 2
+    // to keep its pitch — one output sample now covers two source samples.
+    TestHelpers::ScopedSampleRate atRun(buildRate / 2);
+    intent = YSE::SS_WANTSTORESTART; // re-arm the note in the new session
+    v.process(intent);
+    out = v.samples[0].getPtr();
+    CHECK(out[2] - out[1] == doctest::Approx(0.002f).epsilon(1e-3f));
+  }
+
+  TEST_CASE("samplerVoice: fast-choke declick follows the live rate (issue #637)") {
+    // chokeFadeSamps was set in the constructor (and copied by clone()), so
+    // voices surviving a close()/init() cycle faded over the old session's
+    // clock. startNote() now re-derives it per note.
+    TestHelpers::ScopedSampleRate atBuild(44100);
+
+    auto inst = std::make_shared<samplerInstrument>();
+    int closed = addConst(*inst, 0.5f, 4000);
+    int open = addConst(*inst, 0.5f, 200000); // long one-shot
+    DSP::sfzRegion rc = baseRegion(closed, 42); // closed hat, group 1
+    rc.lokey = rc.hikey = 42;
+    rc.chokeGroup = 1;
+    rc.offBy = 2;
+    DSP::sfzRegion ro = baseRegion(open, 46); // open hat, choked fast by group 1
+    ro.lokey = ro.hikey = 46;
+    ro.chokeGroup = 2;
+    ro.offBy = 1;
+    ro.offMode = DSP::SFZ_OFF_FAST;
+    ro.loopMode = DSP::SFZ_ONE_SHOT;
+    inst->model.regions.push_back(rc);
+    inst->model.regions.push_back(ro);
+    inst->model.valid = true;
+
+    samplerVoice proto; // constructed at 44100 — stale chokeFadeSamps pre-fix
+    proto.setInstrument(inst);
+    std::unique_ptr<dspVoice> openV(proto.clone()); // cloned at 44100 too
+    std::unique_ptr<dspVoice> closedV(proto.clone());
+    auto* vOpen = static_cast<samplerVoice*>(openV.get());
+    auto* vClosed = static_cast<samplerVoice*>(closedV.get());
+
+    // "Reopen" at 96 kHz and play the pair there.
+    TestHelpers::ScopedSampleRate atRun(96000);
+    vOpen->frequency(46.0f);
+    vOpen->velocity(1.0f);
+    SOUND_STATUS iOpen = YSE::SS_WANTSTOPLAY;
+    vOpen->process(iOpen);
+    for (int i = 0; i < 4; ++i)
+      vOpen->process(iOpen);
+    REQUIRE(iOpen == YSE::SS_PLAYING);
+
+    vClosed->frequency(42.0f);
+    vClosed->velocity(1.0f);
+    SOUND_STATUS iClosed = YSE::SS_WANTSTOPLAY;
+    vClosed->process(iClosed); // fires group 1 -> fast-chokes the open hat
+
+    int blocks = 0;
+    while (iOpen != YSE::SS_STOPPED && blocks < 100) {
+      vOpen->process(iOpen);
+      ++blocks;
+    }
+    CHECK(iOpen == YSE::SS_STOPPED);
+    // 5 ms of the *new* session's clock: ceil(0.005 * 96000 / 128) = 4 blocks.
+    // The stale 44100-derived window (221 samples) would finish in 2.
+    CHECK(blocks == 4);
+  }
+
   // ─── multi-layer end-of-life ─────────────────────────────────────────────
 
   TEST_CASE("samplerVoice: voice ends only when the longest layer release finishes") {

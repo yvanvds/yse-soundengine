@@ -399,6 +399,72 @@ TEST_SUITE("dsp") {
     }
   }
 
+  // ─── delay smoother tau survives a sample-rate change (issue #637) ────────────
+
+  // Exact read-out of the chorus delay smoother's time constant, in ms.
+  //
+  // Protocol: feed a global ramp x[n] = n. Linear interpolation of a linear
+  // signal is exact, so with depth 0 / feedback 0 / impact 1 the wet output at
+  // sample i is the ramp value at (n_i - delaySamps_i) — decoding the smoothed
+  // delay per sample. A mode switch steps the target delay (15 ms -> 1 ms), and
+  // the one-pole coefficient falls out of the decay ratio across one block.
+  //
+  // The module is constructed (and create() run) at `constructRate`, then run
+  // at `runRate` — the unit-test stand-in for a close()/init() cycle.
+  static double chorusSmootherTauMs(UInt constructRate, UInt runRate) {
+    TestHelpers::ScopedSampleRate atConstruct(constructRate);
+    YSE::DSP::MODULES::chorus c;
+    c.mode(YSE::DSP::MODULES::MODE_CHORUS).depth(0.0f).feedback(0.0f).impact(1.0f);
+
+    MULTICHANNELBUFFER buf(1);
+    buf[0].resize(128);
+    double n = 0.0; // global ramp position
+    auto feedRamp = [&]() {
+      float* p = buf[0].getPtr();
+      for (unsigned i = 0; i < 128; ++i)
+        p[i] = static_cast<float>(n + i);
+    };
+
+    feedRamp();
+    c.process(buf); // triggers create() -> smoother coef derived at constructRate
+    n += 128.0;
+
+    TestHelpers::ScopedSampleRate atRun(runRate);
+    // The first block at the new rate resizes and clears the lines; keep
+    // feeding until the line again holds ramp history past the 15 ms base
+    // delay, so the fractional read decodes the ramp exactly.
+    const int primeBlocks = static_cast<int>(0.015 * runRate / 128.0) + 4;
+    for (int b = 0; b < primeBlocks; ++b) {
+      feedRamp();
+      c.process(buf);
+      n += 128.0;
+    }
+
+    // Step the target delay via the mode switch and capture one block.
+    c.mode(YSE::DSP::MODULES::MODE_FLANGER); // base delay 15 ms -> 1 ms
+    feedRamp();
+    c.process(buf);
+
+    const double srMs = 0.001 * static_cast<double>(runRate);
+    const double targetMs = 1.0; // flanger base delay
+    const float* out = buf[0].getPtr();
+    const double d0 = (n + 0.0 - static_cast<double>(out[0])) / srMs - targetMs;
+    const double d127 = (n + 127.0 - static_cast<double>(out[127])) / srMs - targetMs;
+    const double lnOneMinusCoef = std::log(d127 / d0) / 127.0;
+    return -1000.0 / (static_cast<double>(runRate) * lnOneMinusCoef);
+  }
+
+  TEST_CASE("chorus: delay smoother keeps its 5 ms tau across a rate change (issue #637)") {
+    // Baseline: built and run at one rate, the documented DELAY_SMOOTH_TAU.
+    CHECK(chorusSmootherTauMs(48000, 48000) == doctest::Approx(5.0).epsilon(0.02).scale(0.0));
+    // create() runs once per instance, so before the fix the coefficient kept
+    // the construction rate across a close()/init() cycle: ~10.9 ms of wall
+    // clock when built at 44.1 kHz and run at 96 kHz (and ~2.3 ms the other
+    // way). It must follow the rate the module is *run* at.
+    CHECK(chorusSmootherTauMs(44100, 96000) == doctest::Approx(5.0).epsilon(0.02).scale(0.0));
+    CHECK(chorusSmootherTauMs(96000, 44100) == doctest::Approx(5.0).epsilon(0.02).scale(0.0));
+  }
+
   TEST_CASE("chorus: tolerates a change in input buffer length") {
     YSE::DSP::MODULES::chorus c;
     c.mode(YSE::DSP::MODULES::MODE_CHORUS).depth(0.5f);

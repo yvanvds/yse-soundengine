@@ -123,6 +123,17 @@ Bool YSE::INTERNAL::reverbDSP::bypass() {
 void YSE::INTERNAL::reverbDSP::process(MULTICHANNELBUFFER& buffer) {
   if (_bypass) return;
   if (channel.empty()) return;
+
+  // Re-derive the comb/allpass tunings when the session sample rate changed
+  // (issue #637): reverbDSP instances survive a close()/init() cycle (the
+  // manager's global instance and host-owned morphingReverb inserts), and the
+  // tunings/buffer sizes were only computed at construction. Steady state pays
+  // one integer compare per channel; the rebuild itself allocates, which is
+  // the accepted device-restart path (cf. plateReverb).
+  for (UInt i = 0; i < channel.size(); i++) {
+    if (channel[i].builtRate != SAMPLERATE) channel[i].retune();
+  }
+
   update();
 
   // update frequency modulation
@@ -398,26 +409,7 @@ YSE::INTERNAL::reverbDSP::reverbDSP() {
 YSE::INTERNAL::reverbDSP::~reverbDSP() {}
 
 YSE::INTERNAL::reverbChannel::reverbChannel() : delayline(3000), bufComb(COMBS), bufAll(APASS) {
-  Int rnd = Random(50);
-  // recalculate the reverb parameters in case we don't run at 44.1kHz
-  for (Int i = 0; i < COMBS; i++) {
-    combTuning[i] = (Int)((combtuning[i] + rnd) * (SAMPLERATE / kReverbTuningReferenceRate));
-  }
-
-  for (int i = 0; i < APASS; i++) {
-    allTuning[i] = (Int)((allpasstuning[i] + rnd) * (SAMPLERATE / kReverbTuningReferenceRate));
-  }
-
-  // get memory for delay lines
-  for (Int i = 0; i < COMBS; i++) {
-    bufComb[i].resize(combTuning[i]);
-    combIndex[i] = 0;
-  }
-
-  for (Int i = 0; i < APASS; i++) {
-    bufAll[i].resize(allTuning[i]);
-    allIndex[i] = 0;
-  }
+  retune();
 
   earlyOffset = Random(30);
   /*earlyPtr[0] = 60;
@@ -428,12 +420,15 @@ YSE::INTERNAL::reverbChannel::reverbChannel() : delayline(3000), bufComb(COMBS),
   earlyVolume[1] = 0.30;
   earlyVolume[2] = 0.35;
   earlyVolume[3] = 0.20;*/
-
-  clear();
 }
 
 YSE::INTERNAL::reverbChannel::reverbChannel(const reverbChannel& /*source*/)
   : delayline(3000), bufComb(COMBS), bufAll(APASS) {
+  retune();
+  earlyOffset = Random(30);
+}
+
+void YSE::INTERNAL::reverbChannel::retune() {
   Int rnd = Random(50);
   // recalculate the reverb parameters in case we don't run at 44.1kHz
   for (Int i = 0; i < COMBS; i++) {
@@ -444,7 +439,7 @@ YSE::INTERNAL::reverbChannel::reverbChannel(const reverbChannel& /*source*/)
     allTuning[i] = (Int)((allpasstuning[i] + rnd) * (SAMPLERATE / kReverbTuningReferenceRate));
   }
 
-  // get memory for delay lines
+  // (re)size the delay lines to the new tunings
   for (Int i = 0; i < COMBS; i++) {
     bufComb[i].resize(combTuning[i]);
     combIndex[i] = 0;
@@ -455,7 +450,7 @@ YSE::INTERNAL::reverbChannel::reverbChannel(const reverbChannel& /*source*/)
     allIndex[i] = 0;
   }
 
-  earlyOffset = Random(30);
+  builtRate = SAMPLERATE;
   clear();
 }
 

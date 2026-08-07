@@ -255,6 +255,53 @@ TEST_SUITE("synth") {
     CHECK(maxDelta < 0.5f);
   }
 
+  TEST_CASE("synth stealing: the steal fade follows the live rate (issue #637)") {
+    // stealFadeSamples was computed once in setup(), but a synth impl survives
+    // a system::close()/init() cycle and the next session can negotiate a
+    // different rate — the ~5 ms declick then lasted the wrong wall-clock
+    // time. renderBlock() now re-derives it per block from the live rate.
+    TestHelpers::ScopedSampleRate atBuild(44100);
+    implementationObject impl(nullptr);
+    sineVoice proto;
+    proto.attack(0.001f).decay(0.001f).sustain(1.f).release(0.5f);
+    impl.addVoiceGroup(&proto, 1, 0, 0, 127); // single voice -> next note steals
+    impl.setup(); // stealFadeSamples baked for 44100 here (pre-fix)
+
+    // "Reopen" at 96 kHz: the fade must last 5 ms of 96 kHz clock (480
+    // samples), not the 220 samples the 44.1 kHz session derived.
+    TestHelpers::ScopedSampleRate atRun(96000);
+    impl.sendMessage(noteOnMsg(1, 60, 1.f));
+    SOUND_STATUS intent = YSE::SS_WANTSTOPLAY;
+    renderBlock(impl, intent);
+    for (int i = 0; i < 30; ++i)
+      renderBlock(impl, intent); // note 60 sustains at full level
+
+    // Steal with a nearly-silent new note, so the stream after the trigger is
+    // dominated by the OLD note's forced fade.
+    impl.sendMessage(noteOnMsg(1, 67, 0.01f));
+    std::vector<float> stream;
+    for (int b = 0; b < 10; ++b) {
+      YSE::DSP::buffer& out = renderBlock(impl, intent);
+      float* p = out.getPtr();
+      for (unsigned s = 0; s < out.getLength(); ++s)
+        stream.push_back(p[s]);
+    }
+
+    auto windowMax = [&](size_t lo, size_t hi) {
+      float m = 0.f;
+      for (size_t i = lo; i < hi && i < stream.size(); ++i)
+        m = std::max(m, std::fabs(stream[i]));
+      return m;
+    };
+
+    // 240..400 samples into the fade the old note is still audible at a
+    // 96 kHz-derived window (gain 0.17..0.5); the stale 220-sample window has
+    // already cut it to silence there.
+    CHECK(windowMax(240, 400) > 0.05f);
+    // ...and by 700+ samples the (correct) 480-sample fade has finished.
+    CHECK(windowMax(700, 1024) < 0.02f);
+  }
+
   // ─── all notes off ────────────────────────────────────────────────────────
 
   TEST_CASE("synth: allNotesOff releases every held voice") {

@@ -43,6 +43,7 @@ void YSE::DSP::ADSRenvelope::generate() {
     }
   }
   envelopeEnd = ptr;
+  builtRate = SAMPLERATE;
 }
 
 void YSE::DSP::ADSRenvelope::saveToFile(const char* fileName) {
@@ -54,6 +55,12 @@ YSE::DSP::buffer& YSE::DSP::ADSRenvelope::operator()(STATE state, UInt length) {
 
   // envelope should start from the beginning on a new note
   if (state == ADSRenvelope::ATTACK) {
+    // The rendered table bakes SAMPLERATE into its sample counts; if the
+    // session rate changed across a close()/init() cycle, re-render it at the
+    // note-on edge before priming the phase pointer (issue #637). generate()
+    // resizes the table, which is the accepted device-restart allocation path
+    // (cf. chorus/plateReverb); steady state pays one integer compare.
+    if (builtRate != 0 && builtRate != SAMPLERATE) generate();
     phase = envelope.getPtr();
     if (loopEnd != nullptr && loopStart != nullptr)
       looping = true;

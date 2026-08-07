@@ -77,6 +77,19 @@ void YSE::DSP::MODULES::basicDelay::process(MULTICHANNELBUFFER& buffer) {
   channels.ensure(buffer.size());
   ensurePreFilter(buffer.size());
 
+  // The line capacity (in ms, numerically SAMPLERATE — see delayChannel's
+  // constructor) was derived from the rate at first construction, so the
+  // maximum addressable delay would stay stale across a close()/init() cycle
+  // at another rate (issue #637). Re-derive it on that path; steady state pays
+  // one integer compare, and the lazy resize inside delay::process() is the
+  // accepted device-restart allocation path.
+  if (builtRate != SAMPLERATE) {
+    for (std::size_t ch = 0; ch < channels.size(); ++ch) {
+      channels[ch].line.setSize(SAMPLERATE);
+    }
+    builtRate = SAMPLERATE;
+  }
+
   for (std::size_t ch = 0; ch < buffer.size(); ++ch) {
     if (buffer[ch].getLength() != result.getLength()) {
       result.resize(buffer[ch].getLength());

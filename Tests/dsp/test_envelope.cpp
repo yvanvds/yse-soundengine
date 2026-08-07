@@ -168,6 +168,45 @@ TEST_SUITE("dsp") {
       CHECK(ptr[i] == doctest::Approx(0.0f).epsilon(1e-5f));
   }
 
+  TEST_CASE("ADSRenvelope: table re-renders at the live rate on ATTACK (issue #637)") {
+    // generate() bakes SAMPLERATE into the rendered table's sample counts, so
+    // an envelope generated in one session used to keep the old rate's duration
+    // after a close()/init() cycle — a 0.1 s ramp lasted 0.05 s of wall clock
+    // after reopening at double the rate. The ATTACK edge now re-renders the
+    // table when the session rate changed (the accepted device-restart
+    // allocation path).
+    TestHelpers::ScopedSampleRate at44(44100);
+    YSE::DSP::ADSRenvelope adsr;
+    adsr.addPoint({0.0f, 0.0f, 1.0f});
+    adsr.addPoint({0.1f, 1.0f, 1.0f});
+    adsr.generate(); // rendered for 44100: 4410 samples
+
+    {
+      TestHelpers::ScopedSampleRate at88(88200);
+      // 0.1 s at 88200 = 8820 samples = 69 blocks of 128 — twice the count the
+      // stale 44100-rendered table would need.
+      const int total = blocksToExhaustTenthSecond();
+      CHECK(total == 69);
+      int blocks = 1;
+      adsr(YSE::DSP::ADSRenvelope::ATTACK);
+      while (!adsr.isAtEnd() && blocks < 1000) {
+        adsr(YSE::DSP::ADSRenvelope::RESUME);
+        ++blocks;
+      }
+      CHECK(blocks == total);
+    }
+
+    // Back at 44100 the next note re-renders again: 4410 samples = 35 blocks.
+    int blocks = 1;
+    adsr(YSE::DSP::ADSRenvelope::ATTACK);
+    while (!adsr.isAtEnd() && blocks < 1000) {
+      adsr(YSE::DSP::ADSRenvelope::RESUME);
+      ++blocks;
+    }
+    CHECK(blocks == blocksToExhaustTenthSecond());
+    CHECK(blocks == 35);
+  }
+
   // Regression tests for #300: a RELEASE (or RESUME) issued before any ATTACK
   // must not dereference the uninitialised `phase` pointer. This happens for a
   // voice released before it ever renders a block (NOTE_ON + NOTE_OFF draining

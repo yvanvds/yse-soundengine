@@ -45,6 +45,19 @@ namespace YSE {
        */
       bool save(const char* fileName);
 
+      /**
+       *  @brief Native sample rate of the last loaded file, in Hz (0 before a
+       *         successful ``load``).
+       *
+       *  Unlike ``getSampleRateAdjustment`` — a ratio against the SAMPLERATE
+       *  in effect at load time — this is rate-independent, so consumers can
+       *  re-derive the playback-speed adjustment against the *live* engine
+       *  rate after a ``system::close()`` / ``init()`` cycle (issue #637).
+       */
+      Flt getFileSampleRate() const {
+        return fileRate;
+      }
+
       // Covariant-return wrappers over the (non-virtual) base assignment
       // operators, same idiom as drawableBuffer -- see the note there.
       // NOLINTBEGIN(bugprone-derived-method-shadowing-base-method)
@@ -60,6 +73,9 @@ namespace YSE {
         return *this;
       }
       // NOLINTEND(bugprone-derived-method-shadowing-base-method)
+
+    private:
+      Flt fileRate = 0.0f; // native rate of the loaded file, Hz (issue #637)
     };
 
   } // namespace DSP

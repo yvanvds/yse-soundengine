@@ -86,6 +86,7 @@ namespace YSE {
         DSP::buffer result; // per-block scratch, shared across channels
         DSP::buffer reader; // per-block scratch, shared across channels
         perChannel<delayChannel> channels;
+        UInt builtRate = 0; // SAMPLERATE the line capacities were sized for (#637)
       };
 
     } // namespace MODULES
