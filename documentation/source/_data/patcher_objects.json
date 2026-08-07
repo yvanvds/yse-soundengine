@@ -1811,6 +1811,59 @@
       }
     ]
   },
+  ".decode": {
+    "category": "GENERIC",
+    "description": "Sends 1 out a selected outlet and 0 out every other one — Max's decode, which 'provides hierarchical switching' where 'the right inlet turns all outlets off, while the middle inlet turns all outlets on. The right inlet overrides the middle inlet, and the middle inlet overrides numbers sent to the left inlet that turn individual outlets on or off'. The one-hot decoder: an index goes in and a set of states comes out, which is what drives a bank of gates, a row of indicators or any group of things of which exactly one is meant to be live — the mutual exclusion is the object rather than something the patch maintains, where the alternative is a .sel or a .== in front of every member of the bank with the constants kept in step by hand. It is not .gate, which routes a value to one outlet and says nothing on the others: this emits a state on every outlet and the values are its own rather than anything the patch sent, so a .gate fed 60 puts 60 somewhere while a .decode fed 2 puts 1 on outlet 2 and 0 everywhere else. The two compose — a .decode into the select inlets of a bank of gates is exactly the hierarchical switch Max names. It is not .sel either, which bangs on a match and therefore reports the arrival of a state but never its departure; turning the previously selected outlet off is the whole difference and the reason the object exists. And unlike .spray or .cycle, which each send one message out one numbered outlet, one message here reaches all of them. The three inlets are state rather than events: each remembers the last number it was given and every message re-resolves the whole set from all three, which is what makes the overrides non-destructive — a 1 and then a 0 in the right inlet leave the bank exactly as it was, without the patch re-sending the index. The right inlet is Max's master mute, 'any positive number other than 0 sends a 0 out all outlets' and 0 restores what the other two describe, with non-zero taken as off whichever sign it has since -1 meaning the opposite of 1 in an on/off inlet would surprise every patch. The middle inlet is the 'all on' override, strictly 'a number greater than 0' as Max words it, with 0 or less falling through to the selection. The left inlet is the selection itself, 'an index (starting with 0 for the left outlet) that specifies an outlet out to turn on, turning off all other outlets'. Each accepted message sends the complete state, one int out every outlet from the last to outlet 0 in Max's universal order, which is the reading every sentence of the reference takes and what makes the object idempotent: a downstream bank always agrees with the decoder whatever it missed earlier. The three values are snapshotted before the first send, the settle-first discipline .onebang, .next, .buddy, .cycle, .bucket and .spray share, so a patch looping an outlet back into an inlet re-enters inside the Send and the interrupted burst goes on emitting the state it started with. The left outlet is initially enabled, Max's words, so a bang before anything else arrives reports 1 on outlet 0 rather than a bank in no state at all; an index the object has no outlet for is ignored and leaves the selection alone, .gate's, .cycle's and .spray's discipline, since wrapping it or blanking the bank would hide a miscount at the object best placed to expose it. bang 'causes decode to output its current state' and is scoped to the left inlet, where the reference puts it. float, list and anything are not accepted on any inlet: Max documents bang and int and nothing more. At most 256 outlets, built once before the object is published; Calculate() does nothing, and no message path allocates, locks or blocks — a burst is three ints on the stack and one integer compare per outlet.",
+    "inlets": [
+      {
+        "accepts": [
+          "INT",
+          "BANG"
+        ],
+        "doc": "An int selects the outlet that carries 1; every other outlet carries 0, and the whole state is sent on each message, right to left. An index the object has no outlet for is ignored and leaves the selection alone. A bang re-sends the current state without changing it. The left outlet is selected before anything arrives.",
+        "index": 0,
+        "label": "select",
+        "range": "0 to outlets-1"
+      },
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "Max's 'all on' override, one step above the selection. An int greater than 0 puts 1 on every outlet; 0 or less hands control back to the left inlet's selection. Overridden in turn by the right inlet, so while that holds a non-zero number anything sent here sends 0 out every outlet.",
+        "index": 1,
+        "label": "secondary",
+        "range": "int"
+      },
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "Max's master mute, the top of the hierarchy. A non-zero int puts 0 on every outlet whatever the other two inlets say; 0 restores the state the middle and left inlets describe, so the mute is non-destructive and the selection underneath it survives.",
+        "index": 2,
+        "label": "primary",
+        "range": "int"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".decode",
+    "outlets": [
+      {
+        "doc": "1 when this outlet is the selected one (or the middle inlet has turned the whole bank on), 0 otherwise. Every outlet fires on every accepted message, in Max's order: the last outlet first, outlet 0 last.",
+        "index": 0,
+        "label": "out0",
+        "range": "0 or 1",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "Max's one creation argument: how many outlets to build, clamped to 1-256 and defaulting to 1. A float is truncated, as Max's own argument list documents; anything that is not a whole finite number is ignored and leaves the default in place.",
+        "name": "outlets",
+        "range": "1-256"
+      }
+    ]
+  },
   ".div": {
     "category": "MATH",
     "description": "Control-rate integer division. Emits left / right as an int whenever inlet 0 fires, truncating towards zero instead of producing the float ./ would. Floats truncate towards zero on input, and a divisor of 0 emits 0.",

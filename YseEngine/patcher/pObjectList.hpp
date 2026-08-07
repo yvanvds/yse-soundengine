@@ -41,7 +41,8 @@ namespace YSE {
    *  - Messaging: ``G_SEND``, ``G_RECEIVE``, ``G_ROUTE``, ``G_SEL``,
    *    ``G_TRIGGER``, ``G_BANGBANG``, ``G_ONEBANG``, ``G_NEXT``, ``G_MATCH``,
    *    ``G_BONDO``, ``G_BUDDY``, ``G_CYCLE``, ``G_BUCKET``, ``G_SPRAY``,
-   *    ``G_FUNNEL``, ``G_GATE``, ``G_SWITCH``, ``G_IF``, ``G_REGEXP``.
+   *    ``G_FUNNEL``, ``G_DECODE``, ``G_GATE``, ``G_SWITCH``, ``G_IF``,
+   *    ``G_REGEXP``.
    *  - Iteration: ``G_UZI``.
    *  - MIDI: ``M_OUT``, ``M_NOTEON``, ``M_NOTEOFF``, ``M_CONTROL``.
    *  - Conversion: ``MIDITOFREQUENCY``, ``FREQUENCYTOMIDI``, ``G_ATODB``,
@@ -87,6 +88,7 @@ namespace YSE {
     DEFOBJ(G_BUCKET, ".bucket");
     DEFOBJ(G_SPRAY, ".spray");
     DEFOBJ(G_FUNNEL, ".funnel");
+    DEFOBJ(G_DECODE, ".decode");
     DEFOBJ(G_IF, ".if");
     DEFOBJ(G_REGEXP, ".regexp");
 

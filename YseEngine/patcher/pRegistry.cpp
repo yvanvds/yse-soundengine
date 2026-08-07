@@ -18,6 +18,7 @@
 #include "genericObjects/gBuddy.h"
 #include "genericObjects/gCycle.h"
 #include "genericObjects/gMatch.h"
+#include "genericObjects/gDecode.h"
 #include "genericObjects/gFunnel.h"
 #include "genericObjects/gSpray.h"
 #include "genericObjects/gUzi.h"
@@ -173,6 +174,9 @@ pRegistry::pRegistry() {
 
   // Tag incoming data with its inlet number and merge to one outlet (issue #480)
   Add(OBJ::G_FUNNEL, gFunnel::Create);
+
+  // Send 1 out a selected outlet and 0 out every other (issue #481)
+  Add(OBJ::G_DECODE, gDecode::Create);
 
   // Conditional message dispatch (issue #451)
   Add(OBJ::G_IF, gIf::Create);
