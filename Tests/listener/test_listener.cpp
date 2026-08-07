@@ -9,8 +9,9 @@
 //   - orient() returns *this
 //   - listenerImplementation::update() — newPos = pos * distanceFactor
 //   - listenerImplementation::update() — vel = (newPos - lastPos) / Time().delta()
-//     (sign, finiteness, zero-on-stationary; magnitude is not asserted because
-//      std::clock() resolution makes the exact delta non-portable)
+//     (sign, finiteness, zero-on-stationary, and — since INTERNAL::time moved to
+//      a monotonic wall clock in #667 — the magnitude, bracketed against an
+//      independent steady_clock measurement of the same tick)
 //   - listenerImplementation::getPos() — exposes the scaled newPos
 //
 // Engine init: the listener singleton lives independently of PortAudio, but
@@ -41,19 +42,36 @@ namespace {
     YSE::INTERNAL::Settings().distanceFactor = 1.f;
     YSE::Listener().pos(YSE::Pos(0.f, 0.f, 0.f));
     YSE::Listener().orient(YSE::Pos(0.f, 0.f, 0.f), YSE::Pos(0.f, 1.f, 0.f));
-    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
     YSE::INTERNAL::Time().update();
     YSE::INTERNAL::ListenerImpl().update();
-    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
     YSE::INTERNAL::Time().update();
     YSE::INTERNAL::ListenerImpl().update();
   }
 
-  // Sleep long enough for std::clock() to advance (CLOCKS_PER_SEC granularity on
-  // Windows is 1ms; on Linux 10ms).  20ms is a safe floor for both.
+  // Close one update tick with a measurable length. This used to sleep 20 ms
+  // because std::clock() is quantised to CLOCKS_PER_SEC (1 ms on Windows,
+  // coarser elsewhere) and a shorter tick could measure exactly 0; the
+  // monotonic clock of issue #667 resolves well under a microsecond, so 1 ms is
+  // now more than enough.
   inline void advanceClock() {
-    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
     YSE::INTERNAL::Time().update();
+  }
+
+  // Burn wall time on this thread without sleeping, for tick lengths short
+  // enough that sleep_for's own granularity would dominate them.
+  inline void busySpin(std::chrono::microseconds duration) {
+    const auto until = std::chrono::steady_clock::now() + duration;
+    while (std::chrono::steady_clock::now() < until) {
+      // spin
+    }
+  }
+
+  inline Flt secondsSince(std::chrono::steady_clock::time_point from,
+                          std::chrono::steady_clock::time_point to) {
+    return std::chrono::duration_cast<std::chrono::duration<Flt>>(to - from).count();
   }
 
 } // namespace
@@ -217,6 +235,50 @@ TEST_SUITE("listener") {
     CHECK(v.z == doctest::Approx(0.f));
   }
 
+  TEST_CASE("listener impl: velocity magnitude matches distance over the real tick length (#667)") {
+    if (!TestHelpers::engineInit()) return;
+    resetListenerState();
+
+    // The listener covers exactly one unit over one update tick, so
+    // Listener().vel().x must read back as 1 / (tick length in seconds). The
+    // tick is bracketed by this thread's own steady_clock: the engine's tick
+    // starts inside [outerStart, innerStart] and ends inside [innerEnd,
+    // outerEnd], so its length is in [inner, outer] no matter how the scheduler
+    // interleaves — and the velocity is therefore in [1/outer, 1/inner]. That
+    // holds through any preemption, which is what makes an *exact-magnitude*
+    // assertion safe here at all.
+    //
+    // The tick is deliberately sub-millisecond: std::clock(), which INTERNAL::
+    // time used before #667, is quantised to 1 ms on the MSVC / MSYS2 runtimes,
+    // so it reported this tick as either 0 s (velocity held at the previous
+    // measurement — 0 here, below the lower bound) or 1 ms (velocity ~1000,
+    // less than half the true value). It is also the accuracy the doppler path
+    // actually needs: an audio callback is shorter than a millisecond.
+    const auto outerStart = std::chrono::steady_clock::now();
+    YSE::INTERNAL::Time().update();
+    const auto innerStart = std::chrono::steady_clock::now();
+
+    busySpin(std::chrono::microseconds(400));
+    YSE::Listener().pos(YSE::Pos(1.f, 0.f, 0.f));
+
+    const auto innerEnd = std::chrono::steady_clock::now();
+    YSE::INTERNAL::Time().update();
+    const auto outerEnd = std::chrono::steady_clock::now();
+    YSE::INTERNAL::ListenerImpl().update();
+
+    const Flt outer = secondsSince(outerStart, outerEnd); // >= the engine's tick
+    const Flt inner = secondsSince(innerStart, innerEnd); // <= the engine's tick
+    REQUIRE(inner > 0.f);
+
+    const YSE::Pos v = YSE::Listener().vel();
+    INFO("tick bracketed to [" << inner << ", " << outer << "] s, vel.x = " << v.x);
+    CHECK(std::isfinite(v.x));
+    CHECK(v.x >= (1.f / outer) * 0.95f);
+    CHECK(v.x <= (1.f / inner) * 1.05f);
+    CHECK(v.y == doctest::Approx(0.f));
+    CHECK(v.z == doctest::Approx(0.f));
+  }
+
   TEST_CASE("listener impl: a zero-length tick holds the last velocity instead of NaN (#660)") {
     if (!TestHelpers::engineInit()) return;
     resetListenerState();
@@ -226,10 +288,15 @@ TEST_SUITE("listener") {
     const YSE::Pos measured = YSE::Listener().vel();
     REQUIRE(measured.x > 0.f);
 
-    // Two Time().update() calls back to back, with no sleep between them: on a
-    // millisecond-quantised clock (Windows) that measures delta == 0, which is
-    // exactly what happens when two engine update ticks land inside the same
-    // millisecond. Pre-fix, update() then divided by it — 1/0 == inf, and for a
+    // Two Time().update() calls back to back, with no sleep between them: the
+    // shortest tick this code can produce. On the millisecond-quantised
+    // std::clock() that INTERNAL::time used before #667 it measured delta == 0
+    // outright; on the monotonic clock it usually measures a real (tiny) tick,
+    // so the case now asserts the safe outcome on either reading and the pure
+    // zero-delta guard is pinned in Tests/dsp/test_panner.cpp. It stays here
+    // because a clock with a coarse period — some embedded steady_clock
+    // implementations, and Android under load — can still report 0.
+    // Pre-fix, update() then divided by it — 1/0 == inf, and for a
     // stationary listener (newPos == lastPos) 0 * inf == NaN. That NaN is
     // published to every sound as listenerVelocity and walks through
     // computeDopplerRatio's comparisons into the playback rate (issue #660).

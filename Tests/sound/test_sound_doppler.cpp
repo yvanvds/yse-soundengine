@@ -1,9 +1,11 @@
 // Regression coverage for issue #660: a zero-length update tick must not
 // poison the doppler playback rate with NaN and freeze the playhead.
 //
-// INTERNAL::Time()'s delta comes from std::clock(), which is millisecond
+// INTERNAL::Time()'s delta came from std::clock(), which is millisecond
 // quantised on the MSVC / MSYS2 runtimes. Two engine update ticks inside the
-// same millisecond therefore report delta == 0, and
+// same millisecond therefore reported delta == 0 (issue #667 has since moved
+// the clock to a monotonic steady_clock, which makes that rare rather than
+// routine — the guard under test here is the backstop either way), and
 // implementationObject::update() divided by it unconditionally:
 //
 //   velocityVec = (newPos - lastPos) * (1 / 0)   ->   (0,0,0) * inf   ->   NaN
@@ -30,7 +32,8 @@
 // Platform note: the zero-length tick needs a coarse clock to be observable, so
 // the loop reports whether one actually occurred. The assertions hold either
 // way — a finite, advancing playhead is required on every platform — so the
-// case is meaningful (if less pointed) where the clock is finer grained.
+// case is meaningful (if less pointed) where the clock is finer grained, which
+// after #667 is everywhere.
 
 #include <doctest/doctest.h>
 #include <chrono>

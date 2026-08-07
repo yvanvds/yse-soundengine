@@ -14,7 +14,7 @@
 #include <forward_list>
 #include <mutex>
 #include <vector>
-#include <ctime>
+#include <chrono>
 #include "sound.hpp"
 #include "soundMessage.h"
 #include "soundInterface.hpp"
@@ -143,9 +143,13 @@ namespace YSE {
       // Audio-thread-only: accumulates Time().delta() so update() hands the GC to
       // the slow pool at most about once a second instead of every callback.
       Flt fileGCTimer = 0.f;
-      // Slow-pool-only (GC job): previous std::clock() sample, used to measure the
-      // elapsed time fed to soundFile::inUse() for the idle timer.
-      std::clock_t lastGCClock = 0;
+      // Slow-pool-only (GC job): previous wall-clock sample, used to measure the
+      // elapsed time fed to soundFile::inUse() for the idle timer. Monotonic wall
+      // time for the same reason INTERNAL::time uses it (issue #667) — the
+      // std::clock() this replaced measured processor time, which on POSIX sums
+      // every engine thread's CPU and so aged idle files far too fast.
+      std::chrono::steady_clock::time_point lastGCClock;
+      bool haveGCClock = false;
 
       /** the lastGain buffer of each sound is needed to provide smooth changes
       in volume for each channel. When the number of output channels is changed
