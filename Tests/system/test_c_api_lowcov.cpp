@@ -34,9 +34,6 @@
 //     operator[], so an out-of-range probe is undefined behaviour rather than
 //     a catchable exception (issue #581). The cases below stay strictly inside
 //     the enumerated range.
-//   * yse_sound_set_dsp(s, NULL) — the sound implementation dereferences the
-//     message payload unconditionally and crashes on the render thread
-//     (issue #578). The channel equivalent is safe and IS covered.
 //
 // yse_system_close() and yse_system_close_current_device() tear down
 // process-global engine state, so they live in TEST_SUITE("capilowcovlife")
@@ -844,20 +841,31 @@ TEST_SUITE("capilowcov") {
     CHECK(yse_sound_get_looping(s) == 0);
 
     // The insert round-trips; the sound borrows it rather than owning it.
-    // Detaching with yse_sound_set_dsp(s, NULL) is NOT exercised: unlike the
-    // channel side, the sound implementation dereferences the message payload
-    // unconditionally and crashes on the render thread (issue #578). The
-    // insert is torn down by destroying the sound instead.
     YseDspObject* lp = yse_dsp_lowpass_create();
     REQUIRE(lp != nullptr);
     CHECK(yse_sound_get_dsp(s) == nullptr);
     yse_sound_set_dsp(s, lp);
     CHECK(yse_sound_get_dsp(s) == lp);
+    // Play so the render blocks below actually walk the insert chain.
+    yse_sound_play(s);
     capilowcov::pump(5);
+    CHECK(yse_sound_is_valid(s) == 1);
+
+    // ...and yse_sound_set_dsp(s, NULL) detaches it again, the same contract
+    // the channel side honours. This used to dereference the null message
+    // payload on the render thread (issue #578) — the pump below is where the
+    // crash landed, so it is the regression guard, not just cleanup. The
+    // insert is safe to destroy afterwards while the sound is still alive.
+    yse_sound_set_dsp(s, nullptr);
+    CHECK(yse_sound_get_dsp(s) == nullptr);
+    capilowcov::pump(10);
+    CHECK(yse_sound_is_valid(s) == 1);
+    yse_dsp_object_destroy(lp);
+    capilowcov::pump(5);
+    CHECK(yse_sound_is_valid(s) == 1);
 
     yse_sound_destroy(s);
     capilowcov::pump(10);
-    yse_dsp_object_destroy(lp);
     yse_dsp_buffer_destroy(buf); // the buffer must outlive every sound using it
   }
 

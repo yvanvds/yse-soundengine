@@ -526,7 +526,8 @@ void YSE::SOUND::implementationObject::parseMessage(const messageObject& message
     break;
   }
   case MESSAGE::DSP: {
-    addDSP(*(DSP::dspObject*)message.ptrValue);
+    // A null payload is the detach request, not a bug — see addDSP (#578).
+    addDSP((DSP::dspObject*)message.ptrValue);
     break;
   }
   case MESSAGE::TIME: {
@@ -633,7 +634,7 @@ void YSE::SOUND::implementationObject::update() {
   // dsp processing (optional)
   ///////////////////////////////////////////
   if (_setPostDSP) {
-    addDSP(*_postDspPtr);
+    addDSP(_postDspPtr.load());
     _setPostDSP = false;
   }
 
@@ -1022,7 +1023,7 @@ void YSE::SOUND::implementationObject::toChannels() {
   }
 }
 
-void YSE::SOUND::implementationObject::addDSP(DSP::dspObject& ptr) {
+void YSE::SOUND::implementationObject::addDSP(DSP::dspObject* ptr) {
   // Detach any previously-attached DSP from this impl. Clear the OLD
   // dspObject's back-reference (calledfrom) — otherwise, when the OLD
   // dspObject is destructed later (e.g. a process-lifetime static at
@@ -1030,12 +1031,20 @@ void YSE::SOUND::implementationObject::addDSP(DSP::dspObject& ptr) {
   // impl's post_dsp field, which may have been freed by deleteJob.
   // ASan-caught UAF: see Tests/sound/test_sound_impl.cpp "replacing a
   // DSP plugin clears the old calledfrom".
-  if (post_dsp) {
+  //
+  // The pointer is taken by value, not by reference: a null `ptr` is the
+  // documented detach request (`yse_sound_set_dsp(s, NULL)`), and the old
+  // by-reference signature dereferenced it here on the audio thread
+  // (issue #578). Pointer swap only — no allocation, no locking, so this
+  // stays safe to run from sync() / update().
+  if (post_dsp != nullptr) {
     post_dsp->calledfrom = nullptr;
   }
 
-  post_dsp = &ptr;
-  post_dsp->calledfrom = &post_dsp;
+  post_dsp = ptr;
+  if (post_dsp != nullptr) {
+    post_dsp->calledfrom = &post_dsp;
+  }
 }
 
 Flt YSE::SOUND::implementationObject::computeVirtualDist(Flt distance, Flt size, Flt volume) {
