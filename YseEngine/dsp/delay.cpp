@@ -14,10 +14,24 @@
 #define DEFDELVS 64
 #define SAMPBLK 4
 
-YSE::DSP::delay::delay(Int size) : bufferlength(size), buffer(size + XTRASAMPS), size(size) {}
-YSE::DSP::delay::delay(const YSE::DSP::delay& source) {
-  delay(source.size);
-}
+YSE::DSP::delay::delay(Int size)
+  : bufferlength(size), buffer(size + XTRASAMPS), phase(XTRASAMPS), currentLength(0), size(size) {}
+
+// Copy every member outright (issue #639). The previous body was
+// `delay(source.size);` — an unnamed temporary, not a delegating call — which
+// left `buffer` empty while `bufferlength` / `phase` stayed indeterminate, so
+// process() could write through a null buffer.data() whenever the stale
+// `bufferlength` happened to match the computed block size. Copying the full
+// state also preserves the line's history when perChannel<State>::ensure()
+// relocates channel states on the device-restart resize path (see
+// perChannel.hpp: "copying preserves their history"). This runs only on that
+// non-steady-state path, where allocation is the accepted trade-off.
+YSE::DSP::delay::delay(const YSE::DSP::delay& source)
+  : bufferlength(source.bufferlength),
+    buffer(source.buffer),
+    phase(source.phase),
+    currentLength(source.currentLength),
+    size(source.size.load()) {}
 
 YSE::DSP::delay& YSE::DSP::delay::setSize(UInt size) {
   this->size = size;

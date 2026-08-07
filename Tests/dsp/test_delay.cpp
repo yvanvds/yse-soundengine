@@ -57,6 +57,49 @@ TEST_SUITE("dsp") {
       CHECK(std::abs(ptr[i]) < 1e-5f);
   }
 
+  TEST_CASE("delay: copy construction preserves the line's contents and state (issue #639)") {
+    // The copy constructor used to execute `delay(source.size);` — an unnamed
+    // temporary, not a delegating call — leaving the copy's buffer empty and
+    // bufferlength/phase indeterminate. A copy must carry the full state.
+    YSE::DSP::delay original(1000);
+    YSE::DSP::buffer in(128);
+    float* ptr = in.getPtr();
+    for (unsigned i = 0; i < 128; ++i)
+      ptr[i] = static_cast<float>(i) * 0.01f;
+    original.process(in);
+
+    YSE::DSP::delay copy(original);
+
+    // The copy holds the original's history.
+    YSE::DSP::buffer result(128);
+    copy.read(result, 0u);
+    CHECK(TestHelpers::buffersNearlyEqual(result, in, 1e-5f));
+
+    // And it keeps working as an independent line afterwards.
+    YSE::DSP::buffer second(128);
+    second = 0.5f;
+    copy.process(second);
+    copy.read(result, 0u);
+    YSE::DSP::buffer expected(128);
+    expected = 0.5f;
+    CHECK(TestHelpers::buffersNearlyEqual(result, expected, 1e-5f));
+  }
+
+  TEST_CASE("delay: copy of a freshly constructed line is usable (issue #639)") {
+    // Covers the never-processed state: phase/currentLength must be
+    // initialised by construction, not only by the first process() resize.
+    YSE::DSP::delay fresh(1000);
+    YSE::DSP::delay copy(fresh);
+    YSE::DSP::buffer in(128);
+    in = 0.25f;
+    copy.process(in);
+    YSE::DSP::buffer result(128);
+    copy.read(result, 0u);
+    YSE::DSP::buffer expected(128);
+    expected = 0.25f;
+    CHECK(TestHelpers::buffersNearlyEqual(result, expected, 1e-5f));
+  }
+
   TEST_CASE("delay: setSize updates delay capacity without crash") {
     YSE::DSP::delay d(100);
     d.setSize(500);

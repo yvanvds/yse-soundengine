@@ -88,11 +88,20 @@ YSE::DSP::buffer& YSE::DSP::ADSRenvelope::operator()(STATE state, UInt length) {
   // take into account that the current amplitude might be different
   else if (state == ADSRenvelope::RELEASE && loopEnd != nullptr) {
     // find the point nearest to the loop end with the same
-    // value as the current point as to avoid a glitch when changing phase
+    // value as the current point as to avoid a glitch when changing phase.
+    // The scan is floored at the front of the table: the current value is
+    // only guaranteed to occur at or before loopEnd while phase is inside
+    // the sustain region. Once phase is past loopEnd — a repeated RELEASE,
+    // or a table with a loopEnd but no loopStart — an exact match may not
+    // exist, and the unbounded scan walked off the front of the allocation
+    // (issue #642). Bounds compare only: RT-safe.
+    Flt* const first = envelope.getPtr();
     Flt* search = loopEnd;
-    while (*phase != *search)
+    while (search > first && *phase != *search)
       search--;
-    phase = search;
+    if (*search == *phase) phase = search;
+    // else: no matching sample before loopEnd, so phase is already in the
+    // release tail — keep playing from where it is.
     looping = false;
   }
 
