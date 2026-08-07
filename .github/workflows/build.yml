@@ -21,7 +21,35 @@ jobs:
     if: github.event_name == 'push' || (github.head_ref != 'dev' && github.head_ref != 'master')
     name: Build and analyze
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Cap sizing rule for every job in this repo's workflows (see #621):
+    # timeout-minutes >= 3x the observed p90 AND >= 2x the worst observed run,
+    # rounded up to a multiple of 5, and never lowered. The cap exists to kill a
+    # hung job, not a merely slow one -- a job cancelled by its own cap reports
+    # as a red check and is indistinguishable from a real regression until the
+    # log is read.
+    #
+    # This job is the heaviest in the repo: full Debug build with coverage
+    # instrumentation, two full ctest passes (native + forced 48 kHz), gcovr,
+    # then the CFamily scan re-parsing every translation unit. Measured over the
+    # 97 runs of 2026-08-03..06: p50 8.6 min, p90 11.3, p95 12.1, longest
+    # completed run 14.9. The daily median is climbing as the patcher object
+    # batch adds a translation unit per issue (7.2 -> 8.3 -> 10.4 over those
+    # three days), so the distribution is not stationary.
+    #
+    # At 20 the cap sat roughly one bad runner above p90 and duly fired: PR #620
+    # was cancelled at 20m07s mid-scan (compilation unit 21 of 224); its re-run
+    # of the identical commit passed in 14m53s. That observation is censored --
+    # we never learned how long it actually needed -- so the 2x-worst term is
+    # taken against 20.1, giving 40. That is still 1/9 of GitHub's 360-minute
+    # default, so a genuinely hung scan is killed inside the hour.
+    #
+    # One more reason the margin has to be wide: the clock includes runner
+    # acquisition, not just execution. Observed directly during the Actions
+    # incident of 2026-08-06 -- a run of this job reported started_at 16:59:04
+    # but did not execute step 1 until 17:07:26, so 8m22s of the budget was
+    # spent queueing before a single command ran. Sizing the cap against step
+    # durations alone therefore understates what it actually has to cover.
+    timeout-minutes: 40
     env:
       BUILD_WRAPPER_OUT_DIR: build_wrapper_output_directory # Directory where build-wrapper output will be placed
     steps:
