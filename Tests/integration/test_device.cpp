@@ -243,8 +243,9 @@ TEST_SUITE("integration") {
     CHECK(audioStreamRunning());
 
     // (3) paNoDevice itself, the sentinel Pa_GetDefaultOutputDevice() returns
-    //     on a host with no output — and the value issue #569 wanted for the
-    //     descriptor's default ID.
+    //     on a host with no output — and, since issue #666, the descriptor's
+    //     default ID. Set explicitly here so this case keeps testing the guard
+    //     rather than the default.
     {
       YSE::device none;
       none.addOutputChannelName("out 1").addOutputChannelName("out 2").setID(-1);
@@ -298,6 +299,52 @@ TEST_SUITE("integration") {
 
     // The layout belongs to the device that is open, which is still the one
     // that was open before the request.
+    CHECK(YSE::CHANNEL::Manager().getNumberOfOutputs() == outputsBefore);
+    CHECK(YSE::System().getActiveSampleRate() == rateBefore);
+    CHECK(audioStreamRunning());
+  }
+
+  // Issue #666, at the level a host actually meets it. A descriptor a host
+  // builds itself — rather than taking one from System().getDevices() — now
+  // starts at paNoDevice (-1) instead of 0, so an open that forgot to name a
+  // device is reported instead of silently landing on whatever device the host
+  // enumerated first.
+  //
+  // Only a real, initialised PortAudio can tell the two apart: index 0 resolves
+  // there, so on the old default this request reached Pa_OpenStream() — after
+  // close() had already torn down the stream that was playing. The devicelayer
+  // suite cannot see any of that (its openDevice() returns at the initDone
+  // gate), and the descriptor-level cases in that suite only assert the value.
+  //
+  // Six channels and CT_51 make the outcome unmistakable in either direction:
+  // if the request were honoured against device 0 the mixer would follow it to
+  // six outputs, and if it were honoured and then failed in Pa_OpenStream() the
+  // stream would be gone. Refused, everything below is untouched.
+  TEST_CASE(
+      "device: a descriptor with no device id is refused, not read as device 0 [issue #666]") {
+    if (!TestHelpers::engineInitWithAudio()) return;
+    if (YSE::System().getNumDevices() == 0) return;
+    REQUIRE(audioStreamRunning());
+
+    const UInt outputsBefore = YSE::CHANNEL::Manager().getNumberOfOutputs();
+    const double rateBefore = YSE::System().getActiveSampleRate();
+    REQUIRE(outputsBefore > 0);
+    REQUIRE(rateBefore > 0.0);
+
+    // Everything a host would fill in except the id, which is the whole point:
+    // the descriptor is well-formed enough that no other guard covers it.
+    YSE::device unnamed;
+    unnamed.setName("hand-built device").setTypeName("TestHost");
+    for (int i = 0; i < 6; ++i)
+      unnamed.addOutputChannelName("out " + std::to_string(i + 1));
+    REQUIRE(unnamed.getID() == -1);
+
+    YSE::deviceSetup setup;
+    setup.setOutput(unnamed).setSampleRate(44100.0).setBufferSize(256);
+    REQUIRE(setup.getOutputChannels() == 6);
+
+    YSE::System().openDevice(setup, YSE::CT_51);
+
     CHECK(YSE::CHANNEL::Manager().getNumberOfOutputs() == outputsBefore);
     CHECK(YSE::System().getActiveSampleRate() == rateBefore);
     CHECK(audioStreamRunning());

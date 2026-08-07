@@ -142,7 +142,18 @@ namespace YSE {
     /** @brief Set the host-assigned ID for this device. */
     device& setID(int value);
 
-    /** @brief Host-assigned ID for this device. */
+    /** @brief Host-assigned ID for this device, or ``-1`` when no device has
+     *         been assigned.
+     *
+     *  ``-1`` is PortAudio's ``paNoDevice`` sentinel and the value a descriptor
+     *  starts at: it means *no device*, not *device index -1*, and is what a
+     *  descriptor built by hand rather than taken from ``System().getDevices()``
+     *  reports until ``setID`` is called (issue #666). Passing such a descriptor
+     *  to ``System().openDevice`` is refused with an ``E_AUDIODEVICE`` log line
+     *  and leaves the running stream alone, the same as any other index no host
+     *  API resolves (issue #661). Every enumerated device carries a real,
+     *  non-negative index.
+     */
     int getID() const;
 
   private:
@@ -160,15 +171,21 @@ namespace YSE {
     // files; a default member initialiser keeps them in one place and covers
     // any constructor added later, not just the one in deviceInterface.cpp.
     //
-    // ID stays 0 rather than the -1 sentinel #569 floated. The reason it was
-    // unsafe is gone — managerObject::openDevice() no longer dereferences
-    // Pa_GetDeviceInfo(getID()) unchecked, it refuses any index the host API
-    // cannot resolve, paNoDevice (-1) included (issue #661) — but flipping the
-    // default is a separate, observable change to what an unpopulated
-    // descriptor means, so it is its own piece of work.
+    // ID is the -1 sentinel #569 floated and #666 landed, not 0. 0 is a valid
+    // PortAudio device index, so it could not tell "nobody chose a device" from
+    // "device 0"; -1 is paNoDevice, which no host API resolves, so an
+    // unpopulated descriptor handed to openDevice() is reported rather than
+    // quietly opening whatever the host enumerated first. Safe only because
+    // managerObject::openDevice() stopped dereferencing
+    // Pa_GetDeviceInfo(getID()) unchecked (issue #661) — that guard is the
+    // precondition for this default, not an afterthought.
+    //
+    // The other three stay 0, which is their "unspecified" value (see the
+    // getDefaultBufferSize() doc comment). All four are initialised here rather
+    // than in the constructor's mem-init list for the reason above.
     int defaultBufferSize = 0;
     int inputLatency = 0, outputLatency = 0;
-    int ID = 0;
+    int ID = -1;
 
     friend class DEVICE::managerObject;
   };

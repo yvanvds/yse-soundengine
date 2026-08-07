@@ -128,7 +128,11 @@ YSE_C_API int yse_device_input_latency(YseDevice* dev) {
   return dev ? to_cpp(dev)->getInputLatency() : 0;
 }
 YSE_C_API int yse_device_get_id(YseDevice* dev) {
-  return dev ? to_cpp(dev)->getID() : 0;
+  // -1, not the 0 the other scalar getters report for a NULL handle: 0 is a
+  // valid device index and this getter's "nothing here" value is paNoDevice
+  // (issue #666). A NULL handle is the same "no device" as an unpopulated
+  // descriptor, so it answers the same way.
+  return dev ? to_cpp(dev)->getID() : -1;
 }
 
 // ─── device setup ──────────────────────────────────────────────────────────

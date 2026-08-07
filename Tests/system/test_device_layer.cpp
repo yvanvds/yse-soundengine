@@ -247,13 +247,15 @@ TEST_SUITE("devicelayer") {
   // deviceInterface.hpp fails the suite that covers that file.
   //
   // A plain stack-local device would be an unreliable regression test — the
-  // slot is usually already zero. Placement-new over 0xFF-filled storage (which
-  // reads back as -1 for an int) makes an uninitialised read deterministic, the
-  // same trick the capisurface suite uses for #565 and test_reverb_dsp.cpp for
-  // #263.
-  TEST_CASE("device: a default-constructed descriptor's scalars are all zero (issue #569)") {
+  // slot is usually already zero. Placement-new over pre-dirtied storage makes
+  // an uninitialised read deterministic, the same trick the capisurface suite
+  // uses for #565 and test_reverb_dsp.cpp for #263. The fill is 0xAA rather
+  // than the 0xFF those use, because 0xFF reads back as -1 for an int and -1 is
+  // now the ID's *expected* value (issue #666) — a byte pattern that is neither
+  // 0 nor -1 keeps the case able to fail for either field.
+  TEST_CASE("device: a default-constructed descriptor's scalars are defined (issues #569, #666)") {
     alignas(YSE::device) unsigned char storage[sizeof(YSE::device)];
-    std::memset(storage, 0xFF, sizeof(storage));
+    std::memset(storage, 0xAA, sizeof(storage));
     YSE::device* d = new (storage) YSE::device();
 
     // 0 means "the host advertised nothing", and openDevice() reads it as
@@ -261,11 +263,12 @@ TEST_SUITE("devicelayer") {
     CHECK(d->getDefaultBufferSize() == 0);
     CHECK(d->getInputLatency() == 0);
     CHECK(d->getOutputLatency() == 0);
-    // 0, not paNoDevice (-1): see the member-declaration note in
-    // deviceInterface.hpp. openDevice() now refuses an unresolvable index
-    // rather than dereferencing it (issue #661), so -1 would be safe — it is
-    // simply not what the descriptor promises today.
-    CHECK(d->getID() == 0);
+    // paNoDevice (-1), not 0: 0 is a valid PortAudio device index, so it could
+    // not distinguish "no device chosen" from "device 0" (issue #666). Safe
+    // because openDevice() refuses an index no host API resolves instead of
+    // dereferencing it (issue #661) — see the member-declaration note in
+    // deviceInterface.hpp.
+    CHECK(d->getID() == -1);
 
     d->~device();
   }

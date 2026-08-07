@@ -237,7 +237,10 @@ TEST_SUITE("capisurface") {
     CHECK(yse_device_default_buffer_size(nullptr) == 0);
     CHECK(yse_device_output_latency(nullptr) == 0);
     CHECK(yse_device_input_latency(nullptr) == 0);
-    CHECK(yse_device_get_id(nullptr) == 0);
+    // The one scalar getter whose "nothing here" answer is not 0: 0 is a valid
+    // device index, so a NULL handle reports paNoDevice like an unpopulated
+    // descriptor does (issue #666).
+    CHECK(yse_device_get_id(nullptr) == -1);
   }
 
   TEST_CASE("c-api device: out-of-range indices read as empty (issue #565)") {
@@ -308,25 +311,31 @@ TEST_SUITE("capisurface") {
     CHECK(c.getAvailableBufferSize(1) == 512);
   }
 
-  TEST_CASE("device: the constructor zero-initialises the scalar fields (issue #565)") {
+  TEST_CASE("device: the constructor initialises the scalar fields (issues #565, #666)") {
     // defaultBufferSize, inputLatency, outputLatency and ID were left out of
     // the constructor, so yse_device_default_buffer_size() and friends
     // returned whatever was in that memory unless the enumerator happened to
     // set every one of them.
     //
     // A plain stack-local device is an unreliable regression test — the slot
-    // is often already zero. Placement-new over 0xFF-filled storage (which
-    // reads back as -1 for an int) makes the uninitialised read deterministic,
-    // the same trick test_reverb_dsp.cpp uses for issue #263.
+    // is often already zero. Placement-new over pre-dirtied storage makes the
+    // uninitialised read deterministic, the same trick test_reverb_dsp.cpp uses
+    // for issue #263. The fill is 0xAA rather than the 0xFF that trick started
+    // with, because 0xFF reads back as -1 for an int and -1 is now the ID's
+    // expected value (issue #666); 0xAA is neither 0 nor -1, so the case can
+    // still fail for either field.
     alignas(YSE::device) unsigned char storage[sizeof(YSE::device)];
-    std::memset(storage, 0xFF, sizeof(storage));
+    std::memset(storage, 0xAA, sizeof(storage));
     YSE::device* d = new (storage) YSE::device();
     YseDevice* dev = handle(*d);
 
     CHECK(yse_device_default_buffer_size(dev) == 0);
     CHECK(yse_device_output_latency(dev) == 0);
     CHECK(yse_device_input_latency(dev) == 0);
-    CHECK(yse_device_get_id(dev) == 0);
+    // paNoDevice, forwarded verbatim from the descriptor: an FFI consumer that
+    // built a device by hand and never set an id gets "no device", not the
+    // valid index 0 (issue #666).
+    CHECK(yse_device_get_id(dev) == -1);
 
     d->~device();
   }
