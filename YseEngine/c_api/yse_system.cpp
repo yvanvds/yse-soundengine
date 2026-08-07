@@ -238,6 +238,9 @@ YSE_C_API YseDevice* yse_system_get_device(YseSystem* sys, unsigned int idx) {
     // The engine owns the storage; we hand out a borrowed mutable view.
     return reinterpret_cast<YseDevice*>(const_cast<YSE::device*>(&d));
   } catch (const std::exception& e) {
+    // The engine getter bound-checks with .at(), so an out-of-range index
+    // lands here and yields NULL instead of a pointer past the end of the
+    // device list (issue #581).
     yse_c::set_last_error(e.what());
     return nullptr;
   } catch (...) {

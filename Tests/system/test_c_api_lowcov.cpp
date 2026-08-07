@@ -29,11 +29,11 @@
 //     (init_offline) is the one under test.
 //   * yse_system_open_device() past its two argument guards, for the same
 //     reason — it hands the setup straight to the backend's device open.
-//   * yse_system_get_device() past index 0 when the enumerated list is empty:
-//     the engine's getDevice() indexes the device vector with an unchecked
-//     operator[], so an out-of-range probe is undefined behaviour rather than
-//     a catchable exception (issue #581). The cases below stay strictly inside
-//     the enumerated range.
+//
+// yse_system_get_device() used to be listed here too: the engine's getDevice()
+// indexed the device vector with an unchecked operator[], so an out-of-range
+// probe was undefined behaviour rather than a catchable exception. Issue #581
+// made it bound-checked, and the out-of-range contract is asserted below.
 //
 // yse_system_close() and yse_system_close_current_device() tear down
 // process-global engine state, so they live in TEST_SUITE("capilowcovlife")
@@ -283,6 +283,20 @@ TEST_SUITE("capilowcov") {
     for (unsigned int i = 0; i < devices; ++i) {
       CHECK(yse_system_get_device(sys, i) != nullptr);
     }
+
+    // Out of range is an error, not undefined behaviour (issue #581). Before
+    // the fix the engine indexed with operator[], so the try/catch in
+    // yse_system_get_device() could never fire and the caller got a pointer
+    // past the end of the device list — and with the list empty, as it is on
+    // headless CI and in any offline session, index 0 already qualified. That
+    // is precisely the call a binding makes before it has checked the count.
+    yse_clear_last_error();
+    CHECK(yse_system_get_device(sys, devices) == nullptr);
+    // The failure is reported, not silent: the engine's std::out_of_range is
+    // translated into the thread-local error slot rather than crossing the ABI.
+    CHECK(std::strlen(yse_last_error()) > 0);
+
+    CHECK(yse_system_get_device(sys, devices + 9999) == nullptr);
 
     // The MIDI name getters clear the buffer first, then answer within range.
     //

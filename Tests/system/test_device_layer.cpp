@@ -47,6 +47,7 @@
 
 #include <chrono>
 #include <cmath>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <vector>
@@ -304,6 +305,31 @@ TEST_SUITE("devicelayer") {
     CHECK(YSE::DEVICE::Manager().getDeviceList().empty());
     // The error path must not have invented a default either.
     CHECK(YSE::System().getDefaultDevice().empty());
+  }
+
+  // getDevice() indexed the device vector with operator[], which never throws:
+  // an out-of-range index read past the end of the list, and the try/catch in
+  // yse_system_get_device() that looks like it handles the case was dead code.
+  // The empty list above is the common shape of the bug — every index, index 0
+  // included, is out of range — so a binding that asks for the first device
+  // before checking the count got undefined behaviour rather than an error.
+  TEST_CASE("device manager: getDevice() bound-checks its index (issue #581)") {
+    if (!ensureOffline()) return;
+
+    YSE::DEVICE::Manager().updateDeviceList();
+
+    const unsigned int n = YSE::System().getNumDevices();
+    CHECK_THROWS_AS((void)YSE::System().getDevice(n), std::out_of_range);
+    CHECK_THROWS_AS((void)YSE::System().getDevice(n + 9999), std::out_of_range);
+
+    // With no device enumerated at all, index 0 is itself out of range. On a
+    // desktop with hardware the offline engine still enumerates nothing (it
+    // skips Pa_Initialize), so this holds on CI and on a developer machine.
+    if (n == 0) CHECK_THROWS_AS((void)YSE::System().getDevice(0), std::out_of_range);
+
+    // Anything inside the range keeps resolving to a real descriptor.
+    for (unsigned int i = 0; i < n; ++i)
+      CHECK_NOTHROW((void)YSE::System().getDevice(i));
   }
 
   // openDevice() is gated on initDone: with PortAudio uninitialised it must
