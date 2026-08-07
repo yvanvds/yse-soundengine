@@ -8,6 +8,7 @@
 */
 
 #include "chorus.hpp"
+#include "../smoother.hpp"
 #include <algorithm>
 #include <cmath>
 
@@ -107,9 +108,7 @@ Flt YSE::DSP::MODULES::chorus::sweepDelayMs() const {
 void YSE::DSP::MODULES::chorus::create() {
   // One-pole coefficient for the per-sample delay smoother, from the engine
   // sample rate (computed off the audio thread).
-  Flt tauSamples = DELAY_SMOOTH_TAU * static_cast<Flt>(SAMPLERATE);
-  if (tauSamples < 1.0f) tauSamples = 1.0f;
-  delaySmoothCoef = 1.0f - std::exp(-1.0f / tauSamples);
+  delaySmoothCoef = YSE::DSP::onePoleCoef(DELAY_SMOOTH_TAU, static_cast<Flt>(SAMPLERATE));
 
   // Line length that covers the longest addressable delay at the current rate.
   lineSize =
@@ -201,7 +200,7 @@ void YSE::DSP::MODULES::chorus::process(MULTICHANNELBUFFER& buffer) {
     for (std::size_t i = 0; i < length; ++i) {
       const Flt lfo = 0.5f * (1.0f + std::sin(ph[i] + offset)); // [0, 1]
       const Flt target = base + sweep * lfo;
-      sd += (target - sd) * delaySmoothCoef;
+      sd = YSE::DSP::onePoleSmooth(sd, target, delaySmoothCoef);
 
       Flt delaySamps = sd * srMs;
       if (delaySamps < 1.0f) delaySamps = 1.0f;

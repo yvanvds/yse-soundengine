@@ -8,6 +8,7 @@
 */
 
 #include "plateReverb.hpp"
+#include "../smoother.hpp"
 #include <algorithm>
 #include <cmath>
 
@@ -277,6 +278,12 @@ void YSE::DSP::MODULES::plateReverb::process(MULTICHANNELBUFFER& buffer) {
 
   // Damping one-pole coefficient from the cut-off (Hz) and sample rate.
   // c in [0,1]: 1 = open (no damping), smaller = darker.
+  //
+  // Deliberately *not* DSP::onePoleCoef (#614): that helper takes a time
+  // constant in seconds and floors it at one sample, which for a cut-off
+  // parameterisation would bite for every fc above SAMPLERATE / 2pi (~7 kHz at
+  // 44.1 kHz) and audibly darken the tank. The smoothing step below does share
+  // the helper.
   Flt fc = std::clamp(parmDamping.load(), MIN_DAMPING_HZ, 0.5f * static_cast<Flt>(SAMPLERATE));
   Flt dampCoef = 1.0f - std::exp(-TWO_PI * fc / static_cast<Flt>(SAMPLERATE));
 
@@ -333,7 +340,7 @@ void YSE::DSP::MODULES::plateReverb::process(MULTICHANNELBUFFER& buffer) {
     // Left half.
     Flt a = apL1.process(leftIn, DECAY_DIFF_1, modL);
     Flt d1 = delL1.process(a);
-    dampL += (d1 - dampL) * dampCoef;
+    dampL = YSE::DSP::onePoleSmooth(dampL, d1, dampCoef);
     Flt node = dec * dampL;
     Flt a2 = apL2.process(node, DECAY_DIFF_2);
     Flt d2 = delL2.process(a2);
@@ -342,7 +349,7 @@ void YSE::DSP::MODULES::plateReverb::process(MULTICHANNELBUFFER& buffer) {
     // Right half.
     Flt b = apR1.process(rightIn, DECAY_DIFF_1, modR);
     Flt e1 = delR1.process(b);
-    dampR += (e1 - dampR) * dampCoef;
+    dampR = YSE::DSP::onePoleSmooth(dampR, e1, dampCoef);
     Flt nodeR = dec * dampR;
     Flt b2 = apR2.process(nodeR, DECAY_DIFF_2);
     Flt e2 = delR2.process(b2);
