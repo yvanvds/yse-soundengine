@@ -120,6 +120,7 @@ set(YSE_TEST_SOURCES
   sound/test_sound_state.cpp
   sound/test_sound_streaming.cpp
   sound/test_sound_bufferrace.cpp
+  sound/test_sound_multichannel_buffer.cpp
   sound/test_sound_impl.cpp
   sound/test_sound_concurrency.cpp
   sound/test_sound_bufferIO.cpp
@@ -245,6 +246,14 @@ set_source_files_properties(sound/test_sound_streaming.cpp PROPERTIES
 # test_sound_bufferrace.cpp also drives INTERNAL::soundFile directly (the
 # DSP::buffer-backed read path, issue #286), so it needs the same gate enabled.
 set_source_files_properties(sound/test_sound_bufferrace.cpp PROPERTIES
+  COMPILE_DEFINITIONS LIBSOUNDFILE_BACKEND
+)
+
+# test_sound_multichannel_buffer.cpp drives INTERNAL::soundFile directly too
+# (the MULTICHANNELBUFFER-backed create/read path, issue #658), so it needs the
+# same gate. Its public-API half compiles either way; only the white-box cases
+# are behind #if LIBSOUNDFILE_BACKEND.
+set_source_files_properties(sound/test_sound_multichannel_buffer.cpp PROPERTIES
   COMPILE_DEFINITIONS LIBSOUNDFILE_BACKEND
 )
 
