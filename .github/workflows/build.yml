@@ -167,26 +167,92 @@ jobs:
             --define "sonar.projectVersion=${{ steps.version.outputs.version }}"
             --define "sonar.cfamily.compile-commands=${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json"
 
+  android-gate:
+    # Decides whether build-android runs and with which ABI matrix (#630).
+    # A separate job because the decision needs changed-file detection on
+    # dev-targeted PRs, and a matrix cannot be shaped by a job-level `if`
+    # (the matrix context is not available there) — so build-android takes
+    # its matrix from this job's `abis` output via fromJSON instead.
+    name: Android trigger gate
+    runs-on: ubuntu-latest
+    # Trivial job (one API-backed filter step, no checkout), but the clock
+    # includes runner acquisition — see the sizing comment on the `build`
+    # job — and a cap-killed gate would silently skip the Android builds.
+    timeout-minutes: 10
+    permissions:
+      # dorny/paths-filter lists the PR's changed files via the pulls API.
+      pull-requests: read
+      contents: read
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+      abis: ${{ steps.decide.outputs.abis }}
+    steps:
+      - name: Detect Android-relevant changes (dev-targeted PRs only)
+        # pull_request events are resolved through the GitHub API, so no
+        # checkout is needed. The path set is everything the NDK
+        # cross-compile consumes: engine + test sources (the Android device
+        # backend and the test APK scaffolding both live under those two
+        # trees), the vendored deps (doctest), the CMake build files, and
+        # this workflow itself. CMakePresets.json is deliberately absent:
+        # the Android job invokes cmake directly, not through a preset.
+        if: github.event_name == 'pull_request' && github.base_ref == 'dev' && github.head_ref != 'master'
+        id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            android:
+              - 'YseEngine/**'
+              - 'Tests/**'
+              - 'dependencies/**'
+              - 'CMakeLists.txt'
+              - 'cmake/**'
+              - '.github/workflows/build.yml'
+      - name: Decide ABI set
+        id: decide
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.base_ref }}
+          HEAD: ${{ github.head_ref }}
+          ANDROID_RELEVANT: ${{ steps.filter.outputs.android }}
+        run: |
+          if [ "$EVENT" = "push" ] || { [ "$BASE" = "master" ] && [ "$HEAD" != "dev" ]; }; then
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+            echo 'abis=["arm64-v8a", "x86_64"]' >> "$GITHUB_OUTPUT"
+          elif [ "$BASE" = "dev" ] && [ "$HEAD" != "master" ] && [ "$ANDROID_RELEVANT" = "true" ]; then
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+            echo 'abis=["x86_64"]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'run=false' >> "$GITHUB_OUTPUT"
+            echo 'abis=[]' >> "$GITHUB_OUTPUT"
+          fi
+
   build-android:
     # Cross-compile libyse.so + libyse_tests.so for each target ABI using the
     # NDK toolchain. Build-only — actually running the tests requires either an
     # emulator (KVM unavailable on GitHub-hosted runners) or a physical device,
     # both of which are deferred to a follow-up.
     #
-    # Trigger gate: run on every push to master/dev (continuous coverage) and
-    # on PRs that target master (release gate). Skip on PRs that target dev so
-    # day-to-day feature work doesn't burn ~5 min of NDK cross-compile per push
-    # — Android-specific regressions get caught at the dev → master step.
-    # Additionally skip when the PR's head is `dev` (release PRs): the push
-    # to dev that brought the SHA in has already run this workflow.
-    if: github.event_name == 'push' || (github.base_ref == 'master' && github.head_ref != 'dev')
+    # Trigger gate (computed by the android-gate job above; see #630):
+    # - Push to master/dev: both ABIs (continuous coverage).
+    # - PR targeting master (head != dev): both ABIs (release gate).
+    # - PR targeting dev: x86_64 only, and only when the changed files could
+    #   plausibly affect the Android build (android-gate's path set). This
+    #   replaces the old unconditional skip on dev-targeted PRs, which let
+    #   the #622 compile break land invisibly and sit red on dev for two
+    #   days. One ABI is enough as a PR gate: compile breaks are almost
+    #   always ABI-independent (#622 failed identically on both), and
+    #   doc/infra-only PRs still pay nothing.
+    # - Release/sync PRs (head is dev or master): skip — the push that
+    #   brought those SHAs in has already run this workflow.
+    needs: android-gate
+    if: needs.android-gate.outputs.run == 'true'
     name: Android build (${{ matrix.abi }})
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        abi: [arm64-v8a, x86_64]
+        abi: ${{ fromJSON(needs.android-gate.outputs.abis) }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Install host build tools
