@@ -124,6 +124,7 @@ set(YSE_SRCS
   patcher/genericObjects/gRoute.cpp
   patcher/genericObjects/gSel.cpp
   patcher/genericObjects/gSend.cpp
+  patcher/genericObjects/gSpray.cpp
   patcher/genericObjects/gSwitch.cpp
   patcher/genericObjects/gTrigger.cpp
   patcher/genericObjects/gUzi.cpp
@@ -320,6 +321,7 @@ set_source_files_properties(
   patcher/genericObjects/gRoute.cpp
   patcher/genericObjects/gSel.cpp
   patcher/genericObjects/gSend.cpp
+  patcher/genericObjects/gSpray.cpp
   patcher/genericObjects/gSwitch.cpp
   patcher/genericObjects/gTrigger.cpp
   patcher/genericObjects/gUzi.cpp

@@ -3866,6 +3866,47 @@
       }
     ]
   },
+  ".spray": {
+    "category": "GENERIC",
+    "description": "Distributes the values of a list to numbered outlets — Max's spray, which 'accepts lists as input, where the first number is taken as the outlet number, and one or more values that follow are sent out that outlet and those to its right, in right-to-left order'. A demultiplexer whose destination is data rather than structure: the patch sends 2 60 and 60 leaves by outlet 2, so one stream can address a bank of destinations without a box per destination. It is the inverse of Max's funnel, which tags a value with the inlet it arrived on: a funnel into a spray of the same width is a numbered bus that survives being carried through one cord. It is not .gate, which routes by an index arriving at a separate inlet and therefore in a separate message, so the patch must set the destination before sending the value and every ordering mistake in between sends a value to last time's outlet; here the pair arrives together and cannot be desynchronised, which is the whole reason to reach for it. It is not .cycle, which picks the outlet itself by rotating, nor .route or .sel, which pick by matching against constants fixed at creation; this is the one that takes the destination as a number at run time. And unlike .trigger, which fans one value out every outlet as copies, a list here may well reach several outlets but each receives a different element — it spreads rather than copies, and unlike .unpack it starts wherever the message says rather than always at outlet 0. Element k of the remainder goes out outlet index+k; an element whose outlet does not exist is dropped rather than wrapped, .gate's and .cycle's discipline, since an index the object has no outlet for is a miscount that silent folding would hide. The burst is captured before the first send and the outlets fire right to left, Max's universal order and one this object's own description states outright: the send path is synchronous, so a patch looping an outlet back into the inlet re-enters inside the Send and the interrupted burst must go on emitting the values it started with. A first number of -1 is Max's broadcast, 'the remaining elements of the list will be repeated to all outlets', tested on the number as written and before the offset is applied so that an offset -1 cannot silently turn a broadcast into an ordinary index; with several values 'repeated' is taken as repeated around the outlets, so -1 0 1 sets alternate outlets and a single value still reaches all of them. The second creation argument and the 'offset' message are one value described from opposite ends — Max's 'an offset for the numbering of the outlets' and 'the output of the object ... shifted to the left' both mean the outlet reached is index minus offset — and it exists because the numbers a patch sprays usually start where their source starts, MIDI channels at 1 or a controller's buttons at 64, where the alternative is a .- in front of every stream. 'offset' is run-time state rather than a parameter, as .cycle's thresh and .bucket's R2L are, so a saved patch carries the creation argument. The third creation argument is Max's list mode, in which 'an entire list is output through the indicated outlet ... instead of unpacking the list and sending the individual elements out sequential outlets' — what a patch wants when the elements belong together, since a note and its velocity are one message and splitting them across two outlets makes two facts out of one. Each element leaves as the kind it was spelled as, so 0 1 2 does not arrive downstream as 1. 2.; Max's 'the list may contain only ints or floats; symbols will be ignored' is honoured in place, a symbol costing its outlet a send while the elements after it keep their positions, because closing the gap would silently rewrite the destination of every later element in a positional object. A bare int, float or bang is not accepted at all, Max's 'an error-message ... stating that spray requires a list', and neither is a one-element list or a message whose first token is a symbol. At most 256 outlets, built once before the object is published; Calculate() does nothing, and no message path allocates, locks or blocks.",
+    "inlets": [
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "A list whose first number is an outlet index and whose remaining elements are the values to send: the first goes out that outlet, the next out the outlet to its right, and so on, all of them right to left. An index of -1 repeats the remaining elements around every outlet. Elements with no outlet are dropped and symbols are ignored in place, costing their outlet a send without moving the elements after them. 'offset <n>' shifts every incoming index by n. A bare int, float or bang is not accepted — Max's spray requires a list — and a message whose first token is a symbol is ignored.",
+        "index": 0,
+        "label": "in",
+        "range": "list"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".spray",
+    "outlets": [
+      {
+        "doc": "The element of an incoming list that addressed this outlet, as the kind it was spelled as, or the whole remainder of the list in list mode. Outlets fire right to left, so a downstream collector sees the last element of a burst before the first.",
+        "index": 0,
+        "label": "out0",
+        "range": "any",
+        "type": "ANY"
+      },
+      {
+        "doc": "The element of an incoming list that addressed this outlet, as the kind it was spelled as, or the whole remainder of the list in list mode. Outlets fire right to left, so a downstream collector sees the last element of a burst before the first.",
+        "index": 1,
+        "label": "out1",
+        "range": "any",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "2",
+        "doc": "Max's argument list, in Max's order. The first whole number is how many outlets to build, clamped to 1-256 and defaulting to 2. The second is the offset added to the outlet numbering, so an index of that value reaches outlet 0; it defaults to 0 and is the starting value of the 'offset' message. A third whole number set to non-zero is Max's list mode: the whole remainder of a message goes out the one indicated outlet instead of one element per outlet. A float is truncated; anything that is not a whole finite number is ignored and leaves the defaults in place.",
+        "name": "outlets",
+        "range": "1-256, optional offset and list mode"
+      }
+    ]
+  },
   ".sqrt": {
     "category": "MATH",
     "description": "Control-rate square root. Emits the square root of the input as a float whenever inlet 0 fires. A negative input emits 0 rather than a NaN.",

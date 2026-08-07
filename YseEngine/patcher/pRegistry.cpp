@@ -18,6 +18,7 @@
 #include "genericObjects/gBuddy.h"
 #include "genericObjects/gCycle.h"
 #include "genericObjects/gMatch.h"
+#include "genericObjects/gSpray.h"
 #include "genericObjects/gUzi.h"
 #include "genericObjects/gIf.h"
 #include "genericObjects/gRegexp.h"
@@ -165,6 +166,9 @@ pRegistry::pRegistry() {
 
   // Shift values along a chain of outlets, one stage per input (issue #478)
   Add(OBJ::G_BUCKET, gBucket::Create);
+
+  // Distribute the values of a list to numbered outlets (issue #479)
+  Add(OBJ::G_SPRAY, gSpray::Create);
 
   // Conditional message dispatch (issue #451)
   Add(OBJ::G_IF, gIf::Create);
