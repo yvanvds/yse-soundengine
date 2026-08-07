@@ -27,6 +27,8 @@ namespace YSE {
    *  - Running comparison: ``G_MAXIMUM``, ``G_MINIMUM``.
    *  - Running extremes: ``G_PEAK``, ``G_TROUGH``.
    *  - Threshold crossing: ``G_PAST``.
+   *  - Change detection: ``G_CHANGE``.
+   *  - Zero-crossing edges: ``G_TOGEDGE``.
    *  - Bitwise: ``G_BITAND``, ``G_BITOR``, ``G_SHIFTLEFT``, ``G_SHIFTRIGHT``.
    *  - DSP filters: ``D_LOWPASS``, ``D_HIGHPASS``, ``D_BANDPASS``, ``D_VCF``.
    *  - I/O: ``D_DAC``, ``D_ADC``, ``D_LINE``.
@@ -35,8 +37,11 @@ namespace YSE {
    *  - Randomness: ``G_RANDOM``, ``G_DRUNK``, ``G_URN``, ``G_DECIDE``,
    *    ``G_PROB``, ``G_ANAL``, ``G_HISTO``.
    *  - Statistics: ``G_ANAL``, ``G_HISTO``, ``G_MEAN``.
-   *  - Messaging: ``G_SEND``, ``G_RECEIVE``, ``G_ROUTE``, ``G_GATE``,
-   *    ``G_SWITCH``, ``G_IF``, ``G_REGEXP``.
+   *  - Messaging: ``G_SEND``, ``G_RECEIVE``, ``G_ROUTE``, ``G_SEL``,
+   *    ``G_TRIGGER``, ``G_BANGBANG``, ``G_ONEBANG``, ``G_NEXT``, ``G_MATCH``,
+   *    ``G_BONDO``,
+   *    ``G_GATE``, ``G_SWITCH``, ``G_IF``, ``G_REGEXP``.
+   *  - Iteration: ``G_UZI``.
    *  - MIDI: ``M_OUT``, ``M_NOTEON``, ``M_NOTEOFF``, ``M_CONTROL``.
    *  - Conversion: ``MIDITOFREQUENCY``, ``FREQUENCYTOMIDI``, ``G_ATODB``,
    *    ``G_DBTOA``, ``G_CARTOPOL``, ``G_POLTOCAR``.
@@ -68,6 +73,14 @@ namespace YSE {
     DEFOBJ(G_SWITCH, ".switch");
     DEFOBJ(G_GATE, ".gate");
     DEFOBJ(G_ROUTE, ".route");
+    DEFOBJ(G_SEL, ".sel");
+    DEFOBJ(G_TRIGGER, ".trigger");
+    DEFOBJ(G_BANGBANG, ".bangbang");
+    DEFOBJ(G_ONEBANG, ".onebang");
+    DEFOBJ(G_NEXT, ".next");
+    DEFOBJ(G_MATCH, ".match");
+    DEFOBJ(G_UZI, ".uzi");
+    DEFOBJ(G_BONDO, ".bondo");
     DEFOBJ(G_IF, ".if");
     DEFOBJ(G_REGEXP, ".regexp");
 
@@ -130,6 +143,9 @@ namespace YSE {
     DEFOBJ(G_TROUGH, ".trough");
 
     DEFOBJ(G_PAST, ".past");
+
+    DEFOBJ(G_CHANGE, ".change");
+    DEFOBJ(G_TOGEDGE, ".togedge");
 
     DEFOBJ(G_BITAND, ".&");
     DEFOBJ(G_BITOR, ".|");

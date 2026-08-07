@@ -56,6 +56,21 @@ namespace YSE {
       void Register(std::string& value);
       void Register(std::vector<std::string>& list);
 
+      // Parse `args` into the registered parameters, left to right, one
+      // whitespace-separated token each.
+      //
+      // Surplus arguments are *ignored*, not rejected: an object handed more
+      // tokens than it has parameters keeps the ones it understands and logs
+      // the rest at E_DEBUG — except when the last parameter is a LIST, which
+      // absorbs the remainder. An object that registers no parameters at all
+      // is the degenerate case of that rule, so every token is ignored (issue
+      // #627); it is not an error, and it never throws.
+      //
+      // The argument string is stored verbatim either way, so Get() / DumpJSON
+      // hand back what the object was given rather than a rewritten subset —
+      // loading and re-saving a patch file must not quietly drop an argument a
+      // newer or older version of the object would use. BuildPlan() follows
+      // the same rules on the parented path.
       void Set(const std::string& args);
 
       // Whether a live re-parse must rebuild the object instead of patching

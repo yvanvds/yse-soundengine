@@ -20,9 +20,12 @@
 #include <chrono>
 #include <string>
 #include <thread>
+#include <vector>
+#include "patcher/parameters.h"
 #include "patcher/patcherImplementation.h"
 #include "patcher/pHandle.hpp"
 #include "patcher/pObjectList.hpp"
+#include "patcher/pRegistry.h"
 #include "sinks.hpp"
 
 using TestHelpers::MultiSink;
@@ -297,6 +300,122 @@ TEST_SUITE("patcher") {
     p.Calculate(YSE::T_DSP);
     p.Calculate(YSE::T_DSP);
     CHECK_FALSE(p.output[0].isSilent());
+  }
+
+  // ---- Objects that register no parameters (issue #627) ----
+  //
+  // Parameters::Set read `parms.back()` to decide whether trailing arguments
+  // should be appended to a list parameter, without first checking that any
+  // parameter is registered at all. For an object with no ADD_PARAM the
+  // tokenizer's `currentArg < parms.size()` guard is `0 < 0`, so the very first
+  // token took that branch and `back()` dereferenced an empty vector — a
+  // segfault on `.mean`, `.togedge`, the trigonometric family, `.abs`/`.sqrt`,
+  // `.atodb`/`.dbtoa`, `.mtof`/`.ftom`, `~noise` and the GUI objects.
+  //
+  // The pinned behaviour: **surplus arguments are ignored**, exactly as they
+  // already were for an object that registers *some* parameters and is handed
+  // more than it can take. The argument string is still stored verbatim, so
+  // GetParams()/DumpJSON round-trip a patch file unchanged rather than
+  // silently rewriting it. This is what the parented path (BuildPlan) has
+  // always done; the two now agree.
+
+  TEST_CASE("setparams: a parameter set with nothing registered ignores arguments (#627)") {
+    // The defect at its narrowest: no Register() call at all, then a non-empty
+    // argument string. This is what every no-ADD_PARAM object hands to
+    // Parameters::Set from CreateObjectUnlocked.
+    YSE::PATCHER::Parameters parms;
+    REQUIRE(parms.Count() == 0);
+
+    parms.Set("5");
+    CHECK(parms.Get() == "5");
+
+    // More than one token, and a trailing token — the list-append branch that
+    // owned the bad read — must be just as harmless.
+    parms.Set("5 6 7");
+    CHECK(parms.Get() == "5 6 7");
+
+    // A plan built for the same object is the parented equivalent: no scalar
+    // writes, nothing applied, the string still stored.
+    YSE::PATCHER::ParamOp ops[4];
+    CHECK(parms.BuildPlan("8 9", ops, 4) == 0);
+    CHECK(parms.Get() == "8 9");
+  }
+
+  // Class-level failsafe rather than a list of the objects known to be
+  // affected today: every registered type, created through the public
+  // CreateObject entry point with an argument it may or may not want. A new
+  // object that registers no parameters is covered the day it is added.
+  TEST_CASE("setparams: every registered object survives a stray creation argument (#627)") {
+    const auto names = YSE::PATCHER::Register().AllNames();
+    REQUIRE(names.size() > 0);
+
+    patcherImplementation p(1, nullptr);
+    for (const auto& name : names) {
+      CAPTURE(name);
+      YSE::pHandle* h = p.CreateObject(name, "5");
+      REQUIRE(h != nullptr);
+      // ~dac / ~adc are built channel-matched and never see SetParams at all
+      // (patcherImplementation::CreateObjectUnlocked), so they keep an empty
+      // param string; every other type stores what it was handed.
+      if (name != YSE::OBJ::D_DAC && name != YSE::OBJ::D_ADC) {
+        CHECK(h->GetParams() == "5");
+      }
+    }
+  }
+
+  TEST_CASE("setparams: a no-parameter object round-trips a patch file carrying arguments (#627)") {
+    // ParseJSON restores every object through CreateObjectUnlocked with the
+    // saved `parms` string, so a patch file whose no-parameter object carries a
+    // non-empty value took the crash down the file-loading path — reachable
+    // from any hand-edited or older patch.
+    const std::vector<const char*> noParamTypes = {
+        YSE::OBJ::G_MEAN,          YSE::OBJ::G_TOGEDGE,       YSE::OBJ::G_ABS,
+        YSE::OBJ::G_SQRT,          YSE::OBJ::G_ATODB,         YSE::OBJ::G_DBTOA,
+        YSE::OBJ::MIDITOFREQUENCY, YSE::OBJ::FREQUENCYTOMIDI, YSE::OBJ::G_SIN,
+        YSE::OBJ::G_COSH,
+    };
+
+    patcherImplementation p(1, nullptr);
+    for (const char* type : noParamTypes) {
+      CAPTURE(type);
+      REQUIRE(p.CreateObject(type, "5") != nullptr);
+    }
+    REQUIRE(p.Objects() == (unsigned int)noParamTypes.size());
+
+    patcherImplementation loaded(1, nullptr);
+    loaded.ParseJSON(p.DumpJSON());
+    REQUIRE(loaded.Objects() == (unsigned int)noParamTypes.size());
+    for (unsigned int i = 0; i < loaded.Objects(); i++) {
+      YSE::pHandle* h = loaded.GetHandleFromList(i);
+      CAPTURE(h->Type());
+      // The stray argument survives the round trip verbatim; loading a patch
+      // must not quietly rewrite it.
+      CHECK(h->GetParams() == "5");
+    }
+  }
+
+  TEST_CASE("setparams: a stray argument does not disturb a no-parameter object (#627)") {
+    // Ignored means ignored: the object still behaves like the bare one. .mean
+    // averages from scratch, and a live re-parse on the parented object is the
+    // no-op the scalar path already made it.
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* mean = p.CreateObject(YSE::OBJ::G_MEAN, "5");
+    REQUIRE(mean != nullptr);
+
+    MultiSink sink;
+    YSE::pHandle hSink(&sink);
+    p.Connect(mean, 0, &hSink, 0);
+
+    mean->SetFloatData(0, 2.f);
+    CHECK(sink.floatValue == doctest::Approx(2.f)); // mean of {2}, not of {5, 2}
+    mean->SetFloatData(0, 4.f);
+    CHECK(sink.floatValue == doctest::Approx(3.f)); // mean of {2, 4}
+
+    mean->SetParams("11 12");
+    CHECK(mean->GetParams() == "11 12");
+    p.Calculate(YSE::T_DSP);
+    mean->SetFloatData(0, 6.f);
+    CHECK(sink.floatValue == doctest::Approx(4.f)); // still {2, 4, 6}
   }
 
 } // TEST_SUITE("patcher")
