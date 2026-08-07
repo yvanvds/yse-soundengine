@@ -676,6 +676,21 @@ Bool YSE::SOUND::implementationObject::dsp() {
     }
   }
 
+  // SI_RESTART leaves status_dsp at SS_WANTSTORESTART. The patcher branch above
+  // normalises it and a dsp source resolves it itself, but the file reader's
+  // intent ladder has no branch for it: its inner loop would consume none of the
+  // requested frames and spin forever on the render thread (issue #577). Resolve
+  // it here instead — rewind to the start of the source and hand the reader a
+  // play intent, which fades in from silence so the jump back is click-free.
+  if (playerType == PT_FILE && status_dsp == SS_WANTSTORESTART) {
+    // For a streaming sound filePtr is buffer-local (issue #185), so rewinding
+    // it alone would replay the current front buffer. seek() arms an async
+    // re-prime from frame 0 on the slow pool — no disk I/O on this thread.
+    if (streaming) file->seek(0, looping);
+    filePtr = 0.f;
+    status_dsp = SS_WANTSTOPLAY;
+  }
+
   if (status_dsp == SS_STOPPED || status_dsp == SS_PAUSED) return false;
 
   ///////////////////////////////////////////

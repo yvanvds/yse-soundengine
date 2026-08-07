@@ -34,9 +34,6 @@
 //     operator[], so an out-of-range probe is undefined behaviour rather than
 //     a catchable exception (issue #581). The cases below stay strictly inside
 //     the enumerated range.
-//   * yse_sound_restart() — leaves the implementation in SS_WANTSTORESTART,
-//     which the file reader's intent ladder has no branch for, so the next
-//     render block spins forever (issue #577).
 //   * yse_sound_set_dsp(s, NULL) — the sound implementation dereferences the
 //     message payload unconditionally and crashes on the render thread
 //     (issue #578). The channel equivalent is safe and IS covered.
@@ -759,12 +756,52 @@ TEST_SUITE("capilowcov") {
     capilowcov::pump(10);
   }
 
-  // yse_sound_restart() is deliberately NOT exercised: on a file- or
-  // buffer-backed sound it leaves the implementation in SS_WANTSTORESTART,
-  // which the file reader's intent ladder has no branch for, so the next
-  // render block spins forever (issue #577). Add the case here once that is
-  // fixed — restart() is the only sound entry point this suite leaves
-  // uncovered.
+  // Regression for issue #577. yse_sound_restart() used to leave the
+  // implementation in SS_WANTSTORESTART, which the file reader's intent ladder
+  // has no branch for: the read loop consumed none of the requested frames and
+  // the render block never returned. Without the fix this case never finishes —
+  // the first pump after restart spins inside yse_system_render_offline() and
+  // the suite dies on its ctest TIMEOUT.
+  //
+  // The bundled fixture is only 100 frames long, so at normal speed the looping
+  // play position wraps several times inside a single 128-frame block and could
+  // never show a rewind. Playing it at 1/100 speed keeps the position monotonic
+  // across the whole case, which makes "restart sent the playhead back to the
+  // start" an observable assertion rather than just "the render returned". A
+  // longer in-memory DSP::buffer source would be the obvious alternative, but a
+  // buffer-backed sound currently renders nothing at all and its play position
+  // never leaves 0 (issue #657), so it cannot witness a rewind.
+  TEST_CASE("c-api sound: restart rewinds a file-backed sound without spinning (#577)") {
+    if (!capilowcov::ensureOffline()) return;
+
+    YseSound* s = makeLoadedSound(/*loop=*/1);
+    if (!s) return;
+    REQUIRE(yse_sound_length(s) > 0u);
+
+    yse_sound_set_speed(s, 0.01f);
+    yse_sound_play(s);
+    capilowcov::pump(10);
+
+    const float before = yse_sound_get_time(s);
+    CHECK(before > 0.0f); // the playhead really did move off frame 0
+
+    yse_sound_restart(s); // used to livelock the very next render block
+    capilowcov::pump(2); // far fewer blocks than the pump that built `before`
+    CHECK(yse_sound_get_time(s) < before);
+    CHECK(yse_sound_is_valid(s) == 1);
+
+    // A restart on a stopped sound is the other entry into the same intent: it
+    // starts playing again from the beginning instead of staying silent.
+    yse_sound_stop(s);
+    capilowcov::pump(10);
+    yse_sound_restart(s);
+    capilowcov::pump(10);
+    CHECK(yse_sound_is_valid(s) == 1);
+    CHECK(yse_sound_is_stopped(s) == 0);
+
+    yse_sound_destroy(s);
+    capilowcov::pump(10);
+  }
 
   TEST_CASE("c-api sound: move_to re-parents a live sound") {
     if (!capilowcov::ensureOffline()) return;
