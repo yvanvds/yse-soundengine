@@ -154,6 +154,105 @@ TEST_SUITE("patcher") {
     CHECK(t.empty());
   }
 
+  // ─── SetPeriod (issue #625) ───────────────────────────────────────────────
+  //
+  // A running timer used to be stuck on the interval it was scheduled with:
+  // `Timer::period` is copied at Add time and nothing could rewrite it. The
+  // rescheduling rule is "next expiry = previous expiry + new period", clamped
+  // to now when the shrink has already overshot the current cycle.
+
+  TEST_CASE("timerThread: SetPeriod rejects an unknown id and a non-positive period") {
+    YSE::PATCHER::timerThread t;
+    CHECK_FALSE(t.SetPeriod(99999, 10));
+
+    auto id = t.setInterval([] {}, 5000);
+    // A zero/negative period would demote the periodic timer to a one-shot
+    // inside the worker and drop it from `active` behind the caller's back.
+    CHECK_FALSE(t.SetPeriod(id, 0));
+    CHECK_FALSE(t.SetPeriod(id, -5));
+    CHECK(t.size() == 1);
+    t.ClearTimer(id);
+  }
+
+  TEST_CASE("timerThread: SetPeriod speeds up a pending interval without restarting it") {
+    YSE::PATCHER::timerThread t;
+    std::atomic<int> count{0};
+    // 5s cycle: the timer is parked far in the future, so any tick observed
+    // below can only come from the reschedule.
+    auto id = t.setInterval([&count] { count++; }, 5000);
+    std::this_thread::sleep_for(20ms);
+    REQUIRE(count.load() == 0);
+
+    // 20ms of the cycle has elapsed and the new period is 10ms, so the target
+    // expiry is already in the past — the timer must fire promptly rather than
+    // wait out a fresh 10ms, and must not skip the beat entirely.
+    CHECK(t.SetPeriod(id, 10));
+    CHECK(waitFor([&] { return count.load() >= 5; }, 1000));
+    t.ClearTimer(id);
+  }
+
+  TEST_CASE("timerThread: SetPeriod slows a pending interval down") {
+    YSE::PATCHER::timerThread t;
+    std::atomic<int> count{0};
+    auto id = t.setInterval([&count] { count++; }, 10);
+    REQUIRE(waitFor([&] { return count.load() >= 2; }, 1000));
+
+    CHECK(t.SetPeriod(id, 5000));
+    // Let any tick already in flight land, then the queue must go quiet.
+    std::this_thread::sleep_for(30ms);
+    const int settled = count.load();
+    std::this_thread::sleep_for(150ms);
+    CHECK(count.load() == settled);
+    t.ClearTimer(id);
+  }
+
+  TEST_CASE("timerThread: SetPeriod from inside the callback applies to the next cycle") {
+    // The `.metro` parameter path relies on this: the only thread that learns
+    // about the new interval is the timer thread itself, mid-callback. The
+    // timer is not queued at that point, so SetPeriod may only store the value
+    // and let the worker's own `next += period` reschedule use it — and it must
+    // not deadlock against the worker, which holds no lock across the callback.
+    YSE::PATCHER::timerThread t;
+    std::atomic<int> count{0};
+    std::atomic<YSE::PATCHER::timerThread::timerID> self{0};
+
+    auto id = t.setInterval(
+        [&] {
+          count++;
+          auto me = self.load();
+          if (me != 0) t.SetPeriod(me, 10);
+        },
+        400);
+    self.store(id);
+
+    // First tick at ~400ms switches the timer to 10ms; without that taking
+    // effect, five ticks would need two full seconds.
+    CHECK(waitFor([&] { return count.load() >= 5; }, 1200));
+    t.ClearTimer(id);
+  }
+
+  TEST_CASE("timerThread: SetPeriod touches only the timer it names") {
+    // The queue is a multiset keyed on the deadline, so SetPeriod has to pull
+    // its entry out by identity: the by-key erase overload would take every
+    // entry with an equivalent deadline with it. Two timers on the same nominal
+    // delay is the shape that case has (they rarely land on the same
+    // nanosecond, so this pins the neighbour-untouched contract rather than the
+    // collision itself).
+    YSE::PATCHER::timerThread t;
+    std::atomic<int> a{0}, b{0};
+    auto idA = t.Add(5000, 5000, [&a] { a++; });
+    auto idB = t.Add(5000, 5000, [&b] { b++; });
+    REQUIRE(t.size() == 2);
+
+    CHECK(t.SetPeriod(idA, 10));
+    CHECK(t.size() == 2);
+    CHECK(waitFor([&] { return a.load() >= 3; }, 1000));
+    CHECK(b.load() == 0); // idB keeps its own 5s interval
+
+    t.ClearTimer(idA);
+    t.ClearTimer(idB);
+  }
+
   TEST_CASE("timerThread: setInterval with chrono duration overloads") {
     YSE::PATCHER::timerThread t;
     std::atomic<int> count{0};

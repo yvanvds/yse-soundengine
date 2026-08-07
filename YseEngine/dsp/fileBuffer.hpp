@@ -41,7 +41,18 @@ namespace YSE {
 
       /**
        *  @brief Save the contents to a mono WAV file.
-       *  @note WAV is currently the only supported output format.
+       *
+       *  @param fileName Destination path, used verbatim — no extension is
+       *                  appended, so pass the ".wav" yourself.
+       *  @return ``true`` when every sample was written, ``false`` if the file
+       *          cannot be created, the buffer is empty, or a custom IO backend
+       *          is active (``IO().getActive()``, which is read-only).
+       *
+       *  @note WAV is currently the only supported output format. Samples are
+       *        stored as 32-bit float, at the sample rate of the file this
+       *        buffer was loaded from, or the engine rate if it was not loaded
+       *        from one.
+       *  @note File I/O: never call this from the audio callback.
        */
       bool save(const char* fileName);
 

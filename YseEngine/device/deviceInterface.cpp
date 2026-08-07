@@ -11,7 +11,12 @@
 #include "deviceInterface.hpp"
 #include "../internalHeaders.h"
 
-YSE::device::device() : defaultBufferSize(0), inputLatency(0), outputLatency(0), ID(0) {}
+// The scalar members carry default member initialisers in deviceInterface.hpp
+// (issue #569), so this stays defaulted rather than repeating them here — one
+// place to keep in sync, and every future constructor inherits the same
+// guarantee. It is still user-provided and defined out of line: `device` is an
+// API-exported class and its constructor is part of the shipped ABI.
+YSE::device::device() = default;
 
 YSE::device& YSE::device::setName(const std::string& name) {
   this->name = name;

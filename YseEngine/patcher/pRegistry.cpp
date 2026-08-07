@@ -123,6 +123,13 @@ pRegistry::pRegistry() {
   // Generic DSP
   Add(OBJ::D_LINE, pLine::Create);
 
+  // Audio output of the graph. Registered so ~dac is a valid, documented type
+  // and appears in the metadata snapshot a UI builds its palette from (issue
+  // #624); like ~adc below, the rendered graph builds a channel-matched
+  // instance in patcherImplementation::CreateObjectUnlocked rather than via
+  // this Create().
+  Add(OBJ::D_DAC, pDac::Create);
+
   // Audio input into the graph (patcher-as-insert, issue #167). Registered so
   // ~adc is a valid, documented type and appears in the metadata snapshot; the
   // rendered graph builds a channel-matched instance in

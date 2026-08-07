@@ -79,6 +79,53 @@ Bool YSE::INTERNAL::abstractSoundFile::create(Bool stream) {
     return true;
   }
 
+  if (_multiChannelBuffer != nullptr) {
+    // Same contract as the single-buffer branch above, for the multichannel
+    // source: there is nothing to load, so the source description is published
+    // here on the (single-threaded) create path and the file goes straight to
+    // READY. Without this branch a MULTICHANNELBUFFER-backed sound fell through
+    // to the file loader below with an empty `fileName`, opened an invalid
+    // SndfileHandle, ended at FILESTATE::INVALID and was dropped by
+    // implementationObject::setup() — the sound never played at all (issue
+    // #658). readNonInterleaved() has always had a working _multiChannelBuffer
+    // branch; it was simply unreachable.
+    _streaming = false;
+    _endReached = false;
+    _needsReset = false;
+
+    // One DSP::buffer per channel. readNonInterleaved() resolves each channel's
+    // own length inside its per-channel loop, so channels of differing lengths
+    // already loop / stop at their own boundary. `_length` is what the sound
+    // reports and what setFilePos clamps a seek to, so it takes the *shortest*
+    // channel: a seek clamped to a longer channel's length would index past the
+    // end of a shorter one on the very first frame of the read loop.
+    const std::size_t channelCount = _multiChannelBuffer->size();
+    Int shortest = 0;
+    for (std::size_t c = 0; c < channelCount; c++) {
+      const Int len = (Int)_multiChannelBuffer->at(c).getLength();
+      if (c == 0 || len < shortest) shortest = len;
+    }
+
+    if (channelCount == 0 || shortest == 0) {
+      // Nothing playable. An empty vector would size the sound's output with
+      // filebuffer.resize(0) — the zero-output-buffer defect #657 fixed for the
+      // single-buffer overload — and a zero-length channel would index an empty
+      // buffer and spin in the read loop's recalibration. INVALID is the same
+      // verdict an unreadable file gets, so implementationObject::setup() drops
+      // the sound cleanly. Note this still returns true: addFile() turns a false
+      // into a null soundFile, which the buffer create() overloads dereference
+      // unchecked.
+      LogImpl().emit(E_ERROR, "sound: multichannel buffer source has no audio to play");
+      state = INVALID;
+      return true;
+    }
+
+    _length = shortest;
+    _channels = (Int)channelCount;
+    state = READY;
+    return true;
+  }
+
   _streaming = stream;
   _endReached = false;
 

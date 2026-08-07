@@ -47,6 +47,8 @@
 
 #include <chrono>
 #include <cmath>
+#include <cstring>
+#include <new>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -62,7 +64,6 @@
 #include "device/deviceInterface.hpp"
 #include "device/deviceSetup.hpp"
 #include "headers/constants.hpp"
-#include "internal/AudioTest.h"
 #include "sound/soundInterface.hpp"
 
 // DEVICE::Manager() returns a managerObject&, so every use of it below — even
@@ -111,8 +112,9 @@ namespace {
   // A fully populated descriptor. The engine's PortAudio enumerator is the only
   // other producer and it needs real hardware, so the tests build one by hand.
   // Every scalar field is set explicitly, so these cases assert on values they
-  // wrote rather than on the constructor's defaults — those are #565's contract
-  // and are covered by the capisurface suite.
+  // wrote rather than on the constructor's defaults — those are the #565/#569
+  // contract, covered by the placement-new case below and by the capisurface
+  // suite through the C ABI.
   YSE::device makeDevice() {
     YSE::device d;
     d.setName("Test Output Device")
@@ -148,7 +150,15 @@ namespace {
         for (UInt i = 0; i < len; ++i)
           p[i] = 0.5f;
       }
-      intent = YSE::SS_PLAYING;
+      // Honour a stop request, the same way AudioTest.cpp's shepard does. This
+      // used to force SS_PLAYING unconditionally, which made the `s.stop()` in
+      // the paCallback case a no-op: the source kept mixing 0.5 into the master
+      // for the whole process and masked the tone case at the end of the file
+      // (issue #570).
+      if (intent == YSE::SS_WANTSTOSTOP)
+        intent = YSE::SS_STOPPED;
+      else
+        intent = YSE::SS_PLAYING;
     }
     void frequency(float) override {}
   };
@@ -187,6 +197,34 @@ TEST_SUITE("devicelayer") {
     CHECK(d.getInputChannelNames().empty());
     CHECK(d.getAvailableSampleRates().empty());
     CHECK(d.getAvailableBufferSizes().empty());
+  }
+
+  // The scalar half of the same descriptor, on the public C++ surface a linked
+  // application calls directly (issue #569). The capisurface suite asserts the
+  // same contract through the C ABI; this case owns it at the layer the fix
+  // lives in, so removing the default member initialisers from
+  // deviceInterface.hpp fails the suite that covers that file.
+  //
+  // A plain stack-local device would be an unreliable regression test — the
+  // slot is usually already zero. Placement-new over 0xFF-filled storage (which
+  // reads back as -1 for an int) makes an uninitialised read deterministic, the
+  // same trick the capisurface suite uses for #565 and test_reverb_dsp.cpp for
+  // #263.
+  TEST_CASE("device: a default-constructed descriptor's scalars are all zero (issue #569)") {
+    alignas(YSE::device) unsigned char storage[sizeof(YSE::device)];
+    std::memset(storage, 0xFF, sizeof(storage));
+    YSE::device* d = new (storage) YSE::device();
+
+    // 0 means "the host advertised nothing", and openDevice() reads it as
+    // paFramesPerBufferUnspecified — see the getter's doc comment.
+    CHECK(d->getDefaultBufferSize() == 0);
+    CHECK(d->getInputLatency() == 0);
+    CHECK(d->getOutputLatency() == 0);
+    // 0, not paNoDevice (-1): see the member-declaration note in
+    // deviceInterface.hpp and issue #661.
+    CHECK(d->getID() == 0);
+
+    d->~device();
   }
 
   TEST_CASE("device: every setter round-trips through its getter") {
@@ -471,6 +509,15 @@ TEST_SUITE("devicelayer") {
   // platform or device API: it is a dspSourceObject like any other, so it
   // renders through the offline engine and needs no exclusion.
   //
+  // Driven through the *public* entry point, YSE::System().AudioTest(bool),
+  // not INTERNAL::Test().On() (issue #570). That distinction is the whole test:
+  // AudioTest() used to wrap its one call in `#ifdef __WINDOWS__`, so the tone
+  // rendered fine when poked internally while the documented API — and the C
+  // API forwarding to it — did nothing at all off Windows. Asserting at the
+  // internal level would keep passing through exactly that bug, so this case
+  // must stay on the public call for every platform the suite builds on
+  // (desktop and Android alike; nothing below needs a backend).
+  //
   // Kept last in the file on purpose. YSE::INTERNAL::Test() constructs a
   // function-local static whose destructor deletes the DSP source that its own
   // sound member still refers to, so the tone is stopped and drained here
@@ -481,7 +528,43 @@ TEST_SUITE("devicelayer") {
     auto& master = YSE::DEVICE::Manager().getMaster();
     REQUIRE(master.GetBuffers().size() > 0);
 
-    YSE::INTERNAL::Test().On(true);
+    // Zero the master mix before every probed block. Two facts make this
+    // mandatory rather than tidy: the paCallback case above writes a hand-made
+    // non-zero pattern straight into these buffers, and with no sound alive
+    // doOnCallback() gates the render off entirely — so nothing ever overwrites
+    // that pattern. Probing the buffer as-found therefore reports "signal"
+    // whatever AudioTest() did, which is precisely how the #570 no-op stayed
+    // invisible: the case passed in a full-suite run while failing when run
+    // alone. Clearing first makes every non-zero sample below attributable to
+    // the block that was just rendered.
+    auto silenceMaster = [&master]() {
+      for (size_t c = 0; c < master.GetBuffers().size(); ++c) {
+        float* p = master.GetBuffers()[c].getPtr();
+        const UInt len = master.GetBuffers()[c].getLength();
+        for (UInt i = 0; i < len; ++i)
+          p[i] = 0.f;
+      }
+    };
+    auto renderedSignal = [&master]() {
+      bool sawSignal = false;
+      const float* p = master.GetBuffers()[0].getPtr();
+      const UInt len = master.GetBuffers()[0].getLength();
+      for (UInt i = 0; i < len; ++i) {
+        CHECK(std::isfinite(p[i]));
+        if (std::fabs(p[i]) > 1e-6f) sawSignal = true;
+      }
+      return sawSignal;
+    };
+
+    // Baseline: with the tone off, a cleared master stays silent across a
+    // render. This is what gives the positive assertion below its meaning — if
+    // some earlier case left a source running, this fails and says so instead
+    // of quietly standing in for the tone.
+    silenceMaster();
+    YSE::System().renderOffline(1);
+    REQUIRE_FALSE(renderedSignal());
+
+    YSE::System().AudioTest(true);
     pump();
 
     // The shepard tone is 11 parallel sine octaves through a low-pass; a few
@@ -490,17 +573,13 @@ TEST_SUITE("devicelayer") {
     // the mixer's gain staging, which belongs to the channel suite.
     bool sawSignal = false;
     for (int block = 0; block < 32 && !sawSignal; ++block) {
+      silenceMaster();
       YSE::System().renderOffline(1);
-      const float* p = master.GetBuffers()[0].getPtr();
-      const UInt len = master.GetBuffers()[0].getLength();
-      for (UInt i = 0; i < len; ++i) {
-        CHECK(std::isfinite(p[i]));
-        if (std::fabs(p[i]) > 1e-6f) sawSignal = true;
-      }
+      sawSignal = renderedSignal();
     }
     CHECK(sawSignal);
 
-    YSE::INTERNAL::Test().On(false);
+    YSE::System().AudioTest(false);
     pump();
   }
 

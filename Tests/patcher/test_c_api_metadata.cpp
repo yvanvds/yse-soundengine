@@ -51,6 +51,61 @@ TEST_SUITE("patcher") {
     CHECK(c_api_names == registry_names);
   }
 
+  // Regression test for issue #624. The two audio I/O objects are built by a
+  // special case in patcherImplementation::CreateObjectUnlocked rather than
+  // through the registry, and ~dac was never registered at all — so a UI
+  // building its object palette from this metadata (the documented use) could
+  // not offer or resolve the one object every audible patch needs. The
+  // enumeration test above compares the C API against the registry, so it stays
+  // green either way; only naming the types catches the omission.
+  TEST_CASE("c-api metadata: the audio I/O objects ~dac and ~adc are enumerated (#624)") {
+    const int n = yse_patcher_get_type_count();
+    REQUIRE(n > 0);
+
+    std::set<std::string> names;
+    for (int i = 0; i < n; ++i) {
+      names.insert(yse_patcher_get_type_name(i));
+    }
+
+    for (const char* io : {"~dac", "~adc"}) {
+      CAPTURE(io);
+      CHECK(names.count(io) == 1);
+      CHECK(yse_patcher_is_valid_object(io) == 1);
+      CHECK(yse_patcher_get_type_category(io) != YSE_PCAT_UNSET);
+      CHECK(yse_patcher_get_type_is_dsp(io) == 1);
+      const char* desc = yse_patcher_get_type_description(io);
+      REQUIRE(desc != nullptr);
+      CHECK(std::strlen(desc) > 0);
+    }
+
+    // ~dac is the graph's sink — audio channels in, nothing out. ~adc mirrors
+    // it. Their documented ports must be readable through the palette API too,
+    // not just their names.
+    CHECK(yse_patcher_get_inlet_count("~dac") > 0);
+    CHECK(yse_patcher_get_outlet_count("~dac") == 0);
+    CHECK(yse_patcher_get_inlet_count("~adc") == 0);
+    CHECK(yse_patcher_get_outlet_count("~adc") > 0);
+
+    const char* label = nullptr;
+    const char* doc = nullptr;
+    const char* range = nullptr;
+    unsigned int accepts = 0;
+    yse_patcher_get_inlet_info("~dac", 0, &label, &doc, &range, &accepts);
+    REQUIRE(label != nullptr);
+    REQUIRE(doc != nullptr);
+    CHECK(std::strlen(label) > 0);
+    CHECK(std::strlen(doc) > 0);
+
+    // The bulk-JSON route a binding is likelier to use must carry them as well.
+    char* json = yse_patcher_get_metadata_json();
+    REQUIRE(json != nullptr);
+    auto parsed = nlohmann::json::parse(json, nullptr, false);
+    yse_free_string(json);
+    REQUIRE_FALSE(parsed.is_discarded());
+    CHECK(parsed.find("~dac") != parsed.end());
+    CHECK(parsed.find("~adc") != parsed.end());
+  }
+
   TEST_CASE("c-api metadata: every type exposes a populated description and category") {
     const int n = yse_patcher_get_type_count();
     for (int i = 0; i < n; ++i) {

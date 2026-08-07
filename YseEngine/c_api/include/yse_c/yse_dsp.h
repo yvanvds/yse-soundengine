@@ -2,11 +2,28 @@
   yse_dsp.h — single-channel audio buffers + buffer subclasses.
   C ABI mirror of YseEngine/dsp/{buffer,drawableBuffer,fileBuffer,wavetable}.hpp.
 
-  One opaque handle type YseDspBuffer covers all four subclasses; the
-  subclass-specific entry points (drawLine, load/save, createSaw, ...)
-  dynamic_cast<> internally and report YSE_ERR_INVALID_HANDLE when the
-  handle isn't of the expected type. Callers always know which subclass
-  they created, so the cast cost is only paid as a safety net.
+  One opaque handle type YseDspBuffer covers all four subclasses, which
+  form a single non-polymorphic inheritance chain:
+
+      buffer <- drawableBuffer <- fileBuffer <- wavetable
+
+  DSP::buffer has no virtual members, so there is no runtime type check to
+  perform: the subclass-specific entry points (drawLine, load/save,
+  createSaw, ...) static_cast the handle and trust the caller. On those
+  functions YSE_ERR_INVALID_HANDLE means the handle was NULL and nothing
+  else — it is never a type-confusion guard, so do not build one on top of
+  it.
+
+  Because the chain is linear, a handle is valid for its own entry points
+  and for those of every base: a wavetable handle may be passed to the
+  drawable and fileBuffer functions, and a fileBuffer handle to the drawable
+  ones. Narrowing the other way is undefined behaviour — a plain
+  yse_dsp_buffer_create() handle passed to yse_dsp_buffer_draw_line(), or a
+  fileBuffer handle passed to yse_dsp_wavetable_create_saw(), returns YSE_OK
+  and writes through the static_cast, exactly as
+  reinterpret_cast<wavetable*>() on a plain buffer would in C++. Bindings
+  must enforce the subclass themselves by remembering which constructor
+  produced the handle.
 
   Custom DSP source objects (subclassing dspSourceObject) are not yet
   wrapped — that surface needs audio-thread callbacks, which lands in a
@@ -22,9 +39,12 @@
 extern "C" {
 #endif
 
-/* Owned — release with yse_dsp_buffer_destroy. Covers all four buffer
-   subclasses (plain, drawable, file, wavetable); the same destroy frees
-   the correct backing storage via dynamic_cast. */
+/* Owned — release with yse_dsp_buffer_destroy, whichever of the four
+   constructors produced it. destroy deletes through a DSP::buffer*: no type
+   check is involved and none is possible, but no subclass in the chain is
+   polymorphic or declares a destructor, so the base destructor releases the
+   sample storage in every case. (It is still a delete through a non-virtual
+   base — tracked as issue #662.) */
 typedef struct YseDspBuffer YseDspBuffer;
 
 /* Constructors — one per subclass. The returned handle owns its native

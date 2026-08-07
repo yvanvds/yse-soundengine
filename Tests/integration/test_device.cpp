@@ -151,6 +151,39 @@ TEST_SUITE("integration") {
     CHECK_FALSE(YSE::System().getDefaultDevice().empty());
   }
 
+  // The scalar half of a real, hardware-enumerated descriptor (issue #569).
+  // This is the only place the assertion means anything: the devicelayer suite
+  // runs the offline engine, which skips Pa_Initialize on purpose, so its
+  // device list is empty and any loop over it is vacuous. Here PortAudio is
+  // initialised against the machine's actual hardware and updateDeviceList()
+  // has walked every device the host reports.
+  //
+  // updateDeviceList() sets ID and both latencies from PaDeviceInfo but never
+  // calls setDefaultBufferSize(), because PaDeviceInfo carries no equivalent
+  // field. Before the descriptor's members were initialised, that field was
+  // whatever happened to be in the freshly-pushed vector slot — the bug's
+  // user-visible face, since System().getDevice(n).getDefaultBufferSize() is
+  // what a host reads to size its own buffers, and yse_device_default_buffer_
+  // size() forwards it verbatim to FFI consumers. It must now read 0 for every
+  // enumerated device, meaning "unspecified — the backend picks".
+  TEST_CASE("device: enumerated devices report a defined, unspecified buffer size [issue #569]") {
+    if (!TestHelpers::engineInit()) return;
+    const unsigned int n = YSE::System().getNumDevices();
+    if (n == 0) return;
+
+    for (unsigned int i = 0; i < n; i++) {
+      const YSE::device& d = YSE::System().getDevice(i);
+      CHECK(d.getDefaultBufferSize() == 0);
+      // Set from the PortAudio device index, so it identifies this slot rather
+      // than carrying the constructor's default through.
+      CHECK(d.getID() == (int)i);
+      // Latencies come from PaDeviceInfo's defaultLow*Latency, which is never
+      // negative; an indeterminate read was free to be.
+      CHECK(d.getInputLatency() >= 0);
+      CHECK(d.getOutputLatency() >= 0);
+    }
+  }
+
   // ─── MIDI device enumeration (gated on YSE_ENABLE_MIDI_DEVICE) ───────────────
 
 #if YSE_WINDOWS && YSE_ENABLE_MIDI_DEVICE

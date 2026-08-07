@@ -15,6 +15,10 @@
   bound-checked: an index at or beyond the matching yse_device_num_*() count
   yields the same result as a NULL handle — an empty out buffer and a return
   of 0 / 0.0 — so iterating with a stale count is safe.
+
+  The scalar getters below always report a defined value: a descriptor starts
+  with all four at 0 and the engine only ever overwrites them with real data,
+  so there is no indeterminate read to guard against.
 */
 
 #ifndef YSE_C_DEVICE_H_INCLUDED
@@ -50,6 +54,11 @@ YSE_C_API double yse_device_get_sample_rate(YseDevice* dev, unsigned int idx);
 YSE_C_API unsigned int yse_device_num_buffer_sizes(YseDevice* dev);
 YSE_C_API int yse_device_get_buffer_size(YseDevice* dev, unsigned int idx);
 
+/* 0 from yse_device_default_buffer_size() means "the host does not advertise
+   one", not "zero frames": passed on to yse_device_setup_set_buffer_size() it
+   asks the backend to choose. The PortAudio enumerator reports 0 for every
+   device (PaDeviceInfo has no equivalent field), so read the negotiated size
+   back from yse_system_get_active_buffer_size() once the device is open. */
 YSE_C_API int yse_device_default_buffer_size(YseDevice* dev);
 YSE_C_API int yse_device_output_latency(YseDevice* dev);
 YSE_C_API int yse_device_input_latency(YseDevice* dev);

@@ -279,15 +279,40 @@ TEST_SUITE("capilowcov") {
     CHECK(yse_dsp_buffer_load_file(buf, wav.c_str(), 1) == YSE_ERR_FILE_NOT_FOUND);
     yse_clear_last_error();
 
-    // save() is currently a stub in the engine (fileBuffer::save writes nothing
-    // and returns true — the JUCE writer it replaced was never ported, issue
-    // #580). Only the C-side contract is asserted here; a round-trip through
-    // the file would be asserting the stub.
+    // save() writes a real file now (issue #580 — it used to write nothing and
+    // report YSE_OK), so this is a full round trip: save the loaded fixture,
+    // read it back through a second buffer, and compare.
     const std::filesystem::path tmp =
-        std::filesystem::temp_directory_path() / "yse_c_api_filebuffer_568";
-    CHECK(yse_dsp_buffer_save_file(buf, tmp.string().c_str()) == YSE_OK);
+        std::filesystem::temp_directory_path() / "yse_c_api_filebuffer_580.wav";
     std::error_code ec;
-    std::filesystem::remove(tmp.string() + ".wav", ec); // best effort
+    std::filesystem::remove(tmp, ec); // best effort: start from a clean slate
+    REQUIRE(yse_dsp_buffer_save_file(buf, tmp.string().c_str()) == YSE_OK);
+    REQUIRE(std::filesystem::exists(tmp));
+    CHECK(std::filesystem::file_size(tmp) > 0u);
+    // The path is used verbatim: no silent ".wav" appended on top of it.
+    CHECK_FALSE(std::filesystem::exists(tmp.string() + ".wav"));
+
+    const unsigned int saved_length = yse_dsp_buffer_length(buf);
+    std::vector<float> before(saved_length);
+    REQUIRE(yse_dsp_buffer_read(buf, 0, before.data(), saved_length) == saved_length);
+
+    YseDspBuffer* reloaded = yse_dsp_file_buffer_create(8, 0);
+    REQUIRE(reloaded != nullptr);
+    REQUIRE(yse_dsp_buffer_load_file(reloaded, tmp.string().c_str(), 0) == YSE_OK);
+    CHECK(yse_dsp_buffer_length(reloaded) == saved_length);
+    std::vector<float> after(saved_length);
+    REQUIRE(yse_dsp_buffer_read(reloaded, 0, after.data(), saved_length) == saved_length);
+    // Float WAV is lossless, so the samples come back exactly as written.
+    bool identical = true;
+    for (unsigned int i = 0; i < saved_length; ++i) {
+      if (before[i] != after[i]) {
+        identical = false;
+        break;
+      }
+    }
+    CHECK(identical);
+    yse_dsp_buffer_destroy(reloaded);
+    std::filesystem::remove(tmp, ec); // best effort
 
     yse_dsp_buffer_destroy(buf);
   }
@@ -304,6 +329,59 @@ TEST_SUITE("capilowcov") {
     CHECK(yse_dsp_buffer_is_silent(table) == 0);
 
     CHECK(yse_dsp_wavetable_create_triangle(table, 8, 64) == YSE_OK);
+    CHECK(yse_dsp_buffer_is_silent(table) == 0);
+
+    yse_dsp_buffer_destroy(table);
+  }
+
+  TEST_CASE("c-api dsp buffer: subclass entry points accept any handle further down the chain") {
+    // Issue #582: yse_dsp.h used to promise that the subclass-specific entry
+    // points dynamic_cast<> and answer YSE_ERR_INVALID_HANDLE on a mismatch.
+    // They cannot — DSP::buffer is not polymorphic — so the header now
+    // documents the real contract: the four engine types form the linear chain
+    // buffer <- drawableBuffer <- fileBuffer <- wavetable, a handle is valid
+    // for its own entry points and every base's, and INVALID_HANDLE means NULL
+    // and nothing else. This case pins the widening half, which is well
+    // defined. The narrowing half (a plain buffer handle passed to draw_line)
+    // is undefined behaviour by that same contract and is deliberately not
+    // exercised here.
+
+    // A fileBuffer is a drawableBuffer: the drawing entry points work on it.
+    YseDspBuffer* file = yse_dsp_file_buffer_create(16, 0);
+    REQUIRE(file != nullptr);
+    CHECK(yse_dsp_buffer_draw_flat(file, 0, 16, 0.5f) == YSE_OK);
+    float out[16] = {};
+    REQUIRE(yse_dsp_buffer_read(file, 0, out, 16) == 16u);
+    CHECK(out[0] == doctest::Approx(0.5f));
+    CHECK(out[15] == doctest::Approx(0.5f));
+    yse_dsp_buffer_destroy(file);
+
+    // A wavetable is a fileBuffer and therefore also a drawableBuffer: the
+    // drawing *and* the file entry points work on it, alongside its own
+    // generators.
+    YseDspBuffer* table = yse_dsp_wavetable_create(16);
+    REQUIRE(table != nullptr);
+
+    CHECK(yse_dsp_buffer_draw_line(table, 0, 16, 0.0f, 1.0f) == YSE_OK);
+    REQUIRE(yse_dsp_buffer_read(table, 0, out, 16) == 16u);
+    CHECK(out[0] == doctest::Approx(0.0f));
+    CHECK(out[15] > out[8]); // the ramp really was written
+
+    const std::string wav = fixture("test_mono_44100.wav");
+    REQUIRE(yse_dsp_buffer_load_file(table, wav.c_str(), 0) == YSE_OK);
+    CHECK(yse_dsp_buffer_length(table) > 0u);
+    CHECK(yse_dsp_buffer_sample_rate_adjustment(table) > 0.0f);
+
+    const std::filesystem::path tmp =
+        std::filesystem::temp_directory_path() / "yse_c_api_wavetable_582.wav";
+    std::error_code ec;
+    std::filesystem::remove(tmp, ec); // best effort: start from a clean slate
+    CHECK(yse_dsp_buffer_save_file(table, tmp.string().c_str()) == YSE_OK);
+    CHECK(std::filesystem::exists(tmp));
+    std::filesystem::remove(tmp, ec); // best effort
+
+    // Its own generators still work after the base-class detour.
+    CHECK(yse_dsp_wavetable_create_saw(table, 8, 16) == YSE_OK);
     CHECK(yse_dsp_buffer_is_silent(table) == 0);
 
     yse_dsp_buffer_destroy(table);

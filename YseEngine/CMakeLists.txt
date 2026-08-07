@@ -221,8 +221,8 @@ set(YSE_SRCS
   utils/interpolators.cpp
   utils/vector.cpp
   # AudioTest.cpp was commented out in the original CMakeLists.txt but
-  # system.cpp calls YSE::INTERNAL::Test() (inside #ifdef __WINDOWS__), so
-  # the DLL fails to link without it.
+  # system.cpp calls YSE::INTERNAL::Test() unconditionally on every platform
+  # (issue #570), so the DLL fails to link without it.
   internal/AudioTest.cpp
   # patcher/midi objects are registered unconditionally in pRegistry.cpp.
   patcher/midi/mMidiChannelPressure.cpp

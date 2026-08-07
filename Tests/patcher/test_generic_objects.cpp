@@ -13,7 +13,10 @@
 // timerThread is constructed.
 
 #include <doctest/doctest.h>
+#include <atomic>
+#include <chrono>
 #include <string>
+#include <thread>
 #include "patcher/patcher.hpp"
 #include "patcher/patcherImplementation.h"
 #include "patcher/pHandle.hpp"
@@ -28,6 +31,43 @@
 
 using TestHelpers::BangSink;
 using TestHelpers::MultiSink;
+
+using namespace std::chrono_literals;
+
+namespace {
+
+  // BangSink counts with a plain int, which is fine while the sends come from
+  // the test thread.  A *running* metro bangs from the TimerThread worker, so
+  // the live-period tests below need a counter that both threads may touch.
+  struct AtomicBangSink : YSE::PATCHER::pObject {
+    std::atomic<int> bangCount{0};
+    AtomicBangSink() : pObject(false) {
+      inputs.emplace_back(this, true, 0);
+      inputs.back().RegisterBang(
+          [this](int, YSE::THREAD) { bangCount.fetch_add(1, std::memory_order_relaxed); });
+    }
+    const char* Type() const override {
+      return "atomic_bang_sink";
+    }
+    void Calculate(YSE::THREAD) override {}
+    void SetMessage(const std::string&, float) override {}
+    int count() const {
+      return bangCount.load(std::memory_order_relaxed);
+    }
+  };
+
+  // Poll `pred` every millisecond up to `budgetMs`, so a test finishes as soon
+  // as the metro delivers rather than sleeping a fixed worst case.
+  template <typename P> bool waitFor(P pred, int budgetMs = 1000) {
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(budgetMs);
+    while (std::chrono::steady_clock::now() < deadline) {
+      if (pred()) return true;
+      std::this_thread::sleep_for(1ms);
+    }
+    return pred();
+  }
+
+} // namespace
 
 TEST_SUITE("patcher") {
 
@@ -495,6 +535,101 @@ TEST_SUITE("patcher") {
     CHECK(sink.bangCount >= 2);
 
     metro.GetInlet(0)->SetInt(0, YSE::T_GUI); // stop before destruction
+  }
+
+  // ─── gMetro: live period changes (issue #625) ────────────────────────────────
+  //
+  // The timer used to keep the interval it was scheduled with, so every
+  // documented way of setting the period was inert while the metro ran and only
+  // a Toggle 0 → 1 cycle re-applied it.  The two routes into `period` behave
+  // differently on purpose and both are pinned here:
+  //
+  //   * the cold inlet runs on the caller's thread and reschedules eagerly, so
+  //     the new interval is in force before the call returns;
+  //   * a live SetParams stores into `period` from the audio thread and can
+  //     notify nobody, so Bang() picks it up — the running cycle finishes at the
+  //     old interval and every cycle after it uses the new one.
+  //
+  // Neither restarts the metro: the phase is kept, so a tempo tweak does not
+  // re-trigger whatever the bang drives.
+
+  TEST_CASE("gMetro: shrinking the period through the cold inlet retimes a running metro (#625)") {
+    YSE::PATCHER::gMetro metro;
+    AtomicBangSink sink;
+    metro.ConnectOutlet(sink.GetInlet(0), 0);
+    sink.ConnectInlet(metro.GetOutlet(0), 0);
+
+    // 5s cycle: with the old copy-at-start behaviour nothing can bang again
+    // inside this test, so every tick observed below comes from the reschedule.
+    metro.GetInlet(1)->SetInt(5000, YSE::T_GUI);
+    metro.GetInlet(0)->SetInt(1, YSE::T_GUI); // start; immediate bang
+    REQUIRE(sink.count() == 1);
+
+    std::this_thread::sleep_for(30ms);
+    metro.GetInlet(1)->SetInt(10, YSE::T_GUI);
+
+    // 30ms of the cycle has already elapsed and the new interval is 10ms, so
+    // the re-anchored expiry is in the past: the metro fires as soon as the
+    // worker wakes instead of skipping the beat.
+    CHECK(waitFor([&] { return sink.count() >= 2; }, 500));
+
+    // ... and keeps the new rate: ~20 bangs fit in a 200ms window at 10ms,
+    // against at most one at the original 5s.
+    const int base = sink.count();
+    std::this_thread::sleep_for(200ms);
+    CHECK(sink.count() - base >= 6);
+
+    metro.GetInlet(0)->SetInt(0, YSE::T_GUI); // stop before destruction
+  }
+
+  TEST_CASE("gMetro: growing the period through the cold inlet defers the next bang (#625)") {
+    YSE::PATCHER::gMetro metro;
+    AtomicBangSink sink;
+    metro.ConnectOutlet(sink.GetInlet(0), 0);
+    sink.ConnectInlet(metro.GetOutlet(0), 0);
+
+    metro.GetInlet(1)->SetInt(10, YSE::T_GUI);
+    metro.GetInlet(0)->SetInt(1, YSE::T_GUI);
+    REQUIRE(waitFor([&] { return sink.count() >= 3; }, 1000));
+
+    metro.GetInlet(1)->SetFloat(5000.f, YSE::T_GUI); // float inlet takes the same path
+    std::this_thread::sleep_for(30ms); // let a tick already in flight land
+    const int settled = sink.count();
+    std::this_thread::sleep_for(150ms);
+    CHECK(sink.count() == settled);
+
+    metro.GetInlet(0)->SetInt(0, YSE::T_GUI);
+  }
+
+  TEST_CASE("gMetro: a live SetParams re-parse retimes a running metro (#625)") {
+    // The user-visible flow behind yvanvds/phi#438: a metro wired up inside a
+    // real patcher, started, and then re-argued from the object box while it
+    // runs.  `period` is a scalar param, so SetParams takes the RT-safe queued
+    // route and lands on the audio thread — no inlet handler is involved at all.
+    YSE::PATCHER::patcherImplementation p(1, nullptr);
+    YSE::pHandle* metro = p.CreateObject(YSE::OBJ::G_METRO, "150");
+    REQUIRE(metro != nullptr);
+
+    AtomicBangSink sink;
+    YSE::pHandle hSink(&sink);
+    p.Connect(metro, 0, &hSink, 0);
+    p.Calculate(YSE::T_DSP);
+
+    metro->SetIntData(0, 1); // start; immediate bang
+    REQUIRE(sink.count() == 1);
+
+    metro->SetParams("10");
+    CHECK(metro->GetParams() == "10");
+    p.Calculate(YSE::T_DSP); // audio thread applies the queued scalar store
+
+    // The cycle in flight still runs out at 150ms; from the tick that ends it
+    // the metro is on 10ms.  Wait for that tick, then measure the rate.
+    REQUIRE(waitFor([&] { return sink.count() >= 2; }, 2000));
+    const int base = sink.count();
+    std::this_thread::sleep_for(200ms);
+    CHECK(sink.count() - base >= 6); // ~20 at 10ms; at most 2 at the old 150ms
+
+    metro->SetIntData(0, 0);
   }
 
 } // TEST_SUITE("patcher")
