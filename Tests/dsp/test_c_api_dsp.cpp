@@ -334,6 +334,59 @@ TEST_SUITE("capilowcov") {
     yse_dsp_buffer_destroy(table);
   }
 
+  TEST_CASE("c-api dsp buffer: subclass entry points accept any handle further down the chain") {
+    // Issue #582: yse_dsp.h used to promise that the subclass-specific entry
+    // points dynamic_cast<> and answer YSE_ERR_INVALID_HANDLE on a mismatch.
+    // They cannot — DSP::buffer is not polymorphic — so the header now
+    // documents the real contract: the four engine types form the linear chain
+    // buffer <- drawableBuffer <- fileBuffer <- wavetable, a handle is valid
+    // for its own entry points and every base's, and INVALID_HANDLE means NULL
+    // and nothing else. This case pins the widening half, which is well
+    // defined. The narrowing half (a plain buffer handle passed to draw_line)
+    // is undefined behaviour by that same contract and is deliberately not
+    // exercised here.
+
+    // A fileBuffer is a drawableBuffer: the drawing entry points work on it.
+    YseDspBuffer* file = yse_dsp_file_buffer_create(16, 0);
+    REQUIRE(file != nullptr);
+    CHECK(yse_dsp_buffer_draw_flat(file, 0, 16, 0.5f) == YSE_OK);
+    float out[16] = {};
+    REQUIRE(yse_dsp_buffer_read(file, 0, out, 16) == 16u);
+    CHECK(out[0] == doctest::Approx(0.5f));
+    CHECK(out[15] == doctest::Approx(0.5f));
+    yse_dsp_buffer_destroy(file);
+
+    // A wavetable is a fileBuffer and therefore also a drawableBuffer: the
+    // drawing *and* the file entry points work on it, alongside its own
+    // generators.
+    YseDspBuffer* table = yse_dsp_wavetable_create(16);
+    REQUIRE(table != nullptr);
+
+    CHECK(yse_dsp_buffer_draw_line(table, 0, 16, 0.0f, 1.0f) == YSE_OK);
+    REQUIRE(yse_dsp_buffer_read(table, 0, out, 16) == 16u);
+    CHECK(out[0] == doctest::Approx(0.0f));
+    CHECK(out[15] > out[8]); // the ramp really was written
+
+    const std::string wav = fixture("test_mono_44100.wav");
+    REQUIRE(yse_dsp_buffer_load_file(table, wav.c_str(), 0) == YSE_OK);
+    CHECK(yse_dsp_buffer_length(table) > 0u);
+    CHECK(yse_dsp_buffer_sample_rate_adjustment(table) > 0.0f);
+
+    const std::filesystem::path tmp =
+        std::filesystem::temp_directory_path() / "yse_c_api_wavetable_582.wav";
+    std::error_code ec;
+    std::filesystem::remove(tmp, ec); // best effort: start from a clean slate
+    CHECK(yse_dsp_buffer_save_file(table, tmp.string().c_str()) == YSE_OK);
+    CHECK(std::filesystem::exists(tmp));
+    std::filesystem::remove(tmp, ec); // best effort
+
+    // Its own generators still work after the base-class detour.
+    CHECK(yse_dsp_wavetable_create_saw(table, 8, 16) == YSE_OK);
+    CHECK(yse_dsp_buffer_is_silent(table) == 0);
+
+    yse_dsp_buffer_destroy(table);
+  }
+
   // ═══ yse_dsp_modules.cpp — effect modules ═════════════════════════════════
 
   TEST_CASE("c-api dsp module: every no-arg constructor yields a destroyable handle") {
