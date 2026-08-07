@@ -64,8 +64,19 @@
 #include "internal/AudioTest.h"
 #include "sound/soundInterface.hpp"
 
+// DEVICE::Manager() returns a managerObject&, so every use of it below — even
+// the backend-agnostic getMaster() inherited from deviceManager — needs the
+// concrete manager complete. That class is declared per backend, so mirror
+// YseEngine/internalHeaders.h and include whichever one this build selects
+// rather than relying on the desktop include chain to drag it in (issue #622).
+// PORTAUDIO_BACKEND is set for this TU by Tests/CMakeLists.txt on desktop;
+// YSE_ANDROID comes from headers/defines.hpp via yse.hpp above.
 #ifdef PORTAUDIO_BACKEND
 #include "device/portaudioDeviceManager.h"
+#endif
+
+#if YSE_ANDROID
+#include "device/androidDeviceManager.h"
 #endif
 
 namespace {
