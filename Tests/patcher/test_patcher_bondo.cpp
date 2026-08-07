@@ -659,15 +659,16 @@ TEST_SUITE("patcher") {
 
   // ─── the delay argument ─────────────────────────────────────────────────────
 
-  TEST_CASE("bondo: the delay argument is reported but not honoured (#474)") {
-    // Read rather than silently ignored, so a patch written for Max keeps its
-    // argument positions and the refusal is visible from outside the object.
+  TEST_CASE("bondo: standalone, the delay argument falls back to an immediate release (#628)") {
+    // The delay is honoured through the owning patcher's deferred-message
+    // scheduler (#628) — see test_message_scheduler.cpp for that path. A
+    // standalone object has no patcher and therefore no dispatch to defer
+    // into, so the argument is still read (RequestedDelay reports it, keeping
+    // Max's argument positions) and the release is immediate.
     Rig rig("2 250");
     CHECK(rig.op->PortCount() == 2);
     CHECK(rig.op->RequestedDelay() == 250);
 
-    // The release is immediate — synchronous with the message that caused it,
-    // in the same call frame, which is what the delay would have broken.
     rig.SendInt(0, 3);
     CHECK(rig.Total() == 2);
     CHECK(rig.At(0).lastInt == 3);

@@ -79,6 +79,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_match.cpp
   patcher/test_patcher_uzi.cpp
   patcher/test_patcher_bondo.cpp
+  patcher/test_message_scheduler.cpp
   patcher/test_patcher_slide.cpp
   patcher/test_patcher_expr.cpp
   patcher/test_patcher_vexpr.cpp
@@ -799,6 +800,7 @@ set_source_files_properties(
   patcher/test_patcher_match.cpp
   patcher/test_patcher_uzi.cpp
   patcher/test_patcher_bondo.cpp
+  patcher/test_message_scheduler.cpp
   patcher/test_patcher_slide.cpp
   patcher/test_patcher_expr.cpp
   patcher/test_patcher_vexpr.cpp

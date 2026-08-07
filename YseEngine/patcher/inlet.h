@@ -48,6 +48,30 @@ namespace YSE {
      */
     std::uint64_t CurrentMessageEvent();
 
+    /**
+     *  @brief RAII dispatch frame for a delivery that does not enter through an
+     *         ``inlet::Set*`` call — the deferred-message scheduler's drain
+     *         (issue #628).
+     *
+     *  The outermost scope opened on a thread starts a new logical event;
+     *  nested scopes share it. This is exactly the frame the inlet setters open
+     *  around their handlers, exported so the scheduler can hand a deferred
+     *  delivery a proper event id: without it, each message a deferred send
+     *  causes would open its *own* event at the first inlet it reaches, and a
+     *  multi-outlet release (``.bondo``) would read as several unrelated
+     *  stimuli to a downstream ``.next``.
+     *
+     *  RT-safe on every path — the same thread-local counter argument as
+     *  CurrentMessageEvent() above; see inlet.cpp.
+     */
+    class messageEventScope {
+    public:
+      messageEventScope();
+      ~messageEventScope();
+      messageEventScope(const messageEventScope&) = delete;
+      messageEventScope& operator=(const messageEventScope&) = delete;
+    };
+
     typedef std::function<void(float, int, THREAD)> floatFunc;
     typedef std::function<void(int, int, THREAD)> intFunc;
     typedef std::function<void(int, THREAD)> voidFunc;

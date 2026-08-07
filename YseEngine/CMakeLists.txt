@@ -191,6 +191,7 @@ set(YSE_SRCS
   patcher/pObject.cpp
   patcher/pRegistry.cpp
   patcher/time/gMetro.cpp
+  patcher/time/messageScheduler.cpp
   patcher/time/TimerThread.cpp
   player/playerImplementation.cpp
   player/playerInterface.cpp
@@ -380,6 +381,7 @@ set_source_files_properties(
   patcher/midi/mMidiPolyPressure.cpp
   patcher/midi/mMidiProgramChange.cpp
   patcher/time/gMetro.cpp
+  patcher/time/messageScheduler.cpp
   PROPERTIES COMPILE_FLAGS "${PATCHER_SUPPRESS}"
 )
 

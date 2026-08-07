@@ -5,6 +5,7 @@
 #include "../dsp/buffer.hpp"
 #include "patcher.hpp"
 #include "graphState.h"
+#include "time/messageScheduler.h"
 #include "../utils/mpmcQueue.hpp"
 #include "../internal/threadPool.h"
 #include <atomic>
@@ -126,6 +127,14 @@ namespace YSE {
       bool PassData(const std::string& value, const std::string& to, THREAD thread);
 
       void SetHandler(oscHandler* handler);
+
+      // The patcher's deferred-message scheduler (issue #628). Objects reach it
+      // through pObject::Scheduler() to arm "send this, but later" from a
+      // message handler on any thread; Calculate drains what has come due at
+      // the top of every block, right after the #225 value queue.
+      messageScheduler* Scheduler() {
+        return &scheduler_;
+      }
 
     private:
       // Kinds of deferred value message carried on the SPSC command queue
@@ -293,6 +302,11 @@ namespace YSE {
       // Monotonic count of rendered blocks; the reclaimer reads it (acquire) to
       // tell when the audio thread has advanced past a retired snapshot.
       std::atomic<std::uint64_t> audioBlock_{0};
+
+      // Deferred-message pending set (issue #628). Declared after audioBlock_
+      // on purpose: the scheduler holds a reference to it as its block clock,
+      // so it must be constructed after and destroyed before the counter.
+      messageScheduler scheduler_{audioBlock_};
 
       // A deleted object awaiting reclamation. `epoch` is the block count at
       // retirement (the +2 grace is measured from it). `idGen` is the id-space

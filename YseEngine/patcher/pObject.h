@@ -27,6 +27,8 @@ namespace YSE {
 
     struct GraphState;
     class patcherImplementation;
+    class messageScheduler;
+    struct deferredMessage;
 
     typedef std::function<void(int, int)> intCallbackFunc;
     typedef std::function<void(int, float)> floatCallbackFunc;
@@ -41,6 +43,19 @@ namespace YSE {
       // patcher (standalone / unit-test use). Outlets and inlets consult it to
       // resolve topology on the audio thread without a lock (issue #226).
       const GraphState* CurrentBlockGraph() const;
+
+      // The owning patcher's deferred-message scheduler (issue #628), or null
+      // for a standalone object / the patcher itself. RT-safe on any thread —
+      // one pointer hop, like CurrentBlockGraph() — so a message handler may
+      // call it mid-dispatch to arm a deferral.
+      messageScheduler* Scheduler() const;
+
+      // Deferred-message delivery (issue #628). Called by the scheduler on the
+      // patcher's dispatch thread, inside a fresh messageEventScope, when a
+      // message this object armed comes due. Default: ignore — only objects
+      // that schedule ever receive one. Everything RT-applicable applies: no
+      // allocation, no locks, no I/O.
+      virtual void DeliverDeferred(const deferredMessage& msg, THREAD thread);
 
       // Detach this object from every peer it is wired to, without freeing it,
       // so the next GraphState holds no reference to it (issue #226).
