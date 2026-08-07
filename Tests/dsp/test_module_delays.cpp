@@ -200,6 +200,46 @@ TEST_SUITE("dsp") {
     CHECK(echoBlock <= expectedBlock + 2);
   }
 
+  TEST_CASE(
+      "basicDelay: growing the channel count preserves existing lines' history (issue #639)") {
+    // perChannel<delayChannel>::ensure() relocates existing states through
+    // DSP::delay's copy constructor when the channel count grows (the mono →
+    // stereo device-restart path). The old copy constructor constructed a
+    // throwaway temporary instead of copying, leaving the relocated line with
+    // an empty buffer and indeterminate bufferlength/phase — a wild read/write
+    // in process() and, at best, a silently erased delay line. Feed an impulse
+    // in mono, grow to stereo, and require the echo to surface on channel 0 at
+    // the expected block while the fresh channel 1 stays silent.
+    YSE::DSP::MODULES::basicDelay d;
+    using D = YSE::DSP::MODULES::basicDelay;
+    d.set(D::FIRST, 20.0f, 1.0f); // 20 ms = 960 samples = 7.5 blocks at 48 kHz
+
+    MULTICHANNELBUFFER buf(1);
+    buf[0].resize(128);
+    zeroFill(buf[0]);
+    buf[0].getPtr()[0] = 1.0f;
+    d.process(buf); // constructs channel 0's line and writes the impulse
+
+    // Mono → stereo: ensure() relocates channel 0's state through the copy
+    // constructor and default-constructs a fresh channel 1.
+    buf.resize(2);
+    buf[1].resize(128);
+
+    // The impulse sits at absolute sample 0; the 960-sample tap surfaces it
+    // in the 7th silent block (samples 896..1023, read offset 960 + block).
+    const int expectedBlock = 7;
+    int echoBlock = -1;
+    for (int b = 1; b <= expectedBlock + 3; ++b) {
+      zeroFill(buf[0]);
+      zeroFill(buf[1]);
+      d.process(buf);
+      CHECK(TestHelpers::measureRms(buf[1]) < 1e-4f); // fresh line: silent
+      if (echoBlock < 0 && TestHelpers::measureRms(buf[0]) > 1e-3f) echoBlock = b;
+    }
+    CHECK(echoBlock >= expectedBlock - 1);
+    CHECK(echoBlock <= expectedBlock + 1);
+  }
+
   TEST_CASE("basicDelay: process tolerates a change in input buffer length") {
     YSE::DSP::MODULES::basicDelay d;
     using D = YSE::DSP::MODULES::basicDelay;
