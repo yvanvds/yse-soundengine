@@ -4,6 +4,8 @@
 
 #include <doctest/doctest.h>
 #include <cmath>
+#include <cstring>
+#include <new>
 #include "dsp/lfo.hpp"
 #include "dsp/envelope.hpp"
 #include "headers/constants.hpp"
@@ -114,6 +116,42 @@ TEST_SUITE("dsp") {
     // used to leave at zero: a sine-table switch without the fill fix would
     // return 0.5 here instead of ~1.0.
     CHECK(ptr[blockSize - 1] > 0.99f);
+  }
+
+  TEST_CASE("lfo: LFO_SQUARE first block is defined even from dirtied storage (#644)") {
+    // Regression for issue #644: the constructor left lineLength,
+    // currentLineValue and previousLineValue indeterminate, and the
+    // LFO_SQUARE / LFO_RANDOM branch reads all three before its first-call
+    // reset assigns them. lineLength and currentLineValue are overwritten by
+    // the `previousType != type` reset, but when phaseLength fits inside one
+    // block the anti-click ramp starts from the indeterminate
+    // previousLineValue, so the first block could hold arbitrary garbage.
+    //
+    // Heap luck is not a test: construct the lfo in storage deliberately
+    // filled with 0x41 bytes (0x41414141 as float ~= 12.08), so on the
+    // unfixed engine the first ramp starts at ~12.08 and the bounds checks
+    // below fail deterministically.
+    alignas(YSE::DSP::lfo) unsigned char storage[sizeof(YSE::DSP::lfo)];
+    std::memset(storage, 0x41, sizeof(storage));
+    YSE::DSP::lfo* osc = new (storage) YSE::DSP::lfo();
+
+    // freq = SAMPLERATE / 128 makes phaseLength = 128 * 0.5 = 64 <= the
+    // 128-sample block, so the very first call takes the ramp-drawing branch
+    // that reads previousLineValue.
+    const float freq = static_cast<float>(YSE::SAMPLERATE) / 128.0f;
+    YSE::DSP::buffer& buf = (*osc)(YSE::DSP::LFO_SQUARE, freq, 128);
+    const float* ptr = buf.getPtr();
+    REQUIRE(buf.getLength() == 128);
+
+    // previousLineValue is initialised to 0, and drawLine writes its start
+    // value verbatim: the first sample of the first ramp is exactly 0.
+    CHECK(ptr[0] == 0.0f);
+    for (unsigned i = 0; i < buf.getLength(); ++i) {
+      CHECK(ptr[i] >= 0.0f);
+      CHECK(ptr[i] <= 1.0f);
+    }
+
+    osc->~lfo();
   }
 
   // ─── ADSRenvelope ─────────────────────────────────────────────────────────────

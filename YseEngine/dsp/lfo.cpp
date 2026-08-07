@@ -148,7 +148,19 @@ namespace {
 
 } // namespace
 
-YSE::DSP::lfo::lfo() : cursor(0.f), previousType(LFO_NONE) {
+// lineLength / currentLineValue / previousLineValue were left indeterminate
+// until issue #644: the LFO_SQUARE / LFO_RANDOM branch reads all three before
+// its first-call reset assigns them, which is UB on the audio thread. Zero is
+// behaviour-preserving there — `phaseLength < 0` is never true, and the
+// `previousType != type` reset overwrites lineLength / currentLineValue on the
+// first call anyway — while previousLineValue == 0.f makes the first block's
+// anti-click ramp start from a defined 0 instead of stack garbage.
+YSE::DSP::lfo::lfo()
+  : cursor(0.f),
+    previousType(LFO_NONE),
+    lineLength(0),
+    currentLineValue(0.f),
+    previousLineValue(0.f) {
   result = 1;
   buildLfoTables();
 }
