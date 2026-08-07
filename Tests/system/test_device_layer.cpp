@@ -154,9 +154,16 @@ namespace {
 
   SteadySource g_steady;
 
+#ifdef PORTAUDIO_BACKEND
+  // Mirrors the clamp paCallback applies on the way out. Its only caller is the
+  // mix-copy case below, which lives in this file's PORTAUDIO_BACKEND region —
+  // paCallback is declared in portaudioDeviceManager.h and has no Oboe
+  // counterpart. Gated on the same macro so the Android/Oboe build, where that
+  // region compiles out, does not carry an unused function (issue #631).
   float clampToUnit(float v) {
     return v < -1.f ? -1.f : (v > 1.f ? 1.f : v);
   }
+#endif
 
 } // namespace
 
