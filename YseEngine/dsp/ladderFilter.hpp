@@ -46,7 +46,12 @@ namespace YSE {
      *
      *  Cutoff changes are glided internally (a short one-pole smoother on the
      *  filter coefficient) so fast sweeps stay click-free — set a new cutoff
-     *  every block without zipper noise.
+     *  every block without zipper noise. The glide lasts ~1 ms of wall clock at
+     *  whatever rate the filter is run at: ``setCutoff``, ``reset`` and the
+     *  block-processing ``operator()`` each re-derive the glide coefficient if
+     *  the engine sample rate has changed since the last one (issue #634). A
+     *  caller that drives the per-sample ``process`` directly and never touches
+     *  the cutoff should call ``reset`` after a device restart at a new rate.
      *
      *  Real-time safe: allocates nothing, locks nothing. Construct off the
      *  audio thread; ``process`` / ``operator()`` run on the audio thread.
@@ -90,12 +95,14 @@ namespace YSE {
 
     private:
       void computeTargetG();
+      void updateSmoothCoef();
 
       Flt cutoffHz; // target cutoff (Hz)
       Flt resonance; // [0,1]
       Flt gTarget; // prewarped coefficient for cutoffHz
       Flt gCur; // smoothed coefficient actually used
       Flt smoothCoef; // per-sample glide coefficient for gCur
+      UInt coefRate; // SAMPLERATE smoothCoef was derived for (0 = underived)
       Flt s1, s2, s3, s4; // one-pole integrator states
     };
 
