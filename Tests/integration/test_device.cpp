@@ -28,6 +28,7 @@
 #include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <new>
 #include <vector>
 #include "yse.hpp"
 #include "support/null_device.hpp"
@@ -388,6 +389,75 @@ TEST_SUITE("integration") {
     s.stop();
 
     CHECK(g_probe.triggered.load(std::memory_order_relaxed));
+  }
+
+  // ─── moveTo() reparenting, end to end ────────────────────────────────────────
+
+  // Regression guard for #656. YSE::sound::_parent — the interface-side cache
+  // moveTo() compares against to skip redundant MOVE messages — had no
+  // initialiser, so on a freshly constructed sound it held whatever bytes
+  // happened to be at that address. When those bytes matched the move target,
+  // moveTo() short-circuited: no MOVE message, the sound stayed on the channel
+  // create() gave it, and the caller got silence on the channel it asked for.
+  //
+  // The repro makes that collision deterministic instead of waiting for luck:
+  // a first sound is built in a fixed block of storage and moved to `target`,
+  // which writes &target into the block's _parent slot; the sound under test is
+  // then placement-constructed over the *same* bytes. Before the fix its
+  // _parent read &target straight back. This is exercised end to end — real
+  // device, real audio callback — because "did the move actually happen?" is
+  // only answerable from the target channel's own output meter.
+  TEST_CASE("sound: first moveTo() reparents a freshly created sound [issue #656]") {
+    if (!TestHelpers::engineInitWithAudio()) return;
+    if (YSE::System().getNumDevices() == 0) return;
+    if (!audioStreamRunning()) return;
+
+    YSE::channel target;
+    target.create("move_target_656", YSE::ChannelMaster());
+    for (int i = 0; i < 10; i++) {
+      YSE::System().sleep(10);
+      YSE::System().update();
+    }
+    REQUIRE(target.isValid());
+    REQUIRE(target.getPeakLinearPost() == doctest::Approx(0.f));
+
+    // Sound-sized, sound-aligned block reused across both constructions. Static
+    // so the storage outlives the case even if an assertion unwinds early.
+    alignas(YSE::sound) static unsigned char storage[sizeof(YSE::sound)];
+
+    // Pass 1 — dirty the block: this sound's moveTo() stores &target in the
+    // _parent slot, and ~sound() leaves those bytes untouched.
+    {
+      YSE::sound* dirty = new (static_cast<void*>(storage)) YSE::sound();
+      dirty->create(g_source);
+      REQUIRE(dirty->isValid());
+      dirty->moveTo(target);
+      dirty->~sound();
+    }
+
+    // Pass 2 — the sound under test, built over the poisoned bytes.
+    YSE::sound* s = new (static_cast<void*>(storage)) YSE::sound();
+    s->create(g_source);
+    REQUIRE(s->isValid());
+    s->relative(true);
+    s->moveTo(target);
+    s->play();
+
+    float peak = 0.f;
+    for (int i = 0; i < 20 && peak <= 0.f; i++) {
+      YSE::System().sleep(50);
+      YSE::System().update();
+      peak = target.getPeakLinearPost();
+    }
+    s->stop();
+    YSE::System().sleep(50);
+    YSE::System().update();
+    s->~sound();
+
+    // Non-zero only if the MOVE message actually reached the implementation:
+    // without it the sound is still rendering into MainMix and `target` — which
+    // create() never attached anything to — meters pure silence.
+    CHECK(peak > 0.f);
   }
 
 } // TEST_SUITE("integration")

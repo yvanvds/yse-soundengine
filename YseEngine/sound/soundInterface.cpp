@@ -90,7 +90,8 @@ YSE::sound::sound()
     _pan2D(false),
     _occlusion(false),
     _fadeAndStopTime(0),
-    _dsp(nullptr) {}
+    _dsp(nullptr),
+    _parent(nullptr) {}
 
 YSE::sound::~sound() {
   unregisterFromBus();

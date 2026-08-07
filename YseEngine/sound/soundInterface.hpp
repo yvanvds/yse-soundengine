@@ -423,6 +423,12 @@ namespace YSE {
 
     UInt _fadeAndStopTime;
     DSP::dspObject* _dsp;
+    // Channel this sound was last moved to, or nullptr while it still sits on
+    // whatever channel create() attached it to. moveTo() compares against this
+    // to skip redundant MOVE messages, so it must start at a value no live
+    // channel can have — see #656, where it was left uninitialised and the
+    // first moveTo() could read back the target's own address and silently
+    // drop the move.
     channel* _parent;
 
     // Bus addressing state. Empty name = anonymous = not on the bus.
