@@ -40,9 +40,6 @@
 //   * yse_sound_set_dsp(s, NULL) — the sound implementation dereferences the
 //     message payload unconditionally and crashes on the render thread
 //     (issue #578). The channel equivalent is safe and IS covered.
-//   * Any setter or transport call on a YseSound that has not been loaded:
-//     the engine interface dereferences a null pimpl before create()
-//     (issue #579), so every case here drives a successfully loaded sound.
 //
 // yse_system_close() and yse_system_close_current_device() tear down
 // process-global engine state, so they live in TEST_SUITE("capilowcovlife")
@@ -557,6 +554,90 @@ TEST_SUITE("capilowcov") {
     yse_sound_set_dsp(nullptr, nullptr);
     yse_sound_move_to(nullptr, nullptr);
     CHECK(true); // reached here without dereferencing a NULL handle
+  }
+
+  // Regression for issue #579. A YseSound handle is valid from create() on, but
+  // the engine object behind it has no implementation until a load succeeds —
+  // the state the C wrappers' `if (!s)` guard cannot see. Every entry point used
+  // to dereference that null implementation. Both un-created shapes are covered:
+  // a freshly created handle, and one whose load failed (which nulls the
+  // implementation again). Without the fix the first setter segfaults.
+  TEST_CASE("c-api sound: an un-created handle no-ops instead of crashing (#579)") {
+    if (!capilowcov::ensureOffline()) return;
+
+    YseSound* fresh = yse_sound_create();
+    REQUIRE(fresh != nullptr);
+
+    YseSound* failed = yse_sound_create();
+    REQUIRE(failed != nullptr);
+    yse_clear_last_error();
+    REQUIRE(yse_sound_load_file(failed, "definitely_not_here.wav", nullptr, 0, 1.f, 0) ==
+            YSE_ERR_FILE_NOT_FOUND);
+    yse_clear_last_error();
+
+    for (YseSound* s : {fresh, failed}) {
+      CHECK(yse_sound_is_valid(s) == 0);
+
+      const yse_pos_t p{1.f, -2.f, 3.f};
+      yse_sound_set_pos(s, &p);
+      yse_sound_set_volume(s, 0.75f, 0);
+      yse_sound_set_volume(s, 0.25f, 50);
+      yse_sound_set_speed(s, 1.5f);
+      yse_sound_set_size(s, 4.f);
+      yse_sound_set_spread(s, 0.6f);
+      yse_sound_set_looping(s, 1);
+      yse_sound_set_relative(s, 1);
+      yse_sound_set_doppler(s, 0);
+      yse_sound_set_pan2d(s, 1);
+      yse_sound_set_occlusion(s, 1);
+      yse_sound_set_time(s, 128.f);
+      yse_sound_move_to(s, yse_channel_music());
+      yse_sound_play(s);
+      yse_sound_pause(s);
+      yse_sound_stop(s);
+      yse_sound_toggle(s);
+      yse_sound_restart(s);
+      yse_sound_fade_and_stop(s, 10);
+
+      // No-op means no-op: the cached parameters are still at their defaults.
+      const yse_pos_t got = yse_sound_get_pos(s);
+      CHECK(got.x == doctest::Approx(0.0f));
+      CHECK(got.y == doctest::Approx(0.0f));
+      CHECK(got.z == doctest::Approx(0.0f));
+      CHECK(yse_sound_get_volume(s) == doctest::Approx(0.0f));
+      CHECK(yse_sound_get_speed(s) == doctest::Approx(1.0f));
+      CHECK(yse_sound_get_size(s) == doctest::Approx(0.0f));
+      CHECK(yse_sound_get_spread(s) == doctest::Approx(0.0f));
+      CHECK(yse_sound_get_looping(s) == 0);
+      CHECK(yse_sound_get_relative(s) == 0);
+      CHECK(yse_sound_get_doppler(s) == 1); // doppler defaults to on
+      CHECK(yse_sound_get_pan2d(s) == 0);
+      CHECK(yse_sound_get_occlusion(s) == 0);
+
+      // Implementation-backed queries answer zero / false, matching the
+      // NULL-handle rules this header already publishes.
+      CHECK(yse_sound_is_ready(s) == 0);
+      CHECK(yse_sound_is_streaming(s) == 0);
+      CHECK(yse_sound_is_playing(s) == 0);
+      CHECK(yse_sound_is_paused(s) == 0);
+      CHECK(yse_sound_is_stopped(s) == 0);
+      CHECK(yse_sound_get_time(s) == doctest::Approx(0.0f));
+      CHECK(yse_sound_length(s) == 0u);
+      CHECK(yse_sound_get_dsp(s) == nullptr);
+    }
+
+    // The no-op window does not poison the handle: a later successful load on
+    // the same object still takes effect.
+    if (yse_sound_load_file(fresh, kWavFixture, yse_channel_master(), 0, 0.5f, 0) == YSE_OK) {
+      pumpUntilReady(fresh);
+      CHECK(yse_sound_is_valid(fresh) == 1);
+      yse_sound_set_volume(fresh, 0.75f, 0);
+      CHECK(yse_sound_get_volume(fresh) == doctest::Approx(0.75f));
+    }
+
+    yse_sound_destroy(fresh);
+    yse_sound_destroy(failed);
+    capilowcov::pump(5);
   }
 
   TEST_CASE("c-api sound: file load and every parameter round-trip") {

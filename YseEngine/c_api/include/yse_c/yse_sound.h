@@ -7,6 +7,11 @@
   no-op when called with a NULL handle. Status queries return 0 / false
   on NULL. Loads that can fail return YseStatus and populate
   yse_last_error() on failure.
+
+  The same rule covers a valid handle that has not been loaded yet, or whose
+  yse_sound_load_* call failed: setters and transport calls are no-ops and
+  queries return 0 / false until a load succeeds (issue #579). Check
+  yse_sound_is_valid() to tell the two apart.
 */
 
 #ifndef YSE_C_SOUND_H_INCLUDED

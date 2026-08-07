@@ -47,6 +47,13 @@ namespace YSE {
    *  data is reused. Buffers without any remaining sound reference are flagged for
    *  deletion automatically.
    *
+   *  A sound only reaches the engine once one of the ``create`` overloads has
+   *  succeeded. Before that — and after a ``create`` that failed — every other
+   *  method is a safe no-op: setters and transport calls do nothing and leave
+   *  the cached values untouched, and queries backed by the implementation
+   *  (``isPlaying``, ``isPaused``, ``isStopped``, ``isStreaming``, ``time``,
+   *  ``length``) return ``false`` / ``0`` (issue #579).
+   *
    *  @see YSE::channel For grouping sounds.
    *  @see YSE::DSP::dspSourceObject For procedural audio sources.
    *  @see YSE::patcher For modular-graph sources.
@@ -160,8 +167,10 @@ namespace YSE {
      *  @brief Whether this interface has a live implementation.
      *
      *  Returns ``true`` for the entire lifetime of a successfully ``create``-d
-     *  sound. Primarily useful for debugging — callers don't need to gate other
-     *  methods on this.
+     *  sound, and ``false`` before the first ``create`` or after one that
+     *  failed. Callers don't need to gate other methods on this — they are all
+     *  no-ops while it reports ``false`` — but it is the way to tell a failed
+     *  load from a successful one.
      */
     bool isValid();
 

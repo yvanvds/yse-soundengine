@@ -238,6 +238,75 @@ TEST_SUITE("sound") {
     CHECK(s.occlusion() == false);
   }
 
+  // Regression for issue #579: before create() the interface has no
+  // implementation, and every setter / transport call / implementation-backed
+  // query used to dereference the null pimpl. They are no-ops now — the cached
+  // interface state stays at its defaults and the queries report zero / false.
+  // Without the fix this case segfaults on the first setter.
+  TEST_CASE("sound: an un-created sound no-ops instead of dereferencing a null pimpl (#579)") {
+    YSE::sound s;
+    REQUIRE_FALSE(s.isValid());
+
+    s.pos(YSE::Pos(1.f, 2.f, 3.f));
+    s.volume(0.75f);
+    s.volume(0.5f, 100u);
+    s.speed(2.f);
+    s.size(4.f);
+    s.spread(0.6f);
+    s.looping(true);
+    s.relative(true);
+    s.doppler(false);
+    s.pan2D(true);
+    s.occlusion(true);
+    s.time(128.f);
+    s.setDSP(nullptr);
+    s.play();
+    s.pause();
+    s.stop();
+    s.toggle();
+    s.restart();
+    s.fadeAndStop(100u);
+
+    // Nothing was applied: the cached values are still the constructor defaults.
+    CHECK(s.pos().x == doctest::Approx(0.0f));
+    CHECK(s.volume() == doctest::Approx(0.0f));
+    CHECK(s.speed() == doctest::Approx(1.0f));
+    CHECK(s.size() == doctest::Approx(0.0f));
+    CHECK(s.spread() == doctest::Approx(0.0f));
+    CHECK(s.looping() == false);
+    CHECK(s.relative() == false);
+    CHECK(s.doppler() == true);
+    CHECK(s.pan2D() == false);
+    CHECK(s.occlusion() == false);
+    CHECK(s.getDSP() == nullptr);
+
+    // Implementation-backed queries answer without touching the implementation.
+    CHECK_FALSE(s.isPlaying());
+    CHECK_FALSE(s.isPaused());
+    CHECK_FALSE(s.isStopped());
+    CHECK_FALSE(s.isStreaming());
+    CHECK_FALSE(s.isReady());
+    CHECK(s.time() == doctest::Approx(0.0f));
+    CHECK(s.length() == 0u);
+    CHECK_FALSE(s.isValid());
+  }
+
+  // A sound is still usable after the no-op window: create() takes effect on a
+  // sound that was driven while un-created (issue #579).
+  TEST_CASE("sound: create still works after calls on the un-created sound (#579)") {
+    if (!TestHelpers::engineInit()) return;
+    SilentSource src;
+    YSE::sound s;
+    s.volume(0.9f); // dropped — no implementation yet
+    s.play();
+    CHECK(s.volume() == doctest::Approx(0.0f));
+
+    s.create(src);
+    REQUIRE(s.isValid());
+    s.volume(0.9f);
+    CHECK(s.volume() == doctest::Approx(0.9f));
+  }
+
   // ─── DSP sound lifecycle ─────────────────────────────────────────────────────
 
   TEST_CASE("sound: valid after create with DSP source") {
