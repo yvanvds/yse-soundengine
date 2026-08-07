@@ -279,15 +279,40 @@ TEST_SUITE("capilowcov") {
     CHECK(yse_dsp_buffer_load_file(buf, wav.c_str(), 1) == YSE_ERR_FILE_NOT_FOUND);
     yse_clear_last_error();
 
-    // save() is currently a stub in the engine (fileBuffer::save writes nothing
-    // and returns true — the JUCE writer it replaced was never ported, issue
-    // #580). Only the C-side contract is asserted here; a round-trip through
-    // the file would be asserting the stub.
+    // save() writes a real file now (issue #580 — it used to write nothing and
+    // report YSE_OK), so this is a full round trip: save the loaded fixture,
+    // read it back through a second buffer, and compare.
     const std::filesystem::path tmp =
-        std::filesystem::temp_directory_path() / "yse_c_api_filebuffer_568";
-    CHECK(yse_dsp_buffer_save_file(buf, tmp.string().c_str()) == YSE_OK);
+        std::filesystem::temp_directory_path() / "yse_c_api_filebuffer_580.wav";
     std::error_code ec;
-    std::filesystem::remove(tmp.string() + ".wav", ec); // best effort
+    std::filesystem::remove(tmp, ec); // best effort: start from a clean slate
+    REQUIRE(yse_dsp_buffer_save_file(buf, tmp.string().c_str()) == YSE_OK);
+    REQUIRE(std::filesystem::exists(tmp));
+    CHECK(std::filesystem::file_size(tmp) > 0u);
+    // The path is used verbatim: no silent ".wav" appended on top of it.
+    CHECK_FALSE(std::filesystem::exists(tmp.string() + ".wav"));
+
+    const unsigned int saved_length = yse_dsp_buffer_length(buf);
+    std::vector<float> before(saved_length);
+    REQUIRE(yse_dsp_buffer_read(buf, 0, before.data(), saved_length) == saved_length);
+
+    YseDspBuffer* reloaded = yse_dsp_file_buffer_create(8, 0);
+    REQUIRE(reloaded != nullptr);
+    REQUIRE(yse_dsp_buffer_load_file(reloaded, tmp.string().c_str(), 0) == YSE_OK);
+    CHECK(yse_dsp_buffer_length(reloaded) == saved_length);
+    std::vector<float> after(saved_length);
+    REQUIRE(yse_dsp_buffer_read(reloaded, 0, after.data(), saved_length) == saved_length);
+    // Float WAV is lossless, so the samples come back exactly as written.
+    bool identical = true;
+    for (unsigned int i = 0; i < saved_length; ++i) {
+      if (before[i] != after[i]) {
+        identical = false;
+        break;
+      }
+    }
+    CHECK(identical);
+    yse_dsp_buffer_destroy(reloaded);
+    std::filesystem::remove(tmp, ec); // best effort
 
     yse_dsp_buffer_destroy(buf);
   }

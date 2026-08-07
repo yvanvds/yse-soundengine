@@ -77,37 +77,36 @@ bool YSE::DSP::fileBuffer::load(const char* fileName, UInt channel) {
   return true;
 }
 
+// Write the buffer out as a mono WAV file (issue #580). The JUCE writer this
+// replaces was never ported when load() moved to libsndfile in #174, leaving a
+// stub that appended ".wav" to the caller's path, wrote nothing, and returned
+// true anyway. It is now a real libsndfile write: the path is used verbatim (no
+// silent suffix), samples are stored as 32-bit float so buffers holding values
+// outside [-1, 1] survive the round trip, and every failure reports false.
+// Runs on the calling thread — this is file I/O, never call it from the audio
+// callback.
 bool YSE::DSP::fileBuffer::save(const char* fileName) {
-  std::string fn = fileName;
-  fn += ".wav";
+  if (fileName == nullptr) return false;
 
-  if (IO().getActive()) {
-    return false; // not implemented yet
-  } else {
-    // check if file exists
-    /*File file;
-    file = File::getCurrentWorkingDirectory().getChildFile(fn.c_str());
-    file.deleteFile();
-    ScopedPointer<FileOutputStream> fileStream(file.createOutputStream());
+  // The custom-IO backend (BufferIO / IO()) is read-only: customFileReader
+  // exposes open/read/seek callbacks but no write, so there is nowhere to put
+  // the data while it is active.
+  if (IO().getActive()) return false;
 
-    if (fileStream != nullptr) {
-      WavAudioFormat wavFormat;
-      AudioFormatWriter * writer = wavFormat.createWriterFor(fileStream, SAMPLERATE, 1, 16,
-    StringPairArray(), 0);
+  const UInt length = getLength();
+  if (length == 0) return false;
 
-      if (writer != nullptr) {
-        fileStream.release();
+  // A buffer filled by load() holds the source file's frames unresampled, so
+  // its native rate is the honest one to write; anything generated in-engine
+  // is at the engine rate.
+  const int rate = fileRate > 0.0f ? static_cast<int>(fileRate) : static_cast<int>(SAMPLERATE);
 
-        float ** array = new float*[1];
-        array[0] = getPtr();
+  SndfileHandle handle(fileName, SFM_WRITE, SF_FORMAT_WAV | SF_FORMAT_FLOAT, 1, rate);
+  if (!handle) return false;
 
-        writer->writeFromFloatArrays(array, 1, getLength());
-        writer->flush();
-        delete[] array;
-      }
-    }
-  */
-  }
-
+  const sf_count_t frames = static_cast<sf_count_t>(length);
+  if (handle.writef(getPtr(), frames) != frames) return false;
+  handle.writeSync();
+  // SndfileHandle closes the file on destruction, at the end of this scope.
   return true;
 }

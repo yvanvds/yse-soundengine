@@ -7,6 +7,7 @@ set(YSE_TEST_SOURCES
   test_sanity.cpp
   support/alloc_probe.cpp
   dsp/test_buffer.cpp
+  dsp/test_file_buffer.cpp
   dsp/test_ramp.cpp
   dsp/test_math_scalars.cpp
   dsp/test_math_converters.cpp
