@@ -8,10 +8,13 @@
 //   - resonance emphasises energy at the cutoff,
 //   - self-oscillation at maximum resonance sits at the cutoff frequency
 //     (FFT peak-bin check) and stays bounded (no NaN/blow-up),
-//   - no heap allocation in process() after warm-up.
+//   - no heap allocation in process() after warm-up,
+//   - the cutoff glide keeps its ~1 ms wall-clock time constant across a
+//     sample-rate change (issue #634).
 //
 // No audio device required; SAMPLERATE is initialised to 44100 by the
-// portaudioDeviceManager translation unit at static-initialisation time.
+// portaudioDeviceManager translation unit at static-initialisation time. The
+// #634 cases force it to other rates temporarily via ScopedSampleRate below.
 
 #include <doctest/doctest.h>
 #include <cmath>
@@ -113,6 +116,111 @@ TEST_SUITE("dsp") {
     const float peakHz = static_cast<float>(peak) * binHz;
     // Within ~10% of the cutoff — the ladder rings at its corner frequency.
     CHECK(std::abs(peakHz - cutoff) < cutoff * 0.1f);
+  }
+
+  // ─── sample-rate changes (issue #634) ───────────────────────────────────────
+
+  static const double kPi = 3.14159265358979323846;
+
+  // Temporarily force YSE::SAMPLERATE, restoring it on scope exit. Safe here:
+  // the unit-test process runs its cases one at a time and the engine's audio
+  // stream is paused (see support/null_device.hpp), so nothing reads the
+  // global concurrently.
+  struct ScopedSampleRate {
+    UInt saved;
+    explicit ScopedSampleRate(UInt rate) : saved(YSE::SAMPLERATE) {
+      YSE::SAMPLERATE = rate;
+    }
+    ~ScopedSampleRate() {
+      YSE::SAMPLERATE = saved;
+    }
+    ScopedSampleRate(const ScopedSampleRate&) = delete;
+    ScopedSampleRate& operator=(const ScopedSampleRate&) = delete;
+  };
+
+  // The glide time the ladder documents, as wall clock. Asserted in
+  // milliseconds with a *relative* tolerance: doctest's Approx adds a default
+  // scale of 1.0 to the tolerance, so `.scale(0.0)` is required to stop a
+  // 2%-of-1 ms check from silently accepting anything under 0.02.
+  static const double kGlideTauMs = 1.0;
+  static doctest::Approx approxGlideTauMs() {
+    return doctest::Approx(kGlideTauMs).epsilon(0.02).scale(0.0);
+  }
+
+  // Exact read-out of the ladder's cutoff-glide time constant, in MILLISECONDS
+  // of wall clock — the quantity that must survive a sample-rate change.
+  //
+  // The glide advances once per process() call and does not depend on the
+  // signal, so a single probe sample recovers it exactly. With all four
+  // integrator states at zero and resonance 0, the first sample out is
+  //
+  //     y = G^4 * tanh(x),   G = gCur / (1 + gCur)
+  //
+  // where gCur is the glide value *after* that one step. Invert for gCur, then
+  // solve gCur = g0 + (gTarget - g0) * coef for the one-pole coefficient and
+  // coef = 1 - exp(-1 / (tau * sr)) for tau.
+  //
+  // `f` must have zeroed states and a current glide value of `g0`; `sr` is the
+  // rate it is being run at.
+  static double measureGlideTauMs(ladderFilter & f, double sr, double g0, double toHz) {
+    const double gTarget = std::tan(kPi * toHz / sr);
+
+    f.setCutoff(static_cast<float>(toHz));
+    const double y = f.process(1.f);
+
+    const double G = std::pow(y / std::tanh(1.0), 0.25);
+    const double gCur = G / (1.0 - G);
+    const double coef = (gCur - g0) / (gTarget - g0);
+    return -1000.0 / (sr * std::log(1.0 - coef));
+  }
+
+  // Glide time constant of a filter constructed at `constructRate`, then reset
+  // and run at `runRate`.
+  static double glideTauMsAt(UInt constructRate, UInt runRate) {
+    const double fromHz = 20.0; // the ladder's minimum cutoff
+    const double toHz = 8000.0; // well below 0.45 * Nyquist at both rates
+
+    ScopedSampleRate atConstruct(constructRate);
+    ladderFilter f; // coefficient derived at constructRate
+
+    ScopedSampleRate atRun(runRate);
+    f.setCutoff(static_cast<float>(fromHz));
+    f.reset(); // zero the states and snap the glide to fromHz at runRate
+    return measureGlideTauMs(f, static_cast<double>(runRate),
+                             std::tan(kPi * fromHz / static_cast<double>(runRate)), toHz);
+  }
+
+  TEST_CASE("ladderFilter: the cutoff glide is ~1 ms of wall clock at any rate") {
+    // Same rate throughout: the baseline the documented ~1 ms glide promises.
+    CHECK(glideTauMsAt(44100, 44100) == approxGlideTauMs());
+    CHECK(glideTauMsAt(96000, 96000) == approxGlideTauMs());
+  }
+
+  TEST_CASE("ladderFilter: the glide keeps its time constant across a rate change") {
+    // Issue #634: a filter constructed at one rate and then run at another kept
+    // the coefficient derived at construction time, so the glide lasted ~0.46 ms
+    // at 96 kHz (and ~2.2 ms the other way) instead of the intended 1 ms. The
+    // time constant must follow the rate the filter is *run* at, not the one it
+    // happened to be built at.
+    CHECK(glideTauMsAt(44100, 96000) == approxGlideTauMs());
+    CHECK(glideTauMsAt(96000, 44100) == approxGlideTauMs());
+  }
+
+  TEST_CASE("ladderFilter: setCutoff alone refreshes the glide after a rate change") {
+    // The realistic victim is SYNTH::vaVoice: constructed once at engine
+    // startup, then driven purely through setCutoff() every block. It never
+    // calls reset(), so the refresh cannot live in reset() alone.
+    const UInt constructRate = 44100;
+    const UInt runRate = 96000;
+
+    ScopedSampleRate atConstruct(constructRate);
+    ladderFilter f;
+    // No reset(): the constructor already zeroed the states and snapped the
+    // glide to its 1000 Hz default cutoff, prewarped at the construction rate.
+    const double g0 = std::tan(kPi * 1000.0 / static_cast<double>(constructRate));
+
+    ScopedSampleRate atRun(runRate);
+    CHECK(measureGlideTauMs(f, static_cast<double>(runRate), g0, 8000.0) == approxGlideTauMs());
   }
 
   // ─── real-time discipline ───────────────────────────────────────────────────

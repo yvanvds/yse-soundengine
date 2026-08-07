@@ -26,21 +26,43 @@ namespace YSE {
     // upper bound is a safe fraction of Nyquist so tan() never explodes.
     static const Flt kMinCutoff = 20.f;
 
+    // Time constant of the cutoff-coefficient glide, in seconds — fast enough
+    // to track played sweeps, slow enough to suppress zipper noise.
+    static const Flt kGlideTau = 0.001f;
+
     ladderFilter::ladderFilter()
       : cutoffHz(1000.f),
         resonance(0.f),
         gTarget(0.f),
         gCur(0.f),
         smoothCoef(0.f),
+        coefRate(0),
         s1(0.f),
         s2(0.f),
         s3(0.f),
         s4(0.f) {
       computeTargetG();
       gCur = gTarget;
-      // ~1 ms coefficient glide at the engine sample rate — fast enough to
-      // track played sweeps, slow enough to suppress zipper noise.
-      smoothCoef = onePoleCoef(0.001f, static_cast<Flt>(SAMPLERATE));
+      updateSmoothCoef();
+    }
+
+    void ladderFilter::updateSmoothCoef() {
+      // Keep the glide 1 ms of *wall clock* whatever rate the filter is run at
+      // (issue #634). The engine rate can change across a device restart, and a
+      // ladder built at engine startup outlives that — SYNTH::vaVoice is the
+      // realistic case — so the coefficient cannot be a construction-time
+      // constant.
+      //
+      // Same guard plateReverb uses for its rate-dependent buffers: remember
+      // the rate the coefficient was derived for and re-derive only when it
+      // actually differs. onePoleCoef evaluates exp(), so this must never run
+      // per sample; the callers are the control entry points (setCutoff /
+      // reset) and the block entry point, and in steady state the compare
+      // short-circuits the exp away entirely.
+      const UInt sr = SAMPLERATE;
+      if (coefRate == sr) return;
+      coefRate = sr;
+      smoothCoef = onePoleCoef(kGlideTau, static_cast<Flt>(sr));
     }
 
     void ladderFilter::computeTargetG() {
@@ -56,6 +78,7 @@ namespace YSE {
     void ladderFilter::setCutoff(Flt hz) {
       cutoffHz = hz;
       computeTargetG();
+      updateSmoothCoef();
     }
 
     void ladderFilter::setResonance(Flt r) {
@@ -68,6 +91,7 @@ namespace YSE {
       s1 = s2 = s3 = s4 = 0.f;
       computeTargetG();
       gCur = gTarget;
+      updateSmoothCoef();
     }
 
     Flt ladderFilter::process(Flt x) {
@@ -114,6 +138,9 @@ namespace YSE {
     }
 
     buffer& ladderFilter::operator()(buffer& in) {
+      // Block entry point: cheap enough to re-check the rate here, and it keeps
+      // callers that set a cutoff once and then only stream blocks correct too.
+      updateSmoothCoef();
       Flt* ptr = in.getPtr();
       const UInt n = in.getLength();
       for (UInt i = 0; i < n; i++) {
