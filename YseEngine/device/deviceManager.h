@@ -74,7 +74,19 @@ namespace YSE {
        */
       virtual void updateDeviceList() {};
 
-      virtual void openDevice(const YSE::deviceSetup&) {};
+      /* Open the stream described by the setup and report whether a stream is
+         actually running afterwards. False means the request was refused or
+         failed and the audio path is unchanged: a malformed setup, a device ID
+         no host API resolves, a backend that was never initialised (the
+         offline engine), or a backend error. system::openDevice() applies the
+         requested speaker layout only on true — a mixer configured for a
+         device that is not playing is silently wrong, because
+         doOnCallback() resizes the master to getNumberOfOutputs() and the
+         still-running stream then gets the wrong channel count (issue #665).
+         The base implementation opens nothing, so it reports false. */
+      virtual Bool openDevice(const YSE::deviceSetup&) {
+        return false;
+      };
       virtual void addCallback() {};
 
       /* Application-requested sample rate in Hz for the next stream open

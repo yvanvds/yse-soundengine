@@ -29,10 +29,18 @@
 #include <filesystem>
 #include <fstream>
 #include <new>
+#include <string>
 #include <vector>
 #include "yse.hpp"
 #include "support/null_device.hpp"
 #include "headers/defines.hpp"
+// The mixer layout a refused open must not touch (issue #665) is read through
+// CHANNEL::Manager(); channelImplementation.h / channelMessage.h come first for
+// the same reason as in Tests/system/test_device_layer.cpp (the manager
+// instantiates lfQueue<CHANNEL::messageObject>).
+#include "channel/channelImplementation.h"
+#include "channel/channelMessage.h"
+#include "channel/channelManager.h"
 
 #ifndef YSE_TEST_FIXTURES_DIR
 #define YSE_TEST_FIXTURES_DIR "../../Tests/support/fixtures"
@@ -249,6 +257,50 @@ TEST_SUITE("integration") {
     // The device that was already running is still the one running: a refused
     // request must not close the stream out from under the host.
     CHECK(YSE::System().getActiveSampleRate() == rateBefore);
+  }
+
+  // Issue #665, the general form of the guard above. Refusing the open is only
+  // half the contract — the mixer has to keep following the device that is
+  // actually playing. DEVICE::managerObject::openDevice() returned void, so
+  // system::openDevice() applied the *requested* speaker layout for every
+  // failure path; #661 only stopped the one setup whose channel count is 0.
+  //
+  // This needs a real stream to mean anything: the assertion is that a refused
+  // switch to a six-channel device leaves CHANNEL::Manager() on the layout the
+  // running stereo device negotiated. Otherwise the next callback has
+  // deviceManager::doOnCallback() resize the master to six outputs and the
+  // engine renders six channels into a two-channel stream — which is also why
+  // the "still running" check below is not redundant with the layout one.
+  TEST_CASE("device: a refused open does not reconfigure the mixer [issue #665]") {
+    if (!TestHelpers::engineInitWithAudio()) return;
+    if (YSE::System().getNumDevices() == 0) return;
+    REQUIRE(audioStreamRunning());
+
+    const UInt outputsBefore = YSE::CHANNEL::Manager().getNumberOfOutputs();
+    const double rateBefore = YSE::System().getActiveSampleRate();
+    REQUIRE(outputsBefore > 0);
+    REQUIRE(rateBefore > 0.0);
+
+    // A well-formed descriptor for a device that is not there: six output
+    // channels, and an ID no host API resolves (the shape a stale descriptor
+    // has after the device it named was unplugged). Nothing about this setup
+    // is zero, so the #661 guard cannot cover it.
+    YSE::device sixCh;
+    sixCh.setName("unplugged 5.1 device").setTypeName("TestHost").setID(9999);
+    for (int i = 0; i < 6; ++i)
+      sixCh.addOutputChannelName("out " + std::to_string(i + 1));
+
+    YSE::deviceSetup setup;
+    setup.setOutput(sixCh).setSampleRate(44100.0).setBufferSize(256);
+    REQUIRE(setup.getOutputChannels() == 6);
+
+    YSE::System().openDevice(setup, YSE::CT_51);
+
+    // The layout belongs to the device that is open, which is still the one
+    // that was open before the request.
+    CHECK(YSE::CHANNEL::Manager().getNumberOfOutputs() == outputsBefore);
+    CHECK(YSE::System().getActiveSampleRate() == rateBefore);
+    CHECK(audioStreamRunning());
   }
 
   // ─── MIDI device enumeration (gated on YSE_ENABLE_MIDI_DEVICE) ───────────────

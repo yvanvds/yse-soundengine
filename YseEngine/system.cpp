@@ -298,12 +298,22 @@ const std::vector<YSE::device>& YSE::system::getDevices() {
 }
 
 void YSE::system::openDevice(const deviceSetup& object, CHANNEL_TYPE conf) {
-  DEVICE::Manager().openDevice(object);
-  // A setup with no output device is refused by the backend (issue #661), so
-  // don't reconfigure the mixer for it either: getOutputChannels() returns 0
-  // for that setup, and a zero-output layout silences the engine on the next
-  // audio callback, where doOnCallback() resizes the master to
-  // getNumberOfOutputs(). Leave the layout the running device negotiated.
+  // The mixer layout must follow the device that is actually open (issue
+  // #665). The backend reports whether a stream is running afterwards: a setup
+  // with no output device or an ID no host API resolves (both refused since
+  // #661), a Pa_OpenStream / Pa_StartStream error, and the offline engine all
+  // report false. Applying the requested layout for any of those configures
+  // the mixer for a device that is not playing — doOnCallback() resizes the
+  // master to getNumberOfOutputs() on the next callback, so a refused switch
+  // from a stereo device to a 5.1 one leaves the engine rendering six channels
+  // into the two-channel stream that is still live. Leave the layout the
+  // running device negotiated.
+  if (!DEVICE::Manager().openDevice(object)) return;
+
+  // A backend with a single fixed device (Oboe) reports success without
+  // reading the setup at all, so the zero-output guard from #661 still has to
+  // stand on its own: a zero-output layout silences the engine on the next
+  // callback, by the same doOnCallback() resize.
   const int outputs = object.getOutputChannels();
   if (outputs <= 0) return;
   CHANNEL::Manager().setChannelConf(conf, outputs);

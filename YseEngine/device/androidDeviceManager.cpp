@@ -82,9 +82,12 @@ void YSE::DEVICE::managerObject::serviceReconnect() {
   implementation.serviceReconnect();
 }
 
-void YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
-  // android only has one device for now
-  return;
+Bool YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
+  // android only has one device for now, so there is nothing to switch to and
+  // the request cannot fail. Reported as success so system::openDevice() keeps
+  // applying the requested speaker layout here, which is what this backend has
+  // always done (issue #665).
+  return true;
 }
 
 void YSE::DEVICE::managerObject::close() {

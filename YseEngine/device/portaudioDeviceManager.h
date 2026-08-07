@@ -39,7 +39,7 @@ namespace YSE {
       unsigned int GetCallbacksSinceLastUpdate() override;
 
       void updateDeviceList() override;
-      void openDevice(const YSE::deviceSetup& object) override;
+      Bool openDevice(const YSE::deviceSetup& object) override;
       void addCallback() override;
 
       // Live device-state getters (see deviceManager.h for contract).

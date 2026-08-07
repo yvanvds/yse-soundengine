@@ -423,7 +423,10 @@ TEST_SUITE("devicelayer") {
     YSE::deviceSetup setup;
     setup.setOutput(out).setSampleRate(44100.0).setBufferSize(256);
 
-    YSE::DEVICE::Manager().openDevice(setup);
+    // And it says so: the backend reports whether a stream is running
+    // afterwards, which is what system::openDevice() gates the mixer layout on
+    // (issue #665).
+    CHECK(YSE::DEVICE::Manager().openDevice(setup) == false);
 
     CHECK(YSE::System().getActiveSampleRate() == 0.0);
     CHECK(YSE::System().getActiveBufferSize() == 0);
@@ -485,6 +488,42 @@ TEST_SUITE("devicelayer") {
     // getNumberOfOutputs() on the next callback, and everything rendered after
     // that goes nowhere.
     CHECK(YSE::CHANNEL::Manager().getNumberOfOutputs() == 2u);
+  }
+
+  // The general case of the same contract (issue #665): the mixer layout must
+  // follow the device that is *actually* open, not the one that was asked for.
+  // #661 only covered the setup with nothing in it, because getOutputChannels()
+  // is 0 there and a zero-output layout was the visible symptom; a setup with a
+  // perfectly well-formed device in it that simply does not open — every
+  // PortAudio error path, and the offline engine driven here — still applied
+  // its channel count to CHANNEL::Manager().
+  //
+  // Reachable headless through the initDone gate: with PortAudio never
+  // initialised there is no stream to switch to, so this is a failed open by
+  // any definition. The real-device half (a device ID no host API resolves,
+  // with a stream running) lives in the integration suite.
+  TEST_CASE("device manager: a failed open leaves the mixer layout alone (issue #665)") {
+    if (!ensureOffline()) return;
+
+    const UInt outputsBefore = YSE::CHANNEL::Manager().getNumberOfOutputs();
+    REQUIRE(outputsBefore == 2u);
+
+    // Three output channel names, so the requested layout differs from the
+    // running one and applying it is unmistakable.
+    YSE::device out = makeDevice();
+    REQUIRE(out.getNumOutputChannelNames() == 3u);
+    YSE::deviceSetup setup;
+    setup.setOutput(out).setSampleRate(44100.0).setBufferSize(256);
+    REQUIRE(setup.getOutputChannels() == 3);
+
+    // Through the public entry point: the backend refusing is only half of it,
+    // system::openDevice() has to act on the refusal.
+    YSE::System().openDevice(setup, YSE::CT_AUTO);
+
+    // Nothing opened, so nothing about the audio path changed — including the
+    // channel count deviceManager::doOnCallback() resizes the master to.
+    CHECK(YSE::System().getActiveSampleRate() == 0.0);
+    CHECK(YSE::CHANNEL::Manager().getNumberOfOutputs() == outputsBefore);
   }
 
   // GetCallbacksSinceLastUpdate() is a read-and-reset exchange (issue #198), so
