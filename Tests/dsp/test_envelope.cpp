@@ -255,11 +255,6 @@ TEST_SUITE("dsp") {
   }
 
   // ─── envelope (breakpoint extractor) ─────────────────────────────────────────
-  //
-  // Known implementation issue: envelope::create() computes the window size as
-  // (Int)(windowMs/1000.0f) * SAMPLERATE, which truncates to zero for any
-  // windowMs < 1000.  Tests below use windowMs = 1000 (= SAMPLERATE samples) to
-  // avoid the infinite loop that a zero window would cause.
 
   TEST_CASE("envelope: create from buffer extracts non-empty breakpoint list") {
     YSE::DSP::envelope env;
@@ -279,6 +274,43 @@ TEST_SUITE("dsp") {
     env.create(src, 1000);
     for (unsigned i = 0; i < env.elms(); ++i)
       CHECK(env[i].value == doctest::Approx(0.5f).epsilon(1e-5f));
+  }
+
+  // Regression tests for #641: create() used to compute the window as
+  // (Int)windowDuration * SAMPLERATE, truncating to zero for any window under
+  // one second — the analysis loop then never advanced and breakPoints grew
+  // until OOM. The cast must bind to the product, with a one-sample floor.
+
+  TEST_CASE("envelope: sub-second window terminates and covers the buffer (issue #641)") {
+    YSE::DSP::envelope env;
+    const unsigned bufLen = YSE::SAMPLERATE; // 1 s of audio
+    YSE::DSP::buffer src(bufLen);
+    src = 0.5f;
+    bool ok = env.create(src, 100); // 100 ms window — hung before the fix
+    CHECK(ok);
+    // Loop runs while pos + window < bufLen with window = 0.1 s of samples.
+    const unsigned window = (unsigned)(0.1f * (float)YSE::SAMPLERATE);
+    REQUIRE(window > 0);
+    const unsigned expected = (bufLen - 1) / window; // 9 at any common rate
+    CHECK(env.elms() == expected);
+    for (unsigned i = 0; i < env.elms(); ++i) {
+      CHECK(env[i].time == doctest::Approx(i * 0.1f).epsilon(1e-4f));
+      CHECK(env[i].value == doctest::Approx(0.5f).epsilon(1e-5f));
+    }
+  }
+
+  TEST_CASE("envelope: sub-sample window is floored to one sample (issue #641)") {
+    // At a (pathologically) low sample rate a 1 ms window is less than one
+    // sample; the floor keeps the loop advancing instead of stalling on a
+    // zero-sample window.
+    TestHelpers::ScopedSampleRate lowRate(500); // 1 ms → 0.5 samples → floored to 1
+    YSE::DSP::envelope env;
+    const unsigned bufLen = 100;
+    YSE::DSP::buffer src(bufLen);
+    src = 0.25f;
+    bool ok = env.create(src, 1);
+    CHECK(ok);
+    CHECK(env.elms() == bufLen - 1); // window == 1 → one breakpoint per sample
   }
 
   TEST_CASE("envelope: normalize scales max breakpoint value to 1.0") {
