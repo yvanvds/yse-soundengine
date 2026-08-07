@@ -429,7 +429,10 @@ namespace YSE {
       Bool _setPostDSP;
       std::atomic<DSP::dspObject*> _postDspPtr;
       DSP::dspObject* post_dsp;
-      void addDSP(DSP::dspObject& ptr);
+      // Attach `ptr` to this sound's post-DSP slot, replacing whatever was
+      // there. A null `ptr` detaches instead of crashing (issue #578) — the
+      // same contract as CHANNEL::implementationObject::addDSP.
+      void addDSP(DSP::dspObject* ptr);
 
       CHANNEL::implementationObject* parent;
       // True once the audio thread has called parent->connect(this) and the

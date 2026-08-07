@@ -80,7 +80,12 @@ YSE_C_API void yse_system_audio_test(YseSystem* sys, int on);
 YSE_C_API void yse_system_auto_reconnect(YseSystem* sys, int on, int delay_ms);
 
 /* Devices. Returned YseDevice* pointers are borrowed from the engine and
-   must not be destroyed. See yse_device.h for the descriptor accessors. */
+   must not be destroyed. See yse_device.h for the descriptor accessors.
+
+   yse_system_get_device() is bound-checked: an idx at or beyond
+   yse_system_num_devices() returns NULL and sets the last error, so probing
+   or iterating with a stale count is safe. An offline or headless session
+   enumerates no devices at all, which makes index 0 out of range. */
 YSE_C_API unsigned int yse_system_num_devices(YseSystem* sys);
 YSE_C_API YseDevice* yse_system_get_device(YseSystem* sys, unsigned int idx);
 YSE_C_API YseStatus yse_system_open_device(YseSystem* sys, const YseDeviceSetup* setup,

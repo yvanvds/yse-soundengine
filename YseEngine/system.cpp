@@ -311,7 +311,12 @@ UInt YSE::system::getNumDevices() {
 }
 
 const YSE::device& YSE::system::getDevice(unsigned int nr) {
-  return DEVICE::Manager().getDeviceList()[nr];
+  // Bound-checked on purpose (issue #581, same fix shape as #565): operator[]
+  // never throws, so an out-of-range index used to read past the end of the
+  // list and the try/catch in yse_system_get_device() was dead code. With an
+  // empty device list — headless CI, or any offline session — index 0 is
+  // already out of range, which is the first thing a naive binding tries.
+  return DEVICE::Manager().getDeviceList().at(nr);
 }
 
 const std::string& YSE::system::getDefaultDevice() {

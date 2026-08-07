@@ -90,7 +90,8 @@ YSE::sound::sound()
     _pan2D(false),
     _occlusion(false),
     _fadeAndStopTime(0),
-    _dsp(nullptr) {}
+    _dsp(nullptr),
+    _parent(nullptr) {}
 
 YSE::sound::~sound() {
   unregisterFromBus();
@@ -170,6 +171,20 @@ void YSE::sound::unregisterFromBus() {
   _busOwner = false;
 }
 
+// The create() overloads hand `loop` / `volume` to the implementation, which
+// applies them (looping flag, fader). The getters, however, read the cached
+// interface state, so that state has to be seeded with the same arguments or
+// looping() / volume() keep reporting the constructor defaults for a sound that
+// is in fact looping at the requested volume (issue #583). Seeding happens only
+// on the success path: a create() that failed leaves pimpl null and the sound at
+// its defaults, which is what the null-pimpl no-op contract (#579) promises.
+// The volume is mirrored exactly as passed, not clamped, so the getter reports
+// what the implementation's fader actually received.
+//
+// The overloads without a `loop` argument (dsp / patcher / synth) set the
+// implementation's looping flag to false, which already matches the interface
+// default — only the volume needs seeding there.
+
 void YSE::sound::create(const char* fileName, channel* ch, bool loop, float volume,
                         bool streaming) {
   assert(pimpl == nullptr);
@@ -178,6 +193,8 @@ void YSE::sound::create(const char* fileName, channel* ch, bool loop, float volu
   if (ch == nullptr) ch = &CHANNEL::Manager().master();
 
   if (pimpl->create(fileName, ch, loop, volume, streaming)) {
+    _loop = loop;
+    _volume = volume;
     SOUND::Manager().setup(pimpl);
   } else {
     pimpl->setStatus(OBJECT_RELEASE);
@@ -192,6 +209,8 @@ void YSE::sound::create(YSE::DSP::buffer& buffer, channel* ch, bool loop, float 
   if (ch == nullptr) ch = &CHANNEL::Manager().master();
 
   pimpl->create(buffer, ch, loop, volume);
+  _loop = loop;
+  _volume = volume;
   SOUND::Manager().setup(pimpl);
 }
 
@@ -202,6 +221,8 @@ void YSE::sound::create(MULTICHANNELBUFFER& buffer, channel* ch, bool loop, floa
   if (ch == nullptr) ch = &CHANNEL::Manager().master();
 
   pimpl->create(buffer, ch, loop, volume);
+  _loop = loop;
+  _volume = volume;
   SOUND::Manager().setup(pimpl);
 }
 
@@ -211,6 +232,7 @@ void YSE::sound::create(YSE::DSP::dspSourceObject& dsp, channel* ch, float volum
   pimpl = SOUND::Manager().addImplementation(this);
   if (ch == nullptr) ch = &CHANNEL::Manager().master();
   pimpl->create(dsp, ch, volume);
+  _volume = volume;
   SOUND::Manager().setup(pimpl);
 }
 
@@ -222,6 +244,7 @@ void YSE::sound::create(YSE::patcher& patch, channel* ch, float volume) {
   // create() refuses when the patcher is already owned by another sound
   // (issue #287); on refusal the impl is released and the sound stays invalid.
   if (pimpl->create(patch.pimpl, ch, volume)) {
+    _volume = volume;
     SOUND::Manager().setup(pimpl);
   } else {
     pimpl->setStatus(OBJECT_RELEASE);
@@ -245,6 +268,7 @@ void YSE::sound::create(YSE::synth& synth, channel* ch, float volume) {
   // produces a device-width, per-voice-panned bed which the sound plays straight
   // through without re-panning (docs/design/per_note_positioning.md §7).
   pimpl->create(synth.pimpl->getOutputSource(), ch, volume, /*preSpatialized=*/true);
+  _volume = volume;
   SOUND::Manager().setup(pimpl);
 }
 
@@ -252,7 +276,19 @@ Bool YSE::sound::isValid() {
   return pimpl != nullptr;
 }
 
+// Everything below this line talks to the implementation, which only exists
+// between a successful create() and the destructor. A sound that was never
+// created — or whose create() failed and nulled pimpl again (see the file /
+// patcher overloads above) — is still a perfectly usable object, so every
+// entry point guards instead of dereferencing: mutators are no-ops that leave
+// the cached interface state untouched, and implementation-backed queries
+// return zero / false (issue #579). This matches the NULL-handle contract the
+// C wrappers in c_api/yse_sound.cpp already publish, which could not see this
+// second, un-created state behind a valid handle. The guards are on the
+// control thread only — nothing here runs on the audio callback.
+
 void YSE::sound::pos(const Pos& v) {
+  if (pimpl == nullptr) return;
   if (_pos != v) {
     _pos = v;
     SOUND::messageObject m;
@@ -269,6 +305,7 @@ YSE::Pos YSE::sound::pos() {
 }
 
 void YSE::sound::spread(Flt value) {
+  if (pimpl == nullptr) return;
   Clamp(value, 0.f, 1.f);
   if (_spread != value) {
     _spread = value;
@@ -284,6 +321,7 @@ Flt YSE::sound::spread() {
 }
 
 void YSE::sound::volume(Flt value, UInt time) {
+  if (pimpl == nullptr) return;
   Clamp(value, 0.f, 1.f);
   if (_volume != value) {
     _volume = value;
@@ -306,6 +344,7 @@ Flt YSE::sound::volume() {
 }
 
 void YSE::sound::speed(Flt value) {
+  if (pimpl == nullptr) return;
   if (_speed != value) {
     _speed = value;
     SOUND::messageObject m;
@@ -320,6 +359,7 @@ Flt YSE::sound::speed() {
 }
 
 void YSE::sound::size(Flt value) {
+  if (pimpl == nullptr) return;
   if (_size != value) {
     _size = value;
     SOUND::messageObject m;
@@ -334,6 +374,7 @@ Flt YSE::sound::size() {
 }
 
 void YSE::sound::looping(Bool value) {
+  if (pimpl == nullptr) return;
   if (_loop != value) {
     _loop = value;
     SOUND::messageObject m;
@@ -348,6 +389,7 @@ Bool YSE::sound::looping() {
 }
 
 void YSE::sound::play() {
+  if (pimpl == nullptr) return;
   SOUND::messageObject m;
   m.ID = SOUND::INTENT;
   m.intentValue = SI_PLAY;
@@ -355,6 +397,7 @@ void YSE::sound::play() {
 }
 
 void YSE::sound::pause() {
+  if (pimpl == nullptr) return;
   SOUND::messageObject m;
   m.ID = SOUND::INTENT;
   m.intentValue = SI_PAUSE;
@@ -362,6 +405,7 @@ void YSE::sound::pause() {
 }
 
 void YSE::sound::stop() {
+  if (pimpl == nullptr) return;
   SOUND::messageObject m;
   m.ID = SOUND::INTENT;
   m.intentValue = SI_STOP;
@@ -369,6 +413,7 @@ void YSE::sound::stop() {
 }
 
 void YSE::sound::toggle() {
+  if (pimpl == nullptr) return;
   SOUND::messageObject m;
   m.ID = SOUND::INTENT;
   m.intentValue = SI_TOGGLE;
@@ -376,6 +421,7 @@ void YSE::sound::toggle() {
 }
 
 void YSE::sound::restart() {
+  if (pimpl == nullptr) return;
   SOUND::messageObject m;
   m.ID = SOUND::INTENT;
   m.intentValue = SI_RESTART;
@@ -383,18 +429,22 @@ void YSE::sound::restart() {
 }
 
 Bool YSE::sound::isPlaying() {
+  if (pimpl == nullptr) return false;
   return (pimpl->_head_status == SS_PLAYING || pimpl->_head_status == SS_PLAYING_FULL_VOLUME);
 }
 
 Bool YSE::sound::isPaused() {
+  if (pimpl == nullptr) return false;
   return pimpl->_head_status == SS_PAUSED;
 }
 
 Bool YSE::sound::isStopped() {
+  if (pimpl == nullptr) return false;
   return pimpl->_head_status == SS_STOPPED;
 }
 
 void YSE::sound::occlusion(Bool value) {
+  if (pimpl == nullptr) return;
   if (_occlusion != value) {
     _occlusion = value;
     // Enrol / withdraw from the control-thread occlusion driver (issue #209).
@@ -416,10 +466,12 @@ Bool YSE::sound::occlusion() {
 }
 
 Bool YSE::sound::isStreaming() {
+  if (pimpl == nullptr) return false;
   return pimpl->_head_streaming;
 }
 
 void YSE::sound::setDSP(YSE::DSP::dspObject* value) {
+  if (pimpl == nullptr) return;
   if (_dsp != value) {
     _dsp = value;
     SOUND::messageObject m;
@@ -434,6 +486,7 @@ YSE::DSP::dspObject* YSE::sound::getDSP() {
 }
 
 void YSE::sound::time(Flt value) {
+  if (pimpl == nullptr) return;
   // don't compare with local time var in this case because
   // that value is set by the implementation
   SOUND::messageObject m;
@@ -443,14 +496,17 @@ void YSE::sound::time(Flt value) {
 }
 
 Flt YSE::sound::time() {
+  if (pimpl == nullptr) return 0.f;
   return pimpl->_head_time;
 }
 
 UInt YSE::sound::length() {
+  if (pimpl == nullptr) return 0;
   return pimpl->_head_length;
 }
 
 void YSE::sound::relative(Bool value) {
+  if (pimpl == nullptr) return;
   if (_relative != value) {
     _relative = value;
     SOUND::messageObject m;
@@ -465,6 +521,7 @@ Bool YSE::sound::relative() {
 }
 
 void YSE::sound::doppler(Bool value) {
+  if (pimpl == nullptr) return;
   if (_doppler != value) {
     _doppler = value;
     SOUND::messageObject m;
@@ -479,6 +536,7 @@ Bool YSE::sound::doppler() {
 }
 
 void YSE::sound::pan2D(Bool value) {
+  if (pimpl == nullptr) return;
   if (_pan2D != value) {
     _relative = value;
     _doppler = !value;
@@ -500,6 +558,7 @@ Bool YSE::sound::isReady() {
 }
 
 void YSE::sound::fadeAndStop(UInt time) {
+  if (pimpl == nullptr) return;
   SOUND::messageObject m;
   m.ID = SOUND::FADE_AND_STOP;
   m.uintValue = time;
@@ -507,6 +566,7 @@ void YSE::sound::fadeAndStop(UInt time) {
 }
 
 void YSE::sound::moveTo(channel& target) {
+  if (pimpl == nullptr) return;
   if (_parent != &target) {
     _parent = &target;
     SOUND::messageObject m;

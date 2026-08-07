@@ -166,7 +166,11 @@ namespace YSE {
     /** @brief Number of audio output devices available. */
     unsigned int getNumDevices();
 
-    /** @brief Audio device at index ``nr``. */
+    /** @brief Audio device at index ``nr``.
+     *  @throws std::out_of_range if ``nr >= getNumDevices()``. Note that an
+     *          empty device list (offline or headless session) makes index 0
+     *          out of range.
+     */
     const device& getDevice(unsigned int nr);
 
     /** @brief Open an audio device.

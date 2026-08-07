@@ -29,20 +29,11 @@
 //     (init_offline) is the one under test.
 //   * yse_system_open_device() past its two argument guards, for the same
 //     reason — it hands the setup straight to the backend's device open.
-//   * yse_system_get_device() past index 0 when the enumerated list is empty:
-//     the engine's getDevice() indexes the device vector with an unchecked
-//     operator[], so an out-of-range probe is undefined behaviour rather than
-//     a catchable exception (issue #581). The cases below stay strictly inside
-//     the enumerated range.
-//   * yse_sound_restart() — leaves the implementation in SS_WANTSTORESTART,
-//     which the file reader's intent ladder has no branch for, so the next
-//     render block spins forever (issue #577).
-//   * yse_sound_set_dsp(s, NULL) — the sound implementation dereferences the
-//     message payload unconditionally and crashes on the render thread
-//     (issue #578). The channel equivalent is safe and IS covered.
-//   * Any setter or transport call on a YseSound that has not been loaded:
-//     the engine interface dereferences a null pimpl before create()
-//     (issue #579), so every case here drives a successfully loaded sound.
+//
+// yse_system_get_device() used to be listed here too: the engine's getDevice()
+// indexed the device vector with an unchecked operator[], so an out-of-range
+// probe was undefined behaviour rather than a catchable exception. Issue #581
+// made it bound-checked, and the out-of-range contract is asserted below.
 //
 // yse_system_close() and yse_system_close_current_device() tear down
 // process-global engine state, so they live in TEST_SUITE("capilowcovlife")
@@ -52,6 +43,7 @@
 #include <doctest/doctest.h>
 
 #include <chrono>
+#include <cmath>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -292,6 +284,20 @@ TEST_SUITE("capilowcov") {
     for (unsigned int i = 0; i < devices; ++i) {
       CHECK(yse_system_get_device(sys, i) != nullptr);
     }
+
+    // Out of range is an error, not undefined behaviour (issue #581). Before
+    // the fix the engine indexed with operator[], so the try/catch in
+    // yse_system_get_device() could never fire and the caller got a pointer
+    // past the end of the device list — and with the list empty, as it is on
+    // headless CI and in any offline session, index 0 already qualified. That
+    // is precisely the call a binding makes before it has checked the count.
+    yse_clear_last_error();
+    CHECK(yse_system_get_device(sys, devices) == nullptr);
+    // The failure is reported, not silent: the engine's std::out_of_range is
+    // translated into the thread-local error slot rather than crossing the ABI.
+    CHECK(std::strlen(yse_last_error()) > 0);
+
+    CHECK(yse_system_get_device(sys, devices + 9999) == nullptr);
 
     // The MIDI name getters clear the buffer first, then answer within range.
     //
@@ -559,6 +565,90 @@ TEST_SUITE("capilowcov") {
     CHECK(true); // reached here without dereferencing a NULL handle
   }
 
+  // Regression for issue #579. A YseSound handle is valid from create() on, but
+  // the engine object behind it has no implementation until a load succeeds —
+  // the state the C wrappers' `if (!s)` guard cannot see. Every entry point used
+  // to dereference that null implementation. Both un-created shapes are covered:
+  // a freshly created handle, and one whose load failed (which nulls the
+  // implementation again). Without the fix the first setter segfaults.
+  TEST_CASE("c-api sound: an un-created handle no-ops instead of crashing (#579)") {
+    if (!capilowcov::ensureOffline()) return;
+
+    YseSound* fresh = yse_sound_create();
+    REQUIRE(fresh != nullptr);
+
+    YseSound* failed = yse_sound_create();
+    REQUIRE(failed != nullptr);
+    yse_clear_last_error();
+    REQUIRE(yse_sound_load_file(failed, "definitely_not_here.wav", nullptr, 0, 1.f, 0) ==
+            YSE_ERR_FILE_NOT_FOUND);
+    yse_clear_last_error();
+
+    for (YseSound* s : {fresh, failed}) {
+      CHECK(yse_sound_is_valid(s) == 0);
+
+      const yse_pos_t p{1.f, -2.f, 3.f};
+      yse_sound_set_pos(s, &p);
+      yse_sound_set_volume(s, 0.75f, 0);
+      yse_sound_set_volume(s, 0.25f, 50);
+      yse_sound_set_speed(s, 1.5f);
+      yse_sound_set_size(s, 4.f);
+      yse_sound_set_spread(s, 0.6f);
+      yse_sound_set_looping(s, 1);
+      yse_sound_set_relative(s, 1);
+      yse_sound_set_doppler(s, 0);
+      yse_sound_set_pan2d(s, 1);
+      yse_sound_set_occlusion(s, 1);
+      yse_sound_set_time(s, 128.f);
+      yse_sound_move_to(s, yse_channel_music());
+      yse_sound_play(s);
+      yse_sound_pause(s);
+      yse_sound_stop(s);
+      yse_sound_toggle(s);
+      yse_sound_restart(s);
+      yse_sound_fade_and_stop(s, 10);
+
+      // No-op means no-op: the cached parameters are still at their defaults.
+      const yse_pos_t got = yse_sound_get_pos(s);
+      CHECK(got.x == doctest::Approx(0.0f));
+      CHECK(got.y == doctest::Approx(0.0f));
+      CHECK(got.z == doctest::Approx(0.0f));
+      CHECK(yse_sound_get_volume(s) == doctest::Approx(0.0f));
+      CHECK(yse_sound_get_speed(s) == doctest::Approx(1.0f));
+      CHECK(yse_sound_get_size(s) == doctest::Approx(0.0f));
+      CHECK(yse_sound_get_spread(s) == doctest::Approx(0.0f));
+      CHECK(yse_sound_get_looping(s) == 0);
+      CHECK(yse_sound_get_relative(s) == 0);
+      CHECK(yse_sound_get_doppler(s) == 1); // doppler defaults to on
+      CHECK(yse_sound_get_pan2d(s) == 0);
+      CHECK(yse_sound_get_occlusion(s) == 0);
+
+      // Implementation-backed queries answer zero / false, matching the
+      // NULL-handle rules this header already publishes.
+      CHECK(yse_sound_is_ready(s) == 0);
+      CHECK(yse_sound_is_streaming(s) == 0);
+      CHECK(yse_sound_is_playing(s) == 0);
+      CHECK(yse_sound_is_paused(s) == 0);
+      CHECK(yse_sound_is_stopped(s) == 0);
+      CHECK(yse_sound_get_time(s) == doctest::Approx(0.0f));
+      CHECK(yse_sound_length(s) == 0u);
+      CHECK(yse_sound_get_dsp(s) == nullptr);
+    }
+
+    // The no-op window does not poison the handle: a later successful load on
+    // the same object still takes effect.
+    if (yse_sound_load_file(fresh, kWavFixture, yse_channel_master(), 0, 0.5f, 0) == YSE_OK) {
+      pumpUntilReady(fresh);
+      CHECK(yse_sound_is_valid(fresh) == 1);
+      yse_sound_set_volume(fresh, 0.75f, 0);
+      CHECK(yse_sound_get_volume(fresh) == doctest::Approx(0.75f));
+    }
+
+    yse_sound_destroy(fresh);
+    yse_sound_destroy(failed);
+    capilowcov::pump(5);
+  }
+
   TEST_CASE("c-api sound: file load and every parameter round-trip") {
     if (!capilowcov::ensureOffline()) return;
 
@@ -568,6 +658,12 @@ TEST_SUITE("capilowcov") {
     CHECK(yse_sound_is_ready(s) == 1);
     CHECK(yse_sound_is_streaming(s) == 0); // loaded with streaming == 0
     CHECK(yse_sound_length(s) > 0u);
+
+    // yse_sound_load_file()'s loop / volume arguments seed the getters (issue
+    // #583): makeLoadedSound() loads with loop == 0 at volume 0.5, and the
+    // volume used to read back as 0.0f here.
+    CHECK(yse_sound_get_looping(s) == 0);
+    CHECK(yse_sound_get_volume(s) == doctest::Approx(0.5f));
 
     // Position is stored on the interface side, so it reads back immediately.
     const yse_pos_t want{1.f, -2.f, 3.f};
@@ -616,6 +712,7 @@ TEST_SUITE("capilowcov") {
     YseSound* s = makeLoadedSound(/*loop=*/1);
     if (!s) return;
     CHECK(yse_sound_is_stopped(s) == 1);
+    CHECK(yse_sound_get_looping(s) == 1); // the load argument seeds it (#583)
 
     // The intents are queued messages, so pump between them and read the state
     // back off the implementation.
@@ -671,12 +768,53 @@ TEST_SUITE("capilowcov") {
     capilowcov::pump(10);
   }
 
-  // yse_sound_restart() is deliberately NOT exercised: on a file- or
-  // buffer-backed sound it leaves the implementation in SS_WANTSTORESTART,
-  // which the file reader's intent ladder has no branch for, so the next
-  // render block spins forever (issue #577). Add the case here once that is
-  // fixed — restart() is the only sound entry point this suite leaves
-  // uncovered.
+  // Regression for issue #577. yse_sound_restart() used to leave the
+  // implementation in SS_WANTSTORESTART, which the file reader's intent ladder
+  // has no branch for: the read loop consumed none of the requested frames and
+  // the render block never returned. Without the fix this case never finishes —
+  // the first pump after restart spins inside yse_system_render_offline() and
+  // the suite dies on its ctest TIMEOUT.
+  //
+  // The bundled fixture is only 100 frames long, so at normal speed the looping
+  // play position wraps several times inside a single 128-frame block and could
+  // never show a rewind. Playing it at 1/100 speed keeps the position monotonic
+  // across the whole case, which makes "restart sent the playhead back to the
+  // start" an observable assertion rather than just "the render returned". A
+  // longer in-memory DSP::buffer source would be the obvious alternative, but
+  // when this case was written a buffer-backed sound rendered nothing at all and
+  // its play position never left 0 (issue #657, fixed and covered below), so it
+  // could not witness a rewind.
+  TEST_CASE("c-api sound: restart rewinds a file-backed sound without spinning (#577)") {
+    if (!capilowcov::ensureOffline()) return;
+
+    YseSound* s = makeLoadedSound(/*loop=*/1);
+    if (!s) return;
+    REQUIRE(yse_sound_length(s) > 0u);
+
+    yse_sound_set_speed(s, 0.01f);
+    yse_sound_play(s);
+    capilowcov::pump(10);
+
+    const float before = yse_sound_get_time(s);
+    CHECK(before > 0.0f); // the playhead really did move off frame 0
+
+    yse_sound_restart(s); // used to livelock the very next render block
+    capilowcov::pump(2); // far fewer blocks than the pump that built `before`
+    CHECK(yse_sound_get_time(s) < before);
+    CHECK(yse_sound_is_valid(s) == 1);
+
+    // A restart on a stopped sound is the other entry into the same intent: it
+    // starts playing again from the beginning instead of staying silent.
+    yse_sound_stop(s);
+    capilowcov::pump(10);
+    yse_sound_restart(s);
+    capilowcov::pump(10);
+    CHECK(yse_sound_is_valid(s) == 1);
+    CHECK(yse_sound_is_stopped(s) == 0);
+
+    yse_sound_destroy(s);
+    capilowcov::pump(10);
+  }
 
   TEST_CASE("c-api sound: move_to re-parents a live sound") {
     if (!capilowcov::ensureOffline()) return;
@@ -709,27 +847,104 @@ TEST_SUITE("capilowcov") {
     REQUIRE(yse_sound_load_buffer(s, buf, yse_channel_master(), 1, 0.5f) == YSE_OK);
     pumpUntilReady(s);
     CHECK(yse_sound_is_valid(s) == 1);
-    // NB: the `loop` argument of yse_sound_load_buffer / _load_file reaches the
-    // implementation but is not mirrored onto the interface, so the getter
-    // still reads 0 here (issue #583). Setting it explicitly does round-trip.
-    yse_sound_set_looping(s, 1);
+    // The `loop` / `volume` arguments of yse_sound_load_buffer are mirrored onto
+    // the interface, so the getters report them back (issue #583 — they used to
+    // read the constructor defaults 0 / 0.0f for a sound that was in fact
+    // looping at 0.5). The setter still overrides them afterwards.
     CHECK(yse_sound_get_looping(s) == 1);
+    CHECK(yse_sound_get_volume(s) == doctest::Approx(0.5f));
+    yse_sound_set_looping(s, 0);
+    CHECK(yse_sound_get_looping(s) == 0);
 
     // The insert round-trips; the sound borrows it rather than owning it.
-    // Detaching with yse_sound_set_dsp(s, NULL) is NOT exercised: unlike the
-    // channel side, the sound implementation dereferences the message payload
-    // unconditionally and crashes on the render thread (issue #578). The
-    // insert is torn down by destroying the sound instead.
     YseDspObject* lp = yse_dsp_lowpass_create();
     REQUIRE(lp != nullptr);
     CHECK(yse_sound_get_dsp(s) == nullptr);
     yse_sound_set_dsp(s, lp);
     CHECK(yse_sound_get_dsp(s) == lp);
+    // Play so the render blocks below actually walk the insert chain.
+    yse_sound_play(s);
     capilowcov::pump(5);
+    CHECK(yse_sound_is_valid(s) == 1);
+
+    // ...and yse_sound_set_dsp(s, NULL) detaches it again, the same contract
+    // the channel side honours. This used to dereference the null message
+    // payload on the render thread (issue #578) — the pump below is where the
+    // crash landed, so it is the regression guard, not just cleanup. The
+    // insert is safe to destroy afterwards while the sound is still alive.
+    yse_sound_set_dsp(s, nullptr);
+    CHECK(yse_sound_get_dsp(s) == nullptr);
+    capilowcov::pump(10);
+    CHECK(yse_sound_is_valid(s) == 1);
+    yse_dsp_object_destroy(lp);
+    capilowcov::pump(5);
+    CHECK(yse_sound_is_valid(s) == 1);
 
     yse_sound_destroy(s);
     capilowcov::pump(10);
-    yse_dsp_object_destroy(lp);
+    yse_dsp_buffer_destroy(buf); // the buffer must outlive every sound using it
+  }
+
+  // Regression for issue #657. abstractSoundFile::create() returns early on the
+  // buffer branch, and it used to do so without ever setting _channels — which
+  // the constructor leaves at 0. implementationObject::create() then sized the
+  // sound's output with filebuffer.resize(file->channels()) == resize(0), so the
+  // sound had no output buffers at all: readNonInterleaved()'s per-channel loop
+  // iterated over nothing, the play position stayed pinned at frame 0 and the
+  // channel stayed silent. Nothing in the status surface gave that away — the
+  // sound still reported ready, playing and of the right length — which is why
+  // the assertions below are on the playhead and on the channel's meter rather
+  // than on the lifecycle flags.
+  //
+  // Verified fail-without-fix: on the unpatched engine get_time() stays 0.0 and
+  // the channel's post peak stays 0.0 while is_playing() reports 1.
+  TEST_CASE("c-api sound: a buffer-backed sound renders and its playhead moves (#657)") {
+    if (!capilowcov::ensureOffline()) return;
+
+    // A tone long enough that the pump below cannot wrap it, so the playhead is
+    // strictly monotonic across the case and "it moved" is unambiguous.
+    const unsigned int len = 16384;
+    YseDspBuffer* buf = yse_dsp_buffer_create(len, 0);
+    REQUIRE(buf != nullptr);
+    std::vector<float> tone(len);
+    for (unsigned int i = 0; i < len; ++i)
+      tone[i] = 0.5f * std::sin(2.0f * 3.14159265f * 32.0f * static_cast<float>(i) /
+                                static_cast<float>(len));
+    REQUIRE(yse_dsp_buffer_write(buf, 0, tone.data(), len) == len);
+
+    // A dedicated channel so the meter reading below is this sound's output and
+    // not whatever else the shared master saw earlier in the suite.
+    YseChannel* ch = yse_channel_create("capi_buf657", yse_channel_master());
+    REQUIRE(ch != nullptr);
+    capilowcov::pump(5);
+    CHECK(yse_channel_get_peak_linear_post(ch) == doctest::Approx(0.f)); // silent so far
+
+    YseSound* s = yse_sound_create();
+    REQUIRE(s != nullptr);
+    REQUIRE(yse_sound_load_buffer(s, buf, ch, /*loop=*/1, /*volume=*/0.8f) == YSE_OK);
+    pumpUntilReady(s);
+    REQUIRE(yse_sound_is_ready(s) == 1);
+    CHECK(yse_sound_length(s) == len); // the length was always right...
+
+    yse_sound_play(s);
+    capilowcov::pump(20);
+
+    CHECK(yse_sound_is_playing(s) == 1); // ...and so was the status...
+    // ...but these two were the lie: the playhead never advanced and not one
+    // sample reached the channel.
+    const float pos = yse_sound_get_time(s);
+    CHECK(pos > 0.0f);
+    CHECK(pos < static_cast<float>(len)); // no wrap — still the first pass
+    const float peak = yse_channel_get_peak_linear_post(ch);
+    CHECK(std::isfinite(peak));
+    CHECK(peak > 0.01f);
+
+    yse_sound_stop(s);
+    capilowcov::pump(5);
+    yse_sound_destroy(s);
+    capilowcov::pump(10);
+    yse_channel_destroy(ch);
+    capilowcov::pump(10);
     yse_dsp_buffer_destroy(buf); // the buffer must outlive every sound using it
   }
 

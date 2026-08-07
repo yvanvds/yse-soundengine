@@ -107,6 +107,7 @@ namespace {
   SilentSource g_srcs[8]; // size = max N used in multi-sound tests below
   NopDsp g_dsp;
   NopDsp g_dsp2;
+  NopDsp g_dsp3; // used only by the setDSP(nullptr) detach case (#578)
   DcSource g_dc;
   StereoDcSource g_dcStereo;
 
@@ -311,6 +312,29 @@ TEST_SUITE("sound") {
     s.setDSP(&g_dsp2);
     drainSoundManager();
     CHECK(s.getDSP() == &g_dsp2);
+  }
+
+  TEST_CASE("sound impl: setDSP(nullptr) detaches the plugin instead of crashing") {
+    // Regression for #578: the DSP message payload used to be dereferenced
+    // unconditionally (addDSP took a reference), so the documented detach
+    // request — sound::setDSP(nullptr) / yse_sound_set_dsp(s, NULL) — wrote
+    // through a null pointer on the message-pump/audio thread. Mirrors the
+    // channel-side expectation in test_channel_underwater.cpp.
+    if (!TestHelpers::engineInit()) return;
+    YSE::sound s;
+    s.create(g_src);
+    drainSoundManager();
+
+    s.setDSP(&g_dsp3);
+    drainSoundManager();
+    CHECK(s.getDSP() == &g_dsp3);
+    // calledfrom is the engine-managed back-pointer addDSP installs.
+    CHECK(g_dsp3.calledfrom != nullptr);
+
+    s.setDSP(nullptr);
+    drainSoundManager();
+    CHECK(s.getDSP() == nullptr);
+    CHECK(g_dsp3.calledfrom == nullptr);
   }
 
   TEST_CASE("sound impl: MOVE message reconnects sound to another channel") {
