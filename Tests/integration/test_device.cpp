@@ -184,6 +184,73 @@ TEST_SUITE("integration") {
     }
   }
 
+  // Issue #661. openDevice() built its PaStreamParameters from
+  // `object.out->getID()` and then read `Pa_GetDeviceInfo(...)->
+  // defaultHighOutputLatency`, checking neither pointer. Both are null on
+  // ordinary API input — `out` for a setup that never had setOutput() called,
+  // the PaDeviceInfo* for any index outside [0, Pa_GetDeviceCount()).
+  //
+  // This has to run against a real, initialised PortAudio to mean anything.
+  // The devicelayer suite covers the first guard headless, but it runs the
+  // offline engine, whose `initDone` is false — so its openDevice() returns
+  // before Pa_GetDeviceInfo() is ever called and the second dereference is
+  // unreachable there by construction. Here initDone is true and the calls go
+  // through for real.
+  //
+  // The assertion is that the engine is still alive and still playing
+  // afterwards: on the unpatched engine this segfaults inside openDevice() and
+  // the suite never reports at all.
+  TEST_CASE("device: a malformed openDevice request is refused, not dereferenced [issue #661]") {
+    if (!TestHelpers::engineInitWithAudio()) return;
+    if (YSE::System().getNumDevices() == 0) return;
+    REQUIRE(audioStreamRunning());
+
+    const double rateBefore = YSE::System().getActiveSampleRate();
+    REQUIRE(rateBefore > 0.0);
+
+    // (1) No output device in the setup at all — sample rate and buffer size
+    //     only, which is all the C API forces a caller to provide.
+    {
+      YSE::deviceSetup setup;
+      setup.setSampleRate(44100.0).setBufferSize(256);
+      YSE::System().openDevice(setup, YSE::CT_STEREO);
+    }
+    CHECK(audioStreamRunning());
+
+    // (2) An output device whose ID no host API resolves — the shape a stale
+    //     descriptor has when a device is unplugged between updateDeviceList()
+    //     and the open. Two output channel names, so a refusal here cannot be
+    //     mistaken for the zero-channel case above.
+    {
+      YSE::device stale;
+      stale.setName("unplugged device")
+          .setTypeName("TestHost")
+          .addOutputChannelName("out 1")
+          .addOutputChannelName("out 2")
+          .setID(9999);
+      YSE::deviceSetup setup;
+      setup.setOutput(stale).setSampleRate(44100.0).setBufferSize(256);
+      YSE::System().openDevice(setup, YSE::CT_STEREO);
+    }
+    CHECK(audioStreamRunning());
+
+    // (3) paNoDevice itself, the sentinel Pa_GetDefaultOutputDevice() returns
+    //     on a host with no output — and the value issue #569 wanted for the
+    //     descriptor's default ID.
+    {
+      YSE::device none;
+      none.addOutputChannelName("out 1").addOutputChannelName("out 2").setID(-1);
+      YSE::deviceSetup setup;
+      setup.setOutput(none).setSampleRate(44100.0).setBufferSize(256);
+      YSE::System().openDevice(setup, YSE::CT_STEREO);
+    }
+    CHECK(audioStreamRunning());
+
+    // The device that was already running is still the one running: a refused
+    // request must not close the stream out from under the host.
+    CHECK(YSE::System().getActiveSampleRate() == rateBefore);
+  }
+
   // ─── MIDI device enumeration (gated on YSE_ENABLE_MIDI_DEVICE) ───────────────
 
 #if YSE_WINDOWS && YSE_ENABLE_MIDI_DEVICE

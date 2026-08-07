@@ -160,11 +160,12 @@ namespace YSE {
     // files; a default member initialiser keeps them in one place and covers
     // any constructor added later, not just the one in deviceInterface.cpp.
     //
-    // ID stays 0 rather than the -1 sentinel #569 floated: PortAudio's
-    // paNoDevice is -1, and managerObject::openDevice() feeds getID() straight
-    // into Pa_GetDeviceInfo() and dereferences the result without a null check,
-    // so a -1 default would turn an unpopulated descriptor from a wrong-device
-    // open into a null dereference. Guarding that call is issue #661.
+    // ID stays 0 rather than the -1 sentinel #569 floated. The reason it was
+    // unsafe is gone — managerObject::openDevice() no longer dereferences
+    // Pa_GetDeviceInfo(getID()) unchecked, it refuses any index the host API
+    // cannot resolve, paNoDevice (-1) included (issue #661) — but flipping the
+    // default is a separate, observable change to what an unpopulated
+    // descriptor means, so it is its own piece of work.
     int defaultBufferSize = 0;
     int inputLatency = 0, outputLatency = 0;
     int ID = 0;

@@ -299,7 +299,14 @@ const std::vector<YSE::device>& YSE::system::getDevices() {
 
 void YSE::system::openDevice(const deviceSetup& object, CHANNEL_TYPE conf) {
   DEVICE::Manager().openDevice(object);
-  CHANNEL::Manager().setChannelConf(conf, object.getOutputChannels());
+  // A setup with no output device is refused by the backend (issue #661), so
+  // don't reconfigure the mixer for it either: getOutputChannels() returns 0
+  // for that setup, and a zero-output layout silences the engine on the next
+  // audio callback, where doOnCallback() resizes the master to
+  // getNumberOfOutputs(). Leave the layout the running device negotiated.
+  const int outputs = object.getOutputChannels();
+  if (outputs <= 0) return;
+  CHANNEL::Manager().setChannelConf(conf, outputs);
 }
 
 void YSE::system::closeCurrentDevice() {

@@ -61,9 +61,11 @@
 // channelImplementation.h instantiates lfQueue<CHANNEL::messageObject>, which
 // needs the message type complete by the end of the TU.
 #include "channel/channelMessage.h"
+#include "channel/channelManager.h"
 #include "device/deviceInterface.hpp"
 #include "device/deviceSetup.hpp"
 #include "headers/constants.hpp"
+#include "log.hpp"
 #include "sound/soundInterface.hpp"
 
 // DEVICE::Manager() returns a managerObject&, so every use of it below — even
@@ -165,6 +167,45 @@ namespace {
 
   SteadySource g_steady;
 
+  // Collects everything the engine logs while it is installed. The refusal
+  // paths under test are only observable as a log line plus an absence of
+  // state change, so the line is part of the contract, not decoration — a
+  // silently ignored openDevice() call is what made issue #661's null
+  // dereference look like "nothing happened" to begin with.
+  class CapturingLog : public YSE::logHandler {
+  public:
+    void AddMessage(const std::string& message) override {
+      messages.push_back(message);
+    }
+    bool contains(const std::string& fragment) const {
+      for (const std::string& m : messages)
+        if (m.find(fragment) != std::string::npos) return true;
+      return false;
+    }
+    std::vector<std::string> messages;
+  };
+
+  // Installs a sink (and a level that lets warnings through) for one case, and
+  // puts both back even if an assertion unwinds. Same shape as the logsafety
+  // suite's ScopedSink; safe here because the devicelayer suite owns its
+  // process (see the ISOLATION note at the top of this file).
+  class ScopedSink {
+  public:
+    explicit ScopedSink(YSE::logHandler* handler) : previousLevel(YSE::Log().getLevel()) {
+      YSE::Log().setLevel(YSE::EL_WARNING);
+      YSE::Log().setHandler(handler);
+    }
+    ~ScopedSink() {
+      YSE::Log().setHandler(nullptr);
+      YSE::Log().setLevel(previousLevel);
+    }
+    ScopedSink(const ScopedSink&) = delete;
+    ScopedSink& operator=(const ScopedSink&) = delete;
+
+  private:
+    YSE::ERROR_LEVEL previousLevel;
+  };
+
 #ifdef PORTAUDIO_BACKEND
   // Mirrors the clamp paCallback applies on the way out. Its only caller is the
   // mix-copy case below, which lives in this file's PORTAUDIO_BACKEND region —
@@ -221,7 +262,9 @@ TEST_SUITE("devicelayer") {
     CHECK(d->getInputLatency() == 0);
     CHECK(d->getOutputLatency() == 0);
     // 0, not paNoDevice (-1): see the member-declaration note in
-    // deviceInterface.hpp and issue #661.
+    // deviceInterface.hpp. openDevice() now refuses an unresolvable index
+    // rather than dereferencing it (issue #661), so -1 would be safe — it is
+    // simply not what the descriptor promises today.
     CHECK(d->getID() == 0);
 
     d->~device();
@@ -400,6 +443,48 @@ TEST_SUITE("devicelayer") {
     CHECK(YSE::System().getActiveSampleRate() == 0.0);
     CHECK(YSE::System().getActiveBufferSize() == 0);
     CHECK(YSE::System().getActiveOutputLatency() == 0);
+  }
+
+  // A setup that never got a device. deviceSetup's constructor leaves `out`
+  // null and nothing forces setOutput(), so this is exactly the shape a host
+  // builds with yse_device_setup_create() + set_sample_rate() +
+  // set_buffer_size(); openDevice() then read `object.out->getID()` — one line
+  // before the getOutputChannels() call that *does* guard the same pointer
+  // (issue #661).
+  //
+  // Reachable headless, unlike the second dereference the same issue covers:
+  // the guard sits ahead of the initDone gate, because a setup with no device
+  // in it is a malformed request whatever state the backend is in. The
+  // real-device half lives in the integration suite (Tests/integration/
+  // test_device.cpp), which is where PortAudio is actually initialised.
+  TEST_CASE("device manager: a setup with no output device is refused (issue #661)") {
+    if (!ensureOffline()) return;
+
+    CapturingLog captured;
+    ScopedSink sink(&captured);
+
+    YSE::deviceSetup setup;
+    setup.setSampleRate(44100.0).setBufferSize(256);
+    REQUIRE(setup.getOutputChannels() == 0);
+
+    // Driven through the public entry point a host calls, not the backend
+    // method: the mixer half of the contract below lives in system::openDevice.
+    YSE::System().openDevice(setup, YSE::CT_STEREO);
+
+    // Refused with a diagnostic rather than in silence.
+    CHECK(captured.contains("no output device"));
+
+    // No stream opened: the live getters keep reporting the documented zeros.
+    CHECK(YSE::System().getActiveSampleRate() == 0.0);
+    CHECK(YSE::System().getActiveBufferSize() == 0);
+    CHECK(YSE::System().getActiveOutputLatency() == 0);
+
+    // And the mixer layout is untouched. getOutputChannels() is 0 for this
+    // setup, so applying it would have configured the engine for zero output
+    // channels — deviceManager::doOnCallback() resizes the master to
+    // getNumberOfOutputs() on the next callback, and everything rendered after
+    // that goes nowhere.
+    CHECK(YSE::CHANNEL::Manager().getNumberOfOutputs() == 2u);
   }
 
   // GetCallbacksSinceLastUpdate() is a read-and-reset exchange (issue #198), so

@@ -323,12 +323,40 @@ void YSE::DEVICE::managerObject::updateDeviceList() {
 }
 
 void YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
+  // Fail closed on a setup that names no output device (issue #661).
+  // deviceSetup's constructor leaves `out` null and nothing forces setOutput(),
+  // so a host that only sets a sample rate and a buffer size reaches here with
+  // nothing to open — getOutputChannels() one line below already guards the
+  // same pointer. Checked ahead of the initDone gate because a malformed
+  // request is a caller error whatever state the backend is in, and ahead of
+  // close() because refusing a request must not tear down a stream that is
+  // currently running fine.
+  if (object.out == nullptr) {
+    INTERNAL::LogImpl().emit(E_WARNING,
+                             "Cannot open a device: the device setup has no output device.");
+    return;
+  }
+
   if (!initDone) return;
+
+  // Pa_GetDeviceInfo() returns NULL for any index outside
+  // [0, Pa_GetDeviceCount()) — paNoDevice (-1) included, and equally an ID from
+  // a device list that has been re-enumerated since (a device unplugged between
+  // updateDeviceList() and here). addCallback() already refuses the same way on
+  // Pa_GetDefaultOutputDevice() == paNoDevice; this is the same convention.
+  // Queried before close() so a refusal leaves the running stream alone.
+  const int deviceID = object.out->getID();
+  const PaDeviceInfo* info = Pa_GetDeviceInfo(deviceID);
+  if (info == nullptr) {
+    INTERNAL::LogImpl().emit(E_AUDIODEVICE, "no device with index " + std::to_string(deviceID) +
+                                                " on this system, no stream opened.");
+    return;
+  }
+
   close();
 
   PaStreamParameters params;
-  params.device = object.out->getID();
-  const PaDeviceInfo* info = Pa_GetDeviceInfo(params.device);
+  params.device = deviceID;
   params.channelCount = object.getOutputChannels();
   params.sampleFormat = paFloat32 | paNonInterleaved;
   params.suggestedLatency = info->defaultHighOutputLatency;
