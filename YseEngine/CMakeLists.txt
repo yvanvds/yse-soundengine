@@ -110,6 +110,11 @@ set(YSE_SRCS
   patcher/generatorObjects/pSine.cpp
   patcher/genericObjects/gBangBang.cpp
   patcher/genericObjects/gBondo.cpp
+  patcher/genericObjects/gBucket.cpp
+  patcher/genericObjects/gBuddy.cpp
+  patcher/genericObjects/gCycle.cpp
+  patcher/genericObjects/gDecode.cpp
+  patcher/genericObjects/gFunnel.cpp
   patcher/genericObjects/gGate.cpp
   patcher/genericObjects/gIf.cpp
   patcher/genericObjects/gMatch.cpp
@@ -121,6 +126,7 @@ set(YSE_SRCS
   patcher/genericObjects/gRoute.cpp
   patcher/genericObjects/gSel.cpp
   patcher/genericObjects/gSend.cpp
+  patcher/genericObjects/gSpray.cpp
   patcher/genericObjects/gSwitch.cpp
   patcher/genericObjects/gTrigger.cpp
   patcher/genericObjects/gUzi.cpp
@@ -176,6 +182,7 @@ set(YSE_SRCS
   patcher/math/gSlide.cpp
   patcher/math/gSplit.cpp
   patcher/math/gSubstract.cpp
+  patcher/math/gSwap.cpp
   patcher/math/gTrig.cpp
   patcher/math/gUnaryMath.cpp
   patcher/math/gUrn.cpp
@@ -303,6 +310,11 @@ set_source_files_properties(
   patcher/generatorObjects/pSine.cpp
   patcher/genericObjects/gBangBang.cpp
   patcher/genericObjects/gBondo.cpp
+  patcher/genericObjects/gBucket.cpp
+  patcher/genericObjects/gBuddy.cpp
+  patcher/genericObjects/gCycle.cpp
+  patcher/genericObjects/gDecode.cpp
+  patcher/genericObjects/gFunnel.cpp
   patcher/genericObjects/gGate.cpp
   patcher/genericObjects/gIf.cpp
   patcher/genericObjects/gMatch.cpp
@@ -313,6 +325,7 @@ set_source_files_properties(
   patcher/genericObjects/gRoute.cpp
   patcher/genericObjects/gSel.cpp
   patcher/genericObjects/gSend.cpp
+  patcher/genericObjects/gSpray.cpp
   patcher/genericObjects/gSwitch.cpp
   patcher/genericObjects/gTrigger.cpp
   patcher/genericObjects/gUzi.cpp
@@ -366,6 +379,7 @@ set_source_files_properties(
   patcher/math/gSlide.cpp
   patcher/math/gSplit.cpp
   patcher/math/gSubstract.cpp
+  patcher/math/gSwap.cpp
   patcher/math/gTrig.cpp
   patcher/math/gUnaryMath.cpp
   patcher/math/gUrn.cpp

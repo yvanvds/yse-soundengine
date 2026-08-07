@@ -14,7 +14,13 @@
 #include "genericObjects/gOneBang.h"
 #include "genericObjects/gNext.h"
 #include "genericObjects/gBondo.h"
+#include "genericObjects/gBucket.h"
+#include "genericObjects/gBuddy.h"
+#include "genericObjects/gCycle.h"
 #include "genericObjects/gMatch.h"
+#include "genericObjects/gDecode.h"
+#include "genericObjects/gFunnel.h"
+#include "genericObjects/gSpray.h"
 #include "genericObjects/gUzi.h"
 #include "genericObjects/gIf.h"
 #include "genericObjects/gRegexp.h"
@@ -71,6 +77,7 @@
 #include "math/gTogEdge.h"
 #include "math/gBitwise.h"
 #include "math/gReverse.h"
+#include "math/gSwap.h"
 #include "math/gIntDiv.h"
 #include "math/gUnaryMath.h"
 #include "math/gPow.h"
@@ -153,6 +160,24 @@ pRegistry::pRegistry() {
   // Hold one value per inlet and release the whole set together (issue #474)
   Add(OBJ::G_BONDO, gBondo::Create);
 
+  // Wait until every inlet has data, then release once (issue #475)
+  Add(OBJ::G_BUDDY, gBuddy::Create);
+
+  // Deal successive messages to successive outlets, wrapping round (issue #477)
+  Add(OBJ::G_CYCLE, gCycle::Create);
+
+  // Shift values along a chain of outlets, one stage per input (issue #478)
+  Add(OBJ::G_BUCKET, gBucket::Create);
+
+  // Distribute the values of a list to numbered outlets (issue #479)
+  Add(OBJ::G_SPRAY, gSpray::Create);
+
+  // Tag incoming data with its inlet number and merge to one outlet (issue #480)
+  Add(OBJ::G_FUNNEL, gFunnel::Create);
+
+  // Send 1 out a selected outlet and 0 out every other (issue #481)
+  Add(OBJ::G_DECODE, gDecode::Create);
+
   // Conditional message dispatch (issue #451)
   Add(OBJ::G_IF, gIf::Create);
 
@@ -217,6 +242,10 @@ pRegistry::pRegistry() {
   Add(OBJ::G_REVERSEDIVIDE, gReverseDivide::Create);
   Add(OBJ::G_MODULO, gModulo::Create);
   Add(OBJ::G_INTDIVIDE, gIntDivide::Create);
+
+  // Reverse the order of a pair of numbers — the general form of .!- / .!/
+  // (issue #476)
+  Add(OBJ::G_SWAP, gSwap::Create);
 
   // Elementary math functions (issue #440)
   Add(OBJ::G_ABS, gAbs::Create);

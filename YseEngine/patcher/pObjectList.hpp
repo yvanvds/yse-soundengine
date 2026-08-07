@@ -14,6 +14,7 @@ namespace YSE {
    *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``.
    *  - Control math: ``G_ADD``, ``G_DIVIDE``, ``G_REVERSESUBSTRACT``,
    *    ``G_REVERSEDIVIDE``, ``G_MODULO``, ``G_INTDIVIDE``.
+   *  - Operand order: ``G_SWAP``.
    *  - Elementary math: ``G_ABS``, ``G_SQRT``, ``G_POW``, ``G_ROUND``.
    *  - Range mapping: ``G_SCALE``, ``G_ZMAP``, ``G_LINEDRIVE``.
    *  - Range limiting: ``G_CLIP``, ``G_PONG``.
@@ -39,8 +40,9 @@ namespace YSE {
    *  - Statistics: ``G_ANAL``, ``G_HISTO``, ``G_MEAN``.
    *  - Messaging: ``G_SEND``, ``G_RECEIVE``, ``G_ROUTE``, ``G_SEL``,
    *    ``G_TRIGGER``, ``G_BANGBANG``, ``G_ONEBANG``, ``G_NEXT``, ``G_MATCH``,
-   *    ``G_BONDO``,
-   *    ``G_GATE``, ``G_SWITCH``, ``G_IF``, ``G_REGEXP``.
+   *    ``G_BONDO``, ``G_BUDDY``, ``G_CYCLE``, ``G_BUCKET``, ``G_SPRAY``,
+   *    ``G_FUNNEL``, ``G_DECODE``, ``G_GATE``, ``G_SWITCH``, ``G_IF``,
+   *    ``G_REGEXP``.
    *  - Iteration: ``G_UZI``.
    *  - MIDI: ``M_OUT``, ``M_NOTEON``, ``M_NOTEOFF``, ``M_CONTROL``.
    *  - Conversion: ``MIDITOFREQUENCY``, ``FREQUENCYTOMIDI``, ``G_ATODB``,
@@ -81,6 +83,12 @@ namespace YSE {
     DEFOBJ(G_MATCH, ".match");
     DEFOBJ(G_UZI, ".uzi");
     DEFOBJ(G_BONDO, ".bondo");
+    DEFOBJ(G_BUDDY, ".buddy");
+    DEFOBJ(G_CYCLE, ".cycle");
+    DEFOBJ(G_BUCKET, ".bucket");
+    DEFOBJ(G_SPRAY, ".spray");
+    DEFOBJ(G_FUNNEL, ".funnel");
+    DEFOBJ(G_DECODE, ".decode");
     DEFOBJ(G_IF, ".if");
     DEFOBJ(G_REGEXP, ".regexp");
 
@@ -91,6 +99,7 @@ namespace YSE {
 
     DEFOBJ(G_REVERSESUBSTRACT, ".!-");
     DEFOBJ(G_REVERSEDIVIDE, ".!/");
+    DEFOBJ(G_SWAP, ".swap");
     DEFOBJ(G_MODULO, ".%");
     DEFOBJ(G_INTDIVIDE, ".div");
 
