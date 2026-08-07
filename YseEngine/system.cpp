@@ -347,8 +347,14 @@ const std::string YSE::system::getMidiOutDeviceName(unsigned int ID) {
 #endif
 
 YSE::system& YSE::system::AudioTest(bool on) {
-#ifdef __WINDOWS__
+  // No platform guard here on purpose (issue #570). The diagnostic tone is an
+  // ordinary dspSourceObject — 11 sines through a low-pass, driven by the same
+  // sound path as any user DSP source — so nothing in it is Windows-specific.
+  // The old `#ifdef __WINDOWS__` was a JUCE-era remnant (same shape as the
+  // lsfSoundfile guard fixed in #46) and turned this documented public call,
+  // and the C API's yse_system_audio_test(), into a silent no-op on Linux,
+  // macOS, BSD and Android — the platforms where output routing is hardest to
+  // diagnose in the first place.
   YSE::INTERNAL::Test().On(on);
-#endif
   return *this;
 }

@@ -64,7 +64,6 @@
 #include "device/deviceInterface.hpp"
 #include "device/deviceSetup.hpp"
 #include "headers/constants.hpp"
-#include "internal/AudioTest.h"
 #include "sound/soundInterface.hpp"
 
 // DEVICE::Manager() returns a managerObject&, so every use of it below — even
@@ -151,7 +150,15 @@ namespace {
         for (UInt i = 0; i < len; ++i)
           p[i] = 0.5f;
       }
-      intent = YSE::SS_PLAYING;
+      // Honour a stop request, the same way AudioTest.cpp's shepard does. This
+      // used to force SS_PLAYING unconditionally, which made the `s.stop()` in
+      // the paCallback case a no-op: the source kept mixing 0.5 into the master
+      // for the whole process and masked the tone case at the end of the file
+      // (issue #570).
+      if (intent == YSE::SS_WANTSTOSTOP)
+        intent = YSE::SS_STOPPED;
+      else
+        intent = YSE::SS_PLAYING;
     }
     void frequency(float) override {}
   };
@@ -502,6 +509,15 @@ TEST_SUITE("devicelayer") {
   // platform or device API: it is a dspSourceObject like any other, so it
   // renders through the offline engine and needs no exclusion.
   //
+  // Driven through the *public* entry point, YSE::System().AudioTest(bool),
+  // not INTERNAL::Test().On() (issue #570). That distinction is the whole test:
+  // AudioTest() used to wrap its one call in `#ifdef __WINDOWS__`, so the tone
+  // rendered fine when poked internally while the documented API — and the C
+  // API forwarding to it — did nothing at all off Windows. Asserting at the
+  // internal level would keep passing through exactly that bug, so this case
+  // must stay on the public call for every platform the suite builds on
+  // (desktop and Android alike; nothing below needs a backend).
+  //
   // Kept last in the file on purpose. YSE::INTERNAL::Test() constructs a
   // function-local static whose destructor deletes the DSP source that its own
   // sound member still refers to, so the tone is stopped and drained here
@@ -512,7 +528,43 @@ TEST_SUITE("devicelayer") {
     auto& master = YSE::DEVICE::Manager().getMaster();
     REQUIRE(master.GetBuffers().size() > 0);
 
-    YSE::INTERNAL::Test().On(true);
+    // Zero the master mix before every probed block. Two facts make this
+    // mandatory rather than tidy: the paCallback case above writes a hand-made
+    // non-zero pattern straight into these buffers, and with no sound alive
+    // doOnCallback() gates the render off entirely — so nothing ever overwrites
+    // that pattern. Probing the buffer as-found therefore reports "signal"
+    // whatever AudioTest() did, which is precisely how the #570 no-op stayed
+    // invisible: the case passed in a full-suite run while failing when run
+    // alone. Clearing first makes every non-zero sample below attributable to
+    // the block that was just rendered.
+    auto silenceMaster = [&master]() {
+      for (size_t c = 0; c < master.GetBuffers().size(); ++c) {
+        float* p = master.GetBuffers()[c].getPtr();
+        const UInt len = master.GetBuffers()[c].getLength();
+        for (UInt i = 0; i < len; ++i)
+          p[i] = 0.f;
+      }
+    };
+    auto renderedSignal = [&master]() {
+      bool sawSignal = false;
+      const float* p = master.GetBuffers()[0].getPtr();
+      const UInt len = master.GetBuffers()[0].getLength();
+      for (UInt i = 0; i < len; ++i) {
+        CHECK(std::isfinite(p[i]));
+        if (std::fabs(p[i]) > 1e-6f) sawSignal = true;
+      }
+      return sawSignal;
+    };
+
+    // Baseline: with the tone off, a cleared master stays silent across a
+    // render. This is what gives the positive assertion below its meaning — if
+    // some earlier case left a source running, this fails and says so instead
+    // of quietly standing in for the tone.
+    silenceMaster();
+    YSE::System().renderOffline(1);
+    REQUIRE_FALSE(renderedSignal());
+
+    YSE::System().AudioTest(true);
     pump();
 
     // The shepard tone is 11 parallel sine octaves through a low-pass; a few
@@ -521,17 +573,13 @@ TEST_SUITE("devicelayer") {
     // the mixer's gain staging, which belongs to the channel suite.
     bool sawSignal = false;
     for (int block = 0; block < 32 && !sawSignal; ++block) {
+      silenceMaster();
       YSE::System().renderOffline(1);
-      const float* p = master.GetBuffers()[0].getPtr();
-      const UInt len = master.GetBuffers()[0].getLength();
-      for (UInt i = 0; i < len; ++i) {
-        CHECK(std::isfinite(p[i]));
-        if (std::fabs(p[i]) > 1e-6f) sawSignal = true;
-      }
+      sawSignal = renderedSignal();
     }
     CHECK(sawSignal);
 
-    YSE::INTERNAL::Test().On(false);
+    YSE::System().AudioTest(false);
     pump();
   }
 
