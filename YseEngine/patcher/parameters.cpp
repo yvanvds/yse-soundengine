@@ -156,8 +156,13 @@ void Parameters::Set(const std::string& args) {
       }
 
     } else {
-      // if last param is a list, add everything to this list
-      if (parms.back().type == LIST) {
+      // If the last param is a list, add everything to this list. An object
+      // that registers no parameters at all has no last param: the guard above
+      // is `0 < 0` for its very first token, so this branch — and not some
+      // exhausted-parameters corner — is where `.mean`, `.togedge`, the
+      // trigonometric family and every other no-ADD_PARAM object arrive.
+      // `parms.back()` on the empty vector segfaulted them (issue #627).
+      if (!parms.empty() && parms.back().type == LIST) {
         ((std::vector<std::string>*)parms.back().value)->push_back(token);
       }
       INTERNAL::LogImpl().emit(E_DEBUG, "Too many arguments for this object.");

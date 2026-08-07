@@ -108,14 +108,22 @@ set(YSE_SRCS
   patcher/generatorObjects/dNoise.cpp
   patcher/generatorObjects/dSaw.cpp
   patcher/generatorObjects/pSine.cpp
+  patcher/genericObjects/gBangBang.cpp
+  patcher/genericObjects/gBondo.cpp
   patcher/genericObjects/gGate.cpp
   patcher/genericObjects/gIf.cpp
+  patcher/genericObjects/gMatch.cpp
+  patcher/genericObjects/gNext.cpp
+  patcher/genericObjects/gOneBang.cpp
   patcher/genericObjects/gReceive.cpp
   patcher/genericObjects/gRegexEngine.cpp
   patcher/genericObjects/gRegexp.cpp
   patcher/genericObjects/gRoute.cpp
+  patcher/genericObjects/gSel.cpp
   patcher/genericObjects/gSend.cpp
   patcher/genericObjects/gSwitch.cpp
+  patcher/genericObjects/gTrigger.cpp
+  patcher/genericObjects/gUzi.cpp
   patcher/genericObjects/pAdc.cpp
   patcher/genericObjects/pDac.cpp
   patcher/genericObjects/pLine.cpp
@@ -138,6 +146,8 @@ set(YSE_SRCS
   patcher/math/gAnal.cpp
   patcher/math/gAtan2.cpp
   patcher/math/gBitwise.cpp
+  patcher/math/gChange.cpp
+  patcher/math/gTogEdge.cpp
   patcher/math/gClip.cpp
   patcher/math/gCompare.cpp
   patcher/math/gCounter.cpp
@@ -290,13 +300,21 @@ set_source_files_properties(
   patcher/generatorObjects/dNoise.cpp
   patcher/generatorObjects/dSaw.cpp
   patcher/generatorObjects/pSine.cpp
+  patcher/genericObjects/gBangBang.cpp
+  patcher/genericObjects/gBondo.cpp
   patcher/genericObjects/gGate.cpp
   patcher/genericObjects/gIf.cpp
+  patcher/genericObjects/gMatch.cpp
+  patcher/genericObjects/gNext.cpp
+  patcher/genericObjects/gOneBang.cpp
   patcher/genericObjects/gReceive.cpp
   patcher/genericObjects/gRegexp.cpp
   patcher/genericObjects/gRoute.cpp
+  patcher/genericObjects/gSel.cpp
   patcher/genericObjects/gSend.cpp
   patcher/genericObjects/gSwitch.cpp
+  patcher/genericObjects/gTrigger.cpp
+  patcher/genericObjects/gUzi.cpp
   patcher/genericObjects/pAdc.cpp
   patcher/genericObjects/pDac.cpp
   patcher/genericObjects/pLine.cpp
@@ -318,6 +336,8 @@ set_source_files_properties(
   patcher/math/gAnal.cpp
   patcher/math/gAtan2.cpp
   patcher/math/gBitwise.cpp
+  patcher/math/gChange.cpp
+  patcher/math/gTogEdge.cpp
   patcher/math/gClip.cpp
   patcher/math/gCompare.cpp
   patcher/math/gCounter.cpp

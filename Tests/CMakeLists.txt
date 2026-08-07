@@ -63,11 +63,21 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_extremum.cpp
   patcher/test_patcher_running_extremum.cpp
   patcher/test_patcher_past.cpp
+  patcher/test_patcher_change.cpp
+  patcher/test_patcher_togedge.cpp
   patcher/test_patcher_scale.cpp
   patcher/test_patcher_zmap.cpp
   patcher/test_patcher_clip.cpp
   patcher/test_patcher_pong.cpp
   patcher/test_patcher_split.cpp
+  patcher/test_patcher_sel.cpp
+  patcher/test_patcher_trigger.cpp
+  patcher/test_patcher_bangbang.cpp
+  patcher/test_patcher_onebang.cpp
+  patcher/test_patcher_next.cpp
+  patcher/test_patcher_match.cpp
+  patcher/test_patcher_uzi.cpp
+  patcher/test_patcher_bondo.cpp
   patcher/test_patcher_slide.cpp
   patcher/test_patcher_expr.cpp
   patcher/test_patcher_vexpr.cpp
@@ -773,11 +783,21 @@ set_source_files_properties(
   patcher/test_patcher_extremum.cpp
   patcher/test_patcher_running_extremum.cpp
   patcher/test_patcher_past.cpp
+  patcher/test_patcher_change.cpp
+  patcher/test_patcher_togedge.cpp
   patcher/test_patcher_scale.cpp
   patcher/test_patcher_zmap.cpp
   patcher/test_patcher_clip.cpp
   patcher/test_patcher_pong.cpp
   patcher/test_patcher_split.cpp
+  patcher/test_patcher_sel.cpp
+  patcher/test_patcher_trigger.cpp
+  patcher/test_patcher_bangbang.cpp
+  patcher/test_patcher_onebang.cpp
+  patcher/test_patcher_next.cpp
+  patcher/test_patcher_match.cpp
+  patcher/test_patcher_uzi.cpp
+  patcher/test_patcher_bondo.cpp
   patcher/test_patcher_slide.cpp
   patcher/test_patcher_expr.cpp
   patcher/test_patcher_vexpr.cpp

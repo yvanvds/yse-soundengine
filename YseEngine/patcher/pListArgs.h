@@ -1,10 +1,98 @@
 #pragma once
+#include <cmath>
 #include <cstddef>
+#include <cstdlib>
 #include <string>
 #include "../headers/types.hpp"
 
 namespace YSE {
   namespace PATCHER {
+
+    /** @brief Longest token ``ReadNumericToken`` will read as a number. */
+    constexpr std::size_t NUMBER_TEXT_MAX = 63;
+
+    /**
+     *  @brief True when the whole of the @p length characters at @p text is one
+     *         finite number, which is then written to @p out.
+     *
+     *  The strict counterpart of ``ExprParseFloatList``, and the difference is
+     *  the point: this answers *"is this token a number?"*, where the expression
+     *  reader answers *"give me the numbers in this text"*. The expression
+     *  reader **skips** what it cannot read, so ``5abc`` comes back as 5, and it
+     *  folds a non-finite result to **0**, so ``1e999`` comes back as a plain
+     *  zero. Both are right for a list of thresholds and wrong for deciding what
+     *  kind of thing a creation argument is: the first turns the symbol ``5abc``
+     *  into the number 5, and the second turns ``inf`` into a value that
+     *  collides with every real 0 a patch sends.
+     *
+     *  So a token that is only *partly* a number is not a number, and neither is
+     *  one that reads as a NaN or an infinity (including by overflow) — those
+     *  are more useful as the symbols they were typed as.
+     *
+     *  Written for ``.sel`` (#465) and shared with ``.trigger`` (#466), which
+     *  needs the same yes/no answer to tell a format letter from a constant.
+     *  Real-time properties match the rest of this header: one bounded copy into
+     *  a stack buffer and one ``strtof`` — no allocation, no exception, and the
+     *  same locale exposure ``ExprParseFloatList`` already has.
+     */
+    inline bool ReadNumericToken(const char* text, std::size_t length, float& out) {
+      if (length == 0 || length > NUMBER_TEXT_MAX) return false;
+
+      char buffer[NUMBER_TEXT_MAX + 1];
+      for (std::size_t i = 0; i < length; i++)
+        buffer[i] = text[i];
+      buffer[length] = '\0';
+
+      char* end = nullptr;
+      const float parsed = std::strtof(buffer, &end);
+
+      // The number has to *be* the token: strtof stops at the first character it
+      // cannot use, so without this "5abc" and "5e" would both read as 5.
+      if (end != buffer + length) return false;
+
+      // strtof also accepts "inf" and "nan", and overflows to infinity.
+      if (!std::isfinite(parsed)) return false;
+
+      out = parsed;
+      return true;
+    }
+
+    /** @brief ``ReadNumericToken`` over a whole ``std::string`` token. */
+    inline bool ReadNumericToken(const std::string& token, float& out) {
+      return ReadNumericToken(token.c_str(), token.size(), out);
+    }
+
+    /**
+     *  @brief True when a token ``ReadNumericToken`` has already accepted is
+     *         spelled as a **float** rather than as an int.
+     *
+     *  The test Max's own parser applies to decide whether an atom is an int
+     *  atom or a float one, and the only thing left to decide it by once the
+     *  whole token has been agreed to be a number. ``.`` catches ``5.``,
+     *  ``5.0`` and ``.5``; the exponent catches ``1e3``, which Max also reads
+     *  as a float.
+     *
+     *  It matters wherever a number is going to be written back out, because
+     *  ``ExprFormatValue`` always gives a float a decimal point: without this
+     *  test the list ``1 2 3`` would come back as ``1. 2. 3.``.
+     *
+     *  Written for ``.trigger`` (#466), which classifies its constant
+     *  arguments with it, and shared with ``.match`` (#472), which has to
+     *  reproduce the spelling of the values it echoes back. No allocation, no
+     *  locale, no exception — one walk of the characters.
+     */
+    inline bool TokenLooksLikeFloat(const char* text, std::size_t length) {
+      for (std::size_t i = 0; i < length; i++) {
+        const char c = text[i];
+        if (c == '.' || c == 'e' || c == 'E') return true;
+      }
+      return false;
+    }
+
+    /** @brief ``TokenLooksLikeFloat`` over a whole ``std::string`` token. */
+    inline bool TokenLooksLikeFloat(const std::string& token) {
+      return TokenLooksLikeFloat(token.c_str(), token.size());
+    }
 
     /**
      *  @brief Reads a decimal integer out of @p text starting at @p offset, and
@@ -154,6 +242,25 @@ namespace YSE {
       while (n > 0)
         out[written++] = digits[--n];
       return written;
+    }
+
+    /**
+     *  @brief ``"out0"``, ``"out1"``, ... — the documentation label of outlet
+     *         @p index on an object whose outlets are built from its arguments.
+     *
+     *  Only objects whose outlet *count* is a creation argument need this;
+     *  everywhere else the label is a literal in the constructor. Routed
+     *  through ``WriteInt`` rather than ``std::to_string`` because the patcher
+     *  has one way of turning an int into text and this is it — control-thread
+     *  only either way, since ``SetDoc`` is.
+     *
+     *  Written for ``.trigger`` (#466) and shared with ``.bangbang`` (#467),
+     *  which labels its outlets the same way for the same reason.
+     */
+    inline std::string OutletLabel(int index) {
+      char digits[FORMAT_INT_WIDTH];
+      const std::size_t written = WriteInt(index, digits);
+      return "out" + std::string(digits, written);
     }
 
     /**

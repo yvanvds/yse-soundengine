@@ -1162,6 +1162,106 @@
     ],
     "params": []
   },
+  ".bangbang": {
+    "category": "GENERIC",
+    "description": "Sends a bang out every outlet, in right-to-left order, whenever anything arrives. Max's bangbang, and the bang-only degenerate case of .trigger: where .trigger converts the input per outlet, this discards it entirely, so a bang, an int, a float and a list all produce exactly the same N bangs. What it keeps is the ordering guarantee, which is the reason either object exists: outlet n-1 is sent first and outlet 0 last, and each send completes in full — the whole subgraph hanging off that outlet, depth first — before the next one starts, because the patcher's send path calls the target inlet directly with no queue in between. That makes 'do this, and only once it has finished, do that' expressible as a single box rather than as an assumption about how the patch happens to be wired. The order in which several patch cords from the same outlet are served is deliberately not guaranteed, as in Max; the answer to needing it is another .bangbang. The optional creation argument is the outlet count, not a format list — .bangbang 3 has three outlets where .trigger 3 has one outlet emitting the constant 3 — and Max's documented range of 1 to 40 is applied, so a larger count is capped at 40 rather than following .trigger's 256. A float argument is truncated towards zero, as Max converts it to an int; an argument that is not a whole finite number, or no argument at all, gives two outlets, which is Max's default shape and .trigger's. Calculate() does nothing: the object is driven by its inlet, and emitting on a DSP tick would re-fire the whole fan-out every block.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Bang, int, float or list. Whatever arrives is discarded and a bang is sent out every outlet, right to left.",
+        "index": 0,
+        "label": "in",
+        "range": "any"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".bangbang",
+    "outlets": [
+      {
+        "doc": "A bang, whatever arrived at the inlet. Outlet n-1 fires first and outlet 0 last, and each send completes in full before the outlet to its left is served.",
+        "index": 0,
+        "label": "out0",
+        "range": "bang",
+        "type": "BANG"
+      },
+      {
+        "doc": "A bang, whatever arrived at the inlet. Outlet n-1 fires first and outlet 0 last, and each send completes in full before the outlet to its left is served.",
+        "index": 1,
+        "label": "out1",
+        "range": "bang",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "2",
+        "doc": "How many outlets to build, between 1 and 40 — Max's documented range. A float is truncated towards zero; a count outside the range is clamped to it. With no argument, or with an argument that is not a whole finite number, there are two outlets.",
+        "name": "outlets",
+        "range": "1-40"
+      }
+    ]
+  },
+  ".bondo": {
+    "category": "GENERIC",
+    "description": "Holds one value per inlet and releases the whole set together the moment any one of them changes — Max's bondo, 'synchronizes and outputs a set of inputs when any input is received'. The problem it solves is incoherence in transit: a patch that has to change three related parameters at once sends them down three cords, and whatever is downstream sees the new first value against the old second and third for as long as it takes the next cord to be served — a gap that is invisible in a diagram and audible in a patch. .bondo closes it, so a reader is never handed a mixture of the old set and the new one. Every inlet is hot, and that is the object: this is the reverse of almost every other multi-inlet box here, where one inlet acts and the rest are cold. Max says it once per method and says it the same way each time — 'In any inlet: the input is stored in the location corresponding to that inlet, and causes anything previously stored to be sent out its corresponding outlet' — so a patch does not have to know which of its parameters moved and does not have to route a bang alongside them; whichever one moves carries the others out with it. Its sibling buddy is the opposite policy, waiting until every inlet has something before releasing once; .bondo never waits. There are two ways to store without releasing. 'set <anything>' stores into the receiving inlet and emits nothing, which is the only way to write an inlet quietly since there are no cold inlets to do it with, and here it performs exactly the store the same message without the word would have performed and suppresses only the output. A bang is the other half — 'send all stored messages' — storing nothing and releasing everything, in any inlet, so 'set' three values then bang is the manual mode and it composes with the automatic one rather than replacing it. An inlet that has never been written releases int 0, as Max's does, so a reader wired to every outlet gets a complete set from the very first release and never needs a 'have I seen this one yet' flag of its own. Stored values persist rather than being consumed: a release does not empty the object, so banging twice sends the same set twice and changing one inlet re-sends the others unchanged — a consuming object would emit zeros on the second bang, which is the incoherence this box exists to prevent. Outlet n-1 is served first and outlet 0 last, each send completing in full (the whole subgraph behind it, depth first) before the next starts, which is Max's right-to-left rule and load-bearing here: the idiom wires outlet 0 into whatever acts and the rest into whatever stores, so by the time the leftmost value lands the rest of the set is already in place. A release happens inside the call frame of the message that caused it, so the whole set is one logical event and .bondo into .next gives one separated bang and the rest continued, however many outlets there are. A list whose first token is a number is spread across the outlets from the receiving one rightwards, as Max spreads one, and anything else is stored whole in the single slot — the leading-token test is Max's own rule for which method a message reaches, and it is what this patcher can use in place of a symbol type it does not have. The 'n' creation argument turns distribution off so that a whole list is stored per outlet, which is the mode to reach for when an inlet's value is itself a list. Max's delay argument is read and refused rather than silently ignored: deferring a release would need a scheduler on a path that may be the audio thread, and the deferred output would fire outside the dispatch that caused it, so the one-release-is-one-event guarantee would quietly stop holding for exactly the patches that asked for a delay. At most 256 inlet/outlet pairs are built, and the slot table is sized once before the object is published — Calculate() does nothing, and no message path allocates, locks or blocks.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Hot, like every other inlet on this object. An int, float, list or symbol is stored here and then the whole set is released, right to left. 'set <anything>' performs the same store and releases nothing; a bang releases the set without storing. A list whose first token is a number is spread over this slot and the ones to its right unless the 'n' creation argument was given, in which case it is stored whole.",
+        "index": 0,
+        "label": "in0",
+        "range": "any"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Hot, like every other inlet on this object. An int, float, list or symbol is stored here and then the whole set is released, right to left. 'set <anything>' performs the same store and releases nothing; a bang releases the set without storing. A list whose first token is a number is spread over this slot and the ones to its right unless the 'n' creation argument was given, in which case it is stored whole.",
+        "index": 1,
+        "label": "in1",
+        "range": "any"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".bondo",
+    "outlets": [
+      {
+        "doc": "What the corresponding inlet is holding, sent on every release. Int 0 until that inlet has received something. Released right to left with every other outlet, each send completing in full before the outlet to its left is served.",
+        "index": 0,
+        "label": "out0",
+        "range": "any",
+        "type": "ANY"
+      },
+      {
+        "doc": "What the corresponding inlet is holding, sent on every release. Int 0 until that inlet has received something. Released right to left with every other outlet, each send completing in full before the outlet to its left is served.",
+        "index": 1,
+        "label": "out1",
+        "range": "any",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "2",
+        "doc": "Max's argument list, in Max's order and read by type. The first whole number is how many inlet/outlet pairs to build, clamped to 1-256 and defaulting to 2. A second whole number is Max's delay in milliseconds, which is reported but not honoured — a release is always immediate here. The symbol 'n' stores a whole list per outlet instead of spreading it across them. Anything else is ignored.",
+        "name": "ports",
+        "range": "1-256, optional delay in ms, optional 'n'"
+      }
+    ]
+  },
   ".cartopol": {
     "category": "MATH",
     "description": "Control-rate cartesian to polar conversion. Whenever inlet 0 fires it emits the polar form of the point (x, y): its distance from the origin on outlet 0 and its angle in radians, measured from the positive x axis, on outlet 1. Both outlets fire on every evaluation, right one first.",
@@ -1211,6 +1311,56 @@
         "doc": "Initial y coordinate.",
         "name": "y",
         "range": "any float"
+      }
+    ]
+  },
+  ".change": {
+    "category": "MATH",
+    "description": "Passes a number on only when it differs from the last one, which is what keeps a control source that polls at frame rate from filling a bounded message queue with a value nothing downstream will act on. Max's change, and it looks trivial in a way it is not. The stored value starts at the 'initial' creation argument rather than at 'nothing received yet' — Max: 'If there is no argument, the initial value is 0' — so a bare .change sent 0 as its very first message emits nothing, because 0 is what it already held, while the same object sent 5 first emits 5. That is the point of the argument: .change 5 declares what the patch already believes the value to be, so loading a patch does not fire an event for a parameter that has not moved, and an object that always emitted its first input could not express it. The comparison is exact, with no tolerance, for the reason .sel gives from the other side: a tolerance in a matcher makes it match values it was not given, and a tolerance in a suppressor is worse, because swallowing a value that genuinely differs is invisible and leaves a patch whose parameter stopped updating at the fourth decimal place with no symptom to trace. Put a .round on the way in, where the patch's real tolerance is visible. Negative zero is not a change from zero, since they are the same number. A non-finite number is ignored outright — nothing is emitted, no outlet fires and the stored value is untouched — rather than read as 0 the way the rest of the patcher reads it: reading a NaN as 0 would emit a zero the patch never sent and then swallow the next genuine one, and storing it raw is worse, because a NaN compares unequal to everything including itself and a stream of them would emit on every single message, which is the exact repetition flood this object exists to stop. So the stored value is always finite, whether it came from the argument, from 'set' or from the inlet. Three outlets, as in Max: outlet 0 carries the number when it differs; outlet 1 sends 1 when the stored value was 0 and the input is not; outlet 2 sends 1 when the stored value was not 0 and the input is. The last two are .togedge built into the object and are ported because Max ships them, so a patch translated from Max does not silently lose two cords; neither can fire on a repetition, and both are evaluated against the value held before this input. The three fire right to left, so whatever the value triggers already sees the matching edge reports. Max's second argument and its 'mode' message turn the object from a difference detector into a direction detector: 'mode +' sends 1 when the number is greater than the previous one, 'mode -' sends -1 when it is less, and a bare 'mode' returns to the default. The stored value is replaced by every number received in every mode — it is the previously received number, not the last one emitted — so a .change + fed 5, 3, 4 emits nothing, nothing, then 1. A mode flag this object does not know leaves the mode alone. 'set <n>' replaces the stored value without emitting, which is the whole of what makes it useful: if it emitted it would just be a spelling of sending n at the inlet, whereas staying silent lets a patch re-synchronise the filter with a value that reached the parameter by another route. 'reset' is the patcher family's word rather than a Max message and returns both the stored value and the mode to what the object was created with, silently, since after a 'set' or a 'mode' there is otherwise no way back to the creation argument. A bang is not accepted, because outlet 0 means 'this number differs from the last one' and a bang would have to either fabricate a change or do nothing. A symbol is not accepted either: Max's change has no symbol method, two of its three outlets are numeric predicates and two of its three modes are orderings, none of which a symbol has, so suppressing repeated symbols is a different object rather than a mode of this one. A list is Max's single-inlet distribution — the first element is the number and the rest is dropped, so '5 6' is the number 5 — and a message that is neither a word this object knows nor a list beginning with a number is ignored. Everything is a float and outlet 0 is a float outlet, so Max's int-unless-the-argument-has-a-decimal-point duality is not reproduced: '.change 5' and '.change 5.0' are the same parameter string here, and guessing integral would turn a change filter into a change-and-quantise filter.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Int or float to compare against the stored value — sent out outlet 0 only when it differs, or in the '+' / '-' modes when it is greater / less. A non-finite number is ignored. Also accepts the messages 'set <n>' (replace the stored value without emitting), 'mode +' / 'mode -' / 'mode' (switch the comparison, or return to the default) and 'reset' (back to the creation argument and creation mode). All of them are silent. A list is reduced to its first number, as Max's single-inlet distribution does; a bang and a symbol are not accepted.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".change",
+    "outlets": [
+      {
+        "doc": "The number received, when it differs from the stored value. In 'mode +' this carries 1 when the number is greater than the previous one and in 'mode -' it carries -1 when the number is less; it stays a float outlet in every mode. Silent otherwise, which is the whole point of the object.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "1 when the stored value was 0 and the input is not 0. Silent otherwise.",
+        "index": 1,
+        "label": "rising",
+        "range": "1",
+        "type": "INT"
+      },
+      {
+        "doc": "1 when the stored value was not 0 and the input is 0. Silent otherwise.",
+        "index": 2,
+        "label": "falling",
+        "range": "1",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The value the first input is compared against, and optionally Max's mode flag. A bare .change starts at 0, so its first 0 is swallowed as a repetition and its first non-zero number comes out; '.change 5' declares that the patch already believes the value to be 5, so loading it fires nothing until the value actually moves. A second argument of '+' or '-' starts the object in the greater-than or less-than mode, as Max's does. A token that does not read as a whole finite number is not a value — '.change inf' therefore starts at 0 — and a token that is neither is ignored. 'reset' returns to both of these.",
+        "name": "initial mode",
+        "range": "a float, optionally followed by + or -"
       }
     ]
   },
@@ -2093,6 +2243,42 @@
       }
     ]
   },
+  ".match": {
+    "category": "GENERIC",
+    "description": "Watches the stream of values arriving at its inlet and sends the whole sequence out as a list the moment it spells the creation argument — Max's match, 'watches an incoming stream of ints, floats, symbols, lists, or messages, and outputs the stream after it has met the specification of its arguments'. This is pattern recognition over time rather than over a single value, which is the thing the patcher had no way to express: .sel and .split answer one number at a time and .change and .togedge compare a number with the one before it, so recognising a played motif, a controller gesture or a trigger sequence meant a chain of counters and gates whose state was implicit in the wiring. The word 'nn' is Max's wild card and matches any number, so '.match 1 nn 3' fires on 1, 5, 3 — and what comes out is what arrived, '1 5 3', not the pattern, which is why the object emits a list rather than a bang: the wildcard positions carry the information the patch was listening for. The rule that separates a working matcher from a plausible one is that a mismatch does not throw away the values that caused it, because those values may be the start of the next candidate: against '.match 1 2 3' the stream 1 2 1 2 3 matches, since the third value ends one candidate and begins another at the same moment, and an implementation that walks a cursor forward and resets it to 0 on a mismatch reports nothing at all there. So the object keeps the last N values received, N being the pattern length, and after every value asks whether that window now spells the pattern — every candidate starting position is tested at once rather than one chosen in advance, at a bounded cost of at most N comparisons per value with no allocation. Matches do not overlap: on a match the window is emptied, so '.match 1 1 1' fed five 1s fires once rather than three times, which is the same erasure Max's 'clear' performs by hand and is what makes the outlet a stream of events rather than of every window that happens to fit. A value that is not a number occupies its position in the stream and matches nothing there, breaking any candidate it lands in — that covers a symbol (a list token that does not read as a number in its entirety, so '5abc' is a symbol and not the number 5) and a non-finite value, where the patcher's usual 'read a non-finite as 0' substitution is deliberately not applied because it would let a stray NaN complete a sequence a patch wired for a real 0; a NaN could never match a literal in any case, and what the rule settles is that it does not match the wildcard either. Comparison against a literal is exact, as .sel's and .change's are, so a computed float may miss a literal it looks equal to and a .round upstream is the fix; an int is widened to a float and compared as one, since this patcher has one numeric type and '.match 5' and '.match 5.0' are the same parameter string. An argument that is neither a number nor 'nn' is kept as an element nothing can match, so the object goes silent rather than quietly matching a shorter sequence: the pattern's length is half of what the object means, and turning the uppercase typo '.match 1 NN 3' into '.match 1 3' would leave a box that fires on a sequence the patch never asked for. A pattern of zero elements — a bare .match, or a 'set' with no list — has no sequence to detect and stays silent, rather than matching everything immediately and putting an endless stream of empty lists on the outlet. Two messages: 'clear' empties the window without touching the pattern and emits nothing, and 'set <list>' replaces the pattern, taking 'nn' the way the creation arguments do, and empties the window too, since a partial candidate against the old pattern means nothing against the new one. 'set' deliberately does not rewrite the creation argument, so a DumpJSON after one saves the pattern the object was created with — the same split .peak's 'set' has from its 'initial' argument. There is no bang inlet: Max routes bang through 'anything', which performs the same as 'list', and a bang is a list of no values, so an inlet that accepted it would only be a way of spelling 'do nothing'. Calculate() does nothing, an emitting one having no stimulus to report. At most 256 pattern elements are held.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Int, float or list to feed into the sequence. Each number takes the next position in the stream; a list contributes its tokens left to right, and a token that does not read as a number in its entirety — like a non-finite value — takes a position that matches nothing and so breaks any candidate it lands in. The message 'clear' forgets every value received so far without touching the pattern, and 'set <list>' replaces the pattern (with 'nn' accepted as the wildcard) and forgets the values too. A bang is not accepted: a message carrying no number cannot advance a sequence.",
+        "index": 0,
+        "label": "in",
+        "range": "any"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".match",
+    "outlets": [
+      {
+        "doc": "The matched sequence, as a list of exactly as many values as the pattern has elements, in the order they arrived and in the spelling they arrived in — so the wildcard positions carry the values that filled them. Sent the moment the last value of the sequence arrives, and then the object forgets everything, so consecutive matches never overlap.",
+        "index": 0,
+        "label": "match",
+        "range": "list of numbers",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The sequence to watch for, as a list. A token that reads as a finite number in its entirety is a literal matched exactly; the word 'nn' is Max's wild card and matches any number; anything else is kept as an element nothing can match, so a typo makes the object silent rather than making it match a shorter sequence. With no argument there is no sequence to detect and the object stays silent. At most 256 elements are held.",
+        "name": "pattern",
+        "range": "any list of numbers and nn"
+      }
+    ]
+  },
   ".maximum": {
     "category": "MATH",
     "description": "Sends out the larger of the number received on inlet 0 and a stored comparand, which makes it a .clip whose bound is itself a signal and the natural way to combine two control sources. Inlet 1 sets the comparand without emitting anything; a number on inlet 0 is compared and then forgotten, so the comparand is never moved by the input — that running reading of the idea is .peak, a different object. A bang re-sends the most recent output, and before there has been one that is the 'initial' creation argument (0 by default) rather than silence, since a patch that bangs its objects once on load has to get an answer. A list of two or more numbers is Max's reduction: the numbers are compared with each other and the greatest is sent out, the comparand taking no part, and afterwards the comparand is replaced by the next greatest value in the list — not by the greatest, which would make every later comparison a tie with the value just emitted. Up to 256 items are read; a one-element list is a plain number and compares against the comparand as one. A message with no numbers in it is ignored. Everything is a float and the outlet is a float outlet: Max's int-unless-the-argument-has-a-decimal-point duality is deliberately not reproduced, because '.maximum 5' and '.maximum 5.0' are the same parameter string here and guessing integral would silently round a comparison a patch is using to clamp a gain — put a .round on the outlet instead. A non-finite number is read as 0 wherever it arrives, the convention ./ , .sqrt, .zmap, .clip, .slide and .mean already use, and here it also keeps a stray NaN from losing every comparison while still being the value sent out, and a stray infinity from pinning the outlet for good.",
@@ -2322,6 +2508,43 @@
     ],
     "params": []
   },
+  ".next": {
+    "category": "GENERIC",
+    "description": "Bangs the left outlet for the first message of a burst and the right outlet for every message after it — Max's next, whose summary line is 'Detect separation of messages'. The use Max names is the one to keep in mind: 'next is useful for doing something once per dump of an object such as coll'. A dump sprays a hundred messages down one cord, and .next marks the first of them and labels the other ninety-nine, so a patch can open a file, reset a counter or start an envelope once per dump rather than a hundred times, without knowing how long the dump is. The name invites the wrong reading and the wrong reading is a different object: this measures no interval, holds no clock and has no threshold. Two messages a microsecond apart are the same event if one caused the other, and two messages a microsecond apart are different events if they came from two stimuli. Max spells it out — 'a logical event is one of the following: a mouse click, the ongoing polling of a mouse drag, an event generated by the scheduler (such as the bang from a metro), a MIDI event, or a keyboard event [...] if you click on a bang twice, the two bangs are not part of the same logical event, but if you put bang, bang in a message box, or use the uzi object to send out two bangs in a row, these bangs are part of the same logical event'. Two clicks are two events however fast you click, and two bangs from one message box are one event however slow the patch is, so an elapsed-time implementation gets both cases backwards. This patcher has no scheduler to take ticks from, but it has the structure Max's definition rests on: message delivery is synchronous and depth-first, so everything one stimulus causes runs inside the call frame of the dispatch that started it. Counting that nesting reproduces Max's grouping case for case — two host calls are two events, two .metro ticks are two events, and a .trigger's whole right-to-left fan-out is one event, which makes '.trigger b b' into a .next this patcher's 'bang, bang' message box: first bang left, second bang right. The very first message an object ever receives goes out the left outlet, there being no previous message for it to share an event with, which is what lets a patch read that outlet as 'a new burst starts here' and be right about the first burst too. Exactly one outlet fires per message, always: the two are a complete partition of the inlet's traffic, so nothing is swallowed and the right outlet is worth wiring as 'and here is the rest of the burst'. Because only one fires there is no right-to-left order to respect, unlike .trigger, .bangbang, .mean or .peak. Everything is a bang — Max gives bang, int and float the description 'Performs the same as anything', so the payload is documented as irrelevant and a 0 separates like any other message. There are no creation arguments and no messages, as Max lists neither: there is no state a reset could return the object to, and in an object where every symbol is an ordinary tested message, each word learned would be a message that stopped being tested. Calculate() does nothing, since an emitting one would fire the object once per DSP block from a stimulus no patch sent.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Bang, int, float or list — whatever arrives is discarded and only its timing in the message graph is read. A bang leaves outlet 0 if this message did not arrive as part of the same stimulus as the previous one, and outlet 1 if it did. The first message after the object is created always leaves outlet 0. Takes no messages: every word is an ordinary tested message, as in Max.",
+        "index": 0,
+        "label": "in",
+        "range": "any"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".next",
+    "outlets": [
+      {
+        "doc": "A bang, when this message starts a new logical event — a fresh host call, GUI action or .metro tick, rather than more of the fan-out that is already running. Wire it to do something once per burst.",
+        "index": 0,
+        "label": "separated",
+        "range": "bang",
+        "type": "BANG"
+      },
+      {
+        "doc": "A bang, when this message belongs to the same logical event as the previous one — the second and later messages of one .trigger fan-out, dump or chain. Wire it to handle the rest of the burst; leave it unconnected to get a plain once-per-burst trigger.",
+        "index": 1,
+        "label": "same",
+        "range": "bang",
+        "type": "BANG"
+      }
+    ],
+    "params": []
+  },
   ".noteoff": {
     "category": "MIDI",
     "description": "MIDI Note-Off message generator. Inlet 0 fires the message; emits a 3-byte status/pitch/velocity packet as a list.",
@@ -2405,6 +2628,62 @@
         "doc": "MIDI channel offset (0-based).",
         "name": "channel",
         "range": "0-15"
+      }
+    ]
+  },
+  ".onebang": {
+    "category": "GENERIC",
+    "description": "Lets one bang through and then closes until it is re-armed from the right inlet — Max's onebang, and the standard one-shot: fire a sound on the first trigger of a burst and ignore the rest until something explicitly re-enables it. Max: 'Allows a bang in the left inlet to pass through ONLY if a bang has been received in the right inlet. After that, a bang in the left inlet will not get through again until a bang has been received again in the right inlet.' The patcher could already count triggers with .counter and compare them with .sel or .past, but expressing 'once, then not again until I say so' that way takes three boxes and leaves the re-arm implicit in the numbers, where here it is a patch cord. The whole object is one bit of state and two properties of it are worth knowing. The right inlet is idempotent: arming an already-armed gate does not bank a second pass, because Max says the left inlet passes 'only if it has received a bang in its right inlet since the last time it sent out a bang' — a since, not a count — so five arms followed by five triggers is one pass and four rejects, never five passes. And nothing is ever swallowed: every message the left inlet accepts produces exactly one bang, on one outlet or the other, so the object gates where a bang goes rather than whether one happens. That is what makes the second outlet worth wiring. There are two of them, which the object's name does not suggest — Max: 'Otherwise, it sends a bang out its right outlet' — so a blocked bang is reported as a 'you were too early' signal rather than lost, and the two outlets together are a complete accounting of the left inlet's traffic. Exactly one fires per message, so unlike .trigger, .bangbang, .mean or .peak there is no right-to-left firing order to respect. Everything is a bang: Max gives int, float and list the description 'Same as a bang' and anything 'Converted to bang', so the payload is documented as discarded, and a 0 on the left inlet triggers the gate like anything else. That is worth stating because the number reads like a 'don't' — this is not .gate, and a value of 0 does not mean off anywhere in it, on either inlet; a patch that wants a numeric gate wants .gate. The word 'stop' on the left inlet is Max's manual disarm ('Undoes the effect of a bang in the right inlet'), silent, and it is the only word this object knows. Elsewhere in the family a symbol is a message the object would ignore anyway, so adding 'reset' costs nothing; here a symbol is a trigger, so every word learned is a bang silently no longer passed — and 'stop' plus a message on the right inlet already reach the entire state space. It is bare, as .change's 'mode' and .past's 'clear' are: 'stop 1' is a list, and a list is a bang. On the right inlet 'stop' arms rather than disarming, because Max scopes the message to the left inlet while marking int, float, list and anything 'in either inlet', and because the reference describes the arming inlet with no conditions at all — a patch is entitled to treat a cord into it as 'the gate is now open', which would hold only for inspected message text if one string out of all possible strings closed it instead. The object starts disarmed, which is Max's default and also the safe one, since an object that started armed would let a patch load fire a bang nobody armed it for; a non-zero creation argument starts it armed, as Max's does. The argument is a flag, so only its zero-ness is read, and it is read from the float as it arrived rather than from a truncated int: Max's int argument would make 0.5 a zero, but this patcher has one numeric type and a flag that flipped on the third decimal place of a number nobody meant as a value would be a trap. A token that is not a whole finite number is not an argument, so '.onebang wobble' and '.onebang inf' both start disarmed — non-finite is 'not a number' in this family, as .change inf starting at 0 already establishes. Calculate() does nothing: the object is driven by its inlets, and emitting on a DSP tick would re-fire the gate every block, which for a one-shot is the exact failure it exists to prevent.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Bang, int, float or list — whatever arrives is discarded and treated as a bang. If the gate is armed a bang leaves outlet 0 and the gate closes; if it is not, a bang leaves outlet 1 instead. Every message produces exactly one bang, on one outlet or the other. Also accepts the bare word 'stop', Max's manual disarm, which is silent; 'stop' with anything after it is an ordinary list and so an ordinary trigger.",
+        "index": 0,
+        "label": "in",
+        "range": "any"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Bang, int, float or list — anything at all re-arms the gate, so the next message on the left inlet passes. Silent, and idempotent: arming twice does not bank a second pass. Note that 'stop' arms here like any other message; the disarm lives on the left inlet, where Max documents it.",
+        "index": 1,
+        "label": "arm",
+        "range": "any"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".onebang",
+    "outlets": [
+      {
+        "doc": "A bang, when the left inlet fired while the gate was armed. The gate closes as this is sent, so anything reached from here already sees a disarmed object.",
+        "index": 0,
+        "label": "pass",
+        "range": "bang",
+        "type": "BANG"
+      },
+      {
+        "doc": "A bang, when the left inlet fired while the gate was closed — the 'you were too early' signal. Wire it to count or report the triggers that did not pass; leave it unconnected to get a plain one-shot.",
+        "index": 1,
+        "label": "reject",
+        "range": "bang",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Whether the gate starts open. A non-zero argument lets the first message on the left inlet pass, as Max's does; with no argument, a zero one, or a token that is not a whole finite number ('.onebang wobble', '.onebang inf'), the object starts closed and the first message goes out the reject outlet. Only the zero-ness is read, from the float as it arrived, so '.onebang 0.5' starts open where Max's int argument would truncate it to a zero.",
+        "name": "initial",
+        "range": "0 or non-zero"
       }
     ]
   },
@@ -3187,6 +3466,60 @@
       }
     ]
   },
+  ".sel": {
+    "category": "GENERIC",
+    "description": "Bangs the outlet whose selector the input matches — Max's select, and with .trigger the backbone of message dispatch. One outlet per creation argument plus a rightmost pass-through, so a stream of numbers or symbols fans out into one branch per value: .route matches the leading symbol of a list and forwards the remainder, .split routes by range, and neither can branch on a bare number. A bare .sel has two outlets and matches the single number 0, which is Max's no-argument case. Exactly one outlet fires per input — the object looks like it might fan out and does not — and Max settles the only case where the question could arise: a selector repeated in the argument list bangs the leftmost of its outlets only. That is what spares this object the right-to-left firing order .mean and .peak have to respect. A match sends a bang and nothing else, since the outlet's position already carries the value; anything unmatched leaves the rightmost outlet unchanged and in its own type — an int as an int, a float as a float, a list as the same list, a bang as a bang — so a chain of .sel objects strings together with each reject outlet feeding the next inlet. On a match the rest of a list is dropped, as in Max; .route is the object that keeps the remainder. A selector is a number or a symbol, decided once when the argument is read, and the two never match each other: a number matches by value with an int widened to a float, so .sel 5 answers both the int 5 and the float 5.0; a symbol matches by exact text; a bang matches a selector spelled 'bang'; and a list is matched on its first element alone, which is a number if it reads as one and a symbol otherwise, so .sel 5 bangs for the list '5 6'. The comparison is exact. Max's matchfloat attribute, whose default of 0 makes select ignore floats altogether, has no meaning in a patcher with a single numeric type and reproducing it would silently drop half the messages the object is sent; Max's fuzzy attribute is a real convenience and a real hazard, since a tolerance makes .sel match values it was not given and two selectors closer together than the tolerance would both be right with the leftmost silently winning — put a .round on the way in, where the rounding is visible. What remains is Max's 'matchfloat 1, fuzzy 0.'. One consequence is worth knowing: a computed float may miss a selector it looks equal to, because 0.1 + 0.2 is not 0.3 in binary floating point, and a .round upstream is the fix. A NaN matches nothing at all and leaves the rightmost outlet; the patcher's usual 'read a non-finite as 0' substitution is deliberately not applied here, because it would make a stray NaN bang the outlet a patch wired for a real 0. Max's settable right inlet is reproduced with 'numeric' in place of 'int': a single numeric selector gets the inlet, a single symbolic one does not, and two or more do not. The deviation is forced, because .sel 5 and .sel 5.0 are the same parameter string here so there is no int-ness left to test, and keying the inlet count off whether the argument text happens to contain a decimal point would make the object's shape depend on spelling a JSON round trip is free to normalise. The inlet is silent, takes an int or a float and replaces the value of the single selector. With more than one selector there is no way to change them, which is Max's answer too: the argument list is the object's shape, and changing it changes the outlet count. At most 256 selectors are held.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Bang, int, float or list to match against the selectors. A match bangs the corresponding outlet; anything else leaves the rightmost outlet unchanged and in its own type. A list is matched on its first element alone and the rest is dropped — .route is the object that keeps the remainder.",
+        "index": 0,
+        "label": "in",
+        "range": "any"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Replaces the value of the single selector, silently. Present only when there is exactly one selector and it is a number, which is Max's rule.",
+        "index": 1,
+        "label": "value",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".sel",
+    "outlets": [
+      {
+        "doc": "Bang when the input matches selector 0 (0). Exactly one outlet fires per input, and a selector repeated in the argument list bangs the leftmost of its outlets only.",
+        "index": 0,
+        "label": "match0",
+        "range": "0",
+        "type": "BANG"
+      },
+      {
+        "doc": "The input, unchanged and in its own type, when it matched no selector. Chain this into the next .sel to carry on testing.",
+        "index": 1,
+        "label": "rest",
+        "range": "any",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The values to match against, as a list. Each one gets an outlet, in order, and the rightmost outlet takes everything that matches none of them. A token that reads as a finite number is a numeric selector and matches by value; anything else is a symbol and matches by exact text. With no argument the object matches the single number 0. At most 256 are held.",
+        "name": "selectors",
+        "range": "any list of numbers and symbols"
+      }
+    ]
+  },
   ".sin": {
     "category": "MATH",
     "description": "Control-rate sine. Emits sin(in) as a float whenever inlet 0 fires. The input is an angle in radians, as in Max.",
@@ -3589,6 +3922,87 @@
       }
     ]
   },
+  ".togedge": {
+    "category": "MATH",
+    "description": "Bangs the left outlet the moment a value becomes non-zero and the right outlet the moment it returns to zero, and says nothing in between — Max's togedge. It turns a continuous stream into the two moments a patch actually cares about, which is the clean way to derive note-on / note-off style gating from a threshold or an envelope, and in a patcher whose message queue is bounded the silence between the edges is the point rather than a nicety: an envelope sampled at frame rate would otherwise deliver a message per frame for the whole time the gate is open. Only transitions are reported, never levels — Max: 'Otherwise, togedge sends no output' — so 5 followed by 9 is not an event, because both are non-zero and no zero crossing happened, and 0 followed by 0 is not an event either. An implementation that reported 'the value changed' rather than 'the value crossed zero' would bang the left outlet on every message of a rising envelope. The two outlets are therefore mutually exclusive and strictly alternate over the object's whole life, which is the property a downstream note-on / note-off pairing depends on, since two note-ons with no note-off between them is a stuck note. The object starts holding 0 and takes no creation argument, as Max's does not: the first non-zero number it ever receives is a rising edge, while a first 0 is silent because 0 is what it already held. The .change object's 'initial' argument deliberately does not transfer, because that argument exists to keep a patch load from firing a value outlet for a parameter that has not moved and this object has no value outlet to fire — an edge that has not happened yet cannot be pre-declared. A bang is not a passthrough but the object's most surprising message: Max says it 'switches the value stored in togedge from 0 to non-zero, or vice versa, and reports the change by sending a bang out one of the outlets', so a bang toggles the stored value and then reports the transition it just made itself, and a stream of bangs comes out left, right, left, right. It composes with numeric input rather than living beside it, because both go through the same stored value, so a bang after the object was driven to 5 by a number bangs the right outlet and leaves the object holding 0. That is how a patch drives the same note-on / note-off pair from a single button. Both outlets carry a bang rather than the int 1 that .change's equivalent outlets send, which is what each Max reference page says and is defensible on its own terms: .change's edge outlets sit beside a value outlet where an int distinguishes an edge from nothing, whereas here the outlet's identity carries the whole meaning and a stray 1 would be a value nobody asked for on an outlet meant to drive a .trigger or a message box. The zero test itself is shared with .change rather than rewritten, because it has a corner two copies would drift apart on: -0.f == 0.f in IEEE-754, so a negative zero counts as zero on both sides. A non-finite number is ignored outright — no outlet fires and the stored value is untouched — rather than read as 0 the way the rest of the patcher reads it, because reading a NaN as 0 while the object holds 5 would bang the falling outlet and deliver a note-off for a note still being held, and storing it raw would leave the object in a state from which neither outlet could ever fire again. So the stored value is always finite, which is what guarantees the strict alternation cannot be broken by a value the patch did not choose. 'reset' is the patcher family's word rather than a Max message and returns the object to a stored 0 silently; the silence is its whole reason for existing, since a patch that wants the gate re-armed cannot just send 0 without banging the falling outlet and delivering a note-off it did not mean. There is no 'set', as Max documents none. A symbol is ignored, zero-ness being a numeric predicate that a symbol neither meets nor fails, and a list is Max's single-inlet distribution, so '5 6' is the number 5 and the 6 is dropped. Everything is a float and zero-ness is tested on the float as it arrived: Max's int-only method would truncate 0.5 to a zero, which would break this object's headline use outright, since an envelope between 0 and 1 would read as permanently zero except at full scale and the gate would never open.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Int or float to watch — the left outlet bangs when it becomes non-zero and the right when it returns to zero, and nothing comes out while it stays on one side. A non-finite number is ignored, leaving the stored value alone, rather than read as 0, which would report a transition the patch never sent. A bang toggles the stored value between zero and non-zero and reports the transition it just made, so a stream of bangs alternates the outlets. Also accepts 'reset' (back to a stored 0, silently — the only way to re-arm without banging the right outlet). A list is reduced to its first number, as Max's single-inlet distribution does; a symbol is ignored.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".togedge",
+    "outlets": [
+      {
+        "doc": "Bang when the stored value was 0 and the input is not 0. Silent while the value stays non-zero, however much it changes.",
+        "index": 0,
+        "label": "rising",
+        "range": "bang",
+        "type": "BANG"
+      },
+      {
+        "doc": "Bang when the stored value was not 0 and the input is 0. Silent while the value stays zero.",
+        "index": 1,
+        "label": "falling",
+        "range": "bang",
+        "type": "BANG"
+      }
+    ],
+    "params": []
+  },
+  ".trigger": {
+    "category": "GENERIC",
+    "description": "Sends one input to many outlets in a defined right-to-left order, converting it per outlet on the way. Max's trigger, and the only object in the patcher whose point is ordering: everywhere else the order in which two branches run is an accident of how the patch was wired, and .trigger makes it a statement. Outlet n-1 is sent first and outlet 0 last, and each send completes in full — the whole subgraph hanging off that outlet, depth first — before the next one starts, because the patcher's send path calls the target inlet directly with no queue in between. That is what makes '.trigger b i' expressible: the int leaves the right outlet and lands in a cold inlet, and only then does the bang leave the left one, so the bang can never fire the old value. The order in which several patch cords from the same outlet are served is deliberately not guaranteed, as in Max; the answer to needing it is another .trigger. One outlet per argument, in argument order, and each argument is either a format letter or a constant. The five format letters convert whatever arrives: i sends an int (a float truncated towards zero, a list or bang as 0), f sends a float (an int widened, a list or bang as 0.), b sends a bang whatever arrived, l sends the input list unchanged or else the single-item list 0, and s sends the input text unchanged or else the empty symbol. Anything that is not one of those five letters is a constant, and a constant outlet emits its own value on every input, ignoring what arrived: a token that reads as a whole finite number is an int constant when it is spelled as one and a float constant when it carries a '.' or an exponent, which is how Max's own parser tells the two atoms apart, and anything else is a symbol constant that goes out as its own text. With no arguments there are two outlets, both i — Max's default. One deviation: this patcher has no symbol message, and text travels as a list message carrying a string, so an s outlet cannot ask whether what arrived was a symbol or a list. A list message therefore passes through both l and s unchanged, rather than inventing a single-token-is-a-symbol rule no other object follows. What survives is the useful half of Max's distinction — what the two do with everything else — so a number or a bang still leaves an l outlet as the list 0 and an s outlet as the empty symbol. It also means the list '5 6' leaves an i outlet as 0 rather than as 5, which is what Max says a list reaching an i outlet does: .trigger is not a list reader, .route and .sel are. At most 256 outlets are built.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Bang, int, float or list. Whatever arrives is sent out every outlet, right to left, converted per outlet.",
+        "index": 0,
+        "label": "in",
+        "range": "any"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".trigger",
+    "outlets": [
+      {
+        "doc": "The input as an int — a float is truncated towards zero, and a list or a bang becomes 0. Fired in right-to-left order with every other outlet.",
+        "index": 0,
+        "label": "out0",
+        "range": "any int",
+        "type": "INT"
+      },
+      {
+        "doc": "The input as an int — a float is truncated towards zero, and a list or a bang becomes 0. Fired in right-to-left order with every other outlet.",
+        "index": 1,
+        "label": "out1",
+        "range": "any int",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "i i",
+        "doc": "One argument per outlet, in order. 'i', 'f', 'b', 'l' and 's' are format letters that convert the input to an int, a float, a bang, a list or a symbol; anything else is a constant that outlet emits on every input. A constant token that reads as a whole finite number is an int when spelled as one and a float when it carries a '.' or an exponent; anything else is a symbol. With no argument there are two 'i' outlets. At most 256 are held.",
+        "name": "formats",
+        "range": "any list of i/f/b/l/s letters and constants"
+      }
+    ]
+  },
   ".trough": {
     "category": "MATH",
     "description": "Keeps the smallest number it has seen and sends it out only when a new one arrives — the mirror of .peak, for tracking minima, best-case timings and 'only react when this improves' logic. This is the running reading of the idea .minimum deliberately does not have: .minimum compares an input against a sticky comparand and forgets it, answering every message and never moving, while .trough stores what it emits and stays silent until the record is broken. Two inlets and three outlets, as in Max: a number on inlet 0 is kept and sent out outlet 0 if it is less than the stored trough and produces no value at all if it is not; outlet 1 carries 1 when the number was a new minimum and 0 when it was not, and outlet 2 carries the inverse so that 'it was not a record' is one cord rather than a cord plus a .== 0. The three are sent right to left, so anything the value triggers already sees the matching flags. A number on inlet 1 reseeds the trough and sends it out — always a new minimum, flags and all — which is the opposite of .minimum's silent cold inlet. A bang sends the stored minimum out outlet 0 alone, and before any input that is the 'initial' creation argument rather than silence. That argument defaults to 128, Max's value and not an oversight next to .peak's 0: a running extreme is only useful if its starting value can lose, this family refuses to store an infinity because one that wins would pin the outlet for good, and a trough starting at 0 would reject every positive number it was ever sent. Two silent messages on inlet 0 complete the object, because Max leaves a running extreme with no way back that does not announce itself: 'reset' returns to the initial argument and 'set <n>' stores n, both without emitting, so the next number received is the next trough event. 'clear' is deliberately absent, because on a '.trough 5' it could not be told whether it meant 0 or 5. A list is Max's two-element idiom — the second number becomes the new trough and is sent out, then the first is offered to it — with anything past the second ignored and a one-element list treated as a plain number. A message with no numbers in it is ignored. Everything is a float and outlet 0 is a float outlet: Max's int-unless-the-argument-has-a-decimal-point duality is not reproduced, because '.trough 5' and '.trough 5.0' are the same parameter string here. A non-finite number is read as 0 wherever it arrives, the convention ./ , .sqrt, .zmap, .clip, .slide and .mean already use, and it matters more here than anywhere else because this object keeps what it accepts: a stored NaN would lose every later comparison and be reported forever, and a stored +infinity would make every number a new minimum while -infinity would silence the outlet for good.",
@@ -3705,6 +4119,73 @@
         "doc": "Random seed; non-zero replays the same orders every run, 0 picks an arbitrary stream.",
         "name": "seed",
         "range": "any int"
+      }
+    ]
+  },
+  ".uzi": {
+    "category": "GENERIC",
+    "description": "Sends a burst of bangs immediately, with a running index — Max's uzi, and the patcher's loop. Every other object answers one message with one message, so until now filling a table, building a chord or spawning a burst of grains had to come from outside the patch; .uzi 16 is sixteen iterations with an index, in one box, inside one stimulus. Three outlets, and their order is the object: per iteration the index goes out the right outlet first and the bang out the left outlet second, which is Max's right-to-left order and here the whole point — the idiom wires the index into whatever holds the loop variable and the bang into whatever reads it, so an index arriving after its bang would make every iteration read the previous one's number. Max's wording is 'the number of each bang is sent out': the number and the bang are one pair. The middle outlet is the carry, and Max states its position explicitly rather than leaving it to the rule — 'after the last bang is sent out its left outlet, uzi sends one bang out its middle outlet [...] much like the carry outlet on the counter object' — so .uzi 3 produces index 1, bang, index 2, bang, index 3, bang, carry, in that order, each send completing in full (the whole subgraph behind it, depth first) before the next starts. The index is 1-based, Max's 'numbering begins from 1', and the optional second creation argument moves the base, so .uzi 8 0 is the 0-based loop a table index usually wants. The whole burst is one logical event — Max's own next reference cites this object as the example — so .uzi into .next gives one bang out the separated outlet and the rest out the continued one, whatever the count. Where this departs from Max is bounding, and it has to: the send path is synchronous, so an unbounded .uzi is not a slow object but a hang. The count is clamped to 4096, the ceiling .urn already uses, so one stimulus can never cost more than 4096 iterations of this object; a larger count is reported rather than silently truncated, logged when it comes from the creation argument and readable as the gap between the requested and effective counts when it comes from a message. A start arriving while a run is in progress is refused and counted, so a bang outlet wired back into the start inlet terminates by construction rather than recursing N-deep per level until the stack goes. And the loop bound is pinned when the run starts, so a patch raising the count from the right inlet once per iteration — which is not a start and so never meets the guard — changes the next run rather than extending this one forever. pause (Max's break) stops a run from inside it, which is how a patch breaks out early: search a table with .uzi 4096 and pause the moment the value is found. It is read at the top of each iteration, so an iteration is atomic and an index is never left without its bang, and a paused run emits no carry, since the carry means the bangs have all been sent. resume (Max's continue) picks up where it stopped, numbering from wherever it left off and against the same pinned bound. offset n skips the first n iterations, Max's 'the number is subtracted from the previously assigned number of bangs'. An unrecognised symbol is ignored rather than converted to a bang: Max lists no anything method here, and where a stray message costs .bangbang one bang it would cost this object up to 4096. Floats are truncated towards zero on both inlets, as Max converts a float to an int. Calculate() does nothing — an emitting one would run the whole loop again on every DSP block from a stimulus no patch sent, which is the family's rule and here the most expensive possible way to break it.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang runs the loop; an int or float sets the count and then runs it, truncating towards zero. Also takes five words: 'pause' (or 'break') stops a run that is in progress, which only a message caused by the run's own output can do, and is silent and a no-op otherwise; 'resume' (or 'continue') sends the rest of a paused run, numbering from where it left off; 'offset n' skips the first n iterations of the next run. Any other symbol is ignored — this object does not convert anything to a bang. A start that arrives while a run is already in progress is refused, which is what makes an outlet wired back to here terminate.",
+        "index": 0,
+        "label": "start",
+        "range": "any"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "An int or float sets how many bangs the next run emits, without producing any output — Max's right inlet. Clamped to 0-4096. Setting it during a run applies to the next run, never to the one already going, so a patch feeding this inlet from the bang outlet cannot extend the loop it is inside.",
+        "index": 1,
+        "label": "count",
+        "range": "0-4096"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".uzi",
+    "outlets": [
+      {
+        "doc": "One bang per iteration, sent immediately after that iteration's index. The subgraph behind it runs to completion before the next iteration starts.",
+        "index": 0,
+        "label": "bang",
+        "range": "bang",
+        "type": "BANG"
+      },
+      {
+        "doc": "One bang, after the last bang of a completed run — 'all the bang messages have been sent', like the carry outlet on .counter. Wire it to whatever should happen once the loop is done. A run stopped by 'pause' does not fire it; a run of zero bangs does, so an after-the-loop branch is not silently skipped when the count computes to 0.",
+        "index": 1,
+        "label": "carry",
+        "range": "bang",
+        "type": "BANG"
+      },
+      {
+        "doc": "The number of each bang, sent just before it. Counts from 1 by default, or from the base creation argument, and continues from where it left off after a 'pause' and 'resume'.",
+        "index": 2,
+        "label": "index",
+        "range": "base to base+count-1",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "How many bangs a run emits. With no argument the object sends one, as Max's does. Clamped to 0-4096: 4096 is the documented ceiling, and a larger argument is clamped and logged rather than silently truncated. A float is truncated towards zero; an argument that is not a whole finite number leaves the default in place.",
+        "name": "count",
+        "range": "0-4096"
+      },
+      {
+        "default": "1",
+        "doc": "What the index counts from. Max: 'the base value defaults to 1 when no second argument is given', so .uzi 8 0 gives the 0-based indices a table wants. Clamped to +/- 1000000000, which is what keeps base+index inside the int range for any count.",
+        "name": "base",
+        "range": "-1000000000 to 1000000000"
       }
     ]
   },

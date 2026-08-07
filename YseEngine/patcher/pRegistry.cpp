@@ -8,6 +8,14 @@
 #include "genericObjects/gSwitch.h"
 #include "genericObjects/gGate.h"
 #include "genericObjects/gRoute.h"
+#include "genericObjects/gSel.h"
+#include "genericObjects/gTrigger.h"
+#include "genericObjects/gBangBang.h"
+#include "genericObjects/gOneBang.h"
+#include "genericObjects/gNext.h"
+#include "genericObjects/gBondo.h"
+#include "genericObjects/gMatch.h"
+#include "genericObjects/gUzi.h"
 #include "genericObjects/gIf.h"
 #include "genericObjects/gRegexp.h"
 #include "genericObjects/gReceive.h"
@@ -59,6 +67,8 @@
 #include "math/gExtremum.h"
 #include "math/gRunningExtremum.h"
 #include "math/gPast.h"
+#include "math/gChange.h"
+#include "math/gTogEdge.h"
 #include "math/gBitwise.h"
 #include "math/gReverse.h"
 #include "math/gIntDiv.h"
@@ -119,6 +129,29 @@ pRegistry::pRegistry() {
   Add(OBJ::G_SWITCH, gSwitch::Create);
   Add(OBJ::G_GATE, gGate::Create);
   Add(OBJ::G_ROUTE, gRoute::Create);
+
+  // Bang the outlet whose selector the input matches (issue #465)
+  Add(OBJ::G_SEL, gSel::Create);
+
+  // Send one input to many outlets in right-to-left order (issue #466)
+  Add(OBJ::G_TRIGGER, gTrigger::Create);
+
+  // Fan one input out as a bang from many outlets, right to left (issue #467)
+  Add(OBJ::G_BANGBANG, gBangBang::Create);
+
+  // Pass one bang per arming, reject the rest (issue #470)
+  Add(OBJ::G_ONEBANG, gOneBang::Create);
+  Add(OBJ::G_NEXT, gNext::Create);
+
+  // Detect a sequence of values as it arrives (issue #472)
+  Add(OBJ::G_MATCH, gMatch::Create);
+
+  // Emit N bangs immediately, with a running index — the patcher's loop
+  // (issue #473)
+  Add(OBJ::G_UZI, gUzi::Create);
+
+  // Hold one value per inlet and release the whole set together (issue #474)
+  Add(OBJ::G_BONDO, gBondo::Create);
 
   // Conditional message dispatch (issue #451)
   Add(OBJ::G_IF, gIf::Create);
@@ -245,6 +278,12 @@ pRegistry::pRegistry() {
 
   // Bang once when a threshold is crossed (issue #464)
   Add(OBJ::G_PAST, gPast::Create);
+
+  // Pass a number on only when it differs from the last one (issue #468)
+  Add(OBJ::G_CHANGE, gChange::Create);
+
+  // Bang on a zero crossing, in either direction (issue #469)
+  Add(OBJ::G_TOGEDGE, gTogEdge::Create);
 
   // Bitwise operators (issue #438)
   Add(OBJ::G_BITAND, gBitAnd::Create);

@@ -2,8 +2,77 @@
 #include "outlet.h"
 #include "pObject.h"
 #include "graphState.h"
+#include <atomic>
 
 using namespace YSE::PATCHER;
+
+namespace {
+  // Logical message events (issue #471), the patcher's stand-in for the thing
+  // Max calls an "event": one mouse click, one key press, one MIDI event, one
+  // tick of the scheduler, and everything that single stimulus goes on to
+  // cause. See CurrentMessageEvent() in inlet.h for what the notion means and
+  // why `.next` needs it.
+  //
+  // The whole mechanism is a nesting counter. Message delivery here is
+  // synchronous and depth-first — an inlet calls the object's handler, which
+  // calls outlet::Send*, which calls the next inlet, all on one stack — so
+  // "caused by the same stimulus" is exactly "dispatched inside the outermost
+  // dispatch". The outermost one takes a fresh id; everything below it reads
+  // that same id.
+  //
+  // The counter has to sit on the **inlet** side. outlet.cpp's tSendDepth
+  // already tracks nesting, but it is scoped to one send rather than to one
+  // handler: a `.trigger b b` returns to depth 0 between its two outlets, so a
+  // send-scoped counter would split one stimulus into two events — precisely
+  // the case Max's reference names as one ("if you put bang, bang in a message
+  // box, or use the uzi object to send out two bangs in a row, these bangs are
+  // part of the same logical event"). Reusing tSendDepth itself would also
+  // halve the recursion ceiling #236 relies on, so this is a second, separate
+  // counter.
+  //
+  // RT-safety, on the same terms as that send-depth guard: the depth and the
+  // current id are thread_local and constant-initialised, so touching them is a
+  // plain TLS load/store — no allocation, no lock, no syscall — which is what
+  // makes this safe on the audio-thread dispatch path. The one shared write is
+  // a relaxed atomic increment, and it happens once per *outermost* dispatch
+  // rather than once per message: a 1 kHz `.metro` costs a thousand of them a
+  // second, spread across whatever thread the stimulus arrived on.
+  thread_local unsigned int tDispatchDepth = 0;
+  thread_local std::uint64_t tEventId = 0;
+
+  // Globally unique ids, so an object fed from two threads cannot see two
+  // unrelated events wearing the same number. Starts at 1 because 0 is reserved
+  // for "no dispatch in progress" — the value CurrentMessageEvent() reports to
+  // a handler called directly rather than through an inlet, which must not read
+  // as an event other messages can belong to.
+  std::atomic<std::uint64_t> sNextEventId{1};
+
+  // RAII event scope. Opening the outermost one on this thread starts a new
+  // logical event; nested ones leave the current id alone, which is what makes
+  // an object's whole fan-out one event.
+  struct MessageEventScope {
+    MessageEventScope() {
+      if (tDispatchDepth++ == 0) {
+        tEventId = sNextEventId.fetch_add(1, std::memory_order_relaxed);
+      }
+    }
+    ~MessageEventScope() {
+      // Cleared on the way out, so "no dispatch in progress" is 0 rather than
+      // the id of whatever ran last. Without this a handler called directly —
+      // outside any inlet — would inherit a stale id and read as part of an
+      // event that has already finished.
+      if (--tDispatchDepth == 0) {
+        tEventId = 0;
+      }
+    }
+    MessageEventScope(const MessageEventScope&) = delete;
+    MessageEventScope& operator=(const MessageEventScope&) = delete;
+  };
+} // namespace
+
+std::uint64_t YSE::PATCHER::CurrentMessageEvent() {
+  return tEventId;
+}
 
 inlet::inlet(pObject* obj, bool active, int position)
   : obj(obj),
@@ -48,6 +117,11 @@ void inlet::RegisterBuffer(bufferFunc f) {
 
 void inlet::SetInt(int value, YSE::THREAD thread) {
   if (onInt) {
+    // Everything this message goes on to cause is dispatched inside the
+    // handler below, so the scope covers the whole stimulus. See the top of
+    // this file. Opened only once a handler is known to exist: an inlet that
+    // does not take this message type cannot start a cascade.
+    MessageEventScope event;
     onInt(value, position, thread);
     if (active) {
       if (obj->IsDSPObject() && thread == T_GUI) return;
@@ -58,6 +132,7 @@ void inlet::SetInt(int value, YSE::THREAD thread) {
 
 void inlet::SetBang(YSE::THREAD thread) {
   if (onBang) {
+    MessageEventScope event;
     onBang(position, thread);
     if (active) {
       if (obj->IsDSPObject() && thread == T_GUI) return;
@@ -68,6 +143,7 @@ void inlet::SetBang(YSE::THREAD thread) {
 
 void inlet::SetFloat(float value, YSE::THREAD thread) {
   if (onFloat) {
+    MessageEventScope event;
     onFloat(value, position, thread);
     if (active) {
       if (obj->IsDSPObject() && thread == T_GUI) return;
@@ -78,6 +154,7 @@ void inlet::SetFloat(float value, YSE::THREAD thread) {
 
 void inlet::SetList(const std::string& value, YSE::THREAD thread) {
   if (onList) {
+    MessageEventScope event;
     onList(value, position, thread);
     if (active) {
       if (obj->IsDSPObject() && thread == T_GUI) return;
@@ -87,6 +164,12 @@ void inlet::SetList(const std::string& value, YSE::THREAD thread) {
 }
 
 void inlet::SetBuffer(YSE::DSP::buffer* buffer, YSE::THREAD thread) {
+  // Deliberately *not* an event scope. A buffer is the DSP path, and no object
+  // that reads logical events accepts one, so scoping it would only add a
+  // counter to the hottest path in the patcher to describe a grouping nothing
+  // can observe. A control message emitted from a DSP handler still opens its
+  // own event through the setters above, which is the honest answer for a
+  // stimulus this patcher has no scheduler tick to attribute it to.
   if (onBuffer) {
     onBuffer(buffer, position, thread);
     dspReady = true;
@@ -96,6 +179,7 @@ void inlet::SetBuffer(YSE::DSP::buffer* buffer, YSE::THREAD thread) {
 }
 
 void inlet::SetMessage(const std::string& message, YSE::THREAD thread, float value) {
+  MessageEventScope event;
   obj->SetMessage(message, value);
   if (active) {
     if (obj->IsDSPObject() && thread == T_GUI) return;
