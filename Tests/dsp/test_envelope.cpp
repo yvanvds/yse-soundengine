@@ -6,6 +6,7 @@
 #include <cmath>
 #include "dsp/lfo.hpp"
 #include "dsp/envelope.hpp"
+#include "headers/constants.hpp"
 #include "dsp/ADSRenvelope.hpp"
 #include "support/audio_helpers.hpp"
 
@@ -68,6 +69,51 @@ TEST_SUITE("dsp") {
 
   TEST_CASE("lfo: LFO_RANDOM output bounded in [0, 1]") {
     checkLfoBounded(YSE::DSP::LFO_RANDOM, 2.0f);
+  }
+
+  TEST_CASE("lfo: LFO_SINE renders the sine table, not the triangle (#643)") {
+    // Regression for issue #643: LFO_SINE read LfoTriangleTable, so sine and
+    // triangle output were byte-identical, and the LfoSineTable build loop's
+    // unclamped copyFrom left the table's last 44100 % 128 = 68 samples at
+    // zero (a notch reading 0.5 after the [0, 1] rescale).
+    //
+    // Sweep the whole 44100-sample table in a single 128-sample block: the
+    // phase step is chosen so sample j reads table index ~= j * (44099 / 127),
+    // putting sample 0 on index 0 and sample 127 on index 44098 — inside the
+    // formerly zero tail. The engine's sine oscillator is cosine-phased
+    // (Pd-style cos table), so table entry k holds 0.5 + 0.5*cos(2*pi*k / N).
+    constexpr double tableLength = 44100.0; // LFO_TABLE_LENGTH in lfo.cpp
+    constexpr unsigned blockSize = 128;
+    const float step = 44099.0f / 127.0f;
+    // lfoPhaseStep() derives the advance as freq * tableLength / SAMPLERATE.
+    const float freq = step * static_cast<float>(YSE::SAMPLERATE) / static_cast<float>(tableLength);
+
+    YSE::DSP::lfo osc;
+    YSE::DSP::buffer& buf = osc(YSE::DSP::LFO_SINE, freq, blockSize);
+    const float* ptr = buf.getPtr();
+    REQUIRE(buf.getLength() == blockSize);
+
+    constexpr double kTwoPi = 6.283185307179586;
+    float maxErr = 0.0f;
+    unsigned worst = 0;
+    for (unsigned j = 0; j < blockSize; ++j) {
+      const double index = std::floor(static_cast<double>(j) * static_cast<double>(step));
+      const float expected = static_cast<float>(0.5 + 0.5 * std::cos(kTwoPi * index / tableLength));
+      const float err = std::fabs(ptr[j] - expected);
+      if (err > maxErr) {
+        maxErr = err;
+        worst = j;
+      }
+    }
+    CAPTURE(worst);
+    // Unfixed engine: sample 0 reads the triangle's 0.0 against an expected
+    // 1.0. Tolerance covers the cos-table interpolation (~2e-5) and cursor
+    // rounding drift (< 1 table sample ~= 7e-5) with margin.
+    CHECK(maxErr < 1e-3f);
+    // Sample 127 reads index 44098, inside the 68-sample tail the build loop
+    // used to leave at zero: a sine-table switch without the fill fix would
+    // return 0.5 here instead of ~1.0.
+    CHECK(ptr[blockSize - 1] > 0.99f);
   }
 
   // ─── ADSRenvelope ─────────────────────────────────────────────────────────────

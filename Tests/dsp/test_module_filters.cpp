@@ -178,6 +178,48 @@ TEST_SUITE("dsp") {
     CHECK(rmsHi > rmsDC);
   }
 
+  TEST_CASE("highPassFilter: LFO_SINE modulation differs from LFO_TRIANGLE (#643)") {
+    // Regression for issue #643 at the dspObject surface — the level
+    // sound::setDSP chains and the C API's YSE_LFO_SINE drive. LFO_SINE read
+    // the triangle table, so lfoType(LFO_SINE) and lfoType(LFO_TRIANGLE)
+    // produced byte-identical modulation.
+    //
+    // A high-pass on DC settles its wet signal toward zero, so
+    // calculateImpact reduces to out ~= in * (1 - lfo): the module output
+    // traces the inverted LFO waveform, and the two shapes must diverge.
+    YSE::DSP::MODULES::highPassFilter hpSine;
+    hpSine.frequency(500.0f);
+    hpSine.lfoType(YSE::DSP::LFO_SINE).lfoFrequency(2.0f);
+
+    YSE::DSP::MODULES::highPassFilter hpTri;
+    hpTri.frequency(500.0f);
+    hpTri.lfoType(YSE::DSP::LFO_TRIANGLE).lfoFrequency(2.0f);
+
+    MULTICHANNELBUFFER bufSine(1);
+    bufSine[0].resize(128);
+    MULTICHANNELBUFFER bufTri(1);
+    bufTri[0].resize(128);
+
+    float maxDiff = 0.0f;
+    for (int iter = 0; iter < 10; ++iter) {
+      bufSine[0] = 1.0f;
+      bufTri[0] = 1.0f;
+      hpSine.process(bufSine);
+      hpTri.process(bufTri);
+      const float* ps = bufSine[0].getPtr();
+      const float* pt = bufTri[0].getPtr();
+      for (unsigned i = 0; i < bufSine[0].getLength(); ++i) {
+        const float d = std::abs(ps[i] - pt[i]);
+        if (d > maxDiff) maxDiff = d;
+      }
+    }
+    // Unfixed engine: both modules read the triangle table in lockstep, so
+    // maxDiff is exactly 0. Fixed: near the cycle start the sine LFO sits at
+    // ~1 while the triangle is still near 0, separating the outputs by most
+    // of the dry level.
+    CHECK(maxDiff > 0.3f);
+  }
+
   TEST_CASE("highPassFilter: output stays bounded for broadband-like input") {
     YSE::DSP::MODULES::highPassFilter hp;
     hp.frequency(800.0f);

@@ -133,7 +133,14 @@ namespace {
     // SAMPLERATE == LFO_TABLE_LENGTH this is the historical s(1).
     const Flt tableHz = static_cast<Flt>(YSE::SAMPLERATE) / static_cast<Flt>(length);
     for (UInt i = 0; i < length; i += YSE::STANDARD_BUFFERSIZE) {
-      LfoSineTable.copyFrom(s(tableHz), 0, i, YSE::STANDARD_BUFFERSIZE);
+      // The table length is not a multiple of STANDARD_BUFFERSIZE, so the last
+      // block is partial. Clamp the copy length: buffer::copyFrom early-returns
+      // on an out-of-range destination, which used to leave the final
+      // length % STANDARD_BUFFERSIZE (68) samples of the table at zero (#643).
+      const UInt remaining = length - i;
+      const UInt block =
+          remaining < YSE::STANDARD_BUFFERSIZE ? remaining : YSE::STANDARD_BUFFERSIZE;
+      LfoSineTable.copyFrom(s(tableHz), 0, i, block);
     }
     LfoSineTable += 1;
     LfoSineTable *= 0.5;
@@ -230,9 +237,7 @@ YSE::DSP::buffer& YSE::DSP::lfo::operator()(
 
   case LFO_SINE: {
     previousType = LFO_SINE;
-    // Reads the triangle table, not LfoSineTable — long-standing, tracked as
-    // #643; kept as-is here so this fix stays behaviour-preserving.
-    renderTable(LfoTriangleTable, result, cursor, frequency, false);
+    renderTable(LfoSineTable, result, cursor, frequency, false);
     break;
   }
   }
