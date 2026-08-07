@@ -66,6 +66,15 @@ Bool YSE::INTERNAL::abstractSoundFile::create(Bool stream) {
     // formal data race that concurrent render-thread writes would create
     // (issue #286).
     _length = (Int)_audioBuffer->getLength();
+    // A DSP::buffer is a single-channel container, so a buffer-backed source is
+    // always mono. Publishing it here matters because implementationObject::
+    // create() sizes its output with filebuffer.resize(file->channels()): while
+    // this stayed at the constructor's 0 the sound got no output buffers at all,
+    // so readNonInterleaved()'s per-channel loop iterated over nothing — the play
+    // position never left frame 0 and not a single sample was rendered, even
+    // though the sound reported itself ready, playing and of the right length
+    // (issue #657).
+    _channels = 1;
     state = READY;
     return true;
   }

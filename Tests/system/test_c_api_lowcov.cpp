@@ -43,6 +43,7 @@
 #include <doctest/doctest.h>
 
 #include <chrono>
+#include <cmath>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -779,9 +780,10 @@ TEST_SUITE("capilowcov") {
   // never show a rewind. Playing it at 1/100 speed keeps the position monotonic
   // across the whole case, which makes "restart sent the playhead back to the
   // start" an observable assertion rather than just "the render returned". A
-  // longer in-memory DSP::buffer source would be the obvious alternative, but a
-  // buffer-backed sound currently renders nothing at all and its play position
-  // never leaves 0 (issue #657), so it cannot witness a rewind.
+  // longer in-memory DSP::buffer source would be the obvious alternative, but
+  // when this case was written a buffer-backed sound rendered nothing at all and
+  // its play position never left 0 (issue #657, fixed and covered below), so it
+  // could not witness a rewind.
   TEST_CASE("c-api sound: restart rewinds a file-backed sound without spinning (#577)") {
     if (!capilowcov::ensureOffline()) return;
 
@@ -879,6 +881,69 @@ TEST_SUITE("capilowcov") {
     CHECK(yse_sound_is_valid(s) == 1);
 
     yse_sound_destroy(s);
+    capilowcov::pump(10);
+    yse_dsp_buffer_destroy(buf); // the buffer must outlive every sound using it
+  }
+
+  // Regression for issue #657. abstractSoundFile::create() returns early on the
+  // buffer branch, and it used to do so without ever setting _channels — which
+  // the constructor leaves at 0. implementationObject::create() then sized the
+  // sound's output with filebuffer.resize(file->channels()) == resize(0), so the
+  // sound had no output buffers at all: readNonInterleaved()'s per-channel loop
+  // iterated over nothing, the play position stayed pinned at frame 0 and the
+  // channel stayed silent. Nothing in the status surface gave that away — the
+  // sound still reported ready, playing and of the right length — which is why
+  // the assertions below are on the playhead and on the channel's meter rather
+  // than on the lifecycle flags.
+  //
+  // Verified fail-without-fix: on the unpatched engine get_time() stays 0.0 and
+  // the channel's post peak stays 0.0 while is_playing() reports 1.
+  TEST_CASE("c-api sound: a buffer-backed sound renders and its playhead moves (#657)") {
+    if (!capilowcov::ensureOffline()) return;
+
+    // A tone long enough that the pump below cannot wrap it, so the playhead is
+    // strictly monotonic across the case and "it moved" is unambiguous.
+    const unsigned int len = 16384;
+    YseDspBuffer* buf = yse_dsp_buffer_create(len, 0);
+    REQUIRE(buf != nullptr);
+    std::vector<float> tone(len);
+    for (unsigned int i = 0; i < len; ++i)
+      tone[i] = 0.5f * std::sin(2.0f * 3.14159265f * 32.0f * static_cast<float>(i) /
+                                static_cast<float>(len));
+    REQUIRE(yse_dsp_buffer_write(buf, 0, tone.data(), len) == len);
+
+    // A dedicated channel so the meter reading below is this sound's output and
+    // not whatever else the shared master saw earlier in the suite.
+    YseChannel* ch = yse_channel_create("capi_buf657", yse_channel_master());
+    REQUIRE(ch != nullptr);
+    capilowcov::pump(5);
+    CHECK(yse_channel_get_peak_linear_post(ch) == doctest::Approx(0.f)); // silent so far
+
+    YseSound* s = yse_sound_create();
+    REQUIRE(s != nullptr);
+    REQUIRE(yse_sound_load_buffer(s, buf, ch, /*loop=*/1, /*volume=*/0.8f) == YSE_OK);
+    pumpUntilReady(s);
+    REQUIRE(yse_sound_is_ready(s) == 1);
+    CHECK(yse_sound_length(s) == len); // the length was always right...
+
+    yse_sound_play(s);
+    capilowcov::pump(20);
+
+    CHECK(yse_sound_is_playing(s) == 1); // ...and so was the status...
+    // ...but these two were the lie: the playhead never advanced and not one
+    // sample reached the channel.
+    const float pos = yse_sound_get_time(s);
+    CHECK(pos > 0.0f);
+    CHECK(pos < static_cast<float>(len)); // no wrap — still the first pass
+    const float peak = yse_channel_get_peak_linear_post(ch);
+    CHECK(std::isfinite(peak));
+    CHECK(peak > 0.01f);
+
+    yse_sound_stop(s);
+    capilowcov::pump(5);
+    yse_sound_destroy(s);
+    capilowcov::pump(10);
+    yse_channel_destroy(ch);
     capilowcov::pump(10);
     yse_dsp_buffer_destroy(buf); // the buffer must outlive every sound using it
   }
