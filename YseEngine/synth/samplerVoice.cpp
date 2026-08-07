@@ -35,6 +35,15 @@ namespace YSE {
       return v < lo ? lo : (v > hi ? hi : v);
     }
 
+    // Playback-speed adjustment for a resident sample, re-derived from the
+    // *live* SAMPLERATE so it stays correct after a close()/init() cycle at a
+    // different device rate (issue #637). Falls back to the load-time ratio
+    // when the native file rate is unknown (hand-built instruments).
+    static inline Flt rateAdjustment(const residentSample& rs) {
+      return rs.fileRate > 0.0f ? rs.fileRate / static_cast<Flt>(SAMPLERATE)
+                                : rs.sampleRateAdjustment;
+    }
+
     // ---- sfzADSR (allocation-free DAHDSR) ---------------------------------
 
     void sfzADSR::configure(Flt delay, Flt attack, Flt hold, Flt decay, Flt sustain, Flt release,
@@ -132,6 +141,7 @@ namespace YSE {
         }
         rs.frames = static_cast<long>(ch0.getLength());
         rs.sampleRateAdjustment = ch0.getSampleRateAdjustment();
+        rs.fileRate = ch0.getFileSampleRate(); // rate-independent source (#637)
         rs.channels.push_back(ch0);
         DSP::fileBuffer ch1;
         if (ch1.load(src.path.c_str(), 1)) rs.channels.push_back(ch1);
@@ -184,7 +194,7 @@ namespace YSE {
       // seconds of source audio. Not a native SFZ opcode.
       if (!inst.samples.empty() && inst.samples[0].loaded && inst.samples[0].frames > 0) {
         const long frames = inst.samples[0].frames;
-        const Flt sra = inst.samples[0].sampleRateAdjustment;
+        const Flt sra = rateAdjustment(inst.samples[0]);
         long end = frames - 1;
         long cap = static_cast<long>(maxLength_ * static_cast<Flt>(SAMPLERATE) * sra);
         if (cap > 0 && cap < end) end = cap;
@@ -202,7 +212,10 @@ namespace YSE {
     samplerVoice::samplerVoice(const samplerVoice& other)
       : dspVoice(other), inst(other.inst) { // share the immutable instrument (spec §10)
       note_.store(other.note_.load(std::memory_order_relaxed), std::memory_order_relaxed);
-      chokeFadeSamps = other.chokeFadeSamps;
+      // Derive the choke-fade length from the live SAMPLERATE rather than
+      // copying the prototype's — the prototype may have been constructed in an
+      // earlier session at a different rate (issue #637).
+      chokeFadeSamps = std::max(1, static_cast<int>(static_cast<Flt>(SAMPLERATE) * kChokeFadeSec));
       // per-voice playback state stays at rest (fresh, independent of the prototype)
     }
 
@@ -279,7 +292,7 @@ namespace YSE {
           r.transposeSemis;
       const double cents = r.tuneCents;
       const double ratio = std::pow(2.0, (semis + cents / 100.0) / 12.0);
-      L.baseSpeed = ratio * static_cast<double>(rs.sampleRateAdjustment);
+      L.baseSpeed = ratio * static_cast<double>(rateAdjustment(rs));
 
       // playback bounds (spec §7)
       const long lastFrame = frames > 0 ? frames - 1 : 0;
@@ -359,6 +372,11 @@ namespace YSE {
       chokeFading = false;
       chokeFadePos = 0;
       phase = IDLE;
+
+      // Re-derive the ~5 ms choke-fade window from the live SAMPLERATE: this
+      // voice may have been constructed in an earlier session at a different
+      // rate (issue #637). Note-rate, allocation-free arithmetic.
+      chokeFadeSamps = std::max(1, static_cast<int>(static_cast<Flt>(SAMPLERATE) * kChokeFadeSec));
 
       if (!inst || !inst->valid()) return;
 

@@ -33,6 +33,7 @@ YSE::DSP::MODULES::feedbackDelay::feedbackDelay()
     parmCrossfeed(0.0f),
     currentTime(250.0f),
     timeSmoothCoef(0.0f),
+    builtRate(0),
     primed(false),
     blockLength(0) {}
 
@@ -74,9 +75,10 @@ Flt YSE::DSP::MODULES::feedbackDelay::crossfeed() {
 }
 
 void YSE::DSP::MODULES::feedbackDelay::create() {
-  // One-pole coefficient for the per-sample delay-time smoother. Computed once
-  // here (off the audio thread) from the engine sample rate.
+  // One-pole coefficient for the per-sample delay-time smoother. Computed here
+  // (off the audio thread) from the engine sample rate.
   timeSmoothCoef = YSE::DSP::onePoleCoef(TIME_SMOOTH_TAU, static_cast<Flt>(SAMPLERATE));
+  builtRate = SAMPLERATE;
   // Per-channel delay lines are sized on the first process() call once the
   // channel count is known, matching the other delay modules.
 }
@@ -85,6 +87,15 @@ void YSE::DSP::MODULES::feedbackDelay::process(MULTICHANNELBUFFER& buffer) {
   createIfNeeded();
 
   if (buffer.empty()) return;
+
+  // create() runs once per instance, so the smoother coefficient would keep
+  // the rate it was built at across a close()/init() cycle (issue #637).
+  // Re-derive it when the session rate changed; steady state pays one integer
+  // compare (the accepted per-block guard, cf. plateReverb/parametricEQ).
+  if (builtRate != SAMPLERATE) {
+    timeSmoothCoef = YSE::DSP::onePoleCoef(TIME_SMOOTH_TAU, static_cast<Flt>(SAMPLERATE));
+    builtRate = SAMPLERATE;
+  }
 
   // Grow/shrink per-channel state to match the channel count. Allocation-free
   // once the count is stable.

@@ -160,6 +160,46 @@ TEST_SUITE("dsp") {
     CHECK(TestHelpers::measureRms(buf[0]) > 0.0f);
   }
 
+  TEST_CASE("basicDelay: max addressable delay follows the rate after a change (issue #637)") {
+    // The per-channel line capacity is derived from SAMPLERATE at the channel's
+    // construction (delayChannel() passes SAMPLERATE as the line size in ms) and
+    // used to stay frozen there, so after a close()/init() cycle at a higher
+    // rate long taps were silently clamped to the old session's maximum.
+    // Deliberately tiny rates keep the line buffers and the block counts small.
+    using D = YSE::DSP::MODULES::basicDelay;
+
+    TestHelpers::ScopedSampleRate at8k(8000);
+    YSE::DSP::MODULES::basicDelay d;
+    MULTICHANNELBUFFER buf(1);
+    buf[0].resize(128);
+    zeroFill(buf[0]);
+    d.process(buf); // constructs the channel: capacity baked for 8000 (= 8 s)
+
+    TestHelpers::ScopedSampleRate at16k(16000);
+    // A 12 s tap: beyond the stale 8 s capacity, within the re-derived 16 s.
+    d.set(D::FIRST, 12000.0f, 1.0f);
+
+    zeroFill(buf[0]);
+    buf[0].getPtr()[0] = 1.0f; // the impulse to find again
+    d.process(buf);
+
+    // The echo must surface 12 s (= 1500 blocks at 16 kHz) after the impulse.
+    // With the stale capacity the read clamps to ~8 s and the echo lands around
+    // block 1000 instead.
+    const int expectedBlock = (12000 * 16 - 128) / 128; // 1499
+    int echoBlock = -1;
+    for (int b = 0; b <= expectedBlock + 8; ++b) {
+      zeroFill(buf[0]);
+      d.process(buf);
+      if (TestHelpers::measureRms(buf[0]) > 1e-3f) {
+        echoBlock = b;
+        break;
+      }
+    }
+    CHECK(echoBlock >= expectedBlock - 2);
+    CHECK(echoBlock <= expectedBlock + 2);
+  }
+
   TEST_CASE("basicDelay: process tolerates a change in input buffer length") {
     YSE::DSP::MODULES::basicDelay d;
     using D = YSE::DSP::MODULES::basicDelay;

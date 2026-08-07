@@ -271,4 +271,50 @@ TEST_SUITE("lifecycle") {
     YSE::SAMPLERATE = startRate;
   }
 
+  // The #637 acceptance scenario proper: host-owned DSP state created in one
+  // session must re-derive its SAMPLERATE-dependent internals after a real
+  // close() -> init() cycle at a different rate. The observable is the same
+  // rendered-envelope arithmetic as adsrAttackBlocks() above, but with ONE
+  // envelope kept alive across the sessions — before the fix its table kept
+  // the first session's sample counts forever.
+  TEST_CASE("lifecycle: host-owned envelope re-derives after a rate change (issue #637)") {
+    YSE::System().close(); // normalize to a closed engine
+    const UInt startRate = YSE::SAMPLERATE;
+    const unsigned int startRequest = YSE::System().requestSampleRate();
+
+    YSE::System().requestSampleRate(48000);
+    if (!YSE::System().initOffline()) { // no offline device on this host
+      YSE::System().requestSampleRate(startRequest);
+      return;
+    }
+
+    // Session 1 (48 kHz): generate and play out a 0.1 s attack ramp.
+    YSE::DSP::ADSRenvelope adsr;
+    adsr.addPoint({0.0f, 0.0f, 1.0f});
+    adsr.addPoint({0.1f, 1.0f, 1.0f});
+    adsr.generate();
+
+    auto attackBlocks = [&adsr]() {
+      int blocks = 1;
+      adsr(YSE::DSP::ADSRenvelope::ATTACK);
+      while (!adsr.isAtEnd() && blocks < 1000) {
+        adsr(YSE::DSP::ADSRenvelope::RESUME);
+        ++blocks;
+      }
+      return blocks;
+    };
+    CHECK(attackBlocks() == 38); // ceil(0.1 * 48000 / 128)
+
+    // Reopen at 44.1 kHz. The envelope object survives the cycle; its next
+    // note must last 0.1 s of the NEW session's clock.
+    YSE::System().close();
+    YSE::System().requestSampleRate(44100);
+    REQUIRE(YSE::System().initOffline());
+    CHECK(attackBlocks() == 35); // ceil(0.1 * 44100 / 128), not the stale 38
+    YSE::System().close();
+
+    YSE::System().requestSampleRate(startRequest);
+    YSE::SAMPLERATE = startRate;
+  }
+
 } // TEST_SUITE("lifecycle")

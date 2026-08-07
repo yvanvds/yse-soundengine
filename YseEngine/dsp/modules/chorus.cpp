@@ -49,6 +49,7 @@ YSE::DSP::MODULES::chorus::chorus()
     parmMode(MODE_CHORUS),
     lfoCursor(0.0f),
     delaySmoothCoef(0.0f),
+    builtRate(0),
     lineSize(0),
     blockLength(0) {}
 
@@ -109,6 +110,7 @@ void YSE::DSP::MODULES::chorus::create() {
   // One-pole coefficient for the per-sample delay smoother, from the engine
   // sample rate (computed off the audio thread).
   delaySmoothCoef = YSE::DSP::onePoleCoef(DELAY_SMOOTH_TAU, static_cast<Flt>(SAMPLERATE));
+  builtRate = SAMPLERATE;
 
   // Line length that covers the longest addressable delay at the current rate.
   lineSize =
@@ -119,6 +121,15 @@ void YSE::DSP::MODULES::chorus::process(MULTICHANNELBUFFER& buffer) {
   createIfNeeded();
 
   if (buffer.empty()) return;
+
+  // create() runs once per instance, so the smoother coefficient would keep
+  // the rate it was built at across a close()/init() cycle (issue #637).
+  // Re-derive it when the session rate changed; steady state pays one integer
+  // compare (the accepted per-block guard, cf. plateReverb/parametricEQ).
+  if (builtRate != SAMPLERATE) {
+    delaySmoothCoef = YSE::DSP::onePoleCoef(DELAY_SMOOTH_TAU, static_cast<Flt>(SAMPLERATE));
+    builtRate = SAMPLERATE;
+  }
 
   // (Re)derive the line length from the current sample rate. It only changes on
   // create() or a device restart at a new rate, never in steady state.

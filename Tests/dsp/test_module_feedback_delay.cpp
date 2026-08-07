@@ -269,6 +269,74 @@ TEST_SUITE("dsp") {
     }
   }
 
+  // ─── time smoother tau survives a sample-rate change (issue #637) ─────────────
+
+  // Exact read-out of the delay-time smoother's time constant, in ms.
+  //
+  // Protocol: feed a global ramp x[n] = n. The underlying DSP::delay read is a
+  // direct (integer-quantised) sample fetch, so with feedback 0 / impact 1 the
+  // output at sample i is the ramp value at (n_i - trunc(sr * t_i / 1000)) —
+  // decoding the per-sample smoothed delay time t_i. A time() step then exposes
+  // the one-pole coefficient through the decay ratio across one block.
+  //
+  // The module is constructed (and create() run) at `constructRate`, then run
+  // at `runRate` — the unit-test stand-in for a close()/init() cycle.
+  static double feedbackDelayTauMs(UInt constructRate, UInt runRate) {
+    TestHelpers::ScopedSampleRate atConstruct(constructRate);
+    YSE::DSP::MODULES::feedbackDelay d;
+    d.time(400.0f).feedback(0.0f).crossfeed(0.0f).impact(1.0f);
+
+    MULTICHANNELBUFFER buf(1);
+    buf[0].resize(128);
+    double n = 0.0; // global ramp position
+    auto feedRamp = [&]() {
+      float* p = buf[0].getPtr();
+      for (unsigned i = 0; i < 128; ++i)
+        p[i] = static_cast<float>(n + i);
+    };
+
+    feedRamp();
+    d.process(buf); // triggers create() -> smoother coef derived at constructRate
+    n += 128.0;
+
+    TestHelpers::ScopedSampleRate atRun(runRate);
+    // Refill the line past the 400 ms working delay at the run rate so the
+    // read decodes ramp history rather than stale/cleared samples.
+    const int primeBlocks = static_cast<int>(0.4 * runRate / 128.0) + 4;
+    for (int b = 0; b < primeBlocks; ++b) {
+      feedRamp();
+      d.process(buf);
+      n += 128.0;
+    }
+
+    // Step the target time and capture one block mid-glide.
+    d.time(100.0f);
+    feedRamp();
+    d.process(buf);
+    n += 128.0;
+
+    const double srMs = 0.001 * static_cast<double>(runRate);
+    const double targetMs = 100.0;
+    const float* out = buf[0].getPtr();
+    // n has already advanced past this block, so sample i sits at n - 128 + i.
+    const double base = n - 128.0;
+    const double d0 = (base + 0.0 - static_cast<double>(out[0])) / srMs - targetMs;
+    const double d127 = (base + 127.0 - static_cast<double>(out[127])) / srMs - targetMs;
+    const double lnOneMinusCoef = std::log(d127 / d0) / 127.0;
+    return -1000.0 / (static_cast<double>(runRate) * lnOneMinusCoef);
+  }
+
+  TEST_CASE("feedbackDelay: time smoother keeps its 30 ms tau across a rate change (issue #637)") {
+    // Baseline: built and run at one rate, the documented TIME_SMOOTH_TAU.
+    CHECK(feedbackDelayTauMs(48000, 48000) == doctest::Approx(30.0).epsilon(0.03).scale(0.0));
+    // create() runs once per instance, so before the fix the coefficient kept
+    // the construction rate across a close()/init() cycle: ~65 ms of wall
+    // clock when built at 44.1 kHz and run at 96 kHz (and ~14 ms the other
+    // way). It must follow the rate the module is *run* at.
+    CHECK(feedbackDelayTauMs(44100, 96000) == doctest::Approx(30.0).epsilon(0.03).scale(0.0));
+    CHECK(feedbackDelayTauMs(96000, 44100) == doctest::Approx(30.0).epsilon(0.03).scale(0.0));
+  }
+
   TEST_CASE("feedbackDelay: tolerates a change in input buffer length") {
     YSE::DSP::MODULES::feedbackDelay d;
     d.time(6.0f).feedback(0.5f);

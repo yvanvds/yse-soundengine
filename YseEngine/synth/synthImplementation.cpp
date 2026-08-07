@@ -287,6 +287,13 @@ namespace YSE {
       // so freshly grown buffers start at zero before voices accumulate into them.
       ensureDeviceWidth();
 
+      // Re-derive the steal-fade window from the live SAMPLERATE: setup() runs
+      // once per synth, but the synth impl survives a system::close()/init()
+      // cycle, and the next session can negotiate a different rate (issue
+      // #637). One multiply per block, allocation-free — the same per-block
+      // re-derive the compressor uses for rmsCoef.
+      stealFadeSamples = std::max(1, static_cast<int>(SAMPLERATE * kStealFadeSec));
+
       // 2. Clear the aggregate bed.
       for (auto& b : output.samples)
         b = 0.f;

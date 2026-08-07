@@ -107,6 +107,7 @@ namespace YSE {
         // Audio-thread-only state.
         Flt lfoCursor; // shared LFO phase carried across blocks (radians)
         Flt delaySmoothCoef; // one-pole coef for per-sample delay smoothing
+        UInt builtRate; // SAMPLERATE delaySmoothCoef was derived for (#637)
         std::size_t lineSize; // per-channel delay-line length (samples)
         std::size_t blockLength; // last seen block length (scratch sizing)
 

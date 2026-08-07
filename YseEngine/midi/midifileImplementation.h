@@ -85,11 +85,15 @@ namespace YSE {
 
       // ---- parsed representation (also read by tests) ----------------------
 
-      /** One decoded channel-voice event at an absolute sample position. Meta,
-          tempo and SysEx events are consumed during parsing (tempo feeds the
-          tick->sample conversion) and are not stored here. */
+      /** One decoded channel-voice event at an absolute time. Meta, tempo and
+          SysEx events are consumed during parsing (tempo feeds the tick->time
+          conversion) and are not stored here. The timestamp is stored in
+          *seconds* — a rate-independent unit — and converted to samples
+          against the live SAMPLERATE in advance(), so a file parsed in one
+          session keeps correct timing after a system::close()/init() cycle at
+          a different device rate (issue #637). */
       struct fileEvent {
-        uint64_t sampleTime; // absolute sample offset from playback start
+        double timeSeconds; // absolute time offset from playback start
         unsigned char status; // full status byte, incl. channel nibble
         unsigned char data1;
         unsigned char data2;
@@ -127,13 +131,14 @@ namespace YSE {
 
       bool hasFile;
 
-      // Decoded events, sorted by sampleTime. Written only by create() (main
+      // Decoded events, sorted by timeSeconds. Written only by create() (main
       // thread, before play()); read by advance() (audio thread). The intent
       // release/acquire on play() publishes it to the audio thread.
       std::vector<fileEvent> midiEvents;
 
       // Playback cursor — audio-thread only (seeded by create() before play()).
-      uint64_t playhead = 0; // absolute sample position
+      // Kept in seconds so it, too, survives a close()/init() rate change.
+      double playheadSec = 0.0; // absolute time position, seconds
       std::size_t nextEvent = 0; // index of the next event to fire
 
       // Connected synths (§9 caller-owned lifetime). A fixed-size atomic table

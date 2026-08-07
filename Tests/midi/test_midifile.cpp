@@ -6,7 +6,10 @@
 //   - midifile lifecycle: construction, create, destruction
 //   - midifileManager: singleton identity, update(), orphan removal
 //   - SMF parser (issue #155): decodes the Type-0 fixture into a time-sorted
-//     event list with correct note numbers, velocities and sample times
+//     event list with correct note numbers, velocities and timestamps. Since
+//     issue #637 timestamps are stored in rate-independent SECONDS (advance()
+//     converts against the live SAMPLERATE), so a parsed file stays correct
+//     across a system::close()/init() cycle at a different device rate.
 //
 // No engine initialisation is required — the MIDI classes (and the SMF parser)
 // are independent of PortAudio and the audio graph. SAMPLERATE is initialised
@@ -179,21 +182,50 @@ TEST_SUITE("midi") {
     CHECK((ev[0].status & 0x0F) == 0x00);
     CHECK(ev[0].data1 == 60);
     CHECK(ev[0].data2 == 127);
-    CHECK(ev[0].sampleTime == 0u);
+    CHECK(ev[0].timeSeconds == doctest::Approx(0.0));
 
     // Event 1: note-off (status 0x80), note 60, half a second later.
     CHECK((ev[1].status & 0xF0) == 0x80);
     CHECK(ev[1].data1 == 60);
     // 96 ticks at 96 PPQN, 120 BPM = one quarter note = 0.5 s.
-    CHECK(ev[1].sampleTime == static_cast<uint64_t>(YSE::SAMPLERATE) / 2u);
+    CHECK(ev[1].timeSeconds == doctest::Approx(0.5));
   }
 
-  TEST_CASE("SMF parser: events come back sorted by sample time") {
+  TEST_CASE("SMF parser: events come back sorted by time") {
     YSE::MIDI::fileImpl impl(nullptr);
     REQUIRE(impl.create(std::string(YSE_TEST_FIXTURES_DIR) + "/test_type0.mid"));
     const auto& ev = impl.events();
     for (std::size_t i = 1; i < ev.size(); ++i)
-      CHECK(ev[i - 1].sampleTime <= ev[i].sampleTime);
+      CHECK(ev[i - 1].timeSeconds <= ev[i].timeSeconds);
+  }
+
+  // ─── SMF timestamps are sample-rate independent (issue #637) ─────────────────
+
+  TEST_CASE("SMF parser: parsed timestamps survive a sample-rate change (issue #637)") {
+    // The tick->time conversion used to bake SAMPLERATE into the stored
+    // timestamps at parse time, so a file parsed in one session drifted by the
+    // rate ratio after a close()/init() cycle at another rate. Timestamps are
+    // now stored in seconds: parsing the same file under two different rates
+    // must produce identical values, and advance() (not tested here — it needs
+    // a connected synth) converts against the live rate per block.
+    const UInt saved = YSE::SAMPLERATE;
+    const std::string fixture = std::string(YSE_TEST_FIXTURES_DIR) + "/test_type0.mid";
+
+    YSE::SAMPLERATE = 44100;
+    YSE::MIDI::fileImpl at44(nullptr);
+    REQUIRE(at44.create(fixture));
+
+    YSE::SAMPLERATE = 96000;
+    YSE::MIDI::fileImpl at96(nullptr);
+    REQUIRE(at96.create(fixture));
+    YSE::SAMPLERATE = saved;
+
+    REQUIRE(at44.events().size() == at96.events().size());
+    for (std::size_t i = 0; i < at44.events().size(); ++i) {
+      CHECK(at44.events()[i].timeSeconds == doctest::Approx(at96.events()[i].timeSeconds));
+    }
+    // And the absolute values are the wall-clock truth of the fixture.
+    CHECK(at44.events()[1].timeSeconds == doctest::Approx(0.5));
   }
 
   TEST_CASE("SMF parser: garbage data is rejected without crashing") {

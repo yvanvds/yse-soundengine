@@ -49,7 +49,11 @@ bool YSE::DSP::fileBuffer::load(const char* fileName, UInt channel) {
     return false;
   }
 
-  setSampleRateAdjustment(static_cast<Flt>(handle.samplerate()) / static_cast<Flt>(SAMPLERATE));
+  // Keep the load-time ratio for existing consumers, but also record the
+  // rate-independent native file rate so playback speed can be re-derived
+  // against the live SAMPLERATE after a close()/init() cycle (issue #637).
+  fileRate = static_cast<Flt>(handle.samplerate());
+  setSampleRateAdjustment(fileRate / static_cast<Flt>(SAMPLERATE));
   resize(static_cast<UInt>(frames));
   Flt* out = getPtr();
 
