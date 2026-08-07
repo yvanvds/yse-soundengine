@@ -120,6 +120,66 @@ timerThread::timerID timerThread::Add(millisec msDelay, millisec msPeriod, timer
   return id;
 }
 
+bool timerThread::SetPeriod(timerThread::timerID id, timerThread::millisec msPeriod) {
+  // A zero/negative period would turn a periodic timer into a one-shot inside
+  // the worker (`period.count() > 0`), silently dropping it from `active`
+  // behind the caller's back. Refuse instead.
+  if (msPeriod <= 0) return false;
+
+  bool needNotify = false;
+
+  // Scoped for the same reason as Add(): the mutex must be released before the
+  // notify below so the worker never wakes onto a lock we still hold.
+  {
+    ScopedLock lock(sync);
+    auto i = active.find(id);
+    if (i == active.end()) return false;
+
+    Timer& timer = i->second;
+    const Duration period(msPeriod);
+    if (timer.period == period) return true;
+
+    // Find this exact timer in the queue. `queue.erase(timer)` would take the
+    // by-key overload and remove *every* entry with an equivalent deadline, so
+    // walk the equivalent range and match on identity instead.
+    Queue::iterator entry = queue.end();
+    auto range = queue.equal_range(std::ref(timer));
+    for (auto q = range.first; q != range.second; ++q) {
+      if (&q->get() == &timer) {
+        entry = q;
+        break;
+      }
+    }
+
+    if (entry == queue.end()) {
+      // Not queued: either the callback is running right now (the worker erased
+      // the queue entry before invoking it and recomputes `next += period`
+      // afterwards) or the timer is mid-cancellation and about to disappear.
+      // Storing the period is the whole reschedule in the first case and
+      // harmless in the second.
+      timer.period = period;
+      return true;
+    }
+
+    // Queued: re-anchor on the previous expiry so the change reads as "this
+    // cycle is now `period` long", not "restart the cycle from now".
+    const Timestamp previous = timer.next - timer.period;
+    queue.erase(entry); // the key changes below; re-insert to keep the order
+    timer.period = period;
+    const Timestamp target = previous + period;
+    const Timestamp now = Clock::now();
+    timer.next = target < now ? now : target;
+
+    Queue::iterator place = queue.emplace(timer);
+    // Only a move to the front needs a wake-up; a deadline pushed further out
+    // lets the worker wake on the stale one, find nothing due and re-park.
+    needNotify = (place == queue.begin());
+  }
+
+  if (needNotify) wakeUp.notify_all();
+  return true;
+}
+
 bool timerThread::ClearTimer(timerThread::timerID id) {
   ScopedLock lock(sync);
   auto i = active.find(id);

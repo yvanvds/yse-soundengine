@@ -46,6 +46,27 @@ namespace YSE {
       template <typename... Args>
       timerID setTimeout(boundHandlerType<Args...> handler, millisec period, Args&&... args);
 
+      // Change the interval of an already-scheduled periodic timer (issue
+      // #625). Without this a caller can only restart the timer, which loses
+      // the phase of the cycle it is in and — for `.metro` — was impossible
+      // from inside the callback at all.
+      //
+      // Rescheduling rule: the next expiry moves to *previous expiry +
+      // msPeriod*. When the period shrinks past the part of the current cycle
+      // that has already elapsed, that instant is in the past; the timer then
+      // fires as soon as the worker wakes rather than skipping the beat. A
+      // period that grows simply pushes the pending expiry out.
+      //
+      // Callable from any thread, *including from inside the timer's own
+      // callback* — the worker releases the lock across the callback, so there
+      // is no self-deadlock. In that case the timer is not queued and only the
+      // stored period is updated; the worker's own `next += period` reschedule
+      // then applies the same rule.
+      //
+      // Returns false for an unknown id or a non-positive period (a periodic
+      // timer is never silently degraded into a one-shot), true otherwise.
+      bool SetPeriod(timerID id, millisec msPeriod);
+
       bool ClearTimer(timerID id);
       void Clear();
 

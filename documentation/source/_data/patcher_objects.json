@@ -2613,7 +2613,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Sets the bang interval in milliseconds.",
+        "doc": "Sets the bang interval in milliseconds. Retimes a running metronome immediately, without restarting it.",
         "index": 1,
         "label": "period",
         "range": "1+ ms"
@@ -2633,7 +2633,7 @@
     "params": [
       {
         "default": "1000",
-        "doc": "Initial interval in milliseconds.",
+        "doc": "Interval in milliseconds. Re-editing it while the metronome runs takes effect from the next bang.",
         "name": "period",
         "range": "1+ ms"
       }
