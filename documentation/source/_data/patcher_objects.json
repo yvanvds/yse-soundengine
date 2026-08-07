@@ -1262,6 +1262,62 @@
       }
     ]
   },
+  ".buddy": {
+    "category": "GENERIC",
+    "description": "Waits until every inlet has received something and then releases the whole set at once — Max's buddy, 'outputs incoming data after something has been received in all inlets'. The rendezvous object: several sources produce parts of one event at their own pace, and nothing downstream can act until all of them have arrived. Without it a patch either fires on whichever part lands last and hopes the rest are current, or grows a hand-built 'have I seen each one yet' flag per source with a manual reset; .buddy is that flag set, and the reset is automatic. The object to compare it against is .bondo, which Max lists first under See Also and which looks identical from the outside — N inlets, N outlets, released right to left — while having the opposite policy on all three counts that matter. .bondo releases on any input, .buddy only once every inlet has one. .bondo's slots persist, so a release re-sends what it sent last time for the inlets that did not move, while .buddy's are consumed — Max: 'then waits until data has arrived again in all inlets' — so nothing is ever sent twice. And .bondo's unwritten inlets release int 0, where .buddy emits nothing at all until it holds a real value for every inlet, so a reader is guaranteed that every element of the set was actually sent by the patch. Reach for .bondo to keep a set of parameters coherent while any of them is edited, and for .buddy to assemble one event out of parts that arrive separately. Every inlet is hot, but an arrival is a vote rather than a trigger, so there is no bang meaning 'send now' — a partial set has nothing complete to send. A bang is instead Max's 'same as sending the number 0': a value, which lets a source with nothing to say but 'I am ready' take part in the rendezvous. A second value arriving at an inlet that already has one replaces it, the newest being the one the release carries. The bare word 'clear' on the left inlet empties every slot and emits nothing, which is the escape hatch for a rendezvous that will never complete because a source stopped sending; Max scopes it to the left inlet and that is kept literally, so in any other inlet the word is an ordinary symbol and fills that slot — a data inlet whose message text happened to be 'clear' silently wiping the object would be far worse. There is no 'set': a store that did not count towards the rendezvous could never be released, and one that did would just be the plain message. What comes out is what went in, each slot releasing whichever of int, float and text last arrived as itself, and unlike .bondo a list is not spread across the outlets to the right — Max documents spreading for bondo and nothing of the kind here — so a list occupies the one inlet it arrived at and leaves the matching outlet verbatim, which makes the object a rendezvous for list-valued sources without needing a mode flag. Outlet n-1 is served first and outlet 0 last, each send completing in full (the whole subgraph behind it, depth first) before the next starts, which is Max's right-to-left rule; the release happens inside the call frame of the message that completed the set, so the whole set is one logical event and .buddy into .next gives one separated bang and the rest continued. The object empties itself before it sends rather than after, which is correctness and not tidiness: the send path is synchronous, so a patch looping an outlet back into an inlet re-enters inside the Send and would otherwise find a complete set and release again until the recursion ceiling stopped it. At most 256 inlet/outlet pairs are built and both slot tables are sized once before the object is published — Calculate() does nothing, and no message path allocates, locks or blocks.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Hot, like every other inlet on this object, but an arrival is a vote rather than a trigger: an int, float, list or symbol is stored here and the whole set is released only once every other inlet has received something too, after which the object is empty again. A bang is the number 0, not a trigger. A second value replaces the one this inlet was holding. On inlet 0 only, the bare word 'clear' empties every inlet and sends nothing; anywhere else it is an ordinary symbol and fills the slot.",
+        "index": 0,
+        "label": "in0",
+        "range": "any"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Hot, like every other inlet on this object, but an arrival is a vote rather than a trigger: an int, float, list or symbol is stored here and the whole set is released only once every other inlet has received something too, after which the object is empty again. A bang is the number 0, not a trigger. A second value replaces the one this inlet was holding. On inlet 0 only, the bare word 'clear' empties every inlet and sends nothing; anywhere else it is an ordinary symbol and fills the slot.",
+        "index": 1,
+        "label": "in1",
+        "range": "any"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".buddy",
+    "outlets": [
+      {
+        "doc": "What the corresponding inlet received, sent verbatim when the set completes and never sent twice. Released right to left with every other outlet, each send completing in full before the outlet to its left is served.",
+        "index": 0,
+        "label": "out0",
+        "range": "any",
+        "type": "ANY"
+      },
+      {
+        "doc": "What the corresponding inlet received, sent verbatim when the set completes and never sent twice. Released right to left with every other outlet, each send completing in full before the outlet to its left is served.",
+        "index": 1,
+        "label": "out1",
+        "range": "any",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "2",
+        "doc": "Max's argument: how many inlet/outlet pairs to build, clamped to 1-256 and defaulting to 2. A float is truncated. Anything that is not a whole finite number is ignored and leaves the default in place.",
+        "name": "inlets",
+        "range": "1-256"
+      }
+    ]
+  },
   ".cartopol": {
     "category": "MATH",
     "description": "Control-rate cartesian to polar conversion. Whenever inlet 0 fires it emits the polar form of the point (x, y): its distance from the origin on outlet 0 and its angle in radians, measured from the positive x axis, on outlet 1. Both outlets fire on every evaluation, right one first.",

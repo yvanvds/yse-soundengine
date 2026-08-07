@@ -14,6 +14,7 @@
 #include "genericObjects/gOneBang.h"
 #include "genericObjects/gNext.h"
 #include "genericObjects/gBondo.h"
+#include "genericObjects/gBuddy.h"
 #include "genericObjects/gMatch.h"
 #include "genericObjects/gUzi.h"
 #include "genericObjects/gIf.h"
@@ -152,6 +153,9 @@ pRegistry::pRegistry() {
 
   // Hold one value per inlet and release the whole set together (issue #474)
   Add(OBJ::G_BONDO, gBondo::Create);
+
+  // Wait until every inlet has data, then release once (issue #475)
+  Add(OBJ::G_BUDDY, gBuddy::Create);
 
   // Conditional message dispatch (issue #451)
   Add(OBJ::G_IF, gIf::Create);

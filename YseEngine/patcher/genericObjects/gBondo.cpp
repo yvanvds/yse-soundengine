@@ -20,17 +20,6 @@ namespace {
     return std::string(digits, written);
   }
 
-  // `in0`, `in1`, ... — the documentation label of inlet `index`. The mirror of
-  // the shared OutletLabel(), which .trigger and .bangbang use for the same
-  // reason; kept local because .bondo is so far the only object whose *inlet*
-  // count comes from a creation argument (.expr and .vexpr name theirs after
-  // the $-placeholders they stand for, and .switch has a fixed pair).
-  std::string InletLabel(int index) {
-    char digits[YSE::PATCHER::FORMAT_INT_WIDTH];
-    const std::size_t written = YSE::PATCHER::WriteInt(index, digits);
-    return "in" + std::string(digits, written);
-  }
-
   constexpr char kInletDoc[] =
       "Hot, like every other inlet on this object. An int, float, list or symbol is stored here "
       "and then the whole set is released, right to left. 'set <anything>' performs the same "

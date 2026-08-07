@@ -264,6 +264,25 @@ namespace YSE {
     }
 
     /**
+     *  @brief ``"in0"``, ``"in1"``, ... — the documentation label of inlet
+     *         @p index on an object whose inlets are built from its arguments.
+     *
+     *  The mirror of ``OutletLabel``, and shared for the same reason. Only the
+     *  rendezvous objects need it, because they are the only ones whose *inlet*
+     *  count is a creation argument: ``.expr`` and ``.vexpr`` name theirs after
+     *  the ``$``-placeholders they stand for, and everything else has a fixed
+     *  set labelled by literals in its constructor.
+     *
+     *  Written for ``.bondo`` (#474) and shared with ``.buddy`` (#475), which
+     *  labels its inlets the same way.
+     */
+    inline std::string InletLabel(int index) {
+      char digits[FORMAT_INT_WIDTH];
+      const std::size_t written = WriteInt(index, digits);
+      return "in" + std::string(digits, written);
+    }
+
+    /**
      *  @brief Formats the first @p count of @p values as a space-separated
      *         list — the text form the patcher's list outlets carry.
      *
