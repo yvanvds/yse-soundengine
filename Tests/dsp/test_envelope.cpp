@@ -254,6 +254,89 @@ TEST_SUITE("dsp") {
     CHECK(adsr.isAtEnd());
   }
 
+  // Regression tests for #642: the RELEASE branch scans backwards from loopEnd
+  // for a sample equal to *phase with no lower bound. While phase is inside
+  // the sustain region the scan terminates (at worst on phase itself), but
+  // once phase is past loopEnd — a repeated RELEASE, or a table whose loopEnd
+  // has no loopStart — the current value may occur nowhere before loopEnd and
+  // the scan walked off the front of the allocation. The fix floors the scan
+  // at the table start and keeps the current phase when no match exists.
+
+  TEST_CASE("ADSRenvelope: repeated RELEASE with phase past loopEnd stays in bounds (issue #642)") {
+    // Sustain sits flat at 0.5; the release tail ramps 0.5 → 1.0, so every
+    // tail value is strictly greater than anything at or before loopEnd and
+    // the exact-match scan cannot succeed once phase is in the tail.
+    YSE::DSP::ADSRenvelope adsr;
+    adsr.addPoint({0.0f, 0.0f, 1.0f});
+    adsr.addPoint({0.05f, 0.5f, 1.0f, /*loopStart*/ true});
+    adsr.addPoint({0.1f, 0.5f, 1.0f, /*loopStart*/ false, /*loopEnd*/ true});
+    adsr.addPoint({0.15f, 1.0f, 1.0f});
+    adsr.generate();
+
+    adsr(YSE::DSP::ADSRenvelope::ATTACK);
+    for (int i = 0; i < 40; ++i)
+      adsr(YSE::DSP::ADSRenvelope::RESUME); // loop the sustain region a while
+    REQUIRE(!adsr.isAtEnd());
+
+    // Drive RELEASE on every block, as a caller is free to do. The first call
+    // jumps phase to the matching sample near loopEnd (glitch-avoidance); every
+    // later call re-enters the scan with phase in the tail, where no exact
+    // match exists before loopEnd.
+    bool first = true;
+    int blocks = 0;
+    while (!adsr.isAtEnd() && blocks < 1000) {
+      YSE::DSP::buffer& buf = adsr(YSE::DSP::ADSRenvelope::RELEASE);
+      float* ptr = buf.getPtr();
+      if (first) {
+        // The glitch-avoidance jump still lands on the sustain value.
+        CHECK(ptr[0] == doctest::Approx(0.5f).epsilon(1e-4f));
+        first = false;
+      }
+      for (unsigned i = 0; i < buf.getLength(); ++i) {
+        CHECK(ptr[i] >= 0.0f);
+        CHECK(ptr[i] <= 1.0f);
+      }
+      ++blocks;
+    }
+    // The 0.05 s tail must finish; if a bad fallback restarted the table every
+    // block this never reaches the end.
+    CHECK(adsr.isAtEnd());
+    const int tailBlocks =
+        (int)(((unsigned)(0.05f * (float)YSE::SAMPLERATE) + YSE::STANDARD_BUFFERSIZE - 1) /
+              YSE::STANDARD_BUFFERSIZE);
+    CHECK(blocks <= tailBlocks + 1);
+  }
+
+  TEST_CASE("ADSRenvelope: RELEASE past a loopEnd with no loopStart stays in bounds (issue #642)") {
+    // Without a loopStart the envelope never loops, so playback runs straight
+    // through loopEnd into the 0.5 → 1.0 tail. A first RELEASE issued there
+    // scans for a tail value that never occurs at or before loopEnd.
+    YSE::DSP::ADSRenvelope adsr;
+    adsr.addPoint({0.0f, 0.0f, 1.0f});
+    adsr.addPoint({0.05f, 0.5f, 1.0f, /*loopStart*/ false, /*loopEnd*/ true});
+    adsr.addPoint({0.1f, 1.0f, 1.0f});
+    adsr.generate();
+
+    adsr(YSE::DSP::ADSRenvelope::ATTACK);
+    // Advance until the block's last sample is clearly inside the tail.
+    float last = 0.f;
+    int guard = 0;
+    while (last < 0.6f && !adsr.isAtEnd() && ++guard < 1000) {
+      YSE::DSP::buffer& buf = adsr(YSE::DSP::ADSRenvelope::RESUME);
+      last = buf.getPtr()[buf.getLength() - 1];
+    }
+    REQUIRE(last > 0.6f);
+
+    YSE::DSP::buffer& buf = adsr(YSE::DSP::ADSRenvelope::RELEASE);
+    float* ptr = buf.getPtr();
+    // The release continues from the current tail position — no backward jump.
+    CHECK(ptr[0] >= last);
+    for (unsigned i = 0; i < buf.getLength(); ++i) {
+      CHECK(ptr[i] >= 0.0f);
+      CHECK(ptr[i] <= 1.0f);
+    }
+  }
+
   // ─── envelope (breakpoint extractor) ─────────────────────────────────────────
 
   TEST_CASE("envelope: create from buffer extracts non-empty breakpoint list") {
