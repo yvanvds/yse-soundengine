@@ -98,9 +98,17 @@ void gMetro::Bang() {
 gMetro::~gMetro() {
   const timerThread::timerID running = id.exchange(0);
   if (running != 0) {
-    // Pre-existing defect, left alone here on purpose: lowercase `timerThread`
-    // is the class, so this clears the id on a throwaway instance instead of
-    // the singleton. Tracked as #663 — it needs its own regression test.
-    timerThread().ClearTimer(running);
+    // `TimerThread()` (capital) is the singleton that owns the timer; lowercase
+    // `timerThread` is the class, and `using namespace YSE::PATCHER` puts both
+    // in scope. This used to read `timerThread()`, which value-constructed an
+    // empty instance on the stack, asked *it* to drop an id it had never issued
+    // and threw it away — leaving the real timer alive with a std::bind to a
+    // dying `this` (issue #663).
+    //
+    // ClearTimer may block until an in-flight Bang() returns; that handshake is
+    // the point. Everything Bang() touches is still alive here — `outputs` is a
+    // base-class member, destroyed only after this body — and a destructor
+    // never runs on the audio thread.
+    TimerThread().ClearTimer(running);
   }
 }
