@@ -93,7 +93,9 @@ TEST_SUITE("sound") {
     if (!TestHelpers::engineInit()) return;
     SilentSource src;
     YSE::sound s;
-    s.create(src);
+    // Created silent so the published value is distinguishable from the volume
+    // create() seeds (issue #583).
+    s.create(src, nullptr, 0.f);
     s.name("coerce");
 
     YSE::INTERNAL::Bus().publish("sound.coerce.volume", YSE::INTERNAL::BusValue{1}, YSE::T_GUI);
@@ -104,9 +106,9 @@ TEST_SUITE("sound") {
     if (!TestHelpers::engineInit()) return;
     SilentSource src;
     YSE::sound s;
-    s.create(src);
+    s.create(src, nullptr, 0.f);
     // No name() call: nothing subscribes, so this publish is a no-op and the
-    // volume keeps its post-create default of 0.
+    // volume keeps the 0 create() seeded it with (issue #583).
     publishFloat("sound..volume", 0.9f);
     CHECK(s.volume() == doctest::Approx(0.0f));
   }
@@ -138,8 +140,10 @@ TEST_SUITE("sound") {
     if (!TestHelpers::engineInit()) return;
     SilentSource srcA, srcB;
     YSE::sound a, b;
-    a.create(srcA);
-    b.create(srcB);
+    // Both start silent, so a received publish is visible against the volume
+    // create() seeds (issue #583).
+    a.create(srcA, nullptr, 0.f);
+    b.create(srcB, nullptr, 0.f);
 
     a.name("dup");
     b.name("dup"); // rejected + logged; a keeps ownership
@@ -153,7 +157,7 @@ TEST_SUITE("sound") {
     if (!TestHelpers::engineInit()) return;
     SilentSource src;
     YSE::sound s;
-    s.create(src);
+    s.create(src, nullptr, 0.f); // silent start, see #583
     s.name("first");
     s.name("second"); // drops "first", claims "second"
 
@@ -170,7 +174,7 @@ TEST_SUITE("sound") {
     if (!TestHelpers::engineInit()) return;
     SilentSource src;
     YSE::sound s;
-    s.create(src);
+    s.create(src, nullptr, 0.f); // silent start, see #583
     s.name("clearme");
     s.name(""); // unsubscribes, releases the name
 
@@ -198,7 +202,7 @@ TEST_SUITE("sound") {
     if (!TestHelpers::engineInit()) return;
     SilentSource src;
     YSE::sound s;
-    s.create(src);
+    s.create(src, nullptr, 0.f); // silent start, see #583
     s.name("mt193");
 
     std::thread worker([] {

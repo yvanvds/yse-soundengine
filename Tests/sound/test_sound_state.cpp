@@ -307,6 +307,65 @@ TEST_SUITE("sound") {
     CHECK(s.volume() == doctest::Approx(0.9f));
   }
 
+  // ─── create() seeds the interface state (issue #583) ─────────────────────────
+  // create() hands `loop` / `volume` to the implementation, which applies them,
+  // but used to leave the interface's cached copies at their constructor
+  // defaults — so looping() reported false for a looping sound and volume()
+  // reported 0 for one playing at 0.5. Pre-fix every CHECK below reads the
+  // default instead of the argument.
+
+  TEST_CASE("sound: create() seeds looping() and volume() from its arguments (#583)") {
+    if (!TestHelpers::engineInit()) return;
+    YSE::sound s;
+    s.create(WAV_FIXTURE, nullptr, /*loop=*/true, /*volume=*/0.5f);
+    if (!s.isValid()) return; // file missing in this environment
+    CHECK(s.looping() == true);
+    CHECK(s.volume() == doctest::Approx(0.5f));
+  }
+
+  TEST_CASE("sound: create() seeds a non-looping sound too (#583)") {
+    if (!TestHelpers::engineInit()) return;
+    YSE::sound s;
+    s.create(WAV_FIXTURE, nullptr, /*loop=*/false, /*volume=*/0.25f);
+    if (!s.isValid()) return;
+    CHECK(s.looping() == false);
+    CHECK(s.volume() == doctest::Approx(0.25f));
+  }
+
+  TEST_CASE("sound: DSP-source create() seeds volume() (#583)") {
+    if (!TestHelpers::engineInit()) return;
+    SilentSource src;
+    YSE::sound s;
+    s.create(src, nullptr, /*volume=*/0.4f);
+    REQUIRE(s.isValid());
+    CHECK(s.volume() == doctest::Approx(0.4f));
+    CHECK(s.looping() == false); // the DSP overload never loops
+  }
+
+  // The seeded value is a starting point, not a lock: the setter still moves it.
+  TEST_CASE("sound: a setter overrides the value create() seeded (#583)") {
+    if (!TestHelpers::engineInit()) return;
+    SilentSource src;
+    YSE::sound s;
+    s.create(src, nullptr, /*volume=*/0.4f);
+    REQUIRE(s.isValid());
+    s.volume(0.8f);
+    CHECK(s.volume() == doctest::Approx(0.8f));
+    s.looping(true);
+    CHECK(s.looping() == true);
+  }
+
+  // A create() that failed nulls pimpl again, so nothing is seeded — the sound
+  // keeps the defaults the null-pimpl contract (#579) promises.
+  TEST_CASE("sound: a failed create() seeds nothing (#583)") {
+    if (!TestHelpers::engineInit()) return;
+    YSE::sound s;
+    s.create("definitely_not_here.wav", nullptr, /*loop=*/true, /*volume=*/0.5f);
+    REQUIRE_FALSE(s.isValid());
+    CHECK(s.looping() == false);
+    CHECK(s.volume() == doctest::Approx(0.0f));
+  }
+
   // ─── DSP sound lifecycle ─────────────────────────────────────────────────────
 
   TEST_CASE("sound: valid after create with DSP source") {

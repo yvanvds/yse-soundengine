@@ -650,6 +650,12 @@ TEST_SUITE("capilowcov") {
     CHECK(yse_sound_is_streaming(s) == 0); // loaded with streaming == 0
     CHECK(yse_sound_length(s) > 0u);
 
+    // yse_sound_load_file()'s loop / volume arguments seed the getters (issue
+    // #583): makeLoadedSound() loads with loop == 0 at volume 0.5, and the
+    // volume used to read back as 0.0f here.
+    CHECK(yse_sound_get_looping(s) == 0);
+    CHECK(yse_sound_get_volume(s) == doctest::Approx(0.5f));
+
     // Position is stored on the interface side, so it reads back immediately.
     const yse_pos_t want{1.f, -2.f, 3.f};
     yse_sound_set_pos(s, &want);
@@ -697,6 +703,7 @@ TEST_SUITE("capilowcov") {
     YseSound* s = makeLoadedSound(/*loop=*/1);
     if (!s) return;
     CHECK(yse_sound_is_stopped(s) == 1);
+    CHECK(yse_sound_get_looping(s) == 1); // the load argument seeds it (#583)
 
     // The intents are queued messages, so pump between them and read the state
     // back off the implementation.
@@ -790,11 +797,14 @@ TEST_SUITE("capilowcov") {
     REQUIRE(yse_sound_load_buffer(s, buf, yse_channel_master(), 1, 0.5f) == YSE_OK);
     pumpUntilReady(s);
     CHECK(yse_sound_is_valid(s) == 1);
-    // NB: the `loop` argument of yse_sound_load_buffer / _load_file reaches the
-    // implementation but is not mirrored onto the interface, so the getter
-    // still reads 0 here (issue #583). Setting it explicitly does round-trip.
-    yse_sound_set_looping(s, 1);
+    // The `loop` / `volume` arguments of yse_sound_load_buffer are mirrored onto
+    // the interface, so the getters report them back (issue #583 — they used to
+    // read the constructor defaults 0 / 0.0f for a sound that was in fact
+    // looping at 0.5). The setter still overrides them afterwards.
     CHECK(yse_sound_get_looping(s) == 1);
+    CHECK(yse_sound_get_volume(s) == doctest::Approx(0.5f));
+    yse_sound_set_looping(s, 0);
+    CHECK(yse_sound_get_looping(s) == 0);
 
     // The insert round-trips; the sound borrows it rather than owning it.
     // Detaching with yse_sound_set_dsp(s, NULL) is NOT exercised: unlike the

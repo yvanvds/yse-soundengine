@@ -170,6 +170,20 @@ void YSE::sound::unregisterFromBus() {
   _busOwner = false;
 }
 
+// The create() overloads hand `loop` / `volume` to the implementation, which
+// applies them (looping flag, fader). The getters, however, read the cached
+// interface state, so that state has to be seeded with the same arguments or
+// looping() / volume() keep reporting the constructor defaults for a sound that
+// is in fact looping at the requested volume (issue #583). Seeding happens only
+// on the success path: a create() that failed leaves pimpl null and the sound at
+// its defaults, which is what the null-pimpl no-op contract (#579) promises.
+// The volume is mirrored exactly as passed, not clamped, so the getter reports
+// what the implementation's fader actually received.
+//
+// The overloads without a `loop` argument (dsp / patcher / synth) set the
+// implementation's looping flag to false, which already matches the interface
+// default — only the volume needs seeding there.
+
 void YSE::sound::create(const char* fileName, channel* ch, bool loop, float volume,
                         bool streaming) {
   assert(pimpl == nullptr);
@@ -178,6 +192,8 @@ void YSE::sound::create(const char* fileName, channel* ch, bool loop, float volu
   if (ch == nullptr) ch = &CHANNEL::Manager().master();
 
   if (pimpl->create(fileName, ch, loop, volume, streaming)) {
+    _loop = loop;
+    _volume = volume;
     SOUND::Manager().setup(pimpl);
   } else {
     pimpl->setStatus(OBJECT_RELEASE);
@@ -192,6 +208,8 @@ void YSE::sound::create(YSE::DSP::buffer& buffer, channel* ch, bool loop, float 
   if (ch == nullptr) ch = &CHANNEL::Manager().master();
 
   pimpl->create(buffer, ch, loop, volume);
+  _loop = loop;
+  _volume = volume;
   SOUND::Manager().setup(pimpl);
 }
 
@@ -202,6 +220,8 @@ void YSE::sound::create(MULTICHANNELBUFFER& buffer, channel* ch, bool loop, floa
   if (ch == nullptr) ch = &CHANNEL::Manager().master();
 
   pimpl->create(buffer, ch, loop, volume);
+  _loop = loop;
+  _volume = volume;
   SOUND::Manager().setup(pimpl);
 }
 
@@ -211,6 +231,7 @@ void YSE::sound::create(YSE::DSP::dspSourceObject& dsp, channel* ch, float volum
   pimpl = SOUND::Manager().addImplementation(this);
   if (ch == nullptr) ch = &CHANNEL::Manager().master();
   pimpl->create(dsp, ch, volume);
+  _volume = volume;
   SOUND::Manager().setup(pimpl);
 }
 
@@ -222,6 +243,7 @@ void YSE::sound::create(YSE::patcher& patch, channel* ch, float volume) {
   // create() refuses when the patcher is already owned by another sound
   // (issue #287); on refusal the impl is released and the sound stays invalid.
   if (pimpl->create(patch.pimpl, ch, volume)) {
+    _volume = volume;
     SOUND::Manager().setup(pimpl);
   } else {
     pimpl->setStatus(OBJECT_RELEASE);
@@ -245,6 +267,7 @@ void YSE::sound::create(YSE::synth& synth, channel* ch, float volume) {
   // produces a device-width, per-voice-panned bed which the sound plays straight
   // through without re-panning (docs/design/per_note_positioning.md §7).
   pimpl->create(synth.pimpl->getOutputSource(), ch, volume, /*preSpatialized=*/true);
+  _volume = volume;
   SOUND::Manager().setup(pimpl);
 }
 

@@ -257,7 +257,12 @@ namespace YSE {
     /** @brief Set whether the sound loops continuously. */
     void looping(bool value);
 
-    /** @brief Whether the sound is currently set to loop. */
+    /** @brief Whether the sound is currently set to loop.
+     *
+     *  Reports the ``loop`` argument a successful ``create`` was given until
+     *  ``looping(bool)`` overrides it, and ``false`` for a sound that has not
+     *  been created yet (issue #583).
+     */
     bool looping();
 
     /**
@@ -272,7 +277,9 @@ namespace YSE {
     /** @brief Current volume.
      *
      *  May differ from the most recently requested target volume if a non-zero
-     *  fade time was supplied and the fade is still in progress.
+     *  fade time was supplied and the fade is still in progress. Starts at the
+     *  ``volume`` argument a successful ``create`` was given (issue #583); a
+     *  sound that has not been created yet reports ``0``.
      */
     float volume();
 

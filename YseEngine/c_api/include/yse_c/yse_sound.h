@@ -36,7 +36,12 @@ YSE_C_API YseSound* yse_sound_create(void);
 YSE_C_API void yse_sound_destroy(YseSound* s);
 
 /* Initialize a sound from a file on disk. Must be called once after
-   yse_sound_create() and before any other method. */
+   yse_sound_create() and before any other method.
+
+   The `loop` and `volume` arguments of the load functions below seed the
+   sound's state: after a successful load, yse_sound_get_looping() and
+   yse_sound_get_volume() report them back until a setter overrides them
+   (issue #583). A failed load leaves the sound at its defaults. */
 YSE_C_API YseStatus yse_sound_load_file(YseSound* s, const char* filename, YseChannel* ch, int loop,
                                         float volume, int streaming);
 
