@@ -15,6 +15,7 @@
 #include "genericObjects/gNext.h"
 #include "genericObjects/gBondo.h"
 #include "genericObjects/gBuddy.h"
+#include "genericObjects/gCycle.h"
 #include "genericObjects/gMatch.h"
 #include "genericObjects/gUzi.h"
 #include "genericObjects/gIf.h"
@@ -157,6 +158,9 @@ pRegistry::pRegistry() {
 
   // Wait until every inlet has data, then release once (issue #475)
   Add(OBJ::G_BUDDY, gBuddy::Create);
+
+  // Deal successive messages to successive outlets, wrapping round (issue #477)
+  Add(OBJ::G_CYCLE, gCycle::Create);
 
   // Conditional message dispatch (issue #451)
   Add(OBJ::G_IF, gIf::Create);

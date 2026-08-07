@@ -81,6 +81,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_bondo.cpp
   patcher/test_patcher_buddy.cpp
   patcher/test_patcher_swap.cpp
+  patcher/test_patcher_cycle.cpp
   patcher/test_message_scheduler.cpp
   patcher/test_patcher_slide.cpp
   patcher/test_patcher_expr.cpp
@@ -804,6 +805,7 @@ set_source_files_properties(
   patcher/test_patcher_bondo.cpp
   patcher/test_patcher_buddy.cpp
   patcher/test_patcher_swap.cpp
+  patcher/test_patcher_cycle.cpp
   patcher/test_message_scheduler.cpp
   patcher/test_patcher_slide.cpp
   patcher/test_patcher_expr.cpp
