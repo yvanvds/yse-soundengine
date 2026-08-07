@@ -18,7 +18,11 @@ public:
   ~OboeImplementation() override;
 
   bool Setup();
-  bool Start(int channels);
+  // `requestedRate` is the application-requested sample rate in Hz (issue
+  // #646); 0 means no request and Oboe negotiates the device rate. The
+  // request is only applied while the session sample-rate lock is released —
+  // reconnect / resume reopens keep the already-negotiated rate.
+  bool Start(int channels, int32_t requestedRate = 0);
   void Stop();
   void Suspend();
   void Resume();
@@ -64,7 +68,11 @@ private:
 
   std::shared_ptr<oboe::AudioStream> mStream;
   int numChannels = 2;
-  int32_t negotiatedSampleRate = 44100;
+  int32_t negotiatedSampleRate = 48000;
+  // Application-requested rate for the next open (issue #646); 0 = none.
+  // Set by Start() on the control thread, read by openStream() on the
+  // init / reconnect path — never on the audio callback.
+  int32_t requestedSampleRate = 0;
   UInt bufferPos = 0;
   float** sourceChannels = nullptr;
 

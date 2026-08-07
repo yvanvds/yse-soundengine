@@ -25,7 +25,7 @@ namespace {
   constexpr double kCpuLoadTau = 1.0;
 } // namespace
 
-UInt YSE::SAMPLERATE = 44100;
+UInt YSE::SAMPLERATE = 48000;
 
 YSE::DEVICE::managerObject& YSE::DEVICE::Manager() {
   static managerObject d;
@@ -175,21 +175,33 @@ void YSE::DEVICE::managerObject::addCallback() {
 #endif
   params.hostApiSpecificStreamInfo = nullptr;
   // Session-locked: once the lock is set at the end of system::initShared(),
-  // SAMPLERATE can only be re-written to its current value (e.g. by
-  // pause()/resume() cycles which reopen the stream against the same device).
-  // A debug assert catches genuine mid-session rate-change attempts; the
-  // write itself is skipped so SAMPLERATE-derived caches (LFO tables, reverb
-  // tunings, ADSR breakpoints) stay coherent.
-  {
-    const UInt newRate = (UInt)info->defaultSampleRate;
-    assert(!INTERNAL::Global().isSampleRateLocked() || newRate == SAMPLERATE);
-    if (!INTERNAL::Global().isSampleRateLocked()) {
-      SAMPLERATE = newRate;
-    }
+  // SAMPLERATE cannot change (pause()/resume() cycles reopen the stream at
+  // the already-negotiated rate below). The write is skipped while locked so
+  // SAMPLERATE-derived caches (LFO tables, reverb tunings, ADSR breakpoints)
+  // stay coherent. Before the lock, an application-requested rate (issue
+  // #646) takes precedence over the device default; the negotiated result
+  // stays authoritative via the refusal fallback after Pa_OpenStream.
+  const UInt deviceDefault = (UInt)info->defaultSampleRate;
+  if (!INTERNAL::Global().isSampleRateLocked()) {
+    const UInt requested = getRequestedSampleRate();
+    SAMPLERATE = requested != 0 ? requested : deviceDefault;
   }
 
   err = Pa_OpenStream(&stream, NULL, &params, SAMPLERATE, paFramesPerBufferUnspecified, paNoFlag,
                       paCallback, this);
+
+  // A refused requested rate is a log line plus the negotiated fallback, not
+  // an error (issue #646). Only before the session lock: a locked SAMPLERATE
+  // must not change, so a resume()-time failure falls through to the error
+  // path below as before.
+  if (err != paNoError && !INTERNAL::Global().isSampleRateLocked() && SAMPLERATE != deviceDefault) {
+    INTERNAL::LogImpl().emit(E_WARNING, "Requested sample rate " + std::to_string(SAMPLERATE) +
+                                            " Hz refused by the audio device; falling back to " +
+                                            std::to_string(deviceDefault) + " Hz");
+    SAMPLERATE = deviceDefault;
+    err = Pa_OpenStream(&stream, NULL, &params, SAMPLERATE, paFramesPerBufferUnspecified, paNoFlag,
+                        paCallback, this);
+  }
 
   if (err != paNoError) {
     audioDeviceError(err);

@@ -39,7 +39,7 @@ namespace YSE {
 
     void sfzADSR::configure(Flt delay, Flt attack, Flt hold, Flt decay, Flt sustain, Flt release,
                             Flt sr_) {
-      sr = sr_ > 0.0f ? sr_ : 44100.0f;
+      sr = sr_ > 0.0f ? sr_ : 48000.0f;
       sus = clampf(sustain, 0.0f, 1.0f);
       delaySamps = static_cast<long>(std::max(0.0f, delay) * sr);
       holdSamps = static_cast<long>(std::max(0.0f, hold) * sr);

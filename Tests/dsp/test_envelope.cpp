@@ -1,5 +1,5 @@
 // Tests for YSE::DSP::lfo, YSE::DSP::ADSRenvelope, and YSE::DSP::envelope.
-// No audio device required; SAMPLERATE is initialised to 44100 by the
+// No audio device required; SAMPLERATE is initialised to 48000 by the
 // portaudioDeviceManager translation unit at static-initialisation time.
 
 #include <doctest/doctest.h>
@@ -60,8 +60,9 @@ TEST_SUITE("dsp") {
   }
 
   TEST_CASE("lfo: LFO_SQUARE output bounded in [0, 1]") {
-    // At freq=2 Hz, phaseLength = 44100/2*0.5 = 11025 >> buffer size (128),
-    // so each call fills entirely with currentLineValue ∈ {0.0, 1.0}.
+    // At freq=2 Hz, phaseLength = SAMPLERATE/2*0.5 (12000 at 48000 Hz) >>
+    // buffer size (128), so each call fills entirely with
+    // currentLineValue ∈ {0.0, 1.0}.
     checkLfoBounded(YSE::DSP::LFO_SQUARE, 2.0f);
   }
 
@@ -75,7 +76,9 @@ TEST_SUITE("dsp") {
   // members (phase, envelopeEnd) set by generate().
   //
   // Envelope spec: 0 → 1 linear ramp over 0.1 s.
-  // 0.1 × 44100 = 4410 samples.  ceil(4410/128) = 35 buffer-calls to exhaust.
+  // 0.1 × 48000 = 4800 samples.  ceil(4800/128) = 38 buffer-calls to exhaust
+  // at the default rate; blocksToExhaustTenthSecond() below derives the count
+  // from the live SAMPLERATE.
 
   TEST_CASE("ADSRenvelope: ATTACK output starts at zero") {
     YSE::DSP::ADSRenvelope adsr;
@@ -216,12 +219,12 @@ TEST_SUITE("dsp") {
   //
   // Known implementation issue: envelope::create() computes the window size as
   // (Int)(windowMs/1000.0f) * SAMPLERATE, which truncates to zero for any
-  // windowMs < 1000.  Tests below use windowMs = 1000 (= 44100 samples) to avoid
-  // the infinite loop that a zero window would cause.
+  // windowMs < 1000.  Tests below use windowMs = 1000 (= SAMPLERATE samples) to
+  // avoid the infinite loop that a zero window would cause.
 
   TEST_CASE("envelope: create from buffer extracts non-empty breakpoint list") {
     YSE::DSP::envelope env;
-    const unsigned bufLen = 3 * 44100; // 3 s → 2 complete 1-second windows
+    const unsigned bufLen = 3 * YSE::SAMPLERATE; // 3 s → 2 complete 1-second windows
     YSE::DSP::buffer src(bufLen);
     src = 0.5f;
     bool ok = env.create(src, 1000);
@@ -231,7 +234,7 @@ TEST_SUITE("dsp") {
 
   TEST_CASE("envelope: breakpoint values match source amplitude") {
     YSE::DSP::envelope env;
-    const unsigned bufLen = 3 * 44100;
+    const unsigned bufLen = 3 * YSE::SAMPLERATE;
     YSE::DSP::buffer src(bufLen);
     src = 0.5f;
     env.create(src, 1000);
@@ -241,7 +244,7 @@ TEST_SUITE("dsp") {
 
   TEST_CASE("envelope: normalize scales max breakpoint value to 1.0") {
     YSE::DSP::envelope env;
-    const unsigned bufLen = 3 * 44100;
+    const unsigned bufLen = 3 * YSE::SAMPLERATE;
     YSE::DSP::buffer src(bufLen);
     src = 0.5f;
     env.create(src, 1000);

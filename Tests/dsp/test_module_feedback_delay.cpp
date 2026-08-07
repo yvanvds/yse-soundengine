@@ -10,7 +10,7 @@
 // (delaySamples = SAMPLERATE * ms * 0.001), so at 44100 Hz a 5 ms tap is
 // ~220 samples ~= 1.7 blocks of 128.
 //
-// No audio device required — SAMPLERATE is initialised to 44100 by the
+// No audio device required — SAMPLERATE is initialised to 48000 by the
 // portaudioDeviceManager translation unit at static-initialisation time.
 
 #include <doctest/doctest.h>

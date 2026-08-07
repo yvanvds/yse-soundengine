@@ -37,7 +37,25 @@ bool OboeImplementation::openStream(int channels) {
       ->setDataCallback(this)
       ->setErrorCallback(this);
 
+  // Application-requested rate (issue #646): only before the session lock —
+  // reconnect / resume reopens (which run locked) must come back at the
+  // already-negotiated rate, so they keep Oboe's default negotiation.
+  const bool applyRequest =
+      requestedSampleRate > 0 && !YSE::INTERNAL::Global().isSampleRateLocked();
+  if (applyRequest) {
+    builder.setSampleRate(requestedSampleRate);
+  }
+
   oboe::Result result = builder.openStream(mStream);
+  if (result != oboe::Result::OK && applyRequest) {
+    // A refused request is a log line plus the negotiated fallback, not an
+    // error (issue #646): retry without the rate request.
+    YSE::INTERNAL::LogImpl().emit(
+        YSE::E_WARNING, "Oboe: requested sample rate " + std::to_string(requestedSampleRate) +
+                            " Hz refused; falling back to the device rate");
+    builder.setSampleRate(oboe::kUnspecified);
+    result = builder.openStream(mStream);
+  }
   if (result != oboe::Result::OK) {
     YSE::INTERNAL::LogImpl().emit(YSE::E_ERROR, "Oboe: openStream failed");
     mStream.reset();
@@ -45,6 +63,14 @@ bool OboeImplementation::openStream(int channels) {
   }
 
   negotiatedSampleRate = mStream->getSampleRate();
+  if (applyRequest && negotiatedSampleRate != requestedSampleRate) {
+    // Oboe granted the open but negotiated a different rate — the negotiated
+    // result stays authoritative (issue #646).
+    YSE::INTERNAL::LogImpl().emit(YSE::E_WARNING, "Oboe: requested sample rate " +
+                                                      std::to_string(requestedSampleRate) +
+                                                      " Hz not granted; device negotiated " +
+                                                      std::to_string(negotiatedSampleRate) + " Hz");
+  }
   // Session-locked: once the lock is set at the end of system::initShared(),
   // SAMPLERATE can only be re-written to its current value (e.g. by the
   // pause()/resume() reopen path, or onErrorAfterClose rebuild on the same
@@ -74,8 +100,9 @@ bool OboeImplementation::openStream(int channels) {
   return true;
 }
 
-bool OboeImplementation::Start(int channels) {
+bool OboeImplementation::Start(int channels, int32_t requestedRate) {
   YSE::INTERNAL::LogImpl().emit(YSE::E_DEBUG, "Oboe: Start");
+  requestedSampleRate = requestedRate;
   if (mStream) Stop();
   return openStream(channels);
 }

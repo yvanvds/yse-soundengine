@@ -1,5 +1,5 @@
 // Tests for YSE::DSP::delay — the variable-length circular delay line.
-// No audio device required; SAMPLERATE is initialised to 44100 by the
+// No audio device required; SAMPLERATE is initialised to 48000 by the
 // portaudioDeviceManager translation unit at static-initialisation time.
 //
 // Note: delay::read() accepts delayTime in integer milliseconds, which

@@ -4,7 +4,7 @@
 //
 // Two layers:
 //   * DSP / allocator tests drive a SYNTH::implementationObject directly (no
-//     engine, no audio device needed — SAMPLERATE is initialised to 44100 by
+//     engine, no audio device needed — SAMPLERATE is initialised to 48000 by
 //     the device translation unit at static-init time). They exercise the
 //     allocator, stealing, click-free declick and mixing by pushing note
 //     messages and calling the aggregate outputSource's process().

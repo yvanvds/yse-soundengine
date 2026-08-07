@@ -41,6 +41,10 @@
 #include "sound/soundInterface.hpp"
 #include "sound/soundManager.h"
 #include "internal/time.h"
+#include "dsp/ADSRenvelope.hpp"
+#include "headers/constants.hpp"
+#include "yse_c/yse_common.h"
+#include "yse_c/yse_system.h"
 
 // Absolute path to the WAV fixture injected by CMake; falls back to a relative
 // path that works when the test binary runs from build-X/bin/ (mirrors the
@@ -192,6 +196,79 @@ TEST_SUITE("lifecycle") {
     YSE::System().close();
 
     CHECK(true); // completing the cycle without a crash is the observable win
+  }
+
+  // Requested-rate lifecycle (issue #646), doubling as the #637 session-
+  // contract scenario: the sample rate is an application setting, fixed per
+  // session — changing it means close() + init(). Offline sessions have no
+  // device to negotiate with, so the requested rate is authoritative and the
+  // assertions below are deterministic on headless CI.
+  //
+  // The derived-state observable: a 0.1 s ADSR attack ramp generated *inside*
+  // a session bakes SAMPLERATE into its breakpoint positions, so the number of
+  // 128-sample blocks needed to exhaust it is ceil(0.1 * rate / 128) — 38 at
+  // 48000, 35 at 44100 (same arithmetic as Tests/dsp/test_envelope.cpp).
+  static int adsrAttackBlocks() {
+    YSE::DSP::ADSRenvelope adsr;
+    adsr.addPoint({0.0f, 0.0f, 1.0f});
+    adsr.addPoint({0.1f, 1.0f, 1.0f});
+    adsr.generate();
+    int blocks = 1;
+    adsr(YSE::DSP::ADSRenvelope::ATTACK);
+    while (!adsr.isAtEnd() && blocks < 1000) {
+      adsr(YSE::DSP::ADSRenvelope::RESUME);
+      ++blocks;
+    }
+    return blocks;
+  }
+
+  TEST_CASE("lifecycle: requested sample rate applies per session across init/close (issue #646)") {
+    YSE::System().close(); // normalize to a closed engine
+    const UInt startRate = YSE::SAMPLERATE;
+    const unsigned int startRequest = YSE::System().requestSampleRate();
+
+    // Session 1: request 48000 before init.
+    YSE::System().requestSampleRate(48000);
+    CHECK(YSE::System().requestSampleRate() == 48000u);
+    if (!YSE::System().initOffline()) { // no offline device on this host
+      YSE::System().requestSampleRate(startRequest);
+      return;
+    }
+    CHECK(YSE::SAMPLERATE == 48000u);
+    CHECK(YSE::System().getSampleRate() == doctest::Approx(48000.0));
+    CHECK(adsrAttackBlocks() == 38);
+
+    // The rate is a per-session setting: close() releases the lock so the
+    // next init() can renegotiate.
+    YSE::System().close();
+    CHECK(YSE::System().getSampleRate() == 0.0);
+
+    // Session 2: reopen at a different requested rate.
+    YSE::System().requestSampleRate(44100);
+    REQUIRE(YSE::System().initOffline());
+    CHECK(YSE::SAMPLERATE == 44100u);
+    CHECK(YSE::System().getSampleRate() == doctest::Approx(44100.0));
+    CHECK(adsrAttackBlocks() == 35);
+    YSE::System().close();
+
+    // The same parameter through the C ABI (issue #646 "the C API exposes the
+    // same").
+    YseSystem* sys = yse_system_get();
+    yse_system_request_sample_rate(sys, 48000);
+    CHECK(yse_system_get_requested_sample_rate(sys) == 48000u);
+    REQUIRE(yse_system_init_offline(sys) == YSE_OK);
+    CHECK(yse_system_get_sample_rate(sys) == doctest::Approx(48000.0));
+    yse_system_close(sys);
+
+    // NULL handles follow the header's null-safe no-op convention.
+    yse_system_request_sample_rate(nullptr, 48000);
+    CHECK(yse_system_get_requested_sample_rate(nullptr) == 0u);
+
+    // Leave the process as we found it for later cases in this isolated
+    // binary: clear the request (it deliberately survives close()) and put
+    // the pre-test rate back (permitted — the session lock is released).
+    YSE::System().requestSampleRate(startRequest);
+    YSE::SAMPLERATE = startRate;
   }
 
 } // TEST_SUITE("lifecycle")

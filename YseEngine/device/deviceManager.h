@@ -77,6 +77,20 @@ namespace YSE {
       virtual void openDevice(const YSE::deviceSetup&) {};
       virtual void addCallback() {};
 
+      /* Application-requested sample rate in Hz for the next stream open
+         (issue #646). 0 = no request: the backend opens at the device default.
+         The request is an application setting consumed on the init path — the
+         backend's negotiated rate stays authoritative (it is what SAMPLERATE
+         is written with inside the session-lock window) and the request
+         deliberately survives close() so a host can set it once for repeated
+         init()/close() cycles. */
+      void requestSampleRate(UInt rate) {
+        requestedSampleRate = rate;
+      }
+      UInt getRequestedSampleRate() const {
+        return requestedSampleRate;
+      }
+
       /* Service a device rebuild requested from a backend error thread (e.g.
          Oboe's onErrorAfterClose flags a disconnect). Called once per
          control-thread tick from system::update() so the actual reopen runs on
@@ -117,6 +131,11 @@ namespace YSE {
 
       CHANNEL::implementationObject* master;
       int currentInputChannels, currentOutputChannels;
+
+      // See requestSampleRate() above. Written on the control thread before
+      // init(); read by the backends on their stream-open (init/negotiation)
+      // path — never on the audio callback.
+      UInt requestedSampleRate = 0;
     };
 
   } // namespace DEVICE

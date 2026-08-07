@@ -8,7 +8,7 @@
 // Freeverb-derived INTERNAL::reverbDSP (whose own process() has no public entry
 // point — see bench_reverb.cpp for that config-path benchmark).
 //
-// No engine init is needed: SAMPLERATE has its static-init default (44100) from
+// No engine init is needed: SAMPLERATE has its static-init default (48000) from
 // the portaudioDeviceManager TU, which is all the module's create() reads.
 
 #include "dsp/buffer.hpp"

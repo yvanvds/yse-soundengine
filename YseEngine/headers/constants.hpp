@@ -23,10 +23,11 @@ namespace YSE {
   // SAMPLERATE.
   const UInt STREAM_BUFFERSIZE = 44100;
 
-  // The active engine sample rate. Initialised to 44100 by the device
+  // The active engine sample rate. Initialised to 48000 by the device
   // manager's translation unit; written exactly once per session by the
-  // audio backend (PortAudio default device on desktop, Oboe-negotiated
-  // rate on Android) before INTERNAL::Global().sampleRateLocked is set at
+  // audio backend (application-requested or PortAudio default rate on
+  // desktop, Oboe-negotiated rate on Android — see system::requestSampleRate,
+  // issue #646) before INTERNAL::Global().sampleRateLocked is set at
   // the end of system::initShared(). Treat as immutable within a session;
   // see the lock contract enforced in portaudioDeviceManager.cpp /
   // oboeImplementation.cpp.

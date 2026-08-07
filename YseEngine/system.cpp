@@ -40,6 +40,19 @@ Bool YSE::system::initShared(bool openDevice) {
     INTERNAL::LogImpl().emit(E_DEBUG, "You're trying to initialize more than once!");
     return true;
   }
+  // Seed SAMPLERATE with the application's requested rate before anything can
+  // derive state from it (issue #646): objects constructed between here and
+  // device negotiation (the #637 init window) then already see the requested
+  // rate. The backend stays authoritative — if a device opens below, it
+  // rewrites SAMPLERATE with the negotiated rate; when no device opens
+  // (initOffline, headless CI), the requested rate IS the session rate.
+  {
+    const UInt requested = DEVICE::Manager().getRequestedSampleRate();
+    if (requested != 0 && !INTERNAL::Global().isSampleRateLocked()) {
+      SAMPLERATE = requested;
+    }
+  }
+
   // global objects should always be loaded before anything else!
   INTERNAL::Global().init();
   currentlyMissedCallbacks = 0;
@@ -168,6 +181,15 @@ int YSE::system::missedCallbacks() {
   return currentlyMissedCallbacks;
 }
 
+YSE::system& YSE::system::requestSampleRate(unsigned int rate) {
+  DEVICE::Manager().requestSampleRate(rate);
+  return *this;
+}
+
+unsigned int YSE::system::requestSampleRate() {
+  return DEVICE::Manager().getRequestedSampleRate();
+}
+
 YSE::system& YSE::system::autoReconnect(bool on, int delay) {
   doAutoReconnect = on;
   reconnectDelay = delay;
@@ -242,7 +264,7 @@ float YSE::system::currentTempo(const std::string& name) {
 
 double YSE::system::getSampleRate() {
   // The session lock is set at the end of initShared(); before that, SAMPLERATE
-  // still holds its 44100 default and reporting it would mislead hosts that
+  // still holds its 48000 default and reporting it would mislead hosts that
   // start sample-count-driven work pre-init.
   return INTERNAL::Global().isSampleRateLocked() ? (double)SAMPLERATE : 0.0;
 }

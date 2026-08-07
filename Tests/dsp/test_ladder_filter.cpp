@@ -12,7 +12,7 @@
 //   - the cutoff glide keeps its ~1 ms wall-clock time constant across a
 //     sample-rate change (issue #634).
 //
-// No audio device required; SAMPLERATE is initialised to 44100 by the
+// No audio device required; SAMPLERATE is initialised to 48000 by the
 // portaudioDeviceManager translation unit at static-initialisation time. The
 // #634 cases force it to other rates temporarily via ScopedSampleRate below.
 

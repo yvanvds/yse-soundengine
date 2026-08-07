@@ -6,7 +6,7 @@
 // Initial value before the Oboe stream opens. OboeImplementation::openStream
 // overwrites this with stream->getSampleRate() (typically 48 kHz on modern
 // Android devices) so the rest of the engine sees the negotiated rate.
-UInt YSE::SAMPLERATE = 44100;
+UInt YSE::SAMPLERATE = 48000;
 
 YSE::DEVICE::managerObject& YSE::DEVICE::Manager() {
   static managerObject d;
@@ -40,10 +40,11 @@ void YSE::DEVICE::managerObject::updateDeviceList() {
   d.addOutputChannelName("Right");
   d.setOutputLatency(100);
   // Reflect the actual rate Oboe negotiated with the device, if the stream is
-  // already open; otherwise fall back to the conservative 44.1 kHz default.
+  // already open; otherwise fall back to the 48 kHz default (the native rate
+  // on effectively all modern Android devices).
   const UInt rate = implementation.getNegotiatedSampleRate() > 0
                         ? (UInt)implementation.getNegotiatedSampleRate()
-                        : 44100u;
+                        : 48000u;
   d.addAvailableSampleRate(rate);
   devices.push_back(d);
 }
@@ -63,7 +64,10 @@ void YSE::DEVICE::managerObject::resume() {
 }
 
 void YSE::DEVICE::managerObject::addCallback() {
-  implementation.Start(YSE::DEVICE::Manager().getMaster().GetBuffers().size());
+  // Hand the application-requested rate (issue #646) to the Oboe stream
+  // builder; 0 means no request and Oboe negotiates the device rate.
+  implementation.Start(YSE::DEVICE::Manager().getMaster().GetBuffers().size(),
+                       (int32_t)getRequestedSampleRate());
   // YSE::Log().sendMessage("androidDeviceManager: Callback Added");
 }
 

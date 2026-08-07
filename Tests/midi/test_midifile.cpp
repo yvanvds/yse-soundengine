@@ -10,7 +10,7 @@
 //
 // No engine initialisation is required — the MIDI classes (and the SMF parser)
 // are independent of PortAudio and the audio graph. SAMPLERATE is initialised
-// to 44100 by the device translation unit at static-init time.
+// to 48000 by the device translation unit at static-init time.
 
 #include <doctest/doctest.h>
 #include <cstdint>

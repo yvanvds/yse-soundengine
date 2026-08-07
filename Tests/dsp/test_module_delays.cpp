@@ -10,7 +10,7 @@
 // delayCount, then calculateImpact (with default impact=1.0) replaces buffer[0]
 // with the wet output.  With all gains 0, the output equals the dry input.
 //
-// No audio device required — SAMPLERATE is initialised to 44100 by the
+// No audio device required — SAMPLERATE is initialised to 48000 by the
 // portaudioDeviceManager translation unit at static-initialisation time.
 
 #include <doctest/doctest.h>
