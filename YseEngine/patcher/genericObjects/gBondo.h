@@ -1,5 +1,6 @@
 #pragma once
 #include "../pObject.h"
+#include "../time/messageScheduler.h"
 #include <cstddef>
 #include <string>
 #include <vector>
@@ -139,26 +140,37 @@ namespace YSE {
      *  is supported and is the mode to reach for whenever an inlet's value is
      *  itself a list.
      *
-     *  ### The one thing that is not implemented: the delay argument
+     *  ### The delay argument
      *
      *  Max's optional second creation argument defers a message-triggered
-     *  release by that many milliseconds (a bang still releases immediately).
-     *  It is **read and refused** here rather than silently ignored: the
-     *  argument is accepted so that a patch written for Max keeps its argument
-     *  positions, ``RequestedDelay()`` reports it, and a non-zero value is
-     *  logged once at construction.
+     *  release by that many milliseconds; Max is explicit that a bang is the
+     *  exception — "output will be immediate if triggered by a bang". Honoured
+     *  here since #628 through the patcher's deferred-message scheduler
+     *  (``messageScheduler``), which is what makes the deferral *possible* at
+     *  all: arming is wait-free (allowed on a message handler that may be the
+     *  audio thread), and delivery happens inside a real dispatch frame on the
+     *  patcher's own thread, so a deferred release is still **one logical
+     *  event** — the guarantee above keeps holding for exactly the patches
+     *  that asked for a delay, where a timer-thread hack would have broken it.
      *
-     *  It is refused rather than approximated because there is nowhere honest
-     *  to put it. Deferring means scheduling, and the only scheduler here is
-     *  ``TimerThread``, whose ``Add`` takes a mutex and allocates a
-     *  ``std::function`` — neither is allowed on a message handler that may be
-     *  running on the audio thread. Worse, a deferred release would fire on the
-     *  timer thread, *outside* the dispatch that caused it, so it would no
-     *  longer be part of the same logical event; the "one release is one event"
-     *  guarantee above would silently stop holding for exactly the patches that
-     *  asked for a delay. A correct answer needs a scheduler that defers into
-     *  the patcher's own dispatch, which is a piece of infrastructure and not a
-     *  detail of this object — filed as its own issue (#628).
+     *  One release is pending at a time, which is the shape a Max ``clock``
+     *  gives the original: a message-triggered release while one is pending
+     *  *reschedules* it (delay measured from the newest message) rather than
+     *  queuing a second, so a burst of stores collapses into one deferred
+     *  release of the final set. A bang neither waits nor disturbs the pending
+     *  release: it releases immediately, and a rescheduled release still fires
+     *  at its own time. The values released are the ones held **when the
+     *  release fires**, not when it was armed — the slots are the object's
+     *  state and the deferral defers the *release*, not a snapshot.
+     *
+     *  Two honest fallbacks release immediately instead, both observable and
+     *  neither silent about the argument (``RequestedDelay()`` still reports
+     *  it): a standalone object outside any patcher has no dispatch to defer
+     *  into, and a patcher whose pending set is full (the scheduler is bounded
+     *  by design) releases now rather than dropping the set on the floor.
+     *
+     *  The deferral is quantised to audio blocks on the patcher's block clock —
+     *  see ``messageScheduler`` for the timeline contract.
      *
      *  ### Real-time behaviour
      *
@@ -264,13 +276,20 @@ namespace YSE {
      *  @brief The delay creation argument, in milliseconds, as the patch typed
      *         it — 0 when none was given.
      *
-     *  Reported rather than honoured; see the header on why the release is
-     *  never deferred. Non-zero here means the object is releasing immediately
-     *  where Max would have waited.
+     *  Honoured since #628 for a message-triggered release inside a patcher
+     *  (a bang still releases immediately, as Max's does); see the header for
+     *  the reschedule semantics and the two immediate-release fallbacks.
      */
     int RequestedDelay() const {
       return requestedDelay;
     }
+
+    /**
+     *  @brief Deferred-release delivery (issue #628): the scheduler calling
+     *         back when a delayed release comes due. Emits the whole current
+     *         set, exactly as the immediate path does.
+     */
+    void DeliverDeferred(const deferredMessage& msg, YSE::THREAD thread) override;
 
   private:
     // One inlet/outlet pair. `held` decides which of the value fields means
@@ -285,6 +304,12 @@ namespace YSE {
     // **The object.** Send every slot, right to left. The only path that
     // emits, so there is exactly one place the firing order is decided.
     void EmitAll(YSE::THREAD thread);
+
+    // A message-triggered release: immediate without a delay argument, else
+    // deferred through the patcher's scheduler (#628) — rescheduling the
+    // pending release, Max's one-clock shape. Falls back to the immediate
+    // release for a standalone object or a full pending set; see the header.
+    void ReleaseOrDefer(YSE::THREAD thread);
 
     // Store one message into the slot table starting at `inlet`, without
     // emitting. The whole of Max's storage rule, shared by the plain path and
@@ -317,8 +342,18 @@ namespace YSE {
     // Max's `n` flag. Control thread only, as the arguments are.
     bool wholeLists = false;
 
-    // Max's delay argument, read and reported but not honoured. See the header.
+    // Max's delay argument. 0 releases synchronously; a positive value defers a
+    // message-triggered release through the patcher's scheduler (#628). Written
+    // by ShapePorts before the object is wired or published, like the rest of
+    // the argument state, so message handlers read it unsynchronised safely.
     int requestedDelay = 0;
+
+    // The one pending deferred release, or 0 when none (Max's single clock). A
+    // new message-triggered release cancels this and arms a fresh one; the
+    // delivery callback clears it. Touched only from message handlers and the
+    // scheduler's delivery — the same dispatch context the slot table already
+    // relies on.
+    messageScheduler::Handle pendingRelease = 0;
   };
 }
 }

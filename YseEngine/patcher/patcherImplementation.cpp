@@ -125,6 +125,12 @@ void patcherImplementation::Calculate(YSE::THREAD thread) {
   // is also observed in that order here.
   ApplyPendingParams(g);
   DeliverPendingValues(g);
+  // Then everything the deferred-message scheduler has due (issue #628) — after
+  // the value drain so a value delivered this block can arm a deferral that is
+  // honestly "later", and before the render with the same T_GUI semantics as
+  // the value drain: the delivery sets state / forwards values, and the block's
+  // own traversal renders whatever it caused.
+  scheduler_.DeliverDue(g, YSE::T_GUI);
 
   if (g != nullptr) {
     // invalidate all dsp buffers

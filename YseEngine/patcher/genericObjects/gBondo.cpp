@@ -98,20 +98,24 @@ CONSTRUCT() {
       "leading-token test is Max's own rule for which method a message reaches, and it is what "
       "this patcher can use in place of a symbol type it does not have. The 'n' creation argument "
       "turns distribution off so that a whole list is stored per outlet, which is the mode to "
-      "reach for when an inlet's value is itself a list. Max's delay argument is read and refused "
-      "rather than silently ignored: deferring a release would need a scheduler on a path that may "
-      "be the audio thread, and the deferred output would fire outside the dispatch that caused "
-      "it, so the one-release-is-one-event guarantee would quietly stop holding for exactly the "
-      "patches that asked for a delay. At most 256 inlet/outlet pairs are built, and the slot "
-      "table is sized once before the object is published — Calculate() does nothing, and no "
-      "message path allocates, locks or blocks.");
+      "reach for when an inlet's value is itself a list. Max's delay argument defers a "
+      "message-triggered release by that many milliseconds through the patcher's deferred-message "
+      "scheduler: the release fires inside the patcher's own dispatch as one fresh logical event, "
+      "so the one-release-is-one-event guarantee keeps holding through the deferral. One release "
+      "is pending at a time — a new message reschedules it, so a burst of stores collapses into "
+      "one deferred release of the final set — and a bang is Max's documented exception, "
+      "releasing immediately and leaving a pending release to fire at its own time. A standalone "
+      "object outside any patcher has no dispatch to defer into and releases immediately. At most "
+      "256 inlet/outlet pairs are built, and the slot table is sized once before the object is "
+      "published — Calculate() does nothing, and no message path allocates, locks or blocks.");
   ADD_CATEGORY(pCategory::GENERIC);
   PARAM_DOC("ports", "2",
             "Max's argument list, in Max's order and read by type. The first whole number is how "
             "many inlet/outlet pairs to build, clamped to 1-256 and defaulting to 2. A second "
-            "whole number is Max's delay in milliseconds, which is reported but not honoured — a "
-            "release is always immediate here. The symbol 'n' stores a whole list per outlet "
-            "instead of spreading it across them. Anything else is ignored.",
+            "whole number is Max's delay in milliseconds: a message-triggered release is deferred "
+            "by that long (block-quantised on the patcher's clock, rescheduled by each new "
+            "message), while a bang still releases immediately. The symbol 'n' stores a whole "
+            "list per outlet instead of spreading it across them. Anything else is ignored.",
             "1-256, optional delay in ms, optional 'n'");
 }
 
@@ -170,11 +174,6 @@ void gBondo::ShapePorts() {
     INTERNAL::LogImpl().emit(E_WARNING, "patcher: .bondo port count " + IntText(requested) +
                                             " is outside " + IntText(MIN_PORTS) + "-" +
                                             IntText(MAX_PORTS) + "; clamped to " + IntText(count));
-  }
-  if (requestedDelay != 0) {
-    INTERNAL::LogImpl().emit(E_WARNING, "patcher: .bondo delay argument " +
-                                            IntText(requestedDelay) +
-                                            " ms is not supported; output is released immediately");
   }
 
   inputs.clear();
@@ -366,10 +365,47 @@ void gBondo::EmitAll(YSE::THREAD thread) {
   }
 }
 
+void gBondo::ReleaseOrDefer(YSE::THREAD thread) {
+  // The message-triggered release. Max: "If output is triggered by a message,
+  // and a second argument has been typed in, output will be delayed by the
+  // number of milliseconds specified in the second argument."
+  if (requestedDelay > 0) {
+    messageScheduler* scheduler = Scheduler();
+    if (scheduler != nullptr) {
+      // One clock per object, Max's shape: a release armed while one is
+      // pending reschedules it — cancel-then-arm, both wait-free — so a burst
+      // of stores collapses into a single release of the final set, delay
+      // measured from the newest message. The bang payload is enough: the
+      // slots are the state, and the delivery emits whatever they hold *then*.
+      if (pendingRelease != 0) {
+        scheduler->Cancel(pendingRelease);
+      }
+      pendingRelease = scheduler->ScheduleBang(this, 0, requestedDelay);
+      if (pendingRelease != 0) return;
+      // Pending set full (the scheduler is bounded): fall through to the
+      // immediate release rather than dropping the set on the floor.
+    }
+    // No scheduler: a standalone object has no dispatch to defer into, so the
+    // release is immediate — the pre-#628 behaviour, now scoped to the one
+    // case where deferring is impossible rather than merely unimplemented.
+  }
+  EmitAll(thread);
+}
+
+void gBondo::DeliverDeferred(const deferredMessage&, YSE::THREAD thread) {
+  // The deferred release coming due. The scheduler wraps this in a fresh
+  // messageEventScope, so the whole set below is one logical event — the
+  // guarantee the header pins, preserved through the deferral (#628).
+  pendingRelease = 0;
+  EmitAll(thread);
+}
+
 BANG_IN(SetBang) {
   // Max: "bang: Send all stored messages." Stores nothing, and works in any
   // inlet — there is no inlet on this object that a bang means something
-  // different in.
+  // different in. "Output will be immediate if triggered by a bang": the delay
+  // argument does not apply here, and a pending deferred release is left to
+  // fire at its own time.
   (void)inlet;
   EmitAll(thread);
 }
@@ -383,7 +419,7 @@ INT_IN(SetInt) {
   Slot& slot = slots[(std::size_t)inlet];
   slot.held = Held::INT;
   slot.intValue = value;
-  EmitAll(thread);
+  ReleaseOrDefer(thread);
 }
 
 FLOAT_IN(SetFloat) {
@@ -393,7 +429,7 @@ FLOAT_IN(SetFloat) {
   Slot& slot = slots[(std::size_t)inlet];
   slot.held = Held::FLOAT;
   slot.floatValue = value;
-  EmitAll(thread);
+  ReleaseOrDefer(thread);
 }
 
 LIST_IN(SetList) {
@@ -413,5 +449,5 @@ LIST_IN(SetList) {
   }
 
   StoreText(value, 0, inlet);
-  EmitAll(thread);
+  ReleaseOrDefer(thread);
 }

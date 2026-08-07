@@ -20,6 +20,17 @@ const YSE::PATCHER::GraphState* pObject::CurrentBlockGraph() const {
   return static_cast<patcherImplementation*>(parent)->CurrentBlockGraph();
 }
 
+// Same hop as CurrentBlockGraph: the owning patcher's scheduler, or null when
+// there is no patcher to defer into (standalone / unit-test use, issue #628).
+YSE::PATCHER::messageScheduler* pObject::Scheduler() const {
+  if (parent == nullptr) return nullptr;
+  return static_cast<patcherImplementation*>(parent)->Scheduler();
+}
+
+// Default: a deferred message nobody asked for is dropped. Only objects that
+// arm deferrals override this (issue #628).
+void pObject::DeliverDeferred(const deferredMessage&, YSE::THREAD) {}
+
 void pObject::UnwireFromPeers() {
   for (unsigned int i = 0; i < inputs.size(); i++) {
     inputs[i].UnwireFromPeers();
