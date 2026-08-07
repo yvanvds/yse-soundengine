@@ -17,8 +17,9 @@
   of 0 / 0.0 — so iterating with a stale count is safe.
 
   The scalar getters below always report a defined value: a descriptor starts
-  with all four at 0 and the engine only ever overwrites them with real data,
-  so there is no indeterminate read to guard against.
+  with the three size/latency fields at 0 and its device id at -1, and the
+  engine only ever overwrites them with real data, so there is no indeterminate
+  read to guard against.
 */
 
 #ifndef YSE_C_DEVICE_H_INCLUDED
@@ -62,6 +63,13 @@ YSE_C_API int yse_device_get_buffer_size(YseDevice* dev, unsigned int idx);
 YSE_C_API int yse_device_default_buffer_size(YseDevice* dev);
 YSE_C_API int yse_device_output_latency(YseDevice* dev);
 YSE_C_API int yse_device_input_latency(YseDevice* dev);
+
+/* -1 from yse_device_get_id() means "no device", not "device index -1": it is
+   PortAudio's paNoDevice, what a descriptor reports before the engine fills it
+   in, and what a NULL handle reports. Every device from
+   yse_system_get_device() carries a real, non-negative index. Handing a setup
+   whose output device still reads -1 to yse_system_open_device() is refused
+   with a log line and leaves the running stream alone. */
 YSE_C_API int yse_device_get_id(YseDevice* dev);
 
 /* deviceSetup — owned configuration object passed to yse_system_open_device. */

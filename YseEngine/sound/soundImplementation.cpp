@@ -586,7 +586,10 @@ void YSE::SOUND::implementationObject::update() {
   // warble the pitch. A ratio of 1.0 means "no shift".
   Flt ratio = 1.0f;
   if (doppler) {
-    velocityVec = (newPos - lastPos) * (1 / INTERNAL::Time().delta());
+    // A zero-length tick (two updates inside the same millisecond) would make
+    // this divide inf and NaN out a stationary source's velocity; the helper
+    // holds the previous velocity for such a tick instead (issue #660).
+    velocityVec = computeVelocity(newPos, lastPos, INTERNAL::Time().delta(), velocityVec);
 
     Pos listenerVelocity = INTERNAL::ListenerImpl().vel.load();
 
@@ -1071,6 +1074,12 @@ Flt YSE::SOUND::implementationObject::computeSourceAngle(bool relative, const Po
 Flt YSE::SOUND::implementationObject::computeHorizontalFraction(const Pos& dir) {
   // Forwards to the single shared copy in DSP::panner (issue #169). See #210.
   return DSP::panner::computeHorizontalFraction(dir);
+}
+
+YSE::Pos YSE::SOUND::implementationObject::computeVelocity(const Pos& newPos, const Pos& lastPos,
+                                                           Flt delta, const Pos& previous) {
+  // Forwards to the single shared copy in DSP::panner (issue #169). See #660.
+  return DSP::panner::computeVelocity(newPos, lastPos, delta, previous);
 }
 
 Flt YSE::SOUND::implementationObject::computeDopplerRatio(const Pos& sourceVel,

@@ -30,7 +30,7 @@ namespace YSE {
       virtual unsigned int GetCallbacksSinceLastUpdate();
 
       virtual void updateDeviceList();
-      virtual void openDevice(const YSE::deviceSetup& object);
+      virtual Bool openDevice(const YSE::deviceSetup& object);
       virtual void addCallback();
       virtual void serviceReconnect();
 

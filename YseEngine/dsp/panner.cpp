@@ -86,6 +86,14 @@ namespace YSE {
       return (1 + ::cos(angleA - angleB)) * 0.5f;
     }
 
+    Pos panner::computeVelocity(const Pos& newPos, const Pos& lastPos, Flt delta,
+                                const Pos& previous) {
+      // Written as `!(delta > 0)` on purpose: that is also false for a NaN
+      // delta, where every ordinary comparison would let it through (#660).
+      if (!(delta > 0.f)) return previous;
+      return (newPos - lastPos) * (1.f / delta);
+    }
+
     Flt panner::computeDopplerRatio(const Pos& sourceVel, const Pos& listenerVel, const Pos& dist,
                                     Flt dopplerScale) {
       constexpr Flt speedOfSound = 344.0f; // m/s, dry air ~20C
@@ -106,6 +114,13 @@ namespace YSE {
       ratio = 1.0f + (ratio - 1.0f) * dopplerScale;
 
       Clamp(ratio, minRatio, maxRatio);
+      // Every guard above is an ordinary comparison, so a non-finite input (a
+      // NaN velocity, a NaN source position) is false for all of them and would
+      // sail through as the ratio. Downstream that becomes the playback rate,
+      // and abstractSoundFile::read()'s `pos += speed` latches the playhead at
+      // NaN permanently — its own recalibration checks are comparisons too.
+      // Fall back to "no shift" rather than poisoning the audio path (#660).
+      if (!std::isfinite(ratio)) return 1.0f;
       return ratio;
     }
 

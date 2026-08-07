@@ -8,13 +8,16 @@
 // the audio thread (issue #225), the gSend->gReceive case drives
 // patcherImplementation directly so it can drain the value queue via Calculate.
 //
-// gMetro spawns a background TimerThread tick.  Tests stop the metro before
-// destruction (Toggle 0) so the dtor's id==0 branch runs and no temporary
-// timerThread is constructed.
+// gMetro spawns a background TimerThread tick.  Most tests stop the metro
+// before destruction (Toggle 0) so the dtor's id==0 branch runs; the #663 case
+// deliberately does not, because destroying a *running* metro is the path that
+// used to leave a live timer bound to freed memory.
 
 #include <doctest/doctest.h>
 #include <atomic>
 #include <chrono>
+#include <cstddef>
+#include <memory>
 #include <string>
 #include <thread>
 #include "patcher/patcher.hpp"
@@ -630,6 +633,67 @@ TEST_SUITE("patcher") {
     CHECK(sink.count() - base >= 6); // ~20 at 10ms; at most 2 at the old 150ms
 
     metro->SetIntData(0, 0);
+  }
+
+  // ─── gMetro: destroying a running metro (issue #663) ─────────────────────────
+  //
+  // ~gMetro used to call ClearTimer on `timerThread()` — the lowercase *class*,
+  // value-constructed as a throwaway on the stack — instead of the
+  // `TimerThread()` singleton that actually owns the timer.  The throwaway had
+  // never issued the id, so it dropped nothing, and the real timer outlived the
+  // object: the worker kept invoking Bang(), and with it
+  // `outputs[0].SendBang()`, on a freed pObject.
+  //
+  // The patcher's own teardown routes (DeleteObject, Clear, and the patcher
+  // destructor through Clear) special-case G_METRO and push Toggle 0 first, so
+  // they enter the dtor with id==0 and never reach the branch.  A standalone
+  // metro — the object exactly as embedding code holds it — has no such guard,
+  // and that is the user-visible flow pinned here.
+  //
+  // The name carries the `concurrency:` prefix on purpose: that is the selector
+  // the sanitizer CI legs run (`yse_tests --test-case=concurrency:*`, see
+  // Tests/CMakeLists.txt and the tests-asan / tests-tsan presets), and this is a
+  // teardown-versus-worker-thread lifetime bug — exactly what that gate is for.
+  // Without the prefix the case would only ever run in a plain build, where the
+  // orphaned callback reads freed memory silently.  It still runs under
+  // `yse_tests_patcher` too, since it is in the `patcher` suite.
+
+  TEST_CASE("concurrency: gMetro destroyed while running stops its timer (#663)") {
+    // Declared before the metro so it outlives it: nothing the timer might
+    // still deliver can land on a dead sink and confuse the diagnosis.
+    AtomicBangSink sink;
+    const std::size_t timersBefore = YSE::PATCHER::TimerThread().size();
+
+    {
+      // Heap-allocated so ASan sees a real free rather than a stack frame that
+      // happens to be reused.
+      auto metro = std::make_unique<YSE::PATCHER::gMetro>();
+      metro->ConnectOutlet(sink.GetInlet(0), 0);
+      sink.ConnectInlet(metro->GetOutlet(0), 0);
+
+      metro->GetInlet(1)->SetInt(10, YSE::T_GUI);
+      metro->GetInlet(0)->SetInt(1, YSE::T_GUI); // start; immediate bang
+      // Wait for real timer-thread ticks, not just the immediate bang, so the
+      // worker is demonstrably armed and firing at the moment of destruction.
+      REQUIRE(waitFor([&] { return sink.count() >= 3; }, 1000));
+      REQUIRE(YSE::PATCHER::TimerThread().size() == timersBefore + 1);
+
+      metro.reset(); // destroy while running — no Toggle 0
+    }
+
+    // The singleton dropped the timer.  This is the assertion that fails
+    // deterministically on the unfixed code (1 == 0): the id stayed in the
+    // singleton's active map because a throwaway instance was asked to remove
+    // it.  Under ASan the orphaned callback additionally reports
+    // heap-use-after-free on the freed metro.
+    CHECK(YSE::PATCHER::TimerThread().size() == timersBefore);
+
+    // ClearTimer also blocks out any Bang() still in flight, so by here no
+    // callback can be touching the object at all — at 10ms a surviving timer
+    // would have fired roughly twenty more times inside this window.
+    const int settled = sink.count();
+    std::this_thread::sleep_for(200ms);
+    CHECK(sink.count() == settled);
   }
 
 } // TEST_SUITE("patcher")

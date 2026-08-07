@@ -50,6 +50,17 @@
 
 #include "support/capilowcov_offline.hpp"
 
+// Engine-side readback for the layout case below: the C API exposes no
+// output-count getter, and channelImplementation.h (pulled in by the manager)
+// instantiates lfQueue<CHANNEL::messageObject>, which needs the message type
+// complete by the end of the TU. Same include pair as test_device_layer.cpp,
+// which reaches them through yse.hpp — this TU carries no engine header at
+// all, so the scalar typedefs both are written against come in explicitly
+// first rather than by luck of the include order.
+#include "headers/types.hpp"
+#include "channel/channelMessage.h"
+#include "channel/channelManager.h"
+
 #include "yse_c/yse_channel.h"
 #include "yse_c/yse_common.h"
 #include "yse_c/yse_dsp.h"
@@ -158,6 +169,7 @@ TEST_SUITE("capilowcov") {
     // Device / setup argument guards.
     CHECK(yse_system_open_device(nullptr, nullptr, YSE_CT_STEREO) == YSE_ERR_INVALID_HANDLE);
     CHECK(yse_system_open_device(sys, nullptr, YSE_CT_STEREO) == YSE_ERR_INVALID_ARGUMENT);
+    yse_system_set_channel_configuration(nullptr, YSE_CT_51, 6);
     yse_system_underwater_fx(sys, nullptr);
   }
 
@@ -329,6 +341,38 @@ TEST_SUITE("capilowcov") {
     std::memset(buf, 'x', sizeof(buf));
     yse_system_midi_out_device_name(sys, midiOut + 9999, buf, sizeof(buf));
     CHECK(std::strlen(buf) < sizeof(buf));
+  }
+
+  // The layout entry point that does not open a device (issue #668). Unlike
+  // yse_system_open_device(), this one is fully reachable headless — that is
+  // its whole reason for existing, since an offline session has no device for
+  // the mixer to follow and was therefore stuck on stereo after #665.
+  //
+  // The C API has no output-count getter, so the effect is read back through
+  // the engine's channel manager: this asserts that the wrapper *forwards*,
+  // which is the boundary contract. The user-visible claim — an offline engine
+  // actually rendering 5.1, master buffers and all — is asserted at the engine
+  // level in Tests/system/test_device_layer.cpp, which owns its own process and
+  // can resize the master without disturbing the cases that follow. This case
+  // deliberately does not render, so the master keeps its two channels and the
+  // rest of the suite sees the engine exactly as it left it.
+  TEST_CASE("c-api system: the speaker layout can be set without a device (issue #668)") {
+    if (!capilowcov::ensureOffline()) return;
+    YseSystem* sys = yse_system_get();
+
+    auto& channels = YSE::CHANNEL::Manager();
+    REQUIRE(channels.getNumberOfOutputs() == 2u);
+
+    yse_system_set_channel_configuration(sys, YSE_CT_51, 6);
+    CHECK(channels.getNumberOfOutputs() == 6u);
+
+    // The zero-output guard holds across the ABI too: accepting it would leave
+    // the engine mixing into nothing on the next callback.
+    yse_system_set_channel_configuration(sys, YSE_CT_STEREO, 0);
+    CHECK(channels.getNumberOfOutputs() == 6u);
+
+    yse_system_set_channel_configuration(sys, YSE_CT_STEREO, 2);
+    CHECK(channels.getNumberOfOutputs() == 2u);
   }
 
   // ═══ yse_channel.cpp ══════════════════════════════════════════════════════

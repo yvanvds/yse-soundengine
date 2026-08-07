@@ -66,6 +66,17 @@ namespace YSE {
           (issue #207). */
       static Flt computeSpeakerOverlap(Flt angleA, Flt angleB);
 
+      /** Velocity of a source (or the listener) from the distance it covered
+          over one update tick of `delta` seconds. A tick that measured no time
+          — `delta` zero (Time()'s clock is millisecond-quantised, so two ticks
+          inside the same millisecond genuinely measure 0), negative or NaN —
+          carries no velocity information, so `previous` is held instead of
+          dividing by it: `1 / 0` is +inf and a stationary source's `0 * inf` is
+          NaN, which walks straight through computeDopplerRatio's comparisons
+          and latches the playhead at NaN (issue #660). */
+      static Pos computeVelocity(const Pos& newPos, const Pos& lastPos, Flt delta,
+                                 const Pos& previous);
+
       /** Multiplicative doppler playback-rate ratio for a moving source/listener
           pair, clamped to a sane band (issue #208). */
       static Flt computeDopplerRatio(const Pos& sourceVel, const Pos& listenerVel, const Pos& dist,

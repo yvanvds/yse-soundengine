@@ -91,6 +91,23 @@ YSE_C_API YseDevice* yse_system_get_device(YseSystem* sys, unsigned int idx);
 YSE_C_API YseStatus yse_system_open_device(YseSystem* sys, const YseDeviceSetup* setup,
                                            YseChannelType layout);
 YSE_C_API void yse_system_close_current_device(YseSystem* sys);
+
+/* Set the speaker layout without opening a device (issue #668).
+
+   yse_system_open_device() derives the layout from the device it actually
+   opened, so a session with no device — yse_system_init_offline(), headless
+   CI, yse_system_render_offline() benchmarks — otherwise stays on the stereo
+   layout init installs. Call this after init/init_offline (initialisation
+   installs the stereo default itself, so an earlier call is overwritten); the
+   next audio callback or render_offline block picks the new layout up and
+   resizes the mixer to match.
+
+   `outputs` is the number of output channels and must be at least 1; a
+   zero-output layout would silence the engine, so it is refused with a log
+   line. YSE_CT_AUTO derives a layout from `outputs`; YSE_CT_CUSTOM allocates
+   `outputs` speakers whose positions are set afterwards. */
+YSE_C_API void yse_system_set_channel_configuration(YseSystem* sys, YseChannelType layout,
+                                                    int outputs);
 YSE_C_API size_t yse_system_default_device(YseSystem* sys, char* buf, size_t cap);
 YSE_C_API size_t yse_system_default_host(YseSystem* sys, char* buf, size_t cap);
 

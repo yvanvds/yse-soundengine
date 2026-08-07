@@ -180,6 +180,34 @@ namespace YSE {
      */
     void openDevice(const deviceSetup& object, CHANNEL_TYPE conf = CT_AUTO);
 
+    /** @brief Set the speaker layout without opening an audio device.
+     *
+     *  ``openDevice()`` derives the layout from the device it actually opened,
+     *  which leaves a session with no device — ``initOffline()``, headless CI,
+     *  ``renderOffline()`` benchmarks — stuck on the stereo layout
+     *  ``initOffline()`` / ``init()`` install. This is the entry point for
+     *  those: it configures the mixer directly and claims nothing about a
+     *  device (issue #668).
+     *
+     *  Call it after ``init()`` / ``initOffline()`` — initialisation installs
+     *  the default stereo layout itself, so an earlier call is overwritten. The
+     *  new layout is picked up by the next audio callback (or the next
+     *  ``renderOffline()`` block), which resizes the master to match.
+     *
+     *  On a session that *does* have a device open, this configures the mixer
+     *  for a channel count the running stream may not have — that is the
+     *  caller's business here, and the reason ``openDevice()`` keeps its own
+     *  device-driven path rather than routing through this.
+     *
+     *  @param conf    Speaker layout. ``CT_AUTO`` derives one from @p outputs;
+     *                 ``CT_CUSTOM`` allocates @p outputs speakers and leaves
+     *                 their positions to be set afterwards.
+     *  @param outputs Number of output channels. Must be at least 1 — a
+     *                 zero-output layout silences the engine on the next
+     *                 callback, so it is refused with a log line.
+     */
+    system& setChannelConfiguration(CHANNEL_TYPE conf, int outputs);
+
     /** @brief Close the currently open audio device. */
     void closeCurrentDevice();
 

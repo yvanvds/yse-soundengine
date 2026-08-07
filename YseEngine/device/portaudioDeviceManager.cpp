@@ -322,13 +322,46 @@ void YSE::DEVICE::managerObject::updateDeviceList() {
   }
 }
 
-void YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
-  if (!initDone) return;
+Bool YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
+  // Every early return below reports false: nothing was opened, so the caller
+  // must not reconfigure the mixer for this setup (issue #665).
+  //
+  // Fail closed on a setup that names no output device (issue #661).
+  // deviceSetup's constructor leaves `out` null and nothing forces setOutput(),
+  // so a host that only sets a sample rate and a buffer size reaches here with
+  // nothing to open — getOutputChannels() one line below already guards the
+  // same pointer. Checked ahead of the initDone gate because a malformed
+  // request is a caller error whatever state the backend is in, and ahead of
+  // close() because refusing a request must not tear down a stream that is
+  // currently running fine.
+  if (object.out == nullptr) {
+    INTERNAL::LogImpl().emit(E_WARNING,
+                             "Cannot open a device: the device setup has no output device.");
+    return false;
+  }
+
+  // Nothing to open on the offline engine either — init(false) skips
+  // Pa_Initialize on purpose, so there is no stream and no layout to follow.
+  if (!initDone) return false;
+
+  // Pa_GetDeviceInfo() returns NULL for any index outside
+  // [0, Pa_GetDeviceCount()) — paNoDevice (-1) included, and equally an ID from
+  // a device list that has been re-enumerated since (a device unplugged between
+  // updateDeviceList() and here). addCallback() already refuses the same way on
+  // Pa_GetDefaultOutputDevice() == paNoDevice; this is the same convention.
+  // Queried before close() so a refusal leaves the running stream alone.
+  const int deviceID = object.out->getID();
+  const PaDeviceInfo* info = Pa_GetDeviceInfo(deviceID);
+  if (info == nullptr) {
+    INTERNAL::LogImpl().emit(E_AUDIODEVICE, "no device with index " + std::to_string(deviceID) +
+                                                " on this system, no stream opened.");
+    return false;
+  }
+
   close();
 
   PaStreamParameters params;
-  params.device = object.out->getID();
-  const PaDeviceInfo* info = Pa_GetDeviceInfo(params.device);
+  params.device = deviceID;
   params.channelCount = object.getOutputChannels();
   params.sampleFormat = paFloat32 | paNonInterleaved;
   params.suggestedLatency = info->defaultHighOutputLatency;
@@ -355,7 +388,7 @@ void YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
 
   if (err != paNoError) {
     audioDeviceError(err);
-    return;
+    return false;
   } else
     open = true;
 
@@ -372,9 +405,13 @@ void YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
   err = Pa_StartStream(stream);
   if (err != paNoError) {
     audioDeviceError(err);
-    return;
+    // The stream exists but never started, so no callback will consume the
+    // requested layout: report failure like any other refusal.
+    return false;
   } else
     started = true;
+
+  return true;
 }
 
 void YSE::DEVICE::managerObject::audioDeviceError(PaError error) const {

@@ -77,11 +77,15 @@
 // minimal so this header stays free of engine includes; the definitions live
 // in yse_synth.cpp (YseSynthImpl) and the engine synth headers.
 struct YseSynth;
+struct YseDspBuffer;
 namespace YSE {
   namespace SYNTH {
     class interfaceObject;
   }
   typedef SYNTH::interfaceObject synth;
+  namespace DSP {
+    class buffer;
+  }
 } // namespace YSE
 
 namespace yse_c {
@@ -96,5 +100,14 @@ namespace yse_c {
   // reach the synth a player must drive without exposing YseSynthImpl's private
   // layout across translation units (issue #268).
   YSE::synth* synth_from_handle(YseSynth* h);
+
+  // Return the engine buffer backing a YseDspBuffer handle, or nullptr for a
+  // NULL handle. Defined in yse_dsp.cpp — a YseDspBuffer* is *not* a
+  // DSP::buffer* since issue #662: the handle owns its buffer through a
+  // polymorphic wrapper so destroy can run the most-derived destructor of the
+  // non-polymorphic buffer <- drawableBuffer <- fileBuffer <- wavetable chain.
+  // Any TU that needs the engine object must go through here, never through a
+  // reinterpret_cast of the handle.
+  YSE::DSP::buffer* buffer_from_handle(YseDspBuffer* h);
 
 } // namespace yse_c

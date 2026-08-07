@@ -11,8 +11,59 @@
 #include <exception>
 
 namespace {
+  // ─── Handle ownership (issue #662) ─────────────────────────────────────────
+  //
+  // Four constructors hand out one opaque YseDspBuffer* for four different C++
+  // types in the chain buffer <- drawableBuffer <- fileBuffer <- wavetable, and
+  // a single destroy releases all of them. That chain is not polymorphic, so a
+  // `delete` through DSP::buffer* is undefined behaviour ([expr.delete]/3): a
+  // sized `operator delete` — the C++14 default — is handed sizeof(buffer) for
+  // an allocation that is sizeof(fileBuffer) / sizeof(wavetable) bytes. The
+  // sizes really do differ since fileBuffer gained its fileRate member (#637),
+  // so allocators that trust the size hint free into the wrong size class.
+  //
+  // Giving DSP::buffer a virtual destructor would fix it but is rejected:
+  // buffer is a plain value type on DSP paths and must not grow a vptr (nor
+  // change layout for anything embedding it). So the vptr lives here instead —
+  // the handle owns its buffer through a polymorphic wrapper that is private to
+  // this translation unit and never crosses the ABI boundary. YseDspBuffer
+  // stays an opaque typedef, so the C ABI is unchanged.
+  struct bufferHandle {
+    bufferHandle() = default;
+    virtual ~bufferHandle() = default;
+    bufferHandle(const bufferHandle&) = delete;
+    bufferHandle& operator=(const bufferHandle&) = delete;
+
+    // The buffer base subobject of the owned instance. Every non-destroying
+    // entry point reaches the engine object through this.
+    virtual YSE::DSP::buffer* get() noexcept = 0;
+  };
+
+  template <typename T> struct typedBufferHandle final : bufferHandle {
+    T object;
+
+    template <typename... Args> explicit typedBufferHandle(Args... args) : object(args...) {}
+
+    YSE::DSP::buffer* get() noexcept override {
+      return &object;
+    }
+  };
+
+  inline bufferHandle* to_handle(YseDspBuffer* b) {
+    return reinterpret_cast<bufferHandle*>(b);
+  }
+
   inline YSE::DSP::buffer* to_cpp(YseDspBuffer* b) {
-    return reinterpret_cast<YSE::DSP::buffer*>(b);
+    return to_handle(b)->get();
+  }
+
+  // Allocate one wrapper holding a T, and return it as the opaque handle.
+  // Destruction goes back through bufferHandle's virtual destructor, which
+  // runs ~T() and frees sizeof(typedBufferHandle<T>) — the size that was
+  // actually allocated.
+  template <typename T, typename... Args> YseDspBuffer* make_handle(Args... args) {
+    auto* h = new typedBufferHandle<T>(args...);
+    return reinterpret_cast<YseDspBuffer*>(static_cast<bufferHandle*>(h));
   }
 
   // DSP::buffer has no virtual methods, so dynamic_cast is unavailable.
@@ -25,11 +76,17 @@ namespace {
   }
 } // namespace
 
+namespace yse_c {
+  YSE::DSP::buffer* buffer_from_handle(YseDspBuffer* h) {
+    return h ? to_cpp(h) : nullptr;
+  }
+} // namespace yse_c
+
 extern "C" {
 
 YSE_C_API YseDspBuffer* yse_dsp_buffer_create(unsigned int length, unsigned int overflow) {
   try {
-    return reinterpret_cast<YseDspBuffer*>(new YSE::DSP::buffer(length, overflow));
+    return make_handle<YSE::DSP::buffer>(length, overflow);
   } catch (const std::exception& e) {
     yse_c::set_last_error(e.what());
     return nullptr;
@@ -41,7 +98,7 @@ YSE_C_API YseDspBuffer* yse_dsp_buffer_create(unsigned int length, unsigned int 
 
 YSE_C_API YseDspBuffer* yse_dsp_drawable_buffer_create(unsigned int length, unsigned int overflow) {
   try {
-    return reinterpret_cast<YseDspBuffer*>(new YSE::DSP::drawableBuffer(length, overflow));
+    return make_handle<YSE::DSP::drawableBuffer>(length, overflow);
   } catch (const std::exception& e) {
     yse_c::set_last_error(e.what());
     return nullptr;
@@ -53,7 +110,7 @@ YSE_C_API YseDspBuffer* yse_dsp_drawable_buffer_create(unsigned int length, unsi
 
 YSE_C_API YseDspBuffer* yse_dsp_file_buffer_create(unsigned int length, unsigned int overflow) {
   try {
-    return reinterpret_cast<YseDspBuffer*>(new YSE::DSP::fileBuffer(length, overflow));
+    return make_handle<YSE::DSP::fileBuffer>(length, overflow);
   } catch (const std::exception& e) {
     yse_c::set_last_error(e.what());
     return nullptr;
@@ -65,7 +122,7 @@ YSE_C_API YseDspBuffer* yse_dsp_file_buffer_create(unsigned int length, unsigned
 
 YSE_C_API YseDspBuffer* yse_dsp_wavetable_create(unsigned int length) {
   try {
-    return reinterpret_cast<YseDspBuffer*>(new YSE::DSP::wavetable(length));
+    return make_handle<YSE::DSP::wavetable>(length);
   } catch (const std::exception& e) {
     yse_c::set_last_error(e.what());
     return nullptr;
@@ -77,7 +134,9 @@ YSE_C_API YseDspBuffer* yse_dsp_wavetable_create(unsigned int length) {
 
 YSE_C_API void yse_dsp_buffer_destroy(YseDspBuffer* buf) {
   if (!buf) return;
-  delete to_cpp(buf);
+  // Virtual destructor on the wrapper: runs the *most derived* engine
+  // destructor and returns the size that was really allocated (issue #662).
+  delete to_handle(buf);
 }
 
 YSE_C_API unsigned int yse_dsp_buffer_length(YseDspBuffer* buf) {

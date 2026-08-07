@@ -122,6 +122,7 @@ set(YSE_TEST_SOURCES
   sound/test_sound_streaming.cpp
   sound/test_sound_bufferrace.cpp
   sound/test_sound_multichannel_buffer.cpp
+  sound/test_sound_doppler.cpp
   sound/test_sound_impl.cpp
   sound/test_sound_concurrency.cpp
   sound/test_sound_bufferIO.cpp

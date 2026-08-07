@@ -77,7 +77,7 @@ YSE_C_API YseStatus yse_sound_load_buffer(YseSound* s, YseDspBuffer* buf, YseCha
   if (!s) return YSE_ERR_INVALID_HANDLE;
   if (!buf) return YSE_ERR_INVALID_ARGUMENT;
   try {
-    auto& cpp_buf = *reinterpret_cast<YSE::DSP::buffer*>(buf);
+    auto& cpp_buf = *yse_c::buffer_from_handle(buf);
     to_cpp(s)->create(cpp_buf, to_cpp_chan(ch), loop != 0, volume);
     if (!to_cpp(s)->isValid()) {
       yse_c::set_last_error("sound is not valid after buffer-source create");

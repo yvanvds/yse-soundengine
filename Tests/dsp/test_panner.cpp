@@ -59,6 +59,14 @@ TEST_SUITE("panner") {
     YSE::Pos sv(1.f, 0.f, 0.f), lv(0.f, 0.f, 0.f), d(3.f, 0.f, 0.f);
     CHECK(Panner::computeDopplerRatio(sv, lv, d, 1.f) ==
           SoundImpl::computeDopplerRatio(sv, lv, d, 1.f));
+    YSE::Pos last(0.f, 0.f, 0.f), now(1.f, 2.f, 3.f), prev(0.5f, 0.5f, 0.5f);
+    for (int i = 0; i <= 5; ++i) { // i == 0 gives dt == 0 on purpose
+      const float dt = 0.01f * static_cast<float>(i);
+      CHECK(Panner::computeVelocity(now, last, dt, prev).x ==
+            SoundImpl::computeVelocity(now, last, dt, prev).x);
+      CHECK(Panner::computeVelocity(now, last, dt, prev).z ==
+            SoundImpl::computeVelocity(now, last, dt, prev).z);
+    }
   }
 
   TEST_CASE("panner: gainAccumulate matches the sound forwarder sample-for-sample") {
@@ -110,6 +118,67 @@ TEST_SUITE("panner") {
     CHECK(std::isfinite(r));
     CHECK(r <= 4.0f);
     CHECK(r >= 0.25f);
+  }
+
+  // ─── zero-length update tick (#660) ────────────────────────────────────────
+  //
+  // INTERNAL::Time()'s clock is millisecond-quantised, so two update ticks
+  // inside the same millisecond report delta == 0. The old velocity derivation
+  // divided by that unconditionally: 1/0 is +inf, and a *stationary* source
+  // (newPos == lastPos) then computes 0 * inf == NaN. Nothing downstream
+  // rejects it — every guard on the way to the playback rate is an ordinary
+  // comparison, all false for NaN — so the playhead latched at NaN for the rest
+  // of playback. The two guards below are the fix; the user-visible symptom is
+  // covered end-to-end in Tests/sound/test_sound_doppler.cpp.
+
+  TEST_CASE("panner: a normal tick derives velocity as distance over delta (#660)") {
+    YSE::Pos from(0.f, 0.f, 0.f), to(2.f, -1.f, 0.5f), prev(9.f, 9.f, 9.f);
+    YSE::Pos v = Panner::computeVelocity(to, from, 0.5f, prev);
+    CHECK(v.x == doctest::Approx(4.f));
+    CHECK(v.y == doctest::Approx(-2.f));
+    CHECK(v.z == doctest::Approx(1.f));
+  }
+
+  TEST_CASE("panner: a zero-length tick holds the previous velocity instead of NaN (#660)") {
+    YSE::Pos stationary(3.f, 0.f, 0.f), prev(1.5f, 0.f, 0.f);
+    // Pre-fix this was (0,0,0) * inf == (NaN,NaN,NaN).
+    YSE::Pos v = Panner::computeVelocity(stationary, stationary, 0.f, prev);
+    CHECK(std::isfinite(v.x));
+    CHECK(v.x == doctest::Approx(1.5f));
+    CHECK(v.y == doctest::Approx(0.f));
+    CHECK(v.z == doctest::Approx(0.f));
+
+    // A moving source over a zero-length tick would have been +inf, which
+    // survives the doppler clamps as maxRatio rather than as a measurement.
+    YSE::Pos moved(4.f, 0.f, 0.f);
+    YSE::Pos m = Panner::computeVelocity(moved, stationary, 0.f, prev);
+    CHECK(std::isfinite(m.x));
+    CHECK(m.x == doctest::Approx(1.5f));
+  }
+
+  TEST_CASE("panner: a negative or NaN tick length holds the previous velocity too (#660)") {
+    YSE::Pos from(0.f, 0.f, 0.f), to(1.f, 0.f, 0.f), prev(0.25f, 0.f, 0.f);
+    CHECK(Panner::computeVelocity(to, from, -0.01f, prev).x == doctest::Approx(0.25f));
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    YSE::Pos v = Panner::computeVelocity(to, from, nan, prev);
+    CHECK(std::isfinite(v.x));
+    CHECK(v.x == doctest::Approx(0.25f));
+  }
+
+  TEST_CASE("panner: a non-finite velocity cannot escape as the doppler ratio (#660)") {
+    // Defence in depth for the second half of the same failure: the clamps in
+    // computeDopplerRatio are comparisons, so before the guard a NaN velocity
+    // came back out as a NaN ratio and became the playback rate.
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    const float inf = std::numeric_limits<float>::infinity();
+    YSE::Pos still(0.f, 0.f, 0.f), d(3.f, 0.f, 0.f);
+    CHECK(std::isfinite(Panner::computeDopplerRatio(YSE::Pos(nan, nan, nan), still, d, 1.f)));
+    CHECK(Panner::computeDopplerRatio(YSE::Pos(nan, nan, nan), still, d, 1.f) ==
+          doctest::Approx(1.f));
+    CHECK(std::isfinite(Panner::computeDopplerRatio(still, YSE::Pos(nan, 0.f, 0.f), d, 1.f)));
+    CHECK(std::isfinite(Panner::computeDopplerRatio(still, still, YSE::Pos(nan, 0.f, 0.f), 1.f)));
+    CHECK(std::isfinite(Panner::computeDopplerRatio(YSE::Pos(inf, 0.f, 0.f), still, d, 1.f)));
+    CHECK(std::isfinite(Panner::computeDopplerRatio(still, still, d, nan)));
   }
 
 } // TEST_SUITE("panner")

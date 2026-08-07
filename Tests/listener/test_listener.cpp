@@ -20,6 +20,7 @@
 
 #include <doctest/doctest.h>
 #include <chrono>
+#include <cmath>
 #include <thread>
 #include "listener.hpp"
 #include "implementations/listenerImplementation.h"
@@ -214,6 +215,43 @@ TEST_SUITE("listener") {
     CHECK(v.x == doctest::Approx(0.f));
     CHECK(v.y == doctest::Approx(0.f));
     CHECK(v.z == doctest::Approx(0.f));
+  }
+
+  TEST_CASE("listener impl: a zero-length tick holds the last velocity instead of NaN (#660)") {
+    if (!TestHelpers::engineInit()) return;
+    resetListenerState();
+    advanceClock();
+    YSE::Listener().pos(YSE::Pos(1.f, 0.f, 0.f));
+    YSE::INTERNAL::ListenerImpl().update();
+    const YSE::Pos measured = YSE::Listener().vel();
+    REQUIRE(measured.x > 0.f);
+
+    // Two Time().update() calls back to back, with no sleep between them: on a
+    // millisecond-quantised clock (Windows) that measures delta == 0, which is
+    // exactly what happens when two engine update ticks land inside the same
+    // millisecond. Pre-fix, update() then divided by it — 1/0 == inf, and for a
+    // stationary listener (newPos == lastPos) 0 * inf == NaN. That NaN is
+    // published to every sound as listenerVelocity and walks through
+    // computeDopplerRatio's comparisons into the playback rate (issue #660).
+    YSE::INTERNAL::Time().update();
+    YSE::INTERNAL::Time().update();
+    const bool zeroTick = (YSE::INTERNAL::Time().delta() == 0.f);
+    YSE::INTERNAL::ListenerImpl().update();
+    const YSE::Pos v = YSE::Listener().vel();
+
+    INFO("zero-length tick observed: " << zeroTick);
+    CHECK(std::isfinite(v.x));
+    CHECK(std::isfinite(v.y));
+    CHECK(std::isfinite(v.z));
+    if (zeroTick) {
+      // Nothing was measured, so the previous measurement stands unchanged.
+      CHECK(v.x == doctest::Approx(measured.x));
+      CHECK(v.y == doctest::Approx(measured.y));
+      CHECK(v.z == doctest::Approx(measured.z));
+    } else {
+      // The clock did advance, so this is an ordinary stationary tick.
+      CHECK(v.x == doctest::Approx(0.f));
+    }
   }
 
   TEST_CASE("listener impl: velocity is positive on a one-unit step under either distanceFactor") {

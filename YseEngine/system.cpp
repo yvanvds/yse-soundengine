@@ -298,8 +298,44 @@ const std::vector<YSE::device>& YSE::system::getDevices() {
 }
 
 void YSE::system::openDevice(const deviceSetup& object, CHANNEL_TYPE conf) {
-  DEVICE::Manager().openDevice(object);
-  CHANNEL::Manager().setChannelConf(conf, object.getOutputChannels());
+  // The mixer layout must follow the device that is actually open (issue
+  // #665). The backend reports whether a stream is running afterwards: a setup
+  // with no output device or an ID no host API resolves (both refused since
+  // #661), a Pa_OpenStream / Pa_StartStream error, and the offline engine all
+  // report false. Applying the requested layout for any of those configures
+  // the mixer for a device that is not playing — doOnCallback() resizes the
+  // master to getNumberOfOutputs() on the next callback, so a refused switch
+  // from a stereo device to a 5.1 one leaves the engine rendering six channels
+  // into the two-channel stream that is still live. Leave the layout the
+  // running device negotiated.
+  if (!DEVICE::Manager().openDevice(object)) return;
+
+  // A backend with a single fixed device (Oboe) reports success without
+  // reading the setup at all, so the zero-output guard from #661 still has to
+  // stand on its own: a zero-output layout silences the engine on the next
+  // callback, by the same doOnCallback() resize.
+  const int outputs = object.getOutputChannels();
+  if (outputs <= 0) return;
+  CHANNEL::Manager().setChannelConf(conf, outputs);
+}
+
+YSE::system& YSE::system::setChannelConfiguration(CHANNEL_TYPE conf, Int outputs) {
+  // The layout half of openDevice(), without the device (issue #668). Since
+  // #665 the mixer follows the device that actually opened, so a session with
+  // no device to follow — initOffline(), headless CI, renderOffline()
+  // benchmarks — had no way at all to leave the stereo layout initShared()
+  // installs. This is that way.
+  //
+  // Same zero-output guard as openDevice(): deviceManager::doOnCallback()
+  // resizes the master to getNumberOfOutputs() on the next callback, so a
+  // zero-output layout means everything rendered after it goes nowhere.
+  if (outputs <= 0) {
+    INTERNAL::LogImpl().emit(E_WARNING,
+                             "Cannot set a channel configuration with no output channels.");
+    return *this;
+  }
+  CHANNEL::Manager().setChannelConf(conf, outputs);
+  return *this;
 }
 
 void YSE::system::closeCurrentDevice() {

@@ -26,10 +26,13 @@
 #include <doctest/doctest.h>
 
 #include <cmath>
+#include <cstddef>
 #include <cstdio>
 #include <filesystem>
 #include <string>
 #include <vector>
+
+#include "support/alloc_probe.hpp"
 
 #include "yse_c/yse_common.h"
 #include "yse_c/yse_dsp.h"
@@ -135,6 +138,103 @@ TEST_SUITE("capilowcov") {
     yse_dsp_buffer_destroy(drawable);
     yse_dsp_buffer_destroy(file);
     yse_dsp_buffer_destroy(table);
+  }
+
+  TEST_CASE("c-api dsp buffer: destroy releases the type the constructor made (#662)") {
+    // yse_dsp_buffer_destroy used to `delete` every handle through a
+    // DSP::buffer*. The engine chain buffer <- drawableBuffer <- fileBuffer <-
+    // wavetable is deliberately non-polymorphic (buffer is a plain value type
+    // on DSP paths and must not grow a vptr), so that was undefined behaviour
+    // per [expr.delete]/3: the sized `operator delete` a C++14 compiler is free
+    // to emit got sizeof(buffer) for an allocation that is fileBuffer- or
+    // wavetable-sized. Those sizes genuinely differ — fileBuffer carries the
+    // fileRate member added by #637 — so an allocator that trusts the size hint
+    // (tcmalloc, mimalloc, hardened libc) frees into the wrong size class. The
+    // handle now owns its buffer through a polymorphic wrapper private to
+    // yse_dsp.cpp, so destroy runs the most-derived destructor and hands back
+    // the size that was really allocated.
+    //
+    // The default Windows/glibc allocators ignore the size hint, which is why
+    // this shipped unnoticed. It is still directly observable here: the suite
+    // replaces the global operator new/delete (support/alloc_probe.cpp), so
+    // AllocWatch can record the size a handle was allocated with and the size
+    // the sized `operator delete` was handed back for that same block. Before
+    // the fix the wavetable handle went out at sizeof(wavetable) and came back
+    // as sizeof(buffer); now the two match for every constructor.
+    auto roundTrip = [](const char* what, YseDspBuffer* (*make)()) {
+      INFO("constructor: " << std::string(what));
+      TestHelpers::AllocWatch watch;
+      YseDspBuffer* h = make();
+      REQUIRE(h != nullptr);
+      const std::size_t allocated = watch.newSize();
+      yse_dsp_buffer_destroy(h);
+      INFO("allocated " << allocated << " bytes, freed with " << watch.deleteSize());
+
+      if (allocated == 0) {
+        // The probe is compiled out under ThreadSanitizer, which ships its own
+        // operators — nothing to compare there.
+        MESSAGE("alloc probe inactive (TSan build): size check skipped");
+        return;
+      }
+      if (!watch.sawSizedDelete()) {
+        // A toolchain built without sized deallocation carries no size into
+        // operator delete, so the mismatch is unobservable (and harmless).
+        MESSAGE("unsized operator delete: size check skipped");
+        return;
+      }
+      CHECK(watch.deleteSize() == allocated);
+    };
+
+    roundTrip("yse_dsp_buffer_create", [] { return yse_dsp_buffer_create(64, 0); });
+    roundTrip("yse_dsp_drawable_buffer_create",
+              [] { return yse_dsp_drawable_buffer_create(64, 0); });
+    roundTrip("yse_dsp_file_buffer_create", [] { return yse_dsp_file_buffer_create(64, 0); });
+    roundTrip("yse_dsp_wavetable_create", [] { return yse_dsp_wavetable_create(64); });
+
+    // The same lifecycle driven through the subclass entry points, so the
+    // derived state is live at destroy and a hardened allocator gets chunk
+    // reuse to trip over.
+    for (int round = 0; round < 32; ++round) {
+      YseDspBuffer* plain = yse_dsp_buffer_create(64, 0);
+      YseDspBuffer* drawable = yse_dsp_drawable_buffer_create(64, 0);
+      YseDspBuffer* file = yse_dsp_file_buffer_create(64, 0);
+      YseDspBuffer* table = yse_dsp_wavetable_create(64);
+      REQUIRE(plain != nullptr);
+      REQUIRE(drawable != nullptr);
+      REQUIRE(file != nullptr);
+      REQUIRE(table != nullptr);
+
+      // Touch what each subclass adds, so the derived state is live at destroy.
+      yse_dsp_buffer_fill(plain, 0.25f);
+      REQUIRE(yse_dsp_buffer_draw_flat(drawable, 0, 64, 0.5f) == YSE_OK);
+      REQUIRE(yse_dsp_buffer_draw_line(file, 0, 64, 0.0f, 1.0f) == YSE_OK);
+      REQUIRE(yse_dsp_wavetable_create_saw(table, 8, 64) == YSE_OK);
+
+      // Reverse order, so a wrong-size free lands on a chunk the next round
+      // asks for again.
+      yse_dsp_buffer_destroy(table);
+      yse_dsp_buffer_destroy(file);
+      yse_dsp_buffer_destroy(drawable);
+      yse_dsp_buffer_destroy(plain);
+    }
+
+    // The same, with fileRate (#637) actually populated by a real load — that
+    // member is what makes the fileBuffer/wavetable allocations wider than the
+    // base in the first place.
+    const std::string wav = fixture("test_mono_44100.wav");
+    YseDspBuffer* loaded_file = yse_dsp_file_buffer_create(8, 0);
+    YseDspBuffer* loaded_table = yse_dsp_wavetable_create(8);
+    REQUIRE(loaded_file != nullptr);
+    REQUIRE(loaded_table != nullptr);
+    REQUIRE(yse_dsp_buffer_load_file(loaded_file, wav.c_str(), 0) == YSE_OK);
+    REQUIRE(yse_dsp_buffer_load_file(loaded_table, wav.c_str(), 0) == YSE_OK);
+    CHECK(yse_dsp_buffer_sample_rate_adjustment(loaded_file) > 0.0f);
+    CHECK(yse_dsp_buffer_sample_rate_adjustment(loaded_table) > 0.0f);
+    yse_dsp_buffer_destroy(loaded_file);
+    yse_dsp_buffer_destroy(loaded_table);
+
+    // Destroying NULL is still a no-op through the wrapper.
+    yse_dsp_buffer_destroy(nullptr);
   }
 
   TEST_CASE("c-api dsp buffer: length queries and sample-rate adjustment round-trip") {

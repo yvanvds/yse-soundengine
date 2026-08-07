@@ -265,6 +265,12 @@ YSE_C_API YseStatus yse_system_open_device(YseSystem* sys, const YseDeviceSetup*
   }
 }
 
+YSE_C_API void yse_system_set_channel_configuration(YseSystem* sys, YseChannelType layout,
+                                                    int outputs) {
+  if (!sys) return;
+  to_cpp(sys)->setChannelConfiguration(static_cast<YSE::CHANNEL_TYPE>(layout), outputs);
+}
+
 YSE_C_API void yse_system_close_current_device(YseSystem* sys) {
   if (!sys) return;
   to_cpp(sys)->closeCurrentDevice();

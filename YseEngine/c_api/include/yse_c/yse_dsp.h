@@ -40,11 +40,11 @@ extern "C" {
 #endif
 
 /* Owned — release with yse_dsp_buffer_destroy, whichever of the four
-   constructors produced it. destroy deletes through a DSP::buffer*: no type
-   check is involved and none is possible, but no subclass in the chain is
-   polymorphic or declares a destructor, so the base destructor releases the
-   sample storage in every case. (It is still a delete through a non-virtual
-   base — tracked as issue #662.) */
+   constructors produced it. The handle remembers which one did: internally it
+   owns the engine object through a polymorphic wrapper, so destroy runs the
+   most-derived destructor and frees the size that was really allocated. No
+   type check is exposed and none is possible on the engine chain itself, which
+   stays non-polymorphic (issue #662). */
 typedef struct YseDspBuffer YseDspBuffer;
 
 /* Constructors — one per subclass. The returned handle owns its native

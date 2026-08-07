@@ -61,9 +61,11 @@
 // channelImplementation.h instantiates lfQueue<CHANNEL::messageObject>, which
 // needs the message type complete by the end of the TU.
 #include "channel/channelMessage.h"
+#include "channel/channelManager.h"
 #include "device/deviceInterface.hpp"
 #include "device/deviceSetup.hpp"
 #include "headers/constants.hpp"
+#include "log.hpp"
 #include "sound/soundInterface.hpp"
 
 // DEVICE::Manager() returns a managerObject&, so every use of it below — even
@@ -165,6 +167,45 @@ namespace {
 
   SteadySource g_steady;
 
+  // Collects everything the engine logs while it is installed. The refusal
+  // paths under test are only observable as a log line plus an absence of
+  // state change, so the line is part of the contract, not decoration — a
+  // silently ignored openDevice() call is what made issue #661's null
+  // dereference look like "nothing happened" to begin with.
+  class CapturingLog : public YSE::logHandler {
+  public:
+    void AddMessage(const std::string& message) override {
+      messages.push_back(message);
+    }
+    bool contains(const std::string& fragment) const {
+      for (const std::string& m : messages)
+        if (m.find(fragment) != std::string::npos) return true;
+      return false;
+    }
+    std::vector<std::string> messages;
+  };
+
+  // Installs a sink (and a level that lets warnings through) for one case, and
+  // puts both back even if an assertion unwinds. Same shape as the logsafety
+  // suite's ScopedSink; safe here because the devicelayer suite owns its
+  // process (see the ISOLATION note at the top of this file).
+  class ScopedSink {
+  public:
+    explicit ScopedSink(YSE::logHandler* handler) : previousLevel(YSE::Log().getLevel()) {
+      YSE::Log().setLevel(YSE::EL_WARNING);
+      YSE::Log().setHandler(handler);
+    }
+    ~ScopedSink() {
+      YSE::Log().setHandler(nullptr);
+      YSE::Log().setLevel(previousLevel);
+    }
+    ScopedSink(const ScopedSink&) = delete;
+    ScopedSink& operator=(const ScopedSink&) = delete;
+
+  private:
+    YSE::ERROR_LEVEL previousLevel;
+  };
+
 #ifdef PORTAUDIO_BACKEND
   // Mirrors the clamp paCallback applies on the way out. Its only caller is the
   // mix-copy case below, which lives in this file's PORTAUDIO_BACKEND region —
@@ -206,13 +247,15 @@ TEST_SUITE("devicelayer") {
   // deviceInterface.hpp fails the suite that covers that file.
   //
   // A plain stack-local device would be an unreliable regression test — the
-  // slot is usually already zero. Placement-new over 0xFF-filled storage (which
-  // reads back as -1 for an int) makes an uninitialised read deterministic, the
-  // same trick the capisurface suite uses for #565 and test_reverb_dsp.cpp for
-  // #263.
-  TEST_CASE("device: a default-constructed descriptor's scalars are all zero (issue #569)") {
+  // slot is usually already zero. Placement-new over pre-dirtied storage makes
+  // an uninitialised read deterministic, the same trick the capisurface suite
+  // uses for #565 and test_reverb_dsp.cpp for #263. The fill is 0xAA rather
+  // than the 0xFF those use, because 0xFF reads back as -1 for an int and -1 is
+  // now the ID's *expected* value (issue #666) — a byte pattern that is neither
+  // 0 nor -1 keeps the case able to fail for either field.
+  TEST_CASE("device: a default-constructed descriptor's scalars are defined (issues #569, #666)") {
     alignas(YSE::device) unsigned char storage[sizeof(YSE::device)];
-    std::memset(storage, 0xFF, sizeof(storage));
+    std::memset(storage, 0xAA, sizeof(storage));
     YSE::device* d = new (storage) YSE::device();
 
     // 0 means "the host advertised nothing", and openDevice() reads it as
@@ -220,9 +263,12 @@ TEST_SUITE("devicelayer") {
     CHECK(d->getDefaultBufferSize() == 0);
     CHECK(d->getInputLatency() == 0);
     CHECK(d->getOutputLatency() == 0);
-    // 0, not paNoDevice (-1): see the member-declaration note in
-    // deviceInterface.hpp and issue #661.
-    CHECK(d->getID() == 0);
+    // paNoDevice (-1), not 0: 0 is a valid PortAudio device index, so it could
+    // not distinguish "no device chosen" from "device 0" (issue #666). Safe
+    // because openDevice() refuses an index no host API resolves instead of
+    // dereferencing it (issue #661) — see the member-declaration note in
+    // deviceInterface.hpp.
+    CHECK(d->getID() == -1);
 
     d->~device();
   }
@@ -380,7 +426,10 @@ TEST_SUITE("devicelayer") {
     YSE::deviceSetup setup;
     setup.setOutput(out).setSampleRate(44100.0).setBufferSize(256);
 
-    YSE::DEVICE::Manager().openDevice(setup);
+    // And it says so: the backend reports whether a stream is running
+    // afterwards, which is what system::openDevice() gates the mixer layout on
+    // (issue #665).
+    CHECK(YSE::DEVICE::Manager().openDevice(setup) == false);
 
     CHECK(YSE::System().getActiveSampleRate() == 0.0);
     CHECK(YSE::System().getActiveBufferSize() == 0);
@@ -400,6 +449,84 @@ TEST_SUITE("devicelayer") {
     CHECK(YSE::System().getActiveSampleRate() == 0.0);
     CHECK(YSE::System().getActiveBufferSize() == 0);
     CHECK(YSE::System().getActiveOutputLatency() == 0);
+  }
+
+  // A setup that never got a device. deviceSetup's constructor leaves `out`
+  // null and nothing forces setOutput(), so this is exactly the shape a host
+  // builds with yse_device_setup_create() + set_sample_rate() +
+  // set_buffer_size(); openDevice() then read `object.out->getID()` — one line
+  // before the getOutputChannels() call that *does* guard the same pointer
+  // (issue #661).
+  //
+  // Reachable headless, unlike the second dereference the same issue covers:
+  // the guard sits ahead of the initDone gate, because a setup with no device
+  // in it is a malformed request whatever state the backend is in. The
+  // real-device half lives in the integration suite (Tests/integration/
+  // test_device.cpp), which is where PortAudio is actually initialised.
+  TEST_CASE("device manager: a setup with no output device is refused (issue #661)") {
+    if (!ensureOffline()) return;
+
+    CapturingLog captured;
+    ScopedSink sink(&captured);
+
+    YSE::deviceSetup setup;
+    setup.setSampleRate(44100.0).setBufferSize(256);
+    REQUIRE(setup.getOutputChannels() == 0);
+
+    // Driven through the public entry point a host calls, not the backend
+    // method: the mixer half of the contract below lives in system::openDevice.
+    YSE::System().openDevice(setup, YSE::CT_STEREO);
+
+    // Refused with a diagnostic rather than in silence.
+    CHECK(captured.contains("no output device"));
+
+    // No stream opened: the live getters keep reporting the documented zeros.
+    CHECK(YSE::System().getActiveSampleRate() == 0.0);
+    CHECK(YSE::System().getActiveBufferSize() == 0);
+    CHECK(YSE::System().getActiveOutputLatency() == 0);
+
+    // And the mixer layout is untouched. getOutputChannels() is 0 for this
+    // setup, so applying it would have configured the engine for zero output
+    // channels — deviceManager::doOnCallback() resizes the master to
+    // getNumberOfOutputs() on the next callback, and everything rendered after
+    // that goes nowhere.
+    CHECK(YSE::CHANNEL::Manager().getNumberOfOutputs() == 2u);
+  }
+
+  // The general case of the same contract (issue #665): the mixer layout must
+  // follow the device that is *actually* open, not the one that was asked for.
+  // #661 only covered the setup with nothing in it, because getOutputChannels()
+  // is 0 there and a zero-output layout was the visible symptom; a setup with a
+  // perfectly well-formed device in it that simply does not open — every
+  // PortAudio error path, and the offline engine driven here — still applied
+  // its channel count to CHANNEL::Manager().
+  //
+  // Reachable headless through the initDone gate: with PortAudio never
+  // initialised there is no stream to switch to, so this is a failed open by
+  // any definition. The real-device half (a device ID no host API resolves,
+  // with a stream running) lives in the integration suite.
+  TEST_CASE("device manager: a failed open leaves the mixer layout alone (issue #665)") {
+    if (!ensureOffline()) return;
+
+    const UInt outputsBefore = YSE::CHANNEL::Manager().getNumberOfOutputs();
+    REQUIRE(outputsBefore == 2u);
+
+    // Three output channel names, so the requested layout differs from the
+    // running one and applying it is unmistakable.
+    YSE::device out = makeDevice();
+    REQUIRE(out.getNumOutputChannelNames() == 3u);
+    YSE::deviceSetup setup;
+    setup.setOutput(out).setSampleRate(44100.0).setBufferSize(256);
+    REQUIRE(setup.getOutputChannels() == 3);
+
+    // Through the public entry point: the backend refusing is only half of it,
+    // system::openDevice() has to act on the refusal.
+    YSE::System().openDevice(setup, YSE::CT_AUTO);
+
+    // Nothing opened, so nothing about the audio path changed — including the
+    // channel count deviceManager::doOnCallback() resizes the master to.
+    CHECK(YSE::System().getActiveSampleRate() == 0.0);
+    CHECK(YSE::CHANNEL::Manager().getNumberOfOutputs() == outputsBefore);
   }
 
   // GetCallbacksSinceLastUpdate() is a read-and-reset exchange (issue #198), so
@@ -497,6 +624,72 @@ TEST_SUITE("devicelayer") {
   }
 
 #endif // PORTAUDIO_BACKEND
+
+  // ─── speaker layout without a device (issue #668) ───────────────────────────
+  //
+  // The offline engine used to pick its layout up as a side effect of
+  // openDevice(): the backend opened nothing, but the setChannelConf() on the
+  // next line ran regardless. #665 made the layout follow the device that
+  // actually opened — right for a device session, and it left an offline one
+  // (this suite, renderOffline() benchmarks, headless CI) pinned to the
+  // CT_STEREO that initShared() installs, with no public way out.
+  // system::setChannelConfiguration() is that way out, and this is the
+  // user-visible claim it has to make good on: an engine brought up with
+  // initOffline(), no device and no deviceSetup anywhere in sight, renders in
+  // 5.1.
+  //
+  // Asserted on what the engine actually mixes into, not just on what the
+  // manager was told: getNumberOfOutputs() alone would pass on a manager that
+  // stored the request and never applied it. The master resize happens in
+  // deviceManager::doOnCallback(), which returns early while no sound is
+  // alive — hence the live source below.
+  //
+  // Placed after the PORTAUDIO_BACKEND region because it needs no backend at
+  // all, and before the AudioTest case, which has to stay last (see its note).
+  TEST_CASE("system: an offline engine renders in a non-stereo layout (issue #668)") {
+    if (!ensureOffline()) return;
+
+    auto& master = YSE::DEVICE::Manager().getMaster();
+    REQUIRE(YSE::CHANNEL::Manager().getNumberOfOutputs() == 2u);
+
+    YSE::sound s;
+    s.create(g_steady);
+    s.relative(true);
+    s.play();
+    pump();
+    REQUIRE(master.GetBuffers().size() == 2u);
+
+    YSE::System().setChannelConfiguration(YSE::CT_51, 6);
+    pump();
+
+    CHECK(YSE::CHANNEL::Manager().getNumberOfOutputs() == 6u);
+    CHECK(master.GetBuffers().size() == 6u);
+    // The layout, not merely the channel count: 5.1 puts the LFE at index 3,
+    // and it is the one output excluded from azimuth panning (issue #203).
+    CHECK(YSE::CHANNEL::Manager().getOutputIsLFE(3));
+    CHECK_FALSE(YSE::CHANNEL::Manager().getOutputIsLFE(0));
+
+    // A zero-output layout is refused with a diagnostic rather than accepted:
+    // doOnCallback() would resize the master to nothing on the next block and
+    // everything rendered after that would go nowhere — the same failure mode
+    // the openDevice() guards in #661 / #665 exist to prevent.
+    {
+      CapturingLog captured;
+      ScopedSink sink(&captured);
+      YSE::System().setChannelConfiguration(YSE::CT_STEREO, 0);
+      CHECK(captured.contains("no output channels"));
+    }
+    CHECK(YSE::CHANNEL::Manager().getNumberOfOutputs() == 6u);
+
+    // Chaining, like the other system setters.
+    CHECK(&YSE::System().setChannelConfiguration(YSE::CT_STEREO, 2) == &YSE::System());
+    pump();
+    CHECK(YSE::CHANNEL::Manager().getNumberOfOutputs() == 2u);
+    CHECK(master.GetBuffers().size() == 2u);
+
+    s.stop();
+    pump();
+  }
 
   // ─── built-in diagnostic tone (internal/AudioTest.cpp) ──────────────────────
   //
