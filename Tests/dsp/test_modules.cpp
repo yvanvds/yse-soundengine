@@ -282,6 +282,77 @@ TEST_SUITE("dsp") {
     CHECK(bounded);
   }
 
+  TEST_CASE("granulator: grain start never reads one past the pool end (#640)") {
+    // Issue #640. grain::start() wrapped its randomised start position with a
+    // strict `>` where the three in-loop wraps in grain::process() use `>=`,
+    // so poolPos could come to rest at exactly pool->getLength() and the first
+    // fade-in sample read one float past the pool allocation. That read is
+    // multiplied by a fade-in gain of exactly 0, so without a sanitizer the
+    // defect is numerically invisible; under the tests-asan preset the
+    // unpatched engine faults with heap-buffer-overflow at the read.
+    //
+    // Parameters are tuned to make the bad landing frequent: grain length ==
+    // pool length (720) collapses the random offset range to 0, so the start
+    // position is exactly writeOffset + BigRandom(720). With 240-sample blocks
+    // the write offset cycles {240, 480, 0}, and BigRandom's product
+    // distribution hits the complement (480 resp. 240) about once per 250
+    // grain starts. 300 blocks at 50 grain starts each is ~60 expected
+    // one-past-the-end landings on the unpatched code.
+    YSE::DSP::MODULES::granulator g(720, 350);
+    g.grainFrequency(10000);
+    g.grainLength(720);
+    MULTICHANNELBUFFER buf(1);
+    buf[0].resize(240);
+    bool sane = true;
+    for (int iter = 0; iter < 300 && sane; ++iter) {
+      float* in = buf[0].getPtr();
+      for (unsigned i = 0; i < 240; ++i)
+        in[i] = std::sin(2.0f * kPi * 220.0f * static_cast<float>(i) / 48000.0f);
+      g.process(buf);
+      const float* out = buf[0].getPtr();
+      for (unsigned i = 0; i < buf[0].getLength(); ++i) {
+        // ~300 unity-gain grains overlap, so legitimate peaks reach the low
+        // hundreds; 1e4 only rejects garbage. The sanitizer is the real gate.
+        if (!std::isfinite(out[i]) || std::abs(out[i]) > 1.0e4f) {
+          sane = false;
+          break;
+        }
+      }
+    }
+    CHECK(sane);
+  }
+
+  TEST_CASE("granulator: grain length larger than the pool stays safe (#640)") {
+    // Issue #640, second defect on the same lines: a grain length larger than
+    // the pool made the random start range negative before it reached
+    // BigRandom. The fix clamps the range to 0 at the call site, so oversized
+    // grains start inside the pool and wrap through it while playing. This
+    // configuration also lands on writeOffset + BigRandom(600) == 600 about
+    // once per 580 grain starts, re-triggering the one-past-the-end read on
+    // the unpatched code (~17 expected hits; heap-buffer-overflow under ASan).
+    YSE::DSP::MODULES::granulator g(600, 350);
+    g.grainFrequency(12000);
+    g.grainLength(900);
+    MULTICHANNELBUFFER buf(1);
+    buf[0].resize(200);
+    bool sane = true;
+    for (int iter = 0; iter < 200 && sane; ++iter) {
+      float* in = buf[0].getPtr();
+      for (unsigned i = 0; i < 200; ++i)
+        in[i] = std::sin(2.0f * kPi * 220.0f * static_cast<float>(i) / 48000.0f);
+      g.process(buf);
+      const float* out = buf[0].getPtr();
+      for (unsigned i = 0; i < buf[0].getLength(); ++i) {
+        // Same generous bound as above: many overlapping unity-gain grains.
+        if (!std::isfinite(out[i]) || std::abs(out[i]) > 1.0e4f) {
+          sane = false;
+          break;
+        }
+      }
+    }
+    CHECK(sane);
+  }
+
   TEST_CASE("granulator: setter/getter round-trips for grain parameters") {
     YSE::DSP::MODULES::granulator g;
     g.grainFrequency(5);
