@@ -5052,6 +5052,34 @@
       }
     ]
   },
+  "~dac": {
+    "category": "GENERIC",
+    "description": "Audio output of a patcher graph. Each inlet takes one channel of audio and the patcher passes it on to whatever hosts it — a channel, a sound, or the engine's output. A patch is only audible once something reaches this object.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "One channel of the graph's audio output, handed to the patcher's host.",
+        "index": 0,
+        "label": "in",
+        "range": "-1.0 to 1.0"
+      },
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "One channel of the graph's audio output, handed to the patcher's host.",
+        "index": 1,
+        "label": "in",
+        "range": "-1.0 to 1.0"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~dac",
+    "outlets": [],
+    "params": []
+  },
   "~hp": {
     "category": "FILTER",
     "description": "Single-pole highpass filter. Attenuates content below the cutoff frequency.",
