@@ -11,6 +11,13 @@
 namespace TestHelpers {
   std::atomic<int> g_alloc_count{0};
   std::atomic<bool> g_alloc_probe_active{false};
+
+  // Single-block size watch — see the header (issue #662).
+  std::atomic<bool> g_watch_arm{false};
+  std::atomic<void*> g_watch_ptr{nullptr};
+  std::atomic<std::size_t> g_watch_new_size{0};
+  std::atomic<std::size_t> g_watch_delete_size{0};
+  std::atomic<bool> g_watch_sized_delete{false};
 } // namespace TestHelpers
 
 // ThreadSanitizer ships its own replaceable operator new/delete in
@@ -29,10 +36,30 @@ namespace TestHelpers {
 #endif
 
 #ifndef YSE_UNDER_TSAN
+namespace TestHelpers {
+  namespace {
+    // Claim the first allocation made after a watch was armed.
+    inline void watch_new(void* p, std::size_t n) {
+      if (!p) return;
+      if (!g_watch_arm.exchange(false, std::memory_order_relaxed)) return;
+      g_watch_new_size.store(n, std::memory_order_relaxed);
+      g_watch_ptr.store(p, std::memory_order_relaxed);
+    }
+    inline void watch_delete(void* p, std::size_t n, bool sized) {
+      if (!p || g_watch_ptr.load(std::memory_order_relaxed) != p) return;
+      g_watch_sized_delete.store(sized, std::memory_order_relaxed);
+      g_watch_delete_size.store(n, std::memory_order_relaxed);
+    }
+  } // namespace
+} // namespace TestHelpers
+
 void* operator new(std::size_t n) {
   if (TestHelpers::g_alloc_probe_active.load(std::memory_order_relaxed))
     TestHelpers::g_alloc_count.fetch_add(1, std::memory_order_relaxed);
-  if (void* p = std::malloc(n == 0 ? 1 : n)) return p;
+  if (void* p = std::malloc(n == 0 ? 1 : n)) {
+    TestHelpers::watch_new(p, n);
+    return p;
+  }
   throw std::bad_alloc{};
 }
 
@@ -44,16 +71,21 @@ void* operator new(std::size_t n) {
 void* operator new(std::size_t n, const std::nothrow_t&) noexcept {
   if (TestHelpers::g_alloc_probe_active.load(std::memory_order_relaxed))
     TestHelpers::g_alloc_count.fetch_add(1, std::memory_order_relaxed);
-  return std::malloc(n == 0 ? 1 : n);
+  void* p = std::malloc(n == 0 ? 1 : n);
+  TestHelpers::watch_new(p, n);
+  return p;
 }
 
 void operator delete(void* p) noexcept {
+  TestHelpers::watch_delete(p, 0, false);
   std::free(p);
 }
-void operator delete(void* p, std::size_t) noexcept {
+void operator delete(void* p, std::size_t n) noexcept {
+  TestHelpers::watch_delete(p, n, true);
   std::free(p);
 }
 void operator delete(void* p, const std::nothrow_t&) noexcept {
+  TestHelpers::watch_delete(p, 0, false);
   std::free(p);
 }
 #endif // YSE_UNDER_TSAN
