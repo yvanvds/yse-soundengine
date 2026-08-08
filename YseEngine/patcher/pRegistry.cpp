@@ -23,6 +23,7 @@
 #include "genericObjects/gMatch.h"
 #include "genericObjects/gAffix.h"
 #include "genericObjects/gCharCode.h"
+#include "genericObjects/gBag.h"
 #include "genericObjects/gColl.h"
 #include "genericObjects/gCombine.h"
 #include "genericObjects/gSpell.h"
@@ -262,6 +263,11 @@ pRegistry::pRegistry() {
   // more than one thing, and the object presets, note tables, mapping curves
   // and sequences are all written with (issue #494)
   Add(OBJ::G_COLL, gColl::Create);
+
+  // An unordered collection of numbers a patch adds to and removes from — the
+  // multiset .coll's addressed store is not, and the object that answers "which
+  // notes are held right now" (issue #495)
+  Add(OBJ::G_BAG, gBag::Create);
 
   Add(OBJ::G_RECEIVE, gReceive::Create);
   Add(OBJ::G_SEND, gSend::Create);
