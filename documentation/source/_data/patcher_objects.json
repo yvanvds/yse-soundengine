@@ -1181,6 +1181,58 @@
     ],
     "params": []
   },
+  ".atoi": {
+    "category": "GENERIC",
+    "description": "Converts the characters of a message into their character codes, and holds them — Max's atoi, 'convert characters to integers'. Max documents four rules, one per atom type: an int is converted digit by digit, a symbol character by character, a list with a space (32) between its items, and anything with all its items converted one character at a time. They collapse into a single rule here, and not by cutting a corner: a message in this patcher is text, with no atom types at all, so .atoi sends the code of every character of the message as it stands and each of Max's four rules falls out of that — a number's digits are its text, and a list gets its 32 because a space is the character that is actually between its items. Runs of whitespace collapse to one space and the ends are trimmed. The encoding is the one .spell states and shares with this object, character for character: bytes forming a well-formed UTF-8 sequence give the one code point they spell, so the two bytes of an accented letter give one code and not two, and any byte that is not part of a well-formed sequence spells its own value 0-255 with decoding resuming at the next byte, so the object never fails, never drops a byte and never guesses. What .spell does not have is the state: this object holds what it converted, so a bang sends it again, inlet 1 adds to it a piece at a time without sending, and inlet 2 loads it silently — Max's three inlets. An empty message on inlet 2 is Max's clear, spelled as an empty message rather than a reserved word because inlet 0 has to be able to carry the word 'clear' as text like any other. At most 256 codes; a message that would take it past that is refused whole rather than truncated, leaving what was already stored untouched, because half a spelling is a different word rather than a shorter one. Pair it with .itoa, which converts codes back into the characters they spell and returns exactly the message that went in. Calculate() does nothing, and no message path allocates, locks or blocks.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The message to convert. Whatever arrives replaces the stored codes and the result goes straight out: an int digit by digit (123 gives 49 50 51), a float including its decimal point, and a list character by character with the code 32 between its items, which is Max's four separate rules falling out of the one rule this patcher's message model allows. A bang sends the stored codes again without converting anything. Runs of whitespace collapse to a single 32 and the ends are trimmed. An empty message stores nothing and sends nothing.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Max's middle inlet: the codes of whatever arrives are added to the stored codes and nothing is sent. Appending is at the code level, so 'a' then 'b' gives 97 98 — the same as the one message 'ab', and not the 97 32 98 that the two-token message 'a b' gives. A message that would take the stored codes past 256 is refused whole, leaving what was already there untouched.",
+        "index": 1,
+        "label": "append",
+        "range": "at most 256 characters in total"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Max's right inlet: the codes of whatever arrives replace the stored codes and nothing is sent, so a patch can load the object and send it later with a bang on inlet 0. An empty message here is Max's clear — replacing the contents with nothing is what clearing them is, and it needs no reserved word on the inlet that has to carry arbitrary text.",
+        "index": 2,
+        "label": "set",
+        "range": "at most 256 characters in total"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".atoi",
+    "outlets": [
+      {
+        "doc": "The stored codes, as one list, in the order the characters appear — 'hi' leaves as 104 105. Max sends them one at a time; they leave together here because nothing in this patcher accumulates a stream of numbers back into a message, while a list can be taken apart by a .spray whenever a patch wants them separately. Nothing is sent when there is nothing stored.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": []
+  },
   ".b": {
     "category": "GUI",
     "description": "Momentary button. Any input (bang/int/float) lights the button until the next GUI poll; emits a bang on every calculate tick.",
@@ -1209,6 +1261,53 @@
       }
     ],
     "params": []
+  },
+  ".bag": {
+    "category": "GENERIC",
+    "description": "Stores an unordered collection of numbers that a patch adds to and removes from — Max's bag, which 'stores and manages a collection of numbers' that 'you can add to or delete an integer from ... as well as report its contents'. A multiset, and the classic use is the one nothing else in the patcher can spell: tracking which notes are currently held, so a patch can answer what is sounding right now. A note-on adds the note number, the matching note-off removes it, and a bang hands back exactly the notes still down, which pairs directly with YSE's synth voice model. It is not .coll, which is a keyed store whose point is to look an address up; this has no addresses at all and answers only how many and which ones. Nor is it .bucket, which remembers the last N values positionally. Inlet 0 is the value and is hot, inlet 1 is the flag and is cold: non-zero adds the number, 0 removes it, and a float is converted to an int on either inlet. A list is Max's list method and its order is '<value> <flag>' — Max's 'the first list item was sent to the left inlet and the second list item was sent to the right inlet' — so 60 1 adds 60 and 60 0 removes it, the reverse of the shorthand in the issue; a patcher whose argument order is the reverse of Max's would be a trap for every patch brought across. The flag starts at 0, which Max does not document and is the conservative choice, and the list form sets it before applying the value. Any creation argument turns on duplicate entries: Max's 'bag with any argument maintains multiple entries with the same item; otherwise it holds only one of each', and the argument is read for its presence rather than its value. Without it, adding a value already present is nothing at all and the entry keeps the position it had. A bang sends every stored number one at a time in Max's 'reverse order from that in which they were stored', newest first; 'cut' sends the oldest and deletes it; 'length' reports the count; 'clear' empties the collection. Adding and removing are silent, which is Max's 'no output is triggered by a number received in either inlet'. Which instance a remove takes when duplicates are on is the one thing Max leaves open: the newest is taken, so an add and a remove of the same value are an exact undo of each other and a held-note tracker unwinds in the order the keys came up. The store is bounded at 256 numbers, allocated whole at construction and never resized, with .value's non-blocking guard around it — .coll's model and for .coll's reason, since a copy-on-write GraphState publish assumes the writer is the control thread while a .bag is written by whichever thread its message arrived on and in-patcher delivery dispatches on the audio thread. An add past the capacity is refused whole and silently, a loser of the guard drops rather than waiting, and the guard is never held across a send: a bang captures the whole collection into a stack array first, .bucket's trick, so a patch looping the outlet back into the inlet cannot change the burst it is still receiving. Calculate() does nothing. The duplicate flag survives a save because it is a creation argument; the contents deliberately do not, since Max's bag has no 'save data with patcher' flag — that is coll's — and a reloaded patch holding the notes that were down when it was saved would be holding notes nothing is sounding. Not ported: Max's 'send <receive-name>', which redirects a bang's output to receive objects by name, deferred as issue #685.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The number to add or remove, and the hot inlet — which of the two happens is decided by the flag on inlet 1, Max's 'the number is either added to or deleted from the collection ... depending on the number in the right inlet'. A float is converted to an int. Neither adding nor removing sends anything: Max's 'no output is triggered by a number received in either inlet'. A list is Max's list method, '<value> <flag>' — the first item behaves as though it had been sent to this inlet and the second as though it had been sent to inlet 1, so '60 1' adds 60 and '60 0' removes it, and the flag it carries stays behind for later bare numbers. Note the order: the value comes first and the flag second, which is Max's and is the reverse of the shorthand in issue #495. A bang sends the whole collection out the outlet one number at a time, newest first. 'cut' sends the oldest number and deletes it, 'length' reports how many numbers are stored, and 'clear' empties the collection. An add past 256 numbers is refused whole and silently, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "value",
+        "range": "any int"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Whether the next number on inlet 0 is added or removed — Max's 'if non-zero, the number received in the left inlet is added to the bag; if 0, the number is deleted from the collection'. A float is converted to an int first, so 0.5 is a 0 and means remove. Cold: setting it sends nothing and changes nothing already stored. It starts at 0, which Max does not document either way and is the conservative choice — a value arriving before the patch has said what to do with it does not silently join the collection. Run-time state, so it does not survive a save.",
+        "index": 1,
+        "label": "flag",
+        "range": "0 or non-zero"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".bag",
+    "outlets": [
+      {
+        "doc": "Numbers leaving the collection, always as ints. A bang sends every stored number one at a time in Max's 'reverse order from that in which they were stored', so the newest comes out first; 'cut' sends the single oldest one and takes it out of the collection; 'length' sends the number of entries. Adding and removing send nothing at all. The whole burst a bang sends is captured before the first send, so a patch that wires this outlet back into the inlet does not change the burst it is still receiving.",
+        "index": 0,
+        "label": "out",
+        "range": "any int",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "Any argument at all turns on duplicate entries — Max's 'the presence of any symbol argument causes the bag to store duplicate values'. The argument is read for its presence and never for its value. With no argument the collection holds only one of each number at a time.",
+        "name": "duplicates",
+        "range": "any symbol"
+      }
+    ]
   },
   ".bangbang": {
     "category": "GENERIC",
@@ -1400,6 +1499,49 @@
         "doc": "Max's argument: how many inlet/outlet pairs to build, clamped to 1-256 and defaulting to 2. A float is truncated. Anything that is not a whole finite number is ignored and leaves the default in place.",
         "name": "inlets",
         "range": "1-256"
+      }
+    ]
+  },
+  ".capture": {
+    "category": "GENERIC",
+    "description": "Records every value that reaches its inlet in a bounded ring, so a patch can be run and only then asked what went past — Max's capture, which 'stores items in the order they are received for viewing, editing, and saving'. The patcher's debugging instrument: .print says what is passing now, one line at a time, and by the time a graph has gone wrong the interesting values are already gone. It is not .coll or .bag, which a patch writes by intent and whose contents are the patch's data; nothing decides what goes in here, so it is a tape rather than a table. Nor is it .bucket, which also remembers the last N values but hands them to N outlets as a shift register. One item is one atom: Max's list method stores 'all numbers and/or symbols in the list ... in order from first to last', so a three-element list is three items and a dump hands them back one at a time, which is what makes the object useful as a trace. Each item leaves as the kind it arrived as — .route's rule — and a stored symbol leaves as a one-element list, since the patcher has no symbol atom; Max prefixes it with the word 'symbol', which is Max's way of restoring an atom type this patcher does not have. The first creation argument is the capacity, Max's 'the first argument sets a maximum number of items to store; if there is no argument, capture will store up to 512 items', and the record wraps rather than refusing: 'once the maximum has been exceeded, the earliest stored item is dropped as each new item is received', which is the opposite of .coll and .bag and is right for a trace, where the recent past is the interesting part. 512 is both Max's default and the ceiling here — the table is allocated whole at construction and a smaller argument only lowers how much of it is used, so no capacity a patch can ask for ever allocates, and a larger one is clamped the way .bucket clamps its outlet count. Max's second argument, the a / x / m display format, changes only how numbers are drawn in the editing window and so is accepted and ignored, which keeps a '.capture 512 x' brought across from Max building the object it names. 'dump' sends the whole record out outlet 0 oldest first, 'clear' erases it, and 'count' is the one message whose name invites a wrong guess: Max's 'the number of items collected since the last count message', reset to 0 on receipt 'unless flag is set', so it is a since-you-last-asked meter and not a fill level and can report far more than the object holds. There is deliberately no 'length' — Max does not give capture one, and a second message answering a different question on the same inlet would be a trap. 'open', 'wclose' and 'write' are reserved and consumed silently: Max dispatches on the selector, so a capture in Max cannot store those symbols either, and an object that stored them would produce a different trace from Max's for the same patch. The store is .coll's model and for .coll's reason — a fixed table allocated whole at construction plus .value's non-blocking guard — because a copy-on-write GraphState publish assumes the writer is the control thread while this object is written by whichever thread its message arrived on and in-patcher delivery dispatches on the audio thread. A symbol longer than 64 characters is refused whole rather than truncated, a loser of the guard drops rather than waiting, and the guard is never held across a send: dump takes it once per item, .coll's dump exactly, so a patch whose dump target writes back into this object is not locked out of its own store, and the bounds are re-read every step so a wrap mid-dump cannot walk off the end. Calculate() does nothing. The capacity survives a save because it is a creation argument; the contents deliberately do not, since Max gives coll a 'save data with patcher' flag and capture none — its 'write' message is how a capture's contents are saved, to a text file, on demand — and a trace is the record of a run, so a reloaded patch holding the values from the session it was saved in would be answering a question nobody had asked yet. Not ported: the editing window and everything addressing it (open, wclose, the double-click, the precision attribute), file writing, and the listout and size attributes, the patcher having no attribute mechanism.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Everything that arrives here is recorded, in arrival order — Max's 'numbers or symbols are stored in the order in which they are received'. One item is one atom, so a list is recorded as its separate elements, Max's 'all numbers and/or symbols in the list are stored in order from first to last', and each keeps the kind it arrived as. When the record is full the oldest item is dropped as each new one arrives: Max's 'the earliest stored item is dropped as each new item is received'. Recording sends nothing. 'dump' sends the whole record out outlet 0, one item at a time, oldest first; 'clear' erases it; 'count' reports how many items have arrived since the last count out outlet 1 and zeroes that meter, and 'count 1' reports it without zeroing it. 'open', 'wclose' and 'write' are consumed and do nothing — there is no window here and no file I/O on a path that may be the audio thread — and they are consumed rather than recorded so that the trace matches Max's, where a selector can never be stored. A bang is not one of Max's messages and does nothing; 'dump' is how a patch reads the record. A symbol longer than 64 characters is refused whole rather than truncated.",
+        "index": 0,
+        "label": "in",
+        "range": "any"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".capture",
+    "outlets": [
+      {
+        "doc": "The recorded items, in the order they arrived, one at a time in response to 'dump' — Max's 'outputs the contents of the capture object, one item at a time, out the left outlet'. Each leaves as the kind it was recorded as: an int as an int, a float as a float, and a symbol as a one-element list, since the patcher has no symbol atom. Nothing else ever sends here — recording is silent, and a full record wraps rather than announcing it.",
+        "index": 0,
+        "label": "dump",
+        "range": "any",
+        "type": "ANY"
+      },
+      {
+        "doc": "How many items have arrived since the last 'count' zeroed the meter, in response to a 'count' message — Max's 'the number of items received since last count message was received'. Not a fill level: it counts arrivals, including the ones the ring has already dropped, so it can report more than the object is holding. The meter is zeroed by the same message unless a non-zero flag is given ('count 1' reads it and leaves it standing).",
+        "index": 1,
+        "label": "count",
+        "range": "any int",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "512",
+        "doc": "Max's argument list, in Max's order. The first whole number is how many items the record holds before the oldest starts falling off — Max's 'the first argument sets a maximum number of items to store'. With no argument it holds 512, Max's default, which is also the ceiling: the table is allocated whole at construction, so a larger argument is clamped rather than honoured and a smaller one only lowers how much of that table is used. Values below 1 are raised to 1, since a zero-item record would silently discard everything, and a float is truncated. Max's second argument is the display format, 'a' / 'x' / 'm', which chooses whether the editing window draws numbers in ASCII, hexadecimal or a mix; it is accepted and ignored, the YSE patcher being headless, so that a '.capture 512 x' brought across from Max still builds the object it names.",
+        "name": "maximum",
+        "range": "1-512, optional display format"
       }
     ]
   },
@@ -1599,6 +1741,50 @@
         "range": "any float"
       }
     ]
+  },
+  ".coll": {
+    "category": "GENERIC",
+    "description": "Stores and recalls a collection of messages held at addresses — Max's coll, 'store and edit a collection of different messages'. The general-purpose data store of Max patching: presets, note tables, mapping curves and sequences all live in one, and until this object nothing in the YSE patcher could hold more than a single value at all, so a patch that wanted a table had to spell it out as one object per entry. An address is a number or a symbol, decided by the strict reader .sel and .route share, and the two never collide — the address 1 and the address one are different entries — while numeric addresses need be neither contiguous nor in order, exactly as in Max. Entries keep storage order rather than address order, which is what makes dump, next and prev mean anything: Max sends them 'in the order in which they are stored', so a patch that stored a sequence gets that sequence back. A list whose first item is a number stores the rest of it at that address (Max's list method), a bare number or symbol recalls, a bang outputs the entry at the pointer, and store, insert, append, remove, delete, clear, length, goto, start, end, next, prev and dump are read as commands when they lead a message. Reserving those words is Max's own contract for coll and not a shortcut: this is the one object in the family whose inlet is a command inlet rather than a data inlet, which is exactly why the .prepend discipline — never reserve a word on an inlet that must carry arbitrary text — does not apply to it, and the data an entry holds is never parsed for commands. The address leaves outlet 1 only where Max sends it (bang, dump, next, prev) and always before the data, which is Max's right-to-left order; outlet 2 bangs when a dump has finished. The contents survive a DumpJSON / ParseJSON round trip, which is Max's 'save data with patcher' and the reason pObject grew a state hook: a creation parameter is what an object was made with, not what it has since been told, so rewriting one from run-time state would quietly change the arguments a patch author typed. The pointer is not saved — it is run-time position, as .cycle's thresh and .bucket's freeze are. The store is bounded at 256 entries of at most 256 characters each, held at addresses of at most 64, and the whole table is allocated at construction and never resized: that bound is what makes the object real-time safe, and it is why the store is not published as a copy-on-write snapshot the way GraphState is. That model assumes the writer is the control thread, and a .coll is written by whichever thread its message arrived on — in-patcher delivery dispatches on the audio thread — so a store reaching it from a rendering graph would have to allocate a replacement table there. Bounded storage with .value's non-blocking guard gives what the mandate is after without that: nothing on any path allocates, locks or blocks, the guard is never held across a send, and a store that loses the guard drops rather than waiting. Anything that does not fit is refused whole and silently. Calculate() does nothing. Not ported: the shared name context, file read and write, the editor window, and the arithmetic and reordering messages sub, nsub, nth, min, max, sort, swap, merge, separate, renumber, assoc, deassoc, nstore and subsym.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The one inlet, and a command inlet rather than a data inlet — which is what lets .coll reserve words the rest of the message family deliberately does not. A bang outputs the entry at the pointer; a number recalls the entry at that numeric address; a lone symbol recalls the entry at that symbol address (items after it are ignored, as in Max); and a list whose first item is a number stores the rest of it at that numeric address. The commands are 'store <address> <message>', 'insert <index> <message>', 'append <message>', 'remove <address>', 'delete <address>' (which also brings every higher numeric address down by one), 'clear', 'length', 'goto <address>', 'start', 'end', 'next', 'prev' and 'dump'. An address is a number or a symbol, decided by the same strict reader .sel and .route use, and the two never collide: the address 1 and the address one are different entries. Anything that does not fit — a message longer than 256 characters, an address longer than 64, or a store into a collection that already holds 256 entries — is refused whole and silently, since the inlet may be the audio thread.",
+        "index": 0,
+        "label": "in",
+        "range": "at most 256 entries"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".coll",
+    "outlets": [
+      {
+        "doc": "The stored message, in the kind it is: a stored '60 100' leaves as a list, a stored '60' as the int 60, a stored '60.5' as that float, and a stored lone symbol as a one-element list — the rule .route establishes for a remainder. Max instead prefixes a lone symbol with the word 'symbol', which is how it restores an atom type this patcher does not have; inventing that word here would put a token in the message nothing downstream asked for. 'length' sends the entry count out here as an int. Nothing is sent when the address holds nothing.",
+        "index": 0,
+        "label": "data",
+        "range": "",
+        "type": "ANY"
+      },
+      {
+        "doc": "The address of the entry that just left the data outlet, as an int for a numeric address and as a one-element list for a symbol one. It fires only where Max fires it — on bang, dump, next and prev, Max's 'whenever a message out the 1st outlet is triggered by bang, dump, next, prev, or sub' — and not on a plain lookup, which answers with the data alone since the asking patch already had the address. It fires before the data outlet, which is Max's right-to-left order.",
+        "index": 1,
+        "label": "address",
+        "range": "",
+        "type": "ANY"
+      },
+      {
+        "doc": "Bangs when a dump has finished sending every entry. Max's fourth outlet; its third, which reports a file having been read, has nothing to fire here because reading and writing collection files is out of scope for this object. When that lands its outlet will be appended after this one rather than inserted in Max's position, so no saved patch's cords shift.",
+        "index": 2,
+        "label": "done",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": []
   },
   ".combine": {
     "category": "GENERIC",
@@ -2267,6 +2453,66 @@
     ],
     "params": []
   },
+  ".funbuff": {
+    "category": "GENERIC",
+    "description": "Stores pairs of numbers sorted by x and recalls the y at any x, with linear interpolation between the stored points — Max's funbuff, which 'stores, manages, and recalls pairs of numbers'. A sparse function: a handful of (x, y) points and a way to ask what y is at an x that was never stored, which is the data structure behind every breakpoint curve, tuning table, velocity map and step sequence. It is the first store in the family ordered by its own key — .coll is keyed but keeps storage order, .bag has no keys and .capture is a tape — and the sort is not a convenience but the object, since every question it answers is a question about where an x sits among the others. Inlet 0 is the x and is hot, inlet 1 is the y and is cold, and the same inlet writes and reads: Max's 'if a y value was previously received in the right inlet, the pair is stored; otherwise, outputs the corresponding y value'. The waiting y is consumed by exactly one x, since a y that stayed behind would turn every later lookup into a store, and a float is converted to an int on either inlet, so the stored function is an integer function. A two-number list stores a pair, Max's ordinary right-to-left list distribution. The plain lookup is a floor lookup and not an interpolation: Max's 'if there is no stored x value which matches the number received, funbuff uses the closest x value which is less than the number received'. That is where issue #497's shorthand and Max part company — the issue calls the lookup interpolated — and Max is followed, because a patch that wanted a stepped zone map and got a ramp would be silently wrong in a way nothing downstream could detect. Interpolation is the separate 'interp' message, Max's 'measures its position between its two neighboring x values ... and sends the y value that holds a corresponding position between the two neighboring y values', clamped at both ends here since Max describes only the bracketed case. Its result leaves as a float, the one type Max's reference does not state: every other message on that outlet reports a stored y, which is an int by construction, while interp alone reports a value that was never stored and a position between two values is fractional by definition — truncating it would quantise every curve the object exists to draw, and the loss is not recoverable downstream. 'next' walks the pointer forward, sending the y out outlet 0 and the difference from the previously reported x out outlet 1 — Max's 'calculates the difference between that x value and the value previously pointed to' — which makes outlet 1 the inter-onset interval of a time-stamped sequence; outlet 2 bangs when the walk runs off the end, and the pointer is left there rather than wrapped, unlike .coll's next, because this is a traversal of a function rather than a ring of entries. 'min' and 'max' send the smallest and largest stored y, 'find' sends every x holding a given y, 'dump' sends every pair in ascending x order with the x out outlet 1 before its y out outlet 0, 'set' stores pairs, 'delete' removes one by x alone or by an exact x,y match, 'goto' moves the pointer and 'clear' empties the store. 'print' and bang are Max's Console diagnostics and are consumed silently, since neither sends anything out any outlet in Max either. dump and find capture their whole burst into a stack array under one acquisition of the guard and emit after releasing it — .bag's capture rather than .coll's per-item walk, and the sort is what forces it: .coll only ever appends, so re-reading its bounds each step is enough, while a re-entrant set here can insert in front of the cursor and shift every later pair, which would emit one pair twice and skip another. The store is bounded at 256 pairs allocated whole at construction and never resized, with .value's non-blocking guard around it — .coll's model, and the reason issue #497's 'mutation on the control thread only, Calculate() reads a published snapshot' is not what is built: a copy-on-write GraphState publish assumes the writer is the control thread, while a .funbuff is written by whichever thread its message arrived on and in-patcher delivery dispatches on the audio thread, so a set from a rendering graph would have to allocate a replacement table there. A store past the capacity is refused whole and silently and a loser of the guard drops rather than waiting. Calculate() does nothing. Persistence is Max's third answer, neither .coll's always nor .bag's never: the contents ride the DumpState / RestoreState hook only when 'embed' is on, Max's 'the word embed, followed by a non-zero number, causes the funbuff data to be stored inside the patcher', and the flag is written alongside them so a reloaded object still knows to embed itself. With embed off nothing is written at all. The pointer is not saved, being run-time position as .coll's pointer and .bucket's freeze are. Not ported: read and write (file I/O on a path that may be the audio thread) and with them the filename argument, which is accepted and ignored so a patch brought across from Max still builds; copy, cut, paste, select and undo, which are an editor selection plus a global clipboard shared between every funbuff in the application, the same shared-name context .coll and .bag deferred; and interptab, which interpolates through a Max table object by name, the patcher having neither.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The x of an x,y pair, and the hot inlet — it both writes and reads, and which one happens is decided by whether a y is waiting on inlet 1. Max: 'if a y value was previously received in the right inlet, the pair is stored; otherwise, outputs the corresponding y value'. The waiting y is consumed by exactly one x, so the next number here is a lookup again; a y that stayed behind would turn every later lookup into a store and the object could never be read. A float is converted to an int, so the stored function is an integer function. A lookup that misses an exact x falls back to Max's 'the closest x value which is less than the number received' — a step function, not an interpolation, which is what makes a plain lookup right for presets and zone maps; 'interp' is the message that interpolates. An x below every stored x has no lesser neighbour and sends nothing. A two-number list stores a pair: Max's ordinary right-to-left list distribution puts the second item on inlet 1 and the first here, so '60 100' stores (60, 100). The messages are 'set <x> <y> ...', 'delete <x> [<y>]', 'clear', 'dump', 'goto <x>', 'next', 'min', 'max', 'find <y>', 'interp <x>' and 'embed <flag>'. 'print' and a bang are Max's Console diagnostics and are consumed silently, since there is no console here and neither sends anything out any outlet in Max either. A store past 256 pairs is refused whole and silently, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "x",
+        "range": "at most 256 pairs"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The y that will be paired with the next x arriving on inlet 0 — Max's 'y value which will be paired with the next x value received in the left inlet, and stored'. Cold: setting it sends nothing and changes nothing already stored, it only arms the next x to be a store rather than a lookup. It is consumed by that one x and not by the one after it. A float is converted to an int. Nothing is armed until a y arrives, so a fresh object reads rather than writes; the armed y is run-time state and does not survive a save.",
+        "index": 1,
+        "label": "y",
+        "range": "any int"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".funbuff",
+    "outlets": [
+      {
+        "doc": "The y values, and everything else that answers a question. A plain x on inlet 0 sends the y stored at it, or the y of the closest lesser x when nothing is stored there exactly; 'next' sends the y at the pointer; 'min' and 'max' send the smallest and largest y stored, Max's 'sends the minimum / maximum y value currently stored in the funbuff out the left outlet'; 'find' sends every x whose y equals the number asked for, which is the one message that sends x values here rather than y values, exactly as in Max; 'dump' sends each pair's y after its x has gone out outlet 1. All of those are ints, because a stored y is an int. 'interp' is the exception and leaves as a float: it is the one message reporting a value that was never stored, 'the y value that holds a corresponding position between the two neighboring y values' is fractional by definition, and truncating it would quantise every curve this object exists to draw. Max's reference does not state the type. Nothing is sent when there is no answer — an empty store, or an x below every stored x.",
+        "index": 0,
+        "label": "y",
+        "range": "any",
+        "type": "ANY"
+      },
+      {
+        "doc": "The x column. Under 'next' this is the *difference* between the x just reported and the one reported before it — Max's 'calculates the difference between that x value and the value previously pointed to' — which makes it the inter-onset interval of a time-stamped sequence, the gap a .metro or .line needs before the next event. Both the pointer and that reference x start at 0, so the first 'next' on a fresh object reports the first x itself, its distance from the origin. A 'goto' moves both, so a jump measures from where the patch jumped to. Under 'dump' this carries the x of each pair rather than a difference, and it fires before that pair's y leaves outlet 0 — Max's right-to-left outlet order, the order .coll and .trigger already fire in. Always an int.",
+        "index": 1,
+        "label": "x",
+        "range": "any int",
+        "type": "INT"
+      },
+      {
+        "doc": "Bangs when 'next' has run off the end — when no stored x is at or past the pointer. Nothing leaves the other two outlets in that case, so this is how a patch learns a traversal is finished. The pointer is left past the end rather than wrapped, so a repeated 'next' keeps banging and a patch restarts with 'goto'. That is deliberately unlike .coll's 'next', which wraps: a collection is a ring of entries, while this is a traversal of a function, and a sequence that silently looped would be a different musical object.",
+        "index": 2,
+        "label": "end",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "Max's filename argument, 'specifies a file to read into funbuff when the patch loads'. Accepted and ignored: reading and writing funbuff files is file I/O on a path that may be the audio thread and is deliberately out of scope, so the argument is held only so that a '.funbuff mydata' brought across from Max still builds the object it names and so the argument a patch author typed survives a save unchanged. Nothing is derived from it, and the contents of the object come from its inlets or, when 'embed' is on, from the saved patch itself.",
+        "name": "filename",
+        "range": "any symbol"
+      }
+    ]
+  },
   ".funnel": {
     "category": "GENERIC",
     "description": "Tags incoming data with the number of the inlet it arrived at and merges everything onto one outlet — Max's funnel, which 'outputs a list consisting of the inlet number followed the input' when 'a number or list is received in any inlet'. The many-to-one collector: a bank of controls, a row of sensors or eight voices reporting their state all reach one destination, and the destination still knows which of them spoke. Without it a patch either runs one cord per source the whole way or puts a box in front of every source to stamp a constant on it by hand, which is N boxes to maintain and N places to get the number wrong when a source is inserted; this is that stamp, once, with the number taken from the wiring itself. It is the exact inverse of .spray, which Max lists under See Also: .spray turns 2 60 into 60 leaving outlet 2, and this turns 60 arriving at inlet 2 into 2 60. The pairing is literal — a .funnel n into a .spray n with the same offset is an n-way bus carried over a single patch cord, entering at inlet i and leaving at outlet i, and the cord between them can cross a subpatch boundary or a .s/.r pair, which n separate cords could not do as cheaply. It is not .bondo or .buddy, which also gather several inlets but gather them into a set, with N outlets and a release that speaks about all of them at once; this has one outlet and speaks about exactly one arrival, so two values at two inlets make two output lists rather than one, and nothing here ever waits. It is not .switch either, which merges by selecting: there only the chosen inlet passes and what comes out carries no record of its origin, where here every inlet always passes and the record is the point. The objects that read the tag back are .route and .sel, which is why it is the first element of the list. The number prepended is the inlet index plus the offset — Max's second argument 'specifies an offset for the first inlet number' and the 'offset' message 'will offset the numbering of inlets by the number given', one value from two directions — and it adds where .spray's offset subtracts, which is precisely what makes the two mirror images at any offset. It exists because the numbers a downstream object expects usually start where it starts, MIDI channels at 1 or a table's rows at some base, and the alternative is a .+ on the far side of the merge that has to be kept in step by hand. 'offset' is run-time state rather than a parameter, as .spray's offset and .cycle's thresh are, so a saved patch carries the creation argument. Each inlet also remembers the last number it received and a bang replays it tagged, Max's 'the stored (most recently received) number in that inlet are sent out as a two-item list', which makes the object pollable as well as reactive — a patch can ask what source 3 is saying without source 3 speaking again. Because Max says the store is a number and the reply a two-item list, a list or an anything is tagged and forwarded but is not stored: replaying note 60 would send three items out of a method documented to send two. The store starts at 0, so a bang into an inlet nothing has reached is 0 rather than silence. Max 'set followed by a list of numbers which correspond with the number of inlets' addresses every inlet at once, element k writing inlet k's store and sending nothing, which is how a patch primes the whole bank before anything has spoken; elements past the last inlet are dropped, a short list leaves the rest alone, and a non-number element spends its position without writing, .spray's discipline for a positional message. Both set and offset are matched in any inlet as Max scopes them, and a bare message word is the method with nothing to do rather than a symbol to forward. Values keep the spelling they arrived with — Max's 'in a list floats are not converted to ints' — since a list is forwarded by text, character for character, while the tag itself is always an int. At most 256 inlets, built once before the object is published; Calculate() does nothing, and no message path allocates, locks or blocks.",
@@ -2505,6 +2751,58 @@
         "range": "any statement"
       }
     ]
+  },
+  ".itoa": {
+    "category": "GENERIC",
+    "description": "Converts character codes into the characters they spell, and holds them — Max's itoa, 'convert a stream or list of up to 256 integer character codes into a symbol'. The inverse of .atoi, and the direction nothing in the message-construction family could go before: .spell and .atoi leave the text model and hand a patch numbers, and until now nothing brought it back, so codes computed inside a patch could never become a name, a path or a word again. A list of codes gives the text they spell, an int or a float gives the one character it names (a float truncated, Max's 'converted to an int'), and the result leaves as a list. Always a list, whatever the codes spell: a result that happens to read as a number is still the text those codes wrote, and a patch that wants a type restored sends it through a .fromsymbol, whose job that is. The codes are written as UTF-8 by the exact inverse of the decoder .atoi and .spell read with, which is what makes the pair a real round trip — .atoi after .itoa gives back the codes that went in, and .itoa after .atoi gives back the message. A token that is not a number, or a number that is not a code point — negative, above 1114111, or a surrogate half — makes the whole message refused rather than replaced with something arbitrary, since a substituted character would come back from an .atoi as a different code and break that guarantee. Max's three inlets are kept: inlet 0 converts and sends, a bang sends what is held again, inlet 1 adds characters without sending — which is how a patch builds a symbol one character at a time and sends it once it is complete — and inlet 2 loads it silently. An empty message on inlet 2 is Max's clear. At most 256 characters; a message that would take it past that is refused whole, leaving what was already stored untouched. Calculate() does nothing, and no message path allocates, locks or blocks.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The character codes to convert. An int, a float (truncated, Max's 'converted to an int') or a list of them replaces the stored characters and the result goes straight out; a bang sends the stored characters again without converting anything. A token that is not a number, or a number that is not a code point — negative, above 1114111, or a surrogate half — makes the whole message refused, since there is no character to write in its place. An empty message stores nothing and sends nothing.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Max's middle inlet: the characters the arriving codes spell are added to the stored characters and nothing is sent — how a patch builds up a symbol one character at a time and sends it with a bang once it is complete. A message that would take the stored characters past 256 is refused whole, leaving what was already there untouched.",
+        "index": 1,
+        "label": "append",
+        "range": "at most 256 characters in total"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Max's right inlet: the characters the arriving codes spell replace the stored characters and nothing is sent. An empty message here is Max's clear — replacing the contents with nothing is what clearing them is, and it needs no reserved word on the inlet that has to carry arbitrary codes.",
+        "index": 2,
+        "label": "set",
+        "range": "at most 256 characters in total"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".itoa",
+    "outlets": [
+      {
+        "doc": "The stored characters, as a list — 104 105 leaves as 'hi'. Always a list, whatever the codes spell: a result that happens to read as a number is still the text those codes wrote, and a patch that wants the number back sends it through a .fromsymbol, which is the object whose job restoring a type is. Nothing is sent when there is nothing stored.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": []
   },
   ".l": {
     "category": "GUI",
@@ -4755,6 +5053,53 @@
       }
     ],
     "params": []
+  },
+  ".table": {
+    "category": "GENERIC",
+    "description": "A fixed-size array of numbers addressed by index — Max's table, 'store and edit an array of numbers'. The dense store, and the one the patcher had no answer for: .coll is keyed by arbitrary addresses, .bag has no keys, .capture is a tape and .funbuff is a sparse function of a handful of points, but none of them is an array. Wavetables, velocity curves, probability distributions and step sequences all want N slots, every one present and reachable by index in constant time. Inlet 0 is the address and is hot, inlet 1 is the value and is cold, and the same hot inlet writes and reads: Max's right inlet 'stores the value at the next index number received at the left inlet', and that armed value is consumed by exactly one address — Max's 'cancel' message exists to drop one unused, which it would not need if the value stayed behind. A two-number list stores directly, Max's 'the second number is stored at the address specified by the first number'. An address out of range reads and writes nothing rather than clamping, Max's reference not saying which and silence being the family's rule. 'quantile' and 'fquantile' read the table as a probability distribution and answer with the address where the running sum reaches the requested fraction of the total, and a bang is Max's 'quantile with a random number between 0 and 32768' — a weighted random draw in one object. 'load' fills the table from a stream of numbers starting at address 0 and 'normal' ends it; 'inv' answers with the address of the first value at or above a number; 'getbits' and 'setbits' read and write bit fields of one entry, the field being the count of bits ending at and including the start bit, which is the reading Max's 'how many bits to the right of the starting bit location' leaves open. 'set', 'const', 'clear', 'dump', 'goto', 'next', 'prev', 'min', 'max', 'sum', 'length' and 'send' complete Max's surface. Where issue #498 and Max part company is the creation argument: the issue asks for a size, while Max's one argument is a name and the size is its 'size' attribute defaulting to 128. The patcher has no attribute mechanism, so both are honoured — a numeric argument token is the size and a non-numeric one is Max's name, making '.table mytable', '.table 512' and '.table mytable 512' all mean what they look like. The array is allocated whole at 4096 entries on the control thread and never resized, so a larger size request is clamped and there is no size message; a resize on a message path is exactly the allocation this object avoids. The name is held and saved so a patch brought across from Max builds, but tables do not share contents and 'refer' is not ported: issue #498 proposes sharing through INTERNAL::NamedBus, which is a publish/subscribe value bus with no storage and no way to answer 'give me the object called X', so sharing would need exactly the shared-name registry the issue says not to build — the context .coll, .bag and .funbuff each deferred. Where the naming scheme does fit is Max's 'send', which hands the value at an address to every .r of a given name, and that is ported through .forward's pre-reserved strings so building the address allocates nothing. Storage is .coll's model: a fixed array plus .value's non-blocking guard, claimed with one exchange by a loser that drops rather than spinning, since a .table is written by whichever thread its message arrived on and in-patcher delivery dispatches on the audio thread. 'dump' walks item by item rather than capturing the burst the way .funbuff must: address i is always slot i, so a re-entrant write can change a value the walk has not reached but never move it, and the walk avoids a 16 KB stack snapshot. Calculate() does nothing. The contents ride the DumpState / RestoreState hook by default, which is Max's 'the default behavior is 1 (save the data)' and the opposite of .funbuff's opt-in embed; the flag is always written so that turning it off survives a reload, while the pointer, the armed value and load mode are run-time state and are not saved. Not ported: read and write (file I/O on a path that may be the audio thread), open and wclose and the range / signed / notename attributes (all describe the graphic editing window, which is a non-goal), refer, and the second argument of 'flags', which concerns writing the data to the table's own file — the first argument is embed under another name and is honoured.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The address, and the hot inlet — it both writes and reads, and which one happens is decided by whether a value is waiting on inlet 1. Max's right inlet 'stores the value at the next index number received at the left inlet', and the waiting value is consumed by exactly one address: Max's 'cancel' message exists precisely so a patch can drop an armed value it no longer wants, which it would not need if the value stayed behind. Otherwise the number stored at that address is sent out the outlet. A float is converted to an int, Max's rule. An address outside 0..size-1 reads nothing and writes nothing — Max does not say what it does, and staying quiet is the family's rule and the safer reading, since clamping would answer a wrong question with a plausible number no wavetable lookup could detect. A two-number list stores directly and arms nothing: Max's 'the second number is stored at the address specified by the first number'; anything past the second item is ignored, the multi-value form being 'set'. A bang is Max's weighted random draw — a 'quantile' with a random number between 0 and 32768. The messages are 'set <start> <values...>', 'const <value>', 'clear', 'dump', 'goto <address>', 'next', 'prev', 'min', 'max', 'sum', 'length', 'inv <value>', 'quantile <n>', 'fquantile <f>', 'getbits <address> <start> <bits>', 'setbits <address> <start> <count> <value>', 'send <name> <address>', 'load', 'normal', 'cancel', 'embed <flag>' and 'flags <save> <dontsave>'. While 'load' is on every number arriving here is stored at successive addresses from 0 instead, until the table is full or a 'normal' message arrives; words still dispatch as messages, or 'normal' could never turn it off.",
+        "index": 0,
+        "label": "address",
+        "range": "0 to size-1"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The value that will be stored at the next address arriving on inlet 0 — Max's 'stores the value at the next index number received at the left inlet'. Cold: setting it sends nothing and changes nothing already stored, it only arms the next address to be a store rather than a read. It is consumed by that one address and not by the one after it, and a 'cancel' on inlet 0 drops it unused, which is Max's 'so that the next number received in the left inlet will output a number, rather than storing a number at that address'. A float is converted to an int. Nothing is armed until a value arrives, so a fresh object reads rather than writes; the armed value is run-time state and does not survive a save.",
+        "index": 1,
+        "label": "value",
+        "range": "any int"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".table",
+    "outlets": [
+      {
+        "doc": "Everything the object sends, and all of it ints — Max's 'all numbers sent out by table are sent out the left outlet'. A plain address on inlet 0 sends the value stored there; 'next' and 'prev' send the value at the pointer, which then advances or retreats and wraps at either end; 'dump' sends every value in address order from 0; 'min', 'max' and 'sum' send the smallest, largest and total of the stored values; 'length' sends the size. Four messages send an *address* rather than a value: 'inv', which answers with the address of the first value greater than or equal to the number asked for, and 'quantile' / 'fquantile' / a bare bang, which read the table as a probability distribution and answer with the address where the running sum reaches the requested fraction of the total. 'getbits' sends a bit field of one stored value. Nothing is sent when there is no answer: an address out of range, or an 'inv' no stored value satisfies. Max's second outlet is not here — it bangs only when the graphic editing window changes the contents, and the YSE patcher is headless; it is left off rather than repurposed to fire on message-driven stores, which Max does not do and which would fan out from a path that may be the audio thread.",
+        "index": 0,
+        "label": "out",
+        "range": "any int",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "128",
+        "doc": "Max's argument list plus the one thing Max keeps in an attribute. Max's single argument is a name — 'the argument gives a name to the table' — while the number of addresses is its 'size' attribute, 'the default is 128 values, indexed with numbers from 0 to 127'. The patcher has no attribute mechanism, so a token that reads as a number is taken as the size and a token that does not is taken as the name: '.table mytable' is Max's object exactly, '.table 512' is issue #498's, and '.table mytable 512' is both. The size is clamped to 1..4096, the array being allocated whole at 4096 entries once at construction so that nothing on a message path ever has to grow it; a float is truncated. The name is held so a patch brought across from Max builds the object it names and so the argument the author typed survives a save unchanged, but it addresses nothing: two tables of the same name do not share values here, and 'refer' is not ported. Re-parsing the arguments zeroes the contents, since the object that comes back is the one the arguments describe.",
+        "name": "name size",
+        "range": "optional name, optional size 1-4096"
+      }
+    ]
   },
   ".tan": {
     "category": "MATH",

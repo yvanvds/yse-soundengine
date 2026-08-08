@@ -118,6 +118,14 @@ void pObject::DumpJson(nlohmann::json::value_type& json) {
   for (auto const& x : guiProperties) {
     json["gui"][x.first] = x.second;
   }
+
+  // Anything the object holds beyond its creation parameters (issue #494).
+  // Built into a temporary and only attached when the object wrote something,
+  // so an object without state of its own serialises exactly as it always did
+  // and no "state": null appears in every saved patch.
+  nlohmann::json state;
+  DumpState(state);
+  if (!state.is_null()) json["state"] = state;
 }
 
 const std::string& pObject::GetParams() {

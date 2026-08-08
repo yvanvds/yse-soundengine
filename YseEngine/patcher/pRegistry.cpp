@@ -22,6 +22,12 @@
 #include "genericObjects/gCycle.h"
 #include "genericObjects/gMatch.h"
 #include "genericObjects/gAffix.h"
+#include "genericObjects/gCharCode.h"
+#include "genericObjects/gBag.h"
+#include "genericObjects/gCapture.h"
+#include "genericObjects/gColl.h"
+#include "genericObjects/gFunbuff.h"
+#include "genericObjects/gTable.h"
 #include "genericObjects/gCombine.h"
 #include "genericObjects/gSpell.h"
 #include "genericObjects/gSprintf.h"
@@ -247,6 +253,38 @@ pRegistry::pRegistry() {
   // takes text apart into smaller text and this one leaves the text model
   // entirely, handing a patch numbers it can do arithmetic on (issue #492)
   Add(OBJ::G_SPELL, gSpell::Create);
+
+  // The character/integer round trip .spell only had one half of: .atoi holds
+  // the codes of what it converted so a patch can add to them a piece at a time
+  // and send them when it likes, and .itoa is the way back into text, without
+  // which codes computed inside a patch could never become a name again
+  // (issue #493)
+  Add(OBJ::G_ATOI, gAtoi::Create);
+  Add(OBJ::G_ITOA, gItoa::Create);
+
+  // A collection of messages held at addresses — the patcher's first store of
+  // more than one thing, and the object presets, note tables, mapping curves
+  // and sequences are all written with (issue #494)
+  Add(OBJ::G_COLL, gColl::Create);
+
+  // An unordered collection of numbers a patch adds to and removes from — the
+  // multiset .coll's addressed store is not, and the object that answers "which
+  // notes are held right now" (issue #495)
+  Add(OBJ::G_BAG, gBag::Create);
+
+  // A rolling record of everything that went past — the patcher's debugging
+  // instrument, and the store nothing decides the contents of (issue #496)
+  Add(OBJ::G_CAPTURE, gCapture::Create);
+
+  // A sparse function: x,y pairs kept sorted by x, with a floor lookup and
+  // linear interpolation between the stored points — the store behind every
+  // breakpoint curve, tuning table and step sequence (issue #497)
+  Add(OBJ::G_FUNBUFF, gFunbuff::Create);
+
+  // A fixed-size array of numbers addressed by index — the dense store none of
+  // the others is, and the one a wavetable, a velocity curve or a weighted
+  // random draw is written with (issue #498)
+  Add(OBJ::G_TABLE, gTable::Create);
 
   Add(OBJ::G_RECEIVE, gReceive::Create);
   Add(OBJ::G_SEND, gSend::Create);

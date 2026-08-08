@@ -580,6 +580,15 @@ void patcherImplementation::ParseJSON(const std::string& content) {
       for (auto prop = gui.begin(); prop != gui.end(); ++prop) {
         handle->SetGuiProperty(prop.key(), prop.value().get<std::string>());
       }
+
+      // State the object holds beyond its creation parameters — a `.coll`'s
+      // contents (issue #494). Absent for every object that has none, which is
+      // why it is looked up rather than indexed: operator[] on a const-less
+      // json would insert a null here for all of them.
+      const auto state = obj.value().find("state");
+      if (state != obj.value().end()) {
+        handle->object->RestoreState(*state);
+      }
     }
 
     int ID = obj.value()["ID"].get<int>();

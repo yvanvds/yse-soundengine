@@ -109,14 +109,19 @@ set(YSE_SRCS
   patcher/generatorObjects/dSaw.cpp
   patcher/generatorObjects/pSine.cpp
   patcher/genericObjects/gAffix.cpp
+  patcher/genericObjects/gBag.cpp
   patcher/genericObjects/gBangBang.cpp
   patcher/genericObjects/gBondo.cpp
   patcher/genericObjects/gBucket.cpp
   patcher/genericObjects/gBuddy.cpp
+  patcher/genericObjects/gCapture.cpp
+  patcher/genericObjects/gCharCode.cpp
+  patcher/genericObjects/gColl.cpp
   patcher/genericObjects/gCombine.cpp
   patcher/genericObjects/gCycle.cpp
   patcher/genericObjects/gDecode.cpp
   patcher/genericObjects/gForward.cpp
+  patcher/genericObjects/gFunbuff.cpp
   patcher/genericObjects/gFunnel.cpp
   patcher/genericObjects/gGate.cpp
   patcher/genericObjects/gIf.cpp
@@ -138,6 +143,7 @@ set(YSE_SRCS
   patcher/genericObjects/gSubstitute.cpp
   patcher/genericObjects/gSwitch.cpp
   patcher/genericObjects/gSymbol.cpp
+  patcher/genericObjects/gTable.cpp
   patcher/genericObjects/gTrigger.cpp
   patcher/genericObjects/gUzi.cpp
   patcher/genericObjects/gValue.cpp
@@ -320,14 +326,19 @@ set_source_files_properties(
   patcher/generatorObjects/dSaw.cpp
   patcher/generatorObjects/pSine.cpp
   patcher/genericObjects/gAffix.cpp
+  patcher/genericObjects/gBag.cpp
   patcher/genericObjects/gBangBang.cpp
   patcher/genericObjects/gBondo.cpp
   patcher/genericObjects/gBucket.cpp
   patcher/genericObjects/gBuddy.cpp
+  patcher/genericObjects/gCapture.cpp
+  patcher/genericObjects/gCharCode.cpp
+  patcher/genericObjects/gColl.cpp
   patcher/genericObjects/gCombine.cpp
   patcher/genericObjects/gCycle.cpp
   patcher/genericObjects/gDecode.cpp
   patcher/genericObjects/gForward.cpp
+  patcher/genericObjects/gFunbuff.cpp
   patcher/genericObjects/gFunnel.cpp
   patcher/genericObjects/gGate.cpp
   patcher/genericObjects/gIf.cpp
@@ -348,6 +359,7 @@ set_source_files_properties(
   patcher/genericObjects/gSubstitute.cpp
   patcher/genericObjects/gSwitch.cpp
   patcher/genericObjects/gSymbol.cpp
+  patcher/genericObjects/gTable.cpp
   patcher/genericObjects/gTrigger.cpp
   patcher/genericObjects/gUzi.cpp
   patcher/genericObjects/gValue.cpp
