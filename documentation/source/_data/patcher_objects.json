@@ -1502,6 +1502,49 @@
       }
     ]
   },
+  ".capture": {
+    "category": "GENERIC",
+    "description": "Records every value that reaches its inlet in a bounded ring, so a patch can be run and only then asked what went past — Max's capture, which 'stores items in the order they are received for viewing, editing, and saving'. The patcher's debugging instrument: .print says what is passing now, one line at a time, and by the time a graph has gone wrong the interesting values are already gone. It is not .coll or .bag, which a patch writes by intent and whose contents are the patch's data; nothing decides what goes in here, so it is a tape rather than a table. Nor is it .bucket, which also remembers the last N values but hands them to N outlets as a shift register. One item is one atom: Max's list method stores 'all numbers and/or symbols in the list ... in order from first to last', so a three-element list is three items and a dump hands them back one at a time, which is what makes the object useful as a trace. Each item leaves as the kind it arrived as — .route's rule — and a stored symbol leaves as a one-element list, since the patcher has no symbol atom; Max prefixes it with the word 'symbol', which is Max's way of restoring an atom type this patcher does not have. The first creation argument is the capacity, Max's 'the first argument sets a maximum number of items to store; if there is no argument, capture will store up to 512 items', and the record wraps rather than refusing: 'once the maximum has been exceeded, the earliest stored item is dropped as each new item is received', which is the opposite of .coll and .bag and is right for a trace, where the recent past is the interesting part. 512 is both Max's default and the ceiling here — the table is allocated whole at construction and a smaller argument only lowers how much of it is used, so no capacity a patch can ask for ever allocates, and a larger one is clamped the way .bucket clamps its outlet count. Max's second argument, the a / x / m display format, changes only how numbers are drawn in the editing window and so is accepted and ignored, which keeps a '.capture 512 x' brought across from Max building the object it names. 'dump' sends the whole record out outlet 0 oldest first, 'clear' erases it, and 'count' is the one message whose name invites a wrong guess: Max's 'the number of items collected since the last count message', reset to 0 on receipt 'unless flag is set', so it is a since-you-last-asked meter and not a fill level and can report far more than the object holds. There is deliberately no 'length' — Max does not give capture one, and a second message answering a different question on the same inlet would be a trap. 'open', 'wclose' and 'write' are reserved and consumed silently: Max dispatches on the selector, so a capture in Max cannot store those symbols either, and an object that stored them would produce a different trace from Max's for the same patch. The store is .coll's model and for .coll's reason — a fixed table allocated whole at construction plus .value's non-blocking guard — because a copy-on-write GraphState publish assumes the writer is the control thread while this object is written by whichever thread its message arrived on and in-patcher delivery dispatches on the audio thread. A symbol longer than 64 characters is refused whole rather than truncated, a loser of the guard drops rather than waiting, and the guard is never held across a send: dump takes it once per item, .coll's dump exactly, so a patch whose dump target writes back into this object is not locked out of its own store, and the bounds are re-read every step so a wrap mid-dump cannot walk off the end. Calculate() does nothing. The capacity survives a save because it is a creation argument; the contents deliberately do not, since Max gives coll a 'save data with patcher' flag and capture none — its 'write' message is how a capture's contents are saved, to a text file, on demand — and a trace is the record of a run, so a reloaded patch holding the values from the session it was saved in would be answering a question nobody had asked yet. Not ported: the editing window and everything addressing it (open, wclose, the double-click, the precision attribute), file writing, and the listout and size attributes, the patcher having no attribute mechanism.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Everything that arrives here is recorded, in arrival order — Max's 'numbers or symbols are stored in the order in which they are received'. One item is one atom, so a list is recorded as its separate elements, Max's 'all numbers and/or symbols in the list are stored in order from first to last', and each keeps the kind it arrived as. When the record is full the oldest item is dropped as each new one arrives: Max's 'the earliest stored item is dropped as each new item is received'. Recording sends nothing. 'dump' sends the whole record out outlet 0, one item at a time, oldest first; 'clear' erases it; 'count' reports how many items have arrived since the last count out outlet 1 and zeroes that meter, and 'count 1' reports it without zeroing it. 'open', 'wclose' and 'write' are consumed and do nothing — there is no window here and no file I/O on a path that may be the audio thread — and they are consumed rather than recorded so that the trace matches Max's, where a selector can never be stored. A bang is not one of Max's messages and does nothing; 'dump' is how a patch reads the record. A symbol longer than 64 characters is refused whole rather than truncated.",
+        "index": 0,
+        "label": "in",
+        "range": "any"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".capture",
+    "outlets": [
+      {
+        "doc": "The recorded items, in the order they arrived, one at a time in response to 'dump' — Max's 'outputs the contents of the capture object, one item at a time, out the left outlet'. Each leaves as the kind it was recorded as: an int as an int, a float as a float, and a symbol as a one-element list, since the patcher has no symbol atom. Nothing else ever sends here — recording is silent, and a full record wraps rather than announcing it.",
+        "index": 0,
+        "label": "dump",
+        "range": "any",
+        "type": "ANY"
+      },
+      {
+        "doc": "How many items have arrived since the last 'count' zeroed the meter, in response to a 'count' message — Max's 'the number of items received since last count message was received'. Not a fill level: it counts arrivals, including the ones the ring has already dropped, so it can report more than the object is holding. The meter is zeroed by the same message unless a non-zero flag is given ('count 1' reads it and leaves it standing).",
+        "index": 1,
+        "label": "count",
+        "range": "any int",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "512",
+        "doc": "Max's argument list, in Max's order. The first whole number is how many items the record holds before the oldest starts falling off — Max's 'the first argument sets a maximum number of items to store'. With no argument it holds 512, Max's default, which is also the ceiling: the table is allocated whole at construction, so a larger argument is clamped rather than honoured and a smaller one only lowers how much of that table is used. Values below 1 are raised to 1, since a zero-item record would silently discard everything, and a float is truncated. Max's second argument is the display format, 'a' / 'x' / 'm', which chooses whether the editing window draws numbers in ASCII, hexadecimal or a mix; it is accepted and ignored, the YSE patcher being headless, so that a '.capture 512 x' brought across from Max still builds the object it names.",
+        "name": "maximum",
+        "range": "1-512, optional display format"
+      }
+    ]
+  },
   ".cartopol": {
     "category": "MATH",
     "description": "Control-rate cartesian to polar conversion. Whenever inlet 0 fires it emits the polar form of the point (x, y): its distance from the origin on outlet 0 and its angle in radians, measured from the positive x axis, on outlet 1. Both outlets fire on every evaluation, right one first.",

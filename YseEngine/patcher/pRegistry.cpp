@@ -24,6 +24,7 @@
 #include "genericObjects/gAffix.h"
 #include "genericObjects/gCharCode.h"
 #include "genericObjects/gBag.h"
+#include "genericObjects/gCapture.h"
 #include "genericObjects/gColl.h"
 #include "genericObjects/gCombine.h"
 #include "genericObjects/gSpell.h"
@@ -268,6 +269,10 @@ pRegistry::pRegistry() {
   // multiset .coll's addressed store is not, and the object that answers "which
   // notes are held right now" (issue #495)
   Add(OBJ::G_BAG, gBag::Create);
+
+  // A rolling record of everything that went past — the patcher's debugging
+  // instrument, and the store nothing decides the contents of (issue #496)
+  Add(OBJ::G_CAPTURE, gCapture::Create);
 
   Add(OBJ::G_RECEIVE, gReceive::Create);
   Add(OBJ::G_SEND, gSend::Create);
