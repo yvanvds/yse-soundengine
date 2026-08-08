@@ -5,6 +5,7 @@
 #include "../headers/enums.hpp"
 #include "genericObjects/pDac.h"
 #include "genericObjects/pAdc.h"
+#include "genericObjects/gBag.h"
 #include "genericObjects/gColl.h"
 #include "genericObjects/gForward.h"
 #include "genericObjects/gReceive.h"
@@ -119,6 +120,11 @@ void patcherImplementation::SetName(const std::string& n) {
       // "<patcherName>.<name>" address, so a named collection re-anchors with
       // the values, sends and receives around it (issue #684).
       static_cast<gColl*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_BAG) == 0) {
+      // And gBag, whose `send` message prefixes a runtime receive name with
+      // "<patcherName>." exactly as gForward does, so it has to re-anchor with
+      // the receivers too (issue #685).
+      static_cast<gBag*>(x.second)->RefreshBusPrefix();
     }
   }
   mtx.unlock();

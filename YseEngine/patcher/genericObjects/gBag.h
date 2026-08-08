@@ -105,7 +105,69 @@ namespace YSE {
      *  ``clear`` empties the collection, ``length`` reports its size out the
      *  outlet as an int, and Max's "no output is triggered by a number received in
      *  either inlet" holds: adding and removing are silent, and only ``bang``,
-     *  ``cut`` and ``length`` ever send.
+     *  ``cut``, ``length`` and ``send`` ever send.
+     *
+     *  ### ``send <receive-name>``: a bang aimed at a name (issue #685)
+     *
+     *  Max: "The word ``send``, followed by the name of a ``receive`` object,
+     *  sends the result of a ``bang`` message to all ``receive`` objects with that
+     *  name, instead of out the ``bag`` object's outlet."
+     *
+     *  **It is one message, not a mode.** Issue #685's scope section reads it as a
+     *  persistent redirect — "``send <name>`` redirects what a ``bang`` would have
+     *  sent" — and then has to ask whether ``cut`` and ``length`` follow the
+     *  redirect and whether a bare ``send`` clears it. Max's refpage answers all
+     *  three at once by not having a mode: ``send`` takes one argument, and the
+     *  message itself *"sends the result of a bang"*, right then. It is the same
+     *  shape ``.table``'s ``send`` (#498) already ports from the same family —
+     *  "sends the value stored at the incoming address to all receive objects with
+     *  that name" — and the same shape ``coll`` and ``funbuff`` use. So:
+     *
+     *  - ``send curve`` dumps the whole collection **now**, newest first, exactly
+     *    the numbers and exactly the order a ``bang`` would have sent, to every
+     *    ``.r curve``. Outlet 0 stays silent for that dump: Max's "instead of out
+     *    the bag object's outlet".
+     *  - A later bare ``bang`` goes out the outlet as it always did. Nothing was
+     *    redirected, so nothing has to be un-redirected.
+     *  - ``cut`` and ``length`` **keep the outlet**, always. Max scopes the
+     *    sentence to "the result of a ``bang`` message" and gives them no
+     *    ``send`` form of their own.
+     *  - A bare ``send`` with no name does nothing at all — there is no mode to
+     *    clear, and the empty name addresses nothing. ``.forward``'s rule, for
+     *    ``.forward``'s reason: "not configured" has to stay distinguishable from
+     *    "configured to send there".
+     *  - An empty collection sends nothing, because that is what its ``bang``
+     *    sends.
+     *
+     *  Delivery is ``.s``'s, through ``.table``'s ``SendTo``: every ``.r`` in the
+     *  patcher whose name matches, **and** the global bus under
+     *  ``"<patcherName>.<name>"``. Max's wording names only ``receive`` objects,
+     *  but in this patcher ``.s`` publishes to both and a ``.r`` subscribes to
+     *  both, so reaching only one of the two would make ``send`` mean something
+     *  narrower than the ``.s`` it is standing in for. Every value is an ``int``,
+     *  which matters after #690: the bus drops bang and list payloads published
+     *  from the audio thread but carries ints through its lock-free per-thread
+     *  queue, so a ``send`` reached from a deferred delivery loses nothing.
+     *
+     *  The name is bounded at ``MAX_NAME_LENGTH`` and refused rather than
+     *  truncated past it — ``.forward``'s rule, since the bus truncates a name at
+     *  ``kNameCapacity`` and the in-patcher path does not, so an over-long name
+     *  would address two different receivers on the two paths. Only the first
+     *  token is taken, which is also what Max does with surplus arguments.
+     *
+     *  Nothing on that path allocates: the name and the bus address are refilled
+     *  into strings reserved at construction, and the ``"<patcherName>."`` prefix
+     *  is rebuilt on the control thread by ``SetParent`` and by
+     *  ``patcherImplementation::SetName``. Because those two strings are members
+     *  rather than stack values — ``PassData`` and ``NamedBus::publish`` both want
+     *  a ``std::string`` — a ``send`` that re-entered this object part-way through
+     *  its own burst would rewrite the name under the burst still using it and
+     *  split it between two receivers. On the audio thread ``PassData`` delivers
+     *  *synchronously*, so that is reachable: a ``.r`` wired back round through
+     *  anything that can spell a message. A second ``send`` arriving while one is
+     *  still fanning out is therefore dropped, the object's existing
+     *  loser-of-the-guard discipline, which also bounds the recursion a
+     *  ``send``-to-itself cycle would otherwise run at 1 KB of burst per frame.
      *
      *  ### Real-time behaviour
      *
@@ -142,13 +204,6 @@ namespace YSE {
      *  bag came back holding the notes that were down when it was saved would be
      *  holding notes nothing is sounding.
      *
-     *  ### Deliberately not here
-     *
-     *  Max's ``send <receive-name>``, which redirects a bang's output to
-     *  ``receive`` objects by name instead of out the outlet. It is the same
-     *  name-context feature ``.coll`` deferred, it needs a name buffer written
-     *  from a message path to stay allocation-free, and it is filed as #685
-     *  rather than smuggled in here.
      */
     PATCHER_CLASS(gBag, YSE::OBJ::G_BAG)
     _NO_MESSAGES
@@ -174,6 +229,28 @@ namespace YSE {
      *  into, which is why it is a compile-time constant.
      */
     static constexpr std::size_t MAX_ENTRIES = 256;
+
+    /**
+     *  @brief Longest ``receive`` name ``send`` will accept — 63.
+     *
+     *  ``INTERNAL::NamedBus::kNameCapacity``, asserted against it in the
+     *  implementation so the two cannot drift. A longer name is refused rather
+     *  than truncated: the bus truncates and the in-patcher ``PassData`` path
+     *  does not, so one word would address two different receivers.
+     *  ``.forward``'s limit and ``.table``'s, for the same reason.
+     */
+    static constexpr std::size_t MAX_NAME_LENGTH = 63;
+
+    // Cache the "<patcherName>." prefix `send` builds its bus address from, the
+    // moment the parent is known — gTable::SetParent, and gSend's reason (#187):
+    // concatenating the patcher name per message would allocate on the audio
+    // path.
+    void SetParent(pObject* parent) override;
+
+    // Rebuild that prefix after a patcher rename. Called from
+    // patcherImplementation::SetName so a `send` keeps reaching the receivers
+    // that just re-anchored under the new name.
+    void RefreshBusPrefix();
 
     /** @brief How many numbers the collection holds. */
     std::size_t Count() const {
@@ -256,13 +333,43 @@ namespace YSE {
     // caller can emit with the guard already released.
     std::size_t CaptureNewestFirst(int* out) const;
 
-    // The command half of inlet 0. Returns false when `text` is none of them,
-    // leaving the caller to read it as numbers.
-    bool HandleCommand(const char* text, std::size_t length, YSE::THREAD thread);
+    // Max's `send`: the whole collection, newest first — a bang's numbers and a
+    // bang's order — to every .r named by the first `nameLength` characters at
+    // `name`, and on the global bus under "<patcherName>.<name>". Outlet 0 stays
+    // silent. Refuses a name that is empty or longer than MAX_NAME_LENGTH,
+    // silently, since this may be the audio thread.
+    void SendTo(const char* name, std::size_t nameLength, YSE::THREAD thread);
+
+    // The command half of inlet 0. `word`/`wordLength` is the first token;
+    // `message` and `argOffset` are the whole message and where its arguments
+    // begin, which only `send` needs. Returns false when the token is none of
+    // the commands, leaving the caller to read the message as numbers.
+    bool HandleCommand(const char* word, std::size_t wordLength, const std::string& message,
+                       std::size_t argOffset, YSE::THREAD thread);
 
     // Claimed with a single exchange by readers and writers alike; the loser
     // drops. Mutable so the const diagnostic accessors can take it.
     mutable std::atomic<bool> busy{false};
+
+    // The same guard around `send`'s fan-out, protecting the two name strings
+    // below rather than the store: they are members, PassData delivers
+    // synchronously on the audio thread, and a re-entrant `send` would rewrite
+    // the name under the burst still using it. Separate from `busy`, which is
+    // released before the first send by design.
+    std::atomic<bool> sending{false};
+
+    // "<patcherName>.", built on the control thread by SetParent /
+    // RefreshBusPrefix and empty until a parent is assigned.
+    std::string busPrefix;
+
+    // busPrefix + sendName — the address a `send` publishes under. Reserved at
+    // construction for the longest name the object accepts, so refilling it on
+    // the message path neither allocates nor frees.
+    std::string busAddress;
+
+    // The name a `send` was handed, held as a member because PassData wants a
+    // std::string. Reserved for MAX_NAME_LENGTH at construction.
+    std::string sendName;
 
     // The table. Sized to MAX_ENTRIES at construction and never resized; only
     // the first `count` entries are live, oldest at 0.

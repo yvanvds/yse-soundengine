@@ -1,14 +1,35 @@
 #include "gBag.h"
+#include "../../internal/global.h"
+#include "../../internal/namedBus.h"
 #include "../math/gExprEval.h"
 #include "../pListArgs.h"
 #include "../pObjectList.hpp"
 #include "../pSelector.h"
+#include "../patcherImplementation.h"
 
 using namespace YSE::PATCHER;
 
 #define className gBag
 
 namespace {
+
+  using YSE::INTERNAL::Bus;
+  using YSE::INTERNAL::BusValue;
+
+  // The bus is owned by INTERNAL::Global() between init() and close(); skip
+  // publishing outside that window so tests instantiating a patcher without
+  // first calling `System::init()` keep working through the local path — the
+  // gSend / gForward / gTable rule, and for the same reason.
+  inline bool busAvailable() {
+    return YSE::INTERNAL::Global().isActive();
+  }
+
+  // The bus truncates a published name at kNameCapacity while the in-patcher
+  // PassData path does not, so the two would disagree about where an over-long
+  // destination points. `send` refuses such a name outright; this keeps the limit
+  // it refuses by pinned to the limit that motivates it — gForward's assertion.
+  static_assert(gBag::MAX_NAME_LENGTH == YSE::INTERNAL::NamedBus::kNameCapacity,
+                "gBag::MAX_NAME_LENGTH must track NamedBus::kNameCapacity");
 
   // The bounds of the token starting at or after `from`, or false when there is
   // none. Walked in place rather than through substr: this runs on whichever
@@ -45,8 +66,13 @@ namespace {
       "reverse "
       "of the shorthand in issue #495. A bang sends the whole collection out the outlet one number "
       "at a time, newest first. 'cut' sends the oldest number and deletes it, 'length' reports how "
-      "many numbers are stored, and 'clear' empties the collection. An add past 256 numbers is "
-      "refused whole and silently, since this inlet may be the audio thread.";
+      "many numbers are stored, and 'clear' empties the collection. 'send <receive-name>' is Max's "
+      "'sends the result of a bang message to all receive objects with that name, instead of out "
+      "the bag object's outlet' — one message rather than a mode, so it dumps the collection to "
+      "every .r of that name right then and outlet 0 stays silent for that dump, while a later "
+      "bang goes out the outlet as usual and 'cut' and 'length' always do. A bare 'send' with no "
+      "name does nothing, and a name longer than 63 characters is refused. An add past 256 numbers "
+      "is refused whole and silently, since this inlet may be the audio thread.";
 
   constexpr char kFlagDoc[] =
       "Whether the next number on inlet 0 is added or removed — Max's 'if non-zero, the number "
@@ -61,8 +87,9 @@ namespace {
       "Numbers leaving the collection, always as ints. A bang sends every stored number one at a "
       "time in Max's 'reverse order from that in which they were stored', so the newest comes out "
       "first; 'cut' sends the single oldest one and takes it out of the collection; 'length' sends "
-      "the number of entries. Adding and removing send nothing at all. The whole burst a bang "
-      "sends "
+      "the number of entries. Adding and removing send nothing at all, and neither does a 'send "
+      "<receive-name>' dump — Max's 'instead of out the bag object's outlet' — which goes to the "
+      "named .r objects and the global bus instead. The whole burst a bang sends "
       "is captured before the first send, so a patch that wires this outlet back into the inlet "
       "does not change the burst it is still receiving.";
 
@@ -97,6 +124,13 @@ CONSTRUCT() {
   // message path ever resizes it, which is what makes an add from a rendering
   // graph allocation-free.
   entries.resize(MAX_ENTRIES);
+
+  // The two allocations `send` would otherwise need on the message path. Taken
+  // here, on the control thread, for the longest name the object will accept;
+  // RefreshBusPrefix() grows the address again once the patcher name it is
+  // prefixed with is known — gForward's and gTable's pattern.
+  sendName.reserve(MAX_NAME_LENGTH);
+  busAddress.reserve(MAX_NAME_LENGTH);
 
   ADD_DESCRIPTION(
       "Stores an unordered collection of numbers that a patch adds to and removes from — Max's "
@@ -143,8 +177,15 @@ CONSTRUCT() {
       "duplicate flag survives a save because it is a creation argument; the contents deliberately "
       "do not, since Max's bag has no 'save data with patcher' flag — that is coll's — and a "
       "reloaded patch holding the notes that were down when it was saved would be holding notes "
-      "nothing is sounding. Not ported: Max's 'send <receive-name>', which redirects a bang's "
-      "output to receive objects by name, deferred as issue #685.");
+      "nothing is sounding. 'send <receive-name>' is Max's 'the word send, followed by the name of "
+      "a receive object, sends the result of a bang message to all receive objects with that name, "
+      "instead of out the bag object's outlet': one message rather than a mode, the shape .table's "
+      "send has, so it dumps the collection then and there — a bang's numbers in a bang's order — "
+      "to every .r of that name and on the global bus as '<patcherName>.<name>', while outlet 0 "
+      "stays silent for that dump. Nothing is redirected, so a later bang goes out the outlet as "
+      "usual, 'cut' and 'length' always keep the outlet, and a bare 'send' with no name does "
+      "nothing at all. The name is refused rather than truncated past 63 characters, since the bus "
+      "truncates there and the in-patcher path does not.");
   ADD_CATEGORY(pCategory::GENERIC);
   INLET_DOC(0, "value", kValueDoc, "any int");
   INLET_DOC(1, "flag", kFlagDoc, "0 or non-zero");
@@ -169,6 +210,27 @@ PARM_CLEAR() {
 
 PARM_PARSE() {
   duplicates = !duplicateArg.empty();
+}
+
+// ─── the patcher's name, for `send` ───────────────────────────────────────────
+
+// `parent` is a patcherImplementation by construction (the patcher hands itself
+// to every object via SetParent); the cast mirrors the PassData call in SendTo.
+void gBag::SetParent(pObject* newParent) {
+  pObject::SetParent(newParent);
+  RefreshBusPrefix();
+}
+
+void gBag::RefreshBusPrefix() {
+  if (parent == nullptr) {
+    busPrefix.clear();
+  } else {
+    auto* p = static_cast<patcherImplementation*>(parent);
+    busPrefix = p->Name() + ".";
+  }
+  // Control thread. Size the address for the longest name `send` will ever
+  // accept under the current prefix, so the message path only refills it.
+  busAddress.reserve(busPrefix.size() + MAX_NAME_LENGTH);
 }
 
 // ─── the store ────────────────────────────────────────────────────────────────
@@ -226,9 +288,61 @@ std::size_t gBag::CaptureNewestFirst(int* out) const {
   return count;
 }
 
+// ─── send ─────────────────────────────────────────────────────────────────────
+
+void gBag::SendTo(const char* name, std::size_t nameLength, YSE::THREAD thread) {
+  // Nothing but whitespace names nothing, and an over-long name would address one
+  // receiver locally and a truncated one on the bus — gForward's rule, refused
+  // silently since this may be the audio thread.
+  if (nameLength == 0 || nameLength > MAX_NAME_LENGTH) return;
+  if (parent == nullptr) return;
+
+  // The name strings are members, and PassData delivers synchronously when this
+  // is the audio thread, so a `send` that came back round into this object would
+  // rewrite the name under the burst still using it. The second one drops — the
+  // object's loser-of-the-guard discipline — which also bounds the recursion a
+  // send-to-itself cycle would run at 1 KB of burst per frame.
+  storeGuard reentry(sending);
+  if (!reentry.Held()) return;
+
+  // Max: "sends the result of a bang message", so this is BangIn's capture — a
+  // bang's numbers in a bang's order, taken whole before the first send with the
+  // store guard released again.
+  int burst[MAX_ENTRIES];
+  const std::size_t written = CaptureNewestFirst(burst);
+  // An empty collection sends nothing, because that is what its bang sends.
+  if (written == 0) return;
+
+  // Both strings were reserved for this on the control thread, so refilling them
+  // here allocates nothing.
+  sendName.assign(name, nameLength);
+  busAddress.assign(busPrefix);
+  busAddress.append(sendName);
+
+  auto* p = static_cast<patcherImplementation*>(parent);
+  // CallingThread, not the tag: this send is reachable from a deferred delivery,
+  // where T_GUI is carried on the audio callback and the bus's parked-publish
+  // path takes a mutex. gSend.cpp carries the note (issue #690). Everything here
+  // is an int, which the bus carries on both paths — only bang and list payloads
+  // fall under its audio-thread drop contract. Asked once: the answer cannot
+  // change part-way through a burst.
+  const YSE::THREAD physical = p->CallingThread(thread);
+  const bool toBus = busAvailable();
+
+  for (std::size_t i = 0; i < written; i++) {
+    // Outlet 0 is deliberately not touched: Max's "instead of out the bag
+    // object's outlet".
+    p->PassData(burst[i], sendName, thread);
+    if (toBus) {
+      Bus().publish(busAddress, BusValue{burst[i]}, physical);
+    }
+  }
+}
+
 // ─── commands ─────────────────────────────────────────────────────────────────
 
-bool gBag::HandleCommand(const char* word, std::size_t length, YSE::THREAD thread) {
+bool gBag::HandleCommand(const char* word, std::size_t length, const std::string& message,
+                         std::size_t argOffset, YSE::THREAD thread) {
   if (TokenIs(word, length, "clear", 5)) {
     storeGuard guard(busy);
     if (!guard.Held()) return true;
@@ -271,6 +385,23 @@ bool gBag::HandleCommand(const char* word, std::size_t length, YSE::THREAD threa
       live = count;
     }
     outputs[0].SendInt((int)live, thread);
+    return true;
+  }
+
+  if (TokenIs(word, length, "send", 4)) {
+    // Max: "the word send, followed by the name of a receive object, sends the
+    // result of a bang message to all receive objects with that name, instead of
+    // out the bag object's outlet". One message, not a mode — the shape .table's
+    // send (#498) already ports from the same family of objects.
+    std::size_t begin = 0;
+    std::size_t end = 0;
+    // A bare `send` names nothing and does nothing: there is no mode to clear,
+    // and the empty name is .forward's "not configured" rather than an address.
+    if (!NextToken(message.c_str(), message.size(), argOffset, begin, end)) return true;
+    // The first token only, which is what Max does with surplus arguments and
+    // what a name has to be to match a .r at all — Parameters::Set tokenises a
+    // creation argument the same way.
+    SendTo(message.c_str() + begin, end - begin, thread);
     return true;
   }
 
@@ -319,9 +450,9 @@ LIST_IN(ListIn) {
   std::size_t end = 0;
   if (!NextToken(text, length, 0, begin, end)) return;
 
-  // A command first. Only three words are reserved and none of them is a
+  // A command first. Only four words are reserved and none of them is a
   // number, so nothing this inlet legitimately carries can collide with one.
-  if (HandleCommand(text + begin, end - begin, thread)) return;
+  if (HandleCommand(text + begin, end - begin, value, end, thread)) return;
 
   // Max documents no `anything` method for bag, so a message that does not
   // start with a number is not one of its messages and is ignored.
