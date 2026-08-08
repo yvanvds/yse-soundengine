@@ -294,6 +294,45 @@ TEST_SUITE("patcher") {
     CHECK(sink.intValue == 7);
   }
 
+  TEST_CASE("bus routing: renaming the parent patcher re-anchors a .table (#699)") {
+    // Same miss as #485, one object later: .table's `send` (#498) caches the
+    // "<patcherName>." prefix through .forward's pre-reserved-string pattern but
+    // was left out of patcherImplementation::SetName, so it kept publishing under
+    // the old patcher name while every .r around it re-anchored under the new
+    // one. The receiver lives in the *other* patcher deliberately: the in-patcher
+    // PassData half matches on the bare name and never noticed the stale prefix,
+    // which is what made the failure silent and partial.
+    REQUIRE(TestHelpers::engineInit());
+
+    YSE::patcher a;
+    a.name("table.rename.src").create(2);
+    YSE::patcher b;
+    b.name("table.rename.dst").create(2);
+
+    YSE::pHandle* t = a.CreateObject(YSE::OBJ::G_TABLE, "8");
+    YSE::pHandle* recv = b.CreateObject(YSE::OBJ::G_RECEIVE, "curve");
+    REQUIRE(t != nullptr);
+    REQUIRE(recv != nullptr);
+
+    MultiSink sink;
+    YSE::pHandle sinkHandle(&sink);
+    b.Connect(recv, 0, &sinkHandle, 0);
+
+    t->SetListData(0, "set 4 321");
+
+    // Different names, so nothing crosses yet.
+    t->SetListData(0, "send curve 4");
+    CHECK_FALSE(sink.gotInt);
+
+    // Now the two patchers share a name and the send has to follow.
+    a.name("table.rename.shared");
+    b.name("table.rename.shared");
+    sink.reset();
+    t->SetListData(0, "send curve 4");
+    CHECK(sink.gotInt);
+    CHECK(sink.intValue == 321);
+  }
+
   TEST_CASE("bus routing: a .forward with no destination publishes nothing (#485)") {
     // "<patcherName>." is a real, reachable bus address — the one an unnamed
     // gReceive subscribes to. An unconfigured .forward that published to it

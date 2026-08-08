@@ -10,6 +10,7 @@
 #include "genericObjects/gForward.h"
 #include "genericObjects/gReceive.h"
 #include "genericObjects/gSend.h"
+#include "genericObjects/gTable.h"
 #include "genericObjects/gValue.h"
 #include "pHandle.hpp"
 #include "../utils/json.hpp"
@@ -125,6 +126,10 @@ void patcherImplementation::SetName(const std::string& n) {
       // "<patcherName>." exactly as gForward does, so it has to re-anchor with
       // the receivers too (issue #685).
       static_cast<gBag*>(x.second)->RefreshBusPrefix();
+    } else if (strcmp(x.second->Type(), OBJ::G_TABLE) == 0) {
+      // And gTable, whose `send` prefixes its runtime destination the same way
+      // gBag and gForward do (issue #699).
+      static_cast<gTable*>(x.second)->RefreshBusPrefix();
     }
   }
   mtx.unlock();
