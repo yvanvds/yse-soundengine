@@ -38,6 +38,7 @@ namespace YSE {
    *  - Randomness: ``G_RANDOM``, ``G_DRUNK``, ``G_URN``, ``G_DECIDE``,
    *    ``G_PROB``, ``G_ANAL``, ``G_HISTO``.
    *  - Statistics: ``G_ANAL``, ``G_HISTO``, ``G_MEAN``.
+   *  - Shared state: ``G_VALUE``.
    *  - Messaging: ``G_SEND``, ``G_RECEIVE``, ``G_FORWARD``, ``G_ROUTE``,
    *    ``G_ROUTEPASS``,
    *    ``G_SEL``, ``G_TRIGGER``, ``G_BANGBANG``, ``G_ONEBANG``, ``G_NEXT``,
@@ -81,6 +82,7 @@ namespace YSE {
     DEFOBJ(G_ROUTER, ".router");
     DEFOBJ(G_MATRIX, ".matrix");
     DEFOBJ(G_FORWARD, ".forward");
+    DEFOBJ(G_VALUE, ".value");
     DEFOBJ(G_SEL, ".sel");
     DEFOBJ(G_TRIGGER, ".trigger");
     DEFOBJ(G_BANGBANG, ".bangbang");

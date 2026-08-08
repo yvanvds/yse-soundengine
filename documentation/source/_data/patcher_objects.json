@@ -4742,6 +4742,49 @@
       }
     ]
   },
+  ".value": {
+    "category": "GENERIC",
+    "description": "Named cell shared by every .value with the same name. A value arriving on the inlet is stored for all of them and emitted by none; a bang emits what is stored. The cell is addressed as \"<patcherName>.<name>\", the same address form .s and .r use, so patchers sharing a name share their values. An unnamed .value keeps a cell of its own.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Bang emits the stored value; int / float / list store one for every .value of this name without emitting anything. A list longer than 256 characters is refused and the stored value kept.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".value",
+    "outlets": [
+      {
+        "doc": "The stored value, on a bang. Nothing at all until something has been stored.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "Name of the shared cell. Empty gives this object a private cell rather than pooling it with every other unnamed .value.",
+        "name": "valueName",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "Value the cell starts at — the rest of the argument string, so \"0 0\" is a list. Applied only by the object that creates the cell; a later .value of the same name adopts what is already stored.",
+        "name": "initial",
+        "range": "any int, float or list"
+      }
+    ]
+  },
   ".vexpr": {
     "category": "MATH",
     "description": "Evaluates a C-like mathematical expression once for every element of a list, so one object replaces an iteration loop: scaling a chord, transposing a motif or bending a set of breakpoints becomes a single box. The expression is the creation argument and the language is exactly .expr's - its $i1-$i9 and $f1-$f9 placeholders name the inlets ($i reads as an int, $f as a float), the object gets one inlet past the highest placeholder used, and the operators, the functions and the C type rules are the same, so read .expr for the details. The difference is the data: every inlet holds a list rather than a single value, and an int or a float is simply a one-item list. An inlet holding one item is broadcast across all the elements (Max's scalarmode 1), so a list on one inlet and a number on another scales the list; otherwise the number of results is the length of the shortest list among the inlets the expression actually reads. Inlet 0 is hot: it stores its list and evaluates, while the other inlets only store. A bang on inlet 0 re-evaluates from the stored lists. A single result is sent as an int or a float, and a longer one as a list. Lists are held at up to 256 items per inlet (Max's default maxsize) and anything past that is dropped. The expression is compiled once, when the parameter is set; evaluation only walks the compiled form and writes into a buffer reserved up front, so it allocates nothing and takes no lock. A malformed expression is reported to the log at parse time and the object then sends 0.",

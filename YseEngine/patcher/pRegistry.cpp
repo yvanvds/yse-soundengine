@@ -23,6 +23,7 @@
 #include "genericObjects/gMatch.h"
 #include "genericObjects/gDecode.h"
 #include "genericObjects/gForward.h"
+#include "genericObjects/gValue.h"
 #include "genericObjects/gFunnel.h"
 #include "genericObjects/gSpray.h"
 #include "genericObjects/gUzi.h"
@@ -213,6 +214,10 @@ pRegistry::pRegistry() {
   // A .s whose destination name arrives as a message rather than being fixed at
   // creation (issue #485)
   Add(OBJ::G_FORWARD, gForward::Create);
+
+  // A named cell shared by every .value of that name — the pull half of what
+  // .s / .r push (issue #486)
+  Add(OBJ::G_VALUE, gValue::Create);
 
   Add(OBJ::D_ADD, dAdd::Create);
   Add(OBJ::D_SUBSTRACT, dSubstract::Create);

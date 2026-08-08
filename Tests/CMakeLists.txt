@@ -92,6 +92,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_router.cpp
   patcher/test_patcher_matrix.cpp
   patcher/test_patcher_routepass.cpp
+  patcher/test_patcher_value.cpp
   patcher/test_message_scheduler.cpp
   patcher/test_patcher_slide.cpp
   patcher/test_patcher_expr.cpp
@@ -834,6 +835,7 @@ set_source_files_properties(
   patcher/test_patcher_router.cpp
   patcher/test_patcher_matrix.cpp
   patcher/test_patcher_routepass.cpp
+  patcher/test_patcher_value.cpp
   patcher/test_message_scheduler.cpp
   patcher/test_patcher_slide.cpp
   patcher/test_patcher_expr.cpp
