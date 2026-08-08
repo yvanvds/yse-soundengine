@@ -7,7 +7,10 @@
 #include "genericObjects/pLine.h"
 #include "genericObjects/gSwitch.h"
 #include "genericObjects/gGate.h"
+#include "genericObjects/gMatrix.h"
 #include "genericObjects/gRoute.h"
+#include "genericObjects/gRoutePass.h"
+#include "genericObjects/gRouter.h"
 #include "genericObjects/gSel.h"
 #include "genericObjects/gTrigger.h"
 #include "genericObjects/gBangBang.h"
@@ -19,6 +22,8 @@
 #include "genericObjects/gCycle.h"
 #include "genericObjects/gMatch.h"
 #include "genericObjects/gDecode.h"
+#include "genericObjects/gForward.h"
+#include "genericObjects/gValue.h"
 #include "genericObjects/gFunnel.h"
 #include "genericObjects/gSpray.h"
 #include "genericObjects/gUzi.h"
@@ -144,6 +149,10 @@ pRegistry::pRegistry() {
   Add(OBJ::G_GATE, gGate::Create);
   Add(OBJ::G_ROUTE, gRoute::Create);
 
+  // Route a complete message by what its first item matches, without consuming
+  // that item (issue #483)
+  Add(OBJ::G_ROUTEPASS, gRoutePass::Create);
+
   // Bang the outlet whose selector the input matches (issue #465)
   Add(OBJ::G_SEL, gSel::Create);
 
@@ -185,6 +194,14 @@ pRegistry::pRegistry() {
   // Send 1 out a selected outlet and 0 out every other (issue #481)
   Add(OBJ::G_DECODE, gDecode::Create);
 
+  // A message crossbar: any inlet to any set of outlets, connections set by
+  // messages rather than by patch cords (issue #482)
+  Add(OBJ::G_ROUTER, gRouter::Create);
+
+  // The same crossbar with a gain per cell rather than a switch: a
+  // control-domain patchbay for routing modulation (issue #484)
+  Add(OBJ::G_MATRIX, gMatrix::Create);
+
   // Conditional message dispatch (issue #451)
   Add(OBJ::G_IF, gIf::Create);
 
@@ -193,6 +210,14 @@ pRegistry::pRegistry() {
 
   Add(OBJ::G_RECEIVE, gReceive::Create);
   Add(OBJ::G_SEND, gSend::Create);
+
+  // A .s whose destination name arrives as a message rather than being fixed at
+  // creation (issue #485)
+  Add(OBJ::G_FORWARD, gForward::Create);
+
+  // A named cell shared by every .value of that name — the pull half of what
+  // .s / .r push (issue #486)
+  Add(OBJ::G_VALUE, gValue::Create);
 
   Add(OBJ::D_ADD, dAdd::Create);
   Add(OBJ::D_SUBSTRACT, dSubstract::Create);

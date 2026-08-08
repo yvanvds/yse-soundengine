@@ -203,4 +203,163 @@ TEST_SUITE("patcher") {
     CHECK(peerSink.intValue == 5);
   }
 
+  // ─── .forward (issue #485) ──────────────────────────────────────────────────
+  //
+  // The object-level suite (test_patcher_forward.cpp) runs without an engine, so
+  // it can only reach the in-patcher PassData half. These cases run the real
+  // thing end to end: a live engine, the global bus, and receivers in a *second*
+  // patcher — which is where the "<patcherName>.<destination>" address is
+  // actually exercised, and the only place the cached prefix can be caught
+  // going stale.
+
+  TEST_CASE("bus routing: .forward re-aimed at run time reaches a different receiver (#485)") {
+    REQUIRE(TestHelpers::engineInit());
+
+    YSE::patcher a;
+    a.name("fwd.live").create(2);
+    YSE::patcher b;
+    b.name("fwd.live").create(2);
+
+    YSE::pHandle* fwd = a.CreateObject(YSE::OBJ::G_FORWARD, "cutoff");
+    YSE::pHandle* cutoff = b.CreateObject(YSE::OBJ::G_RECEIVE, "cutoff");
+    YSE::pHandle* res = b.CreateObject(YSE::OBJ::G_RECEIVE, "res");
+    REQUIRE(fwd != nullptr);
+    REQUIRE(cutoff != nullptr);
+    REQUIRE(res != nullptr);
+
+    MultiSink cutoffSink;
+    YSE::pHandle cutoffHandle(&cutoffSink);
+    b.Connect(cutoff, 0, &cutoffHandle, 0);
+    MultiSink resSink;
+    YSE::pHandle resHandle(&resSink);
+    b.Connect(res, 0, &resHandle, 0);
+
+    fwd->SetIntData(0, 42);
+    CHECK(cutoffSink.gotInt);
+    CHECK(cutoffSink.intValue == 42);
+    CHECK_FALSE(resSink.gotInt);
+
+    // The whole object: one message re-aims it, with no edit to the graph.
+    cutoffSink.reset();
+    fwd->SetListData(1, "res");
+    fwd->SetIntData(0, 7);
+    CHECK_FALSE(cutoffSink.gotInt);
+    CHECK(resSink.gotInt);
+    CHECK(resSink.intValue == 7);
+
+    // And the float / list payloads travel the same address.
+    resSink.reset();
+    fwd->SetFloatData(0, 0.125f);
+    CHECK(resSink.gotFloat);
+    CHECK(resSink.floatValue == doctest::Approx(0.125f));
+
+    resSink.reset();
+    fwd->SetListData(0, "open sesame");
+    CHECK(resSink.gotList);
+    CHECK(resSink.listValue == "open sesame");
+  }
+
+  TEST_CASE("bus routing: renaming the parent patcher re-anchors a .forward (#485)") {
+    // .forward caches the "<patcherName>." prefix its destination is appended
+    // to, exactly as gSend caches the whole address — so patcherImplementation
+    // ::SetName has to refresh it or the object keeps publishing under the old
+    // patcher name.
+    REQUIRE(TestHelpers::engineInit());
+
+    YSE::patcher a;
+    a.name("fwd.rename.src").create(2);
+    YSE::patcher b;
+    b.name("fwd.rename.dst").create(2);
+
+    YSE::pHandle* fwd = a.CreateObject(YSE::OBJ::G_FORWARD, "v");
+    YSE::pHandle* recv = b.CreateObject(YSE::OBJ::G_RECEIVE, "v");
+    REQUIRE(fwd != nullptr);
+    REQUIRE(recv != nullptr);
+
+    MultiSink sink;
+    YSE::pHandle sinkHandle(&sink);
+    b.Connect(recv, 0, &sinkHandle, 0);
+
+    fwd->SetIntData(0, 1);
+    CHECK_FALSE(sink.gotInt);
+
+    a.name("fwd.rename.shared");
+    b.name("fwd.rename.shared");
+    sink.reset();
+    fwd->SetIntData(0, 7);
+    CHECK(sink.gotInt);
+    CHECK(sink.intValue == 7);
+  }
+
+  TEST_CASE("bus routing: a .forward with no destination publishes nothing (#485)") {
+    // "<patcherName>." is a real, reachable bus address — the one an unnamed
+    // gReceive subscribes to. An unconfigured .forward that published to it
+    // would broadcast into every same-named patcher in the process.
+    REQUIRE(TestHelpers::engineInit());
+
+    YSE::patcher a;
+    a.name("fwd.unset").create(2);
+    YSE::patcher b;
+    b.name("fwd.unset").create(2);
+
+    YSE::pHandle* fwd = a.CreateObject(YSE::OBJ::G_FORWARD);
+    YSE::pHandle* recv = b.CreateObject(YSE::OBJ::G_RECEIVE);
+    REQUIRE(fwd != nullptr);
+    REQUIRE(recv != nullptr);
+
+    MultiSink sink;
+    YSE::pHandle sinkHandle(&sink);
+    b.Connect(recv, 0, &sinkHandle, 0);
+
+    fwd->SetIntData(0, 1);
+    fwd->SetBang(0);
+    fwd->SetListData(0, "hello");
+    CHECK_FALSE(sink.gotInt);
+    CHECK_FALSE(sink.gotBang);
+    CHECK_FALSE(sink.gotList);
+
+    // Once it is told where to point, the same object reaches that receiver.
+    fwd->SetListData(1, "target");
+    YSE::pHandle* target = b.CreateObject(YSE::OBJ::G_RECEIVE, "target");
+    REQUIRE(target != nullptr);
+    MultiSink targetSink;
+    YSE::pHandle targetHandle(&targetSink);
+    b.Connect(target, 0, &targetHandle, 0);
+
+    fwd->SetIntData(0, 5);
+    CHECK(targetSink.gotInt);
+    CHECK(targetSink.intValue == 5);
+  }
+
+  TEST_CASE("bus routing: .forward globalOnly=1 skips in-patcher PassData (#485)") {
+    // Parity with gSend's parameter of the same name: the local fan-out is
+    // suppressed, the bus publish is not.
+    REQUIRE(TestHelpers::engineInit());
+
+    YSE::patcher local;
+    local.name("fwd.globalOnly").create(2);
+    YSE::pHandle* fwd = local.CreateObject(YSE::OBJ::G_FORWARD, "ping 1");
+    YSE::pHandle* recv = local.CreateObject(YSE::OBJ::G_RECEIVE, "ping");
+    REQUIRE(fwd != nullptr);
+    REQUIRE(recv != nullptr);
+
+    MultiSink localSink;
+    YSE::pHandle localSinkHandle(&localSink);
+    local.Connect(recv, 0, &localSinkHandle, 0);
+
+    YSE::patcher peer;
+    peer.name("fwd.globalOnly").create(2);
+    YSE::pHandle* peerRecv = peer.CreateObject(YSE::OBJ::G_RECEIVE, "ping");
+    REQUIRE(peerRecv != nullptr);
+    MultiSink peerSink;
+    YSE::pHandle peerSinkHandle(&peerSink);
+    peer.Connect(peerRecv, 0, &peerSinkHandle, 0);
+
+    fwd->SetIntData(0, 5);
+    CHECK(localSink.gotInt);
+    CHECK(localSink.intValue == 5);
+    CHECK(peerSink.gotInt);
+    CHECK(peerSink.intValue == 5);
+  }
+
 } // TEST_SUITE("patcher")

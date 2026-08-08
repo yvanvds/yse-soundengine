@@ -5,8 +5,10 @@
 #include "../headers/enums.hpp"
 #include "genericObjects/pDac.h"
 #include "genericObjects/pAdc.h"
+#include "genericObjects/gForward.h"
 #include "genericObjects/gReceive.h"
 #include "genericObjects/gSend.h"
+#include "genericObjects/gValue.h"
 #include "pHandle.hpp"
 #include "../utils/json.hpp"
 #include <algorithm>
@@ -64,6 +66,15 @@ void patcherImplementation::SetName(const std::string& n) {
       // Keep gSend's cached bus address in step with the receivers that just
       // re-anchored, so sends still reach them under the new name (issue #187).
       static_cast<gSend*>(x.second)->RefreshBusAddress();
+    } else if (strcmp(x.second->Type(), OBJ::G_FORWARD) == 0) {
+      // Same for gForward, which caches the "<patcherName>." prefix its runtime
+      // destination is appended to (issue #485).
+      static_cast<gForward*>(x.second)->RefreshBusAddress();
+    } else if (strcmp(x.second->Type(), OBJ::G_VALUE) == 0) {
+      // gValue addresses its shared cell as "<patcherName>.<name>" too, so a
+      // rename moves it onto the cell the renamed patcher's sends and receives
+      // now speak about (issue #486).
+      static_cast<gValue*>(x.second)->RefreshBinding();
     }
   }
   mtx.unlock();

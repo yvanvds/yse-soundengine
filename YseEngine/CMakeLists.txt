@@ -114,22 +114,27 @@ set(YSE_SRCS
   patcher/genericObjects/gBuddy.cpp
   patcher/genericObjects/gCycle.cpp
   patcher/genericObjects/gDecode.cpp
+  patcher/genericObjects/gForward.cpp
   patcher/genericObjects/gFunnel.cpp
   patcher/genericObjects/gGate.cpp
   patcher/genericObjects/gIf.cpp
   patcher/genericObjects/gMatch.cpp
+  patcher/genericObjects/gMatrix.cpp
   patcher/genericObjects/gNext.cpp
   patcher/genericObjects/gOneBang.cpp
   patcher/genericObjects/gReceive.cpp
   patcher/genericObjects/gRegexEngine.cpp
   patcher/genericObjects/gRegexp.cpp
   patcher/genericObjects/gRoute.cpp
+  patcher/genericObjects/gRoutePass.cpp
+  patcher/genericObjects/gRouter.cpp
   patcher/genericObjects/gSel.cpp
   patcher/genericObjects/gSend.cpp
   patcher/genericObjects/gSpray.cpp
   patcher/genericObjects/gSwitch.cpp
   patcher/genericObjects/gTrigger.cpp
   patcher/genericObjects/gUzi.cpp
+  patcher/genericObjects/gValue.cpp
   patcher/genericObjects/pAdc.cpp
   patcher/genericObjects/pDac.cpp
   patcher/genericObjects/pLine.cpp
@@ -314,21 +319,26 @@ set_source_files_properties(
   patcher/genericObjects/gBuddy.cpp
   patcher/genericObjects/gCycle.cpp
   patcher/genericObjects/gDecode.cpp
+  patcher/genericObjects/gForward.cpp
   patcher/genericObjects/gFunnel.cpp
   patcher/genericObjects/gGate.cpp
   patcher/genericObjects/gIf.cpp
   patcher/genericObjects/gMatch.cpp
+  patcher/genericObjects/gMatrix.cpp
   patcher/genericObjects/gNext.cpp
   patcher/genericObjects/gOneBang.cpp
   patcher/genericObjects/gReceive.cpp
   patcher/genericObjects/gRegexp.cpp
   patcher/genericObjects/gRoute.cpp
+  patcher/genericObjects/gRoutePass.cpp
+  patcher/genericObjects/gRouter.cpp
   patcher/genericObjects/gSel.cpp
   patcher/genericObjects/gSend.cpp
   patcher/genericObjects/gSpray.cpp
   patcher/genericObjects/gSwitch.cpp
   patcher/genericObjects/gTrigger.cpp
   patcher/genericObjects/gUzi.cpp
+  patcher/genericObjects/gValue.cpp
   patcher/genericObjects/pAdc.cpp
   patcher/genericObjects/pDac.cpp
   patcher/genericObjects/pLine.cpp
