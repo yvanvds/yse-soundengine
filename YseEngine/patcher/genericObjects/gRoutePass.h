@@ -1,5 +1,6 @@
 #pragma once
 #include "../pObject.h"
+#include "../pSelector.h"
 #include <cstddef>
 #include <string>
 #include <vector>
@@ -118,6 +119,15 @@ namespace YSE {
      *  arrived, so the pass-through costs nothing the stripping form would not
      *  also have cost. The selector table is built on the control thread by the
      *  parameter callbacks and is never written by a message handler.
+     *
+     *  ### Where the matcher lives
+     *
+     *  In ``SelectorTable`` (``pSelector.h``), shared with ``.sel`` and
+     *  ``.route`` (issue #680) — the code now sits where the "the matcher is
+     *  ``.sel``'s, deliberately" above always said it did. What stays here is
+     *  the part this object legitimately does differently: the parse loop's
+     *  ``MAX_SELECTORS`` ceiling and empty-token skip, the absence of a default
+     *  selector, and the fact that a match forwards the whole message.
      */
     PATCHER_CLASS(gRoutePass, YSE::OBJ::G_ROUTEPASS)
     _NO_MESSAGES
@@ -148,7 +158,7 @@ namespace YSE {
      *  and passes everything through the one outlet it has.
      */
     int SelectorCount() const {
-      return (int)selectors.size();
+      return (int)selectors.Size();
     }
 
     /** @brief Whether selector @p index is a number rather than a symbol.
@@ -164,27 +174,6 @@ namespace YSE {
     std::string SelectorText(int index) const;
 
   private:
-    // One creation argument, resolved once. `numeric` decides which of the two
-    // other fields means anything, and a numeric selector never matches a
-    // symbol or the other way round. The same three fields `.sel` resolves its
-    // arguments into, because the two objects have to agree on what a selector
-    // is.
-    struct Selector {
-      std::string text;
-      float value;
-      bool numeric;
-    };
-
-    // Index of the selector @p value matches, or -1. Leftmost wins, which is
-    // Max's rule for a repeated argument.
-    int MatchNumber(float value) const;
-
-    // Index of the symbolic selector whose text is exactly the @p length
-    // characters at @p text, or -1. Takes a range rather than a std::string so
-    // the leading token of a list can be matched without a substr on whichever
-    // thread the message arrived on.
-    int MatchSymbol(const char* text, std::size_t length) const;
-
     // Rebuild the outlets from the current selector table, docs included.
     // Control thread only: called from the constructor and from the parameter
     // callbacks, all of which run before the object is wired or published.
@@ -194,11 +183,13 @@ namespace YSE {
     // Parameters::Set, read by ParseParams(), never by a message handler.
     std::vector<std::string> selectorArgs;
 
-    // The resolved selectors. Sized by ParseParams() / ClearParams() before the
-    // object is published and never resized afterwards, so a handler's walk
-    // over it cannot race a reallocation; no message handler writes to it at
-    // all, since this object has no settable inlet.
-    std::vector<Selector> selectors;
+    // The resolved selectors, and the matcher over them — the shared table
+    // `.sel` and `.route` hold too (#680). Sized by ParseParams() /
+    // ClearParams() before the object is published and never resized
+    // afterwards, so a handler's walk over it cannot race a reallocation; no
+    // message handler writes to it at all, since this object has no settable
+    // inlet.
+    SelectorTable selectors;
   };
 }
 }

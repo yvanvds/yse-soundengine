@@ -10,22 +10,6 @@ using namespace YSE::PATCHER;
 
 namespace {
 
-  // The separators Parameters::Set and the list outlets use. Hand-rolled rather
-  // than std::isspace, which reads locale state another thread may be mutating
-  // and is undefined for a negative char.
-  bool IsSeparator(char c) {
-    return c == ' ' || c == '\t' || c == '\n' || c == '\r';
-  }
-
-  // "match0", "match1", ... — the label of a match outlet. Built through the
-  // shared WriteInt rather than std::to_string; control-thread only either way,
-  // but the patcher has one way of turning an int into text and this is it.
-  std::string MatchLabel(int index) {
-    char digits[FORMAT_INT_WIDTH];
-    const std::size_t written = WriteInt(index, digits);
-    return "match" + std::string(digits, written);
-  }
-
   std::string MatchDoc(int index, const std::string& selector) {
     char digits[FORMAT_INT_WIDTH];
     const std::size_t written = WriteInt(index, digits);
@@ -135,12 +119,12 @@ void gRoutePass::ShapePorts() {
   // callbacks makes ParamsNeedRebuild() true, so #234 replaces the object.
   outputs.clear();
 
-  for (std::size_t i = 0; i < selectors.size(); i++) {
+  for (std::size_t i = 0; i < selectors.Size(); i++) {
     // ANY, because the object forwards whichever of bang, int, float and list
     // arrived rather than producing a kind of its own.
     ADD_OUT_ANY;
-    outputs.back().SetDoc(MatchLabel((int)i), MatchDoc((int)i, selectors[i].text),
-                          selectors[i].text);
+    outputs.back().SetDoc(MatchOutletLabel((int)i), MatchDoc((int)i, selectors.Text(i)),
+                          selectors.Text(i));
   }
 
   // Max's rightmost outlet, present whatever the argument count — and on a bare
@@ -160,70 +144,39 @@ PARM_CLEAR() {
   // no-argument object behind rather than one still holding the previous
   // selectors.
   selectorArgs.clear();
-  selectors.clear();
+  selectors.Clear();
   ShapePorts();
 }
 
 PARM_PARSE() {
-  selectors.clear();
+  selectors.Clear();
   for (const std::string& token : selectorArgs) {
-    if (selectors.size() >= (std::size_t)MAX_SELECTORS) break;
+    if (selectors.Size() >= (std::size_t)MAX_SELECTORS) break;
     // Parameters::Set splits on single spaces, so a run of them yields empty
     // tokens. An empty selector could never be matched by anything and would
     // only cost an outlet nobody can reach.
     if (token.empty()) continue;
 
-    float number = 0.f;
-    // Strict on purpose, as the rest of the family is: ExprParseFloatList would
-    // read `5abc` as 5 and fold `1e999` to 0, and neither answers "is this
-    // selector a number at all".
-    if (ReadNumericToken(token.c_str(), token.size(), number)) {
-      selectors.push_back(Selector{token, number, true});
-    } else {
-      selectors.push_back(Selector{token, 0.f, false});
-    }
+    // Numeric or symbolic is decided by the shared table's strict reader, as
+    // the rest of the family is: ExprParseFloatList would read `5abc` as 5 and
+    // fold `1e999` to 0, and neither answers "is this selector a number at
+    // all".
+    selectors.Add(token);
   }
 
   ShapePorts();
 }
 
 bool gRoutePass::SelectorIsNumber(int index) const {
-  if (index < 0 || index >= (int)selectors.size()) return false;
-  return selectors[index].numeric;
+  return selectors.IsNumber(index);
 }
 
 float gRoutePass::SelectorValue(int index) const {
-  if (index < 0 || index >= (int)selectors.size()) return 0.f;
-  if (!selectors[index].numeric) return 0.f;
-  return selectors[index].value;
+  return selectors.Value(index);
 }
 
 std::string gRoutePass::SelectorText(int index) const {
-  if (index < 0 || index >= (int)selectors.size()) return std::string();
-  if (selectors[index].numeric) return std::string();
-  return selectors[index].text;
-}
-
-int gRoutePass::MatchNumber(float value) const {
-  for (std::size_t i = 0; i < selectors.size(); i++) {
-    if (!selectors[i].numeric) continue;
-    // Exact, and exactness is the matcher .sel already applies — see its header
-    // on why Max's fuzzy attribute is not ported. A NaN on either side compares
-    // unequal, which is what sends it out the rightmost outlet.
-    if (selectors[i].value == value) return (int)i;
-  }
-  return -1;
-}
-
-int gRoutePass::MatchSymbol(const char* text, std::size_t length) const {
-  for (std::size_t i = 0; i < selectors.size(); i++) {
-    if (selectors[i].numeric) continue;
-    if (selectors[i].text.size() != length) continue;
-    // Compared against the character range in place: a substr here would
-    // allocate on whichever thread the message arrived on.
-    if (selectors[i].text.compare(0, length, text, length) == 0) return (int)i;
-  }
-  return -1;
+  return selectors.SymbolText(index);
 }
 
 BANG_IN(SetBang) {
@@ -233,7 +186,7 @@ BANG_IN(SetBang) {
   // as a bang either way — there is nothing to strip from a bang, so this is
   // the one case where .route agrees with this object; the outlet it leaves by
   // is the whole answer.
-  const int hit = MatchSymbol("bang", 4);
+  const int hit = selectors.MatchBang();
   if (hit >= 0) {
     outputs[(std::size_t)hit].SendBang(thread);
     return;
@@ -248,7 +201,7 @@ INT_IN(SetInt) {
   // `.routepass 5` has to answer the int 5 and the float 5.0 alike. The int
   // itself is what leaves the outlet — where `.route 5` emits a bang, having
   // consumed the only item there was.
-  const int hit = MatchNumber((float)value);
+  const int hit = selectors.MatchNumber((float)value);
   if (hit >= 0) {
     outputs[(std::size_t)hit].SendInt(value, thread);
     return;
@@ -259,7 +212,7 @@ INT_IN(SetInt) {
 FLOAT_IN(SetFloat) {
   if (inlet != 0) return;
 
-  const int hit = MatchNumber(value);
+  const int hit = selectors.MatchNumber(value);
   if (hit >= 0) {
     outputs[(std::size_t)hit].SendFloat(value, thread);
     return;
@@ -273,27 +226,10 @@ LIST_IN(SetList) {
   // Max: "If the first item of the message is the same as one of the arguments
   // of routepass, the entire message is sent out the specified outlet." Only
   // the first element is ever examined, and the message is forwarded by
-  // reference — the string sent is the one that arrived, first item and all.
-  std::size_t begin = 0;
-  while (begin < value.size() && IsSeparator(value[begin]))
-    begin++;
-  std::size_t end = begin;
-  while (end < value.size() && !IsSeparator(value[end]))
-    end++;
-
-  int hit = -1;
-  if (end > begin) {
-    const std::size_t length = end - begin;
-    float number = 0.f;
-    // A leading token that reads as a finite number is a number — in Max the
-    // first element of the list `5 6` is an int, and this patcher carries lists
-    // as text. Anything else is a symbol.
-    if (ReadNumericToken(value.c_str() + begin, length, number)) {
-      hit = MatchNumber(number);
-    } else {
-      hit = MatchSymbol(value.c_str() + begin, length);
-    }
-  }
+  // reference — the string sent is the one that arrived, first item and all, so
+  // this object has no use for the offset the matched item ends at. Wanting
+  // that offset is `.route`'s whole difference from this one.
+  const int hit = selectors.MatchLeadingToken(value);
 
   if (hit >= 0) {
     outputs[(std::size_t)hit].SendList(value, thread);

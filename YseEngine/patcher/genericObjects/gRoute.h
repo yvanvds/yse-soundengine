@@ -1,5 +1,6 @@
 #pragma once
 #include "../pObject.h"
+#include "../pSelector.h"
 #include <cstddef>
 #include <string>
 #include <vector>
@@ -117,6 +118,19 @@ namespace YSE {
      *  one fits small-string optimisation and costs none. A remainder that is a
      *  single number, or none at all, allocates nothing — those leave as an
      *  int, a float or a bang.
+     *
+     *  ### Where the matcher lives
+     *
+     *  In ``SelectorTable`` (``pSelector.h``), shared with ``.sel`` and
+     *  ``.routepass`` (issue #680). #672 made this object the *third* copy of a
+     *  table, two match functions and a leading-token walk that were already
+     *  byte-for-byte identical in the other two, which is how three objects
+     *  that are required to branch alike stop doing so. What stays here is the
+     *  part this object legitimately does differently: one selector per token
+     *  with empty ones kept, so an index into ``list`` is an index into
+     *  ``outputs``; the fall back to the single selector ``0``; and the
+     *  stripping itself, which is what ``SendRemainder`` does with the offset
+     *  ``MatchLeadingToken`` hands back.
      */
     PATCHER_CLASS(gRoute, YSE::OBJ::G_ROUTE)
     _NO_MESSAGES
@@ -131,27 +145,6 @@ namespace YSE {
     _PARM_PARSE
 
   private:
-    // One creation argument, resolved once. `numeric` decides which of the two
-    // other fields means anything, and a numeric selector never matches a
-    // symbol or the other way round. The same three fields `.sel` and
-    // `.routepass` resolve their arguments into, because the three objects have
-    // to agree on what a selector is.
-    struct Selector {
-      std::string text;
-      float value;
-      bool numeric;
-    };
-
-    // Index of the selector @p value matches, or -1. Leftmost wins, which is
-    // Max's rule for a repeated argument.
-    int MatchNumber(float value) const;
-
-    // Index of the symbolic selector whose text is exactly the @p length
-    // characters at @p text, or -1. Takes a range rather than a std::string so
-    // the leading token of a list can be matched without a substr on whichever
-    // thread the message arrived on.
-    int MatchSymbol(const char* text, std::size_t length) const;
-
     // Sends what is left of @p value from @p offset — the character just past
     // the matched leading token — out outlet @p index, in the kind that
     // remainder is: a bang when nothing is left, an int or a float when it is a
@@ -164,18 +157,15 @@ namespace YSE {
     // the object is wired or published.
     void ShapePorts();
 
-    // The state a bare `.route` matches on: the single number 0, which is the
-    // selector Max's no-argument case creates (#679).
-    void ResetToDefaultSelector();
-
     // The creation arguments, as tokens. One outlet each, plus the
     // fall-through, and the index of a token is the index of its outlet.
     std::vector<std::string> list;
 
-    // `list` resolved into selectors, one entry per token so the indices stay
-    // parallel. Built by ParseParams() on the control thread before the object
-    // is published; no message handler writes to it.
-    std::vector<Selector> selectors;
+    // `list` resolved into selectors, and the matcher over them — the shared
+    // table `.sel` and `.routepass` hold too (#680). One entry per token so the
+    // indices stay parallel. Built by ParseParams() on the control thread
+    // before the object is published; no message handler writes to it.
+    SelectorTable selectors;
   };
 }
 }

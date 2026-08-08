@@ -10,22 +10,6 @@ using namespace YSE::PATCHER;
 
 namespace {
 
-  // The separators Parameters::Set and the list outlets use. Hand-rolled rather
-  // than std::isspace, which reads locale state another thread may be mutating
-  // and is undefined for a negative char.
-  bool IsSeparator(char c) {
-    return c == ' ' || c == '\t' || c == '\n' || c == '\r';
-  }
-
-  // "match0", "match1", ... — the label of a match outlet. Built through the
-  // shared WriteInt rather than std::to_string; control-thread only either way,
-  // but the patcher has one way of turning an int into text and this is it.
-  std::string MatchLabel(int index) {
-    char digits[FORMAT_INT_WIDTH];
-    const std::size_t written = WriteInt(index, digits);
-    return "match" + std::string(digits, written);
-  }
-
   std::string MatchDoc(int index, const std::string& selector) {
     char digits[FORMAT_INT_WIDTH];
     const std::size_t written = WriteInt(index, digits);
@@ -58,7 +42,7 @@ CONSTRUCT() {
   // Max's no-argument case: "there is only one other outlet, which is assigned
   // the integer number 0". ShapePorts() turns that into two outlets and the
   // right inlet, which is also the shape ClearParams() restores.
-  ResetToDefaultSelector();
+  selectors.ResetToZero();
   ShapePorts();
 
   ADD_DESCRIPTION(
@@ -117,11 +101,6 @@ CONSTRUCT() {
             "any list of numbers and symbols");
 }
 
-void gSel::ResetToDefaultSelector() {
-  selectors.clear();
-  selectors.push_back(Selector{"0", 0.f, true});
-}
-
 void gSel::ShapePorts() {
   // Rebuilt rather than resized, because the rightmost outlet has a different
   // type from the match outlets and appending would put a bang outlet where the
@@ -131,10 +110,10 @@ void gSel::ShapePorts() {
   // *live* SetParams never reaches here on a published object — registering the
   // callbacks makes ParamsNeedRebuild() true, so #234 replaces the object.
   outputs.clear();
-  for (std::size_t i = 0; i < selectors.size(); i++) {
+  for (std::size_t i = 0; i < selectors.Size(); i++) {
     ADD_OUT_BANG;
-    outputs.back().SetDoc(MatchLabel((int)i), MatchDoc((int)i, selectors[i].text),
-                          selectors[i].text);
+    outputs.back().SetDoc(MatchOutletLabel((int)i), MatchDoc((int)i, selectors.Text(i)),
+                          selectors.Text(i));
   }
 
   // Max: "will output non-matching messages out its right-most outlet". ANY,
@@ -147,7 +126,7 @@ void gSel::ShapePorts() {
 
   // Max's conditional right inlet, with numeric in place of int — see the
   // header for why the int-ness cannot survive this patcher's parameter model.
-  const bool wantsValueInlet = selectors.size() == 1 && selectors[0].numeric;
+  const bool wantsValueInlet = selectors.Size() == 1 && selectors.IsNumber(0);
   while (inputs.size() > 1)
     inputs.pop_back();
 
@@ -168,70 +147,38 @@ PARM_CLEAR() {
   // parse callback for an empty argument, so this has to leave a usable object
   // behind rather than one with no selectors and a single outlet.
   selectorArgs.clear();
-  ResetToDefaultSelector();
+  selectors.ResetToZero();
   ShapePorts();
 }
 
 PARM_PARSE() {
-  selectors.clear();
+  selectors.Clear();
   for (const std::string& token : selectorArgs) {
-    if (selectors.size() >= (std::size_t)MAX_SELECTORS) break;
+    if (selectors.Size() >= (std::size_t)MAX_SELECTORS) break;
     // Parameters::Set splits on single spaces, so a run of them yields empty
     // tokens. An empty selector could never be matched by anything and would
     // only cost an outlet nobody can reach.
     if (token.empty()) continue;
 
-    float number = 0.f;
-    if (ReadNumericToken(token.c_str(), token.size(), number)) {
-      selectors.push_back(Selector{token, number, true});
-    } else {
-      selectors.push_back(Selector{token, 0.f, false});
-    }
+    selectors.Add(token);
   }
 
   // An argument list of nothing but separators is a bare `.sel`.
-  if (selectors.empty()) ResetToDefaultSelector();
+  if (selectors.Empty()) selectors.ResetToZero();
 
   ShapePorts();
 }
 
 bool gSel::SelectorIsNumber(int index) const {
-  if (index < 0 || index >= (int)selectors.size()) return false;
-  return selectors[index].numeric;
+  return selectors.IsNumber(index);
 }
 
 float gSel::SelectorValue(int index) const {
-  if (index < 0 || index >= (int)selectors.size()) return 0.f;
-  if (!selectors[index].numeric) return 0.f;
-  return selectors[index].value;
+  return selectors.Value(index);
 }
 
 std::string gSel::SelectorText(int index) const {
-  if (index < 0 || index >= (int)selectors.size()) return std::string();
-  if (selectors[index].numeric) return std::string();
-  return selectors[index].text;
-}
-
-int gSel::MatchNumber(float value) const {
-  for (std::size_t i = 0; i < selectors.size(); i++) {
-    if (!selectors[i].numeric) continue;
-    // Exact, and exactness is the object — see the header on why Max's fuzzy
-    // attribute is not ported. A NaN on either side compares unequal, which is
-    // what sends it out the rightmost outlet.
-    if (selectors[i].value == value) return (int)i;
-  }
-  return -1;
-}
-
-int gSel::MatchSymbol(const char* text, std::size_t length) const {
-  for (std::size_t i = 0; i < selectors.size(); i++) {
-    if (selectors[i].numeric) continue;
-    if (selectors[i].text.size() != length) continue;
-    // Compared against the character range in place: a substr here would
-    // allocate on whichever thread the message arrived on.
-    if (selectors[i].text.compare(0, length, text, length) == 0) return (int)i;
-  }
-  return -1;
+  return selectors.SymbolText(index);
 }
 
 BANG_IN(SetBang) {
@@ -239,7 +186,7 @@ BANG_IN(SetBang) {
 
   // Max: "The bang message matches a 'bang' symbol in the arguments." With no
   // such selector the bang passes through, still a bang.
-  const int hit = MatchSymbol("bang", 4);
+  const int hit = selectors.MatchBang();
   if (hit >= 0) {
     outputs[hit].SendBang(thread);
     return;
@@ -251,14 +198,14 @@ INT_IN(SetInt) {
   if (inlet == 1) {
     // The cold inlet exists only when selector 0 is the object's single numeric
     // selector, so there is exactly one thing a number here can mean. Silent.
-    if (!selectors.empty()) selectors[0].value = (float)value;
+    selectors.SetValue(0, (float)value);
     return;
   }
   if (inlet != 0) return;
 
   // Widened and compared as a float: this patcher has one numeric type, so
   // `.sel 5` has to answer the int 5 and the float 5.0 alike.
-  const int hit = MatchNumber((float)value);
+  const int hit = selectors.MatchNumber((float)value);
   if (hit >= 0) {
     outputs[hit].SendBang(thread);
     return;
@@ -268,12 +215,12 @@ INT_IN(SetInt) {
 
 FLOAT_IN(SetFloat) {
   if (inlet == 1) {
-    if (!selectors.empty()) selectors[0].value = value;
+    selectors.SetValue(0, value);
     return;
   }
   if (inlet != 0) return;
 
-  const int hit = MatchNumber(value);
+  const int hit = selectors.MatchNumber(value);
   if (hit >= 0) {
     outputs[hit].SendBang(thread);
     return;
@@ -286,27 +233,9 @@ LIST_IN(SetList) {
 
   // Max: "if the first element in the list matches the object argument(s)".
   // Only the first element is ever examined, and on a match the rest is
-  // dropped — `.route` is the object that keeps the remainder.
-  std::size_t begin = 0;
-  while (begin < value.size() && IsSeparator(value[begin]))
-    begin++;
-  std::size_t end = begin;
-  while (end < value.size() && !IsSeparator(value[end]))
-    end++;
-
-  int hit = -1;
-  if (end > begin) {
-    const std::size_t length = end - begin;
-    float number = 0.f;
-    // A leading token that reads as a finite number is a number — in Max the
-    // first element of the list `5 6` is an int, and this patcher carries lists
-    // as text. Anything else is a symbol.
-    if (ReadNumericToken(value.c_str() + begin, length, number)) {
-      hit = MatchNumber(number);
-    } else {
-      hit = MatchSymbol(value.c_str() + begin, length);
-    }
-  }
+  // dropped — `.route` is the object that keeps the remainder, and it is the
+  // overload of this call that hands the offset back which lets it.
+  const int hit = selectors.MatchLeadingToken(value);
 
   if (hit >= 0) {
     outputs[hit].SendBang(thread);
