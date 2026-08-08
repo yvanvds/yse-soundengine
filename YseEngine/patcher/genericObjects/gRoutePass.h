@@ -52,8 +52,9 @@ namespace YSE {
      *  which everything passes unchanged. That degenerate object is not useful
      *  and it is also not an error, so it is built rather than papered over
      *  with an invented default selector; Max documents one for ``select`` and
-     *  none here, and inventing a ``0`` outlet would put a branch in a patch
-     *  that the patch did not ask for.
+     *  for ``route`` — which is why both of those have a ``0`` outlet when bare
+     *  (#465, #679) — and none here, and inventing one would put a branch in a
+     *  patch that the patch did not ask for.
      *
      *  The outlets are built in the parameter callbacks, the pattern ``.route``,
      *  ``.sel`` and ``.gate`` already use, which is why a live ``SetParams``

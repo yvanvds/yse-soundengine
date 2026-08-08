@@ -21,6 +21,14 @@
 // rather than as a one-element list, `foo 1.5` as a float, and `foo` alone as a
 // bang. Each of those shapes has its own case.
 //
+// Issue #679 adds the third defect, a *shape* one this time: a bare `.route`
+// had no outlets at all, so it silently swallowed everything sent to it, where
+// Max's no-argument `route` has two outlets and matches the number 0 — the same
+// sentence of Max's reference `.sel` already reproduces. The outlets are now
+// built in the constructor as well as in the parameter callbacks, so the
+// invariant "there is always at least one match outlet and a fall-through"
+// holds from construction and no handler has to check.
+//
 // No audio device required.
 
 #include <doctest/doctest.h>
@@ -52,8 +60,18 @@ namespace {
     std::vector<std::unique_ptr<OrderSink>> sinks;
     std::vector<char> order;
 
+    // A bare `.route`, with no SetParams call at all — the object as the
+    // registry hands it over (#679).
+    Rig() {
+      Wire();
+    }
+
     explicit Rig(const std::string& args) {
       op.SetParams(args);
+      Wire();
+    }
+
+    void Wire() {
       for (int i = 0; i < op.NumOutputs(); i++) {
         sinks.push_back(std::unique_ptr<OrderSink>(new OrderSink()));
         sinks.back()->tag = (char)('a' + (i % 26));
@@ -350,17 +368,125 @@ TEST_SUITE("patcher") {
 
   // ─── shape and lifecycle ────────────────────────────────────────────────────
 
-  TEST_CASE("route: an object whose list was never set drops messages (#672)") {
-    // The outlets are built by the parameter callbacks, so a bare `.route` has
-    // none at all and there is nowhere for a message to go. It must not reach
-    // for an outlet that is not there.
+  TEST_CASE("route: a bare .route has two outlets and matches the number 0 (#679)") {
+    // Max: "If there is no argument, there is one other outlet, which is
+    // assigned the number 0." Before #679 the outlets were built by the
+    // parameter callbacks alone, so an object whose list was never set had none
+    // at all and swallowed every message sent to it.
+    Rig rig;
+    REQUIRE(rig.op.NumOutputs() == 2);
+
+    // The default selector is a *number*, matched by value, so both spellings
+    // of zero reach it — and a matched bare number was the whole message, so
+    // what leaves is a bang.
+    rig.Int(0);
+    CHECK(rig.Log() == std::string("a"));
+    CHECK(rig.Sink(0).lastKind == OrderSink::BANG);
+
+    rig.Reset();
+    rig.Float(0.f);
+    CHECK(rig.Log() == std::string("a"));
+    CHECK(rig.Sink(0).lastKind == OrderSink::BANG);
+
+    // And it strips like any other selector: the leading 0 is taken off.
+    rig.Reset();
+    rig.List("0 60 100");
+    CHECK(rig.Log() == std::string("a"));
+    CHECK(rig.Sink(0).lastKind == OrderSink::LIST);
+    CHECK(rig.Sink(0).lastList == std::string("60 100"));
+  }
+
+  TEST_CASE("route: a bare .route passes everything else through, dropping nothing (#679)") {
+    // The defect #679 names is the dropping, not the missing 0 outlet: the
+    // object used to be a black hole. Every kind has to come out somewhere.
+    Rig rig;
+
+    rig.Int(5);
+    CHECK(rig.Log() == std::string("b"));
+    CHECK(rig.RestSink().lastKind == OrderSink::INT);
+    CHECK(rig.RestSink().lastInt == 5);
+
+    rig.Reset();
+    rig.Float(1.25f);
+    CHECK(rig.Log() == std::string("b"));
+    CHECK(rig.RestSink().lastKind == OrderSink::FLOAT);
+    CHECK(rig.RestSink().lastFloat == doctest::Approx(1.25f));
+
+    rig.Reset();
+    rig.List("note 60");
+    CHECK(rig.Log() == std::string("b"));
+    CHECK(rig.RestSink().lastKind == OrderSink::LIST);
+    CHECK(rig.RestSink().lastList == std::string("note 60"));
+
+    rig.Reset();
+    rig.Bang();
+    CHECK(rig.Log() == std::string("b"));
+    CHECK(rig.RestSink().lastKind == OrderSink::BANG);
+
+    // Exactly one outlet fired for each of the four, and the shape never moved.
+    CHECK(rig.op.NumOutputs() == 2);
+  }
+
+  TEST_CASE("route: SetParams(\"\") restores the bare shape rather than a portless object (#679)") {
+    // Parameters::Set calls the clear callback and returns without parsing for
+    // an empty argument, so ClearParams() is the whole of `SetParams("")` and
+    // has to leave Max's no-argument object behind.
     gRoute op;
-    REQUIRE(op.NumOutputs() == 0);
+    op.SetParams("note ctl");
+    REQUIRE(op.NumOutputs() == 3);
+
+    op.SetParams("");
+    REQUIRE(op.NumOutputs() == 2);
+
+    MultiSink zero, rest;
+    op.ConnectOutlet(zero.GetInlet(0), 0);
+    zero.ConnectInlet(op.GetOutlet(0), 0);
+    op.ConnectOutlet(rest.GetInlet(0), 1);
+    rest.ConnectInlet(op.GetOutlet(1), 0);
+
+    op.GetInlet(0)->SetInt(0, YSE::T_GUI);
+    CHECK(zero.gotBang);
+    CHECK_FALSE(rest.gotBang);
+
+    // The old selectors are gone with the old outlets.
     op.GetInlet(0)->SetList("note 60", YSE::T_GUI);
-    op.GetInlet(0)->SetInt(5, YSE::T_GUI);
-    op.GetInlet(0)->SetFloat(5.f, YSE::T_GUI);
-    op.GetInlet(0)->SetBang(YSE::T_GUI);
-    CHECK(op.NumOutputs() == 0);
+    CHECK(rest.gotList);
+    CHECK(rest.listValue == std::string("note 60"));
+  }
+
+  TEST_CASE("route: a shorter argument list shrinks the outlet set (#679)") {
+    // Not a #679 regression — the old ClearParams() emptied `outputs` and the
+    // old ParseParams() refilled it, so shrinking already worked. Pinned
+    // because #679 moved the outlet building into ShapePorts(), and a later
+    // "just grow the vector" optimisation there would silently break it while
+    // every growing case still passed.
+    gRoute op;
+    op.SetParams("a b c");
+    REQUIRE(op.NumOutputs() == 4);
+
+    op.SetParams("x");
+    CHECK(op.NumOutputs() == 2);
+    CHECK(op.GetParams() == std::string("x"));
+  }
+
+  TEST_CASE("route: every outlet is documented, bare object included (#679)") {
+    // A bare object with outlets has to satisfy test_doc_coverage, which
+    // constructs each registered object with no parameters and requires a label
+    // and a description on every port it finds.
+    gRoute op;
+    REQUIRE(op.NumOutputs() == 2);
+    CHECK(op.GetOutlet(0)->GetDocLabel() == std::string("match0"));
+    CHECK(op.GetOutlet(1)->GetDocLabel() == std::string("rest"));
+
+    op.SetParams("note ctl");
+    REQUIRE(op.NumOutputs() == 3);
+    for (int i = 0; i < op.NumOutputs(); i++) {
+      CAPTURE(i);
+      CHECK_FALSE(op.GetOutlet(i)->GetDocLabel().empty());
+      CHECK_FALSE(op.GetOutlet(i)->GetDocDescription().empty());
+    }
+    CHECK(op.GetOutlet(0)->GetDocLabel() == std::string("match0"));
+    CHECK(op.GetOutlet(2)->GetDocLabel() == std::string("rest"));
   }
 
   TEST_CASE("route: Calculate() emits nothing (#672)") {
@@ -477,6 +603,55 @@ TEST_SUITE("patcher") {
     sum.gotFloat = false;
     route->SetListData(0, "ctl 7");
     CHECK_FALSE(sum.gotFloat);
+  }
+
+  TEST_CASE("route: a bare .route dropped into a real patch still carries its messages (#679)") {
+    // The user-visible half of #679, through a real graph: a `.route` created
+    // with no arguments — the object as a patch gets it before its arguments
+    // are typed — has ports to wire and passes what it is sent on to them
+    // instead of swallowing it. Before the fix there were no outlets, so
+    // Connect() had nothing to attach to and every message vanished.
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* route = p.CreateObject(YSE::OBJ::G_ROUTE, "");
+    REQUIRE(route != nullptr);
+    CHECK(route->GetInputs() == 1);
+    REQUIRE(route->GetOutputs() == 2);
+
+    // Taken before the sinks are wired, so the dump holds the object alone.
+    const std::string json = p.DumpJSON();
+
+    MultiSink zeros;
+    MultiSink rest;
+    YSE::pHandle zerosHandle(&zeros);
+    YSE::pHandle restHandle(&rest);
+    p.Connect(route, 0, &zerosHandle, 0);
+    p.Connect(route, 1, &restHandle, 0);
+
+    route->SetListData(0, "0 60 100");
+    CHECK(zeros.gotList);
+    CHECK(zeros.listValue == std::string("60 100"));
+    CHECK_FALSE(rest.gotList);
+
+    route->SetListData(0, "note 60");
+    CHECK(rest.gotList);
+    CHECK(rest.listValue == std::string("note 60"));
+
+    // And the bare shape survives the round trip a saved patch takes.
+    YSE::patcher loaded;
+    loaded.create(2);
+    loaded.ParseJSON(json);
+    REQUIRE(loaded.Objects() == 1);
+    YSE::pHandle* copy = loaded.GetHandleFromList(0);
+    REQUIRE(copy != nullptr);
+    CHECK(std::string(copy->Type()) == std::string(".route"));
+    CHECK(copy->GetOutputs() == 2);
+
+    MultiSink reloaded;
+    YSE::pHandle reloadedHandle(&reloaded);
+    loaded.Connect(copy, 0, &reloadedHandle, 0);
+    copy->SetIntData(0, 0);
+    CHECK(reloaded.gotBang);
   }
 
 } // TEST_SUITE("patcher")

@@ -34,6 +34,32 @@ namespace YSE {
      *  lost — it is ``.routepass`` (#483), whose contract guarantees it — so a
      *  patch that relied on the old behaviour swaps the object for that one.
      *
+     *  ### The shape, and the no-argument case
+     *
+     *  Max: "The number of arguments determines the number of outlets, in
+     *  addition to the rightmost outlet. ... If there is no argument, there is
+     *  one other outlet, which is assigned the number 0." So ``.route note ctl``
+     *  has three outlets and a **bare** ``.route`` has two, the first of which
+     *  matches the number 0 — the same no-argument rule ``.sel`` reproduces,
+     *  from the same sentence in Max's reference.
+     *
+     *  That default arrived with issue #679. Before it, the outlets were built
+     *  in the parameter-parse callback alone, so a bare ``.route`` had *no*
+     *  outlets and every message sent to it was dropped — worse than a
+     *  degenerate object, because a patch that dropped one in before typing its
+     *  arguments lost messages silently rather than passing them on. (Worse
+     *  still before #672, which is when the handlers stopped reaching for
+     *  ``outputs.back()`` on an empty vector.) ShapePorts() is now called from
+     *  the constructor as well as from both parameter callbacks, so **the
+     *  object always has at least one match outlet and a fall-through** and no
+     *  handler needs an emptiness check.
+     *
+     *  ``.routepass`` deliberately does the opposite: a bare ``.routepass`` has
+     *  the rightmost outlet and nothing else. The two are not inconsistent —
+     *  Max documents a default selector for ``route`` and for ``select`` and
+     *  none for ``routepass``, and inventing one there would put a branch in a
+     *  patch that did not ask for a branch.
+     *
      *  ### What leaves a matched outlet
      *
      *  Whatever is left once the leading token is taken off, in the kind that
@@ -131,6 +157,16 @@ namespace YSE {
     // remainder is: a bang when nothing is left, an int or a float when it is a
     // single number, and a list otherwise.
     void SendRemainder(int index, const std::string& value, std::size_t offset, YSE::THREAD thread);
+
+    // Rebuild the outlets from the current selector table, docs included: one
+    // per selector plus the fall-through. Control thread only — called from the
+    // constructor and from the two parameter callbacks, all of which run before
+    // the object is wired or published.
+    void ShapePorts();
+
+    // The state a bare `.route` matches on: the single number 0, which is the
+    // selector Max's no-argument case creates (#679).
+    void ResetToDefaultSelector();
 
     // The creation arguments, as tokens. One outlet each, plus the
     // fall-through, and the index of a token is the index of its outlet.

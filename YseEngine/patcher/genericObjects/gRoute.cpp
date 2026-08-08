@@ -26,6 +26,28 @@ namespace {
     return value >= -2147483648.f && value < 2147483648.f;
   }
 
+  // "match0", "match1", ... — the label of a match outlet. Built through the
+  // shared WriteInt rather than std::to_string; control-thread only either way,
+  // but the patcher has one way of turning an int into text and this is it. The
+  // labels .sel and .routepass give the same outlets.
+  std::string MatchLabel(int index) {
+    char digits[FORMAT_INT_WIDTH];
+    const std::size_t written = WriteInt(index, digits);
+    return "match" + std::string(digits, written);
+  }
+
+  std::string MatchDoc(int index, const std::string& selector) {
+    char digits[FORMAT_INT_WIDTH];
+    const std::size_t written = WriteInt(index, digits);
+    return "What is left of the message once its first item is taken off, when that item matches "
+           "selector " +
+           std::string(digits, written) + " (" + selector +
+           "). A remainder of two or more items leaves as a list, a remainder of one number as "
+           "that int or float, a remainder of one symbol as a one-element list, and nothing left "
+           "at all as a bang. Exactly one outlet fires per input, and a selector repeated in the "
+           "argument list uses the leftmost of its outlets only.";
+  }
+
 } // namespace
 
 CONSTRUCT() {
@@ -40,13 +62,25 @@ CONSTRUCT() {
 
   ADD_PARAM(list);
 
+  // Max's no-argument case: "If there is no argument, there is one other outlet,
+  // which is assigned the number 0." ShapePorts() turns that into two outlets,
+  // which is also the shape ClearParams() restores (issue #679).
+  ResetToDefaultSelector();
+  ShapePorts();
+
   ADD_DESCRIPTION(
       "Routes a message by what its first item matches and takes that item off — Max's route, "
       "whose 'the rest of the message is sent out the outlet that corresponds to that argument' is "
       "the whole object. One outlet per creation argument plus a rightmost fall-through for "
-      "everything that matched none of them; the outlets are created when the list parameter is "
-      "set. The stripping is what makes this a dispatcher rather than a splitter: 'note 60 100' "
-      "leaves the note branch as '60 100', so the branch works in bare values and never sees the "
+      "everything that matched none of them, and a bare .route has two outlets and matches the "
+      "single number 0, which is Max's no-argument case and the shape .sel already reproduces "
+      "(issue #679). Until then a bare .route had no outlets at all and silently swallowed "
+      "everything sent to it, so a patch that dropped one in before wiring its arguments lost "
+      "messages rather than passing them on; .routepass is the object that deliberately does not "
+      "invent a default selector, because Max documents one for route and select and none for "
+      "routepass. The stripping is what makes this a dispatcher rather than a splitter: 'note 60 "
+      "100' leaves the note branch as '60 100', so the branch works in bare values and never sees "
+      "the "
       "word that got it there. Before issue #672 this object forwarded the whole message instead, "
       "which is Max's routepass and not Max's route, and the engine's own .sel documentation had "
       "described the stripping behaviour all along — the code was the odd one out. A patch that "
@@ -83,17 +117,60 @@ CONSTRUCT() {
             "number, or as a bang when the selector was the whole message. Anything matching no "
             "selector leaves the fall-through outlet whole and in its own type.",
             "");
-  PARAM_DOC("list", "",
+  PARAM_DOC("list", "0",
             "Space-separated list of match tokens; one outlet is created per token plus one "
             "fall-through outlet. A token that reads as a finite number is a numeric selector and "
             "matches by value, with an int widened to a float; anything else is a symbol and "
-            "matches by exact text.",
+            "matches by exact text. With no argument the object matches the single number 0, which "
+            "is Max's no-argument case.",
             "any tokens");
 }
 
-PARM_CLEAR() {
-  outputs.clear();
+void gRoute::ResetToDefaultSelector() {
   selectors.clear();
+  selectors.push_back(Selector{"0", 0.f, true});
+}
+
+void gRoute::ShapePorts() {
+  // Rebuilt rather than resized, because the fall-through outlet has to stay
+  // rightmost: appending a match outlet would put it after the fall-through and
+  // every saved cord past that point would land on the wrong port. Safe because
+  // every caller runs before the object is wired or published: the constructor,
+  // and the two parameter callbacks, which
+  // patcherImplementation::CreateObjectUnlocked runs before
+  // AssignGraphIds. A *live* SetParams never reaches here on a published
+  // object — registering the callbacks makes ParamsNeedRebuild() true, so #234
+  // replaces the object.
+  outputs.clear();
+
+  for (std::size_t i = 0; i < selectors.size(); i++) {
+    // ANY, because what leaves is a bang, an int, a float or a list depending
+    // on what the remainder turned out to be.
+    ADD_OUT_ANY;
+    outputs.back().SetDoc(MatchLabel((int)i), MatchDoc((int)i, selectors[i].text),
+                          selectors[i].text);
+  }
+
+  // Max's rightmost outlet, present whatever the argument count. Nothing is
+  // stripped here, which is what lets a chain of .route objects be strung
+  // together with each fall-through feeding the next inlet.
+  ADD_OUT_ANY;
+  outputs.back().SetDoc("rest",
+                        "The message, unchanged and in its own type, when its first item matched "
+                        "no selector. Nothing is taken off it, so chaining this into the next "
+                        ".route carries on testing the message the first one saw.",
+                        "any");
+}
+
+PARM_CLEAR() {
+  // Runs on the control thread before the parameter string is re-read, and is
+  // the whole of `SetParams("")`: Parameters::Set returns without calling the
+  // parse callback for an empty argument, so this has to leave Max's
+  // no-argument object behind rather than one with no outlets at all, which
+  // would swallow every message sent to it (#679).
+  list.clear();
+  ResetToDefaultSelector();
+  ShapePorts();
 }
 
 PARM_PARSE() {
@@ -116,9 +193,13 @@ PARM_PARSE() {
     }
   }
 
-  while (outputs.size() < list.size() + 1) {
-    ADD_OUT_ANY;
-  }
+  // An argument list with no tokens in it at all is a bare `.route`, and a bare
+  // `.route` matches 0 rather than nothing. Parameters::Set only reaches here
+  // with at least one token, so this is the guard that keeps ShapePorts()'s
+  // "there is always at least one selector" invariant true no matter who calls.
+  if (selectors.empty()) ResetToDefaultSelector();
+
+  ShapePorts();
 }
 
 int gRoute::MatchNumber(float value) const {
@@ -187,10 +268,13 @@ void gRoute::SendRemainder(int index, const std::string& value, std::size_t offs
 }
 
 BANG_IN(SetBangValue) {
-  // An object whose list parameter was never set has no outlets at all, and
-  // there is nowhere for a message to go.
-  if (outputs.empty()) return;
-
+  // No emptiness check on `outputs` in any of the four handlers: the
+  // constructor calls ShapePorts(), which always builds at least one match
+  // outlet and the fall-through, and the parameter callbacks only ever rebuild
+  // to the same invariant. Until #679 a bare object had no outlets at all and
+  // every handler had to guard against reaching for one, which is the shape
+  // that dropped messages.
+  //
   // Max: the bang message matches a 'bang' symbol in the arguments. There is
   // nothing in a bang to strip, so a match sends a bang and so does a miss —
   // the outlet it leaves by is the whole answer.
@@ -203,8 +287,6 @@ BANG_IN(SetBangValue) {
 }
 
 INT_IN(SetIntValue) {
-  if (outputs.empty()) return;
-
   // Widened and compared as a float: this patcher has one numeric type, so
   // `.route 5` has to answer the int 5 and the float 5.0 alike. A match
   // consumes the only item there was, so what leaves is a bang.
@@ -217,8 +299,6 @@ INT_IN(SetIntValue) {
 }
 
 FLOAT_IN(SetFloatValue) {
-  if (outputs.empty()) return;
-
   const int hit = MatchNumber(value);
   if (hit >= 0) {
     outputs[(std::size_t)hit].SendBang(thread);
@@ -228,8 +308,6 @@ FLOAT_IN(SetFloatValue) {
 }
 
 LIST_IN(SetListValue) {
-  if (outputs.empty()) return;
-
   // Only the first element is ever examined, and on a match it is taken off:
   // Max's "the rest of the message is sent out the outlet that corresponds to
   // that argument".
