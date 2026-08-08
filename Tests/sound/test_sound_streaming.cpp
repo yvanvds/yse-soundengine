@@ -42,9 +42,18 @@ namespace {
 
   // A distinct, position-sensitive sample value for frame n. Using a hash makes a
   // mis-swap (replaying the wrong buffer) produce clearly wrong values.
+  //
+  // Exact 0.0f is deliberately excluded from the range. The engine signals an
+  // underrun (and EOF) by zero-filling the *remainder* of the current block, so
+  // readBlock() below uses a zero sample as the unambiguous marker for "the
+  // stream did not produce this frame" (issue #674). One of the 65536 hash
+  // buckets maps to 0.0, so over the ~100k frames these tests verify it would
+  // otherwise come up a couple of times per run and trim a real frame.
   float sampleAt(long n) {
     uint32_t h = static_cast<uint32_t>(n) * 2654435761u;
-    return static_cast<float>(((h >> 8) & 0xFFFF) / 32768.0 - 1.0);
+    double v = ((h >> 8) & 0xFFFF) / 32768.0 - 1.0;
+    if (v == 0.0) v = 1.0 / 32768.0; // never emit the silence marker as audio
+    return static_cast<float>(v);
   }
 
   // Write a mono float WAV of `frames` frames at the engine sample rate and return
@@ -74,22 +83,45 @@ namespace {
     return f.getState() == YSE::INTERNAL::READY;
   }
 
-  // Read one STANDARD_BUFFERSIZE block, transparently retrying a transient underrun
+  // What one STANDARD_BUFFERSIZE block produced.
+  struct blockResult {
+    UInt valid = 0; // frames of real stream audio, at the front of the block
+    bool stopped = false; // the stream reached EOF and stopped during this block
+  };
+
+  // Frames of real audio in `out`: the block minus its trailing run of silence.
+  //
+  // A stream-buffer boundary is not block-aligned in general, so when the
+  // prefetched buffer has not landed the engine plays the frames it still has
+  // and zero-fills only the *rest* of the block (abstractSoundFile.cpp,
+  // `calibrate`) — a partially valid block. EOF ends a block the same way. Since
+  // sampleAt() never yields exactly 0.0f, a zero sample is unambiguously
+  // engine-emitted silence, so the trailing zero run is exactly the part of the
+  // block the stream did not fill. (issue #674)
+  UInt validFrames(const std::vector<float>& out) {
+    UInt n = YSE::STANDARD_BUFFERSIZE;
+    while (n > 0 && out[static_cast<size_t>(n - 1)] == 0.0f)
+      --n;
+    return n;
+  }
+
+  // Read one STANDARD_BUFFERSIZE block, transparently retrying a *total* underrun
   // (a fully silent block while still playing) after giving the slow pool time to
-  // land the refill. Returns true once the stream has stopped (EOF reached).
-  bool readBlock(soundFile& f, Flt& pos, Bool loop, SOUND_STATUS& intent, Flt& vol,
-                 std::vector<float>& out) {
+  // land the refill. A partial underrun is not retried — the frames before it are
+  // real audio the stream has already advanced past — so callers must advance
+  // their own frame counter by `valid`, not by the block size.
+  blockResult readBlock(YSE::INTERNAL::abstractSoundFile& f, Flt& pos, Bool loop,
+                        SOUND_STATUS& intent, Flt& vol, std::vector<float>& out) {
     for (int retry = 0; retry < 500; ++retry) {
       std::vector<YSE::DSP::buffer> fb(1); // one mono output buffer of length STANDARD_BUFFERSIZE
       f.read(fb, pos, YSE::STANDARD_BUFFERSIZE, 1.0f, loop, intent, vol);
       const Flt* p = fb[0].getPtr();
       out.assign(p, p + YSE::STANDARD_BUFFERSIZE);
-      if (intent == YSE::SS_STOPPED) return true;
-      bool allZero = std::all_of(out.begin(), out.end(), [](float v) { return v == 0.0f; });
-      if (!allZero) return false;
+      blockResult r{validFrames(out), intent == YSE::SS_STOPPED};
+      if (r.stopped || r.valid > 0) return r;
       std::this_thread::sleep_for(std::chrono::milliseconds(3)); // underrun: let the refill land
     }
-    return false;
+    return {}; // the refill never landed
   }
 
   // Small periodic pause so the slow pool always fills the next buffer well before
@@ -217,6 +249,69 @@ namespace {
     }
   };
 
+  // In-memory streaming backend that reproduces a *partial* underrun on demand
+  // (issue #674). The stream-buffer boundary at frame STREAM_BUFFERSIZE is not a
+  // multiple of STANDARD_BUFFERSIZE, so the block that straddles it can only be
+  // half filled; withholding the back buffer at exactly that point makes the
+  // engine emit that partially silent block deterministically, with no disk, no
+  // slow pool and no timing involved.
+  class underrunFile : public YSE::INTERNAL::abstractSoundFile {
+  public:
+    explicit underrunFile(long frames) : abstractSoundFile("underrun-probe", true) {
+      _streaming = true;
+      _endReached = false;
+      _channels = 1;
+      _length = static_cast<int>(frames);
+      _sampleRateAdjustment = 1.f;
+      _iBuffer = new Flt[static_cast<size_t>(S)];
+      _iBufferBack = new Flt[static_cast<size_t>(S)];
+      // requestRefill() only queues a slow-pool job when it can flip
+      // _refillInFlight from false, so latching it here means read() never
+      // schedules one and this fixture is the sole publisher of a back buffer.
+      _refillInFlight.store(true, std::memory_order_relaxed);
+      fillFrom(_iBuffer, 0); // prime the front buffer with frames [0, S)
+      _frontBufferBase = 0;
+      _frontValidFrames = S;
+      _frontTerminal = false;
+      state = YSE::INTERNAL::READY;
+    }
+    ~underrunFile() override {
+      delete[] _iBuffer;
+      delete[] _iBufferBack;
+      _iBuffer = nullptr;
+      _iBufferBack = nullptr;
+    }
+    underrunFile(const underrunFile&) = delete;
+    underrunFile& operator=(const underrunFile&) = delete;
+
+    void loadStreaming() override {}
+    void loadNonStreaming() override {}
+
+    UInt fillBuffer(Flt* dest, Bool /*loop*/) override {
+      fillFrom(dest, _nextFill);
+      _nextFill += S;
+      return YSE::STREAM_BUFFERSIZE;
+    }
+
+    // Publish the next stream buffer exactly the way fillBackBuffer() does, so
+    // the audio thread's next streamSwap() accepts it.
+    void publishBack() {
+      fillFrom(_iBufferBack, _nextFill);
+      _nextFill += S;
+      _backValidFrames.store(S, std::memory_order_relaxed);
+      _backTerminal.store(false, std::memory_order_relaxed);
+      _backGen.store(_fillGen.load(std::memory_order_relaxed), std::memory_order_relaxed);
+      _backReady.store(true, std::memory_order_release);
+    }
+
+  private:
+    static void fillFrom(Flt* dest, long start) {
+      for (long i = 0; i < S; ++i)
+        dest[i] = sampleAt(start + i);
+    }
+    long _nextFill = S; // absolute frame the next fill starts at
+  };
+
 } // namespace
 
 TEST_SUITE("sound") {
@@ -237,10 +332,10 @@ TEST_SUITE("sound") {
     long frame = 0;
     const long verifyTo = 2 * S + 4000; // stays before EOF
     for (int b = 0; frame < verifyTo; ++b) {
-      bool stopped = readBlock(f, pos, false, intent, vol, out);
-      REQUIRE_FALSE(stopped);
-      for (UInt j = 0; j < YSE::STANDARD_BUFFERSIZE && frame < static_cast<long>(src.size());
-           ++j, ++frame) {
+      blockResult r = readBlock(f, pos, false, intent, vol, out);
+      REQUIRE_FALSE(r.stopped);
+      REQUIRE(r.valid > 0); // no frames at all: the refill never landed
+      for (UInt j = 0; j < r.valid && frame < static_cast<long>(src.size()); ++j, ++frame) {
         CHECK(out[j] == doctest::Approx(src[static_cast<size_t>(frame)]).epsilon(0.0001));
       }
       breathe(b);
@@ -265,14 +360,14 @@ TEST_SUITE("sound") {
     long frame = 0;
     bool stopped = false;
     for (int b = 0; !stopped && b < 4000; ++b) {
-      stopped = readBlock(f, pos, false, intent, vol, out);
-      for (UInt j = 0; j < YSE::STANDARD_BUFFERSIZE; ++j) {
-        if (frame < static_cast<long>(src.size())) {
-          CHECK(out[j] == doctest::Approx(src[static_cast<size_t>(frame)]).epsilon(0.0001));
-          ++frame;
-        } else {
-          CHECK(out[j] == 0.0f); // past true EOF: silence
-        }
+      blockResult r = readBlock(f, pos, false, intent, vol, out);
+      stopped = r.stopped;
+      REQUIRE((r.valid > 0 || stopped)); // no frames and not stopped: the stream is stuck
+      for (UInt j = 0; j < r.valid; ++j, ++frame) {
+        // Silence past true EOF is what ends the block, so any frame counted
+        // here must have a source frame behind it.
+        REQUIRE(frame < static_cast<long>(src.size()));
+        CHECK(out[j] == doctest::Approx(src[static_cast<size_t>(frame)]).epsilon(0.0001));
       }
       breathe(b);
     }
@@ -298,9 +393,10 @@ TEST_SUITE("sound") {
     long frame = 0;
     const long verifyTo = len + S + 4000; // read well past the first wrap
     for (int b = 0; frame < verifyTo; ++b) {
-      bool stopped = readBlock(f, pos, true, intent, vol, out);
-      REQUIRE_FALSE(stopped); // a looping stream never stops
-      for (UInt j = 0; j < YSE::STANDARD_BUFFERSIZE && frame < verifyTo; ++j, ++frame) {
+      blockResult r = readBlock(f, pos, true, intent, vol, out);
+      REQUIRE_FALSE(r.stopped); // a looping stream never stops
+      REQUIRE(r.valid > 0); // no frames at all: the refill never landed
+      for (UInt j = 0; j < r.valid && frame < verifyTo; ++j, ++frame) {
         CHECK(out[j] == doctest::Approx(src[static_cast<size_t>(frame % len)]).epsilon(0.0001));
       }
       breathe(b);
@@ -337,9 +433,10 @@ TEST_SUITE("sound") {
     intent = YSE::SS_PLAYING_FULL_VOLUME;
     long frame = 0;
     for (int b = 0; b < 40; ++b) {
-      bool stopped = readBlock(f, pos, false, intent, vol, out);
-      REQUIRE_FALSE(stopped);
-      for (UInt j = 0; j < YSE::STANDARD_BUFFERSIZE; ++j, ++frame) {
+      blockResult r = readBlock(f, pos, false, intent, vol, out);
+      REQUIRE_FALSE(r.stopped);
+      REQUIRE(r.valid > 0);
+      for (UInt j = 0; j < r.valid; ++j, ++frame) {
         CHECK(out[j] == doctest::Approx(src[static_cast<size_t>(frame)]).epsilon(0.0001));
       }
       breathe(b);
@@ -381,9 +478,10 @@ TEST_SUITE("sound") {
     long frame = target;
     const long verifyTo = target + 3 * static_cast<long>(YSE::STANDARD_BUFFERSIZE);
     for (int b = 0; frame < verifyTo; ++b) {
-      bool stopped = readBlock(f, pos, false, intent, vol, out);
-      REQUIRE_FALSE(stopped);
-      for (UInt j = 0; j < YSE::STANDARD_BUFFERSIZE && frame < verifyTo; ++j, ++frame) {
+      blockResult r = readBlock(f, pos, false, intent, vol, out);
+      REQUIRE_FALSE(r.stopped);
+      REQUIRE(r.valid > 0);
+      for (UInt j = 0; j < r.valid && frame < verifyTo; ++j, ++frame) {
         CHECK(out[j] == doctest::Approx(src[static_cast<size_t>(frame)]).epsilon(0.0001));
       }
       breathe(b);
@@ -420,9 +518,10 @@ TEST_SUITE("sound") {
     intent = YSE::SS_PLAYING_FULL_VOLUME;
     long frame = target;
     for (int b = 0; b < 8; ++b) {
-      bool stopped = readBlock(f, pos, false, intent, vol, out);
-      REQUIRE_FALSE(stopped);
-      for (UInt j = 0; j < YSE::STANDARD_BUFFERSIZE; ++j, ++frame) {
+      blockResult r = readBlock(f, pos, false, intent, vol, out);
+      REQUIRE_FALSE(r.stopped);
+      REQUIRE(r.valid > 0);
+      for (UInt j = 0; j < r.valid; ++j, ++frame) {
         CHECK(out[j] == doctest::Approx(src[static_cast<size_t>(frame)]).epsilon(0.0001));
       }
       breathe(b);
@@ -435,9 +534,10 @@ TEST_SUITE("sound") {
     intent = YSE::SS_PLAYING_FULL_VOLUME;
     frame = 0;
     for (int b = 0; b < 8; ++b) {
-      bool stopped = readBlock(f, pos, false, intent, vol, out);
-      REQUIRE_FALSE(stopped);
-      for (UInt j = 0; j < YSE::STANDARD_BUFFERSIZE; ++j, ++frame) {
+      blockResult r = readBlock(f, pos, false, intent, vol, out);
+      REQUIRE_FALSE(r.stopped);
+      REQUIRE(r.valid > 0);
+      for (UInt j = 0; j < r.valid; ++j, ++frame) {
         CHECK(out[j] == doctest::Approx(src[static_cast<size_t>(frame)]).epsilon(0.0001));
       }
       breathe(b);
@@ -559,6 +659,60 @@ TEST_SUITE("sound") {
     f.runFill(); // F2
     CHECK(f.lastFillStart == target); // without the fix: target + S
     CHECK_FALSE(f.backIsStale());
+  }
+
+  // 11. Issue #674 regression: an underrun that lands mid-block. STREAM_BUFFERSIZE
+  //     is not a multiple of STANDARD_BUFFERSIZE, so the block straddling a
+  //     stream-buffer boundary carries only the frames up to that boundary and is
+  //     zero-filled from there. The harness must count just those frames: the old
+  //     retry heuristic only recognised a *fully* silent block, so it accepted the
+  //     partial one as a whole block of audio, advanced its frame counter over
+  //     samples the stream never produced, and every later comparison in the case
+  //     failed. Driven by an in-memory backend, so the desync reproduces without
+  //     depending on how loaded the machine is.
+  TEST_CASE("streaming: a partial-block underrun does not desync frame accounting (issue #674)") {
+    underrunFile f(4 * S); // long enough that EOF is never in play here
+
+    const UInt block = YSE::STANDARD_BUFFERSIZE;
+    const long straddling = S / block; // index of the block containing the boundary
+    const UInt head = static_cast<UInt>(S % block); // frames of it that are real audio
+    REQUIRE(head != 0); // a block-aligned boundary would make this case vacuous
+
+    Flt pos = 0.f, vol = 1.f;
+    SOUND_STATUS intent = YSE::SS_PLAYING_FULL_VOLUME;
+    std::vector<float> out;
+
+    // Everything before the boundary comes out of the primed front buffer.
+    long frame = 0;
+    for (long b = 0; b < straddling; ++b) {
+      blockResult r = readBlock(f, pos, false, intent, vol, out);
+      REQUIRE_FALSE(r.stopped);
+      REQUIRE(r.valid == block);
+      frame += block;
+    }
+
+    // The straddling block: `head` real frames, then silence, because the back
+    // buffer has deliberately not been published yet.
+    blockResult r = readBlock(f, pos, false, intent, vol, out);
+    REQUIRE_FALSE(r.stopped);
+    CHECK(r.valid == head); // the defect: the old harness counted a full block here
+    // ...and it could not have noticed, because the block is not all zero — which
+    // was the only underrun signal it looked for.
+    CHECK_FALSE(std::all_of(out.begin(), out.end(), [](float v) { return v == 0.0f; }));
+    for (UInt j = 0; j < r.valid; ++j, ++frame)
+      CHECK(out[j] == doctest::Approx(sampleAt(frame)).epsilon(0.0001));
+    for (UInt j = r.valid; j < block; ++j)
+      CHECK(out[j] == 0.0f);
+    CHECK(frame == S); // exactly one stream buffer consumed, not one buffer + a bit
+
+    // Land the refill. Playback resumes at frame S — not at S + (block - head),
+    // which is where a frame counter that swallowed the silence would be looking.
+    f.publishBack();
+    r = readBlock(f, pos, false, intent, vol, out);
+    REQUIRE_FALSE(r.stopped);
+    REQUIRE(r.valid == block);
+    for (UInt j = 0; j < r.valid; ++j, ++frame)
+      CHECK(out[j] == doctest::Approx(sampleAt(frame)).epsilon(0.0001));
   }
 
 } // TEST_SUITE("sound")
