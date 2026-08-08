@@ -26,6 +26,7 @@
 #include "genericObjects/gBag.h"
 #include "genericObjects/gCapture.h"
 #include "genericObjects/gColl.h"
+#include "genericObjects/gFunbuff.h"
 #include "genericObjects/gCombine.h"
 #include "genericObjects/gSpell.h"
 #include "genericObjects/gSprintf.h"
@@ -273,6 +274,11 @@ pRegistry::pRegistry() {
   // A rolling record of everything that went past — the patcher's debugging
   // instrument, and the store nothing decides the contents of (issue #496)
   Add(OBJ::G_CAPTURE, gCapture::Create);
+
+  // A sparse function: x,y pairs kept sorted by x, with a floor lookup and
+  // linear interpolation between the stored points — the store behind every
+  // breakpoint curve, tuning table and step sequence (issue #497)
+  Add(OBJ::G_FUNBUFF, gFunbuff::Create);
 
   Add(OBJ::G_RECEIVE, gReceive::Create);
   Add(OBJ::G_SEND, gSend::Create);

@@ -121,6 +121,7 @@ set(YSE_SRCS
   patcher/genericObjects/gCycle.cpp
   patcher/genericObjects/gDecode.cpp
   patcher/genericObjects/gForward.cpp
+  patcher/genericObjects/gFunbuff.cpp
   patcher/genericObjects/gFunnel.cpp
   patcher/genericObjects/gGate.cpp
   patcher/genericObjects/gIf.cpp
@@ -336,6 +337,7 @@ set_source_files_properties(
   patcher/genericObjects/gCycle.cpp
   patcher/genericObjects/gDecode.cpp
   patcher/genericObjects/gForward.cpp
+  patcher/genericObjects/gFunbuff.cpp
   patcher/genericObjects/gFunnel.cpp
   patcher/genericObjects/gGate.cpp
   patcher/genericObjects/gIf.cpp

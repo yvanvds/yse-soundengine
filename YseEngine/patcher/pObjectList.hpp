@@ -39,7 +39,7 @@ namespace YSE {
    *    ``G_PROB``, ``G_ANAL``, ``G_HISTO``.
    *  - Statistics: ``G_ANAL``, ``G_HISTO``, ``G_MEAN``.
    *  - Shared state: ``G_VALUE``.
-   *  - Collections: ``G_COLL``, ``G_BAG``, ``G_CAPTURE``.
+   *  - Collections: ``G_COLL``, ``G_BAG``, ``G_CAPTURE``, ``G_FUNBUFF``.
    *  - Messaging: ``G_SEND``, ``G_RECEIVE``, ``G_FORWARD``, ``G_ROUTE``,
    *    ``G_ROUTEPASS``,
    *    ``G_SEL``, ``G_TRIGGER``, ``G_BANGBANG``, ``G_ONEBANG``, ``G_NEXT``,
@@ -117,6 +117,7 @@ namespace YSE {
     DEFOBJ(G_COLL, ".coll");
     DEFOBJ(G_BAG, ".bag");
     DEFOBJ(G_CAPTURE, ".capture");
+    DEFOBJ(G_FUNBUFF, ".funbuff");
 
     DEFOBJ(G_ADD, ".+");
     DEFOBJ(G_SUBSTRACT, ".-");
