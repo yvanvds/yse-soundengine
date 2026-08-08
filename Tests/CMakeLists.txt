@@ -6,6 +6,7 @@ set(YSE_TEST_SOURCES
   main.cpp
   test_sanity.cpp
   support/alloc_probe.cpp
+  support/test_alloc_probe.cpp
   dsp/test_buffer.cpp
   dsp/test_file_buffer.cpp
   dsp/test_ramp.cpp
@@ -301,6 +302,26 @@ endif()
 
 target_compile_features(yse_tests PRIVATE cxx_std_17)
 
+# Link the C++ runtime statically on MinGW (issue #697).
+#
+# support/alloc_probe replaces the global operator new to count allocations on
+# the paths that must not make any. PE/COFF has no cross-image symbol
+# interposition, so with a dynamically linked libc++ the explicitly
+# instantiated std::basic_string<char> stayed inside libc++.dll, where its
+# allocations resolve to that DLL's own operator new — past the replacement.
+# Every "this audio path allocates nothing" assertion aimed at a string build
+# (a log message above all) then passed by construction. Pulling the runtime
+# into the binary puts those instantiations back under the replacement;
+# support/test_alloc_probe.cpp measures that it worked, so losing it again
+# fails the suite instead of going quiet.
+#
+# ELF targets (Linux, Android) preempt across shared objects already and are
+# left on their normal dynamic runtime, which is also what the sanitizer legs
+# and the shipped library use.
+if(MINGW)
+  target_link_options(yse_tests PRIVATE -static-libstdc++)
+endif()
+
 # doctest uses __COUNTER__, which Clang warns about as a C2y extension.
 # Suppress it here rather than editing the vendored header. The NDK's bundled
 # Clang doesn't recognise -Wno-c2y-extensions (older diagnostic name), so skip
@@ -425,6 +446,19 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_utils PROPERTIES LABELS utils)
+
+# Self-test for support/alloc_probe (issue #697). Registered on its own rather
+# than folded into another suite because of what a failure means: not that an
+# engine path regressed, but that the probe stopped seeing a shape of
+# allocation — at which point every "this audio path allocates nothing"
+# assertion resting on it has become vacuous. Worth reading as its own line in
+# the ctest output. Needs no engine session.
+add_test(
+  NAME    yse_tests_probe
+  COMMAND yse_tests --test-suite=probe
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_probe PROPERTIES LABELS tests)
 
 add_test(
   NAME    yse_tests_patcher
