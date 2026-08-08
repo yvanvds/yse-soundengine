@@ -8,6 +8,7 @@
 #include "genericObjects/gSwitch.h"
 #include "genericObjects/gGate.h"
 #include "genericObjects/gRoute.h"
+#include "genericObjects/gRoutePass.h"
 #include "genericObjects/gRouter.h"
 #include "genericObjects/gSel.h"
 #include "genericObjects/gTrigger.h"
@@ -144,6 +145,10 @@ pRegistry::pRegistry() {
   Add(OBJ::G_SWITCH, gSwitch::Create);
   Add(OBJ::G_GATE, gGate::Create);
   Add(OBJ::G_ROUTE, gRoute::Create);
+
+  // Route a complete message by what its first item matches, without consuming
+  // that item (issue #483)
+  Add(OBJ::G_ROUTEPASS, gRoutePass::Create);
 
   // Bang the outlet whose selector the input matches (issue #465)
   Add(OBJ::G_SEL, gSel::Create);
