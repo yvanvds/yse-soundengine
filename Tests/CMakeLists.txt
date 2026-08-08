@@ -63,6 +63,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_sprintf.cpp
   patcher/test_patcher_substitute.cpp
   patcher/test_patcher_symbol.cpp
+  patcher/test_patcher_combine.cpp
   patcher/test_patcher_anal.cpp
   patcher/test_patcher_histo.cpp
   patcher/test_patcher_mean.cpp
@@ -810,6 +811,7 @@ set_source_files_properties(
   patcher/test_patcher_sprintf.cpp
   patcher/test_patcher_substitute.cpp
   patcher/test_patcher_symbol.cpp
+  patcher/test_patcher_combine.cpp
   patcher/test_patcher_anal.cpp
   patcher/test_patcher_histo.cpp
   patcher/test_patcher_mean.cpp

@@ -113,6 +113,7 @@ set(YSE_SRCS
   patcher/genericObjects/gBondo.cpp
   patcher/genericObjects/gBucket.cpp
   patcher/genericObjects/gBuddy.cpp
+  patcher/genericObjects/gCombine.cpp
   patcher/genericObjects/gCycle.cpp
   patcher/genericObjects/gDecode.cpp
   patcher/genericObjects/gForward.cpp
@@ -322,6 +323,7 @@ set_source_files_properties(
   patcher/genericObjects/gBondo.cpp
   patcher/genericObjects/gBucket.cpp
   patcher/genericObjects/gBuddy.cpp
+  patcher/genericObjects/gCombine.cpp
   patcher/genericObjects/gCycle.cpp
   patcher/genericObjects/gDecode.cpp
   patcher/genericObjects/gForward.cpp

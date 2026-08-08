@@ -22,6 +22,7 @@
 #include "genericObjects/gCycle.h"
 #include "genericObjects/gMatch.h"
 #include "genericObjects/gAffix.h"
+#include "genericObjects/gCombine.h"
 #include "genericObjects/gSprintf.h"
 #include "genericObjects/gSubstitute.h"
 #include "genericObjects/gSymbol.h"
@@ -233,6 +234,12 @@ pRegistry::pRegistry() {
   // patcher message is text and its readers all split on whitespace (issue #490)
   Add(OBJ::G_TOSYMBOL, gToSymbol::Create);
   Add(OBJ::G_FROMSYMBOL, gFromSymbol::Create);
+
+  // Join items held one per inlet into a single symbol — the stateful,
+  // cross-inlet half of what .tosymbol does within a single message, and the
+  // only way a patch can assemble a name out of parts that arrive at different
+  // times from different sources (issue #491)
+  Add(OBJ::G_COMBINE, gCombine::Create);
 
   Add(OBJ::G_RECEIVE, gReceive::Create);
   Add(OBJ::G_SEND, gSend::Create);
