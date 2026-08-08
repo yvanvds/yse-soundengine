@@ -138,7 +138,12 @@ YSE::SOUND::implementationObject::~implementationObject() {
   }
 }
 
-#ifdef __WINDOWS_
+// The guard here read `__WINDOWS_` until #693 — one underscore short of the
+// `__WINDOWS__` defines.hpp defines, so it never fired and every platform
+// joined with "/". Spelled `YSE_WINDOWS` now, matching the identical prologue
+// in patcher/io/fileScheduler.cpp so a patch and a sound resolve the same
+// relative name to the same string.
+#ifdef YSE_WINDOWS
 std::string delim = "\\";
 #else
 std::string delim = "/";
