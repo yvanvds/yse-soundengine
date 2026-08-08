@@ -7,6 +7,7 @@
 #include "genericObjects/pLine.h"
 #include "genericObjects/gSwitch.h"
 #include "genericObjects/gGate.h"
+#include "genericObjects/gMatrix.h"
 #include "genericObjects/gRoute.h"
 #include "genericObjects/gRoutePass.h"
 #include "genericObjects/gRouter.h"
@@ -194,6 +195,10 @@ pRegistry::pRegistry() {
   // A message crossbar: any inlet to any set of outlets, connections set by
   // messages rather than by patch cords (issue #482)
   Add(OBJ::G_ROUTER, gRouter::Create);
+
+  // The same crossbar with a gain per cell rather than a switch: a
+  // control-domain patchbay for routing modulation (issue #484)
+  Add(OBJ::G_MATRIX, gMatrix::Create);
 
   // Conditional message dispatch (issue #451)
   Add(OBJ::G_IF, gIf::Create);

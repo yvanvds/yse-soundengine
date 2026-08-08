@@ -2511,6 +2511,78 @@
       }
     ]
   },
+  ".matrix": {
+    "category": "GENERIC",
+    "description": "A message crossbar whose cells carry a gain — Max's matrix, the 'event routing matrix' that 'controls the connections between inlets and outlets' where 'each connection has an associated gain factor and all values travelling through matrix can be scaled'. It is .router's sibling and shares its whole control protocol; the one difference runs all the way through, because a .router cell is a switch and a .matrix cell is a coefficient. A crossbar of switches can only answer 'does this reach that', so a patch that wants to route and weight needs a multiplier per destination wired behind it — which puts the weights in N-by-M separate objects that cannot be addressed as a matrix or set by one message. Here the weight is the connection: 'connect 0 1 0.25' says inlet 0 reaches outlet 1 at a quarter, and Max's rule that 'a non-zero gain adds a connection with the designated gain; a gain of 0 deletes the connection if it exists' means connection and gain are one value with no connected-but-unweighted state in between. That is the control-domain patchbay, and the companion to a send/return mixer for routing modulation rather than audio, where a send has always been a destination and an amount at once. Unity is transparent: a gain of exactly 1 forwards the message untouched, so an int stays an int, a bang stays a bang and a list arrives character for character — which is what makes .matrix at its default gain interchangeable with .router, and what a patch depends on wherever the value is a note number rather than a quantity. Any other gain multiplies and its result leaves as a float even from an int, because truncating it back would discard exactly the scaling asked for: an int of 1 at a gain of 0.5 would arrive as 0, and a modulation matrix whose fine settings all read zero is worse than no matrix at all. A bang carries no value and is forwarded as a bang at any gain. A list is scaled element-wise when every item is a number and forwarded unchanged otherwise, which is Max's scalemode rule read from its default position — scaling applies to numbers, and scalemode exists to extend it to 'numeric arguments to messages that do not start with a number' — and the only reading that keeps 'note 60 100' from having its channel quietly rescaled while its selector stays put; a list of more than 256 items is forwarded unscaled rather than truncated. Unlike matrix~, the outlets do not add the values of multiple inputs: two inlets reaching one outlet produce two messages out of it, one per event, since two events are never simultaneous and there is nothing to add them at. The leftmost inlet is not routable — Max scopes every connection message to 'In left inlet' and numbers the routed ones 'starting at 0 for the object's second inlet from left' — so the object has one more inlet than asked for, the extra one takes the connection messages, and it accepts a list and declines bang, int and float outright the way .decode, .spray and .router decline what Max does not document. Symmetrically there is one more outlet than asked for, the rightmost, carrying only the answer to dumpconnections: Max sends that answer as a dictionary out its left outlet and can, because a dictionary is a distinguishable kind of message, but this patcher is headless and has no dictionaries, so the answer is a list, routed data is also lists, and a dump line on a data outlet would be indistinguishable from a value routed there. Only current connections are dumped, as Max says, and each line is '<inlet> <outlet> <gain>' — the same three items in the same order that set a cell, so storing a routing is storing the dump and restoring one is clear followed by replaying it. A dump requested while one is running is ignored rather than nested, since its outlet is one cord away from the control inlet. 'dictionary <name>' names a Max dictionary object, of which there are none here, and is accepted and silent rather than read as data. Max's attributes — defaultgain, exclusive, inhibit, inrange, outscale, scalemode — are not modelled, because the patcher has no attribute mechanism; the one a patch would miss is defaultgain, and it is the third creation argument, which is where Max puts it too. At most 256 routable inlets and 256 routable outlets, built once before the object is published. Calculate() does nothing, and no message path allocates, locks or blocks: routing reads one row and sends, setting a cell writes one float, a list is parsed into a bounded stack array once per message rather than once per destination, and the row is snapshotted before the first send so a patch looping an outlet back into the control inlet cannot deliver one message under two different sets of gains.",
+    "inlets": [
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "The connection inlet, and the one inlet nothing is routed from. A list of three numbers is an inlet number, an outlet number and a gain: 'a non-zero gain adds a connection with the designated gain; a gain of 0 deletes the connection if it exists', so the gain is the connection and there is no connected-but-unweighted state. 'connect <inlet> <outlet> [gain]' names the same cell in words and falls back to the default gain (the third creation argument, 1 if absent) when no gain is given; 'disconnect <inlet> <outlet>' deletes it; 'clear' removes every connection; 'dumpconnections' sends the current connections out the rightmost outlet, one '<inlet> <outlet> <gain>' list each — the same three items in the same order that set a cell, so a dump line fed back here re-creates what it describes. Inlet numbers count the routable inlets from 0, 'starting at 0 for the object's second inlet from left', so 'connect 0 0' addresses the inlet immediately to the right of this one. A number naming a port the object does not have, and a message that is not one of these forms, are ignored. 'dictionary <name>' is accepted and does nothing — the patcher is headless and has no Max dictionaries; 'dumpconnections' is the question a patch can read the answer to.",
+        "index": 0,
+        "label": "connections",
+        "range": "list"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang, int, float or list arriving here is sent out every outlet this inlet is currently connected to — none, one, or all of them — in Max's universal right-to-left order, scaled by that cell's gain. A gain of exactly 1 forwards the message untouched, so an int stays an int and a list arrives spelled character for character; any other gain multiplies, and the result leaves as a float even from an int, since truncating it back would discard the scaling itself. A bang has no value to scale and is forwarded as a bang. A list is scaled element-wise when every item is a number and forwarded unchanged otherwise, so 'note 60 100' keeps its selector and its numbers; a list of more than 256 items is forwarded unscaled rather than truncated. Nothing is routed until the control inlet says so, and message words are not interpreted here, so 'connect 0 1' arriving at this inlet is data to forward and not a method call.",
+        "index": 1,
+        "label": "in0",
+        "range": "any"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang, int, float or list arriving here is sent out every outlet this inlet is currently connected to — none, one, or all of them — in Max's universal right-to-left order, scaled by that cell's gain. A gain of exactly 1 forwards the message untouched, so an int stays an int and a list arrives spelled character for character; any other gain multiplies, and the result leaves as a float even from an int, since truncating it back would discard the scaling itself. A bang has no value to scale and is forwarded as a bang. A list is scaled element-wise when every item is a number and forwarded unchanged otherwise, so 'note 60 100' keeps its selector and its numbers; a list of more than 256 items is forwarded unscaled rather than truncated. Nothing is routed until the control inlet says so, and message words are not interpreted here, so 'connect 0 1' arriving at this inlet is data to forward and not a method call.",
+        "index": 2,
+        "label": "in1",
+        "range": "any"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".matrix",
+    "outlets": [
+      {
+        "doc": "Whatever arrived at any inlet currently connected to this outlet, multiplied by that connection's gain. Several inlets may reach this outlet at once, in which case each of them sends here independently — unlike ~matrix-style audio routing, the outlets do not add the values of multiple inputs, because two events are never simultaneous and so there is nothing to add them at.",
+        "index": 0,
+        "label": "out0",
+        "range": "any",
+        "type": "ANY"
+      },
+      {
+        "doc": "Whatever arrived at any inlet currently connected to this outlet, multiplied by that connection's gain. Several inlets may reach this outlet at once, in which case each of them sends here independently — unlike ~matrix-style audio routing, the outlets do not add the values of multiple inputs, because two events are never simultaneous and so there is nothing to add them at.",
+        "index": 1,
+        "label": "out1",
+        "range": "any",
+        "type": "ANY"
+      },
+      {
+        "doc": "The current connections, in answer to a 'dumpconnections' on the control inlet: one list per connected cell in the form '<inlet> <outlet> <gain>', ascending by inlet and then by outlet. Only connected cells are reported, as Max reports 'all current connections' — at 256 by 256 the full table would be 65536 lines where the connections are usually a handful. The line is the same shape that sets a cell, so a patch can store a routing by storing the dump and restore it with 'clear' followed by replaying the lines. Silent otherwise — no routed message ever leaves here. A dump requested while one is already running is ignored rather than nested.",
+        "index": 2,
+        "label": "connections",
+        "range": "list",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "2",
+        "doc": "Max's argument list, in Max's order: how many routable inlets to build, how many routable outlets, then the gain a bare 'connect' uses. Each count is clamped to 1-256 and defaults to 2, which Max states outright ('if not present the default is 2'); the gain defaults to 1, the only value that makes a bare 'connect' mean what the word says. The object builds one inlet and one outlet more than the counts, for the connection messages and for dumpconnections. A float count is truncated; anything that is not a whole finite number is ignored and leaves that default in place. The connections themselves are not parameters and do not survive a save — 'dumpconnections' is how a patch reads them back.",
+        "name": "inputs",
+        "range": "1-256, optional outputs 1-256, optional default gain"
+      }
+    ]
+  },
   ".maximum": {
     "category": "MATH",
     "description": "Sends out the larger of the number received on inlet 0 and a stored comparand, which makes it a .clip whose bound is itself a signal and the natural way to combine two control sources. Inlet 1 sets the comparand without emitting anything; a number on inlet 0 is compared and then forgotten, so the comparand is never moved by the input — that running reading of the idea is .peak, a different object. A bang re-sends the most recent output, and before there has been one that is the 'initial' creation argument (0 by default) rather than silence, since a patch that bangs its objects once on load has to get an answer. A list of two or more numbers is Max's reduction: the numbers are compared with each other and the greatest is sent out, the comparand taking no part, and afterwards the comparand is replaced by the next greatest value in the list — not by the greatest, which would make every later comparison a tie with the value just emitted. Up to 256 items are read; a one-element list is a plain number and compares against the comparand as one. A message with no numbers in it is ignored. Everything is a float and the outlet is a float outlet: Max's int-unless-the-argument-has-a-decimal-point duality is deliberately not reproduced, because '.maximum 5' and '.maximum 5.0' are the same parameter string here and guessing integral would silently round a comparison a patch is using to clamp a gain — put a .round on the outlet instead. A non-finite number is read as 0 wherever it arrives, the convention ./ , .sqrt, .zmap, .clip, .slide and .mean already use, and here it also keeps a stray NaN from losing every comparison while still being the value sent out, and a stray infinity from pinning the outlet for good.",
