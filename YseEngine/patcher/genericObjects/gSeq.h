@@ -144,18 +144,17 @@ namespace YSE {
      *  other store: the object is driven by its inlet and by its own clock, and
      *  one that emitted would restart itself on every DSP tick.
      *
-     *  ### The one place a resumed step disagrees with its own THREAD tag
+     *  ### A resumed step passes its THREAD tag straight through
      *
-     *  ``.qlist``'s, filed as **#690**: ``messageScheduler::DeliverDue`` tags a
-     *  delivery ``T_GUI``, which is the right reading for an outlet send — the
-     *  block's own traversal renders what the delivery caused — while
-     *  ``patcherImplementation::PassData`` reads the same tag as "the caller is
-     *  the control thread" and answers it by taking ``mtx`` and building a log
-     *  string, on the audio callback. This object never sends remotely, so like
-     *  ``.mtr`` it only ever needs the outlet reading and passes the delivered
-     *  tag straight through; the note is here because the sidestep ``.qlist``
-     *  documents is what the next scheduler client that *does* send remotely
-     *  will need.
+     *  ``messageScheduler::DeliverDue`` tags a delivery ``T_GUI``, which is the
+     *  right reading for an outlet send — the block's own traversal renders
+     *  what the delivery caused. It used to be the wrong reading for a *remote*
+     *  send, because ``patcherImplementation::PassData`` read the same tag as
+     *  "the caller is the control thread" and answered it by taking ``mtx`` and
+     *  building a log string, on the audio callback (**#690**). That is fixed
+     *  at the patcher level: ``PassData`` asks ``CallingThread`` which thread it
+     *  is really on. Every scheduler client, this one included, now simply
+     *  forwards the tag it was delivered with.
      *
      *  ### What persists: nothing
      *

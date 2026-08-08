@@ -191,9 +191,11 @@ void gDelay::DeliverDeferred(const deferredMessage& msg, YSE::THREAD thread) {
   // (#628) — the causal chain the bang came in on, resumed rather than
   // replaced, which is the whole reason this object does not use TimerThread.
   //
-  // The tag is passed straight through. It is T_GUI — the right reading for an
-  // outlet send, the wrong one for a remote send (#690) — and this object has
-  // no remote path of its own, so like `.mtr` and `.seq` it needs no sidestep.
+  // The tag is passed straight through. It is T_GUI — "let the block's own
+  // traversal render it", the right reading for an outlet send. A `.s` wired to
+  // that outlet used to read the same tag as "the caller is the control thread"
+  // and take `mtx` on this very callback; since #690 `PassData` decides that
+  // from `CallingThread` instead, so the tag travels unaltered.
   pending.store(0, std::memory_order_relaxed);
   outputs[0].SendBang(thread);
 }

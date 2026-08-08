@@ -15,10 +15,12 @@
 
 #include <doctest/doctest.h>
 #include <string>
+#include <vector>
 #include "patcher/patcherImplementation.h"
 #include "patcher/pHandle.hpp"
 #include "patcher/pObjectList.hpp"
 #include "sinks.hpp"
+#include "log.hpp"
 
 using TestHelpers::MultiSink;
 using YSE::PATCHER::patcherImplementation;
@@ -141,6 +143,153 @@ TEST_SUITE("patcher") {
     p.Calculate(YSE::T_DSP);
     CHECK(sink.gotInt);
     CHECK(sink.intValue == 123);
+  }
+
+  // ── A send reached from a deferred delivery (issue #690) ───────────────────
+  //
+  // The drains at the top of Calculate — the value queue above, the #628
+  // deferred-message scheduler, the #683 file scheduler — all dispatch with
+  // T_GUI *from the audio callback*, because T_GUI means "set the state and let
+  // the block's own traversal render what you caused", not "you are on the
+  // control thread". PassBang / PassData used to read it as the latter, and
+  // answered a `.s` reached that way by locking `mtx`, scanning the object map
+  // and — for an unknown name — concatenating a log string out of every
+  // receiver in the patcher. A lock and an allocation on the audio callback,
+  // reachable from any `.delay` / `.bondo` / `.qlist` wired into a `.s`.
+  //
+  // Both halves of that branch are asserted, because each can be passed alone:
+  // *when* the value lands (the control-thread queue is drained before the
+  // deferred one, so a message enqueued from a deferred delivery costs a whole
+  // extra block) and *what the miss costs* (only the not-found path logs).
+  //
+  // The rig is `.r trigger` → `.delay 0` → `.s <name>`, plus a `.r <name>` when
+  // the send is meant to land. `.delay 0` still defers by the scheduler's
+  // one-block floor, so its bang leaves the delay inside a T_GUI drain on the
+  // audio thread — exactly the reported path — and the stimulus enters through
+  // the public PassBang door rather than by poking an inlet.
+  namespace {
+    void wireDeferredSend(patcherImplementation& p, const std::string& sendTo) {
+      YSE::pHandle* trigger = p.CreateObject(YSE::OBJ::G_RECEIVE, "trigger");
+      YSE::pHandle* delay = p.CreateObject(YSE::OBJ::G_DELAY, "0");
+      YSE::pHandle* send = p.CreateObject(YSE::OBJ::G_SEND, sendTo);
+      REQUIRE(trigger != nullptr);
+      REQUIRE(delay != nullptr);
+      REQUIRE(send != nullptr);
+      p.Connect(trigger, 0, delay, 0);
+      p.Connect(delay, 0, send, 0);
+    }
+
+    // Records every log line, so "the audio thread emitted a message" is an
+    // assertion rather than an inference. A counting sink rather than the
+    // throwing one test_log_nothrow needs, so it is safe in the shared process;
+    // cases match on a substring so an unrelated line cannot fail them.
+    class RecordingHandler : public YSE::logHandler {
+    public:
+      void AddMessage(const std::string& message) override {
+        messages.push_back(message);
+      }
+      bool sawSubstring(const std::string& needle) const {
+        for (const std::string& m : messages) {
+          if (m.find(needle) != std::string::npos) return true;
+        }
+        return false;
+      }
+      std::vector<std::string> messages;
+    };
+
+    // Installs a sink and a level that lets errors through for one case, and
+    // restores both even if an assertion unwinds.
+    class ScopedSink {
+    public:
+      explicit ScopedSink(YSE::logHandler* handler) : previousLevel(YSE::Log().getLevel()) {
+        YSE::Log().setLevel(YSE::EL_DEBUG);
+        YSE::Log().setHandler(handler);
+      }
+      ~ScopedSink() {
+        YSE::Log().setHandler(nullptr);
+        YSE::Log().setLevel(previousLevel);
+      }
+      ScopedSink(const ScopedSink&) = delete;
+      ScopedSink& operator=(const ScopedSink&) = delete;
+
+    private:
+      YSE::ERROR_LEVEL previousLevel;
+    };
+  } // namespace
+
+  TEST_CASE("deferred send: a .s reached from a delayed bang delivers in the same block") {
+    patcherImplementation p(1, nullptr);
+    MultiSink sink;
+    YSE::pHandle sinkHandle(&sink);
+    wireReceiver(p, "target", sink, sinkHandle);
+    wireDeferredSend(p, "target");
+
+    // Block 1 drains the value queue, which bangs `.r trigger` and arms the
+    // delay one block out.
+    CHECK(p.PassBang("trigger", YSE::T_GUI));
+    p.Calculate(YSE::T_DSP);
+    CHECK_FALSE(sink.gotBang);
+
+    // Block 2 is the one the delay comes due in. The bang leaves `.delay`
+    // tagged T_GUI on the audio thread and reaches `.s target`, which must
+    // dispatch against the snapshot already pinned for this block. Taking the
+    // control-thread branch instead — the bug, and the branch that locks `mtx`
+    // — leaves the sink untouched here and only delivers on the block after.
+    p.Calculate(YSE::T_DSP);
+    CHECK(sink.gotBang);
+  }
+
+  TEST_CASE("deferred send: a .s to an unknown name logs nothing from the audio thread") {
+    patcherImplementation p(1, nullptr);
+    // No `.r nowhere` anywhere in the patcher, so the send misses. On the
+    // control thread a miss is worth reporting; on the audio callback the
+    // report is a std::string built from a locked scan of the object map, and
+    // must not happen at all.
+    wireDeferredSend(p, "nowhere");
+
+    CHECK(p.PassBang("trigger", YSE::T_GUI));
+    p.Calculate(YSE::T_DSP); // arms the delay
+
+    RecordingHandler handler;
+    ScopedSink sink(&handler);
+    p.Calculate(YSE::T_DSP); // the block the deferred bang fires in
+    CHECK_FALSE(handler.sawSubstring("nowhere"));
+  }
+
+  TEST_CASE("deferred send: a .s missing its target still reports the miss on the control thread") {
+    // The counterpart of the case above: the fix must not silence the miss for
+    // callers that really are on the control thread, where logging it is right.
+    patcherImplementation p(1, nullptr);
+    wireDeferredSend(p, "nowhere");
+
+    RecordingHandler handler;
+    ScopedSink sink(&handler);
+    CHECK_FALSE(p.PassBang("nowhere", YSE::T_GUI));
+    CHECK(handler.sawSubstring("nowhere"));
+  }
+
+  TEST_CASE("deferred send: a control-thread send still routes through the value queue") {
+    // And the fix must be a branch on *which thread*, not a blanket switch to
+    // synchronous dispatch: a PassBang from this (control) thread is still
+    // queued rather than delivered inline, exactly as the cases at the top of
+    // this file pin down. The `.s` in the chain re-enters PassBang from inside
+    // the drain — genuinely on the audio thread — and lands in that same block.
+    patcherImplementation p(1, nullptr);
+    MultiSink sink;
+    YSE::pHandle sinkHandle(&sink);
+    wireReceiver(p, "target", sink, sinkHandle);
+
+    YSE::pHandle* trigger = p.CreateObject(YSE::OBJ::G_RECEIVE, "trigger");
+    YSE::pHandle* send = p.CreateObject(YSE::OBJ::G_SEND, "target");
+    REQUIRE(trigger != nullptr);
+    REQUIRE(send != nullptr);
+    p.Connect(trigger, 0, send, 0);
+
+    CHECK(p.PassBang("trigger", YSE::T_GUI));
+    CHECK_FALSE(sink.gotBang);
+
+    p.Calculate(YSE::T_DSP);
+    CHECK(sink.gotBang);
   }
 
 } // TEST_SUITE("patcher")

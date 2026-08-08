@@ -54,10 +54,13 @@ namespace YSE {
      *  message**. In-patcher delivery dispatches on ``T_DSP``, and ``THREAD``
      *  is a *dispatch-semantics* tag rather than a thread identity —
      *  ``messageScheduler::DeliverDue`` is itself called from the audio
-     *  callback carrying ``T_GUI``. There is no predicate an object can ask to
-     *  find out that it is not on the audio callback, so a ``read`` handler
-     *  that opened a file would block that callback in exactly the cases that
-     *  matter. This is why ``read`` and ``write`` were left inert on ``.coll``
+     *  callback carrying ``T_GUI``. (``patcherImplementation::CallingThread``
+     *  answers the thread-identity question since #690, but only for a patcher
+     *  that is mid-block — and a handler that is *not* on the audio thread this
+     *  time may be the next.) A ``read`` handler that opened a file would block
+     *  that callback in exactly the cases that matter, which is why an object
+     *  asks for a file instead of opening one, no matter what thread it is on.
+     *  This is why ``read`` and ``write`` were left inert on ``.coll``
      *  (#494), ``.textfile`` (#499), ``.qlist`` (#500), ``.mtr`` (#501) and
      *  ``.seq`` (#502), and it is the whole reason this class exists.
      *
@@ -108,12 +111,14 @@ namespace YSE {
      *    impersonate it.
      *
      *  Note that ``DeliverComplete`` dispatches with ``T_GUI``, matching the
-     *  value drain and the deferred-message drain beside it. That tag is read
-     *  as "the caller is the control thread" by ``patcherImplementation::
-     *  PassBang`` / ``PassData``, which is the pre-existing bug filed as #690;
-     *  a consumer whose completion path sends to a named receiver should pass
-     *  ``T_DSP`` for that remote half the way ``.qlist`` already does, until
-     *  #690 is fixed at the patcher level.
+     *  value drain and the deferred-message drain beside it. A consumer whose
+     *  completion path sends to a named receiver forwards that tag unchanged:
+     *  ``patcherImplementation::PassBang`` / ``PassData`` pick their mechanism
+     *  from ``CallingThread``, not from the tag, so a completion that addresses
+     *  a receiver from the audio callback takes the lock-free dispatch while
+     *  keeping T_GUI semantics downstream. Before #690 the tag was read as
+     *  thread identity and such a send took ``mtx`` on the callback; nothing
+     *  needs to pass ``T_DSP`` by hand any more.
      *
      *  ### It is bounded, and lazily built
      *

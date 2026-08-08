@@ -458,9 +458,9 @@ void gSeq::DeliverDeferred(const deferredMessage& msg, YSE::THREAD thread) {
   //
   // The delivered tag is passed straight through. It is T_GUI — "let the
   // block's own traversal render it" — which is the right reading for an outlet
-  // send. The *other* reading of that tag, the one `patcherImplementation::
-  // PassData` takes, is the trap `.qlist` documents and #690 tracks; this object
-  // never sends remotely, so it never meets it.
+  // send, and since #690 the only reading there is: `patcherImplementation::
+  // PassData` decides lock-free-vs-queued from `CallingThread`, not from the
+  // tag, so a T_GUI delivery on the audio callback no longer takes `mtx`.
   Resume(thread);
 }
 

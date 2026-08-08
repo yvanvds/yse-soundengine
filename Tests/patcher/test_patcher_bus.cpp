@@ -9,9 +9,12 @@
 
 #include <doctest/doctest.h>
 #include <string>
+#include <variant>
 
 #include "yse.hpp"
+#include "internal/namedBus.h"
 #include "patcher/patcher.hpp"
+#include "patcher/patcherImplementation.h"
 #include "patcher/pHandle.hpp"
 #include "patcher/pObjectList.hpp"
 #include "patcher/sinks.hpp"
@@ -360,6 +363,111 @@ TEST_SUITE("patcher") {
     CHECK(localSink.intValue == 5);
     CHECK(peerSink.gotInt);
     CHECK(peerSink.intValue == 5);
+  }
+
+  // ── Publishing from a deferred delivery (issue #690) ──────────────────────
+  //
+  // A `.s` reached from the deferred-message drain runs on the audio callback
+  // carrying a T_GUI tag. `NamedBus::publish` reads T_GUI off its control
+  // thread as "park this for the next drainPending()", which takes
+  // `pendingMutex_` and grows a vector of (std::string, BusValue) — a lock and
+  // two allocations on the callback, on top of the `BusValue{value}` copy the
+  // caller had already made. gSend / gForward / gTable therefore ask
+  // `patcherImplementation::CallingThread` which thread they are really on and
+  // publish with T_DSP when the answer is the audio thread.
+  //
+  // That puts a deferred publish under the bus's documented audio-thread
+  // contract (namedBus.h): int and float ride the lock-free per-thread queue
+  // and arrive on the next drain; bang and list are dropped, as they already
+  // were for a `.s` fanning out mid-traversal. The two cases below pin both
+  // halves, since the second is a deliberate behaviour change.
+  //
+  // These drive `patcherImplementation` directly because a deferral is measured
+  // in audio blocks and `Calculate` is where a block happens; `YSE::patcher`
+  // keeps its impl private for everything but `YSE::sound`.
+  TEST_CASE("bus routing: an int from a deferred .s arrives on the next bus drain") {
+    REQUIRE(TestHelpers::engineInit());
+
+    YSE::PATCHER::patcherImplementation p(1, nullptr);
+    p.SetName("deferred.bus");
+
+    // `.r trigger` → `.bondo 1 5` → `.s out`: a bang releases the stored set,
+    // and the 5 ms argument makes that release a deferred one, so the int
+    // leaves `.bondo` inside the audio thread's drain.
+    YSE::pHandle* trigger = p.CreateObject(YSE::OBJ::G_RECEIVE, "trigger");
+    YSE::pHandle* bondo = p.CreateObject(YSE::OBJ::G_BONDO, "1 5");
+    YSE::pHandle* send = p.CreateObject(YSE::OBJ::G_SEND, "out");
+    REQUIRE(trigger != nullptr);
+    REQUIRE(bondo != nullptr);
+    REQUIRE(send != nullptr);
+    p.Connect(trigger, 0, bondo, 0);
+    p.Connect(bondo, 0, send, 0);
+
+    int received = 0;
+    int intValue = -1;
+    const YSE::INTERNAL::SubHandle sub = YSE::INTERNAL::Bus().subscribe(
+        "deferred.bus.out", [&received, &intValue](const YSE::INTERNAL::BusValue& value) {
+          received++;
+          if (const int* i = std::get_if<int>(&value)) intValue = *i;
+        });
+
+    CHECK(p.PassData(11, "trigger", YSE::T_GUI));
+    // Blocks: the first drains the value queue and arms the release, and then
+    // as many as the 5 ms deadline needs. Nothing is dispatched inline from any
+    // of them — the audio path only ever enqueues.
+    for (int block = 0; block < 32; ++block) {
+      p.Calculate(YSE::T_DSP);
+    }
+    CHECK(received == 0);
+
+    // drainPending() runs from update(), on the control thread.
+    YSE::System().update();
+    CHECK(received == 1);
+    CHECK(intValue == 11);
+
+    YSE::INTERNAL::Bus().unsubscribe(sub);
+  }
+
+  TEST_CASE("bus routing: a bang from a deferred .s follows the bus audio-thread contract") {
+    REQUIRE(TestHelpers::engineInit());
+
+    YSE::PATCHER::patcherImplementation p(1, nullptr);
+    p.SetName("deferred.bang");
+
+    // `.r trigger` → `.delay 0` → `.s out`, whose deferred release is a bang.
+    YSE::pHandle* trigger = p.CreateObject(YSE::OBJ::G_RECEIVE, "trigger");
+    YSE::pHandle* delay = p.CreateObject(YSE::OBJ::G_DELAY, "0");
+    YSE::pHandle* send = p.CreateObject(YSE::OBJ::G_SEND, "out");
+    REQUIRE(trigger != nullptr);
+    REQUIRE(delay != nullptr);
+    REQUIRE(send != nullptr);
+    p.Connect(trigger, 0, delay, 0);
+    p.Connect(delay, 0, send, 0);
+
+    // A `.r out` in the same patcher proves the bang really was released: the
+    // in-patcher half of the send is unaffected by any of this.
+    MultiSink local;
+    YSE::pHandle localHandle(&local);
+    YSE::pHandle* localRecv = p.CreateObject(YSE::OBJ::G_RECEIVE, "out");
+    REQUIRE(localRecv != nullptr);
+    p.Connect(localRecv, 0, &localHandle, 0);
+
+    int received = 0;
+    const YSE::INTERNAL::SubHandle sub = YSE::INTERNAL::Bus().subscribe(
+        "deferred.bang.out", [&received](const YSE::INTERNAL::BusValue&) { received++; });
+
+    CHECK(p.PassBang("trigger", YSE::T_GUI));
+    for (int block = 0; block < 8; ++block) {
+      p.Calculate(YSE::T_DSP);
+    }
+    YSE::System().update();
+
+    CHECK(local.gotBang); // the release happened
+    // ...and the bus did not carry it: a monostate payload has no audio-thread
+    // route, exactly as for a `.s` banged mid-traversal on T_DSP.
+    CHECK(received == 0);
+
+    YSE::INTERNAL::Bus().unsubscribe(sub);
   }
 
 } // TEST_SUITE("patcher")

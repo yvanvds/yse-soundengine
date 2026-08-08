@@ -100,30 +100,25 @@ namespace YSE {
      *  engine holds the sequence where it stands, which is the only meaning
      *  "300 ms from now" can have on a clock that is not running.
      *
-     *  ### The one place a resumed step disagrees with its own THREAD tag
+     *  ### A resumed step passes its THREAD tag straight through
      *
      *  The scheduler delivers with **T_GUI**, deliberately: the delivery sets
      *  state and the block's own traversal renders what it caused, which is
      *  what the #225 value drain does and what an outlet send from a resumed
-     *  step wants. A **remote** send wants the opposite reading of the same
-     *  tag. ``patcherImplementation::PassData`` treats T_GUI as *"the caller is
-     *  the control thread"* and answers it by taking ``mtx``, scanning the
-     *  object map and — for an unknown destination — building a log string.
-     *  A resumed step is on the audio callback, where all three are forbidden.
-     *  Its T_DSP branch is the one that is not: a synchronous dispatch against
-     *  the ``GraphState`` already pinned for this block, no lock and no
-     *  allocation.
+     *  step wants. A remote send is tagged the same way and needs no special
+     *  case.
      *
-     *  So a resumed step sends out its outlets with the tag it was given and
-     *  addresses a receiver with **T_DSP**. That is not a workaround: ``THREAD``
-     *  is a dispatch-semantics tag, its two consumers read it for different
-     *  things, and this object is the first to need both readings at once. A
-     *  step driven by an arriving message uses that message's tag for both,
-     *  since there both readings agree.
-     *
-     *  The same mismatch reaches a plain ``.s`` placed downstream of any
-     *  deferred send — filed as **#690** — but that is ``.s``'s to fix, not
-     *  something to route around here.
+     *  It used to. Until **#690**, ``patcherImplementation::PassData`` read
+     *  T_GUI as *"the caller is the control thread"* and answered it by taking
+     *  ``mtx``, scanning the object map and — for an unknown destination —
+     *  building a log string, all on the audio callback that a resumed step
+     *  runs on. This object routed around that by forcing **T_DSP** for the
+     *  remote half only, and the forcing cost it the T_GUI semantics
+     *  downstream. ``PassData`` now asks ``CallingThread`` which thread it is
+     *  physically on and picks the lock-free mechanism from that, leaving the
+     *  tag to mean only what it says, so both halves carry the delivered tag
+     *  and a ``.r`` downstream of a cue behaves the same as one downstream of
+     *  the #225 value drain.
      *
      *  Issue #500 suggests binding playback to ``CLOCK::domainClock`` instead,
      *  so the sequence would inherit the polytemporal tempo model ``YSE::clip``
@@ -379,10 +374,8 @@ namespace YSE {
     // — with the guard released — send it: out outlet 0 when it is numeric,
     // remotely when it is a symbol line, and not at all when it is a symbol
     // line and `ignoreSymbols`. `wait` receives the leading number of a numeric
-    // line, which is what an automatic walk waits for. `thread` tags the outlet
-    // send and `remote` the remote one; the two differ only inside a resumed
-    // step — see the class documentation.
-    Step Advance(bool ignoreSymbols, float& wait, YSE::THREAD thread, YSE::THREAD remote);
+    // line, which is what an automatic walk waits for.
+    Step Advance(bool ignoreSymbols, float& wait, YSE::THREAD thread);
 
     // Max's `next`: walk until a numeric line has been output, banging outlet 1
     // if the end arrives first. Returns false once the end has been reached, so
@@ -391,7 +384,7 @@ namespace YSE {
 
     // The automatic walk: step until a numeric line gives a wait to arm, or the
     // end arrives. Re-entered from DeliverDeferred each time a wait elapses.
-    void Resume(YSE::THREAD thread, YSE::THREAD remote);
+    void Resume(YSE::THREAD thread);
 
     // Arm the next step `waitMs` milliseconds out, scaled by the tempo. False
     // when there is no scheduler (a standalone object) or it refused, in which
@@ -411,8 +404,7 @@ namespace YSE {
     // A symbol line: the first token names the destination, the rest is the
     // message. Sent through the patcher's own PassBang / PassData, in the kind
     // the remainder is, so a `.r` downstream sees an int where the cue wrote
-    // one. `thread` is the remote tag, which is not always the one the step was
-    // dispatched with — see the class documentation.
+    // one.
     void SendRemote(const std::string& text, YSE::THREAD thread);
 
     // The command half of the inlet. False when `word` is none of them, which

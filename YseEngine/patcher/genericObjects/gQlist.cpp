@@ -309,8 +309,7 @@ void gQlist::Clear() {
 
 // ─── playing it ───────────────────────────────────────────────────────────────
 
-gQlist::Step gQlist::Advance(bool ignoreSymbols, float& wait, YSE::THREAD thread,
-                             YSE::THREAD remote) {
+gQlist::Step gQlist::Advance(bool ignoreSymbols, float& wait, YSE::THREAD thread) {
   {
     storeGuard guard(busy);
     if (!guard.Held()) return Step::DROP;
@@ -344,7 +343,7 @@ gQlist::Step gQlist::Advance(bool ignoreSymbols, float& wait, YSE::THREAD thread
 
   // Max's `fwd`, and `next` with a non-zero argument: the symbol lines are
   // stepped over rather than sent.
-  if (!ignoreSymbols) SendRemote(sendText, remote);
+  if (!ignoreSymbols) SendRemote(sendText, thread);
   return Step::SENT;
 }
 
@@ -353,7 +352,7 @@ bool gQlist::Next(bool ignoreSymbols, YSE::THREAD thread) {
   // walk, so MAX_ENTRIES symbol lines is the worst case before the end arrives.
   for (std::size_t steps = 0; steps <= MAX_ENTRIES; steps++) {
     float wait = 0.f;
-    switch (Advance(ignoreSymbols, wait, thread, thread)) {
+    switch (Advance(ignoreSymbols, wait, thread)) {
     case Step::OUTPUT:
       // Max: "stop after it encounters and outputs a line beginning with a
       // numerical value". The number it stopped on has already gone out; what
@@ -371,10 +370,10 @@ bool gQlist::Next(bool ignoreSymbols, YSE::THREAD thread) {
   return false;
 }
 
-void gQlist::Resume(YSE::THREAD thread, YSE::THREAD remote) {
+void gQlist::Resume(YSE::THREAD thread) {
   for (std::size_t steps = 0; steps <= MAX_ENTRIES; steps++) {
     float wait = 0.f;
-    switch (Advance(false, wait, thread, remote)) {
+    switch (Advance(false, wait, thread)) {
     case Step::OUTPUT:
       if (ArmContinue(wait)) return;
       // No scheduler (a standalone object has no dispatch to defer into) or the
@@ -435,11 +434,13 @@ void gQlist::DeliverDeferred(const deferredMessage&, YSE::THREAD thread) {
   pending.store(0, std::memory_order_relaxed);
   if (!playing.load(std::memory_order_relaxed)) return;
 
-  // T_DSP for the remote half only, and the class documentation says why: the
-  // tag this arrives with means "let the block's own traversal render it",
-  // which is right for an outlet and is read by PassData as "the caller is the
-  // control thread" — where it answers by taking a mutex on the audio callback.
-  Resume(thread, YSE::T_DSP);
+  // The delivered tag is passed straight through, outlet half and remote half
+  // alike. It said T_GUI — "let the block's own traversal render it" — and
+  // until #690 the remote half had to be forced to T_DSP to keep
+  // `patcherImplementation::PassData` off `mtx` on the audio callback. PassData
+  // now asks `CallingThread` which thread it is really on, so the tag is free
+  // to mean only what it says.
+  Resume(thread);
 }
 
 // ─── sending ──────────────────────────────────────────────────────────────────
@@ -635,10 +636,7 @@ BANG_IN(BangIn) {
   }
   CancelPending();
   playing.store(true, std::memory_order_relaxed);
-  // Both tags the same here: a step driven by an arriving message is on the
-  // thread that message arrived on, so the outlet reading and the remote
-  // reading of the tag agree.
-  Resume(thread, thread);
+  Resume(thread);
 }
 
 LIST_IN(ListIn) {

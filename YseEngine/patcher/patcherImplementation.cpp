@@ -33,7 +33,45 @@ namespace {
   // kinds (Bang/Int/Float), so those paths pass a std::string& without building
   // a temporary. Never read for those kinds.
   const std::string kEmptyList;
+
+  // The patcher whose Calculate() this thread is currently inside, or null
+  // (issue #690). This is the thread-identity half of what THREAD used to be
+  // asked for: see patcherImplementation::CallingThread in the header for why
+  // the tag cannot answer it.
+  //
+  // Per *patcher* rather than a bare "in a render frame" flag, because a stale
+  // answer is worse than none: only the patcher currently rendering has a
+  // GraphState pinned in currentBlockGraph_, and dispatching against another
+  // patcher's unpinned (possibly retired) snapshot is exactly the use-after-free
+  // #226 exists to prevent. Saved and restored rather than set and cleared, so
+  // a patcher rendered from inside another one's frame restores its caller.
+  //
+  // RT-safety, on the same terms as outlet.cpp's send-depth guard and
+  // inlet.cpp's event-depth counter: constant-initialised thread_local, so
+  // touching it is a plain TLS load/store — no allocation, no lock, no syscall
+  // — and each render thread (the audio callback plus every fast-pool worker
+  // that renders a child channel) tracks its own frame independently.
+  thread_local const YSE::PATCHER::patcherImplementation* tRenderingPatcher = nullptr;
+
+  // RAII frame marker for Calculate.
+  struct renderFrameGuard {
+    const YSE::PATCHER::patcherImplementation* previous;
+    explicit renderFrameGuard(const YSE::PATCHER::patcherImplementation* p)
+      : previous(tRenderingPatcher) {
+      tRenderingPatcher = p;
+    }
+    ~renderFrameGuard() {
+      tRenderingPatcher = previous;
+    }
+    renderFrameGuard(const renderFrameGuard&) = delete;
+    renderFrameGuard& operator=(const renderFrameGuard&) = delete;
+  };
 } // namespace
+
+YSE::THREAD patcherImplementation::CallingThread(YSE::THREAD tag) const {
+  if (tag == YSE::T_DSP) return YSE::T_DSP;
+  return tRenderingPatcher == this ? YSE::T_DSP : YSE::T_GUI;
+}
 
 patcherImplementation::patcherImplementation(int mainOutputs, YSE::patcher* head)
   : pObject(false),
@@ -149,6 +187,13 @@ void patcherImplementation::Calculate(YSE::THREAD thread) {
   const GraphState* g = active_.load(std::memory_order_acquire);
   audioBlock_.fetch_add(1, std::memory_order_acq_rel);
   currentBlockGraph_.store(g, std::memory_order_release);
+
+  // Mark the frame, after the pin so "inside this patcher's Calculate" always
+  // implies "this patcher has a snapshot pinned". This is what lets a handler
+  // dispatched with T_GUI from one of the drains below discover that it is on
+  // the audio callback and take the lock-free route (issue #690) — see
+  // CallingThread in the header.
+  renderFrameGuard frame(this);
 
   // Apply queued scalar param plans first (issue #234), then deliver queued
   // value messages (PassBang/PassData), both before rendering and against the
@@ -709,9 +754,15 @@ YSE::pHandle* patcherImplementation::GetHandleFromID(unsigned int objID) {
 }
 
 bool patcherImplementation::PassBang(const std::string& to, YSE::THREAD thread) {
-  if (thread == YSE::T_DSP) {
-    // Already on the audio thread (a gSend fanning out during traversal):
-    // deliver synchronously against the pinned snapshot, same block, no lock.
+  if (CallingThread(thread) == YSE::T_DSP) {
+    // Already on the audio thread — a gSend fanning out during traversal
+    // (T_DSP), or one reached from a T_GUI-tagged drain at the top of this
+    // patcher's own Calculate (issue #690). Deliver synchronously against the
+    // pinned snapshot, same block, no lock, no allocation. The *tag* is passed
+    // on untouched, so a deferred delivery keeps its T_GUI semantics downstream
+    // (set state; the block's own traversal renders it) while using the
+    // audio-thread mechanism. Nothing below this branch — mtx, the log string,
+    // the OSC socket — may run on the audio callback.
     return DispatchToReceiver(currentBlockGraph_.load(std::memory_order_acquire), ValueKind::Bang,
                               to.c_str(), 0, 0.f, kEmptyList, thread);
   }
@@ -728,7 +779,8 @@ bool patcherImplementation::PassBang(const std::string& to, YSE::THREAD thread) 
 }
 
 bool patcherImplementation::PassData(int value, const std::string& to, YSE::THREAD thread) {
-  if (thread == YSE::T_DSP) {
+  // See PassBang for why the branch asks CallingThread rather than the tag.
+  if (CallingThread(thread) == YSE::T_DSP) {
     return DispatchToReceiver(currentBlockGraph_.load(std::memory_order_acquire), ValueKind::Int,
                               to.c_str(), value, 0.f, kEmptyList, thread);
   }
@@ -746,7 +798,8 @@ bool patcherImplementation::PassData(int value, const std::string& to, YSE::THRE
 }
 
 bool patcherImplementation::PassData(float value, const std::string& to, YSE::THREAD thread) {
-  if (thread == YSE::T_DSP) {
+  // See PassBang for why the branch asks CallingThread rather than the tag.
+  if (CallingThread(thread) == YSE::T_DSP) {
     return DispatchToReceiver(currentBlockGraph_.load(std::memory_order_acquire), ValueKind::Float,
                               to.c_str(), 0, value, kEmptyList, thread);
   }
@@ -765,7 +818,8 @@ bool patcherImplementation::PassData(float value, const std::string& to, YSE::TH
 
 bool patcherImplementation::PassData(const std::string& value, const std::string& to,
                                      YSE::THREAD thread) {
-  if (thread == YSE::T_DSP) {
+  // See PassBang for why the branch asks CallingThread rather than the tag.
+  if (CallingThread(thread) == YSE::T_DSP) {
     // Synchronous audio-thread delivery takes the value by reference — no inline
     // buffer, so no length limit on this path.
     return DispatchToReceiver(currentBlockGraph_.load(std::memory_order_acquire), ValueKind::List,
@@ -838,7 +892,9 @@ bool patcherImplementation::EnqueueValue(ValueMsg& msg, const std::string& to) {
 
   // Does a matching gReceive exist in this patcher? Scan under mtx so `objects`
   // is never read concurrently with a structural edit. mtx is control-thread
-  // only now (issue #226) and never blocks the audio thread.
+  // only (issue #226) and never blocks the audio thread — which held again only
+  // once the callers stopped reaching here from a T_GUI-tagged drain running on
+  // the audio callback (issue #690).
   bool found = false;
   mtx.lock();
   for (auto& x : objects) {
@@ -885,7 +941,8 @@ std::string patcherImplementation::GetRecieveObjectsAsString() {
   // Reached from the PassBang/PassData not-found log path on the control thread
   // (the target receiver was concurrently removed). Scan `objects` under mtx so
   // it is never read while another control thread mutates the graph — mtx is
-  // control-thread only and never blocks the audio callback (issue #226). The
+  // control-thread only and never blocks the audio callback (issues #226,
+  // #690: a caller physically on the audio thread never gets this far). The
   // callers release mtx in EnqueueValue before falling through here, so there is
   // no re-entrancy.
   std::scoped_lock lk(mtx);

@@ -458,8 +458,11 @@ void gTable::SendTo(const char* name, std::size_t nameLength, int address, YSE::
 
   auto* p = static_cast<patcherImplementation*>(parent);
   p->PassData(value, sendName, thread);
+  // CallingThread, not the tag: this send is reachable from a deferred
+  // delivery, where T_GUI is carried on the audio callback and the bus's
+  // parked-publish path takes a mutex. gSend.cpp carries the note (issue #690).
   if (busAvailable()) {
-    Bus().publish(busAddress, BusValue{value}, thread);
+    Bus().publish(busAddress, BusValue{value}, p->CallingThread(thread));
   }
 }
 
