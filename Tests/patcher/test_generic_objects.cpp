@@ -183,6 +183,19 @@ TEST_SUITE("patcher") {
     CHECK(h->OutputDataType(0) == YSE::OUT_TYPE::ANY);
   }
 
+  TEST_CASE("gRoute: no selectors leaves one pass-through outlet") {
+    YSE::PATCHER::gRoute route;
+    REQUIRE(route.NumOutputs() == 1);
+
+    MultiSink sink;
+    route.ConnectOutlet(sink.GetInlet(0), 0);
+    sink.ConnectInlet(route.GetOutlet(0), 0);
+
+    route.GetInlet(0)->SetInt(7, YSE::T_GUI);
+    CHECK(sink.gotInt);
+    CHECK(sink.intValue == 7);
+  }
+
   TEST_CASE("gRoute: integer keys route to the matching outlet") {
     YSE::PATCHER::gRoute route;
     route.SetParams("10 20");
@@ -197,8 +210,8 @@ TEST_SUITE("patcher") {
     sDefault.ConnectInlet(route.GetOutlet(2), 0);
 
     route.GetInlet(0)->SetInt(10, YSE::T_GUI);
-    CHECK(s10.gotInt);
-    CHECK(s10.intValue == 10);
+    CHECK(s10.gotBang);
+    CHECK_FALSE(s10.gotInt);
     CHECK_FALSE(s20.gotInt);
     CHECK_FALSE(sDefault.gotInt);
 
@@ -206,8 +219,8 @@ TEST_SUITE("patcher") {
     s20.reset();
     sDefault.reset();
     route.GetInlet(0)->SetInt(20, YSE::T_GUI);
-    CHECK(s20.gotInt);
-    CHECK(s20.intValue == 20);
+    CHECK(s20.gotBang);
+    CHECK_FALSE(s20.gotInt);
 
     s10.reset();
     s20.reset();
@@ -265,13 +278,34 @@ TEST_SUITE("patcher") {
 
     route.GetInlet(0)->SetList("foo 1 2 3", YSE::T_GUI);
     CHECK(sFoo.gotList);
-    CHECK(sFoo.listValue == "foo 1 2 3");
+    CHECK(sFoo.listValue == "1 2 3");
 
     sFoo.reset();
     sBar.reset();
     sDefault.reset();
     route.GetInlet(0)->SetList("bar hello", YSE::T_GUI);
     CHECK(sBar.gotList);
+    CHECK(sBar.listValue == "hello");
+
+    sFoo.reset();
+    sBar.reset();
+    sDefault.reset();
+    route.GetInlet(0)->SetList("foo 1", YSE::T_GUI);
+    CHECK(sFoo.gotInt);
+    CHECK(sFoo.intValue == 1);
+
+    sFoo.reset();
+    sBar.reset();
+    sDefault.reset();
+    route.GetInlet(0)->SetList("foo 1.5", YSE::T_GUI);
+    CHECK(sFoo.gotFloat);
+    CHECK(sFoo.floatValue == doctest::Approx(1.5f));
+
+    sFoo.reset();
+    sBar.reset();
+    sDefault.reset();
+    route.GetInlet(0)->SetList("foo", YSE::T_GUI);
+    CHECK(sFoo.gotBang);
 
     sFoo.reset();
     sBar.reset();
@@ -281,26 +315,35 @@ TEST_SUITE("patcher") {
     CHECK(sDefault.listValue == "zzz nope");
   }
 
-  TEST_CASE("gRoute: float compared as its to_string representation") {
-    YSE::PATCHER::gRoute route;
-    // std::to_string(1.5f) yields "1.500000" on every platform we ship to.
-    route.SetParams(std::to_string(1.5f));
-    REQUIRE(route.NumOutputs() == 2);
+  TEST_CASE("gRoute: numeric selectors match ints and floats by value") {
+    const char* selectors[] = {"5", "5.0"};
+    for (const char* selector : selectors) {
+      YSE::PATCHER::gRoute route;
+      route.SetParams(selector);
+      REQUIRE(route.NumOutputs() == 2);
 
-    MultiSink sMatch, sDefault;
-    route.ConnectOutlet(sMatch.GetInlet(0), 0);
-    sMatch.ConnectInlet(route.GetOutlet(0), 0);
-    route.ConnectOutlet(sDefault.GetInlet(0), 1);
-    sDefault.ConnectInlet(route.GetOutlet(1), 0);
+      MultiSink sMatch, sDefault;
+      route.ConnectOutlet(sMatch.GetInlet(0), 0);
+      sMatch.ConnectInlet(route.GetOutlet(0), 0);
+      route.ConnectOutlet(sDefault.GetInlet(0), 1);
+      sDefault.ConnectInlet(route.GetOutlet(1), 0);
 
-    route.GetInlet(0)->SetFloat(1.5f, YSE::T_GUI);
-    CHECK(sMatch.gotFloat);
-    CHECK_FALSE(sDefault.gotFloat);
+      route.GetInlet(0)->SetInt(5, YSE::T_GUI);
+      CHECK(sMatch.gotBang);
+      CHECK_FALSE(sDefault.gotBang);
 
-    sMatch.reset();
-    sDefault.reset();
-    route.GetInlet(0)->SetFloat(2.0f, YSE::T_GUI);
-    CHECK(sDefault.gotFloat);
+      sMatch.reset();
+      sDefault.reset();
+      route.GetInlet(0)->SetFloat(5.0f, YSE::T_GUI);
+      CHECK(sMatch.gotBang);
+      CHECK_FALSE(sDefault.gotBang);
+
+      sMatch.reset();
+      sDefault.reset();
+      route.GetInlet(0)->SetFloat(2.0f, YSE::T_GUI);
+      CHECK(sDefault.gotFloat);
+      CHECK(sDefault.floatValue == doctest::Approx(2.0f));
+    }
   }
 
   // ─── gSwitch ──────────────────────────────────────────────────────────────────
