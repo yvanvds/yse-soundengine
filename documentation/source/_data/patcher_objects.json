@@ -4331,6 +4331,43 @@
       }
     ]
   },
+  ".sprintf": {
+    "category": "GENERIC",
+    "description": "Formats a message out of words and numbers — Max's sprintf, which 'uses the common C-language printf function inside Max' to 'combine symbols, organize lists of numbers, or format messages or menu items'. The creation arguments are a format: literal text with changeable arguments in it, %s for a symbol, %ld for an int, %f for a float and %c for an int rendered as a character, and 'the number of inlets is determined by the number of changeable arguments, with each inlet corresponding to a changeable argument, in order'. This is the message-construction object the others could not stand in for: .prepend and .append reach the ends of a message and .substitute swaps one word for another, but all three work in whole tokens, so building /voice/3/freq out of the number 3 meant a round trip out to the host application. The format is parsed once, on the control thread, into literal runs and typed slots, and every argument is rendered by the patcher's own writers: no user-supplied text ever reaches a printf-family function, which would otherwise let a patch file decide how many arguments to read off the stack. The accepted grammar is %, optional - and 0 flags, an optional field width, an optional .precision, optional l/h length modifiers (read and ignored, since this patcher has one integer type and one floating-point one) and one of d i f F s c; %% is a literal per cent sign. Anything else is not a specifier: it is reported at error level and copied into the output as the text it was typed as, so a typo shows up in the log and in the message rather than silently eating an inlet. Inlet 0 is hot — a bang, an int, a float or a list formats and sends, which is Max's 'any of the above messages in the left inlet will format the message and send it out' — and every other inlet is cold and only stores. Inlet 0 keeps no reserved words in it, the .prepend and .substitute discipline, which matters here because the values this object formats are often symbols. A list is spread one token per slot from the receiving inlet rightwards, Max's 'each item in the list is treated as if it had been received in a separate inlet, up to the number of inlets'. Every slot inlet accepts all three types rather than only the one its conversion names, since a patch feeding a counter into a %s obviously means the digits: a number reaching a %s is stored as the text that spells it, and a token that does not read as a number is refused by a %ld or a %f so the previous value stands rather than a zero nobody sent. An unset slot follows Max exactly, including its asymmetry: a %ld or a %f renders 0, a %s or a %c renders nothing. A .sprintf with no format at all sends nothing, the .prepend rule that makes an unconfigured object safe to drop into a working patch, and a format with no changeable arguments is a constant message generator. Max's symout flag is recognised and consumed rather than read as part of the format — 'the word symout itself is not included in the output' — but it switches nothing, because this patcher carries every message as one piece of text and so has no symbol/list distinction to make. A symbol slot holds at most 64 characters and refuses a longer token rather than truncating it, field width is capped at 64, precision at 9 and the format at 32 changeable arguments. Calculate() does nothing, and no message path allocates, locks or blocks: formatting is a bounded walk of the compiled pieces into a buffer reserved before the object was published for the literal text plus the widest thing every slot can render.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Hot. A bang, an int, a float or a list formats the message and sends it — Max's 'any of the above messages in the left inlet will format the message and send it out'. When the format has changeable arguments this is also the first one's inlet, so an int here both stores and fires. A list is spread one token per changeable argument from here rightwards, and tokens past the last one are dropped.",
+        "index": 0,
+        "label": "in0",
+        "range": "any"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".sprintf",
+    "outlets": [
+      {
+        "doc": "The formatted message, as text — Max's 'the message specified by the typed-in argument(s) is formatted and sent out with substitutions made for the changeable arguments'. Fires once per message into inlet 0, and never at all while no format has been given.",
+        "index": 0,
+        "label": "out",
+        "range": "any",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "Max's argument list: an optional leading 'symout' followed by the format itself, which is literal text with changeable arguments in it. A changeable argument is %, optional - and 0 flags, an optional field width (at most 64), an optional .precision (at most 9 — decimals for %f, characters for %s), optional l/h length modifiers, and one of d i f F s c; %% is a literal per cent sign. One inlet is built per changeable argument, up to 32 of them, and anything else after a % is reported and copied through as text. With no argument at all the object sends nothing.",
+        "name": "format",
+        "range": "printf-style format, at most 32 changeable arguments"
+      }
+    ]
+  },
   ".sqrt": {
     "category": "MATH",
     "description": "Control-rate square root. Emits the square root of the input as a float whenever inlet 0 fires. A negative input emits 0 rather than a NaN.",
