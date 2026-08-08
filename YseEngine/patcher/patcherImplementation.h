@@ -127,6 +127,29 @@ namespace YSE {
       bool PassData(float value, const std::string& to, THREAD thread);
       bool PassData(const std::string& value, const std::string& to, THREAD thread);
 
+      // Which thread the caller is physically on, which is not always what its
+      // dispatch tag says (issue #690).
+      //
+      // `THREAD` answers "what should this delivery mean" — T_DSP is "we are
+      // mid-traversal, render it now", T_GUI is "set the state and let the
+      // block's own traversal render what you caused". A handler runs on
+      // whichever thread dispatched it and has no other way to tell the two
+      // apart, so it forwards the tag it was given. That is correct for
+      // *semantics* and wrong for *thread identity*: the three drains at the
+      // top of Calculate — the #225 value queue, the #628 deferred-message
+      // scheduler and the #683 file scheduler — all dispatch T_GUI **from the
+      // audio callback**. A T_GUI-tagged handler is therefore not necessarily
+      // on the control thread, and anything that reads the tag as a thread
+      // identity (a mutex, an allocation, a log string, a socket) breaks the
+      // audio thread when it is wrong.
+      //
+      // This is the missing predicate. It returns T_DSP when the calling
+      // thread is inside *this* patcher's Calculate(), whatever the tag says,
+      // and never downgrades a tag that already says T_DSP. Callers use it to
+      // pick a mechanism (lock-free vs. control-thread) while still forwarding
+      // the original tag for semantics. Wait-free: one thread_local load.
+      THREAD CallingThread(THREAD tag) const;
+
       void SetHandler(oscHandler* handler);
 
       // The patcher's deferred-message scheduler (issue #628). Objects reach it

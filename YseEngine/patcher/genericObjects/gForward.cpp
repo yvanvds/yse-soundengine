@@ -165,7 +165,10 @@ BANG_IN(SetBangValue) {
   if (!globalOnly) {
     p->PassBang(destination, thread);
   }
-  if (busAvailable()) {
+  // CallingThread, not the tag: a `.forward` reached from a deferred delivery
+  // carries T_GUI on the audio callback, where the bus's parked-publish path
+  // takes a mutex and allocates. gSend.cpp carries the full note (issue #690).
+  if (busAvailable() && p->CallingThread(thread) == YSE::T_GUI) {
     // Bang on the bus is a monostate publish — only delivered on T_GUI.
     Bus().publish(busAddress, BusValue{}, thread);
   }
@@ -178,7 +181,7 @@ INT_IN(SetIntValue) {
     p->PassData(value, destination, thread);
   }
   if (busAvailable()) {
-    Bus().publish(busAddress, BusValue{value}, thread);
+    Bus().publish(busAddress, BusValue{value}, p->CallingThread(thread));
   }
 }
 
@@ -189,7 +192,7 @@ FLOAT_IN(SetFloatValue) {
     p->PassData(value, destination, thread);
   }
   if (busAvailable()) {
-    Bus().publish(busAddress, BusValue{value}, thread);
+    Bus().publish(busAddress, BusValue{value}, p->CallingThread(thread));
   }
 }
 
@@ -199,7 +202,8 @@ LIST_IN(SetListValue) {
   if (!globalOnly) {
     p->PassData(value, destination, thread);
   }
-  if (busAvailable()) {
+  // Built only when it can be delivered: the variant copy is the allocation.
+  if (busAvailable() && p->CallingThread(thread) == YSE::T_GUI) {
     Bus().publish(busAddress, BusValue{value}, thread);
   }
 }

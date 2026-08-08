@@ -67,16 +67,20 @@ namespace {
       "outlet 0 in order; 'line <n>', which sends line n preceded by the word 'set', numbering "
       "from "
       "1, converting anything below 1 to 1 and sending nothing for a line that does not exist; "
-      "'query', which sends the line count out outlet 1; and 'symbol <word>' / 't_symbol <word>', "
+      "'query', which sends the line count out outlet 1; 'symbol <word>' / 't_symbol <word>', "
       "which store a word that would otherwise be read as one of these — Max's own escape hatch, "
       "'useful if you want to store a word that would otherwise be understood as a specific "
       "message "
-      "by text'. 'read', 'write', 'open', 'wclose', 'settitle', 'filetype', 'precision' and "
-      "'stringout' are consumed and do nothing: there is no window here, the two attribute names "
-      "set "
-      "an attribute in Max rather than being stored, and file I/O needs plumbing this object "
-      "cannot "
-      "have yet (issues #683 / #687). They are consumed rather than stored because Max dispatches "
+      "by text'; and 'read [file]' / 'write [file]', which move the contents through a plain text "
+      "file, one line per line. Neither opens anything here: the request is a wait-free claim on a "
+      "patcher-owned slot, the disk work runs on the background pool, and a read replaces the "
+      "contents in the completion the patcher delivers at the top of a later block — which is also "
+      "when outlet 2 bangs. Both bare forms reuse the last name given, which starts as the "
+      "filename creation argument, since Max's bare forms open a file dialog and a headless "
+      "patcher has none. 'open', 'wclose', 'settitle', 'filetype', 'precision' and "
+      "'stringout' are consumed and do nothing: there is no window here and no file dialog for "
+      "filetype to narrow, and the two attribute names set an attribute in Max rather than being "
+      "stored. They are consumed rather than stored because Max dispatches "
       "on the "
       "selector and so cannot store them either, and contents that differed from Max's for the "
       "same "
@@ -102,13 +106,20 @@ namespace {
       "How many lines the contents hold, in response to 'query' — Max's 'a number that specifies "
       "the "
       "number of lines stored in the text object'. Counted the way 'dump' walks them, so the two "
-      "always agree. Max's middle outlet, which bangs when a file has finished loading, is not "
-      "here: "
-      "'read' does nothing yet, so nothing could fire it. When file reading lands (issue #687) "
-      "that "
-      "outlet is appended after this one rather than inserted in Max's position, so no saved "
-      "patch's "
-      "cords shift.";
+      "always agree. Max's middle outlet, which bangs when a file has finished loading, is the "
+      "third one here rather than the second: it was appended after this one rather than inserted "
+      "in Max's position, so the cords of every patch saved while .textfile had two outlets still "
+      "land where they did (issue #687).";
+
+  constexpr char kFileDoc[] =
+      "Bangs when a 'read' has finished loading a file into the contents — Max's middle outlet, "
+      "appended here as the third so no saved patch's cords shift (the promise #499 made and the "
+      "rule the rest of the file-reading family follows). It fires only on success: a file that "
+      "does not exist, does not fit, or cannot be opened leaves it silent, and it does not fire "
+      "for a write, for which Max has no outlet either. It fires a block or more after the read "
+      "message rather than inside it, because the disk work happens on the background pool — a "
+      "read arrives on whichever thread dispatched it, which may be the audio callback. The "
+      "filename creation argument's read fires it too, since it is the same request.";
 
 } // namespace
 
@@ -135,6 +146,10 @@ CONSTRUCT() {
   // always an int.
   ADD_OUT_ANY;
   ADD_OUT_INT;
+  // Appended, not inserted: Max puts the file outlet second, but .textfile
+  // shipped with two outlets in #499 and moving the line-count outlet would
+  // shift the cords of every patch saved since (issue #687).
+  ADD_OUT_BANG;
 
   // The whole table and the send buffer, taken once here on the control thread.
   // Nothing on a message path ever resizes either, which is what makes an append
@@ -145,6 +160,13 @@ CONSTRUCT() {
     line.reserve(LINE_CAPACITY + 1);
   // The longest send is "set " plus a full line.
   sendText.reserve(LINE_CAPACITY + 5);
+
+  // Same treatment for the file buffers (issue #687): a `read` or `write` may
+  // arrive on the audio thread, so remembering a name and formatting the whole
+  // contents both have to reuse storage that already exists.
+  readPath.reserve(fileScheduler::PATH_CAPACITY);
+  writePath.reserve(fileScheduler::PATH_CAPACITY);
+  fileScratch.reserve(FILE_TEXT_CAPACITY + 1);
 
   ADD_DESCRIPTION(
       "Collects the messages it is sent as lines of text — Max's text, which 'collects and formats "
@@ -176,29 +198,38 @@ CONSTRUCT() {
       "that does not exist, and 'query' sends the line count out outlet 1. A dumped line leaves in "
       "the kind it is, .route's rule. Max's own escape hatch is ported: 'symbol clear' stores the "
       "word clear, 'useful if you want to store a word that would otherwise be understood as a "
-      "specific message by text'. 'read', 'write', 'open', 'wclose', 'settitle', 'filetype', "
+      "specific message by text'. 'open', 'wclose', 'settitle', 'filetype', "
       "'precision' and 'stringout' are consumed and do nothing — Max dispatches on the selector, "
       "so "
       "a text in Max cannot store those symbols either, and contents differing from Max's for the "
-      "same patch is the one thing this object must not produce. Reading and writing files is the "
-      "half the name promises and it is deliberately not here: a message handler runs on whichever "
+      "same patch is the one thing this object must not produce. 'read [file]' and 'write [file]' "
+      "move the contents through a plain text file, one stored line per line of the file, and the "
+      "filename creation argument is read when the object is built — Max's 'names a text file to "
+      "be read in when the object is loaded' (issue #687). None of that happens on the message "
+      "path: a message handler runs on whichever "
       "thread the message arrived on, in-patcher delivery dispatches on the audio thread, and "
       "THREAD "
       "is a dispatch-semantics tag rather than a thread identity, so there is no predicate an "
       "object "
       "can ask to find out it is not on the audio callback — opening a file there would block it. "
-      "Doing it properly needs a background job, an object lifetime that outlives the job, the "
-      "host's IO() virtual-file layer and a completion delivered back into a real dispatch frame; "
-      "that is shared plumbing rather than one object's feature, .coll needs exactly the same "
-      "thing, "
-      "and it is issue #683, with #687 tracking this object's half. The filename creation argument "
-      "is held and saved anyway so a '.textfile "
-      "mydata.txt' brought across from Max builds and round-trips and #687 has a hook to attach "
-      "Max's read-on-load to, the way .table's name is held. Max's middle outlet, which bangs when "
+      "The request is instead a wait-free claim on a patcher-owned slot, the disk work runs on the "
+      "background pool honouring the host's IO() layer, and the bytes are parsed in the completion "
+      "the patcher delivers at the top of a later block, which is also when outlet 2 bangs — the "
+      "shared fileScheduler plumbing of issue #683. The last line carries a newline only when it "
+      "is closed, so a write then read round trip is exact down to whether the last line is still "
+      "taking appends; a trailing carriage return is dropped on reading, so a CRLF file written by "
+      "another editor loads the same lines everywhere. A read replaces what is held, an over-long "
+      "line is skipped with the rest of the file still loading, lines past the 256th are dropped, "
+      "and a file too large or unopenable is refused whole with outlet 2 silent. The bare forms of "
+      "read and write reuse the last name given, which starts as the filename argument, since "
+      "Max's open a file dialog and a headless patcher has none, and filetype is consumed and "
+      "inert for the same reason; Max has no readagain / writeagain for text, so neither is "
+      "invented here. Max's middle outlet, which bangs when "
       "a "
-      "file has finished loading, is left off rather than left dead and will be appended as outlet "
-      "2 "
-      "when that lands, so no saved patch's cords shift. The store is .coll's model and for "
+      "file has finished loading, is outlet 2 rather than outlet 1: it was appended rather than "
+      "inserted in Max's position, because #499 shipped this object with two outlets and moving "
+      "the line-count outlet would shift every saved patch's cords. The store is .coll's model "
+      "and for "
       ".coll's "
       "reason — a fixed table of lines allocated whole at construction, every line reserved to its "
       "capacity, plus .value's non-blocking guard — because a copy-on-write GraphState publish "
@@ -213,7 +244,9 @@ CONSTRUCT() {
       "deliberately do not, which is the family's rule of saving exactly where Max has a save flag "
       "— "
       "coll has 'save data with patcher', table and funbuff have embed, and text has none of them, "
-      "because Max keeps a text's contents in a file. Not ported: the editing window and "
+      "because Max keeps a text's contents in a file — which since #687 is where they live here "
+      "too, a '.textfile notes.txt' reloading its lines when the patch it was saved in opens. Not "
+      "ported: the editing window and "
       "everything "
       "addressing it (open, wclose, settitle, the double-click), filetype, the precision attribute "
       "— "
@@ -225,15 +258,17 @@ CONSTRUCT() {
   INLET_DOC(0, "in", kInletDoc, "at most 256 lines of 256 characters");
   OUTLET_DOC(0, "text", kTextDoc, "");
   OUTLET_DOC(1, "lines", kCountDoc, "0-256");
+  OUTLET_DOC(2, "file", kFileDoc, "");
   PARAM_DOC(
       "filename", "",
       "Max's filename argument, which 'names a text file to be read in when the object is "
       "loaded'. The first argument token is taken as the name. It is held and it survives a "
       "save, so a '.textfile mydata.txt' brought across from Max builds the object it names "
-      "and the argument the author typed comes back unchanged — but it addresses nothing yet, "
-      "the way .table's name does: file I/O needs a background job, a lifetime that outlives "
-      "it and the host's IO() layer, which is shared plumbing filed as issue #683 and tracked for "
-      "this object as #687. Setting the "
+      "and the argument the author typed comes back unchanged. It is also read when the object "
+      "joins a patcher, which is where 'when the object is loaded' happens here, and it seeds "
+      "the name a bare 'read' or 'write' falls back on — so a bare 'write' saves back over the "
+      "file the object is named after (issue #687). A standalone object with no patcher has no "
+      "file plumbing and reads nothing. Setting the "
       "parameters again also empties the contents, since the object that comes back is the one "
       "the arguments describe.",
       "any filename");
@@ -248,6 +283,10 @@ PARM_CLEAR() {
   // no-argument object behind rather than one still holding the previous name.
   creationArgs.clear();
   fileName.clear();
+  // clear() keeps the capacity reserved at construction, so re-seeding these
+  // below never allocates.
+  readPath.clear();
+  writePath.clear();
   lineCount = 0;
   lineOpen = false;
   needsSeparator = false;
@@ -255,6 +294,8 @@ PARM_CLEAR() {
 
 PARM_PARSE() {
   fileName.clear();
+  readPath.clear();
+  writePath.clear();
 
   for (const std::string& token : creationArgs) {
     // Parameters::Set splits on single spaces, so a run of them yields empty
@@ -262,6 +303,14 @@ PARM_PARSE() {
     if (token.empty()) continue;
     fileName = token;
     break;
+  }
+
+  // The argument is both the file SetParent reads and the name a bare `read` or
+  // `write` falls back on, there being no dialog to ask with (issue #687). A
+  // name the scheduler could not carry anyway is not remembered.
+  if (!fileName.empty() && fileName.size() < fileScheduler::PATH_CAPACITY) {
+    readPath = fileName;
+    writePath = fileName;
   }
 
   // A re-parse also drops the contents: the object that comes back is the one
@@ -503,15 +552,27 @@ bool gTextfile::HandleCommand(const char* word, std::size_t length, const std::s
     return true;
   }
 
+  // The file half (issue #687). Both are a claim on a patcher-owned slot and
+  // nothing more: whichever thread is dispatching, no file is opened here. The
+  // whole remainder is the path, so a name with spaces in it still works, and a
+  // bare form reuses the last name given — Max's opens a file dialog, which a
+  // headless patcher has no equivalent of.
+  const bool isRead = TokenIs(word, length, "read", 4);
+  if (isRead || TokenIs(word, length, "write", 5)) {
+    const FILE_OP op = isRead ? FILE_OP::READ : FILE_OP::WRITE;
+    std::size_t begin = argOffset;
+    std::size_t end = message.size();
+    Trim(message.c_str(), begin, end);
+    RequestFile(op, message.c_str() + begin, end - begin);
+    return true;
+  }
+
   // Consumed and inert. Max dispatches on the selector, so a `text` in Max
   // cannot store these symbols either, and contents that differed from Max's for
   // the same patch is the one thing this object must not produce. There is no
-  // window to open, close, title or type; `precision` and `stringout` set an
-  // attribute in Max rather than being stored; and `read` / `write` need file
-  // plumbing that cannot exist on a path which may be the audio thread — issue
-  // #683, which builds it, and #687, this object's half.
-  if (TokenIs(word, length, "read", 4)) return true;
-  if (TokenIs(word, length, "write", 5)) return true;
+  // window to open, close, title or type — `filetype` narrows the file dialogs
+  // this patcher does not have — and `precision` and `stringout` set an
+  // attribute in Max rather than being stored.
   if (TokenIs(word, length, "open", 4)) return true;
   if (TokenIs(word, length, "wclose", 6)) return true;
   if (TokenIs(word, length, "settitle", 8)) return true;
@@ -520,6 +581,126 @@ bool gTextfile::HandleCommand(const char* word, std::size_t length, const std::s
   if (TokenIs(word, length, "stringout", 9)) return true;
 
   return false;
+}
+
+// ─── files ────────────────────────────────────────────────────────────────────
+
+bool gTextfile::RequestFile(FILE_OP op, const char* name, std::size_t length) {
+  fileScheduler* io = FileIO();
+  // A standalone .textfile has no patcher and so no plumbing. Silent: this may
+  // be the audio thread, where a log line would allocate.
+  if (io == nullptr) return false;
+
+  std::string& remembered = op == FILE_OP::READ ? readPath : writePath;
+  if (name != nullptr && length > 0) {
+    if (length >= fileScheduler::PATH_CAPACITY) return false;
+    // assign() into a string reserved at construction reuses its storage.
+    remembered.assign(name, length);
+  }
+  // Nothing named yet, and no dialog to ask with.
+  if (remembered.empty()) return false;
+
+  if (op == FILE_OP::READ) {
+    return io->RequestRead(this, FILE_TAG_READ, remembered.c_str(), remembered.size());
+  }
+
+  // The bytes are built here rather than on the pool thread, because the pool
+  // must never touch this object: by the time the job runs, a live edit may have
+  // deleted it.
+  if (!Serialize()) return false;
+  return io->RequestWrite(this, FILE_TAG_WRITE, remembered.c_str(), remembered.size(),
+                          fileScratch.c_str(), fileScratch.size());
+}
+
+bool gTextfile::Serialize() {
+  storeGuard guard(busy);
+  if (!guard.Held()) return false;
+
+  // clear() keeps the capacity reserved at construction, so every append below
+  // writes into storage that already exists. FILE_TEXT_CAPACITY is every line at
+  // its maximum plus its newline, so the buffer cannot run out.
+  fileScratch.clear();
+  for (std::size_t i = 0; i < lineCount; i++) {
+    fileScratch.append(lines[i]);
+    // A newline after every line except an open last one. Max's buffer is flat
+    // text where a `cr` is a character, so contents still taking appends end
+    // without one — which is what makes the round trip exact rather than merely
+    // equal: reading this back leaves that line open again.
+    if (i + 1 < lineCount || !lineOpen) fileScratch.push_back('\n');
+  }
+  return true;
+}
+
+bool gTextfile::LoadFrom(const char* text, std::size_t length) {
+  storeGuard guard(busy);
+  if (!guard.Held()) return false;
+
+  // Max's read replaces the contents. The strings keep their storage — only
+  // `lineCount` says which lines are live — so this costs nothing.
+  lineCount = 0;
+  lineOpen = false;
+  needsSeparator = false;
+
+  std::size_t at = 0;
+  while (at < length && lineCount < MAX_LINES) {
+    std::size_t end = at;
+    while (end < length && text[end] != '\n')
+      end++;
+
+    // Whether the line was terminated, which is also whether it is closed: a
+    // file that does not end in a newline leaves its last line taking appends.
+    const bool terminated = end < length;
+
+    std::size_t stop = end;
+    // A CRLF file written by another editor reads as the same lines everywhere.
+    // Only the terminator's own carriage return is dropped; one in the middle of
+    // a line is text.
+    if (stop > at && text[stop - 1] == '\r') stop--;
+
+    const std::size_t lineLength = stop - at;
+    // Refused rather than truncated, the rule an over-long append already
+    // follows — and only this line: the rest of the file still loads.
+    if (lineLength <= LINE_CAPACITY) {
+      // assign() into a string reserved to LINE_CAPACITY + 1 at construction, so
+      // this allocates nothing.
+      lines[lineCount].assign(text + at, lineLength);
+      lineCount++;
+      lineOpen = !terminated;
+      needsSeparator = lineOpen && lineLength > 0;
+    }
+
+    at = terminated ? end + 1 : length;
+  }
+  return true;
+}
+
+void gTextfile::SetParent(pObject* newParent) {
+  pObject::SetParent(newParent);
+  // Control thread, and the one place the patcher's file table can be built: a
+  // `read` arriving later on the audio thread has to find it already there
+  // (issue #683).
+  EnableFileIO();
+  // Max's filename argument "names a text file to be read in when the object is
+  // loaded", and this is where an object is loaded — CreateObjectUnlocked parses
+  // the parameters and then calls this, so the name is already here. It is the
+  // same deferred request a `read` message makes, so the contents arrive with
+  // the patcher's next block and outlet 2 bangs then.
+  if (!readPath.empty()) RequestFile(FILE_OP::READ, nullptr, 0);
+}
+
+void gTextfile::DeliverFileResult(const fileResult& result, YSE::THREAD thread) {
+  // Max has no outlet for a finished write, so a write reports only by having
+  // happened. A failed read reports by the outlet staying silent.
+  if (result.op != FILE_OP::READ || result.tag != FILE_TAG_READ) return;
+  if (!result.ok || result.bytes == nullptr) return;
+  if (!LoadFrom(result.bytes, result.byteCount)) return;
+
+  // Max's middle outlet: "bang when a file has finished loading". After the
+  // contents are in place, so a patch that reacts to it with a `line` or a
+  // `dump` finds them. `thread` is the tag the scheduler delivered — forwarded
+  // unchanged, because Pass* picks its mechanism from the render-frame marker
+  // rather than from the tag (issue #690).
+  outputs[2].SendBang(thread);
 }
 
 // ─── inlet ────────────────────────────────────────────────────────────────────

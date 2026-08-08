@@ -1,4 +1,5 @@
 #pragma once
+#include "../io/fileScheduler.h"
 #include "../pObject.h"
 #include <atomic>
 #include <cstddef>
@@ -75,10 +76,11 @@ namespace YSE {
      *  ### The outlets, and Max's middle one
      *
      *  Max has three: the text, a bang when a file has finished loading, and the
-     *  line count from ``query``. The middle one has nothing to fire here while
-     *  ``read`` does nothing (below), so it is left off, and when file reading
-     *  lands its outlet will be **appended** as outlet 2 rather than inserted in
-     *  Max's position — ``.coll``'s rule, so no saved patch's cords shift.
+     *  line count from ``query``. The middle one is **outlet 2** here rather than
+     *  outlet 1, because #499 shipped this object with two outlets and inserting
+     *  the file outlet where Max puts it would shift the cords of every patch
+     *  saved since. Appending is ``.coll``'s rule and the whole file-reading
+     *  family follows it (issue #687).
      *
      *  ``line`` prepends the word ``set``, which is Max's: "the text of the
      *  specified line number is sent out preceded by the word ``set`` ... can be
@@ -95,8 +97,8 @@ namespace YSE {
      *
      *  ### Reserved words
      *
-     *  ``clear``, ``cr``, ``tab``, ``dump``, ``line``, ``query`` and ``symbol``
-     *  do their jobs; ``read``, ``write``, ``open``, ``wclose``, ``settitle``,
+     *  ``clear``, ``cr``, ``tab``, ``dump``, ``line``, ``query``, ``symbol``,
+     *  ``read`` and ``write`` do their jobs; ``open``, ``wclose``, ``settitle``,
      *  ``filetype``, ``precision`` and ``stringout`` are consumed and do nothing.
      *  Reserving words on a data inlet is what the ``.prepend`` / ``.atoi``
      *  discipline warns against, and ``.coll``'s exemption (its inlet is a
@@ -111,25 +113,57 @@ namespace YSE {
      *  stores the word ``clear`` — "this is useful if you want to store a word
      *  that would otherwise be understood as a specific message by ``text``".
      *
-     *  ### ``read`` and ``write`` are consumed, not performed
+     *  ### Text files (issue #687)
      *
-     *  The one departure worth stating plainly, because it is the half the name
-     *  promises. File I/O cannot be done from a patcher message handler at all
-     *  today: a handler runs on whichever thread the message arrived on,
-     *  in-patcher delivery dispatches on **T_DSP**, and ``THREAD`` is a
-     *  *dispatch-semantics* tag rather than a thread identity — there is no
-     *  predicate an object can ask to find out that it is not on the audio
-     *  thread. Opening a file there would block the callback.
+     *  The half the name promises. ``read <file>`` replaces the contents with the
+     *  lines of a text file and ``write <file>`` writes them back out; the
+     *  ``filename`` creation argument is read when the object is built, which is
+     *  Max's "names a text file to be read in when the object is loaded".
      *
-     *  Doing it properly means a background job, an object lifetime that survives
-     *  the job, the host's ``IO()`` virtual-file layer, and a completion
-     *  delivered back into a real dispatch frame. That is shared plumbing rather
-     *  than one object's feature — ``.coll`` needs exactly the same thing — and
-     *  it is issue **#683**, which builds it; **#687** is this object's half.
-     *  This object holds the ``filename`` creation argument so a
-     *  ``.textfile mydata.txt`` brought across from Max builds and round-trips,
-     *  and so #687 has the hook to attach Max's read-on-load to; until then the
-     *  argument addresses nothing, the way ``.table``'s name does.
+     *  None of it happens on the message path. A handler runs on whichever thread
+     *  the message arrived on, in-patcher delivery dispatches on **T_DSP**, and
+     *  ``THREAD`` is a *dispatch-semantics* tag rather than a thread identity —
+     *  there is no predicate an object can ask to find out that it is not on the
+     *  audio thread, so opening a file in a handler would block the callback.
+     *  ``fileScheduler`` (issue #683) is the shared answer: the request is a
+     *  wait-free claim on a patcher-owned slot, the disk work runs on the
+     *  background pool honouring the host's ``IO()`` layer, and the bytes are
+     *  parsed in the completion the patcher delivers at the top of a later block
+     *  — which is also when outlet 2 bangs. ``.coll`` is the worked example and
+     *  this object is the same five steps over a different format.
+     *
+     *  ### The format, and what round-trips
+     *
+     *  A plain text file, one stored line per line of the file, ``\n``
+     *  separated. The **last line carries a newline only when it is closed**,
+     *  which is what makes the round trip exact rather than merely equal: Max's
+     *  buffer is flat text where a ``cr`` is a character, so contents whose last
+     *  line is still open have no trailing newline, and reading a file that ends
+     *  without one leaves its last line open for the next append. A file ending
+     *  in ``\n`` therefore reads back with every line closed, and ``a\n\n`` is
+     *  two lines, the second blank — the same thing two ``cr``s produce.
+     *
+     *  A trailing ``\r`` is dropped from each line, so a CRLF file written by
+     *  another editor reads as the same lines on every platform; the write side
+     *  emits ``\n`` alone. The one thing that cannot round-trip is a stored line
+     *  containing a newline of its own, which is Max's limitation too and the
+     *  same kind of thing as ``.coll``'s comma and semicolon.
+     *
+     *  A ``read`` **replaces** what is held, as Max's does. A line longer than
+     *  ``LINE_CAPACITY`` is skipped and the rest of the file still loads, lines
+     *  past ``MAX_LINES`` are dropped and the first ``MAX_LINES`` kept — the
+     *  rules an over-long append and a full table already follow, since the store
+     *  cannot grow without allocating on whichever thread the message arrived on.
+     *  A file larger than ``fileScheduler::BYTES_CAPACITY``, or one that cannot
+     *  be opened, is refused whole and outlet 2 stays silent.
+     *
+     *  ``read`` and ``write`` with no argument reuse the last name given, which
+     *  starts out as the ``filename`` creation argument: Max's bare forms open a
+     *  file dialog and a headless patcher has none, so a bare ``write`` on a
+     *  ``.textfile notes.txt`` saves back over the file the object is named
+     *  after. ``filetype`` is consumed and inert for the same reason — it narrows
+     *  the types those dialogs offer. Max has no ``readagain`` / ``writeagain``
+     *  for ``text`` (``coll`` does), so neither is invented here.
      *
      *  ### Storage model
      *
@@ -165,14 +199,16 @@ namespace YSE {
      *  ``table`` and ``funbuff`` have ``embed`` — and ``text`` has none of them.
      *  Max keeps a ``text``'s contents in a *file*, reached by ``read`` /
      *  ``write`` and by the filename argument at load, which is the same answer
-     *  ``.capture`` gives for the same reason. When #683 lands, that is where
-     *  they will live here too.
+     *  ``.capture`` gives for the same reason. Since #687 that file is where they
+     *  live here too: a ``.textfile notes.txt`` reloads its lines when the patch
+     *  it was saved in is opened.
      *
      *  ### Deliberately not here
      *
      *  The editing window and everything addressing it — ``open``, ``wclose``,
      *  ``settitle``, the double-click — and ``filetype``, which selects among
-     *  Mac-era four-letter type codes for files this object does not yet write.
+     *  Mac-era four-letter type codes for the file *dialogs* a headless patcher
+     *  does not have.
      *
      *  The ``precision`` attribute, which sets "the number of decimal places for
      *  converted floating point values". The patcher has no attribute mechanism,
@@ -216,6 +252,18 @@ namespace YSE {
      */
     static constexpr std::size_t LINE_CAPACITY = 256;
 
+    /**
+     *  @brief Longest text a ``write`` produces, in characters (issue #687).
+     *
+     *  Every line at its maximum plus the newline each one costs, so the whole
+     *  contents always fit and a ``write`` can only fail on the disk rather than
+     *  on its own bound. Reserved once at construction, because the message that
+     *  asks for a ``write`` may be on the audio thread.
+     */
+    static constexpr std::size_t FILE_TEXT_CAPACITY = MAX_LINES * (LINE_CAPACITY + 1);
+    static_assert(FILE_TEXT_CAPACITY <= fileScheduler::BYTES_CAPACITY,
+                  "full .textfile contents must fit one file slot");
+
     /** @brief How many lines the contents hold — what ``query`` reports. */
     std::size_t LineCount() const;
 
@@ -229,10 +277,35 @@ namespace YSE {
      *         fresh object and after a ``cr``. */
     bool LineIsOpen() const;
 
-    /** @brief Max's ``filename`` creation argument, or ``""``. Held and saved,
-     *         but it addresses nothing until #683 lands file I/O — see the class
-     *         documentation. Control thread only. */
+    /** @brief Max's ``filename`` creation argument, or ``""``. Held, saved, and
+     *         read when the object is built — see the class documentation.
+     *         Control thread only. */
     std::string Filename() const;
+
+    /** @brief The name the last ``read`` was given, which a bare ``read``
+     *         reuses. Seeded from the ``filename`` argument. Control thread. */
+    const std::string& ReadFile() const {
+      return readPath;
+    }
+
+    /** @brief The same for ``write``. Control thread. */
+    const std::string& WriteFile() const {
+      return writePath;
+    }
+
+    // Build the file plumbing while still on the control thread — so a `read`
+    // arriving later on the audio thread finds the table already there — and
+    // then ask for the `filename` argument's file, which is Max's "names a text
+    // file to be read in when the object is loaded". SetParent is only called
+    // under patcherImplementation::mtx, and always after SetParams, so the name
+    // is already parsed by the time this runs (issue #687).
+    void SetParent(pObject* newParent) override;
+
+    // A read or write this object asked for has finished. Called on the
+    // patcher's dispatch thread inside a fresh messageEventScope; parses the
+    // bytes into the contents and bangs outlet 2. Allocation-free, like every
+    // other path into this object.
+    void DeliverFileResult(const fileResult& result, YSE::THREAD thread) override;
 
   private:
     /**
@@ -316,6 +389,32 @@ namespace YSE {
     bool HandleCommand(const char* word, std::size_t length, const std::string& message,
                        std::size_t argOffset, YSE::THREAD thread);
 
+    // What a completion carries back, so a read and a write can be told apart in
+    // DeliverFileResult. Private to this object — the tag means nothing to the
+    // scheduler.
+    static constexpr int FILE_TAG_READ = 0;
+    static constexpr int FILE_TAG_WRITE = 1;
+
+    // The read / write half of the inlet. `name` is the argument the message
+    // carried, or null for a bare `read` / `write`, which reuses the last name
+    // given — Max's bare forms open a dialog and a headless patcher has none.
+    // False when there is nothing to do — no patcher, no name yet, a name that
+    // does not fit, or a file table that is full — in every case silently, since
+    // this may be the audio thread.
+    bool RequestFile(FILE_OP op, const char* name, std::size_t length);
+
+    // Format the contents into `fileScratch` as plain text, one line per line
+    // and `\n` separated, with a trailing newline only when the last line is
+    // closed. Takes the guard; allocates nothing, because the scratch was
+    // reserved to FILE_TEXT_CAPACITY at construction. False when the guard was
+    // held elsewhere.
+    bool Serialize();
+
+    // The other direction: replace the contents with the lines in the `length`
+    // bytes at `text`. Takes the guard; allocates nothing. False when the guard
+    // was held elsewhere, in which case nothing was changed.
+    bool LoadFrom(const char* text, std::size_t length);
+
     // Claimed with a single exchange by readers and writers alike; the loser
     // drops. Mutable so the const diagnostic accessors can take it.
     mutable std::atomic<bool> busy{false};
@@ -341,9 +440,22 @@ namespace YSE {
     std::string sendText;
 
     // Max's filename argument. Held so a `.textfile mydata.txt` brought across
-    // from Max builds and so the argument survives a save; it addresses nothing
-    // until #683. Control thread only.
+    // from Max builds and so the argument survives a save; it is also the file
+    // SetParent reads and the name a bare `read` / `write` falls back on
+    // (issue #687). Control thread only.
     std::string fileName;
+
+    // The last name each half of the file surface was given, seeded from
+    // `fileName` — what a bare `read` / `write` reuses, there being no dialog to
+    // ask with. Reserved to the scheduler's path bound at construction, so
+    // remembering a name on a message path is an assign() into storage that
+    // exists rather than an allocation.
+    std::string readPath;
+    std::string writePath;
+
+    // Where a `write` is formatted before it is handed to the scheduler.
+    // Reserved to FILE_TEXT_CAPACITY at construction for the same reason.
+    std::string fileScratch;
 
     // The creation arguments, as tokens. Control thread only: written by
     // Parameters::Set, read by ParseParams(), never by a message handler.

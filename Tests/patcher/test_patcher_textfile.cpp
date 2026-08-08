@@ -1,6 +1,6 @@
 // Tests for .textfile (issue #499) — the patcher's line-oriented text store.
 //
-// Seven things are worth pinning here, and every one of them is something an
+// Eight things are worth pinning here, and every one of them is something an
 // implementation can get wrong without ever crashing:
 //
 //   - **the line is the unit.** Several messages accumulate on one line
@@ -22,7 +22,7 @@
 //     60, "60.5" as that float, anything else as a list — and an empty line still
 //     leaves, so a dump sends exactly as many messages as `query` reports.
 //   - **the fifteen reserved words.** `clear`, `cr`, `tab`, `dump`, `line`,
-//     `query`, `symbol` and `t_symbol` do their jobs; `read`, `write`, `open`,
+//     `query`, `symbol`, `t_symbol`, `read` and `write` do their jobs; `open`,
 //     `wclose`, `settitle`, `filetype`, `precision` and `stringout` are consumed
 //     and do nothing. All of them are consumed rather than *stored*, because Max
 //     dispatches on the selector and so cannot store them either — and `symbol
@@ -31,6 +31,16 @@
 //     survives a save; the text deliberately does not, which is where this object
 //     sides with .capture against .coll, because Max gives `text` no save flag
 //     and keeps its contents in a file.
+//   - **the contents round-trip through that file, and never on the message
+//     path.** Issue #687. A `read` arrives on whichever thread dispatched it, so
+//     the proof that matters is not only that the lines come back but that
+//     *nothing happens in the handler*: the contents are untouched until the
+//     patcher renders a block. And the trip is exact rather than merely equal —
+//     whether the last line is still taking appends survives it, because Max's
+//     buffer is flat text where a `cr` is a character. Asserted through a real
+//     patcherImplementation and a real file on disk, because both halves — the
+//     background job and the completion delivered into a dispatch frame — only
+//     exist there.
 //
 // No audio device and no engine of its own, except where a real patcher graph is
 // the point.
@@ -38,19 +48,26 @@
 #include <doctest/doctest.h>
 #include <cstddef>
 #include <cstdio>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <string>
+#include <system_error>
 #include <vector>
 
 #include "patcher/genericObjects/gTextfile.h"
 #include "patcher/inlet.h"
+#include "patcher/io/fileScheduler.h"
 #include "patcher/pEnums.h"
 #include "patcher/pHandle.hpp"
 #include "patcher/pObjectList.hpp"
 #include "patcher/pRegistry.h"
 #include "patcher/patcher.hpp"
+#include "patcher/patcherImplementation.h"
 #include "patcher/sinks.hpp"
 
 using YSE::PATCHER::gTextfile;
+using YSE::PATCHER::patcherImplementation;
 
 namespace {
 
@@ -91,11 +108,13 @@ namespace {
   struct Rig {
     Recorder text;
     Recorder lines;
+    Recorder file;
     gTextfile obj;
 
     Rig() {
       obj.ConnectOutlet(text.GetInlet(0), 0);
       obj.ConnectOutlet(lines.GetInlet(0), 1);
+      obj.ConnectOutlet(file.GetInlet(0), 2);
     }
 
     void List(const std::string& message) {
@@ -124,24 +143,65 @@ namespace {
     }
   };
 
+  // ─── file helpers (issue #687) ────────────────────────────────────────────
+
+  // A path in the system temp directory, deleted first so a leftover from an
+  // earlier run cannot make a test pass for the wrong reason.
+  std::string TempFile(const char* name) {
+    const std::filesystem::path path = std::filesystem::temp_directory_path() / name;
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+    return path.string();
+  }
+
+  void WriteWholeFile(const std::string& path, const std::string& contents) {
+    std::ofstream out(path, std::ios::binary);
+    out << contents;
+  }
+
+  std::string ReadWholeFile(const std::string& path) {
+    std::ifstream in(path, std::ios::binary);
+    if (!in) return std::string();
+    return std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+  }
+
+  void Remove(const std::string& path) {
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+  }
+
+  // Drive a patcher until its file requests have landed. The two halves are
+  // deterministic for different reasons: WaitIdle joins the background pool's
+  // jobs (so no sleep and no polling), and the single Calculate is the dispatch
+  // frame the completions are handed out in — there is deliberately no other way
+  // for them to arrive.
+  void SettleFiles(patcherImplementation& p) {
+    YSE::PATCHER::fileScheduler* io = p.FileIO();
+    REQUIRE(io != nullptr);
+    io->WaitIdle();
+    p.Calculate(YSE::T_DSP);
+  }
+
 } // namespace
 
 TEST_SUITE("patcher") {
 
   // ─── shape ──────────────────────────────────────────────────────────────────
 
-  TEST_CASE("textfile: registered, one inlet and two outlets (#499)") {
+  TEST_CASE("textfile: registered, one inlet and three outlets (#499, #687)") {
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* obj = p.CreateObject(YSE::OBJ::G_TEXTFILE);
     REQUIRE(obj != nullptr);
     CHECK(std::string(obj->Type()) == ".textfile");
     CHECK(obj->GetInputs() == 1);
-    // Two, not Max's three: Max's middle outlet bangs when a file has finished
-    // loading, and `read` does nothing yet. When file I/O lands (#683) that
-    // outlet is appended after the count rather than inserted in Max's position,
-    // so no saved patch's cords shift.
-    CHECK(obj->GetOutputs() == 2);
+    // All three of Max's, but not in Max's order: the file outlet was appended
+    // rather than inserted in Max's middle position, because #499 shipped this
+    // object with two outlets and moving the line count would shift the cords of
+    // every patch saved since (#687).
+    CHECK(obj->GetOutputs() == 3);
+    CHECK(obj->OutputDataType(1) == YSE::OUT_TYPE::INT);
+    CHECK(obj->OutputDataType(2) == YSE::OUT_TYPE::BANG);
   }
 
   TEST_CASE("textfile: appears in the registry's name list (#499)") {
@@ -423,17 +483,18 @@ TEST_SUITE("patcher") {
     CHECK(rig.obj.LineAt(0) == "60 clear dump");
   }
 
-  TEST_CASE("textfile: the eight inert words are consumed, not stored (#499)") {
+  TEST_CASE("textfile: the six inert words are consumed, not stored (#499, #687)") {
     // Max dispatches on the selector, so a `text` in Max cannot store these
     // either — contents differing from Max's for the same patch is the one thing
-    // this object must not produce. There is no window here, the two attribute
-    // names set an attribute in Max, and file I/O is issue #683.
+    // this object must not produce. There is no window here, there is no file
+    // dialog for `filetype` to narrow, and the two attribute names set an
+    // attribute in Max. `read` and `write` left this list in #687.
     Rig rig;
     rig.Int(60);
     rig.text.reset();
     rig.lines.reset();
-    for (const char* message : {"read notes.txt", "write notes.txt", "open", "wclose",
-                                "settitle Notes", "filetype TEXT", "precision 3", "stringout 1"}) {
+    for (const char* message :
+         {"open", "wclose", "settitle Notes", "filetype TEXT", "precision 3", "stringout 1"}) {
       rig.List(message);
     }
     // Nothing stored and nothing sent.
@@ -649,6 +710,636 @@ TEST_SUITE("patcher") {
     tf->SetListData(0, "dump");
     REQUIRE(text.seen.size() == 2);
     CHECK(text.seen[1] == "i40");
+  }
+
+  // ─── files (issue #687) ─────────────────────────────────────────────────────
+
+  TEST_CASE("textfile: a standalone object consumes read and write without storing them (#687)") {
+    // No patcher means no file plumbing, and the honest answer is silence rather
+    // than storing the word: Max dispatches on the selector either way, so the
+    // contents must not differ from Max's for the same patch.
+    Rig rig;
+    rig.Int(60);
+    rig.text.reset();
+    rig.lines.reset();
+
+    rig.List("read notes.txt");
+    rig.List("write notes.txt");
+    rig.List("read");
+    rig.List("write");
+
+    REQUIRE(rig.obj.LineCount() == 1);
+    CHECK(rig.obj.LineAt(0) == "60");
+    CHECK(rig.text.seen.empty());
+    CHECK(rig.lines.seen.empty());
+    CHECK(rig.file.seen.empty());
+  }
+
+  TEST_CASE("textfile: a write then a read round-trips the contents exactly (#687)") {
+    // The acceptance criterion, end to end through a real patcher and a real file
+    // on disk: one stored line per line of the file, and what comes back is what
+    // went out.
+    const std::string path = TempFile("yse_textfile_roundtrip_687.txt");
+
+    Recorder text;
+    Recorder count;
+    Recorder file;
+    YSE::pHandle textHandle(&text);
+    YSE::pHandle countHandle(&count);
+    YSE::pHandle fileHandle(&file);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* tf = p.CreateObject(YSE::OBJ::G_TEXTFILE, "");
+    REQUIRE(tf != nullptr);
+    p.Connect(tf, 0, &textHandle, 0);
+    p.Connect(tf, 1, &countHandle, 0);
+    p.Connect(tf, 2, &fileHandle, 0);
+
+    tf->SetListData(0, "60 100");
+    tf->SetListData(0, "cr");
+    tf->SetListData(0, "hello there");
+    tf->SetListData(0, "cr");
+    tf->SetListData(0, "write " + path);
+    SettleFiles(p);
+
+    // Plain text, one line per stored line. Every line is closed, so every one
+    // carries its newline.
+    CHECK(ReadWholeFile(path) == "60 100\nhello there\n");
+    // Max has no outlet for a finished write and neither does this.
+    CHECK(file.seen.empty());
+
+    tf->SetListData(0, "clear");
+    text.reset();
+    tf->SetListData(0, "dump");
+    CHECK(text.seen.empty());
+
+    tf->SetListData(0, "read " + path);
+    SettleFiles(p);
+    // The file outlet fires once, and only after the contents are in place.
+    REQUIRE(file.seen.size() == 1);
+    CHECK(file.seen[0] == "!");
+
+    text.reset();
+    count.reset();
+    tf->SetListData(0, "query");
+    tf->SetListData(0, "dump");
+    REQUIRE(count.seen.size() == 1);
+    CHECK(count.seen[0] == "i2");
+    REQUIRE(text.seen.size() == 2);
+    CHECK(text.seen[0] == "s60 100");
+    CHECK(text.seen[1] == "shello there");
+
+    Remove(path);
+  }
+
+  TEST_CASE("textfile: read does nothing in the message handler (#687)") {
+    // The reason the plumbing exists. A `read` may be dispatched on the audio
+    // callback, so the handler must not open anything — which is observable: the
+    // contents are still empty when the message returns, and only a rendered
+    // block puts the file in them.
+    const std::string path = TempFile("yse_textfile_deferred_687.txt");
+    WriteWholeFile(path, "one\ntwo\n");
+
+    Recorder count;
+    Recorder file;
+    YSE::pHandle countHandle(&count);
+    YSE::pHandle fileHandle(&file);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* tf = p.CreateObject(YSE::OBJ::G_TEXTFILE, "");
+    REQUIRE(tf != nullptr);
+    p.Connect(tf, 1, &countHandle, 0);
+    p.Connect(tf, 2, &fileHandle, 0);
+
+    tf->SetListData(0, "read " + path);
+    // Nothing yet: no line, no bang. The request is a claim on a slot and the
+    // disk has not been touched on this thread.
+    tf->SetListData(0, "query");
+    REQUIRE(count.seen.size() == 1);
+    CHECK(count.seen[0] == "i0");
+    CHECK(file.seen.empty());
+    REQUIRE(p.FileIO() != nullptr);
+    CHECK(p.FileIO()->PendingCount() == 1);
+
+    count.reset();
+    SettleFiles(p);
+    REQUIRE(file.seen.size() == 1);
+    CHECK(file.seen[0] == "!");
+    CHECK(p.FileIO()->PendingCount() == 0);
+
+    tf->SetListData(0, "query");
+    REQUIRE(count.seen.size() == 1);
+    CHECK(count.seen[0] == "i2");
+
+    Remove(path);
+  }
+
+  TEST_CASE("textfile: a read replaces what was held (#687)") {
+    // Max's read loads a file into the object; it is not a merge. A patch that
+    // reloads a cue sheet has to get the cue sheet, not the cue sheet plus
+    // whatever it had been editing.
+    const std::string path = TempFile("yse_textfile_replace_687.txt");
+    WriteWholeFile(path, "fresh\n");
+
+    Recorder text;
+    YSE::pHandle textHandle(&text);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* tf = p.CreateObject(YSE::OBJ::G_TEXTFILE, "");
+    REQUIRE(tf != nullptr);
+    p.Connect(tf, 0, &textHandle, 0);
+
+    tf->SetListData(0, "gone");
+    tf->SetListData(0, "cr");
+    tf->SetListData(0, "also gone");
+    tf->SetListData(0, "read " + path);
+    SettleFiles(p);
+
+    text.reset();
+    tf->SetListData(0, "dump");
+    REQUIRE(text.seen.size() == 1);
+    CHECK(text.seen[0] == "sfresh");
+
+    Remove(path);
+  }
+
+  TEST_CASE("textfile: the open last line survives the round trip (#687)") {
+    // Max's buffer is flat text where a `cr` is a *character*, so contents whose
+    // last line is still taking appends end without a newline — and a file that
+    // ends without one leaves its last line open again. This is the difference
+    // between a round trip that is exact and one that is merely equal: an append
+    // after reloading has to continue the line it was continuing before.
+    const std::string path = TempFile("yse_textfile_openline_687.txt");
+
+    Recorder text;
+    YSE::pHandle textHandle(&text);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* tf = p.CreateObject(YSE::OBJ::G_TEXTFILE, "");
+    REQUIRE(tf != nullptr);
+    p.Connect(tf, 0, &textHandle, 0);
+
+    tf->SetListData(0, "closed");
+    tf->SetListData(0, "cr");
+    tf->SetListData(0, "tail");
+    tf->SetListData(0, "write " + path);
+    SettleFiles(p);
+    // No trailing newline: the second line is still open.
+    CHECK(ReadWholeFile(path) == "closed\ntail");
+
+    tf->SetListData(0, "clear");
+    tf->SetListData(0, "read " + path);
+    SettleFiles(p);
+
+    // The append continues the reloaded line rather than starting a third.
+    tf->SetListData(0, "more");
+    text.reset();
+    tf->SetListData(0, "dump");
+    REQUIRE(text.seen.size() == 2);
+    CHECK(text.seen[0] == "sclosed");
+    CHECK(text.seen[1] == "stail more");
+
+    Remove(path);
+  }
+
+  TEST_CASE("textfile: a file ending in a newline closes its last line (#687)") {
+    // The other half of the same rule, and the one a hand-written file has: the
+    // next append starts a new line rather than joining the last.
+    const std::string path = TempFile("yse_textfile_closedline_687.txt");
+    WriteWholeFile(path, "alpha\nbeta\n");
+
+    Recorder text;
+    YSE::pHandle textHandle(&text);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* tf = p.CreateObject(YSE::OBJ::G_TEXTFILE, "");
+    REQUIRE(tf != nullptr);
+    p.Connect(tf, 0, &textHandle, 0);
+
+    tf->SetListData(0, "read " + path);
+    SettleFiles(p);
+    tf->SetListData(0, "gamma");
+
+    text.reset();
+    tf->SetListData(0, "dump");
+    REQUIRE(text.seen.size() == 3);
+    CHECK(text.seen[0] == "salpha");
+    CHECK(text.seen[1] == "sbeta");
+    CHECK(text.seen[2] == "sgamma");
+
+    Remove(path);
+  }
+
+  TEST_CASE("textfile: a blank line in the file is a blank line in the contents (#687)") {
+    // What two `cr`s produce has to be what "a\n\n" reads back as, or a write
+    // then read would quietly close the gap a patch put there on purpose.
+    const std::string path = TempFile("yse_textfile_blank_687.txt");
+
+    Recorder text;
+    Recorder count;
+    YSE::pHandle textHandle(&text);
+    YSE::pHandle countHandle(&count);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* tf = p.CreateObject(YSE::OBJ::G_TEXTFILE, "");
+    REQUIRE(tf != nullptr);
+    p.Connect(tf, 0, &textHandle, 0);
+    p.Connect(tf, 1, &countHandle, 0);
+
+    tf->SetListData(0, "a");
+    tf->SetListData(0, "cr");
+    tf->SetListData(0, "cr");
+    tf->SetListData(0, "write " + path);
+    SettleFiles(p);
+    CHECK(ReadWholeFile(path) == "a\n\n");
+
+    tf->SetListData(0, "clear");
+    tf->SetListData(0, "read " + path);
+    SettleFiles(p);
+
+    count.reset();
+    text.reset();
+    tf->SetListData(0, "query");
+    tf->SetListData(0, "dump");
+    REQUIRE(count.seen.size() == 1);
+    CHECK(count.seen[0] == "i2");
+    REQUIRE(text.seen.size() == 2);
+    CHECK(text.seen[0] == "sa");
+    CHECK(text.seen[1] == "s");
+
+    Remove(path);
+  }
+
+  TEST_CASE("textfile: a CRLF file loads the same lines (#687)") {
+    // A text file written by another editor on Windows. The terminator's own
+    // carriage return is dropped; one in the middle of a line is text.
+    const std::string path = TempFile("yse_textfile_crlf_687.txt");
+    WriteWholeFile(path, "one\r\ntwo\r\n");
+
+    Recorder text;
+    YSE::pHandle textHandle(&text);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* tf = p.CreateObject(YSE::OBJ::G_TEXTFILE, "");
+    REQUIRE(tf != nullptr);
+    p.Connect(tf, 0, &textHandle, 0);
+
+    tf->SetListData(0, "read " + path);
+    SettleFiles(p);
+
+    text.reset();
+    tf->SetListData(0, "dump");
+    REQUIRE(text.seen.size() == 2);
+    CHECK(text.seen[0] == "sone");
+    CHECK(text.seen[1] == "stwo");
+
+    // And the write side emits plain newlines whatever it read.
+    tf->SetListData(0, "write " + path);
+    SettleFiles(p);
+    CHECK(ReadWholeFile(path) == "one\ntwo\n");
+
+    Remove(path);
+  }
+
+  TEST_CASE("textfile: the bare forms reuse the last name given (#687)") {
+    // Max's bare `read` / `write` open a file dialog, which a headless patcher
+    // has no equivalent of — so they reuse the last name, which also has to be
+    // remembered on a message path without allocating. Each half remembers its
+    // own name, `.coll`'s rule: a patch that reads a template and writes a
+    // result is reading and writing two different files.
+    const std::string path = TempFile("yse_textfile_again_687.txt");
+
+    Recorder count;
+    YSE::pHandle countHandle(&count);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* tf = p.CreateObject(YSE::OBJ::G_TEXTFILE, "");
+    REQUIRE(tf != nullptr);
+    p.Connect(tf, 1, &countHandle, 0);
+
+    tf->SetListData(0, "first");
+    tf->SetListData(0, "cr");
+    tf->SetListData(0, "write " + path);
+    SettleFiles(p);
+    CHECK(ReadWholeFile(path) == "first\n");
+
+    // Same name, no argument.
+    tf->SetListData(0, "second");
+    tf->SetListData(0, "cr");
+    tf->SetListData(0, "write");
+    SettleFiles(p);
+    CHECK(ReadWholeFile(path) == "first\nsecond\n");
+
+    // A bare `read` before any named one has nothing to reuse — the write's name
+    // is not the read's.
+    tf->SetListData(0, "clear");
+    tf->SetListData(0, "read");
+    REQUIRE(p.FileIO() != nullptr);
+    CHECK(p.FileIO()->PendingCount() == 0);
+
+    tf->SetListData(0, "read " + path);
+    SettleFiles(p);
+    count.reset();
+    tf->SetListData(0, "query");
+    REQUIRE(count.seen.size() == 1);
+    CHECK(count.seen[0] == "i2");
+
+    // And now the bare form has one.
+    tf->SetListData(0, "clear");
+    tf->SetListData(0, "read");
+    SettleFiles(p);
+    count.reset();
+    tf->SetListData(0, "query");
+    REQUIRE(count.seen.size() == 1);
+    CHECK(count.seen[0] == "i2");
+
+    Remove(path);
+  }
+
+  TEST_CASE("textfile: a bare read with no name and no argument does nothing (#687)") {
+    // Nothing named and no dialog to ask with: the honest behaviour is silence
+    // rather than a guess at a filename.
+    Recorder file;
+    YSE::pHandle fileHandle(&file);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* tf = p.CreateObject(YSE::OBJ::G_TEXTFILE, "");
+    REQUIRE(tf != nullptr);
+    p.Connect(tf, 2, &fileHandle, 0);
+
+    tf->SetListData(0, "read");
+    tf->SetListData(0, "write");
+    REQUIRE(p.FileIO() != nullptr);
+    CHECK(p.FileIO()->PendingCount() == 0);
+    SettleFiles(p);
+    CHECK(file.seen.empty());
+  }
+
+  TEST_CASE("textfile: a read of a missing file leaves the contents alone (#687)") {
+    // A failure is only discoverable on the background pool, so it arrives as a
+    // completion rather than as a refusal — and it must not fire the outlet a
+    // patch uses to mean "the file is loaded".
+    const std::string path = TempFile("yse_textfile_no_such_file_687.txt");
+
+    Recorder text;
+    Recorder file;
+    YSE::pHandle textHandle(&text);
+    YSE::pHandle fileHandle(&file);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* tf = p.CreateObject(YSE::OBJ::G_TEXTFILE, "");
+    REQUIRE(tf != nullptr);
+    p.Connect(tf, 0, &textHandle, 0);
+    p.Connect(tf, 2, &fileHandle, 0);
+
+    tf->SetListData(0, "kept");
+    tf->SetListData(0, "read " + path);
+    SettleFiles(p);
+
+    CHECK(file.seen.empty());
+    text.reset();
+    tf->SetListData(0, "dump");
+    REQUIRE(text.seen.size() == 1);
+    CHECK(text.seen[0] == "skept");
+  }
+
+  TEST_CASE("textfile: the filename argument is read when the object is built (#687)") {
+    // Max's "names a text file to be read in when the object is loaded", which is
+    // the whole point of holding the argument. The read is the same deferred
+    // request a `read` message makes, so the lines arrive with the patcher's next
+    // block and the file outlet bangs then.
+    const std::string path = TempFile("yse_textfile_argument_687.txt");
+    WriteWholeFile(path, "from the argument\nsecond line\n");
+
+    Recorder text;
+    Recorder file;
+    YSE::pHandle textHandle(&text);
+    YSE::pHandle fileHandle(&file);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* tf = p.CreateObject(YSE::OBJ::G_TEXTFILE, path);
+    REQUIRE(tf != nullptr);
+    p.Connect(tf, 0, &textHandle, 0);
+    p.Connect(tf, 2, &fileHandle, 0);
+
+    // Claimed at construction, delivered by a block — nothing was opened on the
+    // control thread either.
+    REQUIRE(p.FileIO() != nullptr);
+    CHECK(p.FileIO()->PendingCount() == 1);
+
+    SettleFiles(p);
+    REQUIRE(file.seen.size() == 1);
+    CHECK(file.seen[0] == "!");
+
+    text.reset();
+    tf->SetListData(0, "dump");
+    REQUIRE(text.seen.size() == 2);
+    CHECK(text.seen[0] == "sfrom the argument");
+    CHECK(text.seen[1] == "ssecond line");
+
+    // And it seeded the name, so a bare write saves back over the same file.
+    tf->SetListData(0, "third");
+    tf->SetListData(0, "cr");
+    tf->SetListData(0, "write");
+    SettleFiles(p);
+    CHECK(ReadWholeFile(path) == "from the argument\nsecond line\nthird\n");
+
+    Remove(path);
+  }
+
+  TEST_CASE("textfile: a filename argument naming nothing leaves the object empty (#687)") {
+    // A patch saved with a name whose file has since gone. The read fails on the
+    // pool, so the object is simply the empty one it would have been.
+    const std::string path = TempFile("yse_textfile_argument_missing_687.txt");
+
+    Recorder count;
+    Recorder file;
+    YSE::pHandle countHandle(&count);
+    YSE::pHandle fileHandle(&file);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* tf = p.CreateObject(YSE::OBJ::G_TEXTFILE, path);
+    REQUIRE(tf != nullptr);
+    p.Connect(tf, 1, &countHandle, 0);
+    p.Connect(tf, 2, &fileHandle, 0);
+
+    SettleFiles(p);
+    CHECK(file.seen.empty());
+
+    tf->SetListData(0, "query");
+    REQUIRE(count.seen.size() == 1);
+    CHECK(count.seen[0] == "i0");
+  }
+
+  TEST_CASE("textfile: a file with more lines than the table holds keeps the first 256 (#687)") {
+    // The bound cannot grow without allocating on whichever thread the message
+    // arrived on, so the overflow is dropped — the rule a `cr` past the table
+    // already follows.
+    const std::string path = TempFile("yse_textfile_overflow_687.txt");
+    {
+      std::string contents;
+      for (int i = 0; i < 300; i++) {
+        contents += "line" + std::to_string(i) + "\n";
+      }
+      WriteWholeFile(path, contents);
+    }
+
+    Recorder text;
+    Recorder count;
+    YSE::pHandle textHandle(&text);
+    YSE::pHandle countHandle(&count);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* tf = p.CreateObject(YSE::OBJ::G_TEXTFILE, "");
+    REQUIRE(tf != nullptr);
+    p.Connect(tf, 0, &textHandle, 0);
+    p.Connect(tf, 1, &countHandle, 0);
+
+    tf->SetListData(0, "read " + path);
+    SettleFiles(p);
+
+    tf->SetListData(0, "query");
+    REQUIRE(count.seen.size() == 1);
+    CHECK(count.seen[0] == "i" + std::to_string(gTextfile::MAX_LINES));
+
+    // The first ones, in order — not the last ones.
+    tf->SetListData(0, "dump");
+    REQUIRE(text.seen.size() == gTextfile::MAX_LINES);
+    CHECK(text.seen[0] == "sline0");
+    CHECK(text.seen[gTextfile::MAX_LINES - 1] ==
+          "sline" + std::to_string(gTextfile::MAX_LINES - 1));
+
+    Remove(path);
+  }
+
+  TEST_CASE("textfile: an over-long line is skipped and the rest of the file loads (#687)") {
+    // Refused whole rather than truncated, because half a line is a different
+    // line — and only that line, so a single bad record does not cost the file.
+    const std::string path = TempFile("yse_textfile_longline_687.txt");
+    WriteWholeFile(path, "short\n" + std::string(gTextfile::LINE_CAPACITY + 1, 'x') + "\nafter\n");
+
+    Recorder text;
+    YSE::pHandle textHandle(&text);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* tf = p.CreateObject(YSE::OBJ::G_TEXTFILE, "");
+    REQUIRE(tf != nullptr);
+    p.Connect(tf, 0, &textHandle, 0);
+
+    tf->SetListData(0, "read " + path);
+    SettleFiles(p);
+
+    text.reset();
+    tf->SetListData(0, "dump");
+    REQUIRE(text.seen.size() == 2);
+    CHECK(text.seen[0] == "sshort");
+    CHECK(text.seen[1] == "safter");
+
+    Remove(path);
+  }
+
+  TEST_CASE("textfile: a line filled to capacity still round-trips (#687)") {
+    // The boundary the test above sits one character past.
+    const std::string path = TempFile("yse_textfile_exactline_687.txt");
+    const std::string full(gTextfile::LINE_CAPACITY, 'y');
+    WriteWholeFile(path, full + "\n");
+
+    Recorder text;
+    YSE::pHandle textHandle(&text);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* tf = p.CreateObject(YSE::OBJ::G_TEXTFILE, "");
+    REQUIRE(tf != nullptr);
+    p.Connect(tf, 0, &textHandle, 0);
+
+    tf->SetListData(0, "read " + path);
+    SettleFiles(p);
+
+    text.reset();
+    tf->SetListData(0, "dump");
+    REQUIRE(text.seen.size() == 1);
+    CHECK(text.seen[0] == "s" + full);
+
+    Remove(path);
+  }
+
+  TEST_CASE("textfile: deleting the object with a read in flight is safe (#687)") {
+    // The lifetime guarantee the scheduler gives by construction: the background
+    // job holds no pObject, and delivery re-resolves the target against the
+    // block's pinned snapshot, so a live edit that retires the object between the
+    // `read` and the block that would deliver it drops the result and frees the
+    // slot.
+    const std::string path = TempFile("yse_textfile_deleted_687.txt");
+    WriteWholeFile(path, "gone\n");
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* tf = p.CreateObject(YSE::OBJ::G_TEXTFILE, "");
+    REQUIRE(tf != nullptr);
+    YSE::PATCHER::fileScheduler* io = p.FileIO();
+    REQUIRE(io != nullptr);
+
+    tf->SetListData(0, "read " + path);
+    CHECK(io->PendingCount() == 1);
+
+    p.DeleteObject(tf);
+
+    io->WaitIdle();
+    p.Calculate(YSE::T_DSP);
+    CHECK(io->PendingCount() == 0);
+
+    Remove(path);
+  }
+
+  TEST_CASE("textfile: a real graph builds lines, writes them and reads them back (#687)") {
+    // The user-visible flow, driven the way a patch would drive it: values arrive
+    // through another object, a .trigger ends the line and asks for the write,
+    // and the file outlet's bang is what tells the patch the reload has landed —
+    // wired into a .table so the reloaded text really is a working message again.
+    const std::string path = TempFile("yse_textfile_graph_687.txt");
+
+    Recorder out;
+    Recorder file;
+    YSE::pHandle outHandle(&out);
+    YSE::pHandle fileHandle(&file);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* add = p.CreateObject(YSE::OBJ::G_ADD, "12");
+    YSE::pHandle* tf = p.CreateObject(YSE::OBJ::G_TEXTFILE, "");
+    YSE::pHandle* table = p.CreateObject(YSE::OBJ::G_TABLE, "8");
+    REQUIRE(add != nullptr);
+    REQUIRE(tf != nullptr);
+    REQUIRE(table != nullptr);
+    p.Connect(add, 0, tf, 0);
+    p.Connect(tf, 0, table, 0);
+    p.Connect(tf, 2, &fileHandle, 0);
+    p.Connect(table, 0, &outHandle, 0);
+
+    // `.table`'s set is "set <start> <values...>", so the line is that argument
+    // list, built here by a real object on the way in.
+    tf->SetListData(0, "0");
+    add->SetIntData(0, 11);
+    add->SetIntData(0, 21);
+    tf->SetListData(0, "cr");
+    tf->SetListData(0, "write " + path);
+    SettleFiles(p);
+    CHECK(ReadWholeFile(path) == "0 23. 33.\n");
+
+    tf->SetListData(0, "clear");
+    tf->SetListData(0, "read " + path);
+    SettleFiles(p);
+    REQUIRE(file.seen.size() == 1);
+    CHECK(file.seen[0] == "!");
+
+    // The reloaded line loads the table through its `set`, which is the proof
+    // that what came off the disk is a message and not just characters.
+    tf->SetListData(0, "line 1");
+    table->SetIntData(0, 0);
+    table->SetIntData(0, 1);
+    REQUIRE(out.seen.size() == 2);
+    CHECK(out.seen[0] == "i23");
+    CHECK(out.seen[1] == "i33");
+
+    Remove(path);
   }
 
 } // TEST_SUITE

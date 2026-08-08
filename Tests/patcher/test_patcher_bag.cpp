@@ -23,6 +23,14 @@
 //     duplicate mode survives a save; what the bag is holding deliberately does
 //     not, which is where this object parts company with .coll.
 //
+// A sixth was added with `send` (issue #685): **it is a message, not a mode.**
+// Max's refpage gives `send` one argument and says it "sends the result of a
+// bang message to all receive objects with that name, instead of out the bag
+// object's outlet" — the same one-shot shape .table's `send` has. Issue #685's
+// scope reads it as a persistent redirect instead, and the cases below pin the
+// difference: the dump goes to the .r and not the outlet, and a later bang,
+// `cut` and `length` are untouched by it.
+//
 // No audio device and no engine of its own, except where a real patcher graph
 // is the point.
 
@@ -37,6 +45,7 @@
 #include "patcher/pObjectList.hpp"
 #include "patcher/pRegistry.h"
 #include "patcher/patcher.hpp"
+#include "patcher/patcherImplementation.h"
 #include "patcher/sinks.hpp"
 
 using TestHelpers::MultiSink;
@@ -111,6 +120,30 @@ namespace {
       Value(value);
     }
   };
+
+  // The distinct values in `ints`, in the order each was first seen.
+  //
+  // `send` reaches a .r twice when the global bus happens to be up — once
+  // through the patcher's own PassData and once through the receiver's bus
+  // subscription — and in the monolithic test binary another translation unit
+  // may have called System::init() first, so whether that happens is not this
+  // file's to decide (the .forward and .table rigs carry the same caveat). What
+  // is invariant either way is *which* values arrive and the order they first
+  // arrive in, since both paths carry the same burst in the same order.
+  std::vector<int> FirstSeenOrder(const std::vector<int>& ints) {
+    std::vector<int> unique;
+    for (int v : ints) {
+      bool seen = false;
+      for (int u : unique) {
+        if (u == v) {
+          seen = true;
+          break;
+        }
+      }
+      if (!seen) unique.push_back(v);
+    }
+    return unique;
+  }
 
 } // namespace
 
@@ -623,6 +656,220 @@ TEST_SUITE("patcher") {
     REQUIRE(out.ints.size() == 2);
     CHECK(out.ints[0] == 60);
     CHECK(out.ints[1] == 2);
+  }
+
+  // ─── send (#685) ────────────────────────────────────────────────────────────
+
+  TEST_CASE("bag: send keeps its dump off the outlet (#685)") {
+    // Max: "sends the result of a bang message to all receive objects with that
+    // name, **instead of** out the bag object's outlet". Standalone, so the
+    // outlet is the only thing that could speak — and the point is that it does
+    // not. That a later bang still does is what makes this a message rather than
+    // a mode.
+    Rig rig;
+    rig.Add(60);
+    rig.Add(62);
+    rig.out.reset();
+
+    rig.List("send held");
+    CHECK(rig.out.ints.empty());
+    CHECK(rig.out.otherKinds == 0);
+    // And the dump did not consume the collection, any more than a bang does.
+    CHECK(rig.obj.Count() == 2);
+
+    rig.Bang();
+    REQUIRE(rig.out.ints.size() == 2);
+    CHECK(rig.out.ints[0] == 62);
+    CHECK(rig.out.ints[1] == 60);
+  }
+
+  TEST_CASE("bag: a bare send names nothing and does nothing (#685)") {
+    // Issue #685 asks whether a bare `send` clears a redirect. Max has no
+    // redirect to clear — `send` takes a name and acts once — so the question
+    // reduces to what an unnamed send does, and the answer is the .forward rule:
+    // the empty name is "not configured" rather than an address.
+    Rig rig;
+    rig.Add(60);
+    rig.out.reset();
+
+    rig.List("send");
+    CHECK(rig.out.ints.empty());
+    CHECK(rig.obj.Count() == 1);
+
+    // Trailing whitespace is still no name.
+    rig.List("send   ");
+    CHECK(rig.out.ints.empty());
+    CHECK(rig.obj.Count() == 1);
+  }
+
+  TEST_CASE("bag: send hands the whole collection to a named .r, newest first (#685)") {
+    // The user-visible flow, driven through a real patcher because the delivery
+    // is the patcher's rather than the object's: a T_GUI PassData is queued and
+    // drained by a Calculate, so the explicit tick is part of what is being
+    // tested (.forward's rig, #485, and .table's send test, #498).
+    YSE::PATCHER::patcherImplementation p{2, nullptr};
+    Recorder received;
+    Recorder outlet;
+    YSE::pHandle receivedHandle(&received);
+    YSE::pHandle outletHandle(&outlet);
+
+    YSE::pHandle* bag = p.CreateObject(YSE::OBJ::G_BAG, "");
+    YSE::pHandle* receiver = p.CreateObject(YSE::OBJ::G_RECEIVE, "held");
+    REQUIRE(bag != nullptr);
+    REQUIRE(receiver != nullptr);
+    p.Connect(receiver, 0, &receivedHandle, 0);
+    p.Connect(bag, 0, &outletHandle, 0);
+
+    bag->SetListData(0, "60 1");
+    bag->SetListData(0, "62 1");
+    bag->SetListData(0, "64 1");
+    received.reset();
+    outlet.reset();
+
+    bag->SetListData(0, "send held");
+    p.Calculate(YSE::T_DSP);
+
+    // A bang's numbers in a bang's order: newest first.
+    const std::vector<int> seen = FirstSeenOrder(received.ints);
+    REQUIRE(seen.size() == 3);
+    CHECK(seen[0] == 64);
+    CHECK(seen[1] == 62);
+    CHECK(seen[2] == 60);
+    // Nothing but the burst reached the receiver, and nothing at all reached the
+    // outlet — "instead of out the bag object's outlet".
+    CHECK(received.otherKinds == 0);
+    CHECK(outlet.ints.empty());
+    CHECK(outlet.otherKinds == 0);
+  }
+
+  TEST_CASE("bag: send is one message and not a mode (#685)") {
+    // Issue #685's scope reads `send <name>` as a persistent redirect and then
+    // has to ask whether `cut` and `length` follow it. Max's refpage has no mode
+    // at all — `send` "sends the result of a bang message" right then — so the
+    // outlet is never re-aimed: a later bang, and `cut` and `length` always, go
+    // where they always went, and the .r hears none of them.
+    YSE::PATCHER::patcherImplementation p{2, nullptr};
+    Recorder received;
+    Recorder outlet;
+    YSE::pHandle receivedHandle(&received);
+    YSE::pHandle outletHandle(&outlet);
+
+    YSE::pHandle* bag = p.CreateObject(YSE::OBJ::G_BAG, "");
+    YSE::pHandle* receiver = p.CreateObject(YSE::OBJ::G_RECEIVE, "held");
+    REQUIRE(bag != nullptr);
+    REQUIRE(receiver != nullptr);
+    p.Connect(receiver, 0, &receivedHandle, 0);
+    p.Connect(bag, 0, &outletHandle, 0);
+
+    bag->SetListData(0, "60 1");
+    bag->SetListData(0, "62 1");
+    bag->SetListData(0, "send held");
+    p.Calculate(YSE::T_DSP);
+    received.reset();
+    outlet.reset();
+
+    // A bang after a send goes out the outlet, exactly as one before it would.
+    bag->SetBang(0);
+    REQUIRE(outlet.ints.size() == 2);
+    CHECK(outlet.ints[0] == 62);
+    CHECK(outlet.ints[1] == 60);
+
+    // cut and length keep the outlet too — Max scopes the sentence to "the
+    // result of a bang message" and gives them no send form of their own.
+    outlet.reset();
+    bag->SetListData(0, "cut");
+    bag->SetListData(0, "length");
+    REQUIRE(outlet.ints.size() == 2);
+    CHECK(outlet.ints[0] == 60);
+    CHECK(outlet.ints[1] == 1);
+
+    p.Calculate(YSE::T_DSP);
+    CHECK(received.ints.empty());
+    CHECK(received.otherKinds == 0);
+  }
+
+  TEST_CASE("bag: send on an empty collection sends nothing (#685)") {
+    // Because that is what its bang sends. A zero here would read downstream as
+    // a stored number.
+    YSE::PATCHER::patcherImplementation p{2, nullptr};
+    Recorder received;
+    YSE::pHandle receivedHandle(&received);
+
+    YSE::pHandle* bag = p.CreateObject(YSE::OBJ::G_BAG, "");
+    YSE::pHandle* receiver = p.CreateObject(YSE::OBJ::G_RECEIVE, "held");
+    REQUIRE(bag != nullptr);
+    REQUIRE(receiver != nullptr);
+    p.Connect(receiver, 0, &receivedHandle, 0);
+
+    bag->SetListData(0, "send held");
+    p.Calculate(YSE::T_DSP);
+    CHECK(received.ints.empty());
+    CHECK(received.otherKinds == 0);
+  }
+
+  TEST_CASE("bag: an over-long send name is refused rather than truncated (#685)") {
+    // NamedBus truncates a published name at 63 characters and the in-patcher
+    // PassData path does not, so a 64-character name would address one receiver
+    // locally and a different, shorter one on the bus. .forward's rule: refuse
+    // it, silently, since this path may be the audio thread.
+    YSE::PATCHER::patcherImplementation p{2, nullptr};
+    Recorder received;
+    YSE::pHandle receivedHandle(&received);
+
+    const std::string longName(64, 'r');
+    const std::string atLimit(63, 'r');
+
+    YSE::pHandle* bag = p.CreateObject(YSE::OBJ::G_BAG, "");
+    YSE::pHandle* tooLong = p.CreateObject(YSE::OBJ::G_RECEIVE, longName);
+    REQUIRE(bag != nullptr);
+    REQUIRE(tooLong != nullptr);
+    p.Connect(tooLong, 0, &receivedHandle, 0);
+
+    bag->SetListData(0, "60 1");
+    received.reset();
+    bag->SetListData(0, "send " + longName);
+    p.Calculate(YSE::T_DSP);
+    CHECK(received.ints.empty());
+
+    // One character shorter is the longest name that is honoured, so the limit
+    // is the bus's and not an off-by-one below it.
+    YSE::PATCHER::patcherImplementation q{2, nullptr};
+    Recorder atLimitOut;
+    YSE::pHandle atLimitHandle(&atLimitOut);
+    YSE::pHandle* qBag = q.CreateObject(YSE::OBJ::G_BAG, "");
+    YSE::pHandle* qReceiver = q.CreateObject(YSE::OBJ::G_RECEIVE, atLimit);
+    REQUIRE(qBag != nullptr);
+    REQUIRE(qReceiver != nullptr);
+    q.Connect(qReceiver, 0, &atLimitHandle, 0);
+
+    qBag->SetListData(0, "60 1");
+    atLimitOut.reset();
+    qBag->SetListData(0, "send " + atLimit);
+    q.Calculate(YSE::T_DSP);
+    REQUIRE_FALSE(atLimitOut.ints.empty());
+    CHECK(atLimitOut.ints[0] == 60);
+  }
+
+  TEST_CASE("bag: send takes the first token and ignores the rest (#685)") {
+    // What Max does with surplus arguments, and what a name has to be to match a
+    // .r at all: Parameters::Set tokenises a creation argument the same way, so
+    // no receiver can be named "held over".
+    YSE::PATCHER::patcherImplementation p{2, nullptr};
+    Recorder received;
+    YSE::pHandle receivedHandle(&received);
+
+    YSE::pHandle* bag = p.CreateObject(YSE::OBJ::G_BAG, "");
+    YSE::pHandle* receiver = p.CreateObject(YSE::OBJ::G_RECEIVE, "held");
+    REQUIRE(bag != nullptr);
+    REQUIRE(receiver != nullptr);
+    p.Connect(receiver, 0, &receivedHandle, 0);
+
+    bag->SetListData(0, "60 1");
+    received.reset();
+    bag->SetListData(0, "send held over there");
+    p.Calculate(YSE::T_DSP);
+    REQUIRE_FALSE(received.ints.empty());
+    CHECK(received.ints[0] == 60);
   }
 
 } // TEST_SUITE

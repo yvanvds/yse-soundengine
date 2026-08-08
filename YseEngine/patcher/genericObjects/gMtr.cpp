@@ -55,6 +55,42 @@ namespace {
       end--;
   }
 
+  // The integer starting at `cursor` in [cursor, end), or false when there is
+  // none there. `cursor` is left after it. In place rather than through
+  // ReadIntArgAt, which wants a std::string a file's bytes would have to be
+  // copied into: this runs in a file completion, which is the audio thread.
+  // Saturating rather than wrapping, and a token that is not one whole integer —
+  // `12x` — is refused rather than half read, the way the rest of the family
+  // reads a numeric token.
+  bool ReadIntInPlace(const char* text, std::size_t& cursor, std::size_t end, int& out) {
+    std::size_t at = cursor;
+    while (at < end && IsSelectorSeparator(text[at]))
+      at++;
+
+    bool negative = false;
+    if (at < end && (text[at] == '-' || text[at] == '+')) {
+      negative = text[at] == '-';
+      at++;
+    }
+
+    std::int64_t value = 0;
+    std::size_t digits = 0;
+    while (at < end && text[at] >= '0' && text[at] <= '9') {
+      if (value <= 2147483647LL) value = (value * 10) + (text[at] - '0');
+      at++;
+      digits++;
+    }
+    if (digits == 0) return false;
+    // The token has to end here: a trailing letter means this was never a
+    // number, and half reading it would invent a delta the file did not have.
+    if (at < end && !IsSelectorSeparator(text[at])) return false;
+
+    if (value > 2147483647LL) value = 2147483647LL;
+    out = (int)(negative ? -value : value);
+    cursor = at;
+    return true;
+  }
+
   // Whether the `length` characters at `text` are exactly `word`. Compared in
   // place rather than through a std::string, since this runs on whichever thread
   // the message arrived on.
@@ -94,10 +130,17 @@ namespace {
       "delta of every track — Max's 'sets the first delta time value of each track to that "
       "number'. "
       "'embed 1' makes the tapes save with the patcher, Max 8's flag and the only thing that makes "
-      "this object write anything at all. 'read' and 'write' are accepted and do nothing: file I/O "
-      "needs plumbing no patcher object can have yet, since a handler cannot find out which thread "
-      "it is on (issues #683 / #691). A bang does nothing — Max 8 answers one with a dictionary, a "
-      "type this patcher does not have — and so does any other message.";
+      "this object save anything at all. 'read [file]' and 'write [file]' move every track through "
+      "a text file in Max's own format — 'track <n>;', then '<delta> <message>;' per event, then "
+      "'end;' — and neither opens anything here: the request is a wait-free claim on a "
+      "patcher-owned slot, the disk work runs on the background pool, and a read replaces the "
+      "tapes in the completion the patcher delivers at the top of a later block, which is also "
+      "when the last outlet bangs. A read stops the transport on every track it replaces, since a "
+      "track still playing would have a step armed at a delta belonging to a tape that no longer "
+      "exists. Both bare forms reuse the last name given, Max's opening a file dialog a headless "
+      "patcher has none of, and Max documents no readagain / writeagain for mtr, so neither is "
+      "invented. A bang does nothing — Max 8 answers one with a dictionary, a type this patcher "
+      "does not have — and so does any other message.";
 
   constexpr char kTrackInletDoc[] =
       "This track's tape head. While the track is recording, whatever arrives here is stored with "
@@ -113,7 +156,11 @@ namespace {
       "commands here rather than data, addressing this one track — Max reserves them on this inlet "
       "too, so a patch brought across behaves the same — and 'play' may carry Max's two optional "
       "arguments, a repeat count and a timescale, so 'play 3 200' plays the track three times at "
-      "twice the speed. Everything else is data. At most 256 events per track of at most 128 "
+      "twice the speed. 'read [file]' and 'write [file]' are commands here for the same reason, "
+      "and address this one track: Max's 'in other inlets: opens a file containing only the track "
+      "that corresponds to the inlet'. A per-track read takes the first track block the file "
+      "holds, whatever number that block declares. Everything else is data. At most 256 events "
+      "per track of at most 128 "
       "characters each; anything past either is dropped silently, since this inlet may be the "
       "audio "
       "thread.";
@@ -133,6 +180,18 @@ namespace {
       "a float, and anything else as a list. Silent while the track is muted, though the track "
       "keeps its clock and its cursor — Max: 'still continuing to play' — so unmuting mid-tape "
       "picks up where the tape has got to rather than where it was silenced.";
+
+  constexpr char kFileOutletDoc[] =
+      "Bangs when a 'read' has finished loading a file into the tapes, whether it addressed every "
+      "track or one. Appended after every track outlet rather than inserted, which is the rule the "
+      "whole file-reading family follows, so no saved patch's cords shift. Max's mtr has no such "
+      "outlet where coll, text and qlist all do, and this is a deliberate departure rather than an "
+      "oversight: Max's read is synchronous, so 'read x' followed by 'play' plays the file in Max, "
+      "while here the read is a background job whose result lands a block or more later — without "
+      "a signal, the arrival of a tape would be entirely unobservable and that idiom would have no "
+      "correct spelling. It fires only on success: a file that does not exist, does not fit, or "
+      "cannot be opened leaves it silent. It does not fire for a write, for which Max has no "
+      "outlet anywhere in this family.";
 
 } // namespace
 
@@ -157,6 +216,13 @@ CONSTRUCT() {
   sendText.reserve(EVENT_CAPACITY + 1);
   // Three ints and the two spaces between them.
   reportText.reserve(((std::size_t)FORMAT_INT_WIDTH * 3) + 3);
+
+  // Same treatment for the file buffers (issue #691): a `read` or `write` may
+  // arrive on the audio thread, so remembering a name and formatting a tape set
+  // both have to reuse storage that already exists.
+  readPath.reserve(fileScheduler::PATH_CAPACITY);
+  writePath.reserve(fileScheduler::PATH_CAPACITY);
+  fileScratch.reserve(FILE_TEXT_CAPACITY + 1);
 
   ADD_DESCRIPTION(
       "Records messages on several independent tracks and plays them back in the rhythm they "
@@ -215,14 +281,38 @@ CONSTRUCT() {
       "until 'embed 1', and the flag itself is saved so a reloaded object still knows to embed. "
       "Cursors, mutes, timescales and whether a track is playing or recording are run-time "
       "position "
-      "and do not survive, the way .coll's pointer does not. Reading and writing files is "
-      "deliberately not here, .textfile's and .qlist's answer for their reason: a handler runs on "
-      "whichever thread the message arrived on, in-patcher delivery dispatches on the audio "
-      "thread, "
-      "and THREAD is a dispatch-semantics tag rather than a thread identity, so no object can find "
-      "out that it is off the audio callback, where opening a file would block it — shared "
-      "plumbing "
-      "filed as issue #683, with #691 tracking this object's half. Track count is Max's argument, "
+      "and do not survive, the way .coll's pointer does not. 'read [file]' and 'write [file]' are "
+      "the other half of persisting a tape, Max's own and the only one Max 5 had, and none of it "
+      "happens on the message path: a handler runs on whichever thread the message arrived on, "
+      "in-patcher delivery dispatches on the audio thread, and THREAD is a dispatch-semantics tag "
+      "rather than a thread identity, so no object can find out that it is off the audio callback, "
+      "where opening a file would block it. The request is instead a wait-free claim on a "
+      "patcher-owned slot, the disk work runs on the background pool honouring the host's IO() "
+      "layer, and the bytes are parsed in the completion the patcher delivers at the top of a "
+      "later block — the shared fileScheduler plumbing of issue #683, whose consumer half here is "
+      "#691. The format is Max's text one: 'track <n>;', then '<delta> <message>;' per event, then "
+      "'end;' per track, with a bang written and read as the word bang. Max's .pat and .json "
+      "formats and its writejson are not here, and the reason is hard rather than lazy — a "
+      "completion is delivered on the audio thread, so parsing it must not allocate, and a JSON "
+      "reader builds a document; a format that could be written and never read back would be worse "
+      "than none, and embed already saves the tapes as JSON into the patch, on the control thread, "
+      "where a parse can afford to live. Max's file surface is per-inlet and that is reproduced: "
+      "read and write in inlet 0 address every track, and in a track's own inlet they address that "
+      "one track — Max's 'in other inlets: opens a file containing only the track that corresponds "
+      "to the inlet' — which is why those two words are reserved on a track inlet alongside the "
+      "eight transport words. A read replaces the tapes it addresses and stops their transport, "
+      "where .qlist's walk carries on into the list it just loaded; the difference is the clock, a "
+      "track still playing having a step armed at a delta belonging to a tape that no longer "
+      "exists. Both bare forms reuse the last name given, one name per half for the whole object, "
+      "Max's bare forms opening a dialog that remembers nothing and that a headless patcher has no "
+      "equivalent of; Max documents no readagain / writeagain for mtr, so neither is invented, and "
+      "there is no filename creation argument either — Max gives mtr none, and one invented here "
+      "would collide with embed, a runtime flag a patch can turn on at any moment, leaving the "
+      "object with two answers to what is on its tapes arriving in an order nothing controls. A "
+      "successful read bangs the last outlet, appended after every track outlet; Max has no such "
+      "outlet, and the departure is deliberate, Max's read being synchronous where this one cannot "
+      "be, so without a signal the arrival of a tape would be unobservable to a patch. Track count "
+      "is Max's argument, "
       "clamped to 1-32: 32 is the ceiling Max's own reference gave for most of this object's life, "
       "and Max 8's later 128 is not followed because a playing track holds one slot in the "
       "patcher-wide pending set of 128, so a single object could take the whole table. Not ported: "
@@ -306,6 +396,12 @@ void gMtr::ShapePorts() {
     ADD_OUT_ANY;
     outputs.back().SetDoc(OutletLabel(i), kTrackOutletDoc, "any");
   }
+
+  // The file outlet (issue #691), appended after every track's rather than
+  // inserted, which is the family's rule — no saved patch's cords shift. Max
+  // has none; see the outlet's own documentation for why this one exists.
+  ADD_OUT_BANG;
+  outputs.back().SetDoc("file", kFileOutletDoc, "");
 
   // Rebuilt with the ports so the two can never disagree on how many tracks
   // there are. Every event string is reserved here, on the control thread: this
@@ -574,9 +670,9 @@ void gMtr::DeliverDeferred(const deferredMessage& msg, YSE::THREAD thread) {
 
   // The delivered tag is passed straight through. It is T_GUI — "let the
   // block's own traversal render it" — which is the right reading for an outlet
-  // send. The *other* reading of that tag, the one `patcherImplementation::
-  // PassData` takes, is the trap `.qlist` documents and #690 tracks; this
-  // object never sends remotely, so it never meets it.
+  // send, and since #690 the only reading there is: `patcherImplementation::
+  // PassData` decides lock-free-vs-queued from `CallingThread`, not from the
+  // tag, so a T_GUI delivery on the audio callback no longer takes `mtx`.
   Resume((std::size_t)msg.tag, thread);
 }
 
@@ -775,13 +871,257 @@ bool gMtr::HandleSetting(const char* word, std::size_t length, const std::string
     return true;
   }
 
-  // Consumed and inert. File I/O cannot be done from a message handler at all
-  // today — issue #683 builds the plumbing, #691 is this object's half. See the
-  // class documentation.
-  if (TokenIs(word, length, "read", 4)) return true;
-  if (TokenIs(word, length, "write", 5)) return true;
-
   return false;
+}
+
+// ─── files ────────────────────────────────────────────────────────────────────
+
+bool gMtr::RequestFile(FILE_OP op, std::size_t track, const char* name, std::size_t length) {
+  fileScheduler* io = FileIO();
+  // A standalone .mtr has no patcher and so no plumbing. Silent: this may be the
+  // audio thread, where a log line would allocate.
+  if (io == nullptr) return false;
+  if (track != ALL_TRACKS && track >= tracks.size()) return false;
+
+  // One name per half for the whole object rather than one per track: Max's
+  // bare forms open a dialog, which remembers nothing and which a headless
+  // patcher has no equivalent of, so there is no per-track behaviour to match.
+  std::string& remembered = op == FILE_OP::READ ? readPath : writePath;
+  if (name != nullptr && length > 0) {
+    if (length >= fileScheduler::PATH_CAPACITY) return false;
+    // assign() into a string reserved at construction reuses its storage.
+    remembered.assign(name, length);
+  }
+  // Nothing named yet, and no dialog to ask with.
+  if (remembered.empty()) return false;
+
+  const int base = op == FILE_OP::READ ? FILE_TAG_READ_TRACK : FILE_TAG_WRITE_TRACK;
+  const int whole = op == FILE_OP::READ ? FILE_TAG_READ_ALL : FILE_TAG_WRITE_ALL;
+  const int tag = track == ALL_TRACKS ? whole : base + (int)track;
+
+  if (op == FILE_OP::READ) {
+    return io->RequestRead(this, tag, remembered.c_str(), remembered.size());
+  }
+
+  // The bytes are built here rather than on the pool thread, because the pool
+  // must never touch this object: by the time the job runs, a live edit may have
+  // deleted it.
+  if (!Serialize(track)) return false;
+  return io->RequestWrite(this, tag, remembered.c_str(), remembered.size(), fileScratch.c_str(),
+                          fileScratch.size());
+}
+
+bool gMtr::Serialize(std::size_t track) {
+  storeGuard guard(busy);
+  if (!guard.Held()) return false;
+
+  // clear() keeps the capacity reserved at construction, so every append below
+  // writes into storage that already exists.
+  fileScratch.clear();
+
+  const std::size_t from = track == ALL_TRACKS ? 0 : track;
+  const std::size_t to = track == ALL_TRACKS ? tracks.size() : track + 1;
+
+  char digits[FORMAT_INT_WIDTH];
+  for (std::size_t i = from; i < to; i++) {
+    const Track& tr = tracks[i];
+
+    // 32 full tracks do not fit one 128 KiB slot, so the bound is checked as it
+    // goes and the whole write is refused rather than truncated — half a tape
+    // set is a different tape set. FILE_TRACK_CAPACITY is pinned against the
+    // slot in the header, so a single-track write can never end up here.
+    if (fileScratch.size() + FILE_TRACK_CAPACITY > FILE_TEXT_CAPACITY) {
+      std::size_t needed = 6 + (std::size_t)FORMAT_INT_WIDTH + 2 + 5;
+      needed += tr.count * FILE_EVENT_CAPACITY;
+      if (fileScratch.size() + needed > FILE_TEXT_CAPACITY) return false;
+    }
+
+    // Max's format: "Line 1: track <track number>;". Max's track numbers are
+    // 1-based, matching the inlet they belong to.
+    fileScratch.append("track ", 6);
+    fileScratch.append(digits, WriteInt((int)i + 1, digits));
+    fileScratch.append(";\n", 2);
+
+    for (std::size_t e = 0; e < tr.count; e++) {
+      const Event& event = tr.events[e];
+      // "Line 2, etc.: <delta time> <message>;"
+      fileScratch.append(digits, WriteInt(event.deltaMs, digits));
+      fileScratch.push_back(' ');
+      // A bang has no text of its own, so it is spelled out — which is what a
+      // read turns back into a bang.
+      if (event.bang) {
+        fileScratch.append("bang", 4);
+      } else {
+        fileScratch.append(event.text);
+      }
+      fileScratch.append(";\n", 2);
+    }
+
+    // "Last line: end; (End of this track's data)".
+    fileScratch.append("end;\n", 5);
+  }
+  return true;
+}
+
+void gMtr::ResetForLoad(Track& tr) {
+  // A read replaces the tape, so whatever the transport was doing to the old one
+  // ends with it: a track left playing would already have a step armed at a
+  // delta belonging to a recording that no longer exists, and its first gap
+  // after the read would be one nothing ever made. `.qlist`'s walk carries on
+  // into the list it loaded, and this is where the two part company.
+  CancelStep(tr);
+  tr.playing = false;
+  tr.recording = false;
+  tr.count = 0;
+  tr.position = 0;
+  tr.absMs = 0;
+}
+
+void gMtr::LoadEvent(std::size_t track, const char* text, std::size_t length) {
+  Track& tr = tracks[track];
+  // Dropped rather than grown, as a recorded event past the tape is.
+  if (tr.count >= MAX_EVENTS) return;
+
+  // "<delta time> <message>" — the delta is the leading integer, and a line
+  // without one is not an event.
+  std::size_t cursor = 0;
+  int deltaMs = 0;
+  if (!ReadIntInPlace(text, cursor, length, deltaMs)) return;
+
+  std::size_t begin = cursor;
+  std::size_t end = length;
+  Trim(text, begin, end);
+  // A line with a delta and nothing after it is not something a write produced —
+  // every recorded event has text or is a bang, which is written as the word.
+  if (end <= begin) return;
+
+  const std::size_t textLength = end - begin;
+  // Skipped rather than truncated, with the rest of the file still loading:
+  // half a message is a different message.
+  if (textLength > EVENT_CAPACITY) return;
+
+  Event& event = tr.events[tr.count];
+  event.deltaMs = deltaMs < 0 ? 0 : deltaMs;
+  // The one thing that cannot round-trip: a recorded one-word list that is the
+  // word `bang` comes back as a bang. `.coll`'s comma is the same kind of
+  // limitation.
+  event.bang = TokenIs(text + begin, textLength, "bang", 4);
+  if (event.bang) {
+    event.text.clear();
+  } else {
+    // assign() into a string reserved at construction, so this allocates
+    // nothing.
+    event.text.assign(text + begin, textLength);
+  }
+  tr.count++;
+}
+
+bool gMtr::LoadFrom(std::size_t track, const char* text, std::size_t length) {
+  storeGuard guard(busy);
+  if (!guard.Held()) return false;
+
+  const bool whole = track == ALL_TRACKS;
+  if (whole) {
+    for (Track& tr : tracks)
+      ResetForLoad(tr);
+  } else {
+    ResetForLoad(tracks[track]);
+  }
+
+  // A file with no `track` line at all is one track's worth of events, so the
+  // cursor starts on the track being addressed — track 1 for a whole-object
+  // read, which is the only track a headerless file can mean.
+  std::size_t current = whole ? 0 : track;
+  bool open = true;
+  int blocks = 0;
+
+  // Broken on a semicolon *or* a newline, `.qlist`'s rule for `.qlist`'s reason:
+  // this format carries no punctuation inside a line for a line break to steal,
+  // so a hand-written file that left the semicolons off still loads as the lines
+  // it looks like, and a `\r` before the break is whitespace the trim removes.
+  std::size_t segment = 0;
+  for (std::size_t i = 0; i <= length; i++) {
+    if (i != length && text[i] != ';' && text[i] != '\n') continue;
+
+    std::size_t begin = segment;
+    std::size_t end = i;
+    segment = i + 1;
+    Trim(text, begin, end);
+    if (end <= begin) continue;
+
+    std::size_t wordEnd = begin;
+    while (wordEnd < end && !IsSelectorSeparator(text[wordEnd]))
+      wordEnd++;
+
+    if (TokenIs(text + begin, wordEnd - begin, "track", 5)) {
+      blocks++;
+      if (whole) {
+        // "track <track number>", 1-based as Max's are. One naming a track this
+        // object has not got closes the block instead, so its events are dropped
+        // rather than landing on the wrong tape — a saved 8-track file read into
+        // a `.mtr 4` keeps the four tracks that still have somewhere to live.
+        int number = 0;
+        std::size_t cursor = wordEnd;
+        open = ReadIntInPlace(text, cursor, end, number) && number >= 1 &&
+               number <= (int)tracks.size();
+        if (open) current = (std::size_t)(number - 1);
+      } else {
+        // Max defines the per-inlet form only for a file holding one track, so
+        // the first block is taken and a second one ends the read.
+        if (blocks > 1) break;
+        current = track;
+        open = true;
+      }
+      continue;
+    }
+
+    if (TokenIs(text + begin, wordEnd - begin, "end", 3)) {
+      // "end; (End of this track's data)". For a per-track read that is the end
+      // of the only block it wanted.
+      if (!whole) break;
+      open = false;
+      continue;
+    }
+
+    if (open) LoadEvent(current, text + begin, end - begin);
+  }
+  return true;
+}
+
+void gMtr::SetParent(pObject* newParent) {
+  pObject::SetParent(newParent);
+  // Control thread, and the one place the patcher's file table can be built: a
+  // `read` arriving later on the audio thread has to find it already there
+  // (issue #683). Nothing is read here — Max gives `mtr` no filename argument,
+  // and one invented here would collide with `embed`; see the class
+  // documentation.
+  EnableFileIO();
+}
+
+void gMtr::DeliverFileResult(const fileResult& result, YSE::THREAD thread) {
+  // Max has no outlet for a finished write anywhere in this family, so a write
+  // reports only by having happened. A failed read reports by the outlet staying
+  // silent.
+  if (result.op != FILE_OP::READ) return;
+  if (!result.ok || result.bytes == nullptr) return;
+
+  // The tag carries which request this was, and for a per-track one, which
+  // track — so two reads in flight for two tracks cannot be confused.
+  std::size_t track = ALL_TRACKS;
+  if (result.tag != FILE_TAG_READ_ALL) {
+    const int offset = result.tag - FILE_TAG_READ_TRACK;
+    if (offset < 0 || offset >= MAX_TRACKS) return;
+    if ((std::size_t)offset >= tracks.size()) return;
+    track = (std::size_t)offset;
+  }
+
+  if (!LoadFrom(track, result.bytes, result.byteCount)) return;
+
+  // The file outlet, after the tapes are in place so a patch that answers it
+  // with a `play` finds them. `thread` is the tag the scheduler delivered —
+  // forwarded unchanged, because Pass* picks its mechanism from the render-frame
+  // marker rather than from the tag (issue #690).
+  if (!outputs.empty()) outputs.back().SendBang(thread);
 }
 
 // ─── inlets ───────────────────────────────────────────────────────────────────
@@ -823,6 +1163,26 @@ LIST_IN(ListIn) {
   if (!NextToken(text, length, 0, begin, end)) return;
 
   const Cmd cmd = ReadCommand(text + begin, end - begin);
+
+  // The file half (issue #691), checked before either inlet's own grammar
+  // because Max's `read` and `write` are per-inlet rather than object-wide: in
+  // inlet 0 they address every track, in track n's inlet that one track — Max's
+  // "in other inlets: opens a file containing only the track that corresponds to
+  // the inlet". That is also why these two words are reserved on a track inlet
+  // alongside the eight transport words: Max registers them there too. The whole
+  // remainder is the path, so a name with spaces in it still works, and a bare
+  // form reuses the last name given — Max's opens a file dialog, which a
+  // headless patcher has no equivalent of.
+  const bool isRead = TokenIs(text + begin, end - begin, "read", 4);
+  if (isRead || TokenIs(text + begin, end - begin, "write", 5)) {
+    const std::size_t target = inlet <= 0 ? ALL_TRACKS : (std::size_t)(inlet - 1);
+    std::size_t nameBegin = end;
+    std::size_t nameEnd = length;
+    Trim(text, nameBegin, nameEnd);
+    RequestFile(isRead ? FILE_OP::READ : FILE_OP::WRITE, target, text + nameBegin,
+                nameEnd - nameBegin);
+    return;
+  }
 
   if (inlet <= 0) {
     // The control inlet is a command inlet: a transport word optionally

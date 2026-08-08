@@ -324,6 +324,11 @@ namespace YSE {
     // reason: the prefix is built once here rather than on a message path.
     void SetParent(pObject* newParent) override;
 
+    // Rebuild that prefix after a patcher rename. Control thread only. Called
+    // from patcherImplementation::SetName so a `send` keeps reaching the
+    // receivers that just re-anchored under the new name (issue #699).
+    void RefreshBusPrefix();
+
   private:
     /**
      *  @brief Non-blocking exclusive access to the array.
@@ -355,10 +360,6 @@ namespace YSE {
       std::atomic<bool>& flag_;
       bool held_;
     };
-
-    // Rebuild the "<patcherName>." prefix `send` puts in front of a destination.
-    // Control thread only.
-    void RefreshBusPrefix();
 
     // Take the guard, read address `address`, release it, and send the value out
     // outlet 0. False when there is no such address — or when the guard was lost,

@@ -1,4 +1,6 @@
 #pragma once
+#include "../io/fileScheduler.h"
+#include "../pListArgs.h"
 #include "../pObject.h"
 #include "../time/messageScheduler.h"
 #include <atomic>
@@ -111,8 +113,9 @@ namespace YSE {
      *  Max allows the transport words in a track's own inlet, addressing that
      *  one track, and that is reproduced. It does mean a track inlet reserves
      *  ``record``, ``play``, ``stop``, ``next``, ``rewind``, ``clear``,
-     *  ``mute`` and ``unmute``: a message beginning with one of those words is
-     *  a command and is never recorded as data. That is Max's behaviour rather
+     *  ``mute`` and ``unmute`` — and, since #691, ``read`` and ``write``, which
+     *  Max registers on that inlet too: a message beginning with one of those
+     *  words is a command and is never recorded as data. That is Max's behaviour rather
      *  than a limitation invented here — those are registered methods on the
      *  same inlet in Max too — but it is the reason the ``.prepend`` / ``.atoi``
      *  rule about not reserving words on a data inlet cannot be followed here.
@@ -167,26 +170,131 @@ namespace YSE {
      *  are run-time position, and are not saved for the reason ``.coll``'s
      *  pointer is not.
      *
-     *  ### ``read`` and ``write`` are consumed, not performed
+     *  ### Tape files (issue #691)
      *
-     *  ``.textfile``'s answer (#499) and ``.qlist``'s (#500), for their reason.
-     *  A patcher object cannot find out that it is off the audio thread: a
-     *  handler runs on whichever thread dispatched the message, in-patcher
-     *  delivery dispatches on ``T_DSP``, and ``THREAD`` is a
-     *  *dispatch-semantics* tag rather than a thread identity. Opening a file
-     *  there would block the audio callback. Doing it properly needs a
-     *  background job, an object lifetime that outlives it, the host's ``IO()``
-     *  layer and a completion delivered back into a real dispatch frame — the
-     *  shared plumbing of issue **#683**, with **#691** tracking this object's
-     *  half. Both words are accepted and do nothing in the meantime.
+     *  ``write <file>`` saves the tapes and ``read <file>`` loads them back.
+     *  Neither opens anything on the message path, for the reason this object
+     *  shipped without them: a handler runs on whichever thread dispatched the
+     *  message, in-patcher delivery dispatches on ``T_DSP``, and ``THREAD`` is a
+     *  *dispatch-semantics* tag rather than a thread identity, so there is no
+     *  predicate an object can ask to find out that it is not on the audio
+     *  callback — where opening a file would block it. ``fileScheduler``
+     *  (issue **#683**) is the shared answer, and this is its fourth consumer
+     *  after ``.coll``, ``.textfile`` (#687) and ``.qlist`` (#689): the request
+     *  is a wait-free claim on a patcher-owned slot, the disk work runs on the
+     *  background pool honouring the host's ``IO()`` layer, and the bytes are
+     *  parsed in the completion the patcher delivers at the top of a later
+     *  block.
+     *
+     *  ### The format, and why only the text one
+     *
+     *  Max's own, quoted from the reference: "Line 1: ``track <track number>;``
+     *  … Line 2, etc.: ``<delta time> <message>;`` … Last line: ``end;``". A
+     *  ``write`` emits exactly that, one block per track, and a ``read`` parses
+     *  it, breaking segments on a ``;`` **or** a newline the way ``.qlist``
+     *  does — a hand-written file that left the semicolons off still loads as
+     *  the lines it looks like, and a ``\r`` before the break is already
+     *  whitespace to the tokenizer, so a CRLF file loads the same everywhere.
+     *  A bang event has no text, and is written and read as the word ``bang``;
+     *  the one thing that therefore cannot round-trip is a recorded one-word
+     *  list that *is* the word bang, which is the same kind of limitation as
+     *  ``.coll``'s comma.
+     *
+     *  Max reads ``.txt``, ``.pat`` and ``.json`` and has a ``writejson`` that
+     *  saves "times as floats, preserving the timing of events precisely". Only
+     *  the text form is here, and the reason is a hard one rather than a matter
+     *  of effort: a completion is delivered **on the audio thread**, at the top
+     *  of ``Calculate``, so parsing it must not allocate — and a JSON reader
+     *  builds a document. A format that could be written and never read back
+     *  would be worse than one that is not offered, so ``writejson`` is not
+     *  invented either; ``embed`` already saves the tapes as JSON *into the
+     *  patch*, on the control thread, which is where a JSON parse can afford to
+     *  live. The float-precision argument for ``writejson`` also has nothing to
+     *  buy here: a delta is measured in whole blocks (see above), so there is no
+     *  sub-millisecond timing for a float to preserve.
+     *
+     *  ### One track, or all of them
+     *
+     *  Max's file surface is per-inlet — "In other inlets: opens a file
+     *  containing only the track that corresponds to the inlet" — and that is
+     *  reproduced. ``read`` / ``write`` in inlet 0 address every track;
+     *  ``read`` / ``write`` in track *n*'s inlet address that one track, and a
+     *  per-track read takes the **first** track block the file holds, whatever
+     *  number that block declares, since Max defines the per-inlet form only for
+     *  a file that holds one track. This means those two words join the eight
+     *  transport words already reserved on a track inlet: a message beginning
+     *  ``read`` or ``write`` in a track inlet is a command and is not recorded
+     *  as data. Max registers them on that inlet too, so this follows Max rather
+     *  than inventing a restriction.
+     *
+     *  A read **replaces** the tapes it addresses and stops their transport:
+     *  recording ends, a playing track is stopped, its pending step cancelled,
+     *  its cursor and its absolute clock wound back. That is a departure from
+     *  ``.qlist``, whose walk carries on into the list it just loaded, and the
+     *  difference is the clock: a track that kept playing would already have a
+     *  step armed at a delta belonging to a tape that no longer exists, so its
+     *  first gap after the read would be one no recording ever made.
+     *
+     *  A track block naming a track this object does not have is dropped, an
+     *  event longer than ``EVENT_CAPACITY`` is skipped with the rest of the file
+     *  still loading, events past ``MAX_EVENTS`` are dropped, and a file larger
+     *  than ``fileScheduler::BYTES_CAPACITY`` or one that cannot be opened is
+     *  refused whole. A ``write`` is refused the same way when the tapes do not
+     *  fit one slot — 128 KiB holds three full tracks, and refusing whole rather
+     *  than truncating is the family's rule, half a tape set being a different
+     *  tape set. One *track* always fits, which the static_assert below pins.
+     *
+     *  ``read`` and ``write`` with no argument reuse the last name given, one
+     *  name per half for the whole object rather than one per track: Max's bare
+     *  forms open a file dialog, which a headless patcher has no equivalent of
+     *  and which remembers nothing anyway, so there is no Max behaviour to
+     *  match and the family's per-half arrangement is kept. Max documents no
+     *  ``readagain`` / ``writeagain`` for ``mtr`` (``coll`` has them), so
+     *  neither is invented.
+     *
+     *  ### No filename creation argument, and what ``embed`` has to do with it
+     *
+     *  ``.textfile`` reads a file when it is loaded because Max gives ``text`` a
+     *  filename argument that "names a text file to be read in when the object
+     *  is loaded". Max gives ``mtr`` no such argument — its one argument is the
+     *  track count — so there is nothing to seed a load-time read with and
+     *  ``SetParent`` only builds the plumbing.
+     *
+     *  It is worth saying why inventing one would be wrong here, because
+     *  ``embed`` makes the case sharper than ``.qlist``'s rather than weaker.
+     *  With ``embed`` off this object saves nothing, which is Max 5's world
+     *  where ``write`` is the only persistence there is — and that is precisely
+     *  the state in which a filename argument looks attractive. But ``embed`` is
+     *  a *runtime* flag that a patch can turn on at any moment, and it is itself
+     *  saved: an object that also read a file when it joined a patcher would, the
+     *  first time a patch flipped it on and saved, have two answers to what is on
+     *  its tapes — the patch and the file — arriving in an order neither the
+     *  patch nor the object controls. ``.qlist`` could rule that collision out by
+     *  reading its save flag; here it could not be ruled out at load time at all.
+     *
+     *  ### The file outlet, which Max has not got
+     *
+     *  A successful ``read`` bangs the **last** outlet, appended after every
+     *  track outlet so no saved patch's cords shift. Max's ``mtr`` has no such
+     *  outlet, where ``coll``, ``text`` and ``qlist`` all do, and the departure
+     *  is documented rather than quietly made: Max's ``read`` is *synchronous*,
+     *  so ``read x`` followed by ``play`` plays the file in Max. Here it cannot
+     *  be — the read is a background job whose result lands a block or more
+     *  later — so without a signal the arrival of a tape would be entirely
+     *  unobservable to a patch, and the ``read``-then-``play`` idiom would have
+     *  no correct spelling at all. It fires only on success, and only for a
+     *  ``read``: Max has no outlet for a finished write anywhere in this family
+     *  and neither does this.
      *
      *  ### Deliberately not here
      *
      *  Max 8's dictionary surface (``bang``, ``info``, ``dump``,
      *  ``dictionary``), the patcher having no dictionary type; its transport
      *  attributes (``sync``, ``transport``, ``quantize``, ``autostart``), there
-     *  being no patcher-to-domain-clock bridge at all today (#688); and the
-     *  editing window and everything addressing it, the patcher being headless.
+     *  being no patcher-to-domain-clock bridge at all today (#688); the ``.pat``
+     *  and ``.json`` file formats and ``writejson``, for the reason above; and
+     *  the editing window and everything addressing it, the patcher being
+     *  headless.
      */
     PATCHER_CLASS(gMtr, YSE::OBJ::G_MTR)
     _NO_MESSAGES
@@ -238,6 +346,34 @@ namespace YSE {
      *         fast". */
     static constexpr int DEFAULT_TIMESCALE = 100;
 
+    /** @brief What one event costs a file, in characters: ``<delta> <message>``
+     *         and the ``;\n`` that ends it (issue #691). */
+    static constexpr std::size_t FILE_EVENT_CAPACITY =
+        (std::size_t)FORMAT_INT_WIDTH + 1 + EVENT_CAPACITY + 2;
+
+    /**
+     *  @brief What one whole track costs a file — its ``track <n>;`` line, a
+     *         full tape, and its ``end;`` line.
+     *
+     *  Pinned against the scheduler's slot below, so a ``write`` addressed to a
+     *  single track can only ever fail on the disk rather than on its own
+     *  bound. The whole object is a different matter: 32 of these do not fit
+     *  one 128 KiB slot, so an object-wide ``write`` of very full tapes is
+     *  refused whole rather than truncated.
+     */
+    static constexpr std::size_t FILE_TRACK_CAPACITY =
+        6 + (std::size_t)FORMAT_INT_WIDTH + 2 + (MAX_EVENTS * FILE_EVENT_CAPACITY) + 5;
+
+    /** @brief Longest text a ``write`` may produce, reserved once at
+     *         construction because the message asking for one may be on the
+     *         audio thread. */
+    static constexpr std::size_t FILE_TEXT_CAPACITY = fileScheduler::BYTES_CAPACITY;
+
+    static_assert(FILE_TEXT_CAPACITY <= fileScheduler::BYTES_CAPACITY,
+                  "a .mtr write must fit one file slot");
+    static_assert(FILE_TRACK_CAPACITY <= FILE_TEXT_CAPACITY,
+                  "one full .mtr track must always fit one file slot");
+
     /** @brief How many tracks this object was built with — Max's creation
      *         argument, clamped to ``MIN_TRACKS``-``MAX_TRACKS``. */
     int TrackCount() const {
@@ -274,6 +410,38 @@ namespace YSE {
     /** @brief Whether ``embed`` has been turned on, so the tapes are written
      *         into a saved patch. Off until a patch turns it on. */
     bool Embeds() const;
+
+    /** @brief The name the last ``read`` was given, which a bare ``read``
+     *         reuses — one name for the whole object rather than one per track.
+     *         Empty until one names a file, there being no creation argument to
+     *         seed it. Control thread. */
+    const std::string& ReadFile() const {
+      return readPath;
+    }
+
+    /** @brief The same for ``write``. Control thread. */
+    const std::string& WriteFile() const {
+      return writePath;
+    }
+
+    /** @brief The outlet a finished ``read`` bangs — the last one, appended
+     *         after every track's (issue #691). */
+    int FileOutlet() const {
+      return (int)tracks.size() + 1;
+    }
+
+    // Build the file plumbing while still on the control thread, so a `read`
+    // arriving later on the audio thread finds the table already there
+    // (issue #683). Nothing is requested here, unlike `.textfile`: Max gives
+    // `mtr` no filename argument, and one invented here would collide with
+    // `embed` — see the class documentation.
+    void SetParent(pObject* newParent) override;
+
+    // A read or write this object asked for has finished. Called on the
+    // patcher's dispatch thread inside a fresh messageEventScope; parses the
+    // bytes into the tapes and bangs the file outlet. Allocation-free, like
+    // every other path into this object.
+    void DeliverFileResult(const fileResult& result, YSE::THREAD thread) override;
 
     // The tapes, into the object's "state" key of a DumpJSON — but only when
     // `embed` is on, which is Max 8's rule for this object and .funbuff's rule
@@ -446,6 +614,51 @@ namespace YSE {
     bool HandleSetting(const char* word, std::size_t length, const std::string& message,
                        std::size_t argOffset);
 
+    // ── files ─────────────────────────────────────────────────────────────
+
+    /**
+     *  @brief What a completion carries back, so the four shapes of request can
+     *         be told apart in ``DeliverFileResult``.
+     *
+     *  Private to this object — the tag means nothing to the scheduler. The
+     *  per-track tags carry the track in the tag itself, which is what lets one
+     *  object have a read in flight for two tracks at once without their
+     *  results being confusable.
+     */
+    static constexpr int FILE_TAG_READ_ALL = 0;
+    static constexpr int FILE_TAG_WRITE_ALL = 1;
+    static constexpr int FILE_TAG_READ_TRACK = 2;
+    static constexpr int FILE_TAG_WRITE_TRACK = FILE_TAG_READ_TRACK + MAX_TRACKS;
+
+    // The read / write half of an inlet. `track` is the one being addressed, or
+    // ALL_TRACKS for the whole object, which is Max's per-inlet rule. `name` is
+    // the argument the message carried, or empty for a bare `read` / `write`,
+    // which reuses the last name given. False when there is nothing to do — no
+    // patcher, no name yet, a name that does not fit, a tape set too big for one
+    // slot, or a full file table — in every case silently, since this may be the
+    // audio thread.
+    static constexpr std::size_t ALL_TRACKS = (std::size_t)-1;
+    bool RequestFile(FILE_OP op, std::size_t track, const char* name, std::size_t length);
+
+    // Format `track`'s tape, or every tape, into `fileScratch` as Max's text
+    // format. Takes the guard; allocates nothing, the scratch having been
+    // reserved to FILE_TEXT_CAPACITY at construction. False when the guard was
+    // held elsewhere or the text would not fit one slot.
+    bool Serialize(std::size_t track);
+
+    // The other direction: replace `track`'s tape, or every tape, from the
+    // `length` bytes at `text`. Takes the guard; allocates nothing. False when
+    // the guard was held elsewhere, in which case nothing changed.
+    bool LoadFrom(std::size_t track, const char* text, std::size_t length);
+
+    // One `<delta> <message>` line into `track`'s tape, appended after whatever
+    // LoadFrom has already put there. Guard held.
+    void LoadEvent(std::size_t track, const char* text, std::size_t length);
+
+    // Wind `track` back to an empty tape with no transport running, which is
+    // what a read has to do to the tapes it replaces. Guard held.
+    void ResetForLoad(Track& tr);
+
     // ── sending ───────────────────────────────────────────────────────────
 
     // Send what TakeStep / NextStep left in the send buffers out `track`'s
@@ -489,6 +702,18 @@ namespace YSE {
     bool sendBang = false;
     // Outlet 0's three-number report, built in place.
     std::string reportText;
+
+    // The last name each half of the file surface was given — what a bare
+    // `read` / `write` reuses, there being no dialog to ask with and no creation
+    // argument to seed them. Reserved to the scheduler's path bound at
+    // construction, so remembering a name on a message path is an assign() into
+    // storage that exists rather than an allocation (issue #691).
+    std::string readPath;
+    std::string writePath;
+
+    // Where a `write` is formatted before it is handed to the scheduler.
+    // Reserved to FILE_TEXT_CAPACITY at construction for the same reason.
+    std::string fileScratch;
   };
 
 } // namespace PATCHER
