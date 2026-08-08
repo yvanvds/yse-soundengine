@@ -538,6 +538,8 @@ Tests/
   support/
     audio_helpers.hpp                 # makeBuffer, measureRms, peakBinIndex, …
     null_device.hpp                   # engineInit / engineInitWithAudio helpers
+    alloc_probe.{hpp,cpp}             # Replaced operator new/new[]; ProbeScope counts RT-path allocations
+    test_alloc_probe.cpp              # Self-test: the probe must see every allocation shape it claims to
     android_asset_bridge.cpp          # Extracts assets/fixtures/ to internal data path
     fixtures/
       test_mono_44100.wav             # 244 B mono PCM
@@ -549,6 +551,10 @@ Tests/
 ### Per-suite CTest entries
 
 `Tests/CMakeLists.txt` registers a catchall `yse_unit_tests` plus per-suite entries with CTest labels (`dsp`, `utils`, `patcher`, `channel`, `sound`, `reverb`, `midi`, `music`). The `integration` suite is `DISABLED TRUE` by default — opt in via `ctest -L integration` or `python yse.py test --integration` (needs a real audio device).
+
+### Audio-thread allocation probe
+
+`Tests/support/alloc_probe` replaces the global `operator new` / `new[]` and counts calls inside a `ProbeScope`; ~21 tests assert `g_alloc_count == 0` around a path that must not allocate. Counting only works where the allocating code *binds* to the replacement — ELF preempts across shared objects, PE/COFF does not — so on MinGW the test binary links the C++ runtime statically (`-static-libstdc++`), which keeps libc++'s exported `std::basic_string<char>` from allocating out of the probe's reach (issue #697). `yse_tests_probe` measures that capability at runtime and fails if it is ever lost.
 
 ### Test fixture path
 

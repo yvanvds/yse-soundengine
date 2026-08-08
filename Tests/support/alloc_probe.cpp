@@ -7,6 +7,8 @@
 
 #include <cstdlib>
 #include <new>
+#include <string>
+#include <vector>
 
 namespace TestHelpers {
   std::atomic<int> g_alloc_count{0};
@@ -76,6 +78,30 @@ void* operator new(std::size_t n, const std::nothrow_t&) noexcept {
   return p;
 }
 
+// The array forms (issue #697). They are separately replaceable, and leaving
+// them out was a second blind spot: on PE/COFF the default `operator new[]`
+// lives in the C++ runtime, so `new T[n]` from a test or from engine code
+// counted 0. Each one counts and allocates on its own rather than delegating
+// to the scalar form above — on ELF that delegation is preempted too, so
+// forwarding would count one `new T[n]` twice.
+//
+// Deliberately not wired into the AllocWatch: that watch exists to catch a
+// sized-delete mismatch from deleting a subclass through a non-virtual base
+// pointer, which is a scalar-delete story. Claiming an array allocation as
+// "the next operator new" would only let unrelated traffic steal the watch.
+void* operator new[](std::size_t n) {
+  if (TestHelpers::g_alloc_probe_active.load(std::memory_order_relaxed))
+    TestHelpers::g_alloc_count.fetch_add(1, std::memory_order_relaxed);
+  if (void* p = std::malloc(n == 0 ? 1 : n)) return p;
+  throw std::bad_alloc{};
+}
+
+void* operator new[](std::size_t n, const std::nothrow_t&) noexcept {
+  if (TestHelpers::g_alloc_probe_active.load(std::memory_order_relaxed))
+    TestHelpers::g_alloc_count.fetch_add(1, std::memory_order_relaxed);
+  return std::malloc(n == 0 ? 1 : n);
+}
+
 void operator delete(void* p) noexcept {
   TestHelpers::watch_delete(p, 0, false);
   std::free(p);
@@ -88,4 +114,65 @@ void operator delete(void* p, const std::nothrow_t&) noexcept {
   TestHelpers::watch_delete(p, 0, false);
   std::free(p);
 }
+// Matching array deletes: every block above came from std::malloc, so it has
+// to come back to std::free. Without these the runtime's own operator delete[]
+// would free it, which AddressSanitizer reports as an alloc-dealloc-mismatch
+// (the same reason the nothrow scalar form is replaced — issue #219).
+void operator delete[](void* p) noexcept {
+  std::free(p);
+}
+void operator delete[](void* p, std::size_t) noexcept {
+  std::free(p);
+}
+void operator delete[](void* p, const std::nothrow_t&) noexcept {
+  std::free(p);
+}
 #endif // YSE_UNDER_TSAN
+
+// ── Capability measurement (issue #697) ─────────────────────────────────────
+//
+// Deliberately measured rather than deduced from #ifdefs: the answer depends
+// on the object format *and* on how this binary happened to be linked, and a
+// probe that guesses wrong about its own reach is exactly the failure the
+// issue describes. See support/test_alloc_probe.cpp for the gate that reads
+// these.
+namespace {
+  // Kept volatile so neither the canary allocation nor its size can be
+  // constant-folded away: an elided allocation would look like a blind probe,
+  // and [expr.new]/12 lets a compiler drop one. Escaping the buffer's address
+  // into g_canary_ptr makes the storage observably used, which is what keeps
+  // the allocation.
+  volatile std::size_t g_canary_size = 4096;
+  volatile char g_canary_sink = 0;
+  void* volatile g_canary_ptr = nullptr;
+} // namespace
+
+namespace TestHelpers {
+
+  bool probeCountsAllocations() {
+    static const bool counted = [] {
+      ProbeScope probe;
+      std::vector<char> v;
+      v.resize(g_canary_size);
+      v[0] = 'y';
+      g_canary_ptr = v.data();
+      g_canary_sink = v[0];
+      return g_alloc_count.load(std::memory_order_relaxed) > 0;
+    }();
+    return counted;
+  }
+
+  bool probeSeesStringAllocations() {
+    static const bool counted = [] {
+      ProbeScope probe;
+      // Well past any small-string buffer, so the heap is the only place this
+      // can live.
+      std::string s(g_canary_size, 'y');
+      g_canary_ptr = s.data();
+      g_canary_sink = s[0];
+      return g_alloc_count.load(std::memory_order_relaxed) > 0;
+    }();
+    return counted;
+  }
+
+} // namespace TestHelpers
