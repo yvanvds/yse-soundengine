@@ -99,6 +99,67 @@ namespace {
     if ((block & 7) == 0) std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
 
+  // Settle the engine's *process-global* soundFile population before a test
+  // measures soundFile::liveInstances(), and leave it settled for the length of
+  // that measurement.
+  //
+  // liveInstances() counts every abstractSoundFile in the process, and the sound
+  // manager reclaims shared soundFiles asynchronously: update() hands a garbage-
+  // collection pass to the slow pool once the ticks it has seen add up to a
+  // second, and that pass ages every client-less file by the wall time since the
+  // previous pass, erasing the ones idle for more than 30 s. Both the throttle
+  // and the ageing are driven by wall time, not by the caller.
+  //
+  // In the monolithic test binary this is what made the #218 teardown case flake
+  // (issue #673): no other suite ticks the sound manager, so the case's own first
+  // Time().update() carried a multi-second delta, which armed a GC pass with an
+  // equally large dt on its very first Manager().update(). That pass reclaimed a
+  // file an earlier suite had left idle, so the global count dropped by one
+  // *inside* the measurement window and the count-went-up assertion saw no
+  // change. In the per-suite `yse_tests_sound` process the gap is short and no
+  // straggler is near the threshold, which is why only the monolithic run failed.
+  //
+  // Feeding that whole accumulated gap to the engine *before* the baseline fixes
+  // it deterministically. A single tick longer than the throttle period is
+  // guaranteed to cross it whatever the manager had already accumulated, so the
+  // throttle resets to zero and the pass it arms runs here instead of later.
+  // Waiting for that pass to finish without ticking again (nothing new can be
+  // armed while the manager is not being updated) leaves the count settled, and
+  // the closing Time().update() discards the wait so the caller starts with the
+  // full one-second GC-free budget — far more than the ~0.3 s of ticks the
+  // measurement below spends.
+  void settleSoundFilePopulation() {
+    using clock = std::chrono::steady_clock;
+
+    // Longer than the manager's one-second GC throttle, so this single tick
+    // crosses it from any starting point and resets it.
+    std::this_thread::sleep_for(std::chrono::milliseconds(1100));
+    YSE::INTERNAL::Time().update();
+    YSE::SOUND::Manager().update(); // arms the GC pass; zeroes the throttle
+
+    // The pass runs on the slow pool. Wait for the count to stop moving, which
+    // also covers any impl teardown an earlier case left in flight. Deliberately
+    // no Manager().update() in this loop: a second update() would re-add the
+    // same large delta and re-arm the GC behind the caller's back.
+    long last = soundFile::liveInstances();
+    auto stableSince = clock::now();
+    const auto deadline = stableSince + std::chrono::seconds(3);
+    while (clock::now() < deadline) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(5));
+      const long now = soundFile::liveInstances();
+      if (now != last) {
+        last = now;
+        stableSince = clock::now();
+      } else if (clock::now() - stableSince > std::chrono::milliseconds(200)) {
+        break;
+      }
+    }
+
+    // Absorb the wait itself, so the caller's first tick reports only its own
+    // elapsed time against the manager's GC throttle.
+    YSE::INTERNAL::Time().update();
+  }
+
   const long S = static_cast<long>(YSE::STREAM_BUFFERSIZE); // 44100
 
   // Minimal in-memory backend for abstractSoundFile so the stale-generation
@@ -421,6 +482,11 @@ TEST_SUITE("sound") {
     std::vector<float> src;
     std::string path = writeWav(2 * S, src);
 
+    // liveInstances() is process-global and the manager's idle-file GC can drop
+    // it at any moment, so settle that population first — otherwise the baseline
+    // is a snapshot of files an earlier suite is about to have reclaimed, and the
+    // reclaim lands mid-measurement (issue #673).
+    settleSoundFilePopulation();
     const long baseline = soundFile::liveInstances();
 
     {
