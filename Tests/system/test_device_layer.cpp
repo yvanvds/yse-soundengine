@@ -451,6 +451,46 @@ TEST_SUITE("devicelayer") {
     CHECK(YSE::System().getActiveOutputLatency() == 0);
   }
 
+#ifdef PORTAUDIO_BACKEND
+  // autoReconnect's `delay` is milliseconds, as its documentation and the C
+  // API's `delay_ms` parameter have always said; it used to be compared against
+  // a count of update() calls, which made the actual wait a property of the
+  // host's polling rate rather than of the value passed (issue #681).
+  //
+  // Measurable headless, and deterministically so: the offline engine never
+  // opens a stream, so every tick is a zero-callback tick and every watchdog
+  // fire is a resume() → addCallback() → Pa_GetDefaultOutputDevice() ==
+  // paNoDevice → one warning (the case above owns that path). Counting those
+  // lines counts reconnection attempts.
+  //
+  // A 300 ms interval over a ~750 ms window is 2 attempts. The old tick
+  // comparison gives a number that has nothing to do with the interval: too few
+  // when the loop turns fewer than 300 times, then one attempt per tick — some
+  // 75 of them — as soon as it turns more.
+  TEST_CASE("system: autoReconnect retries on a millisecond interval [issue #681]") {
+    if (!ensureOffline()) return;
+
+    CapturingLog captured;
+    ScopedSink sink(&captured);
+
+    YSE::System().autoReconnect(true, 300);
+    const auto start = std::chrono::steady_clock::now();
+    while (std::chrono::steady_clock::now() - start < std::chrono::milliseconds(750)) {
+      YSE::System().update();
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+    YSE::System().autoReconnect(false, 0);
+
+    int attempts = 0;
+    for (const std::string& m : captured.messages) {
+      if (m.find("No default audio output device") != std::string::npos) attempts++;
+    }
+    INFO("reconnection attempts in 750 ms at a 300 ms interval: " << attempts);
+    CHECK(attempts >= 1);
+    CHECK(attempts <= 4);
+  }
+#endif
+
   // A setup that never got a device. deviceSetup's constructor leaves `out`
   // null and nothing forces setOutput(), so this is exactly the shape a host
   // builds with yse_device_setup_create() + set_sample_rate() +

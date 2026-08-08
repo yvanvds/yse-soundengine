@@ -25,6 +25,7 @@
 #include <doctest/doctest.h>
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -527,6 +528,50 @@ TEST_SUITE("integration") {
     if (!TestHelpers::engineInitWithAudio()) return;
     if (YSE::System().getNumDevices() == 0) return;
     CHECK(audioStreamRunning());
+  }
+
+  // The watchdog's side of that same start-up window (issue #681). A stream
+  // that has just been started delivers nothing for the first tens of
+  // milliseconds, which is indistinguishable from a disconnected device by
+  // callback count alone. autoReconnect's remedy is pause() + resume(), and the
+  // reopened stream is right back inside that window — so a host polling
+  // update() faster than its device starts used to tear down a perfectly
+  // healthy device on every tick and never hear a sample.
+  //
+  // Driven exactly as such a host would: reconnection enabled with the delay
+  // that ships by default (0), a genuinely fresh start-up window, and update()
+  // pumped as fast as the loop turns. The device has to reach "delivering
+  // callbacks" regardless. Before the fix this loop never got there — every
+  // tick closed the stream that was about to deliver.
+  TEST_CASE("engine: autoReconnect leaves a starting device alone [issue #681]") {
+    if (!TestHelpers::engineInitWithAudio()) return;
+    if (YSE::System().getNumDevices() == 0) return;
+
+    YSE::System().pause();
+    // Drain the callbacks the running device delivered between the previous
+    // case's last update() and the pause above; without this the first update()
+    // in the loop would report a live device on their evidence rather than on
+    // the restarted stream's. Done with the watchdog still off, so draining
+    // cannot itself trigger a reconnect.
+    YSE::System().update();
+
+    YSE::System().autoReconnect(true, 0);
+    YSE::System().resume();
+
+    bool delivering = false;
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+    while (std::chrono::steady_clock::now() < deadline) {
+      YSE::System().update();
+      if (YSE::System().missedCallbacks() == 0) {
+        delivering = true;
+        break;
+      }
+      YSE::System().sleep(1);
+    }
+    // Restore the default before asserting: a CHECK that fails must not leave
+    // the watchdog armed for the rest of the suite.
+    YSE::System().autoReconnect(false, 0);
+    CHECK(delivering);
   }
 
   // ─── Sound loading and playback ───────────────────────────────────────────────

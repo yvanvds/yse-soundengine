@@ -59,15 +59,19 @@ void YSE::DEVICE::managerObject::pause() {
 }
 
 void YSE::DEVICE::managerObject::resume() {
-  implementation.Resume();
+  // A restarted stream needs time before its first callback arrives, exactly
+  // like a freshly opened one, so it counts as a stream start (issue #681).
+  if (implementation.Resume()) notifyStreamStarted();
   open = true;
 }
 
 void YSE::DEVICE::managerObject::addCallback() {
   // Hand the application-requested rate (issue #646) to the Oboe stream
   // builder; 0 means no request and Oboe negotiates the device rate.
-  implementation.Start(YSE::DEVICE::Manager().getMaster().GetBuffers().size(),
-                       (int32_t)getRequestedSampleRate());
+  if (implementation.Start(YSE::DEVICE::Manager().getMaster().GetBuffers().size(),
+                           (int32_t)getRequestedSampleRate())) {
+    notifyStreamStarted();
+  }
   // YSE::Log().sendMessage("androidDeviceManager: Callback Added");
 }
 
@@ -78,8 +82,8 @@ unsigned int YSE::DEVICE::managerObject::GetCallbacksSinceLastUpdate() {
 void YSE::DEVICE::managerObject::serviceReconnect() {
   // Runs on the control thread (system::update). Hands the pending reopen to the
   // Oboe implementation, which rebuilds a disconnected stream off the error
-  // thread (issue #200).
-  implementation.serviceReconnect();
+  // thread (issue #200). A rebuilt stream is a stream start (issue #681).
+  if (implementation.serviceReconnect()) notifyStreamStarted();
 }
 
 Bool YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {

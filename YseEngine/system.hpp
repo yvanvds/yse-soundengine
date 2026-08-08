@@ -139,10 +139,20 @@ namespace YSE {
     /** @brief Resume audio output after ``pause()``. */
     void resume();
 
-    /** @brief Number of audio callbacks that have failed to complete on time.
+    /** @brief Consecutive ``update()`` ticks during which the audio device
+     *         delivered no callback.
      *
-     *  A non-zero value indicates the audio thread is starved or the device
-     *  has disconnected. Useful as a watchdog signal for ``autoReconnect``.
+     *  Reset to 0 by the first ``update()`` that sees a callback, so 0 means
+     *  "audio is flowing right now" and any non-zero value means it is not.
+     *
+     *  Non-zero does not by itself mean something is wrong: a stream that has
+     *  just been started (``init()``, ``resume()``, ``openDevice()``) is not
+     *  delivering callbacks yet either — the backend's start call returns
+     *  before the device runs, typically for tens of milliseconds. Reading this
+     *  in a loop until it returns 0 is the way to wait for a device to come up;
+     *  a value that keeps climbing is a starved audio thread or a disconnected
+     *  device. ``autoReconnect`` distinguishes the two itself and does not act
+     *  on this counter.
      */
     int missedCallbacks();
 
@@ -309,9 +319,29 @@ namespace YSE {
 
     /** @brief Configure automatic device reconnection.
      *
+     *  The watchdog runs on ``update()``: when the device has delivered no
+     *  audio callback for ``delay`` milliseconds it closes and re-opens the
+     *  output stream, which picks up whatever the current default device is.
+     *
+     *  A stream that has just been started is not stalled — the backend's
+     *  start call returns before the device delivers its first callback — so a
+     *  stream that has yet to deliver is given a start-up grace period of half
+     *  a second regardless of ``delay``. Without it, a small ``delay`` would
+     *  tear down a perfectly healthy device that was still coming up, and the
+     *  replacement stream would be torn down for the same reason (issue #681).
+     *
      *  @param on    When ``true``, the engine attempts to re-open the audio
      *               device after a disconnection (e.g. headphones unplugged).
-     *  @param delay Milliseconds to wait between reconnection attempts.
+     *  @param delay Milliseconds of silence before a reconnection attempt, and
+     *               the interval between further attempts while the device
+     *               stays unavailable. Negative values are clamped to 0.
+     *
+     *  @note Up to and including v2.4.0 this value was compared against a
+     *        count of ``update()`` calls rather than milliseconds, so the same
+     *        number meant a different wait on every host depending on how often
+     *        it called ``update()``. It is now the documented millisecond
+     *        value: existing callers passing a tick count get a shorter wall
+     *        clock wait than before on a host polling slower than 1 kHz.
      */
     system& autoReconnect(bool on, int delay);
 
@@ -474,9 +504,21 @@ namespace YSE {
     // (c_api/yse_c_internal.hpp §callback bridge rules) — a plain pointer here
     // is a data race and licenses the compiler to cache the load (issue #199).
     std::atomic<occlusionFunc> occlusionPtr;
-    int currentlyMissedCallbacks;
-    bool doAutoReconnect;
-    int reconnectDelay;
+    int currentlyMissedCallbacks = 0;
+    bool doAutoReconnect = false;
+    // Milliseconds. See autoReconnect().
+    int reconnectDelay = 0;
+
+    // autoReconnect watchdog state (issue #681), touched only by update() and
+    // autoReconnect() on the control thread. `watchdogStreamStarts` is the
+    // device manager's stream-start count as of the last tick — a change means
+    // a stream was just opened and is still coming up;
+    // `watchdogAwaitingFirstCallback` stays set until that stream delivers;
+    // `watchdogSinceMs` is the steady-clock milliseconds stamp the current
+    // silence is measured from.
+    unsigned int watchdogStreamStarts = 0;
+    unsigned long long watchdogSinceMs = 0;
+    bool watchdogAwaitingFirstCallback = false;
   };
 
   /** @brief Access the singleton ``system`` object. */

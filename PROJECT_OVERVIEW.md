@@ -321,7 +321,7 @@ Abstracts the OS audio API behind a single interface.
 - **Desktop:** PortAudio handles Windows (WASAPI/DirectSound/WDM — ASIO is not available with the MSYS2 package; see [issue #38](https://github.com/yvanvds/yse-soundengine/issues/38)) and Linux (ALSA/JACK).
 - **Android:** Oboe 1.9.3 negotiates AAudio on API 26+ (our minSdk) and falls back to OpenSL ES on rare devices where AAudio is unavailable. `androidDeviceManager.cpp` is the platform-specific entry point.
 
-The engine monitors for missed callbacks and can auto-reconnect on device dropout (`system::autoReconnect(bool, int delay)`). `cpuLoad()` is now measured from the audio callback itself rather than relying on PortAudio's `Pa_GetStreamCpuLoad` (issue #82).
+The engine monitors for missed callbacks and can auto-reconnect on device dropout (`system::autoReconnect(bool, int delayMs)` — the delay is milliseconds of silence before an attempt and between further attempts; a stream that has been started but has not delivered its first callback yet gets a half-second start-up grace so the watchdog cannot tear down a device that is still coming up, [issue #681](https://github.com/yvanvds/yse-soundengine/issues/681)). `cpuLoad()` is now measured from the audio callback itself rather than relying on PortAudio's `Pa_GetStreamCpuLoad` (issue #82).
 
 ---
 

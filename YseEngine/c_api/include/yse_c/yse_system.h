@@ -35,7 +35,16 @@ YSE_C_API void yse_system_close(YseSystem* sys);
 YSE_C_API void yse_system_pause(YseSystem* sys);
 YSE_C_API void yse_system_resume(YseSystem* sys);
 
-/* Diagnostics. */
+/* Diagnostics.
+
+   yse_system_missed_callbacks() counts consecutive yse_system_update() ticks
+   during which the device delivered no audio callback; 0 means audio is
+   flowing right now. A stream that has just been started reads non-zero until
+   its first callback lands (the backend's start call returns before the device
+   runs), so poll this until it reaches 0 to wait for a device to come up — a
+   value that keeps climbing is a starved audio thread or a disconnected
+   device. yse_system_auto_reconnect() does not act on this counter; it
+   distinguishes start-up from a stall itself (issue #681). */
 YSE_C_API int yse_system_missed_callbacks(YseSystem* sys);
 YSE_C_API float yse_system_cpu_load(YseSystem* sys);
 
@@ -77,6 +86,18 @@ YSE_C_API void yse_system_sleep(YseSystem* sys, unsigned int ms);
 YSE_C_API void yse_system_set_max_sounds(YseSystem* sys, int value);
 YSE_C_API int yse_system_get_max_sounds(YseSystem* sys);
 YSE_C_API void yse_system_audio_test(YseSystem* sys, int on);
+
+/* Re-open the audio output stream when the device stops delivering callbacks
+   (headphones unplugged, device removed). delay_ms is what its name has always
+   said and now is: milliseconds of silence before an attempt, and the interval
+   between further attempts while the device stays unavailable. Negative values
+   are clamped to 0. Up to and including v2.4.0 the value was compared against a
+   count of yse_system_update() calls instead, so the same number meant a
+   different wait per host (issue #681).
+
+   A stream that has been started but has not delivered its first callback yet
+   is not stalled, and is never torn down for it: it gets a half-second start-up
+   grace regardless of delay_ms. */
 YSE_C_API void yse_system_auto_reconnect(YseSystem* sys, int on, int delay_ms);
 
 /* Devices. Returned YseDevice* pointers are borrowed from the engine and

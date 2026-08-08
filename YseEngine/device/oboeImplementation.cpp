@@ -120,8 +120,9 @@ void OboeImplementation::Suspend() {
   if (mStream) mStream->pause();
 }
 
-void OboeImplementation::Resume() {
-  if (mStream) mStream->start();
+bool OboeImplementation::Resume() {
+  if (!mStream) return false;
+  return mStream->start() == oboe::Result::OK;
 }
 
 unsigned int OboeImplementation::GetCallbacksSinceLastUpdate() {
@@ -221,14 +222,14 @@ void OboeImplementation::onErrorAfterClose(oboe::AudioStream* /*stream*/, oboe::
   }
 }
 
-void OboeImplementation::serviceReconnect() {
+bool OboeImplementation::serviceReconnect() {
   // Runs on the main-thread update path (system::update via the device manager),
   // never the Oboe error thread. Because close()/pause()/resume() are also
   // driven from that thread, rebuilding here serialises the reopen with them —
   // closing the cross-thread race the error-thread reopen had (issue #200).
-  if (!reconnectRequested.exchange(false)) return;
+  if (!reconnectRequested.exchange(false)) return false;
   mStream.reset();
-  openStream(numChannels);
+  return openStream(numChannels);
 }
 
 #endif
