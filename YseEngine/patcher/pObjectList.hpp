@@ -48,7 +48,7 @@ namespace YSE {
    *    ``G_MATRIX``, ``G_IF``, ``G_REGEXP``.
    *  - Message construction: ``G_PREPEND``, ``G_APPEND``, ``G_SUBSTITUTE``,
    *    ``G_SPRINTF``, ``G_TOSYMBOL``, ``G_FROMSYMBOL``, ``G_COMBINE``,
-   *    ``G_SPELL``.
+   *    ``G_SPELL``, ``G_ATOI``, ``G_ITOA``.
    *  - Iteration: ``G_UZI``.
    *  - MIDI: ``M_OUT``, ``M_NOTEON``, ``M_NOTEOFF``, ``M_CONTROL``.
    *  - Conversion: ``MIDITOFREQUENCY``, ``FREQUENCYTOMIDI``, ``G_ATODB``,
@@ -110,6 +110,8 @@ namespace YSE {
     DEFOBJ(G_FROMSYMBOL, ".fromsymbol");
     DEFOBJ(G_COMBINE, ".combine");
     DEFOBJ(G_SPELL, ".spell");
+    DEFOBJ(G_ATOI, ".atoi");
+    DEFOBJ(G_ITOA, ".itoa");
 
     DEFOBJ(G_ADD, ".+");
     DEFOBJ(G_SUBSTRACT, ".-");

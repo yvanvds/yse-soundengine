@@ -1,6 +1,7 @@
 #include "gSpell.h"
 #include "../../implementations/logImplementation.h"
 #include "../math/gExprEval.h"
+#include "../pCharCodes.h"
 #include "../pListArgs.h"
 #include "../pObjectList.hpp"
 
@@ -22,74 +23,11 @@ namespace {
   // them once the message's whitespace has been normalised.
   constexpr unsigned int kSpaceCode = 32;
 
-  /**
-   *  Reads the code point starting at @p cursor and advances @p cursor past it,
-   *  stopping at @p end.
-   *
-   *  A well-formed UTF-8 sequence yields the one code point it spells. Anything
-   *  that is not one — a stray continuation byte, a sequence truncated by @p end,
-   *  an overlong encoding, a surrogate half, or a value above U+10FFFF — yields
-   *  the *lead byte's own value*, 0-255, and the cursor advances by one so
-   *  decoding resumes at the next byte.
-   *
-   *  That fallback is deliberate and documented on the class: a patcher message
-   *  is bytes, nothing upstream promises an encoding, and an object that threw
-   *  away what it could not decode would silently lose characters from a patch
-   *  fed Latin-1 or raw binary. No allocation, no locale, no failure path.
-   */
-  inline unsigned int NextCodePoint(const unsigned char* bytes, std::size_t end,
-                                    std::size_t& cursor) {
-    const unsigned int lead = bytes[cursor];
-    if (lead < 0x80u) {
-      cursor++;
-      return lead;
-    }
-
-    // How many continuation bytes the lead announces, and the bits it carries
-    // itself. A continuation byte in lead position, and the 5- and 6-byte forms
-    // UTF-8 has not permitted since 2003, fall through as their own value.
-    std::size_t extra = 0;
-    unsigned int code = 0;
-    if ((lead & 0xE0u) == 0xC0u) {
-      extra = 1;
-      code = lead & 0x1Fu;
-    } else if ((lead & 0xF0u) == 0xE0u) {
-      extra = 2;
-      code = lead & 0x0Fu;
-    } else if ((lead & 0xF8u) == 0xF0u) {
-      extra = 3;
-      code = lead & 0x07u;
-    } else {
-      cursor++;
-      return lead;
-    }
-
-    if (cursor + extra >= end) {
-      cursor++;
-      return lead;
-    }
-    for (std::size_t k = 1; k <= extra; k++) {
-      if ((bytes[cursor + k] & 0xC0u) != 0x80u) {
-        cursor++;
-        return lead;
-      }
-    }
-    for (std::size_t k = 1; k <= extra; k++)
-      code = (code << 6) | (bytes[cursor + k] & 0x3Fu);
-
-    // Overlong encodings spell a code point that had a shorter form, surrogates
-    // are not characters, and nothing above U+10FFFF exists. Each of the three is
-    // a byte sequence that is *not* well-formed UTF-8, so each takes the same
-    // route as any other malformed byte.
-    static constexpr unsigned int kSmallest[4] = {0u, 0x80u, 0x800u, 0x10000u};
-    if (code < kSmallest[extra] || code > 0x10FFFFu || (code >= 0xD800u && code <= 0xDFFFu)) {
-      cursor++;
-      return lead;
-    }
-
-    cursor += extra + 1;
-    return code;
-  }
+  // The UTF-8 decoder this object reads a character with lives in
+  // ../pCharCodes.h. It was written here and moved there when .atoi (#493)
+  // needed it: the two objects spell the same message, so they have to agree
+  // about what a character is byte for byte, and a second copy of the decoder
+  // is exactly the kind of thing that drifts.
 
   constexpr char kInletDoc[] =
       "The message to spell. Whatever arrives is spelled out as the character codes of its text: "
