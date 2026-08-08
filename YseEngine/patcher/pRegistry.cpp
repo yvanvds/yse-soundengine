@@ -30,6 +30,7 @@
 #include "genericObjects/gTable.h"
 #include "genericObjects/gMtr.h"
 #include "genericObjects/gQlist.h"
+#include "genericObjects/gSeq.h"
 #include "genericObjects/gTextfile.h"
 #include "genericObjects/gCombine.h"
 #include "genericObjects/gSpell.h"
@@ -301,6 +302,10 @@ pRegistry::pRegistry() {
   // A multi-track recorder for messages — the tape machine next to .qlist's
   // score, and the object automation is built out of (issue #501)
   Add(OBJ::G_MTR, gMtr::Create);
+
+  // A sequencer of raw MIDI bytes — the same tape machine as .mtr with the MIDI
+  // wire format on it instead of patcher messages (issue #502)
+  Add(OBJ::G_SEQ, gSeq::Create);
 
   Add(OBJ::G_RECEIVE, gReceive::Create);
   Add(OBJ::G_SEND, gSend::Create);

@@ -4563,6 +4563,50 @@
       }
     ]
   },
+  ".seq": {
+    "category": "MIDI",
+    "description": "Records and plays back raw MIDI bytes — Max's seq, 'a sequencer of raw MIDI bytes'. It is the third object in the store family with a clock and the one whose contents are not messages: .qlist (issue #500) plays a written score, .mtr (issue #501) plays a recorded tape of patcher messages, and this plays a recorded tape of the MIDI wire format, one byte per event, which is Max's own arrangement and the reason Max's See Also puts mtr beside it. Bytes rather than parsed messages is deliberate: a raw stream is what a MIDI port hands over, and a sequencer that had to understand running status, system exclusive or a fourteen-bit bend before it could store them would be unable to record what it does not understand. Max's answer is midiparse and midiformat on either side, and this patcher's .noteon, .noteoff, .controlchange and .midiout already speak the same bytes. Timing comes from the patcher's deferred-message scheduler (issue #628) through the pair .mtr uses: messageScheduler::Now measures the gap between two arriving bytes and BlocksForMillis waits one out again, one clock for both halves because a gap measured on one clock and waited out on another does not come back the length it went in. That clock stops when the engine does, so a paused patch holds a recording where it stands; a standalone object has no patcher and so no clock, records everything at delta 0 and plays straight through. One rule departs from .qlist deliberately: where a cue list treats the scheduler's one-block deadline floor as a feature, advancing one entry per block through a run of zero delays, this object runs them out inside a single dispatch, because the three bytes of a note-on delivered one block apart are not that note-on. The walk is still bounded by the tape, so a patch cannot lock the audio thread up with it. 'record' starts a fresh take and 'append' carries on at the end of the existing one; 'start' and a bang play from the beginning; 'start <n>' is Max's tempo multiplier, 1024 being the recorded speed, and Max's parenthesis that the speed is settable 'only at the time you start it' is reproduced. 'start -1' is Max's tick-driven mode: playback then advances on 'tick' messages, 48 of them per second at the recorded tempo, which is 24 per quarter note at 120 BPM and therefore a MIDI clock. That is also this object's answer to issue #502's ask for a domain clock — there is no patcher-to-domain-clock bridge today (issue #688), but tick is Max's own external timing source and when the bridge lands, driving tick from it is the whole of the work. The end of the sequence bangs the second outlet, and Max's odd but useful ordering is kept literally: 'the bang is sent out immediately before the final event of the sequence is played'. 'delay' sets the first event's onset and shifts the rest with it, 'addeventdelay' adds to that onset, and 'hook' multiplies every event time, which Max allows even while the sequence is playing. Storage is the family's model for the family's reason: a fixed table of 4096 events allocated whole at construction behind .value's non-blocking guard whose loser drops rather than waiting, because a copy-on-write GraphState publish assumes the writer is the control thread while this object is written by whichever thread its message arrived on. 4096 rather than the 256 the text stores share, because an event here is a delta and one byte rather than a string: three of them make one note, so 256 would be 85 notes and not a sequence. The guard is never held across a send, and .mtr's arrangement inside it is copied — read, advance, arm, release, then send — so a step needs the guard once rather than twice. Calculate() does nothing. Nothing is saved with the patcher: the family rule is to save exactly where Max has a save flag, qlist saves its cue list and mtr has Max 8's embed, and seq has neither because its contents live in a file and read/write are its persistence, which is text's answer too. The filename creation argument is a parameter rather than state and does survive, so a patch brought across from Max still names the file it meant. Reading and writing files is deliberately not here, .textfile's, .qlist's and .mtr's answer for their reason: a handler runs on whichever thread the message arrived on, in-patcher delivery dispatches on the audio thread, and THREAD is a dispatch-semantics tag rather than a thread identity, so no object can find out that it is off the audio callback, where opening a file would block it — shared plumbing filed as issue #683, with #692 tracking this object's half. 'print' is inert alongside them for a neighbouring reason: the patcher's log builds a string and takes a lock, which the same path must not do. Not ported: the tempo, sequencetempo and overridetempo attributes, all three of which describe the tempo of a MIDI file and would have nothing to reflect or override without one; Max's meta outlet, meta events being a file construct that cannot appear in a recorded byte stream, which when the file half lands is appended at Max's own position so no saved patch's cords shift; and the editing window, the patcher being headless.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The only inlet, and it carries both the bytes and the transport. While the object is recording, a number here is one raw MIDI byte — Max: 'numbers received in its inlet are interpreted as bytes of MIDI messages (usually from midiformat or midiin)' — stored with the gap since the previous byte, measured on the patcher's block clock. A float is converted to an int, as Max's is, and a number outside 0-255 is not a MIDI byte and is refused rather than being folded into range. A list of numbers records each of them in turn: Max has no list method here, but every message in this patcher arrives as a list, so refusing one would make the object unreachable from midiformat's own output shape. Then the transport. 'record' starts a fresh take and 'append' carries on at the end of what is already there — Max: 'starts recording at the end of the stored sequence, without erasing the existing sequence'. 'start' and a bang both play from the beginning; 'start <n>' sets the speed, Max's multiplier where 1024 is the recorded tempo, 512 half of it and 2048 twice it, and the speed can only be set here, at the moment playback starts. 'start -1' plays on 'tick' messages instead of on the clock — Max: 'seq must receive 48 tick messages per second' to play at the recorded tempo — which is how a patch drives the sequence from its own timing source. 'stop' ends recording or playing, and neither 'record' nor 'start' needs one first. 'clear' erases the tape. 'delay <ms>' sets the onset of the first event and shifts everything after it, 'addeventdelay <ms>' adds to that onset, and 'hook <f>' multiplies every event time, which Max allows even mid-playback. 'read', 'write', 'dump' and 'print' are accepted and do nothing: file I/O needs plumbing no patcher object can have yet, since a handler cannot find out which thread it is on (issues #683 / #692), and printing would allocate and lock on a path that may be the audio callback. Anything else does nothing, which is Max.",
+        "index": 0,
+        "label": "in",
+        "range": "0-255"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".seq",
+    "outlets": [
+      {
+        "doc": "The sequence, one raw MIDI byte at a time — Max: 'the sequence stored in seq is sent out the outlet in the form of individual MIDI bytes, usually to be sent to midiparse or midiout'. Bytes recorded at the same moment leave in the same audio block rather than one per block: the three bytes of a note-on delivered a block apart would not be that note-on, so a step keeps going for as long as the next event's gap scales to nothing, and only waits for a real one.",
+        "index": 0,
+        "label": "midi",
+        "range": "0-255",
+        "type": "INT"
+      },
+      {
+        "doc": "Bangs when the sequence finishes — Max: 'indicates that seq has finished playing the current sequence'. Max's parenthesis is reproduced exactly, because it is surprising and because it is useful: '(the bang is sent out immediately before the final event of the sequence is played)'. So this fires first and the last byte follows it, which lets a patch know that the byte about to arrive is the last one rather than finding out afterwards. A 'start' on an empty sequence bangs nothing: there is no final event for the bang to precede.",
+        "index": 1,
+        "label": "end",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "Max's 'name of a file to be read into seq automatically when the patch is loaded'. Stored and round-tripped through a save, so a patch brought across from Max still names the file it meant, but nothing is read from it yet — file I/O cannot be done from a patcher message handler at all today (issues #683 / #692).",
+        "name": "filename",
+        "range": ""
+      }
+    ]
+  },
   ".sin": {
     "category": "MATH",
     "description": "Control-rate sine. Emits sin(in) as a float whenever inlet 0 fires. The input is an angle in radians, as in Max.",

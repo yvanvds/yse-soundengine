@@ -40,7 +40,7 @@ namespace YSE {
    *  - Statistics: ``G_ANAL``, ``G_HISTO``, ``G_MEAN``.
    *  - Shared state: ``G_VALUE``.
    *  - Collections: ``G_COLL``, ``G_BAG``, ``G_CAPTURE``, ``G_FUNBUFF``,
-   *    ``G_TABLE``, ``G_TEXTFILE``, ``G_QLIST``, ``G_MTR``.
+   *    ``G_TABLE``, ``G_TEXTFILE``, ``G_QLIST``, ``G_MTR``, ``G_SEQ``.
    *  - Messaging: ``G_SEND``, ``G_RECEIVE``, ``G_FORWARD``, ``G_ROUTE``,
    *    ``G_ROUTEPASS``,
    *    ``G_SEL``, ``G_TRIGGER``, ``G_BANGBANG``, ``G_ONEBANG``, ``G_NEXT``,
@@ -123,6 +123,7 @@ namespace YSE {
     DEFOBJ(G_TEXTFILE, ".textfile");
     DEFOBJ(G_QLIST, ".qlist");
     DEFOBJ(G_MTR, ".mtr");
+    DEFOBJ(G_SEQ, ".seq");
 
     DEFOBJ(G_ADD, ".+");
     DEFOBJ(G_SUBSTRACT, ".-");
