@@ -1177,4 +1177,801 @@ TEST_SUITE("patcher") {
     CHECK(rig.data.gotInt);
     CHECK(rig.data.intValue == 0);
   }
+
+  // ─── the shared name context (issue #684) ───────────────────────────────────
+  //
+  // The registry is process-wide and holds its stores weakly, so every test
+  // below spells a name nothing else uses: a name leaked from one test into the
+  // next would make a store look shared when it was only stale.
+
+  TEST_CASE("coll: a name binds the store to the patcher's address form (#684)") {
+    YSE::PATCHER::patcherImplementation p(2, nullptr);
+    p.SetName("coll_song");
+
+    gColl named;
+    named.SetParams("notes684a");
+    named.SetParent(&p);
+    CHECK(named.IsShared());
+    CHECK(named.StoreAddress() == "coll_song.notes684a");
+    CHECK(named.CollName() == "notes684a");
+
+    // An unnamed .coll is private rather than pooled on "<patcherName>.", which
+    // is a real reachable address: two unconfigured objects sharing it would be
+    // wired together in a way no patch author could see.
+    gColl unnamed;
+    unnamed.SetParent(&p);
+    CHECK_FALSE(unnamed.IsShared());
+    CHECK(unnamed.StoreAddress().empty());
+  }
+
+  TEST_CASE("coll: two .coll objects of one name share their contents (#684)") {
+    // Max: "all coll objects that share the same name share their contents".
+    // Asserted through a real patcher and a real cord rather than an accessor,
+    // because what has to hold is that a *patch* can store on one object and
+    // recall on another.
+    MultiSink fromWriter;
+    MultiSink fromReader;
+    YSE::pHandle writerSink(&fromWriter);
+    YSE::pHandle readerSink(&fromReader);
+
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* writer = p.CreateObject(YSE::OBJ::G_COLL, "notes684b");
+    YSE::pHandle* reader = p.CreateObject(YSE::OBJ::G_COLL, "notes684b");
+    REQUIRE(writer != nullptr);
+    REQUIRE(reader != nullptr);
+    p.Connect(writer, 0, &writerSink, 0);
+    p.Connect(reader, 0, &readerSink, 0);
+
+    writer->SetListData(0, "store triad 0 4 7");
+    reader->SetListData(0, "triad");
+    CHECK(fromReader.gotList);
+    CHECK(fromReader.listValue == "0 4 7");
+
+    // And the other way round, so this is one table rather than two that happen
+    // to have been written the same way.
+    reader->SetListData(0, "5 60 100");
+    writer->SetListData(0, "5");
+    CHECK(fromWriter.gotList);
+    CHECK(fromWriter.listValue == "60 100");
+  }
+
+  TEST_CASE("coll: two unnamed .coll objects keep separate stores (#684)") {
+    MultiSink sink;
+    YSE::pHandle sinkHandle(&sink);
+
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* first = p.CreateObject(YSE::OBJ::G_COLL);
+    YSE::pHandle* second = p.CreateObject(YSE::OBJ::G_COLL);
+    REQUIRE(first != nullptr);
+    REQUIRE(second != nullptr);
+    p.Connect(second, 0, &sinkHandle, 0);
+
+    first->SetListData(0, "store triad 0 4 7");
+    second->SetListData(0, "length");
+    CHECK(sink.gotInt);
+    CHECK(sink.intValue == 0);
+  }
+
+  TEST_CASE("coll: the pointer stays per-object on a shared store (#684)") {
+    // The store holds the entries; the cursor belongs to the object. Two .coll
+    // objects on one name have to be able to walk the same collection without
+    // dragging each other's position around, which is what makes a shared
+    // collection usable as a sequence by more than one reader.
+    std::vector<std::string> log;
+    Recorder first;
+    Recorder second;
+    first.log = &log;
+    first.tag = "one";
+    second.log = &log;
+    second.tag = "two";
+    YSE::pHandle firstHandle(&first);
+    YSE::pHandle secondHandle(&second);
+
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* a = p.CreateObject(YSE::OBJ::G_COLL, "notes684c");
+    YSE::pHandle* b = p.CreateObject(YSE::OBJ::G_COLL, "notes684c");
+    REQUIRE(a != nullptr);
+    REQUIRE(b != nullptr);
+    p.Connect(a, 0, &firstHandle, 0);
+    p.Connect(b, 0, &secondHandle, 0);
+
+    a->SetListData(0, "0 alpha");
+    a->SetListData(0, "1 beta");
+
+    // The first object steps its own cursor twice; the second has never been
+    // stepped and is still on the first entry.
+    a->SetListData(0, "next");
+    a->SetListData(0, "next");
+    b->SetListData(0, "next");
+
+    REQUIRE(log.size() == 3);
+    CHECK(log[0] == "one:l alpha");
+    CHECK(log[1] == "one:l beta");
+    CHECK(log[2] == "two:l alpha");
+  }
+
+  TEST_CASE("coll: patchers sharing a name share their collections (#684)") {
+    // The address is "<patcherName>.<name>", so the isolation between patchers
+    // is the patcher name — exactly as it already is for .s, .r and .value. Two
+    // patchers left on their auto-generated "patcher_<N>" names stay apart.
+    MultiSink shared;
+    MultiSink isolated;
+    YSE::pHandle sharedHandle(&shared);
+    YSE::pHandle isolatedHandle(&isolated);
+
+    YSE::patcher first;
+    first.create(2);
+    first.name("coll_684d");
+    YSE::patcher second;
+    second.create(2);
+    second.name("coll_684d");
+    YSE::patcher elsewhere;
+    elsewhere.create(2);
+
+    YSE::pHandle* writer = first.CreateObject(YSE::OBJ::G_COLL, "notes684d");
+    YSE::pHandle* reader = second.CreateObject(YSE::OBJ::G_COLL, "notes684d");
+    YSE::pHandle* stranger = elsewhere.CreateObject(YSE::OBJ::G_COLL, "notes684d");
+    REQUIRE(writer != nullptr);
+    REQUIRE(reader != nullptr);
+    REQUIRE(stranger != nullptr);
+    second.Connect(reader, 0, &sharedHandle, 0);
+    elsewhere.Connect(stranger, 0, &isolatedHandle, 0);
+
+    writer->SetListData(0, "store triad 0 4 7");
+
+    reader->SetListData(0, "triad");
+    CHECK(shared.gotList);
+    CHECK(shared.listValue == "0 4 7");
+
+    stranger->SetListData(0, "triad");
+    CHECK_FALSE(isolated.gotList);
+  }
+
+  TEST_CASE("coll: renaming a patcher re-anchors its collections (#684)") {
+    // The prefix moved, so the object now addresses a different store — the
+    // same thing a rename already does to .s, .r and .value, and the reason
+    // patcherImplementation::SetName has to know about this object.
+    MultiSink sink;
+    YSE::pHandle sinkHandle(&sink);
+
+    YSE::patcher host;
+    host.create(2);
+    host.name("coll_684e_before");
+    YSE::pHandle* coll = host.CreateObject(YSE::OBJ::G_COLL, "notes684e");
+    REQUIRE(coll != nullptr);
+    host.Connect(coll, 0, &sinkHandle, 0);
+    coll->SetListData(0, "store triad 0 4 7");
+
+    // The rename goes through patcherImplementation::SetName, which re-binds
+    // every named collection in the patcher — so this object now addresses a
+    // store nothing has written to.
+    host.name("coll_684e_after");
+    coll->SetListData(0, "length");
+    CHECK(sink.gotInt);
+    CHECK(sink.intValue == 0);
+
+    // And the store it now names is the one a patcher of that name reaches.
+    coll->SetListData(0, "store moved 1 2");
+    sink.reset();
+
+    MultiSink neighbour;
+    YSE::pHandle neighbourSink(&neighbour);
+    YSE::patcher other;
+    other.create(2);
+    other.name("coll_684e_after");
+    YSE::pHandle* mirror = other.CreateObject(YSE::OBJ::G_COLL, "notes684e");
+    REQUIRE(mirror != nullptr);
+    other.Connect(mirror, 0, &neighbourSink, 0);
+    mirror->SetListData(0, "moved");
+    CHECK(neighbour.gotList);
+    CHECK(neighbour.listValue == "1 2");
+  }
+
+  TEST_CASE("coll: the address form is the patcher's, and RefreshBinding follows it (#684)") {
+    YSE::PATCHER::patcherImplementation p(2, nullptr);
+    p.SetName("coll_684j_before");
+
+    gColl obj;
+    obj.SetParams("notes684j");
+    obj.SetParent(&p);
+    CHECK(obj.StoreAddress() == "coll_684j_before.notes684j");
+
+    // Idempotent: a rebind to the address it already has keeps the store, and
+    // with it everything in it.
+    obj.GetInlet(0)->SetList("store triad 0 4 7", YSE::T_GUI);
+    obj.RefreshBinding();
+    CHECK(obj.StoreAddress() == "coll_684j_before.notes684j");
+    CHECK(obj.Count() == 1);
+
+    p.SetName("coll_684j_after");
+    obj.RefreshBinding();
+    CHECK(obj.StoreAddress() == "coll_684j_after.notes684j");
+    CHECK(obj.Count() == 0);
+  }
+
+  TEST_CASE("coll: a store outlives no .coll that names it (#684)") {
+    // The registry holds its stores weakly: a name lives exactly as long as
+    // some object addresses it. Strong ownership would make every name a patch
+    // ever spelled immortal — an unbounded leak for an engine that opens and
+    // closes patchers — and would leave one test's contents visible to the
+    // next, which is the failure this asserts is absent.
+    //
+    // Counted as a delta rather than an absolute: the registry is process-wide,
+    // so what this pins is that the name this test spelled left no key behind.
+    const std::size_t before = YSE::PATCHER::NamedStoreCount<YSE::PATCHER::collStore>();
+    {
+      YSE::patcher p;
+      p.create(2);
+      p.name("coll_684f");
+      YSE::pHandle* coll = p.CreateObject(YSE::OBJ::G_COLL, "notes684f");
+      REQUIRE(coll != nullptr);
+      coll->SetListData(0, "store triad 0 4 7");
+      CHECK(YSE::PATCHER::NamedStoreCount<YSE::PATCHER::collStore>() == before + 1);
+    }
+    CHECK(YSE::PATCHER::NamedStoreCount<YSE::PATCHER::collStore>() == before);
+
+    MultiSink sink;
+    YSE::pHandle sinkHandle(&sink);
+    YSE::patcher fresh;
+    fresh.create(2);
+    fresh.name("coll_684f");
+    YSE::pHandle* coll = fresh.CreateObject(YSE::OBJ::G_COLL, "notes684f");
+    REQUIRE(coll != nullptr);
+    fresh.Connect(coll, 0, &sinkHandle, 0);
+
+    coll->SetListData(0, "length");
+    CHECK(sink.gotInt);
+    CHECK(sink.intValue == 0);
+  }
+
+  TEST_CASE("coll: a re-parse keeps the collection while a sibling holds the name (#684)") {
+    YSE::PATCHER::patcherImplementation p(2, nullptr);
+    p.SetName("coll_684g");
+
+    // A live SetParams on a published object is a rebuild (#234): the
+    // replacement is constructed while the original still holds the store, so
+    // the collection carries across the edit instead of being emptied by it.
+    // `sibling` stands in for that still-live original.
+    gColl sibling;
+    sibling.SetParams("notes684g");
+    sibling.SetParent(&p);
+
+    gColl obj;
+    obj.SetParams("notes684g");
+    obj.SetParent(&p);
+    obj.GetInlet(0)->SetList("store triad 0 4 7", YSE::T_GUI);
+    CHECK(obj.Count() == 1);
+    CHECK(sibling.Count() == 1);
+
+    obj.SetParams("notes684g");
+    CHECK(obj.Count() == 1);
+
+    // A different name is a different store, and this one has nothing in it —
+    // while the name it left still holds what was written to it.
+    obj.SetParams("notes684g_other");
+    CHECK(obj.StoreAddress() == "coll_684g.notes684g_other");
+    CHECK(obj.Count() == 0);
+    CHECK(sibling.Count() == 1);
+
+    // And back to no name at all is a private store, which is also empty.
+    obj.SetParams("");
+    CHECK_FALSE(obj.IsShared());
+    CHECK(obj.Count() == 0);
+  }
+
+  TEST_CASE("coll: the name survives a save and only the store's creator reloads it (#684)") {
+    // Two .coll objects on one name both write the contents — they are reading
+    // one table, so their copies are identical, and nominating a single writer
+    // would mean the collection silently stopped being saved the day that
+    // object was deleted. The duplication is resolved on the way back in: only
+    // the object that created the store fills it, so a reload produces the
+    // collection that was saved rather than that collection loaded twice.
+    MultiSink sink;
+    YSE::pHandle sinkHandle(&sink);
+
+    std::string json;
+    {
+      YSE::patcher src;
+      src.create(2);
+      src.name("coll_684h");
+      YSE::pHandle* writer = src.CreateObject(YSE::OBJ::G_COLL, "notes684h");
+      YSE::pHandle* reader = src.CreateObject(YSE::OBJ::G_COLL, "notes684h");
+      REQUIRE(writer != nullptr);
+      REQUIRE(reader != nullptr);
+      writer->SetListData(0, "0 60 100");
+      writer->SetListData(0, "store name hello");
+
+      // The argument the author typed survives the round trip byte for byte —
+      // the contents ride the state hook precisely so the parameter string does
+      // not have to be rewritten from run-time state.
+      CHECK(reader->GetParams() == "notes684h");
+      json = src.DumpJSON();
+    }
+
+    // The copy is loaded under its own auto-generated patcher name, so it
+    // builds a store of its own rather than joining anything left over.
+    YSE::patcher loaded;
+    loaded.create(2);
+    loaded.ParseJSON(json);
+    REQUIRE(loaded.Objects() == 2);
+
+    YSE::pHandle* copy = loaded.GetHandleFromList(0);
+    REQUIRE(copy != nullptr);
+    CHECK(copy->GetParams() == "notes684h");
+    loaded.Connect(copy, 0, &sinkHandle, 0);
+
+    // Two entries, not four: the sibling adopted what the creator loaded rather
+    // than reloading identical contents over the top.
+    copy->SetListData(0, "length");
+    CHECK(sink.gotInt);
+    CHECK(sink.intValue == 2);
+
+    sink.reset();
+    copy->SetListData(0, "name");
+    CHECK(sink.gotList);
+    CHECK(sink.listValue == "hello");
+  }
+
+  TEST_CASE("coll: no-search is accepted and inert (#684)") {
+    // Max's second argument suppresses its hunt for a file named after the
+    // collection. There is no such hunt here, so all this has to do is build —
+    // and, crucially, not be read as part of the name.
+    gColl obj;
+    obj.SetParams("notes684i 1");
+    CHECK(obj.CollName() == "notes684i");
+    CHECK(obj.GetParams() == "notes684i 1");
+  }
+
+  // ─── sub, nsub and nth (issue #684) ─────────────────────────────────────────
+
+  TEST_CASE("coll: nsub replaces one element and sends nothing (#684)") {
+    // Max: "nsub 2 4 7 replaces the fourth element of address 2 with the value
+    // 7", and positions are 1-based.
+    Rig rig;
+    rig.List("2 10 20 30 40");
+    rig.reset();
+
+    rig.List("nsub 2 4 7");
+    CHECK(rig.obj.Lookup("2") == "10 20 30 7");
+    // nsub is the silent half of the pair.
+    CHECK_FALSE(rig.data.gotList);
+    CHECK_FALSE(rig.address.gotInt);
+
+    // A symbol substitutes as readily as a number.
+    rig.List("nsub 2 1 word");
+    CHECK(rig.obj.Lookup("2") == "word 20 30 7");
+  }
+
+  TEST_CASE("coll: sub replaces and then sends the address and the message (#684)") {
+    // Max: "the same as nsub, except that the message stored at the specified
+    // address is sent out after the item has been substituted" — and sub is the
+    // fifth trigger Max lists for the address outlet.
+    Rig rig;
+    rig.List("store chord 0 4 7");
+    rig.reset();
+
+    rig.List("sub chord 2 3");
+    CHECK(rig.obj.Lookup("chord") == "0 3 7");
+    CHECK(rig.data.gotList);
+    CHECK(rig.data.listValue == "0 3 7");
+    CHECK(rig.address.gotList);
+    CHECK(rig.address.listValue == "chord");
+  }
+
+  TEST_CASE("coll: a sub that changes nothing sends nothing (#684)") {
+    Rig rig;
+    rig.List("2 10 20");
+    rig.reset();
+
+    // No fifth element to replace.
+    rig.List("sub 2 5 99");
+    CHECK(rig.obj.Lookup("2") == "10 20");
+    CHECK_FALSE(rig.data.gotList);
+
+    // No such address.
+    rig.List("sub 9 1 99");
+    CHECK_FALSE(rig.data.gotList);
+  }
+
+  TEST_CASE("coll: a substitution that would overflow the entry is refused whole (#684)") {
+    // Refused rather than truncated, and refused *before* a character moves, so
+    // an over-long splice leaves the entry exactly as it was.
+    Rig rig;
+    const std::string filler(gColl::VALUE_CAPACITY - 2, 'x');
+    rig.List("store big " + filler + " a");
+    REQUIRE(rig.obj.Lookup("big") == filler + " a");
+
+    rig.List("nsub big 2 " + std::string(20, 'y'));
+    CHECK(rig.obj.Lookup("big") == filler + " a");
+  }
+
+  TEST_CASE("coll: nth sends the element at a position in the kind it is (#684)") {
+    // Max: "nth 75 2 will output the second item in the list stored at address
+    // 75."
+    Rig rig;
+    rig.List("75 alpha 60 60.5");
+    rig.reset();
+
+    rig.List("nth 75 2");
+    CHECK(rig.data.gotInt);
+    CHECK(rig.data.intValue == 60);
+
+    rig.reset();
+    rig.List("nth 75 3");
+    CHECK(rig.data.gotFloat);
+    CHECK(rig.data.floatValue == doctest::Approx(60.5f));
+
+    rig.reset();
+    rig.List("nth 75 1");
+    CHECK(rig.data.gotList);
+    CHECK(rig.data.listValue == "alpha");
+
+    // Past the end, and no address outlet in any case: Max lists nth among none
+    // of the address outlet's triggers.
+    rig.reset();
+    rig.List("nth 75 9");
+    CHECK_FALSE(rig.data.gotList);
+    CHECK_FALSE(rig.data.gotInt);
+    CHECK_FALSE(rig.address.gotInt);
+  }
+
+  // ─── min and max (issue #684) ───────────────────────────────────────────────
+
+  TEST_CASE("coll: min and max scan an element position across every entry (#684)") {
+    // Max: "Gets the lowest value in any entry. An optional integer argument
+    // (defaults to '1') specifies an element position to use."
+    Rig rig;
+    rig.List("0 30 5");
+    rig.List("1 10 9");
+    rig.List("2 20 1");
+
+    rig.reset();
+    rig.List("min");
+    CHECK(rig.data.gotInt);
+    CHECK(rig.data.intValue == 10);
+
+    rig.reset();
+    rig.List("max");
+    CHECK(rig.data.gotInt);
+    CHECK(rig.data.intValue == 30);
+
+    // The second element rather than the first.
+    rig.reset();
+    rig.List("min 2");
+    CHECK(rig.data.gotInt);
+    CHECK(rig.data.intValue == 1);
+
+    rig.reset();
+    rig.List("max 2");
+    CHECK(rig.data.gotInt);
+    CHECK(rig.data.intValue == 9);
+  }
+
+  TEST_CASE("coll: min and max ignore entries with no number there (#684)") {
+    // An entry whose element is a word has no value to be lowest, so it is
+    // skipped rather than counted as zero — which would make every collection
+    // holding a symbol answer 0 to min.
+    Rig rig;
+    rig.List("store a word");
+    rig.List("1 40.5");
+    rig.List("2 12");
+
+    rig.reset();
+    rig.List("min");
+    CHECK(rig.data.gotInt);
+    CHECK(rig.data.intValue == 12);
+
+    // The winning token's own spelling decides int or float, as everywhere else.
+    rig.reset();
+    rig.List("max");
+    CHECK(rig.data.gotFloat);
+    CHECK(rig.data.floatValue == doctest::Approx(40.5f));
+
+    // Nothing numeric at all is silence rather than a zero.
+    Rig empty;
+    empty.List("store a word");
+    empty.reset();
+    empty.List("min");
+    CHECK_FALSE(empty.data.gotInt);
+    CHECK_FALSE(empty.data.gotFloat);
+    CHECK_FALSE(empty.data.gotList);
+  }
+
+  // ─── sort (issue #684) ──────────────────────────────────────────────────────
+
+  TEST_CASE("coll: sort reorders storage without moving the addresses (#684)") {
+    // What sort changes is the order dump, next and prev walk. The addresses
+    // stay with the data they belong to — moving them is `swap`'s job, and a
+    // sort that renumbered would silently break every lookup in the patch.
+    Rig rig;
+    rig.List("10 30");
+    rig.List("20 10");
+    rig.List("30 20");
+
+    rig.List("sort -1");
+    CHECK(rig.obj.KeyAt(0) == "20");
+    CHECK(rig.obj.ValueAt(0) == "10");
+    CHECK(rig.obj.KeyAt(1) == "30");
+    CHECK(rig.obj.ValueAt(1) == "20");
+    CHECK(rig.obj.KeyAt(2) == "10");
+    CHECK(rig.obj.ValueAt(2) == "30");
+
+    // Every address still finds its own message.
+    CHECK(rig.obj.Lookup("10") == "30");
+    CHECK(rig.obj.Lookup("20") == "10");
+    CHECK(rig.obj.Lookup("30") == "20");
+  }
+
+  TEST_CASE("coll: sort 1 is descending and a bare sort is ascending (#684)") {
+    Rig rig;
+    rig.List("0 3");
+    rig.List("1 1");
+    rig.List("2 2");
+
+    rig.List("sort 1");
+    CHECK(rig.obj.ValueAt(0) == "3");
+    CHECK(rig.obj.ValueAt(1) == "2");
+    CHECK(rig.obj.ValueAt(2) == "1");
+
+    // Max states no default for the order; a bare sort is ascending here.
+    rig.List("sort");
+    CHECK(rig.obj.ValueAt(0) == "1");
+    CHECK(rig.obj.ValueAt(1) == "2");
+    CHECK(rig.obj.ValueAt(2) == "3");
+  }
+
+  TEST_CASE("coll: sort -1 -1 sorts by the address (#684)") {
+    // Max: "If the second argument is -1, the index (either number or symbol)
+    // associated with the data is used."
+    Rig rig;
+    rig.List("30 c");
+    rig.List("store zulu z");
+    rig.List("10 a");
+    rig.List("store alpha x");
+    rig.List("20 b");
+
+    rig.List("sort -1 -1");
+    // Numbers before symbols, each group in its own order. Max documents no
+    // ordering across the two kinds; this is the reading that keeps a numeric
+    // run contiguous.
+    CHECK(rig.obj.KeyAt(0) == "10");
+    CHECK(rig.obj.KeyAt(1) == "20");
+    CHECK(rig.obj.KeyAt(2) == "30");
+    CHECK(rig.obj.KeyAt(3) == "alpha");
+    CHECK(rig.obj.KeyAt(4) == "zulu");
+  }
+
+  TEST_CASE("coll: sort's element argument picks which element decides (#684)") {
+    Rig rig;
+    rig.List("0 9 1");
+    rig.List("1 8 3");
+    rig.List("2 7 2");
+
+    // 0 and 1 both name the first element, read literally from Max's wording.
+    rig.List("sort -1 0");
+    CHECK(rig.obj.KeyAt(0) == "2");
+    rig.List("sort -1 1");
+    CHECK(rig.obj.KeyAt(0) == "2");
+
+    rig.List("sort -1 2");
+    CHECK(rig.obj.KeyAt(0) == "0");
+    CHECK(rig.obj.KeyAt(1) == "2");
+    CHECK(rig.obj.KeyAt(2) == "1");
+  }
+
+  TEST_CASE("coll: sort is stable and leaves an already-sorted table alone (#684)") {
+    // Entries that compare equal keep the storage order they had — the only
+    // behaviour under which sorting a collection twice is the same as sorting
+    // it once.
+    Rig rig;
+    rig.List("0 5 first");
+    rig.List("1 5 second");
+    rig.List("2 5 third");
+    rig.List("3 1 zero");
+
+    rig.List("sort -1");
+    CHECK(rig.obj.KeyAt(0) == "3");
+    CHECK(rig.obj.KeyAt(1) == "0");
+    CHECK(rig.obj.KeyAt(2) == "1");
+    CHECK(rig.obj.KeyAt(3) == "2");
+
+    rig.List("sort -1");
+    CHECK(rig.obj.KeyAt(0) == "3");
+    CHECK(rig.obj.KeyAt(1) == "0");
+    CHECK(rig.obj.KeyAt(2) == "1");
+    CHECK(rig.obj.KeyAt(3) == "2");
+  }
+
+  TEST_CASE("coll: sorting a full collection keeps every entry (#684)") {
+    // The permutation is applied by cycle-following through one scratch entry.
+    // A cycle walked wrongly loses or duplicates entries rather than crashing,
+    // so the whole table reversed is the case worth pinning.
+    Rig rig;
+    for (std::size_t i = 0; i < gColl::MAX_ENTRIES; i++) {
+      rig.List(std::to_string(i) + " " + std::to_string(gColl::MAX_ENTRIES - i));
+    }
+    REQUIRE(rig.obj.Count() == gColl::MAX_ENTRIES);
+
+    rig.List("sort -1");
+    CHECK(rig.obj.Count() == gColl::MAX_ENTRIES);
+    for (std::size_t i = 0; i < gColl::MAX_ENTRIES; i++) {
+      // Ascending by the stored number, and every address still on its own
+      // message.
+      CHECK(rig.obj.ValueAt(i) == std::to_string(i + 1));
+      CHECK(rig.obj.KeyAt(i) == std::to_string(gColl::MAX_ENTRIES - i - 1));
+    }
+  }
+
+  // ─── swap, merge, separate and renumber (issue #684) ────────────────────────
+
+  TEST_CASE("coll: swap exchanges two addresses and leaves the data where it is (#684)") {
+    // Max: "Exchanges the indices associated with two addresses. The data is
+    // unchanged, but the indexes that they use are swapped."
+    Rig rig;
+    rig.List("1 alpha");
+    rig.List("2 beta");
+
+    rig.List("swap 1 2");
+    // Storage order is untouched; only the keys moved.
+    CHECK(rig.obj.KeyAt(0) == "2");
+    CHECK(rig.obj.ValueAt(0) == "alpha");
+    CHECK(rig.obj.KeyAt(1) == "1");
+    CHECK(rig.obj.ValueAt(1) == "beta");
+    CHECK(rig.obj.Lookup("1") == "beta");
+    CHECK(rig.obj.Lookup("2") == "alpha");
+  }
+
+  TEST_CASE("coll: swap works across a numeric and a symbol address (#684)") {
+    Rig rig;
+    rig.List("1 alpha");
+    rig.List("store name beta");
+
+    rig.List("swap 1 name");
+    CHECK(rig.obj.KeyAt(0) == "name");
+    CHECK(rig.obj.ValueAt(0) == "alpha");
+    CHECK(rig.obj.KeyAt(1) == "1");
+    CHECK(rig.obj.ValueAt(1) == "beta");
+  }
+
+  TEST_CASE("coll: a swap with a missing address does nothing (#684)") {
+    // Half a swap would leave one entry holding an address that no longer names
+    // it, which is worse than the message being ignored.
+    Rig rig;
+    rig.List("1 alpha");
+    rig.List("swap 1 9");
+    CHECK(rig.obj.KeyAt(0) == "1");
+    CHECK(rig.obj.ValueAt(0) == "alpha");
+  }
+
+  TEST_CASE("coll: merge appends to an address and creates a missing one (#684)") {
+    // Max: "Appends data at the end of the data found at the specified index.
+    // If the address does not yet exist, it is created."
+    Rig rig;
+    rig.List("1 60");
+
+    rig.List("merge 1 100 127");
+    CHECK(rig.obj.Lookup("1") == "60 100 127");
+
+    rig.List("merge 5 hello");
+    CHECK(rig.obj.Lookup("5") == "hello");
+    CHECK(rig.obj.Count() == 2);
+
+    // Merging past the entry's bound is refused whole, so the message that was
+    // there is not left half rewritten.
+    rig.List("merge 1 " + std::string(gColl::VALUE_CAPACITY, 'z'));
+    CHECK(rig.obj.Lookup("1") == "60 100 127");
+  }
+
+  TEST_CASE("coll: separate opens a slot above the address given (#684)") {
+    // Max: "Increments the numerical indices for all data whose index is
+    // greater than the provided." Strictly greater — `insert`'s "equal or
+    // greater" is the other rule, and the two are deliberately different.
+    Rig rig;
+    rig.List("0 a");
+    rig.List("1 b");
+    rig.List("2 c");
+    rig.List("store name x");
+
+    rig.List("separate 1");
+    CHECK(rig.obj.KeyAt(0) == "0");
+    CHECK(rig.obj.KeyAt(1) == "1");
+    CHECK(rig.obj.KeyAt(2) == "3");
+    // A symbol address has no number to increment.
+    CHECK(rig.obj.KeyAt(3) == "name");
+
+    // Which is what leaves 2 free for the store that follows.
+    rig.List("2 new");
+    CHECK(rig.obj.Lookup("2") == "new");
+    CHECK(rig.obj.Lookup("1") == "b");
+    CHECK(rig.obj.Lookup("3") == "c");
+  }
+
+  TEST_CASE("coll: renumber makes the numeric addresses consecutive (#684)") {
+    // Max states no default starting address. Bare renumber starts at 0 and
+    // bare renumber2 at 1 — see the class documentation and #694.
+    Rig rig;
+    rig.List("10 a");
+    rig.List("store name x");
+    rig.List("40 b");
+    rig.List("70 c");
+
+    rig.List("renumber");
+    CHECK(rig.obj.KeyAt(0) == "0");
+    // Symbol addresses are left alone: they have no place in a numeric
+    // sequence, and renumbering one would destroy the only handle the patch has
+    // on that entry.
+    CHECK(rig.obj.KeyAt(1) == "name");
+    CHECK(rig.obj.KeyAt(2) == "1");
+    CHECK(rig.obj.KeyAt(3) == "2");
+
+    rig.List("renumber 10");
+    CHECK(rig.obj.KeyAt(0) == "10");
+    CHECK(rig.obj.KeyAt(2) == "11");
+    CHECK(rig.obj.KeyAt(3) == "12");
+
+    rig.List("renumber2");
+    CHECK(rig.obj.KeyAt(0) == "1");
+    CHECK(rig.obj.KeyAt(2) == "2");
+    CHECK(rig.obj.KeyAt(3) == "3");
+
+    rig.List("renumber2 10");
+    CHECK(rig.obj.KeyAt(0) == "11");
+    CHECK(rig.obj.KeyAt(2) == "12");
+    CHECK(rig.obj.KeyAt(3) == "13");
+  }
+
+  // ─── end to end, through a real patcher graph ───────────────────────────────
+
+  TEST_CASE("coll: a sorted collection dumps into a chain in its new order (#684)") {
+    // The use case sort exists for, run through the real thing: a table of note
+    // numbers put in order and then dumped into a transposer. What has to hold
+    // is a property of the whole graph — the entries leave the data outlet as
+    // numbers a `.+` can add to, in the order sort put them, with their own
+    // addresses beside them on the other branch.
+    std::vector<std::string> log;
+    Recorder notes;
+    Recorder addresses;
+    notes.log = &log;
+    notes.tag = "note";
+    addresses.log = &log;
+    addresses.tag = "at";
+    MultiSink sink;
+    YSE::pHandle noteHandle(&notes);
+    YSE::pHandle addressHandle(&addresses);
+    YSE::pHandle sinkHandle(&sink);
+
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* coll = p.CreateObject(YSE::OBJ::G_COLL, "sorted684");
+    YSE::pHandle* add = p.CreateObject(YSE::OBJ::G_ADD, "12");
+    REQUIRE(coll != nullptr);
+    REQUIRE(add != nullptr);
+    p.Connect(coll, 0, &noteHandle, 0);
+    p.Connect(coll, 1, &addressHandle, 0);
+    p.Connect(coll, 0, add, 0);
+    p.Connect(add, 0, &sinkHandle, 0);
+
+    coll->SetListData(0, "0 67");
+    coll->SetListData(0, "1 60");
+    coll->SetListData(0, "2 64");
+    coll->SetListData(0, "sort -1");
+    log.clear();
+
+    coll->SetListData(0, "dump");
+    REQUIRE(log.size() == 6);
+    CHECK(log[0] == "at:i 1");
+    CHECK(log[1] == "note:i 60");
+    CHECK(log[2] == "at:i 2");
+    CHECK(log[3] == "note:i 64");
+    CHECK(log[4] == "at:i 0");
+    CHECK(log[5] == "note:i 67");
+
+    // The last entry reached the `.+`'s numeric inlet, which a one-element list
+    // would not have.
+    CHECK(sink.gotFloat);
+    CHECK(sink.floatValue == doctest::Approx(79.f));
+  }
 }

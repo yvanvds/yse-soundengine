@@ -5,6 +5,7 @@
 #include "../headers/enums.hpp"
 #include "genericObjects/pDac.h"
 #include "genericObjects/pAdc.h"
+#include "genericObjects/gColl.h"
 #include "genericObjects/gForward.h"
 #include "genericObjects/gReceive.h"
 #include "genericObjects/gSend.h"
@@ -75,6 +76,11 @@ void patcherImplementation::SetName(const std::string& n) {
       // rename moves it onto the cell the renamed patcher's sends and receives
       // now speak about (issue #486).
       static_cast<gValue*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_COLL) == 0) {
+      // And gColl, whose shared store is registered under the same
+      // "<patcherName>.<name>" address, so a named collection re-anchors with
+      // the values, sends and receives around it (issue #684).
+      static_cast<gColl*>(x.second)->RefreshBinding();
     }
   }
   mtx.unlock();
