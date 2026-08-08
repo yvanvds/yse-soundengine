@@ -86,6 +86,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_cycle.cpp
   patcher/test_patcher_bucket.cpp
   patcher/test_patcher_spray.cpp
+  patcher/test_patcher_forward.cpp
   patcher/test_patcher_funnel.cpp
   patcher/test_patcher_decode.cpp
   patcher/test_patcher_router.cpp
@@ -827,6 +828,7 @@ set_source_files_properties(
   patcher/test_patcher_cycle.cpp
   patcher/test_patcher_bucket.cpp
   patcher/test_patcher_spray.cpp
+  patcher/test_patcher_forward.cpp
   patcher/test_patcher_funnel.cpp
   patcher/test_patcher_decode.cpp
   patcher/test_patcher_router.cpp

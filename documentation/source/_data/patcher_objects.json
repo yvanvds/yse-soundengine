@@ -2061,6 +2061,51 @@
       }
     ]
   },
+  ".forward": {
+    "category": "GENERIC",
+    "description": "Named send endpoint whose destination is chosen at runtime. Delivers incoming values exactly as .s does — to every .r in the patcher whose dataName matches, and on the global bus as \"<patcherName>.<destination>\" — but takes the destination name from its right inlet, so a patch can re-aim it with a message instead of being rewired. Sends nothing until a destination is set.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Value inlet — accepts bang / int / float / list. Forwarded verbatim to the current destination; no word in it is reserved.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "INT",
+          "LIST"
+        ],
+        "doc": "Sets the destination for subsequent values. A list is read as a name (first token only); an int is read as the name it spells. A name longer than 63 characters is refused and the previous destination kept.",
+        "index": 1,
+        "label": "destination",
+        "range": "any identifier, at most 63 characters"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".forward",
+    "outlets": [],
+    "params": [
+      {
+        "default": "",
+        "doc": "Destination name to start from. Empty means the object sends nothing until its right inlet supplies one.",
+        "name": "destination",
+        "range": "any identifier, at most 63 characters"
+      },
+      {
+        "default": "0",
+        "doc": "When 1, skip in-patcher delivery and publish only to the global bus.",
+        "name": "globalOnly",
+        "range": "0 or 1"
+      }
+    ]
+  },
   ".ftom": {
     "category": "MATH",
     "description": "Converts a frequency in Hz to its MIDI note number (with A4 == 69, fractional output).",

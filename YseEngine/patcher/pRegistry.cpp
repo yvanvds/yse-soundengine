@@ -22,6 +22,7 @@
 #include "genericObjects/gCycle.h"
 #include "genericObjects/gMatch.h"
 #include "genericObjects/gDecode.h"
+#include "genericObjects/gForward.h"
 #include "genericObjects/gFunnel.h"
 #include "genericObjects/gSpray.h"
 #include "genericObjects/gUzi.h"
@@ -208,6 +209,10 @@ pRegistry::pRegistry() {
 
   Add(OBJ::G_RECEIVE, gReceive::Create);
   Add(OBJ::G_SEND, gSend::Create);
+
+  // A .s whose destination name arrives as a message rather than being fixed at
+  // creation (issue #485)
+  Add(OBJ::G_FORWARD, gForward::Create);
 
   Add(OBJ::D_ADD, dAdd::Create);
   Add(OBJ::D_SUBSTRACT, dSubstract::Create);
