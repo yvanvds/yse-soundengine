@@ -63,12 +63,39 @@ namespace TestHelpers {
   // `Manager().update()` to avoid double-driving the manager update from two
   // threads. The local-static gate keeps resume() idempotent across multiple
   // test cases.
+  //
+  // resume() only *starts* the stream: Pa_StartStream() returns before the
+  // device has delivered its first callback, and until it does
+  // System().missedCallbacks() is non-zero — a state indistinguishable from a
+  // stalled device. So the helper used to hand back a stream that was started
+  // but not yet running, and whichever case called it first paid the whole
+  // start-up window inside its own assertions. That is issue #675: the first
+  // caller in the integration suite is the #661 case, whose opening
+  // `REQUIRE(audioStreamRunning())` samples a single 50 ms window. On an idle
+  // Windows host the first callback lands inside it (60/60 runs); with the
+  // machine under CPU load it was measured at 55-70 ms, so the REQUIRE tipped
+  // over (43/60 runs), aborted the case, and turned the suite's 162 assertions
+  // into 157 with a single failure — the exact signature reported in #675.
+  //
+  // Waiting here — in the setup, once per process — means every caller's
+  // assertions measure the running device instead of the start-up gap, and
+  // they keep their original strictness. The ceiling is ~2 s, orders of
+  // magnitude beyond any real device start-up, and deliberately does not
+  // report failure: a device that never starts must still trip the caller's
+  // own liveness assertion rather than being swallowed here.
   inline bool engineInitWithAudio() {
     if (!engineInit()) return false;
     static bool audioResumed = false;
     if (!audioResumed) {
       YSE::System().resume();
       audioResumed = true;
+      // missedCallbacks() returns to 0 on the first update() that sees a
+      // callback, which is exactly "the device is delivering audio now".
+      for (int i = 0; i < 100; ++i) {
+        YSE::System().sleep(20);
+        YSE::System().update();
+        if (YSE::System().missedCallbacks() == 0) break;
+      }
     }
     return true;
   }

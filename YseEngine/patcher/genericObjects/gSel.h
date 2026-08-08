@@ -1,5 +1,6 @@
 #pragma once
 #include "../pObject.h"
+#include "../pSelector.h"
 #include <cstddef>
 #include <string>
 #include <vector>
@@ -139,6 +140,18 @@ namespace YSE {
      *  is built on the control thread by the parameter callbacks and is never
      *  resized afterwards; the only field a message handler writes is the value
      *  of selector 0, from the cold inlet, as a plain float store.
+     *
+     *  ### Where the matcher lives
+     *
+     *  In ``SelectorTable`` (``pSelector.h``), shared with ``.route`` and
+     *  ``.routepass`` (issue #680). The table, the two match functions and the
+     *  leading-token walk were written here and copied into the other two as
+     *  they landed; three objects whose only job is to branch have to branch
+     *  alike, and three copies is how they stop doing that. What stays here is
+     *  the part this object legitimately does differently: the parse loop's
+     *  ``MAX_SELECTORS`` ceiling and empty-token skip, the fall back to the
+     *  single selector ``0``, the conditional right inlet, and the fact that a
+     *  match sends a bang.
      */
     PATCHER_CLASS(gSel, YSE::OBJ::G_SEL)
     _NO_MESSAGES
@@ -165,7 +178,7 @@ namespace YSE {
     /** @brief How many selectors the object matches against. At least one — a
      *         bare ``.sel`` matches the single number 0. */
     int SelectorCount() const {
-      return (int)selectors.size();
+      return (int)selectors.Size();
     }
 
     /** @brief Whether selector @p index is a number rather than a symbol.
@@ -192,43 +205,22 @@ namespace YSE {
     }
 
   private:
-    // One creation argument, resolved once. `numeric` decides which of the two
-    // other fields means anything, and a numeric selector never matches a
-    // symbol or the other way round.
-    struct Selector {
-      std::string text;
-      float value;
-      bool numeric;
-    };
-
-    // Index of the selector @p value matches, or -1. Leftmost wins, which is
-    // Max's rule for a repeated argument.
-    int MatchNumber(float value) const;
-
-    // Index of the symbolic selector whose text is exactly the @p length
-    // characters at @p text, or -1. Takes a range rather than a std::string so
-    // the leading token of a list can be matched without a substr.
-    int MatchSymbol(const char* text, std::size_t length) const;
-
     // Rebuild the inlets and outlets from the current selector table, docs
     // included. Control thread only: called from the constructor and from the
     // parameter callbacks, all of which run before the object is wired or
     // published.
     void ShapePorts();
 
-    // The state a bare `.sel` matches on: the single number 0, which is the
-    // selector Max's no-argument case creates.
-    void ResetToDefaultSelector();
-
     // The creation argument, as tokens. Control thread only: written by
     // Parameters::Set, read by ParseParams(), never by a message handler.
     std::vector<std::string> selectorArgs;
 
-    // The resolved selectors. Sized by ParseParams() / ClearParams() before the
-    // object is published and never resized afterwards, so a handler's walk
-    // over it cannot race a reallocation; the cold inlet writes one float into
-    // it and touches nothing else.
-    std::vector<Selector> selectors;
+    // The resolved selectors, and the matcher over them — the shared table
+    // `.route` and `.routepass` hold too (#680). Sized by ParseParams() /
+    // ClearParams() before the object is published and never resized
+    // afterwards, so a handler's walk over it cannot race a reallocation; the
+    // cold inlet writes one float into it and touches nothing else.
+    SelectorTable selectors;
   };
 }
 }

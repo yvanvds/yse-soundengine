@@ -12,11 +12,32 @@ Author:  yvan
 #include "patcher/time/TimerThread.h"
 #include "device/portaudioDeviceManager.h"
 
+#include <chrono>
+
 #ifdef YSE_WINDOWS
 #include <Windows.h>
 #else
 #include <unistd.h>
 #endif
+
+namespace {
+  // Wall clock for the autoReconnect watchdog (issue #681). Only ever called
+  // from system::update() and system::autoReconnect(), both control-thread
+  // entry points — never from an audio callback.
+  unsigned long long nowMs() {
+    return (unsigned long long)std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+  }
+
+  // Minimum time a freshly started stream gets to produce its first callback
+  // before the watchdog is allowed to call it stalled (issue #681). Starting a
+  // stream returns before the device runs: measured at 15-70 ms on Windows 11,
+  // load-dependent. This ceiling is an order of magnitude above that, and short
+  // enough that a device which opens but never delivers is still reconnected
+  // promptly. It is a floor under the user's `delay`, not an addition to it.
+  constexpr unsigned long long kFirstCallbackGraceMs = 500;
+} // namespace
 
 YSE::system& YSE::System() {
   static YSE::system s;
@@ -58,6 +79,9 @@ Bool YSE::system::initShared(bool openDevice) {
   currentlyMissedCallbacks = 0;
   doAutoReconnect = false;
   reconnectDelay = 0;
+  watchdogStreamStarts = DEVICE::Manager().getStreamStartCount();
+  watchdogSinceMs = nowMs();
+  watchdogAwaitingFirstCallback = false;
 
   if (DEVICE::Manager().init(openDevice)) {
     INTERNAL::LogImpl().emit(E_DEBUG, "YSE System object initialized");
@@ -122,16 +146,65 @@ void YSE::system::update() {
   // backend's error thread (e.g. Oboe's onErrorAfterClose). No-op on backends
   // that reconnect synchronously (issue #200).
   DEVICE::Manager().serviceReconnect();
-  unsigned int callbacks = DEVICE::Manager().GetCallbacksSinceLastUpdate();
-  if (callbacks == 0) {
-    currentlyMissedCallbacks++;
-    if (doAutoReconnect && currentlyMissedCallbacks > reconnectDelay) {
-      pause();
-      resume();
-    }
-  } else {
-    currentlyMissedCallbacks = 0;
+
+  // Two distinct things are tracked here, and conflating them was issue #681:
+  //
+  //  * currentlyMissedCallbacks — consecutive update() ticks during which the
+  //    device delivered no audio callback. That is the raw liveness reading
+  //    hosts poll through missedCallbacks(), and it deliberately still counts
+  //    the start-up window of a stream that has been started but is not yet
+  //    delivering: "started" is not "running", and a host asking whether audio
+  //    is flowing must not be told yes before it is.
+  //
+  //  * the autoReconnect trigger — which must fire only for a device that is
+  //    genuinely stalled. A stream that was just started is in the same
+  //    zero-callback state as a disconnected one for the 15-70 ms it takes the
+  //    backend to deliver its first callback, and tearing it down there (the
+  //    remedy is pause() + resume()) puts the reopened stream straight back
+  //    into that window: a host polling update() faster than the device starts
+  //    never let a healthy device play a sample.
+  const unsigned int streamStarts = DEVICE::Manager().getStreamStartCount();
+  const bool streamJustStarted = streamStarts != watchdogStreamStarts;
+  if (streamJustStarted) {
+    // init(), resume(), openDevice(), or a backend-side rebuild opened a stream
+    // since the last tick. It is coming up, not stalling.
+    watchdogStreamStarts = streamStarts;
+    watchdogAwaitingFirstCallback = true;
   }
+
+  const unsigned int callbacks = DEVICE::Manager().GetCallbacksSinceLastUpdate();
+  if (callbacks != 0) {
+    currentlyMissedCallbacks = 0;
+    watchdogAwaitingFirstCallback = false;
+    return;
+  }
+
+  // A silence starts at the first empty tick, and at every (re)open — both are
+  // points from which "no callbacks for `delay` ms" starts being true.
+  if (currentlyMissedCallbacks == 0 || streamJustStarted) watchdogSinceMs = nowMs();
+  currentlyMissedCallbacks++;
+
+  if (!doAutoReconnect) return;
+
+  // reconnectDelay is milliseconds (see autoReconnect). A stream that has not
+  // delivered its first callback yet gets at least the start-up grace, so a
+  // small — or zero, which is the default — delay cannot cut the device off
+  // while it is coming up.
+  unsigned long long waitMs = (unsigned long long)reconnectDelay;
+  if (watchdogAwaitingFirstCallback && waitMs < kFirstCallbackGraceMs) {
+    waitMs = kFirstCallbackGraceMs;
+  }
+  if (nowMs() - watchdogSinceMs < waitMs) return;
+
+  pause();
+  resume();
+  // Restart the interval from here whatever resume() achieved. A stream that
+  // came up bumps the stream-start count and re-enters the grace above on the
+  // next tick; one that did not (no device to open — the disconnected case
+  // autoReconnect exists for) is retried `delay` ms from now rather than on
+  // every single update() tick, which is what "delay between reconnection
+  // attempts" has always promised.
+  watchdogSinceMs = nowMs();
 }
 
 void YSE::system::close() {
@@ -192,7 +265,15 @@ unsigned int YSE::system::requestSampleRate() {
 
 YSE::system& YSE::system::autoReconnect(bool on, int delay) {
   doAutoReconnect = on;
-  reconnectDelay = delay;
+  // Milliseconds, as documented — it used to be compared against a count of
+  // empty update() ticks, which made the wait depend on how fast the host
+  // happens to poll (issue #681). A negative wait is meaningless; clamp it to
+  // "as soon as the device is confirmed stalled".
+  reconnectDelay = delay < 0 ? 0 : delay;
+  // Measure the first wait from here rather than from whatever the previous
+  // configuration left behind, so enabling the watchdog cannot fire it
+  // immediately on a stale timestamp.
+  watchdogSinceMs = nowMs();
   return *this;
 }
 
@@ -205,7 +286,9 @@ YSE::occlusionFunc YSE::system::occlusionCallback() {
   return occlusionPtr.load(std::memory_order_acquire);
 }
 
-YSE::system::system() : occlusionPtr(nullptr) {}
+YSE::system::system() : occlusionPtr(nullptr) {
+  watchdogSinceMs = nowMs();
+}
 
 YSE::system& YSE::system::underWaterFX(const channel& target) {
   // The stock underwater effect is an ordinary insert module since issue

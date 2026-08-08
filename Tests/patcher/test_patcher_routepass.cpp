@@ -17,11 +17,11 @@
 //     `note 60`, and matching the whole message text would pass every
 //     single-item test and fail this.
 //   - **a number and a symbol never match each other**, and an int and a float
-//     of the same value both match a numeric selector. The predecessor .route
-//     compares std::to_string(value) against the selector text, which makes
-//     `.route 5` unable to match the float 5.0 at all (issue #672); this object
-//     uses .sel's matcher, and the float case is asserted directly so it cannot
-//     regress into the same shape.
+//     of the same value both match a numeric selector. .route used to compare
+//     std::to_string(value) against the selector text, which made `.route 5`
+//     unable to match the float 5.0 at all (issue #672, since fixed); this
+//     object uses .sel's matcher, and the float case is asserted directly so it
+//     cannot regress into the same shape.
 //   - **exactly one outlet fires**, and on a repeated selector it is the
 //     leftmost. An object that fanned out would pass a "did outlet 0 get it"
 //     test and fail this.
@@ -225,8 +225,9 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("routepass: a matched message with nothing after the selector is not a bang (#483)") {
-    // Max's `route note` emits a bang here, having consumed the only item there
-    // was. This one has consumed nothing, so what leaves is the symbol itself —
+    // `.route note` emits a bang here — Max's rule, and ours since #672 —
+    // having consumed the only item there was. This one has consumed nothing,
+    // so what leaves is the symbol itself —
     // the clearest case of the difference, and the one a stripping
     // implementation cannot fake.
     Rig rig("note");
@@ -295,9 +296,8 @@ TEST_SUITE("patcher") {
 
   TEST_CASE("routepass: a numeric selector answers both the int and the float (#483)") {
     // This patcher has one numeric type, so `.routepass 5` has to answer both.
-    // The predecessor `.route` cannot answer the float at all, because it
-    // compares std::to_string(5.f) — "5.000000" — against the selector text
-    // (issue #672).
+    // `.route` could not answer the float at all until #672, because it
+    // compared std::to_string(5.f) — "5.000000" — against the selector text.
     Rig rig("5");
     rig.Int(5);
     CHECK(rig.Log() == std::string("a"));

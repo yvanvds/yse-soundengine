@@ -535,8 +535,8 @@ TEST_SUITE("patcher") {
     // The use case the issue names, run through the real thing: a number that
     // only exists at run time becomes part of a *word*, and a .route matches on
     // it. Nothing short of the whole chain proves that — a unit test asserting
-    // on the formatted text cannot tell "voice3" from "voice3 ", and only one of
-    // those routes.
+    // on the formatted text cannot tell "voice3" from "voice 3", and only one
+    // of those routes.
     //
     // Sinks before the patcher: the patcher is torn down first, while the inlets
     // it is wired to still exist.
@@ -558,13 +558,19 @@ TEST_SUITE("patcher") {
     p.Connect(route, 1, &fallthroughHandle, 0);
 
     fmt->SetIntData(0, 3);
-    CHECK(matched.gotList);
-    CHECK(matched.listValue == "voice3");
+    // The formatted word *was* the whole message, so .route consumes it and
+    // bangs (#672) — Max's "the message has no additional items" case. The bang
+    // is what proves the match: it can only happen if the whole of `voice3` was
+    // the first item, with nothing beside it.
+    CHECK(matched.gotBang);
+    CHECK_FALSE(matched.gotList);
     CHECK_FALSE(fallthrough.gotList);
+    CHECK_FALSE(fallthrough.gotBang);
 
     matched.reset();
     fallthrough.reset();
     fmt->SetIntData(0, 4);
+    CHECK_FALSE(matched.gotBang);
     CHECK_FALSE(matched.gotList);
     CHECK(fallthrough.gotList);
     CHECK(fallthrough.listValue == "voice4");

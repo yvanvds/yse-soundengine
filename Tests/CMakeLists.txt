@@ -63,6 +63,8 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_sprintf.cpp
   patcher/test_patcher_substitute.cpp
   patcher/test_patcher_symbol.cpp
+  patcher/test_patcher_combine.cpp
+  patcher/test_patcher_spell.cpp
   patcher/test_patcher_anal.cpp
   patcher/test_patcher_histo.cpp
   patcher/test_patcher_mean.cpp
@@ -96,6 +98,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_router.cpp
   patcher/test_patcher_matrix.cpp
   patcher/test_patcher_routepass.cpp
+  patcher/test_patcher_route.cpp
   patcher/test_patcher_value.cpp
   patcher/test_message_scheduler.cpp
   patcher/test_patcher_slide.cpp
@@ -810,6 +813,8 @@ set_source_files_properties(
   patcher/test_patcher_sprintf.cpp
   patcher/test_patcher_substitute.cpp
   patcher/test_patcher_symbol.cpp
+  patcher/test_patcher_combine.cpp
+  patcher/test_patcher_spell.cpp
   patcher/test_patcher_anal.cpp
   patcher/test_patcher_histo.cpp
   patcher/test_patcher_mean.cpp
@@ -843,6 +848,7 @@ set_source_files_properties(
   patcher/test_patcher_router.cpp
   patcher/test_patcher_matrix.cpp
   patcher/test_patcher_routepass.cpp
+  patcher/test_patcher_route.cpp
   patcher/test_patcher_value.cpp
   patcher/test_message_scheduler.cpp
   patcher/test_patcher_slide.cpp

@@ -222,6 +222,12 @@ void YSE::DEVICE::managerObject::addCallback() {
   } else
     started = true;
 
+  // The stream is running but has not delivered a callback yet — that takes
+  // another 15-70 ms on Windows (issue #681). Tell the watchdog in
+  // system::update() a new stream came up so it does not read the start-up
+  // window as a stalled device.
+  notifyStreamStarted();
+
   {
     std::string hostName = Pa_GetHostApiInfo(Pa_GetDeviceInfo(params.device)->hostApi)->name;
     INTERNAL::LogImpl().emit(E_DEBUG,
@@ -410,6 +416,9 @@ Bool YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
     return false;
   } else
     started = true;
+
+  // Same start-up window as in addCallback() (issue #681).
+  notifyStreamStarted();
 
   return true;
 }

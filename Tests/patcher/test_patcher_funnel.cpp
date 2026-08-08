@@ -55,6 +55,7 @@ namespace {
 
   using TestHelpers::FloatSink;
   using TestHelpers::ListSink;
+  using TestHelpers::MultiSink;
   using YSE::PATCHER::gFunnel;
 
   // Records every list the object sends, in order, so a test can assert both
@@ -584,10 +585,15 @@ TEST_SUITE("patcher") {
     REQUIRE(route != nullptr);
     REQUIRE(route->GetOutputs() == 4); // one per token plus the fall-through
 
-    ListSink one;
-    ListSink two;
-    ListSink three;
-    ListSink rejected;
+    // MultiSink rather than ListSink, because .route consumes the tag it
+    // matched on (#672): what arrives is the payload the tag was carrying, in
+    // whichever kind that payload is — an int when it is a single number, a
+    // list when there are several.  That the tag survived the merge is now read
+    // off *which* outlet fired rather than off the text.
+    MultiSink one;
+    MultiSink two;
+    MultiSink three;
+    MultiSink rejected;
     YSE::pHandle oneHandle(&one);
     YSE::pHandle twoHandle(&two);
     YSE::pHandle threeHandle(&three);
@@ -601,19 +607,23 @@ TEST_SUITE("patcher") {
 
     // A value at the middle inlet, and nothing else moves.
     funnel->SetIntData(1, 5);
-    CHECK(two.gotList);
-    CHECK(two.received == "1 5");
-    CHECK_FALSE(one.gotList);
-    CHECK_FALSE(three.gotList);
+    CHECK(two.gotInt);
+    CHECK(two.intValue == 5);
+    CHECK_FALSE(one.gotInt);
+    CHECK_FALSE(three.gotInt);
+    CHECK_FALSE(rejected.gotInt);
     CHECK_FALSE(rejected.gotList);
 
     // A list at another inlet keeps its elements and picks up that inlet's tag.
     funnel->SetListData(2, "60 100.5");
-    CHECK(three.received == "2 60 100.5");
+    CHECK(three.gotList);
+    CHECK(three.listValue == "60 100.5");
 
     funnel->SetIntData(0, 7);
-    CHECK(one.received == "0 7");
+    CHECK(one.gotInt);
+    CHECK(one.intValue == 7);
     CHECK_FALSE(rejected.gotList);
+    CHECK_FALSE(rejected.gotInt);
   }
 
   TEST_CASE("funnel into .spray is an n-way bus over one cord (#480)") {

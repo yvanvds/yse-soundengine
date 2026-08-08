@@ -41,6 +41,24 @@ namespace YSE {
       virtual void resume() = 0;
       virtual unsigned int GetCallbacksSinceLastUpdate() = 0;
 
+      /* Monotonic count of audio streams this manager has successfully started
+         (issue #681). Bumped by the backends right after the stream is running
+         — Pa_StartStream / Oboe requestStart returned OK — on every path that
+         can start one: addCallback(), openDevice(), resume(), and the
+         backend-side rebuild in serviceReconnect().
+
+         Starting a stream is not the same as delivering audio: the start call
+         returns before the device produces its first callback (measured 15-70 ms
+         on Windows, load-dependent). system::update() watches this counter to
+         tell "started, coming up" from "stalled", so the missed-callback
+         watchdog does not tear down a device that is still starting.
+
+         Written and read on the control thread only — never from an audio
+         callback. Wraps harmlessly: callers compare for inequality, not order. */
+      unsigned int getStreamStartCount() const {
+        return streamStartCount;
+      }
+
       /* If the audio backend provides a method to retrieve
          the cpu load, use it. Otherwise just return a number.
          YSE does not depend on this method, but it can be useful
@@ -137,6 +155,12 @@ namespace YSE {
       const std::string& getDefaultDeviceName();
 
     protected:
+      /* Backends call this once per successfully started stream. See
+         getStreamStartCount(). */
+      void notifyStreamStarted() {
+        ++streamStartCount;
+      }
+
       std::vector<device> devices;
       std::string defaultTypeName;
       std::string defaultDeviceName;
@@ -148,6 +172,10 @@ namespace YSE {
       // init(); read by the backends on their stream-open (init/negotiation)
       // path — never on the audio callback.
       UInt requestedSampleRate = 0;
+
+      // See getStreamStartCount(). Control thread only, so a plain int is
+      // enough — no audio callback ever touches it.
+      unsigned int streamStartCount = 0;
     };
 
   } // namespace DEVICE

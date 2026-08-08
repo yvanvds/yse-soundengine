@@ -1600,6 +1600,43 @@
       }
     ]
   },
+  ".combine": {
+    "category": "GENERIC",
+    "description": "Joins several items, each held in its own inlet, into a single symbol — Max's combine, which 'combines a list of items into a single symbol' and 'works similar to pack and sprintf'. The creation arguments are the items: each one becomes an inlet and that inlet's starting value, every inlet remembers the last item it was given, and the output is those items written out one after another with nothing in between. That memory is what distinguishes it from .tosymbol, which collapses one message that has already arrived whole: .combine assembles a symbol out of parts arriving at different times from different sources — an address built from a .route branch, a .counter and a constant, each updating on its own schedule — which nothing in this patcher could express, since .bondo and .buddy synchronise arrivals but hand them on through separate outlets. There is no separator either, because every separator is an item: .combine synth . lead . note is six inlets, three of them constants, and the punctuation may differ between them, where .tosymbol applies one uniform separator throughout. Every item is text; a number is stored as the text that spells it, a list is spread one token per item from the receiving inlet rightwards, and an empty message clears an item, which is how a patch takes a component back out of an address. An item never set renders as nothing, Max's 'if no value has been received for a %s argument, that argument will be left blank', and a .combine holding nothing at all sends nothing rather than an empty message — the .prepend rule that makes an unconfigured object safe to drop into a working patch. Max's @triggers attribute is a leading creation argument here, 'triggers -1' for every inlet hot or 'triggers <n>' for one of them, read and consumed the way .sprintf reads Max's leading symout; it takes exactly one token, since the argument list has no bracket to end a subset with, and without it the hot inlet is inlet 0. It is deliberately not a reserved word on inlet 0: this object exists to carry arbitrary words, and a reserved one would swallow the very items it is asked to join. A bang on inlet 0 sends the items as they stand whatever triggers says. Max's @padding is not reproduced — spelling a number into a fixed-width field is what .sprintf's %03ld already says, and a second spelling of it here would only make the argument list ambiguous. At most 32 items, each at most 64 characters and refused rather than truncated past that. Calculate() does nothing, and no message path allocates, locks or blocks: a join is one walk of the items into a buffer reserved before the object was published for every item at full length.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Hot. Stores what arrives as this inlet's item and sends the joined symbol. An int or a float is stored as the text that spells it; a list is spread one token per item from here rightwards, and tokens past the last item are dropped; an empty message clears this item, which is how a patch takes a component back out of the symbol it is building. A bang sends the items as they stand, whatever the triggers setting is — Max's 'bang: sends stored items as combined symbol'.",
+        "index": 0,
+        "label": "in0",
+        "range": "any"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".combine",
+    "outlets": [
+      {
+        "doc": "The items written out one after another with nothing between them — one whitespace-free token, which is what a symbol can be in this patcher, so a .route matches it as one element and a .forward or a .s will take it as a destination name. Nothing is sent while every item is empty.",
+        "index": 0,
+        "label": "out",
+        "range": "any",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "An optional leading 'triggers <n>' followed by the items, one per inlet, each the starting value of the inlet it builds. 'triggers -1' makes every inlet hot and 'triggers <n>' makes inlet n the only hot one; with no flag at all inlet 0 is hot, Max's default. At most 32 items, each at most 64 characters; a longer one is reported and left empty. With no arguments at all the object has one inlet, holds nothing, and sends nothing.",
+        "name": "items",
+        "range": "optional 'triggers <n>' then up to 32 items of at most 64 characters"
+      }
+    ]
+  },
   ".controlchange": {
     "category": "MIDI",
     "description": "MIDI Control Change message generator. Emits a 3-byte status/controller/value packet on every value change.",
@@ -3782,7 +3819,7 @@
   },
   ".route": {
     "category": "GENERIC",
-    "description": "Match-and-route. Compares the incoming value to each token in the list parameter and forwards to the matching outlet; unmatched values go to the final fall-through outlet. Outlets are created when the list parameter is set.",
+    "description": "Routes a message by what its first item matches and takes that item off — Max's route, whose 'the rest of the message is sent out the outlet that corresponds to that argument' is the whole object. One outlet per creation argument plus a rightmost fall-through for everything that matched none of them, and a bare .route has two outlets and matches the single number 0, which is Max's no-argument case and the shape .sel already reproduces (issue #679). Until then a bare .route had no outlets at all and silently swallowed everything sent to it, so a patch that dropped one in before wiring its arguments lost messages rather than passing them on; .routepass is the object that deliberately does not invent a default selector, because Max documents one for route and select and none for routepass. The stripping is what makes this a dispatcher rather than a splitter: 'note 60 100' leaves the note branch as '60 100', so the branch works in bare values and never sees the word that got it there. Before issue #672 this object forwarded the whole message instead, which is Max's routepass and not Max's route, and the engine's own .sel documentation had described the stripping behaviour all along — the code was the odd one out. A patch that wants the matched word to stay on the message has .routepass, whose contract guarantees exactly that, and swapping the object is the migration. What leaves a matched outlet is whatever is left, in the kind that remainder is: 'foo 1 2' through .route foo sends the list '1 2'; 'foo 1' sends the int 1 rather than a one-element list, and 'foo 1.5' the float 1.5, decided by the spelling as .trigger and .match decide it; 'foo bar' sends the list 'bar', since a lone symbol has no type of its own here; and 'foo' alone sends a bang, Max's 'if the first item of a message matches one of the arguments, but the message has no additional items, bang is sent out the specified outlet'. A bare number matched by a numeric selector is that same case — the number was the whole message — so .route 5 bangs for the int 5 and for the float 5.0 alike. Anything unmatched leaves the rightmost outlet whole and in its own type, so a chain of .route objects strings together with each fall-through feeding the next inlet. The matcher is .sel's and .routepass's: a selector is a number or a symbol, decided once when the argument is read, and the two never match each other — a number matches by value with an int widened to a float, a symbol by exact text, a bang matches a selector spelled 'bang', and a list is matched on its first element alone, which is a number if it reads as one and a symbol otherwise. That shared matcher is the other half of #672: the object used to compare std::to_string(value) against the selector text, and std::to_string(5.f) is '5.000000', a spelling no hand-written selector ever has, so .route 5 could never match the float 5.0. The comparison is exact, so a computed float may miss a selector it looks equal to — 0.1 + 0.2 is not 0.3 in binary floating point, and a .round upstream is the fix — and a NaN matches nothing and leaves the rightmost outlet. A selector repeated in the argument list uses the leftmost of its outlets only. Exactly one outlet fires per input. Calculate() does nothing, and no message path allocates except for a remainder of two or more items, which is one string — the cost stripping has and pass-through does not.",
     "inlets": [
       {
         "accepts": [
@@ -3791,7 +3828,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Value inlet — accepts bang / int / float / list.",
+        "doc": "Value inlet — accepts bang / int / float / list. The first item decides: a list's leading token, a bare number itself, or the symbol 'bang'. What leaves the matching outlet is the rest of the message, as a list, as an int or float when it is a single number, or as a bang when the selector was the whole message. Anything matching no selector leaves the fall-through outlet whole and in its own type.",
         "index": 0,
         "label": "in",
         "range": ""
@@ -3799,11 +3836,26 @@
     ],
     "is_dsp": false,
     "name": ".route",
-    "outlets": [],
+    "outlets": [
+      {
+        "doc": "What is left of the message once its first item is taken off, when that item matches selector 0 (0). A remainder of two or more items leaves as a list, a remainder of one number as that int or float, a remainder of one symbol as a one-element list, and nothing left at all as a bang. Exactly one outlet fires per input, and a selector repeated in the argument list uses the leftmost of its outlets only.",
+        "index": 0,
+        "label": "match0",
+        "range": "0",
+        "type": "ANY"
+      },
+      {
+        "doc": "The message, unchanged and in its own type, when its first item matched no selector. Nothing is taken off it, so chaining this into the next .route carries on testing the message the first one saw.",
+        "index": 1,
+        "label": "rest",
+        "range": "any",
+        "type": "ANY"
+      }
+    ],
     "params": [
       {
-        "default": "",
-        "doc": "Space-separated list of match tokens; one outlet is created per token plus one fall-through outlet.",
+        "default": "0",
+        "doc": "Space-separated list of match tokens; one outlet is created per token plus one fall-through outlet. A token that reads as a finite number is a numeric selector and matches by value, with an int widened to a float; anything else is a symbol and matches by exact text. With no argument the object matches the single number 0, which is Max's no-argument case.",
         "name": "list",
         "range": "any tokens"
       }
@@ -3811,7 +3863,7 @@
   },
   ".routepass": {
     "category": "GENERIC",
-    "description": "Routes a complete message by what its first item matches, and leaves that item on the message — Max's routepass, which 'routes a complete incoming message based on input matching' and 'does not strip off the matched portion of the message'. One outlet per creation argument plus a rightmost outlet for everything that matched none of them. Stripping is what makes .route a dispatcher: it turns 'note 60 100' into '60 100' on the note branch, so the branch works in bare values and never sees the word that got it there. That is right until the downstream object needs the tag too — a .s that re-tags the message, a .m that echoes it, a second .routepass further down matching on the same word, a bank keyed by name — because then the patch has to put the word back on, which means knowing it at the far end of the cord, in a second place, where it can disagree with the first. Here the branch is chosen by the tag and the tag stays. Its relatives: .sel matches the same way but sends a bang, dropping the value because the outlet's position is the whole answer, so it is the object to test with; .route is the stripping form, or is meant to be, since as this is written it forwards the whole message too — a defect in it and not a fact about this object (issue #672), and until it is fixed this is the one whose contract guarantees the message arrives intact; .split routes by numeric range rather than by a match; and .gate, .switch and .router route by state the object holds rather than by anything in the message, where here the message chooses its own destination and nothing about the object changes as it does. The shape follows Max: 'the number of arguments determines the number of outlets, in addition to the rightmost outlet', so .routepass note ctl has three outlets and a bare .routepass has one, through which everything passes unchanged. That degenerate object is built rather than papered over with an invented default selector, which would put a branch in a patch that did not ask for one. The matcher is .sel's, deliberately — two objects whose only job is to branch must branch alike or a patch that swaps one for the other changes meaning silently. A selector is a number or a symbol, decided once when the argument is read, and the two never match each other: a number matches by value with an int widened to a float, so .routepass 5 answers both the int 5 and the float 5.0; a symbol matches by exact text; a bang matches a selector spelled 'bang'; and a list is matched on its first element alone, which is a number if it reads as one and a symbol otherwise. The comparison is exact, so a computed float may miss a selector it looks equal to — 0.1 + 0.2 is not 0.3 in binary floating point, and a .round upstream is the fix — and a NaN matches nothing and leaves the rightmost outlet. A selector repeated in the argument list uses the leftmost of its outlets only, Max's rule for select and the only sane reading here, since an object that fired both would fan out and this one routes. Exactly one outlet fires per input, and what leaves it is whatever arrived, in the kind it arrived as and spelled as it was spelled: a matched list as the same list with its first item included, a matched int as that int, a matched bang as a bang. The rightmost outlet does the same for everything unmatched, so a chain of .routepass objects strings together with each reject outlet feeding the next inlet — and because nothing is consumed, every object in the chain sees the message the first one saw. At most 256 selectors are held. Calculate() does nothing, and no message path allocates, locks or blocks: matching is a bounded walk doing a float compare or a length-checked string compare against a character range, one Send follows, and a matched list is forwarded by reference rather than rebuilt.",
+    "description": "Routes a complete message by what its first item matches, and leaves that item on the message — Max's routepass, which 'routes a complete incoming message based on input matching' and 'does not strip off the matched portion of the message'. One outlet per creation argument plus a rightmost outlet for everything that matched none of them. Stripping is what makes .route a dispatcher: it turns 'note 60 100' into '60 100' on the note branch, so the branch works in bare values and never sees the word that got it there. That is right until the downstream object needs the tag too — a .s that re-tags the message, a .m that echoes it, a second .routepass further down matching on the same word, a bank keyed by name — because then the patch has to put the word back on, which means knowing it at the far end of the cord, in a second place, where it can disagree with the first. Here the branch is chosen by the tag and the tag stays. Its relatives: .sel matches the same way but sends a bang, dropping the value because the outlet's position is the whole answer, so it is the object to test with; .route is the stripping form, which forwarded the whole message too until issue #672 fixed it, so the pair is Max's pair now and this is the one to reach for when the message has to arrive intact; .split routes by numeric range rather than by a match; and .gate, .switch and .router route by state the object holds rather than by anything in the message, where here the message chooses its own destination and nothing about the object changes as it does. The shape follows Max: 'the number of arguments determines the number of outlets, in addition to the rightmost outlet', so .routepass note ctl has three outlets and a bare .routepass has one, through which everything passes unchanged. That degenerate object is built rather than papered over with an invented default selector, which would put a branch in a patch that did not ask for one. The matcher is .sel's, deliberately — two objects whose only job is to branch must branch alike or a patch that swaps one for the other changes meaning silently. A selector is a number or a symbol, decided once when the argument is read, and the two never match each other: a number matches by value with an int widened to a float, so .routepass 5 answers both the int 5 and the float 5.0; a symbol matches by exact text; a bang matches a selector spelled 'bang'; and a list is matched on its first element alone, which is a number if it reads as one and a symbol otherwise. The comparison is exact, so a computed float may miss a selector it looks equal to — 0.1 + 0.2 is not 0.3 in binary floating point, and a .round upstream is the fix — and a NaN matches nothing and leaves the rightmost outlet. A selector repeated in the argument list uses the leftmost of its outlets only, Max's rule for select and the only sane reading here, since an object that fired both would fan out and this one routes. Exactly one outlet fires per input, and what leaves it is whatever arrived, in the kind it arrived as and spelled as it was spelled: a matched list as the same list with its first item included, a matched int as that int, a matched bang as a bang. The rightmost outlet does the same for everything unmatched, so a chain of .routepass objects strings together with each reject outlet feeding the next inlet — and because nothing is consumed, every object in the chain sees the message the first one saw. At most 256 selectors are held. Calculate() does nothing, and no message path allocates, locks or blocks: matching is a bounded walk doing a float compare or a length-checked string compare against a character range, one Send follows, and a matched list is forwarded by reference rather than rebuilt.",
     "inlets": [
       {
         "accepts": [
@@ -4269,6 +4321,48 @@
       }
     ],
     "params": []
+  },
+  ".spell": {
+    "category": "GENERIC",
+    "description": "Spells whatever arrives out as the character codes of its text — Max's spell, 'convert input to UTF-8 (Unicode) codes', so text can be processed numerically inside a patch. Max documents four rules, one per atom type: an int is spelled digit by digit, a symbol character by character, a list with a space (32) between its items, and anything with all its int and symbol items converted one character at a time. They collapse into a single rule here, and not by cutting a corner: a message in this patcher is text, with no atom types at all, so .spell sends the code of every character of the message as it stands and each of Max's four rules falls out of that — a number's digits are its text, written by ExprFormatValue the way a patch author would have typed it, and a list gets its 32 because a space is the character that is actually between its items. Runs of whitespace collapse to one space and the ends are trimmed, so what is spelled is the tokens with a single 32 between them, Max's own spacing, rather than however much incidental whitespace the sender left in. The encoding is stated rather than assumed, because a patcher message is bytes and nothing upstream promises otherwise: bytes that form a well-formed UTF-8 sequence are decoded to the one code point they spell, so the two bytes of an accented letter give one code and not two, and any byte that is not part of a well-formed sequence — a stray continuation byte, a truncated sequence, an overlong encoding, a surrogate half — spells its own value 0-255 with decoding resuming at the next byte, so the object never fails, never drops a byte and never guesses. Max's two creation arguments are kept: size is the minimum number of codes, padded to with the fill code, and fill is that code, 32 (a space) by default. They are creation arguments rather than reserved words on inlet 0 — the .prepend discipline, which matters here because this object exists to carry arbitrary text and a reserved word would swallow the very messages it is asked to spell. Max's 'use a negative number to get 0 as the fill character' is not reproduced: it exists only because Max cannot tell an absent argument from a zero, whereas arguments are read as tokens here, so .spell 8 48 says 'pad with the character 0' directly and a negative fill is reported and ignored instead of silently becoming 48. The codes leave together as one list rather than one at a time, since nothing in this patcher accumulates a stream of numbers back into a message. At most 256 codes; longer input is refused rather than truncated, because half a spelling is not a shorter word but a different one. Calculate() does nothing, and no message path allocates, locks or blocks: a spelling is one walk of the bytes into a buffer reserved at construction for every code at full width.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The message to spell. Whatever arrives is spelled out as the character codes of its text: an int digit by digit (123 spells 49 50 51), a float including its decimal point, and a list character by character with the code 32 between its items, which is Max's four separate rules falling out of the one rule this patcher's message model allows. Runs of whitespace collapse to a single 32 and the ends are trimmed. A bang is declined: Max's spell has none, and there is nothing for it to spell.",
+        "index": 0,
+        "label": "in",
+        "range": "any"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".spell",
+    "outlets": [
+      {
+        "doc": "The codes, as one list, in the order the characters appear — 'hi' leaves as 104 105. Max sends them one at a time; they leave together here because nothing in this patcher accumulates a stream of numbers back into a message, so one-at-a-time codes could not be put back together, while a list can be taken apart by a .spray whenever a patch wants them separately. Nothing is sent when there is nothing to spell and no minimum size to pad to, and nothing is sent at all when the input would spell past 256 codes — refused rather than truncated.",
+        "index": 0,
+        "label": "out",
+        "range": "0-1114111 per code, at most 256 codes",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Max's size argument: the minimum number of codes to send. A message that spells to fewer is followed by enough fill codes to reach it, which is how a patch gets fixed-width records out of variable-length text. 0, the default, means no minimum. Clamped to 256, the most codes the object will send at all.",
+        "name": "size",
+        "range": "0-256"
+      },
+      {
+        "default": "32",
+        "doc": "Max's character argument: the code short output is padded with, 32 (a space) by default. Taken literally, so 0 is the code 0 and .spell 8 48 pads with the character '0' — Max's 'use any negative number' escape is not reproduced, because it only exists to work around Max being unable to tell an absent argument from a zero. A negative code, or one above 1114111, is reported and the default kept.",
+        "name": "fill",
+        "range": "0-1114111"
+      }
+    ]
   },
   ".split": {
     "category": "MATH",

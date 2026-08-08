@@ -25,7 +25,10 @@ public:
   bool Start(int channels, int32_t requestedRate = 0);
   void Stop();
   void Suspend();
-  void Resume();
+  // Restarts a stream that Suspend() paused. Reports whether a stream was
+  // actually started, so the manager can bump its stream-start count: a
+  // restarted stream is not delivering callbacks yet either (issue #681).
+  bool Resume();
   unsigned int GetCallbacksSinceLastUpdate();
 
   int32_t getNegotiatedSampleRate() const {
@@ -55,8 +58,9 @@ public:
   // called from the main-thread update path (never the audio or error thread)
   // so the reopen — which allocates and rewrites members the audio callback
   // reads — is serialised with close()/pause()/resume() (issue #200). No-op
-  // when no reconnect has been requested.
-  void serviceReconnect();
+  // when no reconnect has been requested. Reports whether a stream was rebuilt
+  // and started, which the manager counts as a stream start (issue #681).
+  bool serviceReconnect();
 
 private:
   bool openStream(int channels);
