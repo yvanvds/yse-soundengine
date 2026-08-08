@@ -948,6 +948,54 @@
       }
     ]
   },
+  ".append": {
+    "category": "GENERIC",
+    "description": "Puts a stored message after every message that arrives, and sends the two out joined as a list. The mirror of .prepend: where that one builds the selector a message starts with, this one supplies the trailing arguments it ends with — a fixed channel number, a target index, the second half of a pair whose first half is computed. The stored message comes from the creation argument or from inlet 1; with none stored the object passes what it is given straight through, unchanged and as the type it arrived as.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Bang emits the stored message on its own; an int, float or list is emitted with the stored message after it. With nothing stored the value is passed through as the type it arrived as.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Replaces the stored message, without emitting anything. A list is taken whole, an int or a float as the number it spells. An empty list clears the stored message and makes the object a pass-through; one longer than 256 characters is refused and the previous message kept.",
+        "index": 1,
+        "label": "message",
+        "range": "any message, at most 256 characters"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".append",
+    "outlets": [
+      {
+        "doc": "What arrived followed by the stored message, as a list — or what arrived unchanged when nothing is stored.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "Message to put after every input — the whole argument string, so \"note 60\" is two words. Empty makes the object a pass-through.",
+        "name": "message",
+        "range": "any message, at most 256 characters"
+      }
+    ]
+  },
   ".asin": {
     "category": "MATH",
     "description": "Control-rate arc-sine. Emits asin(in) in radians as a float whenever inlet 0 fires. Inputs outside -1 to 1 have no real arc-sine and emit 0 rather than a NaN.",
@@ -3337,6 +3385,54 @@
         "doc": "Initial exponent.",
         "name": "exponent",
         "range": "any float"
+      }
+    ]
+  },
+  ".prepend": {
+    "category": "GENERIC",
+    "description": "Puts a stored message in front of every message that arrives, and sends the two out joined as a list. The patcher's routing family reads the first token of a list — .route and .routepass match on it, .sel compares against it, and every object with a message interface is addressed by it — so this is how a patch builds a message with a leading selector out of a value it computed. The stored message comes from the creation argument or from inlet 1; with none stored the object passes what it is given straight through, unchanged and as the type it arrived as.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Bang emits the stored message on its own; an int, float or list is emitted with the stored message in front of it. With nothing stored the value is passed through as the type it arrived as.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Replaces the stored message, without emitting anything. A list is taken whole, an int or a float as the number it spells. An empty list clears the stored message and makes the object a pass-through; one longer than 256 characters is refused and the previous message kept.",
+        "index": 1,
+        "label": "message",
+        "range": "any message, at most 256 characters"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".prepend",
+    "outlets": [
+      {
+        "doc": "The stored message followed by what arrived, as a list — or what arrived unchanged when nothing is stored.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "Message to put in front of every input — the whole argument string, so \"note 60\" is two words. Empty makes the object a pass-through.",
+        "name": "message",
+        "range": "any message, at most 256 characters"
       }
     ]
   },

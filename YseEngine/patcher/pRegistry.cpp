@@ -21,6 +21,7 @@
 #include "genericObjects/gBuddy.h"
 #include "genericObjects/gCycle.h"
 #include "genericObjects/gMatch.h"
+#include "genericObjects/gAffix.h"
 #include "genericObjects/gDecode.h"
 #include "genericObjects/gForward.h"
 #include "genericObjects/gValue.h"
@@ -207,6 +208,12 @@ pRegistry::pRegistry() {
 
   // Regular-expression matching on symbols (issue #452)
   Add(OBJ::G_REGEXP, gRegexp::Create);
+
+  // Message construction: put a stored message in front of, or after, every
+  // message that arrives — how a patch builds a list with a leading selector
+  // out of a value it computed (issue #487)
+  Add(OBJ::G_PREPEND, gPrepend::Create);
+  Add(OBJ::G_APPEND, gAppend::Create);
 
   Add(OBJ::G_RECEIVE, gReceive::Create);
   Add(OBJ::G_SEND, gSend::Create);
