@@ -22,6 +22,7 @@
 #include "genericObjects/gCycle.h"
 #include "genericObjects/gMatch.h"
 #include "genericObjects/gAffix.h"
+#include "genericObjects/gSubstitute.h"
 #include "genericObjects/gDecode.h"
 #include "genericObjects/gForward.h"
 #include "genericObjects/gValue.h"
@@ -214,6 +215,10 @@ pRegistry::pRegistry() {
   // out of a value it computed (issue #487)
   Add(OBJ::G_PREPEND, gPrepend::Create);
   Add(OBJ::G_APPEND, gAppend::Create);
+
+  // Find-and-replace inside a message — the edit .prepend / .append and the
+  // routing family cannot make, since they only ever see its ends (issue #488)
+  Add(OBJ::G_SUBSTITUTE, gSubstitute::Create);
 
   Add(OBJ::G_RECEIVE, gReceive::Create);
   Add(OBJ::G_SEND, gSend::Create);
