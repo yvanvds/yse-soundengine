@@ -19,25 +19,38 @@
 //   - **the contents survive a save.** They cannot ride the parameter string, so
 //     this is the object that made pObject grow a state hook; a reloaded
 //     collection has to answer the same lookups the saved one did.
+//   - **a collection round-trips through a file, and never on the message
+//     path.** Issue #683. A `read` arrives on whichever thread dispatched it, so
+//     the proof that matters is not only that the entries come back but that
+//     *nothing happens in the handler*: the collection is untouched until the
+//     patcher renders a block. Asserted through a real patcherImplementation and
+//     a real file on disk, because both halves — the background job and the
+//     completion delivered into a dispatch frame — only exist there.
 //
 // No audio device and no engine of its own, except where a real patcher graph is
 // the point.
 
 #include <doctest/doctest.h>
+#include <cstdio>
+#include <filesystem>
+#include <fstream>
 #include <string>
 #include <vector>
 
 #include "patcher/genericObjects/gColl.h"
 #include "patcher/inlet.h"
+#include "patcher/io/fileScheduler.h"
 #include "patcher/pEnums.h"
 #include "patcher/pHandle.hpp"
 #include "patcher/pObjectList.hpp"
 #include "patcher/pRegistry.h"
 #include "patcher/patcher.hpp"
+#include "patcher/patcherImplementation.h"
 #include "patcher/sinks.hpp"
 
 using TestHelpers::MultiSink;
 using YSE::PATCHER::gColl;
+using YSE::PATCHER::patcherImplementation;
 
 namespace {
 
@@ -101,13 +114,42 @@ namespace {
     }
   };
 
+  // ─── file helpers (issue #683) ────────────────────────────────────────────
+
+  // A path in the system temp directory, deleted first so a leftover from an
+  // earlier run cannot make a test pass for the wrong reason.
+  std::string TempFile(const char* name) {
+    const std::filesystem::path path = std::filesystem::temp_directory_path() / name;
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+    return path.string();
+  }
+
+  std::string ReadWholeFile(const std::string& path) {
+    std::ifstream in(path, std::ios::binary);
+    if (!in) return std::string();
+    return std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+  }
+
+  // Drive a patcher until its file requests have landed. The two halves are
+  // deterministic for different reasons: WaitIdle joins the background pool's
+  // jobs (so no sleep and no polling), and the single Calculate is the dispatch
+  // frame the completions are handed out in — there is deliberately no other
+  // way for them to arrive.
+  void SettleFiles(patcherImplementation& p) {
+    YSE::PATCHER::fileScheduler* io = p.FileIO();
+    REQUIRE(io != nullptr);
+    io->WaitIdle();
+    p.Calculate(YSE::T_DSP);
+  }
+
 } // namespace
 
 TEST_SUITE("patcher") {
 
   // ─── shape ──────────────────────────────────────────────────────────────────
 
-  TEST_CASE("coll: registered, one inlet and three outlets (#494)") {
+  TEST_CASE("coll: registered, one inlet and four outlets (#494, #683)") {
     YSE::patcher p;
     p.create(2);
 
@@ -115,7 +157,13 @@ TEST_SUITE("patcher") {
     REQUIRE(coll != nullptr);
     CHECK(std::string(coll->Type()) == ".coll");
     CHECK(coll->GetInputs() == 1);
-    CHECK(coll->GetOutputs() == 3);
+    // Three until #683; the file outlet is the fourth because it was appended
+    // rather than inserted in Max's third position, so the dump outlet is still
+    // outlet 2 and no patch saved against the three-outlet object has to be
+    // rewired.
+    CHECK(coll->GetOutputs() == 4);
+    CHECK(coll->OutputDataType(2) == YSE::OUT_TYPE::BANG);
+    CHECK(coll->OutputDataType(3) == YSE::OUT_TYPE::BANG);
   }
 
   TEST_CASE("coll: appears in the registry's name list (#494)") {
@@ -750,5 +798,383 @@ TEST_SUITE("patcher") {
     step->SetBang(0);
     CHECK(sink.gotList);
     CHECK(sink.listValue == "second");
+  }
+
+  // ─── collection files, through a real patcher and a real disk (#683) ────────
+
+  TEST_CASE("coll: write then read round-trips a collection through a file (#683)") {
+    // The acceptance case, end to end: a real patcherImplementation (the
+    // background job and the completion frame exist nowhere else), a real file
+    // on disk, and the contents read back through the object's own outlets
+    // rather than an accessor — what a patch can see is what has to survive.
+    const std::string path = TempFile("yse_coll_roundtrip_683.txt");
+
+    std::vector<std::string> log;
+    Recorder data;
+    Recorder address;
+    Recorder file;
+    data.log = &log;
+    data.tag = "d";
+    address.log = &log;
+    address.tag = "a";
+    file.log = &log;
+    file.tag = "file";
+    YSE::pHandle dataHandle(&data);
+    YSE::pHandle addressHandle(&address);
+    YSE::pHandle fileHandle(&file);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* coll = p.CreateObject(YSE::OBJ::G_COLL, "");
+    REQUIRE(coll != nullptr);
+    p.Connect(coll, 0, &dataHandle, 0);
+    p.Connect(coll, 1, &addressHandle, 0);
+    p.Connect(coll, 3, &fileHandle, 0);
+
+    coll->SetListData(0, "0 60 100");
+    coll->SetListData(0, "1 62");
+    coll->SetListData(0, "store name hello");
+
+    coll->SetListData(0, "write " + path);
+    SettleFiles(p);
+
+    // Max's plain-text collection format, one `<address>, <message>;` record per
+    // line, in storage order.
+    CHECK(ReadWholeFile(path) == "0, 60 100;\n1, 62;\nname, hello;\n");
+    // Max has no outlet for a finished write and neither does this.
+    CHECK(log.empty());
+
+    coll->SetListData(0, "clear");
+    coll->SetListData(0, "dump");
+    CHECK(log.empty());
+
+    coll->SetListData(0, "read " + path);
+    SettleFiles(p);
+    // The read outlet fires once, and only after the contents are in place.
+    REQUIRE(log.size() == 1);
+    CHECK(log[0] == "file:bang");
+
+    log.clear();
+    coll->SetListData(0, "dump");
+    REQUIRE(log.size() == 6);
+    CHECK(log[0] == "a:i 0");
+    CHECK(log[1] == "d:l 60 100");
+    CHECK(log[2] == "a:i 1");
+    CHECK(log[3] == "d:i 62");
+    CHECK(log[4] == "a:l name");
+    CHECK(log[5] == "d:l hello");
+
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+  }
+
+  TEST_CASE("coll: read does nothing in the message handler (#683)") {
+    // The reason the plumbing exists. A `read` may be dispatched on the audio
+    // callback, so the handler must not open anything — which is observable:
+    // the collection is still empty when the message returns, and only a
+    // rendered block puts the file in it.
+    const std::string path = TempFile("yse_coll_deferred_683.txt");
+    {
+      std::ofstream out(path, std::ios::binary);
+      out << "0, 60;\n";
+    }
+
+    std::vector<std::string> log;
+    Recorder data;
+    Recorder file;
+    data.log = &log;
+    data.tag = "d";
+    file.log = &log;
+    file.tag = "file";
+    YSE::pHandle dataHandle(&data);
+    YSE::pHandle fileHandle(&file);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* coll = p.CreateObject(YSE::OBJ::G_COLL, "");
+    REQUIRE(coll != nullptr);
+    p.Connect(coll, 0, &dataHandle, 0);
+    p.Connect(coll, 3, &fileHandle, 0);
+
+    coll->SetListData(0, "read " + path);
+    // Nothing yet: no entry, no bang. The request is a claim on a slot and the
+    // disk has not been touched on this thread.
+    coll->SetListData(0, "length");
+    REQUIRE(log.size() == 1);
+    CHECK(log[0] == "d:i 0");
+    REQUIRE(p.FileIO() != nullptr);
+    CHECK(p.FileIO()->PendingCount() == 1);
+
+    log.clear();
+    SettleFiles(p);
+    REQUIRE(log.size() == 1);
+    CHECK(log[0] == "file:bang");
+    CHECK(p.FileIO()->PendingCount() == 0);
+
+    log.clear();
+    coll->SetListData(0, "length");
+    REQUIRE(log.size() == 1);
+    CHECK(log[0] == "d:i 1");
+
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+  }
+
+  TEST_CASE("coll: a read replaces what was held (#683)") {
+    // Max's read loads a file "into the collection"; it is not a merge. A patch
+    // that reloads a preset file has to get the preset, not the preset plus
+    // whatever it had been editing.
+    const std::string path = TempFile("yse_coll_replace_683.txt");
+    {
+      std::ofstream out(path, std::ios::binary);
+      out << "5, five;\n";
+    }
+
+    std::vector<std::string> log;
+    Recorder data;
+    data.log = &log;
+    data.tag = "d";
+    YSE::pHandle dataHandle(&data);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* coll = p.CreateObject(YSE::OBJ::G_COLL, "");
+    REQUIRE(coll != nullptr);
+    p.Connect(coll, 0, &dataHandle, 0);
+
+    coll->SetListData(0, "0 gone");
+    coll->SetListData(0, "1 also gone");
+    coll->SetListData(0, "read " + path);
+    SettleFiles(p);
+
+    log.clear();
+    coll->SetListData(0, "length");
+    coll->SetListData(0, "5");
+    coll->SetListData(0, "0");
+    REQUIRE(log.size() == 2);
+    CHECK(log[0] == "d:i 1");
+    CHECK(log[1] == "d:l five");
+
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+  }
+
+  TEST_CASE("coll: readagain and writeagain reuse the last name (#683)") {
+    // Max's bare read / write open a file dialog; a headless patcher has none,
+    // so the `again` forms and the bare forms are the same thing here — and
+    // both have to remember a name given on a message path without allocating.
+    const std::string path = TempFile("yse_coll_again_683.txt");
+
+    std::vector<std::string> log;
+    Recorder data;
+    data.log = &log;
+    data.tag = "d";
+    YSE::pHandle dataHandle(&data);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* coll = p.CreateObject(YSE::OBJ::G_COLL, "");
+    REQUIRE(coll != nullptr);
+    p.Connect(coll, 0, &dataHandle, 0);
+
+    coll->SetListData(0, "0 first");
+    coll->SetListData(0, "write " + path);
+    SettleFiles(p);
+    CHECK(ReadWholeFile(path) == "0, first;\n");
+
+    // Same name, no argument.
+    coll->SetListData(0, "1 second");
+    coll->SetListData(0, "writeagain");
+    SettleFiles(p);
+    CHECK(ReadWholeFile(path) == "0, first;\n1, second;\n");
+
+    coll->SetListData(0, "clear");
+    coll->SetListData(0, "read " + path);
+    SettleFiles(p);
+    coll->SetListData(0, "clear");
+    coll->SetListData(0, "readagain");
+    SettleFiles(p);
+
+    log.clear();
+    coll->SetListData(0, "length");
+    REQUIRE(log.size() == 1);
+    CHECK(log[0] == "d:i 2");
+
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+  }
+
+  TEST_CASE("coll: readagain with nothing read yet does nothing (#683)") {
+    // Max falls back to its Open dialog; there is none here, so the honest
+    // behaviour is silence rather than a guess at a filename.
+    std::vector<std::string> log;
+    Recorder file;
+    file.log = &log;
+    file.tag = "file";
+    YSE::pHandle fileHandle(&file);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* coll = p.CreateObject(YSE::OBJ::G_COLL, "");
+    REQUIRE(coll != nullptr);
+    p.Connect(coll, 3, &fileHandle, 0);
+
+    coll->SetListData(0, "readagain");
+    coll->SetListData(0, "read");
+    coll->SetListData(0, "writeagain");
+    REQUIRE(p.FileIO() != nullptr);
+    CHECK(p.FileIO()->PendingCount() == 0);
+    SettleFiles(p);
+    CHECK(log.empty());
+  }
+
+  TEST_CASE("coll: a read of a missing file leaves the collection alone (#683)") {
+    // A failure is only discoverable on the background pool, so it arrives as a
+    // completion rather than as a refusal — and it must not fire the outlet a
+    // patch uses to mean "the file is loaded".
+    const std::string path = TempFile("yse_coll_no_such_file_683.txt");
+
+    std::vector<std::string> log;
+    Recorder data;
+    Recorder file;
+    data.log = &log;
+    data.tag = "d";
+    file.log = &log;
+    file.tag = "file";
+    YSE::pHandle dataHandle(&data);
+    YSE::pHandle fileHandle(&file);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* coll = p.CreateObject(YSE::OBJ::G_COLL, "");
+    REQUIRE(coll != nullptr);
+    p.Connect(coll, 0, &dataHandle, 0);
+    p.Connect(coll, 3, &fileHandle, 0);
+
+    coll->SetListData(0, "0 kept");
+    coll->SetListData(0, "read " + path);
+    SettleFiles(p);
+    CHECK(log.empty());
+
+    coll->SetListData(0, "length");
+    REQUIRE(log.size() == 1);
+    CHECK(log[0] == "d:i 1");
+    // And the slot came back, so a failed read does not leak the table away.
+    CHECK(p.FileIO()->PendingCount() == 0);
+  }
+
+  TEST_CASE("coll: a file with more records than the collection holds keeps the first 256 (#683)") {
+    // The bound is the object's contract: growing the table would allocate on
+    // whichever thread the message arrived on. Truncating at the bound and
+    // keeping what fits is the same rule a `store` into a full collection
+    // follows.
+    const std::string path = TempFile("yse_coll_overflow_683.txt");
+    {
+      std::ofstream out(path, std::ios::binary);
+      for (int i = 0; i < 300; i++)
+        out << i << ", v" << i << ";\n";
+    }
+
+    std::vector<std::string> log;
+    Recorder data;
+    data.log = &log;
+    data.tag = "d";
+    YSE::pHandle dataHandle(&data);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* coll = p.CreateObject(YSE::OBJ::G_COLL, "");
+    REQUIRE(coll != nullptr);
+    p.Connect(coll, 0, &dataHandle, 0);
+
+    coll->SetListData(0, "read " + path);
+    SettleFiles(p);
+
+    log.clear();
+    coll->SetListData(0, "length");
+    coll->SetListData(0, "255");
+    coll->SetListData(0, "256");
+    REQUIRE(log.size() == 2);
+    CHECK(log[0] == "d:i " + std::to_string(gColl::MAX_ENTRIES));
+    CHECK(log[1] == "d:l v255");
+
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+  }
+
+  TEST_CASE("coll: a file larger than a slot is refused whole (#683)") {
+    // Refused rather than truncated, for the reason every other bound in this
+    // object is: half a collection is a different collection, and a patch could
+    // not tell a clipped preset from a loaded one.
+    const std::string path = TempFile("yse_coll_too_big_683.txt");
+    {
+      std::ofstream out(path, std::ios::binary);
+      const std::string filler(1024, 'x');
+      // Comfortably past BYTES_CAPACITY, in records that would each parse.
+      for (std::size_t written = 0; written <= YSE::PATCHER::fileScheduler::BYTES_CAPACITY;
+           written += filler.size() + 8) {
+        out << "0, " << filler << ";\n";
+      }
+    }
+
+    std::vector<std::string> log;
+    Recorder data;
+    Recorder file;
+    data.log = &log;
+    data.tag = "d";
+    file.log = &log;
+    file.tag = "file";
+    YSE::pHandle dataHandle(&data);
+    YSE::pHandle fileHandle(&file);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* coll = p.CreateObject(YSE::OBJ::G_COLL, "");
+    REQUIRE(coll != nullptr);
+    p.Connect(coll, 0, &dataHandle, 0);
+    p.Connect(coll, 3, &fileHandle, 0);
+
+    coll->SetListData(0, "0 kept");
+    coll->SetListData(0, "read " + path);
+    SettleFiles(p);
+    CHECK(log.empty());
+
+    coll->SetListData(0, "length");
+    REQUIRE(log.size() == 1);
+    CHECK(log[0] == "d:i 1");
+
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+  }
+
+  TEST_CASE("coll: filetype is consumed rather than read as an address (#683)") {
+    // Max's filetype filters the file *dialogs*, which a headless patcher does
+    // not have. It still has to be a reserved word: read as a bare symbol it
+    // would look up an entry called "filetype" instead, which is a different
+    // and silent wrong answer.
+    Rig rig;
+    rig.List("store filetype trap");
+    rig.reset();
+
+    rig.List("filetype TEXT");
+    CHECK_FALSE(rig.data.gotList);
+    CHECK_FALSE(rig.data.gotInt);
+
+    // The entry is still reachable by writing it as an address the normal way.
+    rig.reset();
+    rig.List("store x 1");
+    rig.reset();
+    rig.List("length");
+    CHECK(rig.data.gotInt);
+    CHECK(rig.data.intValue == 2);
+  }
+
+  TEST_CASE("coll: a standalone .coll consumes read and write without storing them (#683)") {
+    // A standalone object has no patcher and so no file plumbing at all. The
+    // commands still have to be *consumed*: read as bare symbols they would
+    // become addresses, and a patch moved from a standalone rig into a patcher
+    // would then behave differently for the worse reason.
+    Rig rig;
+    rig.List("read somewhere.txt");
+    rig.List("write somewhere.txt");
+    rig.List("readagain");
+    rig.List("writeagain");
+
+    rig.reset();
+    rig.List("length");
+    CHECK(rig.data.gotInt);
+    CHECK(rig.data.intValue == 0);
   }
 }

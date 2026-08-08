@@ -57,7 +57,8 @@ namespace {
       "first item is a number stores the rest of it at that numeric address. The commands are "
       "'store <address> <message>', 'insert <index> <message>', 'append <message>', 'remove "
       "<address>', 'delete <address>' (which also brings every higher numeric address down by "
-      "one), 'clear', 'length', 'goto <address>', 'start', 'end', 'next', 'prev' and 'dump'. An "
+      "one), 'clear', 'length', 'goto <address>', 'start', 'end', 'next', 'prev', 'dump', "
+      "'read [file]', 'readagain', 'write [file]', 'writeagain' and 'filetype'. An "
       "address is a number or a symbol, decided by the same strict reader .sel and .route use, and "
       "the two never collide: the address 1 and the address one are different entries. Anything "
       "that does not fit — a message longer than 256 characters, an address longer than 64, or a "
@@ -84,11 +85,18 @@ namespace {
       "right-to-left order.";
 
   constexpr char kDoneDoc[] =
-      "Bangs when a dump has finished sending every entry. Max's fourth outlet; its third, which "
-      "reports a file having been read, has nothing to fire here because reading and writing "
-      "collection files is out of scope for this object. When that lands its outlet will be "
-      "appended after this one rather than inserted in Max's position, so no saved patch's cords "
-      "shift.";
+      "Bangs when a dump has finished sending every entry. Max's fourth outlet, and the third "
+      "here: the file outlet beside it was appended rather than inserted in Max's position, so the "
+      "cords of every patch saved while .coll had three outlets still land where they did.";
+
+  constexpr char kFileDoc[] =
+      "Bangs when a read has finished loading a file into the collection — Max's third outlet, "
+      "appended here as the fourth so no saved patch's cords shift (the promise .coll made in #494 "
+      "and the rule the rest of the file-reading family follows). It fires only on success: a file "
+      "that does not exist, does not fit, or cannot be opened leaves it silent, and it does not "
+      "fire for a write, for which Max has no outlet either. It fires a block or more after the "
+      "read message rather than inside it, because the disk work happens on the background pool — "
+      "a read arrives on whichever thread dispatched it, which may be the audio callback.";
 
 } // namespace
 
@@ -107,6 +115,10 @@ CONSTRUCT() {
   ADD_OUT_ANY;
   ADD_OUT_ANY;
   ADD_OUT_BANG;
+  // Appended, not inserted: Max puts the file outlet third, but .coll shipped
+  // with three outlets in #494 and moving the dump outlet would shift the cords
+  // of every patch saved since (issue #683).
+  ADD_OUT_BANG;
 
   // The whole table, taken once here on the control thread. Nothing on a
   // message path ever resizes it or grows a string inside it, which is what
@@ -118,6 +130,13 @@ CONSTRUCT() {
   }
   sendValue.reserve(VALUE_CAPACITY + 1);
   sendAddress.reserve(KEY_CAPACITY + 1);
+
+  // Same treatment for the file buffers (issue #683): a `read` or `write` may
+  // arrive on the audio thread, so remembering a name and formatting the whole
+  // collection both have to reuse storage that already exists.
+  readPath.reserve(fileScheduler::PATH_CAPACITY);
+  writePath.reserve(fileScheduler::PATH_CAPACITY);
+  fileScratch.reserve(FILE_TEXT_CAPACITY + 1);
 
   ADD_DESCRIPTION(
       "Stores and recalls a collection of messages held at addresses — Max's coll, 'store and edit "
@@ -141,7 +160,19 @@ CONSTRUCT() {
       "a word on an inlet that must carry arbitrary text — does not apply to it, and the data an "
       "entry holds is never parsed for commands. The address leaves outlet 1 only where Max sends "
       "it (bang, dump, next, prev) and always before the data, which is Max's right-to-left order; "
-      "outlet 2 bangs when a dump has finished. The contents survive a DumpJSON / ParseJSON round "
+      "outlet 2 bangs when a dump has finished and outlet 3 when a read has. read, readagain, "
+      "write and writeagain move the collection through a plain-text file in Max's format, one "
+      "'<address>, <message>;' record per line, and a read replaces what is held. None of that "
+      "happens on the message path: a read arrives on whichever thread dispatched it, which may be "
+      "the audio callback, so the request is a wait-free claim on a patcher-owned slot, the disk "
+      "work runs on the background pool, and the contents are parsed in the completion the patcher "
+      "delivers at the top of a later block — which is also when outlet 3 bangs. The bare forms of "
+      "read and write reuse the last name given, since Max's open a file dialog and a headless "
+      "patcher has none, and filetype is consumed and inert for the same reason. Records past the "
+      "256-entry bound are dropped and the rest kept, one whose address or message does not fit is "
+      "skipped, and a file too large to fit a slot is refused whole with outlet 3 silent. The "
+      "format inherits Max's one limitation: a stored message containing a comma or a semicolon "
+      "cannot round-trip through a file. The contents survive a DumpJSON / ParseJSON round "
       "trip, which is Max's 'save data with patcher' and the reason pObject grew a state hook: a "
       "creation parameter is what an object was made with, not what it has since been told, so "
       "rewriting one from run-time state would quietly change the arguments a patch author typed. "
@@ -157,14 +188,15 @@ CONSTRUCT() {
       "non-blocking guard gives what the mandate is after without that: nothing on any path "
       "allocates, locks or blocks, the guard is never held across a send, and a store that loses "
       "the guard drops rather than waiting. Anything that does not fit is refused whole and "
-      "silently. Calculate() does nothing. Not ported: the shared name context, file read and "
-      "write, the editor window, and the arithmetic and reordering messages sub, nsub, nth, min, "
+      "silently. Calculate() does nothing. Not ported: the shared name context, the editor window "
+      "(open, wclose), and the arithmetic and reordering messages sub, nsub, nth, min, "
       "max, sort, swap, merge, separate, renumber, assoc, deassoc, nstore and subsym.");
   ADD_CATEGORY(pCategory::GENERIC);
   INLET_DOC(0, "in", kInletDoc, "at most 256 entries");
   OUTLET_DOC(0, "data", kDataDoc, "");
   OUTLET_DOC(1, "address", kAddressDoc, "");
   OUTLET_DOC(2, "done", kDoneDoc, "");
+  OUTLET_DOC(3, "file", kFileDoc, "");
 }
 
 // ─── the store ────────────────────────────────────────────────────────────────
@@ -543,7 +575,163 @@ bool gColl::HandleCommand(const char* text, std::size_t length, YSE::THREAD thre
     return true;
   }
 
+  // ─── the file commands (issue #683) ────────────────────────────────────────
+  //
+  // Every one of these is a claim on a slot and nothing more. Whichever thread
+  // is dispatching, no file is opened here.
+
+  if (TokenIs(word, wordLength, "read", 4)) {
+    RequestFile(FILE_OP::READ, text + argBegin, argEnd - argBegin);
+    return true;
+  }
+
+  if (TokenIs(word, wordLength, "readagain", 9)) {
+    // Max: "loads the contents of the most recently read file". With no prior
+    // read Max falls back to its Open dialog, which a headless patcher has no
+    // equivalent of, so it does nothing.
+    RequestFile(FILE_OP::READ, nullptr, 0);
+    return true;
+  }
+
+  if (TokenIs(word, wordLength, "write", 5)) {
+    RequestFile(FILE_OP::WRITE, text + argBegin, argEnd - argBegin);
+    return true;
+  }
+
+  if (TokenIs(word, wordLength, "writeagain", 10)) {
+    RequestFile(FILE_OP::WRITE, nullptr, 0);
+    return true;
+  }
+
+  if (TokenIs(word, wordLength, "filetype", 8)) {
+    // Max: "sets the file types which can be read and written into the coll
+    // object" — a filter on the file *dialogs*, which a headless patcher does
+    // not have. Consumed rather than ignored so a patch brought across from Max
+    // does not have the word read as a symbol address instead.
+    return true;
+  }
+
   return false;
+}
+
+// ─── files ────────────────────────────────────────────────────────────────────
+
+bool gColl::RequestFile(FILE_OP op, const char* name, std::size_t length) {
+  fileScheduler* io = FileIO();
+  // A standalone .coll has no patcher and so no plumbing. Silent: this may be
+  // the audio thread, where a log line would allocate.
+  if (io == nullptr) return false;
+
+  std::string& remembered = op == FILE_OP::READ ? readPath : writePath;
+  if (name != nullptr && length > 0) {
+    if (length >= fileScheduler::PATH_CAPACITY) return false;
+    // assign() into a string reserved at construction reuses its storage.
+    remembered.assign(name, length);
+  }
+  // Nothing named yet, and no dialog to ask with.
+  if (remembered.empty()) return false;
+
+  if (op == FILE_OP::READ) {
+    return io->RequestRead(this, FILE_TAG_READ, remembered.c_str(), remembered.size());
+  }
+
+  // The bytes are built here rather than on the pool thread, because the pool
+  // must never touch this object: by the time the job runs, a live edit may
+  // have deleted it.
+  if (!Serialize()) return false;
+  return io->RequestWrite(this, FILE_TAG_WRITE, remembered.c_str(), remembered.size(),
+                          fileScratch.c_str(), fileScratch.size());
+}
+
+bool gColl::Serialize() {
+  storeGuard guard(busy);
+  if (!guard.Held()) return false;
+
+  // clear() keeps the capacity reserved at construction, so every append below
+  // writes into storage that already exists. FILE_TEXT_CAPACITY is the whole
+  // table at its maximum, so the buffer cannot run out.
+  fileScratch.clear();
+  for (std::size_t i = 0; i < count; i++) {
+    const Entry& entry = entries[i];
+    fileScratch.append(entry.key);
+    fileScratch.append(", ", 2);
+    fileScratch.append(entry.value);
+    fileScratch.append(";\n", 2);
+  }
+  return true;
+}
+
+bool gColl::LoadFrom(const char* text, std::size_t length) {
+  storeGuard guard(busy);
+  if (!guard.Held()) return false;
+
+  // Max's read replaces the contents. The strings keep their storage — only
+  // `count` says which entries are live — so this costs nothing.
+  count = 0;
+  pointer = 0;
+
+  std::size_t at = 0;
+  while (at < length) {
+    // One record, ending at the first `;` or at the end of the file. A trailing
+    // fragment with no terminator is still read, so a hand-written file that
+    // forgot the last semicolon loads.
+    std::size_t end = at;
+    while (end < length && text[end] != ';')
+      end++;
+
+    std::size_t begin = at;
+    std::size_t stop = end;
+    Trim(text, begin, stop);
+    at = end < length ? end + 1 : length;
+    if (stop <= begin) continue;
+
+    // Max's format puts the address first and the message after a comma. Split
+    // at the *first* comma only: everything after it is the message, commas and
+    // all, which is the only reading under which a message is not silently cut
+    // in half by its own punctuation.
+    std::size_t comma = begin;
+    while (comma < stop && text[comma] != ',')
+      comma++;
+
+    std::size_t keyBegin = begin;
+    std::size_t keyEnd = comma;
+    Trim(text, keyBegin, keyEnd);
+
+    std::size_t valueBegin = comma < stop ? comma + 1 : stop;
+    std::size_t valueEnd = stop;
+    Trim(text, valueBegin, valueEnd);
+
+    Address address;
+    // Read through the same reader the inlet uses, so a numeric address in the
+    // file restores as a numeric address and a symbol one as a symbol — the
+    // round trip is only exact if both ends classify identically. A record that
+    // does not fit is skipped and the rest of the file still loads; one past
+    // MAX_ENTRIES is refused by StoreAt for the same reason a `store` into a
+    // full collection is.
+    if (!ReadAddress(text + keyBegin, keyEnd - keyBegin, address)) continue;
+    StoreAt(address, text + valueBegin, valueEnd - valueBegin);
+  }
+  return true;
+}
+
+void gColl::SetParent(pObject* newParent) {
+  pObject::SetParent(newParent);
+  // Control thread: build the patcher's file plumbing now, so that a `read`
+  // arriving later on the audio thread finds it already there (issue #683).
+  EnableFileIO();
+}
+
+void gColl::DeliverFileResult(const fileResult& result, YSE::THREAD thread) {
+  // Max has no outlet for a finished write, so a write reports only by having
+  // happened. A failed read reports by the outlet staying silent.
+  if (result.op != FILE_OP::READ || result.tag != FILE_TAG_READ) return;
+  if (!result.ok || result.bytes == nullptr) return;
+  if (!LoadFrom(result.bytes, result.byteCount)) return;
+
+  // Max: "sent out when coll has finished reading in a file of data". After the
+  // contents are in place, so a patch that reacts to the bang by asking for an
+  // entry finds it.
+  outputs[3].SendBang(thread);
 }
 
 // ─── inlet ────────────────────────────────────────────────────────────────────

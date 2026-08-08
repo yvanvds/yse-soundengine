@@ -1,4 +1,5 @@
 #pragma once
+#include "../io/fileScheduler.h"
 #include "../pObject.h"
 #include <atomic>
 #include <cstddef>
@@ -63,13 +64,15 @@ namespace YSE {
      *
      *  ### The outlets
      *
-     *  Max has four; this has the three that mean anything without file I/O.
-     *  Outlet 0 is the data, outlet 1 the address, and outlet 2 bangs when a
-     *  ``dump`` has finished — Max's first, second and fourth. Max's third
-     *  ("sent out when coll has finished reading in a file") has nothing to
-     *  fire here, since reading and writing collection files is deliberately
-     *  out of scope, and when that lands its outlet will be **appended** rather
-     *  than inserted in Max's position, so no saved patch's cords shift.
+     *  All four of Max's, but not in Max's order. Outlet 0 is the data, outlet
+     *  1 the address, outlet 2 bangs when a ``dump`` has finished, and outlet 3
+     *  bangs when a ``read`` has finished — Max's first, second, fourth and
+     *  **third**. The file outlet was **appended** rather than inserted where
+     *  Max puts it, because ``.coll`` shipped with three outlets in #494 and
+     *  moving the dump outlet from 2 to 3 would shift the cords of every patch
+     *  saved since. #494 documented that promise before there was anything to
+     *  keep it with; this is it being kept, and it is the rule the rest of the
+     *  file-reading family (#687, #689, #691, #692) follows.
      *
      *  The address only leaves when Max says it does: on ``bang``, ``dump``,
      *  ``next`` and ``prev`` — "the address is sent out whenever a message out
@@ -136,10 +139,43 @@ namespace YSE {
      *  ``thresh`` and ``.bucket``'s ``freeze`` are, and a reloaded patch starts
      *  at the first entry.
      *
+     *  ### Collection files (issue #683)
+     *
+     *  ``read``, ``readagain``, ``write`` and ``writeagain``, over the
+     *  plain-text format Max uses — one ``<address>, <message>;`` record per
+     *  line. The parsing and the formatting are this object's; getting the
+     *  bytes to and from the disk is ``fileScheduler``'s, because a ``read``
+     *  arrives on whichever thread dispatched it and that may be the audio
+     *  callback. Nothing on the message path opens anything: the request is a
+     *  wait-free claim on a slot, the disk work happens on the background pool,
+     *  and the contents are parsed in the completion callback the patcher
+     *  delivers at the top of a later block.
+     *
+     *  A ``read`` **replaces** what is held, as Max's does. Records past
+     *  ``MAX_ENTRIES`` are dropped and the first ``MAX_ENTRIES`` kept — the
+     *  same rule a ``store`` into a full collection follows, since the table
+     *  cannot grow without allocating on whichever thread the message arrived
+     *  on. A record whose address or message is too long is skipped and the
+     *  rest of the file still loads. A file too large to fit
+     *  ``fileScheduler::BYTES_CAPACITY``, or one that cannot be opened, is
+     *  refused whole and outlet 3 stays silent.
+     *
+     *  The format is Max's and inherits its one limitation: ``,`` separates the
+     *  address from the message and ``;`` ends the record, so a stored message
+     *  containing either cannot round-trip through a file. Everything else
+     *  does, exactly — a ``write`` followed by a ``read`` reproduces the
+     *  collection entry for entry, in storage order.
+     *
+     *  ``read`` and ``write`` with no argument reuse the last name given, which
+     *  is also all ``readagain`` and ``writeagain`` do here: Max's bare forms
+     *  open a file dialog, and a headless patcher has none. ``filetype`` is
+     *  consumed and does nothing for the same reason — it narrows the types
+     *  those dialogs offer.
+     *
      *  ### Deliberately not here
      *
      *  The shared ``name`` context (all ``coll`` objects of one name sharing
-     *  their contents), file ``read`` / ``write``, the editor window, and the
+     *  their contents), the editor window (``open`` / ``wclose``), and the
      *  arithmetic and reordering messages ``sub`` / ``nsub`` / ``nth`` / ``min``
      *  / ``max`` / ``sort`` / ``swap`` / ``merge`` / ``separate`` /
      *  ``renumber`` / ``assoc`` / ``deassoc`` / ``nstore`` / ``subsym``. They
@@ -171,6 +207,20 @@ namespace YSE {
     /** @brief Longest stored message, in characters — ``kValueListCap``. */
     static constexpr std::size_t VALUE_CAPACITY = 256;
 
+    /**
+     *  @brief Longest text a ``write`` produces, in characters.
+     *
+     *  Every entry at its maximum, plus the ``", "`` and ``";\n"`` each record
+     *  costs: the whole collection always fits, so a ``write`` can only fail on
+     *  the disk rather than on its own bound. Reserved once at construction,
+     *  because the message that asks for a ``write`` may be on the audio
+     *  thread.
+     */
+    static constexpr std::size_t FILE_TEXT_CAPACITY =
+        MAX_ENTRIES * (KEY_CAPACITY + VALUE_CAPACITY + 4);
+    static_assert(FILE_TEXT_CAPACITY <= fileScheduler::BYTES_CAPACITY,
+                  "a full .coll must fit one file slot");
+
     /** @brief How many entries the collection holds. */
     std::size_t Count() const {
       return count;
@@ -194,6 +244,29 @@ namespace YSE {
     /** @brief The message stored at @p address, or ``""`` when nothing is.
      *         Same contract as ``KeyAt``. */
     std::string Lookup(const std::string& address) const;
+
+    /** @brief The name the last ``read`` was given, which ``readagain`` and a
+     *         bare ``read`` reuse. Empty until one has been. Control thread. */
+    const std::string& ReadFile() const {
+      return readPath;
+    }
+
+    /** @brief The same for ``write`` / ``writeagain``. Control thread. */
+    const std::string& WriteFile() const {
+      return writePath;
+    }
+
+    // The file plumbing is built on demand by the patcher, so an object that
+    // can read or write asks for it the moment it learns which patcher it is
+    // in (issue #683). Control thread — SetParent is only called under
+    // patcherImplementation::mtx.
+    void SetParent(pObject* newParent) override;
+
+    // A read or write this object asked for has finished. Called on the
+    // patcher's dispatch thread inside a fresh messageEventScope; parses the
+    // bytes into the store and bangs outlet 3. Allocation-free, like every
+    // other path into this object.
+    void DeliverFileResult(const fileResult& result, YSE::THREAD thread) override;
 
     // The contents, into the object's "state" key of a DumpJSON (issue #494).
     // Control thread — patcherImplementation::DumpJSON holds mtx — but the
@@ -322,6 +395,31 @@ namespace YSE {
     // outlet, which is Max's rule for a plain lookup.
     void Recall(const Address& address, YSE::THREAD thread);
 
+    // What a completion carries back, so a read and a write can be told apart
+    // in DeliverFileResult. Private to this object — the tag means nothing to
+    // the scheduler.
+    static constexpr int FILE_TAG_READ = 0;
+    static constexpr int FILE_TAG_WRITE = 1;
+
+    // The read / write half of the inlet. `name` is the argument the message
+    // carried, or null for the `again` forms and for a bare `read` / `write`,
+    // both of which reuse the last name given. False when there is nothing to
+    // do — no patcher, no name yet, a name that does not fit, or a file table
+    // that is full — in every case silently, since this may be the audio
+    // thread.
+    bool RequestFile(FILE_OP op, const char* name, std::size_t length);
+
+    // Format the whole collection into `fileScratch` in Max's plain-text form,
+    // one `<address>, <message>;` record per line. Takes the guard; allocates
+    // nothing, because the scratch was reserved to FILE_TEXT_CAPACITY at
+    // construction. False when the guard was held elsewhere.
+    bool Serialize();
+
+    // The other direction: replace the contents with the records in the
+    // `length` bytes at `text`. Takes the guard; allocates nothing. False when
+    // the guard was held elsewhere, in which case nothing was changed.
+    bool LoadFrom(const char* text, std::size_t length);
+
     // Claimed with a single exchange by readers and writers alike; the loser
     // drops. Mutable so the const diagnostic accessors can take it.
     mutable std::atomic<bool> busy{false};
@@ -344,6 +442,18 @@ namespace YSE {
     std::string sendAddress;
     bool sendNumeric = false;
     int sendIndex = 0;
+
+    // The last name each half of the file surface was given — what `readagain`
+    // and `writeagain` reuse, and what a bare `read` / `write` falls back on
+    // since there is no dialog to ask. Reserved to the scheduler's path bound
+    // at construction, so remembering a name on a message path is an assign()
+    // into storage that exists rather than an allocation.
+    std::string readPath;
+    std::string writePath;
+
+    // Where a `write` is formatted before it is handed to the scheduler.
+    // Reserved to FILE_TEXT_CAPACITY at construction for the same reason.
+    std::string fileScratch;
   };
 
 } // namespace PATCHER

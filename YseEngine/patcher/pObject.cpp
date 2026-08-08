@@ -31,6 +31,23 @@ YSE::PATCHER::messageScheduler* pObject::Scheduler() const {
 // arm deferrals override this (issue #628).
 void pObject::DeliverDeferred(const deferredMessage&, YSE::THREAD) {}
 
+// Same hop again: the owning patcher's file plumbing, or null when there is no
+// patcher to read a file through, or when no object in it has asked for one
+// (issue #683).
+YSE::PATCHER::fileScheduler* pObject::FileIO() const {
+  if (parent == nullptr) return nullptr;
+  return static_cast<patcherImplementation*>(parent)->FileIO();
+}
+
+void pObject::EnableFileIO() {
+  if (parent == nullptr) return;
+  static_cast<patcherImplementation*>(parent)->EnsureFileIO();
+}
+
+// Default: a completion nobody asked for is dropped. Only objects that request
+// files override this (issue #683).
+void pObject::DeliverFileResult(const fileResult&, YSE::THREAD) {}
+
 void pObject::UnwireFromPeers() {
   for (unsigned int i = 0; i < inputs.size(); i++) {
     inputs[i].UnwireFromPeers();
