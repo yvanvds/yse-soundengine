@@ -5054,6 +5054,53 @@
     ],
     "params": []
   },
+  ".table": {
+    "category": "GENERIC",
+    "description": "A fixed-size array of numbers addressed by index — Max's table, 'store and edit an array of numbers'. The dense store, and the one the patcher had no answer for: .coll is keyed by arbitrary addresses, .bag has no keys, .capture is a tape and .funbuff is a sparse function of a handful of points, but none of them is an array. Wavetables, velocity curves, probability distributions and step sequences all want N slots, every one present and reachable by index in constant time. Inlet 0 is the address and is hot, inlet 1 is the value and is cold, and the same hot inlet writes and reads: Max's right inlet 'stores the value at the next index number received at the left inlet', and that armed value is consumed by exactly one address — Max's 'cancel' message exists to drop one unused, which it would not need if the value stayed behind. A two-number list stores directly, Max's 'the second number is stored at the address specified by the first number'. An address out of range reads and writes nothing rather than clamping, Max's reference not saying which and silence being the family's rule. 'quantile' and 'fquantile' read the table as a probability distribution and answer with the address where the running sum reaches the requested fraction of the total, and a bang is Max's 'quantile with a random number between 0 and 32768' — a weighted random draw in one object. 'load' fills the table from a stream of numbers starting at address 0 and 'normal' ends it; 'inv' answers with the address of the first value at or above a number; 'getbits' and 'setbits' read and write bit fields of one entry, the field being the count of bits ending at and including the start bit, which is the reading Max's 'how many bits to the right of the starting bit location' leaves open. 'set', 'const', 'clear', 'dump', 'goto', 'next', 'prev', 'min', 'max', 'sum', 'length' and 'send' complete Max's surface. Where issue #498 and Max part company is the creation argument: the issue asks for a size, while Max's one argument is a name and the size is its 'size' attribute defaulting to 128. The patcher has no attribute mechanism, so both are honoured — a numeric argument token is the size and a non-numeric one is Max's name, making '.table mytable', '.table 512' and '.table mytable 512' all mean what they look like. The array is allocated whole at 4096 entries on the control thread and never resized, so a larger size request is clamped and there is no size message; a resize on a message path is exactly the allocation this object avoids. The name is held and saved so a patch brought across from Max builds, but tables do not share contents and 'refer' is not ported: issue #498 proposes sharing through INTERNAL::NamedBus, which is a publish/subscribe value bus with no storage and no way to answer 'give me the object called X', so sharing would need exactly the shared-name registry the issue says not to build — the context .coll, .bag and .funbuff each deferred. Where the naming scheme does fit is Max's 'send', which hands the value at an address to every .r of a given name, and that is ported through .forward's pre-reserved strings so building the address allocates nothing. Storage is .coll's model: a fixed array plus .value's non-blocking guard, claimed with one exchange by a loser that drops rather than spinning, since a .table is written by whichever thread its message arrived on and in-patcher delivery dispatches on the audio thread. 'dump' walks item by item rather than capturing the burst the way .funbuff must: address i is always slot i, so a re-entrant write can change a value the walk has not reached but never move it, and the walk avoids a 16 KB stack snapshot. Calculate() does nothing. The contents ride the DumpState / RestoreState hook by default, which is Max's 'the default behavior is 1 (save the data)' and the opposite of .funbuff's opt-in embed; the flag is always written so that turning it off survives a reload, while the pointer, the armed value and load mode are run-time state and are not saved. Not ported: read and write (file I/O on a path that may be the audio thread), open and wclose and the range / signed / notename attributes (all describe the graphic editing window, which is a non-goal), refer, and the second argument of 'flags', which concerns writing the data to the table's own file — the first argument is embed under another name and is honoured.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The address, and the hot inlet — it both writes and reads, and which one happens is decided by whether a value is waiting on inlet 1. Max's right inlet 'stores the value at the next index number received at the left inlet', and the waiting value is consumed by exactly one address: Max's 'cancel' message exists precisely so a patch can drop an armed value it no longer wants, which it would not need if the value stayed behind. Otherwise the number stored at that address is sent out the outlet. A float is converted to an int, Max's rule. An address outside 0..size-1 reads nothing and writes nothing — Max does not say what it does, and staying quiet is the family's rule and the safer reading, since clamping would answer a wrong question with a plausible number no wavetable lookup could detect. A two-number list stores directly and arms nothing: Max's 'the second number is stored at the address specified by the first number'; anything past the second item is ignored, the multi-value form being 'set'. A bang is Max's weighted random draw — a 'quantile' with a random number between 0 and 32768. The messages are 'set <start> <values...>', 'const <value>', 'clear', 'dump', 'goto <address>', 'next', 'prev', 'min', 'max', 'sum', 'length', 'inv <value>', 'quantile <n>', 'fquantile <f>', 'getbits <address> <start> <bits>', 'setbits <address> <start> <count> <value>', 'send <name> <address>', 'load', 'normal', 'cancel', 'embed <flag>' and 'flags <save> <dontsave>'. While 'load' is on every number arriving here is stored at successive addresses from 0 instead, until the table is full or a 'normal' message arrives; words still dispatch as messages, or 'normal' could never turn it off.",
+        "index": 0,
+        "label": "address",
+        "range": "0 to size-1"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The value that will be stored at the next address arriving on inlet 0 — Max's 'stores the value at the next index number received at the left inlet'. Cold: setting it sends nothing and changes nothing already stored, it only arms the next address to be a store rather than a read. It is consumed by that one address and not by the one after it, and a 'cancel' on inlet 0 drops it unused, which is Max's 'so that the next number received in the left inlet will output a number, rather than storing a number at that address'. A float is converted to an int. Nothing is armed until a value arrives, so a fresh object reads rather than writes; the armed value is run-time state and does not survive a save.",
+        "index": 1,
+        "label": "value",
+        "range": "any int"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".table",
+    "outlets": [
+      {
+        "doc": "Everything the object sends, and all of it ints — Max's 'all numbers sent out by table are sent out the left outlet'. A plain address on inlet 0 sends the value stored there; 'next' and 'prev' send the value at the pointer, which then advances or retreats and wraps at either end; 'dump' sends every value in address order from 0; 'min', 'max' and 'sum' send the smallest, largest and total of the stored values; 'length' sends the size. Four messages send an *address* rather than a value: 'inv', which answers with the address of the first value greater than or equal to the number asked for, and 'quantile' / 'fquantile' / a bare bang, which read the table as a probability distribution and answer with the address where the running sum reaches the requested fraction of the total. 'getbits' sends a bit field of one stored value. Nothing is sent when there is no answer: an address out of range, or an 'inv' no stored value satisfies. Max's second outlet is not here — it bangs only when the graphic editing window changes the contents, and the YSE patcher is headless; it is left off rather than repurposed to fire on message-driven stores, which Max does not do and which would fan out from a path that may be the audio thread.",
+        "index": 0,
+        "label": "out",
+        "range": "any int",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "128",
+        "doc": "Max's argument list plus the one thing Max keeps in an attribute. Max's single argument is a name — 'the argument gives a name to the table' — while the number of addresses is its 'size' attribute, 'the default is 128 values, indexed with numbers from 0 to 127'. The patcher has no attribute mechanism, so a token that reads as a number is taken as the size and a token that does not is taken as the name: '.table mytable' is Max's object exactly, '.table 512' is issue #498's, and '.table mytable 512' is both. The size is clamped to 1..4096, the array being allocated whole at 4096 entries once at construction so that nothing on a message path ever has to grow it; a float is truncated. The name is held so a patch brought across from Max builds the object it names and so the argument the author typed survives a save unchanged, but it addresses nothing: two tables of the same name do not share values here, and 'refer' is not ported. Re-parsing the arguments zeroes the contents, since the object that comes back is the one the arguments describe.",
+        "name": "name size",
+        "range": "optional name, optional size 1-4096"
+      }
+    ]
+  },
   ".tan": {
     "category": "MATH",
     "description": "Control-rate tangent. Emits tan(in) as a float whenever inlet 0 fires. The input is an angle in radians, as in Max. Near an odd multiple of pi/2 the result grows without bound; if it stops being finite, 0 is emitted rather than an infinity.",

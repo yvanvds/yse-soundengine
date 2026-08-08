@@ -27,6 +27,7 @@
 #include "genericObjects/gCapture.h"
 #include "genericObjects/gColl.h"
 #include "genericObjects/gFunbuff.h"
+#include "genericObjects/gTable.h"
 #include "genericObjects/gCombine.h"
 #include "genericObjects/gSpell.h"
 #include "genericObjects/gSprintf.h"
@@ -279,6 +280,11 @@ pRegistry::pRegistry() {
   // linear interpolation between the stored points — the store behind every
   // breakpoint curve, tuning table and step sequence (issue #497)
   Add(OBJ::G_FUNBUFF, gFunbuff::Create);
+
+  // A fixed-size array of numbers addressed by index — the dense store none of
+  // the others is, and the one a wavetable, a velocity curve or a weighted
+  // random draw is written with (issue #498)
+  Add(OBJ::G_TABLE, gTable::Create);
 
   Add(OBJ::G_RECEIVE, gReceive::Create);
   Add(OBJ::G_SEND, gSend::Create);

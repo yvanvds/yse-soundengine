@@ -69,6 +69,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_bag.cpp
   patcher/test_patcher_capture.cpp
   patcher/test_patcher_funbuff.cpp
+  patcher/test_patcher_table.cpp
   patcher/test_patcher_charcode.cpp
   patcher/test_patcher_anal.cpp
   patcher/test_patcher_histo.cpp
@@ -824,6 +825,7 @@ set_source_files_properties(
   patcher/test_patcher_bag.cpp
   patcher/test_patcher_capture.cpp
   patcher/test_patcher_funbuff.cpp
+  patcher/test_patcher_table.cpp
   patcher/test_patcher_charcode.cpp
   patcher/test_patcher_anal.cpp
   patcher/test_patcher_histo.cpp
