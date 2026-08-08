@@ -127,6 +127,7 @@ set(YSE_SRCS
   patcher/genericObjects/gIf.cpp
   patcher/genericObjects/gMatch.cpp
   patcher/genericObjects/gMatrix.cpp
+  patcher/genericObjects/gMtr.cpp
   patcher/genericObjects/gNext.cpp
   patcher/genericObjects/gOneBang.cpp
   patcher/genericObjects/gQlist.cpp
@@ -346,6 +347,7 @@ set_source_files_properties(
   patcher/genericObjects/gIf.cpp
   patcher/genericObjects/gMatch.cpp
   patcher/genericObjects/gMatrix.cpp
+  patcher/genericObjects/gMtr.cpp
   patcher/genericObjects/gNext.cpp
   patcher/genericObjects/gOneBang.cpp
   patcher/genericObjects/gQlist.cpp

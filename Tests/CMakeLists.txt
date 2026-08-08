@@ -72,6 +72,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_table.cpp
   patcher/test_patcher_textfile.cpp
   patcher/test_patcher_qlist.cpp
+  patcher/test_patcher_mtr.cpp
   patcher/test_patcher_charcode.cpp
   patcher/test_patcher_anal.cpp
   patcher/test_patcher_histo.cpp
@@ -830,6 +831,7 @@ set_source_files_properties(
   patcher/test_patcher_table.cpp
   patcher/test_patcher_textfile.cpp
   patcher/test_patcher_qlist.cpp
+  patcher/test_patcher_mtr.cpp
   patcher/test_patcher_charcode.cpp
   patcher/test_patcher_anal.cpp
   patcher/test_patcher_histo.cpp
