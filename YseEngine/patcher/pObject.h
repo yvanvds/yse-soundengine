@@ -134,6 +134,23 @@ namespace YSE {
       }
       void DumpJson(nlohmann::json::value_type& json);
 
+      // Persistent state an object has beyond its creation parameters (issue
+      // #494). Default: none — nothing is written and the serialised object is
+      // byte for byte what it was, so only an object that overrides these pays
+      // for them.
+      //
+      // The parameter string cannot carry this: a parameter is what the object
+      // was *created* with, not what it has since been told, and rewriting it
+      // from run-time state would make loading and re-saving a patch quietly
+      // change the arguments the author typed. `.coll` is the first object
+      // whose contents are the thing worth saving.
+      //
+      // Both are control thread only. DumpState runs inside
+      // patcherImplementation::DumpJSON under its mtx; RestoreState runs inside
+      // ParseJSON, on a freshly built object the audio thread cannot see yet.
+      virtual void DumpState(nlohmann::json::value_type&) {}
+      virtual void RestoreState(const nlohmann::json::value_type&) {}
+
       virtual void SetParent(pObject* parent);
       inline const std::string& DataName() {
         return dataName;

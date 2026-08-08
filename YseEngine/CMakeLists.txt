@@ -114,6 +114,7 @@ set(YSE_SRCS
   patcher/genericObjects/gBucket.cpp
   patcher/genericObjects/gBuddy.cpp
   patcher/genericObjects/gCharCode.cpp
+  patcher/genericObjects/gColl.cpp
   patcher/genericObjects/gCombine.cpp
   patcher/genericObjects/gCycle.cpp
   patcher/genericObjects/gDecode.cpp
@@ -326,6 +327,7 @@ set_source_files_properties(
   patcher/genericObjects/gBucket.cpp
   patcher/genericObjects/gBuddy.cpp
   patcher/genericObjects/gCharCode.cpp
+  patcher/genericObjects/gColl.cpp
   patcher/genericObjects/gCombine.cpp
   patcher/genericObjects/gCycle.cpp
   patcher/genericObjects/gDecode.cpp

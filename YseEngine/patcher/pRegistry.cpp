@@ -23,6 +23,7 @@
 #include "genericObjects/gMatch.h"
 #include "genericObjects/gAffix.h"
 #include "genericObjects/gCharCode.h"
+#include "genericObjects/gColl.h"
 #include "genericObjects/gCombine.h"
 #include "genericObjects/gSpell.h"
 #include "genericObjects/gSprintf.h"
@@ -256,6 +257,11 @@ pRegistry::pRegistry() {
   // (issue #493)
   Add(OBJ::G_ATOI, gAtoi::Create);
   Add(OBJ::G_ITOA, gItoa::Create);
+
+  // A collection of messages held at addresses — the patcher's first store of
+  // more than one thing, and the object presets, note tables, mapping curves
+  // and sequences are all written with (issue #494)
+  Add(OBJ::G_COLL, gColl::Create);
 
   Add(OBJ::G_RECEIVE, gReceive::Create);
   Add(OBJ::G_SEND, gSend::Create);
