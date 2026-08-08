@@ -132,6 +132,7 @@ set(YSE_SRCS
   patcher/genericObjects/gRouter.cpp
   patcher/genericObjects/gSel.cpp
   patcher/genericObjects/gSend.cpp
+  patcher/genericObjects/gSpell.cpp
   patcher/genericObjects/gSpray.cpp
   patcher/genericObjects/gSprintf.cpp
   patcher/genericObjects/gSubstitute.cpp
@@ -341,6 +342,7 @@ set_source_files_properties(
   patcher/genericObjects/gRouter.cpp
   patcher/genericObjects/gSel.cpp
   patcher/genericObjects/gSend.cpp
+  patcher/genericObjects/gSpell.cpp
   patcher/genericObjects/gSpray.cpp
   patcher/genericObjects/gSprintf.cpp
   patcher/genericObjects/gSubstitute.cpp

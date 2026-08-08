@@ -23,6 +23,7 @@
 #include "genericObjects/gMatch.h"
 #include "genericObjects/gAffix.h"
 #include "genericObjects/gCombine.h"
+#include "genericObjects/gSpell.h"
 #include "genericObjects/gSprintf.h"
 #include "genericObjects/gSubstitute.h"
 #include "genericObjects/gSymbol.h"
@@ -240,6 +241,12 @@ pRegistry::pRegistry() {
   // only way a patch can assemble a name out of parts that arrive at different
   // times from different sources (issue #491)
   Add(OBJ::G_COMBINE, gCombine::Create);
+
+  // Spell a message out as the character codes of its text — the one direction
+  // the message-construction family could not go, since every other object in it
+  // takes text apart into smaller text and this one leaves the text model
+  // entirely, handing a patch numbers it can do arithmetic on (issue #492)
+  Add(OBJ::G_SPELL, gSpell::Create);
 
   Add(OBJ::G_RECEIVE, gReceive::Create);
   Add(OBJ::G_SEND, gSend::Create);

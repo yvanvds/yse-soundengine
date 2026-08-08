@@ -4307,6 +4307,48 @@
     ],
     "params": []
   },
+  ".spell": {
+    "category": "GENERIC",
+    "description": "Spells whatever arrives out as the character codes of its text — Max's spell, 'convert input to UTF-8 (Unicode) codes', so text can be processed numerically inside a patch. Max documents four rules, one per atom type: an int is spelled digit by digit, a symbol character by character, a list with a space (32) between its items, and anything with all its int and symbol items converted one character at a time. They collapse into a single rule here, and not by cutting a corner: a message in this patcher is text, with no atom types at all, so .spell sends the code of every character of the message as it stands and each of Max's four rules falls out of that — a number's digits are its text, written by ExprFormatValue the way a patch author would have typed it, and a list gets its 32 because a space is the character that is actually between its items. Runs of whitespace collapse to one space and the ends are trimmed, so what is spelled is the tokens with a single 32 between them, Max's own spacing, rather than however much incidental whitespace the sender left in. The encoding is stated rather than assumed, because a patcher message is bytes and nothing upstream promises otherwise: bytes that form a well-formed UTF-8 sequence are decoded to the one code point they spell, so the two bytes of an accented letter give one code and not two, and any byte that is not part of a well-formed sequence — a stray continuation byte, a truncated sequence, an overlong encoding, a surrogate half — spells its own value 0-255 with decoding resuming at the next byte, so the object never fails, never drops a byte and never guesses. Max's two creation arguments are kept: size is the minimum number of codes, padded to with the fill code, and fill is that code, 32 (a space) by default. They are creation arguments rather than reserved words on inlet 0 — the .prepend discipline, which matters here because this object exists to carry arbitrary text and a reserved word would swallow the very messages it is asked to spell. Max's 'use a negative number to get 0 as the fill character' is not reproduced: it exists only because Max cannot tell an absent argument from a zero, whereas arguments are read as tokens here, so .spell 8 48 says 'pad with the character 0' directly and a negative fill is reported and ignored instead of silently becoming 48. The codes leave together as one list rather than one at a time, since nothing in this patcher accumulates a stream of numbers back into a message. At most 256 codes; longer input is refused rather than truncated, because half a spelling is not a shorter word but a different one. Calculate() does nothing, and no message path allocates, locks or blocks: a spelling is one walk of the bytes into a buffer reserved at construction for every code at full width.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The message to spell. Whatever arrives is spelled out as the character codes of its text: an int digit by digit (123 spells 49 50 51), a float including its decimal point, and a list character by character with the code 32 between its items, which is Max's four separate rules falling out of the one rule this patcher's message model allows. Runs of whitespace collapse to a single 32 and the ends are trimmed. A bang is declined: Max's spell has none, and there is nothing for it to spell.",
+        "index": 0,
+        "label": "in",
+        "range": "any"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".spell",
+    "outlets": [
+      {
+        "doc": "The codes, as one list, in the order the characters appear — 'hi' leaves as 104 105. Max sends them one at a time; they leave together here because nothing in this patcher accumulates a stream of numbers back into a message, so one-at-a-time codes could not be put back together, while a list can be taken apart by a .spray whenever a patch wants them separately. Nothing is sent when there is nothing to spell and no minimum size to pad to, and nothing is sent at all when the input would spell past 256 codes — refused rather than truncated.",
+        "index": 0,
+        "label": "out",
+        "range": "0-1114111 per code, at most 256 codes",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Max's size argument: the minimum number of codes to send. A message that spells to fewer is followed by enough fill codes to reach it, which is how a patch gets fixed-width records out of variable-length text. 0, the default, means no minimum. Clamped to 256, the most codes the object will send at all.",
+        "name": "size",
+        "range": "0-256"
+      },
+      {
+        "default": "32",
+        "doc": "Max's character argument: the code short output is padded with, 32 (a space) by default. Taken literally, so 0 is the code 0 and .spell 8 48 pads with the character '0' — Max's 'use any negative number' escape is not reproduced, because it only exists to work around Max being unable to tell an absent argument from a zero. A negative code, or one above 1114111, is reported and the default kept.",
+        "name": "fill",
+        "range": "0-1114111"
+      }
+    ]
+  },
   ".split": {
     "category": "MATH",
     "description": "Control-rate two-way routing by range. Tests the value on inlet 0 against the [low, high] range and passes it on unchanged: out of outlet 0 when it falls inside the range, out of outlet 1 when it does not. Both bounds are inclusive. Exactly one outlet fires per evaluation, which is what separates .split from the rest of the range family — .clip and .pong reshape the value, .split leaves it alone and decides where it goes. The building block for keyboard splits, velocity layers and zone-based dispatch: chain the out-of-range outlet into the next .split for the next zone. Limits given the wrong way round (low above high) are treated as an ordered pair and still split on the right two numbers. Nothing is computed and so nothing is substituted — a non-finite value is routed, and a NaN leaves the out-of-range outlet.",
