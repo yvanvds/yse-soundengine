@@ -47,13 +47,18 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <memory>
 #include <string>
+#include <system_error>
 #include <vector>
 
 #include "headers/constants.hpp"
 #include "patcher/genericObjects/gMtr.h"
 #include "patcher/inlet.h"
+#include "patcher/io/fileScheduler.h"
 #include "patcher/pEnums.h"
 #include "patcher/pHandle.hpp"
 #include "patcher/pObjectList.hpp"
@@ -157,6 +162,45 @@ namespace {
     return all;
   }
 
+  // ─── file helpers (issue #691) ────────────────────────────────────────────
+
+  // A path in the system temp directory, deleted first so a leftover from an
+  // earlier run cannot make a test pass for the wrong reason.
+  std::string TempFile(const char* name) {
+    const std::filesystem::path path = std::filesystem::temp_directory_path() / name;
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+    return path.string();
+  }
+
+  void WriteWholeFile(const std::string& path, const std::string& contents) {
+    std::ofstream out(path, std::ios::binary);
+    out << contents;
+  }
+
+  std::string ReadWholeFile(const std::string& path) {
+    std::ifstream in(path, std::ios::binary);
+    if (!in) return std::string();
+    return std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+  }
+
+  void Remove(const std::string& path) {
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+  }
+
+  // Drive a patcher until its file requests have landed. The two halves are
+  // deterministic for different reasons: WaitIdle joins the background pool's
+  // jobs (so no sleep and no polling), and the single Calculate is the dispatch
+  // frame the completions are handed out in — there is deliberately no other way
+  // for them to arrive.
+  void SettleFiles(patcherImplementation& p) {
+    YSE::PATCHER::fileScheduler* io = p.FileIO();
+    REQUIRE(io != nullptr);
+    io->WaitIdle();
+    p.Calculate(YSE::T_DSP);
+  }
+
 } // namespace
 
 TEST_SUITE("patcher") {
@@ -183,7 +227,10 @@ TEST_SUITE("patcher") {
     gMtr obj;
     CHECK(obj.TrackCount() == 1);
     CHECK(obj.NumInputs() == 2);
-    CHECK(obj.NumOutputs() == 2);
+    // Max's N+1, plus the file outlet appended after them (#691), which Max has
+    // not got — see the outlet's documentation for why it is here anyway.
+    CHECK(obj.NumOutputs() == 3);
+    CHECK(obj.FileOutlet() == 2);
     CHECK(obj.GetCategory() == YSE::PATCHER::pCategory::TIME);
   }
 
@@ -192,7 +239,9 @@ TEST_SUITE("patcher") {
     obj.SetParams("4");
     CHECK(obj.TrackCount() == 4);
     CHECK(obj.NumInputs() == 5);
-    CHECK(obj.NumOutputs() == 5);
+    // Four track outlets, the report outlet, and the file outlet last (#691).
+    CHECK(obj.NumOutputs() == 6);
+    CHECK(obj.FileOutlet() == 5);
   }
 
   TEST_CASE("mtr: the track count is clamped to Max's 1-32 (#501)") {
@@ -555,10 +604,10 @@ TEST_SUITE("patcher") {
     CHECK(Tape(rig.obj, 1) == "250 70");
   }
 
-  TEST_CASE("mtr: 'read' and 'write' are consumed and do nothing (#501)") {
-    // #499's answer for #499's reason: a handler cannot find out which thread
-    // it is on, so file I/O needs plumbing no patcher object can have yet
-    // (issues #683 / #691).
+  TEST_CASE("mtr: a standalone object consumes read and write without doing anything (#691)") {
+    // No patcher means no file plumbing, and the honest answer is silence: the
+    // words are still consumed, because Max dispatches on the selector, but
+    // nothing is remembered and nothing is asked for.
     Rig rig;
     rig.List(0, "record");
     rig.Int(1, 60);
@@ -567,9 +616,28 @@ TEST_SUITE("patcher") {
 
     rig.List(0, "read tape.txt");
     rig.List(0, "write tape.txt");
+    rig.List(0, "read");
+    rig.List(0, "write");
     CHECK(rig.obj.Count(0) == 1);
     CHECK(rig.Out(0).empty());
     CHECK(rig.Out(1).empty());
+    CHECK(rig.Out(rig.obj.FileOutlet()).empty());
+    CHECK(rig.obj.ReadFile().empty());
+    CHECK(rig.obj.WriteFile().empty());
+  }
+
+  TEST_CASE("mtr: 'read' and 'write' in a track inlet are commands, not data (#691)") {
+    // Max registers both on every inlet — "in other inlets: opens a file
+    // containing only the track that corresponds to the inlet" — so they join
+    // the eight transport words already reserved there. A recording track must
+    // therefore not store them, which is the observable half of that rule and
+    // the one a plausible implementation gets wrong.
+    Rig rig;
+    rig.List(0, "record");
+    rig.List(1, "read tape.txt");
+    rig.List(1, "write tape.txt");
+    rig.Int(1, 60);
+    CHECK(Tape(rig.obj, 0) == "0 60");
   }
 
   TEST_CASE("mtr: an unknown message and a bang in the control inlet do nothing (#501)") {
@@ -1077,6 +1145,540 @@ TEST_SUITE("patcher") {
     rig.List(0, "play");
     CHECK(rig.Out(1) == "i60,i61,i62");
     CHECK_FALSE(rig.obj.IsPlaying(0));
+  }
+
+  // ─── tape files (issue #691) ────────────────────────────────────────────────
+  //
+  // Every case here needs a real patcherImplementation and a real file: the
+  // background job and the completion delivered into a dispatch frame only exist
+  // there, and a standalone object deliberately has neither.
+
+  TEST_CASE("mtr: a write then a read round-trips every track (#691)") {
+    // The acceptance criterion, end to end through a real patcher, a real file
+    // on disk and real recorders: Max's text format out, the same tapes back,
+    // and every kind of event surviving it. Asserted through the outlets rather
+    // than through an accessor, because what has to come back is a tape a patch
+    // can *play*.
+    const std::string path = TempFile("yse_mtr_roundtrip_691.txt");
+
+    Recorder report;
+    Recorder one;
+    Recorder two;
+    Recorder file;
+    YSE::pHandle reportHandle(&report);
+    YSE::pHandle oneHandle(&one);
+    YSE::pHandle twoHandle(&two);
+    YSE::pHandle fileHandle(&file);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* mtr = p.CreateObject(YSE::OBJ::G_MTR, "2");
+    REQUIRE(mtr != nullptr);
+    p.Connect(mtr, 0, &reportHandle, 0);
+    p.Connect(mtr, 1, &oneHandle, 0);
+    p.Connect(mtr, 2, &twoHandle, 0);
+    p.Connect(mtr, 3, &fileHandle, 0);
+
+    // No block is rendered between these, so every gap is 0 and the file is
+    // deterministic — the timing itself is pinned by the clock cases above.
+    mtr->SetListData(0, "record");
+    mtr->SetIntData(1, 60);
+    mtr->SetFloatData(1, 60.5f);
+    mtr->SetBang(1);
+    mtr->SetListData(2, "note 60 100");
+    mtr->SetListData(0, "stop");
+
+    mtr->SetListData(0, "write " + path);
+    SettleFiles(p);
+
+    // Max's format, quoted from the reference: "Line 1: track <track number>;
+    // … Line 2, etc.: <delta time> <message>; … Last line: end;". A bang has no
+    // text of its own, so it is spelled out as the word.
+    CHECK(ReadWholeFile(path) ==
+          "track 1;\n0 60;\n0 60.5;\n0 bang;\nend;\ntrack 2;\n0 note 60 100;\nend;\n");
+    // Max has no outlet for a finished write anywhere in this family, and
+    // neither does this.
+    CHECK(file.seen.empty());
+
+    mtr->SetListData(0, "clear");
+    REQUIRE(p.FileIO() != nullptr);
+
+    mtr->SetListData(0, "read " + path);
+    SettleFiles(p);
+    // Exactly one bang, and only after the tapes are in place.
+    REQUIRE(Joined(file.seen) == "!");
+
+    // Four `next`es walk both tapes: `next` addresses every track, so the first
+    // three step track 1 while track 2 runs out after the first.
+    for (int i = 0; i < 3; i++)
+      mtr->SetListData(0, "next");
+
+    CHECK(Joined(one.seen) == "i60,f60.50,!");
+    CHECK(Joined(two.seen) == "snote 60 100");
+    // Outlet 0's <track> <delta> <absolute> report, one per event a `next`
+    // produced.
+    CHECK(Joined(report.seen) == "s1 0 0,s2 0 0,s1 0 0,s1 0 0");
+
+    Remove(path);
+  }
+
+  TEST_CASE("mtr: read does nothing in the message handler (#691)") {
+    // The reason the plumbing exists. A `read` may be dispatched on the audio
+    // callback, so the handler must not open anything — which is observable: the
+    // tapes are still empty when the message returns, and only a rendered block
+    // puts the file on them.
+    const std::string path = TempFile("yse_mtr_deferred_691.txt");
+    WriteWholeFile(path, "track 1;\n0 11;\n0 22;\nend;\n");
+
+    Recorder one;
+    Recorder file;
+    YSE::pHandle oneHandle(&one);
+    YSE::pHandle fileHandle(&file);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* mtr = p.CreateObject(YSE::OBJ::G_MTR, "");
+    REQUIRE(mtr != nullptr);
+    p.Connect(mtr, 1, &oneHandle, 0);
+    p.Connect(mtr, 2, &fileHandle, 0);
+
+    mtr->SetListData(0, "read " + path);
+    // Nothing yet: the tape is still empty, so a `next` has no event to output
+    // and the file outlet has not fired. The request is a claim on a slot and
+    // the disk has not been touched on this thread.
+    mtr->SetListData(0, "next");
+    CHECK(one.seen.empty());
+    CHECK(file.seen.empty());
+    REQUIRE(p.FileIO() != nullptr);
+    CHECK(p.FileIO()->PendingCount() == 1);
+
+    SettleFiles(p);
+    REQUIRE(Joined(file.seen) == "!");
+    CHECK(p.FileIO()->PendingCount() == 0);
+
+    mtr->SetListData(0, "next");
+    mtr->SetListData(0, "next");
+    CHECK(Joined(one.seen) == "i11,i22");
+
+    Remove(path);
+  }
+
+  TEST_CASE("mtr: a read replaces the tapes and stops the transport (#691)") {
+    // Max's read loads a file into the object; it is not a merge. The transport
+    // goes with the tape, which is where this parts company with `.qlist`: a
+    // track left playing would already have a step armed at a delta belonging to
+    // a recording that no longer exists, so its next gap would be one nothing
+    // ever made. The cancelled step is visible in the scheduler's pending count.
+    const std::string path = TempFile("yse_mtr_replace_691.txt");
+    WriteWholeFile(path, "track 1;\n0 9;\nend;\n");
+
+    Recorder one;
+    Recorder file;
+    YSE::pHandle oneHandle(&one);
+    YSE::pHandle fileHandle(&file);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* mtr = p.CreateObject(YSE::OBJ::G_MTR, "");
+    REQUIRE(mtr != nullptr);
+    p.Connect(mtr, 1, &oneHandle, 0);
+    p.Connect(mtr, 2, &fileHandle, 0);
+
+    mtr->SetListData(0, "record");
+    mtr->SetIntData(1, 1);
+    mtr->SetIntData(1, 2);
+    mtr->SetIntData(1, 3);
+    mtr->SetListData(0, "stop");
+    // Something for the read to interrupt: a play that has to wait.
+    mtr->SetListData(0, "first 500");
+    mtr->SetListData(0, "play");
+    REQUIRE(p.Scheduler()->PendingCount() == 1);
+    one.reset();
+
+    mtr->SetListData(0, "read " + path);
+    SettleFiles(p);
+    REQUIRE(Joined(file.seen) == "!");
+
+    // The armed step is gone with the tape that armed it, and nothing was
+    // played out of the old recording.
+    CHECK(p.Scheduler()->PendingCount() == 0);
+    CHECK(one.seen.empty());
+
+    // Only the file's one event is left, and the cursor is at its start.
+    mtr->SetListData(0, "next");
+    mtr->SetListData(0, "next");
+    CHECK(Joined(one.seen) == "i9");
+
+    Remove(path);
+  }
+
+  TEST_CASE("mtr: read and write in a track inlet address only that track (#691)") {
+    // Max: "in other inlets: opens a file containing only the track that
+    // corresponds to the inlet" — and the same for write. Both halves are here
+    // because getting one of them object-wide by accident is the plausible bug,
+    // and it is invisible on a one-track object.
+    const std::string path = TempFile("yse_mtr_pertrack_691.txt");
+
+    Recorder one;
+    Recorder two;
+    Recorder file;
+    YSE::pHandle oneHandle(&one);
+    YSE::pHandle twoHandle(&two);
+    YSE::pHandle fileHandle(&file);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* mtr = p.CreateObject(YSE::OBJ::G_MTR, "2");
+    REQUIRE(mtr != nullptr);
+    p.Connect(mtr, 1, &oneHandle, 0);
+    p.Connect(mtr, 2, &twoHandle, 0);
+    p.Connect(mtr, 3, &fileHandle, 0);
+
+    mtr->SetListData(0, "record");
+    mtr->SetIntData(1, 11);
+    mtr->SetIntData(2, 22);
+    mtr->SetListData(0, "stop");
+
+    // A write in track 2's inlet writes track 2 and nothing else — and keeps its
+    // own declaration, so the file says which track it came from.
+    mtr->SetListData(2, "write " + path);
+    SettleFiles(p);
+    CHECK(ReadWholeFile(path) == "track 2;\n0 22;\nend;\n");
+
+    // Read back into track 1's inlet: the block's declared number is track 2's,
+    // and it is deliberately ignored — Max defines this form for a file holding
+    // one track, so the inlet decides where it lands.
+    mtr->SetListData(1, "read " + path);
+    SettleFiles(p);
+    REQUIRE(Joined(file.seen) == "!");
+
+    mtr->SetListData(0, "next");
+    // Track 1 now holds what track 2 had, and track 2 was not disturbed by
+    // either message.
+    CHECK(Joined(one.seen) == "i22");
+    CHECK(Joined(two.seen) == "i22");
+
+    Remove(path);
+  }
+
+  TEST_CASE("mtr: a per-track read takes the first track block only (#691)") {
+    // Max defines the per-inlet form only for a file that holds one track, so a
+    // multi-track file has no meaning there. Taking the first block is the one
+    // reading that keeps a tape a tape; concatenating the blocks would jam three
+    // recordings into one.
+    const std::string path = TempFile("yse_mtr_firstblock_691.txt");
+    WriteWholeFile(path, "track 1;\n0 11;\nend;\ntrack 2;\n0 22;\nend;\n");
+
+    Recorder one;
+    Recorder file;
+    YSE::pHandle oneHandle(&one);
+    YSE::pHandle fileHandle(&file);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* mtr = p.CreateObject(YSE::OBJ::G_MTR, "");
+    REQUIRE(mtr != nullptr);
+    p.Connect(mtr, 1, &oneHandle, 0);
+    p.Connect(mtr, 2, &fileHandle, 0);
+
+    mtr->SetListData(1, "read " + path);
+    SettleFiles(p);
+    REQUIRE(Joined(file.seen) == "!");
+
+    mtr->SetListData(0, "next");
+    mtr->SetListData(0, "next");
+    CHECK(Joined(one.seen) == "i11");
+
+    Remove(path);
+  }
+
+  TEST_CASE("mtr: a file with no track line loads into the first track (#691)") {
+    // A hand-written file that is just events is one track's worth of them, and
+    // the only track it can mean is the first. Semicolons are optional on the
+    // way in for the same reason `.qlist`'s are: this format carries no
+    // punctuation inside a line for a newline to steal.
+    const std::string path = TempFile("yse_mtr_headerless_691.txt");
+    WriteWholeFile(path, "0 41\r\n0 42\r\n");
+
+    Recorder one;
+    Recorder file;
+    YSE::pHandle oneHandle(&one);
+    YSE::pHandle fileHandle(&file);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* mtr = p.CreateObject(YSE::OBJ::G_MTR, "");
+    REQUIRE(mtr != nullptr);
+    p.Connect(mtr, 1, &oneHandle, 0);
+    p.Connect(mtr, 2, &fileHandle, 0);
+
+    mtr->SetListData(0, "read " + path);
+    SettleFiles(p);
+    REQUIRE(Joined(file.seen) == "!");
+
+    mtr->SetListData(0, "next");
+    mtr->SetListData(0, "next");
+    CHECK(Joined(one.seen) == "i41,i42");
+
+    Remove(path);
+  }
+
+  TEST_CASE("mtr: a track block naming a track the object has not got is dropped (#691)") {
+    // A saved 4-track file read into a `.mtr 2` keeps the two tracks that still
+    // have somewhere to live rather than folding the others onto the wrong tape,
+    // which is the same reading `RestoreState` already gives a shrunk argument.
+    const std::string path = TempFile("yse_mtr_overrange_691.txt");
+    WriteWholeFile(path, "track 1;\n0 11;\nend;\ntrack 9;\n0 99;\nend;\ntrack 2;\n0 22;\nend;\n");
+
+    Recorder one;
+    Recorder two;
+    Recorder file;
+    YSE::pHandle oneHandle(&one);
+    YSE::pHandle twoHandle(&two);
+    YSE::pHandle fileHandle(&file);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* mtr = p.CreateObject(YSE::OBJ::G_MTR, "2");
+    REQUIRE(mtr != nullptr);
+    p.Connect(mtr, 1, &oneHandle, 0);
+    p.Connect(mtr, 2, &twoHandle, 0);
+    p.Connect(mtr, 3, &fileHandle, 0);
+
+    mtr->SetListData(0, "read " + path);
+    SettleFiles(p);
+    REQUIRE(Joined(file.seen) == "!");
+
+    mtr->SetListData(0, "next");
+    mtr->SetListData(0, "next");
+    // The 99 landed nowhere: the block that held it named a track this object
+    // has not got, so it closed rather than falling through to the last one
+    // opened.
+    CHECK(Joined(one.seen) == "i11");
+    CHECK(Joined(two.seen) == "i22");
+
+    Remove(path);
+  }
+
+  TEST_CASE("mtr: an over-long event is skipped and the rest of the file loads (#691)") {
+    // Refused rather than truncated, with the rest still loading — the same
+    // answer a recorded message past EVENT_CAPACITY gets, since half a message
+    // is a different message.
+    const std::string path = TempFile("yse_mtr_longevent_691.txt");
+    WriteWholeFile(path, "track 1;\n0 " + std::string(gMtr::EVENT_CAPACITY + 1, 'x') + ";\n0 7;\n");
+
+    Recorder one;
+    Recorder file;
+    YSE::pHandle oneHandle(&one);
+    YSE::pHandle fileHandle(&file);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* mtr = p.CreateObject(YSE::OBJ::G_MTR, "");
+    REQUIRE(mtr != nullptr);
+    p.Connect(mtr, 1, &oneHandle, 0);
+    p.Connect(mtr, 2, &fileHandle, 0);
+
+    mtr->SetListData(0, "read " + path);
+    SettleFiles(p);
+    REQUIRE(Joined(file.seen) == "!");
+
+    mtr->SetListData(0, "next");
+    mtr->SetListData(0, "next");
+    CHECK(Joined(one.seen) == "i7");
+
+    Remove(path);
+  }
+
+  TEST_CASE("mtr: events past the tape size are dropped (#691)") {
+    // MAX_EVENTS is allocated whole at construction and never grows, so a longer
+    // file loses its tail rather than allocating on the audio thread, where the
+    // completion runs.
+    std::string contents = "track 1;\n";
+    for (std::size_t i = 0; i < gMtr::MAX_EVENTS + 5; i++)
+      contents += "0 1;\n";
+    const std::string path = TempFile("yse_mtr_tapefull_691.txt");
+    WriteWholeFile(path, contents);
+
+    Recorder file;
+    YSE::pHandle fileHandle(&file);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* mtr = p.CreateObject(YSE::OBJ::G_MTR, "");
+    REQUIRE(mtr != nullptr);
+    p.Connect(mtr, 2, &fileHandle, 0);
+
+    mtr->SetListData(0, "read " + path);
+    SettleFiles(p);
+    REQUIRE(Joined(file.seen) == "!");
+
+    // Written straight back out: the tape holds exactly MAX_EVENTS events.
+    const std::string out = TempFile("yse_mtr_tapefull_out_691.txt");
+    mtr->SetListData(0, "write " + out);
+    SettleFiles(p);
+
+    std::string expected = "track 1;\n";
+    for (std::size_t i = 0; i < gMtr::MAX_EVENTS; i++)
+      expected += "0 1;\n";
+    expected += "end;\n";
+    CHECK(ReadWholeFile(out) == expected);
+
+    Remove(path);
+    Remove(out);
+  }
+
+  TEST_CASE("mtr: the bare forms reuse the last name given, each half its own (#691)") {
+    // Max's bare `read` / `write` open a file dialog, which a headless patcher
+    // has no equivalent of, so they reuse the last name their own half was
+    // given. One name per half for the whole object, not one per track: a dialog
+    // remembers nothing, so there is no Max behaviour a per-track name could
+    // match.
+    const std::string source = TempFile("yse_mtr_bare_src_691.txt");
+    const std::string sink = TempFile("yse_mtr_bare_sink_691.txt");
+    WriteWholeFile(source, "track 1;\n0 5;\nend;\n");
+
+    Recorder file;
+    YSE::pHandle fileHandle(&file);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* mtr = p.CreateObject(YSE::OBJ::G_MTR, "");
+    REQUIRE(mtr != nullptr);
+    p.Connect(mtr, 2, &fileHandle, 0);
+
+    mtr->SetListData(0, "read " + source);
+    SettleFiles(p);
+    REQUIRE(Joined(file.seen) == "!");
+
+    // Settled first on purpose: a write's payload is built at *request* time,
+    // because the pool thread must never touch this object, so a write queued
+    // behind a read writes the tapes as they were before the read landed.
+    mtr->SetListData(0, "write " + sink);
+    SettleFiles(p);
+    CHECK(ReadWholeFile(sink) == "track 1;\n0 5;\nend;\n");
+
+    // Now the bare forms. The write must not go to the file the read named, and
+    // the read must not go to the file the write named — the failure mode of one
+    // shared name, which would silently overwrite the source.
+    WriteWholeFile(source, "track 1;\n0 6;\nend;\n");
+    Remove(sink);
+    file.reset();
+
+    mtr->SetListData(0, "read");
+    SettleFiles(p);
+    REQUIRE(Joined(file.seen) == "!");
+
+    mtr->SetListData(0, "write");
+    SettleFiles(p);
+    CHECK(ReadWholeFile(sink) == "track 1;\n0 6;\nend;\n");
+    CHECK(ReadWholeFile(source) == "track 1;\n0 6;\nend;\n");
+
+    Remove(source);
+    Remove(sink);
+  }
+
+  TEST_CASE("mtr: a bare read with no name and no argument does nothing (#691)") {
+    // There is nothing to fall back on and no dialog to ask with, so the message
+    // is consumed and refused — silently, since it may be the audio thread.
+    Recorder file;
+    YSE::pHandle fileHandle(&file);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* mtr = p.CreateObject(YSE::OBJ::G_MTR, "");
+    REQUIRE(mtr != nullptr);
+    p.Connect(mtr, 2, &fileHandle, 0);
+
+    mtr->SetListData(0, "read");
+    mtr->SetListData(0, "write");
+    REQUIRE(p.FileIO() != nullptr);
+    CHECK(p.FileIO()->PendingCount() == 0);
+
+    SettleFiles(p);
+    CHECK(file.seen.empty());
+  }
+
+  TEST_CASE("mtr: a read of a missing file leaves the tapes alone (#691)") {
+    // Every failure looks the same from here — no such file, a file too large,
+    // a write while the host's read-only VFS is installed — and the report is
+    // the outlet staying silent.
+    const std::string path = TempFile("yse_mtr_missing_691.txt");
+
+    Recorder one;
+    Recorder file;
+    YSE::pHandle oneHandle(&one);
+    YSE::pHandle fileHandle(&file);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* mtr = p.CreateObject(YSE::OBJ::G_MTR, "");
+    REQUIRE(mtr != nullptr);
+    p.Connect(mtr, 1, &oneHandle, 0);
+    p.Connect(mtr, 2, &fileHandle, 0);
+
+    mtr->SetListData(0, "record");
+    mtr->SetIntData(1, 60);
+    mtr->SetListData(0, "stop");
+
+    mtr->SetListData(0, "read " + path);
+    SettleFiles(p);
+
+    CHECK(file.seen.empty());
+    mtr->SetListData(0, "next");
+    CHECK(Joined(one.seen) == "i60");
+  }
+
+  TEST_CASE("mtr: deleting the object with a read in flight is safe (#691)") {
+    // The property that makes the whole design safe by construction rather than
+    // by timing: the background job holds a scheduler-owned slot and never a
+    // pObject, so there is no pointer for it to dangle on, and the completion is
+    // re-resolved against the block's GraphState. An ASan build trips here if
+    // the retired object is touched.
+    const std::string path = TempFile("yse_mtr_deleted_691.txt");
+    WriteWholeFile(path, "track 1;\n0 1;\nend;\n");
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* mtr = p.CreateObject(YSE::OBJ::G_MTR, "");
+    REQUIRE(mtr != nullptr);
+
+    mtr->SetListData(0, "read " + path);
+    REQUIRE(p.FileIO() != nullptr);
+    REQUIRE(p.FileIO()->PendingCount() == 1);
+
+    p.DeleteObject(mtr);
+    SettleFiles(p);
+    CHECK(p.FileIO()->PendingCount() == 0);
+
+    Remove(path);
+  }
+
+  TEST_CASE("mtr: a tape loaded from a file plays on the clock (#691)") {
+    // The whole point, end to end: a recording that was never made in this
+    // session arrives from disk and plays back in the rhythm the file wrote
+    // down. Deadlines through BlocksForMillis at the live SAMPLERATE, as the
+    // rest of the clock suite is.
+    const std::string path = TempFile("yse_mtr_play_691.txt");
+    WriteWholeFile(path, "track 1;\n0 60;\n200 61;\nend;\n");
+
+    Recorder one;
+    Recorder file;
+    YSE::pHandle oneHandle(&one);
+    YSE::pHandle fileHandle(&file);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* mtr = p.CreateObject(YSE::OBJ::G_MTR, "");
+    REQUIRE(mtr != nullptr);
+    p.Connect(mtr, 1, &oneHandle, 0);
+    p.Connect(mtr, 2, &fileHandle, 0);
+
+    mtr->SetListData(0, "read " + path);
+    SettleFiles(p);
+    REQUIRE(Joined(file.seen) == "!");
+
+    mtr->SetListData(0, "play");
+    // The first event's delta is 0, so it lands on the next block.
+    p.Calculate(YSE::T_DSP);
+    REQUIRE(Joined(one.seen) == "i60");
+
+    const std::uint64_t due = messageScheduler::BlocksForMillis(200);
+    for (std::uint64_t block = 1; block < due; ++block)
+      p.Calculate(YSE::T_DSP);
+    // Still waiting out the recorded gap.
+    CHECK(Joined(one.seen) == "i60");
+
+    p.Calculate(YSE::T_DSP);
+    CHECK(Joined(one.seen) == "i60,i61");
+
+    Remove(path);
   }
 
 } // TEST_SUITE("patcher")
