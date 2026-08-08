@@ -91,10 +91,16 @@ namespace {
       "across builds the same list); 'append' glues its arguments onto the last entry. In all "
       "three, ';' separates cue lines. Max needs a backslash before one, but that is a rule about "
       "the message box that would otherwise eat it — the patcher has no message box, so a "
-      "semicolon is written bare. 'read', 'write', 'open' and 'wclose' are consumed and do "
-      "nothing: "
-      "there is no editing window here, and file I/O needs plumbing this object cannot have yet "
-      "(issues #683 / #689). Anything else does nothing at all, which is Max — this is a command "
+      "semicolon is written bare. 'read [file]' and 'write [file]' move the cue list through a "
+      "text file in Max's own format, one entry per line and semicolon-terminated. Neither opens "
+      "anything here: the request is a wait-free claim on a patcher-owned slot, the disk work runs "
+      "on the background pool, and a read replaces the list in the completion the patcher delivers "
+      "at the top of a later block — which is also when outlet 2 bangs. A read rewinds the cursor "
+      "and lets a walk in progress carry on into the list it just loaded; both bare forms reuse "
+      "the last name given, since Max's bare forms open a file dialog and a headless patcher has "
+      "none, and Max documents no readagain / writeagain for qlist, so neither is invented. "
+      "'open' and 'wclose' are consumed and do nothing, there being no editing window here. "
+      "Anything else does nothing at all, which is Max — this is a command "
       "inlet, so cue text is written with set, append and insert and never by being sent bare, and "
       "qlist documents no int or float method either. A cue line longer than 256 characters, or "
       "one past the 256th, is refused whole and silently, since the inlet may be the audio thread.";
@@ -114,9 +120,19 @@ namespace {
       "reached the end, and there are no more lines to send or output'. It fires for a 'next' or "
       "'fwd' that walks off the end just as it does for automatic playback finishing, and it fires "
       "on an empty list, which has reached its end before it starts. Max's third outlet, which "
-      "bangs when a file has been read from disk, is not here: 'read' does nothing yet, so nothing "
-      "could fire it. When file reading lands (issue #689) that outlet is appended after this one "
-      "— which is also Max's position for it — so no saved patch's cords shift.";
+      "bangs when a file has been read from disk, follows this one (issue #689) — appended rather "
+      "than inserted, which is the family's rule and here also Max's own position for it, so no "
+      "saved patch's cords shift either way.";
+
+  constexpr char kFileDoc[] =
+      "Bangs when a 'read' has finished loading a file into the cue list — Max's third outlet, "
+      "which 'bangs when a file has been read successfully from disk'. Appended after the end "
+      "outlet rather than inserted, which is the rule the whole file-reading family follows and "
+      "which here costs nothing, Max putting it third as well. It fires only on success: a file "
+      "that does not exist, does not fit, or cannot be opened leaves it silent, and it does not "
+      "fire for a write, for which Max has no outlet either. It fires a block or more after the "
+      "read message rather than inside it, because the disk work happens on the background pool — "
+      "a read arrives on whichever thread dispatched it, which may be the audio callback.";
 
 } // namespace
 
@@ -131,6 +147,10 @@ CONSTRUCT() {
   // ANY on outlet 0: a numeric cue leaves as a list, an int or a float
   // depending on what it holds. Outlet 1 only ever bangs.
   ADD_OUT_ANY;
+  ADD_OUT_BANG;
+  // The file outlet, appended after the two #500 shipped rather than inserted
+  // (issue #689). Max puts it third as well, so following the family's rule
+  // costs nothing here.
   ADD_OUT_BANG;
 
   // The whole table and every send buffer, taken once here on the control
@@ -147,6 +167,13 @@ CONSTRUCT() {
   // An append has to hold the old entry and the new text at once before the
   // splitter can decide where the line breaks are.
   joinText.reserve(JOIN_CAPACITY + 1);
+
+  // Same treatment for the file buffers (issue #689): a `read` or `write` may
+  // arrive on the audio thread, so remembering a name and formatting the whole
+  // cue list both have to reuse storage that already exists.
+  readPath.reserve(fileScheduler::PATH_CAPACITY);
+  writePath.reserve(fileScheduler::PATH_CAPACITY);
+  fileScratch.reserve(FILE_TEXT_CAPACITY + 1);
 
   ADD_DESCRIPTION(
       "Stores a sequence of messages and plays it back in time — Max's qlist, which 'stores a "
@@ -189,19 +216,37 @@ CONSTRUCT() {
       "flag and here Max could not be plainer — 'the qlist object saves its cue-list with the "
       "patcher' — so this saves like .coll rather than like .textfile, whose contents live in a "
       "file. The cursor, the tempo and whether it is playing are run-time state and do not "
-      "survive, the way .coll's pointer does not. Reading and writing files is deliberately not "
-      "here: a message handler runs on whichever thread the message arrived on, in-patcher "
-      "delivery dispatches on the audio thread, and THREAD is a dispatch-semantics tag rather than "
-      "a thread identity, so there is no predicate an object can ask to find out it is not on the "
-      "audio callback, and opening a file there would block it. That needs a background job, a "
-      "lifetime outliving it, the host's IO() layer and a completion delivered back into a real "
-      "dispatch frame — shared plumbing filed as issue #683, with #689 tracking this object's "
-      "half. Not ported: the editing window and everything addressing it, the patcher being "
-      "headless.");
+      "survive, the way .coll's pointer does not. 'read [file]' and 'write [file]' move the cue "
+      "list through a text file in Max's format — one entry per line, semicolon-terminated — and "
+      "none of it happens on the message path: a handler runs on whichever thread the message "
+      "arrived on, in-patcher delivery dispatches on the audio thread, and THREAD is a "
+      "dispatch-semantics tag rather than a thread identity, so there is no predicate an object "
+      "can ask to find out it is not on the audio callback, where opening a file would block it. "
+      "The request is instead a wait-free claim on a patcher-owned slot, the disk work runs on the "
+      "background pool honouring the host's IO() layer, and the bytes are parsed in the completion "
+      "the patcher delivers at the top of a later block, which is also when outlet 2 bangs — the "
+      "shared fileScheduler plumbing of issue #683, whose consumer half here is #689. A read "
+      "breaks lines on a semicolon or a newline alike, so a hand-written file with neither the "
+      "semicolons nor the CRLF of the writer's own output still loads as the lines it looks like, "
+      "and it splits a numbers-then-message line into two entries exactly as the inlet does, so "
+      "what a write emitted comes back as the same list. A read replaces what is held and rewinds "
+      "the cursor, but does not stop a walk in progress — the walk carries on into the list just "
+      "loaded; an over-long line is refused with the rest of the file still loading, lines past "
+      "the 256th are dropped, and a file too large or unopenable is refused whole with outlet 2 "
+      "silent. Both bare forms reuse the last name given, since Max's open a file dialog and a "
+      "headless patcher has none, and Max documents no readagain / writeagain for qlist, so "
+      "neither is invented. There is deliberately no filename creation argument either — Max "
+      "documents none, and unlike .textfile this object saves its cue list with the patcher, so an "
+      "object that also read a file when it joined one would have two answers to what is in the "
+      "list arriving in an order nothing controls. Max's third outlet, which bangs when a file has "
+      "been read successfully from disk, is appended after the end outlet rather than inserted, "
+      "which is the family's rule and here also Max's own position for it. Not ported: the editing "
+      "window and everything addressing it, the patcher being headless.");
   ADD_CATEGORY(pCategory::TIME);
   INLET_DOC(0, "in", kInletDoc, "at most 256 cue lines of 256 characters");
   OUTLET_DOC(0, "data", kDataDoc, "");
   OUTLET_DOC(1, "end", kEndDoc, "");
+  OUTLET_DOC(2, "file", kFileDoc, "");
 }
 
 // ─── writing the list ─────────────────────────────────────────────────────────
@@ -609,16 +654,125 @@ bool gQlist::HandleCommand(const char* word, std::size_t length, const std::stri
     return true;
   }
 
-  // Consumed and inert. There is no editing window to open, close or
-  // double-click, and file I/O cannot be done from a message handler at all
-  // today — issue #683 builds the plumbing, #689 is this object's half. See the
-  // class documentation.
-  if (TokenIs(word, length, "read", 4)) return true;
-  if (TokenIs(word, length, "write", 5)) return true;
+  // The file half (issue #689). Both are a claim on a patcher-owned slot and
+  // nothing more: whichever thread is dispatching, no file is opened here. The
+  // whole remainder is the path, so a name with spaces in it still works, and a
+  // bare form reuses the last name given — Max's opens a file dialog, which a
+  // headless patcher has no equivalent of.
+  const bool isRead = TokenIs(word, length, "read", 4);
+  if (isRead || TokenIs(word, length, "write", 5)) {
+    const FILE_OP op = isRead ? FILE_OP::READ : FILE_OP::WRITE;
+    std::size_t begin = argOffset;
+    std::size_t end = message.size();
+    Trim(message.c_str(), begin, end);
+    RequestFile(op, message.c_str() + begin, end - begin);
+    return true;
+  }
+
+  // Consumed and inert: there is no editing window to open, close or
+  // double-click.
   if (TokenIs(word, length, "open", 4)) return true;
   if (TokenIs(word, length, "wclose", 6)) return true;
 
   return false;
+}
+
+// ─── files ────────────────────────────────────────────────────────────────────
+
+bool gQlist::RequestFile(FILE_OP op, const char* name, std::size_t length) {
+  fileScheduler* io = FileIO();
+  // A standalone .qlist has no patcher and so no plumbing. Silent: this may be
+  // the audio thread, where a log line would allocate.
+  if (io == nullptr) return false;
+
+  std::string& remembered = op == FILE_OP::READ ? readPath : writePath;
+  if (name != nullptr && length > 0) {
+    if (length >= fileScheduler::PATH_CAPACITY) return false;
+    // assign() into a string reserved at construction reuses its storage.
+    remembered.assign(name, length);
+  }
+  // Nothing named yet, and no dialog to ask with.
+  if (remembered.empty()) return false;
+
+  if (op == FILE_OP::READ) {
+    return io->RequestRead(this, FILE_TAG_READ, remembered.c_str(), remembered.size());
+  }
+
+  // The bytes are built here rather than on the pool thread, because the pool
+  // must never touch this object: by the time the job runs, a live edit may have
+  // deleted it.
+  if (!Serialize()) return false;
+  return io->RequestWrite(this, FILE_TAG_WRITE, remembered.c_str(), remembered.size(),
+                          fileScratch.c_str(), fileScratch.size());
+}
+
+bool gQlist::Serialize() {
+  storeGuard guard(busy);
+  if (!guard.Held()) return false;
+
+  // clear() keeps the capacity reserved at construction, so every append below
+  // writes into storage that already exists. FILE_TEXT_CAPACITY is every entry
+  // at its maximum plus its terminator, so the buffer cannot run out.
+  fileScratch.clear();
+  for (std::size_t i = 0; i < count; i++) {
+    fileScratch.append(entries[i]);
+    // Max's format: "each line of the cue-list is a message ending in a
+    // semicolon". No entry can hold one of its own — an entry is what splitting
+    // on `;` produced — so the round trip is exact.
+    fileScratch.append(";\n", 2);
+  }
+  return true;
+}
+
+bool gQlist::LoadFrom(const char* text, std::size_t length) {
+  storeGuard guard(busy);
+  if (!guard.Held()) return false;
+
+  // Max's read replaces the contents, and the cursor goes with them: it pointed
+  // into a list that no longer exists. The strings keep their storage — only
+  // `count` says which entries are live — so this costs nothing.
+  count = 0;
+  position = 0;
+
+  // Broken on a semicolon *or* a newline, where `AddLines` takes only the
+  // semicolon: a written cue line can carry punctuation the file's line breaks
+  // must not steal, but a file has no such ambiguity — see the class
+  // documentation. Each segment then goes through the same StoreLine the inlet
+  // uses, so a numbers-then-message line in a file splits into two entries the
+  // way it does when it is typed, and a `\r` before the break is trimmed with
+  // the rest of the whitespace.
+  std::size_t segment = 0;
+  for (std::size_t i = 0; i <= length; i++) {
+    if (i == length || text[i] == ';' || text[i] == '\n') {
+      StoreLine(text + segment, i - segment);
+      segment = i + 1;
+    }
+  }
+  return true;
+}
+
+void gQlist::SetParent(pObject* newParent) {
+  pObject::SetParent(newParent);
+  // Control thread, and the one place the patcher's file table can be built: a
+  // `read` arriving later on the audio thread has to find it already there
+  // (issue #683). Nothing is read here — Max gives `qlist` no filename argument,
+  // and this object restores its cue list from the patch instead.
+  EnableFileIO();
+}
+
+void gQlist::DeliverFileResult(const fileResult& result, YSE::THREAD thread) {
+  // Max has no outlet for a finished write, so a write reports only by having
+  // happened. A failed read reports by the outlet staying silent.
+  if (result.op != FILE_OP::READ || result.tag != FILE_TAG_READ) return;
+  if (!result.ok || result.bytes == nullptr) return;
+  if (!LoadFrom(result.bytes, result.byteCount)) return;
+
+  // Max's third outlet: "bangs when a file has been read successfully from
+  // disk". After the list is in place, so a patch that reacts to it with a
+  // `bang` or a `next` finds it. `thread` is the tag the scheduler delivered —
+  // forwarded unchanged, because Pass* picks its mechanism from the render-frame
+  // marker rather than from the tag (issue #690).
+  outputs[2].SendBang(thread);
 }
 
 // ─── inlet ────────────────────────────────────────────────────────────────────
