@@ -28,6 +28,7 @@
 #include "genericObjects/gColl.h"
 #include "genericObjects/gFunbuff.h"
 #include "genericObjects/gTable.h"
+#include "genericObjects/gQlist.h"
 #include "genericObjects/gTextfile.h"
 #include "genericObjects/gCombine.h"
 #include "genericObjects/gSpell.h"
@@ -291,6 +292,10 @@ pRegistry::pRegistry() {
   // none of the others is, and the shape a note list, a cue sheet or a
   // configuration block actually arrives in (issue #499)
   Add(OBJ::G_TEXTFILE, gTextfile::Create);
+
+  // A cue list — a stored sequence of messages played back in time, and the
+  // first store in the family that plays rather than being read (issue #500)
+  Add(OBJ::G_QLIST, gQlist::Create);
 
   Add(OBJ::G_RECEIVE, gReceive::Create);
   Add(OBJ::G_SEND, gSend::Create);

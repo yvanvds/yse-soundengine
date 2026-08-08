@@ -129,6 +129,7 @@ set(YSE_SRCS
   patcher/genericObjects/gMatrix.cpp
   patcher/genericObjects/gNext.cpp
   patcher/genericObjects/gOneBang.cpp
+  patcher/genericObjects/gQlist.cpp
   patcher/genericObjects/gReceive.cpp
   patcher/genericObjects/gRegexEngine.cpp
   patcher/genericObjects/gRegexp.cpp
@@ -347,6 +348,7 @@ set_source_files_properties(
   patcher/genericObjects/gMatrix.cpp
   patcher/genericObjects/gNext.cpp
   patcher/genericObjects/gOneBang.cpp
+  patcher/genericObjects/gQlist.cpp
   patcher/genericObjects/gReceive.cpp
   patcher/genericObjects/gRegexp.cpp
   patcher/genericObjects/gRoute.cpp
