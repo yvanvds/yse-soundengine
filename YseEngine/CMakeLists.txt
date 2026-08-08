@@ -108,6 +108,7 @@ set(YSE_SRCS
   patcher/generatorObjects/dNoise.cpp
   patcher/generatorObjects/dSaw.cpp
   patcher/generatorObjects/pSine.cpp
+  patcher/genericObjects/gAffix.cpp
   patcher/genericObjects/gBangBang.cpp
   patcher/genericObjects/gBondo.cpp
   patcher/genericObjects/gBucket.cpp
@@ -131,7 +132,10 @@ set(YSE_SRCS
   patcher/genericObjects/gSel.cpp
   patcher/genericObjects/gSend.cpp
   patcher/genericObjects/gSpray.cpp
+  patcher/genericObjects/gSprintf.cpp
+  patcher/genericObjects/gSubstitute.cpp
   patcher/genericObjects/gSwitch.cpp
+  patcher/genericObjects/gSymbol.cpp
   patcher/genericObjects/gTrigger.cpp
   patcher/genericObjects/gUzi.cpp
   patcher/genericObjects/gValue.cpp
@@ -313,6 +317,7 @@ set_source_files_properties(
   patcher/generatorObjects/dNoise.cpp
   patcher/generatorObjects/dSaw.cpp
   patcher/generatorObjects/pSine.cpp
+  patcher/genericObjects/gAffix.cpp
   patcher/genericObjects/gBangBang.cpp
   patcher/genericObjects/gBondo.cpp
   patcher/genericObjects/gBucket.cpp
@@ -335,7 +340,10 @@ set_source_files_properties(
   patcher/genericObjects/gSel.cpp
   patcher/genericObjects/gSend.cpp
   patcher/genericObjects/gSpray.cpp
+  patcher/genericObjects/gSprintf.cpp
+  patcher/genericObjects/gSubstitute.cpp
   patcher/genericObjects/gSwitch.cpp
+  patcher/genericObjects/gSymbol.cpp
   patcher/genericObjects/gTrigger.cpp
   patcher/genericObjects/gUzi.cpp
   patcher/genericObjects/gValue.cpp

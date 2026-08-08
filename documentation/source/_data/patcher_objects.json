@@ -948,6 +948,54 @@
       }
     ]
   },
+  ".append": {
+    "category": "GENERIC",
+    "description": "Puts a stored message after every message that arrives, and sends the two out joined as a list. The mirror of .prepend: where that one builds the selector a message starts with, this one supplies the trailing arguments it ends with — a fixed channel number, a target index, the second half of a pair whose first half is computed. The stored message comes from the creation argument or from inlet 1; with none stored the object passes what it is given straight through, unchanged and as the type it arrived as.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Bang emits the stored message on its own; an int, float or list is emitted with the stored message after it. With nothing stored the value is passed through as the type it arrived as.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Replaces the stored message, without emitting anything. A list is taken whole, an int or a float as the number it spells. An empty list clears the stored message and makes the object a pass-through; one longer than 256 characters is refused and the previous message kept.",
+        "index": 1,
+        "label": "message",
+        "range": "any message, at most 256 characters"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".append",
+    "outlets": [
+      {
+        "doc": "What arrived followed by the stored message, as a list — or what arrived unchanged when nothing is stored.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "Message to put after every input — the whole argument string, so \"note 60\" is two words. Empty makes the object a pass-through.",
+        "name": "message",
+        "range": "any message, at most 256 characters"
+      }
+    ]
+  },
   ".asin": {
     "category": "MATH",
     "description": "Control-rate arc-sine. Emits asin(in) in radians as a float whenever inlet 0 fires. Inputs outside -1 to 1 have no real arc-sine and emit 0 rather than a NaN.",
@@ -2103,6 +2151,54 @@
         "doc": "When 1, skip in-patcher delivery and publish only to the global bus.",
         "name": "globalOnly",
         "range": "0 or 1"
+      }
+    ]
+  },
+  ".fromsymbol": {
+    "category": "GENERIC",
+    "description": "Expands a symbol back into a message — Max's fromsymbol, which 'converts individual characters in a symbol into numbers or messages'. The inverse of .tosymbol, and used with the same separator on both ends it is the round trip that carries structured data through anything that takes a name: a bus address, a file path, a dictionary key. It splits the incoming text on its separator and hands the pieces on as an ordinary whitespace-separated message, so .fromsymbol / turns voice/3/freq back into voice 3 freq, which a .route then reads as three elements; and it restores the type, so a result that came out as a single token leaves as an int or a float when it reads as a number and as a bang when it is the word bang — Max's 'the word bang sent as a part of a symbol will be converted to a message'. A type is a property of the whole message in this patcher, so only a single-token result has one to restore: bang/5 split on / is the two-token list bang 5, not a list with a bang atom in it, because there is no such thing here. An int, a float or a bang arriving directly is passed straight through, Max's 'any integer will simply pass through to the output'. The separator is a creation argument and inlet 1, leaving inlet 0 with no reserved words in it; an empty message on inlet 1 is Max's separator with no arguments, and with nothing to split on the object falls back to Max's own phrasing and takes the symbol apart into its individual characters, so 1234 comes back as 1 2 3 4. Whitespace already in the message separates pieces too, which is not an extra rule but the same one, and it is what makes the default separator of a single space plain whitespace normalisation. An empty piece is dropped, so a//b splits into a b rather than into a message with an empty token no .route matches. Calculate() does nothing, and no message path allocates, locks or blocks: the split is one bounded walk into a buffer reserved at construction for the longest list the patcher's queues carry.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A list is split on the separator; an int, a float or a bang passes straight through, since each is already what a symbol would have been expanded into.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Sets the separator used to join tokens together and to split them apart, without emitting anything. A list contributes its first token, an int or a float the number it spells. An empty message empties the separator, which is Max's 'separator' with no arguments: .tosymbol then joins with nothing at all (1 2 3 4 becomes 1234) and .fromsymbol takes the symbol apart into its individual characters. A token longer than 16 characters is refused and the previous separator kept. The default single space is a creation-time state, so SetParams restores it.",
+        "index": 1,
+        "label": "separator",
+        "range": "one token, at most 16 characters"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".fromsymbol",
+    "outlets": [
+      {
+        "doc": "The expanded message. A single-token result leaves as the type it reads as — an int, a float, or a bang for the word bang — and anything else leaves as a list.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": " ",
+        "doc": "The separator the symbol is split on. One token, at most 16 characters; a longer one is reported and ignored. With no argument at all it is a single space, Max's default, which restores the type but leaves the token structure alone. Empty splits into individual characters.",
+        "name": "separator",
+        "range": "one token, at most 16 characters"
       }
     ]
   },
@@ -3340,6 +3436,54 @@
       }
     ]
   },
+  ".prepend": {
+    "category": "GENERIC",
+    "description": "Puts a stored message in front of every message that arrives, and sends the two out joined as a list. The patcher's routing family reads the first token of a list — .route and .routepass match on it, .sel compares against it, and every object with a message interface is addressed by it — so this is how a patch builds a message with a leading selector out of a value it computed. The stored message comes from the creation argument or from inlet 1; with none stored the object passes what it is given straight through, unchanged and as the type it arrived as.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Bang emits the stored message on its own; an int, float or list is emitted with the stored message in front of it. With nothing stored the value is passed through as the type it arrived as.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Replaces the stored message, without emitting anything. A list is taken whole, an int or a float as the number it spells. An empty list clears the stored message and makes the object a pass-through; one longer than 256 characters is refused and the previous message kept.",
+        "index": 1,
+        "label": "message",
+        "range": "any message, at most 256 characters"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".prepend",
+    "outlets": [
+      {
+        "doc": "The stored message followed by what arrived, as a list — or what arrived unchanged when nothing is stored.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "Message to put in front of every input — the whole argument string, so \"note 60\" is two words. Empty makes the object a pass-through.",
+        "name": "message",
+        "range": "any message, at most 256 characters"
+      }
+    ]
+  },
   ".prob": {
     "category": "MATH",
     "description": "Weighted transition table — a first-order Markov chain. The list '<from> <to> <weight>' records that going from one state to another carries that relative likelihood, and a bang makes one weighted jump from the current state and emits where it landed, which becomes the state the next bang departs from. For any one state the weights of its outgoing transitions are summed and each one's share of that sum is its probability, so 3 4 1 means 37.5% / 50% / 12.5%; a state may transition to itself. A weight of 0 keeps the pair in the table but makes it unreachable, which is how a transition is switched off, and negative weights clamp to 0. A state with no reachable transition is a dead end: outlet 0 stays silent, outlet 1 bangs, and the current state moves to the 'reset' fallback so the next bang can recover — one bang is one attempt, never a search. 'clear' forgets the table, 'dump' sends every entry out outlet 2 in insertion order, and an int sets the current state without emitting anything. The table is a fixed 1024-entry array and the weighted choice is a bounded prefix-sum scan rather than a rejection loop, so nothing on any path allocates or runs unbounded. A non-zero seed makes the whole walk reproducible across runs; exactly one random draw is taken per bang. Pairs with .anal, which builds the same table from an input stream.",
@@ -4235,6 +4379,43 @@
       }
     ]
   },
+  ".sprintf": {
+    "category": "GENERIC",
+    "description": "Formats a message out of words and numbers — Max's sprintf, which 'uses the common C-language printf function inside Max' to 'combine symbols, organize lists of numbers, or format messages or menu items'. The creation arguments are a format: literal text with changeable arguments in it, %s for a symbol, %ld for an int, %f for a float and %c for an int rendered as a character, and 'the number of inlets is determined by the number of changeable arguments, with each inlet corresponding to a changeable argument, in order'. This is the message-construction object the others could not stand in for: .prepend and .append reach the ends of a message and .substitute swaps one word for another, but all three work in whole tokens, so building /voice/3/freq out of the number 3 meant a round trip out to the host application. The format is parsed once, on the control thread, into literal runs and typed slots, and every argument is rendered by the patcher's own writers: no user-supplied text ever reaches a printf-family function, which would otherwise let a patch file decide how many arguments to read off the stack. The accepted grammar is %, optional - and 0 flags, an optional field width, an optional .precision, optional l/h length modifiers (read and ignored, since this patcher has one integer type and one floating-point one) and one of d i f F s c; %% is a literal per cent sign. Anything else is not a specifier: it is reported at error level and copied into the output as the text it was typed as, so a typo shows up in the log and in the message rather than silently eating an inlet. Inlet 0 is hot — a bang, an int, a float or a list formats and sends, which is Max's 'any of the above messages in the left inlet will format the message and send it out' — and every other inlet is cold and only stores. Inlet 0 keeps no reserved words in it, the .prepend and .substitute discipline, which matters here because the values this object formats are often symbols. A list is spread one token per slot from the receiving inlet rightwards, Max's 'each item in the list is treated as if it had been received in a separate inlet, up to the number of inlets'. Every slot inlet accepts all three types rather than only the one its conversion names, since a patch feeding a counter into a %s obviously means the digits: a number reaching a %s is stored as the text that spells it, and a token that does not read as a number is refused by a %ld or a %f so the previous value stands rather than a zero nobody sent. An unset slot follows Max exactly, including its asymmetry: a %ld or a %f renders 0, a %s or a %c renders nothing. A .sprintf with no format at all sends nothing, the .prepend rule that makes an unconfigured object safe to drop into a working patch, and a format with no changeable arguments is a constant message generator. Max's symout flag is recognised and consumed rather than read as part of the format — 'the word symout itself is not included in the output' — but it switches nothing, because this patcher carries every message as one piece of text and so has no symbol/list distinction to make. A symbol slot holds at most 64 characters and refuses a longer token rather than truncating it, field width is capped at 64, precision at 9 and the format at 32 changeable arguments. Calculate() does nothing, and no message path allocates, locks or blocks: formatting is a bounded walk of the compiled pieces into a buffer reserved before the object was published for the literal text plus the widest thing every slot can render.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Hot. A bang, an int, a float or a list formats the message and sends it — Max's 'any of the above messages in the left inlet will format the message and send it out'. When the format has changeable arguments this is also the first one's inlet, so an int here both stores and fires. A list is spread one token per changeable argument from here rightwards, and tokens past the last one are dropped.",
+        "index": 0,
+        "label": "in0",
+        "range": "any"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".sprintf",
+    "outlets": [
+      {
+        "doc": "The formatted message, as text — Max's 'the message specified by the typed-in argument(s) is formatted and sent out with substitutions made for the changeable arguments'. Fires once per message into inlet 0, and never at all while no format has been given.",
+        "index": 0,
+        "label": "out",
+        "range": "any",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "Max's argument list: an optional leading 'symout' followed by the format itself, which is literal text with changeable arguments in it. A changeable argument is %, optional - and 0 flags, an optional field width (at most 64), an optional .precision (at most 9 — decimals for %f, characters for %s), optional l/h length modifiers, and one of d i f F s c; %% is a literal per cent sign. One inlet is built per changeable argument, up to 32 of them, and anything else after a % is reported and copied through as text. With no argument at all the object sends nothing.",
+        "name": "format",
+        "range": "printf-style format, at most 32 changeable arguments"
+      }
+    ]
+  },
   ".sqrt": {
     "category": "MATH",
     "description": "Control-rate square root. Emits the square root of the input as a float whenever inlet 0 fires. A negative input emits 0 rather than a NaN.",
@@ -4262,6 +4443,84 @@
       }
     ],
     "params": []
+  },
+  ".substitute": {
+    "category": "GENERIC",
+    "description": "Replaces elements of a message — Max's substitute, which 'matches messages to its own arguments; whenever it finds a match, will make the appropriate substitution'. Two arguments, a match and a replacement: every element of an incoming message equal to the match leaves as the replacement, everything else leaves untouched, and a third argument of any kind restricts the edit to the first match in the message. This is the edit the patcher could not otherwise make: .prepend and .append put words on the ends of a message and .route, .routepass and .sel branch on the word it starts with, but nothing could change a word in the middle of one without a round trip out to the host application. Exactly one outlet fires. A message something was substituted in leaves the left outlet; one that matched nothing leaves the rightmost outlet unchanged and in its own type, which is Max's 'if no substitution occurred ... the original input message is passed out the rightmost outlet' and makes the outlet a report of whether the edit happened — so substitutions chain the way .routepass matches do, each reject outlet feeding the next inlet. A bare .substitute matches nothing and is a wire, the .prepend rule that makes it safe to drop an unconfigured object into a working patch; Max's default of 0 for both arguments is declined for the reason .routepass declines to invent a default selector, since it would route zeroes out the other outlet than everything else. A match given without a replacement does take Max's 0, because an empty replacement would leave an empty token no .route matches. The matcher is .sel's and .routepass's: a match is a number or a symbol, classified once, and the two never match each other — a number matches by value with an int widened to a float, a symbol matches by exact text, and a bang matches a match spelled 'bang'. A list is walked element by element, which is the one place this differs from .routepass: substituting is not routing, so a match anywhere in the message counts. The comparison is exact, so a computed float may miss a match it looks equal to and a NaN matches nothing. A replaced element is written as the text of the replacement; when a scalar matched, the replacement leaves as the type it reads as, so .substitute 5 7 turns the int 5 into the int 7 rather than into the list that spells it. The match and the replacement each have an inlet, leaving inlet 0 with no reserved words in it — which matters more here than anywhere, since the messages this object edits are the ones that begin with a word. Match and replacement are at most 64 characters, refused rather than truncated past that. Calculate() does nothing, and no message path allocates, locks or blocks: the rewrite is a bounded walk into a buffer reserved at construction for the worst case a 256-character list can grow into, and a message that matched nothing is forwarded by reference rather than copied through it.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Bang, int, float or list to rewrite. Every element equal to the match is replaced; if any was, the result leaves the left outlet, and if none was, the message leaves the rightmost outlet unchanged and in the type it arrived as.",
+        "index": 0,
+        "label": "in",
+        "range": "any"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Replaces the element being matched, without emitting anything. The first word of a list, or an int or a float as the number it spells. An empty message clears the match and makes the object a pass-through; a word longer than 64 characters is refused and the previous match kept.",
+        "index": 1,
+        "label": "match",
+        "range": "any single number or symbol, at most 64 characters"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Replaces what a matched element is rewritten as, without emitting anything. The first word of a list, or an int or a float as the number it spells. An empty message is ignored — there is no empty replacement — and a word longer than 64 characters is refused and the previous replacement kept.",
+        "index": 2,
+        "label": "replacement",
+        "range": "any single number or symbol, at most 64 characters"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".substitute",
+    "outlets": [
+      {
+        "doc": "The message with every matched element replaced, as a list — or, when the whole message was one matched element, the replacement in the type it reads as. Fires only when at least one substitution was made.",
+        "index": 0,
+        "label": "out",
+        "range": "any",
+        "type": "ANY"
+      },
+      {
+        "doc": "The message, unchanged and in its own type, when nothing in it matched. Chain this into the next .substitute to carry on rewriting: nothing was consumed, so the next object sees exactly what this one saw.",
+        "index": 1,
+        "label": "rest",
+        "range": "any",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The element to look for. A token that reads as a finite number matches by value, with an int widened to a float; anything else is a symbol and matches by exact text. With no argument the object matches nothing and passes everything out the rightmost outlet. At most 64 characters.",
+        "name": "match",
+        "range": "any single number or symbol"
+      },
+      {
+        "default": "0",
+        "doc": "What a matched element is replaced by, written into the message exactly as it is spelled here. Defaults to Max's 0 when a match is given without one, since an empty replacement would leave an empty token in the message. At most 64 characters.",
+        "name": "replacement",
+        "range": "any single number or symbol"
+      },
+      {
+        "default": "",
+        "doc": "Max's 'replace first message only' mode: any third argument, of any kind, restricts the edit to the first matching element of a list rather than every one of them. With no third argument every match is replaced.",
+        "name": "mode",
+        "range": "any single number or symbol"
+      }
+    ]
   },
   ".swap": {
     "category": "MATH",
@@ -4511,6 +4770,54 @@
       }
     ],
     "params": []
+  },
+  ".tosymbol": {
+    "category": "GENERIC",
+    "description": "Collapses whatever arrives into a single symbol — Max's tosymbol, which 'converts messages, numbers, or lists into a single symbol'. Max has atom types and this patcher does not: a message here is text, and every object that reads one apart — .route and .routepass on the leading token, .sel, .substitute, .spray — splits it on whitespace. So a symbol here is a message that is one whitespace-free token, and this object makes one in two ways. It joins the tokens of the incoming message with its separator, so .tosymbol / turns voice 3 freq into voice/3/freq, one element a .route matches on and a name a .forward will send to; and it converts a bang, an int or a float into the text that spells it, sent as a list, which is what lets a computed value be used as a name at all. Max's separator default of a space is kept and left honest rather than papered over: whitespace is exactly what separates tokens here, so with the default separator the object performs the type conversion and normalises the whitespace and nothing more. Max wraps a symbol containing spaces in double quotes; that is not reproduced, because nothing in this patcher reads a quote as anything but an ordinary character, so quoting would only produce a different message. The separator is a creation argument and inlet 1, leaving inlet 0 with no reserved words in it — the .prepend discipline, which matters here because this object exists to carry arbitrary words. An empty message on inlet 1 is Max's separator with no arguments and empties it, so 1 2 3 4 joins into 1234. Runs of whitespace collapse to one separator and the ends are trimmed, so the result never has an empty token in it. Calculate() does nothing, and no message path allocates, locks or blocks: the join is one bounded walk into a buffer reserved at construction for the longest list the patcher's queues carry.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Bang, int, float and list are all converted. A bang becomes the symbol bang, a number becomes the text that spells it, and a list has its tokens joined with the separator. The result always leaves as a list, whatever arrived.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Sets the separator used to join tokens together and to split them apart, without emitting anything. A list contributes its first token, an int or a float the number it spells. An empty message empties the separator, which is Max's 'separator' with no arguments: .tosymbol then joins with nothing at all (1 2 3 4 becomes 1234) and .fromsymbol takes the symbol apart into its individual characters. A token longer than 16 characters is refused and the previous separator kept. The default single space is a creation-time state, so SetParams restores it.",
+        "index": 1,
+        "label": "separator",
+        "range": "one token, at most 16 characters"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".tosymbol",
+    "outlets": [
+      {
+        "doc": "The collapsed message, as a list. With a non-whitespace separator it is a single token — a symbol — that .route, .sel or .forward reads as one element.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": " ",
+        "doc": "The separator tokens are joined with. One token, at most 16 characters; a longer one is reported and ignored. With no argument at all it is a single space, Max's default, which leaves the token structure alone and converts only the type.",
+        "name": "separator",
+        "range": "one token, at most 16 characters"
+      }
+    ]
   },
   ".trigger": {
     "category": "GENERIC",

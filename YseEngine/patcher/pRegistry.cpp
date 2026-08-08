@@ -21,6 +21,10 @@
 #include "genericObjects/gBuddy.h"
 #include "genericObjects/gCycle.h"
 #include "genericObjects/gMatch.h"
+#include "genericObjects/gAffix.h"
+#include "genericObjects/gSprintf.h"
+#include "genericObjects/gSubstitute.h"
+#include "genericObjects/gSymbol.h"
 #include "genericObjects/gDecode.h"
 #include "genericObjects/gForward.h"
 #include "genericObjects/gValue.h"
@@ -207,6 +211,28 @@ pRegistry::pRegistry() {
 
   // Regular-expression matching on symbols (issue #452)
   Add(OBJ::G_REGEXP, gRegexp::Create);
+
+  // Message construction: put a stored message in front of, or after, every
+  // message that arrives — how a patch builds a list with a leading selector
+  // out of a value it computed (issue #487)
+  Add(OBJ::G_PREPEND, gPrepend::Create);
+  Add(OBJ::G_APPEND, gAppend::Create);
+
+  // Find-and-replace inside a message — the edit .prepend / .append and the
+  // routing family cannot make, since they only ever see its ends (issue #488)
+  Add(OBJ::G_SUBSTITUTE, gSubstitute::Create);
+
+  // Build a message out of values rather than out of whole tokens — the round
+  // trip to the host application .prepend / .append / .substitute still needed,
+  // since none of them can spell a number into the middle of a word (issue #489)
+  Add(OBJ::G_SPRINTF, gSprintf::Create);
+
+  // Collapse a message into a single token and expand it back — the round trip
+  // that lets structured data ride through anything that takes a name, and the
+  // one conversion the message-construction family could not express, since a
+  // patcher message is text and its readers all split on whitespace (issue #490)
+  Add(OBJ::G_TOSYMBOL, gToSymbol::Create);
+  Add(OBJ::G_FROMSYMBOL, gFromSymbol::Create);
 
   Add(OBJ::G_RECEIVE, gReceive::Create);
   Add(OBJ::G_SEND, gSend::Create);
