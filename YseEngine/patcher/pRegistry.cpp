@@ -28,6 +28,7 @@
 #include "genericObjects/gColl.h"
 #include "genericObjects/gFunbuff.h"
 #include "genericObjects/gTable.h"
+#include "genericObjects/gTextfile.h"
 #include "genericObjects/gCombine.h"
 #include "genericObjects/gSpell.h"
 #include "genericObjects/gSprintf.h"
@@ -285,6 +286,11 @@ pRegistry::pRegistry() {
   // the others is, and the one a wavetable, a velocity curve or a weighted
   // random draw is written with (issue #498)
   Add(OBJ::G_TABLE, gTable::Create);
+
+  // A sequence of messages collected as lines of text — the line-oriented store
+  // none of the others is, and the shape a note list, a cue sheet or a
+  // configuration block actually arrives in (issue #499)
+  Add(OBJ::G_TEXTFILE, gTextfile::Create);
 
   Add(OBJ::G_RECEIVE, gReceive::Create);
   Add(OBJ::G_SEND, gSend::Create);

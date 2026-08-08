@@ -144,6 +144,7 @@ set(YSE_SRCS
   patcher/genericObjects/gSwitch.cpp
   patcher/genericObjects/gSymbol.cpp
   patcher/genericObjects/gTable.cpp
+  patcher/genericObjects/gTextfile.cpp
   patcher/genericObjects/gTrigger.cpp
   patcher/genericObjects/gUzi.cpp
   patcher/genericObjects/gValue.cpp
@@ -360,6 +361,7 @@ set_source_files_properties(
   patcher/genericObjects/gSwitch.cpp
   patcher/genericObjects/gSymbol.cpp
   patcher/genericObjects/gTable.cpp
+  patcher/genericObjects/gTextfile.cpp
   patcher/genericObjects/gTrigger.cpp
   patcher/genericObjects/gUzi.cpp
   patcher/genericObjects/gValue.cpp
