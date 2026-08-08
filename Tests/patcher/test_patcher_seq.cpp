@@ -49,15 +49,21 @@
 
 #include <doctest/doctest.h>
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <memory>
 #include <string>
+#include <system_error>
 #include <vector>
 
 #include "headers/constants.hpp"
 #include "patcher/genericObjects/gSeq.h"
 #include "patcher/inlet.h"
+#include "patcher/io/fileScheduler.h"
 #include "patcher/pEnums.h"
 #include "patcher/pHandle.hpp"
 #include "patcher/pObjectList.hpp"
@@ -155,6 +161,184 @@ namespace {
     return all;
   }
 
+  // ─── file helpers (issue #692) ────────────────────────────────────────────
+
+  // A path in the system temp directory, deleted first so a leftover from an
+  // earlier run cannot make a test pass for the wrong reason.
+  std::string TempFile(const char* name) {
+    const std::filesystem::path path = std::filesystem::temp_directory_path() / name;
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+    return path.string();
+  }
+
+  void WriteWholeFile(const std::string& path, const std::string& contents) {
+    std::ofstream out(path, std::ios::binary);
+    out << contents;
+  }
+
+  std::string ReadWholeFile(const std::string& path) {
+    std::ifstream in(path, std::ios::binary);
+    if (!in) return std::string();
+    return std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+  }
+
+  void Remove(const std::string& path) {
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+  }
+
+  // Hand a standalone .seq the bytes of a file, exactly as the scheduler's
+  // completion would. The parser is grammar rather than timing, so it belongs in
+  // the standalone layer with the rest of the grammar: no patcher, no background
+  // job and no disk, and the tape directly readable afterwards. The tag is
+  // .seq's private read tag, which is 0.
+  void Deliver(Rig& rig, const std::string& contents) {
+    YSE::PATCHER::fileResult result;
+    result.tag = 0;
+    result.op = YSE::PATCHER::FILE_OP::READ;
+    result.ok = true;
+    result.bytes = contents.data();
+    result.byteCount = contents.size();
+    rig.obj.DeliverFileResult(result, YSE::T_GUI);
+  }
+
+  // A .seq inside a real patcher, with one recorder on Max's three outlets — so
+  // the relative order of a byte, a meta message and the end bang is visible —
+  // and a second on the file outlet. Declared before the patcher so the patcher
+  // is torn down first, while the recorders it is wired to still exist.
+  struct FileRig {
+    Recorder out;
+    Recorder file;
+    YSE::pHandle outHandle;
+    YSE::pHandle fileHandle;
+    patcherImplementation p;
+    YSE::pHandle* seq = nullptr;
+
+    explicit FileRig(const std::string& args = "")
+      : outHandle(&out), fileHandle(&file), p(1, nullptr) {
+      seq = p.CreateObject(YSE::OBJ::G_SEQ, args);
+      REQUIRE(seq != nullptr);
+      p.Connect(seq, 0, &outHandle, 0);
+      p.Connect(seq, 1, &outHandle, 0);
+      p.Connect(seq, 2, &outHandle, 0);
+      p.Connect(seq, 3, &fileHandle, 0);
+    }
+
+    void List(const std::string& message) {
+      seq->SetListData(0, message);
+    }
+    void Int(int value) {
+      seq->SetIntData(0, value);
+    }
+
+    // Drive the patcher until its file requests have landed. The two halves are
+    // deterministic for different reasons: WaitIdle joins the background pool's
+    // jobs (so no sleep and no polling), and the single Calculate is the
+    // dispatch frame the completions are handed out in — there is deliberately
+    // no other way for them to arrive.
+    void Settle() {
+      YSE::PATCHER::fileScheduler* io = p.FileIO();
+      REQUIRE(io != nullptr);
+      io->WaitIdle();
+      p.Calculate(YSE::T_DSP);
+    }
+
+    // The whole sequence as the outlets deliver it. Only meaningful where every
+    // gap is zero — a positive one arms a step and the walk stops there, which
+    // is what the clock case at the end of the file is for.
+    std::string PlayOut() {
+      out.reset();
+      List("start");
+      return Joined(out.seen);
+    }
+  };
+
+  // ─── building standard MIDI files by hand ─────────────────────────────────
+  //
+  // The file cases assert against bytes rather than against the writer's own
+  // output wherever they can, because a reader tested only against its own
+  // writer proves the two agree and nothing else.
+
+  void PutByte(std::string& out, unsigned char value) {
+    out.push_back((char)value);
+  }
+
+  void PutU16(std::string& out, unsigned int value) {
+    PutByte(out, (unsigned char)((value >> 8) & 0xFF));
+    PutByte(out, (unsigned char)(value & 0xFF));
+  }
+
+  void PutU32(std::string& out, unsigned int value) {
+    PutU16(out, (value >> 16) & 0xFFFF);
+    PutU16(out, value & 0xFFFF);
+  }
+
+  // A variable-length quantity: seven bits per byte, high bit set on all but the
+  // last.
+  void PutVarLen(std::string& out, unsigned int value) {
+    unsigned char buffer[4];
+    std::size_t written = 0;
+    buffer[written++] = (unsigned char)(value & 0x7F);
+    value >>= 7;
+    while (value != 0) {
+      buffer[written++] = (unsigned char)((value & 0x7F) | 0x80);
+      value >>= 7;
+    }
+    while (written > 0)
+      PutByte(out, buffer[--written]);
+  }
+
+  std::string MidiHeader(unsigned int format, unsigned int tracks, unsigned int division) {
+    std::string out;
+    out += "MThd";
+    PutU32(out, 6);
+    PutU16(out, format);
+    PutU16(out, tracks);
+    PutU16(out, division);
+    return out;
+  }
+
+  // Wrap an already-built event stream as an MTrk chunk, adding the
+  // end-of-track event every chunk has to finish with.
+  std::string MidiTrack(const std::string& events) {
+    std::string body = events;
+    PutVarLen(body, 0);
+    PutByte(body, 0xFF);
+    PutByte(body, 0x2F);
+    PutByte(body, 0x00);
+
+    std::string out;
+    out += "MTrk";
+    PutU32(out, (unsigned int)body.size());
+    out += body;
+    return out;
+  }
+
+  void PutEvent(std::string& out, unsigned int delta, std::initializer_list<int> bytes) {
+    PutVarLen(out, delta);
+    for (int byte : bytes)
+      PutByte(out, (unsigned char)byte);
+  }
+
+  void PutMeta(std::string& out, unsigned int delta, unsigned char type, const std::string& data) {
+    PutVarLen(out, delta);
+    PutByte(out, 0xFF);
+    PutByte(out, type);
+    PutVarLen(out, (unsigned int)data.size());
+    out += data;
+  }
+
+  // A tempo meta's three bytes, from beats per minute.
+  std::string TempoBytes(double bpm) {
+    const unsigned int micros = (unsigned int)std::llround(60000000.0 / bpm);
+    std::string out;
+    PutByte(out, (unsigned char)((micros >> 16) & 0xFF));
+    PutByte(out, (unsigned char)((micros >> 8) & 0xFF));
+    PutByte(out, (unsigned char)(micros & 0xFF));
+    return out;
+  }
+
 } // namespace
 
 TEST_SUITE("patcher") {
@@ -174,37 +358,48 @@ TEST_SUITE("patcher") {
     CHECK(std::find(names.begin(), names.end(), std::string(".seq")) != names.end());
   }
 
-  TEST_CASE("seq: Max's shape is one inlet and two outlets (#502)") {
-    // Max's left outlet carries the bytes and its middle one the end bang. The
-    // right outlet carries MIDI-file meta messages and is deliberately absent —
-    // a meta event cannot appear in a recorded byte stream, so it would be
-    // permanently silent, and appending it at Max's own position when the file
-    // half lands shifts no saved patch's cords.
+  TEST_CASE("seq: Max's shape is one inlet and three outlets, plus the file one (#502, #692)") {
+    // Max's left outlet carries the bytes, its middle one the end bang and its
+    // right one the MIDI-file meta messages. The meta outlet landed with the
+    // file half (#692) and is *appended*, which is the family's rule and here
+    // also happens to be Max's own position for it. The file outlet after it is
+    // a documented departure — Max's read is synchronous where this one cannot
+    // be.
     gSeq obj;
     CHECK(obj.NumInputs() == 1);
-    CHECK(obj.NumOutputs() == 2);
+    CHECK(obj.NumOutputs() == 4);
     CHECK(obj.GetCategory() == YSE::PATCHER::pCategory::MIDI);
   }
 
   TEST_CASE("seq: a fresh object is empty, stopped and at the recorded tempo (#502)") {
     gSeq obj;
     CHECK(obj.Count() == 0);
+    CHECK(obj.MetaCount() == 0);
     CHECK(obj.Position() == 0);
     CHECK_FALSE(obj.IsRecording());
     CHECK_FALSE(obj.IsPlaying());
     CHECK(obj.Speed() == gSeq::NORMAL_SPEED);
     CHECK_FALSE(obj.IsTickDriven());
     CHECK(obj.Filename().empty());
+    // Max's three tempo attributes, at their defaults with nothing read (#692).
+    CHECK(obj.Tempo() == doctest::Approx(gSeq::DEFAULT_TEMPO));
+    CHECK(obj.SequenceTempo() == doctest::Approx(gSeq::DEFAULT_TEMPO));
+    CHECK_FALSE(obj.OverridesTempo());
   }
 
   TEST_CASE("seq: the creation argument is Max's filename (#502)") {
     // Max: "specifies the name of a file to be read into seq automatically when
-    // the patch is loaded." Stored, and inert until the file half lands (#692).
+    // the patch is loaded." Since #692 it also seeds both halves of the file
+    // surface, so a bare `read` or `write` has a name to fall back on.
     gSeq obj;
     obj.SetParams("song.mid");
     CHECK(obj.Filename() == "song.mid");
+    CHECK(obj.ReadFile() == "song.mid");
+    CHECK(obj.WriteFile() == "song.mid");
     obj.SetParams("");
     CHECK(obj.Filename().empty());
+    CHECK(obj.ReadFile().empty());
+    CHECK(obj.WriteFile().empty());
   }
 
   // ─── recording ──────────────────────────────────────────────────────────────
@@ -519,25 +714,69 @@ TEST_SUITE("patcher") {
 
   // ─── the words that do nothing ──────────────────────────────────────────────
 
-  TEST_CASE("seq: 'read', 'write', 'dump' and 'print' are consumed and inert (#502)") {
-    // File I/O cannot be done from a message handler at all today (#683 / #692)
-    // and the patcher's log allocates and locks, which the same path must not.
-    // Consumed rather than falling through, so none of them records a byte.
+  TEST_CASE("seq: 'dump' and 'print' are consumed and inert (#502, #692)") {
+    // `dump` opens a file in an editing window this patcher is headless for, and
+    // the patcher's log allocates and takes a lock, which a path that may be the
+    // audio callback must not. Consumed rather than falling through, so neither
+    // records a byte.
     Rig rig;
     rig.List("record");
-    rig.List("read song.mid");
-    rig.List("write song.mid 1");
     rig.List("dump");
     rig.List("print");
     CHECK(rig.obj.Count() == 0);
     CHECK(rig.Out().empty());
   }
 
+  TEST_CASE("seq: a standalone object consumes read and write without doing anything (#692)") {
+    // No patcher means no file scheduler, and the handler gives up quietly —
+    // silently, because it may be the audio thread, where a log line would
+    // allocate. Consumed rather than falling through, so neither records a byte.
+    Rig rig;
+    rig.List("record");
+    rig.List("read song.mid");
+    rig.List("write song.mid 1");
+    CHECK(rig.obj.Count() == 0);
+    CHECK(rig.Out().empty());
+    // Nothing is remembered either: the handler gives up before it gets that
+    // far, which is what the three siblings do.
+    CHECK(rig.obj.ReadFile().empty());
+    CHECK(rig.obj.WriteFile().empty());
+  }
+
+  TEST_CASE("seq: 'tempo' and 'overridetempo' are Max's attributes (#692)") {
+    Rig rig;
+    rig.List("tempo 90");
+    CHECK(rig.obj.Tempo() == doctest::Approx(90.f));
+    // A tempo that cannot convert a duration into anything is refused and the
+    // previous one kept.
+    rig.List("tempo 0");
+    rig.List("tempo -60");
+    CHECK(rig.obj.Tempo() == doctest::Approx(90.f));
+
+    CHECK_FALSE(rig.obj.OverridesTempo());
+    rig.List("overridetempo 1");
+    CHECK(rig.obj.OverridesTempo());
+    rig.List("overridetempo 0");
+    CHECK_FALSE(rig.obj.OverridesTempo());
+
+    // Max's sequencetempo is read-only, "a read-only value for convenience
+    // purposes", so it is consumed and changes nothing.
+    rig.List("sequencetempo 240");
+    CHECK(rig.obj.SequenceTempo() == doctest::Approx(gSeq::DEFAULT_TEMPO));
+
+    // And none of the three is data: a recording gets no bytes out of them.
+    rig.List("record");
+    rig.List("tempo 90");
+    rig.List("overridetempo 1");
+    rig.List("sequencetempo 240");
+    CHECK(rig.obj.Count() == 0);
+  }
+
   TEST_CASE("seq: a message that is neither a command nor a number does nothing (#502)") {
     Rig rig;
     rig.List("record");
     rig.List("wobble 3");
-    rig.List("tempo 240");
+    rig.List("nonsense");
     CHECK(rig.obj.Count() == 0);
   }
 
@@ -581,8 +820,7 @@ TEST_SUITE("patcher") {
     // The family rule is to save exactly where Max has a save flag: qlist saves
     // its cue list with the patcher and mtr has Max 8's embed. seq has neither,
     // because its contents live in a *file* reached by read / write — text's
-    // answer, for text's reason. When the file half lands (#683 / #692) they
-    // will live there too.
+    // answer, for text's reason, and since #692 those two really do reach one.
     YSE::patcher src;
     src.create(2);
     YSE::pHandle* obj = src.CreateObject(YSE::OBJ::G_SEQ);
@@ -836,6 +1074,655 @@ TEST_SUITE("patcher") {
       p.Calculate(YSE::T_DSP);
     CHECK(data.seen.empty());
     CHECK(p.Scheduler()->PendingCount() == 0);
+  }
+
+  // ─── reading a sequence: the parser (issue #692) ────────────────────────────
+  //
+  // The parser is *grammar*, so it belongs in the standalone layer with the rest
+  // of the grammar: a completion is handed to the object directly, exactly as
+  // the scheduler's would be, with no patcher, no background job and no disk in
+  // the way. That leaves the tape and the tempo attributes directly readable,
+  // and it means a playback walk runs straight through — a standalone object has
+  // no clock — so one `start` shows the whole sequence in the order a patch
+  // would hear it.
+  //
+  // The files are built byte by byte rather than taken from this object's own
+  // writer, because a reader tested only against its own writer proves that the
+  // two agree and nothing else.
+
+  TEST_CASE("seq: a hand-built format 0 MIDI file loads as bytes, metas and gaps (#692)") {
+    // The acceptance criterion for the read half. 480 ticks at the 120 BPM the
+    // file declares is one quarter note, which is 500 ms.
+    std::string events;
+    PutMeta(events, 0, 0x51, TempoBytes(120.0));
+    PutEvent(events, 0, {0x90, 60, 100});
+    PutEvent(events, 480, {0x80, 60, 0});
+
+    Rig rig;
+    Deliver(rig, MidiHeader(0, 1, 480) + MidiTrack(events));
+
+    CHECK(Tape(rig.obj) == "0 meta tempo | 0 144 | 0 60 | 0 100 | 500 128 | 0 60 | 0 0 | "
+                           "0 meta endoftrack");
+    // The tempo meta and the chunk's own end-of-track, which Max names.
+    CHECK(rig.obj.MetaCount() == 2);
+    // Max: sequencetempo is "the unmodified tempo of the sequence", and tempo
+    // "reflects the current tempo at the current playback time".
+    CHECK(rig.obj.SequenceTempo() == doctest::Approx(120.f));
+    CHECK(rig.obj.Tempo() == doctest::Approx(120.f));
+    // The read bangs the file outlet, and only after the sequence is in place.
+    CHECK(rig.Out() == "!");
+  }
+
+  TEST_CASE("seq: a loaded sequence plays bytes and metas out in order (#692)") {
+    // What a patch actually hears. A standalone object has no clock, so the
+    // whole sequence walks through in one dispatch and the relative order of a
+    // byte, a meta message and the end bang is visible at once.
+    std::string events;
+    PutMeta(events, 0, 0x03, "Lead");
+    PutEvent(events, 0, {0x90, 60, 100});
+    PutMeta(events, 0, 0x06, "verse");
+    PutEvent(events, 0, {0x80, 60, 0});
+    PutMeta(events, 0, 0x58, std::string("\x04\x02\x18\x08", 4));
+
+    Rig rig;
+    Deliver(rig, MidiHeader(0, 1, 480) + MidiTrack(events));
+    rig.reset();
+
+    rig.List("start");
+    // A text meta sends its text, a time signature its bytes as numbers, and
+    // Max's end bang still comes immediately before the final event — which here
+    // is the end-of-track meta.
+    CHECK(rig.Out() == "smeta sequenceortrackname Lead,i144,i60,i100,smeta marker verse,"
+                       "i128,i60,i0,smeta timesignature 4 2 24 8,!,smeta endoftrack");
+  }
+
+  TEST_CASE("seq: a meta type Max has no name for sends its type number (#692)") {
+    // Swallowing it would leave a patch unable to tell two of them apart.
+    std::string events;
+    PutMeta(events, 0, 0x33, std::string("\x01\x02", 2));
+
+    Rig rig;
+    Deliver(rig, MidiHeader(0, 1, 480) + MidiTrack(events));
+    rig.reset();
+
+    rig.List("start");
+    CHECK(rig.Out() == "smeta 51 1 2,!,smeta endoftrack");
+  }
+
+  TEST_CASE("seq: a format 1 file is merged into one sequence (#692)") {
+    // Max reads "standard MIDI files (format 0 and format 1)", and a format 1
+    // file is several chunks running at once. They are merged by absolute tick,
+    // ties going to the lower-numbered chunk so the order is the file's own.
+    std::string first;
+    PutEvent(first, 0, {0x90, 60, 100});
+    PutEvent(first, 960, {0x80, 60, 0});
+    std::string second;
+    PutEvent(second, 480, {0x91, 67, 90});
+
+    Rig rig;
+    Deliver(rig, MidiHeader(1, 2, 480) + MidiTrack(first) + MidiTrack(second));
+
+    // At 120 BPM (the default the file does not override), 480 ticks is 500 ms
+    // and 960 is 1000 — so the second chunk's note falls *between* the first
+    // chunk's two, which is the whole point of the merge.
+    CHECK(Tape(rig.obj) == "0 144 | 0 60 | 0 100 | 500 145 | 0 67 | 0 90 | 0 meta endoftrack | "
+                           "500 128 | 0 60 | 0 0 | 0 meta endoftrack");
+  }
+
+  TEST_CASE("seq: running status and system exclusive both load (#692)") {
+    // Max: seq "supports channel and system exclusive messages". Running status
+    // is what a real file is full of — the status byte is written once and the
+    // data bytes that follow belong to it — and the tape has to get it back with
+    // the status byte spelled out, because that is what a MIDI port expects.
+    std::string events;
+    PutEvent(events, 0, {0x90, 60, 100});
+    PutEvent(events, 0, {62, 100}); // running status: the same note-on
+    PutVarLen(events, 0);
+    PutByte(events, 0xF0);
+    PutVarLen(events, 3);
+    PutByte(events, 0x7E);
+    PutByte(events, 0x09);
+    PutByte(events, 0xF7);
+
+    Rig rig;
+    Deliver(rig, MidiHeader(0, 1, 480) + MidiTrack(events));
+
+    CHECK(Tape(rig.obj) == "0 144 | 0 60 | 0 100 | 0 144 | 0 62 | 0 100 | 0 240 | 0 126 | 0 9 | "
+                           "0 247 | 0 meta endoftrack");
+  }
+
+  TEST_CASE("seq: Max's text format loads with its absolute times as gaps (#692)") {
+    // Max reads "a start time in milliseconds (the time elapsed since the
+    // beginning of the sequence) followed by the (space-separated) bytes of a
+    // MIDI message recorded at that start time". Absolute there, deltas here,
+    // and the bytes of one line share one start time — which is exactly what
+    // playback runs out together. A CRLF file loads as the lines it looks like.
+    Rig rig;
+    Deliver(rig, "0 144 60 100\r\n500 128 60 0\r\n");
+
+    CHECK(Tape(rig.obj) == "0 144 | 0 60 | 0 100 | 500 128 | 0 60 | 0 0");
+    CHECK(rig.obj.MetaCount() == 0);
+  }
+
+  TEST_CASE("seq: a text line without a leading time is not an event (#692)") {
+    Rig rig;
+    Deliver(rig, "\n0 144 60\nnot a line\n\n100 128 60\n");
+    CHECK(Tape(rig.obj) == "0 144 | 0 60 | 100 128 | 0 60");
+  }
+
+  TEST_CASE("seq: the file's tempo map times the sequence, and overridetempo wins (#692)") {
+    // The gap between the two notes is one quarter note. At the 60 BPM the file
+    // declares that is 1000 ms; with `overridetempo 1` and `tempo 120` the
+    // file's request is ignored and it is 500 ms.
+    std::string events;
+    PutMeta(events, 0, 0x51, TempoBytes(60.0));
+    PutEvent(events, 0, {0x90, 60, 100});
+    PutEvent(events, 480, {0x80, 60, 0});
+    const std::string file = MidiHeader(0, 1, 480) + MidiTrack(events);
+
+    Rig rig;
+    Deliver(rig, file);
+    CHECK(rig.obj.EventAt(4) == "1000 128");
+    CHECK(rig.obj.SequenceTempo() == doctest::Approx(60.f));
+    CHECK(rig.obj.Tempo() == doctest::Approx(60.f));
+
+    // Max: "the value of the tempo attribute will override any tempo requested
+    // by the sequence." It applies to the next read, the tape being
+    // milliseconds rather than ticks — see the class documentation.
+    rig.List("overridetempo 1");
+    rig.List("tempo 120");
+    Deliver(rig, file);
+    CHECK(rig.obj.EventAt(4) == "500 128");
+    // The sequence's own tempo is still reported unmodified, and the attribute
+    // is not overwritten by the file's.
+    CHECK(rig.obj.SequenceTempo() == doctest::Approx(60.f));
+    CHECK(rig.obj.Tempo() == doctest::Approx(120.f));
+  }
+
+  TEST_CASE("seq: a tempo meta passing the playhead sets the tempo attribute (#692)") {
+    // Max: "if the seq has read a MIDI file with tempo information, the tempo
+    // attribute will reflect the current tempo at the current playback time."
+    // Literally that — the tempo the playhead has just gone past.
+    std::string events;
+    PutMeta(events, 0, 0x51, TempoBytes(60.0));
+    PutEvent(events, 0, {0x90, 60, 100});
+    PutMeta(events, 0, 0x51, TempoBytes(240.0));
+    PutEvent(events, 0, {0x80, 60, 0});
+    const std::string file = MidiHeader(0, 1, 480) + MidiTrack(events);
+
+    Rig rig;
+    Deliver(rig, file);
+    CHECK(rig.obj.Tempo() == doctest::Approx(60.f));
+
+    // Every gap is zero, so one `start` walks the whole sequence and goes past
+    // both tempo metas; the last one is what is left in force.
+    rig.List("start");
+    CHECK(rig.obj.Tempo() == doctest::Approx(240.f));
+    CHECK(rig.obj.SequenceTempo() == doctest::Approx(60.f));
+
+    // And with the attribute overriding, the sequence does not move it.
+    rig.List("overridetempo 1");
+    rig.List("tempo 90");
+    Deliver(rig, file);
+    rig.List("start");
+    CHECK(rig.obj.Tempo() == doctest::Approx(90.f));
+  }
+
+  TEST_CASE("seq: an SMPTE division is absolute time, whatever the tempo says (#692)") {
+    // A negative division is frames per second and ticks per frame, so 25 x 40
+    // ticks is one second no matter what a tempo meta asks for.
+    std::string events;
+    PutMeta(events, 0, 0x51, TempoBytes(240.0));
+    PutEvent(events, 0, {0x90, 60, 100});
+    PutEvent(events, 1000, {0x80, 60, 0});
+
+    Rig rig;
+    // -25 frames per second, 40 ticks per frame.
+    Deliver(rig, MidiHeader(0, 1, 0xE728) + MidiTrack(events));
+    CHECK(rig.obj.EventAt(4) == "1000 128");
+  }
+
+  TEST_CASE("seq: a read replaces the sequence and stops the transport (#692)") {
+    // Max's read loads a file into the object; it is not a merge. The transport
+    // goes with the sequence, which is `.mtr`'s rule and where both part company
+    // with `.qlist`: a sequence left playing would already have a step armed at
+    // a delta belonging to a tape that no longer exists.
+    Rig rig;
+    rig.List("record");
+    rig.List("144 60 112");
+    rig.List("stop");
+    REQUIRE(rig.obj.Count() == 3);
+
+    Deliver(rig, "0 176 7 64\n");
+    CHECK(Tape(rig.obj) == "0 176 | 0 7 | 0 64");
+    CHECK_FALSE(rig.obj.IsPlaying());
+    CHECK_FALSE(rig.obj.IsRecording());
+    CHECK(rig.obj.Position() == 0);
+  }
+
+  TEST_CASE("seq: events past the tape size stop the read rather than growing it (#692)") {
+    // The bound is the tape's, as it is for a recorded byte — growing it would
+    // allocate on whichever thread the completion is delivered on, which is the
+    // audio one.
+    std::string events;
+    for (std::size_t i = 0; i < (gSeq::MAX_EVENTS / 3) + 40; i++)
+      PutEvent(events, 0, {0x90, 60, 100});
+
+    Rig rig;
+    Deliver(rig, MidiHeader(0, 1, 480) + MidiTrack(events));
+    // A MIDI message is refused whole, so the tape never ends with a status byte
+    // whose data bytes did not fit — 4096 is divisible by neither three nor one
+    // more, so the last message that fits is the last one stored.
+    CHECK(rig.obj.Count() == gSeq::MAX_EVENTS - (gSeq::MAX_EVENTS % 3));
+  }
+
+  TEST_CASE("seq: metas past the meta table are dropped and the sequence loads on (#692)") {
+    // A meta is information *about* the music rather than part of it, so losing
+    // one is not losing the take — unlike a byte, which stops the read.
+    std::string events;
+    for (std::size_t i = 0; i < gSeq::META_CAPACITY + 8; i++)
+      PutMeta(events, 0, 0x06, "m");
+    PutEvent(events, 0, {0x90, 60, 100});
+
+    Rig rig;
+    Deliver(rig, MidiHeader(0, 1, 480) + MidiTrack(events));
+    CHECK(rig.obj.MetaCount() == gSeq::META_CAPACITY);
+    // The note still made it, which is the point.
+    CHECK(rig.obj.EventAt(gSeq::META_CAPACITY) == "0 144");
+  }
+
+  TEST_CASE("seq: an over-long meta payload is dropped, not truncated (#692)") {
+    std::string events;
+    PutMeta(events, 0, 0x02, std::string(gSeq::META_BYTES_CAPACITY + 1, 'x'));
+    PutEvent(events, 0, {0x90, 60, 100});
+
+    Rig rig;
+    Deliver(rig, MidiHeader(0, 1, 480) + MidiTrack(events));
+    // Only the end-of-track meta survives, and the note is unaffected.
+    CHECK(Tape(rig.obj) == "0 144 | 0 60 | 0 100 | 0 meta endoftrack");
+  }
+
+  TEST_CASE("seq: a file that is not a sequence leaves the one loaded alone (#692)") {
+    // The header is validated *before* anything is cleared, which is what makes
+    // this possible at all.
+    Rig rig;
+    Deliver(rig, "0 144 60 112\n");
+    REQUIRE(Tape(rig.obj) == "0 144 | 0 60 | 0 112");
+    rig.reset();
+
+    // A well-formed magic with a division of zero is not a division.
+    Deliver(rig, MidiHeader(0, 1, 0));
+    CHECK(Tape(rig.obj) == "0 144 | 0 60 | 0 112");
+    // A header claiming a length that runs off the end.
+    Deliver(rig, std::string("MThd\xFF\xFF\xFF\xFF\x00\x00\x00\x01\x01\xE0", 14));
+    CHECK(Tape(rig.obj) == "0 144 | 0 60 | 0 112");
+    // And a header with no track chunk behind it at all.
+    Deliver(rig, MidiHeader(0, 1, 480));
+    CHECK(Tape(rig.obj) == "0 144 | 0 60 | 0 112");
+    // None of the three bangs the file outlet.
+    CHECK(rig.Out().empty());
+  }
+
+  TEST_CASE("seq: a file declaring more chunks than the merge holds is refused whole (#692)") {
+    // Refused rather than half read: a merge missing a chunk would silently be a
+    // different sequence, and the refusal happens before anything is cleared.
+    Rig rig;
+    rig.List("record");
+    rig.Int(144);
+    rig.List("stop");
+    rig.reset();
+
+    const std::size_t chunks = gSeq::MAX_FILE_TRACKS + 1;
+    std::string file = MidiHeader(1, (unsigned int)chunks, 480);
+    for (std::size_t i = 0; i < chunks; i++) {
+      std::string events;
+      PutEvent(events, 0, {0x90, 60, 100});
+      file += MidiTrack(events);
+    }
+
+    Deliver(rig, file);
+    CHECK(Tape(rig.obj) == "0 144");
+    CHECK(rig.Out().empty());
+  }
+
+  TEST_CASE("seq: 'clear' erases the metas with the bytes (#692)") {
+    Rig rig;
+    Deliver(rig, MidiHeader(0, 1, 480) + MidiTrack(std::string()));
+    REQUIRE(rig.obj.MetaCount() == 1);
+    rig.List("clear");
+    CHECK(rig.obj.Count() == 0);
+    CHECK(rig.obj.MetaCount() == 0);
+  }
+
+  // ─── sequence files on disk (issue #692) ────────────────────────────────────
+  //
+  // Every case here needs a real patcherImplementation and a real file: the
+  // background job, the host-honouring read and the completion delivered into a
+  // dispatch frame only exist there, and a standalone object deliberately has
+  // none of them. The object is only reachable through its ports here, which is
+  // the right level anyway — what has to come back is a sequence a patch can
+  // *play*.
+
+  TEST_CASE("seq: a write then a read round-trips the sequence (#692)") {
+    // The acceptance criterion for the write half, end to end through a real
+    // patcher, a real file on disk and real recorders.
+    const std::string path = TempFile("yse_seq_roundtrip_692.mid");
+    FileRig rig;
+
+    // No block is rendered between these, so every gap is 0 and the file is
+    // deterministic — the timing itself is pinned by the clock case below.
+    rig.List("record");
+    rig.List("144 60 112");
+    rig.List("stop");
+
+    rig.List("write " + path);
+    rig.Settle();
+
+    // A standard MIDI file, which is what Max's write produces: the header
+    // chunk, format 0, one track chunk.
+    const std::string written = ReadWholeFile(path);
+    REQUIRE(written.size() > 18);
+    CHECK(written.compare(0, 4, "MThd") == 0);
+    CHECK((unsigned char)written[8] == 0);
+    CHECK((unsigned char)written[9] == 0);
+    CHECK((unsigned char)written[10] == 0);
+    CHECK((unsigned char)written[11] == 1);
+    CHECK(written.compare(14, 4, "MTrk") == 0);
+    // Max has no outlet for a finished write anywhere in this family, and
+    // neither does this.
+    CHECK(rig.file.seen.empty());
+
+    rig.List("clear");
+    rig.List("read " + path);
+    rig.Settle();
+    // Exactly one bang, and only after the sequence is in place.
+    REQUIRE(Joined(rig.file.seen) == "!");
+
+    // The bytes come back as they went in. The two metas around them are the
+    // file's own doing: a written file declares the tempo it was written at, and
+    // every chunk ends with an end-of-track event.
+    CHECK(rig.PlayOut() == "smeta tempo 120.,i144,i60,i112,!,smeta endoftrack");
+
+    Remove(path);
+  }
+
+  TEST_CASE("seq: a second round trip changes nothing (#692)") {
+    // The file the writer produces has to be a fixed point, or every save and
+    // load cycle would add another tempo declaration. It is: a tape that already
+    // opens with a tempo meta is written with that one rather than a fresh one.
+    const std::string path = TempFile("yse_seq_fixedpoint_692.mid");
+    FileRig rig;
+
+    rig.List("record");
+    rig.List("144 60 112");
+    rig.List("stop");
+    rig.List("write " + path);
+    rig.Settle();
+    rig.List("read " + path);
+    rig.Settle();
+    const std::string once = rig.PlayOut();
+    CHECK(once == "smeta tempo 120.,i144,i60,i112,!,smeta endoftrack");
+    const std::string first = ReadWholeFile(path);
+
+    rig.List("write " + path);
+    rig.Settle();
+    CHECK(ReadWholeFile(path) == first);
+    rig.List("read " + path);
+    rig.Settle();
+    CHECK(rig.PlayOut() == once);
+
+    Remove(path);
+  }
+
+  TEST_CASE("seq: 'write <name> 1' writes Max's multi-track file, split by channel (#692)") {
+    // Max: "a non-zero int argument creates a multi-track (format 1) MIDI file."
+    // A flat byte tape has no track structure of its own, so the split it does
+    // have is the MIDI channel — a conductor chunk for the metas and anything
+    // with no channel, then one chunk per channel the sequence uses.
+    const std::string path = TempFile("yse_seq_format1_692.mid");
+    FileRig rig;
+
+    rig.List("record");
+    rig.List("144 60 100");
+    rig.List("145 62 100");
+    rig.List("stop");
+    rig.List("write " + path + " 1");
+    rig.Settle();
+
+    const std::string written = ReadWholeFile(path);
+    REQUIRE(written.size() > 14);
+    // Format 1, and three chunks: the conductor plus one per channel.
+    CHECK((unsigned char)written[9] == 1);
+    CHECK((unsigned char)written[10] == 0);
+    CHECK((unsigned char)written[11] == 3);
+
+    // And it reads back as one sequence, which is what the merge is for. Every
+    // chunk starts at tick 0, so ties go to the lower-numbered chunk and the
+    // conductor's events come first.
+    rig.List("clear");
+    rig.List("read " + path);
+    rig.Settle();
+    CHECK(rig.PlayOut() == "smeta tempo 120.,smeta endoftrack,i144,i60,i100,smeta endoftrack,"
+                           "i145,i62,i100,!,smeta endoftrack");
+
+    Remove(path);
+  }
+
+  TEST_CASE("seq: a trailing bare integer is the format argument, not the name (#692)") {
+    // The family's rule is that the whole remainder is the path, so a name with
+    // spaces works. Max's optional format argument has to come off the end
+    // without breaking that — and only when there is a name in front of it to
+    // take it from, so a file whose whole name is a number can still be written.
+    const std::string spaced = TempFile("yse seq spaced 692.mid");
+    const std::string plain = TempFile("yse_seq_plain_692.mid");
+    const std::string numeric = TempFile("692");
+    FileRig rig;
+
+    rig.List("record");
+    rig.List("144 60 100");
+    rig.List("stop");
+
+    // A name with spaces in it, and Max's format argument off the end of it.
+    rig.List("write " + spaced + " 1");
+    rig.Settle();
+    CHECK(ReadWholeFile(spaced).compare(0, 4, "MThd") == 0);
+    CHECK((unsigned char)ReadWholeFile(spaced)[9] == 1);
+
+    // No argument is format 0.
+    rig.List("write " + plain);
+    rig.Settle();
+    CHECK((unsigned char)ReadWholeFile(plain)[9] == 0);
+
+    // And a bare number with nothing in front of it is the name, not a format.
+    rig.List("write " + numeric);
+    rig.Settle();
+    CHECK(ReadWholeFile(numeric).compare(0, 4, "MThd") == 0);
+
+    Remove(spaced);
+    Remove(plain);
+    Remove(numeric);
+  }
+
+  TEST_CASE("seq: read does nothing in the message handler (#692)") {
+    // The reason the plumbing exists. A `read` may be dispatched on the audio
+    // callback, so the handler must not open anything — which is observable: the
+    // sequence is still empty when the message returns, and only a rendered
+    // block puts the file on it.
+    const std::string path = TempFile("yse_seq_deferred_692.txt");
+    WriteWholeFile(path, "0 144 60 100\n");
+    FileRig rig;
+
+    rig.List("read " + path);
+    // Nothing yet: a `start` on an empty sequence plays nothing at all. The
+    // request is a claim on a slot and the disk has not been touched here.
+    rig.List("start");
+    CHECK(rig.out.seen.empty());
+    CHECK(rig.file.seen.empty());
+    REQUIRE(rig.p.FileIO() != nullptr);
+    CHECK(rig.p.FileIO()->PendingCount() == 1);
+
+    rig.Settle();
+    REQUIRE(Joined(rig.file.seen) == "!");
+    CHECK(rig.p.FileIO()->PendingCount() == 0);
+    CHECK(rig.PlayOut() == "i144,i60,!,i100");
+
+    Remove(path);
+  }
+
+  TEST_CASE("seq: a read cancels the step a running sequence was waiting on (#692)") {
+    // The half of "replace and stop the transport" that only a real scheduler
+    // can show: the pending step goes with the tape it belonged to.
+    const std::string path = TempFile("yse_seq_cancel_692.txt");
+    WriteWholeFile(path, "0 176 7 64\n");
+    FileRig rig;
+
+    rig.List("record");
+    rig.Int(144);
+    rig.List("stop");
+    rig.List("delay 500");
+    rig.List("start");
+    REQUIRE(rig.p.Scheduler()->PendingCount() == 1);
+
+    rig.List("read " + path);
+    rig.Settle();
+    CHECK(rig.p.Scheduler()->PendingCount() == 0);
+    CHECK(rig.PlayOut() == "i176,i7,!,i64");
+
+    Remove(path);
+  }
+
+  TEST_CASE("seq: the bare forms reuse the last name given, each half its own (#692)") {
+    // Max's bare `read` and `write` open a file dialog, which a headless patcher
+    // has no equivalent of, so each half remembers the last name it was given.
+    // Max documents no readagain / writeagain for seq, so neither is invented.
+    const std::string source = TempFile("yse_seq_bare_source_692.txt");
+    const std::string target = TempFile("yse_seq_bare_target_692.mid");
+    WriteWholeFile(source, "0 144 62 90\n");
+    FileRig rig;
+
+    rig.List("read " + source);
+    rig.List("write " + target);
+    rig.Settle();
+    REQUIRE(ReadWholeFile(target).compare(0, 4, "MThd") == 0);
+
+    rig.List("clear");
+    // A bare read goes back to the source, not to the file the write named.
+    rig.List("read");
+    rig.Settle();
+    CHECK(rig.PlayOut() == "i144,i62,!,i90");
+
+    Remove(source);
+    Remove(target);
+  }
+
+  TEST_CASE("seq: a bare read with no name and no argument does nothing (#692)") {
+    FileRig rig;
+    rig.List("read");
+    rig.List("write");
+    REQUIRE(rig.p.FileIO() != nullptr);
+    // Refused before the scheduler is reached at all, so nothing is even
+    // counted as dropped.
+    CHECK(rig.p.FileIO()->PendingCount() == 0);
+    CHECK(rig.p.FileIO()->Dropped() == 0);
+  }
+
+  TEST_CASE("seq: a read of a missing file leaves the sequence alone (#692)") {
+    const std::string path = TempFile("yse_seq_missing_692.mid");
+    FileRig rig;
+
+    rig.List("record");
+    rig.List("144 60 112");
+    rig.List("stop");
+
+    rig.List("read " + path);
+    rig.Settle();
+    CHECK(rig.file.seen.empty());
+    CHECK(rig.PlayOut() == "i144,i60,!,i112");
+  }
+
+  TEST_CASE("seq: the filename creation argument is read when the object joins a patcher (#692)") {
+    // Max: "specifies the name of a file to be read into seq automatically when
+    // the patch is loaded." This is where an object is loaded, and it is the
+    // same deferred request a `read` message makes — so the sequence arrives
+    // with the patcher's next block rather than during CreateObject.
+    const std::string path = TempFile("yse_seq_autoload_692.txt");
+    WriteWholeFile(path, "0 192 4\n");
+    FileRig rig(path);
+
+    // Claimed at construction, delivered by a block — nothing was opened on the
+    // control thread either.
+    REQUIRE(rig.p.FileIO() != nullptr);
+    CHECK(rig.p.FileIO()->PendingCount() == 1);
+
+    rig.Settle();
+    REQUIRE(Joined(rig.file.seen) == "!");
+    CHECK(rig.PlayOut() == "i192,!,i4");
+
+    // And it seeded the write half too, so a bare write saves over the same
+    // name — as a MIDI file, which is the only thing a write produces.
+    rig.List("write");
+    rig.Settle();
+    CHECK(ReadWholeFile(path).compare(0, 4, "MThd") == 0);
+
+    Remove(path);
+  }
+
+  TEST_CASE("seq: deleting the object with a read in flight is safe (#692)") {
+    // The job never touches the requesting object, so a DeleteObject racing a
+    // read is safe by construction rather than by timing. An ASan build trips
+    // here if the retired object is touched.
+    const std::string path = TempFile("yse_seq_delete_692.txt");
+    WriteWholeFile(path, "0 144 60 100\n");
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* handle = p.CreateObject(YSE::OBJ::G_SEQ, "");
+    REQUIRE(handle != nullptr);
+
+    handle->SetListData(0, "read " + path);
+    REQUIRE(p.FileIO() != nullptr);
+    REQUIRE(p.FileIO()->PendingCount() == 1);
+
+    p.DeleteObject(handle);
+    p.FileIO()->WaitIdle();
+    for (int block = 0; block < 4; block++)
+      p.Calculate(YSE::T_DSP);
+    CHECK(p.FileIO()->PendingCount() == 0);
+
+    Remove(path);
+  }
+
+  TEST_CASE("seq: a sequence loaded from a MIDI file plays out its file timing (#692)") {
+    // End to end and on the clock: the gap between the two notes exists only in
+    // the file's ticks and the tempo it declares, and it has to come back out of
+    // the patcher's block counter as the milliseconds it converted to. 480 ticks
+    // at 120 BPM is 500 ms.
+    const std::string path = TempFile("yse_seq_clock_692.mid");
+    std::string events;
+    PutMeta(events, 0, 0x51, TempoBytes(120.0));
+    PutEvent(events, 0, {0x90, 60, 100});
+    PutEvent(events, 480, {0x80, 60, 0});
+    WriteWholeFile(path, MidiHeader(0, 1, 480) + MidiTrack(events));
+
+    FileRig rig;
+    rig.List("read " + path);
+    rig.Settle();
+    rig.out.reset();
+
+    rig.List("start");
+    // The whole zero-delta run at the head leaves in the dispatch that started
+    // it — the three bytes of a note-on are one message.
+    CHECK(Joined(rig.out.seen) == "smeta tempo 120.,i144,i60,i100");
+    rig.out.reset();
+
+    const std::uint64_t due = messageScheduler::BlocksForMillis(500);
+    for (std::uint64_t block = 1; block < due; ++block)
+      rig.p.Calculate(YSE::T_DSP);
+    CHECK(rig.out.seen.empty());
+
+    rig.p.Calculate(YSE::T_DSP);
+    CHECK(Joined(rig.out.seen) == "i128,i60,i0,!,smeta endoftrack");
+
+    Remove(path);
   }
 
 } // TEST_SUITE
