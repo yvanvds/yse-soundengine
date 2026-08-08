@@ -24,6 +24,7 @@
 #include "genericObjects/gAffix.h"
 #include "genericObjects/gSprintf.h"
 #include "genericObjects/gSubstitute.h"
+#include "genericObjects/gSymbol.h"
 #include "genericObjects/gDecode.h"
 #include "genericObjects/gForward.h"
 #include "genericObjects/gValue.h"
@@ -225,6 +226,13 @@ pRegistry::pRegistry() {
   // trip to the host application .prepend / .append / .substitute still needed,
   // since none of them can spell a number into the middle of a word (issue #489)
   Add(OBJ::G_SPRINTF, gSprintf::Create);
+
+  // Collapse a message into a single token and expand it back — the round trip
+  // that lets structured data ride through anything that takes a name, and the
+  // one conversion the message-construction family could not express, since a
+  // patcher message is text and its readers all split on whitespace (issue #490)
+  Add(OBJ::G_TOSYMBOL, gToSymbol::Create);
+  Add(OBJ::G_FROMSYMBOL, gFromSymbol::Create);
 
   Add(OBJ::G_RECEIVE, gReceive::Create);
   Add(OBJ::G_SEND, gSend::Create);

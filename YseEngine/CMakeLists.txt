@@ -135,6 +135,7 @@ set(YSE_SRCS
   patcher/genericObjects/gSprintf.cpp
   patcher/genericObjects/gSubstitute.cpp
   patcher/genericObjects/gSwitch.cpp
+  patcher/genericObjects/gSymbol.cpp
   patcher/genericObjects/gTrigger.cpp
   patcher/genericObjects/gUzi.cpp
   patcher/genericObjects/gValue.cpp
@@ -342,6 +343,7 @@ set_source_files_properties(
   patcher/genericObjects/gSprintf.cpp
   patcher/genericObjects/gSubstitute.cpp
   patcher/genericObjects/gSwitch.cpp
+  patcher/genericObjects/gSymbol.cpp
   patcher/genericObjects/gTrigger.cpp
   patcher/genericObjects/gUzi.cpp
   patcher/genericObjects/gValue.cpp

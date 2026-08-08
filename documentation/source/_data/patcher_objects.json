@@ -2154,6 +2154,54 @@
       }
     ]
   },
+  ".fromsymbol": {
+    "category": "GENERIC",
+    "description": "Expands a symbol back into a message — Max's fromsymbol, which 'converts individual characters in a symbol into numbers or messages'. The inverse of .tosymbol, and used with the same separator on both ends it is the round trip that carries structured data through anything that takes a name: a bus address, a file path, a dictionary key. It splits the incoming text on its separator and hands the pieces on as an ordinary whitespace-separated message, so .fromsymbol / turns voice/3/freq back into voice 3 freq, which a .route then reads as three elements; and it restores the type, so a result that came out as a single token leaves as an int or a float when it reads as a number and as a bang when it is the word bang — Max's 'the word bang sent as a part of a symbol will be converted to a message'. A type is a property of the whole message in this patcher, so only a single-token result has one to restore: bang/5 split on / is the two-token list bang 5, not a list with a bang atom in it, because there is no such thing here. An int, a float or a bang arriving directly is passed straight through, Max's 'any integer will simply pass through to the output'. The separator is a creation argument and inlet 1, leaving inlet 0 with no reserved words in it; an empty message on inlet 1 is Max's separator with no arguments, and with nothing to split on the object falls back to Max's own phrasing and takes the symbol apart into its individual characters, so 1234 comes back as 1 2 3 4. Whitespace already in the message separates pieces too, which is not an extra rule but the same one, and it is what makes the default separator of a single space plain whitespace normalisation. An empty piece is dropped, so a//b splits into a b rather than into a message with an empty token no .route matches. Calculate() does nothing, and no message path allocates, locks or blocks: the split is one bounded walk into a buffer reserved at construction for the longest list the patcher's queues carry.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A list is split on the separator; an int, a float or a bang passes straight through, since each is already what a symbol would have been expanded into.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Sets the separator used to join tokens together and to split them apart, without emitting anything. A list contributes its first token, an int or a float the number it spells. An empty message empties the separator, which is Max's 'separator' with no arguments: .tosymbol then joins with nothing at all (1 2 3 4 becomes 1234) and .fromsymbol takes the symbol apart into its individual characters. A token longer than 16 characters is refused and the previous separator kept. The default single space is a creation-time state, so SetParams restores it.",
+        "index": 1,
+        "label": "separator",
+        "range": "one token, at most 16 characters"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".fromsymbol",
+    "outlets": [
+      {
+        "doc": "The expanded message. A single-token result leaves as the type it reads as — an int, a float, or a bang for the word bang — and anything else leaves as a list.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": " ",
+        "doc": "The separator the symbol is split on. One token, at most 16 characters; a longer one is reported and ignored. With no argument at all it is a single space, Max's default, which restores the type but leaves the token structure alone. Empty splits into individual characters.",
+        "name": "separator",
+        "range": "one token, at most 16 characters"
+      }
+    ]
+  },
   ".ftom": {
     "category": "MATH",
     "description": "Converts a frequency in Hz to its MIDI note number (with A4 == 69, fractional output).",
@@ -4722,6 +4770,54 @@
       }
     ],
     "params": []
+  },
+  ".tosymbol": {
+    "category": "GENERIC",
+    "description": "Collapses whatever arrives into a single symbol — Max's tosymbol, which 'converts messages, numbers, or lists into a single symbol'. Max has atom types and this patcher does not: a message here is text, and every object that reads one apart — .route and .routepass on the leading token, .sel, .substitute, .spray — splits it on whitespace. So a symbol here is a message that is one whitespace-free token, and this object makes one in two ways. It joins the tokens of the incoming message with its separator, so .tosymbol / turns voice 3 freq into voice/3/freq, one element a .route matches on and a name a .forward will send to; and it converts a bang, an int or a float into the text that spells it, sent as a list, which is what lets a computed value be used as a name at all. Max's separator default of a space is kept and left honest rather than papered over: whitespace is exactly what separates tokens here, so with the default separator the object performs the type conversion and normalises the whitespace and nothing more. Max wraps a symbol containing spaces in double quotes; that is not reproduced, because nothing in this patcher reads a quote as anything but an ordinary character, so quoting would only produce a different message. The separator is a creation argument and inlet 1, leaving inlet 0 with no reserved words in it — the .prepend discipline, which matters here because this object exists to carry arbitrary words. An empty message on inlet 1 is Max's separator with no arguments and empties it, so 1 2 3 4 joins into 1234. Runs of whitespace collapse to one separator and the ends are trimmed, so the result never has an empty token in it. Calculate() does nothing, and no message path allocates, locks or blocks: the join is one bounded walk into a buffer reserved at construction for the longest list the patcher's queues carry.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Bang, int, float and list are all converted. A bang becomes the symbol bang, a number becomes the text that spells it, and a list has its tokens joined with the separator. The result always leaves as a list, whatever arrived.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Sets the separator used to join tokens together and to split them apart, without emitting anything. A list contributes its first token, an int or a float the number it spells. An empty message empties the separator, which is Max's 'separator' with no arguments: .tosymbol then joins with nothing at all (1 2 3 4 becomes 1234) and .fromsymbol takes the symbol apart into its individual characters. A token longer than 16 characters is refused and the previous separator kept. The default single space is a creation-time state, so SetParams restores it.",
+        "index": 1,
+        "label": "separator",
+        "range": "one token, at most 16 characters"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".tosymbol",
+    "outlets": [
+      {
+        "doc": "The collapsed message, as a list. With a non-whitespace separator it is a single token — a symbol — that .route, .sel or .forward reads as one element.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": " ",
+        "doc": "The separator tokens are joined with. One token, at most 16 characters; a longer one is reported and ignored. With no argument at all it is a single space, Max's default, which leaves the token structure alone and converts only the type.",
+        "name": "separator",
+        "range": "one token, at most 16 characters"
+      }
+    ]
   },
   ".trigger": {
     "category": "GENERIC",
