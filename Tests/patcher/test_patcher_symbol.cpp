@@ -555,9 +555,10 @@ TEST_SUITE("patcher") {
     CHECK(collapsedReject.listValue == "voice/3/freq");
 
     // Expanded again, the same data is a message whose first token is `voice`,
-    // and the same .route now matches it.
+    // and the same .route now matches it — and consumes the token it matched
+    // on (#672), so what arrives is the rest of the address.
     CHECK(splitMatch.gotList);
-    CHECK(splitMatch.listValue == "voice 3 freq");
+    CHECK(splitMatch.listValue == "3 freq");
   }
 
   TEST_CASE("symbol: a computed number becomes part of a name and survives the trip (#490)") {

@@ -35,11 +35,9 @@ namespace YSE {
      *  ``.sel`` matches the same way and sends a **bang**: the outlet's
      *  position is the whole answer and the value is dropped. Use it to *test*.
      *
-     *  ``.route`` is the stripping form — or is meant to be. As this is
-     *  written it forwards the whole message too, which is a defect in it and
-     *  not a fact about this object (issue #672). When it is fixed the pair is
-     *  Max's pair; until then this is the one whose *contract* says the message
-     *  arrives intact, which is what a patch can rely on.
+     *  ``.route`` is the stripping form. It forwarded the whole message too
+     *  until issue #672 fixed it; the pair is Max's pair now, and this is the
+     *  one to reach for when the message has to arrive intact.
      *
      *  ``.split`` routes by numeric *range* rather than by a match, and
      *  ``.gate``/``.switch``/``.router`` route by state the object holds rather

@@ -430,7 +430,7 @@ TEST_SUITE("patcher") {
     // only exists at run time reaches the matching outlet of a .route because a
     // .prepend put a word in front of it. Nothing short of the whole chain
     // proves that — a unit test asserting on the joined text cannot tell
-    // "note 60" from " note 60", and only one of those routes.
+    // "note 60" from "note60", and only one of those routes.
     //
     // Sinks before the patcher: the patcher is torn down first, while the
     // inlets it is wired to still exist.
@@ -452,8 +452,13 @@ TEST_SUITE("patcher") {
     p.Connect(route, 1, &fallthroughHandle, 0);
 
     pre->SetIntData(0, 60);
-    CHECK(matched.gotList);
-    CHECK(matched.listValue == "note 60");
+    // .route consumes the word it matched on (#672), so what reaches the branch
+    // is the bare value the .prepend put the word in front of — which is the
+    // point of the pairing: the selector exists to choose the branch, and the
+    // branch works in values.
+    CHECK(matched.gotInt);
+    CHECK(matched.intValue == 60);
+    CHECK_FALSE(matched.gotList);
     CHECK_FALSE(fallthrough.gotList);
 
     // And re-aiming it at run time moves the value to the other outlet, without
@@ -463,6 +468,8 @@ TEST_SUITE("patcher") {
     pre->SetListData(1, "chord");
     pre->SetIntData(0, 60);
     CHECK_FALSE(matched.gotList);
+    CHECK_FALSE(matched.gotInt);
+    // Unmatched, so the fall-through outlet passes the message on whole.
     CHECK(fallthrough.gotList);
     CHECK(fallthrough.listValue == "chord 60");
   }

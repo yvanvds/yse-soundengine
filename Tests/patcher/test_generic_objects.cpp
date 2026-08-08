@@ -184,6 +184,10 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("gRoute: integer keys route to the matching outlet") {
+    // A matched bare number is Max's "the message has no additional items"
+    // case: the selector *was* the message, so what leaves the matching outlet
+    // is a bang and not the number (#672).  Only the unmatched value still
+    // arrives as an int, out the fall-through.
     YSE::PATCHER::gRoute route;
     route.SetParams("10 20");
     REQUIRE(route.NumOutputs() == 3);
@@ -197,17 +201,17 @@ TEST_SUITE("patcher") {
     sDefault.ConnectInlet(route.GetOutlet(2), 0);
 
     route.GetInlet(0)->SetInt(10, YSE::T_GUI);
-    CHECK(s10.gotInt);
-    CHECK(s10.intValue == 10);
-    CHECK_FALSE(s20.gotInt);
-    CHECK_FALSE(sDefault.gotInt);
+    CHECK(s10.gotBang);
+    CHECK_FALSE(s10.gotInt);
+    CHECK_FALSE(s20.gotBang);
+    CHECK_FALSE(sDefault.gotBang);
 
     s10.reset();
     s20.reset();
     sDefault.reset();
     route.GetInlet(0)->SetInt(20, YSE::T_GUI);
-    CHECK(s20.gotInt);
-    CHECK(s20.intValue == 20);
+    CHECK(s20.gotBang);
+    CHECK_FALSE(s20.gotInt);
 
     s10.reset();
     s20.reset();
@@ -252,7 +256,10 @@ TEST_SUITE("patcher") {
     CHECK(sDefault.gotBang);
   }
 
-  TEST_CASE("gRoute: list with matching first token routes by token") {
+  TEST_CASE("gRoute: list with matching first token routes by token, minus the token") {
+    // The matched token is consumed (#672): Max's "the rest of the message is
+    // sent out the outlet that corresponds to that argument".  An unmatched
+    // message is passed on whole, which is what lets .route objects chain.
     YSE::PATCHER::gRoute route;
     route.SetParams("foo bar");
     MultiSink sFoo, sBar, sDefault;
@@ -265,13 +272,14 @@ TEST_SUITE("patcher") {
 
     route.GetInlet(0)->SetList("foo 1 2 3", YSE::T_GUI);
     CHECK(sFoo.gotList);
-    CHECK(sFoo.listValue == "foo 1 2 3");
+    CHECK(sFoo.listValue == "1 2 3");
 
     sFoo.reset();
     sBar.reset();
     sDefault.reset();
     route.GetInlet(0)->SetList("bar hello", YSE::T_GUI);
     CHECK(sBar.gotList);
+    CHECK(sBar.listValue == "hello");
 
     sFoo.reset();
     sBar.reset();
@@ -281,10 +289,15 @@ TEST_SUITE("patcher") {
     CHECK(sDefault.listValue == "zzz nope");
   }
 
-  TEST_CASE("gRoute: float compared as its to_string representation") {
+  TEST_CASE("gRoute: a float selector is matched by value, not by its spelling") {
+    // This case used to assert the defect rather than the behaviour: the object
+    // compared std::to_string(value) against the selector text, so the only
+    // selector that could ever match the float 1.5 was the one spelled
+    // "1.500000".  Since #672 the selector is read as a number, so the spelling
+    // a patch author would actually type matches — and the old six-decimal
+    // spelling still matches too, because both read as the same value.
     YSE::PATCHER::gRoute route;
-    // std::to_string(1.5f) yields "1.500000" on every platform we ship to.
-    route.SetParams(std::to_string(1.5f));
+    route.SetParams("1.5");
     REQUIRE(route.NumOutputs() == 2);
 
     MultiSink sMatch, sDefault;
@@ -293,14 +306,31 @@ TEST_SUITE("patcher") {
     route.ConnectOutlet(sDefault.GetInlet(0), 1);
     sDefault.ConnectInlet(route.GetOutlet(1), 0);
 
+    // The number was the whole message, so a match leaves as a bang.
     route.GetInlet(0)->SetFloat(1.5f, YSE::T_GUI);
-    CHECK(sMatch.gotFloat);
+    CHECK(sMatch.gotBang);
+    CHECK_FALSE(sDefault.gotBang);
     CHECK_FALSE(sDefault.gotFloat);
 
     sMatch.reset();
     sDefault.reset();
     route.GetInlet(0)->SetFloat(2.0f, YSE::T_GUI);
     CHECK(sDefault.gotFloat);
+    CHECK(sDefault.floatValue == doctest::Approx(2.0f));
+
+    // std::to_string(1.5f) yields "1.500000" on every platform we ship to, and
+    // it reads back as the same number.
+    YSE::PATCHER::gRoute spelled;
+    spelled.SetParams(std::to_string(1.5f));
+    MultiSink sSpelled, sSpelledDefault;
+    spelled.ConnectOutlet(sSpelled.GetInlet(0), 0);
+    sSpelled.ConnectInlet(spelled.GetOutlet(0), 0);
+    spelled.ConnectOutlet(sSpelledDefault.GetInlet(0), 1);
+    sSpelledDefault.ConnectInlet(spelled.GetOutlet(1), 0);
+
+    spelled.GetInlet(0)->SetFloat(1.5f, YSE::T_GUI);
+    CHECK(sSpelled.gotBang);
+    CHECK_FALSE(sSpelledDefault.gotBang);
   }
 
   // ─── gSwitch ──────────────────────────────────────────────────────────────────

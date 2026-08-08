@@ -481,12 +481,16 @@ TEST_SUITE("patcher") {
 
     // The head arrives second and completes the address. The .route matching on
     // the whole of it is the evidence that the result really is one element
-    // rather than merely text that looks like one.
+    // rather than merely text that looks like one — and because the address was
+    // the *whole* message, .route consumes it and bangs (#672), which is Max's
+    // "the message has no additional items" case. That bang is a stronger
+    // reading of the claim than the old pass-through was: it can only happen if
+    // the whole of `synth.bass` was the first item, with nothing beside it.
     combine->SetListData(0, "synth");
-    CHECK(matched.gotList);
-    CHECK(matched.listValue == "synth.bass");
-    CHECK(matched.listValue.find(' ') == std::string::npos);
+    CHECK(matched.gotBang);
+    CHECK_FALSE(matched.gotList);
     CHECK_FALSE(fallthrough.gotList);
+    CHECK_FALSE(fallthrough.gotBang);
 
     // A different tail re-addresses the same patch, and the head is remembered
     // this time.
@@ -498,6 +502,7 @@ TEST_SUITE("patcher") {
 
     combine->SetIntData(0, 7);
     CHECK_FALSE(matched.gotList);
+    CHECK_FALSE(matched.gotBang);
     CHECK(fallthrough.gotList);
     CHECK(fallthrough.listValue == "7.pad");
   }

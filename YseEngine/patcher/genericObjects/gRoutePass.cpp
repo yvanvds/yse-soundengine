@@ -76,10 +76,10 @@ CONSTRUCT() {
       "knowing it at the far end of the cord, in a second place, where it can disagree with the "
       "first. Here the branch is chosen by the tag and the tag stays. Its relatives: .sel matches "
       "the same way but sends a bang, dropping the value because the outlet's position is the "
-      "whole answer, so it is the object to test with; .route is the stripping form, or is meant "
-      "to be, since as this is written it forwards the whole message too — a defect in it and not "
-      "a fact about this object (issue #672), and until it is fixed this is the one whose contract "
-      "guarantees the message arrives intact; .split routes by numeric range rather than by a "
+      "whole answer, so it is the object to test with; .route is the stripping form, which "
+      "forwarded the whole message too until issue #672 fixed it, so the pair is Max's pair now "
+      "and this is the one to reach for when the message has to arrive intact; .split routes by "
+      "numeric range rather than by a "
       "match; and .gate, .switch and .router route by state the object holds rather than by "
       "anything in the message, where here the message chooses its own destination and nothing "
       "about the object changes as it does. The shape follows Max: 'the number of arguments "
@@ -230,9 +230,9 @@ BANG_IN(SetBang) {
   if (inlet != 0) return;
 
   // Max: "The bang message matches a 'bang' symbol in the arguments." It leaves
-  // as a bang either way — there is nothing to strip from a bang, so the two
-  // objects would agree here even once .route strips (#672); the outlet it
-  // leaves by is the whole answer.
+  // as a bang either way — there is nothing to strip from a bang, so this is
+  // the one case where .route agrees with this object; the outlet it leaves by
+  // is the whole answer.
   const int hit = MatchSymbol("bang", 4);
   if (hit >= 0) {
     outputs[(std::size_t)hit].SendBang(thread);
@@ -246,8 +246,8 @@ INT_IN(SetInt) {
 
   // Widened and compared as a float: this patcher has one numeric type, so
   // `.routepass 5` has to answer the int 5 and the float 5.0 alike. The int
-  // itself is what leaves the outlet — where Max's `route 5` would emit a bang,
-  // having consumed the only item there was.
+  // itself is what leaves the outlet — where `.route 5` emits a bang, having
+  // consumed the only item there was.
   const int hit = MatchNumber((float)value);
   if (hit >= 0) {
     outputs[(std::size_t)hit].SendInt(value, thread);
