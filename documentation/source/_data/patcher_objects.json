@@ -2135,6 +2135,54 @@
       }
     ]
   },
+  ".delay": {
+    "category": "TIME",
+    "description": "Delays a bang. A bang in the left inlet comes back out the outlet a settable number of milliseconds later, which is the patcher's most basic scheduling primitive: .metro can only repeat, and until this object there was no way to defer anything at all. Only one bang is held at a time — a new one cancels the pending one and restarts the wait, Max's 'the first bang is forgotten' — and 'stop' cancels it outright. A number in the left inlet sets the time and starts the wait; a number in the right inlet sets the time for the next bang only, leaving a bang already in flight alone. The wait runs on the patcher's deferred-message scheduler (issue #628) rather than on the timer thread behind .metro, so arming allocates nothing and takes no lock, and the released bang arrives inside the patcher's own dispatch as one fresh logical event rather than as an unrelated stimulus. That clock is the block counter, so it stops when the engine does and a paused patch holds a delayed bang where it stands, and its resolution is one audio block. A delay of 0 still defers to the next block rather than firing immediately, which is Max's behaviour and the reason a delay wired back into itself is a fast metronome instead of a stack overflow. Milliseconds only: Max's notevalue, tick and bars.beats.units formats are tempo-relative and the patcher has no transport bridge yet (issue #688). Calculate() does nothing and no message path allocates, locks or blocks.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The bang inlet. A bang starts the wait: Max's 'a bang is delayed a certain number of milliseconds before being sent out the outlet'. Only one bang is held at a time — a second one cancels the first and restarts the wait, Max's 'if a bang is already in delay when a new bang is received in the left inlet, the first bang is forgotten'. An int or a float sets the delay time and then starts the wait, which is Max's own wording: the number 'is stored as the number of milliseconds to delay a bang received in the left inlet. It then automatically sends a bang message to itself to start the delay.' The message 'stop' cancels the held bang without sending it. A list whose first item is a number sets the time and starts the wait, the same as a bare number; Max's list method exists to carry its time-format syntax (notevalues, ticks, bars.beats.units, samples), and milliseconds are the only unit here because everything else is tempo-relative and the patcher has no transport bridge yet (issue #688). Anything else, 'clock' included, does nothing.",
+        "index": 0,
+        "label": "bang",
+        "range": "bang, int, float, list, 'stop'"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Sets the delay time in milliseconds without starting anything. Max: 'a number received in the right inlet changes the delay time of the next bang received -- it does not modify the time of a bang currently being delayed', so a bang already waiting still leaves at the time it was armed with. Ints, floats and a list whose first item is a number all set it; a negative time counts as 0. There is no bang method here, as there is none in Max.",
+        "index": 1,
+        "label": "time",
+        "range": "0+ ms"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".delay",
+    "outlets": [
+      {
+        "doc": "The delayed bang, one audio block or more after the bang that caused it.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "5",
+        "doc": "The initial delay in milliseconds — Max's creation argument. Max's reference page disagrees with itself here: its Arguments section says 'if there is no argument, the initial time interval is 5 milliseconds' while its Attributes table lists delaytime as defaulting to 0 ms. The argument prose wins, being the statement about this object's constructor rather than about the attribute's declared default. Either inlet overwrites it afterwards. A negative value counts as 0.",
+        "name": "delaytime",
+        "range": "0+ ms"
+      }
+    ]
+  },
   ".div": {
     "category": "MATH",
     "description": "Control-rate integer division. Emits left / right as an int whenever inlet 0 fires, truncating towards zero instead of producing the float ./ would. Floats truncate towards zero on input, and a divisor of 0 emits 0.",

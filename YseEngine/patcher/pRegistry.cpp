@@ -61,6 +61,7 @@
 #include "guiObjects/gList.h"
 #include "guiObjects/gText.h"
 
+#include "time/gDelay.h"
 #include "time/gMetro.h"
 
 #include "math/dAdd.h"
@@ -452,6 +453,10 @@ pRegistry::pRegistry() {
   Add(OBJ::G_SHIFTRIGHT, gShiftRight::Create);
 
   Add(OBJ::G_METRO, gMetro::Create);
+
+  // Delay a bang — the patcher's most basic scheduling primitive, and the first
+  // object that can defer anything at all (issue #503)
+  Add(OBJ::G_DELAY, gDelay::Create);
 
   Add(OBJ::MIDITOFREQUENCY, pMidiToFrequency::Create);
   Add(OBJ::FREQUENCYTOMIDI, pFrequencyToMidi::Create);
