@@ -1,5 +1,8 @@
 #pragma once
 #include "../pObject.h"
+#include <cstddef>
+#include <string>
+#include <vector>
 
 namespace YSE {
   namespace PATCHER {
@@ -17,8 +20,22 @@ namespace YSE {
     _PARM_PARSE
 
   private:
-    std::vector<std::string> list;
+    static constexpr int MAX_SELECTORS = 256;
+    static constexpr std::size_t TEXT_CAPACITY = 256;
 
+    struct Selector {
+      std::string text;
+      float value;
+      bool numeric;
+    };
+
+    int MatchNumber(float value) const;
+    int MatchSymbol(const char* text, std::size_t length) const;
+    void ShapePorts();
+
+    std::vector<std::string> selectorArgs;
+    std::vector<Selector> selectors;
+    std::string remainder;
   };
 }
 }
