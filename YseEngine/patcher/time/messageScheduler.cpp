@@ -37,6 +37,19 @@ std::uint64_t messageScheduler::BlocksForMillis(int delayMs) {
   return blocks < 1 ? 1 : blocks;
 }
 
+int messageScheduler::MillisForBlocks(std::uint64_t blocks) {
+  // Live SAMPLERATE for the same reason BlocksForMillis reads it live (#637):
+  // the rate is negotiated with the device and may change under a running
+  // patcher. Truncating rather than ceiling — this measures an interval that
+  // has already happened, where rounding up would lengthen every gap by most
+  // of a block.
+  if (blocks == 0) return 0;
+  const std::uint64_t rate = (std::uint64_t)SAMPLERATE;
+  if (rate == 0) return 0;
+  const std::uint64_t ms = blocks * (std::uint64_t)STANDARD_BUFFERSIZE * (std::uint64_t)1000 / rate;
+  return ms > (std::uint64_t)2147483647 ? 2147483647 : (int)ms;
+}
+
 messageScheduler::Handle messageScheduler::Arm(pObject* target, int tag, int delayMs,
                                                DEFERRED_KIND kind, int intValue, float floatValue,
                                                const char* text, std::size_t length) {

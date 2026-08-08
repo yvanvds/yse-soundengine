@@ -205,6 +205,37 @@ namespace YSE {
        */
       static std::uint64_t BlocksForMillis(int delayMs);
 
+      /**
+       *  @brief ``BlocksForMillis`` the other way round: how long @p blocks of
+       *         this clock last, in milliseconds, at the live SAMPLERATE.
+       *
+       *  Not an exact inverse and cannot be — ``BlocksForMillis`` ceils and
+       *  floors at one block, so it is many-to-one. It is the conversion an
+       *  object *measuring* an interval on this clock needs, which is the
+       *  mirror of the one an object *waiting* out an interval needs.
+       *  Saturates at ``INT_MAX`` rather than wrapping. Written for ``.mtr``
+       *  (#501), which records the gap between two messages and later waits it
+       *  out again.
+       */
+      static int MillisForBlocks(std::uint64_t blocks);
+
+      /**
+       *  @brief The block the owning patcher is on right now — the clock every
+       *         deadline here is measured against.
+       *
+       *  Any thread; one atomic load, no allocation and no lock, so a message
+       *  handler may read it whichever thread is dispatching. An object that
+       *  *records* time needs the same clock the scheduler *waits* on, or a
+       *  recorded interval and the wait that reproduces it would drift apart —
+       *  and this is the only clock in the patcher that stops when the engine
+       *  does, which is what makes a paused patch hold a recording where it
+       *  stands. Zero for a standalone object, which has no patcher and so no
+       *  clock at all.
+       */
+      std::uint64_t Now() const {
+        return clock_.load(std::memory_order_acquire);
+      }
+
     private:
       // Slot lifecycle, packed with a generation into one atomic so a claim, a
       // cancel and a delivery can each move a slot with a single CAS that no

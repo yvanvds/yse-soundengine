@@ -28,6 +28,10 @@
 #include "genericObjects/gColl.h"
 #include "genericObjects/gFunbuff.h"
 #include "genericObjects/gTable.h"
+#include "genericObjects/gMtr.h"
+#include "genericObjects/gQlist.h"
+#include "genericObjects/gSeq.h"
+#include "genericObjects/gTextfile.h"
 #include "genericObjects/gCombine.h"
 #include "genericObjects/gSpell.h"
 #include "genericObjects/gSprintf.h"
@@ -57,6 +61,7 @@
 #include "guiObjects/gList.h"
 #include "guiObjects/gText.h"
 
+#include "time/gDelay.h"
 #include "time/gMetro.h"
 
 #include "math/dAdd.h"
@@ -286,6 +291,23 @@ pRegistry::pRegistry() {
   // random draw is written with (issue #498)
   Add(OBJ::G_TABLE, gTable::Create);
 
+  // A sequence of messages collected as lines of text — the line-oriented store
+  // none of the others is, and the shape a note list, a cue sheet or a
+  // configuration block actually arrives in (issue #499)
+  Add(OBJ::G_TEXTFILE, gTextfile::Create);
+
+  // A cue list — a stored sequence of messages played back in time, and the
+  // first store in the family that plays rather than being read (issue #500)
+  Add(OBJ::G_QLIST, gQlist::Create);
+
+  // A multi-track recorder for messages — the tape machine next to .qlist's
+  // score, and the object automation is built out of (issue #501)
+  Add(OBJ::G_MTR, gMtr::Create);
+
+  // A sequencer of raw MIDI bytes — the same tape machine as .mtr with the MIDI
+  // wire format on it instead of patcher messages (issue #502)
+  Add(OBJ::G_SEQ, gSeq::Create);
+
   Add(OBJ::G_RECEIVE, gReceive::Create);
   Add(OBJ::G_SEND, gSend::Create);
 
@@ -431,6 +453,10 @@ pRegistry::pRegistry() {
   Add(OBJ::G_SHIFTRIGHT, gShiftRight::Create);
 
   Add(OBJ::G_METRO, gMetro::Create);
+
+  // Delay a bang — the patcher's most basic scheduling primitive, and the first
+  // object that can defer anything at all (issue #503)
+  Add(OBJ::G_DELAY, gDelay::Create);
 
   Add(OBJ::MIDITOFREQUENCY, pMidiToFrequency::Create);
   Add(OBJ::FREQUENCYTOMIDI, pFrequencyToMidi::Create);

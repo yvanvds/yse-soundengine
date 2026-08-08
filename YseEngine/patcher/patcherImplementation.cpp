@@ -5,6 +5,7 @@
 #include "../headers/enums.hpp"
 #include "genericObjects/pDac.h"
 #include "genericObjects/pAdc.h"
+#include "genericObjects/gColl.h"
 #include "genericObjects/gForward.h"
 #include "genericObjects/gReceive.h"
 #include "genericObjects/gSend.h"
@@ -75,6 +76,11 @@ void patcherImplementation::SetName(const std::string& n) {
       // rename moves it onto the cell the renamed patcher's sends and receives
       // now speak about (issue #486).
       static_cast<gValue*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_COLL) == 0) {
+      // And gColl, whose shared store is registered under the same
+      // "<patcherName>.<name>" address, so a named collection re-anchors with
+      // the values, sends and receives around it (issue #684).
+      static_cast<gColl*>(x.second)->RefreshBinding();
     }
   }
   mtx.unlock();
@@ -112,6 +118,21 @@ patcherImplementation::~patcherImplementation() {
   } catch (...) {
     INTERNAL::EmitNoThrow(E_ERROR, "PATCHER::patcherImplementation destructor swallowed exception");
   }
+  // Last, and outside the guard above rather than inside it: ~fileScheduler
+  // joins the background jobs still holding its slots and the reclaim ping-pong
+  // shares that one worker thread, so the reclaim joins have to come first — but
+  // the file table must be freed even when the step before it failed, exactly as
+  // those joins must run even when Clear() failed (issue #683). Nothing here can
+  // throw: the join is a spin on an atomic flag, and no object can still ask for
+  // a file because Clear() ran above.
+  delete fileIO_.exchange(nullptr, std::memory_order_acq_rel);
+}
+
+void patcherImplementation::EnsureFileIO() {
+  // Control thread, under mtx (see the header). Idempotent: the first
+  // file-capable object to join builds the table and every later one finds it.
+  if (fileIO_.load(std::memory_order_acquire) != nullptr) return;
+  fileIO_.store(new fileScheduler(), std::memory_order_release);
 }
 
 const char* patcherImplementation::Type() const {
@@ -142,6 +163,14 @@ void patcherImplementation::Calculate(YSE::THREAD thread) {
   // the value drain: the delivery sets state / forwards values, and the block's
   // own traversal renders whatever it caused.
   scheduler_.DeliverDue(g, YSE::T_GUI);
+
+  // Then whatever the background pool has finished reading or writing (issue
+  // #683), in the same kind of dispatch frame and against the same pinned
+  // snapshot. After the deferred drain rather than before it, so a file
+  // completion is the last thing that can arm work for a later block.
+  if (fileScheduler* io = fileIO_.load(std::memory_order_acquire)) {
+    io->DeliverComplete(g, YSE::T_GUI);
+  }
 
   if (g != nullptr) {
     // invalidate all dsp buffers

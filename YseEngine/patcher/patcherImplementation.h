@@ -6,6 +6,7 @@
 #include "patcher.hpp"
 #include "graphState.h"
 #include "time/messageScheduler.h"
+#include "io/fileScheduler.h"
 #include "../utils/mpmcQueue.hpp"
 #include "../internal/threadPool.h"
 #include <atomic>
@@ -135,6 +136,34 @@ namespace YSE {
       messageScheduler* Scheduler() {
         return &scheduler_;
       }
+
+      // The patcher's file-I/O scheduler (issue #683), or null until an object
+      // that can read or write files has joined. Objects reach it through
+      // pObject::FileIO() to ask for a file from a message handler on any
+      // thread; Calculate hands out what has finished at the top of every
+      // block, right after the deferred-message drain.
+      //
+      // Non-const to keep it out of pObject::FileIO()'s signature, exactly as
+      // Scheduler() sits beside pObject::Scheduler(): the two are a forwarder
+      // and its destination, not an override, and letting them collide would
+      // put this in the same shadowing bucket CurrentBlockGraph had to be
+      // NOLINTed out of (issue #573).
+      fileScheduler* FileIO() {
+        return fileIO_.load(std::memory_order_acquire);
+      }
+
+      // Build the file scheduler if this patcher does not have one yet.
+      // Control thread only, and in practice always under mtx: every
+      // pObject::SetParent call site (CreateObjectUnlocked, ParseJSON,
+      // ReplaceObjectUnlocked) holds it, which is what makes the check-then-set
+      // below safe without one of its own. Built on demand rather than with the
+      // patcher because the slot table is half a megabyte and a patch with no
+      // file-capable object should not pay for it.
+      //
+      // Named apart from pObject::EnableFileIO (the forwarder objects call) for
+      // the same reason FileIO() is non-const: same-name, same-signature would
+      // read as an override of something that is not virtual.
+      void EnsureFileIO();
 
     private:
       // Kinds of deferred value message carried on the SPSC command queue
@@ -307,6 +336,12 @@ namespace YSE {
       // on purpose: the scheduler holds a reference to it as its block clock,
       // so it must be constructed after and destroyed before the counter.
       messageScheduler scheduler_{audioBlock_};
+
+      // File-request table (issue #683), built on demand by EnableFileIO and
+      // owned until the patcher dies. Published atomically because Calculate
+      // reads it on the audio thread while the control thread may be adding the
+      // first file-capable object; once non-null it never changes again.
+      std::atomic<fileScheduler*> fileIO_{nullptr};
 
       // A deleted object awaiting reclamation. `epoch` is the block count at
       // retirement (the +2 grace is measured from it). `idGen` is the id-space

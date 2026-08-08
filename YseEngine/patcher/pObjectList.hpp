@@ -33,14 +33,15 @@ namespace YSE {
    *  - Bitwise: ``G_BITAND``, ``G_BITOR``, ``G_SHIFTLEFT``, ``G_SHIFTRIGHT``.
    *  - DSP filters: ``D_LOWPASS``, ``D_HIGHPASS``, ``D_BANDPASS``, ``D_VCF``.
    *  - I/O: ``D_DAC``, ``D_ADC``, ``D_LINE``.
-   *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_METRO``, ``G_RANDOM``.
+   *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_RANDOM``.
+   *  - Timing: ``G_METRO``, ``G_DELAY``.
    *  - Registers: ``G_COUNTER``, ``G_ACCUM``.
    *  - Randomness: ``G_RANDOM``, ``G_DRUNK``, ``G_URN``, ``G_DECIDE``,
    *    ``G_PROB``, ``G_ANAL``, ``G_HISTO``.
    *  - Statistics: ``G_ANAL``, ``G_HISTO``, ``G_MEAN``.
    *  - Shared state: ``G_VALUE``.
    *  - Collections: ``G_COLL``, ``G_BAG``, ``G_CAPTURE``, ``G_FUNBUFF``,
-   *    ``G_TABLE``.
+   *    ``G_TABLE``, ``G_TEXTFILE``, ``G_QLIST``, ``G_MTR``, ``G_SEQ``.
    *  - Messaging: ``G_SEND``, ``G_RECEIVE``, ``G_FORWARD``, ``G_ROUTE``,
    *    ``G_ROUTEPASS``,
    *    ``G_SEL``, ``G_TRIGGER``, ``G_BANGBANG``, ``G_ONEBANG``, ``G_NEXT``,
@@ -120,6 +121,10 @@ namespace YSE {
     DEFOBJ(G_CAPTURE, ".capture");
     DEFOBJ(G_FUNBUFF, ".funbuff");
     DEFOBJ(G_TABLE, ".table");
+    DEFOBJ(G_TEXTFILE, ".textfile");
+    DEFOBJ(G_QLIST, ".qlist");
+    DEFOBJ(G_MTR, ".mtr");
+    DEFOBJ(G_SEQ, ".seq");
 
     DEFOBJ(G_ADD, ".+");
     DEFOBJ(G_SUBSTRACT, ".-");
@@ -199,6 +204,7 @@ namespace YSE {
     DEFOBJ(G_HISTO, ".histo");
     DEFOBJ(G_MEAN, ".mean");
     DEFOBJ(G_METRO, ".metro");
+    DEFOBJ(G_DELAY, ".delay");
 
     DEFOBJ(D_ADD, "~+");
     DEFOBJ(D_SUBSTRACT, "~-");

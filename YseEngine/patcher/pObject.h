@@ -29,6 +29,8 @@ namespace YSE {
     class patcherImplementation;
     class messageScheduler;
     struct deferredMessage;
+    class fileScheduler;
+    struct fileResult;
 
     typedef std::function<void(int, int)> intCallbackFunc;
     typedef std::function<void(int, float)> floatCallbackFunc;
@@ -56,6 +58,28 @@ namespace YSE {
       // that schedule ever receive one. Everything RT-applicable applies: no
       // allocation, no locks, no I/O.
       virtual void DeliverDeferred(const deferredMessage& msg, THREAD thread);
+
+      // The owning patcher's file-I/O scheduler (issue #683), or null for a
+      // standalone object, for the patcher itself, or for a patcher no
+      // file-capable object has joined. RT-safe on any thread — one pointer hop
+      // and one acquire load, like Scheduler() — so a message handler may call
+      // it mid-dispatch to ask for a file.
+      fileScheduler* FileIO() const;
+
+      // Ask the owning patcher to build its file scheduler. Control thread
+      // only: an object that can read or write files calls this once, from its
+      // SetParent override, which is where the patcher becomes known and where
+      // allocating half a megabyte of slot table is affordable. No-op for a
+      // standalone object. See fileScheduler's header for the full recipe.
+      void EnableFileIO();
+
+      // File-request completion (issue #683). Called by the file scheduler on
+      // the patcher's dispatch thread, inside a fresh messageEventScope, when a
+      // read or write this object asked for has finished. Default: ignore —
+      // only objects that request files ever receive one. Everything
+      // RT-applicable applies: no allocation, no locks, no I/O, and
+      // `result.bytes` is only valid for the duration of the call.
+      virtual void DeliverFileResult(const fileResult& result, THREAD thread);
 
       // Detach this object from every peer it is wired to, without freeing it,
       // so the next GraphState holds no reference to it (issue #226).

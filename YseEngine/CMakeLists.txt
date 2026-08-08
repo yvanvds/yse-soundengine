@@ -127,8 +127,10 @@ set(YSE_SRCS
   patcher/genericObjects/gIf.cpp
   patcher/genericObjects/gMatch.cpp
   patcher/genericObjects/gMatrix.cpp
+  patcher/genericObjects/gMtr.cpp
   patcher/genericObjects/gNext.cpp
   patcher/genericObjects/gOneBang.cpp
+  patcher/genericObjects/gQlist.cpp
   patcher/genericObjects/gReceive.cpp
   patcher/genericObjects/gRegexEngine.cpp
   patcher/genericObjects/gRegexp.cpp
@@ -137,6 +139,7 @@ set(YSE_SRCS
   patcher/genericObjects/gRouter.cpp
   patcher/genericObjects/gSel.cpp
   patcher/genericObjects/gSend.cpp
+  patcher/genericObjects/gSeq.cpp
   patcher/genericObjects/gSpell.cpp
   patcher/genericObjects/gSpray.cpp
   patcher/genericObjects/gSprintf.cpp
@@ -144,6 +147,7 @@ set(YSE_SRCS
   patcher/genericObjects/gSwitch.cpp
   patcher/genericObjects/gSymbol.cpp
   patcher/genericObjects/gTable.cpp
+  patcher/genericObjects/gTextfile.cpp
   patcher/genericObjects/gTrigger.cpp
   patcher/genericObjects/gUzi.cpp
   patcher/genericObjects/gValue.cpp
@@ -214,6 +218,8 @@ set(YSE_SRCS
   patcher/pHandle.cpp
   patcher/pObject.cpp
   patcher/pRegistry.cpp
+  patcher/io/fileScheduler.cpp
+  patcher/time/gDelay.cpp
   patcher/time/gMetro.cpp
   patcher/time/messageScheduler.cpp
   patcher/time/TimerThread.cpp
@@ -344,8 +350,10 @@ set_source_files_properties(
   patcher/genericObjects/gIf.cpp
   patcher/genericObjects/gMatch.cpp
   patcher/genericObjects/gMatrix.cpp
+  patcher/genericObjects/gMtr.cpp
   patcher/genericObjects/gNext.cpp
   patcher/genericObjects/gOneBang.cpp
+  patcher/genericObjects/gQlist.cpp
   patcher/genericObjects/gReceive.cpp
   patcher/genericObjects/gRegexp.cpp
   patcher/genericObjects/gRoute.cpp
@@ -353,6 +361,7 @@ set_source_files_properties(
   patcher/genericObjects/gRouter.cpp
   patcher/genericObjects/gSel.cpp
   patcher/genericObjects/gSend.cpp
+  patcher/genericObjects/gSeq.cpp
   patcher/genericObjects/gSpell.cpp
   patcher/genericObjects/gSpray.cpp
   patcher/genericObjects/gSprintf.cpp
@@ -360,6 +369,7 @@ set_source_files_properties(
   patcher/genericObjects/gSwitch.cpp
   patcher/genericObjects/gSymbol.cpp
   patcher/genericObjects/gTable.cpp
+  patcher/genericObjects/gTextfile.cpp
   patcher/genericObjects/gTrigger.cpp
   patcher/genericObjects/gUzi.cpp
   patcher/genericObjects/gValue.cpp
@@ -428,6 +438,8 @@ set_source_files_properties(
   patcher/midi/mMidiOut.cpp
   patcher/midi/mMidiPolyPressure.cpp
   patcher/midi/mMidiProgramChange.cpp
+  patcher/io/fileScheduler.cpp
+  patcher/time/gDelay.cpp
   patcher/time/gMetro.cpp
   patcher/time/messageScheduler.cpp
   PROPERTIES COMPILE_FLAGS "${PATCHER_SUPPRESS}"
