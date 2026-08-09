@@ -50,7 +50,18 @@ namespace YSE {
      *  - **Reading is wait-free.** ``Beat`` is one acquire load of the slot's
      *    clock pointer and one acquire load of the clock's published beat.
      *    ``false`` while the binding is unresolved, which is what a deadline
-     *    test on a clock that does not exist has to mean.
+     *    test on a clock that does not exist has to mean. ``Tempo`` is the same
+     *    two loads against the clock's published tempo.
+     *
+     *  - **Writing the tempo is wait-free too** (issue #513). The lock is on
+     *    the *name*, not on the clock: once a binding is resolved,
+     *    ``domainClock::requestTempo`` is three atomic stores that the clock's
+     *    own ``update`` consumes on the next block. So ``RequestTempo`` needs no
+     *    pool hop and no reconcile job, and ``.transport`` can drive a clock
+     *    from a handler that turns out to be on the audio callback without a
+     *    tempo implementation of its own. What still needs the manager's mutex
+     *    is *creating* a clock, which is a control-thread act done once, at
+     *    ``SetParent`` — see ``gTransport``.
      *
      *  ### Bindings are permanent, and that is the point
      *
@@ -162,6 +173,35 @@ namespace YSE {
        *  resolved yet; @p beat is then untouched.
        */
       bool Beat(Handle handle, double& beat) const;
+
+      /**
+       *  @brief The bound clock's current tempo in BPM. Any thread; wait-free.
+       *
+       *  ``Beat``'s sibling, and the same two acquire loads. False for handle
+       *  0, an out-of-range handle, or a binding that has not resolved yet;
+       *  @p bpm is then untouched. A clock destroyed under the binding (#707)
+       *  reports the tempo it was released at, exactly as ``Beat`` reports the
+       *  beat it froze on.
+       */
+      bool Tempo(Handle handle, float& bpm) const;
+
+      /**
+       *  @brief Ask the bound clock to reach @p bpm over @p rampSeconds
+       *         (0 = instant). Any thread; wait-free.
+       *
+       *  The **write** half of the bridge (issue #513), and the only one there
+       *  is: ``.transport`` drives a clock through here rather than through a
+       *  tempo of its own. It is safe on the audio callback for the same reason
+       *  ``Beat`` is — ``domainClock::requestTempo`` is three atomic stores the
+       *  clock's own ``update`` consumes on the next block, so nothing here
+       *  touches ``CLOCK::Manager``'s mutex.
+       *
+       *  Returns false, having written nothing, for handle 0, an out-of-range
+       *  handle, or a binding that has not resolved yet. A caller that is *not*
+       *  on the audio callback should prefer ``CLOCK::Manager().setTempo`` by
+       *  name, which needs no resolved binding at all — see ``gTransport``.
+       */
+      bool RequestTempo(Handle handle, float bpm, float rampSeconds);
 
       /**
        *  @brief The beat the bound clock stood at when this binding resolved.

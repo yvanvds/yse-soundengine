@@ -63,6 +63,7 @@
 
 #include "time/gDelay.h"
 #include "time/gMetro.h"
+#include "time/gTransport.h"
 
 #include "math/dAdd.h"
 #include "math/dClip.h"
@@ -457,6 +458,10 @@ pRegistry::pRegistry() {
   // Delay a bang — the patcher's most basic scheduling primitive, and the first
   // object that can defer anything at all (issue #503)
   Add(OBJ::G_DELAY, gDelay::Create);
+
+  // Control a named domain clock from inside the patcher — the object that
+  // connects a patch to the engine's polytemporal clock system (issue #513)
+  Add(OBJ::G_TRANSPORT, gTransport::Create);
 
   Add(OBJ::MIDITOFREQUENCY, pMidiToFrequency::Create);
   Add(OBJ::FREQUENCYTOMIDI, pFrequencyToMidi::Create);
