@@ -160,6 +160,18 @@ namespace YSE {
         return &scheduler_;
       }
 
+      // The patcher's bridge to the engine's named domain clocks (issue #688).
+      // Objects reach it through pObject::Clocks() to bind a clock by name from
+      // a message handler on any thread, and the scheduler reads beat positions
+      // through it when a deadline was armed on a clock rather than on the
+      // block counter. Built with the patcher — the table is a few hundred
+      // bytes, unlike the file scheduler's half megabyte, so there is nothing
+      // to defer. Non-const for the reason Scheduler() is: it is
+      // pObject::Clocks()'s destination, not an override of it.
+      clockBridge* Clocks() {
+        return &clocks_;
+      }
+
       // The patcher's file-I/O scheduler (issue #683), or null until an object
       // that can read or write files has joined. Objects reach it through
       // pObject::FileIO() to ask for a file from a message handler on any
@@ -355,10 +367,15 @@ namespace YSE {
       // tell when the audio thread has advanced past a retired snapshot.
       std::atomic<std::uint64_t> audioBlock_{0};
 
+      // Domain-clock bindings (issue #688). Declared before the scheduler on
+      // purpose, for the same reason audioBlock_ is: the scheduler holds a
+      // pointer to it and must be constructed after and destroyed before it.
+      clockBridge clocks_;
+
       // Deferred-message pending set (issue #628). Declared after audioBlock_
       // on purpose: the scheduler holds a reference to it as its block clock,
       // so it must be constructed after and destroyed before the counter.
-      messageScheduler scheduler_{audioBlock_};
+      messageScheduler scheduler_{audioBlock_, &clocks_};
 
       // File-request table (issue #683), built on demand by EnableFileIO and
       // owned until the patcher dies. Published atomically because Calculate

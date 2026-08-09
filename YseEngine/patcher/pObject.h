@@ -31,6 +31,7 @@ namespace YSE {
     struct deferredMessage;
     class fileScheduler;
     struct fileResult;
+    class clockBridge;
 
     typedef std::function<void(int, int)> intCallbackFunc;
     typedef std::function<void(int, float)> floatCallbackFunc;
@@ -51,6 +52,14 @@ namespace YSE {
       // one pointer hop, like CurrentBlockGraph() — so a message handler may
       // call it mid-dispatch to arm a deferral.
       messageScheduler* Scheduler() const;
+
+      // The owning patcher's domain-clock bridge (issue #688), or null for a
+      // standalone object / the patcher itself. RT-safe on any thread — one
+      // pointer hop, like Scheduler() — so a message handler may bind a clock
+      // by name mid-dispatch. Binding is wait-free; the name is resolved
+      // against CLOCK::Manager() on the background pool, because that lookup
+      // takes the manager's mutex.
+      clockBridge* Clocks() const;
 
       // Deferred-message delivery (issue #628). Called by the scheduler on the
       // patcher's dispatch thread, inside a fresh messageEventScope, when a

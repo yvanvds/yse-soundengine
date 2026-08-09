@@ -97,12 +97,15 @@ namespace YSE {
      *
      *  This is ported, and it is the one part of Max's surface that answers
      *  issue #502's design gate directly. The issue asks for playback bound to a
-     *  domain clock so tempo changes bend it the way ``YSE::clip`` does; there
-     *  is no patcher-to-domain-clock bridge at all today (#688). But ``tick`` is
-     *  Max's own answer to the same question — an external timing source the
-     *  patch supplies, one tick being a MIDI-clock tick at 24 per quarter note —
-     *  and it needs no bridge, no scheduler slot and no clock of its own. When
-     *  #688 lands, a domain clock driving ``tick`` is the whole of the work.
+     *  domain clock so tempo changes bend it the way ``YSE::clip`` does. When
+     *  this object was written there was no patcher-to-domain-clock bridge at
+     *  all; #688 has since built one (``PATCHER::clockBridge``, with ``.qlist``
+     *  as its first consumer). But ``tick`` is Max's own answer to the same
+     *  question — an external timing source the patch supplies, one tick being a
+     *  MIDI-clock tick at 24 per quarter note — and it needs no bridge, no
+     *  scheduler slot and no clock of its own. Driving ``tick`` from a domain
+     *  clock through that bridge is now the whole of the remaining work, and is
+     *  filed as **#704**.
      *
      *  Tick time is accumulated as a tick *count* rather than as milliseconds,
      *  so 48 ticks is exactly one second however many of them have gone by;
@@ -216,19 +219,23 @@ namespace YSE {
      *
      *  ### Why the MIDI parser is here rather than in ``YseEngine/midi/``
      *
-     *  ``MIDI::fileImpl`` already parses standard MIDI files, and it cannot be
-     *  used from here. Three reasons, each sufficient: it slurps the file through
-     *  ``std::ifstream`` from a filesystem *path*, so it neither takes the bytes
-     *  the scheduler already has nor honours the host's ``IO()`` layer; it builds
-     *  ``std::vector``s of raw events and tempo entries and ``stable_sort``s them
-     *  twice, and this completion runs on the audio thread at the top of
-     *  ``Calculate``, where nothing may allocate; and its byte primitives
-     *  (``readVarLen``, ``readU16``, ``channelDataBytes``) are anonymous-namespace
-     *  statics in its ``.cpp``, so there is nothing to link against in any case.
-     *  The reader here is therefore its own: a byte walk over the scheduler's
-     *  buffer straight into this object's fixed tables, with no container in the
-     *  middle. Lifting the shared primitives into a header both could use is
-     *  filed separately.
+     *  ``MIDI::fileImpl`` already parses standard MIDI files, and its *parser*
+     *  cannot be used from here. Two reasons, each sufficient: it slurps the file
+     *  through ``std::ifstream`` from a filesystem *path*, so it neither takes
+     *  the bytes the scheduler already has nor honours the host's ``IO()`` layer;
+     *  and it builds ``std::vector``s of raw events and tempo entries and
+     *  ``stable_sort``s them twice, where this completion runs on the audio
+     *  thread at the top of ``Calculate``, where nothing may allocate. The
+     *  reader here is therefore its own: a byte walk over the scheduler's buffer
+     *  straight into this object's fixed tables, with no container in the middle.
+     *
+     *  What the two *do* share, since issue #698, is the format's byte
+     *  primitives — ``ReadVarLen``, ``ReadU16BE``, ``ReadU32BE``,
+     *  ``ChannelDataBytes`` and the write-side inverses — which live in
+     *  ``midi/midiBytes.hpp``. They were anonymous-namespace statics in
+     *  ``midifileImplementation.cpp`` when this object was written, so there was
+     *  nothing to link against; they are pure and allocation-free, so nothing
+     *  about the audio thread stopped them being shared once there was.
      *
      *  The walk is bounded rather than merely finite: the header is validated
      *  before anything is cleared, at most ``MAX_FILE_TRACKS`` ``MTrk`` chunks are

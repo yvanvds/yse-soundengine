@@ -22,7 +22,8 @@ YSE::CLOCK::managerObject::~managerObject() noexcept {
     mgrDelete.join();
 
     // Drain any pointers still queued for the audio thread; they reference
-    // clocks owned by `implementations` and are freed when that list is cleared.
+    // clocks the `implementations` list holds a share of, and clearing that
+    // list drops the manager's share of every one of them.
     domainClock* drained;
     while (toLoadInbox.try_pop(drained)) {
       (void)drained;
@@ -35,9 +36,10 @@ YSE::CLOCK::managerObject::~managerObject() noexcept {
   }
 }
 
-YSE::CLOCK::domainClock* YSE::CLOCK::managerObject::findLive(const std::string& name) {
+std::shared_ptr<YSE::CLOCK::domainClock>
+YSE::CLOCK::managerObject::findLive(const std::string& name) {
   for (auto& c : implementations) {
-    if (!c.isReleased() && c.getName() == name) return &c;
+    if (!c->isReleased() && c->getName() == name) return c;
   }
   return nullptr;
 }
@@ -46,8 +48,8 @@ bool YSE::CLOCK::managerObject::createClock(const std::string& name, Flt initial
   if (name.empty()) return false;
   std::scoped_lock lk(implementationsMutex);
   if (findLive(name) != nullptr) return false; // first registration wins
-  implementations.emplace_front(name, initialTempo);
-  domainClock* clock = &implementations.front();
+  implementations.push_front(std::make_shared<domainClock>(name, initialTempo));
+  domainClock* clock = implementations.front().get();
   // Hand the clock off to the audio thread via the lock-free inbox. The audio
   // thread owns `inUse`, so it — not the control thread — decides when the clock
   // starts advancing.
@@ -57,7 +59,7 @@ bool YSE::CLOCK::managerObject::createClock(const std::string& name, Flt initial
 
 void YSE::CLOCK::managerObject::destroyClock(const std::string& name) {
   std::scoped_lock lk(implementationsMutex);
-  domainClock* clock = findLive(name);
+  std::shared_ptr<domainClock> clock = findLive(name);
   if (clock != nullptr) clock->release();
 }
 
@@ -68,23 +70,24 @@ bool YSE::CLOCK::managerObject::clockExists(const std::string& name) {
 
 void YSE::CLOCK::managerObject::setTempo(const std::string& name, Flt bpm, Flt rampSeconds) {
   std::scoped_lock lk(implementationsMutex);
-  domainClock* clock = findLive(name);
+  std::shared_ptr<domainClock> clock = findLive(name);
   if (clock != nullptr) clock->requestTempo(bpm, rampSeconds);
 }
 
 Dbl YSE::CLOCK::managerObject::beatPosition(const std::string& name) {
   std::scoped_lock lk(implementationsMutex);
-  domainClock* clock = findLive(name);
+  std::shared_ptr<domainClock> clock = findLive(name);
   return clock != nullptr ? clock->beatPosition() : 0.0;
 }
 
 Flt YSE::CLOCK::managerObject::currentTempo(const std::string& name) {
   std::scoped_lock lk(implementationsMutex);
-  domainClock* clock = findLive(name);
+  std::shared_ptr<domainClock> clock = findLive(name);
   return clock != nullptr ? clock->currentTempo() : 0.f;
 }
 
-YSE::CLOCK::domainClock* YSE::CLOCK::managerObject::lookup(const std::string& name) {
+std::shared_ptr<YSE::CLOCK::domainClock>
+YSE::CLOCK::managerObject::lookup(const std::string& name) {
   std::scoped_lock lk(implementationsMutex);
   return findLive(name);
 }
@@ -112,7 +115,10 @@ void YSE::CLOCK::managerObject::update(Flt delta) {
   ///////////////////////////////////////////
   // advance each clock, and retire released clocks from the working list. A
   // retired clock is flagged OBJECT_DELETE and left in `implementations` for the
-  // slow-pool deleteJob to reap — it is never freed on the audio thread.
+  // slow-pool deleteJob to drop the manager's handle to — it is never freed on
+  // the audio thread, and not freed at all while a binding still holds a share
+  // of it (issue #707). Dropping it here is what stops it advancing, so a
+  // straggling holder reads a frozen beat.
   ///////////////////////////////////////////
   auto previous = inUse.before_begin();
   for (auto i = inUse.begin(); i != inUse.end();) {

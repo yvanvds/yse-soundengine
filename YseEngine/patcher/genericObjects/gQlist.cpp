@@ -85,7 +85,20 @@ namespace {
       "moves nothing, Max documenting it as taking a number. 'rewind' puts the cursor back at the "
       "first line, 'stop' ends automatic playback, and 'tempo <f>' scales every wait by dividing: "
       "0.5 plays at half speed and 2 twice as fast, and a tempo of zero or less is refused because "
-      "it cannot scale a duration into anything a clock can wait for. 'set' replaces the whole cue "
+      "it cannot scale a duration into anything a clock can wait for. 'clock <name>' moves "
+      "playback "
+      "onto the YSE domain clock of that name (issue #688): the leading number of a numeric cue is "
+      "then a beat count on that clock instead of a delay in milliseconds, so the list follows "
+      "tempo changes and ramps and stays in step with every clip on the same domain, while "
+      "everything else — the outlets, next, fwd, rewind, stop, and tempo still dividing — is "
+      "unchanged. A bare 'clock' goes back to milliseconds, and an object never sent one is Max's "
+      "exactly. The name is Max's own vocabulary, setclock describing its name as something passed "
+      "as the argument to a 'clock' message to timing objects, though Max's qlist lists no clock "
+      "method of its own. Nothing is looked up in the handler: binding is a wait-free claim on a "
+      "patcher-owned slot and the name is resolved on the background pool, so a clock named before "
+      "the host creates it simply does not advance until it appears — and a clock at tempo zero "
+      "holds the walk where it stands. The binding is run-time state and is not saved with the "
+      "patch, the way the tempo and the cursor are not. 'set' replaces the whole cue "
       "list and with no arguments is the same as 'clear'; 'insert' adds its arguments as a new "
       "entry (Max's own name for an append, reproduced rather than corrected so a patch brought "
       "across builds the same list); 'append' glues its arguments onto the last entry. In all "
@@ -111,7 +124,9 @@ namespace {
       ".route's rule — a cue holding '60' as the int 60, one holding '60.5' as that float, and "
       "anything longer as a list. The same line does two jobs and that is the design rather than "
       "an overload: during automatic playback its leading number is also the wait before the walk "
-      "goes on, and sending it out is what lets a patch drive the identical list by hand with this "
+      "goes on — in milliseconds, or in beats on the bound domain clock once a 'clock <name>' has "
+      "been given (issue #688) — and sending it out is what lets a patch drive the identical list "
+      "by hand with this "
       "outlet into a delay and the delay's bang back into 'next'. Symbol lines never come out "
       "here; they go to the named receivers.";
 
@@ -200,11 +215,24 @@ CONSTRUCT() {
       ".bondo defers through: arming is wait-free and allocation-free so a bang from a rendering "
       "graph may arm one, delivery happens inside a real dispatch frame so each resumed step is "
       "one logical event downstream, and the deadline floor of one audio block means a cue list of "
-      "zero delays advances one entry per block instead of spinning. Issue #500 suggests driving "
-      "playback from a YSE domain clock instead; that is deliberately not done, because Max's cue "
-      "list is milliseconds and its tempo is a bare multiplier with no beat or meter in it, so a "
-      "beat-driven version would be a different object wearing Max's name — it is filed as #688 "
-      "along with the patcher-to-domain-clock bridge it would need. The store is .coll's model and "
+      "zero delays advances one entry per block instead of spinning. Issue #500 asked for playback "
+      "driven from a YSE domain clock instead, and that is here as an opt-in rather than as a "
+      "replacement (issue #688): 'clock <name>' binds the domain clock of that name and reads the "
+      "leading number of a numeric cue as beats on it, so the sequence inherits the polytemporal "
+      "tempo model — following tempo changes and ramps, staying in step with every clip on the "
+      "same "
+      "domain, and holding where it stands when that domain pauses — while a bare 'clock' and an "
+      "object never sent one are Max's milliseconds exactly. It is an opt-in because Max's cue "
+      "list "
+      "is milliseconds and its tempo is a bare multiplier with no beat or meter in it, so a "
+      "beat-driven version replacing it would be a different object wearing Max's name. The "
+      "binding runs through the shared patcher-to-domain-clock bridge of #688, which every timed "
+      "patcher object can use: binding by name is wait-free so a message from a rendering graph "
+      "may "
+      "do it, the name is resolved against the clock manager on the background pool because that "
+      "lookup takes a mutex, and the deferred-message scheduler then tests a beat deadline where "
+      "it "
+      "would otherwise test a block one. The store is .coll's model and "
       "for .coll's reason — a fixed table allocated whole at construction plus .value's "
       "non-blocking guard, whose loser drops rather than waiting — because a copy-on-write "
       "GraphState publish assumes the writer is the control thread while this object is written by "
@@ -442,28 +470,75 @@ void gQlist::Resume(YSE::THREAD thread) {
   playing.store(false, std::memory_order_relaxed);
 }
 
-bool gQlist::ArmContinue(float waitMs) {
+bool gQlist::ArmContinue(float wait) {
   messageScheduler* scheduler = Scheduler();
   if (scheduler == nullptr) return false;
 
   // Max's tempo is a speed, so it divides: "a tempo of 0.5 plays back the cue
   // list at half speed, whereas a tempo of 2. plays it back twice as fast."
-  // `tempo` is never zero or negative, which is what makes this safe.
-  const float scaled = waitMs / tempo.load(std::memory_order_relaxed);
-  int delay = 0;
-  if (scaled >= 2147483647.f) {
-    delay = 2147483647;
-  } else if (scaled > 0.f) {
-    delay = (int)scaled;
-  }
-  // Everything else — zero, negative, or a NaN that no comparison accepts — is
-  // 0, which the scheduler floors to one audio block.
+  // `tempo` is never zero or negative, which is what makes this safe. It scales
+  // a beat wait exactly as it scales a millisecond one — the unit changes,
+  // the multiplier does not (issue #688).
+  const float scaled = wait / tempo.load(std::memory_order_relaxed);
 
   // One clock per object, Max's shape: whatever was pending is replaced.
   CancelPending();
-  const messageScheduler::Handle armed = scheduler->ScheduleBang(this, 0, delay);
+
+  const clockBridge::Handle onClock = binding.load(std::memory_order_relaxed);
+  messageScheduler::Handle armed = 0;
+  if (onClock != 0) {
+    // Beats on the bound domain clock. Anything that is not a positive number —
+    // zero, negative, NaN — is 0 beats, which the scheduler treats the way it
+    // treats a delay of 0: due at the next drain, never inside this dispatch.
+    armed = scheduler->ScheduleBangOnClock(this, 0, onClock, scaled > 0.f ? (double)scaled : 0.0);
+  } else {
+    int delay = 0;
+    if (scaled >= 2147483647.f) {
+      delay = 2147483647;
+    } else if (scaled > 0.f) {
+      delay = (int)scaled;
+    }
+    // Everything else — zero, negative, or a NaN that no comparison accepts —
+    // is 0, which the scheduler floors to one audio block.
+    armed = scheduler->ScheduleBang(this, 0, delay);
+  }
+
   pending.store(armed, std::memory_order_relaxed);
   return armed != 0;
+}
+
+void gQlist::SetClock(const char* name, std::size_t length) {
+  // A bare `clock` goes back to Max's milliseconds. The cursor and whatever is
+  // pending are left alone: this changes the unit of the *next* wait, the way
+  // `tempo` changes its scale, and a step already armed leaves when it was
+  // armed to leave.
+  if (name == nullptr || length == 0) {
+    binding.store(0, std::memory_order_relaxed);
+    return;
+  }
+
+  // A standalone object has no patcher and so no bridge, exactly as it has no
+  // scheduler to defer into. Silent, since this may be the audio thread.
+  clockBridge* clocks = Clocks();
+  if (clocks == nullptr) return;
+
+  // Wait-free: a bounded walk over the patcher's binding table and a memcpy of
+  // the name into a slot that already exists. The name is *not* looked up here
+  // — that takes the clock manager's mutex and happens on the background pool.
+  const clockBridge::Handle bound = clocks->Bind(name, length);
+  // A refusal (the table is full, or the name is longer than a slot holds)
+  // leaves the object on whatever clock it was on rather than silently falling
+  // back to milliseconds, which would change what every stored number means.
+  if (bound == 0) return;
+  binding.store(bound, std::memory_order_relaxed);
+}
+
+const char* gQlist::ClockName() const {
+  const clockBridge::Handle bound = binding.load(std::memory_order_relaxed);
+  if (bound == 0) return "";
+  const clockBridge* clocks = Clocks();
+  if (clocks == nullptr) return "";
+  return clocks->NameOf(bound);
 }
 
 void gQlist::CancelPending() {
@@ -651,6 +726,21 @@ bool gQlist::HandleCommand(const char* word, std::size_t length, const std::stri
     // wait for, so it is refused and the previous one kept.
     if (value <= 0.f) return true;
     tempo.store(value, std::memory_order_relaxed);
+    return true;
+  }
+
+  if (TokenIs(word, length, "clock", 5)) {
+    // The domain-clock opt-in (issue #688). `clock <name>` puts every following
+    // wait on that clock in beats; a bare `clock` puts it back on Max's
+    // milliseconds. Max's own vocabulary — `setclock` documents its name as
+    // something "passed as the argument to a 'clock' message to numerous
+    // objects that use timing in Max" — though Max's `qlist` reference lists no
+    // `clock` method of its own, so this is an addition and not a port. The
+    // whole remainder is the name, so a clock named with spaces still works.
+    std::size_t begin = argOffset;
+    std::size_t end = message.size();
+    Trim(message.c_str(), begin, end);
+    SetClock(message.c_str() + begin, end > begin ? end - begin : 0);
     return true;
   }
 

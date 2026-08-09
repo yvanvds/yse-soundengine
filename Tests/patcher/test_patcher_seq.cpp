@@ -71,6 +71,7 @@
 #include "patcher/patcher.hpp"
 #include "patcher/patcherImplementation.h"
 #include "patcher/time/messageScheduler.h"
+#include "support/alloc_probe.hpp"
 
 using YSE::PATCHER::gSeq;
 using YSE::PATCHER::messageScheduler;
@@ -328,6 +329,26 @@ namespace {
     PutVarLen(out, (unsigned int)data.size());
     out += data;
   }
+
+  // A sink that counts rather than records. The Recorder above builds a
+  // std::string and pushes it onto a vector for every value it sees, which is
+  // fine everywhere except inside the allocation probe at the end of this file —
+  // there the sink's own bookkeeping would be indistinguishable from the parse's.
+  struct Counter : YSE::PATCHER::pObject {
+    int bangs = 0;
+    int ints = 0;
+
+    Counter() : pObject(false) {
+      inputs.emplace_back(this, true, 0);
+      inputs.back().RegisterBang([this](int, YSE::THREAD) { bangs++; });
+      inputs.back().RegisterInt([this](int, int, YSE::THREAD) { ints++; });
+    }
+    const char* Type() const override {
+      return "seq_counter";
+    }
+    void Calculate(YSE::THREAD) override {}
+    void SetMessage(const std::string&, float) override {}
+  };
 
   // A tempo meta's three bytes, from beats per minute.
   std::string TempoBytes(double bpm) {
@@ -1723,6 +1744,95 @@ TEST_SUITE("patcher") {
     CHECK(Joined(rig.out.seen) == "i128,i60,i0,!,smeta endoftrack");
 
     Remove(path);
+  }
+
+  // ─── the parse on the audio thread ──────────────────────────────────────────
+
+  TEST_CASE("seq: parsing a read completion allocates nothing (#692, #698)") {
+    // The constraint the whole reader is shaped around, asserted rather than
+    // argued. `fileScheduler` delivers a completion at the top of
+    // `patcherImplementation::Calculate`, which is the audio callback, so
+    // `LoadMidiFile` runs there — and that is why it walks fixed tables instead
+    // of reusing `MIDI::fileImpl`'s vector-building, vector-sorting parser.
+    //
+    // It is also what bounds issue #698: the byte primitives the two now share
+    // could only be lifted because they are pure and allocation-free. If a
+    // future edit to midi/midiBytes.hpp ever puts a container, a std::string or
+    // a log line behind one of them, `.seq` would start allocating on the audio
+    // thread — and it would fail here rather than as an occasional glitch.
+    //
+    // The probe sees std::string and array allocations since issue #697, so a
+    // zero here means something on Windows as well as on ELF. Under
+    // ThreadSanitizer the overrides are compiled out and it holds trivially;
+    // support/test_alloc_probe.cpp is where that is measured rather than assumed.
+    const std::string midiPath = TempFile("yse_seq_alloc_698.mid");
+    const std::string textPath = TempFile("yse_seq_alloc_698.txt");
+
+    // A file with enough in it that any per-event allocation would show:
+    // running status, a tempo map, metas and a few hundred channel messages.
+    std::string events;
+    PutMeta(events, 0, 0x51, TempoBytes(120.0));
+    for (int i = 0; i < 200; i++) {
+      PutEvent(events, (unsigned int)(i % 7), {0x90 + (i % 4), 60 + (i % 12), 100});
+      PutEvent(events, 1, {60 + (i % 12), 0}); // running status: no status byte
+      if (i % 32 == 0) PutMeta(events, 0, 0x51, TempoBytes(90.0 + i));
+      if (i % 48 == 0) PutEvent(events, 0, {0xC0, 5}); // one data byte, not two
+    }
+    WriteWholeFile(midiPath, MidiHeader(0, 1, 480) + MidiTrack(events));
+
+    // Max's other format, which goes down the text path instead — same
+    // completion, same thread, same requirement.
+    std::string text;
+    for (int i = 0; i < 200; i++)
+      text += std::to_string(i * 10) + " 144 " + std::to_string(60 + (i % 12)) + " 100\n";
+    WriteWholeFile(textPath, text);
+
+    Counter fileSink;
+    Counter byteSink;
+    YSE::pHandle fileHandle(&fileSink);
+    YSE::pHandle byteHandle(&byteSink);
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* seq = p.CreateObject(YSE::OBJ::G_SEQ, "");
+    REQUIRE(seq != nullptr);
+    p.Connect(seq, 0, &byteHandle, 0);
+    p.Connect(seq, 3, &fileHandle, 0);
+
+    // Everything the request itself costs — building the message, claiming the
+    // slot, the background read — happens out here, before the probe. Only the
+    // completion is measured.
+    seq->SetListData(0, "read " + midiPath);
+    REQUIRE(p.FileIO() != nullptr);
+    p.FileIO()->WaitIdle();
+
+    {
+      TestHelpers::ProbeScope probe;
+      p.Calculate(YSE::T_DSP);
+      CHECK(TestHelpers::g_alloc_count.load() == 0);
+    }
+    // Not a vacuous zero: the completion really was delivered inside the block
+    // above, and it really did put a sequence on the tape. Without this the test
+    // would pass just as well on a Calculate that did nothing at all.
+    REQUIRE(fileSink.bangs == 1);
+
+    seq->SetListData(0, "read " + textPath);
+    p.FileIO()->WaitIdle();
+    {
+      TestHelpers::ProbeScope probe;
+      p.Calculate(YSE::T_DSP);
+      CHECK(TestHelpers::g_alloc_count.load() == 0);
+    }
+    REQUIRE(fileSink.bangs == 2);
+
+    // And the sequence that arrived plays out: a parse that allocated nothing
+    // because it quietly parsed nothing would be no use. Every gap in the text
+    // file is positive, so this is only the run at time 0 — enough to show the
+    // tape is not empty.
+    byteSink.ints = 0;
+    seq->SetListData(0, "start");
+    CHECK(byteSink.ints == 3); // "0 144 60 100" — the first line's three bytes
+
+    Remove(midiPath);
+    Remove(textPath);
   }
 
 } // TEST_SUITE

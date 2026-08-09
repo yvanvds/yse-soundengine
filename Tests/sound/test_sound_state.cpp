@@ -15,13 +15,16 @@
 
 #include <doctest/doctest.h>
 #include <chrono>
+#include <string>
 #include <thread>
+#include <vector>
 #include "sound/soundInterface.hpp"
 #include "sound/soundManager.h"
 #include "sound/soundMessage.h"
 #include "patcher/patcher.hpp"
 #include "dsp/dspObject.hpp"
 #include "internal/time.h"
+#include "log.hpp"
 #include "support/null_device.hpp"
 
 // Minimal no-op DSP source used to create sounds without file I/O.
@@ -29,6 +32,43 @@ namespace {
   struct SilentSource : YSE::DSP::dspSourceObject {
     void process(YSE::SOUND_STATUS&) override {}
     void frequency(float) override {}
+  };
+
+  // Records every log line so "create() reported this path" is an assertion
+  // rather than an inference. A counting sink rather than a throwing one, so it
+  // is safe in the shared test process; cases match on a substring so an
+  // unrelated line cannot fail them.
+  class RecordingHandler : public YSE::logHandler {
+  public:
+    void AddMessage(const std::string& message) override {
+      messages.push_back(message);
+    }
+    bool sawSubstring(const std::string& needle) const {
+      for (const std::string& m : messages) {
+        if (m.find(needle) != std::string::npos) return true;
+      }
+      return false;
+    }
+    std::vector<std::string> messages;
+  };
+
+  // Installs a sink and a level that lets warnings through for one case, and
+  // restores both even if an assertion unwinds.
+  class ScopedSink {
+  public:
+    explicit ScopedSink(YSE::logHandler* handler) : previousLevel(YSE::Log().getLevel()) {
+      YSE::Log().setLevel(YSE::EL_WARNING);
+      YSE::Log().setHandler(handler);
+    }
+    ~ScopedSink() {
+      YSE::Log().setHandler(nullptr);
+      YSE::Log().setLevel(previousLevel);
+    }
+    ScopedSink(const ScopedSink&) = delete;
+    ScopedSink& operator=(const ScopedSink&) = delete;
+
+  private:
+    YSE::ERROR_LEVEL previousLevel;
   };
 } // namespace
 
@@ -364,6 +404,34 @@ TEST_SUITE("sound") {
     REQUIRE_FALSE(s.isValid());
     CHECK(s.looping() == false);
     CHECK(s.volume() == doctest::Approx(0.0f));
+  }
+
+  // create() resolves a relative file name against the working directory, and
+  // the path it builds is not private: it reaches the user verbatim in the
+  // E_FILE_ERROR line their log handler receives, and it is the key the sound
+  // manager shares loaded files by. #693: the separator was picked by
+  // `#ifdef __WINDOWS_`, one underscore short of the `__WINDOWS__` defines.hpp
+  // actually defines, so the guard never fired and every platform joined with
+  // "/". Win32 opens forward-slash paths happily, which is why no test noticed;
+  // what escaped was the mixed-separator string itself. Assert the join uses
+  // the platform's own separator, as fileScheduler's ResolvePath already does
+  // for this identical prologue.
+  TEST_CASE("sound: a relative file name is joined with the native delimiter (#693)") {
+    if (!TestHelpers::engineInit()) return;
+    YSE::sound s;
+    {
+      RecordingHandler handler;
+      ScopedSink sink(&handler);
+      s.create("definitely_not_here_693.wav", nullptr, /*loop=*/true, /*volume=*/0.5f);
+      REQUIRE_FALSE(s.isValid());
+      REQUIRE(handler.sawSubstring("definitely_not_here_693.wav"));
+#if defined(_WIN32) || defined(_WIN64)
+      CHECK(handler.sawSubstring("\\definitely_not_here_693.wav"));
+      CHECK_FALSE(handler.sawSubstring("/definitely_not_here_693.wav"));
+#else
+      CHECK(handler.sawSubstring("/definitely_not_here_693.wav"));
+#endif
+    }
   }
 
   // ─── DSP sound lifecycle ─────────────────────────────────────────────────────

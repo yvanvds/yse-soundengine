@@ -17,8 +17,9 @@ namespace {
   constexpr unsigned int kGenShift = 8;
 } // namespace
 
-messageScheduler::messageScheduler(const std::atomic<std::uint64_t>& blockClock)
-  : clock_(blockClock) {
+messageScheduler::messageScheduler(const std::atomic<std::uint64_t>& blockClock,
+                                   const clockBridge* clocks)
+  : clock_(blockClock), clocks_(clocks) {
   // Pre-size the delivery scratch so no LIST delivery allocates on the audio
   // thread — the same treatment the #225 value queue's scratch gets.
   listScratch_.reserve(TEXT_CAPACITY);
@@ -50,7 +51,56 @@ int messageScheduler::MillisForBlocks(std::uint64_t blocks) {
   return ms > (std::uint64_t)2147483647 ? 2147483647 : (int)ms;
 }
 
-messageScheduler::Handle messageScheduler::Arm(pObject* target, int tag, int delayMs,
+messageScheduler::Deadline messageScheduler::BlockDeadline(int delayMs) const {
+  Deadline out;
+  out.block = clock_.load(std::memory_order_acquire) + BlocksForMillis(delayMs);
+  return out;
+}
+
+bool messageScheduler::ClockDeadline(clockBridge::Handle binding, double beats,
+                                     Deadline& out) const {
+  if (clocks_ == nullptr || binding == 0) return false;
+  // Negative or NaN is 0 — nothing a clock can wait for, and the same treatment
+  // BlocksForMillis gives a negative delay. Written as "not greater than 0" so
+  // a NaN falls into it rather than through it.
+  if (!(beats > 0.0)) beats = 0.0;
+
+  out.binding = binding;
+  double now = 0.0;
+  if (clocks_->Beat(binding, now)) {
+    // Resolved: an ordinary absolute deadline on the clock's own timeline.
+    out.beat = now + beats;
+    out.fromResolve = false;
+    return true;
+  }
+  // Not resolved (yet). The wait is stored relative and baselined against the
+  // beat the binding resolves at, so it starts when the clock starts existing
+  // rather than being refused or firing at once. An unknown *handle* is still a
+  // refusal — NameOf answers "" for one, and a wait on nothing is a bug rather
+  // than a pause.
+  if (clocks_->NameOf(binding)[0] == '\0') return false;
+  out.beat = beats;
+  out.fromResolve = true;
+  return true;
+}
+
+bool messageScheduler::IsDue(const Entry& entry, std::uint64_t nowBlock) const {
+  const clockBridge::Handle binding = entry.dueBinding.load(std::memory_order_relaxed);
+  if (binding == 0) {
+    return entry.dueBlock.load(std::memory_order_relaxed) <= nowBlock;
+  }
+  double now = 0.0;
+  // Unresolved: the clock this wait is on does not exist, so no amount of time
+  // on it has passed. The message stays armed.
+  if (clocks_ == nullptr || !clocks_->Beat(binding, now)) return false;
+  double due = entry.dueBeat.load(std::memory_order_relaxed);
+  if (entry.dueFromResolve.load(std::memory_order_relaxed)) {
+    due += clocks_->ResolveBeat(binding);
+  }
+  return due <= now;
+}
+
+messageScheduler::Handle messageScheduler::Arm(pObject* target, int tag, const Deadline& deadline,
                                                DEFERRED_KIND kind, int intValue, float floatValue,
                                                const char* text, std::size_t length) {
   if (target == nullptr) return 0;
@@ -76,10 +126,12 @@ messageScheduler::Handle messageScheduler::Arm(pObject* target, int tag, int del
     }
 
     // The slot is ours; nothing else reads or writes its payload while it is
-    // CLAIMED. dueBlock and seq are atomics only because the drain's scan reads
-    // them speculatively — see the header.
-    e.dueBlock.store(clock_.load(std::memory_order_acquire) + BlocksForMillis(delayMs),
-                     std::memory_order_relaxed);
+    // CLAIMED. The deadline fields and seq are atomics only because the drain's
+    // scan reads them speculatively — see the header.
+    e.dueBlock.store(deadline.block, std::memory_order_relaxed);
+    e.dueBinding.store(deadline.binding, std::memory_order_relaxed);
+    e.dueBeat.store(deadline.beat, std::memory_order_relaxed);
+    e.dueFromResolve.store(deadline.fromResolve, std::memory_order_relaxed);
     e.seq.store(nextSeq_.fetch_add(1, std::memory_order_relaxed), std::memory_order_relaxed);
     e.target = target;
     e.targetId = target->GetID();
@@ -106,22 +158,35 @@ messageScheduler::Handle messageScheduler::Arm(pObject* target, int tag, int del
 }
 
 messageScheduler::Handle messageScheduler::ScheduleBang(pObject* target, int tag, int delayMs) {
-  return Arm(target, tag, delayMs, DEFERRED_KIND::BANG, 0, 0.f, nullptr, 0);
+  return Arm(target, tag, BlockDeadline(delayMs), DEFERRED_KIND::BANG, 0, 0.f, nullptr, 0);
 }
 
 messageScheduler::Handle messageScheduler::ScheduleInt(pObject* target, int tag, int delayMs,
                                                        int value) {
-  return Arm(target, tag, delayMs, DEFERRED_KIND::INT, value, 0.f, nullptr, 0);
+  return Arm(target, tag, BlockDeadline(delayMs), DEFERRED_KIND::INT, value, 0.f, nullptr, 0);
 }
 
 messageScheduler::Handle messageScheduler::ScheduleFloat(pObject* target, int tag, int delayMs,
                                                          float value) {
-  return Arm(target, tag, delayMs, DEFERRED_KIND::FLOAT, 0, value, nullptr, 0);
+  return Arm(target, tag, BlockDeadline(delayMs), DEFERRED_KIND::FLOAT, 0, value, nullptr, 0);
 }
 
 messageScheduler::Handle messageScheduler::ScheduleList(pObject* target, int tag, int delayMs,
                                                         const char* text, std::size_t length) {
-  return Arm(target, tag, delayMs, DEFERRED_KIND::LIST, 0, 0.f, text, length);
+  return Arm(target, tag, BlockDeadline(delayMs), DEFERRED_KIND::LIST, 0, 0.f, text, length);
+}
+
+messageScheduler::Handle messageScheduler::ScheduleBangOnClock(pObject* target, int tag,
+                                                               clockBridge::Handle binding,
+                                                               double beats) {
+  Deadline deadline;
+  if (!ClockDeadline(binding, beats, deadline)) {
+    // No bridge, no such binding: refused rather than quietly demoted to the
+    // block clock, which would wait out a beat count in milliseconds.
+    dropped_.fetch_add(1, std::memory_order_relaxed);
+    return 0;
+  }
+  return Arm(target, tag, deadline, DEFERRED_KIND::BANG, 0, 0.f, nullptr, 0);
 }
 
 bool messageScheduler::Cancel(Handle handle) {
@@ -161,7 +226,9 @@ void messageScheduler::DeliverDue(const GraphState* graph, YSE::THREAD thread) {
   for (std::size_t i = 0; i < CAPACITY; ++i) {
     const std::uint64_t sg = entries_[i].stateGen.load(std::memory_order_acquire);
     if ((sg & STATE_MASK) != STATE_ARMED) continue;
-    if (entries_[i].dueBlock.load(std::memory_order_relaxed) > now) continue;
+    // The one line that differs between a millisecond wait and a beat wait
+    // (issue #688): the same slot, the same lifecycle, a different clock.
+    if (!IsDue(entries_[i], now)) continue;
     const std::uint64_t seq = entries_[i].seq.load(std::memory_order_relaxed);
     // Insertion sort by arm order — at most CAPACITY entries, stack storage,
     // no allocation.

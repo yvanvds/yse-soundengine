@@ -11,6 +11,7 @@
 #define CLOCKMANAGER_H_INCLUDED
 
 #include <forward_list>
+#include <memory>
 #include <mutex>
 #include <string>
 
@@ -37,6 +38,17 @@ namespace YSE {
     // Those readers run on the control/UI thread (beatPosition at frame rate for
     // playhead display) and only touch atomics, so they never contend with the
     // audio callback.
+    //
+    // Ownership is *shared*, not exclusive (issue #707). A clock bound through
+    // `lookup` — by a clip transport or by a patcher clock binding — is read
+    // from the audio callback through a raw pointer, and neither holder can be
+    // told when it is safe to stop: the patcher's bridge never releases a
+    // binding by design, and a transport cannot observe the audio thread
+    // letting go of a pointer it published. So `destroyClock` retires a clock
+    // rather than deleting it — it disappears from queries at once, the audio
+    // thread stops advancing it, and the reap drops the manager's share; the
+    // object itself outlives the manager's interest in it for exactly as long
+    // as some binding still holds a share.
     class managerObject {
     public:
       using ImplementationType = domainClock;
@@ -50,8 +62,10 @@ namespace YSE {
       bool createClock(const std::string& name, Flt initialTempo);
 
       /** Flag the named clock for destruction. It stops being visible to queries
-          immediately; the audio thread retires it and the slow pool reaps it.
-          A no-op for an unknown name. Control thread only. */
+          immediately, the audio thread stops advancing it, and the slow pool
+          drops the manager's share of it. Anything still bound to it through
+          ``lookup`` keeps it alive (see there). A no-op for an unknown name.
+          Control thread only. */
       void destroyClock(const std::string& name);
 
       /** Whether a live clock with `name` exists. Control thread only. */
@@ -69,17 +83,27 @@ namespace YSE {
           Control/UI thread. */
       Flt currentTempo(const std::string& name);
 
-      /** Resolve a live clock by name to a stable pointer a clip transport can
-          hold and read (``beatPosition``) every audio block. Returns nullptr
-          for an unknown name. Control thread only.
+      /** Resolve a live clock by name to a stable handle a clip transport or a
+          patcher clock binding can hold and read (``beatPosition``) every audio
+          block. Returns an empty handle for an unknown name. Control thread or
+          background pool (anywhere the manager mutex may be taken).
 
-          Lifetime is caller-managed, matching the engine's other cross-object
-          bindings (MIDI file -> synth, MIDI device -> synth): the bound clock
-          must outlive every transport bound to it — destroy or unbind the
-          transport before ``destroyClock``. The returned pointer references an
-          object owned by ``implementations`` and only reads its published
-          atomics, so it is safe to poll from the audio thread. */
-      domainClock* lookup(const std::string& name);
+          The handle is a *share of the clock's lifetime*, not a borrowed
+          pointer (issue #707): holding one guarantees the clock stays alive for
+          as long as the holder does, whatever ``destroyClock`` and the reap do
+          in the meantime. This is deliberately not the caller-managed contract
+          the engine's other cross-object bindings use, because neither holder
+          can keep it: ``PATCHER::clockBridge`` never releases a binding by
+          design, and a clip transport cannot tell when the audio thread has
+          stopped reading the pointer it published. A destroyed clock stops
+          advancing, so a straggling holder reads a frozen beat rather than
+          freed memory.
+
+          Raw ``domainClock*`` reads off the handle stay a plain load of a
+          published atomic, so the audio thread may poll one every block. What
+          the audio thread must never do is copy or drop the handle itself —
+          that is a refcount operation. */
+      std::shared_ptr<domainClock> lookup(const std::string& name);
 
       /** Audio-thread tick, driven every callback with the block duration in
           seconds. Drains newly-created clocks, advances each live clock, and
@@ -93,13 +117,18 @@ namespace YSE {
       void clear();
 
     private:
-      // Find a live (non-released) clock by name. Caller holds implementationsMutex.
-      domainClock* findLive(const std::string& name);
+      // Find a live (non-released) clock by name, as a share of its lifetime.
+      // Empty when there is none. Caller holds implementationsMutex.
+      std::shared_ptr<domainClock> findLive(const std::string& name);
 
-      // Canonical owner of every clock. Mutated only by the control thread
+      // The manager's share of every clock. Mutated only by the control thread
       // (createClock) and the slow-pool deleteJob (remove_if); guarded by
       // implementationsMutex. The audio thread never iterates it.
-      std::forward_list<domainClock> implementations;
+      //
+      // Shared rather than direct ownership (issue #707): the reap drops the
+      // manager's handle, but a clock a clip transport or a patcher binding is
+      // still holding stays alive until that holder is gone.
+      std::forward_list<std::shared_ptr<domainClock>> implementations;
       std::mutex implementationsMutex;
 
       // Lock-free SPSC handoff: the control thread pushes a newly-created clock

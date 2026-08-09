@@ -1889,9 +1889,10 @@ TEST_SUITE("patcher") {
     CHECK(rig.obj.Lookup("3") == "c");
   }
 
-  TEST_CASE("coll: renumber makes the numeric addresses consecutive (#684)") {
-    // Max states no default starting address. Bare renumber starts at 0 and
-    // bare renumber2 at 1 — see the class documentation and #694.
+  TEST_CASE("coll: renumber makes the numeric addresses consecutive (#684, #694)") {
+    // Max states no default starting address; it is 0, per cyclone's coll-help
+    // ("a consecutive order starting at a given value (default 0)"). See the
+    // class documentation and #694.
     Rig rig;
     rig.List("10 a");
     rig.List("store name x");
@@ -1911,16 +1912,44 @@ TEST_SUITE("patcher") {
     CHECK(rig.obj.KeyAt(0) == "10");
     CHECK(rig.obj.KeyAt(2) == "11");
     CHECK(rig.obj.KeyAt(3) == "12");
+  }
+
+  TEST_CASE("coll: renumber2 moves the numeric addresses up by one (#694)") {
+    // Not a 1-based spelling of renumber: Max 5's reference says renumber2
+    // "increments the indices associated with the data in the coll object by
+    // one", and cyclone increments every numeric address at or above the
+    // argument, which defaults to 0. The gaps survive it.
+    Rig rig;
+    rig.List("10 a");
+    rig.List("store name x");
+    rig.List("40 b");
+    rig.List("70 c");
 
     rig.List("renumber2");
-    CHECK(rig.obj.KeyAt(0) == "1");
-    CHECK(rig.obj.KeyAt(2) == "2");
-    CHECK(rig.obj.KeyAt(3) == "3");
-
-    rig.List("renumber2 10");
     CHECK(rig.obj.KeyAt(0) == "11");
-    CHECK(rig.obj.KeyAt(2) == "12");
-    CHECK(rig.obj.KeyAt(3) == "13");
+    // Symbol addresses have no number to increment.
+    CHECK(rig.obj.KeyAt(1) == "name");
+    CHECK(rig.obj.KeyAt(2) == "41");
+    CHECK(rig.obj.KeyAt(3) == "71");
+
+    // The argument is the lowest address that moves, not a starting address:
+    // 11 stays where it is.
+    rig.List("renumber2 41");
+    CHECK(rig.obj.KeyAt(0) == "11");
+    CHECK(rig.obj.KeyAt(2) == "42");
+    CHECK(rig.obj.KeyAt(3) == "72");
+
+    // At or above, unlike separate's strictly above — an entry sitting on the
+    // default 0 has to move, or a bare renumber2 would collide it with the
+    // entry that was at 1.
+    Rig zero;
+    zero.List("0 a");
+    zero.List("1 b");
+    zero.List("renumber2");
+    CHECK(zero.obj.KeyAt(0) == "1");
+    CHECK(zero.obj.KeyAt(1) == "2");
+    CHECK(zero.obj.Lookup("1") == "a");
+    CHECK(zero.obj.Lookup("2") == "b");
   }
 
   // ─── end to end, through a real patcher graph ───────────────────────────────

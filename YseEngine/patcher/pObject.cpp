@@ -27,6 +27,13 @@ YSE::PATCHER::messageScheduler* pObject::Scheduler() const {
   return static_cast<patcherImplementation*>(parent)->Scheduler();
 }
 
+// Same hop again: the owning patcher's domain-clock bindings, or null when
+// there is no patcher to bind through (standalone / unit-test use, issue #688).
+YSE::PATCHER::clockBridge* pObject::Clocks() const {
+  if (parent == nullptr) return nullptr;
+  return static_cast<patcherImplementation*>(parent)->Clocks();
+}
+
 // Default: a deferred message nobody asked for is dropped. Only objects that
 // arm deferrals override this (issue #628).
 void pObject::DeliverDeferred(const deferredMessage&, YSE::THREAD) {}

@@ -296,23 +296,45 @@ namespace YSE {
      *  reads one out, ``min`` / ``max`` scan one element position across every
      *  entry, ``sort`` reorders storage, ``swap`` exchanges two entries'
      *  addresses, ``merge`` appends to what an address already holds,
-     *  ``separate`` opens a numeric gap, and ``renumber`` / ``renumber2``
-     *  renumber consecutively. Element positions are **1-based**, Max's
-     *  ``nth 75 2`` being "the second item in the list stored at address 75".
+     *  ``separate`` opens a numeric gap, ``renumber`` renumbers consecutively
+     *  and ``renumber2`` shifts the numeric addresses up by one. Element
+     *  positions are **1-based**, Max's ``nth 75 2`` being "the second item in
+     *  the list stored at address 75".
      *
      *  Two departures are worth naming because the reference does not settle
      *  them:
      *
-     *  - ``renumber``'s default starting address is not stated anywhere in the
-     *    Max reference. It is read as **0** here, on the evidence that ``coll``
-     *    is 0-based everywhere it *is* stated (``append`` into an empty
-     *    collection "will add an item associated with the index 0") and that
-     *    ``renumber2``'s entire description is "increment indices by one" — two
-     *    messages taking the same argument and differing by one only make sense
-     *    as a 0-based and a 1-based spelling of one operation. So bare
-     *    ``renumber`` starts at 0, bare ``renumber2`` at 1, and
-     *    ``renumber2 <n>`` at ``n + 1``. Filed as #694 for a check against a
-     *    real Max; if it disagrees the fix is one constant.
+     *  - ``renumber``'s default starting address, and what ``renumber2`` even
+     *    means, are not stated in the Max 7/8 reference: ``renumber`` is
+     *    "renumbers data entries as consecutive and in increasing order. The
+     *    optional argument specifies the starting number address", and
+     *    ``renumber2`` is the whole of "increment indices by one". Settled in
+     *    #694 from two older and more explicit sources. The Max 5 reference
+     *    spells the second one out as "the ``renumber2`` message increments the
+     *    indices associated with the data in the ``coll`` object by one" — an
+     *    increment of the addresses that are there, not a re-sequencing, so the
+     *    gaps survive it
+     *    (https://docs.cycling74.com/max5/refpages/max-ref/coll.html). And
+     *    cyclone, the Pd library written to clone Max's objects, implements
+     *    both and documents them in ``coll-help.pd``: "the renumber message
+     *    affects only integer addresses and lists all of them in a consecutive
+     *    order starting at a given value (default 0)" and "the renumber2
+     *    message also only affects integer addresses and increments all of them
+     *    by one - also starting at a given value (default 0)"; its
+     *    ``collcommon_renumber`` assigns ``startkey++`` to each numeric key and
+     *    its ``collcommon_renumber2`` adds one to every numeric key ``>=
+     *    startkey``, both methods bound with a default argument of 0
+     *    (https://github.com/porres/pd-cyclone/blob/master/cyclone_objects/binaries/control/coll.c).
+     *    So ``renumber [n]`` renumbers consecutively from ``n``, default 0, and
+     *    ``renumber2 [n]`` moves every numeric address at or above ``n`` up by
+     *    one, default 0 — which makes it ``separate`` with a default and an
+     *    at-or-above bound rather than a strictly-above one, and that bound is
+     *    forced: a strictly-above ``renumber2`` would leave an entry at 0 alone
+     *    and collide it with the entry that was at 1.
+     *  - Both leave **symbol addresses alone**, which the Max reference does not
+     *    cover but cyclone's help file states outright ("affects only integer
+     *    addresses"). A symbol address has no place in a numeric sequence and
+     *    rewriting one would destroy the only handle a patch has on that entry.
      *  - ``sort``'s second argument is documented as "-1 → the index is used,
      *    absent or 0 → the first item in the data, 1 or greater → that data
      *    element". Read literally, 0 and 1 name the same element, and they do
@@ -663,6 +685,11 @@ namespace YSE {
     // Every numeric address strictly greater than `index` goes up by one, which
     // opens a slot at `index + 1` — Max's separate. Guard held.
     void Separate(int index);
+
+    // Every numeric address at or above `first` goes up by one — Max's
+    // renumber2, which increments the addresses it finds rather than
+    // re-sequencing them. Guard held.
+    void Increment(int first);
 
     // Give every numeric entry a consecutive address in storage order, starting
     // at `first`. Symbol addresses are left alone: they have no place in a

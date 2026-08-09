@@ -114,6 +114,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_route.cpp
   patcher/test_patcher_value.cpp
   patcher/test_message_scheduler.cpp
+  patcher/test_patcher_clock_bridge.cpp
   patcher/test_patcher_slide.cpp
   patcher/test_patcher_expr.cpp
   patcher/test_patcher_vexpr.cpp
@@ -168,6 +169,7 @@ set(YSE_TEST_SOURCES
   dsp/test_panner.cpp
   reverb/test_reverb_dsp.cpp
   reverb/test_reverb_concurrency.cpp
+  midi/test_midi_bytes.cpp
   midi/test_midifile.cpp
   midi/test_midifile_concurrency.cpp
   midi/test_midifile_alloc.cpp
@@ -909,6 +911,7 @@ set_source_files_properties(
   patcher/test_patcher_route.cpp
   patcher/test_patcher_value.cpp
   patcher/test_message_scheduler.cpp
+  patcher/test_patcher_clock_bridge.cpp
   patcher/test_patcher_slide.cpp
   patcher/test_patcher_expr.cpp
   patcher/test_patcher_vexpr.cpp

@@ -15,6 +15,8 @@
 // managers directly, which must not share a process with a live audio thread.
 
 #include <doctest/doctest.h>
+#include <atomic>
+#include <string>
 #include <vector>
 
 #include "yse.hpp"
@@ -22,6 +24,8 @@
 #include "clip/clipTransport.h"
 #include "clip/clipManager.h"
 #include "clock/clockManager.h"
+#include "internal/global.h"
+#include "internal/threadPool.h"
 
 #if YSE_ENABLE_MIDI_DEVICE
 #include <chrono>
@@ -73,6 +77,66 @@ namespace {
     e.velocity = vel;
     e.pitchBend = bend;
     return e;
+  }
+
+  // Wait until the clock manager's slow-pool delete job has run to completion.
+  // The background pool is a single worker over a FIFO ring, so a job pushed
+  // after the reap was enqueued cannot finish before the reap does. Returns
+  // false if the pool was not running, so a caller that depends on the reap
+  // having happened can say so rather than assert on a sequence that did not.
+  struct barrierJob : YSE::INTERNAL::threadPoolJob {
+    std::atomic<bool> ran{false};
+    void run() override {
+      ran.store(true);
+    }
+  };
+
+  bool DrainSlowPool() {
+    barrierJob barrier;
+    YSE::INTERNAL::Global().addSlowJob(&barrier);
+    barrier.join();
+    return barrier.ran.load();
+  }
+
+  // destroyClock's full retirement sequence: one tick drops the clock from the
+  // audio-thread working list, the next enqueues the slow-pool delete job, and
+  // the barrier waits for that job to finish.
+  //
+  // Drain-then-tick, repeatedly, because the manager skips the enqueue while a
+  // previous delete job is still queued — and the clock manager is a
+  // process-global singleton, so an earlier case in this suite may well have
+  // left one in flight. Draining first makes `isQueued()` false at the moment
+  // the tick wants to enqueue ours.
+  bool ReapClock(const std::string& name) {
+    auto& clocks = YSE::CLOCK::Manager();
+    clocks.destroyClock(name);
+    bool pooled = true;
+    for (int i = 0; i < 3; i++) {
+      pooled = DrainSlowPool() && pooled;
+      clocks.update(0.01f);
+    }
+    return DrainSlowPool() && pooled;
+  }
+
+  // Clocks created purely to reclaim the heap a reaped clock used to occupy, so
+  // a dangling read lands on live data rather than on its own stale bytes.
+  // Without them a use-after-free on a quiet heap still reads the old value and
+  // a regression test would pass on the very bug it exists for.
+  constexpr int kFillerClocks = 256;
+
+  std::string FillerName(int i) {
+    return "clip.filler" + std::to_string(i);
+  }
+
+  void MakeFillerClocks() {
+    for (int i = 0; i < kFillerClocks; i++)
+      YSE::CLOCK::Manager().createClock(FillerName(i), 60.f * (float)(i + 2));
+  }
+
+  void DropFillerClocks() {
+    for (int i = 0; i < kFillerClocks; i++)
+      YSE::CLOCK::Manager().destroyClock(FillerName(i));
+    YSE::CLOCK::Manager().update(0.01f);
   }
 
 } // namespace
@@ -255,6 +319,58 @@ TEST_SUITE("clip") {
     clocks.update(0.01f); // let the audio side retire it
   }
 
+  TEST_CASE("clip: a bound transport survives destroyClock of its clock (#707)") {
+    // Issue #707: destroyClock retired the clock, the slow pool freed it, and
+    // every bound transport went on dereferencing it in advance() — on the
+    // audio thread, every block. The transport cannot notice: isReleased() is
+    // itself a load through the dangling pointer. So binding now takes a share
+    // of the clock's lifetime and a destroyed clock merely stops advancing.
+    //
+    // What this case asserts directly is that the sequence completes and the
+    // transport keeps running; the *memory* claim is asserted by the asan/tsan
+    // CI jobs, for which this is the reproduction — every advance() below is a
+    // read that used to be a read of freed memory. The firing consequence is
+    // pinned in the MIDI-out case further down, which is this file's only seam
+    // onto what advance() actually does.
+    auto& clocks = YSE::CLOCK::Manager();
+    REQUIRE(clocks.createClock("clip.doomed", 60.f)); // 1 beat / second
+
+    YSE::CLIP::transport t(nullptr);
+    REQUIRE(t.bind("clip.doomed"));
+    t.setLoopForTest(0.0);
+    t.setEvents({ev(1.0, 100.0, 1, 60)});
+    t.play();
+
+    for (int i = 0; i < 2; ++i) {
+      clocks.update(0.25f);
+      t.advance();
+    }
+    CHECK(t.isPlaying());
+
+    REQUIRE(ReapClock("clip.doomed"));
+    CHECK_FALSE(clocks.clockExists("clip.doomed"));
+
+    // Reclaim the heap the reap would have freed, and add a same-named
+    // replacement: every advance() below is then a read of memory that is
+    // definitely somebody else's if the transport is still dangling.
+    MakeFillerClocks();
+    REQUIRE(clocks.createClock("clip.doomed", 60.f));
+    for (int i = 0; i < 16; ++i) {
+      clocks.update(0.25f);
+      t.advance();
+    }
+    CHECK(t.isPlaying());
+    CHECK(clocks.beatPosition("clip.doomed") == doctest::Approx(4.0));
+
+    t.stop();
+    clocks.update(0.25f);
+    t.advance();
+    CHECK_FALSE(t.isPlaying());
+
+    REQUIRE(ReapClock("clip.doomed"));
+    DropFillerClocks();
+  }
+
   TEST_CASE("clip: create -> play -> stop through the manager and a real clock") {
     auto& clocks = YSE::CLOCK::Manager();
     REQUIRE(clocks.createClock("clip.run", 60.f)); // 60 BPM -> 1 beat / second
@@ -430,6 +546,72 @@ TEST_SUITE("clip") {
     sender.stop();
     clocks.destroyClock("clip.midiout.stop");
     clocks.update(0.01f);
+  }
+
+  TEST_CASE("clip: a transport on a destroyed clock stops firing rather than dangling (#707)") {
+    // The behavioural half of #707. The transport is bound to a clock that is
+    // then destroyed and reaped, and a *new* clock of the same name is run well
+    // past a later event. If the binding had followed the freed clock's
+    // recycled memory, the beat would jump and that later event would fire.
+    // With the binding owning a share, the clock it holds simply stopped: the
+    // beat is frozen, the window never advances, nothing more comes out.
+    auto& clocks = YSE::CLOCK::Manager();
+    REQUIRE(clocks.createClock("clip.midiout.doomed", 60.f)); // 1 beat / second
+
+    MidiHookRecorder rec;
+    auto& sender = YSE::MIDI::OutSender();
+    sender.setSendHookForTest(&MidiHookRecorder::hook, &rec);
+
+    int dummy = 0;
+    auto* fakePort = reinterpret_cast<RtMidiOut*>(&dummy);
+
+    {
+      YSE::CLIP::transport t(nullptr);
+      REQUIRE(t.bind("clip.midiout.doomed"));
+      t.connectMidiOut(fakePort);
+      t.setLoopForTest(0.0);
+      // Beat 1 fires while the clock is alive (the anchor that proves the pipe
+      // works); beat 5 must never fire. Both notes are long enough that no
+      // note-off is due either.
+      t.setEvents({ev(1.0, 100.0, 1, 60), ev(5.0, 100.0, 1, 62)});
+      t.play();
+
+      for (int i = 0; i < 6; ++i) { // -> beat 1.5
+        clocks.update(0.25f);
+        t.advance();
+      }
+      REQUIRE(rec.await(1));
+      CHECK(rec.at(0).event.bytes[1] == 60);
+
+      REQUIRE(ReapClock("clip.midiout.doomed"));
+      // Reclaim the reaped clock's heap, then run a same-named replacement well
+      // past the beat-5 event. A transport still reading the freed clock sees a
+      // beat that jumps, and fires.
+      MakeFillerClocks();
+      REQUIRE(clocks.createClock("clip.midiout.doomed", 60.f));
+
+      // Eight beats on the replacement — three times past the beat-5 event.
+      for (int i = 0; i < 32; ++i) {
+        clocks.update(0.25f);
+        t.advance();
+      }
+      CHECK(clocks.beatPosition("clip.midiout.doomed") == doctest::Approx(8.0));
+      CHECK_FALSE(rec.await(2, 200));
+      CHECK(rec.count() == 1);
+
+      t.stop();
+      clocks.update(0.25f);
+      t.advance(); // releaseAll: the beat-1 note is still sounding
+      REQUIRE(rec.await(2));
+      CHECK(rec.at(1).event.bytes[0] == 0x80);
+      CHECK(rec.at(1).event.bytes[1] == 60);
+      t.disconnectMidiOut(fakePort);
+    }
+
+    sender.setSendHookForTest(nullptr, nullptr);
+    sender.stop();
+    REQUIRE(ReapClock("clip.midiout.doomed"));
+    DropFillerClocks();
   }
 
 #endif // YSE_ENABLE_MIDI_DEVICE

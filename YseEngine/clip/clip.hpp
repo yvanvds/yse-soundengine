@@ -98,8 +98,10 @@ namespace YSE {
      *  @param clockName Name of a live domain clock (``System().createClock``).
      *  @return ``true`` on success; ``false`` if no live clock owns the name.
      *
-     *  The bound clock must outlive the clip (destroy the clip before the
-     *  clock). Control thread only. */
+     *  Binding shares the clock's lifetime (issue #707), so the two can be
+     *  destroyed in either order: ``destroyClock`` on a bound clock stops it
+     *  advancing, and a clip on a stopped clock simply stops firing rather than
+     *  reading a freed object. Control thread only. */
     bool create(const std::string& clockName);
 
     /** @brief Replace the event list. Takes effect at the next block boundary,

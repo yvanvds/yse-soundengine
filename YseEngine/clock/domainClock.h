@@ -13,6 +13,7 @@
 #include "../headers/types.hpp"
 #include "../headers/enums.hpp"
 #include <atomic>
+#include <memory>
 #include <string>
 
 namespace YSE {
@@ -36,6 +37,14 @@ namespace YSE {
      *  from the control thread and hand their intent over through atomics; the
      *  cross-thread readers (``beatPosition`` / ``currentTempo``) read published
      *  snapshots and never touch the audio-thread-owned members.
+     *
+     *  Lifetime: a clock is owned by ``shared_ptr`` and every binding taken
+     *  through ``managerObject::lookup`` holds a share (issue #707), so
+     *  ``destroyClock`` cannot pull a clock out from under a bound clip
+     *  transport or patcher binding. A released clock is dropped from the
+     *  manager's working list and therefore stops advancing, so the snapshots
+     *  a straggling holder still reads simply freeze at their last value —
+     *  which is the same answer such a holder gets for a clock at tempo 0.
      */
     class domainClock {
     public:
@@ -85,8 +94,16 @@ namespace YSE {
       void setStatus(OBJECT_IMPLEMENTATION_STATE value) {
         objectStatus.store(value);
       }
-      static bool canBeDeleted(const domainClock& c) {
-        return c.objectStatus.load() == OBJECT_DELETE;
+
+      /** @brief Slow-pool delete-job predicate.
+       *
+       *  Takes the owning handle rather than the object because the manager
+       *  owns its clocks by ``shared_ptr`` (issue #707). Dropping the handle
+       *  here retires the *manager's* share; the clock itself is freed only
+       *  once the last holder — a bound clip transport, a patcher clock
+       *  binding — has let go of its own share. */
+      static bool canBeDeleted(const std::shared_ptr<domainClock>& c) {
+        return c->objectStatus.load() == OBJECT_DELETE;
       }
 
     private:
