@@ -34,6 +34,20 @@ namespace YSE {
       // unsubscribeTap() on it is a guaranteed no-op.
       std::atomic<std::uint64_t> g_tapHandleCounter{0};
 
+      // Subscription handles are process-global for exactly the same reason
+      // (issue #716). This counter was a per-bus member until then, so every
+      // session restarted it at 1 — and subscribers are not destroyed with the
+      // bus. A named channel / sound / synth, or a patcher .receive, that
+      // survives close() + init() still holds a handle from the dead bus, and
+      // its teardown path is guarded only by Global().isActive(), which is true
+      // again in the next session: the unsubscribe landed on whichever fresh
+      // subscription happened to be numbered the same. The victim simply
+      // stopped receiving, with nothing logged. Never reusing a value makes a
+      // stale handle permanently unknown, so unsubscribe() on it is a no-op —
+      // the same guarantee taps already had. A uint64 counter incremented once
+      // per subscribe() cannot realistically wrap.
+      std::atomic<std::uint64_t> g_subHandleCounter{0};
+
       // Per-thread slot into the current bus's queue pool. `generation` marks
       // which bus instance `index` was claimed against; a mismatch means this
       // thread has not yet claimed a slot on the live bus.
@@ -143,7 +157,10 @@ namespace YSE {
     }
 
     SubHandle NamedBus::subscribe(const std::string& name, Subscriber callback) {
-      const SubHandle handle = nextHandle_.fetch_add(1, std::memory_order_relaxed);
+      // Process-global (issue #716), so a handle is never reused by a later
+      // bus. 0 is reserved as "not subscribed" by every caller, so the first
+      // handle issued in the process is 1.
+      const SubHandle handle = g_subHandleCounter.fetch_add(1, std::memory_order_relaxed) + 1;
       std::unique_lock lock(subsMutex_);
       subs_[name].push_back(Subscription{handle, std::move(callback)});
       handleIndex_.emplace(handle, name);

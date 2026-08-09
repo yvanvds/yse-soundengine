@@ -56,6 +56,78 @@ namespace YSE {
      *  — all three need a meter, and a ``domainClock`` is a bare beat
      *  accumulator with none.
      *
+     *  ### Starting and stopping: Max's four left-inlet methods (issue #711)
+     *
+     *  Max's reference page gives four ways to start or stop a ``metro`` from
+     *  the left inlet. Until #711 this object had one of them.
+     *
+     *  - **``int``** — "any number other than 0 starts the metro object. At
+     *    regular intervals, metro sends a bang out the outlet. 0 stops metro."
+     *    The one that was already here.
+     *  - **``bang``** — "in left inlet: starts the metro object". The same
+     *    sentence as ``int``'s, so the same method. What "starts" means for an
+     *    object that is *already running* is not on the reference page; Max's
+     *    own tutorial is what settles it — "when a metro receives a bang, the
+     *    metro will 're-start' itself and begin scheduling subsequent bang
+     *    messages from the moment we triggered it", and "the button forces the
+     *    metro objects to restart *in sync*" (Max Basic Tutorial 4: Metro and
+     *    Toggle). So a bang re-phases a running metro rather than being
+     *    ignored, and re-phasing several of them from one button is what the
+     *    method is *for*.
+     *  - **``float``** — "performs the same function as int". Issue #711 counted
+     *    three left-inlet methods and left this one out; the reference page
+     *    lists it, so it is here, and Max wins. It is deliberately **not** a
+     *    cast to ``int``: ``0.5`` is "a number other than 0" and therefore
+     *    *starts* the metro, where ``(int)0.5`` would stop it. ``.delay``
+     *    already reads its own left inlet's float as Max's "same function as
+     *    int"; this object simply never did.
+     *  - **``stop``** — "in left inlet: stops metro", which is ``int 0`` under
+     *    another name, exactly as it is on ``.delay``. Left inlet only, so a
+     *    ``stop`` arriving on the interval inlet stays what it always was — a
+     *    word that is not a time value, and therefore nothing.
+     *
+     *  ### What a mid-run start or stop does to the beat grid (issue #711)
+     *
+     *  All four go through the one ``Toggle`` path, which is what keeps them
+     *  from having to answer this question four times over.
+     *
+     *  - **Starting** — bang, or a non-zero ``int``/``float`` — stops first and
+     *    then starts, on either engine. On the domain clock that means the
+     *    armed wakeup is cancelled and a **new ``beatBase``** is taken at the
+     *    beat the message landed on, ``emitted`` goes back to 0, and the next
+     *    wakeup is armed at ``beatBase + interval``. The grid is re-phased to
+     *    now, which is precisely the tutorial's "from the moment we triggered
+     *    it" — and it is why one button banging several metros puts them in
+     *    step: they take the same baseline off the same clock in one dispatch.
+     *  - **Stopping** — ``stop``, or a zero ``int``/``float`` — clears
+     *    ``beatOn`` and cancels the armed wakeup, and emits nothing.
+     *    ``beatBase`` and ``emitted`` are left where they stand rather than
+     *    zeroed: they mean nothing while stopped, the next start overwrites
+     *    both, and the only thing that could read them in between is a wakeup
+     *    that lost the race to the cancel — which checks ``beatOn`` and stops.
+     *
+     *  Neither disturbs the two anti-drift disciplines below, because neither
+     *  *edits* a running grid: a start replaces it whole and a stop retires it.
+     *  Only an interval change edits one, and that is ``RetimeBeats``.
+     *
+     *  ### The start bang stays synchronous, and that is safe here
+     *
+     *  ``.delay`` keeps ``messageScheduler``'s one-block deadline floor partly
+     *  because a ``delay 0`` wired outlet-to-inlet would otherwise recurse until
+     *  the stack ran out (``gDelay.h``). A ``bang`` method makes that same patch
+     *  drawable here with a single cord — this outlet into this inlet — so the
+     *  question has to be asked, and the answer is not to defer the start bang.
+     *  Max documents it as immediate ("bang is sent immediately when metro is
+     *  started"), and a metronome whose first tick arrived a block late would be
+     *  a different object. What makes it safe is that ``outlet::Send*`` has
+     *  carried a thread-local send-depth ceiling since #236 for exactly this
+     *  shape of cycle: the recursion stops at 64 frames, and each nested frame's
+     *  ``StopRun`` has already retired the timer or wakeup its caller armed, so
+     *  the metro comes out of it holding one of them rather than sixty-four. The
+     *  cycle also predates this issue — a ``[t 1]`` in the loop reaches
+     *  ``Toggle`` today — so #711 shortens a bounded cycle rather than opening
+     *  an unbounded one.
+     *
      *  ### The bang count is read off the clock, never counted from wakeups
      *
      *  This is the one place the obvious implementation is wrong, and a metro
@@ -106,18 +178,29 @@ namespace YSE {
      *  ### Real-time behaviour
      *
      *  ``Calculate()`` does nothing: the object is driven by its inlets and by
-     *  its own clock. No message or delivery path allocates, locks or blocks —
-     *  binding is the bridge's wait-free claim (the name lookup happens on the
-     *  background pool, because it takes the clock manager's mutex), arming and
-     *  cancelling are wait-free, reading a beat is two acquire loads, and the
-     *  grid is guarded by ``.value``'s non-blocking ``busy`` exchange, whose
-     *  loser does nothing rather than waiting.
+     *  its own clock. On the **beat** engine no message or delivery path
+     *  allocates, locks or blocks — binding is the bridge's wait-free claim (the
+     *  name lookup happens on the background pool, because it takes the clock
+     *  manager's mutex), arming and cancelling are wait-free, reading a beat is
+     *  two acquire loads, and the grid is guarded by ``.value``'s non-blocking
+     *  ``busy`` exchange, whose loser does nothing rather than waiting.
+     *
+     *  The **millisecond** engine is not clean and never was: ``TimerThread``'s
+     *  ``Add`` allocates a ``std::function`` and takes a mutex and
+     *  ``ClearTimer`` can block on an in-flight callback, all of it on whichever
+     *  thread toggled the metro — which may be the audio callback, a ``.delay``
+     *  wired into this inlet being enough. That is tracked as #718, filed rather
+     *  than fixed here because the fix is a decision about what this object's
+     *  millisecond clock *is*; #711 adds three more ways to reach a path that
+     *  ``int`` has always reached.
      */
     PATCHER_CLASS(gMetro, YSE::OBJ::G_METRO)
     _NO_MESSAGES
     _NO_CALCULATE
 
     _INT_IN(Toggle)
+    _BANG_IN(BangIn)
+    _FLOAT_IN(ToggleFloat)
     _INT_IN(SetIntPeriod)
     _FLOAT_IN(SetFloatPeriod)
     _LIST_IN(ListIn)

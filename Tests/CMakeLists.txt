@@ -403,6 +403,30 @@ add_test(
 )
 set_tests_properties(yse_unit_tests PROPERTIES TIMEOUT 600)
 
+# The refusal that keeps the entry above from being bypassed (issue #712).
+#
+# Running `yse_tests` with no filter puts every suite the entry above excludes
+# back into one process, and that run does not merely fail — it faults with an
+# access violation after ~168 s, which is how a half-dead yse_tests.exe ends up
+# holding bin/yse_tests.exe against the next link. main() refuses instead.
+#
+# Both properties are load-bearing. PASS_REGULAR_EXPRESSION checks it is the
+# refusal talking (and, by superseding the exit code, tolerates the deliberate
+# non-zero status); TIMEOUT is what makes the case fail without the fix, where
+# the bare run neither prints this nor returns for those ~168 s. Deliberately
+# generous: an unrefused run is three orders of magnitude over it, so the
+# margin costs nothing and cannot flake on a loaded machine.
+add_test(
+  NAME    yse_tests_monolithic_refused
+  COMMAND yse_tests
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_monolithic_refused PROPERTIES
+  PASS_REGULAR_EXPRESSION "refusing to run the whole suite in one process"
+  TIMEOUT 30
+  LABELS tests
+)
+
 # Engine init/close lifecycle (issue #132). Isolated in its own process because
 # System::close() tears down process-global state (thread pools, named bus) that
 # the rest of the suite assumes stays up. Uses initOffline(), so no audio
@@ -633,6 +657,36 @@ set_tests_properties(yse_tests_logsafety PROPERTIES LABELS internal)
 # branches deterministic — so it needs no audio hardware and runs on headless
 # CI. Isolated in its own process because it drives yse_system_init_offline()
 # and mutates the process-global DEVICE::Manager() singleton.
+#
+# This entry is load-bearing in a way the other isolated entries are not, and
+# issue #717 is about saying so out loud. "PortAudio never initialised" is a
+# property of the *process*: Pa_Initialize runs once, on the first init() that
+# opens a device, and the only call that undoes it — managerObject::terminate()
+# — is private and runs from the singleton's destructor at process exit. No
+# test can re-establish it; System::close() + initOffline() takes the stream
+# away, which is all initOffline() promises, and leaves PortAudio up. So this
+# suite and every suite that opens a device are mutually exclusive by
+# construction, in both directions:
+#
+#   * devicelayer needs no device to be reachable, and asserts branches that
+#     only exist in that state;
+#   * `system` (Tests/system/test_system_active_state.cpp) needs a live stream,
+#     and devicelayer's own setup legitimately closes it.
+#
+# Running them together is therefore not a bug to be fixed but a configuration
+# that cannot hold, and this separation is the design rather than a workaround.
+# Repairing the second direction was tried and measured: a helper that noticed
+# the closed stream and re-opened it puts a live PortAudio callback thread back
+# into a process whose unit suites drive Manager().update() from the test
+# thread, and the unfiltered run then aborts on lfQueue's reentrancy assertion
+# instead of failing three checks (see Tests/support/null_device.hpp).
+#
+# It is stated in the code too, once per direction: each suite carries a
+# contract case — "devicelayer: the suite has a process with no reachable audio
+# device" and "system: the live-device cases have a stream delivering audio" —
+# which fails, deliberately and by name, in any process that violates it, while
+# the cases depending on it skip with a message. Folding either suite in with
+# the other would trip those rather than pass silently.
 add_test(
   NAME    yse_tests_devicelayer
   COMMAND yse_tests --test-suite=devicelayer
@@ -666,6 +720,39 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_capilowcovlife PROPERTIES LABELS "system;c-api;lifecycle")
+
+# Interleaving gate for the close()-driving suites (issue #715).
+#
+# Every entry above isolates one suite because it drives System::close(). What
+# nothing checked is what happens when two of them meet, and the arrangement
+# makes that possible even though each has its own entry: doctest orders test
+# *cases* by file, not by suite, and `capilowcov` is deliberately spread over
+# five translation units under the subsystem directories it mirrors. Those files
+# are not contiguous, so in any process that runs more than this suite, other
+# suites execute in the gaps — `buscapi` (system/test_c_api_bus.cpp) sorts
+# directly before capilowcov's last TU (system/test_c_api_lowcov.cpp).
+#
+# Its yse_system_close() pulled the session out from under the rest of
+# capilowcov, whose one-shot bootstrap could not notice, and the remaining cases
+# ran on into a torn-down engine: the access violation #715 reports, ~168 s into
+# the unfiltered run. Two defects met there — the latched bootstrap
+# (Tests/support/capilowcov_offline.hpp) and an engine one, the underwater
+# effect's reverb zone never being rebuilt after a close (issue #715, covered
+# on its own by yse_tests_lifecycle).
+#
+# This runs that trio in one process. It does not replace the isolated entries
+# above — they stay, and stay required — it pins the one interleaving known to
+# have been broken so a regression fails here rather than only in an
+# unsupported bare run.
+add_test(
+  NAME    yse_tests_close_interleaving
+  COMMAND yse_tests --test-suite=buscapi,capilowcov,capilowcovlife
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_close_interleaving PROPERTIES
+  LABELS "system;c-api;lifecycle"
+  TIMEOUT 300
+)
 
 add_test(
   NAME    yse_tests_midi

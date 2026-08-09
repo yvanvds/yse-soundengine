@@ -70,8 +70,12 @@ namespace {
 
 TEST_SUITE("buscapi") {
 
-  // Runs first (doctest keeps file order): no engine session exists yet.
+  // The engine-down contract. It normalizes rather than assuming it runs
+  // first: doctest orders cases by file, so in a process shared with other
+  // suites an earlier one's session can still be up here (issue #715). close()
+  // is a no-op on an inactive engine, so the isolated run is unchanged.
   TEST_CASE("c-api bus: create fails cleanly before init and on NULL args") {
+    yse_system_close(yse_system_get());
     yse_clear_last_error();
     CHECK(yse_bus_tap_create("phi.ctl.", &captureCb, nullptr) == nullptr);
     CHECK(std::string(yse_last_error()).find("not initialised") != std::string::npos);

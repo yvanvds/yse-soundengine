@@ -15,7 +15,14 @@ namespace {
 
   constexpr char kHotInletDoc[] =
       "Non-zero int starts the metronome; 0 stops it. Max: 'any number other than 0 starts the "
-      "metro object. At regular intervals, metro sends a bang out the outlet. 0 stops metro.' The "
+      "metro object. At regular intervals, metro sends a bang out the outlet. 0 stops metro.' A "
+      "float does the same — Max's 'performs the same function as int' — and is compared against "
+      "zero rather than cast, so 0.5 starts the metro where a cast to int would stop it. A bang "
+      "also starts it, Max's 'in left inlet: starts the metro object', and starts a metro that is "
+      "already running by re-phasing it: Max Basic Tutorial 4 has 'when a metro receives a bang, "
+      "the metro will re-start itself and begin scheduling subsequent bang messages from the "
+      "moment we triggered it', which is how one button puts several metros in sync. The message "
+      "'stop' is int 0 under another name — Max's 'in left inlet: stops metro' (issue #711). The "
       "message 'clock <name>' names the YSE domain clock a tempo-relative interval is counted on "
       "and a bare 'clock' takes it away again, which is Max's own method for this object — "
       "setclock names metro explicitly as one of the objects a 'clock' message controls (issue "
@@ -31,13 +38,17 @@ namespace {
       "on the clock named by 'clock <name>', which retimes a running beat metro by rebasing the "
       "grid at the current beat, keeping the phase rather than re-triggering. Any plain number "
       "puts the interval back on milliseconds. bars.beats.units stays out, needing a meter no "
-      "domain clock has.";
+      "domain clock has. There is no bang, no toggle and no 'stop' here: Max documents all three "
+      "as left-inlet methods, so a 'stop' arriving here is only a word that is not a time value, "
+      "and does nothing.";
 
 } // namespace
 
 CONSTRUCT() {
   ADD_IN_0;
   REG_INT_IN(Toggle);
+  REG_BANG_IN(BangIn);
+  REG_FLOAT_IN(ToggleFloat);
   REG_LIST_IN(ListIn);
 
   ADD_IN_1;
@@ -56,7 +67,10 @@ CONSTRUCT() {
 
   ADD_DESCRIPTION(
       "Periodic bang generator. Once toggled on, emits a bang every 'period' milliseconds (and "
-      "immediately on start). Toggle off to stop. Since issue #705 the interval may be "
+      "immediately on start). Toggle off to stop. All four of Max's left-inlet ways to do that are "
+      "here since issue #711: a non-zero int or float starts it, 0 stops it, a bang starts it — "
+      "re-phasing it if it was already running, which is how one button puts several metros in "
+      "sync — and 'stop' stops it. Since issue #705 the interval may be "
       "tempo-relative instead: a note value ('4n', '4nd', '8nt') or a tick count ('1440 ticks') "
       "in the right inlet sets it in beats, and 'clock <name>' names the YSE domain clock those "
       "beats are counted on — Max's own method, setclock naming metro as one of the objects a "
@@ -73,7 +87,7 @@ CONSTRUCT() {
       "a meter a domain clock does not have. Calculate() does nothing and no message or delivery "
       "path allocates, locks or blocks.");
   ADD_CATEGORY(pCategory::TIME);
-  INLET_DOC(0, "on/off", kHotInletDoc, "0 or 1, 'clock <name>'");
+  INLET_DOC(0, "on/off", kHotInletDoc, "0 or 1, bang, 'stop', 'clock <name>'");
   INLET_DOC(1, "period", kColdInletDoc, "1+ ms, or a note value / tick count");
   OUTLET_DOC(0, "out", "Periodic bang.", "");
   PARAM_DOC("period", "1000",
@@ -303,6 +317,34 @@ INT_IN(Toggle) {
   Bang();
 }
 
+BANG_IN(BangIn) {
+  // Max, left inlet: "starts the metro object" — the same sentence the int
+  // method's non-zero half carries, so the same method (issue #711). Registered
+  // on inlet 0 only, which is where Max documents it.
+  //
+  // Starting a metro that is already running is a *re-start*, not a no-op: Max
+  // Basic Tutorial 4 (Metro and Toggle) — "when a metro receives a bang, the
+  // metro will 're-start' itself and begin scheduling subsequent bang messages
+  // from the moment we triggered it", and "the button forces the metro objects
+  // to restart in sync". Toggle already stops before it starts, so that falls
+  // out; on the beat clock it means a fresh `beatBase` taken here, which is what
+  // "from the moment we triggered it" is on a clock that counts beats.
+  //
+  // The tag travels unchanged. Toggle's start bang goes out synchronously from
+  // inside this dispatch, so this outlet wired back into this inlet is a cycle —
+  // a bounded one, #236's send-depth ceiling breaking it at 64 frames. See the
+  // header on why deferring it instead would be the wrong fix.
+  Toggle(1, inlet, thread);
+}
+
+FLOAT_IN(ToggleFloat) {
+  // Max: "float — performs the same function as int" (issue #711). Compared
+  // against zero rather than cast: Max's rule is "any number other than 0
+  // starts", and 0.5 is a number other than 0 while `(int)0.5` is the stop
+  // value. NaN takes the start branch for the same reason — it is not 0.
+  Toggle(value == 0.f ? 0 : 1, inlet, thread);
+}
+
 INT_IN(SetIntPeriod) {
   period = value;
   // Max: "the number is the time interval, in milliseconds", which is a
@@ -330,6 +372,16 @@ LIST_IN(ListIn) {
   if (end <= begin) return;
 
   const std::size_t length = end - begin;
+
+  // Max's `stop`, left inlet only: "in left inlet: stops metro" (issue #711).
+  // `int 0` under another name, which is what it is on `.delay` too, so it goes
+  // through the one Toggle path rather than growing a second way to stop: a
+  // running millisecond timer and an armed beat wakeup are both retired there,
+  // and only there.
+  if (inlet == 0 && length == 4 && value.compare(begin, length, "stop", 4) == 0) {
+    Toggle(0, inlet, thread);
+    return;
+  }
 
   // Max's `clock` (issue #705), left inlet, where this object's other command
   // would go: setclock's name is "passed as the argument to a 'clock' message

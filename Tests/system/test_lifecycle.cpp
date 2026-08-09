@@ -33,14 +33,19 @@
 
 #include <doctest/doctest.h>
 #include <chrono>
+#include <memory>
 #include <thread>
+#include <vector>
 #include "yse.hpp"
 #include "channel/channelInterface.hpp"
+#include "internal/namedBus.h"
 #include "reverb/reverbInterface.hpp"
 #include "reverb/reverbManager.h"
 #include "sound/soundInterface.hpp"
 #include "sound/soundManager.h"
+#include "internal/AudioTest.h"
 #include "internal/time.h"
+#include "internal/underWaterEffect.h"
 #include "dsp/ADSRenvelope.hpp"
 #include "headers/constants.hpp"
 #include "yse_c/yse_common.h"
@@ -315,6 +320,239 @@ TEST_SUITE("lifecycle") {
 
     YSE::System().requestSampleRate(startRequest);
     YSE::SAMPLERATE = startRate;
+  }
+
+  // Regression test for issue #715: the stock underwater effect must survive a
+  // close() -> init() cycle.
+  //
+  // INTERNAL::UnderWaterEffect() is a process-global driver that owns a
+  // persistent YSE::reverb for the REVERB_UNDERWATER zone. That interface is
+  // long-lived, but its *implementation* is session state:
+  // REVERB::Manager().destroy() clears every implementation at close(), and
+  // each implementation's destructor nulls its interface's pimpl. The manager
+  // re-creates its own two persistent reverbs (globalReverb, calculatedValues)
+  // in create(); nothing re-created this third one, because it was only ever
+  // built in the driver's constructor — which runs once per process.
+  //
+  // So every session after the first messaged a null implementation the moment
+  // a host touched the effect: System().setUnderWaterDepth() ->
+  // reverb::setActive() -> REVERB::implementationObject::sendMessage(this=0).
+  // That is the access violation the unfiltered yse_tests run died on (the
+  // fault landed in Tests/system/test_c_api_lowcov.cpp's
+  // yse_system_set_underwater_depth call, reached with the engine closed).
+  //
+  // Pre-fix this case faults on the marked line. Post-fix the driver rebuilds
+  // the zone for the new session, and no-ops while no session is up.
+  TEST_CASE("lifecycle: underwater FX is rebuilt across a close/init cycle (issue #715)") {
+    YSE::System().close(); // normalize to a closed engine
+
+    if (!YSE::System().initOffline()) return; // no offline device on this host
+
+    // Session 1: first touch constructs the driver and its zone.
+    YSE::System().setUnderWaterDepth(0.5f);
+    REQUIRE(YSE::INTERNAL::UnderWaterEffect().zone() != nullptr);
+    CHECK(YSE::INTERNAL::UnderWaterEffect().zone()->isValid());
+    CHECK(YSE::INTERNAL::UnderWaterEffect().module().depth() == doctest::Approx(0.5f));
+    YSE::System().setUnderWaterDepth(0.0f);
+
+    YSE::System().close();
+    // close() freed the zone's implementation and nulled the handle.
+    CHECK_FALSE(YSE::INTERNAL::UnderWaterEffect().zone()->isValid());
+
+    // Engine down: the driver must no-op on the zone rather than message a
+    // freed implementation. The module parameter still takes the value — it is
+    // a plain atomic and carries no session state.
+    YSE::System().setUnderWaterDepth(0.25f);
+    CHECK(YSE::INTERNAL::UnderWaterEffect().module().depth() == doctest::Approx(0.25f));
+    CHECK_FALSE(YSE::INTERNAL::UnderWaterEffect().zone()->isValid());
+
+    // Session 2: the zone has to come back, exactly like the reverb manager's
+    // own persistent pair.
+    REQUIRE(YSE::System().initOffline());
+    YSE::System().setUnderWaterDepth(0.5f); // <- faulted here before the fix
+    CHECK(YSE::INTERNAL::UnderWaterEffect().zone()->isValid());
+    CHECK(YSE::INTERNAL::UnderWaterEffect().zone()->getActive());
+    // The rebuilt zone carries the underwater preset, not a fresh
+    // implementation's defaults — the reason it is rebuilt rather than
+    // re-created behind the old interface.
+    CHECK(YSE::INTERNAL::UnderWaterEffect().zone()->getSize() == doctest::Approx(10.0f));
+
+    YSE::System().setUnderWaterDepth(0.0f);
+    CHECK_FALSE(YSE::INTERNAL::UnderWaterEffect().zone()->getActive());
+    // The attach path is callable in the new session too. Detach again so the
+    // process-global module does not go into close() still occupying the
+    // master's insert slot.
+    YSE::System().underWaterFX(YSE::ChannelMaster());
+    CHECK(YSE::ChannelMaster().getDSP() == &YSE::INTERNAL::UnderWaterEffect().module());
+    YSE::ChannelMaster().setDSP(nullptr);
+
+    YSE::System().close();
+  }
+
+  // Regression test for issue #717: the built-in diagnostic tone must survive a
+  // close() -> init() cycle. Same defect family as the underwater zone above,
+  // in the sibling process-global singleton.
+  //
+  // INTERNAL::Test() is a function-local static owning a YSE::sound built once
+  // per process, in its constructor. SOUND::Manager().destroy() clears every
+  // sound implementation at System::close() and each implementation's
+  // destructor nulls its interface's pimpl, so from the second session on the
+  // driver was messaging a dead interface. Unlike the reverb case this does not
+  // fault — every sound method is documented to no-op while isValid() is false
+  // — so the symptom is silence: System().AudioTest(true), and the C API's
+  // yse_system_audio_test() with it, did nothing at all. For the engine's
+  // built-in *output diagnostic* that is the worst possible failure mode, and
+  // it is what the "audio test" case in the devicelayer suite was failing on in
+  // a shared process: capilowcov drives yse_system_audio_test() from
+  // Tests/system/test_c_api_lowcov.cpp, which sorts before
+  // test_device_layer.cpp, so the singleton was built in that earlier session
+  // and the close() in between emptied it.
+  //
+  // Reproduced with two *offline* suites and no PortAudio anywhere:
+  //   yse_tests --test-suite=capilowcov,capilowcovlife,devicelayer
+  //
+  // Pre-fix the second session's CHECK(isPlaying()) fails. Post-fix the driver
+  // re-creates the sound for the new session, and no-ops while none is up.
+  TEST_CASE("lifecycle: the built-in audio test tone is rebuilt across a close/init cycle "
+            "(issue #717)") {
+    YSE::System().close(); // normalize to a closed engine
+
+    if (!YSE::System().initOffline()) return; // no offline device on this host
+
+    // isPlaying() reads the implementation's head status, which the audio tick
+    // writes — so the SI_PLAY message has to be delivered before it is read.
+    // update() flags the control-plane work, renderOffline() runs the audio
+    // callback body, and the sleep lets the single-threaded slow pool execute
+    // the queued setup() job create() posted.
+    auto pump = []() {
+      for (int i = 0; i < 20; ++i) {
+        YSE::System().update();
+        YSE::System().renderOffline(2);
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+      }
+    };
+
+    // Session 1: first touch constructs the driver and its sound.
+    // isValid() is the handle, isReady() is the implementation having finished
+    // the setup job create() posts to the slow pool — together they are "there
+    // is a live diagnostic sound in this session". Deliberately not isPlaying():
+    // that reads the DSP-side status the shepard source leaves alone, and what
+    // this case owns is the *rebuild*. That the tone actually reaches the master
+    // mix is asserted at the render level by the devicelayer suite's "audio
+    // test" case, in the process that can measure it.
+    YSE::System().AudioTest(true);
+    pump();
+    CHECK(YSE::INTERNAL::Test().source().isValid());
+    CHECK(YSE::INTERNAL::Test().source().isReady());
+    YSE::System().AudioTest(false);
+    pump();
+
+    YSE::System().close();
+    // close() freed the sound's implementation and nulled the handle.
+    CHECK_FALSE(YSE::INTERNAL::Test().source().isValid());
+
+    // Engine down: the driver must no-op rather than message a freed
+    // implementation, and must not leave a half-built sound behind.
+    YSE::System().AudioTest(true);
+    CHECK_FALSE(YSE::INTERNAL::Test().source().isValid());
+
+    // Session 2: the sound has to come back, or the diagnostic is silent for
+    // the rest of the process.
+    REQUIRE(YSE::System().initOffline());
+    YSE::System().AudioTest(true); // <- silently did nothing before the fix
+    pump();
+    CHECK(YSE::INTERNAL::Test().source().isValid());
+    CHECK(YSE::INTERNAL::Test().source().isReady());
+
+    YSE::System().AudioTest(false);
+    pump();
+    YSE::System().close();
+  }
+
+  // Regression test for issue #716: NamedBus subscription handles were numbered
+  // per bus instance, restarting at 1 every session, while the subscribers that
+  // hold them are not destroyed with the bus.
+  //
+  // global::close() drops the NamedBus, but a named channel / sound / synth, or
+  // a patcher .receive, is host- or patcher-owned and survives. Each of those
+  // unsubscribes behind a bare Global().isActive() guard — true again in the
+  // next session — so a handle minted by the dead bus was handed to the live
+  // one, which had reissued the same low numbers. The unsubscribe then dropped
+  // an unrelated, live subscription: the victim silently stopped receiving,
+  // with nothing logged.
+  //
+  // Handles are now drawn from a process-global counter, the way tap handles
+  // already were (issue #389), so a stale handle is permanently unknown to any
+  // later bus and unsubscribe() on it is a guaranteed no-op.
+  //
+  // The victim below is a real call site, not a hand-rolled subscription:
+  // YSE::channel::name() registers "channel.<name>.volume" on the bus and
+  // ~channel() is the guarded teardown. Pre-fix the final CHECK fails (one
+  // publish reaches one subscriber fewer than were registered) and so does the
+  // handle-ordering CHECK; post-fix both hold.
+  TEST_CASE(
+      "lifecycle: a bus handle from a closed session cannot unsubscribe a live one (issue #716)") {
+    using YSE::INTERNAL::BusValue;
+    using YSE::INTERNAL::SubHandle;
+
+    YSE::System().close(); // normalize to a closed engine
+
+    if (!YSE::System().initOffline()) return; // no offline device on this host
+
+    // Session 1. The channel's handle is private, so bracket the registration
+    // with two probes: the handle it took is the one issued between them, and
+    // the REQUIRE pins the "name() takes exactly one subscription" assumption
+    // the arithmetic rests on. No create() — naming is independent of the
+    // implementation, and leaving pimpl null keeps the cross-session destructor
+    // about the bus and nothing else.
+    auto stale = std::make_unique<YSE::channel>();
+    const SubHandle before = YSE::INTERNAL::Bus().subscribe("bus.probe", [](const BusValue&) {});
+    stale->name("staleSessionChannel");
+    const SubHandle after = YSE::INTERNAL::Bus().subscribe("bus.probe", [](const BusValue&) {});
+    REQUIRE(after == before + 2);
+    const SubHandle staleHandle = before + 1;
+    YSE::INTERNAL::Bus().unsubscribe(before);
+    YSE::INTERNAL::Bus().unsubscribe(after);
+
+    // The channel survives this boundary still holding staleHandle and still
+    // flagged as a bus owner: nothing in close() reaches a host-owned object.
+    YSE::System().close();
+    REQUIRE(YSE::System().initOffline());
+
+    // Session 2 runs on a brand-new NamedBus. Walk its handle counter up to the
+    // stale value, keeping every subscription issued on the way: with per-bus
+    // numbering the counter restarts at 1, so one of these *is* numbered
+    // staleHandle. With process-global numbering the session's first handle
+    // already exceeds it and the loop subscribes exactly once.
+    const std::string victimName = "bus.session2.victim";
+    int hits = 0;
+    std::vector<SubHandle> live;
+    while (live.size() < 1024) {
+      const SubHandle h =
+          YSE::INTERNAL::Bus().subscribe(victimName, [&hits](const BusValue&) { ++hits; });
+      live.push_back(h);
+      if (h >= staleHandle) break;
+    }
+    REQUIRE(live.back() >= staleHandle);
+    // The guarantee, stated directly: no handle of this session can collide
+    // with one the previous session issued.
+    CHECK(live.front() > staleHandle);
+
+    YSE::INTERNAL::Bus().publish(victimName, BusValue{1}, YSE::T_GUI);
+    REQUIRE(hits == static_cast<int>(live.size()));
+
+    // Now drive the boundary: the session-1 channel is destroyed *during*
+    // session 2, so its destructor sees an active engine and unsubscribes the
+    // stale handle on this bus.
+    stale.reset();
+
+    hits = 0;
+    YSE::INTERNAL::Bus().publish(victimName, BusValue{2}, YSE::T_GUI);
+    CHECK(hits == static_cast<int>(live.size()));
+
+    for (const SubHandle h : live)
+      YSE::INTERNAL::Bus().unsubscribe(h);
+    YSE::System().close();
   }
 
 } // TEST_SUITE("lifecycle")

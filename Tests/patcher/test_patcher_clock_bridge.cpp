@@ -346,6 +346,18 @@ namespace {
     void Toggle(int on) {
       metro->SetIntData(0, on);
     }
+    // Max's other three left-inlet start/stop methods (issue #711), through the
+    // same handle the rest of the rig uses, so they travel the real inlet
+    // dispatch rather than a direct call.
+    void Bang() {
+      metro->SetBang(0);
+    }
+    void Stop() {
+      metro->SetListData(0, "stop");
+    }
+    void ToggleFloat(float on) {
+      metro->SetFloatData(0, on);
+    }
     void Tick() {
       ::Tick(patcher);
     }
@@ -1699,6 +1711,124 @@ TEST_SUITE("clock") {
 
     rig.Toggle(0);
     mgr.destroyClock("metro.retime");
+    mgr.update(0.01f);
+  }
+
+  // ─── .metro's other left-inlet start/stop methods (issue #711) ──────────────
+  //
+  // Max lists four ways to start or stop a metro from the left inlet and this
+  // object had one. The millisecond engine's answers are in the `patcher` suite;
+  // what needs a domain clock is what a *mid-run* start or stop does to the beat
+  // grid #705 built — because a grid is the one piece of state a metro carries
+  // across a message.
+
+  TEST_CASE("metro: a bang re-phases a running beat metro's grid (#711)") {
+    // The load-bearing case of this issue. Max's reference page says only
+    // "starts the metro object"; Max Basic Tutorial 4 says what that means for
+    // an object already running — "the metro will 're-start' itself and begin
+    // scheduling subsequent bang messages from the moment we triggered it" —
+    // and on a clock that counts beats, "the moment we triggered it" is a new
+    // `beatBase`.
+    //
+    // The rig's block is half a beat, so a bang sent after one block lands at
+    // beat 0.5, off the grid it started on. Three implementations are told
+    // apart here: one that ignores a bang into a running metro (no bang now,
+    // and the next one still at beat 1.0), one that bangs but leaves the
+    // baseline alone (bangs now, but *also* at beat 1.0), and the right one
+    // (bangs now, and the grid moves to 0.5 / 1.5 / 2.5).
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("metro.rephase", kTempo));
+
+    MetroRig rig;
+    rig.UseClock("metro.rephase");
+    rig.SetInterval("4n"); // one beat: two blocks
+    rig.Toggle(1);
+    REQUIRE(rig.Bangs() == 1); // beat 0, base 0, next grid point at beat 1
+
+    rig.Tick(); // beat 0.5 — nothing due
+    REQUIRE(rig.Bangs() == 1);
+
+    rig.Bang(); // Max's start bang goes out immediately, and the grid moves here
+    CHECK(rig.Bangs() == 2);
+
+    rig.Tick(); // beat 1.0 — the *old* grid point. The re-phased grid owes
+                // nothing here; a metro that kept its baseline would bang.
+    CHECK(rig.Bangs() == 2);
+    rig.Tick(); // beat 1.5 — one interval past the bang
+    CHECK(rig.Bangs() == 3);
+    rig.Tick(); // beat 2.0
+    CHECK(rig.Bangs() == 3);
+    rig.Tick(); // beat 2.5
+    CHECK(rig.Bangs() == 4);
+
+    rig.Toggle(0);
+    mgr.destroyClock("metro.rephase");
+    mgr.update(0.01f);
+  }
+
+  TEST_CASE("metro: 'stop' retires the armed wakeup, and a bang starts a fresh grid (#711)") {
+    // Max: "in left inlet: stops metro." On the beat engine that has to cancel
+    // the wakeup that is already armed, not merely stop re-arming — an armed
+    // wakeup that survived would deliver one more bang after the stop. And what
+    // comes back afterwards is a *new* run: base at the bang, not the base the
+    // stopped run left behind.
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("metro.stopword", kTempo));
+
+    MetroRig rig;
+    rig.UseClock("metro.stopword");
+    rig.SetInterval("4n");
+    rig.Toggle(1);
+    REQUIRE(rig.Bangs() == 1);
+
+    rig.Tick();
+    rig.Tick(); // beat 1.0 — one grid point
+    REQUIRE(rig.Bangs() == 2);
+
+    rig.Stop();
+    CHECK(rig.Bangs() == 2); // stopping never emits
+    for (int i = 0; i < 10; i++)
+      rig.Tick(); // 5 beats go by on a live clock, and nothing is due
+    CHECK(rig.Bangs() == 2);
+
+    // Restart half a beat off the old grid. The old base was beat 0, so a run
+    // that resumed the old grid would bang on the whole beats; this one bangs
+    // one interval after the restart.
+    rig.Tick(); // beat 6.5
+    rig.Bang();
+    CHECK(rig.Bangs() == 3);
+    rig.Tick(); // beat 7.0 — a whole beat on the old grid, nothing on the new
+    CHECK(rig.Bangs() == 3);
+    rig.Tick(); // beat 7.5 — one interval past the restart
+    CHECK(rig.Bangs() == 4);
+
+    rig.Toggle(0);
+    mgr.destroyClock("metro.stopword");
+    mgr.update(0.01f);
+  }
+
+  TEST_CASE("metro: a float in the left inlet starts and stops a beat run (#711)") {
+    // Max: "float — performs the same function as int." Uncast, so 0.5 is "a
+    // number other than 0" and starts the run rather than stopping it.
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("metro.floatstart", kTempo));
+
+    MetroRig rig;
+    rig.UseClock("metro.floatstart");
+    rig.SetInterval("4n");
+    rig.ToggleFloat(0.5f);
+    CHECK(rig.Bangs() == 1);
+
+    rig.Tick();
+    rig.Tick(); // beat 1.0
+    CHECK(rig.Bangs() == 2);
+
+    rig.ToggleFloat(0.f);
+    for (int i = 0; i < 6; i++)
+      rig.Tick();
+    CHECK(rig.Bangs() == 2);
+
+    mgr.destroyClock("metro.floatstart");
     mgr.update(0.01f);
   }
 

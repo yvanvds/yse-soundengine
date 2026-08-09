@@ -570,6 +570,112 @@ TEST_SUITE("patcher") {
     metro.GetInlet(0)->SetInt(0, YSE::T_GUI); // stop before destruction
   }
 
+  // ─── gMetro: the rest of Max's left-inlet start/stop methods (issue #711) ────
+  //
+  // Max's reference page gives four, and until #711 this object had one.  These
+  // cases pin the three that were missing on the millisecond engine; the beat
+  // engine's answer — what a mid-run bang does to #705's grid — is in the clock
+  // suite, where a domain clock can be stepped deterministically.
+
+  TEST_CASE("gMetro: a bang starts the metronome (#711)") {
+    // Max, left inlet: "starts the metro object", and its Output section: "bang
+    // is sent immediately when metro is started."
+    YSE::PATCHER::gMetro metro;
+    BangSink sink;
+    metro.ConnectOutlet(sink.GetInlet(0), 0);
+    sink.ConnectInlet(metro.GetOutlet(0), 0);
+
+    metro.GetInlet(1)->SetInt(1'000'000, YSE::T_GUI);
+    metro.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(sink.bangCount == 1);
+
+    metro.GetInlet(0)->SetInt(0, YSE::T_GUI); // stop before destruction
+  }
+
+  TEST_CASE("gMetro: a bang re-starts a metro that is already running (#711)") {
+    // Max Basic Tutorial 4 (Metro and Toggle) is what settles this, the
+    // reference page saying only "starts": "when a metro receives a bang, the
+    // metro will 're-start' itself and begin scheduling subsequent bang
+    // messages from the moment we triggered it."  So a bang into a running
+    // metro is not swallowed — it bangs again, which is what lets one button
+    // put several metros in sync.
+    YSE::PATCHER::gMetro metro;
+    BangSink sink;
+    metro.ConnectOutlet(sink.GetInlet(0), 0);
+    sink.ConnectInlet(metro.GetOutlet(0), 0);
+
+    metro.GetInlet(1)->SetInt(1'000'000, YSE::T_GUI);
+    metro.GetInlet(0)->SetInt(1, YSE::T_GUI); // start: +1
+    metro.GetInlet(0)->SetBang(YSE::T_GUI); // re-start: +1
+    metro.GetInlet(0)->SetBang(YSE::T_GUI); // and again: +1
+    CHECK(sink.bangCount == 3);
+
+    metro.GetInlet(0)->SetInt(0, YSE::T_GUI);
+  }
+
+  TEST_CASE("gMetro: 'stop' in the left inlet stops the metronome (#711)") {
+    // Max: "in left inlet: stops metro" — int 0 under another name.  A running
+    // metro bangs from the TimerThread worker, so the counter has to be the
+    // atomic one.
+    YSE::PATCHER::gMetro metro;
+    AtomicBangSink sink;
+    metro.ConnectOutlet(sink.GetInlet(0), 0);
+    sink.ConnectInlet(metro.GetOutlet(0), 0);
+
+    metro.GetInlet(1)->SetInt(5, YSE::T_GUI);
+    metro.GetInlet(0)->SetInt(1, YSE::T_GUI);
+    // Really running before the word arrives, so what follows is the word's
+    // doing and not a timer that never started.
+    REQUIRE(waitFor([&] { return sink.count() >= 3; }, 500));
+
+    metro.GetInlet(0)->SetList("stop", YSE::T_GUI);
+    const int afterStop = sink.count();
+    // A 5 ms timer still running would advance many times over this window.
+    std::this_thread::sleep_for(100ms);
+    CHECK(sink.count() == afterStop);
+  }
+
+  TEST_CASE("gMetro: 'stop' in the right inlet is not a command (#711)") {
+    // Max documents stop as a left-inlet method.  On the right inlet the word
+    // is only a token that is not a time value, and the object's list handler
+    // already ignores those — so the metro must keep running.
+    YSE::PATCHER::gMetro metro;
+    AtomicBangSink sink;
+    metro.ConnectOutlet(sink.GetInlet(0), 0);
+    sink.ConnectInlet(metro.GetOutlet(0), 0);
+
+    metro.GetInlet(1)->SetInt(5, YSE::T_GUI);
+    metro.GetInlet(0)->SetInt(1, YSE::T_GUI);
+    REQUIRE(waitFor([&] { return sink.count() >= 3; }, 500));
+
+    metro.GetInlet(1)->SetList("stop", YSE::T_GUI);
+    const int afterWord = sink.count();
+    CHECK(waitFor([&] { return sink.count() > afterWord + 2; }, 500));
+
+    metro.GetInlet(0)->SetInt(0, YSE::T_GUI); // stop before destruction
+  }
+
+  TEST_CASE("gMetro: a float in the left inlet starts and stops, uncast (#711)") {
+    // Max: "float — performs the same function as int", and int's rule is "any
+    // number other than 0 starts".  0.5 is a number other than 0, so it starts;
+    // a metro that cast its float to int would stop instead.
+    YSE::PATCHER::gMetro metro;
+    BangSink sink;
+    metro.ConnectOutlet(sink.GetInlet(0), 0);
+    sink.ConnectInlet(metro.GetOutlet(0), 0);
+
+    metro.GetInlet(1)->SetInt(1'000'000, YSE::T_GUI);
+    metro.GetInlet(0)->SetFloat(0.5f, YSE::T_GUI);
+    CHECK(sink.bangCount == 1);
+
+    metro.GetInlet(0)->SetFloat(0.f, YSE::T_GUI); // and 0. stops it
+    CHECK(sink.bangCount == 1);
+    metro.GetInlet(0)->SetFloat(-2.5f, YSE::T_GUI); // "other than 0" includes negatives
+    CHECK(sink.bangCount == 2);
+
+    metro.GetInlet(0)->SetInt(0, YSE::T_GUI);
+  }
+
   // ─── gMetro: live period changes (issue #625) ────────────────────────────────
   //
   // The timer used to keep the interval it was scheduled with, so every
