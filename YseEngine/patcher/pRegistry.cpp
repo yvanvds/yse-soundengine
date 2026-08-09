@@ -66,6 +66,7 @@
 #include "time/gMetro.h"
 #include "time/gTempo.h"
 #include "time/gTimepoint.h"
+#include "time/gTimer.h"
 #include "time/gTransport.h"
 
 #include "math/dAdd.h"
@@ -477,6 +478,11 @@ pRegistry::pRegistry() {
   // Report the elapsed time at a regular interval — a metronome that says how
   // long it has been running, measured rather than tallied (issue #505)
   Add(OBJ::G_CLOCKER, gClocker::Create);
+
+  // Report the elapsed time between two events — the input side of anything
+  // rhythm-aware, and the first timing object that consumes time rather than
+  // producing it (issue #506)
+  Add(OBJ::G_TIMER, gTimer::Create);
 
   Add(OBJ::MIDITOFREQUENCY, pMidiToFrequency::Create);
   Add(OBJ::FREQUENCYTOMIDI, pFrequencyToMidi::Create);

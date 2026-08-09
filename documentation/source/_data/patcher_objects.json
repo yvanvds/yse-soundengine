@@ -5651,6 +5651,56 @@
       }
     ]
   },
+  ".timer": {
+    "category": "TIME",
+    "description": "Reports the elapsed time between two events — Max's timer, and the first patcher object that consumes time rather than producing it (issue #506). A bang in the left inlet marks the start, a bang in the right sends the interval since that mark: the tempo of a tapped-in beat, the length of a gesture, how long a note was held. The right inlet measures rather than stops — the mark stays put, so banging it repeatedly gives split times from the one start — and a report before any start emits nothing, there being no interval between one event and no event. The milliseconds are measured, never counted: both events read the engine's monotonic clock (std::chrono::steady_clock, the same source the patcher's timer thread schedules on), so a '.metro' tick that the OS delivered late is timed at the instant it really arrived. The second outlet reports the same interval in beats of a YSE domain clock named by the creation argument ('.timer main'), which is what Max's own right outlet does against his transport: the beat position is read at each event and subtracted, so a tempo change or a ramp between them is accounted for exactly rather than being papered over by dividing milliseconds by a BPM figure. The beats outlet stays silent when there is no clock to read. This object never creates a clock and never destroys one — '.transport' is the sole creator (issue #513) — so a name nobody has claimed simply has no beats until something claims it. Max's 'clock <name>' message stays out because it names a setclock, an alternative millisecond clock YSE does not have, and reusing the word for the beat domain would give a Max message a different meaning in a patch that looks like Max's; the format attribute stays out with it, the two units this object has being spelled by its two outlets. Calculate() does nothing, and neither inlet allocates, locks or blocks when it turns out to be running on the audio callback: the clock is read through the patcher's bridge there, which is two acquire loads, and by name only off it.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG"
+        ],
+        "doc": "A bang marks the first of the two events — Max's 'in left inlet: starts or restarts the timer'. It takes the instant it arrived at and the bound clock's beat position at that same instant, and everything the right inlet later reports is measured from there. Banging it again simply moves the mark, so a timer is re-used by re-starting it rather than by being cleared. Nothing is emitted here: an interval needs two events and this is one of them.",
+        "index": 0,
+        "label": "start",
+        "range": "bang"
+      },
+      {
+        "accepts": [
+          "BANG"
+        ],
+        "doc": "A bang marks the second event and sends the interval — Max's 'in right inlet: sends out the time elapsed since the timer was started'. It *measures* rather than stops: the mark stays where the left inlet put it, so banging this inlet again reports a larger interval from the same start, which is how split times are taken. A bang before the timer has ever been started emits nothing at all, there being no interval between one event and no event.",
+        "index": 1,
+        "label": "report",
+        "range": "bang"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".timer",
+    "outlets": [
+      {
+        "doc": "The interval between the two events, in milliseconds. It is measured rather than counted: both events read the engine's monotonic clock (std::chrono::steady_clock, the same source the patcher's timer thread schedules on and the same one the engine times its own ticks with) and the reading is their difference, so a bang that the OS delivered late is timed at the instant it really arrived and the figure never disagrees with the events that produced it. Sent after the beats outlet, which is Max's right-to-left outlet order.",
+        "index": 0,
+        "label": "ms",
+        "range": "0+ ms",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The same interval expressed in beats of the domain clock named by the creation argument — issue #506's 'second outlet reporting the interval in beats against a bound domain clock', and what Max's own right outlet does against his transport. The clock's beat position is read at each of the two events and subtracted, so a tempo change, a ramp or a pause between them is accounted for exactly; this is emphatically not the millisecond figure divided by a BPM number, and the two outlets are not two spellings of one value. Sent first, Max's outlets firing right to left. Nothing at all is emitted when there is no beat to report: no creation argument, a clock nothing has created, or a clock that only appeared after the timer was started and so has no baseline in this interval.",
+        "index": 1,
+        "label": "beats",
+        "range": "beats",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The domain clock the beats outlet measures against — YSE's answer to Max's transport attribute. Clocks are addressed by name across the whole engine, so this is the same string the host passes to createClock and the same one a '.transport <name>' drives. Empty (the default) leaves the beats outlet silent and the object a pure millisecond timer. The name is bound when the object is added to a patcher — bound, not created: a clock nobody has made yet leaves the beats outlet quiet, and it starts reporting once the clock exists and a fresh start has a beat position to measure from. There is no message to re-point it, deliberately: Max's 'clock' word names a setclock and not a transport, and '.transport' sets the same precedent of reading its clock name once.",
+        "name": "clockname",
+        "range": ""
+      }
+    ]
+  },
   ".togedge": {
     "category": "MATH",
     "description": "Bangs the left outlet the moment a value becomes non-zero and the right outlet the moment it returns to zero, and says nothing in between — Max's togedge. It turns a continuous stream into the two moments a patch actually cares about, which is the clean way to derive note-on / note-off style gating from a threshold or an envelope, and in a patcher whose message queue is bounded the silence between the edges is the point rather than a nicety: an envelope sampled at frame rate would otherwise deliver a message per frame for the whole time the gate is open. Only transitions are reported, never levels — Max: 'Otherwise, togedge sends no output' — so 5 followed by 9 is not an event, because both are non-zero and no zero crossing happened, and 0 followed by 0 is not an event either. An implementation that reported 'the value changed' rather than 'the value crossed zero' would bang the left outlet on every message of a rising envelope. The two outlets are therefore mutually exclusive and strictly alternate over the object's whole life, which is the property a downstream note-on / note-off pairing depends on, since two note-ons with no note-off between them is a stuck note. The object starts holding 0 and takes no creation argument, as Max's does not: the first non-zero number it ever receives is a rising edge, while a first 0 is silent because 0 is what it already held. The .change object's 'initial' argument deliberately does not transfer, because that argument exists to keep a patch load from firing a value outlet for a parameter that has not moved and this object has no value outlet to fire — an edge that has not happened yet cannot be pre-declared. A bang is not a passthrough but the object's most surprising message: Max says it 'switches the value stored in togedge from 0 to non-zero, or vice versa, and reports the change by sending a bang out one of the outlets', so a bang toggles the stored value and then reports the transition it just made itself, and a stream of bangs comes out left, right, left, right. It composes with numeric input rather than living beside it, because both go through the same stored value, so a bang after the object was driven to 5 by a number bangs the right outlet and leaves the object holding 0. That is how a patch drives the same note-on / note-off pair from a single button. Both outlets carry a bang rather than the int 1 that .change's equivalent outlets send, which is what each Max reference page says and is defensible on its own terms: .change's edge outlets sit beside a value outlet where an int distinguishes an edge from nothing, whereas here the outlet's identity carries the whole meaning and a stray 1 would be a value nobody asked for on an outlet meant to drive a .trigger or a message box. The zero test itself is shared with .change rather than rewritten, because it has a corner two copies would drift apart on: -0.f == 0.f in IEEE-754, so a negative zero counts as zero on both sides. A non-finite number is ignored outright — no outlet fires and the stored value is untouched — rather than read as 0 the way the rest of the patcher reads it, because reading a NaN as 0 while the object holds 5 would bang the falling outlet and deliver a note-off for a note still being held, and storing it raw would leave the object in a state from which neither outlet could ever fire again. So the stored value is always finite, which is what guarantees the strict alternation cannot be broken by a value the patch did not choose. 'reset' is the patcher family's word rather than a Max message and returns the object to a stored 0 silently; the silence is its whole reason for existing, since a patch that wants the gate re-armed cannot just send 0 without banging the falling outlet and delivering a note-off it did not mean. There is no 'set', as Max documents none. A symbol is ignored, zero-ness being a numeric predicate that a symbol neither meets nor fails, and a list is Max's single-inlet distribution, so '5 6' is the number 5 and the 6 is dropped. Everything is a float and zero-ness is tested on the float as it arrived: Max's int-only method would truncate 0.5 to a zero, which would break this object's headline use outright, since an envelope between 0 and 1 would read as permanently zero except at full scale and the gate would never open.",

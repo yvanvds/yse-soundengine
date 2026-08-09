@@ -225,6 +225,7 @@ set(YSE_SRCS
   patcher/time/gMetro.cpp
   patcher/time/gTempo.cpp
   patcher/time/gTimepoint.cpp
+  patcher/time/gTimer.cpp
   patcher/time/gTransport.cpp
   patcher/time/messageScheduler.cpp
   patcher/time/TimerThread.cpp
@@ -451,6 +452,7 @@ set_source_files_properties(
   patcher/time/gMetro.cpp
   patcher/time/gTempo.cpp
   patcher/time/gTimepoint.cpp
+  patcher/time/gTimer.cpp
   patcher/time/gTransport.cpp
   patcher/time/messageScheduler.cpp
   patcher/time/timerBridge.cpp
