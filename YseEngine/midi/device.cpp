@@ -15,7 +15,7 @@ void YSE::midiOut::create(unsigned int port) {
 void YSE::midiOut::NoteOn(MIDI::M_CHANNEL channel, MIDI::M_PITCH pitch, unsigned char velocity) {
   if (isPrepared()) {
     unsigned char message[3];
-    message[0] = 0x90 + channel;
+    message[0] = MIDI::MSG_NOTE_ON + channel;
     message[1] = pitch;
     message[2] = velocity;
     device->sendMessage(message, 3);
@@ -25,7 +25,7 @@ void YSE::midiOut::NoteOn(MIDI::M_CHANNEL channel, MIDI::M_PITCH pitch, unsigned
 void YSE::midiOut::NoteOn(MIDI::M_CHANNEL channel, unsigned char pitch, unsigned char velocity) {
   if (isPrepared()) {
     unsigned char message[3];
-    message[0] = 0x90 + channel;
+    message[0] = MIDI::MSG_NOTE_ON + channel;
     message[1] = pitch;
     message[2] = velocity;
     device->sendMessage(message, 3);
@@ -35,7 +35,7 @@ void YSE::midiOut::NoteOn(MIDI::M_CHANNEL channel, unsigned char pitch, unsigned
 void YSE::midiOut::NoteOff(MIDI::M_CHANNEL channel, MIDI::M_PITCH pitch, unsigned char velocity) {
   if (isPrepared()) {
     unsigned char message[3];
-    message[0] = 0x80 + channel;
+    message[0] = MIDI::MSG_NOTE_OFF + channel;
     message[1] = pitch;
     message[2] = velocity;
     device->sendMessage(message, 3);
@@ -45,7 +45,7 @@ void YSE::midiOut::NoteOff(MIDI::M_CHANNEL channel, MIDI::M_PITCH pitch, unsigne
 void YSE::midiOut::NoteOff(MIDI::M_CHANNEL channel, unsigned char pitch, unsigned char velocity) {
   if (isPrepared()) {
     unsigned char message[3];
-    message[0] = 0x80 + channel;
+    message[0] = MIDI::MSG_NOTE_OFF + channel;
     message[1] = pitch;
     message[2] = velocity;
     device->sendMessage(message, 3);
@@ -56,7 +56,7 @@ void YSE::midiOut::PolyPressure(MIDI::M_CHANNEL channel, MIDI::M_PITCH pitch,
                                 unsigned char velocity) {
   if (isPrepared()) {
     unsigned char message[3];
-    message[0] = 0xA0 + channel;
+    message[0] = MIDI::MSG_POLY_AFTERTOUCH + channel;
     message[1] = pitch;
     message[2] = velocity;
     device->sendMessage(message, 3);
@@ -67,7 +67,7 @@ void YSE::midiOut::PolyPressure(MIDI::M_CHANNEL channel, unsigned char pitch,
                                 unsigned char velocity) {
   if (isPrepared()) {
     unsigned char message[3];
-    message[0] = 0xA0 + channel;
+    message[0] = MIDI::MSG_POLY_AFTERTOUCH + channel;
     message[1] = pitch;
     message[2] = velocity;
     device->sendMessage(message, 3);
@@ -77,7 +77,7 @@ void YSE::midiOut::PolyPressure(MIDI::M_CHANNEL channel, unsigned char pitch,
 void YSE::midiOut::ChannelPressure(MIDI::M_CHANNEL channel, unsigned char value) {
   if (isPrepared()) {
     unsigned char message[3];
-    message[0] = 0xD0 + channel;
+    message[0] = MIDI::MSG_CHANNEL_AFTERTOUCH + channel;
     message[1] = value;
     message[2] = 0;
     device->sendMessage(message, 3);
@@ -87,7 +87,7 @@ void YSE::midiOut::ChannelPressure(MIDI::M_CHANNEL channel, unsigned char value)
 void YSE::midiOut::ProgramChange(MIDI::M_CHANNEL channel, unsigned char value) {
   if (isPrepared()) {
     unsigned char message[3];
-    message[0] = 0xC0 + channel;
+    message[0] = MIDI::MSG_PROGRAM_CHANGE + channel;
     message[1] = value;
     message[2] = 0;
     device->sendMessage(message, 3);
@@ -98,7 +98,7 @@ void YSE::midiOut::ControlChange(MIDI::M_CHANNEL channel, unsigned char controll
                                  unsigned char value) {
   if (isPrepared()) {
     unsigned char message[3];
-    message[0] = 0xB0 + channel;
+    message[0] = MIDI::MSG_CONTROL_CHANGE + channel;
     message[1] = controller;
     message[2] = value;
     device->sendMessage(message, 3);
@@ -108,8 +108,8 @@ void YSE::midiOut::ControlChange(MIDI::M_CHANNEL channel, unsigned char controll
 void YSE::midiOut::AllNotesOff(MIDI::M_CHANNEL channel) {
   if (isPrepared()) {
     unsigned char message[3];
-    message[0] = 0xB0 + channel;
-    message[1] = 0x7B;
+    message[0] = MIDI::MSG_CONTROL_CHANGE + channel;
+    message[1] = MIDI::CC_ALL_NOTES_OFF;
     message[2] = 0;
     device->sendMessage(message, 3);
   }
@@ -118,11 +118,11 @@ void YSE::midiOut::AllNotesOff(MIDI::M_CHANNEL channel) {
 void YSE::midiOut::AllNotesOff() {
   if (isPrepared()) {
     unsigned char message[3];
-    message[1] = 0x7B;
+    message[1] = MIDI::CC_ALL_NOTES_OFF;
     message[2] = 0;
 
     for (unsigned char i = 0; i < 16; i++) {
-      message[0] = 0xB0 + i;
+      message[0] = MIDI::MSG_CONTROL_CHANGE + i;
       device->sendMessage(message, 3);
     }
   }
@@ -131,8 +131,8 @@ void YSE::midiOut::AllNotesOff() {
 void YSE::midiOut::Reset(MIDI::M_CHANNEL channel) {
   if (isPrepared()) {
     unsigned char message[3];
-    message[0] = 0xB0 + channel;
-    message[1] = 0x79;
+    message[0] = MIDI::MSG_CONTROL_CHANGE + channel;
+    message[1] = MIDI::CC_RESET_ALL_CONTROLLERS;
     message[2] = 0;
     device->sendMessage(message, 3);
   }
@@ -141,11 +141,11 @@ void YSE::midiOut::Reset(MIDI::M_CHANNEL channel) {
 void YSE::midiOut::Reset() {
   if (isPrepared()) {
     unsigned char message[3];
-    message[1] = 0x79;
+    message[1] = MIDI::CC_RESET_ALL_CONTROLLERS;
     message[2] = 0;
 
     for (unsigned char i = 0; i < 16; i++) {
-      message[0] = 0xB0 + i;
+      message[0] = MIDI::MSG_CONTROL_CHANGE + i;
       device->sendMessage(message, 3);
     }
   }
@@ -154,8 +154,8 @@ void YSE::midiOut::Reset() {
 void YSE::midiOut::LocalControl(bool on) {
   if (isPrepared()) {
     unsigned char message[3];
-    message[0] = 0xB0;
-    message[1] = 0x7A;
+    message[0] = MIDI::MSG_CONTROL_CHANGE;
+    message[1] = MIDI::CC_LOCAL_CONTROL;
     message[2] = on ? 127 : 0;
     device->sendMessage(message, 3);
   }
@@ -164,8 +164,8 @@ void YSE::midiOut::LocalControl(bool on) {
 void YSE::midiOut::Omni(bool on) {
   if (isPrepared()) {
     unsigned char message[3];
-    message[0] = 0xB0;
-    message[1] = on ? 0x7D : 0x7C;
+    message[0] = MIDI::MSG_CONTROL_CHANGE;
+    message[1] = on ? MIDI::CC_OMNI_MODE_ON : MIDI::CC_OMNI_MODE_OFF;
     message[2] = 0;
     device->sendMessage(message, 3);
   }
@@ -174,8 +174,8 @@ void YSE::midiOut::Omni(bool on) {
 void YSE::midiOut::Poly(bool on) {
   if (isPrepared()) {
     unsigned char message[3];
-    message[0] = 0xB0;
-    message[1] = on ? 0x7F : 0x7E;
+    message[0] = MIDI::MSG_CONTROL_CHANGE;
+    message[1] = on ? MIDI::CC_POLY_MODE_ON : MIDI::CC_MONO_MODE_ON;
     message[2] = 0;
     device->sendMessage(message, 3);
   }
