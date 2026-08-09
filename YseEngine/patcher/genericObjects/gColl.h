@@ -301,8 +301,8 @@ namespace YSE {
      *  positions are **1-based**, Max's ``nth 75 2`` being "the second item in
      *  the list stored at address 75".
      *
-     *  Two departures are worth naming because the reference does not settle
-     *  them:
+     *  Several departures are worth naming because the reference does not
+     *  settle them:
      *
      *  - ``renumber``'s default starting address, and what ``renumber2`` even
      *    means, are not stated in the Max 7/8 reference: ``renumber`` is
@@ -331,6 +331,31 @@ namespace YSE {
      *    at-or-above bound rather than a strictly-above one, and that bound is
      *    forced: a strictly-above ``renumber2`` would leave an entry at 0 alone
      *    and collide it with the entry that was at 1.
+     *  - ``separate`` is **at or above** its argument too, so the slot it opens
+     *    is the address it was given and not the one after. Both Max references
+     *    say otherwise in prose — Max 8's "increments the numerical indices for
+     *    all data whose index is greater than the provided"
+     *    (https://docs.cycling74.com/legacy/max8/refpages/coll), Max 5's
+     *    "incrementing the numerical indices for all data whose index is greater
+     *    than the number" — but Max 5 also prints a before/after for the same
+     *    message, and the example contradicts the sentence above it: ``separate
+     *    2`` on ``0, apple; 1, banana; 2, cherry; 3, durian`` gives ``0, apple;
+     *    1, banana; 3, cherry; 4, durian``, so the entry sitting *on* 2 moved
+     *    and 2 is what came free
+     *    (https://docs.cycling74.com/max5/refpages/max-ref/coll.html). cyclone
+     *    agrees with the example rather than the prose: its ``coll_separate``
+     *    is ``if(ep->e_hasnumkey && ep->e_numkey >= indx) ep->e_numkey += 1;``
+     *    and ``coll-help.pd`` says "given an int address as the argument, the
+     *    separate message increments numeric addresses equal and above it.
+     *    Thus, it creates an open slot or a separation in the data collection"
+     *    (https://github.com/porres/pd-cyclone/blob/master/cyclone_objects/binaries/control/coll.c).
+     *    Settled that way in #709: a worked example and a working
+     *    implementation outrank a one-line description that neither of them
+     *    matches, it is the reading the message's name implies, and it makes
+     *    ``separate`` exactly ``renumber2`` with a required argument — which is
+     *    why there is one helper for both. (#709 quotes Max 5 as saying "equal
+     *    to or greater than" for ``separate``; it does not. That wording is
+     *    ``insert``'s and ``insert2``'s. The example is the real evidence.)
      *  - Both leave **symbol addresses alone**, which the Max reference does not
      *    cover but cyclone's help file states outright ("affects only integer
      *    addresses"). A symbol address has no place in a numeric sequence and
@@ -682,13 +707,11 @@ namespace YSE {
     // where it is — Max's swap. Guard held.
     void SwapAddresses(std::size_t a, std::size_t b);
 
-    // Every numeric address strictly greater than `index` goes up by one, which
-    // opens a slot at `index + 1` — Max's separate. Guard held.
-    void Separate(int index);
-
-    // Every numeric address at or above `first` goes up by one — Max's
-    // renumber2, which increments the addresses it finds rather than
-    // re-sequencing them. Guard held.
+    // Every numeric address at or above `first` goes up by one, which opens a
+    // slot at `first` itself. This is both Max's renumber2 — which increments
+    // the addresses it finds rather than re-sequencing them — and Max's
+    // separate; the two messages differ only in their argument defaulting.
+    // Guard held.
     void Increment(int first);
 
     // Give every numeric entry a consecutive address in storage order, starting

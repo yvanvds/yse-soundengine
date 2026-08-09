@@ -1865,10 +1865,36 @@ TEST_SUITE("patcher") {
     CHECK(rig.obj.Lookup("1") == "60 100 127");
   }
 
-  TEST_CASE("coll: separate opens a slot above the address given (#684)") {
-    // Max: "Increments the numerical indices for all data whose index is
-    // greater than the provided." Strictly greater — `insert`'s "equal or
-    // greater" is the other rule, and the two are deliberately different.
+  TEST_CASE("coll: separate opens a slot at the address given (#684, #709)") {
+    // At or above, not strictly above, so the slot that opens is the address
+    // named. Both Max references say "greater than" in prose, but Max 5 prints
+    // a before/after for this very message that says otherwise, and cyclone
+    // implements the example rather than the sentence. See the class
+    // documentation for the sources (#709).
+    //
+    // Max 5's example verbatim: `separate 2` on
+    //   0, apple; 1, banana; 2, cherry; 3, durian
+    // gives
+    //   0, apple; 1, banana; 3, cherry; 4, durian
+    // — cherry sat on 2 and moved, so 2 is what came free.
+    Rig max5;
+    max5.List("0 apple");
+    max5.List("1 banana");
+    max5.List("2 cherry");
+    max5.List("3 durian");
+
+    max5.List("separate 2");
+    CHECK(max5.obj.KeyAt(0) == "0");
+    CHECK(max5.obj.KeyAt(1) == "1");
+    CHECK(max5.obj.KeyAt(2) == "3");
+    CHECK(max5.obj.KeyAt(3) == "4");
+    CHECK(max5.obj.Lookup("3") == "cherry");
+    CHECK(max5.obj.Lookup("4") == "durian");
+    // And nothing is left on the address that was separated at.
+    CHECK(max5.obj.Lookup("2").empty());
+
+    // The open slot is what the message exists for: a store at the separated
+    // address lands in the gap without displacing what was pushed up.
     Rig rig;
     rig.List("0 a");
     rig.List("1 b");
@@ -1877,15 +1903,14 @@ TEST_SUITE("patcher") {
 
     rig.List("separate 1");
     CHECK(rig.obj.KeyAt(0) == "0");
-    CHECK(rig.obj.KeyAt(1) == "1");
+    CHECK(rig.obj.KeyAt(1) == "2");
     CHECK(rig.obj.KeyAt(2) == "3");
     // A symbol address has no number to increment.
     CHECK(rig.obj.KeyAt(3) == "name");
 
-    // Which is what leaves 2 free for the store that follows.
-    rig.List("2 new");
-    CHECK(rig.obj.Lookup("2") == "new");
-    CHECK(rig.obj.Lookup("1") == "b");
+    rig.List("1 new");
+    CHECK(rig.obj.Lookup("1") == "new");
+    CHECK(rig.obj.Lookup("2") == "b");
     CHECK(rig.obj.Lookup("3") == "c");
   }
 
@@ -1939,8 +1964,8 @@ TEST_SUITE("patcher") {
     CHECK(rig.obj.KeyAt(2) == "42");
     CHECK(rig.obj.KeyAt(3) == "72");
 
-    // At or above, unlike separate's strictly above — an entry sitting on the
-    // default 0 has to move, or a bare renumber2 would collide it with the
+    // At or above, the same bound separate uses (#709) — an entry sitting on
+    // the default 0 has to move, or a bare renumber2 would collide it with the
     // entry that was at 1.
     Rig zero;
     zero.List("0 a");

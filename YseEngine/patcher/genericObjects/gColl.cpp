@@ -753,22 +753,12 @@ void gColl::SwapAddresses(std::size_t a, std::size_t b) {
   second.numeric = numeric;
 }
 
-void gColl::Separate(int index) {
-  // Max: "Increments the numerical indices for all data whose index is greater
-  // than the provided" — strictly greater, which is what leaves the slot at
-  // index + 1 open. `insert`'s "equal or greater" is the other rule, and the
-  // two are deliberately different.
-  for (std::size_t i = 0; i < store->count; i++) {
-    Entry& entry = store->entries[i];
-    if (entry.numeric && entry.index > index) SetNumericKey(entry, entry.index + 1);
-  }
-}
-
 void gColl::Increment(int first) {
-  // Max's renumber2, "increment indices by one". At or above `first`, unlike
-  // separate's strictly-greater: the argument names the lowest address that
-  // moves, and the default 0 has to move an entry sitting at 0 or a bare
-  // renumber2 would leave two entries on the same address.
+  // Max's renumber2 ("increment indices by one") and Max's separate are the
+  // same operation: every numeric address at or above `first` moves up by one,
+  // which leaves `first` itself open. The two messages differ only in that
+  // renumber2's argument defaults to 0 and separate's is required. See the
+  // class documentation for the sources (#694, #709).
   for (std::size_t i = 0; i < store->count; i++) {
     Entry& entry = store->entries[i];
     if (entry.numeric && entry.index >= first) SetNumericKey(entry, entry.index + 1);
@@ -1170,11 +1160,16 @@ bool gColl::HandleEditCommand(const char* word, std::size_t wordLength, const ch
   }
 
   if (TokenIs(word, wordLength, "separate", 8)) {
+    // At or above the address given, so the slot that opens is the one named.
+    // The reference prose says "greater than", but its own worked example does
+    // not; see the class documentation for the sources (#709). Unlike
+    // renumber2 the argument is required — there is no address to separate at
+    // without one.
     int index = 0;
     if (!ReadIntArgument(text, argBegin, argEnd, 1, index)) return true;
     storeGuard guard(store->busy);
     if (!guard.Held()) return true;
-    Separate(index);
+    Increment(index);
     return true;
   }
 
