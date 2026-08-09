@@ -17,6 +17,15 @@
 //     with the block clock held *still*, so a beat deadline that quietly fell
 //     back to blocks cannot pass.
 //
+//   - **`.seq` cases** (issue #704) are the bridge's second consumer and a
+//     different shape of consumer: the clock does not change what a stored
+//     number *means* — the tape stays milliseconds — it supplies the **ticks**
+//     of Max's `start -1`. They need the same real patcher for the same reason,
+//     plus one property `.qlist` has no equivalent of: the tick count is read
+//     off the clock's beat position rather than counted from the wakeups that
+//     deliver it, and only a rig where a wakeup covers many ticks can tell the
+//     two apart.
+//
 //   - **`.qlist` cases** are the user-visible end: a real patcherImplementation,
 //     a real cue list, real Calculate blocks, and a real domain clock advancing
 //     underneath. They are what shows that the cue numbers become beats, that a
@@ -40,6 +49,7 @@
 #include "headers/constants.hpp"
 #include "internal/global.h"
 #include "internal/threadPool.h"
+#include "patcher/genericObjects/gSeq.h"
 #include "patcher/graphState.h"
 #include "patcher/inlet.h"
 #include "patcher/pHandle.hpp"
@@ -228,6 +238,55 @@ namespace {
       ::Tick(patcher);
     }
   };
+
+  // A `.seq` living in a real patcher, with a recorder on Max's byte outlet and
+  // one on his end bang (issue #704).
+  struct SeqRig {
+    patcherImplementation patcher{1, nullptr};
+    Recorder data;
+    Recorder end;
+    YSE::pHandle dataHandle{&data};
+    YSE::pHandle endHandle{&end};
+    YSE::pHandle* seq = nullptr;
+
+    SeqRig() {
+      seq = patcher.CreateObject(YSE::OBJ::G_SEQ, "");
+      REQUIRE(seq != nullptr);
+      patcher.Connect(seq, 0, &dataHandle, 0);
+      patcher.Connect(seq, 1, &endHandle, 0);
+    }
+
+    void Send(const std::string& message) {
+      seq->SetListData(0, message);
+    }
+    void UseClock(const std::string& name) {
+      Send("clock " + name);
+      patcher.Clocks()->WaitIdle();
+    }
+
+    // A one-byte tape whose single event sits `onsetMs` into the sequence. The
+    // byte records at delta 0 — nothing renders between the `record` and it —
+    // and Max's `delay` then writes that delta, which is "the onset time, in
+    // milliseconds, of the first event in the recorded sequence".
+    void RecordByte(int byte, int onsetMs) {
+      Send("record");
+      seq->SetIntData(0, byte);
+      Send("stop");
+      Send("delay " + std::to_string(onsetMs));
+    }
+
+    void Tick() {
+      ::Tick(patcher);
+    }
+  };
+
+  // 1000 ms of recorded sequence is 48 ticks (Max's rate at the original tempo)
+  // and therefore two beats at 120 BPM, which is four of the rig's half-beat
+  // ticks. Every number in that chain is exact in binary, so the case can assert
+  // on the boundary rather than around it.
+  constexpr int kOnsetMs = 1000;
+  constexpr int kTicksForOnset = 48;
+  constexpr int kRigTicksForOnset = 4;
 
 } // namespace
 
@@ -792,6 +851,262 @@ TEST_SUITE("clock") {
     CHECK(restored.Clocks()->BoundCount() == 0);
 
     mgr.destroyClock("qlist.save");
+    mgr.update(0.01f);
+  }
+
+  // ─── `.seq`: the domain clock supplies the ticks (issue #704) ───────────────
+
+  TEST_CASE("seq: 'clock <name>' supplies the ticks of Max's start -1 (#704)") {
+    // The acceptance criterion. Max's tick mode waits for a `tick` message per
+    // 1/48 second of recorded time; bound to a domain clock it waits for 1/24
+    // of a beat instead, which is the same MIDI clock at 120 BPM — so a
+    // one-second onset falls due exactly two beats in.
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("seq.beats", kTempo));
+
+    SeqRig rig;
+    rig.RecordByte(144, kOnsetMs);
+    rig.UseClock("seq.beats");
+    rig.Send("start -1");
+
+    // Unlike Max's tick mode, which takes no scheduler slot at all, this one
+    // holds exactly one: the wakeup that reads the clock.
+    CHECK(rig.patcher.Scheduler()->PendingCount() == 1);
+    CHECK(rig.data.seen.empty());
+
+    for (int i = 0; i < kRigTicksForOnset - 1; i++)
+      rig.Tick();
+    CHECK(rig.data.seen.empty());
+
+    // And this is the tick that would *not* arrive for another forty-odd blocks
+    // if the tick count were counted from wakeups rather than read off the
+    // clock: each wakeup here is worth twelve ticks.
+    rig.Tick();
+    CHECK(Joined(rig.data.seen) == "i144");
+    CHECK(Joined(rig.end.seen) == "!");
+
+    // The sequence ended, so the wakeup armed before the byte went out arrives
+    // once more, finds nothing playing and re-arms nothing.
+    rig.Tick();
+    CHECK(rig.patcher.Scheduler()->PendingCount() == 0);
+
+    mgr.destroyClock("seq.beats");
+    mgr.update(0.01f);
+  }
+
+  TEST_CASE("seq: the domain's tempo is the sequence's tempo (#704)") {
+    // What a patch-supplied tick source cannot give for free, and the whole
+    // reason issue #502 asked for a domain clock: doubling the domain's tempo
+    // doubles the tick rate, so the same recorded second arrives sooner —
+    // without the sequence, the tape or the object knowing anything about it.
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("seq.bend", kTempo));
+
+    SeqRig rig;
+    rig.RecordByte(144, kOnsetMs);
+    rig.UseClock("seq.bend");
+    rig.Send("start -1");
+
+    rig.Tick(); // 0.5 beat at 120 BPM — 12 ticks
+    CHECK(rig.data.seen.empty());
+
+    // A tick of the rig is now a whole beat, so the two beats the onset needs
+    // land on the third rig tick rather than on the fourth.
+    mgr.setTempo("seq.bend", kTempo * 2.f, 0.f);
+    rig.Tick(); // 1.5 beats
+    CHECK(rig.data.seen.empty());
+    rig.Tick(); // 2.5 beats — past the onset
+    CHECK(Joined(rig.data.seen) == "i144");
+
+    mgr.destroyClock("seq.bend");
+    mgr.update(0.01f);
+  }
+
+  TEST_CASE("seq: a clock at tempo zero holds the sequence where it stands (#704)") {
+    // domainClock's tempo is playable and unclamped, so a paused domain is a
+    // paused sequencer — and it resumes from where it stopped rather than
+    // catching up, because the tick count is a beat position and not an elapsed
+    // wall time.
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("seq.paused", kTempo));
+
+    SeqRig rig;
+    rig.RecordByte(144, kOnsetMs);
+    rig.UseClock("seq.paused");
+    rig.Send("start -1");
+
+    mgr.setTempo("seq.paused", 0.f, 0.f);
+    for (int i = 0; i < 20; i++)
+      rig.Tick();
+    CHECK(rig.data.seen.empty());
+    CHECK(rig.patcher.Scheduler()->PendingCount() == 1);
+
+    mgr.setTempo("seq.paused", kTempo, 0.f);
+    for (int i = 0; i < kRigTicksForOnset - 1; i++)
+      rig.Tick();
+    CHECK(rig.data.seen.empty());
+    rig.Tick();
+    CHECK(Joined(rig.data.seen) == "i144");
+
+    mgr.destroyClock("seq.paused");
+    mgr.update(0.01f);
+  }
+
+  TEST_CASE("seq: a 'tick' is ignored while a clock drives, and a bare 'clock' hands it back "
+            "(#704)") {
+    // Two tick sources at once would be two answers to where the sequence
+    // stands, and the clock's is the one that gets overwritten last. So the
+    // patch's ticks are ignored — and the opt-in stays reversible, which is
+    // what keeps an object never sent a `clock` message Max's object.
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("seq.hand", kTempo));
+
+    SeqRig rig;
+    rig.RecordByte(144, kOnsetMs);
+    rig.UseClock("seq.hand");
+    rig.Send("start -1");
+
+    // Enough ticks to run the whole onset out in Max's mode. Nothing renders
+    // here, so the domain clock does not move either: whatever fires would have
+    // fired because these messages advanced the sequence.
+    for (int i = 0; i < kTicksForOnset; i++)
+      rig.Send("tick");
+    CHECK(rig.data.seen.empty());
+
+    // Handed back: the wakeup is cancelled and the same messages now count.
+    rig.Send("clock");
+    CHECK(rig.patcher.Scheduler()->PendingCount() == 0);
+    for (int i = 0; i < kTicksForOnset - 1; i++)
+      rig.Send("tick");
+    CHECK(rig.data.seen.empty());
+    rig.Send("tick");
+    CHECK(Joined(rig.data.seen) == "i144");
+
+    mgr.destroyClock("seq.hand");
+    mgr.update(0.01f);
+  }
+
+  TEST_CASE("seq: a bound clock leaves a millisecond 'start' alone (#704)") {
+    // The departure from `.qlist`, and the reason this is a tick source rather
+    // than a unit: `.seq`'s tape is milliseconds by construction, so a bound
+    // clock changes nothing at all about an ordinary `start`. A domain clock
+    // racing along underneath must not move it one block.
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("seq.ms", kTempo));
+
+    SeqRig rig;
+    rig.RecordByte(144, 100);
+    rig.UseClock("seq.ms");
+    rig.Send("start");
+    REQUIRE(rig.patcher.Scheduler()->PendingCount() == 1);
+
+    const std::uint64_t due = messageScheduler::BlocksForMillis(100);
+    for (std::uint64_t block = 1; block < due; ++block)
+      rig.Tick();
+    CHECK(rig.data.seen.empty());
+    rig.Tick();
+    CHECK(Joined(rig.data.seen) == "i144");
+
+    mgr.destroyClock("seq.ms");
+    mgr.update(0.01f);
+  }
+
+  TEST_CASE("seq: a clock named before it exists holds, then plays (#704)") {
+    // End to end through the patcher's own Poll, with no test-only nudge. The
+    // baseline is taken at the first wakeup that finds a clock, so the sequence
+    // starts when the clock starts existing rather than jumping to wherever the
+    // new clock's beat position happens to be.
+    SeqRig rig;
+    rig.RecordByte(144, kOnsetMs);
+    rig.UseClock("seq.pending");
+    rig.Send("start -1");
+    REQUIRE(rig.patcher.Scheduler()->PendingCount() == 1);
+
+    for (int i = 0; i < 10; i++)
+      rig.Tick();
+    CHECK(rig.data.seen.empty());
+
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("seq.pending", kTempo));
+    for (std::uint64_t i = 0; i < clockBridge::RESOLVE_INTERVAL_BLOCKS + 2; i++)
+      rig.Tick();
+    rig.patcher.Clocks()->WaitIdle();
+    REQUIRE(rig.patcher.Clocks()->Resolved(1));
+
+    // Two beats past wherever inside that loop the baseline landed, which this
+    // many ticks covers whichever retry pass resolved it.
+    for (int i = 0; i < 2 * kRigTicksForOnset; i++)
+      rig.Tick();
+    CHECK(Joined(rig.data.seen) == "i144");
+
+    mgr.destroyClock("seq.pending");
+    mgr.update(0.01f);
+  }
+
+  TEST_CASE("seq: a 'clock' message allocates nothing (#704)") {
+    // The handler may be the audio callback — there is no predicate an object
+    // can ask to find out otherwise — so binding has to be a memcpy into
+    // storage that already exists. The probe sees std::string allocations since
+    // issue #697, so this assertion is not vacuous over a path that carries a
+    // name.
+    if (!TestHelpers::probeCountsAllocations()) return;
+    REQUIRE(TestHelpers::probeSeesStringAllocations());
+
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("seq.noalloc", kTempo));
+
+    SeqRig rig;
+    rig.RecordByte(144, kOnsetMs);
+    // Built outside the probe: it is the *handler* that must not allocate, not
+    // the test's own construction of the message. `start -1` is inside it
+    // because arming the first wakeup is part of the same path.
+    const std::string bind = "clock seq.noalloc";
+    const std::string unbind = "clock";
+    const std::string start = "start -1";
+    {
+      TestHelpers::ProbeScope probe;
+      rig.seq->SetListData(0, bind);
+      rig.seq->SetListData(0, unbind);
+      rig.seq->SetListData(0, bind);
+      rig.seq->SetListData(0, start);
+      CHECK(TestHelpers::g_alloc_count.load() == 0);
+    }
+    // And it really did bind — an assertion that only proves nothing happened
+    // proves nothing.
+    rig.patcher.Clocks()->WaitIdle();
+    CHECK(rig.patcher.Clocks()->BoundCount() == 1);
+    CHECK(std::string(rig.patcher.Clocks()->NameOf(1)) == "seq.noalloc");
+    CHECK(rig.patcher.Scheduler()->PendingCount() == 1);
+
+    mgr.destroyClock("seq.noalloc");
+    mgr.update(0.01f);
+  }
+
+  TEST_CASE("seq: OnClock and ClockName report which tick source is in force (#704)") {
+    // The object's own view of the binding, which is what a host asks and what
+    // the cases above can only see the consequences of.
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("seq.named", kTempo));
+
+    patcherImplementation patcher(1, nullptr);
+    // Declared after the patcher so it is destroyed before it. Not created
+    // through the patcher, because nothing here needs to be in the graph: this
+    // is the accessor pair and not a delivery.
+    YSE::PATCHER::gSeq obj;
+    obj.SetParent(&patcher);
+
+    CHECK_FALSE(obj.OnClock());
+    CHECK(std::string(obj.ClockName()).empty());
+
+    obj.GetInlet(0)->SetList("clock seq.named", YSE::T_GUI);
+    CHECK(obj.OnClock());
+    CHECK(std::string(obj.ClockName()) == "seq.named");
+
+    obj.GetInlet(0)->SetList("clock", YSE::T_GUI);
+    CHECK_FALSE(obj.OnClock());
+    CHECK(std::string(obj.ClockName()).empty());
+
+    mgr.destroyClock("seq.named");
     mgr.update(0.01f);
   }
 
