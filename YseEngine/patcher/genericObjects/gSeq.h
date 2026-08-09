@@ -1,6 +1,7 @@
 #pragma once
 #include "../io/fileScheduler.h"
 #include "../pObject.h"
+#include "../time/clockBridge.h"
 #include "../time/messageScheduler.h"
 #include <atomic>
 #include <cstddef>
@@ -97,21 +98,66 @@ namespace YSE {
      *
      *  This is ported, and it is the one part of Max's surface that answers
      *  issue #502's design gate directly. The issue asks for playback bound to a
-     *  domain clock so tempo changes bend it the way ``YSE::clip`` does. When
-     *  this object was written there was no patcher-to-domain-clock bridge at
-     *  all; #688 has since built one (``PATCHER::clockBridge``, with ``.qlist``
-     *  as its first consumer). But ``tick`` is Max's own answer to the same
-     *  question — an external timing source the patch supplies, one tick being a
-     *  MIDI-clock tick at 24 per quarter note — and it needs no bridge, no
-     *  scheduler slot and no clock of its own. Driving ``tick`` from a domain
-     *  clock through that bridge is now the whole of the remaining work, and is
-     *  filed as **#704**.
+     *  domain clock so tempo changes bend it the way ``YSE::clip`` does, and
+     *  ``tick`` is Max's own answer to the same question — an external timing
+     *  source the patch supplies, one tick being a MIDI-clock tick at 24 per
+     *  quarter note, needing no bridge, no scheduler slot and no clock of its
+     *  own.
      *
      *  Tick time is accumulated as a tick *count* rather than as milliseconds,
      *  so 48 ticks is exactly one second however many of them have gone by;
      *  adding 1000/48 ms per tick would drift by a millisecond every few
      *  seconds. The tempo multiplier does not apply in tick mode, because in
      *  tick mode the ticks *are* the tempo.
+     *
+     *  ### ``clock <name>``: the domain clock supplies the ticks (issue #704)
+     *
+     *  #688 built the patcher's bridge to the engine's named domain clocks
+     *  (``PATCHER::clockBridge``, with ``.qlist`` as its first consumer), and
+     *  this object is its second. ``clock <name>`` binds a domain clock, and a
+     *  ``start -1`` then advances on **that** clock instead of on ``tick``
+     *  messages from the patch: one tick is 1/24 of a beat, which is the same
+     *  MIDI clock Max's 48 per second is at 120 BPM. A bare ``clock`` hands the
+     *  ticks back to the patch, and an object never sent one is Max's object
+     *  exactly — which is the whole reason this is a message rather than a
+     *  change of timing source. Max's ``seq`` reference lists no ``clock``
+     *  method, so this is an addition rather than a port, named the way Max
+     *  names the idea: ``setclock`` documents its name as something "passed as
+     *  the argument to a ``clock`` message to numerous objects that use timing
+     *  in Max". ``.qlist``'s ``clock`` is the same addition for the same reason.
+     *
+     *  It changes nothing else. The tape stays milliseconds — it is
+     *  milliseconds by construction, a file read having applied the tempo map
+     *  at read time — so ``hook``, ``delay``, ``addeventdelay`` and the meta
+     *  events all keep working unchanged, and a bound clock has no effect at
+     *  all on a millisecond ``start``. What it buys is what a patch-supplied
+     *  tick source cannot give for free: the sequence follows the domain's
+     *  tempo changes and ramps, stays in step with every ``YSE::clip`` on that
+     *  domain, and holds where it stands when the domain pauses, a clock at
+     *  tempo 0 never bringing another tick due.
+     *
+     *  **The tick count is read off the clock rather than counted from
+     *  deliveries**, and that is the one place the obvious implementation is
+     *  wrong. ``ScheduleBangOnClock`` arms relative to the beat the arm was
+     *  taken at, and a delivery lands at the first *block* boundary at or after
+     *  that deadline — so re-arming one 1/24-beat wait per delivered tick would
+     *  drop the overshoot every time and run the sequence slow, and past about
+     *  215 BPM, where a tick is shorter than an audio block, it would cap at
+     *  one tick per block however fast the domain ran. The arm is therefore
+     *  only a *polling rate*: each delivery reads the clock's beat position and
+     *  takes the tick count from it — ``floor((beat - base) * 24)`` — and then
+     *  emits every event that count has made due. A wakeup that arrives late,
+     *  or that covers several ticks at once, still lands its events in the
+     *  right block, and nothing accumulates.
+     *
+     *  A ``tick`` message is **ignored** while a clock is driving: the clock is
+     *  the tick source, and a second unsynchronised one would only be
+     *  overwritten by the next delivery. A clock named before the host creates
+     *  it does not advance until it appears, and one destroyed under a bound
+     *  object leaves a frozen beat (issue #707), so the sequence holds — the
+     *  same answer the bridge gives everywhere else. Like ``.qlist``'s, the
+     *  binding is run-time state and is not saved with the patch; this object
+     *  saves nothing at all anyway.
      *
      *  ### Editing the tape
      *
@@ -327,6 +373,12 @@ namespace YSE {
      *         note (the MIDI-clock standard) at 120 BPM. */
     static constexpr int TICKS_PER_SECOND = 48;
 
+    /** @brief Ticks per quarter note — the MIDI-clock standard, and what Max's
+     *         48 per second *is* at 120 BPM. One tick is therefore 1/24 of a
+     *         beat on a bound domain clock (issue #704), which is what makes
+     *         the tick rate follow that clock's tempo rather than the wall. */
+    static constexpr int TICKS_PER_BEAT = 24;
+
     // ── the file half (issue #692) ────────────────────────────────────────
 
     /**
@@ -412,6 +464,19 @@ namespace YSE {
     /** @brief Whether playback is waiting on ``tick`` rather than on the
      *         patcher's clock — Max's ``start -1``. */
     bool IsTickDriven() const;
+
+    /** @brief Whether ``clock <name>`` has bound a domain clock to supply those
+     *         ticks (issue #704). False for a fresh object, after a bare
+     *         ``clock``, and for a standalone object, which has no bridge to
+     *         bind through. */
+    bool OnClock() const {
+      return tickClock.load(std::memory_order_relaxed) != 0;
+    }
+
+    /** @brief The clock name the object is bound to, or ``""``. The storage
+     *         belongs to the patcher's bridge and never changes, so this is
+     *         safe from any thread. */
+    const char* ClockName() const;
 
     /** @brief The creation argument: Max's "name of a file to be read into seq
      *         automatically when the patch is loaded", which since #692 is what
@@ -532,6 +597,13 @@ namespace YSE {
 
     // ── the clock ─────────────────────────────────────────────────────────
 
+    /** @brief What a pending scheduler slot is. This object has one clock at a
+     *         time, but a millisecond step and a domain-clock tick are answered
+     *         differently, and the tag is what a delivery tells them apart by
+     *         (issue #704). */
+    static constexpr int TAG_STEP = 0;
+    static constexpr int TAG_TICK = 1;
+
     // The scheduler's block counter, or 0 when there is no patcher. RT-safe on
     // any thread.
     std::uint64_t NowBlock() const;
@@ -548,6 +620,43 @@ namespace YSE {
 
     // Drop the pending step, if there is one. Guard held.
     void CancelStep();
+
+    // Max's `clock <name>` / bare `clock`, through the patcher's bridge (issue
+    // #704). Binds wait-free on whichever thread the message arrived on; a name
+    // that does not fit, a bridge that is full, or a standalone object all
+    // leave the object where it was, silently, since this may be the audio
+    // thread. Takes effect at once: a sequence already playing on `start -1`
+    // changes tick source under itself.
+    void SetClock(const char* name, std::size_t length);
+
+    // Arm the next tick wakeup, one tick of a beat out on `bound`. Guard held;
+    // false when there is no scheduler or the pending set was full. A *polling
+    // rate* rather than the time base — SyncTicks is where the time comes from.
+    //
+    // A refusal holds the sequence where it stands rather than playing on
+    // unclocked, which is the opposite of the millisecond path's fallback and
+    // deliberately so: a tick-driven walk with no clock behind it would empty
+    // the rest of the tape into one block.
+    bool ArmTick(clockBridge::Handle bound);
+
+    // Take `bound`'s current beat as the baseline the tick count is measured
+    // from. Guard held. Leaves the baseline untaken while the binding is
+    // unresolved, in which case SyncTicks takes it at the first wakeup that
+    // finds a clock.
+    void BaseTicks(clockBridge::Handle bound);
+    void BaseTicksAt(double beat);
+
+    // Take the tick count off `bound`'s beat position rather than counting the
+    // wakeups that got here, which is what keeps a domain-clock sequence from
+    // drifting behind by the block quantisation of every delivery. Guard held;
+    // does nothing while the binding is unresolved, no time having passed on a
+    // clock that does not exist yet.
+    void SyncTicks(clockBridge::Handle bound);
+
+    // A tick wakeup from the bound clock has come due: re-arm, resynchronise
+    // the tick count, and emit whatever that made due. Max's `start -1` played
+    // on a domain clock.
+    void ClockTick(YSE::THREAD thread);
 
     // ── recording ─────────────────────────────────────────────────────────
 
@@ -570,9 +679,14 @@ namespace YSE {
     // DeliverDeferred each time a wait elapses.
     void Resume(YSE::THREAD thread);
 
-    // One `tick`: advance the tick clock and emit every event that has come
-    // due on it. Max's `start -1` mode.
+    // One `tick` from the patch: advance the tick clock and emit every event
+    // that has come due on it. Max's `start -1` mode. Ignored while a domain
+    // clock is driving, which is the tick source then (issue #704).
     void Tick(YSE::THREAD thread);
+
+    // Emit every event the tick clock has made due, however many ticks that
+    // was. Shared by the `tick` message and the domain-clock wakeup.
+    void DrainTicks(YSE::THREAD thread);
 
     // Take the next event if the tick clock has reached it. Guard held by the
     // caller's step, as in TakeStep.
@@ -756,7 +870,25 @@ namespace YSE {
     std::int64_t ticks = 0;
     std::int64_t dueMs = 0;
 
-    // The step this object is waiting on, or 0. One clock per object.
+    // The domain clock `clock <name>` bound, or 0 for Max's patch-supplied
+    // `tick` messages (issue #704). A patcher-owned binding handle rather than
+    // a name: the bridge never releases one, so it stays valid for the life of
+    // the patcher and costs nothing to carry. Atomic because a `clock` message
+    // and a tick delivery are not on the same thread; relaxed, since neither
+    // publishes anything through it.
+    std::atomic<clockBridge::Handle> tickClock{0};
+
+    // The beat tick 0 of this playback stands at, and whether it has been taken
+    // yet. Guarded state, written only in tick mode. The baseline is taken at
+    // the first wakeup that finds the binding resolved rather than at the
+    // `start`, so a clock named before the host creates it starts the sequence
+    // when the clock appears — `messageScheduler`'s ResolveBeat rule, arrived at
+    // for the same reason.
+    double tickBase = 0.0;
+    bool tickBased = false;
+
+    // The step this object is waiting on, or 0. One clock per object, whether
+    // it is a millisecond step or a domain-clock tick — the tag says which.
     messageScheduler::Handle pending = 0;
 
     // Max's three tempo attributes (issue #692). `sequenceTempo` is what the

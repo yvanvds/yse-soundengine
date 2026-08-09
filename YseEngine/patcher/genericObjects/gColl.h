@@ -14,15 +14,22 @@ namespace YSE {
     /**
      *  @brief One entry of a ``.coll`` — an address and the message held at it.
      *
-     *  Both strings are reserved to their capacity when the store is built and
-     *  never grow, so writing one is a ``memcpy`` into storage that already
+     *  All three strings are reserved to their capacity when the store is built
+     *  and never grow, so writing one is a ``memcpy`` into storage that already
      *  exists. ``key`` always holds the address as text — for a numeric entry
      *  the decimal spelling of ``index``, kept in step by ``SetNumericKey`` so
      *  that ``delete``'s renumbering cannot leave the two disagreeing.
+     *
+     *  ``alias`` is the **second address** issue #695 added: the symbol a
+     *  numeric entry is also reachable by, empty when it has none. Only a
+     *  numeric entry can carry one — a symbol-addressed entry's address already
+     *  *is* a symbol — so ``numeric`` decides whether the field means anything,
+     *  exactly as it decides between ``index`` and ``key``.
      */
     struct collEntry {
       std::string key;
       std::string value;
+      std::string alias;
       int index = 0;
       bool numeric = false;
     };
@@ -40,8 +47,9 @@ namespace YSE {
      *
      *  ### Why the store is bounded, and why it is not a COW snapshot
      *
-     *  256 entries, each holding an address of at most 64 characters and a
-     *  message of at most 256 — the same 256 that bounds ``.atoi`` / ``.itoa``
+     *  256 entries, each holding an address of at most 64 characters, a symbol
+     *  alias of at most 64 more (issue #695) and a message of at most 256 — the
+     *  same 256 that bounds ``.atoi`` / ``.itoa``
      *  and the patcher's own value queue
      *  (``patcherImplementation::kValueListCap``), so anything that can reach a
      *  ``.coll`` through a patch also fits in it. The whole table is allocated
@@ -75,7 +83,8 @@ namespace YSE {
        */
       static constexpr std::size_t MAX_ENTRIES = 256;
 
-      /** @brief Longest address, in characters. */
+      /** @brief Longest address, in characters — and the bound on an alias
+       *         too, since an alias is an address (issue #695). */
       static constexpr std::size_t KEY_CAPACITY = 64;
 
       /** @brief Longest stored message, in characters — ``kValueListCap``. */
@@ -114,6 +123,11 @@ namespace YSE {
      *  entries — and a numeric address does not have to be contiguous or in
      *  order, exactly as in Max.
      *
+     *  Since #695 a numeric entry may carry a **second** address as well: a
+     *  symbol *alias*, which reaches the same entry. See the aliasing section
+     *  below; the rule above is unchanged, and an alias lives in the symbol
+     *  space rather than beside it.
+     *
      *  Entries keep **storage order**, which is what makes ``dump``, ``next``
      *  and ``prev`` mean anything: Max's ``dump`` sends them "in the order in
      *  which they are stored", not in address order, and a patch that stored a
@@ -126,7 +140,8 @@ namespace YSE {
      *  ``store``, ``insert``, ``append``, ``remove``, ``delete``, ``clear``,
      *  ``length``, ``goto``, ``start``, ``end``, ``next``, ``prev``, ``dump``,
      *  ``sub``, ``nsub``, ``nth``, ``min``, ``max``, ``sort``, ``swap``,
-     *  ``merge``, ``separate``, ``renumber`` and ``renumber2`` are read as
+     *  ``merge``, ``separate``, ``renumber``, ``renumber2``, ``assoc``,
+     *  ``deassoc``, ``nstore`` and ``subsym`` are read as
      *  commands when they are the first item of a message, so a symbol address
      *  spelled as one of them cannot be reached by writing it bare. That is
      *  Max's own contract for ``coll`` and not a shortcut here: ``coll`` is the
@@ -171,6 +186,30 @@ namespace YSE {
      *  sub" — and not on a plain lookup, which answers with the data alone.
      *  Address before data, which is Max's right-to-left outlet order and the
      *  order ``.trigger`` and ``.bucket`` already fire in.
+     *
+     *  **Which** address leaves, for an entry that has two, is the question
+     *  #695 says this object had been sidestepping, and the answer is the
+     *  number. An aliased entry has a numeric address, so it reports the
+     *  numeric address; the alias is a way *in*, not something the outlet
+     *  announces. cyclone's one output routine reads
+     *  ``if (ep->e_hasnumkey) outlet_float(...); else if (ep->e_symkey)
+     *  outlet_symbol(...); else outlet_float(0)``, and its help patch annotates
+     *  the second outlet after an ``assoc`` with "address is still an int, not
+     *  the alias"
+     *  (https://github.com/porres/pd-cyclone/blob/master/cyclone_objects/binaries/control/coll.c).
+     *  No outlet was added for it: an entry's two addresses are not two events,
+     *  and a fifth outlet would fire empty for every unaliased entry in a
+     *  ``dump``.
+     *
+     *  The same routine also settles the *other* half of that question. Both
+     *  Max references say ``next`` and ``prev`` send **0** out the second outlet
+     *  "if the address is a symbol rather than a number", which contradicts
+     *  their own Output section one screen away ("int or symbol — the address
+     *  is sent out whenever..."). ``.coll`` sends the symbol, as a one-element
+     *  list, and has since #494; cyclone sends the symbol too, and reserves the
+     *  ``0`` for an entry that has neither address. So what looked like a
+     *  deliberate departure is the reading the reference's own output table and
+     *  the reference implementation share.
      *
      *  What leaves the data outlet is the stored message **in the kind it is**,
      *  the rule ``.route`` establishes: a stored ``60 100`` leaves as a list, a
@@ -284,6 +323,38 @@ namespace YSE {
      *  does, exactly — a ``write`` followed by a ``read`` reproduces the
      *  collection entry for entry, in storage order.
      *
+     *  An **aliased** entry (#695) has two addresses and still one record, and
+     *  they are written in the order Max 5 gives — the only version of the
+     *  reference that describes the format at all, and its paragraph is
+     *  truncated mid-sentence in the served page, so the surviving half is all
+     *  there is: "the format of each line is as follows: the address (an int or
+     *  a symbol), any symbols associated with that address (if the address is
+     *  an int), a comma (to separate the address from the data it contains),
+     *  the data (anything), and a semicolon to indicate the end of each line"
+     *  (https://docs.cycling74.com/max5/refpages/max-ref/coll.html; Max 7, 8
+     *  and the current reference drop the paragraph entirely). So the number
+     *  comes first and the symbol second:
+     *
+     *  ```
+     *  1 one, 1.1;      an aliased entry — numeric address 1, alias "one"
+     *  2, 200;          a numeric address
+     *  triad, 0 4 7;    a symbol address
+     *  ```
+     *
+     *  cyclone writes exactly that (``if (e_hasnumkey) SETFLOAT; if (e_symkey)
+     *  SETSYMBOL; SETCOMMA``) and its help file states the spelling outright —
+     *  "the format in which the alias is saved inside the [coll] object is:
+     *  ``<int> <alias> , <data>``"
+     *  (https://github.com/porres/pd-cyclone/blob/master/cyclone_objects/binaries/control/coll.c).
+     *
+     *  **Reading** is looser than writing, as cyclone's is: everything before
+     *  the comma is a sequence of address tokens, each classified by the same
+     *  reader the inlet uses, and order does not matter — ``one 1, 1.1;`` loads
+     *  as the same entry ``1 one, 1.1;`` does. That is what lets a file written
+     *  by real Max load whichever way round it spelled the pair, and it costs
+     *  nothing, since a record with one token is the case that was already
+     *  there.
+     *
      *  ``read`` and ``write`` with no argument reuse the last name given, which
      *  is also all ``readagain`` and ``writeagain`` do here: Max's bare forms
      *  open a file dialog, and a headless patcher has none. ``filetype`` is
@@ -301,8 +372,8 @@ namespace YSE {
      *  positions are **1-based**, Max's ``nth 75 2`` being "the second item in
      *  the list stored at address 75".
      *
-     *  Two departures are worth naming because the reference does not settle
-     *  them:
+     *  Several departures are worth naming because the reference does not
+     *  settle them:
      *
      *  - ``renumber``'s default starting address, and what ``renumber2`` even
      *    means, are not stated in the Max 7/8 reference: ``renumber`` is
@@ -331,6 +402,31 @@ namespace YSE {
      *    at-or-above bound rather than a strictly-above one, and that bound is
      *    forced: a strictly-above ``renumber2`` would leave an entry at 0 alone
      *    and collide it with the entry that was at 1.
+     *  - ``separate`` is **at or above** its argument too, so the slot it opens
+     *    is the address it was given and not the one after. Both Max references
+     *    say otherwise in prose — Max 8's "increments the numerical indices for
+     *    all data whose index is greater than the provided"
+     *    (https://docs.cycling74.com/legacy/max8/refpages/coll), Max 5's
+     *    "incrementing the numerical indices for all data whose index is greater
+     *    than the number" — but Max 5 also prints a before/after for the same
+     *    message, and the example contradicts the sentence above it: ``separate
+     *    2`` on ``0, apple; 1, banana; 2, cherry; 3, durian`` gives ``0, apple;
+     *    1, banana; 3, cherry; 4, durian``, so the entry sitting *on* 2 moved
+     *    and 2 is what came free
+     *    (https://docs.cycling74.com/max5/refpages/max-ref/coll.html). cyclone
+     *    agrees with the example rather than the prose: its ``coll_separate``
+     *    is ``if(ep->e_hasnumkey && ep->e_numkey >= indx) ep->e_numkey += 1;``
+     *    and ``coll-help.pd`` says "given an int address as the argument, the
+     *    separate message increments numeric addresses equal and above it.
+     *    Thus, it creates an open slot or a separation in the data collection"
+     *    (https://github.com/porres/pd-cyclone/blob/master/cyclone_objects/binaries/control/coll.c).
+     *    Settled that way in #709: a worked example and a working
+     *    implementation outrank a one-line description that neither of them
+     *    matches, it is the reading the message's name implies, and it makes
+     *    ``separate`` exactly ``renumber2`` with a required argument — which is
+     *    why there is one helper for both. (#709 quotes Max 5 as saying "equal
+     *    to or greater than" for ``separate``; it does not. That wording is
+     *    ``insert``'s and ``insert2``'s. The example is the real evidence.)
      *  - Both leave **symbol addresses alone**, which the Max reference does not
      *    cover but cyclone's help file states outright ("affects only integer
      *    addresses"). A symbol address has no place in a numeric sequence and
@@ -374,17 +470,95 @@ namespace YSE {
      *  that emitted would re-send on every DSP tick — the rule ``.route``,
      *  ``.sel``, ``.value`` and ``.atoi`` establish.
      *
+     *  ### The symbol aliases (issue #695)
+     *
+     *  ``assoc``, ``deassoc``, ``nstore`` and ``subsym`` — the one group that
+     *  changes the address model rather than adding to it. A numeric entry may
+     *  carry a symbol *alias*, and "any reference to that symbol will be
+     *  interpreted as a reference to the number address": ``store``, ``remove``,
+     *  ``nth``, ``sub``, ``merge`` and a bare recall all reach it by either
+     *  name, because ``Find`` matches a symbol query against a numeric entry's
+     *  alias exactly as it matches a symbol-addressed entry's key. Nothing else
+     *  in the object learned a special case; the second address is one more
+     *  field on the entry and one more branch in one function.
+     *
+     *  - ``assoc <symbol> <number>`` — associate, "provided that the number
+     *    address already exists". A number that does not exist is not created
+     *    and nothing is said.
+     *  - ``deassoc <symbol> <number>`` — take the association away, leaving the
+     *    entry, its number and its data alone.
+     *  - ``nstore <number> <symbol> <message>`` — store and associate in one
+     *    message. Both orders of the pair are accepted: Max 5's prose says
+     *    "followed by a number and a symbol (or a symbol and a number)", and
+     *    cyclone's help file agrees ("they can come in any order"), while Max
+     *    8's argument table lists only the number-first form.
+     *  - ``subsym <new> <old>`` — rename. Max 5's worked example renames a plain
+     *    symbol *address* (``subsym jack jill`` turns ``jill, 40 50 60;`` into
+     *    ``jack, 40 50 60;``), so this renames those as well as aliases —
+     *    cyclone gets that for free by holding both in one field.
+     *
+     *  **One symbol reaches one entry.** That is the invariant the whole group
+     *  is built on: without it ``Find``'s answer would depend on storage order,
+     *  and an entry could be shadowed into being unreachable by name. Max says
+     *  what gives way, and only Max 5 still says it — ``assoc``'s parenthetical,
+     *  dropped from Max 7 onwards: "if the symbol was already being used as an
+     *  address, or was already associated with a number address, the message
+     *  that was stored at that address is removed"
+     *  (https://docs.cycling74.com/max5/refpages/max-ref/coll.html). cyclone
+     *  implements exactly that, colliding entry and all
+     *  (``if ((ep2 = collcommon_symkey(cc, s))) collcommon_remove(cc, ep2);``),
+     *  and guards the "already carries this symbol" case so that associating
+     *  twice is not read as a collision with itself
+     *  (https://github.com/porres/pd-cyclone/blob/master/cyclone_objects/binaries/control/coll.c).
+     *  The removal is ``remove`` and not ``delete``: nothing is renumbered.
+     *
+     *  Three places where the reference and the reference implementation part,
+     *  and what is done here:
+     *
+     *  - **``deassoc`` names both halves and both must match.** cyclone reads
+     *    only the number — its handler opens with ``s = NULL;`` — so
+     *    ``deassoc anything 1`` clears whatever alias 1 had. That discards an
+     *    argument its own method signature declares, and the reference sentence
+     *    is about "the association between *the* symbol and *the* number
+     *    address", so an association a message did not name is left alone here.
+     *  - **``subsym`` refuses a name already in use** rather than duplicating
+     *    it. cyclone does not check, which leaves two entries answering to one
+     *    symbol and the second unreachable by name. Removing the other entry
+     *    the way ``assoc`` does is not the answer either: Max documents that
+     *    removal for ``assoc`` alone, and a rename that silently takes another
+     *    entry's data with it is worse than a rename that does not happen.
+     *  - **A plain ``store`` at an aliased address keeps the alias.** In cyclone
+     *    it does not: ``collcommon_replace`` overwrites *both* key fields from
+     *    its arguments, so storing by number nulls the symbol and storing by the
+     *    symbol drops the number, which makes ``nstore`` the only way to write
+     *    to an aliased entry without losing half its address. No Max
+     *    documentation says so, and it reads as a consequence of that function's
+     *    shape rather than a decision: a plain ``store`` *is* one of the
+     *    "references to that symbol" ``assoc`` promises to redirect, and it
+     *    would be strange for the redirect to sever the link it just used.
+     *
+     *  Two smaller readings, for completeness. An alias must be a **symbol**: a
+     *  numeric token is refused, since an alias spelled ``1`` would be reached
+     *  by a numeric lookup that already means another entry, and #494's
+     *  never-collide guarantee is the thing being preserved. And address ``0``
+     *  may be aliased like any other — Max 5 alone carves it out ("except 0,
+     *  which cannot have an associated symbol"), Max 7 onwards dropped the
+     *  clause, and cyclone never implemented it.
+     *
+     *  Every message that rewrites numeric addresses — ``insert``, ``delete``,
+     *  ``renumber``, ``renumber2``, ``separate`` — carries the alias along,
+     *  because it lives on the entry rather than on the number, and cyclone's
+     *  equivalents touch only ``e_numkey`` for the same reason. ``swap`` is the
+     *  exception that proves it: it exchanges *addresses*, so the alias goes
+     *  with the number to the other entry, which is what cyclone's
+     *  ``collcommon_swapkeys`` does (it swaps ``e_symkey`` along with
+     *  ``e_hasnumkey`` and ``e_numkey``).
+     *
      *  ### Deliberately not here
      *
      *  The editor window (``open`` / ``wclose``), ``refer`` (see the naming
-     *  section), the ``embed`` / ``flags`` save switch — the contents are always
-     *  saved here — and the symbol/number address aliasing ``assoc`` /
-     *  ``deassoc`` / ``nstore`` / ``subsym``, where one entry is reachable by
-     *  both a number and a symbol. That last one changes the address model
-     *  rather than adding to it: ``collEntry`` holds exactly one address, and
-     *  Max's aliasing makes a numeric entry carry an optional symbol alongside
-     *  it that ``Find`` must also match, that the file format has to spell, and
-     *  that ``next`` / ``prev`` report differently. It is filed as #695.
+     *  section) and the ``embed`` / ``flags`` save switch — the contents are
+     *  always saved here.
      */
     PATCHER_CLASS(gColl, YSE::OBJ::G_COLL)
     _NO_MESSAGES
@@ -415,9 +589,14 @@ namespace YSE {
      *  the disk rather than on its own bound. Reserved once at construction,
      *  because the message that asks for a ``write`` may be on the audio
      *  thread.
+     *
+     *  Re-derived for #695: a record may now carry a **second** address, so the
+     *  worst case grew by an alias and the space in front of it —
+     *  ``KEY_CAPACITY + 1`` per entry, taking a full collection from just under
+     *  81 KiB to just under 98, still comfortably inside one file slot.
      */
     static constexpr std::size_t FILE_TEXT_CAPACITY =
-        MAX_ENTRIES * (KEY_CAPACITY + VALUE_CAPACITY + 4);
+        MAX_ENTRIES * (KEY_CAPACITY + 1 + KEY_CAPACITY + VALUE_CAPACITY + 4);
     static_assert(FILE_TEXT_CAPACITY <= fileScheduler::BYTES_CAPACITY,
                   "a full .coll must fit one file slot");
 
@@ -440,6 +619,10 @@ namespace YSE {
     /** @brief The message stored at entry @p position in storage order, or
      *         ``""``. Same contract as ``KeyAt``. */
     std::string ValueAt(std::size_t position) const;
+
+    /** @brief The symbol alias of entry @p position, or ``""`` when it has none
+     *         (issue #695). Same contract as ``KeyAt``. */
+    std::string AliasAt(std::size_t position) const;
 
     /** @brief The message stored at @p address, or ``""`` when nothing is.
      *         Same contract as ``KeyAt``. */
@@ -589,7 +772,10 @@ namespace YSE {
     static bool AssignValue(Entry& entry, const char* value, std::size_t length);
 
     // Point `entry` at numeric address `index`, keeping its key text in step.
-    // Guard held.
+    // Leaves the alias alone: `index` is the entry's number, and every message
+    // that rewrites numbers (insert, delete, renumber, renumber2, separate)
+    // carries the symbol along rather than orphaning it (issue #695). Guard
+    // held.
     static void SetNumericKey(Entry& entry, int index);
 
     // Copy `src` over `dst` without allocating: both strings were reserved to
@@ -682,13 +868,11 @@ namespace YSE {
     // where it is — Max's swap. Guard held.
     void SwapAddresses(std::size_t a, std::size_t b);
 
-    // Every numeric address strictly greater than `index` goes up by one, which
-    // opens a slot at `index + 1` — Max's separate. Guard held.
-    void Separate(int index);
-
-    // Every numeric address at or above `first` goes up by one — Max's
-    // renumber2, which increments the addresses it finds rather than
-    // re-sequencing them. Guard held.
+    // Every numeric address at or above `first` goes up by one, which opens a
+    // slot at `first` itself. This is both Max's renumber2 — which increments
+    // the addresses it finds rather than re-sequencing them — and Max's
+    // separate; the two messages differ only in their argument defaulting.
+    // Guard held.
     void Increment(int first);
 
     // Give every numeric entry a consecutive address in storage order, starting
@@ -696,6 +880,36 @@ namespace YSE {
     // numeric sequence, and rewriting them would destroy the only way a patch
     // can reach those entries. Guard held.
     void Renumber(int first);
+
+    // ─── the symbol aliases (issue #695) ───────────────────────────────────
+
+    // Position of the entry the `length` characters at `text` already reach —
+    // as a symbol address, or as the alias of a numeric one — or -1. `except`
+    // is a storage position to skip, so re-associating the symbol an entry
+    // already carries is not read as a collision with itself; pass -1 to search
+    // every entry. This is `Find` restricted to the symbol half, and it exists
+    // separately because `assoc` has to know *which* entry a symbol collides
+    // with, not merely that the lookup would succeed. Guard held.
+    int FindSymbol(const char* text, std::size_t length, int except) const;
+
+    // Give `entry` the alias spelled by the `length` characters at `text`,
+    // replacing whatever it had. The buffer was reserved when the store was
+    // built, so this is an assign() into storage that exists. Guard held.
+    static void SetAlias(Entry& entry, const char* text, std::size_t length);
+
+    // Associate the symbol at `text` with the numeric address `index`, which is
+    // Max's `assoc` and the second half of its `nstore`. An entry the symbol
+    // already reaches is **removed** first — Max's own parenthetical, see the
+    // aliasing section of the class documentation. False when there is no
+    // numeric entry at `index` or when the symbol is not a symbol at all (a
+    // numeric token would collide with the number space). Guard held.
+    bool Associate(int index, const char* text, std::size_t length);
+
+    // The alias half of the inlet: assoc, deassoc, nstore and subsym. A third
+    // split for the reason there was a second — these all reason about a
+    // symbol *and* a number, which none of the commands above do.
+    bool HandleAliasCommand(const char* word, std::size_t wordLength, const char* text,
+                            std::size_t argBegin, std::size_t argEnd);
 
     // What a completion carries back, so a read and a write can be told apart
     // in DeliverFileResult. Private to this object — the tag means nothing to

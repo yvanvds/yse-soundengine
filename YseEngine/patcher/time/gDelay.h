@@ -1,7 +1,9 @@
 #pragma once
 #include "../pObject.h"
+#include "../time/clockBridge.h"
 #include "../time/messageScheduler.h"
 #include <atomic>
+#include <cstddef>
 
 namespace YSE {
   namespace PATCHER {
@@ -91,27 +93,74 @@ namespace YSE {
      *    unbounded on the audio thread. A lost bang is a bounded failure; that
      *    is not.
      *
-     *  ### What is not ported, and why
+     *  ### ``clock <name>`` and a tempo-relative time (issue #705)
      *
-     *  Max's ``delay`` speaks the whole Max time-format syntax — notevalues
+     *  Max's ``delay`` speaks the whole Max time-format syntax — note values
      *  (``4nd``), ticks, ``bars.beats.units``, ``samples`` — and its ``list`` /
-     *  ``anything`` methods exist only to carry those. Milliseconds are the only
-     *  unit here, because everything else is tempo-relative and when this object
-     *  was written the patcher had no transport and no bridge to
-     *  ``CLOCK::domainClock`` at all; the same judgement ``.qlist`` made about
-     *  its own ``tempo``. A list whose first item is a plain number therefore
-     *  still sets the time — that is the honest millisecond subset of Max's list
-     *  method — and anything else does nothing.
+     *  ``anything`` methods exist only to carry those. When this object was
+     *  written milliseconds were the only unit it had, because everything else
+     *  is tempo-relative and the patcher had no transport and no bridge to
+     *  ``CLOCK::domainClock`` at all. #688 built the bridge
+     *  (``PATCHER::clockBridge``), ``.qlist`` and ``.seq`` are its first two
+     *  consumers, and this object is the third. Two independent things arrive
+     *  with it, exactly as they are independent in Max:
      *
-     *  #688 has since built the bridge (``PATCHER::clockBridge``, with
-     *  ``.qlist``'s ``clock <name>`` as its first consumer), so ``clock`` — Max's
-     *  own ``setclock`` vocabulary, and a message this object still ignores —
-     *  now has something to name. Adopting it here is filed as **#705**:
-     *  ``clock <name>`` plus a beat unit, and the notevalue spellings (``4n``,
-     *  ``4nd``, ``8nt``) with it, since those are arithmetic once a beat exists.
-     *  ``quantize``, ``transport`` and ``bars.beats.units`` stay out even then —
-     *  all three need a bar/meter model, and a ``domainClock`` is a bare beat
-     *  accumulator with no meter in it.
+     *  - **``clock <name>``** names the clock a tempo-relative time is measured
+     *    on, and **``clock`` alone** takes it away. That is Max's own method,
+     *    verbatim: "the word clock, followed by the name of an existing
+     *    setclock object, sets the delay object to be controlled by that
+     *    setclock object rather than by Max's internal millisecond clock. The
+     *    word clock by itself sets the delay object back to using Max's regular
+     *    millisecond clock." Unlike ``.qlist``'s and ``.seq``'s, this ``clock``
+     *    is a **port** rather than an addition — Max's ``delay`` and ``metro``
+     *    are two of the objects ``setclock`` names explicitly.
+     *  - **A tempo-relative time** — a note value (``4n``, ``4nd``, ``8nt``) or
+     *    a tick count (``1440 ticks``) — is the delay, in beats, in place of
+     *    the milliseconds. Both spellings arrive through Max's own ``list`` /
+     *    ``anything`` method, which exists to carry them, and the arithmetic is
+     *    shared with ``.metro`` in ``time/timeValue.h``.
+     *
+     *  The unit travels with the *value*, not with the clock, which is Max's
+     *  model: a plain number is milliseconds and says so — Max: "the number is
+     *  stored as the number of milliseconds" — so a number arriving in either
+     *  inlet puts the object back on milliseconds, and a note value puts it back
+     *  on beats. ``clock`` only decides *which* clock a beat time is counted on.
+     *
+     *  ### Three departures from Max, and why
+     *
+     *  - **A ``clock`` does not scale the milliseconds.** Max's ``setclock`` is
+     *    a millisecond clock that can be made to run at another rate, so a
+     *    ``delay 500`` under one is still 500 of *its* milliseconds. A
+     *    ``CLOCK::domainClock`` has no millisecond scale at all — it is the
+     *    running integral of a tempo, and beats are the only thing it counts —
+     *    so a millisecond time keeps the patcher's own block clock whether or
+     *    not a clock is bound. Binding one adds a unit; it does not reinterpret
+     *    the one already there.
+     *  - **A tempo-relative time with no clock bound does not fire.** In Max a
+     *    note value with no ``setclock`` falls back to the global transport;
+     *    this patcher has no transport, so there is nothing to measure a beat
+     *    against, and a bang arms nothing and goes nowhere rather than being
+     *    silently re-read as milliseconds — which would be a wait of "1" for a
+     *    ``4n``. It is the same answer the bridge gives everywhere else: a wait
+     *    on a clock that is not there never comes due. Sending ``clock <name>``
+     *    afterwards makes the next bang work, so the two messages may arrive in
+     *    either order.
+     *  - **``bars.beats.units``, ``quantize`` and ``transport`` stay out.** All
+     *    three need a bar, a bar needs a meter, and a ``domainClock`` has none.
+     *    See ``time/timeValue.h``.
+     *
+     *  What the beat unit buys is what milliseconds cannot: a delay that
+     *  follows the domain's tempo changes and ramps, that stays in step with
+     *  every ``YSE::clip`` on that domain, and that holds where it stands when
+     *  the domain pauses. A clock named before the host creates it simply does
+     *  not come due until it appears; one destroyed under a bound object leaves
+     *  a frozen beat (#707), so a bang waiting on it waits for good.
+     *
+     *  The binding is **not saved** with the patch, for the reason ``.qlist``'s
+     *  is not: it is run-time state, and a reloaded patch that re-bound itself
+     *  to a clock the host may not have created yet would have two answers to
+     *  "what is this object waiting on". The beat *time* is saved, because it is
+     *  a time like the millisecond one — it is the second creation argument.
      *
      *  The right inlet is Max's exactly: a number there "changes the delay time
      *  of the next bang received -- it does not modify the time of a bang
@@ -136,7 +185,10 @@ namespace YSE {
      *  own clock, and a ``Calculate()`` that emitted would fire a bang on every
      *  DSP tick from a stimulus no patch sent. No path allocates, locks or
      *  blocks — arming and cancelling are wait-free, the delay time is one
-     *  atomic load, and the list handler matches its leading token in place.
+     *  atomic load, the list handler matches its tokens in place, binding a
+     *  clock is the bridge's wait-free claim (the name is resolved on the
+     *  background pool, because that lookup takes the clock manager's mutex),
+     *  and reading a beat is two acquire loads.
      *
      *  The delivered bang is sent with the tag the scheduler handed over. That
      *  tag is ``T_GUI``, which is the right reading for an outlet send — the
@@ -174,6 +226,29 @@ namespace YSE {
      */
     int DelayTime() const;
 
+    /**
+     *  @brief The tempo-relative delay in beats, or 0 when the delay is
+     *         milliseconds (issue #705).
+     *
+     *  Set by a note value or a tick count and cleared by any plain number,
+     *  which is Max's "the number is stored as the number of milliseconds".
+     *  Clamped on read like ``DelayTime()``, and for the same reason.
+     */
+    double DelayBeats() const;
+
+    /** @brief Whether ``clock <name>`` has bound a domain clock for a
+     *         tempo-relative time to be measured on (issue #705). False for a
+     *         fresh object, after a bare ``clock``, and for a standalone
+     *         object, which has no bridge to bind through. */
+    bool OnClock() const {
+      return binding.load(std::memory_order_relaxed) != 0;
+    }
+
+    /** @brief The clock name the object is bound to, or ``""``. The storage
+     *         belongs to the patcher's bridge and never changes, so this is
+     *         safe from any thread. */
+    const char* ClockName() const;
+
     /** @brief Whether a bang is currently being held. False before the first
      *         one, after ``stop``, and once the bang has gone out. */
     bool IsPending() const;
@@ -191,10 +266,32 @@ namespace YSE {
     // Drop the held bang, if there is one. Max's `stop`.
     void CancelPending();
 
-    // Max's delay time in milliseconds, and the creation argument. Read on
-    // every arm and written by the inlets and by a live SetParams re-parse, so
-    // atomic; unclamped, since DelayTime() is where the range is applied.
+    // Max's `clock <name>` / bare `clock`, through the patcher's bridge (issue
+    // #705). Binds wait-free on whichever thread the message arrived on; a name
+    // that does not fit, a bridge that is full, or a standalone object all
+    // leave the object where it was, silently, since this may be the audio
+    // thread. A bang already in flight keeps the clock it was armed on, the way
+    // the cold inlet leaves one alone.
+    void SetClock(const char* name, std::size_t length);
+
+    // Max's delay time in milliseconds, and the first creation argument. Read
+    // on every arm and written by the inlets and by a live SetParams re-parse,
+    // so atomic; unclamped, since DelayTime() is where the range is applied.
     aInt delaytime;
+
+    // The tempo-relative delay in beats, or 0 for milliseconds — the second
+    // creation argument (issue #705). Written by the list inlet's note-value
+    // and tick spellings, cleared by any plain number, and read on every arm.
+    // Atomic and unclamped for delaytime's reasons.
+    aFlt delaybeats;
+
+    // The domain clock `clock <name>` bound, or 0 for Max's millisecond clock
+    // (issue #705). A patcher-owned binding handle rather than a name: the
+    // bridge never releases one, so it stays valid for the life of the patcher
+    // and costs nothing to carry. Atomic because a `clock` message and an arm
+    // are not on the same thread; relaxed, since neither publishes anything
+    // through it. `.qlist`'s arrangement, for `.qlist`'s reason.
+    std::atomic<clockBridge::Handle> binding{0};
 
     // The bang being held, or 0. One clock per object, Max's shape. Atomic
     // because an arriving message and a scheduler delivery are not on the same

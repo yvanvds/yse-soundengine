@@ -235,7 +235,14 @@ namespace {
       "it, and the speed can only be set here, at the moment playback starts. 'start -1' plays on "
       "'tick' messages instead of on the clock — Max: 'seq must receive 48 tick messages per "
       "second' to play at the recorded tempo — which is how a patch drives the sequence from its "
-      "own timing source. 'stop' ends recording or playing, and neither 'record' nor 'start' needs "
+      "own timing source. 'clock <name>' hands that job to the YSE domain clock of that name "
+      "instead (issue #704), one tick being 1/24 of a beat on it, which is the same MIDI clock 48 "
+      "per second is at 120 BPM; the sequence then follows that domain's tempo changes and ramps "
+      "and holds where it stands when it pauses, a 'tick' from the patch is ignored while it is "
+      "driving, and a bare 'clock' hands the ticks back. Max's seq lists no clock method, so this "
+      "is an addition named the way setclock names the idea rather than a port, and it changes "
+      "nothing else: the tape stays milliseconds and a millisecond 'start' is unaffected. 'stop' "
+      "ends recording or playing, and neither 'record' nor 'start' needs "
       "one first. 'clear' erases the tape. 'delay <ms>' sets the onset of the first event and "
       "shifts everything after it, 'addeventdelay <ms>' adds to that onset, and 'hook <f>' "
       "multiplies every event time, which Max allows even mid-playback. 'read [file]' loads a "
@@ -382,9 +389,18 @@ CONSTRUCT() {
       "settable 'only at the time you start it' is reproduced. 'start -1' is Max's tick-driven "
       "mode: playback then advances on 'tick' messages, 48 of them per second at the recorded "
       "tempo, which is 24 per quarter note at 120 BPM and therefore a MIDI clock. That is also "
-      "this object's answer to issue #502's ask for a domain clock — there is no "
-      "patcher-to-domain-clock bridge today (issue #688), but tick is Max's own external timing "
-      "source and when the bridge lands, driving tick from it is the whole of the work. The end of "
+      "this object's answer to issue #502's ask for a domain clock, and since issue #704 the two "
+      "meet: 'clock <name>' binds a YSE domain clock through the shared patcher-to-domain-clock "
+      "bridge of issue #688 and that clock then supplies the ticks, one to 1/24 of a beat, so the "
+      "sequence follows the domain's tempo changes and ramps, stays in step with every clip on it, "
+      "and holds where it stands when the domain pauses. A bare 'clock' hands the ticks back to "
+      "the patch and an object never sent one is Max's object, Max's seq listing no clock method "
+      "of its own. The tick count is read off the clock's beat position rather than counted from "
+      "the wakeups that deliver it, and that is load-bearing rather than fastidious: a beat "
+      "deadline is armed relative to the beat it was armed at but delivered at the first audio "
+      "block boundary past it, so counting deliveries would drop that overshoot every tick and run "
+      "the sequence slow — and past about 215 BPM, where a tick is shorter than a block, it would "
+      "cap at one tick per block however fast the domain ran. The end of "
       "the sequence bangs the second outlet, and Max's odd but useful ordering is kept literally: "
       "'the bang is sent out immediately before the final event of the sequence is played'. "
       "'delay' sets the first event's onset and shifts the rest with it, 'addeventdelay' adds to "
@@ -543,9 +559,9 @@ bool gSeq::ArmStep(int waitMs) {
 
   CancelStep();
   // One clock per object, Max's shape — `.bondo`'s rule, arrived at for the
-  // same reason. The tag is unused: this object has only one kind of pending
-  // step.
-  pending = scheduler->ScheduleBang(this, 0, waitMs);
+  // same reason. The tag says which kind of step a delivery is answering: a
+  // millisecond one here, a domain-clock tick in ArmTick (issue #704).
+  pending = scheduler->ScheduleBang(this, TAG_STEP, waitMs);
   return pending != 0;
 }
 
@@ -554,6 +570,115 @@ void gSeq::CancelStep() {
   messageScheduler* scheduler = Scheduler();
   if (scheduler != nullptr) scheduler->Cancel(pending);
   pending = 0;
+}
+
+// ─── the domain clock (issue #704) ────────────────────────────────────────────
+
+void gSeq::SetClock(const char* name, std::size_t length) {
+  clockBridge::Handle bound = 0;
+  if (name != nullptr && length != 0) {
+    // A standalone object has no patcher and so no bridge, exactly as it has no
+    // scheduler to defer into. Silent, since this may be the audio thread.
+    clockBridge* clocks = Clocks();
+    if (clocks == nullptr) return;
+
+    // Wait-free: a bounded walk over the patcher's binding table and a memcpy
+    // of the name into a slot that already exists. The name is *not* looked up
+    // here — that takes the clock manager's mutex and happens on the background
+    // pool.
+    bound = clocks->Bind(name, length);
+    // A refusal (a full table, or a name longer than a slot holds) leaves the
+    // object on whatever it was on rather than silently handing the ticks to a
+    // source the patch did not ask for.
+    if (bound == 0) return;
+  }
+
+  storeGuard guard(busy);
+  if (!guard.Held()) return;
+
+  if (tickClock.exchange(bound, std::memory_order_relaxed) == bound) return;
+
+  // Unlike `start`'s speed, this takes effect at once rather than at the next
+  // `start`: a patch that sends `start -1` before it names its clock would
+  // otherwise sit waiting for ticks nobody is going to send. The tick count
+  // itself is kept and only its baseline moved, so the sequence carries on
+  // from where it stands rather than rewinding.
+  if (!playing || speed != TICK_SPEED) return;
+  CancelStep();
+  tickBased = false;
+  if (bound == 0) return;
+  BaseTicks(bound);
+  ArmTick(bound);
+}
+
+const char* gSeq::ClockName() const {
+  const clockBridge::Handle bound = tickClock.load(std::memory_order_relaxed);
+  if (bound == 0) return "";
+  const clockBridge* clocks = Clocks();
+  if (clocks == nullptr) return "";
+  return clocks->NameOf(bound);
+}
+
+bool gSeq::ArmTick(clockBridge::Handle bound) {
+  messageScheduler* scheduler = Scheduler();
+  if (scheduler == nullptr) return false;
+
+  CancelStep();
+  // One tick is 1/24 of a beat: Max's "48 tick messages per second" at the
+  // recorded tempo is 24 per quarter note at 120 BPM, which is the MIDI clock.
+  // This is a wakeup interval and not the time base — a delivery is quantised
+  // to the block it lands in, and SyncTicks is what keeps that quantisation
+  // from accumulating.
+  pending = scheduler->ScheduleBangOnClock(this, TAG_TICK, bound, 1.0 / (double)TICKS_PER_BEAT);
+  return pending != 0;
+}
+
+void gSeq::BaseTicksAt(double beat) {
+  // The beat every later tick count is measured from, offset by the count
+  // already reached — so a rebase mid-playback (a `clock` message changing the
+  // tick source under a running sequence) carries the sequence on from where it
+  // stands rather than winding it back through events it has already sent.
+  tickBase = beat - ((double)ticks / (double)TICKS_PER_BEAT);
+  tickBased = true;
+}
+
+void gSeq::BaseTicks(clockBridge::Handle bound) {
+  tickBased = false;
+  const clockBridge* clocks = Clocks();
+  if (clocks == nullptr) return;
+
+  double beat = 0.0;
+  // An unresolved binding has no beat to take. SyncTicks then baselines at the
+  // first wakeup that finds one instead, which is the moment the clock starts
+  // existing — `messageScheduler`'s ResolveBeat rule, for the same reason.
+  if (!clocks->Beat(bound, beat)) return;
+  BaseTicksAt(beat);
+}
+
+void gSeq::SyncTicks(clockBridge::Handle bound) {
+  const clockBridge* clocks = Clocks();
+  if (clocks == nullptr) return;
+
+  double beat = 0.0;
+  // Unresolved: the clock does not exist yet, so no time has passed on it. The
+  // arm stays live and the bridge's own Poll is what makes the name resolve.
+  if (!clocks->Beat(bound, beat)) return;
+
+  // The playback started before its clock resolved; this is the wakeup that
+  // found it.
+  if (!tickBased) BaseTicksAt(beat);
+
+  double elapsed = (beat - tickBase) * (double)TICKS_PER_BEAT;
+  // Also the NaN case, no comparison accepting one. A beat position that went
+  // backwards leaves the count where it was rather than winding the sequence
+  // back through events it has already sent.
+  if (!(elapsed > 0.0)) return;
+  // Far past any beat position a running clock can reach, and short enough that
+  // `ticks * 1000` in TakeTickStep still fits an int64.
+  if (elapsed > 1.0e12) elapsed = 1.0e12;
+
+  const std::int64_t target = (std::int64_t)std::floor(elapsed);
+  if (target > ticks) ticks = target;
 }
 
 // ─── recording ────────────────────────────────────────────────────────────────
@@ -690,11 +815,49 @@ void gSeq::Tick(YSE::THREAD thread) {
     // A tick outside Max's `start -1` mode means nothing — the millisecond
     // clock is already running the sequence.
     if (!playing || speed != TICK_SPEED) return;
+    // And a tick from the patch means nothing while a domain clock is driving
+    // (issue #704): that clock is the tick source, and a second unsynchronised
+    // one would only be overwritten by the next wakeup.
+    if (tickClock.load(std::memory_order_relaxed) != 0) return;
     ticks++;
   }
 
-  // Every event the tick just made due, which is more than one whenever the
-  // sequence is denser than the tick grid. Bounded by the tape.
+  DrainTicks(thread);
+}
+
+void gSeq::ClockTick(YSE::THREAD thread) {
+  {
+    storeGuard guard(busy);
+    // A lost guard stops the tick clock here, exactly as it ends a millisecond
+    // walk in Resume: there is nothing else armed behind this delivery to retry
+    // with, and waiting for the guard is what a message path may never do.
+    if (!guard.Held()) return;
+
+    // Whatever armed this wakeup has fired; the handle it left behind is stale.
+    pending = 0;
+    if (!playing || speed != TICK_SPEED) return;
+    // A bare `clock` handed the ticks back to the patch between the arm and the
+    // delivery. Nothing is re-armed: `tick` messages drive it from here.
+    const clockBridge::Handle bound = tickClock.load(std::memory_order_relaxed);
+    if (bound == 0) return;
+
+    // Re-armed before anything is emitted, so the next wakeup is a fixed
+    // fraction of a beat from *here* whatever this one turns out to send. A
+    // send that stops the object — a `stop` coming back through a cord — takes
+    // it out again on the way past, and a sequence that ends leaves it to
+    // arrive once more and find nothing playing.
+    ArmTick(bound);
+    SyncTicks(bound);
+  }
+
+  DrainTicks(thread);
+}
+
+void gSeq::DrainTicks(YSE::THREAD thread) {
+  // Every event the tick clock has just made due, which is more than one
+  // whenever the sequence is denser than the tick grid — or whenever one wakeup
+  // covered several ticks, which is what a domain clock running faster than the
+  // block rate does (issue #704). Bounded by the tape.
   for (std::size_t steps = 0; steps <= MAX_EVENTS; steps++) {
     bool last = false;
     switch (TakeTickStep(last)) {
@@ -751,7 +914,13 @@ void gSeq::SendStep(bool last, YSE::THREAD thread) {
 }
 
 void gSeq::DeliverDeferred(const deferredMessage& msg, YSE::THREAD thread) {
-  (void)msg;
+  // A tick wakeup from a bound domain clock is the other kind of pending step
+  // this object has, and the tag is what tells the two apart (issue #704).
+  if (msg.tag == TAG_TICK) {
+    ClockTick(thread);
+    return;
+  }
+
   // The wait has elapsed. The scheduler wraps this in a fresh messageEventScope,
   // so everything the resumed step goes on to cause is one logical event (#628).
   //
@@ -818,6 +987,16 @@ void gSeq::StartPlaying(int requested, YSE::THREAD thread) {
       // due on the first tick.
       ticks = 0;
       dueMs = events[0].deltaMs;
+      // Unless a domain clock has been bound to supply those ticks (issue
+      // #704), in which case this is where it starts supplying them: tick 0 is
+      // the beat this `start` landed on rather than the beat the first wakeup
+      // lands on, so the sequence begins where the message did.
+      tickBased = false;
+      const clockBridge::Handle bound = tickClock.load(std::memory_order_relaxed);
+      if (bound != 0) {
+        BaseTicks(bound);
+        ArmTick(bound);
+      }
       return;
     }
 
@@ -895,6 +1074,22 @@ bool gSeq::HandleCommand(const char* word, std::size_t length, const std::string
 
   if (TokenIs(word, length, "tick", 4)) {
     Tick(thread);
+    return true;
+  }
+
+  if (TokenIs(word, length, "clock", 5)) {
+    // The domain-clock tick source (issue #704). `clock <name>` makes that
+    // clock supply the ticks of Max's `start -1` mode, one tick to 1/24 of a
+    // beat; a bare `clock` hands them back to the patch. Max's own vocabulary —
+    // `setclock` documents its name as something "passed as the argument to a
+    // 'clock' message to numerous objects that use timing in Max" — though
+    // Max's `seq` reference lists no `clock` method of its own, so this is an
+    // addition and not a port, exactly as `.qlist`'s is. The whole remainder is
+    // the name, so a clock named with spaces still works.
+    std::size_t begin = argOffset;
+    std::size_t end = message.size();
+    Trim(message.c_str(), begin, end);
+    SetClock(message.c_str() + begin, end > begin ? end - begin : 0);
     return true;
   }
 

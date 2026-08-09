@@ -18,6 +18,13 @@
     public note API) or a recording sink in tests, with zero overhead and no
     coupling to the synth headers.
 
+    The two byte tables below are the channel-message vocabulary rather than the
+    routing, so midiOut in device.cpp builds its outgoing messages out of them
+    too. They live here and not in midiBytes.hpp because that header holds the
+    Standard MIDI File's *framing* — chunk headers, variable-length quantities,
+    meta and sysex markers — which is a different layer: these bytes are what a
+    channel message is made of, whether it goes to a port or into a file.
+
   ==============================================================================
 */
 
@@ -36,6 +43,20 @@ namespace YSE {
       MSG_PROGRAM_CHANGE = 0xC0,
       MSG_CHANNEL_AFTERTOUCH = 0xD0,
       MSG_PITCH_BEND = 0xE0,
+    };
+
+    // Channel-mode controller numbers: the reserved end of the control-change
+    // range, where the first data byte selects a mode rather than a continuous
+    // controller. Only the ones the engine actually sends are listed — the
+    // whole reserved range is 0x78..0x7F.
+    enum : unsigned char {
+      CC_RESET_ALL_CONTROLLERS = 0x79,
+      CC_LOCAL_CONTROL = 0x7A,
+      CC_ALL_NOTES_OFF = 0x7B,
+      CC_OMNI_MODE_OFF = 0x7C,
+      CC_OMNI_MODE_ON = 0x7D,
+      CC_MONO_MODE_ON = 0x7E,
+      CC_POLY_MODE_ON = 0x7F,
     };
 
     /** True for the seven channel-voice status nibbles (0x80..0xE0). Everything

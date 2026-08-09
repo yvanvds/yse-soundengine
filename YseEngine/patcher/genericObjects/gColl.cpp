@@ -135,6 +135,11 @@ namespace {
       "the address when entry is -1 and by the nth element otherwise), 'swap <address> <address>', "
       "'merge <address> <data>', 'separate <index>', 'renumber [start]', 'renumber2 [from]' "
       "(move every numeric address at or above 'from', 0 by default, up by one), "
+      "'assoc <symbol> <number>' and 'deassoc <symbol> <number>' (give a numeric entry a second, "
+      "symbol address that reaches it, or take it away again; the number has to exist already, and "
+      "an entry the symbol already reached is removed), 'nstore <number> <symbol> <message>' "
+      "(store and associate in one message — either order of the pair), 'subsym <new> <old>' "
+      "(rename a symbol address or an alias, refused when the new name is already in use), "
       "'read [file]', 'readagain', 'write [file]', 'writeagain' and 'filetype'. An "
       "address is a number or a symbol, decided by the same strict reader .sel and .route use, and "
       "the two never collide: the address 1 and the address one are different entries. Anything "
@@ -155,7 +160,14 @@ namespace {
   constexpr char kAddressDoc[] =
       "The address of the entry that just left the data outlet, as an int for a numeric address "
       "and "
-      "as a one-element list for a symbol one. It fires only where Max fires it — on bang, dump, "
+      "as a one-element list for a symbol one. An entry with both — a numeric address and the "
+      "symbol alias an 'assoc' gave it — reports the number: the alias is a way in, not something "
+      "the outlet announces, which is what cyclone's single output routine does and what its help "
+      "patch annotates as 'address is still an int, not the alias'. Max's own text says a symbol "
+      "address sends 0 here, which contradicts the output table one screen away in the same "
+      "reference; the symbol is sent, as cyclone sends it, and 0 is reserved for an entry with "
+      "neither address — which this object cannot produce. It fires only where Max fires it — on "
+      "bang, dump, "
       "next, prev and sub, Max's 'whenever a message out the 1st outlet is triggered by bang, "
       "dump, next, prev, or sub' — and not on a plain lookup, which answers with the data alone "
       "since the asking patch already had the address. It fires before the data outlet, which is "
@@ -187,6 +199,10 @@ collStore::collStore() {
   for (collEntry& entry : entries) {
     entry.key.reserve(KEY_CAPACITY + 1);
     entry.value.reserve(VALUE_CAPACITY + 1);
+    // The second address (issue #695) is reserved here for the same reason the
+    // first is: an `assoc` may arrive on the audio thread, and a lookup that
+    // has to compare against an alias must not be the thing that grows it.
+    entry.alias.reserve(KEY_CAPACITY + 1);
   }
 }
 
@@ -236,6 +252,7 @@ CONSTRUCT() {
   sortVisited.resize(MAX_ENTRIES);
   scratchEntry.key.reserve(KEY_CAPACITY + 1);
   scratchEntry.value.reserve(VALUE_CAPACITY + 1);
+  scratchEntry.alias.reserve(KEY_CAPACITY + 1);
 
   // Same treatment for the file buffers (issue #683): a `read` or `write` may
   // arrive on the audio thread, so remembering a name and formatting the whole
@@ -259,7 +276,8 @@ CONSTRUCT() {
       "A list whose first item is a number stores the rest of it at that address (Max's list "
       "method), a bare number or symbol recalls, a bang outputs the entry at the pointer, and "
       "store, insert, append, remove, delete, clear, length, goto, start, end, next, prev, dump, "
-      "sub, nsub, nth, min, max, sort, swap, merge, separate, renumber and renumber2 are read as "
+      "sub, nsub, nth, min, max, sort, swap, merge, separate, renumber, renumber2, assoc, deassoc, "
+      "nstore and subsym are read as "
       "commands when they lead a message. Reserving those words is Max's own contract "
       "for coll and not a shortcut: this is the one object in the family whose inlet is a command "
       "inlet rather than a data inlet, which is exactly why the .prepend discipline — never "
@@ -284,9 +302,21 @@ CONSTRUCT() {
       "address already holds, separate opens a numeric gap, renumber renumbers the numeric "
       "entries consecutively from the address it is given (0 by default), and renumber2 moves "
       "every numeric address at or above the one it is given (also 0 by default) up by one. "
+      "assoc, deassoc, nstore and subsym are Max's symbol/number address aliasing: a numeric entry "
+      "can be given a second, symbol address, and from then on any reference to that symbol is a "
+      "reference to the number — a store, a remove, an nth or a bare recall all reach the entry by "
+      "either name. One symbol reaches one entry, which is what keeps a lookup's answer "
+      "independent of storage order, so associating a symbol that already reached another entry "
+      "removes that entry, as Max's own reference says it does. The alias rides with its entry "
+      "through insert, delete, renumber, renumber2 and separate, and with the address through "
+      "swap; the address outlet reports the number for an entry that has both; and a plain store "
+      "at an aliased address keeps the alias, which is where this departs from cyclone. "
       "read, readagain, "
       "write and writeagain move the collection through a plain-text file in Max's format, one "
-      "'<address>, <message>;' record per line, and a read replaces what is held. None of that "
+      "'<address>, <message>;' record per line — an aliased entry writing both of its addresses, "
+      "number first and symbol second, the order Max 5's format paragraph gives and the one "
+      "cyclone writes, while a read accepts either order — and a read replaces what is held. None "
+      "of that "
       "happens on the message path: a read arrives on whichever thread dispatched it, which may be "
       "the audio callback, so the request is a wait-free claim on a patcher-owned slot, the disk "
       "work runs on the background pool, and the contents are parsed in the completion the patcher "
@@ -319,8 +349,7 @@ CONSTRUCT() {
       "permutation is applied by cycle-following through a single scratch entry, so no input costs "
       "more than one entry copy per entry. Anything that does not fit is refused whole and "
       "silently. Calculate() does nothing. Not ported: the editor window (open, wclose), refer, "
-      "the embed / flags save switch, and the symbol/number address aliasing assoc, deassoc, "
-      "nstore and subsym, which changes the address model rather than adding to it.");
+      "and the embed / flags save switch.");
   ADD_CATEGORY(pCategory::GENERIC);
   INLET_DOC(0, "in", kInletDoc, "at most 256 entries");
   OUTLET_DOC(0, "data", kDataDoc, "");
@@ -423,13 +452,77 @@ int gColl::Find(const Address& address) const {
       if (entry.numeric && entry.index == address.index) return (int)i;
       continue;
     }
-    if (entry.numeric) continue;
-    if (entry.key.size() != address.length) continue;
+    // A symbol query answers from whichever field holds this entry's symbol:
+    // its address when it has a symbol one, its alias when it is numeric —
+    // Max's "after association, any reference to that symbol will be
+    // interpreted as a reference to the number address" (issue #695). An entry
+    // with no alias has an empty one, which no address can match because
+    // ReadAddress refuses an empty token.
+    const std::string& symbol = entry.numeric ? entry.alias : entry.key;
+    if (symbol.size() != address.length) continue;
     // Compared against the character range in place: a substr here would
     // allocate on whichever thread the message arrived on.
-    if (entry.key.compare(0, address.length, address.text, address.length) == 0) return (int)i;
+    if (symbol.compare(0, address.length, address.text, address.length) == 0) return (int)i;
   }
   return -1;
+}
+
+int gColl::FindSymbol(const char* text, std::size_t length, int except) const {
+  for (std::size_t i = 0; i < store->count; i++) {
+    if (except >= 0 && (std::size_t)except == i) continue;
+    const Entry& entry = store->entries[i];
+    const std::string& symbol = entry.numeric ? entry.alias : entry.key;
+    if (symbol.size() != length) continue;
+    if (symbol.compare(0, length, text, length) == 0) return (int)i;
+  }
+  return -1;
+}
+
+void gColl::SetAlias(Entry& entry, const char* text, std::size_t length) {
+  // assign() into the buffer the store reserved, so a second address costs no
+  // allocation on whichever thread the message arrived on.
+  entry.alias.assign(text, length);
+}
+
+bool gColl::Associate(int index, const char* text, std::size_t length) {
+  Address symbol;
+  if (!ReadAddress(text, length, symbol)) return false;
+  // A numeric token cannot be an alias. #494's guarantee is that the address 1
+  // and the address `one` never collide, and an alias spelled `1` would be
+  // reached by a numeric lookup of 1 — which already means another entry.
+  if (symbol.numeric) return false;
+
+  Address at;
+  at.numeric = true;
+  at.index = index;
+  int position = Find(at);
+  // Max: "provided that the number address already exists". Nothing is created
+  // and nothing is said.
+  if (position < 0) return false;
+
+  // One symbol reaches one entry, and Max says which one gives way: "if the
+  // symbol was already being used as an address, or was already associated with
+  // a number address, the message that was stored at that address is removed".
+  // Removed rather than renumbered — this is `remove`, not `delete`.
+  //
+  // The entry being associated is excluded from that search, which is what
+  // makes associating the same symbol twice a no-op instead of an entry
+  // deleting itself as its own collision. cyclone buys the same guarantee with
+  // an explicit `ep1->e_symkey != s` because its lookup has no way to skip a
+  // candidate.
+  const int clash = FindSymbol(text, length, position);
+  if (clash >= 0) {
+    Erase((std::size_t)clash, false);
+    // The table closed the gap, so the target may have moved down one.
+    position = Find(at);
+    if (position < 0) return false;
+  }
+
+  // Max: "Each number address can have only one symbol associated with it" —
+  // so this replaces whatever the entry had rather than adding to it, and the
+  // symbol it replaces stops meaning anything.
+  SetAlias(store->entries[(std::size_t)position], text, length);
+  return true;
 }
 
 bool gColl::AssignValue(Entry& entry, const char* value, std::size_t length) {
@@ -453,6 +546,9 @@ void gColl::SetNumericKey(Entry& entry, int index) {
 void gColl::CopyEntry(Entry& dst, const Entry& src) {
   dst.key.assign(src.key);
   dst.value.assign(src.value);
+  // The alias travels with the entry, so the shifting that insert, delete and
+  // sort do cannot orphan a symbol from the data it names (issue #695).
+  dst.alias.assign(src.alias);
   dst.index = src.index;
   dst.numeric = src.numeric;
 }
@@ -484,6 +580,10 @@ bool gColl::StoreAt(const Address& address, const char* value, std::size_t lengt
   if (store->count >= MAX_ENTRIES) return false;
 
   Entry& entry = store->entries[store->count];
+  // The table is a pool: this slot was live before a `clear` or a `remove`, so
+  // a stale alias would make the new entry answer to a symbol nobody gave it
+  // (issue #695).
+  entry.alias.clear();
   if (address.numeric) {
     SetNumericKey(entry, address.index);
   } else {
@@ -523,6 +623,9 @@ bool gColl::InsertAt(int index, const char* value, std::size_t length) {
   }
 
   Entry& entry = store->entries[position];
+  // As in StoreAt: the slot came from the pool and may still carry the alias of
+  // whatever lived here before (issue #695).
+  entry.alias.clear();
   SetNumericKey(entry, index);
   AssignValue(entry, value, length);
   store->count++;
@@ -740,35 +843,33 @@ void gColl::SwapAddresses(std::size_t a, std::size_t b) {
   // Max: "The data is unchanged, but the indexes that they use are swapped."
   // Through the scratch entry reserved at construction, so exchanging two keys
   // does not build a third string on the audio thread.
+  //
+  // The alias goes with them. It is an *address*, not data — the whole point of
+  // #695 is that a patch can reach the entry by it — so leaving it behind would
+  // make `swap` move half of each address and give the symbol to the other
+  // entry's data, which is the one thing the message promises not to do.
   scratchEntry.key.assign(first.key);
+  scratchEntry.alias.assign(first.alias);
   const int index = first.index;
   const bool numeric = first.numeric;
 
   first.key.assign(second.key);
+  first.alias.assign(second.alias);
   first.index = second.index;
   first.numeric = second.numeric;
 
   second.key.assign(scratchEntry.key);
+  second.alias.assign(scratchEntry.alias);
   second.index = index;
   second.numeric = numeric;
 }
 
-void gColl::Separate(int index) {
-  // Max: "Increments the numerical indices for all data whose index is greater
-  // than the provided" — strictly greater, which is what leaves the slot at
-  // index + 1 open. `insert`'s "equal or greater" is the other rule, and the
-  // two are deliberately different.
-  for (std::size_t i = 0; i < store->count; i++) {
-    Entry& entry = store->entries[i];
-    if (entry.numeric && entry.index > index) SetNumericKey(entry, entry.index + 1);
-  }
-}
-
 void gColl::Increment(int first) {
-  // Max's renumber2, "increment indices by one". At or above `first`, unlike
-  // separate's strictly-greater: the argument names the lowest address that
-  // moves, and the default 0 has to move an entry sitting at 0 or a bare
-  // renumber2 would leave two entries on the same address.
+  // Max's renumber2 ("increment indices by one") and Max's separate are the
+  // same operation: every numeric address at or above `first` moves up by one,
+  // which leaves `first` itself open. The two messages differ only in that
+  // renumber2's argument defaults to 0 and separate's is required. See the
+  // class documentation for the sources (#694, #709).
   for (std::size_t i = 0; i < store->count; i++) {
     Entry& entry = store->entries[i];
     if (entry.numeric && entry.index >= first) SetNumericKey(entry, entry.index + 1);
@@ -1003,6 +1104,10 @@ bool gColl::HandleCommand(const char* text, std::size_t length, YSE::THREAD thre
   // above.
   if (HandleEditCommand(word, wordLength, text, argBegin, argEnd, thread)) return true;
 
+  // The aliasing half (issue #695). None of these sends anything, which is why
+  // it does not take a thread.
+  if (HandleAliasCommand(word, wordLength, text, argBegin, argEnd)) return true;
+
   // ─── the file commands (issue #683) ────────────────────────────────────────
   //
   // Every one of these is a claim on a slot and nothing more. Whichever thread
@@ -1170,11 +1275,16 @@ bool gColl::HandleEditCommand(const char* word, std::size_t wordLength, const ch
   }
 
   if (TokenIs(word, wordLength, "separate", 8)) {
+    // At or above the address given, so the slot that opens is the one named.
+    // The reference prose says "greater than", but its own worked example does
+    // not; see the class documentation for the sources (#709). Unlike
+    // renumber2 the argument is required — there is no address to separate at
+    // without one.
     int index = 0;
     if (!ReadIntArgument(text, argBegin, argEnd, 1, index)) return true;
     storeGuard guard(store->busy);
     if (!guard.Held()) return true;
-    Separate(index);
+    Increment(index);
     return true;
   }
 
@@ -1202,6 +1312,155 @@ bool gColl::HandleEditCommand(const char* word, std::size_t wordLength, const ch
     storeGuard guard(store->busy);
     if (!guard.Held()) return true;
     Renumber(first);
+    return true;
+  }
+
+  return false;
+}
+
+// ─── the symbol aliases (issue #695) ──────────────────────────────────────────
+
+bool gColl::HandleAliasCommand(const char* word, std::size_t wordLength, const char* text,
+                               std::size_t argBegin, std::size_t argEnd) {
+  std::size_t begin = 0;
+  std::size_t end = 0;
+
+  const bool isDeassoc = TokenIs(word, wordLength, "deassoc", 7);
+  if (isDeassoc || TokenIs(word, wordLength, "assoc", 5)) {
+    // Max: "the word assoc, followed by a symbol and a number" — the symbol
+    // comes first, and cyclone binds both methods as (A_SYMBOL, A_FLOAT).
+    if (!ArgAt(text, argBegin, argEnd, 1, begin, end)) return true;
+    const char* symbol = text + begin;
+    const std::size_t symbolLength = end - begin;
+    int index = 0;
+    if (!ReadIntArgument(text, argBegin, argEnd, 2, index)) return true;
+
+    storeGuard guard(store->busy);
+    if (!guard.Held()) return true;
+
+    if (!isDeassoc) {
+      Associate(index, symbol, symbolLength);
+      return true;
+    }
+
+    // deassoc names both halves, and both have to match: "removes the
+    // association between the symbol and the number address". cyclone reads
+    // only the number — its handler opens with `s = NULL;` — but that discards
+    // an argument its own method signature declares, and taking a patch's
+    // association away over a symbol it did not name is the more surprising of
+    // the two readings.
+    Address at;
+    at.numeric = true;
+    at.index = index;
+    const int position = Find(at);
+    if (position < 0) return true;
+    Entry& entry = store->entries[(std::size_t)position];
+    if (entry.alias.size() != symbolLength) return true;
+    if (entry.alias.compare(0, symbolLength, symbol, symbolLength) != 0) return true;
+    // The entry stays, with its number and its data; only the second address
+    // goes. "The symbol will no longer have any meaning to coll."
+    entry.alias.clear();
+    return true;
+  }
+
+  if (TokenIs(word, wordLength, "nstore", 6)) {
+    // Max: "followed by a number and a symbol (or a symbol and a number),
+    // followed by any other message" — both orders, which cyclone accepts too
+    // and its help file spells out. Max 8's argument table lists only the
+    // number-first form; Max 5's prose is the wider of the two and costs
+    // nothing to honour.
+    if (!ArgAt(text, argBegin, argEnd, 1, begin, end)) return true;
+    Address first;
+    if (!ReadAddress(text + begin, end - begin, first)) return true;
+    const char* firstText = text + begin;
+    const std::size_t firstLength = end - begin;
+
+    if (!ArgAt(text, argBegin, argEnd, 2, begin, end)) return true;
+    Address second;
+    if (!ReadAddress(text + begin, end - begin, second)) return true;
+    const char* secondText = text + begin;
+    const std::size_t secondLength = end - begin;
+
+    // Exactly one of the two has to be the number and the other the symbol.
+    const char* symbol = nullptr;
+    std::size_t symbolLength = 0;
+    int index = 0;
+    if (first.numeric && !second.numeric) {
+      index = first.index;
+      symbol = secondText;
+      symbolLength = secondLength;
+    } else if (!first.numeric && second.numeric) {
+      index = second.index;
+      symbol = firstText;
+      symbolLength = firstLength;
+    } else {
+      return true;
+    }
+
+    std::size_t dataBegin = argEnd;
+    std::size_t dataEnd = argEnd;
+    // The message may be empty, as it may be for `store`: an address with
+    // nothing at it is still an address, and refusing one here would invent a
+    // rule this object does not have anywhere else.
+    (void)ArgTail(text, argBegin, argEnd, 3, dataBegin, dataEnd);
+
+    storeGuard guard(store->busy);
+    if (!guard.Held()) return true;
+
+    // Max defines the message by an equivalence — "the same effect as storing
+    // the message at an int address, then using the assoc message to associate
+    // a symbol with that number" — so that is literally what it is, in that
+    // order and for both spellings of the arguments. (cyclone's two orders are
+    // not equivalent: each removes a different colliding entry, which is an
+    // artefact of its two code paths rather than anything the reference says.)
+    Address address;
+    address.numeric = true;
+    address.index = index;
+    if (!StoreAt(address, text + dataBegin, dataEnd - dataBegin)) return true;
+    Associate(index, symbol, symbolLength);
+    return true;
+  }
+
+  if (TokenIs(word, wordLength, "subsym", 6)) {
+    // Max: "the first argument to subsym is the new symbol to use, and the
+    // second argument is the symbol associator to replace", with the worked
+    // example `subsym jack jill` turning `jill, 40 50 60;` into
+    // `jack, 40 50 60;` — a plain symbol *address*, so this renames those as
+    // well as aliases. cyclone gets that for free by holding both in one field.
+    if (!ArgAt(text, argBegin, argEnd, 1, begin, end)) return true;
+    Address fresh;
+    if (!ReadAddress(text + begin, end - begin, fresh)) return true;
+    const char* freshText = text + begin;
+    const std::size_t freshLength = end - begin;
+    if (fresh.numeric) return true;
+
+    if (!ArgAt(text, argBegin, argEnd, 2, begin, end)) return true;
+    Address previous;
+    if (!ReadAddress(text + begin, end - begin, previous)) return true;
+    if (previous.numeric) return true;
+
+    storeGuard guard(store->busy);
+    if (!guard.Held()) return true;
+
+    const int position = Find(previous);
+    if (position < 0) return true;
+    // Refused rather than allowed to duplicate. cyclone does not check this and
+    // will leave two entries answering to one symbol, which makes the second
+    // unreachable by name; here one symbol reaches one entry, because that is
+    // what makes a lookup's answer independent of storage order. Removing the
+    // entry in the way `assoc` does is not the answer either: Max documents
+    // that removal for `assoc` alone, and a rename that silently takes another
+    // entry's data with it is worse than a rename that does not happen.
+    if (FindSymbol(freshText, freshLength, position) >= 0) return true;
+
+    Entry& entry = store->entries[(std::size_t)position];
+    if (entry.numeric) {
+      // The numeric address is untouched — cyclone's changesymkey touches only
+      // the symbol, so subsym is a safe rename for an aliased record.
+      SetAlias(entry, freshText, freshLength);
+    } else {
+      entry.key.assign(freshText, freshLength);
+    }
     return true;
   }
 
@@ -1248,6 +1507,14 @@ bool gColl::Serialize() {
   for (std::size_t i = 0; i < store->count; i++) {
     const Entry& entry = store->entries[i];
     fileScratch.append(entry.key);
+    // The second address goes after the first, which is the order Max 5's
+    // format paragraph gives: "the address (an int or a symbol), any symbols
+    // associated with that address (if the address is an int), a comma ...".
+    // See the file section of the class documentation (issue #695).
+    if (!entry.alias.empty()) {
+      fileScratch.append(1, ' ');
+      fileScratch.append(entry.alias);
+    }
     fileScratch.append(", ", 2);
     fileScratch.append(entry.value);
     fileScratch.append(";\n", 2);
@@ -1295,15 +1562,46 @@ bool gColl::LoadFrom(const char* text, std::size_t length) {
     std::size_t valueEnd = stop;
     Trim(text, valueBegin, valueEnd);
 
-    Address address;
-    // Read through the same reader the inlet uses, so a numeric address in the
-    // file restores as a numeric address and a symbol one as a symbol — the
-    // round trip is only exact if both ends classify identically. A record that
-    // does not fit is skipped and the rest of the file still loads; one past
-    // MAX_ENTRIES is refused by StoreAt for the same reason a `store` into a
-    // full collection is.
-    if (!ReadAddress(text + keyBegin, keyEnd - keyBegin, address)) continue;
-    StoreAt(address, text + valueBegin, valueEnd - valueBegin);
+    // The address field is one token or two: a number, a symbol, or a number
+    // and the symbol associated with it (issue #695). Each token is read
+    // through the same reader the inlet uses, so a numeric address in the file
+    // restores as a numeric address and a symbol one as a symbol — the round
+    // trip is only exact if both ends classify identically. Order does not
+    // matter and the last token of each kind wins, which is what cyclone's
+    // reader does; a record that does not fit is skipped and the rest of the
+    // file still loads, and one past MAX_ENTRIES is refused by StoreAt for the
+    // same reason a `store` into a full collection is.
+    Address number;
+    Address symbol;
+    bool haveNumber = false;
+    bool haveSymbol = false;
+    std::size_t token = keyBegin;
+    while (token < keyEnd) {
+      while (token < keyEnd && IsSelectorSeparator(text[token]))
+        token++;
+      std::size_t stop = token;
+      while (stop < keyEnd && !IsSelectorSeparator(text[stop]))
+        stop++;
+      if (stop == token) break;
+      Address one;
+      if (ReadAddress(text + token, stop - token, one)) {
+        if (one.numeric) {
+          number = one;
+          haveNumber = true;
+        } else {
+          symbol = one;
+          haveSymbol = true;
+        }
+      }
+      token = stop;
+    }
+    if (!haveNumber && !haveSymbol) continue;
+
+    // A number and a symbol together is an aliased entry; either alone is the
+    // address it spells.
+    const Address& address = haveNumber ? number : symbol;
+    if (!StoreAt(address, text + valueBegin, valueEnd - valueBegin)) continue;
+    if (haveNumber && haveSymbol) Associate(number.index, symbol.text, symbol.length);
   }
   return true;
 }
@@ -1418,6 +1716,10 @@ void gColl::DumpState(nlohmann::json::value_type& json) {
     nlohmann::json entry;
     entry["key"] = store->entries[i].key;
     entry["value"] = store->entries[i].value;
+    // Written only when there is one, so a collection with no aliases saves
+    // byte for byte what it saved before #695 (and a patch written against the
+    // older form still loads, since the key is simply absent).
+    if (!store->entries[i].alias.empty()) entry["alias"] = store->entries[i].alias;
     json["entries"].push_back(entry);
   }
 }
@@ -1442,12 +1744,19 @@ void gColl::RestoreState(const nlohmann::json::value_type& json) {
   for (const auto& entry : *stored) {
     const std::string key = entry.value("key", std::string());
     const std::string message = entry.value("value", std::string());
+    const std::string alias = entry.value("alias", std::string());
     Address address;
     // Written back through the same reader the inlet uses, so a numeric key
     // restores as a numeric address and a symbol one as a symbol — the round
     // trip is only exact if both ends classify identically.
     if (!ReadAddress(key.c_str(), key.size(), address)) continue;
-    StoreAt(address, message.c_str(), message.size());
+    if (!StoreAt(address, message.c_str(), message.size())) continue;
+    // The second address, through the same door `assoc` uses — so a hand-edited
+    // save that names one symbol twice cannot restore into a collection where a
+    // lookup's answer depends on storage order (issue #695).
+    if (!alias.empty() && address.numeric) {
+      Associate(address.index, alias.c_str(), alias.size());
+    }
   }
 }
 
@@ -1465,6 +1774,13 @@ std::string gColl::ValueAt(std::size_t position) const {
   if (!guard.Held()) return std::string();
   if (position >= store->count) return std::string();
   return store->entries[position].value;
+}
+
+std::string gColl::AliasAt(std::size_t position) const {
+  storeGuard guard(store->busy);
+  if (!guard.Held()) return std::string();
+  if (position >= store->count) return std::string();
+  return store->entries[position].alias;
 }
 
 std::string gColl::Lookup(const std::string& key) const {

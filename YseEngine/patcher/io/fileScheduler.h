@@ -181,8 +181,9 @@ namespace YSE {
        *  @brief Largest file a slot reads or writes — 128 KiB.
        *
        *  Chosen to clear the largest thing the first consumer can hold: a full
-       *  ``.coll`` of 256 entries at its maximum address and message lengths
-       *  serialises to just under 81 KiB. A file bigger than this is refused
+       *  ``.coll`` of 256 entries at their maximum address, alias and message
+       *  lengths serialises to just under 98 KiB (81 before issue #695 gave
+       *  each record a second address). A file bigger than this is refused
        *  rather than truncated.
        */
       static constexpr std::size_t BYTES_CAPACITY = 131072;
