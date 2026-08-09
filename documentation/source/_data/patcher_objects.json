@@ -1742,6 +1742,67 @@
       }
     ]
   },
+  ".clocker": {
+    "category": "TIME",
+    "description": "Elapsed-time reporter — Max's clocker, 'a metronome that reports the time elapsed since it was started' (issues #505 and #725). Where '.metro' bangs at an interval, this sends a number, and the number is how long the run has been going. That is what takes an object out of the patch: an envelope, a ramp or a progress readout driven by a '.metro' needs a '.counter' behind it to turn ticks into a position, and that counter is wrong the moment a tick is late or dropped. The elapsed time here is measured rather than counted — each report reads the engine's monotonic clock (std::chrono::steady_clock, the same source the patcher's timer thread schedules on and the same one the engine times its own ticks with) and subtracts the instant the run started, so an OS timer that wakes late reports the time it really arrived at and the run never drifts. A non-zero int or float in the left inlet starts it and 0 stops it, 'stop' is Max's word for the same, and a bang starts a stopped clocker or resets a running one's count — Max gives bang a rule of its own here, so unlike '.metro' it is not the same method as int: a bang moves the baseline and leaves the tick alone, where a non-zero int re-starts the run and re-phases the tick with it. The message 'reset' spells that reset out. The right inlet sets the interval in milliseconds (5 by default, as in Max), or tempo-relative as a note value or a tick count, and retimes a running clocker without re-phasing it. Since issue #725 'clock <name>' binds a YSE domain clock — Max's own method, setclock naming the objects a 'clock' message controls — and the object then answers the question a millisecond clocker never had to: whether 'elapsed' is milliseconds or beats. It is both, spelled by two outlets, which is what '.timer' does with the same question: the first outlet is always milliseconds, so binding a clock changes no patch's meaning, and the second carries the beats the clock has moved since the run started. The two are genuinely two measurements — a domain that ramps or pauses makes them diverge, and neither could be got by dividing the other by a BPM figure. A beat run is on the clock's grid, its index read off the beat position rather than counted from the wakeups that deliver it, and a wakeup that covered several grid points reports once: this object's number is the time now, and copies of one reading are not the reports that were missed. It never creates a clock and never destroys one — '.transport' is the sole creator (issue #513) — so a name nothing has claimed simply has no beats until something claims it. quantize, autostart, autostarttime, defer and bars.beats.units stay out. Calculate() does nothing, and no message or delivery path allocates, locks or blocks when it turns out to be running on the audio callback: the millisecond timer is armed and disarmed through timerBridge, which takes a wait-free request there and does the locking work on the background pool, binding and arming are wait-free, reading a beat is two acquire loads, and the command words are matched against the message in place.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Starts and stops the clocker, and carries its three messages. Max: 'any non-zero number starts the clocker object. The time elapsed since clocker was started is sent out the outlet at regular intervals. 0 stops the clocker object.' A float does the same — Max's 'same as int' — and is compared against zero rather than cast, so 0.5 starts it where a cast to int would stop it. The message 'stop' is 0 under Max's own name. A bang is deliberately not the same method: Max gives it a rule of its own — 'if the clocker object is not running, a bang message will start the count. If the clocker object is running, a bang message will reset the count' — so a bang into a running clocker moves the baseline and leaves the tick where it is, where a non-zero int re-starts the run and re-phases the tick with it. The message 'reset' is that same reset spelled out: Max's 'resets the elapsed time to 0 without stopping or restarting the clock; clocker continues to report the new elapsed time at the same regular interval'. It does nothing while the clocker is stopped, Max's 'meaningless when the clocker is not running, since it always resets to 0 anyway when stopped'. 'clock <name>' names the YSE domain clock the beats are counted on — the same message '.metro', '.timepoint' and '.tempo' take — and a bare 'clock' gives the millisecond clock back, Max's 'sets the object back to using Max's regular millisecond clock'. Binding a clock never starts or stops anything, and never changes the unit of a run already going: which engine a run uses is settled at the toggle. Everything else does nothing, deliberately, rather than being read as some command it is not.",
+        "index": 0,
+        "label": "on/off",
+        "range": "0 or 1, bang, 'stop', 'reset', 'clock <name>'"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Sets the reporting interval, in milliseconds or in beats. A plain number is Max's milliseconds — the 'interval' attribute and the object's first creation argument — and an int, a float or a list with a leading number all set it. A note value ('4n', '4nd', '8nt') or a tick count ('1440 ticks') sets it in beats instead, counted on the domain clock a 'clock <name>' message names, and any plain number afterwards puts it back on milliseconds: Max's 'the number is the time interval, in milliseconds' is a statement about the unit. The tempo-relative form is read before the plain number, which is what stops '1440 ticks' from silently becoming 1440 milliseconds — a value wrong by whatever the tempo is, and looking like it worked. Setting the interval under a running clocker retimes without re-phasing, so the elapsed time the next report carries follows on from the last rather than jumping: the numbers are measured from the start of the run and nothing here moves that. A tempo-relative interval reaches a beat run by rebasing its grid at the current beat, keeping the phase; a millisecond one reaches a beat run only at the next start, the unit of a run being fixed at the toggle. bars.beats.units is not read at all — a bar needs a meter, and a domain clock is a bare beat accumulator.",
+        "index": 1,
+        "label": "interval",
+        "range": "1+ ms, or a note value / tick count"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".clocker",
+    "outlets": [
+      {
+        "doc": "The elapsed time in milliseconds, sent once per interval while the clocker runs. It is *measured* rather than counted: each report reads the engine's monotonic clock and subtracts the instant the run started, so a tick the OS delivered late reports the time it actually arrived at and the run never drifts away from real time. Multiplying a tick count by the interval — the obvious implementation — would report the nominal time forever and diverge a little further on every tick. This outlet carries milliseconds whether or not a clock is bound, so binding one never changes what a patch downstream is reading; the beats are a second outlet rather than a second meaning for this one. Nothing is sent while the clocker is stopped, and the first report comes one interval after the start rather than immediately: Max documents an immediate output for 'metro' and documents none here.",
+        "index": 0,
+        "label": "elapsed",
+        "range": "0+ ms",
+        "type": "INT"
+      },
+      {
+        "doc": "The same elapsed time in beats of the bound domain clock — issue #725's answer to what a '.clocker' on a clock reports, and the same two-outlet answer '.timer' gives (#506). The clock's beat position is read at the start of the run and at each report and subtracted, so a tempo change, a ramp or a pause is accounted for exactly; this is emphatically not the millisecond figure divided by a BPM number, and the two outlets are not two spellings of one value — on a domain that pauses, the milliseconds keep rising and the beats hold, and that difference is the information. Sent before the milliseconds, Max's outlets firing right to left. Nothing at all is emitted when there is no beat to report: no 'clock <name>' message, a clock nothing has created, or a standalone object with no patcher to bind through. A run that began before its clock existed starts measuring at the first report that finds one.",
+        "index": 1,
+        "label": "beats",
+        "range": "0+ beats",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "5",
+        "doc": "The reporting interval in milliseconds — Max's 'interval' attribute and the object's first creation argument, whose default Max documents as 5 ms. Floored at 1, which is the finest interval the patcher's millisecond timer keeps. Re-editing it while the clocker runs retimes the tick without re-phasing it, so the elapsed time carries on rather than jumping. Ignored while the tempo-relative interval below is set, and restored the moment a plain number clears that back to 0. Whether the clocker is running, how long it has been running, and which clock it is bound to are run-time state and are not saved.",
+        "name": "interval",
+        "range": "1+ ms"
+      },
+      {
+        "default": "0",
+        "doc": "The reporting interval in beats, for the tempo-relative unit issue #725 added, and the second creation argument. 0 means the interval is the millisecond one above, which is what a Max clocker always is; any positive value makes it a beat count on the domain clock a 'clock <name>' message names, and a note value or tick count in the right inlet overwrites it afterwards. A plain number in the right inlet clears it back to 0. A tempo-relative interval with no clock bound does not run at all, rather than falling back to a millisecond grid nobody asked for. Re-editing it while the clocker runs on a clock rebases the grid at the current beat, keeping the phase. The clock binding itself is run-time state and is not saved.",
+        "name": "intervalbeats",
+        "range": "0+ beats"
+      }
+    ]
+  },
   ".coll": {
     "category": "GENERIC",
     "description": "Stores and recalls a collection of messages held at addresses — Max's coll, 'store and edit a collection of different messages'. The general-purpose data store of Max patching: presets, note tables, mapping curves and sequences all live in one, and until this object nothing in the YSE patcher could hold more than a single value at all, so a patch that wanted a table had to spell it out as one object per entry. An address is a number or a symbol, decided by the strict reader .sel and .route share, and the two never collide — the address 1 and the address one are different entries — while numeric addresses need be neither contiguous nor in order, exactly as in Max. Entries keep storage order rather than address order, which is what makes dump, next and prev mean anything: Max sends them 'in the order in which they are stored', so a patch that stored a sequence gets that sequence back. A list whose first item is a number stores the rest of it at that address (Max's list method), a bare number or symbol recalls, a bang outputs the entry at the pointer, and store, insert, append, remove, delete, clear, length, goto, start, end, next, prev, dump, sub, nsub, nth, min, max, sort, swap, merge, separate, renumber, renumber2, assoc, deassoc, nstore and subsym are read as commands when they lead a message. Reserving those words is Max's own contract for coll and not a shortcut: this is the one object in the family whose inlet is a command inlet rather than a data inlet, which is exactly why the .prepend discipline — never reserve a word on an inlet that must carry arbitrary text — does not apply to it, and the data an entry holds is never parsed for commands. The address leaves outlet 1 only where Max sends it (bang, dump, next, prev, sub) and always before the data, which is Max's right-to-left order; outlet 2 bangs when a dump has finished and outlet 3 when a read has. The first creation argument is Max's shared name: all .coll objects of one name share their contents, through a store held weakly in the patcher's shared-name registry under '<patcherName>.<name>' — the address form .s, .r and .value already use. An unnamed .coll keeps a store of its own rather than pooling on the empty name, the traversal pointer stays per-object so two .coll objects on one name walk the collection independently, and Max's refer is not ported: it resolves a name from a message, and a name resolves under a mutex on the control thread, never on the audio callback a message handler may be running on. Max's second argument, no-search, is accepted and inert — there is no automatic hunt for a file named after the collection to suppress. sub and nsub replace the element at a 1-based position inside a stored message, nth reads one out, min and max scan an element position across every entry, sort reorders storage (stably, ascending on -1 and descending on 1, by the address when the second argument is -1 and by the nth element otherwise), swap exchanges two entries' addresses without moving their data, merge appends to what an address already holds, separate opens a numeric gap, renumber renumbers the numeric entries consecutively from the address it is given (0 by default), and renumber2 moves every numeric address at or above the one it is given (also 0 by default) up by one. assoc, deassoc, nstore and subsym are Max's symbol/number address aliasing: a numeric entry can be given a second, symbol address, and from then on any reference to that symbol is a reference to the number — a store, a remove, an nth or a bare recall all reach the entry by either name. One symbol reaches one entry, which is what keeps a lookup's answer independent of storage order, so associating a symbol that already reached another entry removes that entry, as Max's own reference says it does. The alias rides with its entry through insert, delete, renumber, renumber2 and separate, and with the address through swap; the address outlet reports the number for an entry that has both; and a plain store at an aliased address keeps the alias, which is where this departs from cyclone. read, readagain, write and writeagain move the collection through a plain-text file in Max's format, one '<address>, <message>;' record per line — an aliased entry writing both of its addresses, number first and symbol second, the order Max 5's format paragraph gives and the one cyclone writes, while a read accepts either order — and a read replaces what is held. None of that happens on the message path: a read arrives on whichever thread dispatched it, which may be the audio callback, so the request is a wait-free claim on a patcher-owned slot, the disk work runs on the background pool, and the contents are parsed in the completion the patcher delivers at the top of a later block — which is also when outlet 3 bangs. The bare forms of read and write reuse the last name given, since Max's open a file dialog and a headless patcher has none, and filetype is consumed and inert for the same reason. Records past the 256-entry bound are dropped and the rest kept, one whose address or message does not fit is skipped, and a file larger than a slot is refused whole with outlet 3 silent. The format inherits Max's one limitation: a stored message containing a comma or a semicolon cannot round-trip through a file. The contents survive a DumpJSON / ParseJSON round trip, which is Max's 'save data with patcher' and the reason pObject grew a state hook: a creation parameter is what an object was made with, not what it has since been told, so rewriting one from run-time state would quietly change the arguments a patch author typed. Every .coll on a shared name writes those contents and only the one that created the store reads them back, so a sibling does not reload identical entries over the top and a patcher loaded into an engine where the name is already live joins the running collection instead of resetting it. The pointer is not saved — it is run-time position, as .cycle's thresh and .bucket's freeze are. The store is bounded at 256 entries of at most 256 characters each, held at addresses of at most 64, and the whole table is allocated when the store is built and never resized: that bound is what makes the object real-time safe, and it is why the store is not published as a copy-on-write snapshot the way GraphState is. That model assumes the writer is the control thread, and a .coll is written by whichever thread its message arrived on — in-patcher delivery dispatches on the audio thread — so a store reaching it from a rendering graph would have to allocate a replacement table there. Bounded storage with .value's non-blocking guard gives what the mandate is after without that: nothing on any path allocates, locks or blocks, the guard is never held across a send, and a store that loses the guard drops rather than waiting. Even sort keeps that promise — the sort key of every entry is read once into a fixed array, the indices are insertion-sorted against it, and the permutation is applied by cycle-following through a single scratch entry, so no input costs more than one entry copy per entry. Anything that does not fit is refused whole and silently. Calculate() does nothing. Not ported: the editor window (open, wclose), refer, and the embed / flags save switch.",
@@ -5404,6 +5465,91 @@
     ],
     "params": []
   },
+  ".tempo": {
+    "category": "TIME",
+    "description": "Counting metronome on a named YSE domain clock — Max's tempo, and the patcher's rhythmic backbone (issue #512). '.tempo main 120 1 16' counts sixteenth notes at 120 BPM on the clock called 'main', sending 0, 1, 2 ... 15, 0, 1 ... out its outlet. Where '.metro' bangs at an interval, this emits a number, and the number is where in the cycle the tick is — which is what a '.sel', a '.route' or a '.coll' downstream needs to make a pattern rather than a pulse. The interval is Max's 4 x multiplier / division beats, division being a fraction of a whole note, and the count cycles from 0 to division - 1. There is no millisecond engine in here at all: a tempo in BPM and a note value are meaningless without a beat, and the engine's named domain clocks are the only thing in the process that has one. So the timing is read off the clock's beat position — inheriting its tempo changes, its ramps and its pauses for free, and keeping two '.tempo' objects on one clock in exact relation to each other and to every clip on that domain — and the tempo is written onto that clock rather than implemented here, which makes it rampable and, unlike Max's 5-300, never clamped. Starting the metronome asserts its tempo on the clock and begins the count at 0; stopping retires the grid and never writes the clock, because a metronome switching off must not stop every clip on the domain with it. It never creates a clock and never destroys one: '.transport' is the sole creator (issue #513), so a name nothing has claimed simply never ticks, and the run begins the moment the clock starts existing. The tick count is read off the clock's beat position rather than counted from the wakeups that deliver it — a beat deadline is armed relative to the beat it was armed at but delivered at the first audio block boundary past it, so counting deliveries would drop that overshoot every tick and run the metronome slow. bars.beats.units, quantize and Max's transport attribute stay out, all three needing a meter a bare beat accumulator does not have. Calculate() does nothing, and no message or delivery path allocates, locks or blocks when it turns out to be running on the audio callback: binding and arming are wait-free, reading a beat is two acquire loads, and the tempo is written through the patcher's clock bridge there — three atomic stores — and by name off it.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Starts, restarts and stops the metronome, and carries its three messages. Max: 'bang starts or restarts the metronome', and a float is 'non-zero acts as bang; 0 acts as stop' — compared against zero rather than cast, so 0.5 starts it where a cast to int would stop it. An int does the same, and the message 'stop' is 0 under Max's own name. Starting a metronome that is already running re-phases it: the grid is taken afresh from the beat the message landed on and the count restarts at 0, which is how one button puts several of them in step. A start also writes the object's tempo onto its clock; a stop never does, because a metronome switching off must not stop every clip on the domain with it. 'tempo <bpm>' sets the tempo, and an optional second number makes it a glide in seconds ('tempo 140 2' reaches 140 over two seconds) — YSE's domain clocks ramp, which is the one thing here Max's tempo cannot do. 'clock <name>' names the YSE domain clock the beats are counted on, the same message '.metro' and '.timepoint' take, and a bare 'clock' unbinds and stops the metronome counting: there is no millisecond fallback here, a tempo and a note value having no meaning without a beat. Everything else does nothing, deliberately, rather than being read as some command it is not.",
+        "index": 0,
+        "label": "on/off",
+        "range": "0 or 1, bang, 'stop', 'tempo <bpm> [<ramp>]', 'clock <name>'"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Sets the tempo in BPM — Max's 'sets tempo in quarter notes per minute' — which is the same value 'tempo <bpm>' sets in the left inlet, and the inlet a slider goes into. It is written onto the bound domain clock at once, so it retempos everything counting on that clock and not only this object: the tempo is the clock's, which is what binding to a domain clock rather than reimplementing tempo means. Not clamped, because a domain clock's tempo is not — Max's 5-300 range is gone; 0 pauses the clock and a negative tempo runs it backwards. With no clock bound nothing is written at all, a tempo at a clock that does not exist not being a tempo.",
+        "index": 1,
+        "label": "tempo",
+        "range": "BPM"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Sets Max's beat multiplier, which slows the output proportionally: the interval between outputs is 4 x multiplier / division beats, so a multiplier of 2 halves the rate without touching the length of the count's cycle. Floored at 1. Changing it under a running metronome rebases the grid at the current beat, keeping the phase rather than re-triggering, and the count carries on from where it stood.",
+        "index": 2,
+        "label": "multiplier",
+        "range": "1+"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Sets Max's rhythmic value — the division of a whole note the metronome ticks at, and the length of the count's cycle. 4 is a quarter note (one beat), 16 the default sixteenth, 8 an eighth. Clamped to Max's documented 1-96: unlike the tempo, a division is a shape of the grid rather than a tempo, so the range stays. Changing it under a running metronome rebases the grid at the current beat, keeping the phase, and the count carries on, wrapped into the new cycle if that shrank under it.",
+        "index": 3,
+        "label": "division",
+        "range": "1-96"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".tempo",
+    "outlets": [
+      {
+        "doc": "The tick number, cycling continuously from 0 to division - 1 — Max's 'cycles continuously from 0 to (rhythmic value - 1)'. 0 is sent the moment the metronome is started, as Max's metronomes emit on start, and one number follows every 4 x multiplier / division beats of the bound clock after that. The count is a position in the cycle rather than a tally of outputs: a domain that jumps many units in one block advances it over every unit it skipped and emits only the last few, so the number that arrives is always the right step even when the ones before it were dropped. Nothing is emitted while no clock is bound, while the clock does not exist yet, or while it is paused.",
+        "index": 0,
+        "label": "count",
+        "range": "0 to division - 1",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The domain clock the metronome counts on. Clocks are addressed by name across the whole engine, so this is the same string the host passes to createClock and the same one a '.transport <name>' drives. Empty (the default) means the object counts nothing and emits nothing. The name is bound when the object is added to a patcher — bound, not created: a clock nobody has made yet leaves the metronome waiting, and it starts when the clock appears. A 'clock <name>' message re-points the object without rewriting this, so the patch file keeps the name its author typed.",
+        "name": "clockname",
+        "range": ""
+      },
+      {
+        "default": "120",
+        "doc": "The tempo in BPM the metronome asserts on its clock. Written when the metronome is started and whenever it is set through the left inlet's 'tempo' message or the tempo inlet; never written at creation, and never on a stop. Not clamped, a domain clock's tempo not being clamped either — Max's 5-300 range is gone, 0 pauses the clock and a negative value runs it backwards. On a clock something else also drives, the last write wins: a '.tempo' meant only to subdivide a pulse a '.transport' sets should be left alone rather than started with a tempo of its own.",
+        "name": "tempo",
+        "range": "BPM"
+      },
+      {
+        "default": "1",
+        "doc": "Max's beat multiplier. The interval between outputs is 4 x multiplier / division beats, so a higher multiplier slows the output proportionally without changing the length of the count's cycle. Floored at 1.",
+        "name": "multiplier",
+        "range": "1+"
+      },
+      {
+        "default": "16",
+        "doc": "Max's rhythmic value: the division of a whole note the metronome ticks at, and the length of the count's cycle. 4 is a quarter note — one beat on a domain clock — 8 an eighth and 16 the default sixteenth. Clamped to Max's documented 1-96, a division being a shape of the grid rather than a tempo.",
+        "name": "division",
+        "range": "1-96"
+      }
+    ]
+  },
   ".text": {
     "category": "GUI",
     "description": "Text label. Holds a string parameter for display; no inlets, no outlets — purely a visual annotation.",
@@ -5467,6 +5613,104 @@
         "doc": "Max's filename argument, which 'names a text file to be read in when the object is loaded'. The first argument token is taken as the name. It is held and it survives a save, so a '.textfile mydata.txt' brought across from Max builds the object it names and the argument the author typed comes back unchanged. It is also read when the object joins a patcher, which is where 'when the object is loaded' happens here, and it seeds the name a bare 'read' or 'write' falls back on — so a bare 'write' saves back over the file the object is named after (issue #687). A standalone object with no patcher has no file plumbing and reads nothing. Setting the parameters again also empties the contents, since the object that comes back is the one the arguments describe.",
         "name": "filename",
         "range": "any filename"
+      }
+    ]
+  },
+  ".timepoint": {
+    "category": "TIME",
+    "description": "Bangs when a named YSE domain clock reaches a beat position — Max's timepoint, and the patcher's first absolute point on a musical timeline (issue #507). '.timepoint main 128' watches the clock called 'main' and bangs when it reads 128. Where '.delay' and '.metro' measure time from now, this object names a moment: 'at beat 128, change the patch' is arranged, score-like behaviour, and it is what lets a generative patch have a form rather than only a texture. The clock is one of the engine's named domain clocks — the same ones the host addresses through yse_system_create_clock / beatPosition, the same one a clip transport plays on, and the same one a '.transport main' drives — so the position is measured on the tempo the whole domain shares, and a tempo change, a ramp or a pause is inherited for free: the target arrives sooner, later, smoothly, or never. The name is the creation argument and 'clock <name>' re-points it. This object never creates a clock and never destroys one: '.transport' is the sole creator (issue #513), so a name nothing has claimed simply never comes due until something claims it, and the object starts watching the moment its clock starts existing. Reaching the time is a crossing and not a condition — the object bangs on the way past its target and is then spent, and a target already in the past when the object is armed never bangs at all, because a patch loaded while the clock stands at bar 40 must not fire its whole score in one block. A new time value, 'active 1' or a new clock arms it again. The position is in beats: a domain clock is a bare beat accumulator with no origin and no meter, so bars.beats.units and quantize stay out, as they do on '.metro' and '.transport'. Calculate() does nothing, and no path allocates, locks or blocks when it turns out to be running on the audio callback — binding and arming are wait-free, reading a beat is two acquire loads, and the object never touches the clock manager's mutex at all, creating no clock being the reason it never has to.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Sets the beat position to bang at, and carries the object's two messages. An int or a float is a new time value — Max's 'sets the time value at which timepoint will send a bang' — and always re-arms, so handing a spent timepoint a number puts it back to work. 'clock <name>' names the YSE domain clock the position is measured on, the same message '.metro' takes, and a bare 'clock' unbinds and stops the object watching. 'active 0' disarms the object and 'active 1' arms it again from wherever the clock now stands, which is Max's active attribute. Everything else does nothing, deliberately, rather than being read as some command it is not: there is no 'seek', no bars.beats.units and no quantize, all three needing an origin or a meter a YSE domain clock does not have.",
+        "index": 0,
+        "label": "time",
+        "range": "beats, 'clock <name>', 'active 0|1'"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".timepoint",
+    "outlets": [
+      {
+        "doc": "Bang, once, when the clock reaches the time. Reaching it is a crossing rather than a condition: the object bangs on the way past its target and is then spent, and a target that is already in the past when the object is armed never bangs at all — the moment happened before anything was watching, and a domain clock has no rewind to bring it round again. A new time value, 'active 1' or a new clock arms it afresh. Nothing is emitted while the named clock does not exist, while it is paused short of the target, or while the object is inactive.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The domain clock the beat position is measured on. Clocks are addressed by name across the whole engine, so this is the same string the host passes to createClock and the same one a '.transport <name>' drives. Empty (the default) means the object watches nothing and bangs never. The name is bound when the object is added to a patcher — bound, not created: a clock nobody has made yet leaves the object waiting, and it starts watching when the clock appears. A 'clock <name>' message re-points the object without rewriting this, so the patch file keeps the name its author typed.",
+        "name": "clockname",
+        "range": ""
+      },
+      {
+        "default": "0",
+        "doc": "The beat position to bang at, on the clock named above. Beats and not bars.beats.units: a domain clock is a bare beat accumulator with no meter to name a bar in and no origin to count one from. Setting it — here or through the inlet — always re-arms the object, and a value the clock has already passed leaves it spent rather than banging at once.",
+        "name": "time",
+        "range": "beats"
+      },
+      {
+        "default": "1",
+        "doc": "Whether the object is watching at all — Max's active attribute. 0 arms nothing and bangs never; 1 is the default. 'active 1' on a spent or disarmed object arms it afresh from wherever the clock now stands, which is the supported way to re-use a timepoint that has already fired.",
+        "name": "active",
+        "range": "0 or 1"
+      }
+    ]
+  },
+  ".timer": {
+    "category": "TIME",
+    "description": "Reports the elapsed time between two events — Max's timer, and the first patcher object that consumes time rather than producing it (issue #506). A bang in the left inlet marks the start, a bang in the right sends the interval since that mark: the tempo of a tapped-in beat, the length of a gesture, how long a note was held. The right inlet measures rather than stops — the mark stays put, so banging it repeatedly gives split times from the one start — and a report before any start emits nothing, there being no interval between one event and no event. The milliseconds are measured, never counted: both events read the engine's monotonic clock (std::chrono::steady_clock, the same source the patcher's timer thread schedules on), so a '.metro' tick that the OS delivered late is timed at the instant it really arrived. The second outlet reports the same interval in beats of a YSE domain clock named by the creation argument ('.timer main'), which is what Max's own right outlet does against his transport: the beat position is read at each event and subtracted, so a tempo change or a ramp between them is accounted for exactly rather than being papered over by dividing milliseconds by a BPM figure. The beats outlet stays silent when there is no clock to read. This object never creates a clock and never destroys one — '.transport' is the sole creator (issue #513) — so a name nobody has claimed simply has no beats until something claims it. Max's 'clock <name>' message stays out because it names a setclock, an alternative millisecond clock YSE does not have, and reusing the word for the beat domain would give a Max message a different meaning in a patch that looks like Max's; the format attribute stays out with it, the two units this object has being spelled by its two outlets. Calculate() does nothing, and neither inlet allocates, locks or blocks when it turns out to be running on the audio callback: the clock is read through the patcher's bridge there, which is two acquire loads, and by name only off it.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG"
+        ],
+        "doc": "A bang marks the first of the two events — Max's 'in left inlet: starts or restarts the timer'. It takes the instant it arrived at and the bound clock's beat position at that same instant, and everything the right inlet later reports is measured from there. Banging it again simply moves the mark, so a timer is re-used by re-starting it rather than by being cleared. Nothing is emitted here: an interval needs two events and this is one of them.",
+        "index": 0,
+        "label": "start",
+        "range": "bang"
+      },
+      {
+        "accepts": [
+          "BANG"
+        ],
+        "doc": "A bang marks the second event and sends the interval — Max's 'in right inlet: sends out the time elapsed since the timer was started'. It *measures* rather than stops: the mark stays where the left inlet put it, so banging this inlet again reports a larger interval from the same start, which is how split times are taken. A bang before the timer has ever been started emits nothing at all, there being no interval between one event and no event.",
+        "index": 1,
+        "label": "report",
+        "range": "bang"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".timer",
+    "outlets": [
+      {
+        "doc": "The interval between the two events, in milliseconds. It is measured rather than counted: both events read the engine's monotonic clock (std::chrono::steady_clock, the same source the patcher's timer thread schedules on and the same one the engine times its own ticks with) and the reading is their difference, so a bang that the OS delivered late is timed at the instant it really arrived and the figure never disagrees with the events that produced it. Sent after the beats outlet, which is Max's right-to-left outlet order.",
+        "index": 0,
+        "label": "ms",
+        "range": "0+ ms",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The same interval expressed in beats of the domain clock named by the creation argument — issue #506's 'second outlet reporting the interval in beats against a bound domain clock', and what Max's own right outlet does against his transport. The clock's beat position is read at each of the two events and subtracted, so a tempo change, a ramp or a pause between them is accounted for exactly; this is emphatically not the millisecond figure divided by a BPM number, and the two outlets are not two spellings of one value. Sent first, Max's outlets firing right to left. Nothing at all is emitted when there is no beat to report: no creation argument, a clock nothing has created, or a clock that only appeared after the timer was started and so has no baseline in this interval.",
+        "index": 1,
+        "label": "beats",
+        "range": "beats",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The domain clock the beats outlet measures against — YSE's answer to Max's transport attribute. Clocks are addressed by name across the whole engine, so this is the same string the host passes to createClock and the same one a '.transport <name>' drives. Empty (the default) leaves the beats outlet silent and the object a pure millisecond timer. The name is bound when the object is added to a patcher — bound, not created: a clock nobody has made yet leaves the beats outlet quiet, and it starts reporting once the clock exists and a fresh start has a beat position to measure from. There is no message to re-point it, deliberately: Max's 'clock' word names a setclock and not a transport, and '.transport' sets the same precedent of reading its clock name once.",
+        "name": "clockname",
+        "range": ""
       }
     ]
   },
@@ -5552,6 +5796,72 @@
         "doc": "The separator tokens are joined with. One token, at most 16 characters; a longer one is reported and ignored. With no argument at all it is a single space, Max's default, which leaves the token structure alone and converts only the type.",
         "name": "separator",
         "range": "one token, at most 16 characters"
+      }
+    ]
+  },
+  ".transport": {
+    "category": "TIME",
+    "description": "Controls one of YSE's named domain clocks from inside the patcher — Max's transport, and the object that connects a patch to the engine's polytemporal clock system (issue #513). The creation argument names the clock: '.transport main 120' controls the clock called 'main' and runs it at 120 BPM when started. That is the same clock yse_system_create_clock / setTempo / beatPosition address from the host, the same one a clip transport plays on, and the same one a '.metro clock main' counts its beats on — so a patch and its host are two hands on one lever, and every object bound to that name follows both. There is no tempo implementation here: start and stop are tempo writes onto the engine's clock (a domain clock has no run flag — tempo 0 is what 'paused' means), and the reported position is the clock's own beat count. Ownership is deliberate and narrow: the object creates the named clock if nobody has yet, on the control thread when it is added to a patcher, and creates it *stopped* so that dropping a transport into a patch never starts anything; a clock the host already made is left exactly as it is, first registration winning. It never destroys a clock — not on delete, not on a rename — because a remote control that unplugged the studio clock would take every other object bound to that name with it; teardown belongs to the host's destroyClock or System::close. A transport with no creation argument controls nothing at all and says so by doing nothing — a bang with no clock to read emits nothing rather than a zero that would look like a real position — and one that is not in a patcher creates and binds nothing. Calculate() does nothing, and no message handler allocates, locks or blocks when it turns out to be running on the audio callback: the clock is written through the patcher's clock bridge there, which is three atomic stores, and by name off it.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Starts and stops the clock, and reports where it stands. A non-zero int or float starts it, 0 stops it, and the messages 'start' and 'stop' are the same two under Max's own names. 'tempo <bpm>' sets the tempo the transport runs at, and an optional second number makes it a glide in seconds ('tempo 140 2' reaches 140 over two seconds) — YSE's domain clocks ramp, which is the one thing here Max's transport cannot do. A tempo sent while the transport is stopped is remembered for the next start rather than obeyed, so setting a tempo never starts anything. A bang reports the clock's current beat position out the left outlet and its current tempo out the right one, right outlet first; a bang with no clock to read emits nothing at all rather than a zero that would look like a real position. There is no 'seek' and no bars.beats.units: a YSE domain clock is a bare beat accumulator, so 'stop' is a pause that holds the beat where it stands and 'start' carries on from there.",
+        "index": 0,
+        "label": "control",
+        "range": "0 or 1, bang, 'start', 'stop', 'tempo <bpm> [<ramp>]'"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Sets the tempo in BPM, which is the same value 'tempo <bpm>' sets in the left inlet — the inlet a slider goes into. It takes effect at once while the transport is running and is remembered for the next start while it is stopped. The glide set by 'tempo <bpm> <ramp>' applies here too, so a transport given a ramp keeps gliding to every tempo it is handed. Tempo is not clamped, because a domain clock's is not: 0 pauses the clock and a negative tempo runs it backwards.",
+        "index": 1,
+        "label": "tempo",
+        "range": "BPM"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".transport",
+    "outlets": [
+      {
+        "doc": "The clock's current beat position, on bang. Beats are the running integral of tempo, so this only ever moves forward while the tempo is positive and holds while the clock is stopped. Nothing is emitted when there is no clock to read.",
+        "index": 0,
+        "label": "beat",
+        "range": "",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The clock's current tempo in BPM, on bang, sent before the beat position so the pair arrives right to left as Max orders outlets. This is the clock's tempo and not the transport's wanted one, so it shows a ramp in progress and it shows a tempo the host changed behind the transport's back.",
+        "index": 1,
+        "label": "tempo",
+        "range": "BPM",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The domain clock this transport controls. Clocks are addressed by name across the whole engine, so this is the same string the host passes to createClock and the same one a '.metro clock <name>' binds. Empty (the default) means the object controls nothing: it creates no clock, binds nothing, and every command is a no-op. The name is read once when the object is added to a patcher; re-pointing a transport at another clock is a re-create, which is what keeps clock creation on the control thread.",
+        "name": "clockname",
+        "range": ""
+      },
+      {
+        "default": "120",
+        "doc": "The tempo in BPM the transport runs its clock at. Written to the clock on every start and on every change while running; remembered rather than applied while stopped. Not clamped, a domain clock's tempo not being clamped either — 0 pauses and a negative value runs the clock backwards.",
+        "name": "tempo",
+        "range": "BPM"
+      },
+      {
+        "default": "0",
+        "doc": "Seconds every tempo write glides over, 0 being instant. This is domainClock's rampable tempo, which is what lets a patch accelerando rather than jump; it applies to a start and to any tempo change while running. A stop is always instant whatever this says — a stop that glided to a halt would be a fade-out nobody asked for.",
+        "name": "ramp",
+        "range": "0+ seconds"
       }
     ]
   },

@@ -128,6 +128,25 @@ bool clockBridge::Beat(Handle handle, double& beat) const {
   return true;
 }
 
+bool clockBridge::Tempo(Handle handle, float& bpm) const {
+  if (handle == 0 || handle > CAPACITY) return false;
+  const CLOCK::domainClock* clock = entries_[handle - 1].clock.load(std::memory_order_acquire);
+  if (clock == nullptr) return false;
+  bpm = clock->currentTempo();
+  return true;
+}
+
+bool clockBridge::RequestTempo(Handle handle, float bpm, float rampSeconds) {
+  if (handle == 0 || handle > CAPACITY) return false;
+  CLOCK::domainClock* clock = entries_[handle - 1].clock.load(std::memory_order_acquire);
+  if (clock == nullptr) return false;
+  // Three atomic stores into the clock's request slot; the clock consumes them
+  // on its next `update`. No lock, no allocation — which is what makes this the
+  // route a message handler that turns out to be on the audio callback takes.
+  clock->requestTempo(bpm, rampSeconds);
+  return true;
+}
+
 double clockBridge::ResolveBeat(Handle handle) const {
   if (handle == 0 || handle > CAPACITY) return 0.0;
   const Entry& e = entries_[handle - 1];

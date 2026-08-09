@@ -220,8 +220,13 @@ set(YSE_SRCS
   patcher/pRegistry.cpp
   patcher/io/fileScheduler.cpp
   patcher/time/clockBridge.cpp
+  patcher/time/gClocker.cpp
   patcher/time/gDelay.cpp
   patcher/time/gMetro.cpp
+  patcher/time/gTempo.cpp
+  patcher/time/gTimepoint.cpp
+  patcher/time/gTimer.cpp
+  patcher/time/gTransport.cpp
   patcher/time/messageScheduler.cpp
   patcher/time/TimerThread.cpp
   patcher/time/timerBridge.cpp
@@ -442,8 +447,13 @@ set_source_files_properties(
   patcher/midi/mMidiProgramChange.cpp
   patcher/io/fileScheduler.cpp
   patcher/time/clockBridge.cpp
+  patcher/time/gClocker.cpp
   patcher/time/gDelay.cpp
   patcher/time/gMetro.cpp
+  patcher/time/gTempo.cpp
+  patcher/time/gTimepoint.cpp
+  patcher/time/gTimer.cpp
+  patcher/time/gTransport.cpp
   patcher/time/messageScheduler.cpp
   patcher/time/timerBridge.cpp
   PROPERTIES COMPILE_FLAGS "${PATCHER_SUPPRESS}"

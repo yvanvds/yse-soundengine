@@ -61,8 +61,13 @@
 #include "guiObjects/gList.h"
 #include "guiObjects/gText.h"
 
+#include "time/gClocker.h"
 #include "time/gDelay.h"
 #include "time/gMetro.h"
+#include "time/gTempo.h"
+#include "time/gTimepoint.h"
+#include "time/gTimer.h"
+#include "time/gTransport.h"
 
 #include "math/dAdd.h"
 #include "math/dClip.h"
@@ -457,6 +462,27 @@ pRegistry::pRegistry() {
   // Delay a bang — the patcher's most basic scheduling primitive, and the first
   // object that can defer anything at all (issue #503)
   Add(OBJ::G_DELAY, gDelay::Create);
+
+  // Control a named domain clock from inside the patcher — the object that
+  // connects a patch to the engine's polytemporal clock system (issue #513)
+  Add(OBJ::G_TRANSPORT, gTransport::Create);
+
+  // Bang when a named domain clock reaches a beat position — the patcher's
+  // first absolute point on a musical timeline (issue #507)
+  Add(OBJ::G_TIMEPOINT, gTimepoint::Create);
+
+  // Count out a musical subdivision of a named domain clock — a metronome that
+  // says *where* in the cycle each tick is, not only that one happened (#512)
+  Add(OBJ::G_TEMPO, gTempo::Create);
+
+  // Report the elapsed time at a regular interval — a metronome that says how
+  // long it has been running, measured rather than tallied (issue #505)
+  Add(OBJ::G_CLOCKER, gClocker::Create);
+
+  // Report the elapsed time between two events — the input side of anything
+  // rhythm-aware, and the first timing object that consumes time rather than
+  // producing it (issue #506)
+  Add(OBJ::G_TIMER, gTimer::Create);
 
   Add(OBJ::MIDITOFREQUENCY, pMidiToFrequency::Create);
   Add(OBJ::FREQUENCYTOMIDI, pFrequencyToMidi::Create);
