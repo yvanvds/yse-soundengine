@@ -67,6 +67,7 @@
 #include "time/gPipe.h"
 #include "time/gRateLimit.h"
 #include "time/gTempo.h"
+#include "time/gThresh.h"
 #include "time/gTimepoint.h"
 #include "time/gTimer.h"
 #include "time/gTransport.h"
@@ -475,6 +476,13 @@ pRegistry::pRegistry() {
   // (issue #508)
   Add(OBJ::G_SPEEDLIM, gSpeedlim::Create);
   Add(OBJ::G_QLIM, gQlim::Create);
+
+  // Group the values that arrive close together into one list — the two answers
+  // to "when is a group over": .thresh closes it on a gap in the input,
+  // .quickthresh on a fixed window from the first value, which is what chord
+  // detection needs (issue #509)
+  Add(OBJ::G_THRESH, gThresh::Create);
+  Add(OBJ::G_QUICKTHRESH, gQuickthresh::Create);
 
   // Control a named domain clock from inside the patcher — the object that
   // connects a patch to the engine's polytemporal clock system (issue #513)

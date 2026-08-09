@@ -226,6 +226,7 @@ set(YSE_SRCS
   patcher/time/gPipe.cpp
   patcher/time/gRateLimit.cpp
   patcher/time/gTempo.cpp
+  patcher/time/gThresh.cpp
   patcher/time/gTimepoint.cpp
   patcher/time/gTimer.cpp
   patcher/time/gTransport.cpp
@@ -455,6 +456,7 @@ set_source_files_properties(
   patcher/time/gPipe.cpp
   patcher/time/gRateLimit.cpp
   patcher/time/gTempo.cpp
+  patcher/time/gThresh.cpp
   patcher/time/gTimepoint.cpp
   patcher/time/gTimer.cpp
   patcher/time/gTransport.cpp
