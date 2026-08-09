@@ -34,7 +34,8 @@ namespace YSE {
    *  - DSP filters: ``D_LOWPASS``, ``D_HIGHPASS``, ``D_BANDPASS``, ``D_VCF``.
    *  - I/O: ``D_DAC``, ``D_ADC``, ``D_LINE``.
    *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_RANDOM``.
-   *  - Timing: ``G_METRO``, ``G_DELAY``, ``G_TRANSPORT``, ``G_TIMEPOINT``.
+   *  - Timing: ``G_METRO``, ``G_DELAY``, ``G_TRANSPORT``, ``G_TIMEPOINT``,
+   *    ``G_TEMPO``.
    *  - Registers: ``G_COUNTER``, ``G_ACCUM``.
    *  - Randomness: ``G_RANDOM``, ``G_DRUNK``, ``G_URN``, ``G_DECIDE``,
    *    ``G_PROB``, ``G_ANAL``, ``G_HISTO``.
@@ -207,6 +208,7 @@ namespace YSE {
     DEFOBJ(G_DELAY, ".delay");
     DEFOBJ(G_TRANSPORT, ".transport");
     DEFOBJ(G_TIMEPOINT, ".timepoint");
+    DEFOBJ(G_TEMPO, ".tempo");
 
     DEFOBJ(D_ADD, "~+");
     DEFOBJ(D_SUBSTRACT, "~-");

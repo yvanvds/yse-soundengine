@@ -63,6 +63,7 @@
 
 #include "time/gDelay.h"
 #include "time/gMetro.h"
+#include "time/gTempo.h"
 #include "time/gTimepoint.h"
 #include "time/gTransport.h"
 
@@ -467,6 +468,10 @@ pRegistry::pRegistry() {
   // Bang when a named domain clock reaches a beat position — the patcher's
   // first absolute point on a musical timeline (issue #507)
   Add(OBJ::G_TIMEPOINT, gTimepoint::Create);
+
+  // Count out a musical subdivision of a named domain clock — a metronome that
+  // says *where* in the cycle each tick is, not only that one happened (#512)
+  Add(OBJ::G_TEMPO, gTempo::Create);
 
   Add(OBJ::MIDITOFREQUENCY, pMidiToFrequency::Create);
   Add(OBJ::FREQUENCYTOMIDI, pFrequencyToMidi::Create);

@@ -5404,6 +5404,91 @@
     ],
     "params": []
   },
+  ".tempo": {
+    "category": "TIME",
+    "description": "Counting metronome on a named YSE domain clock — Max's tempo, and the patcher's rhythmic backbone (issue #512). '.tempo main 120 1 16' counts sixteenth notes at 120 BPM on the clock called 'main', sending 0, 1, 2 ... 15, 0, 1 ... out its outlet. Where '.metro' bangs at an interval, this emits a number, and the number is where in the cycle the tick is — which is what a '.sel', a '.route' or a '.coll' downstream needs to make a pattern rather than a pulse. The interval is Max's 4 x multiplier / division beats, division being a fraction of a whole note, and the count cycles from 0 to division - 1. There is no millisecond engine in here at all: a tempo in BPM and a note value are meaningless without a beat, and the engine's named domain clocks are the only thing in the process that has one. So the timing is read off the clock's beat position — inheriting its tempo changes, its ramps and its pauses for free, and keeping two '.tempo' objects on one clock in exact relation to each other and to every clip on that domain — and the tempo is written onto that clock rather than implemented here, which makes it rampable and, unlike Max's 5-300, never clamped. Starting the metronome asserts its tempo on the clock and begins the count at 0; stopping retires the grid and never writes the clock, because a metronome switching off must not stop every clip on the domain with it. It never creates a clock and never destroys one: '.transport' is the sole creator (issue #513), so a name nothing has claimed simply never ticks, and the run begins the moment the clock starts existing. The tick count is read off the clock's beat position rather than counted from the wakeups that deliver it — a beat deadline is armed relative to the beat it was armed at but delivered at the first audio block boundary past it, so counting deliveries would drop that overshoot every tick and run the metronome slow. bars.beats.units, quantize and Max's transport attribute stay out, all three needing a meter a bare beat accumulator does not have. Calculate() does nothing, and no message or delivery path allocates, locks or blocks when it turns out to be running on the audio callback: binding and arming are wait-free, reading a beat is two acquire loads, and the tempo is written through the patcher's clock bridge there — three atomic stores — and by name off it.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Starts, restarts and stops the metronome, and carries its three messages. Max: 'bang starts or restarts the metronome', and a float is 'non-zero acts as bang; 0 acts as stop' — compared against zero rather than cast, so 0.5 starts it where a cast to int would stop it. An int does the same, and the message 'stop' is 0 under Max's own name. Starting a metronome that is already running re-phases it: the grid is taken afresh from the beat the message landed on and the count restarts at 0, which is how one button puts several of them in step. A start also writes the object's tempo onto its clock; a stop never does, because a metronome switching off must not stop every clip on the domain with it. 'tempo <bpm>' sets the tempo, and an optional second number makes it a glide in seconds ('tempo 140 2' reaches 140 over two seconds) — YSE's domain clocks ramp, which is the one thing here Max's tempo cannot do. 'clock <name>' names the YSE domain clock the beats are counted on, the same message '.metro' and '.timepoint' take, and a bare 'clock' unbinds and stops the metronome counting: there is no millisecond fallback here, a tempo and a note value having no meaning without a beat. Everything else does nothing, deliberately, rather than being read as some command it is not.",
+        "index": 0,
+        "label": "on/off",
+        "range": "0 or 1, bang, 'stop', 'tempo <bpm> [<ramp>]', 'clock <name>'"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Sets the tempo in BPM — Max's 'sets tempo in quarter notes per minute' — which is the same value 'tempo <bpm>' sets in the left inlet, and the inlet a slider goes into. It is written onto the bound domain clock at once, so it retempos everything counting on that clock and not only this object: the tempo is the clock's, which is what binding to a domain clock rather than reimplementing tempo means. Not clamped, because a domain clock's tempo is not — Max's 5-300 range is gone; 0 pauses the clock and a negative tempo runs it backwards. With no clock bound nothing is written at all, a tempo at a clock that does not exist not being a tempo.",
+        "index": 1,
+        "label": "tempo",
+        "range": "BPM"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Sets Max's beat multiplier, which slows the output proportionally: the interval between outputs is 4 x multiplier / division beats, so a multiplier of 2 halves the rate without touching the length of the count's cycle. Floored at 1. Changing it under a running metronome rebases the grid at the current beat, keeping the phase rather than re-triggering, and the count carries on from where it stood.",
+        "index": 2,
+        "label": "multiplier",
+        "range": "1+"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Sets Max's rhythmic value — the division of a whole note the metronome ticks at, and the length of the count's cycle. 4 is a quarter note (one beat), 16 the default sixteenth, 8 an eighth. Clamped to Max's documented 1-96: unlike the tempo, a division is a shape of the grid rather than a tempo, so the range stays. Changing it under a running metronome rebases the grid at the current beat, keeping the phase, and the count carries on, wrapped into the new cycle if that shrank under it.",
+        "index": 3,
+        "label": "division",
+        "range": "1-96"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".tempo",
+    "outlets": [
+      {
+        "doc": "The tick number, cycling continuously from 0 to division - 1 — Max's 'cycles continuously from 0 to (rhythmic value - 1)'. 0 is sent the moment the metronome is started, as Max's metronomes emit on start, and one number follows every 4 x multiplier / division beats of the bound clock after that. The count is a position in the cycle rather than a tally of outputs: a domain that jumps many units in one block advances it over every unit it skipped and emits only the last few, so the number that arrives is always the right step even when the ones before it were dropped. Nothing is emitted while no clock is bound, while the clock does not exist yet, or while it is paused.",
+        "index": 0,
+        "label": "count",
+        "range": "0 to division - 1",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The domain clock the metronome counts on. Clocks are addressed by name across the whole engine, so this is the same string the host passes to createClock and the same one a '.transport <name>' drives. Empty (the default) means the object counts nothing and emits nothing. The name is bound when the object is added to a patcher — bound, not created: a clock nobody has made yet leaves the metronome waiting, and it starts when the clock appears. A 'clock <name>' message re-points the object without rewriting this, so the patch file keeps the name its author typed.",
+        "name": "clockname",
+        "range": ""
+      },
+      {
+        "default": "120",
+        "doc": "The tempo in BPM the metronome asserts on its clock. Written when the metronome is started and whenever it is set through the left inlet's 'tempo' message or the tempo inlet; never written at creation, and never on a stop. Not clamped, a domain clock's tempo not being clamped either — Max's 5-300 range is gone, 0 pauses the clock and a negative value runs it backwards. On a clock something else also drives, the last write wins: a '.tempo' meant only to subdivide a pulse a '.transport' sets should be left alone rather than started with a tempo of its own.",
+        "name": "tempo",
+        "range": "BPM"
+      },
+      {
+        "default": "1",
+        "doc": "Max's beat multiplier. The interval between outputs is 4 x multiplier / division beats, so a higher multiplier slows the output proportionally without changing the length of the count's cycle. Floored at 1.",
+        "name": "multiplier",
+        "range": "1+"
+      },
+      {
+        "default": "16",
+        "doc": "Max's rhythmic value: the division of a whole note the metronome ticks at, and the length of the count's cycle. 4 is a quarter note — one beat on a domain clock — 8 an eighth and 16 the default sixteenth. Clamped to Max's documented 1-96, a division being a shape of the grid rather than a tempo.",
+        "name": "division",
+        "range": "1-96"
+      }
+    ]
+  },
   ".text": {
     "category": "GUI",
     "description": "Text label. Holds a string parameter for display; no inlets, no outlets — purely a visual annotation.",
