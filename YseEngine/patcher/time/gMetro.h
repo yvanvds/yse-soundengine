@@ -5,6 +5,7 @@
 #include "TimerThread.h"
 #include "clockBridge.h"
 #include "messageScheduler.h"
+#include "timerBridge.h"
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -19,10 +20,12 @@ namespace YSE {
      *  ### Two clocks, and which one a metro runs on
      *
      *  Milliseconds run on ``timerThread`` — a real OS timer, the object's
-     *  original and unchanged engine. A metronome's bang genuinely *is* an
-     *  unrelated stimulus (nothing caused it), which is what lets this object
-     *  use a timer where ``.delay`` may not: see ``gDelay.h`` on why a delayed
-     *  bang has to stay inside the patcher's dispatch.
+     *  original engine, reached since #718 through ``timerBridge`` so that
+     *  arming and disarming it is safe from a handler that turns out to be on
+     *  the audio callback. A metronome's bang genuinely *is* an unrelated
+     *  stimulus (nothing caused it), which is what lets this object use a timer
+     *  where ``.delay`` may not: see ``gDelay.h`` on why a delayed bang has to
+     *  stay inside the patcher's dispatch.
      *
      *  Beats run on the patcher's deferred-message scheduler against a bound
      *  ``CLOCK::domainClock``, because that is the only clock in the process
@@ -185,14 +188,32 @@ namespace YSE {
      *  two acquire loads, and the grid is guarded by ``.value``'s non-blocking
      *  ``busy`` exchange, whose loser does nothing rather than waiting.
      *
-     *  The **millisecond** engine is not clean and never was: ``TimerThread``'s
-     *  ``Add`` allocates a ``std::function`` and takes a mutex and
-     *  ``ClearTimer`` can block on an in-flight callback, all of it on whichever
-     *  thread toggled the metro — which may be the audio callback, a ``.delay``
-     *  wired into this inlet being enough. That is tracked as #718, filed rather
-     *  than fixed here because the fix is a decision about what this object's
-     *  millisecond clock *is*; #711 adds three more ways to reach a path that
-     *  ``int`` has always reached.
+     *  The **millisecond** engine was not clean until #718. Every one of
+     *  ``timerThread``'s entry points is forbidden on the audio callback —
+     *  ``Add`` takes a mutex and allocates two container nodes plus the caller's
+     *  ``std::function``, ``SetPeriod`` takes the same mutex, and
+     *  ``ClearTimer`` blocks on a condition variable until an in-flight callback
+     *  returns — and every one of them was reached straight from a message
+     *  handler, which runs on whichever thread dispatched: a ``.delay`` wired
+     *  into this left inlet is enough, since its delivery is the first thing
+     *  ``patcherImplementation::Calculate`` does. The fault is as old as the
+     *  object; #711 only added three more spellings of a toggle ``int`` has
+     *  always had.
+     *
+     *  The engine is unchanged — a millisecond metro is still a real OS timer,
+     *  still ticking while the engine is paused, still at millisecond and not
+     *  block resolution. What changed is who calls ``timerThread``:
+     *  ``timerBridge`` holds one slot per metro, a start / stop / retime writes
+     *  wanted state into it, and the reconcile happens **on the background pool
+     *  when the handler is on the audio callback and inline when it is not**.
+     *  Which of the two, this object decides for itself from
+     *  ``patcherImplementation::CallingThread`` (#690) rather than from the
+     *  ``THREAD`` tag, because the tag is dispatch semantics and not thread
+     *  identity — and the tag it was handed travels on unaltered. So a toggle
+     *  from the control thread keeps exactly the timing and the exact
+     *  stop-means-stopped handshake it always had, and one from the audio
+     *  callback costs a pool hop before the *second* bang; the first is Max's
+     *  immediate one and is never deferred.
      */
     PATCHER_CLASS(gMetro, YSE::OBJ::G_METRO)
     _NO_MESSAGES
@@ -272,9 +293,26 @@ namespace YSE {
       bool held_;
     };
 
+    // What the timer calls. A free function and a context rather than a
+    // `std::function` because building one of those is an allocation, and the
+    // thread that asks for a timer may be the audio callback (issue #718).
+    static void BangTrampoline(void* ctx);
+
+    // Whether the handler currently running is on the audio callback, which is
+    // the question a `THREAD` tag cannot answer — see the header. False for a
+    // standalone object, which has no patcher to ask and is never rendered.
+    bool OnAudioThread(YSE::THREAD thread) const;
+
+    // Start / stop the millisecond timer, deferring the `timerThread` call to
+    // the background pool when this handler is on the audio callback and making
+    // it inline when it is not (issue #718).
+    void StartMillis(timerThread::millisec ms, YSE::THREAD thread);
+    void StopMillis(YSE::THREAD thread);
+
     // Push the current `period` onto the running timer, if any. No-op when the
-    // metro is stopped or the interval has not moved (issue #625).
-    void ApplyPeriod();
+    // interval has not moved (issue #625). `thread` picks the mechanism the way
+    // StartMillis does.
+    void ApplyPeriod(YSE::THREAD thread);
 
     // `period` clamped to the documented 1+ ms range, in the timer's unit.
     timerThread::millisec Interval() const;
@@ -287,7 +325,7 @@ namespace YSE {
     void SetClock(const char* name, std::size_t length);
 
     // Stop whichever engine is running, both of them being idempotent to stop.
-    void StopRun();
+    void StopRun(YSE::THREAD thread);
 
     // Begin a run on the bound domain clock: take the baseline, arm the first
     // wakeup, and bang. `bound` is non-zero and `PeriodBeats()` positive.
@@ -321,15 +359,18 @@ namespace YSE {
     // Atomic because a `clock` message and a wakeup are not on the same thread.
     std::atomic<clockBridge::Handle> binding{0};
 
-    // Written by the toggle inlet on the control thread, read by Bang() on the
-    // timer thread — atomic so the live reschedule is not a data race. Ids are
-    // handed out monotonically and never recycled, so a stale id read here can
-    // only miss, never hit the wrong timer.
-    std::atomic<timerThread::timerID> id;
+    // This object's slot in the process-wide timer bridge (issue #718), or 0
+    // when the table was full. Taken in the constructor and given back in the
+    // destructor, and never written in between, so no thread synchronisation is
+    // needed to read it. The millisecond run's whole state — armed or not, at
+    // which period, since which start — lives in that slot rather than here,
+    // because the slot has to outlive this object: it is what a reconcile job
+    // already on the background pool addresses.
+    timerBridge::Handle timerSlot = 0;
 
     // Whether this run is on the domain clock rather than on the timer. The
-    // millisecond run has `id` for the same job; a beat run needs its own flag
-    // because a wakeup that finds the metro stopped must not re-arm.
+    // millisecond run has its bridge slot for the same job; a beat run needs its
+    // own flag because a wakeup that finds the metro stopped must not re-arm.
     std::atomic<bool> beatOn{false};
 
     // The beat grid, guarded: written by the toggle and list inlets on whichever

@@ -30,7 +30,9 @@
 #include "patcher/genericObjects/gReceive.h"
 #include "patcher/genericObjects/gSend.h"
 #include "patcher/time/gMetro.h"
+#include "patcher/time/timerBridge.h"
 #include "patcher/sinks.hpp"
+#include "support/alloc_probe.hpp"
 
 using TestHelpers::BangSink;
 using TestHelpers::MultiSink;
@@ -830,6 +832,154 @@ TEST_SUITE("patcher") {
     const int settled = sink.count();
     std::this_thread::sleep_for(200ms);
     CHECK(sink.count() == settled);
+  }
+
+  // ─── gMetro: toggling from the audio callback (issue #718) ───────────────────
+  //
+  // A patcher message handler runs on whichever thread dispatched the message,
+  // and a `.metro` fed by a `.delay` is dispatched from
+  // `patcherImplementation::Calculate` — `messageScheduler::DeliverDue` is the
+  // first thing a block does.  Everything `timerThread` offers is forbidden
+  // there: `Add` takes a mutex and allocates two container nodes plus the
+  // caller's std::function, `SetPeriod` takes the same mutex, and `ClearTimer`
+  // blocks on a condition variable until an in-flight callback returns.  Before
+  // #718 the toggle called all three directly.
+  //
+  // The allocation half is what the probe can pin, and it pins it hard: on the
+  // unfixed object the unordered_map and multiset node allocations happen
+  // unconditionally, so `Add` alone puts the count at two or more.  The lock and
+  // the block are the same call and cannot be observed separately here; the
+  // sanitizer legs are where a mutex on this path shows up.
+  //
+  // The probe counts only the arming thread (issue #701), so Calculate is driven
+  // on the test thread — which is exactly right: the *background* reconcile does
+  // allocate, legitimately, and a probe that saw it would be measuring the wrong
+  // thread.
+
+  namespace {
+    // A `.delay` wired into a `.metro`'s left inlet inside a real patcher: the
+    // shortest patch that puts a metro toggle on the audio callback.
+    struct DeferredToggleRig {
+      YSE::PATCHER::patcherImplementation patcher{1, nullptr};
+      AtomicBangSink sink;
+      YSE::pHandle sinkHandle{&sink};
+      YSE::pHandle* delay = nullptr;
+      YSE::pHandle* metro = nullptr;
+
+      DeferredToggleRig(const char* metroArgs) {
+        // `delay 0` still defers a whole block — messageScheduler's floor — so
+        // the bang lands in the *next* Calculate, on the audio thread.
+        delay = patcher.CreateObject(YSE::OBJ::G_DELAY, "0");
+        metro = patcher.CreateObject(YSE::OBJ::G_METRO, metroArgs);
+        REQUIRE(delay != nullptr);
+        REQUIRE(metro != nullptr);
+        patcher.Connect(delay, 0, metro, 0);
+        patcher.Connect(metro, 0, &sinkHandle, 0);
+        patcher.Calculate(YSE::T_DSP); // publish the graph before anything arms
+      }
+
+      // Arm the deferral from the control thread, then run the block that
+      // delivers it. Returns with the metro toggled from inside Calculate.
+      void ArmToggle() {
+        delay->SetBang(0);
+      }
+      void DeliverBlock() {
+        patcher.Calculate(YSE::T_DSP);
+      }
+    };
+  } // namespace
+
+  TEST_CASE("gMetro: a toggle delivered on the audio callback allocates nothing (#718)") {
+    if (!TestHelpers::probeCountsAllocations()) return;
+    REQUIRE(TestHelpers::probeSeesStringAllocations());
+
+    DeferredToggleRig rig("1000");
+
+    // Start, delivered inside Calculate.
+    rig.ArmToggle();
+    {
+      TestHelpers::ProbeScope probe;
+      rig.DeliverBlock();
+      CHECK(TestHelpers::g_alloc_count.load() == 0);
+    }
+    // An assertion that only proves nothing happened proves nothing: the metro
+    // really was started, and Max's immediate bang really came out.
+    REQUIRE(rig.sink.count() == 1);
+
+    // A second delivery into a *running* metro re-starts it (#711), which is the
+    // heavier half of the same path: the toggle drops the armed timer and arms a
+    // new one, so it reaches `ClearTimer` and `Add` both.
+    rig.ArmToggle();
+    {
+      TestHelpers::ProbeScope probe;
+      rig.DeliverBlock();
+      CHECK(TestHelpers::g_alloc_count.load() == 0);
+    }
+    CHECK(rig.sink.count() == 2);
+
+    rig.metro->SetIntData(0, 0); // stop before teardown, from the control thread
+  }
+
+  TEST_CASE("gMetro: a cold-inlet period change delivered on the audio callback retimes (#718)") {
+    // The cold inlet is the third way onto `timerThread` from a handler, and it
+    // is reachable on the callback for the same reason the toggle is: here a
+    // `.delay` bangs an `.i` whose stored number lands in the metro's right
+    // inlet, all inside one Calculate.
+    //
+    // The allocation probe is deliberately *not* the assertion here, and the
+    // honest reason is that it cannot discriminate: `timerThread::SetPeriod`
+    // takes the mutex but allocates nothing, so the pre-#718 code passes an
+    // allocation check on this path.  What this case pins is that routing it
+    // through the bridge did not quietly turn the retime into a no-op — the
+    // request has to reach `SetPeriod` on the pool.  The lock itself is the
+    // toggle case's business (where `Add` does allocate) and the sanitizers'.
+    YSE::PATCHER::patcherImplementation p(1, nullptr);
+    YSE::pHandle* delay = p.CreateObject(YSE::OBJ::G_DELAY, "0");
+    YSE::pHandle* number = p.CreateObject(YSE::OBJ::G_INT, "40");
+    YSE::pHandle* metro = p.CreateObject(YSE::OBJ::G_METRO, "5000");
+    REQUIRE(delay != nullptr);
+    REQUIRE(number != nullptr);
+    REQUIRE(metro != nullptr);
+    AtomicBangSink sink;
+    YSE::pHandle sinkHandle(&sink);
+    p.Connect(delay, 0, number, 0);
+    p.Connect(number, 0, metro, 1);
+    p.Connect(metro, 0, &sinkHandle, 0);
+    p.Calculate(YSE::T_DSP);
+
+    metro->SetIntData(0, 1); // running at 5s, from the control thread
+    REQUIRE(sink.count() == 1);
+
+    delay->SetBang(0);
+    p.Calculate(YSE::T_DSP); // the 40ms lands from inside the block
+
+    // At 5s nothing more can bang inside this test, so every tick below is the
+    // retime's doing.
+    YSE::PATCHER::TimerBridge().WaitIdle();
+    const int base = sink.count();
+    CHECK(waitFor([&] { return sink.count() - base >= 3; }, 2000));
+
+    metro->SetIntData(0, 0);
+  }
+
+  TEST_CASE("gMetro: a metro started on the audio callback really runs (#718)") {
+    // The deferral must not turn the start into a no-op: the timer is armed on
+    // the background pool a hop later, and from there the metro is an ordinary
+    // millisecond metronome.
+    DeferredToggleRig rig("10");
+
+    rig.ArmToggle();
+    rig.DeliverBlock();
+    REQUIRE(rig.sink.count() == 1); // Max's immediate bang, never deferred
+
+    // WaitIdle makes the pool half deterministic instead of sleeping for it.
+    YSE::PATCHER::TimerBridge().WaitIdle();
+    CHECK(waitFor([&] { return rig.sink.count() >= 4; }, 1000));
+
+    rig.metro->SetIntData(0, 0);
+    const int afterStop = rig.sink.count();
+    std::this_thread::sleep_for(100ms);
+    CHECK(rig.sink.count() == afterStop);
   }
 
 } // TEST_SUITE("patcher")
