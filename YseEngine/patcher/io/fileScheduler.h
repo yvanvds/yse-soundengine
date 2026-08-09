@@ -270,17 +270,24 @@ namespace YSE {
       struct Entry;
 
       // One slot's worth of disk work. Pre-allocated with the slot, so arming
-      // it allocates nothing; it holds only its owner and its index, never a
+      // it allocates nothing; it holds only its owner and its own slot, never a
       // pObject, which is what makes it immune to a concurrent DeleteObject.
+      //
+      // It points *at* its slot rather than carrying an index into
+      // ``entries_``, and that is load-bearing rather than a style choice:
+      // ``unique_ptr::reset`` nulls its pointer **before** running the element
+      // destructors, so a job that reached through ``entries_`` while
+      // ~fileScheduler was in progress would index off a null member (issue
+      // #706). The slot's own address stays valid until ``operator delete[]``,
+      // which is after every join.
       struct fileJob : INTERNAL::threadPoolJob {
         fileScheduler* owner = nullptr;
-        std::size_t index = 0;
+        Entry* slot = nullptr;
         void run() override;
       };
 
       struct Entry {
         std::atomic<std::uint32_t> state{STATE_FREE};
-        fileJob job;
         pObject* target = nullptr;
         unsigned int targetId = 0;
         int tag = 0;
@@ -289,14 +296,17 @@ namespace YSE {
         std::uint32_t byteCount = 0;
         char path[PATH_CAPACITY] = {};
         char bytes[BYTES_CAPACITY] = {};
+        // Declared last so it is destroyed *first*: ~fileJob joins, and a job
+        // that is still running reads every field above it (issue #706).
+        fileJob job;
       };
 
       // Shared claim path behind both Request* fronts.
       bool Arm(pObject* target, int tag, FILE_OP op, const char* path, std::size_t pathLength,
                const char* bytes, std::size_t byteCount);
 
-      // Background pool: do slot @p index's I/O and publish the outcome.
-      void RunSlot(std::size_t index);
+      // Background pool: do @p entry's I/O and publish the outcome.
+      void RunSlot(Entry& entry);
 
       // The two halves of the disk work. Background pool only — both block.
       static bool ReadSlot(Entry& entry);
@@ -304,8 +314,8 @@ namespace YSE {
 
       // One heap block, allocated with the scheduler and never resized. Held by
       // pointer rather than inline so patcherImplementation does not grow by
-      // half a megabyte; declared before nothing else, because each Entry's job
-      // joins in its own destructor and must do so while its slot still exists.
+      // half a megabyte. The destructor joins every job before this is touched
+      // (issue #706), so nothing is left reading a slot when it goes.
       std::unique_ptr<Entry[]> entries_;
       std::atomic<std::uint64_t> dropped_{0};
     };

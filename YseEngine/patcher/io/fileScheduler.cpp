@@ -43,18 +43,25 @@ fileScheduler::fileScheduler() : entries_(new Entry[CAPACITY]) {
   // Control thread, once: everything a request needs afterwards already exists.
   for (std::size_t i = 0; i < CAPACITY; ++i) {
     entries_[i].job.owner = this;
-    entries_[i].job.index = i;
+    entries_[i].job.slot = &entries_[i];
   }
 }
 
 fileScheduler::~fileScheduler() {
-  // ~Entry -> ~fileJob -> ~threadPoolJob joins, so a job still on the pool is
-  // finished with its slot before the slot is freed. Control thread: the
-  // patcher's destructor, where the audio thread is already stopped.
+  // Join every file job here, while this object is still whole, rather than
+  // leaving it to ~threadPoolJob. That join runs in the *base* destructor —
+  // after ~fileJob has already reset the vtable — so a worker that picks the
+  // job up inside that window calls threadPoolJob::run(), which is pure
+  // virtual (issue #706). Two more windows close with it: ~unique_ptr nulls
+  // `entries_` before it destroys the elements, and ~Entry destroys the fields
+  // a running job reads. Control thread: the patcher's destructor, where the
+  // audio thread is already stopped and Clear() has run, so nothing can arm a
+  // new request.
+  WaitIdle();
 }
 
 void fileScheduler::fileJob::run() {
-  owner->RunSlot(index);
+  owner->RunSlot(*slot);
 }
 
 bool fileScheduler::Arm(pObject* target, int tag, FILE_OP op, const char* path,
@@ -129,8 +136,7 @@ bool fileScheduler::RequestWrite(pObject* target, int tag, const char* path, std
   return Arm(target, tag, FILE_OP::WRITE, path, pathLength, bytes, byteCount);
 }
 
-void fileScheduler::RunSlot(std::size_t index) {
-  Entry& e = entries_[index];
+void fileScheduler::RunSlot(Entry& e) {
   std::uint32_t armed = STATE_ARMED;
   if (!e.state.compare_exchange_strong(armed, STATE_RUNNING, std::memory_order_acquire,
                                        std::memory_order_relaxed)) {

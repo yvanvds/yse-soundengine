@@ -25,12 +25,17 @@
 // No audio device required.
 
 #include <doctest/doctest.h>
+#include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
 #include <string>
 #include <system_error>
+#include <thread>
 
+#include "internal/global.h"
+#include "internal/threadPool.h"
 #include "patcher/io/fileScheduler.h"
 #include "patcher/pHandle.hpp"
 #include "patcher/pObject.h"
@@ -191,6 +196,74 @@ TEST_SUITE("patcher") {
     io->WaitIdle();
     p.Calculate(YSE::T_DSP);
     CHECK(io->PendingCount() == 0);
+
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+  }
+
+  TEST_CASE("fileScheduler: a request still on the pool survives the teardown (#706)") {
+    // The scheduler used to leave the join to ~threadPoolJob, which runs in the
+    // *base* destructor — after ~fileJob has reset the vtable to one whose
+    // run() is pure virtual, and after ~unique_ptr has nulled `entries_`. A
+    // worker picking the job up inside that window aborted with "pure virtual
+    // function called" (both faults reproduced in the #688 bridge, which has the
+    // same construction). Nothing in the suite hit it because a request always
+    // finished long before the patcher went away.
+    //
+    // So make the window instead of waiting for it. The background pool has
+    // exactly one worker: park it in a blocker job, arm a read behind it, and
+    // only let the blocker go once teardown is under way. On the unfixed code
+    // the worker then reaches the job with the derived half already gone and the
+    // process aborts; with the join moved to the top of ~fileScheduler the job
+    // runs against a whole object and the destructor simply waits for it.
+    struct Blocker : YSE::INTERNAL::threadPoolJob {
+      std::atomic<bool> running{false};
+      std::atomic<bool> release{false};
+      void run() override {
+        running.store(true, std::memory_order_release);
+        while (!release.load(std::memory_order_acquire))
+          std::this_thread::yield();
+      }
+    };
+
+    const std::string path = TempFile("yse_file_io_teardown_706.txt");
+    {
+      std::ofstream out(path, std::ios::binary);
+      out << "0, teardown;\n";
+    }
+
+    Blocker blocker;
+    YSE::INTERNAL::Global().addSlowJob(&blocker);
+    // Bounded rather than an open spin: a pool that never started would
+    // otherwise hang the suite instead of reporting that it cannot run this.
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (!blocker.running.load(std::memory_order_acquire) &&
+           std::chrono::steady_clock::now() < deadline) {
+      std::this_thread::yield();
+    }
+    REQUIRE(blocker.running.load(std::memory_order_acquire));
+
+    fileScheduler* io = new fileScheduler();
+    Target target;
+    REQUIRE(io->RequestRead(&target, 0, path.c_str(), path.size()));
+    // Queued behind the blocker on the one worker, so it cannot have run yet.
+    CHECK(io->PendingCount() == 1);
+
+    std::atomic<bool> tearingDown{false};
+    std::thread releaser([&] {
+      while (!tearingDown.load(std::memory_order_acquire))
+        std::this_thread::yield();
+      // Long enough for the destructor to get past the vtable reset (three
+      // no-op ~Entry calls away), short enough that the pool is not held up.
+      std::this_thread::sleep_for(std::chrono::milliseconds(25));
+      blocker.release.store(true, std::memory_order_release);
+    });
+
+    tearingDown.store(true, std::memory_order_release);
+    delete io; // aborted here before #706
+
+    releaser.join();
+    blocker.join();
 
     std::error_code ec;
     std::filesystem::remove(path, ec);
