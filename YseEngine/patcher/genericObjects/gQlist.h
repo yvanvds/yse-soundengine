@@ -1,6 +1,7 @@
 #pragma once
 #include "../io/fileScheduler.h"
 #include "../pObject.h"
+#include "../time/clockBridge.h"
 #include "../time/messageScheduler.h"
 #include <atomic>
 #include <cstddef>
@@ -121,15 +122,44 @@ namespace YSE {
      *  and a ``.r`` downstream of a cue behaves the same as one downstream of
      *  the #225 value drain.
      *
-     *  Issue #500 suggests binding playback to ``CLOCK::domainClock`` instead,
-     *  so the sequence would inherit the polytemporal tempo model ``YSE::clip``
-     *  uses. It is not done here and the departure is deliberate. Max's cue
-     *  list is milliseconds — "a delay time in milliseconds" — and its ``tempo``
-     *  is a bare multiplier with no beat, bar or meter anywhere in it, so a
-     *  beat-driven ``.qlist`` would be a different object wearing Max's name.
-     *  There is also no patcher-to-domain-clock bridge at all today; building
-     *  one is shared infrastructure rather than one object's feature, the same
-     *  judgement ``.textfile`` made about file I/O, and it is filed as **#688**.
+     *  ### ``clock <name>``: the same list on a domain clock (issue #688)
+     *
+     *  Issue #500 asked for playback bound to ``CLOCK::domainClock`` so the
+     *  sequence would inherit the polytemporal tempo model ``YSE::clip`` uses,
+     *  and #500 declined twice over: Max's cue list is milliseconds — "a delay
+     *  time in milliseconds", with a ``tempo`` that is a bare multiplier and no
+     *  beat, bar or meter anywhere in it — and there was no patcher-to-domain-
+     *  clock bridge to build on. #688 built the bridge (``clockBridge``), which
+     *  leaves only the first objection, and the answer to that one is an opt-in:
+     *
+     *  - **``clock <name>``** binds the domain clock called @p name and switches
+     *    the object to beats. The leading number of a numeric cue is then a
+     *    **beat count** on that clock instead of a delay in milliseconds.
+     *    Everything else is untouched — the same list, the same split, the same
+     *    outlets, the same ``next`` / ``fwd`` / ``rewind`` / ``stop``, and
+     *    ``tempo`` still divides, so ``tempo 2`` is still twice as fast.
+     *  - **``clock``** with no argument goes back to milliseconds. A
+     *    ``.qlist`` that is never sent one is Max's object exactly, which is
+     *    the whole reason this is a message rather than a change of unit.
+     *
+     *  ``clock`` is Max's own vocabulary for this: ``setclock`` documents its
+     *  name as something "passed as the argument to a ``clock`` message to
+     *  numerous objects that use timing in Max". Max's ``qlist`` reference does
+     *  not list ``clock`` among *its* methods, so this is an addition rather
+     *  than a port — named the way Max names the idea, and inert until used.
+     *
+     *  What it buys is what milliseconds cannot: a cue list that follows tempo
+     *  changes and ramps, that stays in step with every ``YSE::clip`` on the
+     *  same domain, and that pauses when the domain does (a clock at tempo 0
+     *  holds the walk where it stands). A clock named before the host creates it
+     *  simply does not advance until it appears, and then plays — the binding
+     *  resolves on the background pool and the wait is baselined at the moment
+     *  the clock starts existing.
+     *
+     *  The binding is **not saved** with the patch, for the reason ``tempo``
+     *  and the cursor are not: it is run-time state, and a reloaded patch that
+     *  re-bound itself to a clock the host may not have created yet would have
+     *  two answers to "what is this object waiting on".
      *
      *  ### Storage model
      *
@@ -245,7 +275,8 @@ namespace YSE {
      *  ### Reserved words, and the semicolon
      *
      *  ``bang``, ``next``, ``fwd``, ``rewind``, ``stop``, ``clear``, ``set``,
-     *  ``append``, ``insert``, ``tempo``, ``read`` and ``write`` are commands;
+     *  ``append``, ``insert``, ``tempo``, ``clock``, ``read`` and ``write`` are
+     *  commands;
      *  ``open`` and ``wclose`` are consumed and inert. This inlet is a
      *  **command** inlet, not a data inlet, so the ``.prepend`` / ``.atoi``
      *  discipline — never reserve a word on an inlet that has to carry
@@ -345,6 +376,19 @@ namespace YSE {
     bool IsPlaying() const {
       return playing.load(std::memory_order_relaxed);
     }
+
+    /** @brief Whether ``clock <name>`` has put the object on a domain clock, so
+     *         a numeric cue's leading number is beats rather than milliseconds
+     *         (issue #688). False for a fresh object and after a bare
+     *         ``clock``. */
+    bool OnClock() const {
+      return binding.load(std::memory_order_relaxed) != 0;
+    }
+
+    /** @brief The clock name the object is bound to, or ``""``. The storage
+     *         belongs to the patcher's bridge and never changes, so this is
+     *         safe from any thread. */
+    const char* ClockName() const;
 
     /** @brief The name the last ``read`` was given, which a bare ``read``
      *         reuses. Empty until one names a file, there being no creation
@@ -472,10 +516,18 @@ namespace YSE {
     // end arrives. Re-entered from DeliverDeferred each time a wait elapses.
     void Resume(YSE::THREAD thread);
 
-    // Arm the next step `waitMs` milliseconds out, scaled by the tempo. False
-    // when there is no scheduler (a standalone object) or it refused, in which
-    // case the caller keeps walking without waiting.
-    bool ArmContinue(float waitMs);
+    // Arm the next step `wait` out, scaled by the tempo — milliseconds
+    // normally, beats on the bound domain clock once `clock <name>` has been
+    // given (issue #688). False when there is no scheduler (a standalone
+    // object) or it refused, in which case the caller keeps walking without
+    // waiting.
+    bool ArmContinue(float wait);
+
+    // Max's `clock <name>` / bare `clock`, through the patcher's bridge. Binds
+    // wait-free on whichever thread the message arrived on; a name that does
+    // not fit, a bridge that is full, or a standalone object all leave the
+    // object where it was, silently, since this may be the audio thread.
+    void SetClock(const char* name, std::size_t length);
 
     // Drop a pending step, if there is one.
     void CancelPending();
@@ -556,6 +608,14 @@ namespace YSE {
     // The step this object is waiting on, or 0. One clock per object, Max's
     // shape — `.bondo`'s rule, arrived at for the same reason.
     std::atomic<messageScheduler::Handle> pending{0};
+
+    // The domain clock `clock <name>` bound, or 0 for Max's milliseconds
+    // (issue #688). A patcher-owned binding handle rather than a name: the
+    // bridge never releases one, so it stays valid for the life of the patcher
+    // and costs nothing to carry. Atomic because a `clock` message and a
+    // resumed step are not on the same thread; relaxed, since neither
+    // publishes anything through it.
+    std::atomic<clockBridge::Handle> binding{0};
 
     // What a send is made from, reserved at construction. Copies rather than
     // the entry itself: the send path is synchronous, so handing an outlet the

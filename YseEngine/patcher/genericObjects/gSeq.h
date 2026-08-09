@@ -97,12 +97,15 @@ namespace YSE {
      *
      *  This is ported, and it is the one part of Max's surface that answers
      *  issue #502's design gate directly. The issue asks for playback bound to a
-     *  domain clock so tempo changes bend it the way ``YSE::clip`` does; there
-     *  is no patcher-to-domain-clock bridge at all today (#688). But ``tick`` is
-     *  Max's own answer to the same question — an external timing source the
-     *  patch supplies, one tick being a MIDI-clock tick at 24 per quarter note —
-     *  and it needs no bridge, no scheduler slot and no clock of its own. When
-     *  #688 lands, a domain clock driving ``tick`` is the whole of the work.
+     *  domain clock so tempo changes bend it the way ``YSE::clip`` does. When
+     *  this object was written there was no patcher-to-domain-clock bridge at
+     *  all; #688 has since built one (``PATCHER::clockBridge``, with ``.qlist``
+     *  as its first consumer). But ``tick`` is Max's own answer to the same
+     *  question — an external timing source the patch supplies, one tick being a
+     *  MIDI-clock tick at 24 per quarter note — and it needs no bridge, no
+     *  scheduler slot and no clock of its own. Driving ``tick`` from a domain
+     *  clock through that bridge is now the whole of the remaining work, and is
+     *  filed as **#704**.
      *
      *  Tick time is accumulated as a tick *count* rather than as milliseconds,
      *  so 48 ticks is exactly one second however many of them have gone by;

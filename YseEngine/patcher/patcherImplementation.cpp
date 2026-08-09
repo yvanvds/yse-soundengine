@@ -213,6 +213,11 @@ void patcherImplementation::Calculate(YSE::THREAD thread) {
   // is also observed in that order here.
   ApplyPendingParams(g);
   DeliverPendingValues(g);
+  // Give any domain-clock binding still waiting on its clock another chance to
+  // find it (issue #688), before the deferred drain below reads beat positions
+  // through those bindings. Rate-limited inside Poll to one bounded walk every
+  // clockBridge::RESOLVE_INTERVAL_BLOCKS blocks; it never allocates or locks.
+  clocks_.Poll(audioBlock_.load(std::memory_order_relaxed));
   // Then everything the deferred-message scheduler has due (issue #628) — after
   // the value drain so a value delivered this block can arm a deferral that is
   // honestly "later", and before the render with the same T_GUI semantics as

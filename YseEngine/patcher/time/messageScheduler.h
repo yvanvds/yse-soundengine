@@ -1,5 +1,6 @@
 #pragma once
 #include "../../headers/enums.hpp"
+#include "clockBridge.h"
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -89,6 +90,39 @@ namespace YSE {
      *  the only meaning "100 ms from now" can have on a clock that is not
      *  running.
      *
+     *  ### …or a domain clock (issue #688)
+     *
+     *  ``Schedule*OnClock`` arms the same slot against a beat position on a
+     *  ``CLOCK::domainClock`` instead, bound by name through the patcher's
+     *  ``clockBridge``. Everything else is unchanged and deliberately not
+     *  duplicated — slot lifecycle, arm-order delivery, GraphState target
+     *  re-resolution, cancellation, the dispatch frame — because only the
+     *  *deadline test* differs: a beat comparison against
+     *  ``domainClock::beatPosition()`` rather than a block comparison against
+     *  the patcher's block counter. One acquire load either way.
+     *
+     *  A beat deadline inherits the domain clock's whole tempo model for free:
+     *  a wait shortens when the tempo rises, lengthens when it falls, bends
+     *  smoothly through a ``requestTempo`` ramp, and holds forever at tempo 0 —
+     *  the same playable clock ``YSE::clip`` follows. Two objects waiting on the
+     *  same clock stay in step with each other and with every clip on that
+     *  domain, which is the point of the polytemporal model and is exactly what
+     *  a millisecond wait cannot do.
+     *
+     *  There is no one-block floor on this side, and none is needed: the drain
+     *  snapshots the due set before it delivers anything, so a message armed by
+     *  a delivery cannot fire in the same drain, and the next drain is the next
+     *  block. A wait of 0 beats therefore behaves like a wait of 0 ms.
+     *
+     *  A binding whose clock does not exist (yet) never comes due — the honest
+     *  reading of "two beats from now" on a clock that is not running, and the
+     *  same answer a paused engine already gets. Such a wait is armed
+     *  *relative*: when the binding resolves, it is measured from
+     *  ``clockBridge::ResolveBeat`` — where the clock stood the moment it
+     *  appeared — so the wait starts when the clock starts existing. That
+     *  baseline lives on the binding rather than in the slot precisely so the
+     *  drain never writes to a slot it has not claimed.
+     *
      *  ### Lifetime safety across live edits
      *
      *  A pending message holds a ``pObject*`` armed possibly long before it is
@@ -144,11 +178,15 @@ namespace YSE {
 
       /**
        *  @param blockClock The owning patcher's monotonic block counter
-       *         (``audioBlock_``); deadlines are measured against it. The
-       *         reference must outlive the scheduler, which member ordering in
-       *         patcherImplementation guarantees.
+       *         (``audioBlock_``); millisecond deadlines are measured against
+       *         it. The reference must outlive the scheduler, which member
+       *         ordering in patcherImplementation guarantees.
+       *  @param clocks The owning patcher's domain-clock bridge (issue #688),
+       *         or null. Beat deadlines are measured through it; with no bridge
+       *         ``Schedule*OnClock`` refuses. Same lifetime requirement.
        */
-      explicit messageScheduler(const std::atomic<std::uint64_t>& blockClock);
+      explicit messageScheduler(const std::atomic<std::uint64_t>& blockClock,
+                                const clockBridge* clocks = nullptr);
 
       /**
        *  @brief Arm a deferred message. Any thread; wait-free; no allocation.
@@ -163,6 +201,27 @@ namespace YSE {
       /** Text longer than TEXT_CAPACITY - 1 characters refuses the arm. */
       Handle ScheduleList(pObject* target, int tag, int delayMs, const char* text,
                           std::size_t length);
+
+      /**
+       *  @brief Arm a deferred bang @p beats beats ahead on the domain clock
+       *         @p binding names (issue #688). Any thread; wait-free; no
+       *         allocation.
+       *
+       *  @p binding comes from ``clockBridge::Bind``; 0, an unknown handle or a
+       *  patcher without a bridge refuses (handle 0), as does a full pending
+       *  set. A negative or NaN @p beats is taken as 0. A binding that has not
+       *  resolved yet arms fine and simply never comes due until its clock
+       *  exists — see the class notes.
+       *
+       *  Only the bang form exists, because a bang is what every timed patcher
+       *  object resumes on: ``.qlist``'s next cue, ``.seq``'s next tick,
+       *  ``.del``'s output, ``.metro``'s beat. The shared ``Arm`` already
+       *  carries the deadline for all four payload kinds, so a float or list
+       *  front is three lines the day an object needs one — it is not written
+       *  ahead of that object.
+       */
+      Handle ScheduleBangOnClock(pObject* target, int tag, clockBridge::Handle binding,
+                                 double beats);
 
       /**
        *  @brief Unarm a pending message. Any thread; wait-free. Returns true
@@ -261,6 +320,15 @@ namespace YSE {
         // — the ABA guard behind Handle validity.
         std::atomic<std::uint64_t> stateGen{STATE_FREE};
         std::atomic<std::uint64_t> dueBlock{0};
+        // Which clock the deadline is on (issue #688). 0 means the block clock
+        // and `dueBlock` above; anything else is a clockBridge binding, and the
+        // deadline is `dueBeat` on it — absolute, or measured from the
+        // binding's resolve beat when `dueFromResolve`. All three are read
+        // speculatively by the drain's scan, like dueBlock and seq, so all
+        // three are atomics.
+        std::atomic<std::uint32_t> dueBinding{0};
+        std::atomic<double> dueBeat{0.0};
+        std::atomic<bool> dueFromResolve{false};
         std::atomic<std::uint64_t> seq{0};
         pObject* target = nullptr;
         unsigned int targetId = 0;
@@ -272,12 +340,34 @@ namespace YSE {
         char text[TEXT_CAPACITY];
       };
 
-      // Shared arm path behind the four Schedule* fronts.
-      Handle Arm(pObject* target, int tag, int delayMs, DEFERRED_KIND kind, int intValue,
-                 float floatValue, const char* text, std::size_t length);
+      // When a slot's deadline falls, in whichever domain it was armed in.
+      // Written once at arm time and passed to the shared Arm below, so the two
+      // deadline kinds share every other line of the slot's life.
+      struct Deadline {
+        std::uint64_t block = 0; // block-clock deadline; used when binding == 0
+        clockBridge::Handle binding = 0;
+        double beat = 0.0;
+        bool fromResolve = false;
+      };
+
+      // The deadline a wait of `delayMs` gets on the block clock.
+      Deadline BlockDeadline(int delayMs) const;
+      // The deadline a wait of `beats` gets on `binding`, or false when the
+      // bridge cannot answer for that handle at all.
+      bool ClockDeadline(clockBridge::Handle binding, double beats, Deadline& out) const;
+      // Whether `entry`'s armed deadline has passed. The one line that differs
+      // between the two clocks.
+      bool IsDue(const Entry& entry, std::uint64_t nowBlock) const;
+
+      // Shared arm path behind the five Schedule* fronts.
+      Handle Arm(pObject* target, int tag, const Deadline& deadline, DEFERRED_KIND kind,
+                 int intValue, float floatValue, const char* text, std::size_t length);
 
       Entry entries_[CAPACITY];
       const std::atomic<std::uint64_t>& clock_;
+      // The patcher's domain-clock bridge (issue #688), or null for a
+      // standalone scheduler. Never written after construction.
+      const clockBridge* clocks_;
       // Arm-order tickets; what "in arm order" is sorted by.
       std::atomic<std::uint64_t> nextSeq_{1};
       std::atomic<std::uint64_t> dropped_{0};

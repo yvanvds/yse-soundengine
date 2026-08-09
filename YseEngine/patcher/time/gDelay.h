@@ -96,14 +96,22 @@ namespace YSE {
      *  Max's ``delay`` speaks the whole Max time-format syntax — notevalues
      *  (``4nd``), ticks, ``bars.beats.units``, ``samples`` — and its ``list`` /
      *  ``anything`` methods exist only to carry those. Milliseconds are the only
-     *  unit here, because everything else is tempo-relative and the patcher has
-     *  no transport and no bridge to ``CLOCK::domainClock`` at all (#688); the
-     *  same judgement ``.qlist`` made about its own ``tempo``. A list whose
-     *  first item is a plain number therefore still sets the time — that is the
-     *  honest millisecond subset of Max's list method — and anything else does
-     *  nothing. ``quantize`` and ``transport`` follow the time formats out for
-     *  the same reason, and ``clock`` follows ``setclock``, an object this
-     *  patcher does not have.
+     *  unit here, because everything else is tempo-relative and when this object
+     *  was written the patcher had no transport and no bridge to
+     *  ``CLOCK::domainClock`` at all; the same judgement ``.qlist`` made about
+     *  its own ``tempo``. A list whose first item is a plain number therefore
+     *  still sets the time — that is the honest millisecond subset of Max's list
+     *  method — and anything else does nothing.
+     *
+     *  #688 has since built the bridge (``PATCHER::clockBridge``, with
+     *  ``.qlist``'s ``clock <name>`` as its first consumer), so ``clock`` — Max's
+     *  own ``setclock`` vocabulary, and a message this object still ignores —
+     *  now has something to name. Adopting it here is filed as **#705**:
+     *  ``clock <name>`` plus a beat unit, and the notevalue spellings (``4n``,
+     *  ``4nd``, ``8nt``) with it, since those are arithmetic once a beat exists.
+     *  ``quantize``, ``transport`` and ``bars.beats.units`` stay out even then —
+     *  all three need a bar/meter model, and a ``domainClock`` is a bare beat
+     *  accumulator with no meter in it.
      *
      *  The right inlet is Max's exactly: a number there "changes the delay time
      *  of the next bang received -- it does not modify the time of a bang

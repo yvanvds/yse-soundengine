@@ -33,8 +33,10 @@ namespace {
       "cancels the held bang without sending it. A list whose first item is a number sets the "
       "time and starts the wait, the same as a bare number; Max's list method exists to carry its "
       "time-format syntax (notevalues, ticks, bars.beats.units, samples), and milliseconds are "
-      "the only unit here because everything else is tempo-relative and the patcher has no "
-      "transport bridge yet (issue #688). Anything else, 'clock' included, does nothing.";
+      "the only unit here because everything else is tempo-relative and this object was written "
+      "before the patcher had any bridge to a domain clock. Issue #688 has since built one, and "
+      "adopting it here — 'clock <name>' plus a beat unit — is filed as issue #705. Until then "
+      "anything else, 'clock' included, does nothing.";
 
   constexpr char kColdInletDoc[] =
       "Sets the delay time in milliseconds without starting anything. Max: 'a number received in "
@@ -77,8 +79,10 @@ CONSTRUCT() {
       "a delayed bang where it stands, and its resolution is one audio block. A delay of 0 still "
       "defers to the next block rather than firing immediately, which is Max's behaviour and the "
       "reason a delay wired back into itself is a fast metronome instead of a stack overflow. "
-      "Milliseconds only: Max's notevalue, tick and bars.beats.units formats are tempo-relative "
-      "and the patcher has no transport bridge yet (issue #688). Calculate() does nothing and no "
+      "Milliseconds only: Max's notevalue, tick and bars.beats.units formats are tempo-relative, "
+      "and this object was written before the patcher had a bridge to a domain clock. Issue #688 "
+      "has since built one — the same one .qlist's 'clock <name>' plays on — and adopting it here "
+      "is filed as issue #705. Calculate() does nothing and no "
       "message path allocates, locks or blocks.");
   ADD_CATEGORY(pCategory::TIME);
   INLET_DOC(0, "bang", kHotInletDoc, "bang, int, float, list, 'stop'");
@@ -179,6 +183,8 @@ LIST_IN(ListIn) {
   // carry its time-format syntax. A leading number means the same thing a bare
   // number does; everything else — a notevalue, `clock`, an unknown word — does
   // nothing, deliberately, rather than being read as some number it is not.
+  // `clock <name>` has a meaning in the patcher since #688 built the bridge;
+  // teaching this object to answer it is #705, not a line to sneak in here.
   float number = 0.f;
   if (!ReadNumericToken(value.c_str() + begin, length, number)) return;
   IntIn(MillisFromFloat(number), inlet, thread);

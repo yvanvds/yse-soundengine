@@ -219,6 +219,7 @@ set(YSE_SRCS
   patcher/pObject.cpp
   patcher/pRegistry.cpp
   patcher/io/fileScheduler.cpp
+  patcher/time/clockBridge.cpp
   patcher/time/gDelay.cpp
   patcher/time/gMetro.cpp
   patcher/time/messageScheduler.cpp
@@ -439,6 +440,7 @@ set_source_files_properties(
   patcher/midi/mMidiPolyPressure.cpp
   patcher/midi/mMidiProgramChange.cpp
   patcher/io/fileScheduler.cpp
+  patcher/time/clockBridge.cpp
   patcher/time/gDelay.cpp
   patcher/time/gMetro.cpp
   patcher/time/messageScheduler.cpp
