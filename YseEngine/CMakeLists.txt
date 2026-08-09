@@ -220,6 +220,7 @@ set(YSE_SRCS
   patcher/pRegistry.cpp
   patcher/io/fileScheduler.cpp
   patcher/time/clockBridge.cpp
+  patcher/time/gClocker.cpp
   patcher/time/gDelay.cpp
   patcher/time/gMetro.cpp
   patcher/time/gTempo.cpp
@@ -445,6 +446,7 @@ set_source_files_properties(
   patcher/midi/mMidiProgramChange.cpp
   patcher/io/fileScheduler.cpp
   patcher/time/clockBridge.cpp
+  patcher/time/gClocker.cpp
   patcher/time/gDelay.cpp
   patcher/time/gMetro.cpp
   patcher/time/gTempo.cpp

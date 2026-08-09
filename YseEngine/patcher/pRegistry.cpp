@@ -61,6 +61,7 @@
 #include "guiObjects/gList.h"
 #include "guiObjects/gText.h"
 
+#include "time/gClocker.h"
 #include "time/gDelay.h"
 #include "time/gMetro.h"
 #include "time/gTempo.h"
@@ -472,6 +473,10 @@ pRegistry::pRegistry() {
   // Count out a musical subdivision of a named domain clock — a metronome that
   // says *where* in the cycle each tick is, not only that one happened (#512)
   Add(OBJ::G_TEMPO, gTempo::Create);
+
+  // Report the elapsed time at a regular interval — a metronome that says how
+  // long it has been running, measured rather than tallied (issue #505)
+  Add(OBJ::G_CLOCKER, gClocker::Create);
 
   Add(OBJ::MIDITOFREQUENCY, pMidiToFrequency::Create);
   Add(OBJ::FREQUENCYTOMIDI, pFrequencyToMidi::Create);

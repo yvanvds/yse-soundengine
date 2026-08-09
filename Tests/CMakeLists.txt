@@ -118,6 +118,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_transport.cpp
   patcher/test_patcher_timepoint.cpp
   patcher/test_patcher_tempo.cpp
+  patcher/test_patcher_clocker.cpp
   patcher/test_patcher_slide.cpp
   patcher/test_patcher_expr.cpp
   patcher/test_patcher_vexpr.cpp
@@ -1036,6 +1037,7 @@ set_source_files_properties(
   patcher/test_patcher_transport.cpp
   patcher/test_patcher_timepoint.cpp
   patcher/test_patcher_tempo.cpp
+  patcher/test_patcher_clocker.cpp
   patcher/test_patcher_slide.cpp
   patcher/test_patcher_expr.cpp
   patcher/test_patcher_vexpr.cpp
