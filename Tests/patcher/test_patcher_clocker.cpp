@@ -62,6 +62,7 @@
 #include "patcher/time/TimerThread.h"
 #include "patcher/time/clockBridge.h"
 #include "patcher/time/gClocker.h"
+#include "patcher/time/timerBridge.h"
 #include "support/alloc_probe.hpp"
 
 using namespace std::chrono_literals;
@@ -158,16 +159,44 @@ namespace {
     }
   };
 
+  // Wire two standalone objects the way `patcherImplementation::ConnectUnlocked`
+  // wires two objects in a real patch: **both ends, inlet first**.
+  //
+  // Registering only the outlet side is enough to make sends work, which is why
+  // it is an easy thing to write and a hard thing to notice. It is also a bug,
+  // and a documented one — `pObject::ConnectInlet` and `ConnectUnlocked` both
+  // spell it out for issue #237: "a one-sided outlet->inlet edge survives
+  // Disconnect/UnwireFromPeers (both clean up from the inlet's records)". The
+  // teardown consequence is what bit this file. `~outlet` walks its
+  // `connections` and calls `inlet::Disconnect` on every peer, and `~inlet`
+  // does the mirror image — so a *symmetric* edge is unwired by whichever end
+  // dies first and destruction order stops mattering. A one-sided one leaves
+  // the outlet holding an `inlet*` the inlet never knew about, and destroying
+  // the receiver first makes `~outlet` read freed memory.
+  void Wire(YSE::PATCHER::pObject& from, int outlet, YSE::PATCHER::pObject& to, int inlet = 0) {
+    // The inlet is asked first and the outlet only records the edge if it
+    // accepted, exactly as ConnectUnlocked does.
+    REQUIRE(to.ConnectInlet(from.GetOutlet(outlet), inlet));
+    from.ConnectOutlet(to.GetInlet(inlet), outlet);
+  }
+
   // A standalone `.clocker` with a recorder on its outlet. Standalone means no
   // patcher, which is what makes this rig the right place for everything that
   // is not about the patcher's own threads.
+  //
+  // The recorder is declared **before** the clocker, so it is destroyed after
+  // it. That ordering is not cosmetic: `~gClocker` gives its `timerBridge` slot
+  // back, and `timerBridge::Release` performs `ClearTimer`'s "no callback for
+  // this id begins after this returns" handshake — so a sink that outlives the
+  // clocker cannot be delivered into while it is being destroyed. Every
+  // standalone case in this file is laid out that way.
   struct Rig {
-    gClocker obj;
     Recorder out;
+    gClocker obj;
 
     explicit Rig(const std::string& args = "") {
       if (!args.empty()) obj.SetParams(args);
-      obj.ConnectOutlet(out.GetInlet(0), 0);
+      Wire(obj, 0, out);
     }
     ~Rig() {
       // Stopped before destruction, the way a patch's teardown would: the
@@ -572,10 +601,10 @@ TEST_SUITE("patcher") {
   TEST_CASE("clocker: a running clocker reports at its interval (#505)") {
     // End to end on the real `timerThread`: the object is started and left
     // alone, and what arrives is a rising sequence of elapsed times.
+    SharedRecorder out; // outlives the clocker — see Wire / Rig
     gClocker clocker;
-    SharedRecorder out;
     clocker.SetParams("10");
-    clocker.ConnectOutlet(out.GetInlet(0), 0);
+    Wire(clocker, 0, out);
 
     clocker.GetInlet(0)->SetInt(1, YSE::T_GUI);
     REQUIRE(waitFor([&] { return out.n() >= 4; }));
@@ -591,18 +620,22 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("clocker: a stop ends the reports (#505)") {
+    SharedRecorder out; // outlives the clocker — see Wire / Rig
     gClocker clocker;
-    SharedRecorder out;
     clocker.SetParams("5");
-    clocker.ConnectOutlet(out.GetInlet(0), 0);
+    Wire(clocker, 0, out);
 
     clocker.GetInlet(0)->SetInt(1, YSE::T_GUI);
     REQUIRE(waitFor([&] { return out.n() >= 3; }));
 
+    // A `stop` from the control thread takes the *blocking* half of the bridge,
+    // so once this returns `ClearTimer`'s handshake has been performed and no
+    // further callback can begin. The count is therefore final the moment the
+    // call comes back — there is nothing to sleep for, and sleeping would only
+    // make the assertion a statement about timing rather than about the stop.
     clocker.GetInlet(0)->SetList("stop", YSE::T_GUI);
     const int afterStop = out.n();
-    // A 5 ms timer still running would advance many times over this window.
-    std::this_thread::sleep_for(100ms);
+    YSE::PATCHER::TimerBridge().WaitIdle();
     CHECK(out.n() == afterStop);
   }
 
@@ -611,10 +644,10 @@ TEST_SUITE("patcher") {
     // Max's "without stopping or restarting the clock; clocker continues to
     // report the new elapsed time at the same regular interval": the reports
     // keep coming, and the number they carry starts again from 0.
+    SharedRecorder out; // outlives the clocker — see Wire / Rig
     gClocker clocker;
-    SharedRecorder out;
     clocker.SetParams("5");
-    clocker.ConnectOutlet(out.GetInlet(0), 0);
+    Wire(clocker, 0, out);
 
     clocker.GetInlet(0)->SetInt(1, YSE::T_GUI);
     REQUIRE(waitFor([&] { return out.last() >= 40; }));
@@ -647,24 +680,47 @@ TEST_SUITE("patcher") {
     // process would be gone, and with it every other `.metro` and `.clocker`.
     //
     // The `concurrency:` prefix is the selector the sanitizer CI legs run.
-    gClocker clocker;
-    SelfStoppingSink sink;
-    sink.target = &clocker;
-    sink.stopAt = 2;
+    //
+    // Which is exactly how this case was first written *wrong*, and the shape
+    // is worth keeping written down. The stop taken here is the **wait-free**
+    // one — `Stop()` finds its own tick frame and requests rather than applies
+    // — so `!Running()` means "no further report will be sent", not "the timer
+    // has been disarmed". The timer is still live and still firing (silently)
+    // for a pool hop afterwards. Sleeping and hoping is not a quiescence
+    // guarantee, and ThreadSanitizer says so in as many words ("as if
+    // synchronized via sleep"): a tick landing in that window raced the sink's
+    // own destructor.
+    //
+    // There are two deterministic answers and this case uses both.
+    // `timerBridge::WaitIdle` blocks until the reconcile the request armed has
+    // run, and `~gClocker` — reached first, because the sink is declared
+    // before it — gives the slot back through `timerBridge::Release`, whose
+    // `ClearTimer` handshake guarantees no callback for that timer begins after
+    // it returns and waits out one already in flight.
+    SelfStoppingSink sink; // outlives the clocker — see Wire / Rig
+    {
+      gClocker clocker;
+      sink.target = &clocker;
+      sink.stopAt = 2;
 
-    clocker.SetParams("5");
-    clocker.ConnectOutlet(sink.GetInlet(0), 0);
+      clocker.SetParams("5");
+      Wire(clocker, 0, sink);
 
-    clocker.GetInlet(0)->SetInt(1, YSE::T_GUI);
-    REQUIRE(waitFor([&] { return !clocker.Running(); }));
+      clocker.GetInlet(0)->SetInt(1, YSE::T_GUI);
+      REQUIRE(waitFor([&] { return !clocker.Running(); }));
 
-    // The wait-free stop lands a pool hop later, so a callback already under
-    // way may still run — but it finds `running` false and sends nothing, which
-    // is the promise that matters. Two reports, and no more.
-    const int settled = sink.n();
-    CHECK(settled == 2);
-    std::this_thread::sleep_for(100ms);
-    CHECK(sink.n() == settled);
+      // The disarm the tick requested has now been reconciled.
+      YSE::PATCHER::TimerBridge().WaitIdle();
+      // ... and this closes the window between `running` going false and the
+      // request being pushed: the destructor's handshake covers any timer that
+      // WaitIdle was too early to see.
+    }
+    sink.target = nullptr;
+
+    // No timer, no worker, nothing left that could send: the count is final
+    // rather than merely settled. The self-stop landed on report 2, so a
+    // clocker that had ignored it would have failed the wait above.
+    CHECK(sink.n() == 2);
   }
 
   TEST_CASE("concurrency: clocker destroyed while running stops its timer (#505)") {
@@ -683,15 +739,19 @@ TEST_SUITE("patcher") {
       // frame that happens to be reused.
       auto clocker = std::make_unique<gClocker>();
       clocker->SetParams("5");
-      clocker->ConnectOutlet(out.GetInlet(0), 0);
+      Wire(*clocker, 0, out);
       clocker->GetInlet(0)->SetInt(1, YSE::T_GUI);
       REQUIRE(waitFor([&] { return out.n() >= 2; }));
       // Destroyed *running*, deliberately.
     }
 
+    // `Release`'s handshake has already run inside that destructor, so the
+    // timer is gone and the count below cannot move — no sleep required, and a
+    // sleep would have made this a claim about timing instead of about
+    // teardown.
     CHECK(YSE::PATCHER::TimerThread().size() == timersBefore);
     const int settled = out.n();
-    std::this_thread::sleep_for(100ms);
+    YSE::PATCHER::TimerBridge().WaitIdle();
     CHECK(out.n() == settled);
   }
 
