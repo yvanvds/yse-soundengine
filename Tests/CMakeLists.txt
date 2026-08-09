@@ -449,12 +449,14 @@ add_test(
 )
 set_tests_properties(yse_tests_utils PROPERTIES LABELS utils)
 
-# Self-test for support/alloc_probe (issue #697). Registered on its own rather
-# than folded into another suite because of what a failure means: not that an
-# engine path regressed, but that the probe stopped seeing a shape of
-# allocation — at which point every "this audio path allocates nothing"
-# assertion resting on it has become vacuous. Worth reading as its own line in
-# the ctest output. Needs no engine session.
+# Self-test for support/alloc_probe (issues #697, #701). Registered on its own
+# rather than folded into another suite because of what a failure means: not
+# that an engine path regressed, but that the probe stopped measuring what it
+# claims to — that it went blind to a shape of allocation, at which point every
+# "this audio path allocates nothing" assertion resting on it is vacuous, or
+# that it stopped being scoped to the thread that armed it, at which point those
+# same assertions can fail on unrelated background-pool work. Worth reading as
+# its own line in the ctest output. Needs no engine session.
 add_test(
   NAME    yse_tests_probe
   COMMAND yse_tests --test-suite=probe

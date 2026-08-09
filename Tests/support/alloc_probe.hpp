@@ -3,28 +3,80 @@
 //
 // The replaceable global operator new/delete are defined once in
 // alloc_probe.cpp (a single TU — defining them in a header would be an ODR /
-// multiple-definition violation the moment two TUs include it). While
-// `g_alloc_probe_active` is true the overrides count every `operator new`
-// call; the rest of the time they are transparent so doctest/STL/etc. are
-// unaffected. Wrap the region under test in a `ProbeScope` and assert
-// `g_alloc_count == 0`.
+// multiple-definition violation the moment two TUs include it). While a probe
+// is armed the overrides count `operator new` calls; the rest of the time they
+// are transparent so doctest/STL/etc. are unaffected. Wrap the region under
+// test in a `ProbeScope` and assert `g_alloc_count.load() == 0`.
 //
-// Read `probeSeesStringAllocations()` below before writing such an assertion
-// over a path that can build a std::string: what the probe observes depends on
-// the object format and on how the C++ runtime is linked (issue #697).
+// Two properties of the instrument decide whether such an assertion means
+// anything, and both are measured rather than assumed:
+//
+//   * its *reach* — read `probeSeesStringAllocations()` below before asserting
+//     over a path that can build a std::string; what the probe observes
+//     depends on the object format and on how the C++ runtime is linked
+//     (issue #697)
+//   * its *scope* — a probe counts only the thread that opened it (issue
+//     #701), so the code under test has to run on that thread
 //
 // Extracted from test_named_bus.cpp (issue #121) so the manager / virtualFinder
 // RT-allocation tests (issue #194) can share the same probe.
 
-#include <atomic>
 #include <cstddef>
 
 namespace TestHelpers {
 
-  // Number of `operator new` calls observed while the probe is active.
-  extern std::atomic<int> g_alloc_count;
-  // When true, the global operator-new overrides increment g_alloc_count.
-  extern std::atomic<bool> g_alloc_probe_active;
+  // Implementation hooks. The state they touch is `thread_local` and lives in
+  // alloc_probe.cpp — the same TU as the replaced operators, which keeps the
+  // TLS access local to one image and keeps `operator new` off any symbol
+  // another image would have to resolve for it.
+  namespace detail {
+    // Zero this thread's counter and start counting on it.
+    void probeArm() noexcept;
+    // Stop counting on this thread. Leaves the count readable.
+    void probeDisarm() noexcept;
+    // This thread's count.
+    int probeCount() noexcept;
+
+    // Single-block watch, same thread scoping — see AllocWatch below.
+    void watchArm() noexcept;
+    void watchDisarm() noexcept;
+    std::size_t watchNewSize() noexcept;
+    std::size_t watchDeleteSize() noexcept;
+    bool watchSawSizedDelete() noexcept;
+  } // namespace detail
+
+  // ── Thread scope (issue #701) ─────────────────────────────────────────────
+  //
+  // The counter used to be a process-global atomic, so while a scope was open
+  // *any* thread's `operator new` incremented it. The engine keeps a background
+  // "slow pool" whose worker allocates freely and legitimately — clockBridge's
+  // resolve job builds a std::string to look a clock up by name, for one — and
+  // several probes are open across a window in which a message handler has just
+  // pushed a job onto that pool. Those probes could fail on work that has
+  // nothing to do with the path they assert about: not a vacuous pass, a false
+  // failure, and the kind that gets "fixed" by widening a sleep.
+  //
+  // So the count is per-thread and a `ProbeScope` arms only the thread that
+  // constructs it. Every call site drives the code under test on the test
+  // thread itself, so what each of them measures is unchanged — they simply
+  // stop seeing other threads.
+  //
+  // The corollary is the rule for new call sites: **drive the probed code on
+  // the thread that opened the scope.** A scope opened here cannot observe an
+  // allocation made on the audio callback or on the pool; to measure one of
+  // those, open a `ProbeScope` on *that* thread and hand its count back (see
+  // the two-thread case in support/test_alloc_probe.cpp, which does exactly
+  // that to prove the scoping works).
+
+  // Reads the calling thread's allocation count. Spelled as an object with a
+  // `load()` so every call site keeps the shape it had when this was an atomic,
+  // while the storage behind it is thread_local.
+  struct ThreadAllocCount {
+    int load() const noexcept {
+      return detail::probeCount();
+    }
+  };
+  inline constexpr ThreadAllocCount g_alloc_count{};
 
   // ── Single-block size watch (issue #662) ──────────────────────────────────
   //
@@ -39,26 +91,17 @@ namespace TestHelpers {
   // Detectable here without a sanitizer, on every platform, because this suite
   // already replaces both operators — see alloc_probe.cpp. Nothing is recorded
   // unless a watch is armed, so the rest of the suite is unaffected.
-  extern std::atomic<bool> g_watch_arm; // capture the next operator new
-  extern std::atomic<void*> g_watch_ptr; // the block that got captured
-  extern std::atomic<std::size_t> g_watch_new_size; // size it was allocated with
-  extern std::atomic<std::size_t> g_watch_delete_size; // size the sized delete got
-  extern std::atomic<bool> g_watch_sized_delete; // the sized form was the one used
-
-  // RAII arm: the next `operator new` after construction is the watched block.
-  // Keep the scope alive across the matching delete, then compare newSize()
-  // with deleteSize().
+  //
+  // Thread-scoped for the same reason as the counter (issue #701): the watch
+  // claims "the next allocation", and a process-wide watch would happily claim
+  // one made by the pool worker instead of the one under test. Both halves of
+  // the new/delete pair therefore have to run on the arming thread.
   struct AllocWatch {
     AllocWatch() {
-      g_watch_ptr.store(nullptr, std::memory_order_relaxed);
-      g_watch_new_size.store(0, std::memory_order_relaxed);
-      g_watch_delete_size.store(0, std::memory_order_relaxed);
-      g_watch_sized_delete.store(false, std::memory_order_relaxed);
-      g_watch_arm.store(true, std::memory_order_relaxed);
+      detail::watchArm();
     }
     ~AllocWatch() {
-      g_watch_arm.store(false, std::memory_order_relaxed);
-      g_watch_ptr.store(nullptr, std::memory_order_relaxed);
+      detail::watchDisarm();
     }
     AllocWatch(const AllocWatch&) = delete;
     AllocWatch& operator=(const AllocWatch&) = delete;
@@ -66,15 +109,15 @@ namespace TestHelpers {
     // 0 when nothing was captured — the overrides are compiled out under
     // ThreadSanitizer, which ships its own operators.
     std::size_t newSize() const {
-      return g_watch_new_size.load(std::memory_order_relaxed);
+      return detail::watchNewSize();
     }
     std::size_t deleteSize() const {
-      return g_watch_delete_size.load(std::memory_order_relaxed);
+      return detail::watchDeleteSize();
     }
     // False when the toolchain routed the free through the unsized
     // `operator delete(void*)`, which carries no size to compare.
     bool sawSizedDelete() const {
-      return g_watch_sized_delete.load(std::memory_order_relaxed);
+      return detail::watchSawSizedDelete();
     }
   };
 
@@ -119,15 +162,19 @@ namespace TestHelpers {
   // anything.
   bool probeSeesStringAllocations();
 
-  // RAII activation: zeroes the counter and arms the probe for its lifetime.
+  // RAII activation: zeroes the counter and arms the probe for its lifetime —
+  // on the constructing thread only.
   struct ProbeScope {
-    ProbeScope() {
-      g_alloc_count.store(0, std::memory_order_relaxed);
-      g_alloc_probe_active.store(true, std::memory_order_relaxed);
+    ProbeScope() noexcept {
+      detail::probeArm();
     }
-    ~ProbeScope() {
-      g_alloc_probe_active.store(false, std::memory_order_relaxed);
+    ~ProbeScope() noexcept {
+      detail::probeDisarm();
     }
+    // Non-copyable since the scoping is per-thread: a copy destroyed on
+    // another thread would disarm that one and leave this one counting.
+    ProbeScope(const ProbeScope&) = delete;
+    ProbeScope& operator=(const ProbeScope&) = delete;
   };
 
 } // namespace TestHelpers

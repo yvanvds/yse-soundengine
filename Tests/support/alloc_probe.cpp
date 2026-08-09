@@ -11,15 +11,62 @@
 #include <vector>
 
 namespace TestHelpers {
-  std::atomic<int> g_alloc_count{0};
-  std::atomic<bool> g_alloc_probe_active{false};
+  namespace {
+    // Probe state, per thread (issue #701). A replaced `operator new` is
+    // process-wide and runs on every thread in the process, including ones that
+    // allocate long before any probe exists; the *counting* is what has to be
+    // scoped, so that a probe reports its own thread's allocations and not the
+    // background pool's.
+    //
+    // Every one of these is a trivially destructible type with a constant
+    // initializer on purpose. That is what makes the TLS access a plain slot
+    // read: no lazy-init guard and no __cxa_thread_atexit registration, either
+    // of which could allocate and re-enter the very operator that is reading
+    // the slot.
+    thread_local bool t_probe_active = false;
+    thread_local int t_alloc_count = 0;
 
-  // Single-block size watch — see the header (issue #662).
-  std::atomic<bool> g_watch_arm{false};
-  std::atomic<void*> g_watch_ptr{nullptr};
-  std::atomic<std::size_t> g_watch_new_size{0};
-  std::atomic<std::size_t> g_watch_delete_size{0};
-  std::atomic<bool> g_watch_sized_delete{false};
+    // Single-block size watch — see the header (issue #662).
+    thread_local bool t_watch_arm = false;
+    thread_local void* t_watch_ptr = nullptr;
+    thread_local std::size_t t_watch_new_size = 0;
+    thread_local std::size_t t_watch_delete_size = 0;
+    thread_local bool t_watch_sized_delete = false;
+  } // namespace
+
+  namespace detail {
+    void probeArm() noexcept {
+      t_alloc_count = 0;
+      t_probe_active = true;
+    }
+    void probeDisarm() noexcept {
+      t_probe_active = false;
+    }
+    int probeCount() noexcept {
+      return t_alloc_count;
+    }
+
+    void watchArm() noexcept {
+      t_watch_ptr = nullptr;
+      t_watch_new_size = 0;
+      t_watch_delete_size = 0;
+      t_watch_sized_delete = false;
+      t_watch_arm = true;
+    }
+    void watchDisarm() noexcept {
+      t_watch_arm = false;
+      t_watch_ptr = nullptr;
+    }
+    std::size_t watchNewSize() noexcept {
+      return t_watch_new_size;
+    }
+    std::size_t watchDeleteSize() noexcept {
+      return t_watch_delete_size;
+    }
+    bool watchSawSizedDelete() noexcept {
+      return t_watch_sized_delete;
+    }
+  } // namespace detail
 } // namespace TestHelpers
 
 // ThreadSanitizer ships its own replaceable operator new/delete in
@@ -40,24 +87,30 @@ namespace TestHelpers {
 #ifndef YSE_UNDER_TSAN
 namespace TestHelpers {
   namespace {
-    // Claim the first allocation made after a watch was armed.
-    inline void watch_new(void* p, std::size_t n) {
-      if (!p) return;
-      if (!g_watch_arm.exchange(false, std::memory_order_relaxed)) return;
-      g_watch_new_size.store(n, std::memory_order_relaxed);
-      g_watch_ptr.store(p, std::memory_order_relaxed);
+    // The whole cost the probe imposes on every allocation in the process: one
+    // thread-local flag test. A thread with no probe open — the slow pool's
+    // worker, PortAudio's callback thread — falls straight through.
+    inline void count_new() noexcept {
+      if (t_probe_active) ++t_alloc_count;
     }
-    inline void watch_delete(void* p, std::size_t n, bool sized) {
-      if (!p || g_watch_ptr.load(std::memory_order_relaxed) != p) return;
-      g_watch_sized_delete.store(sized, std::memory_order_relaxed);
-      g_watch_delete_size.store(n, std::memory_order_relaxed);
+    // Claim the first allocation made after a watch was armed, on the thread
+    // that armed it.
+    inline void watch_new(void* p, std::size_t n) noexcept {
+      if (!p || !t_watch_arm) return;
+      t_watch_arm = false;
+      t_watch_new_size = n;
+      t_watch_ptr = p;
+    }
+    inline void watch_delete(void* p, std::size_t n, bool sized) noexcept {
+      if (!p || t_watch_ptr != p) return;
+      t_watch_sized_delete = sized;
+      t_watch_delete_size = n;
     }
   } // namespace
 } // namespace TestHelpers
 
 void* operator new(std::size_t n) {
-  if (TestHelpers::g_alloc_probe_active.load(std::memory_order_relaxed))
-    TestHelpers::g_alloc_count.fetch_add(1, std::memory_order_relaxed);
+  TestHelpers::count_new();
   if (void* p = std::malloc(n == 0 ? 1 : n)) {
     TestHelpers::watch_new(p, n);
     return p;
@@ -71,8 +124,7 @@ void* operator new(std::size_t n) {
 // matching delete below frees it with std::free, which AddressSanitizer flags
 // as an alloc-dealloc-mismatch (issue #219).
 void* operator new(std::size_t n, const std::nothrow_t&) noexcept {
-  if (TestHelpers::g_alloc_probe_active.load(std::memory_order_relaxed))
-    TestHelpers::g_alloc_count.fetch_add(1, std::memory_order_relaxed);
+  TestHelpers::count_new();
   void* p = std::malloc(n == 0 ? 1 : n);
   TestHelpers::watch_new(p, n);
   return p;
@@ -90,15 +142,13 @@ void* operator new(std::size_t n, const std::nothrow_t&) noexcept {
 // pointer, which is a scalar-delete story. Claiming an array allocation as
 // "the next operator new" would only let unrelated traffic steal the watch.
 void* operator new[](std::size_t n) {
-  if (TestHelpers::g_alloc_probe_active.load(std::memory_order_relaxed))
-    TestHelpers::g_alloc_count.fetch_add(1, std::memory_order_relaxed);
+  TestHelpers::count_new();
   if (void* p = std::malloc(n == 0 ? 1 : n)) return p;
   throw std::bad_alloc{};
 }
 
 void* operator new[](std::size_t n, const std::nothrow_t&) noexcept {
-  if (TestHelpers::g_alloc_probe_active.load(std::memory_order_relaxed))
-    TestHelpers::g_alloc_count.fetch_add(1, std::memory_order_relaxed);
+  TestHelpers::count_new();
   return std::malloc(n == 0 ? 1 : n);
 }
 
@@ -149,6 +199,10 @@ namespace {
 
 namespace TestHelpers {
 
+  // Measured on whichever thread asks first and cached: the probe's reach is a
+  // property of how the binary was linked, not of the calling thread. The
+  // measurement itself allocates on the calling thread, inside its own scope,
+  // so it is correct wherever it runs.
   bool probeCountsAllocations() {
     static const bool counted = [] {
       ProbeScope probe;
@@ -157,7 +211,7 @@ namespace TestHelpers {
       v[0] = 'y';
       g_canary_ptr = v.data();
       g_canary_sink = v[0];
-      return g_alloc_count.load(std::memory_order_relaxed) > 0;
+      return g_alloc_count.load() > 0;
     }();
     return counted;
   }
@@ -170,7 +224,7 @@ namespace TestHelpers {
       std::string s(g_canary_size, 'y');
       g_canary_ptr = s.data();
       g_canary_sink = s[0];
-      return g_alloc_count.load(std::memory_order_relaxed) > 0;
+      return g_alloc_count.load() > 0;
     }();
     return counted;
   }
