@@ -3772,6 +3772,53 @@
       }
     ]
   },
+  ".pipe": {
+    "category": "TIME",
+    "description": "Delays numbers, lists and symbols. A value in the left inlet comes back out the outlet a settable number of milliseconds later, as the same kind of message it went in as. This is .delay for data, and the difference that matters is the queue: Max's delay holds one bang and 'the first bang is forgotten' when a second arrives, while a .pipe holds many values at once and each one keeps its own deadline. Ten numbers into a .pipe 500 are ten numbers out 500 ms later in the order they went in, which is what makes echoes, delayed parameter changes and every 'do this to that value in N ms' pattern one object instead of one .delay per value. A number in the right inlet sets the delay for values arriving after it and leaves values already waiting alone. 'clear' drops everything pending without sending it and 'flush' sends it all immediately in arrival order, which are Max's two commands. The wait runs on the patcher's deferred-message scheduler (issue #628) rather than on the timer thread behind .metro, so queueing a value allocates nothing and takes no lock, and a released value arrives inside the patcher's own dispatch as one fresh logical event rather than as an unrelated stimulus. That clock is the block counter, so it stops when the engine does and a paused patch holds every pending value where it stands, and its resolution is one audio block: a delay of 0 still defers to the next block rather than firing now, which is Max's behaviour and the reason a pipe wired back into itself is a fast delay line instead of a stack overflow. The pending set is bounded and pre-allocated at 64 values per object, each holding up to 256 characters of text, and beyond it sits the patcher-wide limit of 128 pending messages shared with .delay, .qlist, .mtr and .seq. A value that does not fit is dropped and counted rather than sent early or written to the log: sending it early would break the object's one guarantee at exactly the moment the patch is at its resource limit and would let a self-feeding delay line recurse on the audio thread, and logging would allocate on whichever thread the value arrived on, which is routinely the audio callback. The count is the report, and it is readable at any time. Unlike Max's pipe there is one data inlet rather than one per creation argument: a list is already a single value here and travels whole, so it is delayed whole and spread with .spray, .bondo or .route afterwards if a patch wants it spread. Milliseconds are the only unit — a note value or tick count in the time inlet is refused rather than misread as milliseconds, there being no clock here to measure a beat against. Calculate() does nothing and no message path allocates, locks or blocks.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The value inlet. An int, a float or a list arriving here is queued and comes back out the outlet a delay later, as the same kind of message it went in as — Max's 'pipe delays a number, list, or symbol by a specified amount of time'. Unlike .delay, values queue rather than replace each other: a second value does not cancel the first, so ten numbers in are ten numbers out, each one its own delay after it arrived. A list whose whole text is one number arrives as that number, an int or a float by its spelling, so a .m 5 reaches an int inlet downstream; anything else is carried whole as text. The message 'clear' drops every value waiting, sending none of them, and 'flush' sends them all immediately in the order they arrived — Max's two commands. Those two words are therefore commands rather than delayable text, as they are in Max. There is no bang method here, as Max's pipe has none. A value refused because the pending set is full is dropped and counted rather than sent early or logged; see the object description.",
+        "index": 0,
+        "label": "value",
+        "range": "int, float, list, 'clear', 'flush'"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Sets the delay in milliseconds for values arriving *after* it. Values already waiting keep the delay they were queued with, which is what makes the queue a queue rather than a set of deadlines that all move together. Ints, floats and a list whose leading token is a number all set it; a negative or NaN time counts as 0, which still defers by one audio block rather than sending immediately. Max's tempo-relative time syntax is not read here — this object has no clock to measure a beat against — and a note value ('4nd') or tick count ('1440 ticks') is refused outright rather than misread as the milliseconds it is not, leaving the delay where it was.",
+        "index": 1,
+        "label": "time",
+        "range": "0+ ms"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".pipe",
+    "outlets": [
+      {
+        "doc": "The delayed value, one audio block or more after the value that caused it.",
+        "index": 0,
+        "label": "out",
+        "range": "any",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The initial delay in milliseconds — Max's creation argument and its delaytime attribute, whose documented default is 0. A delay of 0 is not the same as no delay: the value still comes back on the next audio block, as its own event, which is what Max's pipe 0 is for. The right inlet overwrites it afterwards, for values arriving after that. A negative value counts as 0. Values pending when the parameter changes keep the delay they were queued with.",
+        "name": "delaytime",
+        "range": "0+ ms"
+      }
+    ]
+  },
   ".poltocar": {
     "category": "MATH",
     "description": "Control-rate polar to cartesian conversion. Whenever inlet 0 fires it emits the cartesian form of the polar point (amplitude, angle): the x coordinate on outlet 0 and the y coordinate on outlet 1. The inverse of .cartopol, so feeding one into the other returns the original pair. Both outlets fire on every evaluation, right one first.",

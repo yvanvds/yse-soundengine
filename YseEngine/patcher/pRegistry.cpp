@@ -64,6 +64,7 @@
 #include "time/gClocker.h"
 #include "time/gDelay.h"
 #include "time/gMetro.h"
+#include "time/gPipe.h"
 #include "time/gTempo.h"
 #include "time/gTimepoint.h"
 #include "time/gTimer.h"
@@ -462,6 +463,10 @@ pRegistry::pRegistry() {
   // Delay a bang — the patcher's most basic scheduling primitive, and the first
   // object that can defer anything at all (issue #503)
   Add(OBJ::G_DELAY, gDelay::Create);
+
+  // Delay numbers, lists and symbols — .delay for data, and the first timing
+  // object that holds many pending values at once rather than one (issue #504)
+  Add(OBJ::G_PIPE, gPipe::Create);
 
   // Control a named domain clock from inside the patcher — the object that
   // connects a patch to the engine's polytemporal clock system (issue #513)
