@@ -1,4 +1,5 @@
 #include "gSeq.h"
+#include "../../midi/midiBytes.hpp"
 #include "../math/gExprEval.h"
 #include "../pListArgs.h"
 #include "../pObjectList.hpp"
@@ -122,91 +123,33 @@ namespace {
     return true;
   }
 
-  // ── standard MIDI file bytes (issue #692) ───────────────────────────────────
+  // ── standard MIDI file bytes (issues #692, #698) ────────────────────────────
   //
-  // Written here rather than reused from `YseEngine/midi/`. `MIDI::fileImpl` has
-  // the same four primitives and cannot lend them: they are anonymous-namespace
-  // statics in its own translation unit, its parser takes a filesystem *path*
-  // rather than the bytes this object is handed, and it builds and sorts
-  // `std::vector`s — on a completion the audio thread runs, where nothing may
-  // allocate. See the class documentation.
+  // The format's own primitives, shared with `MIDI::fileImpl` — the engine's
+  // other reader of standard MIDI files — through midi/midiBytes.hpp. Pulled in
+  // unqualified so the parse and the writer below read as they did when these
+  // were local to this file.
+  //
+  // Only the primitives are shared. The two *parsers* stay separate, and
+  // midiBytes.hpp says why: `fileImpl` is handed a path and builds and sorts
+  // std::vectors, where this one is handed bytes that already came through the
+  // host's IO() layer and fills fixed-size tables inside a completion the audio
+  // thread delivers. Everything used here is allocation-free except the Append*
+  // family, which the write path keeps safe by reserving `fileScratch` up front.
 
-  constexpr unsigned char META_PREFIX = 0xFF;
-  constexpr unsigned char META_END_OF_TRACK = 0x2F;
-  constexpr unsigned char META_TEMPO = 0x51;
-  constexpr unsigned char SYSEX_BEGIN = 0xF0;
-  constexpr unsigned char SYSEX_ESCAPE = 0xF7;
-
-  std::uint16_t ReadU16(const unsigned char* at) {
-    return (std::uint16_t)(((std::uint16_t)at[0] << 8) | (std::uint16_t)at[1]);
-  }
-
-  std::uint32_t ReadU32(const unsigned char* at) {
-    return ((std::uint32_t)at[0] << 24) | ((std::uint32_t)at[1] << 16) |
-           ((std::uint32_t)at[2] << 8) | (std::uint32_t)at[3];
-  }
-
-  // A variable-length quantity: seven bits per byte, the high bit set on all but
-  // the last. Four bytes is the format's own limit, so a corrupt file cannot
-  // send this walking off the end looking for a terminator.
-  bool ReadVarLen(const unsigned char* data, std::size_t& at, std::size_t end, std::uint32_t& out) {
-    std::uint32_t value = 0;
-    for (int i = 0; i < 4; i++) {
-      if (at >= end) return false;
-      const unsigned char byte = data[at];
-      at++;
-      value = (value << 7) | (std::uint32_t)(byte & 0x7F);
-      if ((byte & 0x80) == 0) {
-        out = value;
-        return true;
-      }
-    }
-    return false;
-  }
-
-  // How many data bytes follow a channel status byte: two for everything except
-  // program change and channel pressure, which take one.
-  std::size_t ChannelDataBytes(unsigned char status) {
-    const unsigned char kind = status & 0xF0;
-    return (kind == 0xC0 || kind == 0xD0) ? 1 : 2;
-  }
-
-  void AppendByte(std::string& out, unsigned char value) {
-    out.push_back((char)value);
-  }
-
-  void AppendU16(std::string& out, std::uint16_t value) {
-    AppendByte(out, (unsigned char)((value >> 8) & 0xFF));
-    AppendByte(out, (unsigned char)(value & 0xFF));
-  }
-
-  void AppendU32(std::string& out, std::uint32_t value) {
-    AppendByte(out, (unsigned char)((value >> 24) & 0xFF));
-    AppendByte(out, (unsigned char)((value >> 16) & 0xFF));
-    AppendByte(out, (unsigned char)((value >> 8) & 0xFF));
-    AppendByte(out, (unsigned char)(value & 0xFF));
-  }
-
-  // The other direction of ReadVarLen. Clamped to the four-byte maximum the
-  // format allows: a delta longer than that cannot be spelled at all, and one
-  // shortened is better than a file no reader will take.
-  void AppendVarLen(std::string& out, std::uint32_t value) {
-    if (value > 0x0FFFFFFF) value = 0x0FFFFFFF;
-    unsigned char buffer[4];
-    std::size_t written = 0;
-    buffer[written] = (unsigned char)(value & 0x7F);
-    written++;
-    value >>= 7;
-    while (value != 0) {
-      buffer[written] = (unsigned char)((value & 0x7F) | 0x80);
-      written++;
-      value >>= 7;
-    }
-    while (written > 0) {
-      written--;
-      AppendByte(out, buffer[written]);
-    }
-  }
+  using YSE::MIDI::AppendByte;
+  using YSE::MIDI::AppendU16BE;
+  using YSE::MIDI::AppendU32BE;
+  using YSE::MIDI::AppendVarLen;
+  using YSE::MIDI::ChannelDataBytes;
+  using YSE::MIDI::META_END_OF_TRACK;
+  using YSE::MIDI::META_PREFIX;
+  using YSE::MIDI::META_TEMPO;
+  using YSE::MIDI::ReadU16BE;
+  using YSE::MIDI::ReadU32BE;
+  using YSE::MIDI::ReadVarLen;
+  using YSE::MIDI::SYSEX_BEGIN;
+  using YSE::MIDI::SYSEX_ESCAPE;
 
   // Max's names for the meta messages it recognises — "the name of the meta
   // message and the data". Null for anything else, which leaves the type number
@@ -477,8 +420,9 @@ CONSTRUCT() {
       "events and anything with no channel, then one chunk per MIDI channel the sequence actually "
       "uses. The parser is this object's own rather than YseEngine/midi/'s, and the reason is hard "
       "rather than lazy: MIDI::fileImpl reads a filesystem path into std::vectors it then sorts "
-      "twice, where this completion is handed the bytes already and runs on the audio thread, and "
-      "its byte primitives are statics in its own translation unit. It is bounded rather than "
+      "twice, where this completion is handed the bytes already and runs on the audio thread. The "
+      "format's byte primitives are shared with it through midi/midiBytes.hpp since issue #698; it "
+      "is the parsers above them that stay apart. It is bounded rather than "
       "merely finite — the header is validated before anything is cleared, at most 32 MTrk chunks "
       "are merged and the merge stops as soon as the tape is full. Max's meta outlet lands with "
       "the "
@@ -1251,10 +1195,10 @@ bool gSeq::Serialize(int format) {
 
   // "MThd" <length 6> <format> <chunks> <division>.
   fileScratch.append("MThd", 4);
-  AppendU32(fileScratch, 6);
-  AppendU16(fileScratch, format == 0 ? 0 : 1);
-  AppendU16(fileScratch, chunks);
-  AppendU16(fileScratch, (std::uint16_t)WRITE_DIVISION);
+  AppendU32BE(fileScratch, 6);
+  AppendU16BE(fileScratch, format == 0 ? 0 : 1);
+  AppendU16BE(fileScratch, chunks);
+  AppendU16BE(fileScratch, (std::uint16_t)WRITE_DIVISION);
 
   if (format == 0) return WriteChunk(TRACK_EVERYTHING);
 
@@ -1270,7 +1214,7 @@ bool gSeq::WriteChunk(int filter) {
   if (fileScratch.size() + 8 > FILE_TEXT_CAPACITY) return false;
   fileScratch.append("MTrk", 4);
   const std::size_t lengthAt = fileScratch.size();
-  AppendU32(fileScratch, 0);
+  AppendU32BE(fileScratch, 0);
   const std::size_t bodyAt = fileScratch.size();
 
   // The tick timeline, which every chunk shares: each one follows the whole
@@ -1550,9 +1494,9 @@ bool gSeq::LoadMidiFile(const unsigned char* data, std::size_t length) {
   // Validated whole *before* anything is cleared, which is what lets a file that
   // turns out not to be a sequence leave the one already loaded alone.
   if (length < 14) return false;
-  const std::uint32_t headerLength = ReadU32(data + 4);
+  const std::uint32_t headerLength = ReadU32BE(data + 4);
   if (headerLength < 6 || headerLength > length - 8) return false;
-  const int division = (int)(std::int16_t)ReadU16(data + 12);
+  const int division = (int)(std::int16_t)ReadU16BE(data + 12);
   if (division == 0) return false;
 
   // A negative division is SMPTE: frames per second in the high byte (negated),
@@ -1579,7 +1523,7 @@ bool gSeq::LoadMidiFile(const unsigned char* data, std::size_t length) {
 
   std::size_t cursor = 8 + (std::size_t)headerLength;
   while (cursor + 8 <= length) {
-    const std::uint32_t chunkLength = ReadU32(data + cursor + 4);
+    const std::uint32_t chunkLength = ReadU32BE(data + cursor + 4);
     const std::size_t body = cursor + 8;
     // A truncated tail is taken as far as it goes rather than read past.
     std::size_t bodyEnd = length;

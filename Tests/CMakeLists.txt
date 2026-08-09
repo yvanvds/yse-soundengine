@@ -169,6 +169,7 @@ set(YSE_TEST_SOURCES
   dsp/test_panner.cpp
   reverb/test_reverb_dsp.cpp
   reverb/test_reverb_concurrency.cpp
+  midi/test_midi_bytes.cpp
   midi/test_midifile.cpp
   midi/test_midifile_concurrency.cpp
   midi/test_midifile_alloc.cpp
