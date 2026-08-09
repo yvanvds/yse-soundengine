@@ -98,6 +98,11 @@ Bool YSE::system::initShared(bool openDevice) {
 
     maxSounds(50);
     INTERNAL::Global().active = true;
+    // Remember which kind of session this is, not merely that one is up (issue
+    // #719). resume() is the only consumer, and it is what stops an offline
+    // session from acquiring a device it was never asked to have — see the
+    // comment there and on global::isDeviceSession().
+    INTERNAL::Global().sessionHasDevice = openDevice;
 
     if (openDevice) {
       DEVICE::Manager().addCallback();
@@ -219,6 +224,10 @@ void YSE::system::close() {
     // SAMPLERATE if the host opens a device with a different negotiated rate.
     INTERNAL::Global().sampleRateLocked = false;
     INTERNAL::Global().active = false;
+    // The session's device mode dies with the session (issue #719): the next
+    // one declares its own, and until then resume() must refuse — with no
+    // session up there is nothing to open a device for.
+    INTERNAL::Global().sessionHasDevice = false;
     DEVICE::Manager().close();
     INTERNAL::Global().close();
     // Drain the sound manager BEFORE the channel manager: a sound impl that
@@ -247,6 +256,33 @@ void YSE::system::pause() {
 }
 
 void YSE::system::resume() {
+  // A session that was never given a device does not acquire one here (issue
+  // #719). resume() is a request to restart the device this session already
+  // had, not a request for one — an initOffline() session has none, and a
+  // closed engine has none either.
+  //
+  // Without this the call went straight to addCallback() ->
+  // Pa_GetDefaultOutputDevice() -> Pa_OpenStream / Pa_StartStream. In a fresh
+  // process that fails closed (initOffline() skips Pa_Initialize, so there is
+  // no default device to find) and the omission was invisible. But
+  // Pa_Initialize runs once per process and managerObject::terminate() — the
+  // only call that undoes it — is private and destructor-only, so in any
+  // process that has ever called init(), this opened a real stream on an
+  // offline session: a live PortAudio callback thread driving the manager
+  // update() functions that renderOffline()'s caller is already driving from
+  // its own thread, which deviceManager.h documents as single-threaded.
+  //
+  // Deliberately the *only* guard. The autoReconnect watchdog in update()
+  // reaches a device through this same call, so gating here covers it too,
+  // rather than repeating the check at each call site and leaving the next one
+  // free to forget it (the reasoning that settled issue #716). The watchdog's
+  // pause()/resume() pair on an offline session is then two no-ops: pause()
+  // closes a stream that does not exist, which it already did.
+  if (!INTERNAL::Global().isDeviceSession()) {
+    INTERNAL::LogImpl().emit(E_DEBUG,
+                             "resume() ignored: this session has no audio device to resume.");
+    return;
+  }
   DEVICE::Manager().resume();
 }
 
@@ -392,6 +428,20 @@ void YSE::system::openDevice(const deviceSetup& object, CHANNEL_TYPE conf) {
   // into the two-channel stream that is still live. Leave the layout the
   // running device negotiated.
   if (!DEVICE::Manager().openDevice(object)) return;
+
+  // The session now has a device, whatever it was started with (issue #719).
+  //
+  // This is a decision, not a side effect. Unlike resume(), which asks for the
+  // session's own device back, openDevice() names a device and asks for it — an
+  // unambiguous request that an initOffline() session is entitled to make (a
+  // headless tool that later decides to play out loud, say). Refusing it would
+  // leave such a host with no way at all to reach a device short of close() +
+  // init(), and would be a strange thing to refuse *after* the stream is
+  // already running. So the session is promoted here instead, which is what
+  // makes the pause()/resume() pair work on it afterwards. The flip side —
+  // renderOffline() is no longer safe to drive on this session — is the
+  // caller's, and is stated on renderOffline() in system.hpp.
+  INTERNAL::Global().sessionHasDevice = true;
 
   // A backend with a single fixed device (Oboe) reports success without
   // reading the setup at all, so the zero-output guard from #661 still has to

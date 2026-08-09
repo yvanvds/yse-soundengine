@@ -193,6 +193,7 @@ set(YSE_TEST_SOURCES
   system/test_c_api_surface.cpp
   system/test_device_layer.cpp
   system/test_system_active_state.cpp
+  system/test_offline_session.cpp
   system/test_lifecycle.cpp
   clock/test_domain_clocks.cpp
   clip/test_clip_transport.cpp
@@ -398,7 +399,11 @@ add_test(
   # sounds, clocks, the device manager), and its teardown half calls
   # yse_system_close_current_device() / yse_system_close(). They run in
   # yse_tests_capilowcov and yse_tests_capilowcovlife.
-  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthhandlers,synthbus,synthcapi,instrumentcapi,midisynth,playersynth,playercapi,sendstress,channelcapi,synthdemos,clock,clip,buscapi,capisurface,logsafety,devicelayer,capilowcov,capilowcovlife --duration=true
+  # `offlinesession` (issue #719 offline-session device contract) is excluded
+  # for two reasons at once: it drives System::init()/close() cycles, and it
+  # needs a process where PortAudio is up — the exact opposite of what
+  # `devicelayer` needs. It runs in yse_tests_offlinesession.
+  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthhandlers,synthbus,synthcapi,instrumentcapi,midisynth,playersynth,playercapi,sendstress,channelcapi,synthdemos,clock,clip,buscapi,capisurface,logsafety,devicelayer,offlinesession,capilowcov,capilowcovlife --duration=true
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_unit_tests PROPERTIES TIMEOUT 600)
@@ -693,6 +698,30 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_devicelayer PROPERTIES LABELS "system;audio-io;lifecycle")
+
+# Offline-session device contract (issue #719). The mirror image of the entry
+# above, and isolated for the mirror-image reason: `devicelayer` needs a process
+# where PortAudio has never been initialised, this one needs a process where it
+# has. Both facts are properties of the process — Pa_Initialize runs once and
+# managerObject::terminate() is private and destructor-only — so neither suite
+# can establish its own, and the two must never share a binary run.
+#
+# The suite brings PortAudio up itself with one ordinary init()/pause()/close()
+# session, then asserts what a *subsequent* initOffline() session may not
+# acquire: System().resume() and the autoReconnect watchdog must not open the
+# real default output device on it, while System().openDevice() deliberately
+# may. It therefore needs real audio hardware; on headless CI every case skips
+# with a message, because a device that is not reachable cannot be wrongly
+# opened and there is nothing to stand in for it.
+#
+# It also drives System::init()/close() cycles, which on its own is enough to
+# keep it out of the shared yse_unit_tests process (#298 lineage).
+add_test(
+  NAME    yse_tests_offlinesession
+  COMMAND yse_tests --test-suite=offlinesession
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_offlinesession PROPERTIES LABELS "system;audio-io;lifecycle")
 
 # Low-coverage C-API surface (issue #568, follow-up to #417). Covers the eight
 # c_api translation units that #566 left below ~50%: yse_dsp.cpp,

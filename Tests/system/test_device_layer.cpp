@@ -204,8 +204,12 @@ namespace {
   // process (see the ISOLATION note at the top of this file).
   class ScopedSink {
   public:
-    explicit ScopedSink(YSE::logHandler* handler) : previousLevel(YSE::Log().getLevel()) {
-      YSE::Log().setLevel(YSE::EL_WARNING);
+    // The level is a parameter because not every refusal under test is a
+    // warning: the offline-session gate on resume() logs at E_DEBUG, which
+    // EL_WARNING drops (issue #719).
+    explicit ScopedSink(YSE::logHandler* handler, YSE::ERROR_LEVEL level = YSE::EL_WARNING)
+      : previousLevel(YSE::Log().getLevel()) {
+      YSE::Log().setLevel(level);
       YSE::Log().setHandler(handler);
     }
     ~ScopedSink() {
@@ -525,20 +529,43 @@ TEST_SUITE("devicelayer") {
     CHECK(YSE::System().getActiveOutputLatency() == 0);
   }
 
-  // resume() → addCallback() → Pa_GetDefaultOutputDevice(), which returns
-  // paNoDevice on a host with no default output *and* whenever PortAudio was
-  // never initialised. The engine must log and return rather than dereference
-  // the null PaDeviceInfo that Pa_GetDeviceInfo(paNoDevice) hands back.
+  // Two refusals stacked on top of each other, one per layer.
+  //
+  // At the session layer, System().resume() on an engine brought up with
+  // initOffline() no longer reaches the backend at all: a session that was
+  // never given a device does not acquire one (issue #719). That gate holds in
+  // any process, this one included.
+  //
+  // At the backend layer, DEVICE::Manager().resume() → addCallback() →
+  // Pa_GetDefaultOutputDevice() returns paNoDevice on a host with no default
+  // output *and* whenever PortAudio was never initialised, and the manager must
+  // log and return rather than dereference the null PaDeviceInfo that
+  // Pa_GetDeviceInfo(paNoDevice) hands back. That branch is what this suite's
+  // own-process contract makes reachable, so it is still driven directly —
+  // gating the session layer must not quietly retire the backend guard beneath
+  // it.
   TEST_CASE("device manager: resume without a default output device does not open a stream") {
     if (!ensureOffline()) return;
-    // Without the guard this case does not merely fail: with PortAudio up,
-    // resume() opens a real stream on an offline engine, and the live callback
-    // thread then races the cases below that drive paCallback by hand. That the
-    // engine lets it is its own defect, filed as #719.
+    // The backend call below is the reason for the guard: with PortAudio up it
+    // opens a real stream, and the live callback thread then races the cases
+    // further down that drive paCallback by hand. System().resume() above is
+    // safe anywhere since #719.
     if (!ownProcess()) return;
+
+    CapturingLog captured;
+    ScopedSink sink(&captured, YSE::EL_DEBUG);
 
     YSE::System().pause();
     YSE::System().resume();
+    CHECK(captured.contains("no audio device to resume"));
+
+    CHECK(YSE::System().getActiveSampleRate() == 0.0);
+    CHECK(YSE::System().getActiveBufferSize() == 0);
+    CHECK(YSE::System().getActiveOutputLatency() == 0);
+
+    // Straight at the backend, past the session gate.
+    YSE::DEVICE::Manager().resume();
+    CHECK(captured.contains("No default audio output device"));
 
     CHECK(YSE::System().getActiveSampleRate() == 0.0);
     CHECK(YSE::System().getActiveBufferSize() == 0);
@@ -553,9 +580,18 @@ TEST_SUITE("devicelayer") {
   //
   // Measurable headless, and deterministically so: the offline engine never
   // opens a stream, so every tick is a zero-callback tick and every watchdog
-  // fire is a resume() → addCallback() → Pa_GetDefaultOutputDevice() ==
-  // paNoDevice → one warning (the case above owns that path). Counting those
-  // lines counts reconnection attempts.
+  // fire is a pause() + resume() pair. Counting the resume() refusals counts
+  // reconnection attempts.
+  //
+  // The line counted here changed with issue #719 and the attempt count did
+  // not. Before, the watchdog's resume() ran into the backend and stopped at
+  // Pa_GetDefaultOutputDevice() == paNoDevice, one "No default audio output
+  // device" warning per fire; now it stops one layer earlier, at the session
+  // gate that keeps an offline engine from acquiring a device, one debug line
+  // per fire. Both are emitted exactly once per watchdog fire, which is what
+  // this case measures — the gate deliberately sits inside System().resume()
+  // rather than in the watchdog, so the watchdog's cadence stays observable
+  // from an offline session at all.
   //
   // A 300 ms interval over a ~750 ms window is 2 attempts. The old tick
   // comparison gives a number that has nothing to do with the interval: too few
@@ -563,13 +599,14 @@ TEST_SUITE("devicelayer") {
   // 75 of them — as soon as it turns more.
   TEST_CASE("system: autoReconnect retries on a millisecond interval [issue #681]") {
     if (!ensureOffline()) return;
-    // The attempt counter here is the count of "no default output device"
-    // refusals, so a process where a default output device exists measures
-    // nothing at all.
+    // The refusal counted below is the offline-session gate, so this only
+    // measures anything on a session that has no device — which in this process
+    // is guaranteed, and in a shared one is not (the watchdog would be nursing
+    // a real stream instead).
     if (!ownProcess()) return;
 
     CapturingLog captured;
-    ScopedSink sink(&captured);
+    ScopedSink sink(&captured, YSE::EL_DEBUG);
 
     YSE::System().autoReconnect(true, 300);
     const auto start = std::chrono::steady_clock::now();
@@ -581,7 +618,7 @@ TEST_SUITE("devicelayer") {
 
     int attempts = 0;
     for (const std::string& m : captured.messages) {
-      if (m.find("No default audio output device") != std::string::npos) attempts++;
+      if (m.find("no audio device to resume") != std::string::npos) attempts++;
     }
     INFO("reconnection attempts in 750 ms at a 300 ms interval: " << attempts);
     CHECK(attempts >= 1);

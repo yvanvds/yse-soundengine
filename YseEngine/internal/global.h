@@ -39,6 +39,27 @@ namespace YSE {
         return sampleRateLocked;
       }
 
+      // Which *kind* of session is up: true between init() and close(), false
+      // between initOffline() and close(), and false whenever no session is
+      // active at all (issue #719).
+      //
+      // The engine used to record only *that* a session was active, never
+      // whether the host asked for a device, so nothing downstream could tell
+      // the two apart. That is invisible in a fresh process — initOffline()
+      // skips Pa_Initialize, and every PortAudio call then fails closed — but
+      // Pa_Initialize runs once per process and the only call that undoes it
+      // (managerObject::terminate()) is private and destructor-only. So in any
+      // process that ever called init(), an offline session's resume() found a
+      // real default output device and opened a stream on it, which breaks
+      // renderOffline()'s single-threaded contract (deviceManager.h) by putting
+      // a live callback thread beside the caller's own render loop.
+      //
+      // Control thread only (system::initShared / close / openDevice write it,
+      // system::resume reads it); atomic to match `active` next to it.
+      bool isDeviceSession() {
+        return sessionHasDevice;
+      }
+
       void addSlowJob(threadPoolJob* job);
       void addFastJob(threadPoolJob* job);
 
@@ -109,6 +130,9 @@ namespace YSE {
       aInt update;
       aBool active; // set true after System().init(), false at System().close()
       aBool sampleRateLocked;
+      // See isDeviceSession(). Set from initShared()'s openDevice argument,
+      // promoted by a successful system::openDevice(), cleared at close().
+      aBool sessionHasDevice;
 
       friend class YSE::system; // system needs access to the init and close method
     };
