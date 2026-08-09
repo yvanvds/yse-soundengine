@@ -21,6 +21,21 @@ namespace {
   // into an audible glide, short enough that the pitch still tracks a fast
   // mover without lag. See issue #208.
   constexpr Int DOPPLER_SLEW_MS = 30;
+
+  // Separator create() joins a relative sound name onto the working directory
+  // with. The guard here read `__WINDOWS_` until #693 — one underscore short of
+  // the `__WINDOWS__` defines.hpp defines, so it never fired and every platform
+  // joined with "/". Spelled `YSE_WINDOWS` now, matching the identical prologue
+  // in patcher/io/fileScheduler.cpp so a patch and a sound resolve the same
+  // relative name to the same string. A `char` in this anonymous namespace, not
+  // the file-scope `std::string` it was until #703: that one had external
+  // linkage under the collision-prone name `delim`, and cost a heap allocation
+  // before main to boot.
+#ifdef YSE_WINDOWS
+  constexpr char kPathDelim = '\\';
+#else
+  constexpr char kPathDelim = '/';
+#endif
 } // namespace
 
 YSE::SOUND::implementationObject::implementationObject(sound* head)
@@ -138,17 +153,6 @@ YSE::SOUND::implementationObject::~implementationObject() {
   }
 }
 
-// The guard here read `__WINDOWS_` until #693 — one underscore short of the
-// `__WINDOWS__` defines.hpp defines, so it never fired and every platform
-// joined with "/". Spelled `YSE_WINDOWS` now, matching the identical prologue
-// in patcher/io/fileScheduler.cpp so a patch and a sound resolve the same
-// relative name to the same string.
-#ifdef YSE_WINDOWS
-std::string delim = "\\";
-#else
-std::string delim = "/";
-#endif
-
 ///
 bool YSE::SOUND::implementationObject::create(const std::string& fileName, channel* ch, Bool loop,
                                               Flt volume, Bool streaming) {
@@ -163,7 +167,7 @@ bool YSE::SOUND::implementationObject::create(const std::string& fileName, chann
     if (IsPathAbsolute(fileName)) {
       fullName = fileName;
     } else {
-      fullName = GetCurrentWorkingDirectory() + delim + fileName;
+      fullName = GetCurrentWorkingDirectory() + kPathDelim + fileName;
     }
 
     if (!FileExists(fullName)) {
