@@ -33,6 +33,10 @@ YSE_C_API void yse_system_render_offline(YseSystem* sys, int blocks);
 YSE_C_API void yse_system_update(YseSystem* sys);
 YSE_C_API void yse_system_close(YseSystem* sys);
 YSE_C_API void yse_system_pause(YseSystem* sys);
+/* Restarts the device this session already had. A session brought up with
+   yse_system_init_offline() has none, so this is a no-op there rather than an
+   open of the platform default; yse_system_open_device() is the deliberate way
+   to give such a session a device (issue #719). */
 YSE_C_API void yse_system_resume(YseSystem* sys);
 
 /* Diagnostics.

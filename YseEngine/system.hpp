@@ -85,6 +85,10 @@ namespace YSE {
      *  output, which is discarded. Use only after ``initOffline()``;
      *  driving this concurrently with a live audio thread would race the
      *  manager-update path.
+     *
+     *  ``resume()`` cannot put such a thread there behind your back (issue
+     *  #719), but ``openDevice()`` deliberately can — after a successful
+     *  ``openDevice()`` on an offline session, stop driving this.
      */
     void renderOffline(int blocks);
 
@@ -136,7 +140,15 @@ namespace YSE {
      */
     void pause();
 
-    /** @brief Resume audio output after ``pause()``. */
+    /** @brief Resume audio output after ``pause()``.
+     *
+     *  Restarts the device *this session already had*; it is not a request for
+     *  one. On a session started with ``initOffline()`` — and on a closed
+     *  engine — there is no device to resume, so the call is a no-op with a
+     *  debug log line rather than an open of whatever the platform default
+     *  happens to be (issue #719). Use ``openDevice()`` to give an offline
+     *  session a device deliberately.
+     */
     void resume();
 
     /** @brief Consecutive ``update()`` ticks during which the audio device
@@ -184,6 +196,13 @@ namespace YSE {
     const device& getDevice(unsigned int nr);
 
     /** @brief Open an audio device.
+     *
+     *  Allowed on a session started with ``initOffline()``, and a successful
+     *  call promotes it to a session with a device: ``pause()`` / ``resume()``
+     *  work on it from then on, and ``renderOffline()`` no longer does — a live
+     *  audio callback thread is now driving the same manager updates (issue
+     *  #719). Unlike ``resume()``, this call names the device it wants, so it
+     *  is taken at its word.
      *
      *  @param object Device + host + sample-rate configuration.
      *  @param conf   Speaker layout. ``CT_AUTO`` picks stereo when possible.
@@ -329,6 +348,12 @@ namespace YSE {
      *  a second regardless of ``delay``. Without it, a small ``delay`` would
      *  tear down a perfectly healthy device that was still coming up, and the
      *  replacement stream would be torn down for the same reason (issue #681).
+     *
+     *  On a session with no device — ``initOffline()``, headless CI — the
+     *  watchdog reaches the device through ``resume()`` like any other caller,
+     *  and ``resume()`` refuses there, so enabling it costs a pair of no-ops
+     *  per interval and can never graft a device onto such a session (issue
+     *  #719).
      *
      *  @param on    When ``true``, the engine attempts to re-open the audio
      *               device after a disconnection (e.g. headphones unplugged).

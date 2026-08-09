@@ -3,6 +3,7 @@
 #include "../pListArgs.h"
 #include "../pObjectList.hpp"
 #include "../pSelector.h"
+#include "../patcherImplementation.h"
 #include "timeValue.h"
 #include <cmath>
 #include <cstddef>
@@ -42,6 +43,68 @@ namespace {
       "as left-inlet methods, so a 'stop' arriving here is only a word that is not a time value, "
       "and does nothing.";
 
+  // The metro whose timer callback this thread is currently inside, and what
+  // the message cycle running inside that callback has left the metro's own
+  // millisecond timer set to (issue #721).
+  //
+  // `Bang()` runs on the timer worker *inside* `timer.func()`, and its outlet
+  // can come straight back round to this object's own left inlet — directly, or
+  // through anything that passes a bang along. `Toggle` stops before it starts,
+  // so that reached `timerBridge::ApplyStop`, which takes the slot mutex and
+  // calls `timerThread::ClearTimer` for the id whose callback is on this very
+  // stack. `destroyImpl` then waits on a condition variable for
+  // `timer.destroyed`, which only the worker sets *after* the callback returns —
+  // and the worker is the thread now parked in that wait. It never wakes. One
+  // timer worker serves the whole process, so every other `.metro` stopped with
+  // it, and the slot mutex the worker still holds took down the next thread to
+  // touch this object too.
+  //
+  // Thread-local, because the question is a property of the calling thread and
+  // not of the object: `patcherImplementation::CallingThread` (#690) answers the
+  // sibling question — "which thread am I really on" — the same way, and for the
+  // same reason, that the `THREAD` tag is dispatch semantics and cannot say.
+  // #236's send-depth counter cannot answer it either: it knows how deep a send
+  // is, not whose callback the frame at the bottom belongs to.
+  //
+  // Saved and restored rather than set and cleared, exactly as #690's
+  // render-frame guard is, so no path can leave a stale answer behind.
+  struct bangFrame {
+    const YSE::PATCHER::gMetro* owner;
+    // False once something in the cycle stopped this metro. Starts true: the
+    // timer that is running this callback reschedules itself the moment the
+    // callback returns, so "still running" is the state doing nothing leaves.
+    bool running;
+  };
+
+  thread_local bangFrame* tBangFrame = nullptr;
+
+  struct bangFrameGuard {
+    bangFrame frame;
+    bangFrame* previous;
+    explicit bangFrameGuard(const YSE::PATCHER::gMetro* self)
+      : frame{self, true}, previous(tBangFrame) {
+      tBangFrame = &frame;
+    }
+    ~bangFrameGuard() {
+      tBangFrame = previous;
+    }
+    // Whether the cycle that ran inside this callback left the metro stopped,
+    // which is the only outcome with anything to publish.
+    bool StopWanted() const {
+      return !frame.running;
+    }
+    bangFrameGuard(const bangFrameGuard&) = delete;
+    bangFrameGuard& operator=(const bangFrameGuard&) = delete;
+    bangFrameGuard(bangFrameGuard&&) = delete;
+    bangFrameGuard& operator=(bangFrameGuard&&) = delete;
+  };
+
+  // The frame of *this* object's callback, or null — null both when no metro is
+  // banging on this thread and when the one that is, is another object.
+  bangFrame* OwnBangFrame(const YSE::PATCHER::gMetro* self) {
+    return (tBangFrame != nullptr && tBangFrame->owner == self) ? tBangFrame : nullptr;
+  }
+
 } // namespace
 
 CONSTRUCT() {
@@ -63,7 +126,14 @@ CONSTRUCT() {
 
   period = 1000;
   periodbeats = 0.f;
-  id = 0;
+
+  // The slot this object's millisecond timer lives in for the rest of its life
+  // (issue #718). Taken here, on the control thread, so no message handler ever
+  // has to; given back in the destructor. A refusal — a process holding
+  // timerBridge::CAPACITY metros at once — costs this one its millisecond
+  // clock, silently, since a log line is not this constructor's to emit and the
+  // beat engine is unaffected.
+  timerSlot = TimerBridge().Claim(&gMetro::BangTrampoline, this);
 
   ADD_DESCRIPTION(
       "Periodic bang generator. Once toggled on, emits a bang every 'period' milliseconds (and "
@@ -84,8 +154,12 @@ CONSTRUCT() {
       "it, so counting deliveries would drop that overshoot every bang and run the metro slow — "
       "and once the interval is shorter than a block it would cap at one bang per block however "
       "fast the domain ran. quantize, transport and bars.beats.units stay out, all three needing "
-      "a meter a domain clock does not have. Calculate() does nothing and no message or delivery "
-      "path allocates, locks or blocks.");
+      "a meter a domain clock does not have. Calculate() does nothing, and since issue #718 no "
+      "message or delivery path allocates, locks or blocks when it turns out to be running on the "
+      "audio callback — the millisecond timer is armed and disarmed through timerBridge, which "
+      "takes a wait-free request there and does the locking work on the background pool, while a "
+      "toggle from any other thread still arms it inline and still stops it with the handshake "
+      "that guarantees no further bang.");
   ADD_CATEGORY(pCategory::TIME);
   INLET_DOC(0, "on/off", kHotInletDoc, "0 or 1, bang, 'stop', 'clock <name>'");
   INLET_DOC(1, "period", kColdInletDoc, "1+ ms, or a note value / tick count");
@@ -136,9 +210,83 @@ double gMetro::PeriodBeats() const {
   return beats > 0.f ? (double)beats : 0.0;
 }
 
-void gMetro::ApplyPeriod() {
-  const timerThread::timerID running = id.load();
-  if (running != 0) TimerThread().SetPeriod(running, Interval());
+void gMetro::BangTrampoline(void* ctx) {
+  static_cast<gMetro*>(ctx)->Bang();
+}
+
+bool gMetro::OnAudioThread(YSE::THREAD thread) const {
+  // The `THREAD` tag is dispatch semantics, not thread identity: in-patcher
+  // delivery dispatches T_DSP, and the drains at the top of Calculate dispatch
+  // T_GUI *from the audio callback*. Only the patcher knows, and only since
+  // #690 — so ask it, exactly as `.s`, `.forward` and `.bag` do, and pass the
+  // tag itself on unaltered. A standalone object has no patcher and is never
+  // rendered, so it answers false and keeps the direct path it always had.
+  if (parent == nullptr) return false;
+  return static_cast<patcherImplementation*>(parent)->CallingThread(thread) == YSE::T_DSP;
+}
+
+void gMetro::StartMillis(timerThread::millisec ms, YSE::THREAD thread) {
+  if (timerSlot == 0) return;
+
+  // Inside this object's own timer callback the right amount of work is none
+  // (issue #721). The timer being restarted is the one running this callback,
+  // and the worker reschedules it at `next + period` the instant the callback
+  // returns — which is Max's "begin scheduling subsequent bang messages from the
+  // moment we triggered it", measured from the tick rather than from the end of
+  // whatever the tick set off, so the run does not drift by the cycle's own
+  // length. Going through the bridge would be wrong twice over: the blocking
+  // route deadlocks (it waits for this callback to finish), and even the
+  // wait-free one publishes "running", which would put the metro back on over a
+  // stop that landed from another thread while this cycle was unwinding.
+  if (bangFrame* frame = OwnBangFrame(this)) {
+    frame->running = true;
+    return;
+  }
+
+  // Off the callback the timer is armed before this returns, which is what the
+  // object has always promised; on it, the arming is a wait-free request and
+  // the pool does the locking part a hop later. Max's immediate bang is *not*
+  // deferred with it — the caller sends it either way.
+  if (OnAudioThread(thread))
+    TimerBridge().RequestStart(timerSlot, ms);
+  else
+    TimerBridge().ApplyStart(timerSlot, ms);
+}
+
+void gMetro::StopMillis(YSE::THREAD thread) {
+  if (timerSlot == 0) return;
+
+  // Recorded rather than performed, for StartMillis's reasons: `Bang()` issues
+  // the one request the whole cycle adds up to, once, after the send has
+  // unwound. A stop is the case that has to reach the bridge at all — the
+  // worker's own reschedule has to be undone — but it is the safe direction to
+  // publish late: `RequestStop` can only ever stop, never resurrect.
+  if (bangFrame* frame = OwnBangFrame(this)) {
+    frame->running = false;
+    return;
+  }
+
+  // The inline stop keeps `ClearTimer`'s handshake: once it returns, no further
+  // bang can come out of a callback that was already in flight. The deferred
+  // one cannot promise that — blocking on a condition variable is the whole
+  // thing it exists to avoid — so a metro stopped from the audio callback may
+  // emit the tick it was already inside. That is the honest cost, and it is
+  // bounded by one bang.
+  if (OnAudioThread(thread))
+    TimerBridge().RequestStop(timerSlot);
+  else
+    TimerBridge().ApplyStop(timerSlot);
+}
+
+void gMetro::ApplyPeriod(YSE::THREAD thread) {
+  if (timerSlot == 0) return;
+  // A retime is the one of the three that may go straight through the bridge
+  // from inside the callback: it never writes `wantOn`, so it cannot resurrect a
+  // stopped metro, and only the *blocking* route has to be avoided there.
+  if (OwnBangFrame(this) != nullptr || OnAudioThread(thread))
+    TimerBridge().RequestPeriod(timerSlot, Interval());
+  else
+    TimerBridge().ApplyPeriod(timerSlot, Interval());
 }
 
 // ─── the domain clock (issue #705) ──────────────────────────────────────────
@@ -277,9 +425,8 @@ void gMetro::RetimeBeats() {
   ArmNext(bound);
 }
 
-void gMetro::StopRun() {
-  const timerThread::timerID running = id.exchange(0);
-  if (running != 0) TimerThread().ClearTimer(running);
+void gMetro::StopRun(YSE::THREAD thread) {
+  StopMillis(thread);
 
   beatOn.store(false, std::memory_order_relaxed);
   storeGuard guard(busy);
@@ -292,7 +439,7 @@ void gMetro::StopRun() {
 INT_IN(Toggle) {
   // Stop first on either edge: a restart while running must not leak the
   // previous timer or the previous wakeup (the double-start case).
-  StopRun();
+  StopRun(thread);
 
   if (value == 0) return;
 
@@ -311,10 +458,12 @@ INT_IN(Toggle) {
     return;
   }
 
-  const timerThread::millisec ms = Interval();
-  id.store(TimerThread().Add(ms, ms, std::bind(&gMetro::Bang, this)));
-  // send first bang instantly
-  Bang();
+  StartMillis(Interval(), thread);
+  // Max's metro bangs the moment it is started, on either engine. Sent with the
+  // tag this dispatch carried, exactly as StartBeats does, rather than through
+  // Bang() — that one is the *timer thread's* entry point, and it hard-codes
+  // T_GUI because that is the right reading there and nowhere else.
+  outputs[0].SendBang(thread);
 }
 
 BANG_IN(BangIn) {
@@ -353,7 +502,7 @@ INT_IN(SetIntPeriod) {
   // A beat run in progress keeps its grid; the unit of a run is fixed at the
   // toggle.
   periodbeats = 0.f;
-  ApplyPeriod();
+  ApplyPeriod(thread);
 }
 
 FLOAT_IN(SetFloatPeriod) {
@@ -420,12 +569,32 @@ LIST_IN(ListIn) {
 }
 
 void gMetro::Bang() {
-  // Timer thread. Picks up an interval stored by the parameter path, which has
-  // no way to call in here itself. SetPeriod is safe from inside the callback:
-  // the worker holds no lock across it, and the timer is not queued at this
-  // point, so this only updates the value the worker reschedules with.
-  ApplyPeriod();
+  // Timer thread, inside `timer.func()`. Marked as such for the whole frame
+  // (issue #721): the send below can come back round to this object's own
+  // Toggle, where waiting on this callback's completion — which is what the
+  // blocking half of the bridge does — would be waiting on this thread. The
+  // mark travels with the thread and not with the send, so a cycle closed
+  // through a `.t` is covered exactly as the single-cord one is.
+  bangFrameGuard frame(this);
+
+  // Picks up an interval stored by the parameter path, which has no way to call
+  // in here itself.
+  //
+  // Deferred rather than inline, and that is load-bearing: the reconciler may
+  // be holding this slot right now, blocked inside `ClearTimer` waiting for
+  // *this very callback* to return, so a Bang() that waited for the slot would
+  // deadlock against a stop. Requesting is wait-free and takes nothing.
+  // timerBridge drops a request that does not move the interval, so the common
+  // tick costs one relaxed load and a compare.
+  if (timerSlot != 0) TimerBridge().RequestPeriod(timerSlot, Interval());
   outputs[0].SendBang(T_GUI);
+
+  // Whatever the cycle above did to this metro, netted out and issued once,
+  // now that nothing is left on the stack to deadlock against. A cycle that
+  // left the metro running has nothing to publish at all — the worker's own
+  // reschedule is that state — so the ordinary self-banging tick reaches the
+  // bridge exactly never.
+  if (timerSlot != 0 && frame.StopWanted()) TimerBridge().RequestStop(timerSlot);
 }
 
 void gMetro::DeliverDeferred(const deferredMessage& msg, YSE::THREAD thread) {
@@ -511,20 +680,21 @@ void gMetro::DeliverDeferred(const deferredMessage& msg, YSE::THREAD thread) {
 }
 
 gMetro::~gMetro() {
-  const timerThread::timerID running = id.exchange(0);
-  if (running != 0) {
-    // `TimerThread()` (capital) is the singleton that owns the timer; lowercase
-    // `timerThread` is the class, and `using namespace YSE::PATCHER` puts both
-    // in scope. This used to read `timerThread()`, which value-constructed an
-    // empty instance on the stack, asked *it* to drop an id it had never issued
-    // and threw it away — leaving the real timer alive with a std::bind to a
-    // dying `this` (issue #663).
+  if (timerSlot != 0) {
+    // Giving the slot back stops the timer and *waits out* a callback already
+    // in flight, `timerBridge::Release` keeping `timerThread::ClearTimer`'s
+    // handshake for exactly this caller. That handshake is the point:
+    // everything Bang() touches is still alive here — `outputs` is a base-class
+    // member, destroyed only after this body — and a destructor never runs on
+    // the audio thread, so it is allowed to block.
     //
-    // ClearTimer may block until an in-flight Bang() returns; that handshake is
-    // the point. Everything Bang() touches is still alive here — `outputs` is a
-    // base-class member, destroyed only after this body — and a destructor
-    // never runs on the audio thread.
-    TimerThread().ClearTimer(running);
+    // Before #718 this was a direct `TimerThread().ClearTimer(id)`, and before
+    // #663 it was `timerThread().ClearTimer(id)` — the lowercase *class*,
+    // value-constructed as a throwaway on the stack, asked to drop an id it had
+    // never issued. That left the real timer alive with a callback bound to a
+    // dying `this`.
+    TimerBridge().Release(timerSlot);
+    timerSlot = 0;
   }
   // The beat wakeup needs no such handshake: a pending scheduler message is
   // re-resolved against the block's pinned GraphState before it is delivered,

@@ -224,6 +224,7 @@ set(YSE_SRCS
   patcher/time/gMetro.cpp
   patcher/time/messageScheduler.cpp
   patcher/time/TimerThread.cpp
+  patcher/time/timerBridge.cpp
   player/playerImplementation.cpp
   player/playerInterface.cpp
   player/playerManager.cpp
@@ -444,6 +445,7 @@ set_source_files_properties(
   patcher/time/gDelay.cpp
   patcher/time/gMetro.cpp
   patcher/time/messageScheduler.cpp
+  patcher/time/timerBridge.cpp
   PROPERTIES COMPILE_FLAGS "${PATCHER_SUPPRESS}"
 )
 

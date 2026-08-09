@@ -227,8 +227,10 @@ TEST_SUITE("capilowcov") {
     yse_system_underwater_fx(sys, yse_channel_master());
     yse_system_sleep(sys, 1);
 
-    // pause / resume are the reconnect primitives; both are no-ops with no
-    // hardware stream attached, and the session must survive the pair.
+    // pause / resume are the reconnect primitives; both are no-ops on an
+    // offline session — pause() closes a stream that does not exist, and
+    // resume() refuses to acquire one this session never had (issue #719) —
+    // and the session must survive the pair.
     yse_system_pause(sys);
     yse_system_resume(sys);
     capilowcov::pump(2);

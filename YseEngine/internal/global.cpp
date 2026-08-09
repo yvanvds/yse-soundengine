@@ -134,7 +134,8 @@ YSE::INTERNAL::global::global()
     bus(),
     update(false),
     active(false),
-    sampleRateLocked(false) {}
+    sampleRateLocked(false),
+    sessionHasDevice(false) {}
 
 YSE::INTERNAL::global::~global() = default;
 
