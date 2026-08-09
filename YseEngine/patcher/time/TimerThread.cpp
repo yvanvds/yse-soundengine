@@ -30,9 +30,9 @@ void timerThread::timerThreadWorker() {
       timer.func(); // execute timer
       lock.lock();
 
-      if (timer.running) {
-        timer.running = false;
+      timer.running = false;
 
+      if (!timer.cancelled) {
         // if periodic, schedule again
         if (timer.period.count() > 0) {
           timer.next = timer.next + timer.period;
@@ -41,11 +41,15 @@ void timerThread::timerThreadWorker() {
           active.erase(timer.id);
         }
       } else {
-        // timer has stopped — flag completion and notify the destroyImpl
-        // waiter. destroyImpl owns the active.erase to keep this Timer alive
-        // until its predicate-checked wait observes `destroyed == true`.
-        timer.destroyed = true;
-        timer.waitCond->notify_all();
+        // Retired while its callback was in flight. This worker owns the erase
+        // whichever thread asked for it — the node holds the `std::function`
+        // that was executing until the line above — and it is the *only* place
+        // a cancelled timer disappears, which is what lets a waiter's predicate
+        // be "gone from `active`" rather than a flag inside a node it does not
+        // own (issue #722).
+        const timerID id = timer.id;
+        active.erase(id);
+        retired.notify_all();
       }
     } else {
       // Copy the deadline onto the stack before waiting: `timer` references a
@@ -139,32 +143,21 @@ bool timerThread::SetPeriod(timerThread::timerID id, timerThread::millisec msPer
     const Duration period(msPeriod);
     if (timer.period == period) return true;
 
-    // Find this exact timer in the queue. `queue.erase(timer)` would take the
-    // by-key overload and remove *every* entry with an equivalent deadline, so
-    // walk the equivalent range and match on identity instead.
-    Queue::iterator entry = queue.end();
-    auto range = queue.equal_range(std::ref(timer));
-    for (auto q = range.first; q != range.second; ++q) {
-      if (&q->get() == &timer) {
-        entry = q;
-        break;
-      }
-    }
+    // Re-anchor on the previous expiry so the change reads as "this cycle is
+    // now `period` long", not "restart the cycle from now". Read before the
+    // unqueue below, which is what changes the key.
+    const Timestamp previous = timer.next - timer.period;
 
-    if (entry == queue.end()) {
-      // Not queued: either the callback is running right now (the worker erased
-      // the queue entry before invoking it and recomputes `next += period`
-      // afterwards) or the timer is mid-cancellation and about to disappear.
-      // Storing the period is the whole reschedule in the first case and
-      // harmless in the second.
+    // Pulled out by identity — see `unqueue`. Not queued means either the
+    // callback is running right now (the worker erased the queue entry before
+    // invoking it and recomputes `next += period` afterwards) or the timer is
+    // mid-cancellation and about to disappear. Storing the period is the whole
+    // reschedule in the first case and harmless in the second.
+    if (!unqueue(timer)) {
       timer.period = period;
       return true;
     }
 
-    // Queued: re-anchor on the previous expiry so the change reads as "this
-    // cycle is now `period` long", not "restart the cycle from now".
-    const Timestamp previous = timer.next - timer.period;
-    queue.erase(entry); // the key changes below; re-insert to keep the order
     timer.period = period;
     const Timestamp target = previous + period;
     const Timestamp now = Clock::now();
@@ -188,9 +181,34 @@ bool timerThread::ClearTimer(timerThread::timerID id) {
 
 void timerThread::Clear() {
   ScopedLock lock(sync);
-  while (!active.empty()) {
-    destroyImpl(lock, active.begin(), queue.size() == 1);
+  // Asked once, before the sweep: the answer cannot change under us, and the
+  // loop below has to know it on every round.
+  const bool self = onWorkerThread();
+  bool swept = false;
+
+  for (;;) {
+    // Restarted from the front each round rather than carried across: a
+    // destroyImpl that waits out an in-flight callback releases the lock, so an
+    // iterator kept over it means nothing.
+    auto i = active.begin();
+    // On the worker, the timer being retired from inside its own callback is
+    // erased when that callback returns — which is after this sweep. Skipping
+    // it is the only way out of a loop that would otherwise spin on a map only
+    // this thread can empty, and it is not a timer left running: it is already
+    // cancelled and will not tick again (issue #722).
+    while (self && i != active.end() && i->second.cancelled)
+      ++i;
+    if (i == active.end()) break;
+    destroyImpl(lock, i, false);
+    swept = true;
   }
+
+  // One wake-up for the whole sweep, once the lock is released. The old loop
+  // asked destroyImpl to notify on whichever entry happened to leave a single
+  // item in the queue, and destroyImpl returns *unlocked* when it does — so the
+  // `while (!active.empty())` that followed read the map without the lock.
+  lock.unlock();
+  if (swept) wakeUp.notify_all();
 }
 
 std::size_t timerThread::size() const noexcept {
@@ -203,6 +221,21 @@ bool timerThread::empty() const noexcept {
   return active.empty();
 }
 
+bool timerThread::onWorkerThread() const noexcept {
+  return worker.get_id() == std::this_thread::get_id();
+}
+
+bool timerThread::unqueue(Timer& timer) {
+  auto range = queue.equal_range(std::ref(timer));
+  for (auto q = range.first; q != range.second; ++q) {
+    if (&q->get() == &timer) {
+      queue.erase(q);
+      return true;
+    }
+  }
+  return false;
+}
+
 // if notify is true, returns with lock unlocked
 bool timerThread::destroyImpl(ScopedLock& lock, timerThread::TimerMap::iterator i, bool notify) {
   assert(lock.owns_lock());
@@ -211,34 +244,44 @@ bool timerThread::destroyImpl(ScopedLock& lock, timerThread::TimerMap::iterator 
 
   Timer& timer = i->second;
 
-  if (timer.running) {
-    // if callback in progress, flag for deletion
+  if (timer.running || timer.cancelled) {
+    // The callback is in flight, so this node is the worker's until it returns
+    // — it is executing the `std::function` stored in it. Record the
+    // retirement; the erase happens in the worker's post-callback branch, once,
+    // however many callers ask (issue #722).
     timer.running = false;
+    timer.cancelled = true;
 
-    // assign a condition variable
-    timer.waitCond = std::make_unique<ConditionVar>();
+    // The case a comment could not enforce (issue #721, filed as #722). A
+    // running timer seen from the worker thread *is* the callback on this
+    // stack, so the completion a wait would block for is this thread's own —
+    // and the worker is one per object, so the park was permanent and took
+    // every other timer with it. Recording is the whole of the work here: the
+    // branch above runs the instant the callback returns.
+    if (onWorkerThread()) return true;
 
-    // block until the callback is finished — predicate guards against
-    // spurious wakeup. Worker sets `destroyed = true` before notify_all().
-    timer.waitCond->wait(lock, [&timer] { return timer.destroyed; });
+    // Off the worker the handshake stands. The predicate names the id, not the
+    // node, so it stays true after the Timer is gone and reads nothing this
+    // wait does not own — which is also what makes a second concurrent clear
+    // for the same id safe instead of an erase under the first one.
+    const timerID id = timer.id;
+    retired.wait(lock, [this, id] { return active.find(id) == active.end(); });
+    return true;
+  }
 
-    // Worker deliberately leaves the cancelled Timer in `active` so this
-    // predicate can safely read `timer.destroyed`; erase it now.
-    active.erase(i);
-  } else {
-    queue.erase(timer);
-    active.erase(i);
+  // Idle: nobody else is looking at this node, so it goes now.
+  unqueue(timer);
+  active.erase(i);
 
-    if (notify) {
-      // S8473: the unlock is deliberately unbalanced here and cannot be scoped
-      // away as in Add()/~timerThread(). The lock belongs to the caller (it
-      // arrives by reference) and the wait() above needs it, so this function
-      // documents that it "returns with lock unlocked" when notify is set. The
-      // mutex must be released *before* notify_all() so the worker does not
-      // wake straight onto a mutex we still hold.
-      lock.unlock(); // NOSONAR
-      wakeUp.notify_all();
-    }
+  if (notify) {
+    // S8473: the unlock is deliberately unbalanced here and cannot be scoped
+    // away as in Add()/~timerThread(). The lock belongs to the caller (it
+    // arrives by reference) and the wait() above needs it, so this function
+    // documents that it "returns with lock unlocked" when notify is set. The
+    // mutex must be released *before* notify_all() so the worker does not wake
+    // straight onto a mutex we still hold.
+    lock.unlock(); // NOSONAR
+    wakeUp.notify_all();
   }
   return true;
 }
