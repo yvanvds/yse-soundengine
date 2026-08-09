@@ -167,6 +167,14 @@ namespace YSE {
      *  tick may come out. An ordinary self-banging tick reaches the bridge
      *  never.
      *
+     *  Issue #722 has since taught ``timerThread`` itself to recognise a
+     *  ``ClearTimer`` issued from its own worker and retire the timer instead of
+     *  waiting on this thread, so the patch above no longer *hangs* without the
+     *  marker. The marker stays for the paragraph above rather than for the
+     *  deadlock: it is what keeps a self-restart free and correctly phased, and
+     *  what keeps a tick from publishing "running" over a stop that landed while
+     *  the cycle unwound. Both fixes are needed and neither subsumes the other.
+     *
      *  ### The bang count is read off the clock, never counted from wakeups
      *
      *  This is the one place the obvious implementation is wrong, and a metro

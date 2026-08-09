@@ -68,6 +68,19 @@ namespace {
   //
   // Saved and restored rather than set and cleared, exactly as #690's
   // render-frame guard is, so no path can leave a stale answer behind.
+  //
+  // Since #722 the deadlock is gone from the primitive as well:
+  // `timerThread::ClearTimer` recognises a stop issued from its own worker and
+  // retires the timer instead of waiting on itself, so this marker is no longer
+  // what stands between the patch and a parked process. It stays because what
+  // it decides is not *whether* the stop is safe but *what the tick meant*: a
+  // restart from inside the callback wants no work at all (the worker's own
+  // `next + period` reschedule is Max's "from the moment we triggered it",
+  // measured from the tick rather than from the end of everything the tick set
+  // off — going through the bridge would re-phase from now, allocate a fresh
+  // timer on the worker every tick, and publish "running" over a stop that
+  // landed from another thread while this cycle unwound). The two fixes are
+  // independent and both are load-bearing.
   struct bangFrame {
     const YSE::PATCHER::gMetro* owner;
     // False once something in the cycle stopped this metro. Starts true: the
