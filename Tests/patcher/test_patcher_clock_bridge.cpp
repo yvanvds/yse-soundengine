@@ -38,6 +38,8 @@
 
 #include "clock/clockManager.h"
 #include "headers/constants.hpp"
+#include "internal/global.h"
+#include "internal/threadPool.h"
 #include "patcher/graphState.h"
 #include "patcher/inlet.h"
 #include "patcher/pHandle.hpp"
@@ -70,6 +72,59 @@ namespace {
   void Tick(patcherImplementation& p) {
     YSE::CLOCK::Manager().update(kTickSeconds);
     p.Calculate(YSE::T_DSP);
+  }
+
+  // Wait until the clock manager's slow-pool delete job has run to completion.
+  // The background pool is a single worker over a FIFO ring, so a job pushed
+  // after the reap was enqueued cannot finish before the reap does — joining
+  // this one therefore means the reap is done. Returns false if the pool was
+  // not running at all, in which case a caller relying on the reap should stop
+  // rather than assert on a sequence that never happened.
+  struct barrierJob : YSE::INTERNAL::threadPoolJob {
+    std::atomic<bool> ran{false};
+    void run() override {
+      ran.store(true);
+    }
+  };
+
+  bool DrainSlowPool() {
+    barrierJob barrier;
+    YSE::INTERNAL::Global().addSlowJob(&barrier);
+    barrier.join();
+    return barrier.ran.load();
+  }
+
+  // Run destroyClock's full retirement sequence to completion: one tick drops
+  // the clock from the audio-thread working list, the next enqueues the
+  // slow-pool delete job, and the barrier waits for that job to finish.
+  //
+  // Drain-then-tick, repeatedly, because the manager skips the enqueue while a
+  // previous delete job is still queued — and the clock manager is a
+  // process-global singleton, so an earlier case in this suite may well have
+  // left one in flight. Draining first makes `isQueued()` false at the moment
+  // the tick wants to enqueue ours.
+  bool ReapClock(const std::string& name) {
+    YSE::CLOCK::Manager().destroyClock(name);
+    bool pooled = true;
+    for (int i = 0; i < 3; i++) {
+      pooled = DrainSlowPool() && pooled;
+      YSE::CLOCK::Manager().update(kTickSeconds);
+    }
+    return DrainSlowPool() && pooled;
+  }
+
+  // Clocks created purely to reclaim the heap a reaped clock used to occupy,
+  // so a dangling read lands on live data rather than on its own stale bytes.
+  constexpr int kFillerClocks = 256;
+
+  std::string FillerName(int i) {
+    return "clk.filler" + std::to_string(i);
+  }
+
+  void DropFillerClocks() {
+    for (int i = 0; i < kFillerClocks; i++)
+      YSE::CLOCK::Manager().destroyClock(FillerName(i));
+    YSE::CLOCK::Manager().update(kTickSeconds);
   }
 
   // Records every value it receives, in order and with its kind.
@@ -274,6 +329,101 @@ TEST_SUITE("clock") {
 
     mgr.destroyClock("bridge.live");
     mgr.update(0.01f);
+  }
+
+  TEST_CASE("clockBridge: a binding outlives destroyClock and freezes (#707)") {
+    // The bug #707 reported. `destroyClock` used to retire the clock and let
+    // the slow pool free it, while every resolved binding kept reading the
+    // freed object through its raw pointer — on the audio thread, from the
+    // deferred-message drain. A binding is never released by design, so
+    // "unbind before you destroy" was a contract this side could not keep;
+    // the fix is that a binding owns a share of the clock it resolved to.
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("bridge.doomed", kTempo));
+
+    clockBridge bridge;
+    const clockBridge::Handle h = bridge.Bind("bridge.doomed", 13);
+    REQUIRE(h != 0);
+    bridge.WaitIdle();
+    REQUIRE(bridge.Resolved(h));
+
+    mgr.update(kTickSeconds);
+    double beat = -1.0;
+    REQUIRE(bridge.Beat(h, beat));
+    CHECK(beat == doctest::Approx(0.5));
+
+    REQUIRE(ReapClock("bridge.doomed"));
+    CHECK_FALSE(mgr.clockExists("bridge.doomed"));
+
+    // Take back the ground the old reap would have freed, before reading
+    // through the binding. Every createClock allocates a node of exactly the
+    // size a domainClock occupies, so a binding still pointing at freed memory
+    // is overwhelmingly likely to be sitting on one of these by now — each with
+    // its own tempo, and none of them anywhere near beat 0.5. Without this the
+    // pre-fix read is undefined behaviour that happens to return the old value
+    // on a quiet heap, and the case would pass on the very bug it exists for.
+    // (The asan job catches it either way; this is what makes the case bite on
+    // an ordinary build.)
+    for (int i = 0; i < kFillerClocks; i++)
+      REQUIRE(mgr.createClock(FillerName(i), kTempo * (float)(i + 2)));
+    for (int i = 0; i < 4; i++)
+      mgr.update(kTickSeconds);
+
+    // The binding still answers, and answers the beat *its* clock held when it
+    // was released — domainClock::update refuses to advance a released clock,
+    // so a destroyed clock is a stopped clock rather than a dangling one.
+    CHECK(bridge.Resolved(h));
+    beat = -1.0;
+    REQUIRE(bridge.Beat(h, beat));
+    CHECK(beat == doctest::Approx(0.5));
+
+    // A new clock of the same name is a different clock, and the binding must
+    // not drift onto it either.
+    REQUIRE(mgr.createClock("bridge.doomed", kTempo));
+    for (int i = 0; i < 4; i++)
+      mgr.update(kTickSeconds);
+    CHECK(mgr.beatPosition("bridge.doomed") == doctest::Approx(2.0));
+    REQUIRE(bridge.Beat(h, beat));
+    CHECK(beat == doctest::Approx(0.5));
+
+    REQUIRE(ReapClock("bridge.doomed"));
+    DropFillerClocks();
+  }
+
+  TEST_CASE("clockBridge: a wait armed on a destroyed clock never comes due (#707)") {
+    // The user-visible half: a clock that is destroyed under a live patch is
+    // the same thing as a clock that is not running. The wait does not fire
+    // early (which a bridge that reported beat 0 for a dead clock would do),
+    // and it does not crash (which reading the freed clock would).
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("sched.doomed", kTempo));
+
+    BeatRig rig;
+    const clockBridge::Handle bound = rig.BindResolved("sched.doomed");
+    REQUIRE(rig.bridge.Resolved(bound));
+
+    const messageScheduler::Handle h = rig.sched.ScheduleBangOnClock(&rig.probe, 0, bound, 2.0);
+    REQUIRE(h != 0);
+
+    rig.Tick(); // half a beat in — nowhere near due
+    CHECK(rig.probe.hits == 0);
+
+    REQUIRE(ReapClock("sched.doomed"));
+
+    // Reclaim the reaped clock's heap (see the case above) and put a same-named
+    // replacement well past the deadline. Every drain from here reads the bound
+    // clock: however many run, the wait stays armed on the clock it was armed
+    // against rather than coming due on somebody else's beat.
+    for (int i = 0; i < kFillerClocks; i++)
+      REQUIRE(mgr.createClock(FillerName(i), kTempo * (float)(i + 2)));
+    REQUIRE(mgr.createClock("sched.doomed", kTempo));
+    for (int i = 0; i < 12; i++)
+      rig.Tick();
+    CHECK(rig.probe.hits == 0);
+    CHECK(rig.sched.Pending(h));
+
+    REQUIRE(ReapClock("sched.doomed"));
+    DropFillerClocks();
   }
 
   TEST_CASE("clockBridge: Poll finds a clock created after the binding (#688)") {

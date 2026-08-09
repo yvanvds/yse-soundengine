@@ -47,8 +47,9 @@ YSE_C_API YseClip* yse_clip_create(void);
 YSE_C_API void yse_clip_destroy(YseClip* c);
 
 /* Bind the clip to a live domain clock by name. Returns 1 on success, 0 if no
-   live clock owns the name (or on NULL args). The bound clock must outlive the
-   clip. */
+   live clock owns the name (or on NULL args). Binding shares the clock's
+   lifetime, so yse_system_destroy_clock() on a bound clock is safe in any
+   order: the clock stops advancing and the clip simply stops firing. */
 YSE_C_API int yse_clip_bind(YseClip* c, const char* clock_name);
 
 /* Replace the event list (copied). Takes effect at the next audio block

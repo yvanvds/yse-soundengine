@@ -136,7 +136,23 @@ YSE::CLIP::transport::~transport() {
 }
 
 bool YSE::CLIP::transport::bind(const std::string& clockName) {
-  clock = CLOCK::Manager().lookup(clockName);
+  std::shared_ptr<CLOCK::domainClock> found = CLOCK::Manager().lookup(clockName);
+  // Take our share of the clock's lifetime *before* publishing the pointer the
+  // audio thread reads, so the pointer is never live without the share behind
+  // it (issue #707). Already-held clocks are not stored twice, so rebinding the
+  // same clock repeatedly does not grow the list.
+  if (found != nullptr) {
+    bool held = false;
+    for (const auto& c : boundClocks) {
+      if (c == found) {
+        held = true;
+        break;
+      }
+    }
+    if (!held) boundClocks.push_back(found);
+  }
+  // An unknown name unbinds, as before.
+  clock = found.get();
   return clock != nullptr;
 }
 

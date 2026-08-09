@@ -15,6 +15,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -213,8 +214,24 @@ namespace YSE {
       std::atomic<OBJECT_IMPLEMENTATION_STATE> objectStatus;
 
       // Bound domain clock. Resolved on the control thread in bind(); read
-      // (beatPosition) on the audio thread. Caller guarantees it outlives us.
+      // (beatPosition) on the audio thread, which is why the read path stays a
+      // plain pointer.
       CLOCK::domainClock* clock = nullptr;
+
+      // The transport's share of the lifetime of every clock it has bound
+      // (issue #707). Holding a share is what stops `destroyClock` freeing the
+      // clock `clock` points at; a destroyed clock stops advancing, so
+      // advance() reads a frozen beat instead of freed memory.
+      //
+      // Append-only, and released as a whole in the destructor rather than per
+      // rebind: bind() publishes the new pointer without any handshake, so the
+      // audio thread may still read a displaced one for a block, and dropping
+      // that share here is precisely the free this member exists to prevent.
+      // The destructor runs on the slow pool after the audio thread has retired
+      // the transport, which is the one moment nobody can still be reading.
+      // Growth is bounded by the number of *distinct* clocks one transport ever
+      // binds — rebinding the same clock adds nothing. Control thread only.
+      std::vector<std::shared_ptr<CLOCK::domainClock>> boundClocks;
 
       // Play intent (control -> audio), same handshake as MIDI::fileImpl.
       std::atomic<SOUND_STATUS> intent;

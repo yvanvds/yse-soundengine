@@ -23,6 +23,9 @@ clockBridge::~clockBridge() {
   // before it destroys the elements, and ~Entry destroys the fields a running
   // job reads. Control thread: the patcher's destructor, where the audio
   // thread is already stopped and nothing can arm a new binding.
+  //
+  // It is also where each slot's share of its clock (issue #707) is released:
+  // joining first means no resolve job can still be taking one.
   WaitIdle();
 }
 
@@ -102,13 +105,19 @@ void clockBridge::RunSlot(Entry& e) {
   // that may take it. `name` is stable — a BOUND slot never rewrites it — so
   // constructing the std::string the lookup wants is safe here even though it
   // allocates: this is the background pool, not a message handler.
-  CLOCK::domainClock* found = CLOCK::Manager().lookup(std::string(e.name));
+  //
+  // What comes back is a share of the clock's lifetime, not a borrowed pointer
+  // (issue #707): keeping it is what lets a binding that is never released
+  // survive a destroyClock. Taking the share is also the one refcount operation
+  // in this file, and it happens here — on the pool — never on a read path.
+  std::shared_ptr<CLOCK::domainClock> found = CLOCK::Manager().lookup(std::string(e.name));
   if (found == nullptr) return; // unknown (or not created yet) — Poll retries
 
-  // Written before the clock pointer, so anyone who sees a non-null clock also
-  // sees the baseline that goes with it.
+  // Both written before the clock pointer, so anyone who sees a non-null clock
+  // also sees the baseline that goes with it — and the share that keeps it alive.
   e.resolveBeat.store(found->beatPosition(), std::memory_order_relaxed);
-  e.clock.store(found, std::memory_order_release);
+  e.owned = std::move(found);
+  e.clock.store(e.owned.get(), std::memory_order_release);
 }
 
 bool clockBridge::Beat(Handle handle, double& beat) const {

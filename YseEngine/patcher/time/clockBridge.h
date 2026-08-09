@@ -86,18 +86,28 @@ namespace YSE {
      *
      *  ### Lifetime
      *
-     *  A resolved binding holds a raw ``CLOCK::domainClock*``, exactly as
-     *  ``CLIP::transport::bind`` does, and inherits that API's documented
-     *  contract: the bound clock must outlive the things bound to it. The
-     *  engine frees a clock on the slow pool one manager tick after
-     *  ``destroyClock``, so destroying a clock a live patcher is still bound to
-     *  is a use-after-free. Session teardown is safe —
-     *  ``INTERNAL::global::close()`` clears the clock manager only after the
-     *  device is closed and both pools are joined — it is an explicit
-     *  ``destroyClock`` under a running engine that is not. Filed as **#707**:
-     *  making a binding outlive ``destroyClock`` is a change to the clock
-     *  layer's ownership model rather than to this bridge, and it is the same
-     *  hazard ``CLIP::transport`` has carried since #250.
+     *  A resolved binding reads a raw ``CLOCK::domainClock*``, but it *owns* a
+     *  share of that clock (issue #707): ``CLOCK::Manager().lookup`` returns a
+     *  ``shared_ptr`` and the slot keeps it. That is what reconciles "bindings
+     *  are never released" with a ``destroyClock`` that can arrive at any
+     *  moment — the clock disappears from the manager's queries and stops
+     *  advancing, but it cannot be freed under a binding that is still holding
+     *  it, so ``Beat`` reads a frozen beat rather than freed memory. A wait
+     *  armed on a clock that has since been destroyed therefore never comes
+     *  due, which is the same answer this bridge already gives for a clock that
+     *  does not exist.
+     *
+     *  The share is taken on the background pool, in the resolve job, and
+     *  released in ``~clockBridge`` after ``WaitIdle``. No read path ever
+     *  copies or drops it, so no refcount operation lands on the audio thread
+     *  and ``Beat`` stays two acquire loads.
+     *
+     *  One consequence worth naming: a binding stays attached to the clock it
+     *  resolved to. Destroying ``main`` and creating a new ``main`` leaves the
+     *  binding on the old, frozen one — ``Poll`` only retries bindings that
+     *  have *not* resolved. Re-resolving a released clock would mean swapping
+     *  the pointer under readers that hold no handshake, which is the problem
+     *  this design exists to avoid.
      */
     class clockBridge {
     public:
@@ -233,10 +243,19 @@ namespace YSE {
       struct Entry {
         std::atomic<std::uint32_t> state{STATE_FREE};
         // Published by the resolve job; null until the name is found. The
-        // release store on `clock` is the publish, so `resolveBeat` is written
-        // first and is visible to anyone who sees a non-null clock.
+        // release store on `clock` is the publish, so `resolveBeat` and `owned`
+        // are written first and are visible to anyone who sees a non-null clock.
         std::atomic<CLOCK::domainClock*> clock{nullptr};
         std::atomic<double> resolveBeat{0.0};
+        // This binding's share of the clock's lifetime (issue #707) — what
+        // makes the raw pointer above safe to read after a destroyClock.
+        // Written once by the resolve job (which never runs twice over for one
+        // slot, since ArmResolve refuses a queued job and RunSlot returns early
+        // once `clock` is set) and read by nobody: it exists to be held. The
+        // destructor joins before any slot is torn down, so releasing it there
+        // needs no synchronisation of its own. Never touched on a read path,
+        // so `Beat` stays two acquire loads.
+        std::shared_ptr<CLOCK::domainClock> owned;
         char name[NAME_CAPACITY] = {};
         // Declared last so it is destroyed *first*: ~resolveJob joins, and a
         // job that is still running reads every field above it.
