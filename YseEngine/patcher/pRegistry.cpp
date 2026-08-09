@@ -65,6 +65,7 @@
 #include "time/gDelay.h"
 #include "time/gMetro.h"
 #include "time/gPipe.h"
+#include "time/gRateLimit.h"
 #include "time/gTempo.h"
 #include "time/gTimepoint.h"
 #include "time/gTimer.h"
@@ -467,6 +468,13 @@ pRegistry::pRegistry() {
   // Delay numbers, lists and symbols — .delay for data, and the first timing
   // object that holds many pending values at once rather than one (issue #504)
   Add(OBJ::G_PIPE, gPipe::Create);
+
+  // Limit the rate of message throughput — two policies for a control stream
+  // that arrives faster than anything downstream needs: .speedlim drops what
+  // comes too soon, .qlim holds the newest and sends it when the window opens
+  // (issue #508)
+  Add(OBJ::G_SPEEDLIM, gSpeedlim::Create);
+  Add(OBJ::G_QLIM, gQlim::Create);
 
   // Control a named domain clock from inside the patcher — the object that
   // connects a patch to the engine's polytemporal clock system (issue #513)
