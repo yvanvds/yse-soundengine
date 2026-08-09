@@ -133,7 +133,8 @@ namespace {
       "<position>', 'min [element]' and 'max [element]' (lowest / highest value at an element "
       "position across every entry, default 1), 'sort [-1|1] [entry]' (ascending or descending, by "
       "the address when entry is -1 and by the nth element otherwise), 'swap <address> <address>', "
-      "'merge <address> <data>', 'separate <index>', 'renumber [start]', 'renumber2 [start]', "
+      "'merge <address> <data>', 'separate <index>', 'renumber [start]', 'renumber2 [from]' "
+      "(move every numeric address at or above 'from', 0 by default, up by one), "
       "'read [file]', 'readagain', 'write [file]', 'writeagain' and 'filetype'. An "
       "address is a number or a symbol, decided by the same strict reader .sel and .route use, and "
       "the two never collide: the address 1 and the address one are different entries. Anything "
@@ -280,8 +281,10 @@ CONSTRUCT() {
       "across every entry, sort reorders storage (stably, ascending on -1 and descending on 1, by "
       "the address when the second argument is -1 and by the nth element otherwise), swap "
       "exchanges two entries' addresses without moving their data, merge appends to what an "
-      "address already holds, separate opens a numeric gap, and renumber and renumber2 renumber "
-      "the numeric entries consecutively from 0 and from 1. read, readagain, "
+      "address already holds, separate opens a numeric gap, renumber renumbers the numeric "
+      "entries consecutively from the address it is given (0 by default), and renumber2 moves "
+      "every numeric address at or above the one it is given (also 0 by default) up by one. "
+      "read, readagain, "
       "write and writeagain move the collection through a plain-text file in Max's format, one "
       "'<address>, <message>;' record per line, and a read replaces what is held. None of that "
       "happens on the message path: a read arrives on whichever thread dispatched it, which may be "
@@ -761,6 +764,17 @@ void gColl::Separate(int index) {
   }
 }
 
+void gColl::Increment(int first) {
+  // Max's renumber2, "increment indices by one". At or above `first`, unlike
+  // separate's strictly-greater: the argument names the lowest address that
+  // moves, and the default 0 has to move an entry sitting at 0 or a bare
+  // renumber2 would leave two entries on the same address.
+  for (std::size_t i = 0; i < store->count; i++) {
+    Entry& entry = store->entries[i];
+    if (entry.numeric && entry.index >= first) SetNumericKey(entry, entry.index + 1);
+  }
+}
+
 void gColl::Renumber(int first) {
   int next = first;
   for (std::size_t i = 0; i < store->count; i++) {
@@ -1164,14 +1178,26 @@ bool gColl::HandleEditCommand(const char* word, std::size_t wordLength, const ch
     return true;
   }
 
-  const bool secondForm = TokenIs(word, wordLength, "renumber2", 9);
-  if (secondForm || TokenIs(word, wordLength, "renumber", 8)) {
-    // The reference states no default. See the class documentation for why bare
-    // renumber starts at 0 and bare renumber2 at 1, and #694 for the check
-    // against a real Max.
-    int first = secondForm ? 1 : 0;
-    int given = 0;
-    if (ReadIntArgument(text, argBegin, argEnd, 1, given)) first = secondForm ? given + 1 : given;
+  if (TokenIs(word, wordLength, "renumber2", 9)) {
+    // Max's whole description is "increment indices by one", and that is meant
+    // literally: the addresses keep their gaps and each one at or above the
+    // argument moves up by one. It is not a 1-based spelling of `renumber`.
+    // The argument defaults to 0, so a bare renumber2 moves the whole
+    // collection up. See the class documentation for the sources (#694).
+    int first = 0;
+    ReadIntArgument(text, argBegin, argEnd, 1, first);
+
+    storeGuard guard(store->busy);
+    if (!guard.Held()) return true;
+    Increment(first);
+    return true;
+  }
+
+  if (TokenIs(word, wordLength, "renumber", 8)) {
+    // The reference states no default starting address; it is 0. See the class
+    // documentation (#694).
+    int first = 0;
+    ReadIntArgument(text, argBegin, argEnd, 1, first);
 
     storeGuard guard(store->busy);
     if (!guard.Held()) return true;
