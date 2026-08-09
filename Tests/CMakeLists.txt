@@ -657,6 +657,36 @@ set_tests_properties(yse_tests_logsafety PROPERTIES LABELS internal)
 # branches deterministic — so it needs no audio hardware and runs on headless
 # CI. Isolated in its own process because it drives yse_system_init_offline()
 # and mutates the process-global DEVICE::Manager() singleton.
+#
+# This entry is load-bearing in a way the other isolated entries are not, and
+# issue #717 is about saying so out loud. "PortAudio never initialised" is a
+# property of the *process*: Pa_Initialize runs once, on the first init() that
+# opens a device, and the only call that undoes it — managerObject::terminate()
+# — is private and runs from the singleton's destructor at process exit. No
+# test can re-establish it; System::close() + initOffline() takes the stream
+# away, which is all initOffline() promises, and leaves PortAudio up. So this
+# suite and every suite that opens a device are mutually exclusive by
+# construction, in both directions:
+#
+#   * devicelayer needs no device to be reachable, and asserts branches that
+#     only exist in that state;
+#   * `system` (Tests/system/test_system_active_state.cpp) needs a live stream,
+#     and devicelayer's own setup legitimately closes it.
+#
+# Running them together is therefore not a bug to be fixed but a configuration
+# that cannot hold, and this separation is the design rather than a workaround.
+# Repairing the second direction was tried and measured: a helper that noticed
+# the closed stream and re-opened it puts a live PortAudio callback thread back
+# into a process whose unit suites drive Manager().update() from the test
+# thread, and the unfiltered run then aborts on lfQueue's reentrancy assertion
+# instead of failing three checks (see Tests/support/null_device.hpp).
+#
+# It is stated in the code too, once per direction: each suite carries a
+# contract case — "devicelayer: the suite has a process with no reachable audio
+# device" and "system: the live-device cases have a stream delivering audio" —
+# which fails, deliberately and by name, in any process that violates it, while
+# the cases depending on it skip with a message. Folding either suite in with
+# the other would trip those rather than pass silently.
 add_test(
   NAME    yse_tests_devicelayer
   COMMAND yse_tests --test-suite=devicelayer

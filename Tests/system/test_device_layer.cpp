@@ -40,6 +40,19 @@
 // on the test thread — which runs the manager update() functions that are
 // single-threaded by contract (see Tests/support/null_device.hpp).
 //
+// That isolation is a *requirement*, not a convenience, and it is the one
+// property here that no test can establish for itself (issue #717). The
+// no-device branches below exist only while PortAudio has never been
+// initialised, which is a property of the process: Pa_Initialize runs once, on
+// the first init() that opens a device, and the only call that undoes it —
+// managerObject::terminate() — is private and runs from the singleton's
+// destructor at process exit. ensureOffline() can take the *stream* away, which
+// is all initOffline() promises; it cannot take PortAudio away. So this suite
+// and any suite that opens a device are mutually exclusive by construction, in
+// both directions — see the mirror note in Tests/system/test_system_active_state.cpp.
+// noDeviceReachable() below states that contract, one case asserts it, and the
+// cases that depend on it skip with a message instead of failing on the symptom.
+//
 // DSP lifetime note: as in test_device.cpp, DSP source objects handed to
 // sound::create() must outlive the test binary, so they are file-scope statics.
 
@@ -206,6 +219,56 @@ namespace {
     YSE::ERROR_LEVEL previousLevel;
   };
 
+  // The suite's *process-level* precondition, asked rather than assumed
+  // (issue #717).
+  //
+  // Several cases below drive branches that only exist while the engine can
+  // reach no audio device at all: enumeration failing closed, openDevice()
+  // refusing ahead of Pa_GetDeviceInfo, resume() finding no default output.
+  // In a process of its own — which is how ctest runs this suite — that state
+  // is free, because the offline engine skips Pa_Initialize and
+  // Pa_GetDeviceCount() then answers paNotInitialized.
+  //
+  // It is not free in a shared process, and no test can make it so. PortAudio
+  // is initialised once per process by the first init() that opens a device,
+  // and the only call that undoes it — managerObject::terminate() — is private
+  // and runs from the singleton's destructor, i.e. at process exit. So
+  // ensureOffline()'s close() + initOffline() hands back an engine with no
+  // *stream*, which is all initOffline() promises, over a PortAudio that is
+  // still up: the device list enumerates real hardware and resume() opens a
+  // real stream. The precondition is a property of the process, not of the
+  // engine session, and Tests/CMakeLists.txt's isolated yse_tests_devicelayer
+  // entry is what establishes it.
+  //
+  // Latched: one enumeration for the suite, and the answer cannot swing back —
+  // nothing un-initialises PortAudio once some suite has.
+  bool noDeviceReachable() {
+    static const bool result = []() {
+      YSE::DEVICE::Manager().updateDeviceList();
+      return YSE::DEVICE::Manager().getDeviceList().empty();
+    }();
+    return result;
+  }
+
+#ifdef PORTAUDIO_BACKEND
+  // Guard for those cases: report "not measurable here" instead of failing on
+  // the symptom. The contract case below is what keeps this from quietly
+  // emptying the suite — it fails wherever the guard closes.
+  //
+  // Gated on the backend macro for the same reason as clampToUnit() below: its
+  // only callers live in this file's PORTAUDIO_BACKEND region, so the
+  // Android/Oboe build would otherwise carry an unused function (issue #631).
+  // The contract case itself is not gated — it needs no backend.
+  bool ownProcess() {
+    if (noDeviceReachable()) return true;
+    MESSAGE("skipped: an audio device is reachable in this process, so the no-device branch "
+            "under test cannot be driven. devicelayer and any suite that opens a device are "
+            "mutually exclusive — run this one through the yse_tests_devicelayer ctest entry "
+            "(issue #717).");
+    return false;
+  }
+#endif
+
 #ifdef PORTAUDIO_BACKEND
   // Mirrors the clamp paCallback applies on the way out. Its only caller is the
   // mix-copy case below, which lives in this file's PORTAUDIO_BACKEND region —
@@ -352,6 +415,31 @@ TEST_SUITE("devicelayer") {
     CHECK(setup.getOutputChannels() == 3);
   }
 
+  // ─── the suite's own contract (issue #717) ──────────────────────────────────
+
+  // The precondition every no-device case below inherits, stated as a case of
+  // its own so that a run which does not satisfy it says so once, by name,
+  // instead of producing a spray of unexplained value mismatches.
+  //
+  // It is deliberately a failure and not a skip. The guards below are the only
+  // thing standing between this suite and silently measuring nothing, so if the
+  // isolation in Tests/CMakeLists.txt is ever loosened — devicelayer folded
+  // back into yse_unit_tests, say — this case has to be what fails, rather than
+  // five cases quietly passing without asserting anything.
+  //
+  // Placed ahead of the PORTAUDIO_BACKEND region because it needs no backend:
+  // on Android the base updateDeviceList() enumerates nothing, so the contract
+  // holds there by construction.
+  TEST_CASE("devicelayer: the suite has a process with no reachable audio device (issue #717)") {
+    if (!ensureOffline()) return;
+    INFO("devicelayer drives the engine's no-device branches, so it needs a process in which "
+         "nothing has initialised PortAudio. Nothing can re-establish that from inside the "
+         "process, so it comes from the yse_tests_devicelayer ctest entry running the suite "
+         "alone. This failing means some other suite shares the process; the cases that "
+         "depend on it are skipped with a message.");
+    CHECK(noDeviceReachable());
+  }
+
 #ifdef PORTAUDIO_BACKEND
 
   // ─── PortAudio manager: headless-reachable paths ────────────────────────────
@@ -382,6 +470,7 @@ TEST_SUITE("devicelayer") {
   // walked with a negative bound.
   TEST_CASE("device manager: enumeration fails closed when PortAudio is not initialised") {
     if (!ensureOffline()) return;
+    if (!ownProcess()) return;
 
     YSE::DEVICE::Manager().updateDeviceList();
 
@@ -442,6 +531,11 @@ TEST_SUITE("devicelayer") {
   // the null PaDeviceInfo that Pa_GetDeviceInfo(paNoDevice) hands back.
   TEST_CASE("device manager: resume without a default output device does not open a stream") {
     if (!ensureOffline()) return;
+    // Without the guard this case does not merely fail: with PortAudio up,
+    // resume() opens a real stream on an offline engine, and the live callback
+    // thread then races the cases below that drive paCallback by hand. That the
+    // engine lets it is its own defect, filed as #719.
+    if (!ownProcess()) return;
 
     YSE::System().pause();
     YSE::System().resume();
@@ -469,6 +563,10 @@ TEST_SUITE("devicelayer") {
   // 75 of them — as soon as it turns more.
   TEST_CASE("system: autoReconnect retries on a millisecond interval [issue #681]") {
     if (!ensureOffline()) return;
+    // The attempt counter here is the count of "no default output device"
+    // refusals, so a process where a default output device exists measures
+    // nothing at all.
+    if (!ownProcess()) return;
 
     CapturingLog captured;
     ScopedSink sink(&captured);
@@ -505,6 +603,9 @@ TEST_SUITE("devicelayer") {
   // test_device.cpp), which is where PortAudio is actually initialised.
   TEST_CASE("device manager: a setup with no output device is refused (issue #661)") {
     if (!ensureOffline()) return;
+    // The refusal itself holds anywhere; the "no stream opened" half of the
+    // contract can only be read on a manager that has no stream to begin with.
+    if (!ownProcess()) return;
 
     CapturingLog captured;
     ScopedSink sink(&captured);
@@ -661,6 +762,94 @@ TEST_SUITE("devicelayer") {
     // Leave the singleton as the other cases expect to find it.
     YSE::System().closeCurrentDevice();
     CHECK(YSE::System().getActiveBufferSize() == 0);
+  }
+
+  // The other half of that stitching contract: closing the device has to drop
+  // the partial block rather than carry it into the next stream (issue #717).
+  //
+  // paCallback consumes each rendered STANDARD_BUFFERSIZE block in slices and
+  // remembers where it stopped in managerObject::bufferPos. A stream is stopped
+  // between callbacks, not on a block boundary, so at close() that position is
+  // almost always part-way through a block — and it is plain manager state that
+  // outlives the stream. close() resets the live-state atomics right next to it
+  // (active buffer size, output latency, CPU load) but left this one alone, so
+  // the first callback of the *next* stream resumed from it and handed the
+  // device the tail of a block rendered before the close: up to
+  // STANDARD_BUFFERSIZE-1 samples of pre-close audio after every
+  // pause()/resume() and every device switch. The Oboe backend already resets
+  // it on each open (oboeImplementation.cpp), so this was the desktop path
+  // diverging from the Android one rather than a deliberate design.
+  //
+  // Found through the unfiltered run: it is what made the stitching case above
+  // read a freshly rendered block where it had written its own pattern, because
+  // real callbacks from an earlier suite had left bufferPos mid-block.
+  //
+  // Needs no device, like the case above: paCallback is a static function
+  // taking the output buffer as an argument, so the position can be left
+  // mid-block by hand and the close driven underneath it.
+  TEST_CASE("device manager: closing the device drops the partial rendered block (issue #717)") {
+    if (!ensureOffline()) return;
+
+    auto& mgr = YSE::DEVICE::Manager();
+    auto& master = mgr.getMaster();
+    const size_t channels = master.GetBuffers().size();
+    REQUIRE(channels > 0);
+
+    const unsigned long kFirst = 100;
+    const unsigned long kRest = YSE::STANDARD_BUFFERSIZE - kFirst;
+
+    std::vector<std::vector<float>> storage(channels, std::vector<float>(YSE::STANDARD_BUFFERSIZE));
+    std::vector<float*> planes;
+    planes.reserve(channels);
+    for (size_t c = 0; c < channels; ++c)
+      planes.push_back(storage[c].data());
+    void* const output = static_cast<void*>(planes.data());
+
+    YSE::sound s;
+    s.create(g_steady);
+    s.relative(true);
+    s.play();
+    pump();
+
+    // One partial callback: renders a block and consumes the first kFirst
+    // samples of it, leaving kRest of that block unconsumed.
+    REQUIRE(YSE::DEVICE::managerObject::paCallback(nullptr, output, kFirst, nullptr, 0, &mgr) == 0);
+
+    // What a freshly rendered block of this source looks like, read from the
+    // block that was just rendered — the value the callback after the close
+    // must produce.
+    const float rendered = master.GetBuffers()[0].getPtr()[0];
+
+    // Mark the unconsumed tail with a value the source never produces, so the
+    // next callback's output says unambiguously which block it came from.
+    const float staleMarker = 0.75f;
+    REQUIRE(rendered != doctest::Approx(staleMarker));
+    for (size_t c = 0; c < channels; ++c) {
+      float* block = master.GetBuffers()[c].getPtr();
+      for (unsigned long i = 0; i < kRest; ++i)
+        block[kFirst + i] = staleMarker;
+    }
+
+    // The device goes away here, mid-block.
+    YSE::System().closeCurrentDevice();
+
+    // The next stream's first callback has to start a new block. Before the fix
+    // every sample below is staleMarker — the tail of the pre-close block.
+    for (auto& plane : storage)
+      std::fill(plane.begin(), plane.end(), 0.f);
+    REQUIRE(YSE::DEVICE::managerObject::paCallback(nullptr, output, kRest, nullptr, 0, &mgr) == 0);
+    for (size_t c = 0; c < channels; ++c) {
+      for (unsigned long i = 0; i < kRest; ++i) {
+        INFO("channel " << c << " sample " << i);
+        CHECK(storage[c][i] == doctest::Approx(rendered));
+      }
+    }
+
+    s.stop();
+    pump();
+
+    // Leave the singleton as the other cases expect to find it.
+    YSE::System().closeCurrentDevice();
   }
 
 #endif // PORTAUDIO_BACKEND

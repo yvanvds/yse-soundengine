@@ -43,6 +43,7 @@
 #include "reverb/reverbManager.h"
 #include "sound/soundInterface.hpp"
 #include "sound/soundManager.h"
+#include "internal/AudioTest.h"
 #include "internal/time.h"
 #include "internal/underWaterEffect.h"
 #include "dsp/ADSRenvelope.hpp"
@@ -385,6 +386,86 @@ TEST_SUITE("lifecycle") {
     CHECK(YSE::ChannelMaster().getDSP() == &YSE::INTERNAL::UnderWaterEffect().module());
     YSE::ChannelMaster().setDSP(nullptr);
 
+    YSE::System().close();
+  }
+
+  // Regression test for issue #717: the built-in diagnostic tone must survive a
+  // close() -> init() cycle. Same defect family as the underwater zone above,
+  // in the sibling process-global singleton.
+  //
+  // INTERNAL::Test() is a function-local static owning a YSE::sound built once
+  // per process, in its constructor. SOUND::Manager().destroy() clears every
+  // sound implementation at System::close() and each implementation's
+  // destructor nulls its interface's pimpl, so from the second session on the
+  // driver was messaging a dead interface. Unlike the reverb case this does not
+  // fault — every sound method is documented to no-op while isValid() is false
+  // — so the symptom is silence: System().AudioTest(true), and the C API's
+  // yse_system_audio_test() with it, did nothing at all. For the engine's
+  // built-in *output diagnostic* that is the worst possible failure mode, and
+  // it is what the "audio test" case in the devicelayer suite was failing on in
+  // a shared process: capilowcov drives yse_system_audio_test() from
+  // Tests/system/test_c_api_lowcov.cpp, which sorts before
+  // test_device_layer.cpp, so the singleton was built in that earlier session
+  // and the close() in between emptied it.
+  //
+  // Reproduced with two *offline* suites and no PortAudio anywhere:
+  //   yse_tests --test-suite=capilowcov,capilowcovlife,devicelayer
+  //
+  // Pre-fix the second session's CHECK(isPlaying()) fails. Post-fix the driver
+  // re-creates the sound for the new session, and no-ops while none is up.
+  TEST_CASE("lifecycle: the built-in audio test tone is rebuilt across a close/init cycle "
+            "(issue #717)") {
+    YSE::System().close(); // normalize to a closed engine
+
+    if (!YSE::System().initOffline()) return; // no offline device on this host
+
+    // isPlaying() reads the implementation's head status, which the audio tick
+    // writes — so the SI_PLAY message has to be delivered before it is read.
+    // update() flags the control-plane work, renderOffline() runs the audio
+    // callback body, and the sleep lets the single-threaded slow pool execute
+    // the queued setup() job create() posted.
+    auto pump = []() {
+      for (int i = 0; i < 20; ++i) {
+        YSE::System().update();
+        YSE::System().renderOffline(2);
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+      }
+    };
+
+    // Session 1: first touch constructs the driver and its sound.
+    // isValid() is the handle, isReady() is the implementation having finished
+    // the setup job create() posts to the slow pool — together they are "there
+    // is a live diagnostic sound in this session". Deliberately not isPlaying():
+    // that reads the DSP-side status the shepard source leaves alone, and what
+    // this case owns is the *rebuild*. That the tone actually reaches the master
+    // mix is asserted at the render level by the devicelayer suite's "audio
+    // test" case, in the process that can measure it.
+    YSE::System().AudioTest(true);
+    pump();
+    CHECK(YSE::INTERNAL::Test().source().isValid());
+    CHECK(YSE::INTERNAL::Test().source().isReady());
+    YSE::System().AudioTest(false);
+    pump();
+
+    YSE::System().close();
+    // close() freed the sound's implementation and nulled the handle.
+    CHECK_FALSE(YSE::INTERNAL::Test().source().isValid());
+
+    // Engine down: the driver must no-op rather than message a freed
+    // implementation, and must not leave a half-built sound behind.
+    YSE::System().AudioTest(true);
+    CHECK_FALSE(YSE::INTERNAL::Test().source().isValid());
+
+    // Session 2: the sound has to come back, or the diagnostic is silent for
+    // the rest of the process.
+    REQUIRE(YSE::System().initOffline());
+    YSE::System().AudioTest(true); // <- silently did nothing before the fix
+    pump();
+    CHECK(YSE::INTERNAL::Test().source().isValid());
+    CHECK(YSE::INTERNAL::Test().source().isReady());
+
+    YSE::System().AudioTest(false);
+    pump();
     YSE::System().close();
   }
 

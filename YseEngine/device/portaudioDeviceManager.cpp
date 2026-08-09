@@ -258,6 +258,23 @@ void YSE::DEVICE::managerObject::close() {
   activeBufferSize.store(0, std::memory_order_release);
   activeOutputLatencySamples.store(0, std::memory_order_release);
   cpuLoadEma.store(0.f, std::memory_order_relaxed);
+
+  // The stream is very unlikely to have stopped on a block boundary, so
+  // bufferPos is left pointing part-way into the last block paCallback
+  // rendered. It is process-global manager state and survives close(), and the
+  // next stream's first callback resumes from it: it copies the tail of that
+  // stale block — up to STANDARD_BUFFERSIZE-1 samples of pre-close audio —
+  // before rendering anything for the new session. Resetting it to
+  // STANDARD_BUFFERSIZE makes the first callback after every open render a
+  // fresh block, which is what the Oboe backend already does explicitly
+  // (oboeImplementation.cpp's openStream) and what the constructor's initial
+  // value means. Part of the same "no active device" reset as the atomics
+  // above; it was simply missed (issue #717).
+  //
+  // Safe to write here: close() runs on the control thread and only after
+  // Pa_StopStream/Pa_CloseStream have returned, so no callback can be in
+  // flight — the same reason the stores above are unsynchronised with it.
+  bufferPos = STANDARD_BUFFERSIZE;
 }
 
 void YSE::DEVICE::managerObject::terminate() {

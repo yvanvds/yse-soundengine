@@ -35,6 +35,38 @@ namespace {
     }
   }
 
+  // The precondition of every case that measures a *live* device, asked rather
+  // than assumed (issue #717).
+  //
+  // `getNumDevices() == 0` on its own — which is all these cases used to check
+  // — answers "does this host have audio hardware", and that is not the same
+  // question as "is a stream delivering audio in this process right now". In a
+  // shared process the two come apart: doctest orders cases by file, so
+  // system/test_device_layer.cpp (suite `devicelayer`) runs between this file
+  // and system/test_api_doc_coverage.cpp, and its setup legitimately takes the
+  // device away with System().close() + initOffline(). The device list survives
+  // that, so the old guard stayed open over a closed stream and the cases below
+  // asserted a live rate on nothing.
+  //
+  // Nothing here re-opens it. engineInitWithAudio() explains why (see
+  // Tests/support/null_device.hpp): re-establishing the stream mid-run puts a
+  // live callback thread into a process whose unit suites drive
+  // Manager().update() from the test thread, and the unfiltered run then aborts
+  // on lfQueue's reentrancy assertion instead of failing three checks. This
+  // suite and `devicelayer` need opposite device state and cannot share a
+  // process — the isolated ctest entries are what give each of them theirs.
+  bool liveStream() {
+    // No audio hardware at all (headless CI). Long-standing, silent, and not
+    // what #717 is about.
+    if (YSE::System().getNumDevices() == 0) return false;
+    if (TestHelpers::audioIsFlowing()) return true;
+    MESSAGE("skipped: this host has an audio device but no stream is delivering callbacks in "
+            "this process, so there is no live state to measure. The `system` suite and "
+            "`devicelayer` need opposite device state — run this one through the ctest "
+            "entries that give each of them its own process (issue #717).");
+    return false;
+  }
+
 } // namespace
 
 TEST_SUITE("system") {
@@ -71,15 +103,34 @@ TEST_SUITE("system") {
 
   // ─── Resumed engine: live values become positive ─────────────────────────────
 
+  // The contract the five cases below inherit, asserted as a case of its own so
+  // a process that cannot satisfy it says so once, by name, rather than through
+  // three unexplained value mismatches. Deliberately a failure and not a skip,
+  // for the same reason as devicelayer's mirror of it: the guards are the only
+  // thing between these cases and silently measuring nothing, so a change that
+  // takes the live stream away has to trip something.
+  TEST_CASE("system: the live-device cases have a stream delivering audio (issue #717)") {
+    if (!TestHelpers::engineInitWithAudio()) return;
+    // Headless CI has no device to deliver anything; that is not the contract
+    // this case is about.
+    if (YSE::System().getNumDevices() == 0) return;
+    INFO("These cases measure live device state, which needs a process where the audio stream "
+         "engineInitWithAudio() started is still open. `devicelayer` closes it — legitimately, "
+         "its own cases need no device — and doctest orders cases by file, so it lands between "
+         "this suite's translation units. This failing means the two are sharing a process; the "
+         "cases below are skipped with a message.");
+    CHECK(TestHelpers::audioIsFlowing());
+  }
+
   TEST_CASE("system: active sample rate is positive after resuming audio") {
     if (!TestHelpers::engineInitWithAudio()) return;
-    if (YSE::System().getNumDevices() == 0) return;
+    if (!liveStream()) return;
     CHECK(YSE::System().getActiveSampleRate() > 0.0);
   }
 
   TEST_CASE("system: active output latency is positive after resuming audio") {
     if (!TestHelpers::engineInitWithAudio()) return;
-    if (YSE::System().getNumDevices() == 0) return;
+    if (!liveStream()) return;
     // PortAudio's negotiated output latency is multiplied by SAMPLERATE in
     // the manager — for any realistic device this lands well above zero.
     CHECK(YSE::System().getActiveOutputLatency() > 0);
@@ -87,7 +138,7 @@ TEST_SUITE("system") {
 
   TEST_CASE("system: session sample rate matches active rate when audio is resumed") {
     if (!TestHelpers::engineInitWithAudio()) return;
-    if (YSE::System().getNumDevices() == 0) return;
+    if (!liveStream()) return;
     // When the device is open, the session rate and the active (live) rate
     // return the same locked value.
     CHECK(YSE::System().getSampleRate() == doctest::Approx(YSE::System().getActiveSampleRate()));
@@ -95,7 +146,7 @@ TEST_SUITE("system") {
 
   TEST_CASE("system: active buffer size is positive after at least one audio callback") {
     if (!TestHelpers::engineInitWithAudio()) return;
-    if (YSE::System().getNumDevices() == 0) return;
+    if (!liveStream()) return;
     waitForCallback();
     // If the audio thread never fired (some CI runners), skip the assertion
     // rather than reporting a flake.
@@ -107,7 +158,7 @@ TEST_SUITE("system") {
 
   TEST_CASE("system: active output latency yields a believable ms value") {
     if (!TestHelpers::engineInitWithAudio()) return;
-    if (YSE::System().getNumDevices() == 0) return;
+    if (!liveStream()) return;
     const double rate = YSE::System().getActiveSampleRate();
     const int samples = YSE::System().getActiveOutputLatency();
     if (rate <= 0.0 || samples <= 0) return;
