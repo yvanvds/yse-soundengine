@@ -36,7 +36,8 @@ namespace YSE {
    *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_RANDOM``.
    *  - Timing: ``G_METRO``, ``G_DELAY``, ``G_PIPE``, ``G_TRANSPORT``,
    *    ``G_TIMEPOINT``, ``G_TEMPO``, ``G_CLOCKER``, ``G_TIMER``,
-   *    ``G_SPEEDLIM``, ``G_QLIM``, ``G_THRESH``, ``G_QUICKTHRESH``.
+   *    ``G_SPEEDLIM``, ``G_QLIM``, ``G_THRESH``, ``G_QUICKTHRESH``,
+   *    ``G_LINE``.
    *  - Registers: ``G_COUNTER``, ``G_ACCUM``.
    *  - Randomness: ``G_RANDOM``, ``G_DRUNK``, ``G_URN``, ``G_DECIDE``,
    *    ``G_PROB``, ``G_ANAL``, ``G_HISTO``.
@@ -217,6 +218,7 @@ namespace YSE {
     DEFOBJ(G_QLIM, ".qlim");
     DEFOBJ(G_THRESH, ".thresh");
     DEFOBJ(G_QUICKTHRESH, ".quickthresh");
+    DEFOBJ(G_LINE, ".line");
 
     DEFOBJ(D_ADD, "~+");
     DEFOBJ(D_SUBSTRACT, "~-");

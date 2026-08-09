@@ -222,6 +222,7 @@ set(YSE_SRCS
   patcher/time/clockBridge.cpp
   patcher/time/gClocker.cpp
   patcher/time/gDelay.cpp
+  patcher/time/gLine.cpp
   patcher/time/gMetro.cpp
   patcher/time/gPipe.cpp
   patcher/time/gRateLimit.cpp
@@ -452,6 +453,7 @@ set_source_files_properties(
   patcher/time/clockBridge.cpp
   patcher/time/gClocker.cpp
   patcher/time/gDelay.cpp
+  patcher/time/gLine.cpp
   patcher/time/gMetro.cpp
   patcher/time/gPipe.cpp
   patcher/time/gRateLimit.cpp

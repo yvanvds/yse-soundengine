@@ -63,6 +63,7 @@
 
 #include "time/gClocker.h"
 #include "time/gDelay.h"
+#include "time/gLine.h"
 #include "time/gMetro.h"
 #include "time/gPipe.h"
 #include "time/gRateLimit.h"
@@ -483,6 +484,11 @@ pRegistry::pRegistry() {
   // detection needs (issue #509)
   Add(OBJ::G_THRESH, gThresh::Create);
   Add(OBJ::G_QUICKTHRESH, gQuickthresh::Create);
+
+  // Generate a timed ramp of control values toward a target — the control-rate
+  // counterpart of ~line, which writes a DSP buffer and so cannot drive
+  // anything that is a number rather than a waveform (issue #510)
+  Add(OBJ::G_LINE, gLine::Create);
 
   // Control a named domain clock from inside the patcher — the object that
   // connects a patch to the engine's polytemporal clock system (issue #513)
