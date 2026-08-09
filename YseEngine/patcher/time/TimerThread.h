@@ -67,6 +67,17 @@ namespace YSE {
       // timer is never silently degraded into a one-shot), true otherwise.
       bool SetPeriod(timerID id, millisec msPeriod);
 
+      // Retire a timer. Unlike SetPeriod above, this **blocks** when the
+      // timer's callback is in flight: it waits on a condition variable until
+      // the worker reports the callback finished, which is the handshake that
+      // lets an owner be destroyed while its timer is firing.
+      //
+      // It therefore must NOT be called from inside that timer's own callback —
+      // the wait would be on this thread's own completion, and the worker (one
+      // per process) never comes back. The note beside SetPeriod says which
+      // calls are callback-safe; this is the one that is not (issue #721).
+      // `.metro`, the only consumer, keeps off this path from inside `Bang()`
+      // by taking timerBridge's wait-free route there.
       bool ClearTimer(timerID id);
       void Clear();
 

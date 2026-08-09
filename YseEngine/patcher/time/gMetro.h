@@ -131,6 +131,42 @@ namespace YSE {
      *  ``Toggle`` today — so #711 shortens a bounded cycle rather than opening
      *  an unbounded one.
      *
+     *  What that reasoning missed, and issue #721 is, is the *other* end of the
+     *  same cord. The bang that closes the cycle at run time is not the start
+     *  bang on the control thread but ``Bang()`` on the **timer worker, from
+     *  inside the timer's own callback**, and the ``StopRun`` it reaches was
+     *  therefore asking ``timerThread::ClearTimer`` to retire the id whose
+     *  callback was on its own stack. ``destroyImpl`` waits for a completion
+     *  only the calling thread can deliver, and it waits holding the bridge
+     *  slot's mutex, so the one timer worker in the process was gone for good
+     *  and took every other ``.metro`` — and the next thread to touch this one —
+     *  with it. The depth ceiling cannot help there: the cycle is one frame deep
+     *  and blocks rather than recursing, and a depth counter knows how deep a
+     *  send is, not whose callback the frame at the bottom belongs to.
+     *
+     *  ``Bang()`` therefore marks its frame in a thread-local —
+     *  ``patcherImplementation``'s render-frame marker (#690) for the sibling
+     *  question, and a mark that travels with the *thread*, so a cycle closed
+     *  through a ``.t`` is covered exactly as the single cord is — and a start
+     *  or stop that finds its own mark **records** rather than performs.
+     *
+     *  Recording, and not merely swapping the blocking route for the wait-free
+     *  one, is what makes the answer correct rather than only unhung. A restart
+     *  from inside the callback needs no work at all: the timer being restarted
+     *  is the one that is firing, and the worker reschedules it at ``next +
+     *  period`` the instant the callback returns, which is the tutorial's "from
+     *  the moment we triggered it" measured from the tick instead of from the
+     *  end of everything the tick set off. Publishing "running" would be worse
+     *  than redundant — a stop landing from another thread while the cycle
+     *  unwound would be overwritten, and the metro the user switched off would
+     *  come back. A stop is the one thing that must reach the bridge, since the
+     *  worker's own reschedule has to be undone, and it is the safe direction to
+     *  publish late: a stop request can only ever stop. ``Bang()`` issues it once
+     *  when the send has unwound, at the bounded cost #718 already documents for
+     *  a stop that cannot wait — the disarm lands a pool hop later, so one more
+     *  tick may come out. An ordinary self-banging tick reaches the bridge
+     *  never.
+     *
      *  ### The bang count is read off the clock, never counted from wakeups
      *
      *  This is the one place the obvious implementation is wrong, and a metro
