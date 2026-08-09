@@ -2,6 +2,7 @@
 #include "../pListArgs.h"
 #include "../pObjectList.hpp"
 #include "../pSelector.h"
+#include "timeValue.h"
 #include <cstddef>
 
 using namespace YSE::PATCHER;
@@ -32,18 +33,25 @@ namespace {
       "automatically sends a bang message to itself to start the delay.' The message 'stop' "
       "cancels the held bang without sending it. A list whose first item is a number sets the "
       "time and starts the wait, the same as a bare number; Max's list method exists to carry its "
-      "time-format syntax (notevalues, ticks, bars.beats.units, samples), and milliseconds are "
-      "the only unit here because everything else is tempo-relative and this object was written "
-      "before the patcher had any bridge to a domain clock. Issue #688 has since built one, and "
-      "adopting it here — 'clock <name>' plus a beat unit — is filed as issue #705. Until then "
-      "anything else, 'clock' included, does nothing.";
+      "time-format syntax, and since issue #705 the tempo-relative half of that syntax is read "
+      "here: a note value ('4n', '4nd', '8nt') or a tick count ('1440 ticks') sets the delay in "
+      "beats on the domain clock named by 'clock <name>', which is Max's own method — 'the word "
+      "clock, followed by the name of an existing setclock object, sets the delay object to be "
+      "controlled by that setclock object rather than by Max's internal millisecond clock' — and "
+      "a bare 'clock' takes the clock away again. Any plain number puts the object back on "
+      "milliseconds. A beat time with no clock bound arms nothing and bangs nothing, there being "
+      "no transport here to measure a beat against; send the 'clock' message and the next bang "
+      "works. bars.beats.units stays out, needing a meter no domain clock has. Anything else does "
+      "nothing.";
 
   constexpr char kColdInletDoc[] =
-      "Sets the delay time in milliseconds without starting anything. Max: 'a number received in "
-      "the right inlet changes the delay time of the next bang received -- it does not modify the "
-      "time of a bang currently being delayed', so a bang already waiting still leaves at the "
-      "time it was armed with. Ints, floats and a list whose first item is a number all set it; a "
-      "negative time counts as 0. There is no bang method here, as there is none in Max.";
+      "Sets the delay time without starting anything. Max: 'a number received in the right inlet "
+      "changes the delay time of the next bang received -- it does not modify the time of a bang "
+      "currently being delayed', so a bang already waiting still leaves at the time it was armed "
+      "with. Ints, floats and a list whose first item is a number all set it in milliseconds; a "
+      "negative time counts as 0. A note value ('4nd') or a tick count ('1440 ticks') sets it in "
+      "beats instead (issue #705), to be measured on the clock 'clock <name>' named in the left "
+      "inlet. There is no bang method here, as there is none in Max.";
 
 } // namespace
 
@@ -62,7 +70,9 @@ CONSTRUCT() {
   ADD_OUT_BANG;
 
   ADD_PARAM(delaytime);
+  ADD_PARAM(delaybeats);
   delaytime = DEFAULT_DELAY;
+  delaybeats = 0.f;
 
   ADD_DESCRIPTION(
       "Delays a bang. A bang in the left inlet comes back out the outlet a settable number of "
@@ -79,14 +89,20 @@ CONSTRUCT() {
       "a delayed bang where it stands, and its resolution is one audio block. A delay of 0 still "
       "defers to the next block rather than firing immediately, which is Max's behaviour and the "
       "reason a delay wired back into itself is a fast metronome instead of a stack overflow. "
-      "Milliseconds only: Max's notevalue, tick and bars.beats.units formats are tempo-relative, "
-      "and this object was written before the patcher had a bridge to a domain clock. Issue #688 "
-      "has since built one — the same one .qlist's 'clock <name>' plays on — and adopting it here "
-      "is filed as issue #705. Calculate() does nothing and no "
+      "Since issue #705 the delay may also be tempo-relative: a note value ('4n', '4nd', '8nt') "
+      "or a tick count ('1440 ticks') sets it in beats, and 'clock <name>' names the YSE domain "
+      "clock those beats are counted on — Max's own method, delay and metro being two of the "
+      "objects setclock names explicitly — so the wait then follows that domain's tempo changes "
+      "and ramps, stays in step with every clip on it, and holds where it stands when the domain "
+      "pauses. A bare 'clock' goes back to Max's millisecond clock and any plain number goes back "
+      "to milliseconds, so an object never sent a beat time is Max's object exactly. A beat time "
+      "with no clock bound arms nothing, this patcher having no transport to measure a beat "
+      "against, and bars.beats.units, quantize and transport stay out because all three need a "
+      "meter a domain clock does not have. Calculate() does nothing and no "
       "message path allocates, locks or blocks.");
   ADD_CATEGORY(pCategory::TIME);
-  INLET_DOC(0, "bang", kHotInletDoc, "bang, int, float, list, 'stop'");
-  INLET_DOC(1, "time", kColdInletDoc, "0+ ms");
+  INLET_DOC(0, "bang", kHotInletDoc, "bang, int, float, list, 'stop', 'clock <name>'");
+  INLET_DOC(1, "time", kColdInletDoc, "0+ ms, or a note value / tick count");
   OUTLET_DOC(0, "out", "The delayed bang, one audio block or more after the bang that caused it.",
              "");
   PARAM_DOC("delaytime", "5",
@@ -97,11 +113,61 @@ CONSTRUCT() {
             "object's constructor rather than about the attribute's declared default. Either "
             "inlet overwrites it afterwards. A negative value counts as 0.",
             "0+ ms");
+  PARAM_DOC("delaybeats", "0",
+            "The initial delay in beats, for the tempo-relative unit issue #705 added. 0 means "
+            "the delay is the millisecond one above, which is what a Max delay always is; any "
+            "positive value makes it a beat count on the domain clock a 'clock <name>' message "
+            "names, and a note value or tick count in either inlet overwrites it afterwards. A "
+            "plain number in either inlet clears it back to 0, Max's 'the number is stored as the "
+            "number of milliseconds'. The clock binding itself is run-time state and is not "
+            "saved. A negative value counts as 0.",
+            "0+ beats");
 }
 
 int gDelay::DelayTime() const {
   const Int ms = delaytime.load();
   return ms > 0 ? (int)ms : 0;
+}
+
+double gDelay::DelayBeats() const {
+  const Flt beats = delaybeats.load();
+  // Written as a failed `>` so a NaN — which a live SetParams re-parse could
+  // store — reads as "no beat time" rather than as a wait nothing can satisfy.
+  return beats > 0.f ? (double)beats : 0.0;
+}
+
+const char* gDelay::ClockName() const {
+  const clockBridge::Handle bound = binding.load(std::memory_order_relaxed);
+  if (bound == 0) return "";
+  const clockBridge* clocks = Clocks();
+  if (clocks == nullptr) return "";
+  return clocks->NameOf(bound);
+}
+
+void gDelay::SetClock(const char* name, std::size_t length) {
+  // Max's bare `clock`: "the word clock by itself sets the delay object back to
+  // using Max's regular millisecond clock." A bang already in flight is left
+  // alone — it leaves on the clock it was armed on, the way the cold inlet
+  // leaves a bang in flight at the time it was armed with.
+  if (name == nullptr || length == 0) {
+    binding.store(0, std::memory_order_relaxed);
+    return;
+  }
+
+  // A standalone object has no patcher and so no bridge, exactly as it has no
+  // scheduler to defer into. Silent, since this may be the audio thread.
+  clockBridge* clocks = Clocks();
+  if (clocks == nullptr) return;
+
+  // Wait-free: a bounded walk over the patcher's binding table and a memcpy of
+  // the name into a slot that already exists. The name is *not* looked up here
+  // — that takes the clock manager's mutex and happens on the background pool.
+  const clockBridge::Handle bound = clocks->Bind(name, length);
+  // A refusal (the table is full, or the name is longer than a slot holds)
+  // leaves the object on whatever clock it was on rather than silently falling
+  // back to milliseconds, which would change what a stored beat time means.
+  if (bound == 0) return;
+  binding.store(bound, std::memory_order_relaxed);
 }
 
 bool gDelay::IsPending() const {
@@ -129,8 +195,27 @@ void gDelay::Start(YSE::THREAD thread) {
   // forgotten." Cancel-then-arm, both wait-free, so the wait is always measured
   // from the newest bang.
   CancelPending();
-  // The tag is unused: this object has only one kind of pending message.
-  const messageScheduler::Handle armed = scheduler->ScheduleBang(this, 0, DelayTime());
+
+  // Milliseconds or beats — the unit travels with the value, which is Max's
+  // model: a plain number says "milliseconds" and a note value says "beats"
+  // (issue #705). `clock` only decides which clock the beats are counted on.
+  const double beats = DelayBeats();
+  messageScheduler::Handle armed = 0;
+  if (beats > 0.0) {
+    const clockBridge::Handle onClock = binding.load(std::memory_order_relaxed);
+    // A tempo-relative wait with no clock bound has nothing to be measured
+    // against — this patcher has no transport for a note value to fall back on
+    // — so nothing is armed and nothing goes out. Re-reading the beat count as
+    // milliseconds would turn a `4n` into a wait of 1 ms; the honest answer is
+    // the one the bridge gives for a clock that does not exist, which is that
+    // the wait never comes due. A later `clock <name>` makes the next bang work.
+    if (onClock == 0) return;
+    // The tag is unused: this object has only one kind of pending message.
+    armed = scheduler->ScheduleBangOnClock(this, 0, onClock, beats);
+  } else {
+    armed = scheduler->ScheduleBang(this, 0, DelayTime());
+  }
+
   pending.store(armed, std::memory_order_relaxed);
   // armed == 0 means the patcher-wide pending set is full. The bang is dropped
   // — counted by messageScheduler::Dropped() — rather than sent immediately;
@@ -152,6 +237,10 @@ INT_IN(IntIn) {
   // number in the right inlet "does not modify the time of a bang currently
   // being delayed", which falls out of not touching the pending handle.
   delaytime = value;
+  // "The number of milliseconds" is a statement about the *unit*, so a plain
+  // number puts the object back on milliseconds whatever tempo-relative time it
+  // was carrying (issue #705). The unit travels with the value, Max's model.
+  delaybeats = 0.f;
   if (inlet == 0) Start(thread);
 }
 
@@ -179,12 +268,40 @@ LIST_IN(ListIn) {
     return;
   }
 
-  // The millisecond subset of Max's list / anything method, which exists to
-  // carry its time-format syntax. A leading number means the same thing a bare
-  // number does; everything else — a notevalue, `clock`, an unknown word — does
-  // nothing, deliberately, rather than being read as some number it is not.
-  // `clock <name>` has a meaning in the patcher since #688 built the bridge;
-  // teaching this object to answer it is #705, not a line to sneak in here.
+  // Max's `clock` (issue #705), left inlet only, where `stop` is: "the word
+  // clock, followed by the name of an existing setclock object, sets the delay
+  // object to be controlled by that setclock object rather than by Max's
+  // internal millisecond clock. The word clock by itself sets the delay object
+  // back to using Max's regular millisecond clock." The whole remainder is the
+  // name, so a clock named with spaces still works.
+  if (inlet == 0 && length == 5 && value.compare(begin, length, "clock", 5) == 0) {
+    std::size_t nameBegin = end;
+    while (nameBegin < value.size() && IsSelectorSeparator(value[nameBegin]))
+      nameBegin++;
+    std::size_t nameEnd = value.size();
+    while (nameEnd > nameBegin && IsSelectorSeparator(value[nameEnd - 1]))
+      nameEnd--;
+    SetClock(value.c_str() + nameBegin, nameEnd - nameBegin);
+    return;
+  }
+
+  // Max's list / anything method, which exists to carry its time-format syntax.
+  // The tempo-relative half of that syntax is read first, because its tick
+  // spelling *starts* with a number — `1440 ticks` read as a leading number
+  // would silently become 1440 ms. Note values and tick counts set the delay in
+  // beats (issue #705); a leading number on its own means the same thing a bare
+  // number does, which is milliseconds; everything else — bars.beats.units, an
+  // unknown word — does nothing, deliberately, rather than being read as some
+  // number it is not.
+  double beats = 0.0;
+  if (ReadBeatTime(value.c_str() + begin, value.size() - begin, beats)) {
+    delaybeats = (Flt)beats;
+    // Max's left inlet "then automatically sends a bang message to itself to
+    // start the delay", exactly as it does for a plain number.
+    if (inlet == 0) Start(thread);
+    return;
+  }
+
   float number = 0.f;
   if (!ReadNumericToken(value.c_str() + begin, length, number)) return;
   IntIn(MillisFromFloat(number), inlet, thread);

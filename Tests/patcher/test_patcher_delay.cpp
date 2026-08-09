@@ -225,14 +225,67 @@ TEST_SUITE("patcher") {
     CHECK(rig.out.bangs == 1);
   }
 
-  TEST_CASE("delay: a time format this patcher cannot read does nothing (#503)") {
-    // Max's notevalues, ticks and bars.beats.units are tempo-relative and the
-    // patcher has no transport bridge yet (#688). Refused whole rather than
-    // read as some number they are not: "4nd" must not become 4.
+  TEST_CASE("delay: a time format this patcher still cannot read does nothing (#503, #705)") {
+    // #705 taught this object the *tempo-relative* half of Max's time syntax —
+    // note values and ticks, which are arithmetic once a beat exists. The rest
+    // stays refused whole rather than read as some number it is not:
+    // bars.beats.units needs a meter, and a domainClock is a bare beat
+    // accumulator with none, so "1.1.0" must not become 1.
     Rig rig("100");
-    rig.List(0, "4nd");
     rig.List(0, "1.1.0");
+    rig.List(0, "00:03:25");
+    rig.List(0, "4nq"); // neither dotted nor triplet: not a note value at all
+    rig.List(0, "wibble");
+    CHECK(rig.obj.DelayTime() == 100);
+    CHECK(rig.obj.DelayBeats() == 0.0);
+    CHECK(rig.out.bangs == 0);
+  }
+
+  TEST_CASE("delay: a note value or tick count sets the delay in beats (#705)") {
+    // The unit travels with the value, which is Max's model: a note value says
+    // "beats" and a plain number says "milliseconds" — Max's "the number is
+    // stored as the number of milliseconds".
+    Rig rig("100");
+    rig.List(1, "4nd"); // the cold inlet sets without starting
+    CHECK(rig.obj.DelayBeats() == 1.5);
+    CHECK(rig.obj.DelayTime() == 100); // the millisecond time is left alone
+    CHECK(rig.out.bangs == 0);
+
+    rig.List(1, "1440 ticks"); // Max's 480 ticks to a quarter note
+    CHECK(rig.obj.DelayBeats() == 3.0);
+    CHECK(rig.out.bangs == 0);
+
+    rig.Int(1, 40);
+    CHECK(rig.obj.DelayBeats() == 0.0);
+    CHECK(rig.obj.DelayTime() == 40);
+  }
+
+  TEST_CASE("delay: a note value in the left inlet starts the wait like a number (#705)") {
+    Rig rig("100");
+    rig.List(0, "8nt");
+    CHECK(rig.obj.DelayBeats() == doctest::Approx(1.0 / 3.0));
+    // Standalone: no patcher, so no clock at all and "later" has no referent —
+    // the same now-or-never answer a millisecond time gets here.
+    CHECK(rig.out.bangs == 1);
+  }
+
+  TEST_CASE("delay: 'clock' is a command in the left inlet only (#705)") {
+    // Max's own method — "the word clock, followed by the name of an existing
+    // setclock object" — and a standalone object has no bridge to bind through,
+    // so it is inert here. It is still a *command*: it must not be read as a
+    // time and it must not start a wait.
+    Rig rig("100");
     rig.List(0, "clock mine");
+    CHECK_FALSE(rig.obj.OnClock());
+    CHECK(std::string(rig.obj.ClockName()).empty());
+    CHECK(rig.obj.DelayTime() == 100);
+    CHECK(rig.obj.DelayBeats() == 0.0);
+    CHECK(rig.out.bangs == 0);
+
+    // The right inlet has no clock method, as it has no stop method: there the
+    // word is only a time format this object cannot read.
+    rig.List(1, "clock mine");
+    CHECK_FALSE(rig.obj.OnClock());
     CHECK(rig.obj.DelayTime() == 100);
     CHECK(rig.out.bangs == 0);
   }

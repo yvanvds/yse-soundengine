@@ -26,6 +26,16 @@
 //     deliver it, and only a rig where a wakeup covers many ticks can tell the
 //     two apart.
 //
+//   - **`.delay` / `.metro` cases** (issue #705) are the bridge's third and
+//     fourth consumers, and the first two where `clock` is a *port* rather than
+//     an addition — Max's `setclock` names both objects explicitly. They bring
+//     the tempo-relative half of Max's time syntax with them (`timeValue.h`),
+//     which gets its own pure-parser cases against Max's published tick table.
+//     `.metro`'s cases carry the load-bearing one: a metro that drifts is
+//     broken, so the rig is built so that the grid and the block boundaries do
+//     *not* line up, which is the only shape that can tell "re-arm one interval
+//     from here" apart from "read the count off the clock".
+//
 //   - **`.qlist` cases** are the user-visible end: a real patcherImplementation,
 //     a real cue list, real Calculate blocks, and a real domain clock advancing
 //     underneath. They are what shows that the cue numbers become beats, that a
@@ -51,6 +61,9 @@
 #include "internal/threadPool.h"
 #include "patcher/genericObjects/gSeq.h"
 #include "patcher/graphState.h"
+#include "patcher/time/gDelay.h"
+#include "patcher/time/gMetro.h"
+#include "patcher/time/timeValue.h"
 #include "patcher/inlet.h"
 #include "patcher/pHandle.hpp"
 #include "patcher/pObjectList.hpp"
@@ -279,6 +292,78 @@ namespace {
       ::Tick(patcher);
     }
   };
+
+  // A `.delay` living in a real patcher, with a recorder on its one outlet
+  // (issue #705).
+  struct DelayRig {
+    patcherImplementation patcher{1, nullptr};
+    Recorder out;
+    YSE::pHandle outHandle{&out};
+    YSE::pHandle* del = nullptr;
+
+    DelayRig() {
+      del = patcher.CreateObject(YSE::OBJ::G_DELAY, "");
+      REQUIRE(del != nullptr);
+      patcher.Connect(del, 0, &outHandle, 0);
+    }
+
+    void Send(const std::string& message) {
+      del->SetListData(0, message);
+    }
+    void UseClock(const std::string& name) {
+      Send("clock " + name);
+      patcher.Clocks()->WaitIdle();
+    }
+    void Tick() {
+      ::Tick(patcher);
+    }
+  };
+
+  // A `.metro` living in a real patcher, with a recorder on its bang outlet
+  // (issue #705). Every case here drives it on a *domain clock*, so no real
+  // timerThread timer is ever started.
+  struct MetroRig {
+    patcherImplementation patcher{1, nullptr};
+    Recorder out;
+    YSE::pHandle outHandle{&out};
+    YSE::pHandle* metro = nullptr;
+
+    MetroRig() {
+      metro = patcher.CreateObject(YSE::OBJ::G_METRO, "");
+      REQUIRE(metro != nullptr);
+      patcher.Connect(metro, 0, &outHandle, 0);
+    }
+
+    void UseClock(const std::string& name) {
+      metro->SetListData(0, "clock " + name);
+      patcher.Clocks()->WaitIdle();
+    }
+    // Max's time formats arrive on the right inlet, which is where Max
+    // documents metro's list method.
+    void SetInterval(const std::string& time) {
+      metro->SetListData(1, time);
+    }
+    void Toggle(int on) {
+      metro->SetIntData(0, on);
+    }
+    void Tick() {
+      ::Tick(patcher);
+    }
+    std::size_t Bangs() const {
+      return out.seen.size();
+    }
+  };
+
+  // `8nd` is a dotted eighth: 360 of Max's 480 ticks per quarter note, so 0.75
+  // of a beat — and 0.75 is exact in binary. Against the rig's half-beat tick
+  // that grid deliberately does *not* line up with the block boundaries, which
+  // is the whole point: a wakeup lands at the first block at or after its
+  // deadline, so only a grid that overshoots can tell a metro that re-arms one
+  // interval from *here* apart from one that reads its count off the clock.
+  constexpr double kDottedEighthBeats = 0.75;
+  // `16n` is a quarter of a beat — half the rig's tick — so two grid points
+  // fall inside one block and a metro that emits one bang per wakeup caps.
+  constexpr double kSixteenthBeats = 0.25;
 
   // 1000 ms of recorded sequence is 48 ticks (Max's rate at the original tempo)
   // and therefore two beats at 120 BPM, which is four of the rig's half-beat
@@ -1107,6 +1192,599 @@ TEST_SUITE("clock") {
     CHECK(std::string(obj.ClockName()).empty());
 
     mgr.destroyClock("seq.named");
+    mgr.update(0.01f);
+  }
+
+  // ─── Max's tempo-relative time syntax (issue #705) ──────────────────────────
+
+  TEST_CASE("timeValue: Max's note-value table reads as the beats Max lists (#705)") {
+    // Max publishes the table in ticks, and a tick is "1/480th of a quarter
+    // note" — so every row is a division this can be checked against rather
+    // than a number to be trusted. A quarter note is one beat on a domainClock,
+    // which is the whole of the conversion.
+    struct Row {
+      const char* spelling;
+      double ticks;
+    };
+    const Row table[] = {
+        {"1nd", 2880}, {"1n", 1920}, {"1nt", 1280}, {"2nd", 1440}, {"2n", 960}, {"2nt", 640},
+        {"4nd", 720},  {"4n", 480},  {"4nt", 320},  {"8nd", 360},  {"8n", 240}, {"8nt", 160},
+        {"16nd", 180}, {"16n", 120}, {"16nt", 80},  {"32nd", 90},  {"32n", 60}, {"32nt", 40},
+        {"64nd", 45},  {"64n", 30},  {"128n", 15},
+    };
+
+    for (const Row& row : table) {
+      double beats = 0.0;
+      const std::string text(row.spelling);
+      CAPTURE(row.spelling);
+      REQUIRE(YSE::PATCHER::ReadBeatTime(text.c_str(), text.size(), beats));
+      CHECK(beats == doctest::Approx(row.ticks / 480.0));
+    }
+
+    // A quarter note is the beat, which is the one row worth stating exactly
+    // rather than approximately.
+    double beats = 0.0;
+    REQUIRE(YSE::PATCHER::ReadNoteValue("4n", 2, beats));
+    CHECK(beats == 1.0);
+    REQUIRE(YSE::PATCHER::ReadNoteValue("8nd", 3, beats));
+    CHECK(beats == 0.75);
+  }
+
+  TEST_CASE("timeValue: 'ticks' is the general beat unit (#705)") {
+    // The note values cannot spell "three beats", and this is Max's own unit
+    // that can — without a meter, which is why it is in and bars.beats.units is
+    // out.
+    double beats = 0.0;
+    REQUIRE(YSE::PATCHER::ReadBeatTime("1440 ticks", 10, beats));
+    CHECK(beats == 3.0);
+    REQUIRE(YSE::PATCHER::ReadBeatTime("  240   ticks  ", 15, beats));
+    CHECK(beats == 0.5);
+    REQUIRE(YSE::PATCHER::ReadBeatTime("120 ticks", 9, beats));
+    CHECK(beats == 0.25);
+  }
+
+  TEST_CASE("timeValue: a spelling Max does not have is refused, not half read (#705)") {
+    // The refusals matter more than the acceptances: a bare number is
+    // milliseconds on both objects, so a tick count read as a leading number
+    // would silently become that many milliseconds.
+    const char* refused[] = {
+        "4", // a bare number is milliseconds, not a note value
+        "3n", // Max's table is the powers of two, and only those
+        "6nd", //
+        "0n", //
+        "256n", // past Max's 128n
+        "4x", //
+        "4nq", // neither dotted nor triplet
+        "4n 5", // a time value is the whole of what it is read from
+        "1440", // a tick count without its unit is milliseconds
+        "1440 tick", "1440 ticks 2", "ticks", "n", "",
+        "2.3.240", // bars.beats.units: needs a meter no domain clock has
+    };
+    for (const char* text : refused) {
+      double beats = -1.0;
+      const std::string token(text);
+      CAPTURE(text);
+      CHECK_FALSE(YSE::PATCHER::ReadBeatTime(token.c_str(), token.size(), beats));
+      CHECK(beats == -1.0); // untouched on refusal
+    }
+  }
+
+  // ─── .delay on a domain clock (issue #705) ──────────────────────────────────
+
+  TEST_CASE("delay: a note value is a beat count on the bound clock (#705)") {
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("delay.beats", kTempo));
+
+    DelayRig rig;
+    rig.UseClock("delay.beats");
+    // Max's left inlet "then automatically sends a bang message to itself to
+    // start the delay", for a time format exactly as for a bare number.
+    rig.Send("4n");
+    CHECK(rig.patcher.Scheduler()->PendingCount() == 1);
+
+    rig.Tick(); // 0.5 beat at 120 BPM
+    CHECK(rig.out.seen.empty());
+    rig.Tick(); // 1.0 beat — a quarter note has gone by
+    CHECK(Joined(rig.out.seen) == "!");
+    CHECK(rig.patcher.Scheduler()->PendingCount() == 0);
+
+    // A dotted eighth is three quarters of that, and the object is Max's
+    // one-bang-at-a-time clock, so this is a fresh wait.
+    rig.Send("8nd");
+    rig.Tick(); // 1.5
+    CHECK(Joined(rig.out.seen) == "!");
+    rig.Tick(); // 2.0 — 0.75 beat has passed since the arm at 1.0
+    CHECK(Joined(rig.out.seen) == "!,!");
+
+    mgr.destroyClock("delay.beats");
+    mgr.update(0.01f);
+  }
+
+  TEST_CASE("delay: a tempo change on the clock bends a beat wait already armed (#705)") {
+    // The whole reason a beat unit is worth having, and the one thing a
+    // millisecond delay cannot do.
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("delay.bend", kTempo));
+
+    DelayRig rig;
+    rig.UseClock("delay.bend");
+    rig.Send("2n"); // two beats
+
+    rig.Tick(); // 0.5 beat at 120 BPM
+    CHECK(rig.out.seen.empty());
+    // Double the domain's tempo: a tick is now a whole beat, so the two-beat
+    // wait lands on the third tick rather than on the fourth.
+    mgr.setTempo("delay.bend", kTempo * 2.f, 0.f);
+    rig.Tick(); // 1.5 beats
+    CHECK(rig.out.seen.empty());
+    rig.Tick(); // 2.5 beats — past the deadline
+    CHECK(Joined(rig.out.seen) == "!");
+
+    mgr.destroyClock("delay.bend");
+    mgr.update(0.01f);
+  }
+
+  TEST_CASE("delay: a beat time with no clock bound arms nothing at all (#705)") {
+    // This patcher has no transport for a note value to fall back on, so there
+    // is nothing to measure a beat against. The bang goes nowhere rather than
+    // being re-read as milliseconds — which would turn a `4n` into a wait of
+    // one millisecond, the failure this case exists to forbid.
+    DelayRig rig;
+    rig.Send("4n");
+    CHECK(rig.patcher.Scheduler()->PendingCount() == 0);
+    for (int i = 0; i < 20; i++)
+      rig.Tick();
+    CHECK(rig.out.seen.empty());
+
+    // …and the two messages may arrive in either order: naming the clock
+    // afterwards makes the next bang work.
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("delay.late", kTempo));
+    rig.UseClock("delay.late");
+    rig.del->SetBang(0);
+    CHECK(rig.patcher.Scheduler()->PendingCount() == 1);
+    rig.Tick();
+    rig.Tick(); // 1.0 beat
+    CHECK(Joined(rig.out.seen) == "!");
+
+    mgr.destroyClock("delay.late");
+    mgr.update(0.01f);
+  }
+
+  TEST_CASE("delay: a bare 'clock' and a plain number both go back to milliseconds (#705)") {
+    // Max's own two sentences: "the word clock by itself sets the delay object
+    // back to using Max's regular millisecond clock", and "the number is stored
+    // as the number of milliseconds". The unit travels with the value; `clock`
+    // only decides which clock a beat time is counted on.
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("delay.off", kTempo));
+
+    DelayRig rig;
+    rig.UseClock("delay.off");
+    rig.Send("4n");
+    REQUIRE(rig.patcher.Scheduler()->PendingCount() == 1);
+    rig.Send("stop");
+
+    // The clock goes away; the beat time stays, so there is nothing to arm on.
+    rig.Send("clock");
+    rig.del->SetBang(0);
+    CHECK(rig.patcher.Scheduler()->PendingCount() == 0);
+
+    // A plain number puts the unit back too, and then Max's millisecond clock
+    // is running the object again — the domain clock ticking underneath makes
+    // no difference at all.
+    rig.del->SetIntData(0, 100);
+    CHECK(rig.patcher.Scheduler()->PendingCount() == 1);
+    const std::uint64_t due = messageScheduler::BlocksForMillis(100);
+    for (std::uint64_t block = 1; block < due; ++block)
+      rig.Tick();
+    CHECK(rig.out.seen.empty());
+    rig.Tick();
+    CHECK(Joined(rig.out.seen) == "!");
+
+    mgr.destroyClock("delay.off");
+    mgr.update(0.01f);
+  }
+
+  TEST_CASE("delay: DelayBeats, OnClock and ClockName report the unit in force (#705)") {
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("delay.named", kTempo));
+
+    patcherImplementation patcher(1, nullptr);
+    // Declared after the patcher so it is destroyed before it; not in the graph,
+    // because this is the accessor set and not a delivery.
+    YSE::PATCHER::gDelay obj;
+    obj.SetParent(&patcher);
+
+    CHECK(obj.DelayBeats() == 0.0);
+    CHECK(obj.DelayTime() == YSE::PATCHER::gDelay::DEFAULT_DELAY);
+    CHECK_FALSE(obj.OnClock());
+    CHECK(std::string(obj.ClockName()).empty());
+
+    // The cold inlet sets without starting, for a time format as for a number.
+    obj.GetInlet(1)->SetList("4nd", YSE::T_GUI);
+    CHECK(obj.DelayBeats() == 1.5);
+    CHECK_FALSE(obj.IsPending());
+
+    obj.GetInlet(1)->SetList("1440 ticks", YSE::T_GUI);
+    CHECK(obj.DelayBeats() == 3.0);
+
+    // Any plain number is a statement about the unit as well as the value.
+    obj.GetInlet(1)->SetInt(250, YSE::T_GUI);
+    CHECK(obj.DelayBeats() == 0.0);
+    CHECK(obj.DelayTime() == 250);
+
+    obj.GetInlet(0)->SetList("clock delay.named", YSE::T_GUI);
+    CHECK(obj.OnClock());
+    CHECK(std::string(obj.ClockName()) == "delay.named");
+    obj.GetInlet(0)->SetList("clock", YSE::T_GUI);
+    CHECK_FALSE(obj.OnClock());
+    CHECK(std::string(obj.ClockName()).empty());
+
+    mgr.destroyClock("delay.named");
+    mgr.update(0.01f);
+  }
+
+  TEST_CASE("delay: the beat time is the second creation argument (#705)") {
+    // It is a time like the millisecond one, so it saves like one — and the
+    // order matters, `delaytime` staying first so an existing one-argument
+    // `.delay` still means what it always did. The binding is *not* saved, for
+    // `.qlist`'s reason.
+    YSE::PATCHER::gDelay obj;
+    CHECK(obj.DelayTime() == YSE::PATCHER::gDelay::DEFAULT_DELAY);
+    CHECK(obj.DelayBeats() == 0.0);
+
+    obj.SetParams("40");
+    CHECK(obj.DelayTime() == 40);
+    CHECK(obj.DelayBeats() == 0.0);
+
+    obj.SetParams("5 1.5");
+    CHECK(obj.DelayTime() == 5);
+    CHECK(obj.DelayBeats() == 1.5);
+    CHECK_FALSE(obj.OnClock());
+    CHECK(obj.GetParams() == "5 1.5");
+  }
+
+  TEST_CASE("delay: a 'clock' message allocates nothing (#705)") {
+    // The handler may be the audio callback. The probe sees std::string
+    // allocations since issue #697, so this is not vacuous over a path that
+    // carries a name.
+    if (!TestHelpers::probeCountsAllocations()) return;
+    REQUIRE(TestHelpers::probeSeesStringAllocations());
+
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("delay.noalloc", kTempo));
+
+    DelayRig rig;
+    // Built outside the probe: it is the *handler* that must not allocate, not
+    // the test's own construction of the message. The note value is inside it
+    // because arming the beat wait is part of the same path.
+    const std::string bind = "clock delay.noalloc";
+    const std::string unbind = "clock";
+    const std::string note = "8nt";
+    const std::string ticks = "1440 ticks";
+    {
+      TestHelpers::ProbeScope probe;
+      rig.del->SetListData(0, bind);
+      rig.del->SetListData(0, unbind);
+      rig.del->SetListData(0, bind);
+      rig.del->SetListData(1, ticks);
+      rig.del->SetListData(0, note);
+      CHECK(TestHelpers::g_alloc_count.load() == 0);
+    }
+    // And it really did bind and arm — an assertion that only proves nothing
+    // happened proves nothing.
+    rig.patcher.Clocks()->WaitIdle();
+    CHECK(rig.patcher.Clocks()->BoundCount() == 1);
+    CHECK(std::string(rig.patcher.Clocks()->NameOf(1)) == "delay.noalloc");
+    CHECK(rig.patcher.Scheduler()->PendingCount() == 1);
+
+    mgr.destroyClock("delay.noalloc");
+    mgr.update(0.01f);
+  }
+
+  // ─── .metro on a domain clock (issue #705) ──────────────────────────────────
+
+  TEST_CASE("metro: the bang count follows the clock's beat, not the wakeups (#705)") {
+    // The load-bearing case of the whole issue. A dotted-eighth grid (0.75 beat)
+    // against half-beat blocks never lines up, so every wakeup overshoots its
+    // deadline by part of a block. A metro that re-armed "one interval from
+    // here" per delivery would hand that overshoot back every time and run slow
+    // — 11 bangs over this run instead of 14, one every two blocks. Reading the
+    // count off the clock's beat position, and arming at the *absolute* next
+    // grid point, is what makes the number below exact.
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("metro.grid", kTempo));
+
+    MetroRig rig;
+    rig.UseClock("metro.grid");
+    rig.SetInterval("8nd");
+    rig.Toggle(1);
+    // Max's metro bangs the moment it is started.
+    CHECK(rig.Bangs() == 1);
+
+    // Block by block over the first grid points, which is where the two halves
+    // of the discipline show up separately. The *arm* must target the absolute
+    // next grid point: 0.75 falls in block 2 and 1.5 in block 3, so a metro
+    // re-arming "one interval from here" would sit out block 3 and bang every
+    // second block instead. The *count* must come off the beat: it is what
+    // makes the totals below right even when a wakeup arrives late.
+    rig.Tick(); // beat 0.5 — nothing due yet
+    CHECK(rig.Bangs() == 1);
+    rig.Tick(); // beat 1.0 — past the first grid point at 0.75
+    CHECK(rig.Bangs() == 2);
+    rig.Tick(); // beat 1.5 — exactly the second grid point
+    CHECK(rig.Bangs() == 3);
+
+    for (int i = 0; i < 17; i++)
+      rig.Tick();
+
+    // 20 blocks is 10 beats at 120 BPM; 10 / 0.75 is 13 whole dotted eighths,
+    // plus the bang at the start.
+    const double beats = 20 * 0.5;
+    const std::size_t expected = 1 + (std::size_t)(beats / kDottedEighthBeats);
+    CHECK(expected == 14);
+    CHECK(rig.Bangs() == expected);
+
+    rig.Toggle(0);
+    mgr.destroyClock("metro.grid");
+    mgr.update(0.01f);
+  }
+
+  TEST_CASE("metro: an interval shorter than a block does not cap at one bang per block (#705)") {
+    // The second half of the same failure, and the one that does not merely run
+    // slow: a delivery is quantised to the block it lands in, so a metro that
+    // emitted one bang per wakeup would top out at one bang per block however
+    // fast the domain ran. A sixteenth is half a block here, so every block owes
+    // two bangs.
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("metro.dense", kTempo));
+
+    MetroRig rig;
+    rig.UseClock("metro.dense");
+    rig.SetInterval("16n");
+    rig.Toggle(1);
+    REQUIRE(rig.Bangs() == 1);
+
+    for (int i = 0; i < 8; i++)
+      rig.Tick();
+
+    // 8 blocks is 4 beats, which is 16 sixteenths, plus the start bang. A
+    // one-bang-per-wakeup metro would report 9.
+    const double beats = 8 * 0.5;
+    const std::size_t expected = 1 + (std::size_t)(beats / kSixteenthBeats);
+    CHECK(expected == 17);
+    CHECK(rig.Bangs() == expected);
+
+    rig.Toggle(0);
+    mgr.destroyClock("metro.dense");
+    mgr.update(0.01f);
+  }
+
+  TEST_CASE("metro: the domain's tempo is the metro's tempo (#705)") {
+    // What a millisecond metro cannot do: the interval is a beat count, so
+    // doubling the domain's tempo doubles the bang rate, with no code in the
+    // object knowing anything about it.
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("metro.tempo", kTempo));
+
+    MetroRig rig;
+    rig.UseClock("metro.tempo");
+    rig.SetInterval("4n"); // one beat: one bang every two blocks
+    rig.Toggle(1);
+    REQUIRE(rig.Bangs() == 1);
+
+    for (int i = 0; i < 8; i++)
+      rig.Tick(); // 4 beats
+    CHECK(rig.Bangs() == 5);
+
+    mgr.setTempo("metro.tempo", kTempo * 2.f, 0.f);
+    for (int i = 0; i < 8; i++)
+      rig.Tick(); // 8 more beats at double tempo
+    CHECK(rig.Bangs() == 13);
+
+    rig.Toggle(0);
+    mgr.destroyClock("metro.tempo");
+    mgr.update(0.01f);
+  }
+
+  TEST_CASE("metro: a clock at tempo zero holds the metro where it stands (#705)") {
+    // domainClock's tempo is playable and unclamped, so a paused domain is a
+    // paused metronome — and it picks up where it left off rather than firing a
+    // burst of everything it "missed", because the beat did not move.
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("metro.paused", kTempo));
+
+    MetroRig rig;
+    rig.UseClock("metro.paused");
+    rig.SetInterval("4n");
+    rig.Toggle(1);
+    for (int i = 0; i < 4; i++)
+      rig.Tick(); // 2 beats
+    REQUIRE(rig.Bangs() == 3);
+
+    mgr.setTempo("metro.paused", 0.f, 0.f);
+    for (int i = 0; i < 20; i++)
+      rig.Tick();
+    CHECK(rig.Bangs() == 3);
+
+    mgr.setTempo("metro.paused", kTempo, 0.f);
+    for (int i = 0; i < 2; i++)
+      rig.Tick(); // one more beat
+    CHECK(rig.Bangs() == 4);
+
+    rig.Toggle(0);
+    mgr.destroyClock("metro.paused");
+    mgr.update(0.01f);
+  }
+
+  TEST_CASE("metro: a beat interval with no clock bound does not run (#705)") {
+    // Falling back to the millisecond interval would be a metronome at a tempo
+    // nobody asked for, so the object does not start at all — not even the bang
+    // Max sends on start.
+    MetroRig rig;
+    rig.SetInterval("4n");
+    rig.Toggle(1);
+    CHECK(rig.Bangs() == 0);
+    for (int i = 0; i < 10; i++)
+      rig.Tick();
+    CHECK(rig.Bangs() == 0);
+
+    // Naming the clock and toggling again is all it takes.
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("metro.late", kTempo));
+    rig.UseClock("metro.late");
+    rig.Toggle(1);
+    CHECK(rig.Bangs() == 1);
+    for (int i = 0; i < 4; i++)
+      rig.Tick(); // 2 beats
+    CHECK(rig.Bangs() == 3);
+
+    rig.Toggle(0);
+    mgr.destroyClock("metro.late");
+    mgr.update(0.01f);
+  }
+
+  TEST_CASE("metro: a clock named before it exists holds, then runs (#705)") {
+    // End to end through the bridge's own Poll: no test-only nudge, just enough
+    // blocks for the retry interval to come round. The run begins when the clock
+    // starts existing, not one interval after it.
+    MetroRig rig;
+    rig.UseClock("metro.notyet");
+    rig.SetInterval("4n");
+    rig.Toggle(1);
+    // Max's start bang goes out regardless — nothing about it needs a clock.
+    CHECK(rig.Bangs() == 1);
+
+    for (int i = 0; i < 4; i++)
+      rig.Tick();
+    CHECK(rig.Bangs() == 1);
+
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("metro.notyet", kTempo));
+    // Poll retries every RESOLVE_INTERVAL_BLOCKS blocks; a comfortable margin
+    // over it, then two more beats' worth.
+    for (std::uint64_t i = 0; i < clockBridge::RESOLVE_INTERVAL_BLOCKS + 8; i++)
+      rig.Tick();
+    CHECK(rig.Bangs() > 1);
+
+    rig.Toggle(0);
+    mgr.destroyClock("metro.notyet");
+    mgr.update(0.01f);
+  }
+
+  TEST_CASE("metro: a beat interval change rebases the grid instead of re-triggering (#705)") {
+    // Issue #625's rule for the millisecond path — "rescheduling keeps the
+    // phase, so a tempo tweak does not re-trigger whatever the bang drives" —
+    // on the beat clock. Measuring the new grid from *here* is what that means.
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("metro.retime", kTempo));
+
+    MetroRig rig;
+    rig.UseClock("metro.retime");
+    rig.SetInterval("2n"); // two beats: one bang every four blocks
+    rig.Toggle(1);
+    REQUIRE(rig.Bangs() == 1);
+
+    for (int i = 0; i < 4; i++)
+      rig.Tick(); // 2 beats
+    CHECK(rig.Bangs() == 2);
+
+    // Halve the interval mid-run. The retime itself must not bang.
+    rig.SetInterval("4n");
+    CHECK(rig.Bangs() == 2);
+    for (int i = 0; i < 4; i++)
+      rig.Tick(); // 2 more beats, now one bang per beat
+    CHECK(rig.Bangs() == 4);
+
+    rig.Toggle(0);
+    mgr.destroyClock("metro.retime");
+    mgr.update(0.01f);
+  }
+
+  TEST_CASE("metro: PeriodBeats, OnClock and ClockName report the unit in force (#705)") {
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("metro.named", kTempo));
+
+    patcherImplementation patcher(1, nullptr);
+    // Declared after the patcher so it is destroyed before it.
+    YSE::PATCHER::gMetro obj;
+    obj.SetParent(&patcher);
+
+    CHECK(obj.PeriodBeats() == 0.0);
+    CHECK_FALSE(obj.OnClock());
+    CHECK_FALSE(obj.RunningOnClock());
+    CHECK(std::string(obj.ClockName()).empty());
+
+    obj.GetInlet(1)->SetList("8nd", YSE::T_GUI);
+    CHECK(obj.PeriodBeats() == 0.75);
+    obj.GetInlet(1)->SetList("1440 ticks", YSE::T_GUI);
+    CHECK(obj.PeriodBeats() == 3.0);
+
+    // Max: "the number is the time interval, in milliseconds" — a statement
+    // about the unit as much as about the value.
+    obj.GetInlet(1)->SetInt(250, YSE::T_GUI);
+    CHECK(obj.PeriodBeats() == 0.0);
+
+    obj.GetInlet(0)->SetList("clock metro.named", YSE::T_GUI);
+    CHECK(obj.OnClock());
+    CHECK(std::string(obj.ClockName()) == "metro.named");
+    // Still not *running* on it: the unit of a run is decided at the toggle,
+    // and this object's interval is milliseconds again.
+    CHECK_FALSE(obj.RunningOnClock());
+
+    obj.GetInlet(0)->SetList("clock", YSE::T_GUI);
+    CHECK_FALSE(obj.OnClock());
+    CHECK(std::string(obj.ClockName()).empty());
+
+    mgr.destroyClock("metro.named");
+    mgr.update(0.01f);
+  }
+
+  TEST_CASE("metro: a 'clock' message and a beat wakeup allocate nothing (#705)") {
+    // Binding may run on the audio callback, and the wakeup *is* the audio
+    // callback. The probe sees std::string and array allocations since #697.
+    if (!TestHelpers::probeCountsAllocations()) return;
+    REQUIRE(TestHelpers::probeSeesStringAllocations());
+
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("metro.noalloc", kTempo));
+
+    MetroRig rig;
+    const std::string bind = "clock metro.noalloc";
+    const std::string unbind = "clock";
+    const std::string note = "16n";
+    {
+      TestHelpers::ProbeScope probe;
+      rig.metro->SetListData(0, bind);
+      rig.metro->SetListData(0, unbind);
+      rig.metro->SetListData(0, bind);
+      rig.metro->SetListData(1, note);
+      CHECK(TestHelpers::g_alloc_count.load() == 0);
+    }
+    rig.patcher.Clocks()->WaitIdle();
+    REQUIRE(rig.patcher.Clocks()->BoundCount() == 1);
+
+    rig.Toggle(1);
+    REQUIRE(rig.Bangs() == 1);
+    // The recorder's own vector reallocates as it grows, which is the *test*
+    // allocating and not the object; give it room up front so the probe is
+    // measuring the delivery path.
+    rig.out.seen.reserve(64);
+    // Two bangs per block on this grid, so the delivery path really is
+    // exercised rather than skipped over. The clock manager's own tick is
+    // outside the probe: what is being measured is the patcher's block, which
+    // is where the wakeup is delivered.
+    for (int i = 0; i < 4; i++) {
+      YSE::CLOCK::Manager().update(kTickSeconds);
+      TestHelpers::ProbeScope probe;
+      rig.patcher.Calculate(YSE::T_DSP);
+      CHECK(TestHelpers::g_alloc_count.load() == 0);
+    }
+    CHECK(rig.Bangs() == 9);
+
+    rig.Toggle(0);
+    mgr.destroyClock("metro.noalloc");
     mgr.update(0.01f);
   }
 
