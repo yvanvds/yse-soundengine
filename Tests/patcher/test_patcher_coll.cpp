@@ -47,6 +47,7 @@
 #include "patcher/patcher.hpp"
 #include "patcher/patcherImplementation.h"
 #include "patcher/sinks.hpp"
+#include "support/alloc_probe.hpp"
 
 using TestHelpers::MultiSink;
 using YSE::PATCHER::gColl;
@@ -1975,6 +1976,659 @@ TEST_SUITE("patcher") {
     CHECK(zero.obj.KeyAt(1) == "2");
     CHECK(zero.obj.Lookup("1") == "a");
     CHECK(zero.obj.Lookup("2") == "b");
+  }
+
+  // ─── the symbol aliases (issue #695) ────────────────────────────────────────
+  //
+  // The one group that changes the address model rather than adding to it: a
+  // numeric entry gets a *second* address. What has to hold is that the second
+  // one behaves like an address everywhere an address is used — a lookup, a
+  // store, a remove, a file, a save — and that it never lets two entries answer
+  // to one name, because that would make a lookup's answer depend on storage
+  // order.
+
+  TEST_CASE("coll: assoc gives a numeric entry a symbol that reaches it (#695)") {
+    // Max: "associates the symbol with the address specified by the number,
+    // provided that the number address already exists. From then on, any
+    // reference to that symbol will be interpreted by coll as a reference to
+    // the number address."
+    Rig rig;
+    rig.List("1 60 100");
+    rig.List("assoc note 1");
+
+    CHECK(rig.obj.Count() == 1);
+    // One entry, two ways in — and the numeric address is still the entry's
+    // own, not replaced by the symbol.
+    CHECK(rig.obj.KeyAt(0) == "1");
+    CHECK(rig.obj.AliasAt(0) == "note");
+    CHECK(rig.obj.Lookup("1") == "60 100");
+    CHECK(rig.obj.Lookup("note") == "60 100");
+
+    // The alias reaches it through the inlet too, which is the whole point.
+    rig.reset();
+    rig.List("note");
+    CHECK(rig.data.gotList);
+    CHECK(rig.data.listValue == "60 100");
+  }
+
+  TEST_CASE("coll: assoc needs the number to exist already (#695)") {
+    // Max: "provided that the number address already exists". Nothing is
+    // created and nothing is said.
+    Rig rig;
+    rig.List("assoc note 7");
+    CHECK(rig.obj.Count() == 0);
+
+    // And a symbol-addressed entry has no number to associate with.
+    rig.List("store word x");
+    rig.List("assoc other 7");
+    CHECK(rig.obj.Count() == 1);
+    CHECK(rig.obj.AliasAt(0).empty());
+    CHECK(rig.obj.Lookup("other").empty());
+  }
+
+  TEST_CASE("coll: an alias must be a symbol, never a number (#695)") {
+    // #494's guarantee is that the address 1 and the address `one` never
+    // collide. An alias spelled `2` would be reached by a numeric lookup of 2,
+    // which already means another entry, so it is refused.
+    Rig rig;
+    rig.List("1 alpha");
+    rig.List("2 beta");
+
+    rig.List("assoc 2 1");
+    CHECK(rig.obj.AliasAt(0).empty());
+    CHECK(rig.obj.Lookup("2") == "beta");
+  }
+
+  TEST_CASE("coll: one symbol reaches one entry, and Max says which gives way (#695)") {
+    // Max 5's assoc parenthetical, dropped from Max 7 onwards: "if the symbol
+    // was already being used as an address, or was already associated with a
+    // number address, the message that was stored at that address is removed".
+    // cyclone does exactly that (collcommon_remove on the colliding element).
+    Rig fromSymbol;
+    fromSymbol.List("store note held");
+    fromSymbol.List("1 60");
+    REQUIRE(fromSymbol.obj.Count() == 2);
+
+    fromSymbol.List("assoc note 1");
+    // The symbol-addressed entry is gone; the alias is on the numeric one.
+    CHECK(fromSymbol.obj.Count() == 1);
+    CHECK(fromSymbol.obj.KeyAt(0) == "1");
+    CHECK(fromSymbol.obj.AliasAt(0) == "note");
+    CHECK(fromSymbol.obj.Lookup("note") == "60");
+
+    // The same when the symbol was another entry's alias.
+    Rig fromAlias;
+    fromAlias.List("1 first");
+    fromAlias.List("2 second");
+    fromAlias.List("assoc tag 1");
+    fromAlias.List("assoc tag 2");
+    CHECK(fromAlias.obj.Count() == 1);
+    CHECK(fromAlias.obj.KeyAt(0) == "2");
+    CHECK(fromAlias.obj.AliasAt(0) == "tag");
+    CHECK(fromAlias.obj.Lookup("tag") == "second");
+    // Removed, not deleted: nothing was renumbered on the way out.
+    CHECK(fromAlias.obj.Lookup("1").empty());
+  }
+
+  TEST_CASE("coll: associating the same symbol twice is a no-op, not a self-collision (#695)") {
+    // cyclone guards this with `ep1->e_symkey != s`, and it has to be guarded:
+    // without it the entry would be removed as its own collision.
+    Rig rig;
+    rig.List("1 60");
+    rig.List("assoc note 1");
+    rig.List("assoc note 1");
+    CHECK(rig.obj.Count() == 1);
+    CHECK(rig.obj.AliasAt(0) == "note");
+    CHECK(rig.obj.Lookup("note") == "60");
+  }
+
+  TEST_CASE("coll: a number address holds only one symbol at a time (#695)") {
+    // Max: "each number address can have only one symbol associated with it",
+    // so a second assoc replaces the first and the old symbol stops meaning
+    // anything.
+    Rig rig;
+    rig.List("1 60");
+    rig.List("assoc first 1");
+    rig.List("assoc second 1");
+    CHECK(rig.obj.AliasAt(0) == "second");
+    CHECK(rig.obj.Lookup("second") == "60");
+    CHECK(rig.obj.Lookup("first").empty());
+  }
+
+  TEST_CASE("coll: deassoc takes the symbol away and leaves the entry (#695)") {
+    // Max: "removes the association between the symbol and the number address.
+    // The symbol no longer has any meaning to coll." The entry, its number and
+    // its data all survive.
+    Rig rig;
+    rig.List("1 60 100");
+    rig.List("assoc note 1");
+    rig.List("deassoc note 1");
+
+    CHECK(rig.obj.Count() == 1);
+    CHECK(rig.obj.KeyAt(0) == "1");
+    CHECK(rig.obj.AliasAt(0).empty());
+    CHECK(rig.obj.Lookup("1") == "60 100");
+    CHECK(rig.obj.Lookup("note").empty());
+  }
+
+  TEST_CASE("coll: deassoc has to name the association it removes (#695)") {
+    // The message names both halves and the reference sentence is about "the
+    // association between the symbol and the number address", so one it did not
+    // name is left alone. cyclone reads only the number — its handler opens
+    // with `s = NULL;` — which discards an argument its own method signature
+    // declares; see the class documentation.
+    Rig rig;
+    rig.List("1 60");
+    rig.List("assoc note 1");
+
+    rig.List("deassoc other 1");
+    CHECK(rig.obj.AliasAt(0) == "note");
+    rig.List("deassoc note 9");
+    CHECK(rig.obj.AliasAt(0) == "note");
+
+    rig.List("deassoc note 1");
+    CHECK(rig.obj.AliasAt(0).empty());
+  }
+
+  TEST_CASE("coll: nstore stores and associates in one message, either order (#695)") {
+    // Max: "stores the message at the specified number address, with the
+    // specified symbol associated. This has the same effect as storing the
+    // message at an int address, then using the assoc message." Max 5's prose
+    // allows "a number and a symbol (or a symbol and a number)"; Max 8's
+    // argument table lists only the first, and cyclone accepts both.
+    Rig numberFirst;
+    numberFirst.List("nstore 1 note 60 100");
+    CHECK(numberFirst.obj.Count() == 1);
+    CHECK(numberFirst.obj.KeyAt(0) == "1");
+    CHECK(numberFirst.obj.AliasAt(0) == "note");
+    CHECK(numberFirst.obj.Lookup("1") == "60 100");
+    CHECK(numberFirst.obj.Lookup("note") == "60 100");
+
+    Rig symbolFirst;
+    symbolFirst.List("nstore note 1 60 100");
+    CHECK(symbolFirst.obj.KeyAt(0) == "1");
+    CHECK(symbolFirst.obj.AliasAt(0) == "note");
+    CHECK(symbolFirst.obj.Lookup("note") == "60 100");
+
+    // Two numbers or two symbols name no pair at all.
+    Rig neither;
+    neither.List("nstore 1 2 x");
+    neither.List("nstore a b x");
+    CHECK(neither.obj.Count() == 0);
+  }
+
+  TEST_CASE("coll: nstore over an address that exists replaces its data (#695)") {
+    // The documented equivalence read literally: store, then assoc.
+    Rig rig;
+    rig.List("1 old");
+    rig.List("nstore 1 note new");
+    CHECK(rig.obj.Count() == 1);
+    CHECK(rig.obj.Lookup("1") == "new");
+    CHECK(rig.obj.AliasAt(0) == "note");
+
+    // And the assoc half still removes a colliding entry, because it is the
+    // same assoc.
+    rig.List("store other x");
+    rig.List("nstore 2 other y");
+    CHECK(rig.obj.Count() == 2);
+    CHECK(rig.obj.Lookup("other") == "y");
+    CHECK(rig.obj.Lookup("2") == "y");
+  }
+
+  TEST_CASE("coll: subsym renames a symbol address and an alias alike (#695)") {
+    // Max 5's worked example is a plain symbol address: "if the coll contains
+    // `jill, 40 50 60;`, `subsym jack jill` will change the coll to
+    // `jack, 40 50 60;`". New symbol first, old second.
+    Rig max5;
+    max5.List("store jill 40 50 60");
+    max5.List("subsym jack jill");
+    CHECK(max5.obj.KeyAt(0) == "jack");
+    CHECK(max5.obj.Lookup("jack") == "40 50 60");
+    CHECK(max5.obj.Lookup("jill").empty());
+
+    // On an aliased entry it renames the alias and leaves the number alone,
+    // which is what cyclone's changesymkey does.
+    Rig aliased;
+    aliased.List("nstore 1 note 60");
+    aliased.List("subsym pitch note");
+    CHECK(aliased.obj.KeyAt(0) == "1");
+    CHECK(aliased.obj.AliasAt(0) == "pitch");
+    CHECK(aliased.obj.Lookup("pitch") == "60");
+    CHECK(aliased.obj.Lookup("1") == "60");
+    CHECK(aliased.obj.Lookup("note").empty());
+  }
+
+  TEST_CASE("coll: subsym refuses a name already in use rather than duplicating it (#695)") {
+    // cyclone does not check, and leaves two entries answering to one symbol —
+    // the second unreachable by name, and the first only by storage order. One
+    // symbol reaches one entry here. Removing the other entry the way assoc
+    // does is not the answer either: Max documents that removal for assoc
+    // alone, and a rename that takes another entry's data with it is worse than
+    // one that does not happen.
+    Rig rig;
+    rig.List("store alpha one");
+    rig.List("store beta two");
+
+    rig.List("subsym alpha beta");
+    CHECK(rig.obj.Count() == 2);
+    CHECK(rig.obj.Lookup("alpha") == "one");
+    CHECK(rig.obj.Lookup("beta") == "two");
+
+    // A rename to a symbol nothing holds still works.
+    rig.List("subsym gamma beta");
+    CHECK(rig.obj.Lookup("gamma") == "two");
+    CHECK(rig.obj.Lookup("beta").empty());
+
+    // An unknown old name, and a numeric argument on either side, do nothing.
+    rig.List("subsym delta missing");
+    rig.List("subsym 5 alpha");
+    CHECK(rig.obj.Count() == 2);
+    CHECK(rig.obj.Lookup("alpha") == "one");
+    CHECK(rig.obj.Lookup("delta").empty());
+  }
+
+  TEST_CASE("coll: every message that takes an address takes the alias (#695)") {
+    // "Any reference to that symbol will be interpreted as a reference to the
+    // number address" — so the alias is not a lookup-only convenience.
+    Rig rig;
+    rig.List("nstore 1 note 60 100 127");
+
+    // store through the alias writes the numeric entry, keeping both addresses.
+    rig.List("store note 64 96");
+    CHECK(rig.obj.Count() == 1);
+    CHECK(rig.obj.KeyAt(0) == "1");
+    CHECK(rig.obj.AliasAt(0) == "note");
+    CHECK(rig.obj.Lookup("1") == "64 96");
+
+    rig.List("merge note 32");
+    CHECK(rig.obj.Lookup("1") == "64 96 32");
+
+    rig.List("nsub note 2 90");
+    CHECK(rig.obj.Lookup("1") == "64 90 32");
+
+    rig.reset();
+    rig.List("nth note 3");
+    CHECK(rig.data.gotInt);
+    CHECK(rig.data.intValue == 32);
+
+    rig.List("goto note");
+    rig.reset();
+    rig.Bang();
+    // The address outlet reports the *number*, not the alias — see below.
+    CHECK(rig.address.gotInt);
+    CHECK(rig.address.intValue == 1);
+
+    // And remove reaches it, taking the whole entry with it.
+    rig.List("remove note");
+    CHECK(rig.obj.Count() == 0);
+  }
+
+  TEST_CASE("coll: a plain store at an aliased address keeps the alias (#695)") {
+    // Where this departs from cyclone, deliberately: cyclone's
+    // collcommon_replace overwrites both key fields from its arguments, so
+    // storing by number nulls the symbol and storing by the symbol drops the
+    // number, which makes nstore the only way to write to an aliased entry
+    // without losing half its address. No Max documentation says so, and a
+    // plain store *is* one of the "references to that symbol" assoc promises to
+    // redirect.
+    Rig rig;
+    rig.List("nstore 1 note 60");
+
+    rig.List("1 64");
+    CHECK(rig.obj.KeyAt(0) == "1");
+    CHECK(rig.obj.AliasAt(0) == "note");
+    CHECK(rig.obj.Lookup("note") == "64");
+
+    rig.List("store note 67");
+    CHECK(rig.obj.KeyAt(0) == "1");
+    CHECK(rig.obj.AliasAt(0) == "note");
+    CHECK(rig.obj.Lookup("1") == "67");
+  }
+
+  TEST_CASE("coll: the address outlet reports the number for an aliased entry (#695)") {
+    // The question #695 says .coll had been sidestepping. An aliased entry has
+    // a numeric address, so it reports the numeric address; the alias is a way
+    // in, not something the outlet announces. cyclone's one output routine is
+    // `if (e_hasnumkey) outlet_float(numkey); else if (e_symkey)
+    // outlet_symbol(symkey); else outlet_float(0)`, and its help patch
+    // annotates the second outlet after an assoc with "address is still an int,
+    // not the alias". No outlet was added for it: two addresses are not two
+    // events, and a fifth outlet would fire empty for every unaliased entry of
+    // a dump.
+    std::vector<std::string> log;
+    Recorder data;
+    Recorder address;
+    data.log = &log;
+    data.tag = "d";
+    address.log = &log;
+    address.tag = "a";
+    YSE::pHandle dataHandle(&data);
+    YSE::pHandle addressHandle(&address);
+
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* coll = p.CreateObject(YSE::OBJ::G_COLL, "");
+    REQUIRE(coll != nullptr);
+    p.Connect(coll, 0, &dataHandle, 0);
+    p.Connect(coll, 1, &addressHandle, 0);
+
+    coll->SetListData(0, "nstore 1 note 60");
+    coll->SetListData(0, "store word hello");
+    log.clear();
+
+    coll->SetListData(0, "dump");
+    REQUIRE(log.size() == 4);
+    // The aliased entry: the int, not the symbol.
+    CHECK(log[0] == "a:i 1");
+    CHECK(log[1] == "d:i 60");
+    // And a symbol-addressed entry still sends its symbol rather than Max's
+    // documented `0` — which contradicts the same reference's output table
+    // ("int or symbol"), and cyclone sends the symbol too, reserving 0 for an
+    // entry with neither address.
+    CHECK(log[2] == "a:l word");
+    CHECK(log[3] == "d:l hello");
+  }
+
+  TEST_CASE("coll: the alias rides along when numeric addresses are rewritten (#695)") {
+    // It lives on the entry, not on the number, so insert / delete / renumber /
+    // renumber2 / separate carry it. cyclone's equivalents touch only e_numkey
+    // for the same reason.
+    Rig rig;
+    rig.List("nstore 1 low 60");
+    rig.List("nstore 5 high 72");
+
+    rig.List("separate 1");
+    CHECK(rig.obj.KeyAt(0) == "2");
+    CHECK(rig.obj.AliasAt(0) == "low");
+    CHECK(rig.obj.Lookup("low") == "60");
+
+    rig.List("renumber");
+    CHECK(rig.obj.KeyAt(0) == "0");
+    CHECK(rig.obj.KeyAt(1) == "1");
+    CHECK(rig.obj.AliasAt(0) == "low");
+    CHECK(rig.obj.AliasAt(1) == "high");
+    CHECK(rig.obj.Lookup("high") == "72");
+
+    rig.List("renumber2");
+    CHECK(rig.obj.Lookup("low") == "60");
+    CHECK(rig.obj.KeyAt(0) == "1");
+
+    // insert pushes the aliased entries up and its own new entry has no alias
+    // of its own — the table is a pool, so a stale one would be a symbol nobody
+    // gave it.
+    rig.List("insert 1 fresh");
+    CHECK(rig.obj.AliasAt(0).empty());
+    CHECK(rig.obj.ValueAt(0) == "fresh");
+    CHECK(rig.obj.Lookup("low") == "60");
+    CHECK(rig.obj.KeyAt(1) == "2");
+
+    // delete brings the higher numbers down and the aliases come with them.
+    rig.List("delete 1");
+    CHECK(rig.obj.KeyAt(0) == "1");
+    CHECK(rig.obj.AliasAt(0) == "low");
+    CHECK(rig.obj.Lookup("low") == "60");
+  }
+
+  TEST_CASE("coll: swap moves the alias with the address, not with the data (#695)") {
+    // Max: "exchanges the indices associated with two addresses. The data is
+    // unchanged, but the indexes that they use are swapped." An alias is an
+    // address, so it goes with the number — which is what cyclone's
+    // collcommon_swapkeys does, swapping e_symkey alongside e_numkey.
+    Rig rig;
+    rig.List("nstore 1 first alpha");
+    rig.List("nstore 2 second beta");
+
+    rig.List("swap 1 2");
+    CHECK(rig.obj.KeyAt(0) == "2");
+    CHECK(rig.obj.AliasAt(0) == "second");
+    CHECK(rig.obj.ValueAt(0) == "alpha");
+    CHECK(rig.obj.KeyAt(1) == "1");
+    CHECK(rig.obj.AliasAt(1) == "first");
+    CHECK(rig.obj.ValueAt(1) == "beta");
+    CHECK(rig.obj.Lookup("first") == "beta");
+    CHECK(rig.obj.Lookup("second") == "alpha");
+  }
+
+  TEST_CASE("coll: a cleared or removed slot does not hand its alias on (#695)") {
+    // The table is a pool of 256 entries reused in place, so an entry that
+    // inherited a dead alias would answer to a symbol nobody gave it — and the
+    // symbol would reach the wrong data.
+    Rig rig;
+    rig.List("nstore 1 note 60");
+    rig.List("clear");
+    rig.List("2 64");
+    CHECK(rig.obj.AliasAt(0).empty());
+    CHECK(rig.obj.Lookup("note").empty());
+
+    rig.List("nstore 3 tag x");
+    rig.List("remove 3");
+    rig.List("4 y");
+    CHECK(rig.obj.AliasAt(1).empty());
+    CHECK(rig.obj.Lookup("tag").empty());
+  }
+
+  TEST_CASE("coll: sort keeps each alias with its own entry (#695)") {
+    Rig rig;
+    rig.List("nstore 3 high 72");
+    rig.List("nstore 1 low 60");
+    rig.List("nstore 2 mid 64");
+
+    rig.List("sort -1 -1");
+    CHECK(rig.obj.KeyAt(0) == "1");
+    CHECK(rig.obj.AliasAt(0) == "low");
+    CHECK(rig.obj.KeyAt(1) == "2");
+    CHECK(rig.obj.AliasAt(1) == "mid");
+    CHECK(rig.obj.KeyAt(2) == "3");
+    CHECK(rig.obj.AliasAt(2) == "high");
+    CHECK(rig.obj.Lookup("high") == "72");
+  }
+
+  TEST_CASE("coll: an aliased entry survives a DumpJSON / ParseJSON round trip (#695)") {
+    // The per-entry JSON grew a key. It is written only when there is an alias,
+    // so a collection with none saves byte for byte what it saved before — and
+    // a patch saved against the older form still loads, since the key is simply
+    // absent.
+    MultiSink sink;
+    YSE::pHandle sinkHandle(&sink);
+
+    std::string json;
+    {
+      YSE::patcher src;
+      src.create(2);
+      YSE::pHandle* coll = src.CreateObject(YSE::OBJ::G_COLL);
+      REQUIRE(coll != nullptr);
+      coll->SetListData(0, "nstore 1 note 60 100");
+      coll->SetListData(0, "store word hello");
+      json = src.DumpJSON();
+    }
+    CHECK(json.find("\"alias\": \"note\"") != std::string::npos);
+    // One alias key, not two: the symbol-addressed entry has no second address.
+    CHECK(json.find("\"alias\"") == json.rfind("\"alias\""));
+
+    YSE::patcher loaded;
+    loaded.create(2);
+    loaded.ParseJSON(json);
+    REQUIRE(loaded.Objects() == 1);
+    YSE::pHandle* copy = loaded.GetHandleFromList(0);
+    REQUIRE(copy != nullptr);
+    loaded.Connect(copy, 0, &sinkHandle, 0);
+
+    // Read back the way a patch would: both addresses still reach the one entry.
+    copy->SetListData(0, "note");
+    CHECK(sink.gotList);
+    CHECK(sink.listValue == "60 100");
+
+    sink.reset();
+    copy->SetIntData(0, 1);
+    CHECK(sink.gotList);
+    CHECK(sink.listValue == "60 100");
+
+    sink.reset();
+    copy->SetListData(0, "length");
+    CHECK(sink.gotInt);
+    CHECK(sink.intValue == 2);
+  }
+
+  TEST_CASE("coll: an aliased entry round-trips through a file (#683, #695)") {
+    // The property #683's tests pin, over a record that now has two addresses.
+    // Max 5 is the only reference that describes the format, and its paragraph
+    // truncates mid-sentence in the served page; the surviving half gives the
+    // order — "the address (an int or a symbol), any symbols associated with
+    // that address (if the address is an int), a comma ..." — so the number
+    // comes first. cyclone writes exactly that, and its help file spells it
+    // "<int> <alias> , <data>".
+    const std::string path = TempFile("yse_coll_alias_695.txt");
+
+    std::vector<std::string> log;
+    Recorder data;
+    Recorder address;
+    Recorder file;
+    data.log = &log;
+    data.tag = "d";
+    address.log = &log;
+    address.tag = "a";
+    file.log = &log;
+    file.tag = "file";
+    YSE::pHandle dataHandle(&data);
+    YSE::pHandle addressHandle(&address);
+    YSE::pHandle fileHandle(&file);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* coll = p.CreateObject(YSE::OBJ::G_COLL, "");
+    REQUIRE(coll != nullptr);
+    p.Connect(coll, 0, &dataHandle, 0);
+    p.Connect(coll, 1, &addressHandle, 0);
+    p.Connect(coll, 3, &fileHandle, 0);
+
+    coll->SetListData(0, "nstore 1 one 1.1");
+    coll->SetListData(0, "2 200");
+    coll->SetListData(0, "store triad 0 4 7");
+
+    coll->SetListData(0, "write " + path);
+    SettleFiles(p);
+    CHECK(ReadWholeFile(path) == "1 one, 1.1;\n2, 200;\ntriad, 0 4 7;\n");
+
+    coll->SetListData(0, "clear");
+    coll->SetListData(0, "read " + path);
+    SettleFiles(p);
+    REQUIRE(log.size() == 1);
+    CHECK(log[0] == "file:bang");
+
+    // Entry for entry, in storage order — and the aliased one still reports its
+    // number on the address outlet.
+    log.clear();
+    coll->SetListData(0, "dump");
+    REQUIRE(log.size() == 6);
+    CHECK(log[0] == "a:i 1");
+    CHECK(log[1] == "d:f 1.100000");
+    CHECK(log[2] == "a:i 2");
+    CHECK(log[3] == "d:i 200");
+    CHECK(log[4] == "a:l triad");
+    CHECK(log[5] == "d:l 0 4 7");
+
+    // The second address came back too, which is the part of the record the
+    // dump above cannot show.
+    log.clear();
+    coll->SetListData(0, "one");
+    REQUIRE(log.size() == 1);
+    CHECK(log[0] == "d:f 1.100000");
+
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+  }
+
+  TEST_CASE("coll: a read takes the two addresses in either order (#695)") {
+    // Writing is strict and reading is loose, as cyclone's is: everything
+    // before the comma is a sequence of address tokens, each classified by the
+    // reader the inlet uses. That is what lets a file written by real Max load
+    // whichever way round it spelled the pair.
+    const std::string path = TempFile("yse_coll_alias_order_695.txt");
+    {
+      std::ofstream out(path, std::ios::binary);
+      out << "one 1, 60;\n2 two, 200;\n";
+    }
+
+    std::vector<std::string> log;
+    Recorder data;
+    Recorder address;
+    data.log = &log;
+    data.tag = "d";
+    address.log = &log;
+    address.tag = "a";
+    YSE::pHandle dataHandle(&data);
+    YSE::pHandle addressHandle(&address);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* coll = p.CreateObject(YSE::OBJ::G_COLL, "");
+    REQUIRE(coll != nullptr);
+    p.Connect(coll, 0, &dataHandle, 0);
+    p.Connect(coll, 1, &addressHandle, 0);
+
+    coll->SetListData(0, "read " + path);
+    SettleFiles(p);
+
+    // Symbol-first and number-first give the same pair of aliased entries.
+    log.clear();
+    coll->SetListData(0, "one");
+    coll->SetListData(0, "two");
+    coll->SetListData(0, "1");
+    coll->SetListData(0, "2");
+    REQUIRE(log.size() == 4);
+    CHECK(log[0] == "d:i 60");
+    CHECK(log[1] == "d:i 200");
+    CHECK(log[2] == "d:i 60");
+    CHECK(log[3] == "d:i 200");
+
+    // And they are two entries, not four — the symbol did not create one of its
+    // own beside the number.
+    log.clear();
+    coll->SetListData(0, "length");
+    REQUIRE(log.size() == 1);
+    CHECK(log[0] == "d:i 2");
+
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+  }
+
+  TEST_CASE("coll: the aliasing messages allocate nothing (#695)") {
+    // The reason the second address is a reserved buffer rather than a string
+    // the message builds: a .coll message handler may be running on the audio
+    // callback, and there is no predicate an object can ask to find out
+    // otherwise. A lookup that has to compare against an alias must not be the
+    // thing that grows one. The probe sees std::string allocations since #697,
+    // so this assertion is not vacuous over a path that carries a name.
+    if (!TestHelpers::probeCountsAllocations()) return;
+    REQUIRE(TestHelpers::probeSeesStringAllocations());
+
+    Rig rig;
+    // Built outside the probe: it is the *handlers* that must not allocate, not
+    // the test's own construction of the messages.
+    const std::string seed = "1 60 100";
+    const std::string assoc = "assoc note 1";
+    const std::string recall = "note";
+    const std::string storeThrough = "store note 64";
+    const std::string nstore = "nstore 2 other 72";
+    const std::string subsym = "subsym renamed other";
+    const std::string deassoc = "deassoc note 1";
+    {
+      TestHelpers::ProbeScope probe;
+      rig.List(seed);
+      rig.List(assoc);
+      rig.List(recall);
+      rig.List(storeThrough);
+      rig.List(nstore);
+      rig.List(subsym);
+      rig.List(deassoc);
+      CHECK(TestHelpers::g_alloc_count.load() == 0);
+    }
+
+    // And it really did all of that — an assertion that only proves nothing
+    // happened proves nothing.
+    CHECK(rig.obj.Count() == 2);
+    CHECK(rig.obj.Lookup("1") == "64");
+    CHECK(rig.obj.AliasAt(0).empty());
+    CHECK(rig.obj.AliasAt(1) == "renamed");
+    CHECK(rig.obj.Lookup("renamed") == "72");
   }
 
   // ─── end to end, through a real patcher graph ───────────────────────────────
