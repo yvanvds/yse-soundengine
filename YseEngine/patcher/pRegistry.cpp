@@ -63,6 +63,7 @@
 
 #include "time/gDelay.h"
 #include "time/gMetro.h"
+#include "time/gTimepoint.h"
 #include "time/gTransport.h"
 
 #include "math/dAdd.h"
@@ -462,6 +463,10 @@ pRegistry::pRegistry() {
   // Control a named domain clock from inside the patcher — the object that
   // connects a patch to the engine's polytemporal clock system (issue #513)
   Add(OBJ::G_TRANSPORT, gTransport::Create);
+
+  // Bang when a named domain clock reaches a beat position — the patcher's
+  // first absolute point on a musical timeline (issue #507)
+  Add(OBJ::G_TIMEPOINT, gTimepoint::Create);
 
   Add(OBJ::MIDITOFREQUENCY, pMidiToFrequency::Create);
   Add(OBJ::FREQUENCYTOMIDI, pFrequencyToMidi::Create);

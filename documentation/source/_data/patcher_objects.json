@@ -5470,6 +5470,54 @@
       }
     ]
   },
+  ".timepoint": {
+    "category": "TIME",
+    "description": "Bangs when a named YSE domain clock reaches a beat position — Max's timepoint, and the patcher's first absolute point on a musical timeline (issue #507). '.timepoint main 128' watches the clock called 'main' and bangs when it reads 128. Where '.delay' and '.metro' measure time from now, this object names a moment: 'at beat 128, change the patch' is arranged, score-like behaviour, and it is what lets a generative patch have a form rather than only a texture. The clock is one of the engine's named domain clocks — the same ones the host addresses through yse_system_create_clock / beatPosition, the same one a clip transport plays on, and the same one a '.transport main' drives — so the position is measured on the tempo the whole domain shares, and a tempo change, a ramp or a pause is inherited for free: the target arrives sooner, later, smoothly, or never. The name is the creation argument and 'clock <name>' re-points it. This object never creates a clock and never destroys one: '.transport' is the sole creator (issue #513), so a name nothing has claimed simply never comes due until something claims it, and the object starts watching the moment its clock starts existing. Reaching the time is a crossing and not a condition — the object bangs on the way past its target and is then spent, and a target already in the past when the object is armed never bangs at all, because a patch loaded while the clock stands at bar 40 must not fire its whole score in one block. A new time value, 'active 1' or a new clock arms it again. The position is in beats: a domain clock is a bare beat accumulator with no origin and no meter, so bars.beats.units and quantize stay out, as they do on '.metro' and '.transport'. Calculate() does nothing, and no path allocates, locks or blocks when it turns out to be running on the audio callback — binding and arming are wait-free, reading a beat is two acquire loads, and the object never touches the clock manager's mutex at all, creating no clock being the reason it never has to.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Sets the beat position to bang at, and carries the object's two messages. An int or a float is a new time value — Max's 'sets the time value at which timepoint will send a bang' — and always re-arms, so handing a spent timepoint a number puts it back to work. 'clock <name>' names the YSE domain clock the position is measured on, the same message '.metro' takes, and a bare 'clock' unbinds and stops the object watching. 'active 0' disarms the object and 'active 1' arms it again from wherever the clock now stands, which is Max's active attribute. Everything else does nothing, deliberately, rather than being read as some command it is not: there is no 'seek', no bars.beats.units and no quantize, all three needing an origin or a meter a YSE domain clock does not have.",
+        "index": 0,
+        "label": "time",
+        "range": "beats, 'clock <name>', 'active 0|1'"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".timepoint",
+    "outlets": [
+      {
+        "doc": "Bang, once, when the clock reaches the time. Reaching it is a crossing rather than a condition: the object bangs on the way past its target and is then spent, and a target that is already in the past when the object is armed never bangs at all — the moment happened before anything was watching, and a domain clock has no rewind to bring it round again. A new time value, 'active 1' or a new clock arms it afresh. Nothing is emitted while the named clock does not exist, while it is paused short of the target, or while the object is inactive.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The domain clock the beat position is measured on. Clocks are addressed by name across the whole engine, so this is the same string the host passes to createClock and the same one a '.transport <name>' drives. Empty (the default) means the object watches nothing and bangs never. The name is bound when the object is added to a patcher — bound, not created: a clock nobody has made yet leaves the object waiting, and it starts watching when the clock appears. A 'clock <name>' message re-points the object without rewriting this, so the patch file keeps the name its author typed.",
+        "name": "clockname",
+        "range": ""
+      },
+      {
+        "default": "0",
+        "doc": "The beat position to bang at, on the clock named above. Beats and not bars.beats.units: a domain clock is a bare beat accumulator with no meter to name a bar in and no origin to count one from. Setting it — here or through the inlet — always re-arms the object, and a value the clock has already passed leaves it spent rather than banging at once.",
+        "name": "time",
+        "range": "beats"
+      },
+      {
+        "default": "1",
+        "doc": "Whether the object is watching at all — Max's active attribute. 0 arms nothing and bangs never; 1 is the default. 'active 1' on a spent or disarmed object arms it afresh from wherever the clock now stands, which is the supported way to re-use a timepoint that has already fired.",
+        "name": "active",
+        "range": "0 or 1"
+      }
+    ]
+  },
   ".togedge": {
     "category": "MATH",
     "description": "Bangs the left outlet the moment a value becomes non-zero and the right outlet the moment it returns to zero, and says nothing in between — Max's togedge. It turns a continuous stream into the two moments a patch actually cares about, which is the clean way to derive note-on / note-off style gating from a threshold or an envelope, and in a patcher whose message queue is bounded the silence between the edges is the point rather than a nicety: an envelope sampled at frame rate would otherwise deliver a message per frame for the whole time the gate is open. Only transitions are reported, never levels — Max: 'Otherwise, togedge sends no output' — so 5 followed by 9 is not an event, because both are non-zero and no zero crossing happened, and 0 followed by 0 is not an event either. An implementation that reported 'the value changed' rather than 'the value crossed zero' would bang the left outlet on every message of a rising envelope. The two outlets are therefore mutually exclusive and strictly alternate over the object's whole life, which is the property a downstream note-on / note-off pairing depends on, since two note-ons with no note-off between them is a stuck note. The object starts holding 0 and takes no creation argument, as Max's does not: the first non-zero number it ever receives is a rising edge, while a first 0 is silent because 0 is what it already held. The .change object's 'initial' argument deliberately does not transfer, because that argument exists to keep a patch load from firing a value outlet for a parameter that has not moved and this object has no value outlet to fire — an edge that has not happened yet cannot be pre-declared. A bang is not a passthrough but the object's most surprising message: Max says it 'switches the value stored in togedge from 0 to non-zero, or vice versa, and reports the change by sending a bang out one of the outlets', so a bang toggles the stored value and then reports the transition it just made itself, and a stream of bangs comes out left, right, left, right. It composes with numeric input rather than living beside it, because both go through the same stored value, so a bang after the object was driven to 5 by a number bangs the right outlet and leaves the object holding 0. That is how a patch drives the same note-on / note-off pair from a single button. Both outlets carry a bang rather than the int 1 that .change's equivalent outlets send, which is what each Max reference page says and is defensible on its own terms: .change's edge outlets sit beside a value outlet where an int distinguishes an edge from nothing, whereas here the outlet's identity carries the whole meaning and a stray 1 would be a value nobody asked for on an outlet meant to drive a .trigger or a message box. The zero test itself is shared with .change rather than rewritten, because it has a corner two copies would drift apart on: -0.f == 0.f in IEEE-754, so a negative zero counts as zero on both sides. A non-finite number is ignored outright — no outlet fires and the stored value is untouched — rather than read as 0 the way the rest of the patcher reads it, because reading a NaN as 0 while the object holds 5 would bang the falling outlet and deliver a note-off for a note still being held, and storing it raw would leave the object in a state from which neither outlet could ever fire again. So the stored value is always finite, which is what guarantees the strict alternation cannot be broken by a value the patch did not choose. 'reset' is the patcher family's word rather than a Max message and returns the object to a stored 0 silently; the silence is its whole reason for existing, since a patch that wants the gate re-armed cannot just send 0 without banging the falling outlet and delivering a note-off it did not mean. There is no 'set', as Max documents none. A symbol is ignored, zero-ness being a numeric predicate that a symbol neither meets nor fails, and a list is Max's single-inlet distribution, so '5 6' is the number 5 and the 6 is dropped. Everything is a float and zero-ness is tested on the float as it arrived: Max's int-only method would truncate 0.5 to a zero, which would break this object's headline use outright, since an envelope between 0 and 1 would read as permanently zero except at full scale and the gate would never open.",
