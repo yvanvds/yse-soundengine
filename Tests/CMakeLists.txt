@@ -403,6 +403,30 @@ add_test(
 )
 set_tests_properties(yse_unit_tests PROPERTIES TIMEOUT 600)
 
+# The refusal that keeps the entry above from being bypassed (issue #712).
+#
+# Running `yse_tests` with no filter puts every suite the entry above excludes
+# back into one process, and that run does not merely fail — it faults with an
+# access violation after ~168 s, which is how a half-dead yse_tests.exe ends up
+# holding bin/yse_tests.exe against the next link. main() refuses instead.
+#
+# Both properties are load-bearing. PASS_REGULAR_EXPRESSION checks it is the
+# refusal talking (and, by superseding the exit code, tolerates the deliberate
+# non-zero status); TIMEOUT is what makes the case fail without the fix, where
+# the bare run neither prints this nor returns for those ~168 s. Deliberately
+# generous: an unrefused run is three orders of magnitude over it, so the
+# margin costs nothing and cannot flake on a loaded machine.
+add_test(
+  NAME    yse_tests_monolithic_refused
+  COMMAND yse_tests
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_monolithic_refused PROPERTIES
+  PASS_REGULAR_EXPRESSION "refusing to run the whole suite in one process"
+  TIMEOUT 30
+  LABELS tests
+)
+
 # Engine init/close lifecycle (issue #132). Isolated in its own process because
 # System::close() tears down process-global state (thread pools, named bus) that
 # the rest of the suite assumes stays up. Uses initOffline(), so no audio
