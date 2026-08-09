@@ -53,9 +53,12 @@ namespace YSE {
       }
 
       // Global named bus (issue #121). Constructed lazily in init() and
-      // destroyed in close() so subscribers, the SPSC queue, and the next
-      // handle counter do not persist across an init/close cycle. Calling
-      // namedBus() before init() or after close() is a programming error.
+      // destroyed in close() so no subscriber and no queued message persists
+      // across an init/close cycle. The handle counters are the deliberate
+      // exception: they are process-global (issues #389, #716) precisely so
+      // the next session cannot reissue a value a surviving subscriber still
+      // holds. Calling namedBus() before init() or after close() is a
+      // programming error.
       NamedBus& namedBus();
 
       // Embedded-CPython lifecycle (issue #124). These are no-ops unless the

@@ -33,9 +33,12 @@
 
 #include <doctest/doctest.h>
 #include <chrono>
+#include <memory>
 #include <thread>
+#include <vector>
 #include "yse.hpp"
 #include "channel/channelInterface.hpp"
+#include "internal/namedBus.h"
 #include "reverb/reverbInterface.hpp"
 #include "reverb/reverbManager.h"
 #include "sound/soundInterface.hpp"
@@ -382,6 +385,92 @@ TEST_SUITE("lifecycle") {
     CHECK(YSE::ChannelMaster().getDSP() == &YSE::INTERNAL::UnderWaterEffect().module());
     YSE::ChannelMaster().setDSP(nullptr);
 
+    YSE::System().close();
+  }
+
+  // Regression test for issue #716: NamedBus subscription handles were numbered
+  // per bus instance, restarting at 1 every session, while the subscribers that
+  // hold them are not destroyed with the bus.
+  //
+  // global::close() drops the NamedBus, but a named channel / sound / synth, or
+  // a patcher .receive, is host- or patcher-owned and survives. Each of those
+  // unsubscribes behind a bare Global().isActive() guard — true again in the
+  // next session — so a handle minted by the dead bus was handed to the live
+  // one, which had reissued the same low numbers. The unsubscribe then dropped
+  // an unrelated, live subscription: the victim silently stopped receiving,
+  // with nothing logged.
+  //
+  // Handles are now drawn from a process-global counter, the way tap handles
+  // already were (issue #389), so a stale handle is permanently unknown to any
+  // later bus and unsubscribe() on it is a guaranteed no-op.
+  //
+  // The victim below is a real call site, not a hand-rolled subscription:
+  // YSE::channel::name() registers "channel.<name>.volume" on the bus and
+  // ~channel() is the guarded teardown. Pre-fix the final CHECK fails (one
+  // publish reaches one subscriber fewer than were registered) and so does the
+  // handle-ordering CHECK; post-fix both hold.
+  TEST_CASE(
+      "lifecycle: a bus handle from a closed session cannot unsubscribe a live one (issue #716)") {
+    using YSE::INTERNAL::BusValue;
+    using YSE::INTERNAL::SubHandle;
+
+    YSE::System().close(); // normalize to a closed engine
+
+    if (!YSE::System().initOffline()) return; // no offline device on this host
+
+    // Session 1. The channel's handle is private, so bracket the registration
+    // with two probes: the handle it took is the one issued between them, and
+    // the REQUIRE pins the "name() takes exactly one subscription" assumption
+    // the arithmetic rests on. No create() — naming is independent of the
+    // implementation, and leaving pimpl null keeps the cross-session destructor
+    // about the bus and nothing else.
+    auto stale = std::make_unique<YSE::channel>();
+    const SubHandle before = YSE::INTERNAL::Bus().subscribe("bus.probe", [](const BusValue&) {});
+    stale->name("staleSessionChannel");
+    const SubHandle after = YSE::INTERNAL::Bus().subscribe("bus.probe", [](const BusValue&) {});
+    REQUIRE(after == before + 2);
+    const SubHandle staleHandle = before + 1;
+    YSE::INTERNAL::Bus().unsubscribe(before);
+    YSE::INTERNAL::Bus().unsubscribe(after);
+
+    // The channel survives this boundary still holding staleHandle and still
+    // flagged as a bus owner: nothing in close() reaches a host-owned object.
+    YSE::System().close();
+    REQUIRE(YSE::System().initOffline());
+
+    // Session 2 runs on a brand-new NamedBus. Walk its handle counter up to the
+    // stale value, keeping every subscription issued on the way: with per-bus
+    // numbering the counter restarts at 1, so one of these *is* numbered
+    // staleHandle. With process-global numbering the session's first handle
+    // already exceeds it and the loop subscribes exactly once.
+    const std::string victimName = "bus.session2.victim";
+    int hits = 0;
+    std::vector<SubHandle> live;
+    while (live.size() < 1024) {
+      const SubHandle h =
+          YSE::INTERNAL::Bus().subscribe(victimName, [&hits](const BusValue&) { ++hits; });
+      live.push_back(h);
+      if (h >= staleHandle) break;
+    }
+    REQUIRE(live.back() >= staleHandle);
+    // The guarantee, stated directly: no handle of this session can collide
+    // with one the previous session issued.
+    CHECK(live.front() > staleHandle);
+
+    YSE::INTERNAL::Bus().publish(victimName, BusValue{1}, YSE::T_GUI);
+    REQUIRE(hits == static_cast<int>(live.size()));
+
+    // Now drive the boundary: the session-1 channel is destroyed *during*
+    // session 2, so its destructor sees an active engine and unsubscribes the
+    // stale handle on this bus.
+    stale.reset();
+
+    hits = 0;
+    YSE::INTERNAL::Bus().publish(victimName, BusValue{2}, YSE::T_GUI);
+    CHECK(hits == static_cast<int>(live.size()));
+
+    for (const SubHandle h : live)
+      YSE::INTERNAL::Bus().unsubscribe(h);
     YSE::System().close();
   }
 

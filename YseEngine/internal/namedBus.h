@@ -81,12 +81,19 @@ namespace YSE {
       //                     truncated; producers must keep names short.
       void publish(const std::string& name, const BusValue& value, YSE::THREAD thread);
 
-      // Register a subscriber for `name`. The returned handle is unique for
-      // the lifetime of the bus and can be passed to `unsubscribe()`.
+      // Register a subscriber for `name`. The returned handle can be passed to
+      // `unsubscribe()`. Like tap handles, subscription handles are unique
+      // across every bus instance in the process (the counter is
+      // process-global, issue #716), so a handle held by a subscriber that
+      // outlives its session — a named channel / sound / synth, or a patcher
+      // .receive, whose teardown is guarded only by Global().isActive() — can
+      // never alias a registration on the next session's bus. 0 is never
+      // issued; callers use it as "not subscribed".
       SubHandle subscribe(const std::string& name, Subscriber callback);
 
       // Drop the subscription that owns `handle`. No-op if the handle is
-      // unknown (e.g. already unsubscribed, or never issued).
+      // unknown (e.g. already unsubscribed, never issued, or issued by an
+      // earlier session's bus).
       void unsubscribe(SubHandle handle);
 
       // Register a prefix tap (issue #389): `callback` receives every dispatch
@@ -196,7 +203,6 @@ namespace YSE {
       // count is expected to stay tiny (a host subscribes a handful of
       // prefixes).
       std::vector<TapSubscription> taps_;
-      std::atomic<SubHandle> nextHandle_{1};
     };
 
     NamedBus& Bus();
