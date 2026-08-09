@@ -15,6 +15,8 @@
 #ifndef UNDERWATEREFFECT_H_INCLUDED
 #define UNDERWATEREFFECT_H_INCLUDED
 
+#include <memory>
+
 #include "../classes.hpp"
 #include "../dsp/modules/underWater.hpp"
 #include "../reverb/reverbInterface.hpp"
@@ -62,9 +64,23 @@ namespace YSE {
       /** The engine's default module instance (exposed for tests). */
       DSP::MODULES::underWater& module();
 
+      /** The REVERB_UNDERWATER zone this driver owns, or nullptr before the
+       *  first engine session (exposed for tests). Its implementation is
+       *  session state — isValid() is false between close() and the next
+       *  setDepth() (issue #715). */
+      reverb* zone();
+
     private:
+      /** (Re)build the underwater reverb zone for the current session and
+       *  report whether there is one to drive. See the definition for why the
+       *  zone cannot simply outlive a close(). */
+      bool ensureZone();
+
       DSP::MODULES::underWater fx;
-      reverb verb;
+      // Rebuilt per session rather than held by value: the interface caches
+      // every parameter it has sent, so the zone has to be a fresh object for
+      // the preset to reach a fresh implementation (issue #715).
+      std::unique_ptr<reverb> verb;
       const channel* lastTarget; // identity comparison only, never dereferenced
     };
 

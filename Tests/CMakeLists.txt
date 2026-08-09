@@ -691,6 +691,39 @@ add_test(
 )
 set_tests_properties(yse_tests_capilowcovlife PROPERTIES LABELS "system;c-api;lifecycle")
 
+# Interleaving gate for the close()-driving suites (issue #715).
+#
+# Every entry above isolates one suite because it drives System::close(). What
+# nothing checked is what happens when two of them meet, and the arrangement
+# makes that possible even though each has its own entry: doctest orders test
+# *cases* by file, not by suite, and `capilowcov` is deliberately spread over
+# five translation units under the subsystem directories it mirrors. Those files
+# are not contiguous, so in any process that runs more than this suite, other
+# suites execute in the gaps — `buscapi` (system/test_c_api_bus.cpp) sorts
+# directly before capilowcov's last TU (system/test_c_api_lowcov.cpp).
+#
+# Its yse_system_close() pulled the session out from under the rest of
+# capilowcov, whose one-shot bootstrap could not notice, and the remaining cases
+# ran on into a torn-down engine: the access violation #715 reports, ~168 s into
+# the unfiltered run. Two defects met there — the latched bootstrap
+# (Tests/support/capilowcov_offline.hpp) and an engine one, the underwater
+# effect's reverb zone never being rebuilt after a close (issue #715, covered
+# on its own by yse_tests_lifecycle).
+#
+# This runs that trio in one process. It does not replace the isolated entries
+# above — they stay, and stay required — it pins the one interleaving known to
+# have been broken so a regression fails here rather than only in an
+# unsupported bare run.
+add_test(
+  NAME    yse_tests_close_interleaving
+  COMMAND yse_tests --test-suite=buscapi,capilowcov,capilowcovlife
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_close_interleaving PROPERTIES
+  LABELS "system;c-api;lifecycle"
+  TIMEOUT 300
+)
+
 add_test(
   NAME    yse_tests_midi
   COMMAND yse_tests --test-suite=midi

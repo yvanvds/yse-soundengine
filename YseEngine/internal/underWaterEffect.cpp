@@ -20,10 +20,45 @@ YSE::INTERNAL::underWaterEffect& YSE::INTERNAL::UnderWaterEffect() {
 }
 
 YSE::INTERNAL::underWaterEffect::underWaterEffect() : lastTarget(nullptr) {
-  verb.create();
-  verb.setPreset(REVERB_UNDERWATER);
-  verb.setSize(10);
-  verb.setActive(false);
+  ensureZone();
+}
+
+// (Re)build the REVERB_UNDERWATER zone for the current engine session.
+//
+// The zone is a persistent interface owned by this process-global driver, but
+// its implementation is session state: REVERB::Manager().destroy() clears every
+// reverb implementation at System::close(), and each implementation's
+// destructor nulls its interface's pimpl. The manager re-creates its own two
+// persistent reverbs (globalReverb, calculatedValues) in create(); nothing
+// re-created this third one, because it was only ever built in this
+// constructor — which runs once per process. Every session after the first then
+// messaged a null implementation the moment a host touched the effect: an
+// access violation in reverb::setActive(), and the fault the unfiltered
+// yse_tests run died on (issue #715).
+//
+// The zone is rebuilt rather than re-created behind the existing interface
+// because YSE::reverb caches every value it has sent and skips a setter whose
+// value is unchanged: re-running create() on the old interface would leave the
+// fresh implementation at its constructor defaults instead of the underwater
+// preset. A new interface has no cached state, so the preset lands.
+//
+// Control thread only — the callers are the public system::underWaterFX() /
+// setUnderWaterDepth() entry points — so the allocation is off every audio
+// path.
+bool YSE::INTERNAL::underWaterEffect::ensureZone() {
+  if (verb && verb->isValid()) return true;
+  // Nothing to attach an implementation to before init() or after close().
+  if (!Global().isActive()) return false;
+  verb = std::make_unique<reverb>();
+  verb->create();
+  verb->setPreset(REVERB_UNDERWATER);
+  verb->setSize(10);
+  verb->setActive(false);
+  return true;
+}
+
+YSE::reverb* YSE::INTERNAL::underWaterEffect::zone() {
+  return verb.get();
 }
 
 YSE::INTERNAL::underWaterEffect& YSE::INTERNAL::underWaterEffect::attach(const channel& target) {
@@ -51,12 +86,17 @@ YSE::INTERNAL::underWaterEffect& YSE::INTERNAL::underWaterEffect::attach(const c
 }
 
 YSE::INTERNAL::underWaterEffect& YSE::INTERNAL::underWaterEffect::setDepth(Flt value) {
+  // The module parameter is a plain atomic and carries no session state, so it
+  // takes the value whether or not a session is up.
   fx.depth(value);
+  // The zone does carry session state; with no session there is nothing to
+  // drive and messaging the stale handle is the #715 crash.
+  if (!ensureZone()) return *this;
   if (value > 0) {
-    verb.setActive(true);
-    verb.setPosition(ListenerImpl().pos);
+    verb->setActive(true);
+    verb->setPosition(ListenerImpl().pos);
   } else {
-    verb.setActive(false);
+    verb->setActive(false);
   }
   return *this;
 }

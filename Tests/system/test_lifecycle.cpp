@@ -41,6 +41,7 @@
 #include "sound/soundInterface.hpp"
 #include "sound/soundManager.h"
 #include "internal/time.h"
+#include "internal/underWaterEffect.h"
 #include "dsp/ADSRenvelope.hpp"
 #include "headers/constants.hpp"
 #include "yse_c/yse_common.h"
@@ -315,6 +316,73 @@ TEST_SUITE("lifecycle") {
 
     YSE::System().requestSampleRate(startRequest);
     YSE::SAMPLERATE = startRate;
+  }
+
+  // Regression test for issue #715: the stock underwater effect must survive a
+  // close() -> init() cycle.
+  //
+  // INTERNAL::UnderWaterEffect() is a process-global driver that owns a
+  // persistent YSE::reverb for the REVERB_UNDERWATER zone. That interface is
+  // long-lived, but its *implementation* is session state:
+  // REVERB::Manager().destroy() clears every implementation at close(), and
+  // each implementation's destructor nulls its interface's pimpl. The manager
+  // re-creates its own two persistent reverbs (globalReverb, calculatedValues)
+  // in create(); nothing re-created this third one, because it was only ever
+  // built in the driver's constructor — which runs once per process.
+  //
+  // So every session after the first messaged a null implementation the moment
+  // a host touched the effect: System().setUnderWaterDepth() ->
+  // reverb::setActive() -> REVERB::implementationObject::sendMessage(this=0).
+  // That is the access violation the unfiltered yse_tests run died on (the
+  // fault landed in Tests/system/test_c_api_lowcov.cpp's
+  // yse_system_set_underwater_depth call, reached with the engine closed).
+  //
+  // Pre-fix this case faults on the marked line. Post-fix the driver rebuilds
+  // the zone for the new session, and no-ops while no session is up.
+  TEST_CASE("lifecycle: underwater FX is rebuilt across a close/init cycle (issue #715)") {
+    YSE::System().close(); // normalize to a closed engine
+
+    if (!YSE::System().initOffline()) return; // no offline device on this host
+
+    // Session 1: first touch constructs the driver and its zone.
+    YSE::System().setUnderWaterDepth(0.5f);
+    REQUIRE(YSE::INTERNAL::UnderWaterEffect().zone() != nullptr);
+    CHECK(YSE::INTERNAL::UnderWaterEffect().zone()->isValid());
+    CHECK(YSE::INTERNAL::UnderWaterEffect().module().depth() == doctest::Approx(0.5f));
+    YSE::System().setUnderWaterDepth(0.0f);
+
+    YSE::System().close();
+    // close() freed the zone's implementation and nulled the handle.
+    CHECK_FALSE(YSE::INTERNAL::UnderWaterEffect().zone()->isValid());
+
+    // Engine down: the driver must no-op on the zone rather than message a
+    // freed implementation. The module parameter still takes the value — it is
+    // a plain atomic and carries no session state.
+    YSE::System().setUnderWaterDepth(0.25f);
+    CHECK(YSE::INTERNAL::UnderWaterEffect().module().depth() == doctest::Approx(0.25f));
+    CHECK_FALSE(YSE::INTERNAL::UnderWaterEffect().zone()->isValid());
+
+    // Session 2: the zone has to come back, exactly like the reverb manager's
+    // own persistent pair.
+    REQUIRE(YSE::System().initOffline());
+    YSE::System().setUnderWaterDepth(0.5f); // <- faulted here before the fix
+    CHECK(YSE::INTERNAL::UnderWaterEffect().zone()->isValid());
+    CHECK(YSE::INTERNAL::UnderWaterEffect().zone()->getActive());
+    // The rebuilt zone carries the underwater preset, not a fresh
+    // implementation's defaults — the reason it is rebuilt rather than
+    // re-created behind the old interface.
+    CHECK(YSE::INTERNAL::UnderWaterEffect().zone()->getSize() == doctest::Approx(10.0f));
+
+    YSE::System().setUnderWaterDepth(0.0f);
+    CHECK_FALSE(YSE::INTERNAL::UnderWaterEffect().zone()->getActive());
+    // The attach path is callable in the new session too. Detach again so the
+    // process-global module does not go into close() still occupying the
+    // master's insert slot.
+    YSE::System().underWaterFX(YSE::ChannelMaster());
+    CHECK(YSE::ChannelMaster().getDSP() == &YSE::INTERNAL::UnderWaterEffect().module());
+    YSE::ChannelMaster().setDSP(nullptr);
+
+    YSE::System().close();
   }
 
 } // TEST_SUITE("lifecycle")
