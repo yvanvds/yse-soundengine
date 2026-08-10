@@ -16,6 +16,7 @@
 #include "../utils/json.hpp"
 #include <algorithm>
 #include <atomic>
+#include <cstddef>
 #include <cstring>
 #include <mutex>
 #include <string>
@@ -70,6 +71,35 @@ namespace {
     renderFrameGuard(const renderFrameGuard&) = delete;
     renderFrameGuard& operator=(const renderFrameGuard&) = delete;
   };
+
+  // The outlet index a serialised "output N" key names, or -1 if the key is not
+  // one (issue #734). pObject::DumpJson writes the outlets under these keys and
+  // ParseJSON used to walk them with a loop counter, which only agrees with the
+  // key while the keys happen to come back in numeric order — and they do not:
+  // a nlohmann json object is a std::map<std::string, json>, so it replays them
+  // in *string* order, "output 10" ahead of "output 2". Objects with more than
+  // ten outlets are ordinary (.route, .sel and .trigger all grow one per
+  // creation argument), and for those every edge from outlet 2 upward came back
+  // on an outlet the file never named.
+  constexpr const char kOutletKeyPrefix[] = "output ";
+  // Longest run of digits still comfortably inside an int. No object has
+  // anywhere near a billion outlets, so a longer run is a malformed key, not a
+  // big one — reject it instead of overflowing.
+  constexpr std::size_t kMaxOutletDigits = 9;
+
+  int OutletIndexFromKey(const std::string& key) {
+    constexpr std::size_t prefixLength = sizeof(kOutletKeyPrefix) - 1;
+    if (key.compare(0, prefixLength, kOutletKeyPrefix) != 0) return -1;
+    const std::size_t digits = key.size() - prefixLength;
+    if (digits == 0 || digits > kMaxOutletDigits) return -1;
+    int index = 0;
+    for (std::size_t i = prefixLength; i < key.size(); i++) {
+      const char c = key[i];
+      if (c < '0' || c > '9') return -1;
+      index = (index * 10) + (c - '0');
+    }
+    return index;
+  }
 } // namespace
 
 YSE::THREAD patcherImplementation::CallingThread(YSE::THREAD tag) const {
@@ -740,9 +770,17 @@ void patcherImplementation::ParseJSON(const std::string& content) {
   // restore connections
   for (const auto& record : records) {
     int source = record.first;
-    int outlet = 0;
     auto outs = (*record.second)["outputs"];
     for (auto out = outs.begin(); out != outs.end(); ++out) {
+      // Take the outlet index from the key the file wrote, not from a count of
+      // how many keys have gone by — same treatment the records one level up
+      // got in #730, and for the same reason: the map replays "output 10"
+      // before "output 2" (issue #734). A key that names no outlet is skipped
+      // rather than guessed at.
+      const int outlet = OutletIndexFromKey(out.key());
+      if (outlet < 0) {
+        continue;
+      }
 
       if (out.value().count("Count") == 0) {
         continue;
@@ -771,7 +809,6 @@ void patcherImplementation::ParseJSON(const std::string& content) {
           ConnectUnlocked(sourceHandle, outlet, targetHandle, inlet);
         }
       }
-      outlet++;
     }
   }
   // Every create/connect above mutated only the freshly-built objects (never

@@ -335,4 +335,50 @@ TEST_SUITE("patcher") {
     CHECK(resaved.find("35798") == std::string::npos);
   }
 
+  // ─── Outlet keys (issue #734) ────────────────────────────────────────────────
+
+  TEST_CASE("patcher: a reloaded patch keeps its edges on the outlets past ten (#734)") {
+    // The same string-vs-numeric key trap as #730, one level down: an object's
+    // outlets are written under "output 0", "output 1", ... and come back out
+    // of the json object in *string* order, so "output 10" arrives before
+    // "output 2". A load that numbered them with a loop counter stopped
+    // agreeing with the key at the eleventh outlet, and every edge from outlet
+    // 2 upward was reconnected to an outlet the file never named. Objects with
+    // more than ten outlets are ordinary: .route grows one per creation
+    // argument, on top of the rightmost fall-through.
+    YSE::patcher source;
+    source.create(2);
+    YSE::pHandle* route = source.CreateObject(YSE::OBJ::G_ROUTE, "1 2 3 4 5 6 7 8 9 10 11 12");
+    REQUIRE(route != nullptr);
+    REQUIRE(route->GetOutputs() == 13);
+
+    // One distinct target per outlet, so a shuffled outlet lands on a target
+    // that names it.
+    std::vector<unsigned int> targetIds;
+    for (int i = 0; i < route->GetOutputs(); i++) {
+      YSE::pHandle* sink = source.CreateObject(YSE::OBJ::G_MULTIPLY, std::to_string(i));
+      REQUIRE(sink != nullptr);
+      source.Connect(route, i, sink, 0);
+      targetIds.push_back(sink->GetID());
+    }
+    const std::string saved = source.DumpJSON();
+
+    YSE::patcher target;
+    target.create(2);
+    target.ParseJSON(saved);
+    REQUIRE(target.Objects() == 14u);
+
+    YSE::pHandle* reloaded = target.GetHandleFromID(route->GetID());
+    REQUIRE(reloaded != nullptr);
+    REQUIRE(reloaded->GetOutputs() == 13);
+    for (unsigned int i = 0; i < static_cast<unsigned int>(reloaded->GetOutputs()); i++) {
+      CAPTURE(i);
+      REQUIRE(reloaded->GetConnections(i) == 1u);
+      CHECK(reloaded->GetConnectionTarget(i, 0) == targetIds[i]);
+    }
+
+    // And with every edge back where it was saved, the re-save is the save.
+    CHECK(target.DumpJSON() == saved);
+  }
+
 } // TEST_SUITE("patcher")
