@@ -14,7 +14,7 @@ namespace YSE {
     /**
      *  @brief Max's ``zl`` — the list-processing workhorse: one object whose
      *         behaviour is chosen by a mode word (issues #523, #524, #525,
-     *         #526, #527).
+     *         #526, #527, #528).
      *
      *  Max: "zl — multi-purpose list processing object". Two inlets, two
      *  outlets, and a mode that decides what happens between them. #523 landed
@@ -29,7 +29,46 @@ namespace YSE {
      *  than as a sequence. #527 adds the **structural** group — ``group``,
      *  ``iter``, ``join``, ``lace``, ``delace``, ``ecils``, ``stream``,
      *  ``queue``, ``stack`` and ``reg`` — which is where a list and a *stream*
-     *  meet. The remaining mode groups follow in their own issues.
+     *  meet. #528 adds the last two words Max has, ``sum`` and ``median``, and
+     *  with them the object's vocabulary is complete.
+     *
+     *  ### The numeric group, and the two answers a list has as a quantity
+     *
+     *  ``sum`` and ``median`` are the only modes that read the list as
+     *  **numbers** rather than as atoms: every other mode selects, rearranges
+     *  or counts, and could do all of it on a list of symbols. These two
+     *  compute, so they are also the only two whose answer need not be in the
+     *  list at all.
+     *
+     *  A symbol among the numbers is passed over rather than refusing the whole
+     *  list, which is ``lookup``'s answer to a non-numeric index. What is left
+     *  when *nothing* is a number is where the two part company, and the split
+     *  is arithmetic rather than taste: the sum of no numbers is **0**, an
+     *  answer, so ``sum`` sends it as ``len`` sends 0 for an empty list; the
+     *  median of no numbers is not a value at all, so ``median`` stays quiet,
+     *  which is the family's empty-result rule.
+     *
+     *  ``median`` sorts, and it sorts through the merge sort ``sort`` and the
+     *  set group already share. That is more than reuse: ``AtomsBefore`` puts
+     *  every number before every symbol in *both* directions, so one ascending
+     *  order over the whole stored list leaves the numeric atoms in the first
+     *  places, in value order, with the symbols behind them where the median
+     *  never looks. No copy, no third ordering array, and no re-reading of
+     *  characters ``AtomList`` classified on the way in.
+     *
+     *  An even-length list has two middles, and Max averages them — ``1 1 359
+     *  359`` answers 180 there, which is the arithmetic median rather than
+     *  either atom. So the odd case sends an atom of the list, exactly as it is
+     *  spelled, and the even case sends a computed value. Both leave through
+     *  one typing rule, which is the transport convention's "a number leaves as
+     *  what it spells" carried through the arithmetic: the result is an **int**
+     *  when every atom it was computed from was spelled as one *and* the value
+     *  is a whole number that fits an int, and a **float** otherwise. So the
+     *  median of ``1 3`` is the int 2, the median of ``1 2`` is the float 1.5,
+     *  and a sum of floats stays a float even when it lands on a whole number —
+     *  a patch working in the float domain should not be handed an int by an
+     *  accident of arithmetic, and a total too large for an int is answered as
+     *  the float it still is rather than wrapped or reported as 0.
      *
      *  ### The structural group, and the second store it needed
      *
@@ -203,16 +242,17 @@ namespace YSE {
      *  list — a count of 0 puts everything out the right outlet and a count
      *  past the end puts everything out the left one.
      *
-     *  ### One object with a mode, not thirty objects
+     *  ### One object with a mode, not thirty-one objects
      *
      *  Max ships both spellings: ``zl rev`` and ``zl.rev``, and its own
      *  reference describes the named variants as the same object with the mode
      *  fixed. **Only ``.zl <mode>`` is ported**, deliberately:
      *
-     *  - Thirty registered names for one class is thirty entries in the
-     *    registry, thirty full ``ADD_DESCRIPTION`` / ``INLET_DOC`` /
-     *    ``OUTLET_DOC`` / ``PARAM_DOC`` sets and thirty rows in the published
-     *    metadata, for no behaviour that ``.zl <mode>`` does not already have.
+     *  - Thirty-one registered names for one class is thirty-one entries in the
+     *    registry, thirty-one full ``ADD_DESCRIPTION`` / ``INLET_DOC`` /
+     *    ``OUTLET_DOC`` / ``PARAM_DOC`` sets and thirty-one rows in the
+     *    published metadata, for no behaviour that ``.zl <mode>`` does not
+     *    already have.
      *  - The sugar and the object disagree about the ``mode`` message. A
      *    ``.zl.rev`` that can be told ``mode nth`` is not a ``.zl.rev``, and
      *    one that refuses the message is a second, subtly different object
@@ -348,9 +388,10 @@ namespace YSE {
      *  default: behaving as a mode the patch did not ask for would be worse
      *  than staying quiet, so an unconfigured ``.zl`` is inert.
      *
-     *  The rest of Max's vocabulary — ``median`` and ``sum`` — arrives with its
-     *  own issue. A word this object does not know leaves the mode where it
-     *  was, which is ``.translate``'s answer to the same question.
+     *  The vocabulary is complete as of #528 — every mode word Max's ``zl``
+     *  answers to is here. A word this object does not know therefore names a
+     *  mode Max has not got either, and it leaves the mode where it was, which
+     *  is ``.translate``'s answer to the same question.
      */
     enum class Mode {
       NONE,
@@ -400,6 +441,11 @@ namespace YSE {
       STREAM,
       QUEUE,
       STACK,
+      // The numeric group (#528) — the list read as a quantity rather than as
+      // atoms, and the only two modes that compute an answer which need not be
+      // in the list at all.
+      SUM,
+      MEDIAN,
     };
 
     /** @brief The mode in force right now. Readable from any thread. */
@@ -712,6 +758,25 @@ namespace YSE {
     // the queue and from the back for the stack, which is the whole difference
     // between the two and why they are one function.
     void RunPop(YSE::THREAD thread, Trigger trigger, bool fromBack);
+
+    // ─── the numeric modes (#528) ────────────────────────────────────────────
+    // Also called from Run() with the guard held. Neither reads the right
+    // inlet, and neither touches `pending`: a bang is an ordinary re-run.
+
+    // `sum`: the numbers of the stored list added up, out the left outlet.
+    // Symbols are passed over, and a list with no numbers in it sums to 0 —
+    // which is an answer, unlike a median of nothing.
+    void SendSum(YSE::THREAD thread);
+
+    // `median`: the middle of the stored list's numbers once ordered — the atom
+    // itself when there is an odd number of them, the mean of the two middles
+    // when there is an even number, and nothing at all when there are none.
+    void SendMedian(YSE::THREAD thread);
+
+    // How many atoms of the stored list read as numbers. The count `median`
+    // takes its middle of, and the one thing both numeric modes have to agree
+    // about.
+    std::size_t CountNumbers() const;
 
     // The mode's argument read as a length in atoms — `group`'s group size,
     // `stream`'s window, `iter`'s chunk. 0 when it names no length at all,

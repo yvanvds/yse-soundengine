@@ -425,19 +425,21 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("zl: an unknown mode word leaves the object inert, not guessing (#523)") {
-    // `median` and `sum` are the last two words of Max's vocabulary that are
-    // not ported yet — the words this test needs are whichever ones are still
-    // unimplemented, and it moved off `scramble` / `sort` when #524 implemented
-    // them and off `queue` when #527 did.
+    // This test used to name whichever of Max's words were not ported yet, and
+    // moved off `scramble` / `sort` when #524 implemented them, off `queue`
+    // when #527 did and off `median` / `sum` when #528 did. There is nothing
+    // left to move to: #528 completed the vocabulary, so the words a patch can
+    // get wrong from here on are ones Max has not got either — a plausible
+    // misspelling of a real mode, and a plausible mode that does not exist.
     gZl obj;
-    obj.SetParams("median");
+    obj.SetParams("reverse");
     CHECK(obj.CurrentMode() == Mode::NONE);
 
-    // And a mode message naming a mode that is not implemented yet leaves the
+    // And a mode message naming a mode this object does not know leaves the
     // mode where it was, rather than falling back to another one.
     obj.SetParams("rev");
     REQUIRE(obj.CurrentMode() == Mode::REV);
-    obj.GetInlet(0)->SetList("mode sum", YSE::T_GUI);
+    obj.GetInlet(0)->SetList("mode average", YSE::T_GUI);
     CHECK(obj.CurrentMode() == Mode::REV);
   }
 
@@ -450,7 +452,15 @@ TEST_SUITE("patcher") {
                         Mode::SUB,      Mode::LOOKUP, Mode::SECT,     Mode::UNION,  Mode::UNIQUE,
                         Mode::THIN,     Mode::FILTER, Mode::COMPARE,  Mode::CHANGE, Mode::REG,
                         Mode::ITER,     Mode::JOIN,   Mode::LACE,     Mode::DELACE, Mode::ECILS,
-                        Mode::GROUP,    Mode::STREAM, Mode::QUEUE,    Mode::STACK};
+                        Mode::GROUP,    Mode::STREAM, Mode::QUEUE,    Mode::STACK,  Mode::SUM,
+                        Mode::MEDIAN};
+    // Max's whole vocabulary, complete as of #528. Walked as a range as well
+    // as by name, so a mode added to the enum and forgotten in the list above
+    // is a failure here rather than a silently unchecked word.
+    for (int i = (int)Mode::LEN; i <= (int)Mode::MEDIAN; i++) {
+      const char* word = gZl::ModeName((Mode)i);
+      CHECK(word[0] != '\0');
+    }
     for (Mode wanted : all) {
       const char* word = gZl::ModeName(wanted);
       REQUIRE(word[0] != '\0');
@@ -2433,6 +2443,263 @@ TEST_SUITE("patcher") {
     CHECK(obj.Dropped() >= 2);
   }
 
+  // ─── the numeric modes (#528) ───────────────────────────────────────────────
+
+  TEST_CASE("zl sum: adds the numbers of the list up (#528)") {
+    Rig rig;
+    gZl obj;
+    obj.SetParams("sum");
+    rig.Wire(obj);
+
+    obj.GetInlet(0)->SetList("10 20 30 40", YSE::T_GUI);
+    CHECK(rig.left.gotInt);
+    CHECK(rig.left.intValue == 100);
+    // A mode with one result says nothing on the right outlet.
+    CHECK_FALSE(rig.right.gotInt);
+    CHECK_FALSE(rig.right.gotFloat);
+    CHECK_FALSE(rig.right.gotList);
+    CHECK_FALSE(rig.right.gotBang);
+
+    // Nothing is consumed: a bang adds the same list up again.
+    rig.reset();
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.left.gotInt);
+    CHECK(rig.left.intValue == 100);
+
+    // A bare number is a list of one, as it is in Max.
+    rig.reset();
+    obj.GetInlet(0)->SetInt(7, YSE::T_GUI);
+    CHECK(rig.left.intValue == 7);
+  }
+
+  TEST_CASE("zl sum: one float makes the total a float, and ints stay ints (#528)") {
+    // The transport convention carried through the arithmetic: a number leaves
+    // as what it spells, so a patch working in the float domain is not handed
+    // an int by an accident of arithmetic.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("sum");
+    rig.Wire(obj);
+
+    obj.GetInlet(0)->SetList("1 2.5 3", YSE::T_GUI);
+    CHECK(rig.left.gotFloat);
+    CHECK(rig.left.floatValue == doctest::Approx(6.5f));
+    CHECK_FALSE(rig.left.gotInt);
+
+    // Still a float when the total lands on a whole number.
+    rig.reset();
+    obj.GetInlet(0)->SetList("1.5 2.5", YSE::T_GUI);
+    CHECK(rig.left.gotFloat);
+    CHECK(rig.left.floatValue == doctest::Approx(4.f));
+    CHECK_FALSE(rig.left.gotInt);
+
+    // And an int again when every item was one.
+    rig.reset();
+    obj.GetInlet(0)->SetList("2 2", YSE::T_GUI);
+    CHECK(rig.left.gotInt);
+    CHECK(rig.left.intValue == 4);
+  }
+
+  TEST_CASE("zl sum: symbols are passed over, and a list with no numbers sums to 0 (#528)") {
+    // Passing over a symbol is `lookup`'s answer to a non-numeric index, and
+    // the empty sum is `len`'s answer to an empty list: the question has an
+    // answer even when nothing in the list contributes to it.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("sum");
+    rig.Wire(obj);
+
+    obj.GetInlet(0)->SetList("10 do 20 re", YSE::T_GUI);
+    CHECK(rig.left.gotInt);
+    CHECK(rig.left.intValue == 30);
+
+    rig.reset();
+    obj.GetInlet(0)->SetList("do re mi", YSE::T_GUI);
+    CHECK(rig.left.gotInt);
+    CHECK(rig.left.intValue == 0);
+
+    // Including a bang with nothing stored at all.
+    rig.reset();
+    obj.GetInlet(0)->SetList("zlclear", YSE::T_GUI);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.left.gotInt);
+    CHECK(rig.left.intValue == 0);
+  }
+
+  TEST_CASE("zl median: sends the middle number of an odd-length list (#528)") {
+    Rig rig;
+    gZl obj;
+    obj.SetParams("median");
+    rig.Wire(obj);
+
+    // Unsorted on the way in: the mode orders the numbers itself.
+    obj.GetInlet(0)->SetList("30 10 20", YSE::T_GUI);
+    CHECK(rig.left.gotInt);
+    CHECK(rig.left.intValue == 20);
+    CHECK_FALSE(rig.right.gotInt);
+    CHECK_FALSE(rig.right.gotList);
+    CHECK_FALSE(rig.right.gotBang);
+
+    // The middle item is sent exactly as it is spelled — no arithmetic happens
+    // in the odd case at all, so a float stays a float.
+    rig.reset();
+    obj.GetInlet(0)->SetList("1 2.5 3", YSE::T_GUI);
+    CHECK(rig.left.gotFloat);
+    CHECK(rig.left.floatValue == doctest::Approx(2.5f));
+
+    // Nothing is consumed: a bang answers the same list again.
+    rig.reset();
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.left.gotFloat);
+    CHECK(rig.left.floatValue == doctest::Approx(2.5f));
+  }
+
+  TEST_CASE("zl median: an even-length list answers the mean of the two middles (#528)") {
+    // Max's own answer — `1 1 359 359` gives 180 there — which is the
+    // arithmetic median rather than either atom.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("median");
+    rig.Wire(obj);
+
+    obj.GetInlet(0)->SetList("1 1 359 359", YSE::T_GUI);
+    CHECK(rig.left.gotInt);
+    CHECK(rig.left.intValue == 180);
+
+    // Two ints whose mean is not whole leave as a float, the value deciding
+    // where the spelling cannot.
+    rig.reset();
+    obj.GetInlet(0)->SetList("1 2", YSE::T_GUI);
+    CHECK(rig.left.gotFloat);
+    CHECK(rig.left.floatValue == doctest::Approx(1.5f));
+    CHECK_FALSE(rig.left.gotInt);
+
+    // A float among the two middles makes the answer a float even when it is
+    // whole.
+    rig.reset();
+    obj.GetInlet(0)->SetList("1 1.5 2.5 3", YSE::T_GUI);
+    CHECK(rig.left.gotFloat);
+    CHECK(rig.left.floatValue == doctest::Approx(2.f));
+    CHECK_FALSE(rig.left.gotInt);
+  }
+
+  TEST_CASE("zl median: symbols are passed over, and a list with no numbers says nothing (#528)") {
+    // The split between the two numeric modes: the sum of no numbers is 0 and
+    // is sent, the median of no numbers is not a value at all.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("median");
+    rig.Wire(obj);
+
+    // Four atoms, three of them numbers, so the median is the middle of the
+    // three rather than of the four.
+    obj.GetInlet(0)->SetList("30 do 10 20", YSE::T_GUI);
+    CHECK(rig.left.gotInt);
+    CHECK(rig.left.intValue == 20);
+
+    rig.reset();
+    obj.GetInlet(0)->SetList("do re mi", YSE::T_GUI);
+    CHECK_FALSE(rig.left.gotInt);
+    CHECK_FALSE(rig.left.gotFloat);
+    CHECK_FALSE(rig.left.gotList);
+    CHECK_FALSE(rig.left.gotBang);
+
+    rig.reset();
+    obj.GetInlet(0)->SetList("zlclear", YSE::T_GUI);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK_FALSE(rig.left.gotInt);
+    CHECK_FALSE(rig.left.gotFloat);
+  }
+
+  TEST_CASE("zl median: the numeric modes read the right inlet as nothing at all (#528)") {
+    // Neither mode takes an argument, so a cord that happens to deliver one
+    // must not change the answer — the object's "take no argument and ignore
+    // it" contract, asserted rather than assumed.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("median");
+    rig.Wire(obj);
+
+    obj.GetInlet(0)->SetList("10 20 30", YSE::T_GUI);
+    REQUIRE(rig.left.intValue == 20);
+
+    rig.reset();
+    obj.GetInlet(1)->SetInt(1, YSE::T_GUI);
+    // Cold, so setting it emits nothing at all.
+    CHECK_FALSE(rig.left.gotInt);
+    CHECK_FALSE(rig.right.gotInt);
+
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.left.intValue == 20);
+
+    rig.reset();
+    obj.GetInlet(0)->SetList("mode sum", YSE::T_GUI);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.left.intValue == 60);
+  }
+
+  TEST_CASE("zl median: a full-length list of numbers answers its middle (#528)") {
+    // The sort runs over the whole stored list, so the worst case is the one
+    // the audio callback would pay for: 256 atoms through the merge sort.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("median");
+    rig.Wire(obj);
+
+    // 1..255, whose median is 128 — an odd count, so the answer is an item of
+    // the list.
+    std::string wide;
+    for (int i = 1; i <= 255; i++) {
+      if (!wide.empty()) wide.push_back(' ');
+      wide += std::to_string(i);
+    }
+    obj.GetInlet(0)->SetList(wide, YSE::T_GUI);
+    CHECK(obj.Stored() == 255);
+    CHECK(rig.left.gotInt);
+    CHECK(rig.left.intValue == 128);
+  }
+
+  TEST_CASE("zl: the numeric modes allocate nothing either (#528)") {
+    if (!TestHelpers::probeCountsAllocations()) return;
+    if (!TestHelpers::probeSeesStringAllocations()) return;
+
+    // #528's two modes compute rather than select, and `median` sorts to do it
+    // — through the same order and merge arrays the reordering group uses, so
+    // that neither a copy of the list nor a scratch of values is needed on a
+    // path the audio callback takes.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("sum");
+    rig.Wire(obj);
+
+    const std::string wide = Digits(AtomList::MAX_ATOMS);
+    const std::string mixed = "1 do 2.5 re 3";
+    const std::string modeSum = "mode sum";
+    const std::string modeMedian = "mode median";
+    const std::string clear = "zlclear";
+
+    // One pass warms the buffers the probe would otherwise see the sinks fill.
+    for (int pass = 0; pass < 2; pass++) {
+      std::unique_ptr<TestHelpers::ProbeScope> probe;
+      if (pass == 1) probe = std::make_unique<TestHelpers::ProbeScope>();
+
+      for (const std::string* word : {&modeSum, &modeMedian}) {
+        obj.GetInlet(0)->SetList(*word, YSE::T_GUI);
+        // A full-length list, an odd and an even count, a mix of ints, floats
+        // and symbols, and a bang re-running each of them.
+        obj.GetInlet(0)->SetList(wide, YSE::T_GUI);
+        obj.GetInlet(0)->SetBang(YSE::T_GUI);
+        obj.GetInlet(0)->SetList(mixed, YSE::T_GUI);
+        obj.GetInlet(0)->SetBang(YSE::T_GUI);
+        obj.GetInlet(0)->SetInt(3, YSE::T_GUI);
+        obj.GetInlet(0)->SetList(clear, YSE::T_GUI);
+        obj.GetInlet(0)->SetBang(YSE::T_GUI);
+      }
+
+      if (pass == 1) CHECK(TestHelpers::g_alloc_count.load() == 0);
+    }
+  }
+
   TEST_CASE("zl: 'mode <name>' switches the mode and keeps the stored list (#523)") {
     // The whole reason the mode is a message as well as an argument: re-typing
     // the arguments rebuilds the object and empties it, which is what re-typing
@@ -3439,6 +3706,117 @@ TEST_SUITE("patcher") {
     copy->SetIntData(0, 2);
     CHECK(out.gotList);
     CHECK(out.listValue == "1 2");
+  }
+
+  TEST_CASE("zl: a stream feeds a median, so a patch gets a running median, in a real patch "
+            "(#528)") {
+    // What `median` is *for*, wired the way a patch wires it: a sliding window
+    // of the last five readings feeds a median, which is the despiking filter
+    // every sensor patch reaches for. Nothing short of the whole chain proves
+    // it — the window lives between messages in one object and the ordering
+    // happens in another, so a standalone rig could see neither half meeting
+    // the other.
+    //
+    // Sinks before the patcher: the patcher is torn down first, while the
+    // inlets it is wired to still exist.
+    TallySink filtered;
+    YSE::pHandle filteredHandle(&filtered);
+
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* window = p.CreateObject(YSE::OBJ::G_ZL, "stream 5");
+    YSE::pHandle* median = p.CreateObject(YSE::OBJ::G_ZL, "median");
+    REQUIRE(window != nullptr);
+    REQUIRE(median != nullptr);
+
+    p.Connect(window, 0, median, 0);
+    p.Connect(median, 0, &filteredHandle, 0);
+
+    // Nothing until the window is full: an incomplete window is not sent, so
+    // the median has nothing to answer about.
+    for (int value : {10, 12, 11, 13}) {
+      window->SetIntData(0, value);
+    }
+    CHECK(filtered.got.empty());
+
+    window->SetIntData(0, 12);
+    REQUIRE(filtered.got.size() == 1);
+    CHECK(filtered.got[0] == "i:12");
+
+    // The spike the filter exists to reject: one wild reading slides into the
+    // window and the median barely moves.
+    window->SetIntData(0, 900);
+    REQUIRE(filtered.got.size() == 2);
+    CHECK(filtered.got[1] == "i:12");
+
+    // And it really is the last five that are read, rather than everything ever
+    // sent: three more readings push the early ones out of the window and the
+    // median follows them up — 12 900 20 21 22 orders as 12 20 21 22 900.
+    for (int value : {20, 21, 22}) {
+      window->SetIntData(0, value);
+    }
+    REQUIRE(filtered.got.size() == 5);
+    CHECK(filtered.got[4] == "i:21");
+  }
+
+  TEST_CASE("zl: a group totals each chord through a sum, in a real patch (#528)") {
+    // The other numeric mode down a real cord, and the composition that makes
+    // it useful: an accumulating mode cuts a stream into fixed-size lists and
+    // the numeric one reduces each list to a number. Only the real graph shows
+    // that the total arrives as an int on the downstream object's int inlet
+    // rather than as a list of one.
+    TallySink totals;
+    YSE::pHandle totalsHandle(&totals);
+
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* group = p.CreateObject(YSE::OBJ::G_ZL, "group 3");
+    YSE::pHandle* sum = p.CreateObject(YSE::OBJ::G_ZL, "sum");
+    REQUIRE(group != nullptr);
+    REQUIRE(sum != nullptr);
+
+    p.Connect(group, 0, sum, 0);
+    p.Connect(sum, 0, &totalsHandle, 0);
+
+    group->SetIntData(0, 60);
+    group->SetIntData(0, 64);
+    CHECK(totals.got.empty());
+    group->SetIntData(0, 67);
+    REQUIRE(totals.got.size() == 1);
+    CHECK(totals.got[0] == "i:191");
+
+    // A float anywhere in the chord makes the total a float, all the way down
+    // the cord.
+    group->SetListData(0, "1 2.5 3");
+    REQUIRE(totals.got.size() == 2);
+    CHECK(totals.got[1] == "f");
+  }
+
+  TEST_CASE("zl: a numeric mode survives a DumpJSON / ParseJSON round trip (#528)") {
+    // The numeric modes take no argument, so the mode word is the whole of what
+    // has to survive — and an object that came back without it would be inert
+    // rather than wrong, which is the failure a patch notices last.
+    YSE::patcher src;
+    src.create(2);
+    REQUIRE(src.CreateObject(YSE::OBJ::G_ZL, "median") != nullptr);
+    const std::string json = src.DumpJSON();
+
+    YSE::patcher loaded;
+    loaded.create(2);
+    loaded.ParseJSON(json);
+    REQUIRE(loaded.Objects() == 1);
+
+    YSE::pHandle* copy = loaded.GetHandleFromList(0);
+    REQUIRE(copy != nullptr);
+    CHECK(copy->GetParams() == std::string("median"));
+
+    // And it really computes, rather than only remembering the word.
+    MultiSink out;
+    YSE::pHandle outHandle(&out);
+    loaded.Connect(copy, 0, &outHandle, 0);
+    copy->SetListData(0, "30 10 20");
+    CHECK(out.gotInt);
+    CHECK(out.intValue == 20);
   }
 
 } // TEST_SUITE

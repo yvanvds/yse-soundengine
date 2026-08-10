@@ -4,6 +4,7 @@
 #include "../pListArgs.h"
 #include "../pObjectList.hpp"
 #include "../pSelector.h"
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -32,11 +33,11 @@ namespace {
   // `seed 3` through a `.zl rev`.
   constexpr char kWordSeed[] = "zlseed";
 
-  // The mode vocabulary, in one place. A table rather than a chain of
-  // hand-written character comparisons because there are now twenty-nine words
-  // and two functions that have to agree about them — a spelling that appeared
-  // in ReadMode and not in ModeName would be a mode a patch could select and
-  // the documentation could not name.
+  // The mode vocabulary, in one place — and as of #528 the whole of Max's. A
+  // table rather than a chain of hand-written character comparisons because
+  // there are thirty-one words and two functions that have to agree about them
+  // — a spelling that appeared in ReadMode and not in ModeName would be a mode
+  // a patch could select and the documentation could not name.
   struct ModeWord {
     char word[9];
     std::size_t length;
@@ -58,7 +59,8 @@ namespace {
       {"delace", 6, gZl::Mode::DELACE},     {"ecils", 5, gZl::Mode::ECILS},
       {"reg", 3, gZl::Mode::REG},           {"group", 5, gZl::Mode::GROUP},
       {"stream", 6, gZl::Mode::STREAM},     {"queue", 5, gZl::Mode::QUEUE},
-      {"stack", 5, gZl::Mode::STACK},
+      {"stack", 5, gZl::Mode::STACK},       {"sum", 3, gZl::Mode::SUM},
+      {"median", 6, gZl::Mode::MEDIAN},
   };
 
   // True when atom @p i of @p a and atom @p j of @p b are the same atom —
@@ -206,6 +208,32 @@ namespace {
     }
   }
 
+  // Send @p value out @p out as the number it is — the numeric group's one
+  // typing rule (#528), shared by `sum` and by the mean `median` takes of two
+  // middles.
+  //
+  // It is the transport convention ("a number leaves as what it spells")
+  // carried through the arithmetic: an **int** when @p ints says every atom the
+  // value was computed from was spelled as one *and* the value is a whole
+  // number an int can hold, a **float** otherwise. So a sum of floats stays a
+  // float even when it lands on a whole number — a patch working in the float
+  // domain should not be handed an int by an accident of arithmetic — the
+  // median of `1 2` is 1.5, and a total too large for an int leaves as the
+  // float it still is rather than wrapping or answering 0 the way an index
+  // conversion would.
+  //
+  // The range test is ExprToInt's, applied to the double the value was
+  // accumulated in rather than to a float narrowed from it, so a total that
+  // fits an int is answered exactly instead of being rounded to the nearest
+  // float first.
+  void SendNumber(outlet& out, double value, bool ints, YSE::THREAD thread) {
+    if (ints && value >= -2147483648.0 && value < 2147483648.0 && value == std::floor(value)) {
+      out.SendInt((int)value, thread);
+      return;
+    }
+    out.SendFloat((float)value, thread);
+  }
+
   // An order entry that names no atom. AtomList::AssignOrder drops it, which is
   // how `indexmap` refuses an index without compacting its own array first —
   // 0xFFFF is free for it because MAX_ATOMS is 256.
@@ -256,8 +284,9 @@ namespace {
       "flushing 'group''s partial group and re-sending 'stream''s window without sliding it. "
       "'mode' is a bare word rather than a prefixed one, "
       "which is Max's choice and not this port's, so a list whose first item is the literal symbol "
-      "'mode' is swallowed here as it is there. A mode word this object does not know yet leaves "
-      "the mode where it was rather than silently falling back to another one.";
+      "'mode' is swallowed here as it is there. Every mode word Max has is implemented, so a word "
+      "this object does not know is one Max has not got either; it leaves the mode where it was "
+      "rather than silently falling back to another one.";
 
   constexpr char kInletDocRight[] =
       "The mode's argument, and cold: setting it never emits. What it means depends on the mode — "
@@ -285,8 +314,9 @@ namespace {
       "the end — clamped to the working maximum list length, since a window wider than the object "
       "can hold would never fill; and 'reg' is the one mode for which this inlet carries the "
       "object's *contents* rather than an argument, Max's 'a list received in the right inlet is "
-      "stored', so a list sent here is what the next bang sends out. 'delace', 'queue' and 'stack' "
-      "take no argument and ignore it. The modes that read numbers "
+      "stored', so a list sent here is what the next bang sends out. 'delace', 'queue', 'stack', "
+      "'sum' and 'median' take no argument and ignore it — the two numeric modes read the whole of "
+      "the left inlet's list and have nothing to be pointed at. The modes that read numbers "
       "truncate floats, an index being a whole number, pass over non-numeric items, and leave the "
       "argument standing when a list carries no numbers at all rather than clearing it — a cord "
       "that delivers the occasional symbol should not silently un-point a 'swap'. The modes that "
@@ -320,7 +350,13 @@ namespace {
       "items as it becomes complete, and in 'stream' mode the last N items received, sent again "
       "on every arrival once there are that many. In 'queue' and 'stack' mode a bang sends one "
       "item — the oldest received for 'queue', the newest for 'stack' — and removes it, while an "
-      "arriving list only adds to the store and sends nothing. Apart from those four, none of "
+      "arriving list only adds to the store and sends nothing. The numeric modes send one number: "
+      "in 'sum' mode the numbers of the list added up, 0 when it holds none, and in 'median' mode "
+      "the middle of those numbers once ordered — the item itself when there is an odd number of "
+      "them, the mean of the two middles when there is an even number, and nothing at all when "
+      "there are none, a list with no numbers in it having no median to send. Either leaves as an "
+      "int when every item it was computed from was spelled as one and the value is a whole "
+      "number, and as a float otherwise. Apart from the accumulating four, none of "
       "them consumes the stored list, so a bang rearranges the same "
       "list again rather than rearranging the previous answer — two bangs on a 'scramble' give two "
       "shuffles of the input, not a shuffle of a shuffle.";
@@ -356,7 +392,8 @@ namespace {
       "object can carry. In 'queue' and 'stack' mode it carries a bang when there was nothing "
       "left to pop, which is how a patch drains the store: bang until this outlet answers. Modes "
       "that produce a single result ('len', 'rev', 'rot', 'scramble', 'swap', 'indexmap', "
-      "'lookup', 'thin', 'union', 'unique', 'reg', 'iter', 'join', 'lace', 'group') send nothing "
+      "'lookup', 'thin', 'union', 'unique', 'reg', 'iter', 'join', 'lace', 'group', 'sum', "
+      "'median') send nothing "
       "here at all, rather than a copy of the input, so "
       "that a patch can tell 'there is no second half' from 'the second half is the whole list'.";
 
@@ -396,8 +433,8 @@ CONSTRUCT() {
       "one object with two inlets, two outlets and a mode word that decides what happens between "
       "them. A list arriving at the left inlet is stored and processed under the current mode; a "
       "bang runs the mode over the stored list again, which is how a patch asks for the same list "
-      "back under a mode it has just switched to with 'mode <name>'. Twenty-nine modes are "
-      "implemented so far; only Max's 'median' and 'sum' are still to come. Three of them read "
+      "back under a mode it has just switched to with 'mode <name>'. All thirty-one of Max's mode "
+      "words are implemented. Three of them read "
       "the list: "
       "'len' sends the number of items in it, 'rev' sends it in reverse order, and 'nth' picks one "
       "item by its 1-based index — the item out the left outlet and everything else out the right "
@@ -455,13 +492,26 @@ CONSTRUCT() {
       "'stack' are a FIFO and a LIFO that a bang pops one item at a time — from the front and "
       "from the back respectively, which is the whole difference between them. Those four share "
       "one store, so switching between them live keeps the material rather than silently starting "
-      "a second buffer, and 'zlclear' is what empties it. Apart from those four, none of the "
-      "reordering, extracting, set or structural modes consumes the stored list, so a bang "
+      "a second buffer, and 'zlclear' is what empties it. The last two read the list as a "
+      "quantity rather than as atoms, which makes them the only modes whose answer need not be in "
+      "the list at all: 'sum' adds its numbers up and 'median' sends the middle one once they are "
+      "ordered — the item itself when there is an odd number of them, and the mean of the two "
+      "middles when there is an even number, which is what Max answers. Both pass over any "
+      "symbols among the numbers rather than refusing the list, and they part company over a list "
+      "with no numbers in it at all: the sum of nothing is 0 and is sent, as 'len' sends 0 for an "
+      "empty list, while the median of nothing is not a value and nothing is sent. A computed "
+      "result leaves as an int when every item it was computed from was spelled as one and the "
+      "value is a whole number, and as a float otherwise, so the median of '1 3' is 2, the median "
+      "of '1 2' is 1.5, and a sum of floats stays a float even when it lands on a whole number. "
+      "Apart from the accumulating four, none of the "
+      "reordering, extracting, set, structural or numeric modes consumes the stored list, so a "
+      "bang "
       "rearranges "
       "the same list again rather than rearranging the previous answer. Where a mode fills both "
       "outlets, the right one is sent first, which is Max's right-to-left rule. Max ships a second "
       "spelling of every mode as its own object ('zl.rev'), and it is deliberately not ported: it "
-      "is sugar for the mode argument, thirty registered names for one class, and a '.zl.rev' that "
+      "is sugar for the mode argument, thirty-one registered names for one class, and a '.zl.rev' "
+      "that "
       "can still be told 'mode nth' would not be what its name says. The list storage is bounded "
       "and pre-allocated — at most 256 items, Max's own default maximum list length, spanning at "
       "most 1024 characters, in memory reserved when the object is built. A leading integer "
@@ -492,7 +542,7 @@ CONSTRUCT() {
             "'group' and 'stream', two indices for 'swap', an index map for "
             "'indexmap', a search list for 'sub', a lookup table for 'lookup', the other list for "
             "'sect', 'union', 'unique', 'filter', 'compare', 'change', 'join' and 'lace', the "
-            "stored contents for 'reg'");
+            "stored contents for 'reg', and nothing at all for 'sum' and 'median'");
 
   OUTLET_DOC(0, "result", kOutletDocLeft, "any");
   OUTLET_DOC(1, "rest", kOutletDocRight, "any");
@@ -502,10 +552,11 @@ CONSTRUCT() {
             "order — Max's own argument shape. A leading token that is wholly an integer is the "
             "maximum list length and is clamped to 1-256; anything else is read as the mode word, "
             "so '.zl nth 2' and '.zl 64 nth 2' are both legal and mean the same thing but for the "
-            "ceiling. The mode words implemented so far are 'len', 'rev', 'nth', 'mth', 'rot', "
-            "'scramble', 'sort', 'slice', 'swap', 'indexmap', 'sub', 'lookup', 'sect', 'union', "
-            "'unique', 'thin', 'filter', 'compare', 'change', 'reg', 'iter', 'join', 'lace', "
-            "'delace', 'ecils', 'group', 'stream', 'queue' and 'stack'; one this object "
+            "ceiling. The mode words are Max's whole vocabulary — 'len', 'rev', 'nth', 'mth', "
+            "'rot', 'scramble', 'sort', 'slice', 'swap', 'indexmap', 'sub', 'lookup', 'sect', "
+            "'union', 'unique', 'thin', 'filter', 'compare', 'change', 'reg', 'iter', 'join', "
+            "'lace', 'delace', 'ecils', 'group', 'stream', 'queue', 'stack', 'sum' and 'median'; "
+            "one this object "
             "does not know is named in the log and ignored, leaving an object that stores what it "
             "is sent and emits nothing. "
             "With no mode word at all the object is inert for the same reason — Max's undocumented "
@@ -520,14 +571,14 @@ CONSTRUCT() {
             "as the other list, what 'join' appends and 'lace' interleaves, and what 'reg' starts "
             "out holding. So '.zl swap 2 4', '.zl indexmap 3 1 2', '.zl sub 60 64', "
             "'.zl lookup do re mi', '.zl sect 60 62 64', '.zl group 3' and '.zl join a b' are all "
-            "legal. 'thin', 'delace', 'queue' and 'stack' take no argument "
+            "legal. 'thin', 'delace', 'queue', 'stack', 'sum' and 'median' take no argument "
             "at all. The right inlet overwrites the argument "
             "afterwards. The 'scramble' seed is not a creation argument — the argument slot is "
             "taken by the index list — so a patch that needs a reproducible shuffle sends "
             "'zlseed <n>' to the left inlet.",
             "[<1-256>] [len|rev|nth|mth|rot|scramble|sort|slice|swap|indexmap|sub|lookup|sect|"
             "union|unique|thin|filter|compare|change|reg|iter|join|lace|delace|ecils|group|stream|"
-            "queue|stack] [<argument> ...]");
+            "queue|stack|sum|median] [<argument> ...]");
 }
 
 // ─── the mode vocabulary ────────────────────────────────────────────────────
@@ -1335,6 +1386,80 @@ void gZl::RunPop(YSE::THREAD thread, Trigger trigger, bool fromBack) {
   SendAtoms(outputs[0], work, render, thread);
 }
 
+// ─── the numeric modes (#528) ───────────────────────────────────────────────
+//
+// The only two modes that read the list as *numbers* rather than as atoms, and
+// so the only two whose answer need not be in the list at all. Both pass over
+// the symbols among the numbers, which is `lookup`'s answer to a non-numeric
+// index; they differ over what a list with no numbers in it means. Called from
+// Run() with the guard held.
+
+std::size_t gZl::CountNumbers() const {
+  // Classified once, on the way in — AtomList decides `numeric` in Add
+  // precisely so the arithmetic modes do not re-read the same characters.
+  std::size_t numbers = 0;
+  for (std::size_t i = 0; i < stored.Size(); i++) {
+    if (stored.AtomIsNumber(i)) numbers++;
+  }
+  return numbers;
+}
+
+void gZl::SendSum(YSE::THREAD thread) {
+  // Max: "accepts a list of numbers and will output the sum of those numbers."
+  //
+  // Accumulated in a double rather than a float: 256 atoms of six figures
+  // apiece is past a float's twenty-four bits of mantissa, and a sum that comes
+  // back a few units out is the kind of wrongness a patch never notices.
+  double total = 0.0;
+  bool ints = true;
+  for (std::size_t i = 0; i < stored.Size(); i++) {
+    if (!stored.AtomIsNumber(i)) continue;
+    total += (double)stored.AtomValue(i);
+    // One float among the atoms makes the total a float, which is the transport
+    // convention's "by its spelling" carried through the arithmetic.
+    if (stored.AtomIsFloat(i)) ints = false;
+  }
+
+  // A list with no numbers in it sums to 0, and that is sent rather than
+  // swallowed: the sum of nothing is an answer, exactly as `len` answers 0 for
+  // an empty list. `median` is silent in the same case because the median of
+  // nothing is not a value at all — see the class notes.
+  SendNumber(outputs[0], total, ints, thread);
+}
+
+void gZl::SendMedian(YSE::THREAD thread) {
+  // Max: "accepts a list of numbers and will output the median of those
+  // numbers."
+  const std::size_t size = stored.Size();
+  const std::size_t numbers = CountNumbers();
+  if (numbers == 0) return;
+
+  // The shared merge sort, ascending. One order over the *whole* stored list
+  // suffices because `AtomsBefore` puts every number before every symbol in
+  // both directions: the numeric atoms come out in the first `numbers` places,
+  // in value order, and the symbols sort themselves out behind them where the
+  // median never looks. So no copy of the list and no third ordering array —
+  // see the class notes.
+  SortIndices(stored, order, merge, size, false);
+
+  const std::size_t upper = numbers / 2;
+  if ((numbers % 2) != 0) {
+    // One middle, and it is an atom of the list — sent exactly as it is
+    // spelled, so an int stays an int and a float stays a float without any
+    // arithmetic happening at all.
+    SendAtom(outputs[0], stored, order[upper], render, thread);
+    return;
+  }
+
+  // Two middles and no atom between them, so the answer is their mean: Max
+  // averages them — `1 1 359 359` answers 180 there — which is the arithmetic
+  // median rather than either atom.
+  const std::size_t low = order[upper - 1];
+  const std::size_t high = order[upper];
+  const double mean = ((double)stored.AtomValue(low) + (double)stored.AtomValue(high)) / 2.0;
+  SendNumber(outputs[0], mean, !stored.AtomIsFloat(low) && !stored.AtomIsFloat(high), thread);
+}
+
 // ─── the modes ──────────────────────────────────────────────────────────────
 
 void gZl::Run(YSE::THREAD thread, Trigger trigger) {
@@ -1548,6 +1673,16 @@ void gZl::Run(YSE::THREAD thread, Trigger trigger) {
   case Mode::STACK:
     // Last in, first out — `queue` popped from the other end.
     RunPop(thread, trigger, true);
+    break;
+
+  case Mode::SUM:
+    // The numbers of the list added up.
+    SendSum(thread);
+    break;
+
+  case Mode::MEDIAN:
+    // The middle of the numbers of the list, once ordered.
+    SendMedian(thread);
     break;
 
   case Mode::NONE:
