@@ -71,7 +71,10 @@
 #include "time/gThresh.h"
 #include "time/gTimepoint.h"
 #include "time/gTimer.h"
+#include "time/gSetClock.h"
 #include "time/gTransport.h"
+#include "time/gTranslate.h"
+#include "time/gWhen.h"
 
 #include "math/dAdd.h"
 #include "math/dClip.h"
@@ -498,6 +501,19 @@ pRegistry::pRegistry() {
   // Control a named domain clock from inside the patcher — the object that
   // connects a patch to the engine's polytemporal clock system (issue #513)
   Add(OBJ::G_TRANSPORT, gTransport::Create);
+
+  // Create a named domain clock and set its speed — `.transport`'s write half
+  // with the play button taken out: a second tempo domain that is turning as
+  // soon as the patch loads (issue #515)
+  Add(OBJ::G_SETCLOCK, gSetClock::Create);
+
+  // Report where a named domain clock stands, on demand — `.transport`'s read
+  // half, without the ownership that would create the clock (issue #514)
+  Add(OBJ::G_WHEN, gWhen::Create);
+
+  // Convert a time value between the patcher's two kinds of time — the
+  // exchange rate between milliseconds and a named clock's beats (issue #516)
+  Add(OBJ::G_TRANSLATE, gTranslate::Create);
 
   // Bang when a named domain clock reaches a beat position — the patcher's
   // first absolute point on a musical timeline (issue #507)
