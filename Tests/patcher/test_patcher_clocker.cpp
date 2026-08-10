@@ -45,6 +45,7 @@
 #include <doctest/doctest.h>
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -70,6 +71,7 @@ using namespace std::chrono_literals;
 
 namespace {
 
+  using YSE::PATCHER::clockBridge;
   using YSE::PATCHER::gClocker;
   using YSE::PATCHER::patcherImplementation;
 
@@ -1228,10 +1230,22 @@ TEST_SUITE("clock") {
     CHECK(rig.beats.values.empty());
 
     MakeClock(name);
-    // Poll re-arms an unresolved binding every RESOLVE_INTERVAL_BLOCKS blocks,
-    // so this is bounded by a couple of passes and not by the clock's tempo.
-    for (int i = 0; i < 400 && rig.beats.values.size() < 2; i++)
+    // Calculate's poll of the bridge re-arms an unresolved binding only every
+    // RESOLVE_INTERVAL_BLOCKS blocks, so this many steps is what it takes for
+    // the retry to come round. The join after it is only for determinism — the
+    // resolve job it waits on is the one Calculate itself armed. Steps alone
+    // cannot stand in for it: the lookup runs on the background pool, and this
+    // loop is synchronous with no wall-clock wait in it, so a fixed budget of
+    // blocks bounds nothing about when a pool thread gets scheduled (issue
+    // #740).
+    for (std::uint64_t i = 0; i < clockBridge::RESOLVE_INTERVAL_BLOCKS + 2; i++)
       rig.Step();
+    rig.patcher.Clocks()->WaitIdle();
+    REQUIRE(rig.patcher.Clocks()->Resolved(1));
+
+    // The run is on a real clock from here, so the grid points come at the
+    // tempo: one wakeup to take the baseline, then two steps per beat.
+    rig.Steps(8);
 
     REQUIRE(rig.beats.values.size() >= 2);
     // The first report is where the beat measurement starts; the ones after it
