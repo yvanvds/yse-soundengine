@@ -490,6 +490,11 @@ pRegistry::pRegistry() {
   // anything that is a number rather than a waveform (issue #510)
   Add(OBJ::G_LINE, gLine::Create);
 
+  // The same ramp with the clock taken out: .bline advances one step per bang,
+  // so a breakpoint pair counts bangs rather than milliseconds and the patch
+  // supplies the timebase (issue #511)
+  Add(OBJ::G_BLINE, gBline::Create);
+
   // Control a named domain clock from inside the patcher — the object that
   // connects a patch to the engine's polytemporal clock system (issue #513)
   Add(OBJ::G_TRANSPORT, gTransport::Create);

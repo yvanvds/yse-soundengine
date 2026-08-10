@@ -256,7 +256,7 @@ namespace YSE {
       // Move the cursor one step and report where the current segment now
       // stands, in [0, 1]. Guard held, and only ever called with `segSpan`
       // positive. `.line` reads the block clock and arms the next grain;
-      // `.bline` (#511) will count the bang that got here.
+      // `.bline` counts the bang that got here.
       virtual double AdvanceCursor() {
         return 1.0;
       }
@@ -281,8 +281,8 @@ namespace YSE {
       // what is left of the segment, since a resume begins it afresh.
       virtual void OnPause() {}
 
-      // Max's third list element, "the third number, which is optional, sets the
-      // grain". True when the subclass has a grain to set — `.line` does,
+      // Max's third list element, "the third number, which is optional, sets
+      // the grain". True when the subclass has a grain to set — `.line` does,
       // `.bline` has no such thing and reads a three-element list as one pair
       // with a trailing element ignored.
       virtual bool TakeGrain(double) {
@@ -540,6 +540,102 @@ namespace YSE {
       // that keeps a step armed for a segment already gone from moving the one
       // that replaced it.
       std::atomic<std::uint32_t> generation{0};
+    };
+
+    /**
+     *  @brief Generate a ramp advanced one step per bang — ``.bline``
+     *         (issue #511).
+     *
+     *  Max's ``bline``: "generates a linear ramp driven by incoming bang
+     *  messages. It takes a list of breakpoint segments (and the number of
+     *  events to span) and outputs a smooth ramp between values."
+     *
+     *  The whole of the difference from ``.line`` is where the timebase comes
+     *  from. ``.line`` owns a clock and emits a value every grain milliseconds;
+     *  ``.bline`` owns nothing and emits a value every time it is banged, so
+     *  the patch supplies the tempo. That makes it the ramp for anything whose
+     *  step rate is not wall-clock: a ramp locked to a ``.metro`` that a
+     *  ``.tempo`` is bending, one value per note of a ``.seq``, one value per
+     *  frame of a render loop that takes as long as it takes. A breakpoint pair
+     *  here counts **bangs** where ``.line``'s counts milliseconds, which is
+     *  Max's "an integer that specifies the number of bang messages that will
+     *  have to be received before reaching the target value".
+     *
+     *  Everything else is ``gLineBase`` and is deliberately identical: the
+     *  64-segment breakpoint queue, the list grammar, the ``stop`` and ``set``
+     *  words, the "each segment starts from where the object stands" rule, the
+     *  int-or-float output typing with Max's ``floatoutput`` auto default, and
+     *  the bang on the right outlet when the last segment lands.
+     *
+     *  ### One inlet, and no clock at all
+     *
+     *  ``.line`` has three inlets because it has two times to be told. This one
+     *  has one, because it has none: there is no ramp time, no grain, and — the
+     *  point worth stating plainly — **no scheduler**. Nothing here arms a
+     *  deferred message, nothing waits on the block counter, and the object
+     *  behaves the same whether it is standing alone in a test or inside a
+     *  rendering patcher. A bang in, a value out, on the calling thread and
+     *  inside the caller's own dispatch frame.
+     *
+     *  ### Everything comes out on a bang
+     *
+     *  Including the things that have no distance to travel. Max is explicit
+     *  that a bare number does not emit when it arrives: an int "sets the
+     *  bline object to the specified value. Any and all pending breakpoint
+     *  segments are forgotten (i.e. the time is considered 0 and bline outputs
+     *  the target value **when it receives a bang**)". So a target with no bang
+     *  count — a bare int or float, or a pair whose count is zero or negative —
+     *  becomes a segment of exactly one bang, which lands on the target
+     *  exactly and bangs the right outlet. That is what ``OnSegmentBegin``
+     *  does, and it is the mirror image of ``.line``, which collapses a segment
+     *  it cannot travel *to* zero: ``.line``'s dead end is "no clock", and its
+     *  answer is *now*; this object's floor is "at least one step", and its
+     *  answer is *next bang*.
+     *
+     *  A bang while nothing is running does nothing at all — no value, no
+     *  arrival bang. The ramp is over, and Max's right outlet fires on arrival
+     *  rather than on every bang after it.
+     *
+     *  ### Two departures from Max
+     *
+     *  - **``set`` is silent and stays silent.** Max's page gives ``set`` the
+     *    same sentence as ``int``, parenthetical included, which would make the
+     *    two messages the same message. They are read apart here the way
+     *    ``line`` reads them apart: ``set <number>`` moves the stored value and
+     *    stops a ramp in progress without arming anything, so the next bang
+     *    emits nothing, while a bare number arms the one-bang segment above.
+     *    A patch that wants a target on the next bang sends the number; one
+     *    that wants to move the starting point silently sends ``set``.
+     *  - **No ``pause`` / ``resume``.** Max's ``bline`` has neither, and they
+     *    would mean little on an object whose clock is the patch: not banging
+     *    it *is* the pause. ``stop`` and ``set`` are the two words it knows;
+     *    anything else on the inlet is read as list data.
+     *
+     *  A fractional bang count is travelled in whole bangs, arriving on the
+     *  first bang at or past the target — ``2.5`` takes three. Max asks for an
+     *  integer there and the reading costs nothing to state.
+     */
+    class gBline : public gLineBase {
+    public:
+      gBline();
+      const char* Type() const override {
+        return YSE::OBJ::G_BLINE;
+      }
+      CREATE(gBline)
+
+    protected:
+      double AdvanceCursor() override;
+      double StepSize() const override;
+      void OnSegmentBegin() override;
+
+    private:
+      // A bang: one step of the ramp, or nothing at all when none is running.
+      void BangIn(int inlet, YSE::THREAD thread);
+
+      // Bangs counted against the current segment. Written only under the
+      // guard, so a plain member — `gLine`'s `segBlock` is the same thing for a
+      // clock.
+      double steps = 0.0;
     };
 
   } // namespace PATCHER

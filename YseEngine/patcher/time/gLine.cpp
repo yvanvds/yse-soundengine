@@ -707,3 +707,119 @@ void gLine::DeliverDeferred(const deferredMessage& msg, YSE::THREAD thread) {
   handle.store(0, std::memory_order_relaxed);
   Run(thread);
 }
+
+// ─── .bline — the cursor is the bang ─────────────────────────────────────────
+
+#undef className
+#define className gBline
+
+gBline::gBline() : gLineBase() {
+  // The one inlet the base already made, given a bang method: this object's
+  // whole timebase. No time inlet and no grain inlet, there being no clock to
+  // set — and so, unlike every other object in this directory, no scheduler
+  // either.
+  REG_BANG_IN(BangIn);
+
+  Document(
+      "Ramps a control value toward a target one step per bang, so the patch supplies the "
+      "timebase. Max's bline, 'generates a linear ramp driven by incoming bang messages. It takes "
+      "a list of breakpoint segments (and the number of events to span) and outputs a smooth ramp "
+      "between values.' It is .line with the clock taken out: where .line emits a value every "
+      "grain milliseconds of its own accord, this one emits a value each time it is banged and "
+      "never otherwise, which is what a ramp needs when its step rate is not wall-clock time — "
+      "locked to a .metro that a .tempo is bending, one value per note of a .seq, one value per "
+      "frame of a render loop that takes as long as it takes. A breakpoint pair therefore counts "
+      "bangs where .line's counts milliseconds: Max's 'an integer that specifies the number of "
+      "bang messages that will have to be received before reaching the target value', so the list "
+      "'1 10 0 10' climbs to 1 over ten bangs and comes back down over the next ten, banging the "
+      "right outlet on the twentieth. Everything else is .line's and identical: four or more "
+      "numbers are breakpoint pairs with an odd trailing element ignored, a three-element list is "
+      "one pair with the third number ignored (there being no grain to set), each segment starts "
+      "from the value the object currently stands at so there are no discontinuities, and a "
+      "number arriving mid-ramp clears every segment still to come. The list holds 64 segments "
+      "and reads 129 numbers, which is Max's maxpoints default; anything longer keeps its head, "
+      "loses its tail and counts the refusal rather than allocating on the thread the message "
+      "arrived on. A bare number is Max's 'the time is considered 0 and bline outputs the target "
+      "value when it receives a bang' — one bang's worth of segment, landing on the target "
+      "exactly — so nothing this object emits ever comes out on anything but a bang. 'stop' "
+      "freezes it where it stands and forgets the queue without banging, and 'set <number>' moves "
+      "the stored value silently and stops a ramp in progress, which is the one place this reads "
+      "Max's page apart from itself: his set and int carry the same sentence, and telling them "
+      "apart the way line does is what leaves a way to move the starting point without arming an "
+      "output. Max's pause and resume are not here, bline having neither — on an object clocked "
+      "by the patch, not banging it is the pause. The output is an int or a float by Max's rule: "
+      "the creation argument's spelling makes the object one or the other, and an int object "
+      "emits floats for a segment shorter than one unit whose steps are smaller than 0.4, which "
+      "is his floatoutput 'auto' default. No scheduler, no timer and no clock are involved at any "
+      "point, so a value comes out on the calling thread inside the caller's own dispatch frame; "
+      "Calculate() does nothing and no message path allocates, locks or blocks.",
+      "The only inlet: the bang that advances the ramp, the numbers that define it, and the two "
+      "message words. A bang emits the next step out the left outlet — Max's 'sends a new step in "
+      "the breakpoint list out the left outlet' — and, on the step that reaches the last target, "
+      "bangs the right outlet too; a bang with no ramp running does nothing at all. A list of two "
+      "numbers is a target and the number of bangs to reach it over; four or more are breakpoint "
+      "target/bangs pairs travelled one after another, with an odd trailing element ignored, and "
+      "three are read as one pair with the third number ignored since there is no grain here to "
+      "set. An int or a float is a target with no count, which Max makes 'the time is considered "
+      "0 and bline outputs the target value when it receives a bang': it is reached whole on the "
+      "next bang rather than the moment it arrives. Whatever arrives clears the segments still "
+      "queued and starts from the value the object stands at now, so a ramp redirected mid-flight "
+      "has no jump in it. The word 'stop' freezes the ramp where it is and forgets the queue, "
+      "without a bang on the right outlet; 'set' followed by a number moves the stored value "
+      "silently, stops a ramp in progress and arms nothing, so the next bang emits nothing "
+      "either. A count of zero or less is one bang, every segment costing at least the bang that "
+      "travels it, and a fractional count arrives on the first bang at or past the target.",
+      "The ramp, one value per bang from where the object stood to the target, ending on the "
+      "target exactly. An int or a float by Max's typing rule: the object is a float one when its "
+      "creation argument was spelled as a float, and an int object still emits floats for a "
+      "segment that covers one unit or less in steps smaller than 0.4, since a ramp from 0 to 1 "
+      "in ints is not a ramp.",
+      "The value the object starts at, and — by its spelling — the output type, which is Max's "
+      "'an argument may be used to set the initial value to be stored and the output type for the "
+      "object: if the first argument is an int, the bline object outputs integer values, and a "
+      "float will set the bline object to output floating point values'. An argument written as a "
+      "float ('0.', '1.5') makes a float object that always emits floats; one written as an int, "
+      "or no argument at all, makes an int object. An argument that is not a number leaves both "
+      "at that default. The stored value moves as the object ramps and with every 'set'; it is "
+      "run-time state and is not saved.");
+}
+
+void gBline::OnSegmentBegin() {
+  steps = 0.0;
+
+  // The floor that makes this object bang-driven rather than instant. `.line`
+  // reaches here and may collapse `segSpan` to 0 — its dead end is having no
+  // clock, and its answer is *now*. This one goes the other way: a segment with
+  // no bangs in it is one bang long, so Max's "the time is considered 0 and
+  // bline outputs the target value when it receives a bang" holds for a bare
+  // number, for a pair counted 0, and for a negative count alike. With
+  // `segSpan` never 0, neither `StartRamp` nor `Run` ever takes its
+  // emit-immediately branch, which is the whole of "nothing comes out except on
+  // a bang".
+  if (!(segSpan >= 1.0)) segSpan = 1.0;
+}
+
+double gBline::StepSize() const {
+  // Called from BeginSegment *before* OnSegmentBegin has applied the floor, so
+  // a bare target is still spanless here — and a one-bang segment's step is the
+  // whole distance either way, which is what the fallback returns.
+  const double distance = segTo > segFrom ? segTo - segFrom : segFrom - segTo;
+  if (!(segSpan > 0.0)) return distance;
+  return distance / segSpan;
+}
+
+double gBline::AdvanceCursor() {
+  // The cursor is the bang count, and that is the entire clock. A fractional
+  // span is travelled in whole bangs and so arrives on the first one at or past
+  // the target.
+  steps += 1.0;
+  return steps / segSpan;
+}
+
+BANG_IN(BangIn) {
+  if (inlet != 0) return;
+  // Max: "sends a new step in the breakpoint list out the left outlet. If the
+  // current list of ramp segments is finished, a bang message will be sent out
+  // the right outlet." Run does both, and does nothing when no ramp is running.
+  Run(thread);
+}
