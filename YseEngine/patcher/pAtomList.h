@@ -5,6 +5,7 @@
 #include "pSelector.h"
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <string>
 
 namespace YSE {
@@ -255,6 +256,90 @@ namespace YSE {
       /** @brief ``AddTokens`` over a whole ``std::string``. */
       std::size_t AddTokens(const std::string& text, std::size_t limit = MAX_ATOMS) {
         return AddTokens(text.c_str(), text.size(), limit);
+      }
+
+      /**
+       *  @brief Append atom @p index of @p other as a **new** atom of this
+       *         list, with its own copy of the characters.
+       *
+       *  ``Assign`` and ``AssignOrder`` both take @p other's backing text
+       *  whole, which is what makes them free; this is the other operation —
+       *  building one list out of *two*, which ``.zl``'s ``join`` and ``lace``
+       *  do (issue #527) and its ``union`` (#526) already did by hand.
+       *
+       *  False, changing nothing, when the atom does not fit or @p index names
+       *  no atom of @p other. Allocation-free for ``Add``'s reason. @p other
+       *  must not be this same list — the characters are read from its text
+       *  while this one's is being appended to.
+       */
+      bool AddAtom(const AtomList& other, std::size_t index, std::size_t limit = MAX_ATOMS) {
+        const char* token = other.AtomText(index);
+        if (token == nullptr) return false;
+        return Add(token, other.AtomLength(index), limit);
+      }
+
+      /**
+       *  @brief ``AddAtom`` over a run: @p count atoms of @p other starting at
+       *         @p begin.
+       *
+       *  @return how many were **refused**, as ``AddTokens`` does. The run is
+       *          clamped to @p other first, so a count past its end is not
+       *          reported as a refusal — there was no atom to refuse.
+       */
+      std::size_t AddRange(const AtomList& other, std::size_t begin, std::size_t count,
+                           std::size_t limit = MAX_ATOMS) {
+        if (begin >= other.Size()) return 0;
+        const std::size_t available = other.Size() - begin;
+        if (count > available) count = available;
+
+        std::size_t refused = 0;
+        for (std::size_t i = 0; i < count; i++) {
+          if (!AddAtom(other, begin + i, limit)) refused++;
+        }
+        return refused;
+      }
+
+      /**
+       *  @brief Keep only @p count atoms starting at @p begin, dropping the
+       *         rest — and **reclaim their characters**.
+       *
+       *  The one operation that shortens a list rather than rebuilding it, and
+       *  the reason it exists is that ``.zl``'s accumulating modes (#527) are
+       *  the first here to consume a list from an end and keep going: a
+       *  ``queue`` popped a thousand times would otherwise walk the
+       *  append-only text off its ceiling and start refusing atoms it has room
+       *  for.
+       *
+       *  The retained characters are moved down in place — a retained atom's
+       *  new offset is never past its old one, so one pass in increasing order
+       *  is enough — and the table follows them. Allocation-free: nothing is
+       *  copied out and the text only ever shrinks. A @p begin past the end
+       *  empties the list, and @p count is clamped to what is there.
+       */
+      void Keep(std::size_t begin, std::size_t count) {
+        if (begin >= count_) {
+          Clear();
+          return;
+        }
+        const std::size_t available = count_ - begin;
+        if (count > available) count = available;
+
+        std::size_t at = 0;
+        for (std::size_t i = 0; i < count; i++) {
+          Entry entry = entries_[begin + i];
+          // Never upwards: `at` is the total length of the atoms already kept,
+          // and every one of them sat at or after that offset to begin with.
+          // memmove rather than memcpy all the same, the two runs overlapping
+          // when nothing was dropped in front of this atom.
+          if (at != entry.offset && entry.length != 0)
+            std::memmove(&text_[at], text_.data() + entry.offset, entry.length);
+          entry.offset = (std::uint16_t)at;
+          at += entry.length;
+          entries_[i] = entry;
+        }
+        // Shrinking, so this cannot allocate.
+        text_.resize(at);
+        count_ = count;
       }
 
       /**

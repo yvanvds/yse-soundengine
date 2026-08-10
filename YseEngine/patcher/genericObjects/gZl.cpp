@@ -33,10 +33,10 @@ namespace {
   constexpr char kWordSeed[] = "zlseed";
 
   // The mode vocabulary, in one place. A table rather than a chain of
-  // hand-written character comparisons because there are now nineteen words and
-  // two functions that have to agree about them — a spelling that appeared in
-  // ReadMode and not in ModeName would be a mode a patch could select and the
-  // documentation could not name.
+  // hand-written character comparisons because there are now twenty-nine words
+  // and two functions that have to agree about them — a spelling that appeared
+  // in ReadMode and not in ModeName would be a mode a patch could select and
+  // the documentation could not name.
   struct ModeWord {
     char word[9];
     std::size_t length;
@@ -53,7 +53,12 @@ namespace {
       {"sect", 4, gZl::Mode::SECT},         {"union", 5, gZl::Mode::UNION},
       {"unique", 6, gZl::Mode::UNIQUE},     {"thin", 4, gZl::Mode::THIN},
       {"filter", 6, gZl::Mode::FILTER},     {"compare", 7, gZl::Mode::COMPARE},
-      {"change", 6, gZl::Mode::CHANGE},
+      {"change", 6, gZl::Mode::CHANGE},     {"iter", 4, gZl::Mode::ITER},
+      {"join", 4, gZl::Mode::JOIN},         {"lace", 4, gZl::Mode::LACE},
+      {"delace", 6, gZl::Mode::DELACE},     {"ecils", 5, gZl::Mode::ECILS},
+      {"reg", 3, gZl::Mode::REG},           {"group", 5, gZl::Mode::GROUP},
+      {"stream", 6, gZl::Mode::STREAM},     {"queue", 5, gZl::Mode::QUEUE},
+      {"stack", 5, gZl::Mode::STACK},
   };
 
   // True when atom @p i of @p a and atom @p j of @p b are the same atom —
@@ -245,7 +250,11 @@ namespace {
       "empties it, 'zlmaxsize <n>' narrows the working maximum list length to anywhere in 1-256, "
       "and 'zlseed <n>' restarts the random sequence 'scramble' draws from, a non-zero seed "
       "replaying the same shuffles every run and 0 taking an arbitrary stream. None of the four "
-      "emits anything. 'mode' is a bare word rather than a prefixed one, "
+      "emits anything, and 'zlclear' is also what empties a half-filled 'group', 'stream', 'queue' "
+      "or 'stack'. In those four modes a bang does not re-run anything: it consumes what the "
+      "object has collected, popping the oldest atom from a 'queue', the newest from a 'stack', "
+      "flushing 'group''s partial group and re-sending 'stream''s window without sliding it. "
+      "'mode' is a bare word rather than a prefixed one, "
       "which is Max's choice and not this port's, so a list whose first item is the literal symbol "
       "'mode' is swallowed here as it is there. A mode word this object does not know yet leaves "
       "the mode where it was rather than silently falling back to another one.";
@@ -270,7 +279,14 @@ namespace {
       "'thin' takes no argument and ignores it. 'change' is the one mode that also *writes* here — "
       "a list sent to this inlet primes the list it compares against, which is Max's arrangement, "
       "and every list that then arrives at the left inlet becomes the new reference in its turn. "
-      "The modes that read numbers "
+      "The structural modes read it three ways: 'join' and 'lace' take it as the second list, to "
+      "be appended or interleaved; 'iter', 'group', 'stream' and 'ecils' take it as a length in "
+      "items — the chunk size, the group size, the window length and how many items to cut from "
+      "the end — clamped to the working maximum list length, since a window wider than the object "
+      "can hold would never fill; and 'reg' is the one mode for which this inlet carries the "
+      "object's *contents* rather than an argument, Max's 'a list received in the right inlet is "
+      "stored', so a list sent here is what the next bang sends out. 'delace', 'queue' and 'stack' "
+      "take no argument and ignore it. The modes that read numbers "
       "truncate floats, an index being a whole number, pass over non-numeric items, and leave the "
       "argument standing when a list carries no numbers at all rather than clearing it — a cord "
       "that delivers the occasional symbol should not silently un-point a 'swap'. The modes that "
@@ -295,7 +311,16 @@ namespace {
       "the two lists share, in 'union' mode the two lists added together as sets, and in 'unique' "
       "and 'filter' mode the list with the items named in the right inlet removed. In 'compare' "
       "mode it carries 1 when the two lists are the same list and 0 when they are not, and in "
-      "'change' mode the list itself, but only when it differs from the one before it. None of "
+      "'change' mode the list itself, but only when it differs from the one before it. The "
+      "structural modes send what they have restructured: in 'reg' mode the stored list itself, "
+      "in 'iter' mode the list as a run of separate messages of N items each — the last one short "
+      "when the list does not divide — in 'join' mode the two lists one after the other, in 'lace' "
+      "mode the two interleaved, in 'delace' mode the items at the odd positions of the input, in "
+      "'ecils' mode everything but the last N items, in 'group' mode each complete group of N "
+      "items as it becomes complete, and in 'stream' mode the last N items received, sent again "
+      "on every arrival once there are that many. In 'queue' and 'stack' mode a bang sends one "
+      "item — the oldest received for 'queue', the newest for 'stack' — and removes it, while an "
+      "arriving list only adds to the store and sends nothing. Apart from those four, none of "
       "them consumes the stored list, so a bang rearranges the same "
       "list again rather than rearranging the previous answer — two bangs on a 'scramble' give two "
       "shuffles of the input, not a shuffle of a shuffle.";
@@ -320,9 +345,19 @@ namespace {
       "before it and 0 when it does not, and it is sent either way, which is the only thing that "
       "makes the left outlet's silence readable. In 'sect' mode it carries a bang when the two "
       "lists have nothing in common, Max's own signal for that case and the only way a patch tells "
-      "an empty intersection from an object nothing has reached yet. Modes that produce a single "
-      "result ('len', 'rev', 'rot', 'scramble', 'swap', 'indexmap', 'lookup', 'thin', 'union', "
-      "'unique') send nothing here at all, rather than a copy of the input, so "
+      "an empty intersection from an object nothing has reached yet. In 'delace' mode it carries "
+      "the items at the even positions of the input — the two outlets together being the input "
+      "pulled back apart into the two lists a 'lace' would have made it from — and in 'ecils' "
+      "mode the last N items, so the two outlets are the whole list cut in two counting from the "
+      "end rather than from the start, which is the only difference between 'ecils' and 'slice'. "
+      "In 'stream' mode it carries how many more items the window still wants, 0 meaning the left "
+      "outlet is carrying a complete one; Max sends its flag here in answer to the right inlet, "
+      "which this object's cold inlet cannot do, and a shortfall is that signal in the shape this "
+      "object can carry. In 'queue' and 'stack' mode it carries a bang when there was nothing "
+      "left to pop, which is how a patch drains the store: bang until this outlet answers. Modes "
+      "that produce a single result ('len', 'rev', 'rot', 'scramble', 'swap', 'indexmap', "
+      "'lookup', 'thin', 'union', 'unique', 'reg', 'iter', 'join', 'lace', 'group') send nothing "
+      "here at all, rather than a copy of the input, so "
       "that a patch can tell 'there is no second half' from 'the second half is the whole list'.";
 
 } // namespace
@@ -361,9 +396,9 @@ CONSTRUCT() {
       "one object with two inlets, two outlets and a mode word that decides what happens between "
       "them. A list arriving at the left inlet is stored and processed under the current mode; a "
       "bang runs the mode over the stored list again, which is how a patch asks for the same list "
-      "back under a mode it has just switched to with 'mode <name>'. Nineteen modes are "
-      "implemented "
-      "so far and the remaining groups follow in their own issues. Three of them read the list: "
+      "back under a mode it has just switched to with 'mode <name>'. Twenty-nine modes are "
+      "implemented so far; only Max's 'median' and 'sum' are still to come. Three of them read "
+      "the list: "
       "'len' sends the number of items in it, 'rev' sends it in reverse order, and 'nth' picks one "
       "item by its 1-based index — the item out the left outlet and everything else out the right "
       "one, Max's 'the right outlet outputs all elements except the selected one'. Five of them "
@@ -408,8 +443,21 @@ CONSTRUCT() {
       "time. Membership is answered by ranking each list once and binary-searching rather than by "
       "comparing every item against every other, which would be sixty-five thousand comparisons on "
       "two full-length lists and is the same objection that made 'sub' a Knuth-Morris-Pratt search "
-      "and 'sort' a merge sort. None of the "
-      "reordering, extracting or set modes consumes the stored list, so a bang rearranges "
+      "and 'sort' a merge sort. Ten more are structural — the plumbing that lets list-shaped and "
+      "stream-shaped data meet. Six of them restructure whatever arrives: 'reg' is a register, "
+      "holding a list and sending it again on a bang, with the right inlet priming it silently; "
+      "'iter' sends the list out as a run of separate messages of N items each; 'join' and 'lace' "
+      "combine the stored list with the right inlet's, one after the other or interleaved; "
+      "'delace' pulls a laced list back apart into two; and 'ecils' is 'slice' counting from the "
+      "end. The other four accumulate across messages, which is what makes them the only modes "
+      "whose answer depends on what came before: 'group' collects a stream and sends it on in "
+      "fixed-size lists, 'stream' keeps a sliding window of the last N items, and 'queue' and "
+      "'stack' are a FIFO and a LIFO that a bang pops one item at a time — from the front and "
+      "from the back respectively, which is the whole difference between them. Those four share "
+      "one store, so switching between them live keeps the material rather than silently starting "
+      "a second buffer, and 'zlclear' is what empties it. Apart from those four, none of the "
+      "reordering, extracting, set or structural modes consumes the stored list, so a bang "
+      "rearranges "
       "the same list again rather than rearranging the previous answer. Where a mode fills both "
       "outlets, the right one is sent first, which is Max's right-to-left rule. Max ships a second "
       "spelling of every mode as its own object ('zl.rev'), and it is deliberately not ported: it "
@@ -440,9 +488,11 @@ CONSTRUCT() {
             "'zlmaxsize <n>', 'zlseed <n>'");
   INLET_DOC(1, "argument", kInletDocRight,
             "mode dependent; 1-based index for 'nth', 0-based for 'mth', places for 'rot', "
-            "direction for 'sort', a count for 'slice', two indices for 'swap', an index map for "
+            "direction for 'sort', a count for 'slice' and 'ecils', a length in items for 'iter', "
+            "'group' and 'stream', two indices for 'swap', an index map for "
             "'indexmap', a search list for 'sub', a lookup table for 'lookup', the other list for "
-            "'sect', 'union', 'unique', 'filter', 'compare' and 'change'");
+            "'sect', 'union', 'unique', 'filter', 'compare', 'change', 'join' and 'lace', the "
+            "stored contents for 'reg'");
 
   OUTLET_DOC(0, "result", kOutletDocLeft, "any");
   OUTLET_DOC(1, "rest", kOutletDocRight, "any");
@@ -454,25 +504,30 @@ CONSTRUCT() {
             "so '.zl nth 2' and '.zl 64 nth 2' are both legal and mean the same thing but for the "
             "ceiling. The mode words implemented so far are 'len', 'rev', 'nth', 'mth', 'rot', "
             "'scramble', 'sort', 'slice', 'swap', 'indexmap', 'sub', 'lookup', 'sect', 'union', "
-            "'unique', 'thin', 'filter', 'compare' and 'change'; one this object "
+            "'unique', 'thin', 'filter', 'compare', 'change', 'reg', 'iter', 'join', 'lace', "
+            "'delace', 'ecils', 'group', 'stream', 'queue' and 'stack'; one this object "
             "does not know is named in the log and ignored, leaving an object that stores what it "
             "is sent and emits nothing. "
             "With no mode word at all the object is inert for the same reason — Max's undocumented "
-            "no-argument default is 'reg', which belongs to the register group and is not ported "
-            "yet, and behaving as a mode the patch did not ask for would be worse than staying "
-            "quiet. Everything after the mode word is the mode's argument, in order, and it is "
-            "read two ways at once: as numbers, which is one for 'nth', 'mth', 'rot', 'sort' and "
-            "'slice', the first two for 'swap' and the whole run for 'indexmap'; and as a "
-            "list of atoms, which is what 'sub' searches for, what 'lookup' reads as its table and "
+            "no-argument default is 'reg', and behaving as a mode the patch did not ask for would "
+            "be worse than staying quiet, so 'reg' has to be asked for by name. Everything after "
+            "the mode word is the mode's argument, in order, and it is "
+            "read two ways at once: as numbers, which is one for 'nth', 'mth', 'rot', 'sort', "
+            "'slice', 'ecils', 'iter', 'group' and 'stream', the first two for 'swap' and the "
+            "whole run for 'indexmap'; and as a "
+            "list of atoms, which is what 'sub' searches for, what 'lookup' reads as its table, "
             "what the set modes 'sect', 'union', 'unique', 'filter', 'compare' and 'change' take "
-            "as the other list. So '.zl swap 2 4', '.zl indexmap 3 1 2', '.zl sub 60 64', "
-            "'.zl lookup do re mi' and '.zl sect 60 62 64' are all legal. 'thin' takes no argument "
+            "as the other list, what 'join' appends and 'lace' interleaves, and what 'reg' starts "
+            "out holding. So '.zl swap 2 4', '.zl indexmap 3 1 2', '.zl sub 60 64', "
+            "'.zl lookup do re mi', '.zl sect 60 62 64', '.zl group 3' and '.zl join a b' are all "
+            "legal. 'thin', 'delace', 'queue' and 'stack' take no argument "
             "at all. The right inlet overwrites the argument "
             "afterwards. The 'scramble' seed is not a creation argument — the argument slot is "
             "taken by the index list — so a patch that needs a reproducible shuffle sends "
             "'zlseed <n>' to the left inlet.",
             "[<1-256>] [len|rev|nth|mth|rot|scramble|sort|slice|swap|indexmap|sub|lookup|sect|"
-            "union|unique|thin|filter|compare|change] [<argument> ...]");
+            "union|unique|thin|filter|compare|change|reg|iter|join|lace|delace|ecils|group|stream|"
+            "queue|stack] [<argument> ...]");
 }
 
 // ─── the mode vocabulary ────────────────────────────────────────────────────
@@ -518,6 +573,7 @@ PARM_CLEAR() {
   stored.Clear();
   work.Clear();
   argumentAtoms.Clear();
+  pending.Clear();
 }
 
 PARM_PARSE() {
@@ -581,6 +637,11 @@ PARM_PARSE() {
   // full reconfiguration, so `.zl lookup do re mi` must not come back still
   // holding the index a `.zl nth 2` left behind.
   SetArgumentNumbers();
+  // `reg` (#527) reads the right inlet's list as its contents rather than as an
+  // argument, and the creation arguments are the same slot — so `.zl reg do re
+  // mi` comes up already holding a list, which is what a patch that typed one
+  // there meant. A no-op in every other mode.
+  StoreRegister();
 
   if (refused != 0) {
     // Loudly, this being parameter parsing: `.combine`'s split between the two
@@ -994,9 +1055,289 @@ void gZl::SendChange(YSE::THREAD thread) {
   if (!same) SendAtoms(outputs[0], stored, render, thread);
 }
 
+// ─── the structural modes (#527) ────────────────────────────────────────────
+
+void gZl::StoreRegister() {
+  // The only mode for which the right inlet carries *contents* rather than an
+  // argument, and the mirror of `change`. Copied rather than swapped so the
+  // numeric and atom readings of the right inlet's list stay exactly as they
+  // were: a `reg` primed down a cord is still a `.zl` whose argument a later
+  // `mode nth` can read.
+  if (CurrentMode() != Mode::REG) return;
+  stored.Assign(argumentAtoms);
+}
+
+std::size_t gZl::ArgumentLength() const {
+  const int requested = argument.load(std::memory_order_relaxed);
+  if (requested < 1) return 0;
+
+  // Clamped to the working maximum list length rather than refused: a window or
+  // a group wider than the accumulator can ever hold would simply never
+  // complete, which is a silence a patch cannot tell from a broken cord.
+  const std::size_t limit_ = Limit();
+  return ((std::size_t)requested > limit_) ? limit_ : (std::size_t)requested;
+}
+
+void gZl::SendIter(YSE::THREAD thread) {
+  const std::size_t size = stored.Size();
+  const std::size_t chunk = ArgumentLength();
+  // Max: "sent out the left outlet as a series of lists consisting of the
+  // number of items specified". No chunk size is not a chunk size of one — it
+  // is an unconfigured object, and it stays quiet like `sub` without a pattern.
+  if (size == 0 || chunk == 0) return;
+
+  // The last chunk is short when the list does not divide, which is Max's "the
+  // final list may be shorter than specified"; SendAtomRange clamps, so that
+  // costs no arithmetic here. Each send completes in full — the whole subgraph
+  // behind the outlet — before the next leaves, which is `.iter`'s (#521)
+  // serialising contract and comes free from sending synchronously.
+  for (std::size_t at = 0; at < size; at += chunk)
+    SendAtomRange(outputs[0], stored, at, chunk, render, thread);
+}
+
+void gZl::SendJoin(YSE::THREAD thread) {
+  // Max: "accepts a list in both inlets and sends a list out the left outlet
+  // which is the combination of both input lists." Built atom by atom, as
+  // `union` is and for its reason: the result is drawn from two lists, and
+  // AssignOrder reorders one.
+  work.Clear();
+  std::size_t refused = work.AddRange(stored, 0, stored.Size(), Limit());
+  refused += work.AddRange(argumentAtoms, 0, argumentAtoms.Size(), Limit());
+  if (refused != 0) CountDrop(refused);
+  SendAtoms(outputs[0], work, render, thread);
+}
+
+void gZl::SendLace(YSE::THREAD thread) {
+  // Max: "if the left input list is 6.2 5.6 3.8 and the right input list is
+  // 3 5.3 2.4 the output list is 6.2 3 5.6 5.3 3.8 2.4."
+  const std::size_t size = stored.Size();
+  const std::size_t other = argumentAtoms.Size();
+  const std::size_t both = (size < other) ? size : other;
+
+  work.Clear();
+  std::size_t refused = 0;
+  for (std::size_t i = 0; i < both; i++) {
+    if (!work.AddAtom(stored, i, Limit())) refused++;
+    if (!work.AddAtom(argumentAtoms, i, Limit())) refused++;
+  }
+  // Two lists of different lengths interleave as far as the shorter one goes,
+  // and the tail of the longer follows rather than being dropped: `lace` is
+  // named for what it does to the pairs, not for a truncation, and `delace`
+  // undoing it is what a patch expects. An uneven pair means `delace` gives the
+  // atoms back in two lists of different lengths, which is exactly how they
+  // arrived.
+  refused += work.AddRange(stored, both, size - both, Limit());
+  refused += work.AddRange(argumentAtoms, both, other - both, Limit());
+
+  if (refused != 0) CountDrop(refused);
+  SendAtoms(outputs[0], work, render, thread);
+}
+
+void gZl::SendDelace(YSE::THREAD thread) {
+  // Max: "if the input list is 6.2 3 5.6 5.3 3.8 2.4 the left output list is
+  // 6.2 5.6 3.8 and the right output list is 3 5.3 2.4." So the atoms at the
+  // odd positions go right and the ones at the even positions go left, which is
+  // `lace` run backwards.
+  const std::size_t size = stored.Size();
+  if (size == 0) return;
+
+  // Right before left, Max's rule and `.trigger`'s. Built through `order` and
+  // the scratch list like the reordering group, in two passes rather than one,
+  // because `SendOrdered` overwrites the scratch with the half it sends.
+  std::size_t count = 0;
+  for (std::size_t i = 1; i < size; i += 2)
+    order[count++] = (std::uint16_t)i;
+  if (count != 0) {
+    work.AssignOrder(stored, order, count);
+    SendAtoms(outputs[1], work, render, thread);
+  }
+
+  count = 0;
+  for (std::size_t i = 0; i < size; i += 2)
+    order[count++] = (std::uint16_t)i;
+  SendOrdered(stored, count, thread);
+}
+
+void gZl::SendEcils(YSE::THREAD thread) {
+  const std::size_t size = stored.Size();
+  if (size == 0) return;
+
+  // Max: "the first list contains the number of items specified by the argument
+  // beginning from the end of the list and counting backward toward the first
+  // list element, and is sent out the right outlet." `slice` measured from the
+  // other end, so the two agree about which outlet carries which half and
+  // differ only in where the cut is — and, like `slice`, the argument is a
+  // count rather than an index, so it is clamped to the list rather than
+  // refused.
+  const int requested = argument.load(std::memory_order_relaxed);
+  std::size_t tail = 0;
+  if (requested > 0) tail = ((std::size_t)requested > size) ? size : (std::size_t)requested;
+  const std::size_t head = size - tail;
+
+  SendAtomRange(outputs[1], stored, head, tail, render, thread);
+  SendAtomRange(outputs[0], stored, 0, head, render, thread);
+}
+
+// ─── the accumulating modes (#527) ──────────────────────────────────────────
+
+void gZl::Collect() {
+  // Refused and counted rather than truncated, which is what every other
+  // arrival here does — the accumulator's ceiling is the working maximum list
+  // length, so a `queue` nobody empties stops taking atoms rather than growing.
+  const std::size_t refused = pending.AddRange(stored, 0, stored.Size(), Limit());
+  if (refused != 0) CountDrop(refused);
+}
+
+void gZl::RunGroup(YSE::THREAD thread, Trigger trigger) {
+  if (trigger == Trigger::BANG) {
+    // Max: "bang outputs the most recent stored items". The partial group, and
+    // the accumulator is emptied by it — a flush that left the atoms behind
+    // would send them a second time as part of the next complete group.
+    if (pending.Empty()) return;
+    SendAtoms(outputs[0], pending, render, thread);
+    pending.Clear();
+    return;
+  }
+
+  // Max: "a list received in the left inlet will be stored and the length of
+  // the list is compared to a number received in the right inlet or an
+  // argument"; the left outlet then "sends the specified quantity of items;
+  // remaining elements stay stored". With no group size there is nothing to
+  // compare against, so the atoms simply accumulate until one arrives or a bang
+  // flushes them.
+  const std::size_t size = ArgumentLength();
+  if (size == 0) {
+    Collect();
+    return;
+  }
+
+  // Collected in whatever bites the accumulator has room for, and drained
+  // between them. Doing it in one go would be shorter and would lose atoms: the
+  // store's ceiling is the working maximum list length, and a leftover partial
+  // group plus a full-length list is more than that — so a `.zl group 3` fed
+  // two 256-atom lists would refuse the tail of the second, which is a note
+  // dropped from material the object has plenty of room for. Draining first
+  // always leaves room, the remainder after a drain being shorter than one
+  // group and a group being no wider than the store.
+  const std::size_t incoming = stored.Size();
+  std::size_t taken = 0;
+  for (;;) {
+    // Every complete group, not just the first: one list may carry several, and
+    // an object that emitted one group per message would fall further behind
+    // the longer the lists were. Shortened once per bite rather than once per
+    // group — the sends read from the accumulator, and the guard is held
+    // throughout, so nothing can see the intermediate states.
+    const std::size_t held = pending.Size();
+    std::size_t at = 0;
+    while (held - at >= size) {
+      SendAtomRange(outputs[0], pending, at, size, render, thread);
+      at += size;
+    }
+    if (at != 0) pending.Keep(at, held - at);
+
+    if (taken >= incoming) break;
+
+    const std::size_t room = Limit() - pending.Size();
+    if (room == 0) {
+      // Unreachable while the group size is clamped to the store's ceiling, and
+      // kept because the alternative to a bounded loop here is an unbounded
+      // one on a path the audio callback takes.
+      CountDrop(incoming - taken);
+      break;
+    }
+    const std::size_t want = incoming - taken;
+    const std::size_t take = (room < want) ? room : want;
+    const std::size_t refused = pending.AddRange(stored, taken, take, Limit());
+    if (refused != 0) CountDrop(refused);
+    taken += take;
+  }
+}
+
+void gZl::RunStream(YSE::THREAD thread, Trigger trigger) {
+  const std::size_t window = ArgumentLength();
+  if (window == 0) {
+    // Max: "accepts a number in the right inlet which specifies the length of
+    // the output list. Following the receipt of this number, the object will
+    // collect this number of items." No length, nothing to collect into — and
+    // nothing kept either, so a length arriving later starts a clean window
+    // rather than one holding whatever went past while the object was
+    // unconfigured.
+    if (trigger == Trigger::ARRIVAL) pending.Clear();
+    return;
+  }
+
+  if (trigger == Trigger::ARRIVAL) {
+    // Room made *before* the atoms are collected, not after. The accumulator's
+    // ceiling is the working maximum list length, so a window as wide as that
+    // would otherwise refuse the very atoms whose job is to push its oldest
+    // ones out, and the window would freeze the moment it filled.
+    const std::size_t incoming = stored.Size();
+    const std::size_t room = (incoming >= window) ? 0 : window - incoming;
+    if (pending.Size() > room) pending.Keep(pending.Size() - room, room);
+    Collect();
+  }
+
+  // A sliding window: the oldest atoms fall off the front, so once it is full
+  // every arrival sends the last `window` atoms rather than starting a fresh
+  // collection. That is what makes `stream` the running view of a stream and
+  // `group` the chunking of one — the two modes differ in nothing else.
+  //
+  // Trimmed on a bang as well as on an arrival, so a window narrowed live — or
+  // an accumulator inherited from a `queue`, the four modes sharing one — is
+  // answered at its current width rather than reported as a negative shortfall.
+  if (pending.Size() > window) pending.Keep(pending.Size() - window, window);
+
+  // Max sends a flag out the right outlet for this mode, in answer to the
+  // *right inlet* setting the length. This object's right inlet is cold and
+  // never emits, so the flag is carried where it can be: the number of atoms
+  // the window still wants, sent on every stimulus, 0 meaning the left outlet
+  // is carrying a complete window. It is what makes the left outlet's silence
+  // readable — `sub`'s count and `change`'s flag, for their reason — and it is
+  // sent first, Max's right-to-left rule.
+  const std::size_t held = pending.Size();
+  outputs[1].SendInt((int)(window - held), thread);
+  if (held < window) return;
+  SendAtoms(outputs[0], pending, render, thread);
+}
+
+void gZl::RunPop(YSE::THREAD thread, Trigger trigger, bool fromBack) {
+  if (trigger == Trigger::ARRIVAL) {
+    // Max, of `queue`: "functions as a first-in-first-out (FIFO) stack"; of
+    // `stack`: "last-in-first-out". Pushing is not popping, so an arrival sends
+    // nothing at all — a queue that emitted what it was given would be a wire.
+    Collect();
+    return;
+  }
+
+  if (pending.Empty()) {
+    // Nothing to pop. A bang out the right outlet, which is `sect`'s answer to
+    // the same question and for its reason: the left outlet is silent both when
+    // the store is empty and when the object is not wired up, so this is the
+    // only way a patch tells the two apart — and it is what lets a patch drain
+    // a queue by banging it until the right outlet answers.
+    outputs[1].SendBang(thread);
+    return;
+  }
+
+  // Atom by atom, which is the unit everything in this object works in: a list
+  // pushed into a queue is pushed as its atoms, so `1 2 3` comes back out as
+  // three bangs' worth of values rather than as one list. That is Max's
+  // behaviour and it is what makes the mode a *queue* rather than a register of
+  // lists.
+  //
+  // The atom is copied out before the store is shortened, so what the object
+  // holds is settled before anything is sent — `change`'s arrangement, and here
+  // it costs one atom.
+  const std::size_t at = fromBack ? pending.Size() - 1 : 0;
+  work.Clear();
+  if (!work.AddAtom(pending, at, Limit())) CountDrop();
+  pending.Keep(fromBack ? 0 : 1, pending.Size() - 1);
+  SendAtoms(outputs[0], work, render, thread);
+}
+
 // ─── the modes ──────────────────────────────────────────────────────────────
 
-void gZl::Run(YSE::THREAD thread) {
+void gZl::Run(YSE::THREAD thread, Trigger trigger) {
   switch (CurrentMode()) {
   case Mode::LEN:
     // Max: "outputs number of elements in the list out the left outlet." An
@@ -1156,6 +1497,59 @@ void gZl::Run(YSE::THREAD thread) {
     break;
   }
 
+  case Mode::REG:
+    // Max: "a list received in the left inlet is sent out the left outlet
+    // immediately … a bang sends the stored list out the left outlet." The
+    // stored list is already the register — see the class notes on how the
+    // right inlet writes to it.
+    SendAtoms(outputs[0], stored, render, thread);
+    break;
+
+  case Mode::ITER:
+    // The stored list out in chunks.
+    SendIter(thread);
+    break;
+
+  case Mode::JOIN:
+    // The two lists, one after the other.
+    SendJoin(thread);
+    break;
+
+  case Mode::LACE:
+    // The two lists interleaved.
+    SendLace(thread);
+    break;
+
+  case Mode::DELACE:
+    // One list pulled apart into the two `lace` would have made it from.
+    SendDelace(thread);
+    break;
+
+  case Mode::ECILS:
+    // The list cut in two, counting from the end.
+    SendEcils(thread);
+    break;
+
+  case Mode::GROUP:
+    // The stream chunked into fixed-size lists.
+    RunGroup(thread, trigger);
+    break;
+
+  case Mode::STREAM:
+    // The running view of the last N atoms.
+    RunStream(thread, trigger);
+    break;
+
+  case Mode::QUEUE:
+    // First in, first out.
+    RunPop(thread, trigger, false);
+    break;
+
+  case Mode::STACK:
+    // Last in, first out — `queue` popped from the other end.
+    RunPop(thread, trigger, true);
+    break;
+
   case Mode::NONE:
   default:
     // No mode word yet. The list is stored — a later `mode <name>` and a bang
@@ -1174,7 +1568,7 @@ void gZl::Take(const char* text, std::size_t length, YSE::THREAD thread) {
   // least.
   if (refused != 0) CountDrop(refused);
 
-  Run(thread);
+  Run(thread, Trigger::ARRIVAL);
   Leave();
 }
 
@@ -1182,7 +1576,7 @@ void gZl::TakeInt(int value, YSE::THREAD thread) {
   if (!Enter()) return;
   stored.Clear();
   if (!stored.AddInt(value, Limit())) CountDrop();
-  Run(thread);
+  Run(thread, Trigger::ARRIVAL);
   Leave();
 }
 
@@ -1190,7 +1584,7 @@ void gZl::TakeFloat(float value, YSE::THREAD thread) {
   if (!Enter()) return;
   stored.Clear();
   if (!stored.AddFloat(value, Limit())) CountDrop();
-  Run(thread);
+  Run(thread, Trigger::ARRIVAL);
   Leave();
 }
 
@@ -1247,6 +1641,7 @@ void gZl::TakeArgument(int value) {
   // for the one-item list `3` rather than keeping whatever it held before.
   argumentAtoms.Clear();
   if (!argumentAtoms.AddInt(value, Limit())) CountDrop();
+  StoreRegister();
   Leave();
 }
 
@@ -1258,6 +1653,7 @@ void gZl::TakeArguments(const char* text, std::size_t length) {
   argumentAtoms.Clear();
   const std::size_t refused = argumentAtoms.AddTokens(text, length, Limit());
   ReadArgumentNumbers();
+  StoreRegister();
 
   Leave();
 
@@ -1271,10 +1667,13 @@ void gZl::TakeArguments(const char* text, std::size_t length) {
 bool gZl::Command(const std::string& value, std::size_t begin, std::size_t end) {
   if (TokenIs(value, begin, end, kWordClear, sizeof(kWordClear) - 1)) {
     // Max: "zlclear reinitializes the zl object." The mode and the limit are
-    // configuration rather than contents, so they stay.
+    // configuration rather than contents, so they stay — and the accumulating
+    // modes' store (#527) is contents, so it goes: this is the only way a patch
+    // empties a half-filled `group` or an abandoned `queue`.
     if (!Enter()) return true;
     stored.Clear();
     work.Clear();
+    pending.Clear();
     Leave();
     return true;
   }
@@ -1339,7 +1738,9 @@ BANG_IN(Again) {
   // right inlet holds an argument and has nothing to do with a bang.
   if (inlet != 0) return;
   if (!Enter()) return;
-  Run(thread);
+  // The one stimulus the accumulating modes (#527) read as "consume" rather
+  // than "collect" — see the class notes.
+  Run(thread, Trigger::BANG);
   Leave();
 }
 

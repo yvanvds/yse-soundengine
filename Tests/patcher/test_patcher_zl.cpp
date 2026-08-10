@@ -1,7 +1,7 @@
-// Tests for `.zl` (issues #523, #524) — the patcher's list-processing object,
-// and the design gate for the whole list group.
+// Tests for `.zl` (issues #523, #524, #525, #526, #527) — the patcher's
+// list-processing object, and the design gate for the whole list group.
 //
-// Three things are being pinned here, and only the first of them is about the
+// Four things are being pinned here, and only the first of them is about the
 // modes themselves:
 //
 //   - **the modes**: `len`, `rev` and `nth` from #523, including `nth`'s two
@@ -9,7 +9,14 @@
 //     reordering group from #524 — `rot`, `scramble`, `sort`, `swap` and
 //     `indexmap`, including the index map `sort` publishes, the 1-based
 //     numbering that lets it be fed straight back into an `indexmap`, and the
-//     seeded shuffle that makes `scramble` assertable at all;
+//     seeded shuffle that makes `scramble` assertable at all; and the
+//     structural group from #527 — `reg`, `iter`, `join`, `lace`, `delace`,
+//     `ecils`, `group`, `stream`, `queue` and `stack`;
+//   - **the one store that survives a message** (#527): the accumulator the
+//     four collecting modes share, the bang that consumes rather than re-runs,
+//     and `AtomList::Keep` reclaiming the characters a consumed atom leaves
+//     behind — without which a queue popped often enough would refuse atoms it
+//     has room for;
 //   - **the bounded storage model** the siblings inherit — 256 atoms of at most
 //     1024 characters, pre-allocated, with overflow *refused and counted*
 //     rather than truncated, and the head kept rather than the tail;
@@ -27,7 +34,9 @@
 // No audio device required.
 
 #include <doctest/doctest.h>
+#include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -57,6 +66,53 @@ namespace {
   struct Rig {
     MultiSink left;
     MultiSink right;
+
+    void Wire(gZl& obj) {
+      TestHelpers::Wire(obj, 0, left);
+      TestHelpers::Wire(obj, 1, right);
+    }
+
+    void reset() {
+      left.reset();
+      right.reset();
+    }
+  };
+
+  // Records every message that arrived, in order and with its kind, so "these
+  // messages, in this order, of these types" is an assertion rather than an
+  // inference. `MultiSink` keeps only the last of each kind, which is exactly
+  // what the modes that send *several* messages per stimulus (#527's `iter`
+  // and `group`) need a test not to do. Borrowed from `.iter`'s tests (#521),
+  // which needed it first and for the same reason.
+  struct TallySink : YSE::PATCHER::pObject {
+    std::vector<std::string> got; // "i:5", "f", "l:a b", "bang"
+
+    TallySink() : pObject(false) {
+      inputs.emplace_back(this, true, 0);
+      inputs.back().RegisterBang([this](int, YSE::THREAD) { got.push_back("bang"); });
+      inputs.back().RegisterInt(
+          [this](int v, int, YSE::THREAD) { got.push_back("i:" + std::to_string(v)); });
+      inputs.back().RegisterFloat([this](float, int, YSE::THREAD) { got.push_back("f"); });
+      inputs.back().RegisterList(
+          [this](const std::string& v, int, YSE::THREAD) { got.push_back("l:" + v); });
+      got.reserve(1024);
+    }
+    const char* Type() const override {
+      return "tally_sink";
+    }
+    void Calculate(YSE::THREAD) override {}
+    void SetMessage(const std::string&, float) override {}
+
+    void reset() {
+      got.clear();
+    }
+  };
+
+  // A `.zl` with a tallying sink on each outlet — the rig the multi-send modes
+  // need. Sinks first, so the object dies before the inlets it is wired to.
+  struct TallyRig {
+    TallySink left;
+    TallySink right;
 
     void Wire(gZl& obj) {
       TestHelpers::Wire(obj, 0, left);
@@ -221,6 +277,92 @@ TEST_SUITE("patcher") {
     CHECK(out.Empty());
   }
 
+  TEST_CASE("zl: AtomList appends atoms of another list, and a run of them (#527)") {
+    // The other direction from Assign / AssignOrder, which take a whole backing
+    // text: this builds one list out of two, which is what `join` and `lace`
+    // need (#527) and what `union` (#526) did by hand.
+    AtomList a;
+    a.AddTokens("1 2");
+    AtomList b;
+    b.AddTokens("x y z");
+
+    AtomList out;
+    std::string text;
+    AtomList::ReserveRender(text);
+
+    CHECK(out.AddRange(a, 0, a.Size()) == 0);
+    CHECK(out.AddAtom(b, 1));
+    out.Render(text);
+    CHECK(text == "1 2 y");
+
+    // The run is clamped to the source, so a count past its end is not a
+    // refusal — there was no atom there to refuse.
+    CHECK(out.AddRange(b, 2, 99) == 0);
+    out.Render(text);
+    CHECK(text == "1 2 y z");
+    CHECK(out.AddRange(b, 9, 3) == 0);
+    CHECK(out.Size() == 4);
+
+    // An index naming no atom is refused rather than appending a blank.
+    CHECK_FALSE(out.AddAtom(b, 7));
+    CHECK(out.Size() == 4);
+
+    // The ceiling still applies, and what does not fit is reported.
+    AtomList full;
+    for (std::size_t i = 0; i < AtomList::MAX_ATOMS; i++)
+      full.Add("1", 1);
+    CHECK(full.AddRange(a, 0, 2) == 2);
+    CHECK(full.Size() == AtomList::MAX_ATOMS);
+  }
+
+  TEST_CASE("zl: AtomList keeps a run and reclaims the characters it drops (#527)") {
+    // The primitive the accumulating modes rest on. The text is append-only
+    // everywhere else, which is fine for a list rebuilt per message and fatal
+    // for one consumed from an end over and over — so this is the operation
+    // that moves the retained characters down rather than leaving holes.
+    AtomList list;
+    list.AddTokens("aa bb cc dd");
+
+    std::string text;
+    AtomList::ReserveRender(text);
+
+    list.Keep(1, 2);
+    CHECK(list.Size() == 2);
+    list.Render(text);
+    CHECK(text == "bb cc");
+
+    // The atoms still read as themselves after the move — the table followed
+    // the characters rather than being left pointing at the old offsets.
+    CHECK(list.AtomLength(0) == 2);
+    CHECK(std::string(list.AtomText(0), 2) == "bb");
+
+    // Both bounds are clamped, and a begin past the end empties the list.
+    list.Keep(0, 99);
+    CHECK(list.Size() == 2);
+    list.Keep(5, 1);
+    CHECK(list.Empty());
+
+    // The property that matters: pushing and dropping forever costs no text.
+    // 400 rounds of a four-character atom is 1600 characters through a 1024
+    // character buffer, so an append-only list would have started refusing.
+    AtomList rolling;
+    for (int round = 0; round < 400; round++) {
+      REQUIRE(rolling.Add("abcd", 4));
+      rolling.Keep(1, rolling.Size() - 1);
+    }
+    CHECK(rolling.Empty());
+
+    // And the numeric classification survives the move, since it travels in the
+    // table rather than being re-read from the characters.
+    AtomList mixed;
+    mixed.AddTokens("sym 1 2.5");
+    mixed.Keep(1, 2);
+    CHECK(mixed.AtomIsNumber(0));
+    CHECK(mixed.AtomValue(0) == 1.f);
+    CHECK(mixed.AtomIsFloat(1));
+    CHECK(mixed.AtomValue(1) == doctest::Approx(2.5f));
+  }
+
   // ─── shape and registration ─────────────────────────────────────────────────
 
   TEST_CASE("zl: registered, two inlets and two outlets (#523)") {
@@ -283,18 +425,19 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("zl: an unknown mode word leaves the object inert, not guessing (#523)") {
-    // `queue` and `median` belong to mode groups that are not ported yet — the
-    // words this test needs are whichever ones are still unimplemented, and it
-    // moved off `scramble` / `sort` when #524 implemented them.
+    // `median` and `sum` are the last two words of Max's vocabulary that are
+    // not ported yet — the words this test needs are whichever ones are still
+    // unimplemented, and it moved off `scramble` / `sort` when #524 implemented
+    // them and off `queue` when #527 did.
     gZl obj;
-    obj.SetParams("queue");
+    obj.SetParams("median");
     CHECK(obj.CurrentMode() == Mode::NONE);
 
     // And a mode message naming a mode that is not implemented yet leaves the
     // mode where it was, rather than falling back to another one.
     obj.SetParams("rev");
     REQUIRE(obj.CurrentMode() == Mode::REV);
-    obj.GetInlet(0)->SetList("mode median", YSE::T_GUI);
+    obj.GetInlet(0)->SetList("mode sum", YSE::T_GUI);
     CHECK(obj.CurrentMode() == Mode::REV);
   }
 
@@ -302,10 +445,12 @@ TEST_SUITE("patcher") {
     // The two halves of the vocabulary have to agree: a spelling ReadMode knows
     // and ModeName does not is a mode a patch can select and the documentation
     // cannot name.
-    const Mode all[] = {Mode::LEN,      Mode::REV,    Mode::NTH,      Mode::ROT,   Mode::SORT,
-                        Mode::SCRAMBLE, Mode::SWAP,   Mode::INDEXMAP, Mode::MTH,   Mode::SLICE,
-                        Mode::SUB,      Mode::LOOKUP, Mode::SECT,     Mode::UNION, Mode::UNIQUE,
-                        Mode::THIN,     Mode::FILTER, Mode::COMPARE,  Mode::CHANGE};
+    const Mode all[] = {Mode::LEN,      Mode::REV,    Mode::NTH,      Mode::ROT,    Mode::SORT,
+                        Mode::SCRAMBLE, Mode::SWAP,   Mode::INDEXMAP, Mode::MTH,    Mode::SLICE,
+                        Mode::SUB,      Mode::LOOKUP, Mode::SECT,     Mode::UNION,  Mode::UNIQUE,
+                        Mode::THIN,     Mode::FILTER, Mode::COMPARE,  Mode::CHANGE, Mode::REG,
+                        Mode::ITER,     Mode::JOIN,   Mode::LACE,     Mode::DELACE, Mode::ECILS,
+                        Mode::GROUP,    Mode::STREAM, Mode::QUEUE,    Mode::STACK};
     for (Mode wanted : all) {
       const char* word = gZl::ModeName(wanted);
       REQUIRE(word[0] != '\0');
@@ -1751,6 +1896,543 @@ TEST_SUITE("patcher") {
 
   // ─── mode changes at run time ───────────────────────────────────────────────
 
+  // ─── the structural modes (#527) ────────────────────────────────────────────
+
+  TEST_CASE("zl reg: holds a list, and the right inlet primes it silently (#527)") {
+    Rig rig;
+    gZl obj;
+    obj.SetParams("reg");
+    rig.Wire(obj);
+
+    // Max: "a list received in the left inlet is sent out the left outlet
+    // immediately."
+    obj.GetInlet(0)->SetList("60 64 67", YSE::T_GUI);
+    CHECK(rig.left.gotList);
+    CHECK(rig.left.listValue == "60 64 67");
+    CHECK_FALSE(rig.right.gotList);
+    CHECK_FALSE(rig.right.gotBang);
+
+    // "A bang sends the stored list out the left outlet" — and it is the same
+    // list rather than a consumed one, so banging twice sends it twice.
+    rig.reset();
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.left.listValue == "60 64 67");
+    rig.reset();
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.left.listValue == "60 64 67");
+
+    // "A list received in the right inlet is stored" — stored, and *not* sent.
+    // This is the one mode for which the cold inlet carries contents rather
+    // than an argument.
+    rig.reset();
+    obj.GetInlet(1)->SetList("72 76", YSE::T_GUI);
+    CHECK_FALSE(rig.left.gotList);
+    CHECK_FALSE(rig.left.gotInt);
+    CHECK(obj.Stored() == 2);
+
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.left.listValue == "72 76");
+
+    // A bare number on the cold inlet is a list of one there too.
+    rig.reset();
+    obj.GetInlet(1)->SetInt(5, YSE::T_GUI);
+    CHECK_FALSE(rig.left.gotInt);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.left.gotInt);
+    CHECK(rig.left.intValue == 5);
+
+    // The creation arguments prime it, being the same slot.
+    gZl primed;
+    Rig primedRig;
+    primed.SetParams("reg do re mi");
+    primedRig.Wire(primed);
+    primed.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(primedRig.left.listValue == "do re mi");
+  }
+
+  TEST_CASE("zl iter: sends the list out in chunks, the last one short (#527)") {
+    // Max: "sent out the left outlet as a series of lists consisting of the
+    // number of items specified"; "the final list may be shorter". Several
+    // messages from one stimulus, which is why this needs a tallying sink.
+    TallyRig rig;
+    gZl obj;
+    obj.SetParams("iter 2");
+    rig.Wire(obj);
+
+    obj.GetInlet(0)->SetList("1 2 3 4 5", YSE::T_GUI);
+    REQUIRE(rig.left.got.size() == 3);
+    CHECK(rig.left.got[0] == "l:1 2");
+    CHECK(rig.left.got[1] == "l:3 4");
+    // The short last chunk holds one atom, and one atom leaves as the value it
+    // spells rather than as a list of one — the family's transport rule.
+    CHECK(rig.left.got[2] == "i:5");
+    CHECK(rig.right.got.empty());
+
+    // A bang re-runs it over the same list: the mode reads the input register
+    // rather than consuming it.
+    rig.reset();
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.left.got.size() == 3);
+
+    // A chunk size that divides the list leaves no short chunk.
+    rig.reset();
+    obj.GetInlet(1)->SetInt(5, YSE::T_GUI);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    REQUIRE(rig.left.got.size() == 1);
+    CHECK(rig.left.got[0] == "l:1 2 3 4 5");
+
+    // No chunk size is not a chunk size of one: the object is unconfigured and
+    // stays quiet, which is `sub`-without-a-pattern's rule.
+    rig.reset();
+    obj.GetInlet(1)->SetInt(0, YSE::T_GUI);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.left.got.empty());
+  }
+
+  TEST_CASE("zl join: sends the two lists one after the other (#527)") {
+    Rig rig;
+    gZl obj;
+    obj.SetParams("join 4 5");
+    rig.Wire(obj);
+
+    obj.GetInlet(0)->SetList("1 2 3", YSE::T_GUI);
+    CHECK(rig.left.listValue == "1 2 3 4 5");
+    CHECK_FALSE(rig.right.gotList);
+
+    // The right inlet is cold: it re-points the second half without emitting.
+    rig.reset();
+    obj.GetInlet(1)->SetList("a b", YSE::T_GUI);
+    CHECK_FALSE(rig.left.gotList);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.left.listValue == "1 2 3 a b");
+
+    // With nothing in the right inlet the result is the stored list, not
+    // silence: a list with nothing appended to it is the list.
+    gZl alone;
+    Rig aloneRig;
+    alone.SetParams("join");
+    aloneRig.Wire(alone);
+    alone.GetInlet(0)->SetList("1 2", YSE::T_GUI);
+    CHECK(aloneRig.left.listValue == "1 2");
+  }
+
+  TEST_CASE("zl lace: interleaves the two lists and keeps the tail of the longer (#527)") {
+    Rig rig;
+    gZl obj;
+    obj.SetParams("lace 3 5.3 2.4");
+    rig.Wire(obj);
+
+    // Max's own example: left 6.2 5.6 3.8, right 3 5.3 2.4, out 6.2 3 5.6 5.3
+    // 3.8 2.4.
+    obj.GetInlet(0)->SetList("6.2 5.6 3.8", YSE::T_GUI);
+    CHECK(rig.left.listValue == "6.2 3 5.6 5.3 3.8 2.4");
+    CHECK_FALSE(rig.right.gotList);
+
+    // Uneven lists interleave as far as the shorter goes and the tail of the
+    // longer follows rather than being dropped — which is what makes `delace`
+    // able to give both lists back.
+    rig.reset();
+    obj.GetInlet(1)->SetList("a b", YSE::T_GUI);
+    obj.GetInlet(0)->SetList("1 2 3 4", YSE::T_GUI);
+    CHECK(rig.left.listValue == "1 a 2 b 3 4");
+
+    rig.reset();
+    obj.GetInlet(1)->SetList("a b c d", YSE::T_GUI);
+    obj.GetInlet(0)->SetList("1 2", YSE::T_GUI);
+    CHECK(rig.left.listValue == "1 a 2 b c d");
+  }
+
+  TEST_CASE("zl delace: pulls a laced list apart, right outlet first (#527)") {
+    // Max's own example run backwards: 6.2 3 5.6 5.3 3.8 2.4 gives 6.2 5.6 3.8
+    // left and 3 5.3 2.4 right.
+    std::vector<char> log;
+    OrderSink left;
+    OrderSink right;
+    left.log = &log;
+    left.tag = 'L';
+    right.log = &log;
+    right.tag = 'R';
+
+    gZl obj;
+    obj.SetParams("delace");
+    TestHelpers::Wire(obj, 0, left);
+    TestHelpers::Wire(obj, 1, right);
+
+    obj.GetInlet(0)->SetList("6.2 3 5.6 5.3 3.8 2.4", YSE::T_GUI);
+    REQUIRE(log.size() == 2);
+    CHECK(log[0] == 'R');
+    CHECK(log[1] == 'L');
+    CHECK(left.lastList == "6.2 5.6 3.8");
+    CHECK(right.lastList == "3 5.3 2.4");
+
+    // An odd-length list leaves the extra atom on the left, which is where
+    // `lace` would have taken it from.
+    log.clear();
+    obj.GetInlet(0)->SetList("1 2 3", YSE::T_GUI);
+    CHECK(left.lastList == "1 3");
+    CHECK(right.lastKind == OrderSink::INT);
+    CHECK(right.lastInt == 2);
+
+    // A one-atom list has no odd positions at all, so the right outlet stays
+    // silent rather than sending an empty message.
+    log.clear();
+    obj.GetInlet(0)->SetInt(9, YSE::T_GUI);
+    REQUIRE(log.size() == 1);
+    CHECK(log[0] == 'L');
+    CHECK(left.lastInt == 9);
+  }
+
+  TEST_CASE("zl ecils: cuts the list in two counting from the end (#527)") {
+    // Max: "the first list contains the number of items specified by the
+    // argument beginning from the end of the list … and is sent out the right
+    // outlet." `slice` measured from the other end.
+    std::vector<char> log;
+    OrderSink left;
+    OrderSink right;
+    left.log = &log;
+    left.tag = 'L';
+    right.log = &log;
+    right.tag = 'R';
+
+    gZl obj;
+    obj.SetParams("ecils 2");
+    TestHelpers::Wire(obj, 0, left);
+    TestHelpers::Wire(obj, 1, right);
+
+    obj.GetInlet(0)->SetList("1 2 3 4 5", YSE::T_GUI);
+    REQUIRE(log.size() == 2);
+    CHECK(log[0] == 'R');
+    CHECK(log[1] == 'L');
+    CHECK(left.lastList == "1 2 3");
+    CHECK(right.lastList == "4 5");
+
+    // A count rather than an index, so it is clamped to the list rather than
+    // refused — `slice`'s rule, and the two modes agree about it.
+    log.clear();
+    obj.GetInlet(1)->SetInt(99, YSE::T_GUI);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    REQUIRE(log.size() == 1);
+    CHECK(log[0] == 'R');
+    CHECK(right.lastList == "1 2 3 4 5");
+
+    log.clear();
+    obj.GetInlet(1)->SetInt(0, YSE::T_GUI);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    REQUIRE(log.size() == 1);
+    CHECK(log[0] == 'L');
+    CHECK(left.lastList == "1 2 3 4 5");
+  }
+
+  TEST_CASE("zl group: sends each complete group and keeps the remainder (#527)") {
+    TallyRig rig;
+    gZl obj;
+    obj.SetParams("group 3");
+    rig.Wire(obj);
+
+    // Nothing until the group is complete.
+    obj.GetInlet(0)->SetList("1 2", YSE::T_GUI);
+    CHECK(rig.left.got.empty());
+    CHECK(obj.Pending() == 2);
+
+    // "The left outlet sends the specified quantity of items; remaining
+    // elements stay stored."
+    obj.GetInlet(0)->SetList("3 4", YSE::T_GUI);
+    REQUIRE(rig.left.got.size() == 1);
+    CHECK(rig.left.got[0] == "l:1 2 3");
+    CHECK(obj.Pending() == 1);
+
+    // Every complete group a single message carries, not just the first — an
+    // object that emitted one per message would fall behind on long lists.
+    rig.reset();
+    obj.GetInlet(0)->SetList("5 6 7 8 9", YSE::T_GUI);
+    REQUIRE(rig.left.got.size() == 2);
+    CHECK(rig.left.got[0] == "l:4 5 6");
+    CHECK(rig.left.got[1] == "l:7 8 9");
+    CHECK(obj.Pending() == 0);
+    CHECK(rig.right.got.empty());
+  }
+
+  TEST_CASE("zl group: a bang flushes the partial group (#527)") {
+    // Max: "bang outputs the most recent stored items". The bang is not a
+    // re-run here — it is the flush, and it empties the accumulator, because a
+    // flush that left the atoms behind would send them again as part of the
+    // next complete group.
+    TallyRig rig;
+    gZl obj;
+    obj.SetParams("group 4");
+    rig.Wire(obj);
+
+    obj.GetInlet(0)->SetList("1 2 3", YSE::T_GUI);
+    REQUIRE(rig.left.got.empty());
+
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    REQUIRE(rig.left.got.size() == 1);
+    CHECK(rig.left.got[0] == "l:1 2 3");
+    CHECK(obj.Pending() == 0);
+
+    // Nothing left to flush: silence rather than an empty message.
+    rig.reset();
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.left.got.empty());
+
+    // With no group size at all the atoms simply accumulate — there is nothing
+    // to compare their number against — and a bang still gets them out.
+    rig.reset();
+    gZl loose;
+    TallyRig looseRig;
+    loose.SetParams("group");
+    looseRig.Wire(loose);
+    loose.GetInlet(0)->SetList("1 2 3 4 5 6", YSE::T_GUI);
+    CHECK(looseRig.left.got.empty());
+    CHECK(loose.Pending() == 6);
+    loose.GetInlet(0)->SetBang(YSE::T_GUI);
+    REQUIRE(looseRig.left.got.size() == 1);
+    CHECK(looseRig.left.got[0] == "l:1 2 3 4 5 6");
+  }
+
+  TEST_CASE("zl stream: keeps a sliding window and reports the shortfall (#527)") {
+    Rig rig;
+    gZl obj;
+    obj.SetParams("stream 3");
+    rig.Wire(obj);
+
+    // Filling: nothing out the left outlet, and the right one says how many
+    // more atoms the window still wants — the signal that makes the left
+    // outlet's silence readable.
+    obj.GetInlet(0)->SetInt(1, YSE::T_GUI);
+    CHECK_FALSE(rig.left.gotInt);
+    CHECK_FALSE(rig.left.gotList);
+    CHECK(rig.right.gotInt);
+    CHECK(rig.right.intValue == 2);
+
+    rig.reset();
+    obj.GetInlet(0)->SetInt(2, YSE::T_GUI);
+    CHECK(rig.right.intValue == 1);
+    CHECK_FALSE(rig.left.gotList);
+
+    rig.reset();
+    obj.GetInlet(0)->SetInt(3, YSE::T_GUI);
+    CHECK(rig.right.intValue == 0);
+    CHECK(rig.left.listValue == "1 2 3");
+
+    // Sliding, not re-collecting: every further arrival sends the last three.
+    rig.reset();
+    obj.GetInlet(0)->SetInt(4, YSE::T_GUI);
+    CHECK(rig.left.listValue == "2 3 4");
+    CHECK(obj.Pending() == 3);
+
+    // A bang re-sends the window without sliding it — the accumulating modes'
+    // bang consumes or re-reads, never pushes.
+    rig.reset();
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.left.listValue == "2 3 4");
+    CHECK(obj.Pending() == 3);
+
+    // A whole list pushes all of its atoms at once, so a list longer than the
+    // window leaves only its tail.
+    rig.reset();
+    obj.GetInlet(0)->SetList("7 8 9 10 11", YSE::T_GUI);
+    CHECK(rig.left.listValue == "9 10 11");
+
+    // No window length is an unconfigured object: silent on both outlets, and
+    // holding nothing, so a length arriving later starts clean.
+    rig.reset();
+    obj.GetInlet(1)->SetInt(0, YSE::T_GUI);
+    obj.GetInlet(0)->SetInt(5, YSE::T_GUI);
+    CHECK_FALSE(rig.left.gotList);
+    CHECK_FALSE(rig.right.gotInt);
+    CHECK(obj.Pending() == 0);
+
+    // A window as wide as the whole accumulator still slides. Room is made
+    // before the atoms are collected, so the store never has to refuse the very
+    // ones whose job is to push its oldest out — get that backwards and the
+    // window freezes the moment it fills, which is the widest window's only
+    // failure mode and the one nobody would look for.
+    Rig fullRig;
+    gZl full;
+    full.SetParams("4 stream 4");
+    fullRig.Wire(full);
+
+    full.GetInlet(0)->SetList("1 2 3 4", YSE::T_GUI);
+    CHECK(fullRig.left.listValue == "1 2 3 4");
+    fullRig.reset();
+    full.GetInlet(0)->SetInt(5, YSE::T_GUI);
+    CHECK(fullRig.left.listValue == "2 3 4 5");
+    fullRig.reset();
+    full.GetInlet(0)->SetList("6 7", YSE::T_GUI);
+    CHECK(fullRig.left.listValue == "4 5 6 7");
+    CHECK(full.Dropped() == 0);
+  }
+
+  TEST_CASE("zl group: a long list is collected in bites and drained between them (#527)") {
+    // The accumulator is bounded by the working maximum list length, and a
+    // leftover partial group plus a full list is more than that. Collecting in
+    // one go would refuse the tail — atoms the object has ample room for, since
+    // it hands most of them straight back out. Driven at a limit of 4 so the
+    // boundary is reachable in a few messages rather than in hundreds.
+    TallyRig rig;
+    gZl obj;
+    obj.SetParams("4 group 3");
+    rig.Wire(obj);
+
+    obj.GetInlet(0)->SetList("1 2 3 4", YSE::T_GUI);
+    REQUIRE(rig.left.got.size() == 1);
+    CHECK(rig.left.got[0] == "l:1 2 3");
+    REQUIRE(obj.Pending() == 1);
+
+    // A remainder of 1 plus a full 4 is 5 atoms through a store that holds 4.
+    rig.reset();
+    obj.GetInlet(0)->SetList("5 6 7 8", YSE::T_GUI);
+    REQUIRE(rig.left.got.size() == 1);
+    CHECK(rig.left.got[0] == "l:4 5 6");
+    CHECK(obj.Pending() == 2);
+    CHECK(obj.Dropped() == 0);
+
+    // And the two it is still holding are the ones it should be.
+    rig.reset();
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    REQUIRE(rig.left.got.size() == 1);
+    CHECK(rig.left.got[0] == "l:7 8");
+  }
+
+  TEST_CASE("zl queue: a bang pops the oldest atom, and bangs the right outlet when empty (#527)") {
+    Rig rig;
+    gZl obj;
+    obj.SetParams("queue");
+    rig.Wire(obj);
+
+    // Pushing is not popping: an arrival stores and sends nothing at all.
+    obj.GetInlet(0)->SetList("1 2 3", YSE::T_GUI);
+    CHECK_FALSE(rig.left.gotInt);
+    CHECK_FALSE(rig.left.gotList);
+    CHECK(obj.Pending() == 3);
+
+    // "Functions as a first-in-first-out (FIFO) stack; it outputs the oldest
+    // message received" — one atom at a time, which is the unit everything in
+    // this object works in.
+    for (int expected = 1; expected <= 3; expected++) {
+      rig.reset();
+      obj.GetInlet(0)->SetBang(YSE::T_GUI);
+      CHECK(rig.left.gotInt);
+      CHECK(rig.left.intValue == expected);
+      CHECK_FALSE(rig.right.gotBang);
+    }
+    CHECK(obj.Pending() == 0);
+
+    // Empty: a bang out the right outlet, which is `sect`'s answer to the same
+    // question and what lets a patch drain the queue by banging until it
+    // answers.
+    rig.reset();
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.right.gotBang);
+    CHECK_FALSE(rig.left.gotInt);
+
+    // Symbols go through as symbols.
+    rig.reset();
+    obj.GetInlet(0)->SetList("do re", YSE::T_GUI);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.left.gotList);
+    CHECK(rig.left.listValue == "do");
+  }
+
+  TEST_CASE("zl stack: a bang pops the newest atom (#527)") {
+    Rig rig;
+    gZl obj;
+    obj.SetParams("stack");
+    rig.Wire(obj);
+
+    obj.GetInlet(0)->SetList("1 2 3", YSE::T_GUI);
+    CHECK_FALSE(rig.left.gotInt);
+    CHECK(obj.Pending() == 3);
+
+    // "Last-in-first-out … it outputs the most recently received message."
+    for (int expected = 3; expected >= 1; expected--) {
+      rig.reset();
+      obj.GetInlet(0)->SetBang(YSE::T_GUI);
+      CHECK(rig.left.gotInt);
+      CHECK(rig.left.intValue == expected);
+    }
+
+    rig.reset();
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.right.gotBang);
+  }
+
+  TEST_CASE("zl: the accumulating modes share one store, and zlclear empties it (#527)") {
+    // Sharing is deliberate: the four hold the same thing and differ only in
+    // when and from which end they consume it, so a live mode switch keeps the
+    // material rather than silently starting a second buffer.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("queue");
+    rig.Wire(obj);
+
+    obj.GetInlet(0)->SetList("1 2 3 4", YSE::T_GUI);
+    REQUIRE(obj.Pending() == 4);
+
+    obj.GetInlet(0)->SetList("mode stack", YSE::T_GUI);
+    REQUIRE(obj.CurrentMode() == Mode::STACK);
+    CHECK(obj.Pending() == 4);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.left.intValue == 4);
+
+    // `zlclear` is Max's "reinitializes the zl object", and the accumulator is
+    // contents rather than configuration — so it goes, and the mode stays.
+    obj.GetInlet(0)->SetList("zlclear", YSE::T_GUI);
+    CHECK(obj.Pending() == 0);
+    CHECK(obj.Stored() == 0);
+    CHECK(obj.CurrentMode() == Mode::STACK);
+
+    rig.reset();
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.right.gotBang);
+
+    // Re-typing the creation arguments empties it too, that being a rebuild.
+    obj.GetInlet(0)->SetList("1 2", YSE::T_GUI);
+    REQUIRE(obj.Pending() == 2);
+    obj.SetParams("");
+    CHECK(obj.Pending() == 0);
+  }
+
+  TEST_CASE("zl queue: pushing and popping forever costs no storage (#527)") {
+    // The reason `AtomList::Keep` exists. The backing text is append-only
+    // everywhere else, so a queue that only ever shifted its table would walk
+    // off the 1024-character ceiling and start refusing atoms it has room for.
+    // 400 rounds of two four-character atoms is 3200 characters.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("queue");
+    rig.Wire(obj);
+
+    for (int round = 0; round < 400; round++) {
+      obj.GetInlet(0)->SetList("1234 5678", YSE::T_GUI);
+      rig.reset();
+      obj.GetInlet(0)->SetBang(YSE::T_GUI);
+      REQUIRE(rig.left.gotInt);
+      REQUIRE(rig.left.intValue == 1234);
+      rig.reset();
+      obj.GetInlet(0)->SetBang(YSE::T_GUI);
+      REQUIRE(rig.left.intValue == 5678);
+    }
+    CHECK(obj.Pending() == 0);
+    CHECK(obj.Dropped() == 0);
+  }
+
+  TEST_CASE("zl: the accumulator is bounded by the working maximum list length (#527)") {
+    // A queue nobody empties stops taking atoms rather than growing — the
+    // object's refuse-and-count rule, applied to the one store that survives a
+    // message.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("4 queue");
+    rig.Wire(obj);
+
+    obj.GetInlet(0)->SetList("1 2 3", YSE::T_GUI);
+    obj.GetInlet(0)->SetList("4 5 6", YSE::T_GUI);
+    CHECK(obj.Pending() == 4);
+    CHECK(obj.Dropped() >= 2);
+  }
+
   TEST_CASE("zl: 'mode <name>' switches the mode and keeps the stored list (#523)") {
     // The whole reason the mode is a message as well as an argument: re-typing
     // the arguments rebuilds the object and empties it, which is what re-typing
@@ -2061,6 +2743,85 @@ TEST_SUITE("patcher") {
         obj.GetInlet(0)->SetBang(YSE::T_GUI);
       }
       CHECK(TestHelpers::g_alloc_count.load() == 0);
+    }
+  }
+
+  TEST_CASE("zl: the structural modes allocate nothing either (#527)") {
+    if (!TestHelpers::probeCountsAllocations()) return;
+    if (!TestHelpers::probeSeesStringAllocations()) return;
+
+    // #527 added a fourth AtomList — the accumulator the collecting modes share
+    // — and one operation that *shortens* a list rather than rebuilding it.
+    // Both have to be allocation-free or a `queue` on the audio thread would
+    // reach the allocator once per pop, which is the one thing the whole design
+    // exists to avoid.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("reg");
+    rig.Wire(obj);
+
+    const std::string wide = Digits(AtomList::MAX_ATOMS);
+    const std::string other = Digits(AtomList::MAX_ATOMS / 2);
+
+    const std::string modeReg = "mode reg";
+    const std::string modeIter = "mode iter";
+    const std::string modeJoin = "mode join";
+    const std::string modeLace = "mode lace";
+    const std::string modeDelace = "mode delace";
+    const std::string modeEcils = "mode ecils";
+    const std::string modeGroup = "mode group";
+    const std::string modeStream = "mode stream";
+    const std::string modeQueue = "mode queue";
+    const std::string modeStack = "mode stack";
+    const std::string clear = "zlclear";
+
+    // One pass drives every path the probe will then re-run: the buffers it
+    // warms are the object's render string, the accumulator's text and the
+    // sinks', which are test scaffolding rather than the object under test.
+    for (int pass = 0; pass < 2; pass++) {
+      std::unique_ptr<TestHelpers::ProbeScope> probe;
+      if (pass == 1) probe = std::make_unique<TestHelpers::ProbeScope>();
+
+      for (const std::string* word : {&modeReg, &modeJoin, &modeLace, &modeDelace, &modeEcils}) {
+        obj.GetInlet(0)->SetList(*word, YSE::T_GUI);
+        obj.GetInlet(1)->SetList(other, YSE::T_GUI);
+        obj.GetInlet(0)->SetList(wide, YSE::T_GUI);
+        obj.GetInlet(0)->SetBang(YSE::T_GUI);
+      }
+
+      // The multi-send mode, at its worst: a full-length list cut into chunks
+      // of one, so the send path runs 256 times inside a single message.
+      obj.GetInlet(0)->SetList(modeIter, YSE::T_GUI);
+      obj.GetInlet(1)->SetInt(1, YSE::T_GUI);
+      obj.GetInlet(0)->SetList(wide, YSE::T_GUI);
+
+      // The accumulating four, each pushed past its store and drained again, so
+      // the Keep path runs in both directions.
+      obj.GetInlet(0)->SetList(clear, YSE::T_GUI);
+      obj.GetInlet(0)->SetList(modeGroup, YSE::T_GUI);
+      obj.GetInlet(1)->SetInt(7, YSE::T_GUI);
+      obj.GetInlet(0)->SetList(wide, YSE::T_GUI);
+      obj.GetInlet(0)->SetBang(YSE::T_GUI);
+
+      obj.GetInlet(0)->SetList(modeStream, YSE::T_GUI);
+      obj.GetInlet(1)->SetInt(4, YSE::T_GUI);
+      obj.GetInlet(0)->SetList(wide, YSE::T_GUI);
+      obj.GetInlet(0)->SetList(other, YSE::T_GUI);
+      obj.GetInlet(0)->SetBang(YSE::T_GUI);
+
+      obj.GetInlet(0)->SetList(clear, YSE::T_GUI);
+      obj.GetInlet(0)->SetList(modeQueue, YSE::T_GUI);
+      obj.GetInlet(0)->SetList(other, YSE::T_GUI);
+      for (int i = 0; i < 20; i++)
+        obj.GetInlet(0)->SetBang(YSE::T_GUI);
+
+      obj.GetInlet(0)->SetList(modeStack, YSE::T_GUI);
+      obj.GetInlet(0)->SetList(other, YSE::T_GUI);
+      for (int i = 0; i < 20; i++)
+        obj.GetInlet(0)->SetBang(YSE::T_GUI);
+
+      obj.GetInlet(0)->SetList(clear, YSE::T_GUI);
+      if (pass == 1) CHECK(TestHelpers::g_alloc_count.load() == 0);
     }
   }
 
@@ -2498,6 +3259,186 @@ TEST_SUITE("patcher") {
     copy->SetListData(0, "fa mi do sol");
     CHECK(out.gotList);
     CHECK(out.listValue == "mi do");
+  }
+
+  TEST_CASE("zl: a group chunks a stream into chords, in a real patch (#527)") {
+    // The use case the accumulating group exists for, run through the real
+    // thing: single notes arrive one at a time down a cord and leave as chords
+    // of three. Nothing short of the whole chain proves it — the state that
+    // makes it work lives *between* messages, so a test that sent one list and
+    // looked at one outlet could not see the mode at all.
+    //
+    // Sinks before the patcher: the patcher is torn down first, while the
+    // inlets it is wired to still exist.
+    TallySink chords;
+    YSE::pHandle chordHandle(&chords);
+
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* group = p.CreateObject(YSE::OBJ::G_ZL, "group 3");
+    REQUIRE(group != nullptr);
+    p.Connect(group, 0, &chordHandle, 0);
+
+    group->SetIntData(0, 60);
+    group->SetIntData(0, 64);
+    CHECK(chords.got.empty());
+    group->SetIntData(0, 67);
+    REQUIRE(chords.got.size() == 1);
+    CHECK(chords.got[0] == "l:60 64 67");
+
+    // And it keeps going across messages rather than starting over: the fourth
+    // note begins the next chord.
+    group->SetIntData(0, 72);
+    group->SetListData(0, "76 79 83");
+    REQUIRE(chords.got.size() == 2);
+    CHECK(chords.got[1] == "l:72 76 79");
+
+    // 83 is still held — a partial chord — and a bang is what ends the phrase
+    // without waiting for it to fill.
+    group->SetBang(0);
+    REQUIRE(chords.got.size() == 3);
+    CHECK(chords.got[2] == "i:83");
+
+    // Emptied by the flush, so the next note starts a fresh chord rather than
+    // completing the old one.
+    group->SetBang(0);
+    CHECK(chords.got.size() == 3);
+  }
+
+  TEST_CASE("zl: a lace is pulled back apart by a delace, in a real patch (#527)") {
+    // The pair, wired the way a patch wires them: two parallel lists merged
+    // into one cord and separated again at the other end. Only the real graph
+    // shows that the two halves land on two different downstream objects — a
+    // standalone rig can see the text an outlet carried, not the routing.
+    MultiSink evens;
+    MultiSink odds;
+    YSE::pHandle evenHandle(&evens);
+    YSE::pHandle oddHandle(&odds);
+
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* lace = p.CreateObject(YSE::OBJ::G_ZL, "lace 100 200 300");
+    YSE::pHandle* delace = p.CreateObject(YSE::OBJ::G_ZL, "delace");
+    REQUIRE(lace != nullptr);
+    REQUIRE(delace != nullptr);
+
+    p.Connect(lace, 0, delace, 0);
+    p.Connect(delace, 0, &evenHandle, 0);
+    p.Connect(delace, 1, &oddHandle, 0);
+
+    lace->SetListData(0, "60 64 67");
+    CHECK(evens.gotList);
+    CHECK(evens.listValue == "60 64 67");
+    CHECK(odds.gotList);
+    CHECK(odds.listValue == "100 200 300");
+  }
+
+  TEST_CASE("zl: a queue is drained by bangs until the right outlet answers, in a real patch "
+            "(#527)") {
+    // What a queue is *for*: a patch pushes a burst of values in and pulls them
+    // out one at a time on its own clock, banging until the right outlet says
+    // there is nothing left. Two outlets, two downstream objects, and the store
+    // surviving between messages — none of it visible without the real graph.
+    TallySink values;
+    TallySink empty;
+    YSE::pHandle valueHandle(&values);
+    YSE::pHandle emptyHandle(&empty);
+
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* queue = p.CreateObject(YSE::OBJ::G_ZL, "queue");
+    REQUIRE(queue != nullptr);
+    p.Connect(queue, 0, &valueHandle, 0);
+    p.Connect(queue, 1, &emptyHandle, 0);
+
+    queue->SetListData(0, "60 64 67");
+    CHECK(values.got.empty());
+    CHECK(empty.got.empty());
+
+    // Drain it, and one bang too many.
+    for (int i = 0; i < 4; i++)
+      queue->SetBang(0);
+
+    REQUIRE(values.got.size() == 3);
+    CHECK(values.got[0] == "i:60");
+    CHECK(values.got[1] == "i:64");
+    CHECK(values.got[2] == "i:67");
+    REQUIRE(empty.got.size() == 1);
+    CHECK(empty.got[0] == "bang");
+
+    // Refilling starts the queue again rather than the object having become
+    // inert — the store is empty, not gone.
+    values.reset();
+    queue->SetListData(0, "72");
+    queue->SetBang(0);
+    REQUIRE(values.got.size() == 1);
+    CHECK(values.got[0] == "i:72");
+  }
+
+  TEST_CASE("zl: a reg holds a chord for a later bang, in a real patch (#527)") {
+    // The register idiom: one cord primes the object silently and another asks
+    // for what it is holding. The silence of the cold inlet is the whole point,
+    // and it is only assertable with the cord actually in place.
+    MultiSink out;
+    YSE::pHandle outHandle(&out);
+
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* source = p.CreateObject(YSE::OBJ::G_ZL, "rev");
+    YSE::pHandle* reg = p.CreateObject(YSE::OBJ::G_ZL, "reg");
+    REQUIRE(source != nullptr);
+    REQUIRE(reg != nullptr);
+
+    // The reversed list goes down a cord into the register's cold inlet.
+    p.Connect(source, 0, reg, 1);
+    p.Connect(reg, 0, &outHandle, 0);
+
+    source->SetListData(0, "60 64 67");
+    // Primed, and silent — the cold inlet stores without emitting.
+    CHECK_FALSE(out.gotList);
+
+    reg->SetBang(0);
+    CHECK(out.gotList);
+    CHECK(out.listValue == "67 64 60");
+
+    // And a list at the hot inlet passes straight through, replacing what is
+    // held: Max's "sent out the left outlet immediately".
+    out.reset();
+    reg->SetListData(0, "72 76");
+    CHECK(out.listValue == "72 76");
+    out.reset();
+    reg->SetBang(0);
+    CHECK(out.listValue == "72 76");
+  }
+
+  TEST_CASE("zl: a structural mode's argument survives a DumpJSON / ParseJSON round trip (#527)") {
+    // The accumulating modes read their argument as a length, so the save/load
+    // path has to carry it — a `group` that came back without its group size
+    // would collect for ever and emit nothing.
+    YSE::patcher src;
+    src.create(2);
+    REQUIRE(src.CreateObject(YSE::OBJ::G_ZL, "group 2") != nullptr);
+    const std::string json = src.DumpJSON();
+
+    YSE::patcher loaded;
+    loaded.create(2);
+    loaded.ParseJSON(json);
+    REQUIRE(loaded.Objects() == 1);
+
+    YSE::pHandle* copy = loaded.GetHandleFromList(0);
+    REQUIRE(copy != nullptr);
+    CHECK(copy->GetParams() == std::string("group 2"));
+
+    // And the reloaded object really groups, rather than only remembering the
+    // text that spells the argument.
+    MultiSink out;
+    YSE::pHandle outHandle(&out);
+    loaded.Connect(copy, 0, &outHandle, 0);
+    copy->SetIntData(0, 1);
+    CHECK_FALSE(out.gotList);
+    copy->SetIntData(0, 2);
+    CHECK(out.gotList);
+    CHECK(out.listValue == "1 2");
   }
 
 } // TEST_SUITE

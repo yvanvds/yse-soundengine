@@ -14,7 +14,7 @@ namespace YSE {
     /**
      *  @brief Max's ``zl`` — the list-processing workhorse: one object whose
      *         behaviour is chosen by a mode word (issues #523, #524, #525,
-     *         #526).
+     *         #526, #527).
      *
      *  Max: "zl — multi-purpose list processing object". Two inlets, two
      *  outlets, and a mode that decides what happens between them. #523 landed
@@ -26,7 +26,71 @@ namespace YSE {
      *  at one item, at a piece, at a position, at a table entry. #526 adds the
      *  **set** group — ``sect``, ``union``, ``unique``, ``thin``, ``filter``,
      *  ``compare`` and ``change`` — which is the object read as a *set* rather
-     *  than as a sequence. The remaining mode groups follow in their own issues.
+     *  than as a sequence. #527 adds the **structural** group — ``group``,
+     *  ``iter``, ``join``, ``lace``, ``delace``, ``ecils``, ``stream``,
+     *  ``queue``, ``stack`` and ``reg`` — which is where a list and a *stream*
+     *  meet. The remaining mode groups follow in their own issues.
+     *
+     *  ### The structural group, and the second store it needed
+     *
+     *  Every mode before #527 was a function of two lists: what arrived, what
+     *  the right inlet holds, and an answer sent straight back out. Six of the
+     *  ten added here still are — ``iter`` cuts one list into chunks, ``join``
+     *  and ``lace`` combine two, ``delace`` and ``ecils`` cut one in two, and
+     *  ``reg`` is the identity. The other four are not, and that is the whole
+     *  of what this group adds to the object: ``group``, ``stream``, ``queue``
+     *  and ``stack`` **accumulate across messages**, so what they answer
+     *  depends on what came before rather than only on what just arrived.
+     *
+     *  They share **one** accumulator rather than owning four, and not only to
+     *  save three kilobytes apiece. All four hold the same thing — atoms in
+     *  arrival order, waiting to be consumed from one end — and differ only in
+     *  when they consume and from which end: ``group`` takes N off the front as
+     *  soon as N are there, ``stream`` drops off the front to keep the last N,
+     *  ``queue`` takes one off the front on a bang and ``stack`` one off the
+     *  back. Sharing the store is what makes ``mode queue`` → ``mode stack``
+     *  mid-stream mean the obvious thing rather than silently switching to a
+     *  second buffer holding older material. ``zlclear`` empties it, which is
+     *  Max's "reinitializes the zl object".
+     *
+     *  Consuming from an end is also the first thing here that **shortens** a
+     *  list rather than rebuilding it, and ``AtomList``'s text is append-only:
+     *  a ``queue`` popped a thousand times would walk off ``TEXT_CAPACITY``
+     *  and start refusing atoms it has room for. ``AtomList::Keep`` is the
+     *  answer — it moves the retained characters down in place, which is
+     *  possible in one pass because a retained atom's new offset is never past
+     *  its old one, and allocates nothing.
+     *
+     *  ### A bang is not an arrival, and for these four it never was
+     *
+     *  ``.zl``'s bang has always meant "run the current mode over what the
+     *  object holds again". For the nineteen stateless modes that is the stored
+     *  input list and a bang is indistinguishable from re-sending it. For the
+     *  accumulating four it is *not*: re-sending a list into a ``queue`` pushes
+     *  it a second time, and popping is exactly what a bang has to do instead.
+     *  So ``Run`` is told which of the two stimuli it is answering, and the
+     *  four read it — a bang pops the ``queue`` and the ``stack``, flushes
+     *  ``group``'s partial group, and re-sends ``stream``'s window without
+     *  sliding it. Nothing else in the object looks at it, so the rule the
+     *  other nineteen document is unchanged.
+     *
+     *  ### ``reg`` is the one mode that reads the right inlet as its *contents*
+     *
+     *  Max: "a list received in the left inlet is sent out the left outlet
+     *  immediately. A list received in the right inlet is stored. A bang sends
+     *  the stored list out the left outlet." So ``reg``'s right inlet does not
+     *  carry an argument at all — it carries the register's contents — and it
+     *  is therefore the mirror of ``change`` (#526), which is the one mode that
+     *  *writes* to the right inlet's list. Both are implemented the same way:
+     *  the shared right-inlet path fills the argument list as it does for every
+     *  mode, and the mode then copies across, so the two stores can never
+     *  disagree about what last arrived.
+     *
+     *  ``reg`` being ported does **not** make it the no-argument default, which
+     *  it is in Max. The reason an unconfigured ``.zl`` stays inert never was
+     *  that ``reg`` was missing: an object that echoed everything sent to it
+     *  because its mode word was misspelled is harder to debug than one that
+     *  says nothing, and ``mode reg`` is one word away.
      *
      *  ### The set group, and the one ordering primitive underneath it
      *
@@ -167,10 +231,10 @@ namespace YSE {
      *  same list comes back processed the other way — and it is what
      *  ``zlclear`` clears.
      *
-     *  It is the *input* register and nothing more. The stateful modes Max has
-     *  (``reg``, ``queue``, ``stack``, ``group``, ``stream``) accumulate on
-     *  their own terms and belong to their own issue; this list is simply what
-     *  arrived most recently.
+     *  It is the *input* register and nothing more. The accumulating modes
+     *  (#527 — ``group``, ``stream``, ``queue``, ``stack``) collect into a
+     *  store of their own and read this one only as "the atoms that just
+     *  arrived"; ``reg`` is the mode for which the two coincide.
      *
      *  ### Bounded storage
      *
@@ -178,9 +242,10 @@ namespace YSE {
      *  this issue settles for the whole family: at most ``AtomList::MAX_ATOMS``
      *  (256, Max's own default maximum length) atoms spanning at most
      *  ``AtomList::TEXT_CAPACITY`` (1024) characters, in storage reserved when
-     *  the object is built. Three of them — the stored list, a scratch copy the
+     *  the object is built. Four of them — the stored list, a scratch copy the
      *  reordering modes work on so that processing never destroys what arrived,
-     *  and the right inlet's list.
+     *  the right inlet's list, and the accumulator the four collecting modes
+     *  share (#527).
      *
      *  That third one is #525's addition, and it is what the right inlet always
      *  meant. Until now the cold inlet carried *numbers* — an index, a count, a
@@ -279,14 +344,13 @@ namespace YSE {
      *
      *  ``NONE`` is what a ``.zl`` with no recognised mode word has: it stores
      *  what it is sent and emits nothing. Max's undocumented no-argument
-     *  default is ``reg``, which belongs to the register group and is not
-     *  ported yet; behaving as a mode the patch did not ask for would be worse
+     *  default is ``reg``, which *is* ported (#527) and is still not the
+     *  default: behaving as a mode the patch did not ask for would be worse
      *  than staying quiet, so an unconfigured ``.zl`` is inert.
      *
-     *  The rest of Max's vocabulary — ``delace ecils group iter join lace
-     *  median queue reg stack stream sum`` — arrives with its own issues. A
-     *  word this object does not know leaves the mode where it was, which is
-     *  ``.translate``'s answer to the same question.
+     *  The rest of Max's vocabulary — ``median`` and ``sum`` — arrives with its
+     *  own issue. A word this object does not know leaves the mode where it
+     *  was, which is ``.translate``'s answer to the same question.
      */
     enum class Mode {
       NONE,
@@ -320,6 +384,22 @@ namespace YSE {
       FILTER,
       COMPARE,
       CHANGE,
+      // The structural group (#527) — where a list and a stream meet. Six of
+      // them restructure whatever arrives: `iter` cuts one list into chunks,
+      // `join` and `lace` combine two, `delace` and `ecils` cut one in two, and
+      // `reg` holds one. The last four accumulate across messages instead, and
+      // are the only modes in the object whose answer depends on what came
+      // before: `group`, `stream`, `queue`, `stack`.
+      ITER,
+      JOIN,
+      LACE,
+      DELACE,
+      ECILS,
+      REG,
+      GROUP,
+      STREAM,
+      QUEUE,
+      STACK,
     };
 
     /** @brief The mode in force right now. Readable from any thread. */
@@ -408,6 +488,18 @@ namespace YSE {
     }
 
     /**
+     *  @brief How many atoms the accumulating modes are holding (issue #527).
+     *
+     *  The one store in the object that survives a message — ``group``'s
+     *  partial group, ``stream``'s window, the ``queue`` and the ``stack``.
+     *  0 for every other mode, which never puts anything in it. Diagnostics
+     *  and tests; the modes read the list directly under the guard.
+     */
+    std::size_t Pending() const {
+      return pending.Size();
+    }
+
+    /**
      *  @brief Atoms refused so far, plus messages dropped because another
      *         thread held the object.
      *
@@ -433,9 +525,20 @@ namespace YSE {
     static const char* ModeName(Mode mode);
 
   private:
+    /**
+     *  @brief What set the current mode running (issue #527).
+     *
+     *  A named pair rather than a bool because it is a *distinction* rather
+     *  than a flag, and one only four of the twenty-nine modes make: for the
+     *  accumulating group a bang consumes what is held where an arrival adds
+     *  to it, so `Run(BANG)` and `Run(ARRIVAL)` are two different operations
+     *  rather than the same one run twice. See the class notes.
+     */
+    enum class Trigger { ARRIVAL, BANG };
+
     // Run the current mode over the stored list and send the result. Called
     // with the guard held, so the lists cannot move under it.
-    void Run(YSE::THREAD thread);
+    void Run(YSE::THREAD thread, Trigger trigger);
 
     // Take the guard, or count a drop and answer false. The loser of a race
     // and a feedback loop take the same route — see the class notes.
@@ -557,6 +660,65 @@ namespace YSE {
     // atom for atom. Shared by `compare` and `change`, which ask it two ways.
     bool ArgumentMatchesStored() const;
 
+    // `reg` (#527) only: make the right inlet's list the stored one, silently.
+    // Max's "a list received in the right inlet is stored", and the mirror of
+    // `change` writing the other way. Called from the right-inlet paths with
+    // the guard held; a no-op in every other mode, so the shared path does not
+    // have to know which mode is in force.
+    void StoreRegister();
+
+    // ─── the structural modes (#527) ─────────────────────────────────────────
+    // Also called from Run() with the guard held.
+
+    // `iter`: the stored list out the left outlet as a run of chunks of
+    // `Argument()` atoms each, the last one short when the list does not
+    // divide. Several sends from one stimulus, which the guard already covers —
+    // an object wired back into its own inlet is refused mid-walk rather than
+    // restarting an iteration that would not terminate.
+    void SendIter(YSE::THREAD thread);
+
+    // `join`: the stored list followed by the right inlet's list.
+    void SendJoin(YSE::THREAD thread);
+
+    // `lace`: the two lists interleaved, and whatever is left of the longer one
+    // appended rather than dropped.
+    void SendLace(YSE::THREAD thread);
+
+    // `delace`: the atoms at odd positions out the right outlet and the ones at
+    // even positions out the left — right first, `lace` undone.
+    void SendDelace(YSE::THREAD thread);
+
+    // `ecils`: `slice` counting from the end. The last `Argument()` atoms out
+    // the right outlet and the rest out the left, right first.
+    void SendEcils(YSE::THREAD thread);
+
+    // ─── the accumulating modes (#527) ───────────────────────────────────────
+    // The four that read `pending`, and the only ones for which a bang and an
+    // arrival are different operations.
+
+    // Append the stored list's atoms to `pending`, counting whatever will not
+    // fit. What an arrival does for all four.
+    void Collect();
+
+    // `group`: emit every complete group of `Argument()` atoms the accumulator
+    // now holds and keep the remainder; a bang flushes the partial group.
+    void RunGroup(YSE::THREAD thread, Trigger trigger);
+
+    // `stream`: keep the last `Argument()` atoms and send them once there are
+    // that many, with the shortfall out the right outlet either way.
+    void RunStream(YSE::THREAD thread, Trigger trigger);
+
+    // `queue` and `stack`: an arrival pushes, a bang pops — from the front for
+    // the queue and from the back for the stack, which is the whole difference
+    // between the two and why they are one function.
+    void RunPop(YSE::THREAD thread, Trigger trigger, bool fromBack);
+
+    // The mode's argument read as a length in atoms — `group`'s group size,
+    // `stream`'s window, `iter`'s chunk. 0 when it names no length at all,
+    // which the modes read as "not configured"; otherwise clamped to Limit(),
+    // since a window wider than the accumulator can hold would never fill.
+    std::size_t ArgumentLength() const;
+
     // Send `count` entries of `order` applied to @p source out the left outlet,
     // through the family's transport convention. The source is a parameter
     // rather than always the stored list because `lookup` (#525) orders the
@@ -610,6 +772,15 @@ namespace YSE {
     // sent. See the class notes on why the two are nevertheless *refused*
     // differently.
     AtomList argumentAtoms;
+
+    // The accumulating modes' store (#527) — `group`'s partial group,
+    // `stream`'s window, the `queue` and the `stack`. One list shared by all
+    // four rather than one apiece: they hold the same thing and differ only in
+    // when and from which end they consume it, so sharing is what makes a live
+    // `mode queue` → `mode stack` mean the obvious thing. Emptied by
+    // `zlclear`, and by a re-parse of the creation arguments. Not thread-safe,
+    // like the rest; `busy` is what covers it.
+    AtomList pending;
 
     // Where a result is rendered. Reserved by the constructor to
     // AtomList::RENDER_CAPACITY, so building a result allocates nothing.
