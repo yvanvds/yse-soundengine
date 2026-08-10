@@ -48,6 +48,7 @@
 #include "genericObjects/gUnpack.h"
 #include "genericObjects/gJoin.h"
 #include "genericObjects/gUnjoin.h"
+#include "genericObjects/gIter.h"
 #include "genericObjects/gIf.h"
 #include "genericObjects/gRegexp.h"
 #include "genericObjects/gReceive.h"
@@ -311,6 +312,11 @@ pRegistry::pRegistry() {
   // everything left over out the rightmost one, so nothing is dropped for want
   // of an outlet (issue #520)
   Add(OBJ::G_UNJOIN, gUnjoin::Create);
+
+  // Send a list's items out one at a time down a single cord — the family's
+  // serialiser, and with .uzi the patcher's second iteration primitive
+  // (issue #521)
+  Add(OBJ::G_ITER, gIter::Create);
 
   // A collection of messages held at addresses — the patcher's first store of
   // more than one thing, and the object presets, note tables, mapping curves

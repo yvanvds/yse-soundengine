@@ -156,6 +156,7 @@ set(YSE_SRCS
   patcher/genericObjects/gZl.cpp
   patcher/genericObjects/gJoin.cpp
   patcher/genericObjects/gUnjoin.cpp
+  patcher/genericObjects/gIter.cpp
   patcher/genericObjects/pAdc.cpp
   patcher/genericObjects/pDac.cpp
   patcher/genericObjects/pLine.cpp
@@ -397,6 +398,7 @@ set_source_files_properties(
   patcher/genericObjects/gZl.cpp
   patcher/genericObjects/gJoin.cpp
   patcher/genericObjects/gUnjoin.cpp
+  patcher/genericObjects/gIter.cpp
   patcher/genericObjects/pAdc.cpp
   patcher/genericObjects/pDac.cpp
   patcher/genericObjects/pLine.cpp

@@ -59,7 +59,7 @@ namespace YSE {
    *    ``G_SPELL``, ``G_ATOI``, ``G_ITOA``.
    *  - List processing: ``G_ZL``, ``G_PACK``, ``G_PAK``, ``G_UNPACK``,
    *    ``G_JOIN``, ``G_UNJOIN``.
-   *  - Iteration: ``G_UZI``.
+   *  - Iteration: ``G_UZI``, ``G_ITER``.
    *  - MIDI: ``M_OUT``, ``M_NOTEON``, ``M_NOTEOFF``, ``M_CONTROL``.
    *  - Conversion: ``MIDITOFREQUENCY``, ``FREQUENCYTOMIDI``, ``G_ATODB``,
    *    ``G_DBTOA``, ``G_CARTOPOL``, ``G_POLTOCAR``.
@@ -103,6 +103,7 @@ namespace YSE {
     DEFOBJ(G_NEXT, ".next");
     DEFOBJ(G_MATCH, ".match");
     DEFOBJ(G_UZI, ".uzi");
+    DEFOBJ(G_ITER, ".iter");
     DEFOBJ(G_BONDO, ".bondo");
     DEFOBJ(G_BUDDY, ".buddy");
     DEFOBJ(G_CYCLE, ".cycle");
