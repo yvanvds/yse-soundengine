@@ -3790,6 +3790,54 @@
       }
     ]
   },
+  ".pack": {
+    "category": "GENERIC",
+    "description": "Builds one list out of values arriving at separate inlets — Max's pack, 'combine items into an output list'. The patcher could hold a list (.l) but not build one, which blocked every list-consuming object and the list payloads the named bus accepts, a three-element list being how sound.<name>.position is addressed; this is the object that turns three cords carrying three numbers into one cord carrying one list, and .unpack is the way back. There is one inlet per creation argument, and each argument's spelling decides what its slot holds as well as what it starts as: a whole integer makes an int slot, a token with a decimal point or an exponent makes a float slot, and anything else makes a symbol slot. With no arguments the object is Max's default, two int inlets starting at 0. Only the leftmost inlet releases the list — writing any other one stores and stays quiet — so a patch loads the right-hand values first and lets the leftmost carry the finished list out; .pak is the same object with every inlet hot. The type is enforced on the way in, Max's 'type conversion occurs based on initialization': an int slot truncates a float, a float slot promotes an int and keeps its decimal point, a symbol slot takes whatever arrives verbatim, and a number slot handed a symbol keeps the value it had and counts the refusal rather than storing a 0 that would read downstream as a value the patch chose. A multi-item message spreads from the inlet that received it rightwards, one item per slot, and items past the last slot are dropped and counted. A bang releases the list as it stands without storing, and 'set <message>' performs exactly the store the same message without the word would have performed while suppressing only the release. The packed list leaves as list text, or — when the object has a single slot — as the int, float or symbol that slot spells, since a list of one is not a list and this patcher does no coercion at an inlet. The list is the bounded pre-allocated storage the whole list family shares: at most 256 slots spanning at most 1024 characters between them, in memory reserved when the object is built. A store whose result would not fit is refused whole and counted rather than losing its tail, because the tail here is the values the other inlets are holding rather than surplus input; the count is a counter rather than a log line because the refusing thread may be the audio callback, while a creation argument that does not fit is logged, parameter parsing being control-thread only. Re-typing the creation arguments rebuilds the object, since the arguments are the inlet count and the slot types. Calculate() does nothing and no message path allocates, locks or blocks: numbers are rendered into a stack buffer, the store is a rebuild inside a list reserved at construction, and the release renders into a buffer reserved at the same time. Two threads writing the same object are serialised by a single test-and-set guard whose loser is dropped and counted rather than made to spin, which is also what stops an object wired back into its own inlet from recursing on the audio thread.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The hot inlet, and the first element of the list. A value arriving here is stored in element 0 and the whole list is released. A multi-item message spreads across this element and the ones to its right, one item per element, with anything past the last element dropped and counted. A bang releases the list as it stands without storing anything, and is accepted on this inlet only, which is where Max documents it. 'set <message>' performs the same store as the message without the word and releases nothing, which is how a patch loads every element and then chooses when to send. What this element accepts is fixed by the creation argument in its position: an int element truncates a float, a float element promotes an int, a symbol element takes anything verbatim, and a number element handed a symbol keeps the value it had and counts the refusal.",
+        "index": 0,
+        "label": "in0",
+        "range": "any"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Cold: a value arriving here is stored in the element that corresponds to this inlet and nothing is sent. That is the object's arrangement — load the right-hand elements, then let the leftmost inlet carry the finished list out. Use .pak instead when every element should release on arrival. A multi-item message spreads from this element rightwards rather than being stored whole, and 'set <message>' is accepted here too, though it means the same as the plain message since this inlet never releases. The element's type comes from the creation argument in its position and is enforced on every store, exactly as it is on the leftmost inlet.",
+        "index": 1,
+        "label": "in1",
+        "range": "any"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".pack",
+    "outlets": [
+      {
+        "doc": "The packed list, sent whenever the leftmost inlet is written or banged. Every element goes out together, in inlet order, as space-separated list text — so an element that has never been written carries its creation argument rather than a gap. An object with a single element sends the int, float or symbol that element spells rather than a list of one, so it reaches the inlets an uncollected value would have reached.",
+        "index": 0,
+        "label": "list",
+        "range": "any",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "0 0",
+        "doc": "One argument per inlet, and each one is that element's starting value as well as its type. A token spelled as a whole integer declares an int element, one carrying a decimal point or an exponent declares a float element, and anything else declares a symbol element whose starting value is the token itself. With no arguments the object is Max's default: two int elements starting at 0. At most 256 elements are built, spanning at most 1024 characters between them; an argument list that does not fit is clamped and the clamp is logged.",
+        "name": "elements",
+        "range": "one argument per inlet, 1-256; int / float / symbol by spelling"
+      }
+    ]
+  },
   ".past": {
     "category": "MATH",
     "description": "Sends a bang the moment a value crosses a threshold, and then stays quiet until the value drops back below and crosses again — edge detection on continuous control data, where the interesting event is the crossing rather than the thousand messages that follow while the value stays up there. A .>= into a .sel 1 would fire on every one of them; this fires once. Max states the rule in two halves and only both together define the object: it bangs when every number is at or above its threshold having not been so before, and it re-arms only when a number goes back BELOW (strictly less than) its threshold. The two are exact complements, so the object is a plain latch on 'value >= threshold' rather than a hysteresis band, and two edges follow that a naive implementation gets wrong. A value exactly at the threshold has crossed it, so '.past 5' fed 5 bangs. And a value exactly at the threshold does not re-arm it, so 10, 5, 10 bangs once rather than twice: equality belongs to the 'past it' side of the line going up and coming down alike. A freshly created object is un-latched, so a value that is already above the threshold when the first message arrives bangs immediately — nothing has met the threshold yet, so the first thing that does is a crossing, which is also the state 'clear' restores. The creation argument is a list and so is the input: numbers are compared element-wise against the corresponding thresholds and the bang is the conjunction, so '.past 60 100' is an AND gate of two thresholds in one box. Each element keeps its own met/not-met flag, which is what Max's per-element re-arm wording describes, so a list shorter than the threshold list updates only the elements it supplies and a plain int or float is simply the one-element case; numbers past the last threshold are ignored, and at most 256 thresholds are held. 'clear' drops every flag so the next crossing bangs again, silently and without touching the thresholds. 'set <numbers>' replaces the thresholds and deliberately does NOT re-arm, because a patch that drives the threshold from elsewhere sends 'set' continuously and an object that re-armed on each one would bang for every message above the line, which is a .>= and not a .past; surviving elements keep their flags, elements the new list adds start un-met, and the latch is re-derived from the flags. 'reset' is the patcher family's word rather than a Max message and means both halves at once — back to the creation-argument thresholds with a cleared latch — since after a 'set' there is otherwise no way back to the creation argument. All three are silent, and a message that is neither a word this object knows nor a list containing a number is ignored. A bang is not accepted: a message carrying no number cannot cross anything. Everything is a float, so Max's int-unless-the-argument-has-a-decimal-point duality is not reproduced. A non-finite number is read as 0 wherever it arrives, in the input and in the thresholds alike. On the threshold side that is load-bearing rather than tidy: a NaN compares false against everything, so a NaN threshold could never be met and would make the object permanently mute — and in a multi-threshold object it would mute the conjunction while every other element carried on working. A +infinity threshold does the same, and a -infinity one is met by every number there is, including the ones a patch sends to bring the value back down, so its element could never re-arm. On the input side the substitution buys consistency rather than safety: it is simply the answer the rest of the patcher gives a NaN it was handed.",

@@ -44,6 +44,7 @@
 #include "genericObjects/gSpray.h"
 #include "genericObjects/gUzi.h"
 #include "genericObjects/gZl.h"
+#include "genericObjects/gPack.h"
 #include "genericObjects/gIf.h"
 #include "genericObjects/gRegexp.h"
 #include "genericObjects/gReceive.h"
@@ -284,6 +285,10 @@ pRegistry::pRegistry() {
   // chooses, over the bounded pre-allocated list the whole list family shares
   // (issue #523)
   Add(OBJ::G_ZL, gZl::Create);
+
+  // Build a list out of values arriving at separate inlets — the way into every
+  // list-consuming object, over the same bounded list (issue #517)
+  Add(OBJ::G_PACK, gPack::Create);
 
   // A collection of messages held at addresses — the patcher's first store of
   // more than one thing, and the object presets, note tables, mapping curves
