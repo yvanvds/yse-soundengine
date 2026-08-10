@@ -33,7 +33,7 @@ namespace {
   constexpr char kWordSeed[] = "zlseed";
 
   // The mode vocabulary, in one place. A table rather than a chain of
-  // hand-written character comparisons because there are now twelve words and
+  // hand-written character comparisons because there are now nineteen words and
   // two functions that have to agree about them — a spelling that appeared in
   // ReadMode and not in ModeName would be a mode a patch could select and the
   // documentation could not name.
@@ -50,6 +50,10 @@ namespace {
       {"swap", 4, gZl::Mode::SWAP},         {"indexmap", 8, gZl::Mode::INDEXMAP},
       {"mth", 3, gZl::Mode::MTH},           {"slice", 5, gZl::Mode::SLICE},
       {"sub", 3, gZl::Mode::SUB},           {"lookup", 6, gZl::Mode::LOOKUP},
+      {"sect", 4, gZl::Mode::SECT},         {"union", 5, gZl::Mode::UNION},
+      {"unique", 6, gZl::Mode::UNIQUE},     {"thin", 4, gZl::Mode::THIN},
+      {"filter", 6, gZl::Mode::FILTER},     {"compare", 7, gZl::Mode::COMPARE},
+      {"change", 6, gZl::Mode::CHANGE},
   };
 
   // True when atom @p i of @p a and atom @p j of @p b are the same atom —
@@ -74,6 +78,127 @@ namespace {
     const std::size_t length = a.AtomLength(i);
     if (length == 0 || length != b.AtomLength(j)) return false;
     return std::memcmp(a.AtomText(i), b.AtomText(j), length) == 0;
+  }
+
+  // Strictly "atom @p i of @p a sorts before atom @p j of @p b" — the ordering
+  // `sort` imposes (#524) and the one membership binary-searches through
+  // (#526).
+  //
+  // Numbers come before symbols in **both** directions: which of the two an
+  // atom is, is a type ordering rather than a value one, and a descending sort
+  // that swept every symbol to the front would make `sort` and `sort -1` two
+  // different questions rather than one asked two ways. Numbers then compare by
+  // the value AtomList decided on the way in, symbols by their characters with
+  // the shorter first when one is a prefix of the other.
+  //
+  // It agrees with `AtomsEqual` by construction — neither atom is before the
+  // other exactly when the two are equal — which is what lets equal atoms be
+  // found by a binary search and what makes them come out of a sort contiguous.
+  bool AtomsBefore(const AtomList& a, std::size_t i, const AtomList& b, std::size_t j,
+                   bool descending) {
+    const bool numberA = a.AtomIsNumber(i);
+    const bool numberB = b.AtomIsNumber(j);
+    if (numberA != numberB) return numberA;
+
+    int comparison = 0;
+    if (numberA) {
+      // The value the atom was classified with on the way in — AtomList decides
+      // it once precisely so a sort does not re-read the same characters on
+      // every comparison.
+      const float valueA = a.AtomValue(i);
+      const float valueB = b.AtomValue(j);
+      if (valueA == valueB) return false;
+      comparison = (valueA < valueB) ? -1 : 1;
+    } else {
+      // Compared in place: this runs O(n log n) times per message.
+      const std::size_t lengthA = a.AtomLength(i);
+      const std::size_t lengthB = b.AtomLength(j);
+      const std::size_t shared = (lengthA < lengthB) ? lengthA : lengthB;
+      comparison = (shared == 0) ? 0 : std::memcmp(a.AtomText(i), b.AtomText(j), shared);
+      if (comparison == 0) {
+        if (lengthA == lengthB) return false;
+        comparison = (lengthA < lengthB) ? -1 : 1;
+      }
+    }
+    return descending ? (comparison > 0) : (comparison < 0);
+  }
+
+  // Fill the first @p count entries of @p out with 0..count-1 sorted by the
+  // atom of @p list they name. @p scratch must hold @p count entries too.
+  //
+  // Bottom-up merge sort through a fixed scratch. Two properties are being
+  // bought, and both of them matter here rather than being taste:
+  //
+  //   - **stable**, so equal atoms keep the order they arrived in. That makes
+  //     the map `sort` publishes one a patch can reason about, and it is what
+  //     lets the set modes (#526) take the *first* entry of a run of equal
+  //     atoms and know it is the earliest occurrence in the input;
+  //   - **O(n log n) whatever the data**, so a full 256-atom list costs about
+  //     two thousand comparisons rather than the sixty-five thousand an
+  //     insertion sort would cost in its worst case, on a path the audio
+  //     callback takes.
+  //
+  // std::stable_sort has the first and allocates; std::sort has the second and
+  // is not stable.
+  void SortIndices(const AtomList& list, std::uint16_t* out, std::uint16_t* scratch,
+                   std::size_t count, bool descending) {
+    for (std::size_t i = 0; i < count; i++)
+      out[i] = (std::uint16_t)i;
+
+    for (std::size_t width = 1; width < count; width *= 2) {
+      for (std::size_t left = 0; left < count; left += 2 * width) {
+        const std::size_t mid = (left + width < count) ? left + width : count;
+        const std::size_t right = (left + (2 * width) < count) ? left + (2 * width) : count;
+        std::size_t i = left;
+        std::size_t j = mid;
+        std::size_t at = left;
+        // Taken from the right run only when it is *strictly* before the left
+        // one, which is exactly what makes the merge stable.
+        while (i < mid && j < right)
+          scratch[at++] = AtomsBefore(list, out[j], list, out[i], descending) ? out[j++] : out[i++];
+        while (i < mid)
+          scratch[at++] = out[i++];
+        while (j < right)
+          scratch[at++] = out[j++];
+      }
+      for (std::size_t i = 0; i < count; i++)
+        out[i] = scratch[i];
+    }
+  }
+
+  // True when atom @p at of @p needles appears anywhere in @p hay, whose atoms
+  // are named in ascending order by the @p count entries at @p order (#526).
+  //
+  // A binary search rather than a scan: this is asked once per atom of the
+  // other list, and the nested pair is the sixty-five thousand comparisons the
+  // class notes reject.
+  bool ContainsAtom(const AtomList& hay, const std::uint16_t* order, std::size_t count,
+                    const AtomList& needles, std::size_t at) {
+    std::size_t low = 0;
+    std::size_t high = count;
+    while (low < high) {
+      const std::size_t mid = low + ((high - low) / 2);
+      if (AtomsBefore(hay, order[mid], needles, at, false)) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+    return low < count && AtomsEqual(hay, order[low], needles, at);
+  }
+
+  // Mark, for every atom of @p list, whether it is the first occurrence of its
+  // value (#526). @p order is the ascending index order over the list, so equal
+  // atoms are contiguous and — the sort being stable — the earliest occurrence
+  // of each run comes first.
+  void MarkFirstOccurrences(const AtomList& list, const std::uint16_t* order, std::size_t count,
+                            bool* first) {
+    for (std::size_t i = 0; i < count; i++)
+      first[i] = false;
+    for (std::size_t k = 0; k < count; k++) {
+      if (k != 0 && AtomsEqual(list, order[k], list, order[k - 1])) continue;
+      first[order[k]] = true;
+    }
   }
 
   // An order entry that names no atom. AtomList::AssignOrder drops it, which is
@@ -139,7 +264,13 @@ namespace {
       "into it. 'len', 'rev' and 'scramble' take no argument and ignore it. An int, a float or a "
       "list all set it, and a list sets as many items as it carries — up to the working maximum "
       "list length — so this one inlet serves the modes that read one number, the ones that read "
-      "several, and the two that read a whole list of anything at all. The modes that read numbers "
+      "several, and the ones that read a whole list of anything at all. The set modes read it as "
+      "the other list: for 'sect' the list to intersect with, for 'union' the list to add, for "
+      "'unique' and 'filter' the items to remove, and for 'compare' the list to compare against. "
+      "'thin' takes no argument and ignores it. 'change' is the one mode that also *writes* here — "
+      "a list sent to this inlet primes the list it compares against, which is Max's arrangement, "
+      "and every list that then arrives at the left inlet becomes the new reference in its turn. "
+      "The modes that read numbers "
       "truncate floats, an index being a whole number, pass over non-numeric items, and leave the "
       "argument standing when a list carries no numbers at all rather than clearing it — a cord "
       "that delivers the occasional symbol should not silently un-point a 'swap'. The modes that "
@@ -159,7 +290,13 @@ namespace {
       "order the map gives by 'indexmap'. In 'slice' mode it carries the first N items, N being "
       "the argument; in 'sub' mode the 1-based position of every occurrence of the searched-for "
       "list, and nothing at all when there are none; in 'lookup' mode the table entries the stored "
-      "list's indices name. None of them consumes the stored list, so a bang rearranges the same "
+      "list's indices name. The set modes send what is left of the list after the operation: in "
+      "'thin' mode the list with every repeat after the first dropped, in 'sect' mode the items "
+      "the two lists share, in 'union' mode the two lists added together as sets, and in 'unique' "
+      "and 'filter' mode the list with the items named in the right inlet removed. In 'compare' "
+      "mode it carries 1 when the two lists are the same list and 0 when they are not, and in "
+      "'change' mode the list itself, but only when it differs from the one before it. None of "
+      "them consumes the stored list, so a bang rearranges the same "
       "list again rather than rearranging the previous answer — two bangs on a 'scramble' give two "
       "shuffles of the input, not a shuffle of a shuffle.";
 
@@ -175,8 +312,17 @@ namespace {
       "the sorted list arrives and sets that patch running. In 'sub' mode it carries how many "
       "occurrences were found, and it is sent even when that is 0, which is the only way a patch "
       "can tell 'searched, found nothing' from 'no pattern to search for yet' — the left outlet is "
-      "silent in both cases. Modes that produce a single result ('len', 'rev', 'rot', 'scramble', "
-      "'swap', 'indexmap', 'lookup') send nothing here at all, rather than a copy of the input, so "
+      "silent in both cases. In 'filter' mode it carries the 1-based positions the surviving items "
+      "held in the input, which is what makes the mode composable: what it reports is what 'nth' "
+      "takes. In 'compare' mode it carries the 1-based positions at which the two lists differ, "
+      "and nothing at all when they match; two lists of different lengths differ at every position "
+      "past the shorter one. In 'change' mode it carries 1 when the list differs from the one "
+      "before it and 0 when it does not, and it is sent either way, which is the only thing that "
+      "makes the left outlet's silence readable. In 'sect' mode it carries a bang when the two "
+      "lists have nothing in common, Max's own signal for that case and the only way a patch tells "
+      "an empty intersection from an object nothing has reached yet. Modes that produce a single "
+      "result ('len', 'rev', 'rot', 'scramble', 'swap', 'indexmap', 'lookup', 'thin', 'union', "
+      "'unique') send nothing here at all, rather than a copy of the input, so "
       "that a patch can tell 'there is no second half' from 'the second half is the whole list'.";
 
 } // namespace
@@ -215,7 +361,8 @@ CONSTRUCT() {
       "one object with two inlets, two outlets and a mode word that decides what happens between "
       "them. A list arriving at the left inlet is stored and processed under the current mode; a "
       "bang runs the mode over the stored list again, which is how a patch asks for the same list "
-      "back under a mode it has just switched to with 'mode <name>'. Twelve modes are implemented "
+      "back under a mode it has just switched to with 'mode <name>'. Nineteen modes are "
+      "implemented "
       "so far and the remaining groups follow in their own issues. Three of them read the list: "
       "'len' sends the number of items in it, 'rev' sends it in reverse order, and 'nth' picks one "
       "item by its 1-based index — the item out the left outlet and everything else out the right "
@@ -239,8 +386,30 @@ CONSTRUCT() {
       "when it is 0; and 'lookup' is 'indexmap' with the two lists swapped — the right inlet holds "
       "a table and the stored list is the 1-based indices to read from it, so a stream of numbers "
       "becomes a stream of table entries. Every index the object reads or writes is 1-based except "
-      "'mth', so the modes compose: what 'sub' reports is exactly what 'nth' takes. None of the "
-      "reordering or extracting modes consumes the stored list, so a bang rearranges "
+      "'mth', so the modes compose: what 'sub' reports is exactly what 'nth' takes. Seven treat "
+      "the list as a set rather than as a sequence, which is how a patch answers 'which of these "
+      "notes are in the scale' or 'which are new since last time': 'thin' drops every repeat after "
+      "the first, 'sect' sends what the stored list and the right inlet's list have in common, "
+      "'union' sends the two added together with shared items appearing once, and 'unique' and "
+      "'filter' send the stored list with the right inlet's items taken out of it. Those two "
+      "select the same items — which is Max's arrangement rather than a duplication here — and "
+      "differ in what the right outlet says: 'filter' reports the 1-based positions the survivors "
+      "held, so it composes with 'nth' the way 'sub' does, while 'unique' says nothing. The set "
+      "operations really are sets, so 'thin', 'sect' and 'union' each produce every item once, at "
+      "the place it first appeared; 'unique' and 'filter' are removals rather than set operations "
+      "and keep the list as it arrived, duplicates and positions included, minus what matched. "
+      "The last two ask whether two lists are the same list: 'compare' sends 1 or 0 and, when they "
+      "differ, the 1-based positions at which they do, counting a length difference as a "
+      "difference at every position past the shorter list; and 'change' sends the list on only "
+      "when it is not the one that came before it, with 1 or 0 out the right outlet either way. "
+      "'change' is the one mode that writes to the right inlet's list, because in Max that list is "
+      "its comparison reference — a list sent there primes it, and each list that arrives becomes "
+      "the reference in its turn, so banging the same list twice reports no change the second "
+      "time. Membership is answered by ranking each list once and binary-searching rather than by "
+      "comparing every item against every other, which would be sixty-five thousand comparisons on "
+      "two full-length lists and is the same objection that made 'sub' a Knuth-Morris-Pratt search "
+      "and 'sort' a merge sort. None of the "
+      "reordering, extracting or set modes consumes the stored list, so a bang rearranges "
       "the same list again rather than rearranging the previous answer. Where a mode fills both "
       "outlets, the right one is sent first, which is Max's right-to-left rule. Max ships a second "
       "spelling of every mode as its own object ('zl.rev'), and it is deliberately not ported: it "
@@ -272,7 +441,8 @@ CONSTRUCT() {
   INLET_DOC(1, "argument", kInletDocRight,
             "mode dependent; 1-based index for 'nth', 0-based for 'mth', places for 'rot', "
             "direction for 'sort', a count for 'slice', two indices for 'swap', an index map for "
-            "'indexmap', a search list for 'sub', a lookup table for 'lookup'");
+            "'indexmap', a search list for 'sub', a lookup table for 'lookup', the other list for "
+            "'sect', 'union', 'unique', 'filter', 'compare' and 'change'");
 
   OUTLET_DOC(0, "result", kOutletDocLeft, "any");
   OUTLET_DOC(1, "rest", kOutletDocRight, "any");
@@ -283,7 +453,8 @@ CONSTRUCT() {
             "maximum list length and is clamped to 1-256; anything else is read as the mode word, "
             "so '.zl nth 2' and '.zl 64 nth 2' are both legal and mean the same thing but for the "
             "ceiling. The mode words implemented so far are 'len', 'rev', 'nth', 'mth', 'rot', "
-            "'scramble', 'sort', 'slice', 'swap', 'indexmap', 'sub' and 'lookup'; one this object "
+            "'scramble', 'sort', 'slice', 'swap', 'indexmap', 'sub', 'lookup', 'sect', 'union', "
+            "'unique', 'thin', 'filter', 'compare' and 'change'; one this object "
             "does not know is named in the log and ignored, leaving an object that stores what it "
             "is sent and emits nothing. "
             "With no mode word at all the object is inert for the same reason — Max's undocumented "
@@ -292,14 +463,16 @@ CONSTRUCT() {
             "quiet. Everything after the mode word is the mode's argument, in order, and it is "
             "read two ways at once: as numbers, which is one for 'nth', 'mth', 'rot', 'sort' and "
             "'slice', the first two for 'swap' and the whole run for 'indexmap'; and as a "
-            "list of atoms, which is what 'sub' searches for and what 'lookup' reads as its table. "
-            "So '.zl swap 2 4', '.zl indexmap 3 1 2', '.zl sub 60 64' and '.zl lookup do re mi' "
-            "are all legal. The right inlet overwrites the argument "
+            "list of atoms, which is what 'sub' searches for, what 'lookup' reads as its table and "
+            "what the set modes 'sect', 'union', 'unique', 'filter', 'compare' and 'change' take "
+            "as the other list. So '.zl swap 2 4', '.zl indexmap 3 1 2', '.zl sub 60 64', "
+            "'.zl lookup do re mi' and '.zl sect 60 62 64' are all legal. 'thin' takes no argument "
+            "at all. The right inlet overwrites the argument "
             "afterwards. The 'scramble' seed is not a creation argument — the argument slot is "
             "taken by the index list — so a patch that needs a reproducible shuffle sends "
             "'zlseed <n>' to the left inlet.",
-            "[<1-256>] [len|rev|nth|mth|rot|scramble|sort|slice|swap|indexmap|sub|lookup] "
-            "[<argument> ...]");
+            "[<1-256>] [len|rev|nth|mth|rot|scramble|sort|slice|swap|indexmap|sub|lookup|sect|"
+            "union|unique|thin|filter|compare|change] [<argument> ...]");
 }
 
 // ─── the mode vocabulary ────────────────────────────────────────────────────
@@ -407,10 +580,7 @@ PARM_PARSE() {
   // Unconditionally, unlike the inlet: re-typing an object's arguments is a
   // full reconfiguration, so `.zl lookup do re mi` must not come back still
   // holding the index a `.zl nth 2` left behind.
-  if (ReadArgumentNumbers() == 0) {
-    arguments = 0;
-    argument.store(0, std::memory_order_relaxed);
-  }
+  SetArgumentNumbers();
 
   if (refused != 0) {
     // Loudly, this being parameter parsing: `.combine`'s split between the two
@@ -483,79 +653,13 @@ std::size_t gZl::OrderScramble(std::size_t size) {
   return size;
 }
 
-bool gZl::SortsBefore(std::size_t a, std::size_t b, bool descending) const {
-  const bool numberA = stored.AtomIsNumber(a);
-  const bool numberB = stored.AtomIsNumber(b);
-  // Numbers before symbols, and in *both* directions: which of the two an atom
-  // is, is a type ordering rather than a value one, and a descending sort that
-  // swept every symbol to the front would make `sort` and `sort -1` two
-  // different questions rather than one asked two ways.
-  if (numberA != numberB) return numberA;
-
-  int comparison = 0;
-  if (numberA) {
-    // The value the atom was classified with on the way in — AtomList decides
-    // it once precisely so a sort does not re-read the same characters on every
-    // comparison.
-    const float valueA = stored.AtomValue(a);
-    const float valueB = stored.AtomValue(b);
-    if (valueA == valueB) return false;
-    comparison = (valueA < valueB) ? -1 : 1;
-  } else {
-    // Symbols by their characters, shorter first when one is a prefix of the
-    // other. Compared in place: this runs O(n log n) times per message.
-    const std::size_t lengthA = stored.AtomLength(a);
-    const std::size_t lengthB = stored.AtomLength(b);
-    const std::size_t shared = (lengthA < lengthB) ? lengthA : lengthB;
-    comparison = (shared == 0) ? 0 : std::memcmp(stored.AtomText(a), stored.AtomText(b), shared);
-    if (comparison == 0) {
-      if (lengthA == lengthB) return false;
-      comparison = (lengthA < lengthB) ? -1 : 1;
-    }
-  }
-  return descending ? (comparison > 0) : (comparison < 0);
-}
-
 std::size_t gZl::OrderSort(std::size_t size) {
   if (size == 0) return 0;
   // Max's direction argument: negative sorts downwards, anything else upwards,
-  // so an unset argument is an ascending sort.
-  const bool descending = argument.load(std::memory_order_relaxed) < 0;
-
-  for (std::size_t i = 0; i < size; i++)
-    order[i] = (std::uint16_t)i;
-
-  // Bottom-up merge sort through a fixed scratch. Two properties are being
-  // bought, and both of them matter here rather than being taste:
-  //
-  //   - **stable**, so equal items keep the order they arrived in and the map
-  //     the right outlet publishes is one a patch can reason about;
-  //   - **O(n log n) whatever the data**, so a full 256-item list costs about
-  //     two thousand comparisons rather than the sixty-five thousand an
-  //     insertion sort would cost in its worst case, on a path the audio
-  //     callback takes.
-  //
-  // std::stable_sort has the first and allocates; std::sort has the second and
-  // is not stable.
-  for (std::size_t width = 1; width < size; width *= 2) {
-    for (std::size_t left = 0; left < size; left += 2 * width) {
-      const std::size_t mid = (left + width < size) ? left + width : size;
-      const std::size_t right = (left + (2 * width) < size) ? left + (2 * width) : size;
-      std::size_t i = left;
-      std::size_t j = mid;
-      std::size_t out = left;
-      // Taken from the right run only when it is *strictly* before the left
-      // one, which is exactly what makes the merge stable.
-      while (i < mid && j < right)
-        merge[out++] = SortsBefore(order[j], order[i], descending) ? order[j++] : order[i++];
-      while (i < mid)
-        merge[out++] = order[i++];
-      while (j < right)
-        merge[out++] = order[j++];
-    }
-    for (std::size_t i = 0; i < size; i++)
-      order[i] = merge[i];
-  }
+  // so an unset argument is an ascending sort. The sort itself is the shared
+  // one — see `SortIndices`, which #526 lifted out of here so that the set
+  // modes could order the *other* list with it too.
+  SortIndices(stored, order, merge, size, argument.load(std::memory_order_relaxed) < 0);
   return size;
 }
 
@@ -709,6 +813,187 @@ std::size_t gZl::FindPattern() {
   return work.Size();
 }
 
+// ─── the set modes (#526) ───────────────────────────────────────────────────
+//
+// Membership goes through an ordering rather than through a nested scan, for
+// the reason `sub` searches with Knuth-Morris-Pratt: the obvious pair of loops
+// is O(n*m), which on two full-length lists is sixty-five thousand atom
+// comparisons on a path the audio callback takes. Ranking both lists and
+// binary-searching is O(n log n + m log m) whatever the data, through arrays
+// the object already owns.
+
+void gZl::RankStored(std::size_t size) {
+  SortIndices(stored, sortedStored, merge, size, false);
+}
+
+void gZl::RankArgument() {
+  SortIndices(argumentAtoms, sortedArgument, merge, argumentAtoms.Size(), false);
+}
+
+std::size_t gZl::OrderThin(std::size_t size) {
+  if (size == 0) return 0;
+
+  // Max: "output a list containing all the elements of the input list which are
+  // not duplicates." The first of each run of equal atoms survives — which is
+  // what the *stability* of the sort buys, the earliest occurrence coming first
+  // inside each run — so the result is in the order the list arrived rather
+  // than in sorted order.
+  RankStored(size);
+  MarkFirstOccurrences(stored, sortedStored, size, firstOccurrence);
+
+  std::size_t count = 0;
+  for (std::size_t i = 0; i < size; i++) {
+    if (firstOccurrence[i]) order[count++] = (std::uint16_t)i;
+  }
+  return count;
+}
+
+std::size_t gZl::OrderSect(std::size_t size) {
+  const std::size_t other = argumentAtoms.Size();
+  if (size == 0 || other == 0) return 0;
+
+  // Max: "a list … that contains the elements common to both lists". A set
+  // operation, so the result is a set: each shared atom once, at the position
+  // of its first occurrence in the stored list.
+  RankStored(size);
+  RankArgument();
+  MarkFirstOccurrences(stored, sortedStored, size, firstOccurrence);
+
+  std::size_t count = 0;
+  for (std::size_t i = 0; i < size; i++) {
+    if (!firstOccurrence[i]) continue;
+    if (!ContainsAtom(argumentAtoms, sortedArgument, other, stored, i)) continue;
+    order[count++] = (std::uint16_t)i;
+  }
+  return count;
+}
+
+std::size_t gZl::OrderReject(std::size_t size) {
+  if (size == 0) return 0;
+
+  // Max, of `filter`: "a list with elements matching the filtering list
+  // removed"; of `unique`: "items from the left-input-list which were not
+  // present in the right-input-list". The same selection, and a *filter* rather
+  // than a set operation — the survivors keep their duplicates and their
+  // places, which is what makes the positions `filter` reports mean something.
+  //
+  // An empty filtering list removes nothing, which is a meaningful answer
+  // rather than an unconfigured one: `sub` is silent without a pattern because
+  // a position it has not searched for is not a position, while a list with
+  // nothing taken out of it is the list.
+  const std::size_t other = argumentAtoms.Size();
+  if (other != 0) RankArgument();
+
+  std::size_t count = 0;
+  for (std::size_t i = 0; i < size; i++) {
+    if (other != 0 && ContainsAtom(argumentAtoms, sortedArgument, other, stored, i)) continue;
+    order[count++] = (std::uint16_t)i;
+  }
+  return count;
+}
+
+void gZl::SendUnion(YSE::THREAD thread) {
+  const std::size_t size = stored.Size();
+  const std::size_t other = argumentAtoms.Size();
+
+  // Max: "a list … that contains the contents of both input lists. If the left
+  // and right inlets contain any items in common, only one symbol will be
+  // output." A set operation like `sect`, so both halves are thinned and the
+  // right half loses whatever the left already has.
+  //
+  // Built atom by atom rather than through `order` and `AssignOrder`, which
+  // takes its atoms from one list: this result is drawn from two. The copy is
+  // into the scratch list's own reserved text, so it allocates nothing, and an
+  // atom that does not fit is refused and counted like any other.
+  work.Clear();
+  std::size_t refused = 0;
+
+  if (size != 0) {
+    RankStored(size);
+    MarkFirstOccurrences(stored, sortedStored, size, firstOccurrence);
+    for (std::size_t i = 0; i < size; i++) {
+      if (!firstOccurrence[i]) continue;
+      if (!work.Add(stored.AtomText(i), stored.AtomLength(i), Limit())) refused++;
+    }
+  }
+
+  if (other != 0) {
+    RankArgument();
+    MarkFirstOccurrences(argumentAtoms, sortedArgument, other, firstOccurrence);
+    for (std::size_t j = 0; j < other; j++) {
+      if (!firstOccurrence[j]) continue;
+      // `sortedStored` still names the stored list here, which is why the two
+      // orderings are two arrays: this is the one mode that needs both after
+      // the other has been built.
+      if (size != 0 && ContainsAtom(stored, sortedStored, size, argumentAtoms, j)) continue;
+      if (!work.Add(argumentAtoms.AtomText(j), argumentAtoms.AtomLength(j), Limit())) refused++;
+    }
+  }
+
+  if (refused != 0) CountDrop(refused);
+  SendAtoms(outputs[0], work, render, thread);
+}
+
+bool gZl::ArgumentMatchesStored() const {
+  if (stored.Size() != argumentAtoms.Size()) return false;
+  for (std::size_t i = 0; i < stored.Size(); i++) {
+    if (!AtomsEqual(stored, i, argumentAtoms, i)) return false;
+  }
+  return true;
+}
+
+void gZl::SendCompare(YSE::THREAD thread) {
+  const std::size_t size = stored.Size();
+  const std::size_t other = argumentAtoms.Size();
+  const std::size_t longer = (size > other) ? size : other;
+
+  // Max: 1 when the lists match, otherwise 0 out the left outlet and "a list of
+  // the indices for those elements of the lists that differ" out the right one.
+  //
+  // Positional rather than set-like: this mode asks whether two lists are the
+  // *same list*, so a length difference is a difference at every position past
+  // the shorter one rather than a separate kind of answer. 1-based, like every
+  // other position this object reports and unlike Max's 0-based numbering here
+  // — what `compare` reports is what `nth` takes, which is the whole reason the
+  // object settled on one numbering. `mth` remains the documented exception.
+  work.Clear();
+  for (std::size_t i = 0; i < longer; i++) {
+    const bool differs = i >= size || i >= other || !AtomsEqual(stored, i, argumentAtoms, i);
+    if (differs) work.AddInt((int)(i + 1));
+  }
+
+  // Right before left, Max's rule and `.trigger`'s: the positions have to be in
+  // place before the 0 that sets a patch reading them arrives. Nothing at all
+  // when the lists match, which is the family's empty-result rule and here also
+  // Max's — there are no differing positions to name.
+  SendAtoms(outputs[1], work, render, thread);
+  outputs[0].SendInt(work.Empty() ? 1 : 0, thread);
+}
+
+void gZl::SendChange(YSE::THREAD thread) {
+  // Max: the list out the left outlet and 1 out the right when it differs from
+  // the previous one; nothing out the left and 0 out the right when it does
+  // not. The reference is the right inlet's list, because that is where Max
+  // puts it — "receives lists that set the comparison reference" — and this
+  // mode then keeps it up to date itself.
+  const bool same = ArgumentMatchesStored();
+
+  // The reference becomes what just arrived, before anything is sent: a
+  // downstream object that sends back into this inlet finds the object busy and
+  // is dropped, but the state it would have found is already settled.
+  argumentAtoms.Assign(stored);
+  // Unconditionally, so the numeric reading of the right inlet's list cannot
+  // drift away from the atoms — the two are one arrival everywhere else.
+  SetArgumentNumbers();
+
+  // Right before left: the flag is the half a patch reads to decide whether to
+  // expect the other, so it has to be there first. It is sent either way, which
+  // is what makes the left outlet's silence readable — `sub`'s count, for
+  // `sub`'s reason.
+  outputs[1].SendInt(same ? 0 : 1, thread);
+  if (!same) SendAtoms(outputs[0], stored, render, thread);
+}
+
 // ─── the modes ──────────────────────────────────────────────────────────────
 
 void gZl::Run(YSE::THREAD thread) {
@@ -788,6 +1073,65 @@ void gZl::Run(YSE::THREAD thread) {
     // patch gets when there are no matches: the left one has nothing to send.
     outputs[1].SendInt((int)matches, thread);
     SendAtoms(outputs[0], work, render, thread);
+    break;
+  }
+
+  case Mode::THIN:
+    // Max: "all the elements of the input list which are not duplicates."
+    SendOrdered(stored, OrderThin(stored.Size()), thread);
+    break;
+
+  case Mode::UNIQUE:
+    // Max: "items from the left-input-list which were not present in the
+    // right-input-list." The same selection `filter` makes, without the
+    // positions — see the class notes on why both are ported.
+    SendOrdered(stored, OrderReject(stored.Size()), thread);
+    break;
+
+  case Mode::UNION:
+    // The two lists added together as sets.
+    SendUnion(thread);
+    break;
+
+  case Mode::COMPARE:
+    // Whether the two lists are the same list, and where they are not.
+    SendCompare(thread);
+    break;
+
+  case Mode::CHANGE:
+    // The list, but only when it is not the one that came before it.
+    SendChange(thread);
+    break;
+
+  case Mode::SECT: {
+    const std::size_t count = OrderSect(stored.Size());
+    // Max: "the right outlet outputs a bang if the two input lists share no
+    // common elements." The left outlet is silent on an empty result, so the
+    // bang is the only way a patch tells "nothing in common" from "not wired
+    // up yet" — `sub`'s 0, in the shape Max gives this mode.
+    if (count == 0) {
+      outputs[1].SendBang(thread);
+      break;
+    }
+    SendOrdered(stored, count, thread);
+    break;
+  }
+
+  case Mode::FILTER: {
+    const std::size_t count = OrderReject(stored.Size());
+    if (count == 0) break;
+
+    // Max: "a list of the index numbers of list elements not filtered out."
+    // Built into the scratch list — which `SendOrdered` then overwrites with
+    // the filtered list itself — and sent first, `sort`'s arrangement and for
+    // `sort`'s reason: the positions are what a patch feeds onward, so they
+    // have to be in place before the list that sets it running arrives.
+    work.Clear();
+    for (std::size_t i = 0; i < count; i++)
+      work.AddInt((int)order[i] + 1);
+    SendAtoms(outputs[1], work, render, thread);
+
+    SendOrdered(stored, count, thread);
     break;
   }
 
@@ -874,6 +1218,18 @@ std::size_t gZl::ReadArgumentNumbers() {
     argument.store(argumentList[0], std::memory_order_relaxed);
   }
   return found;
+}
+
+void gZl::SetArgumentNumbers() {
+  // The same reading, committed even when it is empty. What a full
+  // reconfiguration wants: the creation arguments, so that `.zl lookup do re
+  // mi` does not come back still holding the index a `.zl nth 2` left behind;
+  // and `change` (#526), which replaces the right inlet's list itself and must
+  // not leave the numeric reading describing a list that is no longer there.
+  if (ReadArgumentNumbers() == 0) {
+    arguments = 0;
+    argument.store(0, std::memory_order_relaxed);
+  }
 }
 
 void gZl::TakeArgument(int value) {

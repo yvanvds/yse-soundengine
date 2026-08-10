@@ -302,9 +302,10 @@ TEST_SUITE("patcher") {
     // The two halves of the vocabulary have to agree: a spelling ReadMode knows
     // and ModeName does not is a mode a patch can select and the documentation
     // cannot name.
-    const Mode all[] = {Mode::LEN,  Mode::REV,      Mode::NTH,  Mode::ROT,
-                        Mode::SORT, Mode::SCRAMBLE, Mode::SWAP, Mode::INDEXMAP,
-                        Mode::MTH,  Mode::SLICE,    Mode::SUB,  Mode::LOOKUP};
+    const Mode all[] = {Mode::LEN,      Mode::REV,    Mode::NTH,      Mode::ROT,   Mode::SORT,
+                        Mode::SCRAMBLE, Mode::SWAP,   Mode::INDEXMAP, Mode::MTH,   Mode::SLICE,
+                        Mode::SUB,      Mode::LOOKUP, Mode::SECT,     Mode::UNION, Mode::UNIQUE,
+                        Mode::THIN,     Mode::FILTER, Mode::COMPARE,  Mode::CHANGE};
     for (Mode wanted : all) {
       const char* word = gZl::ModeName(wanted);
       REQUIRE(word[0] != '\0');
@@ -1340,6 +1341,414 @@ TEST_SUITE("patcher") {
     CHECK(rig.left.listValue == "c b a");
   }
 
+  // ─── thin (#526) ────────────────────────────────────────────────────────────
+
+  TEST_CASE("zl thin: drops every repeat after the first, keeping the order (#526)") {
+    // Max: "all the elements of the input list which are not duplicates." The
+    // survivors stay where they were rather than coming back sorted, which is
+    // what the stability of the shared sort buys — see the class notes.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("thin");
+    rig.Wire(obj);
+
+    obj.GetInlet(0)->SetList("3 1 3 2 1 3", YSE::T_GUI);
+    CHECK(rig.left.listValue == "3 1 2");
+    // A single result: the right outlet says nothing at all.
+    CHECK_FALSE(rig.right.gotList);
+    CHECK_FALSE(rig.right.gotInt);
+    CHECK_FALSE(rig.right.gotBang);
+
+    // Symbols too, by their characters.
+    obj.GetInlet(0)->SetList("do re do mi re", YSE::T_GUI);
+    CHECK(rig.left.listValue == "do re mi");
+
+    // The same atom equality the sort and `sub` use: 1 and 1.0 are the same
+    // number, so the second spelling is the duplicate.
+    obj.GetInlet(0)->SetList("1 1.0 2", YSE::T_GUI);
+    CHECK(rig.left.listValue == "1 2");
+
+    // A result of one atom leaves as the value it spells, not as a list of one.
+    rig.reset();
+    obj.GetInlet(0)->SetList("5 5 5", YSE::T_GUI);
+    CHECK(rig.left.gotInt);
+    CHECK(rig.left.intValue == 5);
+    CHECK_FALSE(rig.left.gotList);
+
+    // Nothing stored is nothing to send.
+    rig.reset();
+    obj.GetInlet(0)->SetList("zlclear", YSE::T_GUI);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK_FALSE(rig.left.gotList);
+    CHECK_FALSE(rig.left.gotInt);
+  }
+
+  TEST_CASE("zl thin: a full-length list of repeats collapses to its distinct atoms (#526)") {
+    // The size at which a nested scan would cost sixty-five thousand
+    // comparisons, which is why membership goes through an ordering.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("thin");
+    rig.Wire(obj);
+
+    // Digits() wraps at 9, so a 256-atom list holds each of 1..9 many times
+    // over and the first nine positions are already all of them.
+    obj.GetInlet(0)->SetList(Digits(AtomList::MAX_ATOMS), YSE::T_GUI);
+    CHECK(rig.left.listValue == "1 2 3 4 5 6 7 8 9");
+  }
+
+  // ─── sect (#526) ────────────────────────────────────────────────────────────
+
+  TEST_CASE("zl sect: sends what the two lists share, once each (#526)") {
+    Rig rig;
+    gZl obj;
+    obj.SetParams("sect");
+    rig.Wire(obj);
+
+    obj.GetInlet(1)->SetList("62 64 66", YSE::T_GUI);
+    obj.GetInlet(0)->SetList("60 62 64 65", YSE::T_GUI);
+    CHECK(rig.left.listValue == "62 64");
+    // Something in common, so no bang.
+    CHECK_FALSE(rig.right.gotBang);
+
+    // A set: an atom the stored list holds twice is still sent once, and the
+    // order is the stored list's rather than the argument's.
+    obj.GetInlet(0)->SetList("64 62 64", YSE::T_GUI);
+    CHECK(rig.left.listValue == "64 62");
+
+    // ...and an atom the *argument* holds twice does not double it either.
+    obj.GetInlet(1)->SetList("62 62 64", YSE::T_GUI);
+    obj.GetInlet(0)->SetList("62 64", YSE::T_GUI);
+    CHECK(rig.left.listValue == "62 64");
+  }
+
+  TEST_CASE("zl sect: nothing in common bangs the right outlet (#526)") {
+    // Max: "the right outlet outputs a bang if the two input lists share no
+    // common elements." The left outlet is silent on an empty result, so the
+    // bang is the only thing that tells a patch the object ran at all.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("sect");
+    rig.Wire(obj);
+
+    obj.GetInlet(1)->SetList("62 64", YSE::T_GUI);
+    obj.GetInlet(0)->SetList("70 71 72", YSE::T_GUI);
+    CHECK(rig.right.gotBang);
+    CHECK_FALSE(rig.left.gotList);
+    CHECK_FALSE(rig.left.gotInt);
+
+    // No second list at all is an empty intersection too — there is nothing to
+    // have in common with.
+    Rig bare;
+    gZl empty;
+    empty.SetParams("sect");
+    bare.Wire(empty);
+    empty.GetInlet(0)->SetList("1 2 3", YSE::T_GUI);
+    CHECK(bare.right.gotBang);
+    CHECK_FALSE(bare.left.gotList);
+  }
+
+  // ─── union (#526) ───────────────────────────────────────────────────────────
+
+  TEST_CASE("zl union: adds the two lists together, shared atoms appearing once (#526)") {
+    // Max: "contains the contents of both input lists. If the left and right
+    // inlets contain any items in common, only one symbol will be output."
+    Rig rig;
+    gZl obj;
+    obj.SetParams("union");
+    rig.Wire(obj);
+
+    obj.GetInlet(1)->SetList("3 4 5", YSE::T_GUI);
+    obj.GetInlet(0)->SetList("1 2 3", YSE::T_GUI);
+    CHECK(rig.left.listValue == "1 2 3 4 5");
+    CHECK_FALSE(rig.right.gotList);
+    CHECK_FALSE(rig.right.gotBang);
+
+    // A set on both sides: repeats inside either list collapse too.
+    obj.GetInlet(1)->SetList("2 2 9", YSE::T_GUI);
+    obj.GetInlet(0)->SetList("1 1 2", YSE::T_GUI);
+    CHECK(rig.left.listValue == "1 2 9");
+
+    // With nothing on the right it is `thin`, and with nothing stored it is the
+    // right inlet's list thinned.
+    Rig alone;
+    gZl one;
+    one.SetParams("union");
+    alone.Wire(one);
+    one.GetInlet(0)->SetList("1 1 2", YSE::T_GUI);
+    CHECK(alone.left.listValue == "1 2");
+
+    Rig other;
+    gZl two;
+    two.SetParams("union");
+    other.Wire(two);
+    two.GetInlet(1)->SetList("a b a", YSE::T_GUI);
+    two.GetInlet(0)->SetList("zlclear", YSE::T_GUI);
+    two.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(other.left.listValue == "a b");
+  }
+
+  // ─── unique and filter (#526) ───────────────────────────────────────────────
+
+  TEST_CASE(
+      "zl unique: removes the atoms the right inlet names, keeping the rest as it is (#526)") {
+    // Max: "items from the left-input-list which were not present in the
+    // right-input-list." A filter rather than a set operation, so duplicates
+    // and positions survive.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("unique");
+    rig.Wire(obj);
+
+    obj.GetInlet(1)->SetList("2 4", YSE::T_GUI);
+    obj.GetInlet(0)->SetList("1 2 3 4 5", YSE::T_GUI);
+    CHECK(rig.left.listValue == "1 3 5");
+    // A single result: nothing on the right.
+    CHECK_FALSE(rig.right.gotList);
+    CHECK_FALSE(rig.right.gotInt);
+
+    // Repeats of a surviving atom all survive — this is not `thin`.
+    obj.GetInlet(0)->SetList("1 1 2 1", YSE::T_GUI);
+    CHECK(rig.left.listValue == "1 1 1");
+
+    // Everything removed is an empty result, and an empty result sends nothing.
+    rig.reset();
+    obj.GetInlet(0)->SetList("2 4 2", YSE::T_GUI);
+    CHECK_FALSE(rig.left.gotList);
+    CHECK_FALSE(rig.left.gotInt);
+
+    // Nothing to remove is the list itself, which is a meaningful answer rather
+    // than an unconfigured one — unlike `sub`, which has nothing to search for.
+    Rig bare;
+    gZl empty;
+    empty.SetParams("unique");
+    bare.Wire(empty);
+    empty.GetInlet(0)->SetList("1 2 3", YSE::T_GUI);
+    CHECK(bare.left.listValue == "1 2 3");
+  }
+
+  TEST_CASE("zl filter: selects as unique does and reports the 1-based positions (#526)") {
+    // The two modes are one selection in Max, and the right outlet is the whole
+    // difference: `filter` says *where* the survivors were, which is what makes
+    // it compose with `nth`.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("filter 61");
+    rig.Wire(obj);
+
+    obj.GetInlet(0)->SetList("60 61 62 63", YSE::T_GUI);
+    CHECK(rig.left.listValue == "60 62 63");
+    CHECK(rig.right.listValue == "1 3 4");
+
+    // The same selection a `unique` with the same argument makes.
+    Rig same;
+    gZl other;
+    other.SetParams("unique 61");
+    same.Wire(other);
+    other.GetInlet(0)->SetList("60 61 62 63", YSE::T_GUI);
+    CHECK(same.left.listValue == rig.left.listValue);
+    // ...and the right outlet is where they part company.
+    CHECK_FALSE(same.right.gotList);
+
+    // One survivor: a position leaves as the int it spells, not a list of one.
+    rig.reset();
+    obj.GetInlet(1)->SetList("60 62 63", YSE::T_GUI);
+    obj.GetInlet(0)->SetList("60 61 62 63", YSE::T_GUI);
+    CHECK(rig.right.gotInt);
+    CHECK(rig.right.intValue == 2);
+    CHECK(rig.left.gotInt);
+    CHECK(rig.left.intValue == 61);
+
+    // Nothing survives: both outlets are silent, the family's empty-result rule.
+    rig.reset();
+    obj.GetInlet(0)->SetList("60 62", YSE::T_GUI);
+    CHECK_FALSE(rig.left.gotInt);
+    CHECK_FALSE(rig.left.gotList);
+    CHECK_FALSE(rig.right.gotInt);
+    CHECK_FALSE(rig.right.gotList);
+  }
+
+  TEST_CASE("zl filter: the positions arrive before the filtered list (#526)") {
+    // Max's right-to-left rule, and here it is what lets a patch point a second
+    // object at the positions before the list that sets it running arrives —
+    // `sort`'s index map, in the shape this mode gives it.
+    std::vector<char> log;
+    OrderSink left;
+    OrderSink right;
+    left.log = &log;
+    left.tag = 'L';
+    right.log = &log;
+    right.tag = 'R';
+
+    gZl obj;
+    obj.SetParams("filter 61");
+    TestHelpers::Wire(obj, 0, left);
+    TestHelpers::Wire(obj, 1, right);
+
+    obj.GetInlet(0)->SetList("60 61 62", YSE::T_GUI);
+    REQUIRE(log.size() == 2);
+    CHECK(log[0] == 'R');
+    CHECK(log[1] == 'L');
+  }
+
+  // ─── compare (#526) ─────────────────────────────────────────────────────────
+
+  TEST_CASE("zl compare: answers 1 or 0, and says where two lists differ (#526)") {
+    Rig rig;
+    gZl obj;
+    obj.SetParams("compare");
+    rig.Wire(obj);
+
+    obj.GetInlet(1)->SetList("1 2 3", YSE::T_GUI);
+    obj.GetInlet(0)->SetList("1 2 3", YSE::T_GUI);
+    CHECK(rig.left.gotInt);
+    CHECK(rig.left.intValue == 1);
+    // No differing positions to name, so the right outlet says nothing.
+    CHECK_FALSE(rig.right.gotInt);
+    CHECK_FALSE(rig.right.gotList);
+
+    // One position differs, and it leaves as the int it spells.
+    rig.reset();
+    obj.GetInlet(0)->SetList("1 9 3", YSE::T_GUI);
+    CHECK(rig.left.intValue == 0);
+    CHECK(rig.right.gotInt);
+    CHECK(rig.right.intValue == 2);
+
+    // Several, 1-based, as list text.
+    rig.reset();
+    obj.GetInlet(0)->SetList("9 2 9", YSE::T_GUI);
+    CHECK(rig.left.intValue == 0);
+    CHECK(rig.right.listValue == "1 3");
+
+    // The same atom equality the rest of the object uses: 1 and 1.0 match.
+    rig.reset();
+    obj.GetInlet(0)->SetList("1.0 2 3", YSE::T_GUI);
+    CHECK(rig.left.intValue == 1);
+  }
+
+  TEST_CASE("zl compare: a length difference differs at every position past the shorter (#526)") {
+    // The mode asks whether two lists are the *same list*, so a missing tail is
+    // a difference rather than a separate kind of answer.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("compare 1 2 3");
+    rig.Wire(obj);
+
+    obj.GetInlet(0)->SetList("1 2", YSE::T_GUI);
+    CHECK(rig.left.intValue == 0);
+    CHECK(rig.right.gotInt);
+    CHECK(rig.right.intValue == 3);
+
+    rig.reset();
+    obj.GetInlet(0)->SetList("1 2 3 4 5", YSE::T_GUI);
+    CHECK(rig.left.intValue == 0);
+    CHECK(rig.right.listValue == "4 5");
+  }
+
+  // ─── change (#526) ──────────────────────────────────────────────────────────
+
+  TEST_CASE("zl change: passes a list on only when it is not the one before it (#526)") {
+    Rig rig;
+    gZl obj;
+    obj.SetParams("change");
+    rig.Wire(obj);
+
+    obj.GetInlet(0)->SetList("1 2 3", YSE::T_GUI);
+    CHECK(rig.left.listValue == "1 2 3");
+    CHECK(rig.right.gotInt);
+    CHECK(rig.right.intValue == 1);
+
+    // The same list again is not news, and the 0 is the only thing sent — which
+    // is what makes the left outlet's silence readable.
+    rig.reset();
+    obj.GetInlet(0)->SetList("1 2 3", YSE::T_GUI);
+    CHECK_FALSE(rig.left.gotList);
+    CHECK(rig.right.gotInt);
+    CHECK(rig.right.intValue == 0);
+
+    rig.reset();
+    obj.GetInlet(0)->SetList("1 2 4", YSE::T_GUI);
+    CHECK(rig.left.listValue == "1 2 4");
+    CHECK(rig.right.intValue == 1);
+
+    // A bang answers 0: the stored list has already become the reference, so
+    // asking again is asking about the same list twice.
+    rig.reset();
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK_FALSE(rig.left.gotList);
+    CHECK(rig.right.intValue == 0);
+  }
+
+  TEST_CASE("zl change: the right inlet primes the list it compares against (#526)") {
+    // Max: the right inlet "receives lists that set the comparison reference".
+    // So the reference is the mode's argument, living where every other mode's
+    // argument lives — and `change` is the one mode that then keeps it up to
+    // date itself.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("change");
+    rig.Wire(obj);
+
+    obj.GetInlet(1)->SetList("1 2 3", YSE::T_GUI);
+    CHECK(obj.ArgumentAtoms() == 3);
+    // Setting it emits nothing, the right inlet being cold.
+    CHECK_FALSE(rig.right.gotInt);
+
+    obj.GetInlet(0)->SetList("1 2 3", YSE::T_GUI);
+    CHECK_FALSE(rig.left.gotList);
+    CHECK(rig.right.intValue == 0);
+
+    // ...and the creation arguments prime it too.
+    Rig primed;
+    gZl armed;
+    armed.SetParams("change 5 6");
+    primed.Wire(armed);
+    armed.GetInlet(0)->SetList("5 6", YSE::T_GUI);
+    CHECK_FALSE(primed.left.gotList);
+    CHECK(primed.right.intValue == 0);
+  }
+
+  TEST_CASE("zl change: the two readings of the right inlet's list stay in step (#526)") {
+    // `change` writes the reference itself, and the numeric reading of the
+    // right inlet's list has to follow it rather than describing a list that is
+    // no longer there.
+    gZl obj;
+    obj.SetParams("change 7 8");
+    CHECK(obj.ArgumentCount() == 2);
+    CHECK(obj.ArgumentAt(0) == 7);
+
+    obj.GetInlet(0)->SetList("do re mi", YSE::T_GUI);
+    CHECK(obj.ArgumentAtoms() == 3);
+    // No numbers in the new reference, so the numeric reading is honestly empty
+    // rather than still holding 7 8.
+    CHECK(obj.ArgumentCount() == 0);
+    CHECK(obj.Argument() == 0);
+
+    obj.GetInlet(0)->SetList("3 4 5", YSE::T_GUI);
+    CHECK(obj.ArgumentCount() == 3);
+    CHECK(obj.ArgumentAt(0) == 3);
+  }
+
+  TEST_CASE("zl change: the flag arrives before the list (#526)") {
+    std::vector<char> log;
+    OrderSink left;
+    OrderSink right;
+    left.log = &log;
+    left.tag = 'L';
+    right.log = &log;
+    right.tag = 'R';
+
+    gZl obj;
+    obj.SetParams("change");
+    TestHelpers::Wire(obj, 0, left);
+    TestHelpers::Wire(obj, 1, right);
+
+    obj.GetInlet(0)->SetList("1 2 3", YSE::T_GUI);
+    REQUIRE(log.size() == 2);
+    CHECK(log[0] == 'R');
+    CHECK(log[1] == 'L');
+  }
+
   // ─── mode changes at run time ───────────────────────────────────────────────
 
   TEST_CASE("zl: 'mode <name>' switches the mode and keeps the stored list (#523)") {
@@ -1596,6 +2005,61 @@ TEST_SUITE("patcher") {
       obj.GetInlet(0)->SetList(modeSlice, YSE::T_GUI);
       obj.GetInlet(0)->SetBang(YSE::T_GUI);
 
+      CHECK(TestHelpers::g_alloc_count.load() == 0);
+    }
+  }
+
+  TEST_CASE("zl: the set modes allocate nothing either (#526)") {
+    if (!TestHelpers::probeCountsAllocations()) return;
+    if (!TestHelpers::probeSeesStringAllocations()) return;
+
+    // The claim the set group's design rests on: the two orderings, the
+    // first-occurrence marks and the scratch list are members reserved when the
+    // object was built, so intersecting, uniting and comparing two full-length
+    // lists on the audio thread touches no allocator — including `union`, which
+    // is the one mode that copies atoms rather than reordering them.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("sect");
+    rig.Wire(obj);
+
+    // Two full-length lists that overlap in half their atoms, so every path
+    // through the membership search is taken. Digits() wraps at 9, so both
+    // lists are also full of repeats and the first-occurrence marking runs at
+    // full length too.
+    const std::string wide = Digits(AtomList::MAX_ATOMS);
+    std::string other;
+    for (std::size_t i = 0; i < AtomList::MAX_ATOMS; i++) {
+      if (i > 0) other.push_back(' ');
+      other.push_back((char)('5' + (i % 9)));
+    }
+
+    const std::string modeSect = "mode sect";
+    const std::string modeUnion = "mode union";
+    const std::string modeUnique = "mode unique";
+    const std::string modeThin = "mode thin";
+    const std::string modeFilter = "mode filter";
+    const std::string modeCompare = "mode compare";
+    const std::string modeChange = "mode change";
+
+    // Warm every buffer the paths touch, the sinks' included.
+    for (const std::string* word :
+         {&modeSect, &modeUnion, &modeUnique, &modeThin, &modeFilter, &modeCompare, &modeChange}) {
+      obj.GetInlet(0)->SetList(*word, YSE::T_GUI);
+      obj.GetInlet(1)->SetList(other, YSE::T_GUI);
+      obj.GetInlet(0)->SetList(wide, YSE::T_GUI);
+      obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    }
+
+    {
+      TestHelpers::ProbeScope probe;
+      for (const std::string* word : {&modeSect, &modeUnion, &modeUnique, &modeThin, &modeFilter,
+                                      &modeCompare, &modeChange}) {
+        obj.GetInlet(0)->SetList(*word, YSE::T_GUI);
+        obj.GetInlet(1)->SetList(other, YSE::T_GUI);
+        obj.GetInlet(0)->SetList(wide, YSE::T_GUI);
+        obj.GetInlet(0)->SetBang(YSE::T_GUI);
+      }
       CHECK(TestHelpers::g_alloc_count.load() == 0);
     }
   }
@@ -1911,6 +2375,127 @@ TEST_SUITE("patcher") {
     YSE::pHandle outHandle(&out);
     loaded.Connect(copy, 0, &outHandle, 0);
     copy->SetListData(0, "3 1");
+    CHECK(out.gotList);
+    CHECK(out.listValue == "mi do");
+  }
+
+  TEST_CASE("zl: a sect feeds a change, so a patch hears only what is new (#526)") {
+    // The use case the set group exists for, run through the real thing: keep
+    // the notes that are in the scale, and pass them on only when the set of
+    // them is not the one that went past last time. Nothing short of the whole
+    // chain proves it — a standalone rig can assert on the text an outlet
+    // carried, but not that the patcher delivered one object's result into the
+    // next object's *hot* inlet and that the second one then held its tongue.
+    //
+    // Sinks before the patcher: the patcher is torn down first, while the
+    // inlets it is wired to still exist.
+    MultiSink notes;
+    MultiSink changed;
+    YSE::pHandle noteHandle(&notes);
+    YSE::pHandle changeHandle(&changed);
+
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* scale = p.CreateObject(YSE::OBJ::G_ZL, "sect 60 62 64 65 67 69 71");
+    YSE::pHandle* fresh = p.CreateObject(YSE::OBJ::G_ZL, "change");
+    REQUIRE(scale != nullptr);
+    REQUIRE(fresh != nullptr);
+
+    p.Connect(scale, 0, fresh, 0);
+    p.Connect(fresh, 0, &noteHandle, 0);
+    p.Connect(fresh, 1, &changeHandle, 0);
+
+    scale->SetListData(0, "60 61 62 63 64");
+    CHECK(notes.gotList);
+    CHECK(notes.listValue == "60 62 64");
+    CHECK(changed.intValue == 1);
+
+    // A different chord that lands on the same three scale degrees: the `sect`
+    // sends the same list, and the `change` swallows it.
+    notes.reset();
+    changed.reset();
+    scale->SetListData(0, "60 66 62 68 64");
+    CHECK_FALSE(notes.gotList);
+    CHECK(changed.gotInt);
+    CHECK(changed.intValue == 0);
+
+    // A genuinely new set gets through.
+    notes.reset();
+    changed.reset();
+    scale->SetListData(0, "65 67 69");
+    CHECK(notes.listValue == "65 67 69");
+    CHECK(changed.intValue == 1);
+
+    // Nothing in the scale at all: the `sect` bangs its right outlet rather
+    // than sending an empty list on, so the `change` never fires and the patch
+    // keeps the last set it was given.
+    notes.reset();
+    changed.reset();
+    scale->SetListData(0, "61 63 66");
+    CHECK_FALSE(notes.gotList);
+    CHECK_FALSE(changed.gotInt);
+  }
+
+  TEST_CASE("zl: a filter feeds its positions to an nth, in a real patch (#526)") {
+    // The reason `filter` reports positions at all, and the reason they are
+    // 1-based: what it reports is what `nth` takes, exactly as `sub`'s
+    // positions are. Here the filter is asked which item is *not* one of the
+    // expected ones, and the `nth` fetches it back out of the list.
+    MultiSink where;
+    MultiSink picked;
+    YSE::pHandle whereHandle(&where);
+    YSE::pHandle pickedHandle(&picked);
+
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* odd = p.CreateObject(YSE::OBJ::G_ZL, "filter 60 62 64");
+    YSE::pHandle* fetch = p.CreateObject(YSE::OBJ::G_ZL, "nth");
+    REQUIRE(odd != nullptr);
+    REQUIRE(fetch != nullptr);
+
+    p.Connect(odd, 1, fetch, 1);
+    p.Connect(odd, 1, &whereHandle, 0);
+    p.Connect(fetch, 0, &pickedHandle, 0);
+
+    odd->SetListData(0, "60 62 63 64");
+    // 63 is the one that is not in the set, at 1-based position 3 — and the
+    // position reached the `nth` without making it emit, its right inlet being
+    // cold.
+    CHECK(where.gotInt);
+    CHECK(where.intValue == 3);
+    CHECK_FALSE(picked.gotInt);
+
+    // The very list that was filtered, picked at the position the filter
+    // reported: the round trip lands back on 63.
+    fetch->SetListData(0, "60 62 63 64");
+    CHECK(picked.gotInt);
+    CHECK(picked.intValue == 63);
+  }
+
+  TEST_CASE("zl: a set mode's argument survives a DumpJSON / ParseJSON round trip (#526)") {
+    // The set modes read the whole creation-argument run as the other list, so
+    // the save/load path has to carry it — symbols included, a scale of note
+    // names being exactly what a patch types here.
+    YSE::patcher src;
+    src.create(2);
+    REQUIRE(src.CreateObject(YSE::OBJ::G_ZL, "sect do re mi") != nullptr);
+    const std::string json = src.DumpJSON();
+
+    YSE::patcher loaded;
+    loaded.create(2);
+    loaded.ParseJSON(json);
+    REQUIRE(loaded.Objects() == 1);
+
+    YSE::pHandle* copy = loaded.GetHandleFromList(0);
+    REQUIRE(copy != nullptr);
+    CHECK(copy->GetParams() == std::string("sect do re mi"));
+
+    // And the reloaded object really carries the list, rather than only the
+    // text that spells it.
+    MultiSink out;
+    YSE::pHandle outHandle(&out);
+    loaded.Connect(copy, 0, &outHandle, 0);
+    copy->SetListData(0, "fa mi do sol");
     CHECK(out.gotList);
     CHECK(out.listValue == "mi do");
   }

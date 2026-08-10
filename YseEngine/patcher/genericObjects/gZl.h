@@ -13,7 +13,8 @@ namespace YSE {
 
     /**
      *  @brief Max's ``zl`` — the list-processing workhorse: one object whose
-     *         behaviour is chosen by a mode word (issues #523, #524, #525).
+     *         behaviour is chosen by a mode word (issues #523, #524, #525,
+     *         #526).
      *
      *  Max: "zl — multi-purpose list processing object". Two inlets, two
      *  outlets, and a mode that decides what happens between them. #523 landed
@@ -22,8 +23,68 @@ namespace YSE {
      *  **reordering** group — ``rot``, ``scramble``, ``sort``, ``swap`` and
      *  ``indexmap``. #525 adds the **extraction** group — ``mth``, ``slice``,
      *  ``sub`` and ``lookup`` — which is the read side of list processing: get
-     *  at one item, at a piece, at a position, at a table entry. The remaining
-     *  mode groups follow in their own issues.
+     *  at one item, at a piece, at a position, at a table entry. #526 adds the
+     *  **set** group — ``sect``, ``union``, ``unique``, ``thin``, ``filter``,
+     *  ``compare`` and ``change`` — which is the object read as a *set* rather
+     *  than as a sequence. The remaining mode groups follow in their own issues.
+     *
+     *  ### The set group, and the one ordering primitive underneath it
+     *
+     *  Five of the seven ask the same question — "is this atom one of those?" —
+     *  and the sixth and seventh ask "are these two lists the same?". The naive
+     *  answer to the first is a nested scan, and on two full-length lists that
+     *  is sixty-five thousand atom comparisons on a path the audio callback
+     *  takes: the number that already bought ``sub`` its Knuth-Morris-Pratt
+     *  walk and ``sort`` its merge sort. So membership goes the same way the
+     *  rest of the object does — through an **ordering**. Each list's indices
+     *  are merge-sorted into a fixed member array and membership is a binary
+     *  search, which is O(n log n + m log m) whatever the data and about four
+     *  thousand comparisons at full length.
+     *
+     *  The sort is the one ``sort`` mode already uses, lifted to work on any
+     *  ``AtomList`` rather than only the stored one, and its **stability** is
+     *  load-bearing a second time: equal atoms come out contiguous *and* in
+     *  their original order, so the first entry of each run is the earliest
+     *  occurrence in the input. That is the whole of ``thin``, and it is what
+     *  makes ``sect`` and ``union`` produce their result in the order a patch
+     *  sent it rather than in sorted order.
+     *
+     *  **Sets are sets, and filters are filters.** ``sect``, ``union`` and
+     *  ``thin`` are named for set operations, so their results are sets: each
+     *  atom appears once, at the position of its first occurrence. ``unique``
+     *  and ``filter`` are *removals* from the list — Max: "a list with elements
+     *  matching the filtering list removed" — so they keep the list as it
+     *  arrived, duplicates and all, minus the atoms that matched. That split is
+     *  not a coin toss: ``filter``'s right outlet reports the **positions** of
+     *  the atoms that survived, and a position only means something if the
+     *  survivors are still where they were.
+     *
+     *  **``unique`` and ``filter`` select the same atoms**, which is Max's
+     *  arrangement rather than this port's — the two reference pages describe
+     *  one operation ("items to remove" / "a reference list whose elements will
+     *  be excluded"). They differ in what the right outlet says about it:
+     *  ``filter`` reports where the survivors were, ``unique`` says nothing.
+     *  Both are ported because a patch reaching for either name should find it,
+     *  and because ``filter``'s positions are the composable half — what it
+     *  reports is what ``nth`` takes, exactly as ``sub``'s positions are.
+     *
+     *  Note that Max's *summary* line for ``zl.filter`` ("pass only the items
+     *  that match") and its *reference* text ("elements matching the filtering
+     *  list removed") disagree with each other. The reference text is what is
+     *  ported, because the same page's inlet and outlet labels agree with it —
+     *  "items to remove", "filtered list" — and because the other reading would
+     *  make ``filter`` the exact complement of ``unique`` rather than its twin,
+     *  which no Max patch behaves as though it were.
+     *
+     *  ### ``change`` is the one mode that writes to the right inlet's list
+     *
+     *  Max's ``zl.change`` compares what arrives against what arrived last, and
+     *  its right inlet "receives lists that set the comparison reference". So
+     *  the reference *is* the mode's argument, and it lives where every other
+     *  mode's argument lives — the right inlet's list — with the difference
+     *  that ``change`` updates it itself as lists go by. A bang therefore
+     *  answers 0: the stored list has already become the reference, and asking
+     *  again whether it changed is asking about the same list twice.
      *
      *  ### One shape for every reordering mode
      *
@@ -222,11 +283,10 @@ namespace YSE {
      *  ported yet; behaving as a mode the patch did not ask for would be worse
      *  than staying quiet, so an unconfigured ``.zl`` is inert.
      *
-     *  The rest of Max's vocabulary — ``change compare delace ecils group iter
-     *  join lace median queue reg sect stack stream sum thin union unique`` —
-     *  arrives with its own issues. A word this object does not know leaves the
-     *  mode where it was, which is ``.translate``'s answer to the same
-     *  question.
+     *  The rest of Max's vocabulary — ``delace ecils group iter join lace
+     *  median queue reg stack stream sum`` — arrives with its own issues. A
+     *  word this object does not know leaves the mode where it was, which is
+     *  ``.translate``'s answer to the same question.
      */
     enum class Mode {
       NONE,
@@ -248,6 +308,18 @@ namespace YSE {
       SLICE,
       SUB,
       LOOKUP,
+      // The set group (#526) — the list read as a set rather than as a
+      // sequence: what two lists share (`sect`), what they add up to (`union`),
+      // what one has that the other has not (`unique`, `filter`), what a list
+      // has more than once (`thin`), and whether two lists are the same at all
+      // (`compare`, `change`).
+      SECT,
+      UNION,
+      UNIQUE,
+      THIN,
+      FILTER,
+      COMPARE,
+      CHANGE,
     };
 
     /** @brief The mode in force right now. Readable from any thread. */
@@ -399,6 +471,13 @@ namespace YSE {
     // rule, which the creation-argument path deliberately overrides.
     std::size_t ReadArgumentNumbers();
 
+    // `ReadArgumentNumbers` with the "leaves the argument standing" rule turned
+    // off: the numeric reading becomes whatever the atoms say, empty included.
+    // What a full reconfiguration wants — the creation arguments, and `change`
+    // replacing its reference (#526) — so that the two readings of the right
+    // inlet's list can never drift apart.
+    void SetArgumentNumbers();
+
     // ─── the reordering modes (#524) ──────────────────────────────────────────
     // Each fills `order` with an index order over the stored list and answers
     // how many entries it wrote; 0 means "nothing to send". All are called from
@@ -434,11 +513,49 @@ namespace YSE {
     // Occurrences may overlap.
     std::size_t FindPattern();
 
-    // Strictly "stored atom `a` sorts before stored atom `b`". Numbers come
-    // before symbols in both directions — the number/symbol split is a type
-    // ordering rather than a value one — numbers compare by value and symbols
-    // by their characters.
-    bool SortsBefore(std::size_t a, std::size_t b, bool descending) const;
+    // ─── the set modes (#526) ────────────────────────────────────────────────
+    // Also called from Run() with the guard held. The first three fill `order`
+    // like the reordering group and leave through `SendOrdered`; the last three
+    // build their own answer, because it is not a selection of the stored list.
+
+    // Sort the stored list's indices into `sortedStored`, the right inlet
+    // list's into `sortedArgument`, or both. The ordering membership and
+    // first-occurrence both go through — see the class notes on why this is a
+    // binary search rather than a nested scan.
+    void RankStored(std::size_t size);
+    void RankArgument();
+
+    // `thin`: the stored list with every repeat after the first dropped.
+    std::size_t OrderThin(std::size_t size);
+
+    // `sect`: the atoms the stored list and the right inlet's list share, once
+    // each, in the order the stored list has them.
+    std::size_t OrderSect(std::size_t size);
+
+    // `unique` and `filter`: the stored list minus the atoms the right inlet's
+    // list names. Duplicates and positions survive — see the class notes on why
+    // these two are filters rather than set operations.
+    std::size_t OrderReject(std::size_t size);
+
+    // `union`: the two lists added together as sets — the stored list thinned,
+    // then whatever the right inlet's list has that it does not. Builds `work`
+    // atom by atom rather than through `order`, because the result is drawn
+    // from *two* lists and `AssignOrder` reorders one.
+    void SendUnion(YSE::THREAD thread);
+
+    // `compare`: 1 or 0 out the left outlet, and the 1-based positions at which
+    // the two lists differ out the right one when they do.
+    void SendCompare(YSE::THREAD thread);
+
+    // `change`: the stored list out the left outlet only when it differs from
+    // the reference, 1 or 0 out the right one either way — and the reference
+    // then becomes the stored list. The one mode that writes to the right
+    // inlet's list; see the class notes.
+    void SendChange(YSE::THREAD thread);
+
+    // True when the stored list and the right inlet's list are the same list,
+    // atom for atom. Shared by `compare` and `change`, which ask it two ways.
+    bool ArgumentMatchesStored() const;
 
     // Send `count` entries of `order` applied to @p source out the left outlet,
     // through the family's transport convention. The source is a parameter
@@ -516,6 +633,25 @@ namespace YSE {
     // a path the audio callback takes, and KMP is O(n+m) whatever the data for
     // twenty lines and 512 bytes that are already paid for.
     std::uint16_t failure[AtomList::MAX_ATOMS] = {};
+
+    // The set group's orderings (#526): the stored list's atoms and the right
+    // inlet list's atoms, each as an ascending index order over its own list.
+    // Two arrays rather than one because `sect` and `union` need both at once —
+    // one to answer "is this atom in the other list", the other to answer "is
+    // this the first time this atom appears". Their own arrays rather than
+    // `order` and `merge`, which are the reordering group's and are in use while
+    // a set mode is filling `order` from them. Rebuilt per message rather than
+    // cached: a cache would have to be invalidated from three write paths, and
+    // rebuilding is the cheap half of the work.
+    std::uint16_t sortedStored[AtomList::MAX_ATOMS] = {};
+    std::uint16_t sortedArgument[AtomList::MAX_ATOMS] = {};
+
+    // For each atom of whichever list was last ranked, whether it is the
+    // *first* occurrence of its value — `thin`'s whole answer, and the
+    // deduplication `sect` and `union` apply to theirs. Written from the sorted
+    // order, where the stability of the merge sort puts the earliest occurrence
+    // of each run first.
+    bool firstOccurrence[AtomList::MAX_ATOMS] = {};
 
     // `scramble`'s randomness. Per object and seedable, which is what makes a
     // shuffle reproducible — the whole reason RandomSource exists beside the
