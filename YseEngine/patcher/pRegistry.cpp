@@ -73,6 +73,7 @@
 #include "time/gTimer.h"
 #include "time/gSetClock.h"
 #include "time/gTransport.h"
+#include "time/gTranslate.h"
 #include "time/gWhen.h"
 
 #include "math/dAdd.h"
@@ -509,6 +510,10 @@ pRegistry::pRegistry() {
   // Report where a named domain clock stands, on demand — `.transport`'s read
   // half, without the ownership that would create the clock (issue #514)
   Add(OBJ::G_WHEN, gWhen::Create);
+
+  // Convert a time value between the patcher's two kinds of time — the
+  // exchange rate between milliseconds and a named clock's beats (issue #516)
+  Add(OBJ::G_TRANSLATE, gTranslate::Create);
 
   // Bang when a named domain clock reaches a beat position — the patcher's
   // first absolute point on a musical timeline (issue #507)

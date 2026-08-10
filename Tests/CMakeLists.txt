@@ -123,6 +123,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_transport.cpp
   patcher/test_patcher_setclock.cpp
   patcher/test_patcher_when.cpp
+  patcher/test_patcher_translate.cpp
   patcher/test_patcher_timepoint.cpp
   patcher/test_patcher_tempo.cpp
   patcher/test_patcher_clocker.cpp
@@ -1053,6 +1054,7 @@ set_source_files_properties(
   patcher/test_patcher_transport.cpp
   patcher/test_patcher_setclock.cpp
   patcher/test_patcher_when.cpp
+  patcher/test_patcher_translate.cpp
   patcher/test_patcher_timepoint.cpp
   patcher/test_patcher_tempo.cpp
   patcher/test_patcher_clocker.cpp

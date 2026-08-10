@@ -36,7 +36,8 @@ namespace YSE {
    *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_RANDOM``.
    *  - Timing: ``G_METRO``, ``G_DELAY``, ``G_PIPE``, ``G_TRANSPORT``,
    *    ``G_SETCLOCK``,
-   *    ``G_WHEN``, ``G_TIMEPOINT``, ``G_TEMPO``, ``G_CLOCKER``, ``G_TIMER``,
+   *    ``G_WHEN``, ``G_TRANSLATE``, ``G_TIMEPOINT``, ``G_TEMPO``,
+   *    ``G_CLOCKER``, ``G_TIMER``,
    *    ``G_SPEEDLIM``, ``G_QLIM``, ``G_THRESH``, ``G_QUICKTHRESH``,
    *    ``G_LINE``, ``G_BLINE``.
    *  - Registers: ``G_COUNTER``, ``G_ACCUM``.
@@ -212,6 +213,7 @@ namespace YSE {
     DEFOBJ(G_TRANSPORT, ".transport");
     DEFOBJ(G_SETCLOCK, ".setclock");
     DEFOBJ(G_WHEN, ".when");
+    DEFOBJ(G_TRANSLATE, ".translate");
     DEFOBJ(G_TIMEPOINT, ".timepoint");
     DEFOBJ(G_TEMPO, ".tempo");
     DEFOBJ(G_CLOCKER, ".clocker");
