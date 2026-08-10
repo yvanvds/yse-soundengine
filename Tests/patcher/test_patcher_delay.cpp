@@ -54,9 +54,11 @@
 #include "patcher/pRegistry.h"
 #include "patcher/patcher.hpp"
 #include "patcher/patcherImplementation.h"
+#include "patcher/sinks.hpp"
 #include "patcher/time/gDelay.h"
 #include "patcher/time/messageScheduler.h"
 
+using TestHelpers::Wire;
 using YSE::PATCHER::gDelay;
 using YSE::PATCHER::messageScheduler;
 using YSE::PATCHER::patcherImplementation;
@@ -89,7 +91,7 @@ namespace {
 
     explicit Rig(const std::string& args = "") {
       if (!args.empty()) obj.SetParams(args);
-      obj.ConnectOutlet(out.GetInlet(0), 0);
+      Wire(obj, 0, out);
     }
 
     void Bang() {

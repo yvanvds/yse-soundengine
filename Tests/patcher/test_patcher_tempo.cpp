@@ -57,6 +57,7 @@
 
 namespace {
 
+  using TestHelpers::Wire;
   using YSE::PATCHER::gTempo;
   using YSE::PATCHER::patcherImplementation;
 
@@ -104,7 +105,7 @@ namespace {
 
     explicit Rig(const std::string& args = "") {
       if (!args.empty()) obj.SetParams(args);
-      obj.ConnectOutlet(out.GetInlet(0), 0);
+      Wire(obj, 0, out);
     }
 
     void Int(int value, int inlet = 0) {

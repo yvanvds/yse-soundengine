@@ -58,6 +58,7 @@
 #include "patcher/pRegistry.h"
 #include "patcher/patcher.hpp"
 #include "patcher/patcherImplementation.h"
+#include "patcher/sinks.hpp"
 #include "patcher/time/gPipe.h"
 #include "patcher/time/gThresh.h"
 #include "patcher/time/messageScheduler.h"
@@ -126,23 +127,7 @@ namespace {
     }
   };
 
-  // Wire two standalone objects the way `patcherImplementation::ConnectUnlocked`
-  // wires two objects in a real patch: **both ends, inlet first**.
-  //
-  // Registering only the outlet side is enough to make sends work, which is why
-  // it is an easy thing to write and a hard thing to notice. It is also a bug,
-  // and a documented one — `pObject::ConnectInlet` and `ConnectUnlocked` both
-  // spell it out for issue #237. `~outlet` walks its `connections` and calls
-  // `inlet::Disconnect` on every peer, and `~inlet` does the mirror image, so a
-  // *symmetric* edge is unwired by whichever end dies first and destruction
-  // order stops mattering. A one-sided one leaves the outlet holding an
-  // `inlet*` the inlet never knew about, and destroying the receiver first
-  // makes `~outlet` read freed memory. (Issue #727 tracks the older test files
-  // that still get this wrong; this is not another one.)
-  void Wire(YSE::PATCHER::pObject& from, int outlet, YSE::PATCHER::pObject& to, int inlet = 0) {
-    REQUIRE(to.ConnectInlet(from.GetOutlet(outlet), inlet));
-    from.ConnectOutlet(to.GetInlet(inlet), outlet);
-  }
+  using TestHelpers::Wire;
 
   // A standalone object with a recorder on its outlet. Standalone means no
   // patcher, so no scheduler and no clock: nothing groups and every value comes

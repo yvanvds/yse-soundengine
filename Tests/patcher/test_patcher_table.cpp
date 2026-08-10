@@ -42,6 +42,7 @@
 #include "patcher/sinks.hpp"
 
 using TestHelpers::MultiSink;
+using TestHelpers::Wire;
 using YSE::PATCHER::gTable;
 
 namespace {
@@ -78,7 +79,7 @@ namespace {
     gTable obj;
 
     Rig() {
-      obj.ConnectOutlet(out.GetInlet(0), 0);
+      Wire(obj, 0, out);
     }
 
     void reset() {
@@ -375,7 +376,7 @@ TEST_SUITE("patcher") {
 
     gTable obj;
     obj.SetParams("4");
-    obj.ConnectOutlet(rec.GetInlet(0), 0);
+    Wire(obj, 0, rec);
     obj.GetInlet(0)->SetList("set 0 3 1 4 1", YSE::T_GUI);
 
     log.clear();

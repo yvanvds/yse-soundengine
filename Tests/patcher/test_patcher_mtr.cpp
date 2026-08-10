@@ -65,8 +65,10 @@
 #include "patcher/pRegistry.h"
 #include "patcher/patcher.hpp"
 #include "patcher/patcherImplementation.h"
+#include "patcher/sinks.hpp"
 #include "patcher/time/messageScheduler.h"
 
+using TestHelpers::Wire;
 using YSE::PATCHER::gMtr;
 using YSE::PATCHER::messageScheduler;
 using YSE::PATCHER::patcherImplementation;
@@ -125,7 +127,7 @@ namespace {
       if (!args.empty()) obj.SetParams(args);
       for (int i = 0; i < obj.NumOutputs(); i++) {
         outs.emplace_back(new Recorder());
-        obj.ConnectOutlet(outs.back()->GetInlet(0), i);
+        Wire(obj, i, *outs.back());
       }
     }
 

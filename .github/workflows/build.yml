@@ -355,9 +355,17 @@ jobs:
     # concurrent live-edit + render of a patcher under Thread- and
     # AddressSanitizer so a regression in the wait-free graph model (a data race
     # or a use-after-free of a retired GraphState/object on the audio thread) is
-    # caught. Both legs build only the tests-<san> preset and run just the
-    # patcher concurrency test (the preset filters by name). Local repro:
+    # caught. Both legs build only the tests-<san> preset and run what that
+    # preset's test filter selects. Local repro:
     # tools/ci-linux/Dockerfile.sanitizers.
+    #
+    # The ASan leg runs the *whole* patcher suite, not just `concurrency:*`
+    # (issue #727). Narrowing it to the concurrency case is what let ~22 test
+    # files sit on a one-sided outlet->inlet edge — a teardown use-after-free
+    # that ASan aborts on the moment the case actually runs — stay green for
+    # months. The full suite is the cheap half of the pair, so it is the half
+    # that gets widened; TSan stays on `concurrency:*`, where the races live and
+    # where the 20-30x slowdown is affordable.
     #
     # Same trigger gate as the `build` job: continuous on push to dev/master,
     # plus feature-branch PRs; skipped on release/sync PRs whose head is dev or
@@ -395,10 +403,12 @@ jobs:
         run: cmake --preset tests-${{ matrix.san }}
       - name: Build
         run: cmake --build --preset tests-${{ matrix.san }}
-      - name: Run patcher concurrency gate
-        # The tests-${san} test preset filters to yse_tests_patcher_concurrency
-        # and sets ASAN_OPTIONS=detect_leaks=0 on the asan leg (the process-global
-        # thread pools / named bus are intentionally never torn down).
+      - name: Run patcher sanitizer gate
+        # The tests-${san} test preset picks what runs: the full yse_tests_patcher
+        # suite on asan (issue #727), yse_tests_patcher_concurrency on tsan, plus
+        # yse_tests_sendstress on both. The asan preset also sets
+        # ASAN_OPTIONS=detect_leaks=0 (the process-global thread pools / named bus
+        # are intentionally never torn down).
         run: ctest --preset tests-${{ matrix.san }} --output-on-failure
       - name: Run static-teardown UAF gate (lifecycle suite, issue #298)
         # The lifecycle suite deliberately leaves a SOUND::implementationObject

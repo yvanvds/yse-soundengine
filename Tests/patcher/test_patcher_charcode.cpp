@@ -35,6 +35,7 @@
 #include "patcher/sinks.hpp"
 
 using TestHelpers::MultiSink;
+using TestHelpers::Wire;
 using YSE::PATCHER::gAtoi;
 using YSE::PATCHER::gItoa;
 
@@ -48,7 +49,7 @@ namespace {
     T obj;
 
     Rig() {
-      obj.ConnectOutlet(sink.GetInlet(0), 0);
+      Wire(obj, 0, sink);
     }
   };
 
