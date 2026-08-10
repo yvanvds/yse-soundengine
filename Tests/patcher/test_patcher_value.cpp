@@ -42,6 +42,7 @@
 #include "patcher/patcher.hpp"
 #include "patcher/patcherImplementation.h"
 #include "patcher/sinks.hpp"
+#include "utils/json.hpp"
 
 using TestHelpers::MultiSink;
 using YSE::PATCHER::gValue;
@@ -465,7 +466,34 @@ TEST_SUITE("patcher") {
     REQUIRE(h != nullptr);
     h->SetIntData(0, 777);
     CHECK(h->GetParams() == std::string("tempo 120"));
-    CHECK(src.DumpJSON().find("777") == std::string::npos);
+
+    // Read the dump as JSON rather than searching its text for "777". Every
+    // object also serialises its storage ID — and, under "outputs", the IDs of
+    // whatever its outlets point at — and those come from pObject::CreateID(),
+    // a counter that runs for the whole process rather than per patcher. By
+    // the time this case executes inside a full suite run that counter is five
+    // digits, so a substring search over the raw dump is also asking whether
+    // those digits happen to spell 777 right now, which is a question about
+    // how many patcher objects the cases before this one built. It came up
+    // 35777 on Linux CI and 35798 on Windows, which is the whole of why this
+    // passed locally and failed there. What #486 is about is the object's own
+    // record: its creation parameters, and any state it asks to persist
+    // alongside them.
+    const auto dump = nlohmann::json::parse(src.DumpJSON(), nullptr, false);
+    REQUIRE_FALSE(dump.is_discarded());
+    REQUIRE(dump.size() == 1u);
+
+    nlohmann::json record = dump.begin().value();
+    CHECK(record["parms"].get<std::string>() == std::string("tempo 120"));
+    // A .value has nothing to keep beyond its creation argument, so it writes
+    // no "state" key either — that hook (issue #494) is exactly where a stored
+    // value would end up if it were mistaken for persistent data.
+    CHECK(record.find("state") == record.end());
+    // And the store is nowhere else in the record either. Same reach as the
+    // substring search this replaces, minus the two counter-derived fields.
+    record.erase("ID");
+    record.erase("outputs");
+    CHECK(record.dump().find("777") == std::string::npos);
   }
 
   TEST_CASE("value: re-parsing with an empty argument returns it to a private cell (#486)") {
