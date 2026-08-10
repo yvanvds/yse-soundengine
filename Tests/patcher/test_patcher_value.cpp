@@ -470,16 +470,16 @@ TEST_SUITE("patcher") {
 
     // Read the dump as JSON rather than searching its text for "777". Every
     // object also serialises its storage ID — and, under "outputs", the IDs of
-    // whatever its outlets point at — and those come from pObject::CreateID(),
-    // a counter that runs for the whole process rather than per patcher. By
-    // the time this case executes inside a full suite run that counter is five
-    // digits, so a substring search over the raw dump is also asking whether
-    // those digits happen to spell 777 right now, which is a question about
-    // how many patcher objects the cases before this one built. It came up
-    // 35777 on Linux CI and 35798 on Windows, which is the whole of why this
-    // passed locally and failed there. What #486 is about is the object's own
-    // record: its creation parameters, and any state it asks to persist
-    // alongside them.
+    // whatever its outlets point at — so a substring search over the raw dump
+    // is also asking what those IDs happen to spell. When this case was written
+    // the ID came from a process-wide counter, which made the answer depend on
+    // how many patcher objects the cases before this one had built: it came up
+    // 35777 on Linux CI and 35798 on Windows, which is the whole of why the old
+    // assertion passed locally and failed there. Issue #730 has since made the
+    // counter per-patcher, so this dump's IDs are now a small stable 0, but the
+    // shape of the assertion is the point and stays: what #486 is about is the
+    // object's own record — its creation parameters, and any state it asks to
+    // persist alongside them — not fields the patcher fills in for it.
     const auto dump = nlohmann::json::parse(src.DumpJSON(), nullptr, false);
     REQUIRE_FALSE(dump.is_discarded());
     REQUIRE(dump.size() == 1u);

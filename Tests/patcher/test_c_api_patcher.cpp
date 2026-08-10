@@ -93,8 +93,13 @@ TEST_SUITE("capilowcov") {
 
     YsePHandle* sine = yse_patcher_create_object(p, kSine, nullptr);
     REQUIRE(sine != nullptr);
+    // The first object in a fresh patcher is ID 0. This used to read `id != 0u`,
+    // which only ever held because the ID came from a process-wide counter that
+    // had already run past 0 by the time any test looked — exactly the property
+    // issue #730 removed. What the case is actually about is the round trip:
+    // the ID a handle reports finds that same handle again.
     const unsigned int id = yse_phandle_get_id(sine);
-    CHECK(id != 0u);
+    CHECK(id == 0u);
 
     CHECK(yse_patcher_get_handle_from_id(p, id) == sine);
     CHECK(yse_patcher_get_handle_from_list(p, 0) == sine);

@@ -70,7 +70,15 @@ namespace YSE {
     /** @brief Original creation argument string. */
     std::string GetParams();
 
-    /** @brief Unique patcher-assigned ID. */
+    /** @brief Storage ID, unique within the owning patcher.
+     *
+     *  Assigned by the patcher in creation order, starting at 0, and stable for
+     *  the object's lifetime. This is the number ``patcher::DumpJSON`` writes
+     *  for the object and that ``GetConnectionTarget`` reports for edges
+     *  pointing at it. IDs are *not* unique across patchers — two patchers each
+     *  number their own objects from 0 (issue #730) — so use
+     *  ``patcher::GetHandleFromID`` on the patcher the object belongs to.
+     */
     unsigned int GetID();
 
     /** @brief Number of connections leaving outlet ``outlet``. */

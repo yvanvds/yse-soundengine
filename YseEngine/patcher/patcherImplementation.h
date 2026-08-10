@@ -423,6 +423,25 @@ namespace YSE {
       int nextInletId_ = 0;
       int nextOutletId_ = 0;
 
+      // Per-patcher counter behind pObject's storage ID (issue #730). Handed out
+      // in creation order from 0, under mtx, by CreateObjectUnlocked — so a
+      // patch built the same way always numbers its objects the same way, and
+      // the number no longer depends on what else the process built first.
+      //
+      // Unlike the inlet/outlet graph ids above, this one is never recompacted
+      // and never recycled. Those ids only have to be unique among *live*
+      // objects, so #355 can restart them whenever the patcher goes empty. A
+      // storage ID additionally has to stay distinct from every ID this patcher
+      // has already used: messageScheduler and fileScheduler hold a raw
+      // pObject* armed long before it is due and accept the delivery only when
+      // the snapshot's pointer *and* its ID match (see messageScheduler.h,
+      // "Lifetime safety across live edits"). Reusing an ID would let a fresh
+      // object allocated at a reclaimed address satisfy both halves of that
+      // check and receive a dead object's message. The cost is that a patcher
+      // churning objects for hours still counts upward — bounded by one
+      // patcher's lifetime creations instead of the whole process's.
+      int nextStorageId_ = 0;
+
       // Free-list of retired inlet / outlet graph ids (issue #364). The
       // background reclaimer pushes a deleted object's ids here at the moment it
       // frees the object — the point no live or retired snapshot can still index
