@@ -27,8 +27,10 @@ using namespace YSE::PATCHER;
 
 namespace {
   // Process-wide counter feeding the auto-generated "patcher_<N>" default
-  // name (issue #122). Distinct from pObject::CreateID() so the patcher
-  // counter is not perturbed by inner-object construction.
+  // name (issue #122). Deliberately the only process-wide counter left in the
+  // patcher: object storage IDs became per-patcher in #730, but a patcher's
+  // *own* default name has to be distinct from every other patcher's in the
+  // process, because it is the bus prefix inner gSend/gReceive route on.
   std::atomic<unsigned int> g_nextPatcherIndex{0};
 
   // Shared empty list argument for DispatchToReceiver on the non-list value
@@ -375,29 +377,41 @@ YSE::pHandle* patcherImplementation::CreateObjectUnlocked(const std::string& typ
 
   if (type == OBJ::D_DAC) {
     object = new pDac((int)output.size());
-    // Give the DAC its patcher parent too, so its inlets resolve DSP-readiness
-    // from the pinned snapshot on the audio thread rather than the live wiring
-    // (issue #226).
-    object->SetParent(this);
   } else if (type == OBJ::D_ADC) {
     // Like the DAC, the ADC is built with the patcher's real channel count
     // rather than the registry's default-channel Create() (issue #167). The
     // registry entry exists only so ~adc is a valid, documented type; the
     // rendered graph always uses this channel-matched instance.
     object = new pAdc((int)output.size());
-    object->SetParent(this);
   } else {
     object = Register().Get(type);
-    if (object != nullptr) {
-      object->SetParams(args);
-      object->SetParent(this);
-    }
+    if (object != nullptr) object->SetParams(args);
   }
 
   if (object == nullptr) {
     INTERNAL::LogImpl().emit(E_ERROR, "Patcher" + type + " is not a valid patcher object.");
     return nullptr;
   }
+
+  // The storage ID (issue #730) has to be on the object *before* SetParent,
+  // not merely before the object is published. SetParent is the moment the
+  // object learns which patcher it belongs to, and an object that reads a file
+  // named in its creation arguments — `.textfile` (#687), `.seq` (#692) —
+  // issues that request from its SetParent override. fileScheduler stamps the
+  // request with target->GetID() and, when the read completes, delivers it only
+  // if the snapshot's object still reports the same ID. Arming with the
+  // not-yet-assigned sentinel and renumbering afterwards makes every such
+  // request undeliverable. messageScheduler has the same contract.
+  //
+  // Caller holds mtx, which is what makes the bare increment safe. The counter
+  // it replaces was a process-wide `unsigned int` bumped from every pObject
+  // constructor, on any thread, with no synchronisation at all.
+  object->SetStorageID(nextStorageId_++);
+  // Every object gets its patcher parent, the DAC and ADC included, so their
+  // inlets resolve DSP-readiness from the pinned snapshot on the audio thread
+  // rather than from the live wiring (issue #226). Hoisted out of the three
+  // branches above, which each used to do this for themselves.
+  object->SetParent(this);
 
   YSE::pHandle* handle = new YSE::pHandle(object);
   objects.insert(std::pair<YSE::pHandle*, pObject*>(handle, object));
@@ -629,15 +643,32 @@ void patcherImplementation::Clear() {
 using json = nlohmann::json;
 std::string patcherImplementation::DumpJSON() {
   json j;
-  int counter = 0;
 
   // Read a consistent object set under mtx. mtx is control-thread only (issue
   // #226), so serialising here never blocks the audio callback.
   {
     std::scoped_lock lk(mtx);
-    for (const auto& any : objects) {
-      std::string name = "object " + std::to_string(counter);
-      any.second->DumpJson(j[name]);
+    // `objects` is keyed by pHandle*, so walking it hands the serialiser its
+    // objects in heap-address order — which is a property of the allocator, not
+    // of the patch, and would leave two identically-built patchers writing the
+    // same objects under different "object N" keys even now that their IDs
+    // agree. Order by storage ID instead: that is creation order, and creation
+    // order is what the patch itself says (issue #730).
+    std::vector<pObject*> ordered;
+    ordered.reserve(objects.size());
+    for (const auto& any : objects)
+      ordered.push_back(any.second);
+    // The check fires on "std::sort over a container of pointers" and is exactly
+    // inverted here: the comparator never looks at the pointers, only at the
+    // storage IDs behind them, and replacing the pointer-ordered map walk with a
+    // deterministic order is the entire point of the call.
+    // NOLINTNEXTLINE(bugprone-nondeterministic-pointer-iteration-order)
+    std::sort(ordered.begin(), ordered.end(),
+              [](pObject* a, pObject* b) { return a->GetID() < b->GetID(); });
+
+    int counter = 0;
+    for (pObject* object : ordered) {
+      object->DumpJson(j["object " + std::to_string(counter)]);
       counter++;
     }
   }
@@ -651,6 +682,27 @@ void patcherImplementation::ParseJSON(const std::string& content) {
 
   std::map<int, pHandle*> OldIDs;
 
+  // Create in stored-ID order, not in the order the records come out of the
+  // json object (issue #730). A dump's records are keyed "object 0", "object
+  // 1", ... and nlohmann hands them back in *string* order, so "object 10"
+  // arrives before "object 2": past ten objects, a parse rebuilds the patch in
+  // an order the patch never had, and the fresh storage IDs it hands out land
+  // on different objects than the ones the file names. Sorting on the stored ID
+  // makes load a fixed point of save — dump, parse, dump again and the bytes
+  // match. A patch saved before this change carries the old wide process-wide
+  // IDs; those are arbitrary, but they are still totally ordered, so such a
+  // patch loads in its own defined order and is renumbered from 0 the next time
+  // it is saved.
+  std::vector<std::pair<int, json*>> records;
+  records.reserve(j.size());
+  for (auto obj = j.begin(); obj != j.end(); ++obj) {
+    records.emplace_back(obj.value()["ID"].get<int>(), &obj.value());
+  }
+  std::stable_sort(records.begin(), records.end(),
+                   [](const std::pair<int, json*>& a, const std::pair<int, json*>& b) {
+                     return a.first < b.first;
+                   });
+
   // Build the whole parsed graph under one lock and publish it with a single
   // atomic swap at the end (issue #228): the audio thread never sees a
   // partial graph — it keeps rendering the previously-published snapshot until
@@ -659,14 +711,15 @@ void patcherImplementation::ParseJSON(const std::string& content) {
   // is what let the old fileHandlerActive re-entrancy flag be retired.
   std::scoped_lock lk(mtx);
   // restore objects first
-  for (auto obj = j.begin(); obj != j.end(); ++obj) {
-    std::string type = obj.value()["type"].get<std::string>();
-    std::string args = obj.value()["parms"].get<std::string>();
+  for (const auto& record : records) {
+    json& obj = *record.second;
+    std::string type = obj["type"].get<std::string>();
+    std::string args = obj["parms"].get<std::string>();
     pHandle* handle = CreateObjectUnlocked(type, args);
 
     // handle can be null if called without gui context
     if (handle != nullptr) {
-      auto gui = obj.value()["gui"];
+      auto gui = obj["gui"];
       for (auto prop = gui.begin(); prop != gui.end(); ++prop) {
         handle->SetGuiProperty(prop.key(), prop.value().get<std::string>());
       }
@@ -675,21 +728,20 @@ void patcherImplementation::ParseJSON(const std::string& content) {
       // contents (issue #494). Absent for every object that has none, which is
       // why it is looked up rather than indexed: operator[] on a const-less
       // json would insert a null here for all of them.
-      const auto state = obj.value().find("state");
-      if (state != obj.value().end()) {
+      const auto state = obj.find("state");
+      if (state != obj.end()) {
         handle->object->RestoreState(*state);
       }
     }
 
-    int ID = obj.value()["ID"].get<int>();
-    OldIDs.insert(std::pair<int, YSE::pHandle*>(ID, handle));
+    OldIDs.insert(std::pair<int, YSE::pHandle*>(record.first, handle));
   }
 
   // restore connections
-  for (auto obj = j.begin(); obj != j.end(); ++obj) {
-    int source = obj.value()["ID"].get<int>();
+  for (const auto& record : records) {
+    int source = record.first;
     int outlet = 0;
-    auto outs = obj.value()["outputs"];
+    auto outs = (*record.second)["outputs"];
     for (auto out = outs.begin(); out != outs.end(); ++out) {
 
       if (out.value().count("Count") == 0) {

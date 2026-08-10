@@ -161,9 +161,35 @@ namespace YSE {
         return "";
       }
 
-      static unsigned int CreateID();
+      // Storage ID — the number this object is written as by DumpJson, and the
+      // number every outlet pointing *at* it writes as its connection target.
+      //
+      // Handed out by the owning patcher from a counter of its own, in creation
+      // order, starting at 0 (issue #730). It used to come from a process-wide
+      // counter, which made a saved patch's IDs a record of how many patcher
+      // objects the process had already built rather than a property of the
+      // patch. Per-patcher, the same patch built the same way always serialises
+      // to the same bytes.
+      //
+      // Unique within one patcher for that patcher's whole lifetime: the
+      // counter only ever advances (see patcherImplementation::nextStorageId_),
+      // because the ID doubles as the impersonation guard the message and file
+      // schedulers use to tell a live target from a recycled allocation at the
+      // same address.
+      //
+      // kNoStorageID is what an object outside a patcher carries — a standalone
+      // object in a unit-test rig, or the patcher itself. Such an object is
+      // never serialised and never reachable from a GraphState, so the sentinel
+      // is only ever observed through GetID() by code that built the object
+      // itself. GetID() returns it as UINT_MAX, which matches no real ID.
+      static constexpr int kNoStorageID = -1;
       inline unsigned int GetID() {
         return ID;
+      }
+      // Control thread only, and only from the owning patcher: called once when
+      // the object joins it, before the object is published to any GraphState.
+      inline void SetStorageID(int id) {
+        ID = id;
       }
       void DumpJson(nlohmann::json::value_type& json);
 
@@ -212,8 +238,8 @@ namespace YSE {
       pObject* parent;
       bool DSP;
 
-      // for storage
-      int ID;
+      // for storage — see GetID() / kNoStorageID above
+      int ID = kNoStorageID;
 
       // for incoming data
       std::string dataName;

@@ -7,11 +7,6 @@
 
 using namespace YSE::PATCHER;
 
-unsigned int LastPatcherObjectID = 0;
-unsigned int pObject::CreateID() {
-  return LastPatcherObjectID++;
-}
-
 // ``parent`` is the owning patcherImplementation by construction (set via
 // SetParent when the object is added). null for a standalone object or the
 // patcher itself, in which case there is no snapshot to consult.
@@ -64,8 +59,11 @@ void pObject::UnwireFromPeers() {
   }
 }
 
-pObject::pObject(bool isDSPObject, pObject* parent)
-  : parent(parent), DSP(isDSPObject), ID(CreateID()) {}
+// The storage ID is deliberately *not* assigned here: it belongs to the patcher
+// that owns the object, not to the process that built it, and the object does
+// not know its patcher until SetParent (issue #730). An object that never joins
+// a patcher keeps kNoStorageID and is never serialised.
+pObject::pObject(bool isDSPObject, pObject* parent) : parent(parent), DSP(isDSPObject) {}
 
 bool pObject::IsDSPStartPoint() {
   if (!DSP) return false;
