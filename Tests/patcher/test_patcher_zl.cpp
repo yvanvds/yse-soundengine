@@ -1,11 +1,15 @@
-// Tests for `.zl` (issue #523) — the patcher's list-processing object, and the
-// design gate for the whole list group.
+// Tests for `.zl` (issues #523, #524) — the patcher's list-processing object,
+// and the design gate for the whole list group.
 //
 // Three things are being pinned here, and only the first of them is about the
-// three modes this issue ships:
+// modes themselves:
 //
-//   - **the modes**: `len`, `rev` and `nth`, including `nth`'s two outlets and
-//     the right-before-left order Max guarantees for them;
+//   - **the modes**: `len`, `rev` and `nth` from #523, including `nth`'s two
+//     outlets and the right-before-left order Max guarantees for them; and the
+//     reordering group from #524 — `rot`, `scramble`, `sort`, `swap` and
+//     `indexmap`, including the index map `sort` publishes, the 1-based
+//     numbering that lets it be fed straight back into an `indexmap`, and the
+//     seeded shuffle that makes `scramble` assertable at all;
 //   - **the bounded storage model** the siblings inherit — 256 atoms of at most
 //     1024 characters, pre-allocated, with overflow *refused and counted*
 //     rather than truncated, and the head kept rather than the tail;
@@ -178,6 +182,45 @@ TEST_SUITE("patcher") {
     CHECK(out == "d c b a");
   }
 
+  TEST_CASE("zl: AtomList applies an index order, dropping entries that name nothing (#524)") {
+    // The shared reordering primitive every #524 mode goes through.
+    AtomList source;
+    source.AddTokens("a b c d");
+
+    AtomList out;
+    std::string text;
+    AtomList::ReserveRender(text);
+
+    const std::uint16_t reversed[] = {3, 2, 1, 0};
+    out.AssignOrder(source, reversed, 4);
+    out.Render(text);
+    CHECK(text == "d c b a");
+    // The source is untouched: the order is applied to a copy.
+    source.Render(text);
+    CHECK(text == "a b c d");
+
+    // Entries may repeat, and the result is as long as the order rather than as
+    // long as the source.
+    const std::uint16_t repeated[] = {1, 1, 0};
+    out.AssignOrder(source, repeated, 3);
+    CHECK(out.Size() == 3);
+    out.Render(text);
+    CHECK(text == "b b a");
+
+    // An entry naming no atom contributes nothing — which is how a mode refuses
+    // an index without compacting its own array first.
+    const std::uint16_t withGaps[] = {2, 0xFFFF, 9, 0};
+    out.AssignOrder(source, withGaps, 4);
+    CHECK(out.Size() == 2);
+    out.Render(text);
+    CHECK(text == "c a");
+
+    // Nothing survivable at all leaves an empty list rather than a wild read.
+    const std::uint16_t none[] = {0xFFFF, 0xFFFF};
+    out.AssignOrder(source, none, 2);
+    CHECK(out.Empty());
+  }
+
   // ─── shape and registration ─────────────────────────────────────────────────
 
   TEST_CASE("zl: registered, two inlets and two outlets (#523)") {
@@ -240,16 +283,42 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("zl: an unknown mode word leaves the object inert, not guessing (#523)") {
+    // `queue` and `median` belong to mode groups that are not ported yet — the
+    // words this test needs are whichever ones are still unimplemented, and it
+    // moved off `scramble` / `sort` when #524 implemented them.
     gZl obj;
-    obj.SetParams("scramble");
+    obj.SetParams("queue");
     CHECK(obj.CurrentMode() == Mode::NONE);
 
     // And a mode message naming a mode that is not implemented yet leaves the
     // mode where it was, rather than falling back to another one.
     obj.SetParams("rev");
     REQUIRE(obj.CurrentMode() == Mode::REV);
-    obj.GetInlet(0)->SetList("mode sort", YSE::T_GUI);
+    obj.GetInlet(0)->SetList("mode median", YSE::T_GUI);
     CHECK(obj.CurrentMode() == Mode::REV);
+  }
+
+  TEST_CASE("zl: every mode word round trips through ReadMode and ModeName (#524)") {
+    // The two halves of the vocabulary have to agree: a spelling ReadMode knows
+    // and ModeName does not is a mode a patch can select and the documentation
+    // cannot name.
+    const Mode all[] = {Mode::LEN,      Mode::REV,  Mode::NTH,  Mode::ROT,
+                        Mode::SCRAMBLE, Mode::SORT, Mode::SWAP, Mode::INDEXMAP};
+    for (Mode wanted : all) {
+      const char* word = gZl::ModeName(wanted);
+      REQUIRE(word[0] != '\0');
+      Mode parsed = Mode::NONE;
+      CHECK(gZl::ReadMode(word, std::string(word).size(), parsed));
+      CHECK(parsed == wanted);
+    }
+
+    // NONE is the absence of a word rather than a word.
+    CHECK(std::string(gZl::ModeName(Mode::NONE)).empty());
+
+    // Strict: a token that merely starts with a mode word is not that mode.
+    Mode parsed = Mode::NONE;
+    CHECK_FALSE(gZl::ReadMode("sorted", 6, parsed));
+    CHECK_FALSE(gZl::ReadMode("so", 2, parsed));
   }
 
   TEST_CASE("zl: SetParams(\"\") returns the object to its no-argument shape (#523)") {
@@ -500,6 +569,410 @@ TEST_SUITE("patcher") {
     CHECK_FALSE(rig.right.gotList);
   }
 
+  // ─── rot ────────────────────────────────────────────────────────────────────
+
+  TEST_CASE("zl rot: rotates by the number of places the argument gives (#524)") {
+    Rig rig;
+    gZl obj;
+    obj.SetParams("rot 1");
+    rig.Wire(obj);
+
+    // Positive rotates toward the end of the list: the item that was last comes
+    // out first.
+    obj.GetInlet(0)->SetList("1 2 3 4 5", YSE::T_GUI);
+    CHECK(rig.left.gotList);
+    CHECK(rig.left.listValue == "5 1 2 3 4");
+    // One result, so nothing on the right outlet.
+    CHECK_FALSE(rig.right.gotList);
+
+    // Negative rotates toward the start.
+    obj.GetInlet(1)->SetInt(-1, YSE::T_GUI);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.left.listValue == "2 3 4 5 1");
+
+    // Rotating does not consume the stored list: two bangs at the same setting
+    // give the same answer rather than compounding.
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.left.listValue == "2 3 4 5 1");
+  }
+
+  TEST_CASE("zl rot: any magnitude is legal, a whole turn is the identity (#524)") {
+    // Modulo the length, so a patch need not keep the number in range.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("rot 0");
+    rig.Wire(obj);
+
+    obj.GetInlet(0)->SetList("1 2 3 4", YSE::T_GUI);
+    CHECK(rig.left.listValue == "1 2 3 4");
+
+    obj.GetInlet(1)->SetInt(4, YSE::T_GUI);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.left.listValue == "1 2 3 4");
+
+    obj.GetInlet(1)->SetInt(401, YSE::T_GUI);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.left.listValue == "4 1 2 3");
+
+    obj.GetInlet(1)->SetInt(-401, YSE::T_GUI);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.left.listValue == "2 3 4 1");
+
+    // An empty stored list sends nothing at all rather than an empty message.
+    rig.reset();
+    obj.GetInlet(0)->SetList("zlclear", YSE::T_GUI);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK_FALSE(rig.left.gotList);
+    CHECK_FALSE(rig.left.gotInt);
+  }
+
+  // ─── scramble ───────────────────────────────────────────────────────────────
+
+  TEST_CASE("zl scramble: a seeded shuffle replays, a different seed does not (#524)") {
+    // The reason `.zl` carries a per-object RandomSource rather than drawing
+    // from the engine-wide generator: a shuffle nobody can replay is a shuffle
+    // no test can pin beyond "it was a permutation".
+    Rig rig;
+    gZl obj;
+    obj.SetParams("scramble");
+    rig.Wire(obj);
+
+    obj.GetInlet(0)->SetList("zlseed 4242", YSE::T_GUI);
+    obj.GetInlet(0)->SetList("1 2 3 4 5 6 7 8", YSE::T_GUI);
+    REQUIRE(rig.left.gotList);
+    const std::string first = rig.left.listValue;
+
+    // Re-seeded to the same stream, the same input gives the same order back.
+    obj.GetInlet(0)->SetList("zlseed 4242", YSE::T_GUI);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.left.listValue == first);
+
+    // A different seed is a different walk — the trap RandomSource's own header
+    // records, where neighbouring seeds shared a stream.
+    obj.GetInlet(0)->SetList("zlseed 4243", YSE::T_GUI);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.left.listValue != first);
+
+    // Seeding emits nothing on its own and keeps the stored list.
+    rig.reset();
+    obj.GetInlet(0)->SetList("zlseed 7", YSE::T_GUI);
+    CHECK_FALSE(rig.left.gotList);
+    CHECK(obj.Stored() == 8);
+  }
+
+  TEST_CASE("zl scramble: the result is a permutation, and one draw per item moved (#524)") {
+    Rig rig;
+    gZl obj;
+    obj.SetParams("scramble");
+    rig.Wire(obj);
+
+    obj.GetInlet(0)->SetList("zlseed 99", YSE::T_GUI);
+    const auto before = obj.Draws();
+    obj.GetInlet(0)->SetList("1 2 3 4 5 6", YSE::T_GUI);
+    REQUIRE(rig.left.gotList);
+
+    // Fisher-Yates moves every item but the first, so a six-item list costs
+    // five draws — the property a refactor breaks silently.
+    CHECK(obj.Draws() - before == 5);
+
+    // Every item is still there, exactly once.
+    std::vector<char> seen;
+    for (char c : rig.left.listValue) {
+      if (c != ' ') seen.push_back(c);
+    }
+    REQUIRE(seen.size() == 6);
+    for (char want = '1'; want <= '6'; want++) {
+      int count = 0;
+      for (char c : seen) {
+        if (c == want) count++;
+      }
+      CHECK(count == 1);
+    }
+
+    // Nothing on the right outlet, and an empty list sends nothing at all.
+    CHECK_FALSE(rig.right.gotList);
+    rig.reset();
+    obj.GetInlet(0)->SetList("zlclear", YSE::T_GUI);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK_FALSE(rig.left.gotList);
+  }
+
+  // ─── sort ───────────────────────────────────────────────────────────────────
+
+  TEST_CASE("zl sort: sorts left, publishes the 1-based index map right (#524)") {
+    Rig rig;
+    gZl obj;
+    obj.SetParams("sort");
+    rig.Wire(obj);
+
+    obj.GetInlet(0)->SetList("30 10 20", YSE::T_GUI);
+    CHECK(rig.left.gotList);
+    CHECK(rig.left.listValue == "10 20 30");
+    // For each item of the sorted list, the 1-based position it held in the
+    // input: 10 was second, 20 third, 30 first.
+    CHECK(rig.right.gotList);
+    CHECK(rig.right.listValue == "2 3 1");
+  }
+
+  TEST_CASE("zl sort: the index map arrives before the sorted list (#524)") {
+    // Max's right-to-left rule, and here it carries weight: the map is what a
+    // patch feeds to an `indexmap` for a parallel list, so it has to be in
+    // place before the sorted list sets that patch running.
+    std::vector<char> log;
+    OrderSink left;
+    OrderSink right;
+    left.log = &log;
+    left.tag = 'L';
+    right.log = &log;
+    right.tag = 'R';
+
+    gZl obj;
+    obj.SetParams("sort");
+    TestHelpers::Wire(obj, 0, left);
+    TestHelpers::Wire(obj, 1, right);
+
+    obj.GetInlet(0)->SetList("3 1 2", YSE::T_GUI);
+    REQUIRE(log.size() == 2);
+    CHECK(log[0] == 'R');
+    CHECK(log[1] == 'L');
+  }
+
+  TEST_CASE("zl sort: a negative argument sorts downwards (#524)") {
+    Rig rig;
+    gZl obj;
+    obj.SetParams("sort -1");
+    rig.Wire(obj);
+
+    obj.GetInlet(0)->SetList("30 10 20", YSE::T_GUI);
+    CHECK(rig.left.listValue == "30 20 10");
+    CHECK(rig.right.listValue == "1 3 2");
+
+    // Anything else sorts upwards, so an unset argument is an ascending sort.
+    obj.GetInlet(1)->SetInt(0, YSE::T_GUI);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.left.listValue == "10 20 30");
+  }
+
+  TEST_CASE("zl sort: equal items keep the order they arrived in (#524)") {
+    // Stability is what makes the published map one a patch can reason about:
+    // an unstable sort would give a different map for the same input from one
+    // build to the next.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("sort");
+    rig.Wire(obj);
+
+    obj.GetInlet(0)->SetList("2 1 2 1", YSE::T_GUI);
+    CHECK(rig.left.listValue == "1 1 2 2");
+    // The first 1 was at position 2 and the second at 4; the first 2 at 1 and
+    // the second at 3.
+    CHECK(rig.right.listValue == "2 4 1 3");
+  }
+
+  TEST_CASE("zl sort: numbers before symbols in both directions (#524)") {
+    // The number/symbol split is a type ordering rather than a value one, so a
+    // descending sort does not sweep the symbols to the front — `sort` and
+    // `sort -1` stay one question asked two ways.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("sort");
+    rig.Wire(obj);
+
+    obj.GetInlet(0)->SetList("pear 2 apple 1", YSE::T_GUI);
+    CHECK(rig.left.listValue == "1 2 apple pear");
+
+    obj.GetInlet(1)->SetInt(-1, YSE::T_GUI);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.left.listValue == "2 1 pear apple");
+
+    // A symbol that is a prefix of another sorts first.
+    obj.GetInlet(1)->SetInt(1, YSE::T_GUI);
+    obj.GetInlet(0)->SetList("ab a abc", YSE::T_GUI);
+    CHECK(rig.left.listValue == "a ab abc");
+  }
+
+  TEST_CASE("zl sort: a one-item list still answers on both outlets (#524)") {
+    Rig rig;
+    gZl obj;
+    obj.SetParams("sort");
+    rig.Wire(obj);
+
+    // The transport convention applies to the map as much as to the list: one
+    // atom leaves as the int it spells.
+    obj.GetInlet(0)->SetList("42", YSE::T_GUI);
+    CHECK(rig.left.gotInt);
+    CHECK(rig.left.intValue == 42);
+    CHECK(rig.right.gotInt);
+    CHECK(rig.right.intValue == 1);
+
+    // And an empty list answers on neither.
+    rig.reset();
+    obj.GetInlet(0)->SetList("zlclear", YSE::T_GUI);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK_FALSE(rig.left.gotInt);
+    CHECK_FALSE(rig.left.gotList);
+    CHECK_FALSE(rig.right.gotInt);
+    CHECK_FALSE(rig.right.gotList);
+  }
+
+  TEST_CASE("zl sort: a full-length list sorts correctly (#524)") {
+    // The merge sort runs its full depth here — eight passes over 256 items —
+    // which is where an off-by-one in the run bounds would show.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("sort");
+    rig.Wire(obj);
+
+    std::string descending;
+    for (std::size_t i = 0; i < AtomList::MAX_ATOMS; i++) {
+      if (i > 0) descending.push_back(' ');
+      descending += std::to_string(AtomList::MAX_ATOMS - i);
+    }
+    obj.GetInlet(0)->SetList(descending, YSE::T_GUI);
+    REQUIRE(rig.left.gotList);
+
+    // Reading the result back through an AtomList is the cheapest way to assert
+    // "ascending, and all of it".
+    AtomList result;
+    result.AddTokens(rig.left.listValue);
+    REQUIRE(result.Size() == AtomList::MAX_ATOMS);
+    for (std::size_t i = 0; i < result.Size(); i++)
+      CHECK(result.AtomValue(i) == doctest::Approx((float)(i + 1)));
+  }
+
+  // ─── swap ───────────────────────────────────────────────────────────────────
+
+  TEST_CASE("zl swap: exchanges the two items its 1-based indices name (#524)") {
+    Rig rig;
+    gZl obj;
+    obj.SetParams("swap 2 4");
+    rig.Wire(obj);
+
+    CHECK(obj.ArgumentCount() == 2);
+    CHECK(obj.ArgumentAt(0) == 2);
+    CHECK(obj.ArgumentAt(1) == 4);
+
+    obj.GetInlet(0)->SetList("a b c d e", YSE::T_GUI);
+    CHECK(rig.left.gotList);
+    CHECK(rig.left.listValue == "a d c b e");
+    CHECK_FALSE(rig.right.gotList);
+
+    // The right inlet takes both indices as one list — the reason it reads more
+    // than its leading token now.
+    obj.GetInlet(1)->SetList("1 5", YSE::T_GUI);
+    CHECK(obj.ArgumentCount() == 2);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.left.listValue == "e b c d a");
+
+    // Swapping an item with itself is the list unchanged, not an error.
+    obj.GetInlet(1)->SetList("3 3", YSE::T_GUI);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.left.listValue == "a b c d e");
+  }
+
+  TEST_CASE("zl swap: an index naming no item sends nothing at all (#524)") {
+    // `nth`'s answer to the same question: the exchange asked for cannot be
+    // made, and a list that is not the one the patch asked for is worse than
+    // none.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("swap 2 9");
+    rig.Wire(obj);
+
+    obj.GetInlet(0)->SetList("a b c", YSE::T_GUI);
+    CHECK_FALSE(rig.left.gotList);
+    CHECK_FALSE(rig.right.gotList);
+
+    obj.GetInlet(1)->SetList("0 2", YSE::T_GUI);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK_FALSE(rig.left.gotList);
+
+    // One index is not half a swap; it is not a swap.
+    obj.GetInlet(1)->SetInt(1, YSE::T_GUI);
+    REQUIRE(obj.ArgumentCount() == 1);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK_FALSE(rig.left.gotList);
+
+    // And two good ones bring it back.
+    obj.GetInlet(1)->SetList("1 3", YSE::T_GUI);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.left.gotList);
+    CHECK(rig.left.listValue == "c b a");
+  }
+
+  // ─── indexmap ───────────────────────────────────────────────────────────────
+
+  TEST_CASE("zl indexmap: re-picks the list in the order the map names (#524)") {
+    Rig rig;
+    gZl obj;
+    obj.SetParams("indexmap 3 1 2");
+    rig.Wire(obj);
+
+    CHECK(obj.ArgumentCount() == 3);
+    obj.GetInlet(0)->SetList("a b c", YSE::T_GUI);
+    CHECK(rig.left.listValue == "c a b");
+    CHECK_FALSE(rig.right.gotList);
+
+    // Elementwise, so a map may name an item twice or leave one out — the
+    // result is as long as the map, not as long as the list.
+    obj.GetInlet(1)->SetList("2 2 2 1", YSE::T_GUI);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.left.listValue == "b b b a");
+
+    obj.GetInlet(1)->SetList("3", YSE::T_GUI);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    // One atom out leaves as the symbol it spells, the family's convention.
+    CHECK(rig.left.listValue == "c");
+  }
+
+  TEST_CASE("zl indexmap: an index naming no item drops its own element (#524)") {
+    // Unlike `swap`, which refuses the whole exchange: a map is a list of
+    // independent picks, so the ones that can be honoured still are.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("indexmap");
+    rig.Wire(obj);
+
+    obj.GetInlet(1)->SetList("2 9 0 1 -3", YSE::T_GUI);
+    obj.GetInlet(0)->SetList("a b c", YSE::T_GUI);
+    CHECK(rig.left.listValue == "b a");
+
+    // A map naming nothing that exists sends nothing at all rather than an
+    // empty message.
+    rig.reset();
+    obj.GetInlet(1)->SetList("7 8", YSE::T_GUI);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK_FALSE(rig.left.gotList);
+    CHECK_FALSE(rig.left.gotInt);
+
+    // And with no map at all the object stores its input and says nothing.
+    rig.reset();
+    gZl bare;
+    Rig bareRig;
+    bare.SetParams("indexmap");
+    bareRig.Wire(bare);
+    bare.GetInlet(0)->SetList("a b c", YSE::T_GUI);
+    CHECK(bare.Stored() == 3);
+    CHECK_FALSE(bareRig.left.gotList);
+  }
+
+  TEST_CASE("zl: a list on the right inlet with no numbers leaves the argument standing (#524)") {
+    // A cord that delivers an occasional symbol should not silently un-point a
+    // `swap`.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("swap 1 3");
+    rig.Wire(obj);
+
+    obj.GetInlet(1)->SetList("hello there", YSE::T_GUI);
+    CHECK(obj.ArgumentCount() == 2);
+    CHECK(obj.ArgumentAt(0) == 1);
+    CHECK(obj.ArgumentAt(1) == 3);
+
+    obj.GetInlet(0)->SetList("a b c", YSE::T_GUI);
+    CHECK(rig.left.listValue == "c b a");
+  }
+
   // ─── mode changes at run time ───────────────────────────────────────────────
 
   TEST_CASE("zl: 'mode <name>' switches the mode and keeps the stored list (#523)") {
@@ -640,6 +1113,67 @@ TEST_SUITE("patcher") {
     }
   }
 
+  TEST_CASE("zl: the reordering modes allocate nothing either (#524)") {
+    if (!TestHelpers::probeCountsAllocations()) return;
+    if (!TestHelpers::probeSeesStringAllocations()) return;
+
+    // The claim the whole design rests on: the order array, the merge scratch
+    // and the scratch list are members reserved when the object was built, so a
+    // sort of a full-length list on the audio thread touches no allocator.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("sort");
+    rig.Wire(obj);
+
+    std::string wide;
+    for (std::size_t i = 0; i < AtomList::MAX_ATOMS; i++) {
+      if (i > 0) wide.push_back(' ');
+      wide += std::to_string(AtomList::MAX_ATOMS - i);
+    }
+
+    const std::string modeRot = "mode rot";
+    const std::string modeScramble = "mode scramble";
+    const std::string modeSwap = "mode swap";
+    const std::string modeIndexMap = "mode indexmap";
+    const std::string modeSort = "mode sort";
+    const std::string seed = "zlseed 5";
+    const std::string pair = "2 4";
+    const std::string map = "3 1 2 2";
+
+    // Warm every buffer the paths touch, the sinks' included.
+    for (const std::string* word : {&modeRot, &modeScramble, &modeSwap, &modeIndexMap, &modeSort}) {
+      obj.GetInlet(0)->SetList(*word, YSE::T_GUI);
+      obj.GetInlet(1)->SetList(map, YSE::T_GUI);
+      obj.GetInlet(0)->SetList(wide, YSE::T_GUI);
+    }
+    obj.GetInlet(0)->SetList(seed, YSE::T_GUI);
+    obj.GetInlet(1)->SetList(pair, YSE::T_GUI);
+
+    {
+      TestHelpers::ProbeScope probe;
+      obj.GetInlet(0)->SetList(modeRot, YSE::T_GUI);
+      obj.GetInlet(1)->SetInt(3, YSE::T_GUI);
+      obj.GetInlet(0)->SetList(wide, YSE::T_GUI);
+
+      obj.GetInlet(0)->SetList(modeScramble, YSE::T_GUI);
+      obj.GetInlet(0)->SetList(seed, YSE::T_GUI);
+      obj.GetInlet(0)->SetBang(YSE::T_GUI);
+
+      obj.GetInlet(0)->SetList(modeSort, YSE::T_GUI);
+      obj.GetInlet(0)->SetBang(YSE::T_GUI);
+
+      obj.GetInlet(0)->SetList(modeSwap, YSE::T_GUI);
+      obj.GetInlet(1)->SetList(pair, YSE::T_GUI);
+      obj.GetInlet(0)->SetBang(YSE::T_GUI);
+
+      obj.GetInlet(0)->SetList(modeIndexMap, YSE::T_GUI);
+      obj.GetInlet(1)->SetList(map, YSE::T_GUI);
+      obj.GetInlet(0)->SetBang(YSE::T_GUI);
+
+      CHECK(TestHelpers::g_alloc_count.load() == 0);
+    }
+  }
+
   // ─── persistence ────────────────────────────────────────────────────────────
 
   TEST_CASE("zl: params survive a DumpJSON / ParseJSON round trip (#523)") {
@@ -734,6 +1268,108 @@ TEST_SUITE("patcher") {
     zl->SetBang(0);
     CHECK(out.gotList);
     CHECK(out.listValue == "e d c b a");
+  }
+
+  TEST_CASE("zl: a sort feeds its index map to an indexmap, in a real patch (#524)") {
+    // The idiom the reordering group exists for, run through the real thing:
+    // sort the pitches, and use the map the sort publishes to put the durations
+    // beside them into the same new order. Nothing short of the whole chain
+    // proves it — a standalone rig can assert on the text an outlet carried,
+    // but not that the patcher delivered the map down a cord into a second
+    // object's cold inlet *before* anything asked that object to fire.
+    //
+    // Sinks before the patcher: the patcher is torn down first, while the
+    // inlets it is wired to still exist.
+    MultiSink pitches;
+    MultiSink durations;
+    YSE::pHandle pitchHandle(&pitches);
+    YSE::pHandle durationHandle(&durations);
+
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* sort = p.CreateObject(YSE::OBJ::G_ZL, "sort");
+    YSE::pHandle* apply = p.CreateObject(YSE::OBJ::G_ZL, "indexmap");
+    REQUIRE(sort != nullptr);
+    REQUIRE(apply != nullptr);
+
+    // The sorted pitches go to one sink; the map goes into the indexmap's cold
+    // right inlet.
+    p.Connect(sort, 0, &pitchHandle, 0);
+    p.Connect(sort, 1, apply, 1);
+    p.Connect(apply, 0, &durationHandle, 0);
+
+    sort->SetListData(0, "67 60 72 64");
+    CHECK(pitches.gotList);
+    CHECK(pitches.listValue == "60 64 67 72");
+    // 60 was second, 64 fourth, 67 first, 72 third — and the map reached the
+    // indexmap without making it emit, its right inlet being cold.
+    CHECK_FALSE(durations.gotList);
+
+    // The parallel list, put into the same order by the map that came down the
+    // cord.
+    apply->SetListData(0, "100 200 300 400");
+    CHECK(durations.gotList);
+    CHECK(durations.listValue == "200 400 100 300");
+  }
+
+  TEST_CASE("zl: a rotate is re-pointed live and re-run by a bang, in a real patch (#524)") {
+    // The generative case: one `.zl rot` holding a rhythm, told a new offset
+    // down a cord, and asked for the same rhythm back rotated the other way.
+    MultiSink out;
+    YSE::pHandle outHandle(&out);
+
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* zl = p.CreateObject(YSE::OBJ::G_ZL, "rot 1");
+    REQUIRE(zl != nullptr);
+    p.Connect(zl, 0, &outHandle, 0);
+
+    zl->SetListData(0, "1 0 0 1 0 0 1 0");
+    CHECK(out.gotList);
+    CHECK(out.listValue == "0 1 0 0 1 0 0 1");
+
+    out.reset();
+    zl->SetIntData(1, -2);
+    CHECK_FALSE(out.gotList);
+    zl->SetBang(0);
+    CHECK(out.listValue == "0 1 0 0 1 0 1 0");
+
+    // A mode switch mid-patch turns the same stored rhythm into a shuffle, and
+    // a seed makes that shuffle replayable.
+    zl->SetListData(0, "mode scramble");
+    zl->SetListData(0, "zlseed 12345");
+    zl->SetBang(0);
+    const std::string first = out.listValue;
+    zl->SetListData(0, "zlseed 12345");
+    zl->SetBang(0);
+    CHECK(out.listValue == first);
+  }
+
+  TEST_CASE("zl: a multi-number argument survives a DumpJSON / ParseJSON round trip (#524)") {
+    // `swap` and `indexmap` widened the creation arguments from one number to a
+    // run of them, so the save/load path has to carry the whole run.
+    YSE::patcher src;
+    src.create(2);
+    REQUIRE(src.CreateObject(YSE::OBJ::G_ZL, "indexmap 3 1 2") != nullptr);
+    const std::string json = src.DumpJSON();
+
+    YSE::patcher loaded;
+    loaded.create(2);
+    loaded.ParseJSON(json);
+    REQUIRE(loaded.Objects() == 1);
+
+    YSE::pHandle* copy = loaded.GetHandleFromList(0);
+    REQUIRE(copy != nullptr);
+    CHECK(copy->GetParams() == std::string("indexmap 3 1 2"));
+
+    // And the reloaded object really carries the map, rather than only the text
+    // that spells it.
+    MultiSink out;
+    YSE::pHandle outHandle(&out);
+    loaded.Connect(copy, 0, &outHandle, 0);
+    copy->SetListData(0, "a b c");
+    CHECK(out.gotList);
+    CHECK(out.listValue == "c a b");
   }
 
 } // TEST_SUITE

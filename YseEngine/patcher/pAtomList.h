@@ -276,6 +276,43 @@ namespace YSE {
           entries_[i] = other.entries_[i];
       }
 
+      /**
+       *  @brief Rebuild this list as @p other's atoms taken in the order the
+       *         @p count entries at @p order name — the shared reordering
+       *         primitive (issue #524).
+       *
+       *  Every mode that *rearranges* rather than *selects* comes down to this:
+       *  ``.zl``'s ``rot``, ``scramble``, ``sort``, ``swap`` and ``indexmap``
+       *  each compute an index order over the stored list and then apply it
+       *  here, so the rearranging itself is written once and each mode is only
+       *  the arithmetic that produces its order.
+       *
+       *  An entry naming no atom of @p other **contributes nothing** rather
+       *  than a placeholder, which is what lets a caller mark a rejected index
+       *  by pointing it past the end instead of compacting its own array first.
+       *  So the result may be shorter than @p count, and ``Size()`` afterwards
+       *  is what actually landed.
+       *
+       *  Entries may repeat: an index map that names the same atom twice
+       *  produces it twice. Nothing is copied but the atom table — the backing
+       *  text is taken from @p other whole, exactly as ``Assign`` takes it — so
+       *  a repeat costs no characters.
+       *
+       *  Allocation-free for the reason ``Assign`` is, and @p other must not be
+       *  this same list: the atoms are read from it while this table is being
+       *  rewritten.
+       */
+      void AssignOrder(const AtomList& other, const std::uint16_t* order, std::size_t count) {
+        text_.assign(other.text_);
+        if (count > MAX_ATOMS) count = MAX_ATOMS;
+        count_ = 0;
+        for (std::size_t i = 0; i < count; i++) {
+          const std::size_t at = order[i];
+          if (at >= other.count_) continue;
+          entries_[count_++] = other.entries_[at];
+        }
+      }
+
       /** @brief Reverse the atom order. Permutes the table; the backing text
        *         does not move. */
       void Reverse() {

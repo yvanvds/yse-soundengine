@@ -1,4 +1,5 @@
 #pragma once
+#include "../math/gRandomSource.h"
 #include "../pAtomList.h"
 #include "../pObject.h"
 #include <atomic>
@@ -12,13 +13,43 @@ namespace YSE {
 
     /**
      *  @brief Max's ``zl`` — the list-processing workhorse: one object whose
-     *         behaviour is chosen by a mode word (issue #523).
+     *         behaviour is chosen by a mode word (issues #523, #524).
      *
      *  Max: "zl — multi-purpose list processing object". Two inlets, two
-     *  outlets, and a mode that decides what happens between them. This issue
-     *  lands the shell, the dispatch, the bounded storage model and three
-     *  modes — ``len``, ``rev`` and ``nth`` — enough to prove the design; the
-     *  remaining mode groups follow in their own issues.
+     *  outlets, and a mode that decides what happens between them. #523 landed
+     *  the shell, the dispatch, the bounded storage model and the three modes
+     *  that prove the design: ``len``, ``rev`` and ``nth``. #524 adds the
+     *  **reordering** group — ``rot``, ``scramble``, ``sort``, ``swap`` and
+     *  ``indexmap``. The remaining mode groups follow in their own issues.
+     *
+     *  ### One shape for every reordering mode
+     *
+     *  The five reordering modes differ only in the *order* they want, never in
+     *  what they then do with it. Each computes an index order over the stored
+     *  list into one scratch array and hands it to ``AtomList::AssignOrder``,
+     *  so the rearranging is written once and a mode is only its own
+     *  arithmetic. That is also what keeps them allocation-free: the order
+     *  array, and the scratch the sort merges through, are fixed members sized
+     *  at ``AtomList::MAX_ATOMS`` when the object is built.
+     *
+     *  ### Indices are 1-based, everywhere, on purpose
+     *
+     *  ``nth`` already takes Max's 1-based index, and ``swap``, ``indexmap``
+     *  and the map ``sort`` publishes all follow it. One numbering across the
+     *  object matters more than matching Max mode by mode, because the modes
+     *  are meant to **compose**: ``sort``'s right outlet is an index map, and
+     *  the whole point of publishing it is that it can be sent to an
+     *  ``indexmap`` to put a *parallel* list — the durations beside the
+     *  pitches — into the same new order. A map that came out 1-based and went
+     *  back in 0-based would make the object's headline idiom silently wrong.
+     *
+     *  An index naming no item is refused rather than clamped, and the two
+     *  modes that take several refuse differently because they ask
+     *  differently. ``indexmap`` is elementwise — a list of independent picks —
+     *  so a bad index drops its own element and the rest still arrive.
+     *  ``swap`` is one exchange between two named places, so a bad index means
+     *  the exchange asked for cannot be made and **nothing** is sent, which is
+     *  the answer ``nth`` already gives to an index naming no item.
      *
      *  ### One object with a mode, not thirty objects
      *
@@ -148,16 +179,24 @@ namespace YSE {
      *  than staying quiet, so an unconfigured ``.zl`` is inert.
      *
      *  The rest of Max's vocabulary — ``change compare delace ecils group iter
-     *  join lace lookup median mth queue reg rot scramble sect slice sort
-     *  stack stream sub sum thin union unique`` — arrives with its own issues.
-     *  A word this object does not know leaves the mode where it was, which is
-     *  ``.translate``'s answer to the same question.
+     *  join lace lookup median mth queue reg sect slice stack stream sub sum
+     *  thin union unique`` — arrives with its own issues. A word this object
+     *  does not know leaves the mode where it was, which is ``.translate``'s
+     *  answer to the same question.
      */
     enum class Mode {
       NONE,
       LEN,
       REV,
       NTH,
+      // The reordering group (#524). Every one of these produces a permutation
+      // — or, for `indexmap`, a re-selection — of the stored list, and every
+      // one of them goes out the left outlet through the same path.
+      ROT,
+      SCRAMBLE,
+      SORT,
+      SWAP,
+      INDEXMAP,
     };
 
     /** @brief The mode in force right now. Readable from any thread. */
@@ -179,9 +218,50 @@ namespace YSE {
     /**
      *  @brief The mode's argument, from the right inlet or the creation
      *         arguments — for ``nth``, the **1-based** index Max uses.
+     *
+     *  The *first* number of the argument, which is the whole of it for every
+     *  mode that takes one number. ``swap`` and ``indexmap`` take several; see
+     *  ``ArgumentCount``.
      */
     int Argument() const {
       return argument.load(std::memory_order_relaxed);
+    }
+
+    /**
+     *  @brief How many numbers the mode's argument holds (issue #524).
+     *
+     *  ``rot``, ``sort`` and ``nth`` read one number and this is 1; ``swap``
+     *  reads two; ``indexmap`` reads as many as it is given, up to
+     *  ``AtomList::MAX_ATOMS``. ``len``, ``rev`` and ``scramble`` read none.
+     *
+     *  The argument is one list rather than one number because two of the
+     *  modes need it to be: an index map is a list by definition, and a swap
+     *  names two places. Keeping ``Argument()`` as its first element is what
+     *  makes that a widening rather than a change — an ``.zl nth`` wired to a
+     *  number sees exactly what it saw before.
+     */
+    std::size_t ArgumentCount() const {
+      return arguments;
+    }
+
+    /** @brief Number @p index of the mode's argument, or 0 past the end.
+     *         Diagnostics and tests; the modes read the array directly under
+     *         the guard. */
+    int ArgumentAt(std::size_t index) const {
+      if (index >= arguments) return 0;
+      return argumentList[index];
+    }
+
+    /**
+     *  @brief How many draws ``scramble`` has taken since the last seeding.
+     *
+     *  Exists so a test can pin *how often* the object draws — one draw per
+     *  item moved is what makes a seeded shuffle replayable, and it is the kind
+     *  of property a refactor breaks silently. ``.urn``'s ``Draws()``, for
+     *  ``.urn``'s reason.
+     */
+    UInt Draws() const {
+      return rng.Draws();
     }
 
     /** @brief How many atoms the stored list holds. Diagnostics / tests. */
@@ -231,10 +311,41 @@ namespace YSE {
     void TakeInt(int value, YSE::THREAD thread);
     void TakeFloat(float value, YSE::THREAD thread);
 
-    // Max's command words on the left inlet: `mode <name>`, `zlclear` and
-    // `zlmaxsize <n>`. True when the message was one of them and so was not
-    // data. Matched against the leading token in place.
+    // Max's command words on the left inlet: `mode <name>`, `zlclear`,
+    // `zlmaxsize <n>` and `zlseed <n>`. True when the message was one of them
+    // and so was not data. Matched against the leading token in place.
     bool Command(const std::string& value, std::size_t begin, std::size_t end);
+
+    // Replace the mode's argument with every number in the `length` characters
+    // at `text`. Guarded, because the argument is an array rather than one
+    // atomic word — see the note on `argumentList`.
+    void TakeArguments(const char* text, std::size_t length);
+
+    // The mode's argument as a single number: what an int or a float on the
+    // right inlet means, and the shape every mode but `swap` and `indexmap`
+    // reads.
+    void TakeArgument(int value);
+
+    // ─── the reordering modes (#524) ──────────────────────────────────────────
+    // Each fills `order` with an index order over the stored list and answers
+    // how many entries it wrote; 0 means "nothing to send". All are called from
+    // Run(), so the guard is held and the lists cannot move underneath them.
+
+    std::size_t OrderRotate(std::size_t size);
+    std::size_t OrderScramble(std::size_t size);
+    std::size_t OrderSort(std::size_t size);
+    std::size_t OrderSwap(std::size_t size);
+    std::size_t OrderIndexMap(std::size_t size);
+
+    // Strictly "stored atom `a` sorts before stored atom `b`". Numbers come
+    // before symbols in both directions — the number/symbol split is a type
+    // ordering rather than a value one — numbers compare by value and symbols
+    // by their characters.
+    bool SortsBefore(std::size_t a, std::size_t b, bool descending) const;
+
+    // Send `count` entries of `order` applied to the stored list out the left
+    // outlet, through the family's transport convention.
+    void SendOrdered(std::size_t count, YSE::THREAD thread);
 
     // One refusal, on the counter Dropped() reports.
     void CountDrop(std::size_t count = 1) {
@@ -254,9 +365,20 @@ namespace YSE {
     // Max's zlmaxsize. Unclamped, since Limit() applies the range.
     std::atomic<int> limit{(int)AtomList::MAX_ATOMS};
 
-    // The mode's argument — nth's 1-based index. Written by the right inlet
-    // and by the creation arguments, read by Run().
+    // The mode's argument — nth's 1-based index, rot's places, sort's
+    // direction. The first number of `argumentList`, kept as its own atomic
+    // word because it is the whole argument for every mode that takes one
+    // number and a lock-free read is what a Run() on the audio thread wants.
     std::atomic<int> argument{0};
+
+    // The mode's argument in full: `swap`'s two indices, `indexmap`'s map
+    // (#524). A plain array rather than an AtomList because indices are all
+    // these modes want from it, and 1 KB is a tenth of what a second list would
+    // cost. Not atomic and not thread-safe — writes take the same `busy` guard
+    // the stored list does, so a right-inlet list arriving while a message is
+    // being processed is dropped and counted rather than half-applied.
+    int argumentList[AtomList::MAX_ATOMS] = {};
+    std::size_t arguments = 0;
 
     // The last list received at the left inlet, and the scratch copy the
     // reordering modes work on so that processing never destroys it. Both
@@ -268,6 +390,21 @@ namespace YSE {
     // Where a result is rendered. Reserved by the constructor to
     // AtomList::RENDER_CAPACITY, so building a result allocates nothing.
     std::string render;
+
+    // The index order a reordering mode computes, and the scratch the sort
+    // merges through (#524). Members rather than locals: 1 KB of stack per
+    // message on a path the audio callback takes is not a trade worth making,
+    // and a fixed member is the only shape that is allocation-free by
+    // construction. uint16_t because MAX_ATOMS is 256 — and because 0xFFFF is
+    // then free to mean "this entry names no atom", which is how a rejected
+    // index reaches AssignOrder without the caller compacting the array first.
+    std::uint16_t order[AtomList::MAX_ATOMS] = {};
+    std::uint16_t merge[AtomList::MAX_ATOMS] = {};
+
+    // `scramble`'s randomness. Per object and seedable, which is what makes a
+    // shuffle reproducible — the whole reason RandomSource exists beside the
+    // engine-wide generator; see its header.
+    RandomSource rng;
 
     // The guard. A message that finds it taken is dropped and counted rather
     // than made to spin, this being a path the audio callback takes.
