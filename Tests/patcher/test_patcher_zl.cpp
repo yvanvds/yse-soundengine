@@ -302,8 +302,9 @@ TEST_SUITE("patcher") {
     // The two halves of the vocabulary have to agree: a spelling ReadMode knows
     // and ModeName does not is a mode a patch can select and the documentation
     // cannot name.
-    const Mode all[] = {Mode::LEN,      Mode::REV,  Mode::NTH,  Mode::ROT,
-                        Mode::SCRAMBLE, Mode::SORT, Mode::SWAP, Mode::INDEXMAP};
+    const Mode all[] = {Mode::LEN,  Mode::REV,      Mode::NTH,  Mode::ROT,
+                        Mode::SORT, Mode::SCRAMBLE, Mode::SWAP, Mode::INDEXMAP,
+                        Mode::MTH,  Mode::SLICE,    Mode::SUB,  Mode::LOOKUP};
     for (Mode wanted : all) {
       const char* word = gZl::ModeName(wanted);
       REQUIRE(word[0] != '\0');
@@ -956,6 +957,372 @@ TEST_SUITE("patcher") {
     CHECK_FALSE(bareRig.left.gotList);
   }
 
+  // ─── mth (#525) ─────────────────────────────────────────────────────────────
+
+  TEST_CASE("zl mth: picks a 0-based item, remainder out the right outlet (#525)") {
+    Rig rig;
+    gZl obj;
+    obj.SetParams("mth 1");
+    rig.Wire(obj);
+
+    obj.GetInlet(0)->SetList("10 20 30 40", YSE::T_GUI);
+    CHECK(rig.left.gotInt);
+    CHECK(rig.left.intValue == 20);
+    // The right outlet says exactly what `nth`'s does: everything but the pick.
+    CHECK(rig.right.gotList);
+    CHECK(rig.right.listValue == "10 30 40");
+
+    // Index 0 is the first item, which is the whole content of the mode.
+    rig.reset();
+    obj.GetInlet(1)->SetInt(0, YSE::T_GUI);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.left.intValue == 10);
+    CHECK(rig.right.listValue == "20 30 40");
+  }
+
+  TEST_CASE("zl mth: is nth shifted by exactly one, at both ends of the list (#525)") {
+    // The object's single 0-based mode, and the one place an off-by-one would
+    // hide. Pinned as an equivalence rather than as two separate expectations:
+    // `mth k` and `nth k+1` must name the same item for every k, and the two
+    // must go out of range one step apart.
+    Rig zeroBased;
+    Rig oneBased;
+    gZl mth;
+    gZl nth;
+    mth.SetParams("mth");
+    nth.SetParams("nth");
+    zeroBased.Wire(mth);
+    oneBased.Wire(nth);
+
+    for (int k = 0; k < 4; k++) {
+      zeroBased.reset();
+      oneBased.reset();
+      mth.GetInlet(1)->SetInt(k, YSE::T_GUI);
+      nth.GetInlet(1)->SetInt(k + 1, YSE::T_GUI);
+      mth.GetInlet(0)->SetList("a b c d", YSE::T_GUI);
+      nth.GetInlet(0)->SetList("a b c d", YSE::T_GUI);
+      CHECK(zeroBased.left.listValue == oneBased.left.listValue);
+      CHECK(zeroBased.right.listValue == oneBased.right.listValue);
+      CHECK_FALSE(zeroBased.left.listValue.empty());
+    }
+
+    // And they run out one step apart: index 4 is past the end of a four-item
+    // list for `mth` and the last item for `nth`, index 0 the reverse.
+    zeroBased.reset();
+    mth.GetInlet(1)->SetInt(4, YSE::T_GUI);
+    mth.GetInlet(0)->SetList("a b c d", YSE::T_GUI);
+    CHECK_FALSE(zeroBased.left.gotList);
+    CHECK_FALSE(zeroBased.right.gotList);
+
+    zeroBased.reset();
+    mth.GetInlet(1)->SetInt(-1, YSE::T_GUI);
+    mth.GetInlet(0)->SetList("a b c d", YSE::T_GUI);
+    CHECK_FALSE(zeroBased.left.gotList);
+  }
+
+  // ─── slice (#525) ───────────────────────────────────────────────────────────
+
+  TEST_CASE("zl slice: cuts the list in two, right outlet first (#525)") {
+    std::vector<char> log;
+    OrderSink left;
+    OrderSink right;
+    left.log = &log;
+    left.tag = 'L';
+    right.log = &log;
+    right.tag = 'R';
+
+    gZl obj;
+    obj.SetParams("slice 2");
+    TestHelpers::Wire(obj, 0, left);
+    TestHelpers::Wire(obj, 1, right);
+
+    obj.GetInlet(0)->SetList("a b c d", YSE::T_GUI);
+    REQUIRE(log.size() == 2);
+    // Max says so explicitly for this mode: "Lists are sent out the right
+    // outlet first".
+    CHECK(log[0] == 'R');
+    CHECK(log[1] == 'L');
+    CHECK(left.lastList == "a b");
+    CHECK(right.lastList == "c d");
+  }
+
+  TEST_CASE("zl slice: the count is clamped to the list, not refused (#525)") {
+    // The argument is a *count* rather than an index, so unlike `nth` there is
+    // no such thing as one that names nothing: every value cuts the list
+    // somewhere, and the two ends are a whole list plus an empty remainder.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("slice");
+    rig.Wire(obj);
+
+    // 0: everything is "the rest".
+    obj.GetInlet(1)->SetInt(0, YSE::T_GUI);
+    obj.GetInlet(0)->SetList("a b c", YSE::T_GUI);
+    CHECK_FALSE(rig.left.gotList);
+    CHECK(rig.right.listValue == "a b c");
+
+    // Negative reads as 0 rather than counting backwards: a negative count is
+    // not a direction, it is a number of items that cannot exist.
+    rig.reset();
+    obj.GetInlet(1)->SetInt(-5, YSE::T_GUI);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK_FALSE(rig.left.gotList);
+    CHECK(rig.right.listValue == "a b c");
+
+    // Past the end: the whole list left, nothing right.
+    rig.reset();
+    obj.GetInlet(1)->SetInt(9, YSE::T_GUI);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.left.listValue == "a b c");
+    CHECK_FALSE(rig.right.gotList);
+
+    // A one-item piece leaves as the value it spells, not as a list of one.
+    rig.reset();
+    obj.GetInlet(1)->SetInt(1, YSE::T_GUI);
+    obj.GetInlet(0)->SetList("11 22 33", YSE::T_GUI);
+    CHECK(rig.left.gotInt);
+    CHECK(rig.left.intValue == 11);
+    CHECK(rig.right.listValue == "22 33");
+  }
+
+  // ─── sub (#525) ─────────────────────────────────────────────────────────────
+
+  TEST_CASE("zl sub: reports the 1-based position of each occurrence (#525)") {
+    Rig rig;
+    gZl obj;
+    obj.SetParams("sub");
+    rig.Wire(obj);
+
+    // The pattern arrives cold on the right inlet and emits nothing.
+    obj.GetInlet(1)->SetList("b c", YSE::T_GUI);
+    CHECK(obj.ArgumentAtoms() == 2);
+    CHECK_FALSE(rig.left.gotList);
+    CHECK_FALSE(rig.right.gotInt);
+
+    obj.GetInlet(0)->SetList("a b c d b c", YSE::T_GUI);
+    // `b c` starts at item 2 and again at item 5 — 1-based, which is exactly
+    // what `nth` takes.
+    CHECK(rig.left.gotList);
+    CHECK(rig.left.listValue == "2 5");
+    CHECK(rig.right.gotInt);
+    CHECK(rig.right.intValue == 2);
+  }
+
+  TEST_CASE("zl sub: occurrences may overlap (#525)") {
+    // "The position of each occurrence" is a search, and a search that skipped
+    // the overlapping one would under-report exactly the repetitive material a
+    // patch searches a list for.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("sub 1 1");
+    rig.Wire(obj);
+
+    obj.GetInlet(0)->SetList("1 1 1 1", YSE::T_GUI);
+    CHECK(rig.left.listValue == "1 2 3");
+    CHECK(rig.right.intValue == 3);
+  }
+
+  TEST_CASE("zl sub: no match answers 0, no pattern answers nothing (#525)") {
+    // The two silences a patch has to be able to tell apart, and the reason the
+    // count goes out even when it is 0: the left outlet says nothing in either
+    // case.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("sub");
+    rig.Wire(obj);
+
+    // No pattern set yet: unconfigured, so nothing at all.
+    obj.GetInlet(0)->SetList("a b c", YSE::T_GUI);
+    CHECK_FALSE(rig.left.gotList);
+    CHECK_FALSE(rig.right.gotInt);
+
+    // A pattern that is not there: searched, found none.
+    rig.reset();
+    obj.GetInlet(1)->SetList("x y", YSE::T_GUI);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK_FALSE(rig.left.gotList);
+    CHECK(rig.right.gotInt);
+    CHECK(rig.right.intValue == 0);
+
+    // A pattern longer than the list is the same answer, not a wild read.
+    rig.reset();
+    obj.GetInlet(1)->SetList("a b c d e", YSE::T_GUI);
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.right.intValue == 0);
+    CHECK_FALSE(rig.left.gotList);
+  }
+
+  TEST_CASE("zl sub: matches by atom, so 1 and 1.0 are the same number (#525)") {
+    // The same number/symbol split the sort makes, and the two have to agree:
+    // a list that has been through an arithmetic object routinely spells its
+    // integers with a decimal point.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("sub");
+    rig.Wire(obj);
+
+    obj.GetInlet(1)->SetList("1.0", YSE::T_GUI);
+    obj.GetInlet(0)->SetList("5 1 5", YSE::T_GUI);
+    CHECK(rig.left.gotInt);
+    CHECK(rig.left.intValue == 2);
+    CHECK(rig.right.intValue == 1);
+
+    // A symbol never matches a number that merely spells the same characters
+    // the other way round, and a symbol match is by characters.
+    rig.reset();
+    obj.GetInlet(1)->SetList("hi", YSE::T_GUI);
+    obj.GetInlet(0)->SetList("hi there hi", YSE::T_GUI);
+    CHECK(rig.left.listValue == "1 3");
+
+    rig.reset();
+    obj.GetInlet(1)->SetList("hi", YSE::T_GUI);
+    obj.GetInlet(0)->SetList("high hit", YSE::T_GUI);
+    // A prefix is not the atom: atoms match whole or not at all.
+    CHECK(rig.right.intValue == 0);
+    CHECK_FALSE(rig.left.gotInt);
+  }
+
+  // ─── lookup (#525) ──────────────────────────────────────────────────────────
+
+  TEST_CASE("zl lookup: reads the right inlet's table by 1-based index (#525)") {
+    Rig rig;
+    gZl obj;
+    obj.SetParams("lookup");
+    rig.Wire(obj);
+
+    // The table arrives cold and emits nothing.
+    obj.GetInlet(1)->SetList("do re mi fa", YSE::T_GUI);
+    CHECK(obj.ArgumentAtoms() == 4);
+    CHECK_FALSE(rig.left.gotList);
+
+    // A single index in is a single entry out, as the value it spells.
+    obj.GetInlet(0)->SetInt(3, YSE::T_GUI);
+    CHECK(rig.left.gotList);
+    CHECK(rig.left.listValue == "mi");
+
+    // A list of indices is a list of entries, in the order asked for, and an
+    // entry may be named twice.
+    rig.reset();
+    obj.GetInlet(0)->SetList("4 1 1", YSE::T_GUI);
+    CHECK(rig.left.listValue == "fa do do");
+
+    // The table is not consumed: a bang looks the same indices up again.
+    rig.reset();
+    obj.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(rig.left.listValue == "fa do do");
+
+    // Single result, so the right outlet says nothing at all.
+    CHECK_FALSE(rig.right.gotList);
+    CHECK_FALSE(rig.right.gotInt);
+  }
+
+  TEST_CASE("zl lookup: a bad index drops its own element, as indexmap does (#525)") {
+    // Elementwise, because the stored list is a run of independent lookups —
+    // the refusal rule `indexmap` already follows, and `lookup` is `indexmap`
+    // with the two lists swapped.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("lookup");
+    rig.Wire(obj);
+
+    obj.GetInlet(1)->SetList("do re mi", YSE::T_GUI);
+    obj.GetInlet(0)->SetList("2 0 9 hello 1", YSE::T_GUI);
+    // 0 is before the first entry, 9 is past the last, and `hello` is not an
+    // index at all; the two that name something still arrive.
+    CHECK(rig.left.listValue == "re do");
+
+    // Nothing survivable at all sends nothing rather than an empty message.
+    rig.reset();
+    obj.GetInlet(0)->SetList("0 42", YSE::T_GUI);
+    CHECK_FALSE(rig.left.gotList);
+    CHECK_FALSE(rig.left.gotInt);
+
+    // No table yet is the unconfigured case, and is also silent.
+    Rig bare;
+    gZl empty;
+    empty.SetParams("lookup");
+    bare.Wire(empty);
+    empty.GetInlet(0)->SetList("1 2", YSE::T_GUI);
+    CHECK_FALSE(bare.left.gotList);
+  }
+
+  TEST_CASE("zl lookup: is indexmap with the two lists swapped (#525)") {
+    // The claim the mode is built on, and the reason it is 1-based like the
+    // rest of the object rather than 0-based like Max's: the same two lists
+    // fed to the two modes the two ways round must give the same answer, or a
+    // patch that reaches for whichever one fits its cords gets a different
+    // result for no reason it can see.
+    Rig viaLookup;
+    Rig viaIndexMap;
+    gZl lookup;
+    gZl indexmap;
+    lookup.SetParams("lookup");
+    indexmap.SetParams("indexmap");
+    viaLookup.Wire(lookup);
+    viaIndexMap.Wire(indexmap);
+
+    lookup.GetInlet(1)->SetList("a b c d", YSE::T_GUI);
+    lookup.GetInlet(0)->SetList("3 1 4", YSE::T_GUI);
+
+    indexmap.GetInlet(1)->SetList("3 1 4", YSE::T_GUI);
+    indexmap.GetInlet(0)->SetList("a b c d", YSE::T_GUI);
+
+    CHECK(viaLookup.left.listValue == "c a d");
+    CHECK(viaLookup.left.listValue == viaIndexMap.left.listValue);
+  }
+
+  TEST_CASE("zl: a symbolic right-inlet list is an argument, not a malformed one (#525)") {
+    // The two halves of the right inlet are refused differently on purpose: the
+    // numeric argument survives a list with no numbers in it, while the atoms
+    // are simply whatever last arrived — for `sub` and `lookup` a list of
+    // symbols is the ordinary argument rather than a mistake.
+    gZl obj;
+    obj.SetParams("swap 1 3");
+
+    obj.GetInlet(1)->SetList("do re mi", YSE::T_GUI);
+    CHECK(obj.ArgumentCount() == 2);
+    CHECK(obj.ArgumentAt(0) == 1);
+    CHECK(obj.ArgumentAt(1) == 3);
+    CHECK(obj.ArgumentAtoms() == 3);
+
+    // And a numeric list sets both.
+    obj.GetInlet(1)->SetList("7 8", YSE::T_GUI);
+    CHECK(obj.ArgumentCount() == 2);
+    CHECK(obj.ArgumentAt(0) == 7);
+    CHECK(obj.ArgumentAtoms() == 2);
+
+    // A bare number is a list of one here too, so a `sub` told 3 searches for
+    // the one-item list `3`.
+    obj.GetInlet(1)->SetInt(3, YSE::T_GUI);
+    CHECK(obj.ArgumentCount() == 1);
+    CHECK(obj.ArgumentAtoms() == 1);
+  }
+
+  TEST_CASE("zl: the creation arguments carry a symbolic table too (#525)") {
+    // Max's `function-list` argument for `lookup`, and the reason the creation
+    // arguments are read as atoms as well as as numbers.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("lookup do re mi");
+    rig.Wire(obj);
+
+    CHECK(obj.CurrentMode() == Mode::LOOKUP);
+    CHECK(obj.ArgumentAtoms() == 3);
+    // No numbers in it, so the numeric argument is honestly empty rather than
+    // holding whatever a previous SetParams left.
+    CHECK(obj.ArgumentCount() == 0);
+
+    obj.GetInlet(0)->SetList("2 3", YSE::T_GUI);
+    CHECK(rig.left.listValue == "re mi");
+
+    // A re-type is a full reconfiguration: the old table does not survive it.
+    obj.SetParams("sub 60 64");
+    CHECK(obj.CurrentMode() == Mode::SUB);
+    CHECK(obj.ArgumentAtoms() == 2);
+    CHECK(obj.ArgumentCount() == 2);
+    CHECK(obj.ArgumentAt(0) == 60);
+  }
+
   TEST_CASE("zl: a list on the right inlet with no numbers leaves the argument standing (#524)") {
     // A cord that delivers an occasional symbol should not silently un-point a
     // `swap`.
@@ -1174,6 +1541,65 @@ TEST_SUITE("patcher") {
     }
   }
 
+  TEST_CASE("zl: the extraction modes allocate nothing either (#525)") {
+    if (!TestHelpers::probeCountsAllocations()) return;
+    if (!TestHelpers::probeSeesStringAllocations()) return;
+
+    // #525 added a third AtomList (the right inlet's list) and a KMP failure
+    // array, and both are members reserved when the object was built — so a
+    // full-length search on the audio thread touches no allocator either.
+    Rig rig;
+    gZl obj;
+    obj.SetParams("sub");
+    rig.Wire(obj);
+
+    // The worst case the KMP walk exists for: a full-length list of identical
+    // atoms searched for a long run of the same atom.
+    std::string repeated;
+    for (std::size_t i = 0; i < AtomList::MAX_ATOMS; i++) {
+      if (i > 0) repeated.push_back(' ');
+      repeated.push_back('1');
+    }
+    std::string pattern;
+    for (std::size_t i = 0; i < AtomList::MAX_ATOMS / 2; i++) {
+      if (i > 0) pattern.push_back(' ');
+      pattern.push_back('1');
+    }
+
+    const std::string modeMth = "mode mth";
+    const std::string modeSlice = "mode slice";
+    const std::string modeSub = "mode sub";
+    const std::string modeLookup = "mode lookup";
+
+    // Warm every buffer the paths touch, the sinks' included.
+    for (const std::string* word : {&modeMth, &modeSlice, &modeSub, &modeLookup}) {
+      obj.GetInlet(0)->SetList(*word, YSE::T_GUI);
+      obj.GetInlet(1)->SetList(pattern, YSE::T_GUI);
+      obj.GetInlet(1)->SetInt(3, YSE::T_GUI);
+      obj.GetInlet(0)->SetList(repeated, YSE::T_GUI);
+    }
+
+    {
+      TestHelpers::ProbeScope probe;
+      obj.GetInlet(0)->SetList(modeSub, YSE::T_GUI);
+      obj.GetInlet(1)->SetList(pattern, YSE::T_GUI);
+      obj.GetInlet(0)->SetList(repeated, YSE::T_GUI);
+
+      obj.GetInlet(0)->SetList(modeLookup, YSE::T_GUI);
+      obj.GetInlet(1)->SetList(repeated, YSE::T_GUI);
+      obj.GetInlet(0)->SetList(pattern, YSE::T_GUI);
+
+      obj.GetInlet(0)->SetList(modeMth, YSE::T_GUI);
+      obj.GetInlet(1)->SetInt(3, YSE::T_GUI);
+      obj.GetInlet(0)->SetList(repeated, YSE::T_GUI);
+
+      obj.GetInlet(0)->SetList(modeSlice, YSE::T_GUI);
+      obj.GetInlet(0)->SetBang(YSE::T_GUI);
+
+      CHECK(TestHelpers::g_alloc_count.load() == 0);
+    }
+  }
+
   // ─── persistence ────────────────────────────────────────────────────────────
 
   TEST_CASE("zl: params survive a DumpJSON / ParseJSON round trip (#523)") {
@@ -1370,6 +1796,123 @@ TEST_SUITE("patcher") {
     copy->SetListData(0, "a b c");
     CHECK(out.gotList);
     CHECK(out.listValue == "c a b");
+  }
+
+  TEST_CASE("zl: a sub feeds its positions to an nth, in a real patch (#525)") {
+    // The idiom the extraction group exists for, and the reason every position
+    // this object reports is 1-based: `sub` finds *where*, `nth` fetches
+    // *what*, and the one is wired straight into the other. Nothing short of
+    // the whole chain proves it — a standalone rig can assert on the text an
+    // outlet carried, but not that the patcher delivered the position down a
+    // cord into a second object's cold inlet and that the pick then landed on
+    // the item the search actually found.
+    //
+    // Sinks before the patcher: the patcher is torn down first, while the
+    // inlets it is wired to still exist.
+    MultiSink found;
+    MultiSink picked;
+    YSE::pHandle foundHandle(&found);
+    YSE::pHandle pickedHandle(&picked);
+
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* search = p.CreateObject(YSE::OBJ::G_ZL, "sub 64");
+    YSE::pHandle* fetch = p.CreateObject(YSE::OBJ::G_ZL, "nth");
+    REQUIRE(search != nullptr);
+    REQUIRE(fetch != nullptr);
+
+    // The position goes into the `nth`'s cold right inlet; the count goes to a
+    // sink of its own.
+    p.Connect(search, 0, fetch, 1);
+    p.Connect(search, 1, &foundHandle, 0);
+    p.Connect(fetch, 0, &pickedHandle, 0);
+
+    search->SetListData(0, "60 62 64 65");
+    // One occurrence, at 1-based position 3 — and it reached the `nth` without
+    // making it emit, its right inlet being cold.
+    CHECK(found.gotInt);
+    CHECK(found.intValue == 1);
+    CHECK_FALSE(picked.gotInt);
+
+    // The very list that was searched, picked at the position the search
+    // reported: the round trip lands back on 64.
+    fetch->SetListData(0, "60 62 64 65");
+    CHECK(picked.gotInt);
+    CHECK(picked.intValue == 64);
+
+    // A pattern that is not there says so on the right outlet and leaves the
+    // `nth` pointing where it was.
+    found.reset();
+    search->SetListData(0, "70 71 72");
+    CHECK(found.gotInt);
+    CHECK(found.intValue == 0);
+  }
+
+  TEST_CASE("zl: a lookup turns a stream of indices into table entries, in a real patch (#525)") {
+    // The use case `lookup` exists for — a table set once down one cord and
+    // read over and over by numbers arriving down another — plus the live mode
+    // switch to `slice`, which cuts the same stored list in two across two
+    // different downstream objects.
+    MultiSink head;
+    MultiSink tail;
+    YSE::pHandle headHandle(&head);
+    YSE::pHandle tailHandle(&tail);
+
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* read = p.CreateObject(YSE::OBJ::G_ZL, "lookup");
+    REQUIRE(read != nullptr);
+
+    p.Connect(read, 0, &headHandle, 0);
+    p.Connect(read, 1, &tailHandle, 0);
+
+    read->SetListData(1, "do re mi fa sol");
+    CHECK_FALSE(head.gotList);
+
+    read->SetIntData(0, 5);
+    CHECK(head.gotList);
+    CHECK(head.listValue == "sol");
+    // A single result: the right outlet stays silent.
+    CHECK_FALSE(tail.gotList);
+
+    head.reset();
+    read->SetListData(0, "1 3 3 2");
+    CHECK(head.listValue == "do mi mi re");
+
+    // Live mode switch: the same stored indices are now just a list to cut.
+    head.reset();
+    read->SetListData(0, "mode slice");
+    read->SetIntData(1, 2);
+    read->SetBang(0);
+    CHECK(head.listValue == "1 3");
+    CHECK(tail.listValue == "3 2");
+  }
+
+  TEST_CASE("zl: a symbolic argument survives a DumpJSON / ParseJSON round trip (#525)") {
+    // `sub` and `lookup` widened the creation arguments from a run of numbers
+    // to a run of anything, so the save/load path has to carry symbols too.
+    YSE::patcher src;
+    src.create(2);
+    REQUIRE(src.CreateObject(YSE::OBJ::G_ZL, "lookup do re mi") != nullptr);
+    const std::string json = src.DumpJSON();
+
+    YSE::patcher loaded;
+    loaded.create(2);
+    loaded.ParseJSON(json);
+    REQUIRE(loaded.Objects() == 1);
+
+    YSE::pHandle* copy = loaded.GetHandleFromList(0);
+    REQUIRE(copy != nullptr);
+    CHECK(copy->GetParams() == std::string("lookup do re mi"));
+
+    // And the reloaded object really carries the table, rather than only the
+    // text that spells it.
+    MultiSink out;
+    YSE::pHandle outHandle(&out);
+    loaded.Connect(copy, 0, &outHandle, 0);
+    copy->SetListData(0, "3 1");
+    CHECK(out.gotList);
+    CHECK(out.listValue == "mi do");
   }
 
 } // TEST_SUITE

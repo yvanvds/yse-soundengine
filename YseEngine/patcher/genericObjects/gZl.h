@@ -13,14 +13,17 @@ namespace YSE {
 
     /**
      *  @brief Max's ``zl`` — the list-processing workhorse: one object whose
-     *         behaviour is chosen by a mode word (issues #523, #524).
+     *         behaviour is chosen by a mode word (issues #523, #524, #525).
      *
      *  Max: "zl — multi-purpose list processing object". Two inlets, two
      *  outlets, and a mode that decides what happens between them. #523 landed
      *  the shell, the dispatch, the bounded storage model and the three modes
      *  that prove the design: ``len``, ``rev`` and ``nth``. #524 adds the
      *  **reordering** group — ``rot``, ``scramble``, ``sort``, ``swap`` and
-     *  ``indexmap``. The remaining mode groups follow in their own issues.
+     *  ``indexmap``. #525 adds the **extraction** group — ``mth``, ``slice``,
+     *  ``sub`` and ``lookup`` — which is the read side of list processing: get
+     *  at one item, at a piece, at a position, at a table entry. The remaining
+     *  mode groups follow in their own issues.
      *
      *  ### One shape for every reordering mode
      *
@@ -32,24 +35,48 @@ namespace YSE {
      *  array, and the scratch the sort merges through, are fixed members sized
      *  at ``AtomList::MAX_ATOMS`` when the object is built.
      *
-     *  ### Indices are 1-based, everywhere, on purpose
+     *  ``lookup`` (#525) joins them, because it *is* one of them wearing the
+     *  other hat: ``indexmap`` holds the data on the left and takes the map on
+     *  the right, ``lookup`` holds the table on the right and takes the indices
+     *  on the left. Same computation, the two lists swapped — so ``lookup``
+     *  computes an order too and goes out through the same path, with the
+     *  right-inlet list as the source rather than the stored one.
      *
-     *  ``nth`` already takes Max's 1-based index, and ``swap``, ``indexmap``
-     *  and the map ``sort`` publishes all follow it. One numbering across the
-     *  object matters more than matching Max mode by mode, because the modes
-     *  are meant to **compose**: ``sort``'s right outlet is an index map, and
-     *  the whole point of publishing it is that it can be sent to an
-     *  ``indexmap`` to put a *parallel* list — the durations beside the
-     *  pitches — into the same new order. A map that came out 1-based and went
-     *  back in 0-based would make the object's headline idiom silently wrong.
+     *  ### Indices are 1-based, everywhere, on purpose — and ``mth`` is why
+     *      that costs nothing
      *
-     *  An index naming no item is refused rather than clamped, and the two
-     *  modes that take several refuse differently because they ask
-     *  differently. ``indexmap`` is elementwise — a list of independent picks —
-     *  so a bad index drops its own element and the rest still arrive.
+     *  ``nth`` already takes Max's 1-based index, and ``swap``, ``indexmap``,
+     *  ``lookup``, the positions ``sub`` reports and the map ``sort`` publishes
+     *  all follow it. One numbering across the object matters more than
+     *  matching Max mode by mode, because the modes are meant to **compose**:
+     *  ``sort``'s right outlet is an index map, and the whole point of
+     *  publishing it is that it can be sent to an ``indexmap`` to put a
+     *  *parallel* list — the durations beside the pitches — into the same new
+     *  order. ``sub`` finds *where*, and what it reports is exactly what
+     *  ``nth`` takes. A map that came out 1-based and went back in 0-based
+     *  would make the object's headline idiom silently wrong.
+     *
+     *  Max numbers ``indexmap``, ``swap`` and ``lookup`` from 0 and ``nth``
+     *  from 1, so *something* has to give. What makes 1 the safe choice here is
+     *  **``mth``**: Max defines it as "exactly like nth, except the list index
+     *  numbering begins with 0", so 0-based picking is not a convention this
+     *  port is taking away — it is a mode with a name. A patch that thinks in
+     *  0-based indices asks for ``mth`` and gets it, and every *other* mode
+     *  agrees with every other mode. Porting ``mth`` as anything but 0-based
+     *  would be porting a second spelling of ``nth``, which is why it is the
+     *  single documented exception rather than a slip.
+     *
+     *  An index naming no item is refused rather than clamped, and the modes
+     *  that take several refuse differently because they ask differently.
+     *  ``indexmap`` and ``lookup`` are elementwise — a list of independent
+     *  picks — so a bad index drops its own element and the rest still arrive.
      *  ``swap`` is one exchange between two named places, so a bad index means
      *  the exchange asked for cannot be made and **nothing** is sent, which is
-     *  the answer ``nth`` already gives to an index naming no item.
+     *  the answer ``nth`` and ``mth`` already give to an index naming no item.
+     *  ``slice`` asks for neither: its argument is a *count* rather than an
+     *  index, so it has nothing to be off by one about and is clamped to the
+     *  list — a count of 0 puts everything out the right outlet and a count
+     *  past the end puts everything out the left one.
      *
      *  ### One object with a mode, not thirty objects
      *
@@ -90,9 +117,26 @@ namespace YSE {
      *  this issue settles for the whole family: at most ``AtomList::MAX_ATOMS``
      *  (256, Max's own default maximum length) atoms spanning at most
      *  ``AtomList::TEXT_CAPACITY`` (1024) characters, in storage reserved when
-     *  the object is built. Two of them — the stored list and a scratch copy
-     *  the reordering modes work on, so processing never destroys what
-     *  arrived.
+     *  the object is built. Three of them — the stored list, a scratch copy the
+     *  reordering modes work on so that processing never destroys what arrived,
+     *  and the right inlet's list.
+     *
+     *  That third one is #525's addition, and it is what the right inlet always
+     *  meant. Until now the cold inlet carried *numbers* — an index, a count, a
+     *  direction — so an ``int`` array was the whole of it. ``sub`` takes a
+     *  **pattern** to search for and ``lookup`` takes a **table** to read from,
+     *  and neither is a list of numbers: a pattern of note names or a table of
+     *  sample names is exactly what a patch will send. So the right inlet's
+     *  list is kept as atoms as well, and the numeric array stays beside it as
+     *  the reading the index modes want. One arrival fills both, under the same
+     *  guard, so the two can never disagree about what was last sent.
+     *
+     *  They are refused differently, and on purpose. A right-inlet list with no
+     *  numbers in it **leaves the numeric argument standing** — a cord that
+     *  delivers the occasional symbol should not silently un-point a ``swap`` —
+     *  while the atom list is simply replaced, because for ``sub`` and
+     *  ``lookup`` a list of symbols is not a malformed argument but the
+     *  ordinary one.
      *
      *  Max's maximum length is settable, and so is this one, *downwards*: a
      *  leading integer creation argument or the ``zlmaxsize <n>`` message
@@ -179,10 +223,10 @@ namespace YSE {
      *  than staying quiet, so an unconfigured ``.zl`` is inert.
      *
      *  The rest of Max's vocabulary — ``change compare delace ecils group iter
-     *  join lace lookup median mth queue reg sect slice stack stream sub sum
-     *  thin union unique`` — arrives with its own issues. A word this object
-     *  does not know leaves the mode where it was, which is ``.translate``'s
-     *  answer to the same question.
+     *  join lace median queue reg sect stack stream sum thin union unique`` —
+     *  arrives with its own issues. A word this object does not know leaves the
+     *  mode where it was, which is ``.translate``'s answer to the same
+     *  question.
      */
     enum class Mode {
       NONE,
@@ -197,6 +241,13 @@ namespace YSE {
       SORT,
       SWAP,
       INDEXMAP,
+      // The extraction group (#525) — the read side of list processing: one
+      // item (`mth`), a piece (`slice`), a position (`sub`), a table entry
+      // (`lookup`).
+      MTH,
+      SLICE,
+      SUB,
+      LOOKUP,
     };
 
     /** @brief The mode in force right now. Readable from any thread. */
@@ -230,9 +281,11 @@ namespace YSE {
     /**
      *  @brief How many numbers the mode's argument holds (issue #524).
      *
-     *  ``rot``, ``sort`` and ``nth`` read one number and this is 1; ``swap``
-     *  reads two; ``indexmap`` reads as many as it is given, up to
-     *  ``AtomList::MAX_ATOMS``. ``len``, ``rev`` and ``scramble`` read none.
+     *  ``rot``, ``sort``, ``nth``, ``mth`` and ``slice`` read one number and
+     *  this is 1; ``swap`` reads two; ``indexmap`` reads as many as it is
+     *  given, up to ``AtomList::MAX_ATOMS``. ``len``, ``rev`` and ``scramble``
+     *  read none, and ``sub`` and ``lookup`` read the right inlet as atoms
+     *  rather than as numbers — see ``ArgumentAtoms``.
      *
      *  The argument is one list rather than one number because two of the
      *  modes need it to be: an index map is a list by definition, and a swap
@@ -250,6 +303,19 @@ namespace YSE {
     int ArgumentAt(std::size_t index) const {
       if (index >= arguments) return 0;
       return argumentList[index];
+    }
+
+    /**
+     *  @brief How many atoms the right inlet's list holds — ``sub``'s pattern
+     *         and ``lookup``'s table (issue #525).
+     *
+     *  The same list ``ArgumentCount`` counts the *numbers* of, so the two
+     *  differ exactly when the right inlet carried something that is not a
+     *  number. Diagnostics and tests; the modes read the list directly under
+     *  the guard.
+     */
+    std::size_t ArgumentAtoms() const {
+      return argumentAtoms.Size();
     }
 
     /**
@@ -316,15 +382,22 @@ namespace YSE {
     // and so was not data. Matched against the leading token in place.
     bool Command(const std::string& value, std::size_t begin, std::size_t end);
 
-    // Replace the mode's argument with every number in the `length` characters
-    // at `text`. Guarded, because the argument is an array rather than one
-    // atomic word — see the note on `argumentList`.
+    // Replace the mode's argument with the `length` characters at `text`, both
+    // as atoms and as the numbers among them. Guarded, because the argument is
+    // an array and a list rather than one atomic word — see the note on
+    // `argumentList`.
     void TakeArguments(const char* text, std::size_t length);
 
     // The mode's argument as a single number: what an int or a float on the
     // right inlet means, and the shape every mode but `swap` and `indexmap`
     // reads.
     void TakeArgument(int value);
+
+    // Re-read `argumentAtoms` as the numeric argument the index modes want
+    // (#525), and answer how many numbers were in it. Committed only when that
+    // is not 0 — the "a list carrying no numbers leaves the argument standing"
+    // rule, which the creation-argument path deliberately overrides.
+    std::size_t ReadArgumentNumbers();
 
     // ─── the reordering modes (#524) ──────────────────────────────────────────
     // Each fills `order` with an index order over the stored list and answers
@@ -337,15 +410,41 @@ namespace YSE {
     std::size_t OrderSwap(std::size_t size);
     std::size_t OrderIndexMap(std::size_t size);
 
+    // ─── the extraction modes (#525) ─────────────────────────────────────────
+    // Also called from Run() with the guard held.
+
+    // `lookup`: the stored list read as 1-based indices into the right inlet's
+    // list. `indexmap` with the two lists swapped, so it fills `order` like the
+    // rest — the source SendOrdered applies it to is the *argument* list.
+    std::size_t OrderLookup(std::size_t size);
+
+    // `nth` and `mth`: the item at 0-based position `at`, out the left outlet,
+    // and everything else out the right one — right first. An `at` naming no
+    // item sends nothing at all from either. Taken as a long long because the
+    // 1-based modes reach here as `argument - 1`, and INT_MIN - 1 is not an
+    // int.
+    void Pick(long long at, YSE::THREAD thread);
+
+    // `slice`: the first `Argument()` items out the left outlet and the rest
+    // out the right — right first, which Max says explicitly for this mode.
+    void SendSlice(YSE::THREAD thread);
+
+    // `sub`: fill `work` with the 1-based position of every occurrence of the
+    // right inlet's list within the stored one, and answer how many there were.
+    // Occurrences may overlap.
+    std::size_t FindPattern();
+
     // Strictly "stored atom `a` sorts before stored atom `b`". Numbers come
     // before symbols in both directions — the number/symbol split is a type
     // ordering rather than a value one — numbers compare by value and symbols
     // by their characters.
     bool SortsBefore(std::size_t a, std::size_t b, bool descending) const;
 
-    // Send `count` entries of `order` applied to the stored list out the left
-    // outlet, through the family's transport convention.
-    void SendOrdered(std::size_t count, YSE::THREAD thread);
+    // Send `count` entries of `order` applied to @p source out the left outlet,
+    // through the family's transport convention. The source is a parameter
+    // rather than always the stored list because `lookup` (#525) orders the
+    // *argument* list — it is `indexmap` with the two lists swapped.
+    void SendOrdered(const AtomList& source, std::size_t count, YSE::THREAD thread);
 
     // One refusal, on the counter Dropped() reports.
     void CountDrop(std::size_t count = 1) {
@@ -387,6 +486,14 @@ namespace YSE {
     AtomList stored;
     AtomList work;
 
+    // The right inlet's list as atoms (#525) — `sub`'s search pattern and
+    // `lookup`'s table, neither of which is a list of numbers. Written by the
+    // same arrival that fills `argumentList`, under the same guard, so the
+    // numeric reading and the atoms can never disagree about what was last
+    // sent. See the class notes on why the two are nevertheless *refused*
+    // differently.
+    AtomList argumentAtoms;
+
     // Where a result is rendered. Reserved by the constructor to
     // AtomList::RENDER_CAPACITY, so building a result allocates nothing.
     std::string render;
@@ -400,6 +507,15 @@ namespace YSE {
     // index reaches AssignOrder without the caller compacting the array first.
     std::uint16_t order[AtomList::MAX_ATOMS] = {};
     std::uint16_t merge[AtomList::MAX_ATOMS] = {};
+
+    // `sub`'s Knuth-Morris-Pratt failure function over the search pattern
+    // (#525). Its own array rather than a borrowed `merge`, which belongs to
+    // the sort and says so. KMP rather than the obvious nested-loop scan for
+    // the reason the sort is a merge sort: the scan is O(n*m), which on two
+    // full-length lists of repeated atoms is sixty-five thousand comparisons on
+    // a path the audio callback takes, and KMP is O(n+m) whatever the data for
+    // twenty lines and 512 bytes that are already paid for.
+    std::uint16_t failure[AtomList::MAX_ATOMS] = {};
 
     // `scramble`'s randomness. Per object and seedable, which is what makes a
     // shuffle reproducible — the whole reason RandomSource exists beside the

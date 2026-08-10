@@ -33,7 +33,7 @@ namespace {
   constexpr char kWordSeed[] = "zlseed";
 
   // The mode vocabulary, in one place. A table rather than a chain of
-  // hand-written character comparisons because there are now eight words and
+  // hand-written character comparisons because there are now twelve words and
   // two functions that have to agree about them — a spelling that appeared in
   // ReadMode and not in ModeName would be a mode a patch could select and the
   // documentation could not name.
@@ -48,7 +48,33 @@ namespace {
       {"nth", 3, gZl::Mode::NTH},           {"rot", 3, gZl::Mode::ROT},
       {"scramble", 8, gZl::Mode::SCRAMBLE}, {"sort", 4, gZl::Mode::SORT},
       {"swap", 4, gZl::Mode::SWAP},         {"indexmap", 8, gZl::Mode::INDEXMAP},
+      {"mth", 3, gZl::Mode::MTH},           {"slice", 5, gZl::Mode::SLICE},
+      {"sub", 3, gZl::Mode::SUB},           {"lookup", 6, gZl::Mode::LOOKUP},
   };
+
+  // True when atom @p i of @p a and atom @p j of @p b are the same atom —
+  // `sub`'s notion of a match (#525).
+  //
+  // The same number/symbol split `SortsBefore` makes, and for the same reason:
+  // the two have to agree, or a pattern `sub` reported at position 3 would be a
+  // pattern `sort` put somewhere else. Numbers compare by the value AtomList
+  // decided on the way in, so `1` matches `1.0` — they are the same number, and
+  // a patcher list that has been through an arithmetic object routinely spells
+  // it the second way. Symbols compare by their characters. A number never
+  // matches a symbol.
+  //
+  // An index out of range answers false rather than trapping, which is the
+  // accessors' own contract; a zero length can only mean that, atoms being
+  // built from non-empty tokens.
+  bool AtomsEqual(const AtomList& a, std::size_t i, const AtomList& b, std::size_t j) {
+    const bool numberA = a.AtomIsNumber(i);
+    if (numberA != b.AtomIsNumber(j)) return false;
+    if (numberA) return a.AtomValue(i) == b.AtomValue(j);
+
+    const std::size_t length = a.AtomLength(i);
+    if (length == 0 || length != b.AtomLength(j)) return false;
+    return std::memcmp(a.AtomText(i), b.AtomText(j), length) == 0;
+  }
 
   // An order entry that names no atom. AtomList::AssignOrder drops it, which is
   // how `indexmap` refuses an index without compacting its own array first —
@@ -102,40 +128,56 @@ namespace {
   constexpr char kInletDocRight[] =
       "The mode's argument, and cold: setting it never emits. What it means depends on the mode — "
       "for 'nth' it is the 1-based index of the item to pick, Max's numbering, so 1 is the first "
-      "item; for 'rot' the number of places to rotate by, positive toward the end of the list and "
-      "negative toward its start; for 'sort' the direction, negative sorting downwards and "
-      "anything else upwards; for 'swap' the two 1-based indices to exchange; for 'indexmap' the "
-      "whole index map, a list of 1-based positions in the stored list naming what to send and in "
-      "what order. 'len', 'rev' and 'scramble' take no argument and ignore it. An int, a float or "
-      "a list all set it, and a list sets as many numbers as it carries — up to 256 — so this one "
-      "inlet serves the modes that read one number and the two that read several; floats are "
-      "truncated, an index being a whole number. Non-numeric items in a list are passed over, and "
-      "a list carrying no numbers at all leaves the argument standing rather than clearing it. The "
-      "creation arguments set it too, so '.zl nth 2' and '.zl swap 2 4' need no cord here at all.";
+      "item; for 'mth' the same index counted from 0, which is the whole difference between the "
+      "two modes; for 'rot' the number of places to rotate by, positive toward the end of the list "
+      "and negative toward its start; for 'sort' the direction, negative sorting downwards and "
+      "anything else upwards; for 'slice' how many items to send out the left outlet, a count "
+      "rather than an index and clamped to the list; for 'swap' the two 1-based indices to "
+      "exchange; for 'indexmap' the whole index map, a list of 1-based positions in the stored "
+      "list naming what to send and in what order; for 'sub' the list to search the stored list "
+      "for; and for 'lookup' the table to read, the stored list then being the 1-based indices "
+      "into it. 'len', 'rev' and 'scramble' take no argument and ignore it. An int, a float or a "
+      "list all set it, and a list sets as many items as it carries — up to the working maximum "
+      "list length — so this one inlet serves the modes that read one number, the ones that read "
+      "several, and the two that read a whole list of anything at all. The modes that read numbers "
+      "truncate floats, an index being a whole number, pass over non-numeric items, and leave the "
+      "argument standing when a list carries no numbers at all rather than clearing it — a cord "
+      "that delivers the occasional symbol should not silently un-point a 'swap'. The modes that "
+      "read the list as a list ('sub', 'lookup') simply take whatever arrived, a list of symbols "
+      "being an ordinary pattern or table rather than a malformed argument. The creation arguments "
+      "set it too, so '.zl nth 2', '.zl swap 2 4' and '.zl lookup do re mi' need no cord here at "
+      "all.";
 
   constexpr char kOutletDocLeft[] =
       "The result of the current mode. A result of one atom leaves as the int, float or symbol it "
       "spells rather than as a list of one, so it reaches the inlets an uncollected value would "
       "have reached; a longer one leaves as list text. A result of no atoms sends nothing at all "
       "rather than an empty message. In 'len' mode this is the number of items in the stored list, "
-      "in 'rev' mode the stored list in reverse order, in 'nth' mode the item the index names, and "
-      "in the reordering modes the stored list rearranged: rotated by 'rot', shuffled by "
-      "'scramble', sorted by 'sort', with two items exchanged by 'swap', and re-picked in the "
-      "order the map gives by 'indexmap'. None of them consumes the stored list, so a bang "
-      "rearranges the same list again rather than rearranging the previous answer — two bangs on a "
-      "'scramble' give two shuffles of the input, not a shuffle of a shuffle.";
+      "in 'rev' mode the stored list in reverse order, in 'nth' and 'mth' mode the item the index "
+      "names, and in the reordering modes the stored list rearranged: rotated by 'rot', shuffled "
+      "by 'scramble', sorted by 'sort', with two items exchanged by 'swap', and re-picked in the "
+      "order the map gives by 'indexmap'. In 'slice' mode it carries the first N items, N being "
+      "the argument; in 'sub' mode the 1-based position of every occurrence of the searched-for "
+      "list, and nothing at all when there are none; in 'lookup' mode the table entries the stored "
+      "list's indices name. None of them consumes the stored list, so a bang rearranges the same "
+      "list again rather than rearranging the previous answer — two bangs on a 'scramble' give two "
+      "shuffles of the input, not a shuffle of a shuffle.";
 
   constexpr char kOutletDocRight[] =
       "The second half of the result, for the modes that produce two, and sent before the left "
-      "outlet — Max's right-to-left rule. In 'nth' mode it carries the stored list with the picked "
-      "item removed, Max's 'the right outlet outputs all elements except the selected one'. In "
-      "'sort' mode it carries the index map: for each item of the sorted list, the 1-based "
-      "position it held in the input. That map is why it is sent first — it can be sent straight "
-      "into a second '.zl indexmap' to put a parallel list, the durations beside the pitches, into "
-      "the same new order, and it has to be in place before the sorted list arrives and sets that "
-      "patch running. Modes that produce a single result ('len', 'rev', 'rot', 'scramble', 'swap', "
-      "'indexmap') send nothing here at all, rather than a copy of the input, so that a patch can "
-      "tell 'there is no second half' from 'the second half is the whole list'.";
+      "outlet — Max's right-to-left rule. In 'nth' and 'mth' mode it carries the stored list with "
+      "the picked item removed, Max's 'the right outlet outputs all elements except the selected "
+      "one'. In 'slice' mode it carries everything past the first N items, so the two outlets "
+      "together are the whole list cut in two. In 'sort' mode it carries the index map: for each "
+      "item of the sorted list, the 1-based position it held in the input. That map is why it is "
+      "sent first — it can be sent straight into a second '.zl indexmap' to put a parallel list, "
+      "the durations beside the pitches, into the same new order, and it has to be in place before "
+      "the sorted list arrives and sets that patch running. In 'sub' mode it carries how many "
+      "occurrences were found, and it is sent even when that is 0, which is the only way a patch "
+      "can tell 'searched, found nothing' from 'no pattern to search for yet' — the left outlet is "
+      "silent in both cases. Modes that produce a single result ('len', 'rev', 'rot', 'scramble', "
+      "'swap', 'indexmap', 'lookup') send nothing here at all, rather than a copy of the input, so "
+      "that a patch can tell 'there is no second half' from 'the second half is the whole list'.";
 
 } // namespace
 
@@ -173,7 +215,7 @@ CONSTRUCT() {
       "one object with two inlets, two outlets and a mode word that decides what happens between "
       "them. A list arriving at the left inlet is stored and processed under the current mode; a "
       "bang runs the mode over the stored list again, which is how a patch asks for the same list "
-      "back under a mode it has just switched to with 'mode <name>'. Eight modes are implemented "
+      "back under a mode it has just switched to with 'mode <name>'. Twelve modes are implemented "
       "so far and the remaining groups follow in their own issues. Three of them read the list: "
       "'len' sends the number of items in it, 'rev' sends it in reverse order, and 'nth' picks one "
       "item by its 1-based index — the item out the left outlet and everything else out the right "
@@ -187,8 +229,18 @@ CONSTRUCT() {
       "the order an index map gives, which may name an item twice or leave one out. 'sort' also "
       "publishes the index map of what it did on the right outlet, and that is the object's "
       "headline idiom: sort one list and send the map to a second '.zl indexmap' to put a parallel "
-      "list into the same new order. Every index the object reads or writes is 1-based, so the "
-      "modes compose. None of the reordering modes consumes the stored list, so a bang rearranges "
+      "list into the same new order. Four more extract from it: 'mth' is 'nth' counted from 0, "
+      "which is the whole difference between the two and the object's one deliberate exception to "
+      "1-based numbering — 0-based picking keeps a name of its own instead of becoming a trap; "
+      "'slice' cuts the list in two, the first N items out the left outlet and the rest out the "
+      "right, N being a count rather than an index and so clamped to the list; 'sub' searches the "
+      "stored list for the list in the right inlet and sends the 1-based position of every "
+      "occurrence, overlapping ones included, with the number of them out the right outlet even "
+      "when it is 0; and 'lookup' is 'indexmap' with the two lists swapped — the right inlet holds "
+      "a table and the stored list is the 1-based indices to read from it, so a stream of numbers "
+      "becomes a stream of table entries. Every index the object reads or writes is 1-based except "
+      "'mth', so the modes compose: what 'sub' reports is exactly what 'nth' takes. None of the "
+      "reordering or extracting modes consumes the stored list, so a bang rearranges "
       "the same list again rather than rearranging the previous answer. Where a mode fills both "
       "outlets, the right one is sent first, which is Max's right-to-left rule. Max ships a second "
       "spelling of every mode as its own object ('zl.rev'), and it is deliberately not ported: it "
@@ -218,8 +270,9 @@ CONSTRUCT() {
             "a list, a number, bang, 'mode <name>', 'zlclear', "
             "'zlmaxsize <n>', 'zlseed <n>'");
   INLET_DOC(1, "argument", kInletDocRight,
-            "mode dependent; 1-based index for 'nth', places for 'rot', direction for 'sort', two "
-            "indices for 'swap', an index map for 'indexmap'");
+            "mode dependent; 1-based index for 'nth', 0-based for 'mth', places for 'rot', "
+            "direction for 'sort', a count for 'slice', two indices for 'swap', an index map for "
+            "'indexmap', a search list for 'sub', a lookup table for 'lookup'");
 
   OUTLET_DOC(0, "result", kOutletDocLeft, "any");
   OUTLET_DOC(1, "rest", kOutletDocRight, "any");
@@ -229,20 +282,24 @@ CONSTRUCT() {
             "order — Max's own argument shape. A leading token that is wholly an integer is the "
             "maximum list length and is clamped to 1-256; anything else is read as the mode word, "
             "so '.zl nth 2' and '.zl 64 nth 2' are both legal and mean the same thing but for the "
-            "ceiling. The mode words implemented so far are 'len', 'rev', 'nth', 'rot', "
-            "'scramble', 'sort', 'swap' and 'indexmap'; one this object does not know is named in "
-            "the log and ignored, leaving an object that stores what it is sent and emits nothing. "
+            "ceiling. The mode words implemented so far are 'len', 'rev', 'nth', 'mth', 'rot', "
+            "'scramble', 'sort', 'slice', 'swap', 'indexmap', 'sub' and 'lookup'; one this object "
+            "does not know is named in the log and ignored, leaving an object that stores what it "
+            "is sent and emits nothing. "
             "With no mode word at all the object is inert for the same reason — Max's undocumented "
             "no-argument default is 'reg', which belongs to the register group and is not ported "
             "yet, and behaving as a mode the patch did not ask for would be worse than staying "
-            "quiet. Every numeric token after the mode word is the mode's argument, in order: one "
-            "number is all 'nth', 'rot' and 'sort' read, 'swap' reads the first two as the 1-based "
-            "indices to exchange, and 'indexmap' reads the whole run as its map, so '.zl swap 2 4' "
-            "and '.zl indexmap 3 1 2' are both legal. The right inlet overwrites the argument "
+            "quiet. Everything after the mode word is the mode's argument, in order, and it is "
+            "read two ways at once: as numbers, which is one for 'nth', 'mth', 'rot', 'sort' and "
+            "'slice', the first two for 'swap' and the whole run for 'indexmap'; and as a "
+            "list of atoms, which is what 'sub' searches for and what 'lookup' reads as its table. "
+            "So '.zl swap 2 4', '.zl indexmap 3 1 2', '.zl sub 60 64' and '.zl lookup do re mi' "
+            "are all legal. The right inlet overwrites the argument "
             "afterwards. The 'scramble' seed is not a creation argument — the argument slot is "
             "taken by the index list — so a patch that needs a reproducible shuffle sends "
             "'zlseed <n>' to the left inlet.",
-            "[<1-256>] [len|rev|nth|rot|scramble|sort|swap|indexmap] [<argument> ...]");
+            "[<1-256>] [len|rev|nth|mth|rot|scramble|sort|slice|swap|indexmap|sub|lookup] "
+            "[<argument> ...]");
 }
 
 // ─── the mode vocabulary ────────────────────────────────────────────────────
@@ -287,6 +344,7 @@ PARM_CLEAR() {
   arguments = 0;
   stored.Clear();
   work.Clear();
+  argumentAtoms.Clear();
 }
 
 PARM_PARSE() {
@@ -334,30 +392,33 @@ PARM_PARSE() {
     index++;
   }
 
-  // The mode's argument: every token after the mode word that reads as a
-  // number, in order. One is all `nth`, `rot` and `sort` read, and taking the
-  // rest as well is what lets `swap` name two places and `indexmap` carry a
-  // whole map — `.zl swap 2 4` and `.zl indexmap 3 1 2` without a cord.
-  arguments = 0;
+  // The mode's argument: everything after the mode word, kept whole as atoms
+  // and then read again as numbers. Two readings of one run of tokens rather
+  // than two arguments — `.zl sub 60 64` is a list to search for and `.zl nth 2`
+  // is an index, and which of the two a mode wants is the mode's business, not
+  // the parser's. Taking more than the first is what lets `swap` name two
+  // places, `indexmap` carry a whole map and `lookup` carry a whole table.
+  argumentAtoms.Clear();
   std::size_t refused = 0;
   for (; index < args.size(); index++) {
     if (args[index].empty()) continue;
-    float number = 0.f;
-    if (!ReadNumericToken(args[index].c_str(), args[index].size(), number)) continue;
-    if (arguments >= AtomList::MAX_ATOMS) {
-      refused++;
-      continue;
-    }
-    argumentList[arguments++] = ExprToInt(number);
+    if (!argumentAtoms.Add(args[index], Limit())) refused++;
   }
-  argument.store(arguments > 0 ? argumentList[0] : 0, std::memory_order_relaxed);
+  // Unconditionally, unlike the inlet: re-typing an object's arguments is a
+  // full reconfiguration, so `.zl lookup do re mi` must not come back still
+  // holding the index a `.zl nth 2` left behind.
+  if (ReadArgumentNumbers() == 0) {
+    arguments = 0;
+    argument.store(0, std::memory_order_relaxed);
+  }
 
   if (refused != 0) {
     // Loudly, this being parameter parsing: `.combine`'s split between the two
     // routes, and the same one the maximum-length argument above takes.
     INTERNAL::LogImpl().emit(E_WARNING, std::string("patcher: ") + Type() +
-                                            " takes at most 256 argument numbers; " +
-                                            std::to_string(refused) + " were dropped");
+                                            " argument is longer than the working maximum list "
+                                            "length; " +
+                                            std::to_string(refused) + " items were dropped");
   }
 }
 
@@ -534,12 +595,118 @@ std::size_t gZl::OrderIndexMap(std::size_t size) {
   return count;
 }
 
-void gZl::SendOrdered(std::size_t count, YSE::THREAD thread) {
+void gZl::SendOrdered(const AtomList& source, std::size_t count, YSE::THREAD thread) {
   if (count == 0) return;
-  // Onto the scratch copy, so the stored list stays as it arrived and a later
+  // Onto the scratch copy, so the source list stays as it arrived and a later
   // bang reorders it again rather than reordering the previous answer.
-  work.AssignOrder(stored, order, count);
+  work.AssignOrder(source, order, count);
   SendAtoms(outputs[0], work, render, thread);
+}
+
+// ─── the extraction modes (#525) ────────────────────────────────────────────
+
+std::size_t gZl::OrderLookup(std::size_t size) {
+  // `size` is how many *indices* the stored list holds; what they index is the
+  // right inlet's list. That is the whole of the mode: `indexmap` with the two
+  // lists swapped, which is why it fills `order` like the reordering group and
+  // leaves through the same path.
+  const std::size_t table = argumentAtoms.Size();
+  if (size == 0 || table == 0) return 0;
+
+  // Elementwise, as `indexmap` is and for its reason: the stored list is a run
+  // of independent lookups, so an index naming no table entry drops its own
+  // element and the rest still arrive. An atom that is not a number at all is
+  // not an index either, and goes the same way.
+  for (std::size_t i = 0; i < size; i++) {
+    if (!stored.AtomIsNumber(i)) {
+      order[i] = kNoAtom;
+      continue;
+    }
+    const int index = ExprToInt(stored.AtomValue(i));
+    order[i] = (index >= 1 && (std::size_t)index <= table) ? (std::uint16_t)(index - 1) : kNoAtom;
+  }
+  return size;
+}
+
+void gZl::Pick(long long at, YSE::THREAD thread) {
+  // `nth` reaches here as `argument - 1` and `mth` as `argument`, so the whole
+  // difference between the two modes is one subtraction at the call site and
+  // this is written once. Taken as a long long because INT_MIN - 1 is not an
+  // int.
+  if (at < 0 || (unsigned long long)at >= (unsigned long long)stored.Size()) {
+    // An index naming no item has no item to send — and no "everything else"
+    // that means anything either, since the whole list is not the remainder of
+    // a pick that did not happen. Silence on both outlets.
+    return;
+  }
+  const std::size_t index = (std::size_t)at;
+  // Right before left, Max's rule and `.trigger`'s: a patch downstream may
+  // depend on the remainder having arrived before the item does.
+  SendAtomsExcept(outputs[1], stored, index, render, thread);
+  SendAtom(outputs[0], stored, index, render, thread);
+}
+
+void gZl::SendSlice(YSE::THREAD thread) {
+  const std::size_t size = stored.Size();
+  if (size == 0) return;
+
+  // Max: "specifies the number of list items to be sent out the left outlet …
+  // any remaining list elements are sent out the right outlet". A **count**
+  // rather than an index, so this is the one mode with nothing to be off by one
+  // about — and it is clamped rather than refused for the same reason: a cut
+  // past the end of the list is a whole list and an empty remainder, which is a
+  // meaningful answer, where an index past the end names nothing and is not.
+  const int requested = argument.load(std::memory_order_relaxed);
+  std::size_t head = 0;
+  if (requested > 0) head = ((std::size_t)requested > size) ? size : (std::size_t)requested;
+
+  // "Note: Lists are sent out the right outlet first" — Max says so explicitly
+  // for this mode, and it is the object's rule anyway.
+  SendAtomRange(outputs[1], stored, head, size - head, render, thread);
+  SendAtomRange(outputs[0], stored, 0, head, render, thread);
+}
+
+std::size_t gZl::FindPattern() {
+  const std::size_t size = stored.Size();
+  const std::size_t pattern = argumentAtoms.Size();
+
+  // The positions are built into the scratch list, which is where every result
+  // of this object is built.
+  work.Clear();
+  if (pattern == 0 || pattern > size) return 0;
+
+  // Knuth-Morris-Pratt. The obvious nested scan is O(n*m), which on two
+  // full-length lists of repeated atoms — a rhythm of `1 1 1 …` searched for a
+  // run of `1 1 1` is not a contrived patch — is sixty-five thousand atom
+  // comparisons on a path the audio callback takes. This is O(n+m) whatever the
+  // data, through an array the object already owns.
+  failure[0] = 0;
+  for (std::size_t i = 1; i < pattern; i++) {
+    std::size_t length = failure[i - 1];
+    while (length > 0 && !AtomsEqual(argumentAtoms, i, argumentAtoms, length))
+      length = failure[length - 1];
+    if (AtomsEqual(argumentAtoms, i, argumentAtoms, length)) length++;
+    failure[i] = (std::uint16_t)length;
+  }
+
+  std::size_t matched = 0;
+  for (std::size_t i = 0; i < size; i++) {
+    while (matched > 0 && !AtomsEqual(stored, i, argumentAtoms, matched))
+      matched = failure[matched - 1];
+    if (AtomsEqual(stored, i, argumentAtoms, matched)) matched++;
+    if (matched != pattern) continue;
+
+    // 1-based, like every other position this object reports — what `sub` finds
+    // is exactly what `nth` takes.
+    work.AddInt((int)(i + 2 - pattern));
+    // Back through the failure link rather than to 0, so occurrences may
+    // **overlap**: `1 1` occurs twice in `1 1 1`, at positions 1 and 2. "The
+    // position of each occurrence" is a search, and a search that silently
+    // skipped the second one would under-report exactly the repetitive material
+    // a patch searches lists for.
+    matched = failure[matched - 1];
+  }
+  return work.Size();
 }
 
 // ─── the modes ──────────────────────────────────────────────────────────────
@@ -562,44 +729,67 @@ void gZl::Run(YSE::THREAD thread) {
     SendAtoms(outputs[0], work, render, thread);
     break;
 
-  case Mode::NTH: {
+  case Mode::NTH:
     // Max: "outputs the nth element of the list out the left outlet", 1-based,
     // "the right outlet outputs all elements except the selected one."
-    const int index = argument.load(std::memory_order_relaxed);
-    if (index < 1 || (std::size_t)index > stored.Size()) {
-      // An index naming no item has no item to send — and no "everything else"
-      // that means anything either, since the whole list is not the remainder
-      // of a pick that did not happen. Silence on both outlets.
-      return;
-    }
-    const std::size_t at = (std::size_t)(index - 1);
-    // Right before left, Max's rule and `.trigger`'s: a patch downstream may
-    // depend on the remainder having arrived before the item does.
-    SendAtomsExcept(outputs[1], stored, at, render, thread);
-    SendAtom(outputs[0], stored, at, render, thread);
+    Pick((long long)argument.load(std::memory_order_relaxed) - 1, thread);
     break;
-  }
+
+  case Mode::MTH:
+    // Max: "works exactly like nth mode, except the list index numbering begins
+    // with 0 as opposed to 1." Exactly like it, then — one subtraction fewer.
+    // This is the object's single 0-based mode, and it is 0-based because that
+    // is the entire content of the mode: see the class notes.
+    Pick((long long)argument.load(std::memory_order_relaxed), thread);
+    break;
 
   case Mode::ROT:
     // Max: rotate the list by the number of places the argument gives.
-    SendOrdered(OrderRotate(stored.Size()), thread);
+    SendOrdered(stored, OrderRotate(stored.Size()), thread);
     break;
 
   case Mode::SCRAMBLE:
     // Max: "output the list in random order". No argument; `zlseed <n>` makes
     // the sequence replayable.
-    SendOrdered(OrderScramble(stored.Size()), thread);
+    SendOrdered(stored, OrderScramble(stored.Size()), thread);
     break;
 
   case Mode::SWAP:
     // Two 1-based indices, and the exchange between them.
-    SendOrdered(OrderSwap(stored.Size()), thread);
+    SendOrdered(stored, OrderSwap(stored.Size()), thread);
     break;
 
   case Mode::INDEXMAP:
     // The stored list re-picked in the order the index map names.
-    SendOrdered(OrderIndexMap(stored.Size()), thread);
+    SendOrdered(stored, OrderIndexMap(stored.Size()), thread);
     break;
+
+  case Mode::LOOKUP:
+    // The *argument* list re-picked in the order the stored list names — the
+    // one mode whose result is built from the right inlet rather than the left.
+    SendOrdered(argumentAtoms, OrderLookup(stored.Size()), thread);
+    break;
+
+  case Mode::SLICE:
+    // The list cut in two: the first N items left, the rest right.
+    SendSlice(thread);
+    break;
+
+  case Mode::SUB: {
+    if (argumentAtoms.Empty()) {
+      // Nothing to search *for* yet. An object with no pattern is unconfigured
+      // rather than one that searched and found nothing, and it stays quiet on
+      // both outlets — the rule an unconfigured `.zl` follows everywhere else,
+      // and what makes the 0 below mean something.
+      break;
+    }
+    const std::size_t matches = FindPattern();
+    // Right before left, and here the right outlet carries the only answer a
+    // patch gets when there are no matches: the left one has nothing to send.
+    outputs[1].SendInt((int)matches, thread);
+    SendAtoms(outputs[0], work, render, thread);
+    break;
+  }
 
   case Mode::SORT: {
     const std::size_t count = OrderSort(stored.Size());
@@ -618,7 +808,7 @@ void gZl::Run(YSE::THREAD thread) {
       work.AddInt((int)order[i] + 1);
     SendAtoms(outputs[1], work, render, thread);
 
-    SendOrdered(count, thread);
+    SendOrdered(stored, count, thread);
     break;
   }
 
@@ -662,54 +852,57 @@ void gZl::TakeFloat(float value, YSE::THREAD thread) {
 
 // ─── the mode's argument ────────────────────────────────────────────────────
 
+std::size_t gZl::ReadArgumentNumbers() {
+  // One tokenizer for the right inlet, not two: the atoms have already been
+  // split and classified on the way in, so the numeric reading is a walk over
+  // the table rather than a second pass over the characters. Truncated through
+  // the range-checked conversion rather than cast, an index being a whole
+  // number and casting a float outside the int range being undefined.
+  std::size_t found = 0;
+  for (std::size_t i = 0; i < argumentAtoms.Size(); i++) {
+    if (!argumentAtoms.AtomIsNumber(i)) continue;
+    argumentList[found++] = ExprToInt(argumentAtoms.AtomValue(i));
+  }
+
+  // Committed only when there was something to commit, so a list carrying no
+  // numbers at all leaves the argument standing rather than clearing it — a
+  // cord that delivers an occasional symbol should not silently un-point a
+  // `swap`. The atom list has no such rule: for `sub` and `lookup` a list of
+  // symbols is the ordinary argument.
+  if (found != 0) {
+    arguments = found;
+    argument.store(argumentList[0], std::memory_order_relaxed);
+  }
+  return found;
+}
+
 void gZl::TakeArgument(int value) {
-  // Under the guard, because the argument is an array as well as an atomic
-  // word now and the two have to agree — a `swap` that read a new first index
-  // beside an old second one would perform an exchange no patch asked for.
-  // A message that finds the object busy is dropped and counted, which is the
-  // object's answer everywhere else and the same one that stops a `.zl` wired
-  // back into its own inlet from recursing.
+  // Under the guard, because the argument is an array and a list as well as an
+  // atomic word now and the three have to agree — a `swap` that read a new
+  // first index beside an old second one would perform an exchange no patch
+  // asked for. A message that finds the object busy is dropped and counted,
+  // which is the object's answer everywhere else and the same one that stops a
+  // `.zl` wired back into its own inlet from recursing.
   if (!Enter()) return;
   argumentList[0] = value;
   arguments = 1;
   argument.store(value, std::memory_order_relaxed);
+  // A bare number is a list of one here too, so a `.zl sub` told `3` searches
+  // for the one-item list `3` rather than keeping whatever it held before.
+  argumentAtoms.Clear();
+  if (!argumentAtoms.AddInt(value, Limit())) CountDrop();
   Leave();
 }
 
 void gZl::TakeArguments(const char* text, std::size_t length) {
   if (!Enter()) return;
 
-  // Written straight into the array and only committed at the end, so a list
-  // carrying no numbers at all leaves the argument standing rather than
-  // clearing it — a cord that delivers an occasional symbol should not silently
-  // un-point a `swap`.
-  std::size_t found = 0;
-  std::size_t refused = 0;
-  std::size_t i = 0;
-  while (i < length) {
-    while (i < length && IsSelectorSeparator(text[i]))
-      i++;
-    if (i >= length) break;
-    const std::size_t begin = i;
-    while (i < length && !IsSelectorSeparator(text[i]))
-      i++;
+  // The whole list, as atoms — `sub`'s pattern and `lookup`'s table — and then
+  // the numeric reading the index modes want, taken from the same atoms.
+  argumentAtoms.Clear();
+  const std::size_t refused = argumentAtoms.AddTokens(text, length, Limit());
+  ReadArgumentNumbers();
 
-    float number = 0.f;
-    if (!ReadNumericToken(text + begin, i - begin, number)) continue;
-    if (found >= AtomList::MAX_ATOMS) {
-      refused++;
-      continue;
-    }
-    // An index is a whole number; truncated through the range-checked
-    // conversion rather than cast, casting a float outside the int range being
-    // undefined.
-    argumentList[found++] = ExprToInt(number);
-  }
-
-  if (found != 0) {
-    arguments = found;
-    argument.store(argumentList[0], std::memory_order_relaxed);
-  }
   Leave();
 
   // Counted rather than logged, this being an inlet: the thread may be the
