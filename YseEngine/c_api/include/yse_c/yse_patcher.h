@@ -14,7 +14,11 @@
 
   Convention: every void-returning function in this header is a null-safe
   no-op when called with a NULL handle (patcher or phandle). Status
-  queries return 0 / false / NULL on NULL.
+  queries return 0 / false / NULL on NULL — except the handful where 0 is
+  itself a valid answer and would be indistinguishable from the failure:
+  yse_phandle_output_data_type answers YSE_OUT_INVALID, and the two
+  object-ID queries (yse_phandle_get_id,
+  yse_phandle_get_connection_target) answer YSE_PATCHER_ID_NONE.
 */
 
 #ifndef YSE_C_PATCHER_H_INCLUDED
@@ -33,6 +37,19 @@ typedef struct YsePatcher YsePatcher;
    yse_patcher_delete_object(patcher, handle); never call a destroy on
    the handle directly. */
 typedef struct YsePHandle YsePHandle;
+
+/* "No such object" — the answer from every function in this header that
+   returns a patcher object ID but has nothing to report.
+
+   Object IDs are per-patcher and handed out in creation order from 0
+   (issue #730), so 0 is the ID of the first object in every patch and
+   cannot double as a failure marker. This value matches the engine's
+   pObject::kNoStorageID, which is what an object belonging to no patcher
+   reports, and it is never a real object's ID: a patcher would have to
+   create 2^32 objects to reach it.
+
+   yse_patcher_get_handle_from_id(p, YSE_PATCHER_ID_NONE) is NULL. */
+#define YSE_PATCHER_ID_NONE 0xFFFFFFFFu
 
 /* ─── patcher lifecycle ────────────────────────────────────────────── */
 
@@ -92,9 +109,15 @@ YSE_C_API int yse_phandle_get_inputs(YsePHandle* h);
 YSE_C_API int yse_phandle_get_outputs(YsePHandle* h);
 YSE_C_API int yse_phandle_is_dsp_input(YsePHandle* h, unsigned int inlet);
 YSE_C_API YseOutType yse_phandle_output_data_type(YsePHandle* h, unsigned int pin);
+/* Storage ID of this object within its patcher — the number the object is
+   written as by yse_patcher_dump_json, and the key
+   yse_patcher_get_handle_from_id takes. YSE_PATCHER_ID_NONE on NULL. */
 YSE_C_API unsigned int yse_phandle_get_id(YsePHandle* h);
 
 YSE_C_API unsigned int yse_phandle_get_connections(YsePHandle* h, unsigned int outlet);
+/* ID of the object one edge leaving `outlet` arrives at.
+   YSE_PATCHER_ID_NONE on NULL, on an outlet past the object's outlet
+   count, or on a connection past that outlet's edge count. */
 YSE_C_API unsigned int yse_phandle_get_connection_target(YsePHandle* h, unsigned int outlet,
                                                          unsigned int connection);
 YSE_C_API unsigned int yse_phandle_get_connection_target_inlet(YsePHandle* h, unsigned int outlet,

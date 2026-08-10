@@ -406,8 +406,11 @@ YSE_C_API int yse_phandle_is_dsp_input(YsePHandle* h, unsigned int inlet) {
 YSE_C_API YseOutType yse_phandle_output_data_type(YsePHandle* h, unsigned int pin) {
   return h ? static_cast<YseOutType>(to_cpp(h)->OutputDataType(pin)) : YSE_OUT_INVALID;
 }
+// Object IDs are per-patcher and start at 0 (issue #730), so 0 is the first
+// object in every patch and cannot also mean "no object" — these two answer
+// YSE_PATCHER_ID_NONE instead of the header's blanket 0-on-NULL (issue #732).
 YSE_C_API unsigned int yse_phandle_get_id(YsePHandle* h) {
-  return h ? to_cpp(h)->GetID() : 0;
+  return h ? to_cpp(h)->GetID() : YSE_PATCHER_ID_NONE;
 }
 
 YSE_C_API unsigned int yse_phandle_get_connections(YsePHandle* h, unsigned int outlet) {
@@ -415,7 +418,13 @@ YSE_C_API unsigned int yse_phandle_get_connections(YsePHandle* h, unsigned int o
 }
 YSE_C_API unsigned int yse_phandle_get_connection_target(YsePHandle* h, unsigned int outlet,
                                                          unsigned int connection) {
-  return h ? to_cpp(h)->GetConnectionTarget(outlet, connection) : 0;
+  if (!h) return YSE_PATCHER_ID_NONE;
+  // The outlet number is range-checked first because the engine indexes
+  // `outputs[outlet]` unguarded (issue #737) — asking GetConnections() about a
+  // nonexistent outlet would itself be the out-of-bounds read.
+  if (outlet >= static_cast<unsigned int>(to_cpp(h)->GetOutputs())) return YSE_PATCHER_ID_NONE;
+  if (connection >= to_cpp(h)->GetConnections(outlet)) return YSE_PATCHER_ID_NONE;
+  return to_cpp(h)->GetConnectionTarget(outlet, connection);
 }
 YSE_C_API unsigned int yse_phandle_get_connection_target_inlet(YsePHandle* h, unsigned int outlet,
                                                                unsigned int connection) {
