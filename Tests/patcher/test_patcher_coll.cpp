@@ -50,6 +50,7 @@
 #include "support/alloc_probe.hpp"
 
 using TestHelpers::MultiSink;
+using TestHelpers::Wire;
 using YSE::PATCHER::gColl;
 using YSE::PATCHER::patcherImplementation;
 
@@ -90,9 +91,9 @@ namespace {
     gColl obj;
 
     Rig() {
-      obj.ConnectOutlet(data.GetInlet(0), 0);
-      obj.ConnectOutlet(address.GetInlet(0), 1);
-      obj.ConnectOutlet(done.GetInlet(0), 2);
+      Wire(obj, 0, data);
+      Wire(obj, 1, address);
+      Wire(obj, 2, done);
     }
 
     void reset() {
@@ -353,8 +354,8 @@ TEST_SUITE("patcher") {
     addressSink.tag = "addr";
 
     gColl obj;
-    obj.ConnectOutlet(dataSink.GetInlet(0), 0);
-    obj.ConnectOutlet(addressSink.GetInlet(0), 1);
+    Wire(obj, 0, dataSink);
+    Wire(obj, 1, addressSink);
 
     obj.GetInlet(0)->SetList("store foo 1 2", YSE::T_GUI);
     log.clear();
@@ -382,7 +383,7 @@ TEST_SUITE("patcher") {
     dataSink.tag = "d";
 
     gColl obj;
-    obj.ConnectOutlet(dataSink.GetInlet(0), 0);
+    Wire(obj, 0, dataSink);
 
     // Stored out of address order on purpose: dump / next / prev walk storage
     // order, not address order.
@@ -408,7 +409,7 @@ TEST_SUITE("patcher") {
     dataSink.tag = "d";
 
     gColl obj;
-    obj.ConnectOutlet(dataSink.GetInlet(0), 0);
+    Wire(obj, 0, dataSink);
     obj.GetInlet(0)->SetList("0 a", YSE::T_GUI);
     obj.GetInlet(0)->SetList("1 b", YSE::T_GUI);
     obj.GetInlet(0)->SetList("2 c", YSE::T_GUI);
@@ -461,9 +462,9 @@ TEST_SUITE("patcher") {
     doneSink.tag = "done";
 
     gColl obj;
-    obj.ConnectOutlet(dataSink.GetInlet(0), 0);
-    obj.ConnectOutlet(addressSink.GetInlet(0), 1);
-    obj.ConnectOutlet(doneSink.GetInlet(0), 2);
+    Wire(obj, 0, dataSink);
+    Wire(obj, 1, addressSink);
+    Wire(obj, 2, doneSink);
 
     obj.GetInlet(0)->SetList("7 seven", YSE::T_GUI);
     obj.GetInlet(0)->SetList("store word hello", YSE::T_GUI);

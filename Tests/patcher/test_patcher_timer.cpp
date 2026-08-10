@@ -50,6 +50,7 @@
 #include "patcher/pRegistry.h"
 #include "patcher/patcher.hpp"
 #include "patcher/patcherImplementation.h"
+#include "patcher/sinks.hpp"
 #include "patcher/time/clockBridge.h"
 #include "patcher/time/gTimer.h"
 #include "support/alloc_probe.hpp"
@@ -58,6 +59,7 @@ using namespace std::chrono_literals;
 
 namespace {
 
+  using TestHelpers::Wire;
   using YSE::PATCHER::gTimer;
   using YSE::PATCHER::patcherImplementation;
 
@@ -119,8 +121,8 @@ namespace {
 
     explicit Rig(const std::string& args = "") {
       if (!args.empty()) obj.SetParams(args);
-      obj.ConnectOutlet(out.GetInlet(0), 0);
-      obj.ConnectOutlet(out.GetInlet(1), 1);
+      Wire(obj, 0, out);
+      Wire(obj, 1, out, 1);
     }
 
     void Start() {

@@ -49,6 +49,7 @@
 #include "patcher/sinks.hpp"
 
 using TestHelpers::MultiSink;
+using TestHelpers::Wire;
 using YSE::PATCHER::gBag;
 
 namespace {
@@ -87,7 +88,7 @@ namespace {
     gBag obj;
 
     Rig() {
-      obj.ConnectOutlet(out.GetInlet(0), 0);
+      Wire(obj, 0, out);
     }
 
     void List(const std::string& message) {
@@ -475,7 +476,7 @@ TEST_SUITE("patcher") {
     Recorder out;
     gBag obj;
     obj.SetParams("dup");
-    obj.ConnectOutlet(out.GetInlet(0), 0);
+    Wire(obj, 0, out);
 
     obj.GetInlet(1)->SetInt(1, YSE::T_GUI);
     obj.GetInlet(0)->SetInt(60, YSE::T_GUI);

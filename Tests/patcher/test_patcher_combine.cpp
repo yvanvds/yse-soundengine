@@ -45,7 +45,7 @@ namespace {
     MultiSink sink;
 
     void Wire(gCombine& obj) {
-      obj.ConnectOutlet(sink.GetInlet(0), 0);
+      TestHelpers::Wire(obj, 0, sink);
     }
   };
 

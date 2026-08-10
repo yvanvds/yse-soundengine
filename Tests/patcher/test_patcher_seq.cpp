@@ -70,9 +70,11 @@
 #include "patcher/pRegistry.h"
 #include "patcher/patcher.hpp"
 #include "patcher/patcherImplementation.h"
+#include "patcher/sinks.hpp"
 #include "patcher/time/messageScheduler.h"
 #include "support/alloc_probe.hpp"
 
+using TestHelpers::Wire;
 using YSE::PATCHER::gSeq;
 using YSE::PATCHER::messageScheduler;
 using YSE::PATCHER::patcherImplementation;
@@ -128,7 +130,7 @@ namespace {
     explicit Rig(const std::string& args = "") {
       if (!args.empty()) obj.SetParams(args);
       for (int i = 0; i < obj.NumOutputs(); i++)
-        obj.ConnectOutlet(out.GetInlet(0), i);
+        Wire(obj, i, out);
     }
 
     void List(const std::string& message) {

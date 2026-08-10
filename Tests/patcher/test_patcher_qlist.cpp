@@ -75,6 +75,7 @@
 #include "patcher/sinks.hpp"
 #include "patcher/time/messageScheduler.h"
 
+using TestHelpers::Wire;
 using YSE::PATCHER::gQlist;
 using YSE::PATCHER::messageScheduler;
 using YSE::PATCHER::patcherImplementation;
@@ -120,9 +121,9 @@ namespace {
     gQlist obj;
 
     Rig() {
-      obj.ConnectOutlet(data.GetInlet(0), 0);
-      obj.ConnectOutlet(end.GetInlet(0), 1);
-      obj.ConnectOutlet(file.GetInlet(0), 2);
+      Wire(obj, 0, data);
+      Wire(obj, 1, end);
+      Wire(obj, 2, file);
     }
 
     void List(const std::string& message) {

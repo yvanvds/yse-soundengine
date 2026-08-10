@@ -66,6 +66,7 @@
 #include "patcher/patcherImplementation.h"
 #include "patcher/sinks.hpp"
 
+using TestHelpers::Wire;
 using YSE::PATCHER::gTextfile;
 using YSE::PATCHER::patcherImplementation;
 
@@ -112,9 +113,9 @@ namespace {
     gTextfile obj;
 
     Rig() {
-      obj.ConnectOutlet(text.GetInlet(0), 0);
-      obj.ConnectOutlet(lines.GetInlet(0), 1);
-      obj.ConnectOutlet(file.GetInlet(0), 2);
+      Wire(obj, 0, text);
+      Wire(obj, 1, lines);
+      Wire(obj, 2, file);
     }
 
     void List(const std::string& message) {

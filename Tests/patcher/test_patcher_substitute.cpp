@@ -54,8 +54,8 @@ namespace {
     MultiSink rest;
 
     void Wire(gSubstitute& obj) {
-      obj.ConnectOutlet(out.GetInlet(0), 0);
-      obj.ConnectOutlet(rest.GetInlet(0), 1);
+      TestHelpers::Wire(obj, 0, out);
+      TestHelpers::Wire(obj, 1, rest);
     }
 
     void reset() {

@@ -49,6 +49,7 @@
 #include "patcher/sinks.hpp"
 
 using TestHelpers::MultiSink;
+using TestHelpers::Wire;
 using YSE::PATCHER::gCapture;
 
 namespace {
@@ -97,8 +98,8 @@ namespace {
     gCapture obj;
 
     Rig() {
-      obj.ConnectOutlet(dump.GetInlet(0), 0);
-      obj.ConnectOutlet(count.GetInlet(0), 1);
+      Wire(obj, 0, dump);
+      Wire(obj, 1, count);
     }
 
     void List(const std::string& message) {

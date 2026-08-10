@@ -511,10 +511,13 @@ add_test(
 set_tests_properties(yse_tests_patcher PROPERTIES LABELS patcher TIMEOUT 300)
 
 # Patcher concurrency stress test (issue #229), registered on its own so the
-# sanitizer CI legs can target just it (`ctest -R yse_tests_patcher_concurrency`)
-# under TSan/ASan without paying for the whole suite — the `concurrency` label
-# is shared with the channel/sound/reverb concurrency tests, so the sanitizer
-# presets match by name, not by label. It also runs as part of yse_tests_patcher.
+# TSan CI leg can target just it (`ctest -R yse_tests_patcher_concurrency`)
+# without paying for the whole suite under a 20-30x slowdown — the `concurrency`
+# label is shared with the channel/sound/reverb concurrency tests, so the
+# sanitizer presets match by name, not by label. It also runs as part of
+# yse_tests_patcher, which is what the ASan leg runs in full since issue #727:
+# every `concurrency:*` case lives in TEST_SUITE("patcher"), so the wide ASan
+# gate strictly subsumes this one and the two are not run twice.
 add_test(
   NAME    yse_tests_patcher_concurrency
   COMMAND yse_tests --test-case=concurrency:* --duration=true

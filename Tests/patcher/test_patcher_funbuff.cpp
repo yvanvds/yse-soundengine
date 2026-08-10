@@ -39,6 +39,7 @@
 #include "patcher/sinks.hpp"
 
 using TestHelpers::MultiSink;
+using TestHelpers::Wire;
 using YSE::PATCHER::gFunbuff;
 
 namespace {
@@ -78,9 +79,9 @@ namespace {
     gFunbuff obj;
 
     Rig() {
-      obj.ConnectOutlet(y.GetInlet(0), 0);
-      obj.ConnectOutlet(x.GetInlet(0), 1);
-      obj.ConnectOutlet(end.GetInlet(0), 2);
+      Wire(obj, 0, y);
+      Wire(obj, 1, x);
+      Wire(obj, 2, end);
     }
 
     void reset() {
@@ -397,8 +398,8 @@ TEST_SUITE("patcher") {
     xSink.tag = "x";
 
     gFunbuff obj;
-    obj.ConnectOutlet(ySink.GetInlet(0), 0);
-    obj.ConnectOutlet(xSink.GetInlet(0), 1);
+    Wire(obj, 0, ySink);
+    Wire(obj, 1, xSink);
 
     // Stored out of order on purpose: dump has to report the sort, not arrival.
     obj.GetInlet(0)->SetList("set 30 3 10 1 20 2", YSE::T_GUI);
@@ -439,9 +440,9 @@ TEST_SUITE("patcher") {
     endSink.tag = "end";
 
     gFunbuff obj;
-    obj.ConnectOutlet(ySink.GetInlet(0), 0);
-    obj.ConnectOutlet(xSink.GetInlet(0), 1);
-    obj.ConnectOutlet(endSink.GetInlet(0), 2);
+    Wire(obj, 0, ySink);
+    Wire(obj, 1, xSink);
+    Wire(obj, 2, endSink);
 
     obj.GetInlet(0)->SetList("set 10 1 25 2 30 3", YSE::T_GUI);
     log.clear();
@@ -480,8 +481,8 @@ TEST_SUITE("patcher") {
     xSink.tag = "d";
 
     gFunbuff obj;
-    obj.ConnectOutlet(ySink.GetInlet(0), 0);
-    obj.ConnectOutlet(xSink.GetInlet(0), 1);
+    Wire(obj, 0, ySink);
+    Wire(obj, 1, xSink);
 
     obj.GetInlet(0)->SetList("set 10 1 25 2 30 3", YSE::T_GUI);
     log.clear();
@@ -548,7 +549,7 @@ TEST_SUITE("patcher") {
     ySink.tag = "y";
 
     gFunbuff obj;
-    obj.ConnectOutlet(ySink.GetInlet(0), 0);
+    Wire(obj, 0, ySink);
     obj.GetInlet(0)->SetList("set 10 5 20 9 30 5 40 5", YSE::T_GUI);
     log.clear();
 

@@ -94,7 +94,7 @@
     {
       "name": "tests-asan",
       "displayName": "Debug + Tests + ASan (Linux/clang)",
-      "description": "tests-debug under AddressSanitizer with clang — the heap/use-after-free half of the #229 patcher concurrency acceptance gate (epic #189). Leak detection is disabled via ASAN_OPTIONS=detect_leaks=0 in the test preset, because the process-global thread pools / named bus are intentionally never torn down; this gate is about UAF on the live-edit path, not leaks. Linux only.",
+      "description": "tests-debug under AddressSanitizer with clang — the heap/use-after-free half of the #229 patcher concurrency acceptance gate (epic #189). The test preset runs the *whole* patcher suite, not just the concurrency case: issue #727 found ~22 test files whose one-sided outlet->inlet wiring was a use-after-free at teardown, invisible for months because the gate only ever ran `concurrency:*`. Leak detection is disabled via ASAN_OPTIONS=detect_leaks=0 in the test preset, because the process-global thread pools / named bus are intentionally never torn down; this gate is about UAF, not leaks. Linux only.",
       "inherits": "tests-debug",
       "binaryDir": "${sourceDir}/build-tests-asan",
       "cacheVariables": {
@@ -290,10 +290,10 @@
     },
     {
       "name": "tests-asan",
-      "displayName": "ASan concurrency tests (patcher + send/return)",
+      "displayName": "ASan patcher suite + send/return concurrency",
       "configurePreset": "tests-asan",
       "output": { "outputOnFailure": true },
-      "filter": { "include": { "name": "yse_tests_patcher_concurrency|yse_tests_sendstress" } },
+      "filter": { "include": { "name": "yse_tests_patcher$|yse_tests_sendstress" } },
       "environment": {
         "ASAN_OPTIONS": "detect_leaks=0"
       },

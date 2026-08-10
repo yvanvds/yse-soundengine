@@ -9,12 +9,43 @@
 
 #pragma once
 
+#include <doctest/doctest.h>
+
 #include "patcher/pObject.h"
 #include "dsp/buffer.hpp"
 #include <string>
 #include <vector>
 
 namespace TestHelpers {
+
+  // Wire two standalone objects the way `patcherImplementation::ConnectUnlocked`
+  // wires two objects in a real patch: **both ends, inlet first**.
+  //
+  // Registering only the outlet side is enough to make sends work, which is why
+  // it is an easy thing to write and a hard thing to notice. It is also a bug,
+  // and a documented one — `pObject::ConnectInlet` and `ConnectUnlocked` both
+  // spell it out for issue #237: "a one-sided outlet->inlet edge survives
+  // Disconnect/UnwireFromPeers (both clean up from the inlet's records)". The
+  // teardown consequence is what issue #727 swept out of ~22 test files:
+  // `~outlet` walks its `connections` and calls `inlet::Disconnect` on every
+  // peer, and `~inlet` does the mirror image — so a *symmetric* edge is unwired
+  // by whichever end dies first and destruction order stops mattering. A
+  // one-sided one leaves the outlet holding an `inlet*` the inlet never knew
+  // about, and destroying the receiver first makes `~outlet` read freed memory.
+  //
+  // Two habits go with it, and a standalone rig wants all three:
+  //   * declare sinks **before** the object that sends to them, so the object
+  //     dies first (it matters for anything holding a timer slot, which must be
+  //     given back while its target is still alive);
+  //   * never `sleep_for` to await a timer — `timerBridge::WaitIdle()` is the
+  //     handshake that actually says the callback is done.
+  inline void Wire(YSE::PATCHER::pObject& from, int outlet, YSE::PATCHER::pObject& to,
+                   int inlet = 0) {
+    // The inlet is asked first and the outlet only records the edge if it
+    // accepted, exactly as ConnectUnlocked does.
+    REQUIRE(to.ConnectInlet(from.GetOutlet(outlet), inlet));
+    from.ConnectOutlet(to.GetInlet(inlet), outlet);
+  }
 
   struct FloatSink : YSE::PATCHER::pObject {
     float received = 0.f;

@@ -45,6 +45,7 @@
 #include "utils/json.hpp"
 
 using TestHelpers::MultiSink;
+using TestHelpers::Wire;
 using YSE::PATCHER::gValue;
 using YSE::PATCHER::valueKind;
 using YSE::PATCHER::valueSlot;
@@ -120,7 +121,7 @@ TEST_SUITE("patcher") {
     MultiSink sink;
     gValue v;
     v.SetParams("tempo");
-    v.ConnectOutlet(sink.GetInlet(0), 0);
+    Wire(v, 0, sink);
     CHECK_FALSE(v.IsShared());
 
     v.GetInlet(0)->SetInt(7, YSE::T_GUI);
@@ -424,7 +425,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("value: a list stored and recalled on the audio thread survives intact (#486)") {
     MultiSink sink;
     gValue v;
-    v.ConnectOutlet(sink.GetInlet(0), 0);
+    Wire(v, 0, sink);
 
     v.GetInlet(0)->SetList("held on T_DSP", YSE::T_DSP);
     CHECK(v.Kind() == valueKind::List);

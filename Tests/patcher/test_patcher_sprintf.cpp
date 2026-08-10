@@ -50,7 +50,7 @@ namespace {
     MultiSink out;
 
     void Wire(gSprintf& obj) {
-      obj.ConnectOutlet(out.GetInlet(0), 0);
+      TestHelpers::Wire(obj, 0, out);
     }
   };
 
