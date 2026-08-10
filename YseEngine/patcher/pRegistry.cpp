@@ -43,6 +43,7 @@
 #include "genericObjects/gFunnel.h"
 #include "genericObjects/gSpray.h"
 #include "genericObjects/gUzi.h"
+#include "genericObjects/gZl.h"
 #include "genericObjects/gIf.h"
 #include "genericObjects/gRegexp.h"
 #include "genericObjects/gReceive.h"
@@ -278,6 +279,11 @@ pRegistry::pRegistry() {
   // (issue #493)
   Add(OBJ::G_ATOI, gAtoi::Create);
   Add(OBJ::G_ITOA, gItoa::Create);
+
+  // The list-processing workhorse: one object whose behaviour a mode word
+  // chooses, over the bounded pre-allocated list the whole list family shares
+  // (issue #523)
+  Add(OBJ::G_ZL, gZl::Create);
 
   // A collection of messages held at addresses — the patcher's first store of
   // more than one thing, and the object presets, note tables, mapping curves

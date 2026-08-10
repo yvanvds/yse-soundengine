@@ -6746,6 +6746,61 @@
       }
     ]
   },
+  ".zl": {
+    "category": "GENERIC",
+    "description": "The patcher's list-processing workhorse — Max's zl, 'multi-purpose list processing object': one object with two inlets, two outlets and a mode word that decides what happens between them. A list arriving at the left inlet is stored and processed under the current mode; a bang runs the mode over the stored list again, which is how a patch asks for the same list back under a mode it has just switched to with 'mode <name>'. Three modes are implemented so far and the remaining groups follow in their own issues: 'len' sends the number of items in the list, 'rev' sends the list in reverse order, and 'nth' picks one item by its 1-based index — the item out the left outlet and everything else out the right one, Max's 'the right outlet outputs all elements except the selected one'. Where a mode fills both outlets, the right one is sent first, which is Max's right-to-left rule. Max ships a second spelling of every mode as its own object ('zl.rev'), and it is deliberately not ported: it is sugar for the mode argument, thirty registered names for one class, and a '.zl.rev' that can still be told 'mode nth' would not be what its name says. The list storage is bounded and pre-allocated — at most 256 items, Max's own default maximum list length, spanning at most 1024 characters, in memory reserved when the object is built. A leading integer creation argument or the 'zlmaxsize <n>' message narrows the working limit to anywhere in 1-256; it cannot be widened past 256, because a limit that could grow the storage would allocate on whichever thread sent the list. An item that does not fit is refused and counted rather than silently truncated, so an over-long list loses its tail and keeps its head; the count is a counter rather than a log line because the refusing thread may be the audio callback, while an over-long creation argument is logged, parameter parsing being control-thread only. A result of one item leaves as the int, float or symbol it spells rather than as a list of one, and a result of no items sends nothing at all. Re-typing the creation arguments rebuilds the object and so empties the stored list, which is what re-typing an object does in Max; the 'mode' message keeps it, which is what a patch changing modes live wants. Calculate() does nothing and no message path allocates, locks or blocks: the command words are matched in place, the items are parsed into reserved storage, numbers are rendered into a stack buffer, and the mode dispatch is one atomic load and a switch. Two threads sending to the same object are serialised by a single test-and-set guard whose loser is dropped and counted rather than made to spin, which is also what stops an object wired back into its own inlet from recursing on the audio thread.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The list inlet, and the hot one. A list arriving here replaces the stored list and is processed under the current mode straight away; an int or a float is a list of one, as it is in Max. A bang runs the current mode over the stored list again, which is how a patch asks for the same list back under a mode it has just changed. Three command words are read rather than stored: 'mode <name>' switches the mode and keeps the stored list, 'zlclear' empties it, and 'zlmaxsize <n>' narrows the working maximum list length to anywhere in 1-256. None of the three emits anything. 'mode' is a bare word rather than a prefixed one, which is Max's choice and not this port's, so a list whose first item is the literal symbol 'mode' is swallowed here as it is there. A mode word this object does not know yet leaves the mode where it was rather than silently falling back to another one.",
+        "index": 0,
+        "label": "list",
+        "range": "a list, a number, bang, 'mode <name>', 'zlclear', 'zlmaxsize <n>'"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The mode's argument, and cold: setting it never emits. What it means depends on the mode — for 'nth' it is the 1-based index of the item to pick, Max's numbering, so 1 is the first item; 'len' and 'rev' take no argument and ignore it. An int, a float or a list whose leading token is a number all set it; the float is truncated, an index being a whole number. The creation arguments set it too, so '.zl nth 2' needs no cord here at all.",
+        "index": 1,
+        "label": "argument",
+        "range": "mode dependent; 1-based index for 'nth'"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".zl",
+    "outlets": [
+      {
+        "doc": "The result of the current mode. A result of one atom leaves as the int, float or symbol it spells rather than as a list of one, so it reaches the inlets an uncollected value would have reached; a longer one leaves as list text. A result of no atoms sends nothing at all rather than an empty message. In 'len' mode this is the number of items in the stored list, in 'rev' mode the stored list in reverse order, and in 'nth' mode the item the index names.",
+        "index": 0,
+        "label": "result",
+        "range": "any",
+        "type": "ANY"
+      },
+      {
+        "doc": "The second half of the result, for the modes that produce two, and sent before the left outlet — Max's right-to-left rule. In 'nth' mode it carries the stored list with the picked item removed, Max's 'the right outlet outputs all elements except the selected one'. Modes that produce a single result ('len', 'rev') send nothing here at all, rather than a copy of the input, so that a patch can tell 'there is no second half' from 'the second half is the whole list'.",
+        "index": 1,
+        "label": "rest",
+        "range": "any",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The optional maximum list length, the mode word, and the mode's argument, in that order — Max's own argument shape. A leading token that is wholly an integer is the maximum list length and is clamped to 1-256; anything else is read as the mode word, so '.zl nth 2' and '.zl 64 nth 2' are both legal and mean the same thing but for the ceiling. The mode words implemented so far are 'len', 'rev' and 'nth'; one this object does not know is named in the log and ignored, leaving an object that stores what it is sent and emits nothing. With no mode word at all the object is inert for the same reason — Max's undocumented no-argument default is 'reg', which belongs to the register group and is not ported yet, and behaving as a mode the patch did not ask for would be worse than staying quiet. The first numeric token after the mode word is the mode's argument, which for 'nth' is the 1-based index; the right inlet overwrites it afterwards.",
+        "name": "maxsize mode argument",
+        "range": "[<1-256>] [len|rev|nth] [<argument>]"
+      }
+    ]
+  },
   ".zmap": {
     "category": "MATH",
     "description": "Control-rate clipped range mapping. Maps the value on inlet 0 from the input range onto the output range and emits it as a float. Unlike .scale the mapping never extrapolates: a value outside the input range is pinned to the matching output limit, which makes this the safe choice for driving a parameter that must never leave its legal range. The mapping is always linear — use .scale for an exponential curve or for extrapolation. A descending output range (low above high) clips against the correct limits, a degenerate input range (low equal to high) emits the output low, and nothing non-finite can leave the object — the result is always inside the output range.",
