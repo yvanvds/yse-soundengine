@@ -49,6 +49,7 @@
 #include "genericObjects/gJoin.h"
 #include "genericObjects/gUnjoin.h"
 #include "genericObjects/gIter.h"
+#include "genericObjects/gListFunnel.h"
 #include "genericObjects/gIf.h"
 #include "genericObjects/gRegexp.h"
 #include "genericObjects/gReceive.h"
@@ -317,6 +318,11 @@ pRegistry::pRegistry() {
   // serialiser, and with .uzi the patcher's second iteration primitive
   // (issue #521)
   Add(OBJ::G_ITER, gIter::Create);
+
+  // The same walk with the index left on: every element leaves as an
+  // <index> <element> pair, so .funnel's tag comes from the position in the
+  // message rather than from the wiring (issue #522)
+  Add(OBJ::G_LISTFUNNEL, gListFunnel::Create);
 
   // A collection of messages held at addresses — the patcher's first store of
   // more than one thing, and the object presets, note tables, mapping curves

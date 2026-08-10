@@ -3238,6 +3238,42 @@
       }
     ]
   },
+  ".listfunnel": {
+    "category": "GENERIC",
+    "description": "Indexes the elements of a message and sends each one out as an index/element pair — Max's listfunnel, which 'outputs the elements of an incoming list in the format: [index] [element] for each element of the list'. It is the list side of .funnel: .funnel takes the tag from the wiring, so a value arriving at inlet 2 leaves as 2 followed by the value and a patch with eight numbered sources needs eight cords, while this takes the tag from the position in the message, so one cord carrying a b c becomes 0 a, then 1 b, then 2 c. Same output shape and same downstream consumers — .route, .sel, .spray — but the length of the list need not be known when the patch is drawn, which is why Max notes that it conveniently replaces an unpack feeding a funnel: that pair has to be told how many elements there are in two places at once, and a list one element longer than expected quietly loses its tail. Next to .iter it is the same walk with the index left on: both turn one arriving message into one message per element down a single cord, first to last, each send completing in full — the whole subgraph behind the outlet, depth first — before the next begins, because the patcher's send path calls the target inlet directly with no queue in between. The difference is what a downstream object can do with the result: .iter sends the element as the int, float or symbol it spells, so it reaches the ordinary scalar inlets, while this always sends a two-element list, so the element is addressed rather than merely delivered. A patch that wants to do something to every element reaches for .iter; a patch that wants to put element k somewhere that depends on k reaches for this. It follows that there is no bang here where .iter has one — Max documents none, and iter's bang re-sends the message most recently received, which means iter holds a message as state while this holds nothing between messages but its offset; the inlet declines bang outright rather than swallowing it, so the accepted-type report is the real contract. The creation argument is Max's starting index value and the offset message 'specif[ies] an offset for the first index value', one value from two directions as on .funnel and .spray, so element k leaves tagged offset plus k. It exists because the numbers a downstream object expects usually start where it starts — a .spray bank with its own offset, MIDI channels at 1, a table's rows at some base — and the alternative is a .+ on every element after the split, kept in step by hand; a .listfunnel into a .spray with the same offset sends element k to outlet k. offset is run-time state rather than a parameter, as .funnel's and .spray's are, so a saved patch carries the creation argument, and the addition is saturated at the int limits rather than wrapped, since a wrapped index reads as a perfectly plausible one. An int or a float is a one-element message and leaves as the offset paired with the number, Max's 'the low index value and the received number are sent out as a two-element list', and anything is a list, so there is no message word to strip beyond the offset method itself. The index is always an int and the element keeps the spelling it arrived with, character for character, because it is copied out of the stored text rather than re-formatted. A message with no elements sends nothing at all rather than an empty message. The arriving message is read into the bounded pre-allocated storage the whole list family shares: at most 256 elements spanning at most 1024 characters between them, in memory reserved when the object is built. A message too long for it loses its tail, which is counted, and its head is indexed — the surplus here is input the patch has just sent rather than state the object was holding, which is why it is not refused whole the way .join's store is, and the count is a counter rather than a log line because the refusing thread may be the audio callback. One arriving message therefore becomes at most 256 sends, all inside the call frame of the one send that started it; the patcher's value-command queue is 256 deep, so a full-length burst feeding a .s from the control thread can saturate it and hit its documented drop-and-log backpressure. Calculate() does nothing and no message path allocates, locks or blocks: numbers are rendered into a stack buffer, the message is collected into storage reserved at construction, and the pairs are assembled in a buffer reserved at the same time. Two threads sending to the same object are serialised by a single test-and-set guard whose loser is dropped and counted rather than made to spin, and that guard is held across the whole walk on purpose: a cord from the outlet back to the inlet re-enters the handler from inside the walk, and letting it through would restart an iteration that never terminates and rewrite the list being walked. The offset message takes the same guard, which is what keeps the index base fixed for the length of one list rather than able to change halfway down it.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The message to index. Every element leaves the outlet as its own two-element list, the element's position plus the offset followed by the element itself, first to last. Each send completes in full — the whole subgraph behind the outlet — before the next pair leaves, so the pairs arrive as a sequence rather than all at once. An int or a float is a one-element message and so leaves as the offset paired with the number, and anything works exactly like a list. 'offset <n>' changes the index the first element is given and sends nothing; the bare word does nothing at all. There is no bang method, Max documents none, because the object holds no message between stimuli. A message longer than the shared bound of 256 elements loses its tail, which is counted, and its head is indexed. One message here costs one send per element, up to 256 of them, on whichever thread sent it.",
+        "index": 0,
+        "label": "in",
+        "range": "any"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".listfunnel",
+    "outlets": [
+      {
+        "doc": "One two-element list per element of the last message: the element's position plus the offset, then the element. The index is always an int and the element keeps the spelling it arrived with, character for character, since it is copied rather than re-formatted. This is always a list — unlike .iter, which sends the bare atom — because the index is what makes the element addressable by .route, .sel or .spray. A message with no elements sends nothing at all. The sends are synchronous and consecutive: the whole subgraph behind this outlet runs to completion for one pair before the next pair is sent, so a patch may accumulate downstream and rely on the order.",
+        "index": 0,
+        "label": "out",
+        "range": "list",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Max's starting index value: the index the first element of a message is sent with, each later element counting up from it. Defaults to 0, so an unmodified object numbers from zero. It is also the starting value of the 'offset' message, which is run-time state and does not write back here, so a saved patch carries this argument rather than whatever the last message set. A float is truncated; anything that is not a whole finite number is ignored and leaves the default in place. Not clamped — a patch may legitimately want indices in any range — and the addition is saturated at the int limits where it is done.",
+        "name": "offset",
+        "range": "any whole number"
+      }
+    ]
+  },
   ".m": {
     "category": "GUI",
     "description": "Static message. Bang re-sends the stored message; list updates the stored payload.",

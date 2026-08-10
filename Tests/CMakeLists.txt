@@ -117,6 +117,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_join.cpp
   patcher/test_patcher_unjoin.cpp
   patcher/test_patcher_iter.cpp
+  patcher/test_patcher_listfunnel.cpp
   patcher/test_patcher_forward.cpp
   patcher/test_patcher_funnel.cpp
   patcher/test_patcher_decode.cpp
@@ -1055,6 +1056,7 @@ set_source_files_properties(
   patcher/test_patcher_join.cpp
   patcher/test_patcher_unjoin.cpp
   patcher/test_patcher_iter.cpp
+  patcher/test_patcher_listfunnel.cpp
   patcher/test_patcher_forward.cpp
   patcher/test_patcher_funnel.cpp
   patcher/test_patcher_decode.cpp
