@@ -187,7 +187,7 @@ TEST_SUITE("patcher") {
     CHECK(sine->GetConnections(1) == 0u);
     CHECK(sine->GetConnections(99) == 0u);
     CHECK(sine->GetConnectionTarget(99, 0) == UINT_MAX);
-    CHECK(sine->GetConnectionTargetInlet(99, 0) == 0u);
+    CHECK(sine->GetConnectionTargetInlet(99, 0) == UINT_MAX);
 
     // The real outlet is unaffected, and a genuine edge to object 0 still
     // reports 0 rather than the no-target answer.
@@ -196,7 +196,42 @@ TEST_SUITE("patcher") {
     // A connection index past the end of a real outlet's edge list answers the
     // same way an absent outlet does — one function, one unanswerable value.
     CHECK(sine->GetConnectionTarget(0, 1) == UINT_MAX);
-    CHECK(sine->GetConnectionTargetInlet(0, 1) == 0u);
+    CHECK(sine->GetConnectionTargetInlet(0, 1) == UINT_MAX);
+  }
+
+  // Regression for issue #736. GetConnectionTargetInlet answered 0 both for an
+  // edge landing on the target's leftmost inlet and for a query it could not
+  // answer at all, so the commonest real answer in any patch was also the
+  // failure marker. It now reports pObject::kNoInletIndex when there is no
+  // edge, which no real inlet can be.
+  TEST_CASE("patcher: an unanswerable inlet query is distinct from inlet 0 (issue #736)") {
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* sine = p.CreateObject(YSE::OBJ::D_SINE);
+    YSE::pHandle* add = p.CreateObject(YSE::OBJ::D_ADD);
+    REQUIRE(sine != nullptr);
+    REQUIRE(add != nullptr);
+    REQUIRE(sine->GetOutputs() == 1);
+
+    // Two edges from the same outlet: one to inlet 0, one to inlet 1. Inlet 0
+    // is the case the sentinel has to stay distinct from.
+    p.Connect(sine, 0, add, 0);
+    p.Connect(sine, 0, add, 1);
+    REQUIRE(sine->GetConnections(0) == 2u);
+
+    const unsigned int inlet0 = sine->GetConnectionTargetInlet(0, 0);
+    const unsigned int inlet1 = sine->GetConnectionTargetInlet(0, 1);
+    CHECK(inlet0 == 0u);
+    CHECK(inlet1 == 1u);
+
+    // Both unanswerable queries must differ from the real inlet 0 above —
+    // that distinctness is the whole point of the issue.
+    const unsigned int noOutlet = sine->GetConnectionTargetInlet(99, 0);
+    const unsigned int noEdge = sine->GetConnectionTargetInlet(0, 2);
+    CHECK(noOutlet == UINT_MAX); // pObject::kNoInletIndex
+    CHECK(noEdge == UINT_MAX);
+    CHECK(noOutlet != inlet0);
+    CHECK(noEdge != inlet0);
   }
 
   // ─── Handle lookup ────────────────────────────────────────────────────────────

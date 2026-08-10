@@ -160,10 +160,9 @@ namespace YSE {
       //                            outlet has.
       //   GetConnectionTarget      kNoObjectID. Not 0: object IDs start at 0
       //                            (issue #730) so 0 is a real target.
-      //   GetConnectionTargetInlet 0. Ambiguous with inlet 0 and known to be
-      //                            (issue #736); left alone here because
-      //                            settling it needs an inlet sentinel, which
-      //                            is that issue's call, not this one's.
+      //   GetConnectionTargetInlet kNoInletIndex. Not 0 either: 0 is the
+      //                            leftmost inlet and the one most edges
+      //                            arrive at (issue #736).
       unsigned int GetConnections(unsigned int outlet);
       unsigned int GetConnectionTarget(unsigned int outlet, unsigned int connection);
       unsigned int GetConnectionTargetInlet(unsigned int outlet, unsigned int connection);
@@ -210,6 +209,22 @@ namespace YSE {
       // (issue #732) — yse_patcher.cpp static_asserts the two are the same
       // number so they cannot drift apart.
       static constexpr unsigned int kNoObjectID = static_cast<unsigned int>(kNoStorageID);
+
+      // The inlet index that names no inlet: what GetConnectionTargetInlet
+      // answers when it cannot name one. Not 0 — inlet 0 is the leftmost inlet
+      // and the one most edges in a patch arrive at, so 0 as a failure marker
+      // is indistinguishable from the commonest real answer (issue #736).
+      //
+      // Deliberately a separate name from kNoObjectID even though the two hold
+      // the same number: an inlet index and an object ID are different
+      // quantities, and a comparison written against the wrong one should read
+      // wrong. They agree on UINT_MAX because it is the one value unreachable
+      // in either domain — an object would need 2^32 inlets — and because a
+      // binding that stores either in a signed 32-bit integer then sees the
+      // same -1. The C ABI publishes this as YSE_PATCHER_INLET_NONE, which
+      // yse_patcher.cpp static_asserts against this constant so the two cannot
+      // drift apart.
+      static constexpr unsigned int kNoInletIndex = static_cast<unsigned int>(-1);
 
       inline unsigned int GetID() {
         return ID;

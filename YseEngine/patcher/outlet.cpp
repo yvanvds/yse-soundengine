@@ -173,7 +173,11 @@ unsigned int outlet::GetTargetInlet(unsigned int connection) {
   if (connection < connections.size()) {
     return connections[connection]->GetPosition();
   }
-  return 0;
+  // Not 0 — inlet 0 is the leftmost inlet and the one most edges arrive at, so
+  // it cannot double as "there is no such edge" (issue #736). Same answer
+  // pObject::GetConnectionTargetInlet gives for an outlet that does not exist,
+  // so one function has one unanswerable-query value.
+  return pObject::kNoInletIndex;
 }
 
 void outlet::SetDoc(const std::string& label, const std::string& doc, const std::string& range) {

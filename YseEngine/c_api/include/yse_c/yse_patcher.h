@@ -16,9 +16,10 @@
   no-op when called with a NULL handle (patcher or phandle). Status
   queries return 0 / false / NULL on NULL — except the handful where 0 is
   itself a valid answer and would be indistinguishable from the failure:
-  yse_phandle_output_data_type answers YSE_OUT_INVALID, and the two
+  yse_phandle_output_data_type answers YSE_OUT_INVALID, the two
   object-ID queries (yse_phandle_get_id,
-  yse_phandle_get_connection_target) answer YSE_PATCHER_ID_NONE.
+  yse_phandle_get_connection_target) answer YSE_PATCHER_ID_NONE, and
+  yse_phandle_get_connection_target_inlet answers YSE_PATCHER_INLET_NONE.
 */
 
 #ifndef YSE_C_PATCHER_H_INCLUDED
@@ -50,6 +51,21 @@ typedef struct YsePHandle YsePHandle;
 
    yse_patcher_get_handle_from_id(p, YSE_PATCHER_ID_NONE) is NULL. */
 #define YSE_PATCHER_ID_NONE 0xFFFFFFFFu
+
+/* "No such inlet" — the answer from yse_phandle_get_connection_target_inlet
+   when it has no edge to report an inlet for (issue #736).
+
+   Inlet 0 is the leftmost inlet and the one most connections in a patch
+   arrive at, so it cannot double as a failure marker any more than object
+   ID 0 can. This value matches the engine's pObject::kNoInletIndex and is
+   never a real inlet: an object would have to declare 2^32 of them.
+
+   A separate name from YSE_PATCHER_ID_NONE on purpose, though the two hold
+   the same number. An inlet index is not an object ID; comparing an inlet
+   against the ID sentinel should read wrong at the call site even while it
+   happens to work. Bindings should mirror both names rather than collapse
+   them. */
+#define YSE_PATCHER_INLET_NONE 0xFFFFFFFFu
 
 /* ─── patcher lifecycle ────────────────────────────────────────────── */
 
@@ -124,9 +140,9 @@ YSE_C_API unsigned int yse_phandle_get_connections(YsePHandle* h, unsigned int o
    count, or on a connection past that outlet's edge count. */
 YSE_C_API unsigned int yse_phandle_get_connection_target(YsePHandle* h, unsigned int outlet,
                                                          unsigned int connection);
-/* Inlet on the target object that this edge arrives at. 0 on NULL, on an
-   absent outlet, and on an absent connection — which inlet 0 also reports;
-   telling the two apart needs an inlet sentinel (see issue #736). */
+/* Inlet on the target object that this edge arrives at.
+   YSE_PATCHER_INLET_NONE on NULL, on an outlet past the object's outlet
+   count, or on a connection past that outlet's edge count. */
 YSE_C_API unsigned int yse_phandle_get_connection_target_inlet(YsePHandle* h, unsigned int outlet,
                                                                unsigned int connection);
 

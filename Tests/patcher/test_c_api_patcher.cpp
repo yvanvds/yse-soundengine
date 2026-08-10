@@ -171,7 +171,52 @@ TEST_SUITE("capilowcov") {
     // straight to the engine, which used to index outputs[] with it unchecked.
     // They now answer instead of reading past the end.
     CHECK(yse_phandle_get_connections(sine, 99) == 0u);
-    CHECK(yse_phandle_get_connection_target_inlet(sine, 99, 0) == 0u);
+    CHECK(yse_phandle_get_connection_target_inlet(sine, 99, 0) == YSE_PATCHER_INLET_NONE);
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE(
+      "c-api phandle: an inlet query answers INLET_NONE, not inlet 0, when there is no edge") {
+    // Issue #736, the inlet-side twin of #732. Inlet 0 is the leftmost inlet
+    // and the one most edges in a patch arrive at, so the blanket "0 on NULL"
+    // convention made the commonest real answer indistinguishable from every
+    // kind of failure. YSE_PATCHER_INLET_NONE is now the failure answer.
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    YsePHandle* sine = yse_patcher_create_object(p, kSine, nullptr);
+    YsePHandle* mul = yse_patcher_create_object(p, kMultiply, "2");
+    REQUIRE(sine != nullptr);
+    REQUIRE(mul != nullptr);
+    REQUIRE(yse_phandle_get_inputs(mul) == 2);
+
+    // Two edges off the same outlet, landing on inlet 0 and inlet 1.
+    yse_patcher_connect(p, sine, 0, mul, 0);
+    yse_patcher_connect(p, sine, 0, mul, 1);
+    REQUIRE(yse_phandle_get_connections(sine, 0) == 2u);
+
+    // A genuine edge into the leftmost inlet still reports 0 ...
+    const unsigned int inlet0 = yse_phandle_get_connection_target_inlet(sine, 0, 0);
+    CHECK(inlet0 == 0u);
+    CHECK(yse_phandle_get_connection_target_inlet(sine, 0, 1) == 1u);
+
+    // ... while every query that cannot name an inlet says so, and says
+    // something the real inlet 0 above can never be. That distinctness is the
+    // issue: before the fix all four of these were 0.
+    CHECK(yse_phandle_get_connection_target_inlet(nullptr, 0, 0) == YSE_PATCHER_INLET_NONE);
+    CHECK(yse_phandle_get_connection_target_inlet(sine, 0, 2) == YSE_PATCHER_INLET_NONE);
+    CHECK(yse_phandle_get_connection_target_inlet(sine, 99, 0) == YSE_PATCHER_INLET_NONE);
+    CHECK(yse_phandle_get_connection_target_inlet(nullptr, 0, 0) != inlet0);
+    CHECK(yse_phandle_get_connection_target_inlet(sine, 0, 2) != inlet0);
+    CHECK(yse_phandle_get_connection_target_inlet(sine, 99, 0) != inlet0);
+
+    // The inlet sentinel carries the ID sentinel's number on purpose — it is
+    // the one value neither an inlet index nor an object ID can reach — but it
+    // is published under a name of its own so a binding does not compare an
+    // inlet against an object-ID constant.
+    CHECK(YSE_PATCHER_INLET_NONE == YSE_PATCHER_ID_NONE);
 
     yse_patcher_destroy(p);
   }
@@ -464,11 +509,12 @@ TEST_SUITE("capilowcov") {
     CHECK(yse_phandle_is_dsp_input(nullptr, 0) == 0);
     CHECK(yse_phandle_output_data_type(nullptr, 0) == YSE_OUT_INVALID);
     // The two object-ID queries opt out of the 0-on-NULL convention — 0 is a
-    // real object's ID (issue #732).
+    // real object's ID (issue #732) — and so does the inlet query, because 0
+    // is a real inlet (issue #736).
     CHECK(yse_phandle_get_id(nullptr) == YSE_PATCHER_ID_NONE);
     CHECK(yse_phandle_get_connections(nullptr, 0) == 0u);
     CHECK(yse_phandle_get_connection_target(nullptr, 0, 0) == YSE_PATCHER_ID_NONE);
-    CHECK(yse_phandle_get_connection_target_inlet(nullptr, 0, 0) == 0u);
+    CHECK(yse_phandle_get_connection_target_inlet(nullptr, 0, 0) == YSE_PATCHER_INLET_NONE);
 
     yse_patcher_destroy(p);
   }

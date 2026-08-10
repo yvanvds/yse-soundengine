@@ -168,7 +168,7 @@ unsigned int pObject::GetConnectionTarget(unsigned int outlet, unsigned int conn
 }
 
 unsigned int pObject::GetConnectionTargetInlet(unsigned int outlet, unsigned int connection) {
-  if (outlet >= outputs.size()) return 0;
+  if (outlet >= outputs.size()) return kNoInletIndex;
   return outputs[outlet].GetTargetInlet(connection);
 }
 

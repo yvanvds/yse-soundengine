@@ -99,8 +99,9 @@ namespace YSE {
 
     /** @brief Inlet on the target that this connection reaches.
      *
-     *  0 when there is no such outlet or no such connection on it — which
-     *  inlet 0 also reports; see issue #736.
+     *  ``UINT_MAX`` (``pObject::kNoInletIndex``) when there is no such outlet
+     *  or no such connection on it. Not 0: inlet 0 is the leftmost inlet and
+     *  the one most edges arrive at (issue #736).
      */
     unsigned int GetConnectionTargetInlet(unsigned int outlet, unsigned int connection);
 

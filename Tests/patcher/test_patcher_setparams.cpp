@@ -179,7 +179,7 @@ TEST_SUITE("patcher") {
     // Outlet 3 was real a moment ago and is gone now.
     CHECK(gate->GetConnections(3) == 0u);
     CHECK(gate->GetConnectionTarget(3, 0) == UINT_MAX);
-    CHECK(gate->GetConnectionTargetInlet(3, 0) == 0u);
+    CHECK(gate->GetConnectionTargetInlet(3, 0) == UINT_MAX);
     // The surviving outlet is untouched.
     CHECK(gate->GetConnections(0) == 1u);
     p.Calculate(YSE::T_DSP);
