@@ -34,8 +34,10 @@ namespace YSE {
    *  - DSP filters: ``D_LOWPASS``, ``D_HIGHPASS``, ``D_BANDPASS``, ``D_VCF``.
    *  - I/O: ``D_DAC``, ``D_ADC``, ``D_LINE``.
    *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_RANDOM``.
-   *  - Timing: ``G_METRO``, ``G_DELAY``, ``G_TRANSPORT``, ``G_TIMEPOINT``,
-   *    ``G_TEMPO``, ``G_CLOCKER``, ``G_TIMER``.
+   *  - Timing: ``G_METRO``, ``G_DELAY``, ``G_PIPE``, ``G_TRANSPORT``,
+   *    ``G_TIMEPOINT``, ``G_TEMPO``, ``G_CLOCKER``, ``G_TIMER``,
+   *    ``G_SPEEDLIM``, ``G_QLIM``, ``G_THRESH``, ``G_QUICKTHRESH``,
+   *    ``G_LINE``, ``G_BLINE``.
    *  - Registers: ``G_COUNTER``, ``G_ACCUM``.
    *  - Randomness: ``G_RANDOM``, ``G_DRUNK``, ``G_URN``, ``G_DECIDE``,
    *    ``G_PROB``, ``G_ANAL``, ``G_HISTO``.
@@ -211,6 +213,13 @@ namespace YSE {
     DEFOBJ(G_TEMPO, ".tempo");
     DEFOBJ(G_CLOCKER, ".clocker");
     DEFOBJ(G_TIMER, ".timer");
+    DEFOBJ(G_PIPE, ".pipe");
+    DEFOBJ(G_SPEEDLIM, ".speedlim");
+    DEFOBJ(G_QLIM, ".qlim");
+    DEFOBJ(G_THRESH, ".thresh");
+    DEFOBJ(G_QUICKTHRESH, ".quickthresh");
+    DEFOBJ(G_LINE, ".line");
+    DEFOBJ(G_BLINE, ".bline");
 
     DEFOBJ(D_ADD, "~+");
     DEFOBJ(D_SUBSTRACT, "~-");

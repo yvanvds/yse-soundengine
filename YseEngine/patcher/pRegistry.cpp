@@ -63,8 +63,12 @@
 
 #include "time/gClocker.h"
 #include "time/gDelay.h"
+#include "time/gLine.h"
 #include "time/gMetro.h"
+#include "time/gPipe.h"
+#include "time/gRateLimit.h"
 #include "time/gTempo.h"
+#include "time/gThresh.h"
 #include "time/gTimepoint.h"
 #include "time/gTimer.h"
 #include "time/gTransport.h"
@@ -462,6 +466,34 @@ pRegistry::pRegistry() {
   // Delay a bang — the patcher's most basic scheduling primitive, and the first
   // object that can defer anything at all (issue #503)
   Add(OBJ::G_DELAY, gDelay::Create);
+
+  // Delay numbers, lists and symbols — .delay for data, and the first timing
+  // object that holds many pending values at once rather than one (issue #504)
+  Add(OBJ::G_PIPE, gPipe::Create);
+
+  // Limit the rate of message throughput — two policies for a control stream
+  // that arrives faster than anything downstream needs: .speedlim drops what
+  // comes too soon, .qlim holds the newest and sends it when the window opens
+  // (issue #508)
+  Add(OBJ::G_SPEEDLIM, gSpeedlim::Create);
+  Add(OBJ::G_QLIM, gQlim::Create);
+
+  // Group the values that arrive close together into one list — the two answers
+  // to "when is a group over": .thresh closes it on a gap in the input,
+  // .quickthresh on a fixed window from the first value, which is what chord
+  // detection needs (issue #509)
+  Add(OBJ::G_THRESH, gThresh::Create);
+  Add(OBJ::G_QUICKTHRESH, gQuickthresh::Create);
+
+  // Generate a timed ramp of control values toward a target — the control-rate
+  // counterpart of ~line, which writes a DSP buffer and so cannot drive
+  // anything that is a number rather than a waveform (issue #510)
+  Add(OBJ::G_LINE, gLine::Create);
+
+  // The same ramp with the clock taken out: .bline advances one step per bang,
+  // so a breakpoint pair counts bangs rather than milliseconds and the patch
+  // supplies the timebase (issue #511)
+  Add(OBJ::G_BLINE, gBline::Create);
 
   // Control a named domain clock from inside the patcher — the object that
   // connects a patch to the engine's polytemporal clock system (issue #513)

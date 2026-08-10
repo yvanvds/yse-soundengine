@@ -1353,6 +1353,50 @@
       }
     ]
   },
+  ".bline": {
+    "category": "TIME",
+    "description": "Ramps a control value toward a target one step per bang, so the patch supplies the timebase. Max's bline, 'generates a linear ramp driven by incoming bang messages. It takes a list of breakpoint segments (and the number of events to span) and outputs a smooth ramp between values.' It is .line with the clock taken out: where .line emits a value every grain milliseconds of its own accord, this one emits a value each time it is banged and never otherwise, which is what a ramp needs when its step rate is not wall-clock time — locked to a .metro that a .tempo is bending, one value per note of a .seq, one value per frame of a render loop that takes as long as it takes. A breakpoint pair therefore counts bangs where .line's counts milliseconds: Max's 'an integer that specifies the number of bang messages that will have to be received before reaching the target value', so the list '1 10 0 10' climbs to 1 over ten bangs and comes back down over the next ten, banging the right outlet on the twentieth. Everything else is .line's and identical: four or more numbers are breakpoint pairs with an odd trailing element ignored, a three-element list is one pair with the third number ignored (there being no grain to set), each segment starts from the value the object currently stands at so there are no discontinuities, and a number arriving mid-ramp clears every segment still to come. The list holds 64 segments and reads 129 numbers, which is Max's maxpoints default; anything longer keeps its head, loses its tail and counts the refusal rather than allocating on the thread the message arrived on. A bare number is Max's 'the time is considered 0 and bline outputs the target value when it receives a bang' — one bang's worth of segment, landing on the target exactly — so nothing this object emits ever comes out on anything but a bang. 'stop' freezes it where it stands and forgets the queue without banging, and 'set <number>' moves the stored value silently and stops a ramp in progress, which is the one place this reads Max's page apart from itself: his set and int carry the same sentence, and telling them apart the way line does is what leaves a way to move the starting point without arming an output. Max's pause and resume are not here, bline having neither — on an object clocked by the patch, not banging it is the pause. The output is an int or a float by Max's rule: the creation argument's spelling makes the object one or the other, and an int object emits floats for a segment shorter than one unit whose steps are smaller than 0.4, which is his floatoutput 'auto' default. No scheduler, no timer and no clock are involved at any point, so a value comes out on the calling thread inside the caller's own dispatch frame; Calculate() does nothing and no message path allocates, locks or blocks.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The only inlet: the bang that advances the ramp, the numbers that define it, and the two message words. A bang emits the next step out the left outlet — Max's 'sends a new step in the breakpoint list out the left outlet' — and, on the step that reaches the last target, bangs the right outlet too; a bang with no ramp running does nothing at all. A list of two numbers is a target and the number of bangs to reach it over; four or more are breakpoint target/bangs pairs travelled one after another, with an odd trailing element ignored, and three are read as one pair with the third number ignored since there is no grain here to set. An int or a float is a target with no count, which Max makes 'the time is considered 0 and bline outputs the target value when it receives a bang': it is reached whole on the next bang rather than the moment it arrives. Whatever arrives clears the segments still queued and starts from the value the object stands at now, so a ramp redirected mid-flight has no jump in it. The word 'stop' freezes the ramp where it is and forgets the queue, without a bang on the right outlet; 'set' followed by a number moves the stored value silently, stops a ramp in progress and arms nothing, so the next bang emits nothing either. A count of zero or less is one bang, every segment costing at least the bang that travels it, and a fractional count arrives on the first bang at or past the target.",
+        "index": 0,
+        "label": "in",
+        "range": "any"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".bline",
+    "outlets": [
+      {
+        "doc": "The ramp, one value per bang from where the object stood to the target, ending on the target exactly. An int or a float by Max's typing rule: the object is a float one when its creation argument was spelled as a float, and an int object still emits floats for a segment that covers one unit or less in steps smaller than 0.4, since a ramp from 0 to 1 in ints is not a ramp.",
+        "index": 0,
+        "label": "out",
+        "range": "any number",
+        "type": "ANY"
+      },
+      {
+        "doc": "A bang the moment the last segment reaches its target — Max's 'when line has arrived at its target value, bang is sent out'. It is what chains ramps together: wire it to whatever should start once this one has finished. A ramp cut short by 'stop' does not bang, not having arrived; a target sent with no time does, having arrived immediately.",
+        "index": 1,
+        "label": "done",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The value the object starts at, and — by its spelling — the output type, which is Max's 'an argument may be used to set the initial value to be stored and the output type for the object: if the first argument is an int, the bline object outputs integer values, and a float will set the bline object to output floating point values'. An argument written as a float ('0.', '1.5') makes a float object that always emits floats; one written as an int, or no argument at all, makes an int object. An argument that is not a number leaves both at that default. The stored value moves as the object ramps and with every 'set'; it is run-time state and is not saved.",
+        "name": "initial",
+        "range": "any number"
+      }
+    ]
+  },
   ".bondo": {
     "category": "GENERIC",
     "description": "Holds one value per inlet and releases the whole set together the moment any one of them changes — Max's bondo, 'synchronizes and outputs a set of inputs when any input is received'. The problem it solves is incoherence in transit: a patch that has to change three related parameters at once sends them down three cords, and whatever is downstream sees the new first value against the old second and third for as long as it takes the next cord to be served — a gap that is invisible in a diagram and audible in a patch. .bondo closes it, so a reader is never handed a mixture of the old set and the new one. Every inlet is hot, and that is the object: this is the reverse of almost every other multi-inlet box here, where one inlet acts and the rest are cold. Max says it once per method and says it the same way each time — 'In any inlet: the input is stored in the location corresponding to that inlet, and causes anything previously stored to be sent out its corresponding outlet' — so a patch does not have to know which of its parameters moved and does not have to route a bang alongside them; whichever one moves carries the others out with it. Its sibling buddy is the opposite policy, waiting until every inlet has something before releasing once; .bondo never waits. There are two ways to store without releasing. 'set <anything>' stores into the receiving inlet and emits nothing, which is the only way to write an inlet quietly since there are no cold inlets to do it with, and here it performs exactly the store the same message without the word would have performed and suppresses only the output. A bang is the other half — 'send all stored messages' — storing nothing and releasing everything, in any inlet, so 'set' three values then bang is the manual mode and it composes with the automatic one rather than replacing it. An inlet that has never been written releases int 0, as Max's does, so a reader wired to every outlet gets a complete set from the very first release and never needs a 'have I seen this one yet' flag of its own. Stored values persist rather than being consumed: a release does not empty the object, so banging twice sends the same set twice and changing one inlet re-sends the others unchanged — a consuming object would emit zeros on the second bang, which is the incoherence this box exists to prevent. Outlet n-1 is served first and outlet 0 last, each send completing in full (the whole subgraph behind it, depth first) before the next starts, which is Max's right-to-left rule and load-bearing here: the idiom wires outlet 0 into whatever acts and the rest into whatever stores, so by the time the leftmost value lands the rest of the set is already in place. A release happens inside the call frame of the message that caused it, so the whole set is one logical event and .bondo into .next gives one separated bang and the rest continued, however many outlets there are. A list whose first token is a number is spread across the outlets from the receiving one rightwards, as Max spreads one, and anything else is stored whole in the single slot — the leading-token test is Max's own rule for which method a message reaches, and it is what this patcher can use in place of a symbol type it does not have. The 'n' creation argument turns distribution off so that a whole list is stored per outlet, which is the mode to reach for when an inlet's value is itself a list. Max's delay argument defers a message-triggered release by that many milliseconds through the patcher's deferred-message scheduler: the release fires inside the patcher's own dispatch as one fresh logical event, so the one-release-is-one-event guarantee keeps holding through the deferral. One release is pending at a time — a new message reschedules it, so a burst of stores collapses into one deferred release of the final set — and a bang is Max's documented exception, releasing immediately and leaving a pending release to fire at its own time. A standalone object outside any patcher has no dispatch to defer into and releases immediately. At most 256 inlet/outlet pairs are built, and the slot table is sized once before the object is published — Calculate() does nothing, and no message path allocates, locks or blocks.",
@@ -2974,6 +3018,77 @@
       }
     ]
   },
+  ".line": {
+    "category": "TIME",
+    "description": "Ramps a control value toward a target over a given time, emitting a number every 'grain' milliseconds and banging the right outlet on arrival. Max's line, 'generate ramps and line segments from one value to another within a specified amount of time' — and the control-rate counterpart of the audio-rate ~line this patcher already had. The difference is the whole point: ~line writes a DSP buffer and can only be read by an audio inlet, so anything that is a number rather than a waveform — a .metro interval, a MIDI velocity, a mix weight, a filter cutoff behind a .mtof — needs this one. A number in the left inlet is the target, the middle inlet is how long to take getting there, and the right inlet is the grain. The ramp time is consumed by the target that uses it, which is Max's rule and the one that surprises people: 'if no time has been specified since the last target value, the time is considered 0 and line immediately outputs the target value', so a patch that wants every target ramped sends the pair as a list, 'target time'. A three-element list adds the grain, which unlike the time persists once set. Four or more numbers are a breakpoint function of target/time pairs — '1 1000 0 1000' climbs to 1 over a second and comes back down over the next — with an odd trailing element ignored, as in Max; each segment starts from the value the object currently stands at, so there are no discontinuities, and a new target arriving mid-ramp clears every segment still to come. The list holds 64 segments and reads 129 numbers, which is Max's maxpoints default; anything longer keeps its head, loses its tail and counts the refusal rather than allocating on the thread the message arrived on. Max's four words are all here on the left inlet: 'stop' freezes at the current value and forgets the queue without banging, 'pause' and 'resume' hold and release a ramp with its queue intact, and 'set <number>' moves the stored value silently and stops a ramp in progress. The output is an int or a float by Max's rule — the creation argument's spelling makes the object one or the other, and an int object emits floats for a segment shorter than one unit whose steps are smaller than 0.4, which is his floatoutput 'auto' default. The wait runs on the patcher's deferred-message scheduler (issue #628) rather than on the timer thread behind .metro, so arming a step allocates nothing and takes no lock, and every emitted value arrives inside the patcher's own dispatch as one logical event caused by the message that started the ramp. That clock is the block counter, so it stops when the engine does — a paused patch holds a ramp where it stands — and its resolution is one audio block, so a grain shorter than a block emits one value per block; a grain below Max's 1 ms minimum reads as his default 20. Each value is computed from the time elapsed since the segment began rather than accumulated step by step, and each step is armed at the absolute next grain boundary, so a late wakeup skips a value instead of running the ramp long and a segment lands on its target on time. Milliseconds are the only unit — a note value or tick count in a time inlet is refused rather than misread as milliseconds — and Max's 'clock' message, which would hand the object to a setclock, is not ported. Calculate() does nothing and no message path allocates, locks or blocks.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The target inlet, and where every message word goes. An int or a float is a target value, reached over whatever ramp time the middle inlet was last given — and immediately, Max's 'time is considered 0', when none has been set since the previous target. A list of two numbers is a target and its time; three adds the grain; four or more are breakpoint target/time pairs travelled one after another, with an odd trailing element ignored. Whatever arrives clears the segments still queued and starts from the value the object stands at now, so a ramp redirected mid-flight has no jump in it. The word 'stop' freezes the ramp where it is and forgets the queue, without a bang on the right outlet; 'pause' holds it with the queue intact and 'resume' travels what was left of the segment; 'set' followed by a number moves the stored value without emitting anything and stops a ramp in progress. There is no bang method — Max's line has none, and the bang-driven ramp is the sibling object .bline.",
+        "index": 0,
+        "label": "in",
+        "range": "any"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Sets how long the next target takes to reach, in milliseconds — Max's 'the number is the time, in milliseconds, in which to arrive at the target value'. It is consumed by the target that uses it and falls back to 0 afterwards, so a single time followed by two targets ramps to the first and jumps to the second; send 'target time' as a list in the left inlet to ramp every one. Ints, floats and a list whose leading token is a number all set it; a negative or NaN time counts as 0, which arrives immediately. Max's tempo-relative time syntax is not read here — this object has no clock to measure a beat against — so a note value ('4nd') or tick count ('1440 ticks') is refused rather than misread as the milliseconds it is not. A ramp already running keeps the time it started with; this reaches the next target.",
+        "index": 1,
+        "label": "time",
+        "range": "0+ ms"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Sets the interval at which intermediate values are sent out, in milliseconds — Max's 'the number is the interval at which intermediary numbers are regularly sent out'. Unlike the ramp time this persists: 'once grains are set in a list, they will override the default until manually reset'. Max's minimum is 1 ms and anything below it reads as his default of 20, which is also what an object with no second creation argument has. The block clock is the floor in practice — a grain shorter than one audio block emits one value per block — and a grain longer than the ramp itself still gives the arrival value, the last step being clamped to the end of the segment. Ints, floats and a list whose leading token is a number all set it; a note value or tick count is refused rather than misread as milliseconds. A segment already being travelled keeps the grain it began with.",
+        "index": 2,
+        "label": "grain",
+        "range": "1+ ms"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".line",
+    "outlets": [
+      {
+        "doc": "The ramp, one value every grain milliseconds from where the object stood to the target, ending on the target exactly. An int or a float by Max's typing rule: the object is a float one when its creation argument was spelled as a float, and an int object still emits floats for a segment that covers one unit or less in steps smaller than 0.4, since a ramp from 0 to 1 in ints is not a ramp.",
+        "index": 0,
+        "label": "out",
+        "range": "any number",
+        "type": "ANY"
+      },
+      {
+        "doc": "A bang the moment the last segment reaches its target — Max's 'when line has arrived at its target value, bang is sent out'. It is what chains ramps together: wire it to whatever should start once this one has finished. A ramp cut short by 'stop' does not bang, not having arrived; a target sent with no time does, having arrived immediately.",
+        "index": 1,
+        "label": "done",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The value the object starts at, and — by its spelling — the output type, which is Max's 'an argument may be used to set the initial value to be stored in line and the output type for the object'. An argument written as a float ('0.', '1.5') makes a float object that always emits floats; one written as an int, or no argument at all, makes an int object, which is Max's 'if there is no argument, the initial value is 0 and the output type is int'. An argument that is not a number leaves both at that default. The stored value moves as the object ramps and with every 'set'; it is run-time state and is not saved.",
+        "name": "initial",
+        "range": "any number"
+      },
+      {
+        "default": "20",
+        "doc": "The initial grain in milliseconds — Max's second creation argument, whose documented default is 20: 'if the grain is not specified, line outputs a number every 20 milliseconds'. Max's minimum is 1 ms and 'any number less than 1 will be set to 20', which is applied here on every read, so a saved 0 behaves as 20 rather than as a value per block. The right inlet and a three-element list overwrite it afterwards.",
+        "name": "grain",
+        "range": "1+ ms"
+      }
+    ]
+  },
   ".linedrive": {
     "category": "MATH",
     "description": "Exponential scaling for control values. Maps the value on inlet 0 onto an exponential response curve and emits it as a float, following Max's formula: out = outputMax * curve^(input - inputMax). The input maximum is the anchor — feed it in and the output is exactly outputMax, whatever the curve — and below it the output falls away geometrically, one step of input always multiplying the output by curve. That is what makes a linear controller such as a MIDI CC or a slider feel even across its whole range when it drives a frequency or an amplitude, where .scale's linear mapping would bunch the audible change up at one end. Max requires a curve above 1; any positive curve is accepted here, one below 1 mirroring the response and 1 flattening it to the constant outputMax. A curve at or below 0 has no real exponential and emits 0, as does any result that would not be finite.",
@@ -3772,6 +3887,53 @@
       }
     ]
   },
+  ".pipe": {
+    "category": "TIME",
+    "description": "Delays numbers, lists and symbols. A value in the left inlet comes back out the outlet a settable number of milliseconds later, as the same kind of message it went in as. This is .delay for data, and the difference that matters is the queue: Max's delay holds one bang and 'the first bang is forgotten' when a second arrives, while a .pipe holds many values at once and each one keeps its own deadline. Ten numbers into a .pipe 500 are ten numbers out 500 ms later in the order they went in, which is what makes echoes, delayed parameter changes and every 'do this to that value in N ms' pattern one object instead of one .delay per value. A number in the right inlet sets the delay for values arriving after it and leaves values already waiting alone. 'clear' drops everything pending without sending it and 'flush' sends it all immediately in arrival order, which are Max's two commands. The wait runs on the patcher's deferred-message scheduler (issue #628) rather than on the timer thread behind .metro, so queueing a value allocates nothing and takes no lock, and a released value arrives inside the patcher's own dispatch as one fresh logical event rather than as an unrelated stimulus. That clock is the block counter, so it stops when the engine does and a paused patch holds every pending value where it stands, and its resolution is one audio block: a delay of 0 still defers to the next block rather than firing now, which is Max's behaviour and the reason a pipe wired back into itself is a fast delay line instead of a stack overflow. The pending set is bounded and pre-allocated at 64 values per object, each holding up to 256 characters of text, and beyond it sits the patcher-wide limit of 128 pending messages shared with .delay, .qlist, .mtr and .seq. A value that does not fit is dropped and counted rather than sent early or written to the log: sending it early would break the object's one guarantee at exactly the moment the patch is at its resource limit and would let a self-feeding delay line recurse on the audio thread, and logging would allocate on whichever thread the value arrived on, which is routinely the audio callback. The count is the report, and it is readable at any time. Unlike Max's pipe there is one data inlet rather than one per creation argument: a list is already a single value here and travels whole, so it is delayed whole and spread with .spray, .bondo or .route afterwards if a patch wants it spread. Milliseconds are the only unit — a note value or tick count in the time inlet is refused rather than misread as milliseconds, there being no clock here to measure a beat against. Calculate() does nothing and no message path allocates, locks or blocks.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The value inlet. An int, a float or a list arriving here is queued and comes back out the outlet a delay later, as the same kind of message it went in as — Max's 'pipe delays a number, list, or symbol by a specified amount of time'. Unlike .delay, values queue rather than replace each other: a second value does not cancel the first, so ten numbers in are ten numbers out, each one its own delay after it arrived. A list whose whole text is one number arrives as that number, an int or a float by its spelling, so a .m 5 reaches an int inlet downstream; anything else is carried whole as text. The message 'clear' drops every value waiting, sending none of them, and 'flush' sends them all immediately in the order they arrived — Max's two commands. Those two words are therefore commands rather than delayable text, as they are in Max. There is no bang method here, as Max's pipe has none. A value refused because the pending set is full is dropped and counted rather than sent early or logged; see the object description.",
+        "index": 0,
+        "label": "value",
+        "range": "int, float, list, 'clear', 'flush'"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Sets the delay in milliseconds for values arriving *after* it. Values already waiting keep the delay they were queued with, which is what makes the queue a queue rather than a set of deadlines that all move together. Ints, floats and a list whose leading token is a number all set it; a negative or NaN time counts as 0, which still defers by one audio block rather than sending immediately. Max's tempo-relative time syntax is not read here — this object has no clock to measure a beat against — and a note value ('4nd') or tick count ('1440 ticks') is refused outright rather than misread as the milliseconds it is not, leaving the delay where it was.",
+        "index": 1,
+        "label": "time",
+        "range": "0+ ms"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".pipe",
+    "outlets": [
+      {
+        "doc": "The delayed value, one audio block or more after the value that caused it.",
+        "index": 0,
+        "label": "out",
+        "range": "any",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The initial delay in milliseconds — Max's creation argument and its delaytime attribute, whose documented default is 0. A delay of 0 is not the same as no delay: the value still comes back on the next audio block, as its own event, which is what Max's pipe 0 is for. The right inlet overwrites it afterwards, for values arriving after that. A negative value counts as 0. Values pending when the parameter changes keep the delay they were queued with.",
+        "name": "delaytime",
+        "range": "0+ ms"
+      }
+    ]
+  },
   ".poltocar": {
     "category": "MATH",
     "description": "Control-rate polar to cartesian conversion. Whenever inlet 0 fires it emits the cartesian form of the polar point (amplitude, angle): the x coordinate on outlet 0 and the y coordinate on outlet 1. The inverse of .cartopol, so feeding one into the other returns the original pair. Both outlets fire on every evaluation, right one first.",
@@ -4128,6 +4290,84 @@
       }
     ]
   },
+  ".qlim": {
+    "category": "TIME",
+    "description": "Limits the rate of message throughput by **holding** what arrives too soon and sending it when the window opens. A message in the left inlet goes straight out the outlet if at least the interval has elapsed since the last one this object let out; if it has not, the message is kept and sent the moment the interval is up. What happens to a *second* message arriving while the first waits is Max's usurp attribute, and it is this object's one real switch. With 'usurp 1', the default, 'the most recently received message replaces any currently queued message', so what comes out of a burst is its *last* message, one interval after the previous output — which is what makes this the right object for anything whose value matters: a fader driving a filter cutoff ends up where the fader stopped rather than wherever the message that happened to fit the window left it. With 'usurp 0' (issue #728) 'all messages received will be sent out': the object becomes a queue and every message leaves in turn, one per window, which is the right shape when the messages are events rather than samples of one value — notes to space out, cues to pace, a burst to replay at a rate something downstream can take. Up to 32 messages may wait; a queue that is full drops the newest and counts it rather than growing or discarding history a patch is relying on. Its sibling .speedlim is the other answer and drops what arrives too soon instead — cheaper, since it never defers anything, and correct whenever a skipped message costs nothing. Everything passes through as the kind of message it went in as: a bang out for a bang in, an int for an int, text for text. A number in the right inlet sets the interval in milliseconds; 0, the Max default, is no limiting at all and every message passes straight through without ever being held. The first message after creation always passes, there being no previous output to measure against. The wait runs on the patcher's deferred-message scheduler (issue #628) rather than on the timer thread behind .metro, so holding a message allocates nothing and takes no lock, and the released message arrives inside the patcher's own dispatch as one fresh logical event rather than as an unrelated stimulus. However long the queue is it costs one slot of that patcher-wide scheduler, because the release re-arms itself rather than arming a deadline per message. That clock is the block counter, so it stops when the engine does — a paused patch holds the waiting message where it stands — and its resolution is one audio block. Since issue #728 the interval may instead be tempo-relative: a note value ('4n', '4nd', '8nt') or a tick count ('1440 ticks') in the right inlet sets it in beats on the YSE domain clock named by 'clock <name>' in the left inlet, and the wait then follows that domain's tempo changes and ramps. Max's other two time attributes came with it: 'threshold <time>' is his 'time threshold under which only one message may pass', a second window inside which a message is dropped outright rather than held — which is also what keeps a usurp 0 queue from filling on a flood — and 'quantize <time>' is his 'send output only on the specified time-boundary if appropriate', a beat grid the release lands on. Both default to 0, which is off. A beat time with no clock bound is inert rather than fatal, the window still opening, and bars.beats.units stays out because it needs a meter no domain clock has. A message that cannot be held — over-long text, a full queue, a full patcher-wide scheduler, or the narrow race with a delivery already in progress — is dropped and counted rather than sent early or written to the log. A standalone object outside any patcher has no clock at all and passes everything. Note that this is deliberately not a reproduction of Max's own speedlim/qlim split: Max documents this same holding behaviour for both names and separates them by scheduler priority — qlim being 'an interrupt safe replacement' for Jitter traffic — which a headless patcher with one dispatch model cannot express and which would leave the two objects identical. Issue #508 gives the two names the two overflow policies instead, and this one is Max's. Calculate() does nothing and no message path allocates, locks or blocks.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The message inlet. A bang, int, float or list arriving here goes straight out the outlet when the interval has elapsed since the last output, and is held until it has when it has not — Max's 'otherwise, the message is held until that amount of time has passed (or until it is overwritten by another incoming message)'. With usurp on, only the newest waiting message survives; a message replaced that way is not counted as dropped, that being usurp working rather than a refusal. With 'usurp 0' every message joins a queue and leaves in turn, one per window. A list whose whole text is one number is carried as that number, an int or a float by its spelling, so a .m 5 reaches an int inlet downstream; anything else is carried whole as text, up to 256 characters, beyond which it cannot be held and is refused. Four command words are matched here rather than carried (issue #728), which is where Max puts the same four as attribute messages: 'clock <name>' binds the domain clock a tempo-relative time is measured on and a bare 'clock' takes it away, 'threshold <time>' sets Max's threshold window, 'quantize <time>' sets the beat grid a release lands on ('quantize 0' clears it), and 'usurp 0' / 'usurp 1' choose between the queue and the replace. Everything else is data.",
+        "index": 0,
+        "label": "in",
+        "range": "bang, int, float, list, 'clock <name>', 'threshold <time>', 'quantize <time>'"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Sets the minimum time between outputs — Max's 'the number is stored as the minimum amount of time, in milliseconds, between successive outputs'. Ints, floats and a list whose leading token is a number all set it in milliseconds; a negative or NaN time counts as 0, which means no limiting at all rather than a one-block wait. Since issue #728 the interval may also be tempo-relative, Max's 'the time can be specified in milliseconds or using a tempo-relative interval': a note value ('4n', '4nd', '8nt') or a tick count ('1440 ticks') sets it in beats on the domain clock named by the left inlet's 'clock <name>' message, and any plain number puts it back on milliseconds — the unit travels with the value, which is Max's model. A beat interval with no clock bound limits nothing rather than closing the window for good; bind a clock and it starts limiting. bars.beats.units is not read, needing a meter no domain clock has. The new interval applies to the next message to arrive and is measured from the last output, so shortening it can open the window immediately. There is no bang method on this inlet.",
+        "index": 1,
+        "label": "interval",
+        "range": "0+ ms, or a note value / tick count"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".qlim",
+    "outlets": [
+      {
+        "doc": "The messages that got through, unchanged and as the kind of message they went in as. A held message arrives one interval after the previous output, inside the patcher's own dispatch.",
+        "index": 0,
+        "label": "out",
+        "range": "any",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The initial minimum time between outputs in milliseconds — Max's creation argument, whose documented default is 0: 'if there is no argument, the minimum time is 0 milliseconds', which limits nothing and holds nothing. The right inlet overwrites it afterwards. A negative value counts as 0. A message already waiting keeps the deadline it was held with.",
+        "name": "interval",
+        "range": "0+ ms"
+      },
+      {
+        "default": "0",
+        "doc": "The initial interval in beats, for the tempo-relative unit issue #728 added. 0 means the interval is the millisecond one above, which is what a Max limiter is until it is given a tempo-relative time; any positive value makes it a beat count on the domain clock a 'clock <name>' message names, and a note value or tick count in the right inlet overwrites it afterwards. A plain number in the right inlet clears it back to 0. A beat interval with no clock bound limits nothing, rather than closing the window for good the way an unmeasurable wait would. The clock binding itself is run-time state and is not saved. A negative value counts as 0.",
+        "name": "intervalbeats",
+        "range": "0+ beats"
+      },
+      {
+        "default": "0",
+        "doc": "The initial threshold in milliseconds — Max's 'time threshold under which only one message may pass' (issue #728), and 0, the default, is off. It is a second window measured from the same output as the interval, and a message arriving inside it is dropped outright on both objects: not passed, not held, not queued. Turned on it composes with the interval rather than replacing it, so the effective floor on the output rate is the longer of the two. The 'threshold <time>' message in the left inlet overwrites it afterwards. A negative value counts as 0.",
+        "name": "threshold",
+        "range": "0+ ms"
+      },
+      {
+        "default": "0",
+        "doc": "The initial threshold in beats, the tempo-relative spelling of the threshold above (issue #728). 0 means the threshold is the millisecond one; any positive value makes it a beat count on the bound domain clock, and 'threshold <time>' with a plain number clears it back to 0. A beat threshold with no clock bound does not bite. A negative value counts as 0.",
+        "name": "thresholdbeats",
+        "range": "0+ beats"
+      },
+      {
+        "default": "0",
+        "doc": "The initial output grid in beats — Max's 'send output only on the specified time-boundary if appropriate' (issue #728). 0, the default, is no quantizing. Beats only, and inert until a clock is bound: a grid is a musical grid, and Max's other spelling for it, bars.beats.units, needs a meter no domain clock has. With a grid set, a held message is released on the first grid line at or after the moment its interval is up, and an arriving message may pass only once the grid has moved past the line the last output sat on — at most one output per line, and never one before it. The 'quantize <time>' message in the left inlet overwrites it afterwards, taking a note value or a tick count; 'quantize 0' clears the grid. A negative value counts as 0.",
+        "name": "quantize",
+        "range": "0+ beats"
+      },
+      {
+        "default": "1",
+        "doc": "Max's usurp attribute, and this object's one real switch (issue #728). 1, the default, is Max's 'the most recently received message replaces any currently queued message': exactly one message ever waits, and what comes out of a burst is its last value. 0 is Max's 'when usurp is disabled, all messages received will be sent out': the object becomes a queue of up to 32 messages that leave in arrival order, one per window, so nothing is lost until the queue itself is full. Anything non-zero counts as 1. The 'usurp <0|1>' message in the left inlet overwrites it afterwards; switching it does not disturb whatever is already waiting.",
+        "name": "usurp",
+        "range": "0 or 1"
+      }
+    ]
+  },
   ".qlist": {
     "category": "TIME",
     "description": "Stores a sequence of messages and plays it back in time — Max's qlist, which 'stores a collection of timed or untimed cues in the form of messages which can be sent either out its outlet or remotely to various receive objects'. Every store before it is passive: .coll answers a lookup, .bag a bang, and .capture, .funbuff, .table and .textfile a dump, and none of them has any notion of when. This one has a clock, so a scene, a scripted parameter sweep or a note sequence is one object holding one block of text — and the timing is data in the list rather than a setting on the object, which is what makes it a cue list rather than a collection. There are three kinds of line, which is the whole grammar: a line of only numbers is sent out outlet 0 and, during automatic playback, its leading number is the wait in milliseconds before the walk continues; a line beginning with a symbol is sent remotely to the receiver of that name, through the same door .s uses, and does not stop the walk; and a line of numbers followed by a message is, in Max's words, 'treated as two separate lines'. That last rule is taken literally — a line is split when it is stored, never on the way past — so the cursor is one index into one flat table and every traversal walks the same thing. 'next' is the manual mode, sending symbol lines as it passes them and stopping after it outputs a numeric one, which is the classic Max idiom of outlet 0 into a delay and the delay's bang back into next; 'fwd n' repeats that n times sending nothing remotely; 'bang' is the automatic mode, rewinding first and then waiting out each numeric line itself; 'stop' ends it, 'rewind' moves the cursor, and 'tempo' divides every wait so that 2 plays twice as fast. Reaching the end bangs outlet 1 whichever mode got there. The waiting is done by the patcher's own deferred-message scheduler (issue #628), the mechanism .bondo defers through: arming is wait-free and allocation-free so a bang from a rendering graph may arm one, delivery happens inside a real dispatch frame so each resumed step is one logical event downstream, and the deadline floor of one audio block means a cue list of zero delays advances one entry per block instead of spinning. Issue #500 asked for playback driven from a YSE domain clock instead, and that is here as an opt-in rather than as a replacement (issue #688): 'clock <name>' binds the domain clock of that name and reads the leading number of a numeric cue as beats on it, so the sequence inherits the polytemporal tempo model — following tempo changes and ramps, staying in step with every clip on the same domain, and holding where it stands when that domain pauses — while a bare 'clock' and an object never sent one are Max's milliseconds exactly. It is an opt-in because Max's cue list is milliseconds and its tempo is a bare multiplier with no beat or meter in it, so a beat-driven version replacing it would be a different object wearing Max's name. The binding runs through the shared patcher-to-domain-clock bridge of #688, which every timed patcher object can use: binding by name is wait-free so a message from a rendering graph may do it, the name is resolved against the clock manager on the background pool because that lookup takes a mutex, and the deferred-message scheduler then tests a beat deadline where it would otherwise test a block one. The store is .coll's model and for .coll's reason — a fixed table allocated whole at construction plus .value's non-blocking guard, whose loser drops rather than waiting — because a copy-on-write GraphState publish assumes the writer is the control thread while this object is written by whichever thread its message arrived on. The guard is never held across a send, so a walk takes it once per entry and re-reads the bounds each step. At most 256 cue lines of at most 256 characters; anything that does not fit is refused whole rather than truncated, since half a cue is a different cue. Calculate() does nothing. The contents survive a DumpJSON / ParseJSON round trip, which is the family's rule of saving exactly where Max has a save flag and here Max could not be plainer — 'the qlist object saves its cue-list with the patcher' — so this saves like .coll rather than like .textfile, whose contents live in a file. The cursor, the tempo and whether it is playing are run-time state and do not survive, the way .coll's pointer does not. 'read [file]' and 'write [file]' move the cue list through a text file in Max's format — one entry per line, semicolon-terminated — and none of it happens on the message path: a handler runs on whichever thread the message arrived on, in-patcher delivery dispatches on the audio thread, and THREAD is a dispatch-semantics tag rather than a thread identity, so there is no predicate an object can ask to find out it is not on the audio callback, where opening a file would block it. The request is instead a wait-free claim on a patcher-owned slot, the disk work runs on the background pool honouring the host's IO() layer, and the bytes are parsed in the completion the patcher delivers at the top of a later block, which is also when outlet 2 bangs — the shared fileScheduler plumbing of issue #683, whose consumer half here is #689. A read breaks lines on a semicolon or a newline alike, so a hand-written file with neither the semicolons nor the CRLF of the writer's own output still loads as the lines it looks like, and it splits a numbers-then-message line into two entries exactly as the inlet does, so what a write emitted comes back as the same list. A read replaces what is held and rewinds the cursor, but does not stop a walk in progress — the walk carries on into the list just loaded; an over-long line is refused with the rest of the file still loading, lines past the 256th are dropped, and a file too large or unopenable is refused whole with outlet 2 silent. Both bare forms reuse the last name given, since Max's open a file dialog and a headless patcher has none, and Max documents no readagain / writeagain for qlist, so neither is invented. There is deliberately no filename creation argument either — Max documents none, and unlike .textfile this object saves its cue list with the patcher, so an object that also read a file when it joined one would have two answers to what is in the list arriving in an order nothing controls. Max's third outlet, which bangs when a file has been read successfully from disk, is appended after the end outlet rather than inserted, which is the family's rule and here also Max's own position for it. Not ported: the editing window and everything addressing it, the patcher being headless.",
@@ -4169,6 +4409,88 @@
       }
     ],
     "params": []
+  },
+  ".quickthresh": {
+    "category": "TIME",
+    "description": "Fast chord detection: collects the values that arrive close together into one list on a fixed window that starts at the first of them. Max's 'combines numbers when they are received close together; quickthresh is a faster, low-latency alternative to thresh that is optimized for chord detection'. The window is the whole difference from the sibling .thresh, whose clock is restarted by every value and which therefore only sends a group once the input has gone quiet. Here the group is sent a known time after it started however many values arrive inside it, which is what a chord needs: three notes struck together arrive as three ints milliseconds apart, and nothing downstream can treat them as a chord until they have been put back together — soon, and at a predictable moment, not whenever the player next lifts their hands. Sloppy playing is what the other two times are for: if a value lands in the last 'fudge' milliseconds of the window, the window is extended by the extension time to catch the note that was nearly in time — Max's 'if any notes are played within this amount of time at the end of the base thresh time, the threshold is extended'. That happens at most once per group, so a group lasts at most threshold plus extension and a continuous stream cannot push the list out indefinitely, which is the bound that makes this object predictable. Max's defaults are the defaults here: 40 ms base, 10 ms fudge, 20 ms extension, set by the three creation arguments, by the second, third and fourth inlets, or all at once by the message 'set threshold fudge extension'. A bang closes the group and sends it immediately — Max's 'bang will reset quickthresh and output the notes in its buffer'. A group of a single number comes out as that number, an int or a float by its spelling, so it still reaches an int inlet downstream; anything longer comes out as list text. The wait runs on the patcher's deferred-message scheduler (issue #628) rather than on the timer thread behind .metro, so collecting a value allocates nothing and takes no lock, and the emitted list arrives inside the patcher's own dispatch as one logical event caused by the values that went into it. That clock is the block counter, so it stops when the engine does — a paused patch holds an open group where it stands — and its resolution is one audio block, which is also the resolution of the fudge test: at the default 10 ms and a 128-sample block only the last few blocks of the window count. The accumulation buffer is bounded and pre-allocated at 256 characters; a value that would take a group past it is dropped and counted rather than logged, an over-long group losing its tail and keeping everything collected so far. Milliseconds are the only unit — a note value or tick count in a time inlet is refused rather than misread as milliseconds, there being no clock here to measure a beat against. Calculate() does nothing and no message path allocates, locks or blocks.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The value inlet. An int, a float or a list arriving here joins the list this object is building; the first one opens a window that runs for the base threshold whatever arrives inside it, and a value landing in the last 'fudge' milliseconds of that window extends it once by the extension time. A whole list is appended whole. A bang closes the group and sends it now, whatever the window had left — Max's 'bang will reset quickthresh and output the notes in its buffer'. The message 'set', followed by up to three millisecond values, writes the base threshold, the fudge time and the extension at once; like Max's it is a command word rather than data, so it cannot be collected as text. A group of one numeric token leaves as that number rather than as a list of one.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Sets the base threshold in milliseconds — Max's 'all values received in the left inlet within this time period are collected into a list'. Ints, floats and a list whose leading token is a number all set it; a negative or NaN time counts as 0, which still groups everything arriving in the same audio block, that being the scheduler's deadline floor. A window already running keeps the deadline it opened with. Max's tempo-relative time syntax is not read here — this object has no clock to measure a beat against — and a note value ('4nd') or tick count ('1440 ticks') is refused outright rather than misread as the milliseconds it is not, leaving the threshold where it was. There is no bang method on this inlet.",
+        "index": 1,
+        "label": "threshold",
+        "range": "0+ ms"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Sets the fudge time in milliseconds — Max's 'if there are any incoming values within this amount of time at the end of the base thresh time, the threshold is extended to allow more values to be added to the list'. It is the grace zone at the *end* of the window, not an addition to it: what it buys is the extension time, and only when a value actually lands inside it. A fudge of 0 disables the extension entirely, and one shorter than an audio block means 'a value arriving in the same dispatch the deadline fell in', that being the resolution of the block clock this is measured on. Ints, floats and a list whose leading token is a number all set it; a negative or NaN time counts as 0, and a note value or tick count is refused rather than misread as milliseconds.",
+        "index": 2,
+        "label": "fudge",
+        "range": "0+ ms"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Sets the extension in milliseconds — Max's 'an extension of the base thresh time, which is used if values arrive in the object's inlet in the fudge time zone'. It is applied at most once per group, which is what keeps a group to at most threshold plus extension however long the stream goes on; a continuous stream cannot postpone the list the way it can with .thresh. An extension of 0 leaves the window at the base threshold whatever lands in the fudge zone. Ints, floats and a list whose leading token is a number all set it; a negative or NaN time counts as 0, and a note value or tick count is refused rather than misread as milliseconds.",
+        "index": 3,
+        "label": "extension",
+        "range": "0+ ms"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".quickthresh",
+    "outlets": [
+      {
+        "doc": "The collected group, sent when its window closes or when a bang cuts it short: list text for a group of more than one atom, and the number itself for a group of one numeric token.",
+        "index": 0,
+        "label": "out",
+        "range": "any",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "40",
+        "doc": "The initial base threshold in milliseconds — Max's first creation argument, whose documented default is 40: 'the default value for the base threshold is 40 ms'. The second inlet overwrites it afterwards. A negative value counts as 0.",
+        "name": "threshold",
+        "range": "0+ ms"
+      },
+      {
+        "default": "10",
+        "doc": "The initial fudge time in milliseconds — Max's second creation argument, whose documented default is 10: 'if not provided, the default value is 10 ms'. The third inlet and the 'set' message overwrite it afterwards. A negative value counts as 0, which disables the extension.",
+        "name": "fudge",
+        "range": "0+ ms"
+      },
+      {
+        "default": "20",
+        "doc": "The initial extension in milliseconds — Max's third creation argument, whose documented default is 20: 'the default value is 20 ms'. The fourth inlet and the 'set' message overwrite it afterwards. A negative value counts as 0, which leaves the window at the base threshold.",
+        "name": "extension",
+        "range": "0+ ms"
+      }
+    ]
   },
   ".r": {
     "category": "GENERIC",
@@ -4928,6 +5250,78 @@
     ],
     "params": []
   },
+  ".speedlim": {
+    "category": "TIME",
+    "description": "Limits the rate of message throughput by **dropping** what arrives too soon. A message in the left inlet goes straight out the outlet if at least the interval has elapsed since the last one this object let out, and is discarded if it has not — nothing is stored and nothing is deferred, so what comes out of a burst is its *first* message, at the moment it arrived. That is the leading-edge throttle: 'redraw at most 20 times a second', 'one trigger per beat however hard the pad is hit', 'stop this sensor from flooding the patch'. Its sibling .qlim is the other answer to the same problem and holds the newest value instead of dropping it — reach for .qlim whenever losing the last value of a gesture would leave something set to the wrong number, and for this object whenever a skipped message costs nothing. Everything passes through as the kind of message it went in as: a bang out for a bang in, an int for an int, text for text, so the limiter can sit anywhere in a chain without retyping what flows through it. A number in the right inlet sets the interval in milliseconds; 0, the Max default, is no limiting at all and every message passes. The first message after creation always passes, there being no previous output to measure against. Elapsed time is measured on the patcher's block counter, the same clock the deferred-message scheduler waits on, so it stops when the engine does and its resolution is one audio block: two messages arriving in the same dispatch are zero milliseconds apart however far apart they really were. Since issue #728 the interval may instead be tempo-relative, Max's 'the time can be specified in milliseconds or using a tempo-relative interval': a note value ('4n', '4nd', '8nt') or a tick count ('1440 ticks') in the right inlet sets it in beats on the YSE domain clock named by 'clock <name>' in the left inlet, so the window then follows that domain's tempo changes and ramps and holds where it stands when the domain pauses. Max's other two time attributes came with it: 'threshold <time>' is his 'time threshold under which only one message may pass', a second window measured from the same output inside which a message is dropped outright, and 'quantize <time>' is his 'send output only on the specified time-boundary if appropriate', a beat grid that limits this object to at most one message per grid line. Both default to 0, which is off, so an object never sent either message behaves exactly as it did before. A beat time with no clock bound is inert rather than fatal — the window still opens, because a limiter that stopped opening would swallow the whole stream — and bars.beats.units stays out, needing a meter no domain clock has. Dropped messages are counted rather than logged, a log line being an allocation on whichever thread the message arrived on and that thread routinely being the audio callback. A standalone object outside any patcher has no clock at all and passes everything. Note that this is deliberately *not* Max's own speedlim/qlim split: Max documents the same holding behaviour for both names and separates them by scheduler priority — qlim being 'an interrupt safe replacement' for Jitter traffic — which is a distinction a headless patcher with one dispatch model cannot express and which would leave the two objects identical. Issue #508 gives the two names the two overflow policies instead, and Max's usurp attribute lives on .qlim alone because it says what happens to a message that is *waiting* and this object never has one. Calculate() does nothing and no message path allocates, locks or blocks.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The message inlet. A bang, int, float or list arriving here goes straight out the outlet when the interval has elapsed since the last output, and is dropped and counted when it has not. Max's 'the message is passed out the outlet, provided that a certain minimum time has elapsed since the previous output' — with this object's answer to the other case, which is to discard it rather than hold it. A list whose whole text is one number passes as that number, an int or a float by its spelling, so a .m 5 reaches an int inlet downstream; anything else is carried whole as text. Three command words are matched here rather than carried (issue #728), which is where Max puts the same three as attribute messages: 'clock <name>' binds the domain clock a tempo-relative time is measured on and a bare 'clock' takes it away, 'threshold <time>' sets Max's threshold window, and 'quantize <time>' sets the beat grid output lands on ('quantize 0' clears it). Everything else is data.",
+        "index": 0,
+        "label": "in",
+        "range": "bang, int, float, list, 'clock <name>', 'threshold <time>', 'quantize <time>'"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Sets the minimum time between outputs — Max's 'the number is stored as the minimum amount of time, in milliseconds, between successive outputs'. Ints, floats and a list whose leading token is a number all set it in milliseconds; a negative or NaN time counts as 0, which means no limiting at all rather than a one-block wait. Since issue #728 the interval may also be tempo-relative, Max's 'the time can be specified in milliseconds or using a tempo-relative interval': a note value ('4n', '4nd', '8nt') or a tick count ('1440 ticks') sets it in beats on the domain clock named by the left inlet's 'clock <name>' message, and any plain number puts it back on milliseconds — the unit travels with the value, which is Max's model. A beat interval with no clock bound limits nothing rather than closing the window for good; bind a clock and it starts limiting. bars.beats.units is not read, needing a meter no domain clock has. The new interval applies to the next message to arrive and is measured from the last output, so shortening it can open the window immediately. There is no bang method on this inlet.",
+        "index": 1,
+        "label": "interval",
+        "range": "0+ ms, or a note value / tick count"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".speedlim",
+    "outlets": [
+      {
+        "doc": "The messages that got through, unchanged and as the kind of message they went in as. Silent for anything dropped.",
+        "index": 0,
+        "label": "out",
+        "range": "any",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The initial minimum time between outputs in milliseconds — Max's creation argument, whose documented default is 0: 'if there is no argument, the minimum time is 0 milliseconds', which limits nothing. The right inlet overwrites it afterwards. A negative value counts as 0.",
+        "name": "interval",
+        "range": "0+ ms"
+      },
+      {
+        "default": "0",
+        "doc": "The initial interval in beats, for the tempo-relative unit issue #728 added. 0 means the interval is the millisecond one above, which is what a Max limiter is until it is given a tempo-relative time; any positive value makes it a beat count on the domain clock a 'clock <name>' message names, and a note value or tick count in the right inlet overwrites it afterwards. A plain number in the right inlet clears it back to 0. A beat interval with no clock bound limits nothing, rather than closing the window for good the way an unmeasurable wait would. The clock binding itself is run-time state and is not saved. A negative value counts as 0.",
+        "name": "intervalbeats",
+        "range": "0+ beats"
+      },
+      {
+        "default": "0",
+        "doc": "The initial threshold in milliseconds — Max's 'time threshold under which only one message may pass' (issue #728), and 0, the default, is off. It is a second window measured from the same output as the interval, and a message arriving inside it is dropped outright on both objects: not passed, not held, not queued. Turned on it composes with the interval rather than replacing it, so the effective floor on the output rate is the longer of the two. The 'threshold <time>' message in the left inlet overwrites it afterwards. A negative value counts as 0.",
+        "name": "threshold",
+        "range": "0+ ms"
+      },
+      {
+        "default": "0",
+        "doc": "The initial threshold in beats, the tempo-relative spelling of the threshold above (issue #728). 0 means the threshold is the millisecond one; any positive value makes it a beat count on the bound domain clock, and 'threshold <time>' with a plain number clears it back to 0. A beat threshold with no clock bound does not bite. A negative value counts as 0.",
+        "name": "thresholdbeats",
+        "range": "0+ beats"
+      },
+      {
+        "default": "0",
+        "doc": "The initial output grid in beats — Max's 'send output only on the specified time-boundary if appropriate' (issue #728). 0, the default, is no quantizing. Beats only, and inert until a clock is bound: a grid is a musical grid, and Max's other spelling for it, bars.beats.units, needs a meter no domain clock has. With a grid set, a held message is released on the first grid line at or after the moment its interval is up, and an arriving message may pass only once the grid has moved past the line the last output sat on — at most one output per line, and never one before it. The 'quantize <time>' message in the left inlet overwrites it afterwards, taking a note value or a tick count; 'quantize 0' clears the grid. A negative value counts as 0.",
+        "name": "quantize",
+        "range": "0+ beats"
+      }
+    ]
+  },
   ".spell": {
     "category": "GENERIC",
     "description": "Spells whatever arrives out as the character codes of its text — Max's spell, 'convert input to UTF-8 (Unicode) codes', so text can be processed numerically inside a patch. Max documents four rules, one per atom type: an int is spelled digit by digit, a symbol character by character, a list with a space (32) between its items, and anything with all its int and symbol items converted one character at a time. They collapse into a single rule here, and not by cutting a corner: a message in this patcher is text, with no atom types at all, so .spell sends the code of every character of the message as it stands and each of Max's four rules falls out of that — a number's digits are its text, written by ExprFormatValue the way a patch author would have typed it, and a list gets its 32 because a space is the character that is actually between its items. Runs of whitespace collapse to one space and the ends are trimmed, so what is spelled is the tokens with a single 32 between them, Max's own spacing, rather than however much incidental whitespace the sender left in. The encoding is stated rather than assumed, because a patcher message is bytes and nothing upstream promises otherwise: bytes that form a well-formed UTF-8 sequence are decoded to the one code point they spell, so the two bytes of an accented letter give one code and not two, and any byte that is not part of a well-formed sequence — a stray continuation byte, a truncated sequence, an overlong encoding, a surrogate half — spells its own value 0-255 with decoding resuming at the next byte, so the object never fails, never drops a byte and never guesses. Max's two creation arguments are kept: size is the minimum number of codes, padded to with the fill code, and fill is that code, 32 (a space) by default. They are creation arguments rather than reserved words on inlet 0 — the .prepend discipline, which matters here because this object exists to carry arbitrary text and a reserved word would swallow the very messages it is asked to spell. Max's 'use a negative number to get 0 as the fill character' is not reproduced: it exists only because Max cannot tell an absent argument from a zero, whereas arguments are read as tokens here, so .spell 8 48 says 'pad with the character 0' directly and a negative fill is reported and ignored instead of silently becoming 48. The codes leave together as one list rather than one at a time, since nothing in this patcher accumulates a stream of numbers back into a message. At most 256 codes; longer input is refused rather than truncated, because half a spelling is not a shorter word but a different one. Calculate() does nothing, and no message path allocates, locks or blocks: a spelling is one walk of the bytes into a buffer reserved at construction for every code at full width.",
@@ -5613,6 +6007,53 @@
         "doc": "Max's filename argument, which 'names a text file to be read in when the object is loaded'. The first argument token is taken as the name. It is held and it survives a save, so a '.textfile mydata.txt' brought across from Max builds the object it names and the argument the author typed comes back unchanged. It is also read when the object joins a patcher, which is where 'when the object is loaded' happens here, and it seeds the name a bare 'read' or 'write' falls back on — so a bare 'write' saves back over the file the object is named after (issue #687). A standalone object with no patcher has no file plumbing and reads nothing. Setting the parameters again also empties the contents, since the object that comes back is the one the arguments describe.",
         "name": "filename",
         "range": "any filename"
+      }
+    ]
+  },
+  ".thresh": {
+    "category": "TIME",
+    "description": "Combines the values that arrive close together into one list, sending the group as soon as the input goes quiet. Every int, float or list in the left inlet is appended to a list this object is building, and every one of them restarts the clock — Max's 'collects items into a list if they appear within a certain specifiable amount of time; each time an item arrives, the time is reset'. When nothing has arrived for the threshold, the list goes out the outlet and the next value starts a fresh one. That makes this the object for 'wait until they have stopped, then tell me what they sent': a burst of controller values becomes one list, a handful of note numbers becomes one chord, a scattering of symbols becomes one message. A stream that never pauses never closes a group, which is not a fault but what 'received close together' means when everything is close together — reach for the sibling .quickthresh when the list has to come out at a moment the patch can predict, since its window runs from the first value of a group rather than from the last. The threshold is a number in the right inlet or the creation argument, in milliseconds; Max's default is 10. A group of a single number comes out as that number, an int or a float by its spelling, so it still reaches an int inlet downstream; anything longer comes out as list text, which is what a list is here. A whole list arriving in the left inlet is appended whole, as Max's is. The wait runs on the patcher's deferred-message scheduler (issue #628) rather than on the timer thread behind .metro, so collecting a value allocates nothing and takes no lock, and the emitted list arrives inside the patcher's own dispatch as one logical event caused by the values that went into it. That clock is the block counter, so it stops when the engine does — a paused patch holds an open group where it stands — and its resolution is one audio block: values arriving in the same dispatch are zero milliseconds apart however far apart they really were, and a threshold of 0 still groups everything that arrived in the same block. The accumulation buffer is bounded and pre-allocated at 256 characters; a value that would take a group past it is dropped and counted rather than logged, an over-long group losing its tail and keeping everything collected so far. Milliseconds are the only unit — a note value or tick count in the threshold inlet is refused rather than misread as milliseconds, there being no clock here to measure a beat against. Calculate() does nothing and no message path allocates, locks or blocks.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The value inlet. An int, a float or a list arriving here joins the list this object is building and restarts the gap timer; a whole list is appended whole, as Max's 'the entire list is appended to the list stored in thresh'. When the threshold passes with nothing new, the collected list goes out and the next value starts a fresh group. A group of one numeric token leaves as that number rather than as a list of one, so it reaches the inlets an uncollected value would have reached. There are no command words: every message is data, and there is no bang method, as Max's thresh has none.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Sets the gap that ends a group, in milliseconds — Max's 'the number is stored as the time, in milliseconds, to wait before sending out the compiled list of numbers'. Ints, floats and a list whose leading token is a number all set it; a negative or NaN time counts as 0, which still groups everything arriving in the same audio block, that being the scheduler's deadline floor. The new threshold is measured against the group's most recent value, so shortening it can close an open group at its next deadline. Max's tempo-relative time syntax is not read here — this object has no clock to measure a beat against — and a note value ('4nd') or tick count ('1440 ticks') is refused outright rather than misread as the milliseconds it is not, leaving the threshold where it was. There is no bang method on this inlet.",
+        "index": 1,
+        "label": "threshold",
+        "range": "0+ ms"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".thresh",
+    "outlets": [
+      {
+        "doc": "The collected group, sent when the input has been quiet for the threshold: list text for a group of more than one atom, and the number itself for a group of one numeric token.",
+        "index": 0,
+        "label": "out",
+        "range": "any",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "10",
+        "doc": "The initial gap that ends a group, in milliseconds — Max's creation argument, whose documented default is 10: 'if no argument is present, the initial value is 10 milliseconds'. The right inlet overwrites it afterwards. A negative value counts as 0.",
+        "name": "threshold",
+        "range": "0+ ms"
       }
     ]
   },
