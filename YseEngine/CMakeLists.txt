@@ -231,6 +231,7 @@ set(YSE_SRCS
   patcher/time/gTimepoint.cpp
   patcher/time/gTimer.cpp
   patcher/time/gTransport.cpp
+  patcher/time/gWhen.cpp
   patcher/time/messageScheduler.cpp
   patcher/time/TimerThread.cpp
   patcher/time/timerBridge.cpp
@@ -462,6 +463,7 @@ set_source_files_properties(
   patcher/time/gTimepoint.cpp
   patcher/time/gTimer.cpp
   patcher/time/gTransport.cpp
+  patcher/time/gWhen.cpp
   patcher/time/messageScheduler.cpp
   patcher/time/timerBridge.cpp
   PROPERTIES COMPILE_FLAGS "${PATCHER_SUPPRESS}"

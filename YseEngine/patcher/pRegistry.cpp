@@ -72,6 +72,7 @@
 #include "time/gTimepoint.h"
 #include "time/gTimer.h"
 #include "time/gTransport.h"
+#include "time/gWhen.h"
 
 #include "math/dAdd.h"
 #include "math/dClip.h"
@@ -498,6 +499,10 @@ pRegistry::pRegistry() {
   // Control a named domain clock from inside the patcher — the object that
   // connects a patch to the engine's polytemporal clock system (issue #513)
   Add(OBJ::G_TRANSPORT, gTransport::Create);
+
+  // Report where a named domain clock stands, on demand — `.transport`'s read
+  // half, without the ownership that would create the clock (issue #514)
+  Add(OBJ::G_WHEN, gWhen::Create);
 
   // Bang when a named domain clock reaches a beat position — the patcher's
   // first absolute point on a musical timeline (issue #507)

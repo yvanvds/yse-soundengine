@@ -6616,6 +6616,50 @@
       }
     ]
   },
+  ".when": {
+    "category": "TIME",
+    "description": "Reports the current position of one of YSE's named domain clocks, on demand — Max's 'when', and the read-only half of '.transport' (issue #514). '.when main' answers for the clock called 'main': the beat position out the left outlet and the tempo in BPM out the right, sent right to left, on any input at all. That is the same clock yse_system_create_clock / beatPosition address from the host, the same one a clip transport plays on, and the same one a '.metro clock main' counts its beats on. A '.transport' can already report this, so the reason to reach for a '.when' instead is that a '.transport' *creates* the clock it names when it joins a patcher: asking what beat 'main' is on by dropping a transport into the patch would conjure a stopped 'main' that every other object bound to that name would then be waiting on. A '.when' creates nothing and destroys nothing — it binds a name and reads it — which is '.timepoint''s and '.tempo''s contract, and a name nothing has claimed simply reports nothing until a '.transport' or the host brings the clock into being. The second difference is the inlet: a '.transport''s int and float start and stop the clock, while every input to a '.when' is a query, so this is the object that goes on the end of whatever already fires at the moments you want to sample musical time at. Max's bars.beats.units and ticks are not reported because a domain clock has neither — it is a bare beat accumulator with no origin and no meter, the same fact that costs '.transport' its 'seek'. Calculate() does nothing, and the report does not allocate, lock or block when it turns out to be running on the audio callback: the clock is read through the patcher's clock bridge there, which is two acquire loads per value, and by name off it.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Reports where the named clock stands. Any input at all does it — a bang, an int, a float or any list — which is Max's own reading of 'when' and what makes the object safe on the end of something that is already firing: a '.metro' into a '.when' samples the clock every tick, where the same wiring into a '.transport' would toggle it. The value sent in is ignored; its arrival is the whole message. The beat position goes out the left outlet and the tempo out the right, right outlet first. With no clock to read, nothing at all is emitted — not a zero, which would be indistinguishable from a real clock sitting at beat 0. There is no 'clock <name>': Max's 'when' has no such method (a 'clock main' sent to one reports the time like any other message), and the clock a '.when' reads is its creation argument.",
+        "index": 0,
+        "label": "query",
+        "range": "bang, int, float or any list"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".when",
+    "outlets": [
+      {
+        "doc": "The clock's current beat position, on any input. Beats are the running integral of tempo, so this only ever moves forward while the tempo is positive and holds while the clock is stopped. Nothing is emitted when there is no clock to read.",
+        "index": 0,
+        "label": "beat",
+        "range": "",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The clock's current tempo in BPM, on any input, sent before the beat position so the pair arrives right to left as Max orders outlets. A clock paused by a '.transport' stop reads 0 here, tempo 0 being how the engine spells 'stopped', and a ramp in progress reads the tempo it has reached rather than the one it is heading for.",
+        "index": 1,
+        "label": "tempo",
+        "range": "BPM",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The domain clock this object reports on. Clocks are addressed by name across the whole engine, so this is the same string the host passes to createClock and the same one a '.transport <name>' drives. Empty (the default) means the object reads nothing and emits nothing. The name is bound when the object is added to a patcher — bound, not created: a clock nobody has made yet leaves the object silent, and it starts answering when the clock appears. There is no 'clock <name>' message, so re-pointing a '.when' at another clock is a re-create — '.transport''s rule, and Max's, where 'when' takes its transport as a creation argument and treats every message as a query.",
+        "name": "clockname",
+        "range": ""
+      }
+    ]
+  },
   ".zmap": {
     "category": "MATH",
     "description": "Control-rate clipped range mapping. Maps the value on inlet 0 from the input range onto the output range and emits it as a float. Unlike .scale the mapping never extrapolates: a value outside the input range is pinned to the matching output limit, which makes this the safe choice for driving a parameter that must never leave its legal range. The mapping is always linear — use .scale for an exponential curve or for extrapolation. A descending output range (low above high) clips against the correct limits, a degenerate input range (low equal to high) emits the output low, and nothing non-finite can leave the object — the result is always inside the output range.",
