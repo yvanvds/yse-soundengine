@@ -46,6 +46,10 @@
 #include "genericObjects/gZl.h"
 #include "genericObjects/gPack.h"
 #include "genericObjects/gUnpack.h"
+#include "genericObjects/gJoin.h"
+#include "genericObjects/gUnjoin.h"
+#include "genericObjects/gIter.h"
+#include "genericObjects/gListFunnel.h"
 #include "genericObjects/gIf.h"
 #include "genericObjects/gRegexp.h"
 #include "genericObjects/gReceive.h"
@@ -299,6 +303,26 @@ pRegistry::pRegistry() {
   // declare, and the only way a patch gets at the individual elements of a list
   // that arrives from somewhere else (issue #519)
   Add(OBJ::G_UNPACK, gUnpack::Create);
+
+  // The variable-length counterpart of .pack: each inlet holds a whole message
+  // rather than one typed atom, and the output is those pieces laid end to end
+  // (issue #520)
+  Add(OBJ::G_JOIN, gJoin::Create);
+
+  // And its inverse: a list cut into equal groups, one per outlet, with
+  // everything left over out the rightmost one, so nothing is dropped for want
+  // of an outlet (issue #520)
+  Add(OBJ::G_UNJOIN, gUnjoin::Create);
+
+  // Send a list's items out one at a time down a single cord — the family's
+  // serialiser, and with .uzi the patcher's second iteration primitive
+  // (issue #521)
+  Add(OBJ::G_ITER, gIter::Create);
+
+  // The same walk with the index left on: every element leaves as an
+  // <index> <element> pair, so .funnel's tag comes from the position in the
+  // message rather than from the wiring (issue #522)
+  Add(OBJ::G_LISTFUNNEL, gListFunnel::Create);
 
   // A collection of messages held at addresses — the patcher's first store of
   // more than one thing, and the object presets, note tables, mapping curves
