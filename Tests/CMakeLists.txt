@@ -112,6 +112,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_spray.cpp
   patcher/test_patcher_pack.cpp
   patcher/test_patcher_pak.cpp
+  patcher/test_patcher_unpack.cpp
   patcher/test_patcher_zl.cpp
   patcher/test_patcher_forward.cpp
   patcher/test_patcher_funnel.cpp
@@ -1046,6 +1047,7 @@ set_source_files_properties(
   patcher/test_patcher_spray.cpp
   patcher/test_patcher_pack.cpp
   patcher/test_patcher_pak.cpp
+  patcher/test_patcher_unpack.cpp
   patcher/test_patcher_zl.cpp
   patcher/test_patcher_forward.cpp
   patcher/test_patcher_funnel.cpp

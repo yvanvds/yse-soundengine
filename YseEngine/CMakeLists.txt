@@ -152,6 +152,7 @@ set(YSE_SRCS
   patcher/genericObjects/gUzi.cpp
   patcher/genericObjects/gValue.cpp
   patcher/genericObjects/gPack.cpp
+  patcher/genericObjects/gUnpack.cpp
   patcher/genericObjects/gZl.cpp
   patcher/genericObjects/pAdc.cpp
   patcher/genericObjects/pDac.cpp
@@ -390,6 +391,7 @@ set_source_files_properties(
   patcher/genericObjects/gUzi.cpp
   patcher/genericObjects/gValue.cpp
   patcher/genericObjects/gPack.cpp
+  patcher/genericObjects/gUnpack.cpp
   patcher/genericObjects/gZl.cpp
   patcher/genericObjects/pAdc.cpp
   patcher/genericObjects/pDac.cpp

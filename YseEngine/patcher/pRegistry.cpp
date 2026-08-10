@@ -45,6 +45,7 @@
 #include "genericObjects/gUzi.h"
 #include "genericObjects/gZl.h"
 #include "genericObjects/gPack.h"
+#include "genericObjects/gUnpack.h"
 #include "genericObjects/gIf.h"
 #include "genericObjects/gRegexp.h"
 #include "genericObjects/gReceive.h"
@@ -293,6 +294,11 @@ pRegistry::pRegistry() {
   // The same object with every inlet hot, for the patches where a fresh list
   // should go out the moment any one of its elements changes (issue #518)
   Add(OBJ::G_PAK, gPak::Create);
+
+  // The way back: one list inlet into as many typed outlets as the arguments
+  // declare, and the only way a patch gets at the individual elements of a list
+  // that arrives from somewhere else (issue #519)
+  Add(OBJ::G_UNPACK, gUnpack::Create);
 
   // A collection of messages held at addresses — the patcher's first store of
   // more than one thing, and the object presets, note tables, mapping curves
