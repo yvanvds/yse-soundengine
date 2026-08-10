@@ -103,12 +103,14 @@ namespace YSE {
      *    ``messageEventScope`` — so whatever a finished read goes on to cause
      *    shares one fresh logical-event id (#471), exactly as if the file had
      *    been the stimulus. The target is re-resolved against the block's
-     *    pinned ``GraphState`` by pointer *and* construction-time id
-     *    (``pObject::GetID``), the same check ``messageScheduler`` uses: an
-     *    object deleted or structurally replaced between request and
-     *    completion is simply absent from the snapshot and its result is
-     *    dropped, and a recycled allocation at the same address cannot
-     *    impersonate it.
+     *    pinned ``GraphState`` by pointer *and* instance tag
+     *    (``pObject::InstanceTag``, issue #733), the same check
+     *    ``messageScheduler`` uses: an object deleted or structurally replaced
+     *    between request and completion is simply absent from the snapshot and
+     *    its result is dropped, and a recycled allocation at the same address
+     *    cannot impersonate it. The tag rather than the storage ID, which this
+     *    compared until #733 — a storage ID is reused once its object dies, so
+     *    it can no longer answer "is this the same object".
      *
      *  Note that ``DeliverComplete`` dispatches with ``T_GUI``, matching the
      *  value drain and the deferred-message drain beside it. A consumer whose
@@ -290,7 +292,9 @@ namespace YSE {
       struct Entry {
         std::atomic<std::uint32_t> state{STATE_FREE};
         pObject* target = nullptr;
-        unsigned int targetId = 0;
+        // The requesting object's pObject::InstanceTag(), not its storage ID:
+        // an ID is reused once its object dies (issue #733), a tag never is.
+        std::uint64_t targetTag = 0;
         int tag = 0;
         FILE_OP op = FILE_OP::READ;
         bool ok = false;

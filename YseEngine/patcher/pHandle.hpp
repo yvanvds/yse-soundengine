@@ -70,14 +70,23 @@ namespace YSE {
     /** @brief Original creation argument string. */
     std::string GetParams();
 
-    /** @brief Storage ID, unique within the owning patcher.
+    /** @brief Storage ID, unique among the owning patcher's live objects.
      *
-     *  Assigned by the patcher in creation order, starting at 0, and stable for
-     *  the object's lifetime. This is the number ``patcher::DumpJSON`` writes
-     *  for the object and that ``GetConnectionTarget`` reports for edges
-     *  pointing at it. IDs are *not* unique across patchers — two patchers each
-     *  number their own objects from 0 (issue #730) — so use
+     *  Assigned by the patcher when the object is created and stable for the
+     *  object's lifetime. This is the number ``patcher::DumpJSON`` writes for
+     *  the object and that ``GetConnectionTarget`` reports for edges pointing
+     *  at it. IDs are *not* unique across patchers — two patchers each number
+     *  their own objects from 0 (issue #730) — so use
      *  ``patcher::GetHandleFromID`` on the patcher the object belongs to.
+     *
+     *  IDs are kept dense: the patcher issues the smallest number no live
+     *  object holds, so a deleted object's ID goes to the next object created
+     *  and a long editing session does not push a small patch's numbering up
+     *  (issue #733). The consequence for a caller is that an ID names an object
+     *  only while that object is alive — an ID cached across a delete may
+     *  resolve to the object that inherited the number rather than to nothing.
+     *  Hold the ``pHandle*`` for a lasting reference; use the ID for storage
+     *  and for talking about a patch.
      */
     unsigned int GetID();
 

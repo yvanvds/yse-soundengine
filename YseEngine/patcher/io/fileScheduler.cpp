@@ -99,7 +99,7 @@ bool fileScheduler::Arm(pObject* target, int tag, FILE_OP op, const char* path,
     }
     e.byteCount = op == FILE_OP::WRITE ? (std::uint32_t)byteCount : 0;
     e.target = target;
-    e.targetId = target->GetID();
+    e.targetTag = target->InstanceTag();
     e.tag = tag;
     e.op = op;
     e.ok = false;
@@ -216,17 +216,20 @@ void fileScheduler::DeliverComplete(const GraphState* graph, YSE::THREAD thread)
     if (e.job.isQueued()) continue;
 
     pObject* target = e.target;
-    const unsigned int targetId = e.targetId;
+    const std::uint64_t targetTag = e.targetTag;
     const fileResult result{e.tag, e.op, e.ok, e.bytes, (std::size_t)e.byteCount};
 
     if (graph != nullptr) {
       // Re-resolve the target against the pinned snapshot: pointer *and*
-      // construction-time id must match, so a deleted or replaced object's
-      // result is dropped, and a recycled allocation at the same address cannot
+      // instance tag must match, so a deleted or replaced object's result is
+      // dropped, and a recycled allocation at the same address cannot
       // impersonate it. Only the snapshot's own (live) pointers are ever
-      // dereferenced — the slot's pointer never is.
+      // dereferenced — the slot's pointer never is. The tag, not the storage
+      // ID: storage IDs are reused as objects come and go (issue #733), so a
+      // fresh object at a reclaimed address can legitimately carry the dead
+      // one's ID — it can never carry its tag.
       for (pObject* obj : graph->objects) {
-        if (obj != target || obj->GetID() != targetId) continue;
+        if (obj != target || obj->InstanceTag() != targetTag) continue;
         // The dispatch frame the deferral exists for: everything this delivery
         // causes shares one fresh logical-event id (#471), exactly as if the
         // file had been the stimulus.

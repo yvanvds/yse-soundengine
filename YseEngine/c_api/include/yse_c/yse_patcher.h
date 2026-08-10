@@ -42,12 +42,13 @@ typedef struct YsePHandle YsePHandle;
 /* "No such object" — the answer from every function in this header that
    returns a patcher object ID but has nothing to report.
 
-   Object IDs are per-patcher and handed out in creation order from 0
-   (issue #730), so 0 is the ID of the first object in every patch and
-   cannot double as a failure marker. This value matches the engine's
-   pObject::kNoStorageID, which is what an object belonging to no patcher
-   reports, and it is never a real object's ID: a patcher would have to
-   create 2^32 objects to reach it.
+   Object IDs are per-patcher and start at 0 (issue #730), so 0 is the ID
+   of the first object in every patch and cannot double as a failure
+   marker. This value matches the engine's pObject::kNoStorageID, which is
+   what an object belonging to no patcher reports, and it is never a real
+   object's ID: a patcher issues the smallest number none of its live
+   objects holds (issue #733), so the largest ID it can hand out is its
+   live object count — 2^32 objects would have to fit in memory at once.
 
    yse_patcher_get_handle_from_id(p, YSE_PATCHER_ID_NONE) is NULL. */
 #define YSE_PATCHER_ID_NONE 0xFFFFFFFFu
@@ -127,7 +128,12 @@ YSE_C_API int yse_phandle_is_dsp_input(YsePHandle* h, unsigned int inlet);
 YSE_C_API YseOutType yse_phandle_output_data_type(YsePHandle* h, unsigned int pin);
 /* Storage ID of this object within its patcher — the number the object is
    written as by yse_patcher_dump_json, and the key
-   yse_patcher_get_handle_from_id takes. YSE_PATCHER_ID_NONE on NULL. */
+   yse_patcher_get_handle_from_id takes. YSE_PATCHER_ID_NONE on NULL.
+   IDs are dense and are reused: deleting an object frees its number for
+   the next object created, so an ID identifies an object only while that
+   object is alive. An ID cached across a yse_patcher_delete_object may
+   resolve to a different object, not to NULL — keep the YsePHandle* if
+   you need a reference that outlives the number. */
 YSE_C_API unsigned int yse_phandle_get_id(YsePHandle* h);
 
 /* Number of edges leaving `outlet`. 0 on NULL and 0 for an outlet past the

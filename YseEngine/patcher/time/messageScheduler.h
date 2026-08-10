@@ -129,12 +129,21 @@ namespace YSE {
      *  due — far outside the two-block grace the #227 reclaimer proves for
      *  in-flight snapshots — so the pointer is never trusted by itself.
      *  Delivery re-resolves the target against the block's pinned GraphState:
-     *  the slot's pointer *and* the object's construction-time id
-     *  (``pObject::GetID``) must both match an object in the snapshot, or the
-     *  message is dropped. An object deleted (or structurally replaced, #234)
-     *  between arm and due is simply absent from the snapshot, and the id
-     *  check keeps a recycled allocation at the same address from impersonating
-     *  it.
+     *  the slot's pointer *and* the object's instance tag
+     *  (``pObject::InstanceTag``) must both match an object in the snapshot, or
+     *  the message is dropped. An object deleted (or structurally replaced,
+     *  #234) between arm and due is simply absent from the snapshot, and the
+     *  tag check keeps a recycled allocation at the same address from
+     *  impersonating it.
+     *
+     *  The tag rather than the storage ID (``pObject::GetID``), which is what
+     *  this compared until #733. A storage ID is the number the object is saved
+     *  under and is reused as soon as its object dies, so a fresh object at a
+     *  reclaimed address can hold a dead one's ID — and a #234 replacement is
+     *  *given* its predecessor's ID on purpose. The tag is stamped once per
+     *  constructed object from a process-wide counter, never copied and never
+     *  reused, so matching it means "the same object", which is the only thing
+     *  this check ever wanted to know.
      *
      *  ### Ordering
      *
@@ -331,7 +340,11 @@ namespace YSE {
         std::atomic<bool> dueFromResolve{false};
         std::atomic<std::uint64_t> seq{0};
         pObject* target = nullptr;
-        unsigned int targetId = 0;
+        // The armed target's pObject::InstanceTag(), not its storage ID: an ID
+        // is reused once its object dies (issue #733), a tag never is. 0 is
+        // kNoInstanceTag and belongs to no object, so an unclaimed slot matches
+        // nothing even if its pointer field were somehow read.
+        std::uint64_t targetTag = 0;
         int tag = 0;
         DEFERRED_KIND kind = DEFERRED_KIND::BANG;
         int intValue = 0;

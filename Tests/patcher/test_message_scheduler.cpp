@@ -30,6 +30,7 @@
 #include <doctest/doctest.h>
 #include <atomic>
 #include <cstdint>
+#include <new>
 #include <string>
 #include <vector>
 #include "headers/constants.hpp"
@@ -292,6 +293,59 @@ TEST_SUITE("patcher") {
     rig.sched.DeliverDue(nullptr, YSE::T_GUI);
     CHECK(rig.probe.hits.empty());
     CHECK(rig.sched.PendingCount() == 0);
+  }
+
+  TEST_CASE("scheduler: a dead object's message never reaches its successor (#733)") {
+    // The other half of the lifetime rule, and the reason storage IDs could not
+    // be reused before #733: an object dies with a message armed, the patcher
+    // hands its storage ID to the next object created, and the allocator hands
+    // that object the address the dead one just freed. Both halves of the
+    // pointer-and-id check then match and a dead object's `.del` fires into an
+    // unrelated one.
+    //
+    // Address reuse is the allocator's business and cannot be asked for, so it
+    // is arranged exactly: one slab, destroyed and constructed in place. Every
+    // observable thing about the successor is what the guard used to accept —
+    // same address, same storage ID — and the only thing that differs is the
+    // instance tag, which is the whole claim.
+    std::atomic<std::uint64_t> clock{0};
+    messageScheduler sched{clock};
+    GraphState graph;
+
+    alignas(DeferProbe) unsigned char slab[sizeof(DeferProbe)];
+    DeferProbe* dead = new (slab) DeferProbe();
+    dead->SetStorageID(7);
+    const std::uint64_t deadTag = dead->InstanceTag();
+    graph.objects.push_back(dead);
+
+    REQUIRE(sched.ScheduleInt(dead, 1, 0, 99) != 0);
+
+    dead->~DeferProbe();
+    DeferProbe* fresh = new (slab) DeferProbe();
+    fresh->SetStorageID(7);
+    graph.objects[0] = fresh;
+
+    // Indistinguishable from its predecessor by everything the pre-#733 check
+    // looked at.
+    REQUIRE(static_cast<YSE::PATCHER::pObject*>(fresh) ==
+            static_cast<YSE::PATCHER::pObject*>(dead));
+    REQUIRE(fresh->GetID() == 7u);
+    REQUIRE(fresh->InstanceTag() != deadTag);
+
+    clock.store(1, std::memory_order_release);
+    sched.DeliverDue(&graph, YSE::T_GUI);
+    CHECK(fresh->hits.empty());
+    CHECK(sched.PendingCount() == 0); // dropped, not left armed forever
+
+    // A message armed on the successor itself still arrives — the guard rejects
+    // the impostor, not the address.
+    REQUIRE(sched.ScheduleInt(fresh, 2, 0, 100) != 0);
+    clock.store(2, std::memory_order_release);
+    sched.DeliverDue(&graph, YSE::T_GUI);
+    REQUIRE(fresh->hits.size() == 1);
+    CHECK(fresh->hits[0].intValue == 100);
+
+    fresh->~DeferProbe();
   }
 
   // ─── the first user: .bondo's delay argument ────────────────────────────────

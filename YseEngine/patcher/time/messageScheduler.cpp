@@ -134,7 +134,7 @@ messageScheduler::Handle messageScheduler::Arm(pObject* target, int tag, const D
     e.dueFromResolve.store(deadline.fromResolve, std::memory_order_relaxed);
     e.seq.store(nextSeq_.fetch_add(1, std::memory_order_relaxed), std::memory_order_relaxed);
     e.target = target;
-    e.targetId = target->GetID();
+    e.targetTag = target->InstanceTag();
     e.tag = tag;
     e.kind = kind;
     e.intValue = intValue;
@@ -256,7 +256,7 @@ void messageScheduler::DeliverDue(const GraphState* graph, YSE::THREAD thread) {
     // is stable — copy it out, then free the slot before dispatching so the
     // delivery itself may arm without finding the table artificially full.
     pObject* target = e.target;
-    const unsigned int targetId = e.targetId;
+    const std::uint64_t targetTag = e.targetTag;
     const int tag = e.tag;
     const DEFERRED_KIND kind = e.kind;
     const int intValue = e.intValue;
@@ -272,12 +272,15 @@ void messageScheduler::DeliverDue(const GraphState* graph, YSE::THREAD thread) {
     if (graph == nullptr) continue;
 
     // Re-resolve the target against the pinned snapshot: pointer *and*
-    // construction-time id must match, so a deleted or replaced object's
-    // pending message is dropped, and a recycled allocation at the same
-    // address cannot impersonate it. Only the snapshot's own (live) pointers
-    // are ever dereferenced.
+    // instance tag must match, so a deleted or replaced object's pending
+    // message is dropped, and a recycled allocation at the same address cannot
+    // impersonate it. Only the snapshot's own (live) pointers are ever
+    // dereferenced. The tag, not the storage ID: storage IDs are reused as
+    // objects come and go (issue #733), so a fresh object at a reclaimed
+    // address can legitimately carry the dead one's ID — it can never carry its
+    // tag.
     for (pObject* obj : graph->objects) {
-      if (obj != target || obj->GetID() != targetId) continue;
+      if (obj != target || obj->InstanceTag() != targetTag) continue;
       // The dispatch frame the deferral exists for: everything this delivery
       // causes shares one fresh logical-event id (#471), exactly as if a
       // scheduler tick were the stimulus.

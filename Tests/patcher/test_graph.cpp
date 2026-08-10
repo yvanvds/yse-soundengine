@@ -409,6 +409,101 @@ TEST_SUITE("patcher") {
     CHECK(resaved.find("35798") == std::string::npos);
   }
 
+  // ─── Storage ID reuse (issue #733) ───────────────────────────────────────────
+
+  TEST_CASE("patcher: a deleted object's storage ID goes to the next object (#733)") {
+    // #730 made the counter per-patcher but left it monotonic, because the ID
+    // was also the schedulers' impersonation guard. With that job moved onto
+    // pObject's instance tag, the storage ID is free to be nothing but a
+    // storage key — and a storage key only has to be unique among the objects
+    // that are actually stored.
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* a = p.CreateObject(YSE::OBJ::G_MULTIPLY, "1");
+    YSE::pHandle* b = p.CreateObject(YSE::OBJ::G_MULTIPLY, "2");
+    YSE::pHandle* c = p.CreateObject(YSE::OBJ::G_MULTIPLY, "3");
+    REQUIRE(a != nullptr);
+    REQUIRE(b != nullptr);
+    REQUIRE(c != nullptr);
+    REQUIRE(a->GetID() == 0u);
+    REQUIRE(b->GetID() == 1u);
+    REQUIRE(c->GetID() == 2u);
+
+    p.DeleteObject(b);
+    YSE::pHandle* d = p.CreateObject(YSE::OBJ::G_MULTIPLY, "4");
+    REQUIRE(d != nullptr);
+    // The hole, not the high-water mark. Pre-#733 this was 3.
+    CHECK(d->GetID() == 1u);
+    // And the number really names the new object, not a ghost of the old one.
+    CHECK(p.GetHandleFromID(1) == d);
+    CHECK(d->GetParams() == std::string("4"));
+  }
+
+  TEST_CASE("patcher: a long editing session keeps a small patch's IDs small (#733)") {
+    // The complaint #733 is actually about: a patcher edited for hours writes
+    // large IDs into a small patch. Churn one slot far past the patch size and
+    // every live ID must still fit inside the live object count — pre-#733 the
+    // numbering climbed to 60.
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* keep = p.CreateObject(YSE::OBJ::G_MULTIPLY, "100");
+    REQUIRE(keep != nullptr);
+
+    for (int i = 0; i < 50; i++) {
+      YSE::pHandle* churn = p.CreateObject(YSE::OBJ::G_MULTIPLY, std::to_string(i));
+      REQUIRE(churn != nullptr);
+      CAPTURE(i);
+      CHECK(churn->GetID() < 2u);
+      p.DeleteObject(churn);
+    }
+
+    // The survivor never moved: an ID is fixed for a live object's lifetime.
+    CHECK(keep->GetID() == 0u);
+    CHECK(p.Objects() == 1u);
+
+    // Nothing counter-shaped leaked into the file either: with one object in
+    // the patch, the one ID it records is 0.
+    YSE::pHandle* last = p.CreateObject(YSE::OBJ::G_MULTIPLY, "101");
+    REQUIRE(last != nullptr);
+    CHECK(last->GetID() == 1u);
+  }
+
+  TEST_CASE("patcher: reuse is deterministic — same edits, same dump (#733)") {
+    // Reuse must not be fed by the background reclaimer, or whether a freed ID
+    // were available at the next create would depend on thread timing and two
+    // identically-built patchers could serialise differently — the exact
+    // regression #730 exists to prevent. The ID comes from the live object set,
+    // so the same edit sequence always numbers the same way.
+    auto build = [](YSE::patcher& p) {
+      p.create(2);
+      YSE::pHandle* first = p.CreateObject(YSE::OBJ::D_SINE, "440");
+      YSE::pHandle* doomed = p.CreateObject(YSE::OBJ::G_MULTIPLY, "5");
+      YSE::pHandle* dac = p.CreateObject(YSE::OBJ::D_DAC);
+      REQUIRE(first != nullptr);
+      REQUIRE(doomed != nullptr);
+      REQUIRE(dac != nullptr);
+      p.DeleteObject(doomed);
+      YSE::pHandle* add = p.CreateObject(YSE::OBJ::D_ADD);
+      REQUIRE(add != nullptr);
+      p.Connect(first, 0, add, 0);
+      p.Connect(add, 0, dac, 0);
+    };
+
+    YSE::patcher first;
+    build(first);
+    YSE::patcher second;
+    build(second);
+    CHECK(first.DumpJSON() == second.DumpJSON());
+
+    // And a patch whose IDs came out of the free hole still round-trips.
+    YSE::patcher target;
+    target.create(2);
+    const std::string saved = first.DumpJSON();
+    target.ParseJSON(saved);
+    REQUIRE(target.Objects() == 3u);
+    CHECK(target.DumpJSON() == saved);
+  }
+
   // ─── Outlet keys (issue #734) ────────────────────────────────────────────────
 
   TEST_CASE("patcher: a reloaded patch keeps its edges on the outlets past ten (#734)") {

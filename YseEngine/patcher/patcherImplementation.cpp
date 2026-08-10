@@ -424,19 +424,17 @@ YSE::pHandle* patcherImplementation::CreateObjectUnlocked(const std::string& typ
   }
 
   // The storage ID (issue #730) has to be on the object *before* SetParent,
-  // not merely before the object is published. SetParent is the moment the
-  // object learns which patcher it belongs to, and an object that reads a file
-  // named in its creation arguments — `.textfile` (#687), `.seq` (#692) —
-  // issues that request from its SetParent override. fileScheduler stamps the
-  // request with target->GetID() and, when the read completes, delivers it only
-  // if the snapshot's object still reports the same ID. Arming with the
-  // not-yet-assigned sentinel and renumbering afterwards makes every such
-  // request undeliverable. messageScheduler has the same contract.
+  // not merely before the object is published: `.textfile` (#687) and `.seq`
+  // (#692) issue a file request from their SetParent override, and DumpJSON of
+  // a patch saved mid-load must not find an unnumbered object. Caller holds
+  // mtx, which is what makes reading the live object set here safe.
   //
-  // Caller holds mtx, which is what makes the bare increment safe. The counter
-  // it replaces was a process-wide `unsigned int` bumped from every pObject
-  // constructor, on any thread, with no synchronisation at all.
-  object->SetStorageID(nextStorageId_++);
+  // Note that the schedulers no longer care when this happens — they stamp a
+  // request with the object's instance tag, which the constructor has already
+  // assigned (issue #733). Before that split, arming from SetParent with a
+  // not-yet-assigned storage ID made every such request undeliverable, which is
+  // why the assignment moved here in the first place.
+  object->SetStorageID(ClaimStorageID());
   // Every object gets its patcher parent, the DAC and ADC included, so their
   // inlets resolve DSP-readiness from the pinned snapshot on the audio thread
   // rather than from the live wiring (issue #226). Hoisted out of the three
@@ -682,8 +680,12 @@ std::string patcherImplementation::DumpJSON() {
     // objects in heap-address order — which is a property of the allocator, not
     // of the patch, and would leave two identically-built patchers writing the
     // same objects under different "object N" keys even now that their IDs
-    // agree. Order by storage ID instead: that is creation order, and creation
-    // order is what the patch itself says (issue #730).
+    // agree. Order by storage ID instead: the ID is a property of the patch,
+    // reproduced exactly by the same sequence of edits on any run, which the
+    // address is not (issue #730). It is not necessarily *creation* order — a
+    // deleted object's number goes to the next object created (issue #733) —
+    // and it does not need to be. What a dump needs is one order that two
+    // identically-built patchers agree on.
     std::vector<pObject*> ordered;
     ordered.reserve(objects.size());
     for (const auto& any : objects)
@@ -1111,6 +1113,30 @@ void patcherImplementation::RecycleObjectIds(pObject* object, std::uint64_t idGe
     PATCHER::outlet* out = object->GetOutlet(i);
     if (out != nullptr && out->GraphId() >= 0) freeOutletIds_.push_back(out->GraphId());
   }
+}
+
+int patcherImplementation::ClaimStorageID() const {
+  // Caller holds mtx. The smallest non-negative number no live object holds.
+  //
+  // `objects.size() + 1` slots is always enough: at most `objects.size()` of
+  // them can be marked, so the scan below always finds a gap. A live ID at or
+  // past that bound is outside the candidate range and is simply not marked —
+  // which happens whenever a patcher shrinks (build five objects, delete four,
+  // and the survivor may hold ID 4 with one object live). Ignoring it is
+  // correct, not a shortcut: the number this returns is below the bound and so
+  // below that ID, and it was already checked against every live ID that could
+  // collide with it.
+  std::vector<bool> used(objects.size() + 1, false);
+  for (const auto& any : objects) {
+    // Unsigned throughout: kNoStorageID reads back as UINT_MAX, which fails the
+    // bound like any other out-of-range ID rather than needing its own case.
+    const unsigned int id = any.second->GetID();
+    if (id < used.size()) used[id] = true;
+  }
+  for (std::size_t i = 0; i < used.size(); i++) {
+    if (!used[i]) return static_cast<int>(i);
+  }
+  return static_cast<int>(used.size()); // unreachable, see above
 }
 
 void patcherImplementation::CompactGraphIdsIfEmpty() {

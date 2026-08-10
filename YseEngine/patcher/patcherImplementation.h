@@ -307,6 +307,27 @@ namespace YSE {
       // generation and drops the free-list, so ids from the old numbering are not
       // recycled into the reset space (issue #364). Caller holds mtx.
       void CompactGraphIdsIfEmpty();
+      // The storage ID a newly created object should carry (issue #730): the
+      // smallest non-negative number no live object in this patcher holds.
+      //
+      // Not a counter. A counter is what #730 left behind, and it only ever
+      // advanced, because the storage ID was also the impersonation guard the
+      // message and file schedulers compared and reusing it would have let a
+      // dead object's deferred message land on a live one. #733 moved that job
+      // to pObject::InstanceTag, which frees this number to be nothing but a
+      // storage key — and a storage key only has to be unique among the objects
+      // that are actually stored. Recomputing it from the live set keeps a
+      // patcher's numbering as small as the patch (a patcher that churns
+      // objects for hours still writes single digits) *and* keeps it
+      // deterministic, which a free-list could not: this patcher's free-list is
+      // refilled by the background reclaimer, so whether a freed number were
+      // available at the next create would depend on thread timing, and two
+      // identically-built patchers could serialise differently — the exact
+      // regression #730 was filed for.
+      //
+      // O(live objects) per create, on the control thread, next to a `new` and
+      // a full graph rebuild. Caller holds mtx.
+      int ClaimStorageID() const;
       // Build the next GraphState, publish it with one atomic swap, retire the
       // previous one, and schedule background reclamation.
       void RebuildAndPublish();
@@ -422,25 +443,6 @@ namespace YSE {
       // lifetime creation count (issue #355).
       int nextInletId_ = 0;
       int nextOutletId_ = 0;
-
-      // Per-patcher counter behind pObject's storage ID (issue #730). Handed out
-      // in creation order from 0, under mtx, by CreateObjectUnlocked — so a
-      // patch built the same way always numbers its objects the same way, and
-      // the number no longer depends on what else the process built first.
-      //
-      // Unlike the inlet/outlet graph ids above, this one is never recompacted
-      // and never recycled. Those ids only have to be unique among *live*
-      // objects, so #355 can restart them whenever the patcher goes empty. A
-      // storage ID additionally has to stay distinct from every ID this patcher
-      // has already used: messageScheduler and fileScheduler hold a raw
-      // pObject* armed long before it is due and accept the delivery only when
-      // the snapshot's pointer *and* its ID match (see messageScheduler.h,
-      // "Lifetime safety across live edits"). Reusing an ID would let a fresh
-      // object allocated at a reclaimed address satisfy both halves of that
-      // check and receive a dead object's message. The cost is that a patcher
-      // churning objects for hours still counts upward — bounded by one
-      // patcher's lifetime creations instead of the whole process's.
-      int nextStorageId_ = 0;
 
       // Free-list of retired inlet / outlet graph ids (issue #364). The
       // background reclaimer pushes a deleted object's ids here at the moment it
