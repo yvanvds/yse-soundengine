@@ -1711,9 +1711,22 @@ TEST_SUITE("clock") {
 
     auto& mgr = YSE::CLOCK::Manager();
     REQUIRE(mgr.createClock("metro.notyet", kTempo));
-    // Poll retries every RESOLVE_INTERVAL_BLOCKS blocks; a comfortable margin
-    // over it, then two more beats' worth.
-    for (std::uint64_t i = 0; i < clockBridge::RESOLVE_INTERVAL_BLOCKS + 8; i++)
+    // Calculate polls the bridge, rate-limited to once every
+    // RESOLVE_INTERVAL_BLOCKS blocks, so this many ticks is what it takes for
+    // the retry to come round. The join after it is only for determinism — the
+    // resolve job it waits on is the one Calculate itself armed. Ticks alone
+    // cannot stand in for it: the lookup runs on the background pool, and this
+    // loop is synchronous with no wall-clock wait in it, so a fixed budget of
+    // blocks bounds nothing about when a pool thread gets scheduled (issue
+    // #739 — the case failed 4 runs in 6 on a loaded machine, always with the
+    // binding still unresolved).
+    for (std::uint64_t i = 0; i < clockBridge::RESOLVE_INTERVAL_BLOCKS + 2; i++)
+      rig.Tick();
+    rig.patcher.Clocks()->WaitIdle();
+    REQUIRE(rig.patcher.Clocks()->Resolved(1));
+
+    // Two beats' worth of blocks now that the clock is there.
+    for (int i = 0; i < 8; i++)
       rig.Tick();
     CHECK(rig.Bangs() > 1);
 
