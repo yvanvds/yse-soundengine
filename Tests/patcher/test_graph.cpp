@@ -7,6 +7,7 @@
 #include "patcher/patcher.hpp"
 #include "patcher/pHandle.hpp"
 #include "patcher/pObjectList.hpp"
+#include <climits>
 #include <string>
 #include <vector>
 
@@ -158,6 +159,44 @@ TEST_SUITE("patcher") {
     p.Connect(sine, 0, add, 0);
     CHECK(sine->GetConnectionTarget(0, 0) == add->GetID());
     CHECK(sine->GetConnectionTargetInlet(0, 0) == 0u);
+  }
+
+  // Regression for issue #737. GetOutputType range-checked its pin; its three
+  // edge-introspection neighbours indexed outputs[] with the caller's outlet
+  // number and read past the end of the vector for anything out of range. On
+  // Windows/clang the bad read handed back 0 instead of crashing, which is why
+  // it went unnoticed; under ASan it is a heap-buffer-overflow, and this case
+  // lives in TEST_SUITE("patcher") so the widened ASan gate (#727) runs it.
+  TEST_CASE(
+      "patcher: edge queries about a nonexistent outlet are answered, not read (issue #737)") {
+    YSE::patcher p;
+    p.create(2);
+    // add is created first, so it owns storage ID 0 and the edge below is an
+    // ordinary connection whose target ID is 0 — the value that must stay
+    // distinguishable from "no target" (issue #732).
+    YSE::pHandle* add = p.CreateObject(YSE::OBJ::D_ADD);
+    YSE::pHandle* sine = p.CreateObject(YSE::OBJ::D_SINE);
+    REQUIRE(add != nullptr);
+    REQUIRE(sine != nullptr);
+    REQUIRE(add->GetID() == 0u);
+    REQUIRE(sine->GetOutputs() == 1);
+
+    p.Connect(sine, 0, add, 0);
+
+    // A sine has exactly one outlet; 1 and 99 are both past the end.
+    CHECK(sine->GetConnections(1) == 0u);
+    CHECK(sine->GetConnections(99) == 0u);
+    CHECK(sine->GetConnectionTarget(99, 0) == UINT_MAX);
+    CHECK(sine->GetConnectionTargetInlet(99, 0) == 0u);
+
+    // The real outlet is unaffected, and a genuine edge to object 0 still
+    // reports 0 rather than the no-target answer.
+    CHECK(sine->GetConnections(0) == 1u);
+    CHECK(sine->GetConnectionTarget(0, 0) == 0u);
+    // A connection index past the end of a real outlet's edge list answers the
+    // same way an absent outlet does — one function, one unanswerable value.
+    CHECK(sine->GetConnectionTarget(0, 1) == UINT_MAX);
+    CHECK(sine->GetConnectionTargetInlet(0, 1) == 0u);
   }
 
   // ─── Handle lookup ────────────────────────────────────────────────────────────

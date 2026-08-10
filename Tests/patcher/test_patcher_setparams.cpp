@@ -18,6 +18,7 @@
 #include <doctest/doctest.h>
 #include <atomic>
 #include <chrono>
+#include <climits>
 #include <string>
 #include <thread>
 #include <vector>
@@ -153,6 +154,34 @@ TEST_SUITE("patcher") {
     gate->SetIntData(1, 12);
     CHECK(sinkKept.gotInt);
     CHECK_FALSE(sinkDropped.gotInt);
+    p.Calculate(YSE::T_DSP);
+  }
+
+  // Regression for issue #737, on the route that actually reaches it: an
+  // editor or binding that walked 0..GetOutputs() before the re-parse holds
+  // outlet numbers the object no longer has. Asking about them used to index
+  // outputs[] past the end (a heap-buffer-overflow under ASan); it now answers.
+  TEST_CASE("setparams: an outlet number cached across a gGate shrink is answered, not read "
+            "(issue #737)") {
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* gate = p.CreateObject(YSE::OBJ::G_GATE, "4");
+    REQUIRE(gate->GetOutputs() == 4);
+
+    MultiSink sinkKept, sinkDropped;
+    YSE::pHandle hKept(&sinkKept), hDropped(&sinkDropped);
+    p.Connect(gate, 0, &hKept, 0);
+    p.Connect(gate, 3, &hDropped, 0);
+    REQUIRE(gate->GetConnections(3) == 1);
+
+    gate->SetParams("2");
+    REQUIRE(gate->GetOutputs() == 2);
+
+    // Outlet 3 was real a moment ago and is gone now.
+    CHECK(gate->GetConnections(3) == 0u);
+    CHECK(gate->GetConnectionTarget(3, 0) == UINT_MAX);
+    CHECK(gate->GetConnectionTargetInlet(3, 0) == 0u);
+    // The surviving outlet is untouched.
+    CHECK(gate->GetConnections(0) == 1u);
     p.Calculate(YSE::T_DSP);
   }
 

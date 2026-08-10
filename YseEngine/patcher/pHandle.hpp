@@ -81,13 +81,27 @@ namespace YSE {
      */
     unsigned int GetID();
 
-    /** @brief Number of connections leaving outlet ``outlet``. */
+    /** @brief Number of connections leaving outlet ``outlet``.
+     *
+     *  0 when the object has no such outlet — ``SetParams`` can shrink an
+     *  object's outlet count, so an outlet number cached across a re-parse may
+     *  no longer name anything (issue #737). Compare against ``GetOutputs()``
+     *  to tell an absent outlet from an unconnected one.
+     */
     unsigned int GetConnections(unsigned int outlet);
 
-    /** @brief ID of the target object of one connection from outlet ``outlet``. */
+    /** @brief ID of the target object of one connection from outlet ``outlet``.
+     *
+     *  ``UINT_MAX`` when there is no such outlet or no such connection on it.
+     *  Not 0: IDs start at 0 (issue #730), so 0 is a real target.
+     */
     unsigned int GetConnectionTarget(unsigned int outlet, unsigned int connection);
 
-    /** @brief Inlet on the target that this connection reaches. */
+    /** @brief Inlet on the target that this connection reaches.
+     *
+     *  0 when there is no such outlet or no such connection on it — which
+     *  inlet 0 also reports; see issue #736.
+     */
     unsigned int GetConnectionTargetInlet(unsigned int outlet, unsigned int connection);
 
     /** @brief Current GUI display value for objects that have one (sliders, toggles, ...). */

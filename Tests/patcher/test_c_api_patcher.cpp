@@ -167,6 +167,12 @@ TEST_SUITE("capilowcov") {
     CHECK(yse_phandle_get_connection_target(sine, 0, 1) == YSE_PATCHER_ID_NONE);
     CHECK(yse_phandle_get_connection_target(sine, 99, 0) == YSE_PATCHER_ID_NONE);
 
+    // Issue #737: the other two edge queries pass the caller's outlet number
+    // straight to the engine, which used to index outputs[] with it unchecked.
+    // They now answer instead of reading past the end.
+    CHECK(yse_phandle_get_connections(sine, 99) == 0u);
+    CHECK(yse_phandle_get_connection_target_inlet(sine, 99, 0) == 0u);
+
     yse_patcher_destroy(p);
   }
 

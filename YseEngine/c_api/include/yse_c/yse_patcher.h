@@ -114,12 +114,19 @@ YSE_C_API YseOutType yse_phandle_output_data_type(YsePHandle* h, unsigned int pi
    yse_patcher_get_handle_from_id takes. YSE_PATCHER_ID_NONE on NULL. */
 YSE_C_API unsigned int yse_phandle_get_id(YsePHandle* h);
 
+/* Number of edges leaving `outlet`. 0 on NULL and 0 for an outlet past the
+   object's outlet count — yse_phandle_set_params can shrink that count, so an
+   outlet number cached across a re-parse may name nothing; compare against
+   yse_phandle_get_outputs to tell an absent outlet from an idle one. */
 YSE_C_API unsigned int yse_phandle_get_connections(YsePHandle* h, unsigned int outlet);
 /* ID of the object one edge leaving `outlet` arrives at.
    YSE_PATCHER_ID_NONE on NULL, on an outlet past the object's outlet
    count, or on a connection past that outlet's edge count. */
 YSE_C_API unsigned int yse_phandle_get_connection_target(YsePHandle* h, unsigned int outlet,
                                                          unsigned int connection);
+/* Inlet on the target object that this edge arrives at. 0 on NULL, on an
+   absent outlet, and on an absent connection — which inlet 0 also reports;
+   telling the two apart needs an inlet sentinel (see issue #736). */
 YSE_C_API unsigned int yse_phandle_get_connection_target_inlet(YsePHandle* h, unsigned int outlet,
                                                                unsigned int connection);
 

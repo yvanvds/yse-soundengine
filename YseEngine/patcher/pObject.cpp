@@ -154,15 +154,21 @@ const std::string& pObject::GetParams() {
   return parms.Get();
 }
 
+// The outlet number comes from outside and outputs is a vector, so all three
+// range-check it before indexing, the way GetOutputType does (issue #737). See
+// pObject.h for what each answers when the query cannot be met.
 unsigned int pObject::GetConnections(unsigned int outlet) {
+  if (outlet >= outputs.size()) return 0;
   return outputs[outlet].GetConnections();
 }
 
 unsigned int pObject::GetConnectionTarget(unsigned int outlet, unsigned int connection) {
+  if (outlet >= outputs.size()) return kNoObjectID;
   return outputs[outlet].GetTarget(connection);
 }
 
 unsigned int pObject::GetConnectionTargetInlet(unsigned int outlet, unsigned int connection) {
+  if (outlet >= outputs.size()) return 0;
   return outputs[outlet].GetTargetInlet(connection);
 }
 

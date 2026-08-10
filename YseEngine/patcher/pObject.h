@@ -144,6 +144,26 @@ namespace YSE {
       OUT_TYPE GetOutputType(unsigned int output) const;
       inlet* GetInlet(int number);
       outlet* GetOutlet(int number);
+
+      // Edge introspection. Control thread only — never called from the audio
+      // callback, which walks the pinned GraphState instead.
+      //
+      // All three take an outlet number from outside and range-check it, the
+      // way GetOutputType does: an object's outlet count changes under a
+      // SetParams that re-parses its arguments, so a caller holding an outlet
+      // number from before the re-parse can hand back one that no longer
+      // exists, and outputs[] is a vector (issue #737).
+      //
+      // A query that cannot be answered — outlet past the object's outlet
+      // count, or connection past that outlet's edge count — reports:
+      //   GetConnections           0, the number of edges a nonexistent
+      //                            outlet has.
+      //   GetConnectionTarget      kNoObjectID. Not 0: object IDs start at 0
+      //                            (issue #730) so 0 is a real target.
+      //   GetConnectionTargetInlet 0. Ambiguous with inlet 0 and known to be
+      //                            (issue #736); left alone here because
+      //                            settling it needs an inlet sentinel, which
+      //                            is that issue's call, not this one's.
       unsigned int GetConnections(unsigned int outlet);
       unsigned int GetConnectionTarget(unsigned int outlet, unsigned int connection);
       unsigned int GetConnectionTargetInlet(unsigned int outlet, unsigned int connection);
@@ -183,6 +203,14 @@ namespace YSE {
       // is only ever observed through GetID() by code that built the object
       // itself. GetID() returns it as UINT_MAX, which matches no real ID.
       static constexpr int kNoStorageID = -1;
+
+      // kNoStorageID as GetID() hands it back: the ID that belongs to no
+      // object. Also what GetConnectionTarget answers when it cannot name a
+      // target, and the value the C ABI publishes as YSE_PATCHER_ID_NONE
+      // (issue #732) — yse_patcher.cpp static_asserts the two are the same
+      // number so they cannot drift apart.
+      static constexpr unsigned int kNoObjectID = static_cast<unsigned int>(kNoStorageID);
+
       inline unsigned int GetID() {
         return ID;
       }

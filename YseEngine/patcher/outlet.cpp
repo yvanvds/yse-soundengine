@@ -162,7 +162,11 @@ unsigned int outlet::GetTarget(unsigned int connection) {
   if (connection < connections.size()) {
     return connections[connection]->GetObjectID();
   }
-  return 0;
+  // Not 0 — object IDs start at 0 (issue #730), so 0 is a real target and
+  // would be indistinguishable from "there is no such edge". This is the same
+  // answer pObject::GetConnectionTarget gives for an outlet that does not
+  // exist, so one function has one unanswerable-query value (issue #737).
+  return pObject::kNoObjectID;
 }
 
 unsigned int outlet::GetTargetInlet(unsigned int connection) {

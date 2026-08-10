@@ -416,15 +416,22 @@ YSE_C_API unsigned int yse_phandle_get_id(YsePHandle* h) {
 YSE_C_API unsigned int yse_phandle_get_connections(YsePHandle* h, unsigned int outlet) {
   return h ? to_cpp(h)->GetConnections(outlet) : 0;
 }
+// The sentinel this file hands out is the engine's own, so a caller can compare
+// yse_phandle_get_id against yse_phandle_get_connection_target without either
+// side translating. If the engine ever changes its mind, this stops the build
+// rather than letting the ABI's published value drift away from it.
+static_assert(YSE_PATCHER_ID_NONE == YSE::PATCHER::pObject::kNoObjectID,
+              "YSE_PATCHER_ID_NONE must be pObject::kNoObjectID");
 YSE_C_API unsigned int yse_phandle_get_connection_target(YsePHandle* h, unsigned int outlet,
                                                          unsigned int connection) {
-  if (!h) return YSE_PATCHER_ID_NONE;
-  // The outlet number is range-checked first because the engine indexes
-  // `outputs[outlet]` unguarded (issue #737) — asking GetConnections() about a
-  // nonexistent outlet would itself be the out-of-bounds read.
-  if (outlet >= static_cast<unsigned int>(to_cpp(h)->GetOutputs())) return YSE_PATCHER_ID_NONE;
-  if (connection >= to_cpp(h)->GetConnections(outlet)) return YSE_PATCHER_ID_NONE;
-  return to_cpp(h)->GetConnectionTarget(outlet, connection);
+  // #732 added the two range checks here because the engine indexed
+  // `outputs[outlet]` unguarded and asking it about a nonexistent outlet was
+  // itself an out-of-bounds read. #737 moved that guard into the engine, where
+  // every caller gets it, and made it answer kNoObjectID — the same number as
+  // YSE_PATCHER_ID_NONE — for both an absent outlet and an absent connection.
+  // Repeating the checks here would only restate what the callee now
+  // guarantees, in a second place that can fall out of step with it.
+  return h ? to_cpp(h)->GetConnectionTarget(outlet, connection) : YSE_PATCHER_ID_NONE;
 }
 YSE_C_API unsigned int yse_phandle_get_connection_target_inlet(YsePHandle* h, unsigned int outlet,
                                                                unsigned int connection) {
