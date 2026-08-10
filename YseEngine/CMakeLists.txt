@@ -230,6 +230,7 @@ set(YSE_SRCS
   patcher/time/gThresh.cpp
   patcher/time/gTimepoint.cpp
   patcher/time/gTimer.cpp
+  patcher/time/gSetClock.cpp
   patcher/time/gTransport.cpp
   patcher/time/gWhen.cpp
   patcher/time/messageScheduler.cpp
@@ -462,6 +463,7 @@ set_source_files_properties(
   patcher/time/gThresh.cpp
   patcher/time/gTimepoint.cpp
   patcher/time/gTimer.cpp
+  patcher/time/gSetClock.cpp
   patcher/time/gTransport.cpp
   patcher/time/gWhen.cpp
   patcher/time/messageScheduler.cpp

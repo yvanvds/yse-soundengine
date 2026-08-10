@@ -121,6 +121,7 @@ set(YSE_TEST_SOURCES
   patcher/test_message_scheduler.cpp
   patcher/test_patcher_clock_bridge.cpp
   patcher/test_patcher_transport.cpp
+  patcher/test_patcher_setclock.cpp
   patcher/test_patcher_when.cpp
   patcher/test_patcher_timepoint.cpp
   patcher/test_patcher_tempo.cpp
@@ -1050,6 +1051,7 @@ set_source_files_properties(
   patcher/test_message_scheduler.cpp
   patcher/test_patcher_clock_bridge.cpp
   patcher/test_patcher_transport.cpp
+  patcher/test_patcher_setclock.cpp
   patcher/test_patcher_when.cpp
   patcher/test_patcher_timepoint.cpp
   patcher/test_patcher_tempo.cpp

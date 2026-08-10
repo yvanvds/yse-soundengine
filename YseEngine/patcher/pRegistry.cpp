@@ -71,6 +71,7 @@
 #include "time/gThresh.h"
 #include "time/gTimepoint.h"
 #include "time/gTimer.h"
+#include "time/gSetClock.h"
 #include "time/gTransport.h"
 #include "time/gWhen.h"
 
@@ -499,6 +500,11 @@ pRegistry::pRegistry() {
   // Control a named domain clock from inside the patcher — the object that
   // connects a patch to the engine's polytemporal clock system (issue #513)
   Add(OBJ::G_TRANSPORT, gTransport::Create);
+
+  // Create a named domain clock and set its speed — `.transport`'s write half
+  // with the play button taken out: a second tempo domain that is turning as
+  // soon as the patch loads (issue #515)
+  Add(OBJ::G_SETCLOCK, gSetClock::Create);
 
   // Report where a named domain clock stands, on demand — `.transport`'s read
   // half, without the ownership that would create the clock (issue #514)

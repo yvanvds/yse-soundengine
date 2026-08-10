@@ -5102,6 +5102,55 @@
       }
     ]
   },
+  ".setclock": {
+    "category": "TIME",
+    "description": "Creates one of YSE's named domain clocks and sets its speed — Max's setclock, the object that gives part of a patch a tempo of its own (issue #515). '.setclock fast 240' brings a clock called 'fast' into being, already running at 240 BPM, and every object that names it — a '.metro clock fast', a '.timepoint', a '.tempo', a '.qlist' — counts on that clock instead of the default one, which is what lets two halves of a patch move at independent tempi. It is the same clock the host addresses through yse_system_create_clock / setTempo / beatPosition, so a patch and its host share it by name. The patcher's other two clock objects differ from this one by exactly one thing each: a '.when' only reads and creates nothing, and a '.transport' creates its clock *stopped* and spends its int and float on start and stop, so it is a play button rather than a time source. Here the number you send is the speed, in BPM, which is the wire you actually want a slider on; 0 stops the clock, because tempo 0 is what 'stopped' means to a domain clock, and 'tempo <bpm> <ramp>' glides there over the given seconds. Creation is first-registration-wins and happens on the control thread when the object joins a patcher: a name the host or another object already claimed is left exactly as it is rather than re-tempoed. Destruction is deliberately not here — the clock outlives the object, as '.transport''s does, because a patcher clock binding owns a share of its clock and is never released, so destroying the clock would freeze every object bound to it rather than hand them back the default one; teardown belongs to the host's destroyClock or System::close. Max's modes ('pass', 'add', 'mul', 'interp'), its settable time and its reporting interval are all absent, because a domain clock is a bare beat accumulator with no origin and no position to set and the engine advances it once per audio block rather than polling it. Calculate() does nothing, and no message handler allocates, locks or blocks when it turns out to be running on the audio callback: the clock is written through the patcher's clock bridge there, which is three atomic stores, and by name off it.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Sets how fast the clock runs, and reports where it has got to. An int or a float is the tempo in BPM — this is the inlet a slider or a '.line' goes into, and the difference that makes this object rather than a '.transport', where the same wire would toggle the clock on and off with every value it sent. Tempo is not clamped, a domain clock's not being clamped either: 0 stops the clock (tempo 0 is what 'stopped' means to a domain clock, so there is no separate start and stop here and nothing remembers a tempo to come back to) and a negative tempo runs it backwards. 'tempo <bpm>' is the same setting under Max's word, and an optional second number makes it a glide in seconds — 'tempo 140 2' reaches 140 over two seconds, which is the one thing the bare number cannot say and the one thing Max's setclock cannot do at all. A bang sends the clock's current beat position out the outlet; a bang with no clock to read emits nothing at all rather than a zero that would look like a real position. Max's modes ('pass', 'add', 'mul', 'interp') and its int-sets-the-time behaviour are absent: all four derive one millisecond time from another, and a YSE domain clock is a bare beat accumulator with no origin and no settable position. There is no 'clock <name>' either — this object *is* the clock, and its name is its creation argument.",
+        "index": 0,
+        "label": "speed",
+        "range": "BPM, bang, 'tempo <bpm> [<ramp>]'"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".setclock",
+    "outlets": [
+      {
+        "doc": "The clock's current beat position, on bang. Beats are the running integral of tempo, so this only ever moves forward while the tempo is positive, holds while it is 0 and runs backwards while it is negative. Nothing is emitted when there is no clock to read — not a zero, which would be indistinguishable from a real clock sitting at beat 0. The tempo is not reported beside it, as '.transport' and '.when' report the pair, because on this object the tempo is the thing you just set; '.when <name>' reads one back.",
+        "index": 0,
+        "label": "beat",
+        "range": "",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The domain clock this object creates and is. Clocks are addressed by name across the whole engine, so this is the same string the host passes to createClock and the same one a '.metro clock <name>' runs on. Empty (the default) means the object is nothing: it creates no clock, binds nothing, ignores every command and emits nothing. The clock is made when the object is added to a patcher, first registration winning — a name someone already claimed is left exactly as it is, tempo included — and it is never destroyed, not on delete and not on a rename, because the bindings other objects hold on it are never released. There is no 'clock <name>' message: this object is the clock, so re-pointing it is a re-create, which is also what keeps clock creation on the control thread.",
+        "name": "clockname",
+        "range": ""
+      },
+      {
+        "default": "120",
+        "doc": "The tempo in BPM the clock runs at. Unlike '.transport', which creates its clock stopped and waits to be started, this is the clock's *initial* tempo as well as its current one: a '.setclock' is turning as soon as the patch loads, which is what makes it a time source rather than a transport. Written to the clock again on every number the object receives. Not clamped, a domain clock's tempo not being clamped either — 0 stops it and a negative value runs it backwards.",
+        "name": "tempo",
+        "range": "BPM"
+      },
+      {
+        "default": "0",
+        "doc": "Seconds every tempo change glides over, 0 being instant. This is domainClock's rampable tempo, which is what lets a patch accelerando rather than jump, and it is the one thing this object has that Max's setclock does not. It applies to every number sent to the inlet; the clock's initial tempo is always instant, there being nothing to glide from.",
+        "name": "ramp",
+        "range": "0+ seconds"
+      }
+    ]
+  },
   ".sin": {
     "category": "MATH",
     "description": "Control-rate sine. Emits sin(in) as a float whenever inlet 0 fires. The input is an angle in radians, as in Max.",
