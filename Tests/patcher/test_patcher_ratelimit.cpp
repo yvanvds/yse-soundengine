@@ -1,5 +1,14 @@
 // Tests for `.speedlim` and `.qlim` — Max's two message-throughput limiters
-// (issue #508).
+// (issues #508 and #728).
+//
+// #728 added the four things #508 left out: Max's `usurp 0` queue, his
+// `threshold` and `quantize` attributes, and the tempo-relative half of his
+// time syntax. Everything here that needs a *running domain clock* — a beat
+// interval that actually limits, and the quantize grid — lives in
+// `test_patcher_clock_bridge.cpp` instead, in the isolated `clock` suite,
+// because those cases drive `CLOCK::Manager().update()` on the test thread.
+// What stays here is everything a block clock can decide: the grammar of the
+// new words, the threshold window, the queue, and the two objects' policies.
 //
 // The two objects are one window test with two answers to "a message arrived
 // too soon", and the answers are opposites: `.speedlim` **drops** it and
@@ -276,6 +285,36 @@ TEST_SUITE("patcher") {
     CHECK(speedlim.Dropped() == 0);
     CHECK(qlim.Dropped() == 0);
     CHECK(speedlim.SinceLastOutput() == -1);
+
+    // And every attribute issue #728 added is off, so a fresh object is #508's
+    // object exactly.
+    YSE::PATCHER::gRateLimitBase* both[] = {&speedlim, &qlim};
+    for (YSE::PATCHER::gRateLimitBase* obj : both) {
+      CAPTURE(obj->Type());
+      CHECK(obj->IntervalBeats() == 0.0);
+      CHECK(obj->Threshold() == 0);
+      CHECK(obj->ThresholdBeats() == 0.0);
+      CHECK(obj->Quantize() == 0.0);
+      CHECK_FALSE(obj->OnClock());
+    }
+    // Max's usurp default: "the most recently received message replaces any
+    // currently queued message."
+    CHECK(qlim.Usurp());
+  }
+
+  TEST_CASE("ratelimit: the new times are creation arguments too (#728)") {
+    // Positional, after the interval Max gives as the object's one argument:
+    // interval, intervalbeats, threshold, thresholdbeats, quantize — and usurp
+    // after those on .qlim, which is the only object that has one.
+    Rig<gSpeedlim> speedlim("100 0 25 0 0");
+    CHECK(speedlim.obj.Interval() == 100);
+    CHECK(speedlim.obj.Threshold() == 25);
+
+    Rig<gQlim> qlim("0 1.5 0 0.25 0.5 0");
+    CHECK(qlim.obj.IntervalBeats() == 1.5);
+    CHECK(qlim.obj.ThresholdBeats() == 0.25);
+    CHECK(qlim.obj.Quantize() == 0.5);
+    CHECK_FALSE(qlim.obj.Usurp());
   }
 
   // ─── the grammar, which needs no clock ──────────────────────────────────────
@@ -350,23 +389,145 @@ TEST_SUITE("patcher") {
     CHECK(rig.obj.Interval() == 0);
   }
 
-  TEST_CASE("ratelimit: a tempo-relative interval is refused, not read as milliseconds (#508)") {
-    // The trap `.clocker` fell into before #725: `1440 ticks` taken for its
-    // leading token becomes 1440 ms, which is not an interval anybody asked for.
-    // These objects have no clock to measure a beat against, so the honest
-    // answer is to leave the interval where it was.
+  TEST_CASE("ratelimit: a tempo-relative interval is read as beats, not milliseconds (#728)") {
+    // Max's speedlim: "the time can be specified in milliseconds or using a
+    // tempo-relative interval." What must *not* happen is the trap `.clocker`
+    // fell into before #725 — `1440 ticks` taken for its leading token becomes
+    // 1440 ms, which is not an interval anybody asked for. Three quarter notes
+    // is what it is, and the millisecond value is left alone underneath so the
+    // unit can be switched back.
     Rig<gSpeedlim> rig("100");
     rig.List("1440 ticks", 1);
+    CHECK(rig.obj.IntervalBeats() == 3.0);
     CHECK(rig.obj.Interval() == 100);
     rig.List("4nd", 1);
-    CHECK(rig.obj.Interval() == 100);
+    CHECK(rig.obj.IntervalBeats() == 1.5);
     rig.List("8nt", 1);
-    CHECK(rig.obj.Interval() == 100);
-    // And neither is anything else it cannot read.
+    CHECK(rig.obj.IntervalBeats() == doctest::Approx(1.0 / 3.0));
+
+    // "The number is stored as the minimum amount of time, in milliseconds" is
+    // a statement about the unit, so any plain number puts the object back on
+    // milliseconds — Max's model, and `.delay`'s (#705).
+    rig.Int(250, 1);
+    CHECK(rig.obj.IntervalBeats() == 0.0);
+    CHECK(rig.obj.Interval() == 250);
+    rig.List("8nt", 1);
+    rig.List("175", 1);
+    CHECK(rig.obj.IntervalBeats() == 0.0);
+    CHECK(rig.obj.Interval() == 175);
+
+    // And what it still cannot read leaves the interval where it was.
+    // bars.beats.units needs a meter no domain clock has.
     rig.List("1.1.0", 1);
     rig.List("wibble", 1);
-    CHECK(rig.obj.Interval() == 100);
+    CHECK(rig.obj.Interval() == 175);
+    CHECK(rig.obj.IntervalBeats() == 0.0);
     CHECK(rig.out.n() == 0);
+  }
+
+  TEST_CASE("ratelimit: a beat interval with no clock bound limits nothing (#728)") {
+    // `.delay` answers this dead end by arming nothing, and that is right for
+    // an object holding one bang: the loss is bounded. Here it would be a black
+    // hole — a window that never opens swallows every message from then on —
+    // so a beat time nothing can measure simply stops limiting. This is the
+    // case that forbids the other answer.
+    ClockedRig<gSpeedlim> speedlim("1000");
+    ClockedRig<gQlim> qlim("1000");
+    speedlim.List("4n", 1);
+    qlim.List("4n", 1);
+    for (int i = 1; i <= 4; i++) {
+      speedlim.Int(i);
+      qlim.Int(i);
+    }
+    CHECK(speedlim.out.ints() == std::vector<int>{1, 2, 3, 4});
+    CHECK(qlim.out.ints() == std::vector<int>{1, 2, 3, 4});
+    CHECK(speedlim.obj.Dropped() == 0);
+    CHECK(qlim.obj.Dropped() == 0);
+    CHECK(qlim.patcher.Scheduler()->PendingCount() == 0);
+  }
+
+  TEST_CASE("ratelimit: the attribute words are commands in the left inlet (#728)") {
+    // Max carries `threshold`, `quantize` and `usurp` as attribute messages, so
+    // they collide with data there in Max exactly as they do here. That is the
+    // price of putting them where Max puts them, and this case is the price
+    // written down: they configure the object and do not travel through it.
+    Rig<gQlim> rig;
+    rig.List("threshold 25");
+    CHECK(rig.obj.Threshold() == 25);
+    CHECK(rig.obj.ThresholdBeats() == 0.0);
+    rig.List("threshold 4nd");
+    CHECK(rig.obj.ThresholdBeats() == 1.5);
+    rig.List("threshold 1440 ticks");
+    CHECK(rig.obj.ThresholdBeats() == 3.0);
+    rig.List("threshold 60");
+    CHECK(rig.obj.ThresholdBeats() == 0.0);
+    CHECK(rig.obj.Threshold() == 60);
+    // A `threshold` followed by something that is not a time leaves it alone
+    // rather than clearing it by accident.
+    rig.List("threshold wibble");
+    CHECK(rig.obj.Threshold() == 60);
+
+    // The grid is a musical grid: a note value or a tick count, and 0 to clear
+    // it. A millisecond number is refused rather than read as some musical time
+    // it is not.
+    rig.List("quantize 8n");
+    CHECK(rig.obj.Quantize() == 0.5);
+    rig.List("quantize 100");
+    CHECK(rig.obj.Quantize() == 0.5);
+    rig.List("quantize 0");
+    CHECK(rig.obj.Quantize() == 0.0);
+
+    rig.List("usurp 0");
+    CHECK_FALSE(rig.obj.Usurp());
+    rig.List("usurp 1");
+    CHECK(rig.obj.Usurp());
+    rig.List("usurp");
+    CHECK(rig.obj.Usurp());
+
+    // Not one of them reached the outlet.
+    CHECK(rig.out.n() == 0);
+    // And a word that is not a command is still data, which is the half that
+    // stops this from being a silent black hole for text.
+    rig.List("wibble 3");
+    REQUIRE(rig.out.n() == 1);
+    CHECK(rig.out.events[0].text == "wibble 3");
+  }
+
+  TEST_CASE("ratelimit: 'usurp' is .qlim's word and .speedlim's data (#728)") {
+    // Max lists usurp on both objects, but it says what happens to a message
+    // that is *waiting* and .speedlim never has one — issue #508 gave it the
+    // drop policy. So the attribute lives on .qlim alone, and on .speedlim the
+    // word is just text passing through.
+    Rig<gSpeedlim> rig;
+    rig.List("usurp 0");
+    REQUIRE(rig.out.n() == 1);
+    CHECK(rig.out.events[0].kind == 'l');
+    CHECK(rig.out.events[0].text == "usurp 0");
+  }
+
+  TEST_CASE("ratelimit: 'clock' binds a domain clock and a bare 'clock' takes it away (#728)") {
+    // Max's setclock method, the shape `.delay` already has (#705). The name is
+    // bound wait-free through the patcher's bridge; whether the clock exists is
+    // discovered on the background pool, so a binding to a name nothing has
+    // created still reports itself here.
+    ClockedRig<gQlim> rig("100");
+    CHECK_FALSE(rig.obj.OnClock());
+    CHECK(std::string(rig.obj.ClockName()).empty());
+
+    rig.List("clock ratelimit.nowhere");
+    CHECK(rig.obj.OnClock());
+    CHECK(std::string(rig.obj.ClockName()) == "ratelimit.nowhere");
+
+    rig.List("clock");
+    CHECK_FALSE(rig.obj.OnClock());
+    CHECK(std::string(rig.obj.ClockName()).empty());
+
+    // A standalone object has no bridge to bind through, and says so silently
+    // rather than logging on what may be the audio thread.
+    Rig<gQlim> loose;
+    loose.List("clock ratelimit.nowhere");
+    CHECK_FALSE(loose.obj.OnClock());
+    CHECK(loose.out.n() == 0);
   }
 
   TEST_CASE("ratelimit: a standalone object passes everything (#508)") {
@@ -407,7 +568,7 @@ TEST_SUITE("patcher") {
     YSE::patcher src;
     src.create(2);
     REQUIRE(src.CreateObject(YSE::OBJ::G_SPEEDLIM, "420") != nullptr);
-    REQUIRE(src.CreateObject(YSE::OBJ::G_QLIM, "75") != nullptr);
+    REQUIRE(src.CreateObject(YSE::OBJ::G_QLIM, "75 0 20 0 1 0") != nullptr);
     const std::string json = src.DumpJSON();
     CHECK(json.find(".speedlim") != std::string::npos);
     CHECK(json.find(".qlim") != std::string::npos);
@@ -429,7 +590,9 @@ TEST_SUITE("patcher") {
         seen++;
       } else {
         CHECK(type == ".qlim");
-        CHECK(params == "75");
+        // Verbatim, attributes and all: the arguments a patch was saved with
+        // are the arguments it loads with (issue #728 added five more of them).
+        CHECK(params == "75 0 20 0 1 0");
         seen++;
       }
     }
@@ -692,6 +855,211 @@ TEST_SUITE("patcher") {
     for (std::uint64_t block = 0; block < messageScheduler::BlocksForMillis(100); ++block)
       p.Calculate(YSE::T_DSP);
     CHECK(out.ints() == std::vector<int>{1, 2});
+  }
+
+  // ─── Max's threshold: "only one message may pass" (#728) ────────────────────
+
+  TEST_CASE("ratelimit: a threshold caps the rate even when the interval does not (#728)") {
+    // Max: "time threshold under which only one message may pass." It is a
+    // second window measured from the same output, so it composes with the
+    // interval rather than replacing it — and with the interval at Max's
+    // default of 0, which limits nothing at all, the threshold is the only
+    // thing holding the rate down. An implementation that folded threshold into
+    // interval, or ignored it while the interval was 0, fails here.
+    ClockedRig<gSpeedlim> rig;
+    rig.List("threshold 100");
+    REQUIRE(rig.obj.Interval() == 0);
+    REQUIRE(rig.obj.Threshold() == 100);
+
+    rig.Int(1);
+    rig.Int(2);
+    rig.Int(3);
+    CHECK(rig.out.ints() == std::vector<int>{1});
+    CHECK(rig.obj.Dropped() == 2);
+
+    rig.Step(messageScheduler::BlocksForMillis(100));
+    rig.Int(4);
+    CHECK(rig.out.ints() == std::vector<int>{1, 4});
+  }
+
+  TEST_CASE("ratelimit: inside the threshold .qlim drops rather than holds (#728)") {
+    // The half that separates a threshold from a shorter interval: a message
+    // that lands inside it is not held either, on the object whose whole
+    // purpose is holding. Between the threshold and the interval the object is
+    // itself again.
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* qlim = p.CreateObject(YSE::OBJ::G_QLIM, "1000");
+    REQUIRE(qlim != nullptr);
+    qlim->SetListData(0, "threshold 200");
+
+    Recorder out;
+    YSE::pHandle outHandle(&out);
+    p.Connect(qlim, 0, &outHandle, 0);
+
+    qlim->SetIntData(0, 1); // the first message: straight through
+    qlim->SetIntData(0, 2); // inside the threshold: dropped, and not held
+    CHECK(out.ints() == std::vector<int>{1});
+    CHECK(p.Scheduler()->PendingCount() == 0);
+
+    for (std::uint64_t block = 0; block < messageScheduler::BlocksForMillis(200); ++block)
+      p.Calculate(YSE::T_DSP);
+
+    qlim->SetIntData(0, 3); // past the threshold, inside the interval: held
+    CHECK(out.ints() == std::vector<int>{1});
+    CHECK(p.Scheduler()->PendingCount() == 1);
+
+    for (std::uint64_t block = 0; block <= messageScheduler::BlocksForMillis(1000); ++block)
+      p.Calculate(YSE::T_DSP);
+    CHECK(out.ints() == std::vector<int>{1, 3});
+    CHECK(p.Scheduler()->PendingCount() == 0);
+  }
+
+  // ─── Max's usurp 0: the queue (#728) ────────────────────────────────────────
+
+  TEST_CASE("ratelimit: 'usurp 0' sends every message, one per window (#728)") {
+    // Max: "when usurp is disabled, all messages received will be sent out."
+    // The object stops being a replace-the-pending-value limiter and becomes a
+    // queue — a different and useful shape, and the one where the *order*
+    // matters. Note the pending count: however long the queue is it costs one
+    // slot of the patcher-wide scheduler, because the release re-arms itself
+    // rather than arming a deadline per message.
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* qlim = p.CreateObject(YSE::OBJ::G_QLIM, "100");
+    REQUIRE(qlim != nullptr);
+    qlim->SetListData(0, "usurp 0");
+
+    Recorder out;
+    YSE::pHandle outHandle(&out);
+    p.Connect(qlim, 0, &outHandle, 0);
+
+    const std::uint64_t window = messageScheduler::BlocksForMillis(100);
+    REQUIRE(window > 1);
+
+    for (int i = 1; i <= 4; i++)
+      qlim->SetIntData(0, i);
+    CHECK(out.ints() == std::vector<int>{1});
+    CHECK(p.Scheduler()->PendingCount() == 1);
+
+    for (int expected = 2; expected <= 4; expected++) {
+      for (std::uint64_t block = 0; block < window; ++block)
+        p.Calculate(YSE::T_DSP);
+      CAPTURE(expected);
+      CHECK((int)out.ints().size() == expected);
+      CHECK(out.ints().back() == expected);
+      // Still one slot, whatever is left in the queue.
+      CHECK(p.Scheduler()->PendingCount() == (expected < 4 ? 1u : 0u));
+    }
+
+    CHECK(out.ints() == std::vector<int>{1, 2, 3, 4});
+
+    // And it stays drained: the release stops re-arming once the queue is
+    // empty, rather than ticking on forever.
+    for (std::uint64_t block = 0; block < window * 3; ++block)
+      p.Calculate(YSE::T_DSP);
+    CHECK(out.ints() == std::vector<int>{1, 2, 3, 4});
+    CHECK(p.Scheduler()->PendingCount() == 0);
+  }
+
+  TEST_CASE("ratelimit: usurp on and usurp off answer the same burst differently (#728)") {
+    // **The usurp pair**, and the case that says which is which. Everything
+    // else about the queue passes for an implementation that quietly kept
+    // usurping; only feeding one burst to both settings and comparing what came
+    // out can tell them apart.
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* replacing = p.CreateObject(YSE::OBJ::G_QLIM, "100");
+    YSE::pHandle* queueing = p.CreateObject(YSE::OBJ::G_QLIM, "100");
+    REQUIRE(replacing != nullptr);
+    REQUIRE(queueing != nullptr);
+    queueing->SetListData(0, "usurp 0");
+
+    Recorder newest;
+    Recorder every;
+    YSE::pHandle newestHandle(&newest);
+    YSE::pHandle everyHandle(&every);
+    p.Connect(replacing, 0, &newestHandle, 0);
+    p.Connect(queueing, 0, &everyHandle, 0);
+
+    for (int i = 1; i <= 4; i++) {
+      replacing->SetIntData(0, i);
+      queueing->SetIntData(0, i);
+    }
+
+    for (std::uint64_t block = 0; block < messageScheduler::BlocksForMillis(100) * 4 + 4; ++block)
+      p.Calculate(YSE::T_DSP);
+
+    // Usurp on: the first and the last, the middle two overwritten.
+    CHECK(newest.ints() == std::vector<int>{1, 4});
+    // Usurp off: all of them, in order.
+    CHECK(every.ints() == std::vector<int>{1, 2, 3, 4});
+  }
+
+  TEST_CASE("ratelimit: a usurp 0 queue holds its messages as the kind they went in as (#728)") {
+    // The queued path carries the type across a deferral just as the single
+    // held slot does, and it has to keep the order while doing it.
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* qlim = p.CreateObject(YSE::OBJ::G_QLIM, "100");
+    REQUIRE(qlim != nullptr);
+    qlim->SetListData(0, "usurp 0");
+
+    Recorder out;
+    YSE::pHandle outHandle(&out);
+    p.Connect(qlim, 0, &outHandle, 0);
+
+    const std::uint64_t window = messageScheduler::BlocksForMillis(100);
+
+    qlim->SetIntData(0, 1); // passes: the first message
+    qlim->SetListData(0, "queued words here");
+    qlim->SetFloatData(0, 2.5f);
+    qlim->SetBang(0);
+
+    for (std::uint64_t block = 0; block < window * 3 + 3; ++block)
+      p.Calculate(YSE::T_DSP);
+
+    REQUIRE(out.n() == 4);
+    CHECK(out.events[0].kind == 'i');
+    CHECK(out.events[1].kind == 'l');
+    CHECK(out.events[1].text == "queued words here");
+    CHECK(out.events[2].kind == 'f');
+    CHECK(out.events[2].floatValue == doctest::Approx(2.5f));
+    CHECK(out.events[3].kind == 'b');
+  }
+
+  TEST_CASE("ratelimit: a full usurp 0 queue drops the newest and counts it (#728)") {
+    // The queue is bounded and pre-allocated, like every other store in the
+    // patcher. What it drops is the message that would not fit — the history
+    // already accepted is kept, because a queue that discarded its head would
+    // be usurp with extra steps.
+    ClockedRig<gQlim> rig("100000");
+    rig.List("usurp 0");
+    REQUIRE_FALSE(rig.obj.Usurp());
+
+    rig.Int(0); // the first message passes without needing a slot
+    REQUIRE(rig.out.ints() == std::vector<int>{0});
+
+    for (std::size_t i = 0; i < gQlim::CAPACITY; i++)
+      rig.Int((int)i + 1);
+    CHECK(rig.obj.Waiting() == gQlim::CAPACITY);
+    CHECK(rig.obj.Dropped() == 0);
+    // The whole queue rides on one pending scheduler message.
+    CHECK(rig.patcher.Scheduler()->PendingCount() == 1);
+
+    rig.Int(999);
+    CHECK(rig.obj.Waiting() == gQlim::CAPACITY);
+    CHECK(rig.obj.Dropped() == 1);
+  }
+
+  TEST_CASE("ratelimit: usurp on never queues more than one message (#728)") {
+    // The other half of the same claim: with usurp in its default state the
+    // extra slots are never touched, however long the burst.
+    ClockedRig<gQlim> rig("100000");
+    rig.Int(0);
+    for (int i = 1; i <= 20; i++)
+      rig.Int(i);
+    CHECK(rig.obj.Waiting() == 1);
+    CHECK(rig.obj.IsHolding());
+    // A replaced message is usurp working, not a refusal, so nothing is counted.
+    CHECK(rig.obj.Dropped() == 0);
+    CHECK(rig.patcher.Scheduler()->PendingCount() == 1);
   }
 
   // ─── the pair ───────────────────────────────────────────────────────────────

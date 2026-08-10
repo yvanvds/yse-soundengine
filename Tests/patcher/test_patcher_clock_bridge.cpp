@@ -319,6 +319,43 @@ namespace {
     }
   };
 
+  // A `.speedlim` or a `.qlim` living in a real patcher, with a recorder on its
+  // one outlet (issue #728). One rig for both, because the clock half of the
+  // two objects is the shared base and the cases differ only in which name they
+  // ask the registry for.
+  struct RateLimitRig {
+    patcherImplementation patcher{1, nullptr};
+    Recorder out;
+    YSE::pHandle outHandle{&out};
+    YSE::pHandle* obj = nullptr;
+
+    explicit RateLimitRig(const char* type, const std::string& args = "") {
+      obj = patcher.CreateObject(type, args);
+      REQUIRE(obj != nullptr);
+      patcher.Connect(obj, 0, &outHandle, 0);
+    }
+
+    // Max's attribute messages, which live in the left inlet where Max puts
+    // them: `clock`, `threshold`, `quantize`, `usurp`.
+    void Send(const std::string& message) {
+      obj->SetListData(0, message);
+    }
+    void UseClock(const std::string& name) {
+      Send("clock " + name);
+      patcher.Clocks()->WaitIdle();
+    }
+    // Max's time formats arrive on the right inlet, which is the interval.
+    void SetInterval(const std::string& time) {
+      obj->SetListData(1, time);
+    }
+    void Int(int value) {
+      obj->SetIntData(0, value);
+    }
+    void Tick() {
+      ::Tick(patcher);
+    }
+  };
+
   // A `.metro` living in a real patcher, with a recorder on its bang outlet
   // (issue #705). Every case here drives it on a *domain clock*, so no real
   // timerThread timer is ever started.
@@ -1915,6 +1952,238 @@ TEST_SUITE("clock") {
 
     rig.Toggle(0);
     mgr.destroyClock("metro.noalloc");
+    mgr.update(0.01f);
+  }
+
+  // ─── .speedlim / .qlim on a domain clock (issue #728) ───────────────────────
+  //
+  // The bridge's fifth and sixth consumers, and the first pair where a clock
+  // changes what *measuring* means rather than what waiting means: the window
+  // these two objects test a message against becomes a beat count, and Max's
+  // `quantize` grid becomes a line on the clock's own timeline. Neither can be
+  // shown with the block clock held still — the whole claim is that the
+  // millisecond value is not what decides — so they live here rather than in
+  // `test_patcher_ratelimit.cpp` with the rest.
+
+  TEST_CASE("ratelimit: a beat interval is a window on the bound clock (#728)") {
+    // Max's speedlim: "the time can be specified in milliseconds or using a
+    // tempo-relative interval." A quarter note at 120 BPM is two ticks of this
+    // rig, so every other value gets through and the millisecond interval —
+    // which is still 0, and would limit nothing — has no say in it.
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("ratelimit.window", kTempo));
+
+    RateLimitRig rig(YSE::OBJ::G_SPEEDLIM);
+    rig.UseClock("ratelimit.window");
+    rig.SetInterval("4n");
+
+    rig.Int(1); // the first message: no previous output to measure against
+    rig.Tick(); // 0.5 beat
+    rig.Int(2); // inside the window
+    rig.Tick(); // 1.0 beat — a quarter note has gone by
+    rig.Int(3);
+    rig.Tick(); // 1.5
+    rig.Int(4);
+    rig.Tick(); // 2.0
+    rig.Int(5);
+    CHECK(Joined(rig.out.seen) == "i1,i3,i5");
+
+    mgr.destroyClock("ratelimit.window");
+    mgr.update(0.01f);
+  }
+
+  TEST_CASE("ratelimit: a tempo change on the clock bends a beat window (#728)") {
+    // The whole reason a beat unit is worth having, and the thing a millisecond
+    // interval cannot do. Doubling the domain's tempo makes a tick a whole
+    // beat, so the one-beat window opens a tick sooner than it would have.
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("ratelimit.bend", kTempo));
+
+    RateLimitRig rig(YSE::OBJ::G_SPEEDLIM);
+    rig.UseClock("ratelimit.bend");
+    rig.SetInterval("4n");
+
+    rig.Int(1);
+    rig.Tick(); // 0.5 beat
+    rig.Int(2); // still inside the window
+    CHECK(Joined(rig.out.seen) == "i1");
+
+    mgr.setTempo("ratelimit.bend", kTempo * 2.f, 0.f);
+    rig.Tick(); // 1.5 beats: the window opened during this tick
+    rig.Int(3);
+    CHECK(Joined(rig.out.seen) == "i1,i3");
+
+    mgr.destroyClock("ratelimit.bend");
+    mgr.update(0.01f);
+  }
+
+  TEST_CASE("ratelimit: .qlim holds a message for a beat window and releases it (#728)") {
+    // The deferring half of the same claim. The wait is armed on the clock
+    // through ScheduleBangOnClock, so it comes due when the beat says so and
+    // not when a block count does.
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("ratelimit.hold", kTempo));
+
+    RateLimitRig rig(YSE::OBJ::G_QLIM);
+    rig.UseClock("ratelimit.hold");
+    rig.SetInterval("2n"); // two beats, which is four ticks
+
+    rig.Int(1); // passes
+    rig.Int(2); // held
+    CHECK(Joined(rig.out.seen) == "i1");
+    CHECK(rig.patcher.Scheduler()->PendingCount() == 1);
+
+    for (int i = 0; i < 3; i++)
+      rig.Tick(); // 1.5 beats
+    CHECK(Joined(rig.out.seen) == "i1");
+
+    rig.Tick(); // 2.0 beats
+    CHECK(Joined(rig.out.seen) == "i1,i2");
+    CHECK(rig.patcher.Scheduler()->PendingCount() == 0);
+
+    mgr.destroyClock("ratelimit.hold");
+    mgr.update(0.01f);
+  }
+
+  TEST_CASE("ratelimit: quantize lets .speedlim pass one message per grid line (#728)") {
+    // Max: "send output only on the specified time-boundary if appropriate."
+    // A limiter cannot manufacture an output at a line nothing arrived on, so
+    // what a grid promises on the dropping object is the other half: at most
+    // one output per line, and never one before the line the last output used.
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("ratelimit.grid", kTempo));
+
+    RateLimitRig rig(YSE::OBJ::G_SPEEDLIM);
+    rig.UseClock("ratelimit.grid");
+    rig.Send("quantize 4n"); // a one-beat grid; the interval stays at 0
+    REQUIRE(rig.patcher.Clocks()->Resolved(1));
+
+    rig.Int(1); // the first message: passes, on the line at beat 0
+    rig.Int(2); // same line, and the line is spoken for
+    rig.Tick(); // 0.5 beat — still inside the same line
+    rig.Int(3);
+    CHECK(Joined(rig.out.seen) == "i1");
+
+    rig.Tick(); // 1.0 beat: a new line
+    rig.Int(4);
+    rig.Int(5); // and its line is spoken for too
+    rig.Tick(); // 1.5
+    rig.Int(6);
+    CHECK(Joined(rig.out.seen) == "i1,i4");
+
+    rig.Tick(); // 2.0: the third line
+    rig.Int(7);
+    CHECK(Joined(rig.out.seen) == "i1,i4,i7");
+
+    mgr.destroyClock("ratelimit.grid");
+    mgr.update(0.01f);
+  }
+
+  TEST_CASE("ratelimit: quantize lands a .qlim release on the grid line (#728)") {
+    // The deferring half, and the one Max's wording is really about: "this is
+    // achieved by making internal adjustments to the times used for sending
+    // output." The millisecond interval here is far shorter than a beat, so
+    // without a grid the held message would come back almost at once; with one
+    // it waits for the line.
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("ratelimit.snap", kTempo));
+
+    RateLimitRig rig(YSE::OBJ::G_QLIM, "5");
+    rig.UseClock("ratelimit.snap");
+    rig.Send("quantize 4n");
+
+    rig.Int(1); // passes, on the line at beat 0
+    rig.Int(2); // 5 ms is up almost immediately, but the line is not
+    CHECK(rig.patcher.Scheduler()->PendingCount() == 1);
+
+    rig.Tick(); // 0.5 beat — well past 5 ms, and nothing has come out
+    CHECK(Joined(rig.out.seen) == "i1");
+
+    rig.Tick(); // 1.0 beat: the next line
+    CHECK(Joined(rig.out.seen) == "i1,i2");
+    CHECK(rig.patcher.Scheduler()->PendingCount() == 0);
+
+    mgr.destroyClock("ratelimit.snap");
+    mgr.update(0.01f);
+  }
+
+  TEST_CASE("ratelimit: a beat threshold is measured on the clock too (#728)") {
+    // Max's "time threshold under which only one message may pass", in his
+    // tempo-relative spelling. Nothing is held inside it, on the object whose
+    // whole purpose is holding — so the scheduler stays empty until the
+    // threshold is behind us.
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("ratelimit.thresh", kTempo));
+
+    RateLimitRig rig(YSE::OBJ::G_QLIM, "100000");
+    rig.UseClock("ratelimit.thresh");
+    rig.Send("threshold 4n"); // one beat, which is two ticks
+
+    rig.Int(1); // passes
+    rig.Int(2); // inside the threshold: dropped, not held
+    rig.Tick(); // 0.5 beat
+    rig.Int(3); // still inside it
+    CHECK(Joined(rig.out.seen) == "i1");
+    CHECK(rig.patcher.Scheduler()->PendingCount() == 0);
+
+    rig.Tick(); // 1.0 beat: past the threshold, still far inside the interval
+    rig.Int(4);
+    CHECK(Joined(rig.out.seen) == "i1");
+    CHECK(rig.patcher.Scheduler()->PendingCount() == 1);
+
+    mgr.destroyClock("ratelimit.thresh");
+    mgr.update(0.01f);
+  }
+
+  TEST_CASE("ratelimit: a 'clock' message and a beat window allocate nothing (#728)") {
+    // Binding may run on the audio callback, and so may the window test —
+    // reading a beat and a tempo through the bridge is two acquire loads each,
+    // and the arithmetic on top of them touches no memory the object did not
+    // already own.
+    if (!TestHelpers::probeCountsAllocations()) return;
+    REQUIRE(TestHelpers::probeSeesStringAllocations());
+
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("ratelimit.noalloc", kTempo));
+
+    RateLimitRig rig(YSE::OBJ::G_QLIM, "100000");
+    const std::string bind = "clock ratelimit.noalloc";
+    const std::string unbind = "clock";
+    const std::string grid = "quantize 4n";
+    const std::string thresholdOff = "threshold 0";
+    const std::string usurpOff = "usurp 0";
+    const std::string note = "4n";
+    {
+      TestHelpers::ProbeScope probe;
+      rig.obj->SetListData(0, bind);
+      rig.obj->SetListData(0, unbind);
+      rig.obj->SetListData(0, bind);
+      rig.obj->SetListData(0, grid);
+      rig.obj->SetListData(0, thresholdOff);
+      rig.obj->SetListData(0, usurpOff);
+      rig.obj->SetListData(1, note);
+      CHECK(TestHelpers::g_alloc_count.load() == 0);
+    }
+    rig.patcher.Clocks()->WaitIdle();
+    REQUIRE(rig.patcher.Clocks()->BoundCount() == 1);
+
+    // The first value goes out, and an emit runs the recorder, which allocates
+    // — so it happens outside the probe. Everything after it is queued on a
+    // beat deadline against a quantize grid, which is the path under test.
+    rig.Int(0);
+    REQUIRE(rig.out.seen.size() == 1);
+    {
+      TestHelpers::ProbeScope probe;
+      for (int i = 1; i <= 8; i++)
+        rig.obj->SetIntData(0, i);
+      CHECK(TestHelpers::g_alloc_count.load() == 0);
+    }
+    // The probed messages really did something: eight of them queued behind
+    // the one that went out, all on a single scheduler slot.
+    CHECK(rig.out.seen.size() == 1);
+    CHECK(rig.patcher.Scheduler()->PendingCount() == 1);
+
+    mgr.destroyClock("ratelimit.noalloc");
     mgr.update(0.01f);
   }
 
