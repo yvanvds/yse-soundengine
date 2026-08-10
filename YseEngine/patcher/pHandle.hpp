@@ -70,24 +70,48 @@ namespace YSE {
     /** @brief Original creation argument string. */
     std::string GetParams();
 
-    /** @brief Storage ID, unique within the owning patcher.
+    /** @brief Storage ID, unique among the owning patcher's live objects.
      *
-     *  Assigned by the patcher in creation order, starting at 0, and stable for
-     *  the object's lifetime. This is the number ``patcher::DumpJSON`` writes
-     *  for the object and that ``GetConnectionTarget`` reports for edges
-     *  pointing at it. IDs are *not* unique across patchers — two patchers each
-     *  number their own objects from 0 (issue #730) — so use
+     *  Assigned by the patcher when the object is created and stable for the
+     *  object's lifetime. This is the number ``patcher::DumpJSON`` writes for
+     *  the object and that ``GetConnectionTarget`` reports for edges pointing
+     *  at it. IDs are *not* unique across patchers — two patchers each number
+     *  their own objects from 0 (issue #730) — so use
      *  ``patcher::GetHandleFromID`` on the patcher the object belongs to.
+     *
+     *  IDs are kept dense: the patcher issues the smallest number no live
+     *  object holds, so a deleted object's ID goes to the next object created
+     *  and a long editing session does not push a small patch's numbering up
+     *  (issue #733). The consequence for a caller is that an ID names an object
+     *  only while that object is alive — an ID cached across a delete may
+     *  resolve to the object that inherited the number rather than to nothing.
+     *  Hold the ``pHandle*`` for a lasting reference; use the ID for storage
+     *  and for talking about a patch.
      */
     unsigned int GetID();
 
-    /** @brief Number of connections leaving outlet ``outlet``. */
+    /** @brief Number of connections leaving outlet ``outlet``.
+     *
+     *  0 when the object has no such outlet — ``SetParams`` can shrink an
+     *  object's outlet count, so an outlet number cached across a re-parse may
+     *  no longer name anything (issue #737). Compare against ``GetOutputs()``
+     *  to tell an absent outlet from an unconnected one.
+     */
     unsigned int GetConnections(unsigned int outlet);
 
-    /** @brief ID of the target object of one connection from outlet ``outlet``. */
+    /** @brief ID of the target object of one connection from outlet ``outlet``.
+     *
+     *  ``UINT_MAX`` when there is no such outlet or no such connection on it.
+     *  Not 0: IDs start at 0 (issue #730), so 0 is a real target.
+     */
     unsigned int GetConnectionTarget(unsigned int outlet, unsigned int connection);
 
-    /** @brief Inlet on the target that this connection reaches. */
+    /** @brief Inlet on the target that this connection reaches.
+     *
+     *  ``UINT_MAX`` (``pObject::kNoInletIndex``) when there is no such outlet
+     *  or no such connection on it. Not 0: inlet 0 is the leftmost inlet and
+     *  the one most edges arrive at (issue #736).
+     */
     unsigned int GetConnectionTargetInlet(unsigned int outlet, unsigned int connection);
 
     /** @brief Current GUI display value for objects that have one (sliders, toggles, ...). */

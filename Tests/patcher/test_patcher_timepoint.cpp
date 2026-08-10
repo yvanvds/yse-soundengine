@@ -57,6 +57,7 @@
 namespace {
 
   using TestHelpers::Wire;
+  using YSE::PATCHER::clockBridge;
   using YSE::PATCHER::gTimepoint;
   using YSE::PATCHER::patcherImplementation;
 
@@ -447,11 +448,19 @@ TEST_SUITE("clock") {
     CHECK_FALSE(mgr.clockExists("tp.never"));
 
     // The clock appears — stopped, which is how `.transport` makes one — and the
-    // object starts watching. clockBridge::Poll retries an unresolved binding
-    // every RESOLVE_INTERVAL_BLOCKS blocks.
+    // object starts watching. Calculate's poll of the bridge retries an
+    // unresolved binding only every RESOLVE_INTERVAL_BLOCKS blocks, so this many
+    // ticks is what it takes for the retry to come round. The join after it is
+    // only for determinism — the resolve job it waits on is the one Calculate
+    // itself armed. Ticks alone cannot stand in for it: the lookup runs on the
+    // background pool, and this loop is synchronous with no wall-clock wait in
+    // it, so a fixed budget of blocks bounds nothing about when a pool thread
+    // gets scheduled (issue #740). The clock is created at tempo 0, so no
+    // number of ticks moves its beat position while the wait plays out.
     REQUIRE(mgr.createClock("tp.never", 0.f));
-    for (int i = 0; i < 400 && !rig.patcher.Clocks()->Resolved(1); i++)
+    for (std::uint64_t i = 0; i < clockBridge::RESOLVE_INTERVAL_BLOCKS + 2; i++)
       rig.Tick();
+    rig.patcher.Clocks()->WaitIdle();
     REQUIRE(rig.patcher.Clocks()->Resolved(1));
     rig.Tick(); // the baseline probe comes back
     CHECK(rig.out.bangs == 0);

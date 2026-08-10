@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdint>
 #include <vector>
 #include <string>
 #include <map>
@@ -114,6 +115,12 @@ namespace YSE {
       // the storage ID (DumpJSON references) and the GUI properties. Pin
       // layout, params, and DSP state are deliberately not copied — the
       // replacement was just built from the new param string.
+      //
+      // The instance tag is deliberately not copied either, and cannot be: a
+      // #234 replacement is a *new instance* that inherits a storage slot, not
+      // a continuation of the old object, and a message armed on the old one
+      // must not be delivered to it (issue #733). `instanceTag_` being const is
+      // what makes that unbreakable rather than merely intended.
       void CopyStorageIdentity(const pObject& from) {
         ID = from.ID;
         guiProperties = from.guiProperties;
@@ -144,6 +151,25 @@ namespace YSE {
       OUT_TYPE GetOutputType(unsigned int output) const;
       inlet* GetInlet(int number);
       outlet* GetOutlet(int number);
+
+      // Edge introspection. Control thread only — never called from the audio
+      // callback, which walks the pinned GraphState instead.
+      //
+      // All three take an outlet number from outside and range-check it, the
+      // way GetOutputType does: an object's outlet count changes under a
+      // SetParams that re-parses its arguments, so a caller holding an outlet
+      // number from before the re-parse can hand back one that no longer
+      // exists, and outputs[] is a vector (issue #737).
+      //
+      // A query that cannot be answered — outlet past the object's outlet
+      // count, or connection past that outlet's edge count — reports:
+      //   GetConnections           0, the number of edges a nonexistent
+      //                            outlet has.
+      //   GetConnectionTarget      kNoObjectID. Not 0: object IDs start at 0
+      //                            (issue #730) so 0 is a real target.
+      //   GetConnectionTargetInlet kNoInletIndex. Not 0 either: 0 is the
+      //                            leftmost inlet and the one most edges
+      //                            arrive at (issue #736).
       unsigned int GetConnections(unsigned int outlet);
       unsigned int GetConnectionTarget(unsigned int outlet, unsigned int connection);
       unsigned int GetConnectionTargetInlet(unsigned int outlet, unsigned int connection);
@@ -164,18 +190,26 @@ namespace YSE {
       // Storage ID — the number this object is written as by DumpJson, and the
       // number every outlet pointing *at* it writes as its connection target.
       //
-      // Handed out by the owning patcher from a counter of its own, in creation
-      // order, starting at 0 (issue #730). It used to come from a process-wide
-      // counter, which made a saved patch's IDs a record of how many patcher
-      // objects the process had already built rather than a property of the
-      // patch. Per-patcher, the same patch built the same way always serialises
-      // to the same bytes.
+      // Handed out by the owning patcher (issue #730). It used to come from a
+      // process-wide counter, which made a saved patch's IDs a record of how
+      // many patcher objects the process had already built rather than a
+      // property of the patch. Per-patcher, the same patch built the same way
+      // always serialises to the same bytes.
       //
-      // Unique within one patcher for that patcher's whole lifetime: the
-      // counter only ever advances (see patcherImplementation::nextStorageId_),
-      // because the ID doubles as the impersonation guard the message and file
-      // schedulers use to tell a live target from a recycled allocation at the
-      // same address.
+      // Unique among the patcher's *live* objects, and no more than that: the
+      // patcher hands out the smallest ID no live object holds
+      // (patcherImplementation::ClaimStorageID), so a deleted object's number
+      // goes to the next object created and the numbering stays as small as the
+      // patch is (issue #733). It carried a second job until #733 — the
+      // impersonation guard the message and file schedulers use to tell a live
+      // target from a recycled allocation at the same address — and could not
+      // be reused while it did. That job now belongs to the instance tag below,
+      // which is why this one is free to shrink.
+      //
+      // The flip side of reuse: an ID names an object only for as long as that
+      // object lives. Code holding an ID across a delete (GetHandleFromID, the
+      // C ABI's yse_patcher_get_handle_from_id) can be handed the object that
+      // inherited the number rather than nothing at all.
       //
       // kNoStorageID is what an object outside a patcher carries — a standalone
       // object in a unit-test rig, or the patcher itself. Such an object is
@@ -183,6 +217,38 @@ namespace YSE {
       // is only ever observed through GetID() by code that built the object
       // itself. GetID() returns it as UINT_MAX, which matches no real ID.
       static constexpr int kNoStorageID = -1;
+
+      // kNoStorageID as GetID() hands it back: the ID that belongs to no
+      // object. Also what GetConnectionTarget answers when it cannot name a
+      // target, and the value the C ABI publishes as YSE_PATCHER_ID_NONE
+      // (issue #732) — yse_patcher.cpp static_asserts the two are the same
+      // number so they cannot drift apart.
+      //
+      // That static_assert pins the *value*; what keeps the value meaning "no
+      // object" is that no real ID ever reaches it. Storage IDs are allocated
+      // as the smallest number no live object holds, so the largest one a
+      // patcher can issue is its live object count — bounded by how many
+      // objects fit in memory, which is nowhere near 2^32 (issue #733). Under
+      // the pre-#733 monotonic counter the same guarantee rested on the counter
+      // never being advanced 2^32 times; reuse makes it structural instead.
+      static constexpr unsigned int kNoObjectID = static_cast<unsigned int>(kNoStorageID);
+
+      // The inlet index that names no inlet: what GetConnectionTargetInlet
+      // answers when it cannot name one. Not 0 — inlet 0 is the leftmost inlet
+      // and the one most edges in a patch arrive at, so 0 as a failure marker
+      // is indistinguishable from the commonest real answer (issue #736).
+      //
+      // Deliberately a separate name from kNoObjectID even though the two hold
+      // the same number: an inlet index and an object ID are different
+      // quantities, and a comparison written against the wrong one should read
+      // wrong. They agree on UINT_MAX because it is the one value unreachable
+      // in either domain — an object would need 2^32 inlets — and because a
+      // binding that stores either in a signed 32-bit integer then sees the
+      // same -1. The C ABI publishes this as YSE_PATCHER_INLET_NONE, which
+      // yse_patcher.cpp static_asserts against this constant so the two cannot
+      // drift apart.
+      static constexpr unsigned int kNoInletIndex = static_cast<unsigned int>(-1);
+
       inline unsigned int GetID() {
         return ID;
       }
@@ -190,6 +256,38 @@ namespace YSE {
       // the object joins it, before the object is published to any GraphState.
       inline void SetStorageID(int id) {
         ID = id;
+      }
+
+      // Instance tag — the identity half of what the storage ID used to carry
+      // alone (issue #733).
+      //
+      // messageScheduler and fileScheduler hold a raw pObject* armed possibly
+      // long before it is due, far outside the two-block grace the #227
+      // reclaimer proves for in-flight snapshots, so the pointer is never
+      // trusted by itself: a delivery is accepted only when the pinned
+      // GraphState holds an object whose pointer *and* instance tag both match
+      // what was armed. The tag is what stops a fresh object allocated at a
+      // reclaimed address from impersonating the dead one it replaced.
+      //
+      // Three properties make it fit for that and unfit for anything else:
+      //
+      //  - It is stamped in the pObject constructor from a process-wide atomic
+      //    counter, so every object ever built in this process has a different
+      //    one — including objects that never join a patcher, which is what
+      //    lets a standalone test rig exercise the guard honestly.
+      //  - It is never reused and never reset. 64 bits at one object per
+      //    nanosecond is 584 years, so "monotonic forever" is not an
+      //    approximation.
+      //  - It is never serialised, never copied, and never exposed past the
+      //    engine. That is why it may grow without bound where the storage ID
+      //    may not: nothing outside the two schedulers ever reads it, so a
+      //    large number costs nothing and a dump does not depend on it.
+      //
+      // kNoInstanceTag (0) is issued to no object; it is the initial value of a
+      // scheduler slot's armed tag, so an unarmed slot matches nothing.
+      static constexpr std::uint64_t kNoInstanceTag = 0;
+      inline std::uint64_t InstanceTag() const {
+        return instanceTag_;
       }
       void DumpJson(nlohmann::json::value_type& json);
 
@@ -240,6 +338,12 @@ namespace YSE {
 
       // for storage — see GetID() / kNoStorageID above
       int ID = kNoStorageID;
+
+      // Scheduler identity — see InstanceTag() above. const on purpose: it is
+      // the one thing about an object no live edit may transfer, and
+      // CopyStorageIdentity would otherwise be one line away from handing a
+      // #234 replacement its predecessor's pending messages.
+      const std::uint64_t instanceTag_;
 
       // for incoming data
       std::string dataName;

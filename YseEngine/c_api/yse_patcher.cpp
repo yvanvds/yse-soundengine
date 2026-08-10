@@ -406,20 +406,46 @@ YSE_C_API int yse_phandle_is_dsp_input(YsePHandle* h, unsigned int inlet) {
 YSE_C_API YseOutType yse_phandle_output_data_type(YsePHandle* h, unsigned int pin) {
   return h ? static_cast<YseOutType>(to_cpp(h)->OutputDataType(pin)) : YSE_OUT_INVALID;
 }
+// Object IDs are per-patcher and start at 0 (issue #730), so 0 is the first
+// object in every patch and cannot also mean "no object" — these two answer
+// YSE_PATCHER_ID_NONE instead of the header's blanket 0-on-NULL (issue #732).
 YSE_C_API unsigned int yse_phandle_get_id(YsePHandle* h) {
-  return h ? to_cpp(h)->GetID() : 0;
+  return h ? to_cpp(h)->GetID() : YSE_PATCHER_ID_NONE;
 }
 
 YSE_C_API unsigned int yse_phandle_get_connections(YsePHandle* h, unsigned int outlet) {
   return h ? to_cpp(h)->GetConnections(outlet) : 0;
 }
+// The sentinel this file hands out is the engine's own, so a caller can compare
+// yse_phandle_get_id against yse_phandle_get_connection_target without either
+// side translating. If the engine ever changes its mind, this stops the build
+// rather than letting the ABI's published value drift away from it.
+static_assert(YSE_PATCHER_ID_NONE == YSE::PATCHER::pObject::kNoObjectID,
+              "YSE_PATCHER_ID_NONE must be pObject::kNoObjectID");
 YSE_C_API unsigned int yse_phandle_get_connection_target(YsePHandle* h, unsigned int outlet,
                                                          unsigned int connection) {
-  return h ? to_cpp(h)->GetConnectionTarget(outlet, connection) : 0;
+  // #732 added the two range checks here because the engine indexed
+  // `outputs[outlet]` unguarded and asking it about a nonexistent outlet was
+  // itself an out-of-bounds read. #737 moved that guard into the engine, where
+  // every caller gets it, and made it answer kNoObjectID — the same number as
+  // YSE_PATCHER_ID_NONE — for both an absent outlet and an absent connection.
+  // Repeating the checks here would only restate what the callee now
+  // guarantees, in a second place that can fall out of step with it.
+  return h ? to_cpp(h)->GetConnectionTarget(outlet, connection) : YSE_PATCHER_ID_NONE;
 }
+// Same discipline as YSE_PATCHER_ID_NONE above, for the other domain: the
+// number the ABI publishes is the engine's own, so a drift stops the build.
+// The two sentinels are the same number by choice, not by accident — see
+// pObject::kNoInletIndex for why they agree and still get separate names.
+static_assert(YSE_PATCHER_INLET_NONE == YSE::PATCHER::pObject::kNoInletIndex,
+              "YSE_PATCHER_INLET_NONE must be pObject::kNoInletIndex");
 YSE_C_API unsigned int yse_phandle_get_connection_target_inlet(YsePHandle* h, unsigned int outlet,
                                                                unsigned int connection) {
-  return h ? to_cpp(h)->GetConnectionTargetInlet(outlet, connection) : 0;
+  // The engine answers kNoInletIndex for an absent outlet and for an absent
+  // connection (issue #736), so the only case left for the wrapper is the NULL
+  // handle — no bounds check here, for the same reason
+  // yse_phandle_get_connection_target carries none.
+  return h ? to_cpp(h)->GetConnectionTargetInlet(outlet, connection) : YSE_PATCHER_INLET_NONE;
 }
 
 // ─── registry metadata ───────────────────────────────────────────────

@@ -134,6 +134,93 @@ TEST_SUITE("capilowcov") {
     yse_patcher_destroy(p);
   }
 
+  TEST_CASE("c-api phandle: object-ID queries answer NONE, not 0, when there is no object") {
+    // Issue #732. Object IDs are per-patcher and start at 0 since #730, so the
+    // first object in every patch owns ID 0 — the value the blanket
+    // "0 on NULL" convention used to hand back for a NULL handle and for an
+    // out-of-range query. Both now answer YSE_PATCHER_ID_NONE, so a binding can
+    // tell "object 0" from "no object".
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    // mul is created first, so it is the object that owns ID 0 and the edge
+    // below is an ordinary connection whose target ID is 0.
+    YsePHandle* mul = yse_patcher_create_object(p, kMultiply, "2");
+    YsePHandle* sine = yse_patcher_create_object(p, kSine, nullptr);
+    REQUIRE(mul != nullptr);
+    REQUIRE(sine != nullptr);
+    REQUIRE(yse_phandle_get_id(mul) == 0u);
+
+    CHECK(yse_phandle_get_id(nullptr) == YSE_PATCHER_ID_NONE);
+    CHECK(yse_phandle_get_id(mul) != yse_phandle_get_id(nullptr));
+    // The sentinel is never a real object, so looking it up finds nothing.
+    CHECK(yse_patcher_get_handle_from_id(p, YSE_PATCHER_ID_NONE) == nullptr);
+
+    yse_patcher_connect(p, sine, 0, mul, 0);
+    REQUIRE(yse_phandle_get_connections(sine, 0) == 1u);
+
+    // A genuine edge pointing at object 0 still reports 0 ...
+    CHECK(yse_phandle_get_connection_target(sine, 0, 0) == 0u);
+    // ... while every query that cannot name an object says so.
+    CHECK(yse_phandle_get_connection_target(nullptr, 0, 0) == YSE_PATCHER_ID_NONE);
+    CHECK(yse_phandle_get_connection_target(sine, 0, 1) == YSE_PATCHER_ID_NONE);
+    CHECK(yse_phandle_get_connection_target(sine, 99, 0) == YSE_PATCHER_ID_NONE);
+
+    // Issue #737: the other two edge queries pass the caller's outlet number
+    // straight to the engine, which used to index outputs[] with it unchecked.
+    // They now answer instead of reading past the end.
+    CHECK(yse_phandle_get_connections(sine, 99) == 0u);
+    CHECK(yse_phandle_get_connection_target_inlet(sine, 99, 0) == YSE_PATCHER_INLET_NONE);
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE(
+      "c-api phandle: an inlet query answers INLET_NONE, not inlet 0, when there is no edge") {
+    // Issue #736, the inlet-side twin of #732. Inlet 0 is the leftmost inlet
+    // and the one most edges in a patch arrive at, so the blanket "0 on NULL"
+    // convention made the commonest real answer indistinguishable from every
+    // kind of failure. YSE_PATCHER_INLET_NONE is now the failure answer.
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    YsePHandle* sine = yse_patcher_create_object(p, kSine, nullptr);
+    YsePHandle* mul = yse_patcher_create_object(p, kMultiply, "2");
+    REQUIRE(sine != nullptr);
+    REQUIRE(mul != nullptr);
+    REQUIRE(yse_phandle_get_inputs(mul) == 2);
+
+    // Two edges off the same outlet, landing on inlet 0 and inlet 1.
+    yse_patcher_connect(p, sine, 0, mul, 0);
+    yse_patcher_connect(p, sine, 0, mul, 1);
+    REQUIRE(yse_phandle_get_connections(sine, 0) == 2u);
+
+    // A genuine edge into the leftmost inlet still reports 0 ...
+    const unsigned int inlet0 = yse_phandle_get_connection_target_inlet(sine, 0, 0);
+    CHECK(inlet0 == 0u);
+    CHECK(yse_phandle_get_connection_target_inlet(sine, 0, 1) == 1u);
+
+    // ... while every query that cannot name an inlet says so, and says
+    // something the real inlet 0 above can never be. That distinctness is the
+    // issue: before the fix all four of these were 0.
+    CHECK(yse_phandle_get_connection_target_inlet(nullptr, 0, 0) == YSE_PATCHER_INLET_NONE);
+    CHECK(yse_phandle_get_connection_target_inlet(sine, 0, 2) == YSE_PATCHER_INLET_NONE);
+    CHECK(yse_phandle_get_connection_target_inlet(sine, 99, 0) == YSE_PATCHER_INLET_NONE);
+    CHECK(yse_phandle_get_connection_target_inlet(nullptr, 0, 0) != inlet0);
+    CHECK(yse_phandle_get_connection_target_inlet(sine, 0, 2) != inlet0);
+    CHECK(yse_phandle_get_connection_target_inlet(sine, 99, 0) != inlet0);
+
+    // The inlet sentinel carries the ID sentinel's number on purpose — it is
+    // the one value neither an inlet index nor an object ID can reach — but it
+    // is published under a name of its own so a binding does not compare an
+    // inlet against an object-ID constant.
+    CHECK(YSE_PATCHER_INLET_NONE == YSE_PATCHER_ID_NONE);
+
+    yse_patcher_destroy(p);
+  }
+
   TEST_CASE("c-api patcher: is_valid_object mirrors the registry") {
     CHECK(yse_patcher_is_valid_object(kSine) == 1);
     CHECK(yse_patcher_is_valid_object(kMultiply) == 1);
@@ -421,10 +508,13 @@ TEST_SUITE("capilowcov") {
     CHECK(yse_phandle_get_outputs(nullptr) == 0);
     CHECK(yse_phandle_is_dsp_input(nullptr, 0) == 0);
     CHECK(yse_phandle_output_data_type(nullptr, 0) == YSE_OUT_INVALID);
-    CHECK(yse_phandle_get_id(nullptr) == 0u);
+    // The two object-ID queries opt out of the 0-on-NULL convention — 0 is a
+    // real object's ID (issue #732) — and so does the inlet query, because 0
+    // is a real inlet (issue #736).
+    CHECK(yse_phandle_get_id(nullptr) == YSE_PATCHER_ID_NONE);
     CHECK(yse_phandle_get_connections(nullptr, 0) == 0u);
-    CHECK(yse_phandle_get_connection_target(nullptr, 0, 0) == 0u);
-    CHECK(yse_phandle_get_connection_target_inlet(nullptr, 0, 0) == 0u);
+    CHECK(yse_phandle_get_connection_target(nullptr, 0, 0) == YSE_PATCHER_ID_NONE);
+    CHECK(yse_phandle_get_connection_target_inlet(nullptr, 0, 0) == YSE_PATCHER_INLET_NONE);
 
     yse_patcher_destroy(p);
   }

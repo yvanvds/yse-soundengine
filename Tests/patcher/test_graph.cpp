@@ -7,6 +7,7 @@
 #include "patcher/patcher.hpp"
 #include "patcher/pHandle.hpp"
 #include "patcher/pObjectList.hpp"
+#include <climits>
 #include <string>
 #include <vector>
 
@@ -158,6 +159,79 @@ TEST_SUITE("patcher") {
     p.Connect(sine, 0, add, 0);
     CHECK(sine->GetConnectionTarget(0, 0) == add->GetID());
     CHECK(sine->GetConnectionTargetInlet(0, 0) == 0u);
+  }
+
+  // Regression for issue #737. GetOutputType range-checked its pin; its three
+  // edge-introspection neighbours indexed outputs[] with the caller's outlet
+  // number and read past the end of the vector for anything out of range. On
+  // Windows/clang the bad read handed back 0 instead of crashing, which is why
+  // it went unnoticed; under ASan it is a heap-buffer-overflow, and this case
+  // lives in TEST_SUITE("patcher") so the widened ASan gate (#727) runs it.
+  TEST_CASE(
+      "patcher: edge queries about a nonexistent outlet are answered, not read (issue #737)") {
+    YSE::patcher p;
+    p.create(2);
+    // add is created first, so it owns storage ID 0 and the edge below is an
+    // ordinary connection whose target ID is 0 — the value that must stay
+    // distinguishable from "no target" (issue #732).
+    YSE::pHandle* add = p.CreateObject(YSE::OBJ::D_ADD);
+    YSE::pHandle* sine = p.CreateObject(YSE::OBJ::D_SINE);
+    REQUIRE(add != nullptr);
+    REQUIRE(sine != nullptr);
+    REQUIRE(add->GetID() == 0u);
+    REQUIRE(sine->GetOutputs() == 1);
+
+    p.Connect(sine, 0, add, 0);
+
+    // A sine has exactly one outlet; 1 and 99 are both past the end.
+    CHECK(sine->GetConnections(1) == 0u);
+    CHECK(sine->GetConnections(99) == 0u);
+    CHECK(sine->GetConnectionTarget(99, 0) == UINT_MAX);
+    CHECK(sine->GetConnectionTargetInlet(99, 0) == UINT_MAX);
+
+    // The real outlet is unaffected, and a genuine edge to object 0 still
+    // reports 0 rather than the no-target answer.
+    CHECK(sine->GetConnections(0) == 1u);
+    CHECK(sine->GetConnectionTarget(0, 0) == 0u);
+    // A connection index past the end of a real outlet's edge list answers the
+    // same way an absent outlet does — one function, one unanswerable value.
+    CHECK(sine->GetConnectionTarget(0, 1) == UINT_MAX);
+    CHECK(sine->GetConnectionTargetInlet(0, 1) == UINT_MAX);
+  }
+
+  // Regression for issue #736. GetConnectionTargetInlet answered 0 both for an
+  // edge landing on the target's leftmost inlet and for a query it could not
+  // answer at all, so the commonest real answer in any patch was also the
+  // failure marker. It now reports pObject::kNoInletIndex when there is no
+  // edge, which no real inlet can be.
+  TEST_CASE("patcher: an unanswerable inlet query is distinct from inlet 0 (issue #736)") {
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* sine = p.CreateObject(YSE::OBJ::D_SINE);
+    YSE::pHandle* add = p.CreateObject(YSE::OBJ::D_ADD);
+    REQUIRE(sine != nullptr);
+    REQUIRE(add != nullptr);
+    REQUIRE(sine->GetOutputs() == 1);
+
+    // Two edges from the same outlet: one to inlet 0, one to inlet 1. Inlet 0
+    // is the case the sentinel has to stay distinct from.
+    p.Connect(sine, 0, add, 0);
+    p.Connect(sine, 0, add, 1);
+    REQUIRE(sine->GetConnections(0) == 2u);
+
+    const unsigned int inlet0 = sine->GetConnectionTargetInlet(0, 0);
+    const unsigned int inlet1 = sine->GetConnectionTargetInlet(0, 1);
+    CHECK(inlet0 == 0u);
+    CHECK(inlet1 == 1u);
+
+    // Both unanswerable queries must differ from the real inlet 0 above —
+    // that distinctness is the whole point of the issue.
+    const unsigned int noOutlet = sine->GetConnectionTargetInlet(99, 0);
+    const unsigned int noEdge = sine->GetConnectionTargetInlet(0, 2);
+    CHECK(noOutlet == UINT_MAX); // pObject::kNoInletIndex
+    CHECK(noEdge == UINT_MAX);
+    CHECK(noOutlet != inlet0);
+    CHECK(noEdge != inlet0);
   }
 
   // ─── Handle lookup ────────────────────────────────────────────────────────────
@@ -333,6 +407,147 @@ TEST_SUITE("patcher") {
     const std::string resaved = p.DumpJSON();
     CHECK(resaved.find("35777") == std::string::npos);
     CHECK(resaved.find("35798") == std::string::npos);
+  }
+
+  // ─── Storage ID reuse (issue #733) ───────────────────────────────────────────
+
+  TEST_CASE("patcher: a deleted object's storage ID goes to the next object (#733)") {
+    // #730 made the counter per-patcher but left it monotonic, because the ID
+    // was also the schedulers' impersonation guard. With that job moved onto
+    // pObject's instance tag, the storage ID is free to be nothing but a
+    // storage key — and a storage key only has to be unique among the objects
+    // that are actually stored.
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* a = p.CreateObject(YSE::OBJ::G_MULTIPLY, "1");
+    YSE::pHandle* b = p.CreateObject(YSE::OBJ::G_MULTIPLY, "2");
+    YSE::pHandle* c = p.CreateObject(YSE::OBJ::G_MULTIPLY, "3");
+    REQUIRE(a != nullptr);
+    REQUIRE(b != nullptr);
+    REQUIRE(c != nullptr);
+    REQUIRE(a->GetID() == 0u);
+    REQUIRE(b->GetID() == 1u);
+    REQUIRE(c->GetID() == 2u);
+
+    p.DeleteObject(b);
+    YSE::pHandle* d = p.CreateObject(YSE::OBJ::G_MULTIPLY, "4");
+    REQUIRE(d != nullptr);
+    // The hole, not the high-water mark. Pre-#733 this was 3.
+    CHECK(d->GetID() == 1u);
+    // And the number really names the new object, not a ghost of the old one.
+    CHECK(p.GetHandleFromID(1) == d);
+    CHECK(d->GetParams() == std::string("4"));
+  }
+
+  TEST_CASE("patcher: a long editing session keeps a small patch's IDs small (#733)") {
+    // The complaint #733 is actually about: a patcher edited for hours writes
+    // large IDs into a small patch. Churn one slot far past the patch size and
+    // every live ID must still fit inside the live object count — pre-#733 the
+    // numbering climbed to 60.
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* keep = p.CreateObject(YSE::OBJ::G_MULTIPLY, "100");
+    REQUIRE(keep != nullptr);
+
+    for (int i = 0; i < 50; i++) {
+      YSE::pHandle* churn = p.CreateObject(YSE::OBJ::G_MULTIPLY, std::to_string(i));
+      REQUIRE(churn != nullptr);
+      CAPTURE(i);
+      CHECK(churn->GetID() < 2u);
+      p.DeleteObject(churn);
+    }
+
+    // The survivor never moved: an ID is fixed for a live object's lifetime.
+    CHECK(keep->GetID() == 0u);
+    CHECK(p.Objects() == 1u);
+
+    // Nothing counter-shaped leaked into the file either: with one object in
+    // the patch, the one ID it records is 0.
+    YSE::pHandle* last = p.CreateObject(YSE::OBJ::G_MULTIPLY, "101");
+    REQUIRE(last != nullptr);
+    CHECK(last->GetID() == 1u);
+  }
+
+  TEST_CASE("patcher: reuse is deterministic — same edits, same dump (#733)") {
+    // Reuse must not be fed by the background reclaimer, or whether a freed ID
+    // were available at the next create would depend on thread timing and two
+    // identically-built patchers could serialise differently — the exact
+    // regression #730 exists to prevent. The ID comes from the live object set,
+    // so the same edit sequence always numbers the same way.
+    auto build = [](YSE::patcher& p) {
+      p.create(2);
+      YSE::pHandle* first = p.CreateObject(YSE::OBJ::D_SINE, "440");
+      YSE::pHandle* doomed = p.CreateObject(YSE::OBJ::G_MULTIPLY, "5");
+      YSE::pHandle* dac = p.CreateObject(YSE::OBJ::D_DAC);
+      REQUIRE(first != nullptr);
+      REQUIRE(doomed != nullptr);
+      REQUIRE(dac != nullptr);
+      p.DeleteObject(doomed);
+      YSE::pHandle* add = p.CreateObject(YSE::OBJ::D_ADD);
+      REQUIRE(add != nullptr);
+      p.Connect(first, 0, add, 0);
+      p.Connect(add, 0, dac, 0);
+    };
+
+    YSE::patcher first;
+    build(first);
+    YSE::patcher second;
+    build(second);
+    CHECK(first.DumpJSON() == second.DumpJSON());
+
+    // And a patch whose IDs came out of the free hole still round-trips.
+    YSE::patcher target;
+    target.create(2);
+    const std::string saved = first.DumpJSON();
+    target.ParseJSON(saved);
+    REQUIRE(target.Objects() == 3u);
+    CHECK(target.DumpJSON() == saved);
+  }
+
+  // ─── Outlet keys (issue #734) ────────────────────────────────────────────────
+
+  TEST_CASE("patcher: a reloaded patch keeps its edges on the outlets past ten (#734)") {
+    // The same string-vs-numeric key trap as #730, one level down: an object's
+    // outlets are written under "output 0", "output 1", ... and come back out
+    // of the json object in *string* order, so "output 10" arrives before
+    // "output 2". A load that numbered them with a loop counter stopped
+    // agreeing with the key at the eleventh outlet, and every edge from outlet
+    // 2 upward was reconnected to an outlet the file never named. Objects with
+    // more than ten outlets are ordinary: .route grows one per creation
+    // argument, on top of the rightmost fall-through.
+    YSE::patcher source;
+    source.create(2);
+    YSE::pHandle* route = source.CreateObject(YSE::OBJ::G_ROUTE, "1 2 3 4 5 6 7 8 9 10 11 12");
+    REQUIRE(route != nullptr);
+    REQUIRE(route->GetOutputs() == 13);
+
+    // One distinct target per outlet, so a shuffled outlet lands on a target
+    // that names it.
+    std::vector<unsigned int> targetIds;
+    for (int i = 0; i < route->GetOutputs(); i++) {
+      YSE::pHandle* sink = source.CreateObject(YSE::OBJ::G_MULTIPLY, std::to_string(i));
+      REQUIRE(sink != nullptr);
+      source.Connect(route, i, sink, 0);
+      targetIds.push_back(sink->GetID());
+    }
+    const std::string saved = source.DumpJSON();
+
+    YSE::patcher target;
+    target.create(2);
+    target.ParseJSON(saved);
+    REQUIRE(target.Objects() == 14u);
+
+    YSE::pHandle* reloaded = target.GetHandleFromID(route->GetID());
+    REQUIRE(reloaded != nullptr);
+    REQUIRE(reloaded->GetOutputs() == 13);
+    for (unsigned int i = 0; i < static_cast<unsigned int>(reloaded->GetOutputs()); i++) {
+      CAPTURE(i);
+      REQUIRE(reloaded->GetConnections(i) == 1u);
+      CHECK(reloaded->GetConnectionTarget(i, 0) == targetIds[i]);
+    }
+
+    // And with every edge back where it was saved, the re-save is the save.
+    CHECK(target.DumpJSON() == saved);
   }
 
 } // TEST_SUITE("patcher")

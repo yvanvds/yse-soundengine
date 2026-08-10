@@ -1,4 +1,6 @@
 
+#include <atomic>
+#include <cstdint>
 #include "pObject.h"
 #include "pHandle.hpp"
 #include "patcherImplementation.h"
@@ -59,11 +61,38 @@ void pObject::UnwireFromPeers() {
   }
 }
 
+namespace {
+  // The instance-tag source (issue #733). Process-wide on purpose, and the one
+  // place a process-wide counter is right for an object: the tag is never
+  // serialised and never leaves the engine, so it cannot leak into a dump the
+  // way the pre-#730 storage counter did, and being unique across the whole
+  // process rather than within one patcher costs nothing while making the
+  // scheduler guard hold for objects that never join a patcher at all.
+  //
+  // Starts at 1 so kNoInstanceTag (0) is issued to nobody. std::uint64_t
+  // because it is never reset and never reused: at one object per nanosecond it
+  // takes 584 years to wrap, which is the whole reason the storage ID could be
+  // freed to shrink instead.
+  //
+  // relaxed is enough — the counter orders nothing but itself, and the tag it
+  // produces is published to other threads by the release stores the object's
+  // own publication path already performs (SetParent -> RebuildAndPublish, or
+  // the scheduler slot's ARMED store).
+  std::atomic<std::uint64_t> g_nextInstanceTag{1};
+} // namespace
+
 // The storage ID is deliberately *not* assigned here: it belongs to the patcher
 // that owns the object, not to the process that built it, and the object does
 // not know its patcher until SetParent (issue #730). An object that never joins
 // a patcher keeps kNoStorageID and is never serialised.
-pObject::pObject(bool isDSPObject, pObject* parent) : parent(parent), DSP(isDSPObject) {}
+//
+// The instance tag is the opposite case and is stamped right here: it is a
+// property of *this object*, not of the patch, and it has to exist before any
+// scheduler can arm against the object (issue #733).
+pObject::pObject(bool isDSPObject, pObject* parent)
+  : parent(parent),
+    DSP(isDSPObject),
+    instanceTag_(g_nextInstanceTag.fetch_add(1, std::memory_order_relaxed)) {}
 
 bool pObject::IsDSPStartPoint() {
   if (!DSP) return false;
@@ -154,15 +183,21 @@ const std::string& pObject::GetParams() {
   return parms.Get();
 }
 
+// The outlet number comes from outside and outputs is a vector, so all three
+// range-check it before indexing, the way GetOutputType does (issue #737). See
+// pObject.h for what each answers when the query cannot be met.
 unsigned int pObject::GetConnections(unsigned int outlet) {
+  if (outlet >= outputs.size()) return 0;
   return outputs[outlet].GetConnections();
 }
 
 unsigned int pObject::GetConnectionTarget(unsigned int outlet, unsigned int connection) {
+  if (outlet >= outputs.size()) return kNoObjectID;
   return outputs[outlet].GetTarget(connection);
 }
 
 unsigned int pObject::GetConnectionTargetInlet(unsigned int outlet, unsigned int connection) {
+  if (outlet >= outputs.size()) return kNoInletIndex;
   return outputs[outlet].GetTargetInlet(connection);
 }
 
