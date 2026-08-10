@@ -59,12 +59,15 @@ namespace YSE {
      *  is the same hot/cold arrangement ``.+``, ``.sel`` and ``.counter`` use,
      *  and it is the reverse of ``.bondo``, whose every inlet releases.
      *
-     *  ``.pak`` is this object with ``packTrigger::AnyInlet``: every inlet
-     *  releases, which is what a patch wants when any one of the packed values
-     *  changing should push a fresh list downstream. The two differ in that one
-     *  enumerator and nothing else — same storage, same coercion, same output
-     *  rule — which is why they share this base rather than being written
-     *  twice.
+     *  ``.pak`` is this object with ``packTrigger::AnyInlet``: Max's "offers
+     *  much of the functionality of pack, but outputs the entire list whenever
+     *  input is received in any inlet", which is what a patch wants when any one
+     *  of the packed values changing should push a fresh list downstream. The
+     *  two share their storage, their coercion and their output rule; the
+     *  trigger is the only thing that differs, and it decides *two* things
+     *  rather than one, because Max documents ``bang`` on ``pack``'s left inlet
+     *  and on ``pak``'s **any** inlet. One predicate — ``Hot()`` — answers both:
+     *  an inlet that releases is an inlet that takes a bang.
      *
      *  ### The arguments are the shape *and* the types
      *
@@ -123,9 +126,10 @@ namespace YSE {
      *  nowhere to go: they are dropped and counted.
      *
      *  ``bang`` releases the list as it stands, storing nothing, and is
-     *  accepted on the leftmost inlet only — the inlet Max documents it on, and
-     *  registering it nowhere else keeps ``GetAcceptedTypes()`` reporting the
-     *  real contract, the ``.zl`` / ``.combine`` discipline.
+     *  accepted on the inlets that release: the leftmost one only for ``.pack``,
+     *  every one for ``.pak``, which is where Max documents each. Registering it
+     *  nowhere else keeps ``GetAcceptedTypes()`` reporting the real contract,
+     *  the ``.zl`` / ``.combine`` discipline.
      *
      *  ``set <message>`` performs *exactly* the store the same message without
      *  the word would have performed and suppresses only the release — one
@@ -303,7 +307,9 @@ namespace YSE {
       void Emit(YSE::THREAD thread);
 
       // Whether a write at `inlet` releases: inlet 0 for `.pack`, any for
-      // `.pak`.
+      // `.pak`. Also which inlets take a bang, those being the same inlets in
+      // both objects — Max documents bang on `pack`'s left inlet and on `pak`'s
+      // any inlet.
       bool Hot(int inlet) const {
         return trigger == packTrigger::AnyInlet || inlet == 0;
       }
@@ -352,6 +358,7 @@ namespace YSE {
     };
 
     PACK_CLASS(gPack, YSE::OBJ::G_PACK)
+    PACK_CLASS(gPak, YSE::OBJ::G_PAK)
 
   } // namespace PATCHER
 } // namespace YSE

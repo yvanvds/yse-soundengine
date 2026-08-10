@@ -290,6 +290,10 @@ pRegistry::pRegistry() {
   // list-consuming object, over the same bounded list (issue #517)
   Add(OBJ::G_PACK, gPack::Create);
 
+  // The same object with every inlet hot, for the patches where a fresh list
+  // should go out the moment any one of its elements changes (issue #518)
+  Add(OBJ::G_PAK, gPak::Create);
+
   // A collection of messages held at addresses — the patcher's first store of
   // more than one thing, and the object presets, note tables, mapping curves
   // and sequences are all written with (issue #494)
