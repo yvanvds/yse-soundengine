@@ -57,7 +57,8 @@ namespace YSE {
    *  - Message construction: ``G_PREPEND``, ``G_APPEND``, ``G_SUBSTITUTE``,
    *    ``G_SPRINTF``, ``G_TOSYMBOL``, ``G_FROMSYMBOL``, ``G_COMBINE``,
    *    ``G_SPELL``, ``G_ATOI``, ``G_ITOA``.
-   *  - List processing: ``G_ZL``, ``G_PACK``, ``G_PAK``, ``G_UNPACK``.
+   *  - List processing: ``G_ZL``, ``G_PACK``, ``G_PAK``, ``G_UNPACK``,
+   *    ``G_JOIN``, ``G_UNJOIN``.
    *  - Iteration: ``G_UZI``.
    *  - MIDI: ``M_OUT``, ``M_NOTEON``, ``M_NOTEOFF``, ``M_CONTROL``.
    *  - Conversion: ``MIDITOFREQUENCY``, ``FREQUENCYTOMIDI``, ``G_ATODB``,
@@ -126,6 +127,8 @@ namespace YSE {
     DEFOBJ(G_PACK, ".pack");
     DEFOBJ(G_PAK, ".pak");
     DEFOBJ(G_UNPACK, ".unpack");
+    DEFOBJ(G_JOIN, ".join");
+    DEFOBJ(G_UNJOIN, ".unjoin");
 
     DEFOBJ(G_COLL, ".coll");
     DEFOBJ(G_BAG, ".bag");

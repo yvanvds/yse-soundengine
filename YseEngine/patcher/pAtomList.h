@@ -349,6 +349,27 @@ namespace YSE {
           AppendAtom(out, i);
       }
 
+      /**
+       *  @brief ``Render`` over a **slice**: @p count atoms starting at
+       *         @p begin, as space-separated list text.
+       *
+       *  What an object that cuts a list into pieces sends per piece —
+       *  ``.unjoin`` (#520) writes one group per outlet through this. Both
+       *  bounds are clamped to the list, so a slice that runs off the end
+       *  renders what is there and a @p begin past the end renders nothing.
+       *
+       *  @p out is cleared first, and allocation-free as long as it was
+       *  reserved with ``ReserveRender``.
+       */
+      void RenderRange(std::string& out, std::size_t begin, std::size_t count) const {
+        out.clear();
+        if (begin >= count_) return;
+        const std::size_t available = count_ - begin;
+        if (count > available) count = available;
+        for (std::size_t i = 0; i < count; i++)
+          AppendAtom(out, begin + i);
+      }
+
       /** @brief ``Render``, but leaving atom @p skip out — the remainder a
        *         picking mode sends out its second outlet. Skipping an index
        *         the list does not have renders the whole list. */
@@ -441,6 +462,39 @@ namespace YSE {
         return;
       }
       list.Render(scratch);
+      out.SendList(scratch, thread);
+    }
+
+    /**
+     *  @brief ``SendAtoms`` over a **slice** — @p count atoms starting at
+     *         @p begin.
+     *
+     *  The same three cases ``SendAtoms`` makes, applied to a piece of a list
+     *  rather than to the whole of one: nothing at all when the slice is empty,
+     *  the atom itself when it holds one, and list text otherwise. Both bounds
+     *  are clamped to the list, so an object need not check its own arithmetic
+     *  before calling.
+     *
+     *  This is what an object that **cuts** a list sends per piece, and it is
+     *  shared rather than local because more than one of them does:
+     *  ``.unjoin`` (#520) sends one group per outlet, and the iteration objects
+     *  that follow send one piece per bang. @p scratch is the caller's render
+     *  buffer, reserved with ``AtomList::ReserveRender``.
+     */
+    inline void SendAtomRange(outlet& out, const AtomList& list, std::size_t begin,
+                              std::size_t count, std::string& scratch, THREAD thread) {
+      if (begin >= list.Size()) return;
+      const std::size_t available = list.Size() - begin;
+      if (count > available) count = available;
+      if (count == 0) return;
+      if (count == 1) {
+        // One atom leaves as the int, float or symbol it spells rather than as
+        // a list of one — SendAtom's rule, and the reason a slice goes through
+        // here rather than through Render directly.
+        SendAtom(out, list, begin, scratch, thread);
+        return;
+      }
+      list.RenderRange(scratch, begin, count);
       out.SendList(scratch, thread);
     }
 

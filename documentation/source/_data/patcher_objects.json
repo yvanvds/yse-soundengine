@@ -2983,6 +2983,48 @@
     ],
     "params": []
   },
+  ".join": {
+    "category": "GENERIC",
+    "description": "Concatenates what several inlets are holding into one list — Max's join, 'combines separate untyped items into an output list', and the variable-length counterpart of .pack. The two look alike from the outside and are not interchangeable: a .pack slot holds exactly one atom of a type its creation argument declared, so its output is always as long as its argument list, while a .join inlet holds whatever message arrived at it — however many items that was and whatever they spell — and the output is those pieces laid end to end. A .join 2 whose inlets hold '1 2' and '3 4' sends '1 2 3 4'; the same two messages into a .pack 0 0 send '1 3', because there each item after the first spreads rightwards into the neighbouring slot and the surplus is dropped. There is no type coercion at all, which is Max's 'separate untyped items': a variable-length piece has no per-item type to declare, and declaring one per inlet would say nothing about an inlet holding four items. .unjoin is the way back. The first creation argument is the number of inlets, 1 to 256, and with no arguments the object is Max's default of two inlets whose starting value is 0 — so a bang before anything arrives sends a complete list rather than silence. The arguments after it are Max's @triggers attribute, 'designates inputs that automatically trigger output': each one names an inlet that releases the list when written, and -1 makes every inlet hot. With none of them the leftmost inlet is the hot one, which is the arrangement .pack, .+ and .counter already use. Hot-ness being a creation argument is why there is no second registered name beside this one the way .pak sits beside .pack: it would be sugar for '.join <n> -1'. A bang sends the list as it stands without storing and is accepted on every inlet, Max's 'outputs the currently stored list from any inlet', so cold here means 'writing me does not release' rather than 'I am inert'. 'set <message>' performs exactly the store the same message without the word would have performed while suppressing only the release, and 'set' with nothing after it empties an inlet, which then contributes nothing to the list. The joined list leaves as list text, or — when it holds a single atom — as the int, float or symbol that atom spells, since a list of one is not a list and this patcher does no coercion at an inlet; an object every one of whose inlets has been emptied sends nothing at all rather than an empty message. The storage is the bounded pre-allocated list the whole family shares: at most 256 atoms spanning at most 1024 characters between them, in memory reserved when the object is built, held already concatenated in inlet order with a small table saying how many atoms belong to each inlet, so a release has nothing to assemble. A store whose result would not fit is refused whole and counted rather than losing its tail, because what would be lost is the messages the other inlets are holding rather than surplus input; the count is a counter rather than a log line because the refusing thread may be the audio callback, while a creation argument that does not fit is logged, parameter parsing being control-thread only. Re-typing the creation arguments rebuilds the object, since they are the inlet count and the trigger set. Calculate() does nothing and no message path allocates, locks or blocks: numbers are rendered into a stack buffer, the store is a rebuild inside a list reserved at construction, and the release renders into a buffer reserved at the same time. Two threads writing the same object are serialised by a single test-and-set guard whose loser is dropped and counted rather than made to spin, which is also what stops an object wired back into one of its own inlets from recursing on the audio thread.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The first piece of the joined list, and — unless the trigger arguments say otherwise — the hot inlet. Whatever message arrives here is stored whole, however many items it carries and whatever they spell: this object concatenates pieces rather than collecting single typed values, which is the whole difference between it and .pack. Storing replaces what this inlet was holding; the other inlets keep theirs. When this inlet is hot the joined list goes out as soon as the store lands. A bang releases the list as it stands without storing, and is accepted here whether or not this inlet is hot — Max's 'outputs the currently stored list from any inlet'. 'set <message>' performs exactly the store the plain message would have performed and releases nothing, which is how a patch loads every inlet and then chooses when to send; 'set' followed by nothing empties this inlet, which then contributes nothing to the list. A store whose result would not fit the bounded list is refused whole — this inlet keeps what it had, and so does every other — and counted.",
+        "index": 0,
+        "label": "in0",
+        "range": "any"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The piece of the joined list in this position. Whatever message arrives here is stored whole, however many items it carries, and replaces what this inlet was holding; the pieces in the other inlets are untouched. Whether writing it releases the list depends on the trigger arguments: by default only the leftmost inlet does, an argument naming this inlet's index makes it release too, and an argument of -1 makes every inlet release. A bang is accepted here regardless and sends the list as it stands without storing anything, which is Max's 'outputs the currently stored list from any inlet'. 'set <message>' stores without releasing, and 'set' followed by nothing empties this inlet so that it contributes nothing at all to the list. A store whose result would not fit the bounded list is refused whole and counted, leaving every inlet holding what it held.",
+        "index": 1,
+        "label": "in1",
+        "range": "any"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".join",
+    "outlets": [
+      {
+        "doc": "The joined list: every inlet's piece laid end to end in inlet order, so its length is the sum of the lengths of the pieces rather than the number of inlets. Sent whenever a hot inlet is written, and whenever any inlet is banged. An inlet no message has reached carries its starting value of 0, and an inlet a 'set' has emptied contributes nothing. A result of one atom leaves as the int, float or symbol it spells rather than as a list of one, so it reaches the inlets an uncollected value would have reached; a result of no atoms at all — every inlet emptied — sends nothing rather than an empty message.",
+        "index": 0,
+        "label": "list",
+        "range": "any",
+        "type": "ANY"
+      }
+    ],
+    "params": []
+  },
   ".l": {
     "category": "GUI",
     "description": "Static list. Bang re-sends the stored list; list updates the stored payload.",
@@ -6591,6 +6633,62 @@
         "doc": "Starting minimum, what a bang reports before any input, and the value 'reset' returns to. Max starts trough at 128, high enough that ordinary input can beat it — 0 could not be beaten by anything positive.",
         "name": "initial",
         "range": "any float"
+      }
+    ]
+  },
+  ".unjoin": {
+    "category": "GENERIC",
+    "description": "Cuts a list into equal groups and sends each group out its own outlet, with everything left over going out the rightmost one — Max's unjoin, which 'separates a list's elements by group, and sends each group of items out a separate outlet', and the inverse of .join. Where .unpack sends one item per outlet and drops whatever it has no outlet for, this sends a group of items per outlet and drops nothing at all, because its rightmost outlet is a remainder: everything the groups did not claim leaves there whole. So .unpack is the object for taking a list of known shape apart into its named components, and this is the object for cutting a list of unknown length into equal pieces. The round trip with .join is exact: a .join 2 holding '1 2' and '3 4' sends '1 2 3 4', and a .unjoin 2 2 gives back '1 2' and '3 4'. The first creation argument is Max's, 'the number of outlets beyond the rightmost outlet', so an object with n group outlets has n+1 outlets in all and a bare .unjoin has three; the default is 2. The second is Max's @outsize attribute, 'defines the number of items to be sent out the outlets', and defaults to 1 — which makes the default object .unpack with a remainder outlet instead of a drop. The patcher has no attributes, so an attribute that changes what an object does becomes a positional creation argument, which is the route .zl takes for its mode argument. Groups are complete or nothing: a group outlet fires only when enough items are left to fill it completely, and everything from the first incomplete group onwards — a short tail, a surplus past the last group outlet, or both — goes out the rightmost outlet as one message. That is Max's 'the rightmost outlet receives remaining items that don't fill a complete group' read literally, and it is what makes the object safe to wire into anything expecting a fixed-length list. Outlets fire right to left, Max's universal order, so the remainder lands first and the leftmost group last, and each send completes in full through the whole subgraph behind that outlet before the next one starts. There is no bang and no stored list for one to re-send: this object is a distributor rather than a register, and registering no bang is what keeps the reported contract honest; a patch that wants to re-send puts a .l in front. An int or a float is a one-item list and lands wherever a one-item list lands — on the leftmost outlet at the default group size, which is Max's 'the number is sent out the left outlet', and on the remainder at any larger size. A group of one item leaves as the int, float or symbol it spells rather than as a list of one, a longer one as list text, and an empty remainder sends nothing at all rather than an empty message; every outlet is declared as accepting anything, because a group carries whatever the list carried and this object coerces nothing. The arriving list is read into the bounded pre-allocated storage the whole list family shares: at most 256 items spanning at most 1024 characters between them, in memory reserved when the object is built. A list too long for it loses its tail, which is counted, and its head is distributed — the surplus here is input the patch has just sent rather than state the object was holding, which is why it is not refused whole the way .join's store is; the count is a counter rather than a log line because the refusing thread may be the audio callback, while a creation argument out of range is logged, parameter parsing being control-thread only. Re-typing the creation arguments rebuilds the object, since the first of them is the outlet count. Calculate() does nothing and no message path allocates, locks or blocks: numbers are rendered into a stack buffer, the list is collected into storage reserved at construction, and the sends render into a buffer reserved at the same time. Two threads sending to the same object are serialised by a single test-and-set guard whose loser is dropped and counted rather than made to spin, which is also what stops an object wired back into its own inlet from recursing on the audio thread.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The list to cut up. Its items are taken in order, one complete group at a time: the first group of items goes out the leftmost outlet, the next out the one after it, and so on for as many group outlets as there are. A group outlet fires only when there are enough items left to fill it completely; everything from the first incomplete group onwards — a short tail, a surplus past the last group outlet, or both — goes out the rightmost outlet as one message, so nothing is ever dropped for want of an outlet. An int or a float is a one-item list and lands wherever a one-item list lands: on the leftmost outlet at the default group size of 1, and on the remainder at any larger size, there being no complete group to put it in. There is no bang, and no stored list for one to re-send: this object distributes the message it is given and holds nothing between messages, so a patch that wants to re-send puts a .l in front of it. A list longer than the bounded storage loses its tail, which is counted, and its head is distributed.",
+        "index": 0,
+        "label": "in",
+        "range": "any"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".unjoin",
+    "outlets": [
+      {
+        "doc": "One complete group of items from the incoming list, taken in order — this outlet's position among the group outlets decides which group. It fires only when the list was long enough to fill this group completely, so what leaves here is always exactly the group size and never a short piece; a list that runs out before reaching this outlet leaves it silent and its items go out the rightmost outlet instead. Outlets fire right to left, Max's universal order, so the remainder and every group to the right of this one have already been sent, each of them completing in full through the whole subgraph behind it before this one starts. A group of one item leaves as the int, float or symbol it spells rather than as a list of one, so it reaches the inlets an uncollected value would have reached; a longer one leaves as list text. Nothing is coerced — a group carries whatever the list carried.",
+        "index": 0,
+        "label": "out0",
+        "range": "any",
+        "type": "ANY"
+      },
+      {
+        "doc": "One complete group of items from the incoming list, taken in order — this outlet's position among the group outlets decides which group. It fires only when the list was long enough to fill this group completely, so what leaves here is always exactly the group size and never a short piece; a list that runs out before reaching this outlet leaves it silent and its items go out the rightmost outlet instead. Outlets fire right to left, Max's universal order, so the remainder and every group to the right of this one have already been sent, each of them completing in full through the whole subgraph behind it before this one starts. A group of one item leaves as the int, float or symbol it spells rather than as a list of one, so it reaches the inlets an uncollected value would have reached; a longer one leaves as list text. Nothing is coerced — a group carries whatever the list carried.",
+        "index": 1,
+        "label": "out1",
+        "range": "any",
+        "type": "ANY"
+      },
+      {
+        "doc": "The remainder: everything the group outlets did not claim, sent as one message. That is a surplus past the last group outlet, a tail too short to fill a complete group, or both at once — which is why this object drops nothing for want of an outlet, unlike .unpack. It is the first outlet to fire, Max's right-to-left order, so a patch reading it can rely on the groups arriving after it. A remainder of one item leaves as the int, float or symbol it spells rather than as a list of one, and a list that divided exactly into complete groups leaves nothing over, so this outlet sends nothing at all rather than an empty message.",
+        "index": 2,
+        "label": "rest",
+        "range": "any",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "2",
+        "doc": "The number of group outlets, which is Max's 'the number of outlets beyond the rightmost outlet': the object has one more outlet than this, the last of them being the remainder. With no argument it is Max's default of 2, so a bare .unjoin has three outlets. At most 256 group outlets are built, a group needing at least one item and the shared bounded list holding at most that many; an argument outside 1-256 is clamped and the clamp is logged.",
+        "name": "groups",
+        "range": "1-256"
+      },
+      {
+        "default": "1",
+        "doc": "How many items fill one group — Max's @outsize attribute, 'defines the number of items to be sent out the outlets', carried here as a positional creation argument because the patcher has no attributes. With no argument it is Max's default of 1, which makes the object .unpack with a remainder outlet instead of a drop. A group outlet fires only when this many items are left to fill it, so what leaves a group outlet is always exactly this long. An argument outside 1-256 is clamped and the clamp is logged.",
+        "name": "size",
+        "range": "1-256"
       }
     ]
   },
