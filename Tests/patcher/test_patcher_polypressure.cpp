@@ -31,17 +31,12 @@
 // is caught without anyone writing a file like this one.
 //
 // No audio device and no MIDI hardware required: the object opens nothing, it
-// only emits bytes. It is nonetheless compiled behind `#if YSE_WINDOWS` with
-// the six senders it belongs to — see mMidiPolyPressure.h, and issue #746 for
-// the sweep that lifts that guard off the whole family.
+// only emits bytes. It runs on every platform — issue #746 lifted the
+// `#if YSE_WINDOWS` this and the rest of the sender family used to carry.
 
 #include <doctest/doctest.h>
 #include <memory>
 #include <string>
-
-#include "headers/defines.hpp"
-
-#if YSE_WINDOWS
 
 #include "patcher/pEnums.h"
 #include "patcher/pHandle.hpp"
@@ -79,11 +74,7 @@ namespace {
 
 } // namespace
 
-#endif // YSE_WINDOWS
-
 TEST_SUITE("patcher") {
-
-#if YSE_WINDOWS
 
   TEST_CASE("polypressure: the registry builds an object that answers to its own name (#749)") {
     std::unique_ptr<YSE::PATCHER::pObject> obj(Register().Get(YSE::OBJ::M_POLYPRESS));
@@ -186,7 +177,5 @@ TEST_SUITE("patcher") {
     loaded.DeleteObject(poly);
     loaded.DeleteObject(control);
   }
-
-#endif // YSE_WINDOWS
 
 } // TEST_SUITE

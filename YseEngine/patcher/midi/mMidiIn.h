@@ -1,13 +1,12 @@
 #pragma once
 #include "headers/defines.hpp"
 // The MIDI *input* family (issue #529). Gated on the RtMidi-backed device
-// backend alone — not on YSE_WINDOWS, the way the older mMidi* senders are.
-// YSE_ENABLE_MIDI_DEVICE is ON for Windows and Linux and OFF for Android and
-// macOS, which is exactly the set of platforms on which a MIDI input port
-// exists at all; the six sender objects' extra YSE_WINDOWS guard predates that
-// option and is a separate question (see the issue's non-goals). When the
-// option is OFF this whole file is empty and the objects are not registered,
-// matching mMidiOut.
+// backend alone. YSE_ENABLE_MIDI_DEVICE is ON for Windows and Linux and OFF
+// for Android and macOS, which is exactly the set of platforms on which a MIDI
+// input port exists at all. When the option is OFF this whole file is empty
+// and the objects are not registered, matching mMidiOut — which carried an
+// extra YSE_WINDOWS guard, along with the whole sender family, until issue
+// #746 lifted it.
 #if YSE_ENABLE_MIDI_DEVICE
 #include "../pObject.h"
 #include "../../midi/midiInHub.h"

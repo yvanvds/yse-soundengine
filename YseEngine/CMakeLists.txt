@@ -268,7 +268,9 @@ set(YSE_SRCS
   # system.cpp calls YSE::INTERNAL::Test() unconditionally on every platform
   # (issue #570), so the DLL fails to link without it.
   internal/AudioTest.cpp
-  # patcher/midi objects are registered unconditionally in pRegistry.cpp.
+  # The patcher MIDI senders. Registered unconditionally in pRegistry.cpp and,
+  # since issue #746, compiled unconditionally too: they format bytes onto a
+  # list outlet and open no device, so none of them carries a platform guard.
   patcher/midi/mMidiBendOut.cpp
   patcher/midi/mMidiChannelPressure.cpp
   # The MIDI codec pair (issue #530) opens no device, so unlike mMidiIn.cpp it
@@ -281,11 +283,13 @@ set(YSE_SRCS
   patcher/midi/mSysEx.cpp
   patcher/midi/mMidiNoteOff.cpp
   patcher/midi/mMidiNoteOn.cpp
+  # mMidiOut is the one sender that holds a device port. It stays in the
+  # unconditional list because the TU carries its own `#if YSE_ENABLE_MIDI_DEVICE`
+  # and compiles to an empty object file where the backend is off.
   patcher/midi/mMidiOut.cpp
   patcher/midi/mMidiPolyPressure.cpp
   patcher/midi/mMidiProgramChange.cpp
-  # The extended-precision senders (issue #533) carry their own `#if YSE_WINDOWS`
-  # like mMidiBendOut.cpp above, so they belong in the unconditional list.
+  # The extended-precision senders (issue #533), unguarded like the rest.
   patcher/midi/mMidiXOut.cpp
   # midiNote is a plain data class with no platform dependencies.
   midi/midiNote.cpp

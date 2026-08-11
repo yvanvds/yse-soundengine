@@ -1,6 +1,3 @@
-#include "headers/defines.hpp"
-// See the matching guard in mMidiBendOut.h.
-#if YSE_WINDOWS
 #include "mMidiBendOut.h"
 #include "../pObjectList.hpp"
 
@@ -63,4 +60,3 @@ CALC() {
   message[2] = (char)cvalue;
   outputs[0].SendList(message, thread);
 }
-#endif

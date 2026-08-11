@@ -322,12 +322,10 @@ TEST_SUITE("patcher") {
     patch.DeleteObject(sx);
   }
 
-#if YSE_WINDOWS
-
   TEST_CASE("midiout: what .noteon sends is still read as raw bytes (#748)") {
     // The other half of the acceptance: the six older senders drive `.midiout`
-    // exactly as they did. Their objects are compiled behind `#if YSE_WINDOWS`
-    // — see issue #746 for the sweep that lifts that guard.
+    // exactly as they did. Their objects are built on every platform since
+    // issue #746 lifted the family's `#if YSE_WINDOWS`.
     YSE::patcher patch;
     patch.create(2);
 
@@ -352,7 +350,5 @@ TEST_SUITE("patcher") {
 
     patch.DeleteObject(noteon);
   }
-
-#endif // YSE_WINDOWS
 
 } // TEST_SUITE

@@ -1,6 +1,6 @@
 #include "headers/defines.hpp"
 // See the matching guard in mMidiOut.h.
-#if YSE_WINDOWS && YSE_ENABLE_MIDI_DEVICE
+#if YSE_ENABLE_MIDI_DEVICE
 #include "mMidiOut.h"
 #include "../pObjectList.hpp"
 #include "../patcherImplementation.h"

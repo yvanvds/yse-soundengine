@@ -223,12 +223,14 @@ TEST_SUITE("patcher") {
     // tools/dump_patcher_metadata. The snapshot lives next to the
     // Sphinx hook that consumes it.
     //
-    // The snapshot is generated on Windows, but pRegistry conditionally
-    // omits the MIDI patcher objects on non-Windows platforms (#if
-    // YSE_WINDOWS in pRegistry.cpp), so on Linux/Android the live
-    // registry is a strict subset of the snapshot. We therefore assert
-    // per-object equality for every type the live registry exposes,
-    // rather than whole-object equality of the two trees.
+    // The snapshot is generated on Windows, but pRegistry still omits the
+    // MIDI objects that hold a device port (`.midiout`, the input family,
+    // `.sysexin`) where YSE_ENABLE_MIDI_DEVICE is off — Android and macOS —
+    // so there the live registry is a strict subset of the snapshot. We
+    // therefore assert per-object equality for every type the live registry
+    // exposes, rather than whole-object equality of the two trees. The
+    // carve-out used to be much larger: until issue #746 the whole MIDI
+    // sender family was Windows-only, so Linux was a subset too.
     const std::string snapshot_path = std::string(YSE_TEST_FIXTURES_DIR) +
                                       "/../../../documentation/source/_data/patcher_objects.json";
     std::ifstream f(snapshot_path);

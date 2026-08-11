@@ -24,6 +24,7 @@
 #include <memory>
 #include <string>
 #include "patcher/pObject.h"
+#include "patcher/pObjectList.hpp"
 #include "patcher/pRegistry.h"
 #include "patcher/pEnums.h"
 #include "patcher/parameters.h"
@@ -88,6 +89,41 @@ TEST_SUITE("patcher") {
       std::unique_ptr<pObject> obj(Register().Get(name));
       REQUIRE(obj != nullptr);
       CHECK(std::string(obj->Type()) == name);
+    }
+  }
+
+  TEST_CASE("registry: the MIDI senders are registered on every platform (#746)") {
+    // These eleven format MIDI bytes onto a list outlet and open no device, so
+    // there is no platform they cannot run on. They nonetheless sat behind a
+    // bare `#if YSE_WINDOWS` until #746, which meant `.noteon` existed on
+    // Windows and nowhere else and a patch quietly lost objects when it moved
+    // between machines.
+    //
+    // No `#if` here on purpose: that is the whole assertion. On Windows this
+    // passes either way, so it is the Linux and Android runs that hold the
+    // line — if the guard comes back, this is what fails there.
+    const char* const senders[] = {
+        YSE::OBJ::M_CHANPRESS, YSE::OBJ::M_CONTROL,   YSE::OBJ::M_NOTEOFF,
+        YSE::OBJ::M_NOTEON,    YSE::OBJ::M_POLYPRESS, YSE::OBJ::M_PROGCHANGE,
+        YSE::OBJ::M_BENDOUT,   YSE::OBJ::M_XBENDOUT,  YSE::OBJ::M_XBENDOUT2,
+        YSE::OBJ::M_XCTLOUT,   YSE::OBJ::M_XNOTEOUT,
+    };
+
+    auto names = Register().AllNames();
+    for (const char* type : senders) {
+      CAPTURE(type);
+      bool registered = false;
+      for (const auto& name : names) {
+        if (name == std::string(type)) {
+          registered = true;
+          break;
+        }
+      }
+      CHECK(registered);
+
+      std::unique_ptr<pObject> obj(Register().Get(type));
+      REQUIRE(obj != nullptr);
+      CHECK(std::string(obj->Type()) == std::string(type));
     }
   }
 
