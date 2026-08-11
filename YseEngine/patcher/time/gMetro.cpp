@@ -581,6 +581,15 @@ LIST_IN(ListIn) {
   SetFloatPeriod(number, inlet, thread);
 }
 
+void gMetro::Teardown(YSE::THREAD thread) {
+  // The patcher is about to unwire and retire this object (issue #758). Exactly
+  // what `Toggle(0)` does, which is what the type-name check in
+  // patcherImplementation used to send here: stop whichever engine is running,
+  // both idempotent, so the destructor is entered with no timer and no wakeup
+  // outstanding (issue #663).
+  StopRun(thread);
+}
+
 void gMetro::Bang() {
   // Timer thread, inside `timer.func()`. Marked as such for the whole frame
   // (issue #721): the send below can come back round to this object's own

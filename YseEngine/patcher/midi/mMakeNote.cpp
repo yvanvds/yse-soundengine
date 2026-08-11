@@ -144,8 +144,10 @@ CONSTRUCT() {
       "object is poly, Max's default, so a repeated pitch is a second note with its own deadline — "
       "and milliseconds are the only unit, a note value or tick count in the duration inlet being "
       "refused rather than misread as milliseconds. A velocity of 0 is already a release in MIDI, "
-      "so it passes through and schedules nothing. Calculate() does nothing and no message path "
-      "allocates, locks or blocks.");
+      "so it passes through and schedules nothing. A patcher cleared or destroyed while notes are "
+      "sounding releases them, and so does deleting the object on its own: the patcher stops every "
+      "object before it unwires any of them, and this object's stop is 'stop' (issue #758). "
+      "Calculate() does nothing and no message path allocates, locks or blocks.");
   ADD_CATEGORY(pCategory::MIDI);
 
   INLET_DOC(0, "pitch", kPitchInletDoc, "int, float, list, 'stop', 'clear'");
@@ -351,6 +353,14 @@ void mMakeNote::Release(bool emit, YSE::THREAD thread) {
     slot.stateGen.store(slot.stateGen.load(std::memory_order_relaxed) & ~STATE_MASK,
                         std::memory_order_release);
   }
+}
+
+void mMakeNote::Teardown(YSE::THREAD thread) {
+  // The patcher's stop pass (issue #758), and literally a `stop`: every
+  // sounding note released in play order, down cords that are still wired
+  // because the pass runs before any of them is taken apart. Bounded,
+  // allocation-free and lock-free, exactly as the message is.
+  Release(true, thread);
 }
 
 void mMakeNote::DeliverDeferred(const deferredMessage& msg, YSE::THREAD thread) {

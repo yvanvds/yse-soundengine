@@ -100,15 +100,29 @@ namespace YSE {
      *  rather than made to spin. That is `.midiparse`'s arrangement and it is
      *  here for the same reason: the state machine is not re-entrant.
      *
+     *  ### It fires on teardown too, and not by its own doing
+     *
+     *  A patcher cleared or destroyed while notes are sounding flushes them
+     *  (issue #758): the patcher runs a stop pass over every object *before* it
+     *  unwires any of them, and this object's `Teardown` is a flush. That
+     *  ordering is the patcher's rather than this object's, which is why the
+     *  object could not have it on its own — `patcherImplementation::Clear`
+     *  used to unwire as it walked, so a `.midiflush` reached after its
+     *  `.midiout` would have sent its note-offs into a cord that no longer
+     *  existed. Deleting the `.midiflush` on its own flushes it too, for the
+     *  same reason and through the same hook.
+     *
+     *  What the note-offs meet on the way out is a fully wired patch, so they
+     *  behave exactly as a bang's do: `.midiout` sends them if its port is
+     *  open, and drops them if the patch never opened one — in which case
+     *  nothing was ever sent through it and there is nothing left sounding on
+     *  it. A bang before the patch goes away is still the way to flush at any
+     *  other moment.
+     *
      *  ### What it does not do
      *
-     *  It does not fire on its own when the patcher is torn down. Doing that
-     *  needs a teardown pass that stops every object before any of them is
-     *  unwired — `patcherImplementation::Clear` unwires as it walks, so a
-     *  `.midiflush` reached after its `.midiout` would send its note-offs into
-     *  a cord that no longer exists — and that ordering belongs to the patcher
-     *  rather than to this object. Issue #758; a bang before the patch goes
-     *  away does the job today.
+     *  Nothing at all can be promised for a process killed outright: no engine
+     *  code runs then, and the device keeps whatever it was holding.
      */
     PATCHER_CLASS(mMidiFlush, YSE::OBJ::M_MIDIFLUSH)
     _NO_MESSAGES
@@ -118,6 +132,11 @@ namespace YSE {
     _INT_IN(StreamInt)
     _FLOAT_IN(StreamFloat)
     _LIST_IN(StreamList)
+
+    // The patcher is about to unwire this object (issue #758): flush, which is
+    // what a bang does, while the cord to `.midiout` is still there to flush
+    // down. See the class notes.
+    void Teardown(YSE::THREAD thread) override;
 
   public:
     /** @brief MIDI channels tracked, and so the height of the bitmap. */

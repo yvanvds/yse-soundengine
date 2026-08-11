@@ -91,6 +91,23 @@ namespace YSE {
       // `result.bytes` is only valid for the duration of the call.
       virtual void DeliverFileResult(const fileResult& result, THREAD thread);
 
+      // "You are about to go away" (issue #758). Called by the owning patcher
+      // on every object it is about to unwire — from Clear(), and on the one
+      // object DeleteObject() removes — while every cord in the patch is still
+      // connected, so an object that has left something sounding *outside* the
+      // patch can release it through its own outlets while there is still an
+      // outlet to release it through. `.midiflush` sends its note-offs here,
+      // `.makenote` its pending releases, `.metro` stops its timer. Default:
+      // nothing, so only the objects that need it pay for it.
+      //
+      // Control thread, dispatched with T_GUI and deliberately *not* under the
+      // patcher's mutex — see patcherImplementation::TeardownObjects for both,
+      // and for why the whole pass has to finish before anything is unwired.
+      //
+      // Called at most once per object and never again afterwards: whatever
+      // this sends is the last thing the object ever sends.
+      virtual void Teardown(THREAD thread);
+
       // Detach this object from every peer it is wired to, without freeing it,
       // so the next GraphState holds no reference to it (issue #226).
       void UnwireFromPeers();

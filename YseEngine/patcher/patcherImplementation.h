@@ -277,6 +277,13 @@ namespace YSE {
       // object through the epoch reclaimer. Caller holds mtx.
       void ReplaceObjectUnlocked(YSE::pHandle* handle, const std::string& args);
 
+      // Pass one of teardown (issue #758): tell every object in this patcher
+      // that it is about to go away, while the patch is still whole. Called by
+      // Clear() before it takes mtx and starts unwiring. See the definition for
+      // the three orderings that make it correct — before any unwiring, outside
+      // mtx, and with a T_GUI tag.
+      void TeardownObjects();
+
       // Unlocked cores of CreateObject / Connect: do the structural mutation
       // assuming mtx is already held and publish nothing. The public wrappers
       // lock and publish once; ParseJSON drives these directly so an entire
