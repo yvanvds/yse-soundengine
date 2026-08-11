@@ -87,12 +87,14 @@ inlet::inlet(pObject* obj, bool active, int position)
     dspConnection(nullptr) {}
 
 inlet::~inlet() {
-  if (dspConnection != nullptr) {
-    dspConnection->Disconnect(this);
-  }
-  for (unsigned int i = 0; i < connections.size(); i++) {
-    connections[i]->Disconnect(this);
-  }
+  // Delegated for symmetry with ~outlet (issue #537), not because this end was
+  // the bug. The walk here was sound as written: `outlet::Disconnect` only
+  // erases from the outlet's own list and never calls back into this one, so
+  // nothing mutated the vector under the loop. It was the *asymmetry* that hid
+  // the outlet side's fault — two hand-rolled walks that look alike, one of
+  // which is unsound because its callee does call back. Both ends now run the
+  // one version that takes the list away before touching a peer.
+  UnwireFromPeers();
 }
 
 void inlet::RegisterInt(intFunc f) {
