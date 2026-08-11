@@ -266,6 +266,19 @@ void patcherImplementation::Calculate(YSE::THREAD thread) {
   }
 
   if (g != nullptr) {
+    // Then the objects fed from outside the patch (issue #529): the MIDI-input
+    // family, whose events came in on RtMidi's thread and are waiting in a
+    // lock-free queue. Last of the drains and before the render, so a message
+    // that arrived between two blocks reaches the patch in the block that
+    // follows it and everything it triggers is rendered by that same block.
+    //
+    // T_GUI, like every other drain above, and for the same reason: the tag is
+    // dispatch semantics rather than thread identity, and an object that needs
+    // to know it is really on the audio callback asks CallingThread (#690).
+    for (unsigned int i = 0; i < g->pollers.size(); i++) {
+      g->pollers[i]->Calculate(YSE::T_GUI);
+    }
+
     // invalidate all dsp buffers
     for (unsigned int i = 0; i < g->objects.size(); i++) {
       g->objects[i]->ResetDSP();
@@ -1171,6 +1184,9 @@ YSE::PATCHER::GraphState* patcherImplementation::BuildGraph() {
     pObject* object = any.second;
     g->objects.push_back(object);
     if (object->IsDSPStartPoint()) g->startPoints.push_back(object);
+    // Objects driven from outside the patch rather than by an inlet or a DSP
+    // edge (issue #529). Collected here so Calculate() never scans for them.
+    if (object->WantsBlockPoll()) g->pollers.push_back(object);
     if (strcmp(object->Type(), YSE::OBJ::D_DAC) == 0) g->dacs.push_back(object);
     if (strcmp(object->Type(), YSE::OBJ::D_ADC) == 0) g->adcs.push_back(object);
 

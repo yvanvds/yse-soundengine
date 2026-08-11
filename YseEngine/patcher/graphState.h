@@ -32,6 +32,14 @@ namespace YSE {
       // starts from. Precomputed so ``Calculate`` never scans for them.
       std::vector<pObject*> startPoints;
 
+      // Objects that must run once per block whatever the patch does with them
+      // (issue #529) — ``pObject::WantsBlockPoll()``. The MIDI-input family
+      // lives here: its events arrive on RtMidi's thread and would otherwise
+      // never be drained, there being no inlet to push the object through and
+      // no DSP edge to reach it by. Precomputed for the same reason
+      // ``startPoints`` is — ``Calculate`` never scans for them.
+      std::vector<pObject*> pollers;
+
       // DAC sinks whose channel buffers are summed into the patcher output.
       std::vector<pObject*> dacs;
 

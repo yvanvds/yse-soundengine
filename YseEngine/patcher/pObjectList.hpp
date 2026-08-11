@@ -60,7 +60,9 @@ namespace YSE {
    *  - List processing: ``G_ZL``, ``G_PACK``, ``G_PAK``, ``G_UNPACK``,
    *    ``G_JOIN``, ``G_UNJOIN``, ``G_LISTFUNNEL``.
    *  - Iteration: ``G_UZI``, ``G_ITER``.
-   *  - MIDI: ``M_OUT``, ``M_NOTEON``, ``M_NOTEOFF``, ``M_CONTROL``.
+   *  - MIDI out: ``M_OUT``, ``M_NOTEON``, ``M_NOTEOFF``, ``M_CONTROL``.
+   *  - MIDI in: ``M_IN``, ``M_NOTEIN``, ``M_CTLIN``, ``M_BENDIN``,
+   *    ``M_PGMIN``, ``M_TOUCHIN``, ``M_POLYIN``, ``M_RTIN``.
    *  - Conversion: ``MIDITOFREQUENCY``, ``FREQUENCYTOMIDI``, ``G_ATODB``,
    *    ``G_DBTOA``, ``G_CARTOPOL``, ``G_POLTOCAR``.
    */
@@ -258,6 +260,14 @@ namespace YSE {
     DEFOBJ(D_VCF, "~vcf");
 
     DEFOBJ(M_OUT, ".midiout");
+    DEFOBJ(M_IN, ".midiin");
+    DEFOBJ(M_NOTEIN, ".notein");
+    DEFOBJ(M_CTLIN, ".ctlin");
+    DEFOBJ(M_BENDIN, ".bendin");
+    DEFOBJ(M_PGMIN, ".pgmin");
+    DEFOBJ(M_TOUCHIN, ".touchin");
+    DEFOBJ(M_POLYIN, ".polyin");
+    DEFOBJ(M_RTIN, ".rtin");
     DEFOBJ(M_NOTEON, ".noteon");
     DEFOBJ(M_NOTEOFF, ".noteoff");
     DEFOBJ(M_CONTROL, ".controlchange");

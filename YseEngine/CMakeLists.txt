@@ -290,6 +290,12 @@ if(YSE_ENABLE_MIDI_DEVICE)
     midi/device.cpp
     # Clip-transport external MIDI-out sender thread (issue #350).
     midi/midiOutSender.cpp
+    # Patcher MIDI-input fan-out: RtMidi thread -> per-object lock-free queue
+    # (issue #529). Both this and the patcher objects that drain it need the
+    # device backend, so unlike the mMidi* senders they are added here rather
+    # than unconditionally.
+    midi/midiInHub.cpp
+    patcher/midi/mMidiIn.cpp
   )
 endif()
 
@@ -461,6 +467,7 @@ set_source_files_properties(
   patcher/math/pMidiToFrequency.cpp
   patcher/midi/mMidiChannelPressure.cpp
   patcher/midi/mMidiControl.cpp
+  patcher/midi/mMidiIn.cpp
   patcher/midi/mMidiNoteOff.cpp
   patcher/midi/mMidiNoteOn.cpp
   patcher/midi/mMidiOut.cpp

@@ -150,6 +150,12 @@
 #if YSE_WINDOWS && YSE_ENABLE_MIDI_DEVICE
 #include "midi/mMidiOut.h"
 #endif
+// The MIDI input family (issue #529) needs the same RtMidi-backed backend, but
+// not the extra YSE_WINDOWS guard the six senders carry: YSE_ENABLE_MIDI_DEVICE
+// is already exactly the set of platforms with an input port to open.
+#if YSE_ENABLE_MIDI_DEVICE
+#include "midi/mMidiIn.h"
+#endif
 
 using namespace YSE::PATCHER;
 
@@ -601,6 +607,39 @@ pRegistry::pRegistry() {
 #endif
 #if YSE_WINDOWS && YSE_ENABLE_MIDI_DEVICE
   Add(OBJ::M_OUT, mMidiOut::Create);
+#endif
+
+#if YSE_ENABLE_MIDI_DEVICE
+  // The MIDI input family (issue #529) — the way *into* a patch. Every object
+  // above this line either formats MIDI or sends it; until these existed a
+  // patch could not be played from a keyboard, driven by a controller, or
+  // sequenced from outside at all.
+
+  // The undecoded byte stream: the whole protocol, for SysEx, song position and
+  // anything the decoding objects filter out — and the format `.seq` records.
+  Add(OBJ::M_IN, mMidiIn::Create);
+
+  // Notes, and with them a playable patch.
+  Add(OBJ::M_NOTEIN, mNoteIn::Create);
+
+  // Knobs, faders, wheels and pedals.
+  Add(OBJ::M_CTLIN, mCtlIn::Create);
+
+  // The pitch wheel, at Max's 7-bit resolution; `.xbendin` (#533) has the rest.
+  Add(OBJ::M_BENDIN, mBendIn::Create);
+
+  // Program changes, numbered 1-128 as the hardware displays them.
+  Add(OBJ::M_PGMIN, mPgmIn::Create);
+
+  // Channel aftertouch — one pressure for the whole channel.
+  Add(OBJ::M_TOUCHIN, mTouchIn::Create);
+
+  // Polyphonic key pressure — the per-note counterpart of the above.
+  Add(OBJ::M_POLYIN, mPolyIn::Create);
+
+  // System real time: the clock, start, continue and stop a patch follows an
+  // external sequencer by.
+  Add(OBJ::M_RTIN, mRtIn::Create);
 #endif
 }
 

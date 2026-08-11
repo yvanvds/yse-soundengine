@@ -14,7 +14,7 @@ namespace YSE {
       GENERIC, // routing / glue (line, send, receive, switch, ...)
       GUI, // user-facing controls (slider, button, ...)
       TIME, // timing utilities (metro, ...)
-      MIDI, // MIDI generation / output
+      MIDI, // MIDI generation, output and device input
     };
 
     // Bitmask of message types an inlet currently accepts. Returned by
