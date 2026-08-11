@@ -4211,6 +4211,93 @@
       }
     ]
   },
+  ".nrpnin": {
+    "category": "MIDI",
+    "description": "Non-registered parameter number input — Max's 'nrpnin' (issue #534). The same mechanism '.rpnin' reports, with controllers 99 and 98 selecting the 14-bit parameter number instead of 101 and 100, and controllers 6 and 38 writing the 14-bit value as before. The difference is what the number means: a registered number is the MIDI specification's and means the same everywhere, while a non-registered one means whatever the sending device's documentation says. That is where a hardware synthesiser's filter cutoff, envelope times and oscillator settings actually live, so this is the object that lets a patch follow a synth's own front panel. A write is four control changes rather than one message and the selection is tracked per channel; both selecting pairs move the same register, so this object stays quiet while a registered parameter is selected and an interleaved stream comes out of the right box. Parameter 16383 is reported here — the Null is defined for registered numbers only, and stealing a legal non-registered address would silence a device that used it. A value is emitted on both halves, the coarse byte at once with the fine byte read as 0, so a device that sends only the coarse byte is still heard. The three outlets fire right to left. A 'channel' argument filters and, unlike Max, leaves the channel outlet in place. Events cross from the device backend's thread on a bounded lock-free queue and are drained once per audio block, so nothing allocates, locks or blocks on either side.",
+    "inlets": [],
+    "is_dsp": false,
+    "name": ".nrpnin",
+    "outlets": [
+      {
+        "doc": "The value written, 0-16383, sent last of the three so the parameter number and channel that identify it are already out when it triggers anything. A device that sends only the coarse byte covers the range in steps of 128.",
+        "index": 0,
+        "label": "value",
+        "range": "0-16383",
+        "type": "INT"
+      },
+      {
+        "doc": "Which non-registered parameter was written, 0-16383. What each number means is the sending device's business — read it off the manufacturer's MIDI implementation chart.",
+        "index": 1,
+        "label": "parameter",
+        "range": "0-16383",
+        "type": "INT"
+      },
+      {
+        "doc": "The MIDI channel the sequence arrived on, 1-16 — the numbering Max uses, the numbering the sending objects use, and the numbering printed on the hardware, rather than the 0-15 nibble on the wire. Sent first, before the outlets to its left, so anything the leftmost outlet triggers downstream already knows which channel it is looking at.",
+        "index": 2,
+        "label": "channel",
+        "range": "1-16",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Index of the MIDI input device to listen to, as numbered by YSE::system::getMidiInDeviceName. The port is opened the first time any patcher object asks for it and closed when the last one goes, so several objects on one keyboard share a single device and each still gets a queue of its own. A port that will not open — no hardware, or a backend that allows one client per port and a host that already holds it — leaves an object that is perfectly valid and simply never receives anything, which is what lets a patch load the same way on a machine with nothing plugged in. Editing this argument on a live object rebuilds the object rather than storing into it: the subscription is taken when the object joins its patcher, and a field written on the audio thread cannot move a device port.",
+        "name": "port",
+        "range": "0-7"
+      },
+      {
+        "default": "0",
+        "doc": "MIDI channel to accept, 1-16, or 0 for every channel — Max's omni, and the default. Unlike Max, giving a channel here does not remove the channel outlet: an object whose outlet count depends on its arguments has no stable outlet numbering, so adding an argument would silently re-point every cord leaving the box and a saved patch's connection indices would mean two different things. The outlet stays and carries the filtered channel back, which costs a patch nothing.",
+        "name": "channel",
+        "range": "0-16"
+      }
+    ]
+  },
+  ".nrpnout": {
+    "category": "MIDI",
+    "description": "Non-registered parameter number sender — Max's 'nrpnout' (issue #534). The same mechanism '.rpnout' uses, with controllers 99 and 98 selecting the 14-bit parameter number instead of 101 and 100, and controllers 6 and 38 writing the 14-bit value as before. The difference is what the number means: a registered number is the MIDI specification's and means the same everywhere, while a non-registered one means whatever the device's own documentation says. That is where a hardware synthesiser's filter cutoff, envelope times and oscillator settings actually live — the parameters a patch most wants to reach and the ones no standard controller addresses — so this is the object that makes 16384 of a synth's own parameters playable from a patch. As with '.rpnout' the selection is re-sent with every value, because the receiving device has one selected parameter and anything else on the cable can move it; the four messages leave as four separate lists, one per MIDI message; and values and parameter numbers are clamped into 0-16383 rather than refused. The output is a raw byte list for '.midiout'.",
+    "inlets": [
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "The value to write, at the full 14-bit resolution the Data Entry pair carries (also fires all four messages). A device that reads only the coarse half sees the value in steps of 128, which is the same reading it would give a plain controller.",
+        "index": 0,
+        "label": "value",
+        "range": "0-16383"
+      },
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "Non-registered parameter number to write to, stored until the next value. What each number means is the receiving device's business — read it off the manufacturer's MIDI implementation chart.",
+        "index": 1,
+        "label": "parameter",
+        "range": "0-16383"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".nrpnout",
+    "outlets": [
+      {
+        "doc": "Four encoded MIDI Control Change messages, one list each and in order: the parameter number's coarse byte, its fine byte, the value's coarse byte on controller 6, and its fine byte on controller 38. Four lists rather than one, because '.midiout' sends each list it receives as a single MIDI message.",
+        "index": 0,
+        "label": "midi",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "MIDI channel offset (0-based).",
+        "name": "channel",
+        "range": "0-15"
+      }
+    ]
+  },
   ".onebang": {
     "category": "GENERIC",
     "description": "Lets one bang through and then closes until it is re-armed from the right inlet — Max's onebang, and the standard one-shot: fire a sound on the first trigger of a burst and ignore the rest until something explicitly re-enables it. Max: 'Allows a bang in the left inlet to pass through ONLY if a bang has been received in the right inlet. After that, a bang in the left inlet will not get through again until a bang has been received again in the right inlet.' The patcher could already count triggers with .counter and compare them with .sel or .past, but expressing 'once, then not again until I say so' that way takes three boxes and leaves the re-arm implicit in the numbers, where here it is a patch cord. The whole object is one bit of state and two properties of it are worth knowing. The right inlet is idempotent: arming an already-armed gate does not bank a second pass, because Max says the left inlet passes 'only if it has received a bang in its right inlet since the last time it sent out a bang' — a since, not a count — so five arms followed by five triggers is one pass and four rejects, never five passes. And nothing is ever swallowed: every message the left inlet accepts produces exactly one bang, on one outlet or the other, so the object gates where a bang goes rather than whether one happens. That is what makes the second outlet worth wiring. There are two of them, which the object's name does not suggest — Max: 'Otherwise, it sends a bang out its right outlet' — so a blocked bang is reported as a 'you were too early' signal rather than lost, and the two outlets together are a complete accounting of the left inlet's traffic. Exactly one fires per message, so unlike .trigger, .bangbang, .mean or .peak there is no right-to-left firing order to respect. Everything is a bang: Max gives int, float and list the description 'Same as a bang' and anything 'Converted to bang', so the payload is documented as discarded, and a 0 on the left inlet triggers the gate like anything else. That is worth stating because the number reads like a 'don't' — this is not .gate, and a value of 0 does not mean off anywhere in it, on either inlet; a patch that wants a numeric gate wants .gate. The word 'stop' on the left inlet is Max's manual disarm ('Undoes the effect of a bang in the right inlet'), silent, and it is the only word this object knows. Elsewhere in the family a symbol is a message the object would ignore anyway, so adding 'reset' costs nothing; here a symbol is a trigger, so every word learned is a bang silently no longer passed — and 'stop' plus a message on the right inlet already reach the entire state space. It is bare, as .change's 'mode' and .past's 'clear' are: 'stop 1' is a list, and a list is a bang. On the right inlet 'stop' arms rather than disarming, because Max scopes the message to the left inlet while marking int, float, list and anything 'in either inlet', and because the reference describes the arming inlet with no conditions at all — a patch is entitled to treat a cord into it as 'the gate is now open', which would hold only for inspected message text if one string out of all possible strings closed it instead. The object starts disarmed, which is Max's default and also the safe one, since an object that started armed would let a patch load fire a bang nobody armed it for; a non-zero creation argument starts it armed, as Max's does. The argument is a flag, so only its zero-ness is read, and it is read from the float as it arrived rather than from a truncated int: Max's int argument would make 0.5 a zero, but this patcher has one numeric type and a flag that flipped on the third decimal place of a number nobody meant as a value would be a trap. A token that is not a whole finite number is not an argument, so '.onebang wobble' and '.onebang inf' both start disarmed — non-finite is 'not a number' in this family, as .change inf starting at 0 already establishes. Calculate() does nothing: the object is driven by its inlets, and emitting on a DSP tick would re-fire the gate every block, which for a one-shot is the exact failure it exists to prevent.",
@@ -5492,6 +5579,93 @@
         "doc": "Max's argument list, in Max's order: how many routable inlets to build, then how many routable outlets. Each is clamped to 1-256 and defaults to 2 — Max documents both as optional and states no default, so the family's is used. The object builds one inlet and one outlet more than these, for the connection messages and for dump. A float is truncated; anything that is not a whole finite number is ignored and leaves that default in place. The connections themselves are not parameters and do not survive a save — 'dump' is how a patch reads them back.",
         "name": "inlets",
         "range": "1-256, optional outlets 1-256"
+      }
+    ]
+  },
+  ".rpnin": {
+    "category": "MIDI",
+    "description": "Registered parameter number input — Max's 'rpnin' (issue #534). MIDI has 128 controller numbers and a synthesiser has far more than 128 parameters; registered and non-registered parameter numbers are the escape hatch, and this is the registered half. A write is not one message but four control changes — controllers 101 and 100 select a 14-bit parameter number, then controllers 6 and 38 write a 14-bit value into whatever is selected — so this object is a small state machine rather than a decoder: nothing in the value bytes says which parameter they belong to, and remembering that is the whole job. The selection is tracked per channel, so two devices on one cable cannot cross-contaminate each other. Registered numbers are the specification's own and mean the same thing on every device that implements them: 0 pitch-bend sensitivity, 1 fine tuning, 2 coarse tuning, 3 tuning program select, 4 tuning bank select. Manufacturer-specific numbers are '.nrpnin''s, and because both pairs move the same selection register, an interleaved stream comes out of the right box — this object stays quiet while a non-registered parameter is selected. The RPN Null (parameter 16383) deselects, as the specification intends, so a Data Entry that follows an abandoned sequence is reported by nobody. A value is emitted on both halves, not only on the fine one: the coarse byte emits at once with the fine byte read as 0, which is what keeps the many devices that send only the coarse byte from leaving the object silent. The three outlets fire right to left. A 'channel' argument filters and, unlike Max, leaves the channel outlet in place. Events cross from the device backend's thread on a bounded lock-free queue and are drained once per audio block, so nothing allocates, locks or blocks on either side.",
+    "inlets": [],
+    "is_dsp": false,
+    "name": ".rpnin",
+    "outlets": [
+      {
+        "doc": "The value written, 0-16383, sent last of the three so the parameter number and channel that identify it are already out when it triggers anything. A device that sends only the coarse byte covers the range in steps of 128.",
+        "index": 0,
+        "label": "value",
+        "range": "0-16383",
+        "type": "INT"
+      },
+      {
+        "doc": "Which registered parameter was written, 0-16383: 0 pitch-bend sensitivity, 1 fine tuning, 2 coarse tuning, 3 tuning program select, 4 tuning bank select. 16383 is never reported — that is the Null, which deselects rather than selecting.",
+        "index": 1,
+        "label": "parameter",
+        "range": "0-16382",
+        "type": "INT"
+      },
+      {
+        "doc": "The MIDI channel the sequence arrived on, 1-16 — the numbering Max uses, the numbering the sending objects use, and the numbering printed on the hardware, rather than the 0-15 nibble on the wire. Sent first, before the outlets to its left, so anything the leftmost outlet triggers downstream already knows which channel it is looking at.",
+        "index": 2,
+        "label": "channel",
+        "range": "1-16",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Index of the MIDI input device to listen to, as numbered by YSE::system::getMidiInDeviceName. The port is opened the first time any patcher object asks for it and closed when the last one goes, so several objects on one keyboard share a single device and each still gets a queue of its own. A port that will not open — no hardware, or a backend that allows one client per port and a host that already holds it — leaves an object that is perfectly valid and simply never receives anything, which is what lets a patch load the same way on a machine with nothing plugged in. Editing this argument on a live object rebuilds the object rather than storing into it: the subscription is taken when the object joins its patcher, and a field written on the audio thread cannot move a device port.",
+        "name": "port",
+        "range": "0-7"
+      },
+      {
+        "default": "0",
+        "doc": "MIDI channel to accept, 1-16, or 0 for every channel — Max's omni, and the default. Unlike Max, giving a channel here does not remove the channel outlet: an object whose outlet count depends on its arguments has no stable outlet numbering, so adding an argument would silently re-point every cord leaving the box and a saved patch's connection indices would mean two different things. The outlet stays and carries the filtered channel back, which costs a patch nothing.",
+        "name": "channel",
+        "range": "0-16"
+      }
+    ]
+  },
+  ".rpnout": {
+    "category": "MIDI",
+    "description": "Registered parameter number sender — Max's 'rpnout' (issue #534). MIDI has 128 controller numbers and a synthesiser has far more than 128 parameters; registered and non-registered parameter numbers are the escape hatch, and this is the registered half. A value on the inlet emits four complete Control Change messages: controller 101 and controller 100 select the 14-bit parameter number given on the right inlet, then controllers 6 and 38 write the 14-bit value. Registered numbers are the ones the MIDI specification itself assigns and mean the same thing on every device that implements them — 0 pitch-bend sensitivity, 1 fine tuning, 2 coarse tuning, 3 tuning program select, 4 tuning bank select — so a patch can widen a synth's bend range without consulting a manufacturer's chart. Manufacturer-specific parameters are '.nrpnout''s. The selection is re-sent with every value rather than only when the parameter number changes: the receiving device has one selected parameter, and anything else on the cable can move it between two values from this box, which is the failure this mechanism is notorious for. The four messages leave as four separate lists because '.midiout' sends each list it receives as a single MIDI message, so twelve bytes together would arrive as one malformed message rather than four good ones. The RPN Null that closes a sequence is not appended — Max does not send it either, and a patch that wants it can address parameter 16383 explicitly. Values and parameter numbers are clamped into 0-16383 rather than refused, as everywhere in this family. The output is a raw byte list for '.midiout'.",
+    "inlets": [
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "The value to write, at the full 14-bit resolution the Data Entry pair carries (also fires all four messages). A device that reads only the coarse half sees the value in steps of 128, which is the same reading it would give a plain controller.",
+        "index": 0,
+        "label": "value",
+        "range": "0-16383"
+      },
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "Registered parameter number to write to, stored until the next value. 0 is pitch-bend sensitivity, 1 fine tuning, 2 coarse tuning, 3 tuning program select, 4 tuning bank select; 16383 is the specification's Null, which deselects rather than writing.",
+        "index": 1,
+        "label": "parameter",
+        "range": "0-16383"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".rpnout",
+    "outlets": [
+      {
+        "doc": "Four encoded MIDI Control Change messages, one list each and in order: the parameter number's coarse byte, its fine byte, the value's coarse byte on controller 6, and its fine byte on controller 38. Four lists rather than one, because '.midiout' sends each list it receives as a single MIDI message.",
+        "index": 0,
+        "label": "midi",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "MIDI channel offset (0-based).",
+        "name": "channel",
+        "range": "0-15"
       }
     ]
   },

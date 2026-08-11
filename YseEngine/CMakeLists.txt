@@ -291,6 +291,9 @@ set(YSE_SRCS
   patcher/midi/mMidiProgramChange.cpp
   # The extended-precision senders (issue #533), unguarded like the rest.
   patcher/midi/mMidiXOut.cpp
+  # The parameter-number senders (issue #534), likewise: they format control
+  # changes onto a list outlet and open no device.
+  patcher/midi/mMidiRpnOut.cpp
   # midiNote is a plain data class with no platform dependencies.
   midi/midiNote.cpp
 )
@@ -314,6 +317,8 @@ if(YSE_ENABLE_MIDI_DEVICE)
     # The extended-precision input objects (issue #533) are built on that
     # family and need the same backend.
     patcher/midi/mMidiXIn.cpp
+    # The parameter-number input objects (issue #534) are built on it too.
+    patcher/midi/mMidiRpnIn.cpp
   )
 endif()
 
@@ -493,6 +498,8 @@ set_source_files_properties(
   patcher/midi/mMidiOut.cpp
   patcher/midi/mMidiPolyPressure.cpp
   patcher/midi/mMidiProgramChange.cpp
+  patcher/midi/mMidiRpnIn.cpp
+  patcher/midi/mMidiRpnOut.cpp
   patcher/midi/mMidiXIn.cpp
   patcher/midi/mMidiXOut.cpp
   patcher/midi/mSysEx.cpp

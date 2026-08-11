@@ -152,6 +152,9 @@
 // The extended-precision senders (issue #533), siblings of the seven above and
 // unconditional with them.
 #include "midi/mMidiXOut.h"
+// The parameter-number senders (issue #534), unconditional for the same reason:
+// they format control changes and open no device.
+#include "midi/mMidiRpnOut.h"
 // The MIDI codec pair (issue #530) is registered unconditionally below too.
 #include "midi/mMidiCodec.h"
 // The system-exclusive pair (issue #531). One header, two guards: `.sxformat`
@@ -170,6 +173,9 @@
 // The extended-precision input objects (issue #533) are built on that family's
 // plumbing and share its guard exactly.
 #include "midi/mMidiXIn.h"
+// The parameter-number input objects (issue #534) are built on that same
+// plumbing and share its guard exactly.
+#include "midi/mMidiRpnIn.h"
 #endif
 
 using namespace YSE::PATCHER;
@@ -635,6 +641,13 @@ pRegistry::pRegistry() {
   Add(OBJ::M_XCTLOUT, mXCtlOut::Create);
   Add(OBJ::M_XNOTEOUT, mXNoteOut::Create);
 
+  // The parameter-number senders (issue #534). Not a fifth channel-voice
+  // message but a sequence of four control changes: two that select a 14-bit
+  // parameter number and two that write a 14-bit value into it, which is how
+  // MIDI addresses the parameters no controller number reaches.
+  Add(OBJ::M_RPNOUT, mRpnOut::Create);
+  Add(OBJ::M_NRPNOUT, mNrpnOut::Create);
+
 #if YSE_ENABLE_MIDI_DEVICE
   // The one sender that holds a device port, so the one that stays guarded.
   Add(OBJ::M_OUT, mMidiOut::Create);
@@ -695,6 +708,13 @@ pRegistry::pRegistry() {
   Add(OBJ::M_XCTLIN, mXCtlIn::Create);
   Add(OBJ::M_XNOTEIN, mXNoteIn::Create);
   Add(OBJ::M_XMIDIIN, mXMidiIn::Create);
+
+  // The parameter-number input objects (issue #534). Same plumbing again, with
+  // the one piece of real state in the family: a value carries no parameter
+  // number of its own, so these two remember per channel what the selecting
+  // controllers last pointed at and report only the writes of their own kind.
+  Add(OBJ::M_RPNIN, mRpnIn::Create);
+  Add(OBJ::M_NRPNIN, mNrpnIn::Create);
 #endif
 
   // The building half of the system-exclusive pair (issue #531). Unguarded for
