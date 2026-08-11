@@ -269,6 +269,7 @@ set(YSE_SRCS
   # (issue #570), so the DLL fails to link without it.
   internal/AudioTest.cpp
   # patcher/midi objects are registered unconditionally in pRegistry.cpp.
+  patcher/midi/mMidiBendOut.cpp
   patcher/midi/mMidiChannelPressure.cpp
   # The MIDI codec pair (issue #530) opens no device, so unlike mMidiIn.cpp it
   # belongs in the unconditional list.
@@ -472,6 +473,7 @@ set_source_files_properties(
   patcher/math/gZmap.cpp
   patcher/math/pFrequencyToMidi.cpp
   patcher/math/pMidiToFrequency.cpp
+  patcher/midi/mMidiBendOut.cpp
   patcher/midi/mMidiChannelPressure.cpp
   patcher/midi/mMidiCodec.cpp
   patcher/midi/mMidiControl.cpp

@@ -60,7 +60,8 @@ namespace YSE {
    *  - List processing: ``G_ZL``, ``G_PACK``, ``G_PAK``, ``G_UNPACK``,
    *    ``G_JOIN``, ``G_UNJOIN``, ``G_LISTFUNNEL``.
    *  - Iteration: ``G_UZI``, ``G_ITER``.
-   *  - MIDI out: ``M_OUT``, ``M_NOTEON``, ``M_NOTEOFF``, ``M_CONTROL``.
+   *  - MIDI out: ``M_OUT``, ``M_NOTEON``, ``M_NOTEOFF``, ``M_CONTROL``,
+   *    ``M_BENDOUT``.
    *  - MIDI in: ``M_IN``, ``M_NOTEIN``, ``M_CTLIN``, ``M_BENDIN``,
    *    ``M_PGMIN``, ``M_TOUCHIN``, ``M_POLYIN``, ``M_RTIN``.
    *  - MIDI codec: ``M_PARSE``, ``M_FORMAT``.
@@ -276,6 +277,7 @@ namespace YSE {
     DEFOBJ(M_POLYPRESS, ".polypressure");
     DEFOBJ(M_CHANPRESS, ".channelpressure");
     DEFOBJ(M_PROGCHANGE, ".programchange");
+    DEFOBJ(M_BENDOUT, ".bendout");
     DEFOBJ(M_PARSE, ".midiparse");
     DEFOBJ(M_FORMAT, ".midiformat");
     DEFOBJ(M_SYSEXIN, ".sysexin");

@@ -138,6 +138,7 @@
 #include "math/gZmap.h"
 
 #if YSE_WINDOWS
+#include "midi/mMidiBendOut.h"
 #include "midi/mMidiChannelPressure.h"
 #include "midi/mMidiControl.h"
 #include "midi/mMidiNoteOff.h"
@@ -612,6 +613,10 @@ pRegistry::pRegistry() {
   Add(OBJ::M_NOTEON, mMidiNoteOn::Create);
   Add(OBJ::M_POLYPRESS, mMidiPolyPressure::Create);
   Add(OBJ::M_PROGCHANGE, mMidiProgramChange::Create);
+  // Pitch bend (issue #532) — the last channel-voice status the sender family
+  // was missing. Guarded with the six it belongs to; issue #746 lifts the
+  // YSE_WINDOWS guard off all seven at once.
+  Add(OBJ::M_BENDOUT, mMidiBendOut::Create);
 #endif
 #if YSE_WINDOWS && YSE_ENABLE_MIDI_DEVICE
   Add(OBJ::M_OUT, mMidiOut::Create);
