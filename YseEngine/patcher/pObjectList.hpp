@@ -76,6 +76,7 @@ namespace YSE {
    *  - MIDI devices: ``M_MIDIINFO``.
    *  - MIDI hygiene: ``M_MIDIFLUSH``, ``M_MAKENOTE``, ``M_STRIPNOTE``,
    *    ``M_FLUSH``, ``M_SUSTAIN``.
+   *  - Voice allocation: ``M_POLY``.
    *  - Conversion: ``MIDITOFREQUENCY``, ``FREQUENCYTOMIDI``, ``G_ATODB``,
    *    ``G_DBTOA``, ``G_CARTOPOL``, ``G_POLTOCAR``.
    */
@@ -314,5 +315,6 @@ namespace YSE {
     DEFOBJ(M_STRIPNOTE, ".stripnote");
     DEFOBJ(M_FLUSH, ".flush");
     DEFOBJ(M_SUSTAIN, ".sustain");
+    DEFOBJ(M_POLY, ".poly");
   };
 } // namespace YSE

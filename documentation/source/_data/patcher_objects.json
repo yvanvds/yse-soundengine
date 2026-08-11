@@ -5062,6 +5062,80 @@
       }
     ]
   },
+  ".poly": {
+    "category": "MIDI",
+    "description": "Allocates incoming notes to a numbered pool of voices — Max's 'poly', which 'provides polyphonic voice-allocation by allocating data to different individual voices'. A pitch/velocity pair goes in the two inlets and a voice number, a pitch and a velocity come out the three outlets: a note-on takes a free voice and holds it, and the release that frees it comes out carrying the same voice number, which is the whole point — it is what lets a patch send a note-off to the one voice that is playing the note. This is what lets a patcher build its own polyphonic instrument out of graph objects the way the engine's synth does internally: a '.route' or a '.gate' on the voice-number outlet fans one keyboard out across N identical voice chains, and this object decides which chain each note lands in. It hosts nothing and renders nothing — it allocates numbers, and the patch decides what a number means. The policy is the engine synth's allocateInGroup rather than a second, subtly different one: a free voice is preferred and scanned in ascending order, so a patch with more voices than it uses always plays on the low ones; with no free voice the oldest sounding note gives way, which is the synth's rule once its release-tail tier is dropped (this object cannot see a tail — the tail belongs to whatever the patch built downstream) and is Max's rule word for word. A steal sends the stolen note's release before the new note's attack on the same voice number, so the chain downstream is told to let go before it is told to play again. Stealing is Max's second creation argument and is off by default: with it off, a note that finds no free voice goes out the overflow outlet as the list 'pitch velocity' and is not tracked. A note-off whose pitch no voice is holding goes out there too, as 'pitch 0', because in overflow mode the attacks that were refused went out there and their releases have to follow them or a patch reading that outlet would hang every note it was sent. Unlike Max the overflow outlet always exists — Max grows it only when not stealing, and ports here are built before the creation arguments are parsed — so while stealing it simply never fires. The right inlet stores the velocity for pitches arriving after it and outputs nothing itself, and a list in the left inlet is Max's inlet distribution on one cord: '60 100' plays pitch 60 at velocity 100. The outlets fire right to left — velocity, then pitch, then the voice number last — which here is not cosmetic: everything downstream takes the voice number on its hot inlet, that being the value which routes the note, so a voice number sent first would carry the previous note's pitch and velocity with it. Two note-ons for the same pitch are two notes and take two voices, Max's default repeat mode and the only answer that keeps a voice pool a voice pool; their note-offs pair oldest-first, so a balanced source stays balanced. 'stop' releases every sounding voice immediately, in ascending voice order — Max's only message; there is no 'clear' and no bang method, poly having neither. Any pitch at all can be allocated, the pool being a table of voices rather than a bitmap over the MIDI note range, so a patch driving a non-MIDI synth through wider values is tracked exactly like any other. At most 128 voices may be asked for, all of the table allocated with the object, and nothing on the allocate, release, steal or stop paths allocates, locks or blocks on the audio thread — every one of them is a bounded walk of that table. Shrinking the pool under a sounding patch strands no note: only allocation is bounded by the voice count, while a release and a stop walk the whole table. Like '.flush' and '.sustain' it opens no device and needs none, so it works on every platform. It also stops by itself when the patcher is cleared or destroyed, and when the object is deleted on its own (issue #758): the patcher stops every object before it unwires any of them, so a patch torn down mid-chord cannot leave its voice chains holding notes that only this object knew about. Nothing can be promised for a process killed outright, and Calculate() does nothing.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The pitch, and the half of the pair that acts. An int or a float here is paired with the stored velocity and allocated: a non-zero velocity takes a voice — the lowest-numbered free one — and sends that voice's number with the pitch and velocity, while a velocity of 0 releases the voice holding that pitch and sends the same number back with velocity 0, which is how the whole MIDI world spells a release. A float pitch is truncated to an int, as it is in Max. A list is Max's inlet distribution written on one cord: the first element is the pitch and a second element sets the velocity first, so '60 100' plays pitch 60 at velocity 100 and '60 0' releases it — which is exactly the shape '.midiparse''s note outlet sends. Further elements are ignored. A single-token numeric list is the number it spells, so a '.m 60' reaches this inlet as a pitch. The message 'stop' releases every sounding voice immediately, in ascending voice order — Max's only command, and a word rather than a pitch. There is no bang method and no 'clear', Max's poly having neither. Any pitch at all can be allocated, this object holding a table of voices rather than a bitmap over the MIDI note range.",
+        "index": 0,
+        "label": "pitch",
+        "range": "int, float, list, 'stop'"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Sets the velocity that pitches arriving *after* it will be paired with — Max's right inlet. It outputs nothing by itself: only a pitch completes a note, so only a pitch can take a voice or free one. Ints, floats and a list whose leading token is a number all set it; a float is truncated. The value is stored and passed on exactly as given, unclamped and never refused for being outside MIDI's 0-127 — this object allocates notes, it does not rewrite them, and 0 is the only value it reads meaning into, that being what a release is spelled with.",
+        "index": 1,
+        "label": "velocity",
+        "range": "0-127"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".poly",
+    "outlets": [
+      {
+        "doc": "The voice the note was allocated to, numbered from 1. The same number comes out again when that note is released, and again when the voice is stolen, which is what lets a patch route a note-off to the voice that is playing the note. Sent last, after the pitch and the velocity, Max's outlets firing right to left — this is the value that routes, so everything downstream takes it on a hot inlet.",
+        "index": 0,
+        "label": "voice",
+        "range": "1-128",
+        "type": "INT"
+      },
+      {
+        "doc": "The pitch of the note being started, released or stolen. The same value on the way in and on the way out, which is what lets a release find the note it belongs to. Sent after the velocity and before the voice number.",
+        "index": 1,
+        "label": "pitch",
+        "range": "int",
+        "type": "INT"
+      },
+      {
+        "doc": "The velocity: the stored one when a note is allocated, and 0 for every release — the one a note-off asks for, the one a steal sends for the note it displaces, and the ones 'stop' and the teardown pass send. Sent first, so anything downstream has the pair in hand by the time the voice number reaches its hot inlet.",
+        "index": 2,
+        "label": "velocity",
+        "range": "int",
+        "type": "INT"
+      },
+      {
+        "doc": "Notes no voice could be found for, as the list 'pitch velocity' — Max's fourth outlet. It fires when the pool is full and stealing is off, and it also carries a note-off whose pitch no voice is holding, as 'pitch 0', so the releases of overflowed notes follow them out the same outlet instead of vanishing. Silent while stealing, a stealing pool never overflowing.",
+        "index": 3,
+        "label": "overflow",
+        "range": "pitch velocity",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "16",
+        "doc": "The size of the voice pool — Max's first creation argument, whose documented default is 16. Clamped to 1-128 when it is read, so a live re-parse from the audio thread cannot put it out of range. Shrinking it under a sounding patch strands nothing: only allocation is bounded by it, while a release, a 'stop' and the teardown pass walk the whole table, so a voice left above the new bound still gets its note-off and simply never plays again.",
+        "name": "voices",
+        "range": "1-128"
+      },
+      {
+        "default": "0",
+        "doc": "Whether a full pool steals — Max's second creation argument. 0, the default, sends notes it cannot hold out the overflow outlet; any non-zero value turns off the note held the longest and puts the new note in its place, sending the stolen note's release first so the voice chain downstream is told to let go before it is told to play again. It can be changed live, and doing so only affects the notes that arrive afterwards.",
+        "name": "steal",
+        "range": "0 or non-zero"
+      }
+    ]
+  },
   ".polyin": {
     "category": "MIDI",
     "description": "MIDI polyphonic key-pressure input — Max's 'polyin' (issue #529). The per-note counterpart of '.touchin': every held key reports its own pressure, so a chord can be shaped one note at a time rather than as a whole. Far fewer keyboards send it than send channel aftertouch, which is why the two are separate objects rather than one — a patch built on '.polyin' silently does nothing on hardware that has only the channel kind. The three outlets fire right to left, so whatever the pitch triggers downstream already sees the pressure and channel that came with it; pairing the pitch with the one a '.notein' reported is how a patch routes the value to the right voice. A 'channel' argument filters and, unlike Max, leaves the channel outlet in place. Events cross from the device backend's thread on a bounded lock-free queue and are drained once per audio block, so nothing allocates, locks or blocks on either side.",

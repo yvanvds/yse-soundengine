@@ -180,6 +180,9 @@
 // while a pedal is down and sends them when it lifts, all of it on ordinary
 // cords, and opens no device.
 #include "midi/mSustain.h"
+// `.poly` (issue #542), unconditional once more: it allocates pitch/velocity
+// pairs to a numbered pool of voices on ordinary cords, and opens no device.
+#include "midi/mPoly.h"
 // The system-exclusive pair (issue #531). One header, two guards: `.sxformat`
 // is compiled everywhere and `.sysexin` only where there is an input port to
 // open, so the include itself carries no `#if`.
@@ -737,6 +740,15 @@ pRegistry::pRegistry() {
   // internally; this exposes the same rule to patcher logic. Unguarded like the
   // four above — it opens no device.
   Add(OBJ::M_SUSTAIN, mSustain::Create);
+
+  // `.poly` (issue #542): the allocator the four above assume. They keep a
+  // patch's notes honest one cord at a time; this one decides *which voice*
+  // plays each note and hands its number out with the pair, which is what lets
+  // a patch fan one keyboard across N voice chains and still route every
+  // note-off back to the chain that is playing it. It follows the engine
+  // synth's own allocation and stealing policy rather than inventing a second
+  // one. Unguarded like the five above — it opens no device.
+  Add(OBJ::M_POLY, mPoly::Create);
 
 #if YSE_ENABLE_MIDI_DEVICE
   // The MIDI input family (issue #529) — the way *into* a patch. Every object

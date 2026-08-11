@@ -292,6 +292,9 @@ set(YSE_SRCS
   # `.sustain` (issue #541) is unconditional once more: three int inlets, two int
   # outlets, no device.
   patcher/midi/mSustain.cpp
+  # `.poly` (issue #542) is unconditional once more: two int inlets, three int
+  # outlets and a list outlet, no device.
+  patcher/midi/mPoly.cpp
   patcher/midi/mMidiControl.cpp
   # The system-exclusive pair (issue #531). Unconditional like the codec above:
   # `.sxformat` opens no device, and the `.sysexin` half of the file carries its
@@ -536,6 +539,7 @@ set_source_files_properties(
   patcher/midi/mMidiXIn.cpp
   patcher/midi/mMidiXOut.cpp
   patcher/midi/mMpe.cpp
+  patcher/midi/mPoly.cpp
   patcher/midi/mStripNote.cpp
   patcher/midi/mSustain.cpp
   patcher/midi/mSysEx.cpp
