@@ -74,7 +74,7 @@ namespace YSE {
    *  - MIDI codec: ``M_PARSE``, ``M_FORMAT``.
    *  - MIDI system exclusive: ``M_SYSEXIN``, ``M_SXFORMAT``.
    *  - MIDI devices: ``M_MIDIINFO``.
-   *  - MIDI hygiene: ``M_MIDIFLUSH``, ``M_MAKENOTE``.
+   *  - MIDI hygiene: ``M_MIDIFLUSH``, ``M_MAKENOTE``, ``M_STRIPNOTE``.
    *  - Conversion: ``MIDITOFREQUENCY``, ``FREQUENCYTOMIDI``, ``G_ATODB``,
    *    ``G_DBTOA``, ``G_CARTOPOL``, ``G_POLTOCAR``.
    */
@@ -310,5 +310,6 @@ namespace YSE {
     DEFOBJ(M_MIDIINFO, ".midiinfo");
     DEFOBJ(M_MIDIFLUSH, ".midiflush");
     DEFOBJ(M_MAKENOTE, ".makenote");
+    DEFOBJ(M_STRIPNOTE, ".stripnote");
   };
 } // namespace YSE

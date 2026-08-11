@@ -282,6 +282,9 @@ set(YSE_SRCS
   # `.makenote` (issue #538) is unconditional too: it emits ints on two outlets
   # and opens no device.
   patcher/midi/mMakeNote.cpp
+  # `.stripnote` (issue #539) is unconditional for the same reason: two int
+  # inlets, two int outlets, no device.
+  patcher/midi/mStripNote.cpp
   patcher/midi/mMidiControl.cpp
   # The system-exclusive pair (issue #531). Unconditional like the codec above:
   # `.sxformat` opens no device, and the `.sysexin` half of the file carries its
@@ -525,6 +528,7 @@ set_source_files_properties(
   patcher/midi/mMidiXIn.cpp
   patcher/midi/mMidiXOut.cpp
   patcher/midi/mMpe.cpp
+  patcher/midi/mStripNote.cpp
   patcher/midi/mSysEx.cpp
   patcher/midi/midiPortOpener.cpp
   patcher/midi/midiPortScanner.cpp

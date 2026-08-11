@@ -168,6 +168,10 @@
 // on two int outlets and holds no port, so it drives a patcher-built synth on a
 // platform with no MIDI hardware exactly as it drives a rack on one that has.
 #include "midi/mMakeNote.h"
+// `.stripnote` (issue #539), unconditional for the same reason again: it reads
+// a pitch and a velocity off two inlets and writes them to two outlets, and
+// opens no device.
+#include "midi/mStripNote.h"
 // The system-exclusive pair (issue #531). One header, two guards: `.sxformat`
 // is compiled everywhere and `.sysexin` only where there is an input port to
 // open, so the include itself carries no `#if`.
@@ -701,6 +705,13 @@ pRegistry::pRegistry() {
   // sender downstream of it is a stateless formatter that remembers nothing, so
   // until this existed a patch had to send its own note-offs by hand.
   Add(OBJ::M_MAKENOTE, mMakeNote::Create);
+
+  // `.stripnote` (issue #539): the other end of the same note. `.makenote`
+  // guarantees a release is sent; this one guarantees a release is not *acted
+  // on*, which is what a patch that only cares about attacks needs. Every note
+  // source reports a release as a pitch with velocity 0, so without it a patch
+  // triggers twice per key. Unguarded like the two above — it opens no device.
+  Add(OBJ::M_STRIPNOTE, mStripNote::Create);
 
 #if YSE_ENABLE_MIDI_DEVICE
   // The MIDI input family (issue #529) — the way *into* a patch. Every object
