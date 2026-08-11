@@ -68,6 +68,7 @@
 #include "patcher/time/gClocker.h"
 #include "patcher/time/timerBridge.h"
 #include "support/alloc_probe.hpp"
+#include "support/timer_pacing.hpp"
 
 using namespace std::chrono_literals;
 
@@ -208,107 +209,13 @@ namespace {
     }
   };
 
-  // ─── pacing a case against the machine, rather than against a clock ─────────
-  //
-  // Every case that lets the real `timerThread` deliver used to wait for N ticks
-  // inside a fixed wall-clock budget (`waitFor(..., 2000)`). That is a statement
-  // about the machine's scheduler and not about the object — a saturated box
-  // falsifies it while the object behaves perfectly — which is issue #751, and
-  // #747, #740 and #739 before it: a wait that bounds the wrong thing.
-  //
-  // Everything that could be *joined* has been, with the handshakes the bridge
-  // publishes: a control-thread start or stop goes through the blocking front,
-  // so `timerThread::size()` is final on return, and `timerBridge::WaitIdle()`
-  // joins a deferred reconcile. But delivery itself is what the `run` cases are
-  // *about*, and there is no handshake for "the timer has ticked N times".
-  //
-  // So the budget is replaced by a **reference timer**: an ordinary periodic
-  // timer armed on the same `timerThread`, at the same interval, next to the
-  // object's own. One worker fires both out of one deadline-sorted queue, so
-  // whatever starves the object's timer starves this one identically, and a
-  // case can ask for a number of *ticks* instead of a number of milliseconds.
-  //
-  // Two of them sandwich the object exactly. The worker fires strictly in
-  // deadline order, so of two timers of the same period the **older** has passed
-  // at least as many deadlines as the younger at every instant: a reference
-  // armed just *before* the object's timer is an upper bound on the object's
-  // reports and one armed just *after* it is a lower bound, on any box, with no
-  // slack term at all. Sample the younger before the object's count and the
-  // older after it, and a test thread descheduled between the reads can only
-  // widen the sandwich rather than skew it.
-  //
-  // A stalled reference is still a failure: a periodic millisecond timer that
-  // has delivered nothing for this long is a wedged worker rather than a busy
-  // one, which is a different diagnosis and worth reporting as one rather than
-  // waiting out. Note that this bounds a *stall* and not the total wait — a box
-  // a thousand times slower simply takes a thousand times longer and passes.
-  constexpr auto kTimerStall = std::chrono::seconds(5);
-
-  class refTimer {
-  public:
-    explicit refTimer(YSE::PATCHER::timerThread::millisec periodMs)
-      : id_(YSE::PATCHER::TimerThread().Add(
-            periodMs, periodMs, [this] { ticks_.fetch_add(1, std::memory_order_release); })) {}
-
-    ~refTimer() {
-      // `ClearTimer` waits out a callback already in flight, so nothing can
-      // touch the counter after this returns — the same stop-means-stopped
-      // handshake the stop case asserts with.
-      YSE::PATCHER::TimerThread().ClearTimer(id_);
-    }
-    refTimer(const refTimer&) = delete;
-    refTimer& operator=(const refTimer&) = delete;
-    refTimer(refTimer&&) = delete;
-    refTimer& operator=(refTimer&&) = delete;
-
-    int n() const {
-      return ticks_.load(std::memory_order_acquire);
-    }
-
-    // Block until this timer has delivered `total` ticks. False only when it
-    // stalls — see the note above.
-    bool WaitTicks(int total) {
-      int seen = n();
-      auto moved = std::chrono::steady_clock::now();
-      while (seen < total) {
-        std::this_thread::sleep_for(1ms);
-        const int now = n();
-        if (now != seen) {
-          seen = now;
-          moved = std::chrono::steady_clock::now();
-        } else if (std::chrono::steady_clock::now() - moved > kTimerStall) {
-          return false;
-        }
-      }
-      return true;
-    }
-
-  private:
-    std::atomic<int> ticks_{0};
-    YSE::PATCHER::timerThread::timerID id_;
-  };
-
-  // Wait for `pred`, budgeted in `ref`'s ticks rather than in milliseconds: the
-  // object gets that many of the worker's own deliveries to satisfy it, however
-  // long the box takes to produce them. Returns `pred()`, so a reference that
-  // stalls fails the assertion the caller wrote rather than a separate one.
-  template <typename P> bool waitPaced(refTimer& ref, int ticks, P pred) {
-    int seen = ref.n();
-    const int deadline = seen + ticks;
-    auto moved = std::chrono::steady_clock::now();
-    while (!pred()) {
-      if (seen >= deadline) return false;
-      std::this_thread::sleep_for(1ms);
-      const int now = ref.n();
-      if (now != seen) {
-        seen = now;
-        moved = std::chrono::steady_clock::now();
-      } else if (std::chrono::steady_clock::now() - moved > kTimerStall) {
-        return pred();
-      }
-    }
-    return true;
-  }
+  // Pacing a case against the machine rather than against a clock — the
+  // `refTimer` / `waitPaced` pair every case below that lets the real
+  // `timerThread` deliver is written against. It moved to
+  // `support/timer_pacing.hpp` when `.metro`'s run cases needed the same
+  // instrument (issue #752); the reasoning that produced it is in that header.
+  using TestHelpers::refTimer;
+  using TestHelpers::waitPaced;
 
 } // namespace
 

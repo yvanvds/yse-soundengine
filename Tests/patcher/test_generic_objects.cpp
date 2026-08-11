@@ -12,14 +12,23 @@
 // before destruction (Toggle 0) so the dtor's id==0 branch runs; the #663 case
 // deliberately does not, because destroying a *running* metro is the path that
 // used to leave a live timer bound to freed memory.
+//
+// What the cases that let that timer deliver may *not* do is bet on how many
+// ticks the machine produces inside a wall-clock budget, in either direction —
+// neither "three bangs inside 500 ms", which a saturated box falsifies while
+// the object behaves perfectly, nor "nothing more inside 200 ms", which the
+// same box makes vacuously true.  Everything joinable is joined instead
+// (`timerBridge::WaitIdle()`, and `timerThread::size()` after a control-thread
+// toggle, which takes the bridge's blocking `ClearTimer` front), and delivery
+// itself — which has no handshake — is paced against a reference timer armed on
+// the same worker at the same period.  See `support/timer_pacing.hpp` and issue
+// #752.
 
 #include <doctest/doctest.h>
 #include <atomic>
-#include <chrono>
 #include <cstddef>
 #include <memory>
 #include <string>
-#include <thread>
 #include "patcher/patcher.hpp"
 #include "patcher/patcherImplementation.h"
 #include "patcher/pHandle.hpp"
@@ -29,15 +38,15 @@
 #include "patcher/genericObjects/gSwitch.h"
 #include "patcher/genericObjects/gReceive.h"
 #include "patcher/genericObjects/gSend.h"
+#include "patcher/time/TimerThread.h"
 #include "patcher/time/gMetro.h"
 #include "patcher/time/timerBridge.h"
 #include "patcher/sinks.hpp"
 #include "support/alloc_probe.hpp"
+#include "support/timer_pacing.hpp"
 
 using TestHelpers::BangSink;
 using TestHelpers::MultiSink;
-
-using namespace std::chrono_literals;
 
 namespace {
 
@@ -88,16 +97,18 @@ namespace {
     }
   };
 
-  // Poll `pred` every millisecond up to `budgetMs`, so a test finishes as soon
-  // as the metro delivers rather than sleeping a fixed worst case.
-  template <typename P> bool waitFor(P pred, int budgetMs = 1000) {
-    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(budgetMs);
-    while (std::chrono::steady_clock::now() < deadline) {
-      if (pred()) return true;
-      std::this_thread::sleep_for(1ms);
-    }
-    return pred();
-  }
+  // Pacing a case against the machine rather than against a clock — the
+  // instrument every `.metro` case below that lets the real `timerThread`
+  // deliver is written against, and the whole of issue #752. The reasoning
+  // lives in `support/timer_pacing.hpp`; the short version is that a reference
+  // timer armed on the same worker at the same period lets a case wait for a
+  // number of the machine's own *ticks* instead of a number of milliseconds,
+  // and that two of them armed either side of the object's own timer bound its
+  // output exactly. It replaced a `waitFor(pred, budgetMs)` here, which asserted
+  // that the OS millisecond timer delivered N ticks inside a wall-clock budget —
+  // a statement about the scheduler and not about `.metro`.
+  using TestHelpers::refTimer;
+  using TestHelpers::waitPaced;
 
 } // namespace
 
@@ -652,15 +663,37 @@ TEST_SUITE("patcher") {
     sink.ConnectInlet(metro.GetOutlet(0), 0);
 
     metro.GetInlet(1)->SetInt(5, YSE::T_GUI);
+    const std::size_t before = YSE::PATCHER::TimerThread().size();
     metro.GetInlet(0)->SetInt(1, YSE::T_GUI);
+    // A start from the control thread takes the *blocking* half of the bridge,
+    // so the timer is armed inline: that it exists is a fact on return rather
+    // than something to wait for.
+    REQUIRE(YSE::PATCHER::TimerThread().size() == before + 1);
+
     // Really running before the word arrives, so what follows is the word's
-    // doing and not a timer that never started.
-    REQUIRE(waitFor([&] { return sink.count() >= 3; }, 500));
+    // doing and not a timer that never started. Paced against the worker's own
+    // deliveries rather than against a budget (#752): this reference is younger
+    // than the metro's timer, so every tick of it is a deadline that timer has
+    // already passed.
+    refTimer younger(5);
+    REQUIRE(younger.WaitTicks(3));
+    const int atLeast = younger.n();
+    REQUIRE(sink.count() >= atLeast);
 
     metro.GetInlet(0)->SetList("stop", YSE::T_GUI);
     const int afterStop = sink.count();
-    // A 5 ms timer still running would advance many times over this window.
-    std::this_thread::sleep_for(100ms);
+    // The word reached the same blocking front, so the timer is gone from the
+    // worker's queue on return rather than merely told to be quiet: only the
+    // reference is left.
+    CHECK(YSE::PATCHER::TimerThread().size() == before + 1);
+    YSE::PATCHER::TimerBridge().WaitIdle();
+    CHECK(sink.count() == afterStop);
+
+    // And the worker kept firing throughout, so the bangs ending is this metro
+    // having stopped rather than the machine having gone quiet — a 5 ms timer
+    // still armed would have advanced ten more times over this window, and the
+    // window stretches with the load instead of expiring under it.
+    REQUIRE(younger.WaitTicks(atLeast + 10));
     CHECK(sink.count() == afterStop);
   }
 
@@ -674,12 +707,23 @@ TEST_SUITE("patcher") {
     sink.ConnectInlet(metro.GetOutlet(0), 0);
 
     metro.GetInlet(1)->SetInt(5, YSE::T_GUI);
+    const std::size_t before = YSE::PATCHER::TimerThread().size();
     metro.GetInlet(0)->SetInt(1, YSE::T_GUI);
-    REQUIRE(waitFor([&] { return sink.count() >= 3; }, 500));
+    REQUIRE(YSE::PATCHER::TimerThread().size() == before + 1);
+
+    refTimer younger(5); // younger than the metro's timer — see the note above
+    REQUIRE(younger.WaitTicks(3));
+    const int atLeast = younger.n();
+    REQUIRE(sink.count() >= atLeast);
 
     metro.GetInlet(1)->SetList("stop", YSE::T_GUI);
     const int afterWord = sink.count();
-    CHECK(waitFor([&] { return sink.count() > afterWord + 2; }, 500));
+    // Still armed — the word reached no handler that could retire it — and
+    // still delivering. The second half is budgeted in the worker's own ticks
+    // rather than in milliseconds (#752): twelve of them at the metro's period
+    // is ample room for the three bangs asked for, on any box.
+    CHECK(YSE::PATCHER::TimerThread().size() == before + 2);
+    CHECK(waitPaced(younger, 12, [&] { return sink.count() > afterWord + 2; }));
 
     metro.GetInlet(0)->SetInt(0, YSE::T_GUI); // stop before destruction
   }
@@ -733,19 +777,38 @@ TEST_SUITE("patcher") {
     metro.GetInlet(0)->SetInt(1, YSE::T_GUI); // start; immediate bang
     REQUIRE(sink.count() == 1);
 
-    std::this_thread::sleep_for(30ms);
-    metro.GetInlet(1)->SetInt(10, YSE::T_GUI);
+    {
+      // Let part of the cycle elapse, measured in the worker's own 10 ms
+      // deliveries: three of them is at least 30 ms of the 5 s cycle gone,
+      // which is what puts the re-anchored expiry below in the past.
+      refTimer elapsed(10);
+      REQUIRE(elapsed.WaitTicks(3));
 
-    // 30ms of the cycle has already elapsed and the new interval is 10ms, so
-    // the re-anchored expiry is in the past: the metro fires as soon as the
-    // worker wakes instead of skipping the beat.
-    CHECK(waitFor([&] { return sink.count() >= 2; }, 500));
+      metro.GetInlet(1)->SetInt(10, YSE::T_GUI);
 
-    // ... and keeps the new rate: ~20 bangs fit in a 200ms window at 10ms,
-    // against at most one at the original 5s.
+      // 30ms of the cycle has already elapsed and the new interval is 10ms, so
+      // the re-anchored expiry is in the past: the metro fires as soon as the
+      // worker wakes instead of skipping the beat. `timerThread::SetPeriod`
+      // clamps such an expiry to *now*, so it sorts ahead of this reference's
+      // own pending deadline and the worker takes it first — six of the
+      // reference's ticks is a generous budget for something due before its
+      // next one (#752), and not a wall-clock window.
+      CHECK(waitPaced(elapsed, 6, [&] { return sink.count() >= 2; }));
+    }
+
+    // ... and keeps the new rate. A reference of the metro's *new* period armed
+    // after the count is read is an exact lower bound on how far that count
+    // moves: the metro's next deadline is at most one period out, so its i-th
+    // delivery from here is due no later than this reference's i-th and the one
+    // worker fires them in deadline order. At the original 5 s the count could
+    // not move at all. Twenty deliveries rather than "≥6 in a 200 ms window",
+    // which is the bet #752 is about — that window held six on a quiet box and
+    // regularly none on a saturated one.
     const int base = sink.count();
-    std::this_thread::sleep_for(200ms);
-    CHECK(sink.count() - base >= 6);
+    refTimer younger(10);
+    REQUIRE(younger.WaitTicks(20));
+    const int paced = younger.n();
+    CHECK(sink.count() - base >= paced);
 
     metro.GetInlet(0)->SetInt(0, YSE::T_GUI); // stop before destruction
   }
@@ -758,13 +821,29 @@ TEST_SUITE("patcher") {
 
     metro.GetInlet(1)->SetInt(10, YSE::T_GUI);
     metro.GetInlet(0)->SetInt(1, YSE::T_GUI);
-    REQUIRE(waitFor([&] { return sink.count() >= 3; }, 1000));
+
+    // Really running at 10 ms before the period is grown, paced against a
+    // reference of that period armed after the metro's own timer (#752).
+    refTimer younger(10);
+    REQUIRE(younger.WaitTicks(3));
+    const int atLeast = younger.n();
+    REQUIRE(sink.count() >= atLeast);
 
     metro.GetInlet(1)->SetFloat(5000.f, YSE::T_GUI); // float inlet takes the same path
-    std::this_thread::sleep_for(30ms); // let a tick already in flight land
     const int settled = sink.count();
-    std::this_thread::sleep_for(150ms);
-    CHECK(sink.count() == settled);
+
+    // The cold inlet reschedules eagerly on the caller's thread, so the 5 s
+    // expiry is in force by the time that call returns; the one thing that may
+    // still be outstanding is a callback already in flight, whose bang lands
+    // after it. Fifteen ticks of the 10 ms reference is the join for that — the
+    // worker is serial, so a callback in flight then has certainly returned —
+    // and at the same time the window the metro would have banged fifteen more
+    // times in had the growth not taken. Neither half is a sleep: the sleeps
+    // this replaces bet that 30 ms was enough for the in-flight tick and that
+    // nothing arrived in 150 ms, and a loaded box breaks the first and makes
+    // the second vacuous (#752).
+    REQUIRE(younger.WaitTicks(younger.n() + 15));
+    CHECK(sink.count() <= settled + 1);
 
     metro.GetInlet(0)->SetInt(0, YSE::T_GUI);
   }
@@ -791,11 +870,39 @@ TEST_SUITE("patcher") {
     p.Calculate(YSE::T_DSP); // audio thread applies the queued scalar store
 
     // The cycle in flight still runs out at 150ms; from the tick that ends it
-    // the metro is on 10ms.  Wait for that tick, then measure the rate.
-    REQUIRE(waitFor([&] { return sink.count() >= 2; }, 2000));
+    // the metro is on 10ms.  Wait for that tick, then measure the rate — both
+    // budgeted in a reference timer's own deliveries rather than in
+    // milliseconds (#752).
+    //
+    // Twenty ticks of a 10 ms reference armed after the start is not a guess:
+    // its 16th deadline is at least 160 ms past an arming that already came
+    // after the metro's 150 ms one, so the worker takes the metro's first
+    // before it, on any box.
+    refTimer ref(10);
+    REQUIRE(waitPaced(ref, 20, [&] { return sink.count() >= 2; }));
+
+    // That tick has *asked* for the new interval, and asking is all it can do:
+    // `Bang()` runs on the timer worker, so it publishes a `RequestPeriod` and
+    // the reconcile that reaches `timerThread::SetPeriod` happens a background
+    // pool hop later. Until then the metro is still a 150 ms metronome. The
+    // request is issued before the bang that this thread just observed, so
+    // `WaitIdle()` is a join on that reconcile and the 10 ms interval is a fact
+    // on return.
+    //
+    // The 200 ms sleep this replaces was covering that hop by accident, which
+    // is why it needed only six bangs where twenty were due: on #752's
+    // saturated box the pool hop alone outlasted the window and the case failed
+    // 9 runs in 10 against a reference-paced count.
+    YSE::PATCHER::TimerBridge().WaitIdle();
+
+    // From here the metro is a 10 ms metronome, so a 10 ms reference armed
+    // after the count is read bounds how far that count moves from below —
+    // at the old 150 ms it could move at most twice.
     const int base = sink.count();
-    std::this_thread::sleep_for(200ms);
-    CHECK(sink.count() - base >= 6); // ~20 at 10ms; at most 2 at the old 150ms
+    refTimer younger(10);
+    REQUIRE(younger.WaitTicks(20));
+    const int paced = younger.n();
+    CHECK(sink.count() - base >= paced);
 
     metro->SetIntData(0, 0);
   }
@@ -838,9 +945,20 @@ TEST_SUITE("patcher") {
 
       metro->GetInlet(1)->SetInt(10, YSE::T_GUI);
       metro->GetInlet(0)->SetInt(1, YSE::T_GUI); // start; immediate bang
-      // Wait for real timer-thread ticks, not just the immediate bang, so the
-      // worker is demonstrably armed and firing at the moment of destruction.
-      REQUIRE(waitFor([&] { return sink.count() >= 3; }, 1000));
+      REQUIRE(YSE::PATCHER::TimerThread().size() == timersBefore + 1);
+
+      {
+        // Real timer-thread ticks, not just the immediate bang, so the worker
+        // is demonstrably armed and firing at the moment of destruction —
+        // counted in the worker's own deliveries rather than inside a 1000 ms
+        // budget (#752). Armed after the metro's timer, so every tick of it is
+        // a deadline that timer has already passed; scoped so it is retired
+        // before the size() checks that follow.
+        refTimer younger(10);
+        REQUIRE(younger.WaitTicks(3));
+        const int atLeast = younger.n();
+        REQUIRE(sink.count() >= atLeast);
+      }
       REQUIRE(YSE::PATCHER::TimerThread().size() == timersBefore + 1);
 
       metro.reset(); // destroy while running — no Toggle 0
@@ -855,9 +973,13 @@ TEST_SUITE("patcher") {
 
     // ClearTimer also blocks out any Bang() still in flight, so by here no
     // callback can be touching the object at all — at 10ms a surviving timer
-    // would have fired roughly twenty more times inside this window.
+    // would have fired twenty more times inside this window. The window is
+    // twenty of the worker's own 10 ms deliveries rather than 200 ms of
+    // wall clock, so a saturated box stretches it instead of making it
+    // vacuously quiet (#752).
     const int settled = sink.count();
-    std::this_thread::sleep_for(200ms);
+    refTimer after(10);
+    REQUIRE(after.WaitTicks(20));
     CHECK(sink.count() == settled);
   }
 
@@ -984,7 +1106,16 @@ TEST_SUITE("patcher") {
     // retime's doing.
     YSE::PATCHER::TimerBridge().WaitIdle();
     const int base = sink.count();
-    CHECK(waitFor([&] { return sink.count() - base >= 3; }, 2000));
+
+    // Budgeted in a 40 ms reference's own deliveries rather than inside a
+    // 2000 ms budget (#752). Armed after the count was read, so the metro's
+    // retimed timer — whose next deadline is at most one 40 ms period out —
+    // has its i-th delivery from here due no later than this reference's i-th,
+    // and the one worker fires them in deadline order.
+    refTimer younger(40);
+    REQUIRE(younger.WaitTicks(3));
+    const int paced = younger.n();
+    CHECK(sink.count() - base >= paced);
 
     metro->SetIntData(0, 0);
   }
@@ -999,13 +1130,28 @@ TEST_SUITE("patcher") {
     rig.DeliverBlock();
     REQUIRE(rig.sink.count() == 1); // Max's immediate bang, never deferred
 
-    // WaitIdle makes the pool half deterministic instead of sleeping for it.
+    // WaitIdle makes the pool half deterministic instead of sleeping for it,
+    // so the timer is armed as a fact on return — and the reference armed
+    // straight after it is therefore younger than the metro's own, which makes
+    // its ticks a lower bound on the metro's bangs rather than a 1000 ms bet
+    // (#752).
     YSE::PATCHER::TimerBridge().WaitIdle();
-    CHECK(waitFor([&] { return rig.sink.count() >= 4; }, 1000));
+    refTimer younger(10);
+    const std::size_t armed = YSE::PATCHER::TimerThread().size(); // metro + reference
+    REQUIRE(younger.WaitTicks(4));
+    const int atLeast = younger.n();
+    CHECK(rig.sink.count() >= atLeast);
 
     rig.metro->SetIntData(0, 0);
+    // The stop comes from the control thread, so it takes the blocking half of
+    // the bridge and `ClearTimer`'s handshake has been performed on return: the
+    // timer is gone from the worker's queue rather than merely told to be
+    // quiet, and only the reference is left.
+    CHECK(YSE::PATCHER::TimerThread().size() == armed - 1);
     const int afterStop = rig.sink.count();
-    std::this_thread::sleep_for(100ms);
+    // And the worker kept firing throughout, so the bangs ending is this metro
+    // having stopped rather than the machine having gone quiet.
+    REQUIRE(younger.WaitTicks(atLeast + 10));
     CHECK(rig.sink.count() == afterStop);
   }
 
@@ -1051,18 +1197,28 @@ TEST_SUITE("patcher") {
     const int afterStart = sink.count();
     REQUIRE(afterStart >= 1);
 
-    // The first *tick* is the one that used to park the worker forever.
-    CHECK(waitFor([&] { return sink.count() > afterStart; }, 2000));
+    // The first *tick* is the one that used to park the worker forever, and
+    // what budgets the wait for it is a reference timer of the metro's own
+    // period rather than 2000 ms of wall clock (#752). That is the better
+    // instrument for this case and not merely a safer one: a *busy* box simply
+    // makes the reference tick slower and the case wait longer, while a
+    // *wedged* worker — the regression this exists for — stops the reference
+    // dead, and `waitPaced`'s stall guard reports that in five seconds instead
+    // of sitting out a budget that cannot tell the two apart.
+    refTimer ref(10);
+    CHECK(waitPaced(ref, 20, [&] { return sink.count() > afterStart; }));
 
-    // ... and it keeps ticking, rather than surviving one tick and stopping:
-    // at 10 ms a second window this size holds many more.
+    // ... and it keeps ticking, rather than surviving one tick and stopping.
     const int base = sink.count();
-    CHECK(waitFor([&] { return sink.count() > base; }, 2000));
+    CHECK(waitPaced(ref, 20, [&] { return sink.count() > base; }));
 
     metro->SetIntData(0, 0); // stop from the control thread; keeps the handshake
     YSE::PATCHER::TimerBridge().WaitIdle();
     const int afterStop = sink.count();
-    std::this_thread::sleep_for(100ms);
+    // Twenty of the worker's own deliveries, not 100 ms of wall clock: a
+    // surviving timer at this period would have banged over that window, and
+    // the window grows with the load instead of expiring under it.
+    REQUIRE(ref.WaitTicks(ref.n() + 20));
     CHECK(sink.count() == afterStop);
   }
 
@@ -1088,7 +1244,11 @@ TEST_SUITE("patcher") {
     metro->SetIntData(0, 1);
     const int afterStart = sink.count();
     REQUIRE(afterStart >= 1);
-    CHECK(waitFor([&] { return sink.count() > afterStart; }, 2000));
+    // Paced against the worker's own deliveries, for the reason the previous
+    // case gives: a wedged worker stops the reference and is reported, where a
+    // wall-clock budget could not tell it from a busy one (#752).
+    refTimer ref(10);
+    CHECK(waitPaced(ref, 20, [&] { return sink.count() > afterStart; }));
 
     metro->SetIntData(0, 0);
     YSE::PATCHER::TimerBridge().WaitIdle();
@@ -1116,23 +1276,47 @@ TEST_SUITE("patcher") {
     const std::size_t timersBefore = YSE::PATCHER::TimerThread().size();
     metro->SetIntData(0, 1);
     REQUIRE(sink.count() == 1);
-    REQUIRE(waitFor([&] { return sink.count() >= sink.stopAt; }, 2000));
+
+    // Armed after the metro's own timer, so every tick of it is a deadline that
+    // timer has already passed, and paced in those ticks rather than inside a
+    // 2000 ms budget (#752). `timersBefore` was taken before either timer
+    // existed, so `timersBefore + 1` below is this reference alone.
+    refTimer younger(10);
+    REQUIRE(waitPaced(younger, 20, [&] { return sink.count() >= sink.stopAt; }));
+
+    // The disarm this asked for is not something to poll for either. `Bang()`
+    // issues the `RequestStop` *before* the callback returns, and the one
+    // worker runs callbacks serially — so the reference's next completed tick
+    // is proof that the callback that stopped the metro has returned and that
+    // its request is on the pool. `WaitIdle()` then joins the pool, and the
+    // count below is a fact on return rather than a wait.
+    REQUIRE(younger.WaitTicks(younger.n() + 1));
+    YSE::PATCHER::TimerBridge().WaitIdle();
 
     // The singleton really dropped the timer, and this is the check that talks
     // on a regression: the deadlocked worker parks *inside* `destroyImpl`'s
     // wait, which releases `sync`, so `size()` still answers — with the id that
     // will never be retired.  Without it the case would pass its counting
-    // assertions and hang silently in teardown instead.
-    CHECK(waitFor([&] { return YSE::PATCHER::TimerThread().size() == timersBefore; }, 2000));
+    // assertions and hang silently in teardown instead. (On that regression the
+    // `WaitTicks` above fails first, the reference being stopped with it.)
+    CHECK(YSE::PATCHER::TimerThread().size() == timersBefore + 1);
 
-    // The disarm lands a pool hop after the tick that asked for it, so one more
-    // tick may still come out — #718's documented cost for a stop that cannot
-    // wait.  What must not happen is the metro carrying on: 200 ms at 10 ms is
-    // twenty ticks' worth of window.
-    YSE::PATCHER::TimerBridge().WaitIdle();
+    // The stop was the `stopAt`-th bang's doing rather than something that had
+    // already happened.
     const int settled = sink.count();
-    CHECK(settled <= sink.stopAt + 1);
-    std::this_thread::sleep_for(200ms);
+    CHECK(settled >= sink.stopAt);
+
+    // What must not happen is the metro carrying on: twenty of the worker's own
+    // deliveries is twenty of the metro's periods' worth of window, and it
+    // stretches with the load instead of expiring under it.
+    //
+    // What is *not* asserted any more is `settled <= sink.stopAt + 1` — "the
+    // disarm lands a pool hop after the tick that asked for it, so one more
+    // tick may come out". The deferral is #718's documented cost and is pinned
+    // above; how many 10 ms ticks fit inside a background-pool hop is a fact
+    // about the machine and not about the object, and on #752's saturated box
+    // it was regularly more than one.
+    REQUIRE(younger.WaitTicks(younger.n() + 20));
     CHECK(sink.count() == settled);
   }
 
