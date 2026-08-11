@@ -285,6 +285,10 @@ set(YSE_SRCS
   # `.stripnote` (issue #539) is unconditional for the same reason: two int
   # inlets, two int outlets, no device.
   patcher/midi/mStripNote.cpp
+  # `.flush` (issue #540) is unconditional for the same reason once more: it
+  # reads a pitch and a velocity off two inlets and writes them to two outlets,
+  # and opens no device.
+  patcher/midi/mFlush.cpp
   patcher/midi/mMidiControl.cpp
   # The system-exclusive pair (issue #531). Unconditional like the codec above:
   # `.sxformat` opens no device, and the `.sysexin` half of the file carries its
@@ -510,6 +514,7 @@ set_source_files_properties(
   patcher/math/gZmap.cpp
   patcher/math/pFrequencyToMidi.cpp
   patcher/math/pMidiToFrequency.cpp
+  patcher/midi/mFlush.cpp
   patcher/midi/mMakeNote.cpp
   patcher/midi/mMidiBendOut.cpp
   patcher/midi/mMidiChannelPressure.cpp

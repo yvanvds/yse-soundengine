@@ -2632,6 +2632,54 @@
       }
     ]
   },
+  ".flush": {
+    "category": "MIDI",
+    "description": "Releases every note the patcher is holding — Max's 'flush', which 'keeps track of all note-ons passed through it, and produces note-off messages for any held notes when it receives a bang'. A pitch in the left inlet passes straight through with the stored velocity, and on the way past the object remembers whether that pair turned a note on (any velocity but 0) or off (velocity 0). A bang then sends one release — the same pitch with velocity 0 — for every note still sounding, in ascending pitch order, and empties the set; 'clear' empties it without sending anything. This is the panic stop for a patch that plays notes out of its own logic: a sequence interrupted between its note-ons and its note-offs, a '.metro' switched off mid-phrase, a generative voice whose releases were never written. Nothing else can find those notes again, every note sender in the patcher ('.noteon', '.midiformat', the '.x*out' family) being a stateless formatter that sends what it is handed and remembers nothing. It is not a second '.midiflush' and the two are complements rather than alternatives: '.midiflush' watches a MIDI byte stream, decoding running status and system-exclusive dumps, and releases what that stream left sounding on the channel each note carried, so it belongs after the formatters in the cord to '.midiout'; this object watches pitch/velocity pairs, which is what a patch deals in before anything has been formatted, so it belongs between the logic that plays notes and the sender that encodes them. It accordingly has no channel and wants none — at that point the channel has not been decided, every sender downstream taking one of its own — and its releases go out as the same pair of ints its input is, ready to be wired into the very '.noteon' the attacks went through. Nothing is filtered on the way past: that is '.stripnote''s job, and this object only remembers. The right inlet stores the velocity for pitches arriving after it and outputs nothing itself, and a list in the left inlet is Max's inlet distribution on one cord — '60 100' plays pitch 60 at velocity 100 — which is the shape '.midiparse''s note outlet sends. The velocity goes out the right outlet before the pitch goes out the left, Max's outlets firing right to left, which here is not cosmetic: everything downstream that takes a pair takes pitch on a hot inlet and velocity on a cold one, so a pitch sent first would carry the previous note's velocity. A note is released exactly once, so banging twice sends nothing the second time, and notes played after a flush are tracked from scratch. A pitch outside 0-127 passes through unaltered but is not tracked, the set being a fixed bitmap of 128 bits allocated with the object — so neither the pass-through nor the flush allocates, locks or blocks on the audio thread, and the flush is bounded by the bitmap rather than by how many notes a patch managed to strand. Like '.stripnote' it opens no device and needs none, so it works on every platform. It also flushes by itself when the patcher is cleared or destroyed, and when the object is deleted on its own (issue #758): the patcher stops every object before it unwires any of them, so the releases go out down a patch that is still whole and reach the sender exactly as a bang's do. Nothing can be promised for a process killed outright, and Calculate() does nothing.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The pitch, and the half of the pair that acts. An int or a float here goes straight out the left outlet with the stored velocity out the right one — nothing is filtered and nothing is rewritten — and on the way past the object remembers what the pair did: a non-zero velocity marks the pitch sounding, and a velocity of 0 clears it, 0 being how the whole MIDI world spells a release. A float pitch is truncated to an int, as it is in Max. A list is Max's inlet distribution written on one cord: the first element is the pitch and a second element sets the velocity first, so '60 100' plays pitch 60 at velocity 100 and '60 0' releases it — which is exactly the shape '.midiparse''s note outlet sends. Further elements are ignored. A single-token numeric list is the number it spells, so a '.m 60' reaches this inlet as a pitch. A bang releases every note still sounding, and the message 'clear' forgets them without sending anything — Max's two commands, and words rather than pitches. A pitch outside 0-127 passes through unaltered but is not tracked, the set being a fixed bitmap over the MIDI note range.",
+        "index": 0,
+        "label": "pitch",
+        "range": "int, float, list, 'bang', 'clear'"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Sets the velocity that pitches arriving *after* it will be paired with — Max's right inlet. It outputs nothing by itself: only a pitch completes a note, so only a pitch can pass one on or mark one sounding. Ints, floats and a list whose leading token is a number all set it; a float is truncated. The value is stored and passed on exactly as given, unclamped and never refused for being outside MIDI's 0-127 — this object remembers notes, it does not rewrite them, and 0 is the only value it reads meaning into.",
+        "index": 1,
+        "label": "velocity",
+        "range": "0-127"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".flush",
+    "outlets": [
+      {
+        "doc": "The pitch, sent once as it passes through and again when a bang releases it. The same value both times, which is what lets a release find the note it belongs to. Sent after the velocity, Max's outlets firing right to left.",
+        "index": 0,
+        "label": "pitch",
+        "range": "int",
+        "type": "INT"
+      },
+      {
+        "doc": "The velocity: the stored one as the pair passes through, and 0 for every release a bang sends. Sent before the pitch so anything downstream has it in hand by the time the pitch reaches its hot inlet.",
+        "index": 1,
+        "label": "velocity",
+        "range": "int",
+        "type": "INT"
+      }
+    ],
+    "params": []
+  },
   ".forward": {
     "category": "GENERIC",
     "description": "Named send endpoint whose destination is chosen at runtime. Delivers incoming values exactly as .s does — to every .r in the patcher whose dataName matches, and on the global bus as \"<patcherName>.<destination>\" — but takes the destination name from its right inlet, so a patch can re-aim it with a message instead of being rewired. Sends nothing until a destination is set.",

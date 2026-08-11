@@ -172,6 +172,10 @@
 // a pitch and a velocity off two inlets and writes them to two outlets, and
 // opens no device.
 #include "midi/mStripNote.h"
+// `.flush` (issue #540), unconditional for the same reason once more: it
+// watches pitch/velocity pairs on ordinary cords and sends them back out, and
+// opens no device.
+#include "midi/mFlush.h"
 // The system-exclusive pair (issue #531). One header, two guards: `.sxformat`
 // is compiled everywhere and `.sysexin` only where there is an input port to
 // open, so the include itself carries no `#if`.
@@ -712,6 +716,14 @@ pRegistry::pRegistry() {
   // source reports a release as a pitch with velocity 0, so without it a patch
   // triggers twice per key. Unguarded like the two above — it opens no device.
   Add(OBJ::M_STRIPNOTE, mStripNote::Create);
+
+  // `.flush` (issue #540): `.midiflush`'s complement, not its twin. That one
+  // watches a byte stream and releases what the *stream* left sounding, so it
+  // sits after the formatters; this one watches pitch/velocity pairs and
+  // releases what the *patcher* is holding, so it sits before them, where a
+  // note has no channel yet. Unguarded like the three above — it opens no
+  // device.
+  Add(OBJ::M_FLUSH, mFlush::Create);
 
 #if YSE_ENABLE_MIDI_DEVICE
   // The MIDI input family (issue #529) — the way *into* a patch. Every object
