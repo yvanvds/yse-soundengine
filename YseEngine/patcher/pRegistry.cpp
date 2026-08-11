@@ -176,6 +176,10 @@
 // watches pitch/velocity pairs on ordinary cords and sends them back out, and
 // opens no device.
 #include "midi/mFlush.h"
+// `.sustain` (issue #541), unconditional once more: it holds note-offs back
+// while a pedal is down and sends them when it lifts, all of it on ordinary
+// cords, and opens no device.
+#include "midi/mSustain.h"
 // The system-exclusive pair (issue #531). One header, two guards: `.sxformat`
 // is compiled everywhere and `.sysexin` only where there is an input port to
 // open, so the include itself carries no `#if`.
@@ -724,6 +728,15 @@ pRegistry::pRegistry() {
   // note has no channel yet. Unguarded like the three above — it opens no
   // device.
   Add(OBJ::M_FLUSH, mFlush::Create);
+
+  // `.sustain` (issue #541): the pedal, for the patch that is not driving the
+  // built-in synth. `.flush` remembers the notes that are sounding and releases
+  // them on a bang; this one remembers the releases it swallowed while the pedal
+  // was down and sends them when it lifts — opposite sets, and they compose in
+  // that order. The engine's own synth already defers releases this way
+  // internally; this exposes the same rule to patcher logic. Unguarded like the
+  // four above — it opens no device.
+  Add(OBJ::M_SUSTAIN, mSustain::Create);
 
 #if YSE_ENABLE_MIDI_DEVICE
   // The MIDI input family (issue #529) — the way *into* a patch. Every object

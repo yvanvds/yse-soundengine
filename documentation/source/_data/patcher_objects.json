@@ -6943,6 +6943,64 @@
       }
     ]
   },
+  ".sustain": {
+    "category": "MIDI",
+    "description": "Holds note-off messages while the sustain pedal is down — Max's 'sustain', which 'holds note-off messages for release'. A pitch in the left inlet is paired with the stored velocity, and the pedal decides what happens: a note-on (any velocity but 0) always passes straight through, because a pedal delays releases and never attacks; a note-off (velocity 0, which is how the whole MIDI world spells one) passes through with the pedal up and is held back with the pedal down. Lifting the pedal — a 0 in the right inlet, or the message 'sustain 0' — sends every held note-off, in ascending pitch order, and empties the set. That is the pedal a keyboard has: keys come up under the player's fingers and the notes keep sounding until the foot does. It agrees exactly with the engine's own synth, whose handleSustain marks a voice held instead of releasing it and drops that claim when the pedal lifts; this object is for the patch that is not driving the built-in synth — a '.midiout' to a hardware rack, or a voice assembled out of patcher objects — since where the built-in synth is being driven its own pedal is already doing this. It is not a second '.flush' and the two sets hold opposite things: '.flush' remembers the notes that are sounding, filled by note-ons, and releases them on a bang; this one remembers the releases it swallowed, filled by note-offs, and sends them when the pedal lifts. They compose in that order — a '.sustain' in front of a '.flush' leaves the '.flush' holding what is really sounding, pedal included. The middle inlet stores the velocity for pitches arriving after it and outputs nothing itself, and a list in the left inlet is Max's inlet distribution on one cord — '60 100' plays pitch 60 at velocity 100 — which is the shape '.midiparse''s note outlet sends. The velocity goes out the right outlet before the pitch goes out the left, Max's outlets firing right to left, which here is not cosmetic: everything downstream that takes a pair takes pitch on a hot inlet and velocity on a cold one, so a pitch sent first would carry the previous note's velocity. Max's three commands are words in the left inlet: 'sustain 1' / 'sustain 0' press and lift the pedal, 'flush' sends every held note-off now and leaves the pedal where it is, and 'clear' forgets them without sending anything. There is no bang method, Max's sustain having none. Max's 'repeatmode' is not implemented: this object is Max's default mode 0, so a pitch played again while its release is held keeps that one held release and the new attack goes out on its own. A pitch outside 0-127 passes through unaltered and is never held even with the pedal down, the set being a fixed bitmap of 128 bits allocated with the object — a release it could not remember would never be sent by anything, and a note released early is merely a short one. Nothing on the pass-through, pedal-lift or clear paths allocates, locks or blocks on the audio thread, and a lift is bounded by the bitmap rather than by how many keys the player let go of. Like '.flush' it opens no device and needs none, so it works on every platform. It also flushes by itself when the patcher is cleared or destroyed, and when the object is deleted on its own (issue #758): the patcher stops every object before it unwires any of them, so a patch torn down mid-pedal cannot leave the rack sounding with the note-offs this object swallowed. Nothing can be promised for a process killed outright, and Calculate() does nothing.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The pitch, and the half of the pair that acts. An int or a float here is paired with the stored velocity, and what happens next is the pedal: a note-on — any velocity but 0 — always goes straight out, because the pedal delays releases and never attacks; a note-off — velocity 0, which is how the whole MIDI world spells one — goes straight out with the pedal up and is held back with the pedal down, to be sent when the pedal lifts. A float pitch is truncated to an int, as it is in Max. A list is Max's inlet distribution written on one cord: the first element is the pitch and a second element sets the velocity first, so '60 100' plays pitch 60 at velocity 100 and '60 0' releases it — which is exactly the shape '.midiparse''s note outlet sends. Further elements are ignored. A single-token numeric list is the number it spells, so a '.m 60' reaches this inlet as a pitch. Three words are commands rather than pitches: 'sustain 1' and 'sustain 0' press and lift the pedal exactly as the right inlet does, 'flush' sends every held note-off now and leaves the pedal where it is, and 'clear' forgets them without sending anything. There is no bang method, Max's 'sustain' having none. A pitch outside 0-127 passes through unaltered and is never held, even with the pedal down, the set being a fixed bitmap over the MIDI note range — a release it could not remember would never be sent at all.",
+        "index": 0,
+        "label": "pitch",
+        "range": "int, float, list, 'sustain 0/1', 'flush', 'clear'"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Sets the velocity that pitches arriving *after* it will be paired with — Max's middle inlet. It outputs nothing by itself: only a pitch completes a note, so only a pitch can pass one on or have its release held. Ints, floats and a list whose leading token is a number all set it; a float is truncated. The value is stored and passed on exactly as given, unclamped and never refused for being outside MIDI's 0-127 — this object holds releases, it does not rewrite notes, and 0 is the only value it reads meaning into, that being what a release is spelled with.",
+        "index": 1,
+        "label": "velocity",
+        "range": "0-127"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The pedal — Max's right inlet, and the same thing the message 'sustain 1' / 'sustain 0' does. Any non-zero value presses it, which stores a bit and sends nothing: from then on note-offs arriving at the left inlet are held back instead of passed on. A 0 lifts it, and that is what sends — every held note-off goes out, in ascending pitch order, and the set is emptied. Ints, floats and a list whose leading token is a number all work; a float is truncated first, so any value in (-1, 1) is a lift. Pressing a pedal that is already down, or lifting one that is already up, does what it says: the second lift has nothing left to send. The pedal starts up, so an object nobody has touched passes everything through.",
+        "index": 2,
+        "label": "pedal",
+        "range": "0 (up) or non-zero (down)"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".sustain",
+    "outlets": [
+      {
+        "doc": "The pitch, sent once as the pair passes through and — for a release the pedal held back — once when the pedal lifts. The same value both times, which is what lets a release find the note it belongs to. Sent after the velocity, Max's outlets firing right to left.",
+        "index": 0,
+        "label": "pitch",
+        "range": "int",
+        "type": "INT"
+      },
+      {
+        "doc": "The velocity: the stored one as a pair passes through, and 0 for every release the pedal sends when it lifts. Sent before the pitch so anything downstream has it in hand by the time the pitch reaches its hot inlet.",
+        "index": 1,
+        "label": "velocity",
+        "range": "int",
+        "type": "INT"
+      }
+    ],
+    "params": []
+  },
   ".swap": {
     "category": "MATH",
     "description": "Reverses the order of a pair of numbers — Max's swap, 'swaps the values of its inlets, preserving right-to-left ordering'. What arrives on inlet 0 leaves on outlet 1, and what was stored on inlet 1 leaves on outlet 0, so the pair crosses over on its way through. It earns a box because every two-inlet object in this patcher is hot on the left and cold on the right — .-, ./, .%, .pow, .atan2, .split and .past all fire on inlet 0 and merely store on inlet 1 — which fixes the operand order at the box; a patch whose values arrive the other way round would otherwise have to cross the two cords, an edit that is invisible once the patch is saved and hard to read back, or build the reordering by hand out of a .trigger and a cold inlet. .!- and .!/ are the fused form of the same idea for the two operators where reversal is common enough to be worth its own box, and cost one object where this costs two; .swap is the general answer, and the only one for the operators with no reversed twin. There is deliberately no .fswap: Max needs two boxes because a Max outlet carries one fixed atom type, and its reference says the only difference is that 'the second outlet's (and first inlet's) type is int or float depending on whether you use the name swap or fswap'. Here an outlet can be declared ANY and an inlet can take both, so this one object forwards each number as the kind it arrived as — an int in comes out an int, a float in comes out a float, on either side independently — which is swap's behaviour for swap's values and fswap's for fswap's, and a second box would differ in nothing. That is not the call .maximum and .minimum made when they became float-only: those objects compute, so the result's type would be a guess, while this one forwards, and widening an int to a float in transit would be a side effect visible to every downstream object that tells the two apart (.route 1, .sel, .i, .match) inflicted by a box whose only job was to change order. The creation argument pre-loads the right slot — Max: it 'sets the initial value sent from the left outlet' — and its spelling decides the kind, so .swap 5 starts holding int 5 and .swap 5. float 5, which is Max's 'a float argument causes float output from the left outlet' said the way this object can say it; the argument string is stored verbatim, so the distinction survives a save and reload. A bang on inlet 0 releases the current pair without moving either slot — a replay, so two bangs send the same thing twice rather than alternating — and before anything has arrived that is int 0 and the argument. A list on inlet 0 is Max's 'the numbers are stored in swap': the first number goes to the left slot and the second to the right one, and then the pair is released, which is the only way to set both in one message; each element keeps its own spelling, reading stops at the first token that is not a whole finite number, and a message with no number at the front is ignored rather than releasing the old pair. Outlet 1 is served first and outlet 0 last, each send completing in full (the whole subgraph behind it, depth first) before the next starts, which is Max's right-to-left rule and load-bearing here rather than decorative: the idiom is outlet 1 into the cold inlet of the arithmetic and outlet 0 into its hot one, so the right operand is in place before the left value fires the operation, and the reverse order would leave every result one input stale. The pair is snapshotted before the first send so a patch looping an outlet back into an inlet cannot change what the second outlet carries mid-release. Calculate() does nothing and no message path allocates, locks or blocks.",

@@ -289,6 +289,9 @@ set(YSE_SRCS
   # reads a pitch and a velocity off two inlets and writes them to two outlets,
   # and opens no device.
   patcher/midi/mFlush.cpp
+  # `.sustain` (issue #541) is unconditional once more: three int inlets, two int
+  # outlets, no device.
+  patcher/midi/mSustain.cpp
   patcher/midi/mMidiControl.cpp
   # The system-exclusive pair (issue #531). Unconditional like the codec above:
   # `.sxformat` opens no device, and the `.sysexin` half of the file carries its
@@ -534,6 +537,7 @@ set_source_files_properties(
   patcher/midi/mMidiXOut.cpp
   patcher/midi/mMpe.cpp
   patcher/midi/mStripNote.cpp
+  patcher/midi/mSustain.cpp
   patcher/midi/mSysEx.cpp
   patcher/midi/midiPortOpener.cpp
   patcher/midi/midiPortScanner.cpp
