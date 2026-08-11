@@ -144,8 +144,10 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_linedrive.cpp
   patcher/test_patcher_midiin.cpp
   patcher/test_patcher_midicodec.cpp
+  patcher/test_patcher_midiout.cpp
   patcher/test_patcher_sysex.cpp
   patcher/test_patcher_bendout.cpp
+  patcher/test_patcher_polypressure.cpp
   patcher/test_patcher_xmidi.cpp
   patcher/test_math_wrappers.cpp
   patcher/test_dsp_objects.cpp
@@ -1088,8 +1090,10 @@ set_source_files_properties(
   patcher/test_patcher_linedrive.cpp
   patcher/test_patcher_midiin.cpp
   patcher/test_patcher_midicodec.cpp
+  patcher/test_patcher_midiout.cpp
   patcher/test_patcher_sysex.cpp
   patcher/test_patcher_bendout.cpp
+  patcher/test_patcher_polypressure.cpp
   patcher/test_patcher_xmidi.cpp
   patcher/test_math_wrappers.cpp
   patcher/test_dsp_objects.cpp

@@ -137,7 +137,11 @@
 #include "math/gScale.h"
 #include "math/gZmap.h"
 
-#if YSE_WINDOWS
+// The MIDI sender family. None of these opens a device — they format bytes
+// onto a list outlet — so they are compiled and registered on every platform.
+// They used to sit behind a bare `#if YSE_WINDOWS`, which made `.noteon` exist
+// on Windows and nowhere else for no reason; issue #746 lifted it off the
+// whole family at once.
 #include "midi/mMidiBendOut.h"
 #include "midi/mMidiChannelPressure.h"
 #include "midi/mMidiControl.h"
@@ -145,27 +149,23 @@
 #include "midi/mMidiNoteOn.h"
 #include "midi/mMidiPolyPressure.h"
 #include "midi/mMidiProgramChange.h"
-// The extended-precision senders (issue #533) carry the same YSE_WINDOWS guard
-// as the seven they are siblings of; #746 lifts it off all of them at once.
+// The extended-precision senders (issue #533), siblings of the seven above and
+// unconditional with them.
 #include "midi/mMidiXOut.h"
-#endif
-// The MIDI codec pair (issue #530) is registered unconditionally below, so its
-// header cannot live inside the YSE_WINDOWS block the six senders share — that
-// left `mMidiParse` undeclared on every other platform.
+// The MIDI codec pair (issue #530) is registered unconditionally below too.
 #include "midi/mMidiCodec.h"
 // The system-exclusive pair (issue #531). One header, two guards: `.sxformat`
 // is compiled everywhere and `.sysexin` only where there is an input port to
 // open, so the include itself carries no `#if`.
 #include "midi/mSysEx.h"
-// mMidiOut is the only patcher midi object that depends on the RtMidi-backed
-// device backend; the other six just emit MIDI bytes and don't need it.
-#if YSE_WINDOWS && YSE_ENABLE_MIDI_DEVICE
-#include "midi/mMidiOut.h"
-#endif
-// The MIDI input family (issue #529) needs the same RtMidi-backed backend, but
-// not the extra YSE_WINDOWS guard the six senders carry: YSE_ENABLE_MIDI_DEVICE
-// is already exactly the set of platforms with an input port to open.
+// mMidiOut is the only patcher sender that depends on the RtMidi-backed device
+// backend — it holds an output port; the rest just emit MIDI bytes and don't
+// need it. Guarded on YSE_ENABLE_MIDI_DEVICE alone since #746, matching the
+// input family below.
 #if YSE_ENABLE_MIDI_DEVICE
+#include "midi/mMidiOut.h"
+// The MIDI input family (issue #529) needs the same RtMidi-backed backend:
+// YSE_ENABLE_MIDI_DEVICE is exactly the set of platforms with a port to open.
 #include "midi/mMidiIn.h"
 // The extended-precision input objects (issue #533) are built on that family's
 // plumbing and share its guard exactly.
@@ -612,7 +612,10 @@ pRegistry::pRegistry() {
   Add(OBJ::D_HIGHPASS, pHighpass::Create);
   Add(OBJ::D_VCF, dVcf::Create);
 
-#if YSE_WINDOWS
+  // The MIDI sender family. Unconditional since issue #746: these format
+  // bytes onto a list outlet and open nothing, so there is no platform they
+  // cannot run on, and a patch built on one machine keeps its objects on
+  // another.
   Add(OBJ::M_CHANPRESS, mMidiChannelPressure::Create);
   Add(OBJ::M_CONTROL, mMidiControl::Create);
   Add(OBJ::M_NOTEOFF, mMidiNoteOff::Create);
@@ -620,22 +623,20 @@ pRegistry::pRegistry() {
   Add(OBJ::M_POLYPRESS, mMidiPolyPressure::Create);
   Add(OBJ::M_PROGCHANGE, mMidiProgramChange::Create);
   // Pitch bend (issue #532) — the last channel-voice status the sender family
-  // was missing. Guarded with the six it belongs to; issue #746 lifts the
-  // YSE_WINDOWS guard off all seven at once.
+  // was missing.
   Add(OBJ::M_BENDOUT, mMidiBendOut::Create);
 
   // The extended-precision senders (issue #533): the same four channel-voice
   // messages the block above already formats, with the bits the 7-bit versions
   // throw away put back — all fourteen of a pitch bend, the MSB/LSB pair of a
   // controller, and the release velocity a note-off has always had room for.
-  // Guarded with the family they belong to; #746 lifts YSE_WINDOWS off all of
-  // them at once.
   Add(OBJ::M_XBENDOUT, mXBendOut::Create);
   Add(OBJ::M_XBENDOUT2, mXBendOut2::Create);
   Add(OBJ::M_XCTLOUT, mXCtlOut::Create);
   Add(OBJ::M_XNOTEOUT, mXNoteOut::Create);
-#endif
-#if YSE_WINDOWS && YSE_ENABLE_MIDI_DEVICE
+
+#if YSE_ENABLE_MIDI_DEVICE
+  // The one sender that holds a device port, so the one that stays guarded.
   Add(OBJ::M_OUT, mMidiOut::Create);
 #endif
 

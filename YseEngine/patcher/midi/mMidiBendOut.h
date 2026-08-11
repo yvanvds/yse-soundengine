@@ -19,14 +19,11 @@
 // so a patch that needs the fine byte has an object for it rather than this
 // one growing a mode.
 //
-// **Platform guard.** `#if YSE_WINDOWS`, matching the six senders it belongs
-// with. The guard is wrong for all seven — none of them opens a device, they
-// only emit bytes — but lifting it is issue #746's sweep over the whole
-// family, not a deviation to introduce here for one object.
-#include "headers/defines.hpp"
-
-#if YSE_WINDOWS
-
+// **No platform guard.** This object opens no device — it only formats bytes
+// onto its outlet — so it is compiled and registered on every platform, like
+// the six senders it belongs with. Issue #746 lifted the `#if YSE_WINDOWS`
+// they all used to carry; only `.midiout`, which holds an RtMidi port, is
+// still conditional (on `YSE_ENABLE_MIDI_DEVICE`).
 #include "../pObject.h"
 
 namespace YSE {
@@ -45,5 +42,3 @@ namespace YSE {
 
 } // namespace PATCHER
 } // namespace YSE
-
-#endif // YSE_WINDOWS

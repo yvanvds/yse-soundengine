@@ -353,7 +353,12 @@ TEST_SUITE("integration") {
 
   // ─── MIDI device enumeration (gated on YSE_ENABLE_MIDI_DEVICE) ───────────────
 
-#if YSE_WINDOWS && YSE_ENABLE_MIDI_DEVICE
+  // The enumeration API is declared exactly when the RtMidi-backed device
+  // manager is compiled (Windows and Linux), so key on that option alone —
+  // the platform is not the condition. On a machine with no MIDI hardware the
+  // device manager fails to prepare and every call returns 0 / "Invalid Call"
+  // instead of throwing, which is what makes these safe as headless smoke tests.
+#if YSE_ENABLE_MIDI_DEVICE
   TEST_CASE("midi: getNumMidiInDevices does not crash") {
     if (!TestHelpers::engineInit()) return;
     (void)YSE::System().getNumMidiInDevices();
@@ -376,7 +381,7 @@ TEST_SUITE("integration") {
       (void)YSE::System().getMidiOutDeviceName(i);
     CHECK(true);
   }
-#endif // YSE_WINDOWS && YSE_ENABLE_MIDI_DEVICE
+#endif // YSE_ENABLE_MIDI_DEVICE
 
   // ─── Engine lifecycle ─────────────────────────────────────────────────────────
 

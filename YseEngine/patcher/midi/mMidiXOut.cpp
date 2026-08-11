@@ -1,6 +1,3 @@
-#include "headers/defines.hpp"
-// See the matching guard in mMidiXOut.h.
-#if YSE_WINDOWS
 #include "mMidiXOut.h"
 #include "../pObjectList.hpp"
 
@@ -285,5 +282,3 @@ CALC() {
 }
 
 #undef className
-
-#endif // YSE_WINDOWS

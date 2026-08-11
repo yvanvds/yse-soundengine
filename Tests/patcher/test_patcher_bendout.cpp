@@ -27,18 +27,13 @@
 // object nothing could create or wire.
 //
 // No audio device and no MIDI hardware required: the object opens nothing, it
-// only emits bytes. It is nonetheless compiled behind `#if YSE_WINDOWS` with
-// the six senders it belongs to — see mMidiBendOut.h, and issue #746 for the
-// sweep that lifts that guard off the whole family.
+// only emits bytes. It runs on every platform — issue #746 lifted the
+// `#if YSE_WINDOWS` this and the rest of the sender family used to carry.
 
 #include <doctest/doctest.h>
 #include <memory>
 #include <string>
 #include <vector>
-
-#include "headers/defines.hpp"
-
-#if YSE_WINDOWS
 
 #include "patcher/inlet.h"
 #include "patcher/midi/mMidiBendOut.h"
@@ -88,11 +83,7 @@ namespace {
 
 } // namespace
 
-#endif // YSE_WINDOWS
-
 TEST_SUITE("patcher") {
-
-#if YSE_WINDOWS
 
   // ─── registration and shape ─────────────────────────────────────────────
 
@@ -271,7 +262,5 @@ TEST_SUITE("patcher") {
 
     loaded.DeleteObject(obj);
   }
-
-#endif // YSE_WINDOWS
 
 } // TEST_SUITE

@@ -11,7 +11,8 @@
 //   - midiOut default state and isPrepared() early-return on every send method
 //   - midiOut::create(port) attempt; downstream message sends are no-ops when
 //     no device is attached
-//   - Raw(string) handles 0/1/2/3+ byte inputs without out-of-bounds reads
+//   - Raw(string) and Raw(pointer, length) handle 0/1/2/3+ byte inputs without
+//     out-of-bounds reads (issue #748 made both length-honest)
 //
 // The whole TU is guarded by the same YSE_ENABLE_MIDI_DEVICE option that
 // gates midiDeviceManager.cpp and device.cpp — when the option is OFF those
@@ -245,15 +246,29 @@ TEST_SUITE("midi") {
   }
 
   TEST_CASE("midiOut: Raw(string) handles empty / partial / full inputs") {
-    // Raw(string) reads up to three bytes from the string with length checks.
-    // Empty / 1-byte / 2-byte / 3-byte inputs each pick a distinct branch of
-    // the ternary chain in device.cpp's Raw(string).
+    // Since issue #748 Raw(string) sends the whole string rather than exactly
+    // three bytes of it, so none of these lengths is a special case any more —
+    // what is being driven is that each still returns without reading past the
+    // end. Length 0 is the one input Raw refuses outright.
     YSE::midiOut out;
-    out.Raw(std::string()); // length 0
+    out.Raw(std::string()); // length 0 — sends nothing
     out.Raw(std::string("\xB0")); // length 1
-    out.Raw(std::string("\xB0\x07")); // length 2
+    out.Raw(std::string("\xB0\x07")); // length 2 — no longer zero-padded to 3
     out.Raw(std::string("\xB0\x07\x64")); // length 3
-    out.Raw(std::string("\xB0\x07\x64\xFF\xFF")); // length > 3 — extra bytes ignored
+    out.Raw(std::string("\xB0\x07\x64\xFF\xFF")); // length > 3 — no longer truncated
+    CHECK(true);
+  }
+
+  TEST_CASE("midiOut: Raw(pointer, length) is safe with no device (#748)") {
+    // The length-honest entry point `.midiout` uses for a numeric byte list.
+    // A null buffer and a zero length are refused before the port is looked at,
+    // so both are safe whether or not one is open.
+    YSE::midiOut out;
+    const unsigned char message[3] = {0x90, 60, 100};
+    out.Raw(message, 3);
+    out.Raw(message, 2); // a two-byte message stays two bytes
+    out.Raw(message, 0); // nothing to send
+    out.Raw(nullptr, 3); // nothing to send it from
     CHECK(true);
   }
 

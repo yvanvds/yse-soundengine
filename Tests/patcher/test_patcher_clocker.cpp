@@ -31,7 +31,9 @@
 //     direct call structurally cannot: that the object actually reports at its
 //     interval, that a stop is immediate, that a clocker stopped from inside
 //     its own tick does not wedge the one timer worker in the process, and
-//     that destroying a running one takes its timer with it.
+//     that destroying a running one takes its timer with it. What they may not
+//     do is bet on how many ticks the machine delivers inside a wall-clock
+//     budget — see `refTimer` below for what that turned into (issue #751).
 //
 // Plus the usual per-object obligations: the registry entry, an allocation
 // probe over the message paths, a DumpJSON / ParseJSON round trip, and an
@@ -66,6 +68,7 @@
 #include "patcher/time/gClocker.h"
 #include "patcher/time/timerBridge.h"
 #include "support/alloc_probe.hpp"
+#include "support/timer_pacing.hpp"
 
 using namespace std::chrono_literals;
 
@@ -206,16 +209,13 @@ namespace {
     }
   };
 
-  // Poll `pred` every millisecond up to `budgetMs`, so a case finishes as soon
-  // as the timer delivers rather than sleeping a fixed worst case.
-  template <typename P> bool waitFor(P pred, int budgetMs = 2000) {
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(budgetMs);
-    while (std::chrono::steady_clock::now() < deadline) {
-      if (pred()) return true;
-      std::this_thread::sleep_for(1ms);
-    }
-    return pred();
-  }
+  // Pacing a case against the machine rather than against a clock — the
+  // `refTimer` / `waitPaced` pair every case below that lets the real
+  // `timerThread` deliver is written against. It moved to
+  // `support/timer_pacing.hpp` when `.metro`'s run cases needed the same
+  // instrument (issue #752); the reasoning that produced it is in that header.
+  using TestHelpers::refTimer;
+  using TestHelpers::waitPaced;
 
 } // namespace
 
@@ -584,16 +584,39 @@ TEST_SUITE("patcher") {
 
   TEST_CASE("clocker: a running clocker reports at its interval (#505)") {
     // End to end on the real `timerThread`: the object is started and left
-    // alone, and what arrives is a rising sequence of elapsed times.
+    // alone, and what arrives is a rising sequence of elapsed times, delivered
+    // as often as this machine is delivering timers at all. That last part is
+    // what the two references measure — see the note above `refTimer` — and it
+    // is what "at its interval" means here without a wall-clock budget: the
+    // object's count is sandwiched between a timer of its own period armed just
+    // before it and one armed just after (#751).
     SharedRecorder out; // outlives the clocker — see Wire / Rig
     gClocker clocker;
     clocker.SetParams("10");
     Wire(clocker, 0, out);
 
+    refTimer older(10); // armed first, so it can only ever be ahead
+
+    const std::size_t before = YSE::PATCHER::TimerThread().size();
     clocker.GetInlet(0)->SetInt(1, YSE::T_GUI);
-    REQUIRE(waitFor([&] { return out.n() >= 4; }));
+    // A start from the control thread takes the *blocking* half of the bridge,
+    // so the timer is armed inline: that it exists is a fact on return rather
+    // than something to wait for.
+    REQUIRE(YSE::PATCHER::TimerThread().size() == before + 1);
+
+    refTimer younger(10); // armed last, so it can only ever be behind
+
+    REQUIRE(younger.WaitTicks(4));
+
+    // Youngest read first and oldest last, so the reads cannot skew the claim.
+    const int atLeast = younger.n();
+    const int reports = out.n();
+    const int atMost = older.n();
+    CHECK(reports >= atLeast); // it reported, as often as the worker delivered
+    CHECK(reports <= atMost); // and on *its* interval, not a faster one
 
     const std::vector<int> values = out.snapshot();
+    REQUIRE(values.size() >= 4);
     for (std::size_t i = 1; i < values.size(); i++)
       CHECK(values[i] >= values[i - 1]);
     // Four reports at 10 ms is 40 ms of run; allow for the first landing early
@@ -609,8 +632,21 @@ TEST_SUITE("patcher") {
     clocker.SetParams("5");
     Wire(clocker, 0, out);
 
+    const std::size_t before = YSE::PATCHER::TimerThread().size();
     clocker.GetInlet(0)->SetInt(1, YSE::T_GUI);
-    REQUIRE(waitFor([&] { return out.n() >= 3; }));
+    // Armed inline by the control-thread front of the bridge, so this is a fact
+    // rather than a wait.
+    REQUIRE(YSE::PATCHER::TimerThread().size() == before + 1);
+
+    // And really reporting before the stop is asked for — otherwise "ends the
+    // reports" would be a claim about nothing. Paced against the worker's own
+    // deliveries rather than against a budget (#751): this reference is younger
+    // than the object's timer, so every tick of it is a tick the object's timer
+    // has already passed.
+    refTimer younger(5);
+    REQUIRE(younger.WaitTicks(3));
+    const int atLeast = younger.n();
+    REQUIRE(out.n() >= atLeast);
 
     // A `stop` from the control thread takes the *blocking* half of the bridge,
     // so once this returns `ClearTimer`'s handshake has been performed and no
@@ -619,7 +655,15 @@ TEST_SUITE("patcher") {
     // make the assertion a statement about timing rather than about the stop.
     clocker.GetInlet(0)->SetList("stop", YSE::T_GUI);
     const int afterStop = out.n();
+    // The timer is gone from the worker's queue rather than merely told to be
+    // quiet: only the reference is left.
+    CHECK(YSE::PATCHER::TimerThread().size() == before + 1);
     YSE::PATCHER::TimerBridge().WaitIdle();
+    CHECK(out.n() == afterStop);
+
+    // And the worker kept firing throughout, so the reports ending is this
+    // object having stopped rather than the machine having gone quiet.
+    REQUIRE(younger.WaitTicks(atLeast + 3));
     CHECK(out.n() == afterStop);
   }
 
@@ -634,19 +678,35 @@ TEST_SUITE("patcher") {
     Wire(clocker, 0, out);
 
     clocker.GetInlet(0)->SetInt(1, YSE::T_GUI);
-    REQUIRE(waitFor([&] { return out.last() >= 40; }));
+    refTimer younger(5); // younger than the object's timer — see `refTimer`
+
+    // Ten ticks of a 5 ms reference armed after the object's own timer means
+    // that timer has passed at least ten deadlines of its own, so the number it
+    // last reported was measured at least 50 ms into the run. What the box's
+    // load moves is how long that takes, not whether it is true (#751).
+    REQUIRE(younger.WaitTicks(10));
+    REQUIRE(out.last() >= 40);
 
     clocker.GetInlet(0)->SetList("reset", YSE::T_GUI);
-    // Reports do keep arriving — the reset does not stop the clock.
+    // Reports do keep arriving — the reset does not stop the clock — and the
+    // budget for them is the worker's own deliveries rather than a stopwatch.
     const int afterReset = out.n();
-    REQUIRE(waitFor([&] { return out.n() > afterReset + 2; }));
+    REQUIRE(waitPaced(younger, 8, [&] { return out.n() > afterReset + 2; }));
     CHECK(clocker.Running());
 
     clocker.GetInlet(0)->SetInt(0, YSE::T_GUI);
 
-    // And the sequence *fell* somewhere, which is the whole claim and the one
-    // assertion that does not depend on how promptly this thread got to look:
-    // a clocker that ignored the reset would report a rising sequence forever.
+    // And the sequence *fell* somewhere, which is the whole claim: a clocker
+    // that ignored the reset would report a rising sequence forever. The
+    // witness is the first report after the reset, and the margin it needs is
+    // measured in the machine's own deliveries rather than in milliseconds —
+    // ten of the reference's tick intervals of run behind it against the one or
+    // two the report itself waits. A starved box stretches both, which is
+    // exactly what the ten ticks above buy: the pre-reset number the fall is
+    // judged against is 50 ms of run on a quiet box and proportionally more on
+    // a busy one, where the `out.last() >= 40` this replaces could be satisfied
+    // by a single late first report and then outrun by a single late gap
+    // (issue #751 saw that happen).
     const std::vector<int> values = out.snapshot();
     bool rewound = false;
     for (std::size_t i = 1; i < values.size(); i++) {
@@ -691,7 +751,17 @@ TEST_SUITE("patcher") {
       Wire(clocker, 0, sink);
 
       clocker.GetInlet(0)->SetInt(1, YSE::T_GUI);
-      REQUIRE(waitFor([&] { return !clocker.Running(); }));
+
+      // Declared after the clocker, so its own timer is retired before
+      // `~gClocker` runs. It is armed after the object's timer, so by the time
+      // it has delivered three ticks the object's has passed three deadlines of
+      // its own — the sink has had its two reports and stopped the clocker on
+      // the second. And if that self-stop wedged the one timer worker, which is
+      // the failure this case exists for, this timer stops too and `WaitTicks`
+      // names it, rather than the case sitting out a wall-clock budget (#751).
+      refTimer younger(5);
+      REQUIRE(younger.WaitTicks(3));
+      REQUIRE_FALSE(clocker.Running());
 
       // The disarm the tick requested has now been reconciled.
       YSE::PATCHER::TimerBridge().WaitIdle();
@@ -725,7 +795,16 @@ TEST_SUITE("patcher") {
       clocker->SetParams("5");
       Wire(*clocker, 0, out);
       clocker->GetInlet(0)->SetInt(1, YSE::T_GUI);
-      REQUIRE(waitFor([&] { return out.n() >= 2; }));
+      REQUIRE(YSE::PATCHER::TimerThread().size() == timersBefore + 1);
+
+      // Really firing when it is destroyed, which is what the case is for,
+      // established against the worker's own rate rather than against a budget
+      // (#751). Declared after the clocker, so this timer is retired before
+      // `~gClocker` runs and the count below is about the clocker's alone.
+      refTimer younger(5);
+      REQUIRE(younger.WaitTicks(2));
+      const int atLeast = younger.n();
+      REQUIRE(out.n() >= atLeast);
       // Destroyed *running*, deliberately.
     }
 
@@ -814,11 +893,23 @@ TEST_SUITE("patcher") {
     YSE::pHandle outHandle(&out);
     restored.Connect(back, 0, &outHandle, 0);
 
-    // The restored interval is the one that runs: four reports at 40 ms cannot
-    // arrive inside the 100 ms below, and at the 5 ms default they would.
+    // The restored interval is the one that runs, and both directions matter: a
+    // clocker that came back at the 5 ms default would report eight times as
+    // often as a 40 ms reference, and one that did not run would not report at
+    // all. Two references armed either side of the start sandwich it exactly
+    // (see the note above `refTimer`), where the fixed windows this replaces
+    // bet on a quiet box one way — "four reports cannot arrive inside 100 ms",
+    // which a loaded box makes vacuously true — and on a fast one the other.
+    refTimer older(40);
     back->SetIntData(0, 1);
-    CHECK_FALSE(waitFor([&] { return out.n() >= 4; }, 100));
-    REQUIRE(waitFor([&] { return out.n() >= 2; }));
+    refTimer younger(40);
+
+    REQUIRE(younger.WaitTicks(2));
+    const int atLeast = younger.n();
+    const int reports = out.n();
+    const int atMost = older.n();
+    CHECK(reports >= atLeast);
+    CHECK(reports <= atMost);
     CHECK(out.last() >= 20);
 
     back->SetIntData(0, 0);
@@ -833,6 +924,21 @@ TEST_SUITE("patcher") {
     // chain (`.delay` -> `.clocker`) starts the object on the audio thread,
     // where arming the timer may not take `timerThread`'s mutex and has to go
     // through the bridge's wait-free front instead.
+    //
+    // What that route is observable as, then, is **the armed timer** — the one
+    // the background pool created on the object's behalf — and not a count of
+    // reports. The reports come from the OS millisecond timer, so "three of
+    // them arrived inside two seconds" is a statement about the machine's
+    // scheduler rather than about this object, and it is one a saturated box
+    // falsifies (issue #747, the same defect #739 and #740 fixed elsewhere in
+    // these files: a wait that bounds the wrong thing). Every step below is
+    // joined instead: the scheduler is block-counted and drained synchronously
+    // inside `Calculate`, so ticking blocks is a real bound on the delay; and
+    // `timerBridge::WaitIdle()` exists precisely so a test can join the
+    // deferred reconcile the audio-thread path armed. `timerThread::size()` is
+    // what that reconcile left behind. That the real timer then delivers a
+    // rising sequence of elapsed times is the `run` section's claim above,
+    // where it is what the case is *about* rather than incidental to it.
     patcherImplementation p(1, nullptr);
     YSE::pHandle* clocker = p.CreateObject(YSE::OBJ::G_CLOCKER, "10");
     REQUIRE(clocker != nullptr);
@@ -847,23 +953,40 @@ TEST_SUITE("patcher") {
     p.Calculate(YSE::T_DSP);
     CHECK(out.n() == 0);
 
-    // The bang comes back out of the scheduler on the audio thread and starts
-    // the clocker there. The arming itself is then deferred to the background
-    // pool, so the first report lands a hop later rather than in the block that
-    // started it — which is exactly the cost `timerBridge` trades for not
-    // taking a mutex on the audio callback.
-    del->SetBang(0);
-    for (int i = 0; i < 40 && out.n() == 0; i++) {
-      p.Calculate(YSE::T_DSP);
-      std::this_thread::sleep_for(2ms);
-    }
+    // Whatever else the process has armed, taken before the bang so the claim
+    // is the *delta* this patch is responsible for.
+    const std::size_t before = YSE::PATCHER::TimerThread().size();
 
-    REQUIRE(waitFor([&] { return out.n() >= 3; }));
+    // The bang comes back out of the scheduler on the audio thread and starts
+    // the clocker there. The arming itself is deferred to the background pool
+    // — exactly the cost `timerBridge` trades for not taking a mutex on the
+    // audio callback — so each block joins the pool before asking whether the
+    // timer exists yet. `.delay`'s default 5 ms is one block at any sane rate;
+    // the budget is generous against a large one, and it is a budget in blocks,
+    // with no wall-clock wait anywhere in this loop.
+    del->SetBang(0);
+    bool armed = false;
+    for (int i = 0; i < 64 && !armed; i++) {
+      p.Calculate(YSE::T_DSP);
+      YSE::PATCHER::TimerBridge().WaitIdle();
+      armed = YSE::PATCHER::TimerThread().size() > before;
+    }
+    REQUIRE(armed);
+
+    // And the timer that appeared is this clocker's. A stop from the control
+    // thread takes the *blocking* half of the bridge, so `ClearTimer`'s
+    // handshake has been performed by the time the call returns and the count
+    // is final the moment it does — the `stop` case above's reasoning, used
+    // here to name the timer rather than to end the reports.
+    clocker->SetIntData(0, 0);
+    CHECK(YSE::PATCHER::TimerThread().size() == before);
+
+    // Whatever the timer did deliver while the run was on is in order. Vacuous
+    // when the machine never got round to a tick, which is the point: the
+    // ordering is a property of the object, the count is not.
     const std::vector<int> values = out.snapshot();
     for (std::size_t i = 1; i < values.size(); i++)
       CHECK(values[i] >= values[i - 1]);
-
-    clocker->SetIntData(0, 0);
   }
 
 } // TEST_SUITE
@@ -1173,16 +1296,23 @@ TEST_SUITE("clock") {
     p.Clocks()->WaitIdle();
     obj->SetIntData(0, 1);
 
-    REQUIRE(waitFor([&] { return beats.n() >= 3; }));
+    // The one case in this suite that waits on the real millisecond timer, so
+    // it is paced the way the `run` cases are: a reference armed after the
+    // object's own 5 ms timer, whose every tick is one the object's timer has
+    // already passed, instead of a wall-clock budget (#751).
+    refTimer younger(5);
+    REQUIRE(younger.WaitTicks(3));
+    const int atLeast = younger.n();
+    REQUIRE(beats.n() >= atLeast);
     // Milliseconds have passed and beats have not, on the one run.
     CHECK(beats.last() == doctest::Approx(0.0));
-    CHECK(waitFor([&] { return ms.last() > 0; }));
+    CHECK(ms.last() > 0);
 
     // Move the domain two beats and the beats outlet follows it, still on the
     // millisecond timer's schedule.
     for (int i = 0; i < 4; i++)
       YSE::CLOCK::Manager().update(kStepSeconds);
-    CHECK(waitFor([&] { return beats.last() == doctest::Approx(2.0); }));
+    CHECK(waitPaced(younger, 4, [&] { return beats.last() == doctest::Approx(2.0); }));
 
     obj->SetIntData(0, 0);
     DropClock("ck.both");

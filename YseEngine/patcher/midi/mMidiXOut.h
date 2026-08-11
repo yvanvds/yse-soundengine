@@ -19,14 +19,11 @@
 // splitting `};` across two lines. Four in a row is past that point, so the
 // boilerplate is written out and the file stays format-stable.
 //
-// **Platform guard.** `#if YSE_WINDOWS`, matching the seven senders these
-// belong with. The guard is wrong for all of them — none opens a device, they
-// only emit bytes — but lifting it is issue #746's sweep over the whole
-// family, not a deviation to introduce here for four more objects.
-#include "headers/defines.hpp"
-
-#if YSE_WINDOWS
-
+// **No platform guard.** None of these opens a device — they only format bytes
+// onto their outlets — so all four are compiled and registered on every
+// platform, like the seven senders they belong with. Issue #746 lifted the
+// `#if YSE_WINDOWS` the family used to carry; only `.midiout`, which holds an
+// RtMidi port, is still conditional (on `YSE_ENABLE_MIDI_DEVICE`).
 #include "../pObject.h"
 
 namespace YSE {
@@ -182,5 +179,3 @@ namespace YSE {
 
   } // namespace PATCHER
 } // namespace YSE
-
-#endif // YSE_WINDOWS

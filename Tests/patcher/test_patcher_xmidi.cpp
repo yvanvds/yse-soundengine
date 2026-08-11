@@ -36,9 +36,9 @@
 // true or not.
 //
 // No audio device and no MIDI hardware required. The input half is compiled
-// behind YSE_ENABLE_MIDI_DEVICE with the family it extends and the sending
-// half behind YSE_WINDOWS with the senders it extends — see mMidiXIn.h and
-// mMidiXOut.h, and issue #746 for the sweep that lifts the latter guard.
+// behind YSE_ENABLE_MIDI_DEVICE with the family it extends (see mMidiXIn.h);
+// the sending half is unconditional, issue #746 having lifted the
+// `#if YSE_WINDOWS` the sender family used to carry.
 
 #include <doctest/doctest.h>
 #include <cstddef>
@@ -56,16 +56,14 @@
 #include "patcher/parameters.h"
 #include "patcher/patcher.hpp"
 
+#include "patcher/inlet.h"
+#include "patcher/midi/mMidiXOut.h"
+#include "sinks.hpp"
+
 #if YSE_ENABLE_MIDI_DEVICE
 #include "midi/midiInHub.h"
 #include "patcher/midi/mMidiXIn.h"
 #include "patcher/patcherImplementation.h"
-#endif
-
-#if YSE_WINDOWS
-#include "patcher/inlet.h"
-#include "patcher/midi/mMidiXOut.h"
-#include "sinks.hpp"
 #endif
 
 using YSE::PATCHER::Register;
@@ -213,8 +211,6 @@ namespace {
 
 #endif // YSE_ENABLE_MIDI_DEVICE
 
-#if YSE_WINDOWS
-
 namespace {
 
   // The three wire bytes as a std::string, so an expectation reads as the
@@ -268,8 +264,6 @@ namespace {
 
 } // namespace
 
-#endif // YSE_WINDOWS
-
 TEST_SUITE("patcher") {
 
   // ─── registration and shape ───────────────────────────────────────────────
@@ -292,7 +286,8 @@ TEST_SUITE("patcher") {
       CHECK(std::string(obj->Type()) == std::string(type));
     }
 #endif
-#if YSE_WINDOWS
+    // The sending half has no platform guard at all since #746, so this loop
+    // runs everywhere.
     for (const char* type : kOutFamily) {
       CAPTURE(type);
       CHECK(registered(type));
@@ -300,7 +295,6 @@ TEST_SUITE("patcher") {
       REQUIRE(obj != nullptr);
       CHECK(std::string(obj->Type()) == std::string(type));
     }
-#endif
     // A platform-guarded family whose guard is wrong registers nothing at all,
     // and a test that only looped over an empty list would pass. The names are
     // spelled out so the loop above cannot be vacuous.
@@ -313,10 +307,8 @@ TEST_SUITE("patcher") {
     for (const char* type : kInFamily)
       CheckDocumented(type);
 #endif
-#if YSE_WINDOWS
     for (const char* type : kOutFamily)
       CheckDocumented(type);
-#endif
   }
 
 #if YSE_ENABLE_MIDI_DEVICE
@@ -618,8 +610,6 @@ TEST_SUITE("patcher") {
 
 #endif // YSE_ENABLE_MIDI_DEVICE
 
-#if YSE_WINDOWS
-
   TEST_CASE("xmidi: the senders have the shape their seven-bit siblings have (#533)") {
     struct Expected {
       const char* type;
@@ -841,7 +831,5 @@ TEST_SUITE("patcher") {
 
     loaded.DeleteObject(obj);
   }
-
-#endif // YSE_WINDOWS
 
 } // TEST_SUITE
