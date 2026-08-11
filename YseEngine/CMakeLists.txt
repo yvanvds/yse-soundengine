@@ -334,6 +334,10 @@ if(YSE_ENABLE_MIDI_DEVICE)
     # lives beside it and is the only other caller of the enumeration.
     patcher/midi/mMidiInfo.cpp
     patcher/midi/midiPortScanner.cpp
+    # `.midiout`'s deferred port open (issue #759) lives beside them: it is the
+    # only other caller of the device backend from a patcher message handler,
+    # and like the scanner it exists to keep that call off the calling thread.
+    patcher/midi/midiPortOpener.cpp
   )
 endif()
 
@@ -522,6 +526,7 @@ set_source_files_properties(
   patcher/midi/mMidiXOut.cpp
   patcher/midi/mMpe.cpp
   patcher/midi/mSysEx.cpp
+  patcher/midi/midiPortOpener.cpp
   patcher/midi/midiPortScanner.cpp
   patcher/io/fileScheduler.cpp
   patcher/time/clockBridge.cpp

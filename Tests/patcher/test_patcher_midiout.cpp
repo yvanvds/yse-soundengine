@@ -28,20 +28,25 @@
 // compose" is either true or not; a reader tested only on hand-typed strings
 // would pass just as happily on a pair whose spellings still disagreed.
 //
-// What is deliberately *not* driven here is `.midiout` itself. Its list handler
-// opens a hardware port on the first message it receives and then hands the
-// bytes to RtMidi, so an end-to-end test of the object would (a) observe
-// nothing on a machine with no MIDI device and (b) play real notes out of a
-// real synthesiser on a machine that has one. Tests/midi/test_devicemanager.cpp
-// takes the same line with `midiOut` for the same reason: every send is driven,
-// none of them with a port open. The step this file cannot cover is therefore
+// The last section drives `.midiout` itself, which the byte-list sections
+// deliberately do not (issue #759). What made that impossible was the object's
+// own list handler: it opened a hardware port inline and then handed the bytes
+// to RtMidi, so driving it would have played real notes out of a real
+// synthesiser on any machine with one. The deferred open changes exactly that —
+// the *first* message opens nothing and sends nothing, which is what the
+// section asserts — so the object can now be driven end to end without a byte
+// ever reaching a device: the messages sent after the port arrives are ones the
+// reader refuses. Tests/midi/test_devicemanager.cpp takes the same line with
+// `midiOut`. The step no test here covers is therefore still
 // `out.Raw(bytes, count)` — one call, whose length handling is covered there.
 //
-// No audio device and no MIDI hardware required, and no MIDI backend either:
-// the reader is arithmetic over characters and carries no `#if`.
+// No audio device and no MIDI hardware required. The byte-list sections carry
+// no `#if` — the reader is arithmetic over characters — while the deferred-open
+// section sits behind YSE_ENABLE_MIDI_DEVICE with the object it drives.
 
 #include <doctest/doctest.h>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
@@ -54,6 +59,15 @@
 #include "patcher/pObjectList.hpp"
 #include "patcher/patcher.hpp"
 #include "sinks.hpp"
+
+#if YSE_ENABLE_MIDI_DEVICE
+#include "midi/device.hpp"
+#include "midi/midiDeviceManager.h"
+#include "patcher/inlet.h"
+#include "patcher/midi/mMidiOut.h"
+#include "patcher/midi/midiPortOpener.h"
+#include "patcher/patcherImplementation.h"
+#endif
 
 using YSE::PATCHER::MIDI_BYTE_LIST_MAX;
 using YSE::PATCHER::midiByteList;
@@ -350,5 +364,239 @@ TEST_SUITE("patcher") {
 
     patch.DeleteObject(noteon);
   }
+
+  // ─── the deferred port open (#759) ────────────────────────────────────────
+
+#if YSE_ENABLE_MIDI_DEVICE
+
+  // A list the reader refuses (300 is not a byte), so it reaches no device.
+  // What it *does* do is run the handler's port gate, which is how a test
+  // collects a finished open without putting a note on the wire.
+  static const char* const kRefusedList = "144 60 300";
+
+  TEST_CASE("midiout: the first message opens nothing on the thread that sent it (#759)") {
+    // The load-bearing assertion of the whole fix. A list handler runs on
+    // whichever thread dispatched the message and in-patcher delivery
+    // dispatches on T_DSP, so a handler that opened inline would be
+    // constructing an RtMidiOut, calling openPort — a driver call that can
+    // block — inserting into a std::map and taking MIDI::deviceManager's mutex
+    // from the audio callback.
+    using YSE::PATCHER::MidiPortOpener;
+    using YSE::PATCHER::mMidiOut;
+
+    mMidiOut object;
+    CHECK_FALSE(object.PortSettled());
+    CHECK_FALSE(object.PortOpen());
+    CHECK_FALSE(object.OpenInFlight());
+
+    object.GetInlet(0)->SetList("144 60 100", YSE::T_DSP);
+
+    // The handler came back with no port and nothing sent. Both are checked on
+    // the thread that sent the message, where they cannot race the pool: only a
+    // handler ever settles the object, and the drop is already counted.
+    CHECK_FALSE(object.PortSettled());
+    CHECK(object.Deferred() == 1);
+    // And the work is somewhere else — in flight on the pool, or already
+    // waiting there to be collected.
+    CHECK(object.OpenInFlight());
+
+    MidiPortOpener().WaitIdle();
+  }
+
+  TEST_CASE("midiout: the port opens on the background pool and the next message finds it (#759)") {
+    // The other half of the acceptance: deferring must still end with an open
+    // port, or the object would simply never send anything again.
+    using YSE::PATCHER::MidiPortOpener;
+    using YSE::PATCHER::mMidiOut;
+
+    mMidiOut object;
+    const std::uint64_t before = MidiPortOpener().Opened();
+
+    object.GetInlet(0)->SetList("144 60 100", YSE::T_DSP);
+    MidiPortOpener().WaitIdle();
+
+    // The open ran, and it ran on the pool: the count only moves there.
+    CHECK(MidiPortOpener().Opened() >= before + 1);
+
+    // Collected by the next message through the same gate. A refused list, so
+    // this test opens a device without ever sending it a note.
+    object.GetInlet(0)->SetList(kRefusedList, YSE::T_DSP);
+    CHECK(object.PortSettled());
+    CHECK_FALSE(object.OpenInFlight());
+    // A refusal is not a deferral: the port was there, the bytes were not.
+    CHECK(object.Deferred() == 1);
+
+    // "Settled" is the attempt, not its success. On a machine with an output
+    // port, port 0 is now open; on CI, where there is none, the attempt failed
+    // and the object stays closed — which is exactly what an inline open that
+    // threw always left behind.
+    if (YSE::MIDI::DeviceManager().getNumMidiOutDevices() > 0) {
+      CHECK(object.PortOpen());
+    } else {
+      CHECK_FALSE(object.PortOpen());
+    }
+
+    // And it is asked for once: a settled object goes straight to the send.
+    const std::uint64_t opened = MidiPortOpener().Opened();
+    object.GetInlet(0)->SetList(kRefusedList, YSE::T_DSP);
+    CHECK(MidiPortOpener().Opened() == opened);
+  }
+
+  TEST_CASE("midiout: a message arriving down a real cord defers the open (#759)") {
+    // The same claim at the level a patch makes it: a registry-built
+    // `.midiformat` wired to `.midiout` with a real cord, so the message is
+    // delivered by the patcher's own dispatch rather than by a test poking an
+    // inlet. This is the shape the issue describes — the first list a patch
+    // sends is what used to open the device.
+    using YSE::PATCHER::MidiPortOpener;
+    using YSE::PATCHER::mMidiOut;
+    using YSE::PATCHER::patcherImplementation;
+
+    patcherImplementation patch{1, nullptr};
+    YSE::pHandle* format = patch.CreateObject(YSE::OBJ::M_FORMAT, "");
+    REQUIRE(format != nullptr);
+
+    mMidiOut object;
+    auto handle = std::make_unique<YSE::pHandle>(&object);
+    patch.Connect(format, 0, handle.get(), 0);
+
+    format->SetIntData(6, 1); // channel 1
+    const std::uint64_t before = MidiPortOpener().Opened();
+
+    // Note on, straight down the cord into `.midiout`'s list inlet.
+    format->SetListData(0, "60 100");
+
+    CHECK_FALSE(object.PortSettled());
+    CHECK(object.Deferred() == 1);
+    CHECK(object.OpenInFlight());
+
+    MidiPortOpener().WaitIdle();
+    CHECK(MidiPortOpener().Opened() >= before + 1);
+  }
+
+  TEST_CASE("midiout: a control message waits for the port too (#759)") {
+    // `allnotesoff` and the rest reach into the same `midiOut`, so they go
+    // through the same gate — not for symmetry but because the gate's acquire
+    // load is what makes the port the pool opened visible on this thread.
+    using YSE::PATCHER::MidiPortOpener;
+    using YSE::PATCHER::mMidiOut;
+
+    mMidiOut object;
+    object.SetMessage("allnotesoff", 0.f);
+    CHECK_FALSE(object.PortSettled());
+    CHECK(object.Deferred() == 1);
+    CHECK(object.OpenInFlight());
+
+    MidiPortOpener().WaitIdle();
+  }
+
+  // ─── the opener the deferral runs on ──────────────────────────────────────
+
+  TEST_CASE("midiPortOpener: a claimed slot round-trips an open (#759)") {
+    using YSE::PATCHER::midiPortOpener;
+
+    midiPortOpener opener;
+    const midiPortOpener::Handle handle = opener.Claim();
+    REQUIRE(handle != 0);
+
+    YSE::midiOut target;
+    // Nothing asked for, nothing to collect.
+    CHECK_FALSE(opener.Consume(handle));
+    CHECK_FALSE(opener.Busy(handle));
+
+    const std::uint64_t before = opener.Opened();
+    CHECK(opener.Request(handle, &target, 0));
+    opener.WaitIdle();
+    CHECK(opener.Opened() == before + 1);
+    CHECK(opener.Settled(handle));
+    CHECK(opener.Busy(handle)); // a result is waiting
+
+    CHECK(opener.Consume(handle));
+    CHECK_FALSE(opener.Busy(handle));
+    // Collecting twice takes nothing: the slot went back to idle with the first.
+    CHECK_FALSE(opener.Consume(handle));
+
+    opener.Release(handle);
+  }
+
+  TEST_CASE("midiPortOpener: asking again while an open is in flight costs nothing (#759)") {
+    // `.midiout` asks on every message until the port arrives, so a repeat ask
+    // has to be harmless — and must not re-point the slot at another target
+    // while a worker is reading it.
+    using YSE::PATCHER::midiPortOpener;
+
+    midiPortOpener opener;
+    const midiPortOpener::Handle handle = opener.Claim();
+    REQUIRE(handle != 0);
+
+    YSE::midiOut target;
+    const std::uint64_t before = opener.Opened();
+    CHECK(opener.Request(handle, &target, 0));
+    CHECK(opener.Request(handle, &target, 0));
+    CHECK(opener.Request(handle, &target, 0));
+    opener.WaitIdle();
+
+    // Three asks, one open.
+    CHECK(opener.Opened() == before + 1);
+    CHECK(opener.Consume(handle));
+
+    opener.Release(handle);
+  }
+
+  TEST_CASE("midiPortOpener: a request on no slot is refused rather than ignored (#759)") {
+    using YSE::PATCHER::midiPortOpener;
+
+    midiPortOpener opener;
+    YSE::midiOut target;
+
+    // Handle 0 is what a full table hands back, and every call has to stay safe
+    // on it: `.midiout` keeps asking either way.
+    CHECK_FALSE(opener.Request(0, &target, 0));
+    CHECK_FALSE(opener.Request(static_cast<midiPortOpener::Handle>(midiPortOpener::CAPACITY + 1),
+                               &target, 0));
+    CHECK_FALSE(opener.Consume(0));
+    CHECK_FALSE(opener.Busy(0));
+    CHECK_FALSE(opener.Settled(0));
+    opener.Release(0); // no-op, not a crash
+
+    // A claimed slot with nowhere to open into is refused rather than armed.
+    const midiPortOpener::Handle handle = opener.Claim();
+    REQUIRE(handle != 0);
+    CHECK_FALSE(opener.Request(handle, nullptr, 0));
+    CHECK_FALSE(opener.Busy(handle));
+
+    // A released slot stops answering too.
+    opener.Release(handle);
+    CHECK_FALSE(opener.Request(handle, &target, 0));
+  }
+
+  TEST_CASE("midiPortOpener: the table is bounded and refusals are counted (#759)") {
+    using YSE::PATCHER::midiPortOpener;
+
+    midiPortOpener opener;
+    std::vector<midiPortOpener::Handle> held;
+    for (std::size_t i = 0; i < midiPortOpener::CAPACITY; i++) {
+      const midiPortOpener::Handle handle = opener.Claim();
+      CHECK(handle != 0);
+      held.push_back(handle);
+    }
+
+    CHECK(opener.Dropped() == 0);
+    CHECK(opener.Claim() == 0);
+    CHECK(opener.Dropped() == 1);
+
+    // Giving one back makes the table usable again — slots are held for the
+    // life of an owner, not of the process.
+    opener.Release(held.back());
+    held.pop_back();
+    const midiPortOpener::Handle reused = opener.Claim();
+    CHECK(reused != 0);
+    held.push_back(reused);
+
+    for (auto handle : held)
+      opener.Release(handle);
+  }
+
+#endif // YSE_ENABLE_MIDI_DEVICE
 
 } // TEST_SUITE
