@@ -279,6 +279,9 @@ set(YSE_SRCS
   # `.midiflush` (issue #537) is unconditional for the same reason: it reads
   # bytes off an inlet and writes bytes to an outlet, and opens no device.
   patcher/midi/mMidiFlush.cpp
+  # `.makenote` (issue #538) is unconditional too: it emits ints on two outlets
+  # and opens no device.
+  patcher/midi/mMakeNote.cpp
   patcher/midi/mMidiControl.cpp
   # The system-exclusive pair (issue #531). Unconditional like the codec above:
   # `.sxformat` opens no device, and the `.sysexin` half of the file carries its
@@ -498,6 +501,7 @@ set_source_files_properties(
   patcher/math/gZmap.cpp
   patcher/math/pFrequencyToMidi.cpp
   patcher/math/pMidiToFrequency.cpp
+  patcher/midi/mMakeNote.cpp
   patcher/midi/mMidiBendOut.cpp
   patcher/midi/mMidiChannelPressure.cpp
   patcher/midi/mMidiCodec.cpp

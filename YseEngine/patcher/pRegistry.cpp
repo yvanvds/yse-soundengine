@@ -164,6 +164,10 @@
 // `.midiflush` (issue #537), unconditional for the same reason as the codec: it
 // reads bytes and writes bytes, and opens no device.
 #include "midi/mMidiFlush.h"
+// `.makenote` (issue #538), unconditional too: it emits a pitch and a velocity
+// on two int outlets and holds no port, so it drives a patcher-built synth on a
+// platform with no MIDI hardware exactly as it drives a rack on one that has.
+#include "midi/mMakeNote.h"
 // The system-exclusive pair (issue #531). One header, two guards: `.sxformat`
 // is compiled everywhere and `.sysexin` only where there is an input port to
 // open, so the include itself carries no `#if`.
@@ -690,6 +694,13 @@ pRegistry::pRegistry() {
   // built out of patcher objects strands notes exactly as one driving hardware
   // does, so this must exist where there is no hardware to blame.
   Add(OBJ::M_MIDIFLUSH, mMidiFlush::Create);
+
+  // `.makenote` (issue #538): the other half of the same problem. `.midiflush`
+  // releases notes a patch already stranded; this one makes stranding them
+  // impossible, by scheduling the release at the instant of the attack. Every
+  // sender downstream of it is a stateless formatter that remembers nothing, so
+  // until this existed a patch had to send its own note-offs by hand.
+  Add(OBJ::M_MAKENOTE, mMakeNote::Create);
 
 #if YSE_ENABLE_MIDI_DEVICE
   // The MIDI input family (issue #529) — the way *into* a patch. Every object
