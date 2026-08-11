@@ -294,6 +294,10 @@ set(YSE_SRCS
   # The parameter-number senders (issue #534), likewise: they format control
   # changes onto a list outlet and open no device.
   patcher/midi/mMidiRpnOut.cpp
+  # The MPE family (issue #535). Unconditional for the same reason the codec
+  # pair is: two of the three format bytes onto a list outlet and the third
+  # decodes bytes off an inlet, so none of them touches a backend.
+  patcher/midi/mMpe.cpp
   # midiNote is a plain data class with no platform dependencies.
   midi/midiNote.cpp
 )
@@ -502,6 +506,7 @@ set_source_files_properties(
   patcher/midi/mMidiRpnOut.cpp
   patcher/midi/mMidiXIn.cpp
   patcher/midi/mMidiXOut.cpp
+  patcher/midi/mMpe.cpp
   patcher/midi/mSysEx.cpp
   patcher/io/fileScheduler.cpp
   patcher/time/clockBridge.cpp

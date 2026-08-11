@@ -155,6 +155,10 @@
 // The parameter-number senders (issue #534), unconditional for the same reason:
 // they format control changes and open no device.
 #include "midi/mMidiRpnOut.h"
+// The MPE family (issue #535). Unconditional too: two of the three format bytes
+// onto a list outlet and the third decodes bytes off an inlet, so none of them
+// needs a device backend to be worth having.
+#include "midi/mMpe.h"
 // The MIDI codec pair (issue #530) is registered unconditionally below too.
 #include "midi/mMidiCodec.h"
 // The system-exclusive pair (issue #531). One header, two guards: `.sxformat`
@@ -647,6 +651,18 @@ pRegistry::pRegistry() {
   // MIDI addresses the parameters no controller number reaches.
   Add(OBJ::M_RPNOUT, mRpnOut::Create);
   Add(OBJ::M_NRPNOUT, mNrpnOut::Create);
+
+  // The MPE family (issue #535). MPE is not a new protocol but an agreement
+  // about how to use the sixteen channels MIDI already has — one channel per
+  // sounding note, so that bend, pressure and controller 74 become per-note —
+  // which is why all three of these are ordinary formatters and decoders rather
+  // than anything that needs a backend. `.polymidiin`, the fourth object issue
+  // #535 names, is not here: in Max it lives inside a `poly~` and receives that
+  // object's `mpeevent` routing, and this patcher has no `poly~` for it to live
+  // in.
+  Add(OBJ::M_MPECONFIG, mMpeConfig::Create);
+  Add(OBJ::M_MPEFORMAT, mMpeFormat::Create);
+  Add(OBJ::M_MPEPARSE, mMpeParse::Create);
 
 #if YSE_ENABLE_MIDI_DEVICE
   // The one sender that holds a device port, so the one that stays guarded.

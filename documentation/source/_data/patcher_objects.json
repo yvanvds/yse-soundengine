@@ -3953,6 +3953,186 @@
       }
     ]
   },
+  ".mpeconfig": {
+    "category": "MIDI",
+    "description": "Configures an MPE zone on a controller or synthesiser — Max's 'mpeconfig' (issue #535). MPE gives every sounding note a MIDI channel of its own, so that pitch bend, pressure and controller 74 stop being per-instrument and become per-note; that only works if the two ends agree on which channels are notes and which one carries the instrument as a whole, and the MPE Configuration Message is that agreement. It is the one message in the whole of MPE that is not ordinary MIDI used in a particular way: registered parameter number '00 06', so three control changes — controllers 100 and 101 select the parameter and controller 6 carries the number of member channels — sent on the zone's master channel, which is channel 1 for the lower zone and channel 16 for the upper. A count of 0 turns the zone off, which is the specification's own way of saying 'go back to plain MIDI' and is what a patch sends when it hands the controller to something that is not MPE-aware, so it is a real value rather than a degenerate one. Counts are clamped into 0-15 rather than refused, as everywhere in this family. The three messages leave as three separate lists because '.midiout' sends each list it receives as a single MIDI message, so nine bytes together would arrive as one malformed message rather than three good ones; the fine byte of the parameter number goes first, which is the reverse of '.rpnout''s order and is the literal byte sequence the MPE specification prints for this message, so that a device pattern-matching the configuration message rather than running a general parameter-number state machine still recognises it. The Data Entry LSB that would follow on controller 38 is not sent, the configuration message's fine byte being explicitly unused. Worth knowing at the far end: receiving this message requires a device to set its master channel's pitch-bend range to two semitones and every member channel's to 48, and to stop ongoing notes and reset controllers on every channel entering or leaving the zone — which is why '.mpeformat' takes a fourteen-bit bend. The output is a numeric byte list, the shape '.midiformat' and '.sxformat' send and '.midiout' reads. Unlike Max, which allows up to seven zones placed anywhere among the sixteen channels, this object implements the two zones MPE 1.0 defines, because what a patch gains here is talking to real hardware. It opens no device and needs none, so it runs on every platform.",
+    "inlets": [
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "How many member channels the zone is to have, 0-15 (also fires the three messages). 15 is the usual answer and the default — the whole of the rest of the cable, which is what a controller playing on its own wants. A smaller number leaves room for a second zone or for plain-MIDI traffic beside it. 0 switches the zone off, which is a real instruction rather than a refusal.",
+        "index": 0,
+        "label": "members",
+        "range": "0-15"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".mpeconfig",
+    "outlets": [
+      {
+        "doc": "Three encoded MIDI Control Change messages, one list each and in order: controller 100 and controller 101 selecting registered parameter '00 06', then controller 6 carrying the member channel count. Three lists rather than one, because '.midiout' sends each list it receives as a single MIDI message. Wire it straight to a '.midiout' pointed at the controller.",
+        "index": 0,
+        "label": "midi",
+        "range": "0-255",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Which MPE zone this object belongs to: 0 for the lower zone, whose master is channel 1 and whose member channels count up from 2, or 1 for the upper zone, whose master is channel 16 and whose members count down from 15. The two grow away from each other so that two instruments can share one cable. 0 is the default, is the specification's recommended power-on state, and is what a controller in its factory state uses; anything other than 1 is read as the lower zone. MPE defines these two zones and no others — Max's seven-zone 'masterchan' arrangement is Max's own, and hardware implements the specification.",
+        "name": "zone",
+        "range": "0-1"
+      }
+    ]
+  },
+  ".mpeformat": {
+    "category": "MIDI",
+    "description": "Assembles MPE MIDI messages — Max's 'mpeformat' (issue #535), and the exact inverse of '.mpeparse', inlet for outlet, so the two wire straight across. MPE's expressive gestures are not new messages: they are ordinary note, pitch bend, channel pressure and controller 74 messages sent on a channel that stands for one note rather than for a whole instrument. This is the box that addresses them — set the member channel on the right inlet once, then feed it notes, bends, pressures and slides, and each leaves as a complete MIDI message belonging to that note. Two readings differ from '.midiformat' and both are the point of the object. Bend is the full 14 bits, 0-16383 with 8192 at rest, rather than the coarse byte alone: receiving an MPE configuration message sets a device's per-note bend range to 48 semitones instead of 2, so a seven-bit bend would step in three quarters of a semitone and a glide would sound like a staircase. And pressure and slide are per-note here because the channel makes them so — channel pressure on a member channel is that one note's pressure, and controller 74 on it is that note's forward-back position. A release is a note-on with velocity 0, which is what '.midiformat' sends and what '.mpeparse' reports, so a note round-trips through the pair as the pair described it; a real note-off message is '.noteoff''s and '.xnoteout''s. Values are clamped into the ranges MIDI has rather than refused. Each message leaves as one numeric byte list, the shape '.midiout' reads. Where Max gives this object one inlet per member channel and emits 'mpeevent' messages for 'poly~' and 'vst~', this patcher has neither and an object whose inlet count is a creation argument would have no stable inlet numbering, so the member channel is a single cold inlet as it is on '.midiformat'. Use '.mpeconfig' to tell the receiving device how many member channels to expect. The object opens no device and needs none, so it runs on every platform, and it allocates nothing on a message path.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The list 'pitch velocity', or a bare pitch with velocity 0. Velocity 0 is a release, which is how '.mpeparse' reports one, so the pair round-trips; a real note-off message (status 128) is what '.noteoff' and '.xnoteout' send and is not produced here.",
+        "index": 0,
+        "label": "note",
+        "range": "0-127 0-127"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Per-note pitch bend, 0-16383 with 8192 at rest — all fourteen bits, not '.midiformat''s coarse byte. The whole of MPE's pitch expression rides on this inlet, and at the 48-semitone range a configured device uses, seven bits would not be enough to glide smoothly.",
+        "index": 1,
+        "label": "bend",
+        "range": "0-16383"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Per-note pressure, 0-127: how hard the one finger holding this note is pressing. Sent as channel pressure, which on a member channel belongs to that note alone.",
+        "index": 2,
+        "label": "pressure",
+        "range": "0-127"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Per-note slide, 0-127 — controller 74, MPE's third dimension, the forward-back position of a finger on a controller that has one. Also called timbre, or the Y axis.",
+        "index": 3,
+        "label": "slide",
+        "range": "0-127"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The member channel every message is addressed to, 1-16. Cold: it stores and sends nothing, which is '.midiformat''s rule for the same inlet. One channel is one note, so a polyphonic patch moves this inlet between notes. Defaults to 1.",
+        "index": 4,
+        "label": "channel",
+        "range": "1-16"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".mpeformat",
+    "outlets": [
+      {
+        "doc": "One complete MIDI message per hot inlet message, as a numeric byte list: '146 60 100' is a note-on for middle C on channel 3. Wire it to a '.midiout', or to a '.mpeparse' to read back what was built.",
+        "index": 0,
+        "label": "midi",
+        "range": "0-255",
+        "type": "LIST"
+      }
+    ],
+    "params": []
+  },
+  ".mpeparse": {
+    "category": "MIDI",
+    "description": "Interprets raw MPE MIDI data — Max's 'mpeparse' (issue #535). MPE gives every sounding note a MIDI channel of its own, so pitch bend, channel pressure and controller 74 — three ordinary per-channel messages — become per-note ones, and reading an MPE stream is a matter of knowing which channel a message arrived on and what that channel is doing. Bytes arrive at the inlet one at a time, as '.midiin' and '.seq' send them, or as a numeric list, as '.mpeformat' and '.midiformat' send them, and the four MPE gestures leave the four leftmost outlets, each preceded by the channel that carried it and by that channel's role in the zone. The role is the second half of the answer the channel gives: a message on the zone's master channel applies to every note at once, one on a member channel belongs to the single note sounding there, and one on a channel outside the zone belongs to neither — the other zone's traffic, or plain MIDI sharing the cable. All three are reported rather than the third being dropped, because a patch can filter but cannot recover what an object threw away. Bend is the full 14 bits, 0-16383 with 8192 at rest, which is what a device configured for MPE's 48-semitone per-note range needs and what '.xbendin' also reports. The object learns as it reads: the 'zone' and 'members' arguments say what to assume and default to the specification's recommended power-on state — the lower zone with all fifteen member channels — and an MPE Configuration Message seen on that zone's master channel updates the member count live, so a patch that sends '.mpeconfig' at one end reads the right roles at the other without being told twice. That message is consumed rather than reported: it is configuration, not expression. Program changes, other controllers, polyphonic key pressure and system exclusive are deliberately not decoded here — Max's object is its 'midiparse' plus four MPE outlets, while this patcher already has '.midiparse', and two decoders to keep in step is one too many; wire '.midiparse' to the same source and nothing in the stream is lost. Running status, interleaved real-time bytes and system-exclusive dumps are all tracked so that they cannot desynchronise the framing. The object opens no device and needs none, so it decodes a stream from a file, from '.seq' or from a patch on every platform.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Raw MIDI bytes: an int per byte, as '.midiin' and '.seq' send them, or a numeric list, as '.mpeformat' and '.midiformat' send them. Both go through the same state machine, so a message split across several messages decodes exactly as one arriving whole does. A float is read as an int; a value outside 0-255 is not a MIDI byte and is ignored rather than clamped, since clamping would turn a stray number into a status byte and desynchronise everything after it.",
+        "index": 0,
+        "label": "midi",
+        "range": "0-255"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".mpeparse",
+    "outlets": [
+      {
+        "doc": "Note-on and note-off as the list 'pitch velocity'. A release is reported as velocity 0 whichever way the device spelled it — a note-off message, or a note-on with velocity 0 — so a patch tests for it once, with a '.sel 0' or a '.togedge'. On a member channel this is the note that channel now stands for.",
+        "index": 0,
+        "label": "note",
+        "range": "0-127 0-127",
+        "type": "LIST"
+      },
+      {
+        "doc": "Pitch bend, 0-16383 with 8192 at rest — all fourteen bits, not '.bendin''s coarse byte. On a member channel this bends the one note sounding there; on the master channel it bends the whole zone, and a receiver is required to combine the two.",
+        "index": 1,
+        "label": "bend",
+        "range": "0-16383",
+        "type": "INT"
+      },
+      {
+        "doc": "Channel pressure, 0-127. On a member channel this is the pressure of the one finger holding that note — MPE's second dimension — rather than a single value for the whole keyboard, which is what makes it worth having a separate object for.",
+        "index": 2,
+        "label": "pressure",
+        "range": "0-127",
+        "type": "INT"
+      },
+      {
+        "doc": "Controller 74, 0-127 — MPE's third dimension, the forward-back position of a finger. Also called timbre, or the Y axis. Every other controller belongs to '.midiparse'.",
+        "index": 3,
+        "label": "slide",
+        "range": "0-127",
+        "type": "INT"
+      },
+      {
+        "doc": "The channel the message arrived on, 1-16 rather than the 0-15 nibble on the wire. In MPE this is the note's identity — one channel is one note — so a patch routes on it to keep voices apart. Sent before the outlets to its left, so anything a value triggers downstream already knows whose note it is.",
+        "index": 4,
+        "label": "channel",
+        "range": "1-16",
+        "type": "INT"
+      },
+      {
+        "doc": "What the channel is doing in the zone: 2 for the master channel, whose messages apply to every note at once; 1 for a member channel, whose messages belong to the one note sounding there; 0 for a channel taking no part in this zone, which is the other zone's traffic or plain MIDI sharing the cable. Sent first of all, before the channel outlet.",
+        "index": 5,
+        "label": "role",
+        "range": "0-2",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Which MPE zone this object belongs to: 0 for the lower zone, whose master is channel 1 and whose member channels count up from 2, or 1 for the upper zone, whose master is channel 16 and whose members count down from 15. The two grow away from each other so that two instruments can share one cable. 0 is the default, is the specification's recommended power-on state, and is what a controller in its factory state uses; anything other than 1 is read as the lower zone. MPE defines these two zones and no others — Max's seven-zone 'masterchan' arrangement is Max's own, and hardware implements the specification.",
+        "name": "zone",
+        "range": "0-1"
+      },
+      {
+        "default": "15",
+        "doc": "How many member channels to assume the zone has until a configuration message in the stream says otherwise, 0-15. 15 is the default and the specification's recommended power-on state — the whole of the rest of the cable. It decides only which channels the role outlet calls members; nothing is filtered out on the strength of it.",
+        "name": "members",
+        "range": "0-15"
+      }
+    ]
+  },
   ".mtof": {
     "category": "MATH",
     "description": "Converts a MIDI note number (with A4 == 69) to its frequency in Hz.",

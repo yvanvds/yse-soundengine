@@ -69,6 +69,8 @@ namespace YSE {
    *    ``M_XCTLOUT``, ``M_XNOTEOUT``.
    *  - Parameter numbers: ``M_RPNIN``, ``M_NRPNIN``, ``M_RPNOUT``,
    *    ``M_NRPNOUT``.
+   *  - MIDI polyphonic expression: ``M_MPECONFIG``, ``M_MPEFORMAT``,
+   *    ``M_MPEPARSE``.
    *  - MIDI codec: ``M_PARSE``, ``M_FORMAT``.
    *  - MIDI system exclusive: ``M_SYSEXIN``, ``M_SXFORMAT``.
    *  - Conversion: ``MIDITOFREQUENCY``, ``FREQUENCYTOMIDI``, ``G_ATODB``,
@@ -300,5 +302,8 @@ namespace YSE {
     DEFOBJ(M_NRPNIN, ".nrpnin");
     DEFOBJ(M_RPNOUT, ".rpnout");
     DEFOBJ(M_NRPNOUT, ".nrpnout");
+    DEFOBJ(M_MPECONFIG, ".mpeconfig");
+    DEFOBJ(M_MPEFORMAT, ".mpeformat");
+    DEFOBJ(M_MPEPARSE, ".mpeparse");
   };
 } // namespace YSE
