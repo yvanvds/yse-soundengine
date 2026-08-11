@@ -138,17 +138,38 @@
 #include "math/gZmap.h"
 
 #if YSE_WINDOWS
+#include "midi/mMidiBendOut.h"
 #include "midi/mMidiChannelPressure.h"
 #include "midi/mMidiControl.h"
 #include "midi/mMidiNoteOff.h"
 #include "midi/mMidiNoteOn.h"
 #include "midi/mMidiPolyPressure.h"
 #include "midi/mMidiProgramChange.h"
+// The extended-precision senders (issue #533) carry the same YSE_WINDOWS guard
+// as the seven they are siblings of; #746 lifts it off all of them at once.
+#include "midi/mMidiXOut.h"
 #endif
+// The MIDI codec pair (issue #530) is registered unconditionally below, so its
+// header cannot live inside the YSE_WINDOWS block the six senders share — that
+// left `mMidiParse` undeclared on every other platform.
+#include "midi/mMidiCodec.h"
+// The system-exclusive pair (issue #531). One header, two guards: `.sxformat`
+// is compiled everywhere and `.sysexin` only where there is an input port to
+// open, so the include itself carries no `#if`.
+#include "midi/mSysEx.h"
 // mMidiOut is the only patcher midi object that depends on the RtMidi-backed
 // device backend; the other six just emit MIDI bytes and don't need it.
 #if YSE_WINDOWS && YSE_ENABLE_MIDI_DEVICE
 #include "midi/mMidiOut.h"
+#endif
+// The MIDI input family (issue #529) needs the same RtMidi-backed backend, but
+// not the extra YSE_WINDOWS guard the six senders carry: YSE_ENABLE_MIDI_DEVICE
+// is already exactly the set of platforms with an input port to open.
+#if YSE_ENABLE_MIDI_DEVICE
+#include "midi/mMidiIn.h"
+// The extended-precision input objects (issue #533) are built on that family's
+// plumbing and share its guard exactly.
+#include "midi/mMidiXIn.h"
 #endif
 
 using namespace YSE::PATCHER;
@@ -598,10 +619,88 @@ pRegistry::pRegistry() {
   Add(OBJ::M_NOTEON, mMidiNoteOn::Create);
   Add(OBJ::M_POLYPRESS, mMidiPolyPressure::Create);
   Add(OBJ::M_PROGCHANGE, mMidiProgramChange::Create);
+  // Pitch bend (issue #532) — the last channel-voice status the sender family
+  // was missing. Guarded with the six it belongs to; issue #746 lifts the
+  // YSE_WINDOWS guard off all seven at once.
+  Add(OBJ::M_BENDOUT, mMidiBendOut::Create);
+
+  // The extended-precision senders (issue #533): the same four channel-voice
+  // messages the block above already formats, with the bits the 7-bit versions
+  // throw away put back — all fourteen of a pitch bend, the MSB/LSB pair of a
+  // controller, and the release velocity a note-off has always had room for.
+  // Guarded with the family they belong to; #746 lifts YSE_WINDOWS off all of
+  // them at once.
+  Add(OBJ::M_XBENDOUT, mXBendOut::Create);
+  Add(OBJ::M_XBENDOUT2, mXBendOut2::Create);
+  Add(OBJ::M_XCTLOUT, mXCtlOut::Create);
+  Add(OBJ::M_XNOTEOUT, mXNoteOut::Create);
 #endif
 #if YSE_WINDOWS && YSE_ENABLE_MIDI_DEVICE
   Add(OBJ::M_OUT, mMidiOut::Create);
 #endif
+
+  // The MIDI codec pair (issue #530): raw bytes to structure and back. Not
+  // guarded on anything, unlike everything else in this block — these two open
+  // no device and hold no port, so a patch that decodes a stream from a file,
+  // from `.seq` or from a patch works on every platform. See mMidiCodec.h.
+  Add(OBJ::M_PARSE, mMidiParse::Create);
+  Add(OBJ::M_FORMAT, mMidiFormat::Create);
+
+#if YSE_ENABLE_MIDI_DEVICE
+  // The MIDI input family (issue #529) — the way *into* a patch. Every object
+  // above this line either formats MIDI or sends it; until these existed a
+  // patch could not be played from a keyboard, driven by a controller, or
+  // sequenced from outside at all.
+
+  // The undecoded byte stream: the whole protocol, for SysEx, song position and
+  // anything the decoding objects filter out — and the format `.seq` records.
+  Add(OBJ::M_IN, mMidiIn::Create);
+
+  // Notes, and with them a playable patch.
+  Add(OBJ::M_NOTEIN, mNoteIn::Create);
+
+  // Knobs, faders, wheels and pedals.
+  Add(OBJ::M_CTLIN, mCtlIn::Create);
+
+  // The pitch wheel, at Max's 7-bit resolution; `.xbendin` (#533) has the rest.
+  Add(OBJ::M_BENDIN, mBendIn::Create);
+
+  // Program changes, numbered 1-128 as the hardware displays them.
+  Add(OBJ::M_PGMIN, mPgmIn::Create);
+
+  // Channel aftertouch — one pressure for the whole channel.
+  Add(OBJ::M_TOUCHIN, mTouchIn::Create);
+
+  // Polyphonic key pressure — the per-note counterpart of the above.
+  Add(OBJ::M_POLYIN, mPolyIn::Create);
+
+  // System real time: the clock, start, continue and stop a patch follows an
+  // external sequencer by.
+  Add(OBJ::M_RTIN, mRtIn::Create);
+
+  // The receiving half of the system-exclusive pair (issue #531): a voice dump
+  // off a port, with everything that is not a dump filtered out. Guarded with
+  // the input family it belongs to; its partner below is not.
+  Add(OBJ::M_SYSEXIN, mSysExIn::Create);
+
+  // The extended-precision input objects (issue #533). Same plumbing as the
+  // family above — port, subscription, block poll, bounded drain — reading the
+  // bytes at the resolution the wire actually carries: a bend as all fourteen
+  // of its bits (or as the two that make them), a controller as its MSB/LSB
+  // pair, a note-off with its release velocity, and the raw stream framed into
+  // whole messages.
+  Add(OBJ::M_XBENDIN, mXBendIn::Create);
+  Add(OBJ::M_XBENDIN2, mXBendIn2::Create);
+  Add(OBJ::M_XCTLIN, mXCtlIn::Create);
+  Add(OBJ::M_XNOTEIN, mXNoteIn::Create);
+  Add(OBJ::M_XMIDIIN, mXMidiIn::Create);
+#endif
+
+  // The building half of the system-exclusive pair (issue #531). Unguarded for
+  // the same reason as the codec above: it is arithmetic over bytes and opens
+  // no device, so a dump can be built into a file on a platform with no MIDI
+  // hardware at all. See mSysEx.h.
+  Add(OBJ::M_SXFORMAT, mSxFormat::Create);
 }
 
 pObject* pRegistry::Get(const std::string& objectID) {

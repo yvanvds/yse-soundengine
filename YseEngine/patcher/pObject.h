@@ -97,6 +97,34 @@ namespace YSE {
 
       virtual const char* Type() const = 0;
       virtual void Calculate(THREAD thread) = 0;
+
+      // Whether this object must be visited once per audio block even though
+      // nothing in the patch drives it (issue #529).
+      //
+      // The render traversal is a *push* from the DSP start points, and a
+      // control object is only ever reached because a message arrived at one of
+      // its inlets. That leaves no home at all for an object whose input comes
+      // from outside the patch — the MIDI-input family, whose events arrive on
+      // RtMidi's own thread and wait in a lock-free queue until someone drains
+      // them. Such an object has no inlets to be pushed through and is not a
+      // DSP object, so without this it would simply never run.
+      //
+      // An object that answers true is listed in the GraphState's `pollers` and
+      // has `Calculate()` called at the top of the block, alongside the value,
+      // deferred-message and file-completion drains and before the DSP
+      // traversal — so an event that arrives between two blocks reaches the
+      // patch in the block that follows it, and anything it triggers is
+      // rendered by that same block. Everything RT-applicable applies to that
+      // Calculate: no allocation, no locks, no I/O.
+      //
+      // Deliberately *not* the same question as IsDSPObject(): a poller is
+      // control-rate and must stay so, or it would report itself as an
+      // audio-rate object to every palette and binding that reads the metadata,
+      // and its inlets would start refusing GUI-dispatched values.
+      virtual bool WantsBlockPoll() const {
+        return false;
+      }
+
       virtual void SetMessage(const std::string& message, float value) = 0;
 
       void SetParams(const std::string& args);

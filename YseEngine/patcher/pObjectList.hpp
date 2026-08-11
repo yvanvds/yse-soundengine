@@ -60,7 +60,15 @@ namespace YSE {
    *  - List processing: ``G_ZL``, ``G_PACK``, ``G_PAK``, ``G_UNPACK``,
    *    ``G_JOIN``, ``G_UNJOIN``, ``G_LISTFUNNEL``.
    *  - Iteration: ``G_UZI``, ``G_ITER``.
-   *  - MIDI: ``M_OUT``, ``M_NOTEON``, ``M_NOTEOFF``, ``M_CONTROL``.
+   *  - MIDI out: ``M_OUT``, ``M_NOTEON``, ``M_NOTEOFF``, ``M_CONTROL``,
+   *    ``M_BENDOUT``.
+   *  - MIDI in: ``M_IN``, ``M_NOTEIN``, ``M_CTLIN``, ``M_BENDIN``,
+   *    ``M_PGMIN``, ``M_TOUCHIN``, ``M_POLYIN``, ``M_RTIN``.
+   *  - Extended-precision MIDI: ``M_XBENDIN``, ``M_XBENDIN2``, ``M_XCTLIN``,
+   *    ``M_XNOTEIN``, ``M_XMIDIIN``, ``M_XBENDOUT``, ``M_XBENDOUT2``,
+   *    ``M_XCTLOUT``, ``M_XNOTEOUT``.
+   *  - MIDI codec: ``M_PARSE``, ``M_FORMAT``.
+   *  - MIDI system exclusive: ``M_SYSEXIN``, ``M_SXFORMAT``.
    *  - Conversion: ``MIDITOFREQUENCY``, ``FREQUENCYTOMIDI``, ``G_ATODB``,
    *    ``G_DBTOA``, ``G_CARTOPOL``, ``G_POLTOCAR``.
    */
@@ -258,11 +266,33 @@ namespace YSE {
     DEFOBJ(D_VCF, "~vcf");
 
     DEFOBJ(M_OUT, ".midiout");
+    DEFOBJ(M_IN, ".midiin");
+    DEFOBJ(M_NOTEIN, ".notein");
+    DEFOBJ(M_CTLIN, ".ctlin");
+    DEFOBJ(M_BENDIN, ".bendin");
+    DEFOBJ(M_PGMIN, ".pgmin");
+    DEFOBJ(M_TOUCHIN, ".touchin");
+    DEFOBJ(M_POLYIN, ".polyin");
+    DEFOBJ(M_RTIN, ".rtin");
     DEFOBJ(M_NOTEON, ".noteon");
     DEFOBJ(M_NOTEOFF, ".noteoff");
     DEFOBJ(M_CONTROL, ".controlchange");
     DEFOBJ(M_POLYPRESS, ".polypressure");
     DEFOBJ(M_CHANPRESS, ".channelpressure");
     DEFOBJ(M_PROGCHANGE, ".programchange");
+    DEFOBJ(M_BENDOUT, ".bendout");
+    DEFOBJ(M_PARSE, ".midiparse");
+    DEFOBJ(M_FORMAT, ".midiformat");
+    DEFOBJ(M_SYSEXIN, ".sysexin");
+    DEFOBJ(M_SXFORMAT, ".sxformat");
+    DEFOBJ(M_XBENDIN, ".xbendin");
+    DEFOBJ(M_XBENDIN2, ".xbendin2");
+    DEFOBJ(M_XCTLIN, ".xctlin");
+    DEFOBJ(M_XNOTEIN, ".xnotein");
+    DEFOBJ(M_XMIDIIN, ".xmidiin");
+    DEFOBJ(M_XBENDOUT, ".xbendout");
+    DEFOBJ(M_XBENDOUT2, ".xbendout2");
+    DEFOBJ(M_XCTLOUT, ".xctlout");
+    DEFOBJ(M_XNOTEOUT, ".xnoteout");
   };
 } // namespace YSE

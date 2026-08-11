@@ -1353,6 +1353,77 @@
       }
     ]
   },
+  ".bendin": {
+    "category": "MIDI",
+    "description": "MIDI pitch-bend input — Max's 'bendin' (issue #529). Reports the pitch wheel's position as 0-127 with 64 at rest, which is Max's 7-bit reading of a message that is 14 bits on the wire: only the most significant byte is used, and that is the reference behaviour rather than a shortcut. The full resolution is what '.xbendin' is for (issue #533), and the two exist separately for a reason worth knowing — 7 bits over a two-semitone bend range is about three cents a step, which is audible as a staircase on a slow bend, so a patch that bends expressively wants the extended object while one that just needs a modulation source does not. The wheel's rest position is 64 here, not 0, so a patch usually subtracts before scaling. Both outlets fire right to left, channel first. A 'channel' argument filters and, unlike Max, leaves the channel outlet in place. Events cross from the device backend's thread on a bounded lock-free queue and are drained once per audio block, so nothing allocates, locks or blocks on either side.",
+    "inlets": [],
+    "is_dsp": false,
+    "name": ".bendin",
+    "outlets": [
+      {
+        "doc": "The wheel position, 0-127, centred at 64: 0 is fully down, 127 fully up. This is the high byte of the 14-bit message, Max's reading; '.xbendin' reports all 14 bits.",
+        "index": 0,
+        "label": "bend",
+        "range": "0-127",
+        "type": "INT"
+      },
+      {
+        "doc": "The MIDI channel the message arrived on, 1-16 — the numbering Max uses, the numbering the sending objects use, and the numbering printed on the hardware, rather than the 0-15 nibble on the wire. Sent first, before the outlets to its left, so anything the leftmost outlet triggers downstream already knows which channel it is looking at.",
+        "index": 1,
+        "label": "channel",
+        "range": "1-16",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Index of the MIDI input device to listen to, as numbered by YSE::system::getMidiInDeviceName. The port is opened the first time any patcher object asks for it and closed when the last one goes, so several objects on one keyboard share a single device and each still gets a queue of its own. A port that will not open — no hardware, or a backend that allows one client per port and a host that already holds it — leaves an object that is perfectly valid and simply never receives anything, which is what lets a patch load the same way on a machine with nothing plugged in. Editing this argument on a live object rebuilds the object rather than storing into it: the subscription is taken when the object joins its patcher, and a field written on the audio thread cannot move a device port.",
+        "name": "port",
+        "range": "0-7"
+      },
+      {
+        "default": "0",
+        "doc": "MIDI channel to accept, 1-16, or 0 for every channel — Max's omni, and the default. Unlike Max, giving a channel here does not remove the channel outlet: an object whose outlet count depends on its arguments has no stable outlet numbering, so adding an argument would silently re-point every cord leaving the box and a saved patch's connection indices would mean two different things. The outlet stays and carries the filtered channel back, which costs a patch nothing.",
+        "name": "channel",
+        "range": "0-16"
+      }
+    ]
+  },
+  ".bendout": {
+    "category": "MIDI",
+    "description": "MIDI Pitch Bend message generator, the expressive channel message the other senders in this family do not cover. A value on the inlet stores it and emits a three-byte packet on the channel given as the creation argument. The value is the coarse byte of the wire message, 0-127 with 64 at rest, and the fine byte is sent as 0: that is the 7-bit resolution Max's 'bendout' has and the one '.bendin', '.midiparse' and '.midiformat' report, so a number means the same thing wherever a patch reads or writes it. The full 14-bit form is '.xbendout'. Out-of-range values are clamped rather than refused, as they are on the rest of the family, so a patch scaling a controller into a wider range bends to the extremes instead of falling silent. The output is a raw byte list for '.midiout'.",
+    "inlets": [
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "Pitch bend position, 64 at rest (also fires the output).",
+        "index": 0,
+        "label": "bend",
+        "range": "0-127"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".bendout",
+    "outlets": [
+      {
+        "doc": "Encoded MIDI Pitch Bend message (status, fine byte 0, bend).",
+        "index": 0,
+        "label": "midi",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "MIDI channel offset (0-based).",
+        "name": "channel",
+        "range": "0-15"
+      }
+    ]
+  },
   ".bline": {
     "category": "TIME",
     "description": "Ramps a control value toward a target one step per bang, so the patch supplies the timebase. Max's bline, 'generates a linear ramp driven by incoming bang messages. It takes a list of breakpoint segments (and the number of events to span) and outputs a smooth ramp between values.' It is .line with the clock taken out: where .line emits a value every grain milliseconds of its own accord, this one emits a value each time it is banged and never otherwise, which is what a ramp needs when its step rate is not wall-clock time — locked to a .metro that a .tempo is bending, one value per note of a .seq, one value per frame of a render loop that takes as long as it takes. A breakpoint pair therefore counts bangs where .line's counts milliseconds: Max's 'an integer that specifies the number of bang messages that will have to be received before reaching the target value', so the list '1 10 0 10' climbs to 1 over ten bangs and comes back down over the next ten, banging the right outlet on the twentieth. Everything else is .line's and identical: four or more numbers are breakpoint pairs with an odd trailing element ignored, a three-element list is one pair with the third number ignored (there being no grain to set), each segment starts from the value the object currently stands at so there are no discontinuities, and a number arriving mid-ramp clears every segment still to come. The list holds 64 segments and reads 129 numbers, which is Max's maxpoints default; anything longer keeps its head, loses its tail and counts the refusal rather than allocating on the thread the message arrived on. A bare number is Max's 'the time is considered 0 and bline outputs the target value when it receives a bang' — one bang's worth of segment, landing on the target exactly — so nothing this object emits ever comes out on anything but a bang. 'stop' freezes it where it stands and forgets the queue without banging, and 'set <number>' moves the stored value silently and stops a ramp in progress, which is the one place this reads Max's page apart from itself: his set and int carry the same sentence, and telling them apart the way line does is what leaves a way to move the starting point without arming an output. Max's pause and resume are not here, bline having neither — on an object clocked by the patch, not banging it is the pause. The output is an int or a float by Max's rule: the creation argument's spelling makes the object one or the other, and an int object emits floats for a segment shorter than one unit whose steps are smaller than 0.4, which is his floatoutput 'auto' default. No scheduler, no timer and no clock are involved at any point, so a value comes out on the calling thread inside the caller's own dispatch frame; Calculate() does nothing and no message path allocates, locks or blocks.",
@@ -2092,6 +2163,56 @@
         "doc": "Increment applied on each bang.",
         "name": "step",
         "range": "any int"
+      }
+    ]
+  },
+  ".ctlin": {
+    "category": "MIDI",
+    "description": "MIDI control-change input — Max's 'ctlin' (issue #529). Every control-change message received on the port leaves as value, controller number and channel: this is the object a patch reads knobs, faders, the modulation wheel, the sustain pedal and the expression pedal with. The three outlets fire right to left, so whatever the value triggers downstream already knows which controller and channel it came from — which is what lets one '.ctlin' feed a '.route' or a '.sel' over the controller-number outlet and fan a whole control surface out of a single box. A 'channel' argument filters by channel and a second argument filters by controller number, whose default is -1 rather than 0 because controller 0 is Bank Select MSB, a real controller a patch may want on its own. Unlike Max, neither filter removes an outlet: an object's shape must not depend on its arguments. Events cross from the device backend's thread on a bounded lock-free queue and are drained once per audio block, so nothing allocates, locks or blocks on either side.",
+    "inlets": [],
+    "is_dsp": false,
+    "name": ".ctlin",
+    "outlets": [
+      {
+        "doc": "The controller's new value, 0-127, sent last of the three so the controller number and channel that identify it are already out when it triggers anything. A switch-type controller such as the sustain pedal sends 0 and 127 rather than a sweep.",
+        "index": 0,
+        "label": "value",
+        "range": "0-127",
+        "type": "INT"
+      },
+      {
+        "doc": "Which controller moved, 0-127: 1 modulation wheel, 7 channel volume, 11 expression, 64 sustain pedal, and so on. Constant when the object was given a controller argument, which is the whole reason the outlet is kept in that case — a patch's wiring should not change shape with its arguments.",
+        "index": 1,
+        "label": "controller",
+        "range": "0-127",
+        "type": "INT"
+      },
+      {
+        "doc": "The MIDI channel the message arrived on, 1-16 — the numbering Max uses, the numbering the sending objects use, and the numbering printed on the hardware, rather than the 0-15 nibble on the wire. Sent first, before the outlets to its left, so anything the leftmost outlet triggers downstream already knows which channel it is looking at.",
+        "index": 2,
+        "label": "channel",
+        "range": "1-16",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Index of the MIDI input device to listen to, as numbered by YSE::system::getMidiInDeviceName. The port is opened the first time any patcher object asks for it and closed when the last one goes, so several objects on one keyboard share a single device and each still gets a queue of its own. A port that will not open — no hardware, or a backend that allows one client per port and a host that already holds it — leaves an object that is perfectly valid and simply never receives anything, which is what lets a patch load the same way on a machine with nothing plugged in. Editing this argument on a live object rebuilds the object rather than storing into it: the subscription is taken when the object joins its patcher, and a field written on the audio thread cannot move a device port.",
+        "name": "port",
+        "range": "0-7"
+      },
+      {
+        "default": "0",
+        "doc": "MIDI channel to accept, 1-16, or 0 for every channel — Max's omni, and the default. Unlike Max, giving a channel here does not remove the channel outlet: an object whose outlet count depends on its arguments has no stable outlet numbering, so adding an argument would silently re-point every cord leaving the box and a saved patch's connection indices would mean two different things. The outlet stays and carries the filtered channel back, which costs a patch nothing.",
+        "name": "channel",
+        "range": "0-16"
+      },
+      {
+        "default": "-1",
+        "doc": "Controller number to accept, 0-127, or -1 for every controller — the default. Not 0 for 'any': controller 0 is Bank Select MSB, a controller a patch may legitimately want on its own, so it could not double as the wildcard. Anything outside 0-127 is read as -1, so a stray argument means 'every controller' rather than silencing the object outright.",
+        "name": "controller",
+        "range": "-1 to 127"
       }
     ]
   },
@@ -3555,6 +3676,132 @@
       }
     ]
   },
+  ".midiformat": {
+    "category": "MIDI",
+    "description": "Assembles structured data into raw MIDI messages — Max's 'midiformat' (issue #530), and the exact inverse of '.midiparse', inlet for outlet, so the two wire straight across and a patch can take a stream apart, edit the part it cares about and put it back together without ever spelling a status byte itself. It is also the combined form of the six single-purpose formatters ('.noteon', '.noteoff', '.controlchange', '.polypressure', '.channelpressure', '.programchange'): one box with one channel setting instead of six with six. Every inlet but the channel is hot — a message arriving at it produces a MIDI message at once, on whatever channel the channel inlet is holding, which is Max's rule and the reason the channel is the rightmost of Max's inlets. One complete message leaves the outlet as a list of byte values in decimal, '144 60 100' for a note-on: Max sends its bytes one at a time because Max's midiout reassembles them, while this patcher's transport is list text and '.seq' already documents a numeric byte list as the shape this object's output has, so a whole message per list is both the local convention and the safer one — three bytes that belong together cannot be split across two blocks by anything downstream. Program change takes 1-128 and pitch bend 0-127, the readings '.midiparse', '.pgmin' and '.bendin' report, so a round trip gives back the numbers it was given. Values are clamped into the ranges MIDI has rather than refused, so a patch that scales a controller into 0-140 produces sensible notes at the top of its range instead of silence. The one exception is the raw inlet, where a value outside 0-255 is not a byte at all and is dropped: clamping a status byte would change which message it is. The object opens no device and needs none, so it runs on every platform, and it allocates nothing on a message path — the outgoing text is built into a string reserved when the object is created.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The list 'pitch velocity', or a bare pitch with velocity 0. Velocity 0 is a release, which is how '.midiparse' reports one, so the pair round-trips; a real note-off message (status 128) is what '.noteoff' sends and is not produced here, exactly as in Max.",
+        "index": 0,
+        "label": "note",
+        "range": "0-127 0-127"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Polyphonic key pressure as the list 'pitch pressure' — pressure on one held key. A bare int is the pitch with pressure 0.",
+        "index": 1,
+        "label": "poly",
+        "range": "0-127 0-127"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Control change as the list 'controller value'. A bare int is the controller number with value 0.",
+        "index": 2,
+        "label": "control",
+        "range": "0-127 0-127"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Program change, 1-128 — the number a hardware front panel displays, and the one '.midiparse' and '.pgmin' report. One is subtracted on the way to the wire.",
+        "index": 3,
+        "label": "program",
+        "range": "1-128"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Channel aftertouch: one pressure value for the whole channel.",
+        "index": 4,
+        "label": "aftertouch",
+        "range": "0-127"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Pitch bend, 0-127 with 64 at rest — the coarse byte, which is Max's resolution and '.bendin''s. The fine byte of the message is sent as 0.",
+        "index": 5,
+        "label": "bend",
+        "range": "0-127"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The channel every message is formatted on, 1-16. Cold: it stores and sends nothing, which is Max's rule for this inlet. Defaults to 1.",
+        "index": 6,
+        "label": "channel",
+        "range": "1-16"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Byte values passed straight through to the outlet, as a list or one at a time. Not Max's inlet — it exists so the pair is a true inverse: '.midiparse''s rightmost outlet carries the system exclusive, song position and real-time traffic it could not decode, and without somewhere for that to go back in a patch could take a stream apart but not put the whole of it back together. A value outside 0-255 is not a byte and is dropped rather than clamped, and a list longer than 128 bytes is cut there.",
+        "index": 7,
+        "label": "raw",
+        "range": "0-255"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".midiformat",
+    "outlets": [
+      {
+        "doc": "One complete MIDI message per hot inlet message, as a list of byte values in decimal: '144 60 100' is a note-on, middle C, velocity 100 on channel 1. Feed it to '.seq' to record, or to '.midiparse' to read back what was built.",
+        "index": 0,
+        "label": "midi",
+        "range": "0-255",
+        "type": "LIST"
+      }
+    ],
+    "params": []
+  },
+  ".midiin": {
+    "category": "MIDI",
+    "description": "Raw MIDI input — Max's 'midiin' (issue #529). Every byte received on the port leaves the outlet as an int, in the order it arrived and with nothing interpreted: a note-on is three ints, a SysEx dump is however many the device sent. This is the one member of the input family that does not decode, and it is the one to reach for when a patch needs the whole protocol rather than the common cases — SysEx, song position, manufacturer-specific traffic, or anything a '.notein' / '.ctlin' pair would filter out. It is also the object that feeds a '.seq' recording, whose stored format is the raw byte stream. Bytes are drained from a bounded lock-free queue once per audio block: MIDI arrives on the device backend's own thread and this object hands it to the patch on the audio thread without allocating, locking or blocking on either side. Status bytes are reported as they are on the wire, 0-255, so a note-on on channel 1 is 144 rather than 'channel 1' — the decoding objects are where channels become 1-16.",
+    "inlets": [],
+    "is_dsp": false,
+    "name": ".midiin",
+    "outlets": [
+      {
+        "doc": "Every byte received on the port, one int per byte, in arrival order. Status bytes keep their wire value (144-159 note-on, 176-191 control change, 240 SysEx start, and so on) and data bytes are 0-127; nothing is filtered, split or reordered. A message longer than the transport's event size arrives as consecutive chunks, which changes nothing here, the bytes being sent one at a time either way.",
+        "index": 0,
+        "label": "byte",
+        "range": "0-255",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Index of the MIDI input device to listen to, as numbered by YSE::system::getMidiInDeviceName. The port is opened the first time any patcher object asks for it and closed when the last one goes, so several objects on one keyboard share a single device and each still gets a queue of its own. A port that will not open — no hardware, or a backend that allows one client per port and a host that already holds it — leaves an object that is perfectly valid and simply never receives anything, which is what lets a patch load the same way on a machine with nothing plugged in. Editing this argument on a live object rebuilds the object rather than storing into it: the subscription is taken when the object joins its patcher, and a field written on the audio thread cannot move a device port.",
+        "name": "port",
+        "range": "0-7"
+      }
+    ]
+  },
   ".midiout": {
     "category": "MIDI",
     "description": "MIDI device output. Sends raw MIDI byte lists to the selected hardware port; understands 'allnotesoff', 'reset', 'omni on/off', 'poly on/off', and 'local control on/off' as control messages.",
@@ -3580,6 +3827,84 @@
         "range": "device-dependent"
       }
     ]
+  },
+  ".midiparse": {
+    "category": "MIDI",
+    "description": "Interprets a raw MIDI byte stream into typed outlets — Max's 'midiparse' (issue #530), and what makes '.midiin' usable without seven separate objects. Bytes arrive in the inlet as ints (one at a time, the shape '.midiin' and '.seq' emit) or as a numeric list (the shape '.midiformat' emits), and each complete message leaves the outlet that belongs to its type: note, polyphonic key pressure and control change as two-number lists, program change, aftertouch and pitch bend as ints, the channel on its own outlet, and everything the decoding does not cover — system exclusive, song position, MIDI time code, the real-time clock — as a list of bytes on the rightmost. It knows the three things that make MIDI harder than it looks: running status, so a chord sent as one status byte followed by pairs of data bytes decodes as the notes it is; interleaving, so a timing clock arriving between two bytes of a note is reported at once and the note carries on where it left off; and messages that do not fit, so a system-exclusive dump longer than the buffer leaves in consecutive chunks rather than being truncated. The channel outlet fires before the typed one, as the '.notein' family's outlets do, so whatever a value triggers downstream already knows which channel it belongs to. Three readings are Max's and are shared with '.notein', '.pgmin' and '.bendin' so that a number means the same thing wherever a patch reads it: a note-off is reported as that pitch with velocity 0, which also folds together the two spellings hardware uses for a release; a program change is 1-128 rather than the wire's 0-127, the numbering hardware displays; and pitch bend is the coarse byte alone, 0-127 centred at 64, with the full 14 bits left to '.xbendin'. The last two are lossy through a round trip back into '.midiformat', which is Max's behaviour rather than an oversight. Unlike the rest of this family the object opens no device and needs none, so it decodes a stream from a file, from '.seq' or from a patch on every platform.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Raw MIDI bytes: an int per byte, as '.midiin' and '.seq' send them, or a numeric list, as '.midiformat' sends them. Both go through the same state machine, so a message split across several messages decodes exactly as one arriving whole does. A float is read as an int; a value outside 0-255 is not a MIDI byte and is ignored.",
+        "index": 0,
+        "label": "midi",
+        "range": "0-255"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".midiparse",
+    "outlets": [
+      {
+        "doc": "Note-on and note-off as the list 'pitch velocity'. A release is reported as velocity 0 whichever way the device spelled it — a note-off message, or a note-on with velocity 0 — so a patch tests for it once, with a '.sel 0' or a '.togedge'.",
+        "index": 0,
+        "label": "note",
+        "range": "0-127 0-127",
+        "type": "LIST"
+      },
+      {
+        "doc": "Polyphonic key pressure as the list 'pitch pressure': the pressure on one held key, which is what separates it from the aftertouch outlet's single value for the whole channel.",
+        "index": 1,
+        "label": "poly",
+        "range": "0-127 0-127",
+        "type": "LIST"
+      },
+      {
+        "doc": "Control change as the list 'controller value' — the knobs, faders, wheels and pedals of a control surface. Feed the list to a '.unpack' or a '.route' to fan one stream out by controller number.",
+        "index": 2,
+        "label": "control",
+        "range": "0-127 0-127",
+        "type": "LIST"
+      },
+      {
+        "doc": "Program change, 1-128 — the wire's 0-127 plus one, which is the number a hardware front panel displays and the number '.midiformat' takes back.",
+        "index": 3,
+        "label": "program",
+        "range": "1-128",
+        "type": "INT"
+      },
+      {
+        "doc": "Channel aftertouch, 0-127: one value for the whole channel however many keys are held. Per-note pressure is the poly outlet.",
+        "index": 4,
+        "label": "aftertouch",
+        "range": "0-127",
+        "type": "INT"
+      },
+      {
+        "doc": "Pitch bend, 0-127 with 64 at rest — the coarse byte of a 14-bit message, which is Max's reading and '.bendin''s. The fine byte is discarded here; '.xbendin' is the object that keeps it.",
+        "index": 5,
+        "label": "bend",
+        "range": "0-127",
+        "type": "INT"
+      },
+      {
+        "doc": "The channel the message arrived on, 1-16 rather than the 0-15 nibble on the wire. Sent before the typed outlet, so anything the value triggers downstream already knows which channel it is looking at.",
+        "index": 6,
+        "label": "channel",
+        "range": "1-16",
+        "type": "INT"
+      },
+      {
+        "doc": "Everything the decoding does not cover, as a list of byte values: system exclusive, song position, song select, MIDI time code, tune request, and the one-byte real-time messages (248 clock, 250 start, 251 continue, 252 stop, 255 reset). A real-time byte may arrive in the middle of another message and leaves here on its own without disturbing it. A dump longer than 128 bytes leaves in consecutive chunks, the first beginning with 240 and the last ending with 247 — the treatment 'MIDI::inHub' already gives a message too long for one transport event.",
+        "index": 7,
+        "label": "raw",
+        "range": "0-255",
+        "type": "LIST"
+      }
+    ],
+    "params": []
   },
   ".minimum": {
     "category": "MATH",
@@ -3755,6 +4080,50 @@
       }
     ],
     "params": []
+  },
+  ".notein": {
+    "category": "MIDI",
+    "description": "MIDI note input — Max's 'notein' (issue #529), and the object that makes a patch playable from a keyboard at all. Every note-on and note-off received on the port leaves as pitch, velocity and channel. A note-off is reported the way Max reports it, as the same pitch with velocity 0 rather than on a separate outlet, so the common case is one comparison downstream: '.sel 0' on the velocity, or a '.togedge' if what the patch wants is the gate rather than the numbers. That also folds the two spellings of a note-off — a real note-off message and a note-on with velocity 0, both of which hardware sends — into one shape, which is exactly the ambiguity a patch should not have to handle itself. The three outlets fire right to left, channel first, so whatever the pitch triggers downstream already sees the velocity and channel that came with it. A 'channel' argument filters; unlike Max it does not remove the channel outlet, so an object's shape never depends on its arguments. Events cross from the device backend's thread on a bounded lock-free queue and are drained once per audio block, so nothing allocates, locks or blocks on either side.",
+    "inlets": [],
+    "is_dsp": false,
+    "name": ".notein",
+    "outlets": [
+      {
+        "doc": "The note number, 0-127, sent last of the three so the velocity and channel that belong to it are already out when it triggers anything. Middle C is 60; '.mtof' turns it into a frequency.",
+        "index": 0,
+        "label": "pitch",
+        "range": "0-127",
+        "type": "INT"
+      },
+      {
+        "doc": "How hard the key was struck, 0-127, and 0 for a release — Max's convention, and the one that folds a note-off message and a note-on with velocity 0 into a single shape a patch can test once.",
+        "index": 1,
+        "label": "velocity",
+        "range": "0-127",
+        "type": "INT"
+      },
+      {
+        "doc": "The MIDI channel the message arrived on, 1-16 — the numbering Max uses, the numbering the sending objects use, and the numbering printed on the hardware, rather than the 0-15 nibble on the wire. Sent first, before the outlets to its left, so anything the leftmost outlet triggers downstream already knows which channel it is looking at.",
+        "index": 2,
+        "label": "channel",
+        "range": "1-16",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Index of the MIDI input device to listen to, as numbered by YSE::system::getMidiInDeviceName. The port is opened the first time any patcher object asks for it and closed when the last one goes, so several objects on one keyboard share a single device and each still gets a queue of its own. A port that will not open — no hardware, or a backend that allows one client per port and a host that already holds it — leaves an object that is perfectly valid and simply never receives anything, which is what lets a patch load the same way on a machine with nothing plugged in. Editing this argument on a live object rebuilds the object rather than storing into it: the subscription is taken when the object joins its patcher, and a field written on the audio thread cannot move a device port.",
+        "name": "port",
+        "range": "0-7"
+      },
+      {
+        "default": "0",
+        "doc": "MIDI channel to accept, 1-16, or 0 for every channel — Max's omni, and the default. Unlike Max, giving a channel here does not remove the channel outlet: an object whose outlet count depends on its arguments has no stable outlet numbering, so adding an argument would silently re-point every cord leaving the box and a saved patch's connection indices would mean two different things. The outlet stays and carries the filtered channel back, which costs a patch nothing.",
+        "name": "channel",
+        "range": "0-16"
+      }
+    ]
   },
   ".noteoff": {
     "category": "MIDI",
@@ -4092,6 +4461,43 @@
       }
     ]
   },
+  ".pgmin": {
+    "category": "MIDI",
+    "description": "MIDI program-change input — Max's 'pgmin' (issue #529). Reports patch changes as 1-128, which is Max's numbering and one more than the 0-127 the wire carries: hardware front panels and patch sheets count from 1, and the object that *sends* program changes takes the same numbering, so a round trip through a patch gives back the number the user saw. This is how a patch follows a hardware program change — recalling a preset, switching a sampler's kit, or arming a whole scene from one button on a keyboard. Both outlets fire right to left, channel first. A 'channel' argument filters and, unlike Max, leaves the channel outlet in place. Events cross from the device backend's thread on a bounded lock-free queue and are drained once per audio block, so nothing allocates, locks or blocks on either side.",
+    "inlets": [],
+    "is_dsp": false,
+    "name": ".pgmin",
+    "outlets": [
+      {
+        "doc": "The program number, 1-128 — the wire's 0-127 plus one, which is what the hardware's own display shows and what the sending objects take.",
+        "index": 0,
+        "label": "program",
+        "range": "1-128",
+        "type": "INT"
+      },
+      {
+        "doc": "The MIDI channel the message arrived on, 1-16 — the numbering Max uses, the numbering the sending objects use, and the numbering printed on the hardware, rather than the 0-15 nibble on the wire. Sent first, before the outlets to its left, so anything the leftmost outlet triggers downstream already knows which channel it is looking at.",
+        "index": 1,
+        "label": "channel",
+        "range": "1-16",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Index of the MIDI input device to listen to, as numbered by YSE::system::getMidiInDeviceName. The port is opened the first time any patcher object asks for it and closed when the last one goes, so several objects on one keyboard share a single device and each still gets a queue of its own. A port that will not open — no hardware, or a backend that allows one client per port and a host that already holds it — leaves an object that is perfectly valid and simply never receives anything, which is what lets a patch load the same way on a machine with nothing plugged in. Editing this argument on a live object rebuilds the object rather than storing into it: the subscription is taken when the object joins its patcher, and a field written on the audio thread cannot move a device port.",
+        "name": "port",
+        "range": "0-7"
+      },
+      {
+        "default": "0",
+        "doc": "MIDI channel to accept, 1-16, or 0 for every channel — Max's omni, and the default. Unlike Max, giving a channel here does not remove the channel outlet: an object whose outlet count depends on its arguments has no stable outlet numbering, so adding an argument would silently re-point every cord leaving the box and a saved patch's connection indices would mean two different things. The outlet stays and carries the filtered channel back, which costs a patch nothing.",
+        "name": "channel",
+        "range": "0-16"
+      }
+    ]
+  },
   ".pipe": {
     "category": "TIME",
     "description": "Delays numbers, lists and symbols. A value in the left inlet comes back out the outlet a settable number of milliseconds later, as the same kind of message it went in as. This is .delay for data, and the difference that matters is the queue: Max's delay holds one bang and 'the first bang is forgotten' when a second arrives, while a .pipe holds many values at once and each one keeps its own deadline. Ten numbers into a .pipe 500 are ten numbers out 500 ms later in the order they went in, which is what makes echoes, delayed parameter changes and every 'do this to that value in N ms' pattern one object instead of one .delay per value. A number in the right inlet sets the delay for values arriving after it and leaves values already waiting alone. 'clear' drops everything pending without sending it and 'flush' sends it all immediately in arrival order, which are Max's two commands. The wait runs on the patcher's deferred-message scheduler (issue #628) rather than on the timer thread behind .metro, so queueing a value allocates nothing and takes no lock, and a released value arrives inside the patcher's own dispatch as one fresh logical event rather than as an unrelated stimulus. That clock is the block counter, so it stops when the engine does and a paused patch holds every pending value where it stands, and its resolution is one audio block: a delay of 0 still defers to the next block rather than firing now, which is Max's behaviour and the reason a pipe wired back into itself is a fast delay line instead of a stack overflow. The pending set is bounded and pre-allocated at 64 values per object, each holding up to 256 characters of text, and beyond it sits the patcher-wide limit of 128 pending messages shared with .delay, .qlist, .mtr and .seq. A value that does not fit is dropped and counted rather than sent early or written to the log: sending it early would break the object's one guarantee at exactly the moment the patch is at its resource limit and would let a self-feeding delay line recurse on the audio thread, and logging would allocate on whichever thread the value arrived on, which is routinely the audio callback. The count is the report, and it is readable at any time. Unlike Max's pipe there is one data inlet rather than one per creation argument: a list is already a single value here and travels whole, so it is delayed whole and spread with .spray, .bondo or .route afterwards if a patch wants it spread. Milliseconds are the only unit — a note value or tick count in the time inlet is refused rather than misread as milliseconds, there being no clock here to measure a beat against. Calculate() does nothing and no message path allocates, locks or blocks.",
@@ -4188,6 +4594,50 @@
         "doc": "Initial angle in radians.",
         "name": "angle",
         "range": "any float"
+      }
+    ]
+  },
+  ".polyin": {
+    "category": "MIDI",
+    "description": "MIDI polyphonic key-pressure input — Max's 'polyin' (issue #529). The per-note counterpart of '.touchin': every held key reports its own pressure, so a chord can be shaped one note at a time rather than as a whole. Far fewer keyboards send it than send channel aftertouch, which is why the two are separate objects rather than one — a patch built on '.polyin' silently does nothing on hardware that has only the channel kind. The three outlets fire right to left, so whatever the pitch triggers downstream already sees the pressure and channel that came with it; pairing the pitch with the one a '.notein' reported is how a patch routes the value to the right voice. A 'channel' argument filters and, unlike Max, leaves the channel outlet in place. Events cross from the device backend's thread on a bounded lock-free queue and are drained once per audio block, so nothing allocates, locks or blocks on either side.",
+    "inlets": [],
+    "is_dsp": false,
+    "name": ".polyin",
+    "outlets": [
+      {
+        "doc": "Which held key the pressure belongs to, 0-127 — the same numbering '.notein' reports, which is how a patch matches the value to a sounding voice. Sent last of the three.",
+        "index": 0,
+        "label": "pitch",
+        "range": "0-127",
+        "type": "INT"
+      },
+      {
+        "doc": "Pressure on that one key, 0-127.",
+        "index": 1,
+        "label": "pressure",
+        "range": "0-127",
+        "type": "INT"
+      },
+      {
+        "doc": "The MIDI channel the message arrived on, 1-16 — the numbering Max uses, the numbering the sending objects use, and the numbering printed on the hardware, rather than the 0-15 nibble on the wire. Sent first, before the outlets to its left, so anything the leftmost outlet triggers downstream already knows which channel it is looking at.",
+        "index": 2,
+        "label": "channel",
+        "range": "1-16",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Index of the MIDI input device to listen to, as numbered by YSE::system::getMidiInDeviceName. The port is opened the first time any patcher object asks for it and closed when the last one goes, so several objects on one keyboard share a single device and each still gets a queue of its own. A port that will not open — no hardware, or a backend that allows one client per port and a host that already holds it — leaves an object that is perfectly valid and simply never receives anything, which is what lets a patch load the same way on a machine with nothing plugged in. Editing this argument on a live object rebuilds the object rather than storing into it: the subscription is taken when the object joins its patcher, and a field written on the audio thread cannot move a device port.",
+        "name": "port",
+        "range": "0-7"
+      },
+      {
+        "default": "0",
+        "doc": "MIDI channel to accept, 1-16, or 0 for every channel — Max's omni, and the default. Unlike Max, giving a channel here does not remove the channel outlet: an object whose outlet count depends on its arguments has no stable outlet numbering, so adding an argument would silently re-point every cord leaving the box and a saved patch's connection indices would mean two different things. The outlet stays and carries the filtered channel back, which costs a patch nothing.",
+        "name": "channel",
+        "range": "0-16"
       }
     ]
   },
@@ -5042,6 +5492,30 @@
         "doc": "Max's argument list, in Max's order: how many routable inlets to build, then how many routable outlets. Each is clamped to 1-256 and defaults to 2 — Max documents both as optional and states no default, so the family's is used. The object builds one inlet and one outlet more than these, for the connection messages and for dump. A float is truncated; anything that is not a whole finite number is ignored and leaves that default in place. The connections themselves are not parameters and do not survive a save — 'dump' is how a patch reads them back.",
         "name": "inlets",
         "range": "1-256, optional outlets 1-256"
+      }
+    ]
+  },
+  ".rtin": {
+    "category": "MIDI",
+    "description": "MIDI system real-time input — Max's 'rtin' (issue #529). Reports the one-byte messages a master clock sends to keep everything on it in step: 248 timing clock (24 per quarter note), 250 start, 251 continue, 252 stop and 255 system reset. This is how a patch follows an external sequencer or drum machine rather than leading it — count the clocks with a '.counter' for a tempo grid, and use start / stop to drive a '.transport'. Real-time bytes are the one part of MIDI that may appear *inside* another message on the wire; the device backend delivers them as separate one-byte messages, so a clock arriving mid-SysEx reaches this outlet whole and does not disturb a '.midiin' reading the dump. Active sensing (254) is deliberately absent: the backend filters it, because a device that sends it sends 300 a minute forever and no patch wants that in its queue. Drained once per audio block from a bounded lock-free queue, so nothing on the path allocates, locks or blocks.",
+    "inlets": [],
+    "is_dsp": false,
+    "name": ".rtin",
+    "outlets": [
+      {
+        "doc": "The real-time status byte: 248 timing clock, 250 start, 251 continue, 252 stop, 255 system reset. Nothing else is ever sent here — a channel-voice message goes to the decoding objects and the raw stream to '.midiin'.",
+        "index": 0,
+        "label": "status",
+        "range": "248-255",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Index of the MIDI input device to listen to, as numbered by YSE::system::getMidiInDeviceName. The port is opened the first time any patcher object asks for it and closed when the last one goes, so several objects on one keyboard share a single device and each still gets a queue of its own. A port that will not open — no hardware, or a backend that allows one client per port and a host that already holds it — leaves an object that is perfectly valid and simply never receives anything, which is what lets a patch load the same way on a machine with nothing plugged in. Editing this argument on a live object rebuilds the object rather than storing into it: the subscription is taken when the object joins its patcher, and a field written on the audio thread cannot move a device port.",
+        "name": "port",
+        "range": "0-7"
       }
     ]
   },
@@ -5982,6 +6456,67 @@
       }
     ]
   },
+  ".sxformat": {
+    "category": "MIDI",
+    "description": "Builds a MIDI system-exclusive message from a template — Max's 'sxformat' (issue #531), and the object a patch talks to a synthesiser's own parameters with. System exclusive is how a voice is dumped, requested or poked one parameter at a time, and every such message is the same bytes with two or three of them changed: the constants are the creation arguments and the changing ones are placeholders fed from inlets. A number 0-255 in the template is a constant byte, '$i1' to '$i9' are the inlets ('$i1' the leftmost and hot one), 'sumstart' marks where a checksum region begins, and 'sum' emits the Roland-style checksum of that region — the byte that makes its total a multiple of 128, which is what a Roland-protocol device rejects a message for getting wrong. With no 'sumstart' the region is everything so far apart from the leading 240. A value on the hot inlet, a list (which fills the placeholders left to right) or a bang emits the whole message; the other inlets only store. A negative value emits no byte at all, which is Max's rule and what makes one template cover both a short form and a long one, while a value above 127 is clamped rather than dropped, because a byte with its top bit set inside a dump would be read as a status byte and would end the message early at the device. The message leaves the outlet whole, as a list of byte values in decimal, the shape '.midiformat' sends and '.midiparse', '.seq' and '.midiout' read. The template is compiled once when the arguments are parsed, so sending walks a fixed array and allocates nothing; a template longer than 256 tokens is cut there and reported to the log rather than truncated silently at send time. The object opens no device and needs none, so it runs on every platform — a dump can be built into a file where there is no MIDI hardware at all.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Value for the '$i1' placeholder — stores it and sends the whole message. A list fills '$i1', '$i2', ... left to right and then sends, and a bang sends with the values the inlets are already holding. A negative value leaves its byte out of the message entirely; anything above 127 is clamped.",
+        "index": 0,
+        "label": "$i1",
+        "range": "-1 to 127"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".sxformat",
+    "outlets": [
+      {
+        "doc": "The complete message as a list of byte values in decimal — '240 67 0 1 247'. Send it to '.midiout' or store it with '.seq' or '.coll'; '.midiparse' reads it back as the same bytes on its rightmost outlet.",
+        "index": 0,
+        "label": "sysex",
+        "range": "0-255",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The message to build, one token per byte. A number 0-255 is a constant byte; '$i1' to '$i9' are placeholders filled from the inlets, '$i1' being the leftmost; 'sumstart' emits nothing and marks where the checksum region begins; and 'sum' emits the Roland-style checksum of that region, the byte that makes its total a multiple of 128. With no 'sumstart' the region is everything so far apart from a leading 240. A well-formed system-exclusive message starts with 240 and ends with 247, which is not enforced — a patch may build a fragment and wrap it elsewhere. The object gets one inlet past the highest placeholder the template mentions, and a template longer than 256 tokens is cut there and reported to the log rather than being truncated silently when it is sent.",
+        "name": "sysex",
+        "range": "0-255, $i1-$i9, sumstart, sum"
+      }
+    ]
+  },
+  ".sysexin": {
+    "category": "MIDI",
+    "description": "System-exclusive input — Max's 'sysexin' (issue #531), and the way a patch hears what a synthesiser says about itself. Every byte of every system-exclusive message received on the port leaves the outlet as an int, from the leading 240 to the closing 247, and nothing else does: notes, controllers and clock traffic are filtered out, which is the whole difference between this and '.midiin'. That is what makes it the receiving half of a voice dump — ask a device for its current patch with a '.sxformat' request and the answer arrives here, byte-perfect and uninterrupted by whatever else the device happens to be sending. A dump is arbitrarily long, and this object holds none of it: bytes are forwarded as they arrive, so there is no buffer to overflow and no length limit to run into — a patch that wants the whole message collects it downstream, where allocating is allowed, and watches for the 247 that ends it. A real-time byte (248-255) arriving inside a dump is dropped rather than passed on, because it belongs to the clock and not to the message it interrupted, and it does not end the dump; '.rtin' is where those go. Any other status byte does end it, unterminated, because hardware interrupted mid-transfer simply stops sending and a state machine waiting for an EOX that is never coming would read every later note as voice data. Events cross from the device backend's thread on a bounded lock-free queue and are drained once per audio block, so nothing allocates, locks or blocks on either side.",
+    "inlets": [],
+    "is_dsp": false,
+    "name": ".sysexin",
+    "outlets": [
+      {
+        "doc": "Every byte of every system-exclusive message on the port, one int per byte and in arrival order: 240, the manufacturer ID, the device and model bytes, the payload, then 247. Nothing outside a message reaches this outlet. Collect a whole dump with a '.zl group' or a '.coll' and use the 247 as the signal that it is complete.",
+        "index": 0,
+        "label": "byte",
+        "range": "0-247",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Index of the MIDI input device to listen to, as numbered by YSE::system::getMidiInDeviceName. The port is opened the first time any patcher object asks for it and closed when the last one goes, so several objects on one keyboard share a single device and each still gets a queue of its own. A port that will not open — no hardware, or a backend that allows one client per port and a host that already holds it — leaves an object that is perfectly valid and simply never receives anything, which is what lets a patch load the same way on a machine with nothing plugged in. Editing this argument on a live object rebuilds the object rather than storing into it: the subscription is taken when the object joins its patcher, and a field written on the audio thread cannot move a device port.",
+        "name": "port",
+        "range": "0-7"
+      }
+    ]
+  },
   ".t": {
     "category": "GUI",
     "description": "Latching on/off toggle. Int sets the state directly (0 = off, non-zero = on); bang flips it. Emits 0 or 1 every calculate tick.",
@@ -6491,6 +7026,43 @@
         "doc": "The separator tokens are joined with. One token, at most 16 characters; a longer one is reported and ignored. With no argument at all it is a single space, Max's default, which leaves the token structure alone and converts only the type.",
         "name": "separator",
         "range": "one token, at most 16 characters"
+      }
+    ]
+  },
+  ".touchin": {
+    "category": "MIDI",
+    "description": "MIDI channel-aftertouch input — Max's 'touchin' (issue #529). Reports the pressure applied after a key is already down, as one value for the whole channel: a keyboard with channel aftertouch sends the hardest-pressed key's reading, not one per note, which is what separates this from '.polyin'. It is the cheapest expressive input a patch can have — a vibrato depth, a filter opening or a swell that the player controls without moving a hand off the keys — and the one most keyboards actually implement. Both outlets fire right to left, channel first. A 'channel' argument filters and, unlike Max, leaves the channel outlet in place. Events cross from the device backend's thread on a bounded lock-free queue and are drained once per audio block, so nothing allocates, locks or blocks on either side.",
+    "inlets": [],
+    "is_dsp": false,
+    "name": ".touchin",
+    "outlets": [
+      {
+        "doc": "Channel aftertouch, 0-127: one value for the whole channel, however many keys are held. Per-note pressure is '.polyin'.",
+        "index": 0,
+        "label": "pressure",
+        "range": "0-127",
+        "type": "INT"
+      },
+      {
+        "doc": "The MIDI channel the message arrived on, 1-16 — the numbering Max uses, the numbering the sending objects use, and the numbering printed on the hardware, rather than the 0-15 nibble on the wire. Sent first, before the outlets to its left, so anything the leftmost outlet triggers downstream already knows which channel it is looking at.",
+        "index": 1,
+        "label": "channel",
+        "range": "1-16",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Index of the MIDI input device to listen to, as numbered by YSE::system::getMidiInDeviceName. The port is opened the first time any patcher object asks for it and closed when the last one goes, so several objects on one keyboard share a single device and each still gets a queue of its own. A port that will not open — no hardware, or a backend that allows one client per port and a host that already holds it — leaves an object that is perfectly valid and simply never receives anything, which is what lets a patch load the same way on a machine with nothing plugged in. Editing this argument on a live object rebuilds the object rather than storing into it: the subscription is taken when the object joins its patcher, and a field written on the audio thread cannot move a device port.",
+        "name": "port",
+        "range": "0-7"
+      },
+      {
+        "default": "0",
+        "doc": "MIDI channel to accept, 1-16, or 0 for every channel — Max's omni, and the default. Unlike Max, giving a channel here does not remove the channel outlet: an object whose outlet count depends on its arguments has no stable outlet numbering, so adding an argument would silently re-point every cord leaving the box and a saved patch's connection indices would mean two different things. The outlet stays and carries the filtered channel back, which costs a patch nothing.",
+        "name": "channel",
+        "range": "0-16"
       }
     ]
   },
@@ -7048,6 +7620,384 @@
         "doc": "The domain clock this object reports on. Clocks are addressed by name across the whole engine, so this is the same string the host passes to createClock and the same one a '.transport <name>' drives. Empty (the default) means the object reads nothing and emits nothing. The name is bound when the object is added to a patcher — bound, not created: a clock nobody has made yet leaves the object silent, and it starts answering when the clock appears. There is no 'clock <name>' message, so re-pointing a '.when' at another clock is a re-create — '.transport''s rule, and Max's, where 'when' takes its transport as a creation argument and treats every message as a query.",
         "name": "clockname",
         "range": ""
+      }
+    ]
+  },
+  ".xbendin": {
+    "category": "MIDI",
+    "description": "Extra-precision MIDI pitch-bend input — Max's 'xbendin' (issue #533). Reports the pitch wheel's position at the full resolution the message carries: 0-16383 with 8192 at rest, against '.bendin''s 0-127 with 64 at rest. The wire has always sent fourteen bits as a fine byte then a coarse one; '.bendin' reports the coarse byte alone because that is Max's reading and what '.midiparse' shares, and this object reports both combined. The difference is audible rather than academic — over the usual two-semitone bend range seven bits is a step of about three cents, which is a staircase on any bend slow enough to hear. The two are separate objects rather than one with a mode because the number means something different in each: a patch scaling 0-127 and a patch scaling 0-16383 are not the same patch. Both outlets fire right to left, channel first. A 'channel' argument filters and, unlike Max, leaves the channel outlet in place. Events cross from the device backend's thread on a bounded lock-free queue and are drained once per audio block, so nothing allocates, locks or blocks on either side.",
+    "inlets": [],
+    "is_dsp": false,
+    "name": ".xbendin",
+    "outlets": [
+      {
+        "doc": "The wheel position at full resolution, 0-16383, centred at 8192: 0 is fully down, 16383 fully up. Subtract 8192 before scaling, as a patch does with '.bendin''s 64.",
+        "index": 0,
+        "label": "bend",
+        "range": "0-16383",
+        "type": "INT"
+      },
+      {
+        "doc": "The MIDI channel the message arrived on, 1-16 — the numbering Max uses, the numbering the sending objects use, and the numbering printed on the hardware, rather than the 0-15 nibble on the wire. Sent first, before the outlets to its left, so anything the leftmost outlet triggers downstream already knows which channel it is looking at.",
+        "index": 1,
+        "label": "channel",
+        "range": "1-16",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Index of the MIDI input device to listen to, as numbered by YSE::system::getMidiInDeviceName. The port is opened the first time any patcher object asks for it and closed when the last one goes, so several objects on one keyboard share a single device and each still gets a queue of its own. A port that will not open — no hardware, or a backend that allows one client per port and a host that already holds it — leaves an object that is perfectly valid and simply never receives anything, which is what lets a patch load the same way on a machine with nothing plugged in. Editing this argument on a live object rebuilds the object rather than storing into it: the subscription is taken when the object joins its patcher, and a field written on the audio thread cannot move a device port.",
+        "name": "port",
+        "range": "0-7"
+      },
+      {
+        "default": "0",
+        "doc": "MIDI channel to accept, 1-16, or 0 for every channel — Max's omni, and the default. Unlike Max, giving a channel here does not remove the channel outlet: an object whose outlet count depends on its arguments has no stable outlet numbering, so adding an argument would silently re-point every cord leaving the box and a saved patch's connection indices would mean two different things. The outlet stays and carries the filtered channel back, which costs a patch nothing.",
+        "name": "channel",
+        "range": "0-16"
+      }
+    ]
+  },
+  ".xbendin2": {
+    "category": "MIDI",
+    "description": "Extra-precision MIDI pitch-bend input reported as separate bytes — Max's 'xbendin2' (issue #533). The same message '.xbendin' decodes, given as its most and least significant bytes rather than combined into one 0-16383 number: the MSB is '.bendin''s 0-127 reading with 64 at rest, and the LSB is the fine byte underneath it. Use '.xbendin' when the patch wants a number to scale; use this one when the two halves are wanted apart — a coarse bend with a separate fine refinement, or a byte-for-byte round trip through '.xbendout2', which takes exactly this shape back in without ever combining and re-splitting the value. The three outlets fire right to left, so whatever the MSB triggers downstream already sees the LSB and channel that came with it. A 'channel' argument filters and, unlike Max, leaves the channel outlet in place. Events cross from the device backend's thread on a bounded lock-free queue and are drained once per audio block, so nothing allocates, locks or blocks on either side.",
+    "inlets": [],
+    "is_dsp": false,
+    "name": ".xbendin2",
+    "outlets": [
+      {
+        "doc": "The coarse byte, 0-127 with 64 at rest — the same number '.bendin' reports. Sent last of the three.",
+        "index": 0,
+        "label": "msb",
+        "range": "0-127",
+        "type": "INT"
+      },
+      {
+        "doc": "The fine byte, 0-127, which is the 128 steps between one MSB value and the next. Sent as it arrives on the wire, where it precedes the coarse byte.",
+        "index": 1,
+        "label": "lsb",
+        "range": "0-127",
+        "type": "INT"
+      },
+      {
+        "doc": "The MIDI channel the message arrived on, 1-16 — the numbering Max uses, the numbering the sending objects use, and the numbering printed on the hardware, rather than the 0-15 nibble on the wire. Sent first, before the outlets to its left, so anything the leftmost outlet triggers downstream already knows which channel it is looking at.",
+        "index": 2,
+        "label": "channel",
+        "range": "1-16",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Index of the MIDI input device to listen to, as numbered by YSE::system::getMidiInDeviceName. The port is opened the first time any patcher object asks for it and closed when the last one goes, so several objects on one keyboard share a single device and each still gets a queue of its own. A port that will not open — no hardware, or a backend that allows one client per port and a host that already holds it — leaves an object that is perfectly valid and simply never receives anything, which is what lets a patch load the same way on a machine with nothing plugged in. Editing this argument on a live object rebuilds the object rather than storing into it: the subscription is taken when the object joins its patcher, and a field written on the audio thread cannot move a device port.",
+        "name": "port",
+        "range": "0-7"
+      },
+      {
+        "default": "0",
+        "doc": "MIDI channel to accept, 1-16, or 0 for every channel — Max's omni, and the default. Unlike Max, giving a channel here does not remove the channel outlet: an object whose outlet count depends on its arguments has no stable outlet numbering, so adding an argument would silently re-point every cord leaving the box and a saved patch's connection indices would mean two different things. The outlet stays and carries the filtered channel back, which costs a patch nothing.",
+        "name": "channel",
+        "range": "0-16"
+      }
+    ]
+  },
+  ".xbendout": {
+    "category": "MIDI",
+    "description": "Extra-precision MIDI Pitch Bend message generator — Max's 'xbendout' (issue #533). A value on the inlet stores it and emits a three-byte packet on the channel given as the creation argument, using all fourteen bits the message carries: 0-16383 with 8192 at rest, against '.bendout''s 0-127 with 64 at rest. The wire order is the fine byte then the coarse one, and this object fills both, where '.bendout' sends the value as the coarse byte and 0 as the fine one. The difference is a step of about a fortieth of a cent instead of three cents over the usual two-semitone range, which is what stops a slow bend sounding like a staircase. Out-of-range values are clamped rather than refused, as they are on the rest of the family, so a patch scaling a controller into a wider range bends to the extremes instead of falling silent. The output is a raw byte list for '.midiout'.",
+    "inlets": [
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "Pitch bend position at full resolution, 8192 at rest (also fires the output).",
+        "index": 0,
+        "label": "bend",
+        "range": "0-16383"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".xbendout",
+    "outlets": [
+      {
+        "doc": "Encoded MIDI Pitch Bend message (status, fine byte, coarse byte).",
+        "index": 0,
+        "label": "midi",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "MIDI channel offset (0-based).",
+        "name": "channel",
+        "range": "0-15"
+      }
+    ]
+  },
+  ".xbendout2": {
+    "category": "MIDI",
+    "description": "Extra-precision MIDI Pitch Bend message generator taking separate bytes — Max's 'xbendout2' (issue #533). The same message '.xbendout' sends, given as its coarse and fine bytes rather than as one 0-16383 number: inlet 0 is the MSB, which is '.bendout''s 0-127 with 64 at rest, and inlet 1 is the fine byte underneath it. This is '.xbendin2''s partner — the two halves come out of that object and go into this one unchanged, so a wheel position round-trips byte for byte without ever being combined and re-split. Inlet 0 is hot and inlet 1 stores until the next MSB, which is the arrangement every sender in this family has. Both bytes are clamped to 0-127: a byte with its top bit set would be read as a status byte by the receiving device and would end the message early. The output is a raw byte list for '.midiout'.",
+    "inlets": [
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "Coarse bend byte, 64 at rest (also fires the output).",
+        "index": 0,
+        "label": "msb",
+        "range": "0-127"
+      },
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "Fine bend byte, stored until the next MSB.",
+        "index": 1,
+        "label": "lsb",
+        "range": "0-127"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".xbendout2",
+    "outlets": [
+      {
+        "doc": "Encoded MIDI Pitch Bend message (status, fine byte, coarse byte).",
+        "index": 0,
+        "label": "midi",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "MIDI channel offset (0-based).",
+        "name": "channel",
+        "range": "0-15"
+      }
+    ]
+  },
+  ".xctlin": {
+    "category": "MIDI",
+    "description": "Extra-precision MIDI control-change input — Max's 'xctlin' (issue #533). MIDI pairs controller n (0-31) with controller n+32 as the coarse and fine halves of one fourteen-bit value; a '.ctlin' sees two unrelated controllers moving and this object sees one, reporting 0-16383 on the coarse half's number. 128 steps is audibly steppy on a filter sweep — the zipper noise a patch hears on any slow move — and this pairing is what a control surface with real resolution actually sends. A value is emitted on *both* halves, not only on the fine one: the MSB emits at once with the fine byte read as 0, which is the MIDI specification's own recommended practice, and the LSB that follows emits again with the refined value. Waiting for the pair would leave the object silent forever on the many devices that send only the coarse half, which is a far worse failure than one coarse value followed immediately by its refinement. The stored coarse byte is kept per channel as well as per controller, so two keyboards on different channels cannot cross-contaminate each other. Controllers 64-127 have no fine half and are not reported here at all — those are '.ctlin''s, and giving a sustain pedal a fabricated fourteen-bit value would be a lie. The three outlets fire right to left. A 'channel' argument filters by channel and a second argument by coarse controller number; unlike Max, neither removes an outlet. Events cross from the device backend's thread on a bounded lock-free queue and are drained once per audio block, so nothing allocates, locks or blocks on either side.",
+    "inlets": [],
+    "is_dsp": false,
+    "name": ".xctlin",
+    "outlets": [
+      {
+        "doc": "The controller's new value at full resolution, 0-16383, sent last of the three so the controller number and channel that identify it are already out when it triggers anything. A coarse-only device covers the range in steps of 128.",
+        "index": 0,
+        "label": "value",
+        "range": "0-16383",
+        "type": "INT"
+      },
+      {
+        "doc": "Which controller moved, 0-31 — always the coarse half's number, whichever half of the pair carried the message. Constant when the object was given a controller argument, which is why the outlet is kept in that case.",
+        "index": 1,
+        "label": "controller",
+        "range": "0-31",
+        "type": "INT"
+      },
+      {
+        "doc": "The MIDI channel the message arrived on, 1-16 — the numbering Max uses, the numbering the sending objects use, and the numbering printed on the hardware, rather than the 0-15 nibble on the wire. Sent first, before the outlets to its left, so anything the leftmost outlet triggers downstream already knows which channel it is looking at.",
+        "index": 2,
+        "label": "channel",
+        "range": "1-16",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Index of the MIDI input device to listen to, as numbered by YSE::system::getMidiInDeviceName. The port is opened the first time any patcher object asks for it and closed when the last one goes, so several objects on one keyboard share a single device and each still gets a queue of its own. A port that will not open — no hardware, or a backend that allows one client per port and a host that already holds it — leaves an object that is perfectly valid and simply never receives anything, which is what lets a patch load the same way on a machine with nothing plugged in. Editing this argument on a live object rebuilds the object rather than storing into it: the subscription is taken when the object joins its patcher, and a field written on the audio thread cannot move a device port.",
+        "name": "port",
+        "range": "0-7"
+      },
+      {
+        "default": "0",
+        "doc": "MIDI channel to accept, 1-16, or 0 for every channel — Max's omni, and the default. Unlike Max, giving a channel here does not remove the channel outlet: an object whose outlet count depends on its arguments has no stable outlet numbering, so adding an argument would silently re-point every cord leaving the box and a saved patch's connection indices would mean two different things. The outlet stays and carries the filtered channel back, which costs a patch nothing.",
+        "name": "channel",
+        "range": "0-16"
+      },
+      {
+        "default": "-1",
+        "doc": "Coarse controller number to accept, 0-31, or -1 for every paired controller — the default. Not 0 for 'any': controller 0 is Bank Select, a controller a patch may legitimately want on its own. Give the coarse number even though the fine half arrives as that number plus 32; the pair is one controller and it is named by its coarse half. Anything outside 0-31 is read as -1, so a stray argument means 'every controller' rather than silencing the object outright.",
+        "name": "controller",
+        "range": "-1 to 31"
+      }
+    ]
+  },
+  ".xctlout": {
+    "category": "MIDI",
+    "description": "14-bit MIDI Control Change message generator — Max's 'xctlout' (issue #533). MIDI pairs controller n (0-31) with controller n+32 as the coarse and fine halves of one fourteen-bit value, and this object sends both: a value on the inlet emits two complete messages, the coarse one first and the fine one immediately after, which is the order the specification requires and the order every receiver expects. '.controlchange' sends one seven-bit message instead, and 128 steps is audibly steppy on a filter sweep — the zipper noise a patch hears on any slow move. The two messages leave as two separate lists rather than one six-byte list because '.midiout' hands each list it receives to the device as a single MIDI message, so six bytes together would arrive as one malformed message rather than two good ones. Only the 32 paired controllers can be addressed: a number above 31 has no fine half, and sending its 'LSB' would be writing to an unrelated controller 32 higher up, so the number is clamped into 0-31. The value is clamped into 0-16383 rather than refused, as everywhere in this family. The output is a raw byte list for '.midiout'.",
+    "inlets": [
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "Controller value at full resolution (also fires both messages).",
+        "index": 0,
+        "label": "value",
+        "range": "0-16383"
+      },
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "Coarse controller number, stored until the next value. The fine half is sent on this number plus 32.",
+        "index": 1,
+        "label": "controller",
+        "range": "0-31"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".xctlout",
+    "outlets": [
+      {
+        "doc": "Encoded MIDI Control Change messages: the coarse one on the controller number, then the fine one on that number plus 32.",
+        "index": 0,
+        "label": "midi",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "MIDI channel offset (0-based).",
+        "name": "channel",
+        "range": "0-15"
+      }
+    ]
+  },
+  ".xmidiin": {
+    "category": "MIDI",
+    "description": "Raw MIDI input framed into whole messages — Max's 'xmidiin' (issue #533). '.midiin' hands a patch one int per byte with nothing interpreted, which leaves the patch holding a stream with no boundaries in it: where one message ends and the next begins is something it has to work out, and a system-exclusive dump longer than the transport's event size arrives as consecutive chunks with nothing marking them as one message. This object does that framing. Every complete message leaves the outlet as one list of byte values in decimal — '144 60 100' for a note-on — which is '.midiformat''s output shape and '.midiparse''s, '.seq''s and '.midiout''s input shape, so it wires straight across. A dump split across four transport events arrives as one list, which is the 'messages split across packets' the object is named for. Unlike Max, which spells this outlet a byte at a time like 'midiin''s, the list is per message: bytes handed out one at a time carry no boundary no matter who reassembled them, so the framing would be invisible. Running status is honoured and the omitted status byte put back in front of each message; a real-time byte (248-255) is emitted at once on its own and disturbs nothing, since it may legally appear between any two bytes of any other message; a new status byte abandons an unfinished message rather than waiting for data that is not coming. A message longer than 256 bytes leaves in consecutive lists of that size, which is what keeps the object's memory fixed — nothing is dropped. Events cross from the device backend's thread on a bounded lock-free queue and are drained once per audio block, so nothing allocates, locks or blocks on either side.",
+    "inlets": [],
+    "is_dsp": false,
+    "name": ".xmidiin",
+    "outlets": [
+      {
+        "doc": "One complete MIDI message per list, as byte values in decimal: status byte first, then its data bytes. Real-time messages arrive as one-byte lists. A system-exclusive dump arrives whole however many transport packets carried it, or in consecutive 256-byte lists when it is longer than that.",
+        "index": 0,
+        "label": "midi",
+        "range": "0-255 per byte",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Index of the MIDI input device to listen to, as numbered by YSE::system::getMidiInDeviceName. The port is opened the first time any patcher object asks for it and closed when the last one goes, so several objects on one keyboard share a single device and each still gets a queue of its own. A port that will not open — no hardware, or a backend that allows one client per port and a host that already holds it — leaves an object that is perfectly valid and simply never receives anything, which is what lets a patch load the same way on a machine with nothing plugged in. Editing this argument on a live object rebuilds the object rather than storing into it: the subscription is taken when the object joins its patcher, and a field written on the audio thread cannot move a device port.",
+        "name": "port",
+        "range": "0-7"
+      }
+    ]
+  },
+  ".xnotein": {
+    "category": "MIDI",
+    "description": "MIDI note input with release velocity — Max's 'xnotein' (issue #533). Everything '.notein' reports, plus the one number it throws away: a note-off message carries a velocity byte of its own, saying how fast the key came back up, and '.notein' discards it in order to report every release as velocity 0. That number is the only expressive gesture in MIDI that happens after a note is already over, and it is what shapes a release on any voice whose release is not fixed — which YSE's ADSR-based voices are. A note-on reports its velocity with release velocity 0; a note-off (status 0x80) reports velocity 0 and its own velocity byte as the release, so '.notein''s test for a release — zero on the velocity outlet — still reads the same here; a note-on with velocity 0, the other spelling hardware uses for a release, reports 0 for both, since no release velocity was sent and inventing one would be worse than reporting none. The four outlets fire right to left, so whatever the pitch triggers downstream already sees the velocities and channel that belong to it. A 'channel' argument filters and, unlike Max, leaves the channel outlet in place. Events cross from the device backend's thread on a bounded lock-free queue and are drained once per audio block, so nothing allocates, locks or blocks on either side.",
+    "inlets": [],
+    "is_dsp": false,
+    "name": ".xnotein",
+    "outlets": [
+      {
+        "doc": "The note number, 0-127, sent last of the four so the velocities and channel that belong to it are already out when it triggers anything. Middle C is 60.",
+        "index": 0,
+        "label": "pitch",
+        "range": "0-127",
+        "type": "INT"
+      },
+      {
+        "doc": "How hard the key was struck, 0-127, and 0 for a release of either spelling — the same reading '.notein' gives, so a patch tests for a release the same way here.",
+        "index": 1,
+        "label": "velocity",
+        "range": "0-127",
+        "type": "INT"
+      },
+      {
+        "doc": "How fast the key came back up, 0-127, on a note-off that carries one; 0 on a note-on and on a release spelled as a note-on with velocity 0, neither of which sends a release velocity at all.",
+        "index": 2,
+        "label": "release",
+        "range": "0-127",
+        "type": "INT"
+      },
+      {
+        "doc": "The MIDI channel the message arrived on, 1-16 — the numbering Max uses, the numbering the sending objects use, and the numbering printed on the hardware, rather than the 0-15 nibble on the wire. Sent first, before the outlets to its left, so anything the leftmost outlet triggers downstream already knows which channel it is looking at.",
+        "index": 3,
+        "label": "channel",
+        "range": "1-16",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Index of the MIDI input device to listen to, as numbered by YSE::system::getMidiInDeviceName. The port is opened the first time any patcher object asks for it and closed when the last one goes, so several objects on one keyboard share a single device and each still gets a queue of its own. A port that will not open — no hardware, or a backend that allows one client per port and a host that already holds it — leaves an object that is perfectly valid and simply never receives anything, which is what lets a patch load the same way on a machine with nothing plugged in. Editing this argument on a live object rebuilds the object rather than storing into it: the subscription is taken when the object joins its patcher, and a field written on the audio thread cannot move a device port.",
+        "name": "port",
+        "range": "0-7"
+      },
+      {
+        "default": "0",
+        "doc": "MIDI channel to accept, 1-16, or 0 for every channel — Max's omni, and the default. Unlike Max, giving a channel here does not remove the channel outlet: an object whose outlet count depends on its arguments has no stable outlet numbering, so adding an argument would silently re-point every cord leaving the box and a saved patch's connection indices would mean two different things. The outlet stays and carries the filtered channel back, which costs a patch nothing.",
+        "name": "channel",
+        "range": "0-16"
+      }
+    ]
+  },
+  ".xnoteout": {
+    "category": "MIDI",
+    "description": "MIDI note message generator with release velocity — Max's 'xnoteout' (issue #533). '.noteon' and '.noteoff' are two boxes and neither can send a release velocity: '.noteoff' sends a note-off with velocity 0. This object is both of them plus that number. A velocity of 0 on the middle inlet sends a real note-off (status 0x80) carrying the release velocity from the third inlet; any other velocity sends a note-on. Release velocity says how fast the key came back up — the only expressive gesture in MIDI that happens after a note is already over, and what shapes the release of any voice whose release is not fixed, which YSE's ADSR-based voices are. It is the sending half of what '.xnotein' reports. Inlet 0 is hot and the other two store until the next pitch, which is the shape '.noteon' already has. All three values are clamped into 0-127 rather than refused, as everywhere in this family. The output is a raw byte list for '.midiout'.",
+    "inlets": [
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "MIDI note number (also fires the output).",
+        "index": 0,
+        "label": "pitch",
+        "range": "0-127"
+      },
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "Note velocity; 0 makes the message a note-off carrying the release velocity. Stored until the next pitch.",
+        "index": 1,
+        "label": "velocity",
+        "range": "0-127"
+      },
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "Release velocity, used only when the velocity is 0. Stored until the next pitch.",
+        "index": 2,
+        "label": "release",
+        "range": "0-127"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".xnoteout",
+    "outlets": [
+      {
+        "doc": "Encoded MIDI Note-On (status, pitch, velocity) or, when the velocity is 0, Note-Off (status, pitch, release velocity).",
+        "index": 0,
+        "label": "midi",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "MIDI channel offset (0-based).",
+        "name": "channel",
+        "range": "0-15"
       }
     ]
   },

@@ -269,13 +269,24 @@ set(YSE_SRCS
   # (issue #570), so the DLL fails to link without it.
   internal/AudioTest.cpp
   # patcher/midi objects are registered unconditionally in pRegistry.cpp.
+  patcher/midi/mMidiBendOut.cpp
   patcher/midi/mMidiChannelPressure.cpp
+  # The MIDI codec pair (issue #530) opens no device, so unlike mMidiIn.cpp it
+  # belongs in the unconditional list.
+  patcher/midi/mMidiCodec.cpp
   patcher/midi/mMidiControl.cpp
+  # The system-exclusive pair (issue #531). Unconditional like the codec above:
+  # `.sxformat` opens no device, and the `.sysexin` half of the file carries its
+  # own `#if YSE_ENABLE_MIDI_DEVICE`.
+  patcher/midi/mSysEx.cpp
   patcher/midi/mMidiNoteOff.cpp
   patcher/midi/mMidiNoteOn.cpp
   patcher/midi/mMidiOut.cpp
   patcher/midi/mMidiPolyPressure.cpp
   patcher/midi/mMidiProgramChange.cpp
+  # The extended-precision senders (issue #533) carry their own `#if YSE_WINDOWS`
+  # like mMidiBendOut.cpp above, so they belong in the unconditional list.
+  patcher/midi/mMidiXOut.cpp
   # midiNote is a plain data class with no platform dependencies.
   midi/midiNote.cpp
 )
@@ -290,6 +301,15 @@ if(YSE_ENABLE_MIDI_DEVICE)
     midi/device.cpp
     # Clip-transport external MIDI-out sender thread (issue #350).
     midi/midiOutSender.cpp
+    # Patcher MIDI-input fan-out: RtMidi thread -> per-object lock-free queue
+    # (issue #529). Both this and the patcher objects that drain it need the
+    # device backend, so unlike the mMidi* senders they are added here rather
+    # than unconditionally.
+    midi/midiInHub.cpp
+    patcher/midi/mMidiIn.cpp
+    # The extended-precision input objects (issue #533) are built on that
+    # family and need the same backend.
+    patcher/midi/mMidiXIn.cpp
   )
 endif()
 
@@ -459,13 +479,19 @@ set_source_files_properties(
   patcher/math/gZmap.cpp
   patcher/math/pFrequencyToMidi.cpp
   patcher/math/pMidiToFrequency.cpp
+  patcher/midi/mMidiBendOut.cpp
   patcher/midi/mMidiChannelPressure.cpp
+  patcher/midi/mMidiCodec.cpp
   patcher/midi/mMidiControl.cpp
+  patcher/midi/mMidiIn.cpp
   patcher/midi/mMidiNoteOff.cpp
   patcher/midi/mMidiNoteOn.cpp
   patcher/midi/mMidiOut.cpp
   patcher/midi/mMidiPolyPressure.cpp
   patcher/midi/mMidiProgramChange.cpp
+  patcher/midi/mMidiXIn.cpp
+  patcher/midi/mMidiXOut.cpp
+  patcher/midi/mSysEx.cpp
   patcher/io/fileScheduler.cpp
   patcher/time/clockBridge.cpp
   patcher/time/gClocker.cpp
