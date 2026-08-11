@@ -186,6 +186,10 @@
 // `.borax` (issue #543), unconditional once more: it watches pitch/velocity
 // pairs on ordinary cords and reports numbers about them, and opens no device.
 #include "midi/mBorax.h"
+// `.offer` (issue #544), unconditional once more: it stores x,y number pairs
+// handed to it on ordinary cords and gives each y back once, and opens no
+// device.
+#include "midi/mOffer.h"
 // The system-exclusive pair (issue #531). One header, two guards: `.sxformat`
 // is compiled everywhere and `.sysexin` only where there is an input port to
 // open, so the include itself carries no `#if`.
@@ -763,6 +767,14 @@ pRegistry::pRegistry() {
   // one member of the family with no teardown release. Unguarded like the six
   // above — it opens no device.
   Add(OBJ::M_BORAX, mBorax::Create);
+
+  // `.offer` (issue #544): the per-note memory a pitch transformer needs. A
+  // note-off carries the pitch the player released, not the one the synth is
+  // sounding, so a transposer has to remember the mapping per note and forget it
+  // the moment it is used — which is what "one-time number pairs" means and what
+  // separates this from `.funbuff`, `.coll` and `.table`, all three of which are
+  // read and re-read. Unguarded like the seven above — it opens no device.
+  Add(OBJ::M_OFFER, mOffer::Create);
 
 #if YSE_ENABLE_MIDI_DEVICE
   // The MIDI input family (issue #529) — the way *into* a patch. Every object

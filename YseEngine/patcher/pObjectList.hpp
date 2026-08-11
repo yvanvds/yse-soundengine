@@ -78,6 +78,7 @@ namespace YSE {
    *    ``M_FLUSH``, ``M_SUSTAIN``.
    *  - Voice allocation: ``M_POLY``.
    *  - Note analysis: ``M_BORAX``.
+   *  - Note bookkeeping: ``M_OFFER``.
    *  - Conversion: ``MIDITOFREQUENCY``, ``FREQUENCYTOMIDI``, ``G_ATODB``,
    *    ``G_DBTOA``, ``G_CARTOPOL``, ``G_POLTOCAR``.
    */
@@ -318,5 +319,6 @@ namespace YSE {
     DEFOBJ(M_SUSTAIN, ".sustain");
     DEFOBJ(M_POLY, ".poly");
     DEFOBJ(M_BORAX, ".borax");
+    DEFOBJ(M_OFFER, ".offer");
   };
 } // namespace YSE
