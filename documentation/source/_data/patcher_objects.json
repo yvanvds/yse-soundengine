@@ -3676,6 +3676,36 @@
       }
     ]
   },
+  ".midiflush": {
+    "category": "MIDI",
+    "description": "Releases every note left hanging — Max's 'midiflush' (issue #537), and the safety valve a MIDI patch needs. Put it in the stream, between the senders and '.midiout' or straight after '.midiin': everything that arrives at the inlet goes out of the outlet untouched, and on the way through the object remembers which notes the bytes left sounding. A bang then sends one note-off per sounding note, on exactly the channel it was played on, and empties the set — so a patch stopped mid-phrase does not leave the device holding a chord until someone power-cycles it. Nothing else in the patcher can do this: the sender objects are stateless formatters that do not know what they have sent, and '.midiout''s 'allnotesoff' is controller 123, which many devices ignore and which reaches only the one port that object holds. The stream is decoded properly rather than searched for status bytes, because a note-on may arrive with no status byte in front of it at all (running status, which is how a chord is usually sent), a timing clock may land between its two data bytes, and a system-exclusive dump is full of bytes that would read as notes if they were not inside a dump — the same three rules '.midiparse' keeps. Both spellings of a release clear a note, a note-off message and a note-on with velocity 0, so a device that uses either is not flushed for notes it has already let go. Both of the patcher's spellings of a byte list are read, the numeric one ('144 60 100', what '.midiformat', '.sxformat' and '.seq' send) and the binary one (what '.noteon' and the older senders build), and a bare int is a byte too, which is the shape '.midiin' emits. The note-offs it generates go out as numeric lists — '128 60 0' — the only spelling that survives the 0 byte every one of them ends with. What is sounding is a fixed bitmap of 16 channels by 128 pitches allocated with the object, so neither the pass-through nor the flush allocates, locks or blocks on the audio thread. Like '.midiparse' it opens no device and needs none, so it works on every platform. It does not fire by itself when the patcher is torn down — bang it before the patch goes away.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The MIDI stream, and the flush. Bytes arrive as a numeric list ('144 60 100', what '.midiformat' and '.seq' send), as a binary list (what '.noteon' and the older senders build), or as an int per byte (what '.midiin' emits); all three pass straight out of the outlet and are read for the notes they turn on and off. A float is read as an int, a value outside 0-255 is not a MIDI byte and is ignored rather than clamped, and a numeric list carrying one is dropped whole rather than sent in part. A bang here is the flush: a note-off for every note still sounding.",
+        "index": 0,
+        "label": "midi",
+        "range": "0-255"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".midiflush",
+    "outlets": [
+      {
+        "doc": "The stream, unaltered and in the spelling it arrived in, plus the note-offs a bang generates. Those go out as numeric byte lists, '128 60 0' being middle C released on channel 1, in channel then pitch order — feed the outlet to '.midiout' to reach hardware, or to '.midiparse' to read what went past.",
+        "index": 0,
+        "label": "midi",
+        "range": "0-255",
+        "type": "ANY"
+      }
+    ],
+    "params": []
+  },
   ".midiformat": {
     "category": "MIDI",
     "description": "Assembles structured data into raw MIDI messages — Max's 'midiformat' (issue #530), and the exact inverse of '.midiparse', inlet for outlet, so the two wire straight across and a patch can take a stream apart, edit the part it cares about and put it back together without ever spelling a status byte itself. It is also the combined form of the six single-purpose formatters ('.noteon', '.noteoff', '.controlchange', '.polypressure', '.channelpressure', '.programchange'): one box with one channel setting instead of six with six. Every inlet but the channel is hot — a message arriving at it produces a MIDI message at once, on whatever channel the channel inlet is holding, which is Max's rule and the reason the channel is the rightmost of Max's inlets. One complete message leaves the outlet as a list of byte values in decimal, '144 60 100' for a note-on: Max sends its bytes one at a time because Max's midiout reassembles them, while this patcher's transport is list text and '.seq' already documents a numeric byte list as the shape this object's output has, so a whole message per list is both the local convention and the safer one — three bytes that belong together cannot be split across two blocks by anything downstream. Program change takes 1-128 and pitch bend 0-127, the readings '.midiparse', '.pgmin' and '.bendin' report, so a round trip gives back the numbers it was given. Values are clamped into the ranges MIDI has rather than refused, so a patch that scales a controller into 0-140 produces sensible notes at the top of its range instead of silence. The one exception is the raw inlet, where a value outside 0-255 is not a byte at all and is dropped: clamping a status byte would change which message it is. The object opens no device and needs none, so it runs on every platform, and it allocates nothing on a message path — the outgoing text is built into a string reserved when the object is created.",

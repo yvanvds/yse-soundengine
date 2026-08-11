@@ -161,6 +161,9 @@
 #include "midi/mMpe.h"
 // The MIDI codec pair (issue #530) is registered unconditionally below too.
 #include "midi/mMidiCodec.h"
+// `.midiflush` (issue #537), unconditional for the same reason as the codec: it
+// reads bytes and writes bytes, and opens no device.
+#include "midi/mMidiFlush.h"
 // The system-exclusive pair (issue #531). One header, two guards: `.sxformat`
 // is compiled everywhere and `.sysexin` only where there is an input port to
 // open, so the include itself carries no `#if`.
@@ -679,6 +682,14 @@ pRegistry::pRegistry() {
   // from `.seq` or from a patch works on every platform. See mMidiCodec.h.
   Add(OBJ::M_PARSE, mMidiParse::Create);
   Add(OBJ::M_FORMAT, mMidiFormat::Create);
+
+  // `.midiflush` (issue #537): the safety valve, and unguarded for the same
+  // reason the codec pair is. It sits in the stream, passes everything through
+  // and remembers what is sounding, so a bang can release exactly the notes a
+  // patch stopped mid-phrase left hanging. A patch driving a software synth
+  // built out of patcher objects strands notes exactly as one driving hardware
+  // does, so this must exist where there is no hardware to blame.
+  Add(OBJ::M_MIDIFLUSH, mMidiFlush::Create);
 
 #if YSE_ENABLE_MIDI_DEVICE
   // The MIDI input family (issue #529) — the way *into* a patch. Every object

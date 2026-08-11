@@ -276,6 +276,9 @@ set(YSE_SRCS
   # The MIDI codec pair (issue #530) opens no device, so unlike mMidiIn.cpp it
   # belongs in the unconditional list.
   patcher/midi/mMidiCodec.cpp
+  # `.midiflush` (issue #537) is unconditional for the same reason: it reads
+  # bytes off an inlet and writes bytes to an outlet, and opens no device.
+  patcher/midi/mMidiFlush.cpp
   patcher/midi/mMidiControl.cpp
   # The system-exclusive pair (issue #531). Unconditional like the codec above:
   # `.sxformat` opens no device, and the `.sysexin` half of the file carries its
@@ -499,6 +502,7 @@ set_source_files_properties(
   patcher/midi/mMidiChannelPressure.cpp
   patcher/midi/mMidiCodec.cpp
   patcher/midi/mMidiControl.cpp
+  patcher/midi/mMidiFlush.cpp
   patcher/midi/mMidiIn.cpp
   patcher/midi/mMidiInfo.cpp
   patcher/midi/mMidiNoteOff.cpp
