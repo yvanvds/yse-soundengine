@@ -92,7 +92,24 @@ namespace YSE {
     /** @brief Send three raw MIDI bytes. */
     void Raw(unsigned char a, unsigned char b, unsigned char c);
 
-    /** @brief Send a raw MIDI byte string. */
+    /** @brief Send a raw MIDI message of exactly @p length bytes.
+     *
+     *  The length-honest form, and the one every MIDI message that is not
+     *  three bytes long needs: a program change is two bytes and a
+     *  system-exclusive dump is as many as it takes. Sends nothing when
+     *  @p length is 0 or no port is open. Allocation-free — the bytes go
+     *  straight to the port. */
+    void Raw(const unsigned char* data, std::size_t length);
+
+    /** @brief Send a raw MIDI byte string — every byte of it, whatever its
+     *         length.
+     *
+     *  @note Up to issue #748 this always sent exactly three bytes,
+     *        zero-padding a shorter string and truncating a longer one, which
+     *        put a spurious third byte on every program change and made a
+     *        system-exclusive dump unsendable. It now sends the string it was
+     *        given; the three-byte callers in the patcher are unaffected,
+     *        their strings being three bytes long. */
     void Raw(const std::string& value);
 
     /// @cond INTERNAL

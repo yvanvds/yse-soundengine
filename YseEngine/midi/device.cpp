@@ -191,14 +191,21 @@ void YSE::midiOut::Raw(unsigned char a, unsigned char b, unsigned char c) {
   }
 }
 
-void YSE::midiOut::Raw(const std::string& value) {
+void YSE::midiOut::Raw(const unsigned char* data, std::size_t length) {
+  // An empty message is not a message: RtMidi reads message[0] to decide what
+  // it is looking at, so handing it a zero-length buffer is the one input this
+  // must refuse rather than forward.
+  if (data == nullptr || length == 0) return;
   if (isPrepared()) {
-    unsigned char message[3];
-    message[0] = value.length() > 0 ? value[0] : 0;
-    message[1] = value.length() > 1 ? value[1] : 0;
-    message[2] = value.length() > 2 ? value[2] : 0;
-    device->sendMessage(message, 3);
+    device->sendMessage(data, length);
   }
+}
+
+void YSE::midiOut::Raw(const std::string& value) {
+  // Issue #748: the whole string, not the first three bytes of it. Padding a
+  // two-byte program change to three put a byte on the wire the caller never
+  // wrote, and cutting a system-exclusive dump to three made it unsendable.
+  Raw(reinterpret_cast<const unsigned char*>(value.data()), value.size());
 }
 
 bool YSE::midiOut::isPrepared() {

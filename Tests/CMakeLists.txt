@@ -144,6 +144,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_linedrive.cpp
   patcher/test_patcher_midiin.cpp
   patcher/test_patcher_midicodec.cpp
+  patcher/test_patcher_midiout.cpp
   patcher/test_patcher_sysex.cpp
   patcher/test_patcher_bendout.cpp
   patcher/test_patcher_xmidi.cpp
@@ -1088,6 +1089,7 @@ set_source_files_properties(
   patcher/test_patcher_linedrive.cpp
   patcher/test_patcher_midiin.cpp
   patcher/test_patcher_midicodec.cpp
+  patcher/test_patcher_midiout.cpp
   patcher/test_patcher_sysex.cpp
   patcher/test_patcher_bendout.cpp
   patcher/test_patcher_xmidi.cpp
