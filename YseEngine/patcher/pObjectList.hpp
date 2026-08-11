@@ -67,8 +67,14 @@ namespace YSE {
    *  - Extended-precision MIDI: ``M_XBENDIN``, ``M_XBENDIN2``, ``M_XCTLIN``,
    *    ``M_XNOTEIN``, ``M_XMIDIIN``, ``M_XBENDOUT``, ``M_XBENDOUT2``,
    *    ``M_XCTLOUT``, ``M_XNOTEOUT``.
+   *  - Parameter numbers: ``M_RPNIN``, ``M_NRPNIN``, ``M_RPNOUT``,
+   *    ``M_NRPNOUT``.
+   *  - MIDI polyphonic expression: ``M_MPECONFIG``, ``M_MPEFORMAT``,
+   *    ``M_MPEPARSE``.
    *  - MIDI codec: ``M_PARSE``, ``M_FORMAT``.
    *  - MIDI system exclusive: ``M_SYSEXIN``, ``M_SXFORMAT``.
+   *  - MIDI devices: ``M_MIDIINFO``.
+   *  - MIDI hygiene: ``M_MIDIFLUSH``, ``M_MAKENOTE``.
    *  - Conversion: ``MIDITOFREQUENCY``, ``FREQUENCYTOMIDI``, ``G_ATODB``,
    *    ``G_DBTOA``, ``G_CARTOPOL``, ``G_POLTOCAR``.
    */
@@ -294,5 +300,15 @@ namespace YSE {
     DEFOBJ(M_XBENDOUT2, ".xbendout2");
     DEFOBJ(M_XCTLOUT, ".xctlout");
     DEFOBJ(M_XNOTEOUT, ".xnoteout");
+    DEFOBJ(M_RPNIN, ".rpnin");
+    DEFOBJ(M_NRPNIN, ".nrpnin");
+    DEFOBJ(M_RPNOUT, ".rpnout");
+    DEFOBJ(M_NRPNOUT, ".nrpnout");
+    DEFOBJ(M_MPECONFIG, ".mpeconfig");
+    DEFOBJ(M_MPEFORMAT, ".mpeformat");
+    DEFOBJ(M_MPEPARSE, ".mpeparse");
+    DEFOBJ(M_MIDIINFO, ".midiinfo");
+    DEFOBJ(M_MIDIFLUSH, ".midiflush");
+    DEFOBJ(M_MAKENOTE, ".makenote");
   };
 } // namespace YSE

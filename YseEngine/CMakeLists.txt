@@ -276,6 +276,12 @@ set(YSE_SRCS
   # The MIDI codec pair (issue #530) opens no device, so unlike mMidiIn.cpp it
   # belongs in the unconditional list.
   patcher/midi/mMidiCodec.cpp
+  # `.midiflush` (issue #537) is unconditional for the same reason: it reads
+  # bytes off an inlet and writes bytes to an outlet, and opens no device.
+  patcher/midi/mMidiFlush.cpp
+  # `.makenote` (issue #538) is unconditional too: it emits ints on two outlets
+  # and opens no device.
+  patcher/midi/mMakeNote.cpp
   patcher/midi/mMidiControl.cpp
   # The system-exclusive pair (issue #531). Unconditional like the codec above:
   # `.sxformat` opens no device, and the `.sysexin` half of the file carries its
@@ -291,6 +297,13 @@ set(YSE_SRCS
   patcher/midi/mMidiProgramChange.cpp
   # The extended-precision senders (issue #533), unguarded like the rest.
   patcher/midi/mMidiXOut.cpp
+  # The parameter-number senders (issue #534), likewise: they format control
+  # changes onto a list outlet and open no device.
+  patcher/midi/mMidiRpnOut.cpp
+  # The MPE family (issue #535). Unconditional for the same reason the codec
+  # pair is: two of the three format bytes onto a list outlet and the third
+  # decodes bytes off an inlet, so none of them touches a backend.
+  patcher/midi/mMpe.cpp
   # midiNote is a plain data class with no platform dependencies.
   midi/midiNote.cpp
 )
@@ -314,6 +327,17 @@ if(YSE_ENABLE_MIDI_DEVICE)
     # The extended-precision input objects (issue #533) are built on that
     # family and need the same backend.
     patcher/midi/mMidiXIn.cpp
+    # The parameter-number input objects (issue #534) are built on it too.
+    patcher/midi/mMidiRpnIn.cpp
+    # `.midiinfo` (issue #536) opens no port but enumerates them, which is the
+    # same backend and so the same gate. Its background rescan (issue #757)
+    # lives beside it and is the only other caller of the enumeration.
+    patcher/midi/mMidiInfo.cpp
+    patcher/midi/midiPortScanner.cpp
+    # `.midiout`'s deferred port open (issue #759) lives beside them: it is the
+    # only other caller of the device backend from a patcher message handler,
+    # and like the scanner it exists to keep that call off the calling thread.
+    patcher/midi/midiPortOpener.cpp
   )
 endif()
 
@@ -483,19 +507,27 @@ set_source_files_properties(
   patcher/math/gZmap.cpp
   patcher/math/pFrequencyToMidi.cpp
   patcher/math/pMidiToFrequency.cpp
+  patcher/midi/mMakeNote.cpp
   patcher/midi/mMidiBendOut.cpp
   patcher/midi/mMidiChannelPressure.cpp
   patcher/midi/mMidiCodec.cpp
   patcher/midi/mMidiControl.cpp
+  patcher/midi/mMidiFlush.cpp
   patcher/midi/mMidiIn.cpp
+  patcher/midi/mMidiInfo.cpp
   patcher/midi/mMidiNoteOff.cpp
   patcher/midi/mMidiNoteOn.cpp
   patcher/midi/mMidiOut.cpp
   patcher/midi/mMidiPolyPressure.cpp
   patcher/midi/mMidiProgramChange.cpp
+  patcher/midi/mMidiRpnIn.cpp
+  patcher/midi/mMidiRpnOut.cpp
   patcher/midi/mMidiXIn.cpp
   patcher/midi/mMidiXOut.cpp
+  patcher/midi/mMpe.cpp
   patcher/midi/mSysEx.cpp
+  patcher/midi/midiPortOpener.cpp
+  patcher/midi/midiPortScanner.cpp
   patcher/io/fileScheduler.cpp
   patcher/time/clockBridge.cpp
   patcher/time/gClocker.cpp

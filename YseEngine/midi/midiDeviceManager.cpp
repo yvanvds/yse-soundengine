@@ -5,6 +5,8 @@
 #include "midiDeviceManager.h"
 #include "internalHeaders.h"
 
+#include <mutex>
+
 YSE::MIDI::deviceManager& YSE::MIDI::DeviceManager() {
   static deviceManager d;
   return d;
@@ -63,6 +65,10 @@ void YSE::MIDI::GenerateMidiError(const RtMidiError& error) {
 YSE::MIDI::deviceManager::deviceManager() = default;
 
 YSE::MIDI::deviceManager::~deviceManager() {
+  // No lock: this is a process-lifetime singleton torn down after every thread
+  // that could reach it is gone. Taking `mutex_` here would only be able to
+  // hide the bug of a live caller during static destruction, not fix it.
+  //
   // unique_ptr members handle midiIn/midiOut cleanup automatically;
   // only the explicit closePort() side-effect on map entries needs ordering.
   for (const auto& [id, port] : midiOutPorts) {
@@ -71,6 +77,7 @@ YSE::MIDI::deviceManager::~deviceManager() {
 }
 
 unsigned int YSE::MIDI::deviceManager::getNumMidiInDevices() {
+  const std::scoped_lock lock(mutex_);
   if (isPrepared()) {
     return midiIn->getPortCount();
   }
@@ -78,6 +85,7 @@ unsigned int YSE::MIDI::deviceManager::getNumMidiInDevices() {
 }
 
 unsigned int YSE::MIDI::deviceManager::getNumMidiOutDevices() {
+  const std::scoped_lock lock(mutex_);
   if (isPrepared()) {
     return midiOut->getPortCount();
   }
@@ -85,6 +93,7 @@ unsigned int YSE::MIDI::deviceManager::getNumMidiOutDevices() {
 }
 
 const std::string YSE::MIDI::deviceManager::getMidiInDeviceName(unsigned int ID) {
+  const std::scoped_lock lock(mutex_);
   if (isPrepared()) {
     return midiIn->getPortName(ID);
   }
@@ -92,6 +101,7 @@ const std::string YSE::MIDI::deviceManager::getMidiInDeviceName(unsigned int ID)
 }
 
 const std::string YSE::MIDI::deviceManager::getMidiOutDeviceName(unsigned int ID) {
+  const std::scoped_lock lock(mutex_);
   if (isPrepared()) {
     return midiOut->getPortName(ID);
   }
@@ -99,6 +109,7 @@ const std::string YSE::MIDI::deviceManager::getMidiOutDeviceName(unsigned int ID
 }
 
 RtMidiOut* YSE::MIDI::deviceManager::getMidiOutPort(unsigned int ID) {
+  const std::scoped_lock lock(mutex_);
   if (auto existing = midiOutPorts.find(ID); existing != midiOutPorts.end()) {
     return existing->second.get();
   }

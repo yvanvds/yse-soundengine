@@ -3430,6 +3430,77 @@
       }
     ]
   },
+  ".makenote": {
+    "category": "MIDI",
+    "description": "Plays a note: a pitch and a velocity out now, and the same pitch with velocity 0 a duration later. This is the object that lets a patch play a note at all without hanging one. Every MIDI sender downstream of it — .noteon, .midiformat, the .x*out family — is a stateless formatter that sends what it is handed and remembers nothing, so a patch that plays a note has to send its own release, and forgetting one is the single most common way to strand a synth. .midiflush is the cure for that after the fact; this is the prevention, because the release is scheduled at the same instant as the attack. A pitch in the left inlet plays; the middle inlet sets the velocity and the right one the duration in milliseconds, both for notes played after them, so a note already sounding is never retimed or revoiced under a patch's feet. A list in the left inlet is Max's inlet distribution on one cord: '60 100' is pitch 60 at velocity 100. The velocity goes out the right outlet before the pitch goes out the left, Max's outlets firing right to left, which here is not cosmetic — every sender downstream takes pitch on a hot inlet and velocity on a cold one, so a pitch sent first would carry the previous note's velocity. 'stop' releases everything sounding immediately in the order it was played and 'clear' forgets it without sending anything, which are Max's two commands. The wait runs on the patcher's deferred-message scheduler (issue #628) rather than on the timer thread behind .metro, so playing a note allocates nothing and takes no lock, and the release arrives inside the patcher's own dispatch as the continuation of the note-on rather than as an unrelated stimulus. That clock is the block counter, so it stops when the engine does and a paused patch holds its pending releases where they stand instead of firing them in a burst on resume, and its resolution is one audio block: a duration of 0 releases on the next block rather than inside the same dispatch, which is what keeps a .makenote wired back into its own inlet a fast trill instead of a stack overflow. At most 64 notes may sound at once per object, pre-allocated with it, and beyond that sits the patcher-wide limit of 128 pending messages shared with .pipe, .delay, .qlist, .mtr and .seq. The two overflows are answered differently and both are counted rather than logged, the refusing thread being routinely the audio callback: a full pending set refuses the whole note, attack included, because an attack this object has already proved it cannot release is the hanging note it exists to prevent, while a full patcher-wide budget is only discovered after the attack has gone out and so releases the note immediately instead — a note shorter than it was asked to be rather than one that never ends. Unlike Max there are always three inlets and two outlets: Max grows a channel pair when given three creation arguments, and ports here are built before the arguments are parsed, but every sender downstream already takes a channel of its own. Max's repeatmode is not implemented — this object is poly, Max's default, so a repeated pitch is a second note with its own deadline — and milliseconds are the only unit, a note value or tick count in the duration inlet being refused rather than misread as milliseconds. A velocity of 0 is already a release in MIDI, so it passes through and schedules nothing. Calculate() does nothing and no message path allocates, locks or blocks.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The pitch, and the trigger. An int or a float arriving here is sent straight out the left outlet with the stored velocity out the right one, and the same pitch is sent again with velocity 0 once the duration has elapsed — Max's 'a note-on message paired with a velocity value followed by a note-off message after a specified amount of time'. A float pitch is truncated to an int, as it is in Max. A list is Max's inlet distribution written on one cord: the first element is the pitch and a second element sets the velocity first, so '60 100' plays pitch 60 at velocity 100 and leaves the velocity at 100 for the notes after it. Further elements are ignored, there being no channel outlet here. A single-token numeric list is the number it spells, so a .m 60 reaches this inlet as a pitch. The message 'stop' releases every note this object is holding immediately, in the order they were played, and 'clear' forgets them without sending anything — Max's two commands, and words rather than pitches. There is no bang method, as Max's makenote has none.",
+        "index": 0,
+        "label": "pitch",
+        "range": "int, float, list, 'stop', 'clear'"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Sets the velocity for pitches arriving *after* it — Max's middle inlet. Notes already sounding are unaffected, their release always being velocity 0. Ints, floats and a list whose leading token is a number all set it; a float is truncated. Values outside MIDI's 0-127 are clamped when the velocity is read, because this value decides whether a release is scheduled at all. A velocity of 0 is a release in MIDI, so the pair goes out unchanged and nothing is scheduled behind it.",
+        "index": 1,
+        "label": "velocity",
+        "range": "0-127"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Sets how long notes played *after* it will sound, in milliseconds — Max's right inlet. Notes already sounding keep the duration they were played with, which is what lets a patch shorten the duration under a long note without cutting it off. Ints, floats and a list whose leading token is a number all set it; a negative or NaN duration counts as 0, which still releases on the next audio block rather than inside the same dispatch. Max's tempo-relative time syntax is not read here — this object has no clock to measure a beat against — and a note value ('4nd') or tick count ('1440 ticks') is refused outright rather than misread as the milliseconds it is not, leaving the duration where it was.",
+        "index": 2,
+        "label": "duration",
+        "range": "0+ ms"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".makenote",
+    "outlets": [
+      {
+        "doc": "The note's pitch, sent once when the note is played and again when it is released. The same value both times, which is what lets a note-off find the note it belongs to. Sent after the velocity, Max's outlets firing right to left.",
+        "index": 0,
+        "label": "pitch",
+        "range": "int",
+        "type": "INT"
+      },
+      {
+        "doc": "The note's velocity: the stored velocity when the note is played, and 0 when it is released. Sent before the pitch so a sender downstream has it in hand by the time the pitch reaches its hot inlet.",
+        "index": 1,
+        "label": "velocity",
+        "range": "0-127",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The initial velocity — Max's first creation argument, whose documented default is 0. The middle inlet overwrites it afterwards, for notes played after that. Clamped to MIDI's 0-127 when it is read, and a velocity of 0 sends the pair without scheduling a release, a note-on with velocity 0 already being a release in MIDI.",
+        "name": "velocity",
+        "range": "0-127"
+      },
+      {
+        "default": "0",
+        "doc": "The initial note length in milliseconds — Max's second creation argument, whose documented default is immediate. A duration of 0 is not the same as no note: the release still comes on the next audio block, as its own event. The right inlet overwrites it afterwards, for notes played after that. A negative value counts as 0. Notes already sounding keep the duration they were played with.",
+        "name": "duration",
+        "range": "0+ ms"
+      }
+    ]
+  },
   ".match": {
     "category": "GENERIC",
     "description": "Watches the stream of values arriving at its inlet and sends the whole sequence out as a list the moment it spells the creation argument — Max's match, 'watches an incoming stream of ints, floats, symbols, lists, or messages, and outputs the stream after it has met the specification of its arguments'. This is pattern recognition over time rather than over a single value, which is the thing the patcher had no way to express: .sel and .split answer one number at a time and .change and .togedge compare a number with the one before it, so recognising a played motif, a controller gesture or a trigger sequence meant a chain of counters and gates whose state was implicit in the wiring. The word 'nn' is Max's wild card and matches any number, so '.match 1 nn 3' fires on 1, 5, 3 — and what comes out is what arrived, '1 5 3', not the pattern, which is why the object emits a list rather than a bang: the wildcard positions carry the information the patch was listening for. The rule that separates a working matcher from a plausible one is that a mismatch does not throw away the values that caused it, because those values may be the start of the next candidate: against '.match 1 2 3' the stream 1 2 1 2 3 matches, since the third value ends one candidate and begins another at the same moment, and an implementation that walks a cursor forward and resets it to 0 on a mismatch reports nothing at all there. So the object keeps the last N values received, N being the pattern length, and after every value asks whether that window now spells the pattern — every candidate starting position is tested at once rather than one chosen in advance, at a bounded cost of at most N comparisons per value with no allocation. Matches do not overlap: on a match the window is emptied, so '.match 1 1 1' fed five 1s fires once rather than three times, which is the same erasure Max's 'clear' performs by hand and is what makes the outlet a stream of events rather than of every window that happens to fit. A value that is not a number occupies its position in the stream and matches nothing there, breaking any candidate it lands in — that covers a symbol (a list token that does not read as a number in its entirety, so '5abc' is a symbol and not the number 5) and a non-finite value, where the patcher's usual 'read a non-finite as 0' substitution is deliberately not applied because it would let a stray NaN complete a sequence a patch wired for a real 0; a NaN could never match a literal in any case, and what the rule settles is that it does not match the wildcard either. Comparison against a literal is exact, as .sel's and .change's are, so a computed float may miss a literal it looks equal to and a .round upstream is the fix; an int is widened to a float and compared as one, since this patcher has one numeric type and '.match 5' and '.match 5.0' are the same parameter string. An argument that is neither a number nor 'nn' is kept as an element nothing can match, so the object goes silent rather than quietly matching a shorter sequence: the pattern's length is half of what the object means, and turning the uppercase typo '.match 1 NN 3' into '.match 1 3' would leave a box that fires on a sequence the patch never asked for. A pattern of zero elements — a bare .match, or a 'set' with no list — has no sequence to detect and stays silent, rather than matching everything immediately and putting an endless stream of empty lists on the outlet. Two messages: 'clear' empties the window without touching the pattern and emits nothing, and 'set <list>' replaces the pattern, taking 'nn' the way the creation arguments do, and empties the window too, since a partial candidate against the old pattern means nothing against the new one. 'set' deliberately does not rewrite the creation argument, so a DumpJSON after one saves the pattern the object was created with — the same split .peak's 'set' has from its 'initial' argument. There is no bang inlet: Max routes bang through 'anything', which performs the same as 'list', and a bang is a list of no values, so an inlet that accepted it would only be a way of spelling 'do nothing'. Calculate() does nothing, an emitting one having no stimulus to report. At most 256 pattern elements are held.",
@@ -3676,6 +3747,36 @@
       }
     ]
   },
+  ".midiflush": {
+    "category": "MIDI",
+    "description": "Releases every note left hanging — Max's 'midiflush' (issue #537), and the safety valve a MIDI patch needs. Put it in the stream, between the senders and '.midiout' or straight after '.midiin': everything that arrives at the inlet goes out of the outlet untouched, and on the way through the object remembers which notes the bytes left sounding. A bang then sends one note-off per sounding note, on exactly the channel it was played on, and empties the set — so a patch stopped mid-phrase does not leave the device holding a chord until someone power-cycles it. Nothing else in the patcher can do this: the sender objects are stateless formatters that do not know what they have sent, and '.midiout''s 'allnotesoff' is controller 123, which many devices ignore and which reaches only the one port that object holds. The stream is decoded properly rather than searched for status bytes, because a note-on may arrive with no status byte in front of it at all (running status, which is how a chord is usually sent), a timing clock may land between its two data bytes, and a system-exclusive dump is full of bytes that would read as notes if they were not inside a dump — the same three rules '.midiparse' keeps. Both spellings of a release clear a note, a note-off message and a note-on with velocity 0, so a device that uses either is not flushed for notes it has already let go. Both of the patcher's spellings of a byte list are read, the numeric one ('144 60 100', what '.midiformat', '.sxformat' and '.seq' send) and the binary one (what '.noteon' and the older senders build), and a bare int is a byte too, which is the shape '.midiin' emits. The note-offs it generates go out as numeric lists — '128 60 0' — the only spelling that survives the 0 byte every one of them ends with. What is sounding is a fixed bitmap of 16 channels by 128 pitches allocated with the object, so neither the pass-through nor the flush allocates, locks or blocks on the audio thread. Like '.midiparse' it opens no device and needs none, so it works on every platform. It does not fire by itself when the patcher is torn down — bang it before the patch goes away.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The MIDI stream, and the flush. Bytes arrive as a numeric list ('144 60 100', what '.midiformat' and '.seq' send), as a binary list (what '.noteon' and the older senders build), or as an int per byte (what '.midiin' emits); all three pass straight out of the outlet and are read for the notes they turn on and off. A float is read as an int, a value outside 0-255 is not a MIDI byte and is ignored rather than clamped, and a numeric list carrying one is dropped whole rather than sent in part. A bang here is the flush: a note-off for every note still sounding.",
+        "index": 0,
+        "label": "midi",
+        "range": "0-255"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".midiflush",
+    "outlets": [
+      {
+        "doc": "The stream, unaltered and in the spelling it arrived in, plus the note-offs a bang generates. Those go out as numeric byte lists, '128 60 0' being middle C released on channel 1, in channel then pitch order — feed the outlet to '.midiout' to reach hardware, or to '.midiparse' to read what went past.",
+        "index": 0,
+        "label": "midi",
+        "range": "0-255",
+        "type": "ANY"
+      }
+    ],
+    "params": []
+  },
   ".midiformat": {
     "category": "MIDI",
     "description": "Assembles structured data into raw MIDI messages — Max's 'midiformat' (issue #530), and the exact inverse of '.midiparse', inlet for outlet, so the two wire straight across and a patch can take a stream apart, edit the part it cares about and put it back together without ever spelling a status byte itself. It is also the combined form of the six single-purpose formatters ('.noteon', '.noteoff', '.controlchange', '.polypressure', '.channelpressure', '.programchange'): one box with one channel setting instead of six with six. Every inlet but the channel is hot — a message arriving at it produces a MIDI message at once, on whatever channel the channel inlet is holding, which is Max's rule and the reason the channel is the rightmost of Max's inlets. One complete message leaves the outlet as a list of byte values in decimal, '144 60 100' for a note-on: Max sends its bytes one at a time because Max's midiout reassembles them, while this patcher's transport is list text and '.seq' already documents a numeric byte list as the shape this object's output has, so a whole message per list is both the local convention and the safer one — three bytes that belong together cannot be split across two blocks by anything downstream. Program change takes 1-128 and pitch bend 0-127, the readings '.midiparse', '.pgmin' and '.bendin' report, so a round trip gives back the numbers it was given. Values are clamped into the ranges MIDI has rather than refused, so a patch that scales a controller into 0-140 produces sensible notes at the top of its range instead of silence. The one exception is the raw inlet, where a value outside 0-255 is not a byte at all and is dropped: clamping a status byte would change which message it is. The object opens no device and needs none, so it runs on every platform, and it allocates nothing on a message path — the outgoing text is built into a string reserved when the object is created.",
@@ -3802,15 +3903,64 @@
       }
     ]
   },
+  ".midiinfo": {
+    "category": "MIDI",
+    "description": "MIDI port directory — Max's 'midiinfo' (issue #536). Every other MIDI object in the patcher addresses a device by a bare index ('.midiout 2', '.notein 1') and nothing in a patch could say what index 2 actually is, so a patch that moved between machines silently addressed the wrong hardware. A bang reports the machine's ports: the count out the right outlet first, then one index / name pair per port in index order, so a patch can match a device by name and feed the index it found to the object that opens it. The name is sent whole, spaces and all, exactly as the driver spells it. Input and output ports are separate sets numbered separately — input port 1 and output port 1 are unrelated devices — and the 'direction' argument ('input', the default, or 'output') picks which set is reported; the messages 'input' and 'output' switch it live, and switching costs nothing because both sets are snapshotted together. A machine with no ports sends a count of 0 and nothing else. The ports are read once, on the control thread, when the object joins its patcher: RtMidi's enumeration allocates and talks to the platform's MIDI service, which the audio callback may not do, so a bang reads a fixed-size snapshot taken then. A controller plugged in afterwards is picked up by the 'refresh' message (issue #757), which does not enumerate on the spot — the message may have arrived on the audio thread — but asks a background thread to, and re-sends the whole listing out the same three outlets once the new snapshot lands, on the next block the patcher renders. At most 32 ports are held and a name longer than 63 characters is truncated. Nothing on the bang path allocates, locks or blocks, and two threads banging at once — or an outlet wired back into the inlet — are refused rather than allowed to recurse.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang reports the ports: the count, then an index and a name for each one. 'input' and 'output' switch which set is reported; 'refresh' re-scans the machine in the background and re-sends the listing when the new snapshot arrives. All three are accepted in either spelling — as a message from a '.message' box, or as a list.",
+        "index": 0,
+        "label": "bang",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".midiinfo",
+    "outlets": [
+      {
+        "doc": "The port's name as the driver reports it, sent whole — spaces included, truncated at 63 characters. Sent after the index of the same port, so anything it triggers downstream already knows which port is being named.",
+        "index": 0,
+        "label": "name",
+        "range": "",
+        "type": "LIST"
+      },
+      {
+        "doc": "The port's index — the number '.midiout', '.notein' and the rest of the MIDI family take as their 'port' argument. Counted from 0, within this direction only.",
+        "index": 1,
+        "label": "index",
+        "range": "0-31",
+        "type": "INT"
+      },
+      {
+        "doc": "How many ports the selected direction has. Sent once, before the first pair, so a patch knows how many to expect; 0 on a machine with none, and then nothing follows.",
+        "index": 2,
+        "label": "count",
+        "range": "0-32",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "input",
+        "doc": "Which set of ports to report: 'input' for the ports a patch can receive from, 'output' for the ones it can send to. Anything else reads as 'input'.",
+        "name": "direction",
+        "range": "input | output"
+      }
+    ]
+  },
   ".midiout": {
     "category": "MIDI",
-    "description": "MIDI device output — the end of every chain that sends. A message arrives at the inlet as a list of bytes and goes straight out of the selected hardware port, whole and in order. Both of the patcher's spellings of a byte list are read (issue #748): the numeric one, '144 60 100', which is what '.midiformat', '.sxformat' and '.seq' send and what a list is everywhere else in the patcher, and the binary one, whose characters are the bytes themselves, which is what the older senders ('.noteon', '.noteoff', '.controlchange', '.polypressure', '.channelpressure', '.programchange', '.bendout' and the '.x*out' family) build. The two cannot be confused: a MIDI message begins with a status byte, 128 or above, which is never a decimal digit. The message is sent at the length it has rather than padded or cut to three bytes, so a program change goes out as the two bytes it is and a system-exclusive dump of any length up to 256 bytes goes out entire; a numeric list carrying a number outside 0-255, or longer than that, is not a MIDI message and is dropped rather than sent in part. Also understands 'allnotesoff', 'reset', 'omni on/off', 'poly on/off' and 'local control on/off' as control messages. The port is opened on the first message rather than at creation, so a patch loads on a machine whose devices are not the ones it was written on.",
+    "description": "MIDI device output — the end of every chain that sends. A message arrives at the inlet as a list of bytes and goes straight out of the selected hardware port, whole and in order. Both of the patcher's spellings of a byte list are read (issue #748): the numeric one, '144 60 100', which is what '.midiformat', '.sxformat' and '.seq' send and what a list is everywhere else in the patcher, and the binary one, whose characters are the bytes themselves, which is what the older senders ('.noteon', '.noteoff', '.controlchange', '.polypressure', '.channelpressure', '.programchange', '.bendout' and the '.x*out' family) build. The two cannot be confused: a MIDI message begins with a status byte, 128 or above, which is never a decimal digit. The message is sent at the length it has rather than padded or cut to three bytes, so a program change goes out as the two bytes it is and a system-exclusive dump of any length up to 256 bytes goes out entire; a numeric list carrying a number outside 0-255, or longer than that, is not a MIDI message and is dropped rather than sent in part. Also understands 'allnotesoff', 'reset', 'omni on/off', 'poly on/off' and 'local control on/off' as control messages. The port is opened on the first message rather than at creation, so a patch loads on a machine whose devices are not the ones it was written on. That first message asks a background thread to open it and is itself dropped (issue #759): the handler runs on whichever thread sent the message — routinely the audio callback — and opening a port allocates, talks to the platform's MIDI service and can block for as long as the driver takes, none of which may happen there. The port is usually open by the next message; everything sent in between is dropped, which is what already happened to every message when the open failed.",
     "inlets": [
       {
         "accepts": [
           "LIST"
         ],
-        "doc": "One MIDI message to send, as a list of bytes: numeric ('144 60 100', the shape '.midiformat' and '.sxformat' send) or binary (the shape the older senders build). Sent at the length it arrives with.",
+        "doc": "One MIDI message to send, as a list of bytes: numeric ('144 60 100', the shape '.midiformat' and '.sxformat' send) or binary (the shape the older senders build). Sent at the length it arrives with. The first message opens the port in the background and is dropped; send a bang-driven stream rather than a single message if the very first one matters.",
         "index": 0,
         "label": "midi",
         "range": "0-255"
@@ -3950,6 +4100,186 @@
         "doc": "Initial comparand, and what a bang reports before anything has been sent.",
         "name": "initial",
         "range": "any float"
+      }
+    ]
+  },
+  ".mpeconfig": {
+    "category": "MIDI",
+    "description": "Configures an MPE zone on a controller or synthesiser — Max's 'mpeconfig' (issue #535). MPE gives every sounding note a MIDI channel of its own, so that pitch bend, pressure and controller 74 stop being per-instrument and become per-note; that only works if the two ends agree on which channels are notes and which one carries the instrument as a whole, and the MPE Configuration Message is that agreement. It is the one message in the whole of MPE that is not ordinary MIDI used in a particular way: registered parameter number '00 06', so three control changes — controllers 100 and 101 select the parameter and controller 6 carries the number of member channels — sent on the zone's master channel, which is channel 1 for the lower zone and channel 16 for the upper. A count of 0 turns the zone off, which is the specification's own way of saying 'go back to plain MIDI' and is what a patch sends when it hands the controller to something that is not MPE-aware, so it is a real value rather than a degenerate one. Counts are clamped into 0-15 rather than refused, as everywhere in this family. The three messages leave as three separate lists because '.midiout' sends each list it receives as a single MIDI message, so nine bytes together would arrive as one malformed message rather than three good ones; the fine byte of the parameter number goes first, which is the reverse of '.rpnout''s order and is the literal byte sequence the MPE specification prints for this message, so that a device pattern-matching the configuration message rather than running a general parameter-number state machine still recognises it. The Data Entry LSB that would follow on controller 38 is not sent, the configuration message's fine byte being explicitly unused. Worth knowing at the far end: receiving this message requires a device to set its master channel's pitch-bend range to two semitones and every member channel's to 48, and to stop ongoing notes and reset controllers on every channel entering or leaving the zone — which is why '.mpeformat' takes a fourteen-bit bend. The output is a numeric byte list, the shape '.midiformat' and '.sxformat' send and '.midiout' reads. Unlike Max, which allows up to seven zones placed anywhere among the sixteen channels, this object implements the two zones MPE 1.0 defines, because what a patch gains here is talking to real hardware. It opens no device and needs none, so it runs on every platform.",
+    "inlets": [
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "How many member channels the zone is to have, 0-15 (also fires the three messages). 15 is the usual answer and the default — the whole of the rest of the cable, which is what a controller playing on its own wants. A smaller number leaves room for a second zone or for plain-MIDI traffic beside it. 0 switches the zone off, which is a real instruction rather than a refusal.",
+        "index": 0,
+        "label": "members",
+        "range": "0-15"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".mpeconfig",
+    "outlets": [
+      {
+        "doc": "Three encoded MIDI Control Change messages, one list each and in order: controller 100 and controller 101 selecting registered parameter '00 06', then controller 6 carrying the member channel count. Three lists rather than one, because '.midiout' sends each list it receives as a single MIDI message. Wire it straight to a '.midiout' pointed at the controller.",
+        "index": 0,
+        "label": "midi",
+        "range": "0-255",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Which MPE zone this object belongs to: 0 for the lower zone, whose master is channel 1 and whose member channels count up from 2, or 1 for the upper zone, whose master is channel 16 and whose members count down from 15. The two grow away from each other so that two instruments can share one cable. 0 is the default, is the specification's recommended power-on state, and is what a controller in its factory state uses; anything other than 1 is read as the lower zone. MPE defines these two zones and no others — Max's seven-zone 'masterchan' arrangement is Max's own, and hardware implements the specification.",
+        "name": "zone",
+        "range": "0-1"
+      }
+    ]
+  },
+  ".mpeformat": {
+    "category": "MIDI",
+    "description": "Assembles MPE MIDI messages — Max's 'mpeformat' (issue #535), and the exact inverse of '.mpeparse', inlet for outlet, so the two wire straight across. MPE's expressive gestures are not new messages: they are ordinary note, pitch bend, channel pressure and controller 74 messages sent on a channel that stands for one note rather than for a whole instrument. This is the box that addresses them — set the member channel on the right inlet once, then feed it notes, bends, pressures and slides, and each leaves as a complete MIDI message belonging to that note. Two readings differ from '.midiformat' and both are the point of the object. Bend is the full 14 bits, 0-16383 with 8192 at rest, rather than the coarse byte alone: receiving an MPE configuration message sets a device's per-note bend range to 48 semitones instead of 2, so a seven-bit bend would step in three quarters of a semitone and a glide would sound like a staircase. And pressure and slide are per-note here because the channel makes them so — channel pressure on a member channel is that one note's pressure, and controller 74 on it is that note's forward-back position. A release is a note-on with velocity 0, which is what '.midiformat' sends and what '.mpeparse' reports, so a note round-trips through the pair as the pair described it; a real note-off message is '.noteoff''s and '.xnoteout''s. Values are clamped into the ranges MIDI has rather than refused. Each message leaves as one numeric byte list, the shape '.midiout' reads. Where Max gives this object one inlet per member channel and emits 'mpeevent' messages for 'poly~' and 'vst~', this patcher has neither and an object whose inlet count is a creation argument would have no stable inlet numbering, so the member channel is a single cold inlet as it is on '.midiformat'. Use '.mpeconfig' to tell the receiving device how many member channels to expect. The object opens no device and needs none, so it runs on every platform, and it allocates nothing on a message path.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The list 'pitch velocity', or a bare pitch with velocity 0. Velocity 0 is a release, which is how '.mpeparse' reports one, so the pair round-trips; a real note-off message (status 128) is what '.noteoff' and '.xnoteout' send and is not produced here.",
+        "index": 0,
+        "label": "note",
+        "range": "0-127 0-127"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Per-note pitch bend, 0-16383 with 8192 at rest — all fourteen bits, not '.midiformat''s coarse byte. The whole of MPE's pitch expression rides on this inlet, and at the 48-semitone range a configured device uses, seven bits would not be enough to glide smoothly.",
+        "index": 1,
+        "label": "bend",
+        "range": "0-16383"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Per-note pressure, 0-127: how hard the one finger holding this note is pressing. Sent as channel pressure, which on a member channel belongs to that note alone.",
+        "index": 2,
+        "label": "pressure",
+        "range": "0-127"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Per-note slide, 0-127 — controller 74, MPE's third dimension, the forward-back position of a finger on a controller that has one. Also called timbre, or the Y axis.",
+        "index": 3,
+        "label": "slide",
+        "range": "0-127"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The member channel every message is addressed to, 1-16. Cold: it stores and sends nothing, which is '.midiformat''s rule for the same inlet. One channel is one note, so a polyphonic patch moves this inlet between notes. Defaults to 1.",
+        "index": 4,
+        "label": "channel",
+        "range": "1-16"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".mpeformat",
+    "outlets": [
+      {
+        "doc": "One complete MIDI message per hot inlet message, as a numeric byte list: '146 60 100' is a note-on for middle C on channel 3. Wire it to a '.midiout', or to a '.mpeparse' to read back what was built.",
+        "index": 0,
+        "label": "midi",
+        "range": "0-255",
+        "type": "LIST"
+      }
+    ],
+    "params": []
+  },
+  ".mpeparse": {
+    "category": "MIDI",
+    "description": "Interprets raw MPE MIDI data — Max's 'mpeparse' (issue #535). MPE gives every sounding note a MIDI channel of its own, so pitch bend, channel pressure and controller 74 — three ordinary per-channel messages — become per-note ones, and reading an MPE stream is a matter of knowing which channel a message arrived on and what that channel is doing. Bytes arrive at the inlet one at a time, as '.midiin' and '.seq' send them, or as a numeric list, as '.mpeformat' and '.midiformat' send them, and the four MPE gestures leave the four leftmost outlets, each preceded by the channel that carried it and by that channel's role in the zone. The role is the second half of the answer the channel gives: a message on the zone's master channel applies to every note at once, one on a member channel belongs to the single note sounding there, and one on a channel outside the zone belongs to neither — the other zone's traffic, or plain MIDI sharing the cable. All three are reported rather than the third being dropped, because a patch can filter but cannot recover what an object threw away. Bend is the full 14 bits, 0-16383 with 8192 at rest, which is what a device configured for MPE's 48-semitone per-note range needs and what '.xbendin' also reports. The object learns as it reads: the 'zone' and 'members' arguments say what to assume and default to the specification's recommended power-on state — the lower zone with all fifteen member channels — and an MPE Configuration Message seen on that zone's master channel updates the member count live, so a patch that sends '.mpeconfig' at one end reads the right roles at the other without being told twice. That message is consumed rather than reported: it is configuration, not expression. Program changes, other controllers, polyphonic key pressure and system exclusive are deliberately not decoded here — Max's object is its 'midiparse' plus four MPE outlets, while this patcher already has '.midiparse', and two decoders to keep in step is one too many; wire '.midiparse' to the same source and nothing in the stream is lost. Running status, interleaved real-time bytes and system-exclusive dumps are all tracked so that they cannot desynchronise the framing. The object opens no device and needs none, so it decodes a stream from a file, from '.seq' or from a patch on every platform.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Raw MIDI bytes: an int per byte, as '.midiin' and '.seq' send them, or a numeric list, as '.mpeformat' and '.midiformat' send them. Both go through the same state machine, so a message split across several messages decodes exactly as one arriving whole does. A float is read as an int; a value outside 0-255 is not a MIDI byte and is ignored rather than clamped, since clamping would turn a stray number into a status byte and desynchronise everything after it.",
+        "index": 0,
+        "label": "midi",
+        "range": "0-255"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".mpeparse",
+    "outlets": [
+      {
+        "doc": "Note-on and note-off as the list 'pitch velocity'. A release is reported as velocity 0 whichever way the device spelled it — a note-off message, or a note-on with velocity 0 — so a patch tests for it once, with a '.sel 0' or a '.togedge'. On a member channel this is the note that channel now stands for.",
+        "index": 0,
+        "label": "note",
+        "range": "0-127 0-127",
+        "type": "LIST"
+      },
+      {
+        "doc": "Pitch bend, 0-16383 with 8192 at rest — all fourteen bits, not '.bendin''s coarse byte. On a member channel this bends the one note sounding there; on the master channel it bends the whole zone, and a receiver is required to combine the two.",
+        "index": 1,
+        "label": "bend",
+        "range": "0-16383",
+        "type": "INT"
+      },
+      {
+        "doc": "Channel pressure, 0-127. On a member channel this is the pressure of the one finger holding that note — MPE's second dimension — rather than a single value for the whole keyboard, which is what makes it worth having a separate object for.",
+        "index": 2,
+        "label": "pressure",
+        "range": "0-127",
+        "type": "INT"
+      },
+      {
+        "doc": "Controller 74, 0-127 — MPE's third dimension, the forward-back position of a finger. Also called timbre, or the Y axis. Every other controller belongs to '.midiparse'.",
+        "index": 3,
+        "label": "slide",
+        "range": "0-127",
+        "type": "INT"
+      },
+      {
+        "doc": "The channel the message arrived on, 1-16 rather than the 0-15 nibble on the wire. In MPE this is the note's identity — one channel is one note — so a patch routes on it to keep voices apart. Sent before the outlets to its left, so anything a value triggers downstream already knows whose note it is.",
+        "index": 4,
+        "label": "channel",
+        "range": "1-16",
+        "type": "INT"
+      },
+      {
+        "doc": "What the channel is doing in the zone: 2 for the master channel, whose messages apply to every note at once; 1 for a member channel, whose messages belong to the one note sounding there; 0 for a channel taking no part in this zone, which is the other zone's traffic or plain MIDI sharing the cable. Sent first of all, before the channel outlet.",
+        "index": 5,
+        "label": "role",
+        "range": "0-2",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Which MPE zone this object belongs to: 0 for the lower zone, whose master is channel 1 and whose member channels count up from 2, or 1 for the upper zone, whose master is channel 16 and whose members count down from 15. The two grow away from each other so that two instruments can share one cable. 0 is the default, is the specification's recommended power-on state, and is what a controller in its factory state uses; anything other than 1 is read as the lower zone. MPE defines these two zones and no others — Max's seven-zone 'masterchan' arrangement is Max's own, and hardware implements the specification.",
+        "name": "zone",
+        "range": "0-1"
+      },
+      {
+        "default": "15",
+        "doc": "How many member channels to assume the zone has until a configuration message in the stream says otherwise, 0-15. 15 is the default and the specification's recommended power-on state — the whole of the rest of the cable. It decides only which channels the role outlet calls members; nothing is filtered out on the strength of it.",
+        "name": "members",
+        "range": "0-15"
       }
     ]
   },
@@ -4196,6 +4526,93 @@
     "outlets": [
       {
         "doc": "Encoded MIDI Note-On message (status, pitch, velocity).",
+        "index": 0,
+        "label": "midi",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "MIDI channel offset (0-based).",
+        "name": "channel",
+        "range": "0-15"
+      }
+    ]
+  },
+  ".nrpnin": {
+    "category": "MIDI",
+    "description": "Non-registered parameter number input — Max's 'nrpnin' (issue #534). The same mechanism '.rpnin' reports, with controllers 99 and 98 selecting the 14-bit parameter number instead of 101 and 100, and controllers 6 and 38 writing the 14-bit value as before. The difference is what the number means: a registered number is the MIDI specification's and means the same everywhere, while a non-registered one means whatever the sending device's documentation says. That is where a hardware synthesiser's filter cutoff, envelope times and oscillator settings actually live, so this is the object that lets a patch follow a synth's own front panel. A write is four control changes rather than one message and the selection is tracked per channel; both selecting pairs move the same register, so this object stays quiet while a registered parameter is selected and an interleaved stream comes out of the right box. Parameter 16383 is reported here — the Null is defined for registered numbers only, and stealing a legal non-registered address would silence a device that used it. A value is emitted on both halves, the coarse byte at once with the fine byte read as 0, so a device that sends only the coarse byte is still heard. The three outlets fire right to left. A 'channel' argument filters and, unlike Max, leaves the channel outlet in place. Events cross from the device backend's thread on a bounded lock-free queue and are drained once per audio block, so nothing allocates, locks or blocks on either side.",
+    "inlets": [],
+    "is_dsp": false,
+    "name": ".nrpnin",
+    "outlets": [
+      {
+        "doc": "The value written, 0-16383, sent last of the three so the parameter number and channel that identify it are already out when it triggers anything. A device that sends only the coarse byte covers the range in steps of 128.",
+        "index": 0,
+        "label": "value",
+        "range": "0-16383",
+        "type": "INT"
+      },
+      {
+        "doc": "Which non-registered parameter was written, 0-16383. What each number means is the sending device's business — read it off the manufacturer's MIDI implementation chart.",
+        "index": 1,
+        "label": "parameter",
+        "range": "0-16383",
+        "type": "INT"
+      },
+      {
+        "doc": "The MIDI channel the sequence arrived on, 1-16 — the numbering Max uses, the numbering the sending objects use, and the numbering printed on the hardware, rather than the 0-15 nibble on the wire. Sent first, before the outlets to its left, so anything the leftmost outlet triggers downstream already knows which channel it is looking at.",
+        "index": 2,
+        "label": "channel",
+        "range": "1-16",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Index of the MIDI input device to listen to, as numbered by YSE::system::getMidiInDeviceName. The port is opened the first time any patcher object asks for it and closed when the last one goes, so several objects on one keyboard share a single device and each still gets a queue of its own. A port that will not open — no hardware, or a backend that allows one client per port and a host that already holds it — leaves an object that is perfectly valid and simply never receives anything, which is what lets a patch load the same way on a machine with nothing plugged in. Editing this argument on a live object rebuilds the object rather than storing into it: the subscription is taken when the object joins its patcher, and a field written on the audio thread cannot move a device port.",
+        "name": "port",
+        "range": "0-7"
+      },
+      {
+        "default": "0",
+        "doc": "MIDI channel to accept, 1-16, or 0 for every channel — Max's omni, and the default. Unlike Max, giving a channel here does not remove the channel outlet: an object whose outlet count depends on its arguments has no stable outlet numbering, so adding an argument would silently re-point every cord leaving the box and a saved patch's connection indices would mean two different things. The outlet stays and carries the filtered channel back, which costs a patch nothing.",
+        "name": "channel",
+        "range": "0-16"
+      }
+    ]
+  },
+  ".nrpnout": {
+    "category": "MIDI",
+    "description": "Non-registered parameter number sender — Max's 'nrpnout' (issue #534). The same mechanism '.rpnout' uses, with controllers 99 and 98 selecting the 14-bit parameter number instead of 101 and 100, and controllers 6 and 38 writing the 14-bit value as before. The difference is what the number means: a registered number is the MIDI specification's and means the same everywhere, while a non-registered one means whatever the device's own documentation says. That is where a hardware synthesiser's filter cutoff, envelope times and oscillator settings actually live — the parameters a patch most wants to reach and the ones no standard controller addresses — so this is the object that makes 16384 of a synth's own parameters playable from a patch. As with '.rpnout' the selection is re-sent with every value, because the receiving device has one selected parameter and anything else on the cable can move it; the four messages leave as four separate lists, one per MIDI message; and values and parameter numbers are clamped into 0-16383 rather than refused. The output is a raw byte list for '.midiout'.",
+    "inlets": [
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "The value to write, at the full 14-bit resolution the Data Entry pair carries (also fires all four messages). A device that reads only the coarse half sees the value in steps of 128, which is the same reading it would give a plain controller.",
+        "index": 0,
+        "label": "value",
+        "range": "0-16383"
+      },
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "Non-registered parameter number to write to, stored until the next value. What each number means is the receiving device's business — read it off the manufacturer's MIDI implementation chart.",
+        "index": 1,
+        "label": "parameter",
+        "range": "0-16383"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".nrpnout",
+    "outlets": [
+      {
+        "doc": "Four encoded MIDI Control Change messages, one list each and in order: the parameter number's coarse byte, its fine byte, the value's coarse byte on controller 6, and its fine byte on controller 38. Four lists rather than one, because '.midiout' sends each list it receives as a single MIDI message.",
         "index": 0,
         "label": "midi",
         "range": "",
@@ -5492,6 +5909,93 @@
         "doc": "Max's argument list, in Max's order: how many routable inlets to build, then how many routable outlets. Each is clamped to 1-256 and defaults to 2 — Max documents both as optional and states no default, so the family's is used. The object builds one inlet and one outlet more than these, for the connection messages and for dump. A float is truncated; anything that is not a whole finite number is ignored and leaves that default in place. The connections themselves are not parameters and do not survive a save — 'dump' is how a patch reads them back.",
         "name": "inlets",
         "range": "1-256, optional outlets 1-256"
+      }
+    ]
+  },
+  ".rpnin": {
+    "category": "MIDI",
+    "description": "Registered parameter number input — Max's 'rpnin' (issue #534). MIDI has 128 controller numbers and a synthesiser has far more than 128 parameters; registered and non-registered parameter numbers are the escape hatch, and this is the registered half. A write is not one message but four control changes — controllers 101 and 100 select a 14-bit parameter number, then controllers 6 and 38 write a 14-bit value into whatever is selected — so this object is a small state machine rather than a decoder: nothing in the value bytes says which parameter they belong to, and remembering that is the whole job. The selection is tracked per channel, so two devices on one cable cannot cross-contaminate each other. Registered numbers are the specification's own and mean the same thing on every device that implements them: 0 pitch-bend sensitivity, 1 fine tuning, 2 coarse tuning, 3 tuning program select, 4 tuning bank select. Manufacturer-specific numbers are '.nrpnin''s, and because both pairs move the same selection register, an interleaved stream comes out of the right box — this object stays quiet while a non-registered parameter is selected. The RPN Null (parameter 16383) deselects, as the specification intends, so a Data Entry that follows an abandoned sequence is reported by nobody. A value is emitted on both halves, not only on the fine one: the coarse byte emits at once with the fine byte read as 0, which is what keeps the many devices that send only the coarse byte from leaving the object silent. The three outlets fire right to left. A 'channel' argument filters and, unlike Max, leaves the channel outlet in place. Events cross from the device backend's thread on a bounded lock-free queue and are drained once per audio block, so nothing allocates, locks or blocks on either side.",
+    "inlets": [],
+    "is_dsp": false,
+    "name": ".rpnin",
+    "outlets": [
+      {
+        "doc": "The value written, 0-16383, sent last of the three so the parameter number and channel that identify it are already out when it triggers anything. A device that sends only the coarse byte covers the range in steps of 128.",
+        "index": 0,
+        "label": "value",
+        "range": "0-16383",
+        "type": "INT"
+      },
+      {
+        "doc": "Which registered parameter was written, 0-16383: 0 pitch-bend sensitivity, 1 fine tuning, 2 coarse tuning, 3 tuning program select, 4 tuning bank select. 16383 is never reported — that is the Null, which deselects rather than selecting.",
+        "index": 1,
+        "label": "parameter",
+        "range": "0-16382",
+        "type": "INT"
+      },
+      {
+        "doc": "The MIDI channel the sequence arrived on, 1-16 — the numbering Max uses, the numbering the sending objects use, and the numbering printed on the hardware, rather than the 0-15 nibble on the wire. Sent first, before the outlets to its left, so anything the leftmost outlet triggers downstream already knows which channel it is looking at.",
+        "index": 2,
+        "label": "channel",
+        "range": "1-16",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Index of the MIDI input device to listen to, as numbered by YSE::system::getMidiInDeviceName. The port is opened the first time any patcher object asks for it and closed when the last one goes, so several objects on one keyboard share a single device and each still gets a queue of its own. A port that will not open — no hardware, or a backend that allows one client per port and a host that already holds it — leaves an object that is perfectly valid and simply never receives anything, which is what lets a patch load the same way on a machine with nothing plugged in. Editing this argument on a live object rebuilds the object rather than storing into it: the subscription is taken when the object joins its patcher, and a field written on the audio thread cannot move a device port.",
+        "name": "port",
+        "range": "0-7"
+      },
+      {
+        "default": "0",
+        "doc": "MIDI channel to accept, 1-16, or 0 for every channel — Max's omni, and the default. Unlike Max, giving a channel here does not remove the channel outlet: an object whose outlet count depends on its arguments has no stable outlet numbering, so adding an argument would silently re-point every cord leaving the box and a saved patch's connection indices would mean two different things. The outlet stays and carries the filtered channel back, which costs a patch nothing.",
+        "name": "channel",
+        "range": "0-16"
+      }
+    ]
+  },
+  ".rpnout": {
+    "category": "MIDI",
+    "description": "Registered parameter number sender — Max's 'rpnout' (issue #534). MIDI has 128 controller numbers and a synthesiser has far more than 128 parameters; registered and non-registered parameter numbers are the escape hatch, and this is the registered half. A value on the inlet emits four complete Control Change messages: controller 101 and controller 100 select the 14-bit parameter number given on the right inlet, then controllers 6 and 38 write the 14-bit value. Registered numbers are the ones the MIDI specification itself assigns and mean the same thing on every device that implements them — 0 pitch-bend sensitivity, 1 fine tuning, 2 coarse tuning, 3 tuning program select, 4 tuning bank select — so a patch can widen a synth's bend range without consulting a manufacturer's chart. Manufacturer-specific parameters are '.nrpnout''s. The selection is re-sent with every value rather than only when the parameter number changes: the receiving device has one selected parameter, and anything else on the cable can move it between two values from this box, which is the failure this mechanism is notorious for. The four messages leave as four separate lists because '.midiout' sends each list it receives as a single MIDI message, so twelve bytes together would arrive as one malformed message rather than four good ones. The RPN Null that closes a sequence is not appended — Max does not send it either, and a patch that wants it can address parameter 16383 explicitly. Values and parameter numbers are clamped into 0-16383 rather than refused, as everywhere in this family. The output is a raw byte list for '.midiout'.",
+    "inlets": [
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "The value to write, at the full 14-bit resolution the Data Entry pair carries (also fires all four messages). A device that reads only the coarse half sees the value in steps of 128, which is the same reading it would give a plain controller.",
+        "index": 0,
+        "label": "value",
+        "range": "0-16383"
+      },
+      {
+        "accepts": [
+          "INT"
+        ],
+        "doc": "Registered parameter number to write to, stored until the next value. 0 is pitch-bend sensitivity, 1 fine tuning, 2 coarse tuning, 3 tuning program select, 4 tuning bank select; 16383 is the specification's Null, which deselects rather than writing.",
+        "index": 1,
+        "label": "parameter",
+        "range": "0-16383"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".rpnout",
+    "outlets": [
+      {
+        "doc": "Four encoded MIDI Control Change messages, one list each and in order: the parameter number's coarse byte, its fine byte, the value's coarse byte on controller 6, and its fine byte on controller 38. Four lists rather than one, because '.midiout' sends each list it receives as a single MIDI message.",
+        "index": 0,
+        "label": "midi",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "MIDI channel offset (0-based).",
+        "name": "channel",
+        "range": "0-15"
       }
     ]
   },

@@ -15,12 +15,33 @@
 #include <doctest/doctest.h>
 #include "patcher/patcherImplementation.h"
 #include "patcher/pHandle.hpp"
+#include "patcher/pObject.h"
 #include "patcher/pObjectList.hpp"
 #include "dsp/buffer.hpp"
+#include "sinks.hpp"
 #include <chrono>
+#include <string>
 #include <thread>
 
 using YSE::PATCHER::patcherImplementation;
+
+namespace {
+
+  // The smallest possible sender: one control outlet and nothing else. Used by
+  // the destructor cases below, which are about the outlet/inlet edge lists
+  // rather than about any object's behaviour.
+  struct OneOutlet : YSE::PATCHER::pObject {
+    OneOutlet() : pObject(false) {
+      outputs.emplace_back(this, YSE::OUT_TYPE::INT);
+    }
+    const char* Type() const override {
+      return "teardown_source";
+    }
+    void Calculate(YSE::THREAD) override {}
+    void SetMessage(const std::string&, float) override {}
+  };
+
+} // namespace
 
 TEST_SUITE("patcher") {
 
@@ -216,6 +237,57 @@ TEST_SUITE("patcher") {
     // outlet side must stay clean too.
     p.Connect(noiseB, 0, sw, 0);
     CHECK(noiseB->GetConnections(0) == 0);
+  }
+
+  TEST_CASE("teardown: an outlet's destructor detaches every peer, not every second one (#537)") {
+    // `outlet::~outlet` used to walk `connections` in place while the
+    // `inlet::Disconnect` it called erased from that same vector, shifting the
+    // rest down. The loop's `i++` then stepped over whatever moved into the
+    // freed slot, so an outlet with two peers detached only one — and the other
+    // was left holding a pointer to storage the destructor was about to free.
+    // The next inlet destroyed called `Disconnect` on it: the #537
+    // heap-use-after-free, which ASan caught the first time a standalone rig
+    // gave one outlet two peers.
+    //
+    // Two sinks on one outlet is the smallest shape that shows it, and the
+    // check needs no sanitizer: a peer that was skipped still names the outlet.
+    TestHelpers::IntSink a;
+    TestHelpers::IntSink b;
+    {
+      // Standalone, deliberately: every deletion path in a real patcher calls
+      // pObject::UnwireFromPeers first (which always took the list away before
+      // walking it), so the destructor is reached with the lists already empty.
+      // A unit rig is what reaches the destructor with edges still on it.
+      OneOutlet src;
+      TestHelpers::Wire(src, 0, a, 0);
+      TestHelpers::Wire(src, 0, b, 0);
+      REQUIRE(src.GetOutlet(0)->GetConnections() == 2u);
+      REQUIRE(a.GetInlet(0)->Sources().size() == 1u);
+      REQUIRE(b.GetInlet(0)->Sources().size() == 1u);
+    }
+
+    CHECK(a.GetInlet(0)->Sources().empty());
+    CHECK(b.GetInlet(0)->Sources().empty());
+  }
+
+  TEST_CASE("teardown: an inlet's destructor detaches every source (#537)") {
+    // The mirror invariant. It is deliberately *not* a regression test: this
+    // end was already correct, because `outlet::Disconnect` erases only from
+    // the outlet's own list and never calls back into the inlet's, so nothing
+    // mutated the vector under that loop. Pinned anyway — the two ends read
+    // alike, one of them was unsound, and the pair should be held to one
+    // standard rather than left for the next reader to tell apart.
+    OneOutlet a;
+    OneOutlet b;
+    {
+      TestHelpers::IntSink sink;
+      TestHelpers::Wire(a, 0, sink, 0);
+      TestHelpers::Wire(b, 0, sink, 0);
+      REQUIRE(sink.GetInlet(0)->Sources().size() == 2u);
+    }
+
+    CHECK(a.GetOutlet(0)->GetConnections() == 0u);
+    CHECK(b.GetOutlet(0)->GetConnections() == 0u);
   }
 
   TEST_CASE("connect: deleting the target of a refused connection leaves no dangling edge") {

@@ -152,8 +152,22 @@
 // The extended-precision senders (issue #533), siblings of the seven above and
 // unconditional with them.
 #include "midi/mMidiXOut.h"
+// The parameter-number senders (issue #534), unconditional for the same reason:
+// they format control changes and open no device.
+#include "midi/mMidiRpnOut.h"
+// The MPE family (issue #535). Unconditional too: two of the three format bytes
+// onto a list outlet and the third decodes bytes off an inlet, so none of them
+// needs a device backend to be worth having.
+#include "midi/mMpe.h"
 // The MIDI codec pair (issue #530) is registered unconditionally below too.
 #include "midi/mMidiCodec.h"
+// `.midiflush` (issue #537), unconditional for the same reason as the codec: it
+// reads bytes and writes bytes, and opens no device.
+#include "midi/mMidiFlush.h"
+// `.makenote` (issue #538), unconditional too: it emits a pitch and a velocity
+// on two int outlets and holds no port, so it drives a patcher-built synth on a
+// platform with no MIDI hardware exactly as it drives a rack on one that has.
+#include "midi/mMakeNote.h"
 // The system-exclusive pair (issue #531). One header, two guards: `.sxformat`
 // is compiled everywhere and `.sysexin` only where there is an input port to
 // open, so the include itself carries no `#if`.
@@ -170,6 +184,13 @@
 // The extended-precision input objects (issue #533) are built on that family's
 // plumbing and share its guard exactly.
 #include "midi/mMidiXIn.h"
+// The parameter-number input objects (issue #534) are built on that same
+// plumbing and share its guard exactly.
+#include "midi/mMidiRpnIn.h"
+// `.midiinfo` (issue #536) enumerates the backend's ports, so it needs the
+// backend to exist; same guard again, and nothing else riding along with it
+// (issue #754).
+#include "midi/mMidiInfo.h"
 #endif
 
 using namespace YSE::PATCHER;
@@ -635,6 +656,25 @@ pRegistry::pRegistry() {
   Add(OBJ::M_XCTLOUT, mXCtlOut::Create);
   Add(OBJ::M_XNOTEOUT, mXNoteOut::Create);
 
+  // The parameter-number senders (issue #534). Not a fifth channel-voice
+  // message but a sequence of four control changes: two that select a 14-bit
+  // parameter number and two that write a 14-bit value into it, which is how
+  // MIDI addresses the parameters no controller number reaches.
+  Add(OBJ::M_RPNOUT, mRpnOut::Create);
+  Add(OBJ::M_NRPNOUT, mNrpnOut::Create);
+
+  // The MPE family (issue #535). MPE is not a new protocol but an agreement
+  // about how to use the sixteen channels MIDI already has — one channel per
+  // sounding note, so that bend, pressure and controller 74 become per-note —
+  // which is why all three of these are ordinary formatters and decoders rather
+  // than anything that needs a backend. `.polymidiin`, the fourth object issue
+  // #535 names, is not here: in Max it lives inside a `poly~` and receives that
+  // object's `mpeevent` routing, and this patcher has no `poly~` for it to live
+  // in.
+  Add(OBJ::M_MPECONFIG, mMpeConfig::Create);
+  Add(OBJ::M_MPEFORMAT, mMpeFormat::Create);
+  Add(OBJ::M_MPEPARSE, mMpeParse::Create);
+
 #if YSE_ENABLE_MIDI_DEVICE
   // The one sender that holds a device port, so the one that stays guarded.
   Add(OBJ::M_OUT, mMidiOut::Create);
@@ -646,6 +686,21 @@ pRegistry::pRegistry() {
   // from `.seq` or from a patch works on every platform. See mMidiCodec.h.
   Add(OBJ::M_PARSE, mMidiParse::Create);
   Add(OBJ::M_FORMAT, mMidiFormat::Create);
+
+  // `.midiflush` (issue #537): the safety valve, and unguarded for the same
+  // reason the codec pair is. It sits in the stream, passes everything through
+  // and remembers what is sounding, so a bang can release exactly the notes a
+  // patch stopped mid-phrase left hanging. A patch driving a software synth
+  // built out of patcher objects strands notes exactly as one driving hardware
+  // does, so this must exist where there is no hardware to blame.
+  Add(OBJ::M_MIDIFLUSH, mMidiFlush::Create);
+
+  // `.makenote` (issue #538): the other half of the same problem. `.midiflush`
+  // releases notes a patch already stranded; this one makes stranding them
+  // impossible, by scheduling the release at the instant of the attack. Every
+  // sender downstream of it is a stateless formatter that remembers nothing, so
+  // until this existed a patch had to send its own note-offs by hand.
+  Add(OBJ::M_MAKENOTE, mMakeNote::Create);
 
 #if YSE_ENABLE_MIDI_DEVICE
   // The MIDI input family (issue #529) — the way *into* a patch. Every object
@@ -695,6 +750,19 @@ pRegistry::pRegistry() {
   Add(OBJ::M_XCTLIN, mXCtlIn::Create);
   Add(OBJ::M_XNOTEIN, mXNoteIn::Create);
   Add(OBJ::M_XMIDIIN, mXMidiIn::Create);
+
+  // The parameter-number input objects (issue #534). Same plumbing again, with
+  // the one piece of real state in the family: a value carries no parameter
+  // number of its own, so these two remember per channel what the selecting
+  // controllers last pointed at and report only the writes of their own kind.
+  Add(OBJ::M_RPNIN, mRpnIn::Create);
+  Add(OBJ::M_NRPNIN, mNrpnIn::Create);
+
+  // The port directory (issue #536). Not an input object at all — it opens
+  // nothing and receives nothing — but it asks the same backend which ports
+  // exist, so it lives and dies with it. It is what lets a patch find out what
+  // the bare index every other MIDI object takes actually refers to.
+  Add(OBJ::M_MIDIINFO, mMidiInfo::Create);
 #endif
 
   // The building half of the system-exclusive pair (issue #531). Unguarded for

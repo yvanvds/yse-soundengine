@@ -48,9 +48,24 @@ namespace {
 outlet::outlet(pObject* owner, YSE::OUT_TYPE type) : type(type), owner(owner) {}
 
 outlet::~outlet() {
-  for (unsigned int i = 0; i < connections.size(); i++) {
-    connections[i]->Disconnect(this);
-  }
+  // Exactly UnwireFromPeers, and it has to be (issue #537).
+  //
+  // This used to walk `connections` in place, which is unsound for the same
+  // reason UnwireFromPeers spells out below: `inlet::Disconnect` calls straight
+  // back into this outlet's `Disconnect`, which erases the peer being processed
+  // and shifts the rest of the vector down. The loop's `i++` then stepped over
+  // whatever moved into the freed slot, so an outlet with N peers detached only
+  // every second one and left the others holding a pointer to storage about to
+  // be freed. The next of those inlets to be destroyed called `Disconnect` on
+  // it — a heap-use-after-free that ASan caught the first time a standalone
+  // test rig gave one outlet two peers.
+  //
+  // A real patcher never reached it: every deletion path in
+  // patcherImplementation (DeleteObject, the #234 replacement, Clear) calls
+  // pObject::UnwireFromPeers first, so by the time the destructor ran the
+  // vectors were already empty. That is what kept it latent, and it is also why
+  // the destructor must not be the one place with its own weaker version.
+  UnwireFromPeers();
 }
 
 // Resolve this outlet's fan-out. When the owning patcher is mid-block it hands
