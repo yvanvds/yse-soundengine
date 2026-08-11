@@ -103,10 +103,9 @@ TEST_SUITE("patcher") {
     // passes either way, so it is the Linux and Android runs that hold the
     // line — if the guard comes back, this is what fails there.
     const char* const senders[] = {
-        YSE::OBJ::M_CHANPRESS, YSE::OBJ::M_CONTROL,   YSE::OBJ::M_NOTEOFF,
-        YSE::OBJ::M_NOTEON,    YSE::OBJ::M_POLYPRESS, YSE::OBJ::M_PROGCHANGE,
-        YSE::OBJ::M_BENDOUT,   YSE::OBJ::M_XBENDOUT,  YSE::OBJ::M_XBENDOUT2,
-        YSE::OBJ::M_XCTLOUT,   YSE::OBJ::M_XNOTEOUT,
+        YSE::OBJ::M_CHANPRESS, YSE::OBJ::M_CONTROL,    YSE::OBJ::M_NOTEOFF,  YSE::OBJ::M_NOTEON,
+        YSE::OBJ::M_POLYPRESS, YSE::OBJ::M_PROGCHANGE, YSE::OBJ::M_BENDOUT,  YSE::OBJ::M_XBENDOUT,
+        YSE::OBJ::M_XBENDOUT2, YSE::OBJ::M_XCTLOUT,    YSE::OBJ::M_XNOTEOUT,
     };
 
     auto names = Register().AllNames();
