@@ -144,8 +144,15 @@
 #include "midi/mMidiNoteOn.h"
 #include "midi/mMidiPolyPressure.h"
 #include "midi/mMidiProgramChange.h"
-#include "midi/mMidiCodec.h"
 #endif
+// The MIDI codec pair (issue #530) is registered unconditionally below, so its
+// header cannot live inside the YSE_WINDOWS block the six senders share — that
+// left `mMidiParse` undeclared on every other platform.
+#include "midi/mMidiCodec.h"
+// The system-exclusive pair (issue #531). One header, two guards: `.sxformat`
+// is compiled everywhere and `.sysexin` only where there is an input port to
+// open, so the include itself carries no `#if`.
+#include "midi/mSysEx.h"
 // mMidiOut is the only patcher midi object that depends on the RtMidi-backed
 // device backend; the other six just emit MIDI bytes and don't need it.
 #if YSE_WINDOWS && YSE_ENABLE_MIDI_DEVICE
@@ -648,7 +655,18 @@ pRegistry::pRegistry() {
   // System real time: the clock, start, continue and stop a patch follows an
   // external sequencer by.
   Add(OBJ::M_RTIN, mRtIn::Create);
+
+  // The receiving half of the system-exclusive pair (issue #531): a voice dump
+  // off a port, with everything that is not a dump filtered out. Guarded with
+  // the input family it belongs to; its partner below is not.
+  Add(OBJ::M_SYSEXIN, mSysExIn::Create);
 #endif
+
+  // The building half of the system-exclusive pair (issue #531). Unguarded for
+  // the same reason as the codec above: it is arithmetic over bytes and opens
+  // no device, so a dump can be built into a file on a platform with no MIDI
+  // hardware at all. See mSysEx.h.
+  Add(OBJ::M_SXFORMAT, mSxFormat::Create);
 }
 
 pObject* pRegistry::Get(const std::string& objectID) {

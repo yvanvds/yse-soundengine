@@ -64,6 +64,7 @@ namespace YSE {
    *  - MIDI in: ``M_IN``, ``M_NOTEIN``, ``M_CTLIN``, ``M_BENDIN``,
    *    ``M_PGMIN``, ``M_TOUCHIN``, ``M_POLYIN``, ``M_RTIN``.
    *  - MIDI codec: ``M_PARSE``, ``M_FORMAT``.
+   *  - MIDI system exclusive: ``M_SYSEXIN``, ``M_SXFORMAT``.
    *  - Conversion: ``MIDITOFREQUENCY``, ``FREQUENCYTOMIDI``, ``G_ATODB``,
    *    ``G_DBTOA``, ``G_CARTOPOL``, ``G_POLTOCAR``.
    */
@@ -277,5 +278,7 @@ namespace YSE {
     DEFOBJ(M_PROGCHANGE, ".programchange");
     DEFOBJ(M_PARSE, ".midiparse");
     DEFOBJ(M_FORMAT, ".midiformat");
+    DEFOBJ(M_SYSEXIN, ".sysexin");
+    DEFOBJ(M_SXFORMAT, ".sxformat");
   };
 } // namespace YSE

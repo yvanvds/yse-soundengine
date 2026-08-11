@@ -274,6 +274,10 @@ set(YSE_SRCS
   # belongs in the unconditional list.
   patcher/midi/mMidiCodec.cpp
   patcher/midi/mMidiControl.cpp
+  # The system-exclusive pair (issue #531). Unconditional like the codec above:
+  # `.sxformat` opens no device, and the `.sysexin` half of the file carries its
+  # own `#if YSE_ENABLE_MIDI_DEVICE`.
+  patcher/midi/mSysEx.cpp
   patcher/midi/mMidiNoteOff.cpp
   patcher/midi/mMidiNoteOn.cpp
   patcher/midi/mMidiOut.cpp
@@ -477,6 +481,7 @@ set_source_files_properties(
   patcher/midi/mMidiOut.cpp
   patcher/midi/mMidiPolyPressure.cpp
   patcher/midi/mMidiProgramChange.cpp
+  patcher/midi/mSysEx.cpp
   patcher/io/fileScheduler.cpp
   patcher/time/clockBridge.cpp
   patcher/time/gClocker.cpp

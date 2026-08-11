@@ -6422,6 +6422,67 @@
       }
     ]
   },
+  ".sxformat": {
+    "category": "MIDI",
+    "description": "Builds a MIDI system-exclusive message from a template — Max's 'sxformat' (issue #531), and the object a patch talks to a synthesiser's own parameters with. System exclusive is how a voice is dumped, requested or poked one parameter at a time, and every such message is the same bytes with two or three of them changed: the constants are the creation arguments and the changing ones are placeholders fed from inlets. A number 0-255 in the template is a constant byte, '$i1' to '$i9' are the inlets ('$i1' the leftmost and hot one), 'sumstart' marks where a checksum region begins, and 'sum' emits the Roland-style checksum of that region — the byte that makes its total a multiple of 128, which is what a Roland-protocol device rejects a message for getting wrong. With no 'sumstart' the region is everything so far apart from the leading 240. A value on the hot inlet, a list (which fills the placeholders left to right) or a bang emits the whole message; the other inlets only store. A negative value emits no byte at all, which is Max's rule and what makes one template cover both a short form and a long one, while a value above 127 is clamped rather than dropped, because a byte with its top bit set inside a dump would be read as a status byte and would end the message early at the device. The message leaves the outlet whole, as a list of byte values in decimal, the shape '.midiformat' sends and '.midiparse', '.seq' and '.midiout' read. The template is compiled once when the arguments are parsed, so sending walks a fixed array and allocates nothing; a template longer than 256 tokens is cut there and reported to the log rather than truncated silently at send time. The object opens no device and needs none, so it runs on every platform — a dump can be built into a file where there is no MIDI hardware at all.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Value for the '$i1' placeholder — stores it and sends the whole message. A list fills '$i1', '$i2', ... left to right and then sends, and a bang sends with the values the inlets are already holding. A negative value leaves its byte out of the message entirely; anything above 127 is clamped.",
+        "index": 0,
+        "label": "$i1",
+        "range": "-1 to 127"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".sxformat",
+    "outlets": [
+      {
+        "doc": "The complete message as a list of byte values in decimal — '240 67 0 1 247'. Send it to '.midiout' or store it with '.seq' or '.coll'; '.midiparse' reads it back as the same bytes on its rightmost outlet.",
+        "index": 0,
+        "label": "sysex",
+        "range": "0-255",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The message to build, one token per byte. A number 0-255 is a constant byte; '$i1' to '$i9' are placeholders filled from the inlets, '$i1' being the leftmost; 'sumstart' emits nothing and marks where the checksum region begins; and 'sum' emits the Roland-style checksum of that region, the byte that makes its total a multiple of 128. With no 'sumstart' the region is everything so far apart from a leading 240. A well-formed system-exclusive message starts with 240 and ends with 247, which is not enforced — a patch may build a fragment and wrap it elsewhere. The object gets one inlet past the highest placeholder the template mentions, and a template longer than 256 tokens is cut there and reported to the log rather than being truncated silently when it is sent.",
+        "name": "sysex",
+        "range": "0-255, $i1-$i9, sumstart, sum"
+      }
+    ]
+  },
+  ".sysexin": {
+    "category": "MIDI",
+    "description": "System-exclusive input — Max's 'sysexin' (issue #531), and the way a patch hears what a synthesiser says about itself. Every byte of every system-exclusive message received on the port leaves the outlet as an int, from the leading 240 to the closing 247, and nothing else does: notes, controllers and clock traffic are filtered out, which is the whole difference between this and '.midiin'. That is what makes it the receiving half of a voice dump — ask a device for its current patch with a '.sxformat' request and the answer arrives here, byte-perfect and uninterrupted by whatever else the device happens to be sending. A dump is arbitrarily long, and this object holds none of it: bytes are forwarded as they arrive, so there is no buffer to overflow and no length limit to run into — a patch that wants the whole message collects it downstream, where allocating is allowed, and watches for the 247 that ends it. A real-time byte (248-255) arriving inside a dump is dropped rather than passed on, because it belongs to the clock and not to the message it interrupted, and it does not end the dump; '.rtin' is where those go. Any other status byte does end it, unterminated, because hardware interrupted mid-transfer simply stops sending and a state machine waiting for an EOX that is never coming would read every later note as voice data. Events cross from the device backend's thread on a bounded lock-free queue and are drained once per audio block, so nothing allocates, locks or blocks on either side.",
+    "inlets": [],
+    "is_dsp": false,
+    "name": ".sysexin",
+    "outlets": [
+      {
+        "doc": "Every byte of every system-exclusive message on the port, one int per byte and in arrival order: 240, the manufacturer ID, the device and model bytes, the payload, then 247. Nothing outside a message reaches this outlet. Collect a whole dump with a '.zl group' or a '.coll' and use the 247 as the signal that it is complete.",
+        "index": 0,
+        "label": "byte",
+        "range": "0-247",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Index of the MIDI input device to listen to, as numbered by YSE::system::getMidiInDeviceName. The port is opened the first time any patcher object asks for it and closed when the last one goes, so several objects on one keyboard share a single device and each still gets a queue of its own. A port that will not open — no hardware, or a backend that allows one client per port and a host that already holds it — leaves an object that is perfectly valid and simply never receives anything, which is what lets a patch load the same way on a machine with nothing plugged in. Editing this argument on a live object rebuilds the object rather than storing into it: the subscription is taken when the object joins its patcher, and a field written on the audio thread cannot move a device port.",
+        "name": "port",
+        "range": "0-7"
+      }
+    ]
+  },
   ".t": {
     "category": "GUI",
     "description": "Latching on/off toggle. Int sets the state directly (0 = off, non-zero = on); bang flips it. Emits 0 or 1 every calculate tick.",
