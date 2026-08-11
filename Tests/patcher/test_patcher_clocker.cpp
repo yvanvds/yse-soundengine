@@ -833,6 +833,21 @@ TEST_SUITE("patcher") {
     // chain (`.delay` -> `.clocker`) starts the object on the audio thread,
     // where arming the timer may not take `timerThread`'s mutex and has to go
     // through the bridge's wait-free front instead.
+    //
+    // What that route is observable as, then, is **the armed timer** — the one
+    // the background pool created on the object's behalf — and not a count of
+    // reports. The reports come from the OS millisecond timer, so "three of
+    // them arrived inside two seconds" is a statement about the machine's
+    // scheduler rather than about this object, and it is one a saturated box
+    // falsifies (issue #747, the same defect #739 and #740 fixed elsewhere in
+    // these files: a wait that bounds the wrong thing). Every step below is
+    // joined instead: the scheduler is block-counted and drained synchronously
+    // inside `Calculate`, so ticking blocks is a real bound on the delay; and
+    // `timerBridge::WaitIdle()` exists precisely so a test can join the
+    // deferred reconcile the audio-thread path armed. `timerThread::size()` is
+    // what that reconcile left behind. That the real timer then delivers a
+    // rising sequence of elapsed times is the `run` section's claim above,
+    // where it is what the case is *about* rather than incidental to it.
     patcherImplementation p(1, nullptr);
     YSE::pHandle* clocker = p.CreateObject(YSE::OBJ::G_CLOCKER, "10");
     REQUIRE(clocker != nullptr);
@@ -847,23 +862,40 @@ TEST_SUITE("patcher") {
     p.Calculate(YSE::T_DSP);
     CHECK(out.n() == 0);
 
-    // The bang comes back out of the scheduler on the audio thread and starts
-    // the clocker there. The arming itself is then deferred to the background
-    // pool, so the first report lands a hop later rather than in the block that
-    // started it — which is exactly the cost `timerBridge` trades for not
-    // taking a mutex on the audio callback.
-    del->SetBang(0);
-    for (int i = 0; i < 40 && out.n() == 0; i++) {
-      p.Calculate(YSE::T_DSP);
-      std::this_thread::sleep_for(2ms);
-    }
+    // Whatever else the process has armed, taken before the bang so the claim
+    // is the *delta* this patch is responsible for.
+    const std::size_t before = YSE::PATCHER::TimerThread().size();
 
-    REQUIRE(waitFor([&] { return out.n() >= 3; }));
+    // The bang comes back out of the scheduler on the audio thread and starts
+    // the clocker there. The arming itself is deferred to the background pool
+    // — exactly the cost `timerBridge` trades for not taking a mutex on the
+    // audio callback — so each block joins the pool before asking whether the
+    // timer exists yet. `.delay`'s default 5 ms is one block at any sane rate;
+    // the budget is generous against a large one, and it is a budget in blocks,
+    // with no wall-clock wait anywhere in this loop.
+    del->SetBang(0);
+    bool armed = false;
+    for (int i = 0; i < 64 && !armed; i++) {
+      p.Calculate(YSE::T_DSP);
+      YSE::PATCHER::TimerBridge().WaitIdle();
+      armed = YSE::PATCHER::TimerThread().size() > before;
+    }
+    REQUIRE(armed);
+
+    // And the timer that appeared is this clocker's. A stop from the control
+    // thread takes the *blocking* half of the bridge, so `ClearTimer`'s
+    // handshake has been performed by the time the call returns and the count
+    // is final the moment it does — the `stop` case above's reasoning, used
+    // here to name the timer rather than to end the reports.
+    clocker->SetIntData(0, 0);
+    CHECK(YSE::PATCHER::TimerThread().size() == before);
+
+    // Whatever the timer did deliver while the run was on is in order. Vacuous
+    // when the machine never got round to a tick, which is the point: the
+    // ordering is a property of the object, the count is not.
     const std::vector<int> values = out.snapshot();
     for (std::size_t i = 1; i < values.size(); i++)
       CHECK(values[i] >= values[i - 1]);
-
-    clocker->SetIntData(0, 0);
   }
 
 } // TEST_SUITE
