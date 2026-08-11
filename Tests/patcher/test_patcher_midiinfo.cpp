@@ -18,6 +18,12 @@
 //   - **enumeration is a control-thread act**: a standalone object that never
 //     joined a patcher has asked the platform nothing and reports 0, which is
 //     the observable half of "the ports are read in SetParent";
+//   - **`refresh` rescans without enumerating inline** (issue #757): the
+//     message handler runs on whichever thread dispatched it — routinely the
+//     audio callback — so a refresh must produce *nothing* on the thread that
+//     asked for it, and the new listing must arrive out the same three outlets
+//     on a later block. Both halves are asserted, and the first is the one that
+//     would catch a regression to enumerating in the handler;
 //   - **the re-entrancy guard**: a patch that wires an outlet back into the
 //     inlet is refused and counted rather than allowed to recurse without
 //     bound;
@@ -52,6 +58,7 @@
 #include "midi/midiDeviceManager.h"
 #include "patcher/inlet.h"
 #include "patcher/midi/mMidiInfo.h"
+#include "patcher/midi/midiPortScanner.h"
 #include "patcher/patcherImplementation.h"
 #include "sinks.hpp"
 #endif
@@ -138,7 +145,22 @@ namespace {
       log.clear();
       object->SetBang(0);
     }
+
+    // One patcher block. This is where a finished rescan is collected and
+    // re-emitted (issue #757), so it is also what publishes the graph — an
+    // object only reaches the block's poll list once the GraphState carrying it
+    // has been built.
+    void Block() {
+      patch.Calculate(YSE::T_DSP);
+    }
   };
+
+  // Ask for a rescan and let the background pool finish it, without sleeping.
+  // WaitIdle makes the *attempt* deterministic; delivery is still the audio
+  // thread's job and happens on the next block.
+  void SettleScan() {
+    YSE::PATCHER::MidiPortScanner().WaitIdle();
+  }
 
 } // namespace
 
@@ -166,10 +188,13 @@ TEST_SUITE("patcher") {
     CHECK(obj->GetOutputType(0) == YSE::OUT_TYPE::LIST);
     CHECK(obj->GetOutputType(1) == YSE::OUT_TYPE::INT);
     CHECK(obj->GetOutputType(2) == YSE::OUT_TYPE::INT);
-    // Control-rate: the object is driven by its inlet, not by the render pass,
-    // so it must not ask to be polled and must not claim to be a DSP object.
+    // Control-rate: nothing renders this object, so it must not claim to be a
+    // DSP object. It *is* polled, though (issue #757) — a rescan finishes on
+    // the background pool and has no cord to arrive on, so the block poll is
+    // what collects it. That is the same reason the MIDI-input family is
+    // polled, arrived at from the other direction.
     CHECK_FALSE(obj->IsDSPObject());
-    CHECK_FALSE(obj->WantsBlockPoll());
+    CHECK(obj->WantsBlockPoll());
 #else
     // Without a backend there is nothing to enumerate, so the object is not
     // built and not registered — the same carve-out `.midiout` and the input
@@ -346,6 +371,243 @@ TEST_SUITE("patcher") {
     object.SetMessage("input", 0.f);
     CHECK(object.Direction() == mMidiInfo::DIR_INPUT);
     CHECK(object.PortCount() == ExpectedCount(true));
+  }
+
+  // ─── refresh: rescanning without touching the dispatching thread (#757) ───
+
+  TEST_CASE("midiinfo: refresh reports nothing on the thread that asked (#757)") {
+    // The load-bearing assertion of the whole feature. `SetMessage` runs on
+    // whichever thread dispatched the message and in-patcher delivery
+    // dispatches on T_DSP, so a handler that enumerated inline would be calling
+    // RtMidi — which allocates, takes a driver lock and constructs the backend
+    // — from the audio callback. Nothing may come out of the object here: not
+    // the listing, not a partial one, nothing.
+    Rig rig("");
+    rig.Block(); // publish the graph
+    rig.log.clear();
+
+    rig.object->SetListData(0, "refresh");
+    CHECK(rig.log.empty());
+
+    // And still nothing before a block runs, even once the scan has finished:
+    // delivery is the patcher's, not the requester's.
+    SettleScan();
+    CHECK(rig.log.empty());
+  }
+
+  TEST_CASE("midiinfo: refresh re-emits the listing on the next block (#757)") {
+    Rig rig("");
+    rig.Block();
+
+    // What a bang says now is what the refresh has to say again — the machine
+    // does not change under the test, so this is an exact comparison rather
+    // than a shape check, and it holds on CI (count 0, nothing follows) as
+    // well as on a workstation with hardware.
+    rig.Bang();
+    const std::vector<std::string> expected = rig.log;
+
+    rig.log.clear();
+    rig.object->SetListData(0, "refresh");
+    SettleScan();
+    rig.Block();
+
+    CHECK(rig.log == expected);
+
+    // One re-emit, not one per block: the snapshot is consumed when it is
+    // collected, so a patcher that keeps rendering does not keep re-sending.
+    rig.log.clear();
+    rig.Block();
+    rig.Block();
+    CHECK(rig.log.empty());
+  }
+
+  TEST_CASE("midiinfo: refresh is accepted as a message as well as a list (#757)") {
+    // The list spelling is the only one the C ABI can produce and the message
+    // spelling is what a '.message' box sends; 'input' and 'output' already
+    // take both, and a refresh a binding could not ask for would be useless.
+    patcherImplementation patch{1, nullptr};
+
+    mMidiInfo asMessage;
+    asMessage.SetParent(&patch);
+    asMessage.SetMessage("refresh", 0.f);
+    SettleScan();
+    asMessage.Calculate(YSE::T_GUI);
+    CHECK(asMessage.Refreshed() == 1);
+
+    mMidiInfo asList;
+    asList.SetParent(&patch);
+    asList.GetInlet(0)->SetList("refresh", YSE::T_GUI);
+    SettleScan();
+    asList.Calculate(YSE::T_GUI);
+    CHECK(asList.Refreshed() == 1);
+
+    // An unrecognised word is still ignored rather than treated as a rescan.
+    mMidiInfo other;
+    other.SetParent(&patch);
+    other.SetMessage("resfresh", 0.f);
+    SettleScan();
+    other.Calculate(YSE::T_GUI);
+    CHECK(other.Refreshed() == 0);
+  }
+
+  TEST_CASE("midiinfo: a block with no refresh outstanding sends nothing (#757)") {
+    // The object is in the poll list for its whole life, so the cost of *not*
+    // refreshing has to be silence — an object that emitted from Calculate
+    // would re-send its whole listing on every single DSP tick, which is why
+    // #536 refused to be polled at all.
+    Rig rig("");
+    rig.Block();
+    rig.log.clear();
+    for (int i = 0; i < 4; i++)
+      rig.Block();
+    CHECK(rig.log.empty());
+  }
+
+  TEST_CASE("midiinfo: a refresh is counted once it has been collected (#757)") {
+    patcherImplementation patch{1, nullptr};
+    mMidiInfo object;
+    object.SetParent(&patch);
+
+    CHECK(object.Refreshed() == 0);
+
+    // Asking does not collect: a poll before the scan has landed leaves the
+    // count alone, which is what "the result arrives on a later block" means.
+    object.SetMessage("refresh", 0.f);
+    SettleScan();
+    CHECK(object.Refreshed() == 0);
+
+    object.Calculate(YSE::T_GUI);
+    CHECK(object.Refreshed() == 1);
+
+    // The slot was handed back, so further blocks collect nothing.
+    object.Calculate(YSE::T_GUI);
+    object.Calculate(YSE::T_GUI);
+    CHECK(object.Refreshed() == 1);
+
+    // And the snapshot the rescan published is still the machine's own.
+    CHECK(object.PortCount() == ExpectedCount(true));
+  }
+
+  TEST_CASE("midiinfo: a rescan does not disturb the direction or the report (#757)") {
+    patcherImplementation patch{1, nullptr};
+    mMidiInfo object;
+    object.SetParent(&patch);
+
+    object.SetMessage("output", 0.f);
+    object.SetMessage("refresh", 0.f);
+    SettleScan();
+    object.Calculate(YSE::T_GUI);
+
+    CHECK(object.Direction() == mMidiInfo::DIR_OUTPUT);
+    CHECK(object.PortCount() == ExpectedCount(false));
+    // Both halves are rescanned together, exactly as the first snapshot is.
+    object.SetMessage("input", 0.f);
+    CHECK(object.PortCount() == ExpectedCount(true));
+  }
+
+  // ─── the scanner the refresh runs on ──────────────────────────────────────
+
+  TEST_CASE("midiPortScanner: a claimed slot round-trips a scan (#757)") {
+    using YSE::PATCHER::midiPortScanner;
+    using YSE::PATCHER::midiPortSnapshot;
+
+    midiPortScanner scanner;
+    const midiPortScanner::Handle handle = scanner.Claim();
+    REQUIRE(handle != 0);
+
+    midiPortSnapshot into;
+    // Nothing asked for, nothing to take.
+    CHECK_FALSE(scanner.Consume(handle, into));
+    CHECK_FALSE(scanner.Busy(handle));
+
+    CHECK(scanner.Request(handle));
+    scanner.WaitIdle();
+    CHECK(scanner.Busy(handle)); // a result is waiting
+
+    CHECK(scanner.Consume(handle, into));
+    CHECK_FALSE(scanner.Busy(handle));
+    CHECK(into.count[midiPortSnapshot::DIR_INPUT] ==
+          static_cast<int>(YSE::MIDI::DeviceManager().getNumMidiInDevices()));
+
+    // Consuming twice takes nothing: the slot went back to idle with the copy.
+    CHECK_FALSE(scanner.Consume(handle, into));
+
+    scanner.Release(handle);
+  }
+
+  TEST_CASE("midiPortScanner: a request on no slot is refused rather than ignored (#757)") {
+    using YSE::PATCHER::midiPortScanner;
+    using YSE::PATCHER::midiPortSnapshot;
+
+    midiPortScanner scanner;
+    midiPortSnapshot into;
+
+    // Handle 0 is what a full table hands back, and it must be safe to keep
+    // asking on: `.midiinfo` accepts `refresh` either way.
+    CHECK_FALSE(scanner.Request(0));
+    CHECK_FALSE(scanner.Consume(0, into));
+    CHECK_FALSE(scanner.Request(midiPortScanner::CAPACITY + 1));
+    scanner.Release(0); // no-op, not a crash
+
+    // A released slot stops answering too.
+    const midiPortScanner::Handle handle = scanner.Claim();
+    REQUIRE(handle != 0);
+    scanner.Release(handle);
+    CHECK_FALSE(scanner.Request(handle));
+  }
+
+  TEST_CASE("midiPortScanner: the table is bounded and refusals are counted (#757)") {
+    using YSE::PATCHER::midiPortScanner;
+
+    midiPortScanner scanner;
+    std::vector<midiPortScanner::Handle> held;
+    for (std::size_t i = 0; i < midiPortScanner::CAPACITY; i++) {
+      const midiPortScanner::Handle handle = scanner.Claim();
+      CHECK(handle != 0);
+      held.push_back(handle);
+    }
+
+    CHECK(scanner.Dropped() == 0);
+    CHECK(scanner.Claim() == 0);
+    CHECK(scanner.Dropped() == 1);
+
+    // Giving one back makes the table usable again — slots are not consumed
+    // for the life of the process, only for the life of an owner.
+    scanner.Release(held.back());
+    held.pop_back();
+    const midiPortScanner::Handle reused = scanner.Claim();
+    CHECK(reused != 0);
+    held.push_back(reused);
+
+    for (auto handle : held)
+      scanner.Release(handle);
+  }
+
+  TEST_CASE("midiPortScanner: a refresh asked for during a scan is not lost (#757)") {
+    using YSE::PATCHER::midiPortScanner;
+    using YSE::PATCHER::midiPortSnapshot;
+
+    midiPortScanner scanner;
+    const midiPortScanner::Handle handle = scanner.Claim();
+    REQUIRE(handle != 0);
+
+    // Two asks with no Consume between them. The second cannot arm — the slot
+    // is busy — so it is remembered, and consuming the first result re-arms it.
+    // Without that, a controller plugged in between two refreshes would stay
+    // invisible until a third.
+    CHECK(scanner.Request(handle));
+    CHECK(scanner.Request(handle));
+    scanner.WaitIdle();
+
+    midiPortSnapshot into;
+    CHECK(scanner.Consume(handle, into));
+    CHECK(scanner.Busy(handle)); // the deferred ask was re-armed on the way out
+
+    scanner.WaitIdle();
+    CHECK(scanner.Consume(handle, into));
+    CHECK_FALSE(scanner.Busy(handle));
+
+    scanner.Release(handle);
   }
 
   // ─── the re-entrancy guard ────────────────────────────────────────────────

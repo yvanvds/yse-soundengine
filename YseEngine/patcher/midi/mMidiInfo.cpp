@@ -3,9 +3,8 @@
 #if YSE_ENABLE_MIDI_DEVICE
 #include "mMidiInfo.h"
 #include "../pObjectList.hpp"
-#include "../../midi/midiDeviceManager.h"
+#include "midiPortScanner.h"
 
-#include <cstring>
 #include <memory>
 #include <thread>
 
@@ -15,36 +14,13 @@ using namespace YSE::PATCHER;
 namespace {
 
   // How many characters of a snapshot slot are the name. `strnlen` is POSIX
-  // rather than standard C++, and the slots are written by this file alone, so
-  // the two-line scan is both portable and enough.
+  // rather than standard C++, and the slots are written by the scanner alone,
+  // so the two-line scan is both portable and enough.
   std::size_t NameLength(const char* name, std::size_t cap) {
     std::size_t length = 0;
     while (length < cap && name[length] != '\0')
       length++;
     return length;
-  }
-
-  // One direction's ports into `names`, returning how many were stored.
-  // Control thread: every call here allocates a std::string inside RtMidi.
-  int FillNames(bool input, char names[mMidiInfo::PORTS_MAX][mMidiInfo::NAME_CAPACITY]) {
-    YSE::MIDI::deviceManager& devices = YSE::MIDI::DeviceManager();
-    const unsigned int available =
-        input ? devices.getNumMidiInDevices() : devices.getNumMidiOutDevices();
-
-    int stored = 0;
-    for (unsigned int i = 0; i < available && stored < mMidiInfo::PORTS_MAX; i++) {
-      const std::string name =
-          input ? devices.getMidiInDeviceName(i) : devices.getMidiOutDeviceName(i);
-      // Truncated rather than refused: a patch that can see fifteen useful
-      // characters of a name can still pick the right port, and a name the
-      // object dropped would leave a hole in the index sequence.
-      std::size_t length = name.size();
-      if (length > mMidiInfo::NAME_CAPACITY - 1) length = mMidiInfo::NAME_CAPACITY - 1;
-      std::memcpy(names[stored], name.data(), length);
-      names[stored][length] = '\0';
-      stored++;
-    }
-    return stored;
   }
 
 } // namespace
@@ -63,6 +39,13 @@ CONSTRUCT() {
 
   scratch.reserve(NAME_CAPACITY);
 
+  // Taken for the object's whole life, here rather than in SetParent: a slot
+  // costs nothing until something is asked of it, and claiming it once means
+  // `refresh` never has to allocate one on a path that may be the audio
+  // callback. A full table leaves `scan` at 0, which `refresh` accepts and
+  // quietly does nothing about.
+  scan = MidiPortScanner().Claim();
+
   ADD_DESCRIPTION(
       "MIDI port directory — Max's 'midiinfo' (issue #536). Every other MIDI object in the patcher "
       "addresses a device by a bare index ('.midiout 2', '.notein 1') and nothing in a patch could "
@@ -79,9 +62,11 @@ CONSTRUCT() {
       "are read once, on the control thread, when the object joins its patcher: RtMidi's "
       "enumeration allocates and talks to the platform's MIDI service, which the audio callback "
       "may "
-      "not do, so a bang reads a fixed-size snapshot taken then. It follows that the object does "
-      "not rescan — a controller plugged in afterwards is picked up by re-creating the object or "
-      "reloading the patch, not by banging again. At most 32 ports are held and a name longer than "
+      "not do, so a bang reads a fixed-size snapshot taken then. A controller plugged in "
+      "afterwards is picked up by the 'refresh' message (issue #757), which does not enumerate on "
+      "the spot — the message may have arrived on the audio thread — but asks a background thread "
+      "to, and re-sends the whole listing out the same three outlets once the new snapshot lands, "
+      "on the next block the patcher renders. At most 32 ports are held and a name longer than "
       "63 characters is truncated. Nothing on the bang path allocates, locks or blocks, and two "
       "threads banging at once — or an outlet wired back into the inlet — are refused rather than "
       "allowed to recurse.");
@@ -89,8 +74,9 @@ CONSTRUCT() {
 
   INLET_DOC(0, "bang",
             "A bang reports the ports: the count, then an index and a name for each one. 'input' "
-            "and 'output' switch which set is reported, in either spelling — as a message from a "
-            "'.message' box, or as a list.",
+            "and 'output' switch which set is reported; 'refresh' re-scans the machine in the "
+            "background and re-sends the listing when the new snapshot arrives. All three are "
+            "accepted in either spelling — as a message from a '.message' box, or as a list.",
             "");
   OUTLET_DOC(0, "name",
              "The port's name as the driver reports it, sent whole — spaces included, truncated at "
@@ -111,6 +97,15 @@ CONSTRUCT() {
             "input | output");
 }
 
+mMidiInfo::~mMidiInfo() {
+  // Hands the slot back without joining: the #227 epoch reclaimer frees retired
+  // patcher objects on the background pool itself, so a destructor that joined
+  // its own job could spin on the very worker running it. `Release` waits out a
+  // scan mid-write instead, which is bounded by one enumeration — see
+  // midiPortScanner's class notes.
+  MidiPortScanner().Release(scan);
+}
+
 PARM_PARSE() {
   direction = (directionArg == "output") ? DIR_OUTPUT : DIR_INPUT;
 }
@@ -123,18 +118,16 @@ void mMidiInfo::SetParent(pObject* newParent) {
   if (newParent == nullptr) return;
 
   // On the heap rather than the stack: the table is a few kilobytes and this
-  // runs on the control thread, where an allocation costs nothing.
-  auto fresh = std::make_unique<portTable>();
-  Enumerate(*fresh);
+  // runs on the control thread, where an allocation costs nothing. Scanned
+  // synchronously rather than through the background pool: blocking is free
+  // here, and deferring the *first* snapshot would leave a freshly loaded patch
+  // reporting an empty machine until its next block.
+  auto fresh = std::make_unique<midiPortSnapshot>();
+  midiPortScanner::ScanNow(*fresh);
   Publish(*fresh);
 }
 
-void mMidiInfo::Enumerate(portTable& into) {
-  into.count[DIR_INPUT] = FillNames(true, into.names[DIR_INPUT]);
-  into.count[DIR_OUTPUT] = FillNames(false, into.names[DIR_OUTPUT]);
-}
-
-void mMidiInfo::Publish(const portTable& from) {
+void mMidiInfo::Publish(const midiPortSnapshot& from) {
   // Waits rather than giving up. This is the control thread — it may block —
   // and the only thing it can be waiting for is a report walk of at most 32
   // outlet sends, which no patch can hold open.
@@ -166,14 +159,7 @@ std::string mMidiInfo::PortName(int index) const {
   return std::string(name, NameLength(name, NAME_CAPACITY - 1));
 }
 
-BANG_IN(Report) {
-  if (!Enter()) {
-    // Another thread is mid-report, or this bang came back around from our own
-    // name outlet. Counted rather than logged: this may be the audio callback.
-    dropped.fetch_add(1, std::memory_order_relaxed);
-    return;
-  }
-
+void mMidiInfo::Emit(YSE::THREAD thread) {
   const int dir = Direction();
   const int count = ports.count[dir];
 
@@ -184,6 +170,39 @@ BANG_IN(Report) {
     scratch.assign(name, NameLength(name, NAME_CAPACITY - 1));
     outputs[0].SendList(scratch, thread);
   }
+}
+
+BANG_IN(Report) {
+  if (!Enter()) {
+    // Another thread is mid-report, or this bang came back around from our own
+    // name outlet. Counted rather than logged: this may be the audio callback.
+    dropped.fetch_add(1, std::memory_order_relaxed);
+    return;
+  }
+
+  Emit(thread);
+  Leave();
+}
+
+CALC() {
+  // Audio thread, from the top of the block. Its only job is to collect a
+  // rescan that finished on the background pool (issue #757) — a result with no
+  // cord to arrive on — and re-send the listing.
+  if (scan == 0) return;
+
+  if (!Enter()) {
+    // A report is in flight on another thread. Not counted as a drop: nothing
+    // was refused, the snapshot is still waiting in the scanner's slot and the
+    // next block collects it.
+    return;
+  }
+
+  // Wait-free: a state load, and — when a scan has landed — one assignment of a
+  // fixed-size struct into storage that already exists. No allocation, no lock.
+  if (MidiPortScanner().Consume(scan, ports)) {
+    refreshed.fetch_add(1, std::memory_order_relaxed);
+    Emit(thread);
+  }
 
   Leave();
 }
@@ -193,6 +212,11 @@ void mMidiInfo::Command(const std::string& text) {
     direction = DIR_INPUT;
   } else if (text == "output") {
     direction = DIR_OUTPUT;
+  } else if (text == "refresh") {
+    // One CAS and one lock-free push. Whatever thread dispatched this — and it
+    // is routinely the audio callback — nothing here allocates, locks or
+    // blocks; the enumeration itself happens on the background pool.
+    MidiPortScanner().Request(scan);
   }
 }
 

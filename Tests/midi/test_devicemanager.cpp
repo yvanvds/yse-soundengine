@@ -13,6 +13,15 @@
 //     no device is attached
 //   - Raw(string) and Raw(pointer, length) handle 0/1/2/3+ byte inputs without
 //     out-of-bounds reads (issue #748 made both length-honest)
+//   - Concurrent calls from several threads (issue #757). Every entry point
+//     takes the manager's mutex now, because it was already reachable from more
+//     than one thread — system.cpp on the control thread, inHub while opening a
+//     port, `.midiout` from its list handler, and `.midiinfo`'s rescan on the
+//     background pool. `isPrepared` lazily constructs the RtMidi backends and
+//     `getMidiOutPort` mutates a std::map, so the unsynchronised version was a
+//     plain data race. The case below is written for the sanitizer job: on an
+//     ordinary run it only proves the calls return, but under TSan it is what
+//     fails if the lock is dropped.
 //
 // The whole TU is guarded by the same YSE_ENABLE_MIDI_DEVICE option that
 // gates midiDeviceManager.cpp and device.cpp — when the option is OFF those
@@ -29,6 +38,10 @@
 #include "midi/midiDeviceManager.h"
 #include "midi/device.hpp"
 #include "RtMidi.h"
+
+#include <atomic>
+#include <thread>
+#include <vector>
 
 TEST_SUITE("midi") {
 
@@ -101,6 +114,62 @@ TEST_SUITE("midi") {
     RtMidiOut* second = YSE::MIDI::DeviceManager().getMidiOutPort(9998);
     CHECK(first == nullptr);
     CHECK(second == nullptr);
+  }
+
+  // ─── concurrent access (issue #757) ─────────────────────────────────────────
+
+  TEST_CASE("midi deviceManager: concurrent callers are safe (#757)") {
+    // Four threads hammering all five entry points at once, including the two
+    // that mutate state: `isPrepared` (which lazily constructs RtMidiIn /
+    // RtMidiOut and flips `initialized`) and `getMidiOutPort` (which inserts
+    // into a std::map). The out-of-range port ids keep the map's failure path
+    // busy without opening real hardware.
+    //
+    // The assertion an ordinary run can make is only that every call returns a
+    // consistent answer; the one that matters runs under TSan in CI, where an
+    // unsynchronised deviceManager reports a race here.
+    constexpr int kThreads = 4;
+    constexpr int kRounds = 64;
+
+    const unsigned int expectedIn = YSE::MIDI::DeviceManager().getNumMidiInDevices();
+    const unsigned int expectedOut = YSE::MIDI::DeviceManager().getNumMidiOutDevices();
+
+    std::atomic<int> mismatches{0};
+    std::vector<std::thread> workers;
+    workers.reserve(kThreads);
+
+    for (int t = 0; t < kThreads; t++) {
+      workers.emplace_back([&, t] {
+        for (int round = 0; round < kRounds; round++) {
+          if (YSE::MIDI::DeviceManager().getNumMidiInDevices() != expectedIn)
+            mismatches.fetch_add(1, std::memory_order_relaxed);
+          if (YSE::MIDI::DeviceManager().getNumMidiOutDevices() != expectedOut)
+            mismatches.fetch_add(1, std::memory_order_relaxed);
+          for (unsigned int i = 0; i < expectedIn; i++) {
+            if (YSE::MIDI::DeviceManager().getMidiInDeviceName(i) == "Invalid Call")
+              mismatches.fetch_add(1, std::memory_order_relaxed);
+          }
+          for (unsigned int i = 0; i < expectedOut; i++) {
+            if (YSE::MIDI::DeviceManager().getMidiOutDeviceName(i) == "Invalid Call")
+              mismatches.fetch_add(1, std::memory_order_relaxed);
+          }
+          // A distinct out-of-range id per thread, so the map is written from
+          // four threads rather than four times from one.
+          if (YSE::MIDI::DeviceManager().getMidiOutPort(9000u + static_cast<unsigned>(t)) !=
+              nullptr) {
+            mismatches.fetch_add(1, std::memory_order_relaxed);
+          }
+        }
+      });
+    }
+
+    for (auto& worker : workers)
+      worker.join();
+
+    CHECK(mismatches.load() == 0);
+    // Still answering after the storm, and with the same answer.
+    CHECK(YSE::MIDI::DeviceManager().getNumMidiInDevices() == expectedIn);
+    CHECK(YSE::MIDI::DeviceManager().getNumMidiOutDevices() == expectedOut);
   }
 
   // ─── GenerateMidiError: every Type enum arm ─────────────────────────────────
