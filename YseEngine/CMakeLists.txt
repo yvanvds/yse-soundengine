@@ -323,6 +323,9 @@ if(YSE_ENABLE_MIDI_DEVICE)
     patcher/midi/mMidiXIn.cpp
     # The parameter-number input objects (issue #534) are built on it too.
     patcher/midi/mMidiRpnIn.cpp
+    # `.midiinfo` (issue #536) opens no port but enumerates them, which is the
+    # same backend and so the same gate.
+    patcher/midi/mMidiInfo.cpp
   )
 endif()
 
@@ -497,6 +500,7 @@ set_source_files_properties(
   patcher/midi/mMidiCodec.cpp
   patcher/midi/mMidiControl.cpp
   patcher/midi/mMidiIn.cpp
+  patcher/midi/mMidiInfo.cpp
   patcher/midi/mMidiNoteOff.cpp
   patcher/midi/mMidiNoteOn.cpp
   patcher/midi/mMidiOut.cpp

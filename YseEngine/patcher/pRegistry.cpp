@@ -180,6 +180,10 @@
 // The parameter-number input objects (issue #534) are built on that same
 // plumbing and share its guard exactly.
 #include "midi/mMidiRpnIn.h"
+// `.midiinfo` (issue #536) enumerates the backend's ports, so it needs the
+// backend to exist; same guard again, and nothing else riding along with it
+// (issue #754).
+#include "midi/mMidiInfo.h"
 #endif
 
 using namespace YSE::PATCHER;
@@ -731,6 +735,12 @@ pRegistry::pRegistry() {
   // controllers last pointed at and report only the writes of their own kind.
   Add(OBJ::M_RPNIN, mRpnIn::Create);
   Add(OBJ::M_NRPNIN, mNrpnIn::Create);
+
+  // The port directory (issue #536). Not an input object at all — it opens
+  // nothing and receives nothing — but it asks the same backend which ports
+  // exist, so it lives and dies with it. It is what lets a patch find out what
+  // the bare index every other MIDI object takes actually refers to.
+  Add(OBJ::M_MIDIINFO, mMidiInfo::Create);
 #endif
 
   // The building half of the system-exclusive pair (issue #531). Unguarded for

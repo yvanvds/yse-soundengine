@@ -73,6 +73,7 @@ namespace YSE {
    *    ``M_MPEPARSE``.
    *  - MIDI codec: ``M_PARSE``, ``M_FORMAT``.
    *  - MIDI system exclusive: ``M_SYSEXIN``, ``M_SXFORMAT``.
+   *  - MIDI devices: ``M_MIDIINFO``.
    *  - Conversion: ``MIDITOFREQUENCY``, ``FREQUENCYTOMIDI``, ``G_ATODB``,
    *    ``G_DBTOA``, ``G_CARTOPOL``, ``G_POLTOCAR``.
    */
@@ -305,5 +306,6 @@ namespace YSE {
     DEFOBJ(M_MPECONFIG, ".mpeconfig");
     DEFOBJ(M_MPEFORMAT, ".mpeformat");
     DEFOBJ(M_MPEPARSE, ".mpeparse");
+    DEFOBJ(M_MIDIINFO, ".midiinfo");
   };
 } // namespace YSE

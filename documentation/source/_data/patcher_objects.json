@@ -3802,6 +3802,55 @@
       }
     ]
   },
+  ".midiinfo": {
+    "category": "MIDI",
+    "description": "MIDI port directory — Max's 'midiinfo' (issue #536). Every other MIDI object in the patcher addresses a device by a bare index ('.midiout 2', '.notein 1') and nothing in a patch could say what index 2 actually is, so a patch that moved between machines silently addressed the wrong hardware. A bang reports the machine's ports: the count out the right outlet first, then one index / name pair per port in index order, so a patch can match a device by name and feed the index it found to the object that opens it. The name is sent whole, spaces and all, exactly as the driver spells it. Input and output ports are separate sets numbered separately — input port 1 and output port 1 are unrelated devices — and the 'direction' argument ('input', the default, or 'output') picks which set is reported; the messages 'input' and 'output' switch it live, and switching costs nothing because both sets are snapshotted together. A machine with no ports sends a count of 0 and nothing else. The ports are read once, on the control thread, when the object joins its patcher: RtMidi's enumeration allocates and talks to the platform's MIDI service, which the audio callback may not do, so a bang reads a fixed-size snapshot taken then. It follows that the object does not rescan — a controller plugged in afterwards is picked up by re-creating the object or reloading the patch, not by banging again. At most 32 ports are held and a name longer than 63 characters is truncated. Nothing on the bang path allocates, locks or blocks, and two threads banging at once — or an outlet wired back into the inlet — are refused rather than allowed to recurse.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang reports the ports: the count, then an index and a name for each one. 'input' and 'output' switch which set is reported, in either spelling — as a message from a '.message' box, or as a list.",
+        "index": 0,
+        "label": "bang",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".midiinfo",
+    "outlets": [
+      {
+        "doc": "The port's name as the driver reports it, sent whole — spaces included, truncated at 63 characters. Sent after the index of the same port, so anything it triggers downstream already knows which port is being named.",
+        "index": 0,
+        "label": "name",
+        "range": "",
+        "type": "LIST"
+      },
+      {
+        "doc": "The port's index — the number '.midiout', '.notein' and the rest of the MIDI family take as their 'port' argument. Counted from 0, within this direction only.",
+        "index": 1,
+        "label": "index",
+        "range": "0-31",
+        "type": "INT"
+      },
+      {
+        "doc": "How many ports the selected direction has. Sent once, before the first pair, so a patch knows how many to expect; 0 on a machine with none, and then nothing follows.",
+        "index": 2,
+        "label": "count",
+        "range": "0-32",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "input",
+        "doc": "Which set of ports to report: 'input' for the ports a patch can receive from, 'output' for the ones it can send to. Anything else reads as 'input'.",
+        "name": "direction",
+        "range": "input | output"
+      }
+    ]
+  },
   ".midiout": {
     "category": "MIDI",
     "description": "MIDI device output — the end of every chain that sends. A message arrives at the inlet as a list of bytes and goes straight out of the selected hardware port, whole and in order. Both of the patcher's spellings of a byte list are read (issue #748): the numeric one, '144 60 100', which is what '.midiformat', '.sxformat' and '.seq' send and what a list is everywhere else in the patcher, and the binary one, whose characters are the bytes themselves, which is what the older senders ('.noteon', '.noteoff', '.controlchange', '.polypressure', '.channelpressure', '.programchange', '.bendout' and the '.x*out' family) build. The two cannot be confused: a MIDI message begins with a status byte, 128 or above, which is never a decimal digit. The message is sent at the length it has rather than padded or cut to three bytes, so a program change goes out as the two bytes it is and a system-exclusive dump of any length up to 256 bytes goes out entire; a numeric list carrying a number outside 0-255, or longer than that, is not a MIDI message and is dropped rather than sent in part. Also understands 'allnotesoff', 'reset', 'omni on/off', 'poly on/off' and 'local control on/off' as control messages. The port is opened on the first message rather than at creation, so a patch loads on a machine whose devices are not the ones it was written on.",
