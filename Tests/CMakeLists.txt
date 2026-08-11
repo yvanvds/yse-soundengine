@@ -154,6 +154,11 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_midiinfo.cpp
   patcher/test_patcher_midiflush.cpp
   patcher/test_patcher_makenote.cpp
+  patcher/test_patcher_stripnote.cpp
+  patcher/test_patcher_flush.cpp
+  patcher/test_patcher_sustain.cpp
+  patcher/test_patcher_poly.cpp
+  patcher/test_patcher_borax.cpp
   patcher/test_patcher_teardown.cpp
   patcher/test_math_wrappers.cpp
   patcher/test_dsp_objects.cpp
@@ -1106,6 +1111,11 @@ set_source_files_properties(
   patcher/test_patcher_midiinfo.cpp
   patcher/test_patcher_midiflush.cpp
   patcher/test_patcher_makenote.cpp
+  patcher/test_patcher_stripnote.cpp
+  patcher/test_patcher_flush.cpp
+  patcher/test_patcher_sustain.cpp
+  patcher/test_patcher_poly.cpp
+  patcher/test_patcher_borax.cpp
   patcher/test_patcher_teardown.cpp
   patcher/test_math_wrappers.cpp
   patcher/test_dsp_objects.cpp

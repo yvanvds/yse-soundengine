@@ -168,6 +168,24 @@
 // on two int outlets and holds no port, so it drives a patcher-built synth on a
 // platform with no MIDI hardware exactly as it drives a rack on one that has.
 #include "midi/mMakeNote.h"
+// `.stripnote` (issue #539), unconditional for the same reason again: it reads
+// a pitch and a velocity off two inlets and writes them to two outlets, and
+// opens no device.
+#include "midi/mStripNote.h"
+// `.flush` (issue #540), unconditional for the same reason once more: it
+// watches pitch/velocity pairs on ordinary cords and sends them back out, and
+// opens no device.
+#include "midi/mFlush.h"
+// `.sustain` (issue #541), unconditional once more: it holds note-offs back
+// while a pedal is down and sends them when it lifts, all of it on ordinary
+// cords, and opens no device.
+#include "midi/mSustain.h"
+// `.poly` (issue #542), unconditional once more: it allocates pitch/velocity
+// pairs to a numbered pool of voices on ordinary cords, and opens no device.
+#include "midi/mPoly.h"
+// `.borax` (issue #543), unconditional once more: it watches pitch/velocity
+// pairs on ordinary cords and reports numbers about them, and opens no device.
+#include "midi/mBorax.h"
 // The system-exclusive pair (issue #531). One header, two guards: `.sxformat`
 // is compiled everywhere and `.sysexin` only where there is an input port to
 // open, so the include itself carries no `#if`.
@@ -701,6 +719,50 @@ pRegistry::pRegistry() {
   // sender downstream of it is a stateless formatter that remembers nothing, so
   // until this existed a patch had to send its own note-offs by hand.
   Add(OBJ::M_MAKENOTE, mMakeNote::Create);
+
+  // `.stripnote` (issue #539): the other end of the same note. `.makenote`
+  // guarantees a release is sent; this one guarantees a release is not *acted
+  // on*, which is what a patch that only cares about attacks needs. Every note
+  // source reports a release as a pitch with velocity 0, so without it a patch
+  // triggers twice per key. Unguarded like the two above — it opens no device.
+  Add(OBJ::M_STRIPNOTE, mStripNote::Create);
+
+  // `.flush` (issue #540): `.midiflush`'s complement, not its twin. That one
+  // watches a byte stream and releases what the *stream* left sounding, so it
+  // sits after the formatters; this one watches pitch/velocity pairs and
+  // releases what the *patcher* is holding, so it sits before them, where a
+  // note has no channel yet. Unguarded like the three above — it opens no
+  // device.
+  Add(OBJ::M_FLUSH, mFlush::Create);
+
+  // `.sustain` (issue #541): the pedal, for the patch that is not driving the
+  // built-in synth. `.flush` remembers the notes that are sounding and releases
+  // them on a bang; this one remembers the releases it swallowed while the pedal
+  // was down and sends them when it lifts — opposite sets, and they compose in
+  // that order. The engine's own synth already defers releases this way
+  // internally; this exposes the same rule to patcher logic. Unguarded like the
+  // four above — it opens no device.
+  Add(OBJ::M_SUSTAIN, mSustain::Create);
+
+  // `.poly` (issue #542): the allocator the four above assume. They keep a
+  // patch's notes honest one cord at a time; this one decides *which voice*
+  // plays each note and hands its number out with the pair, which is what lets
+  // a patch fan one keyboard across N voice chains and still route every
+  // note-off back to the chain that is playing it. It follows the engine
+  // synth's own allocation and stealing policy rather than inventing a second
+  // one. Unguarded like the five above — it opens no device.
+  Add(OBJ::M_POLY, mPoly::Create);
+
+  // `.borax` (issue #543): the one that only ever *reads* the note stream the
+  // six above write. They keep a patch's notes honest and decide where each one
+  // plays; this one answers how many there are, how long they last and how fast
+  // they arrive — the input side of adaptive musical behaviour, and questions
+  // nothing else in the patcher can be asked. `.timer` measures one interval
+  // between two bangs; this measures every note in a polyphonic stream at once.
+  // It holds no note anything else does not also hold, which is why it is the
+  // one member of the family with no teardown release. Unguarded like the six
+  // above — it opens no device.
+  Add(OBJ::M_BORAX, mBorax::Create);
 
 #if YSE_ENABLE_MIDI_DEVICE
   // The MIDI input family (issue #529) — the way *into* a patch. Every object

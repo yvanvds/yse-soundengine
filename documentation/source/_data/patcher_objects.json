@@ -1524,6 +1524,111 @@
       }
     ]
   },
+  ".borax": {
+    "category": "MIDI",
+    "description": "Reports note-on and note-off statistics over a stream of pitch/velocity pairs — Max's 'borax', his 'swiss army knife for music analysis'. Nine outlets report what the stream is doing: the serial number of each note, the voice it took, how many notes are sounding, the pitch and velocity, how many notes have completed, how long the one that just ended lasted in milliseconds, how many delta times have been reported and how far apart successive attacks are. This is the input side of adaptive musical behaviour and the only object in the patcher that answers those questions: everything else around a note either makes one ('.makenote', '.noteon'), routes one ('.poly'), filters one ('.stripnote') or cleans up after one ('.flush', '.sustain', '.midiflush'), so a patch that wants to play denser when the performer plays faster, or pick a reverb size from how long a phrase's notes are, had no way to ask before this. Where '.timer' measures one interval between two bangs, this measures every note in a polyphonic stream at once, each against its own attack. It reports rather than holds: the notes it knows about are sounding somewhere else, and it is wired alongside that rather than in the path. The leftmost outlet is the note's own serial and not a running total — the same number that came out at the attack comes out again at the release, which is what lets something that saw both recognise them as one event and is why a duration is worth reporting beside it. Voices are the lowest free number, from 1, which is '.poly''s numbering so that a '.borax' watching a stream a '.poly' also allocates does not report different numbers for the same notes; a repeated pitch takes a second voice and the two release oldest-first, so a balanced source stays balanced. It never steals and has no overflow outlet — stealing exists so a sounding voice can be reused and this object sounds nothing — so a note-on with all 128 voices taken is ignored, as is a note-off for a pitch no voice is holding: both silently, the thread being routinely the audio callback where a warning would be an allocation. The outlets fire right to left, Max's order, which here is not cosmetic: the serial is the value a patch keys on, so it has to reach a hot inlet last or it would carry the previous note's figures with it. Not every outlet fires on every message, and that selectivity is Max's and is information — the duration and note-off count only on a note-off, the two delta outlets only on a note-on that had a predecessor or on the 'delta' message, which takes a reading on demand and emits nothing before the first note-on. The milliseconds are measured, never counted: the clock is std::chrono::steady_clock, which is '.timer''s reading, the patcher timer thread's scheduling clock and the engine's own time source, so a duration never disagrees with a '.timer' beside it; it is deliberately not the deferred-message scheduler '.makenote' arms releases on, that being the patcher's block counter and right for scheduling but a block coarse for measuring. A bang in the right inlet resets, Max's wording: it sends note-offs for everything held — full reports, durations included — then zeroes the counters and the clock. There is no teardown release (issue #758) and deliberately so: '.flush', '.poly' and '.makenote' override it because each is the only thing that knows about a sounding note, while this object knows about no note something else does not, and a burst of duplicate note-off reports timing how long the patcher took to die would be a worse answer than silence. Like '.poly' and '.flush' it opens no device and needs none, so it works on every platform. The table is 128 entries allocated with the object, no path allocates, locks or blocks on the audio thread — every one is a bounded walk plus one clock read, and no outlet carries text — and Calculate() does nothing.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The pitch, and the half of the pair that acts. An int or a float here is paired with the stored velocity and measured: a non-zero velocity takes the lowest free voice, gives the note the next serial number and reports it, while a velocity of 0 closes off the voice holding that pitch and reports how long it lasted — 0 being how the whole MIDI world spells a release. A float pitch is truncated to an int, as it is in Max. A list is Max's inlet distribution written on one cord: the first element is the pitch and a second element sets the velocity first, so '60 100' measures pitch 60 at velocity 100 and '60 0' ends it — which is exactly the shape '.midiparse''s note outlet sends. Further elements are ignored. A single-token numeric list is the number it spells, so a '.m 60' reaches this inlet as a pitch. The message 'delta' sends the time since the last note-on out the two delta outlets without touching anything else, which is how a patch asks how long it has been quiet. A release for a pitch no voice is holding, and a note-on with all 128 voices taken, are both ignored silently — there is nothing true to report about either. Any pitch at all can be measured, the table holding pitches rather than being a bitmap over the MIDI note range. There is no bang method here: Max's bang is the right inlet's, and it resets.",
+        "index": 0,
+        "label": "pitch",
+        "range": "int, float, list, 'delta'"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Sets the velocity that pitches arriving *after* it will be paired with — Max's middle inlet. It outputs nothing by itself: only a pitch completes a note, so only a pitch can start a measurement or end one. Ints, floats and a list whose leading token is a number all set it; a float is truncated. The value is stored and reported exactly as given, unclamped and never refused for being outside MIDI's 0-127 — this object measures notes, it does not rewrite them, and 0 is the only value it reads meaning into, that being what a release is spelled with.",
+        "index": 1,
+        "label": "velocity",
+        "range": "0-127"
+      },
+      {
+        "accepts": [
+          "BANG"
+        ],
+        "doc": "A bang resets — Max's only bang, and his wording: 'resets borax by sending note-offs for all notes currently being held, erasing the borax object's memory of all notes received, and setting its counters and its clock to 0'. The note-offs are full note-off reports, duration and note-off count included, and go out in ascending voice order before the counters are zeroed: the durations are the one thing this object measured that nothing else could reconstruct, so a reset hands them over rather than dropping them. Afterwards the note serial, the note-off count and the delta count all start again from zero, no voice is sounding, and the next note-on reports no delta — there being no earlier attack left to measure from. A reset with nothing sounding sends nothing but still zeroes the counters. The inlet takes nothing but a bang; a number here is neither a pitch nor a velocity.",
+        "index": 2,
+        "label": "reset",
+        "range": "bang"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".borax",
+    "outlets": [
+      {
+        "doc": "The number this note was given, counting note-ons from 1 since the last reset. Max's leftmost outlet, and not a running total: the same number goes out at the attack and again at the release, which is what lets something that saw both recognise them as one event and pair a duration with the note it belongs to. Sent last, after every other outlet, Max's outlets firing right to left — this is the value a patch keys on, so everything downstream takes it on a hot inlet.",
+        "index": 0,
+        "label": "serial",
+        "range": "1+",
+        "type": "INT"
+      },
+      {
+        "doc": "The voice this note took: the lowest number not already in use, from 1. A voice comes free when the note holding it is released, so a patch with more voices than it uses always sees the low ones. The same number comes out again at the release. Numbered from 1 like '.poly''s, so the two objects watching one stream agree.",
+        "index": 1,
+        "label": "voice",
+        "range": "1-128",
+        "type": "INT"
+      },
+      {
+        "doc": "How many notes are sounding right now, sent on every note-on and every note-off — the figure this object mostly exists to make a patch able to ask for. It counts up on an attack and down on a release, so a patch reads 0 as 'the passage has ended' and reads a rising number as a thickening texture.",
+        "index": 2,
+        "label": "poly",
+        "range": "0-128",
+        "type": "INT"
+      },
+      {
+        "doc": "The pitch of the note being started or ended. The same value on the way in and on the way out, so a release is identifiable as belonging to its attack. Any int at all — the table holds pitches rather than being a bitmap over the MIDI range.",
+        "index": 3,
+        "label": "pitch",
+        "range": "int",
+        "type": "INT"
+      },
+      {
+        "doc": "The velocity: the stored one when a note starts, and 0 for every release, including the ones a reset sends. Reported exactly as it was given, unclamped.",
+        "index": 4,
+        "label": "velocity",
+        "range": "int",
+        "type": "INT"
+      },
+      {
+        "doc": "How many notes have completed since the last reset, sent only when one does — Max's sixth outlet, the count that accompanies each duration. Together with the note serial it says how much of what was played has finished.",
+        "index": 5,
+        "label": "notesoff",
+        "range": "1+",
+        "type": "INT"
+      },
+      {
+        "doc": "How long the note that just ended lasted, in milliseconds, sent only on a note-off — and on the note-offs a reset sends. Measured rather than counted: the attack and the release each read the engine's monotonic clock (std::chrono::steady_clock, the same source '.timer' reads and the patcher's timer thread schedules on) and the figure is their difference, so a message the OS delivered late is timed at the instant it really arrived. A float rather than Max's int, because a grace note and the next note of a rolled chord can differ by less than a millisecond. Sent before the note-off count, Max's outlets firing right to left.",
+        "index": 6,
+        "label": "duration",
+        "range": "0+ ms",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "How many delta times have been reported since the last reset — Max's eighth outlet. Both a note-on that had a predecessor and the 'delta' message add one, and it is sent whenever a delta is. It stays silent when the delta outlet does, so a patch reads a repeat of the previous number as 'no new attack', never as a new one.",
+        "index": 7,
+        "label": "deltacount",
+        "range": "1+",
+        "type": "INT"
+      },
+      {
+        "doc": "The time between successive attacks, in milliseconds — how fast the passage is being played. Sent on every note-on except the first, there being no earlier attack to measure from, and on the 'delta' message, which takes the reading on demand (the time since the last note-on, right now) and is how a patch asks how long it has been quiet. Same clock, same float, and the same reasons as the duration outlet. Sent first of all, Max's outlets firing right to left.",
+        "index": 8,
+        "label": "delta",
+        "range": "0+ ms",
+        "type": "FLOAT"
+      }
+    ],
+    "params": []
+  },
   ".bucket": {
     "category": "GENERIC",
     "description": "Passes numbers from outlet to outlet, shifting on every input — Max's bucket, which 'outputs incoming values to outlets in bucket-brigade fashion' and 'acts as an n-stage shift register which can shift its contents from outlet to outlet in either direction'. A delay line for events rather than for samples: outlet 1 is whatever arrived one step ago, outlet 2 two steps ago, and so on for as many outlets as the creation argument asked for, which is the canonical shape of a canon, an arpeggio echo, a comparison of a value against its own recent history, and anything that has to reappear N steps later. It is not .past, .peak or .trough, which each remember one thing about the stream; this remembers the last N values positionally and hands all of them out at once. Nor is it .cycle, which it resembles from the outside and is the opposite of: .cycle sends one message out one outlet and moves a cursor, where this sends the whole register out every outlet on each input — 'spread these notes over four voices' is .cycle, 'play these notes again four steps later' is this. And unlike .trigger, which fans one value out every outlet as copies, every outlet here carries a different, older value: the fan-out is across time. By default the register is one step behind the input, Max's 'the numbers currently stored in bucket are sent out, then each number is moved one outlet to the right and the new number is stored to be sent out the left outlet the next time a number is received'; a second non-zero creation argument is Max's 'echo to output' mode, which swaps the order of the shift and the send so the value that arrived is in this burst rather than the next. 'L2R' and 'R2L' choose which end new values enter, and outlets always fire in Max's universal right-to-left order whichever way the storage is shifting, so a downstream collector sees the oldest value before the newest. The burst is captured before the state changes and the state is settled before the first send, the settle-first argument .onebang, .togedge, .next, .buddy and .cycle make: the send path is synchronous, so a patch looping an outlet back into the inlet re-enters inside the Send and must find a register that has already shifted, while the interrupted burst goes on emitting the values it started with. 'set <n>' fills every stage with n and sends it out every outlet — it emits, unlike .cycle's and .past's silent sets, because it changes the whole visible contents of the register rather than a cursor; 'clear' is the silent one and resets every stage to int 0. 'freeze' suspends the output while incoming numbers go on shifting internally and 'thaw' resumes it, so a frozen bucket records quietly and a thaw plus a bang shows what it collected; the gag covers bang, set and roll too. 'roll' feeds the value at the far end back in as if it had been received, a rotation in which nothing enters and nothing is lost, which turns the register into a phrase loop the patch can step; Max documents an argument that is not read, so a bare roll is the same message. Each stored value leaves as the kind it was spelled as, so 1 2 3 does not come back out as 1. 2. 3. A bang sends the stored values without shifting. Max documents no list method; here a message whose first token is a number is fed in token by token, each numeric token one full input, because a shift register is a thing you push a sequence through and dropping all but the first element would throw data away at the object least able to afford it — a one-element list still behaves exactly as Max's int. Anything else is ignored. At most 256 stages, built once before the object is published; Calculate() does nothing, and no message path allocates, locks or blocks.",
@@ -2631,6 +2736,54 @@
         "range": "any float"
       }
     ]
+  },
+  ".flush": {
+    "category": "MIDI",
+    "description": "Releases every note the patcher is holding — Max's 'flush', which 'keeps track of all note-ons passed through it, and produces note-off messages for any held notes when it receives a bang'. A pitch in the left inlet passes straight through with the stored velocity, and on the way past the object remembers whether that pair turned a note on (any velocity but 0) or off (velocity 0). A bang then sends one release — the same pitch with velocity 0 — for every note still sounding, in ascending pitch order, and empties the set; 'clear' empties it without sending anything. This is the panic stop for a patch that plays notes out of its own logic: a sequence interrupted between its note-ons and its note-offs, a '.metro' switched off mid-phrase, a generative voice whose releases were never written. Nothing else can find those notes again, every note sender in the patcher ('.noteon', '.midiformat', the '.x*out' family) being a stateless formatter that sends what it is handed and remembers nothing. It is not a second '.midiflush' and the two are complements rather than alternatives: '.midiflush' watches a MIDI byte stream, decoding running status and system-exclusive dumps, and releases what that stream left sounding on the channel each note carried, so it belongs after the formatters in the cord to '.midiout'; this object watches pitch/velocity pairs, which is what a patch deals in before anything has been formatted, so it belongs between the logic that plays notes and the sender that encodes them. It accordingly has no channel and wants none — at that point the channel has not been decided, every sender downstream taking one of its own — and its releases go out as the same pair of ints its input is, ready to be wired into the very '.noteon' the attacks went through. Nothing is filtered on the way past: that is '.stripnote''s job, and this object only remembers. The right inlet stores the velocity for pitches arriving after it and outputs nothing itself, and a list in the left inlet is Max's inlet distribution on one cord — '60 100' plays pitch 60 at velocity 100 — which is the shape '.midiparse''s note outlet sends. The velocity goes out the right outlet before the pitch goes out the left, Max's outlets firing right to left, which here is not cosmetic: everything downstream that takes a pair takes pitch on a hot inlet and velocity on a cold one, so a pitch sent first would carry the previous note's velocity. A note is released exactly once, so banging twice sends nothing the second time, and notes played after a flush are tracked from scratch. A pitch outside 0-127 passes through unaltered but is not tracked, the set being a fixed bitmap of 128 bits allocated with the object — so neither the pass-through nor the flush allocates, locks or blocks on the audio thread, and the flush is bounded by the bitmap rather than by how many notes a patch managed to strand. Like '.stripnote' it opens no device and needs none, so it works on every platform. It also flushes by itself when the patcher is cleared or destroyed, and when the object is deleted on its own (issue #758): the patcher stops every object before it unwires any of them, so the releases go out down a patch that is still whole and reach the sender exactly as a bang's do. Nothing can be promised for a process killed outright, and Calculate() does nothing.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The pitch, and the half of the pair that acts. An int or a float here goes straight out the left outlet with the stored velocity out the right one — nothing is filtered and nothing is rewritten — and on the way past the object remembers what the pair did: a non-zero velocity marks the pitch sounding, and a velocity of 0 clears it, 0 being how the whole MIDI world spells a release. A float pitch is truncated to an int, as it is in Max. A list is Max's inlet distribution written on one cord: the first element is the pitch and a second element sets the velocity first, so '60 100' plays pitch 60 at velocity 100 and '60 0' releases it — which is exactly the shape '.midiparse''s note outlet sends. Further elements are ignored. A single-token numeric list is the number it spells, so a '.m 60' reaches this inlet as a pitch. A bang releases every note still sounding, and the message 'clear' forgets them without sending anything — Max's two commands, and words rather than pitches. A pitch outside 0-127 passes through unaltered but is not tracked, the set being a fixed bitmap over the MIDI note range.",
+        "index": 0,
+        "label": "pitch",
+        "range": "int, float, list, 'bang', 'clear'"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Sets the velocity that pitches arriving *after* it will be paired with — Max's right inlet. It outputs nothing by itself: only a pitch completes a note, so only a pitch can pass one on or mark one sounding. Ints, floats and a list whose leading token is a number all set it; a float is truncated. The value is stored and passed on exactly as given, unclamped and never refused for being outside MIDI's 0-127 — this object remembers notes, it does not rewrite them, and 0 is the only value it reads meaning into.",
+        "index": 1,
+        "label": "velocity",
+        "range": "0-127"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".flush",
+    "outlets": [
+      {
+        "doc": "The pitch, sent once as it passes through and again when a bang releases it. The same value both times, which is what lets a release find the note it belongs to. Sent after the velocity, Max's outlets firing right to left.",
+        "index": 0,
+        "label": "pitch",
+        "range": "int",
+        "type": "INT"
+      },
+      {
+        "doc": "The velocity: the stored one as the pair passes through, and 0 for every release a bang sends. Sent before the pitch so anything downstream has it in hand by the time the pitch reaches its hot inlet.",
+        "index": 1,
+        "label": "velocity",
+        "range": "int",
+        "type": "INT"
+      }
+    ],
+    "params": []
   },
   ".forward": {
     "category": "GENERIC",
@@ -5014,6 +5167,80 @@
       }
     ]
   },
+  ".poly": {
+    "category": "MIDI",
+    "description": "Allocates incoming notes to a numbered pool of voices — Max's 'poly', which 'provides polyphonic voice-allocation by allocating data to different individual voices'. A pitch/velocity pair goes in the two inlets and a voice number, a pitch and a velocity come out the three outlets: a note-on takes a free voice and holds it, and the release that frees it comes out carrying the same voice number, which is the whole point — it is what lets a patch send a note-off to the one voice that is playing the note. This is what lets a patcher build its own polyphonic instrument out of graph objects the way the engine's synth does internally: a '.route' or a '.gate' on the voice-number outlet fans one keyboard out across N identical voice chains, and this object decides which chain each note lands in. It hosts nothing and renders nothing — it allocates numbers, and the patch decides what a number means. The policy is the engine synth's allocateInGroup rather than a second, subtly different one: a free voice is preferred and scanned in ascending order, so a patch with more voices than it uses always plays on the low ones; with no free voice the oldest sounding note gives way, which is the synth's rule once its release-tail tier is dropped (this object cannot see a tail — the tail belongs to whatever the patch built downstream) and is Max's rule word for word. A steal sends the stolen note's release before the new note's attack on the same voice number, so the chain downstream is told to let go before it is told to play again. Stealing is Max's second creation argument and is off by default: with it off, a note that finds no free voice goes out the overflow outlet as the list 'pitch velocity' and is not tracked. A note-off whose pitch no voice is holding goes out there too, as 'pitch 0', because in overflow mode the attacks that were refused went out there and their releases have to follow them or a patch reading that outlet would hang every note it was sent. Unlike Max the overflow outlet always exists — Max grows it only when not stealing, and ports here are built before the creation arguments are parsed — so while stealing it simply never fires. The right inlet stores the velocity for pitches arriving after it and outputs nothing itself, and a list in the left inlet is Max's inlet distribution on one cord: '60 100' plays pitch 60 at velocity 100. The outlets fire right to left — velocity, then pitch, then the voice number last — which here is not cosmetic: everything downstream takes the voice number on its hot inlet, that being the value which routes the note, so a voice number sent first would carry the previous note's pitch and velocity with it. Two note-ons for the same pitch are two notes and take two voices, Max's default repeat mode and the only answer that keeps a voice pool a voice pool; their note-offs pair oldest-first, so a balanced source stays balanced. 'stop' releases every sounding voice immediately, in ascending voice order — Max's only message; there is no 'clear' and no bang method, poly having neither. Any pitch at all can be allocated, the pool being a table of voices rather than a bitmap over the MIDI note range, so a patch driving a non-MIDI synth through wider values is tracked exactly like any other. At most 128 voices may be asked for, all of the table allocated with the object, and nothing on the allocate, release, steal or stop paths allocates, locks or blocks on the audio thread — every one of them is a bounded walk of that table. Shrinking the pool under a sounding patch strands no note: only allocation is bounded by the voice count, while a release and a stop walk the whole table. Like '.flush' and '.sustain' it opens no device and needs none, so it works on every platform. It also stops by itself when the patcher is cleared or destroyed, and when the object is deleted on its own (issue #758): the patcher stops every object before it unwires any of them, so a patch torn down mid-chord cannot leave its voice chains holding notes that only this object knew about. Nothing can be promised for a process killed outright, and Calculate() does nothing.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The pitch, and the half of the pair that acts. An int or a float here is paired with the stored velocity and allocated: a non-zero velocity takes a voice — the lowest-numbered free one — and sends that voice's number with the pitch and velocity, while a velocity of 0 releases the voice holding that pitch and sends the same number back with velocity 0, which is how the whole MIDI world spells a release. A float pitch is truncated to an int, as it is in Max. A list is Max's inlet distribution written on one cord: the first element is the pitch and a second element sets the velocity first, so '60 100' plays pitch 60 at velocity 100 and '60 0' releases it — which is exactly the shape '.midiparse''s note outlet sends. Further elements are ignored. A single-token numeric list is the number it spells, so a '.m 60' reaches this inlet as a pitch. The message 'stop' releases every sounding voice immediately, in ascending voice order — Max's only command, and a word rather than a pitch. There is no bang method and no 'clear', Max's poly having neither. Any pitch at all can be allocated, this object holding a table of voices rather than a bitmap over the MIDI note range.",
+        "index": 0,
+        "label": "pitch",
+        "range": "int, float, list, 'stop'"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Sets the velocity that pitches arriving *after* it will be paired with — Max's right inlet. It outputs nothing by itself: only a pitch completes a note, so only a pitch can take a voice or free one. Ints, floats and a list whose leading token is a number all set it; a float is truncated. The value is stored and passed on exactly as given, unclamped and never refused for being outside MIDI's 0-127 — this object allocates notes, it does not rewrite them, and 0 is the only value it reads meaning into, that being what a release is spelled with.",
+        "index": 1,
+        "label": "velocity",
+        "range": "0-127"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".poly",
+    "outlets": [
+      {
+        "doc": "The voice the note was allocated to, numbered from 1. The same number comes out again when that note is released, and again when the voice is stolen, which is what lets a patch route a note-off to the voice that is playing the note. Sent last, after the pitch and the velocity, Max's outlets firing right to left — this is the value that routes, so everything downstream takes it on a hot inlet.",
+        "index": 0,
+        "label": "voice",
+        "range": "1-128",
+        "type": "INT"
+      },
+      {
+        "doc": "The pitch of the note being started, released or stolen. The same value on the way in and on the way out, which is what lets a release find the note it belongs to. Sent after the velocity and before the voice number.",
+        "index": 1,
+        "label": "pitch",
+        "range": "int",
+        "type": "INT"
+      },
+      {
+        "doc": "The velocity: the stored one when a note is allocated, and 0 for every release — the one a note-off asks for, the one a steal sends for the note it displaces, and the ones 'stop' and the teardown pass send. Sent first, so anything downstream has the pair in hand by the time the voice number reaches its hot inlet.",
+        "index": 2,
+        "label": "velocity",
+        "range": "int",
+        "type": "INT"
+      },
+      {
+        "doc": "Notes no voice could be found for, as the list 'pitch velocity' — Max's fourth outlet. It fires when the pool is full and stealing is off, and it also carries a note-off whose pitch no voice is holding, as 'pitch 0', so the releases of overflowed notes follow them out the same outlet instead of vanishing. Silent while stealing, a stealing pool never overflowing.",
+        "index": 3,
+        "label": "overflow",
+        "range": "pitch velocity",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "16",
+        "doc": "The size of the voice pool — Max's first creation argument, whose documented default is 16. Clamped to 1-128 when it is read, so a live re-parse from the audio thread cannot put it out of range. Shrinking it under a sounding patch strands nothing: only allocation is bounded by it, while a release, a 'stop' and the teardown pass walk the whole table, so a voice left above the new bound still gets its note-off and simply never plays again.",
+        "name": "voices",
+        "range": "1-128"
+      },
+      {
+        "default": "0",
+        "doc": "Whether a full pool steals — Max's second creation argument. 0, the default, sends notes it cannot hold out the overflow outlet; any non-zero value turns off the note held the longest and puts the new note in its place, sending the stolen note's release first so the voice chain downstream is told to let go before it is told to play again. It can be changed live, and doing so only affects the notes that arrive afterwards.",
+        "name": "steal",
+        "range": "0 or non-zero"
+      }
+    ]
+  },
   ".polyin": {
     "category": "MIDI",
     "description": "MIDI polyphonic key-pressure input — Max's 'polyin' (issue #529). The per-note counterpart of '.touchin': every held key reports its own pressure, so a chord can be shaped one note at a time rather than as a whole. Far fewer keyboards send it than send channel aftertouch, which is why the two are separate objects rather than one — a patch built on '.polyin' silently does nothing on hardware that has only the channel kind. The three outlets fire right to left, so whatever the pitch triggers downstream already sees the pressure and channel that came with it; pairing the pitch with the one a '.notein' reported is how a patch routes the value to the right voice. A 'channel' argument filters and, unlike Max, leaves the channel outlet in place. Events cross from the device backend's thread on a bounded lock-free queue and are drained once per audio block, so nothing allocates, locks or blocks on either side.",
@@ -6770,6 +6997,53 @@
     ],
     "params": []
   },
+  ".stripnote": {
+    "category": "MIDI",
+    "description": "Passes note-ons and drops the releases — Max's 'stripnote', 'only pass note-on messages: those having any velocity above 0'. A pitch in the left inlet goes out the left outlet with the stored velocity out the right one, unless that velocity is 0, in which case nothing is sent at all. This is the standard first object after a note source when a patch only cares about attacks — triggering a sample, advancing a sequence, firing anything one-shot. Every note source in the patcher reports a release as a pitch with velocity 0, '.notein' and '.midiparse' both folding a note-off message and a zero-velocity note-on into that one shape, so a patch wired straight through fires twice per key: once on the way down and once on the way up. The second one is always a bug, and it looks like a doubled sample or a sequence at double speed rather than like a MIDI problem. The right inlet stores the velocity for pitches arriving after it and outputs nothing itself, because a note is a pair and only the pitch half says the pair is complete. A list in the left inlet is Max's inlet distribution on one cord — '60 100' is pitch 60 at velocity 100 — which is exactly the shape '.midiparse''s note outlet sends, so '.midiparse' into '.stripnote' is a single cord. The test is literally 'not 0': nothing is clamped to MIDI's 0-127 and nothing outside it is refused, since this object filters notes rather than rewriting them and range belongs to the formatters downstream. The velocity goes out the right outlet before the pitch goes out the left, Max's outlets firing right to left, which here is not cosmetic — everything downstream that takes a pair ('.makenote', '.noteon', '.midiformat', the '.x*out' family) takes pitch on a hot inlet and velocity on a cold one, so a pitch sent first would carry the previous note's velocity. There are no creation arguments, as in Max, and nothing is held: unlike '.makenote' and '.midiflush' this object never causes a note to sound, so it has nothing to release when the patcher goes away. Calculate() does nothing and no message path allocates, locks or blocks.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The pitch, and the half of the pair that acts. An int or a float here is sent straight out the left outlet with the stored velocity out the right one — but only if that velocity is not 0, which is Max's 'only pass note-on messages: those having any velocity above 0'. A velocity of 0 is a release, and a release sends nothing at all. A float pitch is truncated to an int, as it is in Max. A list is Max's inlet distribution written on one cord: the first element is the pitch and a second element sets the velocity first, so '60 100' passes pitch 60 at velocity 100 and '60 0' passes nothing — which is exactly the shape '.midiparse''s note outlet sends, so the standard patch is a single cord. Further elements are ignored. A single-token numeric list is the number it spells, so a '.m 60' reaches this inlet as a pitch. There is no bang method, as Max's stripnote has none.",
+        "index": 0,
+        "label": "pitch",
+        "range": "int, float, list"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Sets the velocity that pitches arriving *after* it will be paired with — Max's right inlet. It outputs nothing by itself: only a pitch completes a note, so only a pitch can pass one on. Ints, floats and a list whose leading token is a number all set it; a float is truncated. The value is stored and passed on exactly as given, unclamped and never refused for being outside MIDI's 0-127 — this object filters notes, it does not rewrite them, and 0 is the only value it reads meaning into.",
+        "index": 1,
+        "label": "velocity",
+        "range": "0-127"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".stripnote",
+    "outlets": [
+      {
+        "doc": "The pitch of a note-on, unaltered. Nothing is sent here for a release — a pitch whose velocity is 0 — which is the whole object. Sent after the velocity, Max's outlets firing right to left.",
+        "index": 0,
+        "label": "pitch",
+        "range": "int",
+        "type": "INT"
+      },
+      {
+        "doc": "The velocity of a note-on, unaltered and never 0: a 0 is what stops the pair from being sent at all. Sent before the pitch, so anything downstream has it in hand by the time the pitch reaches its hot inlet.",
+        "index": 1,
+        "label": "velocity",
+        "range": "int",
+        "type": "INT"
+      }
+    ],
+    "params": []
+  },
   ".substitute": {
     "category": "GENERIC",
     "description": "Replaces elements of a message — Max's substitute, which 'matches messages to its own arguments; whenever it finds a match, will make the appropriate substitution'. Two arguments, a match and a replacement: every element of an incoming message equal to the match leaves as the replacement, everything else leaves untouched, and a third argument of any kind restricts the edit to the first match in the message. This is the edit the patcher could not otherwise make: .prepend and .append put words on the ends of a message and .route, .routepass and .sel branch on the word it starts with, but nothing could change a word in the middle of one without a round trip out to the host application. Exactly one outlet fires. A message something was substituted in leaves the left outlet; one that matched nothing leaves the rightmost outlet unchanged and in its own type, which is Max's 'if no substitution occurred ... the original input message is passed out the rightmost outlet' and makes the outlet a report of whether the edit happened — so substitutions chain the way .routepass matches do, each reject outlet feeding the next inlet. A bare .substitute matches nothing and is a wire, the .prepend rule that makes it safe to drop an unconfigured object into a working patch; Max's default of 0 for both arguments is declined for the reason .routepass declines to invent a default selector, since it would route zeroes out the other outlet than everything else. A match given without a replacement does take Max's 0, because an empty replacement would leave an empty token no .route matches. The matcher is .sel's and .routepass's: a match is a number or a symbol, classified once, and the two never match each other — a number matches by value with an int widened to a float, a symbol matches by exact text, and a bang matches a match spelled 'bang'. A list is walked element by element, which is the one place this differs from .routepass: substituting is not routing, so a match anywhere in the message counts. The comparison is exact, so a computed float may miss a match it looks equal to and a NaN matches nothing. A replaced element is written as the text of the replacement; when a scalar matched, the replacement leaves as the type it reads as, so .substitute 5 7 turns the int 5 into the int 7 rather than into the list that spells it. The match and the replacement each have an inlet, leaving inlet 0 with no reserved words in it — which matters more here than anywhere, since the messages this object edits are the ones that begin with a word. Match and replacement are at most 64 characters, refused rather than truncated past that. Calculate() does nothing, and no message path allocates, locks or blocks: the rewrite is a bounded walk into a buffer reserved at construction for the worst case a 256-character list can grow into, and a message that matched nothing is forwarded by reference rather than copied through it.",
@@ -6847,6 +7121,64 @@
         "range": "any single number or symbol"
       }
     ]
+  },
+  ".sustain": {
+    "category": "MIDI",
+    "description": "Holds note-off messages while the sustain pedal is down — Max's 'sustain', which 'holds note-off messages for release'. A pitch in the left inlet is paired with the stored velocity, and the pedal decides what happens: a note-on (any velocity but 0) always passes straight through, because a pedal delays releases and never attacks; a note-off (velocity 0, which is how the whole MIDI world spells one) passes through with the pedal up and is held back with the pedal down. Lifting the pedal — a 0 in the right inlet, or the message 'sustain 0' — sends every held note-off, in ascending pitch order, and empties the set. That is the pedal a keyboard has: keys come up under the player's fingers and the notes keep sounding until the foot does. It agrees exactly with the engine's own synth, whose handleSustain marks a voice held instead of releasing it and drops that claim when the pedal lifts; this object is for the patch that is not driving the built-in synth — a '.midiout' to a hardware rack, or a voice assembled out of patcher objects — since where the built-in synth is being driven its own pedal is already doing this. It is not a second '.flush' and the two sets hold opposite things: '.flush' remembers the notes that are sounding, filled by note-ons, and releases them on a bang; this one remembers the releases it swallowed, filled by note-offs, and sends them when the pedal lifts. They compose in that order — a '.sustain' in front of a '.flush' leaves the '.flush' holding what is really sounding, pedal included. The middle inlet stores the velocity for pitches arriving after it and outputs nothing itself, and a list in the left inlet is Max's inlet distribution on one cord — '60 100' plays pitch 60 at velocity 100 — which is the shape '.midiparse''s note outlet sends. The velocity goes out the right outlet before the pitch goes out the left, Max's outlets firing right to left, which here is not cosmetic: everything downstream that takes a pair takes pitch on a hot inlet and velocity on a cold one, so a pitch sent first would carry the previous note's velocity. Max's three commands are words in the left inlet: 'sustain 1' / 'sustain 0' press and lift the pedal, 'flush' sends every held note-off now and leaves the pedal where it is, and 'clear' forgets them without sending anything. There is no bang method, Max's sustain having none. Max's 'repeatmode' is not implemented: this object is Max's default mode 0, so a pitch played again while its release is held keeps that one held release and the new attack goes out on its own. A pitch outside 0-127 passes through unaltered and is never held even with the pedal down, the set being a fixed bitmap of 128 bits allocated with the object — a release it could not remember would never be sent by anything, and a note released early is merely a short one. Nothing on the pass-through, pedal-lift or clear paths allocates, locks or blocks on the audio thread, and a lift is bounded by the bitmap rather than by how many keys the player let go of. Like '.flush' it opens no device and needs none, so it works on every platform. It also flushes by itself when the patcher is cleared or destroyed, and when the object is deleted on its own (issue #758): the patcher stops every object before it unwires any of them, so a patch torn down mid-pedal cannot leave the rack sounding with the note-offs this object swallowed. Nothing can be promised for a process killed outright, and Calculate() does nothing.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The pitch, and the half of the pair that acts. An int or a float here is paired with the stored velocity, and what happens next is the pedal: a note-on — any velocity but 0 — always goes straight out, because the pedal delays releases and never attacks; a note-off — velocity 0, which is how the whole MIDI world spells one — goes straight out with the pedal up and is held back with the pedal down, to be sent when the pedal lifts. A float pitch is truncated to an int, as it is in Max. A list is Max's inlet distribution written on one cord: the first element is the pitch and a second element sets the velocity first, so '60 100' plays pitch 60 at velocity 100 and '60 0' releases it — which is exactly the shape '.midiparse''s note outlet sends. Further elements are ignored. A single-token numeric list is the number it spells, so a '.m 60' reaches this inlet as a pitch. Three words are commands rather than pitches: 'sustain 1' and 'sustain 0' press and lift the pedal exactly as the right inlet does, 'flush' sends every held note-off now and leaves the pedal where it is, and 'clear' forgets them without sending anything. There is no bang method, Max's 'sustain' having none. A pitch outside 0-127 passes through unaltered and is never held, even with the pedal down, the set being a fixed bitmap over the MIDI note range — a release it could not remember would never be sent at all.",
+        "index": 0,
+        "label": "pitch",
+        "range": "int, float, list, 'sustain 0/1', 'flush', 'clear'"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Sets the velocity that pitches arriving *after* it will be paired with — Max's middle inlet. It outputs nothing by itself: only a pitch completes a note, so only a pitch can pass one on or have its release held. Ints, floats and a list whose leading token is a number all set it; a float is truncated. The value is stored and passed on exactly as given, unclamped and never refused for being outside MIDI's 0-127 — this object holds releases, it does not rewrite notes, and 0 is the only value it reads meaning into, that being what a release is spelled with.",
+        "index": 1,
+        "label": "velocity",
+        "range": "0-127"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The pedal — Max's right inlet, and the same thing the message 'sustain 1' / 'sustain 0' does. Any non-zero value presses it, which stores a bit and sends nothing: from then on note-offs arriving at the left inlet are held back instead of passed on. A 0 lifts it, and that is what sends — every held note-off goes out, in ascending pitch order, and the set is emptied. Ints, floats and a list whose leading token is a number all work; a float is truncated first, so any value in (-1, 1) is a lift. Pressing a pedal that is already down, or lifting one that is already up, does what it says: the second lift has nothing left to send. The pedal starts up, so an object nobody has touched passes everything through.",
+        "index": 2,
+        "label": "pedal",
+        "range": "0 (up) or non-zero (down)"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".sustain",
+    "outlets": [
+      {
+        "doc": "The pitch, sent once as the pair passes through and — for a release the pedal held back — once when the pedal lifts. The same value both times, which is what lets a release find the note it belongs to. Sent after the velocity, Max's outlets firing right to left.",
+        "index": 0,
+        "label": "pitch",
+        "range": "int",
+        "type": "INT"
+      },
+      {
+        "doc": "The velocity: the stored one as a pair passes through, and 0 for every release the pedal sends when it lifts. Sent before the pitch so anything downstream has it in hand by the time the pitch reaches its hot inlet.",
+        "index": 1,
+        "label": "velocity",
+        "range": "int",
+        "type": "INT"
+      }
+    ],
+    "params": []
   },
   ".swap": {
     "category": "MATH",
