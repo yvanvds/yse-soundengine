@@ -183,6 +183,9 @@
 // `.poly` (issue #542), unconditional once more: it allocates pitch/velocity
 // pairs to a numbered pool of voices on ordinary cords, and opens no device.
 #include "midi/mPoly.h"
+// `.borax` (issue #543), unconditional once more: it watches pitch/velocity
+// pairs on ordinary cords and reports numbers about them, and opens no device.
+#include "midi/mBorax.h"
 // The system-exclusive pair (issue #531). One header, two guards: `.sxformat`
 // is compiled everywhere and `.sysexin` only where there is an input port to
 // open, so the include itself carries no `#if`.
@@ -749,6 +752,17 @@ pRegistry::pRegistry() {
   // synth's own allocation and stealing policy rather than inventing a second
   // one. Unguarded like the five above — it opens no device.
   Add(OBJ::M_POLY, mPoly::Create);
+
+  // `.borax` (issue #543): the one that only ever *reads* the note stream the
+  // six above write. They keep a patch's notes honest and decide where each one
+  // plays; this one answers how many there are, how long they last and how fast
+  // they arrive — the input side of adaptive musical behaviour, and questions
+  // nothing else in the patcher can be asked. `.timer` measures one interval
+  // between two bangs; this measures every note in a polyphonic stream at once.
+  // It holds no note anything else does not also hold, which is why it is the
+  // one member of the family with no teardown release. Unguarded like the six
+  // above — it opens no device.
+  Add(OBJ::M_BORAX, mBorax::Create);
 
 #if YSE_ENABLE_MIDI_DEVICE
   // The MIDI input family (issue #529) — the way *into* a patch. Every object

@@ -295,6 +295,9 @@ set(YSE_SRCS
   # `.poly` (issue #542) is unconditional once more: two int inlets, three int
   # outlets and a list outlet, no device.
   patcher/midi/mPoly.cpp
+  # `.borax` (issue #543) is unconditional once more: three inlets, seven int
+  # outlets and two float ones, no device.
+  patcher/midi/mBorax.cpp
   patcher/midi/mMidiControl.cpp
   # The system-exclusive pair (issue #531). Unconditional like the codec above:
   # `.sxformat` opens no device, and the `.sysexin` half of the file carries its
@@ -520,6 +523,7 @@ set_source_files_properties(
   patcher/math/gZmap.cpp
   patcher/math/pFrequencyToMidi.cpp
   patcher/math/pMidiToFrequency.cpp
+  patcher/midi/mBorax.cpp
   patcher/midi/mFlush.cpp
   patcher/midi/mMakeNote.cpp
   patcher/midi/mMidiBendOut.cpp
