@@ -142,18 +142,24 @@ namespace YSE {
      *    patch that plays releases through a `.makenote` cannot exhaust the
      *    pending set with notes that were never sounding.
      *
-     *  ### What it does not do
+     *  ### Teardown is a `stop`
      *
-     *  It does not release its pending notes when the patcher is torn down. That
-     *  needs a teardown pass that stops every object before any of them is
-     *  unwired — `patcherImplementation::Clear` unwires as it walks — and the
-     *  ordering belongs to the patcher rather than to this object; it is issue
-     *  #758, filed against `.midiflush` and now wanted by two objects. The
-     *  scheduler will not misfire in the meantime: a pending message is
-     *  re-resolved against the block's pinned `GraphState` and against
-     *  `pObject::InstanceTag()` before delivery, so a destroyed object's
-     *  releases are dropped rather than sent through a dangling cord. `stop`
-     *  before the patch goes away does the job today.
+     *  A patcher cleared or destroyed while notes are sounding releases them,
+     *  and so does deleting the `.makenote` on its own (issue #758): the
+     *  patcher runs a stop pass over every object *before* it unwires any of
+     *  them, and this object's `Teardown` is `Release(true)` — the `stop` path
+     *  exactly, in play order, bounded and allocation-free.
+     *
+     *  Without it the notes would not misfire, they would simply never end. A
+     *  pending message is re-resolved against the block's pinned `GraphState`
+     *  and against `pObject::InstanceTag()` before delivery, so a destroyed
+     *  object's releases are *dropped* rather than sent through a dangling
+     *  cord — and a dropped release is precisely the hanging note, with nothing
+     *  left in the patch to bang. The ordering that fixes it belongs to the
+     *  patcher rather than to this object, which is why the object could not
+     *  have it alone: `patcherImplementation::Clear` used to unwire as it
+     *  walked. A `stop` before the patch goes away is still the way to release
+     *  at any other moment.
      *
      *  ### Real-time behaviour
      *
@@ -239,6 +245,11 @@ namespace YSE {
 
     // The scheduler coming back with a note whose duration has elapsed.
     void DeliverDeferred(const deferredMessage& msg, YSE::THREAD thread) override;
+
+    // The patcher is about to unwire this object (issue #758): release every
+    // note still sounding, which is `stop`, while the cords the releases travel
+    // down are still there. See the class notes.
+    void Teardown(YSE::THREAD thread) override;
 
   private:
     // Slot lifecycle, packed with a generation into one atomic so a claim, a

@@ -470,11 +470,23 @@ YSE::pHandle* patcherImplementation::CreateObject(const std::string& type,
 }
 
 void patcherImplementation::DeleteObject(YSE::pHandle* handle) {
-  std::scoped_lock lk(mtx);
+  // Teardown first, before the lock and before anything is unwired (issue
+  // #758). This is Clear()'s pass one for a single object, and it is here for
+  // the same reason: a `.midiflush` or `.makenote` deleted on its own still
+  // owes the device the releases it is holding, and the cord to `.midiout` is
+  // still there to send them down — one line later it would not be. Outside
+  // mtx for TeardownObjects' reason as well, which see.
+  //
+  // This is also where the `.metro` special case used to live, as a type check
+  // that poked a 0 into inlet 0. It is now gMetro::Teardown, which does the same
+  // stop; a second object needing "you are about to go away" is what turned the
+  // check into a virtual, and the check itself was the argument for it — it
+  // compared `const char*` **pointers** against a `static constexpr char const*`
+  // declared in a header, where every other type test in the engine uses
+  // strcmp, so it never fired at all. A virtual cannot be wrong that way.
+  handle->object->Teardown(YSE::T_GUI);
 
-  if (handle->Type() == OBJ::G_METRO) {
-    handle->object->GetInlet(0)->SetInt(0, YSE::THREAD::T_GUI);
-  }
+  std::scoped_lock lk(mtx);
 
   pObject* object = handle->object;
   objects.erase(handle);
@@ -642,15 +654,67 @@ void patcherImplementation::ReplaceObjectUnlocked(YSE::pHandle* handle, const st
   ScheduleReclaim();
 }
 
+void patcherImplementation::TeardownObjects() {
+  // Pass one of teardown (issue #758). Three orderings make it correct, and
+  // each of them was a way of getting it wrong:
+  //
+  // **Before any unwiring.** The loop below this one unwires as it walks, so an
+  // object reached *after* the `.midiout` downstream of it would send its
+  // note-offs into a cord that no longer exists. Releasing what a patch left
+  // sounding is only possible while the whole patch is still wired, which is
+  // what makes teardown two passes rather than one. Within the pass the order
+  // does not matter and is not defined: every cord is intact for all of it, so
+  // a `.makenote` released before or after the `.midiflush` downstream of it
+  // reaches the device either way — through the flush's pass-through in one
+  // order, as an already-tracked release in the other.
+  //
+  // **Outside mtx.** A Teardown is an ordinary synchronous send: it runs the
+  // whole subgraph behind the object's outlets, and that subgraph may hold a
+  // `.forward`, `.qlist`, `.bag` or `.mtr` — every one of which calls
+  // PassBang/PassData, which take mtx on the control thread. mtx is a plain
+  // std::mutex, so dispatching under it would turn an ordinary patch into a
+  // hang. Only the object snapshot is taken under the lock. What that costs is
+  // that a concurrent structural edit from another control thread is not
+  // serialised against the pass; that is by far the narrower hazard — it needs
+  // two threads editing one patcher at the same instant, where the deadlock
+  // needs only one patch cord.
+  //
+  // **T_GUI, not T_DSP.** T_DSP would sidestep mtx for free (CallingThread
+  // short-circuits on it, so PassData never reaches EnqueueValue), and that is
+  // not a good enough reason: the tag is dispatch semantics, and `inlet::Set*`
+  // runs CalculateIfReady on an active inlet for every tag but T_GUI. A
+  // note-off sent into a DSP object on T_DSP would render it on the control
+  // thread outside any block — the unsynchronised graph read issue #226 exists
+  // to prevent. This pass really is on the control thread and says so.
+  //
+  // Opening hardware here is no longer the question the issue raised: since
+  // #759 `.midiout` never opens its port inline. A port already open is written
+  // to, exactly as it is for any other message; a port that was never opened
+  // stays shut and the message is dropped, which is the honest answer — nothing
+  // was ever sent through it, so it is holding nothing.
+  std::vector<pObject*> stopping;
+  {
+    std::scoped_lock lk(mtx);
+    stopping.reserve(objects.size());
+    for (const auto& any : objects)
+      stopping.push_back(any.second);
+  }
+  for (pObject* obj : stopping) {
+    obj->Teardown(YSE::T_GUI);
+  }
+}
+
 void patcherImplementation::Clear() {
+  // Pass one, before the lock: every object releases what it is holding while
+  // the patch is still whole (issue #758). ~patcherImplementation calls Clear(),
+  // so this covers a destroyed patcher as well as a cleared one.
+  TeardownObjects();
+
   std::scoped_lock lk(mtx);
 
   std::vector<pObject*> doomed;
   doomed.reserve(objects.size());
   for (auto it = objects.begin(); it != objects.end(); ++it) {
-    if (it->first->Type() == OBJ::G_METRO) {
-      it->second->GetInlet(0)->SetInt(0, YSE::THREAD::T_GUI);
-    }
     it->second->UnwireFromPeers();
     doomed.push_back(it->second);
     delete it->first; // handle: not referenced by a GraphState

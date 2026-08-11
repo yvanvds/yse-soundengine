@@ -917,8 +917,12 @@ TEST_SUITE("patcher") {
   // `outputs[0].SendBang()`, on a freed pObject.
   //
   // The patcher's own teardown routes (DeleteObject, Clear, and the patcher
-  // destructor through Clear) special-case G_METRO and push Toggle 0 first, so
-  // they enter the dtor with id==0 and never reach the branch.  A standalone
+  // destructor through Clear) run a stop pass over every object before they
+  // unwire any of them, and gMetro::Teardown stops the run there (issue #758).
+  // So they enter the dtor with id==0 and never reach the branch.  Until #758
+  // that was a `Type() == OBJ::G_METRO` check in the patcher pushing Toggle 0 —
+  // the same stop, except that it compared `const char*` pointers and so never
+  // actually fired; test_patcher_teardown.cpp pins both routes now.  A standalone
   // metro — the object exactly as embedding code holds it — has no such guard,
   // and that is the user-visible flow pinned here.
   //

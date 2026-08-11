@@ -110,8 +110,11 @@ CONSTRUCT() {
       "'128 60 0' — the only spelling that survives the 0 byte every one of them ends with. What "
       "is sounding is a fixed bitmap of 16 channels by 128 pitches allocated with the object, so "
       "neither the pass-through nor the flush allocates, locks or blocks on the audio thread. Like "
-      "'.midiparse' it opens no device and needs none, so it works on every platform. It does not "
-      "fire by itself when the patcher is torn down — bang it before the patch goes away.");
+      "'.midiparse' it opens no device and needs none, so it works on every platform. It also "
+      "flushes by itself when the patcher is cleared or destroyed, and when the object is deleted "
+      "on its own (issue #758): the patcher stops every object before it unwires any of them, so "
+      "the note-offs go out down a patch that is still whole and reach '.midiout' exactly as a "
+      "bang's do. Nothing can be promised for a process killed outright.");
   ADD_CATEGORY(pCategory::MIDI);
 
   INLET_DOC(0, "midi",
@@ -204,6 +207,14 @@ BANG_IN(Flush) {
   }
 
   Leave();
+}
+
+void mMidiFlush::Teardown(YSE::THREAD thread) {
+  // The patcher's stop pass (issue #758). A flush and nothing else — the same
+  // handler a bang runs, re-entrancy guard included — because the whole point
+  // of the pass is that at this moment the patch is still wired and this object
+  // is still able to do what a bang would have made it do.
+  Flush(0, thread);
 }
 
 void mMidiFlush::Byte(unsigned char value) {

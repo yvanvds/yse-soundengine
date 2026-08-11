@@ -272,6 +272,17 @@ namespace YSE {
 
     void Bang();
 
+    // The patcher is about to unwire this object (issue #758). A running metro
+    // has to be stopped before that happens, or the timer worker keeps calling
+    // Bang() — and with it SendBang() — on an object the reclaimer is about to
+    // free (issue #663). This used to be a `handle->Type() == G_METRO` check
+    // inside patcherImplementation::Clear and DeleteObject, poking a 0 into
+    // inlet 0; `Toggle(0)` is StopRun and nothing else, so this is the same
+    // stop, now reached the way every object with something to wind down
+    // reaches it — and reached at all, which the old check was not: it compared
+    // `const char*` pointers, so what read as a guarantee never fired.
+    void Teardown(YSE::THREAD thread) override;
+
     ~gMetro() override;
 
     /** @brief Most bangs one delivery emits when a wakeup covered several

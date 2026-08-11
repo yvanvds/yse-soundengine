@@ -52,6 +52,11 @@ void pObject::EnableFileIO() {
 // files override this (issue #683).
 void pObject::DeliverFileResult(const fileResult&, YSE::THREAD) {}
 
+// Default: an object with nothing left sounding outside the patch has nothing
+// to do when the patch goes away, and pays one non-virtual-sized call for
+// saying so (issue #758).
+void pObject::Teardown(YSE::THREAD) {}
+
 void pObject::UnwireFromPeers() {
   for (unsigned int i = 0; i < inputs.size(); i++) {
     inputs[i].UnwireFromPeers();
