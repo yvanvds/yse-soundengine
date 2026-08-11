@@ -144,6 +144,7 @@
 #include "midi/mMidiNoteOn.h"
 #include "midi/mMidiPolyPressure.h"
 #include "midi/mMidiProgramChange.h"
+#include "midi/mMidiCodec.h"
 #endif
 // mMidiOut is the only patcher midi object that depends on the RtMidi-backed
 // device backend; the other six just emit MIDI bytes and don't need it.
@@ -608,6 +609,13 @@ pRegistry::pRegistry() {
 #if YSE_WINDOWS && YSE_ENABLE_MIDI_DEVICE
   Add(OBJ::M_OUT, mMidiOut::Create);
 #endif
+
+  // The MIDI codec pair (issue #530): raw bytes to structure and back. Not
+  // guarded on anything, unlike everything else in this block — these two open
+  // no device and hold no port, so a patch that decodes a stream from a file,
+  // from `.seq` or from a patch works on every platform. See mMidiCodec.h.
+  Add(OBJ::M_PARSE, mMidiParse::Create);
+  Add(OBJ::M_FORMAT, mMidiFormat::Create);
 
 #if YSE_ENABLE_MIDI_DEVICE
   // The MIDI input family (issue #529) — the way *into* a patch. Every object

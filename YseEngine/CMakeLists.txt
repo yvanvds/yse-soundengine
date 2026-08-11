@@ -270,6 +270,9 @@ set(YSE_SRCS
   internal/AudioTest.cpp
   # patcher/midi objects are registered unconditionally in pRegistry.cpp.
   patcher/midi/mMidiChannelPressure.cpp
+  # The MIDI codec pair (issue #530) opens no device, so unlike mMidiIn.cpp it
+  # belongs in the unconditional list.
+  patcher/midi/mMidiCodec.cpp
   patcher/midi/mMidiControl.cpp
   patcher/midi/mMidiNoteOff.cpp
   patcher/midi/mMidiNoteOn.cpp
@@ -466,6 +469,7 @@ set_source_files_properties(
   patcher/math/pFrequencyToMidi.cpp
   patcher/math/pMidiToFrequency.cpp
   patcher/midi/mMidiChannelPressure.cpp
+  patcher/midi/mMidiCodec.cpp
   patcher/midi/mMidiControl.cpp
   patcher/midi/mMidiIn.cpp
   patcher/midi/mMidiNoteOff.cpp
