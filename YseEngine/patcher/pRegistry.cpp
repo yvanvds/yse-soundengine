@@ -145,6 +145,9 @@
 #include "midi/mMidiNoteOn.h"
 #include "midi/mMidiPolyPressure.h"
 #include "midi/mMidiProgramChange.h"
+// The extended-precision senders (issue #533) carry the same YSE_WINDOWS guard
+// as the seven they are siblings of; #746 lifts it off all of them at once.
+#include "midi/mMidiXOut.h"
 #endif
 // The MIDI codec pair (issue #530) is registered unconditionally below, so its
 // header cannot live inside the YSE_WINDOWS block the six senders share — that
@@ -164,6 +167,9 @@
 // is already exactly the set of platforms with an input port to open.
 #if YSE_ENABLE_MIDI_DEVICE
 #include "midi/mMidiIn.h"
+// The extended-precision input objects (issue #533) are built on that family's
+// plumbing and share its guard exactly.
+#include "midi/mMidiXIn.h"
 #endif
 
 using namespace YSE::PATCHER;
@@ -617,6 +623,17 @@ pRegistry::pRegistry() {
   // was missing. Guarded with the six it belongs to; issue #746 lifts the
   // YSE_WINDOWS guard off all seven at once.
   Add(OBJ::M_BENDOUT, mMidiBendOut::Create);
+
+  // The extended-precision senders (issue #533): the same four channel-voice
+  // messages the block above already formats, with the bits the 7-bit versions
+  // throw away put back — all fourteen of a pitch bend, the MSB/LSB pair of a
+  // controller, and the release velocity a note-off has always had room for.
+  // Guarded with the family they belong to; #746 lifts YSE_WINDOWS off all of
+  // them at once.
+  Add(OBJ::M_XBENDOUT, mXBendOut::Create);
+  Add(OBJ::M_XBENDOUT2, mXBendOut2::Create);
+  Add(OBJ::M_XCTLOUT, mXCtlOut::Create);
+  Add(OBJ::M_XNOTEOUT, mXNoteOut::Create);
 #endif
 #if YSE_WINDOWS && YSE_ENABLE_MIDI_DEVICE
   Add(OBJ::M_OUT, mMidiOut::Create);
@@ -665,6 +682,18 @@ pRegistry::pRegistry() {
   // off a port, with everything that is not a dump filtered out. Guarded with
   // the input family it belongs to; its partner below is not.
   Add(OBJ::M_SYSEXIN, mSysExIn::Create);
+
+  // The extended-precision input objects (issue #533). Same plumbing as the
+  // family above — port, subscription, block poll, bounded drain — reading the
+  // bytes at the resolution the wire actually carries: a bend as all fourteen
+  // of its bits (or as the two that make them), a controller as its MSB/LSB
+  // pair, a note-off with its release velocity, and the raw stream framed into
+  // whole messages.
+  Add(OBJ::M_XBENDIN, mXBendIn::Create);
+  Add(OBJ::M_XBENDIN2, mXBendIn2::Create);
+  Add(OBJ::M_XCTLIN, mXCtlIn::Create);
+  Add(OBJ::M_XNOTEIN, mXNoteIn::Create);
+  Add(OBJ::M_XMIDIIN, mXMidiIn::Create);
 #endif
 
   // The building half of the system-exclusive pair (issue #531). Unguarded for

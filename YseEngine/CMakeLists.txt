@@ -284,6 +284,9 @@ set(YSE_SRCS
   patcher/midi/mMidiOut.cpp
   patcher/midi/mMidiPolyPressure.cpp
   patcher/midi/mMidiProgramChange.cpp
+  # The extended-precision senders (issue #533) carry their own `#if YSE_WINDOWS`
+  # like mMidiBendOut.cpp above, so they belong in the unconditional list.
+  patcher/midi/mMidiXOut.cpp
   # midiNote is a plain data class with no platform dependencies.
   midi/midiNote.cpp
 )
@@ -304,6 +307,9 @@ if(YSE_ENABLE_MIDI_DEVICE)
     # than unconditionally.
     midi/midiInHub.cpp
     patcher/midi/mMidiIn.cpp
+    # The extended-precision input objects (issue #533) are built on that
+    # family and need the same backend.
+    patcher/midi/mMidiXIn.cpp
   )
 endif()
 
@@ -483,6 +489,8 @@ set_source_files_properties(
   patcher/midi/mMidiOut.cpp
   patcher/midi/mMidiPolyPressure.cpp
   patcher/midi/mMidiProgramChange.cpp
+  patcher/midi/mMidiXIn.cpp
+  patcher/midi/mMidiXOut.cpp
   patcher/midi/mSysEx.cpp
   patcher/io/fileScheduler.cpp
   patcher/time/clockBridge.cpp
