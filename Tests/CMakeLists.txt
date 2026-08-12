@@ -178,6 +178,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_nslider.cpp
   patcher/test_patcher_itemlist.cpp
   patcher/test_patcher_labelswitch.cpp
+  patcher/test_patcher_textedit.cpp
   patcher/test_doc_coverage.cpp
   patcher/test_c_api_metadata.cpp
   patcher/test_patcher_bus.cpp
@@ -1149,6 +1150,7 @@ set_source_files_properties(
   patcher/test_patcher_nslider.cpp
   patcher/test_patcher_itemlist.cpp
   patcher/test_patcher_labelswitch.cpp
+  patcher/test_patcher_textedit.cpp
   patcher/test_doc_coverage.cpp
   patcher/test_c_api_metadata.cpp
   patcher/test_patcher_bus.cpp

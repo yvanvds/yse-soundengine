@@ -38,6 +38,7 @@ namespace YSE {
    *    ``G_DIAL``, ``G_INCDEC``, ``G_RANDOM``.
    *  - Indexed selection: ``G_UMENU``, ``G_RADIOGROUP``, ``G_TAB``.
    *  - Labelled switches: ``G_LED``, ``G_TEXTBUTTON``.
+   *  - Text entry: ``G_TEXTEDIT``.
    *  - Timing: ``G_METRO``, ``G_DELAY``, ``G_PIPE``, ``G_TRANSPORT``,
    *    ``G_SETCLOCK``,
    *    ``G_WHEN``, ``G_TRANSLATE``, ``G_TIMEPOINT``, ``G_TEMPO``,
@@ -143,6 +144,12 @@ namespace YSE {
     DEFOBJ(G_MESSAGE, ".m");
     DEFOBJ(G_LIST, ".l");
     DEFOBJ(G_TEXT, ".text");
+    // An editable string (issue #560) — the one GUI value that is genuinely a
+    // mutable string, where `.text` is a fixed label and every other control's
+    // string is an immutable creation argument. The input side of the symbol
+    // family (`.sprintf`, `.combine`, `.tosymbol`), which until now had no way
+    // to receive text from outside a patch. See guiObjects/gTextEdit.h.
+    DEFOBJ(G_TEXTEDIT, ".textedit");
     DEFOBJ(G_COUNTER, ".counter");
     DEFOBJ(G_ACCUM, ".accum");
     DEFOBJ(G_SWITCH, ".switch");

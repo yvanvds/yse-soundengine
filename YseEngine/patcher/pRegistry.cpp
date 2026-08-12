@@ -87,6 +87,7 @@
 #include "guiObjects/gMessage.h"
 #include "guiObjects/gList.h"
 #include "guiObjects/gText.h"
+#include "guiObjects/gTextEdit.h"
 
 #include "time/gClocker.h"
 #include "time/gDelay.h"
@@ -534,6 +535,10 @@ pRegistry::pRegistry() {
   Add(OBJ::G_MESSAGE, gMessage::Create);
   Add(OBJ::G_LIST, gList::Create);
   Add(OBJ::G_TEXT, gText::Create);
+  // The one GUI value that is genuinely a mutable string: `.text` above is a
+  // fixed label and every other control's string is an immutable creation
+  // argument, so this is where a patch receives text from outside (issue #560)
+  Add(OBJ::G_TEXTEDIT, gTextEdit::Create);
 
   Add(OBJ::G_ADD, gAdd::Create);
   Add(OBJ::G_DIVIDE, gDivide::Create);

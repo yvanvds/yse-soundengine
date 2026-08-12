@@ -8394,6 +8394,43 @@
       }
     ]
   },
+  ".textedit": {
+    "category": "GUI",
+    "description": "An editable string. A list on the inlet becomes the text, verbatim and with no reserved words, and goes straight back out; an int or a float becomes the text that spells it; a bang re-sends what is held. The value a host polls and pushes back through GetGuiValue, so a text field a user types into is one object. Text longer than 256 characters is refused and what is stored is kept. Put a .tosymbol after it to collapse the text into a single token, or a .fromsymbol to read it back as a number.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A list becomes the text and is sent on; an int or a float becomes the text that spells it; a bang re-sends what is held. Nothing is a keyword — any word the object reserved would be a word the field could not contain. An empty list clears it.",
+        "index": 0,
+        "label": "in",
+        "range": "any text up to 256 characters"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".textedit",
+    "outlets": [
+      {
+        "doc": "The text, on every message that arrives. Sent as a list and never re-typed: a field holding \"440\" sends the text, not the number.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The text the field starts at — every argument joined with single spaces, so no word is a keyword here either. Live state is not saved with it; that is what GetGuiValue and the inlet are for.",
+        "name": "text",
+        "range": "any text up to 256 characters"
+      }
+    ]
+  },
   ".textfile": {
     "category": "GENERIC",
     "description": "Collects the messages it is sent as lines of text — Max's text, which 'collects and formats incoming messages as text to be output as lines of text'. The line is the unit, and that is the whole difference from the four stores before it: .coll is keyed by an address, .bag has no keys, .funbuff is a sparse function of x,y pairs and .table a dense array of numbers, while .capture — the closest, since it too swallows whatever arrives — stores one atom per item, so a three-element list becomes three entries and comes back as three sends. Here a message is appended to the current line, several accumulate on it separated by spaces, and 'cr' ends it. That is the shape a note list, a cue sheet or a configuration block has, and it is the shape a text file has. Max keeps the separating space after each stored message, which is why both its 'cr' and its 'tab' carry the rule 'if the last character in text is a space, the carriage return replaces that space'; the space is kept between messages here instead, which gives the same visible text with no trailing space to hand downstream, and 'tab' clears the pending separator so that 5, tab, 6 gives 5<tab>6 rather than 5<tab> 6 — Max's rule spelled as state rather than as a fix-up. An int or a float is spelled the patcher's one way, WriteInt and ExprFormatValue, so the text agrees with what every other object writes for the same value; a list is appended as it arrived, being already the text the patch composed. 'clear' erases the contents, 'dump' sends every line out outlet 0, 'line <n>' sends one line preceded by the word 'set' (Max's, and not a foreign word here — .table, .funbuff, .bucket, .cycle, .accum and .match all take a set), numbering from 1 and sending nothing for a line that does not exist, and 'query' sends the line count out outlet 1. A dumped line leaves in the kind it is, .route's rule. Max's own escape hatch is ported: 'symbol clear' stores the word clear, 'useful if you want to store a word that would otherwise be understood as a specific message by text'. 'open', 'wclose', 'settitle', 'filetype', 'precision' and 'stringout' are consumed and do nothing — Max dispatches on the selector, so a text in Max cannot store those symbols either, and contents differing from Max's for the same patch is the one thing this object must not produce. 'read [file]' and 'write [file]' move the contents through a plain text file, one stored line per line of the file, and the filename creation argument is read when the object is built — Max's 'names a text file to be read in when the object is loaded' (issue #687). None of that happens on the message path: a message handler runs on whichever thread the message arrived on, in-patcher delivery dispatches on the audio thread, and THREAD is a dispatch-semantics tag rather than a thread identity, so there is no predicate an object can ask to find out it is not on the audio callback — opening a file there would block it. The request is instead a wait-free claim on a patcher-owned slot, the disk work runs on the background pool honouring the host's IO() layer, and the bytes are parsed in the completion the patcher delivers at the top of a later block, which is also when outlet 2 bangs — the shared fileScheduler plumbing of issue #683. The last line carries a newline only when it is closed, so a write then read round trip is exact down to whether the last line is still taking appends; a trailing carriage return is dropped on reading, so a CRLF file written by another editor loads the same lines everywhere. A read replaces what is held, an over-long line is skipped with the rest of the file still loading, lines past the 256th are dropped, and a file too large or unopenable is refused whole with outlet 2 silent. The bare forms of read and write reuse the last name given, which starts as the filename argument, since Max's open a file dialog and a headless patcher has none, and filetype is consumed and inert for the same reason; Max has no readagain / writeagain for text, so neither is invented here. Max's middle outlet, which bangs when a file has finished loading, is outlet 2 rather than outlet 1: it was appended rather than inserted in Max's position, because #499 shipped this object with two outlets and moving the line-count outlet would shift every saved patch's cords. The store is .coll's model and for .coll's reason — a fixed table of lines allocated whole at construction, every line reserved to its capacity, plus .value's non-blocking guard — because a copy-on-write GraphState publish assumes the writer is the control thread while this object is written by whichever thread its message arrived on. The guard is never held across a send, a loser of it drops rather than waiting, and dump takes it once per line and re-reads the bounds each step. At most 256 lines of at most 256 characters, Max's own limit for the line message; anything that does not fit is refused whole rather than truncated, since half a line is a different line. Calculate() does nothing. The filename survives a save because it is a creation argument; the contents deliberately do not, which is the family's rule of saving exactly where Max has a save flag — coll has 'save data with patcher', table and funbuff have embed, and text has none of them, because Max keeps a text's contents in a file — which since #687 is where they live here too, a '.textfile notes.txt' reloading its lines when the patch it was saved in opens. Not ported: the editing window and everything addressing it (open, wclose, settitle, the double-click), filetype, the precision attribute — the patcher has one way of spelling a float, the fewest digits that read back as the same value, which loses nothing and pads nothing, and a second spelling on one object would make its text disagree with every other's — and stringout, there being no string atom to output.",

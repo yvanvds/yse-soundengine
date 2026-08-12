@@ -339,6 +339,19 @@ namespace YSE {
       // state "0 1" from "cell 0 := 1". A leading token no numeric cell can
       // ever hold settles it for every arity at once.
       //
+      // ONE EXCEPTION, and it is the one the argument above names its own
+      // premise for: **a one-cell control whose cell is free text** does not
+      // offer the "set" form. "A leading token no numeric cell can ever hold"
+      // is exactly what a *text* cell can hold, so honouring it would mean
+      // `.textedit` (issue #560) could not contain the text "set 0 hello" —
+      // a text field that silently swallows what was typed into it. Nothing is
+      // given up in exchange: with one cell the whole-state write *is* the cell
+      // write, with the same string, so the round trip below — which is the
+      // half `.preset` needs — holds in full and GuiValueIsSettable() stays an
+      // honest true. The carve-out is deliberately that narrow. A structured
+      // control still needs "set" to address a cell, whatever its cells hold,
+      // and a numeric scalar has no reason to want it.
+      //
       // What the object does *besides* storing the value is its own
       // business — whether a restore also emits on its outlet is a
       // per-object decision, not part of this protocol.
@@ -685,7 +698,9 @@ namespace YSE {
 // that accepts both the string GetGuiValue() produced and "set 0 <value>" —
 // which is the whole of the promise this macro makes on the object's behalf, so
 // do not reach for it because a control happens to be simple. Read the GUI value
-// protocol block above first; the thread contract there is not optional. The
+// protocol block above first; the thread contract there is not optional, and it
+// carries the one carve-out from the "set" half: a one-cell control holding free
+// text (`.textedit`) drops it, because a text cell can hold the keyword. The
 // older scalar controls do *not* use this and must not be switched over
 // casually: `.b` and `.t` report a word ("on" / "off") their inlet 0 could not
 // take back, and none of `.b`, `.t` or `.slider` registers a list handler on
