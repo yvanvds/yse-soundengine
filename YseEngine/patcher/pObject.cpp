@@ -52,6 +52,11 @@ void pObject::EnableFileIO() {
 // files override this (issue #683).
 void pObject::DeliverFileResult(const fileResult&, YSE::THREAD) {}
 
+// Default: an object with no starting state to announce has nothing to do when
+// the patch it is in finishes loading, and pays one call for saying so (issue
+// #547). Only `.loadbang` and `.loadmess` override it.
+void pObject::Loadbang(YSE::THREAD) {}
+
 // Default: an object with nothing left sounding outside the patch has nothing
 // to do when the patch goes away, and pays one non-virtual-sized call for
 // saying so (issue #758).

@@ -81,6 +81,9 @@ set(YSE_SRCS
   internal/global.cpp
   internal/lsfSoundfile.cpp
   internal/namedBus.cpp
+  # The real-time on-ramp to the engine log (issue #546): what `.print` pushes
+  # onto from a render thread and system::update() drains on the control one.
+  internal/rtLogQueue.cpp
   internal/reverbDSP.cpp
   internal/settings.cpp
   internal/thread.cpp
@@ -125,11 +128,17 @@ set(YSE_SRCS
   patcher/genericObjects/gFunnel.cpp
   patcher/genericObjects/gGate.cpp
   patcher/genericObjects/gIf.cpp
+  # `.loadbang` / `.loadmess` (issue #547): one inlet and one outlet each, no
+  # device and no state beyond the stored message. The lifecycle hook they hang
+  # off lives in patcherImplementation.
+  patcher/genericObjects/gLoadbang.cpp
+  patcher/genericObjects/gLoadmess.cpp
   patcher/genericObjects/gMatch.cpp
   patcher/genericObjects/gMatrix.cpp
   patcher/genericObjects/gMtr.cpp
   patcher/genericObjects/gNext.cpp
   patcher/genericObjects/gOneBang.cpp
+  patcher/genericObjects/gPrint.cpp
   patcher/genericObjects/gQlist.cpp
   patcher/genericObjects/gReceive.cpp
   patcher/genericObjects/gRegexEngine.cpp
@@ -162,7 +171,9 @@ set(YSE_SRCS
   patcher/genericObjects/pDac.cpp
   patcher/genericObjects/pLine.cpp
   patcher/guiObjects/gButton.cpp
+  patcher/guiObjects/gDial.cpp
   patcher/guiObjects/gFloat.cpp
+  patcher/guiObjects/gIncDec.cpp
   patcher/guiObjects/gInt.cpp
   patcher/guiObjects/gList.cpp
   patcher/guiObjects/gMessage.cpp
@@ -298,6 +309,9 @@ set(YSE_SRCS
   # `.borax` (issue #543) is unconditional once more: three inlets, seven int
   # outlets and two float ones, no device.
   patcher/midi/mBorax.cpp
+  # `.offer` (issue #544) is unconditional once more: two int inlets, one int
+  # outlet, no device.
+  patcher/midi/mOffer.cpp
   patcher/midi/mMidiControl.cpp
   # The system-exclusive pair (issue #531). Unconditional like the codec above:
   # `.sxformat` opens no device, and the `.sysexin` half of the file carries its
@@ -433,11 +447,14 @@ set_source_files_properties(
   patcher/genericObjects/gFunnel.cpp
   patcher/genericObjects/gGate.cpp
   patcher/genericObjects/gIf.cpp
+  patcher/genericObjects/gLoadbang.cpp
+  patcher/genericObjects/gLoadmess.cpp
   patcher/genericObjects/gMatch.cpp
   patcher/genericObjects/gMatrix.cpp
   patcher/genericObjects/gMtr.cpp
   patcher/genericObjects/gNext.cpp
   patcher/genericObjects/gOneBang.cpp
+  patcher/genericObjects/gPrint.cpp
   patcher/genericObjects/gQlist.cpp
   patcher/genericObjects/gReceive.cpp
   patcher/genericObjects/gRegexp.cpp
@@ -469,7 +486,9 @@ set_source_files_properties(
   patcher/genericObjects/pDac.cpp
   patcher/genericObjects/pLine.cpp
   patcher/guiObjects/gButton.cpp
+  patcher/guiObjects/gDial.cpp
   patcher/guiObjects/gFloat.cpp
+  patcher/guiObjects/gIncDec.cpp
   patcher/guiObjects/gInt.cpp
   patcher/guiObjects/gList.cpp
   patcher/guiObjects/gMessage.cpp
@@ -543,6 +562,7 @@ set_source_files_properties(
   patcher/midi/mMidiXIn.cpp
   patcher/midi/mMidiXOut.cpp
   patcher/midi/mMpe.cpp
+  patcher/midi/mOffer.cpp
   patcher/midi/mPoly.cpp
   patcher/midi/mStripNote.cpp
   patcher/midi/mSustain.cpp

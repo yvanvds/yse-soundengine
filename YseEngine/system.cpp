@@ -139,6 +139,12 @@ void YSE::system::update() {
   // and dispatch them synchronously to their subscribers. Cheap when empty:
   // a single SPSC peek + early exit.
   INTERNAL::Global().namedBus().drainPending();
+  // Hand the log any lines a patcher `.print` queued since the last tick (issue
+  // #546). The queue is the only way onto the log from a render thread, and
+  // this is its one drain: the object formats and pushes wherever it happens to
+  // run, and the writing — a std::string, a file, possibly a host handler —
+  // happens here on the control thread. Cheap when empty: one lock-free peek.
+  INTERNAL::RtLog().drain();
   // Wake the script thread once per tick so future scheduled work can advance
   // (issue #124 establishes the wake; #126/#127 add the scheduling). No-op
   // unless built with YSE_ENABLE_PYTHON.

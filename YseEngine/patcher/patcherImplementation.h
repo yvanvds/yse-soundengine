@@ -277,6 +277,14 @@ namespace YSE {
       // object through the epoch reclaimer. Caller holds mtx.
       void ReplaceObjectUnlocked(YSE::pHandle* handle, const std::string& args);
 
+      // The last pass of a load (issue #547): tell every object this ParseJSON
+      // created that the patch it is in has finished loading. Called by
+      // ParseJSON after the parsed graph has been published and after mtx has
+      // been released. See the definition for why it is the last thing a load
+      // does, why it is outside the lock, and why `CreateObject` has no
+      // counterpart.
+      void LoadbangObjects(const std::vector<pObject*>& loaded);
+
       // Pass one of teardown (issue #758): tell every object in this patcher
       // that it is about to go away, while the patch is still whole. Called by
       // Clear() before it takes mtx and starts unwiring. See the definition for

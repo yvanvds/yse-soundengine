@@ -26,6 +26,12 @@
 #include "genericObjects/gBag.h"
 #include "genericObjects/gCapture.h"
 #include "genericObjects/gColl.h"
+#include "genericObjects/gPrint.h"
+// `.loadbang` / `.loadmess` (issue #547): the pair that lets a saved patch
+// describe its own starting state, fired by patcherImplementation's post-publish
+// pass rather than by anything the objects themselves do.
+#include "genericObjects/gLoadbang.h"
+#include "genericObjects/gLoadmess.h"
 #include "genericObjects/gFunbuff.h"
 #include "genericObjects/gTable.h"
 #include "genericObjects/gMtr.h"
@@ -62,6 +68,8 @@
 #include "guiObjects/gInt.h"
 #include "guiObjects/gFloat.h"
 #include "guiObjects/gSlider.h"
+#include "guiObjects/gDial.h"
+#include "guiObjects/gIncDec.h"
 #include "guiObjects/gButton.h"
 #include "guiObjects/gToggle.h"
 #include "guiObjects/gMessage.h"
@@ -186,6 +194,10 @@
 // `.borax` (issue #543), unconditional once more: it watches pitch/velocity
 // pairs on ordinary cords and reports numbers about them, and opens no device.
 #include "midi/mBorax.h"
+// `.offer` (issue #544), unconditional once more: it stores x,y number pairs
+// handed to it on ordinary cords and gives each y back once, and opens no
+// device.
+#include "midi/mOffer.h"
 // The system-exclusive pair (issue #531). One header, two guards: `.sxformat`
 // is compiled everywhere and `.sysexin` only where there is an input port to
 // open, so the include itself carries no `#if`.
@@ -398,6 +410,19 @@ pRegistry::pRegistry() {
   // instrument, and the store nothing decides the contents of (issue #496)
   Add(OBJ::G_CAPTURE, gCapture::Create);
 
+  // The other half of that instrument: say what is passing *now*, one line at a
+  // time, into the engine log — the only way to see inside a running graph
+  // without inferring it from the audio coming out (issue #546)
+  Add(OBJ::G_PRINT, gPrint::Create);
+
+  // The patch's own beginning: a bang, and a message, sent once the parsed graph
+  // has been built and published — the only moment at which "loading finished"
+  // is true, and the thing that turns a saved graph into a self-contained patch
+  // rather than a graph plus a list of things the host must remember to do to it
+  // (issue #547)
+  Add(OBJ::G_LOADBANG, gLoadbang::Create);
+  Add(OBJ::G_LOADMESS, gLoadmess::Create);
+
   // A sparse function: x,y pairs kept sorted by x, with a floor lookup and
   // linear interpolation between the stored points — the store behind every
   // breakpoint curve, tuning table and step sequence (issue #497)
@@ -446,6 +471,8 @@ pRegistry::pRegistry() {
   Add(OBJ::G_INT, gInt::Create);
   Add(OBJ::G_FLOAT, gFloat::Create);
   Add(OBJ::G_SLIDER, gSlider::Create);
+  Add(OBJ::G_DIAL, gDial::Create);
+  Add(OBJ::G_INCDEC, gIncDec::Create);
   Add(OBJ::G_BUTTON, gButton::Create);
   Add(OBJ::G_TOGGLE, gToggle::Create);
   Add(OBJ::G_MESSAGE, gMessage::Create);
@@ -763,6 +790,14 @@ pRegistry::pRegistry() {
   // one member of the family with no teardown release. Unguarded like the six
   // above — it opens no device.
   Add(OBJ::M_BORAX, mBorax::Create);
+
+  // `.offer` (issue #544): the per-note memory a pitch transformer needs. A
+  // note-off carries the pitch the player released, not the one the synth is
+  // sounding, so a transposer has to remember the mapping per note and forget it
+  // the moment it is used — which is what "one-time number pairs" means and what
+  // separates this from `.funbuff`, `.coll` and `.table`, all three of which are
+  // read and re-read. Unguarded like the seven above — it opens no device.
+  Add(OBJ::M_OFFER, mOffer::Create);
 
 #if YSE_ENABLE_MIDI_DEVICE
   // The MIDI input family (issue #529) — the way *into* a patch. Every object

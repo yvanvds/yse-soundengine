@@ -33,7 +33,8 @@ namespace YSE {
    *  - Bitwise: ``G_BITAND``, ``G_BITOR``, ``G_SHIFTLEFT``, ``G_SHIFTRIGHT``.
    *  - DSP filters: ``D_LOWPASS``, ``D_HIGHPASS``, ``D_BANDPASS``, ``D_VCF``.
    *  - I/O: ``D_DAC``, ``D_ADC``, ``D_LINE``.
-   *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_RANDOM``.
+   *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_DIAL``,
+   *    ``G_INCDEC``, ``G_RANDOM``.
    *  - Timing: ``G_METRO``, ``G_DELAY``, ``G_PIPE``, ``G_TRANSPORT``,
    *    ``G_SETCLOCK``,
    *    ``G_WHEN``, ``G_TRANSLATE``, ``G_TIMEPOINT``, ``G_TEMPO``,
@@ -47,6 +48,8 @@ namespace YSE {
    *  - Shared state: ``G_VALUE``.
    *  - Collections: ``G_COLL``, ``G_BAG``, ``G_CAPTURE``, ``G_FUNBUFF``,
    *    ``G_TABLE``, ``G_TEXTFILE``, ``G_QLIST``, ``G_MTR``, ``G_SEQ``.
+   *  - Debugging: ``G_PRINT``.
+   *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Messaging: ``G_SEND``, ``G_RECEIVE``, ``G_FORWARD``, ``G_ROUTE``,
    *    ``G_ROUTEPASS``,
    *    ``G_SEL``, ``G_TRIGGER``, ``G_BANGBANG``, ``G_ONEBANG``, ``G_NEXT``,
@@ -78,6 +81,7 @@ namespace YSE {
    *    ``M_FLUSH``, ``M_SUSTAIN``.
    *  - Voice allocation: ``M_POLY``.
    *  - Note analysis: ``M_BORAX``.
+   *  - Note bookkeeping: ``M_OFFER``.
    *  - Conversion: ``MIDITOFREQUENCY``, ``FREQUENCYTOMIDI``, ``G_ATODB``,
    *    ``G_DBTOA``, ``G_CARTOPOL``, ``G_POLTOCAR``.
    */
@@ -98,6 +102,8 @@ namespace YSE {
     DEFOBJ(G_INT, ".i");
     DEFOBJ(G_FLOAT, ".f");
     DEFOBJ(G_SLIDER, ".slider");
+    DEFOBJ(G_DIAL, ".dial");
+    DEFOBJ(G_INCDEC, ".incdec");
     DEFOBJ(G_BUTTON, ".b");
     DEFOBJ(G_TOGGLE, ".t");
     DEFOBJ(G_MESSAGE, ".m");
@@ -158,6 +164,11 @@ namespace YSE {
     DEFOBJ(G_QLIST, ".qlist");
     DEFOBJ(G_MTR, ".mtr");
     DEFOBJ(G_SEQ, ".seq");
+
+    DEFOBJ(G_PRINT, ".print");
+
+    DEFOBJ(G_LOADBANG, ".loadbang");
+    DEFOBJ(G_LOADMESS, ".loadmess");
 
     DEFOBJ(G_ADD, ".+");
     DEFOBJ(G_SUBSTRACT, ".-");
@@ -318,5 +329,6 @@ namespace YSE {
     DEFOBJ(M_SUSTAIN, ".sustain");
     DEFOBJ(M_POLY, ".poly");
     DEFOBJ(M_BORAX, ".borax");
+    DEFOBJ(M_OFFER, ".offer");
   };
 } // namespace YSE

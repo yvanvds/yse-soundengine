@@ -2540,6 +2540,60 @@
       }
     ]
   },
+  ".dial": {
+    "category": "GUI",
+    "description": "Rotary control with a range of its own. The inlet takes the knob position as a float in [0, 1], clamped on input exactly as .slider clamps, and the outlet carries that position mapped onto the minimum-maximum range — so a parameter with a real range is one object rather than a .slider and a .scale. An exponent other than 1 bends the mapping into a curve, symmetrically around the bottom of the range, which is what an audio parameter like a cutoff frequency wants. A minimum equal to the maximum emits the minimum, and any result that would not be finite emits 0. Set intMode to 1 to round the result and emit it as an int instead of a float. The GUI value is the position, not the mapped value. With the default parameters the object behaves exactly like .slider.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "Sets the knob position and emits the mapped value; an int is widened to a float and a bang re-emits without moving the knob.",
+        "index": 0,
+        "label": "position",
+        "range": "0.0-1.0"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".dial",
+    "outlets": [
+      {
+        "doc": "The position mapped onto the minimum-maximum range through the exponent.",
+        "index": 0,
+        "label": "out",
+        "range": "minimum-maximum",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Value the mapping gives at position 0.",
+        "name": "minimum",
+        "range": "any float"
+      },
+      {
+        "default": "1",
+        "doc": "Value the mapping gives at position 1.",
+        "name": "maximum",
+        "range": "any float"
+      },
+      {
+        "default": "1",
+        "doc": "Curve exponent; 1 is a linear mapping.",
+        "name": "exponent",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "1 rounds the mapped value and emits an int, 0 emits a float.",
+        "name": "intMode",
+        "range": "0 or 1"
+      }
+    ]
+  },
   ".div": {
     "category": "MATH",
     "description": "Control-rate integer division. Emits left / right as an int whenever inlet 0 fires, truncating towards zero instead of producing the float ./ would. Floats truncate towards zero on input, and a divisor of 0 emits 0.",
@@ -3205,6 +3259,83 @@
       }
     ]
   },
+  ".incdec": {
+    "category": "GUI",
+    "description": "Stepper: increments and decrements a stored whole number by a settable step, inside settable bounds. Max's 'incdec', the pair of arrows over a number, and the control for anything nudged rather than swept — transpose, octave, preset slot, bar count. It is deliberately not '.counter' with more parameters, because a bang means the opposite thing on the two objects: '.counter' steps on a bang, which is what makes it the thing behind a '.metro', while this one emits the stored value on a bang and moves only when an arrow is clicked. The left inlet is Max's: bang reads, an int or float sets without emitting, and the words 'inc', 'dec' and 'set <n>' step up, step down and set. The middle inlet is those arrows on a cord — an int moves that many steps, signed, and emits — and the right inlet sets the step size live. The minimum and maximum are taken as an ordered pair, so limits given the wrong way round still bound against the right two numbers, and 'wrap' chooses what happens at the end of the range: 0 clamps against it, 1 carries around to the other side. The wrapped range is inclusive at both ends — one past the maximum is the minimum — because this is a stepper over whole numbers and 11 stepping to 0 is what a twelve-note pitch class does. The default range is the whole int range, so an object with no arguments is unbounded and saturates rather than overflowing at the ends. The value is bounded on the way out as well as on the way in, so a re-range takes effect at once and a stepper created over 60-72 reads back as 60 rather than as the 0 it was born with; with wrap on, that untouched start lands wherever the wrap puts it, so place it with 'set' if the starting point matters. All the arithmetic runs in 64 bits and is bounded back into an int before it leaves, so no step, set or range can overflow. The GUI value is the stored value. Nothing on any message path allocates, locks or blocks on I/O, and Calculate() does nothing — this object sends from its handlers, which is what lets a set stay silent while a bang emits.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The value, and Max's grammar for it. A bang emits the stored value without moving it — the arrows move it, so a bang is a read. An int or a float sets the value and emits nothing, Max being explicit that the number arriving here 'is not output directly'; that is what lets a '.loadmess' or a preset place the stepper without firing everything downstream. A float is truncated, as it is everywhere in Max. Three words are commands rather than numbers: 'inc' and 'dec' step up and down by the step size and emit the result, and 'set <n>' is the int message spelled out. A list whose first token is a number is that number, so a stepper can be set from anything that emits a list. Whatever arrives, the value that ends up stored is inside the range.",
+        "index": 0,
+        "label": "value",
+        "range": "any int, 'inc', 'dec', 'set <n>'"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The two arrows on a cord. An int 'n' moves n steps — positive up, negative down — and emits the result, so a MIDI encoder that sends +1 and -1 drives the stepper with one connection and no message boxes. 0 moves nothing and still emits, which makes it a read exactly like a bang on the left inlet. A float is truncated first, and a list whose first token is a number is that number.",
+        "index": 1,
+        "label": "nudge",
+        "range": "any int"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Sets the step size live, as '.counter''s right inlet does — the coarse/fine pair a performance surface wants. A negative step swaps the arrows: 'inc' then goes down. A step of 0 leaves the value where it is, and the object still emits it. A float is truncated.",
+        "index": 2,
+        "label": "step",
+        "range": "any int"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".incdec",
+    "outlets": [
+      {
+        "doc": "The stored value, sent whenever the stepper moves or is read. Always inside the minimum-maximum range.",
+        "index": 0,
+        "label": "out",
+        "range": "minimum-maximum",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "Amount one step moves the value; a negative step swaps the arrows.",
+        "name": "step",
+        "range": "any int"
+      },
+      {
+        "default": "-2147483648",
+        "doc": "Bottom of the range.",
+        "name": "minimum",
+        "range": "any int"
+      },
+      {
+        "default": "2147483647",
+        "doc": "Top of the range.",
+        "name": "maximum",
+        "range": "any int"
+      },
+      {
+        "default": "0",
+        "doc": "0 clamps at the ends of the range, 1 wraps around to the other end.",
+        "name": "wrap",
+        "range": "0 or 1"
+      }
+    ]
+  },
   ".iter": {
     "category": "GENERIC",
     "description": "Sends the items of a list out one at a time — Max's iter, which 'unpacks and outputs list contents one element at a time'. It is the list family's serialiser: everything else here answers a list with a list, .zl by rearranging one and .unpack and .unjoin by fanning one out across a fixed set of outlets, while this turns a list of unknown length into a stream of individual messages down a single cord. That is what makes ordinary scalar objects — a .i, a .+, a .mtof, a .coll — usable per element, and it is why the object needs to know nothing about the list it is given where a .unpack 0 0 0 has to be told the shape up front. With .uzi it is the patcher's second iteration primitive, and the two iterate over different things: .uzi counts, driving a loop whose body reads an index, while this walks the data it was handed. Items leave first to last, and each send completes in full — the whole subgraph behind the outlet, depth first — before the next item is sent, because the patcher's send path calls the target inlet directly with no queue in between; that is what makes the object a serialiser rather than a scatter. A bang re-sends the message most recently received, which is why the object holds a list at all rather than passing straight through, and a bang before anything has arrived sends nothing rather than an empty message. An int or a float is a one-item list, as everywhere in this family, and anything is a list, so there is no message word to strip. Each item leaves as the int, float or symbol it spells rather than as a list of one, so it reaches the inlets an uncollected value would have reached; nothing is coerced. One arriving message becomes as many messages as the list is long, all inside the call frame of the one send that started it, so the object's cost is bounded by the same number that bounds its storage: at most 256 items, and so at most 256 sends, per stimulus. The number worth knowing beside it is that the patcher's value-command queue is 256 deep, so a full-length .iter feeding a .s from the control thread can saturate it in one burst and hit its documented drop-and-log backpressure — the same caution .uzi records, and a reason to keep bursts that cross the send/receive boundary short. The arriving list is read into the bounded pre-allocated storage the whole list family shares: at most 256 items spanning at most 1024 characters between them, in memory reserved when the object is built. A list too long for it loses its tail, which is counted, and its head is iterated — the surplus here is input the patch has just sent rather than state the object was holding, which is why it is not refused whole the way .join's store is, and the count is a counter rather than a log line because the refusing thread may be the audio callback. There are no creation arguments, Max documents none, and so nothing to re-parse: the object has a fixed shape and its only bound is the shared one. Calculate() does nothing and no message path allocates, locks or blocks: numbers are rendered into a stack buffer, the list is collected into storage reserved at construction, and the sends render into a buffer reserved at the same time. Two threads sending to the same object are serialised by a single test-and-set guard whose loser is dropped and counted rather than made to spin. That guard is held across the whole walk on purpose: this object emits in a loop, so a cord from its outlet back to its inlet re-enters the handler from inside the walk, and letting that through would both restart an iteration that never terminates and rewrite the list being walked. The returning message is refused and counted, exactly as .uzi refuses a re-entrant start.",
@@ -3545,6 +3676,68 @@
         "doc": "Max's starting index value: the index the first element of a message is sent with, each later element counting up from it. Defaults to 0, so an unmodified object numbers from zero. It is also the starting value of the 'offset' message, which is run-time state and does not write back here, so a saved patch carries this argument rather than whatever the last message set. A float is truncated; anything that is not a whole finite number is ignored and leaves the default in place. Not clamped — a patch may legitimately want indices in any range — and the addition is saturated at the int limits where it is done.",
         "name": "offset",
         "range": "any whole number"
+      }
+    ]
+  },
+  ".loadbang": {
+    "category": "GENERIC",
+    "description": "Sends a bang once the patcher has finished loading — Max's 'loadbang', which 'outputs a bang automatically when the file is opened or when the patch is part of another file that is opened'. It is what lets a saved patch describe its own starting state: before it existed, a graph restored from JSON was a graph plus a list of things the host had to remember to do to it afterwards, because every parameter that needed initialising had to be pushed in from outside. Pair it with .loadmess, which is the same statement with a payload. The firing point is the whole of the object. The bang is sent at the end of ParseJSON, after the parsed graph has been compiled and published with a single atomic swap — not from a constructor, where the cords do not exist yet and the bang would reach nothing, and not part-way through the build, where it would reach some of the patch and not the rest with which part depending on the order the file happens to list its objects in. Only after the publish is the patch the patch the file describes. The pass runs on the control thread, outside the patcher's lock, so a patch whose initialisation travels through a .forward or a .qlist loads rather than deadlocking. The order in which two .loadbang objects fire is not defined, as in Max; use a .trigger when one initialisation must precede another. An object created live through CreateObject never receives a loadbang and stays silent until the patch is saved and loaded again: at creation time it has no cords, and firing on a later edit would re-run the patch's initialisation every time the patch was touched, undoing whatever had happened since. The inlet is the manual trigger for that case — a bang in makes it output, which is Max's documented behaviour. One inlet, one bang outlet, no creation arguments. Calculate() does nothing, and neither send allocates, locks or blocks.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG"
+        ],
+        "doc": "A bang here makes the object send its bang, exactly as a load does — Max's 'sending a bang message to a loadbang object causes it to output a bang message'. It is the manual trigger, and it is the answer to the one case a load cannot cover: an object added to a patch that is already running never receives a loadbang, because at creation time it has no cords to send down and re-firing on a later edit would undo whatever the patch has done since. A host that has just built a graph object by object therefore initialises it by banging its .loadbang objects, and a host that loaded one from JSON does not have to.",
+        "index": 0,
+        "label": "trigger",
+        "range": "bang"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".loadbang",
+    "outlets": [
+      {
+        "doc": "A bang, sent once when the patcher finishes loading — Max's 'sent automatically when the patch is loaded' — and again for every bang that arrives at the inlet. The load bang leaves here only after the whole parsed graph has been built, wired and published, so everything the file describes is already in place and reachable when it travels; nothing downstream can see a half-built patch. The order in which two .loadbang objects in one patch fire is not defined, as in Max: if one initialisation has to precede another, put a .trigger between them.",
+        "index": 0,
+        "label": "out",
+        "range": "bang",
+        "type": "BANG"
+      }
+    ],
+    "params": []
+  },
+  ".loadmess": {
+    "category": "GENERIC",
+    "description": "Sends a stored message once the patcher has finished loading — Max's 'loadmess', which 'outputs a message automatically when the file is opened, or when the patch is part of another file that is opened', where 'any arguments you type into a loadmess object are treated as a message to be sent when output is triggered'. It is .loadbang with a payload, and it is the half that does the actual initialising: '.loadbang -> .m 0.5 -> ~sine' is three objects and a cord where '.loadmess 0.5 -> ~sine' is one, so a patch that sets its own gains, cutoffs, tempos and modes at load needs one of these per value and nothing from the host at all. It fires exactly where .loadbang fires and through the same hook: once, at the end of ParseJSON, after the parsed graph has been compiled and published with a single atomic swap — never during the build, where the cords do not exist yet or exist only in part. The pass runs on the control thread outside the patcher's lock, so a patch whose initialisation travels through a .forward or a .qlist loads rather than deadlocking, and the order of two load objects is undefined as in Max. An object created live through CreateObject never receives one and stays silent until the patch is saved and loaded again; the consequence is sharper here than for .loadbang, since a .loadmess that fired on every edit would re-send its value every time anything in the patch was touched, and an initialisation that will not stay initialised is not one. The inlet is the manual trigger for that case. What is sent leaves in the kind it is, the rule .route, .coll, .textfile and .qlist already share: nothing at all when nothing is typed (.loadbang being the object for wanting a bang), a bang for the single word 'bang', an int or a float for one token that is a whole finite number depending on whether it is spelled with a '.' or an exponent, and otherwise a list carrying the text verbatim — text travels as a list message in this patcher, the same deviation .trigger documents. 'set <message>' replaces the held message without output and a bare 'set' empties it, on both the list route and the message-box route; a list that does not begin with 'set' is ignored, since treating one as an implicit set would let every value passing through overwrite the initialisation. The store is a string whose capacity is reserved at construction, so set assigns into the buffer it already owns and allocates nothing on whatever thread the message arrived on; a message past 256 characters is refused whole and counted rather than truncated, half a message being a different message. Reads and writes are serialised by .value's non-blocking guard, and a loser of it drops and is counted rather than waiting. The guard is held across the send, unusually for this patcher and deliberately: what is being sent is the buffer itself, so releasing first would mean either copying it — an allocation on the audio thread — or handing the outlet a string another thread may be overwriting. The cost is that an outlet wired back into this object's own inlet drops, which is really a second benefit. Calculate() does nothing. The creation arguments are saved verbatim whatever a later set did, because a set is a live override and the typed message is what the object is.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang here sends the stored message, exactly as a load does — Max's 'sending a bang message to a loadmess object causes it to output its typed message'. It is the manual trigger, and it is the answer to the one case a load cannot cover: an object added to a patch that is already running never receives a loadbang, because at creation time it has no cords to send down and re-firing on a later edit would overwrite whatever the patch has done since. 'set <message>' replaces the held message without sending anything — Max's 'the word set followed by any message will set the message held by loadmess without any output (can be used for output in conjunction with bang)' — and a bare 'set' empties it, leaving the object a .loadmess with no arguments. It works whether the text arrives as a list or as a message box's text, since those are two different routes into an object and set has to work on both. A list that does not begin with 'set' is ignored rather than stored: Max documents exactly bang, set and a double-click, and treating a bare list as an implicit set would let every value that happened to pass through this object overwrite the initialisation it exists to hold. A set longer than 256 characters is refused whole rather than truncated — half a message is a different message — and counted.",
+        "index": 0,
+        "label": "trigger/set",
+        "range": "bang, or 'set <message>'"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".loadmess",
+    "outlets": [
+      {
+        "doc": "The stored message, sent once when the patcher finishes loading — Max's 'the loadmess object's typed message is sent automatically when the patch is loaded' — and again for every bang that arrives at the inlet. It leaves in the kind it is, the rule .route, .coll, .textfile and .qlist already share: the single word 'bang' is a bang, one token that is a whole finite number is an int when spelled as one and a float when it carries a '.' or an exponent, and anything else is a list carrying the text verbatim. With no message held, nothing is sent at all — .loadbang is the object for wanting a bang. The load message leaves here only after the whole parsed graph has been built, wired and published, so everything the file describes is already in place when it travels. The order in which two load objects in one patch fire is not defined, as in Max; put a .trigger between them when one initialisation must precede another.",
+        "index": 0,
+        "label": "out",
+        "range": "any",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "Max's argument list, in Max's order, taken whole: 'any arguments you type into a loadmess object are treated as a message to be sent when output is triggered'. It is sent in the kind it is — 'bang' as a bang, a lone number as an int or a float by its spelling, anything else as a list carrying the text verbatim — so '.loadmess 60' initialises a pitch and '.loadmess 0.5' a gain, without either needing a message box in between. With no argument the object holds nothing and sends nothing; .loadbang is the object for wanting a bang. At most 256 characters are held, which is the patcher's own bound (a .coll entry, a .bag, an .offer table and the patcher's value queue are all this number, so anything that can reach this object through a patch also fits in it); a longer argument list stops at the last token that fits rather than failing to load, since a creation argument arriving from a hand-edited or newer saved patch must never be able to break loading it. The argument string is saved verbatim whatever a later 'set' did, because a set is a live override and the typed message is what the object is.",
+        "name": "message",
+        "range": "any message, up to 256 characters"
       }
     ]
   },
@@ -4781,6 +4974,47 @@
       }
     ]
   },
+  ".offer": {
+    "category": "MIDI",
+    "description": "Stores two ints as an x,y pair and hands the y back exactly once, by x — Max's 'offer', which 'stores one-time number pairs'. Max: 'store two ints as an x, y pair, and access them by x value. When a pair is retrieved, it is deleted from the collection.' One-time is the whole object: a pair answers one question and is then gone. Max's own discussion gives the use it was built for — 'offer was designed for use with algorithms that transform the pitch of an incoming note stream. By storing the original and transformed note together ... when the pitch of the note-on is changed, the transformed pitch can be retrieved when the note-off is received' — which is the bookkeeping problem every transposer and harmoniser has and nothing else in the patcher spells: a note-off carries the pitch the player released, not the one the synth is sounding, so something has to remember the mapping per note and forget it the moment it is used. Inlet 1 arms one y and does nothing else: Max's 'the next x value received in the left inlet causes the two numbers to be stored together'. Inlet 0 is the x and is the inlet that acts, and which of two things it does depends only on whether a y is armed — 'if a y value has been received in the right inlet, the two numbers are stored together; otherwise, offer looks for an x value that matches the incoming number, sends out the corresponding y value, then deletes the stored pair'. Storing spends the armed y, so the next x is a query again, and an x that matches nothing sends nothing. The armed y is a flag rather than a non-zero test, because 0 is a perfectly good y and is the velocity a note-off carries. A float is converted to an int on either inlet. A list in inlet 0 is Max's inlet distribution on one cord and its order is '<x> <y>' — the second element arms the y first, under Max's right-to-left delivery — so '60 72' stores the pair and a bare '60' is a query. It is not .funbuff, .coll, .table or .bag, all four of which Max lists as related: .funbuff is the closest and is what a patch wants when the mapping is a function it keeps consulting, .coll and .table are read and re-read, and .bag has no addresses at all. This one is for a mapping that is true exactly once. Storing an x that is already there keeps both pairs rather than overwriting, which Max leaves open and which matters for the same key struck twice before its first note-off: overwriting would lose a note the synth was still sounding. A query then takes the newest matching pair, .bag's rule, so a store and a withdrawal are an exact undo of each other. A bang is Max's 'output every y-value received since the last clear message', read as the y of every pair currently held — the description's own 'when a pair is retrieved, it is deleted' rules out a second copy of everything ever handed in — sent one at a time, oldest first, and it deletes nothing: dumping what the store holds and spending it are different gestures and only one is recoverable. 'clear' is Max's 'deletes the entire contents of offer', silently, and it disarms a waiting y with it, since a y carried across a clear would swallow the first x after it. The store is bounded at 256 pairs, allocated whole at construction and never resized, with .value's non-blocking guard around it — .bag's and .coll's model and for their reason, since a message handler runs on whichever thread dispatched it and in-patcher delivery dispatches on the audio thread. A store past the capacity is refused whole and silently and spends the armed y anyway, a wrong answer being worse than a missing one; a loser of the guard drops rather than waiting; and the guard is never held across a send, so a patch that wires the outlet back into an inlet works rather than deadlocking and cannot run away, every re-entrant query deleting the pair it answered. Nothing on any message path allocates, locks or blocks. Like .flush and .sustain it opens no device and needs none, so it works on every platform. Calculate() does nothing, and nothing persists across a save: Max's offer takes no arguments, and a reloaded patch holding the mappings for notes that were sounding when it was saved would be holding answers to note-offs that are never coming.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The x value, and the inlet that acts — Max's 'the number specifies the x value of an x,y pair'. What it does depends on whether inlet 1 has armed a y: 'if a y value has been received in the right inlet, the two numbers are stored together in offer; otherwise, offer looks for an x value that matches the incoming number, sends out the corresponding y value, then deletes the stored pair'. So the same inlet stores when a y is waiting and withdraws when one is not, and storing spends the armed y so the next x is a query again. An x that matches nothing sends nothing: Max's 'if there is no x value stored in offer that matches the number received, offer does nothing'. A float is converted to an int. A list is Max's inlet distribution written on one cord, '<x> <y>' — the second element arms the y first, under Max's right-to-left delivery, so '60 72' stores the pair 60,72 while a bare '60' is a query. Further elements are ignored. 'clear' is Max's 'deletes the entire contents of offer': it sends nothing and it also disarms a y that was waiting, since a y carried across a clear would swallow the first x after it. A bang sends the y of every pair currently stored, oldest first, and deletes nothing. A store past 256 pairs is refused whole and silently, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "x",
+        "range": "int, float, list '<x> <y>', bang, 'clear'"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Arms one y value — Max's 'the number specifies a y value to be stored in offer. The next x value (int) received in the left inlet causes the two numbers to be stored together as an x,y pair'. It stores nothing and sends nothing by itself: only an x completes a pair. The armed y is a flag rather than a non-zero test, so 0 is a perfectly good y — it is the velocity a note-off carries, and the note streams this object was designed for are full of it. Arming a second y before any x arrives replaces the first: only one can be waiting. Ints, floats and a list whose leading token is a number all arm it; a float is converted to an int. The value is stored exactly as given, unclamped and never refused for being outside MIDI's 0-127 — this object is a keyed store, not a note formatter.",
+        "index": 1,
+        "label": "y",
+        "range": "any int"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".offer",
+    "outlets": [
+      {
+        "doc": "The y values leaving the store, always as ints. An x that matches a stored pair sends that pair's y and the pair is deleted — Max's 'when a pair is retrieved, it is deleted from the collection', which is the whole of 'one-time number pairs'. When the same x was stored more than once the newest pair is the one that answers, so a store and a withdrawal are an exact undo of each other. A bang sends the y of every stored pair one at a time, oldest first, and deletes none of them. Nothing else sends at all: arming a y, storing a pair, 'clear' and an x that matches nothing are all silent. The whole burst a bang sends is captured before the first send, so a patch that wires this outlet back into an inlet does not change the burst it is still receiving; a withdrawal likewise releases the store before it sends, so such a patch works rather than deadlocking, and cannot run away — every re-entrant query deletes the pair it answered.",
+        "index": 0,
+        "label": "y",
+        "range": "any int",
+        "type": "INT"
+      }
+    ],
+    "params": []
+  },
   ".onebang": {
     "category": "GENERIC",
     "description": "Lets one bang through and then closes until it is re-armed from the right inlet — Max's onebang, and the standard one-shot: fire a sound on the first trigger of a burst and ignore the rest until something explicitly re-enables it. Max: 'Allows a bang in the left inlet to pass through ONLY if a bang has been received in the right inlet. After that, a bang in the left inlet will not get through again until a bang has been received again in the right inlet.' The patcher could already count triggers with .counter and compare them with .sel or .past, but expressing 'once, then not again until I say so' that way takes three boxes and leaves the re-arm implicit in the numbers, where here it is a patch cord. The whole object is one bit of state and two properties of it are worth knowing. The right inlet is idempotent: arming an already-armed gate does not bank a second pass, because Max says the left inlet passes 'only if it has received a bang in its right inlet since the last time it sent out a bang' — a since, not a count — so five arms followed by five triggers is one pass and four rejects, never five passes. And nothing is ever swallowed: every message the left inlet accepts produces exactly one bang, on one outlet or the other, so the object gates where a bang goes rather than whether one happens. That is what makes the second outlet worth wiring. There are two of them, which the object's name does not suggest — Max: 'Otherwise, it sends a bang out its right outlet' — so a blocked bang is reported as a 'you were too early' signal rather than lost, and the two outlets together are a complete accounting of the left inlet's traffic. Exactly one fires per message, so unlike .trigger, .bangbang, .mean or .peak there is no right-to-left firing order to respect. Everything is a bang: Max gives int, float and list the description 'Same as a bang' and anything 'Converted to bang', so the payload is documented as discarded, and a 0 on the left inlet triggers the gate like anything else. That is worth stating because the number reads like a 'don't' — this is not .gate, and a value of 0 does not mean off anywhere in it, on either inlet; a patch that wants a numeric gate wants .gate. The word 'stop' on the left inlet is Max's manual disarm ('Undoes the effect of a bang in the right inlet'), silent, and it is the only word this object knows. Elsewhere in the family a symbol is a message the object would ignore anyway, so adding 'reset' costs nothing; here a symbol is a trigger, so every word learned is a bang silently no longer passed — and 'stop' plus a message on the right inlet already reach the entire state space. It is bare, as .change's 'mode' and .past's 'clear' are: 'stop 1' is a list, and a list is a bang. On the right inlet 'stop' arms rather than disarming, because Max scopes the message to the left inlet while marking int, float, list and anything 'in either inlet', and because the reference describes the arming inlet with no conditions at all — a patch is entitled to treat a cord into it as 'the gate is now open', which would hold only for inspected message text if one string out of all possible strings closed it instead. The object starts disarmed, which is Max's default and also the safe one, since an object that started armed would let a patch load fire a bang nobody armed it for; a non-zero creation argument starts it armed, as Max's does. The argument is a flag, so only its zero-ness is read, and it is read from the float as it arrived rather than from a truncated int: Max's int argument would make 0.5 a zero, but this patcher has one numeric type and a flag that flipped on the third decimal place of a number nobody meant as a value would be a trap. A token that is not a whole finite number is not an argument, so '.onebang wobble' and '.onebang inf' both start disarmed — non-finite is 'not a number' in this family, as .change inf starting at 0 already establishes. Calculate() does nothing: the object is driven by its inlets, and emitting on a DSP tick would re-fire the gate every block, which for a one-shot is the exact failure it exists to prevent.",
@@ -5485,6 +5719,41 @@
         "doc": "Message to put in front of every input — the whole argument string, so \"note 60\" is two words. Empty makes the object a pass-through.",
         "name": "message",
         "range": "any message, at most 256 characters"
+      }
+    ]
+  },
+  ".print": {
+    "category": "GENERIC",
+    "description": "Writes whatever arrives at its inlet to the engine log, one line per message, with a settable name in front of it — Max's 'print', which prints 'any message in the Max window'. Max: 'the print object prints, in the Max window, any message it receives in its inlet.' This patcher is headless and there is no Max window, so the destination is the engine log: the thing a host already reads, already redirects with YSE::Log().setLogfile(), and already intercepts with YSE::Log().setHandler(), so every tool a host has for watching the engine talk watches this object too with no new plumbing at either end. It is the patcher's missing debugging affordance — until it existed there was no way to see what was happening inside a graph, and a patch that misbehaved had to be diagnosed from the audio coming out of it. It is not .capture, the other half of the same job: this says what is passing now, one line at a time, as it passes, while .capture keeps the last N values so a patch can be run, stopped, and only then asked what it saw. The first creation argument is the name — Max's 'the first argument sets the name that appears in the Max window', default 'print'. The second is this patcher's and not Max's: the most lines the object emits per drain tick, default 16, clamped to 1-256. A bang prints the word 'bang', an int its digits, a float its shortest round-tripping spelling with a decimal point so it stays visibly a float, and a list or a message box's text verbatim. There is no outlet, which is Max's shape and also the right one: an outlet would turn a probe into a participant. Nothing is ever logged from the message path. A handler runs on whichever thread dispatched the message and in-patcher delivery dispatches on the audio thread, where building a std::string and then writing a file or calling into a host handler is exactly what the engine's real-time rules forbid — so the line is formatted into a stack buffer and pushed onto a bounded lock-free queue whose control-thread drain, running from System::update(), hands it to the log. That is the named bus's audio-thread path with text in the record instead of a variant, and it means a line reaches the log on the host's next tick rather than instantly. Nothing on any message path allocates, locks or blocks, and Calculate() does nothing. Two bounds can refuse a message and both report: this object's per-tick budget, whose first refusal in a tick posts a notice and whose refusals are all counted, and the shared queue's capacity, whose overflow the next drain names as a single count. Dropping under flood is correct — the alternative is blocking the audio thread, which is not an answer — but a silent drop would make a debugging instrument lie about the patch it is being used to debug. A line longer than the record is cut and marked with '...', the opposite of .capture's refuse-whole rule and deliberately so: .capture stores a symbol, where half of one is a different symbol, while this produces a line to read, where the first 240 characters are almost all of the information and silence is none of it. Only the creation arguments persist across a save; the lines already sent belong to the log rather than to the patch.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Everything that arrives here is written to the engine log as one line, prefixed with this object's name — Max's 'the print object prints, in the Max window, any message it receives in its inlet'. There is no Max window here, so the destination is the log a host already reads, redirects with YSE::Log().setLogfile() and intercepts with YSE::Log().setHandler(). A bang prints the word 'bang'; an int prints its digits; a float prints its shortest spelling that reads back as the same float, always with a decimal point, so a float stays visibly a float; a list and a message box's text print verbatim, exactly as the cord carried them. Nothing is ever sent onward — this object has no outlet, which is Max's shape. Nothing is logged from here either: the line is formatted into a stack buffer and pushed onto a bounded lock-free queue, because a message handler runs on whichever thread dispatched the message and in-patcher delivery dispatches on the audio thread. The line reaches the log on the host's next System::update() tick. A line longer than the record is cut and marked with a trailing '...'. Two bounds can refuse a message and both say so: this object's own budget of lines per drain tick, which posts one notice the first time it bites in a tick, and the shared queue's capacity, whose overflow the next drain reports as a single count. Dropping under flood is the only alternative to blocking the audio thread, but a silent drop would make a debugging instrument lie about the patch it is being used to debug.",
+        "index": 0,
+        "label": "in",
+        "range": "any"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".print",
+    "outlets": [],
+    "params": [
+      {
+        "default": "print",
+        "doc": "Max's argument list, in Max's order. The first token is the name printed in front of every line — Max's 'the first argument sets the name that appears in the Max window when the object prints something. The default name is print'. It is what makes two of these in one patch tellable apart. A name longer than 32 characters is cut, since the whole line has to fit a fixed record and a name that ate it would leave no room for the message it is labelling.",
+        "name": "name",
+        "range": "any symbol, up to 32 characters"
+      },
+      {
+        "default": "16",
+        "doc": "The most lines this object emits between two drain ticks. This one is the YSE patcher's and not Max's: Max's print runs in Max's scheduler, while a .print wired into a per-block path here is driven by the audio callback, which at 44.1 kHz and 512-sample blocks is 86 lines a second from one object before a patch does anything unusual. The queue is shared, so without a budget the first such object fills it and every other .print in the patch goes dark; the limit is what keeps one noisy object from silencing the rest. Clamped to 1-256 — 256 being the queue's own capacity, past which asking for more cannot buy anything. A non-numeric second argument leaves the default of 16 standing rather than failing, since a creation argument arriving from a saved patch must never be able to break loading it. Refused messages are counted and the first refusal in a tick posts a notice, so a budget that bites is visible rather than silent.",
+        "name": "lines",
+        "range": "1-256"
       }
     ]
   },
