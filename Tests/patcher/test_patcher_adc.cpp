@@ -157,7 +157,7 @@ TEST_SUITE("patcher") {
 
   // ─── patcherInsert: a filter graph measurably processes ───────────────────────
 
-  TEST_CASE("patcherInsert: ~adc -> ~lp -> ~dac attenuates a high tone") {
+  TEST_CASE("patcherInsert: ~adc -> ~lp -> ~dac attenuates a high tone and passes a low one") {
     YSE::patcher p;
     p.create(1);
     YSE::pHandle* adc = p.CreateObject(YSE::OBJ::D_ADC);
@@ -190,6 +190,25 @@ TEST_SUITE("patcher") {
     const float wetRms = measureRms(io[0]);
     CHECK(wetRms < dryRms * 0.5f); // clearly attenuated
     CHECK_FALSE(exactlyEqual(io[0], dry)); // signal was modified
+
+    // Attenuation on its own is also what an insert delivering *silence* would
+    // produce — silence passes any "quieter than dry" check, which is the way a
+    // test like this fails to fail. Any regression that breaks the ~adc
+    // injection, the graph wiring or patcherInsert's writeback would read as
+    // green above. So the pass band is measured too: a 100 Hz tone through the
+    // same 200 Hz lowpass has to come back at close to its input level, which
+    // only a graph actually delivering audio can do (#768).
+    YSE::DSP::buffer lowDry(128);
+    fillSine(lowDry, 100.0f);
+    const float lowDryRms = measureRms(lowDry);
+    REQUIRE(lowDryRms > 0.0f);
+
+    for (int iter = 0; iter < 40; ++iter) {
+      fillSine(io[0], 100.0f);
+      insert.process(io);
+    }
+
+    CHECK(measureRms(io[0]) > lowDryRms * 0.5f);
   }
 
   // ─── patcherInsert: JSON round-trip of a graph containing ~adc ─────────────────
