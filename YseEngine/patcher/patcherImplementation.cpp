@@ -654,6 +654,75 @@ void patcherImplementation::ReplaceObjectUnlocked(YSE::pHandle* handle, const st
   ScheduleReclaim();
 }
 
+void patcherImplementation::LoadbangObjects(const std::vector<pObject*>& loaded) {
+  // The last pass of a load (issue #547), and `TeardownObjects`'s mirror image.
+  // The same three orderings decide it, and here too each of them is a way of
+  // getting it wrong:
+  //
+  // **After the publish, not during the build.** This is the whole of the
+  // issue. ParseJSON creates every object, then wires every cord, then compiles
+  // the result into a GraphState and installs it with one atomic swap (issue
+  // #228). A bang fired from a constructor would leave down a cord that does
+  // not exist yet; one fired at the end of the create loop would leave down
+  // cords that exist but reach objects whose own creation arguments have been
+  // applied and whose *downstream* wiring has not. Only after
+  // RebuildAndPublish has returned is the patch the patch the file describes —
+  // so that is where the caller puts this, and it is the reason a load has
+  // three passes rather than two. Within the pass the order is not defined and
+  // deliberately so: Max's reference says nothing about the order of two
+  // `loadbang`s either, and a patch that needs one initialisation to precede
+  // another says so with a `.trigger`, exactly as it would for any other
+  // ordering requirement.
+  //
+  // **Outside mtx.** A Loadbang is an ordinary synchronous send: it runs the
+  // whole subgraph behind the object's outlets, and that subgraph may hold a
+  // `.forward`, `.qlist`, `.bag` or `.mtr` — every one of which calls
+  // PassBang/PassData, which take mtx on the control thread. mtx is a plain
+  // std::mutex, so dispatching under it would turn "load a patch that
+  // initialises itself" into a hang. This is why ParseJSON's lock is scoped
+  // rather than held to the end of the function.
+  //
+  // **T_GUI, not T_DSP.** The tag is dispatch semantics, and this really is the
+  // control thread: T_DSP would make `inlet::Set*` run CalculateIfReady on an
+  // active inlet, rendering a DSP object on the control thread outside any
+  // block — the unsynchronised graph read issue #226 exists to prevent. T_GUI
+  // says "set the state and let the block's own traversal render what you
+  // caused", which is exactly what an initialisation message is for.
+  //
+  // The object list is the caller's, taken while it still held mtx, and holds
+  // only the objects *this* parse created. A ParseJSON into a patcher that
+  // already had objects therefore does not re-fire the ones that were already
+  // there — they were loaded once and this is not that load.
+  //
+  // Dispatching outside the lock costs what it costs TeardownObjects: a
+  // structural edit from another control thread is not serialised against the
+  // pass, so an object deleted between the unlock and the send below would be
+  // reached after it was retired. That is by far the narrower hazard — it needs
+  // two threads editing one patcher at the same instant, one of them mid-load,
+  // where the deadlock needs only one patch cord.
+  //
+  // **`CreateObject` has no counterpart, on purpose.** An object built live
+  // never receives this, and a `.loadbang` added to a running patch stays
+  // silent until the patch is saved and loaded again. Two reasons, and they
+  // agree. The first is that at CreateObject time the object has no cords: a
+  // patch is built by creating an object and *then* connecting it, so a bang
+  // fired at creation would have nowhere to go and the feature would be a
+  // no-op dressed up as a behaviour. The second is that firing later — at the
+  // first Connect, say — would mean a patch could not be edited without
+  // re-running its initialisation, which is the opposite of what
+  // initialisation is for: `.loadmess 0.5` re-sending its message every time
+  // the patch is touched would keep overwriting the value the performer just
+  // changed. Max's reference is silent on the live case; the objects it *does*
+  // document for it are manual triggers (a double-click, a `loadbang` message
+  // to `thispatcher`), which says the same thing — a load fires it and nothing
+  // else does. Here the manual trigger is the inlet: a bang into a `.loadbang`
+  // or a `.loadmess` makes it output, which is Max's documented behaviour and
+  // is the whole of what a host needs to initialise a live-edited patch.
+  for (pObject* obj : loaded) {
+    obj->Loadbang(YSE::T_GUI);
+  }
+}
+
 void patcherImplementation::TeardownObjects() {
   // Pass one of teardown (issue #758). Three orderings make it correct, and
   // each of them was a way of getting it wrong:
@@ -812,88 +881,107 @@ void patcherImplementation::ParseJSON(const std::string& content) {
                      return a.first < b.first;
                    });
 
+  // Everything this parse creates, in creation order, for the loadbang pass
+  // below. Declared out here because the lock is not: the pass runs after mtx
+  // is released (issue #547).
+  std::vector<pObject*> loaded;
+  loaded.reserve(records.size());
+
   // Build the whole parsed graph under one lock and publish it with a single
   // atomic swap at the end (issue #228): the audio thread never sees a
   // partial graph — it keeps rendering the previously-published snapshot until
   // RebuildAndPublish below installs the finished one. The *Unlocked cores do
   // the create/connect work without re-taking mtx or publishing per edit, which
   // is what let the old fileHandlerActive re-entrancy flag be retired.
-  std::scoped_lock lk(mtx);
-  // restore objects first
-  for (const auto& record : records) {
-    json& obj = *record.second;
-    std::string type = obj["type"].get<std::string>();
-    std::string args = obj["parms"].get<std::string>();
-    pHandle* handle = CreateObjectUnlocked(type, args);
+  //
+  // Scoped rather than held to the end of the function so the loadbang pass
+  // that follows dispatches outside it — see LoadbangObjects for why sending
+  // under mtx would hang an ordinary patch.
+  {
+    std::scoped_lock lk(mtx);
+    // restore objects first
+    for (const auto& record : records) {
+      json& obj = *record.second;
+      std::string type = obj["type"].get<std::string>();
+      std::string args = obj["parms"].get<std::string>();
+      pHandle* handle = CreateObjectUnlocked(type, args);
 
-    // handle can be null if called without gui context
-    if (handle != nullptr) {
-      auto gui = obj["gui"];
-      for (auto prop = gui.begin(); prop != gui.end(); ++prop) {
-        handle->SetGuiProperty(prop.key(), prop.value().get<std::string>());
+      // handle can be null if called without gui context
+      if (handle != nullptr) {
+        loaded.push_back(handle->object);
+        auto gui = obj["gui"];
+        for (auto prop = gui.begin(); prop != gui.end(); ++prop) {
+          handle->SetGuiProperty(prop.key(), prop.value().get<std::string>());
+        }
+
+        // State the object holds beyond its creation parameters — a `.coll`'s
+        // contents (issue #494). Absent for every object that has none, which is
+        // why it is looked up rather than indexed: operator[] on a const-less
+        // json would insert a null here for all of them.
+        const auto state = obj.find("state");
+        if (state != obj.end()) {
+          handle->object->RestoreState(*state);
+        }
       }
 
-      // State the object holds beyond its creation parameters — a `.coll`'s
-      // contents (issue #494). Absent for every object that has none, which is
-      // why it is looked up rather than indexed: operator[] on a const-less
-      // json would insert a null here for all of them.
-      const auto state = obj.find("state");
-      if (state != obj.end()) {
-        handle->object->RestoreState(*state);
-      }
+      OldIDs.insert(std::pair<int, YSE::pHandle*>(record.first, handle));
     }
 
-    OldIDs.insert(std::pair<int, YSE::pHandle*>(record.first, handle));
-  }
-
-  // restore connections
-  for (const auto& record : records) {
-    int source = record.first;
-    auto outs = (*record.second)["outputs"];
-    for (auto out = outs.begin(); out != outs.end(); ++out) {
-      // Take the outlet index from the key the file wrote, not from a count of
-      // how many keys have gone by — same treatment the records one level up
-      // got in #730, and for the same reason: the map replays "output 10"
-      // before "output 2" (issue #734). A key that names no outlet is skipped
-      // rather than guessed at.
-      const int outlet = OutletIndexFromKey(out.key());
-      if (outlet < 0) {
-        continue;
-      }
-
-      if (out.value().count("Count") == 0) {
-        continue;
-      }
-      int count = out.value()["Count"].get<int>();
-
-      for (int i = 0; i < count; i++) {
-        auto connection = out.value()[std::to_string(i)];
-        int target = connection["Object"].get<int>();
-        int inlet = connection["Inlet"].get<int>();
-
-        pHandle* sourceHandle = nullptr;
-        pHandle* targetHandle = nullptr;
-
-        auto a = OldIDs.find(source);
-        if (a != OldIDs.end()) {
-          sourceHandle = a->second;
+    // restore connections
+    for (const auto& record : records) {
+      int source = record.first;
+      auto outs = (*record.second)["outputs"];
+      for (auto out = outs.begin(); out != outs.end(); ++out) {
+        // Take the outlet index from the key the file wrote, not from a count of
+        // how many keys have gone by — same treatment the records one level up
+        // got in #730, and for the same reason: the map replays "output 10"
+        // before "output 2" (issue #734). A key that names no outlet is skipped
+        // rather than guessed at.
+        const int outlet = OutletIndexFromKey(out.key());
+        if (outlet < 0) {
+          continue;
         }
 
-        auto b = OldIDs.find(target);
-        if (b != OldIDs.end()) {
-          targetHandle = b->second;
+        if (out.value().count("Count") == 0) {
+          continue;
         }
+        int count = out.value()["Count"].get<int>();
 
-        if (targetHandle != nullptr && sourceHandle != nullptr) {
-          ConnectUnlocked(sourceHandle, outlet, targetHandle, inlet);
+        for (int i = 0; i < count; i++) {
+          auto connection = out.value()[std::to_string(i)];
+          int target = connection["Object"].get<int>();
+          int inlet = connection["Inlet"].get<int>();
+
+          pHandle* sourceHandle = nullptr;
+          pHandle* targetHandle = nullptr;
+
+          auto a = OldIDs.find(source);
+          if (a != OldIDs.end()) {
+            sourceHandle = a->second;
+          }
+
+          auto b = OldIDs.find(target);
+          if (b != OldIDs.end()) {
+            targetHandle = b->second;
+          }
+
+          if (targetHandle != nullptr && sourceHandle != nullptr) {
+            ConnectUnlocked(sourceHandle, outlet, targetHandle, inlet);
+          }
         }
       }
     }
+    // Every create/connect above mutated only the freshly-built objects (never
+    // referenced by the still-active snapshot); publish the whole parsed graph in
+    // a single atomic swap now.
+    RebuildAndPublish();
   }
-  // Every create/connect above mutated only the freshly-built objects (never
-  // referenced by the still-active snapshot); publish the whole parsed graph in
-  // a single atomic swap now.
-  RebuildAndPublish();
+
+  // The graph is built, wired and published: the patch is now the patch the
+  // file describes, which is the only moment at which "loading finished" is
+  // true (issue #547). Everything this parse created hears about it, once, on
+  // this thread and outside the lock.
+  LoadbangObjects(loaded);
 }
 
 unsigned int patcherImplementation::Objects() {

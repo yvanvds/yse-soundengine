@@ -27,6 +27,11 @@
 #include "genericObjects/gCapture.h"
 #include "genericObjects/gColl.h"
 #include "genericObjects/gPrint.h"
+// `.loadbang` / `.loadmess` (issue #547): the pair that lets a saved patch
+// describe its own starting state, fired by patcherImplementation's post-publish
+// pass rather than by anything the objects themselves do.
+#include "genericObjects/gLoadbang.h"
+#include "genericObjects/gLoadmess.h"
 #include "genericObjects/gFunbuff.h"
 #include "genericObjects/gTable.h"
 #include "genericObjects/gMtr.h"
@@ -407,6 +412,14 @@ pRegistry::pRegistry() {
   // time, into the engine log — the only way to see inside a running graph
   // without inferring it from the audio coming out (issue #546)
   Add(OBJ::G_PRINT, gPrint::Create);
+
+  // The patch's own beginning: a bang, and a message, sent once the parsed graph
+  // has been built and published — the only moment at which "loading finished"
+  // is true, and the thing that turns a saved graph into a self-contained patch
+  // rather than a graph plus a list of things the host must remember to do to it
+  // (issue #547)
+  Add(OBJ::G_LOADBANG, gLoadbang::Create);
+  Add(OBJ::G_LOADMESS, gLoadmess::Create);
 
   // A sparse function: x,y pairs kept sorted by x, with a floor lookup and
   // linear interpolation between the stored points — the store behind every

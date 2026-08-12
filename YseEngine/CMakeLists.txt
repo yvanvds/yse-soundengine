@@ -128,6 +128,11 @@ set(YSE_SRCS
   patcher/genericObjects/gFunnel.cpp
   patcher/genericObjects/gGate.cpp
   patcher/genericObjects/gIf.cpp
+  # `.loadbang` / `.loadmess` (issue #547): one inlet and one outlet each, no
+  # device and no state beyond the stored message. The lifecycle hook they hang
+  # off lives in patcherImplementation.
+  patcher/genericObjects/gLoadbang.cpp
+  patcher/genericObjects/gLoadmess.cpp
   patcher/genericObjects/gMatch.cpp
   patcher/genericObjects/gMatrix.cpp
   patcher/genericObjects/gMtr.cpp
@@ -440,6 +445,8 @@ set_source_files_properties(
   patcher/genericObjects/gFunnel.cpp
   patcher/genericObjects/gGate.cpp
   patcher/genericObjects/gIf.cpp
+  patcher/genericObjects/gLoadbang.cpp
+  patcher/genericObjects/gLoadmess.cpp
   patcher/genericObjects/gMatch.cpp
   patcher/genericObjects/gMatrix.cpp
   patcher/genericObjects/gMtr.cpp

@@ -3548,6 +3548,68 @@
       }
     ]
   },
+  ".loadbang": {
+    "category": "GENERIC",
+    "description": "Sends a bang once the patcher has finished loading — Max's 'loadbang', which 'outputs a bang automatically when the file is opened or when the patch is part of another file that is opened'. It is what lets a saved patch describe its own starting state: before it existed, a graph restored from JSON was a graph plus a list of things the host had to remember to do to it afterwards, because every parameter that needed initialising had to be pushed in from outside. Pair it with .loadmess, which is the same statement with a payload. The firing point is the whole of the object. The bang is sent at the end of ParseJSON, after the parsed graph has been compiled and published with a single atomic swap — not from a constructor, where the cords do not exist yet and the bang would reach nothing, and not part-way through the build, where it would reach some of the patch and not the rest with which part depending on the order the file happens to list its objects in. Only after the publish is the patch the patch the file describes. The pass runs on the control thread, outside the patcher's lock, so a patch whose initialisation travels through a .forward or a .qlist loads rather than deadlocking. The order in which two .loadbang objects fire is not defined, as in Max; use a .trigger when one initialisation must precede another. An object created live through CreateObject never receives a loadbang and stays silent until the patch is saved and loaded again: at creation time it has no cords, and firing on a later edit would re-run the patch's initialisation every time the patch was touched, undoing whatever had happened since. The inlet is the manual trigger for that case — a bang in makes it output, which is Max's documented behaviour. One inlet, one bang outlet, no creation arguments. Calculate() does nothing, and neither send allocates, locks or blocks.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG"
+        ],
+        "doc": "A bang here makes the object send its bang, exactly as a load does — Max's 'sending a bang message to a loadbang object causes it to output a bang message'. It is the manual trigger, and it is the answer to the one case a load cannot cover: an object added to a patch that is already running never receives a loadbang, because at creation time it has no cords to send down and re-firing on a later edit would undo whatever the patch has done since. A host that has just built a graph object by object therefore initialises it by banging its .loadbang objects, and a host that loaded one from JSON does not have to.",
+        "index": 0,
+        "label": "trigger",
+        "range": "bang"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".loadbang",
+    "outlets": [
+      {
+        "doc": "A bang, sent once when the patcher finishes loading — Max's 'sent automatically when the patch is loaded' — and again for every bang that arrives at the inlet. The load bang leaves here only after the whole parsed graph has been built, wired and published, so everything the file describes is already in place and reachable when it travels; nothing downstream can see a half-built patch. The order in which two .loadbang objects in one patch fire is not defined, as in Max: if one initialisation has to precede another, put a .trigger between them.",
+        "index": 0,
+        "label": "out",
+        "range": "bang",
+        "type": "BANG"
+      }
+    ],
+    "params": []
+  },
+  ".loadmess": {
+    "category": "GENERIC",
+    "description": "Sends a stored message once the patcher has finished loading — Max's 'loadmess', which 'outputs a message automatically when the file is opened, or when the patch is part of another file that is opened', where 'any arguments you type into a loadmess object are treated as a message to be sent when output is triggered'. It is .loadbang with a payload, and it is the half that does the actual initialising: '.loadbang -> .m 0.5 -> ~sine' is three objects and a cord where '.loadmess 0.5 -> ~sine' is one, so a patch that sets its own gains, cutoffs, tempos and modes at load needs one of these per value and nothing from the host at all. It fires exactly where .loadbang fires and through the same hook: once, at the end of ParseJSON, after the parsed graph has been compiled and published with a single atomic swap — never during the build, where the cords do not exist yet or exist only in part. The pass runs on the control thread outside the patcher's lock, so a patch whose initialisation travels through a .forward or a .qlist loads rather than deadlocking, and the order of two load objects is undefined as in Max. An object created live through CreateObject never receives one and stays silent until the patch is saved and loaded again; the consequence is sharper here than for .loadbang, since a .loadmess that fired on every edit would re-send its value every time anything in the patch was touched, and an initialisation that will not stay initialised is not one. The inlet is the manual trigger for that case. What is sent leaves in the kind it is, the rule .route, .coll, .textfile and .qlist already share: nothing at all when nothing is typed (.loadbang being the object for wanting a bang), a bang for the single word 'bang', an int or a float for one token that is a whole finite number depending on whether it is spelled with a '.' or an exponent, and otherwise a list carrying the text verbatim — text travels as a list message in this patcher, the same deviation .trigger documents. 'set <message>' replaces the held message without output and a bare 'set' empties it, on both the list route and the message-box route; a list that does not begin with 'set' is ignored, since treating one as an implicit set would let every value passing through overwrite the initialisation. The store is a string whose capacity is reserved at construction, so set assigns into the buffer it already owns and allocates nothing on whatever thread the message arrived on; a message past 256 characters is refused whole and counted rather than truncated, half a message being a different message. Reads and writes are serialised by .value's non-blocking guard, and a loser of it drops and is counted rather than waiting. The guard is held across the send, unusually for this patcher and deliberately: what is being sent is the buffer itself, so releasing first would mean either copying it — an allocation on the audio thread — or handing the outlet a string another thread may be overwriting. The cost is that an outlet wired back into this object's own inlet drops, which is really a second benefit. Calculate() does nothing. The creation arguments are saved verbatim whatever a later set did, because a set is a live override and the typed message is what the object is.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang here sends the stored message, exactly as a load does — Max's 'sending a bang message to a loadmess object causes it to output its typed message'. It is the manual trigger, and it is the answer to the one case a load cannot cover: an object added to a patch that is already running never receives a loadbang, because at creation time it has no cords to send down and re-firing on a later edit would overwrite whatever the patch has done since. 'set <message>' replaces the held message without sending anything — Max's 'the word set followed by any message will set the message held by loadmess without any output (can be used for output in conjunction with bang)' — and a bare 'set' empties it, leaving the object a .loadmess with no arguments. It works whether the text arrives as a list or as a message box's text, since those are two different routes into an object and set has to work on both. A list that does not begin with 'set' is ignored rather than stored: Max documents exactly bang, set and a double-click, and treating a bare list as an implicit set would let every value that happened to pass through this object overwrite the initialisation it exists to hold. A set longer than 256 characters is refused whole rather than truncated — half a message is a different message — and counted.",
+        "index": 0,
+        "label": "trigger/set",
+        "range": "bang, or 'set <message>'"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".loadmess",
+    "outlets": [
+      {
+        "doc": "The stored message, sent once when the patcher finishes loading — Max's 'the loadmess object's typed message is sent automatically when the patch is loaded' — and again for every bang that arrives at the inlet. It leaves in the kind it is, the rule .route, .coll, .textfile and .qlist already share: the single word 'bang' is a bang, one token that is a whole finite number is an int when spelled as one and a float when it carries a '.' or an exponent, and anything else is a list carrying the text verbatim. With no message held, nothing is sent at all — .loadbang is the object for wanting a bang. The load message leaves here only after the whole parsed graph has been built, wired and published, so everything the file describes is already in place when it travels. The order in which two load objects in one patch fire is not defined, as in Max; put a .trigger between them when one initialisation must precede another.",
+        "index": 0,
+        "label": "out",
+        "range": "any",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "Max's argument list, in Max's order, taken whole: 'any arguments you type into a loadmess object are treated as a message to be sent when output is triggered'. It is sent in the kind it is — 'bang' as a bang, a lone number as an int or a float by its spelling, anything else as a list carrying the text verbatim — so '.loadmess 60' initialises a pitch and '.loadmess 0.5' a gain, without either needing a message box in between. With no argument the object holds nothing and sends nothing; .loadbang is the object for wanting a bang. At most 256 characters are held, which is the patcher's own bound (a .coll entry, a .bag, an .offer table and the patcher's value queue are all this number, so anything that can reach this object through a patch also fits in it); a longer argument list stops at the last token that fits rather than failing to load, since a creation argument arriving from a hand-edited or newer saved patch must never be able to break loading it. The argument string is saved verbatim whatever a later 'set' did, because a set is a live override and the typed message is what the object is.",
+        "name": "message",
+        "range": "any message, up to 256 characters"
+      }
+    ]
+  },
   ".m": {
     "category": "GUI",
     "description": "Static message. Bang re-sends the stored message; list updates the stored payload.",

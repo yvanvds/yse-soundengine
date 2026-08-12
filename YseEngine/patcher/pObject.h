@@ -91,6 +91,23 @@ namespace YSE {
       // `result.bytes` is only valid for the duration of the call.
       virtual void DeliverFileResult(const fileResult& result, THREAD thread);
 
+      // "The patch you are in has finished loading" (issue #547). Called by the
+      // owning patcher on every object a `ParseJSON` created, once, after the
+      // whole parsed graph has been compiled and published — never during the
+      // build. `.loadbang` sends its bang here and `.loadmess` its stored
+      // message; default: nothing, so only the objects that need it pay for it.
+      //
+      // This is `Teardown`'s mirror image and is deliberately shaped like it:
+      // control thread, dispatched with T_GUI, outside the patcher's mutex, and
+      // as one pass over a snapshot of the objects rather than a call woven into
+      // the build loop. See patcherImplementation::LoadbangObjects for why each
+      // of those is load-bearing.
+      //
+      // **Only a load fires it.** An object created live through
+      // `CreateObject` never receives this — see the same place for the
+      // reasoning, and gLoadbang.h for what it means to a patch.
+      virtual void Loadbang(THREAD thread);
+
       // "You are about to go away" (issue #758). Called by the owning patcher
       // on every object it is about to unwire — from Clear(), and on the one
       // object DeleteObject() removes — while every cord in the patch is still
