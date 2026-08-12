@@ -12,6 +12,8 @@
 #include "genericObjects/gSend.h"
 #include "genericObjects/gTable.h"
 #include "genericObjects/gValue.h"
+#include "genericObjects/dInlet.h"
+#include "genericObjects/dOutlet.h"
 #include "genericObjects/gInlet.h"
 #include "genericObjects/gOutlet.h"
 #include "pHandle.hpp"
@@ -382,37 +384,55 @@ bool patcherImplementation::ContainmentWouldCycle(pObject* obj, pObject* contain
   return false;
 }
 
-pObject* patcherImplementation::BoundaryChild(pObject* container, const char* boundaryType,
+int patcherImplementation::BoundaryIndexOf(pObject* obj, BoundarySide side) {
+  // The one place the four boundary object types are mapped onto the side they
+  // belong to and the `Index()` they claim (issues #545, #764). Both rates sit
+  // on one side because a subpatcher has one set of pins per side — see
+  // BoundarySide in the header.
+  const char* type = obj->Type();
+  if (side == BoundarySide::INLETS) {
+    if (strcmp(type, YSE::OBJ::G_INLET) == 0) return static_cast<gInlet*>(obj)->Index();
+    if (strcmp(type, YSE::OBJ::D_INLET) == 0) return static_cast<dInlet*>(obj)->Index();
+    return -1;
+  }
+  if (strcmp(type, YSE::OBJ::G_OUTLET) == 0) return static_cast<gOutlet*>(obj)->Index();
+  if (strcmp(type, YSE::OBJ::D_OUTLET) == 0) return static_cast<dOutlet*>(obj)->Index();
+  return -1;
+}
+
+pObject* patcherImplementation::BoundaryChild(pObject* container, BoundarySide side,
                                               int index) const {
   // Caller holds mtx. Direct contents only — a `.inlet` inside a nested
   // subpatcher belongs to *that* subpatcher's boundary, not to this one's, and
   // Container() being one level deep is exactly what says so.
+  //
+  // A negative index can never match: BoundaryIndexOf answers -1 for an object
+  // that is not on this side, and an `index` argument of -1 must not be allowed
+  // to collide with that answer.
+  if (index < 0) return nullptr;
   for (const auto& any : objects) {
     pObject* obj = any.second;
     if (obj->Container() != container) continue;
-    if (strcmp(obj->Type(), boundaryType) != 0) continue;
-    const int claimed = strcmp(boundaryType, YSE::OBJ::G_INLET) == 0
-                            ? static_cast<gInlet*>(obj)->Index()
-                            : static_cast<gOutlet*>(obj)->Index();
-    if (claimed == index) return obj;
+    if (BoundaryIndexOf(obj, side) == index) return obj;
   }
   return nullptr;
 }
 
-int patcherImplementation::BoundaryPinCount(pObject* container, const char* boundaryType) const {
+int patcherImplementation::BoundaryPinCount(pObject* container, BoundarySide side) const {
   // Caller holds mtx. One past the highest claimed index rather than a count of
   // boundary objects: the number a parent can pass to Connect is an index, so
   // the shape it can address is what a caller is asking about. A subpatcher
   // whose only `.inlet` is index 2 has three inlets, two of which reach
   // nothing, and Connect will say the same.
+  //
+  // Both rates count towards one total, for the same reason they share the
+  // index space: a subpatcher with a `.inlet 0` and a `~inlet 1` presents two
+  // inlets, not one of each.
   int highest = -1;
   for (const auto& any : objects) {
     pObject* obj = any.second;
     if (obj->Container() != container) continue;
-    if (strcmp(obj->Type(), boundaryType) != 0) continue;
-    const int claimed = strcmp(boundaryType, YSE::OBJ::G_INLET) == 0
-                            ? static_cast<gInlet*>(obj)->Index()
-                            : static_cast<gOutlet*>(obj)->Index();
+    const int claimed = BoundaryIndexOf(obj, side);
     if (claimed > highest) highest = claimed;
   }
   return highest + 1;
@@ -420,7 +440,7 @@ int patcherImplementation::BoundaryPinCount(pObject* container, const char* boun
 
 bool patcherImplementation::ResolveInletPin(pObject*& obj, int& pin) const {
   if (!IsSubpatcher(obj)) return true;
-  pObject* boundary = BoundaryChild(obj, YSE::OBJ::G_INLET, pin);
+  pObject* boundary = BoundaryChild(obj, BoundarySide::INLETS, pin);
   if (boundary == nullptr) return false;
   obj = boundary;
   pin = 0;
@@ -429,7 +449,7 @@ bool patcherImplementation::ResolveInletPin(pObject*& obj, int& pin) const {
 
 bool patcherImplementation::ResolveOutletPin(pObject*& obj, int& pin) const {
   if (!IsSubpatcher(obj)) return true;
-  pObject* boundary = BoundaryChild(obj, YSE::OBJ::G_OUTLET, pin);
+  pObject* boundary = BoundaryChild(obj, BoundarySide::OUTLETS, pin);
   if (boundary == nullptr) return false;
   obj = boundary;
   pin = 0;
@@ -499,14 +519,14 @@ int patcherImplementation::SubpatcherInlets(YSE::pHandle* container) {
   if (container == nullptr) return 0;
   std::scoped_lock lk(mtx);
   if (!IsSubpatcher(container->object)) return 0;
-  return BoundaryPinCount(container->object, YSE::OBJ::G_INLET);
+  return BoundaryPinCount(container->object, BoundarySide::INLETS);
 }
 
 int patcherImplementation::SubpatcherOutlets(YSE::pHandle* container) {
   if (container == nullptr) return 0;
   std::scoped_lock lk(mtx);
   if (!IsSubpatcher(container->object)) return 0;
-  return BoundaryPinCount(container->object, YSE::OBJ::G_OUTLET);
+  return BoundaryPinCount(container->object, BoundarySide::OUTLETS);
 }
 
 YSE::PATCHER::inlet* patcherImplementation::ResolveInlet(pObject* obj, int pin) {
@@ -515,7 +535,7 @@ YSE::PATCHER::inlet* patcherImplementation::ResolveInlet(pObject* obj, int pin) 
   // Only the lookup takes the lock — see the header for why the delivery must
   // not.
   std::scoped_lock lk(mtx);
-  pObject* boundary = BoundaryChild(obj, YSE::OBJ::G_INLET, pin);
+  pObject* boundary = BoundaryChild(obj, BoundarySide::INLETS, pin);
   return boundary == nullptr ? nullptr : boundary->GetInlet(0);
 }
 

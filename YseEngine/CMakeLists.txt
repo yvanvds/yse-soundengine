@@ -133,6 +133,11 @@ set(YSE_SRCS
   # pass-throughs. Everything that makes nesting work — resolving a façade pin
   # to a boundary object, the containment subtree, the serialised container id —
   # lives in patcherImplementation, and none of it is on the audio thread.
+  # `~inlet` / `~outlet` (issue #764) are the audio-rate half of that boundary:
+  # the same pass-through forwarding a buffer *pointer*, so a signal crossing a
+  # subpatcher costs one Calculate and one send and copies nothing.
+  patcher/genericObjects/dInlet.cpp
+  patcher/genericObjects/dOutlet.cpp
   patcher/genericObjects/gInlet.cpp
   # `.loadbang` / `.loadmess` (issue #547): one inlet and one outlet each, no
   # device and no state beyond the stored message. The lifecycle hook they hang
@@ -463,6 +468,8 @@ set_source_files_properties(
   patcher/genericObjects/gFunnel.cpp
   patcher/genericObjects/gGate.cpp
   patcher/genericObjects/gIf.cpp
+  patcher/genericObjects/dInlet.cpp
+  patcher/genericObjects/dOutlet.cpp
   patcher/genericObjects/gInlet.cpp
   patcher/genericObjects/gLoadbang.cpp
   patcher/genericObjects/gLoadmess.cpp

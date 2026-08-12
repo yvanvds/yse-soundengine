@@ -110,8 +110,9 @@ namespace YSE {
      *  ordinary object in this patcher's one flat graph, and this call
      *  publishes nothing because it changes no edge and no pin. What it changes
      *  is what ``Connect``/``Disconnect`` mean when handed the subpatcher —
-     *  inlet *N* of a subpatcher is the ``".inlet"`` object inside it whose
-     *  index is *N* — and what ``DeleteObject`` takes with it.
+     *  inlet *N* of a subpatcher is the boundary object inside it whose index
+     *  is *N*, a ``".inlet"`` for a message pin or a ``"~inlet"`` for a signal
+     *  pin (issue #764) — and what ``DeleteObject`` takes with it.
      */
     void SetContainer(YSE::pHandle* obj, YSE::pHandle* container);
 
@@ -121,10 +122,14 @@ namespace YSE {
     /**
      *  @brief How many inlets a subpatcher presents to its parent.
      *
-     *  One past the highest index claimed by a ``".inlet"`` object among the
+     *  One past the highest index claimed by a boundary object among the
      *  subpatcher's contents, so a sparsely numbered boundary reports the range
      *  a parent can address rather than the number of boundary objects. 0 for a
      *  handle that is not a subpatcher.
+     *
+     *  Both rates count towards the one total: a subpatcher has one set of
+     *  inlet pins, and a ``".inlet 0"`` beside a ``"~inlet 1"`` presents two
+     *  inlets — a message pin and a signal pin — not one of each (issue #764).
      *
      *  A ``"patcher"`` object owns no pins of its own, so ``pHandle::GetInputs``
      *  answers 0 for one; this is the question to ask instead.

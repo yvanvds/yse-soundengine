@@ -13,7 +13,8 @@ namespace {
   constexpr char kInletDoc[] =
       "Where the encapsulated graph hands a message to the boundary. Wire whatever the subpatcher "
       "computes into here and it leaves the subpatcher through this object's outlet. Bang, int, "
-      "float and list cross; audio signals do not (this is a control-rate object, see issue #764).";
+      "float and list cross; audio signals leave through a ~outlet instead, which shares this "
+      "object's index space (issue #764).";
 
   constexpr char kOutletDoc[] =
       "The subpatcher's outlet, seen from outside. Nothing inside the subpatcher connects here — "
@@ -59,9 +60,12 @@ CONSTRUCT() {
       "has an outlet where Max's appears not to: Max hides it because a patcher window draws the "
       "boundary, and headless the cord has to leave from something real for Disconnect, "
       "UnwireFromPeers and the serialiser to handle it as the ordinary edge it is. Bang, int, "
-      "float and list cross; audio signals do not, because this is a control-rate object and "
-      "MSP-style signal boundaries are a separate pass. One creation argument, the boundary outlet "
-      "number, default 0. Every handler is one send; nothing allocates, locks or blocks.");
+      "float and list cross here; a signal pin is a ~outlet instead, because IsDSPObject() decides "
+      "start-point selection, T_GUI dispatch and what every palette is told an object is, and one "
+      "object cannot answer both honestly. The two share one index space — a subpatcher has one "
+      "set of outlet pins and outlet N is one pin whichever rate is behind it. One creation "
+      "argument, the boundary outlet number, default 0. Every handler is one send; nothing "
+      "allocates, locks or blocks.");
   ADD_CATEGORY(pCategory::GENERIC);
 
   INLET_DOC(0, "from patch", kInletDoc, "");

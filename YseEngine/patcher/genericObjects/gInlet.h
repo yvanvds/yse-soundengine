@@ -41,8 +41,11 @@ namespace YSE {
      *  Bang, int, float and list — the four kinds a patch cord carries between
      *  control objects, and exactly what `.gate`, `.switch` and every other
      *  routing object in this patcher forwards. Audio-rate signals do **not**
-     *  cross: this is a control-rate object, and MSP-style signal inlets are a
-     *  separate pass (issue #764). A `SetMessage` message is not forwarded
+     *  cross *here*: this is a control-rate object, and `~inlet` is the signal
+     *  pin (issue #764). The two share one index space — a subpatcher has one
+     *  set of inlet pins and inlet N is one pin whichever rate is behind it —
+     *  so a subpatcher is free to have some pins of each kind, with distinct
+     *  numbers. A `SetMessage` message is not forwarded
      *  either, for the reason `.loadbang` gives for not accepting one — the
      *  signature carries no `THREAD` tag, so forwarding would mean inventing
      *  one.
