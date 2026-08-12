@@ -34,8 +34,11 @@ namespace YSE {
    *  - DSP filters: ``D_LOWPASS``, ``D_HIGHPASS``, ``D_BANDPASS``, ``D_VCF``.
    *  - I/O: ``D_DAC``, ``D_ADC``, ``D_LINE``.
    *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_RSLIDER``,
-   *    ``G_MULTISLIDER``, ``G_MATRIXCTRL``, ``G_DIAL``, ``G_INCDEC``,
-   *    ``G_RANDOM``.
+   *    ``G_MULTISLIDER``, ``G_MATRIXCTRL``, ``G_KSLIDER``, ``G_NSLIDER``,
+   *    ``G_DIAL``, ``G_INCDEC``, ``G_RANDOM``.
+   *  - Indexed selection: ``G_UMENU``, ``G_RADIOGROUP``, ``G_TAB``.
+   *  - Labelled switches: ``G_LED``, ``G_TEXTBUTTON``.
+   *  - Text entry: ``G_TEXTEDIT``.
    *  - Timing: ``G_METRO``, ``G_DELAY``, ``G_PIPE``, ``G_TRANSPORT``,
    *    ``G_SETCLOCK``,
    *    ``G_WHEN``, ``G_TRANSLATE``, ``G_TIMEPOINT``, ``G_TEMPO``,
@@ -119,13 +122,34 @@ namespace YSE {
     DEFOBJ(G_RSLIDER, ".rslider");
     DEFOBJ(G_MULTISLIDER, ".multislider");
     DEFOBJ(G_MATRIXCTRL, ".matrixctrl");
+    DEFOBJ(G_KSLIDER, ".kslider");
+    DEFOBJ(G_NSLIDER, ".nslider");
+    // The indexed selector family (issue #556) — one implementation of "a
+    // bounded index over a named item list" under the three names a host draws
+    // differently. See guiObjects/gItemList.h.
+    DEFOBJ(G_UMENU, ".umenu");
+    DEFOBJ(G_RADIOGROUP, ".radiogroup");
+    DEFOBJ(G_TAB, ".tab");
     DEFOBJ(G_DIAL, ".dial");
     DEFOBJ(G_INCDEC, ".incdec");
     DEFOBJ(G_BUTTON, ".b");
     DEFOBJ(G_TOGGLE, ".t");
+    // The labelled switch family (issue #557) — one implementation of "an on/off
+    // that carries a name" under the two names a host draws differently. `.b`
+    // and `.t` hold the same value and cannot say what they are, which leaves a
+    // host rendering a headless patch with a grid of anonymous squares. See
+    // guiObjects/gLabelSwitch.h.
+    DEFOBJ(G_LED, ".led");
+    DEFOBJ(G_TEXTBUTTON, ".textbutton");
     DEFOBJ(G_MESSAGE, ".m");
     DEFOBJ(G_LIST, ".l");
     DEFOBJ(G_TEXT, ".text");
+    // An editable string (issue #560) — the one GUI value that is genuinely a
+    // mutable string, where `.text` is a fixed label and every other control's
+    // string is an immutable creation argument. The input side of the symbol
+    // family (`.sprintf`, `.combine`, `.tosymbol`), which until now had no way
+    // to receive text from outside a patch. See guiObjects/gTextEdit.h.
+    DEFOBJ(G_TEXTEDIT, ".textedit");
     DEFOBJ(G_COUNTER, ".counter");
     DEFOBJ(G_ACCUM, ".accum");
     DEFOBJ(G_SWITCH, ".switch");

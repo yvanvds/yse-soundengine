@@ -76,6 +76,10 @@
 #include "guiObjects/gRSlider.h"
 #include "guiObjects/gMultiSlider.h"
 #include "guiObjects/gMatrixCtrl.h"
+#include "guiObjects/gKSlider.h"
+#include "guiObjects/gNSlider.h"
+#include "guiObjects/gItemList.h"
+#include "guiObjects/gLabelSwitch.h"
 #include "guiObjects/gDial.h"
 #include "guiObjects/gIncDec.h"
 #include "guiObjects/gButton.h"
@@ -83,6 +87,7 @@
 #include "guiObjects/gMessage.h"
 #include "guiObjects/gList.h"
 #include "guiObjects/gText.h"
+#include "guiObjects/gTextEdit.h"
 
 #include "time/gClocker.h"
 #include "time/gDelay.h"
@@ -499,13 +504,41 @@ pRegistry::pRegistry() {
   // take on their control inlet, so the control and the crossbar it drives need
   // nothing between them (issue #559)
   Add(OBJ::G_MATRIXCTRL, gMatrixCtrl::Create);
+  // A piano keyboard as one control: 128 GUI cells, one per MIDI pitch, each
+  // holding that key's velocity — the first patcher control that expresses a
+  // *note* rather than a number, and it speaks the pair-of-ints `.noteon`,
+  // `.makenote` and `.flush` already take (issue #555)
+  Add(OBJ::G_KSLIDER, gKSlider::Create);
+  // The same pitch written on a stave: two cells, the note and how to spell it,
+  // because a pitch alone cannot say whether 61 is a C sharp or a D flat
+  // (issue #555)
+  Add(OBJ::G_NSLIDER, gNSlider::Create);
+  // The indexed selector family: one implementation of "a bounded index over a
+  // named item list" under the three names a host draws differently — a pop-up,
+  // a column of buttons, a row of tabs. The patcher had every way of expressing
+  // a *number* as a control and no way at all of expressing a bounded named
+  // choice (issue #556)
+  Add(OBJ::G_UMENU, gUMenu::Create);
+  Add(OBJ::G_RADIOGROUP, gRadioGroup::Create);
+  Add(OBJ::G_TAB, gTab::Create);
   Add(OBJ::G_DIAL, gDial::Create);
   Add(OBJ::G_INCDEC, gIncDec::Create);
   Add(OBJ::G_BUTTON, gButton::Create);
   Add(OBJ::G_TOGGLE, gToggle::Create);
+  // The labelled switch family: one implementation of "an on/off that carries a
+  // name" under the two names a host draws differently — a lamp and a pressable
+  // labelled rectangle. `.b` and `.t` above hold the same value and cannot say
+  // what they are, which leaves a host rendering a headless patch with a grid of
+  // anonymous squares (issue #557)
+  Add(OBJ::G_LED, gLed::Create);
+  Add(OBJ::G_TEXTBUTTON, gTextButton::Create);
   Add(OBJ::G_MESSAGE, gMessage::Create);
   Add(OBJ::G_LIST, gList::Create);
   Add(OBJ::G_TEXT, gText::Create);
+  // The one GUI value that is genuinely a mutable string: `.text` above is a
+  // fixed label and every other control's string is an immutable creation
+  // argument, so this is where a patch receives text from outside (issue #560)
+  Add(OBJ::G_TEXTEDIT, gTextEdit::Create);
 
   Add(OBJ::G_ADD, gAdd::Create);
   Add(OBJ::G_DIVIDE, gDivide::Create);

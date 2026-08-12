@@ -183,13 +183,18 @@ set(YSE_SRCS
   patcher/guiObjects/gFloat.cpp
   patcher/guiObjects/gIncDec.cpp
   patcher/guiObjects/gInt.cpp
+  patcher/guiObjects/gItemList.cpp
+  patcher/guiObjects/gKSlider.cpp
+  patcher/guiObjects/gLabelSwitch.cpp
   patcher/guiObjects/gList.cpp
   patcher/guiObjects/gMatrixCtrl.cpp
   patcher/guiObjects/gMessage.cpp
   patcher/guiObjects/gMultiSlider.cpp
+  patcher/guiObjects/gNSlider.cpp
   patcher/guiObjects/gRSlider.cpp
   patcher/guiObjects/gSlider.cpp
   patcher/guiObjects/gText.cpp
+  patcher/guiObjects/gTextEdit.cpp
   patcher/guiObjects/gToggle.cpp
   patcher/inlet.cpp
   patcher/math/dAdd.cpp
@@ -504,13 +509,18 @@ set_source_files_properties(
   patcher/guiObjects/gFloat.cpp
   patcher/guiObjects/gIncDec.cpp
   patcher/guiObjects/gInt.cpp
+  patcher/guiObjects/gItemList.cpp
+  patcher/guiObjects/gKSlider.cpp
+  patcher/guiObjects/gLabelSwitch.cpp
   patcher/guiObjects/gList.cpp
   patcher/guiObjects/gMatrixCtrl.cpp
   patcher/guiObjects/gMessage.cpp
   patcher/guiObjects/gMultiSlider.cpp
+  patcher/guiObjects/gNSlider.cpp
   patcher/guiObjects/gRSlider.cpp
   patcher/guiObjects/gSlider.cpp
   patcher/guiObjects/gText.cpp
+  patcher/guiObjects/gTextEdit.cpp
   patcher/guiObjects/gToggle.cpp
   patcher/math/dAdd.cpp
   patcher/math/dClip.cpp

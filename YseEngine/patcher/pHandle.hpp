@@ -147,6 +147,12 @@ namespace YSE {
      *  as ordinary messages on the control thread, never by writing another
      *  object's state directly.
      *
+     *  The round trip is the half a preset needs and it holds unconditionally.
+     *  The cell form has one carve-out, stated in the protocol block: a
+     *  one-cell control whose cell is free text (``.textedit``) takes its whole
+     *  inlet verbatim, because a text cell can hold the word ``set``. With one
+     *  cell the two forms are the same write anyway.
+     *
      *  False for the scalar controls that predate the protocol: their inlet 0
      *  takes an int or a float, not the display string ``GetGuiValue``
      *  produces.
