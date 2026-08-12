@@ -43,6 +43,11 @@ namespace {
   constexpr const char* kMultiply = ".*";
   constexpr const char* kReceive = ".r";
   constexpr const char* kInt = ".i";
+  // Subpatchers (issue #545): the façade and its two boundary objects.
+  constexpr const char* kPatcher = "patcher";
+  constexpr const char* kInlet = ".inlet";
+  constexpr const char* kOutlet = ".outlet";
+  constexpr const char* kAdd = ".+";
 
   // Read a snprintf-convention getter into a std::string, using the two-call
   // size-then-fill pattern a binding would use.
@@ -423,6 +428,88 @@ TEST_SUITE("capilowcov") {
     yse_phandle_set_int(mul, 1, 3);
     yse_phandle_set_float(mul, 1, 0.5f);
     yse_phandle_set_list(mul, 0, "1 2 3");
+
+    yse_patcher_destroy(p);
+  }
+
+  // ─── subpatchers ───────────────────────────────────────────────────────────
+
+  TEST_CASE("c-api patcher: a subpatcher is addressed as one object (#545)") {
+    // The whole subpatcher surface as a binding meets it: create the façade,
+    // put objects inside it, and then connect and drive the *group* by pin
+    // number without ever naming what is inside. The 15 read at the end could
+    // only have been produced by the `.+ 10` behind the boundary.
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    YsePHandle* sub = yse_patcher_create_object(p, kPatcher, nullptr);
+    YsePHandle* in = yse_patcher_create_object(p, kInlet, "0");
+    YsePHandle* add = yse_patcher_create_object(p, kAdd, "10");
+    YsePHandle* out = yse_patcher_create_object(p, kOutlet, "0");
+    YsePHandle* sink = yse_patcher_create_object(p, kInt, nullptr);
+    REQUIRE(sub != nullptr);
+    REQUIRE(in != nullptr);
+    REQUIRE(add != nullptr);
+    REQUIRE(out != nullptr);
+    REQUIRE(sink != nullptr);
+
+    yse_patcher_set_container(p, in, sub);
+    yse_patcher_set_container(p, add, sub);
+    yse_patcher_set_container(p, out, sub);
+    CHECK(yse_patcher_get_container(p, add) == sub);
+    CHECK(yse_patcher_get_container(p, sink) == nullptr);
+
+    // A "patcher" object owns no pins of its own, so the pin queries answer 0
+    // for one and the two subpatcher queries are what report the boundary.
+    CHECK(yse_phandle_get_inputs(sub) == 0);
+    CHECK(yse_phandle_get_outputs(sub) == 0);
+    CHECK(yse_patcher_subpatcher_inlets(p, sub) == 1);
+    CHECK(yse_patcher_subpatcher_outlets(p, sub) == 1);
+    CHECK(yse_patcher_subpatcher_inlets(p, sink) == 0); // not a subpatcher
+
+    yse_patcher_connect(p, in, 0, add, 0);
+    yse_patcher_connect(p, add, 0, out, 0);
+    yse_patcher_connect(p, sub, 0, sink, 0);
+
+    yse_phandle_set_int(sub, 0, 5);
+    CHECK(readString([&](char* b, size_t c) { return yse_phandle_get_gui_value(sink, b, c); }) ==
+          "15");
+
+    // Deleting the façade takes its contents with it, transitively; the object
+    // that was never inside it survives.
+    yse_patcher_delete_object(p, sub);
+    CHECK(yse_patcher_objects(p) == 1u);
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api patcher: the subpatcher entry points are NULL-safe (#545)") {
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+    YsePHandle* sub = yse_patcher_create_object(p, kPatcher, nullptr);
+    YsePHandle* h = yse_patcher_create_object(p, kInt, nullptr);
+    REQUIRE(sub != nullptr);
+    REQUIRE(h != nullptr);
+
+    yse_patcher_set_container(nullptr, h, sub);
+    yse_patcher_set_container(p, nullptr, sub);
+    // A NULL container is *meaningful* rather than a no-op — it is how an
+    // object is moved back out to the top level — so this one has to take
+    // effect, not be ignored.
+    yse_patcher_set_container(p, h, sub);
+    CHECK(yse_patcher_get_container(p, h) == sub);
+    yse_patcher_set_container(p, h, nullptr);
+    CHECK(yse_patcher_get_container(p, h) == nullptr);
+
+    CHECK(yse_patcher_get_container(nullptr, h) == nullptr);
+    CHECK(yse_patcher_get_container(p, nullptr) == nullptr);
+    CHECK(yse_patcher_subpatcher_inlets(nullptr, sub) == 0);
+    CHECK(yse_patcher_subpatcher_inlets(p, nullptr) == 0);
+    CHECK(yse_patcher_subpatcher_outlets(nullptr, sub) == 0);
+    CHECK(yse_patcher_subpatcher_outlets(p, nullptr) == 0);
+    CHECK(yse_patcher_objects(p) == 2u); // none of the above changed the graph
 
     yse_patcher_destroy(p);
   }

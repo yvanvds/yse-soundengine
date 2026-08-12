@@ -76,6 +76,26 @@ void patcher::Disconnect(pHandle* from, int outlet, pHandle* to, int inlet) {
   pimpl->Disconnect(from, outlet, to, inlet);
 }
 
+void patcher::SetContainer(pHandle* obj, pHandle* container) {
+  if (pimpl == nullptr) return;
+  pimpl->SetObjectContainer(obj, container);
+}
+
+YSE::pHandle* patcher::GetContainer(pHandle* obj) {
+  if (pimpl == nullptr) return nullptr;
+  return pimpl->GetObjectContainer(obj);
+}
+
+int patcher::SubpatcherInlets(pHandle* container) {
+  if (pimpl == nullptr) return 0;
+  return pimpl->SubpatcherInlets(container);
+}
+
+int patcher::SubpatcherOutlets(pHandle* container) {
+  if (pimpl == nullptr) return 0;
+  return pimpl->SubpatcherOutlets(container);
+}
+
 bool patcher::IsValidObject(const char* type) {
   return YSE::PATCHER::Register().IsValidObject(type);
 }

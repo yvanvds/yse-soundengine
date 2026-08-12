@@ -98,6 +98,42 @@ namespace YSE {
     /** @brief Remove the connection from ``from``'s outlet to ``to``'s inlet. */
     void Disconnect(YSE::pHandle* from, int outlet, YSE::pHandle* to, int inlet);
 
+    /**
+     *  @brief Put ``obj`` inside the subpatcher ``container`` (issue #545).
+     *
+     *  ``container`` must be a ``"patcher"`` object in this patcher, or
+     *  ``nullptr`` to move ``obj`` back out to the top level. A subpatcher
+     *  cannot be placed inside itself or inside one of its own descendants.
+     *  Anything else is refused with a log and no change.
+     *
+     *  Containment is addressing, not storage: a nested object is still an
+     *  ordinary object in this patcher's one flat graph, and this call
+     *  publishes nothing because it changes no edge and no pin. What it changes
+     *  is what ``Connect``/``Disconnect`` mean when handed the subpatcher —
+     *  inlet *N* of a subpatcher is the ``".inlet"`` object inside it whose
+     *  index is *N* — and what ``DeleteObject`` takes with it.
+     */
+    void SetContainer(YSE::pHandle* obj, YSE::pHandle* container);
+
+    /** @brief The subpatcher ``obj`` is inside, or ``nullptr`` at the top level. */
+    YSE::pHandle* GetContainer(YSE::pHandle* obj);
+
+    /**
+     *  @brief How many inlets a subpatcher presents to its parent.
+     *
+     *  One past the highest index claimed by a ``".inlet"`` object among the
+     *  subpatcher's contents, so a sparsely numbered boundary reports the range
+     *  a parent can address rather than the number of boundary objects. 0 for a
+     *  handle that is not a subpatcher.
+     *
+     *  A ``"patcher"`` object owns no pins of its own, so ``pHandle::GetInputs``
+     *  answers 0 for one; this is the question to ask instead.
+     */
+    int SubpatcherInlets(YSE::pHandle* container);
+
+    /** @brief How many outlets a subpatcher presents. See ``SubpatcherInlets``. */
+    int SubpatcherOutlets(YSE::pHandle* container);
+
     /** @brief Whether ``type`` is a known object type identifier. */
     static bool IsValidObject(const char* type);
 

@@ -32,6 +32,11 @@
 // pass rather than by anything the objects themselves do.
 #include "genericObjects/gLoadbang.h"
 #include "genericObjects/gLoadmess.h"
+// Subpatchers (issue #545): the façade and the two boundary objects. Storage
+// stays flat and only the addressing nests — see gSubpatcher.h.
+#include "genericObjects/gSubpatcher.h"
+#include "genericObjects/gInlet.h"
+#include "genericObjects/gOutlet.h"
 #include "genericObjects/gFunbuff.h"
 #include "genericObjects/gTable.h"
 #include "genericObjects/gMtr.h"
@@ -422,6 +427,15 @@ pRegistry::pRegistry() {
   // (issue #547)
   Add(OBJ::G_LOADBANG, gLoadbang::Create);
   Add(OBJ::G_LOADMESS, gLoadmess::Create);
+
+  // Encapsulation (issue #545). `patcher` is the façade the parent addresses as
+  // one object; `.inlet` / `.outlet` are its boundary. Storage is flat — every
+  // object in a patch lives in one object set and is compiled into one
+  // GraphState whatever its nesting depth — so none of the three is visible to
+  // the audio thread at all.
+  Add(OBJ::PATCHER, gSubpatcher::Create);
+  Add(OBJ::G_INLET, gInlet::Create);
+  Add(OBJ::G_OUTLET, gOutlet::Create);
 
   // A sparse function: x,y pairs kept sorted by x, with a floor lookup and
   // linear interpolation between the stored points — the store behind every

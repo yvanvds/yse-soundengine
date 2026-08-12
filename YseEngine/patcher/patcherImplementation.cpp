@@ -12,6 +12,8 @@
 #include "genericObjects/gSend.h"
 #include "genericObjects/gTable.h"
 #include "genericObjects/gValue.h"
+#include "genericObjects/gInlet.h"
+#include "genericObjects/gOutlet.h"
 #include "pHandle.hpp"
 #include "../utils/json.hpp"
 #include <algorithm>
@@ -366,10 +368,177 @@ void patcherImplementation::ProcessAsInsert(MULTICHANNELBUFFER& io) {
   }
 }
 
+bool patcherImplementation::IsSubpatcher(pObject* obj) {
+  return obj != nullptr && strcmp(obj->Type(), YSE::OBJ::PATCHER) == 0;
+}
+
+bool patcherImplementation::ContainmentWouldCycle(pObject* obj, pObject* container) {
+  // Walk up from the proposed container: reaching `obj` means the move would
+  // close a loop. Terminates because the containment graph is acyclic before
+  // every call — which is exactly the invariant this maintains.
+  for (pObject* walk = container; walk != nullptr; walk = walk->Container()) {
+    if (walk == obj) return true;
+  }
+  return false;
+}
+
+pObject* patcherImplementation::BoundaryChild(pObject* container, const char* boundaryType,
+                                              int index) const {
+  // Caller holds mtx. Direct contents only — a `.inlet` inside a nested
+  // subpatcher belongs to *that* subpatcher's boundary, not to this one's, and
+  // Container() being one level deep is exactly what says so.
+  for (const auto& any : objects) {
+    pObject* obj = any.second;
+    if (obj->Container() != container) continue;
+    if (strcmp(obj->Type(), boundaryType) != 0) continue;
+    const int claimed = strcmp(boundaryType, YSE::OBJ::G_INLET) == 0
+                            ? static_cast<gInlet*>(obj)->Index()
+                            : static_cast<gOutlet*>(obj)->Index();
+    if (claimed == index) return obj;
+  }
+  return nullptr;
+}
+
+int patcherImplementation::BoundaryPinCount(pObject* container, const char* boundaryType) const {
+  // Caller holds mtx. One past the highest claimed index rather than a count of
+  // boundary objects: the number a parent can pass to Connect is an index, so
+  // the shape it can address is what a caller is asking about. A subpatcher
+  // whose only `.inlet` is index 2 has three inlets, two of which reach
+  // nothing, and Connect will say the same.
+  int highest = -1;
+  for (const auto& any : objects) {
+    pObject* obj = any.second;
+    if (obj->Container() != container) continue;
+    if (strcmp(obj->Type(), boundaryType) != 0) continue;
+    const int claimed = strcmp(boundaryType, YSE::OBJ::G_INLET) == 0
+                            ? static_cast<gInlet*>(obj)->Index()
+                            : static_cast<gOutlet*>(obj)->Index();
+    if (claimed > highest) highest = claimed;
+  }
+  return highest + 1;
+}
+
+bool patcherImplementation::ResolveInletPin(pObject*& obj, int& pin) const {
+  if (!IsSubpatcher(obj)) return true;
+  pObject* boundary = BoundaryChild(obj, YSE::OBJ::G_INLET, pin);
+  if (boundary == nullptr) return false;
+  obj = boundary;
+  pin = 0;
+  return true;
+}
+
+bool patcherImplementation::ResolveOutletPin(pObject*& obj, int& pin) const {
+  if (!IsSubpatcher(obj)) return true;
+  pObject* boundary = BoundaryChild(obj, YSE::OBJ::G_OUTLET, pin);
+  if (boundary == nullptr) return false;
+  obj = boundary;
+  pin = 0;
+  return true;
+}
+
+void patcherImplementation::CollectSubtree(YSE::pHandle* root,
+                                           std::vector<YSE::pHandle*>& out) const {
+  // Caller holds mtx. Breadth-first over the containment annotation, so `out`
+  // is the whole subtree with the root first. Terminates because
+  // SetObjectContainer refuses to make the containment graph cyclic; the
+  // `frontier` index walk (rather than recursion) keeps a deeply nested patch
+  // off the stack.
+  out.push_back(root);
+  for (std::size_t frontier = 0; frontier < out.size(); frontier++) {
+    pObject* parentObj = out[frontier]->object;
+    if (!IsSubpatcher(parentObj)) continue;
+    for (const auto& any : objects) {
+      if (any.second->Container() == parentObj) out.push_back(any.first);
+    }
+  }
+}
+
+void patcherImplementation::SetObjectContainer(YSE::pHandle* obj, YSE::pHandle* container) {
+  if (obj == nullptr) return;
+  std::scoped_lock lk(mtx);
+
+  if (objects.find(obj) == objects.end()) {
+    INTERNAL::LogImpl().emit(E_ERROR, "Patcher: SetContainer on an object this patcher does not "
+                                      "own");
+    return;
+  }
+  if (container == nullptr) {
+    obj->object->SetContainer(nullptr);
+    return;
+  }
+  if (objects.find(container) == objects.end()) {
+    INTERNAL::LogImpl().emit(E_ERROR, "Patcher: SetContainer target is not in this patcher");
+    return;
+  }
+  if (!IsSubpatcher(container->object)) {
+    INTERNAL::LogImpl().emit(E_ERROR, "Patcher: SetContainer target is not a 'patcher' object");
+    return;
+  }
+  // A subpatcher may not end up inside itself or inside one of its own
+  // descendants. Without this check the containment graph could hold a cycle,
+  // and DeleteObject's subtree walk over it would never terminate.
+  if (ContainmentWouldCycle(obj->object, container->object)) {
+    INTERNAL::LogImpl().emit(E_ERROR, "Patcher: SetContainer would put a subpatcher inside itself");
+    return;
+  }
+  obj->object->SetContainer(container->object);
+}
+
+YSE::pHandle* patcherImplementation::GetObjectContainer(YSE::pHandle* obj) {
+  if (obj == nullptr) return nullptr;
+  std::scoped_lock lk(mtx);
+  pObject* owner = obj->object->Container();
+  if (owner == nullptr) return nullptr;
+  for (const auto& any : objects) {
+    if (any.second == owner) return any.first;
+  }
+  return nullptr;
+}
+
+int patcherImplementation::SubpatcherInlets(YSE::pHandle* container) {
+  if (container == nullptr) return 0;
+  std::scoped_lock lk(mtx);
+  if (!IsSubpatcher(container->object)) return 0;
+  return BoundaryPinCount(container->object, YSE::OBJ::G_INLET);
+}
+
+int patcherImplementation::SubpatcherOutlets(YSE::pHandle* container) {
+  if (container == nullptr) return 0;
+  std::scoped_lock lk(mtx);
+  if (!IsSubpatcher(container->object)) return 0;
+  return BoundaryPinCount(container->object, YSE::OBJ::G_OUTLET);
+}
+
+YSE::PATCHER::inlet* patcherImplementation::ResolveInlet(pObject* obj, int pin) {
+  if (obj == nullptr) return nullptr;
+  if (!IsSubpatcher(obj)) return obj->GetInlet(pin);
+  // Only the lookup takes the lock — see the header for why the delivery must
+  // not.
+  std::scoped_lock lk(mtx);
+  pObject* boundary = BoundaryChild(obj, YSE::OBJ::G_INLET, pin);
+  return boundary == nullptr ? nullptr : boundary->GetInlet(0);
+}
+
 void patcherImplementation::ConnectUnlocked(YSE::pHandle* from, int outlet, YSE::pHandle* to,
                                             int inlet) {
-  PATCHER::outlet* out = from->object->GetOutlet(outlet);
-  PATCHER::inlet* in = to->object->GetInlet(inlet);
+  // Resolve subpatcher façades to the boundary objects that carry the pins
+  // before any wiring happens (issue #545), so what gets recorded is an
+  // ordinary edge between ordinary objects. A non-subpatcher passes through
+  // untouched, which is why this is also correct on the ParseJSON path: a dump
+  // records edges against the resolved boundary objects, so a reload resolves
+  // nothing and rebuilds exactly the edge that was saved.
+  pObject* source = from->object;
+  pObject* target = to->object;
+  int sourcePin = outlet;
+  int targetPin = inlet;
+  if (!ResolveOutletPin(source, sourcePin) || !ResolveInletPin(target, targetPin)) {
+    INTERNAL::LogImpl().emit(E_ERROR,
+                             "Patcher: subpatcher has no boundary object for that pin number");
+    return;
+  }
+
+  PATCHER::outlet* out = source->GetOutlet(sourcePin);
+  PATCHER::inlet* in = target->GetInlet(targetPin);
   if (out != nullptr && in != nullptr) {
     // Ask the inlet first: it refuses a second buffer source (and duplicate
     // edges). Only record the edge on the outlet when the inlet accepted it —
@@ -377,8 +546,8 @@ void patcherImplementation::ConnectUnlocked(YSE::pHandle* from, int outlet, YSE:
     // clean up from the inlet's records) and gets compiled into every later
     // GraphState, so once the target object is deleted and reclaimed the audio
     // thread reads a freed inlet through the *live* snapshot (issue #237).
-    if (to->object->ConnectInlet(out, inlet)) {
-      from->object->ConnectOutlet(in, outlet);
+    if (target->ConnectInlet(out, targetPin)) {
+      source->ConnectOutlet(in, sourcePin);
     } else {
       INTERNAL::LogImpl().emit(E_ERROR,
                                "Patcher: connection refused (duplicate edge or inlet already has "
@@ -403,10 +572,24 @@ void patcherImplementation::Disconnect(YSE::pHandle* from, int outlet, YSE::pHan
   // (a disconnected inlet has dspConnection == nullptr, so `dspConnection ==
   // out` is true and it derefs the null outlet), and an out-of-range inlet
   // indexes inputs[] out of bounds (issue #235).
-  PATCHER::outlet* out = from->object->GetOutlet(outlet);
-  PATCHER::inlet* in = to->object->GetInlet(inlet);
+  // Same façade resolution Connect does (issue #545), and it has to be here
+  // too: the edge that exists is the resolved one, so a Disconnect written
+  // against the subpatcher's pin numbers has to be translated the same way to
+  // find it.
+  pObject* source = from->object;
+  pObject* target = to->object;
+  int sourcePin = outlet;
+  int targetPin = inlet;
+  if (!ResolveOutletPin(source, sourcePin) || !ResolveInletPin(target, targetPin)) {
+    INTERNAL::LogImpl().emit(E_ERROR,
+                             "Patcher: subpatcher has no boundary object for that pin number");
+    return;
+  }
+
+  PATCHER::outlet* out = source->GetOutlet(sourcePin);
+  PATCHER::inlet* in = target->GetInlet(targetPin);
   if (out != nullptr && in != nullptr) {
-    to->object->DisconnectInlet(out, inlet);
+    target->DisconnectInlet(out, targetPin);
   } else {
     INTERNAL::LogImpl().emit(E_ERROR, "Patcher: Invalid Disconnection");
   }
@@ -484,19 +667,56 @@ void patcherImplementation::DeleteObject(YSE::pHandle* handle) {
   // compared `const char*` **pointers** against a `static constexpr char const*`
   // declared in a header, where every other type test in the engine uses
   // strcmp, so it never fired at all. A virtual cannot be wrong that way.
-  handle->object->Teardown(YSE::T_GUI);
+  // Deleting a subpatcher deletes what is inside it, transitively (issue #545).
+  // A `patcher` object *is* the containment of its contents — the objects have
+  // no other owner and no way of being addressed once it is gone — so removing
+  // it and leaving them behind would turn encapsulated objects into
+  // unreachable ones still being rendered. The subtree is collected under mtx
+  // and everything below this operates on the whole of it; for the ordinary
+  // case of a non-container object it is a one-element list and the code below
+  // is exactly what it was.
+  std::vector<YSE::pHandle*> doomedHandles;
+  {
+    std::scoped_lock lk(mtx);
+    if (objects.find(handle) == objects.end()) return;
+    CollectSubtree(handle, doomedHandles);
+  }
+
+  // Teardown pass, before the lock and before anything is unwired (issue #758),
+  // over the whole subtree rather than the one handle — same pass, same
+  // undefined order within it, and for the same reason: every cord in the patch
+  // is still there for all of it, so an object releasing what it left sounding
+  // reaches the device whichever order the pass happens to visit in.
+  for (YSE::pHandle* h : doomedHandles) {
+    h->object->Teardown(YSE::T_GUI);
+  }
 
   std::scoped_lock lk(mtx);
 
-  pObject* object = handle->object;
-  objects.erase(handle);
-  // Detach from peers so the next snapshot holds no reference to it, but do
-  // not free it yet — an in-flight audio block may still walk the retired
-  // snapshot that references it. The free is deferred to the reclaimer.
-  object->UnwireFromPeers();
-  // Capture the id generation this object's ids belong to *before* a possible
+  std::vector<pObject*> doomed;
+  std::vector<YSE::pHandle*> erased;
+  doomed.reserve(doomedHandles.size());
+  erased.reserve(doomedHandles.size());
+  for (YSE::pHandle* h : doomedHandles) {
+    // Re-check membership: the teardown pass above ran outside mtx, so another
+    // control thread could in principle have removed one of these already. Same
+    // window the single-object path always had, now merely visible — and only
+    // what this call actually removed from the object set is freed below, so a
+    // handle another thread already deleted is not deleted twice here.
+    auto it = objects.find(h);
+    if (it == objects.end()) continue;
+    pObject* object = it->second;
+    objects.erase(it);
+    erased.push_back(h);
+    // Detach from peers so the next snapshot holds no reference to it, but do
+    // not free it yet — an in-flight audio block may still walk the retired
+    // snapshot that references it. The free is deferred to the reclaimer.
+    object->UnwireFromPeers();
+    doomed.push_back(object);
+  }
+  // Capture the id generation these objects' ids belong to *before* a possible
   // recompaction below bumps it, so the reclaimer can tell whether they are
-  // still recyclable when it frees the object (issue #364).
+  // still recyclable when it frees them (issue #364).
   std::uint64_t objGen;
   {
     std::scoped_lock rlk(reclaimMtx_);
@@ -506,16 +726,21 @@ void patcherImplementation::DeleteObject(YSE::pHandle* handle) {
   // next graph is built: an empty object set binds no live id (issue #355).
   CompactGraphIdsIfEmpty();
   RebuildAndPublish();
-  // Tag the object only after RebuildAndPublish has retired the graph that last
-  // referenced it, so its epoch is >= that graph's — the graphs-first drain then
-  // guarantees no retired graph outlives an object it points into.
+  // Tag the objects only after RebuildAndPublish has retired the graph that last
+  // referenced them, so their epoch is >= that graph's — the graphs-first drain
+  // then guarantees no retired graph outlives an object it points into.
   {
     std::scoped_lock rlk(reclaimMtx_);
-    retiredObjects_.push_back({object, audioBlock_.load(std::memory_order_acquire), objGen});
+    const std::uint64_t at = audioBlock_.load(std::memory_order_acquire);
+    for (pObject* object : doomed)
+      retiredObjects_.push_back({object, at, objGen});
   }
   ScheduleReclaim();
-  // The handle is never referenced by a GraphState, so it can go immediately.
-  delete handle;
+  // The handles are never referenced by a GraphState, so they can go
+  // immediately.
+  for (YSE::pHandle* h : erased) {
+    delete h;
+  }
 }
 
 void patcherImplementation::SetObjectParams(YSE::pHandle* handle, const std::string& args) {
@@ -643,6 +868,16 @@ void patcherImplementation::ReplaceObjectUnlocked(YSE::pHandle* handle, const st
   old->UnwireFromPeers();
   objects[handle] = fresh;
   handle->object = fresh;
+  // Anything that named the old object as its container now names the
+  // replacement (issue #545). `CopyStorageIdentity` already moved the object's
+  // own containment across; this is the other direction, and it is what stops a
+  // re-parse of a container from orphaning everything inside it. A `patcher`
+  // object registers no parameters, so it cannot reach this path today — the
+  // loop is here so that it stays true if one ever does, rather than as a fix
+  // for something reachable now.
+  for (auto& any : objects) {
+    if (any.second->Container() == old) any.second->SetContainer(fresh);
+  }
   RebuildAndPublish();
   {
     // No recompaction happens here (the patcher is never empty during a
@@ -688,6 +923,19 @@ void patcherImplementation::LoadbangObjects(const std::vector<pObject*>& loaded)
   // block — the unsynchronised graph read issue #226 exists to prevent. T_GUI
   // says "set the state and let the block's own traversal render what you
   // caused", which is exactly what an initialisation message is for.
+  //
+  // **Subpatchers change nothing here, and that is the decision** (issue
+  // #545). A subpatcher's contents are ordinary objects in the same flat
+  // object set, so they are in `loaded` alongside the top level and fire in
+  // this one pass, in no defined order relative to it. There is deliberately no
+  // "inner patchers initialise first" rule. The reason is the reason above: the
+  // whole tree — every level of nesting at once — is compiled and installed by
+  // the single atomic swap this pass follows, so there is exactly one instant
+  // at which "the patch has finished loading" becomes true, and it is equally
+  // true for every subpatcher in it. An ordering by depth would be claiming a
+  // distinction the publish does not make. A patch that needs one
+  // initialisation to precede another says so with a `.trigger`, which crosses
+  // a subpatcher boundary like any other cord.
   //
   // The object list is the caller's, taken while it still held mtx, and holds
   // only the objects *this* parse created. A ParseJSON into a patcher that
@@ -755,6 +1003,13 @@ void patcherImplementation::TeardownObjects() {
   // note-off sent into a DSP object on T_DSP would render it on the control
   // thread outside any block — the unsynchronised graph read issue #226 exists
   // to prevent. This pass really is on the control thread and says so.
+  //
+  // **Subpatchers change nothing here either** (issue #545), and it is
+  // `LoadbangObjects`'s decision read backwards. `objects` is flat, so a
+  // subpatcher's contents are in this pass alongside the top level, in the same
+  // undefined order, and every cord in the whole tree is intact for all of it.
+  // Deleting one subpatcher rather than the whole patch runs the same pass over
+  // that subpatcher's containment subtree — see DeleteObject.
   //
   // Opening hardware here is no longer the question the issue raised: since
   // #759 `.midiout` never opens its port inline. A port already open is written
@@ -925,6 +1180,39 @@ void patcherImplementation::ParseJSON(const std::string& content) {
       }
 
       OldIDs.insert(std::pair<int, YSE::pHandle*>(record.first, handle));
+    }
+
+    // restore subpatcher membership (issue #545), after every object exists and
+    // before the cords go back. Its own pass rather than a line in the create
+    // loop above, because a container may be written after its contents — the
+    // dump is ordered by storage ID, which says nothing about nesting — and a
+    // pass over the finished object set does not care.
+    //
+    // Membership is restored directly rather than through
+    // SetObjectContainer, which would deadlock on the mtx held here — but with
+    // the same three refusals, because a file is not more trustworthy than a
+    // caller. A dump this engine wrote can name nothing but a `patcher` object
+    // and can describe no cycle; a hand-edited or corrupted one can do both,
+    // and a containment cycle would make CollectSubtree's walk never terminate.
+    // Anything refused is left at the top level, which is a patch that loads
+    // and can be inspected rather than one that hangs.
+    for (const auto& record : records) {
+      const auto stored = record.second->find("container");
+      if (stored == record.second->end()) continue;
+      auto self = OldIDs.find(record.first);
+      auto owner = OldIDs.find(stored->get<int>());
+      if (self == OldIDs.end() || owner == OldIDs.end()) continue;
+      if (self->second == nullptr || owner->second == nullptr) continue;
+      if (!IsSubpatcher(owner->second->object)) {
+        INTERNAL::LogImpl().emit(E_ERROR, "Patcher: stored container is not a 'patcher' object");
+        continue;
+      }
+      if (ContainmentWouldCycle(self->second->object, owner->second->object)) {
+        INTERNAL::LogImpl().emit(E_ERROR, "Patcher: stored containment is cyclic; object loaded at "
+                                          "the top level");
+        continue;
+      }
+      self->second->object->SetContainer(owner->second->object);
     }
 
     // restore connections
