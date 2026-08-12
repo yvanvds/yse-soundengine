@@ -4757,6 +4757,62 @@
       }
     ]
   },
+  ".multislider": {
+    "category": "GUI",
+    "description": "A bank of values as one object - Max's multislider, 'an array of sliders'. Every other control in the patcher holds one number (.slider a position, .dial a value, .incdec a step, .rslider a pair), and the only way to hold a list today is .l, which is one opaque blob with no way to reach an element. A step sequencer's levels, a graphic EQ's bands, a spectral envelope and a set of voice gains are all N numbers driven and drawn as one control but addressed one at a time. It is deliberately not .table and both stay: .table is dense storage a patch reads and writes by address and saves with the patch, while this is a control surface the host draws and the user drives, whose whole bank leaves as one list on every message and whose state is what GetGuiValue() reports. The one inlet is hot and everything on it emits: a list sets the cells and resizes the bank to the list's length (Max's list method and its listresize attribute), an int or float sets every live cell, a bang re-sends, 'set <index> <value>' writes one cell and 'fetch <index>' sends one cell's value out outlet 1. Max's set and issue #551's cell write are the same message here, which on .rslider they could not be. Outlet 0 carries the whole bank, spelled exactly as the GUI value is spelled and accepted straight back on inlet 0. The number of cells comes from the 'size' argument - Max keeps it in an attribute and the patcher has none, .table's reconciliation - and from any list of a different length; both are one atomic store, because the bank is allocated whole at 1024 cells on the control thread and never resized, so 'size' is a bound and not a capacity. That is what makes a live resize need no lock, no copy and no rebuild: a walk samples the count once and can never index outside memory that exists, and nothing structural depends on N. Values survive a resize in both directions - shrinking hides the tail rather than clearing it, so shortening a sequence and lengthening it again does not cost its steps - and clearing instead would be an O(N) write on whichever thread the resize arrived on, which is the audio thread by both routes. Cells are clamped into the minimum-maximum bounds on the way out as well as in, so a live re-range shows immediately and an untouched '.multislider 4 20 20000' reads back as four 20s. The default count is 8 rather than Max's 1, which only makes sense with listresize doing the shaping. Max's ceiling of 4096 is lowered to 1024: the whole state is emitted as one list, so the send buffer is reserved for the worst case at construction, and the store for arrays past that is .table. Not ported: the silent setters (setlist, select), since a hot inlet here always calculates; the reductions (sum, minimum, maximum, quantiles, normalize), which belong to .zl on a list this object already emits whole; range / setmin / setmax, bounds being creation parameters in this family; and everything about drawing and the mouse, the patcher being headless.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The bank, and the only inlet — everything here emits, which is what a hot inlet in this patcher does. A list of numbers sets the cells from its first 1024 numbers and resizes the bank to how many there were, which is Max's list method plus its 'listresize' attribute; an int or a float sets *every* live cell to that number, Max's int/float method; a bang re-sends. 'set <index> <value>' writes one cell and leaves the rest — Max's own message and issue #551's cell write, which for this object are the same message. 'fetch <index>' sends that cell's value out outlet 1. An index outside the live cells is dropped rather than folded onto a real cell, and every value is clamped into the minimum-maximum bounds. Max's silent forms ('setlist', 'select') are not here, because a hot inlet cannot be silent and the plain list already sets the bank; nor are its reductions ('sum', 'minimum', 'maximum', 'quantiles', 'normalize'), which are operations on the list this object already hands out whole — '.zl' is where list processing lives. 'range' / 'setmin' / 'setmax' are not messages either: bounds are creation parameters in this family, as they are for .dial, .incdec and .rslider.",
+        "index": 0,
+        "label": "bank",
+        "range": "minimum-maximum"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".multislider",
+    "outlets": [
+      {
+        "doc": "The whole bank as one list, in cell order, sent after every message the inlet accepts. It is spelled exactly as GetGuiValue() spells it, so a host reading the state and a patch receiving it downstream cannot disagree about what it says, and it is the string inlet 0 takes straight back (issue #551). One sample of the state is taken at the top of the send, so a cell moved by a message arriving down one of the cords mid-send cannot make the list describe two different banks.",
+        "index": 0,
+        "label": "bank",
+        "range": "minimum-maximum",
+        "type": "LIST"
+      },
+      {
+        "doc": "One cell's value, and only in answer to a 'fetch <index>' — Max's message and Max's right outlet. It is sent from the handler, so it lands *before* the bank does on outlet 0, which is the patcher's right-to-left ordering. A fetch of an index outside the live cells sends nothing, the family's rule for a question with no answer. The index is not echoed with the value: the patch asked for it, so it already knows it.",
+        "index": 1,
+        "label": "cell",
+        "range": "minimum-maximum",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "8",
+        "doc": "How many cells the bank is built with. Max keeps this in its 'size' attribute and the patcher has no attribute mechanism, so it is a parameter - the same reconciliation .table makes. Clamped to 1-1024, the array being allocated whole at 1024 cells once at construction so nothing on a message path ever has to grow it. It is a bound rather than a capacity, which is why a live SetParams rides the wait-free scalar plan (issue #234) and keeps the object and every value in it, and why a list of a different length may change the live count afterwards - Max's listresize, on by default. The parameter is therefore the count the object is *built* with; the live count, like the values, is run-time state and is not saved. The default is 8 rather than Max's 1: Max can default to 1 because listresize reshapes the object from its first list, but a 1-cell multislider written out in a patch is a .slider with a longer name.",
+        "name": "size",
+        "range": "1-1024"
+      },
+      {
+        "default": "0",
+        "doc": "Lowest value any cell can hold.",
+        "name": "minimum",
+        "range": "any float"
+      },
+      {
+        "default": "127",
+        "doc": "Highest value any cell can hold.",
+        "name": "maximum",
+        "range": "any float"
+      }
+    ]
+  },
   ".next": {
     "category": "GENERIC",
     "description": "Bangs the left outlet for the first message of a burst and the right outlet for every message after it — Max's next, whose summary line is 'Detect separation of messages'. The use Max names is the one to keep in mind: 'next is useful for doing something once per dump of an object such as coll'. A dump sprays a hundred messages down one cord, and .next marks the first of them and labels the other ninety-nine, so a patch can open a file, reset a counter or start an envelope once per dump rather than a hundred times, without knowing how long the dump is. The name invites the wrong reading and the wrong reading is a different object: this measures no interval, holds no clock and has no threshold. Two messages a microsecond apart are the same event if one caused the other, and two messages a microsecond apart are different events if they came from two stimuli. Max spells it out — 'a logical event is one of the following: a mouse click, the ongoing polling of a mouse drag, an event generated by the scheduler (such as the bang from a metro), a MIDI event, or a keyboard event [...] if you click on a bang twice, the two bangs are not part of the same logical event, but if you put bang, bang in a message box, or use the uzi object to send out two bangs in a row, these bangs are part of the same logical event'. Two clicks are two events however fast you click, and two bangs from one message box are one event however slow the patch is, so an elapsed-time implementation gets both cases backwards. This patcher has no scheduler to take ticks from, but it has the structure Max's definition rests on: message delivery is synchronous and depth-first, so everything one stimulus causes runs inside the call frame of the dispatch that started it. Counting that nesting reproduces Max's grouping case for case — two host calls are two events, two .metro ticks are two events, and a .trigger's whole right-to-left fan-out is one event, which makes '.trigger b b' into a .next this patcher's 'bang, bang' message box: first bang left, second bang right. The very first message an object ever receives goes out the left outlet, there being no previous message for it to share an event with, which is what lets a patch read that outlet as 'a new burst starts here' and be right about the first burst too. Exactly one outlet fires per message, always: the two are a complete partition of the inlet's traffic, so nothing is swallowed and the right outlet is worth wiring as 'and here is the rest of the burst'. Because only one fires there is no right-to-left order to respect, unlike .trigger, .bangbang, .mean or .peak. Everything is a bang — Max gives bang, int and float the description 'Performs the same as anything', so the payload is documented as irrelevant and a 0 separates like any other message. There are no creation arguments and no messages, as Max lists neither: there is no state a reset could return the object to, and in an object where every symbol is an ordinary tested message, each word learned would be a message that stopped being tested. Calculate() does nothing, since an emitting one would fire the object once per DSP block from a stimulus no patch sent.",
