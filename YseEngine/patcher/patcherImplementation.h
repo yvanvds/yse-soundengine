@@ -79,6 +79,63 @@ namespace YSE {
       void Connect(pHandle* from, int outlet, pHandle* to, int inlet);
       void Disconnect(pHandle* from, int outlet, pHandle* to, int inlet);
 
+      // ---- Subpatchers (issue #545) ----
+      //
+      // Nesting is storage-flat and address-nested: every object a patcher owns
+      // lives in `objects`, takes a graph id from the one id space and is
+      // compiled into the one GraphState, whatever subpatcher it is written
+      // inside. The whole of "nesting" is the `pObject::Container()` annotation
+      // these four maintain and read. Nothing here is reachable from the audio
+      // thread — see gSubpatcher.h for why that is the design rather than an
+      // accident of it.
+
+      // Put `obj` inside the subpatcher `container`, or at the top level when
+      // `container` is null. Control thread.
+      //
+      // Rejects, with a log and no change: a container that is not a `patcher`
+      // object, moving a subpatcher into itself or into one of its own
+      // descendants (which would make the containment graph cyclic and
+      // `DeleteObject`'s subtree walk non-terminating), and either handle not
+      // belonging to this patcher.
+      //
+      // Deliberately does **not** rebuild the graph: membership changes no
+      // edge, no pin and no id, so there is nothing for a new GraphState to
+      // say. What it does change is how a *later* Connect resolves a subpatcher
+      // façade, which is control-thread work either way.
+      void SetObjectContainer(YSE::pHandle* obj, YSE::pHandle* container);
+
+      // The subpatcher `obj` lives in, or null when it is at the top level.
+      YSE::pHandle* GetObjectContainer(YSE::pHandle* obj);
+
+      // How many inlets / outlets a subpatcher presents to its parent: one past
+      // the highest index claimed by a `.inlet` / `.outlet` object among its
+      // contents, or 0 when it has none. Sparse numbering therefore reports the
+      // shape the parent can address rather than the count of boundary objects
+      // — a subpatcher whose only `.inlet` is index 2 has three inlets, two of
+      // which go nowhere, which is what `Connect` will also tell you.
+      //
+      // These exist because a `patcher` object owns no pins of its own, so
+      // `NumInputs()` / `NumOutputs()` answer 0 for it. gSubpatcher.h has the
+      // reason that is a correctness requirement rather than an omission.
+      // 0 for a handle that is not a subpatcher.
+      int SubpatcherInlets(YSE::pHandle* container);
+      int SubpatcherOutlets(YSE::pHandle* container);
+
+      // The inlet a value addressed to `obj`'s inlet `pin` has to be delivered
+      // to: the object's own inlet, or — when `obj` is a subpatcher, which owns
+      // no pins — the inlet of the `.inlet` object standing for that pin. Null
+      // when there is no such pin at all.
+      //
+      // This is `pHandle::SetBang` / `SetIntData` / ... reaching the same
+      // answer `Connect` does, so that pushing a value into a subpatcher from
+      // the host and sending one down a cord into it mean the same thing. It
+      // returns the inlet rather than delivering into it because delivery must
+      // happen outside mtx: an ordinary send runs the whole subgraph behind the
+      // object, which may reach a `.forward` or a `.s` and take mtx on the
+      // control thread — the deadlock LoadbangObjects and TeardownObjects are
+      // shaped around. Only the lookup is locked.
+      PATCHER::inlet* ResolveInlet(pObject* obj, int pin);
+
       std::string DumpJSON();
       void ParseJSON(const std::string& content);
 
@@ -299,6 +356,44 @@ namespace YSE {
       // publish (this is why no per-op re-entrancy flag is needed — issue #228).
       pHandle* CreateObjectUnlocked(const std::string& type, const std::string& args);
       void ConnectUnlocked(pHandle* from, int outlet, pHandle* to, int inlet);
+
+      // ---- Subpatcher boundary resolution (issue #545), all caller-holds-mtx ----
+      //
+      // A subpatcher object carries no pins, so an edge to or from one is
+      // always really an edge to or from the `.inlet` / `.outlet` object that
+      // stands for the pin. Connect and Disconnect resolve the façade *before*
+      // touching any wiring, so everything downstream of them — the graph
+      // compiler, DumpJSON, UnwireFromPeers, the reclaimer — only ever sees
+      // ordinary edges between ordinary objects and needs to know nothing about
+      // subpatchers.
+
+      static bool IsSubpatcher(pObject* obj);
+      // Whether putting `obj` inside `container` would make the containment
+      // graph cyclic — i.e. whether `obj` is `container` or one of its
+      // ancestors. Both the live edit and the loader ask, because both can be
+      // handed a bad pairing and the consequence is the same: CollectSubtree's
+      // walk would never terminate. Caller holds mtx.
+      static bool ContainmentWouldCycle(pObject* obj, pObject* container);
+      // The `.inlet` (or `.outlet`) object with index `index` among the direct
+      // contents of `container`, or null. Linear over the object set, which is
+      // the right cost here: it runs on the control thread beside a full graph
+      // rebuild that is linear anyway, and re-deriving the boundary from the
+      // objects each time is what makes it impossible for a cached boundary
+      // table to go stale behind a create, a delete or a re-parse.
+      pObject* BoundaryChild(pObject* container, const char* boundaryType, int index) const;
+      // One past the highest index claimed by a boundary object of that type
+      // among `container`'s contents; 0 when it has none.
+      int BoundaryPinCount(pObject* container, const char* boundaryType) const;
+      // Rewrite (obj, pin) from a subpatcher façade to the boundary object that
+      // carries the pin, leaving anything else alone. False means the façade
+      // has no such boundary object, and the caller must not wire anything.
+      bool ResolveInletPin(pObject*& obj, int& pin) const;
+      bool ResolveOutletPin(pObject*& obj, int& pin) const;
+      // Every handle in the containment subtree rooted at `root`, `root`
+      // included, deepest-last. Iterative rather than recursive: the depth is
+      // whatever a patch author wrote, and SetObjectContainer's cycle check is
+      // what keeps this terminating.
+      void CollectSubtree(YSE::pHandle* root, std::vector<YSE::pHandle*>& out) const;
 
       // Compile the current object wiring into a fresh immutable GraphState.
       // Control-thread only (allocates). See graphState.h.

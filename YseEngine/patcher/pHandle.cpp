@@ -10,6 +10,32 @@ using namespace YSE;
 
 pHandle::pHandle(PATCHER::pObject* object) : object(object) {}
 
+namespace {
+  // The inlet a host-side `Set*` on this handle has to reach (issue #545).
+  //
+  // A `patcher` (subpatcher) object owns no pins of its own — its boundary is
+  // the `.inlet` objects inside it — so `object->GetInlet(pin)` answers null for
+  // one, and the four setters below would have dereferenced it. The owning
+  // patcher knows how to resolve a subpatcher pin to the boundary object that
+  // carries it, and it is the same resolution `Connect` performs, so pushing a
+  // value in from the host and sending one down a cord into the subpatcher mean
+  // the same thing.
+  //
+  // A standalone object (unit-test rig) has no patcher and answers for itself,
+  // exactly as SetParams below splits the same two cases.
+  //
+  // The null return is also the fix for a pin number that names nothing on an
+  // ordinary object: that used to be an unchecked null dereference, and a
+  // subpatcher makes it reachable with input that looks perfectly valid.
+  YSE::PATCHER::inlet* resolveInlet(YSE::PATCHER::pObject* object, unsigned int pin) {
+    if (object == nullptr) return nullptr;
+    YSE::PATCHER::pObject* parent = object->Parent();
+    if (parent == nullptr) return object->GetInlet(static_cast<int>(pin));
+    return static_cast<YSE::PATCHER::patcherImplementation*>(parent)->ResolveInlet(
+        object, static_cast<int>(pin));
+  }
+} // namespace
+
 const char* pHandle::Type() const {
   if (!object) {
     return "Invalid Handle";
@@ -19,19 +45,19 @@ const char* pHandle::Type() const {
 }
 
 void YSE::pHandle::SetBang(unsigned int inlet) {
-  object->GetInlet(inlet)->SetBang(T_GUI);
+  if (PATCHER::inlet* in = resolveInlet(object, inlet)) in->SetBang(T_GUI);
 }
 
 void YSE::pHandle::SetIntData(unsigned int inlet, int value) {
-  object->GetInlet(inlet)->SetInt(value, T_GUI);
+  if (PATCHER::inlet* in = resolveInlet(object, inlet)) in->SetInt(value, T_GUI);
 }
 
 void YSE::pHandle::SetFloatData(unsigned int inlet, float value) {
-  object->GetInlet(inlet)->SetFloat(value, T_GUI);
+  if (PATCHER::inlet* in = resolveInlet(object, inlet)) in->SetFloat(value, T_GUI);
 }
 
 void YSE::pHandle::SetListData(unsigned int inlet, const std::string& value) {
-  object->GetInlet(inlet)->SetList(value, T_GUI);
+  if (PATCHER::inlet* in = resolveInlet(object, inlet)) in->SetList(value, T_GUI);
 }
 
 void YSE::pHandle::SetParams(const std::string& args) {
@@ -59,7 +85,12 @@ void YSE::pHandle::SetGuiProperty(const std::string& key, const std::string& val
 }
 
 bool YSE::pHandle::IsDSPInput(unsigned int inlet) {
-  return object->GetInlet(inlet)->AcceptsDSP();
+  // Resolved like the setters above, and null-guarded for the same reason: a
+  // subpatcher has no pins of its own, so asking one about inlet 0 used to
+  // dereference null (issue #545). False for a pin that names nothing, which is
+  // also the honest answer for a boundary that carries no signal.
+  PATCHER::inlet* in = resolveInlet(object, inlet);
+  return in != nullptr && in->AcceptsDSP();
 }
 
 YSE::OUT_TYPE YSE::pHandle::OutputDataType(unsigned int pin) {

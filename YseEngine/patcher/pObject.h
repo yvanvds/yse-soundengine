@@ -186,6 +186,33 @@ namespace YSE {
       void CopyStorageIdentity(const pObject& from) {
         ID = from.ID;
         guiProperties = from.guiProperties;
+        // Which subpatcher the object sits in is persistent identity too — it
+        // is serialised, and a replacement that lost it would silently move the
+        // object to the top level of the patch (issue #545).
+        container = from.container;
+      }
+
+      // The `patcher` (subpatcher) object this one lives inside, or null when
+      // it sits at the top level of its patcher (issue #545).
+      //
+      // Nesting is *only* this pointer. A subpatcher's contents are not a
+      // second graph: every object in a patch lives in the one
+      // `patcherImplementation::objects` map, takes a graph id from the one id
+      // space and is compiled into the one GraphState, however deeply it is
+      // nested. So this is a control-thread annotation and nothing more — it is
+      // read by `Connect`/`Disconnect` (to resolve a subpatcher façade to the
+      // `.inlet` / `.outlet` object that carries the pin), by `DeleteObject`
+      // (to collect the containment subtree), and by `DumpJson` / `ParseJSON`.
+      // The audio thread never reads it, which is why it needs no
+      // synchronisation of its own beyond the patcher's mutex.
+      //
+      // Written only by `patcherImplementation::SetObjectContainer`, which
+      // rejects a cycle, and by `ParseJSON` restoring one. See gSubpatcher.h.
+      inline pObject* Container() const {
+        return container;
+      }
+      inline void SetContainer(pObject* c) {
+        container = c;
       }
       inline pObject* Parent() const {
         return parent;
@@ -396,6 +423,13 @@ namespace YSE {
 
       Parameters parms;
       pObject* parent;
+      // The enclosing subpatcher, or null at the top level — see Container()
+      // above (issue #545). Deliberately separate from `parent`, which is the
+      // owning patcherImplementation and is what every RT hop goes through:
+      // conflating the two would put a subpatcher on the path from an object to
+      // its patcher's pinned GraphState, scheduler and clocks, and make that
+      // path's cost depend on nesting depth.
+      pObject* container = nullptr;
       bool DSP;
 
       // for storage — see GetID() / kNoStorageID above

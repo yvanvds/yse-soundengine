@@ -88,6 +88,47 @@ YSE_C_API void yse_patcher_disconnect(YsePatcher* p, YsePHandle* from, int outle
 
 YSE_C_API int yse_patcher_is_valid_object(const char* type);
 
+/* ─── subpatchers ─────────────────────────────────────────────────── */
+
+/* A subpatcher is an object of type "patcher" that other objects are
+   placed *inside*, so the parent patch addresses the group as one object
+   (issue #545). Its boundary is made of ".inlet" and ".outlet" objects:
+   inlet N of a subpatcher is the ".inlet" inside it whose index is N, and
+   yse_patcher_connect resolves that for you — connecting to a subpatcher
+   records an ordinary edge straight to the boundary object.
+
+   Containment is addressing, not storage. A nested object is an ordinary
+   object in the patcher's one flat graph: it takes part in the same
+   single atomic graph swap on every edit, and the audio thread's cost
+   does not grow with nesting depth. */
+
+/* Put obj inside the subpatcher `container`, or pass NULL for `container`
+   to move obj back out to the top level. Refused (logged, no change) when
+   container is not a "patcher" object in this patcher, when either handle
+   belongs elsewhere, or when the move would put a subpatcher inside
+   itself or one of its own descendants.
+
+   Publishes no new graph — containment changes no edge and no pin. What
+   it changes is what yse_patcher_connect / _disconnect mean when handed
+   the subpatcher, and what yse_patcher_delete_object takes with it: a
+   deleted subpatcher takes its contents, transitively. */
+YSE_C_API void yse_patcher_set_container(YsePatcher* p, YsePHandle* obj, YsePHandle* container);
+
+/* The subpatcher obj is inside, or NULL when it is at the top level (and
+   NULL on a NULL argument). Borrowed, like every other handle here. */
+YSE_C_API YsePHandle* yse_patcher_get_container(YsePatcher* p, YsePHandle* obj);
+
+/* How many inlets / outlets a subpatcher presents to its parent: one past
+   the highest index claimed by a ".inlet" / ".outlet" object among its
+   contents, so a sparsely numbered boundary reports the range a parent
+   can address rather than the number of boundary objects. 0 when the
+   handle is not a subpatcher.
+
+   A "patcher" object owns no pins of its own, so yse_phandle_get_inputs
+   answers 0 for one — these are the questions to ask instead. */
+YSE_C_API int yse_patcher_subpatcher_inlets(YsePatcher* p, YsePHandle* container);
+YSE_C_API int yse_patcher_subpatcher_outlets(YsePatcher* p, YsePHandle* container);
+
 /* ─── persistence ─────────────────────────────────────────────────── */
 
 YSE_C_API size_t yse_patcher_dump_json(YsePatcher* p, char* buf, size_t cap);

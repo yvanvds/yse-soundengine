@@ -128,6 +128,12 @@ set(YSE_SRCS
   patcher/genericObjects/gFunnel.cpp
   patcher/genericObjects/gGate.cpp
   patcher/genericObjects/gIf.cpp
+  # Subpatchers (issue #545): the `patcher` façade and its `.inlet` / `.outlet`
+  # boundary. The façade has no pins and no Calculate; the boundary objects are
+  # pass-throughs. Everything that makes nesting work — resolving a façade pin
+  # to a boundary object, the containment subtree, the serialised container id —
+  # lives in patcherImplementation, and none of it is on the audio thread.
+  patcher/genericObjects/gInlet.cpp
   # `.loadbang` / `.loadmess` (issue #547): one inlet and one outlet each, no
   # device and no state beyond the stored message. The lifecycle hook they hang
   # off lives in patcherImplementation.
@@ -138,6 +144,7 @@ set(YSE_SRCS
   patcher/genericObjects/gMtr.cpp
   patcher/genericObjects/gNext.cpp
   patcher/genericObjects/gOneBang.cpp
+  patcher/genericObjects/gOutlet.cpp
   patcher/genericObjects/gPrint.cpp
   patcher/genericObjects/gQlist.cpp
   patcher/genericObjects/gReceive.cpp
@@ -152,6 +159,7 @@ set(YSE_SRCS
   patcher/genericObjects/gSpell.cpp
   patcher/genericObjects/gSpray.cpp
   patcher/genericObjects/gSprintf.cpp
+  patcher/genericObjects/gSubpatcher.cpp
   patcher/genericObjects/gSubstitute.cpp
   patcher/genericObjects/gSwitch.cpp
   patcher/genericObjects/gSymbol.cpp
@@ -447,6 +455,7 @@ set_source_files_properties(
   patcher/genericObjects/gFunnel.cpp
   patcher/genericObjects/gGate.cpp
   patcher/genericObjects/gIf.cpp
+  patcher/genericObjects/gInlet.cpp
   patcher/genericObjects/gLoadbang.cpp
   patcher/genericObjects/gLoadmess.cpp
   patcher/genericObjects/gMatch.cpp
@@ -454,6 +463,7 @@ set_source_files_properties(
   patcher/genericObjects/gMtr.cpp
   patcher/genericObjects/gNext.cpp
   patcher/genericObjects/gOneBang.cpp
+  patcher/genericObjects/gOutlet.cpp
   patcher/genericObjects/gPrint.cpp
   patcher/genericObjects/gQlist.cpp
   patcher/genericObjects/gReceive.cpp
@@ -467,6 +477,7 @@ set_source_files_properties(
   patcher/genericObjects/gSpell.cpp
   patcher/genericObjects/gSpray.cpp
   patcher/genericObjects/gSprintf.cpp
+  patcher/genericObjects/gSubpatcher.cpp
   patcher/genericObjects/gSubstitute.cpp
   patcher/genericObjects/gSwitch.cpp
   patcher/genericObjects/gSymbol.cpp

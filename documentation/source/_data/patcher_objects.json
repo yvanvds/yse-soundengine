@@ -3336,6 +3336,43 @@
       }
     ]
   },
+  ".inlet": {
+    "category": "GENERIC",
+    "description": "One inlet of the subpatcher it lives in — Max's 'inlet'. A pass-through with a number: give it index N inside a 'patcher' object and inlet N of that subpatcher is this object, so whatever the parent patch sends there comes out of this outlet inside the subpatcher. There is no boundary at run time. patcherImplementation resolves Connect(source, 0, subpatcher, N) on the control thread by finding the .inlet with index N among the subpatcher's contents and recording an ordinary cord from the source's outlet straight to this object's inlet 0, so the compiled graph holds a plain edge between two plain objects and crossing a subpatcher costs exactly one pass-through object however deeply it is nested. That is also why this object has an inlet where Max's appears not to: Max hides it because a patcher window draws the boundary, and headless the cord has to land on something real for Disconnect, UnwireFromPeers and the serialiser to handle it as the ordinary edge it is. Bang, int, float and list cross; audio signals do not, because this is a control-rate object and MSP-style signal boundaries are a separate pass. One creation argument, the boundary inlet number, default 0. Every handler is one send; nothing allocates, locks or blocks.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Where the parent patch's cord lands. Max's inlet object appears to have no inlet because a patcher window draws the boundary for you; headless the cord has to attach to something, and attaching it to a real inlet is what lets the graph compiler, Disconnect, UnwireFromPeers and DumpJSON all treat a boundary cord as the ordinary edge it is. Nothing connects here from inside the subpatcher — patcherImplementation resolves Connect(source, n, subpatcher, N) to this object and records the edge directly, so what arrives is whatever the parent sent to the subpatcher's inlet N. Bang, int, float and list cross; audio signals do not (this is a control-rate object, see issue #764).",
+        "index": 0,
+        "label": "from parent",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".inlet",
+    "outlets": [
+      {
+        "doc": "The message that arrived at the subpatcher's boundary, sent on unchanged inside the subpatcher. Wire it to whatever the encapsulated graph starts with. Kind is preserved: an int arrives as an int, a list as a list, a bang as a bang — a boundary that normalised them would be a different object to everything downstream of it.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Which inlet of the enclosing subpatcher this object is. Inlet numbers are the parent's view of the subpatcher: Connect(source, 0, subpatcher, 2) resolves to the .inlet whose index is 2. Changing it live re-points which boundary inlet future connections resolve to and does not move cords that already exist — those stay attached to this object, which is where they were recorded. Two .inlet objects claiming the same index in one subpatcher is not an error; the first one found wins and which that is is unspecified, so give them distinct numbers.",
+        "name": "index",
+        "range": "0+"
+      }
+    ]
+  },
   ".iter": {
     "category": "GENERIC",
     "description": "Sends the items of a list out one at a time — Max's iter, which 'unpacks and outputs list contents one element at a time'. It is the list family's serialiser: everything else here answers a list with a list, .zl by rearranging one and .unpack and .unjoin by fanning one out across a fixed set of outlets, while this turns a list of unknown length into a stream of individual messages down a single cord. That is what makes ordinary scalar objects — a .i, a .+, a .mtof, a .coll — usable per element, and it is why the object needs to know nothing about the list it is given where a .unpack 0 0 0 has to be told the shape up front. With .uzi it is the patcher's second iteration primitive, and the two iterate over different things: .uzi counts, driving a loop whose body reads an index, while this walks the data it was handed. Items leave first to last, and each send completes in full — the whole subgraph behind the outlet, depth first — before the next item is sent, because the patcher's send path calls the target inlet directly with no queue in between; that is what makes the object a serialiser rather than a scatter. A bang re-sends the message most recently received, which is why the object holds a list at all rather than passing straight through, and a bang before anything has arrived sends nothing rather than an empty message. An int or a float is a one-item list, as everywhere in this family, and anything is a list, so there is no message word to strip. Each item leaves as the int, float or symbol it spells rather than as a list of one, so it reaches the inlets an uncollected value would have reached; nothing is coerced. One arriving message becomes as many messages as the list is long, all inside the call frame of the one send that started it, so the object's cost is bounded by the same number that bounds its storage: at most 256 items, and so at most 256 sends, per stimulus. The number worth knowing beside it is that the patcher's value-command queue is 256 deep, so a full-length .iter feeding a .s from the control thread can saturate it in one burst and hit its documented drop-and-log backpressure — the same caution .uzi records, and a reason to keep bursts that cross the send/receive boundary short. The arriving list is read into the bounded pre-allocated storage the whole list family shares: at most 256 items spanning at most 1024 characters between them, in memory reserved when the object is built. A list too long for it loses its tail, which is counted, and its head is iterated — the surplus here is input the patch has just sent rather than state the object was holding, which is why it is not refused whole the way .join's store is, and the count is a counter rather than a log line because the refusing thread may be the audio callback. There are no creation arguments, Max documents none, and so nothing to re-parse: the object has a fixed shape and its only bound is the shared one. Calculate() does nothing and no message path allocates, locks or blocks: numbers are rendered into a stack buffer, the list is collected into storage reserved at construction, and the sends render into a buffer reserved at the same time. Two threads sending to the same object are serialised by a single test-and-set guard whose loser is dropped and counted rather than made to spin. That guard is held across the whole walk on purpose: this object emits in a loop, so a cord from its outlet back to its inlet re-enters the handler from inside the walk, and letting that through would both restart an iteration that never terminates and rewrite the list being walked. The returning message is refused and counted, exactly as .uzi refuses a re-entrant start.",
@@ -5068,6 +5105,43 @@
         "doc": "Whether the gate starts open. A non-zero argument lets the first message on the left inlet pass, as Max's does; with no argument, a zero one, or a token that is not a whole finite number ('.onebang wobble', '.onebang inf'), the object starts closed and the first message goes out the reject outlet. Only the zero-ness is read, from the float as it arrived, so '.onebang 0.5' starts open where Max's int argument would truncate it to a zero.",
         "name": "initial",
         "range": "0 or non-zero"
+      }
+    ]
+  },
+  ".outlet": {
+    "category": "GENERIC",
+    "description": "One outlet of the subpatcher it lives in — Max's 'outlet', and '.inlet' read the other way round. Give it index N inside a 'patcher' object, wire the encapsulated graph into its inlet, and outlet N of that subpatcher is this object: what arrives here leaves the subpatcher and reaches whatever the parent connected to outlet N. There is no boundary at run time. patcherImplementation resolves Connect(subpatcher, N, dest, n) on the control thread by finding the .outlet with index N among the subpatcher's contents and recording an ordinary cord from this object's outlet straight to the destination's inlet, so the compiled graph holds a plain edge between two plain objects and crossing a subpatcher costs exactly one pass-through object however deeply it is nested. That is also why this object has an outlet where Max's appears not to: Max hides it because a patcher window draws the boundary, and headless the cord has to leave from something real for Disconnect, UnwireFromPeers and the serialiser to handle it as the ordinary edge it is. Bang, int, float and list cross; audio signals do not, because this is a control-rate object and MSP-style signal boundaries are a separate pass. One creation argument, the boundary outlet number, default 0. Every handler is one send; nothing allocates, locks or blocks.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Where the encapsulated graph hands a message to the boundary. Wire whatever the subpatcher computes into here and it leaves the subpatcher through this object's outlet. Bang, int, float and list cross; audio signals do not (this is a control-rate object, see issue #764).",
+        "index": 0,
+        "label": "from patch",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".outlet",
+    "outlets": [
+      {
+        "doc": "The subpatcher's outlet, seen from outside. Nothing inside the subpatcher connects here — patcherImplementation resolves Connect(subpatcher, N, dest, n) to this object and records the edge directly, so what leaves reaches whatever the parent patch connected to the subpatcher's outlet N. Max's outlet object appears to have no outlet because a patcher window draws the boundary; headless the cord has to leave from something real, which is what keeps a boundary edge indistinguishable from any other edge to the graph compiler, Disconnect, UnwireFromPeers and DumpJSON. Kind is preserved on the way out.",
+        "index": 0,
+        "label": "to parent",
+        "range": "",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Which outlet of the enclosing subpatcher this object is. Outlet numbers are the parent's view of the subpatcher: Connect(subpatcher, 1, dest, 0) resolves to the .outlet whose index is 1. Changing it live re-points which boundary outlet future connections resolve to and does not move cords that already exist — those stay attached to this object, which is where they were recorded. Two .outlet objects claiming the same index in one subpatcher is not an error; the first one found wins and which that is is unspecified, so give them distinct numbers.",
+        "name": "index",
+        "range": "0+"
       }
     ]
   },
@@ -9343,6 +9417,15 @@
         "range": "any float"
       }
     ]
+  },
+  "patcher": {
+    "category": "GENERIC",
+    "description": "Groups a region of a patch so the parent addresses it as one object — Max's 'patcher' (and its alias 'p'). Encapsulation is the point: without it every graph is flat, which caps how large a patch can get before it stops being readable and rules out reusable building blocks entirely. Contents are placed inside it with patcher::SetContainer and the boundary is made of .inlet and .outlet objects: connecting the parent to inlet N of a subpatcher records an ordinary cord straight to the '.inlet N' object inside it, and .outlet mirrors that outward, so the graph the engine compiles contains no subpatchers at all. Storage is flat and only the addressing is nested — every object in a patch, however deep, lives in one object set, takes a graph id from one id space and is compiled into one GraphState. Three things follow. The audio thread's traversal cost does not grow with nesting depth, because depth is not a thing it can see. An edit inside a subpatcher is an ordinary edit and goes through the same single atomic GraphState swap as one at the top level. And nothing about nesting is read on the audio thread at all — membership is a control-thread annotation used by Connect, Disconnect, DeleteObject and DumpJSON. This object has no inlets and no outlets of its own, which is a correctness requirement rather than an economy: the boundary changes whenever a .inlet is added, and a real pin vector would have to be resized on an object the render is concurrently walking. Use patcher::SubpatcherInlets / SubpatcherOutlets to read the boundary shape. Deleting a subpatcher deletes its contents transitively, and every object in the subtree receives Teardown before any of them is unwired. On load, contents fire their loadbangs in the same undefined-order pass as the top level: the whole tree is published in one swap, so 'loading has finished' becomes true for every level at the same instant. No creation arguments. Calculate() does nothing and is never reached.",
+    "inlets": [],
+    "is_dsp": false,
+    "name": "patcher",
+    "outlets": [],
+    "params": []
   },
   "~*": {
     "category": "MATH",

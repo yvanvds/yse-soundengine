@@ -172,6 +172,20 @@ void pObject::DumpJson(nlohmann::json::value_type& json) {
   json["ID"] = ID;
   json["parms"] = parms.Get();
 
+  // Which subpatcher this object lives in, by storage ID (issue #545). Written
+  // only when there is one, so a patch with no subpatchers serialises byte for
+  // byte as it always did and no `"container": null` appears in every saved
+  // file — the same rule `state` follows for issue #494.
+  //
+  // The nesting is carried on the *contained* object rather than as a list on
+  // the container, because that is where it is already true: storage is flat,
+  // an object knows one container and a container would have to be kept in step
+  // with every create, delete and replace. One integer per nested object also
+  // makes the parse trivially order-independent — ParseJSON resolves every
+  // container after the whole object set exists, so a file that names a
+  // container before defining it loads correctly.
+  if (container != nullptr) json["container"] = static_cast<int>(container->GetID());
+
   for (unsigned int i = 0; i < outputs.size(); i++) {
     outputs[i].DumpJSON(json["outputs"]["output " + std::to_string(i)]);
   }

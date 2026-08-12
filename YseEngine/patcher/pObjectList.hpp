@@ -50,6 +50,7 @@ namespace YSE {
    *    ``G_TABLE``, ``G_TEXTFILE``, ``G_QLIST``, ``G_MTR``, ``G_SEQ``.
    *  - Debugging: ``G_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
+   *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``.
    *  - Messaging: ``G_SEND``, ``G_RECEIVE``, ``G_FORWARD``, ``G_ROUTE``,
    *    ``G_ROUTEPASS``,
    *    ``G_SEL``, ``G_TRIGGER``, ``G_BANGBANG``, ``G_ONEBANG``, ``G_NEXT``,
@@ -86,7 +87,19 @@ namespace YSE {
    *    ``G_DBTOA``, ``G_CARTOPOL``, ``G_POLTOCAR``.
    */
   struct API OBJ {
+    // Encapsulation (issue #545). ``PATCHER`` names two things on purpose: the
+    // type a ``YSE::patcher`` itself reports, and the type of a *subpatcher*
+    // object created inside one. A subpatcher is a patcher, and the object that
+    // stands for it is deliberately not given a second name — Max ships ``p``
+    // as an alias for ``patcher`` and one name is enough. The two never collide
+    // in practice because the root patcher is not one of its own objects.
+    //
+    // ``G_INLET`` / ``G_OUTLET`` are the boundary of a subpatcher: the parent's
+    // cords land on them, and inside the subpatcher they are ordinary
+    // pass-through objects. See genericObjects/gSubpatcher.h for the model.
     DEFOBJ(PATCHER, "patcher");
+    DEFOBJ(G_INLET, ".inlet");
+    DEFOBJ(G_OUTLET, ".outlet");
 
     DEFOBJ(D_DAC, "~dac");
     DEFOBJ(D_ADC, "~adc");

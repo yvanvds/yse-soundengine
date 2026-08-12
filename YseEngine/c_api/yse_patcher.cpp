@@ -283,6 +283,29 @@ YSE_C_API int yse_patcher_is_valid_object(const char* type) {
   return YSE::patcher::IsValidObject(type) ? 1 : 0;
 }
 
+// Subpatchers (issue #545). A NULL `container` is meaningful here rather than a
+// no-op — it is how an object is moved back out to the top level — so only the
+// patcher and the object itself are null-checked.
+YSE_C_API void yse_patcher_set_container(YsePatcher* p, YsePHandle* obj, YsePHandle* container) {
+  if (!p || !obj) return;
+  to_cpp(p)->SetContainer(to_cpp(obj), to_cpp(container));
+}
+
+YSE_C_API YsePHandle* yse_patcher_get_container(YsePatcher* p, YsePHandle* obj) {
+  if (!p || !obj) return nullptr;
+  return to_c(to_cpp(p)->GetContainer(to_cpp(obj)));
+}
+
+YSE_C_API int yse_patcher_subpatcher_inlets(YsePatcher* p, YsePHandle* container) {
+  if (!p || !container) return 0;
+  return to_cpp(p)->SubpatcherInlets(to_cpp(container));
+}
+
+YSE_C_API int yse_patcher_subpatcher_outlets(YsePatcher* p, YsePHandle* container) {
+  if (!p || !container) return 0;
+  return to_cpp(p)->SubpatcherOutlets(to_cpp(container));
+}
+
 YSE_C_API size_t yse_patcher_dump_json(YsePatcher* p, char* buf, size_t cap) {
   if (!p) {
     if (buf && cap > 0) buf[0] = '\0';
