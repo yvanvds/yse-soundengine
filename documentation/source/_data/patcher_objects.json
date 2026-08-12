@@ -2540,6 +2540,60 @@
       }
     ]
   },
+  ".dial": {
+    "category": "GUI",
+    "description": "Rotary control with a range of its own. The inlet takes the knob position as a float in [0, 1], clamped on input exactly as .slider clamps, and the outlet carries that position mapped onto the minimum-maximum range — so a parameter with a real range is one object rather than a .slider and a .scale. An exponent other than 1 bends the mapping into a curve, symmetrically around the bottom of the range, which is what an audio parameter like a cutoff frequency wants. A minimum equal to the maximum emits the minimum, and any result that would not be finite emits 0. Set intMode to 1 to round the result and emit it as an int instead of a float. The GUI value is the position, not the mapped value. With the default parameters the object behaves exactly like .slider.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "Sets the knob position and emits the mapped value; an int is widened to a float and a bang re-emits without moving the knob.",
+        "index": 0,
+        "label": "position",
+        "range": "0.0-1.0"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".dial",
+    "outlets": [
+      {
+        "doc": "The position mapped onto the minimum-maximum range through the exponent.",
+        "index": 0,
+        "label": "out",
+        "range": "minimum-maximum",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Value the mapping gives at position 0.",
+        "name": "minimum",
+        "range": "any float"
+      },
+      {
+        "default": "1",
+        "doc": "Value the mapping gives at position 1.",
+        "name": "maximum",
+        "range": "any float"
+      },
+      {
+        "default": "1",
+        "doc": "Curve exponent; 1 is a linear mapping.",
+        "name": "exponent",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "1 rounds the mapped value and emits an int, 0 emits a float.",
+        "name": "intMode",
+        "range": "0 or 1"
+      }
+    ]
+  },
   ".div": {
     "category": "MATH",
     "description": "Control-rate integer division. Emits left / right as an int whenever inlet 0 fires, truncating towards zero instead of producing the float ./ would. Floats truncate towards zero on input, and a divisor of 0 emits 0.",

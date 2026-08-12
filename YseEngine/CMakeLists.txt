@@ -171,6 +171,7 @@ set(YSE_SRCS
   patcher/genericObjects/pDac.cpp
   patcher/genericObjects/pLine.cpp
   patcher/guiObjects/gButton.cpp
+  patcher/guiObjects/gDial.cpp
   patcher/guiObjects/gFloat.cpp
   patcher/guiObjects/gInt.cpp
   patcher/guiObjects/gList.cpp
@@ -484,6 +485,7 @@ set_source_files_properties(
   patcher/genericObjects/pDac.cpp
   patcher/genericObjects/pLine.cpp
   patcher/guiObjects/gButton.cpp
+  patcher/guiObjects/gDial.cpp
   patcher/guiObjects/gFloat.cpp
   patcher/guiObjects/gInt.cpp
   patcher/guiObjects/gList.cpp
