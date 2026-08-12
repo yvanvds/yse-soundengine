@@ -185,6 +185,7 @@ set(YSE_SRCS
   patcher/guiObjects/gInt.cpp
   patcher/guiObjects/gItemList.cpp
   patcher/guiObjects/gKSlider.cpp
+  patcher/guiObjects/gLabelSwitch.cpp
   patcher/guiObjects/gList.cpp
   patcher/guiObjects/gMatrixCtrl.cpp
   patcher/guiObjects/gMessage.cpp
@@ -509,6 +510,7 @@ set_source_files_properties(
   patcher/guiObjects/gInt.cpp
   patcher/guiObjects/gItemList.cpp
   patcher/guiObjects/gKSlider.cpp
+  patcher/guiObjects/gLabelSwitch.cpp
   patcher/guiObjects/gList.cpp
   patcher/guiObjects/gMatrixCtrl.cpp
   patcher/guiObjects/gMessage.cpp

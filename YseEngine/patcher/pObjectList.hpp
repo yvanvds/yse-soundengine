@@ -37,6 +37,7 @@ namespace YSE {
    *    ``G_MULTISLIDER``, ``G_MATRIXCTRL``, ``G_KSLIDER``, ``G_NSLIDER``,
    *    ``G_DIAL``, ``G_INCDEC``, ``G_RANDOM``.
    *  - Indexed selection: ``G_UMENU``, ``G_RADIOGROUP``, ``G_TAB``.
+   *  - Labelled switches: ``G_LED``, ``G_TEXTBUTTON``.
    *  - Timing: ``G_METRO``, ``G_DELAY``, ``G_PIPE``, ``G_TRANSPORT``,
    *    ``G_SETCLOCK``,
    *    ``G_WHEN``, ``G_TRANSLATE``, ``G_TIMEPOINT``, ``G_TEMPO``,
@@ -132,6 +133,13 @@ namespace YSE {
     DEFOBJ(G_INCDEC, ".incdec");
     DEFOBJ(G_BUTTON, ".b");
     DEFOBJ(G_TOGGLE, ".t");
+    // The labelled switch family (issue #557) — one implementation of "an on/off
+    // that carries a name" under the two names a host draws differently. `.b`
+    // and `.t` hold the same value and cannot say what they are, which leaves a
+    // host rendering a headless patch with a grid of anonymous squares. See
+    // guiObjects/gLabelSwitch.h.
+    DEFOBJ(G_LED, ".led");
+    DEFOBJ(G_TEXTBUTTON, ".textbutton");
     DEFOBJ(G_MESSAGE, ".m");
     DEFOBJ(G_LIST, ".l");
     DEFOBJ(G_TEXT, ".text");

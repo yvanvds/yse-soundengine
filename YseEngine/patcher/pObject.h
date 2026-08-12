@@ -677,6 +677,25 @@ namespace YSE {
 #define GUI_VALUE_COUNT() unsigned int className::GetGuiValueCount() const
 #define GUI_VALUE_AT() std::string className::GetGuiValueAt(unsigned int index)
 
+// The *scalar* settable control (issue #551) — _HAS_GUI plus the write half of
+// the protocol, and nothing else. A one-cell object needs none of
+// _HAS_GUI_CELLS' machinery: the base already answers 1 to GetGuiValueCount()
+// and answers GetGuiValue() to GetGuiValueAt(0), by construction rather than by
+// copied code. What it still has to do is register a list handler on inlet 0
+// that accepts both the string GetGuiValue() produced and "set 0 <value>" —
+// which is the whole of the promise this macro makes on the object's behalf, so
+// do not reach for it because a control happens to be simple. Read the GUI value
+// protocol block above first; the thread contract there is not optional. The
+// older scalar controls do *not* use this and must not be switched over
+// casually: `.b` and `.t` report a word ("on" / "off") their inlet 0 could not
+// take back, and none of `.b`, `.t` or `.slider` registers a list handler on
+// inlet 0 at all, so neither half of the promise is theirs to make.
+#define _HAS_GUI_SETTABLE                                                                          \
+  std::string GetGuiValue() override;                                                              \
+  bool GuiValueIsSettable() const override {                                                       \
+    return true;                                                                                   \
+  }
+
 #define CONSTRUCT_DSP() className::className() : pObject(true)
 #define CONSTRUCT() className::className() : pObject(false)
 

@@ -79,6 +79,7 @@
 #include "guiObjects/gKSlider.h"
 #include "guiObjects/gNSlider.h"
 #include "guiObjects/gItemList.h"
+#include "guiObjects/gLabelSwitch.h"
 #include "guiObjects/gDial.h"
 #include "guiObjects/gIncDec.h"
 #include "guiObjects/gButton.h"
@@ -523,6 +524,13 @@ pRegistry::pRegistry() {
   Add(OBJ::G_INCDEC, gIncDec::Create);
   Add(OBJ::G_BUTTON, gButton::Create);
   Add(OBJ::G_TOGGLE, gToggle::Create);
+  // The labelled switch family: one implementation of "an on/off that carries a
+  // name" under the two names a host draws differently — a lamp and a pressable
+  // labelled rectangle. `.b` and `.t` above hold the same value and cannot say
+  // what they are, which leaves a host rendering a headless patch with a grid of
+  // anonymous squares (issue #557)
+  Add(OBJ::G_LED, gLed::Create);
+  Add(OBJ::G_TEXTBUTTON, gTextButton::Create);
   Add(OBJ::G_MESSAGE, gMessage::Create);
   Add(OBJ::G_LIST, gList::Create);
   Add(OBJ::G_TEXT, gText::Create);
