@@ -76,6 +76,8 @@
 #include "guiObjects/gRSlider.h"
 #include "guiObjects/gMultiSlider.h"
 #include "guiObjects/gMatrixCtrl.h"
+#include "guiObjects/gKSlider.h"
+#include "guiObjects/gNSlider.h"
 #include "guiObjects/gDial.h"
 #include "guiObjects/gIncDec.h"
 #include "guiObjects/gButton.h"
@@ -499,6 +501,15 @@ pRegistry::pRegistry() {
   // take on their control inlet, so the control and the crossbar it drives need
   // nothing between them (issue #559)
   Add(OBJ::G_MATRIXCTRL, gMatrixCtrl::Create);
+  // A piano keyboard as one control: 128 GUI cells, one per MIDI pitch, each
+  // holding that key's velocity — the first patcher control that expresses a
+  // *note* rather than a number, and it speaks the pair-of-ints `.noteon`,
+  // `.makenote` and `.flush` already take (issue #555)
+  Add(OBJ::G_KSLIDER, gKSlider::Create);
+  // The same pitch written on a stave: two cells, the note and how to spell it,
+  // because a pitch alone cannot say whether 61 is a C sharp or a D flat
+  // (issue #555)
+  Add(OBJ::G_NSLIDER, gNSlider::Create);
   Add(OBJ::G_DIAL, gDial::Create);
   Add(OBJ::G_INCDEC, gIncDec::Create);
   Add(OBJ::G_BUTTON, gButton::Create);

@@ -3497,6 +3497,61 @@
     ],
     "params": []
   },
+  ".kslider": {
+    "category": "GUI",
+    "description": "A piano keyboard as one control - Max's kslider, 'output pitch and velocity from a keyboard display'. The patcher already has every way of expressing a number as a control (.slider a position, .dial a value, .rslider a span, .multislider a bank) and none of expressing a note, which is not a number that happens to run 0-127 but one of 128 named things, five of every twelve of which are black. This is the surface a musician picks one from, and it feeds the patcher's note objects - .noteon, .makenote, .flush, .midiformat - in the pair-of-ints they already speak. The state is the keyboard itself: one GUI cell per MIDI pitch holding that key's velocity, 0 meaning the key is up, so the cell count is always 128 and a host draws key i held exactly when cell i is non-zero, with no decoding and no separate 'how many are down' answer that could disagree with the cells. A velocity per key rather than a bare bit, because the object's whole output is a pair: a bitmap could say which keys are down but not what to re-send for one, so a bang could not replay what it holds. Unlike .multislider the count is fixed - a keyboard is 128 keys because MIDI is - so there is no size, no listresize and no live re-count, and every read is a plain indexed load. Two inlets, .flush's and .stripnote's shape rather than Max's single one, because a pitch/velocity pair is written that way everywhere in this patcher: the left inlet takes the pitch and acts, the right one stores the velocity for pitches arriving after it and sends nothing. Max needs no velocity inlet because its kslider is clicked and the click supplies one. Every message that changes a key emits the pair for the key it changed, since headless the outlet is the only way a change reaches anything; but the bulk messages emit what actually *changed* rather than every cell - a whole-state write sends attacks for keys that went down and releases for keys that came up, 'clear' sends a release per held key, and a bang sends a pair per held key. Replaying all 128 the way .matrixctrl dumps its grid would send 120-odd releases for keys nobody touched and re-attack the ones already sounding, which downstream of a synth is a retrigger rather than a repaint. The single-key forms emit even when the velocity is unchanged, because there the patch said 'play this' and a repeated note-on at the same velocity is something a musician does on purpose. Pitch goes out outlet 0 and velocity out outlet 1, right to left, which is load-bearing: everything downstream that takes a pair takes velocity on a cold inlet and pitch on a hot one, so a pitch sent first would carry the previous note's velocity. The bounds are MIDI's and are not creation arguments - the family's minimum/maximum describe a range a patch chooses, and nothing chooses how many keys a keyboard has - so a pitch outside 0-127 is dropped rather than clamped or passed on: .flush passes an untrackable pitch through because it watches a cord, while this object is a source, and filing a pitch under one that is not its own would light the wrong key. Max's mode attribute (monophonic / polyphonic) is not ported: monophony exists there because a kslider is clicked and a mouse can only be in one place, a control whose entire state is a 128-key held set is not usefully restricted to one key, and issue #551's 128-number restore could not be honoured in a mode that permits one - a patch that wants monophony puts .poly or .flush in the cord. Nor is anything about drawing, the patcher being headless. Only the velocity parameter persists; held keys are run-time state, and the form a host stores them in is GetGuiValue(), which inlet 0 takes straight back. Nothing on any path allocates, locks or blocks: the keyboard is a fixed member array, the outlets carry ints so no send builds a string at all, and the list handler compares its keywords and walks its numbers in place rather than into a 128-wide stack buffer.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The pitch, and the half of the pair that acts - everything here emits. An int or a float presses that key at the stored velocity and sends the pair; a float is truncated, as it is in Max. A list of two numbers is Max's list method and '.flush''s inlet distribution written on one cord: '60 100' presses key 60 at velocity 100 and '60 0' releases it, 0 being how the whole MIDI world spells a release - which is also the shape '.midiparse''s note outlet sends. A single-token numeric list is the number it spells, so a '.m 60' reaches this inlet as a pitch. A list of exactly 128 numbers is the whole keyboard, issue #551's round trip and the string GetGuiValue() produced; only the keys whose velocity actually changed are sent, because a note controller's outlet drives events and only a transition is one. 'set <index> <value>' is #551's cell write and on this object it is the same message as the pair, the index being the pitch. 'clear' releases every key it is holding, Max's message and '.flush''s bang. A bang re-sends every key still held, in ascending pitch order. A pitch outside 0-127 is dropped rather than clamped or passed on: unlike '.flush', which watches a cord and must not rewrite what crosses it, this object is a source, so a pitch it cannot display is a key it cannot press.",
+        "index": 0,
+        "label": "pitch",
+        "range": "0-127"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Sets the velocity that pitches arriving *after* it will be played at, and outputs nothing by itself - only a pitch completes a note. Max has no such inlet because its kslider is played with a mouse, which supplies a velocity from where the key was clicked; headless there is nothing else a bare pitch could be paired with, so this is '.flush''s and '.stripnote''s right inlet. Ints, floats and a list whose leading token is a number all set it, a float being truncated. Clamped into 0-127, unlike '.flush' which passes what it is handed: this object *holds* the velocity in a cell a host draws, so it may not hold a number a MIDI velocity could not be.",
+        "index": 1,
+        "label": "velocity",
+        "range": "0-127"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".kslider",
+    "outlets": [
+      {
+        "doc": "The pitch of the key that moved: once as it is pressed or released, again for every held key a bang re-sends, and once more with velocity 0 for every key a 'clear' lets go. Sent after the velocity, Max's outlets firing right to left. An int, and deliberately the same pair-of-ints port shape '.noteon', '.makenote', '.stripnote' and '.flush' have, so the pair is wired across rather than packed and unpacked again.",
+        "index": 0,
+        "label": "pitch",
+        "range": "0-127",
+        "type": "INT"
+      },
+      {
+        "doc": "The velocity the key moved to - the played velocity for a press, and 0 for a release, whether the release came from a '<pitch> 0' pair, from a 'clear' or from a whole-state write that lifted the key. Sent before the pitch, which is not cosmetic: everything downstream that takes a pair takes velocity on a cold inlet and pitch on a hot one, so a pitch sent first would carry the previous note's velocity.",
+        "index": 1,
+        "label": "velocity",
+        "range": "0-127",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "100",
+        "doc": "The velocity a bare pitch is played at until something is sent to the right inlet, which then changes it for the rest of the object's life - the same arrangement .multislider's size has, a creation argument and live state being one store. Max needs no such default because its kslider takes its velocity from where the key was clicked; headless there is no click, and 0 - .flush's starting velocity - would make every bare pitch a release, so the object has to start somewhere a key can actually go down. 100 is what .makenote and the MIDI world use for 'played normally'. Clamped into 0-127, a cell holding a MIDI velocity. Held keys are not parameters and do not survive a save: GetGuiValue() is the form a host stores them in.",
+        "name": "velocity",
+        "range": "0-127"
+      }
+    ]
+  },
   ".l": {
     "category": "GUI",
     "description": "Static list. Bang re-sends the stored list; list updates the stored payload.",
@@ -5106,6 +5161,62 @@
         "doc": "MIDI channel offset (0-based).",
         "name": "channel",
         "range": "0-15"
+      }
+    ]
+  },
+  ".nslider": {
+    "category": "GUI",
+    "description": "A pitch on a staff - Max's nslider, 'display or output a pitch on a musical staff', and the other half of the pair .kslider opens: one expresses a pitch as a key on a keyboard, this one as a note on a stave, and both hand a host a musically meaningful surface instead of a bare number box. It is not .i with a different name, and the accidental is why: a pitch alone is what .i already holds, while what a staff needs is how to *spell* the pitch, because MIDI pitch 61 is C sharp or D flat - the same key, two different notes, drawn on two different lines with two different signs. Nothing in the pitch decides which; the key the music is in does, and headless that has to come from somewhere the patch can set. So the state is two cells under issue #551's protocol: cell 0 the pitch, cell 1 the accidental (1 sharp, -1 flat, 0 natural). With those two a host has the whole note - the sign to draw, and by subtracting it from the pitch the natural it attaches to, which fixes the line or space. The accidental is derived and overridable: always 0 for a white key, since there is no such thing as a sharpened E drawn as an E, and for one of the five black keys it is the 'spelling' parameter's choice unless the message that set the pitch said otherwise. That override lasts until the next bare pitch arrives, so a patch in F minor sets 'spelling -1' once and a single note re-spelled as a sharp does not change the key it is in. Black and white are computed from the pitch class rather than looked up - classes 1, 3, 6, 8 and 10 are the black keys - which is one compare chain and no table on either side: YSE::scale answers 'is this pitch in the key', a different question, and MIDI::M_PITCH is a name enum in which CSM1 and DFM1 are aliases of the same value, so by construction it cannot say how a pitch should be spelled. The one inlet is hot and everything on it emits: an int or float is a pitch and resets the spelling to the parameter's choice, a list is '<pitch> [<accidental>]' which at two numbers is exactly what GetGuiValue() produces, 'set 0 <pitch>' moves the note without touching the spelling and 'set 1 <accidental>' re-spells it without moving it, and a bang re-sends. Pitch leaves outlet 0 and the accidental outlet 1, firing right to left so the spelling is in hand before the pitch lands on a hot inlet downstream, and both carry one sample of the state taken at the top of the send. The minimum and maximum are the pitches the stave covers, the family's ordered parameter pair, clamped on the way out as well as in and themselves confined to 0-127, a stave here drawing MIDI pitches. Not ported: Max's 'clear', which would have to invent an empty state that every reader of the two cells then had to handle, there being no pitch that means nothing - 0 is C minus one, a real note; everything about drawing, the patcher being headless; and chords, which are a list of pitches, and the patcher's answer to a list of pitches is the object that holds one. Nothing on any path allocates, locks or blocks: the state is two atomic ints, the outlets carry ints so no send builds a string, and the list handler compares its keyword in place.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The note, and the only inlet - everything here emits, which is what a hot inlet in this patcher does. An int or a float is a pitch and resets the spelling to the 'spelling' parameter's choice: a note arriving from elsewhere in the patch carries no opinion about how to write it. A list is '<pitch> [<accidental>]' - the first number is the pitch and an optional second is the accidental to spell it with, 1 for a sharp and -1 for a flat - so two numbers is exactly the string GetGuiValue() produces, which is issue #551's round trip; further numbers are ignored, as .rslider ignores them. 'set <index> <value>' writes one cell, #551's cell write: 'set 0 <pitch>' moves the note and leaves the spelling alone, unlike a bare int, because a cell write touches one cell by definition, and 'set 1 <accidental>' re-spells the note without moving it. A bang re-sends. The pitch is clamped into the minimum-maximum bounds, and an accidental on a white key is ignored - there is no such thing as a sharpened E drawn as an E.",
+        "index": 0,
+        "label": "note",
+        "range": "minimum-maximum"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".nslider",
+    "outlets": [
+      {
+        "doc": "The pitch, as an int, clamped into the minimum-maximum bounds. Sent after the accidental, the patcher's right-to-left ordering, so anything downstream that takes the two on a hot and a cold inlet has the spelling in hand before the pitch arrives. Sampled once at the top of the send together with the accidental, so a note re-spelled mid-send cannot make the two outlets describe two different notes.",
+        "index": 0,
+        "label": "pitch",
+        "range": "minimum-maximum",
+        "type": "INT"
+      },
+      {
+        "doc": "How the pitch is spelled: 1 a sharp, -1 a flat, 0 a natural. Always 0 for a white key. For one of the five black keys it is the per-note override the last message set, or the 'spelling' parameter when it set none. With this and the pitch a host has the whole note: the sign to draw, and - by subtracting it from the pitch - the natural it attaches to, which is the line or space to draw on. Sent first.",
+        "index": 1,
+        "label": "accidental",
+        "range": "-1, 0 or 1",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Lowest pitch the stave covers. Taken as an ordered pair with the maximum, so a reversed argument pair still bounds against the right two numbers, and confined to 0-127 - a stave here draws MIDI pitches, and a pitch outside that range is not one. Clamping happens on the way out as well as in, .incdec's rule, so a live re-range shows immediately.",
+        "name": "minimum",
+        "range": "0-127"
+      },
+      {
+        "default": "127",
+        "doc": "Highest pitch the stave covers. See the minimum.",
+        "name": "maximum",
+        "range": "0-127"
+      },
+      {
+        "default": "1",
+        "doc": "How a black key is written when nothing overrides it: 1 or anything above it a sharp, anything below 0 a flat. This is the key the music is in rather than a property of any one note, which is why it is a creation argument and the per-note choice is a message - a patch in F minor sets 'spelling -1' once and a single note re-spelled as a sharp does not change it back. White keys are unaffected: their accidental is 0 whatever this says.",
+        "name": "spelling",
+        "range": "1 for sharps, -1 for flats"
       }
     ]
   },
