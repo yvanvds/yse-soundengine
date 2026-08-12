@@ -357,15 +357,21 @@ namespace YSE {
       pHandle* CreateObjectUnlocked(const std::string& type, const std::string& args);
       void ConnectUnlocked(pHandle* from, int outlet, pHandle* to, int inlet);
 
-      // ---- Subpatcher boundary resolution (issue #545), all caller-holds-mtx ----
+      // ---- Subpatcher boundary resolution (issues #545, #764), caller holds mtx ----
       //
       // A subpatcher object carries no pins, so an edge to or from one is
-      // always really an edge to or from the `.inlet` / `.outlet` object that
-      // stands for the pin. Connect and Disconnect resolve the façade *before*
+      // always really an edge to or from the boundary object that stands for
+      // the pin — `.inlet` / `.outlet` for a message pin, `~inlet` / `~outlet`
+      // for a signal one. Connect and Disconnect resolve the façade *before*
       // touching any wiring, so everything downstream of them — the graph
       // compiler, DumpJSON, UnwireFromPeers, the reclaimer — only ever sees
       // ordinary edges between ordinary objects and needs to know nothing about
       // subpatchers.
+      //
+      // Adding the audio-rate pair changed nothing below the resolution: a
+      // signal boundary cord compiles to a plain DSP edge, `IsDSPStartPoint`
+      // and `HasActiveDSPConnection` place the boundary objects in the
+      // traversal with no help, and BuildGraph needed no change at all.
 
       static bool IsSubpatcher(pObject* obj);
       // Whether putting `obj` inside `container` would make the containment
@@ -374,16 +380,31 @@ namespace YSE {
       // handed a bad pairing and the consequence is the same: CollectSubtree's
       // walk would never terminate. Caller holds mtx.
       static bool ContainmentWouldCycle(pObject* obj, pObject* container);
-      // The `.inlet` (or `.outlet`) object with index `index` among the direct
+      // Which end of a subpatcher's boundary a lookup is about. Deliberately a
+      // *side* rather than an object type, because since issue #764 each side
+      // has two object types — the control-rate `.inlet` / `.outlet` and the
+      // audio-rate `~inlet` / `~outlet` — sharing one index space. They have to
+      // share it: a subpatcher has one set of inlet pins, numbered by the
+      // parent, and "inlet 2" is a single pin whose *rate* is a property of
+      // what sits behind it, not a second numbering. Two index spaces would
+      // leave `Connect(source, 0, sub, 2)` ambiguous and `SubpatcherInlets`
+      // unanswerable.
+      enum class BoundarySide { INLETS, OUTLETS };
+      // The index a boundary object claims, or -1 when `obj` is not a boundary
+      // object of that side. The one place the four boundary types are mapped
+      // to their `Index()`, so the two lookups below cannot come to disagree
+      // about which types belong to which side.
+      static int BoundaryIndexOf(pObject* obj, BoundarySide side);
+      // The boundary object claiming `index` on that side among the direct
       // contents of `container`, or null. Linear over the object set, which is
       // the right cost here: it runs on the control thread beside a full graph
       // rebuild that is linear anyway, and re-deriving the boundary from the
       // objects each time is what makes it impossible for a cached boundary
       // table to go stale behind a create, a delete or a re-parse.
-      pObject* BoundaryChild(pObject* container, const char* boundaryType, int index) const;
-      // One past the highest index claimed by a boundary object of that type
-      // among `container`'s contents; 0 when it has none.
-      int BoundaryPinCount(pObject* container, const char* boundaryType) const;
+      pObject* BoundaryChild(pObject* container, BoundarySide side, int index) const;
+      // One past the highest index claimed on that side among `container`'s
+      // contents; 0 when it has none.
+      int BoundaryPinCount(pObject* container, BoundarySide side) const;
       // Rewrite (obj, pin) from a subpatcher façade to the boundary object that
       // carries the pin, leaving anything else alone. False means the façade
       // has no such boundary object, and the caller must not wire anything.

@@ -36,9 +36,10 @@ namespace YSE {
      *
      *  ### What crosses
      *
-     *  Bang, int, float and list, unchanged in kind. Audio-rate signals do not
-     *  (issue #764), and `SetMessage` is not forwarded — see gInlet.h, which
-     *  gives the reasoning for both.
+     *  Bang, int, float and list, unchanged in kind. Audio-rate signals leave
+     *  through `~outlet` instead, which shares this object's index space (issue
+     *  #764), and `SetMessage` is not forwarded — see gInlet.h, which gives the
+     *  reasoning for both.
      *
      *  ### Index
      *

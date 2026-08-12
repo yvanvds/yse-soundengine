@@ -54,7 +54,8 @@ namespace YSE {
    *    ``G_TABLE``, ``G_TEXTFILE``, ``G_QLIST``, ``G_MTR``, ``G_SEQ``.
    *  - Debugging: ``G_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
-   *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``.
+   *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
+   *    ``D_OUTLET``.
    *  - Messaging: ``G_SEND``, ``G_RECEIVE``, ``G_FORWARD``, ``G_ROUTE``,
    *    ``G_ROUTEPASS``,
    *    ``G_SEL``, ``G_TRIGGER``, ``G_BANGBANG``, ``G_ONEBANG``, ``G_NEXT``,
@@ -101,9 +102,21 @@ namespace YSE {
     // ``G_INLET`` / ``G_OUTLET`` are the boundary of a subpatcher: the parent's
     // cords land on them, and inside the subpatcher they are ordinary
     // pass-through objects. See genericObjects/gSubpatcher.h for the model.
+    //
+    // ``D_INLET`` / ``D_OUTLET`` are the audio-rate half of that boundary
+    // (issue #764) — the same pass-through with the same index, carrying a
+    // buffer instead of a message. They are separate objects rather than a
+    // dual-natured `.inlet` because ``IsDSPObject()`` is what the graph
+    // compiler, every palette and every binding read to decide what an object
+    // *is*, and one object cannot answer both honestly. **The index space is
+    // shared**: a subpatcher has one set of pins, so `~inlet 2` and `.inlet 2`
+    // both claim boundary inlet 2 and ``Connect(source, 0, sub, 2)`` resolves to
+    // whichever of them exists. See genericObjects/dInlet.h.
     DEFOBJ(PATCHER, "patcher");
     DEFOBJ(G_INLET, ".inlet");
     DEFOBJ(G_OUTLET, ".outlet");
+    DEFOBJ(D_INLET, "~inlet");
+    DEFOBJ(D_OUTLET, "~outlet");
 
     DEFOBJ(D_DAC, "~dac");
     DEFOBJ(D_ADC, "~adc");

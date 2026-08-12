@@ -18,7 +18,8 @@ namespace {
       "connects here from inside the subpatcher — patcherImplementation resolves "
       "Connect(source, n, subpatcher, N) to this object and records the edge directly, so what "
       "arrives is whatever the parent sent to the subpatcher's inlet N. Bang, int, float and list "
-      "cross; audio signals do not (this is a control-rate object, see issue #764).";
+      "cross; audio signals arrive on a ~inlet instead, which shares this object's index space "
+      "(issue #764).";
 
   constexpr char kOutletDoc[] =
       "The message that arrived at the subpatcher's boundary, sent on unchanged inside the "
@@ -60,10 +61,13 @@ CONSTRUCT() {
       "why this object has an inlet where Max's appears not to: Max hides it because a patcher "
       "window draws the boundary, and headless the cord has to land on something real for "
       "Disconnect, UnwireFromPeers and the serialiser to handle it as the ordinary edge it is. "
-      "Bang, int, float and list cross; audio signals do not, because this is a control-rate "
-      "object and MSP-style signal boundaries are a separate pass. One creation argument, the "
-      "boundary inlet number, default 0. Every handler is one send; nothing allocates, locks or "
-      "blocks.");
+      "Bang, int, float and list cross here; a signal pin is a ~inlet instead, because "
+      "IsDSPObject() decides start-point selection, T_GUI dispatch and what every palette is told "
+      "an object is, and one object cannot answer both honestly. The two share one index space — a "
+      "subpatcher has one set of inlet pins and inlet N is one pin whichever rate is behind it — "
+      "so one subpatcher may have pins of both kinds, with distinct numbers. One creation "
+      "argument, the boundary inlet number, default 0. Every handler is one send; nothing "
+      "allocates, locks or blocks.");
   ADD_CATEGORY(pCategory::GENERIC);
 
   INLET_DOC(0, "from parent", kInletDoc, "");

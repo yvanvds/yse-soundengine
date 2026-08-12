@@ -54,9 +54,12 @@ namespace YSE {
      *
      *  `patcher.Connect(source, 0, subpatcher, 2)` does not create an edge to
      *  *this* object. `patcherImplementation::ConnectUnlocked` resolves the
-     *  façade first: inlet 2 of a subpatcher means "the `.inlet 2` object
-     *  inside it", and the edge is recorded from `source`'s outlet straight to
-     *  that object's inlet. Outlets mirror it through `.outlet`. So the cord
+     *  façade first: inlet 2 of a subpatcher means "the boundary object inside
+     *  it claiming index 2" — a `.inlet 2` for a message pin, a `~inlet 2` for
+     *  a signal pin (issue #764), the two sharing one index space because a
+     *  subpatcher has one set of pins per side — and the edge is recorded from
+     *  `source`'s outlet straight to that object's inlet. Outlets mirror it
+     *  through `.outlet` / `~outlet`. So the cord
      *  that actually exists is an ordinary cord between two ordinary objects,
      *  and every downstream mechanism — the graph compiler, the reclaimer, the
      *  serialiser, `Disconnect`, `UnwireFromPeers` — needs to know nothing

@@ -33,10 +33,13 @@
 #include "genericObjects/gLoadbang.h"
 #include "genericObjects/gLoadmess.h"
 // Subpatchers (issue #545): the façade and the two boundary objects. Storage
-// stays flat and only the addressing nests — see gSubpatcher.h.
+// stays flat and only the addressing nests — see gSubpatcher.h. The audio-rate
+// boundary pair (issue #764) is the same pass-through carrying a buffer.
 #include "genericObjects/gSubpatcher.h"
 #include "genericObjects/gInlet.h"
 #include "genericObjects/gOutlet.h"
+#include "genericObjects/dInlet.h"
+#include "genericObjects/dOutlet.h"
 #include "genericObjects/gFunbuff.h"
 #include "genericObjects/gTable.h"
 #include "genericObjects/gMtr.h"
@@ -441,9 +444,17 @@ pRegistry::pRegistry() {
   // object in a patch lives in one object set and is compiled into one
   // GraphState whatever its nesting depth — so none of the three is visible to
   // the audio thread at all.
+  //
+  // `~inlet` / `~outlet` are the audio-rate half of that boundary (issue #764):
+  // the same pass-through carrying a buffer, sharing the one index space with
+  // the control-rate pair because a subpatcher has one set of pins per side.
+  // They are DSP objects and the control-rate ones are not, which is exactly
+  // why they are four objects and not two.
   Add(OBJ::PATCHER, gSubpatcher::Create);
   Add(OBJ::G_INLET, gInlet::Create);
   Add(OBJ::G_OUTLET, gOutlet::Create);
+  Add(OBJ::D_INLET, dInlet::Create);
+  Add(OBJ::D_OUTLET, dOutlet::Create);
 
   // A sparse function: x,y pairs kept sorted by x, with a floor lookup and
   // linear interpolation between the stored points — the store behind every
