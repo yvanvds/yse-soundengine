@@ -81,6 +81,9 @@ set(YSE_SRCS
   internal/global.cpp
   internal/lsfSoundfile.cpp
   internal/namedBus.cpp
+  # The real-time on-ramp to the engine log (issue #546): what `.print` pushes
+  # onto from a render thread and system::update() drains on the control one.
+  internal/rtLogQueue.cpp
   internal/reverbDSP.cpp
   internal/settings.cpp
   internal/thread.cpp
@@ -130,6 +133,7 @@ set(YSE_SRCS
   patcher/genericObjects/gMtr.cpp
   patcher/genericObjects/gNext.cpp
   patcher/genericObjects/gOneBang.cpp
+  patcher/genericObjects/gPrint.cpp
   patcher/genericObjects/gQlist.cpp
   patcher/genericObjects/gReceive.cpp
   patcher/genericObjects/gRegexEngine.cpp
@@ -441,6 +445,7 @@ set_source_files_properties(
   patcher/genericObjects/gMtr.cpp
   patcher/genericObjects/gNext.cpp
   patcher/genericObjects/gOneBang.cpp
+  patcher/genericObjects/gPrint.cpp
   patcher/genericObjects/gQlist.cpp
   patcher/genericObjects/gReceive.cpp
   patcher/genericObjects/gRegexp.cpp

@@ -26,6 +26,7 @@
 #include "genericObjects/gBag.h"
 #include "genericObjects/gCapture.h"
 #include "genericObjects/gColl.h"
+#include "genericObjects/gPrint.h"
 #include "genericObjects/gFunbuff.h"
 #include "genericObjects/gTable.h"
 #include "genericObjects/gMtr.h"
@@ -401,6 +402,11 @@ pRegistry::pRegistry() {
   // A rolling record of everything that went past — the patcher's debugging
   // instrument, and the store nothing decides the contents of (issue #496)
   Add(OBJ::G_CAPTURE, gCapture::Create);
+
+  // The other half of that instrument: say what is passing *now*, one line at a
+  // time, into the engine log — the only way to see inside a running graph
+  // without inferring it from the audio coming out (issue #546)
+  Add(OBJ::G_PRINT, gPrint::Create);
 
   // A sparse function: x,y pairs kept sorted by x, with a floor lookup and
   // linear interpolation between the stored points — the store behind every
