@@ -33,8 +33,8 @@ namespace YSE {
    *  - Bitwise: ``G_BITAND``, ``G_BITOR``, ``G_SHIFTLEFT``, ``G_SHIFTRIGHT``.
    *  - DSP filters: ``D_LOWPASS``, ``D_HIGHPASS``, ``D_BANDPASS``, ``D_VCF``.
    *  - I/O: ``D_DAC``, ``D_ADC``, ``D_LINE``.
-   *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_DIAL``,
-   *    ``G_INCDEC``, ``G_RANDOM``.
+   *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_RSLIDER``,
+   *    ``G_DIAL``, ``G_INCDEC``, ``G_RANDOM``.
    *  - Timing: ``G_METRO``, ``G_DELAY``, ``G_PIPE``, ``G_TRANSPORT``,
    *    ``G_SETCLOCK``,
    *    ``G_WHEN``, ``G_TRANSLATE``, ``G_TIMEPOINT``, ``G_TEMPO``,
@@ -115,6 +115,7 @@ namespace YSE {
     DEFOBJ(G_INT, ".i");
     DEFOBJ(G_FLOAT, ".f");
     DEFOBJ(G_SLIDER, ".slider");
+    DEFOBJ(G_RSLIDER, ".rslider");
     DEFOBJ(G_DIAL, ".dial");
     DEFOBJ(G_INCDEC, ".incdec");
     DEFOBJ(G_BUTTON, ".b");

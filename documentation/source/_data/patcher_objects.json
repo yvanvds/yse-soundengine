@@ -6569,6 +6569,73 @@
       }
     ]
   },
+  ".rslider": {
+    "category": "GUI",
+    "description": "Range control: holds a span rather than a single value, which is what a velocity layer, a key split or a random spread actually is. Each inlet sets one end of the range - the left one emits, the right one stores silently - and a list on the left inlet sets both ends at once, as a bang re-sends them. Neither inlet is the low end: both ends are clamped into the minimum-maximum bounds and reported in order, so the lower of the two always leaves outlet 0 and the higher outlet 1, with the pair as a two-element list on outlet 2. The three fire right to left. The GUI value is the two ends as cells (issue #551): \"low high\" as a whole, and inlet 0 takes that string back verbatim or \"set <index> <value>\" to move one end.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A float or int sets one end of the range; a list sets both ends from its first two numbers; \"set <index> <value>\" moves one end (0 is the low end of the current range, 1 the high end); a bang re-sends. Everything here emits.",
+        "index": 0,
+        "label": "end/range",
+        "range": "minimum-maximum"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Sets the other end of the range and stores it without sending anything out.",
+        "index": 1,
+        "label": "end",
+        "range": "minimum-maximum"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".rslider",
+    "outlets": [
+      {
+        "doc": "The lower of the two ends. Sent last, after outlets 2 and 1.",
+        "index": 0,
+        "label": "low",
+        "range": "minimum-maximum",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The higher of the two ends.",
+        "index": 1,
+        "label": "high",
+        "range": "minimum-maximum",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "Both ends as a two-element list, the lower one first. Sent first.",
+        "index": 2,
+        "label": "range",
+        "range": "minimum-maximum",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Lowest value either end of the range can reach.",
+        "name": "minimum",
+        "range": "any float"
+      },
+      {
+        "default": "127",
+        "doc": "Highest value either end of the range can reach.",
+        "name": "maximum",
+        "range": "any float"
+      }
+    ]
+  },
   ".rtin": {
     "category": "MIDI",
     "description": "MIDI system real-time input — Max's 'rtin' (issue #529). Reports the one-byte messages a master clock sends to keep everything on it in step: 248 timing clock (24 per quarter note), 250 start, 251 continue, 252 stop and 255 system reset. This is how a patch follows an external sequencer or drum machine rather than leading it — count the clocks with a '.counter' for a tempo grid, and use start / stop to drive a '.transport'. Real-time bytes are the one part of MIDI that may appear *inside* another message on the wire; the device backend delivers them as separate one-byte messages, so a clock arriving mid-SysEx reaches this outlet whole and does not disturb a '.midiin' reading the dump. Active sensing (254) is deliberately absent: the backend filters it, because a device that sends it sends 300 a minute forever and no patch wants that in its queue. Drained once per audio block from a bounded lock-free queue, so nothing on the path allocates, locks or blocks.",
