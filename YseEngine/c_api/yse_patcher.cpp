@@ -388,6 +388,29 @@ YSE_C_API size_t yse_phandle_get_gui_value(YsePHandle* h, char* buf, size_t cap)
   }
   return copy_string(to_cpp(h)->GetGuiValue(), buf, cap);
 }
+YSE_C_API unsigned int yse_phandle_get_gui_value_count(YsePHandle* h) {
+  // 0 rather than 1 on NULL: a handle that names no object has no cells, and
+  // a host looping `for (i = 0; i < count; ++i)` must not be handed a cell to
+  // read off a null handle.
+  if (!h) return 0;
+  return to_cpp(h)->GetGuiValueCount();
+}
+YSE_C_API size_t yse_phandle_get_gui_value_at(YsePHandle* h, unsigned int index, char* buf,
+                                              size_t cap) {
+  if (!h) {
+    if (buf && cap > 0) buf[0] = '\0';
+    return 0;
+  }
+  // An out-of-range index is the object's own answer (""), not an error here:
+  // the count can change under a live SetParams between a host's count read
+  // and its cell reads, so "past the end" is a normal outcome of a legitimate
+  // poll rather than a caller mistake. See pObject.h.
+  return copy_string(to_cpp(h)->GetGuiValueAt(index), buf, cap);
+}
+YSE_C_API int yse_phandle_gui_value_is_settable(YsePHandle* h) {
+  if (!h) return 0;
+  return to_cpp(h)->GuiValueIsSettable() ? 1 : 0;
+}
 YSE_C_API size_t yse_phandle_get_gui_property(YsePHandle* h, const char* key, char* buf,
                                               size_t cap) {
   if (!h || !key) {

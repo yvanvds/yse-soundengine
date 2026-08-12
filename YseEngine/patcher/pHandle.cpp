@@ -132,3 +132,15 @@ unsigned int YSE::pHandle::GetConnectionTargetInlet(unsigned int outlet, unsigne
 std::string YSE::pHandle::GetGuiValue() {
   return object->GetGuiValue();
 }
+
+unsigned int YSE::pHandle::GetGuiValueCount() {
+  return object->GetGuiValueCount();
+}
+
+std::string YSE::pHandle::GetGuiValueAt(unsigned int index) {
+  return object->GetGuiValueAt(index);
+}
+
+bool YSE::pHandle::GuiValueIsSettable() {
+  return object->GuiValueIsSettable();
+}

@@ -152,7 +152,59 @@ YSE_C_API int yse_patcher_pass_string(YsePatcher* p, const char* value, const ch
 YSE_C_API size_t yse_phandle_get_type(YsePHandle* h, char* buf, size_t cap);
 YSE_C_API size_t yse_phandle_get_name(YsePHandle* h, char* buf, size_t cap);
 YSE_C_API size_t yse_phandle_get_params(YsePHandle* h, char* buf, size_t cap);
+
+/* ─── GUI value protocol ──────────────────────────────────────────── */
+
+/* What a host polls to draw an object (issue #551). GUI state is a list
+   of string cells: a scalar control (".slider", ".t", ".i", ...) has one
+   cell, a structured one (".rslider", ".multislider", ".matrixctrl") has
+   several. The engine-side contract lives in patcher/pObject.h; these
+   three functions are its ABI mirror.
+
+   Host thread only, and a poll may be *destructive*: ".b" reports the
+   press it is clearing. Poll a given object through the whole-state read
+   or through the per-cell reads once per frame, never both, or a
+   consume-on-read object reports its event to one and not the other. The
+   per-cell reads are also not atomic across cells — a repaint may see one
+   cell from before an edit and the next from after it. Use the
+   whole-state read when a coherent snapshot matters. */
+
+/* The whole state as one string: the value for a scalar control, or every
+   cell space separated in index order for a structured one. Empty for an
+   object with no GUI state. snprintf style — returns the full length and
+   accepts a NULL buffer as a size query. */
 YSE_C_API size_t yse_phandle_get_gui_value(YsePHandle* h, char* buf, size_t cap);
+
+/* How many cells this object's GUI state has; 1 for a scalar control, 0
+   on NULL. */
+YSE_C_API unsigned int yse_phandle_get_gui_value_count(YsePHandle* h);
+
+/* One cell, and the empty string for an index at or past the count.
+   Cell 0 of a scalar control is exactly yse_phandle_get_gui_value. */
+YSE_C_API size_t yse_phandle_get_gui_value_at(YsePHandle* h, unsigned int index, char* buf,
+                                              size_t cap);
+
+/* Whether this object accepts its own GUI state back on inlet 0 — 1 when
+   the round trip holds, 0 otherwise and on NULL.
+
+   1 means yse_phandle_set_list(h, 0, <what get_gui_value returned>)
+   restores the state that was read, and yse_phandle_set_list(h, 0,
+   "set <index> <value>") writes one cell. That is the write half of the
+   protocol, and the whole of it: there is no GUI-value setter. State goes
+   into an object as an ordinary message on the control thread, so it
+   passes through the object's own clamps and outlet sends and never races
+   the audio thread.
+
+   0 for the scalar controls that predate the protocol — their inlet 0
+   takes an int or a float, not the display string the read produces. */
+YSE_C_API int yse_phandle_gui_value_is_settable(YsePHandle* h);
+
+/* ─── GUI properties ──────────────────────────────────────────────── */
+
+/* Editor decoration — geometry, colour, anything the host wants persisted
+   with the patch. Opaque to the engine and serialised under the "gui" key
+   by yse_patcher_dump_json. Not live control state: that is the GUI value
+   protocol above. */
 YSE_C_API size_t yse_phandle_get_gui_property(YsePHandle* h, const char* key, char* buf,
                                               size_t cap);
 YSE_C_API void yse_phandle_set_gui_property(YsePHandle* h, const char* key, const char* value);
