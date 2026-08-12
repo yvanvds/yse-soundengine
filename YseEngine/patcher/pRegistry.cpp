@@ -78,6 +78,7 @@
 #include "guiObjects/gMatrixCtrl.h"
 #include "guiObjects/gKSlider.h"
 #include "guiObjects/gNSlider.h"
+#include "guiObjects/gItemList.h"
 #include "guiObjects/gDial.h"
 #include "guiObjects/gIncDec.h"
 #include "guiObjects/gButton.h"
@@ -510,6 +511,14 @@ pRegistry::pRegistry() {
   // because a pitch alone cannot say whether 61 is a C sharp or a D flat
   // (issue #555)
   Add(OBJ::G_NSLIDER, gNSlider::Create);
+  // The indexed selector family: one implementation of "a bounded index over a
+  // named item list" under the three names a host draws differently — a pop-up,
+  // a column of buttons, a row of tabs. The patcher had every way of expressing
+  // a *number* as a control and no way at all of expressing a bounded named
+  // choice (issue #556)
+  Add(OBJ::G_UMENU, gUMenu::Create);
+  Add(OBJ::G_RADIOGROUP, gRadioGroup::Create);
+  Add(OBJ::G_TAB, gTab::Create);
   Add(OBJ::G_DIAL, gDial::Create);
   Add(OBJ::G_INCDEC, gIncDec::Create);
   Add(OBJ::G_BUTTON, gButton::Create);

@@ -36,6 +36,7 @@ namespace YSE {
    *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_RSLIDER``,
    *    ``G_MULTISLIDER``, ``G_MATRIXCTRL``, ``G_KSLIDER``, ``G_NSLIDER``,
    *    ``G_DIAL``, ``G_INCDEC``, ``G_RANDOM``.
+   *  - Indexed selection: ``G_UMENU``, ``G_RADIOGROUP``, ``G_TAB``.
    *  - Timing: ``G_METRO``, ``G_DELAY``, ``G_PIPE``, ``G_TRANSPORT``,
    *    ``G_SETCLOCK``,
    *    ``G_WHEN``, ``G_TRANSLATE``, ``G_TIMEPOINT``, ``G_TEMPO``,
@@ -121,6 +122,12 @@ namespace YSE {
     DEFOBJ(G_MATRIXCTRL, ".matrixctrl");
     DEFOBJ(G_KSLIDER, ".kslider");
     DEFOBJ(G_NSLIDER, ".nslider");
+    // The indexed selector family (issue #556) — one implementation of "a
+    // bounded index over a named item list" under the three names a host draws
+    // differently. See guiObjects/gItemList.h.
+    DEFOBJ(G_UMENU, ".umenu");
+    DEFOBJ(G_RADIOGROUP, ".radiogroup");
+    DEFOBJ(G_TAB, ".tab");
     DEFOBJ(G_DIAL, ".dial");
     DEFOBJ(G_INCDEC, ".incdec");
     DEFOBJ(G_BUTTON, ".b");

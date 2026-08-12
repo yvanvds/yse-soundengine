@@ -183,6 +183,7 @@ set(YSE_SRCS
   patcher/guiObjects/gFloat.cpp
   patcher/guiObjects/gIncDec.cpp
   patcher/guiObjects/gInt.cpp
+  patcher/guiObjects/gItemList.cpp
   patcher/guiObjects/gKSlider.cpp
   patcher/guiObjects/gList.cpp
   patcher/guiObjects/gMatrixCtrl.cpp
@@ -506,6 +507,7 @@ set_source_files_properties(
   patcher/guiObjects/gFloat.cpp
   patcher/guiObjects/gIncDec.cpp
   patcher/guiObjects/gInt.cpp
+  patcher/guiObjects/gItemList.cpp
   patcher/guiObjects/gKSlider.cpp
   patcher/guiObjects/gList.cpp
   patcher/guiObjects/gMatrixCtrl.cpp
