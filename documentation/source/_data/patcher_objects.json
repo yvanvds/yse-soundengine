@@ -3992,6 +3992,48 @@
       }
     ]
   },
+  ".matrixctrl": {
+    "category": "GUI",
+    "description": "A grid of cell states as one object - Max's matrixctrl, whose cells are addressed as '<column> <row> <value>' and whose left outlet speaks the same three numbers. A step sequencer's grid, a drum pattern and a routing patchbay are all an N-by-M table of small values, driven and drawn as one control but addressed one cell at a time. It is worth having next to .matrix and .router rather than being a two-dimensional .multislider precisely because of those three numbers: .matrix sets a cell with the bare list '<inlet> <outlet> <gain>' and .router with '<inlet> <outlet> <on>', so wiring outlet 0 into either crossbar's control inlet makes the control the routing, one object holding the state and the other switching the messages, with no glue between them. Issue #551's GUI state is a list, so the grid is flattened column-major: cell (column, row) is at column*rows+row, the row moving fastest. That is the lexicographic rank of the address as Max writes it - the last coordinate written varies quickest, so nothing has to remember that the object reverses them - and it is the layout .matrix already uses for its own gain table, so a cell index here and the offset of the cell it drives there are the same number. Max's 'set' is not ported: it takes the same '<column> <row> <value>' its list method takes, so the keyword would carry a two-dimensional address while the protocol's carries a flat index, told apart only by how many numbers follow, and a mistyped 'set 2 3 1' that lost its value would silently write flat cell 2. Nothing is lost by dropping it, because Max's 'set' differs from its list method only by being silent, and silence is what cannot be ported: Max can afford a quiet write because its cells are drawn, while here the outlet is the only way a change reaches anything, and an object whose purpose is to drive a crossbar that learns of a change only by being told cannot have a form that tells nothing. So every write emits. A bare list is the whole state at exactly columns*rows numbers and Max's cell triple at exactly 3; they collide only on a three-cell grid, where the whole state wins because GuiValueIsSettable() is an unconditional promise while the triple has 'set <index> <value>' standing behind it. Dimensions come from the creation arguments and nowhere else - one list length cannot recover two of them, since twelve numbers are 3-by-4 or 4-by-3 - so unlike .multislider there is no listresize and no live bound: the cells are allocated exactly columns*rows wide by the parameter callbacks on the control thread before the object is wired or published, and a live SetParams replaces the object through the graph swap, which is honest for a change that alters what every index means. That is also why the ceiling can stay at the family's 256 per axis, .matrix's MAX_PORTS, so every crossbar the patcher can build has a control able to address all of it: an 8-by-8 grid costs 256 bytes, not the ceiling. .multislider had to lower its own ceiling because it emits its whole state as one list and reserves a send buffer for the worst case; this object emits one three-number list per cell, so its send buffer is one triple wide whatever the grid is, and the only place the ceiling is felt is GetGuiValue(), which the protocol defines as one call and one allocation - which is exactly what the per-cell reads exist for. The inlet takes a bang and a list and declines int and float, which Max does not document, the way .matrix, .router and .decode decline what they have no meaning for. Outlet 0 carries cells as triples, outlet 1 a row or a column in answer to 'getrow' / 'getcolumn'. Cells are clamped into the minimum-maximum bounds, defaulting to 0-1: Max's default range of 2 is two states per cell, read here as off and on, and where Max counts integer states because its cells are clicked up through them one at a time, headless there is no click and the cells take the family's float bounds instead - which also lets the control hold a fractional .matrix gain that an integer state count could not. Not modelled: everything about drawing and the mouse, 'dictionary <name>' naming a Max dictionary object this patcher has none of, and Max's attributes generally, including the one/column, one/row and one/matrix exclusivity modes, since the patcher has no attribute mechanism and an exclusivity rule that silently cleared cells a patch had just set would need one to turn it off again. Nothing on any path allocates, locks or blocks: the grid, both send buffers and every port are built on the control thread, the list handler compares its keywords and walks its numbers in place, and every send fills a string reserved at construction immediately before it is sent.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The grid, and the only inlet. It takes a bang and a list and nothing else: Max documents no int or float method - a matrixctrl is driven by lists and by the mouse, and there is no mouse here - so those are declined outright rather than swallowed, which keeps GetAcceptedTypes() reporting the real contract. A list of three numbers is Max's cell message '<column> <row> <value>' and sets that cell; a list of exactly columns*rows numbers is the whole state and sets every cell, which is issue #551's round trip and the string GetGuiValue() produced; 'set <index> <value>' sets one cell by flat index, #551's cell write, where the index is column*rows+row. Those two bare forms collide on exactly one shape - a three-cell grid - and there the whole state wins, because GuiValueIsSettable() is an unconditional promise and the triple has 'set' standing behind it. Max's own 'set' is not ported: it takes the same '<column> <row> <value>' its list method takes, so one keyword would carry a two-dimensional address and a flat index at once, told apart only by how many numbers follow; and it differs from the list method only by being silent, which is what cannot be ported, since headless the outlet is the only way a change reaches anything. 'clear' sets every cell to 0, 'getrow <row>' and 'getcolumn <column>' send that line's values out outlet 1, and a bang dumps the whole grid. Every write emits. A cell outside the grid, or a list of any other length, is ignored rather than folded onto a real cell, and every value is clamped into the minimum-maximum bounds. Not here: everything about drawing and the mouse (the picture and image messages, disablecell / enablecell), 'dictionary <name>' which names a Max dictionary object this patcher has none of, and Max's attributes including the one/column, one/row and one/matrix exclusivity modes - the patcher has no attribute mechanism, and a rule that silently cleared cells a patch had just set would need one to turn it off again.",
+        "index": 0,
+        "label": "grid",
+        "range": "minimum-maximum"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".matrixctrl",
+    "outlets": [
+      {
+        "doc": "Cells, as '<column> <row> <value>' - Max's left outlet, and deliberately the same three numbers in the same order that .matrix and .router take on their control inlet, so wiring this outlet into either crossbar makes the control the routing with no glue in between. One list for a one-cell write; every cell, in index order, for a whole-state write, a 'clear' or a bang, which Max words as 'dumps its current state in lists of three values for each cell pair'. That a restore replays the whole grid is the point rather than a cost: it is what carries the restored state on into the crossbar this control drives. A dump running already is not nested inside itself - these triples are exactly what inlet 0 accepts, so wiring the outlet back is one cord away.",
+        "index": 0,
+        "label": "cell",
+        "range": "column row value",
+        "type": "LIST"
+      },
+      {
+        "doc": "One row's or one column's values as a single list, and only in answer to a 'getrow <row>' or 'getcolumn <column>' - Max's messages and Max's right outlet. A row is sent in column order and a column in row order, both ascending. A query naming a line the grid does not have sends nothing, the family's rule for a question with no answer. The index is not echoed back with the values: the patch asked for it, so it already knows it. Silent otherwise - no cell write ever leaves here.",
+        "index": 1,
+        "label": "line",
+        "range": "minimum-maximum",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "8",
+        "doc": "The grid, in Max's address order: how many columns, how many rows, then the lowest and highest value a cell can hold. Each axis is clamped to 1-256 and defaults to 8 - Max documents no default for its rows / columns attributes, and 8 is the smallest grid doing something a single control could not. The bounds default to 0-1, Max's default range of 2 read as off and on. Both dimensions are creation arguments and nothing else changes them: one list length cannot recover two of them, so there is no .multislider-style listresize, and the storage is allocated exactly columns*rows wide on the control thread before the object is published. Registering the parameter callbacks therefore makes a live SetParams replace the object rather than resize it under the audio thread, which is the honest answer for a change that alters what every cell index means. A float dimension is truncated; anything that is not a whole finite number is ignored and leaves that default in place. The cell values are not parameters and do not survive a save - GetGuiValue() is the form a host stores them in, and inlet 0 takes it straight back.",
+        "name": "columns",
+        "range": "1-256, optional rows 1-256, optional minimum, optional maximum"
+      }
+    ]
+  },
   ".maximum": {
     "category": "MATH",
     "description": "Sends out the larger of the number received on inlet 0 and a stored comparand, which makes it a .clip whose bound is itself a signal and the natural way to combine two control sources. Inlet 1 sets the comparand without emitting anything; a number on inlet 0 is compared and then forgotten, so the comparand is never moved by the input — that running reading of the idea is .peak, a different object. A bang re-sends the most recent output, and before there has been one that is the 'initial' creation argument (0 by default) rather than silence, since a patch that bangs its objects once on load has to get an answer. A list of two or more numbers is Max's reduction: the numbers are compared with each other and the greatest is sent out, the comparand taking no part, and afterwards the comparand is replaced by the next greatest value in the list — not by the greatest, which would make every later comparison a tie with the value just emitted. Up to 256 items are read; a one-element list is a plain number and compares against the comparand as one. A message with no numbers in it is ignored. Everything is a float and the outlet is a float outlet: Max's int-unless-the-argument-has-a-decimal-point duality is deliberately not reproduced, because '.maximum 5' and '.maximum 5.0' are the same parameter string here and guessing integral would silently round a comparison a patch is using to clamp a gain — put a .round on the outlet instead. A non-finite number is read as 0 wherever it arrives, the convention ./ , .sqrt, .zmap, .clip, .slide and .mean already use, and here it also keeps a stray NaN from losing every comparison while still being the value sent out, and a stray infinity from pinning the outlet for good.",
@@ -4754,6 +4796,62 @@
         "doc": "How many tracks to build, which is also how many inlets and outlets the object gets beyond the leftmost pair. Max: 'if there is no argument, there will be only one track', and 'up to 32 tracks are possible'. Clamped to 1-32, and the clamp is logged. The tapes are allocated at this size once, on the control thread, so the object costs what the argument asked for and never resizes afterwards.",
         "name": "tracks",
         "range": "1-32"
+      }
+    ]
+  },
+  ".multislider": {
+    "category": "GUI",
+    "description": "A bank of values as one object - Max's multislider, 'an array of sliders'. Every other control in the patcher holds one number (.slider a position, .dial a value, .incdec a step, .rslider a pair), and the only way to hold a list today is .l, which is one opaque blob with no way to reach an element. A step sequencer's levels, a graphic EQ's bands, a spectral envelope and a set of voice gains are all N numbers driven and drawn as one control but addressed one at a time. It is deliberately not .table and both stay: .table is dense storage a patch reads and writes by address and saves with the patch, while this is a control surface the host draws and the user drives, whose whole bank leaves as one list on every message and whose state is what GetGuiValue() reports. The one inlet is hot and everything on it emits: a list sets the cells and resizes the bank to the list's length (Max's list method and its listresize attribute), an int or float sets every live cell, a bang re-sends, 'set <index> <value>' writes one cell and 'fetch <index>' sends one cell's value out outlet 1. Max's set and issue #551's cell write are the same message here, which on .rslider they could not be. Outlet 0 carries the whole bank, spelled exactly as the GUI value is spelled and accepted straight back on inlet 0. The number of cells comes from the 'size' argument - Max keeps it in an attribute and the patcher has none, .table's reconciliation - and from any list of a different length; both are one atomic store, because the bank is allocated whole at 1024 cells on the control thread and never resized, so 'size' is a bound and not a capacity. That is what makes a live resize need no lock, no copy and no rebuild: a walk samples the count once and can never index outside memory that exists, and nothing structural depends on N. Values survive a resize in both directions - shrinking hides the tail rather than clearing it, so shortening a sequence and lengthening it again does not cost its steps - and clearing instead would be an O(N) write on whichever thread the resize arrived on, which is the audio thread by both routes. Cells are clamped into the minimum-maximum bounds on the way out as well as in, so a live re-range shows immediately and an untouched '.multislider 4 20 20000' reads back as four 20s. The default count is 8 rather than Max's 1, which only makes sense with listresize doing the shaping. Max's ceiling of 4096 is lowered to 1024: the whole state is emitted as one list, so the send buffer is reserved for the worst case at construction, and the store for arrays past that is .table. Not ported: the silent setters (setlist, select), since a hot inlet here always calculates; the reductions (sum, minimum, maximum, quantiles, normalize), which belong to .zl on a list this object already emits whole; range / setmin / setmax, bounds being creation parameters in this family; and everything about drawing and the mouse, the patcher being headless.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The bank, and the only inlet — everything here emits, which is what a hot inlet in this patcher does. A list of numbers sets the cells from its first 1024 numbers and resizes the bank to how many there were, which is Max's list method plus its 'listresize' attribute; an int or a float sets *every* live cell to that number, Max's int/float method; a bang re-sends. 'set <index> <value>' writes one cell and leaves the rest — Max's own message and issue #551's cell write, which for this object are the same message. 'fetch <index>' sends that cell's value out outlet 1. An index outside the live cells is dropped rather than folded onto a real cell, and every value is clamped into the minimum-maximum bounds. Max's silent forms ('setlist', 'select') are not here, because a hot inlet cannot be silent and the plain list already sets the bank; nor are its reductions ('sum', 'minimum', 'maximum', 'quantiles', 'normalize'), which are operations on the list this object already hands out whole — '.zl' is where list processing lives. 'range' / 'setmin' / 'setmax' are not messages either: bounds are creation parameters in this family, as they are for .dial, .incdec and .rslider.",
+        "index": 0,
+        "label": "bank",
+        "range": "minimum-maximum"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".multislider",
+    "outlets": [
+      {
+        "doc": "The whole bank as one list, in cell order, sent after every message the inlet accepts. It is spelled exactly as GetGuiValue() spells it, so a host reading the state and a patch receiving it downstream cannot disagree about what it says, and it is the string inlet 0 takes straight back (issue #551). One sample of the state is taken at the top of the send, so a cell moved by a message arriving down one of the cords mid-send cannot make the list describe two different banks.",
+        "index": 0,
+        "label": "bank",
+        "range": "minimum-maximum",
+        "type": "LIST"
+      },
+      {
+        "doc": "One cell's value, and only in answer to a 'fetch <index>' — Max's message and Max's right outlet. It is sent from the handler, so it lands *before* the bank does on outlet 0, which is the patcher's right-to-left ordering. A fetch of an index outside the live cells sends nothing, the family's rule for a question with no answer. The index is not echoed with the value: the patch asked for it, so it already knows it.",
+        "index": 1,
+        "label": "cell",
+        "range": "minimum-maximum",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "8",
+        "doc": "How many cells the bank is built with. Max keeps this in its 'size' attribute and the patcher has no attribute mechanism, so it is a parameter - the same reconciliation .table makes. Clamped to 1-1024, the array being allocated whole at 1024 cells once at construction so nothing on a message path ever has to grow it. It is a bound rather than a capacity, which is why a live SetParams rides the wait-free scalar plan (issue #234) and keeps the object and every value in it, and why a list of a different length may change the live count afterwards - Max's listresize, on by default. The parameter is therefore the count the object is *built* with; the live count, like the values, is run-time state and is not saved. The default is 8 rather than Max's 1: Max can default to 1 because listresize reshapes the object from its first list, but a 1-cell multislider written out in a patch is a .slider with a longer name.",
+        "name": "size",
+        "range": "1-1024"
+      },
+      {
+        "default": "0",
+        "doc": "Lowest value any cell can hold.",
+        "name": "minimum",
+        "range": "any float"
+      },
+      {
+        "default": "127",
+        "doc": "Highest value any cell can hold.",
+        "name": "maximum",
+        "range": "any float"
       }
     ]
   },
@@ -6566,6 +6664,73 @@
         "doc": "MIDI channel offset (0-based).",
         "name": "channel",
         "range": "0-15"
+      }
+    ]
+  },
+  ".rslider": {
+    "category": "GUI",
+    "description": "Range control: holds a span rather than a single value, which is what a velocity layer, a key split or a random spread actually is. Each inlet sets one end of the range - the left one emits, the right one stores silently - and a list on the left inlet sets both ends at once, as a bang re-sends them. Neither inlet is the low end: both ends are clamped into the minimum-maximum bounds and reported in order, so the lower of the two always leaves outlet 0 and the higher outlet 1, with the pair as a two-element list on outlet 2. The three fire right to left. The GUI value is the two ends as cells (issue #551): \"low high\" as a whole, and inlet 0 takes that string back verbatim or \"set <index> <value>\" to move one end.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A float or int sets one end of the range; a list sets both ends from its first two numbers; \"set <index> <value>\" moves one end (0 is the low end of the current range, 1 the high end); a bang re-sends. Everything here emits.",
+        "index": 0,
+        "label": "end/range",
+        "range": "minimum-maximum"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Sets the other end of the range and stores it without sending anything out.",
+        "index": 1,
+        "label": "end",
+        "range": "minimum-maximum"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".rslider",
+    "outlets": [
+      {
+        "doc": "The lower of the two ends. Sent last, after outlets 2 and 1.",
+        "index": 0,
+        "label": "low",
+        "range": "minimum-maximum",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The higher of the two ends.",
+        "index": 1,
+        "label": "high",
+        "range": "minimum-maximum",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "Both ends as a two-element list, the lower one first. Sent first.",
+        "index": 2,
+        "label": "range",
+        "range": "minimum-maximum",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Lowest value either end of the range can reach.",
+        "name": "minimum",
+        "range": "any float"
+      },
+      {
+        "default": "127",
+        "doc": "Highest value either end of the range can reach.",
+        "name": "maximum",
+        "range": "any float"
       }
     ]
   },

@@ -114,8 +114,44 @@ namespace YSE {
      */
     unsigned int GetConnectionTargetInlet(unsigned int outlet, unsigned int connection);
 
-    /** @brief Current GUI display value for objects that have one (sliders, toggles, ...). */
+    /** @brief Current GUI state of this object, as one string.
+     *
+     *  For a scalar control (``.slider``, ``.t``, ``.i``, ...) this is the
+     *  value; for a structured one (``.rslider``, ``.multislider``,
+     *  ``.matrixctrl``) it is every cell, space separated, in index order.
+     *  Empty for an object with no GUI state.
+     *
+     *  Host thread, and it may be *destructive*: ``.b`` reports the press it
+     *  is clearing. Poll an object through this call or through
+     *  ``GetGuiValueAt`` once per frame, never both. See the GUI value
+     *  protocol block in ``patcher/pObject.h`` for the full contract.
+     */
     std::string GetGuiValue();
+
+    /** @brief How many cells this object's GUI state has. 1 for a scalar control. */
+    unsigned int GetGuiValueCount();
+
+    /** @brief One cell of the GUI state, or "" past the end.
+     *
+     *  Cell 0 of a scalar control is exactly what ``GetGuiValue`` returns.
+     *  Cells are sampled one call at a time and the read is not atomic across
+     *  them — use ``GetGuiValue`` when a coherent snapshot matters.
+     */
+    std::string GetGuiValueAt(unsigned int index);
+
+    /** @brief Whether this object accepts its own GUI state back on inlet 0.
+     *
+     *  True means the round trip holds: ``SetListData(0, GetGuiValue())``
+     *  restores the state that was read, and ``SetListData(0, "set <index>
+     *  <value>")`` writes a single cell. That is how a preset is restored —
+     *  as ordinary messages on the control thread, never by writing another
+     *  object's state directly.
+     *
+     *  False for the scalar controls that predate the protocol: their inlet 0
+     *  takes an int or a float, not the display string ``GetGuiValue``
+     *  produces.
+     */
+    bool GuiValueIsSettable();
 
   private:
     PATCHER::pObject* object;

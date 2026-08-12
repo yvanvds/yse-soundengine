@@ -73,6 +73,9 @@
 #include "guiObjects/gInt.h"
 #include "guiObjects/gFloat.h"
 #include "guiObjects/gSlider.h"
+#include "guiObjects/gRSlider.h"
+#include "guiObjects/gMultiSlider.h"
+#include "guiObjects/gMatrixCtrl.h"
 #include "guiObjects/gDial.h"
 #include "guiObjects/gIncDec.h"
 #include "guiObjects/gButton.h"
@@ -485,6 +488,17 @@ pRegistry::pRegistry() {
   Add(OBJ::G_INT, gInt::Create);
   Add(OBJ::G_FLOAT, gFloat::Create);
   Add(OBJ::G_SLIDER, gSlider::Create);
+  Add(OBJ::G_RSLIDER, gRSlider::Create);
+  // A bank of values as one control — the shape a step sequencer's levels, a
+  // graphic EQ's bands or a set of voice gains have, and the one the patcher's
+  // point-holding controls and its opaque `.l` between them could not express
+  // (issue #554)
+  Add(OBJ::G_MULTISLIDER, gMultiSlider::Create);
+  // A grid of cell states as one control, addressed and emitted as
+  // `<column> <row> <value>` — the same three numbers `.matrix` and `.router`
+  // take on their control inlet, so the control and the crossbar it drives need
+  // nothing between them (issue #559)
+  Add(OBJ::G_MATRIXCTRL, gMatrixCtrl::Create);
   Add(OBJ::G_DIAL, gDial::Create);
   Add(OBJ::G_INCDEC, gIncDec::Create);
   Add(OBJ::G_BUTTON, gButton::Create);

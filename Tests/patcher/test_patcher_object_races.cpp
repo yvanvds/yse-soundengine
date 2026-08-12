@@ -19,6 +19,14 @@
 //                      the churn test is an AddressSanitizer gate (tests-asan),
 //                      exactly like test_patcher_concurrency.cpp.
 //
+// The GUI-poll half of that hazard is no longer a per-object discovery: since
+// issue #551 the host-thread / audio-thread contract for GUI state is stated
+// once, centrally, in the "GUI value protocol" block in
+// YseEngine/patcher/pObject.h — atomic fields, no locks, read-modify-write in
+// one step, and a poll that may be destructive. gButton below is the case that
+// contract was written from; Tests/patcher/test_patcher_gui_protocol.cpp pins
+// the protocol's shape.
+//
 // The patcher handlers are public (the PATCHER_CLASS macro opens `public:`), so
 // the tests drive them directly from several threads — that is precisely the
 // real hazard: pHandle::Set* run an inlet handler synchronously on the control

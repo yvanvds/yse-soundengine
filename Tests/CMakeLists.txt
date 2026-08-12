@@ -170,6 +170,10 @@ set(YSE_TEST_SOURCES
   patcher/test_dsp_objects.cpp
   patcher/test_generic_objects.cpp
   patcher/test_gui_objects.cpp
+  patcher/test_patcher_gui_protocol.cpp
+  patcher/test_patcher_rslider.cpp
+  patcher/test_patcher_multislider.cpp
+  patcher/test_patcher_matrixctrl.cpp
   patcher/test_doc_coverage.cpp
   patcher/test_c_api_metadata.cpp
   patcher/test_patcher_bus.cpp
@@ -1133,6 +1137,10 @@ set_source_files_properties(
   patcher/test_dsp_objects.cpp
   patcher/test_generic_objects.cpp
   patcher/test_gui_objects.cpp
+  patcher/test_patcher_gui_protocol.cpp
+  patcher/test_patcher_rslider.cpp
+  patcher/test_patcher_multislider.cpp
+  patcher/test_patcher_matrixctrl.cpp
   patcher/test_doc_coverage.cpp
   patcher/test_c_api_metadata.cpp
   patcher/test_patcher_bus.cpp

@@ -184,7 +184,10 @@ set(YSE_SRCS
   patcher/guiObjects/gIncDec.cpp
   patcher/guiObjects/gInt.cpp
   patcher/guiObjects/gList.cpp
+  patcher/guiObjects/gMatrixCtrl.cpp
   patcher/guiObjects/gMessage.cpp
+  patcher/guiObjects/gMultiSlider.cpp
+  patcher/guiObjects/gRSlider.cpp
   patcher/guiObjects/gSlider.cpp
   patcher/guiObjects/gText.cpp
   patcher/guiObjects/gToggle.cpp
@@ -502,7 +505,10 @@ set_source_files_properties(
   patcher/guiObjects/gIncDec.cpp
   patcher/guiObjects/gInt.cpp
   patcher/guiObjects/gList.cpp
+  patcher/guiObjects/gMatrixCtrl.cpp
   patcher/guiObjects/gMessage.cpp
+  patcher/guiObjects/gMultiSlider.cpp
+  patcher/guiObjects/gRSlider.cpp
   patcher/guiObjects/gSlider.cpp
   patcher/guiObjects/gText.cpp
   patcher/guiObjects/gToggle.cpp

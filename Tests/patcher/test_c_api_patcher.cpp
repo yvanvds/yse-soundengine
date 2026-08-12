@@ -382,6 +382,50 @@ TEST_SUITE("capilowcov") {
     yse_patcher_destroy(p);
   }
 
+  TEST_CASE("c-api phandle: the GUI value protocol's cell form mirrors the engine") {
+    // Issue #551. `.i` is a scalar control, so it is the one-cell case: it
+    // reports one cell, cell 0 is exactly the whole-state read, everything
+    // past the end is empty, and it does not claim the write round trip its
+    // int-only inlet cannot honour.
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    YsePHandle* h = yse_patcher_create_object(p, kInt, "7");
+    REQUIRE(h != nullptr);
+    yse_phandle_set_int(h, 0, 42);
+
+    CHECK(yse_phandle_get_gui_value_count(h) == 1u);
+    CHECK(yse_phandle_gui_value_is_settable(h) == 0);
+
+    const std::string whole =
+        readString([h](char* b, size_t c) { return yse_phandle_get_gui_value(h, b, c); });
+    const std::string cell0 =
+        readString([h](char* b, size_t c) { return yse_phandle_get_gui_value_at(h, 0, b, c); });
+    CHECK(cell0 == whole);
+    CHECK(cell0 == "42");
+    CHECK(cell0.size() == yse_phandle_get_gui_value_at(h, 0, nullptr, 0));
+
+    // Past the end is empty rather than the value again — the count can shrink
+    // under a live set_params between a host's count read and its cell reads.
+    char buf[16];
+    buf[0] = 'x';
+    CHECK(yse_phandle_get_gui_value_at(h, 1, buf, sizeof(buf)) == 0u);
+    CHECK(buf[0] == '\0');
+    CHECK(yse_phandle_get_gui_value_at(h, 4000000u, nullptr, 0) == 0u);
+
+    // NULL is a no-object answer, not a one-cell one: a host looping to the
+    // count must be handed nothing to read.
+    CHECK(yse_phandle_get_gui_value_count(nullptr) == 0u);
+    CHECK(yse_phandle_gui_value_is_settable(nullptr) == 0);
+    buf[0] = 'x';
+    CHECK(yse_phandle_get_gui_value_at(nullptr, 0, buf, sizeof(buf)) == 0u);
+    CHECK(buf[0] == '\0');
+    CHECK(yse_phandle_get_gui_value_at(nullptr, 0, nullptr, 0) == 0u);
+
+    yse_patcher_destroy(p);
+  }
+
   TEST_CASE("c-api phandle: truncation still NUL-terminates and reports the full length") {
     YsePatcher* p = yse_patcher_create();
     REQUIRE(p != nullptr);

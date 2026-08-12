@@ -270,10 +270,124 @@ namespace YSE {
         return DSP;
       }
 
+      // Editor decoration — geometry, colour, anything the host wants
+      // persisted alongside the patch. Opaque to the engine, serialised under
+      // the "gui" key by DumpJson, control thread only. Deliberately *not*
+      // where live control state lives: see the GUI value protocol below.
       std::string GetGuiProperty(const std::string& key);
       void SetGuiProperty(const std::string& key, const std::string& value);
+
+      // ─── GUI value protocol (issue #551) ────────────────────────────────
+      //
+      // What a host polls to draw an object, and what `.preset` reads and
+      // pushes back. Stated here, once, because every GUI object implements
+      // it and because the structured controls (`.rslider`, `.multislider`,
+      // `.matrixctrl`, `.function`) cannot be built until it is settled.
+      //
+      // SHAPE — GUI state is a list of string cells.
+      //
+      //   GetGuiValue()        The whole state as one string. For a scalar
+      //                        control that is the value; for a structured
+      //                        one it is every cell, space separated, in
+      //                        index order. One call, one allocation — this
+      //                        is the bulk read a host uses to refresh a
+      //                        whole widget, and the form `.preset` stores.
+      //   GetGuiValueCount()   How many cells the object has. 1 unless
+      //                        overridden.
+      //   GetGuiValueAt(i)     Cell i, and "" past the end. The default *is*
+      //                        GetGuiValue() at index 0, so every object that
+      //                        predates this protocol answers exactly what it
+      //                        always answered — by construction, not by
+      //                        copied code. This is the targeted read, so a
+      //                        host repainting one cell of a 16x16 matrix
+      //                        does not re-parse the whole state.
+      //   GuiValueIsSettable() Whether the write half below holds.
+      //
+      // Cells are strings rather than a typed payload because the controls
+      // that need this share no element type — `.rslider` a float pair,
+      // `.multislider` floats, `.matrixctrl` cell states, `.function`
+      // breakpoint pairs — and because it keeps the C ABI at one string-copy
+      // call per read instead of a family of typed array accessors, each
+      // with array-ownership rules of its own.
+      //
+      // Deliberately *not* guiProperties. That map is editor decoration
+      // written by the host and serialised with the patch; it is a plain
+      // std::map with no synchronisation of its own, so live control state —
+      // which the audio thread writes — cannot live in it.
+      //
+      // WRITE — there is no GUI-value setter, and there will not be one.
+      //
+      // State goes *into* an object the way every other value does: as a
+      // message through an inlet, on the control thread, via
+      // pHandle::SetListData / SetFloatData / SetIntData / SetBang, or from
+      // inside the patch down a cord. `.preset` restores a patch by sending
+      // each object its stored string and never by reaching into another
+      // object's fields — which would race the audio thread and skip every
+      // clamp, side effect and outlet send the object's own inlet handler
+      // performs.
+      //
+      // An object that answers true to GuiValueIsSettable() promises the
+      // round trip that makes that usable:
+      //
+      //   * inlet 0 accepts, as a list, the exact string GetGuiValue()
+      //     produced, and restores the state it described;
+      //   * inlet 0 also accepts "set <index> <value>" to write one cell.
+      //
+      // The "set" keyword is what disambiguates the two, and it is why the
+      // cell form is not the bare "<index> <value>" it would like to be: a
+      // two-cell control such as `.rslider` cannot otherwise tell the whole
+      // state "0 1" from "cell 0 := 1". A leading token no numeric cell can
+      // ever hold settles it for every arity at once.
+      //
+      // What the object does *besides* storing the value is its own
+      // business — whether a restore also emits on its outlet is a
+      // per-object decision, not part of this protocol.
+      //
+      // False by default, and false for every object that predates this
+      // protocol: their inlet 0 takes an int or a float rather than the
+      // display string GetGuiValue() hands back (`.t` reports "on"/"off",
+      // `.b` reports "on" for a press it has just consumed), so claiming the
+      // round trip would be a lie. Opting one of them in is a per-object
+      // migration and belongs with the object that needs it.
+      //
+      // THREADS — the contract every implementation is bound by.
+      //
+      // All four are polled from the *host* thread while Calculate() runs on
+      // the audio thread. Therefore:
+      //
+      //  - Every field they touch is written concurrently and must be atomic
+      //    (or otherwise wait-free). None of them takes a lock: the host
+      //    polls every frame and the audio thread must never wait on a
+      //    repaint.
+      //  - A read-modify-write is one step. gButton's poll clears the press
+      //    it reports; written as a load and then a store it dropped a press
+      //    that landed in between (issue #197) — hence exchange().
+      //  - A poll may therefore be destructive, and reads are not
+      //    idempotent. Poll a given object through one of the two forms per
+      //    frame — the bulk read *or* the per-cell reads — never both, or a
+      //    consume-on-read object reports its event to one and not the other.
+      //  - A multi-cell read is not atomic across cells. The count and the
+      //    cells are sampled one call at a time, so a host can see cell 3
+      //    from before an edit and cell 4 from after it, and can see a count
+      //    a live SetParams has already changed. A torn *frame* is fine for a
+      //    repaint; a torn *access* is not, so an override of GetGuiValueAt
+      //    range-checks against the count it reads now and answers "" rather
+      //    than indexing. A host that needs a coherent snapshot uses the bulk
+      //    read, which is one call.
+      //
+      // Tests/patcher/test_patcher_object_races.cpp exercises the thread
+      // contract; Tests/patcher/test_patcher_gui_protocol.cpp pins the shape.
       virtual std::string GetGuiValue() {
         return "";
+      }
+      virtual unsigned int GetGuiValueCount() const {
+        return 1;
+      }
+      virtual std::string GetGuiValueAt(unsigned int index) {
+        return index == 0 ? GetGuiValue() : std::string();
+      }
+      virtual bool GuiValueIsSettable() const {
+        return false;
       }
 
       // Storage ID — the number this object is written as by DumpJson, and the
@@ -546,6 +660,22 @@ namespace YSE {
 
 #define _HAS_GUI std::string GetGuiValue() override;
 #define GUI_VALUE() std::string className::GetGuiValue()
+
+// Structured GUI state (issue #551) — the multi-cell form of _HAS_GUI. Declares
+// the whole-state read, the cell count and the per-cell read, and asserts the
+// write half of the protocol, so an object that uses this macro *must* register
+// a list handler on inlet 0 that accepts both the string GetGuiValue() produced
+// and "set <index> <value>" for one cell. Read the GUI value protocol block above
+// before writing one; the thread contract there is not optional.
+#define _HAS_GUI_CELLS                                                                             \
+  std::string GetGuiValue() override;                                                              \
+  unsigned int GetGuiValueCount() const override;                                                  \
+  std::string GetGuiValueAt(unsigned int index) override;                                          \
+  bool GuiValueIsSettable() const override {                                                       \
+    return true;                                                                                   \
+  }
+#define GUI_VALUE_COUNT() unsigned int className::GetGuiValueCount() const
+#define GUI_VALUE_AT() std::string className::GetGuiValueAt(unsigned int index)
 
 #define CONSTRUCT_DSP() className::className() : pObject(true)
 #define CONSTRUCT() className::className() : pObject(false)
