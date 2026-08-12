@@ -571,37 +571,91 @@ TEST_SUITE("patcher") {
     // into a MAX_CELLS-wide stack buffer. The counter is read inside the scope
     // and asserted outside it, since doctest's own machinery allocates on first
     // use.
+    //
+    // **The messages are built as strings before the scope opens, never passed
+    // as literals inside it**, and that is not tidiness. `inlet::SetList` takes
+    // a `const std::string&`, so a literal at the call site materialises a
+    // temporary — which is a heap allocation whenever the text is longer than
+    // the implementation's small-string buffer, and that buffer is *not* the
+    // same width everywhere: 15 characters on libstdc++, 22 on libc++. A
+    // 17-character list literal therefore costs nothing on the Windows/libc++
+    // build and one allocation on the Linux/libstdc++ one, which is a probe
+    // that passes locally and fails in CI while the object under test is
+    // innocent. Hoisting the strings removes the test rig from the measurement
+    // so the count is the object's alone.
+    //
+    // One of them is deliberately longer than *both* buffers, so the bank is
+    // driven from a genuinely heap-backed input on every platform rather than
+    // only from small-string ones.
+    //
+    // The second thing the warm-up must not do is **drive the bank as wide as
+    // the probe will**. `listText` is reserved at construction precisely so the
+    // send never grows it; but a warm-up that has already sent a 64-cell list
+    // has grown that buffer anyway, and the probe then measures nothing — it
+    // passes with the constructor's `reserve` deleted, which was true of the
+    // first version of this case. So the warm-up stops at 8 cells, the probe
+    // sends 64, and the sink's own buffer is sized independently through the
+    // sink's inlet rather than by driving the bank wide.
+    const std::string warmShort = "10 20 30 40";
+    const std::string warmLong = "11 21 31 41 51 61 71 81";
+    const std::string warmSet = "set 1 30";
+    const std::string warmFetch = "fetch 1";
+    const std::string listShort = "12 22 32 42";
+    const std::string listLong = "13 23 33 43 53 63 73 83"; // 23 chars: past both buffers
+    const std::string cellWrite = "set 0 12";
+    const std::string cellRead = "fetch 0";
+
+    // 64 two-digit cells — eight times the widest bank the warm-up sends.
+    std::string listWide;
+    for (int i = 0; i < 64; i++) {
+      if (i > 0) listWide.push_back(' ');
+      listWide += "42";
+    }
+
     MultiSink bankSink, cellSink;
     gMultiSlider bank;
     bank.SetParams("4 0 127");
     TestHelpers::Wire(bank, 0, bankSink);
     TestHelpers::Wire(bank, 1, cellSink);
 
-    // Warm every path — and the sinks' own buffers, at the longest length the
-    // probe below will send them.
-    bank.GetInlet(0)->SetList("10 20 30 40", YSE::T_GUI);
-    bank.GetInlet(0)->SetList("11 21 31 41 51 61", YSE::T_GUI);
-    bank.GetInlet(0)->SetList("set 1 30", YSE::T_GUI);
-    bank.GetInlet(0)->SetList("fetch 1", YSE::T_GUI);
+    // Warm every path, but only up to 8 cells — see above.
+    bank.GetInlet(0)->SetList(warmShort, YSE::T_GUI);
+    bank.GetInlet(0)->SetList(warmLong, YSE::T_GUI);
+    bank.GetInlet(0)->SetList(warmSet, YSE::T_GUI);
+    bank.GetInlet(0)->SetList(warmFetch, YSE::T_GUI);
     bank.GetInlet(0)->SetFloat(5.f, YSE::T_GUI);
     bank.GetInlet(0)->SetInt(6, YSE::T_GUI);
     bank.GetInlet(0)->SetBang(YSE::T_GUI);
     REQUIRE(bankSink.gotList);
     REQUIRE(cellSink.gotFloat);
 
+    // Size the sink's own buffer for the widest render the probe will produce,
+    // through the sink's inlet rather than by driving the bank that wide — the
+    // rig must not be what the probe catches, and it must not warm the object's
+    // send buffer on the way. 64 cells render as "42." plus a separator each.
+    const std::string sinkWarm(64 * 4, 'x');
+    bankSink.GetInlet(0)->SetList(sinkWarm, YSE::T_GUI);
+    REQUIRE(sinkWarm.size() > (std::size_t)(64 * 3 + 63));
+
     int count = -1;
     {
       TestHelpers::ProbeScope probe;
-      bank.GetInlet(0)->SetList("12 22 32 42", YSE::T_GUI);
-      bank.GetInlet(0)->SetList("13 23 33 43 53 63", YSE::T_GUI);
-      bank.GetInlet(0)->SetList("set 0 12", YSE::T_GUI);
-      bank.GetInlet(0)->SetList("fetch 0", YSE::T_GUI);
+      bank.GetInlet(0)->SetList(listShort, YSE::T_GUI);
+      bank.GetInlet(0)->SetList(listLong, YSE::T_GUI);
+      bank.GetInlet(0)->SetList(cellWrite, YSE::T_GUI);
+      bank.GetInlet(0)->SetList(cellRead, YSE::T_GUI);
       bank.GetInlet(0)->SetFloat(7.f, YSE::T_GUI);
       bank.GetInlet(0)->SetInt(8, YSE::T_GUI);
       bank.GetInlet(0)->SetBang(YSE::T_GUI);
+      // The one the constructor's reserve exists for: eight times wider than
+      // anything the warm-up sent, so an unreserved send buffer has to grow.
+      bank.GetInlet(0)->SetList(listWide, YSE::T_GUI);
       count = TestHelpers::g_alloc_count.load();
     }
     CHECK(count == 0);
+    // The wide send really did happen, so the zero above is not a vacuous pass.
+    CHECK(bank.Cells() == 64u);
+    CHECK(bankSink.listValue == Repeated(42.f, 64));
   }
 
 } // TEST_SUITE("patcher")
