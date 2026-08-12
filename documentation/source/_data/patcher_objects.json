@@ -3259,6 +3259,83 @@
       }
     ]
   },
+  ".incdec": {
+    "category": "GUI",
+    "description": "Stepper: increments and decrements a stored whole number by a settable step, inside settable bounds. Max's 'incdec', the pair of arrows over a number, and the control for anything nudged rather than swept — transpose, octave, preset slot, bar count. It is deliberately not '.counter' with more parameters, because a bang means the opposite thing on the two objects: '.counter' steps on a bang, which is what makes it the thing behind a '.metro', while this one emits the stored value on a bang and moves only when an arrow is clicked. The left inlet is Max's: bang reads, an int or float sets without emitting, and the words 'inc', 'dec' and 'set <n>' step up, step down and set. The middle inlet is those arrows on a cord — an int moves that many steps, signed, and emits — and the right inlet sets the step size live. The minimum and maximum are taken as an ordered pair, so limits given the wrong way round still bound against the right two numbers, and 'wrap' chooses what happens at the end of the range: 0 clamps against it, 1 carries around to the other side. The wrapped range is inclusive at both ends — one past the maximum is the minimum — because this is a stepper over whole numbers and 11 stepping to 0 is what a twelve-note pitch class does. The default range is the whole int range, so an object with no arguments is unbounded and saturates rather than overflowing at the ends. The value is bounded on the way out as well as on the way in, so a re-range takes effect at once and a stepper created over 60-72 reads back as 60 rather than as the 0 it was born with; with wrap on, that untouched start lands wherever the wrap puts it, so place it with 'set' if the starting point matters. All the arithmetic runs in 64 bits and is bounded back into an int before it leaves, so no step, set or range can overflow. The GUI value is the stored value. Nothing on any message path allocates, locks or blocks on I/O, and Calculate() does nothing — this object sends from its handlers, which is what lets a set stay silent while a bang emits.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The value, and Max's grammar for it. A bang emits the stored value without moving it — the arrows move it, so a bang is a read. An int or a float sets the value and emits nothing, Max being explicit that the number arriving here 'is not output directly'; that is what lets a '.loadmess' or a preset place the stepper without firing everything downstream. A float is truncated, as it is everywhere in Max. Three words are commands rather than numbers: 'inc' and 'dec' step up and down by the step size and emit the result, and 'set <n>' is the int message spelled out. A list whose first token is a number is that number, so a stepper can be set from anything that emits a list. Whatever arrives, the value that ends up stored is inside the range.",
+        "index": 0,
+        "label": "value",
+        "range": "any int, 'inc', 'dec', 'set <n>'"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The two arrows on a cord. An int 'n' moves n steps — positive up, negative down — and emits the result, so a MIDI encoder that sends +1 and -1 drives the stepper with one connection and no message boxes. 0 moves nothing and still emits, which makes it a read exactly like a bang on the left inlet. A float is truncated first, and a list whose first token is a number is that number.",
+        "index": 1,
+        "label": "nudge",
+        "range": "any int"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Sets the step size live, as '.counter''s right inlet does — the coarse/fine pair a performance surface wants. A negative step swaps the arrows: 'inc' then goes down. A step of 0 leaves the value where it is, and the object still emits it. A float is truncated.",
+        "index": 2,
+        "label": "step",
+        "range": "any int"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".incdec",
+    "outlets": [
+      {
+        "doc": "The stored value, sent whenever the stepper moves or is read. Always inside the minimum-maximum range.",
+        "index": 0,
+        "label": "out",
+        "range": "minimum-maximum",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "Amount one step moves the value; a negative step swaps the arrows.",
+        "name": "step",
+        "range": "any int"
+      },
+      {
+        "default": "-2147483648",
+        "doc": "Bottom of the range.",
+        "name": "minimum",
+        "range": "any int"
+      },
+      {
+        "default": "2147483647",
+        "doc": "Top of the range.",
+        "name": "maximum",
+        "range": "any int"
+      },
+      {
+        "default": "0",
+        "doc": "0 clamps at the ends of the range, 1 wraps around to the other end.",
+        "name": "wrap",
+        "range": "0 or 1"
+      }
+    ]
+  },
   ".iter": {
     "category": "GENERIC",
     "description": "Sends the items of a list out one at a time — Max's iter, which 'unpacks and outputs list contents one element at a time'. It is the list family's serialiser: everything else here answers a list with a list, .zl by rearranging one and .unpack and .unjoin by fanning one out across a fixed set of outlets, while this turns a list of unknown length into a stream of individual messages down a single cord. That is what makes ordinary scalar objects — a .i, a .+, a .mtof, a .coll — usable per element, and it is why the object needs to know nothing about the list it is given where a .unpack 0 0 0 has to be told the shape up front. With .uzi it is the patcher's second iteration primitive, and the two iterate over different things: .uzi counts, driving a loop whose body reads an index, while this walks the data it was handed. Items leave first to last, and each send completes in full — the whole subgraph behind the outlet, depth first — before the next item is sent, because the patcher's send path calls the target inlet directly with no queue in between; that is what makes the object a serialiser rather than a scatter. A bang re-sends the message most recently received, which is why the object holds a list at all rather than passing straight through, and a bang before anything has arrived sends nothing rather than an empty message. An int or a float is a one-item list, as everywhere in this family, and anything is a list, so there is no message word to strip. Each item leaves as the int, float or symbol it spells rather than as a list of one, so it reaches the inlets an uncollected value would have reached; nothing is coerced. One arriving message becomes as many messages as the list is long, all inside the call frame of the one send that started it, so the object's cost is bounded by the same number that bounds its storage: at most 256 items, and so at most 256 sends, per stimulus. The number worth knowing beside it is that the patcher's value-command queue is 256 deep, so a full-length .iter feeding a .s from the control thread can saturate it in one burst and hit its documented drop-and-log backpressure — the same caution .uzi records, and a reason to keep bursts that cross the send/receive boundary short. The arriving list is read into the bounded pre-allocated storage the whole list family shares: at most 256 items spanning at most 1024 characters between them, in memory reserved when the object is built. A list too long for it loses its tail, which is counted, and its head is iterated — the surplus here is input the patch has just sent rather than state the object was holding, which is why it is not refused whole the way .join's store is, and the count is a counter rather than a log line because the refusing thread may be the audio callback. There are no creation arguments, Max documents none, and so nothing to re-parse: the object has a fixed shape and its only bound is the shared one. Calculate() does nothing and no message path allocates, locks or blocks: numbers are rendered into a stack buffer, the list is collected into storage reserved at construction, and the sends render into a buffer reserved at the same time. Two threads sending to the same object are serialised by a single test-and-set guard whose loser is dropped and counted rather than made to spin. That guard is held across the whole walk on purpose: this object emits in a loop, so a cord from its outlet back to its inlet re-enters the handler from inside the walk, and letting that through would both restart an iteration that never terminates and rewrite the list being walked. The returning message is refused and counted, exactly as .uzi refuses a re-entrant start.",

@@ -161,6 +161,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_borax.cpp
   patcher/test_patcher_offer.cpp
   patcher/test_patcher_dial.cpp
+  patcher/test_patcher_incdec.cpp
   patcher/test_patcher_print.cpp
   patcher/test_patcher_loadbang.cpp
   patcher/test_patcher_teardown.cpp
@@ -1122,6 +1123,7 @@ set_source_files_properties(
   patcher/test_patcher_borax.cpp
   patcher/test_patcher_offer.cpp
   patcher/test_patcher_dial.cpp
+  patcher/test_patcher_incdec.cpp
   patcher/test_patcher_print.cpp
   patcher/test_patcher_loadbang.cpp
   patcher/test_patcher_teardown.cpp

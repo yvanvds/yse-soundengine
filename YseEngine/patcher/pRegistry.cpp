@@ -69,6 +69,7 @@
 #include "guiObjects/gFloat.h"
 #include "guiObjects/gSlider.h"
 #include "guiObjects/gDial.h"
+#include "guiObjects/gIncDec.h"
 #include "guiObjects/gButton.h"
 #include "guiObjects/gToggle.h"
 #include "guiObjects/gMessage.h"
@@ -471,6 +472,7 @@ pRegistry::pRegistry() {
   Add(OBJ::G_FLOAT, gFloat::Create);
   Add(OBJ::G_SLIDER, gSlider::Create);
   Add(OBJ::G_DIAL, gDial::Create);
+  Add(OBJ::G_INCDEC, gIncDec::Create);
   Add(OBJ::G_BUTTON, gButton::Create);
   Add(OBJ::G_TOGGLE, gToggle::Create);
   Add(OBJ::G_MESSAGE, gMessage::Create);
