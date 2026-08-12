@@ -75,6 +75,7 @@
 #include "guiObjects/gSlider.h"
 #include "guiObjects/gRSlider.h"
 #include "guiObjects/gMultiSlider.h"
+#include "guiObjects/gMatrixCtrl.h"
 #include "guiObjects/gDial.h"
 #include "guiObjects/gIncDec.h"
 #include "guiObjects/gButton.h"
@@ -493,6 +494,11 @@ pRegistry::pRegistry() {
   // point-holding controls and its opaque `.l` between them could not express
   // (issue #554)
   Add(OBJ::G_MULTISLIDER, gMultiSlider::Create);
+  // A grid of cell states as one control, addressed and emitted as
+  // `<column> <row> <value>` — the same three numbers `.matrix` and `.router`
+  // take on their control inlet, so the control and the crossbar it drives need
+  // nothing between them (issue #559)
+  Add(OBJ::G_MATRIXCTRL, gMatrixCtrl::Create);
   Add(OBJ::G_DIAL, gDial::Create);
   Add(OBJ::G_INCDEC, gIncDec::Create);
   Add(OBJ::G_BUTTON, gButton::Create);
