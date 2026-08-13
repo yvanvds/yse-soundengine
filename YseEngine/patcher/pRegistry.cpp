@@ -28,6 +28,12 @@
 #include "genericObjects/gArray.h"
 #include "genericObjects/gColl.h"
 #include "genericObjects/gDict.h"
+#include "genericObjects/gDictCompare.h"
+#include "genericObjects/gDictGroup.h"
+#include "genericObjects/gDictIter.h"
+#include "genericObjects/gDictJoin.h"
+#include "genericObjects/gDictPack.h"
+#include "genericObjects/gDictPrint.h"
 #include "genericObjects/gPrint.h"
 // `.loadbang` / `.loadmess` (issue #547): the pair that lets a saved patch
 // describe its own starting state, fired by patcherImplementation's post-publish
@@ -433,6 +439,40 @@ pRegistry::pRegistry() {
   // written against: addressed by name, resolved on the control thread, never
   // passed down a cord (issue #550)
   Add(OBJ::G_DICT, gDict::Create);
+
+  // The first dict.* operation written against that model: compares the two
+  // dictionaries bound by its creation arguments and reports whether they hold
+  // the same entries — "did anything change?" without diffing key by key
+  // (issue #770)
+  Add(OBJ::G_DICT_COMPARE, gDictCompare::Create);
+
+  // Groups the source dictionary's entries by a value into the target —
+  // "<groupValue>::<originalPath>", the dictionary of dictionaries the flat
+  // store expresses as a path prefix; both bound by creation argument
+  // (issue #772)
+  Add(OBJ::G_DICT_GROUP, gDictGroup::Create);
+
+  // Streams the bound dictionary's entries one "<path> <value...>" list at a
+  // time, then a done bang — the .uzi/.iter shape applied to structured
+  // data; the walk is a snapshot taken at the trigger (issue #773)
+  Add(OBJ::G_DICT_ITER, gDictIter::Create);
+
+  // Merges two dictionaries into one — the left overlaid by the right, the
+  // right overwriting on a colliding key path, the result replacing the
+  // bound target whole (issue #774)
+  Add(OBJ::G_DICT_JOIN, gDictJoin::Create);
+
+  // Builds a dictionary from a list of named inlets — the dictionary
+  // counterpart of .pack, with its hot/cold rule: the bound dictionary is
+  // replaced whole with one entry per key-path argument and its reference
+  // sent on, the unit the rest of the dict.* family consumes (issue #775)
+  Add(OBJ::G_DICT_PACK, gDictPack::Create);
+
+  // Prints the bound dictionary to the engine log as a nested multi-line
+  // JSON document, through .print's lock-free on-ramp — the debugging
+  // instrument for structured data, which no sink can otherwise see
+  // (issue #776)
+  Add(OBJ::G_DICT_PRINT, gDictPrint::Create);
 
   // An ordered, index-addressed sequence shared by name — the collection type a
   // generative patch actually reaches for, and the value model the array.*

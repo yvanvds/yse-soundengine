@@ -2692,6 +2692,284 @@
       }
     ]
   },
+  ".dict.compare": {
+    "category": "GENERIC",
+    "description": "Compares two dictionaries — Max's dict.compare on the name-addressed value model .dict settled: both dictionaries are bound from the creation arguments, \".dict.compare <left> <right>\", because a dictionary is addressed by name and never passed down a cord. A bang, or the left dictionary's reference message \"dictionary <name>\", sends 1 when the two hold the same entries and 0 when they do not — the same number of entries and every key path present in both with identical value text, storage order ignored. The comparison answers \"did anything change?\" without diffing key by key: a patch that keeps a dictionary of live parameters compares the preset it just loaded against what is running.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang compares the two bound dictionaries and sends the verdict out the outlet. \"dictionary <name>\" does the same when it names the left dictionary bound by the first creation argument — the message a .dict's reference outlet emits on a bang, so wiring that outlet here gives Max's own gesture. A reference naming anything else, or any other message, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "compare",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"dictionary <name>\" is accepted silently when it names the right dictionary bound by the second creation argument, so a patch may wire both reference outlets across as it would in Max. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 1,
+        "label": "right reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".dict.compare",
+    "outlets": [
+      {
+        "doc": "The verdict: 1 when the two dictionaries hold the same entries — the same number of them, every key path present in both with identical value text, storage order ignored — and 0 when they do not.",
+        "index": 0,
+        "label": "equal",
+        "range": "0 or 1",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The left dictionary's shared name, addressed as \"<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty compares a private, empty dictionary.",
+        "name": "left",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The right dictionary's shared name, bound exactly as the left one. Empty compares a private, empty dictionary.",
+        "name": "right",
+        "range": "any identifier"
+      }
+    ]
+  },
+  ".dict.group": {
+    "category": "GENERIC",
+    "description": "Groups a dictionary's entries by a value — Max's dict.group on the name-addressed value model .dict settled: both dictionaries are bound from the creation arguments, \".dict.group <source> <target> [<key>]\", because a dictionary is addressed by name and never passed down a cord. A bang, or the source dictionary's reference message \"dictionary <name>\", replaces the target with the grouped entries, each written as \"<groupValue>::<originalPath>\" — the dictionary of dictionaries the flat store expresses as a path prefix. With a <key> the source is read as a table of records (the first path segment names the record) and each entry groups under the value its record stores at that key; without one each entry groups under its own value, turning a flat table into an index. An entry without a group, or one whose composed path outgrows the 128-character key capacity, is refused whole and counted rather than truncated.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang groups the source dictionary's entries into the target and sends the target's reference out the outlet. \"dictionary <name>\" does the same when it names the source dictionary bound by the first creation argument — the message a .dict's reference outlet emits on a bang, so wiring that outlet here gives Max's own gesture. A reference naming anything else, or any other message, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "group",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"dictionary <name>\" is accepted silently when it names the target dictionary bound by the second creation argument, so a patch may wire the target's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 1,
+        "label": "target reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".dict.group",
+    "outlets": [
+      {
+        "doc": "\"dictionary <target>\" after a grouping — the reference the dict.* family binds, carrying the local name so the receiving object prefixes it with its own patcher's name. Silent for an unnamed target, which has no name to pass on.",
+        "index": 0,
+        "label": "reference",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The source dictionary's shared name, addressed as \"<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty groups a private, empty dictionary.",
+        "name": "source",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The target dictionary's shared name, bound exactly as the source. A grouping replaces its contents whole. The result goes into a bound dictionary rather than a new anonymous one because there is no way to hand a fresh dictionary's identity down a cord.",
+        "name": "target",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The key each record's group is read from: with \"instrument\" every \"<record>::...\" entry groups under the value at \"<record>::instrument\", and a record without that entry is skipped and counted. Empty groups each entry by its own value instead, turning a flat table into an index.",
+        "name": "key",
+        "range": "any key path segment"
+      }
+    ]
+  },
+  ".dict.iter": {
+    "category": "GENERIC",
+    "description": "Outputs a dictionary's key/value pairs one at a time — Max's dict.iter, whose summary is 'stream the content of a dictionary', on the name-addressed value model .dict settled: the dictionary is bound from the creation argument, \".dict.iter <name>\", because a dictionary is addressed by name and never passed down a cord. A bang, or the dictionary's reference message \"dictionary <name>\", emits one \"<path> <value...>\" list per entry in storage order out the pair outlet, then a bang out the done outlet — the .uzi/.iter shape applied to structured data, and the object every 'do this for each entry' patch is built from. Paths are whole \"::\" paths, so what leaves here feeds .route, .zl and a set-building .prepend unchanged. The walk is a snapshot of the dictionary as it stood at the trigger: a set or delete arriving mid-walk changes the dictionary but never the walk in flight, and two .dict.iter on one name walk independently. A trigger arriving mid-walk is refused and counted, as .uzi refuses a re-entrant start.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang walks the bound dictionary: one \"<path> <value...>\" list per entry out the pair outlet, in storage order, then one bang out the done outlet. \"dictionary <name>\" does the same when it names the dictionary bound by the creation argument — the message a .dict's reference outlet emits on a bang, so wiring that outlet here gives Max's own gesture. A reference naming anything else, any other message, or a trigger arriving while a walk is already running — a cord looped back from an outlet, or another thread — is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "walk",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".dict.iter",
+    "outlets": [
+      {
+        "doc": "One entry per send: the whole \"::\" path followed by the stored value's tokens, in storage order — the order paths were first written. An entry holding nothing leaves as its path alone. The walk is a snapshot of the dictionary as it stood at the trigger, so a set or delete arriving mid-walk — including from this outlet's own subgraph — changes the dictionary but not the walk in flight: every entry held at the trigger is emitted exactly once. Each send completes in full, the whole subgraph behind this outlet, before the next pair leaves — up to 256 sends per trigger, on whichever thread sent it.",
+        "index": 0,
+        "label": "pair",
+        "range": "",
+        "type": "LIST"
+      },
+      {
+        "doc": "Bang after the last pair — 'all the pairs have been sent', the exception to right-to-left that Max states for uzi's carry. It fires even for an empty dictionary, so the 'and afterwards, do this' branch is never silently skipped; a refused walk emits no done bang.",
+        "index": 1,
+        "label": "done",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The dictionary's shared name, addressed as \"<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty walks a private, empty dictionary: no pairs, just the done bang.",
+        "name": "name",
+        "range": "any identifier"
+      }
+    ]
+  },
+  ".dict.join": {
+    "category": "GENERIC",
+    "description": "Merges two dictionaries into one — Max's dict.join on the name-addressed value model .dict settled: all three dictionaries are bound from the creation arguments, \".dict.join <left> <right> <target>\", because a dictionary is addressed by name and never passed down a cord. A bang, or the left dictionary's reference message \"dictionary <name>\", replaces the target with the left dictionary's entries overlaid by the right's — on a colliding key path the right dictionary overwrites the left, Max's own rule, so the left argument is the base and the right the override. Layering a preset over a base is the use case: both sources survive the join, and \".dict.join a b a\" spells the in-place merge when a patch wants one. A join past the 256-entry capacity is refused entry by entry and counted rather than truncated, so a partial merge is possible — whatever fits, left entries first, is the result.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang joins the two bound dictionaries into the target and sends the target's reference out the outlet. \"dictionary <name>\" does the same when it names the left dictionary bound by the first creation argument — the message a .dict's reference outlet emits on a bang, so wiring that outlet here gives Max's own gesture. A reference naming anything else, or any other message, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "join",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"dictionary <name>\" is accepted silently when it names the right dictionary bound by the second creation argument, so a patch may wire both reference outlets across as it would in Max. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 1,
+        "label": "right reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".dict.join",
+    "outlets": [
+      {
+        "doc": "\"dictionary <target>\" after a join — the reference the dict.* family binds, carrying the local name so the receiving object prefixes it with its own patcher's name. Silent for an unnamed target, which has no name to pass on.",
+        "index": 0,
+        "label": "reference",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The left dictionary's shared name — the base of the join, addressed as \"<patcherName>.<name>\", the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty joins a private, empty dictionary.",
+        "name": "left",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The right dictionary's shared name, bound exactly as the left one — the override: on a colliding key path its value wins. Empty joins a private, empty dictionary.",
+        "name": "right",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The target dictionary's shared name, bound exactly as the sources. A join replaces its contents whole. The result goes into a bound dictionary rather than a new anonymous one because there is no way to hand a fresh dictionary's identity down a cord; naming a source as the target merges in place.",
+        "name": "target",
+        "range": "any identifier"
+      }
+    ]
+  },
+  ".dict.pack": {
+    "category": "GENERIC",
+    "description": "Builds a dictionary from a list of named inlets — Max's dict.pack on the name-addressed value model .dict settled: the dictionary is bound from the first creation argument, and every argument after it is a key path declaring one inlet — \".dict.pack out freq gain pan\" — because a dictionary is addressed by name and never passed down a cord. The dictionary counterpart of .pack, and its hot/cold rule exactly: only the leftmost inlet releases — writing any other inlet stores its key's value and stays quiet — so a patch loads the right-hand values first and lets the leftmost carry the finished dictionary out. A trigger — a value on inlet 0, a bang, or the bound dictionary's \"dictionary <name>\" reference — replaces the bound dictionary whole with one entry per key path in argument order, a slot never written packing its path with an empty value, and sends the reference out the outlet, consistent with .dict. \"set <value>\" stores without releasing. A whole list is one value rather than a spread, since a dictionary value is list text; paths nest with \"::\", so the packed dictionary is as structured as its keys spell. A value past 256 characters is refused whole and counted rather than truncated, and a reference naming an unbound dictionary is refused rather than resolved, a registry lookup being a mutex on whatever thread the message arrived on.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "With no key-path arguments there is nothing to store: a bang, or \"dictionary <name>\" naming the bound dictionary, packs the empty dictionary — replacing whatever the bound store held — and sends its reference. Any other message is refused and counted, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "pack",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".dict.pack",
+    "outlets": [
+      {
+        "doc": "\"dictionary <name>\" after a pack — the reference the dict.* family binds, carrying the local name so the receiving object prefixes it with its own patcher's name. Sent whenever the leftmost inlet is written, banged, or handed the bound dictionary's reference. Silent for an unnamed dictionary, which has no name to pass on — the pack still lands in the private store.",
+        "index": 0,
+        "label": "reference",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The packed dictionary's shared name — the first creation argument, addressed as \"<patcherName>.<name>\", the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. The result goes into a bound dictionary rather than a new anonymous one because there is no way to hand a fresh dictionary's identity down a cord. Empty packs into a private store and sends nothing.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "One key path per inlet, in order — the shape of the packed dictionary. Paths nest with \"::\", Max's own separator, so \"voice::1::freq\" is one entry three levels deep. At most 256 paths of at most 128 characters each; a path that does not fit declares no inlet and is logged, parameter parsing being control-thread only. A duplicate path is two inlets writing one entry, and the later inlet wins. With no paths the object is a bare trigger that packs the empty dictionary.",
+        "name": "keys",
+        "range": "key paths"
+      }
+    ]
+  },
+  ".dict.print": {
+    "category": "GENERIC",
+    "description": "Prints a dictionary's contents to the engine log — Max's dict.print ('print the contents of a dictionary in the Max Console') on the name-addressed value model .dict settled. There is no Max window here, so the destination is the engine log, .print's destination: the thing a host already reads, redirects with YSE::Log().setLogfile() and intercepts with YSE::Log().setHandler(). It is the debugging instrument for structured data and the counterpart of .print — a dictionary is the one patcher value a patch cannot see by wiring it to a sink, because what a cord carries is only its name. The dictionary is bound from the first creation argument, \".dict.print <name>\", resolved once on the control thread; a bang, or the dictionary's reference message \"dictionary <name>\", dumps the whole dictionary as a nested multi-line JSON document — the same document a saved patch holds, with \"::\" paths expanded into real nesting, entries grouped in storage order of first appearance, and values typed by the patcher's own classifier: a single numeric token prints as a number, a multi-token value as an array, anything else as a string. Each line is prefixed with the dictionary's name, so two of these in one patch are tellable apart. There are no outlets — a probe, not a participant. Nothing is ever logged from the message path: the dump is a snapshot of the dictionary as it stood at the trigger, composed row by row into buffers the object owns and pushed onto the bounded lock-free queue .print built, whose control-thread drain hands the lines to the log on the host's next tick. Nothing on any message path allocates, locks or blocks, and Calculate() does nothing. Two bounds can refuse a line and both report: this object's per-tick budget — the second creation argument, default 64, clamped to 1-256 — whose first refusal in a tick posts a notice, and the shared queue's capacity, whose overflow the next drain names as a single count. A row longer than the record is cut and marked with '...'. Only the creation arguments persist across a save; the lines already sent belong to the log rather than to the patch.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang dumps the bound dictionary to the engine log as a nested multi-line JSON document, one log line per row, each prefixed with the dictionary's name. \"dictionary <name>\" does the same when it names the dictionary bound by the creation argument — the message a .dict's reference outlet emits on a bang, so wiring that outlet here gives Max's own gesture: bang the dict, read its contents. A reference naming anything else, any other message, or a trigger arriving while a dump is already being composed is refused and counted rather than logged, since this inlet may be the audio thread. Nothing is logged from here either: every row is composed into a buffer the object owns and pushed onto the bounded lock-free queue .print built, so the document reaches the log on the host's next System::update() tick. A dump that runs past this object's per-tick line budget is cut and the first refusal posts one notice line, and a row longer than the queue's record is cut and marked with a trailing '...' — a truncated dump must read as a marked gap, never as a complete dictionary.",
+        "index": 0,
+        "label": "dump",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".dict.print",
+    "outlets": [],
+    "params": [
+      {
+        "default": "",
+        "doc": "The dictionary's shared name, addressed as \"<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Also the label in front of every printed line, which is what makes two of these in one patch tellable apart; a name longer than 32 characters labels with its first 32. Empty binds a private, empty dictionary — the dump is then '{}' under the label 'dict.print'.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "64",
+        "doc": "The most lines this object emits between two drain ticks — .print's budget, with a wider default because the unit of output here is a whole document rather than a line: 64 covers a dictionary of a few dozen entries. Clamped to 1-256, 256 being the shared queue's own capacity, past which asking for more cannot buy anything. A dump that runs past the budget is truncated and the first refusal in a tick posts a notice line, so a cut dump is visible rather than silent; every refusal is counted. A non-numeric second argument leaves the default standing rather than failing, since a creation argument arriving from a saved patch must never be able to break loading it.",
+        "name": "lines",
+        "range": "1-256"
+      }
+    ]
+  },
   ".div": {
     "category": "MATH",
     "description": "Control-rate integer division. Emits left / right as an int whenever inlet 0 fires, truncating towards zero instead of producing the float ./ would. Floats truncate towards zero on input, and a divisor of 0 emits 0.",

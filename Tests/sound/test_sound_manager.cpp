@@ -41,6 +41,21 @@ namespace {
     }
   }
 
+  // The completion-signal form of drain(), for the cases whose CHECK depends
+  // on the slow pool having actually finished: a fixed iteration count is a
+  // bounded window that a loaded pool can miss entirely (issue #834). The
+  // budget is denominated in reference-timer ticks (issue #753); returns
+  // ready(), so a timed-out wait fails the caller's own assertion.
+  template <typename P> bool drainUntil(P ready, int ticks = 5000) {
+    return TestHelpers::pacedPump(
+        ticks, ready,
+        [] {
+          YSE::INTERNAL::Time().update();
+          YSE::SOUND::Manager().update();
+        },
+        5);
+  }
+
 } // namespace
 
 TEST_SUITE("sound") {
@@ -54,7 +69,9 @@ TEST_SUITE("sound") {
     {
       YSE::sound s;
       s.create(g_src);
-      drain(); // let the impl reach inUse
+      // Pump until the impl has actually reached inUse — empty() flipping
+      // false is the completion signal, not a fixed window (#834).
+      drainUntil([] { return YSE::SOUND::Manager().empty() == false; });
       CHECK(YSE::SOUND::Manager().empty() == false);
       s.stop();
     }
@@ -121,7 +138,9 @@ TEST_SUITE("sound") {
       CHECK(s.isValid() == false); // confirm we hit the refusal path
     }
 
-    drain(24); // let the audio-thread surrogate schedule the slow-pool delete job
+    // Pump until the slow-pool delete job has reclaimed the refused impls —
+    // the list shrinking back to the baseline is the completion signal (#834).
+    drainUntil([before] { return YSE::SOUND::Manager().implementationCount() <= before; });
     CHECK(YSE::SOUND::Manager().implementationCount() <= before);
   }
 
@@ -146,7 +165,8 @@ TEST_SUITE("sound") {
       CHECK(s.isValid() == false);
     }
 
-    drain(24);
+    // Completion signal rather than a fixed window, as above (#834).
+    drainUntil([before] { return YSE::SOUND::Manager().implementationCount() <= before; });
     CHECK(YSE::SOUND::Manager().implementationCount() <= before);
   }
 

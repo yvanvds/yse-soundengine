@@ -53,9 +53,10 @@ namespace YSE {
    *  - Shared state: ``G_VALUE``.
    *  - Collections: ``G_COLL``, ``G_BAG``, ``G_CAPTURE``, ``G_FUNBUFF``,
    *    ``G_TABLE``, ``G_TEXTFILE``, ``G_QLIST``, ``G_MTR``, ``G_SEQ``.
-   *  - Dictionaries: ``G_DICT``.
+   *  - Dictionaries: ``G_DICT``, ``G_DICT_COMPARE``, ``G_DICT_GROUP``,
+   *    ``G_DICT_ITER``, ``G_DICT_JOIN``, ``G_DICT_PACK``, ``G_DICT_PRINT``.
    *  - Arrays: ``G_ARRAY``.
-   *  - Debugging: ``G_PRINT``.
+   *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
    *    ``D_OUTLET``.
@@ -243,6 +244,59 @@ namespace YSE {
     // thread. The twelve ``dict.*`` operations are separate objects written
     // against ``dictStore``; see genericObjects/gDict.h for the whole model.
     DEFOBJ(G_DICT, ".dict");
+
+    // The first of the dict.* operations written against that model (issue
+    // #770): both dictionaries are bound from the creation arguments —
+    // ``.dict.compare <left> <right>`` — because a dictionary is addressed by
+    // name and never passed down a cord. A bang, or the left dictionary's
+    // ``dictionary <name>`` reference, reports whether the two hold the same
+    // entries.
+    DEFOBJ(G_DICT_COMPARE, ".dict.compare");
+
+    // Groups a dictionary's entries by a value (issue #772): the source and
+    // target dictionaries are bound from the creation arguments —
+    // ``.dict.group <source> <target> [<key>]`` — and every grouped entry is
+    // written into the target as ``<groupValue>::<originalPath>``, the
+    // dictionary of dictionaries the flat store expresses as a path prefix.
+    DEFOBJ(G_DICT_GROUP, ".dict.group");
+
+    // Outputs a dictionary's key/value pairs one at a time (issue #773): the
+    // dictionary is bound from the creation argument — ``.dict.iter <name>``
+    // — and a bang, or the dictionary's ``dictionary <name>`` reference,
+    // streams one ``<path> <value...>`` list per entry in storage order,
+    // then a done bang. The walk is a snapshot taken at the trigger, so a
+    // mutation arriving mid-walk changes the dictionary but not the walk.
+    DEFOBJ(G_DICT_ITER, ".dict.iter");
+
+    // Merges two dictionaries into one (issue #774): all three dictionaries
+    // are bound from the creation arguments — ``.dict.join <left> <right>
+    // <target>`` — and a bang, or the left dictionary's ``dictionary <name>``
+    // reference, replaces the target with the left dictionary's entries
+    // overlaid by the right's. On a colliding key path the right overwrites
+    // the left — Max's own rule — so the left is the base and the right the
+    // override, which is the preset-over-defaults layering the object exists
+    // for.
+    DEFOBJ(G_DICT_JOIN, ".dict.join");
+
+    // Builds a dictionary from a list of named inlets (issue #775): the
+    // dictionary is bound from the first creation argument and every
+    // argument after it is a key path declaring one inlet — ``.dict.pack
+    // <name> <key> [<key> ...]`` — the dictionary counterpart of ``.pack``,
+    // with its hot/cold rule: only inlet 0 releases. A trigger replaces the
+    // bound dictionary whole with one entry per key path and sends its
+    // ``dictionary <name>`` reference, the unit the rest of the family
+    // consumes.
+    DEFOBJ(G_DICT_PACK, ".dict.pack");
+
+    // Prints a dictionary's contents to the engine log (issue #776): the
+    // dictionary is bound from the creation argument — ``.dict.print
+    // <name>`` — and a bang, or the dictionary's ``dictionary <name>``
+    // reference, dumps it as a nested multi-line JSON document through
+    // ``.print``'s lock-free log on-ramp. The debugging instrument for
+    // structured data: a dictionary is the one patcher value a patch cannot
+    // see by wiring it to a sink, because what a cord carries is only its
+    // name.
+    DEFOBJ(G_DICT_PRINT, ".dict.print");
 
     // An ordered, index-addressed sequence shared by name (issue #548), the
     // second type built on the value model ``.dict`` settled: an ``OUT_TYPE``

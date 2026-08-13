@@ -70,6 +70,12 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_case.cpp
   patcher/test_patcher_coll.cpp
   patcher/test_patcher_dict.cpp
+  patcher/test_patcher_dict_compare.cpp
+  patcher/test_patcher_dict_group.cpp
+  patcher/test_patcher_dict_iter.cpp
+  patcher/test_patcher_dict_join.cpp
+  patcher/test_patcher_dict_pack.cpp
+  patcher/test_patcher_dict_print.cpp
   patcher/test_patcher_array.cpp
   patcher/test_patcher_bag.cpp
   patcher/test_patcher_capture.cpp
@@ -1053,6 +1059,12 @@ set_source_files_properties(
   patcher/test_patcher_case.cpp
   patcher/test_patcher_coll.cpp
   patcher/test_patcher_dict.cpp
+  patcher/test_patcher_dict_compare.cpp
+  patcher/test_patcher_dict_group.cpp
+  patcher/test_patcher_dict_iter.cpp
+  patcher/test_patcher_dict_join.cpp
+  patcher/test_patcher_dict_pack.cpp
+  patcher/test_patcher_dict_print.cpp
   patcher/test_patcher_array.cpp
   patcher/test_patcher_bag.cpp
   patcher/test_patcher_capture.cpp

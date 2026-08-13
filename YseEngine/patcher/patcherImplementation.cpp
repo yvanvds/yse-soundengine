@@ -9,6 +9,12 @@
 #include "genericObjects/gBag.h"
 #include "genericObjects/gColl.h"
 #include "genericObjects/gDict.h"
+#include "genericObjects/gDictCompare.h"
+#include "genericObjects/gDictGroup.h"
+#include "genericObjects/gDictIter.h"
+#include "genericObjects/gDictJoin.h"
+#include "genericObjects/gDictPack.h"
+#include "genericObjects/gDictPrint.h"
 #include "genericObjects/gForward.h"
 #include "genericObjects/gReceive.h"
 #include "genericObjects/gSend.h"
@@ -164,6 +170,38 @@ void patcherImplementation::SetName(const std::string& n) {
       // "<patcherName>.<name>" address, so a renamed patcher's dictionaries
       // re-anchor with its collections, values, sends and receives (issue #550).
       static_cast<gDict*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_DICT_COMPARE) == 0) {
+      // And gDictCompare, whose two bound dictionaries are registered under
+      // the same "<patcherName>.<name>" addresses, so a renamed patcher's
+      // comparisons follow the dictionaries they compare (issue #770).
+      static_cast<gDictCompare*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_DICT_GROUP) == 0) {
+      // And gDictGroup, whose source and target dictionaries are registered
+      // under the same "<patcherName>.<name>" addresses, so a renamed
+      // patcher's groupings follow the dictionaries they read and write
+      // (issue #772).
+      static_cast<gDictGroup*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_DICT_ITER) == 0) {
+      // And gDictIter, whose bound dictionary is registered under the same
+      // "<patcherName>.<name>" address, so a renamed patcher's walks follow
+      // the dictionary they stream (issue #773).
+      static_cast<gDictIter*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_DICT_JOIN) == 0) {
+      // And gDictJoin, whose source and target dictionaries are registered
+      // under the same "<patcherName>.<name>" addresses, so a renamed
+      // patcher's joins follow the dictionaries they read and write
+      // (issue #774).
+      static_cast<gDictJoin*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_DICT_PACK) == 0) {
+      // And gDictPack, whose bound dictionary is registered under the same
+      // "<patcherName>.<name>" address, so a renamed patcher's packs land in
+      // the dictionary its other objects now speak about (issue #775).
+      static_cast<gDictPack*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_DICT_PRINT) == 0) {
+      // And gDictPrint, whose bound dictionary is registered under the same
+      // "<patcherName>.<name>" address, so a renamed patcher's printouts
+      // read the dictionary its other objects now speak about (issue #776).
+      static_cast<gDictPrint*>(x.second)->RefreshBinding();
     } else if (strcmp(x.second->Type(), OBJ::G_ARRAY) == 0) {
       // And gArray, whose shared sequence is registered under the same
       // "<patcherName>.<name>" address, so a renamed patcher's arrays re-anchor
