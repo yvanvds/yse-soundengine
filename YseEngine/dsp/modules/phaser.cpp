@@ -52,7 +52,14 @@ void YSE::DSP::MODULES::phaser::process(MULTICHANNELBUFFER& buffer) {
   // The triangle LFO drives the whole buffer with a single sweep, so compute
   // its coefficient signal once per block (advancing the LFO once, exactly as
   // in the mono case).
-  DSP::buffer& s = (*triangle)(YSE::DSP::LFO_TRIANGLE, parmFrequency);
+  //
+  // The block length has to be passed explicitly: the default is
+  // STANDARD_BUFFERSIZE, so on any other block length the coefficient buffer
+  // came out a different length than the signal and the all-pass cascade below
+  // hit its two-input length precondition — zeroed output in release, an
+  // assert in debug (issue #651). dspObject::calculateImpact already asks the
+  // LFO for in.getLength(); this is the same contract.
+  DSP::buffer& s = (*triangle)(YSE::DSP::LFO_TRIANGLE, parmFrequency, buffer[0].getLength());
   s *= parmRange;
   s += 0.98f - parmRange;
 

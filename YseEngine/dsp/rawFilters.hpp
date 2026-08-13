@@ -16,6 +16,14 @@
 namespace YSE {
   namespace DSP {
 
+    // Length contract shared by every filter below (issue #651): the returned
+    // buffer is sized to the first input, so any block length works — it is not
+    // fixed at STANDARD_BUFFERSIZE. The second input carries a coefficient per
+    // sample and must therefore have that same length; a mismatch yields a
+    // zeroed output rather than a read past the end, in release as well as
+    // debug. Sizing happens on the first block of a new length only, so the
+    // steady-state audio path stays allocation-free.
+
     /**
      *  @brief Real-valued one-pole IIR filter.
      *
