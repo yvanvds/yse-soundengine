@@ -23,6 +23,7 @@ set(YSE_TEST_SOURCES
   utils/test_random.cpp
   internal/test_threadpool.cpp
   internal/test_log_nothrow.cpp
+  internal/test_log_sink_concurrency.cpp
   internal/test_time.cpp
   dsp/test_filters.cpp
   dsp/test_delay.cpp
@@ -442,11 +443,12 @@ add_test(
   # yse_system_init_offline(), swaps the process-global log sink, and installs
   # the process-global BufferIO VFS hooks. It runs in its own process
   # (yse_tests_capisurface).
-  # `logsafety` (issue #433 noexcept destructor logging) is excluded for the
-  # log-sink half of that same reason: it installs a sink that throws on every
-  # message, which any other suite logging concurrently in this process — a
-  # live audio thread above all — would not survive. It runs in its own
-  # process (yse_tests_logsafety).
+  # `logsafety` (issue #433 noexcept destructor logging, issue #820 sink
+  # threading) is excluded for the log-sink half of that same reason: it
+  # installs a sink that throws on every message, and then one that four
+  # threads emit into at once, neither of which any other suite logging
+  # concurrently in this process — a live audio thread above all — would
+  # survive. It runs in its own process (yse_tests_logsafety).
   # `devicelayer` (issue #418 device / audio-IO layer) is excluded for the same
   # family of reasons: it drives System::initOffline(), mutates the global
   # DEVICE::Manager() singleton (updateDeviceList / close / pause / resume) and
@@ -704,11 +706,16 @@ add_test(
 )
 set_tests_properties(yse_tests_capisurface PROPERTIES LABELS "system;c-api;lifecycle")
 
-# Destructor-safe logging (issue #433). Verifies INTERNAL::EmitNoThrow absorbs
-# a log sink that throws, where the plain emit() call it replaced propagated
-# straight out of an implicitly-noexcept destructor. Isolated in its own
-# process because it swaps the process-global log sink for a throwing one; no
-# engine session and no audio device, so it runs on headless CI.
+# Destructor-safe logging (issue #433) and the log sink's threading contract
+# (issue #820). The first half verifies INTERNAL::EmitNoThrow absorbs a log sink
+# that throws, where the plain emit() call it replaced propagated straight out
+# of an implicitly-noexcept destructor. The second drives several threads
+# through the sink at once and pins that a host handler is entered one call at a
+# time, which is what lets an embedder keep unsynchronised state behind
+# AddMessage(). Isolated in its own process because both halves swap the
+# process-global log sink — one for a handler that throws on every message, the
+# other for one four threads hammer; no engine session and no audio device, so
+# it runs on headless CI.
 add_test(
   NAME    yse_tests_logsafety
   COMMAND yse_tests --test-suite=logsafety
