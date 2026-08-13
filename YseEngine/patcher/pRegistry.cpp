@@ -84,6 +84,7 @@
 #include "guiObjects/gMatrixCtrl.h"
 #include "guiObjects/gKSlider.h"
 #include "guiObjects/gNSlider.h"
+#include "guiObjects/gNodes.h"
 #include "guiObjects/gItemList.h"
 #include "guiObjects/gLabelSwitch.h"
 #include "guiObjects/gDial.h"
@@ -546,6 +547,15 @@ pRegistry::pRegistry() {
   // because a pitch alone cannot say whether 61 is a C sharp or a D flat
   // (issue #555)
   Add(OBJ::G_NSLIDER, gNSlider::Create);
+  // A field of circular nodes a cursor is weighed against: per-node distance out
+  // one outlet and a normalised weight out the other, so one XY position
+  // crossfades a whole bank. The patcher's morph controller, and the first
+  // control whose output is a *computation* over its state rather than the state
+  // itself — .scale and .zmap map one number to one, .multislider holds N
+  // numbers and computes nothing, and building it by hand needs a distance
+  // expression per node plus a sum that cannot be written without a feedback
+  // loop (issue #562)
+  Add(OBJ::G_NODES, gNodes::Create);
   // The indexed selector family: one implementation of "a bounded index over a
   // named item list" under the three names a host draws differently — a pop-up,
   // a column of buttons, a row of tabs. The patcher had every way of expressing
