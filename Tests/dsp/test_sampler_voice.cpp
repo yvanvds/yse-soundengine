@@ -741,4 +741,36 @@ TEST_SUITE("dsp") {
     CHECK(v.activeLayers() == 1);
   }
 
+  TEST_CASE("samplerVoice: the resident channel copy keeps the loaded file's rate") {
+    // The real reachable copy site for issue #816. samplerInstrument::load()
+    // decodes into a local DSP::fileBuffer and then pushes it into
+    // residentSample::channels, which copy-constructs it (and copy-constructs
+    // it again if a second channel makes the vector grow). Before the fix the
+    // stored copy carried an indeterminate sampleRateAdjustment and cursor, so
+    // the buffer the engine keeps did not describe the audio inside it.
+    //
+    // The fixture is 44.1 kHz against the 48 kHz default engine rate, so the
+    // expected ratio is a real, non-default value rather than 1.0.
+    std::string wav = fixturesDir() + "/test_mono_44100.wav";
+    samplerConfig cfg;
+    cfg.name("test").file(wav.c_str()).root(60).range(48, 72);
+
+    samplerVoice v;
+    REQUIRE(v.configure(cfg));
+    REQUIRE(v.instrument()->samples.size() == 1);
+
+    residentSample& rs = v.instrument()->samples[0];
+    REQUIRE(rs.loaded);
+    REQUIRE(rs.channels.size() >= 1u);
+    REQUIRE(rs.fileRate == doctest::Approx(44100.0f));
+    REQUIRE(rs.sampleRateAdjustment ==
+            doctest::Approx(44100.0f / static_cast<float>(YSE::SAMPLERATE)));
+
+    DSP::fileBuffer& stored = rs.channels[0];
+    CHECK(stored.getSampleRateAdjustment() == doctest::Approx(rs.sampleRateAdjustment));
+    CHECK(stored.getFileSampleRate() == doctest::Approx(rs.fileRate));
+    CHECK(stored.cursor == stored.getPtr());
+    CHECK(stored.getLength() == static_cast<unsigned>(rs.frames));
+  }
+
 } // TEST_SUITE("dsp")

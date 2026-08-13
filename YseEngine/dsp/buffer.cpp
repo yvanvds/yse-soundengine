@@ -22,7 +22,14 @@ namespace YSE {
       cursor = storage.data();
     }
 
-    buffer::buffer(const buffer& cp) : storage(cp.storage.size()) {
+    // Sizing storage here means operator= below finds the lengths already
+    // matching and skips its resize(); overflow is adopted in the init list
+    // because resize() reads it. Everything else a copy needs --
+    // sampleRateAdjustment and cursor -- is settled by operator=, which is
+    // what makes the copy fully defined instead of leaving those two members
+    // holding whatever bytes the object's memory happened to contain
+    // (issue #816).
+    buffer::buffer(const buffer& cp) : storage(cp.storage.size()), overflow(cp.overflow) {
       operator=(cp);
     }
 
@@ -223,6 +230,20 @@ namespace YSE {
       }
       while (l--)
         *ptr1++ = *ptr2++;
+
+      // The rate ratio describes the samples that were just copied, so it has
+      // to travel with them. Without this the copy constructor left it
+      // indeterminate and copy-assignment silently kept the destination's own
+      // stale ratio, so a copied sample played back at the wrong speed
+      // (issue #816).
+      sampleRateAdjustment = s.sampleRateAdjustment;
+
+      // cursor is a raw pointer into *this* buffer's storage. The source's
+      // value addresses the source's allocation, and the resize() above may
+      // have moved ours, so neither is usable here: park it at the start of
+      // our own storage, exactly like the length constructor does.
+      cursor = storage.data();
+
       return (*this);
     }
 

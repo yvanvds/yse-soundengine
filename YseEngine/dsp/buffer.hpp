@@ -45,7 +45,12 @@ namespace YSE {
        */
       buffer(UInt length = STANDARD_BUFFERSIZE, UInt overflow = 0);
 
-      /** @brief Copy-construct from another buffer. */
+      /** @brief Copy-construct from another buffer.
+       *
+       *  The copy adopts the source's length, overflow and
+       *  sample-rate adjustment; its ``cursor`` starts at the beginning of
+       *  its own storage. See ``operator=(const buffer&)``.
+       */
       buffer(const buffer& cp);
 
       /** @brief Length in samples (frames). */
@@ -104,7 +109,14 @@ namespace YSE {
       /** @brief Sample-wise divide this buffer by ``s``. */
       buffer& operator/=(const buffer& s);
 
-      /** @brief Copy-assign from another buffer. */
+      /** @brief Copy-assign from another buffer.
+       *
+       *  Makes this buffer equivalent to ``s``: it takes on the source's
+       *  length, overflow tail, samples and sample-rate adjustment. ``cursor``
+       *  is reset to the start of this buffer's storage — the source's pointer
+       *  belongs to the source's allocation, and the resize this may perform
+       *  would invalidate the old one.
+       */
       buffer& operator=(const buffer& s);
 
       /** @brief Fill every sample with ``f``. */
@@ -128,7 +140,10 @@ namespace YSE {
       /** @brief Position cursor — application-owned read/write head pointer.
        *
        *  The buffer never mutates this on its own; it's a parking slot for
-       *  user code that needs to remember a position across calls.
+       *  user code that needs to remember a position across calls. The one
+       *  exception is copying: a copy-constructed or copy-assigned buffer
+       *  parks it at the start of its own storage rather than inheriting a
+       *  pointer into the source's allocation.
        */
       Flt* cursor;
 
