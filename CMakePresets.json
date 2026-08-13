@@ -134,7 +134,7 @@
     {
       "name": "tests-tsan",
       "displayName": "Debug + Tests + TSan (Linux/clang)",
-      "description": "tests-debug under ThreadSanitizer with clang — the data-race half of the #229 patcher concurrency acceptance gate (epic #189). Drives concurrent live-edit + render of a patcher and must be race-free. Linux only.",
+      "description": "tests-debug under ThreadSanitizer with clang — the data-race half of the #229 patcher concurrency acceptance gate (epic #189), grown into the engine-wide race gate by issue #824. It started out driving only the patcher's concurrent live-edit + render; the tests-tsan test preset now runs the whole ctest set bar a short, documented exclude list, because a two-entry filter is what let #819 and #820 sit in the tree. Linux only.",
       "inherits": "tests-debug",
       "binaryDir": "${sourceDir}/build-tests-tsan",
       "cacheVariables": {
@@ -349,10 +349,32 @@
     },
     {
       "name": "tests-tsan",
-      "displayName": "TSan concurrency tests (patcher + send/return)",
+      "displayName": "TSan gate (whole ctest set minus the exclusions below)",
       "configurePreset": "tests-tsan",
       "output": { "outputOnFailure": true },
-      "filter": { "include": { "name": "yse_tests_patcher_concurrency|yse_tests_sendstress" } },
+      "description": "The per-PR data-race gate (issue #824). This filter used to be an *include* of two entries (yse_tests_patcher_concurrency|yse_tests_sendstress), which is why #819 (soundFile::channels() racing loadStreaming()) and #820 (the unsynchronised log sink) both lived in the tree until someone ran TSan unfiltered by hand. An include list also decays silently: every suite added after it was written is ungated by default. It is an exclude list now, so a new ctest entry is gated unless somebody opts it out here and says why. Measured on the tools/ci-linux/Dockerfile.sanitizers image (Ubuntu 24.04, clang, serial ctest under setarch -R): the whole 42-entry set costs 860 s, of which yse_unit_tests is 393 s and yse_tests_contentpack 303 s. The other 40 entries together are 163 s, so dropping those two buys back 81% of the runtime for coverage that is duplicated (yse_unit_tests re-runs the per-suite cases in one shared process) or race-poor (contentpack is offline file decoding); both still run in the tests-tsan-full sweep below. That leaves 36 of the 42 entries gated. yse_tests_synthhandlers / synthcapi / playercapi / midisynth are excluded because they are red today, not because they are slow (8.5 s between them): all four trip the same race, synthImplementation::ensureDeviceWidth() resizing output.samples on the setup pool while renderBlock() writes the same buffers. Tracked as #828 — delete them from this list with the fix. midisynth is on that list because CI said so and a local run did not: it passed 4 local sweeps and reddened on the first GitHub runner, which is the usual shape of a race whose window is scheduler-width. Read a green suite here as 'not caught today', not as 'clean'.",
+      "filter": {
+        "exclude": {
+          "name": "^yse_unit_tests$|^yse_tests_contentpack$|^yse_tests_synthhandlers$|^yse_tests_synthcapi$|^yse_tests_playercapi$|^yse_tests_midisynth$"
+        }
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
+      "name": "tests-tsan-full",
+      "displayName": "TSan full sweep (adds the two slow entries)",
+      "configurePreset": "tests-tsan",
+      "output": { "outputOnFailure": true },
+      "description": "The other half of the #824 split: everything the per-PR gate above runs, plus yse_unit_tests and yse_tests_contentpack. 860 s of ctest against the gate's 163 s, which is why it runs on pushes to dev rather than on every PR (see the build-sanitizers job in .github/workflows/build.yml). yse_unit_tests is the entry that earns the sweep: it is the warm-heap, thread-churning shared process that exposed #336, and no per-suite entry reproduces those cross-suite interleavings. 38 entries: only the four #828 suites are excluded here — a sweep is allowed to be slow, it is not allowed to be knowingly red.",
+      "filter": {
+        "exclude": {
+          "name": "^yse_tests_synthhandlers$|^yse_tests_synthcapi$|^yse_tests_playercapi$|^yse_tests_midisynth$"
+        }
+      },
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",

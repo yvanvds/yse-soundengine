@@ -1,7 +1,15 @@
-# Clang + sanitizer-runtime image for reproducing the patcher concurrency
-# acceptance gate (issue #229) locally. Mirrors the `clang+tsan` / `clang+asan`
-# legs in .github/workflows/build.yml so a sanitizer failure can be reproduced
-# from Windows without waiting on CI.
+# Clang + sanitizer-runtime image for reproducing the sanitizer gate (issues
+# #229, #727, #824) locally. Mirrors the `clang+tsan` / `clang+asan` legs in
+# .github/workflows/build.yml so a sanitizer failure can be reproduced from
+# Windows without waiting on CI.
+#
+# SAN=tsan runs the `tests-tsan` preset — the per-PR gate. To reproduce the
+# post-merge sweep (adds yse_unit_tests and yse_tests_contentpack, ~860 s of
+# ctest instead of ~163 s) override the command:
+#   docker run --rm --security-opt seccomp=unconfined -v "${PWD}:/workspace" \
+#       yse-ci-san bash -c "cmake --preset tests-tsan && \
+#       cmake --build --preset tests-tsan && \
+#       setarch -R ctest --preset tests-tsan-full --output-on-failure"
 #
 # Usage from PowerShell at repo root (TSan needs an unconfined seccomp profile
 # and ASLR disabled, so the container runs the binary under `setarch -R`):
@@ -15,9 +23,14 @@ FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# llvm is here for llvm-symbolizer: the sanitizer runtimes exec it to turn a
+# report into file:line, and without it every frame in a TSan report prints as a
+# bare `yse_tests+0x3e1d05` (issue #824). Kept in step with the apt list in the
+# build-sanitizers job, which is the point of this image.
 RUN apt-get update -y && apt-get install -y --no-install-recommends \
         clang \
         libclang-rt-dev \
+        llvm \
         cmake \
         ninja-build \
         pkg-config \
