@@ -127,6 +127,103 @@ def run_batched(prefix, arguments, cwd=None):
         sys.exit(failure)
 
 
+# ctest rewrites Testing/Temporary/LastTest.log — the only place the per-test
+# output of a run survives — on every invocation.  For an intermittent failure
+# that is fatal to diagnosis: the run that destroys the evidence is the re-run
+# you start to see whether it reproduces.  Both occurrences of the #738
+# yse_unit_tests flake were lost exactly that way, leaving LastTestsFailed.log
+# naming the entry and no assertion text to blame-hunt from.  Every ctest
+# invocation in this script therefore goes through run_ctest, which copies the
+# failing run's logs somewhere no later run can reach before propagating the
+# exit code.
+CTEST_LOG_NAMES = ("LastTest.log", "LastTestsFailed.log", "CTestCostData.txt")
+
+
+def test_preset_build_dir(preset):
+    """Return the build directory ``ctest --preset <preset>`` runs in.
+
+    Resolved from CMakePresets.json (test preset → configure preset →
+    binaryDir) rather than hard-coded, because the names do not follow from
+    each other: tests-debug builds in build-tests, and coverage-windows shares
+    build-coverage with coverage.  Returns None if the preset, its configure
+    preset, or the binaryDir cannot be resolved.
+    """
+    try:
+        with open(ROOT / "CMakePresets.json", "r", encoding="utf-8") as f:
+            presets = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+    configure = next(
+        (p.get("configurePreset") for p in presets.get("testPresets", [])
+         if p.get("name") == preset),
+        None,
+    )
+    binary_dir = next(
+        (p.get("binaryDir") for p in presets.get("configurePresets", [])
+         if p.get("name") == configure),
+        None,
+    )
+    if not binary_dir:
+        return None
+    return Path(binary_dir.replace("${sourceDir}", str(ROOT)))
+
+
+def archive_ctest_logs(preset):
+    """Copy the ctest logs of *preset*'s build dir out of Testing/Temporary/.
+
+    Returns the archive directory, or None when there was nothing to copy.
+    The archive lands in Testing/failures/ inside the same build directory, so
+    it is covered by the existing .gitignore rules and removed by `yse.py
+    clean` along with the build tree.
+    """
+    build_dir = test_preset_build_dir(preset)
+    if build_dir is None:
+        return None
+    temp_dir = build_dir / "Testing" / "Temporary"
+    sources = [temp_dir / name for name in CTEST_LOG_NAMES]
+    sources = [p for p in sources if p.is_file()]
+    if not sources:
+        return None
+
+    stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    parent = build_dir / "Testing" / "failures"
+    dest = parent / f"{preset}-{stamp}"
+    # Two failures inside the same second would otherwise land on top of each
+    # other, which is the exact loss this function exists to prevent.
+    counter = 2
+    while dest.exists():
+        dest = parent / f"{preset}-{stamp}-{counter}"
+        counter += 1
+    dest.mkdir(parents=True)
+    for src in sources:
+        shutil.copy2(src, dest / src.name)
+    return dest
+
+
+def run_ctest(preset):
+    """Print and run ``ctest --preset <preset>``.
+
+    On success this behaves exactly like ``run``.  On failure the run's logs
+    are archived (see archive_ctest_logs) before the child's return code is
+    propagated, so an intermittent failure stays diagnosable after the
+    confirming re-run has overwritten Testing/Temporary/ (#738).
+    """
+    cmd = ["ctest", "--preset", preset]
+    _print_cmd(cmd)
+    result = subprocess.run(cmd)
+    if result.returncode == 0:
+        return
+    dest = archive_ctest_logs(preset)
+    if dest is None:
+        print("\nctest failed and no Testing/Temporary/ logs were found to "
+              "preserve.", flush=True)
+    else:
+        print(f"\nctest failed — logs preserved in {dest}", flush=True)
+        print("  Testing/Temporary/ is overwritten by the next ctest run; "
+              "this copy is not.", flush=True)
+    sys.exit(result.returncode)
+
+
 def run_to_file(cmd, output_path, cwd=None):
     """Print and run *cmd*, writing stdout to output_path."""
     _print_cmd(cmd, cwd)
@@ -200,14 +297,14 @@ def cmd_test(args):
             preset = "tests-tsan"
         run(["cmake", "--preset", preset])
         run(["cmake", "--build", "--preset", preset])
-        run(["ctest", "--preset", preset])
+        run_ctest(preset)
         return
 
     preset = "tests-debug-python" if args.python else "tests-debug"
     build_dir = "build-tests-python" if args.python else "build-tests"
     run(["cmake", "--preset", preset])
     run(["cmake", "--build", "--preset", preset])
-    run(["ctest", "--preset", preset])
+    run_ctest(preset)
 
     if args.integration:
         suffix = ".exe" if IS_WINDOWS else ""
@@ -255,7 +352,7 @@ def cmd_bench(args):
 def _cmd_coverage_linux():
     run(["cmake", "--preset", "coverage"])
     run(["cmake", "--build", "--preset", "coverage"])
-    run(["ctest", "--preset", "coverage"])
+    run_ctest("coverage")
 
     if shutil.which("gcovr") is None:
         print("\nNote: gcovr not found — skipping coverage report generation.")
@@ -301,7 +398,7 @@ def _cmd_coverage_windows():
     # LLVM_PROFILE_FILE controls where the instrumented binary writes its raw
     # profile data.  %p expands to PID, keeping per-process files distinct.
     os.environ["LLVM_PROFILE_FILE"] = str(build_dir / "coverage-%p.profraw")
-    run(["ctest", "--preset", "coverage-windows"])
+    run_ctest("coverage-windows")
 
     profraw_files = sorted(build_dir.glob("coverage-*.profraw"))
     if not profraw_files:
@@ -1081,7 +1178,11 @@ def build_parser():
             "invoking yse_tests --test-suite=integration directly.  These tests "
             "are DISABLED in CTest because they require a real audio output "
             "device (and on Windows probe the RtMidi backend), so they only "
-            "run when explicitly requested."
+            "run when explicitly requested.\n\n"
+            "If ctest fails, the run's Testing/Temporary/ logs are copied to "
+            "Testing/failures/<preset>-<timestamp>/ inside the build directory "
+            "before the exit code is propagated, so an intermittent failure is "
+            "still readable after the re-run that overwrites them (#738)."
         ),
     )
     p.add_argument(
