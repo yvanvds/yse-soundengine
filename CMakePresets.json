@@ -112,6 +112,26 @@
       }
     },
     {
+      "name": "tests-asan-windows",
+      "displayName": "Debug + Tests + ASan (Windows/MSYS2 Clang64)",
+      "description": "tests-debug under AddressSanitizer on the MSYS2 Clang64 toolchain (issue #671). The Linux `tests-asan` preset cannot run here: PE/COFF has no symbol preemption, so the suite's replaced operator new/delete collided with the ones libclang_rt.asan_dynamic exports and the test binary would not link. support/alloc_probe.cpp now hands the operators to the runtime on Windows and counts through ASan's malloc hook instead, which also lets ASan see new-delete-type-mismatch (issue #662) — hence -fsized-deallocation, which this toolchain does not enable by default and without which no sized delete is ever emitted to compare. Runs the whole ctest set, not the Linux gate's patcher filter: this is the developer's local memory-safety pass, not a CI leg. Leak detection is off in the test preset (Windows ASan ships no leak detector, and the process-global pools / named bus are intentionally never torn down). Windows only.",
+      "inherits": "tests-debug",
+      "binaryDir": "${sourceDir}/build-tests-asan-windows",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_C_FLAGS": "-fsanitize=address -fno-omit-frame-pointer",
+        "CMAKE_CXX_FLAGS": "-fsanitize=address -fno-omit-frame-pointer -fsized-deallocation",
+        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address",
+        "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=address"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
       "name": "tests-tsan",
       "displayName": "Debug + Tests + TSan (Linux/clang)",
       "description": "tests-debug under ThreadSanitizer with clang — the data-race half of the #229 patcher concurrency acceptance gate (epic #189). Drives concurrent live-edit + render of a patcher and must be race-free. Linux only.",
@@ -225,6 +245,16 @@
       }
     },
     {
+      "name": "tests-asan-windows",
+      "displayName": "Debug + Tests + ASan (Windows)",
+      "configurePreset": "tests-asan-windows",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
       "name": "tests-tsan",
       "displayName": "Debug + Tests + TSan",
       "configurePreset": "tests-tsan",
@@ -301,6 +331,20 @@
         "type": "equals",
         "lhs": "${hostSystemName}",
         "rhs": "Linux"
+      }
+    },
+    {
+      "name": "tests-asan-windows",
+      "displayName": "ASan suite (Windows)",
+      "configurePreset": "tests-asan-windows",
+      "output": { "outputOnFailure": true },
+      "environment": {
+        "ASAN_OPTIONS": "detect_leaks=0"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
       }
     },
     {

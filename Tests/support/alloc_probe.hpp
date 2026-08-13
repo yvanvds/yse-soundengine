@@ -106,8 +106,11 @@ namespace TestHelpers {
     AllocWatch(const AllocWatch&) = delete;
     AllocWatch& operator=(const AllocWatch&) = delete;
 
-    // 0 when nothing was captured — the overrides are compiled out under
-    // ThreadSanitizer, which ships its own operators.
+    // 0 when nothing was captured. The overrides are compiled out under
+    // ThreadSanitizer, which ships its own operators, and under the Windows
+    // ASan build, where the runtime owns them for the same reason (issue #671)
+    // — there the watch is inert because the sanitizer's free hook carries no
+    // size, and ASan reports the mismatch itself as a hard error instead.
     std::size_t newSize() const {
       return detail::watchNewSize();
     }

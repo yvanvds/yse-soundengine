@@ -86,6 +86,7 @@ build-tests-python/
 build-tests-python-asan/
 build-tests-asan-gcc/
 build-tests-asan/
+build-tests-asan-windows/
 build-tests-tsan/
 [Bb]in/
 [Oo]bj/

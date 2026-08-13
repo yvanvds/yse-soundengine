@@ -73,8 +73,7 @@ namespace TestHelpers {
 // libclang_rt.tsan_cxx, so defining ours too is a multiple-definition link
 // error (issue #229 wired a TSan build of the test binary). Skip the probe
 // under TSan: the audio-path checks assert g_alloc_count == 0, which then holds
-// trivially because the counter is never touched. ASan tolerates the override,
-// so it is kept there.
+// trivially because the counter is never touched.
 #if defined(__has_feature)
 #if __has_feature(thread_sanitizer)
 #define YSE_UNDER_TSAN 1
@@ -84,7 +83,68 @@ namespace TestHelpers {
 #define YSE_UNDER_TSAN 1
 #endif
 
-#ifndef YSE_UNDER_TSAN
+#if defined(__has_feature)
+#if __has_feature(address_sanitizer)
+#define YSE_UNDER_ASAN 1
+#endif
+#endif
+#if defined(__SANITIZE_ADDRESS__)
+#define YSE_UNDER_ASAN 1
+#endif
+
+// AddressSanitizer ships operators too, and whether they collide with ours is
+// an object-format question (issue #671).
+//
+// On ELF the runtime's are weak and the executable's definition preempts them,
+// so the replacements below are simply used and the probe works as it does in
+// a plain build — that is what the Linux `tests-asan` gate has always run.
+//
+// On PE/COFF there is no preemption: libclang_rt.asan_dynamic *exports*
+// operator new/delete, and its import library defines the same symbols this TU
+// does, so the link fails outright with `duplicate symbol: operator new`. There
+// was therefore no ASan build of the test binary on Windows at all — the
+// platform most of the development happens on.
+//
+// So on Windows the probe steps aside and lets the runtime own the operators,
+// then counts through `__sanitizer_install_malloc_and_free_hooks` instead:
+// every ASan allocation, including the ones its operator new makes, runs the
+// malloc hook. The counter keeps working — this is deliberately *not* the TSan
+// carve-out, which would turn every `g_alloc_count == 0` assertion vacuous —
+// and handing new/delete back to the runtime buys the thing the whole exercise
+// is for: ASan can see `new-delete-type-mismatch` again (issue #662), which it
+// cannot when our operators funnel every new and delete into malloc/free.
+//
+// Two consequences of counting mallocs rather than `operator new` calls, both
+// in the safe direction: raw `malloc`/`realloc`/`strdup` on a probed path now
+// count too (a wider net, never a narrower one), and the AllocWatch stays
+// inert, because the free hook carries no size and a watch that cannot compare
+// the two halves has nothing to report. ASan itself reports that mismatch as a
+// hard error there, which is strictly the better instrument.
+#if defined(YSE_UNDER_ASAN) && defined(_WIN32)
+#define YSE_PROBE_VIA_ASAN_HOOKS 1
+#endif
+
+#if defined(YSE_PROBE_VIA_ASAN_HOOKS)
+#include <sanitizer/allocator_interface.h>
+
+namespace {
+  // The whole cost imposed on every allocation in the process, same as the
+  // replaced operator below: one thread-local flag test. The counters live in
+  // this TU (see the top of the file), so the hook reads them directly.
+  void probeMallocHook(const volatile void* p, std::size_t) {
+    if (p && TestHelpers::t_probe_active) ++TestHelpers::t_alloc_count;
+  }
+  void probeFreeHook(const volatile void*) {}
+
+  // Installed during static initialisation of this TU, so the hook is live
+  // before any test opens a scope. Nothing else in the suite reads the flag;
+  // it exists to give the call a home at namespace scope.
+  [[maybe_unused]] const bool g_asan_hooks_installed =
+      __sanitizer_install_malloc_and_free_hooks(probeMallocHook, probeFreeHook) != 0;
+} // namespace
+#endif
+
+#if !defined(YSE_UNDER_TSAN) && !defined(YSE_PROBE_VIA_ASAN_HOOKS)
 namespace TestHelpers {
   namespace {
     // The whole cost the probe imposes on every allocation in the process: one

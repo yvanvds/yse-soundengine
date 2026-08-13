@@ -9,6 +9,7 @@
 */
 
 #include <cassert>
+#include <cstddef>
 #include "buffer.hpp"
 
 namespace YSE {
@@ -22,7 +23,19 @@ namespace YSE {
       cursor = storage.data();
     }
 
-    buffer::buffer(const buffer& cp) : storage(cp.storage.size()) {
+    // Sizing storage here means operator= below finds the lengths already
+    // matching and skips its resize(); overflow is adopted in the init list
+    // because resize() reads it. Everything else a copy needs --
+    // sampleRateAdjustment and cursor -- is settled by operator=, which is
+    // what makes the copy fully defined instead of leaving those two members
+    // holding whatever bytes the object's memory happened to contain
+    // (issue #816).
+    // cursor is settled by operator= below; it is initialised here as well
+    // because resize() now reads it to rebase it (issue #818), and operator=
+    // only skips that resize as long as this constructor keeps pre-sizing
+    // storage to match the source.
+    buffer::buffer(const buffer& cp)
+      : cursor(nullptr), storage(cp.storage.size()), overflow(cp.overflow) {
       operator=(cp);
     }
 
@@ -194,13 +207,20 @@ namespace YSE {
     }
 
     buffer& buffer::operator=(const buffer& s) {
-      if (storage.size() != s.storage.size()) {
-        resize((UInt)s.storage.size());
-      }
-
+      // Adopt the source's tail length before resizing: resize() sizes storage
+      // as length + overflow, so handing it the source's *storage* size (which
+      // already includes the source's tail) made the destination one tail
+      // longer than the source, and the copy below then ran off the end of the
+      // source allocation (issue #814).
       overflow = s.overflow;
 
-      UInt l = (UInt)storage.size();
+      if (storage.size() != s.storage.size()) {
+        resize(s.getLength());
+      }
+
+      // Sizes match after the resize above, but bound the copy by the shorter
+      // of the two anyway -- same defensive idiom as the operators above.
+      UInt l = storage.size() < s.storage.size() ? (UInt)storage.size() : (UInt)s.storage.size();
       Flt* ptr1 = storage.data();
       const Flt* ptr2 = s.storage.data();
 
@@ -216,6 +236,20 @@ namespace YSE {
       }
       while (l--)
         *ptr1++ = *ptr2++;
+
+      // The rate ratio describes the samples that were just copied, so it has
+      // to travel with them. Without this the copy constructor left it
+      // indeterminate and copy-assignment silently kept the destination's own
+      // stale ratio, so a copied sample played back at the wrong speed
+      // (issue #816).
+      sampleRateAdjustment = s.sampleRateAdjustment;
+
+      // cursor is a raw pointer into *this* buffer's storage. The source's
+      // value addresses the source's allocation, and the resize() above may
+      // have moved ours, so neither is usable here: park it at the start of
+      // our own storage, exactly like the length constructor does.
+      cursor = storage.data();
+
       return (*this);
     }
 
@@ -348,7 +382,33 @@ namespace YSE {
     }
 
     buffer& buffer::resize(UInt length, Flt value) {
+      // Growing past the current capacity makes the vector reallocate and free
+      // the old block, and cursor addresses that block -- a caller that parked
+      // a position before the resize was reading through a dangling pointer
+      // afterwards (issue #818). resize() keeps the samples it does not drop,
+      // so the position stays meaningful: remember the offset here and re-park
+      // the cursor at the same sample on the new storage below. (Copying is the
+      // other case, and it answers the same question the other way for the same
+      // reason: operator= replaces every sample, so no old position survives
+      // and the cursor goes back to the start -- issue #816.)
+      //
+      // This costs two compares and a subtraction, no allocation and no extra
+      // branch on the render path; the resize itself stays the capacity-
+      // retaining vector::resize the DSP nodes call every block.
+      const Flt* oldData = storage.data();
+      std::size_t offset = 0;
+      // A cursor parked outside our own storage is not ours to rebase (and
+      // differencing unrelated pointers is undefined): fall back to the start.
+      if (cursor >= oldData && cursor <= oldData + storage.size()) {
+        offset = static_cast<std::size_t>(cursor - oldData);
+      }
+
       storage.resize(length + overflow, value);
+
+      // Shrinking can drop the sample the cursor sat on; clamp to the new end.
+      if (offset > storage.size()) offset = storage.size();
+      cursor = storage.data() + offset;
+
       return (*this);
     }
 

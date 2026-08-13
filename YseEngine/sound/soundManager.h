@@ -11,6 +11,7 @@
 #ifndef SOUNDMANAGER_H_INCLUDED
 #define SOUNDMANAGER_H_INCLUDED
 
+#include <cstddef>
 #include <forward_list>
 #include <mutex>
 #include <vector>
@@ -63,6 +64,29 @@ namespace YSE {
       INTERNAL::soundFile* addFile(MULTICHANNELBUFFER* buffer);
 
       void setup(implementationObject* impl);
+
+      /** Retire an implementation that addImplementation() handed out but that
+          was never published with setup() — the refusal branches of
+          sound::create() (issue #817). Such an impl is in `implementations`
+          only: it never reached `toLoadInbox` / `toLoad` / `inUse`, no channel
+          ever connected it, and the slow-pool setup job cannot claim it
+          (tryClaimForSetup only takes OBJECT_CREATED, and it is still
+          OBJECT_CONSTRUCTED). Flagging it OBJECT_DELETE therefore hands it
+          straight to the one place an impl may legally be destroyed — the
+          slow-pool delete job's remove_if — instead of leaving it parked in
+          `implementations` until system::close(). Deliberately does NOT free
+          on the calling (control) thread: the list contract admits the main
+          thread and the slow pool, and the destructor must stay on the pool.
+
+          Call on the control thread, with the interface already detached. */
+      void releaseUnpublished(implementationObject* impl);
+
+      /** Diagnostic: how many implementationObjects the canonical
+          `implementations` list currently holds. Takes implementationsMutex,
+          so it is a control-thread / test call only — never the audio thread.
+          Exists so the reclamation of retired impls is observable (issue
+          #817). */
+      std::size_t implementationCount();
 
       /** Run the soundManager update. This function is responsable for most of the
           action on sound implementations and sound files.

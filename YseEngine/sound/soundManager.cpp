@@ -9,6 +9,8 @@
 */
 
 #include "soundManager.h"
+#include <cassert>
+#include <iterator>
 #include "../internalHeaders.h"
 #include "../internal/virtualFinder.h"
 #include "../channel/channelManager.h"
@@ -165,6 +167,33 @@ void YSE::SOUND::managerObject::setup(YSE::SOUND::implementationObject* impl) {
   toLoadInbox.push(impl);
 }
 
+void YSE::SOUND::managerObject::releaseUnpublished(YSE::SOUND::implementationObject* impl) {
+  // A create() that was refused (missing file, patcher already owned) drops its
+  // handle without ever calling setup(), so this impl exists in
+  // `implementations` and nowhere else. Before #817 it was flagged
+  // OBJECT_RELEASE, which nothing promotes for an impl that never reached
+  // `inUse` — so it sat in the list for the rest of the session and a caller
+  // retrying a bad asset grew the list without bound.
+  //
+  // OBJECT_DELETE is the state the slow-pool delete job filters on, and going
+  // there directly is safe precisely because the impl was never published: the
+  // audio thread holds no pointer to it (it is in neither toLoadInbox, toLoad
+  // nor inUse), no channel has it in `sounds` (connectedToParent is false), and
+  // the slow-pool setup job cannot claim it (tryClaimForSetup CASes from
+  // OBJECT_CREATED, which this impl never reached). The destructor therefore
+  // still runs where every other impl's does — on the slow pool, under
+  // implementationsMutex — and not on this control thread.
+  assert(impl->getStatus() == OBJECT_CONSTRUCTED &&
+         "releaseUnpublished() is only for an impl that never reached setup()");
+  impl->setStatus(OBJECT_DELETE);
+  runDelete = true;
+}
+
+std::size_t YSE::SOUND::managerObject::implementationCount() {
+  std::scoped_lock lk(implementationsMutex);
+  return static_cast<std::size_t>(std::distance(implementations.begin(), implementations.end()));
+}
+
 void YSE::SOUND::managerObject::drainInbox() {
   implementationObject* p;
   while (toLoadInbox.try_pop(p))
@@ -278,10 +307,23 @@ void YSE::SOUND::managerObject::update() {
     scrubToLoadAndScheduleSetup();
   }
 
-  if (runDelete && !mgrDelete.isQueued()) {
-    INTERNAL::Global().addSlowJob(&mgrDelete);
+  // Consume the flag atomically. Since #817 `runDelete` has two writers — the
+  // audio thread below (syncAndReleaseInUse) and the control thread
+  // (releaseUnpublished) — and the old test-then-unconditionally-clear would
+  // drop a set that landed between the two, stranding a flagged impl in
+  // `implementations` until close(): the very leak #817 is about. Exchange
+  // takes the request, and if the previous delete job is still in flight (it
+  // may already have walked the list before the flag was set) the request is
+  // handed back for the next tick rather than dropped. Re-queueing the same
+  // job object while it is queued would push one pointer into the pool ring
+  // twice, so the isQueued() guard stays.
+  if (runDelete.exchange(false)) {
+    if (!mgrDelete.isQueued()) {
+      INTERNAL::Global().addSlowJob(&mgrDelete);
+    } else {
+      runDelete = true;
+    }
   }
-  runDelete = false;
 
   promoteReadyImpls();
   syncAndReleaseInUse();
