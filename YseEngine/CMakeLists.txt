@@ -134,6 +134,7 @@ set(YSE_SRCS
   patcher/genericObjects/gDictJoin.cpp
   patcher/genericObjects/gDictPack.cpp
   patcher/genericObjects/gDictPrint.cpp
+  patcher/genericObjects/gDictRoute.cpp
   patcher/genericObjects/gDictSerialize.cpp
   patcher/genericObjects/gForward.cpp
   patcher/genericObjects/gFunbuff.cpp
@@ -487,6 +488,7 @@ set_source_files_properties(
   patcher/genericObjects/gDictJoin.cpp
   patcher/genericObjects/gDictPack.cpp
   patcher/genericObjects/gDictPrint.cpp
+  patcher/genericObjects/gDictRoute.cpp
   patcher/genericObjects/gDictSerialize.cpp
   patcher/genericObjects/gForward.cpp
   patcher/genericObjects/gFunbuff.cpp

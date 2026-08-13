@@ -35,6 +35,7 @@
 #include "genericObjects/gDictJoin.h"
 #include "genericObjects/gDictPack.h"
 #include "genericObjects/gDictPrint.h"
+#include "genericObjects/gDictRoute.h"
 #include "genericObjects/gDictSerialize.h"
 #include "genericObjects/gPrint.h"
 // `.loadbang` / `.loadmess` (issue #547): the pair that lets a saved patch
@@ -481,6 +482,12 @@ pRegistry::pRegistry() {
   // instrument for structured data, which no sink can otherwise see
   // (issue #776)
   Add(OBJ::G_DICT_PRINT, gDictPrint::Create);
+
+  // Routes the bound dictionary by the keys it holds: the reference — never
+  // the contents — leaves the outlet of the leftmost key argument present,
+  // or the rightmost reject, so structured messages dispatch to the part of
+  // the graph that understands them (issue #777)
+  Add(OBJ::G_DICT_ROUTE, gDictRoute::Create);
 
   // Serialises the bound dictionary to one single-line compact JSON list
   // message — the write half of the interchange pair with .dict.deserialize,

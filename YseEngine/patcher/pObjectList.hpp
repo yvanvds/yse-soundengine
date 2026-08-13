@@ -55,7 +55,7 @@ namespace YSE {
    *    ``G_TABLE``, ``G_TEXTFILE``, ``G_QLIST``, ``G_MTR``, ``G_SEQ``.
    *  - Dictionaries: ``G_DICT``, ``G_DICT_COMPARE``, ``G_DICT_DESERIALIZE``,
    *    ``G_DICT_GROUP``, ``G_DICT_ITER``, ``G_DICT_JOIN``, ``G_DICT_PACK``,
-   *    ``G_DICT_PRINT``, ``G_DICT_SERIALIZE``.
+   *    ``G_DICT_PRINT``, ``G_DICT_ROUTE``, ``G_DICT_SERIALIZE``.
    *  - Arrays: ``G_ARRAY``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
@@ -308,6 +308,18 @@ namespace YSE {
     // see by wiring it to a sink, because what a cord carries is only its
     // name.
     DEFOBJ(G_DICT_PRINT, ".dict.print");
+
+    // Routes a dictionary by the keys it holds (issue #777): the dictionary
+    // is bound from the first creation argument and every argument after it
+    // is a key declaring one outlet, plus a rightmost reject —
+    // ``.dict.route <name> <key> [<key> ...]``. A bang, or the dictionary's
+    // ``dictionary <name>`` reference, sends the reference — never the
+    // contents — out the outlet of the leftmost key present, so a patch
+    // that receives dictionaries of several shapes dispatches each to the
+    // part of the graph that understands it: what ``.route`` does for list
+    // text, for dictionaries. ``gRoute`` is the model, including its
+    // rightmost-outlet-is-the-reject rule.
+    DEFOBJ(G_DICT_ROUTE, ".dict.route");
 
     // Serialises a dictionary to text (issue #778): the dictionary is bound
     // from the creation argument — ``.dict.serialize <name>`` — and a bang,

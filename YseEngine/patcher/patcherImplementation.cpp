@@ -16,6 +16,7 @@
 #include "genericObjects/gDictJoin.h"
 #include "genericObjects/gDictPack.h"
 #include "genericObjects/gDictPrint.h"
+#include "genericObjects/gDictRoute.h"
 #include "genericObjects/gDictSerialize.h"
 #include "genericObjects/gForward.h"
 #include "genericObjects/gReceive.h"
@@ -210,6 +211,11 @@ void patcherImplementation::SetName(const std::string& n) {
       // "<patcherName>.<name>" address, so a renamed patcher's printouts
       // read the dictionary its other objects now speak about (issue #776).
       static_cast<gDictPrint*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_DICT_ROUTE) == 0) {
+      // And gDictRoute, whose bound dictionary is registered under the same
+      // "<patcherName>.<name>" address, so a renamed patcher's routes test
+      // the dictionary its other objects now speak about (issue #777).
+      static_cast<gDictRoute*>(x.second)->RefreshBinding();
     } else if (strcmp(x.second->Type(), OBJ::G_DICT_SERIALIZE) == 0) {
       // And gDictSerialize, whose bound dictionary is registered under the
       // same "<patcherName>.<name>" address, so a renamed patcher's
