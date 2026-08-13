@@ -56,7 +56,7 @@ namespace YSE {
    *  - Dictionaries: ``G_DICT``, ``G_DICT_COMPARE``, ``G_DICT_DESERIALIZE``,
    *    ``G_DICT_GROUP``, ``G_DICT_ITER``, ``G_DICT_JOIN``, ``G_DICT_PACK``,
    *    ``G_DICT_PRINT``, ``G_DICT_ROUTE``, ``G_DICT_SERIALIZE``,
-   *    ``G_DICT_SLICE``, ``G_DICT_STRIP``.
+   *    ``G_DICT_SLICE``, ``G_DICT_STRIP``, ``G_DICT_UNPACK``.
    *  - Arrays: ``G_ARRAY``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
@@ -356,6 +356,19 @@ namespace YSE {
     // partition: what a slice leaves in its remainder is what a strip of the
     // same path leaves behind.
     DEFOBJ(G_DICT_STRIP, ".dict.strip");
+
+    // Outputs a dictionary's values on separate outlets (issue #781): the
+    // dictionary is bound from the first creation argument and every
+    // argument after it is a key path declaring one outlet —
+    // ``.dict.unpack <name> <path> [<path> ...]`` — the dictionary
+    // counterpart of ``.unpack`` and ``.dict.pack``'s inverse, sharing its
+    // key-path conventions so the pair reads as a pair. A bang, or the
+    // dictionary's ``dictionary <name>`` reference, snapshots the bound
+    // dictionary and sends each path's value out its outlet right to left
+    // through ``SendAtom``, so a number leaves as a number; a path the
+    // dictionary does not hold sends nothing rather than a zero, ``.dict``'s
+    // miss rule.
+    DEFOBJ(G_DICT_UNPACK, ".dict.unpack");
 
     // An ordered, index-addressed sequence shared by name (issue #548), the
     // second type built on the value model ``.dict`` settled: an ``OUT_TYPE``

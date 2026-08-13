@@ -39,6 +39,7 @@
 #include "genericObjects/gDictSerialize.h"
 #include "genericObjects/gDictSlice.h"
 #include "genericObjects/gDictStrip.h"
+#include "genericObjects/gDictUnpack.h"
 #include "genericObjects/gPrint.h"
 // `.loadbang` / `.loadmess` (issue #547): the pair that lets a saved patch
 // describe its own starting state, fired by patcherImplementation's post-publish
@@ -506,6 +507,12 @@ pRegistry::pRegistry() {
   // branch removal .dict's delete cannot spell, a bounded back-to-front
   // erase scan of every key beginning "<path>::" (issue #780)
   Add(OBJ::G_DICT_STRIP, gDictStrip::Create);
+
+  // Outputs the bound dictionary's values on separate outlets — one outlet
+  // per key-path argument, .dict.pack's inverse: a snapshot of the
+  // dictionary leaves right to left through SendAtom, a missing path
+  // sending nothing rather than a zero (issue #781)
+  Add(OBJ::G_DICT_UNPACK, gDictUnpack::Create);
 
   // An ordered, index-addressed sequence shared by name — the collection type a
   // generative patch actually reaches for, and the value model the array.*

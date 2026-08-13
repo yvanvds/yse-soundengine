@@ -138,6 +138,7 @@ set(YSE_SRCS
   patcher/genericObjects/gDictSerialize.cpp
   patcher/genericObjects/gDictSlice.cpp
   patcher/genericObjects/gDictStrip.cpp
+  patcher/genericObjects/gDictUnpack.cpp
   patcher/genericObjects/gForward.cpp
   patcher/genericObjects/gFunbuff.cpp
   patcher/genericObjects/gFunnel.cpp
@@ -494,6 +495,7 @@ set_source_files_properties(
   patcher/genericObjects/gDictSerialize.cpp
   patcher/genericObjects/gDictSlice.cpp
   patcher/genericObjects/gDictStrip.cpp
+  patcher/genericObjects/gDictUnpack.cpp
   patcher/genericObjects/gForward.cpp
   patcher/genericObjects/gFunbuff.cpp
   patcher/genericObjects/gFunnel.cpp
