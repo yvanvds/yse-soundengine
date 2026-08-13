@@ -213,12 +213,23 @@ void YSE::SOUND::managerObject::scrubToLoadAndScheduleSetup() {
         std::memory_order_acquire); // NOSONAR S8417: intentional acquire — read impl state
                                     // published by setup-failure path
     if (s == OBJECT_DELETE_PENDING) {
+      // Unlink FIRST, publish OBJECT_DELETE second (issue #830). The store is
+      // what makes this impl match managerDeleteJob's canBeDeleted predicate,
+      // and a delete job queued by an earlier tick can still be inside
+      // remove_if right now — update()'s isQueued() guard only prevents
+      // queueing the same job object twice, it never joins a job in flight. In
+      // the reverse order the slow pool could free the impl between the store
+      // and the erase, and cursor::erase() then wrote through the freed node's
+      // `_mgrNext`. Erasing while the impl is still OBJECT_DELETE_PENDING (a
+      // state the delete job ignores) keeps the audio-thread-only list
+      // stitched before the pool is allowed to look at the node at all; the
+      // release store then publishes the finished unlink to the job's load.
+      c.erase();
       p->objectStatus.store(
           OBJECT_DELETE,
           std::memory_order_release); // NOSONAR S8417: intentional release — publish DELETE state
                                       // to slow-pool deleteJob's acquire load
       runDelete = true;
-      c.erase();
     } else if (s == OBJECT_READY || s == OBJECT_RELEASE || s == OBJECT_DELETE) {
       c.erase();
     } else {
