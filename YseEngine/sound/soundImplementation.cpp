@@ -137,7 +137,20 @@ YSE::SOUND::implementationObject::~implementationObject() {
       file->release(this);
     }
   }
-  if (post_dsp && post_dsp->calledfrom) post_dsp->calledfrom = nullptr;
+  // Teardown-only fallback (issue #838): on the normal delete path the
+  // update/audio thread already severed the DSP back-reference and nulled
+  // post_dsp at the OBJECT_RELEASE→OBJECT_DELETE transition in
+  // SOUND::Manager::syncAndReleaseInUse(), precisely so this destructor —
+  // which runs on the slow pool — never touches dspObject::calledfrom
+  // concurrently with an addDSP() on the audio thread. post_dsp can still be
+  // non-null here only when the engine is shutting down (impls reclaimed by
+  // System::close()/static destruction with the audio thread stopped), where
+  // no concurrent addDSP() exists. The ownership guard mirrors the
+  // audio-thread detach: only clear the back-reference while it still points
+  // at our own slot.
+  if (post_dsp != nullptr && post_dsp->calledfrom == &post_dsp) {
+    post_dsp->calledfrom = nullptr;
+  }
   if (sound* h = head.load(
           std::memory_order_acquire)) { // NOSONAR S8417: intentional acquire — snapshot head,
                                         // paired with release stores from removeInterface()
