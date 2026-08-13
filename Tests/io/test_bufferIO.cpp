@@ -13,9 +13,11 @@
 #include "BufferIO.hpp"
 #include "dsp/fileBuffer.hpp"
 #include "internal/customFileReader.h"
+#include <cstdint>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <system_error>
 #include <vector>
 
@@ -248,6 +250,198 @@ TEST_SUITE("io") {
       CHECK(fromBuffer.getPtr()[kFrames - 1] == original.getPtr()[kFrames - 1]);
 
       CHECK(io.RemoveBufferByName("wav-in-ram"));
+      io.SetActive(false);
+    }
+
+    std::filesystem::remove(path, ec); // best effort
+  }
+
+} // TEST_SUITE("io")
+
+// Issue #826 — where a seek is allowed to leave the reader.
+//
+// BufferIO_Seek stored whatever position it was handed. A negative one was
+// reachable from every whence (SEEK_SET with a negative offset, SEEK_CUR
+// rewinding past the start, SEEK_END further back than the buffer is long) and
+// passed #825's `startpos >= length` guard untouched, so BufferIO_Read then ran
+// std::copy from `buffer + startpos` — memory in front of the registered
+// buffer.
+//
+// The contract chosen is CLAMP, not reject: a registered buffer is a fixed
+// range of bytes, so every seek folds into [0, length] and reports where it
+// landed. Refusing would leave the reader somewhere the caller did not ask for
+// with no more information than clamping gives it — sndfile detects a bad jump
+// either way, by comparing the returned position against the one it asked for.
+// Clamping also keeps the invariant this file relies on everywhere else: the
+// reader is inside its buffer at all times, so no read can be unsafe.
+TEST_SUITE("io") {
+
+  TEST_CASE("BufferIO: an out-of-range seek lands inside the buffer (#826)") {
+    YSE::BufferIO io;
+    io.SetActive(true);
+
+    constexpr int kLen = 32;
+    // Heap-allocated on purpose: a read taken in front of the buffer is then a
+    // heap-buffer-underflow ASan names and stops on, not a stack byte that
+    // happens to be readable.
+    std::vector<char> src(static_cast<std::size_t>(kLen));
+    for (int i = 0; i < kLen; ++i) {
+      src[static_cast<std::size_t>(i)] = static_cast<char>(i + 1);
+    }
+    REQUIRE(io.AddBuffer("seek-range", src.data(), kLen));
+
+    long long size = 0;
+    void* handle = nullptr;
+    REQUIRE(YSE::INTERNAL::customFileReader::Open("seek-range", &size, &handle));
+    REQUIRE(size == kLen);
+
+    // Driven through the SF_VIRTUAL_IO table itself — the struct handed to
+    // sf_open_virtual — so this is the same entry point libsndfile uses on a
+    // registered buffer, not a private call into BufferIO.cpp.
+    SF_VIRTUAL_IO& vio = YSE::INTERNAL::customFileReader::GetVIO();
+    REQUIRE(vio.seek != nullptr);
+    REQUIRE(vio.read != nullptr);
+    REQUIRE(vio.tell != nullptr);
+    const auto seek = [&](long long offset, int whence) {
+      return static_cast<long long>(vio.seek(static_cast<sf_count_t>(offset), whence, handle));
+    };
+    const auto read = [&](void* into, long long bytes) {
+      return static_cast<long long>(vio.read(into, static_cast<sf_count_t>(bytes), handle));
+    };
+    const auto tell = [&] { return static_cast<long long>(vio.tell(handle)); };
+
+    char dest[kLen];
+    std::memset(dest, 0, sizeof dest);
+
+    // SEEK_SET before the start. The read that follows is the defect itself:
+    // unfixed it copies from src.data() - 1.
+    CHECK(seek(-1, 0 /* SEEK_SET */) == 0);
+    CHECK(tell() == 0);
+    CHECK(read(dest, 4) == 4);
+    CHECK(dest[0] == src[0]);
+    CHECK(dest[3] == src[3]);
+
+    CHECK(seek(-4 * kLen, 0) == 0);
+    CHECK(tell() == 0);
+
+    // SEEK_SET past the end stops at the end, where a read is empty (#825).
+    CHECK(seek(kLen + 1000, 0) == kLen);
+    CHECK(read(dest, sizeof dest) == 0);
+
+    // SEEK_CUR rewinding past the start.
+    CHECK(seek(8, 0) == 8);
+    CHECK(seek(-40, 1 /* SEEK_CUR */) == 0);
+    CHECK(read(dest, 1) == 1);
+    CHECK(dest[0] == src[0]);
+
+    // SEEK_CUR running past the end.
+    CHECK(seek(4 * kLen, 1) == kLen);
+
+    // SEEK_END further back than the buffer is long, and forwards past it.
+    CHECK(seek(-(kLen + 1), 2 /* SEEK_END */) == 0);
+    CHECK(seek(16, 2) == kLen);
+
+    // Clamping must not blunt an in-range seek: these land exactly.
+    CHECK(seek(-8, 2) == kLen - 8);
+    CHECK(seek(kLen, 0) == kLen); // one past the last byte is a legal position
+    CHECK(seek(0, 0) == 0);
+    CHECK(seek(kLen - 1, 0) == kLen - 1);
+    CHECK(read(dest, 4) == 1); // only the last byte is left
+    CHECK(dest[0] == src[kLen - 1]);
+
+    // Offsets big enough to overflow the position arithmetic if it were
+    // evaluated before being range-checked.
+    constexpr long long kMin = std::numeric_limits<long long>::min();
+    constexpr long long kMax = std::numeric_limits<long long>::max();
+    CHECK(seek(kMin, 0) == 0);
+    CHECK(seek(kMax, 0) == kLen);
+    CHECK(seek(kMax, 1) == kLen);
+    CHECK(seek(kMin, 1) == 0);
+    CHECK(seek(kMin, 2) == 0);
+    CHECK(seek(kMax, 2) == kLen);
+
+    // A whence nobody defines leaves the reader where it was.
+    CHECK(seek(4, 0) == 4);
+    CHECK(seek(99, 7) == 4);
+    CHECK(tell() == 4);
+
+    YSE::INTERNAL::customFileReader::Close(handle);
+    CHECK(io.RemoveBufferByName("seek-range"));
+    io.SetActive(false);
+  }
+
+} // TEST_SUITE("io")
+
+// The user-visible half of #826: the ordinary way an out-of-range seek is
+// reached is a file whose chunk header lies about its size, which sends
+// libsndfile's chunk walk outside the buffer. A registered buffer holding one
+// has to fail to load and leave the VFS usable — not take the reader outside
+// the bytes it was given.
+TEST_SUITE("io") {
+
+  TEST_CASE("BufferIO: a WAV whose chunk size lies fails to load safely (#826)") {
+    constexpr unsigned int kFrames = 40;
+
+    YSE::DSP::fileBuffer original(kFrames);
+    for (unsigned int i = 0; i < kFrames; ++i) {
+      original.getPtr()[i] = 0.25f + static_cast<float>(i) * 0.01f;
+    }
+
+    const std::filesystem::path path =
+        std::filesystem::temp_directory_path() / "yse_bufferio_826.wav";
+    std::error_code ec;
+    std::filesystem::remove(path, ec); // best effort: start from a clean slate
+    REQUIRE(original.save(path.string().c_str()));
+
+    std::ifstream f(path, std::ios::binary | std::ios::ate);
+    REQUIRE(f.is_open());
+    const auto size = static_cast<std::streamsize>(f.tellg());
+    f.seekg(0);
+    std::vector<char> bytes(static_cast<std::size_t>(size));
+    f.read(bytes.data(), size);
+    f.close();
+    REQUIRE(bytes.size() > 12u);
+
+    // Same file with a JUNK chunk spliced in behind the RIFF/WAVE header,
+    // claiming a size no buffer could hold. sndfile skips a JUNK chunk by
+    // seeking over it, so the walk is thrown clean outside the buffer.
+    std::vector<char> corrupt;
+    corrupt.reserve(bytes.size() + 8u);
+    corrupt.insert(corrupt.end(), bytes.begin(), bytes.begin() + 12); // RIFF/size/WAVE
+    const char junk[4] = {'J', 'U', 'N', 'K'};
+    corrupt.insert(corrupt.end(), junk, junk + 4);
+    for (int i = 0; i < 4; ++i) { // 0xFFFFFF00, little endian
+      corrupt.push_back(static_cast<char>(i == 0 ? 0x00 : 0xFF));
+    }
+    corrupt.insert(corrupt.end(), bytes.begin() + 12, bytes.end());
+    // Keep the RIFF size honest about the bytes that follow it, so the only
+    // thing wrong with the file is the chunk size under test.
+    const std::uint32_t riffSize = static_cast<std::uint32_t>(corrupt.size() - 8u);
+    for (int i = 0; i < 4; ++i) {
+      corrupt[4u + static_cast<std::size_t>(i)] = static_cast<char>((riffSize >> (8 * i)) & 0xFF);
+    }
+
+    {
+      YSE::BufferIO io;
+      io.SetActive(true);
+      REQUIRE(io.AddBuffer("wav-lying-chunk", corrupt.data(), static_cast<int>(corrupt.size())));
+      REQUIRE(io.AddBuffer("wav-intact", bytes.data(), static_cast<int>(bytes.size())));
+
+      // No 'fmt '/'data' is reachable once the walk has been thrown past the
+      // end, so the open fails. What matters is where the reader is while that
+      // happens: inside the buffer, at its end.
+      YSE::DSP::fileBuffer bad(1);
+      CHECK_FALSE(bad.load("wav-lying-chunk", 0));
+
+      // ... and the VFS is no worse for it: the intact buffer beside it still
+      // decodes to the samples it was built from.
+      YSE::DSP::fileBuffer good(1);
+      REQUIRE(good.load("wav-intact", 0));
+      CHECK(good.getLength() == kFrames);
+      CHECK(good.getPtr()[kFrames - 1] == original.getPtr()[kFrames - 1]);
+
+      CHECK(io.RemoveBufferByName("wav-lying-chunk"));
+      CHECK(io.RemoveBufferByName("wav-intact"));
       io.SetActive(false);
     }
 
