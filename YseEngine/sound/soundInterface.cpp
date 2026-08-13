@@ -203,7 +203,11 @@ void YSE::sound::create(const char* fileName, channel* ch, bool loop, float volu
     // clears its list at system::close() — long after ~sound() ran and found a
     // null pimpl with nothing left to detach.
     pimpl->removeInterface();
-    pimpl->setStatus(OBJECT_RELEASE);
+    // Then retire it: an unpublished impl flagged OBJECT_RELEASE was never
+    // reclaimed, because only the inUse pass promotes RELEASE to DELETE and
+    // this impl never got there (issue #817). The manager flags it for the
+    // slow-pool delete job instead.
+    SOUND::Manager().releaseUnpublished(pimpl);
     pimpl = nullptr;
   }
 }
@@ -259,7 +263,10 @@ void YSE::sound::create(YSE::patcher& patch, channel* ch, float volume) {
     // this the orphaned impl kept a back-pointer to a sound the caller is free
     // to delete immediately.
     pimpl->removeInterface();
-    pimpl->setStatus(OBJECT_RELEASE);
+    // ...and the same retirement as the file overload (issue #817), so a
+    // per-frame retry of an already-owned patcher doesn't park one impl per
+    // attempt in the manager's list.
+    SOUND::Manager().releaseUnpublished(pimpl);
     pimpl = nullptr;
   }
 }

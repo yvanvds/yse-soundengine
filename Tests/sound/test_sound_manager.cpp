@@ -4,11 +4,13 @@
 
 #include <doctest/doctest.h>
 #include <chrono>
+#include <cstddef>
 #include <thread>
 #include <vector>
 #include "yse.hpp"
 #include "sound/soundInterface.hpp"
 #include "sound/soundManager.h"
+#include "patcher/patcher.hpp"
 #include "dsp/dspObject.hpp"
 #include "internal/time.h"
 #include "support/null_device.hpp"
@@ -79,6 +81,68 @@ TEST_SUITE("sound") {
     drain();
     const bool after = YSE::SOUND::Manager().empty();
     CHECK(after == before);
+  }
+
+  // ─── refused create() reclaims its implementation (issue #817) ───────────────
+  //
+  // sound::create() registers an implementationObject before it knows whether
+  // the source is acceptable. On refusal it used to flag that impl
+  // OBJECT_RELEASE and drop it — but only the `inUse` pass promotes RELEASE to
+  // DELETE, and a refused impl never reached `inUse`, so nothing ever made it
+  // eligible for the slow-pool delete job. Every failed create() parked one
+  // (fairly heavy) impl in `implementations` until system::close(); a caller
+  // retrying a missing asset each frame grew that list without bound.
+  //
+  // These drive the real manager — real slow pool, real delete job — and assert
+  // the list does not grow across the refusals. They fail on the pre-fix code
+  // (count grows by the number of attempts and stays there) and pass once the
+  // refusal path retires the impl to OBJECT_DELETE.
+  //
+  // `<= before` rather than `== before`: the manager is a process-wide
+  // singleton, so an impl retired by an earlier test could still be reaped
+  // during the settling drain, legitimately lowering the baseline. Growth is
+  // what the regression is, and growth is what this rejects.
+
+  TEST_CASE("SOUND::Manager: a refused file create() releases its impl (#817)") {
+    if (!TestHelpers::engineInit()) return;
+
+    drain(); // settle any pending lifecycle work first
+    const std::size_t before = YSE::SOUND::Manager().implementationCount();
+
+    constexpr int kAttempts = 16;
+    for (int i = 0; i < kAttempts; i++) {
+      YSE::sound s;
+      s.create("/no/such/file.wav"); // FileExists() fails -> create() returns false
+      CHECK(s.isValid() == false); // confirm we hit the refusal path
+    }
+
+    drain(24); // let the audio-thread surrogate schedule the slow-pool delete job
+    CHECK(YSE::SOUND::Manager().implementationCount() <= before);
+  }
+
+  TEST_CASE("SOUND::Manager: a refused patcher create() releases its impl (#817)") {
+    if (!TestHelpers::engineInit()) return;
+
+    // The other refusal branch: one-patcher-per-sound (#287). The first sound
+    // keeps the patcher for the whole case, so every later attempt is refused.
+    YSE::patcher p;
+    p.create(1);
+    YSE::sound owner;
+    owner.create(p);
+    CHECK(owner.isValid());
+
+    drain();
+    const std::size_t before = YSE::SOUND::Manager().implementationCount();
+
+    constexpr int kAttempts = 16;
+    for (int i = 0; i < kAttempts; i++) {
+      YSE::sound s;
+      s.create(p);
+      CHECK(s.isValid() == false);
+    }
+
+    drain(24);
+    CHECK(YSE::SOUND::Manager().implementationCount() <= before);
   }
 
   TEST_CASE("SOUND::Manager: addFile by filename returns a valid soundFile pointer or null") {
