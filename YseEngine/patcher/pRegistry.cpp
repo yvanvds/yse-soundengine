@@ -38,6 +38,7 @@
 #include "genericObjects/gDictRoute.h"
 #include "genericObjects/gDictSerialize.h"
 #include "genericObjects/gDictSlice.h"
+#include "genericObjects/gDictStrip.h"
 #include "genericObjects/gPrint.h"
 // `.loadbang` / `.loadmess` (issue #547): the pair that lets a saved patch
 // describe its own starting state, fired by patcherImplementation's post-publish
@@ -500,6 +501,11 @@ pRegistry::pRegistry() {
   // remainder target unchanged — the sub-tree extraction the flat store
   // makes an explicit, bounded prefix scan (issue #779)
   Add(OBJ::G_DICT_SLICE, gDictSlice::Create);
+
+  // Removes the bound dictionary's entries under a key path, in place: the
+  // branch removal .dict's delete cannot spell, a bounded back-to-front
+  // erase scan of every key beginning "<path>::" (issue #780)
+  Add(OBJ::G_DICT_STRIP, gDictStrip::Create);
 
   // An ordered, index-addressed sequence shared by name — the collection type a
   // generative patch actually reaches for, and the value model the array.*
