@@ -140,14 +140,24 @@ namespace YSE {
       /** @brief Position cursor — application-owned read/write head pointer.
        *
        *  The buffer never mutates this on its own; it's a parking slot for
-       *  user code that needs to remember a position across calls. The one
-       *  exception is copying: a copy-constructed or copy-assigned buffer
-       *  parks it at the start of its own storage rather than inheriting a
-       *  pointer into the source's allocation.
+       *  user code that needs to remember a position across calls. The
+       *  exceptions are the operations that move or replace the storage it
+       *  points into, and both keep it addressing the sample it stood for:
+       *  ``resize`` re-parks it at the same offset on the (possibly
+       *  reallocated) storage, clamped to the new end, while a
+       *  copy-constructed or copy-assigned buffer parks it at the start of
+       *  its own storage — none of its own samples survive a copy, and the
+       *  source's pointer belongs to the source's allocation.
        */
       Flt* cursor;
 
       /** @brief Resize the buffer.
+       *
+       *  Any pointer into the buffer — including one obtained from ``getPtr``
+       *  — may be invalidated: growing past the current capacity reallocates.
+       *  ``cursor`` is the exception the buffer maintains itself: it is
+       *  re-parked at the same offset on the new storage, clamped to the new
+       *  end when the resize shrinks past it.
        *
        *  @param length Target length in samples.
        *  @param value  Value used to initialise newly added samples when

@@ -9,8 +9,9 @@
 // NOTE — buffer::cursor is a public raw pointer the buffer itself never
 //   advances, but every constructor does define it: the length constructor and
 //   the copy constructor both park it at the start of their own storage, and so
-//   does copy-assignment (issue #816). Tests may therefore read it; what they
-//   must not assume is that it tracks anything, since only calling code moves it.
+//   does copy-assignment (issue #816), and resize() re-parks it on the storage
+//   it just moved (issue #818). Tests may therefore read it; what they must not
+//   assume is that it tracks anything, since only calling code moves it.
 
 #include <doctest/doctest.h>
 
@@ -230,6 +231,66 @@ TEST_SUITE("dsp") {
     CHECK(b.getLength() == 6u);
     CHECK(b.getPtr()[0] == doctest::Approx(5.0f)); // original preserved
     CHECK(b.getPtr()[5] == doctest::Approx(0.0f)); // new element initialised
+  }
+
+  // Issue #818: resize() forwarded straight to the storage vector, so a resize
+  // that grew past the current capacity reallocated and freed the block cursor
+  // pointed into. A caller that parked a position before the resize was then
+  // reading through a dangling pointer. resize() keeps the samples it does not
+  // drop, so the cursor is re-parked at the same sample on the new storage.
+  //
+  // The dereferences below are deliberate: on unfixed code they read freed
+  // memory, which is what makes the defect an ASan report and not just a
+  // failing compare. They are safe once resize() re-parks the cursor.
+
+  TEST_CASE("buffer: resize re-parks the cursor on the new storage") {
+    YSE::DSP::buffer b(4);
+    b = 5.0f;
+    b.cursor = b.getPtr() + 2; // caller parked a read position
+
+    b.resize(4096); // grows past capacity: the old block is freed
+
+    CHECK(b.cursor == b.getPtr() + 2); // same sample, new allocation
+    CHECK(*b.cursor == doctest::Approx(5.0f));
+  }
+
+  TEST_CASE("buffer: resize clamps a cursor past the new end") {
+    YSE::DSP::buffer b(64);
+    b = 1.0f;
+    b.cursor = b.getPtr() + 40;
+
+    b.resize(8); // the sample the cursor stood on is gone
+
+    CHECK(b.cursor == b.getPtr() + b.getLength()); // clamped to the new end
+    CHECK(b.getLength() == 8u);
+  }
+
+  TEST_CASE("buffer: resize keeps the cursor usable through repeated growth") {
+    // The engine shape of the bug: a buffer whose length follows its input
+    // (filters, oscillators, fft all resize per block) with a caller-owned read
+    // head parked in it. Every growth here reallocates at least once.
+    YSE::DSP::buffer b(8);
+    b = 0.0f;
+    b.cursor = b.getPtr() + 1;
+
+    for (unsigned int len = 16; len <= 2048u; len *= 2) {
+      b.resize(len, 0.25f);
+      REQUIRE(b.cursor == b.getPtr() + 1);
+      *b.cursor = static_cast<float>(len); // write through the re-parked cursor
+      CHECK(b.getPtr()[1] == doctest::Approx(static_cast<float>(len)));
+    }
+  }
+
+  TEST_CASE("buffer: resize leaves a foreign cursor at the start of our storage") {
+    // A cursor that was never parked in this buffer cannot be rebased (and
+    // differencing unrelated pointers is undefined), so resize() falls back to
+    // the documented start-of-storage position rather than inventing an offset.
+    YSE::DSP::buffer b(4), other(64);
+    b.cursor = other.getPtr() + 10;
+
+    b.resize(256);
+
+    CHECK(b.cursor == b.getPtr());
   }
 
   TEST_CASE("buffer: cursor and sampleRateAdjustment are initialised after construction") {

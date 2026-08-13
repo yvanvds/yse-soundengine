@@ -9,6 +9,7 @@
 */
 
 #include <cassert>
+#include <cstddef>
 #include "buffer.hpp"
 
 namespace YSE {
@@ -29,7 +30,12 @@ namespace YSE {
     // what makes the copy fully defined instead of leaving those two members
     // holding whatever bytes the object's memory happened to contain
     // (issue #816).
-    buffer::buffer(const buffer& cp) : storage(cp.storage.size()), overflow(cp.overflow) {
+    // cursor is settled by operator= below; it is initialised here as well
+    // because resize() now reads it to rebase it (issue #818), and operator=
+    // only skips that resize as long as this constructor keeps pre-sizing
+    // storage to match the source.
+    buffer::buffer(const buffer& cp)
+      : cursor(nullptr), storage(cp.storage.size()), overflow(cp.overflow) {
       operator=(cp);
     }
 
@@ -376,7 +382,33 @@ namespace YSE {
     }
 
     buffer& buffer::resize(UInt length, Flt value) {
+      // Growing past the current capacity makes the vector reallocate and free
+      // the old block, and cursor addresses that block -- a caller that parked
+      // a position before the resize was reading through a dangling pointer
+      // afterwards (issue #818). resize() keeps the samples it does not drop,
+      // so the position stays meaningful: remember the offset here and re-park
+      // the cursor at the same sample on the new storage below. (Copying is the
+      // other case, and it answers the same question the other way for the same
+      // reason: operator= replaces every sample, so no old position survives
+      // and the cursor goes back to the start -- issue #816.)
+      //
+      // This costs two compares and a subtraction, no allocation and no extra
+      // branch on the render path; the resize itself stays the capacity-
+      // retaining vector::resize the DSP nodes call every block.
+      const Flt* oldData = storage.data();
+      std::size_t offset = 0;
+      // A cursor parked outside our own storage is not ours to rebase (and
+      // differencing unrelated pointers is undefined): fall back to the start.
+      if (cursor >= oldData && cursor <= oldData + storage.size()) {
+        offset = static_cast<std::size_t>(cursor - oldData);
+      }
+
       storage.resize(length + overflow, value);
+
+      // Shrinking can drop the sample the cursor sat on; clamp to the new end.
+      if (offset > storage.size()) offset = storage.size();
+      cursor = storage.data() + offset;
+
       return (*this);
     }
 
