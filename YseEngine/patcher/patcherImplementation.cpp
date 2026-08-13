@@ -5,6 +5,7 @@
 #include "../headers/enums.hpp"
 #include "genericObjects/pDac.h"
 #include "genericObjects/pAdc.h"
+#include "genericObjects/gArray.h"
 #include "genericObjects/gBag.h"
 #include "genericObjects/gColl.h"
 #include "genericObjects/gDict.h"
@@ -163,6 +164,12 @@ void patcherImplementation::SetName(const std::string& n) {
       // "<patcherName>.<name>" address, so a renamed patcher's dictionaries
       // re-anchor with its collections, values, sends and receives (issue #550).
       static_cast<gDict*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY) == 0) {
+      // And gArray, whose shared sequence is registered under the same
+      // "<patcherName>.<name>" address, so a renamed patcher's arrays re-anchor
+      // with its dictionaries, collections, values, sends and receives
+      // (issue #548).
+      static_cast<gArray*>(x.second)->RefreshBinding();
     } else if (strcmp(x.second->Type(), OBJ::G_BAG) == 0) {
       // And gBag, whose `send` message prefixes a runtime receive name with
       // "<patcherName>." exactly as gForward does, so it has to re-anchor with

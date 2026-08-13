@@ -25,6 +25,7 @@
 #include "genericObjects/gCharCode.h"
 #include "genericObjects/gBag.h"
 #include "genericObjects/gCapture.h"
+#include "genericObjects/gArray.h"
 #include "genericObjects/gColl.h"
 #include "genericObjects/gDict.h"
 #include "genericObjects/gPrint.h"
@@ -423,6 +424,12 @@ pRegistry::pRegistry() {
   // written against: addressed by name, resolved on the control thread, never
   // passed down a cord (issue #550)
   Add(OBJ::G_DICT, gDict::Create);
+
+  // An ordered, index-addressed sequence shared by name — the collection type a
+  // generative patch actually reaches for, and the value model the array.*
+  // family is written against: addressed by name, resolved on the control
+  // thread, one atom per element (issue #548)
+  Add(OBJ::G_ARRAY, gArray::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which
