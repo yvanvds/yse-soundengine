@@ -197,6 +197,12 @@ void YSE::sound::create(const char* fileName, channel* ch, bool loop, float volu
     _volume = volume;
     SOUND::Manager().setup(pimpl);
   } else {
+    // Detach before dropping our handle (issue #815): the refused impl stays
+    // registered with SOUND::Manager, so if its `head` still pointed here it
+    // would write `h->pimpl = nullptr` through freed storage when the manager
+    // clears its list at system::close() — long after ~sound() ran and found a
+    // null pimpl with nothing left to detach.
+    pimpl->removeInterface();
     pimpl->setStatus(OBJECT_RELEASE);
     pimpl = nullptr;
   }
@@ -247,6 +253,12 @@ void YSE::sound::create(YSE::patcher& patch, channel* ch, float volume) {
     _volume = volume;
     SOUND::Manager().setup(pimpl);
   } else {
+    // Same detach as the file overload above (issue #815). This is the path the
+    // ASan report came from: the refusal branch of the impl's patcher create()
+    // returns before it ever reaches a `head = nullptr` of its own, so without
+    // this the orphaned impl kept a back-pointer to a sound the caller is free
+    // to delete immediately.
+    pimpl->removeInterface();
     pimpl->setStatus(OBJECT_RELEASE);
     pimpl = nullptr;
   }

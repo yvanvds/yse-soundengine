@@ -203,6 +203,61 @@ TEST_SUITE("lifecycle") {
     CHECK(true); // completing the cycle without a crash is the observable win
   }
 
+  // Regression test for issue #815: a sound whose create() was *refused* must
+  // still detach itself from the implementation that create() registered.
+  //
+  // sound::create() allocates the impl through SOUND::Manager().addImplementation
+  // (which stores a `head` back-pointer to the interface) BEFORE it knows whether
+  // the source is acceptable. On refusal it marks the impl OBJECT_RELEASE and
+  // nulls its own `pimpl`, so the sound reports isValid() == false. Pre-fix that
+  // left the impl in the manager's `implementations` list with `head` still
+  // pointing at the interface — and because `pimpl` was already null, ~sound()
+  // had nothing to detach. Deleting the (heap-allocated) sound therefore left a
+  // dangling back-pointer that ~implementationObject dereferenced at
+  // system::close(), writing `h->pimpl = nullptr` into freed memory: a
+  // heap-use-after-free that AddressSanitizer reports deterministically and that
+  // normal builds silently get away with.
+  //
+  // The one-patcher-per-sound refusal (#287) is the reachable trigger: unlike the
+  // file/buffer overloads — whose impl-side create() nulls `head` itself on the
+  // failure branch — the patcher overload rejects before it touches any state.
+  // The sound under test is heap-allocated on purpose, so the freed storage is a
+  // heap block ASan can poison and attribute.
+  //
+  // Like the #298 case above, the CHECKs only assert the cycle completes; the
+  // real gate is the AddressSanitizer run of this suite (build.yml runs
+  // yse_tests_lifecycle under ASan).
+  TEST_CASE("lifecycle: a refused sound::create() detaches from its impl (issue #815)") {
+    YSE::System().close(); // normalize to a closed engine
+
+    if (!YSE::System().initOffline()) return; // no offline device on this host
+
+    {
+      YSE::patcher patch;
+      patch.create(2);
+
+      YSE::sound first;
+      first.create(patch);
+      CHECK(first.isValid());
+
+      // Second create is refused: the patcher already has an owner (#287).
+      YSE::sound* second = new YSE::sound();
+      second->create(patch);
+      CHECK_FALSE(second->isValid());
+
+      // Pre-fix this freed the interface while the refused impl still pointed
+      // at it.
+      delete second;
+
+      // ... and this is where that pointer was written through:
+      // SOUND::Manager().destroy() clears `implementations`, running
+      // ~implementationObject for the refused impl.
+      YSE::System().close();
+    }
+
+    CHECK(true); // reaching here clean is the observable win
+  }
+
   // Requested-rate lifecycle (issue #646), doubling as the #637 session-
   // contract scenario: the sample rate is an application setting, fixed per
   // session — changing it means close() + init(). Offline sessions have no
