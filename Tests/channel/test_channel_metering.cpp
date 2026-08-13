@@ -21,6 +21,7 @@
 #include "sound/soundManager.h"
 #include "internal/time.h"
 #include "support/null_device.hpp"
+#include "support/timer_pacing.hpp"
 
 namespace {
   // The dB floor returned for silent / out-of-range peaks. Kept in sync with
@@ -30,13 +31,16 @@ namespace {
   // Channel setup is async: c.create() queues setup() onto the slow-pool;
   // the audio-thread-side promote-from-toLoad pass then sizes `out`. Pump
   // both managers a few times so freshly created channels reach OBJECT_READY
-  // and getNumOutputs() reflects the device layout.
+  // and getNumOutputs() reflects the device layout. The gap between two update()
+  // calls — the room the slow pool has to run the queued setup() — is a window
+  // of reference-timer ticks rather than a fixed sleep (issue #753), so it
+  // stretches with machine load exactly as the pool does.
   void drainChannels(int iterations = 8) {
     for (int i = 0; i < iterations; ++i) {
       YSE::INTERNAL::Time().update();
       YSE::SOUND::Manager().update();
       YSE::CHANNEL::Manager().update();
-      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+      TestHelpers::paceWindow(2);
     }
   }
 } // namespace

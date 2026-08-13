@@ -16,22 +16,19 @@
 #include <memory>
 #include <thread>
 #include "patcher/time/TimerThread.h"
+#include "support/timer_pacing.hpp"
 
 using namespace std::chrono_literals;
 
 namespace {
 
-  // Spin-wait for `pred()` to become true, polling every 1ms up to `budget` ms.
-  // Returns true if the predicate fired in time, false on timeout. Tests that
-  // must observe an asynchronous callback use this rather than a hard sleep so
-  // they finish as quickly as the worker thread schedules.
-  template <typename P> bool waitFor(P pred, int budgetMs = 1000) {
-    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(budgetMs);
-    while (std::chrono::steady_clock::now() < deadline) {
-      if (pred()) return true;
-      std::this_thread::sleep_for(1ms);
-    }
-    return pred();
+  // Spin-wait for `pred()` to become true, budgeted in *ticks of the suite's
+  // reference timer* rather than in milliseconds (issue #753). The worker gets
+  // that many millisecond deliveries to satisfy the predicate, however long a
+  // loaded box takes to produce them, so a case here fails when this
+  // `timerThread` misbehaves and not when the scheduler is busy.
+  template <typename P> bool waitTicks(P pred, int ticks = 1000) {
+    return TestHelpers::pacedUntil(ticks, pred);
   }
 
 } // namespace
@@ -42,9 +39,9 @@ TEST_SUITE("patcher") {
     YSE::PATCHER::timerThread t;
     std::atomic<int> count{0};
     t.setTimeout([&count] { count++; }, 10);
-    CHECK(waitFor([&] { return count.load() >= 1; }));
+    CHECK(waitTicks([&] { return count.load() >= 1; }));
     // give the worker a beat to confirm no second tick arrives
-    std::this_thread::sleep_for(40ms);
+    TestHelpers::paceWindow(40);
     CHECK(count.load() == 1);
   }
 
@@ -52,7 +49,7 @@ TEST_SUITE("patcher") {
     YSE::PATCHER::timerThread t;
     std::atomic<int> count{0};
     auto id = t.setInterval([&count] { count++; }, 10);
-    CHECK(waitFor([&] { return count.load() >= 3; }, 500));
+    CHECK(waitTicks([&] { return count.load() >= 3; }, 500));
     t.ClearTimer(id);
   }
 
@@ -62,7 +59,7 @@ TEST_SUITE("patcher") {
     auto id1 = t.Add(5, 0, [&a] { a++; });
     auto id2 = t.Add(5, 0, [&b] { b++; });
     CHECK(id1 != id2);
-    CHECK(waitFor([&] { return a.load() == 1 && b.load() == 1; }));
+    CHECK(waitTicks([&] { return a.load() == 1 && b.load() == 1; }));
   }
 
   TEST_CASE("timerThread: ClearTimer returns false for unknown id") {
@@ -76,7 +73,7 @@ TEST_SUITE("patcher") {
     // long delay → cancel before the worker can fire it
     auto id = t.Add(5000, 0, [&count] { count++; });
     CHECK(t.ClearTimer(id));
-    std::this_thread::sleep_for(20ms);
+    TestHelpers::paceWindow(20);
     CHECK(count.load() == 0);
   }
 
@@ -96,7 +93,7 @@ TEST_SUITE("patcher") {
         },
         1);
 
-    REQUIRE(waitFor([&] { return entered.load(); }));
+    REQUIRE(waitTicks([&] { return entered.load(); }));
 
     // ClearTimer blocks on the predicate-checked wait until the callback exits
     std::thread canceller([&] { t.ClearTimer(id); });
@@ -120,7 +117,7 @@ TEST_SUITE("patcher") {
     t.Clear();
     CHECK(t.size() == 0);
     CHECK(t.empty());
-    std::this_thread::sleep_for(20ms);
+    TestHelpers::paceWindow(20);
     CHECK(count.load() == 0);
   }
 
@@ -184,14 +181,14 @@ TEST_SUITE("patcher") {
     // 5s cycle: the timer is parked far in the future, so any tick observed
     // below can only come from the reschedule.
     auto id = t.setInterval([&count] { count++; }, 5000);
-    std::this_thread::sleep_for(20ms);
+    TestHelpers::paceWindow(20);
     REQUIRE(count.load() == 0);
 
-    // 20ms of the cycle has elapsed and the new period is 10ms, so the target
-    // expiry is already in the past — the timer must fire promptly rather than
-    // wait out a fresh 10ms, and must not skip the beat entirely.
+    // At least 20ms of the cycle has elapsed and the new period is 10ms, so the
+    // target expiry is already in the past — the timer must fire promptly rather
+    // than wait out a fresh 10ms, and must not skip the beat entirely.
     CHECK(t.SetPeriod(id, 10));
-    CHECK(waitFor([&] { return count.load() >= 5; }, 1000));
+    CHECK(waitTicks([&] { return count.load() >= 5; }, 1000));
     t.ClearTimer(id);
   }
 
@@ -199,13 +196,13 @@ TEST_SUITE("patcher") {
     YSE::PATCHER::timerThread t;
     std::atomic<int> count{0};
     auto id = t.setInterval([&count] { count++; }, 10);
-    REQUIRE(waitFor([&] { return count.load() >= 2; }, 1000));
+    REQUIRE(waitTicks([&] { return count.load() >= 2; }, 1000));
 
     CHECK(t.SetPeriod(id, 5000));
     // Let any tick already in flight land, then the queue must go quiet.
-    std::this_thread::sleep_for(30ms);
+    TestHelpers::paceWindow(30);
     const int settled = count.load();
-    std::this_thread::sleep_for(150ms);
+    TestHelpers::paceWindow(150);
     CHECK(count.load() == settled);
     t.ClearTimer(id);
   }
@@ -231,7 +228,7 @@ TEST_SUITE("patcher") {
 
     // First tick at ~400ms switches the timer to 10ms; without that taking
     // effect, five ticks would need two full seconds.
-    CHECK(waitFor([&] { return count.load() >= 5; }, 1200));
+    CHECK(waitTicks([&] { return count.load() >= 5; }, 1200));
     t.ClearTimer(id);
   }
 
@@ -250,7 +247,7 @@ TEST_SUITE("patcher") {
 
     CHECK(t.SetPeriod(idA, 10));
     CHECK(t.size() == 2);
-    CHECK(waitFor([&] { return a.load() >= 3; }, 1000));
+    CHECK(waitTicks([&] { return a.load() >= 3; }, 1000));
     CHECK(b.load() == 0); // idB keeps its own 5s interval
 
     t.ClearTimer(idA);
@@ -297,7 +294,7 @@ TEST_SUITE("patcher") {
         5);
     self.store(id);
 
-    const bool returned = waitFor([&] { return cleared.load(); }, 2000);
+    const bool returned = waitTicks([&] { return cleared.load(); }, 2000);
     CHECK(returned);
     if (!returned) return; // leaked on purpose — see the note above
     std::unique_ptr<YSE::PATCHER::timerThread> owned(t);
@@ -306,9 +303,9 @@ TEST_SUITE("patcher") {
     CHECK(second.load()); // still true: it is retiring, not unknown
     // Retired by the worker the moment the callback returned, so the promise
     // that matters — no callback begins after this — holds.
-    CHECK(waitFor([&] { return owned->empty(); }, 1000));
+    CHECK(waitTicks([&] { return owned->empty(); }, 1000));
     const int settled = ticks.load();
-    std::this_thread::sleep_for(80ms);
+    TestHelpers::paceWindow(80);
     CHECK(ticks.load() == settled);
   }
 
@@ -332,13 +329,13 @@ TEST_SUITE("patcher") {
         5);
     arm.store(true);
 
-    const bool returned = waitFor([&] { return done.load(); }, 2000);
+    const bool returned = waitTicks([&] { return done.load(); }, 2000);
     CHECK(returned);
     if (!returned) return; // leaked on purpose — see the note above
     std::unique_ptr<YSE::PATCHER::timerThread> owned(t);
 
     // The sweep took the other timer; the one that ran it retires on return.
-    CHECK(waitFor([&] { return owned->empty(); }, 1000));
+    CHECK(waitTicks([&] { return owned->empty(); }, 1000));
     CHECK(other.load() == 0);
   }
 
@@ -363,7 +360,7 @@ TEST_SUITE("patcher") {
             std::this_thread::sleep_for(1ms);
         },
         1);
-    REQUIRE(waitFor([&] { return entered->load(); }));
+    REQUIRE(waitTicks([&] { return entered->load(); }));
 
     std::thread a([t, id, returned] {
       t->ClearTimer(id);
@@ -375,11 +372,11 @@ TEST_SUITE("patcher") {
     });
 
     // Neither may report the timer stopped while it is demonstrably running.
-    std::this_thread::sleep_for(20ms);
+    TestHelpers::paceWindow(20);
     CHECK(returned->load() == 0);
 
     mayExit->store(true);
-    const bool both = waitFor([&] { return returned->load() == 2; }, 2000);
+    const bool both = waitTicks([&] { return returned->load() == 2; }, 2000);
     CHECK(both);
     if (!both) {
       a.detach();
@@ -415,13 +412,13 @@ TEST_SUITE("patcher") {
         5);
     self.store(id);
 
-    const bool returned = waitFor([&] { return cleared.load(); }, 2000);
+    const bool returned = waitTicks([&] { return cleared.load(); }, 2000);
     CHECK(returned);
     if (!returned) return; // leaked on purpose — see the note above
     std::unique_ptr<YSE::PATCHER::timerThread> owned(t);
 
     const int base = neighbour.load();
-    CHECK(waitFor([&] { return neighbour.load() > base + 2; }, 2000));
+    CHECK(waitTicks([&] { return neighbour.load() > base + 2; }, 2000));
     CHECK(owned->size() == 1);
     owned->ClearTimer(other);
   }
@@ -431,7 +428,7 @@ TEST_SUITE("patcher") {
     std::atomic<int> count{0};
     YSE::PATCHER::timerThread::boundHandlerType<> cb = [&count] { count++; };
     auto id = t.Add(std::chrono::milliseconds(5), std::chrono::milliseconds(10), cb);
-    CHECK(waitFor([&] { return count.load() >= 2; }, 500));
+    CHECK(waitTicks([&] { return count.load() >= 2; }, 500));
     t.ClearTimer(id);
   }
 

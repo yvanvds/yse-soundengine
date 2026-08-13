@@ -34,6 +34,7 @@
 #include <vector>
 #include "yse.hpp"
 #include "support/null_device.hpp"
+#include "support/timer_pacing.hpp"
 #include "headers/defines.hpp"
 // The mixer layout a refused open must not touch (issue #665) is read through
 // CHANNEL::Manager(); channelImplementation.h / channelMessage.h come first for
@@ -569,16 +570,20 @@ TEST_SUITE("integration") {
     YSE::System().autoReconnect(true, 0);
     YSE::System().resume();
 
-    bool delivering = false;
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
-    while (std::chrono::steady_clock::now() < deadline) {
-      YSE::System().update();
-      if (YSE::System().missedCallbacks() == 0) {
-        delivering = true;
-        break;
-      }
-      YSE::System().sleep(1);
-    }
+    // Budgeted in ticks of the suite's reference timer rather than in seconds
+    // (issue #753): the claim is that the device reaches "delivering callbacks",
+    // not that it does so inside three seconds of a machine that may be
+    // saturated. missedCallbacks() is only meaningful after an update() has
+    // sampled the stream, so the read stays paired with the update it belongs
+    // to — the drain above exists precisely so the first read cannot answer on
+    // the previous case's evidence.
+    const bool delivering = TestHelpers::pacedPump(
+        3000,
+        [] {
+          YSE::System().update();
+          return YSE::System().missedCallbacks() == 0;
+        },
+        [] {}, 1);
     // Restore the default before asserting: a CHECK that fails must not leave
     // the watchdog armed for the rest of the suite.
     YSE::System().autoReconnect(false, 0);
@@ -637,10 +642,13 @@ TEST_SUITE("integration") {
     s.relative(true);
     s.play();
 
-    for (int i = 0; i < 10 && !g_probe.triggered.load(std::memory_order_relaxed); i++) {
-      YSE::System().sleep(50);
-      YSE::System().update();
-    }
+    // 500 reference ticks rather than ten fixed 50 ms naps (issue #753): the
+    // probe flag is set from the audio callback, so what the case waits on is a
+    // delivery, and a loaded box needs a proportionally wider window to make
+    // one rather than a failing CHECK.
+    TestHelpers::pacedPump(
+        500, [] { return g_probe.triggered.load(std::memory_order_relaxed); },
+        [] { YSE::System().update(); }, 50);
     s.stop();
 
     CHECK(g_probe.triggered.load(std::memory_order_relaxed));
@@ -669,8 +677,11 @@ TEST_SUITE("integration") {
 
     YSE::channel target;
     target.create("move_target_656", YSE::ChannelMaster());
+    // Ten update ticks for the new channel to settle. The count is the point,
+    // so it stays; the window each tick leaves the engine is paced off the
+    // suite's reference timer rather than off the clock (issue #753).
     for (int i = 0; i < 10; i++) {
-      YSE::System().sleep(10);
+      TestHelpers::paceWindow(10);
       YSE::System().update();
     }
     REQUIRE(target.isValid());
@@ -698,12 +709,17 @@ TEST_SUITE("integration") {
     s->moveTo(target);
     s->play();
 
+    // Same shape as the probe case above: the meter is written by the audio
+    // callback, so the wait is on a delivery and is paced off the suite's
+    // reference timer instead of twenty fixed 50 ms naps (issue #753).
     float peak = 0.f;
-    for (int i = 0; i < 20 && peak <= 0.f; i++) {
-      YSE::System().sleep(50);
-      YSE::System().update();
-      peak = target.getPeakLinearPost();
-    }
+    TestHelpers::pacedPump(
+        1000, [&peak] { return peak > 0.f; },
+        [&peak, &target] {
+          YSE::System().update();
+          peak = target.getPeakLinearPost();
+        },
+        50);
     s->stop();
     YSE::System().sleep(50);
     YSE::System().update();

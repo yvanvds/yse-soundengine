@@ -24,18 +24,22 @@
 #include "internal/reverbDSP.h"
 #include "internal/time.h"
 #include "support/null_device.hpp"
+#include "support/timer_pacing.hpp"
 
 namespace {
 
   // Drive REVERB::Manager().update() — the only manager we need to
   // stimulate for these tests. We don't tick SOUND/CHANNEL here because
   // the reverb churn is independent of them; the shared slow-pool is
-  // drained by REVERB's own deleteJob.
-  void drainReverbs(int iterations = 8, int sleepMs = 2) {
+  // drained by REVERB's own deleteJob. The gap between two update() calls — the
+  // room the slow pool has to run the queued jobs — is a window of
+  // reference-timer ticks rather than a fixed sleep (issue #753), so it
+  // stretches with machine load exactly as the pool does.
+  void drainReverbs(int iterations = 8, int ticks = 2) {
     for (int i = 0; i < iterations; ++i) {
       YSE::INTERNAL::Time().update();
       YSE::REVERB::Manager().update();
-      if (sleepMs > 0) std::this_thread::sleep_for(std::chrono::milliseconds(sleepMs));
+      if (ticks > 0) TestHelpers::paceWindow(ticks);
     }
   }
 

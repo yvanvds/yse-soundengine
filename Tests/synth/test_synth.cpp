@@ -31,6 +31,7 @@
 #include "support/audio_helpers.hpp"
 #include "support/alloc_probe.hpp"
 #include "support/null_device.hpp"
+#include "support/timer_pacing.hpp"
 
 using namespace std::chrono_literals;
 
@@ -393,6 +394,9 @@ TEST_SUITE("synth") {
     impl.sendMessage(noteOnMsg(1, 70, 1.f)); // steal
     for (int i = 0; i < 40; ++i)
       renderBlock(impl, intent);
+    // Construct the suite's pacing reference before the probe is armed: its
+    // first use allocates on the calling thread (issue #753).
+    TestHelpers::paceTicks();
 
     {
       TestHelpers::ProbeScope probe;
@@ -410,13 +414,19 @@ TEST_SUITE("synth") {
   // ─── manager / lifecycle (needs a live engine) ────────────────────────────
 
   namespace {
+    // Pump the managers over a window of `n` * 5 deliveries of the suite's
+    // reference timer rather than of `n` * 5 milliseconds (issue #753): the
+    // drain stretches with machine load exactly as the managers' own workers
+    // do, while a wedged worker still fails the caller's check.
     void drainSynth(int n = 16) {
-      for (int i = 0; i < n; ++i) {
-        YSE::INTERNAL::Time().update();
-        YSE::SOUND::Manager().update();
-        YSE::SYNTH::Manager().update();
-        std::this_thread::sleep_for(5ms);
-      }
+      TestHelpers::pacedPump(
+          n * 5, [] { return false; },
+          [] {
+            YSE::INTERNAL::Time().update();
+            YSE::SOUND::Manager().update();
+            YSE::SYNTH::Manager().update();
+          },
+          5);
     }
   } // namespace
 

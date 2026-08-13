@@ -33,6 +33,7 @@
 #include "sound/soundManager.h"
 #include "dsp/buffer.hpp"
 #include "support/null_device.hpp"
+#include "support/timer_pacing.hpp"
 
 using YSE::SOUND_STATUS;
 using YSE::INTERNAL::soundFile;
@@ -73,14 +74,12 @@ namespace {
     return p.string();
   }
 
-  // Wait for the slow-pool load to finish (state == READY) or time out.
+  // Wait for the slow-pool load to finish (state == READY) or run out of budget.
+  // The budget is counted in ticks of the suite's pacing reference rather than
+  // in wall clock, so a loaded box stretches it by exactly as much as it
+  // stretches the pool (issue #753); a wedged pool still fails.
   bool waitReady(soundFile& f) {
-    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
-    while (std::chrono::steady_clock::now() < deadline) {
-      if (f.getState() == YSE::INTERNAL::READY) return true;
-      std::this_thread::sleep_for(std::chrono::milliseconds(2));
-    }
-    return f.getState() == YSE::INTERNAL::READY;
+    return TestHelpers::pacedUntil(3000, [&f] { return f.getState() == YSE::INTERNAL::READY; });
   }
 
   // What one STANDARD_BUFFERSIZE block produced.
@@ -110,6 +109,11 @@ namespace {
   // land the refill. A partial underrun is not retried — the frames before it are
   // real audio the stream has already advanced past — so callers must advance
   // their own frame counter by `valid`, not by the block size.
+  //
+  // Each retry waits out a window of the suite's pacing reference instead of a
+  // fixed 3 ms, so the retry budget grows with the machine's load rather than
+  // expiring on it (issue #753). The iteration count is kept: a retry is a read()
+  // of its own, so the loop is the number of reads the refill gets, not a clock.
   blockResult readBlock(YSE::INTERNAL::abstractSoundFile& f, Flt& pos, Bool loop,
                         SOUND_STATUS& intent, Flt& vol, std::vector<float>& out) {
     for (int retry = 0; retry < 500; ++retry) {
@@ -119,7 +123,7 @@ namespace {
       out.assign(p, p + YSE::STANDARD_BUFFERSIZE);
       blockResult r{validFrames(out), intent == YSE::SS_STOPPED};
       if (r.stopped || r.valid > 0) return r;
-      std::this_thread::sleep_for(std::chrono::milliseconds(3)); // underrun: let the refill land
+      TestHelpers::paceWindow(3); // underrun: let the refill land
     }
     return {}; // the refill never landed
   }
@@ -160,9 +164,13 @@ namespace {
   // the closing Time().update() discards the wait so the caller starts with the
   // full one-second GC-free budget — far more than the ~0.3 s of ticks the
   // measurement below spends.
+  //
+  // The opening sleep stays denominated in wall clock: it is measured against
+  // the manager's own wall-clock throttle, so its elapsed time is the whole
+  // point of it (issue #753). The settle wait after it is not about wall time —
+  // it waits on the slow pool — so its budget is counted in ticks of the
+  // suite's pacing reference, which stretches with the load the pool is under.
   void settleSoundFilePopulation() {
-    using clock = std::chrono::steady_clock;
-
     // Longer than the manager's one-second GC throttle, so this single tick
     // crosses it from any starting point and resets it.
     std::this_thread::sleep_for(std::chrono::milliseconds(1100));
@@ -174,18 +182,16 @@ namespace {
     // no Manager().update() in this loop: a second update() would re-add the
     // same large delta and re-arm the GC behind the caller's back.
     long last = soundFile::liveInstances();
-    auto stableSince = clock::now();
-    const auto deadline = stableSince + std::chrono::seconds(3);
-    while (clock::now() < deadline) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    long stableSince = TestHelpers::paceTicks();
+    TestHelpers::pacedUntil(3000, [&] {
       const long now = soundFile::liveInstances();
       if (now != last) {
         last = now;
-        stableSince = clock::now();
-      } else if (clock::now() - stableSince > std::chrono::milliseconds(200)) {
-        break;
+        stableSince = TestHelpers::paceTicks();
+        return false;
       }
-    }
+      return TestHelpers::paceTicks() - stableSince > 200;
+    });
 
     // Absorb the wait itself, so the caller's first tick reports only its own
     // elapsed time against the manager's GC throttle.
@@ -600,20 +606,23 @@ TEST_SUITE("sound") {
       for (int i = 0; i < 15; ++i) {
         YSE::INTERNAL::Time().update();
         YSE::SOUND::Manager().update();
-        std::this_thread::sleep_for(std::chrono::milliseconds(3));
+        TestHelpers::paceWindow(3);
       }
       CHECK(soundFile::liveInstances() == baseline + 1);
     } // ~sound() nulls the head; the next sync() releases the impl.
 
     // Pump until the slow-pool deleteJob has run ~implementationObject (which,
-    // with the fix, deletes the owned streaming file). Poll with a deadline so
-    // the test doesn't depend on an exact iteration count for async teardown.
-    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
-    while (std::chrono::steady_clock::now() < deadline && soundFile::liveInstances() != baseline) {
-      YSE::INTERNAL::Time().update();
-      YSE::SOUND::Manager().update();
-      std::this_thread::sleep_for(std::chrono::milliseconds(3));
-    }
+    // with the fix, deletes the owned streaming file). Poll on a budget so the
+    // test doesn't depend on an exact iteration count for async teardown — a
+    // budget in pacing-reference ticks, so a loaded box gets proportionally
+    // longer to run that job (issue #753).
+    TestHelpers::pacedPump(
+        3000, [&] { return soundFile::liveInstances() == baseline; },
+        [] {
+          YSE::INTERNAL::Time().update();
+          YSE::SOUND::Manager().update();
+        },
+        3);
 
     CHECK(soundFile::liveInstances() == baseline);
   }

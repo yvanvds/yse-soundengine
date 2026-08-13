@@ -27,6 +27,7 @@
 #include "internal/time.h"
 #include "support/alloc_probe.hpp"
 #include "support/null_device.hpp"
+#include "support/timer_pacing.hpp"
 
 using namespace std::chrono_literals;
 
@@ -42,12 +43,19 @@ namespace {
   SilentSource g_src;
 
   // One pump of the manager update()s the audio thread would normally drive.
+  //
+  // The iteration count is what advances the managers, so it stays as it is;
+  // the wait between iterations is counted in ticks of the suite's pacing
+  // reference instead of milliseconds, so the slow pool gets proportionally
+  // longer on a loaded box (issue #753). paceWindow() only loads an atomic once
+  // the reference exists, but *constructing* it allocates on the calling
+  // thread — see the warm-up in the case below, which is armed with a probe.
   void pump(int n = 1) {
     for (int i = 0; i < n; ++i) {
       YSE::INTERNAL::Time().update();
       YSE::CHANNEL::Manager().update();
       YSE::SOUND::Manager().update();
-      std::this_thread::sleep_for(2ms);
+      TestHelpers::paceWindow(2);
     }
   }
 
@@ -58,6 +66,11 @@ TEST_SUITE("sound") {
   TEST_CASE(
       "managers: reparenting sounds churns the audio-thread lists without allocating (#194)") {
     if (!TestHelpers::engineInit()) return;
+
+    // Construct the suite's pacing reference here, outside any armed probe: the
+    // first call spins up its worker and so allocates on the calling thread,
+    // while every later call is an atomic load (issue #753).
+    TestHelpers::paceTicks();
 
     // Two user channels to shuttle sounds between.
     YSE::channel chA;

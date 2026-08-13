@@ -42,6 +42,7 @@
 #include "implementations/logImplementation.h"
 #include "internal/time.h"
 #include "support/null_device.hpp"
+#include "support/timer_pacing.hpp"
 
 namespace {
 
@@ -113,12 +114,16 @@ namespace {
     src.runSendTaps(false);
   }
 
+  // The gap between two update() calls — the room the slow pool has to run the
+  // queued setup() jobs — is a window of reference-timer ticks rather than a
+  // fixed sleep (issue #753), so it stretches with machine load exactly as the
+  // pool does.
   void drainChannels(int iterations = 12) {
     for (int i = 0; i < iterations; ++i) {
       YSE::INTERNAL::Time().update();
       YSE::SOUND::Manager().update();
       YSE::CHANNEL::Manager().update();
-      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+      TestHelpers::paceWindow(2);
     }
   }
 
@@ -500,12 +505,14 @@ namespace {
   // pool execute the queued setup() jobs. This is the offline analogue of the
   // channel suite's drainChannels(). Needed so freshly created channels /
   // returns / sounds reach OBJECT_READY (and get linked into the returns list)
-  // before the render is expected to carry signal.
+  // before the render is expected to carry signal. That room for the pool is a
+  // window of reference-timer ticks rather than a fixed sleep (issue #753), so
+  // it stretches with machine load exactly as the pool does.
   void pump(int iterations = 20) {
     for (int i = 0; i < iterations; ++i) {
       YSE::System().update();
       YSE::System().renderOffline(2);
-      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+      TestHelpers::paceWindow(2);
     }
   }
 

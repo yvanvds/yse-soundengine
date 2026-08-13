@@ -54,6 +54,7 @@
 #include "patcher/pObjectList.hpp"
 #include "dsp/buffer.hpp"
 #include "implementations/logImplementation.h"
+#include "support/timer_pacing.hpp"
 
 using YSE::PATCHER::patcherImplementation;
 
@@ -285,15 +286,19 @@ TEST_SUITE("patcher") {
 
     // Retired state drains on the background pool rather than piling up until
     // teardown. Keep the epoch advancing so any snapshot inside the +2 grace
-    // can cross it, then assert only a handful remain pending.
-    for (int spins = 0; spins < 2000 && p.PendingRetired() > 4; ++spins) {
-      p.Connect(n2, 0, d2, 0);
-      p.Calculate(YSE::T_DSP);
-      p.Disconnect(n2, 0, d2, 0);
-      p.Calculate(YSE::T_DSP);
-      p.Calculate(YSE::T_DSP);
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    }
+    // can cross it, then assert only a handful remain pending. The budget is
+    // counted in deliveries of the suite's reference timer rather than in
+    // milliseconds (issue #753), so it stretches with machine load exactly as
+    // the background pool does.
+    TestHelpers::pacedPump(
+        2000, [&] { return p.PendingRetired() <= 4; },
+        [&] {
+          p.Connect(n2, 0, d2, 0);
+          p.Calculate(YSE::T_DSP);
+          p.Disconnect(n2, 0, d2, 0);
+          p.Calculate(YSE::T_DSP);
+          p.Calculate(YSE::T_DSP);
+        });
     CHECK(p.PendingRetired() <= 4);
   }
 

@@ -30,6 +30,8 @@
 #include <chrono>
 #include <thread>
 
+#include "support/timer_pacing.hpp"
+
 #include "yse_c/yse_common.h"
 #include "yse_c/yse_system.h"
 
@@ -57,14 +59,20 @@ namespace capilowcov {
 
   // Offline analogue of the channel suite's drainChannels(): update() flags the
   // control-plane work the audio callback body runs, render_offline() runs
-  // blocks, and the short sleep lets the slow pool execute queued setup() jobs
-  // so freshly created channels / sounds reach OBJECT_READY.
+  // blocks, and the window between them lets the slow pool execute queued
+  // setup() jobs so freshly created channels / sounds reach OBJECT_READY.
+  //
+  // The block count is what callers mean by `iterations` — several cases below
+  // reason about how many blocks a pump rendered — so it stays a fixed count,
+  // but the window left for the slow pool is paced off the suite's reference
+  // timer rather than off the clock (issue #753): on a box that schedules the
+  // pool late, a fixed 2 ms was a bet that it would not.
   inline void pump(int iterations = 20) {
     YseSystem* sys = yse_system_get();
     for (int i = 0; i < iterations; ++i) {
       yse_system_update(sys);
       yse_system_render_offline(sys, 2);
-      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+      TestHelpers::paceWindow(2);
     }
   }
 

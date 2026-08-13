@@ -14,6 +14,7 @@
 #include "dsp/dspObject.hpp"
 #include "internal/time.h"
 #include "support/null_device.hpp"
+#include "support/timer_pacing.hpp"
 
 using namespace std::chrono_literals;
 
@@ -28,11 +29,15 @@ namespace {
   // for the Phase C lifetime rationale.
   SilentSource g_src;
 
+  // The iteration count is what advances the manager's state machine, so it
+  // stays as it is; the wait between iterations is counted in ticks of the
+  // suite's pacing reference instead of milliseconds, so the slow pool gets
+  // proportionally longer on a loaded box (issue #753).
   void drain(int n = 12) {
     for (int i = 0; i < n; i++) {
       YSE::INTERNAL::Time().update();
       YSE::SOUND::Manager().update();
-      std::this_thread::sleep_for(5ms);
+      TestHelpers::paceWindow(5);
     }
   }
 

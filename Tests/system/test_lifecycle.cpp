@@ -36,6 +36,9 @@
 #include <memory>
 #include <thread>
 #include <vector>
+
+#include "support/timer_pacing.hpp"
+
 #include "yse.hpp"
 #include "channel/channelInterface.hpp"
 #include "internal/namedBus.h"
@@ -117,15 +120,17 @@ TEST_SUITE("lifecycle") {
       s.create(WAV_FIXTURE);
       if (s.isValid()) { // skip only if the fixture is missing on this host
         // Pump the manager directly (test thread drives update; audio is
-        // paused). Budget ~2 s: the 244-byte WAV loads through the single
-        // revived slow-pool worker within a few update ticks.
-        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
-        while (std::chrono::steady_clock::now() < deadline) {
-          YSE::INTERNAL::Time().update();
-          YSE::SOUND::Manager().update();
-          if (s.isReady()) break;
-          std::this_thread::sleep_for(std::chrono::milliseconds(5));
-        }
+        // paused). Budget 2000 ticks of the suite's reference timer rather than
+        // 2 s of wall clock (issue #753): the 244-byte WAV loads through the
+        // single revived slow-pool worker within a few update ticks, and a box
+        // that produces those ticks more slowly gets proportionally longer.
+        TestHelpers::pacedPump(
+            2000, [&s] { return s.isReady(); },
+            [] {
+              YSE::INTERNAL::Time().update();
+              YSE::SOUND::Manager().update();
+            },
+            5);
         CHECK(s.isReady());
       }
     } // ~sound fires here, while the engine is still up
@@ -174,14 +179,16 @@ TEST_SUITE("lifecycle") {
         // Drive the sound all the way to OBJECT_READY so doThisWhenReady() has
         // run: this is what links it into the parent channel and sets
         // connectedToParent — the precondition for the dangling-parent bug.
-        // Audio is paused, so the test thread pumps the manager itself.
-        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
-        while (std::chrono::steady_clock::now() < deadline) {
-          YSE::INTERNAL::Time().update();
-          YSE::SOUND::Manager().update();
-          if (s.isReady()) break;
-          std::this_thread::sleep_for(std::chrono::milliseconds(5));
-        }
+        // Audio is paused, so the test thread pumps the manager itself. The
+        // budget is 2000 reference ticks rather than 2 s of wall clock, so a
+        // loaded box cannot fail the CHECK on the scheduler's behalf (#753).
+        TestHelpers::pacedPump(
+            2000, [&s] { return s.isReady(); },
+            [] {
+              YSE::INTERNAL::Time().update();
+              YSE::SOUND::Manager().update();
+            },
+            5);
         CHECK(s.isReady());
       }
       // ~sound fires here (engine still up), nulling the impl's head. Crucially
@@ -477,13 +484,15 @@ TEST_SUITE("lifecycle") {
     // isPlaying() reads the implementation's head status, which the audio tick
     // writes — so the SI_PLAY message has to be delivered before it is read.
     // update() flags the control-plane work, renderOffline() runs the audio
-    // callback body, and the sleep lets the single-threaded slow pool execute
-    // the queued setup() job create() posted.
+    // callback body, and the window between blocks lets the single-threaded
+    // slow pool execute the queued setup() job create() posted. The block count
+    // is what the pump is for, so it stays fixed; the window it leaves the pool
+    // is paced off the reference timer instead of the clock (issue #753).
     auto pump = []() {
       for (int i = 0; i < 20; ++i) {
         YSE::System().update();
         YSE::System().renderOffline(2);
-        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        TestHelpers::paceWindow(2);
       }
     };
 

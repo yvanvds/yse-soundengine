@@ -28,17 +28,21 @@
 #include "sound/soundManager.h"
 #include "internal/time.h"
 #include "support/null_device.hpp"
+#include "support/timer_pacing.hpp"
 
 namespace {
 
   // Pump the (paused) engine so queued channel messages are applied on the
-  // manager update path — same helper as test_channel_dsp.cpp.
+  // manager update path — same helper as test_channel_dsp.cpp. The gap between
+  // two update() calls is a window of reference-timer ticks rather than a fixed
+  // sleep (issue #753), so it stretches with machine load exactly as the
+  // background pool does.
   void drainChannels(int iterations = 8) {
     for (int i = 0; i < iterations; ++i) {
       YSE::INTERNAL::Time().update();
       YSE::SOUND::Manager().update();
       YSE::CHANNEL::Manager().update();
-      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+      TestHelpers::paceWindow(2);
     }
   }
 

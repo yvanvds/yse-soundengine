@@ -51,6 +51,8 @@
 #include <chrono>
 #include <thread>
 
+#include "support/timer_pacing.hpp"
+
 #include "yse.hpp"
 #include "device/deviceInterface.hpp"
 #include "device/deviceSetup.hpp"
@@ -152,14 +154,19 @@ TEST_SUITE("offlinesession") {
     REQUIRE(YSE::System().getActiveSampleRate() == 0.0);
 
     YSE::System().autoReconnect(true, 0);
+    // The window is counted in ticks of the suite's reference timer rather than
+    // in milliseconds (issue #753). This is the inverted bet — it passes when
+    // nothing happens — so a wall-clock budget a loaded box burns through
+    // without the watchdog ever running would make it vacuously true; a window
+    // of reference ticks grows with the load instead.
     double rate = 0.0;
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(300);
-    while (std::chrono::steady_clock::now() < deadline) {
-      YSE::System().update();
-      rate = YSE::System().getActiveSampleRate();
-      if (rate != 0.0) break;
-      std::this_thread::sleep_for(std::chrono::milliseconds(2));
-    }
+    TestHelpers::pacedPump(
+        300,
+        [&rate] {
+          rate = YSE::System().getActiveSampleRate();
+          return rate != 0.0;
+        },
+        [] { YSE::System().update(); }, 2);
     // Disarm before asserting, so a failing CHECK cannot leave the watchdog
     // re-opening the device for the rest of the process.
     YSE::System().autoReconnect(false, 0);

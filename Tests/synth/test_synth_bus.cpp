@@ -15,11 +15,10 @@
 // they run in CI; a host where it returns false bails the case out as a pass.
 
 #include <doctest/doctest.h>
-#include <chrono>
 #include <string>
-#include <thread>
 #include <vector>
 
+#include "support/timer_pacing.hpp"
 #include "yse.hpp"
 #include "internal/namedBus.h"
 #include "sound/soundInterface.hpp"
@@ -37,16 +36,17 @@
 namespace {
 
   // Bring a synth (behind a sound) to READY by pumping the offline engine until
-  // its voices are cloned on the slow pool, or a deadline passes.
+  // its voices are cloned on the slow pool, or the budget runs out. The budget is
+  // counted in reference-timer ticks rather than milliseconds (issue #753), so it
+  // stretches with machine load instead of asserting the machine kept up.
   bool bringToReady(YSE::synth& syn, int expectVoices) {
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
-    while (std::chrono::steady_clock::now() < deadline) {
-      YSE::System().update();
-      YSE::System().renderOffline(1);
-      if (syn.getNumVoices() == expectVoices) return true;
-      std::this_thread::sleep_for(std::chrono::milliseconds(2));
-    }
-    return syn.getNumVoices() == expectVoices;
+    return TestHelpers::pacedPump(
+        2000, [&syn, expectVoices] { return syn.getNumVoices() == expectVoices; },
+        [] {
+          YSE::System().update();
+          YSE::System().renderOffline(1);
+        },
+        2);
   }
 
   // Advance the offline engine by n blocks.
@@ -75,15 +75,18 @@ namespace {
   // (channel, note) and == origin <=> none does.
   const YSE::Pos kSoundingPos(2.f, 0.f, 0.f);
 
-  // True once no voice sounds (channel, note) any more — pumps the engine
-  // until the release tail ends or the deadline passes.
+  // True once no voice sounds (channel, note) any more — pumps the engine until
+  // the release tail ends or the budget runs out. The pumping is the test
+  // thread's own work, but the wall-clock cap still bounded it by how fast the
+  // machine could do that work; the budget is now counted in reference-timer
+  // ticks instead (issue #753). The poll interval stays zero so the loop renders
+  // blocks as fast as it did before — how much audio the budget buys is the
+  // whole point here, and a 1 ms gap between blocks would change it.
   bool becomesSilent(YSE::synth& syn, int channel, int note) {
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
-    while (std::chrono::steady_clock::now() < deadline) {
-      pump(1);
-      if (syn.getVoicePosition(channel, note) == YSE::Pos(0.f)) return true;
-    }
-    return false;
+    return TestHelpers::pacedPump(
+        2000,
+        [&syn, channel, note] { return syn.getVoicePosition(channel, note) == YSE::Pos(0.f); },
+        [] { pump(1); }, 0);
   }
 
   // Echoes the live keyboard state a voice sees into its position, so a test
@@ -385,13 +388,9 @@ TEST_SUITE("synthbus") {
 
     // Pump until the setup pool has cloned the pool (drainUntilVoices in the
     // synthcapi suite, but driven through the C++ System() like this suite).
-    {
-      const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
-      while (std::chrono::steady_clock::now() < deadline && yse_synth_get_num_voices(syn) < 4) {
-        pump(1);
-        std::this_thread::sleep_for(std::chrono::milliseconds(2));
-      }
-    }
+    // Budgeted in reference-timer ticks rather than milliseconds (issue #753).
+    TestHelpers::pacedPump(
+        2000, [syn] { return yse_synth_get_num_voices(syn) >= 4; }, [] { pump(1); }, 2);
     REQUIRE(yse_synth_get_num_voices(syn) == 4);
 
     // Naming over the C ABI registers the same synth.<name>.* addresses.
@@ -416,14 +415,10 @@ TEST_SUITE("synthbus") {
 
     yse_sound_destroy(snd); // sound must go before the synth it renders
     yse_synth_destroy(syn);
-    // Let the delete jobs free the impls before the next case's close().
-    {
-      const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(300);
-      while (std::chrono::steady_clock::now() < deadline) {
-        pump(1);
-        std::this_thread::sleep_for(std::chrono::milliseconds(2));
-      }
-    }
+    // Let the delete jobs free the impls before the next case's close(). The
+    // window is counted in reference-timer ticks rather than milliseconds
+    // (issue #753).
+    TestHelpers::pacedPump(300, [] { return false; }, [] { pump(1); }, 2);
   }
 
   TEST_CASE("synth bus: naming while the engine is down is a safe no-op") {

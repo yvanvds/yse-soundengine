@@ -26,12 +26,11 @@
 
 #include <doctest/doctest.h>
 #include <algorithm>
-#include <chrono>
 #include <cmath>
 #include <cstddef>
-#include <thread>
 #include <vector>
 
+#include "support/timer_pacing.hpp"
 #include "yse.hpp"
 #include "channel/channelInterface.hpp"
 #include "sound/soundInterface.hpp"
@@ -42,8 +41,6 @@
 #include "music/pNote.hpp"
 #include "player/playerInterface.hpp"
 #include "internal/time.h"
-
-using namespace std::chrono_literals;
 
 namespace {
 
@@ -70,16 +67,17 @@ namespace {
   }
 
   // Bring a synth attached to a sound up to OBJECT_READY (voice cloning is async
-  // on the slow pool). Returns true once its voices are allocated.
+  // on the slow pool). Returns true once its voices are allocated. The budget is
+  // counted in reference-timer ticks rather than milliseconds (issue #753), so it
+  // stretches with machine load instead of asserting the machine kept up.
   bool bringReady(YSE::synth& syn, int expectedVoices) {
-    const auto deadline = std::chrono::steady_clock::now() + 2s;
-    while (std::chrono::steady_clock::now() < deadline) {
-      YSE::System().update();
-      YSE::System().renderOffline(1);
-      if (syn.getNumVoices() == expectedVoices) return true;
-      std::this_thread::sleep_for(5ms);
-    }
-    return syn.getNumVoices() == expectedVoices;
+    return TestHelpers::pacedPump(
+        2000, [&syn, expectedVoices] { return syn.getNumVoices() == expectedVoices; },
+        [] {
+          YSE::System().update();
+          YSE::System().renderOffline(1);
+        },
+        5);
   }
 
   // Advance the engine `blocks` blocks, returning the peak master output level
@@ -96,14 +94,17 @@ namespace {
     return peak;
   }
 
-  // Drain the engine so released impls are fully deleted before teardown.
-  void drain(std::chrono::milliseconds budget = 500ms) {
-    const auto deadline = std::chrono::steady_clock::now() + budget;
-    while (std::chrono::steady_clock::now() < deadline) {
-      YSE::System().update();
-      YSE::System().renderOffline(1);
-      std::this_thread::sleep_for(2ms);
-    }
+  // Drain the engine so released impls are fully deleted before teardown. The
+  // window is counted in reference-timer ticks rather than milliseconds
+  // (issue #753).
+  void drain(int ticks = 500) {
+    TestHelpers::pacedPump(
+        ticks, [] { return false; },
+        [] {
+          YSE::System().update();
+          YSE::System().renderOffline(1);
+        },
+        2);
   }
 
   // Every note-on logged so far is a member of the C-major scale.

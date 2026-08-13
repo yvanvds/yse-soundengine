@@ -47,6 +47,7 @@
 #include "internal/time.h"
 #include "sound/soundInterface.hpp"
 #include "support/null_device.hpp"
+#include "support/timer_pacing.hpp"
 
 namespace {
 
@@ -88,14 +89,18 @@ TEST_SUITE("sound") {
     // doppler() is deliberately left at its default (on): it is the path under test.
     s.play();
 
-    // Settle with sleeps so the async slow-pool setup can promote the sound.
+    // Settle with waits so the async slow-pool setup can promote the sound.
     // These ticks are milliseconds apart, so the velocity divide is well fed.
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
-    while (std::chrono::steady_clock::now() < deadline && !s.isReady()) {
-      YSE::System().update();
-      YSE::System().renderOffline(2);
-      std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    }
+    // The budget for the setup itself is counted in ticks of the suite's pacing
+    // reference rather than in wall clock, so a loaded box stretches it along
+    // with the pool it is waiting on (issue #753).
+    TestHelpers::pacedPump(
+        3000, [&] { return s.isReady(); },
+        [] {
+          YSE::System().update();
+          YSE::System().renderOffline(2);
+        },
+        5);
     REQUIRE(s.isReady());
     REQUIRE(s.length() == kDopplerFrames);
 

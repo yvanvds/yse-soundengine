@@ -29,15 +29,12 @@
 #include <doctest/doctest.h>
 
 #include <atomic>
-#include <chrono>
-#include <thread>
 
+#include "support/timer_pacing.hpp"
 #include "yse_c/yse_music.h"
 #include "yse_c/yse_synth.h"
 #include "yse_c/yse_sound.h"
 #include "yse_c/yse_system.h"
-
-using namespace std::chrono_literals;
 
 namespace {
 
@@ -50,16 +47,17 @@ namespace {
     if (note_on) g_playerNoteOns.fetch_add(1, std::memory_order_relaxed);
   }
 
-  bool drainUntilVoices(YseSystem* sys, YseSynth* syn, int expected,
-                        std::chrono::milliseconds budget = 2000ms) {
-    const auto deadline = std::chrono::steady_clock::now() + budget;
-    while (std::chrono::steady_clock::now() < deadline) {
-      yse_system_update(sys);
-      yse_system_render_offline(sys, 1);
-      if (yse_synth_get_num_voices(syn) >= expected) return true;
-      std::this_thread::sleep_for(2ms);
-    }
-    return yse_synth_get_num_voices(syn) >= expected;
+  // `ticks` is a budget in deliveries of the suite's reference timer, not in
+  // milliseconds (issue #753): it stretches with machine load exactly as the
+  // setup pool does, while a wedged pool still fails.
+  bool drainUntilVoices(YseSystem* sys, YseSynth* syn, int expected, int ticks = 2000) {
+    return TestHelpers::pacedPump(
+        ticks, [syn, expected] { return yse_synth_get_num_voices(syn) >= expected; },
+        [sys] {
+          yse_system_update(sys);
+          yse_system_render_offline(sys, 1);
+        },
+        2);
   }
 
   // Advance the engine `blocks` blocks. update() ticks the gated managers
@@ -73,14 +71,16 @@ namespace {
   }
 
   // Pump the engine so the manager delete jobs free released impls BEFORE
-  // yse_system_close() tears down the pools (the #298/#304 lineage).
-  void drainFor(YseSystem* sys, std::chrono::milliseconds budget) {
-    const auto deadline = std::chrono::steady_clock::now() + budget;
-    while (std::chrono::steady_clock::now() < deadline) {
-      yse_system_update(sys);
-      yse_system_render_offline(sys, 1);
-      std::this_thread::sleep_for(2ms);
-    }
+  // yse_system_close() tears down the pools (the #298/#304 lineage). The window
+  // is counted in reference-timer ticks rather than milliseconds (issue #753).
+  void drainFor(YseSystem* sys, int ticks) {
+    TestHelpers::pacedPump(
+        ticks, [] { return false; },
+        [sys] {
+          yse_system_update(sys);
+          yse_system_render_offline(sys, 1);
+        },
+        2);
   }
 
 } // namespace
@@ -191,7 +191,7 @@ TEST_SUITE("playercapi") {
     yse_scale_destroy(sc);
     yse_sound_destroy(snd); // sound before the synth it renders
     yse_synth_destroy(syn);
-    drainFor(sys, 300ms); // let the delete jobs free the impls before close
+    drainFor(sys, 300); // let the delete jobs free the impls before close
     yse_system_close(sys);
   }
 

@@ -121,4 +121,141 @@ namespace TestHelpers {
     return true;
   }
 
+  // ── A suite-wide pacing reference (issue #753) ────────────────────────────
+  //
+  // The sandwich above needs a reference on the *same* worker as the object
+  // under test, which only the patcher's own timer cases can arrange. The rest
+  // of the suite waits on other workers entirely — the script thread, the sound
+  // manager's slow pool, the synth setup job, the MIDI sender — and had no
+  // reference at all, so every one of those waits was denominated in wall clock:
+  // `waitFor(pred, 2000)`, `for (i < 300) { update(); sleep(10ms); }`, or a bare
+  // `sleep_for(200ms)` standing in for "and nothing more arrived". All three
+  // assert that the machine kept up, which is issue #753's inventory.
+  //
+  // What those cases need is not the sandwich but the *pace*: a budget counted
+  // in deliveries of a periodic timer instead of in milliseconds, so a box a
+  // hundred times slower takes a hundred times longer and still passes, while a
+  // worker that has genuinely wedged still fails. One free-running 1 ms timer
+  // serves the whole suite for that, so a wait costs an atomic load rather than
+  // arming a timer of its own — the settle-margin shapes appear inside hot loops
+  // where arming per call would be the dominant cost.
+  //
+  // It runs on a `timerThread` of the suite's own rather than on the engine's
+  // singleton, because `System().close()` sweeps that singleton
+  // (system.cpp:222) and would silently disarm a pacing timer mid-wait in every
+  // case that closes the engine. It is likewise invisible to the
+  // `TimerThread().size()` assertions in the patcher suite, and its worker never
+  // allocates on a thread an `AllocProbe` is watching (the probe counts per
+  // thread since #701).
+  //
+  // A stall of the reference is still a failure for the same reason as above: a
+  // 1 ms timer that has delivered nothing for five seconds is a wedged worker,
+  // not a busy one. Note again that this bounds a stall and not the total wait.
+
+  namespace detail {
+
+    class paceSource {
+    public:
+      paceSource()
+        : id_(worker_.Add(1, 1, [this] { ticks_.fetch_add(1, std::memory_order_release); })) {}
+
+      ~paceSource() {
+        worker_.ClearTimer(id_);
+      }
+      paceSource(const paceSource&) = delete;
+      paceSource& operator=(const paceSource&) = delete;
+      paceSource(paceSource&&) = delete;
+      paceSource& operator=(paceSource&&) = delete;
+
+      long n() const {
+        return ticks_.load(std::memory_order_acquire);
+      }
+
+    private:
+      YSE::PATCHER::timerThread worker_;
+      std::atomic<long> ticks_{0};
+      YSE::PATCHER::timerThread::timerID id_;
+    };
+
+    inline paceSource& Pace() {
+      static paceSource s;
+      return s;
+    }
+
+  } // namespace detail
+
+  // Deliveries of the suite's reference timer so far. Monotonic.
+  inline long paceTicks() {
+    return detail::Pace().n();
+  }
+
+  // Wait out a window of `ticks` further deliveries: the load-proportional
+  // replacement for a fixed sleep used as a settle margin or as a "nothing more
+  // arrived" window. Returns early only if the reference stalls, and a run whose
+  // reference has stalled has worse problems than this window.
+  inline void paceWindow(int ticks) {
+    long seen = paceTicks();
+    const long deadline = seen + ticks;
+    auto moved = std::chrono::steady_clock::now();
+    while (seen < deadline) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      const long now = paceTicks();
+      if (now != seen) {
+        seen = now;
+        moved = std::chrono::steady_clock::now();
+      } else if (std::chrono::steady_clock::now() - moved > kTimerStall) {
+        return;
+      }
+    }
+  }
+
+  // Wait for `pred`, budgeted in reference ticks rather than in milliseconds.
+  // Returns `pred()`, so a stalled reference fails the caller's own assertion
+  // rather than a separate one.
+  template <typename P> bool pacedUntil(int ticks, P pred) {
+    long seen = paceTicks();
+    const long deadline = seen + ticks;
+    auto moved = std::chrono::steady_clock::now();
+    while (!pred()) {
+      if (seen >= deadline) return false;
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      const long now = paceTicks();
+      if (now != seen) {
+        seen = now;
+        moved = std::chrono::steady_clock::now();
+      } else if (std::chrono::steady_clock::now() - moved > kTimerStall) {
+        return pred();
+      }
+    }
+    return true;
+  }
+
+  // As above, for the waits whose progress needs the test thread to do
+  // something each round — `System().update()` for anything that reaches the
+  // engine's main tick. `step()` runs once per poll, `pollMs` apart.
+  //
+  // `pollMs = 0` does not sleep at all, for the loops whose progress *is* the
+  // stepping: a case pumping the offline engine block by block gets as many
+  // blocks per second as the box can render, and inserting even a 1 ms sleep
+  // between them would change how much audio the budget buys. Those loops are
+  // still bounded, in reference ticks, and still stall-guarded.
+  template <typename P, typename S> bool pacedPump(int ticks, P pred, S step, int pollMs = 1) {
+    long seen = paceTicks();
+    const long deadline = seen + ticks;
+    auto moved = std::chrono::steady_clock::now();
+    while (!pred()) {
+      if (seen >= deadline) return false;
+      step();
+      if (pollMs > 0) std::this_thread::sleep_for(std::chrono::milliseconds(pollMs));
+      const long now = paceTicks();
+      if (now != seen) {
+        seen = now;
+        moved = std::chrono::steady_clock::now();
+      } else if (std::chrono::steady_clock::now() - moved > kTimerStall) {
+        return pred();
+      }
+    }
+    return true;
+  }
+
 } // namespace TestHelpers
