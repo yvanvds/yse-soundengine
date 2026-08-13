@@ -8761,6 +8761,36 @@
     ],
     "params": []
   },
+  ".tolower": {
+    "category": "GENERIC",
+    "description": "Converts the text of a message to lower case — Max's string.tolower. Every A-Z becomes the matching a-z and nothing else about the message changes: the same bytes, the same length, the same tokens, the same whitespace. It exists because every comparison in this patcher is exact — .route, .sel, .match, .substitute and the named-bus objects all compare text character for character — so a patch handed a name from outside itself, in whatever case a user or a host application typed it, had no way to match it against a name written into the patch. A .tolower in front of a .route makes that route case-insensitive without the route needing a second way to compare, and folding both sides is how case-insensitive matching is done everywhere else. Until now nothing in the patcher could change the case of a character at all; the only way to express it was .spell into arithmetic into .itoa, an object-per-character patch for what is one comparison of a byte. The fold is ASCII only, which is both a deliberate scope and a guarantee: real case mapping is language-dependent (Turkish dotless i, German sharp s, Greek final sigma), is not length-preserving, and needs a table or locale state that no inlet-driven path can afford — while an ASCII fold provably cannot corrupt text that is not ASCII, since every byte of a multi-byte UTF-8 sequence is 0x80 or above and the folded range is entirely below it. Accented letters, CJK text and raw binary therefore pass through byte for byte. Whitespace is deliberately left alone, unlike .tosymbol and .spell which normalise it: those rebuild the message and must decide what its spacing is, whereas this one rewrites characters in place, and a fold that also changed the token structure would break the very .route it was put there to feed. An empty message is forwarded rather than swallowed, and a bang, an int and a float pass straight through in their own type, since the fold is the identity on a message with no letters in it. Calculate() does nothing, and no message path allocates, locks or blocks: the fold is one walk of the bytes into a buffer reserved at construction for the longest list the patcher's queues carry.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The message to fold. A list has every A-Z in its text replaced by the matching a-z, with every other byte — digits, punctuation, whitespace and anything outside ASCII — left exactly as it was. A bang, an int and a float pass straight through in their own type, since a message with no letters in it is already lower case.",
+        "index": 0,
+        "label": "in",
+        "range": "any"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".tolower",
+    "outlets": [
+      {
+        "doc": "The folded message, as a list, with the token structure and the whitespace of the message that arrived. A bang, an int or a float leaves as itself rather than as the text that spells it.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "ANY"
+      }
+    ],
+    "params": []
+  },
   ".tosymbol": {
     "category": "GENERIC",
     "description": "Collapses whatever arrives into a single symbol — Max's tosymbol, which 'converts messages, numbers, or lists into a single symbol'. Max has atom types and this patcher does not: a message here is text, and every object that reads one apart — .route and .routepass on the leading token, .sel, .substitute, .spray — splits it on whitespace. So a symbol here is a message that is one whitespace-free token, and this object makes one in two ways. It joins the tokens of the incoming message with its separator, so .tosymbol / turns voice 3 freq into voice/3/freq, one element a .route matches on and a name a .forward will send to; and it converts a bang, an int or a float into the text that spells it, sent as a list, which is what lets a computed value be used as a name at all. Max's separator default of a space is kept and left honest rather than papered over: whitespace is exactly what separates tokens here, so with the default separator the object performs the type conversion and normalises the whitespace and nothing more. Max wraps a symbol containing spaces in double quotes; that is not reproduced, because nothing in this patcher reads a quote as anything but an ordinary character, so quoting would only produce a different message. The separator is a creation argument and inlet 1, leaving inlet 0 with no reserved words in it — the .prepend discipline, which matters here because this object exists to carry arbitrary words. An empty message on inlet 1 is Max's separator with no arguments and empties it, so 1 2 3 4 joins into 1234. Runs of whitespace collapse to one separator and the ends are trimmed, so the result never has an empty token in it. Calculate() does nothing, and no message path allocates, locks or blocks: the join is one bounded walk into a buffer reserved at construction for the longest list the patcher's queues carry.",
@@ -8845,6 +8875,36 @@
         "range": "0-16"
       }
     ]
+  },
+  ".toupper": {
+    "category": "GENERIC",
+    "description": "Converts the text of a message to upper case — Max's string.toupper. The mirror of .tolower: every a-z becomes the matching A-Z and nothing else about the message changes — the same bytes, the same length, the same tokens, the same whitespace. It exists because every comparison in this patcher is exact — .route, .sel, .match, .substitute and the named-bus objects all compare text character for character — so a patch handed a name from outside itself, in whatever case a user or a host application typed it, had no way to match it against a name written into the patch. Folding both sides to the same case before the comparison is how that is done, and which case is chosen only has to be agreed on by both ends; .toupper is the one to reach for when the names a patch is matching against are themselves written in capitals, so the fold is applied to the incoming text rather than to the patch. The fold is ASCII only, which is both a deliberate scope and a guarantee: real case mapping is language-dependent (Turkish dotless i, German sharp s, Greek final sigma), is not length-preserving, and needs a table or locale state that no inlet-driven path can afford — while an ASCII fold provably cannot corrupt text that is not ASCII, since every byte of a multi-byte UTF-8 sequence is 0x80 or above and the folded range is entirely below it. Accented letters, CJK text and raw binary therefore pass through byte for byte, and in particular a lower-case accented letter is left alone rather than half-converted. Whitespace is deliberately left alone, unlike .tosymbol and .spell which normalise it: those rebuild the message and must decide what its spacing is, whereas this one rewrites characters in place, and a fold that also changed the token structure would break the very .route it was put there to feed. An empty message is forwarded rather than swallowed, and a bang, an int and a float pass straight through in their own type, since the fold is the identity on a message with no letters in it. Calculate() does nothing, and no message path allocates, locks or blocks: the fold is one walk of the bytes into a buffer reserved at construction for the longest list the patcher's queues carry.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The message to fold. A list has every a-z in its text replaced by the matching A-Z, with every other byte — digits, punctuation, whitespace and anything outside ASCII — left exactly as it was. A bang, an int and a float pass straight through in their own type, since a message with no letters in it is already upper case.",
+        "index": 0,
+        "label": "in",
+        "range": "any"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".toupper",
+    "outlets": [
+      {
+        "doc": "The folded message, as a list, with the token structure and the whitespace of the message that arrived. A bang, an int or a float leaves as itself rather than as the text that spells it.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "ANY"
+      }
+    ],
+    "params": []
   },
   ".translate": {
     "category": "TIME",

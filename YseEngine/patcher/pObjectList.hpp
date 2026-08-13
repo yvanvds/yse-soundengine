@@ -67,7 +67,7 @@ namespace YSE {
    *    ``G_MATRIX``, ``G_IF``, ``G_REGEXP``.
    *  - Message construction: ``G_PREPEND``, ``G_APPEND``, ``G_SUBSTITUTE``,
    *    ``G_SPRINTF``, ``G_TOSYMBOL``, ``G_FROMSYMBOL``, ``G_COMBINE``,
-   *    ``G_SPELL``, ``G_ATOI``, ``G_ITOA``.
+   *    ``G_SPELL``, ``G_ATOI``, ``G_ITOA``, ``G_TOLOWER``, ``G_TOUPPER``.
    *  - List processing: ``G_ZL``, ``G_PACK``, ``G_PAK``, ``G_UNPACK``,
    *    ``G_JOIN``, ``G_UNJOIN``, ``G_LISTFUNNEL``.
    *  - Iteration: ``G_UZI``, ``G_ITER``.
@@ -202,6 +202,12 @@ namespace YSE {
     DEFOBJ(G_SPELL, ".spell");
     DEFOBJ(G_ATOI, ".atoi");
     DEFOBJ(G_ITOA, ".itoa");
+    // ASCII case folding (issue #810) — the one operation the symbol family was
+    // missing. Every comparison in this patcher is exact, so folding both sides
+    // to one case is what makes a match case-insensitive. See
+    // genericObjects/gCase.h.
+    DEFOBJ(G_TOLOWER, ".tolower");
+    DEFOBJ(G_TOUPPER, ".toupper");
 
     DEFOBJ(G_ZL, ".zl");
     DEFOBJ(G_PACK, ".pack");

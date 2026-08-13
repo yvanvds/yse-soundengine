@@ -48,6 +48,7 @@
 #include "genericObjects/gQlist.h"
 #include "genericObjects/gSeq.h"
 #include "genericObjects/gTextfile.h"
+#include "genericObjects/gCase.h"
 #include "genericObjects/gCombine.h"
 #include "genericObjects/gSpell.h"
 #include "genericObjects/gSprintf.h"
@@ -375,6 +376,13 @@ pRegistry::pRegistry() {
   // (issue #493)
   Add(OBJ::G_ATOI, gAtoi::Create);
   Add(OBJ::G_ITOA, gItoa::Create);
+
+  // Change the case of a message's text — the one operation the symbol family
+  // was missing, and the only way to compare a name case-insensitively, since
+  // .route, .sel, .match and every named bus compare character for character
+  // (issue #810)
+  Add(OBJ::G_TOLOWER, gToLower::Create);
+  Add(OBJ::G_TOUPPER, gToUpper::Create);
 
   // The list-processing workhorse: one object whose behaviour a mode word
   // chooses, over the bounded pre-allocated list the whole list family shares
