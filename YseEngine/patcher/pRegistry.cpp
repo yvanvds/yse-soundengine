@@ -30,6 +30,7 @@
 #include "genericObjects/gDict.h"
 #include "genericObjects/gDictCompare.h"
 #include "genericObjects/gDictGroup.h"
+#include "genericObjects/gDictIter.h"
 #include "genericObjects/gPrint.h"
 // `.loadbang` / `.loadmess` (issue #547): the pair that lets a saved patch
 // describe its own starting state, fired by patcherImplementation's post-publish
@@ -447,6 +448,11 @@ pRegistry::pRegistry() {
   // store expresses as a path prefix; both bound by creation argument
   // (issue #772)
   Add(OBJ::G_DICT_GROUP, gDictGroup::Create);
+
+  // Streams the bound dictionary's entries one "<path> <value...>" list at a
+  // time, then a done bang — the .uzi/.iter shape applied to structured
+  // data; the walk is a snapshot taken at the trigger (issue #773)
+  Add(OBJ::G_DICT_ITER, gDictIter::Create);
 
   // An ordered, index-addressed sequence shared by name — the collection type a
   // generative patch actually reaches for, and the value model the array.*

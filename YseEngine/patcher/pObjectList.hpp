@@ -53,7 +53,8 @@ namespace YSE {
    *  - Shared state: ``G_VALUE``.
    *  - Collections: ``G_COLL``, ``G_BAG``, ``G_CAPTURE``, ``G_FUNBUFF``,
    *    ``G_TABLE``, ``G_TEXTFILE``, ``G_QLIST``, ``G_MTR``, ``G_SEQ``.
-   *  - Dictionaries: ``G_DICT``, ``G_DICT_COMPARE``, ``G_DICT_GROUP``.
+   *  - Dictionaries: ``G_DICT``, ``G_DICT_COMPARE``, ``G_DICT_GROUP``,
+   *    ``G_DICT_ITER``.
    *  - Arrays: ``G_ARRAY``.
    *  - Debugging: ``G_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
@@ -258,6 +259,14 @@ namespace YSE {
     // written into the target as ``<groupValue>::<originalPath>``, the
     // dictionary of dictionaries the flat store expresses as a path prefix.
     DEFOBJ(G_DICT_GROUP, ".dict.group");
+
+    // Outputs a dictionary's key/value pairs one at a time (issue #773): the
+    // dictionary is bound from the creation argument — ``.dict.iter <name>``
+    // — and a bang, or the dictionary's ``dictionary <name>`` reference,
+    // streams one ``<path> <value...>`` list per entry in storage order,
+    // then a done bang. The walk is a snapshot taken at the trigger, so a
+    // mutation arriving mid-walk changes the dictionary but not the walk.
+    DEFOBJ(G_DICT_ITER, ".dict.iter");
 
     // An ordered, index-addressed sequence shared by name (issue #548), the
     // second type built on the value model ``.dict`` settled: an ``OUT_TYPE``
