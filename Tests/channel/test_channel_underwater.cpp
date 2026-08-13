@@ -39,6 +39,15 @@ namespace {
   // than milliseconds (issue #753), so it stretches with machine load exactly
   // as the background pool does. Returns ready(), so a timed-out wait fails
   // the caller's own assertion.
+  //
+  // IMPORTANT: `ready()` runs on the test thread between update() calls and may
+  // poll only state published on this (the update) thread. `calledfrom` is such
+  // state: ATTACH_DSP is applied in sync(), which the manager runs only for
+  // impls it has already promoted to OBJECT_READY on this thread, so observing
+  // the back-pointer also proves the channel finished its slow-pool setup().
+  // Do NOT poll channel::getNumOutputs() here — that reads the impl's `out`
+  // vector, which setup() resizes concurrently on the pool (a TSan-confirmed
+  // data race on the first #834 attempt).
   template <typename P> bool drainChannelsUntil(P ready, int ticks = 5000) {
     return TestHelpers::pacedPump(
         ticks, ready,
@@ -59,9 +68,8 @@ TEST_SUITE("channel") {
 
     YSE::channel ch;
     ch.create("underwater_attach", YSE::ChannelMaster());
-    // Pump until the freshly created channel's slow-pool setup() has run —
-    // a sized `out` (getNumOutputs() != 0) is the OBJECT_READY signal (#834).
-    CHECK(drainChannelsUntil([&ch] { return ch.getNumOutputs() != 0; }));
+    // No drain needed: getDSP() is an interface-side mirror, and the attach
+    // message below waits in the impl's inbox until sync() runs post-READY.
     CHECK(ch.getDSP() == nullptr);
 
     YSE::System().underWaterFX(ch);
@@ -69,7 +77,9 @@ TEST_SUITE("channel") {
     CHECK(ch.getDSP() == &YSE::INTERNAL::UnderWaterEffect().module());
 
     // ...and after the message pump the impl links the module back
-    // (calledfrom is the engine-managed back-pointer addDSP installs).
+    // (calledfrom is the engine-managed back-pointer addDSP installs). The
+    // back-pointer appearing also proves the channel's setup() completed —
+    // sync() only runs for READY impls (#834).
     drainChannelsUntil(
         [] { return YSE::INTERNAL::UnderWaterEffect().module().calledfrom != nullptr; });
     CHECK(YSE::INTERNAL::UnderWaterEffect().module().calledfrom != nullptr);
@@ -101,9 +111,9 @@ TEST_SUITE("channel") {
     YSE::channel b;
     a.create("underwater_move_a", YSE::ChannelMaster());
     b.create("underwater_move_b", YSE::ChannelMaster());
-    // Await both channels' slow-pool setup() rather than a fixed window (#834).
-    CHECK(
-        drainChannelsUntil([&a, &b] { return a.getNumOutputs() != 0 && b.getNumOutputs() != 0; }));
+    // No readiness pre-wait: the attach messages queue in each impl's inbox
+    // until sync() runs post-READY, and the calledfrom pumps below await both
+    // the promotion and the application (#834).
 
     YSE::System().underWaterFX(a);
     drainChannelsUntil(

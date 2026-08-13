@@ -16,8 +16,10 @@
 #include <doctest/doctest.h>
 #include <chrono>
 #include <thread>
+#include <vector>
 #include "channel/channelInterface.hpp"
 #include "channel/channelManager.h"
+#include "dsp/dspObject.hpp"
 #include "sound/soundManager.h"
 #include "internal/time.h"
 #include "support/null_device.hpp"
@@ -36,6 +38,14 @@ namespace {
   // ticks rather than milliseconds (issue #753), so it stretches with machine
   // load exactly as the pool does. Returns ready(), so a timed-out wait fails
   // the caller's own assertion.
+  //
+  // IMPORTANT: `ready()` runs on the test thread *between* update() calls and
+  // may therefore poll only state that is published on this (the update)
+  // thread or otherwise synchronized. In particular it must NOT poll
+  // channel::getNumOutputs(): that reads the impl's `out` vector, which the
+  // slow-pool setup() resizes concurrently — a data race (TSan-confirmed on
+  // the first #834 attempt). Use awaitChannelReady() below as the readiness
+  // fence instead, and only read getNumOutputs() after it returned.
   template <typename P> bool drainChannelsUntil(P ready, int ticks = 5000) {
     return TestHelpers::pacedPump(
         ticks, ready,
@@ -45,6 +55,34 @@ namespace {
           YSE::CHANNEL::Manager().update();
         },
         2);
+  }
+
+  // A no-op insert module used purely as a readiness fence. Its process() never
+  // runs: the audio thread is paused in this suite.
+  struct FenceDsp : YSE::DSP::dspObject {
+    void create() override {}
+    void process(std::vector<YSE::DSP::buffer>&) override {}
+  };
+
+  // Block (paced, #753) until `c`'s implementation has reached OBJECT_READY,
+  // without racing the slow pool. The channel interface publishes no
+  // synchronized readiness signal of its own, but ATTACH_DSP gives the test
+  // one: messages are applied in sync(), which the manager runs only for impls
+  // it has already promoted to OBJECT_READY on this (the update) thread — the
+  // promotion's acquire load is what publishes the buffers setup() resized. So
+  // attach a no-op insert, wait for its `calledfrom` back-pointer (written on
+  // this thread) to appear, then detach and wait for it to clear. After a true
+  // return, reading getNumOutputs() / the peak getters is an ordinary
+  // same-thread read: the slow pool never touches a READY impl's buffers again.
+  bool awaitChannelReady(YSE::channel& c) {
+    // Static so that on the (loud, kTimerStall-guarded) timeout path a still-
+    // attached fence points at live memory instead of a dead stack frame.
+    static FenceDsp fence;
+    c.setDSP(&fence);
+    const bool attached = drainChannelsUntil([] { return fence.calledfrom != nullptr; });
+    c.setDSP(nullptr);
+    const bool detached = drainChannelsUntil([] { return fence.calledfrom == nullptr; });
+    return attached && detached;
   }
 } // namespace
 
@@ -99,13 +137,13 @@ TEST_SUITE("channel") {
     if (!TestHelpers::engineInit()) return;
     // Master is set up synchronously (setMaster), but the five leaf channels
     // are created the same way as user channels — their setup() runs on the
-    // slow-pool. Pump until all five have reached OBJECT_READY and `out` is
-    // sized (#834).
-    CHECK(drainChannelsUntil([] {
-      return YSE::ChannelFX().getNumOutputs() != 0 && YSE::ChannelMusic().getNumOutputs() != 0 &&
-             YSE::ChannelAmbient().getNumOutputs() != 0 &&
-             YSE::ChannelVoice().getNumOutputs() != 0 && YSE::ChannelGui().getNumOutputs() != 0;
-    }));
+    // slow-pool. Fence on each until it has reached OBJECT_READY and `out` is
+    // sized (#834); only then is getNumOutputs() safe to read.
+    CHECK(awaitChannelReady(YSE::ChannelFX()));
+    CHECK(awaitChannelReady(YSE::ChannelMusic()));
+    CHECK(awaitChannelReady(YSE::ChannelAmbient()));
+    CHECK(awaitChannelReady(YSE::ChannelVoice()));
+    CHECK(awaitChannelReady(YSE::ChannelGui()));
     const int n = YSE::ChannelMaster().getNumOutputs();
     CHECK(YSE::ChannelFX().getNumOutputs() == n);
     CHECK(YSE::ChannelMusic().getNumOutputs() == n);
@@ -129,11 +167,11 @@ TEST_SUITE("channel") {
     if (!TestHelpers::engineInit()) return;
     YSE::channel c;
     c.create("metering_test_channel", YSE::ChannelFX());
-    // setup() runs on the slow-pool — pump until the impl actually reaches
+    // setup() runs on the slow-pool — fence until the impl actually reaches
     // OBJECT_READY and `out` has been sized from
     // CHANNEL::Manager().getNumberOfOutputs(), rather than hoping a fixed
     // window was wide enough (#834).
-    CHECK(drainChannelsUntil([&c] { return c.getNumOutputs() != 0; }));
+    CHECK(awaitChannelReady(c));
     CHECK(c.getNumOutputs() == YSE::ChannelMaster().getNumOutputs());
     CHECK(c.getPeakLinearPost() == doctest::Approx(0.f));
   }
