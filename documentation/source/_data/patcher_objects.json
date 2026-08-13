@@ -3080,6 +3080,84 @@
       }
     ]
   },
+  ".dict.slice": {
+    "category": "GENERIC",
+    "description": "Splits a dictionary at a key path — Max's dict.slice on the name-addressed value model .dict settled: all three dictionaries are bound from the creation arguments, \".dict.slice <source> <slice> <remainder> [<path>]\", because a dictionary is addressed by name and never passed down a cord. A bang, or the source dictionary's reference message \"dictionary <name>\", partitions the source: every entry under the path — its key begins \"<path>::\" — replaces the slice target with the prefix stripped, so the sub-tree becomes a dictionary rooted at itself, and every other entry (including a leaf stored at exactly the path, which is a value, not a sub-tree) replaces the remainder target unchanged. Each target's reference then leaves its outlet, remainder first — Max's right-to-left order. An empty path matches nothing, so the slice comes out empty and the remainder is the whole source.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang splits the source dictionary at the path: entries under it go into the slice target with the prefix stripped, everything else into the remainder target, and each target's reference leaves its outlet, right to left. \"dictionary <name>\" does the same when it names the source dictionary bound by the first creation argument — the message a .dict's reference outlet emits on a bang, so wiring that outlet here gives Max's own gesture. A reference naming anything else, or any other message, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "slice",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"dictionary <name>\" is accepted silently when it names the slice target bound by the second creation argument, so a patch may wire the target's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 1,
+        "label": "slice reference",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"dictionary <name>\" is accepted silently when it names the remainder target bound by the third creation argument, so a patch may wire the target's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 2,
+        "label": "remainder reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".dict.slice",
+    "outlets": [
+      {
+        "doc": "\"dictionary <slice>\" after a split — the reference the dict.* family binds, carrying the local name so the receiving object prefixes it with its own patcher's name. Sent after the remainder outlet, Max's right-to-left order. Silent for an unnamed slice target, which has no name to pass on.",
+        "index": 0,
+        "label": "slice reference",
+        "range": "",
+        "type": "LIST"
+      },
+      {
+        "doc": "\"dictionary <remainder>\" after a split, sent first — Max's right-to-left order. Silent for an unnamed remainder target, which has no name to pass on.",
+        "index": 1,
+        "label": "remainder reference",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The source dictionary's shared name, addressed as \"<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty splits a private, empty dictionary.",
+        "name": "source",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The slice target's shared name, bound exactly as the source. A split replaces its contents whole with the entries under the path, prefix stripped. The result goes into a bound dictionary rather than a new anonymous one because there is no way to hand a fresh dictionary's identity down a cord.",
+        "name": "slice",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The remainder target's shared name, bound exactly as the source. A split replaces its contents whole with every entry not under the path, keys unchanged — the other half of the partition, what .dict.strip would leave behind.",
+        "name": "remainder",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The key path the source is split at: \"voice::1\" slices every \"voice::1::...\" entry into the slice target under the \"...\" left after the prefix is stripped. A leaf stored at exactly the path is a value, not a sub-tree, and stays in the remainder. Empty matches nothing — there is no sub-tree above the root.",
+        "name": "path",
+        "range": "any key path"
+      }
+    ]
+  },
   ".div": {
     "category": "MATH",
     "description": "Control-rate integer division. Emits left / right as an int whenever inlet 0 fires, truncating towards zero instead of producing the float ./ would. Floats truncate towards zero on input, and a divisor of 0 emits 0.",

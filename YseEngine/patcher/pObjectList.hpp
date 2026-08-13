@@ -55,7 +55,8 @@ namespace YSE {
    *    ``G_TABLE``, ``G_TEXTFILE``, ``G_QLIST``, ``G_MTR``, ``G_SEQ``.
    *  - Dictionaries: ``G_DICT``, ``G_DICT_COMPARE``, ``G_DICT_DESERIALIZE``,
    *    ``G_DICT_GROUP``, ``G_DICT_ITER``, ``G_DICT_JOIN``, ``G_DICT_PACK``,
-   *    ``G_DICT_PRINT``, ``G_DICT_ROUTE``, ``G_DICT_SERIALIZE``.
+   *    ``G_DICT_PRINT``, ``G_DICT_ROUTE``, ``G_DICT_SERIALIZE``,
+   *    ``G_DICT_SLICE``.
    *  - Arrays: ``G_ARRAY``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
@@ -331,6 +332,18 @@ namespace YSE {
     // interchange format rather than only its store. A document longer than
     // the patcher's list payload bound is refused whole, never truncated.
     DEFOBJ(G_DICT_SERIALIZE, ".dict.serialize");
+
+    // Splits a dictionary at a key path (issue #779): all three dictionaries
+    // are bound from the creation arguments —
+    // ``.dict.slice <source> <slice> <remainder> [<path>]`` — and a bang, or
+    // the source's ``dictionary <name>`` reference, partitions the source:
+    // every entry under the path replaces the slice target with the prefix
+    // stripped, so the sub-tree becomes a dictionary rooted at itself, and
+    // every other entry replaces the remainder target unchanged. Each
+    // target's reference then leaves its outlet, remainder first. The
+    // operation the flat store makes explicit — a sub-tree is not a value,
+    // so extracting one is a bounded prefix scan rather than a lookup.
+    DEFOBJ(G_DICT_SLICE, ".dict.slice");
 
     // An ordered, index-addressed sequence shared by name (issue #548), the
     // second type built on the value model ``.dict`` settled: an ``OUT_TYPE``

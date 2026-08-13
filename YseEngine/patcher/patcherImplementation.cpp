@@ -18,6 +18,7 @@
 #include "genericObjects/gDictPrint.h"
 #include "genericObjects/gDictRoute.h"
 #include "genericObjects/gDictSerialize.h"
+#include "genericObjects/gDictSlice.h"
 #include "genericObjects/gForward.h"
 #include "genericObjects/gReceive.h"
 #include "genericObjects/gSend.h"
@@ -222,6 +223,12 @@ void patcherImplementation::SetName(const std::string& n) {
       // serialisations read the dictionary its other objects now speak about
       // (issue #778).
       static_cast<gDictSerialize*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_DICT_SLICE) == 0) {
+      // And gDictSlice, whose three bound dictionaries are registered under
+      // the same "<patcherName>.<name>" address form, so a renamed patcher's
+      // splits read and write the dictionaries its other objects now speak
+      // about (issue #779).
+      static_cast<gDictSlice*>(x.second)->RefreshBinding();
     } else if (strcmp(x.second->Type(), OBJ::G_ARRAY) == 0) {
       // And gArray, whose shared sequence is registered under the same
       // "<patcherName>.<name>" address, so a renamed patcher's arrays re-anchor

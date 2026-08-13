@@ -37,6 +37,7 @@
 #include "genericObjects/gDictPrint.h"
 #include "genericObjects/gDictRoute.h"
 #include "genericObjects/gDictSerialize.h"
+#include "genericObjects/gDictSlice.h"
 #include "genericObjects/gPrint.h"
 // `.loadbang` / `.loadmess` (issue #547): the pair that lets a saved patch
 // describe its own starting state, fired by patcherImplementation's post-publish
@@ -493,6 +494,12 @@ pRegistry::pRegistry() {
   // message — the write half of the interchange pair with .dict.deserialize,
   // and the same document DictToJson builds for a saved patch (issue #778)
   Add(OBJ::G_DICT_SERIALIZE, gDictSerialize::Create);
+
+  // Splits the bound dictionary at a key path: entries under it replace the
+  // slice target with the prefix stripped, everything else replaces the
+  // remainder target unchanged — the sub-tree extraction the flat store
+  // makes an explicit, bounded prefix scan (issue #779)
+  Add(OBJ::G_DICT_SLICE, gDictSlice::Create);
 
   // An ordered, index-addressed sequence shared by name — the collection type a
   // generative patch actually reaches for, and the value model the array.*
