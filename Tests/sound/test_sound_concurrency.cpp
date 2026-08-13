@@ -122,6 +122,50 @@ TEST_SUITE("sound") {
     CHECK(true);
   }
 
+  // ─── Setup-failure churn: DELETE_PENDING promotion vs. an in-flight deleteJob ─
+
+  TEST_CASE("sound concurrency: setup-failure impls unlink before becoming deletable") {
+    if (!TestHelpers::engineInit()) return;
+
+    // Regression guard for issue #830. A sound whose interface is destroyed
+    // before the slow-pool setup job claims the impl makes setup() find
+    // `head == nullptr`, which parks the impl at OBJECT_DELETE_PENDING while it
+    // is still linked into the audio-thread-iterated `toLoad` list. The next
+    // update() tick promotes it to OBJECT_DELETE — the exact predicate
+    // managerDeleteJob filters on — and unlinks it from toLoad. Publishing the
+    // status before the unlink let a delete job queued by an *earlier* tick
+    // (update()'s isQueued() guard only prevents re-queueing, it never joins a
+    // job already running) free the impl in between, after which the audio
+    // side's cursor::erase() wrote through the freed node's `_mgrNext`.
+    //
+    // Two properties keep the window wide: the worker only creates and drops
+    // sounds, so every impl takes the setup-failure path and each delete job
+    // has a batch to walk; and the update() loop touches no manager mutex, so
+    // nothing serialises the audio-thread surrogate against the slow pool.
+    const std::size_t before = YSE::SOUND::Manager().implementationCount();
+
+    std::atomic<bool> workerDone{false};
+    constexpr int N = 800;
+
+    std::thread worker([&]() {
+      for (int i = 0; i < N; ++i) {
+        YSE::sound s;
+        s.create(g_concSrc);
+      } // ~sound() nulls head before the slow-pool setup job can claim the impl
+      workerDone.store(true, std::memory_order_release);
+    });
+
+    int safety = 200000;
+    while (!workerDone.load(std::memory_order_acquire) && --safety > 0) {
+      YSE::INTERNAL::Time().update();
+      YSE::SOUND::Manager().update();
+    }
+    worker.join();
+
+    drain(40); // final settle: every impl above must be reclaimed
+    CHECK(YSE::SOUND::Manager().implementationCount() <= before);
+  }
+
   // ─── Sustained churn: keep creating while the slow-pool is still freeing ─────
 
   TEST_CASE("sound concurrency: overlapping create/destroy keeps lifecycle coherent") {
