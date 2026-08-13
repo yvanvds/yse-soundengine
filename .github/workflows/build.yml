@@ -378,8 +378,9 @@ jobs:
     # What the TSan widening costs, measured serially on the Dockerfile.sanitizers
     # image: the whole 42-entry set is 860 s, but yse_unit_tests (393 s) and
     # yse_tests_contentpack (303 s) are 81% of that. The per-PR `tests-tsan`
-    # preset skips those two and costs 163 s; the `tests-tsan-full` preset adds
-    # them back and runs on pushes to dev only (see the two run steps below).
+    # preset skips those two, plus the four suites blocked on #828, and runs 36
+    # entries in ~160 s; the `tests-tsan-full` preset adds the slow two back for
+    # 38 entries and runs on pushes to dev only (see the two run steps below).
     # timeout-minutes is sized for that sweep leg, not for the PR leg.
     #
     # Same trigger gate as the `build` job: continuous on push to dev/master,
@@ -429,7 +430,7 @@ jobs:
         # The tests-${san} test preset picks what runs: the full yse_tests_patcher
         # suite plus yse_tests_sendstress on asan (issue #727), and on tsan the
         # whole ctest set minus yse_unit_tests, yse_tests_contentpack and the
-        # three suites blocked on #828 (issue #824). The asan preset also sets
+        # four suites blocked on #828 (issue #824). The asan preset also sets
         # ASAN_OPTIONS=detect_leaks=0 (the process-global thread pools / named bus
         # are intentionally never torn down).
         #
@@ -450,7 +451,7 @@ jobs:
         # A failure here lands after the merge, so treat it as a bug report on
         # the merge rather than a broken PR: file the race, and if it will not be
         # fixed immediately, exclude the entry in CMakePresets.json with the
-        # issue number, the way #828's three suites are excluded.
+        # issue number, the way #828's four suites are excluded.
         if: matrix.san == 'tsan' && github.event_name == 'push' && github.ref_name == 'dev'
         run: ctest --preset tests-tsan-full --output-on-failure
       - name: Run static-teardown UAF gate (lifecycle suite, issue #298)
