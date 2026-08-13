@@ -29,19 +29,22 @@ namespace {
   constexpr float kDbFloor = -120.f;
 
   // Channel setup is async: c.create() queues setup() onto the slow-pool;
-  // the audio-thread-side promote-from-toLoad pass then sizes `out`. Pump
-  // both managers a few times so freshly created channels reach OBJECT_READY
-  // and getNumOutputs() reflects the device layout. The gap between two update()
-  // calls — the room the slow pool has to run the queued setup() — is a window
-  // of reference-timer ticks rather than a fixed sleep (issue #753), so it
-  // stretches with machine load exactly as the pool does.
-  void drainChannels(int iterations = 8) {
-    for (int i = 0; i < iterations; ++i) {
-      YSE::INTERNAL::Time().update();
-      YSE::SOUND::Manager().update();
-      YSE::CHANNEL::Manager().update();
-      TestHelpers::paceWindow(2);
-    }
+  // the audio-thread-side promote-from-toLoad pass then sizes `out`. A fixed
+  // number of pump iterations is a bounded window that a loaded slow pool can
+  // miss entirely (issue #834), so pump both managers until `ready()` — the
+  // completion signal — holds. The budget is denominated in reference-timer
+  // ticks rather than milliseconds (issue #753), so it stretches with machine
+  // load exactly as the pool does. Returns ready(), so a timed-out wait fails
+  // the caller's own assertion.
+  template <typename P> bool drainChannelsUntil(P ready, int ticks = 5000) {
+    return TestHelpers::pacedPump(
+        ticks, ready,
+        [] {
+          YSE::INTERNAL::Time().update();
+          YSE::SOUND::Manager().update();
+          YSE::CHANNEL::Manager().update();
+        },
+        2);
   }
 } // namespace
 
@@ -96,8 +99,13 @@ TEST_SUITE("channel") {
     if (!TestHelpers::engineInit()) return;
     // Master is set up synchronously (setMaster), but the five leaf channels
     // are created the same way as user channels — their setup() runs on the
-    // slow-pool. Drain so they've reached OBJECT_READY and `out` is sized.
-    drainChannels();
+    // slow-pool. Pump until all five have reached OBJECT_READY and `out` is
+    // sized (#834).
+    CHECK(drainChannelsUntil([] {
+      return YSE::ChannelFX().getNumOutputs() != 0 && YSE::ChannelMusic().getNumOutputs() != 0 &&
+             YSE::ChannelAmbient().getNumOutputs() != 0 &&
+             YSE::ChannelVoice().getNumOutputs() != 0 && YSE::ChannelGui().getNumOutputs() != 0;
+    }));
     const int n = YSE::ChannelMaster().getNumOutputs();
     CHECK(YSE::ChannelFX().getNumOutputs() == n);
     CHECK(YSE::ChannelMusic().getNumOutputs() == n);
@@ -121,9 +129,11 @@ TEST_SUITE("channel") {
     if (!TestHelpers::engineInit()) return;
     YSE::channel c;
     c.create("metering_test_channel", YSE::ChannelFX());
-    // setup() runs on the slow-pool — drain until the impl reaches OBJECT_READY
-    // and `out` has been sized from CHANNEL::Manager().getNumberOfOutputs().
-    drainChannels();
+    // setup() runs on the slow-pool — pump until the impl actually reaches
+    // OBJECT_READY and `out` has been sized from
+    // CHANNEL::Manager().getNumberOfOutputs(), rather than hoping a fixed
+    // window was wide enough (#834).
+    CHECK(drainChannelsUntil([&c] { return c.getNumOutputs() != 0; }));
     CHECK(c.getNumOutputs() == YSE::ChannelMaster().getNumOutputs());
     CHECK(c.getPeakLinearPost() == doctest::Approx(0.f));
   }

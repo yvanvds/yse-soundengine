@@ -32,18 +32,22 @@
 
 namespace {
 
-  // Pump the (paused) engine so queued channel messages are applied on the
-  // manager update path — same helper as test_channel_dsp.cpp. The gap between
-  // two update() calls is a window of reference-timer ticks rather than a fixed
-  // sleep (issue #753), so it stretches with machine load exactly as the
-  // background pool does.
-  void drainChannels(int iterations = 8) {
-    for (int i = 0; i < iterations; ++i) {
-      YSE::INTERNAL::Time().update();
-      YSE::SOUND::Manager().update();
-      YSE::CHANNEL::Manager().update();
-      TestHelpers::paceWindow(2);
-    }
+  // Pump the (paused) engine until `ready()` holds, so queued channel messages
+  // have actually been applied on the manager update path. A fixed iteration
+  // count is a bounded window that a loaded slow pool can miss entirely
+  // (issue #834); the budget is denominated in reference-timer ticks rather
+  // than milliseconds (issue #753), so it stretches with machine load exactly
+  // as the background pool does. Returns ready(), so a timed-out wait fails
+  // the caller's own assertion.
+  template <typename P> bool drainChannelsUntil(P ready, int ticks = 5000) {
+    return TestHelpers::pacedPump(
+        ticks, ready,
+        [] {
+          YSE::INTERNAL::Time().update();
+          YSE::SOUND::Manager().update();
+          YSE::CHANNEL::Manager().update();
+        },
+        2);
   }
 
 } // namespace
@@ -55,7 +59,9 @@ TEST_SUITE("channel") {
 
     YSE::channel ch;
     ch.create("underwater_attach", YSE::ChannelMaster());
-    drainChannels();
+    // Pump until the freshly created channel's slow-pool setup() has run —
+    // a sized `out` (getNumOutputs() != 0) is the OBJECT_READY signal (#834).
+    CHECK(drainChannelsUntil([&ch] { return ch.getNumOutputs() != 0; }));
     CHECK(ch.getDSP() == nullptr);
 
     YSE::System().underWaterFX(ch);
@@ -64,12 +70,14 @@ TEST_SUITE("channel") {
 
     // ...and after the message pump the impl links the module back
     // (calledfrom is the engine-managed back-pointer addDSP installs).
-    drainChannels();
+    drainChannelsUntil(
+        [] { return YSE::INTERNAL::UnderWaterEffect().module().calledfrom != nullptr; });
     CHECK(YSE::INTERNAL::UnderWaterEffect().module().calledfrom != nullptr);
 
     // Detach so the shared singleton doesn't outlive this test's channel.
     ch.setDSP(nullptr);
-    drainChannels();
+    drainChannelsUntil(
+        [] { return YSE::INTERNAL::UnderWaterEffect().module().calledfrom == nullptr; });
     CHECK(YSE::INTERNAL::UnderWaterEffect().module().calledfrom == nullptr);
   }
 
@@ -93,15 +101,22 @@ TEST_SUITE("channel") {
     YSE::channel b;
     a.create("underwater_move_a", YSE::ChannelMaster());
     b.create("underwater_move_b", YSE::ChannelMaster());
-    drainChannels();
+    // Await both channels' slow-pool setup() rather than a fixed window (#834).
+    CHECK(
+        drainChannelsUntil([&a, &b] { return a.getNumOutputs() != 0 && b.getNumOutputs() != 0; }));
 
     YSE::System().underWaterFX(a);
-    drainChannels();
+    drainChannelsUntil(
+        [] { return YSE::INTERNAL::UnderWaterEffect().module().calledfrom != nullptr; });
     YSE::DSP::dspObject** slotA = YSE::INTERNAL::UnderWaterEffect().module().calledfrom;
     REQUIRE(slotA != nullptr);
 
     YSE::System().underWaterFX(b);
-    drainChannels();
+    // Ready when the back-pointer has moved off a's slot onto b's.
+    drainChannelsUntil([slotA] {
+      YSE::DSP::dspObject** cf = YSE::INTERNAL::UnderWaterEffect().module().calledfrom;
+      return cf != nullptr && cf != slotA;
+    });
     YSE::DSP::dspObject** slotB = YSE::INTERNAL::UnderWaterEffect().module().calledfrom;
 
     // Attached to b's impl now, and a's insert slot was cleared on the way —
@@ -111,7 +126,8 @@ TEST_SUITE("channel") {
     CHECK(*slotA == nullptr);
 
     b.setDSP(nullptr);
-    drainChannels();
+    drainChannelsUntil(
+        [] { return YSE::INTERNAL::UnderWaterEffect().module().calledfrom == nullptr; });
     CHECK(YSE::INTERNAL::UnderWaterEffect().module().calledfrom == nullptr);
   }
 
