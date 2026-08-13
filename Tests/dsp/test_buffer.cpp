@@ -143,6 +143,59 @@ TEST_SUITE("dsp") {
     CHECK(a.getPtr()[0] == doctest::Approx(1.5f));
   }
 
+  // Issue #814: copy assignment used to hand resize() the source's *storage*
+  // size (length + tail) while resize() adds this buffer's tail on top, so the
+  // destination came out one tail too long and the copy loop -- bounded by the
+  // destination -- read past the end of the source allocation (ASan:
+  // heap-buffer-overflow). The destination must end up exactly as long as the
+  // source, whatever the two started out as.
+
+  TEST_CASE("buffer: copy assignment from a shorter source shrinks the destination") {
+    YSE::DSP::buffer src(4), dst(16);
+    src = 2.0f;
+    dst = -1.0f;
+    dst = src;
+    CHECK(dst.getLength() == 4u);
+    for (unsigned i = 0; i < 4; ++i)
+      CHECK(dst.getPtr()[i] == doctest::Approx(2.0f));
+  }
+
+  TEST_CASE("buffer: copy assignment from a longer source grows the destination") {
+    YSE::DSP::buffer src(16), dst(4);
+    src = 3.0f;
+    dst = -1.0f;
+    dst = src;
+    CHECK(dst.getLength() == 16u);
+    for (unsigned i = 0; i < 16; ++i)
+      CHECK(dst.getPtr()[i] == doctest::Approx(3.0f));
+  }
+
+  TEST_CASE("buffer: copy assignment across lengths keeps the overflow tail intact") {
+    // Buffers with an overflow tail (wavetables use one) are the case that
+    // tripped #814: the tail was counted twice, so the destination grew past
+    // the source and the last sample was read out of bounds.
+    YSE::DSP::buffer src(4, 1), dst(16, 1);
+    dst = -1.0f;
+    for (unsigned i = 0; i < 4; ++i)
+      src.getPtr()[i] = static_cast<float>(i) + 1.f;
+    src.copyOverflow(); // tail sample mirrors sample 0
+
+    dst = src;
+    CHECK(dst.getLength() == 4u);
+    for (unsigned i = 0; i < 4; ++i)
+      CHECK(dst.getPtr()[i] == doctest::Approx(static_cast<float>(i) + 1.f));
+    // The wrap-around tail must be the source's tail, not stale or out-of-bounds data.
+    CHECK(dst.getPtr()[dst.getLength()] == doctest::Approx(dst.getPtr()[0]));
+  }
+
+  TEST_CASE("buffer: copy assignment adopts the source's overflow") {
+    YSE::DSP::buffer src(8, 1), dst(8, 0);
+    src = 1.0f;
+    dst = src;
+    CHECK(dst.getLength() == 8u);
+    CHECK(dst.getPtr()[8] == doctest::Approx(1.0f)); // tail exists and was copied
+  }
+
   TEST_CASE("buffer: swap") {
     YSE::DSP::buffer a(5), b(5);
     a = 1.0f;

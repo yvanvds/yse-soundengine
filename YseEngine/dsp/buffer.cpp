@@ -194,13 +194,20 @@ namespace YSE {
     }
 
     buffer& buffer::operator=(const buffer& s) {
-      if (storage.size() != s.storage.size()) {
-        resize((UInt)s.storage.size());
-      }
-
+      // Adopt the source's tail length before resizing: resize() sizes storage
+      // as length + overflow, so handing it the source's *storage* size (which
+      // already includes the source's tail) made the destination one tail
+      // longer than the source, and the copy below then ran off the end of the
+      // source allocation (issue #814).
       overflow = s.overflow;
 
-      UInt l = (UInt)storage.size();
+      if (storage.size() != s.storage.size()) {
+        resize(s.getLength());
+      }
+
+      // Sizes match after the resize above, but bound the copy by the shorter
+      // of the two anyway -- same defensive idiom as the operators above.
+      UInt l = storage.size() < s.storage.size() ? (UInt)storage.size() : (UInt)s.storage.size();
       Flt* ptr1 = storage.data();
       const Flt* ptr2 = s.storage.data();
 

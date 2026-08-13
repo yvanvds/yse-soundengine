@@ -7,6 +7,7 @@
 //   - a detuned dual-saw "Minimoog-ish" patch renders with harmonics,
 //   - wavetable morph is click-free (bounded first-difference across a sweep),
 //   - an AKWF-length (600-sample) single-cycle table loads and plays,
+//   - a short table loaded over a longer bank slot takes the short length (#814),
 //   - velocity routes to amplitude,
 //   - clone() shares the patch but keeps independent per-voice state,
 //   - no heap allocation in process() after warm-up.
@@ -294,6 +295,59 @@ TEST_SUITE("dsp") {
     buf = 0.f;
     captureSustain(v, buf, 2048);
     CHECK(TestHelpers::measureRms(buf) > 0.02f);
+  }
+
+  // Issue #814: loading a cycle into a slot that already exists (the default
+  // bank slots are 2048 samples) copy-assigns a shorter wavetable over a longer
+  // one. buffer::operator= counted the wrap-around tail twice, so the slot kept
+  // one sample too many and the copy read past the end of the freshly built
+  // table (ASan: heap-buffer-overflow) -- leaving the table one sample long with
+  // uninitialised heap data as its wrap sample, i.e. a glitch every period.
+  TEST_CASE("vaVoice: a short table replacing a longer bank slot takes the short length") {
+    vaVoice v;
+    vaParams& p = v.parameters();
+    REQUIRE(p.wavetableCount() > 0); // default bank: 2048-sample slots
+
+    const int len = 64;
+    std::vector<float> cycle(len);
+    for (int i = 0; i < len; ++i)
+      cycle[i] = std::sin(2.f * 3.14159265f * static_cast<float>(i) / static_cast<float>(len));
+    p.loadWavetable(0, cycle); // over the 2048-sample default slot
+
+    CHECK(p.wtBank[0].getLength() == static_cast<UInt>(len));
+    for (int i = 0; i < len; ++i)
+      CHECK(p.wtBank[0].getPtr()[i] == doctest::Approx(cycle[i]));
+    // The wrap-around sample past the end must mirror sample 0 (readTable
+    // interpolates into it on the last fraction of every period).
+    CHECK(p.wtBank[0].getPtr()[len] == doctest::Approx(cycle[0]));
+
+    // And it plays through the real voice: position 0 reads slot 0 only.
+    p.oscWave[0].store(YSE::SYNTH::VA_WAVETABLE);
+    p.oscLevel[0].store(1.f);
+    p.cutoff.store(16000.f);
+    p.resonance.store(0.f);
+    p.filterEnvAmount.store(0.f);
+    p.keyTracking.store(0.f);
+    p.ampSustain.store(1.f);
+    p.wavetablePosition.store(0.f);
+
+    v.frequency(69.f);
+    v.velocity(1.f);
+    YSE::DSP::buffer buf(2048);
+    buf = 0.f;
+    REQUIRE(captureSustain(v, buf, 2048) == 2048u);
+    CHECK(TestHelpers::measureRms(buf) > 0.02f);
+    // A clean single-cycle sine table stays inside the nominal range; the stale
+    // wrap sample of #814 was whatever the allocator left there.
+    const float* out = buf.getPtr();
+    float peak = 0.f;
+    bool allFinite = true;
+    for (unsigned i = 0; i < 2048; ++i) {
+      if (!std::isfinite(out[i])) allFinite = false;
+      if (std::abs(out[i]) > peak) peak = std::abs(out[i]);
+    }
+    CHECK(allFinite);
+    CHECK(peak <= 1.5f);
   }
 
   // ─── velocity routing ───────────────────────────────────────────────────────
