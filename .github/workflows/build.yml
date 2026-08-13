@@ -351,21 +351,36 @@ jobs:
         run: ctest --test-dir ${{ matrix.bdir }} -L python --output-on-failure
 
   build-sanitizers:
-    # Patcher concurrency acceptance gate (issue #229, epic #189): drive
-    # concurrent live-edit + render of a patcher under Thread- and
-    # AddressSanitizer so a regression in the wait-free graph model (a data race
-    # or a use-after-free of a retired GraphState/object on the audio thread) is
-    # caught. Both legs build only the tests-<san> preset and run what that
-    # preset's test filter selects. Local repro:
-    # tools/ci-linux/Dockerfile.sanitizers.
+    # Memory-safety and data-race gate. Started life as the patcher concurrency
+    # acceptance gate (issue #229, epic #189) — concurrent live-edit + render of
+    # a patcher under Thread- and AddressSanitizer, so a regression in the
+    # wait-free graph model (a data race, or a use-after-free of a retired
+    # GraphState/object on the audio thread) is caught. Both legs build only the
+    # tests-<san> preset and run what that preset's test filter selects. Local
+    # repro: tools/ci-linux/Dockerfile.sanitizers.
     #
-    # The ASan leg runs the *whole* patcher suite, not just `concurrency:*`
-    # (issue #727). Narrowing it to the concurrency case is what let ~22 test
-    # files sit on a one-sided outlet->inlet edge — a teardown use-after-free
-    # that ASan aborts on the moment the case actually runs — stay green for
-    # months. The full suite is the cheap half of the pair, so it is the half
-    # that gets widened; TSan stays on `concurrency:*`, where the races live and
-    # where the 20-30x slowdown is affordable.
+    # Both filters have since been widened past the patcher, each time because a
+    # narrow one had hidden something real:
+    #
+    #   ASan (issue #727) runs the *whole* patcher suite, not just
+    #   `concurrency:*`. Narrowing it to the concurrency case is what let ~22
+    #   test files sit on a one-sided outlet->inlet edge — a teardown
+    #   use-after-free that ASan aborts on the moment the case actually runs —
+    #   stay green for months.
+    #
+    #   TSan (issue #824) now runs the whole ctest set bar a documented exclude
+    #   list, instead of the two entries it ran before. That two-entry filter is
+    #   why #819 (soundFile::channels() racing loadStreaming()) and #820 (the
+    #   unsynchronised log sink) survived until somebody ran TSan by hand. It is
+    #   an exclude list now so a newly added suite is gated by default rather
+    #   than silently ungated.
+    #
+    # What the TSan widening costs, measured serially on the Dockerfile.sanitizers
+    # image: the whole 42-entry set is 860 s, but yse_unit_tests (393 s) and
+    # yse_tests_contentpack (303 s) are 81% of that. The per-PR `tests-tsan`
+    # preset skips those two and costs 163 s; the `tests-tsan-full` preset adds
+    # them back and runs on pushes to dev only (see the two run steps below).
+    # timeout-minutes is sized for that sweep leg, not for the PR leg.
     #
     # Same trigger gate as the `build` job: continuous on push to dev/master,
     # plus feature-branch PRs; skipped on release/sync PRs whose head is dev or
@@ -373,7 +388,7 @@ jobs:
     if: github.event_name == 'push' || (github.head_ref != 'dev' && github.head_ref != 'master')
     name: Sanitizers (${{ matrix.san }})
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -383,6 +398,12 @@ jobs:
       - name: Install dependencies
         # libclang-rt-dev ships libclang_rt.{asan,tsan}; not pulled in by the base
         # clang package, so the sanitizer legs fail to link without it.
+        #
+        # llvm ships llvm-symbolizer, which the sanitizer runtimes exec to turn a
+        # report into file:line. Without it every frame prints as a bare
+        # `yse_tests+0x3e1d05` and a red gate tells you nothing you can act on —
+        # which matters more now that TSan covers suites nobody has read a report
+        # from before (#824).
         run: |
           sudo apt-get update -y
           sudo apt-get install -y \
@@ -391,6 +412,7 @@ jobs:
             pkg-config \
             clang \
             libclang-rt-dev \
+            llvm \
             portaudio19-dev \
             libsndfile1-dev \
             librtmidi-dev
@@ -403,13 +425,34 @@ jobs:
         run: cmake --preset tests-${{ matrix.san }}
       - name: Build
         run: cmake --build --preset tests-${{ matrix.san }}
-      - name: Run patcher sanitizer gate
+      - name: Run sanitizer gate
         # The tests-${san} test preset picks what runs: the full yse_tests_patcher
-        # suite on asan (issue #727), yse_tests_patcher_concurrency on tsan, plus
-        # yse_tests_sendstress on both. The asan preset also sets
+        # suite plus yse_tests_sendstress on asan (issue #727), and on tsan the
+        # whole ctest set minus yse_unit_tests, yse_tests_contentpack and the
+        # three suites blocked on #828 (issue #824). The asan preset also sets
         # ASAN_OPTIONS=detect_leaks=0 (the process-global thread pools / named bus
         # are intentionally never torn down).
+        #
+        # Skipped on the tsan leg of a push to dev, where the sweep step below
+        # runs the superset instead — running both would pay for the same 163 s
+        # twice.
+        if: ${{ !(matrix.san == 'tsan' && github.event_name == 'push' && github.ref_name == 'dev') }}
         run: ctest --preset tests-${{ matrix.san }} --output-on-failure
+      - name: Run the full TSan sweep (push to dev)
+        # The slow half of the #824 split. yse_unit_tests and
+        # yse_tests_contentpack cost 696 s of the 860 s a full sweep takes, which
+        # is too much to spend on every PR push but not too much to spend once
+        # per merge into the integration branch. yse_unit_tests is the entry that
+        # earns it: the crowded, warm-heap, thread-churning shared process is a
+        # set of cross-suite interleavings no per-suite entry reproduces (it is
+        # where #336 turned up).
+        #
+        # A failure here lands after the merge, so treat it as a bug report on
+        # the merge rather than a broken PR: file the race, and if it will not be
+        # fixed immediately, exclude the entry in CMakePresets.json with the
+        # issue number, the way #828's three suites are excluded.
+        if: matrix.san == 'tsan' && github.event_name == 'push' && github.ref_name == 'dev'
+        run: ctest --preset tests-tsan-full --output-on-failure
       - name: Run static-teardown UAF gate (lifecycle suite, issue #298)
         # The lifecycle suite deliberately leaves a SOUND::implementationObject
         # alive at engine teardown; its destructor used to read a freed parent

@@ -157,7 +157,7 @@ Four GitHub Actions workflows under `.github/workflows/`:
 
 | Workflow | Triggers | What it does |
 |----------|----------|--------------|
-| `build.yml` | push (master/dev), PR | Linux Debug + `YSE_ENABLE_COVERAGE=ON` build, ctest, gcovr SonarQube report, SonarCloud scan (`yvanvds_yse-soundengine`) |
+| `build.yml` | push (master/dev), PR | Linux Debug + `YSE_ENABLE_COVERAGE=ON` build, ctest, gcovr SonarQube report, SonarCloud scan (`yvanvds_yse-soundengine`); plus the `build-sanitizers` legs — ASan over the patcher suite, TSan over the whole ctest set bar a documented exclude list (#824), widened on a push to `dev` to the `tests-tsan-full` sweep |
 | `release.yml` | tag `v*`, manual | Builds Linux x64, Windows x64, and Android multi-ABI release archives → `dist/` → uploaded as GH release assets |
 | `benchmark.yml` | push (master/dev), PR to master | Runs google-benchmark; results pushed to the `bench-history` orphan branch; PR comments on regressions |
 | `documentation.yml` | push to master | Doxygen + Sphinx HTML → GitHub Pages |
