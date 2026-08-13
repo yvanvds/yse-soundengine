@@ -258,10 +258,19 @@ namespace YSE {
     /** @brief Number of MIDI output devices available. */
     unsigned int getNumMidiOutDevices();
 
-    /** @brief Name of the MIDI input device with the given ID. */
+    /** @brief Name of the MIDI input device with the given ID.
+     *
+     *  Empty when there is no such device — an ID at or past
+     *  ``getNumMidiInDevices()``, or any ID at all on a host where the MIDI
+     *  backend failed to come up (issue #585).
+     */
     const std::string getMidiInDeviceName(unsigned int ID);
 
-    /** @brief Name of the MIDI output device with the given ID. */
+    /** @brief Name of the MIDI output device with the given ID.
+     *
+     *  Empty when there is no such device, on the same terms as
+     *  ``getMidiInDeviceName``.
+     */
     const std::string getMidiOutDeviceName(unsigned int ID);
 #endif
 
