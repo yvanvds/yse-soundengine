@@ -33,7 +33,13 @@ namespace YSE {
     static const Flt kPedalThreshold = 0.5f;
 
     implementationObject::implementationObject(interfaceObject* head)
-      : head(head), objectStatus(OBJECT_CONSTRUCTED), messages(1024), output(*this, 1) {}
+      : head(head), objectStatus(OBJECT_CONSTRUCTED), messages(1024), output(*this, 1) {
+      // Size the aggregate bed here, on the control thread, while this impl is
+      // still unreachable from the render path — it is not yet in the manager's
+      // list and no sound points at output.samples yet (issue #828). See
+      // sizeOutputBed() for why the setup pool may never do this.
+      sizeOutputBed(deviceWidth());
+    }
 
     implementationObject::~implementationObject() {
       // If the interface somehow outlives us (e.g. engine teardown clears the
@@ -178,11 +184,13 @@ namespace YSE {
 
       stealFadeSamples = std::max(1, static_cast<int>(SAMPLERATE * kStealFadeSec));
 
-      // Size the device-width aggregate bed and every voice's panner here on the
-      // setup pool — the ONLY place (besides a device restart) this allocates
-      // (issue #169). After this, note-on/off and every render block touch only
-      // pre-allocated storage.
-      ensureDeviceWidth();
+      // Size every voice's panner (and the fader scratch) here on the setup pool
+      // — the ONLY place (besides a device restart) this allocates (issue #169).
+      // After this, note-on/off and every render block touch only pre-allocated
+      // storage. The aggregate bed is deliberately NOT sized here: it is already
+      // reachable from the render path, so it belongs to the constructor and the
+      // render thread alone (issue #828 — see sizeOutputBed()).
+      sizeVoiceState(deviceWidth());
 
       // Publish groups to the audio thread. Storing inside the lock closes the
       // window where an addVoiceGroup() could append a request this setup will
@@ -226,23 +234,37 @@ namespace YSE {
 
     // ---- audio-thread render path -----------------------------------------
 
-    void implementationObject::ensureDeviceWidth() {
+    int implementationObject::deviceWidth() {
       // Fall back to a single (mono) channel when there is no device geometry
       // (headless unit tests / pre-init), matching the panner's own fallback so
       // the bed is never zero-width.
       int no = static_cast<int>(CHANNEL::Manager().getNumberOfOutputs());
-      if (no < 1) no = 1;
-      if (no == builtForOutputs && output.samples.size() == static_cast<size_t>(no)) {
-        return; // steady state: nothing to size
+      return no < 1 ? 1 : no;
+    }
+
+    void implementationObject::sizeOutputBed(int no) {
+      // THREADING (issue #828). The aggregate bed is the one piece of
+      // render-visible state that is NOT published by setup()'s OBJECT_SETUP
+      // release store: renderBlock()'s pre-ready branch clears it, and the owning
+      // sound's toChannels() reads it through the `buffer` pointer taken in
+      // create(), both of which can run long before this impl is set up. So
+      // output.samples may only ever be resized by a thread the render path
+      // cannot be concurrent with — the constructor (this impl is not reachable
+      // yet) or the render thread itself. NEVER the setup pool: a reallocating
+      // resize() there hands the render thread a freed DSP::buffer array.
+      if (output.samples.size() != static_cast<size_t>(no)) {
+        output.samples.resize(static_cast<size_t>(no));
       }
-      // First sizing (setup pool) or a device restart (audio thread). Allocation
-      // is permitted on exactly this path — the same exception the engine already
-      // makes when the device output count changes (deviceManager: master->
-      // resize(true)). It never runs at note rate.
-      output.samples.resize(static_cast<size_t>(no));
       for (auto& b : output.samples) {
         if (b.getLength() != STANDARD_BUFFERSIZE) b.resize(STANDARD_BUFFERSIZE);
       }
+    }
+
+    void implementationObject::sizeVoiceState(int no) {
+      // Voice panners and the fader scratch are read only from renderBlock()'s
+      // ready branch — strictly after the OBJECT_SETUP release store setup()
+      // ends with — so sizing them on the setup pool sits inside that
+      // happens-before edge and is safe (unlike the bed above).
       for (auto& g : groups) {
         for (size_t i = 0; i < g.slots.size(); ++i) {
           UInt srcCh = static_cast<UInt>(g.voices[i]->samples.size());
@@ -258,6 +280,21 @@ namespace YSE {
       builtForOutputs = no;
     }
 
+    void implementationObject::ensureDeviceWidth() {
+      const int no = deviceWidth();
+      if (no == builtForOutputs && output.samples.size() == static_cast<size_t>(no)) {
+        return; // steady state: nothing to size
+      }
+      // A device restart, or a width that changed between construction and
+      // setup(). Allocation is permitted on exactly this path — the same
+      // exception the engine already makes when the device output count changes
+      // (deviceManager: master->resize(true)). It never runs at note rate, and
+      // it only ever runs on the render thread, which is what keeps the bed
+      // resize single-threaded (issue #828).
+      sizeOutputBed(no);
+      sizeVoiceState(no);
+    }
+
     void implementationObject::renderBlock(SOUND_STATUS& masterIntent) {
       const OBJECT_IMPLEMENTATION_STATE st = objectStatus.load(std::memory_order_acquire);
       const bool ready = (st == OBJECT_SETUP || st == OBJECT_READY);
@@ -267,8 +304,9 @@ namespace YSE {
         // destroys queued events — messages arriving while the voices are
         // still cloning stay in the SPSC inbox and take effect on the first
         // ready block (#352; the only drop is sendMessage()'s logged overflow).
-        // Just clear whatever aggregate buffers exist (may be unsized
-        // pre-setup).
+        // Just clear the aggregate bed so the owning sound plays silence rather
+        // than stale samples. The bed was sized in the constructor and is never
+        // resized off this thread, so iterating it here is safe (issue #828).
         for (auto& b : output.samples)
           b = 0.f;
         return;
