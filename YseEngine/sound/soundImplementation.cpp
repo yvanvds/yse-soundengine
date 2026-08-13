@@ -203,7 +203,16 @@ bool YSE::SOUND::implementationObject::create(const std::string& fileName, chann
     file = new INTERNAL::soundFile(fullName);
 
     if (file->create(true)) {
-      filebuffer.resize(file->channels());
+      // Do NOT size the output off file->channels() here. create(true) only
+      // *schedules* the open on the slow pool (Global().addSlowJob); it is
+      // soundFile::loadStreaming() that assigns the channel count, and it
+      // publishes it with the release store to `state`. Reading it on this
+      // thread is a data race against that write (issue #819), and the value is
+      // wrong anyway: the loader has all but certainly not run yet, so
+      // channels() is still the constructor's 0 and filebuffer.resize(0) would
+      // leave the sound with no output buffers at all — the failure mode #657
+      // fixed for buffer-backed sources. setup() sizes the output once the file
+      // reports READY.
       buffer = &filebuffer;
       return true;
     } else {
@@ -349,14 +358,21 @@ void YSE::SOUND::implementationObject::setup() {
                        // release in create() to safely observe published dsp source
       // dsp source sounds are a special case because there's no file involved
       resize();
-    } else if (streaming) {
-      // streaming sounds do not have to wait until loaded
-      filebuffer.resize(file->channels());
-      _head_length = file->length();
-      resize();
-
     } else if (file->getState() == INTERNAL::FILESTATE::READY) {
       // file is ready!
+      //
+      // Streaming sources go through this same gate (issue #819). They used to
+      // have a branch above that skipped it — "streaming sounds do not have to
+      // wait until loaded" — but a streaming file describes itself only once
+      // soundFile::loadStreaming() has run on the slow pool: that is where the
+      // channel count and the frame length are assigned, and the release store
+      // to `state` is what publishes them. Reading them from this setup job
+      // before READY raced that write, and returned the constructor's zeros, so
+      // the sound was published with no output buffers and length 0 — and setup()
+      // never runs again once readyCheck() promotes it to OBJECT_READY. Waiting
+      // for READY costs a slow-pool tick (setup() falls through, readyCheck()
+      // sends the impl back to OBJECT_CREATED and it is re-claimed next update),
+      // exactly like a non-streaming file that is still loading.
       filebuffer.resize(file->channels());
       buffer = &filebuffer;
       _head_length = file->length();

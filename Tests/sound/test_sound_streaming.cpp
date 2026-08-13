@@ -19,16 +19,20 @@
 #include <doctest/doctest.h>
 #include <sndfile.hh>
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
 #include <functional>
 #include <string>
 #include <thread>
 #include <vector>
 
 #include "yse.hpp"
+#include "internal/global.h"
 #include "internal/lsfSoundfile.h"
+#include "internal/threadPool.h"
 #include "internal/time.h"
 #include "sound/soundManager.h"
 #include "dsp/buffer.hpp"
@@ -72,6 +76,18 @@ namespace {
     h.writef(src.data(), frames);
     // SndfileHandle flushes and closes on destruction (end of this function).
     return p.string();
+  }
+
+  // Read a whole file into memory, so a WAV written by writeWav() can be handed
+  // to the in-memory VFS (BufferIO) and opened through the custom-IO callbacks.
+  std::vector<char> readAllBytes(const std::string& path) {
+    std::ifstream f(path, std::ios::binary | std::ios::ate);
+    if (!f.is_open()) return {};
+    const auto size = static_cast<std::streamsize>(f.tellg());
+    f.seekg(0);
+    std::vector<char> bytes(static_cast<size_t>(size));
+    f.read(bytes.data(), size);
+    return bytes;
   }
 
   // Wait for the slow-pool load to finish (state == READY) or run out of budget.
@@ -627,6 +643,86 @@ TEST_SUITE("sound") {
     CHECK(soundFile::liveInstances() == baseline);
   }
 
+  // 8b. Issue #819 regression: a streaming sound must not be published before
+  //     its loader has described the source.
+  //
+  //     `create(..., streaming = true)` only *schedules* the open on the slow
+  //     pool; soundFile::loadStreaming() is what assigns the channel count and
+  //     the frame length, publishing both with the release store to `state`.
+  //     Two readers used to jump the gun: create() itself, right after
+  //     addSlowJob (the data race TSan reports), and setup(), which had a
+  //     "streaming sounds do not have to wait until loaded" branch that read
+  //     channels()/length() whatever the state was. When setup() won, the sound
+  //     was published with filebuffer.resize(0) — no output buffers at all, the
+  //     #657 failure mode — and length 0, permanently: readyCheck() promotes it
+  //     to OBJECT_READY and setup() never runs again.
+  //
+  //     Make that ordering instead of waiting for it. The background pool has
+  //     exactly one worker, so parking it in a blocker job pins the order of
+  //     everything queued behind it: the setup job is armed (by an update()
+  //     with a non-empty toLoad) *before* the streaming sound's load job is
+  //     queued, while the streaming impl is already OBJECT_CREATED and so
+  //     claimable by that setup pass. On the unfixed code the sound comes out
+  //     ready with length 0; with the fix setup() falls through until the file
+  //     reaches READY and the sound reports the real source length.
+  TEST_CASE("streaming: setup that beats the loader must not publish a zero-length sound (#819)") {
+    if (!TestHelpers::engineInit()) return;
+
+    struct Blocker : YSE::INTERNAL::threadPoolJob {
+      std::atomic<bool> running{false};
+      std::atomic<bool> release{false};
+      void run() override {
+        running.store(true, std::memory_order_release);
+        while (!release.load(std::memory_order_acquire))
+          std::this_thread::yield();
+      }
+    };
+
+    const long frames = 2 * S + 1234; // a length no other case in this TU writes
+    std::vector<float> src;
+    const std::string path = writeWav(frames, src);
+
+    // Drain whatever an earlier case left in flight, so the setup job is not
+    // already queued (update() skips arming it then) and the worker is idle.
+    for (int i = 0; i < 10; ++i) {
+      YSE::INTERNAL::Time().update();
+      YSE::SOUND::Manager().update();
+      TestHelpers::paceWindow(3);
+    }
+
+    Blocker blocker;
+    YSE::INTERNAL::Global().addSlowJob(&blocker);
+    TestHelpers::pacedUntil(5000, [&] { return blocker.running.load(std::memory_order_acquire); });
+    REQUIRE(blocker.running.load(std::memory_order_acquire));
+
+    // A plain (non-streaming) sound purely to put something in `toLoad`, so the
+    // update() below arms the manager's setup job behind the blocker.
+    YSE::sound plain;
+    plain.create(path.c_str(), nullptr, false, 1.0f, /*streaming*/ false);
+    YSE::INTERNAL::Time().update();
+    YSE::SOUND::Manager().update(); // queues the setup job: [blocker, ..., setup]
+
+    // Now the streaming sound. Its load job lands *after* the setup job in the
+    // one-worker queue, but SOUND::Manager::setup() has already flagged the impl
+    // OBJECT_CREATED, so the setup pass will claim it while the file is still
+    // FILESTATE::LOADING — the exact interleaving of issue #819.
+    YSE::sound stream;
+    stream.create(path.c_str(), nullptr, false, 1.0f, /*streaming*/ true);
+
+    blocker.release.store(true, std::memory_order_release);
+
+    TestHelpers::pacedPump(
+        5000, [&] { return stream.isReady(); },
+        [] {
+          YSE::INTERNAL::Time().update();
+          YSE::SOUND::Manager().update();
+        },
+        3);
+
+    CHECK(stream.isReady());
+    CHECK(stream.length() == static_cast<UInt>(frames));
+  }
+
   // 9. Issue #283 regression: a stop (reset) that lands after an in-flight fill
   //    captured its generation but before that fill consumed the reset flag must
   //    not be swallowed. The stale fill's output is (rightly) discarded, so the
@@ -722,6 +818,87 @@ TEST_SUITE("sound") {
     REQUIRE(r.valid == block);
     for (UInt j = 0; j < r.valid; ++j, ++frame)
       CHECK(out[j] == doctest::Approx(sampleAt(frame)).epsilon(0.0001));
+  }
+
+  // 12. Issue #823 regression: a streaming source opened through a custom file
+  //     reader (YSE::IO(), here driven by the in-memory BufferIO VFS) must load
+  //     like any other stream.
+  //
+  //     soundFile::loadStreaming() had an empty custom-IO branch, so the load job
+  //     returned with the file still at FILESTATE::LOADING — no handle, no channel
+  //     count, no length, and no INVALID verdict either. Nothing ever moved it on,
+  //     because run() is what does the loading. Until #819 that was masked at the
+  //     next layer up (setup() published streaming sounds whatever the file state
+  //     was, giving a silent zero-length sound); with streaming now gated on READY
+  //     the file simply never becomes playable.
+  //
+  //     The custom reader supplies open/read/seek/tell/length, which is exactly
+  //     what sndfile's virtual IO needs, so the stream is opened through it and the
+  //     reader handle is held until ~soundFile. Assert the description the loader
+  //     publishes *and* that the slow pool can keep reading through the callbacks
+  //     across a stream-buffer boundary — a handle closed too early (the ownership
+  //     half of the fix) still reaches READY but dies on the first refill.
+  TEST_CASE("streaming: a custom-IO source loads and streams (issue #823)") {
+    if (!TestHelpers::engineInit()) return;
+
+    std::vector<float> src;
+    const std::string path = writeWav(S + 20000, src); // spans one buffer boundary
+    std::vector<char> bytes = readAllBytes(path);
+    REQUIRE_FALSE(bytes.empty());
+
+    YSE::BufferIO io;
+    io.SetActive(true);
+    REQUIRE(io.AddBuffer("stream-vfs", bytes.data(), static_cast<int>(bytes.size())));
+
+    { // the file must be gone before the VFS it reads from
+      // Bound to a std::string on purpose: a bare literal would pick the
+      // inherited abstractSoundFile(bool) overload (const char* -> bool is a
+      // standard conversion, -> std::string a user-defined one).
+      const std::string id = "stream-vfs";
+      soundFile f(id);
+      f.create(true);
+      REQUIRE(waitReady(f)); // without the fix: stuck at LOADING until the budget runs out
+      CHECK(f.channels() == 1);
+      CHECK(f.length() == static_cast<UInt>(src.size()));
+
+      Flt pos = 0.f, vol = 1.f;
+      SOUND_STATUS intent = YSE::SS_PLAYING_FULL_VOLUME;
+      std::vector<float> out;
+      long frame = 0;
+      const long verifyTo = S + 4000; // past the boundary, still well before EOF
+      for (int b = 0; frame < verifyTo; ++b) {
+        blockResult r = readBlock(f, pos, false, intent, vol, out);
+        REQUIRE_FALSE(r.stopped);
+        REQUIRE(r.valid > 0); // no frames at all: the refill never landed
+        for (UInt j = 0; j < r.valid && frame < verifyTo; ++j, ++frame) {
+          CHECK(out[j] == doctest::Approx(src[static_cast<size_t>(frame)]).epsilon(0.0001));
+        }
+        breathe(b);
+      }
+    }
+
+    CHECK(io.RemoveBufferByName("stream-vfs"));
+    io.SetActive(false);
+  }
+
+  // 13. The other half of issue #823's contract: a name the custom reader does
+  //     not know must fail cleanly rather than hang at LOADING. INVALID is the
+  //     verdict an unreadable disk file already gets, and the one setup() knows
+  //     how to drop.
+  TEST_CASE("streaming: an unknown custom-IO source ends INVALID, not LOADING (issue #823)") {
+    if (!TestHelpers::engineInit()) return;
+
+    YSE::BufferIO io;
+    io.SetActive(true);
+
+    {
+      const std::string id = "no-such-buffer"; // see the overload note above
+      soundFile f(id);
+      f.create(true);
+      CHECK(TestHelpers::pacedUntil(3000, [&f] { return f.getState() == YSE::INTERNAL::INVALID; }));
+    }
+
+    io.SetActive(false);
   }
 
 } // TEST_SUITE("sound")

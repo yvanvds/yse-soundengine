@@ -110,10 +110,24 @@ void BufferIO_Close(void* fileHandle) {
 long long BufferIO_Read(void* destBuffer, long long maxBytesToRead, void* fileHandle) {
   IOBufferReader* reader = (IOBufferReader*)fileHandle;
   char* buffer = reader->buffer->buffer;
+  const sf_count_t length = reader->buffer->length;
   sf_count_t startpos = reader->currentPos;
+
+  // Nothing left to hand out (issue #825). Asking for bytes at or past the end
+  // is an ordinary thing for a VFS caller to do — sndfile does it at EOF, and
+  // a seek past the end can put the reader here too. Answer 0 rather than
+  // falling through to a copy whose end lies before its start.
+  if (startpos >= length) {
+    reader->currentPos = startpos;
+    return 0;
+  }
+
   sf_count_t endpos = startpos + maxBytesToRead;
-  if (endpos >= reader->buffer->length) {
-    endpos = reader->buffer->length - 1;
+  // Clamp to the end of the buffer, not one byte short of it: a read finishing
+  // exactly at `length` is legal and used to lose its last byte, which made the
+  // final byte of every registered buffer unreachable (issue #825).
+  if (endpos > length) {
+    endpos = length;
   }
 
   std::copy(buffer + startpos, buffer + endpos, (char*)destBuffer);
@@ -127,18 +141,49 @@ long long BufferIO_Length(void* fileHandle) {
   return reader->buffer->length;
 }
 
+namespace {
+
+  // Fold `base + offset` into [0, length] without ever evaluating the addition
+  // when it would leave that range: `offset` comes straight from the caller, so
+  // base + offset can overflow for a hostile or corrupt value. `base` is always
+  // one of 0, currentPos or length, all of which are inside [0, length], which
+  // is what makes `length - base` and `-base` safe to compute up front.
+  I64 clampSeekTarget(I64 base, long long offset, I64 length) {
+    if (offset > length - base) return length;
+    if (offset < -base) return 0;
+    return base + static_cast<I64>(offset);
+  }
+
+} // namespace
+
 long long BufferIO_Seek(long long offset, int whence, void* fileHandle) {
   IOBufferReader* reader = (IOBufferReader*)fileHandle;
+  const I64 length = reader->buffer->length;
+
+  // A registered buffer is a fixed range of bytes, so the reader is kept inside
+  // it by construction: every seek clamps into [0, length] and reports where it
+  // actually landed (issue #826). Nothing here refuses a seek — libsndfile
+  // seeks relative to the current position while walking chunks, and a chunk
+  // header that lies sends it backwards past the start or far past the end;
+  // that is a malformed file, not a reason to leave the reader pointing outside
+  // the buffer for BufferIO_Read to then copy from. A caller that cares gets
+  // its answer anyway: the returned position differs from the one it asked for,
+  // which is how sndfile detects a bad jump. The upper end is where an ordinary
+  // EOF seek lands, and BufferIO_Read answers 0 there (issue #825); the lower
+  // end is the one that used to hand std::copy a pointer in front of the
+  // buffer.
   switch (whence) {
-  case 0:
-    reader->currentPos = offset;
+  case 0: // SEEK_SET
+    reader->currentPos = clampSeekTarget(0, offset, length);
     break;
-  case 1:
-    reader->currentPos += offset;
+  case 1: // SEEK_CUR
+    reader->currentPos = clampSeekTarget(reader->currentPos, offset, length);
     break;
-  case 2:
-    reader->currentPos = reader->buffer->length + offset;
+  case 2: // SEEK_END
+    reader->currentPos = clampSeekTarget(length, offset, length);
     break;
+  default:
+    break; // unknown whence: leave the reader where it is
   }
   return reader->currentPos;
 }

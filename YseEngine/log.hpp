@@ -24,10 +24,20 @@ namespace YSE {
    *  than the default log file — for example an in-game console or a
    *  third-party telemetry system. Register the instance with
    *  ``log::setHandler``.
+   *
+   *  Several engine threads log, but the engine delivers one line at a time:
+   *  ``AddMessage`` is never entered from two threads at once, so a handler may
+   *  keep ordinary unsynchronised state (issue #820). The message may arrive on
+   *  any of those threads, and the engine holds its sink lock for the duration
+   *  of the call — so a handler must not log back into ``YSE::Log()``, and
+   *  should hand anything slow to a thread of its own rather than block here.
    */
   class API logHandler {
   public:
-    /** @brief Called by the engine for every log message. Default implementation discards it. */
+    /** @brief Called by the engine for every log message. Default implementation discards it.
+     *
+     *  Called with the engine's log sink serialised: never concurrently with
+     *  itself, and never re-entrantly from inside this call. */
     virtual void AddMessage(const std::string&) {}
     virtual ~logHandler() {}
   };

@@ -20,6 +20,7 @@
 #include "sound/soundManager.h"
 #include "internal/time.h"
 #include "support/null_device.hpp"
+#include "support/timer_pacing.hpp"
 
 #ifndef YSE_TEST_FIXTURES_DIR
 #define YSE_TEST_FIXTURES_DIR "../../Tests/support/fixtures"
@@ -80,6 +81,90 @@ TEST_SUITE("sound") {
     drainManager(4);
 
     CHECK(io.RemoveBufferByName("vfs-wav"));
+    io.SetActive(false);
+  }
+
+  // Issue #823: the same registered buffer, opened as a *streaming* sound. This
+  // is the user-visible half of the fix — a public YSE::sound, driven only
+  // through the manager, has to become ready and report the source length.
+  //
+  // soundFile::loadStreaming()'s custom-IO branch was empty, so the file stayed
+  // at FILESTATE::LOADING for good. Before #819 the sound was published anyway
+  // (silent, length 0); after it, streaming waits for READY, so the impl sat in
+  // the manager's toLoad list forever and isReady() never came true. Either way
+  // the sound was unusable; this case pins the working behaviour.
+  TEST_CASE("BufferIO + streaming sound: becomes ready with its real length (#823)") {
+    if (!TestHelpers::engineInit()) return;
+    auto bytes = readWavBytes();
+    if (bytes.empty()) return; // fixture missing in this environment
+
+    YSE::BufferIO io;
+    io.SetActive(true);
+    REQUIRE(io.AddBuffer("vfs-stream", bytes.data(), static_cast<int>(bytes.size())));
+
+    {
+      YSE::sound s;
+      s.create("vfs-stream", nullptr, false, 1.0f, /*streaming*/ true);
+      REQUIRE(s.isValid());
+
+      const bool ready = TestHelpers::pacedPump(
+          5000, [&s] { return s.isReady(); },
+          [] {
+            YSE::INTERNAL::Time().update();
+            YSE::SOUND::Manager().update();
+          },
+          3);
+      CHECK(ready); // without the fix: never — the file never leaves LOADING
+      CHECK(s.length() == 100u); // frame count of the fixture
+
+      s.play();
+      drainManager(4);
+      s.stop();
+    } // ~sound(): the impl (and its owned streaming file) is torn down async
+
+    // Let the slow-pool delete job run, so the streaming file closes its custom
+    // reader handle while the VFS below is still alive.
+    drainManager(12);
+
+    CHECK(io.RemoveBufferByName("vfs-stream"));
+    io.SetActive(false);
+  }
+
+  // Issue #825: the non-streaming half of the same VFS, and the plainest
+  // statement of what the off-by-one cost. loadNonStreaming() reads the whole
+  // source in one readf() and only reaches FILESTATE::READY when it gets every
+  // frame the header promised; BufferIO_Read's clamp dropped the last byte, so
+  // the read came back one frame short, the file logged E_FILEREADER and stayed
+  // at LOADING, and the sound never left the manager's toLoad list. A public
+  // YSE::sound created from a registered buffer simply never became ready.
+  TEST_CASE("BufferIO + sound: a registered buffer becomes a ready sound (#825)") {
+    if (!TestHelpers::engineInit()) return;
+    auto bytes = readWavBytes();
+    if (bytes.empty()) return; // fixture missing in this environment
+
+    YSE::BufferIO io;
+    io.SetActive(true);
+    REQUIRE(io.AddBuffer("vfs-ready", bytes.data(), static_cast<int>(bytes.size())));
+
+    {
+      YSE::sound s;
+      s.create("vfs-ready");
+      REQUIRE(s.isValid());
+
+      const bool ready = TestHelpers::pacedPump(
+          5000, [&s] { return s.isReady(); },
+          [] {
+            YSE::INTERNAL::Time().update();
+            YSE::SOUND::Manager().update();
+          },
+          3);
+      CHECK(ready); // without the fix: never — the short read blocks READY
+      CHECK(s.length() == 100u); // frame count of the fixture
+    }
+
+    drainManager(12);
+
+    CHECK(io.RemoveBufferByName("vfs-ready"));
     io.SetActive(false);
   }
 
