@@ -75,6 +75,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_dict_iter.cpp
   patcher/test_patcher_dict_join.cpp
   patcher/test_patcher_dict_pack.cpp
+  patcher/test_patcher_dict_print.cpp
   patcher/test_patcher_array.cpp
   patcher/test_patcher_bag.cpp
   patcher/test_patcher_capture.cpp
@@ -1063,6 +1064,7 @@ set_source_files_properties(
   patcher/test_patcher_dict_iter.cpp
   patcher/test_patcher_dict_join.cpp
   patcher/test_patcher_dict_pack.cpp
+  patcher/test_patcher_dict_print.cpp
   patcher/test_patcher_array.cpp
   patcher/test_patcher_bag.cpp
   patcher/test_patcher_capture.cpp

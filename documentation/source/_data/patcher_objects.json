@@ -2937,6 +2937,39 @@
       }
     ]
   },
+  ".dict.print": {
+    "category": "GENERIC",
+    "description": "Prints a dictionary's contents to the engine log — Max's dict.print ('print the contents of a dictionary in the Max Console') on the name-addressed value model .dict settled. There is no Max window here, so the destination is the engine log, .print's destination: the thing a host already reads, redirects with YSE::Log().setLogfile() and intercepts with YSE::Log().setHandler(). It is the debugging instrument for structured data and the counterpart of .print — a dictionary is the one patcher value a patch cannot see by wiring it to a sink, because what a cord carries is only its name. The dictionary is bound from the first creation argument, \".dict.print <name>\", resolved once on the control thread; a bang, or the dictionary's reference message \"dictionary <name>\", dumps the whole dictionary as a nested multi-line JSON document — the same document a saved patch holds, with \"::\" paths expanded into real nesting, entries grouped in storage order of first appearance, and values typed by the patcher's own classifier: a single numeric token prints as a number, a multi-token value as an array, anything else as a string. Each line is prefixed with the dictionary's name, so two of these in one patch are tellable apart. There are no outlets — a probe, not a participant. Nothing is ever logged from the message path: the dump is a snapshot of the dictionary as it stood at the trigger, composed row by row into buffers the object owns and pushed onto the bounded lock-free queue .print built, whose control-thread drain hands the lines to the log on the host's next tick. Nothing on any message path allocates, locks or blocks, and Calculate() does nothing. Two bounds can refuse a line and both report: this object's per-tick budget — the second creation argument, default 64, clamped to 1-256 — whose first refusal in a tick posts a notice, and the shared queue's capacity, whose overflow the next drain names as a single count. A row longer than the record is cut and marked with '...'. Only the creation arguments persist across a save; the lines already sent belong to the log rather than to the patch.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang dumps the bound dictionary to the engine log as a nested multi-line JSON document, one log line per row, each prefixed with the dictionary's name. \"dictionary <name>\" does the same when it names the dictionary bound by the creation argument — the message a .dict's reference outlet emits on a bang, so wiring that outlet here gives Max's own gesture: bang the dict, read its contents. A reference naming anything else, any other message, or a trigger arriving while a dump is already being composed is refused and counted rather than logged, since this inlet may be the audio thread. Nothing is logged from here either: every row is composed into a buffer the object owns and pushed onto the bounded lock-free queue .print built, so the document reaches the log on the host's next System::update() tick. A dump that runs past this object's per-tick line budget is cut and the first refusal posts one notice line, and a row longer than the queue's record is cut and marked with a trailing '...' — a truncated dump must read as a marked gap, never as a complete dictionary.",
+        "index": 0,
+        "label": "dump",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".dict.print",
+    "outlets": [],
+    "params": [
+      {
+        "default": "",
+        "doc": "The dictionary's shared name, addressed as \"<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Also the label in front of every printed line, which is what makes two of these in one patch tellable apart; a name longer than 32 characters labels with its first 32. Empty binds a private, empty dictionary — the dump is then '{}' under the label 'dict.print'.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "64",
+        "doc": "The most lines this object emits between two drain ticks — .print's budget, with a wider default because the unit of output here is a whole document rather than a line: 64 covers a dictionary of a few dozen entries. Clamped to 1-256, 256 being the shared queue's own capacity, past which asking for more cannot buy anything. A dump that runs past the budget is truncated and the first refusal in a tick posts a notice line, so a cut dump is visible rather than silent; every refusal is counted. A non-numeric second argument leaves the default standing rather than failing, since a creation argument arriving from a saved patch must never be able to break loading it.",
+        "name": "lines",
+        "range": "1-256"
+      }
+    ]
+  },
   ".div": {
     "category": "MATH",
     "description": "Control-rate integer division. Emits left / right as an int whenever inlet 0 fires, truncating towards zero instead of producing the float ./ would. Floats truncate towards zero on input, and a divisor of 0 emits 0.",

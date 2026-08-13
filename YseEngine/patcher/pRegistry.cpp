@@ -33,6 +33,7 @@
 #include "genericObjects/gDictIter.h"
 #include "genericObjects/gDictJoin.h"
 #include "genericObjects/gDictPack.h"
+#include "genericObjects/gDictPrint.h"
 #include "genericObjects/gPrint.h"
 // `.loadbang` / `.loadmess` (issue #547): the pair that lets a saved patch
 // describe its own starting state, fired by patcherImplementation's post-publish
@@ -466,6 +467,12 @@ pRegistry::pRegistry() {
   // replaced whole with one entry per key-path argument and its reference
   // sent on, the unit the rest of the dict.* family consumes (issue #775)
   Add(OBJ::G_DICT_PACK, gDictPack::Create);
+
+  // Prints the bound dictionary to the engine log as a nested multi-line
+  // JSON document, through .print's lock-free on-ramp — the debugging
+  // instrument for structured data, which no sink can otherwise see
+  // (issue #776)
+  Add(OBJ::G_DICT_PRINT, gDictPrint::Create);
 
   // An ordered, index-addressed sequence shared by name — the collection type a
   // generative patch actually reaches for, and the value model the array.*

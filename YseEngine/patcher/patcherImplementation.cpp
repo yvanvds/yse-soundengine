@@ -14,6 +14,7 @@
 #include "genericObjects/gDictIter.h"
 #include "genericObjects/gDictJoin.h"
 #include "genericObjects/gDictPack.h"
+#include "genericObjects/gDictPrint.h"
 #include "genericObjects/gForward.h"
 #include "genericObjects/gReceive.h"
 #include "genericObjects/gSend.h"
@@ -196,6 +197,11 @@ void patcherImplementation::SetName(const std::string& n) {
       // "<patcherName>.<name>" address, so a renamed patcher's packs land in
       // the dictionary its other objects now speak about (issue #775).
       static_cast<gDictPack*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_DICT_PRINT) == 0) {
+      // And gDictPrint, whose bound dictionary is registered under the same
+      // "<patcherName>.<name>" address, so a renamed patcher's printouts
+      // read the dictionary its other objects now speak about (issue #776).
+      static_cast<gDictPrint*>(x.second)->RefreshBinding();
     } else if (strcmp(x.second->Type(), OBJ::G_ARRAY) == 0) {
       // And gArray, whose shared sequence is registered under the same
       // "<patcherName>.<name>" address, so a renamed patcher's arrays re-anchor

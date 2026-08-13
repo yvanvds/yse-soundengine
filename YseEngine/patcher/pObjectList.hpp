@@ -54,9 +54,9 @@ namespace YSE {
    *  - Collections: ``G_COLL``, ``G_BAG``, ``G_CAPTURE``, ``G_FUNBUFF``,
    *    ``G_TABLE``, ``G_TEXTFILE``, ``G_QLIST``, ``G_MTR``, ``G_SEQ``.
    *  - Dictionaries: ``G_DICT``, ``G_DICT_COMPARE``, ``G_DICT_GROUP``,
-   *    ``G_DICT_ITER``, ``G_DICT_JOIN``, ``G_DICT_PACK``.
+   *    ``G_DICT_ITER``, ``G_DICT_JOIN``, ``G_DICT_PACK``, ``G_DICT_PRINT``.
    *  - Arrays: ``G_ARRAY``.
-   *  - Debugging: ``G_PRINT``.
+   *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
    *    ``D_OUTLET``.
@@ -287,6 +287,16 @@ namespace YSE {
     // ``dictionary <name>`` reference, the unit the rest of the family
     // consumes.
     DEFOBJ(G_DICT_PACK, ".dict.pack");
+
+    // Prints a dictionary's contents to the engine log (issue #776): the
+    // dictionary is bound from the creation argument — ``.dict.print
+    // <name>`` — and a bang, or the dictionary's ``dictionary <name>``
+    // reference, dumps it as a nested multi-line JSON document through
+    // ``.print``'s lock-free log on-ramp. The debugging instrument for
+    // structured data: a dictionary is the one patcher value a patch cannot
+    // see by wiring it to a sink, because what a cord carries is only its
+    // name.
+    DEFOBJ(G_DICT_PRINT, ".dict.print");
 
     // An ordered, index-addressed sequence shared by name (issue #548), the
     // second type built on the value model ``.dict`` settled: an ``OUT_TYPE``
