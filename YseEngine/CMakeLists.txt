@@ -127,6 +127,7 @@ set(YSE_SRCS
   patcher/genericObjects/gDecode.cpp
   patcher/genericObjects/gDict.cpp
   patcher/genericObjects/gDictCompare.cpp
+  patcher/genericObjects/gDictGroup.cpp
   patcher/genericObjects/gForward.cpp
   patcher/genericObjects/gFunbuff.cpp
   patcher/genericObjects/gFunnel.cpp
@@ -472,6 +473,7 @@ set_source_files_properties(
   patcher/genericObjects/gDecode.cpp
   patcher/genericObjects/gDict.cpp
   patcher/genericObjects/gDictCompare.cpp
+  patcher/genericObjects/gDictGroup.cpp
   patcher/genericObjects/gForward.cpp
   patcher/genericObjects/gFunbuff.cpp
   patcher/genericObjects/gFunnel.cpp

@@ -53,7 +53,7 @@ namespace YSE {
    *  - Shared state: ``G_VALUE``.
    *  - Collections: ``G_COLL``, ``G_BAG``, ``G_CAPTURE``, ``G_FUNBUFF``,
    *    ``G_TABLE``, ``G_TEXTFILE``, ``G_QLIST``, ``G_MTR``, ``G_SEQ``.
-   *  - Dictionaries: ``G_DICT``, ``G_DICT_COMPARE``.
+   *  - Dictionaries: ``G_DICT``, ``G_DICT_COMPARE``, ``G_DICT_GROUP``.
    *  - Arrays: ``G_ARRAY``.
    *  - Debugging: ``G_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
@@ -251,6 +251,13 @@ namespace YSE {
     // ``dictionary <name>`` reference, reports whether the two hold the same
     // entries.
     DEFOBJ(G_DICT_COMPARE, ".dict.compare");
+
+    // Groups a dictionary's entries by a value (issue #772): the source and
+    // target dictionaries are bound from the creation arguments —
+    // ``.dict.group <source> <target> [<key>]`` — and every grouped entry is
+    // written into the target as ``<groupValue>::<originalPath>``, the
+    // dictionary of dictionaries the flat store expresses as a path prefix.
+    DEFOBJ(G_DICT_GROUP, ".dict.group");
 
     // An ordered, index-addressed sequence shared by name (issue #548), the
     // second type built on the value model ``.dict`` settled: an ``OUT_TYPE``

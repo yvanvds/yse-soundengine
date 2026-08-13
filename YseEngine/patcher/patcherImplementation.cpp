@@ -10,6 +10,7 @@
 #include "genericObjects/gColl.h"
 #include "genericObjects/gDict.h"
 #include "genericObjects/gDictCompare.h"
+#include "genericObjects/gDictGroup.h"
 #include "genericObjects/gForward.h"
 #include "genericObjects/gReceive.h"
 #include "genericObjects/gSend.h"
@@ -170,6 +171,12 @@ void patcherImplementation::SetName(const std::string& n) {
       // the same "<patcherName>.<name>" addresses, so a renamed patcher's
       // comparisons follow the dictionaries they compare (issue #770).
       static_cast<gDictCompare*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_DICT_GROUP) == 0) {
+      // And gDictGroup, whose source and target dictionaries are registered
+      // under the same "<patcherName>.<name>" addresses, so a renamed
+      // patcher's groupings follow the dictionaries they read and write
+      // (issue #772).
+      static_cast<gDictGroup*>(x.second)->RefreshBinding();
     } else if (strcmp(x.second->Type(), OBJ::G_ARRAY) == 0) {
       // And gArray, whose shared sequence is registered under the same
       // "<patcherName>.<name>" address, so a renamed patcher's arrays re-anchor

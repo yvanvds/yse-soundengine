@@ -29,6 +29,7 @@
 #include "genericObjects/gColl.h"
 #include "genericObjects/gDict.h"
 #include "genericObjects/gDictCompare.h"
+#include "genericObjects/gDictGroup.h"
 #include "genericObjects/gPrint.h"
 // `.loadbang` / `.loadmess` (issue #547): the pair that lets a saved patch
 // describe its own starting state, fired by patcherImplementation's post-publish
@@ -440,6 +441,12 @@ pRegistry::pRegistry() {
   // the same entries — "did anything change?" without diffing key by key
   // (issue #770)
   Add(OBJ::G_DICT_COMPARE, gDictCompare::Create);
+
+  // Groups the source dictionary's entries by a value into the target —
+  // "<groupValue>::<originalPath>", the dictionary of dictionaries the flat
+  // store expresses as a path prefix; both bound by creation argument
+  // (issue #772)
+  Add(OBJ::G_DICT_GROUP, gDictGroup::Create);
 
   // An ordered, index-addressed sequence shared by name — the collection type a
   // generative patch actually reaches for, and the value model the array.*

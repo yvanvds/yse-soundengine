@@ -2742,6 +2742,62 @@
       }
     ]
   },
+  ".dict.group": {
+    "category": "GENERIC",
+    "description": "Groups a dictionary's entries by a value — Max's dict.group on the name-addressed value model .dict settled: both dictionaries are bound from the creation arguments, \".dict.group <source> <target> [<key>]\", because a dictionary is addressed by name and never passed down a cord. A bang, or the source dictionary's reference message \"dictionary <name>\", replaces the target with the grouped entries, each written as \"<groupValue>::<originalPath>\" — the dictionary of dictionaries the flat store expresses as a path prefix. With a <key> the source is read as a table of records (the first path segment names the record) and each entry groups under the value its record stores at that key; without one each entry groups under its own value, turning a flat table into an index. An entry without a group, or one whose composed path outgrows the 128-character key capacity, is refused whole and counted rather than truncated.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang groups the source dictionary's entries into the target and sends the target's reference out the outlet. \"dictionary <name>\" does the same when it names the source dictionary bound by the first creation argument — the message a .dict's reference outlet emits on a bang, so wiring that outlet here gives Max's own gesture. A reference naming anything else, or any other message, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "group",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"dictionary <name>\" is accepted silently when it names the target dictionary bound by the second creation argument, so a patch may wire the target's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 1,
+        "label": "target reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".dict.group",
+    "outlets": [
+      {
+        "doc": "\"dictionary <target>\" after a grouping — the reference the dict.* family binds, carrying the local name so the receiving object prefixes it with its own patcher's name. Silent for an unnamed target, which has no name to pass on.",
+        "index": 0,
+        "label": "reference",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The source dictionary's shared name, addressed as \"<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty groups a private, empty dictionary.",
+        "name": "source",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The target dictionary's shared name, bound exactly as the source. A grouping replaces its contents whole. The result goes into a bound dictionary rather than a new anonymous one because there is no way to hand a fresh dictionary's identity down a cord.",
+        "name": "target",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The key each record's group is read from: with \"instrument\" every \"<record>::...\" entry groups under the value at \"<record>::instrument\", and a record without that entry is skipped and counted. Empty groups each entry by its own value instead, turning a flat table into an index.",
+        "name": "key",
+        "range": "any key path segment"
+      }
+    ]
+  },
   ".div": {
     "category": "MATH",
     "description": "Control-rate integer division. Emits left / right as an int whenever inlet 0 fires, truncating towards zero instead of producing the float ./ would. Floats truncate towards zero on input, and a divisor of 0 emits 0.",
