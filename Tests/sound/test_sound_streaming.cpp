@@ -25,6 +25,7 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <limits>
 #include <string>
 #include <thread>
 #include <vector>
@@ -332,6 +333,97 @@ namespace {
         dest[i] = sampleAt(start + i);
     }
     long _nextFill = S; // absolute frame the next fill starts at
+  };
+
+  // In-memory streaming backend for the refill-scheduling race of issue #841.
+  //
+  // requestRefill() used to decide in two separate steps: check _backReady,
+  // then claim _refillInFlight. A fill that completed *between* those steps —
+  // publishing the back buffer and releasing the in-flight flag — left both
+  // reads answering "schedule", so the audio thread queued a second fill that
+  // overwrote the published-but-unconsumed back buffer. At the next swap
+  // playback skipped exactly one STREAM_BUFFERSIZE of audio (the flake this
+  // case pins down failed from frame 2*S onward with every sample offset by
+  // +S). The window is two adjacent instructions wide, so this fixture
+  // maximises how often a fill completion walks across it: fills are instant
+  // memory stamps trailed by a random-length spin (each publication lands at a
+  // random phase of the reader's loop), and the case reads tiny blocks so the
+  // reader crosses the check-then-claim window as often as possible.
+  class refillRaceFile : public YSE::INTERNAL::abstractSoundFile {
+  public:
+    refillRaceFile() : abstractSoundFile("refill-race-probe", true) {
+      _streaming = true;
+      _endReached = false;
+      _channels = 1;
+      _length = std::numeric_limits<Int>::max(); // looping forever; EOF never in play
+      _sampleRateAdjustment = 1.f;
+      _iBuffer = new Flt[static_cast<size_t>(S)];
+      _iBufferBack = new Flt[static_cast<size_t>(S)];
+      stamp(_iBuffer); // prime the front buffer with frames [0, S)
+      _frontBufferBase = 0;
+      _frontValidFrames = S;
+      _frontTerminal = false;
+      state = YSE::INTERNAL::READY;
+    }
+    ~refillRaceFile() override {
+      // A refill may still be queued or running on the slow pool (cfr.
+      // ~soundFile); let it finish before freeing the buffers it writes.
+      _refillJob.join();
+      delete[] _iBuffer;
+      delete[] _iBufferBack;
+      _iBuffer = nullptr;
+      _iBufferBack = nullptr;
+    }
+    refillRaceFile(const refillRaceFile&) = delete;
+    refillRaceFile& operator=(const refillRaceFile&) = delete;
+
+    void loadStreaming() override {}
+    void loadNonStreaming() override {}
+
+    // Fills that began while a published back buffer was still unconsumed.
+    // Such a fill is exactly the #841 defect: it overwrites that buffer and
+    // playback skips one stream buffer of audio. Must stay 0.
+    std::atomic<long> overwrites{0};
+    // Total completed fills — the number of chances the race had.
+    std::atomic<long> fills{0};
+
+    // The stream's position-coded sample for absolute frame n. 1-based so 0
+    // stays the engine's underrun/silence marker (see validFrames above).
+    static Flt marker(long long n) {
+      return static_cast<Flt>(1 + (n % 1000000));
+    }
+
+    UInt fillBuffer(Flt* dest, Bool /*loop*/) override {
+      if (_backReady.load(std::memory_order_acquire))
+        overwrites.fetch_add(1, std::memory_order_relaxed);
+      // Mirror the production backend's reset handling (lsfSoundfile.cpp);
+      // nothing arms it in this case, but consuming it keeps the protocol real.
+      if (_needsReset.exchange(false, std::memory_order_relaxed))
+        _nextFrame = _seekTarget.load(std::memory_order_relaxed);
+      stamp(dest);
+      // Random-length spin so the publication that follows this return (in
+      // fillBackBuffer) lands at a uniformly random phase of the reader loop.
+      volatile uint32_t sink = 0;
+      for (uint32_t i = nextRand() & 0x3FF; i > 0; --i)
+        sink += i;
+      fills.fetch_add(1, std::memory_order_relaxed);
+      return YSE::STREAM_BUFFERSIZE;
+    }
+
+  private:
+    void stamp(Flt* dest) {
+      for (long i = 0; i < S; ++i)
+        dest[i] = marker(_nextFrame + i);
+      _nextFrame += S;
+    }
+    uint32_t nextRand() { // xorshift32; only ever called from the fill thread
+      _rng ^= _rng << 13;
+      _rng ^= _rng >> 17;
+      _rng ^= _rng << 5;
+      return _rng;
+    }
+    long long _nextFrame = 0; // absolute frame the next stamp starts at
+    uint32_t _rng = 0x9E3779B9u;
   };
 
 } // namespace
@@ -899,6 +991,60 @@ TEST_SUITE("sound") {
     }
 
     io.SetActive(false);
+  }
+
+  // 14. Issue #841 regression: a refill that has landed must never be
+  //     overwritten before the audio thread consumes it.
+  //
+  //     The reader below plays the audio thread's role in a tight loop of tiny
+  //     blocks while the real slow pool lands refills whose completion is
+  //     phase-randomised (see refillRaceFile). On the unfixed code the TOCTOU
+  //     between requestRefill's _backReady check and its _refillInFlight claim
+  //     lets a completion slip between the two, scheduling a spurious second
+  //     fill: `overwrites` counts those directly, and the marker stream shows
+  //     the user-visible symptom — playback jumping forward by exactly one
+  //     stream buffer. Fixed, both counters stay at zero however often the
+  //     window is crossed.
+  TEST_CASE("streaming: a landed refill is never overwritten before it is consumed (#841)") {
+    if (!TestHelpers::engineInit()) return;
+
+    refillRaceFile f;
+
+    Flt pos = 0.f, vol = 1.f;
+    SOUND_STATUS intent = YSE::SS_PLAYING_FULL_VOLUME;
+    std::vector<YSE::DSP::buffer> fb(1);
+    const UInt blockLen = 16;
+
+    long long frame = 0; // absolute stream frame the next real sample must match
+    long discontinuities = 0;
+
+    // Enough consumed frames for a few thousand fill completions, each a fresh
+    // chance for the race. Bounded by reads, not wall clock, so a loaded or
+    // sanitized run does the same amount of work.
+    const long targetFills = 2000;
+    const long reads = targetFills * (static_cast<long>(S) / blockLen + 1);
+    for (long b = 0; b < reads; ++b) {
+      f.read(fb, pos, blockLen, 1.0f, true, intent, vol);
+      REQUIRE(intent == YSE::SS_PLAYING_FULL_VOLUME); // full fills: never terminal
+      const Flt* out = fb[0].getPtr();
+      for (UInt j = 0; j < blockLen; ++j) {
+        if (out[j] == 0.0f) continue; // underrun frame: the stream did not advance
+        if (out[j] != refillRaceFile::marker(frame)) {
+          ++discontinuities;
+          // Resync to the frame the stream actually produced, so one skip is
+          // counted once instead of once per remaining sample (the original
+          // flake failed 16345 assertions off a single skip).
+          const long long v = static_cast<long long>(out[j]);
+          frame += ((v - 1) - (frame % 1000000) + 1000000) % 1000000;
+        }
+        ++frame;
+      }
+    }
+
+    INFO("fills completed: " << f.fills.load() << ", overwrites: " << f.overwrites.load()
+                             << ", discontinuities: " << discontinuities);
+    CHECK(f.overwrites.load() == 0);
+    CHECK(discontinuities == 0);
   }
 
 } // TEST_SUITE("sound")

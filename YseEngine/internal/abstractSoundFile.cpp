@@ -157,6 +157,22 @@ void YSE::INTERNAL::abstractSoundFile::requestRefill(Bool loop) {
   // Schedule exactly one refill; _refillInFlight is cleared by fillBackBuffer().
   Bool expected = false;
   if (_refillInFlight.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
+    // An in-flight fill can complete between the _backReady check above and
+    // winning the flag — publishing the back buffer and then releasing
+    // _refillInFlight — in which case both reads answered "schedule" and the
+    // job queued here would overwrite the published-but-unconsumed back buffer,
+    // skipping one STREAM_BUFFERSIZE of audio at the next swap (issue #841).
+    // Having won the flag, no fill is running, so a re-check decides safely:
+    // the fill's release store of _refillInFlight (which this CAS acquired)
+    // ordered its _backReady publication before it, and every other _backReady
+    // writer runs on the audio-side actor this call belongs to (the callback
+    // thread or the render worker holding this sound's channel — serialized
+    // block to block by the render pool's handoff). If the buffer landed,
+    // undo the claim and keep it.
+    if (_backReady.load(std::memory_order_acquire)) {
+      _refillInFlight.store(false, std::memory_order_release);
+      return;
+    }
     Global().addSlowJob(&_refillJob);
   }
 }
@@ -184,7 +200,13 @@ void YSE::INTERNAL::abstractSoundFile::fillBackBuffer() {
   _backTerminal.store(valid < STREAM_BUFFERSIZE, std::memory_order_relaxed);
   _backGen.store(gen, std::memory_order_relaxed);
   _backReady.store(true, std::memory_order_release);
-  _refillInFlight.store(false, std::memory_order_relaxed);
+  // Release, and only after the _backReady publication above: requestRefill's
+  // winning CAS acquires this store, which is what guarantees its re-check of
+  // _backReady sees the buffer this fill just published (issue #841). The
+  // reverse order would reopen the race it closes: a claim won between the two
+  // stores would re-check before the publication and still schedule the
+  // overwriting fill.
+  _refillInFlight.store(false, std::memory_order_release);
 }
 
 Bool YSE::INTERNAL::abstractSoundFile::readNonInterleaved(abstractSoundFile* file,
