@@ -36,6 +36,14 @@ namespace {
 
   // Drain CHANNEL + SOUND managers — channels link with sounds and the
   // slow-pool deleteJob is shared, so both managers need ticking.
+  //
+  // The fixed-count final settles in this suite are deliberate (#835 set
+  // review): no CHECK depends on them, and CHANNEL::Manager publishes no
+  // synchronized reclamation signal a predicate could poll — empty() reads
+  // `implementations` WITHOUT implementationsMutex, so polling it between
+  // ticks would race the slow-pool delete job (the #834 TSan lesson). The
+  // settles are inter-case hygiene; any reclamation still in flight simply
+  // continues under the next case's drains.
   void drainChannels(int iterations = 8, int sleepMs = 2) {
     for (int i = 0; i < iterations; ++i) {
       YSE::INTERNAL::Time().update();

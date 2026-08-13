@@ -33,6 +33,14 @@ namespace {
   // Stand in for the audio callback: drive MIDI::Manager().update() a handful of
   // times so the inbox drains, orphans are retired, and the slow-pool deleteJob
   // gets enqueued and reaps freed impls.
+  //
+  // The fixed-count final settles in this suite are deliberate (#835 set
+  // review): no CHECK depends on them, and MIDI::Manager publishes no
+  // synchronized reclamation signal a predicate could poll (no count, no
+  // empty(); `implementations` is private and mutex-guarded against the
+  // slow-pool delete job). The settles are inter-case hygiene; any
+  // reclamation still in flight simply continues under the next case's
+  // drains.
   void drainMidi(int iterations = 8, int sleepMs = 2) {
     for (int i = 0; i < iterations; ++i) {
       YSE::MIDI::Manager().update();
