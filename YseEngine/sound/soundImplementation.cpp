@@ -189,7 +189,7 @@ bool YSE::SOUND::implementationObject::create(const std::string& fileName, chann
     }
   } else {
     fullName = fileName;
-    if (!INTERNAL::CALLBACK::fileExists(fileName.c_str())) {
+    if (!INTERNAL::customFileReader::FileExists(fileName.c_str())) {
       INTERNAL::LogImpl().emit(E_FILE_ERROR, "file not found for " + fileName);
       goto release;
     }

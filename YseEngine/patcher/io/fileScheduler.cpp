@@ -152,10 +152,10 @@ bool fileScheduler::ReadSlot(Entry& e) {
   // and fileBuffer::load honour it, so a packed-asset host still works. It has
   // no path semantics of its own — the name goes through as given.
   if (YSE::IO().getActive()) {
-    if (INTERNAL::CALLBACK::fileExists == nullptr || INTERNAL::CALLBACK::readPtr == nullptr) {
-      return false;
-    }
-    if (!INTERNAL::CALLBACK::fileExists(e.path)) return false;
+    // The customFileReader accessors snapshot the callback set race-free and
+    // report failure while the layer is (or just went) inactive, which also
+    // covers the unset-callback guards this block used to spell out (#837).
+    if (!INTERNAL::customFileReader::FileExists(e.path)) return false;
 
     long long size = 0;
     void* handle = nullptr;
@@ -163,7 +163,7 @@ bool fileScheduler::ReadSlot(Entry& e) {
 
     bool ok = false;
     if (size >= 0 && (unsigned long long)size <= (unsigned long long)BYTES_CAPACITY) {
-      const long long got = INTERNAL::CALLBACK::readPtr(e.bytes, size, handle);
+      const long long got = INTERNAL::customFileReader::Read(e.bytes, size, handle);
       if (got >= 0) {
         e.byteCount = (std::uint32_t)got;
         ok = true;

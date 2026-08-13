@@ -13,12 +13,14 @@
 #include "BufferIO.hpp"
 #include "dsp/fileBuffer.hpp"
 #include "internal/customFileReader.h"
+#include <atomic>
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <limits>
 #include <system_error>
+#include <thread>
 #include <vector>
 
 TEST_SUITE("io") {
@@ -368,6 +370,58 @@ TEST_SUITE("io") {
     YSE::INTERNAL::customFileReader::Close(handle);
     CHECK(io.RemoveBufferByName("seek-range"));
     io.SetActive(false);
+  }
+
+} // TEST_SUITE("io")
+
+// Issue #837 — deactivating the custom IO layer while a loader is mid-flight.
+//
+// io::setActive(false) → ResetVIO() plain-wrote the CALLBACK::* pointer
+// globals and the SF_VIRTUAL_IO table while slow-pool threads were still
+// reading them (the dev-push TSan sweep caught soundFile::~soundFile's
+// customFileReader::Close() racing the closePtr write). The fix publishes the
+// whole callback set as an immutable snapshot behind one atomic pointer, so a
+// toggle can never tear the set a reader is using. This drives that exact
+// interleaving on purpose; TSan is the oracle — unfixed, every toggle races
+// the loader's reads and the tests-tsan gate reports on it.
+TEST_SUITE("io") {
+
+  TEST_CASE("BufferIO: activation toggles do not race in-flight readers (#837)") {
+    YSE::BufferIO io;
+    io.SetActive(true);
+
+    std::atomic<bool> stop{false};
+    std::thread loader([&stop] {
+      while (!stop.load(std::memory_order_acquire)) {
+        // The name misses on purpose: BufferIO_Open then answers false without
+        // creating a handle, so no handle can leak when a deactivation lands
+        // between an open and its close — while the openPtr read still races
+        // the unfixed ResetVIO().
+        long long size = 0;
+        void* handle = nullptr;
+        if (YSE::INTERNAL::customFileReader::Open("no-such-buffer", &size, &handle)) {
+          YSE::INTERNAL::customFileReader::Close(handle);
+        }
+        // The closePtr read — the pair TSan flagged from soundFile's
+        // destructor. BufferIO_Close on a null handle is a no-op delete.
+        YSE::INTERNAL::customFileReader::Close(nullptr);
+        // A field of the published SF_VIRTUAL_IO table: the same read
+        // sf_open_virtual's struct copy performs against ResetVIO()'s wipe.
+        (void)YSE::INTERNAL::customFileReader::GetVIO().read;
+      }
+    });
+
+    for (int i = 0; i < 400; ++i) {
+      io.SetActive(false);
+      io.SetActive(true);
+    }
+
+    stop.store(true, std::memory_order_release);
+    loader.join();
+    io.SetActive(false);
+
+    // The assertion proper is TSan's: no report from the interleaving above.
+    CHECK_FALSE(io.GetActive());
   }
 
 } // TEST_SUITE("io")
