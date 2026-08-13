@@ -25,7 +25,9 @@
 #include "genericObjects/gCharCode.h"
 #include "genericObjects/gBag.h"
 #include "genericObjects/gCapture.h"
+#include "genericObjects/gArray.h"
 #include "genericObjects/gColl.h"
+#include "genericObjects/gDict.h"
 #include "genericObjects/gPrint.h"
 // `.loadbang` / `.loadmess` (issue #547): the pair that lets a saved patch
 // describe its own starting state, fired by patcherImplementation's post-publish
@@ -46,6 +48,7 @@
 #include "genericObjects/gQlist.h"
 #include "genericObjects/gSeq.h"
 #include "genericObjects/gTextfile.h"
+#include "genericObjects/gCase.h"
 #include "genericObjects/gCombine.h"
 #include "genericObjects/gSpell.h"
 #include "genericObjects/gSprintf.h"
@@ -374,6 +377,13 @@ pRegistry::pRegistry() {
   Add(OBJ::G_ATOI, gAtoi::Create);
   Add(OBJ::G_ITOA, gItoa::Create);
 
+  // Change the case of a message's text — the one operation the symbol family
+  // was missing, and the only way to compare a name case-insensitively, since
+  // .route, .sel, .match and every named bus compare character for character
+  // (issue #810)
+  Add(OBJ::G_TOLOWER, gToLower::Create);
+  Add(OBJ::G_TOUPPER, gToUpper::Create);
+
   // The list-processing workhorse: one object whose behaviour a mode word
   // chooses, over the bounded pre-allocated list the whole list family shares
   // (issue #523)
@@ -416,6 +426,18 @@ pRegistry::pRegistry() {
   // more than one thing, and the object presets, note tables, mapping curves
   // and sequences are all written with (issue #494)
   Add(OBJ::G_COLL, gColl::Create);
+
+  // A nested key/value dictionary shared by name — structured data for the
+  // patcher and the live-coding DSL, and the value model the dict.* family is
+  // written against: addressed by name, resolved on the control thread, never
+  // passed down a cord (issue #550)
+  Add(OBJ::G_DICT, gDict::Create);
+
+  // An ordered, index-addressed sequence shared by name — the collection type a
+  // generative patch actually reaches for, and the value model the array.*
+  // family is written against: addressed by name, resolved on the control
+  // thread, one atom per element (issue #548)
+  Add(OBJ::G_ARRAY, gArray::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which

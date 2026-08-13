@@ -52,6 +52,8 @@ namespace YSE {
    *  - Shared state: ``G_VALUE``.
    *  - Collections: ``G_COLL``, ``G_BAG``, ``G_CAPTURE``, ``G_FUNBUFF``,
    *    ``G_TABLE``, ``G_TEXTFILE``, ``G_QLIST``, ``G_MTR``, ``G_SEQ``.
+   *  - Dictionaries: ``G_DICT``.
+   *  - Arrays: ``G_ARRAY``.
    *  - Debugging: ``G_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -65,7 +67,7 @@ namespace YSE {
    *    ``G_MATRIX``, ``G_IF``, ``G_REGEXP``.
    *  - Message construction: ``G_PREPEND``, ``G_APPEND``, ``G_SUBSTITUTE``,
    *    ``G_SPRINTF``, ``G_TOSYMBOL``, ``G_FROMSYMBOL``, ``G_COMBINE``,
-   *    ``G_SPELL``, ``G_ATOI``, ``G_ITOA``.
+   *    ``G_SPELL``, ``G_ATOI``, ``G_ITOA``, ``G_TOLOWER``, ``G_TOUPPER``.
    *  - List processing: ``G_ZL``, ``G_PACK``, ``G_PAK``, ``G_UNPACK``,
    *    ``G_JOIN``, ``G_UNJOIN``, ``G_LISTFUNNEL``.
    *  - Iteration: ``G_UZI``, ``G_ITER``.
@@ -200,6 +202,12 @@ namespace YSE {
     DEFOBJ(G_SPELL, ".spell");
     DEFOBJ(G_ATOI, ".atoi");
     DEFOBJ(G_ITOA, ".itoa");
+    // ASCII case folding (issue #810) — the one operation the symbol family was
+    // missing. Every comparison in this patcher is exact, so folding both sides
+    // to one case is what makes a match case-insensitive. See
+    // genericObjects/gCase.h.
+    DEFOBJ(G_TOLOWER, ".tolower");
+    DEFOBJ(G_TOUPPER, ".toupper");
 
     DEFOBJ(G_ZL, ".zl");
     DEFOBJ(G_PACK, ".pack");
@@ -218,6 +226,27 @@ namespace YSE {
     DEFOBJ(G_QLIST, ".qlist");
     DEFOBJ(G_MTR, ".mtr");
     DEFOBJ(G_SEQ, ".seq");
+
+    // A nested key/value dictionary shared by name (issue #550), and the
+    // patcher's answer to the reference-passed value question the array (#548),
+    // string (#549) and dict epics all asked: an ``OUT_TYPE`` carries a value,
+    // never an identity, so a dictionary is **addressed by name** and what
+    // travels down a cord is the message ``dictionary <name>``. Storage lives in
+    // the ``namedStore.h`` registry (#684) and is resolved once, on the control
+    // thread. The twelve ``dict.*`` operations are separate objects written
+    // against ``dictStore``; see genericObjects/gDict.h for the whole model.
+    DEFOBJ(G_DICT, ".dict");
+
+    // An ordered, index-addressed sequence shared by name (issue #548), the
+    // second type built on the value model ``.dict`` settled: an ``OUT_TYPE``
+    // carries a value, never an identity, so an array is **addressed by name**
+    // and what travels down a cord is the message ``array <name>``. Storage
+    // lives in the ``namedStore.h`` registry (#684) and is resolved once, on the
+    // control thread. An element is one atom, so an array and the list text it
+    // spells are the same thing seen twice. The ``array.*`` operations are
+    // separate objects written against ``arrayStore``; see
+    // genericObjects/gArray.h for the whole model.
+    DEFOBJ(G_ARRAY, ".array");
 
     DEFOBJ(G_PRINT, ".print");
 
