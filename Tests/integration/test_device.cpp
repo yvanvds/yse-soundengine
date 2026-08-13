@@ -645,6 +645,63 @@ TEST_SUITE("integration") {
     s.stop();
   }
 
+  // Issue #823: the same gate, reached through a custom file reader instead of
+  // the filesystem. loadStreaming() had an empty custom-IO branch, so the file
+  // never left FILESTATE::LOADING and (after #819 closed the publish-anyway
+  // shortcut) the sound never became ready at all.
+  //
+  // A live device is what makes this case worth its own run: the reader's
+  // callbacks are now driven from two sides at once — the slow pool priming and
+  // refilling the stream buffers, while the real audio callback plays the front
+  // buffer — which is exactly the arrangement the paused-audio unit case cannot
+  // produce. It also proves the reader handle stays open past the load: a stream
+  // whose handle was closed with its loader reaches READY and then falls over on
+  // the first refill.
+  TEST_CASE("sound: a custom-IO streaming sound plays on a real device (issue #823)") {
+    if (!TestHelpers::engineInitWithAudio()) return;
+    if (YSE::System().getNumDevices() == 0) return;
+
+    std::ifstream f(WAV_FIXTURE, std::ios::binary | std::ios::ate);
+    if (!f.is_open()) return; // fixture missing in this environment
+    const auto size = static_cast<std::streamsize>(f.tellg());
+    f.seekg(0);
+    std::vector<char> bytes(static_cast<size_t>(size));
+    f.read(bytes.data(), size);
+
+    YSE::BufferIO io;
+    io.SetActive(true);
+    REQUIRE(io.AddBuffer("vfs-stream-device", bytes.data(), static_cast<int>(bytes.size())));
+
+    {
+      YSE::sound s;
+      s.create("vfs-stream-device", nullptr, false, 1.0f, /*streaming*/ true);
+      REQUIRE(s.isValid());
+
+      const bool ready = TestHelpers::pacedPump(
+          5000, [&] { return s.isReady(); }, [] { YSE::System().update(); }, 1);
+      CHECK(ready);
+      CHECK(s.length() > 0u);
+
+      s.relative(true);
+      s.play();
+      for (int i = 0; i < 5; i++) {
+        YSE::System().sleep(20);
+        YSE::System().update();
+      }
+      s.stop();
+    }
+
+    // Give the slow pool its teardown round, so the streaming file closes the
+    // custom reader handle while the VFS is still registered.
+    for (int i = 0; i < 10; i++) {
+      YSE::System().sleep(20);
+      YSE::System().update();
+    }
+
+    io.RemoveBufferByName("vfs-stream-device");
+    io.SetActive(false);
+  }
+
   TEST_CASE("sound: DSP source sound plays on a real device without crash") {
     if (!TestHelpers::engineInitWithAudio()) return;
     if (YSE::System().getNumDevices() == 0) return;
