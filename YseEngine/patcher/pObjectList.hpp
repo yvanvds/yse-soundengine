@@ -54,7 +54,7 @@ namespace YSE {
    *  - Collections: ``G_COLL``, ``G_BAG``, ``G_CAPTURE``, ``G_FUNBUFF``,
    *    ``G_TABLE``, ``G_TEXTFILE``, ``G_QLIST``, ``G_MTR``, ``G_SEQ``.
    *  - Dictionaries: ``G_DICT``, ``G_DICT_COMPARE``, ``G_DICT_GROUP``,
-   *    ``G_DICT_ITER``.
+   *    ``G_DICT_ITER``, ``G_DICT_JOIN``.
    *  - Arrays: ``G_ARRAY``.
    *  - Debugging: ``G_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
@@ -267,6 +267,16 @@ namespace YSE {
     // then a done bang. The walk is a snapshot taken at the trigger, so a
     // mutation arriving mid-walk changes the dictionary but not the walk.
     DEFOBJ(G_DICT_ITER, ".dict.iter");
+
+    // Merges two dictionaries into one (issue #774): all three dictionaries
+    // are bound from the creation arguments — ``.dict.join <left> <right>
+    // <target>`` — and a bang, or the left dictionary's ``dictionary <name>``
+    // reference, replaces the target with the left dictionary's entries
+    // overlaid by the right's. On a colliding key path the right overwrites
+    // the left — Max's own rule — so the left is the base and the right the
+    // override, which is the preset-over-defaults layering the object exists
+    // for.
+    DEFOBJ(G_DICT_JOIN, ".dict.join");
 
     // An ordered, index-addressed sequence shared by name (issue #548), the
     // second type built on the value model ``.dict`` settled: an ``OUT_TYPE``
