@@ -2594,6 +2594,55 @@
       }
     ]
   },
+  ".dict": {
+    "category": "GENERIC",
+    "description": "A nested key/value dictionary shared by name — Max's dict. Paths nest with \"::\", so \"voice::1::freq\" is one entry three levels deep, and the contents are a proper nested JSON object when the patch is saved. The dictionary is addressed as \"<patcherName>.<name>\", the same address form .s, .r, .value and .coll use, so every .dict of one name shares one dictionary and two patchers given one name share theirs. A bang emits \"dictionary <name>\" out outlet 1 — the reference the dict.* family binds. Dictionaries are addressed by name rather than passed down a cord: an outlet carries a value, never an identity, so the name is what travels and the store is resolved once, on the control thread. An unnamed .dict keeps a dictionary of its own.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "\"set <path> <value...>\" stores a value; \"get <path>\" fetches one out outlet 0 or bangs outlet 2 when there is none; \"delete <path>\" removes one; \"clear\" empties the dictionary; \"getsize\" reports the entry count and \"getkeys\" the top-level keys out outlet 0. A bang emits this dictionary's reference out outlet 1. Paths nest with \"::\", Max's own separator, so \"voice::1::freq\" is one entry three levels deep. Anything refused — an unknown message, a path past 128 characters, a value past 256, or a store into a full dictionary — is counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "in",
+        "range": "at most 256 entries"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".dict",
+    "outlets": [
+      {
+        "doc": "The value fetched by \"get\", typed the way the patcher spells it: a single numeric token leaves as an int or a float by its spelling and anything else as a list. Also the int \"getsize\" reports and the key list \"getkeys\" reports.",
+        "index": 0,
+        "label": "data",
+        "range": "",
+        "type": "ANY"
+      },
+      {
+        "doc": "\"dictionary <name>\" on a bang — the reference the dict.* family binds. It carries the *local* name, because the object receiving it prefixes that with its own patcher's name exactly as this one does. Silent for an unnamed dictionary, which has no name to pass on.",
+        "index": 1,
+        "label": "reference",
+        "range": "",
+        "type": "LIST"
+      },
+      {
+        "doc": "Bang when a \"get\" names a path the dictionary does not hold — the miss, kept off outlet 0 so a patch can tell \"no such key\" from a key holding nothing.",
+        "index": 2,
+        "label": "miss",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "Max's shared context: all .dict objects of this name share their contents, through a store addressed as \"<patcherName>.<name>\". Empty gives this object a dictionary of its own rather than pooling it with every other unnamed .dict in the patcher. The name is resolved once, on the control thread, which is why there is no message that re-points a .dict at another name at run time.",
+        "name": "name",
+        "range": "any identifier"
+      }
+    ]
+  },
   ".div": {
     "category": "MATH",
     "description": "Control-rate integer division. Emits left / right as an int whenever inlet 0 fires, truncating towards zero instead of producing the float ./ would. Floats truncate towards zero on input, and a divisor of 0 emits 0.",

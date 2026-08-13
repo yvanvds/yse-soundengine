@@ -26,6 +26,7 @@
 #include "genericObjects/gBag.h"
 #include "genericObjects/gCapture.h"
 #include "genericObjects/gColl.h"
+#include "genericObjects/gDict.h"
 #include "genericObjects/gPrint.h"
 // `.loadbang` / `.loadmess` (issue #547): the pair that lets a saved patch
 // describe its own starting state, fired by patcherImplementation's post-publish
@@ -416,6 +417,12 @@ pRegistry::pRegistry() {
   // more than one thing, and the object presets, note tables, mapping curves
   // and sequences are all written with (issue #494)
   Add(OBJ::G_COLL, gColl::Create);
+
+  // A nested key/value dictionary shared by name — structured data for the
+  // patcher and the live-coding DSL, and the value model the dict.* family is
+  // written against: addressed by name, resolved on the control thread, never
+  // passed down a cord (issue #550)
+  Add(OBJ::G_DICT, gDict::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which

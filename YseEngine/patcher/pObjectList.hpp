@@ -52,6 +52,7 @@ namespace YSE {
    *  - Shared state: ``G_VALUE``.
    *  - Collections: ``G_COLL``, ``G_BAG``, ``G_CAPTURE``, ``G_FUNBUFF``,
    *    ``G_TABLE``, ``G_TEXTFILE``, ``G_QLIST``, ``G_MTR``, ``G_SEQ``.
+   *  - Dictionaries: ``G_DICT``.
    *  - Debugging: ``G_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -218,6 +219,16 @@ namespace YSE {
     DEFOBJ(G_QLIST, ".qlist");
     DEFOBJ(G_MTR, ".mtr");
     DEFOBJ(G_SEQ, ".seq");
+
+    // A nested key/value dictionary shared by name (issue #550), and the
+    // patcher's answer to the reference-passed value question the array (#548),
+    // string (#549) and dict epics all asked: an ``OUT_TYPE`` carries a value,
+    // never an identity, so a dictionary is **addressed by name** and what
+    // travels down a cord is the message ``dictionary <name>``. Storage lives in
+    // the ``namedStore.h`` registry (#684) and is resolved once, on the control
+    // thread. The twelve ``dict.*`` operations are separate objects written
+    // against ``dictStore``; see genericObjects/gDict.h for the whole model.
+    DEFOBJ(G_DICT, ".dict");
 
     DEFOBJ(G_PRINT, ".print");
 

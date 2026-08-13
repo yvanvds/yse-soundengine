@@ -67,6 +67,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_combine.cpp
   patcher/test_patcher_spell.cpp
   patcher/test_patcher_coll.cpp
+  patcher/test_patcher_dict.cpp
   patcher/test_patcher_bag.cpp
   patcher/test_patcher_capture.cpp
   patcher/test_patcher_funbuff.cpp
@@ -1040,6 +1041,7 @@ set_source_files_properties(
   patcher/test_patcher_combine.cpp
   patcher/test_patcher_spell.cpp
   patcher/test_patcher_coll.cpp
+  patcher/test_patcher_dict.cpp
   patcher/test_patcher_bag.cpp
   patcher/test_patcher_capture.cpp
   patcher/test_patcher_funbuff.cpp
