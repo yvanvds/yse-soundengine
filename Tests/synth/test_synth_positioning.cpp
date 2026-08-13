@@ -27,9 +27,11 @@
 #include "yse.hpp"
 #include "channel/channelInterface.hpp"
 #include "channel/channelManager.h"
+#include "dsp/dspObject.hpp"
 #include "dsp/panner.hpp"
 #include "sound/soundInterface.hpp"
 #include "synth/sineVoice.hpp"
+#include "synth/synthImplementation.h"
 #include "synth/synthInterface.hpp"
 #include "synth/synthManager.h"
 #include "internal/time.h"
@@ -160,6 +162,38 @@ TEST_SUITE("synthpositioning") {
         if (!std::isfinite(q[i])) finite = false;
     }
     CHECK(finite);
+
+    YSE::System().close();
+  }
+
+  // ── Issue #828: the aggregate bed must be fully sized by the time the impl
+  //    exists at all. The render path reads `output.samples` through two doors
+  //    that do NOT wait for OBJECT_SETUP — renderBlock()'s pre-ready branch and
+  //    the owning sound's cached `&output.samples` in toChannels() — so if the
+  //    bed were still sized later, on the setup pool, that resize would run
+  //    concurrently with a render and hand the audio thread a freed
+  //    DSP::buffer array. Constructing an impl directly is what makes the
+  //    invariant checkable without a race window: nothing has ticked the engine
+  //    between the constructor returning and these CHECKs, so a bed that is
+  //    device-width and block-length here can only have been sized in the
+  //    constructor. Before the fix this impl came back with a single
+  //    zero-length buffer and both CHECKs failed. ──
+  TEST_CASE("synthpositioning: aggregate bed is sized by the constructor (#828)") {
+    YSE::System().close();
+    if (!YSE::System().initOffline()) return;
+
+    const UInt no = YSE::CHANNEL::Manager().getNumberOfOutputs();
+    REQUIRE(no >= 1);
+    {
+      // Stack-constructed, never handed to the manager: this is the state of a
+      // synth impl in the window between YSE::synth::create() and the setup
+      // pool picking it up — precisely the window the race lived in.
+      YSE::SYNTH::implementationObject impl(nullptr);
+      YSE::DSP::dspSourceObject& src = impl.getOutputSource();
+      CHECK(src.samples.size() == static_cast<size_t>(no));
+      for (auto& b : src.samples)
+        CHECK(b.getLength() == YSE::STANDARD_BUFFERSIZE);
+    }
 
     YSE::System().close();
   }
