@@ -125,8 +125,10 @@ set(YSE_SRCS
   patcher/genericObjects/gCombine.cpp
   patcher/genericObjects/gCycle.cpp
   patcher/genericObjects/gDecode.cpp
+  patcher/genericObjects/dictParser.cpp
   patcher/genericObjects/gDict.cpp
   patcher/genericObjects/gDictCompare.cpp
+  patcher/genericObjects/gDictDeserialize.cpp
   patcher/genericObjects/gDictGroup.cpp
   patcher/genericObjects/gDictIter.cpp
   patcher/genericObjects/gDictJoin.cpp
@@ -476,8 +478,10 @@ set_source_files_properties(
   patcher/genericObjects/gCombine.cpp
   patcher/genericObjects/gCycle.cpp
   patcher/genericObjects/gDecode.cpp
+  patcher/genericObjects/dictParser.cpp
   patcher/genericObjects/gDict.cpp
   patcher/genericObjects/gDictCompare.cpp
+  patcher/genericObjects/gDictDeserialize.cpp
   patcher/genericObjects/gDictGroup.cpp
   patcher/genericObjects/gDictIter.cpp
   patcher/genericObjects/gDictJoin.cpp

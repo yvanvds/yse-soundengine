@@ -71,6 +71,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_coll.cpp
   patcher/test_patcher_dict.cpp
   patcher/test_patcher_dict_compare.cpp
+  patcher/test_patcher_dict_deserialize.cpp
   patcher/test_patcher_dict_group.cpp
   patcher/test_patcher_dict_iter.cpp
   patcher/test_patcher_dict_join.cpp
@@ -1061,6 +1062,7 @@ set_source_files_properties(
   patcher/test_patcher_coll.cpp
   patcher/test_patcher_dict.cpp
   patcher/test_patcher_dict_compare.cpp
+  patcher/test_patcher_dict_deserialize.cpp
   patcher/test_patcher_dict_group.cpp
   patcher/test_patcher_dict_iter.cpp
   patcher/test_patcher_dict_join.cpp

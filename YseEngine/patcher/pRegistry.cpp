@@ -29,6 +29,7 @@
 #include "genericObjects/gColl.h"
 #include "genericObjects/gDict.h"
 #include "genericObjects/gDictCompare.h"
+#include "genericObjects/gDictDeserialize.h"
 #include "genericObjects/gDictGroup.h"
 #include "genericObjects/gDictIter.h"
 #include "genericObjects/gDictJoin.h"
@@ -446,6 +447,12 @@ pRegistry::pRegistry() {
   // the same entries — "did anything change?" without diffing key by key
   // (issue #770)
   Add(OBJ::G_DICT_COMPARE, gDictCompare::Create);
+
+  // Builds a dictionary from serialised text — one JSON list message, exactly
+  // what .dict.serialize emits, replacing the bound dictionary whole; the
+  // read half of the interchange pair, parsed on the background pool and
+  // installed by the block poll (issue #771)
+  Add(OBJ::G_DICT_DESERIALIZE, gDictDeserialize::Create);
 
   // Groups the source dictionary's entries by a value into the target —
   // "<groupValue>::<originalPath>", the dictionary of dictionaries the flat

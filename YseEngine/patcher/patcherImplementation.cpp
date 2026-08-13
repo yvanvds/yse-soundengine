@@ -10,6 +10,7 @@
 #include "genericObjects/gColl.h"
 #include "genericObjects/gDict.h"
 #include "genericObjects/gDictCompare.h"
+#include "genericObjects/gDictDeserialize.h"
 #include "genericObjects/gDictGroup.h"
 #include "genericObjects/gDictIter.h"
 #include "genericObjects/gDictJoin.h"
@@ -176,6 +177,12 @@ void patcherImplementation::SetName(const std::string& n) {
       // the same "<patcherName>.<name>" addresses, so a renamed patcher's
       // comparisons follow the dictionaries they compare (issue #770).
       static_cast<gDictCompare*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_DICT_DESERIALIZE) == 0) {
+      // And gDictDeserialize, whose target dictionary is registered under the
+      // same "<patcherName>.<name>" address, so a renamed patcher's parsed
+      // documents land in the dictionary its other objects now speak about
+      // (issue #771).
+      static_cast<gDictDeserialize*>(x.second)->RefreshBinding();
     } else if (strcmp(x.second->Type(), OBJ::G_DICT_GROUP) == 0) {
       // And gDictGroup, whose source and target dictionaries are registered
       // under the same "<patcherName>.<name>" addresses, so a renamed

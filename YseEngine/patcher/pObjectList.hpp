@@ -53,9 +53,9 @@ namespace YSE {
    *  - Shared state: ``G_VALUE``.
    *  - Collections: ``G_COLL``, ``G_BAG``, ``G_CAPTURE``, ``G_FUNBUFF``,
    *    ``G_TABLE``, ``G_TEXTFILE``, ``G_QLIST``, ``G_MTR``, ``G_SEQ``.
-   *  - Dictionaries: ``G_DICT``, ``G_DICT_COMPARE``, ``G_DICT_GROUP``,
-   *    ``G_DICT_ITER``, ``G_DICT_JOIN``, ``G_DICT_PACK``, ``G_DICT_PRINT``,
-   *    ``G_DICT_SERIALIZE``.
+   *  - Dictionaries: ``G_DICT``, ``G_DICT_COMPARE``, ``G_DICT_DESERIALIZE``,
+   *    ``G_DICT_GROUP``, ``G_DICT_ITER``, ``G_DICT_JOIN``, ``G_DICT_PACK``,
+   *    ``G_DICT_PRINT``, ``G_DICT_SERIALIZE``.
    *  - Arrays: ``G_ARRAY``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
@@ -253,6 +253,16 @@ namespace YSE {
     // ``dictionary <name>`` reference, reports whether the two hold the same
     // entries.
     DEFOBJ(G_DICT_COMPARE, ".dict.compare");
+
+    // Builds a dictionary from serialised text (issue #771): the target
+    // dictionary is bound from the creation argument —
+    // ``.dict.deserialize <name>`` — and a list message holding one JSON
+    // object (exactly what ``.dict.serialize`` emits) replaces it whole,
+    // then announces ``dictionary <name>`` out the outlet. The read half of
+    // the interchange pair. The parse runs on the background pool — nlohmann
+    // allocates, and the inlet may be the audio thread — and the result is
+    // installed by the patcher's block poll one block later.
+    DEFOBJ(G_DICT_DESERIALIZE, ".dict.deserialize");
 
     // Groups a dictionary's entries by a value (issue #772): the source and
     // target dictionaries are bound from the creation arguments —
