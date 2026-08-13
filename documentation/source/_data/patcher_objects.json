@@ -2896,6 +2896,47 @@
       }
     ]
   },
+  ".dict.pack": {
+    "category": "GENERIC",
+    "description": "Builds a dictionary from a list of named inlets — Max's dict.pack on the name-addressed value model .dict settled: the dictionary is bound from the first creation argument, and every argument after it is a key path declaring one inlet — \".dict.pack out freq gain pan\" — because a dictionary is addressed by name and never passed down a cord. The dictionary counterpart of .pack, and its hot/cold rule exactly: only the leftmost inlet releases — writing any other inlet stores its key's value and stays quiet — so a patch loads the right-hand values first and lets the leftmost carry the finished dictionary out. A trigger — a value on inlet 0, a bang, or the bound dictionary's \"dictionary <name>\" reference — replaces the bound dictionary whole with one entry per key path in argument order, a slot never written packing its path with an empty value, and sends the reference out the outlet, consistent with .dict. \"set <value>\" stores without releasing. A whole list is one value rather than a spread, since a dictionary value is list text; paths nest with \"::\", so the packed dictionary is as structured as its keys spell. A value past 256 characters is refused whole and counted rather than truncated, and a reference naming an unbound dictionary is refused rather than resolved, a registry lookup being a mutex on whatever thread the message arrived on.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "With no key-path arguments there is nothing to store: a bang, or \"dictionary <name>\" naming the bound dictionary, packs the empty dictionary — replacing whatever the bound store held — and sends its reference. Any other message is refused and counted, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "pack",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".dict.pack",
+    "outlets": [
+      {
+        "doc": "\"dictionary <name>\" after a pack — the reference the dict.* family binds, carrying the local name so the receiving object prefixes it with its own patcher's name. Sent whenever the leftmost inlet is written, banged, or handed the bound dictionary's reference. Silent for an unnamed dictionary, which has no name to pass on — the pack still lands in the private store.",
+        "index": 0,
+        "label": "reference",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The packed dictionary's shared name — the first creation argument, addressed as \"<patcherName>.<name>\", the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. The result goes into a bound dictionary rather than a new anonymous one because there is no way to hand a fresh dictionary's identity down a cord. Empty packs into a private store and sends nothing.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "One key path per inlet, in order — the shape of the packed dictionary. Paths nest with \"::\", Max's own separator, so \"voice::1::freq\" is one entry three levels deep. At most 256 paths of at most 128 characters each; a path that does not fit declares no inlet and is logged, parameter parsing being control-thread only. A duplicate path is two inlets writing one entry, and the later inlet wins. With no paths the object is a bare trigger that packs the empty dictionary.",
+        "name": "keys",
+        "range": "key paths"
+      }
+    ]
+  },
   ".div": {
     "category": "MATH",
     "description": "Control-rate integer division. Emits left / right as an int whenever inlet 0 fires, truncating towards zero instead of producing the float ./ would. Floats truncate towards zero on input, and a divisor of 0 emits 0.",

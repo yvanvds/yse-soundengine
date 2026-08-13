@@ -32,6 +32,7 @@
 #include "genericObjects/gDictGroup.h"
 #include "genericObjects/gDictIter.h"
 #include "genericObjects/gDictJoin.h"
+#include "genericObjects/gDictPack.h"
 #include "genericObjects/gPrint.h"
 // `.loadbang` / `.loadmess` (issue #547): the pair that lets a saved patch
 // describe its own starting state, fired by patcherImplementation's post-publish
@@ -459,6 +460,12 @@ pRegistry::pRegistry() {
   // right overwriting on a colliding key path, the result replacing the
   // bound target whole (issue #774)
   Add(OBJ::G_DICT_JOIN, gDictJoin::Create);
+
+  // Builds a dictionary from a list of named inlets — the dictionary
+  // counterpart of .pack, with its hot/cold rule: the bound dictionary is
+  // replaced whole with one entry per key-path argument and its reference
+  // sent on, the unit the rest of the dict.* family consumes (issue #775)
+  Add(OBJ::G_DICT_PACK, gDictPack::Create);
 
   // An ordered, index-addressed sequence shared by name — the collection type a
   // generative patch actually reaches for, and the value model the array.*

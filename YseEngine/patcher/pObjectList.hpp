@@ -54,7 +54,7 @@ namespace YSE {
    *  - Collections: ``G_COLL``, ``G_BAG``, ``G_CAPTURE``, ``G_FUNBUFF``,
    *    ``G_TABLE``, ``G_TEXTFILE``, ``G_QLIST``, ``G_MTR``, ``G_SEQ``.
    *  - Dictionaries: ``G_DICT``, ``G_DICT_COMPARE``, ``G_DICT_GROUP``,
-   *    ``G_DICT_ITER``, ``G_DICT_JOIN``.
+   *    ``G_DICT_ITER``, ``G_DICT_JOIN``, ``G_DICT_PACK``.
    *  - Arrays: ``G_ARRAY``.
    *  - Debugging: ``G_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
@@ -277,6 +277,16 @@ namespace YSE {
     // override, which is the preset-over-defaults layering the object exists
     // for.
     DEFOBJ(G_DICT_JOIN, ".dict.join");
+
+    // Builds a dictionary from a list of named inlets (issue #775): the
+    // dictionary is bound from the first creation argument and every
+    // argument after it is a key path declaring one inlet — ``.dict.pack
+    // <name> <key> [<key> ...]`` — the dictionary counterpart of ``.pack``,
+    // with its hot/cold rule: only inlet 0 releases. A trigger replaces the
+    // bound dictionary whole with one entry per key path and sends its
+    // ``dictionary <name>`` reference, the unit the rest of the family
+    // consumes.
+    DEFOBJ(G_DICT_PACK, ".dict.pack");
 
     // An ordered, index-addressed sequence shared by name (issue #548), the
     // second type built on the value model ``.dict`` settled: an ``OUT_TYPE``
