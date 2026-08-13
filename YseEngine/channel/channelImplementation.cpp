@@ -149,11 +149,15 @@ void YSE::CHANNEL::implementationObject::dsp() {
 
   REVERB::Manager().process(this);
 
-  // Publish pre-volume peak for VU consumers. Sized in lock-step with `out`
-  // in setup()/resize(); the std::min guards against a resize race.
-  const UInt n = (UInt)std::min(out.size(), lastPeakLinearPre.size());
-  for (UInt i = 0; i < n; ++i) {
-    lastPeakLinearPre[i].v.store(out[i].maxValue(), std::memory_order_release);
+  // Publish pre-volume peak for VU consumers. The meter block is published
+  // atomically and never resized in place (issue #839); the std::min guards
+  // against a block whose count lags an `out` resize within the same
+  // reconfiguration tick.
+  if (meterBlock* m = meters.load(std::memory_order_acquire)) {
+    const UInt n = (UInt)std::min(out.size(), (std::size_t)m->count);
+    for (UInt i = 0; i < n; ++i) {
+      m->pre[i].v.store(out[i].maxValue(), std::memory_order_release);
+    }
   }
 }
 
@@ -199,10 +203,10 @@ void YSE::CHANNEL::implementationObject::buffersToParent() {
   // Publish post-volume peak for VU consumers — measured after adjustVolume()
   // so the reading reflects what listeners actually hear from this channel.
   // The master channel also reaches this point, giving a true master VU.
-  {
-    const UInt n = (UInt)std::min(out.size(), lastPeakLinearPost.size());
+  if (meterBlock* m = meters.load(std::memory_order_acquire)) {
+    const UInt n = (UInt)std::min(out.size(), (std::size_t)m->count);
     for (UInt i = 0; i < n; ++i) {
-      lastPeakLinearPost[i].v.store(out[i].maxValue(), std::memory_order_release);
+      m->post[i].v.store(out[i].maxValue(), std::memory_order_release);
     }
   }
 
@@ -303,9 +307,11 @@ void YSE::CHANNEL::implementationObject::processReturnInsert() {
   REVERB::Manager().process(this);
 
   // Publish pre-volume peak (mirrors dsp()).
-  const UInt n = (UInt)std::min(out.size(), lastPeakLinearPre.size());
-  for (UInt i = 0; i < n; ++i) {
-    lastPeakLinearPre[i].v.store(out[i].maxValue(), std::memory_order_release);
+  if (meterBlock* m = meters.load(std::memory_order_acquire)) {
+    const UInt n = (UInt)std::min(out.size(), (std::size_t)m->count);
+    for (UInt i = 0; i < n; ++i) {
+      m->pre[i].v.store(out[i].maxValue(), std::memory_order_release);
+    }
   }
 }
 
@@ -319,10 +325,10 @@ void YSE::CHANNEL::implementationObject::finalizeReturn(implementationObject* ma
 
   adjustVolume(); // the return's own fader
 
-  {
-    const UInt n = (UInt)std::min(out.size(), lastPeakLinearPost.size());
+  if (meterBlock* m = meters.load(std::memory_order_acquire)) {
+    const UInt n = (UInt)std::min(out.size(), (std::size_t)m->count);
     for (UInt i = 0; i < n; ++i) {
-      lastPeakLinearPost[i].v.store(out[i].maxValue(), std::memory_order_release);
+      m->post[i].v.store(out[i].maxValue(), std::memory_order_release);
     }
   }
 
@@ -371,8 +377,7 @@ void YSE::CHANNEL::implementationObject::setup() {
     const UInt numOutputs = CHANNEL::Manager().getNumberOfOutputs();
     out.resize(numOutputs);
     outConf.resize(numOutputs);
-    lastPeakLinearPre.resize(numOutputs);
-    lastPeakLinearPost.resize(numOutputs);
+    publishMeterBlock(numOutputs);
     for (UInt i = 0; i < numOutputs; i++) {
       outConf[i].angle = CHANNEL::Manager().getOutputAngle(i);
       outConf[i].isLFE = CHANNEL::Manager().getOutputIsLFE(i);
@@ -397,8 +402,7 @@ void YSE::CHANNEL::implementationObject::resize(bool deep) {
   const UInt numOutputs = CHANNEL::Manager().getNumberOfOutputs();
   out.resize(numOutputs);
   outConf.resize(numOutputs);
-  lastPeakLinearPre.resize(numOutputs);
-  lastPeakLinearPost.resize(numOutputs);
+  publishMeterBlock(numOutputs);
   for (UInt i = 0; i < numOutputs; i++) {
     outConf[i].angle = CHANNEL::Manager().getOutputAngle(i);
     outConf[i].isLFE = CHANNEL::Manager().getOutputIsLFE(i);
@@ -609,33 +613,57 @@ void YSE::CHANNEL::implementationObject::adjustVolume() {
 }
 
 int YSE::CHANNEL::implementationObject::getNumOutputs() const {
-  return static_cast<int>(out.size());
+  // Read the published meter block, not out.size(): `out` is resized in place
+  // on the slow pool (setup) / audio thread (resize) and its metadata would
+  // race a control-thread read exactly like the meters did (issue #839). The
+  // block's count is set from the same numOutputs in the same call sites.
+  const meterBlock* m = meters.load(std::memory_order_acquire);
+  return m == nullptr ? 0 : static_cast<int>(m->count);
 }
 
 float YSE::CHANNEL::implementationObject::getPeakLinearPre(int outputIdx) const {
-  if (outputIdx < 0 || static_cast<size_t>(outputIdx) >= lastPeakLinearPre.size()) return 0.f;
-  return lastPeakLinearPre[outputIdx].v.load(std::memory_order_acquire);
+  const meterBlock* m = meters.load(std::memory_order_acquire);
+  if (m == nullptr || outputIdx < 0 || static_cast<UInt>(outputIdx) >= m->count) return 0.f;
+  return m->pre[outputIdx].v.load(std::memory_order_acquire);
 }
 
 float YSE::CHANNEL::implementationObject::getPeakLinearPost(int outputIdx) const {
-  if (outputIdx < 0 || static_cast<size_t>(outputIdx) >= lastPeakLinearPost.size()) return 0.f;
-  return lastPeakLinearPost[outputIdx].v.load(std::memory_order_acquire);
+  const meterBlock* m = meters.load(std::memory_order_acquire);
+  if (m == nullptr || outputIdx < 0 || static_cast<UInt>(outputIdx) >= m->count) return 0.f;
+  return m->post[outputIdx].v.load(std::memory_order_acquire);
 }
 
 float YSE::CHANNEL::implementationObject::getPeakLinearPreCombined() const {
+  const meterBlock* m = meters.load(std::memory_order_acquire);
+  if (m == nullptr) return 0.f;
   float peak = 0.f;
-  for (const auto& cell : lastPeakLinearPre) {
-    const float v = cell.v.load(std::memory_order_acquire);
+  for (UInt i = 0; i < m->count; ++i) {
+    const float v = m->pre[i].v.load(std::memory_order_acquire);
     if (v > peak) peak = v;
   }
   return peak;
 }
 
 float YSE::CHANNEL::implementationObject::getPeakLinearPostCombined() const {
+  const meterBlock* m = meters.load(std::memory_order_acquire);
+  if (m == nullptr) return 0.f;
   float peak = 0.f;
-  for (const auto& cell : lastPeakLinearPost) {
-    const float v = cell.v.load(std::memory_order_acquire);
+  for (UInt i = 0; i < m->count; ++i) {
+    const float v = m->post[i].v.load(std::memory_order_acquire);
     if (v > peak) peak = v;
   }
   return peak;
+}
+
+void YSE::CHANNEL::implementationObject::publishMeterBlock(UInt numOutputs) {
+  // Reuse the current block when the count is unchanged (e.g. a repeated
+  // setup() pass): peaks keep their cells and no memory is retired.
+  const meterBlock* current = meters.load(std::memory_order_relaxed);
+  if (current != nullptr && current->count == numOutputs) return;
+  // Never resize a published block: allocate a fresh one (zeroed cells) and
+  // publish it with release so readers that acquire the pointer see fully
+  // constructed storage. The old block stays alive in meterBlockOwner until
+  // the impl is destroyed, so a concurrent reader can finish with it safely.
+  meterBlockOwner.emplace_back(std::make_unique<meterBlock>(numOutputs));
+  meters.store(meterBlockOwner.back().get(), std::memory_order_release);
 }

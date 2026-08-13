@@ -12,6 +12,8 @@
 #define CHANNELIMPLEMENTATION_H_INCLUDED
 
 #include <atomic>
+#include <memory>
+#include <vector>
 #include "../classes.hpp"
 #include "../utils/lfQueue.hpp"
 #include "../utils/intrusiveForwardList.hpp"
@@ -27,20 +29,25 @@ namespace YSE {
   namespace CHANNEL {
     class output;
 
-    // Copy-constructible wrapper so a vector of atomic floats can be resized
-    // alongside `out` when the device's channel count changes.
+    // One peak-meter cell. Cells only ever live inside a meterBlock, whose
+    // vectors are sized at construction and never resized (issue #839), so no
+    // copy machinery is needed.
     struct atomicPeak {
       std::atomic<float> v{0.f};
-      atomicPeak() = default;
-      atomicPeak(const atomicPeak& o) : v(o.v.load(std::memory_order_relaxed)) {}
-      // The only member is a std::atomic<float>; self-assignment stores back the
-      // value it just loaded and owns no resource that a `this != &o` guard
-      // would protect (issue #573).
-      // NOLINTNEXTLINE(cert-oop54-cpp)
-      atomicPeak& operator=(const atomicPeak& o) {
-        v.store(o.v.load(std::memory_order_relaxed), std::memory_order_relaxed);
-        return *this;
-      }
+    };
+
+    // Immutable per-output peak-meter storage (issue #839). A block's shape is
+    // fixed at construction; when the device's output count changes, a fresh
+    // block is installed and published through an atomic pointer instead of
+    // resizing vectors in place. Control-thread readers therefore never observe
+    // vector metadata (size/data pointer) mid-resize — the race TSan flagged
+    // between setup()'s resize on the slow pool and getPeakLinearPre() on the
+    // control thread.
+    struct meterBlock {
+      explicit meterBlock(UInt n) : count(n), pre(n), post(n) {}
+      const UInt count; // number of valid cells in each vector below
+      std::vector<atomicPeak> pre; // pre-fader peaks, one cell per output
+      std::vector<atomicPeak> post; // post-fader peaks, one cell per output
     };
 
     // One aux-send slot on a channel (issue #165; design
@@ -380,12 +387,25 @@ namespace YSE {
       DSP::dspObject* insert_dsp;
 
       // Per-output peak (absolute sample value), refreshed once per DSP block.
-      // Sized to out.size() and resized on the same path as out (audio thread
-      // tolerates allocation here only because the channel layout rarely
-      // changes — see deviceManager::update). Audio thread stores with
-      // release; control-thread readers load with acquire.
-      std::vector<atomicPeak> lastPeakLinearPre;
-      std::vector<atomicPeak> lastPeakLinearPost;
+      // Held in an immutable meterBlock published through `meters` (issue
+      // #839): setup() (slow pool, before the channel is live) and resize()
+      // (audio thread, rare device reconfiguration — allocation tolerated
+      // there for the same reason `out` reallocates, see deviceManager)
+      // install a fresh block via publishMeterBlock() instead of resizing in
+      // place. Render phases load `meters` (acquire) once per publish site and
+      // store cells with release; control-thread readers load `meters`
+      // (acquire) and cells (acquire). Retired blocks stay alive in
+      // `meterBlockOwner` until the impl is destroyed, so a reader holding an
+      // older block never touches freed memory; the retired count is bounded
+      // by device reconfigurations over the channel's lifetime.
+      std::atomic<meterBlock*> meters{nullptr};
+      std::vector<std::unique_ptr<meterBlock>> meterBlockOwner;
+
+      /** Install and publish a fresh meterBlock when @p numOutputs differs
+          from the current block's count (issue #839). Called only from
+          setup() (slow pool, pre-live) and resize() (audio thread), which
+          never overlap, so `meterBlockOwner` has a single writer at a time. */
+      void publishMeterBlock(UInt numOutputs);
 
       Bool userChannel = true; // channel is created by user and not crucial for the system
       Bool allowVirtual;
