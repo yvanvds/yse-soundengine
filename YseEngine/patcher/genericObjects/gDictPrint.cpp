@@ -9,7 +9,6 @@
 #include "../math/gExprEval.h"
 #include "../pListArgs.h"
 #include "../pObjectList.hpp"
-#include "../pSelector.h"
 #include "../patcherImplementation.h"
 
 using namespace YSE::PATCHER;
@@ -300,9 +299,10 @@ void gDictPrint::EmitLevel(std::size_t prefixLength, int depth) {
       // DictToJson's collision rule — storage order decides, .coll's rule
       // for a duplicate address. The losers are consumed unemitted.
       BeginRow(depth);
-      AppendStringJson(seg, segLen);
+      (void)DictAppendStringJson(seg, segLen, compose, composeLength, COMPOSE_CAPACITY);
       AppendText(": ", 2);
-      AppendValueJson(snapshot.entries[i].value);
+      (void)DictAppendValueJson(snapshot.entries[i].value, compose, composeLength, COMPOSE_CAPACITY,
+                                ", ", 2);
       CommitRow(false);
       consumed[i] = true;
 
@@ -329,7 +329,7 @@ void gDictPrint::EmitLevel(std::size_t prefixLength, int depth) {
     }
 
     BeginRow(depth);
-    AppendStringJson(seg, segLen);
+    (void)DictAppendStringJson(seg, segLen, compose, composeLength, COMPOSE_CAPACITY);
     AppendText(": {", 3);
     CommitRow(true);
 
@@ -394,153 +394,6 @@ void gDictPrint::AppendText(const char* text, std::size_t length) {
   if (composeLength + length > COMPOSE_CAPACITY - 2) return;
   std::memcpy(compose + composeLength, text, length);
   composeLength += length;
-}
-
-// ─── values, spelled as JSON ──────────────────────────────────────────────────
-
-void gDictPrint::AppendValueJson(const std::string& value) {
-  // A stored value is list text. One token becomes the scalar it spells,
-  // several become an array of those, and nothing at all becomes an empty
-  // string — which is what `set <key>` with no value stored. DictToJson's
-  // classification, walked in place.
-  std::size_t i = 0;
-  int tokens = 0;
-  std::size_t firstBegin = 0;
-  std::size_t firstLength = 0;
-
-  while (i < value.size()) {
-    while (i < value.size() && IsSelectorSeparator(value[i]))
-      i++;
-    if (i >= value.size()) break;
-    const std::size_t begin = i;
-    while (i < value.size() && !IsSelectorSeparator(value[i]))
-      i++;
-    if (tokens == 0) {
-      firstBegin = begin;
-      firstLength = i - begin;
-    }
-    tokens++;
-  }
-
-  if (tokens == 0) {
-    AppendText("\"\"", 2);
-    return;
-  }
-  if (tokens == 1) {
-    AppendTokenJson(value.c_str() + firstBegin, firstLength);
-    return;
-  }
-
-  AppendText("[", 1);
-  i = 0;
-  int emitted = 0;
-  while (i < value.size()) {
-    while (i < value.size() && IsSelectorSeparator(value[i]))
-      i++;
-    if (i >= value.size()) break;
-    const std::size_t begin = i;
-    while (i < value.size() && !IsSelectorSeparator(value[i]))
-      i++;
-    if (emitted > 0) AppendText(", ", 2);
-    AppendTokenJson(value.c_str() + begin, i - begin);
-    emitted++;
-  }
-  AppendText("]", 1);
-}
-
-void gDictPrint::AppendTokenJson(const char* text, std::size_t length) {
-  float parsed = 0.f;
-  if (!ReadNumericToken(text, length, parsed)) {
-    AppendStringJson(text, length);
-    return;
-  }
-
-  // A token that is nothing but an optional sign and digits is an integer,
-  // and it goes out as its own characters — arbitrary precision, no float
-  // detour — normalised only where JSON demands it: no '+', no leading
-  // zeros.
-  std::size_t p = 0;
-  bool negative = false;
-  if (text[0] == '+' || text[0] == '-') {
-    negative = (text[0] == '-');
-    p = 1;
-  }
-  bool plainInt = p < length;
-  for (std::size_t s = p; s < length; s++) {
-    if (text[s] < '0' || text[s] > '9') {
-      plainInt = false;
-      break;
-    }
-  }
-  if (plainInt) {
-    while (p + 1 < length && text[p] == '0')
-      p++;
-    if (negative) AppendText("-", 1);
-    AppendText(text + p, length - p);
-    return;
-  }
-
-  // Anything else the classifier accepted — "5.", ".5", "1e3" — is a float,
-  // spelled by the patcher's own formatter, which is allocation-free and
-  // locale-free where the C library is neither. Its one non-JSON habit is
-  // the trailing point ("120."), which a single '0' repairs.
-  char buffer[kExprValueTextMax];
-  const int written = ExprFormatValue(ExprValue::Float(parsed), buffer, kExprValueTextMax);
-  AppendText(buffer, (std::size_t)written);
-  if (written > 0 && buffer[written - 1] == '.') AppendText("0", 1);
-}
-
-void gDictPrint::AppendStringJson(const char* text, std::size_t length) {
-  if (composeLength >= COMPOSE_CAPACITY - 2) return;
-  compose[composeLength++] = '"';
-  for (std::size_t s = 0; s < length; s++) {
-    const char c = text[s];
-    if (composeLength >= COMPOSE_CAPACITY - 8) break;
-    switch (c) {
-    case '"':
-      compose[composeLength++] = '\\';
-      compose[composeLength++] = '"';
-      break;
-    case '\\':
-      compose[composeLength++] = '\\';
-      compose[composeLength++] = '\\';
-      break;
-    case '\b':
-      compose[composeLength++] = '\\';
-      compose[composeLength++] = 'b';
-      break;
-    case '\f':
-      compose[composeLength++] = '\\';
-      compose[composeLength++] = 'f';
-      break;
-    case '\n':
-      compose[composeLength++] = '\\';
-      compose[composeLength++] = 'n';
-      break;
-    case '\r':
-      compose[composeLength++] = '\\';
-      compose[composeLength++] = 'r';
-      break;
-    case '\t':
-      compose[composeLength++] = '\\';
-      compose[composeLength++] = 't';
-      break;
-    default:
-      if ((unsigned char)c < 0x20) {
-        const char* hex = "0123456789abcdef";
-        compose[composeLength++] = '\\';
-        compose[composeLength++] = 'u';
-        compose[composeLength++] = '0';
-        compose[composeLength++] = '0';
-        compose[composeLength++] = hex[((unsigned char)c >> 4) & 0xF];
-        compose[composeLength++] = hex[(unsigned char)c & 0xF];
-      } else {
-        compose[composeLength++] = c;
-      }
-      break;
-    }
-  }
-  if (composeLength < COMPOSE_CAPACITY - 1) compose[composeLength++] = '"';
 }
 
 // ─── the queue, through the budget ────────────────────────────────────────────

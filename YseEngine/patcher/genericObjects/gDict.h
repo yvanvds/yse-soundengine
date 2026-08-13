@@ -253,6 +253,51 @@ namespace YSE {
     void DictFromJson(const nlohmann::json::value_type& in, dictStore& store);
 
     /**
+     *  @brief Append one stored value to @p out, spelled as JSON — the RT-safe
+     *         walk of the classifier ``DictToJson`` applies.
+     *
+     *  ``DictToJson`` builds an ``nlohmann::json`` tree, which allocates by
+     *  construction and is therefore control-thread only; a message path that
+     *  wants the same document walks the value in place with these instead.
+     *  One shared implementation rather than a habit because two objects
+     *  already need it — ``.dict.print``'s log emitter and
+     *  ``.dict.serialize``'s message emitter — and both hold it in lockstep
+     *  with ``DictToJson`` through their doctest suites.
+     *
+     *  The classification is ``DictToJson``'s, unchanged: a stored value is
+     *  list text, so a single numeric token becomes a JSON number (an integer
+     *  spelled as its own digits — no ``+``, no leading zeros — and a float
+     *  by the patcher's own formatter, its trailing point repaired), a
+     *  multi-token value becomes an array of those joined by @p separator,
+     *  nothing at all becomes ``""``, and anything else becomes an escaped
+     *  string. ``@p separator`` is the text between array elements —
+     *  ``", "`` for a document meant to be read, ``","`` for a compact one —
+     *  because that is the only spelling the two emitters disagree on.
+     *
+     *  Bounded appends into @p out, never past @p capacity, no allocation, no
+     *  lock — safe on whichever thread a message was dispatched on. False when
+     *  the capacity margin cut anything: a caller whose document must parse
+     *  (``.dict.serialize``) refuses the whole send on false, where a caller
+     *  producing lines to read (``.dict.print``) lets its record-size cut mark
+     *  the loss instead.
+     */
+    bool DictAppendValueJson(const std::string& value, char* out, std::size_t& outLength,
+                             std::size_t capacity, const char* separator,
+                             std::size_t separatorLength);
+
+    /** @brief One token of ``DictAppendValueJson``'s walk: a number when the
+     *         token spells one, an escaped string otherwise. Same bounds and
+     *         thread-safety; false when anything was cut. */
+    bool DictAppendTokenJson(const char* text, std::size_t length, char* out,
+                             std::size_t& outLength, std::size_t capacity);
+
+    /** @brief Append @p length characters at @p text as one JSON string —
+     *         quoted, with ``"``, ``\``, and control characters escaped. Same
+     *         bounds and thread-safety; false when anything was cut. */
+    bool DictAppendStringJson(const char* text, std::size_t length, char* out,
+                              std::size_t& outLength, std::size_t capacity);
+
+    /**
      *  @brief A nested key/value dictionary shared by name — ``.dict``
      *         (issue #550), and **the patcher's answer to the reference-passed
      *         value question** the array (#548), string (#549) and dict epics

@@ -34,6 +34,7 @@
 #include "genericObjects/gDictJoin.h"
 #include "genericObjects/gDictPack.h"
 #include "genericObjects/gDictPrint.h"
+#include "genericObjects/gDictSerialize.h"
 #include "genericObjects/gPrint.h"
 // `.loadbang` / `.loadmess` (issue #547): the pair that lets a saved patch
 // describe its own starting state, fired by patcherImplementation's post-publish
@@ -473,6 +474,11 @@ pRegistry::pRegistry() {
   // instrument for structured data, which no sink can otherwise see
   // (issue #776)
   Add(OBJ::G_DICT_PRINT, gDictPrint::Create);
+
+  // Serialises the bound dictionary to one single-line compact JSON list
+  // message — the write half of the interchange pair with .dict.deserialize,
+  // and the same document DictToJson builds for a saved patch (issue #778)
+  Add(OBJ::G_DICT_SERIALIZE, gDictSerialize::Create);
 
   // An ordered, index-addressed sequence shared by name — the collection type a
   // generative patch actually reaches for, and the value model the array.*

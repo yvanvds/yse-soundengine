@@ -2970,6 +2970,41 @@
       }
     ]
   },
+  ".dict.serialize": {
+    "category": "GENERIC",
+    "description": "Serialises a dictionary to text — Max's dict.serialize ('convert a dictionary into a single symbol') on the name-addressed value model .dict settled. The write half of the interchange pair whose read half is .dict.deserialize: a dictionary becomes a JSON string a host, a .textedit, a .s/.r pair or the live-coding DSL can carry — what makes a dictionary the patcher's interchange format rather than only its store. The dictionary is bound from the creation argument, \".dict.serialize <name>\", resolved once on the control thread; a bang, or the dictionary's reference message \"dictionary <name>\", sends the whole dictionary out the outlet as one list message holding a single-line compact JSON object — \"::\" paths expanded into real nesting, members in storage order of first appearance, no whitespace outside strings, values typed by the patcher's own classifier: a single numeric token as a number, a multi-token value as an array, an empty value as \"\", anything else as an escaped string. Exactly the document DictToJson builds for a saved patch, so what leaves here parses anywhere JSON parses. The document is a snapshot of the dictionary as it stood at the trigger, composed by a bounded allocation-free emitter, so no message path allocates, locks or blocks and Calculate() does nothing. A finished document longer than 255 characters — the longest list payload the patcher's value queue carries — is refused whole and counted, never truncated: a truncated JSON document parses as a different dictionary or none at all. Only the creation argument persists across a save; the dictionary's contents persist with the .dict that owns them.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang serialises the bound dictionary: the whole dictionary leaves the outlet as one list message holding a single-line compact JSON object. \"dictionary <name>\" does the same when it names the dictionary bound by the creation argument — the message a .dict's reference outlet emits on a bang, so wiring that outlet here gives Max's own gesture: bang the dict, out comes its text. A reference naming anything else, any other message, or a trigger arriving while a document is already being composed — a cord looped back from the outlet, or another thread — is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "serialize",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".dict.serialize",
+    "outlets": [
+      {
+        "doc": "The document: one JSON object on one line, no whitespace outside strings — \"::\" paths expanded into real nesting, members in storage order of first appearance, values typed by the patcher's own classifier (a single numeric token as a number, a multi-token value as an array, an empty value as \"\", anything else as an escaped string), an empty dictionary as {}. Exactly the document DictToJson builds for a saved patch, and exactly what .dict.deserialize parses back — the dictionary's interchange form. The document is a snapshot of the dictionary as it stood at the trigger. A finished document longer than 255 characters — the longest list payload the patcher's value queue carries — is refused whole and counted, never truncated: a truncated document is not a shorter document, it parses as a different one. Route a dictionary that large through its parts instead (.dict.iter), or keep it in the store it lives in.",
+        "index": 0,
+        "label": "json",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The dictionary's shared name, addressed as \"<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty binds a private, empty dictionary — the document is then {}.",
+        "name": "name",
+        "range": "any identifier"
+      }
+    ]
+  },
   ".div": {
     "category": "MATH",
     "description": "Control-rate integer division. Emits left / right as an int whenever inlet 0 fires, truncating towards zero instead of producing the float ./ would. Floats truncate towards zero on input, and a divisor of 0 emits 0.",

@@ -54,7 +54,8 @@ namespace YSE {
    *  - Collections: ``G_COLL``, ``G_BAG``, ``G_CAPTURE``, ``G_FUNBUFF``,
    *    ``G_TABLE``, ``G_TEXTFILE``, ``G_QLIST``, ``G_MTR``, ``G_SEQ``.
    *  - Dictionaries: ``G_DICT``, ``G_DICT_COMPARE``, ``G_DICT_GROUP``,
-   *    ``G_DICT_ITER``, ``G_DICT_JOIN``, ``G_DICT_PACK``, ``G_DICT_PRINT``.
+   *    ``G_DICT_ITER``, ``G_DICT_JOIN``, ``G_DICT_PACK``, ``G_DICT_PRINT``,
+   *    ``G_DICT_SERIALIZE``.
    *  - Arrays: ``G_ARRAY``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
@@ -297,6 +298,17 @@ namespace YSE {
     // see by wiring it to a sink, because what a cord carries is only its
     // name.
     DEFOBJ(G_DICT_PRINT, ".dict.print");
+
+    // Serialises a dictionary to text (issue #778): the dictionary is bound
+    // from the creation argument — ``.dict.serialize <name>`` — and a bang,
+    // or the dictionary's ``dictionary <name>`` reference, sends the whole
+    // dictionary out the outlet as one list message holding a single-line
+    // compact JSON object — the same document ``DictToJson`` builds for a
+    // saved patch, and exactly what ``.dict.deserialize`` parses back. The
+    // write half of the pair that makes a dictionary the patcher's
+    // interchange format rather than only its store. A document longer than
+    // the patcher's list payload bound is refused whole, never truncated.
+    DEFOBJ(G_DICT_SERIALIZE, ".dict.serialize");
 
     // An ordered, index-addressed sequence shared by name (issue #548), the
     // second type built on the value model ``.dict`` settled: an ``OUT_TYPE``
