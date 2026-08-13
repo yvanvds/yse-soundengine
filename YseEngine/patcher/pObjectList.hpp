@@ -36,6 +36,7 @@ namespace YSE {
    *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_RSLIDER``,
    *    ``G_MULTISLIDER``, ``G_MATRIXCTRL``, ``G_KSLIDER``, ``G_NSLIDER``,
    *    ``G_DIAL``, ``G_INCDEC``, ``G_RANDOM``.
+   *  - Proximity fields: ``G_NODES``.
    *  - Indexed selection: ``G_UMENU``, ``G_RADIOGROUP``, ``G_TAB``.
    *  - Labelled switches: ``G_LED``, ``G_TEXTBUTTON``.
    *  - Text entry: ``G_TEXTEDIT``.
@@ -139,6 +140,12 @@ namespace YSE {
     DEFOBJ(G_MATRIXCTRL, ".matrixctrl");
     DEFOBJ(G_KSLIDER, ".kslider");
     DEFOBJ(G_NSLIDER, ".nslider");
+    // A field of circular nodes a cursor is weighed against (issue #562) — the
+    // patcher's morph controller, and the first control whose *output* is a
+    // computation over its own state rather than the state itself. One XY
+    // position in, per-node distance and normalised weight out. See
+    // guiObjects/gNodes.h.
+    DEFOBJ(G_NODES, ".nodes");
     // The indexed selector family (issue #556) — one implementation of "a
     // bounded index over a named item list" under the three names a host draws
     // differently. See guiObjects/gItemList.h.

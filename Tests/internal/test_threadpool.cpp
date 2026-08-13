@@ -300,4 +300,26 @@ TEST_SUITE("internal") {
     CHECK(counter.load() == 100);
   }
 
+  TEST_CASE("threadPool: auto-sized render pool is capped, not core-count-scaled") {
+    // Issue #650. The render fan-out gets monotonically slower as workers are
+    // added (the whole-graph render bench lost ~40% between 1 worker and this
+    // machine's hardware_concurrency), so auto-sizing to the core count made a
+    // bigger machine render worse. Pin the rule: an auto-sized render pool never
+    // spawns more than MAX_AUTO_RENDER_THREADS workers, however many cores the
+    // host reports, and always spawns at least one.
+    threadPool autoRender(-1, poolClass::render);
+    CHECK(autoRender.workerCount() >= 1);
+    CHECK(autoRender.workerCount() <= threadPool::MAX_AUTO_RENDER_THREADS);
+
+    // The cap must not silently clamp a caller that asked for a specific count —
+    // it applies to auto-sizing only.
+    threadPool explicitRender(threadPool::MAX_AUTO_RENDER_THREADS + 3, poolClass::render);
+    CHECK(explicitRender.workerCount() == threadPool::MAX_AUTO_RENDER_THREADS + 3);
+
+    // ...and it must not touch background pools, whose workers do blocking I/O
+    // rather than racing the block deadline.
+    threadPool background(1, poolClass::background);
+    CHECK(background.workerCount() == 1);
+  }
+
 } // TEST_SUITE

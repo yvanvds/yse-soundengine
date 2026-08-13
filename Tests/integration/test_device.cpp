@@ -356,7 +356,7 @@ TEST_SUITE("integration") {
   // The enumeration API is declared exactly when the RtMidi-backed device
   // manager is compiled (Windows and Linux), so key on that option alone —
   // the platform is not the condition. On a machine with no MIDI hardware the
-  // device manager fails to prepare and every call returns 0 / "Invalid Call"
+  // device manager fails to prepare and every call returns 0 / an empty name
   // instead of throwing, which is what makes these safe as headless smoke tests.
 #if YSE_ENABLE_MIDI_DEVICE
   TEST_CASE("midi: getNumMidiInDevices does not crash") {
@@ -379,7 +379,13 @@ TEST_SUITE("integration") {
       (void)YSE::System().getMidiInDeviceName(i);
     for (unsigned int i = 0; i < nOut; i++)
       (void)YSE::System().getMidiOutDeviceName(i);
-    CHECK(true);
+    // Through the public engine facade, with a real device open: a name only
+    // ever comes back for a counted port (issue #585). The facade forwards
+    // straight to the device manager, so what this adds over the unit case is
+    // the real session — the getters are asked on a host that actually has a
+    // MIDI backend, where the empty answer must hold too.
+    CHECK(YSE::System().getMidiInDeviceName(nIn + 9999).empty());
+    CHECK(YSE::System().getMidiOutDeviceName(nOut + 9999).empty());
   }
 #endif // YSE_ENABLE_MIDI_DEVICE
 

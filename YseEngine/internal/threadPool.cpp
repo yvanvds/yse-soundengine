@@ -130,12 +130,19 @@ YSE::INTERNAL::threadPool::threadPool(Int numThreads, poolClass cls)
     classOf(cls),
     active(false) {
   if (poolSize == -1) {
-    poolSize = std::thread::hardware_concurrency();
+    poolSize = (Int)std::thread::hardware_concurrency();
+    // Render fan-out does not scale with core count — it scales *against* it.
+    // See MAX_AUTO_RENDER_THREADS in threadPool.h for the measurements (#650).
+    // Background pools are sized explicitly by their owner, so this only ever
+    // caps a render pool that asked to be auto-sized.
+    if (cls == poolClass::render && poolSize > MAX_AUTO_RENDER_THREADS) {
+      poolSize = MAX_AUTO_RENDER_THREADS;
+    }
   }
 
   // this might happen if hardware_concurrency() is not well defined or not computable
   // in which case we need at least one thread to continue
-  if (poolSize == 0) {
+  if (poolSize <= 0) {
     poolSize = 1;
   }
 

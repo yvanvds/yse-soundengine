@@ -80,10 +80,44 @@ namespace YSE {
 
     class threadPool {
     public:
-      // numThreads: -1 means hardware_concurrency. cls selects the RT behaviour
-      // (see poolClass).
+      // Upper bound on auto-sized (numThreads == -1) *render* worker count.
+      //
+      // The render fan-out's useful concurrency is bounded by how many sibling
+      // channels are dispatched at once — a handful in any real scene — and the
+      // joining audio thread is itself one of the consumers (join() help-runs,
+      // issue #284). Every worker past that point is pure cost: it contends for
+      // the same ring cursor, and because a job lands on whichever worker wins
+      // the pop, each channel's `out` buffers and its sounds' impl state migrate
+      // to a different core every block, so the audio thread re-pulls them in
+      // buffersToParent().
+      //
+      // Measured (issue #650, BM_Engine_RenderOffline_100Sounds, interleaved A/B
+      // per the #647 protocol, fixed-block controls flat within 1%): the scene
+      // gets monotonically *slower* as workers are added — 1 worker 558 us,
+      // 2: 711 us, 3: 813 us, 4: 803 us, 24 (= hardware_concurrency on the bench
+      // machine): 883 us per iteration. The same ordering holds in a deliberately
+      // heavy 8-channel / 1600-sound scene (1: 8.0 ms ... 24: 15.1 ms). Nothing
+      // measured has ever been faster with more than a couple of workers.
+      //
+      // Auto-sizing to hardware_concurrency() therefore scaled the *wrong* way:
+      // the better the machine, the worse the render. The cap keeps genuine
+      // parallelism for the common master fan-out while cutting that loss.
+      //
+      // It does not close the gap: not dispatching at all was faster still
+      // (450 us on the same scene). Whether to drop the fan-out or give it
+      // worker affinity is the structural question, tracked in issue #812.
+      static constexpr Int MAX_AUTO_RENDER_THREADS = 2;
+
+      // numThreads: -1 means auto-size (hardware_concurrency, capped at
+      // MAX_AUTO_RENDER_THREADS for render pools). An explicit count is honoured
+      // as given. cls selects the RT behaviour (see poolClass).
       explicit threadPool(Int numThreads = -1, poolClass cls = poolClass::render);
       ~threadPool();
+
+      // Resolved worker count. Exposed for tests that pin the auto-sizing rule.
+      Int workerCount() const {
+        return poolSize;
+      }
 
       // Wait-free on the producer side: pushes the job into the lock-free ring
       // and lets a worker pick it up. Never locks, allocates, or blocks — safe

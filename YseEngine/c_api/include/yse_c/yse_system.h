@@ -136,7 +136,12 @@ YSE_C_API void yse_system_set_channel_configuration(YseSystem* sys, YseChannelTy
 YSE_C_API size_t yse_system_default_device(YseSystem* sys, char* buf, size_t cap);
 YSE_C_API size_t yse_system_default_host(YseSystem* sys, char* buf, size_t cap);
 
-/* MIDI devices (Windows / Linux only — Android builds report 0). */
+/* MIDI devices (Windows / Linux only — Android builds report 0).
+
+   The name getters write an empty, NUL-terminated buffer and return 0 when
+   there is no such device: an `id` at or past the matching count, or any `id`
+   at all on a host whose MIDI backend failed to initialise (issue #585). A
+   non-empty name therefore always means a real port. */
 YSE_C_API unsigned int yse_system_num_midi_in_devices(YseSystem* sys);
 YSE_C_API unsigned int yse_system_num_midi_out_devices(YseSystem* sys);
 YSE_C_API size_t yse_system_midi_in_device_name(YseSystem* sys, unsigned int id, char* buf,

@@ -241,6 +241,54 @@ TEST_SUITE("dsp") {
     CHECK(TestHelpers::measureRms(buf[0]) > 0.0f);
   }
 
+  // Integration-level cover for issue #651: the phaser is the shipped effect
+  // built on the raw one-pole / one-zero filters, and `process()` is the
+  // public entry point a host drives with whatever block length it uses.
+  //
+  // Before the fix this path was broken end to end for any block other than
+  // STANDARD_BUFFERSIZE: the all-pass cascade's outputs stayed 128 samples long
+  // (overrunning the heap on a longer block) and the LFO coefficient buffer was
+  // always 128 (tripping the cascade's length precondition, which zeroes the
+  // output — silence — in release and asserts in debug). Neither failure is
+  // visible from a raw-filter unit test that calls the filters directly with
+  // matched inputs; both are visible here.
+  TEST_CASE("phaser: process handles blocks other than STANDARD_BUFFERSIZE") {
+    unsigned n = 0;
+    SUBCASE("shorter block") {
+      n = 64;
+    }
+    SUBCASE("longer block") {
+      n = 256;
+    }
+    REQUIRE(n != YSE::STANDARD_BUFFERSIZE);
+
+    YSE::DSP::MODULES::phaser p;
+    MULTICHANNELBUFFER buf(2);
+    for (int ch = 0; ch < 2; ++ch)
+      buf[ch].resize(n);
+
+    for (int iter = 0; iter < 20; ++iter) {
+      for (int ch = 0; ch < 2; ++ch) {
+        float* ptr = buf[ch].getPtr();
+        for (unsigned i = 0; i < n; ++i)
+          ptr[i] = std::sin(2.0f * kPi * 440.0f * static_cast<float>(i) / 44100.0f);
+      }
+      p.process(buf);
+    }
+
+    for (int ch = 0; ch < 2; ++ch) {
+      // The block length survives the round trip, and the sample right at the
+      // end — the one an overrun wrote out of bounds — is a real value.
+      CHECK(buf[ch].getLength() == n);
+      float* op = buf[ch].getPtr();
+      for (unsigned i = 0; i < n; ++i)
+        CHECK(std::abs(op[i]) < 5.0f);
+      // Zeroed-output symptom of the tripped length precondition: a phased sine
+      // is never silent.
+      CHECK(TestHelpers::measureRms(buf[ch]) > 0.0f);
+    }
+  }
+
   // ─── granulator ──────────────────────────────────────────────────────────────
 
   TEST_CASE("granulator: process completes without crash on repeated calls") {

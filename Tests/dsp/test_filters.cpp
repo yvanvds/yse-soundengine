@@ -7,7 +7,9 @@
 #include <cmath>
 #include "dsp/filters.hpp"
 #include "dsp/rawFilters.hpp"
+#include "headers/defines.hpp"
 #include "support/audio_helpers.hpp"
+#include "support/alloc_probe.hpp"
 
 TEST_SUITE("dsp") {
 
@@ -151,7 +153,6 @@ TEST_SUITE("dsp") {
 
   TEST_CASE("realOnePole: impulse response decays exponentially with coef=0.9") {
     // Formula: out[n] = coef^n for an impulse at sample 0.
-    // in1 and in2 must be STANDARD_BUFFERSIZE (128) to match the pre-allocated `out`.
     YSE::DSP::realOnePole pole;
     YSE::DSP::buffer in1(128);
     in1 = 0.0f;
@@ -181,6 +182,157 @@ TEST_SUITE("dsp") {
     CHECK(ptr[0] == doctest::Approx(1.0f).epsilon(1e-5f));
     CHECK(ptr[1] == doctest::Approx(-0.5f).epsilon(1e-5f));
     CHECK(ptr[2] == doctest::Approx(0.0f).epsilon(1e-5f));
+  }
+
+  // ─── rawFilters: block lengths other than STANDARD_BUFFERSIZE (issue #651) ────
+  //
+  // The output buffers were fixed at STANDARD_BUFFERSIZE by construction while
+  // the render loops wrote in1.getLength() samples. A longer input therefore
+  // wrote past the end of the allocation (heap corruption, no diagnostic), and
+  // a shorter one returned a buffer whose length did not describe its valid
+  // samples. Both failure modes are visible below without a sanitizer: the
+  // length assertions fail on the unpatched code, and the value assertions read
+  // the region the overrun used to write into.
+
+  TEST_CASE("rawFilters: real filters honour the input length, not STANDARD_BUFFERSIZE") {
+    // Deliberately both below and above STANDARD_BUFFERSIZE (128): the short
+    // case used to under-report the valid range, the long case overran.
+    unsigned n = 0;
+    SUBCASE("shorter than STANDARD_BUFFERSIZE") {
+      n = 64;
+    }
+    SUBCASE("longer than STANDARD_BUFFERSIZE") {
+      n = 256;
+    }
+    REQUIRE(n != YSE::STANDARD_BUFFERSIZE);
+
+    YSE::DSP::buffer in1 = TestHelpers::makeImpulse(n);
+    YSE::DSP::buffer in2(n);
+
+    {
+      YSE::DSP::realOnePole pole;
+      in2 = 0.9f;
+      YSE::DSP::buffer& out = pole(in1, in2);
+      CHECK(out.getLength() == n);
+      CHECK(out.getPtr()[0] == doctest::Approx(1.0f).epsilon(1e-5f));
+      CHECK(out.getPtr()[1] == doctest::Approx(0.9f).epsilon(1e-5f));
+      // The last sample is the one an overrun would have written out of bounds.
+      CHECK(out.getPtr()[n - 1] ==
+            doctest::Approx(std::pow(0.9f, static_cast<float>(n - 1))).epsilon(1e-4f));
+    }
+
+    {
+      YSE::DSP::realOneZero zero;
+      in2 = 0.5f;
+      YSE::DSP::buffer& out = zero(in1, in2);
+      CHECK(out.getLength() == n);
+      CHECK(out.getPtr()[0] == doctest::Approx(1.0f).epsilon(1e-5f));
+      CHECK(out.getPtr()[1] == doctest::Approx(-0.5f).epsilon(1e-5f));
+      CHECK(out.getPtr()[n - 1] == doctest::Approx(0.0f).epsilon(1e-5f));
+    }
+
+    {
+      // out[i] = in1[i-1] - in2[i]*in1[i]: the impulse shows up at [0] as
+      // -coef*1 and at [1] as the delayed 1.
+      YSE::DSP::realOneZeroReversed rzero;
+      in2 = 0.5f;
+      YSE::DSP::buffer& out = rzero(in1, in2);
+      CHECK(out.getLength() == n);
+      CHECK(out.getPtr()[0] == doctest::Approx(-0.5f).epsilon(1e-5f));
+      CHECK(out.getPtr()[1] == doctest::Approx(1.0f).epsilon(1e-5f));
+      CHECK(out.getPtr()[n - 1] == doctest::Approx(0.0f).epsilon(1e-5f));
+    }
+  }
+
+  TEST_CASE("rawFilters: complex filters honour the input length, not STANDARD_BUFFERSIZE") {
+    unsigned n = 0;
+    SUBCASE("shorter than STANDARD_BUFFERSIZE") {
+      n = 64;
+    }
+    SUBCASE("longer than STANDARD_BUFFERSIZE") {
+      n = 256;
+    }
+    REQUIRE(n != YSE::STANDARD_BUFFERSIZE);
+
+    // Channel 0 is the real part, channel 1 the imaginary part.
+    MULTICHANNELBUFFER in1(2);
+    MULTICHANNELBUFFER in2(2);
+    for (int ch = 0; ch < 2; ++ch) {
+      in1[ch].resize(n);
+      in2[ch].resize(n);
+    }
+    in1[0] = TestHelpers::makeImpulse(n);
+    in1[1] = 0.0f;
+    in2[1] = 0.0f; // purely real coefficient keeps the expected values simple
+
+    {
+      YSE::DSP::complexOnePole pole;
+      in2[0] = 0.9f;
+      MULTICHANNELBUFFER& out = pole(in1, in2);
+      REQUIRE(out.size() == 2);
+      CHECK(out[0].getLength() == n);
+      CHECK(out[1].getLength() == n);
+      CHECK(out[0].getPtr()[0] == doctest::Approx(1.0f).epsilon(1e-5f));
+      CHECK(out[0].getPtr()[1] == doctest::Approx(0.9f).epsilon(1e-5f));
+      CHECK(out[0].getPtr()[n - 1] ==
+            doctest::Approx(std::pow(0.9f, static_cast<float>(n - 1))).epsilon(1e-4f));
+    }
+
+    {
+      YSE::DSP::complexOneZero zero;
+      in2[0] = 0.5f;
+      MULTICHANNELBUFFER& out = zero(in1, in2);
+      REQUIRE(out.size() == 2);
+      CHECK(out[0].getLength() == n);
+      CHECK(out[1].getLength() == n);
+      CHECK(out[0].getPtr()[0] == doctest::Approx(1.0f).epsilon(1e-5f));
+      CHECK(out[0].getPtr()[1] == doctest::Approx(-0.5f).epsilon(1e-5f));
+      CHECK(out[0].getPtr()[n - 1] == doctest::Approx(0.0f).epsilon(1e-5f));
+    }
+
+    {
+      YSE::DSP::complexOneZeroReversed rzero;
+      in2[0] = 0.5f;
+      MULTICHANNELBUFFER& out = rzero(in1, in2);
+      REQUIRE(out.size() == 2);
+      CHECK(out[0].getLength() == n);
+      CHECK(out[1].getLength() == n);
+      CHECK(out[0].getPtr()[0] == doctest::Approx(1.0f).epsilon(1e-5f));
+      CHECK(out[0].getPtr()[n - 1] == doctest::Approx(0.0f).epsilon(1e-5f));
+    }
+  }
+
+  // The remaining length precondition (in1 and in2 must agree) is not covered
+  // by a case here: it is enforced by a live `if` that runs in every build —
+  // see rawFilters.cpp — but the `assert` beside it deliberately aborts a debug
+  // build, and every test preset in CMakePresets.json is a Debug build, so a
+  // case exercising it could only ever be dead `#ifdef NDEBUG` code.
+
+  TEST_CASE("rawFilters: steady-state processing at a fixed length does not allocate") {
+    // The resize is a grow-only cost in practice — std::vector keeps capacity —
+    // so after the first block at a given length the audio path must be
+    // allocation-free (project RT rule; issue #651 "Done when").
+    if (!TestHelpers::probeCountsAllocations()) return;
+
+    YSE::DSP::realOnePole pole;
+    YSE::DSP::realOneZero zero;
+    YSE::DSP::buffer in1(64);
+    YSE::DSP::buffer in2(64);
+    in1 = 0.25f;
+    in2 = 0.5f;
+
+    // First block sizes the outputs; everything after it is steady state.
+    pole(in1, in2);
+    zero(in1, in2);
+
+    {
+      TestHelpers::ProbeScope probe;
+      for (int i = 0; i < 32; ++i) {
+        pole(in1, in2);
+        zero(in1, in2);
+      }
+      CHECK(TestHelpers::g_alloc_count.load() == 0);
+    }
   }
 
 } // TEST_SUITE("dsp")
