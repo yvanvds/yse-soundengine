@@ -24,6 +24,7 @@
 
 #include <doctest/doctest.h>
 
+#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -48,6 +49,12 @@ namespace {
   constexpr const char* kInlet = ".inlet";
   constexpr const char* kOutlet = ".outlet";
   constexpr const char* kAdd = ".+";
+  // The bang chain of issue #626: a button, the metronome its bang has to
+  // start, and a counter turning each emitted bang into a number the .i sink
+  // holds — so the whole flow is readable back over this same ABI.
+  constexpr const char* kButton = ".b";
+  constexpr const char* kMetro = ".metro";
+  constexpr const char* kCounter = ".counter";
 
   // Read a snprintf-convention getter into a std::string, using the two-call
   // size-then-fill pattern a binding would use.
@@ -473,6 +480,81 @@ TEST_SUITE("capilowcov") {
     yse_phandle_set_float(mul, 1, 0.5f);
     yse_phandle_set_list(mul, 0, "1 2 3");
 
+    yse_patcher_destroy(p);
+  }
+
+  // ─── .metro's left inlet, as a host meets it (issue #626) ──────────────────
+
+  TEST_CASE("c-api patcher: a button starts .metro through inlet 0 (#626)") {
+    // The engine half of this landed with #711 and is covered object-side in
+    // Tests/patcher/test_generic_objects.cpp. What issue #626 is about is
+    // whether it reaches a *host*, and that is a different question with its
+    // own way of failing: phi gates a cord on the accepts mask this C API
+    // reports (phi#439), so a bang method the mask does not advertise is a cord
+    // the user cannot draw — engine behaviour nobody can trigger. Both halves
+    // are asserted here, over the flat ABI a binding actually has: the mask a
+    // palette reads, and the bang a drawn cord delivers.
+    const char* label = nullptr;
+    const char* doc = nullptr;
+    const char* range = nullptr;
+    unsigned int accepts = 0;
+    yse_patcher_get_inlet_info(kMetro, 0, &label, &doc, &range, &accepts);
+    CHECK((accepts & YSE_IN_ACCEPTS_BANG) != 0u);
+    CHECK((accepts & YSE_IN_ACCEPTS_FLOAT) != 0u);
+    CHECK((accepts & YSE_IN_ACCEPTS_INT) != 0u);
+
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    YsePHandle* button = yse_patcher_create_object(p, kButton, nullptr);
+    YsePHandle* metro = yse_patcher_create_object(p, kMetro, nullptr);
+    YsePHandle* counter = yse_patcher_create_object(p, kCounter, nullptr);
+    YsePHandle* sink = yse_patcher_create_object(p, kInt, nullptr);
+    REQUIRE(button != nullptr);
+    REQUIRE(metro != nullptr);
+    REQUIRE(counter != nullptr);
+    REQUIRE(sink != nullptr);
+
+    // The patch of phi#439: .b ─▶ .metro ─▶ .counter ─▶ .i.
+    yse_patcher_connect(p, button, 0, metro, 0);
+    yse_patcher_connect(p, metro, 0, counter, 0);
+    yse_patcher_connect(p, counter, 0, sink, 0);
+
+    // An interval far longer than this test can run, set before anything starts
+    // the metro, so every bang counted below is one the left inlet asked for
+    // rather than one the timer worker delivered.
+    yse_phandle_set_int(metro, 1, 1'000'000);
+
+    const auto bangs = [&] {
+      const std::string held =
+          readString([&](char* b, size_t c) { return yse_phandle_get_gui_value(sink, b, c); });
+      return std::strtol(held.c_str(), nullptr, 10);
+    };
+    CHECK(bangs() == 0);
+
+    // Max, left inlet: "starts the metro object", plus "bang is sent
+    // immediately when metro is started" — so one press, one bang out.
+    yse_phandle_set_bang(button, 0);
+    CHECK(bangs() == 1);
+
+    // A second press re-starts a metro that is already running rather than
+    // being swallowed: Max Basic Tutorial 4's "the button forces the metro
+    // objects to restart in sync", which is what the method is for.
+    yse_phandle_set_bang(button, 0);
+    CHECK(bangs() == 2);
+
+    // The float half of the same mask — Max's "performs the same function as
+    // int" — driven straight at the inlet the way a .slider or .f wired in
+    // would. 0 stops and emits nothing; 0.5 is "a number other than 0" and
+    // starts, which a cast to int would not.
+    yse_phandle_set_float(metro, 0, 0.f);
+    CHECK(bangs() == 2);
+    yse_phandle_set_float(metro, 0, 0.5f);
+    CHECK(bangs() == 3);
+
+    // Stopped before it is torn down, so no timer callback outlives the graph.
+    yse_phandle_set_int(metro, 0, 0);
     yse_patcher_destroy(p);
   }
 
