@@ -40,6 +40,7 @@
 #include "channel/channelInterface.hpp"
 #include "sound/soundInterface.hpp"
 #include "support/null_device.hpp"
+#include "support/timer_pacing.hpp"
 
 #if LIBSOUNDFILE_BACKEND
 #include "internal/lsfSoundfile.h"
@@ -208,13 +209,17 @@ TEST_SUITE("sound") {
 
     // Pump update+render until the async slow-pool setup promotes the sound.
     // Pre-fix this never happened: the file went INVALID and setup() marked the
-    // object OBJECT_DELETE_PENDING, so isReady() stayed false until the deadline.
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
-    while (std::chrono::steady_clock::now() < deadline && !s.isReady()) {
-      YSE::System().update();
-      YSE::System().renderOffline(2);
-      std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    }
+    // object OBJECT_DELETE_PENDING, so isReady() stayed false however long we
+    // waited. The budget is counted in ticks of the suite's pacing reference
+    // rather than in wall clock, so it stretches with the load the slow pool is
+    // under instead of expiring on it (issue #753).
+    TestHelpers::pacedPump(
+        3000, [&] { return s.isReady(); },
+        [] {
+          YSE::System().update();
+          YSE::System().renderOffline(2);
+        },
+        5);
     REQUIRE(s.isReady());
     CHECK(s.length() == frames);
 

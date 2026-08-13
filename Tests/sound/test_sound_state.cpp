@@ -26,6 +26,7 @@
 #include "internal/time.h"
 #include "log.hpp"
 #include "support/null_device.hpp"
+#include "support/timer_pacing.hpp"
 
 // Minimal no-op DSP source used to create sounds without file I/O.
 namespace {
@@ -649,15 +650,17 @@ TEST_SUITE("sound") {
     if (!s.isValid()) return; // fixture missing in this environment
 
     // Pump the manager directly (test thread drives update; audio is paused).
-    // Budget: ~1 s wall-clock — loading a 244-byte WAV through the single
-    // slow-pool worker normally completes within a couple of update ticks.
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
-    while (std::chrono::steady_clock::now() < deadline) {
-      YSE::INTERNAL::Time().update();
-      YSE::SOUND::Manager().update();
-      if (s.isReady()) break;
-      std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    }
+    // Budget: 1000 ticks of the suite's pacing reference rather than ~1 s of
+    // wall clock (issue #753) — loading a 244-byte WAV through the single
+    // slow-pool worker normally completes within a couple of update ticks, and
+    // a box slow enough to need more of them gets proportionally more.
+    TestHelpers::pacedPump(
+        1000, [&] { return s.isReady(); },
+        [] {
+          YSE::INTERNAL::Time().update();
+          YSE::SOUND::Manager().update();
+        },
+        5);
     CHECK(s.isReady());
   }
 

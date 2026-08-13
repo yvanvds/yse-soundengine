@@ -22,14 +22,13 @@
 
 #include <doctest/doctest.h>
 
-#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <fstream>
 #include <string>
-#include <thread>
 #include <vector>
 
+#include "support/timer_pacing.hpp"
 #include "yse_c/yse_instrument.h"
 #include "yse_c/yse_synth.h"
 #include "yse_c/yse_sound.h"
@@ -39,8 +38,6 @@
 #define YSE_TEST_FIXTURES_DIR "../../Tests/support/fixtures"
 #endif
 
-using namespace std::chrono_literals;
-
 namespace {
 
   std::string fixturesDir() {
@@ -48,17 +45,17 @@ namespace {
   }
 
   // Pump the engine offline until the synth has cloned `expected` voices, or the
-  // budget expires. Same drain helper the synthcapi suite uses.
-  bool drainUntilVoices(YseSystem* sys, YseSynth* syn, int expected,
-                        std::chrono::milliseconds budget = 3000ms) {
-    const auto deadline = std::chrono::steady_clock::now() + budget;
-    while (std::chrono::steady_clock::now() < deadline) {
-      yse_system_update(sys);
-      yse_system_render_offline(sys, 1);
-      if (yse_synth_get_num_voices(syn) >= expected) return true;
-      std::this_thread::sleep_for(2ms);
-    }
-    return yse_synth_get_num_voices(syn) >= expected;
+  // budget expires. Same drain helper the synthcapi suite uses: `ticks` is a
+  // budget in deliveries of the suite's reference timer rather than in
+  // milliseconds (issue #753), so it stretches with machine load.
+  bool drainUntilVoices(YseSystem* sys, YseSynth* syn, int expected, int ticks = 3000) {
+    return TestHelpers::pacedPump(
+        ticks, [syn, expected] { return yse_synth_get_num_voices(syn) >= expected; },
+        [sys] {
+          yse_system_update(sys);
+          yse_system_render_offline(sys, 1);
+        },
+        2);
   }
 
   void render(YseSystem* sys, int blocks) {
@@ -68,13 +65,16 @@ namespace {
     }
   }
 
-  void drainFor(YseSystem* sys, std::chrono::milliseconds budget) {
-    const auto deadline = std::chrono::steady_clock::now() + budget;
-    while (std::chrono::steady_clock::now() < deadline) {
-      yse_system_update(sys);
-      yse_system_render_offline(sys, 1);
-      std::this_thread::sleep_for(2ms);
-    }
+  // The window is counted in reference-timer ticks rather than milliseconds
+  // (issue #753).
+  void drainFor(YseSystem* sys, int ticks) {
+    TestHelpers::pacedPump(
+        ticks, [] { return false; },
+        [sys] {
+          yse_system_update(sys);
+          yse_system_render_offline(sys, 1);
+        },
+        2);
   }
 
   // ─── DX7 SysEx fixture generation (raw bytes, no engine headers) ────────────
@@ -297,7 +297,7 @@ TEST_SUITE("instrumentcapi") {
 
     yse_sound_destroy(snd);
     yse_synth_destroy(syn);
-    drainFor(sys, 300ms);
+    drainFor(sys, 300);
     yse_system_close(sys);
   }
 
@@ -376,7 +376,7 @@ TEST_SUITE("instrumentcapi") {
 
     yse_sound_destroy(snd);
     yse_synth_destroy(syn);
-    drainFor(sys, 300ms);
+    drainFor(sys, 300);
     yse_system_close(sys);
   }
 
@@ -448,7 +448,7 @@ TEST_SUITE("instrumentcapi") {
     yse_sound_destroy(snd);
     yse_synth_destroy(syn);
     yse_dx7_destroy(bank);
-    drainFor(sys, 300ms);
+    drainFor(sys, 300);
     yse_system_close(sys);
     std::remove(path.c_str());
   }

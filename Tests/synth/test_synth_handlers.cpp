@@ -30,20 +30,23 @@
 #include "synth/positionHandlers.hpp"
 #include "synth/sineVoice.hpp"
 #include "synth/synthInterface.hpp"
+#include "support/timer_pacing.hpp"
 
 namespace {
 
   // Bring a synth (behind a sound) to READY by pumping the offline engine until
-  // its voices are cloned on the slow pool, or a deadline passes.
+  // its voices are cloned on the slow pool, or the budget runs out. That budget
+  // is counted in deliveries of the suite's reference timer, not in
+  // milliseconds (issue #753): it stretches with machine load exactly as the
+  // slow pool does, while a wedged pool still fails.
   bool bringToReady(YSE::synth& syn, int expectVoices) {
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
-    while (std::chrono::steady_clock::now() < deadline) {
-      YSE::System().update();
-      YSE::System().renderOffline(1);
-      if (syn.getNumVoices() == expectVoices) return true;
-      std::this_thread::sleep_for(std::chrono::milliseconds(2));
-    }
-    return syn.getNumVoices() == expectVoices;
+    return TestHelpers::pacedPump(
+        2000, [&syn, expectVoices] { return syn.getNumVoices() == expectVoices; },
+        [] {
+          YSE::System().update();
+          YSE::System().renderOffline(1);
+        },
+        2);
   }
 
   // Advance the offline engine by n blocks.

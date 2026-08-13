@@ -33,20 +33,23 @@
 #include "synth/synthInterface.hpp"
 #include "synth/synthManager.h"
 #include "internal/time.h"
+#include "support/timer_pacing.hpp"
 
 namespace {
 
   // Bring a synth (behind a sound) to READY by pumping the offline engine until
-  // its voices are cloned on the slow pool, or a deadline passes.
+  // its voices are cloned on the slow pool, or the budget runs out. That budget
+  // is counted in deliveries of the suite's reference timer, not in
+  // milliseconds (issue #753): it stretches with machine load exactly as the
+  // slow pool does, while a wedged pool still fails.
   bool bringToReady(YSE::synth& syn, int expectVoices) {
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
-    while (std::chrono::steady_clock::now() < deadline) {
-      YSE::System().update();
-      YSE::System().renderOffline(1);
-      if (syn.getNumVoices() == expectVoices) return true;
-      std::this_thread::sleep_for(std::chrono::milliseconds(2));
-    }
-    return syn.getNumVoices() == expectVoices;
+    return TestHelpers::pacedPump(
+        2000, [&syn, expectVoices] { return syn.getNumVoices() == expectVoices; },
+        [] {
+          YSE::System().update();
+          YSE::System().renderOffline(1);
+        },
+        2);
   }
 
   // Total energy (sum of squares) of one channel of a bed.
@@ -210,21 +213,24 @@ TEST_SUITE("synthpositioning") {
         snd.stop();
         YSE::System().renderOffline(4);
       }
-      // Drain the sound impl to full release/delete before the synth goes.
-      const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
-      while (std::chrono::steady_clock::now() < deadline) {
-        YSE::System().update();
-        YSE::System().renderOffline(1);
-        std::this_thread::sleep_for(std::chrono::milliseconds(2));
-      }
+      // Drain the sound impl to full release/delete before the synth goes, over
+      // a window of reference ticks rather than of wall clock (issue #753).
+      TestHelpers::pacedPump(
+          1000, [] { return false; },
+          [] {
+            YSE::System().update();
+            YSE::System().renderOffline(1);
+          },
+          2);
     }
     // Drain the synth impl.
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
-    while (std::chrono::steady_clock::now() < deadline) {
-      YSE::System().update();
-      YSE::System().renderOffline(1);
-      std::this_thread::sleep_for(std::chrono::milliseconds(2));
-    }
+    TestHelpers::pacedPump(
+        1000, [] { return false; },
+        [] {
+          YSE::System().update();
+          YSE::System().renderOffline(1);
+        },
+        2);
     YSE::System().close();
     CHECK(true);
   }
@@ -265,19 +271,22 @@ TEST_SUITE("synthpositioning") {
         snd.stop();
         YSE::System().renderOffline(4);
       }
-      const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
-      while (std::chrono::steady_clock::now() < deadline) {
-        YSE::System().update();
-        YSE::System().renderOffline(1);
-        std::this_thread::sleep_for(std::chrono::milliseconds(2));
-      }
+      // A drain window of reference ticks rather than of wall clock (#753).
+      TestHelpers::pacedPump(
+          1000, [] { return false; },
+          [] {
+            YSE::System().update();
+            YSE::System().renderOffline(1);
+          },
+          2);
     }
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
-    while (std::chrono::steady_clock::now() < deadline) {
-      YSE::System().update();
-      YSE::System().renderOffline(1);
-      std::this_thread::sleep_for(std::chrono::milliseconds(2));
-    }
+    TestHelpers::pacedPump(
+        1000, [] { return false; },
+        [] {
+          YSE::System().update();
+          YSE::System().renderOffline(1);
+        },
+        2);
     YSE::System().close();
     CHECK(true);
   }

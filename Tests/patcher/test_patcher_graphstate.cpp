@@ -19,6 +19,7 @@
 #include "patcher/pObjectList.hpp"
 #include "dsp/buffer.hpp"
 #include "sinks.hpp"
+#include "support/timer_pacing.hpp"
 #include <chrono>
 #include <string>
 #include <thread>
@@ -165,15 +166,19 @@ TEST_SUITE("patcher") {
 
     // Let the background worker catch up. Re-arm with a light edit each spin so a
     // reclaimer that gave up on a momentarily-stalled epoch is retriggered; the
-    // rendered blocks keep the epoch moving so it can cross the +2 grace.
-    for (int spins = 0; spins < 2000 && p.PendingRetired() > 4; ++spins) {
-      p.Connect(noise, 0, dac, 0);
-      p.Calculate(YSE::T_DSP);
-      p.Disconnect(noise, 0, dac, 0);
-      p.Calculate(YSE::T_DSP);
-      p.Calculate(YSE::T_DSP);
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    }
+    // rendered blocks keep the epoch moving so it can cross the +2 grace. The
+    // budget is counted in deliveries of the suite's reference timer rather than
+    // in milliseconds (issue #753), so it stretches with machine load exactly as
+    // the background pool does.
+    TestHelpers::pacedPump(
+        2000, [&] { return p.PendingRetired() <= 4; },
+        [&] {
+          p.Connect(noise, 0, dac, 0);
+          p.Calculate(YSE::T_DSP);
+          p.Disconnect(noise, 0, dac, 0);
+          p.Calculate(YSE::T_DSP);
+          p.Calculate(YSE::T_DSP);
+        });
 
     // A handful of just-retired snapshots may still be inside the +2 grace, but
     // the 400+ retired over the churn must be gone — reclaimed by the pool, not
@@ -307,14 +312,15 @@ TEST_SUITE("patcher") {
     // targets from the pinned snapshot; a leftover one-sided edge would make
     // these blocks read the freed inlet (an ASan/TSan build trips here).
     YSE::pHandle* dac = p.CreateObject(YSE::OBJ::D_DAC, "");
-    for (int spins = 0; spins < 2000 && p.PendingRetired() > 4; ++spins) {
-      p.Connect(noiseA, 0, dac, 0);
-      p.Calculate(YSE::T_DSP);
-      p.Disconnect(noiseA, 0, dac, 0);
-      p.Calculate(YSE::T_DSP);
-      p.Calculate(YSE::T_DSP);
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    }
+    TestHelpers::pacedPump(
+        2000, [&] { return p.PendingRetired() <= 4; },
+        [&] {
+          p.Connect(noiseA, 0, dac, 0);
+          p.Calculate(YSE::T_DSP);
+          p.Disconnect(noiseA, 0, dac, 0);
+          p.Calculate(YSE::T_DSP);
+          p.Calculate(YSE::T_DSP);
+        });
     p.Calculate(YSE::T_DSP);
     CHECK(p.output[0].isSilent());
   }
@@ -458,14 +464,15 @@ TEST_SUITE("patcher") {
       // +2 grace); the background pool then frees the temp and recycles its ids
       // (RecycleObjectIds pushes all of a temp's inlet + outlet ids under one
       // reclaimMtx_ hold, so FreeIdCount jumps from 0 to the full count at once).
-      for (int spins = 0; spins < 3000 && p.FreeIdCount() == 0; ++spins) {
-        p.Disconnect(noise, 0, dac, 0);
-        p.Calculate(YSE::T_DSP);
-        p.Connect(noise, 0, dac, 0);
-        p.Calculate(YSE::T_DSP);
-        p.Calculate(YSE::T_DSP);
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-      }
+      TestHelpers::pacedPump(
+          3000, [&] { return p.FreeIdCount() > 0; },
+          [&] {
+            p.Disconnect(noise, 0, dac, 0);
+            p.Calculate(YSE::T_DSP);
+            p.Connect(noise, 0, dac, 0);
+            p.Calculate(YSE::T_DSP);
+            p.Calculate(YSE::T_DSP);
+          });
       REQUIRE(p.FreeIdCount() > 0); // the deleted temp's ids are recyclable now
 
       YSE::pHandle* temp = p.CreateObject(YSE::OBJ::D_ADD, "");

@@ -49,6 +49,7 @@
 #include <vector>
 
 #include "support/capilowcov_offline.hpp"
+#include "support/timer_pacing.hpp"
 
 // Engine-side readback for the layout case below: the C API exposes no
 // output-count getter, and channelImplementation.h (pulled in by the manager)
@@ -86,14 +87,15 @@ namespace {
     return std::string(buf.data());
   }
 
-  // Pump until `s` reports ready or the budget runs out. Wall-clock rather than
-  // a fixed iteration count so a loaded CI machine cannot flake it — same
-  // 2-second budget the C++ lifecycle suite uses for this fixture
+  // Pump until `s` reports ready or the budget runs out. The budget is 2000
+  // ticks of the suite's reference timer rather than 2 s of wall clock (issue
+  // #753) — a wall-clock budget is a claim about the machine's scheduler, which
+  // is exactly what a loaded CI box falsifies while the engine behaves. Same
+  // numeric budget the C++ lifecycle suite uses for this fixture
   // (Tests/system/test_lifecycle.cpp).
   void pumpUntilReady(YseSound* s) {
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
-    while (yse_sound_is_ready(s) == 0 && std::chrono::steady_clock::now() < deadline)
-      capilowcov::pump(1);
+    TestHelpers::pacedPump(
+        2000, [s] { return yse_sound_is_ready(s) != 0; }, [] { capilowcov::pump(1); });
   }
 
   // Load the bundled mono fixture into a fresh sound on the master channel and

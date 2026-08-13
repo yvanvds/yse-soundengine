@@ -67,6 +67,8 @@
 #include <thread>
 #include <vector>
 
+#include "support/timer_pacing.hpp"
+
 #include "yse.hpp"
 
 #include "channel/channelImplementation.h"
@@ -113,14 +115,18 @@ namespace {
   }
 
   // Drive the engine to quiescence: update() flags the control-plane work,
-  // renderOffline() runs the audio callback body, and the short sleep lets the
-  // single-threaded slow pool execute the queued setup() jobs. Offline analogue
-  // of the channel suite's drainChannels(); copied from the sendstress suite.
+  // renderOffline() runs the audio callback body, and the window between blocks
+  // lets the single-threaded slow pool execute the queued setup() jobs. Offline
+  // analogue of the channel suite's drainChannels(); copied from the sendstress
+  // suite. The block count is what the pump is for, so it stays fixed; the
+  // window is paced off the suite's reference timer rather than off the clock,
+  // so a box that schedules the pool late gets a proportionally wider one
+  // (issue #753).
   void pump(int iterations = 20) {
     for (int i = 0; i < iterations; ++i) {
       YSE::System().update();
       YSE::System().renderOffline(2);
-      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+      TestHelpers::paceWindow(2);
     }
   }
 

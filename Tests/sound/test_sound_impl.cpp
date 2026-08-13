@@ -37,6 +37,7 @@
 #include "implementations/listenerImplementation.h"
 #include "internal/virtualFinder.h"
 #include "support/null_device.hpp"
+#include "support/timer_pacing.hpp"
 
 namespace {
 
@@ -111,16 +112,21 @@ namespace {
   DcSource g_dc;
   StereoDcSource g_dcStereo;
 
-  // Drive SOUND::Manager().update() several times, with short sleeps so the
-  // async setupJob has a chance to call setup() on freshly created sounds and
-  // they can be promoted to inUse on a subsequent update().  This is a
-  // best-effort drain; tests guard on observable side-effects rather than
+  // Drive SOUND::Manager().update() several times, with a short wait between
+  // them so the async setupJob has a chance to call setup() on freshly created
+  // sounds and they can be promoted to inUse on a subsequent update().  This is
+  // a best-effort drain; tests guard on observable side-effects rather than
   // asserting strict count of update iterations needed.
+  //
+  // The iteration count is what advances the manager's state machine, so it
+  // stays as it is; the wait between iterations is denominated in ticks of the
+  // suite's pacing reference rather than in milliseconds, so the setup job gets
+  // proportionally longer on a box that is running the pool slower (#753).
   void drainSoundManager(int iterations = 8) {
     for (int i = 0; i < iterations; i++) {
       YSE::INTERNAL::Time().update();
       YSE::SOUND::Manager().update();
-      std::this_thread::sleep_for(std::chrono::milliseconds(5));
+      TestHelpers::paceWindow(5);
     }
   }
 
@@ -1382,14 +1388,16 @@ TEST_SUITE("sound") {
     auto audible = [&]() { return leftPeak() > 1e-4f || rightPeak() > 1e-4f; };
 
     // Pump update+render until the async slow-pool setup promotes the sound and
-    // it mixes real signal. Best-effort with a deadline; if the host never
-    // delivers audio (e.g. no slow pool), there is nothing to assert.
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
-    while (std::chrono::steady_clock::now() < deadline && !audible()) {
-      YSE::System().update();
-      YSE::System().renderOffline(2);
-      std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    }
+    // it mixes real signal. Best-effort on a budget counted in ticks of the
+    // suite's pacing reference rather than in wall clock (#753); if the host
+    // never delivers audio (e.g. no slow pool), there is nothing to assert.
+    TestHelpers::pacedPump(
+        3000, audible,
+        [] {
+          YSE::System().update();
+          YSE::System().renderOffline(2);
+        },
+        5);
     if (!audible()) return;
 
     // Settled hard-left: left output carries the signal, right is ~silent.
@@ -1451,12 +1459,14 @@ TEST_SUITE("sound") {
     auto rightPeak = [&]() { return ch.getPeakLinearPre(1); };
     auto audible = [&]() { return leftPeak() > 1e-4f || rightPeak() > 1e-4f; };
 
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
-    while (std::chrono::steady_clock::now() < deadline && !audible()) {
-      YSE::System().update();
-      YSE::System().renderOffline(2);
-      std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    }
+    // Budget in pacing-reference ticks rather than wall clock (#753).
+    TestHelpers::pacedPump(
+        3000, audible,
+        [] {
+          YSE::System().update();
+          YSE::System().renderOffline(2);
+        },
+        5);
     if (!audible()) return;
 
     // Both source channels sum through the same left-dominant gains: left output

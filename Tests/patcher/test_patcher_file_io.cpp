@@ -41,6 +41,7 @@
 #include "patcher/pObject.h"
 #include "patcher/pObjectList.hpp"
 #include "patcher/patcherImplementation.h"
+#include "support/timer_pacing.hpp"
 
 using YSE::PATCHER::fileScheduler;
 using YSE::PATCHER::patcherImplementation;
@@ -235,12 +236,12 @@ TEST_SUITE("patcher") {
     Blocker blocker;
     YSE::INTERNAL::Global().addSlowJob(&blocker);
     // Bounded rather than an open spin: a pool that never started would
-    // otherwise hang the suite instead of reporting that it cannot run this.
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
-    while (!blocker.running.load(std::memory_order_acquire) &&
-           std::chrono::steady_clock::now() < deadline) {
-      std::this_thread::yield();
-    }
+    // otherwise hang the suite instead of reporting that it cannot run this. The
+    // bound is counted in deliveries of the suite's reference timer rather than
+    // in milliseconds (issue #753), so a box too loaded to schedule the worker
+    // in time gets proportionally longer while a pool that never runs still
+    // fails the REQUIRE below.
+    TestHelpers::pacedUntil(5000, [&] { return blocker.running.load(std::memory_order_acquire); });
     REQUIRE(blocker.running.load(std::memory_order_acquire));
 
     fileScheduler* io = new fileScheduler();
@@ -255,7 +256,10 @@ TEST_SUITE("patcher") {
         std::this_thread::yield();
       // Long enough for the destructor to get past the vtable reset (three
       // no-op ~Entry calls away), short enough that the pool is not held up.
-      std::this_thread::sleep_for(std::chrono::milliseconds(25));
+      // In reference-timer ticks (issue #753), so the window grows with machine
+      // load rather than closing early on a box that has descheduled the
+      // destructor.
+      TestHelpers::paceWindow(25);
       blocker.release.store(true, std::memory_order_release);
     });
 

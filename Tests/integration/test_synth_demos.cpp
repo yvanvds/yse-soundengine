@@ -28,6 +28,8 @@
 #include <thread>
 #include <vector>
 
+#include "support/timer_pacing.hpp"
+
 #include "yse.hpp"
 #include "channel/channelInterface.hpp"
 #include "sound/soundInterface.hpp"
@@ -73,16 +75,18 @@ namespace {
   }
 
   // Bring a synth attached to a sound up to OBJECT_READY (voice cloning is async
-  // on the slow pool). Returns true once its voices are allocated.
+  // on the slow pool). Returns true once its voices are allocated. The budget is
+  // 2000 ticks of the suite's reference timer rather than 2 s of wall clock
+  // (issue #753): the REQUIREs below are about the clone completing, not about
+  // the machine finishing it inside a fixed window.
   bool bringReady(YSE::synth& syn, int expectedVoices) {
-    const auto deadline = std::chrono::steady_clock::now() + 2s;
-    while (std::chrono::steady_clock::now() < deadline) {
-      YSE::System().update();
-      YSE::System().renderOffline(1);
-      if (syn.getNumVoices() == expectedVoices) return true;
-      std::this_thread::sleep_for(5ms);
-    }
-    return syn.getNumVoices() == expectedVoices;
+    return TestHelpers::pacedPump(
+        2000, [&syn, expectedVoices] { return syn.getNumVoices() == expectedVoices; },
+        [] {
+          YSE::System().update();
+          YSE::System().renderOffline(1);
+        },
+        5);
   }
 
   // Advance the offline engine by n blocks. update() before each render flushes
@@ -95,14 +99,20 @@ namespace {
     }
   }
 
-  // Drain the engine so released impls are fully deleted before teardown.
-  void drain(std::chrono::milliseconds budget = 500ms) {
-    const auto deadline = std::chrono::steady_clock::now() + budget;
-    while (std::chrono::steady_clock::now() < deadline) {
-      YSE::System().update();
-      YSE::System().renderOffline(1);
-      std::this_thread::sleep_for(2ms);
-    }
+  // Drain the engine so released impls are fully deleted before teardown. The
+  // window is counted in ticks of the suite's reference timer rather than in
+  // milliseconds (issue #753): the deletion runs on the engine's own threads,
+  // and a box that schedules them late needs a wider window rather than the
+  // same one. The predicate never fires — this is a window, not a wait — so the
+  // pump runs the whole of it.
+  void drain(int ticks = 500) {
+    TestHelpers::pacedPump(
+        ticks, [] { return false; },
+        [] {
+          YSE::System().update();
+          YSE::System().renderOffline(1);
+        },
+        2);
   }
 
   double planarRadius(const YSE::Pos& p) {

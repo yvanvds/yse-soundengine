@@ -33,6 +33,7 @@
 #include <mutex>
 #include <thread>
 #include "midi/midiOutSender.h"
+#include "support/timer_pacing.hpp"
 #endif
 
 namespace {
@@ -433,13 +434,11 @@ TEST_SUITE("clip") {
       std::scoped_lock lk(m);
       return entries.at(i);
     }
-    bool await(std::size_t n, int timeoutMs = 5000) {
-      const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
-      while (std::chrono::steady_clock::now() < deadline) {
-        if (count() >= n) return true;
-        std::this_thread::sleep_for(std::chrono::milliseconds(2));
-      }
-      return count() >= n;
+    // The budget is counted in deliveries of the suite's reference timer rather
+    // than in milliseconds, so it stretches with machine load while a wedged
+    // sender thread still fails (issue #753).
+    bool await(std::size_t n, int ticks = 5000) {
+      return TestHelpers::pacedUntil(ticks, [&] { return count() >= n; });
     }
   };
 
@@ -596,8 +595,16 @@ TEST_SUITE("clip") {
         t.advance();
       }
       CHECK(clocks.beatPosition("clip.midiout.doomed") == doctest::Approx(8.0));
-      CHECK_FALSE(rec.await(2, 200));
+      // "Nothing more arrived" was a fixed 200 ms window, which can only ever
+      // show that the window was short. The sender publishes a real handshake
+      // instead: stop() joins its worker and then flushes the queue, so on
+      // return the recorder holds everything the transport ever handed over and
+      // a beat-5 note-on would be in it (issue #753). Restarted immediately for
+      // the release below.
+      sender.stop();
+      CHECK_FALSE(rec.count() >= 2);
       CHECK(rec.count() == 1);
+      sender.start();
 
       t.stop();
       clocks.update(0.25f);

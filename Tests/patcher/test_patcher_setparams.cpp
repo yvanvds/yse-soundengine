@@ -28,6 +28,7 @@
 #include "patcher/pObjectList.hpp"
 #include "patcher/pRegistry.h"
 #include "sinks.hpp"
+#include "support/timer_pacing.hpp"
 
 using TestHelpers::MultiSink;
 using YSE::PATCHER::patcherImplementation;
@@ -262,14 +263,19 @@ TEST_SUITE("patcher") {
     }
 
     // Same drain pattern as the #227 reclaim test: keep the epoch moving so
-    // the pool can cross the +2 grace for the retired objects and graphs.
-    for (int spins = 0; spins < 2000 && p.PendingRetired() > 4; ++spins) {
-      gate->SetParams(spins % 2 == 0 ? "3" : "2");
-      p.Calculate(YSE::T_DSP);
-      p.Calculate(YSE::T_DSP);
-      p.Calculate(YSE::T_DSP);
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    }
+    // the pool can cross the +2 grace for the retired objects and graphs. The
+    // budget is counted in deliveries of the suite's reference timer rather than
+    // in milliseconds (issue #753), so it stretches with machine load exactly as
+    // the background pool does.
+    int spins = 0;
+    TestHelpers::pacedPump(
+        2000, [&] { return p.PendingRetired() <= 4; },
+        [&] {
+          gate->SetParams(spins++ % 2 == 0 ? "3" : "2");
+          p.Calculate(YSE::T_DSP);
+          p.Calculate(YSE::T_DSP);
+          p.Calculate(YSE::T_DSP);
+        });
     CHECK(p.PendingRetired() <= 4);
   }
 
