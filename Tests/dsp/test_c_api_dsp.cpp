@@ -171,9 +171,10 @@ TEST_SUITE("capilowcov") {
       INFO("allocated " << allocated << " bytes, freed with " << watch.deleteSize());
 
       if (allocated == 0) {
-        // The probe is compiled out under ThreadSanitizer, which ships its own
-        // operators — nothing to compare there.
-        MESSAGE("alloc probe inactive (TSan build): size check skipped");
+        // The overrides are compiled out wherever the sanitizer runtime ships
+        // its own operators: under TSan, and under the Windows ASan build,
+        // where ASan reports a new-delete-type-mismatch itself (issue #671).
+        MESSAGE("alloc probe watch inactive (sanitizer owns new/delete): size check skipped");
         return;
       }
       if (!watch.sawSizedDelete()) {

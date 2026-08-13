@@ -181,14 +181,23 @@ def cmd_build(args):
 def cmd_test(args):
     sanitizer = getattr(args, "sanitizer", None)
     if sanitizer:
-        # ASan/TSan gate for the #229 patcher concurrency stress test. clang +
-        # sanitizer runtime are Linux-only here (Windows/MSYS2 clang ships no
-        # TSan and no ASan leak detector), matching the preset conditions.
-        if IS_WINDOWS:
-            print("error: --sanitizer builds require Linux/clang (see the "
-                  "tests-asan / tests-tsan presets).")
+        # ASan/TSan gate for the #229 patcher concurrency stress test.
+        #
+        # TSan stays Linux-only: MSYS2 Clang64 ships no ThreadSanitizer runtime
+        # at all. ASan does ship, and issue #671 made the test binary linkable
+        # under it, so Windows gets its own preset — it runs the whole ctest set
+        # rather than the Linux gate's patcher filter, and adds
+        # -fsized-deallocation so new-delete-type-mismatch is observable there
+        # (issue #662). Windows ASan has no leak detector either way.
+        if IS_WINDOWS and sanitizer == "tsan":
+            print("error: --sanitizer tsan requires Linux/clang (MSYS2 Clang64 "
+                  "ships no ThreadSanitizer runtime); use --sanitizer asan on "
+                  "Windows.")
             sys.exit(1)
-        preset = "tests-asan" if sanitizer == "asan" else "tests-tsan"
+        if sanitizer == "asan":
+            preset = "tests-asan-windows" if IS_WINDOWS else "tests-asan"
+        else:
+            preset = "tests-tsan"
         run(["cmake", "--preset", preset])
         run(["cmake", "--build", "--preset", preset])
         run(["ctest", "--preset", preset])
@@ -1087,9 +1096,11 @@ def build_parser():
     )
     p.add_argument(
         "--sanitizer", choices=["asan", "tsan"],
-        help="Build the patcher concurrency stress test (#229) under Address- or "
-             "ThreadSanitizer (tests-asan / tests-tsan presets) and run just that "
-             "test. Linux/clang only.",
+        help="Build the test binary under Address- or ThreadSanitizer. On Linux "
+             "this is the #229 patcher concurrency gate (tests-asan / tests-tsan "
+             "presets, filtered to the patcher + send/return tests); on Windows "
+             "asan uses the tests-asan-windows preset and runs the whole suite. "
+             "tsan is Linux/clang only.",
     )
     p.set_defaults(func=cmd_test)
 
