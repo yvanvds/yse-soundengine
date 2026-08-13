@@ -29,11 +29,17 @@
 #include "genericObjects/gColl.h"
 #include "genericObjects/gDict.h"
 #include "genericObjects/gDictCompare.h"
+#include "genericObjects/gDictDeserialize.h"
 #include "genericObjects/gDictGroup.h"
 #include "genericObjects/gDictIter.h"
 #include "genericObjects/gDictJoin.h"
 #include "genericObjects/gDictPack.h"
 #include "genericObjects/gDictPrint.h"
+#include "genericObjects/gDictRoute.h"
+#include "genericObjects/gDictSerialize.h"
+#include "genericObjects/gDictSlice.h"
+#include "genericObjects/gDictStrip.h"
+#include "genericObjects/gDictUnpack.h"
 #include "genericObjects/gPrint.h"
 // `.loadbang` / `.loadmess` (issue #547): the pair that lets a saved patch
 // describe its own starting state, fired by patcherImplementation's post-publish
@@ -446,6 +452,12 @@ pRegistry::pRegistry() {
   // (issue #770)
   Add(OBJ::G_DICT_COMPARE, gDictCompare::Create);
 
+  // Builds a dictionary from serialised text — one JSON list message, exactly
+  // what .dict.serialize emits, replacing the bound dictionary whole; the
+  // read half of the interchange pair, parsed on the background pool and
+  // installed by the block poll (issue #771)
+  Add(OBJ::G_DICT_DESERIALIZE, gDictDeserialize::Create);
+
   // Groups the source dictionary's entries by a value into the target —
   // "<groupValue>::<originalPath>", the dictionary of dictionaries the flat
   // store expresses as a path prefix; both bound by creation argument
@@ -473,6 +485,34 @@ pRegistry::pRegistry() {
   // instrument for structured data, which no sink can otherwise see
   // (issue #776)
   Add(OBJ::G_DICT_PRINT, gDictPrint::Create);
+
+  // Routes the bound dictionary by the keys it holds: the reference — never
+  // the contents — leaves the outlet of the leftmost key argument present,
+  // or the rightmost reject, so structured messages dispatch to the part of
+  // the graph that understands them (issue #777)
+  Add(OBJ::G_DICT_ROUTE, gDictRoute::Create);
+
+  // Serialises the bound dictionary to one single-line compact JSON list
+  // message — the write half of the interchange pair with .dict.deserialize,
+  // and the same document DictToJson builds for a saved patch (issue #778)
+  Add(OBJ::G_DICT_SERIALIZE, gDictSerialize::Create);
+
+  // Splits the bound dictionary at a key path: entries under it replace the
+  // slice target with the prefix stripped, everything else replaces the
+  // remainder target unchanged — the sub-tree extraction the flat store
+  // makes an explicit, bounded prefix scan (issue #779)
+  Add(OBJ::G_DICT_SLICE, gDictSlice::Create);
+
+  // Removes the bound dictionary's entries under a key path, in place: the
+  // branch removal .dict's delete cannot spell, a bounded back-to-front
+  // erase scan of every key beginning "<path>::" (issue #780)
+  Add(OBJ::G_DICT_STRIP, gDictStrip::Create);
+
+  // Outputs the bound dictionary's values on separate outlets — one outlet
+  // per key-path argument, .dict.pack's inverse: a snapshot of the
+  // dictionary leaves right to left through SendAtom, a missing path
+  // sending nothing rather than a zero (issue #781)
+  Add(OBJ::G_DICT_UNPACK, gDictUnpack::Create);
 
   // An ordered, index-addressed sequence shared by name — the collection type a
   // generative patch actually reaches for, and the value model the array.*

@@ -227,13 +227,12 @@ namespace YSE {
     // KEY_CAPACITY key can spell. RT-safe: bounded scans and appends only.
     void EmitLevel(std::size_t prefixLength, int depth);
 
-    // Append one value, spelled as JSON, to `compose`: "" for an empty value,
-    // a number for a single numeric token, an array for a multi-token value,
-    // an escaped string otherwise — the patcher's own classifier, which is
-    // also DictToJson's. RT-safe.
-    void AppendValueJson(const std::string& value);
-    void AppendTokenJson(const char* text, std::size_t length);
-    void AppendStringJson(const char* text, std::size_t length);
+    // Values and key segments are spelled as JSON by the shared bounded
+    // appenders in gDict.h (DictAppendValueJson / DictAppendStringJson) —
+    // the patcher's own classifier, which is also DictToJson's, hoisted
+    // there when .dict.serialize became their second caller (#778). This
+    // emitter passes ", " as the array separator, because its document is
+    // meant to be read.
 
     // The pending-line machinery that turns the walk into valid JSON without
     // lookahead: the last composed row is held back until the walk knows

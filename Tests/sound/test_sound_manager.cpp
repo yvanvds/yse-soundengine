@@ -88,21 +88,24 @@ TEST_SUITE("sound") {
     // non-empty forever (and, worse, read that list lock-free from the audio
     // callback). The fixed empty() ignores it.
     //
-    // Assert the invariant rather than an absolute empty() value: the SOUND
-    // manager is a process-wide singleton other tests have touched, so the
-    // baseline may already be non-empty. `after == before` holds on the fixed
-    // code regardless; on the pre-fix code it breaks whenever the baseline is
-    // empty (true -> false), so the test can only ever fail on a regression.
-    drain(); // settle any pending lifecycle work first
-    const bool before = YSE::SOUND::Manager().empty();
+    // The invariant must tolerate background reclamation (#835): the SOUND
+    // manager is a process-wide singleton, and an impl from an earlier case
+    // still being reclaimed can flip empty() between a before- and an
+    // after-sample with no bug present. So quiesce instead of sampling: pump
+    // until empty() reports true — the completion signal that every earlier
+    // impl has left the audio-thread toLoad/inUse lists — run the failing
+    // create, and pump until it reports true again. The refused impl never
+    // enters toLoad/inUse, so the fixed empty() re-quiesces immediately; the
+    // pre-fix empty() read the `implementations` list, which the stuck impl
+    // kept non-empty. Polling empty() here is race-free: it reads lists owned
+    // by the sole update() caller, which (audio being paused) is this thread.
+    CHECK(drainUntil([] { return YSE::SOUND::Manager().empty(); }));
     {
       YSE::sound s;
       s.create("/no/such/file.wav"); // FileExists() fails -> create() returns false
       CHECK(s.isValid() == false); // confirm we hit the failure path
     }
-    drain();
-    const bool after = YSE::SOUND::Manager().empty();
-    CHECK(after == before);
+    CHECK(drainUntil([] { return YSE::SOUND::Manager().empty(); }));
   }
 
   // ─── refused create() reclaims its implementation (issue #817) ───────────────

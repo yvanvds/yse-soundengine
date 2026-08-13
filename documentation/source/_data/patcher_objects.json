@@ -2742,6 +2742,40 @@
       }
     ]
   },
+  ".dict.deserialize": {
+    "category": "GENERIC",
+    "description": "Builds a dictionary from serialised text — Max's dict.deserialize on the name-addressed value model .dict settled. The read half of the interchange pair whose write half is .dict.serialize: a JSON string arriving from a host, a .textedit, a .s/.r pair or the live-coding DSL becomes a dictionary the patch can address. The target dictionary is bound from the creation argument, \".dict.deserialize <name>\", resolved once on the control thread; a list message holding one JSON object — exactly what .dict.serialize emits — replaces that dictionary whole, \"::\" paths flattened back out of the nesting, and the reference \"dictionary <name>\" leaves the outlet so the rest of the family can pick the result up. The parse runs on the background pool — nlohmann allocates without bound, and the inlet may be the audio thread — so the inlet is a wait-free hand-off and the result is installed by the patcher's block poll one block later, .midiinfo's arrangement for a result with no cord to arrive on. A document past 255 characters — the longest list payload the patcher's value queue carries — is refused whole and counted, never truncated; a document that fails to parse is counted and changes nothing, so a bad document never costs a dictionary its contents. Only the creation argument persists across a save; the dictionary's contents persist with the .dict that owns them.",
+    "inlets": [
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "The document: one JSON object as a single list message — exactly what .dict.serialize emits, and anything else JSON calls an object. It is handed to the background pool to parse (nlohmann allocates, and this inlet may be the audio thread) and, a block later, replaces the bound dictionary whole — \"::\" paths flattened back out of the nesting by the same DictFromJson a saved patch loads through, so a serialise/deserialise round trip reproduces the dictionary. A document longer than 255 characters — the longest list payload the patcher's value queue carries — is refused whole and counted, never truncated: the prefix of a JSON document is a different document or none. A document arriving while the previous one is still in flight is refused and counted too, and one that fails to parse is counted and changes nothing — a bad document never costs a dictionary its contents. No bang and no bare number: a bang carries no document, and a number names nothing.",
+        "index": 0,
+        "label": "json",
+        "range": "at most 255 characters"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".dict.deserialize",
+    "outlets": [
+      {
+        "doc": "\"dictionary <name>\" once a document has been parsed and installed — the reference the dict.* family binds, .dict.pack's gesture, so the rest of the family can pick the result up the moment it exists. Emitted from the patcher's block poll, one block after the document arrived, because the parse finishes on the background pool and has no cord to arrive on. Silent for an unnamed dictionary, which has no name to pass on, and silent on a failed parse, which installed nothing.",
+        "index": 0,
+        "label": "reference",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The dictionary the parsed document fills, addressed as \"<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty binds a private dictionary: the document still loads, but there is no name to announce.",
+        "name": "name",
+        "range": "any identifier"
+      }
+    ]
+  },
   ".dict.group": {
     "category": "GENERIC",
     "description": "Groups a dictionary's entries by a value — Max's dict.group on the name-addressed value model .dict settled: both dictionaries are bound from the creation arguments, \".dict.group <source> <target> [<key>]\", because a dictionary is addressed by name and never passed down a cord. A bang, or the source dictionary's reference message \"dictionary <name>\", replaces the target with the grouped entries, each written as \"<groupValue>::<originalPath>\" — the dictionary of dictionaries the flat store expresses as a path prefix. With a <key> the source is read as a table of records (the first path segment names the record) and each entry groups under the value its record stores at that key; without one each entry groups under its own value, turning a flat table into an index. An entry without a group, or one whose composed path outgrows the 128-character key capacity, is refused whole and counted rather than truncated.",
@@ -2967,6 +3001,234 @@
         "doc": "The most lines this object emits between two drain ticks — .print's budget, with a wider default because the unit of output here is a whole document rather than a line: 64 covers a dictionary of a few dozen entries. Clamped to 1-256, 256 being the shared queue's own capacity, past which asking for more cannot buy anything. A dump that runs past the budget is truncated and the first refusal in a tick posts a notice line, so a cut dump is visible rather than silent; every refusal is counted. A non-numeric second argument leaves the default standing rather than failing, since a creation argument arriving from a saved patch must never be able to break loading it.",
         "name": "lines",
         "range": "1-256"
+      }
+    ]
+  },
+  ".dict.route": {
+    "category": "GENERIC",
+    "description": "Routes a dictionary by the keys it holds — Max's dict.route on the name-addressed value model .dict settled: the dictionary is bound from the first creation argument and every argument after it is a key declaring one outlet, plus a rightmost reject — \".dict.route <name> <key> [<key> ...]\" — because a dictionary is addressed by name and never passed down a cord. The dispatcher for structured messages: a patch that receives dictionaries of several shapes sends each to the part of the graph that understands it, which is what .route does for list text and this object does for dictionaries. A trigger — a bang, or the bound dictionary's \"dictionary <name>\" reference, the message a .dict's reference outlet emits — tests the dictionary for each key in argument order and sends the reference, never the contents, out the outlet of the leftmost key present: the routing decision is about which dictionary, and the receiver still binds the name itself. Exactly one outlet fires per trigger; a dictionary holding none of the keys leaves the rightmost outlet with its reference unchanged, so a chain of .dict.route objects strings together with each reject feeding the next inlet. A key is a path — \"voice\" tests a top-level key, \"voice::1\" tests two levels down — and presence means an entry at the path or under it, the family's bounded sub-tree scan. With no keys the object has only the reject outlet, since Max documents no default key for dict.route. The decision is a bounded scan under the store's try-lock guard, released before the send, and the reference is built once per rebind, so no message path allocates, locks or blocks and Calculate() does nothing. A trigger that loses the guard, a reference naming an unbound dictionary, and a trigger arriving while a route is in flight are refused and counted rather than resolved, a registry lookup being a mutex on whatever thread the message arrived on. Only the creation arguments persist across a save; the dictionary's contents persist with the .dict that owns them.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang routes the bound dictionary: it is tested for each key argument in order, and the reference \"dictionary <name>\" leaves the outlet of the leftmost key present — exactly one outlet fires per trigger, and a dictionary holding none of the keys leaves the rightmost outlet instead. \"dictionary <name>\" does the same when it names the dictionary bound by the creation argument — the message a .dict's reference outlet emits on a bang, so wiring that outlet here gives Max's own gesture: bang the dict, and it dispatches itself. A reference naming anything else, any other message, or a trigger arriving while a route is already in flight — a cord looped back from an outlet, or another thread — is refused and counted rather than logged, since this inlet may be the audio thread. An unnamed .dict.route is inert: its private dictionary has no name to pass on, so a trigger routes nothing, silently.",
+        "index": 0,
+        "label": "route",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".dict.route",
+    "outlets": [
+      {
+        "doc": "The dictionary's reference, when none of the key arguments is present in it — Max's rightmost outlet, present whatever the argument count. The reference is unchanged, so chaining this into the next .dict.route carries on testing the dictionary the first one saw.",
+        "index": 0,
+        "label": "none",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The dictionary's shared name, addressed as \"<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty leaves the object inert: a private dictionary has no name to pass on, so there is nothing to route.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "One key per match outlet, in order, plus a rightmost reject outlet. A key is a path: usually one top-level segment (\"voice\"), but \"voice::1\" tests two levels down the same way — presence means an entry at the path or under it (\"<path>::...\"), the family's bounded sub-tree scan. The leftmost key present wins, and a key repeated in the argument list uses the leftmost of its outlets only. An empty token, or a key past 128 characters (which no stored entry can spell), matches nothing and costs an unreachable outlet. With no keys at all the object has only the reject outlet — Max documents no default key for dict.route, and inventing one would put a branch in a patch that did not ask for one.",
+        "name": "keys",
+        "range": "key paths"
+      }
+    ]
+  },
+  ".dict.serialize": {
+    "category": "GENERIC",
+    "description": "Serialises a dictionary to text — Max's dict.serialize ('convert a dictionary into a single symbol') on the name-addressed value model .dict settled. The write half of the interchange pair whose read half is .dict.deserialize: a dictionary becomes a JSON string a host, a .textedit, a .s/.r pair or the live-coding DSL can carry — what makes a dictionary the patcher's interchange format rather than only its store. The dictionary is bound from the creation argument, \".dict.serialize <name>\", resolved once on the control thread; a bang, or the dictionary's reference message \"dictionary <name>\", sends the whole dictionary out the outlet as one list message holding a single-line compact JSON object — \"::\" paths expanded into real nesting, members in storage order of first appearance, no whitespace outside strings, values typed by the patcher's own classifier: a single numeric token as a number, a multi-token value as an array, an empty value as \"\", anything else as an escaped string. Exactly the document DictToJson builds for a saved patch, so what leaves here parses anywhere JSON parses. The document is a snapshot of the dictionary as it stood at the trigger, composed by a bounded allocation-free emitter, so no message path allocates, locks or blocks and Calculate() does nothing. A finished document longer than 255 characters — the longest list payload the patcher's value queue carries — is refused whole and counted, never truncated: a truncated JSON document parses as a different dictionary or none at all. Only the creation argument persists across a save; the dictionary's contents persist with the .dict that owns them.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang serialises the bound dictionary: the whole dictionary leaves the outlet as one list message holding a single-line compact JSON object. \"dictionary <name>\" does the same when it names the dictionary bound by the creation argument — the message a .dict's reference outlet emits on a bang, so wiring that outlet here gives Max's own gesture: bang the dict, out comes its text. A reference naming anything else, any other message, or a trigger arriving while a document is already being composed — a cord looped back from the outlet, or another thread — is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "serialize",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".dict.serialize",
+    "outlets": [
+      {
+        "doc": "The document: one JSON object on one line, no whitespace outside strings — \"::\" paths expanded into real nesting, members in storage order of first appearance, values typed by the patcher's own classifier (a single numeric token as a number, a multi-token value as an array, an empty value as \"\", anything else as an escaped string), an empty dictionary as {}. Exactly the document DictToJson builds for a saved patch, and exactly what .dict.deserialize parses back — the dictionary's interchange form. The document is a snapshot of the dictionary as it stood at the trigger. A finished document longer than 255 characters — the longest list payload the patcher's value queue carries — is refused whole and counted, never truncated: a truncated document is not a shorter document, it parses as a different one. Route a dictionary that large through its parts instead (.dict.iter), or keep it in the store it lives in.",
+        "index": 0,
+        "label": "json",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The dictionary's shared name, addressed as \"<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty binds a private, empty dictionary — the document is then {}.",
+        "name": "name",
+        "range": "any identifier"
+      }
+    ]
+  },
+  ".dict.slice": {
+    "category": "GENERIC",
+    "description": "Splits a dictionary at a key path — Max's dict.slice on the name-addressed value model .dict settled: all three dictionaries are bound from the creation arguments, \".dict.slice <source> <slice> <remainder> [<path>]\", because a dictionary is addressed by name and never passed down a cord. A bang, or the source dictionary's reference message \"dictionary <name>\", partitions the source: every entry under the path — its key begins \"<path>::\" — replaces the slice target with the prefix stripped, so the sub-tree becomes a dictionary rooted at itself, and every other entry (including a leaf stored at exactly the path, which is a value, not a sub-tree) replaces the remainder target unchanged. Each target's reference then leaves its outlet, remainder first — Max's right-to-left order. An empty path matches nothing, so the slice comes out empty and the remainder is the whole source.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang splits the source dictionary at the path: entries under it go into the slice target with the prefix stripped, everything else into the remainder target, and each target's reference leaves its outlet, right to left. \"dictionary <name>\" does the same when it names the source dictionary bound by the first creation argument — the message a .dict's reference outlet emits on a bang, so wiring that outlet here gives Max's own gesture. A reference naming anything else, or any other message, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "slice",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"dictionary <name>\" is accepted silently when it names the slice target bound by the second creation argument, so a patch may wire the target's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 1,
+        "label": "slice reference",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"dictionary <name>\" is accepted silently when it names the remainder target bound by the third creation argument, so a patch may wire the target's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 2,
+        "label": "remainder reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".dict.slice",
+    "outlets": [
+      {
+        "doc": "\"dictionary <slice>\" after a split — the reference the dict.* family binds, carrying the local name so the receiving object prefixes it with its own patcher's name. Sent after the remainder outlet, Max's right-to-left order. Silent for an unnamed slice target, which has no name to pass on.",
+        "index": 0,
+        "label": "slice reference",
+        "range": "",
+        "type": "LIST"
+      },
+      {
+        "doc": "\"dictionary <remainder>\" after a split, sent first — Max's right-to-left order. Silent for an unnamed remainder target, which has no name to pass on.",
+        "index": 1,
+        "label": "remainder reference",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The source dictionary's shared name, addressed as \"<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty splits a private, empty dictionary.",
+        "name": "source",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The slice target's shared name, bound exactly as the source. A split replaces its contents whole with the entries under the path, prefix stripped. The result goes into a bound dictionary rather than a new anonymous one because there is no way to hand a fresh dictionary's identity down a cord.",
+        "name": "slice",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The remainder target's shared name, bound exactly as the source. A split replaces its contents whole with every entry not under the path, keys unchanged — the other half of the partition, what .dict.strip would leave behind.",
+        "name": "remainder",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The key path the source is split at: \"voice::1\" slices every \"voice::1::...\" entry into the slice target under the \"...\" left after the prefix is stripped. A leaf stored at exactly the path is a value, not a sub-tree, and stays in the remainder. Empty matches nothing — there is no sub-tree above the root.",
+        "name": "path",
+        "range": "any key path"
+      }
+    ]
+  },
+  ".dict.strip": {
+    "category": "GENERIC",
+    "description": "Removes a dictionary's entries under a key path, in place — Max's dict.strip on the name-addressed value model .dict settled: the dictionary is bound from the creation argument, \".dict.strip <name> [<path>]\", because a dictionary is addressed by name and never passed down a cord. A bang, or the dictionary's reference message \"dictionary <name>\", erases every entry under the path — its key begins \"<path>::\" — and leaves everything else untouched, including a leaf stored at exactly the path, which is a value, not a sub-tree. The prefix ends at a \"::\" boundary or it is not a prefix, so stripping \"voice\" never removes \"voices::1\". The dictionary's reference then leaves the outlet, so the rest of the dict.* family can pick the edited dictionary up. An empty path matches nothing — there is no sub-tree above the root. The branch removal .dict's delete cannot spell (one path, not a sub-tree), and the in-place half of .dict.slice's partition: what a slice of the same path leaves in its remainder is exactly what a strip leaves behind.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang strips the bound dictionary in place: every entry under the path — its key begins \"<path>::\" — is erased, and everything else survives untouched, including a leaf stored at exactly the path, which is a value, not a sub-tree. \"dictionary <name>\" does the same when it names the dictionary bound by the first creation argument — the message a .dict's reference outlet emits on a bang, so wiring that outlet here gives Max's own gesture. A reference naming anything else, or any other message, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "strip",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".dict.strip",
+    "outlets": [
+      {
+        "doc": "\"dictionary <name>\" after a strip — the reference the dict.* family binds, carrying the local name so the receiving object prefixes it with its own patcher's name. What lets a strip sit in a chain: bang it, and whatever reads the dictionary next sees the sub-tree gone. Silent for an unnamed dictionary, which has no name to pass on — the strip still ran, on the private store.",
+        "index": 0,
+        "label": "dictionary reference",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The dictionary's shared name, addressed as \"<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds, edited in place. Resolved once, on the control thread, which is why no message re-points it at run time. Empty strips a private, empty dictionary.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The key path whose sub-tree a strip removes: \"voice::1\" erases every \"voice::1::...\" entry. A leaf stored at exactly the path is a value, not a sub-tree, and survives — that one entry is .dict's delete. The prefix ends at a \"::\" boundary or it is not a prefix, so stripping \"voice\" never removes \"voices::1\". Empty matches nothing — there is no sub-tree above the root; clearing a whole dictionary is .dict's clear.",
+        "name": "path",
+        "range": "any key path"
+      }
+    ]
+  },
+  ".dict.unpack": {
+    "category": "GENERIC",
+    "description": "Outputs a dictionary's values on separate outlets — Max's dict.unpack on the name-addressed value model .dict settled: the dictionary is bound from the first creation argument and every argument after it is a key path declaring one outlet — \".dict.unpack in freq gain pan\" — because a dictionary is addressed by name and never passed down a cord. The dictionary counterpart of .unpack, and .dict.pack's inverse: a structure arriving as one reference becomes several separate values a patch can wire individually, so a .dict.pack wired into a .dict.unpack of the same name and paths is the identity. A trigger — a bang, or the bound dictionary's \"dictionary <name>\" reference, the message a .dict's reference outlet emits on a bang and .dict.pack emits on a pack — looks each path up and sends its value out its outlet, right to left, each send completing in full before the next one starts, so the right-hand values land in cold inlets before the leftmost sets the result off. Each outlet sends through the family's SendAtom: a value spelling a single number leaves as the int or float it spells, and anything else — a symbol, or a whole list, since a dictionary value is list text — leaves as one list message, .dict.pack's 'a list is a value, not a spread' read backwards. A path the dictionary does not hold sends nothing on its outlet rather than a zero, .dict's miss rule, and an entry holding nothing sends nothing either. Paths nest with \"::\", so \"voice::1::freq\" reads one entry three levels deep. The read is a snapshot: every path's value is copied out under the store's try-lock guard before anything is sent, so a set arriving mid-unpack — including from an outlet's own subgraph — changes the dictionary but not the unpack in flight, and a trigger that loses the guard is refused whole and counted rather than firing with half a snapshot. A reference naming an unbound dictionary is refused rather than resolved, a registry lookup being a mutex on whatever thread the message arrived on. Calculate() does nothing and no message path allocates, locks or blocks.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang unpacks the bound dictionary: each key-path argument is looked up and its value leaves its outlet, right to left, each send completing in full before the next one starts. \"dictionary <name>\" does the same when it names the dictionary bound by the creation argument — the message a .dict's reference outlet emits on a bang and .dict.pack emits on a pack, so wiring either here gives the pair gesture: pack on one side, and the values pop out the other. A path the dictionary does not hold sends nothing on its outlet rather than a zero, .dict's miss rule, and an entry holding nothing sends nothing either. A reference naming anything else, any other message, or a trigger arriving while an unpack is already running — a cord looped back from an outlet, or another thread — is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "unpack",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".dict.unpack",
+    "outlets": [],
+    "params": [
+      {
+        "default": "",
+        "doc": "The dictionary's shared name — the first creation argument, addressed as \"<patcherName>.<name>\", the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty dictionary: every path misses and nothing is sent.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "One key path per outlet, in order — the shape of the unpacked dictionary, .dict.pack's convention read backwards so the pair reads as a pair. Paths nest with \"::\", Max's own separator, so \"voice::1::freq\" reads one entry three levels deep. At most 256 paths of at most 128 characters each; a path that does not fit declares no outlet and is logged, parameter parsing being control-thread only. A duplicate path is two outlets reading one entry, and both fire. With no paths the object has no outlets and a trigger reads nothing.",
+        "name": "keys",
+        "range": "key paths"
       }
     ]
   },

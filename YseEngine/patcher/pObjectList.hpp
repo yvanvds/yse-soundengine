@@ -53,8 +53,10 @@ namespace YSE {
    *  - Shared state: ``G_VALUE``.
    *  - Collections: ``G_COLL``, ``G_BAG``, ``G_CAPTURE``, ``G_FUNBUFF``,
    *    ``G_TABLE``, ``G_TEXTFILE``, ``G_QLIST``, ``G_MTR``, ``G_SEQ``.
-   *  - Dictionaries: ``G_DICT``, ``G_DICT_COMPARE``, ``G_DICT_GROUP``,
-   *    ``G_DICT_ITER``, ``G_DICT_JOIN``, ``G_DICT_PACK``, ``G_DICT_PRINT``.
+   *  - Dictionaries: ``G_DICT``, ``G_DICT_COMPARE``, ``G_DICT_DESERIALIZE``,
+   *    ``G_DICT_GROUP``, ``G_DICT_ITER``, ``G_DICT_JOIN``, ``G_DICT_PACK``,
+   *    ``G_DICT_PRINT``, ``G_DICT_ROUTE``, ``G_DICT_SERIALIZE``,
+   *    ``G_DICT_SLICE``, ``G_DICT_STRIP``, ``G_DICT_UNPACK``.
    *  - Arrays: ``G_ARRAY``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
@@ -253,6 +255,16 @@ namespace YSE {
     // entries.
     DEFOBJ(G_DICT_COMPARE, ".dict.compare");
 
+    // Builds a dictionary from serialised text (issue #771): the target
+    // dictionary is bound from the creation argument —
+    // ``.dict.deserialize <name>`` — and a list message holding one JSON
+    // object (exactly what ``.dict.serialize`` emits) replaces it whole,
+    // then announces ``dictionary <name>`` out the outlet. The read half of
+    // the interchange pair. The parse runs on the background pool — nlohmann
+    // allocates, and the inlet may be the audio thread — and the result is
+    // installed by the patcher's block poll one block later.
+    DEFOBJ(G_DICT_DESERIALIZE, ".dict.deserialize");
+
     // Groups a dictionary's entries by a value (issue #772): the source and
     // target dictionaries are bound from the creation arguments —
     // ``.dict.group <source> <target> [<key>]`` — and every grouped entry is
@@ -297,6 +309,66 @@ namespace YSE {
     // see by wiring it to a sink, because what a cord carries is only its
     // name.
     DEFOBJ(G_DICT_PRINT, ".dict.print");
+
+    // Routes a dictionary by the keys it holds (issue #777): the dictionary
+    // is bound from the first creation argument and every argument after it
+    // is a key declaring one outlet, plus a rightmost reject —
+    // ``.dict.route <name> <key> [<key> ...]``. A bang, or the dictionary's
+    // ``dictionary <name>`` reference, sends the reference — never the
+    // contents — out the outlet of the leftmost key present, so a patch
+    // that receives dictionaries of several shapes dispatches each to the
+    // part of the graph that understands it: what ``.route`` does for list
+    // text, for dictionaries. ``gRoute`` is the model, including its
+    // rightmost-outlet-is-the-reject rule.
+    DEFOBJ(G_DICT_ROUTE, ".dict.route");
+
+    // Serialises a dictionary to text (issue #778): the dictionary is bound
+    // from the creation argument — ``.dict.serialize <name>`` — and a bang,
+    // or the dictionary's ``dictionary <name>`` reference, sends the whole
+    // dictionary out the outlet as one list message holding a single-line
+    // compact JSON object — the same document ``DictToJson`` builds for a
+    // saved patch, and exactly what ``.dict.deserialize`` parses back. The
+    // write half of the pair that makes a dictionary the patcher's
+    // interchange format rather than only its store. A document longer than
+    // the patcher's list payload bound is refused whole, never truncated.
+    DEFOBJ(G_DICT_SERIALIZE, ".dict.serialize");
+
+    // Splits a dictionary at a key path (issue #779): all three dictionaries
+    // are bound from the creation arguments —
+    // ``.dict.slice <source> <slice> <remainder> [<path>]`` — and a bang, or
+    // the source's ``dictionary <name>`` reference, partitions the source:
+    // every entry under the path replaces the slice target with the prefix
+    // stripped, so the sub-tree becomes a dictionary rooted at itself, and
+    // every other entry replaces the remainder target unchanged. Each
+    // target's reference then leaves its outlet, remainder first. The
+    // operation the flat store makes explicit — a sub-tree is not a value,
+    // so extracting one is a bounded prefix scan rather than a lookup.
+    DEFOBJ(G_DICT_SLICE, ".dict.slice");
+
+    // Removes a dictionary's entries under a key path, in place (issue
+    // #780): the dictionary is bound from the creation argument —
+    // ``.dict.strip <name> [<path>]`` — and a bang, or the dictionary's
+    // ``dictionary <name>`` reference, erases every entry whose key begins
+    // ``<path>::``, leaving everything else untouched, including a leaf
+    // stored at exactly the path. The dictionary's reference then leaves the
+    // outlet. The branch removal ``.dict``'s ``delete`` cannot spell — one
+    // path, not a sub-tree — and the in-place half of ``.dict.slice``'s
+    // partition: what a slice leaves in its remainder is what a strip of the
+    // same path leaves behind.
+    DEFOBJ(G_DICT_STRIP, ".dict.strip");
+
+    // Outputs a dictionary's values on separate outlets (issue #781): the
+    // dictionary is bound from the first creation argument and every
+    // argument after it is a key path declaring one outlet —
+    // ``.dict.unpack <name> <path> [<path> ...]`` — the dictionary
+    // counterpart of ``.unpack`` and ``.dict.pack``'s inverse, sharing its
+    // key-path conventions so the pair reads as a pair. A bang, or the
+    // dictionary's ``dictionary <name>`` reference, snapshots the bound
+    // dictionary and sends each path's value out its outlet right to left
+    // through ``SendAtom``, so a number leaves as a number; a path the
+    // dictionary does not hold sends nothing rather than a zero, ``.dict``'s
+    // miss rule.
+    DEFOBJ(G_DICT_UNPACK, ".dict.unpack");
 
     // An ordered, index-addressed sequence shared by name (issue #548), the
     // second type built on the value model ``.dict`` settled: an ``OUT_TYPE``

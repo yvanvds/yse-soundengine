@@ -35,6 +35,14 @@ namespace {
   // room the slow pool has to run the queued jobs — is a window of
   // reference-timer ticks rather than a fixed sleep (issue #753), so it
   // stretches with machine load exactly as the pool does.
+  //
+  // The fixed-count final settles in this suite are deliberate (#835 set
+  // review): no CHECK depends on them, and REVERB::Manager publishes no
+  // synchronized reclamation signal a predicate could poll — empty() reads
+  // `implementations` WITHOUT implementationsMutex, so polling it between
+  // ticks would race the slow-pool delete job (the #834 TSan lesson). The
+  // settles are inter-case hygiene; any reclamation still in flight simply
+  // continues under the next case's drains.
   void drainReverbs(int iterations = 8, int ticks = 2) {
     for (int i = 0; i < iterations; ++i) {
       YSE::INTERNAL::Time().update();

@@ -29,6 +29,7 @@
 #include <doctest/doctest.h>
 #include <atomic>
 #include <chrono>
+#include <cstddef>
 #include <thread>
 #include "yse.hpp"
 #include "sound/soundInterface.hpp"
@@ -36,6 +37,7 @@
 #include "dsp/dspObject.hpp"
 #include "internal/time.h"
 #include "support/null_device.hpp"
+#include "support/timer_pacing.hpp"
 
 namespace {
 
@@ -62,6 +64,34 @@ namespace {
     }
   }
 
+  // The completion-signal form of drain(), for the *final* settles whose CHECK
+  // depends on the slow pool having actually reclaimed everything: a fixed
+  // iteration count is a bounded window that a loaded pool can miss entirely
+  // (issue #835). The budget is denominated in reference-timer ticks (issue
+  // #753); returns ready(), so a timed-out wait fails the caller's own
+  // assertion. Polling implementationCount() between update() ticks is
+  // race-free — it takes implementationsMutex. The partial drains *inside*
+  // the cases stay fixed-count on purpose: they are deliberate stress pacing
+  // (leaving work in flight is the point), not waits a CHECK depends on.
+  template <typename P> bool drainUntil(P ready, int ticks = 5000) {
+    return TestHelpers::pacedPump(
+        ticks, ready,
+        [] {
+          YSE::INTERNAL::Time().update();
+          YSE::SOUND::Manager().update();
+        },
+        2);
+  }
+
+  // True once the canonical implementation list is back at (or below) the
+  // count sampled at the head of a case — the reclamation-complete signal the
+  // final settles wait on. `<=` rather than `==`: an impl retired by an
+  // earlier case may still be reaped during the settle, legitimately lowering
+  // the baseline.
+  bool reclaimedTo(std::size_t before) {
+    return YSE::SOUND::Manager().implementationCount() <= before;
+  }
+
 } // namespace
 
 TEST_SUITE("sound") {
@@ -70,6 +100,8 @@ TEST_SUITE("sound") {
 
   TEST_CASE("sound concurrency: single-thread create/destroy churn does not crash") {
     if (!TestHelpers::engineInit()) return;
+
+    const std::size_t before = YSE::SOUND::Manager().implementationCount();
 
     constexpr int N = 200;
     for (int i = 0; i < N; ++i) {
@@ -81,15 +113,17 @@ TEST_SUITE("sound") {
       if ((i & 0x0f) == 0) drain(2);
     } // ~sound at end of each iteration releases impl through OBJECT_RELEASE.
 
-    // Final settle: enough iterations to let the slow-pool free everything.
-    drain(40);
-    CHECK(true); // crash-freedom is the assertion
+    // Final settle: crash-freedom is the assertion, and reclamation actually
+    // completing — not a fixed drain count — is the completion signal (#835).
+    CHECK(drainUntil([before] { return reclaimedTo(before); }));
   }
 
   // ─── Two-thread churn: worker thread creates/destroys while test thread updates
 
   TEST_CASE("sound concurrency: two-thread create/destroy churn does not crash") {
     if (!TestHelpers::engineInit()) return;
+
+    const std::size_t before = YSE::SOUND::Manager().implementationCount();
 
     std::atomic<bool> workerDone{false};
     constexpr int N = 100;
@@ -117,9 +151,8 @@ TEST_SUITE("sound") {
     }
     worker.join();
 
-    // Final settle for the slow-pool to free anything still pending.
-    drain(40);
-    CHECK(true);
+    // Final settle: reclamation completing is the signal, not a fixed count (#835).
+    CHECK(drainUntil([before] { return reclaimedTo(before); }));
   }
 
   // ─── Setup-failure churn: DELETE_PENDING promotion vs. an in-flight deleteJob ─
@@ -162,8 +195,9 @@ TEST_SUITE("sound") {
     }
     worker.join();
 
-    drain(40); // final settle: every impl above must be reclaimed
-    CHECK(YSE::SOUND::Manager().implementationCount() <= before);
+    // Final settle: every impl above must be reclaimed — the list returning
+    // to its baseline is the completion signal, not a fixed count (#835).
+    CHECK(drainUntil([before] { return reclaimedTo(before); }));
   }
 
   // ─── Sustained churn: keep creating while the slow-pool is still freeing ─────
@@ -177,6 +211,8 @@ TEST_SUITE("sound") {
     // arrives. This exercises the case where toLoad contains impls in
     // OBJECT_CREATED, OBJECT_SETTING_UP, OBJECT_SETUP, and OBJECT_READY
     // simultaneously while addImplementation fires from the main thread.
+    const std::size_t before = YSE::SOUND::Manager().implementationCount();
+
     constexpr int WAVES = 5;
     constexpr int N = 60;
     for (int w = 0; w < WAVES; ++w) {
@@ -185,10 +221,10 @@ TEST_SUITE("sound") {
         s.create(g_concSrc);
         s.play();
       }
-      drain(4); // partial drain — leaves work for the next wave
+      drain(4); // partial drain — leaves work for the next wave (stress pacing)
     }
-    drain(60); // final settle
-    CHECK(true);
+    // Final settle: reclamation completing is the signal, not a fixed count (#835).
+    CHECK(drainUntil([before] { return reclaimedTo(before); }));
   }
 
   // ─── Live audio variant — tagged [integration], skipped in normal unit run ───

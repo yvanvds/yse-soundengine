@@ -1,4 +1,5 @@
 #include "gDict.h"
+#include "../math/gExprEval.h"
 #include "../pListArgs.h"
 #include "../pObjectList.hpp"
 #include "../patcherImplementation.h"
@@ -283,6 +284,187 @@ void YSE::PATCHER::DictFromJson(const nlohmann::json::value_type& in, dictStore&
   std::string path;
   path.reserve(dictStore::KEY_CAPACITY + 1);
   FlattenJson(in, path, store);
+}
+
+// ─── values, spelled as JSON on a message path ────────────────────────────────
+//
+// The RT-safe walk of the classifier DictToJson applies, shared by
+// .dict.print's log emitter and .dict.serialize's message emitter — see the
+// declarations in gDict.h for the whole contract. Bounded appends only, no
+// allocation, no lock; every function reports whether the capacity margin cut
+// anything.
+
+namespace {
+
+  // One bounded append. The -2 margin keeps the room a caller's structural
+  // character (a comma, a closing brace) can always rely on — the emitters'
+  // own margin, hoisted with them.
+  bool JsonAppend(const char* text, std::size_t length, char* out, std::size_t& outLength,
+                  std::size_t capacity) {
+    if (outLength + length > capacity - 2) return false;
+    std::memcpy(out + outLength, text, length);
+    outLength += length;
+    return true;
+  }
+
+} // namespace
+
+bool YSE::PATCHER::DictAppendStringJson(const char* text, std::size_t length, char* out,
+                                        std::size_t& outLength, std::size_t capacity) {
+  if (outLength >= capacity - 2) return false;
+  bool fit = true;
+  out[outLength++] = '"';
+  for (std::size_t s = 0; s < length; s++) {
+    const char c = text[s];
+    if (outLength >= capacity - 8) {
+      fit = false;
+      break;
+    }
+    switch (c) {
+    case '"':
+      out[outLength++] = '\\';
+      out[outLength++] = '"';
+      break;
+    case '\\':
+      out[outLength++] = '\\';
+      out[outLength++] = '\\';
+      break;
+    case '\b':
+      out[outLength++] = '\\';
+      out[outLength++] = 'b';
+      break;
+    case '\f':
+      out[outLength++] = '\\';
+      out[outLength++] = 'f';
+      break;
+    case '\n':
+      out[outLength++] = '\\';
+      out[outLength++] = 'n';
+      break;
+    case '\r':
+      out[outLength++] = '\\';
+      out[outLength++] = 'r';
+      break;
+    case '\t':
+      out[outLength++] = '\\';
+      out[outLength++] = 't';
+      break;
+    default:
+      if ((unsigned char)c < 0x20) {
+        const char* hex = "0123456789abcdef";
+        out[outLength++] = '\\';
+        out[outLength++] = 'u';
+        out[outLength++] = '0';
+        out[outLength++] = '0';
+        out[outLength++] = hex[((unsigned char)c >> 4) & 0xF];
+        out[outLength++] = hex[(unsigned char)c & 0xF];
+      } else {
+        out[outLength++] = c;
+      }
+      break;
+    }
+  }
+  if (outLength < capacity - 1) {
+    out[outLength++] = '"';
+  } else {
+    fit = false;
+  }
+  return fit;
+}
+
+bool YSE::PATCHER::DictAppendTokenJson(const char* text, std::size_t length, char* out,
+                                       std::size_t& outLength, std::size_t capacity) {
+  float parsed = 0.f;
+  if (!ReadNumericToken(text, length, parsed)) {
+    return DictAppendStringJson(text, length, out, outLength, capacity);
+  }
+
+  // A token that is nothing but an optional sign and digits is an integer,
+  // and it goes out as its own characters — arbitrary precision, no float
+  // detour — normalised only where JSON demands it: no '+', no leading
+  // zeros.
+  std::size_t p = 0;
+  bool negative = false;
+  if (text[0] == '+' || text[0] == '-') {
+    negative = (text[0] == '-');
+    p = 1;
+  }
+  bool plainInt = p < length;
+  for (std::size_t s = p; s < length; s++) {
+    if (text[s] < '0' || text[s] > '9') {
+      plainInt = false;
+      break;
+    }
+  }
+  if (plainInt) {
+    while (p + 1 < length && text[p] == '0')
+      p++;
+    bool fit = true;
+    if (negative) fit = JsonAppend("-", 1, out, outLength, capacity) && fit;
+    return JsonAppend(text + p, length - p, out, outLength, capacity) && fit;
+  }
+
+  // Anything else the classifier accepted — "5.", ".5", "1e3" — is a float,
+  // spelled by the patcher's own formatter, which is allocation-free and
+  // locale-free where the C library is neither. Its one non-JSON habit is
+  // the trailing point ("120."), which a single '0' repairs.
+  char buffer[kExprValueTextMax];
+  const int written = ExprFormatValue(ExprValue::Float(parsed), buffer, kExprValueTextMax);
+  bool fit = JsonAppend(buffer, (std::size_t)written, out, outLength, capacity);
+  if (written > 0 && buffer[written - 1] == '.') {
+    fit = JsonAppend("0", 1, out, outLength, capacity) && fit;
+  }
+  return fit;
+}
+
+bool YSE::PATCHER::DictAppendValueJson(const std::string& value, char* out, std::size_t& outLength,
+                                       std::size_t capacity, const char* separator,
+                                       std::size_t separatorLength) {
+  // A stored value is list text. One token becomes the scalar it spells,
+  // several become an array of those, and nothing at all becomes an empty
+  // string — which is what `set <key>` with no value stored. DictToJson's
+  // classification, walked in place.
+  std::size_t i = 0;
+  int tokens = 0;
+  std::size_t firstBegin = 0;
+  std::size_t firstLength = 0;
+
+  while (i < value.size()) {
+    while (i < value.size() && IsSelectorSeparator(value[i]))
+      i++;
+    if (i >= value.size()) break;
+    const std::size_t begin = i;
+    while (i < value.size() && !IsSelectorSeparator(value[i]))
+      i++;
+    if (tokens == 0) {
+      firstBegin = begin;
+      firstLength = i - begin;
+    }
+    tokens++;
+  }
+
+  if (tokens == 0) {
+    return JsonAppend("\"\"", 2, out, outLength, capacity);
+  }
+  if (tokens == 1) {
+    return DictAppendTokenJson(value.c_str() + firstBegin, firstLength, out, outLength, capacity);
+  }
+
+  bool fit = JsonAppend("[", 1, out, outLength, capacity);
+  i = 0;
+  int emitted = 0;
+  while (i < value.size()) {
+    while (i < value.size() && IsSelectorSeparator(value[i]))
+      i++;
+    if (i >= value.size()) break;
+    const std::size_t begin = i;
+    while (i < value.size() && !IsSelectorSeparator(value[i]))
+      i++;
+    if (emitted > 0) fit = JsonAppend(separator, separatorLength, out, outLength, capacity) && fit;
+    fit = DictAppendTokenJson(value.c_str() + begin, i - begin, out, outLength, capacity) && fit;
+    emitted++;
+  }
+  return JsonAppend("]", 1, out, outLength, capacity) && fit;
 }
 
 // ─── the object ───────────────────────────────────────────────────────────────
