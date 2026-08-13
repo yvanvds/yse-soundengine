@@ -613,6 +613,38 @@ TEST_SUITE("integration") {
     CHECK(true);
   }
 
+  // Issue #819 made a streaming sound wait for its slow-pool loader before it is
+  // published, instead of being set up straight away off a channel count and a
+  // length the loader had not written yet. That gate has to open through the
+  // engine's own tick on a live device — the unit case for #819 drives
+  // SOUND::Manager().update() by hand with the audio stream paused, so it cannot
+  // tell a working gate from one that only ever opens when a test pumps the
+  // manager directly. Here the real callback is running and the only thing this
+  // case does is YSE::System().update(): if the extra setup round never came
+  // round again the sound would stay un-ready forever and the length would stay
+  // at the zero the old code published.
+  TEST_CASE("sound: a streaming sound becomes ready with its real length (issue #819)") {
+    if (!TestHelpers::engineInitWithAudio()) return;
+    if (YSE::System().getNumDevices() == 0) return;
+
+    YSE::sound s;
+    s.create(WAV_FIXTURE, nullptr, false, 1.0f, /*streaming*/ true);
+    REQUIRE(s.isValid());
+
+    const bool ready = TestHelpers::pacedPump(
+        5000, [&] { return s.isReady(); }, [] { YSE::System().update(); }, 1);
+    CHECK(ready);
+    CHECK(s.length() > 0u);
+
+    s.relative(true);
+    s.play();
+    for (int i = 0; i < 5; i++) {
+      YSE::System().sleep(20);
+      YSE::System().update();
+    }
+    s.stop();
+  }
+
   TEST_CASE("sound: DSP source sound plays on a real device without crash") {
     if (!TestHelpers::engineInitWithAudio()) return;
     if (YSE::System().getNumDevices() == 0) return;

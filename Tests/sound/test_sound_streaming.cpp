@@ -19,6 +19,7 @@
 #include <doctest/doctest.h>
 #include <sndfile.hh>
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
@@ -28,7 +29,9 @@
 #include <vector>
 
 #include "yse.hpp"
+#include "internal/global.h"
 #include "internal/lsfSoundfile.h"
+#include "internal/threadPool.h"
 #include "internal/time.h"
 #include "sound/soundManager.h"
 #include "dsp/buffer.hpp"
@@ -625,6 +628,86 @@ TEST_SUITE("sound") {
         3);
 
     CHECK(soundFile::liveInstances() == baseline);
+  }
+
+  // 8b. Issue #819 regression: a streaming sound must not be published before
+  //     its loader has described the source.
+  //
+  //     `create(..., streaming = true)` only *schedules* the open on the slow
+  //     pool; soundFile::loadStreaming() is what assigns the channel count and
+  //     the frame length, publishing both with the release store to `state`.
+  //     Two readers used to jump the gun: create() itself, right after
+  //     addSlowJob (the data race TSan reports), and setup(), which had a
+  //     "streaming sounds do not have to wait until loaded" branch that read
+  //     channels()/length() whatever the state was. When setup() won, the sound
+  //     was published with filebuffer.resize(0) — no output buffers at all, the
+  //     #657 failure mode — and length 0, permanently: readyCheck() promotes it
+  //     to OBJECT_READY and setup() never runs again.
+  //
+  //     Make that ordering instead of waiting for it. The background pool has
+  //     exactly one worker, so parking it in a blocker job pins the order of
+  //     everything queued behind it: the setup job is armed (by an update()
+  //     with a non-empty toLoad) *before* the streaming sound's load job is
+  //     queued, while the streaming impl is already OBJECT_CREATED and so
+  //     claimable by that setup pass. On the unfixed code the sound comes out
+  //     ready with length 0; with the fix setup() falls through until the file
+  //     reaches READY and the sound reports the real source length.
+  TEST_CASE("streaming: setup that beats the loader must not publish a zero-length sound (#819)") {
+    if (!TestHelpers::engineInit()) return;
+
+    struct Blocker : YSE::INTERNAL::threadPoolJob {
+      std::atomic<bool> running{false};
+      std::atomic<bool> release{false};
+      void run() override {
+        running.store(true, std::memory_order_release);
+        while (!release.load(std::memory_order_acquire))
+          std::this_thread::yield();
+      }
+    };
+
+    const long frames = 2 * S + 1234; // a length no other case in this TU writes
+    std::vector<float> src;
+    const std::string path = writeWav(frames, src);
+
+    // Drain whatever an earlier case left in flight, so the setup job is not
+    // already queued (update() skips arming it then) and the worker is idle.
+    for (int i = 0; i < 10; ++i) {
+      YSE::INTERNAL::Time().update();
+      YSE::SOUND::Manager().update();
+      TestHelpers::paceWindow(3);
+    }
+
+    Blocker blocker;
+    YSE::INTERNAL::Global().addSlowJob(&blocker);
+    TestHelpers::pacedUntil(5000, [&] { return blocker.running.load(std::memory_order_acquire); });
+    REQUIRE(blocker.running.load(std::memory_order_acquire));
+
+    // A plain (non-streaming) sound purely to put something in `toLoad`, so the
+    // update() below arms the manager's setup job behind the blocker.
+    YSE::sound plain;
+    plain.create(path.c_str(), nullptr, false, 1.0f, /*streaming*/ false);
+    YSE::INTERNAL::Time().update();
+    YSE::SOUND::Manager().update(); // queues the setup job: [blocker, ..., setup]
+
+    // Now the streaming sound. Its load job lands *after* the setup job in the
+    // one-worker queue, but SOUND::Manager::setup() has already flagged the impl
+    // OBJECT_CREATED, so the setup pass will claim it while the file is still
+    // FILESTATE::LOADING — the exact interleaving of issue #819.
+    YSE::sound stream;
+    stream.create(path.c_str(), nullptr, false, 1.0f, /*streaming*/ true);
+
+    blocker.release.store(true, std::memory_order_release);
+
+    TestHelpers::pacedPump(
+        5000, [&] { return stream.isReady(); },
+        [] {
+          YSE::INTERNAL::Time().update();
+          YSE::SOUND::Manager().update();
+        },
+        3);
+
+    CHECK(stream.isReady());
+    CHECK(stream.length() == static_cast<UInt>(frames));
   }
 
   // 9. Issue #283 regression: a stop (reset) that lands after an in-flight fill
