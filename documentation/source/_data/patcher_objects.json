@@ -2692,6 +2692,56 @@
       }
     ]
   },
+  ".dict.compare": {
+    "category": "GENERIC",
+    "description": "Compares two dictionaries — Max's dict.compare on the name-addressed value model .dict settled: both dictionaries are bound from the creation arguments, \".dict.compare <left> <right>\", because a dictionary is addressed by name and never passed down a cord. A bang, or the left dictionary's reference message \"dictionary <name>\", sends 1 when the two hold the same entries and 0 when they do not — the same number of entries and every key path present in both with identical value text, storage order ignored. The comparison answers \"did anything change?\" without diffing key by key: a patch that keeps a dictionary of live parameters compares the preset it just loaded against what is running.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang compares the two bound dictionaries and sends the verdict out the outlet. \"dictionary <name>\" does the same when it names the left dictionary bound by the first creation argument — the message a .dict's reference outlet emits on a bang, so wiring that outlet here gives Max's own gesture. A reference naming anything else, or any other message, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "compare",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"dictionary <name>\" is accepted silently when it names the right dictionary bound by the second creation argument, so a patch may wire both reference outlets across as it would in Max. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 1,
+        "label": "right reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".dict.compare",
+    "outlets": [
+      {
+        "doc": "The verdict: 1 when the two dictionaries hold the same entries — the same number of them, every key path present in both with identical value text, storage order ignored — and 0 when they do not.",
+        "index": 0,
+        "label": "equal",
+        "range": "0 or 1",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The left dictionary's shared name, addressed as \"<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty compares a private, empty dictionary.",
+        "name": "left",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The right dictionary's shared name, bound exactly as the left one. Empty compares a private, empty dictionary.",
+        "name": "right",
+        "range": "any identifier"
+      }
+    ]
+  },
   ".div": {
     "category": "MATH",
     "description": "Control-rate integer division. Emits left / right as an int whenever inlet 0 fires, truncating towards zero instead of producing the float ./ would. Floats truncate towards zero on input, and a divisor of 0 emits 0.",

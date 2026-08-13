@@ -28,6 +28,7 @@
 #include "genericObjects/gArray.h"
 #include "genericObjects/gColl.h"
 #include "genericObjects/gDict.h"
+#include "genericObjects/gDictCompare.h"
 #include "genericObjects/gPrint.h"
 // `.loadbang` / `.loadmess` (issue #547): the pair that lets a saved patch
 // describe its own starting state, fired by patcherImplementation's post-publish
@@ -433,6 +434,12 @@ pRegistry::pRegistry() {
   // written against: addressed by name, resolved on the control thread, never
   // passed down a cord (issue #550)
   Add(OBJ::G_DICT, gDict::Create);
+
+  // The first dict.* operation written against that model: compares the two
+  // dictionaries bound by its creation arguments and reports whether they hold
+  // the same entries — "did anything change?" without diffing key by key
+  // (issue #770)
+  Add(OBJ::G_DICT_COMPARE, gDictCompare::Create);
 
   // An ordered, index-addressed sequence shared by name — the collection type a
   // generative patch actually reaches for, and the value model the array.*

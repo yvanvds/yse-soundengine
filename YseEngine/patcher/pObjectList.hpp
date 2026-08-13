@@ -53,7 +53,7 @@ namespace YSE {
    *  - Shared state: ``G_VALUE``.
    *  - Collections: ``G_COLL``, ``G_BAG``, ``G_CAPTURE``, ``G_FUNBUFF``,
    *    ``G_TABLE``, ``G_TEXTFILE``, ``G_QLIST``, ``G_MTR``, ``G_SEQ``.
-   *  - Dictionaries: ``G_DICT``.
+   *  - Dictionaries: ``G_DICT``, ``G_DICT_COMPARE``.
    *  - Arrays: ``G_ARRAY``.
    *  - Debugging: ``G_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
@@ -243,6 +243,14 @@ namespace YSE {
     // thread. The twelve ``dict.*`` operations are separate objects written
     // against ``dictStore``; see genericObjects/gDict.h for the whole model.
     DEFOBJ(G_DICT, ".dict");
+
+    // The first of the dict.* operations written against that model (issue
+    // #770): both dictionaries are bound from the creation arguments —
+    // ``.dict.compare <left> <right>`` — because a dictionary is addressed by
+    // name and never passed down a cord. A bang, or the left dictionary's
+    // ``dictionary <name>`` reference, reports whether the two hold the same
+    // entries.
+    DEFOBJ(G_DICT_COMPARE, ".dict.compare");
 
     // An ordered, index-addressed sequence shared by name (issue #548), the
     // second type built on the value model ``.dict`` settled: an ``OUT_TYPE``

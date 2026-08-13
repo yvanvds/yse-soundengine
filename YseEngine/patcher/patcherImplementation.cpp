@@ -9,6 +9,7 @@
 #include "genericObjects/gBag.h"
 #include "genericObjects/gColl.h"
 #include "genericObjects/gDict.h"
+#include "genericObjects/gDictCompare.h"
 #include "genericObjects/gForward.h"
 #include "genericObjects/gReceive.h"
 #include "genericObjects/gSend.h"
@@ -164,6 +165,11 @@ void patcherImplementation::SetName(const std::string& n) {
       // "<patcherName>.<name>" address, so a renamed patcher's dictionaries
       // re-anchor with its collections, values, sends and receives (issue #550).
       static_cast<gDict*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_DICT_COMPARE) == 0) {
+      // And gDictCompare, whose two bound dictionaries are registered under
+      // the same "<patcherName>.<name>" addresses, so a renamed patcher's
+      // comparisons follow the dictionaries they compare (issue #770).
+      static_cast<gDictCompare*>(x.second)->RefreshBinding();
     } else if (strcmp(x.second->Type(), OBJ::G_ARRAY) == 0) {
       // And gArray, whose shared sequence is registered under the same
       // "<patcherName>.<name>" address, so a renamed patcher's arrays re-anchor
