@@ -130,6 +130,44 @@ TEST_SUITE("sound") {
     io.SetActive(false);
   }
 
+  // Issue #825: the non-streaming half of the same VFS, and the plainest
+  // statement of what the off-by-one cost. loadNonStreaming() reads the whole
+  // source in one readf() and only reaches FILESTATE::READY when it gets every
+  // frame the header promised; BufferIO_Read's clamp dropped the last byte, so
+  // the read came back one frame short, the file logged E_FILEREADER and stayed
+  // at LOADING, and the sound never left the manager's toLoad list. A public
+  // YSE::sound created from a registered buffer simply never became ready.
+  TEST_CASE("BufferIO + sound: a registered buffer becomes a ready sound (#825)") {
+    if (!TestHelpers::engineInit()) return;
+    auto bytes = readWavBytes();
+    if (bytes.empty()) return; // fixture missing in this environment
+
+    YSE::BufferIO io;
+    io.SetActive(true);
+    REQUIRE(io.AddBuffer("vfs-ready", bytes.data(), static_cast<int>(bytes.size())));
+
+    {
+      YSE::sound s;
+      s.create("vfs-ready");
+      REQUIRE(s.isValid());
+
+      const bool ready = TestHelpers::pacedPump(
+          5000, [&s] { return s.isReady(); },
+          [] {
+            YSE::INTERNAL::Time().update();
+            YSE::SOUND::Manager().update();
+          },
+          3);
+      CHECK(ready); // without the fix: never — the short read blocks READY
+      CHECK(s.length() == 100u); // frame count of the fixture
+    }
+
+    drainManager(12);
+
+    CHECK(io.RemoveBufferByName("vfs-ready"));
+    io.SetActive(false);
+  }
+
   TEST_CASE("BufferIO: copy-mode deep clear on destruction releases owned bytes") {
     auto bytes = readWavBytes();
     if (bytes.empty()) return;

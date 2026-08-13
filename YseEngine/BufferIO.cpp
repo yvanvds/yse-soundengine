@@ -110,10 +110,24 @@ void BufferIO_Close(void* fileHandle) {
 long long BufferIO_Read(void* destBuffer, long long maxBytesToRead, void* fileHandle) {
   IOBufferReader* reader = (IOBufferReader*)fileHandle;
   char* buffer = reader->buffer->buffer;
+  const sf_count_t length = reader->buffer->length;
   sf_count_t startpos = reader->currentPos;
+
+  // Nothing left to hand out (issue #825). Asking for bytes at or past the end
+  // is an ordinary thing for a VFS caller to do — sndfile does it at EOF, and
+  // a seek past the end can put the reader here too. Answer 0 rather than
+  // falling through to a copy whose end lies before its start.
+  if (startpos >= length) {
+    reader->currentPos = startpos;
+    return 0;
+  }
+
   sf_count_t endpos = startpos + maxBytesToRead;
-  if (endpos >= reader->buffer->length) {
-    endpos = reader->buffer->length - 1;
+  // Clamp to the end of the buffer, not one byte short of it: a read finishing
+  // exactly at `length` is legal and used to lose its last byte, which made the
+  // final byte of every registered buffer unreachable (issue #825).
+  if (endpos > length) {
+    endpos = length;
   }
 
   std::copy(buffer + startpos, buffer + endpos, (char*)destBuffer);
