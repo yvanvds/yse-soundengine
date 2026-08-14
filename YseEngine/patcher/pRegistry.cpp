@@ -34,6 +34,7 @@
 #include "genericObjects/gArrayPermute.h"
 #include "genericObjects/gArrayPosition.h"
 #include "genericObjects/gArraySort.h"
+#include "genericObjects/gArrayStats.h"
 #include "genericObjects/gColl.h"
 #include "genericObjects/gDict.h"
 #include "genericObjects/gDictCompare.h"
@@ -592,6 +593,20 @@ pRegistry::pRegistry() {
   // zero-based order before the reference so .array.indexmap can put a
   // parallel array into the same new order (issue #789)
   Add(OBJ::G_ARRAY_SORT, gArraySort::Create);
+
+  // The six statistics: read-only reducers, each one read of the store under
+  // one hold of its guard, answered as a scalar after the release. Five
+  // reduce the numeric elements (a symbol is skipped) and mode counts every
+  // element by its spelling; min/max/mode answer with the element itself,
+  // mean/median/stddev with one float, and an empty population bangs the
+  // empty outlet. median and mode sort a scratch the object owns, never the
+  // shared store (issue #790)
+  Add(OBJ::G_ARRAY_MIN, gArrayMin::Create);
+  Add(OBJ::G_ARRAY_MAX, gArrayMax::Create);
+  Add(OBJ::G_ARRAY_MEAN, gArrayMean::Create);
+  Add(OBJ::G_ARRAY_MEDIAN, gArrayMedian::Create);
+  Add(OBJ::G_ARRAY_MODE, gArrayMode::Create);
+  Add(OBJ::G_ARRAY_STDDEV, gArrayStdDev::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which

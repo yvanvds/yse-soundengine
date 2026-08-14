@@ -299,6 +299,17 @@ void patcherImplementation::SetName(const std::string& n) {
       // base: a renamed patcher's sorts must act on the array its other
       // objects now speak about (issue #789).
       static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_MIN) == 0 ||
+               strcmp(x.second->Type(), OBJ::G_ARRAY_MAX) == 0 ||
+               strcmp(x.second->Type(), OBJ::G_ARRAY_MEAN) == 0 ||
+               strcmp(x.second->Type(), OBJ::G_ARRAY_MEDIAN) == 0 ||
+               strcmp(x.second->Type(), OBJ::G_ARRAY_MODE) == 0 ||
+               strcmp(x.second->Type(), OBJ::G_ARRAY_STDDEV) == 0) {
+      // And the six statistics, whose binding lives on that same shared
+      // base: a renamed patcher's reducers must read the array its other
+      // objects now speak about. One branch, gArrayEnds' arrangement
+      // (issue #790).
+      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
     } else if (strcmp(x.second->Type(), OBJ::G_BAG) == 0) {
       // And gBag, whose `send` message prefixes a runtime receive name with
       // "<patcherName>." exactly as gForward does, so it has to re-anchor with

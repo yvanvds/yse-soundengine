@@ -63,7 +63,9 @@ namespace YSE {
    *    ``G_ARRAY_UNSHIFT``, ``G_ARRAY_INSERT``, ``G_ARRAY_REMOVE``,
    *    ``G_ARRAY_INDEXOF``, ``G_ARRAY_INDEX``, ``G_ARRAY_INDEXMAP``,
    *    ``G_ARRAY_REVERSE``, ``G_ARRAY_ROTATE``, ``G_ARRAY_SCRAMBLE``,
-   *    ``G_ARRAY_SHUFFLE``, ``G_ARRAY_SORT``.
+   *    ``G_ARRAY_SHUFFLE``, ``G_ARRAY_SORT``, ``G_ARRAY_MIN``,
+   *    ``G_ARRAY_MAX``, ``G_ARRAY_MEAN``, ``G_ARRAY_MEDIAN``,
+   *    ``G_ARRAY_MODE``, ``G_ARRAY_STDDEV``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -514,6 +516,24 @@ namespace YSE {
     // reference, so ``.array.indexmap`` can put a parallel array into the
     // same new order.
     DEFOBJ(G_ARRAY_SORT, ".array.sort");
+
+    // The six statistics (issue #790): the read-only reducers, each one read
+    // of the store under one hold of its guard, answered as a scalar after
+    // the guard is released — ``gArrayLength``'s kin, never the mutating
+    // permute base. Five reduce the **numeric** elements (a symbol is
+    // skipped, not part of the population) and ``mode`` counts every element
+    // by its spelling. ``min``/``max``/``mode`` answer with the element
+    // itself, typed the way the patcher spells it; ``mean``/``median``/
+    // ``stddev`` answer one float. An empty population bangs the empty
+    // outlet — the minimum of nothing does not exist, and a sentinel would
+    // be indistinguishable from a real answer. ``median`` and ``mode`` sort
+    // a scratch the object owns, never the shared store.
+    DEFOBJ(G_ARRAY_MIN, ".array.min");
+    DEFOBJ(G_ARRAY_MAX, ".array.max");
+    DEFOBJ(G_ARRAY_MEAN, ".array.mean");
+    DEFOBJ(G_ARRAY_MEDIAN, ".array.median");
+    DEFOBJ(G_ARRAY_MODE, ".array.mode");
+    DEFOBJ(G_ARRAY_STDDEV, ".array.stddev");
 
     DEFOBJ(G_PRINT, ".print");
 
