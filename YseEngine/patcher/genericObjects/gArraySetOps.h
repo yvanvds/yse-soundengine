@@ -94,6 +94,14 @@ namespace YSE {
      *  spell more atoms than a list holds — is refused whole and counted,
      *  ``.array.at``'s whole-reply rule; a partial set would be a lie about
      *  membership.
+     *
+     *  ### The base outlives the set operations
+     *
+     *  Everything above except the thinning is "read two arrays bound at
+     *  creation, safely, and send one result", which is what any two-array
+     *  reader needs — so the combination step is the virtual ``CollectLocked``
+     *  hook, and ``gArrayConcat`` (#793) is the first subclass that is not a
+     *  set operation at all: it keeps everything, repeats included, in order.
      */
     class gArraySetOpBase : public gArrayEndsBase {
     public:
@@ -122,7 +130,9 @@ namespace YSE {
     protected:
       // `intersect` is the whole difference between .array.sect and
       // .array.union: keep the left elements the right also holds, against
-      // keep everything either holds.
+      // keep everything either holds. A subclass that overrides
+      // CollectLocked (gArrayConcat, #793) passes false — the flag only
+      // drives the base's own collection.
       explicit gArraySetOpBase(bool intersect);
 
       // Extends gArrayEndsBase's hook so a re-parse resets the right name
@@ -134,28 +144,21 @@ namespace YSE {
       // names — the moment the right binding follows the left one.
       void ParamsChanged() override;
 
-    private:
-      // Point the right store at the current name and parent address. The
-      // exact mirror of gArrayEndsBase::Rebind over the second name. Control
-      // thread only; a no-op when the address has not changed.
-      void RebindRight();
-
-      // What a bang and the left reference both come down to: snapshot the
-      // left array under its guard, release, build the result against the
-      // right store under that guard alone, release, then send — the result
-      // out the result outlet, or a bang out the empty outlet when the
-      // operation selected nothing.
-      void Ask(YSE::THREAD thread);
-
-      // The set operation itself. The caller holds the right store's guard;
-      // the left array is `snapshot`. False when the result outran what a
-      // cord carries — the caller then refuses whole.
-      bool CollectLocked();
-
-      const bool intersect;
+      // The combination itself: build `result` from `snapshot` (the left
+      // array, already copied out) and `rightStore`. The caller holds the
+      // right store's guard — and only that one. False when the result
+      // outran what a cord carries; the caller then refuses whole. Virtual
+      // for the reason RefreshBinding is on gArrayEndsBase: a subclass whose
+      // combination is not a set operation (gArrayConcat's keep-everything
+      // append, #793) replaces the arithmetic while inheriting the two-name
+      // binding, the snapshot and the send whole. Runs under the guard on
+      // whichever thread asked, so an override must not allocate, lock or
+      // block.
+      virtual bool CollectLocked();
 
       // The right array's name, address key and store — the second creation
-      // argument's binding, mirroring the base's left-side trio.
+      // argument's binding, mirroring the base's left-side trio (and
+      // protected exactly as that trio is, for the CollectLocked override).
       std::string rightName;
       std::string boundRightAddress;
       std::shared_ptr<arrayStore> rightStore;
@@ -170,6 +173,21 @@ namespace YSE {
       // released. An AtomList rather than a string because it carries the
       // patcher's own bound on how much list text may travel down a cord.
       AtomList result;
+
+    private:
+      // Point the right store at the current name and parent address. The
+      // exact mirror of gArrayEndsBase::Rebind over the second name. Control
+      // thread only; a no-op when the address has not changed.
+      void RebindRight();
+
+      // What a bang and the left reference both come down to: snapshot the
+      // left array under its guard, release, build the result against the
+      // right store under that guard alone, release, then send — the result
+      // out the result outlet, or a bang out the empty outlet when the
+      // operation selected nothing.
+      void Ask(YSE::THREAD thread);
+
+      const bool intersect;
 
       // Render buffer for the result outlet, reserved to
       // AtomList::RENDER_CAPACITY at construction.

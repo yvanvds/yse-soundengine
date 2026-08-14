@@ -67,7 +67,8 @@ namespace YSE {
    *    ``G_ARRAY_MAX``, ``G_ARRAY_MEAN``, ``G_ARRAY_MEDIAN``,
    *    ``G_ARRAY_MODE``, ``G_ARRAY_STDDEV``, ``G_ARRAY_SLICE``,
    *    ``G_ARRAY_SUBARRAY``, ``G_ARRAY_SUB``, ``G_ARRAY_SPLIT``,
-   *    ``G_ARRAY_UNION``, ``G_ARRAY_SECT``, ``G_ARRAY_UNIQUE``.
+   *    ``G_ARRAY_UNION``, ``G_ARRAY_SECT``, ``G_ARRAY_UNIQUE``,
+   *    ``G_ARRAY_CONCAT``, ``G_ARRAY_JOIN``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -565,6 +566,19 @@ namespace YSE {
     DEFOBJ(G_ARRAY_UNION, ".array.union");
     DEFOBJ(G_ARRAY_SECT, ".array.sect");
     DEFOBJ(G_ARRAY_UNIQUE, ".array.unique");
+
+    // The "put these together" pair (issue #793), both read-only. ``concat``
+    // outputs the left array's elements followed by the right's — everything
+    // kept, repeats included, where the set operations thin — on the
+    // two-name binding and snapshot ``union``/``sect`` established, as the
+    // list text it spells. ``join`` glues one array's elements into one
+    // token, the separator (second creation argument, empty by default)
+    // between each pair, sent typed the way the patcher spells it and
+    // bounded by what a cord carries rather than by the store's element
+    // rule — the result is a message, not an element. An empty result bangs
+    // the empty outlet on both.
+    DEFOBJ(G_ARRAY_CONCAT, ".array.concat");
+    DEFOBJ(G_ARRAY_JOIN, ".array.join");
 
     DEFOBJ(G_PRINT, ".print");
 

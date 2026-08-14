@@ -27,6 +27,7 @@
 #include "genericObjects/gCapture.h"
 #include "genericObjects/gArray.h"
 #include "genericObjects/gArrayAt.h"
+#include "genericObjects/gArrayConcat.h"
 #include "genericObjects/gArrayEnds.h"
 #include "genericObjects/gArrayFind.h"
 #include "genericObjects/gArrayIndexMap.h"
@@ -632,6 +633,16 @@ pRegistry::pRegistry() {
   Add(OBJ::G_ARRAY_UNION, gArrayUnion::Create);
   Add(OBJ::G_ARRAY_SECT, gArraySect::Create);
   Add(OBJ::G_ARRAY_UNIQUE, gArrayUnique::Create);
+
+  // The "put these together" pair, both read-only. concat is the left
+  // array's elements followed by the right's — everything kept, repeats
+  // included, where the set operations thin — on the same two-name binding
+  // and snapshot, leaving as list text. join glues one array's elements
+  // into one token, the separator between each pair, sent typed and
+  // bounded by what a cord carries rather than by the store's element
+  // rule — the result is a message, not an element (issue #793)
+  Add(OBJ::G_ARRAY_CONCAT, gArrayConcat::Create);
+  Add(OBJ::G_ARRAY_JOIN, gArrayJoin::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which
