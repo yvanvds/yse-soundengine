@@ -191,6 +191,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_rslider.cpp
   patcher/test_patcher_multislider.cpp
   patcher/test_patcher_matrixctrl.cpp
+  patcher/test_patcher_function.cpp
   patcher/test_patcher_kslider.cpp
   patcher/test_patcher_nslider.cpp
   patcher/test_patcher_nodes.cpp
@@ -1186,6 +1187,7 @@ set_source_files_properties(
   patcher/test_patcher_rslider.cpp
   patcher/test_patcher_multislider.cpp
   patcher/test_patcher_matrixctrl.cpp
+  patcher/test_patcher_function.cpp
   patcher/test_patcher_kslider.cpp
   patcher/test_patcher_nslider.cpp
   patcher/test_patcher_nodes.cpp

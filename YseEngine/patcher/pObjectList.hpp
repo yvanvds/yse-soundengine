@@ -34,8 +34,8 @@ namespace YSE {
    *  - DSP filters: ``D_LOWPASS``, ``D_HIGHPASS``, ``D_BANDPASS``, ``D_VCF``.
    *  - I/O: ``D_DAC``, ``D_ADC``, ``D_LINE``.
    *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_RSLIDER``,
-   *    ``G_MULTISLIDER``, ``G_MATRIXCTRL``, ``G_KSLIDER``, ``G_NSLIDER``,
-   *    ``G_DIAL``, ``G_INCDEC``, ``G_RANDOM``.
+   *    ``G_MULTISLIDER``, ``G_MATRIXCTRL``, ``G_FUNCTION``, ``G_KSLIDER``,
+   *    ``G_NSLIDER``, ``G_DIAL``, ``G_INCDEC``, ``G_RANDOM``.
    *  - Proximity fields: ``G_NODES``.
    *  - Indexed selection: ``G_UMENU``, ``G_RADIOGROUP``, ``G_TAB``.
    *  - Labelled switches: ``G_LED``, ``G_TEXTBUTTON``.
@@ -141,6 +141,13 @@ namespace YSE {
     DEFOBJ(G_RSLIDER, ".rslider");
     DEFOBJ(G_MULTISLIDER, ".multislider");
     DEFOBJ(G_MATRIXCTRL, ".matrixctrl");
+    // A breakpoint function editor as one control (issue #561): a bounded,
+    // sorted store of (x, y, curve) breakpoints that answers any x with the
+    // curved interpolation between its neighbours and bangs out the whole
+    // envelope as a ramp list `.line` and `.bline` consume. See
+    // guiObjects/gFunction.h — including why it deliberately does not share
+    // `.funbuff`'s integer store.
+    DEFOBJ(G_FUNCTION, ".function");
     DEFOBJ(G_KSLIDER, ".kslider");
     DEFOBJ(G_NSLIDER, ".nslider");
     // A field of circular nodes a cursor is weighed against (issue #562) — the

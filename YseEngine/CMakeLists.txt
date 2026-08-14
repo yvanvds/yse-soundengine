@@ -202,6 +202,7 @@ set(YSE_SRCS
   patcher/guiObjects/gButton.cpp
   patcher/guiObjects/gDial.cpp
   patcher/guiObjects/gFloat.cpp
+  patcher/guiObjects/gFunction.cpp
   patcher/guiObjects/gIncDec.cpp
   patcher/guiObjects/gInt.cpp
   patcher/guiObjects/gItemList.cpp
@@ -547,6 +548,7 @@ set_source_files_properties(
   patcher/guiObjects/gButton.cpp
   patcher/guiObjects/gDial.cpp
   patcher/guiObjects/gFloat.cpp
+  patcher/guiObjects/gFunction.cpp
   patcher/guiObjects/gIncDec.cpp
   patcher/guiObjects/gInt.cpp
   patcher/guiObjects/gItemList.cpp

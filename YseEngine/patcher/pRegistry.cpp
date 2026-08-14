@@ -94,6 +94,7 @@
 #include "guiObjects/gRSlider.h"
 #include "guiObjects/gMultiSlider.h"
 #include "guiObjects/gMatrixCtrl.h"
+#include "guiObjects/gFunction.h"
 #include "guiObjects/gKSlider.h"
 #include "guiObjects/gNSlider.h"
 #include "guiObjects/gNodes.h"
@@ -618,6 +619,12 @@ pRegistry::pRegistry() {
   // take on their control inlet, so the control and the crossbar it drives need
   // nothing between them (issue #559)
   Add(OBJ::G_MATRIXCTRL, gMatrixCtrl::Create);
+  // A breakpoint function editor as one control: a bounded, sorted store of
+  // (x, y, curve) breakpoints that answers any x with the curved interpolation
+  // between its neighbours and bangs the whole envelope out as a ramp list
+  // `.line` and `.bline` consume — every hand-drawn envelope, velocity curve
+  // and automation shape is authored in one of these (issue #561)
+  Add(OBJ::G_FUNCTION, gFunction::Create);
   // A piano keyboard as one control: 128 GUI cells, one per MIDI pitch, each
   // holding that key's velocity — the first patcher control that expresses a
   // *note* rather than a number, and it speaks the pair-of-ints `.noteon`,
