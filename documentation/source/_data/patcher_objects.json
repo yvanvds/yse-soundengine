@@ -10525,6 +10525,85 @@
       }
     ]
   },
+  ".xyslider": {
+    "category": "GUI",
+    "description": "Two-dimensional control pad: one control holding two correlated axes, so a cutoff against a resonance, two FM ratios or a morph coordinate move as one gesture rather than as two sliders that happen to be neighbours. A float or int on the left inlet sets x and emits; the right inlet sets y and stores silently; a list on the left inlet sets both axes at once, as a bang re-sends them. Cell 0 is always x and cell 1 always y - a position is never sorted. Each axis is clamped into its own minimum-maximum pair, x leaves outlet 0, y outlet 1 and the pair leaves outlet 2 as a two-element list - exactly the cursor message .nodes takes. The three fire right to left. The GUI value is the two axes as cells (issue #551): \"x y\" as a whole, and inlet 0 takes that string back verbatim or \"set <index> <value>\" to move one axis.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A float or int sets the x axis; a list sets both axes from its first two numbers (\"x y\"); \"set <index> <value>\" moves one axis (0 is x, 1 is y); a bang re-sends. Everything here emits.",
+        "index": 0,
+        "label": "x/position",
+        "range": "xminimum-xmaximum"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Sets the y axis and stores it without sending anything out.",
+        "index": 1,
+        "label": "y",
+        "range": "yminimum-ymaximum"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".xyslider",
+    "outlets": [
+      {
+        "doc": "The x axis. Sent last, after outlets 2 and 1.",
+        "index": 0,
+        "label": "x",
+        "range": "xminimum-xmaximum",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The y axis.",
+        "index": 1,
+        "label": "y",
+        "range": "yminimum-ymaximum",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "Both axes as a two-element list, x first. Sent first.",
+        "index": 2,
+        "label": "position",
+        "range": "per-axis bounds",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Lowest value the x axis can reach.",
+        "name": "xminimum",
+        "range": "any float"
+      },
+      {
+        "default": "127",
+        "doc": "Highest value the x axis can reach.",
+        "name": "xmaximum",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "Lowest value the y axis can reach.",
+        "name": "yminimum",
+        "range": "any float"
+      },
+      {
+        "default": "127",
+        "doc": "Highest value the y axis can reach.",
+        "name": "ymaximum",
+        "range": "any float"
+      }
+    ]
+  },
   ".zl": {
     "category": "GENERIC",
     "description": "The patcher's list-processing workhorse — Max's zl, 'multi-purpose list processing object': one object with two inlets, two outlets and a mode word that decides what happens between them. A list arriving at the left inlet is stored and processed under the current mode; a bang runs the mode over the stored list again, which is how a patch asks for the same list back under a mode it has just switched to with 'mode <name>'. All thirty-one of Max's mode words are implemented. Three of them read the list: 'len' sends the number of items in it, 'rev' sends it in reverse order, and 'nth' picks one item by its 1-based index — the item out the left outlet and everything else out the right one, Max's 'the right outlet outputs all elements except the selected one'. Five of them rearrange it: 'rot' rotates it by the number of places its argument gives, positive toward the end and negative toward the start, always modulo the length so any magnitude is legal; 'scramble' shuffles it, from a per-object random sequence that 'zlseed <n>' makes replayable; 'sort' sorts it, upwards unless its argument is negative, with numbers before symbols in both directions and equal items keeping the order they arrived in; 'swap' exchanges the two items its two 1-based indices name; and 'indexmap' re-picks the list in the order an index map gives, which may name an item twice or leave one out. 'sort' also publishes the index map of what it did on the right outlet, and that is the object's headline idiom: sort one list and send the map to a second '.zl indexmap' to put a parallel list into the same new order. Four more extract from it: 'mth' is 'nth' counted from 0, which is the whole difference between the two and the object's one deliberate exception to 1-based numbering — 0-based picking keeps a name of its own instead of becoming a trap; 'slice' cuts the list in two, the first N items out the left outlet and the rest out the right, N being a count rather than an index and so clamped to the list; 'sub' searches the stored list for the list in the right inlet and sends the 1-based position of every occurrence, overlapping ones included, with the number of them out the right outlet even when it is 0; and 'lookup' is 'indexmap' with the two lists swapped — the right inlet holds a table and the stored list is the 1-based indices to read from it, so a stream of numbers becomes a stream of table entries. Every index the object reads or writes is 1-based except 'mth', so the modes compose: what 'sub' reports is exactly what 'nth' takes. Seven treat the list as a set rather than as a sequence, which is how a patch answers 'which of these notes are in the scale' or 'which are new since last time': 'thin' drops every repeat after the first, 'sect' sends what the stored list and the right inlet's list have in common, 'union' sends the two added together with shared items appearing once, and 'unique' and 'filter' send the stored list with the right inlet's items taken out of it. Those two select the same items — which is Max's arrangement rather than a duplication here — and differ in what the right outlet says: 'filter' reports the 1-based positions the survivors held, so it composes with 'nth' the way 'sub' does, while 'unique' says nothing. The set operations really are sets, so 'thin', 'sect' and 'union' each produce every item once, at the place it first appeared; 'unique' and 'filter' are removals rather than set operations and keep the list as it arrived, duplicates and positions included, minus what matched. The last two ask whether two lists are the same list: 'compare' sends 1 or 0 and, when they differ, the 1-based positions at which they do, counting a length difference as a difference at every position past the shorter list; and 'change' sends the list on only when it is not the one that came before it, with 1 or 0 out the right outlet either way. 'change' is the one mode that writes to the right inlet's list, because in Max that list is its comparison reference — a list sent there primes it, and each list that arrives becomes the reference in its turn, so banging the same list twice reports no change the second time. Membership is answered by ranking each list once and binary-searching rather than by comparing every item against every other, which would be sixty-five thousand comparisons on two full-length lists and is the same objection that made 'sub' a Knuth-Morris-Pratt search and 'sort' a merge sort. Ten more are structural — the plumbing that lets list-shaped and stream-shaped data meet. Six of them restructure whatever arrives: 'reg' is a register, holding a list and sending it again on a bang, with the right inlet priming it silently; 'iter' sends the list out as a run of separate messages of N items each; 'join' and 'lace' combine the stored list with the right inlet's, one after the other or interleaved; 'delace' pulls a laced list back apart into two; and 'ecils' is 'slice' counting from the end. The other four accumulate across messages, which is what makes them the only modes whose answer depends on what came before: 'group' collects a stream and sends it on in fixed-size lists, 'stream' keeps a sliding window of the last N items, and 'queue' and 'stack' are a FIFO and a LIFO that a bang pops one item at a time — from the front and from the back respectively, which is the whole difference between them. Those four share one store, so switching between them live keeps the material rather than silently starting a second buffer, and 'zlclear' is what empties it. The last two read the list as a quantity rather than as atoms, which makes them the only modes whose answer need not be in the list at all: 'sum' adds its numbers up and 'median' sends the middle one once they are ordered — the item itself when there is an odd number of them, and the mean of the two middles when there is an even number, which is what Max answers. Both pass over any symbols among the numbers rather than refusing the list, and they part company over a list with no numbers in it at all: the sum of nothing is 0 and is sent, as 'len' sends 0 for an empty list, while the median of nothing is not a value and nothing is sent. A computed result leaves as an int when every item it was computed from was spelled as one and the value is a whole number, and as a float otherwise, so the median of '1 3' is 2, the median of '1 2' is 1.5, and a sum of floats stays a float even when it lands on a whole number. Apart from the accumulating four, none of the reordering, extracting, set, structural or numeric modes consumes the stored list, so a bang rearranges the same list again rather than rearranging the previous answer. Where a mode fills both outlets, the right one is sent first, which is Max's right-to-left rule. Max ships a second spelling of every mode as its own object ('zl.rev'), and it is deliberately not ported: it is sugar for the mode argument, thirty-one registered names for one class, and a '.zl.rev' that can still be told 'mode nth' would not be what its name says. The list storage is bounded and pre-allocated — at most 256 items, Max's own default maximum list length, spanning at most 1024 characters, in memory reserved when the object is built. A leading integer creation argument or the 'zlmaxsize <n>' message narrows the working limit to anywhere in 1-256; it cannot be widened past 256, because a limit that could grow the storage would allocate on whichever thread sent the list. An item that does not fit is refused and counted rather than silently truncated, so an over-long list loses its tail and keeps its head; the count is a counter rather than a log line because the refusing thread may be the audio callback, while an over-long creation argument is logged, parameter parsing being control-thread only. A result of one item leaves as the int, float or symbol it spells rather than as a list of one, and a result of no items sends nothing at all. Re-typing the creation arguments rebuilds the object and so empties the stored list, which is what re-typing an object does in Max; the 'mode' message keeps it, which is what a patch changing modes live wants. Calculate() does nothing and no message path allocates, locks or blocks: the command words are matched in place, the items are parsed into reserved storage, numbers are rendered into a stack buffer, and the mode dispatch is one atomic load and a switch. Two threads sending to the same object are serialised by a single test-and-set guard whose loser is dropped and counted rather than made to spin, which is also what stops an object wired back into its own inlet from recursing on the audio thread.",

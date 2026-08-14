@@ -34,8 +34,8 @@ namespace YSE {
    *  - DSP filters: ``D_LOWPASS``, ``D_HIGHPASS``, ``D_BANDPASS``, ``D_VCF``.
    *  - I/O: ``D_DAC``, ``D_ADC``, ``D_LINE``.
    *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_RSLIDER``,
-   *    ``G_MULTISLIDER``, ``G_MATRIXCTRL``, ``G_FUNCTION``, ``G_KSLIDER``,
-   *    ``G_NSLIDER``, ``G_DIAL``, ``G_INCDEC``, ``G_RANDOM``.
+   *    ``G_XYSLIDER``, ``G_MULTISLIDER``, ``G_MATRIXCTRL``, ``G_FUNCTION``,
+   *    ``G_KSLIDER``, ``G_NSLIDER``, ``G_DIAL``, ``G_INCDEC``, ``G_RANDOM``.
    *  - Proximity fields: ``G_NODES``.
    *  - Indexed selection: ``G_UMENU``, ``G_RADIOGROUP``, ``G_TAB``.
    *  - Labelled switches: ``G_LED``, ``G_TEXTBUTTON``.
@@ -139,6 +139,12 @@ namespace YSE {
     DEFOBJ(G_FLOAT, ".f");
     DEFOBJ(G_SLIDER, ".slider");
     DEFOBJ(G_RSLIDER, ".rslider");
+    // A two-dimensional control pad (issue #563): one gesture carrying two
+    // correlated axes, x and y over independently settable ranges. Max's
+    // pictslider under an honest name — the picture is a host rendering
+    // concern. See guiObjects/gXYSlider.h, including why a position is never
+    // sorted the way .rslider's span is.
+    DEFOBJ(G_XYSLIDER, ".xyslider");
     DEFOBJ(G_MULTISLIDER, ".multislider");
     DEFOBJ(G_MATRIXCTRL, ".matrixctrl");
     // A breakpoint function editor as one control (issue #561): a bounded,

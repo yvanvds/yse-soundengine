@@ -219,6 +219,7 @@ set(YSE_SRCS
   patcher/guiObjects/gText.cpp
   patcher/guiObjects/gTextEdit.cpp
   patcher/guiObjects/gToggle.cpp
+  patcher/guiObjects/gXYSlider.cpp
   patcher/inlet.cpp
   patcher/math/dAdd.cpp
   patcher/math/dClip.cpp
@@ -565,6 +566,7 @@ set_source_files_properties(
   patcher/guiObjects/gText.cpp
   patcher/guiObjects/gTextEdit.cpp
   patcher/guiObjects/gToggle.cpp
+  patcher/guiObjects/gXYSlider.cpp
   patcher/math/dAdd.cpp
   patcher/math/dClip.cpp
   patcher/math/dDivide.cpp

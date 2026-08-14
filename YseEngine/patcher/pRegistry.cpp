@@ -92,6 +92,7 @@
 #include "guiObjects/gFloat.h"
 #include "guiObjects/gSlider.h"
 #include "guiObjects/gRSlider.h"
+#include "guiObjects/gXYSlider.h"
 #include "guiObjects/gMultiSlider.h"
 #include "guiObjects/gMatrixCtrl.h"
 #include "guiObjects/gFunction.h"
@@ -609,6 +610,9 @@ pRegistry::pRegistry() {
   Add(OBJ::G_FLOAT, gFloat::Create);
   Add(OBJ::G_SLIDER, gSlider::Create);
   Add(OBJ::G_RSLIDER, gRSlider::Create);
+  // A two-dimensional control pad — two correlated axes moving as one gesture,
+  // the XY pad two independent `.slider`s cannot express (issue #563)
+  Add(OBJ::G_XYSLIDER, gXYSlider::Create);
   // A bank of values as one control — the shape a step sequencer's levels, a
   // graphic EQ's bands or a set of voice gains have, and the one the patcher's
   // point-holding controls and its opaque `.l` between them could not express
