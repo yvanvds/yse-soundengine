@@ -1161,6 +1161,74 @@
       }
     ]
   },
+  ".array.fill": {
+    "category": "GENERIC",
+    "description": "Fills an array with a repeated value — Max's array.fill on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.fill <name> [<count>] [<value>]\", because an array is addressed by name and never passed down a cord. A fill REPLACES the contents: the array becomes exactly count copies of the value, so a shorter fill shrinks it and a count of 0 clears it — which is what makes it the initialiser, sizing an array in one message so an index-addressed write pattern has positions to land on, since an index past the end is refused rather than growing the array. A bang fills with the stored count and value (count seeded by the second creation argument, moved silently by the count inlet; value the third creation argument, 0 when absent — Max's default); an int, float or symbol on the value inlet fills with the stored count of copies of that value at the moment it arrives and stores nothing. The count is bounded at the store's 256 elements and refused rather than truncated; the value is one atom of at most 64 characters. The whole fill is one hold of the store's guard, and a fill that lands emits the array's reference, so the family chains.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang fills the bound array with the stored count of copies of the stored value — the array becomes exactly that, whatever it held. An int or a float fills with the stored count of copies of THAT value at the moment it arrives, spelled the way it arrived (7.5 stays a float), and stores nothing — a bang afterwards fills with the author's value. A symbol arrives as a one-atom list, kept equivalent to the number. A non-finite float is refused: it has no spelling that reads back. A list of more than one atom is refused whole — the fill value is one atom, and a content list belongs to .array's own set message. \"array <name>\" fills with the stored count and value when it names the array bound by the creation argument — the message an .array's reference outlet emits on a bang, the family's gesture. Anything else is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "value",
+        "range": "one atom, at most 64 characters"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "An int stores the count the next fill sizes the array to, silently — the cold half of the Max idiom, Max's right-inlet length. Negative is malformed (a count is a size, not a distance) and past the store's 256 could never land: both are refused before they are stored, so a bang after the refusal fills with what it would have filled before it. A float truncates to an int first; a non-finite one is refused rather than quietly becoming count 0.",
+        "index": 1,
+        "label": "count",
+        "range": "0-256"
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the array bound by the creation argument, so a patch may wire the array's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 2,
+        "label": "array reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.fill",
+    "outlets": [
+      {
+        "doc": "The bound array's reference, \"array <name>\", sent after a fill that landed — the way an array leaves an object on the value model, so wiring it onward chains the family: into .array.length it reports the new size. A refused fill emits nothing — a lost try-lock, an out-of-range count only a creation argument can plant, a value no element can hold — and an unnamed object stays silent: the fill happens, but there is no name to pass on.",
+        "index": 0,
+        "label": "reference",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty fills a private, empty array: the fill lands, but nothing shares it and no reference leaves.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "0",
+        "doc": "The initial stored count — how many copies a bang fills the array with before any int on the count inlet has moved it. 0, the default, makes a bare bang clear the array. Bounded at the store's 256 elements; an out-of-range creation argument is refused at the fill, counted, never clamped.",
+        "name": "count",
+        "range": "0-256"
+      },
+      {
+        "default": "0",
+        "doc": "The stored fill value — what a bang repeats. One atom, at most 64 characters, spelled the way it will be stored (7 an int, 7. a float, anything else a symbol). Absent means 0 — Max's \"without any initial data, the array will be filled with 0s\". An inline value on the value inlet never rewrites this: the author's argument is the author's.",
+        "name": "value",
+        "range": "one atom, at most 64 characters"
+      }
+    ]
+  },
   ".array.index": {
     "category": "GENERIC",
     "description": "Outputs whether, and where, a value is held — the membership half of the search pair on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.index <name> [<value>]\", because an array is addressed by name and never passed down a cord. An int, a float or a symbol searches for the element that spells it and stores the value; a bang re-searches with the stored value, and the message an .array's reference outlet emits on a bang does the same — the family gesture. The first matching position leaves the position outlet on a hit and a miss bangs the miss outlet — .array.at's split, so whether is which outlet fired and where is the int, and the membership test becomes a cord choice rather than a comparison: wire the position outlet to the held branch and the miss outlet to the not-held branch, no .sel -1 in between. The search is one scan under one hold of the store's guard; .array.indexof is the same search answered in-band as -1.",

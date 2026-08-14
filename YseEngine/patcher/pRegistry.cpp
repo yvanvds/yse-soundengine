@@ -29,6 +29,7 @@
 #include "genericObjects/gArrayAt.h"
 #include "genericObjects/gArrayConcat.h"
 #include "genericObjects/gArrayEnds.h"
+#include "genericObjects/gArrayFill.h"
 #include "genericObjects/gArrayFind.h"
 #include "genericObjects/gArrayIndexMap.h"
 #include "genericObjects/gArrayLength.h"
@@ -643,6 +644,14 @@ pRegistry::pRegistry() {
   // rule — the result is a message, not an element (issue #793)
   Add(OBJ::G_ARRAY_CONCAT, gArrayConcat::Create);
   Add(OBJ::G_ARRAY_JOIN, gArrayJoin::Create);
+
+  // The initialiser: a fill REPLACES the contents — the array becomes
+  // exactly count copies of the value, a shorter fill shrinks it, 0 clears
+  // it — sizing and initialising in one message so an index-addressed write
+  // pattern has positions to land on. Count is Max's right-inlet length,
+  // bounded at the store's 256 and refused rather than truncated; the value
+  // is Max's left-inlet datum, one atom, defaulting to 0 (issue #794)
+  Add(OBJ::G_ARRAY_FILL, gArrayFill::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which

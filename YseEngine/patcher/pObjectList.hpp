@@ -68,7 +68,7 @@ namespace YSE {
    *    ``G_ARRAY_MODE``, ``G_ARRAY_STDDEV``, ``G_ARRAY_SLICE``,
    *    ``G_ARRAY_SUBARRAY``, ``G_ARRAY_SUB``, ``G_ARRAY_SPLIT``,
    *    ``G_ARRAY_UNION``, ``G_ARRAY_SECT``, ``G_ARRAY_UNIQUE``,
-   *    ``G_ARRAY_CONCAT``, ``G_ARRAY_JOIN``.
+   *    ``G_ARRAY_CONCAT``, ``G_ARRAY_JOIN``, ``G_ARRAY_FILL``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -579,6 +579,15 @@ namespace YSE {
     // the empty outlet on both.
     DEFOBJ(G_ARRAY_CONCAT, ".array.concat");
     DEFOBJ(G_ARRAY_JOIN, ".array.join");
+
+    // The initialiser (issue #794): the one write that *sizes*. A fill
+    // replaces the contents — the array becomes exactly ``<count>`` copies
+    // of ``<value>``, so a shorter fill shrinks it and 0 clears it — which
+    // is what gives an index-addressed write pattern positions to land on,
+    // the store refusing an index past the end rather than growing. Count
+    // bounded at the store's 256 and refused rather than truncated; the
+    // value one atom, Max's left-inlet datum, defaulting to 0.
+    DEFOBJ(G_ARRAY_FILL, ".array.fill");
 
     DEFOBJ(G_PRINT, ".print");
 
