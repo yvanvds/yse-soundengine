@@ -29,6 +29,7 @@
 #include "genericObjects/gArrayAt.h"
 #include "genericObjects/gArrayConcat.h"
 #include "genericObjects/gArrayConvert.h"
+#include "genericObjects/gArrayDeserialize.h"
 #include "genericObjects/gArrayEnds.h"
 #include "genericObjects/gArrayFill.h"
 #include "genericObjects/gArrayFind.h"
@@ -675,6 +676,15 @@ pRegistry::pRegistry() {
   Add(OBJ::G_ARRAY_TOLIST, gArrayToList::Create);
   Add(OBJ::G_ARRAY_TOSTRING, gArrayToString::Create);
   Add(OBJ::G_ARRAY_TOSYMBOL, gArrayToSymbol::Create);
+
+  // The reader: an array back in from serialised text — one JSON array of
+  // typed elements, the form .array saves with a patch, read by the same
+  // ArrayFromJson a saved patch loads through and replacing the bound array
+  // whole. The parse runs on the background pool (nlohmann allocates, and
+  // the inlet may be the audio thread); the block poll installs the result
+  // and announces the reference a block later — .dict.deserialize's
+  // arrangement (issue #797)
+  Add(OBJ::G_ARRAY_DESERIALIZE, gArrayDeserialize::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which

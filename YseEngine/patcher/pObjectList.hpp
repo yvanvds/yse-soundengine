@@ -70,7 +70,7 @@ namespace YSE {
    *    ``G_ARRAY_UNION``, ``G_ARRAY_SECT``, ``G_ARRAY_UNIQUE``,
    *    ``G_ARRAY_CONCAT``, ``G_ARRAY_JOIN``, ``G_ARRAY_FILL``,
    *    ``G_ARRAY_FLATTEN``, ``G_ARRAY_TOLIST``, ``G_ARRAY_TOSTRING``,
-   *    ``G_ARRAY_TOSYMBOL``.
+   *    ``G_ARRAY_TOSYMBOL``, ``G_ARRAY_DESERIALIZE``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -617,6 +617,18 @@ namespace YSE {
     DEFOBJ(G_ARRAY_TOLIST, ".array.tolist");
     DEFOBJ(G_ARRAY_TOSTRING, ".array.tostring");
     DEFOBJ(G_ARRAY_TOSYMBOL, ".array.tosymbol");
+
+    // The reader (issue #797): an array back in from serialised text — one
+    // JSON array of typed elements, the exact form ``.array`` saves with a
+    // patch, read by the same ``ArrayFromJson`` a saved patch loads through
+    // and replacing the bound array whole. The parse runs on the background
+    // pool (nlohmann allocates, and the inlet may be the audio thread), so
+    // the inlet is a wait-free hand-off and the block poll installs the
+    // result and announces ``array <name>`` a block later —
+    // ``.dict.deserialize``'s arrangement. A document past what a list
+    // payload carries, or one arriving mid-parse, is refused whole; one that
+    // is not a JSON array fails, counted, changing nothing.
+    DEFOBJ(G_ARRAY_DESERIALIZE, ".array.deserialize");
 
     DEFOBJ(G_PRINT, ".print");
 
