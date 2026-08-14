@@ -70,7 +70,7 @@ namespace YSE {
    *    ``G_ARRAY_UNION``, ``G_ARRAY_SECT``, ``G_ARRAY_UNIQUE``,
    *    ``G_ARRAY_CONCAT``, ``G_ARRAY_JOIN``, ``G_ARRAY_FILL``,
    *    ``G_ARRAY_FLATTEN``, ``G_ARRAY_TOLIST``, ``G_ARRAY_TOSTRING``,
-   *    ``G_ARRAY_TOSYMBOL``, ``G_ARRAY_DESERIALIZE``.
+   *    ``G_ARRAY_TOSYMBOL``, ``G_ARRAY_DESERIALIZE``, ``G_ARRAY_ITER``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -629,6 +629,17 @@ namespace YSE {
     // payload carries, or one arriving mid-parse, is refused whole; one that
     // is not a JSON array fails, counted, changing nothing.
     DEFOBJ(G_ARRAY_DESERIALIZE, ".array.deserialize");
+
+    // The iterator (issue #798): every element out one at a time, first to
+    // last, each typed the way the patcher spells it, then a bang out the
+    // done outlet — the ``.uzi`` / ``.iter`` shape applied to stored data.
+    // The walk is a snapshot of the array as it stood at the trigger, so a
+    // renumbering write arriving mid-walk moves the store, never the walk in
+    // flight, and two on one name walk independently — ``.coll``'s
+    // per-object pointer rule. A trigger arriving mid-walk is refused and
+    // counted, ``.uzi``'s re-entrant start rule. The done bang fires even
+    // for an empty array, never for a refused walk.
+    DEFOBJ(G_ARRAY_ITER, ".array.iter");
 
     DEFOBJ(G_PRINT, ".print");
 

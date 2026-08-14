@@ -357,6 +357,11 @@ void patcherImplementation::SetName(const std::string& n) {
       // renamed patcher's parsed documents must land in the array its other
       // objects now speak about (issue #797).
       static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_ITER) == 0) {
+      // And the iterator, whose binding lives on that same shared base: a
+      // renamed patcher's walks must stream the array its other objects now
+      // speak about (issue #798).
+      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
     } else if (strcmp(x.second->Type(), OBJ::G_BAG) == 0) {
       // And gBag, whose `send` message prefixes a runtime receive name with
       // "<patcherName>." exactly as gForward does, so it has to re-anchor with

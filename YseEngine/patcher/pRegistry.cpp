@@ -30,6 +30,7 @@
 #include "genericObjects/gArrayConcat.h"
 #include "genericObjects/gArrayConvert.h"
 #include "genericObjects/gArrayDeserialize.h"
+#include "genericObjects/gArrayIter.h"
 #include "genericObjects/gArrayEnds.h"
 #include "genericObjects/gArrayFill.h"
 #include "genericObjects/gArrayFind.h"
@@ -685,6 +686,15 @@ pRegistry::pRegistry() {
   // and announces the reference a block later — .dict.deserialize's
   // arrangement (issue #797)
   Add(OBJ::G_ARRAY_DESERIALIZE, gArrayDeserialize::Create);
+
+  // The iterator: every element out one at a time, first to last, each
+  // typed the way the patcher spells it, then the done bang — the
+  // .uzi/.iter shape applied to stored data, and the object every "do this
+  // for each element" patch is built from. The walk is a snapshot of the
+  // array as it stood at the trigger — a renumbering write arriving
+  // mid-walk moves the store, never the walk in flight — and a trigger
+  // arriving mid-walk is refused and counted (issue #798)
+  Add(OBJ::G_ARRAY_ITER, gArrayIter::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which
