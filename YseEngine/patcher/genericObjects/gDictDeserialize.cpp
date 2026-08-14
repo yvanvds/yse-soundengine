@@ -4,6 +4,7 @@
 
 #include "../../implementations/logImplementation.h"
 #include "../pObjectList.hpp"
+#include "../pSelector.h"
 #include "../patcherImplementation.h"
 
 using namespace YSE::PATCHER;
@@ -13,6 +14,36 @@ using namespace YSE::PATCHER;
 namespace {
 
   constexpr std::size_t kReferenceLength = sizeof(kDictReferenceWord) - 1;
+
+  // The bounds of the first token of `text`, or false when there is none.
+  // Walked in place rather than through substr — gTextfile's helpers, for
+  // gTextfile's reason: this runs on whichever thread the message arrived on.
+  bool FirstToken(const char* text, std::size_t length, std::size_t& begin, std::size_t& end) {
+    begin = 0;
+    while (begin < length && IsSelectorSeparator(text[begin]))
+      begin++;
+    end = begin;
+    while (end < length && !IsSelectorSeparator(text[end]))
+      end++;
+    return end > begin;
+  }
+
+  // Trim the separators off both ends of [begin, end).
+  void Trim(const char* text, std::size_t& begin, std::size_t& end) {
+    while (begin < end && IsSelectorSeparator(text[begin]))
+      begin++;
+    while (end > begin && IsSelectorSeparator(text[end - 1]))
+      end--;
+  }
+
+  // Whether the `length` characters at `text` are exactly `word`.
+  bool TokenIs(const char* text, std::size_t length, const char* word, std::size_t wordLength) {
+    if (length != wordLength) return false;
+    for (std::size_t i = 0; i < length; i++) {
+      if (text[i] != word[i]) return false;
+    }
+    return true;
+  }
 
   // Doc strings, hoisted out of CONSTRUCT() because they are long enough that
   // the constructor stops being readable with them inline — gDict's
@@ -28,8 +59,13 @@ namespace {
       "truncated: the prefix of a JSON document is a different document or none. A document "
       "arriving while the previous one is still in flight is refused and counted too, and one "
       "that fails to parse is counted and changes nothing — a bad document never costs a "
-      "dictionary its contents. No bang and no bare number: a bang carries no document, and a "
-      "number names nothing.";
+      "dictionary its contents. 'read [file]' is the document past that bound: the file loads "
+      "through the patcher's file scheduler — the request claims a patcher-owned slot, the disk "
+      "work runs on the background pool, and the bytes are handed to the same parse slot the "
+      "inlet uses, so a file document installs and announces exactly as an inlet document does, "
+      "up to the scheduler slot's 128 KiB (a larger file is refused whole by the scheduler, "
+      "never truncated). A bare 'read' reuses the last path given. No bang and no bare number: "
+      "a bang carries no document, and a number names nothing.";
 
   constexpr char kOutletDoc[] =
       "\"dictionary <name>\" once a document has been parsed and installed — the reference the "
@@ -66,6 +102,11 @@ CONSTRUCT() {
   Rebind();
   RefreshReference();
 
+  // The file route's one allocation, taken here on the control thread: a
+  // `read` may arrive on the audio callback, so remembering its path has to
+  // reuse storage that already exists (issue #840).
+  readPath.reserve(fileScheduler::PATH_CAPACITY);
+
   // This object's slot in the process-wide parse table. Claimed here on the
   // control thread — the first claim of a slot allocates its staging store —
   // and held for the object's life. A full table is worth a log line, said
@@ -94,10 +135,14 @@ CONSTRUCT() {
       "arrangement for a result with no cord to arrive on. A document past 255 characters — the "
       "longest list payload the patcher's value queue carries — is refused whole and counted, "
       "never truncated; a document that fails to parse is counted and changes nothing, so a bad "
-      "document never costs a dictionary its contents. Only the creation argument persists "
-      "across a save; the dictionary's contents persist with the .dict that owns them.");
+      "document never costs a dictionary its contents. A larger document takes the file route: "
+      "'read [file]' loads a JSON file through the patcher's file scheduler — background disk "
+      "work, the same background parse, the same block-poll install — lifting the bound to the "
+      "scheduler slot's 128 KiB, past which a file is refused whole. Only the creation argument "
+      "persists across a save; the dictionary's contents persist with the .dict that owns "
+      "them.");
   ADD_CATEGORY(pCategory::GENERIC);
-  INLET_DOC(0, "json", kInletDoc, "at most 255 characters");
+  INLET_DOC(0, "json", kInletDoc, "at most 255 characters inline; a file up to 128 KiB");
   OUTLET_DOC(0, "reference", kOutletDoc, "");
   PARAM_DOC("name", "", kNameDoc, "any identifier");
 }
@@ -130,6 +175,10 @@ PARM_PARSE() {
 // itself to every object via SetParent); the cast mirrors gDict's.
 void gDictDeserialize::SetParent(pObject* newParent) {
   pObject::SetParent(newParent);
+  // Control thread, and the one place the patcher's file table can be built:
+  // a `read` arriving later on the audio thread has to find it already there
+  // (issues #683, #840).
+  EnableFileIO();
   Rebind();
 }
 
@@ -172,6 +221,20 @@ void gDictDeserialize::RefreshReference() {
 LIST_IN(ListIn) {
   (void)inlet;
   (void)thread;
+  // The file route first (issue #840): "read [file]" is a claim on a
+  // fileScheduler slot, never a document — and never ambiguous, since a
+  // document this object can accept is a JSON object and so starts with '{'.
+  std::size_t wordBegin = 0;
+  std::size_t wordEnd = 0;
+  if (FirstToken(value.c_str(), value.size(), wordBegin, wordEnd) &&
+      TokenIs(value.c_str() + wordBegin, wordEnd - wordBegin, "read", 4)) {
+    std::size_t begin = wordEnd;
+    std::size_t end = value.size();
+    Trim(value.c_str(), begin, end);
+    RequestFile(value.c_str() + begin, end - begin);
+    return;
+  }
+
   // The wait-free hand-off: one CAS, one bounded copy, one lock-free push —
   // nothing here parses, because this may be the audio thread. Refused and
   // counted: no slot at all (the table was full at construction), a document
@@ -183,6 +246,60 @@ LIST_IN(ListIn) {
     return;
   }
   if (!DictParser().Submit(slot, value.c_str(), value.size())) {
+    Refuse();
+  }
+}
+
+// ─── the file route ───────────────────────────────────────────────────────────
+
+void gDictDeserialize::RequestFile(const char* name, std::size_t length) {
+  // A claim on a patcher-owned slot and nothing more: whichever thread is
+  // dispatching, no file is opened here (fileScheduler's whole reason). All
+  // refusals are counted rather than logged, since this may be the audio
+  // callback.
+  fileScheduler* io = FileIO();
+  if (io == nullptr) {
+    // A standalone object has no patcher and so no plumbing.
+    Refuse();
+    return;
+  }
+  if (name != nullptr && length > 0) {
+    if (length >= fileScheduler::PATH_CAPACITY) {
+      Refuse();
+      return;
+    }
+    // assign() into a string reserved at construction reuses its storage.
+    readPath.assign(name, length);
+  }
+  // A bare `read` reuses the last name given; nothing named yet, and no
+  // dialog to ask with. And with no parse slot, the bytes could never be
+  // parsed, so the request is not worth a scheduler slot either.
+  if (readPath.empty() || slot == 0) {
+    Refuse();
+    return;
+  }
+  if (!io->RequestRead(this, FILE_TAG_READ, readPath.c_str(), readPath.size())) {
+    Refuse();
+  }
+}
+
+void gDictDeserialize::DeliverFileResult(const fileResult& result, YSE::THREAD thread) {
+  (void)thread;
+  if (result.op != FILE_OP::READ || result.tag != FILE_TAG_READ) return;
+  if (!result.ok || result.bytes == nullptr) {
+    // No such file, or one larger than a fileScheduler slot — refused whole
+    // by the scheduler, never truncated. A failure like a malformed document:
+    // counted, nothing installed, the dictionary untouched.
+    failed.fetch_add(1, std::memory_order_relaxed);
+    return;
+  }
+  // The bytes are scheduler-owned and valid only for this callback, and
+  // Submit copies them into the parse slot before returning — the same
+  // wait-free hand-off the inlet makes, minus the transport bound: the parse
+  // slot carries what a fileScheduler slot reads (issue #840). From here the
+  // file route is the inlet route: the parse runs on the pool, and the block
+  // poll installs the document and announces the reference.
+  if (slot == 0 || !DictParser().Submit(slot, result.bytes, result.byteCount)) {
     Refuse();
   }
 }

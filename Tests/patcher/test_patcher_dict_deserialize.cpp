@@ -20,6 +20,12 @@
 //   - **refusal, never truncation; failure, never damage.** A document past
 //     what a list payload carries is refused whole; one that fails to parse
 //     is counted and the bound dictionary keeps its contents.
+//   - **the file route lifts the transport bound (#840).** `read <file>`
+//     loads a document through the patcher's fileScheduler — the request is
+//     a claim on a slot, the bytes are handed to the same parse slot the
+//     inlet uses, and the install and the announcement are the same block
+//     poll — so a document past the inline bound arrives whole, up to the
+//     scheduler slot's 128 KiB.
 //   - **nothing on the submit or install path allocates.** In-patcher
 //     delivery dispatches on T_DSP, so "the audio thread hands over a
 //     document" is the ordinary case.
@@ -31,7 +37,10 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
+#include <fstream>
 #include <string>
+#include <system_error>
 #include <thread>
 
 #include "internal/global.h"
@@ -42,6 +51,7 @@
 #include "patcher/genericObjects/gDictDeserialize.h"
 #include "patcher/genericObjects/gDictSerialize.h"
 #include "patcher/inlet.h"
+#include "patcher/io/fileScheduler.h"
 #include "patcher/pEnums.h"
 #include "patcher/pHandle.hpp"
 #include "patcher/pObjectList.hpp"
@@ -115,6 +125,53 @@ namespace {
       des.Calculate(thread);
     }
   };
+
+  // ─── file helpers (issue #840) — test_patcher_textfile's, for its reasons ───
+
+  // A path in the system temp directory, deleted first so a leftover from an
+  // earlier run cannot make a test pass for the wrong reason.
+  std::string TempFile(const char* name) {
+    const std::filesystem::path path = std::filesystem::temp_directory_path() / name;
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+    return path.string();
+  }
+
+  void WriteWholeFile(const std::string& path, const std::string& contents) {
+    std::ofstream out(path, std::ios::binary);
+    out << contents;
+  }
+
+  void Remove(const std::string& path) {
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+  }
+
+  // Drive a patcher until a `read` has landed in the dictionary. Four halves,
+  // each deterministic: WaitIdle joins the disk job, the first Calculate is
+  // the dispatch frame that hands the bytes to the parse slot, the parser's
+  // WaitIdle joins the parse, and the second Calculate is the block poll that
+  // installs the document and announces the reference.
+  void SettleRead(YSE::PATCHER::patcherImplementation& p) {
+    YSE::PATCHER::fileScheduler* io = p.FileIO();
+    REQUIRE(io != nullptr);
+    io->WaitIdle();
+    p.Calculate(YSE::T_DSP);
+    DictParser().WaitIdle();
+    p.Calculate(YSE::T_DSP);
+  }
+
+  // A valid single-line JSON object comfortably past DOCUMENT_CAPACITY —
+  // what the inline route must refuse and the file route must carry whole.
+  std::string LongDocument(std::size_t entries) {
+    std::string document = "{";
+    for (std::size_t i = 0; i < entries; i++) {
+      if (i > 0) document += ",";
+      document += "\"key" + std::to_string(i) + "\":\"" + std::string(20, 'v') + "\"";
+    }
+    document += "}";
+    return document;
+  }
 
 } // namespace
 
@@ -610,6 +667,236 @@ TEST_SUITE("patcher") {
     CHECK(rig.des.Parsed() == 2);
     CHECK(rig.des.Dropped() == before + 2);
     CHECK(rig.out.count == 2);
+  }
+
+  // ─── the file route (issue #840) ────────────────────────────────────────────
+
+  TEST_CASE("dict.deserialize: read loads a document from a real file (#840)") {
+    // The read route end to end, through a real patcher and a real file on
+    // disk: the message is a claim on a fileScheduler slot and nothing more,
+    // the completion hands the bytes to the parse slot, and the block poll
+    // installs the document and announces the reference — exactly the inlet
+    // path from the hand-off on.
+    const std::string path = TempFile("yse_dict_read_840.json");
+    WriteWholeFile(path, "{\"voice\":{\"1\":{\"freq\":440}},\"chord\":[0,4,7]}");
+
+    RefSink out;
+    YSE::pHandle outHandle(&out);
+    YSE::PATCHER::patcherImplementation p(2, nullptr);
+    p.SetName("dd840a");
+
+    gDict keeper;
+    keeper.SetParent(&p);
+    keeper.SetParams("d840a");
+
+    YSE::pHandle* des = p.CreateObject(YSE::OBJ::G_DICT_DESERIALIZE, "d840a");
+    REQUIRE(des != nullptr);
+    p.Connect(des, 0, &outHandle, 0);
+
+    des->SetListData(0, "read " + path);
+    // Nothing on the message path: the request is a claim on a slot, and the
+    // disk has not been touched on this thread.
+    REQUIRE(p.FileIO() != nullptr);
+    CHECK(p.FileIO()->PendingCount() == 1);
+    CHECK(keeper.Count() == 0);
+
+    SettleRead(p);
+    REQUIRE(out.count == 1);
+    CHECK(out.received == "dictionary d840a");
+    REQUIRE(keeper.Count() == 2);
+    CHECK(keeper.Lookup("voice::1::freq") == "440");
+    CHECK(keeper.Lookup("chord") == "0 4 7");
+
+    Remove(path);
+  }
+
+  TEST_CASE("dict.deserialize: read lifts the inline transport bound (#840)") {
+    // The reason the route exists: a document past DOCUMENT_CAPACITY — which
+    // the inlet refuses whole, the value queue being its transport — arrives
+    // whole through a fileScheduler slot. The same document, both routes: one
+    // refusal, one dictionary.
+    const std::string document = LongDocument(24);
+    REQUIRE(document.size() > gDictDeserialize::DOCUMENT_CAPACITY);
+
+    const std::string path = TempFile("yse_dict_read_long_840.json");
+    WriteWholeFile(path, document);
+
+    YSE::PATCHER::patcherImplementation p(2, nullptr);
+    p.SetName("dd840b");
+
+    gDict keeper;
+    keeper.SetParent(&p);
+    keeper.SetParams("d840b");
+
+    YSE::pHandle* des = p.CreateObject(YSE::OBJ::G_DICT_DESERIALIZE, "d840b");
+    REQUIRE(des != nullptr);
+
+    // The inline route refuses it whole — nothing lands.
+    des->SetListData(0, document);
+    DictParser().WaitIdle();
+    p.Calculate(YSE::T_DSP);
+    CHECK(keeper.Count() == 0);
+
+    // The file route carries it whole — every entry lands.
+    des->SetListData(0, "read " + path);
+    SettleRead(p);
+    REQUIRE(keeper.Count() == 24);
+    CHECK(keeper.Lookup("key0") == std::string(20, 'v'));
+    CHECK(keeper.Lookup("key23") == std::string(20, 'v'));
+
+    Remove(path);
+  }
+
+  TEST_CASE("dict.deserialize: a missing file fails, changing nothing (#840)") {
+    // The scheduler reports a file it could not read as a completion with no
+    // bytes; like a malformed document, it installs nothing and announces
+    // nothing — a bad read never costs a dictionary its contents.
+    const std::string path = TempFile("yse_dict_read_missing_840.json");
+
+    RefSink out;
+    YSE::pHandle outHandle(&out);
+    YSE::PATCHER::patcherImplementation p(2, nullptr);
+    p.SetName("dd840c");
+
+    gDict keeper;
+    keeper.SetParent(&p);
+    keeper.SetParams("d840c");
+    keeper.GetInlet(0)->SetList("set keep me", YSE::T_GUI);
+    REQUIRE(keeper.Count() == 1);
+
+    YSE::pHandle* des = p.CreateObject(YSE::OBJ::G_DICT_DESERIALIZE, "d840c");
+    REQUIRE(des != nullptr);
+    p.Connect(des, 0, &outHandle, 0);
+
+    des->SetListData(0, "read " + path);
+    SettleRead(p);
+    CHECK(out.count == 0);
+    CHECK(keeper.Count() == 1);
+    CHECK(keeper.Lookup("keep") == "me");
+  }
+
+  TEST_CASE("dict.deserialize: a read with no plumbing or no path is refused, counted (#840)") {
+    {
+      // A standalone object has no patcher and so no file plumbing.
+      gDictDeserialize g;
+      g.GetInlet(0)->SetList("read somewhere.json", YSE::T_GUI);
+      CHECK(g.Dropped() == 1);
+      CHECK(g.Parsed() == 0);
+    }
+    {
+      // Parented, but a bare `read` with no path ever given: there is no
+      // dialog to ask with, and nothing remembered to fall back on.
+      YSE::PATCHER::patcherImplementation p(2, nullptr);
+      p.SetName("dd840d");
+      gDictDeserialize g;
+      g.SetParent(&p);
+      g.SetParams("d840d");
+      REQUIRE(p.FileIO() != nullptr);
+      g.GetInlet(0)->SetList("read", YSE::T_GUI);
+      CHECK(g.Dropped() == 1);
+      CHECK(p.FileIO()->PendingCount() == 0);
+    }
+  }
+
+  TEST_CASE("dict.deserialize: the read request path does not allocate (#840)") {
+    // The request is a claim on a patcher-owned slot: a path remembered in
+    // storage reserved at construction and a bounded copy into the slot —
+    // nothing more, because a `read` may arrive on the audio callback. The
+    // probe is thread-scoped (#701), so the disk work and the parse on the
+    // background pool are not what it measures.
+    if (!TestHelpers::probeCountsAllocations()) return;
+    REQUIRE(TestHelpers::probeSeesStringAllocations());
+
+    const std::string path = TempFile("yse_dict_read_probe_840.json");
+    WriteWholeFile(path, "{\"a\":1}");
+
+    YSE::PATCHER::patcherImplementation p(2, nullptr);
+    p.SetName("dd840e");
+    gDictDeserialize g;
+    g.SetParent(&p);
+    g.SetParams("d840e");
+    REQUIRE(p.FileIO() != nullptr);
+
+    const std::string message = "read " + path;
+    // Warm the path memory and the scheduler machinery.
+    g.GetInlet(0)->SetList(message, YSE::T_GUI);
+    p.FileIO()->WaitIdle();
+
+    int count = -1;
+    {
+      TestHelpers::ProbeScope probe;
+      g.GetInlet(0)->SetList(message, YSE::T_DSP);
+      count = TestHelpers::g_alloc_count.load();
+    }
+    CHECK(count == 0);
+    CHECK(g.Dropped() == 0);
+
+    p.FileIO()->WaitIdle();
+    Remove(path);
+  }
+
+  TEST_CASE("dict.deserialize: write -> file -> read reproduces the dictionary (#840)") {
+    // The interchange pair through a real file on disk, past the inline
+    // bound: a dictionary too large for a list payload leaves whole through
+    // .dict.serialize's `write`, comes back whole through this object's
+    // `read`, and .dict.compare — a third object, reading both dictionaries
+    // by name — pronounces the verdict.
+    const std::string path = TempFile("yse_dict_file_roundtrip_840.json");
+
+    // The sinks are declared before the patcher so they are torn down last,
+    // while the cords wired to them still exist (sinks.hpp's rule).
+    TestHelpers::IntSink verdict;
+    RefSink refOut;
+    YSE::pHandle refOutHandle(&refOut);
+    YSE::PATCHER::patcherImplementation p(2, nullptr);
+    p.SetName("dd840f");
+    gDict src;
+    gDict dst;
+    gDictCompare cmp;
+
+    src.SetParent(&p);
+    src.SetParams("src840f");
+    dst.SetParent(&p);
+    dst.SetParams("dst840f");
+    cmp.SetParent(&p);
+    cmp.SetParams("src840f dst840f");
+    Wire(cmp, 0, verdict);
+
+    YSE::pHandle* ser = p.CreateObject(YSE::OBJ::G_DICT_SERIALIZE, "src840f");
+    YSE::pHandle* des = p.CreateObject(YSE::OBJ::G_DICT_DESERIALIZE, "dst840f");
+    REQUIRE(ser != nullptr);
+    REQUIRE(des != nullptr);
+    p.Connect(des, 0, &refOutHandle, 0);
+
+    // A dictionary whose document is past what a list payload carries.
+    const std::string longValue(20, 'v');
+    for (int i = 0; i < 24; i++) {
+      src.GetInlet(0)->SetList("set key" + std::to_string(i) + " " + longValue, YSE::T_GUI);
+    }
+    REQUIRE(src.Count() == 24);
+
+    // Not equal yet — the comparison must be able to say no, or its yes
+    // below proves nothing.
+    cmp.GetInlet(0)->SetBang(YSE::T_GUI);
+    REQUIRE(verdict.gotInt);
+    CHECK(verdict.received == 0);
+
+    ser->SetListData(0, "write " + path);
+    REQUIRE(p.FileIO() != nullptr);
+    p.FileIO()->WaitIdle();
+
+    des->SetListData(0, "read " + path);
+    SettleRead(p);
+    REQUIRE(refOut.count == 1);
+    CHECK(refOut.received == "dictionary dst840f");
+
+    cmp.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(verdict.received == 1);
+    CHECK(dst.Count() == 24);
+    CHECK(dst.Lookup("key0") == longValue);
+    CHECK(dst.Lookup("key23") == longValue);
+
+    Remove(path);
   }
 
   // ─── parameters and documentation ───────────────────────────────────────────

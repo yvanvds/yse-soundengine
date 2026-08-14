@@ -1,10 +1,12 @@
 // `.dict.serialize` (issue #778). See gDictSerialize.h for the design; this
-// file is the snapshot, the compact bounded JSON emitter, and one SendList.
+// file is the snapshot, the compact bounded JSON emitter, and one SendList —
+// or, for `write <file>` (issue #840), one RequestWrite in the send's place.
 #include "gDictSerialize.h"
 
 #include <cstring>
 
 #include "../pObjectList.hpp"
+#include "../pSelector.h"
 #include "../patcherImplementation.h"
 
 using namespace YSE::PATCHER;
@@ -12,6 +14,36 @@ using namespace YSE::PATCHER;
 #define className gDictSerialize
 
 namespace {
+
+  // The bounds of the first token of `text`, or false when there is none.
+  // Walked in place rather than through substr — gTextfile's helpers, for
+  // gTextfile's reason: this runs on whichever thread the message arrived on.
+  bool FirstToken(const char* text, std::size_t length, std::size_t& begin, std::size_t& end) {
+    begin = 0;
+    while (begin < length && IsSelectorSeparator(text[begin]))
+      begin++;
+    end = begin;
+    while (end < length && !IsSelectorSeparator(text[end]))
+      end++;
+    return end > begin;
+  }
+
+  // Trim the separators off both ends of [begin, end).
+  void Trim(const char* text, std::size_t& begin, std::size_t& end) {
+    while (begin < end && IsSelectorSeparator(text[begin]))
+      begin++;
+    while (end > begin && IsSelectorSeparator(text[end - 1]))
+      end--;
+  }
+
+  // Whether the `length` characters at `text` are exactly `word`.
+  bool TokenIs(const char* text, std::size_t length, const char* word, std::size_t wordLength) {
+    if (length != wordLength) return false;
+    for (std::size_t i = 0; i < length; i++) {
+      if (text[i] != word[i]) return false;
+    }
+    return true;
+  }
 
   // Doc strings, hoisted out of CONSTRUCT() because they are long enough that
   // the constructor stops being readable with them inline — gDict's
@@ -21,7 +53,11 @@ namespace {
       "list message holding a single-line compact JSON object. \"dictionary <name>\" does the "
       "same when it names the dictionary bound by the creation argument — the message a .dict's "
       "reference outlet emits on a bang, so wiring that outlet here gives Max's own gesture: "
-      "bang the dict, out comes its text. A reference naming anything else, any other message, "
+      "bang the dict, out comes its text. 'write [file]' composes the same document and hands "
+      "it to the patcher's file scheduler instead of the outlet — the bytes are copied into a "
+      "patcher-owned slot and the disk work runs on the background pool, so a dictionary too "
+      "large for a list payload still leaves whole, up to the slot's 128 KiB; a bare 'write' "
+      "reuses the last path given. A reference naming anything else, any other message, "
       "or a trigger arriving while a document is already being composed — a cord looped back "
       "from the outlet, or another thread — is refused and counted rather than logged, since "
       "this inlet may be the audio thread.";
@@ -36,8 +72,8 @@ namespace {
       "a snapshot of the dictionary as it stood at the trigger. A finished document longer than "
       "255 characters — the longest list payload the patcher's value queue carries — is refused "
       "whole and counted, never truncated: a truncated document is not a shorter document, it "
-      "parses as a different one. Route a dictionary that large through its parts instead "
-      "(.dict.iter), or keep it in the store it lives in.";
+      "parses as a different one. Route a dictionary that large through a file instead — "
+      "'write [file]' carries up to 128 KiB — or through its parts (.dict.iter).";
 
   constexpr char kNameDoc[] =
       "The dictionary's shared name, addressed as \"<patcherName>.<name>\" — the dictionary a "
@@ -66,9 +102,14 @@ CONSTRUCT() {
   // as soon as there is both a name and a patcher to prefix it with.
   Rebind();
 
-  // The one allocation the send path would otherwise need, taken here on the
-  // control thread: the finished document is copied into this for SendList.
+  // The allocations the message paths would otherwise need, taken here on
+  // the control thread: the finished document is copied into `emit` for
+  // SendList, the compose buffer is a fileScheduler slot's worth of document
+  // (#840), and a `write`'s path is remembered in storage that already
+  // exists.
   emit.reserve(DOCUMENT_CAPACITY + 1);
+  compose = std::make_unique<char[]>(COMPOSE_CAPACITY);
+  writePath.reserve(fileScheduler::PATH_CAPACITY);
 
   ADD_DESCRIPTION(
       "Serialises a dictionary to text — Max's dict.serialize ('convert a dictionary into a "
@@ -88,9 +129,11 @@ CONSTRUCT() {
       "allocation-free emitter, so no message path allocates, locks or blocks and Calculate() "
       "does nothing. A finished document longer than 255 characters — the longest list payload "
       "the patcher's value queue carries — is refused whole and counted, never truncated: a "
-      "truncated JSON document parses as a different dictionary or none at all. Only the "
-      "creation argument persists across a save; the dictionary's contents persist with the "
-      ".dict that owns them.");
+      "truncated JSON document parses as a different dictionary or none at all. A dictionary "
+      "that large takes the file route: 'write [file]' composes the same document and hands it "
+      "to the patcher's file scheduler — background disk work, up to the scheduler slot's 128 "
+      "KiB, past which the document is refused whole. Only the creation argument persists "
+      "across a save; the dictionary's contents persist with the .dict that owns them.");
   ADD_CATEGORY(pCategory::GENERIC);
   INLET_DOC(0, "serialize", kInletDoc, "");
   OUTLET_DOC(0, "json", kOutletDoc, "");
@@ -116,6 +159,10 @@ PARM_PARSE() {
 // itself to every object via SetParent); the cast mirrors gDict's.
 void gDictSerialize::SetParent(pObject* newParent) {
   pObject::SetParent(newParent);
+  // Control thread, and the one place the patcher's file table can be built:
+  // a `write` arriving later on the audio thread has to find it already
+  // there (issues #683, #840).
+  EnableFileIO();
   Rebind();
 }
 
@@ -153,6 +200,20 @@ BANG_IN(BangIn) {
 
 LIST_IN(ListIn) {
   (void)inlet;
+  // The file route first (issue #840): "write [file]" hands the document to
+  // the fileScheduler instead of the outlet. Never ambiguous — the only
+  // other message this inlet honours starts with "dictionary".
+  std::size_t wordBegin = 0;
+  std::size_t wordEnd = 0;
+  if (FirstToken(value.c_str(), value.size(), wordBegin, wordEnd) &&
+      TokenIs(value.c_str() + wordBegin, wordEnd - wordBegin, "write", 5)) {
+    std::size_t begin = wordEnd;
+    std::size_t end = value.size();
+    Trim(value.c_str(), begin, end);
+    WriteFile(value.c_str() + begin, end - begin);
+    return;
+  }
+
   // The dictionary's reference triggers the serialisation — the message its
   // .dict emits on a bang. Anything else, including a reference to a
   // dictionary this object is not bound to, is refused: resolving an
@@ -167,17 +228,7 @@ LIST_IN(ListIn) {
 
 // ─── the document ─────────────────────────────────────────────────────────────
 
-void gDictSerialize::Serialize(YSE::THREAD thread) {
-  // The re-entrancy guard, held across snapshot, composition and send: a
-  // trigger looping back from the outlet — or arriving from another thread
-  // mid-composition — would rewrite the snapshot and the compose buffer
-  // under themselves. The loser is dropped and counted rather than made to
-  // spin, this being a path the audio callback takes.
-  if (busy.exchange(true, std::memory_order_acq_rel)) {
-    Refuse();
-    return;
-  }
-
+bool gDictSerialize::ComposeDocument() {
   // The snapshot: the dictionary as it stands right now, copied out under
   // its guard into rows reserved at construction — bounded assigns, no
   // allocation. Released before anything else happens, so the store is never
@@ -185,11 +236,7 @@ void gDictSerialize::Serialize(YSE::THREAD thread) {
   // a serialisation. gDictIter's move, and what makes the document atomic.
   {
     const dictStoreGuard guard(store->busy);
-    if (!guard.Held()) {
-      Refuse();
-      busy.store(false, std::memory_order_release);
-      return;
-    }
+    if (!guard.Held()) return false;
     snapshot.count = store->count;
     for (std::size_t i = 0; i < store->count; i++) {
       snapshot.entries[i].key.assign(store->entries[i].key);
@@ -205,11 +252,28 @@ void gDictSerialize::Serialize(YSE::THREAD thread) {
   EmitLevel(0);
   Append("}", 1);
 
+  // A document the compose buffer cut is no document at all — and the buffer
+  // is a full fileScheduler slot wide (#840), so `fit` failing means no
+  // delivery route could have carried it either.
+  return fit;
+}
+
+void gDictSerialize::Serialize(YSE::THREAD thread) {
+  // The re-entrancy guard, held across snapshot, composition and send: a
+  // trigger looping back from the outlet — or arriving from another thread
+  // mid-composition — would rewrite the snapshot and the compose buffer
+  // under themselves. The loser is dropped and counted rather than made to
+  // spin, this being a path the audio callback takes.
+  if (busy.exchange(true, std::memory_order_acq_rel)) {
+    Refuse();
+    return;
+  }
+
   // Refusal, never truncation: a document the compose buffer cut, or one
   // past what a list payload can carry, is not sent at all — a truncated
   // JSON document parses as a different dictionary or none. See the header
   // for the whole decision.
-  if (!fit || composeLength > DOCUMENT_CAPACITY) {
+  if (!ComposeDocument() || composeLength > DOCUMENT_CAPACITY) {
     Refuse();
     busy.store(false, std::memory_order_release);
     return;
@@ -219,10 +283,69 @@ void gDictSerialize::Serialize(YSE::THREAD thread) {
   // construction, so the assign is a bounded copy, and the whole downstream
   // subgraph runs inside SendList — a loop-back into this object's inlet is
   // refused by `busy` above.
-  emit.assign(compose, composeLength);
+  emit.assign(compose.get(), composeLength);
   emitted.fetch_add(1, std::memory_order_relaxed);
   outputs[0].SendList(emit, thread);
 
+  busy.store(false, std::memory_order_release);
+}
+
+// ─── the file route ───────────────────────────────────────────────────────────
+
+void gDictSerialize::WriteFile(const char* name, std::size_t length) {
+  // A claim on a patcher-owned slot at the end, and no disk work anywhere:
+  // whichever thread is dispatching, no file is opened here (fileScheduler's
+  // whole reason). All refusals are counted rather than logged, since this
+  // may be the audio callback.
+  fileScheduler* io = FileIO();
+  if (io == nullptr) {
+    // A standalone object has no patcher and so no plumbing.
+    Refuse();
+    return;
+  }
+
+  // The same guard Serialize holds, for the same reason — and it also covers
+  // `writePath`, which a concurrent `write` would otherwise rewrite mid-read.
+  if (busy.exchange(true, std::memory_order_acq_rel)) {
+    Refuse();
+    return;
+  }
+
+  if (name != nullptr && length > 0) {
+    if (length >= fileScheduler::PATH_CAPACITY) {
+      Refuse();
+      busy.store(false, std::memory_order_release);
+      return;
+    }
+    // assign() into a string reserved at construction reuses its storage.
+    writePath.assign(name, length);
+  }
+  // A bare `write` reuses the last name given; nothing named yet, and no
+  // dialog to ask with.
+  if (writePath.empty()) {
+    Refuse();
+    busy.store(false, std::memory_order_release);
+    return;
+  }
+
+  // The document, composed exactly as the outlet's would be — but bounded by
+  // the scheduler slot rather than by a list payload: the compose buffer is
+  // a full slot wide, so `fit` failing here means the document is past
+  // BYTES_CAPACITY and is refused whole, never truncated (#840).
+  if (!ComposeDocument()) {
+    Refuse();
+    busy.store(false, std::memory_order_release);
+    return;
+  }
+
+  // RequestWrite copies the bytes into its slot before returning — the
+  // requesting object may be gone before they reach the disk — so `busy` can
+  // drop the moment this returns. A full table, or a payload the scheduler
+  // will not hold, refuses; counted, like every other loss on this path.
+  if (!io->RequestWrite(this, FILE_TAG_WRITE, writePath.c_str(), writePath.size(), compose.get(),
+                        composeLength)) {
+    Refuse();
+  }
   busy.store(false, std::memory_order_release);
 }
 
@@ -262,12 +385,12 @@ void gDictSerialize::EmitLevel(std::size_t prefixLength) {
       // DictToJson's collision rule — storage order decides, .coll's rule
       // for a duplicate address. The losers are consumed unemitted.
       if (!first) Append(",", 1);
-      if (!DictAppendStringJson(seg, segLen, compose, composeLength, COMPOSE_CAPACITY)) {
+      if (!DictAppendStringJson(seg, segLen, compose.get(), composeLength, COMPOSE_CAPACITY)) {
         fit = false;
       }
       Append(":", 1);
-      if (!DictAppendValueJson(snapshot.entries[i].value, compose, composeLength, COMPOSE_CAPACITY,
-                               ",", 1)) {
+      if (!DictAppendValueJson(snapshot.entries[i].value, compose.get(), composeLength,
+                               COMPOSE_CAPACITY, ",", 1)) {
         fit = false;
       }
       first = false;
@@ -296,7 +419,7 @@ void gDictSerialize::EmitLevel(std::size_t prefixLength) {
     }
 
     if (!first) Append(",", 1);
-    if (!DictAppendStringJson(seg, segLen, compose, composeLength, COMPOSE_CAPACITY)) {
+    if (!DictAppendStringJson(seg, segLen, compose.get(), composeLength, COMPOSE_CAPACITY)) {
       fit = false;
     }
     Append(":{", 2);
@@ -322,7 +445,7 @@ void gDictSerialize::Append(const char* text, std::size_t length) {
     fit = false;
     return;
   }
-  std::memcpy(compose + composeLength, text, length);
+  std::memcpy(compose.get() + composeLength, text, length);
   composeLength += length;
 }
 

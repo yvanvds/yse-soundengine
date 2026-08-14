@@ -57,10 +57,12 @@ dictParser::Handle dictParser::Claim() {
                                          std::memory_order_relaxed)) {
       continue;
     }
-    // The staging store, built the first time this slot is claimed — the
-    // control thread, since the only caller is an object constructor. A
-    // re-claimed slot reuses the store its previous owner paid for.
+    // The staging store and the file-sized text buffer (issue #840), built
+    // the first time this slot is claimed — the control thread, since the
+    // only caller is an object constructor. A re-claimed slot reuses what its
+    // previous owner paid for.
     if (e.staged == nullptr) e.staged = std::make_unique<dictStore>();
+    if (e.text == nullptr) e.text = std::make_unique<char[]>(TEXT_CAPACITY);
     return static_cast<Handle>(i + 1);
   }
 
@@ -109,7 +111,7 @@ bool dictParser::Submit(Handle handle, const char* text, std::size_t length) {
     return false;
   }
 
-  std::memcpy(e->text, text, length);
+  std::memcpy(e->text.get(), text, length);
   e->text[length] = '\0';
   e->textLength = length;
 
@@ -182,7 +184,7 @@ void dictParser::RunSlot(Entry& e) {
   // live document. Non-throwing on purpose — a malformed document is an
   // outcome to report, not an exception to unwind through the pool worker.
   const nlohmann::json parsed =
-      nlohmann::json::parse(e.text, e.text + e.textLength, nullptr, false);
+      nlohmann::json::parse(e.text.get(), e.text.get() + e.textLength, nullptr, false);
 
   // A dictionary is a JSON object; anything else — malformed text, a bare
   // number, an array — is a failed parse, not an empty dictionary. What does
