@@ -289,6 +289,22 @@ void YSE::SOUND::managerObject::syncAndReleaseInUse() {
       ptr->source_dsp.store(
           nullptr, std::memory_order_release); // NOSONAR S8417: intentional release — publishes
                                                // nulled dsp source to audio thread's acquire load
+      // Detach the post-DSP back-reference HERE, on the update/audio thread
+      // where addDSP() also runs, instead of in the slow-pool destructor
+      // (issue #838). The destructor's clearing raced a concurrent addDSP()
+      // re-attaching the same dspObject to another sound (TSan: addDSP's
+      // `calledfrom = &post_dsp` store vs. the delete job's `calledfrom =
+      // nullptr`). On this thread the ownership test is exact: clear the
+      // back-reference only while it still points at our own slot, so a
+      // plugin already re-attached elsewhere keeps its fresh back-reference.
+      // Nulling post_dsp afterwards makes the destructor's fallback a no-op
+      // on this path (it remains for engine teardown, where the audio thread
+      // is already stopped); the setStatus(OBJECT_DELETE) store below
+      // publishes both writes to the slow pool's status load.
+      if (ptr->post_dsp != nullptr && ptr->post_dsp->calledfrom == &ptr->post_dsp) {
+        ptr->post_dsp->calledfrom = nullptr;
+      }
+      ptr->post_dsp = nullptr;
       ptr->setStatus(OBJECT_DELETE);
       runDelete = true;
       continue; // c already refers to the successor after erase()

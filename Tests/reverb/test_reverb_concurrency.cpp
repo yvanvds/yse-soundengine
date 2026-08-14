@@ -17,6 +17,7 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <cstddef>
 #include <thread>
 #include "yse.hpp"
 #include "reverb/reverbInterface.hpp"
@@ -34,21 +35,42 @@ namespace {
   // drained by REVERB's own deleteJob. The gap between two update() calls — the
   // room the slow pool has to run the queued jobs — is a window of
   // reference-timer ticks rather than a fixed sleep (issue #753), so it
-  // stretches with machine load exactly as the pool does.
-  //
-  // The fixed-count final settles in this suite are deliberate (#835 set
-  // review): no CHECK depends on them, and REVERB::Manager publishes no
-  // synchronized reclamation signal a predicate could poll — empty() reads
-  // `implementations` WITHOUT implementationsMutex, so polling it between
-  // ticks would race the slow-pool delete job (the #834 TSan lesson). The
-  // settles are inter-case hygiene; any reclamation still in flight simply
-  // continues under the next case's drains.
+  // stretches with machine load exactly as the pool does. The fixed-count
+  // drains inside the cases are deliberate stress pacing, not waits a CHECK
+  // depends on.
   void drainReverbs(int iterations = 8, int ticks = 2) {
     for (int i = 0; i < iterations; ++i) {
       YSE::INTERNAL::Time().update();
       YSE::REVERB::Manager().update();
       if (ticks > 0) TestHelpers::paceWindow(ticks);
     }
+  }
+
+  // The completion-signal form of drainReverbs(), for the *final* settles: a
+  // fixed iteration count is a bounded window a loaded slow pool can miss
+  // entirely (issue #835). These settles had to stay fixed-count until #842
+  // gave REVERB::Manager a synchronized reclamation signal — polling the
+  // mutex-guarded implementationCount() between update() ticks is race-free,
+  // unlike the unguarded empty() the #834 TSan lesson ruled out. The budget is
+  // denominated in reference-timer ticks (issue #753); returns ready(), so a
+  // timed-out wait fails the caller's own assertion.
+  template <typename P> bool drainUntil(P ready, int ticks = 5000) {
+    return TestHelpers::pacedPump(
+        ticks, ready,
+        [] {
+          YSE::INTERNAL::Time().update();
+          YSE::REVERB::Manager().update();
+        },
+        2);
+  }
+
+  // True once the canonical implementation list is back at (or below) the
+  // count sampled at the head of a case — the reclamation-complete signal the
+  // final settles wait on. `<=` rather than `==`: an impl retired by an
+  // earlier case may still be reaped during the settle, legitimately lowering
+  // the baseline.
+  bool reclaimedTo(std::size_t before) {
+    return YSE::REVERB::Manager().implementationCount() <= before;
   }
 
 } // namespace
@@ -60,6 +82,8 @@ TEST_SUITE("reverb") {
   TEST_CASE("reverb concurrency: single-thread create/destroy churn does not crash") {
     if (!TestHelpers::engineInit()) return;
 
+    const std::size_t before = YSE::REVERB::Manager().implementationCount();
+
     constexpr int N = 200;
     for (int i = 0; i < N; ++i) {
       YSE::reverb r;
@@ -67,14 +91,17 @@ TEST_SUITE("reverb") {
       if ((i & 0x0f) == 0) drainReverbs(2);
     }
 
-    drainReverbs(40);
-    CHECK(true);
+    // Final settle: crash-freedom is the assertion, and reclamation actually
+    // completing — not a fixed drain count — is the completion signal (#842).
+    CHECK(drainUntil([before] { return reclaimedTo(before); }));
   }
 
   // ─── Two-thread churn ────────────────────────────────────────────────────────
 
   TEST_CASE("reverb concurrency: two-thread create/destroy churn does not crash") {
     if (!TestHelpers::engineInit()) return;
+
+    const std::size_t before = YSE::REVERB::Manager().implementationCount();
 
     std::atomic<bool> workerDone{false};
     constexpr int N = 100;
@@ -94,8 +121,8 @@ TEST_SUITE("reverb") {
     }
     worker.join();
 
-    drainReverbs(40);
-    CHECK(true);
+    // Final settle: reclamation completing is the signal, not a fixed count (#842).
+    CHECK(drainUntil([before] { return reclaimedTo(before); }));
   }
 
   // ─── Global reverb setters race with update() (issue #192) ───────────────────
@@ -147,6 +174,9 @@ TEST_SUITE("reverb") {
     // whenever the linker registers this TU first (as on Linux CI).
     gr.setActive(true);
 
+    // Inter-case hygiene only, deliberately fixed-count: this case creates no
+    // reverb impls, so there is no reclamation for a #842 predicate to wait on
+    // and the CHECK below does not depend on the drain.
     drainReverbs(40);
     CHECK(gr.getActive() == true);
   }

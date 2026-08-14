@@ -11,6 +11,7 @@
 #ifndef CHANNELMANAGER_H_INCLUDED
 #define CHANNELMANAGER_H_INCLUDED
 
+#include <cstddef>
 #include <forward_list>
 #include <mutex>
 #include <unordered_map>
@@ -50,7 +51,22 @@ namespace YSE {
 
       implementationObject* addImplementation(channel* head);
       void setup(implementationObject* impl);
+
+      // Audio-thread-only: reports whether there is anything to render. Reads
+      // the audio-thread-owned toLoad/inUse lists, never the mutex-guarded
+      // `implementations` list — reading that from the callback without the
+      // lock would race the slow-pool delete job (the class of bug fixed for
+      // SOUND in issue #200). Currently has no engine callers; kept aligned
+      // with SOUND::managerObject::empty() so a future caller inherits the
+      // safe read set. (issue #842)
       Bool empty();
+
+      /** Diagnostic: how many implementationObjects the canonical
+          `implementations` list currently holds. Takes implementationsMutex,
+          so it is a control-thread / test call only — never the audio thread.
+          Exists so the reclamation of retired impls is observable, mirroring
+          SOUND (issue #817; here issue #842). */
+      std::size_t implementationCount();
 
       // channel output configuration from interface
       void setChannelConf(CHANNEL_TYPE type, Int outputs = 2);

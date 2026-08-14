@@ -446,6 +446,12 @@ namespace YSE {
 
       Bool _setPostDSP;
       std::atomic<DSP::dspObject*> _postDspPtr;
+      // Attached post-DSP plugin. Touched only on the update/audio thread:
+      // written by addDSP() (parseMessage / doThisWhenReady) and nulled again
+      // — together with the plugin's `calledfrom` back-reference — at the
+      // OBJECT_RELEASE→OBJECT_DELETE transition in SOUND::Manager, so the
+      // slow-pool destructor never dereferences the dspObject on the normal
+      // delete path (issue #838; teardown fallback in ~implementationObject).
       DSP::dspObject* post_dsp;
       // Attach `ptr` to this sound's post-DSP slot, replacing whatever was
       // there. A null `ptr` detaches instead of crashing (issue #578) — the

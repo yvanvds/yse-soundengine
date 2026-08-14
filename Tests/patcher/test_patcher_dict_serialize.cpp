@@ -25,6 +25,11 @@
 //   - **refusal, never truncation.** A finished document past what a list
 //     payload can carry is refused whole and counted; a truncated JSON
 //     document parses as a different dictionary or none at all.
+//   - **the file route lifts the outlet bound (#840).** `write <file>` hands
+//     the same composed document to the patcher's fileScheduler instead of
+//     the outlet, so a dictionary too large for a list payload leaves whole
+//     — up to the scheduler slot's 128 KiB, past which it is refused whole,
+//     the same rule at the wider bound.
 //   - **the document crosses the control/audio boundary and nothing
 //     allocates.** In-patcher delivery dispatches on T_DSP, so "the audio
 //     thread asks for the document" is the ordinary case.
@@ -35,12 +40,17 @@
 #include <doctest/doctest.h>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
+#include <fstream>
 #include <functional>
+#include <iterator>
 #include <string>
+#include <system_error>
 
 #include "patcher/genericObjects/gDict.h"
 #include "patcher/genericObjects/gDictSerialize.h"
 #include "patcher/inlet.h"
+#include "patcher/io/fileScheduler.h"
 #include "patcher/pEnums.h"
 #include "patcher/pHandle.hpp"
 #include "patcher/pObjectList.hpp"
@@ -112,6 +122,28 @@ namespace {
       ser.GetInlet(0)->SetBang(thread);
     }
   };
+
+  // ─── file helpers (issue #840) — test_patcher_textfile's, for its reasons ───
+
+  // A path in the system temp directory, deleted first so a leftover from an
+  // earlier run cannot make a test pass for the wrong reason.
+  std::string TempFile(const char* name) {
+    const std::filesystem::path path = std::filesystem::temp_directory_path() / name;
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+    return path.string();
+  }
+
+  std::string ReadWholeFile(const std::string& path) {
+    std::ifstream in(path, std::ios::binary);
+    if (!in) return std::string();
+    return std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+  }
+
+  void Remove(const std::string& path) {
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+  }
 
 } // namespace
 
@@ -342,6 +374,164 @@ TEST_SUITE("patcher") {
     CHECK(rig.out.count == 1);
     CHECK(rig.ser.Emitted() == 1);
     CHECK(rig.ser.Dropped() == before + 1);
+  }
+
+  // ─── the file route (issue #840) ────────────────────────────────────────────
+
+  TEST_CASE("dict.serialize: write puts the document in a real file (#840)") {
+    // The write route end to end, through a real file on disk: the same
+    // compact document the outlet would carry, handed to the fileScheduler
+    // instead — the message is a snapshot, a compose and a claim on a
+    // patcher-owned slot, and the disk work runs on the background pool.
+    Rig rig("ds840a", "d840a");
+    rig.Store("set voice::1::freq 440");
+    rig.Store("set chord 0 4 7");
+
+    const std::string path = TempFile("yse_dict_write_840.json");
+    rig.ser.GetInlet(0)->SetList("write " + path, YSE::T_GUI);
+    REQUIRE(rig.p.FileIO() != nullptr);
+    rig.p.FileIO()->WaitIdle();
+
+    CHECK(ReadWholeFile(path) == "{\"voice\":{\"1\":{\"freq\":440}},\"chord\":[0,4,7]}");
+    // The file route sends nothing: Max has no outlet for a finished write
+    // and neither does this. Emitted counts outlet documents only.
+    CHECK(rig.out.count == 0);
+    CHECK(rig.ser.Emitted() == 0);
+    CHECK(rig.ser.Dropped() == 0);
+
+    // A bare `write` reuses the last name given — and the document is the
+    // dictionary as it stands now, not as it stood then.
+    rig.Store("set gain 0.5");
+    rig.ser.GetInlet(0)->SetList("write", YSE::T_GUI);
+    rig.p.FileIO()->WaitIdle();
+    CHECK(ReadWholeFile(path) ==
+          "{\"voice\":{\"1\":{\"freq\":440}},\"chord\":[0,4,7],\"gain\":0.5}");
+    CHECK(rig.ser.Dropped() == 0);
+
+    Remove(path);
+  }
+
+  TEST_CASE("dict.serialize: write carries a document past the payload bound whole (#840)") {
+    // The reason the route exists: the same dictionary whose document the
+    // outlet refuses — past what a list payload carries — leaves whole
+    // through a fileScheduler slot, parsing back to every entry.
+    Rig rig("ds840b", "d840b");
+    const std::string longValue(40, 'a');
+    for (int i = 0; i < 10; i++) {
+      rig.Store("set key" + std::to_string(i) + " " + longValue);
+    }
+
+    const std::uint64_t before = rig.ser.Dropped();
+    rig.Bang();
+    CHECK(rig.out.count == 0);
+    CHECK(rig.ser.Dropped() == before + 1);
+
+    const std::string path = TempFile("yse_dict_write_long_840.json");
+    rig.ser.GetInlet(0)->SetList("write " + path, YSE::T_GUI);
+    REQUIRE(rig.p.FileIO() != nullptr);
+    rig.p.FileIO()->WaitIdle();
+
+    const std::string written = ReadWholeFile(path);
+    CHECK(written.size() > gDictSerialize::DOCUMENT_CAPACITY);
+    const nlohmann::json parsed = nlohmann::json::parse(written, nullptr, false);
+    REQUIRE_FALSE(parsed.is_discarded());
+    REQUIRE(parsed.is_object());
+    CHECK(parsed.size() == 10);
+    CHECK(parsed["key0"] == longValue);
+    CHECK(parsed["key9"] == longValue);
+    CHECK(rig.ser.Dropped() == before + 1);
+
+    Remove(path);
+  }
+
+  TEST_CASE("dict.serialize: a document past the scheduler slot is refused whole (#840)") {
+    // Refusal-not-truncation at the slot bound too: a dictionary whose
+    // document composes past fileScheduler::BYTES_CAPACITY — every entry at
+    // its widest, escape-heavy values doubling on the way out — is refused
+    // whole and counted, and no file appears. Half a document is a different
+    // dictionary or none.
+    Rig rig("ds840c", "d840c");
+
+    // 256 entries, each spelling ~600 document characters: a ~100-character
+    // key and a value of 250 quotes, each escaping to two characters.
+    const std::string value(250, '"');
+    const std::string pad(96, 'x');
+    std::string message;
+    for (int i = 0; i < 256; i++) {
+      message = "set k";
+      message += std::to_string(1000 + i);
+      message += pad;
+      message += ' ';
+      message += value;
+      rig.Store(message);
+    }
+    REQUIRE(rig.dict.Count() == 256);
+
+    const std::string path = TempFile("yse_dict_write_over_840.json");
+    const std::uint64_t before = rig.ser.Dropped();
+    rig.ser.GetInlet(0)->SetList("write " + path, YSE::T_GUI);
+    REQUIRE(rig.p.FileIO() != nullptr);
+    rig.p.FileIO()->WaitIdle();
+
+    CHECK(rig.ser.Dropped() == before + 1);
+    CHECK(ReadWholeFile(path).empty());
+
+    Remove(path);
+  }
+
+  TEST_CASE("dict.serialize: a write with no plumbing or no path is refused, counted (#840)") {
+    {
+      // A standalone object has no patcher and so no file plumbing.
+      gDictSerialize g;
+      g.GetInlet(0)->SetList("write somewhere.json", YSE::T_GUI);
+      CHECK(g.Dropped() == 1);
+    }
+    {
+      // Parented, but a bare `write` with no path ever given: there is no
+      // dialog to ask with, and nothing remembered to fall back on.
+      Rig rig("ds840d", "d840d");
+      rig.ser.GetInlet(0)->SetList("write", YSE::T_GUI);
+      CHECK(rig.ser.Dropped() == 1);
+      REQUIRE(rig.p.FileIO() != nullptr);
+      CHECK(rig.p.FileIO()->PendingCount() == 0);
+    }
+  }
+
+  TEST_CASE("dict.serialize: the write request path does not allocate (#840)") {
+    // The claim the file route inherits from the outlet route: a `write` may
+    // arrive on the audio callback, so the whole message path — remembering
+    // the path, the snapshot, the compose, the copy into the scheduler's
+    // slot — reuses storage that already exists. The probe is thread-scoped
+    // (#701), so the disk work on the background pool is not what it
+    // measures.
+    if (!TestHelpers::probeCountsAllocations()) return;
+    REQUIRE(TestHelpers::probeSeesStringAllocations());
+
+    Rig rig("ds840e", "probeD840");
+    rig.Store("set voice::1::freq 440");
+    rig.Store("set chord 0 4 7");
+    rig.Store("set title he\"llo");
+
+    const std::string path = TempFile("yse_dict_write_probe_840.json");
+    const std::string message = "write " + path;
+    // Warm the path memory and the scheduler machinery.
+    rig.ser.GetInlet(0)->SetList(message, YSE::T_GUI);
+    REQUIRE(rig.p.FileIO() != nullptr);
+    rig.p.FileIO()->WaitIdle();
+
+    int count = -1;
+    {
+      TestHelpers::ProbeScope probe;
+      rig.ser.GetInlet(0)->SetList(message, YSE::T_DSP);
+      count = TestHelpers::g_alloc_count.load();
+    }
+    CHECK(count == 0);
+    CHECK(rig.ser.Dropped() == 0);
+
+    rig.p.FileIO()->WaitIdle();
+    CHECK_FALSE(ReadWholeFile(path).empty());
+
+    Remove(path);
   }
 
   // ─── binding, and the rename hook ───────────────────────────────────────────

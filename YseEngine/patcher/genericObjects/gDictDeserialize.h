@@ -1,4 +1,5 @@
 #pragma once
+#include "../io/fileScheduler.h"
 #include "../pObject.h"
 #include "dictParser.h"
 #include "gDict.h"
@@ -46,6 +47,21 @@ namespace YSE {
      *  - **There is no bang and no bare-number handler**: a bang carries no
      *    document, and a number names nothing — the family's rule, applied
      *    to an object whose only trigger *is* its payload.
+     *  - **``read <file>`` is the document past the transport bound** (issue
+     *    #840): the file route the inlet's 255-character refusal points at.
+     *    The message is a claim on a ``fileScheduler`` slot (#683) and
+     *    nothing more — no thread this handler can run on may open a file —
+     *    and the finished read arrives through ``DeliverFileResult``, whose
+     *    bytes are handed straight to the same parse slot the inlet uses:
+     *    one wait-free ``Submit``, minus the transport bound, since a slot
+     *    carries what a ``fileScheduler`` slot reads (``BYTES_CAPACITY``,
+     *    refused whole by the scheduler when the file is larger — refusal,
+     *    never truncation, at the slot bound too). From there the two routes
+     *    are one route: the parse runs on the background pool and the block
+     *    poll installs the result and announces the reference. A bare
+     *    ``read`` reuses the last path given — there is no dialog to ask
+     *    with, ``.textfile``'s rule — and is refused, counted, when no path
+     *    has ever been given.
      *
      *  ### The parse is on the background pool — the thread-placement
      *      decision #771 asks for
@@ -139,8 +155,9 @@ namespace YSE {
      *  cord but never over a ``.s``/``.r`` or from the host, and a payload
      *  the transport would have cut is refused whole rather than parsed as
      *  the different document its prefix spells. A larger document wants the
-     *  file route (a ``read <file>`` path, tracked as follow-up work), not a
-     *  cord.
+     *  file route — ``read <file>``, issue #840 — not a cord: a file arrives
+     *  whole through a ``fileScheduler`` slot, so the file route's bound is
+     *  the slot's (``fileScheduler::BYTES_CAPACITY``), not the transport's.
      */
     static constexpr std::size_t DOCUMENT_CAPACITY = 255;
 
@@ -174,8 +191,11 @@ namespace YSE {
       return dropped.load(std::memory_order_relaxed);
     }
 
-    /** @brief Documents the pool could not parse to a JSON object. The
-     *         bound dictionary is untouched by these. */
+    /** @brief Documents the pool could not parse to a JSON object, and
+     *         ``read``s that came back without bytes — no such file, or one
+     *         larger than a ``fileScheduler`` slot, which the scheduler
+     *         refuses whole (#840). The bound dictionary is untouched by
+     *         these. */
     std::uint64_t Failed() const {
       return failed.load(std::memory_order_relaxed);
     }
@@ -194,8 +214,18 @@ namespace YSE {
     }
 
     // Bind the store the moment the patcher name is known, so a message
-    // never resolves a name. gDict::SetParent's rule.
+    // never resolves a name (gDict::SetParent's rule) — and build the
+    // patcher's file table, so a `read` arriving later on the audio thread
+    // finds it already there (issue #840, fileScheduler's recipe).
     void SetParent(pObject* parent) override;
+
+    // A finished `read <file>` (issue #840): the file's bytes, delivered on
+    // the patcher's dispatch thread. Hands them to the parse slot — the same
+    // wait-free Submit the inlet makes, minus the transport bound — so the
+    // block poll installs and announces the document exactly as it does for
+    // an inlet document. A failed read (no such file, or one larger than a
+    // fileScheduler slot) counts in `failed` and changes nothing.
+    void DeliverFileResult(const fileResult& result, YSE::THREAD thread) override;
 
     // Re-bind after a patcher rename: the address prefix moved, so the
     // object now fills a different dictionary. Called from
@@ -212,9 +242,20 @@ namespace YSE {
     // Rebuild `reference` from the current name. Control thread only.
     void RefreshReference();
 
+    // A `read [file]` message (issue #840): remember the path and claim a
+    // fileScheduler slot — nothing more, whichever thread is dispatching.
+    // Refused and counted when there is no plumbing (a standalone object),
+    // no path (none given and none remembered), no parse slot to hand the
+    // bytes to, or no free scheduler slot.
+    void RequestFile(const char* name, std::size_t length);
+
     void Refuse() {
       dropped.fetch_add(1, std::memory_order_relaxed);
     }
+
+    // The tag a read request carries — this object makes only one kind of
+    // request, but DeliverFileResult still checks it, the recipe's rule.
+    static constexpr int FILE_TAG_READ = 0;
 
     // The shared name. The creation argument; empty means a private
     // dictionary.
@@ -233,6 +274,12 @@ namespace YSE {
     // send of a string the object already owns rather than a concatenation
     // on the polling thread.
     std::string reference;
+
+    // The last path a `read` named — what a bare `read` reuses, there being
+    // no dialog to ask with (issue #840). Reserved to PATH_CAPACITY at
+    // construction, so remembering a name on the message path is a bounded
+    // assign into storage that already exists.
+    std::string readPath;
 
     // This object's slot in the process-wide parse table, claimed at
     // construction and released at destruction. 0 when the table was full;

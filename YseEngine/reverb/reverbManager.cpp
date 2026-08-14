@@ -8,6 +8,7 @@
   ==============================================================================
 */
 
+#include <iterator>
 #include "../internalHeaders.h"
 
 YSE::REVERB::managerObject& YSE::REVERB::Manager() {
@@ -95,7 +96,19 @@ YSE::reverb& YSE::REVERB::managerObject::getGlobalReverb() {
 }
 
 Bool YSE::REVERB::managerObject::empty() {
-  return implementations.empty();
+  // Audio-thread-only read set: `toLoad` and `inUse` are single-thread (audio)
+  // by design, whereas `implementations` is mutated by the main thread
+  // (addImplementation) and the slow-pool (deleteJob) under
+  // implementationsMutex. Reading `implementations` here without that lock was
+  // a latent #200-class race — no engine caller existed, but any future
+  // audio-callback caller would have inherited it (issue #842). Mirrors
+  // SOUND::managerObject::empty().
+  return toLoad.empty() && inUse.empty();
+}
+
+std::size_t YSE::REVERB::managerObject::implementationCount() {
+  std::scoped_lock lk(implementationsMutex);
+  return static_cast<std::size_t>(std::distance(implementations.begin(), implementations.end()));
 }
 
 void YSE::REVERB::managerObject::update() {

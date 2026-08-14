@@ -154,9 +154,59 @@ void YSE::INTERNAL::abstractSoundFile::requestRefill(Bool loop) {
   _streamLoop.store(loop, std::memory_order_relaxed);
   // A filled back buffer is already waiting to be swapped in — nothing to do.
   if (_backReady.load(std::memory_order_acquire)) return;
+  // Self-heal a leaked claim (issue #844): threadPool::addJob drops an enqueue
+  // when the pool is inactive (and on background-ring overflow), and
+  // threadPool::shutdown() releases still-queued jobs without running them.
+  // All of those leave _refillInFlight set with nothing queued or running, so
+  // every CAS below would fail forever and the stream would be permanently
+  // silent. The signature is unambiguous from this (single) audio-side actor:
+  // a live cycle holds inQueue == true from the arm (our own start() inside
+  // addJob) until after fillBackBuffer() has cleared _refillInFlight, so
+  // "claimed but not queued" can only be a dropped/drained arm — or a stale
+  // read of an already-retired cycle's claim, for which releasing it again is
+  // a no-op (the post-CAS _backReady re-check below still keeps that cycle's
+  // published buffer: reading inQueue == false acquired the worker's final
+  // store, ordering its _backReady publication before the re-check).
+  if (_refillInFlight.load(std::memory_order_acquire) && !_refillJob.isQueued()) {
+    _refillInFlight.store(false, std::memory_order_release);
+  }
   // Schedule exactly one refill; _refillInFlight is cleared by fillBackBuffer().
   Bool expected = false;
   if (_refillInFlight.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
+    // An in-flight fill can complete between the _backReady check above and
+    // winning the flag — publishing the back buffer and then releasing
+    // _refillInFlight — in which case both reads answered "schedule" and the
+    // job queued here would overwrite the published-but-unconsumed back buffer,
+    // skipping one STREAM_BUFFERSIZE of audio at the next swap (issue #841).
+    // Having won the flag, no fill is running, so a re-check decides safely:
+    // the fill's release store of _refillInFlight (which this CAS acquired)
+    // ordered its _backReady publication before it, and every other _backReady
+    // writer runs on the audio-side actor this call belongs to (the callback
+    // thread or the render worker holding this sound's channel — serialized
+    // block to block by the render pool's handoff). If the buffer landed,
+    // undo the claim and keep it.
+    if (_backReady.load(std::memory_order_acquire)) {
+      _refillInFlight.store(false, std::memory_order_release);
+      return;
+    }
+    // The previous run's pool bookkeeping may still be in flight (issue #844):
+    // fillBackBuffer() clears _refillInFlight inside run(), but the worker's
+    // activate() stores `isDone = true; inQueue = false;` only after run()
+    // returns. Winning the claim inside that window and arming now would let
+    // start()'s fresh `isDone = false; inQueue = true;` be clobbered by the
+    // worker's trailing stores: the re-queued job would later be popped as
+    // already-done, the refill skipped, and _refillInFlight stuck true —
+    // permanent silence (and a job sitting in the ring with inQueue false,
+    // which a racing ~soundFile join() would no longer wait for). inQueue is
+    // the worker's genuinely last store into the job (issue #239), so only
+    // observing it false proves the worker is completely finished and a
+    // start() after it cannot be clobbered. While it is still true, undo the
+    // claim and let the next read() retry: the window is a handful of
+    // instructions wide and this path is re-entered every audio block.
+    if (_refillJob.isQueued()) {
+      _refillInFlight.store(false, std::memory_order_release);
+      return;
+    }
     Global().addSlowJob(&_refillJob);
   }
 }
@@ -184,7 +234,18 @@ void YSE::INTERNAL::abstractSoundFile::fillBackBuffer() {
   _backTerminal.store(valid < STREAM_BUFFERSIZE, std::memory_order_relaxed);
   _backGen.store(gen, std::memory_order_relaxed);
   _backReady.store(true, std::memory_order_release);
-  _refillInFlight.store(false, std::memory_order_relaxed);
+  // Release, and only after the _backReady publication above: requestRefill's
+  // winning CAS acquires this store, which is what guarantees its re-check of
+  // _backReady sees the buffer this fill just published (issue #841). The
+  // reverse order would reopen the race it closes: a claim won between the two
+  // stores would re-check before the publication and still schedule the
+  // overwriting fill.
+  //
+  // Note this store lands *before* the worker's activate() epilogue
+  // (`isDone = true; inQueue = false;`), so a claim can be won while that
+  // bookkeeping is still pending. requestRefill() compensates: it refuses to
+  // arm while _refillJob.isQueued() is still true (issue #844).
+  _refillInFlight.store(false, std::memory_order_release);
 }
 
 Bool YSE::INTERNAL::abstractSoundFile::readNonInterleaved(abstractSoundFile* file,

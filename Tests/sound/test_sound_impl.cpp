@@ -109,6 +109,7 @@ namespace {
   NopDsp g_dsp;
   NopDsp g_dsp2;
   NopDsp g_dsp3; // used only by the setDSP(nullptr) detach case (#578)
+  NopDsp g_dsp4; // used only by the release-detach / re-attach case (#838)
   DcSource g_dc;
   StereoDcSource g_dcStereo;
 
@@ -341,6 +342,53 @@ TEST_SUITE("sound") {
     drainSoundManager();
     CHECK(s.getDSP() == nullptr);
     CHECK(g_dsp3.calledfrom == nullptr);
+  }
+
+  TEST_CASE("sound impl: releasing a sound detaches its DSP on the update thread") {
+    // Regression for #838: the DSP back-reference (dspObject::calledfrom) used
+    // to be cleared by ~implementationObject on the slow-pool delete job,
+    // racing a concurrent addDSP() on the update/audio thread that re-attached
+    // the same plugin to another sound (TSan, monolithic sweep). The detach now
+    // happens on the update thread at the OBJECT_RELEASE→OBJECT_DELETE
+    // transition, so:
+    //   (a) the back-reference is already severed once the release drain
+    //       completes, without waiting on the slow pool, and
+    //   (b) re-attaching the plugin to a fresh sound keeps the new
+    //       back-reference even after the old impl is reclaimed (the old
+    //       destructor could sever it — the ownership guard plus the
+    //       update-thread detach make that impossible).
+    // The race itself is pinned by the dev-push TSan sweep over this suite.
+    if (!TestHelpers::engineInit()) return;
+    {
+      YSE::sound a;
+      a.create(g_src);
+      drainSoundManager();
+      a.setDSP(&g_dsp4);
+      drainSoundManager();
+      CHECK(g_dsp4.calledfrom != nullptr);
+    } // ~sound flags the impl for release
+    // The release drain runs the RELEASE→DELETE transition on this (the
+    // update) thread; the back-reference must be gone regardless of whether
+    // the slow-pool delete job has run yet.
+    drainSoundManager();
+    CHECK(g_dsp4.calledfrom == nullptr);
+
+    // Re-attach the same plugin to a fresh sound: the new back-reference must
+    // survive the old impl's slow-pool destruction.
+    YSE::sound b;
+    b.create(g_src);
+    drainSoundManager();
+    b.setDSP(&g_dsp4);
+    drainSoundManager();
+    CHECK(b.getDSP() == &g_dsp4);
+    CHECK(g_dsp4.calledfrom != nullptr);
+
+    // Detach before b goes out of scope so the process-lifetime g_dsp4 never
+    // holds a back-pointer into a freed impl (same discipline as the other
+    // file-scope plugins above).
+    b.setDSP(nullptr);
+    drainSoundManager();
+    CHECK(g_dsp4.calledfrom == nullptr);
   }
 
   TEST_CASE("sound impl: MOVE message reconnects sound to another channel") {

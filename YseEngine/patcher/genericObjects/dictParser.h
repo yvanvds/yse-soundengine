@@ -1,5 +1,6 @@
 #pragma once
 #include "../../internal/threadPool.h"
+#include "../io/fileScheduler.h"
 #include "gDict.h"
 
 #include <atomic>
@@ -85,9 +86,11 @@ namespace YSE {
      *  ### The memory, and when it is paid
      *
      *  A staging store is a full ``dictStore`` — every row reserved to its
-     *  capacity, roughly 100 KiB — so it is **not** allocated with the table.
-     *  ``Claim`` builds a slot's staging store the first time that slot is
-     *  claimed (the constructor is the only caller, so this is the control
+     *  capacity, roughly 100 KiB — and the text buffer is file-sized
+     *  (``TEXT_CAPACITY``, 128 KiB, so the file route #840 never refuses a
+     *  document the ``fileScheduler`` already accepted) — so neither is
+     *  allocated with the table. ``Claim`` builds both the first time a slot
+     *  is claimed (the constructor is the only caller, so this is the control
      *  thread), which keeps the resident cost proportional to how many
      *  ``.dict.deserialize`` objects have ever existed at once rather than to
      *  ``CAPACITY``. ``fileScheduler`` defers its half-megabyte table for the
@@ -108,9 +111,21 @@ namespace YSE {
        */
       static constexpr std::size_t CAPACITY = 16;
 
-      /** @brief Longest document a slot carries, including the terminator —
-       *         one list payload, ``patcherImplementation::kValueListCap``. */
-      static constexpr std::size_t TEXT_CAPACITY = 256;
+      /**
+       *  @brief Longest document a slot carries, including the terminator —
+       *         the largest file a ``fileScheduler`` slot reads, plus one.
+       *
+       *  Sized for the file route (issue #840): a ``read <file>`` on
+       *  ``.dict.deserialize`` hands a whole file's bytes to ``Submit``, and
+       *  refusing a document the scheduler already accepted would make the
+       *  slot the narrower of the two bounds for no reason. The *inlet* route
+       *  keeps its own 255-character transport bound — enforced by the
+       *  consumer, not here, because it is the value queue's bound rather
+       *  than the parser's. The buffer is heap-allocated by the first
+       *  ``Claim`` of a slot, beside the staging store, so an unclaimed slot
+       *  still costs nothing.
+       */
+      static constexpr std::size_t TEXT_CAPACITY = fileScheduler::BYTES_CAPACITY + 1;
 
       dictParser();
       ~dictParser();
@@ -225,8 +240,11 @@ namespace YSE {
         // PARSING, read only in READY — the state word orders the crossing.
         bool ok = false;
         // The document. Written only in CLAIMED, read only in PARSING.
+        // Heap-held and built by the first Claim of this slot (control
+        // thread), like `staged` below: at TEXT_CAPACITY it is a file-sized
+        // buffer (issue #840), so an unclaimed slot must not carry it inline.
         std::size_t textLength = 0;
-        char text[TEXT_CAPACITY] = {};
+        std::unique_ptr<char[]> text;
         // The flattened rows. Written only in PARSING, read only in READY.
         // Built by the first Claim of this slot (control thread) rather than
         // with the table — see the class notes on the memory.

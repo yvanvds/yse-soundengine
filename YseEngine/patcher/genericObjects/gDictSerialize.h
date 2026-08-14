@@ -1,4 +1,5 @@
 #pragma once
+#include "../io/fileScheduler.h"
 #include "../pObject.h"
 #include "gDict.h"
 #include <atomic>
@@ -80,6 +81,29 @@ namespace YSE {
      *  document, it is not a document at all — or worse, it parses as a
      *  different one. Refusal-not-truncation is the family's rule, and here
      *  it is also the format's.
+     *
+     *  ### ``write <file>`` — the file route (issue #840)
+     *
+     *  The route that bound points at: a ``write <file>`` message snapshots
+     *  the dictionary, composes the same document the outlet would carry,
+     *  and hands it to the patcher's ``fileScheduler`` (#683) instead of the
+     *  outlet — ``RequestWrite`` copies the bytes into a patcher-owned slot
+     *  before returning, the disk work runs on the background pool, and the
+     *  requesting object is never touched again. The pair's file half lives
+     *  here rather than on ``.dict`` (where Max keeps ``write``) because the
+     *  read half #840 installs lives on ``.dict.deserialize``, and because
+     *  this object already owns the one bounded emitter the document needs —
+     *  a ``write`` on ``.dict`` would mean a second copy of it. The file
+     *  route's bound is the scheduler slot's, not the transport's: the
+     *  compose buffer is sized so any document a slot can hold
+     *  (``fileScheduler::BYTES_CAPACITY``, 128 KiB) composes uncut, and a
+     *  document past it is refused whole and counted — refusal, never
+     *  truncation, at the slot bound too. A bare ``write`` reuses the last
+     *  path given (``.textfile``'s rule; there is no dialog to ask with) and
+     *  is refused, counted, when no path has ever been given — as is a
+     *  ``write`` on a standalone object, which has no patcher and so no
+     *  plumbing. Max has no outlet for a finished write and neither does
+     *  this: a write reports by having happened.
      *
      *  ### Real-time behaviour
      *
@@ -163,8 +187,10 @@ namespace YSE {
     /**
      *  @brief Messages refused so far — a reference naming a dictionary this
      *         object is not bound to, an unrecognised message, a lost
-     *         try-lock, a re-entrant trigger, and a finished document past
-     *         ``DOCUMENT_CAPACITY``.
+     *         try-lock, a re-entrant trigger, a finished document past
+     *         ``DOCUMENT_CAPACITY``, and the write route's refusals (#840):
+     *         no plumbing, no path, a document past the scheduler slot's
+     *         bound, or a full scheduler table.
      *
      *  A counter rather than a log line because the refusing thread may be
      *  the audio callback; ``gDict::Dropped``, for ``gDict``'s reason.
@@ -199,6 +225,22 @@ namespace YSE {
     // DOCUMENT_CAPACITY.
     void Serialize(YSE::THREAD thread);
 
+    // A `write [file]` message (issue #840): snapshot and compose exactly as
+    // Serialize does, then hand the document to the patcher's fileScheduler
+    // instead of the outlet — RequestWrite copies the bytes into its slot
+    // before returning, so the compose buffer is free again the moment this
+    // returns. Refused and counted when there is no plumbing (a standalone
+    // object), no path (none given and none remembered), a lost guard, a
+    // document the compose buffer cut (past the scheduler slot's bound), or
+    // a full scheduler table.
+    void WriteFile(const char* name, std::size_t length);
+
+    // The shared middle of Serialize and WriteFile: snapshot the store under
+    // its guard, compose the compact document into `compose`. Called with
+    // `busy` held. False — the caller refuses — on a lost store guard or a
+    // document the buffer cut.
+    bool ComposeDocument();
+
     // One level of the nested document: every unconsumed snapshot entry under
     // the current `path` prefix, grouped by its next path segment, leaves and
     // sub-objects alike, comma-separated in emission order. Recursion is
@@ -214,10 +256,18 @@ namespace YSE {
       dropped.fetch_add(1, std::memory_order_relaxed);
     }
 
-    // Widest document the emitter composes before the DOCUMENT_CAPACITY
-    // check: wide enough that any document the check could accept has
-    // certainly not been cut by the buffer first.
-    static constexpr std::size_t COMPOSE_CAPACITY = 4096;
+    // The tag a write request carries — this object makes only one kind of
+    // request, but the recipe's rule is to tag anyway.
+    static constexpr int FILE_TAG_WRITE = 0;
+
+    // Widest document the emitter composes before the delivery bounds are
+    // checked: wide enough that any document either route could accept — the
+    // outlet's DOCUMENT_CAPACITY, or the file route's full scheduler slot
+    // (issue #840) — has certainly not been cut by the buffer first. Two
+    // over BYTES_CAPACITY so Append's headroom check still admits a document
+    // of exactly the slot's size. Heap-held (see `compose`): at 128 KiB it
+    // is a file-sized buffer, not a member array.
+    static constexpr std::size_t COMPOSE_CAPACITY = fileScheduler::BYTES_CAPACITY + 2;
 
     // The shared name. The creation argument; empty means a private, empty
     // dictionary.
@@ -249,9 +299,18 @@ namespace YSE {
 
     // The document being composed, and whether every append fit. `fit` is
     // plain rather than atomic because it is only touched under `busy`.
-    char compose[COMPOSE_CAPACITY] = {};
+    // Allocated whole at construction (control thread) and held by pointer:
+    // COMPOSE_CAPACITY is a fileScheduler slot's worth of document (#840),
+    // which is no size for an inline member array.
+    std::unique_ptr<char[]> compose;
     std::size_t composeLength = 0;
     bool fit = true;
+
+    // The last path a `write` named — what a bare `write` reuses, there
+    // being no dialog to ask with (issue #840). Reserved to PATH_CAPACITY at
+    // construction and touched only under `busy`, so remembering a name on
+    // the message path is a bounded assign into storage that already exists.
+    std::string writePath;
 
     // The finished document, copied out of `compose` for the send. Reserved
     // at construction to DOCUMENT_CAPACITY, so the assign never allocates.

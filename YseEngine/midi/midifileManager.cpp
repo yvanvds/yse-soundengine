@@ -9,6 +9,7 @@
 */
 
 #include "midifileManager.h"
+#include <iterator>
 #include "../internalHeaders.h"
 
 YSE::MIDI::managerObject& YSE::MIDI::Manager() {
@@ -49,6 +50,11 @@ YSE::MIDI::fileImpl* YSE::MIDI::managerObject::addImplementation(YSE::MIDI::file
   // when the impl participates in update() (issue #190).
   toLoadInbox.push(impl);
   return impl;
+}
+
+std::size_t YSE::MIDI::managerObject::implementationCount() {
+  std::scoped_lock lk(implementationsMutex);
+  return static_cast<std::size_t>(std::distance(implementations.begin(), implementations.end()));
 }
 
 void YSE::MIDI::managerObject::update() {
