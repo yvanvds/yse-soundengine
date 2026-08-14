@@ -1163,6 +1163,69 @@
       }
     ]
   },
+  ".array.indexmap": {
+    "category": "GENERIC",
+    "description": "Reorders an array by a list of indices — Max's array.indexmap on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.indexmap <name> [<indices...>]\", because an array is addressed by name and never passed down a cord. The shared reordering primitive applied to a stored array — the object every custom permutation is built from, and the one .zl indexmap already gives for a list, with the family's zero-based positions. A bang applies the stored map, seeded by the trailing creation arguments and replaced by a list on the map inlet; a list of indices on the trigger is applied at the moment it arrives and stores nothing. Each map entry picks the element at that position, in map order: entries may repeat, an index naming no element contributes nothing — AssignOrder's rule, so the result is as long as what landed — and a negative index refuses the whole map, the family's split between a miss and a refusal. The whole reorder is one hold of the store's guard, through a scratch table the object owns, so the order applied is the array as it stood at the trigger; a reorder that lands emits the array's reference, so the family chains.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang applies the stored map — the map the last list on the map inlet stored, seeded by the trailing creation arguments; a bang before any map exists is refused and counted, an absent map being malformed rather than a reorder to nothing. A list of indices is applied at the moment it arrives and stores nothing — a bang that replayed the last list would be hidden state — a single int is the one-entry map it spells, and a float truncates to an int first, Max's float method. \"array <name>\" applies the stored map when it names the array bound by the first creation argument — the message an .array's reference outlet emits on a bang, so wiring that outlet here gives the family's gesture. A negative index, a reference naming anything else, or any other message is refused whole and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "trigger",
+        "range": "0-255 each"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "A list of zero-based indices stores the map the next bang applies, silently — the cold half of the Max idiom, .zl indexmap's right inlet. A single int stores a one-entry map; a float truncates to an int first. A map with anything in it that is not a non-negative integer, or longer than 256 entries, is refused whole — one counted refusal and the stored map does not move. \"array <name>\" is refused even naming the bound array: an identity is not a map.",
+        "index": 1,
+        "label": "index map",
+        "range": "0-255 each"
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the array bound by the first creation argument, so a patch may wire the array's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 2,
+        "label": "array reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.indexmap",
+    "outlets": [
+      {
+        "doc": "The bound array's reference, \"array <name>\", sent after a reorder that landed — the way an array leaves an object on the value model, so wiring it onward chains the family: into .array.length it reports the new length, into .array.at it fetches from the new order. A refused reorder emits nothing, and an unnamed object stays silent — the reorder happens, but there is no name to pass on.",
+        "index": 0,
+        "label": "reference",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reorders a private, empty array: the picks all miss, and no reference leaves.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The initial stored map — the zero-based indices a bang applies before any list has arrived on the map inlet, in pick order. Absent means no map, and a bang before one arrives is refused; a token that is not a non-negative integer plants no map at all, counted.",
+        "name": "map",
+        "range": "0-255 each"
+      }
+    ]
+  },
   ".array.indexof": {
     "category": "GENERIC",
     "description": "Outputs the position of a value — Max's array.indexof on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.indexof <name> [<value>]\", because an array is addressed by name and never passed down a cord. An int, a float or a symbol searches for the element that spells it and stores the value; a bang re-searches with the stored value, and the message an .array's reference outlet emits on a bang does the same, so wiring that outlet here gives the family's gesture. The answer is one int: the first matching position, or -1 on a miss — Max's own answer, the one a patch can test with .sel -1 or feed straight into .array.at. Every position is not reported: the reply stays one usable int, and renumbering writes make a set of positions stale as a set where a single position is simply a position. The search is one scan under one hold of the store's guard, so the answer is the array as it stood at the trigger; .array.index is the same search with the miss split onto an outlet.",

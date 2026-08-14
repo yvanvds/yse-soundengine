@@ -29,6 +29,7 @@
 #include "genericObjects/gArrayAt.h"
 #include "genericObjects/gArrayEnds.h"
 #include "genericObjects/gArrayFind.h"
+#include "genericObjects/gArrayIndexMap.h"
 #include "genericObjects/gArrayLength.h"
 #include "genericObjects/gArrayPosition.h"
 #include "genericObjects/gColl.h"
@@ -563,6 +564,13 @@ pRegistry::pRegistry() {
   // miss bang out the other (issue #786)
   Add(OBJ::G_ARRAY_INDEXOF, gArrayIndexOf::Create);
   Add(OBJ::G_ARRAY_INDEX, gArrayIndex::Create);
+
+  // The reordering primitive: a stored map of zero-based indices, applied to
+  // the bound array under one hold of the store's guard through a scratch
+  // table the object owns — entries may repeat, an index naming no element
+  // contributes nothing, and a reorder that lands emits the reference so the
+  // family chains (issue #787)
+  Add(OBJ::G_ARRAY_INDEXMAP, gArrayIndexMap::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which

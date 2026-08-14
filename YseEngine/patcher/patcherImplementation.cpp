@@ -280,6 +280,11 @@ void patcherImplementation::SetName(const std::string& n) {
       // base: a renamed patcher's lookups must search the array its other
       // objects now speak about (issue #786).
       static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_INDEXMAP) == 0) {
+      // And the reordering primitive, whose binding lives on that same
+      // shared base: a renamed patcher's reorders must act on the array its
+      // other objects now speak about (issue #787).
+      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
     } else if (strcmp(x.second->Type(), OBJ::G_BAG) == 0) {
       // And gBag, whose `send` message prefixes a runtime receive name with
       // "<patcherName>." exactly as gForward does, so it has to re-anchor with

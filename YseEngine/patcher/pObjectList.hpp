@@ -61,7 +61,7 @@ namespace YSE {
    *  - Arrays: ``G_ARRAY``, ``G_ARRAY_AT``, ``G_ARRAY_LENGTH``,
    *    ``G_ARRAY_PUSH``, ``G_ARRAY_POP``, ``G_ARRAY_SHIFT``,
    *    ``G_ARRAY_UNSHIFT``, ``G_ARRAY_INSERT``, ``G_ARRAY_REMOVE``,
-   *    ``G_ARRAY_INDEXOF``, ``G_ARRAY_INDEX``.
+   *    ``G_ARRAY_INDEXOF``, ``G_ARRAY_INDEX``, ``G_ARRAY_INDEXMAP``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -469,6 +469,20 @@ namespace YSE {
     // is a cord choice rather than a comparison.
     DEFOBJ(G_ARRAY_INDEXOF, ".array.indexof");
     DEFOBJ(G_ARRAY_INDEX, ".array.index");
+
+    // The reordering primitive (issue #787): Max's ``array.indexmap``, the
+    // object every custom permutation is built from and the one ``.zl
+    // indexmap`` already gives for a list — with the family's zero-based
+    // positions. Binds the array from its creation argument; a bang applies
+    // the stored map, seeded by the trailing arguments and replaced by a
+    // list on the map inlet, and a list on the trigger is applied at the
+    // moment it arrives. Each entry picks the element at that position, in
+    // map order — entries may repeat, an index naming no element
+    // contributes nothing (``AssignOrder``'s rule), and a negative index
+    // refuses the whole map. The whole reorder is one hold of the store's
+    // guard, through a scratch table the object owns; a reorder that lands
+    // emits the array's reference, so the family chains.
+    DEFOBJ(G_ARRAY_INDEXMAP, ".array.indexmap");
 
     DEFOBJ(G_PRINT, ".print");
 
