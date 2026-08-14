@@ -27,8 +27,13 @@
 #include "genericObjects/gCapture.h"
 #include "genericObjects/gArray.h"
 #include "genericObjects/gArrayAt.h"
+#include "genericObjects/gArrayCompare.h"
 #include "genericObjects/gArrayConcat.h"
+#include "genericObjects/gArrayConvert.h"
+#include "genericObjects/gArrayDeserialize.h"
+#include "genericObjects/gArrayIter.h"
 #include "genericObjects/gArrayEnds.h"
+#include "genericObjects/gArrayExpr.h"
 #include "genericObjects/gArrayFill.h"
 #include "genericObjects/gArrayFind.h"
 #include "genericObjects/gArrayFlatten.h"
@@ -662,6 +667,69 @@ pRegistry::pRegistry() {
   // outlet, and a result past what a cord carries — or a creation line
   // past sixteen arrays — is refused whole (issue #795)
   Add(OBJ::G_ARRAY_FLATTEN, gArrayFlatten::Create);
+
+  // The converters: the array out to everything that is not an array. One
+  // render under one guard hold, three sends — tolist the list the array
+  // spells, typed (SendAtoms' one-element rule); tostring the same
+  // characters always as text, never retyped; tosymbol one whitespace-free
+  // token, the elements butted together, never retyped — a symbol is a
+  // name. List text past what a cord carries loses its tail, counted
+  // (getvalue's rule); the one-token result is refused whole instead
+  // (join's rule). An empty result bangs the empty outlet (issue #796)
+  Add(OBJ::G_ARRAY_TOLIST, gArrayToList::Create);
+  Add(OBJ::G_ARRAY_TOSTRING, gArrayToString::Create);
+  Add(OBJ::G_ARRAY_TOSYMBOL, gArrayToSymbol::Create);
+
+  // The reader: an array back in from serialised text — one JSON array of
+  // typed elements, the form .array saves with a patch, read by the same
+  // ArrayFromJson a saved patch loads through and replacing the bound array
+  // whole. The parse runs on the background pool (nlohmann allocates, and
+  // the inlet may be the audio thread); the block poll installs the result
+  // and announces the reference a block later — .dict.deserialize's
+  // arrangement (issue #797)
+  Add(OBJ::G_ARRAY_DESERIALIZE, gArrayDeserialize::Create);
+
+  // The iterator: every element out one at a time, first to last, each
+  // typed the way the patcher spells it, then the done bang — the
+  // .uzi/.iter shape applied to stored data, and the object every "do this
+  // for each element" patch is built from. The walk is a snapshot of the
+  // array as it stood at the trigger — a renumbering write arriving
+  // mid-walk moves the store, never the walk in flight — and a trigger
+  // arriving mid-walk is refused and counted (issue #798)
+  Add(OBJ::G_ARRAY_ITER, gArrayIter::Create);
+
+  // The per-element expression family: the seven objects that decide what
+  // "a function" is in a patcher with no lambda — the per-element
+  // computation is text, compiled once on the control thread by .expr's own
+  // ExprProgram. $1 binds the element and $2 its position (reduce alone
+  // shifts: $1 accumulator, $2 element, $3 position); a symbol element is
+  // never seen by the expression — expr/map/foreach pass it through,
+  // filter cannot keep it, the fold and the quantifiers skip it. map
+  // writes back and filter compacts in place, one guard hold each, with
+  // expr as the emitting form and foreach as .array.iter's snapshot walk
+  // with the expression applied in flight; every/some answer 1/0,
+  // vacuously on an empty population, and an empty fold bangs the empty
+  // outlet (issue #799)
+  Add(OBJ::G_ARRAY_EXPR, gArrayExpr::Create);
+  Add(OBJ::G_ARRAY_MAP, gArrayMap::Create);
+  Add(OBJ::G_ARRAY_FILTER, gArrayFilter::Create);
+  Add(OBJ::G_ARRAY_REDUCE, gArrayReduce::Create);
+  Add(OBJ::G_ARRAY_EVERY, gArrayEvery::Create);
+  Add(OBJ::G_ARRAY_SOME, gArraySome::Create);
+  Add(OBJ::G_ARRAY_FOREACH, gArrayForeach::Create);
+
+  // The comparison pair: element-by-element — count and spelling, in order,
+  // the family's byte-compare equality. change polls the bound array against
+  // a baseline it keeps (starting empty, the scalar .change's
+  // creation-argument rule), replaces the baseline on a difference, reports
+  // 1/0 on every poll and emits the reference only on a change — the guard
+  // in front of expensive downstream work; compare binds two names at
+  // creation and answers 1/0 on every ask, the left side snapshotted under
+  // its guard and the verdict decided against the right under that guard
+  // alone, so no two guards are ever held at once — gDictCompare's
+  // arrangement (issue #800)
+  Add(OBJ::G_ARRAY_CHANGE, gArrayChange::Create);
+  Add(OBJ::G_ARRAY_COMPARE, gArrayCompare::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which

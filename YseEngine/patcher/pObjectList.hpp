@@ -69,7 +69,11 @@ namespace YSE {
    *    ``G_ARRAY_SUBARRAY``, ``G_ARRAY_SUB``, ``G_ARRAY_SPLIT``,
    *    ``G_ARRAY_UNION``, ``G_ARRAY_SECT``, ``G_ARRAY_UNIQUE``,
    *    ``G_ARRAY_CONCAT``, ``G_ARRAY_JOIN``, ``G_ARRAY_FILL``,
-   *    ``G_ARRAY_FLATTEN``.
+   *    ``G_ARRAY_FLATTEN``, ``G_ARRAY_TOLIST``, ``G_ARRAY_TOSTRING``,
+   *    ``G_ARRAY_TOSYMBOL``, ``G_ARRAY_DESERIALIZE``, ``G_ARRAY_ITER``,
+   *    ``G_ARRAY_EXPR``, ``G_ARRAY_MAP``, ``G_ARRAY_FILTER``,
+   *    ``G_ARRAY_REDUCE``, ``G_ARRAY_EVERY``, ``G_ARRAY_SOME``,
+   *    ``G_ARRAY_FOREACH``, ``G_ARRAY_CHANGE``, ``G_ARRAY_COMPARE``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -601,6 +605,84 @@ namespace YSE {
     // An empty result bangs the empty outlet; a result past what a cord
     // carries, or a creation line past the slot table, is refused whole.
     DEFOBJ(G_ARRAY_FLATTEN, ".array.flatten");
+
+    // The converters (issue #796): the array out to everything that is not
+    // an array, all three read-only over one binding. One render — the
+    // elements collected under one guard hold — three sends: ``tolist`` the
+    // list the array spells, typed (one element leaves as the int, float or
+    // symbol it is, SendAtoms' rule); ``tostring`` the same characters
+    // always as text, never retyped; ``tosymbol`` one whitespace-free token,
+    // the elements butted together and never retyped — a symbol is a name.
+    // List text past what a cord carries loses its tail, counted
+    // (``getvalue``'s rule); the one-token result is refused whole instead
+    // (``join``'s rule). An empty result bangs the empty outlet on all
+    // three.
+    DEFOBJ(G_ARRAY_TOLIST, ".array.tolist");
+    DEFOBJ(G_ARRAY_TOSTRING, ".array.tostring");
+    DEFOBJ(G_ARRAY_TOSYMBOL, ".array.tosymbol");
+
+    // The reader (issue #797): an array back in from serialised text — one
+    // JSON array of typed elements, the exact form ``.array`` saves with a
+    // patch, read by the same ``ArrayFromJson`` a saved patch loads through
+    // and replacing the bound array whole. The parse runs on the background
+    // pool (nlohmann allocates, and the inlet may be the audio thread), so
+    // the inlet is a wait-free hand-off and the block poll installs the
+    // result and announces ``array <name>`` a block later —
+    // ``.dict.deserialize``'s arrangement. A document past what a list
+    // payload carries, or one arriving mid-parse, is refused whole; one that
+    // is not a JSON array fails, counted, changing nothing.
+    DEFOBJ(G_ARRAY_DESERIALIZE, ".array.deserialize");
+
+    // The iterator (issue #798): every element out one at a time, first to
+    // last, each typed the way the patcher spells it, then a bang out the
+    // done outlet — the ``.uzi`` / ``.iter`` shape applied to stored data.
+    // The walk is a snapshot of the array as it stood at the trigger, so a
+    // renumbering write arriving mid-walk moves the store, never the walk in
+    // flight, and two on one name walk independently — ``.coll``'s
+    // per-object pointer rule. A trigger arriving mid-walk is refused and
+    // counted, ``.uzi``'s re-entrant start rule. The done bang fires even
+    // for an empty array, never for a refused walk.
+    DEFOBJ(G_ARRAY_ITER, ".array.iter");
+
+    // The per-element expression family (issue #799): the seven objects
+    // that decide what "a function" is in a patcher with no lambda — the
+    // per-element computation is text, compiled once on the control thread
+    // by ``.expr``'s own ``ExprProgram``, never parsed on a message path.
+    // The decisions, settled once for all seven on ``gArrayExprBase``: the
+    // expression is a creation argument; ``$1`` binds the element and
+    // ``$2`` its position (``reduce`` alone shifts — ``$1`` accumulator,
+    // ``$2`` element, ``$3`` position); a symbol element is never seen by
+    // the expression — ``expr``/``map``/``foreach`` pass it through
+    // unchanged, ``filter`` cannot keep what the expression never
+    // accepted, and the fold and the quantifiers skip it (the statistics'
+    // population rule); ``map`` writes back and ``filter`` compacts in
+    // place, both one hold of the store's guard, announcing the reference
+    // — with ``expr`` as the emitting form and ``foreach`` as the
+    // streaming one, ``.array.iter``'s snapshot walk with the expression
+    // applied in flight. ``every``/``some`` answer 1/0, vacuously on an
+    // empty population; an empty fold bangs the empty outlet. A malformed
+    // expression fails loudly at parse time and the object then refuses
+    // every trigger, counted — never a silent 0 written into shared data.
+    DEFOBJ(G_ARRAY_EXPR, ".array.expr");
+    DEFOBJ(G_ARRAY_MAP, ".array.map");
+    DEFOBJ(G_ARRAY_FILTER, ".array.filter");
+    DEFOBJ(G_ARRAY_REDUCE, ".array.reduce");
+    DEFOBJ(G_ARRAY_EVERY, ".array.every");
+    DEFOBJ(G_ARRAY_SOME, ".array.some");
+    DEFOBJ(G_ARRAY_FOREACH, ".array.foreach");
+
+    // The comparison pair (issue #800): both are an element-by-element
+    // comparison — count and spelling, in order, the family's byte-compare
+    // equality — one against a baseline the object keeps and one against a
+    // second bound array. ``change`` polls the bound array against the
+    // baseline it replaces on a difference (starting from the empty array,
+    // the scalar ``.change``'s creation-argument rule) and emits the
+    // reference only on a change — the guard a patch puts in front of
+    // expensive downstream work; ``compare`` binds two names at creation
+    // (gDictCompare's arrangement, snapshot included so no two guards are
+    // ever held at once) and answers 1/0 on every ask.
+    DEFOBJ(G_ARRAY_CHANGE, ".array.change");
+    DEFOBJ(G_ARRAY_COMPARE, ".array.compare");
 
     DEFOBJ(G_PRINT, ".print");
 

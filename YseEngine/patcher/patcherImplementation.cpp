@@ -344,6 +344,44 @@ void patcherImplementation::SetName(const std::string& n) {
       // RefreshBinding re-anchors them along with the first —
       // gArraySetOpBase's arrangement over N names (issue #795).
       static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_TOLIST) == 0 ||
+               strcmp(x.second->Type(), OBJ::G_ARRAY_TOSTRING) == 0 ||
+               strcmp(x.second->Type(), OBJ::G_ARRAY_TOSYMBOL) == 0) {
+      // And the three converters, whose binding lives on that same shared
+      // base: a renamed patcher's conversions must read the array its other
+      // objects now speak about. One branch, gArrayEnds' arrangement
+      // (issue #796).
+      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_DESERIALIZE) == 0) {
+      // And the reader, whose binding lives on that same shared base: a
+      // renamed patcher's parsed documents must land in the array its other
+      // objects now speak about (issue #797).
+      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_ITER) == 0) {
+      // And the iterator, whose binding lives on that same shared base: a
+      // renamed patcher's walks must stream the array its other objects now
+      // speak about (issue #798).
+      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_EXPR) == 0 ||
+               strcmp(x.second->Type(), OBJ::G_ARRAY_MAP) == 0 ||
+               strcmp(x.second->Type(), OBJ::G_ARRAY_FILTER) == 0 ||
+               strcmp(x.second->Type(), OBJ::G_ARRAY_REDUCE) == 0 ||
+               strcmp(x.second->Type(), OBJ::G_ARRAY_EVERY) == 0 ||
+               strcmp(x.second->Type(), OBJ::G_ARRAY_SOME) == 0 ||
+               strcmp(x.second->Type(), OBJ::G_ARRAY_FOREACH) == 0) {
+      // And the seven of the per-element expression family, whose binding
+      // lives on that same shared base: a renamed patcher's maps, filters,
+      // folds, quantifiers and walks must act on the array its other
+      // objects now speak about. One branch, gArrayEnds' arrangement
+      // (issue #799).
+      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_CHANGE) == 0 ||
+               strcmp(x.second->Type(), OBJ::G_ARRAY_COMPARE) == 0) {
+      // And the comparison pair, whose bindings live on that same shared
+      // base — where RefreshBinding is virtual, so change's override resets
+      // its baseline along with the left binding and compare's re-anchors
+      // the right array, gArraySetOpBase's arrangement (issue #800).
+      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
     } else if (strcmp(x.second->Type(), OBJ::G_BAG) == 0) {
       // And gBag, whose `send` message prefixes a runtime receive name with
       // "<patcherName>." exactly as gForward does, so it has to re-anchor with

@@ -136,6 +136,12 @@ set(YSE_SRCS
   patcher/genericObjects/gArrayConcat.cpp
   patcher/genericObjects/gArrayFill.cpp
   patcher/genericObjects/gArrayFlatten.cpp
+  patcher/genericObjects/gArrayConvert.cpp
+  patcher/genericObjects/arrayParser.cpp
+  patcher/genericObjects/gArrayDeserialize.cpp
+  patcher/genericObjects/gArrayIter.cpp
+  patcher/genericObjects/gArrayExpr.cpp
+  patcher/genericObjects/gArrayCompare.cpp
   patcher/genericObjects/gCombine.cpp
   patcher/genericObjects/gCycle.cpp
   patcher/genericObjects/gDecode.cpp
@@ -510,6 +516,12 @@ set_source_files_properties(
   patcher/genericObjects/gArrayConcat.cpp
   patcher/genericObjects/gArrayFill.cpp
   patcher/genericObjects/gArrayFlatten.cpp
+  patcher/genericObjects/gArrayConvert.cpp
+  patcher/genericObjects/arrayParser.cpp
+  patcher/genericObjects/gArrayDeserialize.cpp
+  patcher/genericObjects/gArrayIter.cpp
+  patcher/genericObjects/gArrayExpr.cpp
+  patcher/genericObjects/gArrayCompare.cpp
   patcher/genericObjects/gCombine.cpp
   patcher/genericObjects/gCycle.cpp
   patcher/genericObjects/gDecode.cpp
