@@ -254,10 +254,17 @@ namespace {
     }
 
     // Drive one back-buffer fill the way the slow pool does: requestRefill()
-    // marks the refill in flight before the job runs fillBackBuffer().
+    // marks the refill in flight and queues the job (start(), inside
+    // threadPool::addJob) before a worker activate()s it — run() plus the
+    // trailing isDone/inQueue bookkeeping. Arming the job is load-bearing
+    // since issue #844: a claim held with nothing queued is the leaked state
+    // requestRefill now self-heals, so a hook that re-enters it mid-fill
+    // (reset()/seek()) would otherwise release the claim and schedule a real
+    // slow-pool fill behind this deterministic choreography's back.
     void runFill() {
       _refillInFlight.store(true, std::memory_order_relaxed);
-      fillBackBuffer();
+      _refillJob.start();
+      _refillJob.activate();
     }
 
     bool needsReset() {
@@ -291,7 +298,12 @@ namespace {
       // requestRefill() only queues a slow-pool job when it can flip
       // _refillInFlight from false, so latching it here means read() never
       // schedules one and this fixture is the sole publisher of a back buffer.
+      // Since issue #844 the claim alone is not enough: claimed-but-not-queued
+      // is the leaked state requestRefill self-heals, so the job must read as
+      // queued too — together they model a live, never-completing fill cycle,
+      // which requestRefill leaves alone.
       _refillInFlight.store(true, std::memory_order_relaxed);
+      _refillJob.start();
       fillFrom(_iBuffer, 0); // prime the front buffer with frames [0, S)
       _frontBufferBase = 0;
       _frontValidFrames = S;
@@ -299,6 +311,12 @@ namespace {
       state = YSE::INTERNAL::READY;
     }
     ~underrunFile() override {
+      // Release the never-run pseudo-queued refill job the ctor armed, or the
+      // member ~threadPoolJob's join() would wait on inQueue forever. stop() +
+      // activate() takes the released-without-running path (issue #285): the
+      // flags are cleared, run() is not called.
+      _refillJob.stop();
+      _refillJob.activate();
       delete[] _iBuffer;
       delete[] _iBufferBack;
       _iBuffer = nullptr;
@@ -424,6 +442,82 @@ namespace {
     }
     long long _nextFrame = 0; // absolute frame the next stamp starts at
     uint32_t _rng = 0x9E3779B9u;
+  };
+
+  // In-memory streaming backend for the refill-job lifecycle races of issue
+  // #844. Unlike refillRaceFile it carries no marker stream: its fills are
+  // instant no-ops, and it instead exposes the refill protocol's internals so
+  // the test driver (playing the audio thread's role, cfr. the suite header)
+  // can chase the slow-pool worker across the window between fillBackBuffer()
+  // releasing _refillInFlight and activate() finishing the job's isDone /
+  // inQueue bookkeeping.
+  class rearmProbeFile : public YSE::INTERNAL::abstractSoundFile {
+  public:
+    rearmProbeFile() : abstractSoundFile("rearm-probe", true) {
+      _streaming = true;
+      _endReached = false;
+      _channels = 1;
+      _length = std::numeric_limits<Int>::max(); // looping forever; EOF never in play
+      _sampleRateAdjustment = 1.f;
+      _iBuffer = new Flt[static_cast<size_t>(S)];
+      _iBufferBack = new Flt[static_cast<size_t>(S)];
+      _frontBufferBase = 0;
+      _frontValidFrames = S;
+      _frontTerminal = false;
+      state = YSE::INTERNAL::READY;
+    }
+    ~rearmProbeFile() override {
+      // A refill may still be queued or running on the slow pool (cfr.
+      // ~soundFile); let it finish before freeing the buffers it writes.
+      _refillJob.join();
+      delete[] _iBuffer;
+      delete[] _iBufferBack;
+      _iBuffer = nullptr;
+      _iBufferBack = nullptr;
+    }
+    rearmProbeFile(const rearmProbeFile&) = delete;
+    rearmProbeFile& operator=(const rearmProbeFile&) = delete;
+
+    void loadStreaming() override {}
+    void loadNonStreaming() override {}
+
+    // Total completed fills — the driver's progress oracle.
+    std::atomic<long> fills{0};
+
+    UInt fillBuffer(Flt* dest, Bool /*loop*/) override {
+      (void)dest;
+      // Mirror the production backend's reset handling (lsfSoundfile.cpp);
+      // nothing arms it in this case, but consuming it keeps the protocol real.
+      if (_needsReset.exchange(false, std::memory_order_relaxed))
+        (void)_seekTarget.load(std::memory_order_relaxed);
+      fills.fetch_add(1, std::memory_order_relaxed);
+      return YSE::STREAM_BUFFERSIZE;
+    }
+
+    // --- audio-side driver hooks (the test thread plays the audio thread) ---
+    // = read()'s per-block requestRefill call.
+    void pump() {
+      requestRefill(true);
+    }
+    bool backReady() const {
+      return _backReady.load(std::memory_order_acquire);
+    }
+    // = streamSwap()'s consumption of the published back buffer.
+    void consumeBack() {
+      _backReady.store(false, std::memory_order_relaxed);
+    }
+    bool refillClaimed() const {
+      return _refillInFlight.load(std::memory_order_acquire);
+    }
+    bool refillQueued() {
+      return _refillJob.isQueued();
+    }
+    // Recreate exactly the state a dropped or drained enqueue leaves behind
+    // (threadPool::addJob on an inactive pool / background-ring overflow, or
+    // shutdown()'s ring drain): the claim set, nothing queued, nothing running.
+    void leakClaim() {
+      _refillInFlight.store(true, std::memory_order_release);
+    }
   };
 
 } // namespace
@@ -1045,6 +1139,120 @@ TEST_SUITE("sound") {
                              << ", discontinuities: " << discontinuities);
     CHECK(f.overwrites.load() == 0);
     CHECK(discontinuities == 0);
+  }
+
+  // 15. Issue #844 regression: re-arming the refill job while its previous
+  //     run's pool bookkeeping is still in flight must never lose the refill.
+  //
+  //     threadPoolJob::activate() stores `isDone = true; inQueue = false;`
+  //     only after run() has returned, but the refill protocol releases its
+  //     _refillInFlight claim *inside* run() (fillBackBuffer's last store).
+  //     Unfixed, the audio thread could win the claim in that window and
+  //     re-arm the job; the worker's trailing stores then clobbered the fresh
+  //     `inQueue = true` (and its stale `isDone = true` could survive start()),
+  //     so the re-queued job was popped as already-done and skipped — leaving
+  //     _refillInFlight true forever, every later requestRefill losing the
+  //     CAS, and the stream permanently silent. requestRefill now refuses to
+  //     arm while _refillJob.isQueued() still reads true (the worker's
+  //     genuinely last store, issue #239) and retries on the next call.
+  //
+  //     The driver hammers exactly that edge: it consumes each landed fill
+  //     and instantly re-pumps in a tight spin, so every fill completion is
+  //     chased across the [claim-release .. inQueue=false] window, while
+  //     oversubscribing spinner threads make it likely the slow-pool worker
+  //     is preempted inside the window at least once. The window is a handful
+  //     of instructions wide, so the clobber is a rare event even here — but
+  //     one occurrence is permanent, which is what the oracle checks: the
+  //     stream must keep producing fills for the whole (wall-clock-bounded)
+  //     run.
+  TEST_CASE("streaming: refill re-armed during its pool bookkeeping is never lost (#844)") {
+    if (!TestHelpers::engineInit()) return;
+
+    rearmProbeFile f;
+
+    // Oversubscribe the machine so the slow-pool worker gets preempted at
+    // random points — including between fillBackBuffer's claim release and
+    // activate()'s trailing bookkeeping.
+    std::atomic<bool> stop{false};
+    unsigned hc = std::thread::hardware_concurrency();
+    if (hc == 0) hc = 4;
+    std::vector<std::thread> spinners;
+    spinners.reserve(hc);
+    for (unsigned i = 0; i < hc; ++i)
+      spinners.emplace_back([&stop] {
+        volatile uint64_t sink = 0;
+        while (!stop.load(std::memory_order_relaxed))
+          ++sink;
+      });
+
+    using clock = std::chrono::steady_clock;
+    const auto deadline = clock::now() + std::chrono::seconds(5);
+    long cycles = 0;
+    bool stalled = false;
+
+    while (!stalled && clock::now() < deadline) {
+      // Arm (or retry) until this cycle's fill lands. A lost re-arm leaves
+      // _refillInFlight stuck true with nothing queued, so no fill can ever
+      // land again: that permanent stall is what this wait detects. The
+      // budget is generous — under oversubscription plus TSan a healthy fill
+      // round-trip is slow, and the budget is only ever exhausted on failure.
+      const auto cycleDeadline = clock::now() + std::chrono::seconds(30);
+      while (!f.backReady()) {
+        f.pump();
+        if (clock::now() >= cycleDeadline) {
+          stalled = true;
+          break;
+        }
+      }
+      if (stalled) break;
+      // Consume the landed buffer and immediately chase the worker's epilogue
+      // with the next arm, exactly as streamSwap -> requestRefill does.
+      f.consumeBack();
+      f.pump();
+      ++cycles;
+    }
+
+    stop.store(true, std::memory_order_relaxed);
+    for (auto& t : spinners)
+      t.join();
+
+    INFO("cycles: " << cycles << ", fills: " << f.fills.load() << ", claimed: " << f.refillClaimed()
+                    << ", queued: " << f.refillQueued());
+    CHECK_FALSE(stalled); // a lost re-arm is permanent: no fill would ever land again
+    CHECK(cycles > 0);
+  }
+
+  // 16. Issue #844 regression (flag-leak half): a refill claim left set by a
+  //     dropped enqueue must self-heal instead of silencing the stream.
+  //
+  //     threadPool::addJob returns without queueing when the pool is inactive
+  //     and drops the job on background-ring overflow, and shutdown()'s drain
+  //     releases queued jobs without running them. All three leave
+  //     _refillInFlight == true with nothing queued or running. Unfixed, every
+  //     later requestRefill lost its CAS against that orphaned claim, no
+  //     refill was ever scheduled again, and the stream was permanently
+  //     silent. requestRefill now recognises the orphaned state — claimed but
+  //     not queued is impossible for a live cycle, whose inQueue stays true
+  //     until after the claim is released — and releases it before arming.
+  TEST_CASE("streaming: a refill claim leaked by a dropped enqueue self-heals (#844)") {
+    if (!TestHelpers::engineInit()) return;
+
+    rearmProbeFile f;
+
+    // Recreate the dropped-enqueue state directly: claim set, nothing queued.
+    f.leakClaim();
+    REQUIRE(f.refillClaimed());
+    REQUIRE_FALSE(f.refillQueued());
+
+    // A single read()'s worth of scheduling must recover: release the orphaned
+    // claim, win it back, and land a fill. Unfixed, pump() can never win the
+    // CAS, so this times out with zero fills.
+    f.pump();
+    const bool landed = TestHelpers::pacedUntil(3000, [&f] { return f.backReady(); });
+
+    INFO("fills completed: " << f.fills.load() << ", claimed: " << f.refillClaimed());
+    CHECK(landed);
+    CHECK(f.fills.load() == 1);
   }
 
 } // TEST_SUITE("sound")
