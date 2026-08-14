@@ -1045,6 +1045,65 @@
       }
     ]
   },
+  ".array.at": {
+    "category": "GENERIC",
+    "description": "Outputs the element at an index — Max's array.at on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.at <name> [<index>]\", because an array is addressed by name and never passed down a cord. This is the object a running patch wires an index into — .array's own \"get\" needs the index inside the message text. An int fetches that position and stores it, a bang re-fetches at the stored index, and a list of indices is answered whole, as one list in the order asked. The element leaves typed the way the patcher spells it; a position the array does not have bangs the miss outlet instead, and a list fetch with any position missing is one miss bang and no partial reply. Indices are zero-based and a negative index is refused rather than wrapped or clamped — the family's indexing rule. A fetch reads every position under one hold of the store's guard, so the reply is the array as it stood at the trigger, and the stored index is this object's own: two .array.at on one name fetch independently.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "An int fetches the element at that position and stores the index; a bang re-fetches at the stored index; a float truncates to an int first — Max's float method. A list of indices fetches them all as one list, in the order asked, and never moves the stored index; any position the array does not have bangs the miss outlet instead, whole — no partial reply. \"array <name>\" fetches at the stored index when it names the array bound by the first creation argument — the message an .array's reference outlet emits on a bang, so wiring that outlet here gives the family's gesture. A negative index, a reference naming anything else, or any other message is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "index",
+        "range": "0-255"
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the array bound by the first creation argument, so a patch may wire the array's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 1,
+        "label": "array reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.at",
+    "outlets": [
+      {
+        "doc": "The fetched element, typed the way the patcher spells it: a numeric element leaves as an int or a float by its spelling and anything else as a symbol. A list of indices leaves as one list of the named elements, in the order asked — every position read under one hold of the store's guard, so the reply is the array as it stood at the trigger.",
+        "index": 0,
+        "label": "element",
+        "range": "",
+        "type": "ANY"
+      },
+      {
+        "doc": "Bang when a fetch names a position the array does not have — the miss, kept off the element outlet so a patch can tell \"no such element\" from an element it received. A list fetch with any position missing is one miss bang and no partial list.",
+        "index": 1,
+        "label": "miss",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every fetch is a miss.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "0",
+        "doc": "The initial stored index — the position a bang fetches before any int has moved it. Zero-based, exactly as every index the inlet takes.",
+        "name": "index",
+        "range": "0-255"
+      }
+    ]
+  },
   ".asin": {
     "category": "MATH",
     "description": "Control-rate arc-sine. Emits asin(in) in radians as a float whenever inlet 0 fires. Inputs outside -1 to 1 have no real arc-sine and emit 0 rather than a NaN.",

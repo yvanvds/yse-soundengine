@@ -58,7 +58,7 @@ namespace YSE {
    *    ``G_DICT_GROUP``, ``G_DICT_ITER``, ``G_DICT_JOIN``, ``G_DICT_PACK``,
    *    ``G_DICT_PRINT``, ``G_DICT_ROUTE``, ``G_DICT_SERIALIZE``,
    *    ``G_DICT_SLICE``, ``G_DICT_STRIP``, ``G_DICT_UNPACK``.
-   *  - Arrays: ``G_ARRAY``.
+   *  - Arrays: ``G_ARRAY``, ``G_ARRAY_AT``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -400,6 +400,17 @@ namespace YSE {
     // separate objects written against ``arrayStore``; see
     // genericObjects/gArray.h for the whole model.
     DEFOBJ(G_ARRAY, ".array");
+
+    // The first of the array.* operations written against that model (issue
+    // #782): the array is bound from the creation argument —
+    // ``.array.at <name> [<index>]`` — because an array is addressed by name
+    // and never passed down a cord. An int fetches the element at that
+    // position, a bang re-fetches at the stored index, and a list of indices
+    // is answered whole, as one list in the order asked; a position the
+    // array does not have bangs the miss outlet instead. The object a
+    // running patch wires an index into, where ``.array``'s own ``get``
+    // needs the index inside the message text.
+    DEFOBJ(G_ARRAY_AT, ".array.at");
 
     DEFOBJ(G_PRINT, ".print");
 

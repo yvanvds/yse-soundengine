@@ -26,6 +26,7 @@
 #include "genericObjects/gBag.h"
 #include "genericObjects/gCapture.h"
 #include "genericObjects/gArray.h"
+#include "genericObjects/gArrayAt.h"
 #include "genericObjects/gColl.h"
 #include "genericObjects/gDict.h"
 #include "genericObjects/gDictCompare.h"
@@ -522,6 +523,12 @@ pRegistry::pRegistry() {
   // family is written against: addressed by name, resolved on the control
   // thread, one atom per element (issue #548)
   Add(OBJ::G_ARRAY, gArray::Create);
+
+  // The first of the array.* operations written against that model: the array
+  // is bound from the creation argument and an index arriving on a cord
+  // fetches the element at that position — the read .array's own "get" cannot
+  // give a running patch (issue #782)
+  Add(OBJ::G_ARRAY_AT, gArrayAt::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which
