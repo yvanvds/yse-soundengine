@@ -1284,7 +1284,7 @@
   },
   ".b": {
     "category": "GUI",
-    "description": "Momentary button. Any input (bang/int/float) lights the button until the next GUI poll; emits a bang on every calculate tick.",
+    "description": "Momentary button. Any input (bang/int/float) lights the button until the next GUI poll; emits a bang on every calculate tick. Deliberately left out of the settable GUI protocol when the other scalar controls migrated (issue #846): its GUI value reports and clears a pending press - an event, not a state - so there is nothing a .preset could meaningfully store or restore, and writing 'on' back would replay a press rather than restore a value. It answers false to GuiValueIsSettable() and is never captured.",
     "inlets": [
       {
         "accepts": [
@@ -2591,15 +2591,16 @@
   },
   ".dial": {
     "category": "GUI",
-    "description": "Rotary control with a range of its own. The inlet takes the knob position as a float in [0, 1], clamped on input exactly as .slider clamps, and the outlet carries that position mapped onto the minimum-maximum range — so a parameter with a real range is one object rather than a .slider and a .scale. An exponent other than 1 bends the mapping into a curve, symmetrically around the bottom of the range, which is what an audio parameter like a cutoff frequency wants. A minimum equal to the maximum emits the minimum, and any result that would not be finite emits 0. Set intMode to 1 to round the result and emit it as an int instead of a float. The GUI value is the position, not the mapped value. With the default parameters the object behaves exactly like .slider.",
+    "description": "Rotary control with a range of its own. The inlet takes the knob position as a float in [0, 1], clamped on input exactly as .slider clamps, and the outlet carries that position mapped onto the minimum-maximum range — so a parameter with a real range is one object rather than a .slider and a .scale. An exponent other than 1 bends the mapping into a curve, symmetrically around the bottom of the range, which is what an audio parameter like a cutoff frequency wants. A minimum equal to the maximum emits the minimum, and any result that would not be finite emits 0. Set intMode to 1 to round the result and emit it as an int instead of a float. The GUI value is the position, not the mapped value, and it is settable per the GUI value protocol (issues #551/#846): a list of one number on the inlet is the whole state - the exact string GetGuiValue() produces - and 'set 0 <value>' writes the one cell, both clamped like any other input, which is what lets .preset capture and restore the dial. With the default parameters the object behaves exactly like .slider.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT",
-          "BANG"
+          "BANG",
+          "LIST"
         ],
-        "doc": "Sets the knob position and emits the mapped value; an int is widened to a float and a bang re-emits without moving the knob.",
+        "doc": "Sets the knob position and emits the mapped value; an int is widened to a float and a bang re-emits without moving the knob. A list of one number is the whole state and 'set 0 <value>' the cell write, both clamped like any other input.",
         "index": 0,
         "label": "position",
         "range": "0.0-1.0"
@@ -3385,15 +3386,16 @@
   },
   ".f": {
     "category": "GUI",
-    "description": "Float number box. Stores a float; inlet 0 sets-and-fires (bang re-emits the current value), inlet 1 sets silently.",
+    "description": "Float number box. Stores a float; inlet 0 sets-and-fires (bang re-emits the current value), inlet 1 sets silently. Settable per the GUI value protocol (issues #551/#846): a list of one number on inlet 0 is the whole state - the exact string GetGuiValue() produces - and 'set 0 <value>' writes the one cell, which is what lets .preset capture and restore the number box.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT",
-          "BANG"
+          "BANG",
+          "LIST"
         ],
-        "doc": "Sets the value and emits it; bang re-emits the current value.",
+        "doc": "Sets the value and emits it; bang re-emits the current value. A list of one number is the whole state and 'set 0 <value>' the cell write.",
         "index": 0,
         "label": "set/bang",
         "range": "any float"
@@ -3658,6 +3660,57 @@
       }
     ]
   },
+  ".function": {
+    "category": "GUI",
+    "description": "A breakpoint function editor as one control - Max's function, 'draw or store a set of x, y points as floating-point numbers'. A bounded, sorted store of (x, y, curve) breakpoints that answers any x with the interpolation between its neighbours and bangs out the whole envelope as a ramp list .line and .bline consume - every hand-drawn envelope, velocity curve, filter sweep and automation shape is authored in one of these, and the engine's fixed-shape ADSR envelopes are the special case it generalises past. Issue #561 asks for the storage decision against .funbuff up front: the two keep separate stores on purpose. .funbuff is an integer function whose floor lookup is a step and whose exact-int search is load-bearing; this is a float function with per-point curvature whose lookup is the interpolation .funbuff keeps behind a separate message - one store would either quantise these curves or break that exactness, so what they share is the invariant (a bounded array sorted by its own key, one y per x) and the guard model, not code. An int or float on the inlet answers with the interpolated y out outlet 0, shaped by the arriving point's curve: t^((1+c)/(1-c)), positive leaving the start slowly, negative moving early, +/-1 honest steps, 0 linear - Max gates curves behind his mode attribute and speaks them to curve~, and with no attribute surface and no curve~ here the curve is simply always available. A bang sends the whole function out outlet 1 as 'y0 0 y1 (x1-x0) ...', one <target> <time> pair per point - exactly the breakpoint grammar .line and .bline read, with the jump to the first y spelled as a zero-time pair where Max's odd-length list carries a bare leading y0 for line~. A two-number list adds a point, a 3N-number list is the whole state (issue #551's round trip, the exact string GetGuiValue() produces), 'set <index> <x> <y> [<curve>]' rewrites one point keeping its curve when none is given, 'setcurve' re-curves one, 'nth' answers one point's y, 'clear [<index>]' empties or removes, and 'dump' sends every point as '<index> <x> <y> <curve>' out outlet 2. Writes are silent, deliberately unlike .multislider and .matrixctrl: their outlet mirrors their state, while outlet 1 here is a trigger, and a control that replayed its envelope on every edit would restart the .line it feeds exactly while a patch is being drawn into - Max's function is silent on edit too, and the GUI protocol leaves emission per object. A GUI cell is one breakpoint '<x> <y> <curve>'; an empty function's bulk read is the word 'clear', the one string that both round-trips and keeps a zero-token list from being a destructive write. The breakpoints persist through DumpState / RestoreState unconditionally - Max's function is a UI object whose points save with the patch, .coll's always-rule rather than .funbuff's opt-in embed - and restore runs through the same sorted, clamped store the inlet uses. The store is allocated exactly once at SetParams time from the points capacity argument (.matrixctrl's arrangement; a live re-parse replaces the object through the graph swap), no message path allocates, locks or blocks, sends happen with the non-blocking guard released, and a point past the capacity is refused whole and silently. Not ported: sustain / autosustain / next (the note-driven envelope player), fix, setdomain and the domain / range attributes (bounds are creation parameters in this family), outputmode, mode, Max's bare index-edit lists (the 'set' keyword spells the edit unambiguously), and everything about drawing and the mouse.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The function, and the only inlet. An int or a float is taken as an x and answers with the interpolated y out outlet 0 - Max's 'outputs a corresponding Y value ... produced by linear floating-point interpolation', shaped by the arriving point's curve here; an x outside the stored span answers with the nearest end's y, and an empty function answers nothing. A bang sends the whole function out outlet 1 as one ramp list of <target> <time> pairs, the breakpoint grammar .line and .bline read. A list of two numbers '<x> <y>' adds a breakpoint with a linear (0) curve, replacing the point already at that exact x - a function holds one y per x; a list of 3N numbers is the whole state, '<x> <y> <curve>' per point, the exact string GetGuiValue() produces (issue #551's round trip): the store is cleared and refilled through the same sorted, clamped path. 'set <index> <x> <y> [<curve>]' rewrites the point at that ascending-x position and re-sorts, keeping the point's curve when none is given - Max's split between his three- and four-element point messages; 'setcurve <index> <curve>' re-curves one point; 'nth <index>' answers that point's y out outlet 0; 'clear' empties the store and 'clear <index>' removes one point; 'dump' sends every point out outlet 2. Writes are silent - outlet 1 is a trigger, not a mirror, and a control that replayed its envelope on every edit would restart the .line it feeds exactly while a patch is being drawn into; Max's function is silent on edit too. Every x is folded to at least 0 (Max's domain starts at 0) and a NaN is dropped; every y is clamped into the minimum-maximum bounds; every curve is clamped into -1 to 1. A point past the capacity is refused whole and silently, since this inlet may be the audio thread. Not here: sustain / autosustain / next (the note-driven envelope player is the engine's envelope generators' job), fix (mouse protection without a mouse), setdomain and the domain / range attributes (bounds are creation parameters in this family), outputmode, mode (the curve is simply always available), and Max's bare index-edit lists, whose three-number form would collide with a one-point whole state - the 'set' keyword spells the same edit unambiguously.",
+        "index": 0,
+        "label": "function",
+        "range": "x >= 0, y in minimum-maximum, curve -1 to 1"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".function",
+    "outlets": [
+      {
+        "doc": "The interpolated y - the answer to an int or float x on the inlet, and to 'nth <index>'. Always a float: the y between two breakpoints is fractional by definition, and truncating it would quantise every curve the object exists to draw. A query between two points is shaped by the right-hand point's curve: t^((1+c)/(1-c)) over the segment's normalised position, so a positive curve leaves the starting value slowly and moves late, a negative one moves early and lands slowly, and +/-1 are honest steps. An x at or outside either end answers that end's stored y, which is what every envelope does at its ends. Nothing is sent when the store is empty, when an 'nth' index names no point, or when the store was busy on another thread - the family's rule that an object with no answer stays quiet.",
+        "index": 0,
+        "label": "y",
+        "range": "minimum-maximum",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The whole function as one ramp list, on a bang: 'y0 0 y1 (x1-x0) y2 (x2-x1) ...' - one <target> <time> pair per breakpoint, which is exactly the breakpoint grammar .line and .bline read. The first pair's time is 0, so the consumer jumps to the first y and ramps through the rest; the absolute x of the first point is dropped, Max's default (his outputmode attribute is not ported). Max emits an odd-length list with a bare leading y0 because line~ reads a leading singleton as a jump; .line reads pairs, so the jump is spelled as the zero-time pair and the observable ramp is the same. Curves are flattened to their linear segments here - the patcher has no curve~ to speak triples to; the curved shape lives in the query path. An empty function sends nothing.",
+        "index": 1,
+        "label": "ramp",
+        "range": "target time pairs",
+        "type": "LIST"
+      },
+      {
+        "doc": "Every breakpoint as its own list, '<index> <x> <y> <curve>', ascending by x, in answer to 'dump' - Max's dump outlet made headless. The burst is captured whole under one acquisition of the store's guard and emitted after releasing it, so a re-entrant write cannot shift the sorted table under the walk and the dump is a consistent snapshot. Four numbers per line on purpose: a triple wired back into inlet 0 would read as a one-point whole state, while four numbers address nothing and pass through harmlessly. Silent otherwise, and silent for an empty store.",
+        "index": 2,
+        "label": "dump",
+        "range": "index x y curve",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "128",
+        "doc": "The store, in one breath: how many breakpoints the function can hold, then the lowest and highest y a point may carry. The capacity is clamped to 2-1024 and defaults to 128; it is a creation parameter because the storage is allocated exactly once, at SetParams time, on the control thread - a live SetParams therefore replaces the object rather than resizing it under the audio thread. The bounds default to 0-1, Max's range attribute's default, and are taken as an ordered pair so a reversed argument still bounds against the right two numbers; every stored y is clamped into them on the way in. A '.function 256 0 127' is a velocity curve at full width. A capacity that is not a whole finite number leaves the default in place. The breakpoints themselves are not parameters - they are contents, and they ride the saved patch through the object's state instead, unconditionally, because Max's function is a UI object whose points save with the patch.",
+        "name": "points",
+        "range": "2-1024, optional minimum, optional maximum"
+      }
+    ]
+  },
   ".funnel": {
     "category": "GENERIC",
     "description": "Tags incoming data with the number of the inlet it arrived at and merges everything onto one outlet — Max's funnel, which 'outputs a list consisting of the inlet number followed the input' when 'a number or list is received in any inlet'. The many-to-one collector: a bank of controls, a row of sensors or eight voices reporting their state all reach one destination, and the destination still knows which of them spoke. Without it a patch either runs one cord per source the whole way or puts a box in front of every source to stamp a constant on it by hand, which is N boxes to maintain and N places to get the number wrong when a source is inserted; this is that stamp, once, with the number taken from the wiring itself. It is the exact inverse of .spray, which Max lists under See Also: .spray turns 2 60 into 60 leaving outlet 2, and this turns 60 arriving at inlet 2 into 2 60. The pairing is literal — a .funnel n into a .spray n with the same offset is an n-way bus carried over a single patch cord, entering at inlet i and leaving at outlet i, and the cord between them can cross a subpatch boundary or a .s/.r pair, which n separate cords could not do as cheaply. It is not .bondo or .buddy, which also gather several inlets but gather them into a set, with N outlets and a release that speaks about all of them at once; this has one outlet and speaks about exactly one arrival, so two values at two inlets make two output lists rather than one, and nothing here ever waits. It is not .switch either, which merges by selecting: there only the chosen inlet passes and what comes out carries no record of its origin, where here every inlet always passes and the record is the point. The objects that read the tag back are .route and .sel, which is why it is the first element of the list. The number prepended is the inlet index plus the offset — Max's second argument 'specifies an offset for the first inlet number' and the 'offset' message 'will offset the numbering of inlets by the number given', one value from two directions — and it adds where .spray's offset subtracts, which is precisely what makes the two mirror images at any offset. It exists because the numbers a downstream object expects usually start where it starts, MIDI channels at 1 or a table's rows at some base, and the alternative is a .+ on the far side of the merge that has to be kept in step by hand. 'offset' is run-time state rather than a parameter, as .spray's offset and .cycle's thresh are, so a saved patch carries the creation argument. Each inlet also remembers the last number it received and a bang replays it tagged, Max's 'the stored (most recently received) number in that inlet are sent out as a two-item list', which makes the object pollable as well as reactive — a patch can ask what source 3 is saying without source 3 speaking again. Because Max says the store is a number and the reply a two-item list, a list or an anything is tagged and forwarded but is not stored: replaying note 60 would send three items out of a method documented to send two. The store starts at 0, so a bang into an inlet nothing has reached is 0 rather than silence. Max 'set followed by a list of numbers which correspond with the number of inlets' addresses every inlet at once, element k writing inlet k's store and sending nothing, which is how a patch primes the whole bank before anything has spoken; elements past the last inlet are dropped, a short list leaves the rest alone, and a non-number element spends its position without writing, .spray's discipline for a positional message. Both set and offset are matched in any inlet as Max scopes them, and a bare message word is the method with nothing to do rather than a symbol to forward. Values keep the spelling they arrived with — Max's 'in a list floats are not converted to ints' — since a list is forwarded by text, character for character, while the tag itself is always an int. At most 256 inlets, built once before the object is published; Calculate() does nothing, and no message path allocates, locks or blocks.",
@@ -3816,15 +3869,16 @@
   },
   ".i": {
     "category": "GUI",
-    "description": "Integer number box. Stores an int; inlet 0 sets-and-fires (bang re-emits the current value), inlet 1 sets silently.",
+    "description": "Integer number box. Stores an int; inlet 0 sets-and-fires (bang re-emits the current value), inlet 1 sets silently. Settable per the GUI value protocol (issues #551/#846): a list of one number on inlet 0 is the whole state - the exact string GetGuiValue() produces - and 'set 0 <value>' writes the one cell; both read a decimal integer, truncating a fractional part, which is what lets .preset capture and restore the number box.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT",
-          "BANG"
+          "BANG",
+          "LIST"
         ],
-        "doc": "Sets the value and emits it; bang re-emits the current value.",
+        "doc": "Sets the value and emits it; bang re-emits the current value. A list of one number is the whole state and 'set 0 <value>' the cell write.",
         "index": 0,
         "label": "set/bang",
         "range": "any int"
@@ -3899,7 +3953,7 @@
   },
   ".incdec": {
     "category": "GUI",
-    "description": "Stepper: increments and decrements a stored whole number by a settable step, inside settable bounds. Max's 'incdec', the pair of arrows over a number, and the control for anything nudged rather than swept — transpose, octave, preset slot, bar count. It is deliberately not '.counter' with more parameters, because a bang means the opposite thing on the two objects: '.counter' steps on a bang, which is what makes it the thing behind a '.metro', while this one emits the stored value on a bang and moves only when an arrow is clicked. The left inlet is Max's: bang reads, an int or float sets without emitting, and the words 'inc', 'dec' and 'set <n>' step up, step down and set. The middle inlet is those arrows on a cord — an int moves that many steps, signed, and emits — and the right inlet sets the step size live. The minimum and maximum are taken as an ordered pair, so limits given the wrong way round still bound against the right two numbers, and 'wrap' chooses what happens at the end of the range: 0 clamps against it, 1 carries around to the other side. The wrapped range is inclusive at both ends — one past the maximum is the minimum — because this is a stepper over whole numbers and 11 stepping to 0 is what a twelve-note pitch class does. The default range is the whole int range, so an object with no arguments is unbounded and saturates rather than overflowing at the ends. The value is bounded on the way out as well as on the way in, so a re-range takes effect at once and a stepper created over 60-72 reads back as 60 rather than as the 0 it was born with; with wrap on, that untouched start lands wherever the wrap puts it, so place it with 'set' if the starting point matters. All the arithmetic runs in 64 bits and is bounded back into an int before it leaves, so no step, set or range can overflow. The GUI value is the stored value. Nothing on any message path allocates, locks or blocks on I/O, and Calculate() does nothing — this object sends from its handlers, which is what lets a set stay silent while a bang emits.",
+    "description": "Stepper: increments and decrements a stored whole number by a settable step, inside settable bounds. Max's 'incdec', the pair of arrows over a number, and the control for anything nudged rather than swept — transpose, octave, preset slot, bar count. It is deliberately not '.counter' with more parameters, because a bang means the opposite thing on the two objects: '.counter' steps on a bang, which is what makes it the thing behind a '.metro', while this one emits the stored value on a bang and moves only when an arrow is clicked. The left inlet is Max's: bang reads, an int or float sets without emitting, and the words 'inc', 'dec' and 'set <n>' step up, step down and set. The middle inlet is those arrows on a cord — an int moves that many steps, signed, and emits — and the right inlet sets the step size live. The minimum and maximum are taken as an ordered pair, so limits given the wrong way round still bound against the right two numbers, and 'wrap' chooses what happens at the end of the range: 0 clamps against it, 1 carries around to the other side. The wrapped range is inclusive at both ends — one past the maximum is the minimum — because this is a stepper over whole numbers and 11 stepping to 0 is what a twelve-note pitch class does. The default range is the whole int range, so an object with no arguments is unbounded and saturates rather than overflowing at the ends. The value is bounded on the way out as well as on the way in, so a re-range takes effect at once and a stepper created over 60-72 reads back as 60 rather than as the 0 it was born with; with wrap on, that untouched start lands wherever the wrap puts it, so place it with 'set' if the starting point matters. All the arithmetic runs in 64 bits and is bounded back into an int before it leaves, so no step, set or range can overflow. The GUI value is the stored value, and it is settable per the GUI value protocol (issues #551/#846): a bare number on the left inlet is already the whole-state write the round trip needs, and 'set 0 <value>' — two numbers after the word, against Max's one-number 'set <n>' — is the protocol's cell write, which is what lets .preset capture and restore the stepper. Nothing on any message path allocates, locks or blocks on I/O, and Calculate() does nothing — this object sends from its handlers, which is what lets a set stay silent while a bang emits.",
     "inlets": [
       {
         "accepts": [
@@ -3908,7 +3962,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "The value, and Max's grammar for it. A bang emits the stored value without moving it — the arrows move it, so a bang is a read. An int or a float sets the value and emits nothing, Max being explicit that the number arriving here 'is not output directly'; that is what lets a '.loadmess' or a preset place the stepper without firing everything downstream. A float is truncated, as it is everywhere in Max. Three words are commands rather than numbers: 'inc' and 'dec' step up and down by the step size and emit the result, and 'set <n>' is the int message spelled out. A list whose first token is a number is that number, so a stepper can be set from anything that emits a list. Whatever arrives, the value that ends up stored is inside the range.",
+        "doc": "The value, and Max's grammar for it. A bang emits the stored value without moving it — the arrows move it, so a bang is a read. An int or a float sets the value and emits nothing, Max being explicit that the number arriving here 'is not output directly'; that is what lets a '.loadmess' or a preset place the stepper without firing everything downstream. A float is truncated, as it is everywhere in Max. Three words are commands rather than numbers: 'inc' and 'dec' step up and down by the step size and emit the result, and 'set <n>' is the int message spelled out. With two numbers after the word, 'set <index> <value>' is the GUI value protocol's cell write instead (issues #551/#846), addressed to the one cell there is - any other index is dropped. A list whose first token is a number is that number, so a stepper can be set from anything that emits a list - and that is also the protocol's whole-state write, which is what lets .preset capture and restore the stepper. Whatever arrives, the value that ends up stored is inside the range.",
         "index": 0,
         "label": "value",
         "range": "any int, 'inc', 'dec', 'set <n>'"
@@ -4227,7 +4281,7 @@
   },
   ".led": {
     "category": "GUI",
-    "description": "A labelled on/off indicator - Max's led, and one of the two renderings of the patcher's labelled switch (issue #557). .b and .t carry no name, so a host rendering a headless patch has nothing to title a control with and draws a grid of anonymous squares; this holds the same value and can say what it is. It and .textbutton are one implementation under two names - same inlet, same two outlets, same arguments, same messages - because the value model is a named on/off in both and only the widget a host draws differs: a lamp here, a pressable labelled rectangle there. They are not one object with a display parameter, .zl's answer to its own modes, because the rendering is not behaviour a patch drives: it never changes at run time, and a host reading the type is exactly how it learns which widget to build. Arguments are an optional leading 'momentary' keyword and then the label, joined with single spaces; without the keyword the control latches (an int is the state, a bang flips it) and with it every input is a press that stays lit until the next GUI poll consumes it, which is Max's led responding to a bang. The keyword is offered on both names because one press against one latch is a property of the value rather than of the drawing. The label is a creation parameter and nothing changes it afterwards - not the GUI cell, which is live state a host polls and .preset stores, and not guiProperties, which the engine never reads while this object has to emit the label on outlet 1, and which a #234 replacement inherits from the object it replaced. Registering it as a list parameter makes a live SetParams replace the object through the #234 graph swap rather than rewrite a string underneath the audio thread, which is why Max's settext and text are not ported: that write is precisely the one the parameter system itself refuses. Inlet 0 is hot and everything on it emits: an int or a float is the state (a press in momentary mode), a list of one number is the whole state and issue #551's round trip, 'set 0 <value>' is #551's cell write, and a bang flips or presses. Outlet 0 carries the state and outlet 1 the label; the two fire right to left. The GUI cell is '0' or '1' rather than .t's 'on' / 'off', which is exactly what lets this object promise GuiValueIsSettable() where .b and .t cannot - inlet 0 takes a number, so the string a host polls is the string it can push back, and .preset can store and restore a named switch. In momentary mode that poll is destructive: it reports and clears a pending press in one indivisible step, which is the lost-press fix of issue #197. Nothing about drawing is modelled - colours, blinktime, size, the whole attribute set - since the patcher is headless.",
+    "description": "A labelled on/off indicator - Max's led, and one of the two renderings of the patcher's labelled switch (issue #557). .b and .t carry no name, so a host rendering a headless patch has nothing to title a control with and draws a grid of anonymous squares; this holds the same value and can say what it is. It and .textbutton are one implementation under two names - same inlet, same two outlets, same arguments, same messages - because the value model is a named on/off in both and only the widget a host draws differs: a lamp here, a pressable labelled rectangle there. They are not one object with a display parameter, .zl's answer to its own modes, because the rendering is not behaviour a patch drives: it never changes at run time, and a host reading the type is exactly how it learns which widget to build. Arguments are an optional leading 'momentary' keyword and then the label, joined with single spaces; without the keyword the control latches (an int is the state, a bang flips it) and with it every input is a press that stays lit until the next GUI poll consumes it, which is Max's led responding to a bang. The keyword is offered on both names because one press against one latch is a property of the value rather than of the drawing. The label is a creation parameter and nothing changes it afterwards - not the GUI cell, which is live state a host polls and .preset stores, and not guiProperties, which the engine never reads while this object has to emit the label on outlet 1, and which a #234 replacement inherits from the object it replaced. Registering it as a list parameter makes a live SetParams replace the object through the #234 graph swap rather than rewrite a string underneath the audio thread, which is why Max's settext and text are not ported: that write is precisely the one the parameter system itself refuses. Inlet 0 is hot and everything on it emits: an int or a float is the state (a press in momentary mode), a list of one number is the whole state and issue #551's round trip, 'set 0 <value>' is #551's cell write, and a bang flips or presses. Outlet 0 carries the state and outlet 1 the label; the two fire right to left. The GUI cell is '0' or '1' rather than .t's 'on' / 'off', and the object promises GuiValueIsSettable() - inlet 0 takes a number, so the string a host polls is the string it can push back, and .preset can store and restore a named switch. (.t has since joined that promise through issue #846, taking its own 'on' / 'off' back; .b stays out, its value being a consume-on-read press.) In momentary mode that poll is destructive: it reports and clears a pending press in one indivisible step, which is the lost-press fix of issue #197. Nothing about drawing is modelled - colours, blinktime, size, the whole attribute set - since the patcher is headless.",
     "inlets": [
       {
         "accepts": [
@@ -6729,6 +6783,50 @@
       }
     ]
   },
+  ".preset": {
+    "category": "GUI",
+    "description": "Snapshot and recall of the patch's control values - Max's preset, 'store and recall the values of the control objects in a patcher'. A bank of numbered slots: 'store <n>' captures the current value of every participating control into slot n, an int (or 'recall <n>') pushes each captured value back into its object, a bang recalls the active slot again, and 'clear <n>' / 'clear' / 'clearall' empty one, the active, or every slot. Participation is the GUI value protocol's settable promise (issue #551): exactly the objects answering true to GuiValueIsSettable() are captured - the promise is the round trip a preset needs, so an object cannot be captured without also being restorable, by construction. .preset itself is not settable, so no preset captures a preset; the scalar controls .slider, .i, .f, .dial, .incdec and .t hold the round trip since their #846 migration and are captured, while .b stays out - its value is a consume-on-read press, an event no recall could meaningfully restore; objects nested in subpatchers participate - a preset belongs to the patch, not to one level of it. Recall writes through the ordinary control-thread message path - each object receives the exact string its GetGuiValue() produced, as a list on inlet 0, so every clamp, side effect and outlet send its own handler performs still happens - and announces the slot out outlet 0 only after the patch is in it; a store announces out outlet 1. Entries are guarded against storage-ID reuse: a slot value is pushed only while its ID still names a live object of the captured type. The slots persist through DumpState / RestoreState unconditionally, plus the active marker - Max's preset is a UI object whose contents save with the patch - with each entry naming its object by the dump's record order (the rank of its ID among the live objects), which is exactly the fresh numbering ParseJSON hands out, so a patch whose IDs went sparse through deletes still recalls correctly after a save and a load. Loading does not recall: a patch that wants to come up in slot 0 wires .loadbang into the inlet. Everything the object does is control-thread work - store walks the patch, recall runs whole subgraphs - so a message that physically arrives on the audio callback is dropped whole before any work, at the cost of one thread-local load; Calculate() itself does nothing at all. The GUI value is the active slot number, -1 when none - what a host highlights in a row of preset dots - and is read-only. Not ported: interpolated recall (Max's preset is instant; interpolation belongs to pattrstorage, on the excluded pattr system - morphing between targets is already a patch, .xyslider into .nodes), the pattrstorage client outlet, and every mouse, bubble and colour concern.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The whole object, and the only inlet. An int or a float (truncated) recalls that slot: every value captured in it is pushed back into its object as an ordinary list message on inlet 0 - pHandle::SetListData, the same call a host makes - never by writing another object's state directly, and outlet 0 announces the slot once the patch is in it. A bang recalls the active slot again, the resync a patch wants after editing by hand; nothing when no slot is active. 'store <n>' captures the patch into slot n - the headless spelling of Max's shift-click - and announces it out outlet 1; 'recall <n>' is the int spelled out; 'clear <n>' empties one slot, bare 'clear' the active one, 'clearall' every slot - clearing the active slot clears the active marker with it. Participation is issue #551's settable promise: exactly the objects answering true to GuiValueIsSettable() are captured, checked before the value is read, so a consume-on-read object is never polled; an object whose bulk read is empty at store time is left out and recall leaves it untouched. Recalling an empty or out-of-range slot does nothing and announces nothing. A slot entry is pushed only while its storage ID still names a live object of the captured type - IDs are reused after a delete - and a stale entry is skipped silently. Everything here is control-thread work: store walks the patch and recall runs whole subgraphs, so a message that physically arrives on the audio callback (a deferred .delay drain, a cord inside the render traversal) is dropped whole before any work. A .metro or MIDI-driven recall works - those dispatch from control-side threads. Not here: interpolated recall (Max's preset is instant; interpolation is pattrstorage's, on the excluded pattr system) and every mouse and drawing concern.",
+        "index": 0,
+        "label": "control",
+        "range": "slot 0 to slots-1"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".preset",
+    "outlets": [
+      {
+        "doc": "The slot just recalled, as an int, sent after every captured value has been pushed back into its object - so whatever this outlet triggers sees the patch already in the preset. Max's 'preset number recalled' outlet. Silent for an empty or out-of-range slot, for a bang with no active slot, and for a store: the family's rule that an object with no answer stays quiet.",
+        "index": 0,
+        "label": "recalled",
+        "range": "0 to slots-1",
+        "type": "INT"
+      },
+      {
+        "doc": "The slot just stored, as an int - Max's 'preset number stored' outlet, and the hook a patch hangs bookkeeping on (a .coll of slot names, a dirty flag for the host). Sent after the capture has landed in the slot and the slot has become active. Silent for a slot out of range.",
+        "index": 1,
+        "label": "stored",
+        "range": "0 to slots-1",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "32",
+        "doc": "How many numbered slots the bank holds, clamped to 1-1024 and 32 by default. A creation parameter because the bank is shaped once, on the control thread, before the object is wired or published: a live SetParams therefore replaces the object through the graph swap - and the replacement starts with empty slots, exactly as a re-parsed .function starts with no points. Max's preset holds as many presets as its box has room to draw; headless, the room is this number. The slot contents are not parameters - they are contents, and they ride the saved patch through the object's state instead, unconditionally.",
+        "name": "slots",
+        "range": "1-1024"
+      }
+    ]
+  },
   ".print": {
     "category": "GENERIC",
     "description": "Writes whatever arrives at its inlet to the engine log, one line per message, with a settable name in front of it — Max's 'print', which prints 'any message in the Max window'. Max: 'the print object prints, in the Max window, any message it receives in its inlet.' This patcher is headless and there is no Max window, so the destination is the engine log: the thing a host already reads, already redirects with YSE::Log().setLogfile(), and already intercepts with YSE::Log().setHandler(), so every tool a host has for watching the engine talk watches this object too with no new plumbing at either end. It is the patcher's missing debugging affordance — until it existed there was no way to see what was happening inside a graph, and a patch that misbehaved had to be diagnosed from the audio coming out of it. It is not .capture, the other half of the same job: this says what is passing now, one line at a time, as it passes, while .capture keeps the last N values so a patch can be run, stopped, and only then asked what it saw. The first creation argument is the name — Max's 'the first argument sets the name that appears in the Max window', default 'print'. The second is this patcher's and not Max's: the most lines the object emits per drain tick, default 16, clamped to 1-256. A bang prints the word 'bang', an int its digits, a float its shortest round-tripping spelling with a decimal point so it stays visibly a float, and a list or a message box's text verbatim. There is no outlet, which is Max's shape and also the right one: an outlet would turn a probe into a participant. Nothing is ever logged from the message path. A handler runs on whichever thread dispatched the message and in-patcher delivery dispatches on the audio thread, where building a std::string and then writing a file or calling into a host handler is exactly what the engine's real-time rules forbid — so the line is formatted into a stack buffer and pushed onto a bounded lock-free queue whose control-thread drain, running from System::update(), hands it to the log. That is the named bus's audio-thread path with text in the record instead of a variant, and it means a line reaches the log on the host's next tick rather than instantly. Nothing on any message path allocates, locks or blocks, and Calculate() does nothing. Two bounds can refuse a message and both report: this object's per-tick budget, whose first refusal in a tick posts a notice and whose refusals are all counted, and the shared queue's capacity, whose overflow the next drain names as a single count. Dropping under flood is correct — the alternative is blocking the audio thread, which is not an answer — but a silent drop would make a debugging instrument lie about the patch it is being used to debug. A line longer than the record is cut and marked with '...', the opposite of .capture's refuse-whole rule and deliberately so: .capture stores a symbol, where half of one is a different symbol, while this produces a line to read, where the first 240 characters are almost all of the information and silence is none of it. Only the creation arguments persist across a save; the lines already sent belong to the log rather than to the patch.",
@@ -8076,15 +8174,16 @@
   },
   ".slider": {
     "category": "GUI",
-    "description": "Slider control. Stores a normalized float in [0, 1]; ints/floats are clamped on input. Emits the stored value on every calculate tick.",
+    "description": "Slider control. Stores a normalized float in [0, 1]; ints/floats are clamped on input. Emits the stored value on every calculate tick. Settable per the GUI value protocol (issues #551/#846): a list of one number on inlet 0 is the whole state - the exact string GetGuiValue() produces - and 'set 0 <value>' writes the one cell; both clamp exactly as a float does, which is what lets .preset capture and restore the slider.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT",
-          "BANG"
+          "BANG",
+          "LIST"
         ],
-        "doc": "Sets the slider position; bang is a no-op trigger that still fires the output.",
+        "doc": "Sets the slider position; bang is a no-op trigger that still fires the output. A list of one number is the whole state and 'set 0 <value>' the cell write, both clamped like any other input.",
         "index": 0,
         "label": "set/bang",
         "range": "0.0-1.0"
@@ -8749,14 +8848,15 @@
   },
   ".t": {
     "category": "GUI",
-    "description": "Latching on/off toggle. Int sets the state directly (0 = off, non-zero = on); bang flips it. Emits 0 or 1 every calculate tick.",
+    "description": "Latching on/off toggle. Int sets the state directly (0 = off, non-zero = on); bang flips it. Emits 0 or 1 every calculate tick. Settable per the GUI value protocol (issues #551/#846): a one-token list on inlet 0 is the whole state - 'on' or 'off', the exact string GetGuiValue() produces, or a number read like the int - and 'set 0 <value>' writes the one cell; both set the state absolutely, never flip, which is what lets .preset capture and restore the toggle.",
     "inlets": [
       {
         "accepts": [
           "INT",
-          "BANG"
+          "BANG",
+          "LIST"
         ],
-        "doc": "Int sets state (0 = off, !=0 = on); bang flips the current state.",
+        "doc": "Int sets state (0 = off, !=0 = on); bang flips the current state. A one-token list - 'on', 'off' or a number - is the whole state and 'set 0 <value>' the cell write; both set absolutely, never flip.",
         "index": 0,
         "label": "set/toggle",
         "range": "0 or 1"
@@ -10471,6 +10571,85 @@
         "doc": "MIDI channel offset (0-based).",
         "name": "channel",
         "range": "0-15"
+      }
+    ]
+  },
+  ".xyslider": {
+    "category": "GUI",
+    "description": "Two-dimensional control pad: one control holding two correlated axes, so a cutoff against a resonance, two FM ratios or a morph coordinate move as one gesture rather than as two sliders that happen to be neighbours. A float or int on the left inlet sets x and emits; the right inlet sets y and stores silently; a list on the left inlet sets both axes at once, as a bang re-sends them. Cell 0 is always x and cell 1 always y - a position is never sorted. Each axis is clamped into its own minimum-maximum pair, x leaves outlet 0, y outlet 1 and the pair leaves outlet 2 as a two-element list - exactly the cursor message .nodes takes. The three fire right to left. The GUI value is the two axes as cells (issue #551): \"x y\" as a whole, and inlet 0 takes that string back verbatim or \"set <index> <value>\" to move one axis.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A float or int sets the x axis; a list sets both axes from its first two numbers (\"x y\"); \"set <index> <value>\" moves one axis (0 is x, 1 is y); a bang re-sends. Everything here emits.",
+        "index": 0,
+        "label": "x/position",
+        "range": "xminimum-xmaximum"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Sets the y axis and stores it without sending anything out.",
+        "index": 1,
+        "label": "y",
+        "range": "yminimum-ymaximum"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".xyslider",
+    "outlets": [
+      {
+        "doc": "The x axis. Sent last, after outlets 2 and 1.",
+        "index": 0,
+        "label": "x",
+        "range": "xminimum-xmaximum",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The y axis.",
+        "index": 1,
+        "label": "y",
+        "range": "yminimum-ymaximum",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "Both axes as a two-element list, x first. Sent first.",
+        "index": 2,
+        "label": "position",
+        "range": "per-axis bounds",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Lowest value the x axis can reach.",
+        "name": "xminimum",
+        "range": "any float"
+      },
+      {
+        "default": "127",
+        "doc": "Highest value the x axis can reach.",
+        "name": "xmaximum",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "Lowest value the y axis can reach.",
+        "name": "yminimum",
+        "range": "any float"
+      },
+      {
+        "default": "127",
+        "doc": "Highest value the y axis can reach.",
+        "name": "ymaximum",
+        "range": "any float"
       }
     ]
   },

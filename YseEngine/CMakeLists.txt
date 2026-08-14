@@ -202,6 +202,7 @@ set(YSE_SRCS
   patcher/guiObjects/gButton.cpp
   patcher/guiObjects/gDial.cpp
   patcher/guiObjects/gFloat.cpp
+  patcher/guiObjects/gFunction.cpp
   patcher/guiObjects/gIncDec.cpp
   patcher/guiObjects/gInt.cpp
   patcher/guiObjects/gItemList.cpp
@@ -213,11 +214,13 @@ set(YSE_SRCS
   patcher/guiObjects/gMultiSlider.cpp
   patcher/guiObjects/gNSlider.cpp
   patcher/guiObjects/gNodes.cpp
+  patcher/guiObjects/gPreset.cpp
   patcher/guiObjects/gRSlider.cpp
   patcher/guiObjects/gSlider.cpp
   patcher/guiObjects/gText.cpp
   patcher/guiObjects/gTextEdit.cpp
   patcher/guiObjects/gToggle.cpp
+  patcher/guiObjects/gXYSlider.cpp
   patcher/inlet.cpp
   patcher/math/dAdd.cpp
   patcher/math/dClip.cpp
@@ -547,6 +550,7 @@ set_source_files_properties(
   patcher/guiObjects/gButton.cpp
   patcher/guiObjects/gDial.cpp
   patcher/guiObjects/gFloat.cpp
+  patcher/guiObjects/gFunction.cpp
   patcher/guiObjects/gIncDec.cpp
   patcher/guiObjects/gInt.cpp
   patcher/guiObjects/gItemList.cpp
@@ -558,11 +562,13 @@ set_source_files_properties(
   patcher/guiObjects/gMultiSlider.cpp
   patcher/guiObjects/gNSlider.cpp
   patcher/guiObjects/gNodes.cpp
+  patcher/guiObjects/gPreset.cpp
   patcher/guiObjects/gRSlider.cpp
   patcher/guiObjects/gSlider.cpp
   patcher/guiObjects/gText.cpp
   patcher/guiObjects/gTextEdit.cpp
   patcher/guiObjects/gToggle.cpp
+  patcher/guiObjects/gXYSlider.cpp
   patcher/math/dAdd.cpp
   patcher/math/dClip.cpp
   patcher/math/dDivide.cpp

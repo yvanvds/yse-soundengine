@@ -189,14 +189,17 @@ set(YSE_TEST_SOURCES
   patcher/test_gui_objects.cpp
   patcher/test_patcher_gui_protocol.cpp
   patcher/test_patcher_rslider.cpp
+  patcher/test_patcher_xyslider.cpp
   patcher/test_patcher_multislider.cpp
   patcher/test_patcher_matrixctrl.cpp
+  patcher/test_patcher_function.cpp
   patcher/test_patcher_kslider.cpp
   patcher/test_patcher_nslider.cpp
   patcher/test_patcher_nodes.cpp
   patcher/test_patcher_itemlist.cpp
   patcher/test_patcher_labelswitch.cpp
   patcher/test_patcher_textedit.cpp
+  patcher/test_patcher_preset.cpp
   patcher/test_doc_coverage.cpp
   patcher/test_c_api_metadata.cpp
   patcher/test_patcher_bus.cpp
@@ -1184,14 +1187,17 @@ set_source_files_properties(
   patcher/test_gui_objects.cpp
   patcher/test_patcher_gui_protocol.cpp
   patcher/test_patcher_rslider.cpp
+  patcher/test_patcher_xyslider.cpp
   patcher/test_patcher_multislider.cpp
   patcher/test_patcher_matrixctrl.cpp
+  patcher/test_patcher_function.cpp
   patcher/test_patcher_kslider.cpp
   patcher/test_patcher_nslider.cpp
   patcher/test_patcher_nodes.cpp
   patcher/test_patcher_itemlist.cpp
   patcher/test_patcher_labelswitch.cpp
   patcher/test_patcher_textedit.cpp
+  patcher/test_patcher_preset.cpp
   patcher/test_doc_coverage.cpp
   patcher/test_c_api_metadata.cpp
   patcher/test_patcher_bus.cpp

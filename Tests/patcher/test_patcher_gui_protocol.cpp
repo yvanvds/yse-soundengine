@@ -119,14 +119,16 @@ TEST_SUITE("patcher") {
     // The protocol had to extend GetGuiValue() without touching the ~30
     // objects that implement it. The default count is 1, cell 0 *is*
     // GetGuiValue() (by construction in pObject, not by copied code), and
-    // nothing claims the write round trip it cannot honour.
+    // nothing claims the write round trip it cannot honour. The scalar
+    // controls have since been migrated onto the write half (#846) and moved
+    // to the settable case below; these are the ones that stay out — `.b`
+    // deliberately (its value is a consume-on-read press, an event no restore
+    // could write back), the rest because nothing has needed them yet.
     YSE::patcher p;
     p.create(2);
 
-    const char* types[] = {YSE::OBJ::G_BUTTON,  YSE::OBJ::G_TOGGLE,  YSE::OBJ::G_INT,
-                           YSE::OBJ::G_FLOAT,   YSE::OBJ::G_SLIDER,  YSE::OBJ::G_LIST,
-                           YSE::OBJ::G_MESSAGE, YSE::OBJ::G_COUNTER, YSE::OBJ::G_DIAL,
-                           YSE::OBJ::G_INCDEC,  YSE::OBJ::G_TEXT};
+    const char* types[] = {YSE::OBJ::G_BUTTON, YSE::OBJ::G_LIST, YSE::OBJ::G_MESSAGE,
+                           YSE::OBJ::G_COUNTER, YSE::OBJ::G_TEXT};
 
     for (const char* type : types) {
       CAPTURE(type);
@@ -134,8 +136,8 @@ TEST_SUITE("patcher") {
       REQUIRE(h != nullptr);
 
       CHECK(h->GetGuiValueCount() == 1u);
-      // False everywhere: inlet 0 of these takes an int or a float, not the
-      // display string the read produces.
+      // False everywhere: these do not take the display string back, so
+      // claiming the round trip would be a lie.
       CHECK_FALSE(h->GuiValueIsSettable());
       // Cell 0 and the whole state are the same read. `.b` consumes on read,
       // so this compares an untouched object, where both forms answer "off" —
@@ -157,6 +159,212 @@ TEST_SUITE("patcher") {
     CHECK(h->GetGuiValue() == std::to_string(0.25f));
     CHECK(h->GetGuiValueAt(0) == std::to_string(0.25f));
     CHECK(h->GetGuiValueCount() == 1u);
+  }
+
+  // ─── the #846 migration: the scalar controls join the settable protocol ─────
+
+  TEST_CASE("gui protocol: the #846 scalar controls are settable and stay one-cell") {
+    // The per-object migration issue #846 asks for: `.slider`, `.i`, `.f`,
+    // `.dial`, `.incdec` and `.t` now hold the write half of the protocol.
+    // They stay the one-cell case pObject supplies for free.
+    YSE::patcher p;
+    p.create(2);
+
+    const char* types[] = {YSE::OBJ::G_SLIDER, YSE::OBJ::G_INT,    YSE::OBJ::G_FLOAT,
+                           YSE::OBJ::G_DIAL,   YSE::OBJ::G_INCDEC, YSE::OBJ::G_TOGGLE};
+
+    for (const char* type : types) {
+      CAPTURE(type);
+      YSE::pHandle* h = p.CreateObject(type);
+      REQUIRE(h != nullptr);
+
+      CHECK(h->GuiValueIsSettable());
+      CHECK(h->GetGuiValueCount() == 1u);
+      CHECK(h->GetGuiValueAt(0) == h->GetGuiValue());
+      CHECK(h->GetGuiValueAt(1).empty());
+    }
+  }
+
+  TEST_CASE("gui protocol: each #846 control round-trips its own GetGuiValue") {
+    // The settable promise per migrated object: read the display string, move
+    // the control, send the string back as a list on inlet 0, and the state
+    // is back — exactly the trip `.preset` makes on a recall.
+    YSE::patcher p;
+    p.create(2);
+
+    auto roundTrip = [](YSE::pHandle* h, const std::string& stored) {
+      REQUIRE(h->GetGuiValue() != stored);
+      h->SetListData(0, stored);
+      CHECK(h->GetGuiValue() == stored);
+    };
+
+    SUBCASE(".slider") {
+      YSE::pHandle* h = p.CreateObject(YSE::OBJ::G_SLIDER);
+      REQUIRE(h != nullptr);
+      h->SetFloatData(0, 0.25f);
+      const std::string stored = h->GetGuiValue();
+      h->SetFloatData(0, 0.75f);
+      roundTrip(h, stored);
+    }
+    SUBCASE(".i") {
+      YSE::pHandle* h = p.CreateObject(YSE::OBJ::G_INT);
+      REQUIRE(h != nullptr);
+      h->SetIntData(0, 42);
+      const std::string stored = h->GetGuiValue();
+      h->SetIntData(0, 7);
+      roundTrip(h, stored);
+    }
+    SUBCASE(".f") {
+      YSE::pHandle* h = p.CreateObject(YSE::OBJ::G_FLOAT);
+      REQUIRE(h != nullptr);
+      h->SetFloatData(0, 1.5f);
+      const std::string stored = h->GetGuiValue();
+      h->SetFloatData(0, -2.25f);
+      roundTrip(h, stored);
+    }
+    SUBCASE(".dial") {
+      YSE::pHandle* h = p.CreateObject(YSE::OBJ::G_DIAL, "20 20000 4");
+      REQUIRE(h != nullptr);
+      h->SetFloatData(0, 0.25f);
+      const std::string stored = h->GetGuiValue();
+      h->SetFloatData(0, 0.5f);
+      roundTrip(h, stored);
+    }
+    SUBCASE(".incdec") {
+      YSE::pHandle* h = p.CreateObject(YSE::OBJ::G_INCDEC);
+      REQUIRE(h != nullptr);
+      h->SetIntData(0, 5);
+      const std::string stored = h->GetGuiValue();
+      h->SetIntData(0, 9);
+      roundTrip(h, stored);
+    }
+    SUBCASE(".t") {
+      YSE::pHandle* h = p.CreateObject(YSE::OBJ::G_TOGGLE);
+      REQUIRE(h != nullptr);
+      h->SetIntData(0, 1);
+      const std::string stored = h->GetGuiValue();
+      REQUIRE(stored == "on");
+      h->SetIntData(0, 0);
+      roundTrip(h, stored);
+      // And the other way round: "off" is a string the inlet takes back too.
+      h->SetListData(0, "off");
+      CHECK(h->GetGuiValue() == "off");
+    }
+  }
+
+  TEST_CASE("gui protocol: 'set 0 <value>' writes each #846 scalar's one cell") {
+    // The cell half of the promise, and its range check: index 0 is the one
+    // cell there is, and any other index is dropped rather than folded.
+    YSE::patcher p;
+    p.create(2);
+
+    SUBCASE(".slider clamps the cell write like any other input") {
+      YSE::pHandle* h = p.CreateObject(YSE::OBJ::G_SLIDER);
+      REQUIRE(h != nullptr);
+      h->SetListData(0, "set 0 0.5");
+      CHECK(h->GetGuiValue() == std::to_string(0.5f));
+      h->SetListData(0, "set 1 0.9");
+      CHECK(h->GetGuiValue() == std::to_string(0.5f));
+      h->SetListData(0, "set 0 2");
+      CHECK(h->GetGuiValue() == std::to_string(1.f));
+    }
+    SUBCASE(".i reads decimal integers, so a large value survives the trip") {
+      YSE::pHandle* h = p.CreateObject(YSE::OBJ::G_INT);
+      REQUIRE(h != nullptr);
+      h->SetListData(0, "set 0 41");
+      CHECK(h->GetGuiValue() == "41");
+      h->SetListData(0, "set 1 5");
+      CHECK(h->GetGuiValue() == "41");
+      // 24 bits of float mantissa would not carry this; 31 bits of int do.
+      h->SetListData(0, "set 0 2000000001");
+      CHECK(h->GetGuiValue() == "2000000001");
+    }
+    SUBCASE(".f") {
+      YSE::pHandle* h = p.CreateObject(YSE::OBJ::G_FLOAT);
+      REQUIRE(h != nullptr);
+      h->SetListData(0, "set 0 1.5");
+      CHECK(h->GetGuiValue() == std::to_string(1.5f));
+      h->SetListData(0, "set 3 9");
+      CHECK(h->GetGuiValue() == std::to_string(1.5f));
+    }
+    SUBCASE(".dial stores the position, clamped") {
+      YSE::pHandle* h = p.CreateObject(YSE::OBJ::G_DIAL);
+      REQUIRE(h != nullptr);
+      h->SetListData(0, "set 0 0.5");
+      CHECK(h->GetGuiValue() == std::to_string(0.5f));
+      h->SetListData(0, "set 0 7");
+      CHECK(h->GetGuiValue() == std::to_string(1.f));
+      h->SetListData(0, "set 1 0.1");
+      CHECK(h->GetGuiValue() == std::to_string(1.f));
+    }
+    SUBCASE(".incdec tells the cell write from Max's 'set <n>' by counting") {
+      YSE::pHandle* h = p.CreateObject(YSE::OBJ::G_INCDEC);
+      REQUIRE(h != nullptr);
+      // Two numbers after the word: the protocol's cell write.
+      h->SetListData(0, "set 0 9");
+      CHECK(h->GetGuiValue() == "9");
+      // Any other index addresses nothing — not Max's form, not cell 0.
+      h->SetListData(0, "set 3 7");
+      CHECK(h->GetGuiValue() == "9");
+      // One number after the word: Max's silent set, unchanged.
+      h->SetListData(0, "set 5");
+      CHECK(h->GetGuiValue() == "5");
+    }
+    SUBCASE(".t takes 'on'/'off' or a number as the cell value") {
+      YSE::pHandle* h = p.CreateObject(YSE::OBJ::G_TOGGLE);
+      REQUIRE(h != nullptr);
+      h->SetListData(0, "set 0 on");
+      CHECK(h->GetGuiValue() == "on");
+      h->SetListData(0, "set 0 0");
+      CHECK(h->GetGuiValue() == "off");
+      h->SetListData(0, "set 1 1");
+      CHECK(h->GetGuiValue() == "off");
+      h->SetListData(0, "set 0 1");
+      CHECK(h->GetGuiValue() == "on");
+    }
+  }
+
+  TEST_CASE("gui protocol: the #846 migration leaves the native inlets unchanged") {
+    // The acceptance line issue #846 draws: the existing int/float grammar of
+    // each control is exactly what it was — the list handler is an addition,
+    // not a rewrite — and a leading token that is neither a number nor "set"
+    // addresses nothing.
+    YSE::patcher p;
+    p.create(2);
+
+    YSE::pHandle* slider = p.CreateObject(YSE::OBJ::G_SLIDER);
+    YSE::pHandle* number = p.CreateObject(YSE::OBJ::G_INT);
+    YSE::pHandle* toggle = p.CreateObject(YSE::OBJ::G_TOGGLE);
+    REQUIRE(slider != nullptr);
+    REQUIRE(number != nullptr);
+    REQUIRE(toggle != nullptr);
+
+    // The slider still clamps.
+    slider->SetFloatData(0, 1.5f);
+    CHECK(slider->GetGuiValue() == std::to_string(1.f));
+    slider->SetIntData(0, -2);
+    CHECK(slider->GetGuiValue() == std::to_string(0.f));
+
+    // The int box still truncates a float.
+    number->SetFloatData(0, 2.9f);
+    CHECK(number->GetGuiValue() == "2");
+
+    // The toggle's bang still flips; a whole-state write sets absolutely.
+    toggle->SetIntData(0, 5);
+    CHECK(toggle->GetGuiValue() == "on");
+    toggle->SetBang(0);
+    CHECK(toggle->GetGuiValue() == "off");
+    toggle->SetListData(0, "off");
+    CHECK(toggle->GetGuiValue() == "off");
+
+    // A junk list addresses nothing on any of them.
+    slider->SetFloatData(0, 0.5f);
+    slider->SetListData(0, "wobble");
+    CHECK(slider->GetGuiValue() == std::to_string(0.5f));
+    number->SetListData(0, "wobble 9");
+    CHECK(number->GetGuiValue() == "2");
+    toggle->SetListData(0, "wobble");
+    CHECK(toggle->GetGuiValue() == "off");
   }
 
   // ─── the structured shape ───────────────────────────────────────────────────

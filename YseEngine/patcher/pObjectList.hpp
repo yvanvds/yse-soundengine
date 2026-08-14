@@ -34,12 +34,13 @@ namespace YSE {
    *  - DSP filters: ``D_LOWPASS``, ``D_HIGHPASS``, ``D_BANDPASS``, ``D_VCF``.
    *  - I/O: ``D_DAC``, ``D_ADC``, ``D_LINE``.
    *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_RSLIDER``,
-   *    ``G_MULTISLIDER``, ``G_MATRIXCTRL``, ``G_KSLIDER``, ``G_NSLIDER``,
-   *    ``G_DIAL``, ``G_INCDEC``, ``G_RANDOM``.
+   *    ``G_XYSLIDER``, ``G_MULTISLIDER``, ``G_MATRIXCTRL``, ``G_FUNCTION``,
+   *    ``G_KSLIDER``, ``G_NSLIDER``, ``G_DIAL``, ``G_INCDEC``, ``G_RANDOM``.
    *  - Proximity fields: ``G_NODES``.
    *  - Indexed selection: ``G_UMENU``, ``G_RADIOGROUP``, ``G_TAB``.
    *  - Labelled switches: ``G_LED``, ``G_TEXTBUTTON``.
    *  - Text entry: ``G_TEXTEDIT``.
+   *  - Presets: ``G_PRESET``.
    *  - Timing: ``G_METRO``, ``G_DELAY``, ``G_PIPE``, ``G_TRANSPORT``,
    *    ``G_SETCLOCK``,
    *    ``G_WHEN``, ``G_TRANSLATE``, ``G_TIMEPOINT``, ``G_TEMPO``,
@@ -139,8 +140,21 @@ namespace YSE {
     DEFOBJ(G_FLOAT, ".f");
     DEFOBJ(G_SLIDER, ".slider");
     DEFOBJ(G_RSLIDER, ".rslider");
+    // A two-dimensional control pad (issue #563): one gesture carrying two
+    // correlated axes, x and y over independently settable ranges. Max's
+    // pictslider under an honest name — the picture is a host rendering
+    // concern. See guiObjects/gXYSlider.h, including why a position is never
+    // sorted the way .rslider's span is.
+    DEFOBJ(G_XYSLIDER, ".xyslider");
     DEFOBJ(G_MULTISLIDER, ".multislider");
     DEFOBJ(G_MATRIXCTRL, ".matrixctrl");
+    // A breakpoint function editor as one control (issue #561): a bounded,
+    // sorted store of (x, y, curve) breakpoints that answers any x with the
+    // curved interpolation between its neighbours and bangs out the whole
+    // envelope as a ramp list `.line` and `.bline` consume. See
+    // guiObjects/gFunction.h — including why it deliberately does not share
+    // `.funbuff`'s integer store.
+    DEFOBJ(G_FUNCTION, ".function");
     DEFOBJ(G_KSLIDER, ".kslider");
     DEFOBJ(G_NSLIDER, ".nslider");
     // A field of circular nodes a cursor is weighed against (issue #562) — the
@@ -175,6 +189,12 @@ namespace YSE {
     // family (`.sprintf`, `.combine`, `.tosymbol`), which until now had no way
     // to receive text from outside a patch. See guiObjects/gTextEdit.h.
     DEFOBJ(G_TEXTEDIT, ".textedit");
+    // Snapshot and recall of the patch's control values (issue #564) — Max's
+    // preset: numbered slots each holding the captured GUI value of every
+    // settable control, restored through the ordinary control-thread message
+    // path. Participation is issue #551's settable promise, which is what
+    // makes capture and restore the same contract. See guiObjects/gPreset.h.
+    DEFOBJ(G_PRESET, ".preset");
     DEFOBJ(G_COUNTER, ".counter");
     DEFOBJ(G_ACCUM, ".accum");
     DEFOBJ(G_SWITCH, ".switch");

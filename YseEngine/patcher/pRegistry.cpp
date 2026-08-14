@@ -92,8 +92,10 @@
 #include "guiObjects/gFloat.h"
 #include "guiObjects/gSlider.h"
 #include "guiObjects/gRSlider.h"
+#include "guiObjects/gXYSlider.h"
 #include "guiObjects/gMultiSlider.h"
 #include "guiObjects/gMatrixCtrl.h"
+#include "guiObjects/gFunction.h"
 #include "guiObjects/gKSlider.h"
 #include "guiObjects/gNSlider.h"
 #include "guiObjects/gNodes.h"
@@ -107,6 +109,7 @@
 #include "guiObjects/gList.h"
 #include "guiObjects/gText.h"
 #include "guiObjects/gTextEdit.h"
+#include "guiObjects/gPreset.h"
 
 #include "time/gClocker.h"
 #include "time/gDelay.h"
@@ -608,6 +611,9 @@ pRegistry::pRegistry() {
   Add(OBJ::G_FLOAT, gFloat::Create);
   Add(OBJ::G_SLIDER, gSlider::Create);
   Add(OBJ::G_RSLIDER, gRSlider::Create);
+  // A two-dimensional control pad — two correlated axes moving as one gesture,
+  // the XY pad two independent `.slider`s cannot express (issue #563)
+  Add(OBJ::G_XYSLIDER, gXYSlider::Create);
   // A bank of values as one control — the shape a step sequencer's levels, a
   // graphic EQ's bands or a set of voice gains have, and the one the patcher's
   // point-holding controls and its opaque `.l` between them could not express
@@ -618,6 +624,12 @@ pRegistry::pRegistry() {
   // take on their control inlet, so the control and the crossbar it drives need
   // nothing between them (issue #559)
   Add(OBJ::G_MATRIXCTRL, gMatrixCtrl::Create);
+  // A breakpoint function editor as one control: a bounded, sorted store of
+  // (x, y, curve) breakpoints that answers any x with the curved interpolation
+  // between its neighbours and bangs the whole envelope out as a ramp list
+  // `.line` and `.bline` consume — every hand-drawn envelope, velocity curve
+  // and automation shape is authored in one of these (issue #561)
+  Add(OBJ::G_FUNCTION, gFunction::Create);
   // A piano keyboard as one control: 128 GUI cells, one per MIDI pitch, each
   // holding that key's velocity — the first patcher control that expresses a
   // *note* rather than a number, and it speaks the pair-of-ints `.noteon`,
@@ -662,6 +674,12 @@ pRegistry::pRegistry() {
   // fixed label and every other control's string is an immutable creation
   // argument, so this is where a patch receives text from outside (issue #560)
   Add(OBJ::G_TEXTEDIT, gTextEdit::Create);
+  // Snapshot and recall of the patch's control values: numbered slots each
+  // holding the captured GUI value of every settable control, restored through
+  // the ordinary control-thread message path — the feature every instrument
+  // needs, and the write half the GUI value protocol (#551) was settled for
+  // (issue #564)
+  Add(OBJ::G_PRESET, gPreset::Create);
 
   Add(OBJ::G_ADD, gAdd::Create);
   Add(OBJ::G_DIVIDE, gDivide::Create);

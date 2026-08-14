@@ -44,9 +44,12 @@ namespace {
       "lets a '.loadmess' or a preset place the stepper without firing everything downstream. A "
       "float is truncated, as it is everywhere in Max. Three words are commands rather than "
       "numbers: 'inc' and 'dec' step up and down by the step size and emit the result, and "
-      "'set <n>' is the int message spelled out. A list whose first token is a number is that "
-      "number, so a stepper can be set from anything that emits a list. Whatever arrives, the "
-      "value that ends up stored is inside the range.";
+      "'set <n>' is the int message spelled out. With two numbers after the word, "
+      "'set <index> <value>' is the GUI value protocol's cell write instead (issues #551/#846), "
+      "addressed to the one cell there is - any other index is dropped. A list whose first token "
+      "is a number is that number, so a stepper can be set from anything that emits a list - and "
+      "that is also the protocol's whole-state write, which is what lets .preset capture and "
+      "restore the stepper. Whatever arrives, the value that ends up stored is inside the range.";
 
   constexpr char kNudgeInletDoc[] =
       "The two arrows on a cord. An int 'n' moves n steps — positive up, negative down — and emits "
@@ -81,7 +84,11 @@ namespace {
       "over 60-72 reads back as 60 rather than as the 0 it was born with; with wrap on, that "
       "untouched start lands wherever the wrap puts it, so place it with 'set' if the starting "
       "point matters. All the arithmetic runs in 64 bits and is bounded back into an int before it "
-      "leaves, so no step, set or range can overflow. The GUI value is the stored value. Nothing "
+      "leaves, so no step, set or range can overflow. The GUI value is the stored value, and it "
+      "is settable per the GUI value protocol (issues #551/#846): a bare number on the left inlet "
+      "is already the whole-state write the round trip needs, and 'set 0 <value>' — two numbers "
+      "after the word, against Max's one-number 'set <n>' — is the protocol's cell write, which "
+      "is what lets .preset capture and restore the stepper. Nothing "
       "on any message path allocates, locks or blocks on I/O, and Calculate() does nothing — this "
       "object sends from its handlers, which is what lets a set stay silent while a bang emits.";
 
@@ -236,12 +243,22 @@ LIST_IN(ListIn) {
       return;
     }
     if (TokenIs(value, begin, length, "set", 3)) {
-      // `set` is the int message spelled out, so it stores and emits nothing.
-      // A bare `set` names no value, so it does nothing rather than guessing at
-      // one.
+      // Two grammars share the word, told apart by counting the numbers.
+      // One number is Max's `set <n>` — the int message spelled out, so it
+      // stores and emits nothing. Two numbers are issue #551's cell write
+      // `set <index> <value>` (the #846 migration): range-checked against the
+      // one cell there is, so any other index is dropped, never folded onto
+      // cell 0. A bare `set` names no value, so it does nothing rather than
+      // guessing at one.
       std::size_t offset = end;
-      int number = 0;
-      if (ReadIntArgAt(value, offset, number)) Store(number);
+      int first = 0;
+      if (!ReadIntArgAt(value, offset, first)) return;
+      int second = 0;
+      if (ReadIntArgAt(value, offset, second)) {
+        if (first == 0) Store(second);
+        return;
+      }
+      Store(first);
       return;
     }
   }
