@@ -310,6 +310,15 @@ void patcherImplementation::SetName(const std::string& n) {
       // objects now speak about. One branch, gArrayEnds' arrangement
       // (issue #790).
       static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_SLICE) == 0 ||
+               strcmp(x.second->Type(), OBJ::G_ARRAY_SUBARRAY) == 0 ||
+               strcmp(x.second->Type(), OBJ::G_ARRAY_SUB) == 0 ||
+               strcmp(x.second->Type(), OBJ::G_ARRAY_SPLIT) == 0) {
+      // And the four range readers, whose binding lives on that same shared
+      // base: a renamed patcher's cuts must read the array its other
+      // objects now speak about. One branch, gArrayEnds' arrangement
+      // (issue #791).
+      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
     } else if (strcmp(x.second->Type(), OBJ::G_BAG) == 0) {
       // And gBag, whose `send` message prefixes a runtime receive name with
       // "<patcherName>." exactly as gForward does, so it has to re-anchor with

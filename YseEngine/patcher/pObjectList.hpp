@@ -65,7 +65,8 @@ namespace YSE {
    *    ``G_ARRAY_REVERSE``, ``G_ARRAY_ROTATE``, ``G_ARRAY_SCRAMBLE``,
    *    ``G_ARRAY_SHUFFLE``, ``G_ARRAY_SORT``, ``G_ARRAY_MIN``,
    *    ``G_ARRAY_MAX``, ``G_ARRAY_MEAN``, ``G_ARRAY_MEDIAN``,
-   *    ``G_ARRAY_MODE``, ``G_ARRAY_STDDEV``.
+   *    ``G_ARRAY_MODE``, ``G_ARRAY_STDDEV``, ``G_ARRAY_SLICE``,
+   *    ``G_ARRAY_SUBARRAY``, ``G_ARRAY_SUB``, ``G_ARRAY_SPLIT``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -534,6 +535,22 @@ namespace YSE {
     DEFOBJ(G_ARRAY_MEDIAN, ".array.median");
     DEFOBJ(G_ARRAY_MODE, ".array.mode");
     DEFOBJ(G_ARRAY_STDDEV, ".array.stddev");
+
+    // The range readers (issue #791): each outputs a *piece* of the array —
+    // as the list text it spells, never as a new named array, since creating
+    // one would resolve a name on a message path — collected under one hold
+    // of the store's guard. Bounds are zero-based and refused negative; past
+    // the end they are bounds of a range, so the piece is the intersection
+    // with the live elements, and an ask that selects nothing bangs the
+    // empty outlet. ``slice`` is JS's exclusive end (0 or absent extends to
+    // the array's end, no reverse); ``subarray`` is the inclusive end with
+    // the reversed piece permitted, and ``sub`` is its second Max name over
+    // one implementation — scramble/shuffle's arrangement. ``split`` cuts
+    // head from tail at a boundary, tail sent first, an empty half silent.
+    DEFOBJ(G_ARRAY_SLICE, ".array.slice");
+    DEFOBJ(G_ARRAY_SUBARRAY, ".array.subarray");
+    DEFOBJ(G_ARRAY_SUB, ".array.sub");
+    DEFOBJ(G_ARRAY_SPLIT, ".array.split");
 
     DEFOBJ(G_PRINT, ".print");
 

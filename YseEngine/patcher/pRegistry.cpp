@@ -33,6 +33,7 @@
 #include "genericObjects/gArrayLength.h"
 #include "genericObjects/gArrayPermute.h"
 #include "genericObjects/gArrayPosition.h"
+#include "genericObjects/gArraySlice.h"
 #include "genericObjects/gArraySort.h"
 #include "genericObjects/gArrayStats.h"
 #include "genericObjects/gColl.h"
@@ -607,6 +608,17 @@ pRegistry::pRegistry() {
   Add(OBJ::G_ARRAY_MEDIAN, gArrayMedian::Create);
   Add(OBJ::G_ARRAY_MODE, gArrayMode::Create);
   Add(OBJ::G_ARRAY_STDDEV, gArrayStdDev::Create);
+
+  // The range readers: each outputs a piece of the array as the list text it
+  // spells — never a new named array — collected under one hold of the
+  // store's guard, with an empty selection on the empty outlet. slice is
+  // JS's exclusive end, subarray the inclusive end with the reversed piece
+  // permitted, sub its second Max name over one implementation, and split
+  // cuts head from tail at a boundary, tail sent first (issue #791)
+  Add(OBJ::G_ARRAY_SLICE, gArraySlice::Create);
+  Add(OBJ::G_ARRAY_SUBARRAY, gArraySubarray::Create);
+  Add(OBJ::G_ARRAY_SUB, gArraySub::Create);
+  Add(OBJ::G_ARRAY_SPLIT, gArraySplit::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which
