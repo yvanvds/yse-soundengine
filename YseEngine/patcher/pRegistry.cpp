@@ -28,6 +28,7 @@
 #include "genericObjects/gArray.h"
 #include "genericObjects/gArrayAt.h"
 #include "genericObjects/gArrayEnds.h"
+#include "genericObjects/gArrayFind.h"
 #include "genericObjects/gArrayLength.h"
 #include "genericObjects/gArrayPosition.h"
 #include "genericObjects/gColl.h"
@@ -554,6 +555,14 @@ pRegistry::pRegistry() {
   // not have (issue #785)
   Add(OBJ::G_ARRAY_INSERT, gArrayInsert::Create);
   Add(OBJ::G_ARRAY_REMOVE, gArrayRemove::Create);
+
+  // The search objects: both are one ArrayFind under one hold of the store's
+  // guard — the first position spelling the searched value — and they differ
+  // only in reporting. indexof answers in-band, the position or -1 on a miss;
+  // index answers on the family's split, the position out one outlet or a
+  // miss bang out the other (issue #786)
+  Add(OBJ::G_ARRAY_INDEXOF, gArrayIndexOf::Create);
+  Add(OBJ::G_ARRAY_INDEX, gArrayIndex::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which

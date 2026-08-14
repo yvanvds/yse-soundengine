@@ -1104,6 +1104,117 @@
       }
     ]
   },
+  ".array.index": {
+    "category": "GENERIC",
+    "description": "Outputs whether, and where, a value is held — the membership half of the search pair on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.index <name> [<value>]\", because an array is addressed by name and never passed down a cord. An int, a float or a symbol searches for the element that spells it and stores the value; a bang re-searches with the stored value, and the message an .array's reference outlet emits on a bang does the same — the family gesture. The first matching position leaves the position outlet on a hit and a miss bangs the miss outlet — .array.at's split, so whether is which outlet fired and where is the int, and the membership test becomes a cord choice rather than a comparison: wire the position outlet to the held branch and the miss outlet to the not-held branch, no .sel -1 in between. The search is one scan under one hold of the store's guard; .array.indexof is the same search answered in-band as -1.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "An int, a float or a symbol searches for the element that spells it and stores the value; a bang re-searches with the stored value. Equality is the spelling — an int 7 finds the element \"7\", a float 7. finds \"7.\", and the two are different elements — and the match is case-sensitive, as every comparison in this patcher is. \"array <name>\" searches with the stored value when it names the array bound by the first creation argument — the message an .array's reference outlet emits on a bang, so wiring that outlet here gives the family's gesture. A multi-atom list is refused whole: an element is one atom, so only one atom can be held, and a sub-array match is not offered. A bang before any value has arrived, an atom past 64 characters, or a reference naming anything else is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "value",
+        "range": "one atom"
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the array bound by the creation argument, so a patch may wire the array's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 1,
+        "label": "array reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.index",
+    "outlets": [
+      {
+        "doc": "The first position holding the searched value — the value is held, and this is where. Zero-based, read under one hold of the store's guard, sent after it is released. Silent on a miss: the miss outlet carries that half of the answer.",
+        "index": 0,
+        "label": "position",
+        "range": "0-255",
+        "type": "INT"
+      },
+      {
+        "doc": "Bang when no element spells the searched value — the value is not held. Kept off the position outlet so a patch can route on membership without comparing: an empty or unnamed (private) array misses every search.",
+        "index": 1,
+        "label": "miss",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty searches a private, empty array: every search misses.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The initial stored value — what a bang searches for before any value has arrived on the inlet. One atom, exactly as every value the inlet takes; absent means no value, and a bang before one arrives is refused.",
+        "name": "value",
+        "range": "one atom"
+      }
+    ]
+  },
+  ".array.indexof": {
+    "category": "GENERIC",
+    "description": "Outputs the position of a value — Max's array.indexof on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.indexof <name> [<value>]\", because an array is addressed by name and never passed down a cord. An int, a float or a symbol searches for the element that spells it and stores the value; a bang re-searches with the stored value, and the message an .array's reference outlet emits on a bang does the same, so wiring that outlet here gives the family's gesture. The answer is one int: the first matching position, or -1 on a miss — Max's own answer, the one a patch can test with .sel -1 or feed straight into .array.at. Every position is not reported: the reply stays one usable int, and renumbering writes make a set of positions stale as a set where a single position is simply a position. The search is one scan under one hold of the store's guard, so the answer is the array as it stood at the trigger; .array.index is the same search with the miss split onto an outlet.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "An int, a float or a symbol searches for the element that spells it and stores the value; a bang re-searches with the stored value. Equality is the spelling — an int 7 finds the element \"7\", a float 7. finds \"7.\", and the two are different elements — and the match is case-sensitive, as every comparison in this patcher is. \"array <name>\" searches with the stored value when it names the array bound by the first creation argument — the message an .array's reference outlet emits on a bang, so wiring that outlet here gives the family's gesture. A multi-atom list is refused whole: an element is one atom, so only one atom can be held, and a sub-array match is not offered. A bang before any value has arrived, an atom past 64 characters, or a reference naming anything else is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "value",
+        "range": "one atom"
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the array bound by the creation argument, so a patch may wire the array's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 1,
+        "label": "array reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.indexof",
+    "outlets": [
+      {
+        "doc": "The first position holding the searched value, or -1 when no element spells it — the miss in-band, so one int leaves per answered search. Zero-based, read under one hold of the store's guard, sent after it is released. An empty or unnamed (private) array misses every search.",
+        "index": 0,
+        "label": "position",
+        "range": "-1, or 0-255",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty searches a private, empty array: every search misses.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The initial stored value — what a bang searches for before any value has arrived on the inlet. One atom, exactly as every value the inlet takes; absent means no value, and a bang before one arrives is refused.",
+        "name": "value",
+        "range": "one atom"
+      }
+    ]
+  },
   ".array.insert": {
     "category": "GENERIC",
     "description": "Adds an element at a position, shifting the rest up — Max's array.insert on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.insert <name> [<position>]\", because an array is addressed by name and never passed down a cord. This is the object a running patch wires a position into — .array's own \"insert\" needs the index inside the message text. An int, a float or a symbol on the element inlet is inserted at the stored position as the text that spells it, and a list lands whole, in the order sent — \"a b c\" at position 1 leaves a b c starting at 1 — or is refused whole, one counted refusal and nothing changed, when the position is past the end or the array cannot take all of it. Positions are zero-based and run 0..length inclusive — inserting at the length appends — never wrapped or clamped, the family's indexing rule. An int on the index inlet stores the position silently; an insert that lands emits the array's reference, \"array <name>\", so the family chains. The insert is applied entirely under one hold of the store's guard. .array.remove's exact inverse.",

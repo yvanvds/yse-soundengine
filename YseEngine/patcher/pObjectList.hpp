@@ -60,7 +60,8 @@ namespace YSE {
    *    ``G_DICT_SLICE``, ``G_DICT_STRIP``, ``G_DICT_UNPACK``.
    *  - Arrays: ``G_ARRAY``, ``G_ARRAY_AT``, ``G_ARRAY_LENGTH``,
    *    ``G_ARRAY_PUSH``, ``G_ARRAY_POP``, ``G_ARRAY_SHIFT``,
-   *    ``G_ARRAY_UNSHIFT``, ``G_ARRAY_INSERT``, ``G_ARRAY_REMOVE``.
+   *    ``G_ARRAY_UNSHIFT``, ``G_ARRAY_INSERT``, ``G_ARRAY_REMOVE``,
+   *    ``G_ARRAY_INDEXOF``, ``G_ARRAY_INDEX``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -454,6 +455,20 @@ namespace YSE {
     // instead. Exact inverses over ``ArrayInsertAt`` / ``ArrayEraseAt``.
     DEFOBJ(G_ARRAY_INSERT, ".array.insert");
     DEFOBJ(G_ARRAY_REMOVE, ".array.remove");
+
+    // The search objects (issue #786): both are one ``ArrayFind`` — the
+    // position of the first element spelling a value, scanned under one hold
+    // of the store's guard — and they differ only in how the answer leaves.
+    // Each binds the array from its creation argument; a value on the hot
+    // inlet searches and stores, a bang re-searches with the stored value,
+    // seeded by the second creation argument. ``.array.indexof`` answers
+    // in-band: one int, the first matching position or -1 on a miss — Max's
+    // own answer, the one a patch can test with ``.sel -1``.
+    // ``.array.index`` answers on the family's split: the position out one
+    // outlet on a hit, a bang out the miss outlet otherwise, so membership
+    // is a cord choice rather than a comparison.
+    DEFOBJ(G_ARRAY_INDEXOF, ".array.indexof");
+    DEFOBJ(G_ARRAY_INDEX, ".array.index");
 
     DEFOBJ(G_PRINT, ".print");
 
