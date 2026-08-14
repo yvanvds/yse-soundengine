@@ -1104,6 +1104,188 @@
       }
     ]
   },
+  ".array.concat": {
+    "category": "GENERIC",
+    "description": "Outputs two arrays as one — Max's array.concat on the name-addressed value model .array settled: both arrays are bound from the creation arguments, \".array.concat <left> <right>\", because an array is addressed by name and never passed down a cord, and neither may be re-pointed from a message. The left array's elements followed by the right's, everything kept — repeats included, order preserved — where the set operations thin; Max's \"the data in the array received in the right inlet will be appended to the data in the array received in the left inlet\", with the originals unmodified. The result leaves as the list it spells, never as a new named array — creating one would resolve a name on a message path — and is lossless into another .array, which is where a patch stores it. Two empty arrays bang the empty outlet. The left array is copied out under its guard and the result built against the right under that guard alone, so no two guards are ever held at once and \".array.concat seq seq\" answers the array doubled. A result that outruns what a cord carries is refused whole and counted — a partial concatenation would be truncation by another name.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang asks for the concatenation — the left array's elements followed by the right's, as they stood at the trigger, the left copied out under its guard, the result built against the right under that guard alone, and sent after every guard is released. \"array <name>\" does the same when it names the left array bound by the first creation argument — the message an .array's reference outlet emits on a bang, so wiring that outlet here gives the family's gesture. A reference naming anything else, or any other message, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "trigger",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the right array bound by the second creation argument, so a patch may wire both reference outlets across as it would in Max. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 1,
+        "label": "right reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.concat",
+    "outlets": [
+      {
+        "doc": "The left array's elements followed by the right's, as the list they spell — one element as the int, float or symbol it is, several as list text, never as a new named array. Everything kept: repeats included, order preserved, no thinning. A result that outruns what a cord carries is refused whole and counted — a partial concatenation would be truncation by another name. Silent when both arrays are empty: the empty outlet carries that half of the answer.",
+        "index": 0,
+        "label": "concatenation",
+        "range": "",
+        "type": "ANY"
+      },
+      {
+        "doc": "Bang when both arrays are empty (or unnamed, private) — there was nothing to put together. \"No data\" is a state a patch must be able to route on, not an error. A lost try-lock on either store is a counted refusal instead: the arrays' state is unknown, so neither outlet fires.",
+        "index": 1,
+        "label": "empty",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The left array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array on that side.",
+        "name": "left",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The right array's shared name, bound exactly as the left one. Empty reads a private, empty array on that side.",
+        "name": "right",
+        "range": "any identifier"
+      }
+    ]
+  },
+  ".array.fill": {
+    "category": "GENERIC",
+    "description": "Fills an array with a repeated value — Max's array.fill on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.fill <name> [<count>] [<value>]\", because an array is addressed by name and never passed down a cord. A fill REPLACES the contents: the array becomes exactly count copies of the value, so a shorter fill shrinks it and a count of 0 clears it — which is what makes it the initialiser, sizing an array in one message so an index-addressed write pattern has positions to land on, since an index past the end is refused rather than growing the array. A bang fills with the stored count and value (count seeded by the second creation argument, moved silently by the count inlet; value the third creation argument, 0 when absent — Max's default); an int, float or symbol on the value inlet fills with the stored count of copies of that value at the moment it arrives and stores nothing. The count is bounded at the store's 256 elements and refused rather than truncated; the value is one atom of at most 64 characters. The whole fill is one hold of the store's guard, and a fill that lands emits the array's reference, so the family chains.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang fills the bound array with the stored count of copies of the stored value — the array becomes exactly that, whatever it held. An int or a float fills with the stored count of copies of THAT value at the moment it arrives, spelled the way it arrived (7.5 stays a float), and stores nothing — a bang afterwards fills with the author's value. A symbol arrives as a one-atom list, kept equivalent to the number. A non-finite float is refused: it has no spelling that reads back. A list of more than one atom is refused whole — the fill value is one atom, and a content list belongs to .array's own set message. \"array <name>\" fills with the stored count and value when it names the array bound by the creation argument — the message an .array's reference outlet emits on a bang, the family's gesture. Anything else is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "value",
+        "range": "one atom, at most 64 characters"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "An int stores the count the next fill sizes the array to, silently — the cold half of the Max idiom, Max's right-inlet length. Negative is malformed (a count is a size, not a distance) and past the store's 256 could never land: both are refused before they are stored, so a bang after the refusal fills with what it would have filled before it. A float truncates to an int first; a non-finite one is refused rather than quietly becoming count 0.",
+        "index": 1,
+        "label": "count",
+        "range": "0-256"
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the array bound by the creation argument, so a patch may wire the array's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 2,
+        "label": "array reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.fill",
+    "outlets": [
+      {
+        "doc": "The bound array's reference, \"array <name>\", sent after a fill that landed — the way an array leaves an object on the value model, so wiring it onward chains the family: into .array.length it reports the new size. A refused fill emits nothing — a lost try-lock, an out-of-range count only a creation argument can plant, a value no element can hold — and an unnamed object stays silent: the fill happens, but there is no name to pass on.",
+        "index": 0,
+        "label": "reference",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty fills a private, empty array: the fill lands, but nothing shares it and no reference leaves.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "0",
+        "doc": "The initial stored count — how many copies a bang fills the array with before any int on the count inlet has moved it. 0, the default, makes a bare bang clear the array. Bounded at the store's 256 elements; an out-of-range creation argument is refused at the fill, counted, never clamped.",
+        "name": "count",
+        "range": "0-256"
+      },
+      {
+        "default": "0",
+        "doc": "The stored fill value — what a bang repeats. One atom, at most 64 characters, spelled the way it will be stored (7 an int, 7. a float, anything else a symbol). Absent means 0 — Max's \"without any initial data, the array will be filled with 0s\". An inline value on the value inlet never rewrites this: the author's argument is the author's.",
+        "name": "value",
+        "range": "one atom, at most 64 characters"
+      }
+    ]
+  },
+  ".array.flatten": {
+    "category": "GENERIC",
+    "description": "Flattens several named arrays into one sequence — Max's array.flatten on the name-addressed value model .array settled. An element is one atom, so an array cannot hold an array; what stands where Max's nesting stood is a group of named arrays, and a name is resolvable only on the control thread — so the names are creation arguments, \".array.flatten <first> <second> ... <last>\", every one bound once and none re-pointable from a message. The result is the arrays' elements in argument order, everything kept — repeats included, order preserved, .array.concat's keep-everything walk over as many as sixteen arrays — leaving as the list it spells, never as a new named array, with every source read under its own guard alone so no two guards are ever held at once and \".array.flatten seq seq\" answers the sequence doubled. Nothing is ever written to any store. An empty result bangs the empty outlet; a result that outruns what a cord carries, a lost try-lock, or a creation line spelling more than sixteen arrays is refused whole and counted — a partial flatten would be truncation by another name.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang asks for the flattened sequence — every named array's elements in argument order, everything kept, each source read under its own guard alone and the result sent after the last is released. \"array <name>\" does the same when it names the first array bound by the creation arguments — the message an .array's reference outlet emits on a bang, so wiring that outlet here gives the family's gesture. A reference naming anything else, or any other message, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "trigger",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names one of the trailing arrays bound by the creation arguments, so a patch may wire every source's reference outlet across as it would in Max. It sets nothing — the binding is the creation line, resolved on the control thread — and anything else, the first array's name included, is refused and counted: each inlet is bound to its own side.",
+        "index": 1,
+        "label": "sources reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.flatten",
+    "outlets": [
+      {
+        "doc": "The named arrays' elements in argument order, as the list they spell — one element as the int, float or symbol it is, several as list text, never as a new named array. Everything kept: repeats included, order preserved, no thinning. A result that outruns what a cord carries is refused whole and counted — a partial flatten would be truncation by another name. Silent when every source is empty: the empty outlet carries that half of the answer.",
+        "index": 0,
+        "label": "flattened",
+        "range": "",
+        "type": "ANY"
+      },
+      {
+        "doc": "Bang when the flatten selected nothing — every named array empty, or unnamed and therefore private. \"No data\" is a state a patch must be able to route on, not an error. A lost try-lock on any store is a counted refusal instead: the sources' state is unknown, so neither outlet fires.",
+        "index": 1,
+        "label": "empty",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The first array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array on that side.",
+        "name": "first",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The remaining arrays' shared names, each bound exactly as the first — the group the flatten collapses, in this order. What stands where Max's nesting stood: an element is one atom, so an array cannot hold an array, and a group of named arrays is the value model's arrays-of-arrays. At most sixteen arrays in all; a creation line that spells more binds nothing beyond the first and every ask is refused whole until a re-parse — a flatten that silently dropped an array would be truncation by another name.",
+        "name": "others",
+        "range": "up to 15 identifiers"
+      }
+    ]
+  },
   ".array.index": {
     "category": "GENERIC",
     "description": "Outputs whether, and where, a value is held — the membership half of the search pair on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.index <name> [<value>]\", because an array is addressed by name and never passed down a cord. An int, a float or a symbol searches for the element that spells it and stores the value; a bang re-searches with the stored value, and the message an .array's reference outlet emits on a bang does the same — the family gesture. The first matching position leaves the position outlet on a hit and a miss bangs the miss outlet — .array.at's split, so whether is which outlet fired and where is the int, and the membership test becomes a cord choice rather than a comparison: wire the position outlet to the held branch and the miss outlet to the not-held branch, no .sel -1 in between. The search is one scan under one hold of the store's guard; .array.indexof is the same search answered in-band as -1.",
@@ -1336,6 +1518,63 @@
         "doc": "The initial stored position — where the operation applies before any int has moved it. Zero-based, exactly as every position the index inlet takes.",
         "name": "index",
         "range": "0-256"
+      }
+    ]
+  },
+  ".array.join": {
+    "category": "GENERIC",
+    "description": "Joins an array's elements into one symbol — Max's array.join on the name-addressed value model .array settled: the array is bound from the first creation argument, \".array.join <name> <separator>\", because an array is addressed by name and never passed down a cord. Max's \"join the elements of an array together to form a string. The optional separator string will be placed between each element\" — the separator is the second creation argument, a single token, empty (Max's default) when absent. The joined text is one token, sent straight out the outlet and typed the way the patcher spells it — SendAtom's rule, so \"1 2\" joined by nothing leaves as the int 12 and \"c4 e4\" joined by \"-\" as the symbol c4-e4. It is a message down a cord, not an element: bounded by what a cord carries, never by the store's 64-character element rule — a patch that pushes it back into an .array meets that bound at the push, where it belongs. A result past the cord's ceiling is refused whole and counted. The whole join happens under one hold of the store's guard, so the answer is the array as it stood at the trigger; an empty or unnamed (private) array bangs the empty outlet.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang asks for the joined text — every element in order, the separator between each pair, built under one hold of the store's guard and sent after it is released. \"array <name>\" does the same when it names the array bound by the creation argument — the message an .array's reference outlet emits on a bang, the family's gesture. A reference naming anything else, or any other message, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "trigger",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the array bound by the creation argument, so a patch may wire the array's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 1,
+        "label": "array reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.join",
+    "outlets": [
+      {
+        "doc": "The elements joined into one token, the separator between each pair, typed the way the patcher spells it — an int or a float when the joined text reads as one (SendAtom's rule), a symbol otherwise. A single-element array answers that element alone, separator unused. A result that outruns what a cord carries is refused whole and counted — a partial join would be truncation. Silent on an empty array: the empty outlet carries that half of the answer.",
+        "index": 0,
+        "label": "joined",
+        "range": "",
+        "type": "ANY"
+      },
+      {
+        "doc": "Bang when the array holds nothing to join — an empty or unnamed (private) array. \"No data\" is a state a patch must be able to route on, not an error. A lost try-lock is a counted refusal instead: the array's state is unknown, so neither outlet fires.",
+        "index": 1,
+        "label": "empty",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The token placed between each pair of elements — Max's optional separator string, empty (elements butted together) when absent. A single token: a creation argument cannot contain a space, and space-joined elements are exactly the list text .array's own getvalue already emits.",
+        "name": "separator",
+        "range": "any token"
       }
     ]
   },
@@ -1966,6 +2205,63 @@
       }
     ]
   },
+  ".array.sect": {
+    "category": "GENERIC",
+    "description": "Outputs the elements held by both of two arrays — Max's array.sect on the name-addressed value model .array settled: both arrays are bound from the creation arguments, \".array.sect <left> <right>\", because an array is addressed by name and never passed down a cord, and neither may be re-pointed from a message. A set operation produces a set — .zl sect's semantics: the left array's elements the right also holds, in the left array's order, each element once at its first occurrence, equality by the spelling (7 and 7. are different elements). The result leaves as the list it spells, never as a new named array, and an empty intersection bangs the empty outlet — routing on \"nothing in common\" is half the point of asking. The left array is copied out under its guard and tested against the right under that guard alone, so no two guards are ever held at once. \"Which notes are in both chords\" — the operation a harmonic or scale patch is written from.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang asks for the result — the set operation over the two bound arrays as they stood at the trigger, the left copied out under its guard, the result built against the right under that guard alone, and sent after every guard is released. \"array <name>\" does the same when it names the left array bound by the first creation argument — the message an .array's reference outlet emits on a bang, so wiring that outlet here gives the family's gesture. A reference naming anything else, or any other message, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "trigger",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the right array bound by the second creation argument, so a patch may wire both reference outlets across as it would in Max. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 1,
+        "label": "right reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.sect",
+    "outlets": [
+      {
+        "doc": "The elements held by both arrays, as the list they spell — one element as the int, float or symbol it is, several as list text, never as a new named array. The left array's order, each element once at its first occurrence. A result that outruns what a cord carries is refused whole and counted. Silent when the intersection is empty: the empty outlet carries that half of the answer.",
+        "index": 0,
+        "label": "intersection",
+        "range": "",
+        "type": "ANY"
+      },
+      {
+        "doc": "Bang when the operation selected nothing — for .array.sect two arrays with no element in common, for .array.union two empty (or unnamed, private) arrays. \"No data\" is a state a patch must be able to route on, not an error — routing on an empty intersection is half the point of asking. A lost try-lock on either store is a counted refusal instead: the arrays' state is unknown, so neither outlet fires.",
+        "index": 1,
+        "label": "empty",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The left array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array on that side.",
+        "name": "left",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The right array's shared name, bound exactly as the left one. Empty reads a private, empty array on that side.",
+        "name": "right",
+        "range": "any identifier"
+      }
+    ]
+  },
   ".array.shift": {
     "category": "GENERIC",
     "description": "Removes the first element of an array and outputs it — Max's array.shift on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.shift <name>\", because an array is addressed by name and never passed down a cord. A bang removes the first element and emits it out the element outlet, typed the way the patcher spells it — the read and the erase one hold of the store's guard, so the element that leaves is exactly the one that left the array, and every element behind it moves down one position, which is what an ordered sequence means. An empty array bangs the empty outlet instead: \"nothing left\" is a queue-draining loop's exit condition, not an error. The message an .array's reference outlet emits on a bang triggers the same removal. With .array.push this is the queue a generative patch pushes events onto and takes them off in arrival order.",
@@ -2084,6 +2380,89 @@
       }
     ]
   },
+  ".array.slice": {
+    "category": "GENERIC",
+    "description": "Outputs a run of elements of an array — Max's array.slice on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.slice <name> [<start> [<end>]]\", because an array is addressed by name and never passed down a cord. JavaScript's Array.slice(): the piece runs from start to end with the end excluded, an absent end — or 0, Max's documented extra — extends to the end of the array, and a crossed range selects nothing: reverse slices are not permitted, .array.subarray is the form that permits them. The piece leaves as the list it spells, never as a new named array — creating one would resolve a name on a message path — and an ask that selects nothing bangs the empty outlet. Bounds are zero-based; past the end they are bounds of a range, so the piece is the intersection with the live elements, and negative is refused — the family's indexing rule. Collected under one hold of the store's guard, so the piece is the array as it stood at the trigger.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang asks for the piece — the range between the stored bounds, collected from the array as it stood at the trigger under one hold of the store's guard and sent after it is released. \"array <name>\" does the same when it names the array bound by the creation argument — the message an .array's reference outlet emits on a bang, so wiring that outlet here gives the family's gesture: bang the array, out comes the piece. A reference naming anything else, or any other message, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "trigger",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "An int stores the start of the range, silently — the cold half of the Max idiom: configuration on the right, the ask on the left. Zero-based; a start past the last element selects nothing, so the next ask bangs the empty outlet. A float truncates to an int first. A negative or non-finite value is refused and counted, and the stored start does not move — the family's indexing rule: Max's negative from-the-end indexing is the wrap the base type refuses.",
+        "index": 1,
+        "label": "start",
+        "range": "0-255"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "An int stores the end of the range, silently — the exclusive bound, JS's rule: the element at this position is not part of the piece. 0 extends the piece to the end of the array — Max's documented extra — and so does any bound past it. An end at or before the start selects nothing: reverse slices are not permitted, .array.subarray is the form that permits them. A float truncates to an int first; a negative or non-finite value is refused and counted, and the stored end does not move.",
+        "index": 2,
+        "label": "end",
+        "range": "0-256"
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the array bound by the creation argument, so a patch may wire the array's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 3,
+        "label": "array reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.slice",
+    "outlets": [
+      {
+        "doc": "The piece: the elements from start up to but not including end, as the list they spell — one element as the int, float or symbol it is, several as list text, never as a new named array. Collected under one hold of the store's guard, sent after it is released; the intersection with the live elements, so a bound past the end means the end. Silent when the range selects nothing: the empty outlet carries that half of the answer.",
+        "index": 0,
+        "label": "piece",
+        "range": "",
+        "type": "ANY"
+      },
+      {
+        "doc": "Bang when the ask selected nothing — an empty or unnamed (private) array, a start past the last element, or a crossed exclusive range. \"No data\" is a state a patch must be able to route on, not an error, and an out-of-range fetch is a miss on an outlet — the family's fetch rule. A lost try-lock is a counted refusal instead: the array's state is unknown, so neither outlet fires.",
+        "index": 1,
+        "label": "empty",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "0",
+        "doc": "The initial stored start of the range — where the piece begins before any int has moved it. Zero-based, exactly as every bound the inlets take.",
+        "name": "start",
+        "range": "0-255"
+      },
+      {
+        "default": "",
+        "doc": "The initial stored end of the range, exclusive. Absent — or 0, Max's documented extra — means to the end of the array, and so does any bound past it.",
+        "name": "end",
+        "range": "0-256"
+      }
+    ]
+  },
   ".array.sort": {
     "category": "GENERIC",
     "description": "Orders an array's elements — Max's array.sort on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.sort <name> [<direction>]\", because an array is addressed by name and never passed down a cord. The comparison is .zl sort's, applied to the store: each element is classified once per sort by the patcher's own token reader, numbers come before symbols in both directions (a type ordering, so ascending and descending stay one question asked two ways), numbers compare by value — 7 and 7. are the same number here, spelling deciding how an element leaves, never where it sorts — and symbols compare by their characters, the shorter first when one is a prefix. The sort is stable, so equal elements keep their arrival order, and it is a bounded merge sort under one hold of the store's guard through a scratch table the object owns. Negative direction sorts descending, anything else ascending; a bang sorts by the stored direction, seeded by the second creation argument and moved silently by the direction inlet, and an int on the trigger sorts by that direction at the moment it arrives, storing nothing. A sort that lands publishes the applied order as zero-based indices out the order outlet, then emits the array's reference: feed the order to an .array.indexmap's map inlet and the reference to its trigger, and a parallel array lands in the same new order, .zl sort's idiom.",
@@ -2153,6 +2532,73 @@
       }
     ]
   },
+  ".array.split": {
+    "category": "GENERIC",
+    "description": "Splits an array in two at a position — Max's array.split on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.split <name> [<position>]\", because an array is addressed by name and never passed down a cord. The head/tail split every recursive patch needs: elements before the split position leave the head outlet, elements at and after it leave the tail outlet — the element at the position goes to the tail, .zl slice's rule, so the position reads as how many elements the head takes. Both pieces leave as the lists they spell, never as new named arrays, collected under one hold of the store's guard so the two halves are two views of one moment, and sent tail before head — right-to-left, the patcher's outlet order. The position is a boundary, not an element position: 0 puts everything in the tail, the length or past it puts everything in the head, and an empty half says nothing at all, so a recursive patch terminates by absence. A negative position is refused — the family's indexing rule. A bang splits at the stored position, seeded by the second creation argument and moved silently by the position inlet.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang splits the array at the stored position — the position the last int on the position inlet stored, seeded by the second creation argument (0 when absent): the head leaves the head outlet, the tail the tail outlet, tail sent first. \"array <name>\" does the same when it names the array bound by the creation argument — the message an .array's reference outlet emits on a bang, the family's gesture. A reference naming anything else, or any other message, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "trigger",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "An int stores the position the next split cuts at, silently — the cold half of the Max idiom. A boundary, not an element position: zero-based, 0 puts everything in the tail, the array's length or past it puts everything in the head. A float truncates to an int first; a negative or non-finite value is refused and counted, and the stored position does not move.",
+        "index": 1,
+        "label": "position",
+        "range": "0-256"
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the array bound by the creation argument, so a patch may wire the array's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 2,
+        "label": "array reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.split",
+    "outlets": [
+      {
+        "doc": "The elements before the split position, as the list they spell — one element as the int, float or symbol it is, several as list text. Collected under the same guard hold as the tail, so the two halves are two views of one moment, and sent after the tail — right-to-left, the patcher's outlet order. An empty head — a split at 0, or an empty array — says nothing at all.",
+        "index": 0,
+        "label": "head",
+        "range": "",
+        "type": "ANY"
+      },
+      {
+        "doc": "The elements at and after the split position, as the list they spell — the element at the position goes here, .zl slice's rule. Sent before the head — right-to-left, the patcher's outlet order. An empty tail — a split at or past the array's length, or an empty array — says nothing at all, which is what lets a recursive head/tail patch terminate by absence.",
+        "index": 1,
+        "label": "tail",
+        "range": "",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "0",
+        "doc": "The initial stored split position — where the cut falls before any int has moved it. A boundary, not an element position: how many elements the head takes.",
+        "name": "position",
+        "range": "0-256"
+      }
+    ]
+  },
   ".array.stddev": {
     "category": "GENERIC",
     "description": "Outputs the standard deviation of an array's numeric elements — Max's array.stddev on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.stddev <name>\", because an array is addressed by name and never passed down a cord. A bang asks — one read of the array as it stood at the trigger, under one hold of the store's guard — and the message an .array's reference outlet emits on a bang asks too, the family's gesture. The population is the numeric elements: a symbol is skipped, not part of what a spread is over. The population standard deviation — divided by N, not N-1 — because the array is the whole population, not a sample of one: what the patch collected is what the statistic describes. A one-element population answers 0. Always a float, accumulated in double through the two-pass form. An array with no numeric element bangs the empty outlet instead.",
@@ -2189,6 +2635,280 @@
       },
       {
         "doc": "Bang when there is no numeric element to reduce — an empty or unnamed (private) array, or one holding only symbols. \"No data\" is a state a patch must be able to route on, not an error, and a sentinel value would be indistinguishable from a real answer — .array.pop's empty outlet, for the same reason. A lost try-lock is a counted refusal instead: the array's state is unknown, so neither outlet fires.",
+        "index": 1,
+        "label": "empty",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
+        "name": "name",
+        "range": "any identifier"
+      }
+    ]
+  },
+  ".array.sub": {
+    "category": "GENERIC",
+    "description": "Outputs a sub-range of an array, both ends inclusive — .array.subarray under Max's second name for it: the array.sub reference page is array.subarray's verbatim, so the port keeps both spellings over one implementation, .array.scramble / .array.shuffle's arrangement. The array is bound from the creation argument, \".array.sub <name> [<start> [<end>]]\"; the piece runs from start to end inclusive, an absent end extends to the end of the array, an end before the start emits the piece reversed, and an ask that selects nothing bangs the empty outlet. The piece leaves as the list it spells, never as a new named array; bounds are zero-based, intersected with the live elements past the end, and negative is refused — the family's indexing rule. Collected under one hold of the store's guard, so the piece is the array as it stood at the trigger.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang asks for the piece — the range between the stored bounds, collected from the array as it stood at the trigger under one hold of the store's guard and sent after it is released. \"array <name>\" does the same when it names the array bound by the creation argument — the message an .array's reference outlet emits on a bang, so wiring that outlet here gives the family's gesture: bang the array, out comes the piece. A reference naming anything else, or any other message, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "trigger",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "An int stores the start of the range, silently — the cold half of the Max idiom: configuration on the right, the ask on the left. Zero-based; a start past the last element selects nothing, so the next ask bangs the empty outlet. A float truncates to an int first. A negative or non-finite value is refused and counted, and the stored start does not move — the family's indexing rule: Max's negative from-the-end indexing is the wrap the base type refuses.",
+        "index": 1,
+        "label": "start",
+        "range": "0-255"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "An int stores the end of the range, silently — the inclusive bound, so the element at this position is part of the piece. Any bound at or past the last element means to the end of the array; an end before the start asks for the piece reversed — Max's \"reverse slices are permitted\". A float truncates to an int first; a negative or non-finite value is refused and counted, and the stored end does not move.",
+        "index": 2,
+        "label": "end",
+        "range": "0-255"
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the array bound by the creation argument, so a patch may wire the array's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 3,
+        "label": "array reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.sub",
+    "outlets": [
+      {
+        "doc": "The piece: the elements from start to end inclusive, as the list they spell — one element as the int, float or symbol it is, several as list text, never as a new named array (creating one would resolve a name on a message path). An end before the start leaves the piece reversed, walking from start toward end. Collected under one hold of the store's guard, sent after it is released; the intersection with the live elements, so a bound past the end means the end. Silent when the range selects nothing: the empty outlet carries that half of the answer.",
+        "index": 0,
+        "label": "piece",
+        "range": "",
+        "type": "ANY"
+      },
+      {
+        "doc": "Bang when the ask selected nothing — an empty or unnamed (private) array, a start past the last element, or a crossed exclusive range. \"No data\" is a state a patch must be able to route on, not an error, and an out-of-range fetch is a miss on an outlet — the family's fetch rule. A lost try-lock is a counted refusal instead: the array's state is unknown, so neither outlet fires.",
+        "index": 1,
+        "label": "empty",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "0",
+        "doc": "The initial stored start of the range — where the piece begins before any int has moved it. Zero-based, exactly as every bound the inlets take.",
+        "name": "start",
+        "range": "0-255"
+      },
+      {
+        "default": "",
+        "doc": "The initial stored end of the range, inclusive. Absent means to the end of the array — and so does any bound at or past the last element. An end before the start asks for the piece reversed.",
+        "name": "end",
+        "range": "0-255"
+      }
+    ]
+  },
+  ".array.subarray": {
+    "category": "GENERIC",
+    "description": "Outputs a sub-range of an array, both ends inclusive — Max's array.subarray on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.subarray <name> [<start> [<end>]]\", because an array is addressed by name and never passed down a cord. The non-JS form of .array.slice, Max's own distinction: the piece runs from start to end with the end included, an absent end — or any bound at or past the last element — extends to the end of the array, and reverse slices are permitted: an end before the start emits the piece reversed, walking from start toward end. The piece leaves as the list it spells, never as a new named array, and an ask that selects nothing bangs the empty outlet. Bounds are zero-based; past the end they are bounds of a range, so the piece is the intersection with the live elements, and negative is refused — the family's indexing rule. Collected under one hold of the store's guard, so the piece is the array as it stood at the trigger. .array.sub is this object under Max's second name for it.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang asks for the piece — the range between the stored bounds, collected from the array as it stood at the trigger under one hold of the store's guard and sent after it is released. \"array <name>\" does the same when it names the array bound by the creation argument — the message an .array's reference outlet emits on a bang, so wiring that outlet here gives the family's gesture: bang the array, out comes the piece. A reference naming anything else, or any other message, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "trigger",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "An int stores the start of the range, silently — the cold half of the Max idiom: configuration on the right, the ask on the left. Zero-based; a start past the last element selects nothing, so the next ask bangs the empty outlet. A float truncates to an int first. A negative or non-finite value is refused and counted, and the stored start does not move — the family's indexing rule: Max's negative from-the-end indexing is the wrap the base type refuses.",
+        "index": 1,
+        "label": "start",
+        "range": "0-255"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "An int stores the end of the range, silently — the inclusive bound, so the element at this position is part of the piece. Any bound at or past the last element means to the end of the array; an end before the start asks for the piece reversed — Max's \"reverse slices are permitted\". A float truncates to an int first; a negative or non-finite value is refused and counted, and the stored end does not move.",
+        "index": 2,
+        "label": "end",
+        "range": "0-255"
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the array bound by the creation argument, so a patch may wire the array's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 3,
+        "label": "array reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.subarray",
+    "outlets": [
+      {
+        "doc": "The piece: the elements from start to end inclusive, as the list they spell — one element as the int, float or symbol it is, several as list text, never as a new named array (creating one would resolve a name on a message path). An end before the start leaves the piece reversed, walking from start toward end. Collected under one hold of the store's guard, sent after it is released; the intersection with the live elements, so a bound past the end means the end. Silent when the range selects nothing: the empty outlet carries that half of the answer.",
+        "index": 0,
+        "label": "piece",
+        "range": "",
+        "type": "ANY"
+      },
+      {
+        "doc": "Bang when the ask selected nothing — an empty or unnamed (private) array, a start past the last element, or a crossed exclusive range. \"No data\" is a state a patch must be able to route on, not an error, and an out-of-range fetch is a miss on an outlet — the family's fetch rule. A lost try-lock is a counted refusal instead: the array's state is unknown, so neither outlet fires.",
+        "index": 1,
+        "label": "empty",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "0",
+        "doc": "The initial stored start of the range — where the piece begins before any int has moved it. Zero-based, exactly as every bound the inlets take.",
+        "name": "start",
+        "range": "0-255"
+      },
+      {
+        "default": "",
+        "doc": "The initial stored end of the range, inclusive. Absent means to the end of the array — and so does any bound at or past the last element. An end before the start asks for the piece reversed.",
+        "name": "end",
+        "range": "0-255"
+      }
+    ]
+  },
+  ".array.union": {
+    "category": "GENERIC",
+    "description": "Outputs the elements held by either of two arrays — Max's array.union on the name-addressed value model .array settled: both arrays are bound from the creation arguments, \".array.union <left> <right>\", because an array is addressed by name and never passed down a cord, and neither may be re-pointed from a message. A set operation produces a set — .zl union's semantics: the left array with its repeats dropped, then the right array's elements the left does not hold, each element once at its first occurrence, equality by the spelling (7 and 7. are different elements). The result leaves as the list it spells, never as a new named array — creating one would resolve a name on a message path — and two empty arrays bang the empty outlet. The left array is copied out under its guard and the result built against the right under that guard alone, so no two guards are ever held at once and \".array.union chord chord\" answers instead of tripping over its own try-lock. \"Everything either hand plays\" — the combining half of the harmonic patch .array.sect is the filtering half of.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang asks for the result — the set operation over the two bound arrays as they stood at the trigger, the left copied out under its guard, the result built against the right under that guard alone, and sent after every guard is released. \"array <name>\" does the same when it names the left array bound by the first creation argument — the message an .array's reference outlet emits on a bang, so wiring that outlet here gives the family's gesture. A reference naming anything else, or any other message, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "trigger",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the right array bound by the second creation argument, so a patch may wire both reference outlets across as it would in Max. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 1,
+        "label": "right reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.union",
+    "outlets": [
+      {
+        "doc": "The elements held by either array, as the list they spell — one element as the int, float or symbol it is, several as list text, never as a new named array. The left array thinned, then the right array's elements the left does not hold, each element once at its first occurrence. A result that outruns what a cord carries is refused whole and counted — a partial set would be a lie about membership. Silent when both arrays are empty: the empty outlet carries that half of the answer.",
+        "index": 0,
+        "label": "union",
+        "range": "",
+        "type": "ANY"
+      },
+      {
+        "doc": "Bang when the operation selected nothing — for .array.sect two arrays with no element in common, for .array.union two empty (or unnamed, private) arrays. \"No data\" is a state a patch must be able to route on, not an error — routing on an empty intersection is half the point of asking. A lost try-lock on either store is a counted refusal instead: the arrays' state is unknown, so neither outlet fires.",
+        "index": 1,
+        "label": "empty",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The left array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array on that side.",
+        "name": "left",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The right array's shared name, bound exactly as the left one. Empty reads a private, empty array on that side.",
+        "name": "right",
+        "range": "any identifier"
+      }
+    ]
+  },
+  ".array.unique": {
+    "category": "GENERIC",
+    "description": "Outputs an array with its repeated elements dropped — Max's array.unique on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.unique <name>\", because an array is addressed by name and never passed down a cord. Each element once, at the position of its first occurrence — .zl thin's selection, under Max's array.unique name for it — with equality by the spelling (7 and 7. are different elements). The result leaves as the list it spells, never as a new named array, and the shared store is read, only: .array itself is where a patch would write the thinned result back. An empty or unnamed (private) array bangs the empty outlet. The whole selection happens under one hold of the store's guard, so the result is the array as it stood at the trigger.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang asks for the thinned array — every element once, at its first occurrence, collected under one hold of the store's guard and sent after it is released. \"array <name>\" does the same when it names the array bound by the creation argument — the message an .array's reference outlet emits on a bang, the family's gesture. A reference naming anything else, or any other message, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "trigger",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the array bound by the creation argument, so a patch may wire the array's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 1,
+        "label": "array reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.unique",
+    "outlets": [
+      {
+        "doc": "The array with its repeats dropped, as the list it spells — one element as the int, float or symbol it is, several as list text, never as a new named array. Each element at the position of its first occurrence, equality by the spelling. A result that outruns what a cord carries is refused whole and counted. Silent on an empty array: the empty outlet carries that half of the answer.",
+        "index": 0,
+        "label": "unique",
+        "range": "",
+        "type": "ANY"
+      },
+      {
+        "doc": "Bang when the array holds nothing to thin — an empty or unnamed (private) array. \"No data\" is a state a patch must be able to route on, not an error. A lost try-lock is a counted refusal instead: the array's state is unknown, so neither outlet fires.",
         "index": 1,
         "label": "empty",
         "range": "",

@@ -65,7 +65,11 @@ namespace YSE {
    *    ``G_ARRAY_REVERSE``, ``G_ARRAY_ROTATE``, ``G_ARRAY_SCRAMBLE``,
    *    ``G_ARRAY_SHUFFLE``, ``G_ARRAY_SORT``, ``G_ARRAY_MIN``,
    *    ``G_ARRAY_MAX``, ``G_ARRAY_MEAN``, ``G_ARRAY_MEDIAN``,
-   *    ``G_ARRAY_MODE``, ``G_ARRAY_STDDEV``.
+   *    ``G_ARRAY_MODE``, ``G_ARRAY_STDDEV``, ``G_ARRAY_SLICE``,
+   *    ``G_ARRAY_SUBARRAY``, ``G_ARRAY_SUB``, ``G_ARRAY_SPLIT``,
+   *    ``G_ARRAY_UNION``, ``G_ARRAY_SECT``, ``G_ARRAY_UNIQUE``,
+   *    ``G_ARRAY_CONCAT``, ``G_ARRAY_JOIN``, ``G_ARRAY_FILL``,
+   *    ``G_ARRAY_FLATTEN``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -534,6 +538,69 @@ namespace YSE {
     DEFOBJ(G_ARRAY_MEDIAN, ".array.median");
     DEFOBJ(G_ARRAY_MODE, ".array.mode");
     DEFOBJ(G_ARRAY_STDDEV, ".array.stddev");
+
+    // The range readers (issue #791): each outputs a *piece* of the array —
+    // as the list text it spells, never as a new named array, since creating
+    // one would resolve a name on a message path — collected under one hold
+    // of the store's guard. Bounds are zero-based and refused negative; past
+    // the end they are bounds of a range, so the piece is the intersection
+    // with the live elements, and an ask that selects nothing bangs the
+    // empty outlet. ``slice`` is JS's exclusive end (0 or absent extends to
+    // the array's end, no reverse); ``subarray`` is the inclusive end with
+    // the reversed piece permitted, and ``sub`` is its second Max name over
+    // one implementation — scramble/shuffle's arrangement. ``split`` cuts
+    // head from tail at a boundary, tail sent first, an empty half silent.
+    DEFOBJ(G_ARRAY_SLICE, ".array.slice");
+    DEFOBJ(G_ARRAY_SUBARRAY, ".array.subarray");
+    DEFOBJ(G_ARRAY_SUB, ".array.sub");
+    DEFOBJ(G_ARRAY_SPLIT, ".array.split");
+
+    // The set operations (issue #792): read-only, ``.zl``'s semantics for
+    // lists — a set operation produces a set, each element once at its
+    // first occurrence, equality by the spelling. ``union`` and ``sect``
+    // bind **two** names at creation (gDictCompare's arrangement, snapshot
+    // included so no two guards are ever held at once — the same-store
+    // case would trip over its own try-lock); ``unique`` thins one array,
+    // ``.zl thin``'s selection under Max's array.unique name. The result
+    // leaves as the list it spells, never as a new named array, and an
+    // empty result bangs the empty outlet.
+    DEFOBJ(G_ARRAY_UNION, ".array.union");
+    DEFOBJ(G_ARRAY_SECT, ".array.sect");
+    DEFOBJ(G_ARRAY_UNIQUE, ".array.unique");
+
+    // The "put these together" pair (issue #793), both read-only. ``concat``
+    // outputs the left array's elements followed by the right's — everything
+    // kept, repeats included, where the set operations thin — on the
+    // two-name binding and snapshot ``union``/``sect`` established, as the
+    // list text it spells. ``join`` glues one array's elements into one
+    // token, the separator (second creation argument, empty by default)
+    // between each pair, sent typed the way the patcher spells it and
+    // bounded by what a cord carries rather than by the store's element
+    // rule — the result is a message, not an element. An empty result bangs
+    // the empty outlet on both.
+    DEFOBJ(G_ARRAY_CONCAT, ".array.concat");
+    DEFOBJ(G_ARRAY_JOIN, ".array.join");
+
+    // The initialiser (issue #794): the one write that *sizes*. A fill
+    // replaces the contents — the array becomes exactly ``<count>`` copies
+    // of ``<value>``, so a shorter fill shrinks it and 0 clears it — which
+    // is what gives an index-addressed write pattern positions to land on,
+    // the store refusing an index past the end rather than growing. Count
+    // bounded at the store's 256 and refused rather than truncated; the
+    // value one atom, Max's left-inlet datum, defaulting to 0.
+    DEFOBJ(G_ARRAY_FILL, ".array.fill");
+
+    // The group collapser (issue #795): Max's array.flatten, read-only. An
+    // element is one atom, so an array cannot hold an array — what stands
+    // where Max's nesting stood is a group of **named** arrays, the names
+    // creation arguments (the one portable answer: a name resolves only on
+    // the control thread). The result is the arrays' elements in argument
+    // order, everything kept — ``concat``'s keep-everything walk over as
+    // many as sixteen names, each source read under its own guard alone so
+    // no two guards are ever held at once — leaving as the list it spells.
+    // An empty result bangs the empty outlet; a result past what a cord
+    // carries, or a creation line past the slot table, is refused whole.
+    DEFOBJ(G_ARRAY_FLATTEN, ".array.flatten");
 
     DEFOBJ(G_PRINT, ".print");
 

@@ -27,12 +27,17 @@
 #include "genericObjects/gCapture.h"
 #include "genericObjects/gArray.h"
 #include "genericObjects/gArrayAt.h"
+#include "genericObjects/gArrayConcat.h"
 #include "genericObjects/gArrayEnds.h"
+#include "genericObjects/gArrayFill.h"
 #include "genericObjects/gArrayFind.h"
+#include "genericObjects/gArrayFlatten.h"
 #include "genericObjects/gArrayIndexMap.h"
 #include "genericObjects/gArrayLength.h"
 #include "genericObjects/gArrayPermute.h"
 #include "genericObjects/gArrayPosition.h"
+#include "genericObjects/gArraySetOps.h"
+#include "genericObjects/gArraySlice.h"
 #include "genericObjects/gArraySort.h"
 #include "genericObjects/gArrayStats.h"
 #include "genericObjects/gColl.h"
@@ -607,6 +612,56 @@ pRegistry::pRegistry() {
   Add(OBJ::G_ARRAY_MEDIAN, gArrayMedian::Create);
   Add(OBJ::G_ARRAY_MODE, gArrayMode::Create);
   Add(OBJ::G_ARRAY_STDDEV, gArrayStdDev::Create);
+
+  // The range readers: each outputs a piece of the array as the list text it
+  // spells — never a new named array — collected under one hold of the
+  // store's guard, with an empty selection on the empty outlet. slice is
+  // JS's exclusive end, subarray the inclusive end with the reversed piece
+  // permitted, sub its second Max name over one implementation, and split
+  // cuts head from tail at a boundary, tail sent first (issue #791)
+  Add(OBJ::G_ARRAY_SLICE, gArraySlice::Create);
+  Add(OBJ::G_ARRAY_SUBARRAY, gArraySubarray::Create);
+  Add(OBJ::G_ARRAY_SUB, gArraySub::Create);
+  Add(OBJ::G_ARRAY_SPLIT, gArraySplit::Create);
+
+  // The set operations: read-only, .zl's semantics — a set operation
+  // produces a set, each element once at its first occurrence, equality by
+  // the spelling. union and sect bind two names at creation and never hold
+  // two guards at once (the left array is snapshotted under its guard, the
+  // result built against the right under that guard alone — gDictCompare's
+  // arrangement); unique thins one array, .zl thin's selection under Max's
+  // array.unique name. The result leaves as list text, never as a new named
+  // array, and an empty result bangs the empty outlet (issue #792)
+  Add(OBJ::G_ARRAY_UNION, gArrayUnion::Create);
+  Add(OBJ::G_ARRAY_SECT, gArraySect::Create);
+  Add(OBJ::G_ARRAY_UNIQUE, gArrayUnique::Create);
+
+  // The "put these together" pair, both read-only. concat is the left
+  // array's elements followed by the right's — everything kept, repeats
+  // included, where the set operations thin — on the same two-name binding
+  // and snapshot, leaving as list text. join glues one array's elements
+  // into one token, the separator between each pair, sent typed and
+  // bounded by what a cord carries rather than by the store's element
+  // rule — the result is a message, not an element (issue #793)
+  Add(OBJ::G_ARRAY_CONCAT, gArrayConcat::Create);
+  Add(OBJ::G_ARRAY_JOIN, gArrayJoin::Create);
+
+  // The initialiser: a fill REPLACES the contents — the array becomes
+  // exactly count copies of the value, a shorter fill shrinks it, 0 clears
+  // it — sizing and initialising in one message so an index-addressed write
+  // pattern has positions to land on. Count is Max's right-inlet length,
+  // bounded at the store's 256 and refused rather than truncated; the value
+  // is Max's left-inlet datum, one atom, defaulting to 0 (issue #794)
+  Add(OBJ::G_ARRAY_FILL, gArrayFill::Create);
+
+  // The group collapser: Max's array.flatten on the value model — an
+  // element is one atom, so what stands where Max's nesting stood is a
+  // group of named arrays, the names creation arguments. The elements in
+  // argument order, everything kept, each source read under its own guard
+  // alone, leaving as the list it spells; an empty result bangs the empty
+  // outlet, and a result past what a cord carries — or a creation line
+  // past sixteen arrays — is refused whole (issue #795)
+  Add(OBJ::G_ARRAY_FLATTEN, gArrayFlatten::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which
