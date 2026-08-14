@@ -7,6 +7,7 @@
 #include "genericObjects/pAdc.h"
 #include "genericObjects/gArray.h"
 #include "genericObjects/gArrayAt.h"
+#include "genericObjects/gArrayEnds.h"
 #include "genericObjects/gArrayLength.h"
 #include "genericObjects/gBag.h"
 #include "genericObjects/gColl.h"
@@ -258,6 +259,15 @@ void patcherImplementation::SetName(const std::string& n) {
       // And gArrayLength, for the same reason: a renamed patcher's asks must
       // answer for the array its other objects now speak about (issue #783).
       static_cast<gArrayLength*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_PUSH) == 0 ||
+               strcmp(x.second->Type(), OBJ::G_ARRAY_POP) == 0 ||
+               strcmp(x.second->Type(), OBJ::G_ARRAY_SHIFT) == 0 ||
+               strcmp(x.second->Type(), OBJ::G_ARRAY_UNSHIFT) == 0) {
+      // And the four end-mutators, for the same reason again: a renamed
+      // patcher's pushes and pops must act on the array its other objects
+      // now speak about. One branch, because the binding lives on their
+      // shared base (issue #784).
+      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
     } else if (strcmp(x.second->Type(), OBJ::G_BAG) == 0) {
       // And gBag, whose `send` message prefixes a runtime receive name with
       // "<patcherName>." exactly as gForward does, so it has to re-anchor with

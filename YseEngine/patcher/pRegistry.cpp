@@ -27,6 +27,7 @@
 #include "genericObjects/gCapture.h"
 #include "genericObjects/gArray.h"
 #include "genericObjects/gArrayAt.h"
+#include "genericObjects/gArrayEnds.h"
 #include "genericObjects/gArrayLength.h"
 #include "genericObjects/gColl.h"
 #include "genericObjects/gDict.h"
@@ -535,6 +536,15 @@ pRegistry::pRegistry() {
   // the number every .uzi-driven walk over an array needs before it can start
   // (issue #783)
   Add(OBJ::G_ARRAY_LENGTH, gArrayLength::Create);
+
+  // The end-mutators: the stack and queue operations over the bound array —
+  // push/unshift add at an end and emit the reference so the family chains,
+  // pop/shift remove from an end and emit the departing element, banging a
+  // second outlet when the array is empty (issue #784)
+  Add(OBJ::G_ARRAY_PUSH, gArrayPush::Create);
+  Add(OBJ::G_ARRAY_POP, gArrayPop::Create);
+  Add(OBJ::G_ARRAY_SHIFT, gArrayShift::Create);
+  Add(OBJ::G_ARRAY_UNSHIFT, gArrayUnshift::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which

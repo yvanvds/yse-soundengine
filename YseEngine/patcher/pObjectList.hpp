@@ -58,7 +58,9 @@ namespace YSE {
    *    ``G_DICT_GROUP``, ``G_DICT_ITER``, ``G_DICT_JOIN``, ``G_DICT_PACK``,
    *    ``G_DICT_PRINT``, ``G_DICT_ROUTE``, ``G_DICT_SERIALIZE``,
    *    ``G_DICT_SLICE``, ``G_DICT_STRIP``, ``G_DICT_UNPACK``.
-   *  - Arrays: ``G_ARRAY``, ``G_ARRAY_AT``, ``G_ARRAY_LENGTH``.
+   *  - Arrays: ``G_ARRAY``, ``G_ARRAY_AT``, ``G_ARRAY_LENGTH``,
+   *    ``G_ARRAY_PUSH``, ``G_ARRAY_POP``, ``G_ARRAY_SHIFT``,
+   *    ``G_ARRAY_UNSHIFT``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -421,6 +423,22 @@ namespace YSE {
     // length, not a miss — an empty or unnamed array answers 0 — so there
     // is no miss outlet where ``.array.at`` needs one.
     DEFOBJ(G_ARRAY_LENGTH, ".array.length");
+
+    // The end-mutators (issue #784): the stack and queue operations that turn
+    // a shared array into the buffer a generative patch pushes events onto
+    // and pops them off. Each binds the array from its creation argument and
+    // acts under one hold of the store's guard. ``.array.push`` adds at the
+    // end and ``.array.unshift`` at the front — an int, float or symbol as
+    // one element, a list whole in the order sent or refused whole — and both
+    // emit the array's reference after an add that lands, so the family
+    // chains. ``.array.pop`` removes from the end and ``.array.shift`` from
+    // the front; both **emit the element they removed** — the difference from
+    // ``.array``'s own ``delete`` — and bang a second outlet when the array
+    // is empty, a queue-draining loop's exit condition.
+    DEFOBJ(G_ARRAY_PUSH, ".array.push");
+    DEFOBJ(G_ARRAY_POP, ".array.pop");
+    DEFOBJ(G_ARRAY_SHIFT, ".array.shift");
+    DEFOBJ(G_ARRAY_UNSHIFT, ".array.unshift");
 
     DEFOBJ(G_PRINT, ".print");
 
