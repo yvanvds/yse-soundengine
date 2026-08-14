@@ -31,6 +31,7 @@
 #include "genericObjects/gArrayFind.h"
 #include "genericObjects/gArrayIndexMap.h"
 #include "genericObjects/gArrayLength.h"
+#include "genericObjects/gArrayPermute.h"
 #include "genericObjects/gArrayPosition.h"
 #include "genericObjects/gColl.h"
 #include "genericObjects/gDict.h"
@@ -571,6 +572,17 @@ pRegistry::pRegistry() {
   // contributes nothing, and a reorder that lands emits the reference so the
   // family chains (issue #787)
   Add(OBJ::G_ARRAY_INDEXMAP, gArrayIndexMap::Create);
+
+  // The four permutations: each an index order plus the shared apply through
+  // a scratch table, under one hold of the store's guard — reverse counts
+  // down, rotate wraps a signed amount modulo the length, and scramble /
+  // shuffle are one seedable Fisher-Yates body under Max's two names for it,
+  // publishing the applied order so .array.indexmap can put a parallel array
+  // into the same new order (issue #788)
+  Add(OBJ::G_ARRAY_REVERSE, gArrayReverse::Create);
+  Add(OBJ::G_ARRAY_ROTATE, gArrayRotate::Create);
+  Add(OBJ::G_ARRAY_SCRAMBLE, gArrayScramble::Create);
+  Add(OBJ::G_ARRAY_SHUFFLE, gArrayShuffle::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which

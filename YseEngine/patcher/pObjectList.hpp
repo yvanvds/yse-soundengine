@@ -61,7 +61,9 @@ namespace YSE {
    *  - Arrays: ``G_ARRAY``, ``G_ARRAY_AT``, ``G_ARRAY_LENGTH``,
    *    ``G_ARRAY_PUSH``, ``G_ARRAY_POP``, ``G_ARRAY_SHIFT``,
    *    ``G_ARRAY_UNSHIFT``, ``G_ARRAY_INSERT``, ``G_ARRAY_REMOVE``,
-   *    ``G_ARRAY_INDEXOF``, ``G_ARRAY_INDEX``, ``G_ARRAY_INDEXMAP``.
+   *    ``G_ARRAY_INDEXOF``, ``G_ARRAY_INDEX``, ``G_ARRAY_INDEXMAP``,
+   *    ``G_ARRAY_REVERSE``, ``G_ARRAY_ROTATE``, ``G_ARRAY_SCRAMBLE``,
+   *    ``G_ARRAY_SHUFFLE``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -483,6 +485,24 @@ namespace YSE {
     // guard, through a scratch table the object owns; a reorder that lands
     // emits the array's reference, so the family chains.
     DEFOBJ(G_ARRAY_INDEXMAP, ".array.indexmap");
+
+    // The four permutations (issue #788): each is an index order plus the
+    // shared "apply this order to the store" helper, exactly as ``.zl``'s
+    // reordering modes each reduce to ``AssignOrder``. All bind the array
+    // from the creation argument, permute it under one hold of the store's
+    // guard through a scratch table the object owns, and emit the array's
+    // reference after a permutation that lands, so the family chains.
+    // ``reverse`` counts the order down; ``rotate`` is where the wrapping
+    // the base type refuses actually lives, so it takes a signed amount —
+    // any magnitude modulo the length, positive toward the end, negative
+    // toward the start; ``scramble`` and ``shuffle`` are one Fisher-Yates
+    // body under Max's two names for it, seedable per object, publishing
+    // the applied order for ``.array.indexmap`` to put a parallel array
+    // into the same new order.
+    DEFOBJ(G_ARRAY_REVERSE, ".array.reverse");
+    DEFOBJ(G_ARRAY_ROTATE, ".array.rotate");
+    DEFOBJ(G_ARRAY_SCRAMBLE, ".array.scramble");
+    DEFOBJ(G_ARRAY_SHUFFLE, ".array.shuffle");
 
     DEFOBJ(G_PRINT, ".print");
 
