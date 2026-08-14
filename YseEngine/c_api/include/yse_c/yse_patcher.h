@@ -195,8 +195,10 @@ YSE_C_API size_t yse_phandle_get_gui_value_at(YsePHandle* h, unsigned int index,
    passes through the object's own clamps and outlet sends and never races
    the audio thread.
 
-   0 for the scalar controls that predate the protocol — their inlet 0
-   takes an int or a float, not the display string the read produces. */
+   The scalar controls (".slider", ".i", ".f", ".dial", ".incdec", ".t")
+   hold the round trip since their #846 migration. 0 for the objects that
+   still predate the protocol — and for ".b" deliberately: its value is a
+   consume-on-read press report, an event a restore could only replay. */
 YSE_C_API int yse_phandle_gui_value_is_settable(YsePHandle* h);
 
 /* ─── GUI properties ──────────────────────────────────────────────── */

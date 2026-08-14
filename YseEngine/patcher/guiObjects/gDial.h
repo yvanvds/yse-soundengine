@@ -68,8 +68,13 @@ namespace YSE {
     _FLOAT_IN(SetFloat)
     _INT_IN(SetInt)
     _BANG_IN(SetBang)
+    _LIST_IN(SetList)
 
-    _HAS_GUI
+    // Settable since #846: inlet 0 takes the exact string GetGuiValue()
+    // produces back as a list — the knob position — plus "set 0 <value>" for
+    // the one cell, which is what lets `.preset` capture and restore the
+    // dial. Both clamp exactly as a float does.
+    _HAS_GUI_SETTABLE
 
   private:
     // Shared by the float and int inlet handlers: store clamped to [0, 1].

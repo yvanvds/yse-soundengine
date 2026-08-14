@@ -1284,7 +1284,7 @@
   },
   ".b": {
     "category": "GUI",
-    "description": "Momentary button. Any input (bang/int/float) lights the button until the next GUI poll; emits a bang on every calculate tick.",
+    "description": "Momentary button. Any input (bang/int/float) lights the button until the next GUI poll; emits a bang on every calculate tick. Deliberately left out of the settable GUI protocol when the other scalar controls migrated (issue #846): its GUI value reports and clears a pending press - an event, not a state - so there is nothing a .preset could meaningfully store or restore, and writing 'on' back would replay a press rather than restore a value. It answers false to GuiValueIsSettable() and is never captured.",
     "inlets": [
       {
         "accepts": [
@@ -2591,15 +2591,16 @@
   },
   ".dial": {
     "category": "GUI",
-    "description": "Rotary control with a range of its own. The inlet takes the knob position as a float in [0, 1], clamped on input exactly as .slider clamps, and the outlet carries that position mapped onto the minimum-maximum range — so a parameter with a real range is one object rather than a .slider and a .scale. An exponent other than 1 bends the mapping into a curve, symmetrically around the bottom of the range, which is what an audio parameter like a cutoff frequency wants. A minimum equal to the maximum emits the minimum, and any result that would not be finite emits 0. Set intMode to 1 to round the result and emit it as an int instead of a float. The GUI value is the position, not the mapped value. With the default parameters the object behaves exactly like .slider.",
+    "description": "Rotary control with a range of its own. The inlet takes the knob position as a float in [0, 1], clamped on input exactly as .slider clamps, and the outlet carries that position mapped onto the minimum-maximum range — so a parameter with a real range is one object rather than a .slider and a .scale. An exponent other than 1 bends the mapping into a curve, symmetrically around the bottom of the range, which is what an audio parameter like a cutoff frequency wants. A minimum equal to the maximum emits the minimum, and any result that would not be finite emits 0. Set intMode to 1 to round the result and emit it as an int instead of a float. The GUI value is the position, not the mapped value, and it is settable per the GUI value protocol (issues #551/#846): a list of one number on the inlet is the whole state - the exact string GetGuiValue() produces - and 'set 0 <value>' writes the one cell, both clamped like any other input, which is what lets .preset capture and restore the dial. With the default parameters the object behaves exactly like .slider.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT",
-          "BANG"
+          "BANG",
+          "LIST"
         ],
-        "doc": "Sets the knob position and emits the mapped value; an int is widened to a float and a bang re-emits without moving the knob.",
+        "doc": "Sets the knob position and emits the mapped value; an int is widened to a float and a bang re-emits without moving the knob. A list of one number is the whole state and 'set 0 <value>' the cell write, both clamped like any other input.",
         "index": 0,
         "label": "position",
         "range": "0.0-1.0"
@@ -3385,15 +3386,16 @@
   },
   ".f": {
     "category": "GUI",
-    "description": "Float number box. Stores a float; inlet 0 sets-and-fires (bang re-emits the current value), inlet 1 sets silently.",
+    "description": "Float number box. Stores a float; inlet 0 sets-and-fires (bang re-emits the current value), inlet 1 sets silently. Settable per the GUI value protocol (issues #551/#846): a list of one number on inlet 0 is the whole state - the exact string GetGuiValue() produces - and 'set 0 <value>' writes the one cell, which is what lets .preset capture and restore the number box.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT",
-          "BANG"
+          "BANG",
+          "LIST"
         ],
-        "doc": "Sets the value and emits it; bang re-emits the current value.",
+        "doc": "Sets the value and emits it; bang re-emits the current value. A list of one number is the whole state and 'set 0 <value>' the cell write.",
         "index": 0,
         "label": "set/bang",
         "range": "any float"
@@ -3867,15 +3869,16 @@
   },
   ".i": {
     "category": "GUI",
-    "description": "Integer number box. Stores an int; inlet 0 sets-and-fires (bang re-emits the current value), inlet 1 sets silently.",
+    "description": "Integer number box. Stores an int; inlet 0 sets-and-fires (bang re-emits the current value), inlet 1 sets silently. Settable per the GUI value protocol (issues #551/#846): a list of one number on inlet 0 is the whole state - the exact string GetGuiValue() produces - and 'set 0 <value>' writes the one cell; both read a decimal integer, truncating a fractional part, which is what lets .preset capture and restore the number box.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT",
-          "BANG"
+          "BANG",
+          "LIST"
         ],
-        "doc": "Sets the value and emits it; bang re-emits the current value.",
+        "doc": "Sets the value and emits it; bang re-emits the current value. A list of one number is the whole state and 'set 0 <value>' the cell write.",
         "index": 0,
         "label": "set/bang",
         "range": "any int"
@@ -3950,7 +3953,7 @@
   },
   ".incdec": {
     "category": "GUI",
-    "description": "Stepper: increments and decrements a stored whole number by a settable step, inside settable bounds. Max's 'incdec', the pair of arrows over a number, and the control for anything nudged rather than swept — transpose, octave, preset slot, bar count. It is deliberately not '.counter' with more parameters, because a bang means the opposite thing on the two objects: '.counter' steps on a bang, which is what makes it the thing behind a '.metro', while this one emits the stored value on a bang and moves only when an arrow is clicked. The left inlet is Max's: bang reads, an int or float sets without emitting, and the words 'inc', 'dec' and 'set <n>' step up, step down and set. The middle inlet is those arrows on a cord — an int moves that many steps, signed, and emits — and the right inlet sets the step size live. The minimum and maximum are taken as an ordered pair, so limits given the wrong way round still bound against the right two numbers, and 'wrap' chooses what happens at the end of the range: 0 clamps against it, 1 carries around to the other side. The wrapped range is inclusive at both ends — one past the maximum is the minimum — because this is a stepper over whole numbers and 11 stepping to 0 is what a twelve-note pitch class does. The default range is the whole int range, so an object with no arguments is unbounded and saturates rather than overflowing at the ends. The value is bounded on the way out as well as on the way in, so a re-range takes effect at once and a stepper created over 60-72 reads back as 60 rather than as the 0 it was born with; with wrap on, that untouched start lands wherever the wrap puts it, so place it with 'set' if the starting point matters. All the arithmetic runs in 64 bits and is bounded back into an int before it leaves, so no step, set or range can overflow. The GUI value is the stored value. Nothing on any message path allocates, locks or blocks on I/O, and Calculate() does nothing — this object sends from its handlers, which is what lets a set stay silent while a bang emits.",
+    "description": "Stepper: increments and decrements a stored whole number by a settable step, inside settable bounds. Max's 'incdec', the pair of arrows over a number, and the control for anything nudged rather than swept — transpose, octave, preset slot, bar count. It is deliberately not '.counter' with more parameters, because a bang means the opposite thing on the two objects: '.counter' steps on a bang, which is what makes it the thing behind a '.metro', while this one emits the stored value on a bang and moves only when an arrow is clicked. The left inlet is Max's: bang reads, an int or float sets without emitting, and the words 'inc', 'dec' and 'set <n>' step up, step down and set. The middle inlet is those arrows on a cord — an int moves that many steps, signed, and emits — and the right inlet sets the step size live. The minimum and maximum are taken as an ordered pair, so limits given the wrong way round still bound against the right two numbers, and 'wrap' chooses what happens at the end of the range: 0 clamps against it, 1 carries around to the other side. The wrapped range is inclusive at both ends — one past the maximum is the minimum — because this is a stepper over whole numbers and 11 stepping to 0 is what a twelve-note pitch class does. The default range is the whole int range, so an object with no arguments is unbounded and saturates rather than overflowing at the ends. The value is bounded on the way out as well as on the way in, so a re-range takes effect at once and a stepper created over 60-72 reads back as 60 rather than as the 0 it was born with; with wrap on, that untouched start lands wherever the wrap puts it, so place it with 'set' if the starting point matters. All the arithmetic runs in 64 bits and is bounded back into an int before it leaves, so no step, set or range can overflow. The GUI value is the stored value, and it is settable per the GUI value protocol (issues #551/#846): a bare number on the left inlet is already the whole-state write the round trip needs, and 'set 0 <value>' — two numbers after the word, against Max's one-number 'set <n>' — is the protocol's cell write, which is what lets .preset capture and restore the stepper. Nothing on any message path allocates, locks or blocks on I/O, and Calculate() does nothing — this object sends from its handlers, which is what lets a set stay silent while a bang emits.",
     "inlets": [
       {
         "accepts": [
@@ -3959,7 +3962,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "The value, and Max's grammar for it. A bang emits the stored value without moving it — the arrows move it, so a bang is a read. An int or a float sets the value and emits nothing, Max being explicit that the number arriving here 'is not output directly'; that is what lets a '.loadmess' or a preset place the stepper without firing everything downstream. A float is truncated, as it is everywhere in Max. Three words are commands rather than numbers: 'inc' and 'dec' step up and down by the step size and emit the result, and 'set <n>' is the int message spelled out. A list whose first token is a number is that number, so a stepper can be set from anything that emits a list. Whatever arrives, the value that ends up stored is inside the range.",
+        "doc": "The value, and Max's grammar for it. A bang emits the stored value without moving it — the arrows move it, so a bang is a read. An int or a float sets the value and emits nothing, Max being explicit that the number arriving here 'is not output directly'; that is what lets a '.loadmess' or a preset place the stepper without firing everything downstream. A float is truncated, as it is everywhere in Max. Three words are commands rather than numbers: 'inc' and 'dec' step up and down by the step size and emit the result, and 'set <n>' is the int message spelled out. With two numbers after the word, 'set <index> <value>' is the GUI value protocol's cell write instead (issues #551/#846), addressed to the one cell there is - any other index is dropped. A list whose first token is a number is that number, so a stepper can be set from anything that emits a list - and that is also the protocol's whole-state write, which is what lets .preset capture and restore the stepper. Whatever arrives, the value that ends up stored is inside the range.",
         "index": 0,
         "label": "value",
         "range": "any int, 'inc', 'dec', 'set <n>'"
@@ -4278,7 +4281,7 @@
   },
   ".led": {
     "category": "GUI",
-    "description": "A labelled on/off indicator - Max's led, and one of the two renderings of the patcher's labelled switch (issue #557). .b and .t carry no name, so a host rendering a headless patch has nothing to title a control with and draws a grid of anonymous squares; this holds the same value and can say what it is. It and .textbutton are one implementation under two names - same inlet, same two outlets, same arguments, same messages - because the value model is a named on/off in both and only the widget a host draws differs: a lamp here, a pressable labelled rectangle there. They are not one object with a display parameter, .zl's answer to its own modes, because the rendering is not behaviour a patch drives: it never changes at run time, and a host reading the type is exactly how it learns which widget to build. Arguments are an optional leading 'momentary' keyword and then the label, joined with single spaces; without the keyword the control latches (an int is the state, a bang flips it) and with it every input is a press that stays lit until the next GUI poll consumes it, which is Max's led responding to a bang. The keyword is offered on both names because one press against one latch is a property of the value rather than of the drawing. The label is a creation parameter and nothing changes it afterwards - not the GUI cell, which is live state a host polls and .preset stores, and not guiProperties, which the engine never reads while this object has to emit the label on outlet 1, and which a #234 replacement inherits from the object it replaced. Registering it as a list parameter makes a live SetParams replace the object through the #234 graph swap rather than rewrite a string underneath the audio thread, which is why Max's settext and text are not ported: that write is precisely the one the parameter system itself refuses. Inlet 0 is hot and everything on it emits: an int or a float is the state (a press in momentary mode), a list of one number is the whole state and issue #551's round trip, 'set 0 <value>' is #551's cell write, and a bang flips or presses. Outlet 0 carries the state and outlet 1 the label; the two fire right to left. The GUI cell is '0' or '1' rather than .t's 'on' / 'off', which is exactly what lets this object promise GuiValueIsSettable() where .b and .t cannot - inlet 0 takes a number, so the string a host polls is the string it can push back, and .preset can store and restore a named switch. In momentary mode that poll is destructive: it reports and clears a pending press in one indivisible step, which is the lost-press fix of issue #197. Nothing about drawing is modelled - colours, blinktime, size, the whole attribute set - since the patcher is headless.",
+    "description": "A labelled on/off indicator - Max's led, and one of the two renderings of the patcher's labelled switch (issue #557). .b and .t carry no name, so a host rendering a headless patch has nothing to title a control with and draws a grid of anonymous squares; this holds the same value and can say what it is. It and .textbutton are one implementation under two names - same inlet, same two outlets, same arguments, same messages - because the value model is a named on/off in both and only the widget a host draws differs: a lamp here, a pressable labelled rectangle there. They are not one object with a display parameter, .zl's answer to its own modes, because the rendering is not behaviour a patch drives: it never changes at run time, and a host reading the type is exactly how it learns which widget to build. Arguments are an optional leading 'momentary' keyword and then the label, joined with single spaces; without the keyword the control latches (an int is the state, a bang flips it) and with it every input is a press that stays lit until the next GUI poll consumes it, which is Max's led responding to a bang. The keyword is offered on both names because one press against one latch is a property of the value rather than of the drawing. The label is a creation parameter and nothing changes it afterwards - not the GUI cell, which is live state a host polls and .preset stores, and not guiProperties, which the engine never reads while this object has to emit the label on outlet 1, and which a #234 replacement inherits from the object it replaced. Registering it as a list parameter makes a live SetParams replace the object through the #234 graph swap rather than rewrite a string underneath the audio thread, which is why Max's settext and text are not ported: that write is precisely the one the parameter system itself refuses. Inlet 0 is hot and everything on it emits: an int or a float is the state (a press in momentary mode), a list of one number is the whole state and issue #551's round trip, 'set 0 <value>' is #551's cell write, and a bang flips or presses. Outlet 0 carries the state and outlet 1 the label; the two fire right to left. The GUI cell is '0' or '1' rather than .t's 'on' / 'off', and the object promises GuiValueIsSettable() - inlet 0 takes a number, so the string a host polls is the string it can push back, and .preset can store and restore a named switch. (.t has since joined that promise through issue #846, taking its own 'on' / 'off' back; .b stays out, its value being a consume-on-read press.) In momentary mode that poll is destructive: it reports and clears a pending press in one indivisible step, which is the lost-press fix of issue #197. Nothing about drawing is modelled - colours, blinktime, size, the whole attribute set - since the patcher is headless.",
     "inlets": [
       {
         "accepts": [
@@ -6782,7 +6785,7 @@
   },
   ".preset": {
     "category": "GUI",
-    "description": "Snapshot and recall of the patch's control values - Max's preset, 'store and recall the values of the control objects in a patcher'. A bank of numbered slots: 'store <n>' captures the current value of every participating control into slot n, an int (or 'recall <n>') pushes each captured value back into its object, a bang recalls the active slot again, and 'clear <n>' / 'clear' / 'clearall' empty one, the active, or every slot. Participation is the GUI value protocol's settable promise (issue #551): exactly the objects answering true to GuiValueIsSettable() are captured - the promise is the round trip a preset needs, so an object cannot be captured without also being restorable, by construction. .preset itself is not settable, so no preset captures a preset; the pre-protocol scalar controls do not hold the round trip and are not captured (opting one in is that object's own migration, issue #846); objects nested in subpatchers participate - a preset belongs to the patch, not to one level of it. Recall writes through the ordinary control-thread message path - each object receives the exact string its GetGuiValue() produced, as a list on inlet 0, so every clamp, side effect and outlet send its own handler performs still happens - and announces the slot out outlet 0 only after the patch is in it; a store announces out outlet 1. Entries are guarded against storage-ID reuse: a slot value is pushed only while its ID still names a live object of the captured type. The slots persist through DumpState / RestoreState unconditionally, plus the active marker - Max's preset is a UI object whose contents save with the patch - with each entry naming its object by the dump's record order (the rank of its ID among the live objects), which is exactly the fresh numbering ParseJSON hands out, so a patch whose IDs went sparse through deletes still recalls correctly after a save and a load. Loading does not recall: a patch that wants to come up in slot 0 wires .loadbang into the inlet. Everything the object does is control-thread work - store walks the patch, recall runs whole subgraphs - so a message that physically arrives on the audio callback is dropped whole before any work, at the cost of one thread-local load; Calculate() itself does nothing at all. The GUI value is the active slot number, -1 when none - what a host highlights in a row of preset dots - and is read-only. Not ported: interpolated recall (Max's preset is instant; interpolation belongs to pattrstorage, on the excluded pattr system - morphing between targets is already a patch, .xyslider into .nodes), the pattrstorage client outlet, and every mouse, bubble and colour concern.",
+    "description": "Snapshot and recall of the patch's control values - Max's preset, 'store and recall the values of the control objects in a patcher'. A bank of numbered slots: 'store <n>' captures the current value of every participating control into slot n, an int (or 'recall <n>') pushes each captured value back into its object, a bang recalls the active slot again, and 'clear <n>' / 'clear' / 'clearall' empty one, the active, or every slot. Participation is the GUI value protocol's settable promise (issue #551): exactly the objects answering true to GuiValueIsSettable() are captured - the promise is the round trip a preset needs, so an object cannot be captured without also being restorable, by construction. .preset itself is not settable, so no preset captures a preset; the scalar controls .slider, .i, .f, .dial, .incdec and .t hold the round trip since their #846 migration and are captured, while .b stays out - its value is a consume-on-read press, an event no recall could meaningfully restore; objects nested in subpatchers participate - a preset belongs to the patch, not to one level of it. Recall writes through the ordinary control-thread message path - each object receives the exact string its GetGuiValue() produced, as a list on inlet 0, so every clamp, side effect and outlet send its own handler performs still happens - and announces the slot out outlet 0 only after the patch is in it; a store announces out outlet 1. Entries are guarded against storage-ID reuse: a slot value is pushed only while its ID still names a live object of the captured type. The slots persist through DumpState / RestoreState unconditionally, plus the active marker - Max's preset is a UI object whose contents save with the patch - with each entry naming its object by the dump's record order (the rank of its ID among the live objects), which is exactly the fresh numbering ParseJSON hands out, so a patch whose IDs went sparse through deletes still recalls correctly after a save and a load. Loading does not recall: a patch that wants to come up in slot 0 wires .loadbang into the inlet. Everything the object does is control-thread work - store walks the patch, recall runs whole subgraphs - so a message that physically arrives on the audio callback is dropped whole before any work, at the cost of one thread-local load; Calculate() itself does nothing at all. The GUI value is the active slot number, -1 when none - what a host highlights in a row of preset dots - and is read-only. Not ported: interpolated recall (Max's preset is instant; interpolation belongs to pattrstorage, on the excluded pattr system - morphing between targets is already a patch, .xyslider into .nodes), the pattrstorage client outlet, and every mouse, bubble and colour concern.",
     "inlets": [
       {
         "accepts": [
@@ -8171,15 +8174,16 @@
   },
   ".slider": {
     "category": "GUI",
-    "description": "Slider control. Stores a normalized float in [0, 1]; ints/floats are clamped on input. Emits the stored value on every calculate tick.",
+    "description": "Slider control. Stores a normalized float in [0, 1]; ints/floats are clamped on input. Emits the stored value on every calculate tick. Settable per the GUI value protocol (issues #551/#846): a list of one number on inlet 0 is the whole state - the exact string GetGuiValue() produces - and 'set 0 <value>' writes the one cell; both clamp exactly as a float does, which is what lets .preset capture and restore the slider.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT",
-          "BANG"
+          "BANG",
+          "LIST"
         ],
-        "doc": "Sets the slider position; bang is a no-op trigger that still fires the output.",
+        "doc": "Sets the slider position; bang is a no-op trigger that still fires the output. A list of one number is the whole state and 'set 0 <value>' the cell write, both clamped like any other input.",
         "index": 0,
         "label": "set/bang",
         "range": "0.0-1.0"
@@ -8844,14 +8848,15 @@
   },
   ".t": {
     "category": "GUI",
-    "description": "Latching on/off toggle. Int sets the state directly (0 = off, non-zero = on); bang flips it. Emits 0 or 1 every calculate tick.",
+    "description": "Latching on/off toggle. Int sets the state directly (0 = off, non-zero = on); bang flips it. Emits 0 or 1 every calculate tick. Settable per the GUI value protocol (issues #551/#846): a one-token list on inlet 0 is the whole state - 'on' or 'off', the exact string GetGuiValue() produces, or a number read like the int - and 'set 0 <value>' writes the one cell; both set the state absolutely, never flip, which is what lets .preset capture and restore the toggle.",
     "inlets": [
       {
         "accepts": [
           "INT",
-          "BANG"
+          "BANG",
+          "LIST"
         ],
-        "doc": "Int sets state (0 = off, !=0 = on); bang flips the current state.",
+        "doc": "Int sets state (0 = off, !=0 = on); bang flips the current state. A one-token list - 'on', 'off' or a number - is the whole state and 'set 0 <value>' the cell write; both set absolutely, never flip.",
         "index": 0,
         "label": "set/toggle",
         "range": "0 or 1"

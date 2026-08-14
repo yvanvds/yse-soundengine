@@ -391,9 +391,10 @@ TEST_SUITE("capilowcov") {
 
   TEST_CASE("c-api phandle: the GUI value protocol's cell form mirrors the engine") {
     // Issue #551. `.i` is a scalar control, so it is the one-cell case: it
-    // reports one cell, cell 0 is exactly the whole-state read, everything
-    // past the end is empty, and it does not claim the write round trip its
-    // int-only inlet cannot honour.
+    // reports one cell, cell 0 is exactly the whole-state read, and
+    // everything past the end is empty. Since the #846 migration it also
+    // claims the write round trip — the string the read produces goes back
+    // through set_list, and "set 0 <value>" writes the one cell.
     YsePatcher* p = yse_patcher_create();
     REQUIRE(p != nullptr);
     yse_patcher_init(p, 2);
@@ -403,7 +404,7 @@ TEST_SUITE("capilowcov") {
     yse_phandle_set_int(h, 0, 42);
 
     CHECK(yse_phandle_get_gui_value_count(h) == 1u);
-    CHECK(yse_phandle_gui_value_is_settable(h) == 0);
+    CHECK(yse_phandle_gui_value_is_settable(h) == 1);
 
     const std::string whole =
         readString([h](char* b, size_t c) { return yse_phandle_get_gui_value(h, b, c); });
@@ -412,6 +413,15 @@ TEST_SUITE("capilowcov") {
     CHECK(cell0 == whole);
     CHECK(cell0 == "42");
     CHECK(cell0.size() == yse_phandle_get_gui_value_at(h, 0, nullptr, 0));
+
+    // The write half the settable answer promises, driven through the ABI:
+    // the cell form writes the one cell, and the whole-state form is the
+    // exact string the read produced.
+    yse_phandle_set_list(h, 0, "set 0 7");
+    CHECK(readString([h](char* b, size_t c) { return yse_phandle_get_gui_value(h, b, c); }) == "7");
+    yse_phandle_set_list(h, 0, whole.c_str());
+    CHECK(readString([h](char* b, size_t c) { return yse_phandle_get_gui_value(h, b, c); }) ==
+          whole);
 
     // Past the end is empty rather than the value again — the count can shrink
     // under a live set_params between a host's count read and its cell reads.

@@ -6,9 +6,11 @@
 //   - **participation is the settable promise.** Exactly the objects that
 //     answer true to GuiValueIsSettable() are captured (issue #551's round
 //     trip *is* what a preset needs), checked before the value is read; the
-//     pre-protocol scalars are left alone, `.preset` never captures itself,
-//     and objects nested in subpatchers participate because a preset belongs
-//     to the patch, not to one level of it.
+//     remaining pre-protocol objects are left alone (the scalar controls
+//     joined the promise in #846 and are captured), `.preset` never captures
+//     itself, `.b` stays out — and is never even polled, which matters for a
+//     consume-on-read value — and objects nested in subpatchers participate
+//     because a preset belongs to the patch, not to one level of it.
 //
 //   - **recall is the ordinary message path.** Each captured object receives
 //     the exact string its GetGuiValue() produced, as a list on inlet 0
@@ -227,36 +229,119 @@ TEST_SUITE("patcher") {
   // ─── participation ──────────────────────────────────────────────────────────
 
   TEST_CASE("preset: only settable objects participate (#564)") {
-    // The rule issue #564 asks for, made observable: `.slider` predates the
-    // settable protocol (its inlet 0 takes a number, not the display string),
-    // so a preset must leave it alone in both directions.
+    // The rule issue #564 asks for, made observable. `.slider` was the
+    // original example here until #846 opted the scalar controls in, so the
+    // pre-protocol object is now `.message`: its inlet 0 does take a list,
+    // but it never claimed the settable promise, and a preset must leave it
+    // alone in both directions.
     YSE::patcher p;
     p.create(2);
 
     YSE::pHandle* preset = p.CreateObject(YSE::OBJ::G_PRESET);
     YSE::pHandle* pad = p.CreateObject(YSE::OBJ::G_XYSLIDER, "0 127 0 127");
-    YSE::pHandle* slider = p.CreateObject(YSE::OBJ::G_SLIDER);
+    YSE::pHandle* message = p.CreateObject(YSE::OBJ::G_MESSAGE);
     REQUIRE(preset != nullptr);
     REQUIRE(pad != nullptr);
-    REQUIRE(slider != nullptr);
-    REQUIRE_FALSE(slider->GuiValueIsSettable());
+    REQUIRE(message != nullptr);
+    REQUIRE_FALSE(message->GuiValueIsSettable());
 
     pad->SetListData(0, "10 20");
-    slider->SetFloatData(0, 0.25f);
+    message->SetListData(0, "captured never");
     const std::string padState = pad->GetGuiValue();
-    const std::string sliderState = slider->GetGuiValue();
+    const std::string messageState = message->GetGuiValue();
 
     preset->SetListData(0, "store 0");
 
     pad->SetListData(0, "90 90");
-    slider->SetFloatData(0, 0.75f);
-    const std::string sliderMoved = slider->GetGuiValue();
-    REQUIRE(sliderMoved != sliderState);
+    message->SetListData(0, "moved since");
+    const std::string messageMoved = message->GetGuiValue();
+    REQUIRE(messageMoved != messageState);
 
     preset->SetIntData(0, 0);
     // The settable control is restored; the pre-protocol one is untouched.
     CHECK(pad->GetGuiValue() == padState);
-    CHECK(slider->GetGuiValue() == sliderMoved);
+    CHECK(message->GetGuiValue() == messageMoved);
+  }
+
+  TEST_CASE("preset: captures and recalls the #846 scalar controls") {
+    // The use case issue #846 exists for: a patch built from the patcher's
+    // plainest controls — sliders and number boxes first and foremost, Max's
+    // own priority for `preset` — stores real presets. Every migrated control
+    // in one patch, driven through pHandle the way a host drives it.
+    YSE::patcher p;
+    p.create(2);
+
+    YSE::pHandle* preset = p.CreateObject(YSE::OBJ::G_PRESET);
+    YSE::pHandle* slider = p.CreateObject(YSE::OBJ::G_SLIDER);
+    YSE::pHandle* intBox = p.CreateObject(YSE::OBJ::G_INT);
+    YSE::pHandle* floatBox = p.CreateObject(YSE::OBJ::G_FLOAT);
+    YSE::pHandle* dial = p.CreateObject(YSE::OBJ::G_DIAL, "20 20000 4");
+    YSE::pHandle* stepper = p.CreateObject(YSE::OBJ::G_INCDEC, "1 0 127");
+    YSE::pHandle* toggle = p.CreateObject(YSE::OBJ::G_TOGGLE);
+    REQUIRE(preset != nullptr);
+    REQUIRE(slider != nullptr);
+    REQUIRE(intBox != nullptr);
+    REQUIRE(floatBox != nullptr);
+    REQUIRE(dial != nullptr);
+    REQUIRE(stepper != nullptr);
+    REQUIRE(toggle != nullptr);
+
+    slider->SetFloatData(0, 0.25f);
+    intBox->SetIntData(0, 42);
+    floatBox->SetFloatData(0, 1.5f);
+    dial->SetFloatData(0, 0.5f);
+    stepper->SetIntData(0, 60);
+    toggle->SetIntData(0, 1);
+
+    YSE::pHandle* controls[] = {slider, intBox, floatBox, dial, stepper, toggle};
+    std::vector<std::string> stored;
+    for (YSE::pHandle* h : controls) {
+      REQUIRE(h->GuiValueIsSettable());
+      stored.push_back(h->GetGuiValue());
+    }
+
+    preset->SetListData(0, "store 0");
+
+    // Move every control off its captured value.
+    slider->SetFloatData(0, 0.75f);
+    intBox->SetIntData(0, 7);
+    floatBox->SetFloatData(0, -2.25f);
+    dial->SetFloatData(0, 0.9f);
+    stepper->SetIntData(0, 100);
+    toggle->SetIntData(0, 0);
+    for (int i = 0; i < 6; i++) {
+      REQUIRE(controls[i]->GetGuiValue() != stored[i]);
+    }
+
+    preset->SetIntData(0, 0);
+    for (int i = 0; i < 6; i++) {
+      CAPTURE(i);
+      CHECK(controls[i]->GetGuiValue() == stored[i]);
+    }
+  }
+
+  TEST_CASE("preset: .b stays out and is never polled (#846)") {
+    // `.b`'s written-down exclusion, both halves. It answers false — a press
+    // is an event, not a state a recall could restore — and because
+    // participation is checked *before* the value is read, a store never
+    // polls it: a pending press survives the store instead of being consumed
+    // by it.
+    YSE::patcher p;
+    p.create(2);
+
+    YSE::pHandle* preset = p.CreateObject(YSE::OBJ::G_PRESET);
+    YSE::pHandle* button = p.CreateObject(YSE::OBJ::G_BUTTON);
+    REQUIRE(preset != nullptr);
+    REQUIRE(button != nullptr);
+    CHECK_FALSE(button->GuiValueIsSettable());
+
+    button->SetBang(0);
+    preset->SetListData(0, "store 0");
+
+    // The press is still pending: the store did not consume it. This read
+    // does — that is `.b`'s contract — and the second read confirms it.
+    CHECK(button->GetGuiValue() == "on");
+    CHECK(button->GetGuiValue() == "off");
   }
 
   TEST_CASE("preset: an object with an empty value at store time is left out (#564)") {

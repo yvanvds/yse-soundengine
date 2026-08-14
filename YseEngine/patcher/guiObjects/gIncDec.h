@@ -82,7 +82,12 @@ namespace YSE {
      *  The GUI value is the stored value as a single string, the scalar
      *  protocol ``.slider``, ``.dial`` and ``.counter`` already use. A stepper
      *  is one number and needs nothing structured, so issue #551's redesign is
-     *  not pre-empted here.
+     *  not pre-empted here. Settable since #846: a bare number on inlet 0 is
+     *  already the whole-state write the round trip needs (a set, silent by
+     *  Max's rule), and ``set <index> <value>`` — two numbers after the word —
+     *  is the protocol's cell write, told apart from Max's one-number
+     *  ``set <n>`` by counting the numbers. That is what lets ``.preset``
+     *  capture and restore the stepper.
      *
      *  All four parameters are scalars and the object registers no clear/parse
      *  callbacks, so ``Parameters::NeedsRebuild()`` is false and a live
@@ -114,7 +119,7 @@ namespace YSE {
     _FLOAT_IN(FloatIn)
     _LIST_IN(ListIn)
 
-    _HAS_GUI
+    _HAS_GUI_SETTABLE
 
   private:
     // The stored value, bounded once more on the way out — see the class

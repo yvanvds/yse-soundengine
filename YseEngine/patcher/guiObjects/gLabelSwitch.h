@@ -192,15 +192,16 @@ namespace YSE {
      *  base's answers are correct by construction.
      *
      *  The cell is ``"0"`` or ``"1"`` and **not** ``.b`` / ``.t``'s
-     *  ``"on"`` / ``"off"``, which is exactly what lets this object promise
-     *  ``GuiValueIsSettable()`` where they cannot: inlet 0 takes a number, so
-     *  the string it hands out is the string it takes back. That promise is
-     *  the point of a labelled control — ``.preset`` can store and restore a
-     *  named switch, and a host can push a whole saved surface back into a
-     *  patch — and it is why ``.b`` and ``.t`` deliberately answer false: they
-     *  report a word their inlet 0 could not take back, and, like ``.slider``,
-     *  they register no list handler at all, so neither half of the promise is
-     *  theirs to make.
+     *  ``"on"`` / ``"off"``: inlet 0 takes a number, so the string it hands
+     *  out is the string it takes back. That promise is the point of a
+     *  labelled control — ``.preset`` can store and restore a named switch,
+     *  and a host can push a whole saved surface back into a patch. When this
+     *  family was written the promise set it apart from ``.b`` and ``.t``
+     *  entirely; #846 has since migrated ``.t`` and the other scalar controls
+     *  onto the protocol (``.t`` accepts its own ``"on"`` / ``"off"`` back),
+     *  while ``.b`` still answers false: it reports a word for a press it has
+     *  just consumed — an event, not a state — so neither half of the promise
+     *  is its to make.
      *
      *  In momentary mode the poll is **destructive**, which the protocol
      *  explicitly permits: it reports and clears a pending press in one step.

@@ -356,12 +356,17 @@ namespace YSE {
       // business — whether a restore also emits on its outlet is a
       // per-object decision, not part of this protocol.
       //
-      // False by default, and false for every object that predates this
+      // False by default, and false for most objects that predate this
       // protocol: their inlet 0 takes an int or a float rather than the
-      // display string GetGuiValue() hands back (`.t` reports "on"/"off",
-      // `.b` reports "on" for a press it has just consumed), so claiming the
-      // round trip would be a lie. Opting one of them in is a per-object
-      // migration and belongs with the object that needs it.
+      // display string GetGuiValue() hands back, so claiming the round trip
+      // would be a lie. Opting one in is a per-object migration and belongs
+      // with the object that needs it — `.preset` was that object, and #846
+      // migrated the scalar controls `.slider`, `.i`, `.f`, `.dial`,
+      // `.incdec` and `.t`, each of which now takes its own display string
+      // back as a list on inlet 0 (`.t` accepts the "on"/"off" it reports).
+      // `.b` stays out on purpose: its GUI value reports and clears a pending
+      // press — an event, not a state — so there is nothing a restore could
+      // meaningfully write back, and writing "on" would replay the press.
       //
       // THREADS — the contract every implementation is bound by.
       //
@@ -701,10 +706,12 @@ namespace YSE {
 // protocol block above first; the thread contract there is not optional, and it
 // carries the one carve-out from the "set" half: a one-cell control holding free
 // text (`.textedit`) drops it, because a text cell can hold the keyword. The
-// older scalar controls do *not* use this and must not be switched over
-// casually: `.b` and `.t` report a word ("on" / "off") their inlet 0 could not
-// take back, and none of `.b`, `.t` or `.slider` registers a list handler on
-// inlet 0 at all, so neither half of the promise is theirs to make.
+// pre-protocol scalar controls were migrated onto this macro by #846 —
+// `.slider`, `.i`, `.f`, `.dial`, `.incdec` and `.t` each grew the inlet-0
+// list handler the promise requires (`.t` accepts the "on" / "off" its read
+// produces). `.b` deliberately stays off it: its GUI value is a
+// consume-on-read press report, an event no restore could meaningfully write
+// back, so neither half of the promise is its to make.
 #define _HAS_GUI_SETTABLE                                                                          \
   std::string GetGuiValue() override;                                                              \
   bool GuiValueIsSettable() const override {                                                       \
