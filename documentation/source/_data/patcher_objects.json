@@ -1104,6 +1104,67 @@
       }
     ]
   },
+  ".array.insert": {
+    "category": "GENERIC",
+    "description": "Adds an element at a position, shifting the rest up — Max's array.insert on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.insert <name> [<position>]\", because an array is addressed by name and never passed down a cord. This is the object a running patch wires a position into — .array's own \"insert\" needs the index inside the message text. An int, a float or a symbol on the element inlet is inserted at the stored position as the text that spells it, and a list lands whole, in the order sent — \"a b c\" at position 1 leaves a b c starting at 1 — or is refused whole, one counted refusal and nothing changed, when the position is past the end or the array cannot take all of it. Positions are zero-based and run 0..length inclusive — inserting at the length appends — never wrapped or clamped, the family's indexing rule. An int on the index inlet stores the position silently; an insert that lands emits the array's reference, \"array <name>\", so the family chains. The insert is applied entirely under one hold of the store's guard. .array.remove's exact inverse.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "An int or a float is inserted at the stored position as the text that spells it; a symbol is inserted as itself; a list lands whole, in the order sent, or is refused whole — one counted refusal and nothing changed — when the position is past the end, the array cannot take all of it, or an element outruns 64 characters. \"array <name>\" is refused even naming the bound array: a reference is an identity, not an element, so a mis-wired reference cord shows up in the refusal count instead of in the data. Refusals are counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "element",
+        "range": "at most 256 elements"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "An int stores the position the next insert applies at, silently — the cold half of the Max idiom: position on the right, element on the left triggers. A float truncates to an int first. Zero-based, 0..length inclusive at the moment of the insert — the length appends. A negative or non-finite value is refused and counted, and the stored position does not move.",
+        "index": 1,
+        "label": "position",
+        "range": "0-256"
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the array bound by the first creation argument, so a patch may wire the array's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 2,
+        "label": "array reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.insert",
+    "outlets": [
+      {
+        "doc": "The bound array's reference, \"array <name>\", sent after an insert that landed — the way an array leaves an object on the value model, so wiring it onward chains the family: into .array.length it reports the new depth, into .array.remove's trigger it acts on the array just grown. A refused insert emits nothing, and an unnamed object stays silent — the write happens, but there is no name to pass on.",
+        "index": 0,
+        "label": "reference",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty writes into a private, empty array: the inserts land, but nothing shares them and no reference leaves.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "0",
+        "doc": "The initial stored position — where the operation applies before any int has moved it. Zero-based, exactly as every position the index inlet takes.",
+        "name": "index",
+        "range": "0-256"
+      }
+    ]
+  },
   ".array.length": {
     "category": "GENERIC",
     "description": "Outputs an array's length — Max's array.length on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.length <name>\", because an array is addressed by name and never passed down a cord. A bang emits the length as one int — store->count as it stood at the trigger — and the message an .array's reference outlet emits on a bang does the same, so wiring that outlet here gives the family's gesture: bang the array, out comes its length. An empty array answers 0, and so does an unnamed one; zero is a length, not a miss, so there is no miss outlet. The length leaves only when asked, never on a write to the array — the number every .uzi-driven walk over an array needs before it can start, and the one .zl len gives for a list.",
@@ -1241,6 +1302,65 @@
         "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty writes into a private, empty array: the pushes land, but nothing shares them and no reference leaves.",
         "name": "name",
         "range": "any identifier"
+      }
+    ]
+  },
+  ".array.remove": {
+    "category": "GENERIC",
+    "description": "Drops the element at a position and outputs it — Max's array.remove on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.remove <name> [<position>]\", because an array is addressed by name and never passed down a cord. This is the object a running patch wires a position into — .array's own \"delete\" needs the index inside the message text, and discards silently where this emits the departing element, typed the way the patcher spells it. An int removes at that position and stores it, a bang removes at the stored position, and every element behind the gap moves down one — the read and the erase one hold of the store's guard, so the element that leaves is exactly the one that left the array. A position the array does not have bangs the miss outlet instead: nothing removed, nothing counted, and never a wrap or a clamp — the family's indexing rule. The message an .array's reference outlet emits on a bang removes at the stored position, the family gesture. .array.insert's exact inverse.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "An int removes the element at that position and stores the position; a bang removes at the stored position; a float truncates to an int first — Max's float method. A position the array does not have bangs the miss outlet instead, and the stored position still moves: a miss is a property of the array at that moment, not of the request. \"array <name>\" removes at the stored position when it names the array bound by the first creation argument — the message an .array's reference outlet emits on a bang. A negative position, a reference naming anything else, or any other list is refused and counted rather than logged, since this inlet may be the audio thread; a multi-position remove is not offered, because delete renumbers and a list of positions would name different elements after each erase than it did when it was sent.",
+        "index": 0,
+        "label": "position",
+        "range": "0-255"
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the array bound by the first creation argument, so a patch may wire the array's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 1,
+        "label": "array reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.remove",
+    "outlets": [
+      {
+        "doc": "The removed element, typed the way the patcher spells it: a numeric element leaves as an int or a float by its spelling and anything else as a symbol. Read and removed under one hold of the store's guard, sent after it is released.",
+        "index": 0,
+        "label": "element",
+        "range": "",
+        "type": "ANY"
+      },
+      {
+        "doc": "Bang when the ask named a position the array does not have — nothing removed, nothing counted, kept off the element outlet so a patch editing by position can see the edit did not land. An empty or unnamed (private) array misses on every position. A lost try-lock is a counted refusal instead: the array's state is unknown, so neither outlet fires.",
+        "index": 1,
+        "label": "miss",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the miss outlet.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "0",
+        "doc": "The initial stored position — where the operation applies before any int has moved it. Zero-based, exactly as every position the index inlet takes.",
+        "name": "index",
+        "range": "0-255"
       }
     ]
   },

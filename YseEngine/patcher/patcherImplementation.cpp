@@ -268,6 +268,12 @@ void patcherImplementation::SetName(const std::string& n) {
       // now speak about. One branch, because the binding lives on their
       // shared base (issue #784).
       static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_INSERT) == 0 ||
+               strcmp(x.second->Type(), OBJ::G_ARRAY_REMOVE) == 0) {
+      // And the two position-mutators, whose binding lives on that same
+      // shared base: a renamed patcher's inserts and removes must act on the
+      // array its other objects now speak about (issue #785).
+      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
     } else if (strcmp(x.second->Type(), OBJ::G_BAG) == 0) {
       // And gBag, whose `send` message prefixes a runtime receive name with
       // "<patcherName>." exactly as gForward does, so it has to re-anchor with

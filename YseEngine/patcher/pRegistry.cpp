@@ -29,6 +29,7 @@
 #include "genericObjects/gArrayAt.h"
 #include "genericObjects/gArrayEnds.h"
 #include "genericObjects/gArrayLength.h"
+#include "genericObjects/gArrayPosition.h"
 #include "genericObjects/gColl.h"
 #include "genericObjects/gDict.h"
 #include "genericObjects/gDictCompare.h"
@@ -545,6 +546,14 @@ pRegistry::pRegistry() {
   Add(OBJ::G_ARRAY_POP, gArrayPop::Create);
   Add(OBJ::G_ARRAY_SHIFT, gArrayShift::Create);
   Add(OBJ::G_ARRAY_UNSHIFT, gArrayUnshift::Create);
+
+  // The position-mutators: an insert and its exact inverse at a position that
+  // arrives on a cord — insert adds whole-or-nothing at the stored position
+  // and emits the reference so the family chains, remove drops the element
+  // there and emits it, banging a miss outlet for a position the array does
+  // not have (issue #785)
+  Add(OBJ::G_ARRAY_INSERT, gArrayInsert::Create);
+  Add(OBJ::G_ARRAY_REMOVE, gArrayRemove::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which

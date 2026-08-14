@@ -60,7 +60,7 @@ namespace YSE {
    *    ``G_DICT_SLICE``, ``G_DICT_STRIP``, ``G_DICT_UNPACK``.
    *  - Arrays: ``G_ARRAY``, ``G_ARRAY_AT``, ``G_ARRAY_LENGTH``,
    *    ``G_ARRAY_PUSH``, ``G_ARRAY_POP``, ``G_ARRAY_SHIFT``,
-   *    ``G_ARRAY_UNSHIFT``.
+   *    ``G_ARRAY_UNSHIFT``, ``G_ARRAY_INSERT``, ``G_ARRAY_REMOVE``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -439,6 +439,21 @@ namespace YSE {
     DEFOBJ(G_ARRAY_POP, ".array.pop");
     DEFOBJ(G_ARRAY_SHIFT, ".array.shift");
     DEFOBJ(G_ARRAY_UNSHIFT, ".array.unshift");
+
+    // The position-mutators (issue #785): the middle-of-the-array
+    // counterparts of the end-mutators, for a position that arrives on a
+    // cord — the edit ``.array``'s own ``insert`` / ``delete`` messages
+    // cannot take from a patch. Each binds the array from its creation
+    // argument and applies at a stored, per-object position under one hold
+    // of the store's guard. ``.array.insert`` adds an element — or a list,
+    // whole in the order sent or refused whole — shifting the rest up, and
+    // emits the array's reference after an insert that lands; a position
+    // past the end is a counted refusal. ``.array.remove`` drops the element
+    // at the position and **emits it**, the difference from ``.array``'s own
+    // ``delete``; a position the array does not have bangs the miss outlet
+    // instead. Exact inverses over ``ArrayInsertAt`` / ``ArrayEraseAt``.
+    DEFOBJ(G_ARRAY_INSERT, ".array.insert");
+    DEFOBJ(G_ARRAY_REMOVE, ".array.remove");
 
     DEFOBJ(G_PRINT, ".print");
 

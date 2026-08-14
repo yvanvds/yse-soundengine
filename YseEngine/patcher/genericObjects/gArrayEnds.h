@@ -116,8 +116,13 @@ namespace YSE {
       gArrayEndsBase();
 
       // The parameter hooks all four register: a re-parse must not leave half
-      // of the previous configuration standing. gArray's rule.
-      void ClearParams();
+      // of the previous configuration standing. gArray's rule. The clear
+      // half is virtual so a subclass that registers parameters of its own
+      // (gArrayPositionBase's stored position, #785) extends the reset
+      // rather than shadowing it — the constructor's REG_PARM_CLEAR binding
+      // dispatches to the most-derived override. Control thread only, so the
+      // virtual call costs nothing that matters.
+      virtual void ClearParams();
       void ParseParams();
 
       // Called after ClearParams / ParseParams have re-read the name, for
