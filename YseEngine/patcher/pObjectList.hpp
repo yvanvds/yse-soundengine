@@ -58,7 +58,7 @@ namespace YSE {
    *    ``G_DICT_GROUP``, ``G_DICT_ITER``, ``G_DICT_JOIN``, ``G_DICT_PACK``,
    *    ``G_DICT_PRINT``, ``G_DICT_ROUTE``, ``G_DICT_SERIALIZE``,
    *    ``G_DICT_SLICE``, ``G_DICT_STRIP``, ``G_DICT_UNPACK``.
-   *  - Arrays: ``G_ARRAY``, ``G_ARRAY_AT``.
+   *  - Arrays: ``G_ARRAY``, ``G_ARRAY_AT``, ``G_ARRAY_LENGTH``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -411,6 +411,16 @@ namespace YSE {
     // running patch wires an index into, where ``.array``'s own ``get``
     // needs the index inside the message text.
     DEFOBJ(G_ARRAY_AT, ".array.at");
+
+    // The bound array's length, asked for with a bang and answered as one
+    // int — ``store->count`` as it stood at the trigger (issue #783). The
+    // number every ``.uzi``-driven walk over an array needs before it can
+    // start, and the one ``.zl len`` gives for a list. Asked, never
+    // announced: a write to the array emits nothing, ``.value``'s rule that
+    // an object driven by its inlet does not emit on its own. Zero is a
+    // length, not a miss — an empty or unnamed array answers 0 — so there
+    // is no miss outlet where ``.array.at`` needs one.
+    DEFOBJ(G_ARRAY_LENGTH, ".array.length");
 
     DEFOBJ(G_PRINT, ".print");
 

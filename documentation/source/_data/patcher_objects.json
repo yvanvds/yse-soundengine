@@ -1104,6 +1104,50 @@
       }
     ]
   },
+  ".array.length": {
+    "category": "GENERIC",
+    "description": "Outputs an array's length — Max's array.length on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.length <name>\", because an array is addressed by name and never passed down a cord. A bang emits the length as one int — store->count as it stood at the trigger — and the message an .array's reference outlet emits on a bang does the same, so wiring that outlet here gives the family's gesture: bang the array, out comes its length. An empty array answers 0, and so does an unnamed one; zero is a length, not a miss, so there is no miss outlet. The length leaves only when asked, never on a write to the array — the number every .uzi-driven walk over an array needs before it can start, and the one .zl len gives for a list.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang emits the array's length — store->count as it stood at the trigger — as one int out the length outlet. \"array <name>\" does the same when it names the array bound by the creation argument — the message an .array's reference outlet emits on a bang, so wiring that outlet here gives the family's gesture: bang the array, out comes its length. A reference naming anything else, or any other message, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "trigger",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the array bound by the creation argument, so a patch may wire the array's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 1,
+        "label": "array reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.length",
+    "outlets": [
+      {
+        "doc": "The length: how many elements the array held at the moment the trigger arrived, read under one hold of the store's guard. An empty array answers 0, and so does an unnamed (private) one — zero is a length, not a miss, which is why there is no miss outlet. Emitted only when asked, never on a write to the array.",
+        "index": 0,
+        "label": "length",
+        "range": "0-256",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask answers 0.",
+        "name": "name",
+        "range": "any identifier"
+      }
+    ]
+  },
   ".asin": {
     "category": "MATH",
     "description": "Control-rate arc-sine. Emits asin(in) in radians as a float whenever inlet 0 fires. Inputs outside -1 to 1 have no real arc-sine and emit 0 rather than a NaN.",

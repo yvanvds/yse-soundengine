@@ -27,6 +27,7 @@
 #include "genericObjects/gCapture.h"
 #include "genericObjects/gArray.h"
 #include "genericObjects/gArrayAt.h"
+#include "genericObjects/gArrayLength.h"
 #include "genericObjects/gColl.h"
 #include "genericObjects/gDict.h"
 #include "genericObjects/gDictCompare.h"
@@ -529,6 +530,11 @@ pRegistry::pRegistry() {
   // fetches the element at that position — the read .array's own "get" cannot
   // give a running patch (issue #782)
   Add(OBJ::G_ARRAY_AT, gArrayAt::Create);
+
+  // The bound array's length, asked for with a bang and answered as one int —
+  // the number every .uzi-driven walk over an array needs before it can start
+  // (issue #783)
+  Add(OBJ::G_ARRAY_LENGTH, gArrayLength::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which

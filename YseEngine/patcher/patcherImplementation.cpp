@@ -7,6 +7,7 @@
 #include "genericObjects/pAdc.h"
 #include "genericObjects/gArray.h"
 #include "genericObjects/gArrayAt.h"
+#include "genericObjects/gArrayLength.h"
 #include "genericObjects/gBag.h"
 #include "genericObjects/gColl.h"
 #include "genericObjects/gDict.h"
@@ -253,6 +254,10 @@ void patcherImplementation::SetName(const std::string& n) {
       // "<patcherName>.<name>" address, so a renamed patcher's fetches read
       // the array its other objects now speak about (issue #782).
       static_cast<gArrayAt*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_LENGTH) == 0) {
+      // And gArrayLength, for the same reason: a renamed patcher's asks must
+      // answer for the array its other objects now speak about (issue #783).
+      static_cast<gArrayLength*>(x.second)->RefreshBinding();
     } else if (strcmp(x.second->Type(), OBJ::G_BAG) == 0) {
       // And gBag, whose `send` message prefixes a runtime receive name with
       // "<patcherName>." exactly as gForward does, so it has to re-anchor with
