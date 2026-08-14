@@ -1829,6 +1829,75 @@
       }
     ]
   },
+  ".array.sort": {
+    "category": "GENERIC",
+    "description": "Orders an array's elements — Max's array.sort on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.sort <name> [<direction>]\", because an array is addressed by name and never passed down a cord. The comparison is .zl sort's, applied to the store: each element is classified once per sort by the patcher's own token reader, numbers come before symbols in both directions (a type ordering, so ascending and descending stay one question asked two ways), numbers compare by value — 7 and 7. are the same number here, spelling deciding how an element leaves, never where it sorts — and symbols compare by their characters, the shorter first when one is a prefix. The sort is stable, so equal elements keep their arrival order, and it is a bounded merge sort under one hold of the store's guard through a scratch table the object owns. Negative direction sorts descending, anything else ascending; a bang sorts by the stored direction, seeded by the second creation argument and moved silently by the direction inlet, and an int on the trigger sorts by that direction at the moment it arrives, storing nothing. A sort that lands publishes the applied order as zero-based indices out the order outlet, then emits the array's reference: feed the order to an .array.indexmap's map inlet and the reference to its trigger, and a parallel array lands in the same new order, .zl sort's idiom.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang sorts the bound array in place by the stored direction — the direction the last int on the direction inlet stored, seeded by the second creation argument (0, ascending, when absent). An int sorts by that direction at the moment it arrives and stores nothing — a bang that replayed the last inline direction would be hidden state — a float truncates to an int first, and a list spelling exactly one signed int is the direction it spells, kept equivalent to the int. \"array <name>\" sorts by the stored direction when it names the array bound by the creation argument — the message an .array's reference outlet emits on a bang, the family's gesture. An empty array sorts to itself and still announces. Anything else is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "trigger",
+        "range": "any int"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "An int stores the direction the next bang sorts by, silently — the cold half of the Max idiom, .zl sort's argument: negative sorts descending, anything else ascending. A float truncates to an int first; a non-finite one is refused rather than quietly becoming ascending.",
+        "index": 1,
+        "label": "direction",
+        "range": "any int"
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the array bound by the first creation argument, so a patch may wire the array's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 2,
+        "label": "array reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.sort",
+    "outlets": [
+      {
+        "doc": "The bound array's reference, \"array <name>\", sent after a sort that landed — the way an array leaves an object on the value model, so wiring it onward chains the family: into .array.at it fetches from the new order. A lost try-lock emits nothing (one counted refusal, nothing changed), and an unnamed object stays silent — the sort happens, but there is no name to pass on.",
+        "index": 0,
+        "label": "reference",
+        "range": "",
+        "type": "LIST"
+      },
+      {
+        "doc": "The applied order — the picks as zero-based indices into the array as it stood at the trigger, Max's zl sort index map — sent before the reference, Max's right-to-left rule: feed this to an .array.indexmap's map inlet and the reference to its trigger, and a parallel array lands in the same new order. The sort being stable, equal elements keep their arrival order in it. A one-element order leaves as the int it spells, which .array.indexmap's map inlet accepts as the one-entry map; an empty array publishes no order.",
+        "index": 1,
+        "label": "order",
+        "range": "0-255 each",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty sorts a private, empty array: the trigger lands, but nothing shares it and no reference leaves.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "0",
+        "doc": "The initial stored direction — what a bang sorts by before any int has moved it. Negative sorts descending, anything else ascending, so the absent argument is an ascending sort.",
+        "name": "direction",
+        "range": "any int"
+      }
+    ]
+  },
   ".array.unshift": {
     "category": "GENERIC",
     "description": "Adds an element at the front of an array — Max's array.unshift on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.unshift <name>\", because an array is addressed by name and never passed down a cord. An int or a float in the element inlet is inserted at the front as the text that spells it, every element already there moving up one position, and a list lands whole, in the order sent — \"unshift a b c\" leaves a b c at the front — or is refused whole, one counted refusal and nothing changed, when the array cannot take all of it. After an add that lands, the outlet emits the array's reference, \"array <name>\", so the family chains. .array.shift's inverse: what unshift put in front is what shift takes out first.",

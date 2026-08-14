@@ -33,6 +33,7 @@
 #include "genericObjects/gArrayLength.h"
 #include "genericObjects/gArrayPermute.h"
 #include "genericObjects/gArrayPosition.h"
+#include "genericObjects/gArraySort.h"
 #include "genericObjects/gColl.h"
 #include "genericObjects/gDict.h"
 #include "genericObjects/gDictCompare.h"
@@ -583,6 +584,14 @@ pRegistry::pRegistry() {
   Add(OBJ::G_ARRAY_ROTATE, gArrayRotate::Create);
   Add(OBJ::G_ARRAY_SCRAMBLE, gArrayScramble::Create);
   Add(OBJ::G_ARRAY_SHUFFLE, gArrayShuffle::Create);
+
+  // The fifth permutation — .zl sort's ordering over the store's elements,
+  // stable and bounded, under one hold of the store's guard: numbers before
+  // symbols in both directions, numbers by value, symbols by their
+  // characters, negative direction descending. Publishes the applied
+  // zero-based order before the reference so .array.indexmap can put a
+  // parallel array into the same new order (issue #789)
+  Add(OBJ::G_ARRAY_SORT, gArraySort::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which

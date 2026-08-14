@@ -63,7 +63,7 @@ namespace YSE {
    *    ``G_ARRAY_UNSHIFT``, ``G_ARRAY_INSERT``, ``G_ARRAY_REMOVE``,
    *    ``G_ARRAY_INDEXOF``, ``G_ARRAY_INDEX``, ``G_ARRAY_INDEXMAP``,
    *    ``G_ARRAY_REVERSE``, ``G_ARRAY_ROTATE``, ``G_ARRAY_SCRAMBLE``,
-   *    ``G_ARRAY_SHUFFLE``.
+   *    ``G_ARRAY_SHUFFLE``, ``G_ARRAY_SORT``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -503,6 +503,17 @@ namespace YSE {
     DEFOBJ(G_ARRAY_ROTATE, ".array.rotate");
     DEFOBJ(G_ARRAY_SCRAMBLE, ".array.scramble");
     DEFOBJ(G_ARRAY_SHUFFLE, ".array.shuffle");
+
+    // The fifth permutation (issue #789), and the one with a decision the
+    // other four do not have: what the comparison is. ``.zl sort``'s
+    // ordering over the store's elements — numbers before symbols in both
+    // directions, numbers by value, symbols by their characters — through a
+    // stable bounded merge sort, under one hold of the store's guard.
+    // Negative direction sorts descending, anything else ascending; a sort
+    // that lands publishes the applied zero-based order before the array's
+    // reference, so ``.array.indexmap`` can put a parallel array into the
+    // same new order.
+    DEFOBJ(G_ARRAY_SORT, ".array.sort");
 
     DEFOBJ(G_PRINT, ".print");
 

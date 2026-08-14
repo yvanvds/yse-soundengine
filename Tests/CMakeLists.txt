@@ -90,6 +90,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_array_find.cpp
   patcher/test_patcher_array_indexmap.cpp
   patcher/test_patcher_array_permute.cpp
+  patcher/test_patcher_array_sort.cpp
   patcher/test_patcher_bag.cpp
   patcher/test_patcher_capture.cpp
   patcher/test_patcher_funbuff.cpp
@@ -1095,6 +1096,7 @@ set_source_files_properties(
   patcher/test_patcher_array_find.cpp
   patcher/test_patcher_array_indexmap.cpp
   patcher/test_patcher_array_permute.cpp
+  patcher/test_patcher_array_sort.cpp
   patcher/test_patcher_bag.cpp
   patcher/test_patcher_capture.cpp
   patcher/test_patcher_funbuff.cpp
