@@ -83,6 +83,11 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_dict_strip.cpp
   patcher/test_patcher_dict_unpack.cpp
   patcher/test_patcher_array.cpp
+  patcher/test_patcher_array_at.cpp
+  patcher/test_patcher_array_length.cpp
+  patcher/test_patcher_array_ends.cpp
+  patcher/test_patcher_array_position.cpp
+  patcher/test_patcher_array_find.cpp
   patcher/test_patcher_bag.cpp
   patcher/test_patcher_capture.cpp
   patcher/test_patcher_funbuff.cpp
@@ -1081,6 +1086,11 @@ set_source_files_properties(
   patcher/test_patcher_dict_strip.cpp
   patcher/test_patcher_dict_unpack.cpp
   patcher/test_patcher_array.cpp
+  patcher/test_patcher_array_at.cpp
+  patcher/test_patcher_array_length.cpp
+  patcher/test_patcher_array_ends.cpp
+  patcher/test_patcher_array_position.cpp
+  patcher/test_patcher_array_find.cpp
   patcher/test_patcher_bag.cpp
   patcher/test_patcher_capture.cpp
   patcher/test_patcher_funbuff.cpp

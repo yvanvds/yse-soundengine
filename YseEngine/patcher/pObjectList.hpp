@@ -58,7 +58,10 @@ namespace YSE {
    *    ``G_DICT_GROUP``, ``G_DICT_ITER``, ``G_DICT_JOIN``, ``G_DICT_PACK``,
    *    ``G_DICT_PRINT``, ``G_DICT_ROUTE``, ``G_DICT_SERIALIZE``,
    *    ``G_DICT_SLICE``, ``G_DICT_STRIP``, ``G_DICT_UNPACK``.
-   *  - Arrays: ``G_ARRAY``.
+   *  - Arrays: ``G_ARRAY``, ``G_ARRAY_AT``, ``G_ARRAY_LENGTH``,
+   *    ``G_ARRAY_PUSH``, ``G_ARRAY_POP``, ``G_ARRAY_SHIFT``,
+   *    ``G_ARRAY_UNSHIFT``, ``G_ARRAY_INSERT``, ``G_ARRAY_REMOVE``,
+   *    ``G_ARRAY_INDEXOF``, ``G_ARRAY_INDEX``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -400,6 +403,72 @@ namespace YSE {
     // separate objects written against ``arrayStore``; see
     // genericObjects/gArray.h for the whole model.
     DEFOBJ(G_ARRAY, ".array");
+
+    // The first of the array.* operations written against that model (issue
+    // #782): the array is bound from the creation argument —
+    // ``.array.at <name> [<index>]`` — because an array is addressed by name
+    // and never passed down a cord. An int fetches the element at that
+    // position, a bang re-fetches at the stored index, and a list of indices
+    // is answered whole, as one list in the order asked; a position the
+    // array does not have bangs the miss outlet instead. The object a
+    // running patch wires an index into, where ``.array``'s own ``get``
+    // needs the index inside the message text.
+    DEFOBJ(G_ARRAY_AT, ".array.at");
+
+    // The bound array's length, asked for with a bang and answered as one
+    // int — ``store->count`` as it stood at the trigger (issue #783). The
+    // number every ``.uzi``-driven walk over an array needs before it can
+    // start, and the one ``.zl len`` gives for a list. Asked, never
+    // announced: a write to the array emits nothing, ``.value``'s rule that
+    // an object driven by its inlet does not emit on its own. Zero is a
+    // length, not a miss — an empty or unnamed array answers 0 — so there
+    // is no miss outlet where ``.array.at`` needs one.
+    DEFOBJ(G_ARRAY_LENGTH, ".array.length");
+
+    // The end-mutators (issue #784): the stack and queue operations that turn
+    // a shared array into the buffer a generative patch pushes events onto
+    // and pops them off. Each binds the array from its creation argument and
+    // acts under one hold of the store's guard. ``.array.push`` adds at the
+    // end and ``.array.unshift`` at the front — an int, float or symbol as
+    // one element, a list whole in the order sent or refused whole — and both
+    // emit the array's reference after an add that lands, so the family
+    // chains. ``.array.pop`` removes from the end and ``.array.shift`` from
+    // the front; both **emit the element they removed** — the difference from
+    // ``.array``'s own ``delete`` — and bang a second outlet when the array
+    // is empty, a queue-draining loop's exit condition.
+    DEFOBJ(G_ARRAY_PUSH, ".array.push");
+    DEFOBJ(G_ARRAY_POP, ".array.pop");
+    DEFOBJ(G_ARRAY_SHIFT, ".array.shift");
+    DEFOBJ(G_ARRAY_UNSHIFT, ".array.unshift");
+
+    // The position-mutators (issue #785): the middle-of-the-array
+    // counterparts of the end-mutators, for a position that arrives on a
+    // cord — the edit ``.array``'s own ``insert`` / ``delete`` messages
+    // cannot take from a patch. Each binds the array from its creation
+    // argument and applies at a stored, per-object position under one hold
+    // of the store's guard. ``.array.insert`` adds an element — or a list,
+    // whole in the order sent or refused whole — shifting the rest up, and
+    // emits the array's reference after an insert that lands; a position
+    // past the end is a counted refusal. ``.array.remove`` drops the element
+    // at the position and **emits it**, the difference from ``.array``'s own
+    // ``delete``; a position the array does not have bangs the miss outlet
+    // instead. Exact inverses over ``ArrayInsertAt`` / ``ArrayEraseAt``.
+    DEFOBJ(G_ARRAY_INSERT, ".array.insert");
+    DEFOBJ(G_ARRAY_REMOVE, ".array.remove");
+
+    // The search objects (issue #786): both are one ``ArrayFind`` — the
+    // position of the first element spelling a value, scanned under one hold
+    // of the store's guard — and they differ only in how the answer leaves.
+    // Each binds the array from its creation argument; a value on the hot
+    // inlet searches and stores, a bang re-searches with the stored value,
+    // seeded by the second creation argument. ``.array.indexof`` answers
+    // in-band: one int, the first matching position or -1 on a miss — Max's
+    // own answer, the one a patch can test with ``.sel -1``.
+    // ``.array.index`` answers on the family's split: the position out one
+    // outlet on a hit, a bang out the miss outlet otherwise, so membership
+    // is a cord choice rather than a comparison.
+    DEFOBJ(G_ARRAY_INDEXOF, ".array.indexof");
+    DEFOBJ(G_ARRAY_INDEX, ".array.index");
 
     DEFOBJ(G_PRINT, ".print");
 

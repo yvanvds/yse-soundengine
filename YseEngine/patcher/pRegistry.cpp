@@ -26,6 +26,11 @@
 #include "genericObjects/gBag.h"
 #include "genericObjects/gCapture.h"
 #include "genericObjects/gArray.h"
+#include "genericObjects/gArrayAt.h"
+#include "genericObjects/gArrayEnds.h"
+#include "genericObjects/gArrayFind.h"
+#include "genericObjects/gArrayLength.h"
+#include "genericObjects/gArrayPosition.h"
 #include "genericObjects/gColl.h"
 #include "genericObjects/gDict.h"
 #include "genericObjects/gDictCompare.h"
@@ -522,6 +527,42 @@ pRegistry::pRegistry() {
   // family is written against: addressed by name, resolved on the control
   // thread, one atom per element (issue #548)
   Add(OBJ::G_ARRAY, gArray::Create);
+
+  // The first of the array.* operations written against that model: the array
+  // is bound from the creation argument and an index arriving on a cord
+  // fetches the element at that position — the read .array's own "get" cannot
+  // give a running patch (issue #782)
+  Add(OBJ::G_ARRAY_AT, gArrayAt::Create);
+
+  // The bound array's length, asked for with a bang and answered as one int —
+  // the number every .uzi-driven walk over an array needs before it can start
+  // (issue #783)
+  Add(OBJ::G_ARRAY_LENGTH, gArrayLength::Create);
+
+  // The end-mutators: the stack and queue operations over the bound array —
+  // push/unshift add at an end and emit the reference so the family chains,
+  // pop/shift remove from an end and emit the departing element, banging a
+  // second outlet when the array is empty (issue #784)
+  Add(OBJ::G_ARRAY_PUSH, gArrayPush::Create);
+  Add(OBJ::G_ARRAY_POP, gArrayPop::Create);
+  Add(OBJ::G_ARRAY_SHIFT, gArrayShift::Create);
+  Add(OBJ::G_ARRAY_UNSHIFT, gArrayUnshift::Create);
+
+  // The position-mutators: an insert and its exact inverse at a position that
+  // arrives on a cord — insert adds whole-or-nothing at the stored position
+  // and emits the reference so the family chains, remove drops the element
+  // there and emits it, banging a miss outlet for a position the array does
+  // not have (issue #785)
+  Add(OBJ::G_ARRAY_INSERT, gArrayInsert::Create);
+  Add(OBJ::G_ARRAY_REMOVE, gArrayRemove::Create);
+
+  // The search objects: both are one ArrayFind under one hold of the store's
+  // guard — the first position spelling the searched value — and they differ
+  // only in reporting. indexof answers in-band, the position or -1 on a miss;
+  // index answers on the family's split, the position out one outlet or a
+  // miss bang out the other (issue #786)
+  Add(OBJ::G_ARRAY_INDEXOF, gArrayIndexOf::Create);
+  Add(OBJ::G_ARRAY_INDEX, gArrayIndex::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which
