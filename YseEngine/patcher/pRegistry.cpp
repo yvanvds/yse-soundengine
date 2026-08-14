@@ -109,6 +109,7 @@
 #include "guiObjects/gList.h"
 #include "guiObjects/gText.h"
 #include "guiObjects/gTextEdit.h"
+#include "guiObjects/gPreset.h"
 
 #include "time/gClocker.h"
 #include "time/gDelay.h"
@@ -673,6 +674,12 @@ pRegistry::pRegistry() {
   // fixed label and every other control's string is an immutable creation
   // argument, so this is where a patch receives text from outside (issue #560)
   Add(OBJ::G_TEXTEDIT, gTextEdit::Create);
+  // Snapshot and recall of the patch's control values: numbered slots each
+  // holding the captured GUI value of every settable control, restored through
+  // the ordinary control-thread message path — the feature every instrument
+  // needs, and the write half the GUI value protocol (#551) was settled for
+  // (issue #564)
+  Add(OBJ::G_PRESET, gPreset::Create);
 
   Add(OBJ::G_ADD, gAdd::Create);
   Add(OBJ::G_DIVIDE, gDivide::Create);

@@ -40,6 +40,7 @@ namespace YSE {
    *  - Indexed selection: ``G_UMENU``, ``G_RADIOGROUP``, ``G_TAB``.
    *  - Labelled switches: ``G_LED``, ``G_TEXTBUTTON``.
    *  - Text entry: ``G_TEXTEDIT``.
+   *  - Presets: ``G_PRESET``.
    *  - Timing: ``G_METRO``, ``G_DELAY``, ``G_PIPE``, ``G_TRANSPORT``,
    *    ``G_SETCLOCK``,
    *    ``G_WHEN``, ``G_TRANSLATE``, ``G_TIMEPOINT``, ``G_TEMPO``,
@@ -188,6 +189,12 @@ namespace YSE {
     // family (`.sprintf`, `.combine`, `.tosymbol`), which until now had no way
     // to receive text from outside a patch. See guiObjects/gTextEdit.h.
     DEFOBJ(G_TEXTEDIT, ".textedit");
+    // Snapshot and recall of the patch's control values (issue #564) — Max's
+    // preset: numbered slots each holding the captured GUI value of every
+    // settable control, restored through the ordinary control-thread message
+    // path. Participation is issue #551's settable promise, which is what
+    // makes capture and restore the same contract. See guiObjects/gPreset.h.
+    DEFOBJ(G_PRESET, ".preset");
     DEFOBJ(G_COUNTER, ".counter");
     DEFOBJ(G_ACCUM, ".accum");
     DEFOBJ(G_SWITCH, ".switch");

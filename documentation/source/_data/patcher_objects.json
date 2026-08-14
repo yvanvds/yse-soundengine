@@ -6780,6 +6780,50 @@
       }
     ]
   },
+  ".preset": {
+    "category": "GUI",
+    "description": "Snapshot and recall of the patch's control values - Max's preset, 'store and recall the values of the control objects in a patcher'. A bank of numbered slots: 'store <n>' captures the current value of every participating control into slot n, an int (or 'recall <n>') pushes each captured value back into its object, a bang recalls the active slot again, and 'clear <n>' / 'clear' / 'clearall' empty one, the active, or every slot. Participation is the GUI value protocol's settable promise (issue #551): exactly the objects answering true to GuiValueIsSettable() are captured - the promise is the round trip a preset needs, so an object cannot be captured without also being restorable, by construction. .preset itself is not settable, so no preset captures a preset; the pre-protocol scalar controls do not hold the round trip and are not captured (opting one in is that object's own migration, issue #846); objects nested in subpatchers participate - a preset belongs to the patch, not to one level of it. Recall writes through the ordinary control-thread message path - each object receives the exact string its GetGuiValue() produced, as a list on inlet 0, so every clamp, side effect and outlet send its own handler performs still happens - and announces the slot out outlet 0 only after the patch is in it; a store announces out outlet 1. Entries are guarded against storage-ID reuse: a slot value is pushed only while its ID still names a live object of the captured type. The slots persist through DumpState / RestoreState unconditionally, plus the active marker - Max's preset is a UI object whose contents save with the patch - with each entry naming its object by the dump's record order (the rank of its ID among the live objects), which is exactly the fresh numbering ParseJSON hands out, so a patch whose IDs went sparse through deletes still recalls correctly after a save and a load. Loading does not recall: a patch that wants to come up in slot 0 wires .loadbang into the inlet. Everything the object does is control-thread work - store walks the patch, recall runs whole subgraphs - so a message that physically arrives on the audio callback is dropped whole before any work, at the cost of one thread-local load; Calculate() itself does nothing at all. The GUI value is the active slot number, -1 when none - what a host highlights in a row of preset dots - and is read-only. Not ported: interpolated recall (Max's preset is instant; interpolation belongs to pattrstorage, on the excluded pattr system - morphing between targets is already a patch, .xyslider into .nodes), the pattrstorage client outlet, and every mouse, bubble and colour concern.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The whole object, and the only inlet. An int or a float (truncated) recalls that slot: every value captured in it is pushed back into its object as an ordinary list message on inlet 0 - pHandle::SetListData, the same call a host makes - never by writing another object's state directly, and outlet 0 announces the slot once the patch is in it. A bang recalls the active slot again, the resync a patch wants after editing by hand; nothing when no slot is active. 'store <n>' captures the patch into slot n - the headless spelling of Max's shift-click - and announces it out outlet 1; 'recall <n>' is the int spelled out; 'clear <n>' empties one slot, bare 'clear' the active one, 'clearall' every slot - clearing the active slot clears the active marker with it. Participation is issue #551's settable promise: exactly the objects answering true to GuiValueIsSettable() are captured, checked before the value is read, so a consume-on-read object is never polled; an object whose bulk read is empty at store time is left out and recall leaves it untouched. Recalling an empty or out-of-range slot does nothing and announces nothing. A slot entry is pushed only while its storage ID still names a live object of the captured type - IDs are reused after a delete - and a stale entry is skipped silently. Everything here is control-thread work: store walks the patch and recall runs whole subgraphs, so a message that physically arrives on the audio callback (a deferred .delay drain, a cord inside the render traversal) is dropped whole before any work. A .metro or MIDI-driven recall works - those dispatch from control-side threads. Not here: interpolated recall (Max's preset is instant; interpolation is pattrstorage's, on the excluded pattr system) and every mouse and drawing concern.",
+        "index": 0,
+        "label": "control",
+        "range": "slot 0 to slots-1"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".preset",
+    "outlets": [
+      {
+        "doc": "The slot just recalled, as an int, sent after every captured value has been pushed back into its object - so whatever this outlet triggers sees the patch already in the preset. Max's 'preset number recalled' outlet. Silent for an empty or out-of-range slot, for a bang with no active slot, and for a store: the family's rule that an object with no answer stays quiet.",
+        "index": 0,
+        "label": "recalled",
+        "range": "0 to slots-1",
+        "type": "INT"
+      },
+      {
+        "doc": "The slot just stored, as an int - Max's 'preset number stored' outlet, and the hook a patch hangs bookkeeping on (a .coll of slot names, a dirty flag for the host). Sent after the capture has landed in the slot and the slot has become active. Silent for a slot out of range.",
+        "index": 1,
+        "label": "stored",
+        "range": "0 to slots-1",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "32",
+        "doc": "How many numbered slots the bank holds, clamped to 1-1024 and 32 by default. A creation parameter because the bank is shaped once, on the control thread, before the object is wired or published: a live SetParams therefore replaces the object through the graph swap - and the replacement starts with empty slots, exactly as a re-parsed .function starts with no points. Max's preset holds as many presets as its box has room to draw; headless, the room is this number. The slot contents are not parameters - they are contents, and they ride the saved patch through the object's state instead, unconditionally.",
+        "name": "slots",
+        "range": "1-1024"
+      }
+    ]
+  },
   ".print": {
     "category": "GENERIC",
     "description": "Writes whatever arrives at its inlet to the engine log, one line per message, with a settable name in front of it — Max's 'print', which prints 'any message in the Max window'. Max: 'the print object prints, in the Max window, any message it receives in its inlet.' This patcher is headless and there is no Max window, so the destination is the engine log: the thing a host already reads, already redirects with YSE::Log().setLogfile(), and already intercepts with YSE::Log().setHandler(), so every tool a host has for watching the engine talk watches this object too with no new plumbing at either end. It is the patcher's missing debugging affordance — until it existed there was no way to see what was happening inside a graph, and a patch that misbehaved had to be diagnosed from the audio coming out of it. It is not .capture, the other half of the same job: this says what is passing now, one line at a time, as it passes, while .capture keeps the last N values so a patch can be run, stopped, and only then asked what it saw. The first creation argument is the name — Max's 'the first argument sets the name that appears in the Max window', default 'print'. The second is this patcher's and not Max's: the most lines the object emits per drain tick, default 16, clamped to 1-256. A bang prints the word 'bang', an int its digits, a float its shortest round-tripping spelling with a decimal point so it stays visibly a float, and a list or a message box's text verbatim. There is no outlet, which is Max's shape and also the right one: an outlet would turn a probe into a participant. Nothing is ever logged from the message path. A handler runs on whichever thread dispatched the message and in-patcher delivery dispatches on the audio thread, where building a std::string and then writing a file or calling into a host handler is exactly what the engine's real-time rules forbid — so the line is formatted into a stack buffer and pushed onto a bounded lock-free queue whose control-thread drain, running from System::update(), hands it to the log. That is the named bus's audio-thread path with text in the record instead of a variant, and it means a line reaches the log on the host's next tick rather than instantly. Nothing on any message path allocates, locks or blocks, and Calculate() does nothing. Two bounds can refuse a message and both report: this object's per-tick budget, whose first refusal in a tick posts a notice and whose refusals are all counted, and the shared queue's capacity, whose overflow the next drain names as a single count. Dropping under flood is correct — the alternative is blocking the audio thread, which is not an answer — but a silent drop would make a debugging instrument lie about the patch it is being used to debug. A line longer than the record is cut and marked with '...', the opposite of .capture's refuse-whole rule and deliberately so: .capture stores a symbol, where half of one is a different symbol, while this produces a line to read, where the first 240 characters are almost all of the information and silence is none of it. Only the creation arguments persist across a save; the lines already sent belong to the log rather than to the patch.",

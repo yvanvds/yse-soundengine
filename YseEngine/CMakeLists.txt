@@ -214,6 +214,7 @@ set(YSE_SRCS
   patcher/guiObjects/gMultiSlider.cpp
   patcher/guiObjects/gNSlider.cpp
   patcher/guiObjects/gNodes.cpp
+  patcher/guiObjects/gPreset.cpp
   patcher/guiObjects/gRSlider.cpp
   patcher/guiObjects/gSlider.cpp
   patcher/guiObjects/gText.cpp
@@ -561,6 +562,7 @@ set_source_files_properties(
   patcher/guiObjects/gMultiSlider.cpp
   patcher/guiObjects/gNSlider.cpp
   patcher/guiObjects/gNodes.cpp
+  patcher/guiObjects/gPreset.cpp
   patcher/guiObjects/gRSlider.cpp
   patcher/guiObjects/gSlider.cpp
   patcher/guiObjects/gText.cpp
