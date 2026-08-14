@@ -37,6 +37,7 @@
 #include "genericObjects/gArrayFill.h"
 #include "genericObjects/gArrayFind.h"
 #include "genericObjects/gArrayFlatten.h"
+#include "genericObjects/gArrayGroup.h"
 #include "genericObjects/gArrayIndexMap.h"
 #include "genericObjects/gArrayLength.h"
 #include "genericObjects/gArrayPermute.h"
@@ -730,6 +731,17 @@ pRegistry::pRegistry() {
   // arrangement (issue #800)
   Add(OBJ::G_ARRAY_CHANGE, gArrayChange::Create);
   Add(OBJ::G_ARRAY_COMPARE, gArrayCompare::Create);
+
+  // The bucketer: the array's elements grouped by value — one message per
+  // distinct value, each bucket whole (the value repeated as often as it
+  // occurs, so its length is the value's frequency), buckets in
+  // first-occurrence order, equality by the spelling, then the done bang —
+  // .array.iter's per-message shape over the same snapshot and the same
+  // re-entrant refusal. A grouping any bucket of which cannot leave whole is
+  // refused whole before anything is sent. Deliberately not Max's count
+  // batcher of the same name — on the value model that accumulation is
+  // .array's own append (issue #801)
+  Add(OBJ::G_ARRAY_GROUP, gArrayGroup::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which

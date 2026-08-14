@@ -73,7 +73,8 @@ namespace YSE {
    *    ``G_ARRAY_TOSYMBOL``, ``G_ARRAY_DESERIALIZE``, ``G_ARRAY_ITER``,
    *    ``G_ARRAY_EXPR``, ``G_ARRAY_MAP``, ``G_ARRAY_FILTER``,
    *    ``G_ARRAY_REDUCE``, ``G_ARRAY_EVERY``, ``G_ARRAY_SOME``,
-   *    ``G_ARRAY_FOREACH``, ``G_ARRAY_CHANGE``, ``G_ARRAY_COMPARE``.
+   *    ``G_ARRAY_FOREACH``, ``G_ARRAY_CHANGE``, ``G_ARRAY_COMPARE``,
+   *    ``G_ARRAY_GROUP``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -683,6 +684,20 @@ namespace YSE {
     // ever held at once) and answers 1/0 on every ask.
     DEFOBJ(G_ARRAY_CHANGE, ".array.change");
     DEFOBJ(G_ARRAY_COMPARE, ".array.compare");
+
+    // The bucketer (issue #801): the array's elements grouped by value — one
+    // message per distinct value out the group outlet, each bucket whole (the
+    // value repeated as often as it occurs, so its length is the value's
+    // frequency), buckets in order of first occurrence and equality by the
+    // spelling, ``.array.mode``'s rule — then a bang out the done outlet. An
+    // element is one atom, so a group of groups cannot leave as one value;
+    // the per-bucket message is ``.array.iter``'s shape, over the same
+    // snapshot (a write arriving mid-grouping moves the array, never the
+    // buckets in flight) and the same re-entrant refusal. A grouping any
+    // bucket of which cannot leave whole is refused whole before anything is
+    // sent. Deliberately not Max's count batcher of the same name — on the
+    // value model that accumulation is ``.array``'s own ``append``.
+    DEFOBJ(G_ARRAY_GROUP, ".array.group");
 
     DEFOBJ(G_PRINT, ".print");
 
