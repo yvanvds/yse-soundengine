@@ -20,6 +20,7 @@
 #include <doctest/doctest.h>
 #include <atomic>
 #include <chrono>
+#include <cstddef>
 #include <cstring>
 #include <new>
 #include <string>
@@ -31,19 +32,15 @@
 #include "sound/soundManager.h"
 #include "internal/time.h"
 #include "support/null_device.hpp"
+#include "support/timer_pacing.hpp"
 
 namespace {
 
   // Drain CHANNEL + SOUND managers — channels link with sounds and the
-  // slow-pool deleteJob is shared, so both managers need ticking.
-  //
-  // The fixed-count final settles in this suite are deliberate (#835 set
-  // review): no CHECK depends on them, and CHANNEL::Manager publishes no
-  // synchronized reclamation signal a predicate could poll — empty() reads
-  // `implementations` WITHOUT implementationsMutex, so polling it between
-  // ticks would race the slow-pool delete job (the #834 TSan lesson). The
-  // settles are inter-case hygiene; any reclamation still in flight simply
-  // continues under the next case's drains.
+  // slow-pool deleteJob is shared, so both managers need ticking. The partial
+  // drains inside the cases stay fixed-count on purpose: they are deliberate
+  // stress pacing (leaving work in flight is the point), not waits a CHECK
+  // depends on.
   void drainChannels(int iterations = 8, int sleepMs = 2) {
     for (int i = 0; i < iterations; ++i) {
       YSE::INTERNAL::Time().update();
@@ -51,6 +48,34 @@ namespace {
       YSE::CHANNEL::Manager().update();
       if (sleepMs > 0) std::this_thread::sleep_for(std::chrono::milliseconds(sleepMs));
     }
+  }
+
+  // The completion-signal form of drainChannels(), for the *final* settles: a
+  // fixed iteration count is a bounded window a loaded slow pool can miss
+  // entirely (issue #835). These settles had to stay fixed-count until #842
+  // gave CHANNEL::Manager a synchronized reclamation signal — polling the
+  // mutex-guarded implementationCount() between update() ticks is race-free,
+  // unlike the unguarded empty() the #834 TSan lesson ruled out. The budget is
+  // denominated in reference-timer ticks (issue #753); returns ready(), so a
+  // timed-out wait fails the caller's own assertion.
+  template <typename P> bool drainUntil(P ready, int ticks = 5000) {
+    return TestHelpers::pacedPump(
+        ticks, ready,
+        [] {
+          YSE::INTERNAL::Time().update();
+          YSE::SOUND::Manager().update();
+          YSE::CHANNEL::Manager().update();
+        },
+        2);
+  }
+
+  // True once the canonical implementation list is back at (or below) the
+  // count sampled at the head of a case — the reclamation-complete signal the
+  // final settles wait on. `<=` rather than `==`: an impl retired by an
+  // earlier case may still be reaped during the settle, legitimately lowering
+  // the baseline.
+  bool reclaimedTo(std::size_t before) {
+    return YSE::CHANNEL::Manager().implementationCount() <= before;
   }
 
 } // namespace
@@ -92,6 +117,8 @@ TEST_SUITE("channel") {
   TEST_CASE("channel concurrency: single-thread create/destroy churn does not crash") {
     if (!TestHelpers::engineInit()) return;
 
+    const std::size_t before = YSE::CHANNEL::Manager().implementationCount();
+
     constexpr int N = 200;
     for (int i = 0; i < N; ++i) {
       YSE::channel c;
@@ -99,14 +126,17 @@ TEST_SUITE("channel") {
       if ((i & 0x0f) == 0) drainChannels(2);
     } // ~channel at end of each iteration releases impl through OBJECT_RELEASE.
 
-    drainChannels(40);
-    CHECK(true);
+    // Final settle: crash-freedom is the assertion, and reclamation actually
+    // completing — not a fixed drain count — is the completion signal (#842).
+    CHECK(drainUntil([before] { return reclaimedTo(before); }));
   }
 
   // ─── Two-thread churn: worker creates/destroys while test thread updates ─────
 
   TEST_CASE("channel concurrency: two-thread create/destroy churn does not crash") {
     if (!TestHelpers::engineInit()) return;
+
+    const std::size_t before = YSE::CHANNEL::Manager().implementationCount();
 
     std::atomic<bool> workerDone{false};
     constexpr int N = 100;
@@ -126,14 +156,16 @@ TEST_SUITE("channel") {
     }
     worker.join();
 
-    drainChannels(40);
-    CHECK(true);
+    // Final settle: reclamation completing is the signal, not a fixed count (#842).
+    CHECK(drainUntil([before] { return reclaimedTo(before); }));
   }
 
   // ─── Nested-release stress: childrenToParent has actual reparenting to do ────
 
   TEST_CASE("channel concurrency: nested channel release reparents children safely") {
     if (!TestHelpers::engineInit()) return;
+
+    const std::size_t before = YSE::CHANNEL::Manager().implementationCount();
 
     // Create N "branch" channels each with a couple of leaf subchannels,
     // then let everything go out of scope at once. The audio-thread-side
@@ -157,8 +189,9 @@ TEST_SUITE("channel") {
       // been reparented away. Either ordering is fine — the
       // childrenToParent() path is exercised in both.
     }
-    drainChannels(60);
-    CHECK(true);
+    // Final settle: every branch and leaf above must be reclaimed — the list
+    // returning to its baseline is the completion signal, not a fixed count (#842).
+    CHECK(drainUntil([before] { return reclaimedTo(before); }));
   }
 
 } // TEST_SUITE("channel")

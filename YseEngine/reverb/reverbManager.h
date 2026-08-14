@@ -11,6 +11,7 @@
 #ifndef REVERBMANAGER_H_INCLUDED
 #define REVERBMANAGER_H_INCLUDED
 
+#include <cstddef>
 #include <mutex>
 #include "reverb.hpp"
 #include "reverbInterface.hpp"
@@ -72,9 +73,21 @@ namespace YSE {
       */
       void setup(implementationObject* impl);
 
-      /** Returns true if no implementations exist
-       */
+      /** Audio-thread-only: reports whether there is anything to render.
+          Reads the audio-thread-owned toLoad/inUse lists, never the
+          mutex-guarded `implementations` list — reading that from the
+          callback without the lock would race the slow-pool delete job (the
+          class of bug fixed for SOUND in issue #200). Currently has no engine
+          callers; kept aligned with SOUND::managerObject::empty() so a future
+          caller inherits the safe read set. (issue #842) */
       Bool empty();
+
+      /** Diagnostic: how many implementationObjects the canonical
+          `implementations` list currently holds. Takes implementationsMutex,
+          so it is a control-thread / test call only — never the audio thread.
+          Exists so the reclamation of retired impls is observable, mirroring
+          SOUND (issue #817; here issue #842). */
+      std::size_t implementationCount();
 
       /** This function calculates the effective reverb from all active reverbs within
           distance of the listener
