@@ -33,6 +33,7 @@
 #include "genericObjects/gArrayLength.h"
 #include "genericObjects/gArrayPermute.h"
 #include "genericObjects/gArrayPosition.h"
+#include "genericObjects/gArraySetOps.h"
 #include "genericObjects/gArraySlice.h"
 #include "genericObjects/gArraySort.h"
 #include "genericObjects/gArrayStats.h"
@@ -619,6 +620,18 @@ pRegistry::pRegistry() {
   Add(OBJ::G_ARRAY_SUBARRAY, gArraySubarray::Create);
   Add(OBJ::G_ARRAY_SUB, gArraySub::Create);
   Add(OBJ::G_ARRAY_SPLIT, gArraySplit::Create);
+
+  // The set operations: read-only, .zl's semantics — a set operation
+  // produces a set, each element once at its first occurrence, equality by
+  // the spelling. union and sect bind two names at creation and never hold
+  // two guards at once (the left array is snapshotted under its guard, the
+  // result built against the right under that guard alone — gDictCompare's
+  // arrangement); unique thins one array, .zl thin's selection under Max's
+  // array.unique name. The result leaves as list text, never as a new named
+  // array, and an empty result bangs the empty outlet (issue #792)
+  Add(OBJ::G_ARRAY_UNION, gArrayUnion::Create);
+  Add(OBJ::G_ARRAY_SECT, gArraySect::Create);
+  Add(OBJ::G_ARRAY_UNIQUE, gArrayUnique::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which

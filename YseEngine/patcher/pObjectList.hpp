@@ -66,7 +66,8 @@ namespace YSE {
    *    ``G_ARRAY_SHUFFLE``, ``G_ARRAY_SORT``, ``G_ARRAY_MIN``,
    *    ``G_ARRAY_MAX``, ``G_ARRAY_MEAN``, ``G_ARRAY_MEDIAN``,
    *    ``G_ARRAY_MODE``, ``G_ARRAY_STDDEV``, ``G_ARRAY_SLICE``,
-   *    ``G_ARRAY_SUBARRAY``, ``G_ARRAY_SUB``, ``G_ARRAY_SPLIT``.
+   *    ``G_ARRAY_SUBARRAY``, ``G_ARRAY_SUB``, ``G_ARRAY_SPLIT``,
+   *    ``G_ARRAY_UNION``, ``G_ARRAY_SECT``, ``G_ARRAY_UNIQUE``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -551,6 +552,19 @@ namespace YSE {
     DEFOBJ(G_ARRAY_SUBARRAY, ".array.subarray");
     DEFOBJ(G_ARRAY_SUB, ".array.sub");
     DEFOBJ(G_ARRAY_SPLIT, ".array.split");
+
+    // The set operations (issue #792): read-only, ``.zl``'s semantics for
+    // lists — a set operation produces a set, each element once at its
+    // first occurrence, equality by the spelling. ``union`` and ``sect``
+    // bind **two** names at creation (gDictCompare's arrangement, snapshot
+    // included so no two guards are ever held at once — the same-store
+    // case would trip over its own try-lock); ``unique`` thins one array,
+    // ``.zl thin``'s selection under Max's array.unique name. The result
+    // leaves as the list it spells, never as a new named array, and an
+    // empty result bangs the empty outlet.
+    DEFOBJ(G_ARRAY_UNION, ".array.union");
+    DEFOBJ(G_ARRAY_SECT, ".array.sect");
+    DEFOBJ(G_ARRAY_UNIQUE, ".array.unique");
 
     DEFOBJ(G_PRINT, ".print");
 

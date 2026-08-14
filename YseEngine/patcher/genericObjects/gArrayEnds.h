@@ -110,7 +110,12 @@ namespace YSE {
       // Re-bind after a patcher rename: the address prefix moved, so the
       // object now acts on a different array. Called from
       // patcherImplementation::SetName alongside gArray::RefreshBinding.
-      void RefreshBinding();
+      // Virtual for the same reason ClearParams is: a subclass with a second
+      // binding of its own (gArraySetOpBase's right array, #792) extends the
+      // re-anchor rather than shadowing it, so the rename dispatch may hold
+      // any object of the family through this base. Control thread only, so
+      // the virtual call costs nothing that matters.
+      virtual void RefreshBinding();
 
     protected:
       gArrayEndsBase();

@@ -319,6 +319,14 @@ void patcherImplementation::SetName(const std::string& n) {
       // objects now speak about. One branch, gArrayEnds' arrangement
       // (issue #791).
       static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_UNION) == 0 ||
+               strcmp(x.second->Type(), OBJ::G_ARRAY_SECT) == 0 ||
+               strcmp(x.second->Type(), OBJ::G_ARRAY_UNIQUE) == 0) {
+      // And the three set operations, whose bindings live on that same
+      // shared base — where RefreshBinding is virtual, so the two-array
+      // pair's override re-anchors the right array along with the left,
+      // gDictCompare's arrangement (issue #792).
+      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
     } else if (strcmp(x.second->Type(), OBJ::G_BAG) == 0) {
       // And gBag, whose `send` message prefixes a runtime receive name with
       // "<patcherName>." exactly as gForward does, so it has to re-anchor with
