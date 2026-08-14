@@ -69,7 +69,8 @@ namespace YSE {
    *    ``G_ARRAY_SUBARRAY``, ``G_ARRAY_SUB``, ``G_ARRAY_SPLIT``,
    *    ``G_ARRAY_UNION``, ``G_ARRAY_SECT``, ``G_ARRAY_UNIQUE``,
    *    ``G_ARRAY_CONCAT``, ``G_ARRAY_JOIN``, ``G_ARRAY_FILL``,
-   *    ``G_ARRAY_FLATTEN``.
+   *    ``G_ARRAY_FLATTEN``, ``G_ARRAY_TOLIST``, ``G_ARRAY_TOSTRING``,
+   *    ``G_ARRAY_TOSYMBOL``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -601,6 +602,21 @@ namespace YSE {
     // An empty result bangs the empty outlet; a result past what a cord
     // carries, or a creation line past the slot table, is refused whole.
     DEFOBJ(G_ARRAY_FLATTEN, ".array.flatten");
+
+    // The converters (issue #796): the array out to everything that is not
+    // an array, all three read-only over one binding. One render — the
+    // elements collected under one guard hold — three sends: ``tolist`` the
+    // list the array spells, typed (one element leaves as the int, float or
+    // symbol it is, SendAtoms' rule); ``tostring`` the same characters
+    // always as text, never retyped; ``tosymbol`` one whitespace-free token,
+    // the elements butted together and never retyped — a symbol is a name.
+    // List text past what a cord carries loses its tail, counted
+    // (``getvalue``'s rule); the one-token result is refused whole instead
+    // (``join``'s rule). An empty result bangs the empty outlet on all
+    // three.
+    DEFOBJ(G_ARRAY_TOLIST, ".array.tolist");
+    DEFOBJ(G_ARRAY_TOSTRING, ".array.tostring");
+    DEFOBJ(G_ARRAY_TOSYMBOL, ".array.tosymbol");
 
     DEFOBJ(G_PRINT, ".print");
 

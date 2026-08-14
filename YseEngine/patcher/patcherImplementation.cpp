@@ -344,6 +344,14 @@ void patcherImplementation::SetName(const std::string& n) {
       // RefreshBinding re-anchors them along with the first —
       // gArraySetOpBase's arrangement over N names (issue #795).
       static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_TOLIST) == 0 ||
+               strcmp(x.second->Type(), OBJ::G_ARRAY_TOSTRING) == 0 ||
+               strcmp(x.second->Type(), OBJ::G_ARRAY_TOSYMBOL) == 0) {
+      // And the three converters, whose binding lives on that same shared
+      // base: a renamed patcher's conversions must read the array its other
+      // objects now speak about. One branch, gArrayEnds' arrangement
+      // (issue #796).
+      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
     } else if (strcmp(x.second->Type(), OBJ::G_BAG) == 0) {
       // And gBag, whose `send` message prefixes a runtime receive name with
       // "<patcherName>." exactly as gForward does, so it has to re-anchor with

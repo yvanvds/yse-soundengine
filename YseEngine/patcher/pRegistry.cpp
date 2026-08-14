@@ -28,6 +28,7 @@
 #include "genericObjects/gArray.h"
 #include "genericObjects/gArrayAt.h"
 #include "genericObjects/gArrayConcat.h"
+#include "genericObjects/gArrayConvert.h"
 #include "genericObjects/gArrayEnds.h"
 #include "genericObjects/gArrayFill.h"
 #include "genericObjects/gArrayFind.h"
@@ -662,6 +663,18 @@ pRegistry::pRegistry() {
   // outlet, and a result past what a cord carries — or a creation line
   // past sixteen arrays — is refused whole (issue #795)
   Add(OBJ::G_ARRAY_FLATTEN, gArrayFlatten::Create);
+
+  // The converters: the array out to everything that is not an array. One
+  // render under one guard hold, three sends — tolist the list the array
+  // spells, typed (SendAtoms' one-element rule); tostring the same
+  // characters always as text, never retyped; tosymbol one whitespace-free
+  // token, the elements butted together, never retyped — a symbol is a
+  // name. List text past what a cord carries loses its tail, counted
+  // (getvalue's rule); the one-token result is refused whole instead
+  // (join's rule). An empty result bangs the empty outlet (issue #796)
+  Add(OBJ::G_ARRAY_TOLIST, gArrayToList::Create);
+  Add(OBJ::G_ARRAY_TOSTRING, gArrayToString::Create);
+  Add(OBJ::G_ARRAY_TOSYMBOL, gArrayToSymbol::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which
