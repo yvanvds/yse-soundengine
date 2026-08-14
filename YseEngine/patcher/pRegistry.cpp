@@ -27,6 +27,7 @@
 #include "genericObjects/gCapture.h"
 #include "genericObjects/gArray.h"
 #include "genericObjects/gArrayAt.h"
+#include "genericObjects/gArrayCompare.h"
 #include "genericObjects/gArrayConcat.h"
 #include "genericObjects/gArrayConvert.h"
 #include "genericObjects/gArrayDeserialize.h"
@@ -716,6 +717,19 @@ pRegistry::pRegistry() {
   Add(OBJ::G_ARRAY_EVERY, gArrayEvery::Create);
   Add(OBJ::G_ARRAY_SOME, gArraySome::Create);
   Add(OBJ::G_ARRAY_FOREACH, gArrayForeach::Create);
+
+  // The comparison pair: element-by-element — count and spelling, in order,
+  // the family's byte-compare equality. change polls the bound array against
+  // a baseline it keeps (starting empty, the scalar .change's
+  // creation-argument rule), replaces the baseline on a difference, reports
+  // 1/0 on every poll and emits the reference only on a change — the guard
+  // in front of expensive downstream work; compare binds two names at
+  // creation and answers 1/0 on every ask, the left side snapshotted under
+  // its guard and the verdict decided against the right under that guard
+  // alone, so no two guards are ever held at once — gDictCompare's
+  // arrangement (issue #800)
+  Add(OBJ::G_ARRAY_CHANGE, gArrayChange::Create);
+  Add(OBJ::G_ARRAY_COMPARE, gArrayCompare::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which

@@ -1104,6 +1104,107 @@
       }
     ]
   },
+  ".array.change": {
+    "category": "GENERIC",
+    "description": "Outputs only when the array has changed — Max's array.change on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.change <name>\", because an array is addressed by name and never passed down a cord. A bang compares the array against the baseline this object keeps, under one hold of the store's guard, replacing the baseline whenever they differ; the changed outlet then reports 1 or 0 on every poll, and on a change the reference outlet also emits \"array <name>\", so wiring it onward gates the family — into an .array.iter trigger it means \"walk only when something moved\". Changed means count or spelling at any position, in order (7 and 7. differ, 10 20 is not 20 10); the baseline starts as the empty array, the scalar .change's creation-argument rule, so an array that already has contents is news on the first poll. \"array <name>\" on the baseline inlet re-baselines silently — Max's right inlet, and the scalar .change's set: it moves the object's idea of current without telling anybody. The guard a patch puts in front of expensive downstream work.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang polls: the bound array is compared against the baseline under one hold of the store's guard, and the baseline is replaced by what was found whenever they differ. The changed outlet reports 1 or 0 on every poll; the reference outlet emits only on a change. \"array <name>\" does the same when it names the array bound by the creation argument — the message an .array's reference outlet emits on a bang, the family's gesture. A reference naming anything else, or any other message, is refused and counted rather than logged, since this inlet may be the audio thread. A lost try-lock is a counted refusal and neither outlet fires: the array's state is unknown, and a comparator that guessed would corrupt the very state it exists to track.",
+        "index": 0,
+        "label": "trigger",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" naming the bound array makes the array's current contents the baseline and emits nothing — Max's right inlet, which stores without generating output, and the scalar .change's set: it re-synchronises the object with a state that arrived by some other route, so the next poll answers 0 unless something moves again. Anything else is refused and counted. The one departure from the family's acknowledge-only inlet 1, made because doing this silently is exactly the Max semantics being ported.",
+        "index": 1,
+        "label": "set baseline",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.change",
+    "outlets": [
+      {
+        "doc": "The bound array's reference, \"array <name>\", sent only when the poll found a change — the way an array leaves an object on the value model, so wiring it onward gates the family behind \"something actually moved\". Silent on an unchanged poll, which is the object's whole point, and silent on an unnamed (private) object, which has no name to pass on. Fires after the changed outlet, the scalar .change's right-to-left order, so whatever it triggers downstream already sees the matching report.",
+        "index": 0,
+        "label": "reference",
+        "range": "",
+        "type": "LIST"
+      },
+      {
+        "doc": "The verdict, on every poll that got an answer: 1 when the array differs from the baseline — count or spelling at any position, in order — and 0 when it does not. Max's right outlet. Nothing at all on a refused poll: a lost try-lock leaves the array's state unknown, so no verdict is honest.",
+        "index": 1,
+        "label": "changed",
+        "range": "0 or 1",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty watches a private, empty array: every poll answers 0 and the reference outlet never fires. A re-parse and a patcher rename both reset the baseline to the empty array — the object then watches a different binding, and whatever that array holds is news.",
+        "name": "name",
+        "range": "any identifier"
+      }
+    ]
+  },
+  ".array.compare": {
+    "category": "GENERIC",
+    "description": "Reports whether two arrays hold the same thing — Max's array.compare on the name-addressed value model .array settled: both arrays are bound from the creation arguments, \".array.compare <left> <right>\", because an array is addressed by name and never passed down a cord, and neither may be re-pointed from a message. A bang, or the left array's reference \"array <name>\", sends 1 when the two are equal and 0 when they are not — equal meaning the same number of elements and a byte-identical element at every position, Max's \"value and order\": 7 and 7. differ, and 10 20 is not 20 10, because an array is a sequence. The left array is copied out under its guard and the verdict decided against the right store under that guard alone — gDictCompare's arrangement — so no two guards are ever held at once and \".array.compare seq seq\" answers 1 instead of tripping over its own try-lock. With .array.change it is the comparison pair: the guards a patch puts in front of expensive downstream work.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang compares the two bound arrays as they stand — the left copied out under its guard, the verdict decided against the right under that guard alone — and sends 1 or 0 out the outlet. \"array <name>\" does the same when it names the left array bound by the first creation argument — the message an .array's reference outlet emits on a bang, the family's gesture. A reference naming anything else, the right array's name included, or any other message, is refused and counted rather than logged, since this inlet may be the audio thread. A lost try-lock on either store is a counted refusal and nothing is sent: a verdict about state the object could not read would be a guess.",
+        "index": 0,
+        "label": "compare",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the right array bound by the second creation argument, so a patch may wire both reference outlets across as it would in Max. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 1,
+        "label": "right reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.compare",
+    "outlets": [
+      {
+        "doc": "The verdict: 1 when the two arrays hold the same elements in the same order — the same count and a byte-identical spelling at every position — and 0 when they do not. Two empty (or unnamed, private) sides are equal: they hold the same nothing.",
+        "index": 0,
+        "label": "equal",
+        "range": "0 or 1",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The left array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty compares a private, empty array on that side.",
+        "name": "left",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The right array's shared name, bound exactly as the left one. Empty compares a private, empty array on that side.",
+        "name": "right",
+        "range": "any identifier"
+      }
+    ]
+  },
   ".array.concat": {
     "category": "GENERIC",
     "description": "Outputs two arrays as one — Max's array.concat on the name-addressed value model .array settled: both arrays are bound from the creation arguments, \".array.concat <left> <right>\", because an array is addressed by name and never passed down a cord, and neither may be re-pointed from a message. The left array's elements followed by the right's, everything kept — repeats included, order preserved — where the set operations thin; Max's \"the data in the array received in the right inlet will be appended to the data in the array received in the left inlet\", with the originals unmodified. The result leaves as the list it spells, never as a new named array — creating one would resolve a name on a message path — and is lossless into another .array, which is where a patch stores it. Two empty arrays bang the empty outlet. The left array is copied out under its guard and the result built against the right under that guard alone, so no two guards are ever held at once and \".array.concat seq seq\" answers the array doubled. A result that outruns what a cord carries is refused whole and counted — a partial concatenation would be truncation by another name.",

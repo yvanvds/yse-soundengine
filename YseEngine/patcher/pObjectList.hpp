@@ -73,7 +73,7 @@ namespace YSE {
    *    ``G_ARRAY_TOSYMBOL``, ``G_ARRAY_DESERIALIZE``, ``G_ARRAY_ITER``,
    *    ``G_ARRAY_EXPR``, ``G_ARRAY_MAP``, ``G_ARRAY_FILTER``,
    *    ``G_ARRAY_REDUCE``, ``G_ARRAY_EVERY``, ``G_ARRAY_SOME``,
-   *    ``G_ARRAY_FOREACH``.
+   *    ``G_ARRAY_FOREACH``, ``G_ARRAY_CHANGE``, ``G_ARRAY_COMPARE``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -670,6 +670,19 @@ namespace YSE {
     DEFOBJ(G_ARRAY_EVERY, ".array.every");
     DEFOBJ(G_ARRAY_SOME, ".array.some");
     DEFOBJ(G_ARRAY_FOREACH, ".array.foreach");
+
+    // The comparison pair (issue #800): both are an element-by-element
+    // comparison — count and spelling, in order, the family's byte-compare
+    // equality — one against a baseline the object keeps and one against a
+    // second bound array. ``change`` polls the bound array against the
+    // baseline it replaces on a difference (starting from the empty array,
+    // the scalar ``.change``'s creation-argument rule) and emits the
+    // reference only on a change — the guard a patch puts in front of
+    // expensive downstream work; ``compare`` binds two names at creation
+    // (gDictCompare's arrangement, snapshot included so no two guards are
+    // ever held at once) and answers 1/0 on every ask.
+    DEFOBJ(G_ARRAY_CHANGE, ".array.change");
+    DEFOBJ(G_ARRAY_COMPARE, ".array.compare");
 
     DEFOBJ(G_PRINT, ".print");
 

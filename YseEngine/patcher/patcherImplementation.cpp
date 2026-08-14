@@ -375,6 +375,13 @@ void patcherImplementation::SetName(const std::string& n) {
       // objects now speak about. One branch, gArrayEnds' arrangement
       // (issue #799).
       static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_CHANGE) == 0 ||
+               strcmp(x.second->Type(), OBJ::G_ARRAY_COMPARE) == 0) {
+      // And the comparison pair, whose bindings live on that same shared
+      // base — where RefreshBinding is virtual, so change's override resets
+      // its baseline along with the left binding and compare's re-anchors
+      // the right array, gArraySetOpBase's arrangement (issue #800).
+      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
     } else if (strcmp(x.second->Type(), OBJ::G_BAG) == 0) {
       // And gBag, whose `send` message prefixes a runtime receive name with
       // "<patcherName>." exactly as gForward does, so it has to re-anchor with
