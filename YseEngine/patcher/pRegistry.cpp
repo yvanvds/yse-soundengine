@@ -31,6 +31,7 @@
 #include "genericObjects/gArrayEnds.h"
 #include "genericObjects/gArrayFill.h"
 #include "genericObjects/gArrayFind.h"
+#include "genericObjects/gArrayFlatten.h"
 #include "genericObjects/gArrayIndexMap.h"
 #include "genericObjects/gArrayLength.h"
 #include "genericObjects/gArrayPermute.h"
@@ -652,6 +653,15 @@ pRegistry::pRegistry() {
   // bounded at the store's 256 and refused rather than truncated; the value
   // is Max's left-inlet datum, one atom, defaulting to 0 (issue #794)
   Add(OBJ::G_ARRAY_FILL, gArrayFill::Create);
+
+  // The group collapser: Max's array.flatten on the value model — an
+  // element is one atom, so what stands where Max's nesting stood is a
+  // group of named arrays, the names creation arguments. The elements in
+  // argument order, everything kept, each source read under its own guard
+  // alone, leaving as the list it spells; an empty result bangs the empty
+  // outlet, and a result past what a cord carries — or a creation line
+  // past sixteen arrays — is refused whole (issue #795)
+  Add(OBJ::G_ARRAY_FLATTEN, gArrayFlatten::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which

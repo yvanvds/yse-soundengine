@@ -338,6 +338,12 @@ void patcherImplementation::SetName(const std::string& n) {
       // renamed patcher's fills must write the array its other objects now
       // speak about (issue #794).
       static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_FLATTEN) == 0) {
+      // And the group collapser, whose first binding is the shared base's
+      // own and whose trailing sources live on gArrayFlatten, whose virtual
+      // RefreshBinding re-anchors them along with the first —
+      // gArraySetOpBase's arrangement over N names (issue #795).
+      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
     } else if (strcmp(x.second->Type(), OBJ::G_BAG) == 0) {
       // And gBag, whose `send` message prefixes a runtime receive name with
       // "<patcherName>." exactly as gForward does, so it has to re-anchor with

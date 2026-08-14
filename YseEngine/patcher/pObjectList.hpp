@@ -68,7 +68,8 @@ namespace YSE {
    *    ``G_ARRAY_MODE``, ``G_ARRAY_STDDEV``, ``G_ARRAY_SLICE``,
    *    ``G_ARRAY_SUBARRAY``, ``G_ARRAY_SUB``, ``G_ARRAY_SPLIT``,
    *    ``G_ARRAY_UNION``, ``G_ARRAY_SECT``, ``G_ARRAY_UNIQUE``,
-   *    ``G_ARRAY_CONCAT``, ``G_ARRAY_JOIN``, ``G_ARRAY_FILL``.
+   *    ``G_ARRAY_CONCAT``, ``G_ARRAY_JOIN``, ``G_ARRAY_FILL``,
+   *    ``G_ARRAY_FLATTEN``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -588,6 +589,18 @@ namespace YSE {
     // bounded at the store's 256 and refused rather than truncated; the
     // value one atom, Max's left-inlet datum, defaulting to 0.
     DEFOBJ(G_ARRAY_FILL, ".array.fill");
+
+    // The group collapser (issue #795): Max's array.flatten, read-only. An
+    // element is one atom, so an array cannot hold an array — what stands
+    // where Max's nesting stood is a group of **named** arrays, the names
+    // creation arguments (the one portable answer: a name resolves only on
+    // the control thread). The result is the arrays' elements in argument
+    // order, everything kept — ``concat``'s keep-everything walk over as
+    // many as sixteen names, each source read under its own guard alone so
+    // no two guards are ever held at once — leaving as the list it spells.
+    // An empty result bangs the empty outlet; a result past what a cord
+    // carries, or a creation line past the slot table, is refused whole.
+    DEFOBJ(G_ARRAY_FLATTEN, ".array.flatten");
 
     DEFOBJ(G_PRINT, ".print");
 
