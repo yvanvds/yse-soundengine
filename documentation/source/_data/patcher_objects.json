@@ -1195,6 +1195,113 @@
       }
     ]
   },
+  ".array.every": {
+    "category": "GENERIC",
+    "description": "Reports whether every element of an array satisfies an expression — Max's array.every on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.every <name> <expression>\", because an array is addressed by name and never passed down a cord, and the expression is the rest of the creation arguments, compiled once by .expr's own compiler — $f1/$i1 the element, $f2/$i2 its position. A bang answers an int out the single outlet: 0 at the first numeric element the expression rejects, 1 past the last. The quantifier runs over the numeric elements only — a symbol has no number, the statistics' population rule — and an empty population answers 1: a claim about nothing is vacuously true, the logician's rule. One hold of the store's guard, the verdict sent after release; with .array.some this is the predicate pair every routing patch tests a collected array with.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang runs the operation — the expression compiled from the creation arguments, applied per element. \"array <name>\" does the same when it names the array bound by the creation argument — the message an .array's reference outlet emits on a bang, so wiring that outlet here gives the family's gesture. A reference naming anything else, any other message, or a trigger on an object whose expression did not compile, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "trigger",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the array bound by the creation argument, so a patch may wire the array's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 1,
+        "label": "array reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.every",
+    "outlets": [
+      {
+        "doc": "1 when the expression evaluates nonzero for every numeric element, 0 at the first it rejects — short-circuited, so a rejecting element ends the scan. An empty population — an empty or unnamed array, or one holding only symbols — answers 1: a claim about nothing is vacuously true. A refused trigger — a lost try-lock, an expression that never compiled — answers nothing, counted.",
+        "index": 0,
+        "label": "verdict",
+        "range": "0 or 1",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty acts on a private, empty array of the object's own.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The per-element expression — every creation argument after the name, compiled once on the control thread by .expr's own compiler, so read .expr for the operators, the functions and the C type rules. $f1 / $i1 is the element ($f reads it as a float, $i as an int) and $f2 / $i2 is its position in the array; a placeholder past $2 is rejected at parse time. The expression only ever sees the numeric elements — a symbol has no number, so the expression is never run for it; what happens to that element is this object's own operation, stated on its outlet. A malformed expression is reported to the log when the parameter is set, and the object then refuses every trigger, counted — never a silent 0 written into shared data.",
+        "name": "expression",
+        "range": "any expression over $1 and $2"
+      }
+    ]
+  },
+  ".array.expr": {
+    "category": "GENERIC",
+    "description": "Evaluates an expression per element of an array and outputs the results as one message — Max's array.expr on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.expr <name> <expression>\", because an array is addressed by name and never passed down a cord, and the expression is the rest of the creation arguments, compiled once by .expr's own compiler — $f1/$i1 the element, $f2/$i2 its position. .array.map's emitting twin: the same per-element evaluation, but the array is never touched — a bang sends the results as the list they spell, each numeric element's result typed by the expression's C type and each symbol element passed through unchanged, so the output spells exactly the array .array.map would have produced. Collected under one hold of the store's guard, sent after release; an empty or unnamed (private) array bangs the empty outlet, and a result list past what a cord carries loses its tail, every lost element a counted refusal — getvalue's rule.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang runs the operation — the expression compiled from the creation arguments, applied per element. \"array <name>\" does the same when it names the array bound by the creation argument — the message an .array's reference outlet emits on a bang, so wiring that outlet here gives the family's gesture. A reference naming anything else, any other message, or a trigger on an object whose expression did not compile, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "trigger",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the array bound by the creation argument, so a patch may wire the array's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 1,
+        "label": "array reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.expr",
+    "outlets": [
+      {
+        "doc": "The per-element results as the message they spell, typed: a numeric element leaves as the expression's result — an int or a float by the expression's C type — and a symbol element passes through unchanged, so every position survives the trip. One element leaves as the value it is rather than as a list of one, several as one list message. A result list past what a cord carries loses its tail, every lost element a counted refusal. Silent on an empty array: the empty outlet carries that half of the answer.",
+        "index": 0,
+        "label": "results",
+        "range": "",
+        "type": "ANY"
+      },
+      {
+        "doc": "Bang when the array holds nothing to evaluate — an empty or unnamed (private) array. \"No data\" is a state a patch must be able to route on, not an error. A lost try-lock is a counted refusal instead: the array's state is unknown, so neither outlet fires.",
+        "index": 1,
+        "label": "empty",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty acts on a private, empty array of the object's own.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The per-element expression — every creation argument after the name, compiled once on the control thread by .expr's own compiler, so read .expr for the operators, the functions and the C type rules. $f1 / $i1 is the element ($f reads it as a float, $i as an int) and $f2 / $i2 is its position in the array; a placeholder past $2 is rejected at parse time. The expression only ever sees the numeric elements — a symbol has no number, so the expression is never run for it; what happens to that element is this object's own operation, stated on its outlet. A malformed expression is reported to the log when the parameter is set, and the object then refuses every trigger, counted — never a silent 0 written into shared data.",
+        "name": "expression",
+        "range": "any expression over $1 and $2"
+      }
+    ]
+  },
   ".array.fill": {
     "category": "GENERIC",
     "description": "Fills an array with a repeated value — Max's array.fill on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.fill <name> [<count>] [<value>]\", because an array is addressed by name and never passed down a cord. A fill REPLACES the contents: the array becomes exactly count copies of the value, so a shorter fill shrinks it and a count of 0 clears it — which is what makes it the initialiser, sizing an array in one message so an index-addressed write pattern has positions to land on, since an index past the end is refused rather than growing the array. A bang fills with the stored count and value (count seeded by the second creation argument, moved silently by the count inlet; value the third creation argument, 0 when absent — Max's default); an int, float or symbol on the value inlet fills with the stored count of copies of that value at the moment it arrives and stores nothing. The count is bounded at the store's 256 elements and refused rather than truncated; the value is one atom of at most 64 characters. The whole fill is one hold of the store's guard, and a fill that lands emits the array's reference, so the family chains.",
@@ -1263,6 +1370,56 @@
       }
     ]
   },
+  ".array.filter": {
+    "category": "GENERIC",
+    "description": "Keeps the elements of an array an expression accepts — Max's array.filter on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.filter <name> <expression>\", because an array is addressed by name and never passed down a cord, and the expression is the rest of the creation arguments, compiled once by .expr's own compiler — $f1/$i1 the element, $f2/$i2 its position. A bang compacts the array IN PLACE: an element is kept when the expression evaluates nonzero for it, the kept elements close ranks in their original order, and a symbol element is not kept — the kept elements are the ones the expression accepted, and it cannot accept what it cannot see. Yes, that renumbers under every other object on the name, exactly as .array.remove does — renumbering is what a removal is. The whole compaction is one hold of the store's guard, and a compaction that lands emits the array's reference, so the family chains. An expression that did not compile was reported when the parameter was set, and every trigger then refuses, counted: a misconfigured filter must not quietly empty shared data.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang runs the operation — the expression compiled from the creation arguments, applied per element. \"array <name>\" does the same when it names the array bound by the creation argument — the message an .array's reference outlet emits on a bang, so wiring that outlet here gives the family's gesture. A reference naming anything else, any other message, or a trigger on an object whose expression did not compile, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "trigger",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the array bound by the creation argument, so a patch may wire the array's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 1,
+        "label": "array reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.filter",
+    "outlets": [
+      {
+        "doc": "The bound array's reference, \"array <name>\", sent after a rewrite that landed — the way an array leaves an object on the value model, so wiring it onward chains the family: into .array.length it reports the new size, into .array.tolist it reads the result. A refused trigger — a lost try-lock, an expression that never compiled — emits nothing, and an unnamed object stays silent: the rewrite happens, but there is no name to pass on.",
+        "index": 0,
+        "label": "reference",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty acts on a private, empty array of the object's own.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The per-element expression — every creation argument after the name, compiled once on the control thread by .expr's own compiler, so read .expr for the operators, the functions and the C type rules. $f1 / $i1 is the element ($f reads it as a float, $i as an int) and $f2 / $i2 is its position in the array; a placeholder past $2 is rejected at parse time. The expression only ever sees the numeric elements — a symbol has no number, so the expression is never run for it; what happens to that element is this object's own operation, stated on its outlet. A malformed expression is reported to the log when the parameter is set, and the object then refuses every trigger, counted — never a silent 0 written into shared data.",
+        "name": "expression",
+        "range": "any expression over $1 and $2"
+      }
+    ]
+  },
   ".array.flatten": {
     "category": "GENERIC",
     "description": "Flattens several named arrays into one sequence — Max's array.flatten on the name-addressed value model .array settled. An element is one atom, so an array cannot hold an array; what stands where Max's nesting stood is a group of named arrays, and a name is resolvable only on the control thread — so the names are creation arguments, \".array.flatten <first> <second> ... <last>\", every one bound once and none re-pointable from a message. The result is the arrays' elements in argument order, everything kept — repeats included, order preserved, .array.concat's keep-everything walk over as many as sixteen arrays — leaving as the list it spells, never as a new named array, with every source read under its own guard alone so no two guards are ever held at once and \".array.flatten seq seq\" answers the sequence doubled. Nothing is ever written to any store. An empty result bangs the empty outlet; a result that outruns what a cord carries, a lost try-lock, or a creation line spelling more than sixteen arrays is refused whole and counted — a partial flatten would be truncation by another name.",
@@ -1317,6 +1474,63 @@
         "doc": "The remaining arrays' shared names, each bound exactly as the first — the group the flatten collapses, in this order. What stands where Max's nesting stood: an element is one atom, so an array cannot hold an array, and a group of named arrays is the value model's arrays-of-arrays. At most sixteen arrays in all; a creation line that spells more binds nothing beyond the first and every ask is refused whole until a re-parse — a flatten that silently dropped an array would be truncation by another name.",
         "name": "others",
         "range": "up to 15 identifiers"
+      }
+    ]
+  },
+  ".array.foreach": {
+    "category": "GENERIC",
+    "description": "Runs an expression for each element of an array, outputting one result at a time — Max's array.foreach on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.foreach <name> <expression>\", because an array is addressed by name and never passed down a cord, and the expression is the rest of the creation arguments, compiled once by .expr's own compiler — $f1/$i1 the element, $f2/$i2 its position. .array.iter with the expression applied in flight: a bang emits one send per element, first to last — a numeric element as the expression's result, typed by the expression's C type, a symbol element unchanged — then a bang out the done outlet, last. The walk is a snapshot of the array as it stood at the trigger, .array.iter's own answer to the renumbering hazard: a write arriving mid-walk moves the store, never the walk in flight, and two on one name walk independently. A trigger arriving mid-walk is refused and counted, .uzi's re-entrant start rule; the done bang fires even for an empty array but never for a refused walk. Up to 256 subgraph traversals per trigger, on whichever thread sent it.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang runs the operation — the expression compiled from the creation arguments, applied per element. \"array <name>\" does the same when it names the array bound by the creation argument — the message an .array's reference outlet emits on a bang, so wiring that outlet here gives the family's gesture. A reference naming anything else, any other message, or a trigger on an object whose expression did not compile, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "trigger",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the array bound by the creation argument, so a patch may wire the array's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 1,
+        "label": "array reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.foreach",
+    "outlets": [
+      {
+        "doc": "One result per element, first to last: a numeric element leaves as the expression's result — an int or a float by the expression's C type — and a symbol element leaves unchanged, as the symbol it is, so the stream spells .array.map's result serialised. The walk is a snapshot of the array as it stood at the trigger, so a write arriving mid-walk — including from this outlet's own subgraph — renumbers the array but not the walk in flight. Each send completes in full, the whole subgraph behind this outlet, before the next element leaves — up to 256 sends per trigger, on whichever thread sent it.",
+        "index": 0,
+        "label": "result",
+        "range": "",
+        "type": "ANY"
+      },
+      {
+        "doc": "Bang after the last result — 'all the elements have been walked', the exception to right-to-left that Max states for uzi's carry. It fires even for an empty or unnamed (private) array, so the 'and afterwards, do this' branch is never silently skipped; a refused walk emits no done bang.",
+        "index": 1,
+        "label": "done",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty acts on a private, empty array of the object's own.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The per-element expression — every creation argument after the name, compiled once on the control thread by .expr's own compiler, so read .expr for the operators, the functions and the C type rules. $f1 / $i1 is the element ($f reads it as a float, $i as an int) and $f2 / $i2 is its position in the array; a placeholder past $2 is rejected at parse time. The expression only ever sees the numeric elements — a symbol has no number, so the expression is never run for it; what happens to that element is this object's own operation, stated on its outlet. A malformed expression is reported to the log when the parameter is set, and the object then refuses every trigger, counted — never a silent 0 written into shared data.",
+        "name": "expression",
+        "range": "any expression over $1 and $2"
       }
     ]
   },
@@ -1707,6 +1921,56 @@
       }
     ]
   },
+  ".array.map": {
+    "category": "GENERIC",
+    "description": "Applies an expression to every element of an array, writing the results back — Max's array.map on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.map <name> <expression>\", because an array is addressed by name and never passed down a cord, and the expression is the rest of the creation arguments, compiled once by .expr's own compiler — $f1/$i1 the element, $f2/$i2 its position. A bang replaces every numeric element with the expression's result, spelled the way the patcher spells a number — an int result stays visibly an int, a float keeps its point — while a symbol element stays exactly where and what it was, so the array's length and every position survive; .array.expr is the emitting twin that leaves the array untouched. The whole rewrite is one hold of the store's guard — no reader ever sees a half-mapped array — and a rewrite that lands emits the array's reference, so the family chains. An expression that did not compile was reported when the parameter was set, and every trigger then refuses, counted: a misconfigured object must not quietly rewrite shared data.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang runs the operation — the expression compiled from the creation arguments, applied per element. \"array <name>\" does the same when it names the array bound by the creation argument — the message an .array's reference outlet emits on a bang, so wiring that outlet here gives the family's gesture. A reference naming anything else, any other message, or a trigger on an object whose expression did not compile, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "trigger",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the array bound by the creation argument, so a patch may wire the array's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 1,
+        "label": "array reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.map",
+    "outlets": [
+      {
+        "doc": "The bound array's reference, \"array <name>\", sent after a rewrite that landed — the way an array leaves an object on the value model, so wiring it onward chains the family: into .array.length it reports the new size, into .array.tolist it reads the result. A refused trigger — a lost try-lock, an expression that never compiled — emits nothing, and an unnamed object stays silent: the rewrite happens, but there is no name to pass on.",
+        "index": 0,
+        "label": "reference",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty acts on a private, empty array of the object's own.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The per-element expression — every creation argument after the name, compiled once on the control thread by .expr's own compiler, so read .expr for the operators, the functions and the C type rules. $f1 / $i1 is the element ($f reads it as a float, $i as an int) and $f2 / $i2 is its position in the array; a placeholder past $2 is rejected at parse time. The expression only ever sees the numeric elements — a symbol has no number, so the expression is never run for it; what happens to that element is this object's own operation, stated on its outlet. A malformed expression is reported to the log when the parameter is set, and the object then refuses every trigger, counted — never a silent 0 written into shared data.",
+        "name": "expression",
+        "range": "any expression over $1 and $2"
+      }
+    ]
+  },
   ".array.max": {
     "category": "GENERIC",
     "description": "Outputs the largest numeric element of an array — Max's array.max on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.max <name>\", because an array is addressed by name and never passed down a cord. A bang asks — one read of the array as it stood at the trigger, under one hold of the store's guard — and the message an .array's reference outlet emits on a bang asks too, the family's gesture. The population is the numeric elements: a symbol is skipped, not part of what a maximum is over, and values compare numerically, so 7 and 7. tie and the first occurrence wins. The answer is the element itself, typed the way the patcher spells it — 7.5 leaves as the float it is. An array with no numeric element bangs the empty outlet instead: the maximum of nothing does not exist, and a sentinel would be indistinguishable from a real answer.",
@@ -2055,6 +2319,63 @@
         "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty writes into a private, empty array: the pushes land, but nothing shares them and no reference leaves.",
         "name": "name",
         "range": "any identifier"
+      }
+    ]
+  },
+  ".array.reduce": {
+    "category": "GENERIC",
+    "description": "Folds an array to one value with an expression — Max's array.reduce on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.reduce <name> <expression>\", because an array is addressed by name and never passed down a cord, and the expression is the rest of the creation arguments, compiled once by .expr's own compiler. The one object whose expression binds three things: $f1/$i1 the ACCUMULATOR, $f2/$i2 the element, $f3/$i3 its position — so \"$f1 + $f2\" is a sum, \"$f1 * $f2\" a product, \"max($f1, $f2)\" a running maximum. The fold runs over the numeric elements in order — a symbol has no number, the statistics' population rule — and the accumulator starts as the FIRST numeric element, the expression running from the second on: the only seed that leaves min, max and a product meaning what they say. One numeric element answers itself, typed by its spelling; a real fold's answer is typed by the expression's C type. A population with nothing in it bangs the empty outlet instead — the fold of nothing does not exist, and a sentinel would be indistinguishable from a real answer. One hold of the store's guard, the answer sent after release.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang runs the operation — the expression compiled from the creation arguments, applied per element. \"array <name>\" does the same when it names the array bound by the creation argument — the message an .array's reference outlet emits on a bang, so wiring that outlet here gives the family's gesture. A reference naming anything else, any other message, or a trigger on an object whose expression did not compile, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "trigger",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the array bound by the creation argument, so a patch may wire the array's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 1,
+        "label": "array reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.reduce",
+    "outlets": [
+      {
+        "doc": "The fold's answer: the accumulator after the expression has consumed the last numeric element, typed by the expression's C type — or, when the population holds exactly one numeric element, that element itself, typed by its spelling. Silent on an empty population: the empty outlet carries that half of the answer.",
+        "index": 0,
+        "label": "result",
+        "range": "",
+        "type": "ANY"
+      },
+      {
+        "doc": "Bang when there is no numeric element to fold — an empty or unnamed (private) array, or one holding only symbols. \"No data\" is a state a patch must be able to route on, not an error, and a sentinel value would be indistinguishable from a real answer — .array.mean's empty outlet, for the same reason. A lost try-lock is a counted refusal instead: the array's state is unknown, so neither outlet fires.",
+        "index": 1,
+        "label": "empty",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty acts on a private, empty array of the object's own.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The fold expression — every creation argument after the name, compiled once on the control thread by .expr's own compiler, so read .expr for the operators, the functions and the C type rules. $f1 / $i1 is the ACCUMULATOR, $f2 / $i2 the element and $f3 / $i3 its position — the (accumulator, value) order every fold spells, so \"$f1 + $f2\" is a sum and \"max($f1, $f2)\" a running maximum; a placeholder past $3 is rejected at parse time. The fold runs over the numeric elements only — a symbol has no number, the statistics' population rule. A malformed expression is reported to the log when the parameter is set, and the object then refuses every trigger, counted.",
+        "name": "expression",
+        "range": "any expression over $1, $2 and $3"
       }
     ]
   },
@@ -2545,6 +2866,56 @@
         "doc": "The initial stored end of the range, exclusive. Absent — or 0, Max's documented extra — means to the end of the array, and so does any bound past it.",
         "name": "end",
         "range": "0-256"
+      }
+    ]
+  },
+  ".array.some": {
+    "category": "GENERIC",
+    "description": "Reports whether any element of an array satisfies an expression — Max's array.some on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.some <name> <expression>\", because an array is addressed by name and never passed down a cord, and the expression is the rest of the creation arguments, compiled once by .expr's own compiler — $f1/$i1 the element, $f2/$i2 its position. A bang answers an int out the single outlet: 1 at the first numeric element the expression accepts, 0 past the last. The quantifier runs over the numeric elements only — a symbol has no number, the statistics' population rule — and an empty population answers 0: nothing satisfied it. One hold of the store's guard, the verdict sent after release; with .array.every this is the predicate pair every routing patch tests a collected array with.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang runs the operation — the expression compiled from the creation arguments, applied per element. \"array <name>\" does the same when it names the array bound by the creation argument — the message an .array's reference outlet emits on a bang, so wiring that outlet here gives the family's gesture. A reference naming anything else, any other message, or a trigger on an object whose expression did not compile, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "trigger",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the array bound by the creation argument, so a patch may wire the array's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 1,
+        "label": "array reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.some",
+    "outlets": [
+      {
+        "doc": "1 at the first numeric element the expression evaluates nonzero for — short-circuited, so an accepting element ends the scan — and 0 past the last. An empty population — an empty or unnamed array, or one holding only symbols — answers 0: nothing satisfied it. A refused trigger — a lost try-lock, an expression that never compiled — answers nothing, counted.",
+        "index": 0,
+        "label": "verdict",
+        "range": "0 or 1",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty acts on a private, empty array of the object's own.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The per-element expression — every creation argument after the name, compiled once on the control thread by .expr's own compiler, so read .expr for the operators, the functions and the C type rules. $f1 / $i1 is the element ($f reads it as a float, $i as an int) and $f2 / $i2 is its position in the array; a placeholder past $2 is rejected at parse time. The expression only ever sees the numeric elements — a symbol has no number, so the expression is never run for it; what happens to that element is this object's own operation, stated on its outlet. A malformed expression is reported to the log when the parameter is set, and the object then refuses every trigger, counted — never a silent 0 written into shared data.",
+        "name": "expression",
+        "range": "any expression over $1 and $2"
       }
     ]
   },

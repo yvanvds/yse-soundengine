@@ -100,6 +100,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_array_convert.cpp
   patcher/test_patcher_array_deserialize.cpp
   patcher/test_patcher_array_iter.cpp
+  patcher/test_patcher_array_expr.cpp
   patcher/test_patcher_bag.cpp
   patcher/test_patcher_capture.cpp
   patcher/test_patcher_funbuff.cpp
@@ -1115,6 +1116,7 @@ set_source_files_properties(
   patcher/test_patcher_array_convert.cpp
   patcher/test_patcher_array_deserialize.cpp
   patcher/test_patcher_array_iter.cpp
+  patcher/test_patcher_array_expr.cpp
   patcher/test_patcher_bag.cpp
   patcher/test_patcher_capture.cpp
   patcher/test_patcher_funbuff.cpp

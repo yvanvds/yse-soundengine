@@ -70,7 +70,10 @@ namespace YSE {
    *    ``G_ARRAY_UNION``, ``G_ARRAY_SECT``, ``G_ARRAY_UNIQUE``,
    *    ``G_ARRAY_CONCAT``, ``G_ARRAY_JOIN``, ``G_ARRAY_FILL``,
    *    ``G_ARRAY_FLATTEN``, ``G_ARRAY_TOLIST``, ``G_ARRAY_TOSTRING``,
-   *    ``G_ARRAY_TOSYMBOL``, ``G_ARRAY_DESERIALIZE``, ``G_ARRAY_ITER``.
+   *    ``G_ARRAY_TOSYMBOL``, ``G_ARRAY_DESERIALIZE``, ``G_ARRAY_ITER``,
+   *    ``G_ARRAY_EXPR``, ``G_ARRAY_MAP``, ``G_ARRAY_FILTER``,
+   *    ``G_ARRAY_REDUCE``, ``G_ARRAY_EVERY``, ``G_ARRAY_SOME``,
+   *    ``G_ARRAY_FOREACH``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -640,6 +643,33 @@ namespace YSE {
     // counted, ``.uzi``'s re-entrant start rule. The done bang fires even
     // for an empty array, never for a refused walk.
     DEFOBJ(G_ARRAY_ITER, ".array.iter");
+
+    // The per-element expression family (issue #799): the seven objects
+    // that decide what "a function" is in a patcher with no lambda — the
+    // per-element computation is text, compiled once on the control thread
+    // by ``.expr``'s own ``ExprProgram``, never parsed on a message path.
+    // The decisions, settled once for all seven on ``gArrayExprBase``: the
+    // expression is a creation argument; ``$1`` binds the element and
+    // ``$2`` its position (``reduce`` alone shifts — ``$1`` accumulator,
+    // ``$2`` element, ``$3`` position); a symbol element is never seen by
+    // the expression — ``expr``/``map``/``foreach`` pass it through
+    // unchanged, ``filter`` cannot keep what the expression never
+    // accepted, and the fold and the quantifiers skip it (the statistics'
+    // population rule); ``map`` writes back and ``filter`` compacts in
+    // place, both one hold of the store's guard, announcing the reference
+    // — with ``expr`` as the emitting form and ``foreach`` as the
+    // streaming one, ``.array.iter``'s snapshot walk with the expression
+    // applied in flight. ``every``/``some`` answer 1/0, vacuously on an
+    // empty population; an empty fold bangs the empty outlet. A malformed
+    // expression fails loudly at parse time and the object then refuses
+    // every trigger, counted — never a silent 0 written into shared data.
+    DEFOBJ(G_ARRAY_EXPR, ".array.expr");
+    DEFOBJ(G_ARRAY_MAP, ".array.map");
+    DEFOBJ(G_ARRAY_FILTER, ".array.filter");
+    DEFOBJ(G_ARRAY_REDUCE, ".array.reduce");
+    DEFOBJ(G_ARRAY_EVERY, ".array.every");
+    DEFOBJ(G_ARRAY_SOME, ".array.some");
+    DEFOBJ(G_ARRAY_FOREACH, ".array.foreach");
 
     DEFOBJ(G_PRINT, ".print");
 

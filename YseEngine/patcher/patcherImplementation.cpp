@@ -362,6 +362,19 @@ void patcherImplementation::SetName(const std::string& n) {
       // renamed patcher's walks must stream the array its other objects now
       // speak about (issue #798).
       static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_EXPR) == 0 ||
+               strcmp(x.second->Type(), OBJ::G_ARRAY_MAP) == 0 ||
+               strcmp(x.second->Type(), OBJ::G_ARRAY_FILTER) == 0 ||
+               strcmp(x.second->Type(), OBJ::G_ARRAY_REDUCE) == 0 ||
+               strcmp(x.second->Type(), OBJ::G_ARRAY_EVERY) == 0 ||
+               strcmp(x.second->Type(), OBJ::G_ARRAY_SOME) == 0 ||
+               strcmp(x.second->Type(), OBJ::G_ARRAY_FOREACH) == 0) {
+      // And the seven of the per-element expression family, whose binding
+      // lives on that same shared base: a renamed patcher's maps, filters,
+      // folds, quantifiers and walks must act on the array its other
+      // objects now speak about. One branch, gArrayEnds' arrangement
+      // (issue #799).
+      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
     } else if (strcmp(x.second->Type(), OBJ::G_BAG) == 0) {
       // And gBag, whose `send` message prefixes a runtime receive name with
       // "<patcherName>." exactly as gForward does, so it has to re-anchor with

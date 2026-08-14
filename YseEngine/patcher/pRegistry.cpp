@@ -32,6 +32,7 @@
 #include "genericObjects/gArrayDeserialize.h"
 #include "genericObjects/gArrayIter.h"
 #include "genericObjects/gArrayEnds.h"
+#include "genericObjects/gArrayExpr.h"
 #include "genericObjects/gArrayFill.h"
 #include "genericObjects/gArrayFind.h"
 #include "genericObjects/gArrayFlatten.h"
@@ -695,6 +696,26 @@ pRegistry::pRegistry() {
   // mid-walk moves the store, never the walk in flight — and a trigger
   // arriving mid-walk is refused and counted (issue #798)
   Add(OBJ::G_ARRAY_ITER, gArrayIter::Create);
+
+  // The per-element expression family: the seven objects that decide what
+  // "a function" is in a patcher with no lambda — the per-element
+  // computation is text, compiled once on the control thread by .expr's own
+  // ExprProgram. $1 binds the element and $2 its position (reduce alone
+  // shifts: $1 accumulator, $2 element, $3 position); a symbol element is
+  // never seen by the expression — expr/map/foreach pass it through,
+  // filter cannot keep it, the fold and the quantifiers skip it. map
+  // writes back and filter compacts in place, one guard hold each, with
+  // expr as the emitting form and foreach as .array.iter's snapshot walk
+  // with the expression applied in flight; every/some answer 1/0,
+  // vacuously on an empty population, and an empty fold bangs the empty
+  // outlet (issue #799)
+  Add(OBJ::G_ARRAY_EXPR, gArrayExpr::Create);
+  Add(OBJ::G_ARRAY_MAP, gArrayMap::Create);
+  Add(OBJ::G_ARRAY_FILTER, gArrayFilter::Create);
+  Add(OBJ::G_ARRAY_REDUCE, gArrayReduce::Create);
+  Add(OBJ::G_ARRAY_EVERY, gArrayEvery::Create);
+  Add(OBJ::G_ARRAY_SOME, gArraySome::Create);
+  Add(OBJ::G_ARRAY_FOREACH, gArrayForeach::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which
