@@ -61,7 +61,11 @@ namespace YSE {
    *  - Arrays: ``G_ARRAY``, ``G_ARRAY_AT``, ``G_ARRAY_LENGTH``,
    *    ``G_ARRAY_PUSH``, ``G_ARRAY_POP``, ``G_ARRAY_SHIFT``,
    *    ``G_ARRAY_UNSHIFT``, ``G_ARRAY_INSERT``, ``G_ARRAY_REMOVE``,
-   *    ``G_ARRAY_INDEXOF``, ``G_ARRAY_INDEX``.
+   *    ``G_ARRAY_INDEXOF``, ``G_ARRAY_INDEX``, ``G_ARRAY_INDEXMAP``,
+   *    ``G_ARRAY_REVERSE``, ``G_ARRAY_ROTATE``, ``G_ARRAY_SCRAMBLE``,
+   *    ``G_ARRAY_SHUFFLE``, ``G_ARRAY_SORT``, ``G_ARRAY_MIN``,
+   *    ``G_ARRAY_MAX``, ``G_ARRAY_MEAN``, ``G_ARRAY_MEDIAN``,
+   *    ``G_ARRAY_MODE``, ``G_ARRAY_STDDEV``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -469,6 +473,67 @@ namespace YSE {
     // is a cord choice rather than a comparison.
     DEFOBJ(G_ARRAY_INDEXOF, ".array.indexof");
     DEFOBJ(G_ARRAY_INDEX, ".array.index");
+
+    // The reordering primitive (issue #787): Max's ``array.indexmap``, the
+    // object every custom permutation is built from and the one ``.zl
+    // indexmap`` already gives for a list — with the family's zero-based
+    // positions. Binds the array from its creation argument; a bang applies
+    // the stored map, seeded by the trailing arguments and replaced by a
+    // list on the map inlet, and a list on the trigger is applied at the
+    // moment it arrives. Each entry picks the element at that position, in
+    // map order — entries may repeat, an index naming no element
+    // contributes nothing (``AssignOrder``'s rule), and a negative index
+    // refuses the whole map. The whole reorder is one hold of the store's
+    // guard, through a scratch table the object owns; a reorder that lands
+    // emits the array's reference, so the family chains.
+    DEFOBJ(G_ARRAY_INDEXMAP, ".array.indexmap");
+
+    // The four permutations (issue #788): each is an index order plus the
+    // shared "apply this order to the store" helper, exactly as ``.zl``'s
+    // reordering modes each reduce to ``AssignOrder``. All bind the array
+    // from the creation argument, permute it under one hold of the store's
+    // guard through a scratch table the object owns, and emit the array's
+    // reference after a permutation that lands, so the family chains.
+    // ``reverse`` counts the order down; ``rotate`` is where the wrapping
+    // the base type refuses actually lives, so it takes a signed amount —
+    // any magnitude modulo the length, positive toward the end, negative
+    // toward the start; ``scramble`` and ``shuffle`` are one Fisher-Yates
+    // body under Max's two names for it, seedable per object, publishing
+    // the applied order for ``.array.indexmap`` to put a parallel array
+    // into the same new order.
+    DEFOBJ(G_ARRAY_REVERSE, ".array.reverse");
+    DEFOBJ(G_ARRAY_ROTATE, ".array.rotate");
+    DEFOBJ(G_ARRAY_SCRAMBLE, ".array.scramble");
+    DEFOBJ(G_ARRAY_SHUFFLE, ".array.shuffle");
+
+    // The fifth permutation (issue #789), and the one with a decision the
+    // other four do not have: what the comparison is. ``.zl sort``'s
+    // ordering over the store's elements — numbers before symbols in both
+    // directions, numbers by value, symbols by their characters — through a
+    // stable bounded merge sort, under one hold of the store's guard.
+    // Negative direction sorts descending, anything else ascending; a sort
+    // that lands publishes the applied zero-based order before the array's
+    // reference, so ``.array.indexmap`` can put a parallel array into the
+    // same new order.
+    DEFOBJ(G_ARRAY_SORT, ".array.sort");
+
+    // The six statistics (issue #790): the read-only reducers, each one read
+    // of the store under one hold of its guard, answered as a scalar after
+    // the guard is released — ``gArrayLength``'s kin, never the mutating
+    // permute base. Five reduce the **numeric** elements (a symbol is
+    // skipped, not part of the population) and ``mode`` counts every element
+    // by its spelling. ``min``/``max``/``mode`` answer with the element
+    // itself, typed the way the patcher spells it; ``mean``/``median``/
+    // ``stddev`` answer one float. An empty population bangs the empty
+    // outlet — the minimum of nothing does not exist, and a sentinel would
+    // be indistinguishable from a real answer. ``median`` and ``mode`` sort
+    // a scratch the object owns, never the shared store.
+    DEFOBJ(G_ARRAY_MIN, ".array.min");
+    DEFOBJ(G_ARRAY_MAX, ".array.max");
+    DEFOBJ(G_ARRAY_MEAN, ".array.mean");
+    DEFOBJ(G_ARRAY_MEDIAN, ".array.median");
+    DEFOBJ(G_ARRAY_MODE, ".array.mode");
+    DEFOBJ(G_ARRAY_STDDEV, ".array.stddev");
 
     DEFOBJ(G_PRINT, ".print");
 

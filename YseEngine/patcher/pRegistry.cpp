@@ -29,8 +29,12 @@
 #include "genericObjects/gArrayAt.h"
 #include "genericObjects/gArrayEnds.h"
 #include "genericObjects/gArrayFind.h"
+#include "genericObjects/gArrayIndexMap.h"
 #include "genericObjects/gArrayLength.h"
+#include "genericObjects/gArrayPermute.h"
 #include "genericObjects/gArrayPosition.h"
+#include "genericObjects/gArraySort.h"
+#include "genericObjects/gArrayStats.h"
 #include "genericObjects/gColl.h"
 #include "genericObjects/gDict.h"
 #include "genericObjects/gDictCompare.h"
@@ -563,6 +567,46 @@ pRegistry::pRegistry() {
   // miss bang out the other (issue #786)
   Add(OBJ::G_ARRAY_INDEXOF, gArrayIndexOf::Create);
   Add(OBJ::G_ARRAY_INDEX, gArrayIndex::Create);
+
+  // The reordering primitive: a stored map of zero-based indices, applied to
+  // the bound array under one hold of the store's guard through a scratch
+  // table the object owns — entries may repeat, an index naming no element
+  // contributes nothing, and a reorder that lands emits the reference so the
+  // family chains (issue #787)
+  Add(OBJ::G_ARRAY_INDEXMAP, gArrayIndexMap::Create);
+
+  // The four permutations: each an index order plus the shared apply through
+  // a scratch table, under one hold of the store's guard — reverse counts
+  // down, rotate wraps a signed amount modulo the length, and scramble /
+  // shuffle are one seedable Fisher-Yates body under Max's two names for it,
+  // publishing the applied order so .array.indexmap can put a parallel array
+  // into the same new order (issue #788)
+  Add(OBJ::G_ARRAY_REVERSE, gArrayReverse::Create);
+  Add(OBJ::G_ARRAY_ROTATE, gArrayRotate::Create);
+  Add(OBJ::G_ARRAY_SCRAMBLE, gArrayScramble::Create);
+  Add(OBJ::G_ARRAY_SHUFFLE, gArrayShuffle::Create);
+
+  // The fifth permutation — .zl sort's ordering over the store's elements,
+  // stable and bounded, under one hold of the store's guard: numbers before
+  // symbols in both directions, numbers by value, symbols by their
+  // characters, negative direction descending. Publishes the applied
+  // zero-based order before the reference so .array.indexmap can put a
+  // parallel array into the same new order (issue #789)
+  Add(OBJ::G_ARRAY_SORT, gArraySort::Create);
+
+  // The six statistics: read-only reducers, each one read of the store under
+  // one hold of its guard, answered as a scalar after the release. Five
+  // reduce the numeric elements (a symbol is skipped) and mode counts every
+  // element by its spelling; min/max/mode answer with the element itself,
+  // mean/median/stddev with one float, and an empty population bangs the
+  // empty outlet. median and mode sort a scratch the object owns, never the
+  // shared store (issue #790)
+  Add(OBJ::G_ARRAY_MIN, gArrayMin::Create);
+  Add(OBJ::G_ARRAY_MAX, gArrayMax::Create);
+  Add(OBJ::G_ARRAY_MEAN, gArrayMean::Create);
+  Add(OBJ::G_ARRAY_MEDIAN, gArrayMedian::Create);
+  Add(OBJ::G_ARRAY_MODE, gArrayMode::Create);
+  Add(OBJ::G_ARRAY_STDDEV, gArrayStdDev::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which
