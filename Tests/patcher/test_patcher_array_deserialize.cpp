@@ -29,14 +29,10 @@
 // names an array uses names of its own.
 
 #include <doctest/doctest.h>
-#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <string>
-#include <thread>
 
-#include "internal/global.h"
-#include "internal/threadPool.h"
 #include "patcher/genericObjects/arrayParser.h"
 #include "patcher/genericObjects/gArray.h"
 #include "patcher/genericObjects/gArrayDeserialize.h"
@@ -47,11 +43,12 @@
 #include "patcher/pRegistry.h"
 #include "patcher/patcher.hpp"
 #include "patcher/patcherImplementation.h"
+#include "patcher/pool_blocker.hpp"
 #include "patcher/sinks.hpp"
 #include "support/alloc_probe.hpp"
-#include "support/timer_pacing.hpp"
 #include "utils/json.hpp"
 
+using TestHelpers::PoolBlocker;
 using TestHelpers::Wire;
 using YSE::PATCHER::ArrayParser;
 using YSE::PATCHER::gArray;
@@ -79,44 +76,6 @@ namespace {
     }
     void Calculate(YSE::THREAD) override {}
     void SetMessage(const std::string&, float) override {}
-  };
-
-  // Parks the background pool's one worker: while this job is inside run(),
-  // nothing else the pool has been handed can have started. That is what lets
-  // a case state what has *not* happened yet without betting on how fast a
-  // parse is — the busy rule (one slot, one document) below, and the
-  // in-patcher case, whose "nothing announced yet" is only a fact while the
-  // parse is provably unfinished (issue #854).
-  struct PoolBlocker : YSE::INTERNAL::threadPoolJob {
-    std::atomic<bool> running{false};
-    std::atomic<bool> release{false};
-
-    // Releases on the way out as well, so a REQUIRE firing inside the parked
-    // window unwinds instead of hanging: ~threadPoolJob joins.
-    ~PoolBlocker() override {
-      release.store(true, std::memory_order_release);
-    }
-
-    void run() override {
-      running.store(true, std::memory_order_release);
-      while (!release.load(std::memory_order_acquire))
-        std::this_thread::yield();
-    }
-
-    // Queue it and wait until the worker is really inside run(): queued is not
-    // parked. False if it never got there, so the caller REQUIREs it.
-    bool Park() {
-      YSE::INTERNAL::Global().addSlowJob(this);
-      return TestHelpers::pacedUntil(5000,
-                                     [this] { return running.load(std::memory_order_acquire); });
-    }
-
-    // Let the worker go and wait for it to leave run(), so whatever queued
-    // behind it can start.
-    void Unpark() {
-      release.store(true, std::memory_order_release);
-      join();
-    }
   };
 
   // An .array keeper and an .array.deserialize on one name, sharing one
