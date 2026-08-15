@@ -45,6 +45,7 @@
 #include "genericObjects/gArrayRegexp.h"
 #include "genericObjects/gArrayReplace.h"
 #include "genericObjects/gArrayRoutepass.h"
+#include "genericObjects/gArrayStream.h"
 #include "genericObjects/gArrayPosition.h"
 #include "genericObjects/gArraySetOps.h"
 #include "genericObjects/gArraySlice.h"
@@ -779,6 +780,15 @@ pRegistry::pRegistry() {
   // picks. Repeats allowed; an empty or unnamed array bangs the empty outlet
   // instead, taking no draw (issue #805)
   Add(OBJ::G_ARRAY_RANDOM, gArrayRandom::Create);
+
+  // The window builder: incoming values collected into a sliding array — the
+  // last <size> of them, every arrival appending and the oldest sliding off
+  // the front, one hold of the store's guard per message however many atoms
+  // it carries. The shortfall leaves the right outlet after every collect
+  // that lands; the reference leaves only when the window is full — .zl
+  // stream's rule, so downstream statistics never run over a partial
+  // population (issue #806)
+  Add(OBJ::G_ARRAY_STREAM, gArrayStream::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which

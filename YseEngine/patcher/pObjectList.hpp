@@ -75,7 +75,7 @@ namespace YSE {
    *    ``G_ARRAY_REDUCE``, ``G_ARRAY_EVERY``, ``G_ARRAY_SOME``,
    *    ``G_ARRAY_FOREACH``, ``G_ARRAY_CHANGE``, ``G_ARRAY_COMPARE``,
    *    ``G_ARRAY_GROUP``, ``G_ARRAY_REPLACE``, ``G_ARRAY_REGEXP``,
-   *    ``G_ARRAY_ROUTEPASS``, ``G_ARRAY_RANDOM``.
+   *    ``G_ARRAY_ROUTEPASS``, ``G_ARRAY_RANDOM``, ``G_ARRAY_STREAM``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -741,6 +741,17 @@ namespace YSE {
     // The element leaves typed by its spelling; an empty or unnamed
     // (private) array bangs the empty outlet instead, taking no draw.
     DEFOBJ(G_ARRAY_RANDOM, ".array.random");
+
+    // The window builder (issue #806): a stream of values collected into the
+    // last N of them, sliding in a *shared, named* array — ``.zl stream``'s
+    // operation on the value model, so the window is addressable by the whole
+    // family rather than travelling as text. Every arriving value appends and
+    // the oldest slides off the front — the O(n) shift accepted, bounded at
+    // the store's 256, one hold of the store's guard per message. The
+    // shortfall leaves the right outlet after every collect that lands; the
+    // reference leaves only when the window is full — ``.zl stream``'s rule,
+    // so downstream statistics never run over a partial population.
+    DEFOBJ(G_ARRAY_STREAM, ".array.stream");
 
     DEFOBJ(G_PRINT, ".print");
 

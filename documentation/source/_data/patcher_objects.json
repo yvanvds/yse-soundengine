@@ -3508,6 +3508,75 @@
       }
     ]
   },
+  ".array.stream": {
+    "category": "GENERIC",
+    "description": "Collects incoming values into a sliding array — Max's array.stream on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.stream <name> [<size>]\", because an array is addressed by name and never passed down a cord. Every value arriving on the value inlet is appended as the text that spells it, the oldest element sliding off the front once the array holds the window, so the array is always the last <size> values — the window an analysis patch runs its statistics over. A list is collected whole, in the order sent, every atom one step of the slide, or refused whole when any atom outruns 64 characters. The shortfall — how many values the window still needs — leaves the shortfall outlet after every collect that lands, and the array's reference leaves the reference outlet only when the window is full, .zl stream's rule: a partial window is announced by its shortfall, never by its reference. A bang re-announces without collecting, trimming the array to the window first. The size inlet stores a new window silently (1-256, refused rather than clamped); no window configured means every trigger is refused, counted. However many atoms one message carries, the whole collect is one hold of the store's guard.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "An int, a float or a symbol is collected: appended to the bound array as the text that spells it (7.5 stays visibly a float), the oldest element sliding off the front first when the array already holds the window. A list is collected whole, in the order sent — every atom one step of the slide, one announcement per message — or refused whole, one counted refusal and nothing changed, when any atom outruns 64 characters. A bang re-announces without collecting, trimming the array to the window first — .zl stream's bang. \"array <name>\" does the same when it names the array bound by the creation argument — the message an .array's reference outlet emits on a bang, the family's gesture; a reference is an identity, not an element, so it is never collected into the data. Only the bound name can be recognised at all — any other list, \"array\"-leading included, is simply atoms. A non-finite float or a trigger while no window is configured is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "value",
+        "range": "one or more atoms, each at most 64 characters"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "An int stores the window size, silently — the cold half of the idiom, .zl stream's right-inlet length on .array.fill's count inlet. 1 to the store's 256: 0 is not a window, negative is malformed and past the store could never fill, so all three are refused before they are stored — refused, never clamped — and a trigger after the refusal slides the window it would have slid before it. A float truncates to an int first; a non-finite one is refused rather than quietly becoming size 0. Nothing shared moves here: a narrower window trims at the next trigger, under that trigger's hold.",
+        "index": 1,
+        "label": "size",
+        "range": "1-256"
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the array bound by the creation argument, so a patch may wire the array's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 2,
+        "label": "array reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.stream",
+    "outlets": [
+      {
+        "doc": "The bound array's reference, \"array <name>\", sent after a collect or a bang ONLY when the array holds the full window — .zl stream's rule, so the statistics wired downstream never run over a population the patch did not ask for. Sent after the shortfall outlet, Max's outlets firing right to left. A refused collect emits nothing, and an unnamed object stays silent — the values land in its private array, but there is no name to pass on.",
+        "index": 0,
+        "label": "reference",
+        "range": "",
+        "type": "LIST"
+      },
+      {
+        "doc": "How many values the window still needs — 0 once it is full — sent first (right to left) after every collect or bang that lands, so a patch can watch the window fill and .sel 0 on it is the \"window ready\" edge. A refused trigger — a lost try-lock, no window configured, an atom no element can hold — emits nothing at all. An unnamed (private) array still counts: an answer is a value, not an identity.",
+        "index": 1,
+        "label": "shortfall",
+        "range": "0-255",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty streams into a private, empty array: the values land and the shortfall counts, but nothing shares them and no reference leaves.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "0",
+        "doc": "The window size — how many of the most recent values the array holds. 1 to the store's 256; absent (0) means unconfigured, and every trigger is refused, counted, until an int on the size inlet sets a window: malformed, not a miss. An out-of-range creation argument is refused at the trigger, never clamped.",
+        "name": "size",
+        "range": "1-256"
+      }
+    ]
+  },
   ".array.sub": {
     "category": "GENERIC",
     "description": "Outputs a sub-range of an array, both ends inclusive — .array.subarray under Max's second name for it: the array.sub reference page is array.subarray's verbatim, so the port keeps both spellings over one implementation, .array.scramble / .array.shuffle's arrangement. The array is bound from the creation argument, \".array.sub <name> [<start> [<end>]]\"; the piece runs from start to end inclusive, an absent end extends to the end of the array, an end before the start emits the piece reversed, and an ask that selects nothing bangs the empty outlet. The piece leaves as the list it spells, never as a new named array; bounds are zero-based, intersected with the live elements past the end, and negative is refused — the family's indexing rule. Collected under one hold of the store's guard, so the piece is the array as it stood at the trigger.",
