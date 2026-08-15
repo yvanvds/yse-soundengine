@@ -43,6 +43,7 @@
 #include "genericObjects/gArrayPermute.h"
 #include "genericObjects/gArrayRegexp.h"
 #include "genericObjects/gArrayReplace.h"
+#include "genericObjects/gArrayRoutepass.h"
 #include "genericObjects/gArrayPosition.h"
 #include "genericObjects/gArraySetOps.h"
 #include "genericObjects/gArraySlice.h"
@@ -762,6 +763,13 @@ pRegistry::pRegistry() {
   // leave whole, a dry budget or a lost try-lock refuse the whole ask (issue
   // #803)
   Add(OBJ::G_ARRAY_REGEXP, gArrayRegexp::Create);
+
+  // The dispatcher: route an array by the values it holds — the reference,
+  // never the contents, leaves the outlet of the leftmost value argument
+  // some element spells exactly, or the rightmost reject when none is
+  // present. One bounded presence scan per value under one hold of the
+  // store's guard, released before the send (issue #804)
+  Add(OBJ::G_ARRAY_ROUTEPASS, gArrayRoutepass::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which

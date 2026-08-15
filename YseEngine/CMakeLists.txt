@@ -143,6 +143,7 @@ set(YSE_SRCS
   patcher/genericObjects/gArrayGroup.cpp
   patcher/genericObjects/gArrayReplace.cpp
   patcher/genericObjects/gArrayRegexp.cpp
+  patcher/genericObjects/gArrayRoutepass.cpp
   patcher/genericObjects/gArrayExpr.cpp
   patcher/genericObjects/gArrayCompare.cpp
   patcher/genericObjects/gCombine.cpp
@@ -526,6 +527,7 @@ set_source_files_properties(
   patcher/genericObjects/gArrayGroup.cpp
   patcher/genericObjects/gArrayReplace.cpp
   patcher/genericObjects/gArrayRegexp.cpp
+  patcher/genericObjects/gArrayRoutepass.cpp
   patcher/genericObjects/gArrayExpr.cpp
   patcher/genericObjects/gArrayCompare.cpp
   patcher/genericObjects/gCombine.cpp

@@ -74,7 +74,8 @@ namespace YSE {
    *    ``G_ARRAY_EXPR``, ``G_ARRAY_MAP``, ``G_ARRAY_FILTER``,
    *    ``G_ARRAY_REDUCE``, ``G_ARRAY_EVERY``, ``G_ARRAY_SOME``,
    *    ``G_ARRAY_FOREACH``, ``G_ARRAY_CHANGE``, ``G_ARRAY_COMPARE``,
-   *    ``G_ARRAY_GROUP``, ``G_ARRAY_REPLACE``, ``G_ARRAY_REGEXP``.
+   *    ``G_ARRAY_GROUP``, ``G_ARRAY_REPLACE``, ``G_ARRAY_REGEXP``,
+   *    ``G_ARRAY_ROUTEPASS``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -722,6 +723,15 @@ namespace YSE {
     // ``array.regexp`` — on the value model an array is not a subject buffer,
     // and the per-element reporting is ``.array.iter`` into ``.regexp``.
     DEFOBJ(G_ARRAY_REGEXP, ".array.regexp");
+
+    // The dispatcher (issue #804): route an array by the values it holds —
+    // ``.route``'s job with the array as the selector, ``.dict.route``'s
+    // shape on sequences. One outlet per value argument plus a rightmost
+    // reject; a trigger sends the array's reference, never its contents, out
+    // the outlet of the leftmost value some element spells exactly — the
+    // family's byte compare, presence anywhere in the array. The decision is
+    // one hold of the store's guard, released before the send.
+    DEFOBJ(G_ARRAY_ROUTEPASS, ".array.routepass");
 
     DEFOBJ(G_PRINT, ".print");
 
