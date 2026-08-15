@@ -2474,6 +2474,73 @@
       }
     ]
   },
+  ".array.random": {
+    "category": "GENERIC",
+    "description": "Outputs a random element of an array — Max's array.random on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.random <name> [<seed>]\", because an array is addressed by name and never passed down a cord. A bang picks one element — the length read, the position drawn and the element copied out under one hold of the store's guard, so the draw ranges over the array as it stood at the trigger and can never miss — and the element leaves typed the way the patcher spells it. The position comes from a per-object random sequence, the source .drunk, .urn and .array.scramble share: a non-zero seed replays the same picks every run, 0 takes an arbitrary stream, and exactly one draw is taken per element that leaves. Repeats are allowed — every pick is an independent uniform draw; drawing without replacement is .urn's behaviour, a second object rather than a mode of this one. An empty or unnamed (private) array bangs the empty outlet instead, taking no draw.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang picks one element at random — one guarded read at a drawn position, the element out the element outlet typed by its spelling, or the empty outlet when there is nothing to pick. \"array <name>\" does the same when it names the array bound by the first creation argument — the message an .array's reference outlet emits on a bang, so wiring that outlet here gives the family's gesture: bang the array, out comes a random element. A reference naming anything else, or any other message, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "trigger",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "An int restarts the random sequence, silently — a non-zero seed replays the same picks every run, 0 takes an arbitrary stream, .urn's contract and Max's @seed 0. A float truncates to an int first; a non-finite one is refused rather than quietly becoming seed 0. The author's creation argument is not rewritten: a run-time reseed is the patch's business, the saved seed the author's.",
+        "index": 1,
+        "label": "seed",
+        "range": "any int"
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the array bound by the first creation argument, so a patch may wire the array's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 2,
+        "label": "array reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.random",
+    "outlets": [
+      {
+        "doc": "The picked element, typed the way the patcher spells it: a numeric element leaves as an int or a float by its spelling and anything else as a symbol. Every pick is an independent uniform draw over the positions the array holds at that moment — repeats allowed, .urn's no-repeat being a different object — and the element sent is the array's as it stood at the trigger, read under one hold of the store's guard.",
+        "index": 0,
+        "label": "element",
+        "range": "",
+        "type": "ANY"
+      },
+      {
+        "doc": "Bang when there is no element to pick — an empty or unnamed (private) array. \"No data\" is a state a patch must be able to route on, not an error, and a sentinel value would be indistinguishable from a real answer — .array.pop's empty outlet, for the same reason. No draw is taken, so a seeded stream stays aligned with the elements actually picked. A lost try-lock is a counted refusal instead: the array's state is unknown, so neither outlet fires.",
+        "index": 1,
+        "label": "empty",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty picks from a private, empty array: every ask bangs the empty outlet.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "0",
+        "doc": "Random seed for the pick sequence; non-zero replays the same picks every run, 0 picks an arbitrary stream.",
+        "name": "seed",
+        "range": "any int"
+      }
+    ]
+  },
   ".array.reduce": {
     "category": "GENERIC",
     "description": "Folds an array to one value with an expression — Max's array.reduce on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.reduce <name> <expression>\", because an array is addressed by name and never passed down a cord, and the expression is the rest of the creation arguments, compiled once by .expr's own compiler. The one object whose expression binds three things: $f1/$i1 the ACCUMULATOR, $f2/$i2 the element, $f3/$i3 its position — so \"$f1 + $f2\" is a sum, \"$f1 * $f2\" a product, \"max($f1, $f2)\" a running maximum. The fold runs over the numeric elements in order — a symbol has no number, the statistics' population rule — and the accumulator starts as the FIRST numeric element, the expression running from the second on: the only seed that leaves min, max and a product meaning what they say. One numeric element answers itself, typed by its spelling; a real fold's answer is typed by the expression's C type. A population with nothing in it bangs the empty outlet instead — the fold of nothing does not exist, and a sentinel would be indistinguishable from a real answer. One hold of the store's guard, the answer sent after release.",

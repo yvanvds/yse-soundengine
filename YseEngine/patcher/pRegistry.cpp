@@ -41,6 +41,7 @@
 #include "genericObjects/gArrayIndexMap.h"
 #include "genericObjects/gArrayLength.h"
 #include "genericObjects/gArrayPermute.h"
+#include "genericObjects/gArrayRandom.h"
 #include "genericObjects/gArrayRegexp.h"
 #include "genericObjects/gArrayReplace.h"
 #include "genericObjects/gArrayRoutepass.h"
@@ -770,6 +771,14 @@ pRegistry::pRegistry() {
   // present. One bounded presence scan per value under one hold of the
   // store's guard, released before the send (issue #804)
   Add(OBJ::G_ARRAY_ROUTEPASS, gArrayRoutepass::Create);
+
+  // The picker: one random element out — the length read, the position drawn
+  // and the element copied out under one hold of the store's guard, from the
+  // per-object seedable source .drunk, .urn and .array.scramble share, with
+  // exactly one draw per element that leaves so a seeded patch replays its
+  // picks. Repeats allowed; an empty or unnamed array bangs the empty outlet
+  // instead, taking no draw (issue #805)
+  Add(OBJ::G_ARRAY_RANDOM, gArrayRandom::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which

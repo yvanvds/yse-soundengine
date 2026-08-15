@@ -75,7 +75,7 @@ namespace YSE {
    *    ``G_ARRAY_REDUCE``, ``G_ARRAY_EVERY``, ``G_ARRAY_SOME``,
    *    ``G_ARRAY_FOREACH``, ``G_ARRAY_CHANGE``, ``G_ARRAY_COMPARE``,
    *    ``G_ARRAY_GROUP``, ``G_ARRAY_REPLACE``, ``G_ARRAY_REGEXP``,
-   *    ``G_ARRAY_ROUTEPASS``.
+   *    ``G_ARRAY_ROUTEPASS``, ``G_ARRAY_RANDOM``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -732,6 +732,15 @@ namespace YSE {
     // family's byte compare, presence anywhere in the array. The decision is
     // one hold of the store's guard, released before the send.
     DEFOBJ(G_ARRAY_ROUTEPASS, ".array.routepass");
+
+    // The picker (issue #805): one random element out — one guarded read at
+    // a position drawn from the per-object, seedable source .drunk, .urn and
+    // .array.scramble share, exactly one draw per element that leaves, so a
+    // seeded patch replays its picks. Repeats allowed — drawing without
+    // replacement is .urn's behaviour, a second object rather than a mode.
+    // The element leaves typed by its spelling; an empty or unnamed
+    // (private) array bangs the empty outlet instead, taking no draw.
+    DEFOBJ(G_ARRAY_RANDOM, ".array.random");
 
     DEFOBJ(G_PRINT, ".print");
 
