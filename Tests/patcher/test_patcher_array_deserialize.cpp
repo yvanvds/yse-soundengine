@@ -29,14 +29,10 @@
 // names an array uses names of its own.
 
 #include <doctest/doctest.h>
-#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <string>
-#include <thread>
 
-#include "internal/global.h"
-#include "internal/threadPool.h"
 #include "patcher/genericObjects/arrayParser.h"
 #include "patcher/genericObjects/gArray.h"
 #include "patcher/genericObjects/gArrayDeserialize.h"
@@ -47,11 +43,12 @@
 #include "patcher/pRegistry.h"
 #include "patcher/patcher.hpp"
 #include "patcher/patcherImplementation.h"
+#include "patcher/pool_blocker.hpp"
 #include "patcher/sinks.hpp"
 #include "support/alloc_probe.hpp"
-#include "support/timer_pacing.hpp"
 #include "utils/json.hpp"
 
+using TestHelpers::PoolBlocker;
 using TestHelpers::Wire;
 using YSE::PATCHER::ArrayParser;
 using YSE::PATCHER::gArray;
@@ -327,28 +324,15 @@ TEST_SUITE("patcher") {
     // would re-parse the old text as the new one, so the loser is refused
     // and counted — the family's busy rule. Park the pool's one worker in a
     // blocker so the first document provably cannot have finished.
-    struct Blocker : YSE::INTERNAL::threadPoolJob {
-      std::atomic<bool> running{false};
-      std::atomic<bool> release{false};
-      void run() override {
-        running.store(true, std::memory_order_release);
-        while (!release.load(std::memory_order_acquire))
-          std::this_thread::yield();
-      }
-    };
-
-    Blocker blocker;
-    YSE::INTERNAL::Global().addSlowJob(&blocker);
-    TestHelpers::pacedUntil(5000, [&] { return blocker.running.load(std::memory_order_acquire); });
-    REQUIRE(blocker.running.load(std::memory_order_acquire));
+    PoolBlocker blocker;
+    REQUIRE(blocker.Park());
 
     Rig rig("ad797h", "a797h");
     rig.Submit("[1]");
     rig.Submit("[2]");
     CHECK(rig.des.Dropped() == 1);
 
-    blocker.release.store(true, std::memory_order_release);
-    blocker.join();
+    blocker.Unpark();
     rig.Pump();
 
     // The first document is the one that landed.
@@ -471,10 +455,22 @@ TEST_SUITE("patcher") {
             "(#797)") {
     // The full in-patcher path, exactly as a patch runs it: the host passes
     // the document to a .r, the value drain hands it to the inlet on the
-    // audio thread (T_DSP block), the submit rides to the pool, and the
-    // *next* block's poll — WantsBlockPoll, the reason this object is in the
-    // GraphState's pollers at all — installs it and announces it. No
-    // hand-pumped Calculate anywhere: the patcher's own dispatch does it.
+    // audio thread (T_DSP block), the submit rides to the pool, and a block
+    // poll — WantsBlockPoll, the reason this object is in the GraphState's
+    // pollers at all — installs it and announces it. No hand-pumped Calculate
+    // anywhere: the patcher's own dispatch does it.
+    //
+    // The pool's worker is parked across the submitting block (issue #854).
+    // patcherImplementation::Calculate drains the value queue *before* it runs
+    // the pollers, so the submit and a poll are both inside that one block: a
+    // parse that finished in between is installed by that same block's poll,
+    // which is the object behaving correctly — it announces at the first poll
+    // that finds a finished parse — but it makes an unparked "nothing
+    // announced yet" a bet on how fast the pool is rather than a statement
+    // about the object. Parked, what the object does promise is asserted as
+    // fact, in both halves: nothing is installed while the parse is
+    // unfinished, and nothing is installed once it has finished either until
+    // a block polls.
     RefSink out;
     YSE::pHandle outHandle(&out);
     YSE::PATCHER::patcherImplementation p(2, nullptr);
@@ -491,10 +487,20 @@ TEST_SUITE("patcher") {
     p.Connect(recv, 0, des, 0);
     p.Connect(des, 0, &outHandle, 0);
 
+    // Parked here rather than at the top of the case: the graph is built
+    // first, so nothing this patcher needs from the pool is queued behind the
+    // blocker, and the blocker is torn down before the patcher either way.
+    PoolBlocker blocker;
+    REQUIRE(blocker.Park());
+
     p.PassData(std::string("[60,62,67]"), "doc797m", YSE::T_GUI);
     p.Calculate(YSE::T_DSP); // drains the value queue: the submit happens here
-    ArrayParser().WaitIdle(); // the parse finishes on the pool
-    CHECK(out.count == 0); // nothing announced yet — no block has polled
+    CHECK(out.count == 0); // the parse is parked, so there is nothing to
+                           // install — and the inlet installed nothing itself
+
+    blocker.Unpark(); // the parse runs
+    ArrayParser().WaitIdle(); // and finishes on the pool
+    CHECK(out.count == 0); // still nothing: only a block poll installs a result
     p.Calculate(YSE::T_DSP); // the poll installs and announces
 
     REQUIRE(out.count == 1);

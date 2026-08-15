@@ -75,7 +75,8 @@ namespace YSE {
    *    ``G_ARRAY_REDUCE``, ``G_ARRAY_EVERY``, ``G_ARRAY_SOME``,
    *    ``G_ARRAY_FOREACH``, ``G_ARRAY_CHANGE``, ``G_ARRAY_COMPARE``,
    *    ``G_ARRAY_GROUP``, ``G_ARRAY_REPLACE``, ``G_ARRAY_REGEXP``,
-   *    ``G_ARRAY_ROUTEPASS``, ``G_ARRAY_RANDOM``.
+   *    ``G_ARRAY_ROUTEPASS``, ``G_ARRAY_RANDOM``, ``G_ARRAY_STREAM``,
+   *    ``G_ARRAY_THIN``, ``G_ARRAY_TUPLEWISE``, ``G_ARRAY_WRAP``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -741,6 +742,52 @@ namespace YSE {
     // The element leaves typed by its spelling; an empty or unnamed
     // (private) array bangs the empty outlet instead, taking no draw.
     DEFOBJ(G_ARRAY_RANDOM, ".array.random");
+
+    // The window builder (issue #806): a stream of values collected into the
+    // last N of them, sliding in a *shared, named* array — ``.zl stream``'s
+    // operation on the value model, so the window is addressable by the whole
+    // family rather than travelling as text. Every arriving value appends and
+    // the oldest slides off the front — the O(n) shift accepted, bounded at
+    // the store's 256, one hold of the store's guard per message. The
+    // shortfall leaves the right outlet after every collect that lands; the
+    // reference leaves only when the window is full — ``.zl stream``'s rule,
+    // so downstream statistics never run over a partial population.
+    DEFOBJ(G_ARRAY_STREAM, ".array.stream");
+
+    // The decimator (issue #807): near-duplicate neighbours removed — the
+    // neighbour thin, not Max's wholesale dedupe, which ``.array.unique``
+    // already is here. One scan against the last *survivor* (so a drift in
+    // small steps is kept, not erased), tolerance 0 — the default — the
+    // family's byte compare and a positive tolerance a numeric distance for
+    // the pairs that can carry one. The removed count leaves before the
+    // reference — right to left — so a patch can tell thinned-nothing
+    // (count 0, landed) from a refused thin, which emits nothing. One hold
+    // of the store's guard, survivors closing ranks in original order.
+    DEFOBJ(G_ARRAY_THIN, ".array.thin");
+
+    // The vector arithmetic (issue #808): two arrays combined element by
+    // element — what ``.vexpr`` does for lists, applied to stored arrays,
+    // where Max's own ``array.tuplewise`` is a stream-side collector. Both
+    // names bound at creation on ``gArraySetOpBase``'s body (snapshot the
+    // left, build against the right, never two guards at once); the
+    // operation is the expression family's spelling — $1 the left element,
+    // $2 the right, $3 the position — compiled once on the control thread.
+    // The result is as long as the shorter array, leaves as the list it
+    // spells, and the left element passes through for a pair the expression
+    // cannot see.
+    DEFOBJ(G_ARRAY_TUPLEWISE, ".array.tuplewise");
+
+    // The wrapping fetch (issue #809): the element at an index taken modulo
+    // the length, so every index lands — 5 into a three-element array reads
+    // position 2 and -1 the last element, the modulo addressing a sequencer
+    // does every bar. The family treats an index as a position — out of
+    // range a miss, negative a refusal, decided once on ``arrayStore`` — and
+    // this is the object that exists to provide the alternative, which is
+    // why its inlets are ``.array.at``'s: an int fetches and stores, a bang
+    // re-fetches, a list is answered whole in the order asked. An empty
+    // array bangs the empty outlet — nothing to wrap onto, the one miss the
+    // wrapping cannot remove.
+    DEFOBJ(G_ARRAY_WRAP, ".array.wrap");
 
     DEFOBJ(G_PRINT, ".print");
 

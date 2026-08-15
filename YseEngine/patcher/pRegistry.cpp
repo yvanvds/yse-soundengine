@@ -45,6 +45,10 @@
 #include "genericObjects/gArrayRegexp.h"
 #include "genericObjects/gArrayReplace.h"
 #include "genericObjects/gArrayRoutepass.h"
+#include "genericObjects/gArrayStream.h"
+#include "genericObjects/gArrayThin.h"
+#include "genericObjects/gArrayTuplewise.h"
+#include "genericObjects/gArrayWrap.h"
 #include "genericObjects/gArrayPosition.h"
 #include "genericObjects/gArraySetOps.h"
 #include "genericObjects/gArraySlice.h"
@@ -779,6 +783,40 @@ pRegistry::pRegistry() {
   // picks. Repeats allowed; an empty or unnamed array bangs the empty outlet
   // instead, taking no draw (issue #805)
   Add(OBJ::G_ARRAY_RANDOM, gArrayRandom::Create);
+
+  // The window builder: incoming values collected into a sliding array — the
+  // last <size> of them, every arrival appending and the oldest sliding off
+  // the front, one hold of the store's guard per message however many atoms
+  // it carries. The shortfall leaves the right outlet after every collect
+  // that lands; the reference leaves only when the window is full — .zl
+  // stream's rule, so downstream statistics never run over a partial
+  // population (issue #806)
+  Add(OBJ::G_ARRAY_STREAM, gArrayStream::Create);
+
+  // The decimator: near-duplicate neighbours removed under one hold of the
+  // store's guard — the neighbour thin, not the wholesale dedupe
+  // .array.unique already is. Each element is measured against the last
+  // survivor, tolerance 0 (the default) the family's byte compare and a
+  // positive one a numeric distance; the removed count leaves before the
+  // reference, right to left, so thinned-nothing is tellable from a refused
+  // thin (issue #807)
+  Add(OBJ::G_ARRAY_THIN, gArrayThin::Create);
+
+  // The vector arithmetic: two arrays combined element by element — .vexpr
+  // for stored arrays, on gArraySetOpBase's two-name body (snapshot the
+  // left, build against the right, never two guards at once) with the
+  // expression family's operation — $1 the left element, $2 the right, $3
+  // the position, compiled once on the control thread. The result is as long
+  // as the shorter array and leaves as the list it spells (issue #808)
+  Add(OBJ::G_ARRAY_TUPLEWISE, gArrayTuplewise::Create);
+
+  // The wrapping fetch: the element at an index taken modulo the length, so
+  // every index lands — negatives count from the end — where .array.at
+  // misses and refuses; the alternative the family's index-is-a-position
+  // rule exists alongside of. A list of indices is answered whole under one
+  // hold of the store's guard, and an empty array bangs the empty outlet —
+  // nothing to wrap onto (issue #809)
+  Add(OBJ::G_ARRAY_WRAP, gArrayWrap::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which
