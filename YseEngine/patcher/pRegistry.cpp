@@ -41,6 +41,7 @@
 #include "genericObjects/gArrayIndexMap.h"
 #include "genericObjects/gArrayLength.h"
 #include "genericObjects/gArrayPermute.h"
+#include "genericObjects/gArrayRegexp.h"
 #include "genericObjects/gArrayReplace.h"
 #include "genericObjects/gArrayPosition.h"
 #include "genericObjects/gArraySetOps.h"
@@ -752,6 +753,15 @@ pRegistry::pRegistry() {
   // arguments; one hold of the store's guard, and nothing renumbers (issue
   // #802)
   Add(OBJ::G_ARRAY_REPLACE, gArrayReplace::Create);
+
+  // The pattern filter: the elements a regular expression matches leave as
+  // one typed message — order kept, repeats kept — or the no-match outlet
+  // bangs. The pattern is one token, compiled once on the control thread by
+  // .regexp's bounded engine (no std::regex); the scan is one hold of the
+  // store's guard with a shared step budget, and a matched list that cannot
+  // leave whole, a dry budget or a lost try-lock refuse the whole ask (issue
+  // #803)
+  Add(OBJ::G_ARRAY_REGEXP, gArrayRegexp::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which

@@ -74,7 +74,7 @@ namespace YSE {
    *    ``G_ARRAY_EXPR``, ``G_ARRAY_MAP``, ``G_ARRAY_FILTER``,
    *    ``G_ARRAY_REDUCE``, ``G_ARRAY_EVERY``, ``G_ARRAY_SOME``,
    *    ``G_ARRAY_FOREACH``, ``G_ARRAY_CHANGE``, ``G_ARRAY_COMPARE``,
-   *    ``G_ARRAY_GROUP``, ``G_ARRAY_REPLACE``.
+   *    ``G_ARRAY_GROUP``, ``G_ARRAY_REPLACE``, ``G_ARRAY_REGEXP``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -711,6 +711,17 @@ namespace YSE {
     // of the store's guard, and nothing renumbers — every element keeps its
     // position, only its spelling changes.
     DEFOBJ(G_ARRAY_REPLACE, ".array.replace");
+
+    // The pattern filter (issue #803): the elements a regular expression
+    // matches, sent as one typed message — order kept, repeats kept — or a
+    // no-match bang when nothing matched. The text filter ``.array.filter``
+    // cannot be, since its expression never sees a symbol; the pattern is one
+    // token, compiled once on the control thread by ``.regexp``'s bounded
+    // engine, and the whole scan is one hold of the store's guard with a step
+    // budget shared across every element. Deliberately not Max's byte-buffer
+    // ``array.regexp`` — on the value model an array is not a subject buffer,
+    // and the per-element reporting is ``.array.iter`` into ``.regexp``.
+    DEFOBJ(G_ARRAY_REGEXP, ".array.regexp");
 
     DEFOBJ(G_PRINT, ".print");
 

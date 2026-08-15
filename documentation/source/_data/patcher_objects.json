@@ -2531,6 +2531,63 @@
       }
     ]
   },
+  ".array.regexp": {
+    "category": "GENERIC",
+    "description": "Keeps the elements of an array a regular expression matches — issue #803's reading of Max's array.regexp on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.regexp <name> <pattern>\", because an array is addressed by name and never passed down a cord, and the pattern is one token, compiled once on the control thread by .regexp's own bounded engine — read .regexp for the grammar; no std::regex, which allocates, throws and backtracks without limit at match time. A bang, or the array's reference message \"array <name>\", matches every element as the text that spells it — the pattern matches anywhere in the element, so anchor with ^ and $ for a whole-element match — and sends the matched ones as one typed message, order kept, repeats kept; when nothing matched, the no-match outlet bangs instead. The text filter .array.filter cannot be, since its expression never sees a symbol; the per-element reporting — matched substrings, capture groups, substitution — is deliberately .regexp's job, already composable as .array.iter into .regexp, where Max's own array.regexp treats the array as one subject buffer, a byte-level operation the value model does not have. The whole scan is one hold of the store's guard with a step budget shared across every element, and the answer never leaves as a fragment of itself: a matched list past what a cord carries, a scan that ran out of budget, and a lost try-lock each refuse the whole ask, counted. A malformed pattern is reported when the parameter is set and the object then refuses every trigger.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang matches every element of the bound array against the pattern and sends the matched ones as one typed message out the matched outlet — or bangs the no-match outlet when nothing matched. \"array <name>\" does the same when it names the array bound by the creation argument — the message an .array's reference outlet emits on a bang, so wiring that outlet here gives the family's gesture. A reference naming anything else, any other message, or a trigger on an object whose pattern is absent or did not compile, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "trigger",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the array bound by the creation argument, so a patch may wire the array's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 1,
+        "label": "array reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.regexp",
+    "outlets": [
+      {
+        "doc": "The elements the pattern matched, as one typed message — order kept, repeats kept, one match leaving as the int, float or symbol it spells and several as one list, SendAtoms' rule. The answer is the array as it stood at the trigger: the whole scan is one hold of the store's guard, and the send happens after it is released. A matched list is an answer about membership, so it never leaves as a fragment of itself: one that cannot leave whole (past what a cord carries), a scan that ran out of matching budget, and a lost try-lock each refuse the whole ask, counted, nothing sent on either outlet.",
+        "index": 0,
+        "label": "matched",
+        "range": "",
+        "type": "ANY"
+      },
+      {
+        "doc": "Bang when the ask landed and nothing matched — an empty or unnamed (private) array included. \"No data\" is a state a patch must be able to route on, not an error — .array.sect's empty outlet, for .array.sect's reason. A refused ask is a counted refusal instead: neither outlet fires.",
+        "index": 1,
+        "label": "no match",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty matches over a private, empty array: always the no-match bang.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The regular expression, as one token — write \\s or \\x20 rather than a literal space, which the parameter tokenizer would eat. The language is .regexp's: a PCRE-flavoured core with classes, shorthands, anchors, quantifiers, alternation and groups, compiled once on the control thread by the same bounded engine — read .regexp for the full grammar and what it rejects. An element matches when the pattern matches anywhere in it; anchor with ^ and $ for a whole-element match. A malformed pattern is reported to the log when the parameter is set, and the object then refuses every trigger, counted.",
+        "name": "pattern",
+        "range": "any pattern"
+      }
+    ]
+  },
   ".array.remove": {
     "category": "GENERIC",
     "description": "Drops the element at a position and outputs it — Max's array.remove on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.remove <name> [<position>]\", because an array is addressed by name and never passed down a cord. This is the object a running patch wires a position into — .array's own \"delete\" needs the index inside the message text, and discards silently where this emits the departing element, typed the way the patcher spells it. An int removes at that position and stores it, a bang removes at the stored position, and every element behind the gap moves down one — the read and the erase one hold of the store's guard, so the element that leaves is exactly the one that left the array. A position the array does not have bangs the miss outlet instead: nothing removed, nothing counted, and never a wrap or a clamp — the family's indexing rule. The message an .array's reference outlet emits on a bang removes at the stored position, the family gesture. .array.insert's exact inverse.",
