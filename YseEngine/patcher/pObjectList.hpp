@@ -76,7 +76,7 @@ namespace YSE {
    *    ``G_ARRAY_FOREACH``, ``G_ARRAY_CHANGE``, ``G_ARRAY_COMPARE``,
    *    ``G_ARRAY_GROUP``, ``G_ARRAY_REPLACE``, ``G_ARRAY_REGEXP``,
    *    ``G_ARRAY_ROUTEPASS``, ``G_ARRAY_RANDOM``, ``G_ARRAY_STREAM``,
-   *    ``G_ARRAY_THIN``.
+   *    ``G_ARRAY_THIN``, ``G_ARRAY_TUPLEWISE``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -764,6 +764,18 @@ namespace YSE {
     // (count 0, landed) from a refused thin, which emits nothing. One hold
     // of the store's guard, survivors closing ranks in original order.
     DEFOBJ(G_ARRAY_THIN, ".array.thin");
+
+    // The vector arithmetic (issue #808): two arrays combined element by
+    // element — what ``.vexpr`` does for lists, applied to stored arrays,
+    // where Max's own ``array.tuplewise`` is a stream-side collector. Both
+    // names bound at creation on ``gArraySetOpBase``'s body (snapshot the
+    // left, build against the right, never two guards at once); the
+    // operation is the expression family's spelling — $1 the left element,
+    // $2 the right, $3 the position — compiled once on the control thread.
+    // The result is as long as the shorter array, leaves as the list it
+    // spells, and the left element passes through for a pair the expression
+    // cannot see.
+    DEFOBJ(G_ARRAY_TUPLEWISE, ".array.tuplewise");
 
     DEFOBJ(G_PRINT, ".print");
 

@@ -417,6 +417,11 @@ void patcherImplementation::SetName(const std::string& n) {
       // renamed patcher's thins must act on the array its other objects now
       // speak about (issue #807).
       static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_TUPLEWISE) == 0) {
+      // And the combiner, whose two bindings live on gArraySetOpBase — where
+      // RefreshBinding is virtual, so this one call re-anchors the right
+      // array along with the left, gDictCompare's arrangement (issue #808).
+      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
     } else if (strcmp(x.second->Type(), OBJ::G_BAG) == 0) {
       // And gBag, whose `send` message prefixes a runtime receive name with
       // "<patcherName>." exactly as gForward does, so it has to re-anchor with

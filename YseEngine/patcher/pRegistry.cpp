@@ -47,6 +47,7 @@
 #include "genericObjects/gArrayRoutepass.h"
 #include "genericObjects/gArrayStream.h"
 #include "genericObjects/gArrayThin.h"
+#include "genericObjects/gArrayTuplewise.h"
 #include "genericObjects/gArrayPosition.h"
 #include "genericObjects/gArraySetOps.h"
 #include "genericObjects/gArraySlice.h"
@@ -799,6 +800,14 @@ pRegistry::pRegistry() {
   // reference, right to left, so thinned-nothing is tellable from a refused
   // thin (issue #807)
   Add(OBJ::G_ARRAY_THIN, gArrayThin::Create);
+
+  // The vector arithmetic: two arrays combined element by element — .vexpr
+  // for stored arrays, on gArraySetOpBase's two-name body (snapshot the
+  // left, build against the right, never two guards at once) with the
+  // expression family's operation — $1 the left element, $2 the right, $3
+  // the position, compiled once on the control thread. The result is as long
+  // as the shorter array and leaves as the list it spells (issue #808)
+  Add(OBJ::G_ARRAY_TUPLEWISE, gArrayTuplewise::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which

@@ -3963,6 +3963,69 @@
       }
     ]
   },
+  ".array.tuplewise": {
+    "category": "GENERIC",
+    "description": "Combines two arrays element by element — issue #808's reading of Max's array.tuplewise on the name-addressed value model .array settled: Max's own array.tuplewise collects a stream into arrays of a set length, where #808 specifies the element-wise combiner instead — the vector arithmetic .vexpr does for lists, applied to stored arrays. Both arrays are bound from the creation arguments, \".array.tuplewise <left> <right> <expression>\", because an array is addressed by name and never passed down a cord, and neither may be re-pointed from a message. The operation is the expression family's spelling, never a second one: the remaining creation arguments, compiled once on the control thread by .expr's own compiler — $f1/$i1 the left element, $f2/$i2 the right element, $f3/$i3 their position — so \"$f1 + $f2\" adds two arrays position by position. The result is as long as the shorter array (.vexpr's rule for unequal lists), each wholly numeric pair's result typed by the expression's C type and the left element passed through unchanged for a pair either side of which is a symbol — the family's positional pass-through. The result leaves as the list it spells, never as a new named array, and an empty result bangs the empty outlet. The left array is copied out under its guard and the result built against the right under that guard alone, so no two guards are ever held at once and \".array.tuplewise seq seq $f1 + $f2\" doubles the array instead of tripping over its own try-lock. A malformed expression fails loudly when the parameter is set and the object then refuses every trigger, counted.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang asks for the combination — the expression compiled from the creation arguments, applied to the two bound arrays position by position as they stood at the trigger, the left copied out under its guard, the result built against the right under that guard alone, and sent after every guard is released. \"array <name>\" does the same when it names the left array bound by the first creation argument — the message an .array's reference outlet emits on a bang, the family's gesture. A reference naming anything else, any other message, or a trigger on an object whose expression did not compile, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "trigger",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the right array bound by the second creation argument, so a patch may wire both reference outlets across as it would in Max. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 1,
+        "label": "right reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.tuplewise",
+    "outlets": [
+      {
+        "doc": "The element-by-element combination as the list it spells — one element as the int, float or symbol it is, several as list text, never as a new named array. Position i is the expression over (left[i], right[i], i), typed by the expression's C type, and the result is as long as the shorter array; a pair either side of which is a symbol passes the left element through unchanged, so every position still answers a position of the left array. A result that outruns what a cord carries is refused whole and counted — a partial combination would misalign every position after the cut. Silent when the result is empty: the empty outlet carries that half of the answer.",
+        "index": 0,
+        "label": "combined",
+        "range": "",
+        "type": "ANY"
+      },
+      {
+        "doc": "Bang when there was nothing to combine — either array empty or unnamed (private), so no position holds a pair. \"No data\" is a state a patch must be able to route on, not an error. A lost try-lock on either store, or a trigger on an object whose expression did not compile, is a counted refusal instead: the result is unknown, so neither outlet fires.",
+        "index": 1,
+        "label": "empty",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The left array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array on that side: every ask bangs the empty outlet.",
+        "name": "left",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The right array's shared name, bound exactly as the left one. Empty reads a private, empty array on that side: every ask bangs the empty outlet.",
+        "name": "right",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The combining expression — every creation argument after the two names, compiled once on the control thread by .expr's own compiler, so read .expr for the operators, the functions and the C type rules. $f1/$i1 is the left element ($f reads it as a float, $i as an int), $f2/$i2 the right element and $f3/$i3 their position; a placeholder past $3 is rejected at parse time. The expression only ever runs for a pair whose two elements both read as numbers — a symbol has no number — and the left element passes through unchanged for the pairs it never sees. A malformed expression is reported to the log when the parameter is set, and the object then refuses every trigger, counted; absent, the object refuses silently until given work.",
+        "name": "expression",
+        "range": "any expression over $1..$3"
+      }
+    ]
+  },
   ".array.union": {
     "category": "GENERIC",
     "description": "Outputs the elements held by either of two arrays — Max's array.union on the name-addressed value model .array settled: both arrays are bound from the creation arguments, \".array.union <left> <right>\", because an array is addressed by name and never passed down a cord, and neither may be re-pointed from a message. A set operation produces a set — .zl union's semantics: the left array with its repeats dropped, then the right array's elements the left does not hold, each element once at its first occurrence, equality by the spelling (7 and 7. are different elements). The result leaves as the list it spells, never as a new named array — creating one would resolve a name on a message path — and two empty arrays bang the empty outlet. The left array is copied out under its guard and the result built against the right under that guard alone, so no two guards are ever held at once and \".array.union chord chord\" answers instead of tripping over its own try-lock. \"Everything either hand plays\" — the combining half of the harmonic patch .array.sect is the filtering half of.",
