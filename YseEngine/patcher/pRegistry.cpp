@@ -46,6 +46,7 @@
 #include "genericObjects/gArrayReplace.h"
 #include "genericObjects/gArrayRoutepass.h"
 #include "genericObjects/gArrayStream.h"
+#include "genericObjects/gArrayThin.h"
 #include "genericObjects/gArrayPosition.h"
 #include "genericObjects/gArraySetOps.h"
 #include "genericObjects/gArraySlice.h"
@@ -789,6 +790,15 @@ pRegistry::pRegistry() {
   // stream's rule, so downstream statistics never run over a partial
   // population (issue #806)
   Add(OBJ::G_ARRAY_STREAM, gArrayStream::Create);
+
+  // The decimator: near-duplicate neighbours removed under one hold of the
+  // store's guard — the neighbour thin, not the wholesale dedupe
+  // .array.unique already is. Each element is measured against the last
+  // survivor, tolerance 0 (the default) the family's byte compare and a
+  // positive one a numeric distance; the removed count leaves before the
+  // reference, right to left, so thinned-nothing is tellable from a refused
+  // thin (issue #807)
+  Add(OBJ::G_ARRAY_THIN, gArrayThin::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which

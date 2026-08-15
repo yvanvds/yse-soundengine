@@ -3743,6 +3743,73 @@
       }
     ]
   },
+  ".array.thin": {
+    "category": "GENERIC",
+    "description": "Thins an array by removing near-duplicate neighbours — issue #807's reading of Max's array.thin on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.thin <name> [<tolerance>]\", because an array is addressed by name and never passed down a cord. Max's array.thin is the wholesale dedupe .array.unique already is here, so this is the NEIGHBOUR thin instead — one scan comparing each element with the last survivor before it, the repeats and near-repeats dropped, distinct values kept in order however often they recur later — the operation that decimates a control stream sampled faster than anything downstream needs. Tolerance 0, the default, is the exact thin: the family's byte compare, so symbols thin too and 7 and 7. stay distinct. A positive tolerance widens \"near\" for the pairs that can carry a distance: both elements reading as numbers and no further apart than the tolerance — measured against the last SURVIVOR, not the original predecessor, so a drift climbing in steps inside the tolerance is kept, not erased. A pair that is not wholly numeric falls back to the byte compare at any tolerance. A bang thins now; the removed count leaves the count outlet before the reference — right to left — so a patch can tell thinned-nothing (count 0, landed) from a refused thin (a lost try-lock, a malformed tolerance), which emits nothing. The whole thin is one hold of the store's guard — survivors close ranks in original order, each moved at most once — and yes, it renumbers under every other object on the name, exactly as .array.remove does: renumbering is what a removal is.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A bang thins the array now: one scan against the last survivor, near-duplicate neighbours removed, under one hold of the store's guard. \"array <name>\" does the same when it names the array bound by the creation argument — the message an .array's reference outlet emits on a bang, the family's gesture. A reference naming anything else, or any other message, is refused and counted rather than logged, since this inlet may be the audio thread — as is a trigger while the stored tolerance is malformed (negative, a seed only the creation string can plant).",
+        "index": 0,
+        "label": "trigger",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "An int or a float stores the tolerance, silently — the cold half of the idiom: nothing is thinned until the trigger asks. 0 restores the exact thin (the family's byte compare); a positive value calls a neighbour pair near when both elements read as numbers no further apart than this. Negative and non-finite are refused before they are stored — never clamped: a distance cannot be negative, and a non-finite tolerance would call everything near.",
+        "index": 1,
+        "label": "tolerance",
+        "range": "0 or greater, finite"
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the array bound by the creation argument, so a patch may wire the array's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 2,
+        "label": "array reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.thin",
+    "outlets": [
+      {
+        "doc": "The bound array's reference, \"array <name>\", sent after a thin that landed — the way an array leaves an object on the value model, so wiring it onward chains the family: into .array.length it reports the thinned depth. Sent after the count outlet, Max's outlets firing right to left. A refused thin emits nothing, and an unnamed object stays silent — the thin happens, but there is no name to pass on.",
+        "index": 0,
+        "label": "reference",
+        "range": "",
+        "type": "LIST"
+      },
+      {
+        "doc": "How many elements went, sent first — right to left — because it is the only way a patch can tell thinned-nothing from thinned-a-lot: a thin that removed nothing still landed and reports 0, where a refused one reports nothing at all. An unnamed (private) array counts as well — an answer is a value, not an identity.",
+        "index": 1,
+        "label": "removed",
+        "range": "0-255",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty thins a private, empty array: the thin lands with count 0 and no reference leaves.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "0",
+        "doc": "The initial tolerance — how far apart two numeric neighbours may sit and still count as duplicates. Absent (0) means the exact thin, the family's byte compare over every atom kind. Negative is malformed: it is refused at the trigger, never clamped, until the tolerance inlet stores a real one.",
+        "name": "tolerance",
+        "range": "0 or greater, finite"
+      }
+    ]
+  },
   ".array.tolist": {
     "category": "GENERIC",
     "description": "Outputs an array as a list — Max's array.tolist on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.tolist <name>\", because an array is addressed by name and never passed down a cord. A bang sends every element in order as the message the array spells, typed the way the patcher spells it — an array of one element sends that element as the int, float or symbol it is rather than as a list of one, and several elements leave as one list message. The elements are collected under one hold of the store's guard and sent after it is released, so the answer is the array as it stood at the trigger; an empty or unnamed (private) array bangs the empty outlet instead. An array whose elements together outrun what a cord carries loses its tail, every lost element a counted refusal — .array's own getvalue rule, and this object is exactly that message's patching form: it takes a reference, acts on a bang, and reports through outlets of its own.",

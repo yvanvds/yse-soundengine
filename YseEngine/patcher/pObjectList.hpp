@@ -75,7 +75,8 @@ namespace YSE {
    *    ``G_ARRAY_REDUCE``, ``G_ARRAY_EVERY``, ``G_ARRAY_SOME``,
    *    ``G_ARRAY_FOREACH``, ``G_ARRAY_CHANGE``, ``G_ARRAY_COMPARE``,
    *    ``G_ARRAY_GROUP``, ``G_ARRAY_REPLACE``, ``G_ARRAY_REGEXP``,
-   *    ``G_ARRAY_ROUTEPASS``, ``G_ARRAY_RANDOM``, ``G_ARRAY_STREAM``.
+   *    ``G_ARRAY_ROUTEPASS``, ``G_ARRAY_RANDOM``, ``G_ARRAY_STREAM``,
+   *    ``G_ARRAY_THIN``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -752,6 +753,17 @@ namespace YSE {
     // reference leaves only when the window is full — ``.zl stream``'s rule,
     // so downstream statistics never run over a partial population.
     DEFOBJ(G_ARRAY_STREAM, ".array.stream");
+
+    // The decimator (issue #807): near-duplicate neighbours removed — the
+    // neighbour thin, not Max's wholesale dedupe, which ``.array.unique``
+    // already is here. One scan against the last *survivor* (so a drift in
+    // small steps is kept, not erased), tolerance 0 — the default — the
+    // family's byte compare and a positive tolerance a numeric distance for
+    // the pairs that can carry one. The removed count leaves before the
+    // reference — right to left — so a patch can tell thinned-nothing
+    // (count 0, landed) from a refused thin, which emits nothing. One hold
+    // of the store's guard, survivors closing ranks in original order.
+    DEFOBJ(G_ARRAY_THIN, ".array.thin");
 
     DEFOBJ(G_PRINT, ".print");
 
