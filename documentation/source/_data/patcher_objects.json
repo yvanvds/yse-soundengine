@@ -4179,6 +4179,65 @@
       }
     ]
   },
+  ".array.wrap": {
+    "category": "GENERIC",
+    "description": "Outputs the element at an index with wrapping — Max's array.wrap on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.wrap <name> [<index>]\", because an array is addressed by name and never passed down a cord. The family treats an index as a position — out of range is a miss on .array and .array.at, negative a refusal — and this is the object that provides the alternative: every index lands, taken modulo the length, so 5 into a three-element array reads position 2 and -1 reads the last element — the modulo addressing a sequencer does every bar. An int fetches at that wrapped position and stores the index, a bang re-fetches at the stored index, a float truncates to an int first, and a list of indices is answered whole, as one list in the order asked, every position wrapped independently against the length one hold of the store's guard read. The element leaves typed the way the patcher spells it. An empty or unnamed (private) array bangs the empty outlet instead — there is nothing to wrap onto — and the stored index is this object's own: two .array.wrap on one name fetch independently.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "An int fetches the element at that position modulo the array's length and stores the index; a bang re-fetches at the stored index; a float truncates to an int first — Max's float method. A negative index counts from the end — -1 the last element — and keeps wrapping past that; where .array.at refuses a negative, here it is the point. A list of indices fetches them all as one list, in the order asked, every position wrapped independently, and never moves the stored index. \"array <name>\" fetches at the stored index when it names the array bound by the first creation argument — the message an .array's reference outlet emits on a bang, so wiring that outlet here gives the family's gesture. A non-finite float, a list with anything in it that is not an integer, a reference naming anything else, or any other message is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "index",
+        "range": "any int"
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the array bound by the first creation argument, so a patch may wire the array's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 1,
+        "label": "array reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.wrap",
+    "outlets": [
+      {
+        "doc": "The fetched element, typed the way the patcher spells it: a numeric element leaves as an int or a float by its spelling and anything else as a symbol. A list of indices leaves as one list of the named elements, in the order asked — every position wrapped against the length and read under one hold of the store's guard, so the reply is the array as it stood at the trigger.",
+        "index": 0,
+        "label": "element",
+        "range": "",
+        "type": "ANY"
+      },
+      {
+        "doc": "Bang when a fetch finds the array empty — there is nothing to wrap onto: a modulus of zero names no position, so the miss the wrapping removed everywhere else survives exactly here. An unnamed (private) array is always empty. One bang even for a list fetch — no partial reply. A lost try-lock is a counted refusal instead: the array's state is unknown, so neither outlet fires.",
+        "index": 1,
+        "label": "empty",
+        "range": "",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every fetch bangs the empty outlet.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "0",
+        "doc": "The initial stored index — the position a bang fetches before any int has moved it. Any sign: it wraps against the length at the moment of the fetch, so -1 is the last element.",
+        "name": "index",
+        "range": "any int"
+      }
+    ]
+  },
   ".asin": {
     "category": "MATH",
     "description": "Control-rate arc-sine. Emits asin(in) in radians as a float whenever inlet 0 fires. Inputs outside -1 to 1 have no real arc-sine and emit 0 rather than a NaN.",

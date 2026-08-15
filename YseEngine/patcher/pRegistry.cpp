@@ -48,6 +48,7 @@
 #include "genericObjects/gArrayStream.h"
 #include "genericObjects/gArrayThin.h"
 #include "genericObjects/gArrayTuplewise.h"
+#include "genericObjects/gArrayWrap.h"
 #include "genericObjects/gArrayPosition.h"
 #include "genericObjects/gArraySetOps.h"
 #include "genericObjects/gArraySlice.h"
@@ -808,6 +809,14 @@ pRegistry::pRegistry() {
   // the position, compiled once on the control thread. The result is as long
   // as the shorter array and leaves as the list it spells (issue #808)
   Add(OBJ::G_ARRAY_TUPLEWISE, gArrayTuplewise::Create);
+
+  // The wrapping fetch: the element at an index taken modulo the length, so
+  // every index lands — negatives count from the end — where .array.at
+  // misses and refuses; the alternative the family's index-is-a-position
+  // rule exists alongside of. A list of indices is answered whole under one
+  // hold of the store's guard, and an empty array bangs the empty outlet —
+  // nothing to wrap onto (issue #809)
+  Add(OBJ::G_ARRAY_WRAP, gArrayWrap::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which

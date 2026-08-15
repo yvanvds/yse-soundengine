@@ -76,7 +76,7 @@ namespace YSE {
    *    ``G_ARRAY_FOREACH``, ``G_ARRAY_CHANGE``, ``G_ARRAY_COMPARE``,
    *    ``G_ARRAY_GROUP``, ``G_ARRAY_REPLACE``, ``G_ARRAY_REGEXP``,
    *    ``G_ARRAY_ROUTEPASS``, ``G_ARRAY_RANDOM``, ``G_ARRAY_STREAM``,
-   *    ``G_ARRAY_THIN``, ``G_ARRAY_TUPLEWISE``.
+   *    ``G_ARRAY_THIN``, ``G_ARRAY_TUPLEWISE``, ``G_ARRAY_WRAP``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -776,6 +776,18 @@ namespace YSE {
     // spells, and the left element passes through for a pair the expression
     // cannot see.
     DEFOBJ(G_ARRAY_TUPLEWISE, ".array.tuplewise");
+
+    // The wrapping fetch (issue #809): the element at an index taken modulo
+    // the length, so every index lands — 5 into a three-element array reads
+    // position 2 and -1 the last element, the modulo addressing a sequencer
+    // does every bar. The family treats an index as a position — out of
+    // range a miss, negative a refusal, decided once on ``arrayStore`` — and
+    // this is the object that exists to provide the alternative, which is
+    // why its inlets are ``.array.at``'s: an int fetches and stores, a bang
+    // re-fetches, a list is answered whole in the order asked. An empty
+    // array bangs the empty outlet — nothing to wrap onto, the one miss the
+    // wrapping cannot remove.
+    DEFOBJ(G_ARRAY_WRAP, ".array.wrap");
 
     DEFOBJ(G_PRINT, ".print");
 
