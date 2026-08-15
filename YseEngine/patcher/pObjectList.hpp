@@ -74,7 +74,7 @@ namespace YSE {
    *    ``G_ARRAY_EXPR``, ``G_ARRAY_MAP``, ``G_ARRAY_FILTER``,
    *    ``G_ARRAY_REDUCE``, ``G_ARRAY_EVERY``, ``G_ARRAY_SOME``,
    *    ``G_ARRAY_FOREACH``, ``G_ARRAY_CHANGE``, ``G_ARRAY_COMPARE``,
-   *    ``G_ARRAY_GROUP``.
+   *    ``G_ARRAY_GROUP``, ``G_ARRAY_REPLACE``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -698,6 +698,19 @@ namespace YSE {
     // sent. Deliberately not Max's count batcher of the same name — on the
     // value model that accumulation is ``.array``'s own ``append``.
     DEFOBJ(G_ARRAY_GROUP, ".array.group");
+
+    // The search-and-replace (issue #802): the mutating half of the search
+    // pair — ``.array.indexof`` answers where a value is, this rewrites it.
+    // EVERY occurrence is replaced (first-only is already ``.array.indexof``
+    // into ``.array``'s own ``set``), equality is the spelling, and the
+    // number of elements rewritten leaves the count outlet before the
+    // reference — right to left — so a patch can tell replaced-nothing from
+    // replaced-everything: a replace that matched nothing still landed and
+    // reports 0, where a refused one reports nothing. Find hot, replacement
+    // cold, both seeded by creation arguments; the whole replace is one hold
+    // of the store's guard, and nothing renumbers — every element keeps its
+    // position, only its spelling changes.
+    DEFOBJ(G_ARRAY_REPLACE, ".array.replace");
 
     DEFOBJ(G_PRINT, ".print");
 

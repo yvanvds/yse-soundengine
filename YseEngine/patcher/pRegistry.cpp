@@ -41,6 +41,7 @@
 #include "genericObjects/gArrayIndexMap.h"
 #include "genericObjects/gArrayLength.h"
 #include "genericObjects/gArrayPermute.h"
+#include "genericObjects/gArrayReplace.h"
 #include "genericObjects/gArrayPosition.h"
 #include "genericObjects/gArraySetOps.h"
 #include "genericObjects/gArraySlice.h"
@@ -742,6 +743,15 @@ pRegistry::pRegistry() {
   // batcher of the same name — on the value model that accumulation is
   // .array's own append (issue #801)
   Add(OBJ::G_ARRAY_GROUP, gArrayGroup::Create);
+
+  // The search-and-replace: every element spelling the find value is
+  // rewritten as the replacement — every occurrence, equality by the
+  // spelling — and the number rewritten leaves the count outlet before the
+  // reference, right to left, so a patch can tell replaced-nothing from
+  // replaced-everything. Find hot, replacement cold, both seeded by creation
+  // arguments; one hold of the store's guard, and nothing renumbers (issue
+  // #802)
+  Add(OBJ::G_ARRAY_REPLACE, gArrayReplace::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which

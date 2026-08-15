@@ -2590,6 +2590,82 @@
       }
     ]
   },
+  ".array.replace": {
+    "category": "GENERIC",
+    "description": "Replaces occurrences of a value — Max's array.replace on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.replace <name> [<find>] [<replace>]\", because an array is addressed by name and never passed down a cord. EVERY occurrence is replaced — the use case is retuning every occurrence of one pitch, and first-only is already .array.indexof into .array's own set — and equality is the spelling: an int 7 matches the element \"7\", a float 7. matches \"7.\", and the two are different elements. An int, a float or a symbol on the find inlet stores the find value and replaces now; a bang re-replaces with the stored values, and the message an .array's reference outlet emits on a bang does the same — the family's gesture. The replacement inlet stores its value silently, the cold half of the idiom. The number of elements rewritten leaves the count outlet before the reference — right to left — which is the only way a patch can tell replaced-nothing from replaced-everything: a replace that matched nothing still landed and announces with count 0, where a refused one (a lost try-lock, a trigger before both values exist) emits nothing. The whole replace is one hold of the store's guard, and nothing renumbers: every element keeps its position, only its spelling changes.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "An int, a float or a symbol stores the find value and replaces every occurrence of it now; a bang re-replaces with the stored find and replacement. Equality is the spelling — 7 matches \"7\", 7. matches \"7.\", and the two are different elements — and the match is case-sensitive, as every comparison in this patcher is. \"array <name>\" replaces with the stored values when it names the array bound by the creation argument — the message an .array's reference outlet emits on a bang, the family's gesture. A trigger before both values exist is refused whole and stores nothing: malformed, not a miss. A multi-atom list, a non-finite float, an atom past 64 characters, or a reference naming anything else is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "index": 0,
+        "label": "find",
+        "range": "one atom, at most 64 characters"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "An int, a float or a symbol stores the replacement, silently — the cold half of the idiom, .array.fill's count inlet with an atom where the number was: nothing is rewritten until the find inlet triggers. One atom, at most 64 characters; a non-finite float is refused (it has no spelling that reads back), and a reference is two atoms and refused with every other multi-atom list — an identity is not an element.",
+        "index": 1,
+        "label": "replacement",
+        "range": "one atom, at most 64 characters"
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "\"array <name>\" is accepted silently when it names the array bound by the creation argument, so a patch may wire the array's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "index": 2,
+        "label": "array reference",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".array.replace",
+    "outlets": [
+      {
+        "doc": "The bound array's reference, \"array <name>\", sent after a replace that landed — the way an array leaves an object on the value model, so wiring it onward chains the family: into .array.length it proves a replace never resizes. Sent after the count outlet, Max's outlets firing right to left. A refused replace emits nothing, and an unnamed object stays silent — the rewrite happens, but there is no name to pass on.",
+        "index": 0,
+        "label": "reference",
+        "range": "",
+        "type": "LIST"
+      },
+      {
+        "doc": "How many elements were rewritten, sent first — right to left — because it is the only way a patch can tell replaced-nothing from replaced-everything: a replace that matched nothing still landed and reports 0, where a refused one reports nothing at all. Replacing a value with itself lands too, and counts its occurrences. An unnamed (private) array counts as well — an answer is a value, not an identity.",
+        "index": 1,
+        "label": "count",
+        "range": "0-256",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty rewrites a private, empty array: the replace lands with count 0 and no reference leaves.",
+        "name": "name",
+        "range": "any identifier"
+      },
+      {
+        "default": "",
+        "doc": "The initial stored find value — what a bang replaces before any value has arrived on the find inlet. One atom, exactly as every value the inlet takes; absent means no value, and a trigger before one arrives is refused.",
+        "name": "find",
+        "range": "one atom, at most 64 characters"
+      },
+      {
+        "default": "",
+        "doc": "The initial stored replacement — what occurrences of the find value become. One atom, at most 64 characters; absent means no value, and a trigger before one arrives is refused: a replace with nothing to write is malformed, where erasing is .array's own delete.",
+        "name": "replace",
+        "range": "one atom, at most 64 characters"
+      }
+    ]
+  },
   ".array.reverse": {
     "category": "GENERIC",
     "description": "Reverses an array's order — Max's array.reverse on the name-addressed value model .array settled: the array is bound from the creation argument, \".array.reverse <name>\", because an array is addressed by name and never passed down a cord. A bang reverses the bound array in place — element i becomes element length-1-i, the whole reversal one hold of the store's guard through a scratch table the object owns, so the order applied is the array as it stood at the trigger. The message an .array's reference outlet emits on a bang triggers the same reversal, the family's gesture, and a reversal that lands emits the array's reference, so the family chains. An empty array reverses to itself and still announces.",
