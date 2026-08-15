@@ -37,9 +37,14 @@
 #include "genericObjects/gArrayFill.h"
 #include "genericObjects/gArrayFind.h"
 #include "genericObjects/gArrayFlatten.h"
+#include "genericObjects/gArrayGroup.h"
 #include "genericObjects/gArrayIndexMap.h"
 #include "genericObjects/gArrayLength.h"
 #include "genericObjects/gArrayPermute.h"
+#include "genericObjects/gArrayRandom.h"
+#include "genericObjects/gArrayRegexp.h"
+#include "genericObjects/gArrayReplace.h"
+#include "genericObjects/gArrayRoutepass.h"
 #include "genericObjects/gArrayPosition.h"
 #include "genericObjects/gArraySetOps.h"
 #include "genericObjects/gArraySlice.h"
@@ -730,6 +735,50 @@ pRegistry::pRegistry() {
   // arrangement (issue #800)
   Add(OBJ::G_ARRAY_CHANGE, gArrayChange::Create);
   Add(OBJ::G_ARRAY_COMPARE, gArrayCompare::Create);
+
+  // The bucketer: the array's elements grouped by value — one message per
+  // distinct value, each bucket whole (the value repeated as often as it
+  // occurs, so its length is the value's frequency), buckets in
+  // first-occurrence order, equality by the spelling, then the done bang —
+  // .array.iter's per-message shape over the same snapshot and the same
+  // re-entrant refusal. A grouping any bucket of which cannot leave whole is
+  // refused whole before anything is sent. Deliberately not Max's count
+  // batcher of the same name — on the value model that accumulation is
+  // .array's own append (issue #801)
+  Add(OBJ::G_ARRAY_GROUP, gArrayGroup::Create);
+
+  // The search-and-replace: every element spelling the find value is
+  // rewritten as the replacement — every occurrence, equality by the
+  // spelling — and the number rewritten leaves the count outlet before the
+  // reference, right to left, so a patch can tell replaced-nothing from
+  // replaced-everything. Find hot, replacement cold, both seeded by creation
+  // arguments; one hold of the store's guard, and nothing renumbers (issue
+  // #802)
+  Add(OBJ::G_ARRAY_REPLACE, gArrayReplace::Create);
+
+  // The pattern filter: the elements a regular expression matches leave as
+  // one typed message — order kept, repeats kept — or the no-match outlet
+  // bangs. The pattern is one token, compiled once on the control thread by
+  // .regexp's bounded engine (no std::regex); the scan is one hold of the
+  // store's guard with a shared step budget, and a matched list that cannot
+  // leave whole, a dry budget or a lost try-lock refuse the whole ask (issue
+  // #803)
+  Add(OBJ::G_ARRAY_REGEXP, gArrayRegexp::Create);
+
+  // The dispatcher: route an array by the values it holds — the reference,
+  // never the contents, leaves the outlet of the leftmost value argument
+  // some element spells exactly, or the rightmost reject when none is
+  // present. One bounded presence scan per value under one hold of the
+  // store's guard, released before the send (issue #804)
+  Add(OBJ::G_ARRAY_ROUTEPASS, gArrayRoutepass::Create);
+
+  // The picker: one random element out — the length read, the position drawn
+  // and the element copied out under one hold of the store's guard, from the
+  // per-object seedable source .drunk, .urn and .array.scramble share, with
+  // exactly one draw per element that leaves so a seeded patch replays its
+  // picks. Repeats allowed; an empty or unnamed array bangs the empty outlet
+  // instead, taking no draw (issue #805)
+  Add(OBJ::G_ARRAY_RANDOM, gArrayRandom::Create);
 
   // An unordered collection of numbers a patch adds to and removes from — the
   // multiset .coll's addressed store is not, and the object that answers "which

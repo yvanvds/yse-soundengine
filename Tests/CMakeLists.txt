@@ -102,6 +102,11 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_array_iter.cpp
   patcher/test_patcher_array_expr.cpp
   patcher/test_patcher_array_compare.cpp
+  patcher/test_patcher_array_group.cpp
+  patcher/test_patcher_array_replace.cpp
+  patcher/test_patcher_array_regexp.cpp
+  patcher/test_patcher_array_routepass.cpp
+  patcher/test_patcher_array_random.cpp
   patcher/test_patcher_bag.cpp
   patcher/test_patcher_capture.cpp
   patcher/test_patcher_funbuff.cpp
@@ -1119,6 +1124,11 @@ set_source_files_properties(
   patcher/test_patcher_array_iter.cpp
   patcher/test_patcher_array_expr.cpp
   patcher/test_patcher_array_compare.cpp
+  patcher/test_patcher_array_group.cpp
+  patcher/test_patcher_array_replace.cpp
+  patcher/test_patcher_array_regexp.cpp
+  patcher/test_patcher_array_routepass.cpp
+  patcher/test_patcher_array_random.cpp
   patcher/test_patcher_bag.cpp
   patcher/test_patcher_capture.cpp
   patcher/test_patcher_funbuff.cpp

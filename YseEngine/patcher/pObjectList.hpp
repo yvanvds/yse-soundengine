@@ -73,7 +73,9 @@ namespace YSE {
    *    ``G_ARRAY_TOSYMBOL``, ``G_ARRAY_DESERIALIZE``, ``G_ARRAY_ITER``,
    *    ``G_ARRAY_EXPR``, ``G_ARRAY_MAP``, ``G_ARRAY_FILTER``,
    *    ``G_ARRAY_REDUCE``, ``G_ARRAY_EVERY``, ``G_ARRAY_SOME``,
-   *    ``G_ARRAY_FOREACH``, ``G_ARRAY_CHANGE``, ``G_ARRAY_COMPARE``.
+   *    ``G_ARRAY_FOREACH``, ``G_ARRAY_CHANGE``, ``G_ARRAY_COMPARE``,
+   *    ``G_ARRAY_GROUP``, ``G_ARRAY_REPLACE``, ``G_ARRAY_REGEXP``,
+   *    ``G_ARRAY_ROUTEPASS``, ``G_ARRAY_RANDOM``.
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
@@ -683,6 +685,62 @@ namespace YSE {
     // ever held at once) and answers 1/0 on every ask.
     DEFOBJ(G_ARRAY_CHANGE, ".array.change");
     DEFOBJ(G_ARRAY_COMPARE, ".array.compare");
+
+    // The bucketer (issue #801): the array's elements grouped by value — one
+    // message per distinct value out the group outlet, each bucket whole (the
+    // value repeated as often as it occurs, so its length is the value's
+    // frequency), buckets in order of first occurrence and equality by the
+    // spelling, ``.array.mode``'s rule — then a bang out the done outlet. An
+    // element is one atom, so a group of groups cannot leave as one value;
+    // the per-bucket message is ``.array.iter``'s shape, over the same
+    // snapshot (a write arriving mid-grouping moves the array, never the
+    // buckets in flight) and the same re-entrant refusal. A grouping any
+    // bucket of which cannot leave whole is refused whole before anything is
+    // sent. Deliberately not Max's count batcher of the same name — on the
+    // value model that accumulation is ``.array``'s own ``append``.
+    DEFOBJ(G_ARRAY_GROUP, ".array.group");
+
+    // The search-and-replace (issue #802): the mutating half of the search
+    // pair — ``.array.indexof`` answers where a value is, this rewrites it.
+    // EVERY occurrence is replaced (first-only is already ``.array.indexof``
+    // into ``.array``'s own ``set``), equality is the spelling, and the
+    // number of elements rewritten leaves the count outlet before the
+    // reference — right to left — so a patch can tell replaced-nothing from
+    // replaced-everything: a replace that matched nothing still landed and
+    // reports 0, where a refused one reports nothing. Find hot, replacement
+    // cold, both seeded by creation arguments; the whole replace is one hold
+    // of the store's guard, and nothing renumbers — every element keeps its
+    // position, only its spelling changes.
+    DEFOBJ(G_ARRAY_REPLACE, ".array.replace");
+
+    // The pattern filter (issue #803): the elements a regular expression
+    // matches, sent as one typed message — order kept, repeats kept — or a
+    // no-match bang when nothing matched. The text filter ``.array.filter``
+    // cannot be, since its expression never sees a symbol; the pattern is one
+    // token, compiled once on the control thread by ``.regexp``'s bounded
+    // engine, and the whole scan is one hold of the store's guard with a step
+    // budget shared across every element. Deliberately not Max's byte-buffer
+    // ``array.regexp`` — on the value model an array is not a subject buffer,
+    // and the per-element reporting is ``.array.iter`` into ``.regexp``.
+    DEFOBJ(G_ARRAY_REGEXP, ".array.regexp");
+
+    // The dispatcher (issue #804): route an array by the values it holds —
+    // ``.route``'s job with the array as the selector, ``.dict.route``'s
+    // shape on sequences. One outlet per value argument plus a rightmost
+    // reject; a trigger sends the array's reference, never its contents, out
+    // the outlet of the leftmost value some element spells exactly — the
+    // family's byte compare, presence anywhere in the array. The decision is
+    // one hold of the store's guard, released before the send.
+    DEFOBJ(G_ARRAY_ROUTEPASS, ".array.routepass");
+
+    // The picker (issue #805): one random element out — one guarded read at
+    // a position drawn from the per-object, seedable source .drunk, .urn and
+    // .array.scramble share, exactly one draw per element that leaves, so a
+    // seeded patch replays its picks. Repeats allowed — drawing without
+    // replacement is .urn's behaviour, a second object rather than a mode.
+    // The element leaves typed by its spelling; an empty or unnamed
+    // (private) array bangs the empty outlet instead, taking no draw.
+    DEFOBJ(G_ARRAY_RANDOM, ".array.random");
 
     DEFOBJ(G_PRINT, ".print");
 

@@ -382,6 +382,31 @@ void patcherImplementation::SetName(const std::string& n) {
       // its baseline along with the left binding and compare's re-anchors
       // the right array, gArraySetOpBase's arrangement (issue #800).
       static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_GROUP) == 0) {
+      // And the bucketer, whose binding lives on that same shared base: a
+      // renamed patcher's groupings must bucket the array its other objects
+      // now speak about (issue #801).
+      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_REPLACE) == 0) {
+      // And the search-and-replace, whose binding lives on that same shared
+      // base: a renamed patcher's rewrites must act on the array its other
+      // objects now speak about (issue #802).
+      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_REGEXP) == 0) {
+      // And the pattern filter, whose binding lives on that same shared base:
+      // a renamed patcher's matches must read the array its other objects now
+      // speak about (issue #803).
+      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_ROUTEPASS) == 0) {
+      // And the dispatcher, whose binding lives on that same shared base: a
+      // renamed patcher's routes must test the array its other objects now
+      // speak about (issue #804).
+      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
+    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_RANDOM) == 0) {
+      // And the picker, whose binding lives on that same shared base: a
+      // renamed patcher's picks must read the array its other objects now
+      // speak about (issue #805).
+      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
     } else if (strcmp(x.second->Type(), OBJ::G_BAG) == 0) {
       // And gBag, whose `send` message prefixes a runtime receive name with
       // "<patcherName>." exactly as gForward does, so it has to re-anchor with
